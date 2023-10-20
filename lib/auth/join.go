@@ -18,14 +18,19 @@ package auth
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/base64"
 	"fmt"
 	"strings"
 
+	"github.com/gravitational/trace"
+	"golang.org/x/exp/slices"
+
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/backend"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/trace"
+	"github.com/gravitational/teleport/lib/events"
 )
 
 // tokenJoinMethod returns the join method of the token with the given tokenName
@@ -81,6 +86,12 @@ func (a *Server) checkTokenJoinRequestCommon(ctx context.Context, req *types.Reg
 	return provisionToken, nil
 }
 
+type joinAttributeSourcer interface {
+	// JoinAuditAttributes returns a series of attributes that can be inserted into
+	// audit events related to a specific join.
+	JoinAuditAttributes() (map[string]interface{}, error)
+}
+
 // RegisterUsingToken returns credentials for a new node to join the Teleport
 // cluster using a previously issued token.
 //
@@ -98,20 +109,47 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 		return nil, trace.Wrap(err)
 	}
 
-	switch a.tokenJoinMethod(ctx, req.Token) {
+	var joinAttributeSrc joinAttributeSourcer
+	switch method := a.tokenJoinMethod(ctx, req.Token); method {
 	case types.JoinMethodEC2:
 		if err := a.checkEC2JoinRequest(ctx, req); err != nil {
 			return nil, trace.Wrap(err)
 		}
-	case types.JoinMethodIAM:
-		// IAM join method must use the gRPC RegisterUsingIAMMethod
-		return nil, trace.AccessDenied("this token is only valid for the IAM " +
-			"join method but the node has connected to the wrong endpoint, make " +
-			"sure your node is configured to use the IAM join method")
+	case types.JoinMethodIAM, types.JoinMethodAzure:
+		// IAM and Azure join methods must use gRPC register methods
+		return nil, trace.AccessDenied("this token is only valid for the %s "+
+			"join method but the node has connected to the wrong endpoint, make "+
+			"sure your node is configured to use the %s join method", method, method)
 	case types.JoinMethodGitHub:
-		if err := a.checkGitHubJoinRequest(ctx, req); err != nil {
+		claims, err := a.checkGitHubJoinRequest(ctx, req)
+		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+		joinAttributeSrc = claims
+	case types.JoinMethodGitLab:
+		claims, err := a.checkGitLabJoinRequest(ctx, req)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		joinAttributeSrc = claims
+	case types.JoinMethodCircleCI:
+		claims, err := a.checkCircleCIJoinRequest(ctx, req)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		joinAttributeSrc = claims
+	case types.JoinMethodKubernetes:
+		claims, err := a.checkKubernetesJoinRequest(ctx, req)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		joinAttributeSrc = claims
+	case types.JoinMethodGCP:
+		claims, err := a.checkGCPJoinRequest(ctx, req)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		joinAttributeSrc = claims
 	case types.JoinMethodToken:
 		// carry on to common token checking logic
 	default:
@@ -127,56 +165,105 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 		return nil, trace.Wrap(err)
 	}
 
-	certs, err := a.generateCerts(ctx, provisionToken, req)
+	// With all elements of the token validated, we can now generate & return
+	// certificates.
+	if req.Role == types.RoleBot {
+		certs, err := a.generateCertsBot(ctx, provisionToken, req, joinAttributeSrc)
+		return certs, trace.Wrap(err)
+	}
+	certs, err := a.generateCerts(ctx, provisionToken, req, joinAttributeSrc)
 	return certs, trace.Wrap(err)
 }
 
-func (a *Server) generateCerts(ctx context.Context, provisionToken types.ProvisionToken, req *types.RegisterUsingTokenRequest) (*proto.Certs, error) {
-	if req.Role == types.RoleBot {
-		// bots use this endpoint but get a user cert
-		// botResourceName must be set, enforced in CheckAndSetDefaults
-		botName := provisionToken.GetBotName()
+func (a *Server) generateCertsBot(
+	ctx context.Context,
+	provisionToken types.ProvisionToken,
+	req *types.RegisterUsingTokenRequest,
+	joinAttributeSrc joinAttributeSourcer,
+) (*proto.Certs, error) {
+	// bots use this endpoint but get a user cert
+	// botResourceName must be set, enforced in CheckAndSetDefaults
+	botName := provisionToken.GetBotName()
+	joinMethod := provisionToken.GetJoinMethod()
 
-		// Append `bot-` to the bot name to derive its username.
-		botResourceName := BotResourceName(botName)
-		expires := a.GetClock().Now().Add(defaults.DefaultRenewableCertTTL)
+	// Check this is a join method for bots we support.
+	if !slices.Contains(supportedBotJoinMethods, joinMethod) {
+		return nil, trace.BadParameter(
+			"unsupported join method %q for bot", joinMethod,
+		)
+	}
 
-		joinMethod := provisionToken.GetJoinMethod()
+	// Most join methods produce non-renewable certificates and join must be
+	// called again to fetch fresh certificates with a longer lifetime. These
+	// join methods do not delete the token after use.
+	renewable := false
+	shouldDeleteToken := false
+	if joinMethod == types.JoinMethodToken {
+		// The token join method is special and produces renewable certificates
+		// but the token is deleted after use.
+		shouldDeleteToken = true
+		renewable = true
+	}
 
-		// Repeatable join methods (e.g IAM) should not produce renewable
-		// certificates. Ephemeral join methods (e.g Token) should produce
-		// renewable certificates, but the token should be deleted after use.
-		var renewable bool
-		var shouldDeleteToken bool
-		switch joinMethod {
-		case types.JoinMethodToken:
-			shouldDeleteToken = true
-			renewable = true
-		case types.JoinMethodIAM, types.JoinMethodGitHub:
-			shouldDeleteToken = false
-			renewable = false
-		default:
-			return nil, trace.BadParameter(
-				"unsupported join method %q for bot", joinMethod,
+	expires := a.GetClock().Now().Add(defaults.DefaultRenewableCertTTL)
+	if req.Expires != nil {
+		expires = *req.Expires
+	}
+
+	certs, err := a.generateInitialBotCerts(
+		ctx, BotResourceName(botName), req.PublicSSHKey, expires, renewable,
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if shouldDeleteToken {
+		// delete ephemeral bot join tokens so they can't be re-used
+		if err := a.DeleteToken(ctx, provisionToken.GetName()); err != nil {
+			log.WithError(err).Warnf("Could not delete bot provision token %q after generating certs",
+				provisionToken.GetSafeName(),
 			)
 		}
-		certs, err := a.generateInitialBotCerts(
-			ctx, botResourceName, req.PublicSSHKey, expires, renewable,
-		)
+	}
+
+	// Emit audit event for bot join.
+	log.Infof("Bot %q has joined the cluster.", botName)
+	joinEvent := &apievents.BotJoin{
+		Metadata: apievents.Metadata{
+			Type: events.BotJoinEvent,
+			Code: events.BotJoinCode,
+		},
+		Status: apievents.Status{
+			Success: true,
+		},
+		BotName:   botName,
+		Method:    string(joinMethod),
+		TokenName: provisionToken.GetSafeName(),
+	}
+	if joinAttributeSrc != nil {
+		attributes, err := joinAttributeSrc.JoinAuditAttributes()
 		if err != nil {
-			return nil, trace.Wrap(err)
+			log.WithError(err).Warn("Unable to fetch join attributes from join method.")
 		}
-
-		if shouldDeleteToken {
-			// delete ephemeral bot join tokens so they can't be re-used
-			if err := a.DeleteToken(ctx, provisionToken.GetName()); err != nil {
-				log.WithError(err).Warnf("Could not delete bot provision token %q after generating certs",
-					string(backend.MaskKeyName(provisionToken.GetName())))
-			}
+		joinEvent.Attributes, err = apievents.EncodeMap(attributes)
+		if err != nil {
+			log.WithError(err).Warn("Unable to encode join attributes for audit event.")
 		}
+	}
+	if err := a.emitter.EmitAuditEvent(ctx, joinEvent); err != nil {
+		log.WithError(err).Warn("Failed to emit bot join event.")
+	}
+	return certs, nil
+}
 
-		log.Infof("Bot %q has joined the cluster.", botName)
-		return certs, nil
+func (a *Server) generateCerts(
+	ctx context.Context,
+	provisionToken types.ProvisionToken,
+	req *types.RegisterUsingTokenRequest,
+	joinAttributeSrc joinAttributeSourcer,
+) (*proto.Certs, error) {
+	if req.Expires != nil {
+		return nil, trace.BadParameter("'expires' cannot be set on join for non-bot certificates")
 	}
 
 	// instance certs include an additional field that specifies the list of
@@ -208,6 +295,51 @@ func (a *Server) generateCerts(ctx context.Context, provisionToken types.Provisi
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	log.Infof("Node %q [%v] has joined the cluster.", req.NodeName, req.HostID)
+
+	// Emit audit event
+	if req.Role == types.RoleInstance {
+		log.Infof("Instance %q [%v] has joined the cluster. role=%s, systemRoles=%+v", req.NodeName, req.HostID, req.Role, systemRoles)
+	} else {
+		log.Infof("Instance %q [%v] has joined the cluster. role=%s", req.NodeName, req.HostID, req.Role)
+	}
+	joinEvent := &apievents.InstanceJoin{
+		Metadata: apievents.Metadata{
+			Type: events.InstanceJoinEvent,
+			Code: events.InstanceJoinCode,
+		},
+		Status: apievents.Status{
+			Success: true,
+		},
+		NodeName:     req.NodeName,
+		Role:         string(req.Role),
+		Method:       string(provisionToken.GetJoinMethod()),
+		TokenName:    provisionToken.GetSafeName(),
+		TokenExpires: provisionToken.Expiry(),
+		HostID:       req.HostID,
+	}
+	if joinAttributeSrc != nil {
+		attributes, err := joinAttributeSrc.JoinAuditAttributes()
+		if err != nil {
+			log.WithError(err).Warn("Unable to fetch join attributes from join method.")
+		}
+		joinEvent.Attributes, err = apievents.EncodeMap(attributes)
+		if err != nil {
+			log.WithError(err).Warn("Unable to encode join attributes for audit event.")
+		}
+	}
+	if err := a.emitter.EmitAuditEvent(ctx, joinEvent); err != nil {
+		log.WithError(err).Warn("Failed to emit instance join event.")
+	}
 	return certs, nil
+}
+
+func generateChallenge(encoding *base64.Encoding, length int) (string, error) {
+	// read crypto-random bytes to generate the challenge
+	challengeRawBytes := make([]byte, length)
+	if _, err := rand.Read(challengeRawBytes); err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	// encode the challenge to base64 so it can be sent over HTTP
+	return encoding.EncodeToString(challengeRawBytes), nil
 }

@@ -39,15 +39,17 @@ import (
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend/lite"
+	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/fixtures"
-	"github.com/gravitational/teleport/lib/pam"
+	restricted "github.com/gravitational/teleport/lib/restrictedsession"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-func NewTestServerContext(t *testing.T, srv Server, roleSet services.RoleSet) *ServerContext {
+func newTestServerContext(t *testing.T, srv Server, roleSet services.RoleSet) *ServerContext {
 	usr, err := user.Current()
 	require.NoError(t, err)
 
@@ -59,6 +61,8 @@ func NewTestServerContext(t *testing.T, srv Server, roleSet services.RoleSet) *S
 	sshConn.remoteAddr, _ = utils.ParseAddr("10.0.0.5:4817")
 
 	ctx, cancel := context.WithCancel(context.Background())
+	recConfig := types.DefaultSessionRecordingConfig()
+	recConfig.SetMode(types.RecordOff)
 	clusterName := "localhost"
 	scx := &ServerContext{
 		Entry: logrus.NewEntry(logrus.StandardLogger()),
@@ -66,7 +70,7 @@ func NewTestServerContext(t *testing.T, srv Server, roleSet services.RoleSet) *S
 			ServerConn: &ssh.ServerConn{Conn: sshConn},
 		},
 		env:                    make(map[string]string),
-		SessionRecordingConfig: types.DefaultSessionRecordingConfig(),
+		SessionRecordingConfig: recConfig,
 		IsTestStub:             true,
 		ClusterName:            clusterName,
 		srv:                    srv,
@@ -92,12 +96,18 @@ func NewTestServerContext(t *testing.T, srv Server, roleSet services.RoleSet) *S
 	scx.contr, scx.contw, err = os.Pipe()
 	require.NoError(t, err)
 
+	scx.readyr, scx.readyw, err = os.Pipe()
+	require.NoError(t, err)
+
+	scx.killShellr, scx.killShellw, err = os.Pipe()
+	require.NoError(t, err)
+
 	t.Cleanup(func() { require.NoError(t, scx.Close()) })
 
 	return scx
 }
 
-func NewMockServer(t *testing.T) *MockServer {
+func newMockServer(t *testing.T) *mockServer {
 	ctx := context.Background()
 	clock := clockwork.NewFakeClock()
 
@@ -123,76 +133,80 @@ func NewMockServer(t *testing.T) *MockServer {
 		ClusterName:  clusterName,
 		StaticTokens: staticTokens,
 		KeyStoreConfig: keystore.Config{
-			RSAKeyPairSource: testauthority.New().GenerateKeyPair,
+			Software: keystore.SoftwareConfig{
+				RSAKeyPairSource: testauthority.New().GenerateKeyPair,
+			},
 		},
 	}
 
 	authServer, err := auth.NewServer(authCfg, auth.WithClock(clock))
 	require.NoError(t, err)
 
-	return &MockServer{
-		auth:        authServer,
-		MockEmitter: &eventstest.MockEmitter{},
-		clock:       clock,
+	return &mockServer{
+		auth:                authServer,
+		datadir:             t.TempDir(),
+		MockRecorderEmitter: &eventstest.MockRecorderEmitter{},
+		clock:               clock,
 	}
 }
 
-type MockServer struct {
-	*eventstest.MockEmitter
+type mockServer struct {
+	*eventstest.MockRecorderEmitter
+	datadir   string
 	auth      *auth.Server
 	component string
 	clock     clockwork.FakeClock
 }
 
 // ID is the unique ID of the server.
-func (m *MockServer) ID() string {
+func (m *mockServer) ID() string {
 	return "testID"
 }
 
 // HostUUID is the UUID of the underlying host. For the forwarding
 // server this is the proxy the forwarding server is running in.
-func (m *MockServer) HostUUID() string {
+func (m *mockServer) HostUUID() string {
 	return "testHostUUID"
 }
 
 // GetNamespace returns the namespace the server was created in.
-func (m *MockServer) GetNamespace() string {
+func (m *mockServer) GetNamespace() string {
 	return "testNamespace"
 }
 
 // AdvertiseAddr is the publicly addressable address of this server.
-func (m *MockServer) AdvertiseAddr() string {
+func (m *mockServer) AdvertiseAddr() string {
 	return "testAdvertiseAddr"
 }
 
 // Component is the type of server, forwarding or regular.
-func (m *MockServer) Component() string {
+func (m *mockServer) Component() string {
 	return m.component
 }
 
 // PermitUserEnvironment returns if reading environment variables upon
 // startup is allowed.
-func (m *MockServer) PermitUserEnvironment() bool {
+func (m *mockServer) PermitUserEnvironment() bool {
 	return false
 }
 
 // GetAccessPoint returns an AccessPoint for this cluster.
-func (m *MockServer) GetAccessPoint() AccessPoint {
+func (m *mockServer) GetAccessPoint() AccessPoint {
 	return m.auth
 }
 
 // GetDataDir returns data directory of the server
-func (m *MockServer) GetDataDir() string {
-	return "testDataDir"
+func (m *mockServer) GetDataDir() string {
+	return m.datadir
 }
 
 // GetPAM returns PAM configuration for this server.
-func (m *MockServer) GetPAM() (*pam.Config, error) {
-	return &pam.Config{}, nil
+func (m *mockServer) GetPAM() (*servicecfg.PAMConfig, error) {
+	return &servicecfg.PAMConfig{}, nil
 }
 
 // GetClock returns a clock setup for the server
-func (m *MockServer) GetClock() clockwork.Clock {
+func (m *mockServer) GetClock() clockwork.Clock {
 	if m.clock != nil {
 		return m.clock
 	}
@@ -200,7 +214,7 @@ func (m *MockServer) GetClock() clockwork.Clock {
 }
 
 // GetInfo returns a services.Server that represents this server.
-func (m *MockServer) GetInfo() types.Server {
+func (m *mockServer) GetInfo() types.Server {
 	hostname, err := os.Hostname()
 	if err != nil {
 		hostname = "localhost"
@@ -224,56 +238,55 @@ func (m *MockServer) GetInfo() types.Server {
 	}
 }
 
-func (m *MockServer) TargetMetadata() apievents.ServerMetadata {
+func (m *mockServer) TargetMetadata() apievents.ServerMetadata {
 	return apievents.ServerMetadata{}
 }
 
 // UseTunnel used to determine if this node has connected to this cluster
 // using reverse tunnel.
-func (m *MockServer) UseTunnel() bool {
+func (m *mockServer) UseTunnel() bool {
 	return false
 }
 
-// OpenBPFSession is a nop since the session must be run on the actual node
-func (m *MockServer) OpenBPFSession(ctx *ServerContext) (uint64, error) {
-	return 0, nil
+// GetBPF returns the BPF service used for enhanced session recording.
+func (m *mockServer) GetBPF() bpf.BPF {
+	return &bpf.NOP{}
 }
 
-// CloseBPFSession is anop since the session must be run on the actual node
-func (m *MockServer) CloseBPFSession(ctx *ServerContext) error {
-	return nil
+// GetRestrictedSessionManager returns the manager for restricting user activity
+func (m *mockServer) GetRestrictedSessionManager() restricted.Manager {
+	return &restricted.NOP{}
 }
-
-// OpenRestrictedSession is a nop since the session must be run on the actual node
-func (m *MockServer) OpenRestrictedSession(ctx *ServerContext, cgroupID uint64) {}
-
-// CloseRestrictedSession is a nop since the session must be run on the actual node
-func (m *MockServer) CloseRestrictedSession(ctx *ServerContext, cgroupID uint64) {}
 
 // Context returns server shutdown context
-func (m *MockServer) Context() context.Context {
+func (m *mockServer) Context() context.Context {
 	return context.Background()
 }
 
-// GetUtmpPath returns the path of the user accounting database and log. Returns empty for system defaults.
-func (m *MockServer) GetUtmpPath() (utmp, wtmp string) {
-	return "test", "test"
+// GetUserAccountingPaths returns the path of the user accounting database and log. Returns empty for system defaults.
+func (m *mockServer) GetUserAccountingPaths() (utmp, wtmp, btmp string) {
+	return "test", "test", "test"
 }
 
 // GetLockWatcher gets the server's lock watcher.
-func (m *MockServer) GetLockWatcher() *services.LockWatcher {
+func (m *mockServer) GetLockWatcher() *services.LockWatcher {
 	return nil
 }
 
 // GetCreateHostUser gets whether the server allows host user creation
 // or not
-func (m *MockServer) GetCreateHostUser() bool {
+func (m *mockServer) GetCreateHostUser() bool {
 	return false
 }
 
 // GetHostUsers
-func (m *MockServer) GetHostUsers() HostUsers {
+func (m *mockServer) GetHostUsers() HostUsers {
 	return nil
+}
+
+// GetHostSudoers
+func (m *mockServer) GetHostSudoers() HostSudoers {
+	return &HostSudoersNotImplemented{}
 }
 
 // Implementation of ssh.Conn interface.

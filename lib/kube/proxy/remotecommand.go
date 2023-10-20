@@ -25,17 +25,18 @@ import (
 	"strings"
 	"time"
 
-	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/httpstream"
 	spdystream "k8s.io/apimachinery/pkg/util/httpstream/spdy"
+	"k8s.io/apimachinery/pkg/util/httpstream/wsstream"
 	remotecommandconsts "k8s.io/apimachinery/pkg/util/remotecommand"
-	"k8s.io/apiserver/pkg/util/wsstream"
 	"k8s.io/client-go/tools/remotecommand"
 	utilexec "k8s.io/client-go/util/exec"
+
+	apievents "github.com/gravitational/teleport/api/types/events"
 )
 
 // remoteCommandRequest is a request to execute a remote command
@@ -55,13 +56,13 @@ type remoteCommandRequest struct {
 	pingPeriod         time.Duration
 }
 
-func (req remoteCommandRequest) eventPodMeta(ctx context.Context, creds *kubeCreds) apievents.KubernetesPodMetadata {
+func (req remoteCommandRequest) eventPodMeta(ctx context.Context, creds kubeCreds) apievents.KubernetesPodMetadata {
 	meta := apievents.KubernetesPodMetadata{
 		KubernetesPodName:       req.podName,
 		KubernetesPodNamespace:  req.podNamespace,
 		KubernetesContainerName: req.containerName,
 	}
-	if creds == nil || creds.kubeClient == nil {
+	if creds == nil || creds.getKubeClient() == nil {
 		return meta
 	}
 
@@ -69,7 +70,7 @@ func (req remoteCommandRequest) eventPodMeta(ctx context.Context, creds *kubeCre
 	//
 	// This can fail if a user has set tight RBAC rules for teleport. Failure
 	// here shouldn't prevent a session from starting.
-	pod, err := creds.kubeClient.CoreV1().Pods(req.podNamespace).Get(ctx, req.podName, metav1.GetOptions{})
+	pod, err := creds.getKubeClient().CoreV1().Pods(req.podNamespace).Get(ctx, req.podName, metav1.GetOptions{})
 	if err != nil {
 		log.WithError(err).Debugf("Failed fetching pod from kubernetes API; skipping additional metadata on the audit event")
 		return meta
@@ -121,12 +122,14 @@ func createSPDYStreams(req remoteCommandRequest) (*remoteCommandProxy, error) {
 
 	streamCh := make(chan streamAndReply)
 
+	ctx, cancel := context.WithCancel(req.context)
+	defer cancel()
 	upgrader := spdystream.NewResponseUpgraderWithPings(req.pingPeriod)
 	conn := upgrader.UpgradeResponse(req.httpResponseWriter, req.httpRequest, func(stream httpstream.Stream, replySent <-chan struct{}) error {
 		select {
 		case streamCh <- streamAndReply{Stream: stream, replySent: replySent}:
 			return nil
-		case <-req.context.Done():
+		case <-ctx.Done():
 			return trace.BadParameter("request has been canceled")
 		}
 	})
@@ -149,7 +152,8 @@ func createSPDYStreams(req remoteCommandRequest) (*remoteCommandProxy, error) {
 		log.Infof("Negotiated protocol %v.", protocol)
 		handler = &v4ProtocolHandler{}
 	default:
-		return nil, trace.BadParameter("protocol %v is not supported. upgrade the client", protocol)
+		err = trace.BadParameter("protocol %v is not supported. upgrade the client", protocol)
+		return nil, trace.NewAggregate(err, conn.Close())
 	}
 
 	// count the streams client asked for, starting with 1
@@ -170,9 +174,9 @@ func createSPDYStreams(req remoteCommandRequest) (*remoteCommandProxy, error) {
 	expired := time.NewTimer(DefaultStreamCreationTimeout)
 	defer expired.Stop()
 
-	proxy, err := handler.waitForStreams(req.context, streamCh, expectedStreams, expired.C)
+	proxy, err := handler.waitForStreams(ctx, streamCh, expectedStreams, expired.C)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.NewAggregate(err, conn.Close())
 	}
 
 	proxy.conn = conn
@@ -196,6 +200,10 @@ type remoteCommandProxy struct {
 func (s *remoteCommandProxy) Close() error {
 	if s.conn != nil {
 		return s.conn.Close()
+	}
+	// if resize queue is available release its goroutines to prevent stream leaks.
+	if s.resizeQueue != nil {
+		s.resizeQueue.Close()
 	}
 	return nil
 }
@@ -298,7 +306,7 @@ func (t *termQueue) Next() *remotecommand.TerminalSize {
 	}
 }
 
-func (t *termQueue) Done() {
+func (t *termQueue) Close() {
 	t.cancel()
 }
 
@@ -373,7 +381,7 @@ WaitForStreams:
 		case <-expired:
 			return nil, trace.BadParameter("timed out waiting for client to create streams")
 		case <-connContext.Done():
-			return nil, trace.BadParameter("onnectoin has dropped, exiting")
+			return nil, trace.BadParameter("connection has dropped, exiting")
 		}
 	}
 

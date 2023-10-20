@@ -21,12 +21,12 @@ import (
 	"net"
 	"strings"
 
-	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/trace"
+	"golang.org/x/exp/slices"
+
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web/app"
-
-	"github.com/gravitational/trace"
 )
 
 type hostPolicyCheckerConfig struct {
@@ -35,7 +35,7 @@ type hostPolicyCheckerConfig struct {
 	// clt is used to get the list of registered applications
 	clt app.Getter
 	// tun is a reverse tunnel
-	tun reversetunnel.Tunnel
+	tun reversetunnelclient.Tunnel
 	// clusterName is a name of this cluster
 	clusterName string
 }
@@ -54,7 +54,7 @@ func (h *hostPolicyChecker) checkHost(ctx context.Context, host string) error {
 			host, strings.Join(h.dnsNames, ","))
 	}
 
-	if apiutils.SliceContainsStr(h.dnsNames, host) {
+	if slices.Contains(h.dnsNames, host) {
 		return nil
 	}
 

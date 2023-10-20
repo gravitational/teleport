@@ -1,7 +1,7 @@
 Teleport's Access Request plugins authenticate to your Teleport cluster as a
-user with permissions to list, read, and update Access Requests. This way,
-plugins can retrieve Access Requests from the Teleport Auth Service, present
-them to reviewers, and modify them after a review.
+user with permissions to list and read Access Requests. This way, plugins can
+retrieve Access Requests from the Teleport Auth Service and present them to
+reviewers.
 
 Define a user and role called `access-plugin` by adding the following content to
 a file called `access-plugin.yaml`:
@@ -15,7 +15,7 @@ spec:
   allow:
     rules:
       - resources: ['access_request']
-        verbs: ['list', 'read', 'update']
+        verbs: ['list', 'read']
       - resources: ['access_plugin_data']
         verbs: ['update']
 ---
@@ -38,8 +38,9 @@ As with all Teleport users, the Teleport Auth Service authenticates the
 will need to request the credentials manually by *impersonating* the
 `access-plugin` role and user.
 
-<ScopedBlock scope={["oss", "enterprise"]}>If you are using `tctl` from the Auth
-Service host, you will already have impersonation privileges.</ScopedBlock>
+If you are running a self-hosted Teleport Enterprise deployment and are using
+`tctl` from the Auth Service host, you will already have impersonation
+privileges.
 
 To grant your user impersonation privileges for `access-plugin`, define a role
 called `access-plugin-impersonator` by pasting the following YAML document into
@@ -65,28 +66,7 @@ Create the `access-plugin-impersonator` role:
 $ tctl create -f access-plugin-impersonator.yaml
 ```
 
-Retrieve your user definition:
+(!docs/pages/includes/add-role-to-user.mdx role="access-plugin-impersonator"!)
 
-```code
-$ TELEPORT_USER=$(tsh status --format=json | jq -r .active.username)
-$ tctl get users/${TELEPORT_USER?} > myuser.yaml
-```
-
-Edit `myuser.yaml` to include the role you just created:
-
-```diff
-  roles:
-   - access
-   - auditor
-   - editor
-+  - access-plugin-impersonator
-```
-
-Apply your changes:
-
-```code
-$ tctl create -f myuser.yaml
-```
-
-Log out of your Teleport cluster and log in again. You will now be able to
-generate signed certificates for the `access-plugin` role and user.
+You will now be able to generate signed certificates for the `access-plugin`
+role and user.

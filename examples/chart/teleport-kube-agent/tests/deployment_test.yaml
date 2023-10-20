@@ -3,13 +3,12 @@ templates:
   - deployment.yaml
   - config.yaml
 release:
-  isupgrade: true
+  upgrade: true
 tests:
   - it: creates a Deployment if action is Upgrade
-    release:
-      isupgrade: true
+    template: deployment.yaml
     set:
-       # unit test does not support lookup functions, so to test the behavior we use this undoc value 
+       # unit test does not support lookup functions, so to test the behavior we use this undoc value
        # https://github.com/helm/helm/issues/8137
        unitTestUpgrade: true
     values:
@@ -21,10 +20,9 @@ tests:
           count: 1
 
   - it: sets Deployment labels when specified if action is Upgrade
-    release:
-      isupgrade: true
+    template: deployment.yaml
     set:
-       # unit test does not support lookup functions, so to test the behavior we use this undoc value 
+       # unit test does not support lookup functions, so to test the behavior we use this undoc value
        # https://github.com/helm/helm/issues/8137
        unitTestUpgrade: true
     values:
@@ -40,10 +38,9 @@ tests:
           path: spec
 
   - it: sets Pod labels when specified if action is Upgrade
-    release:
-      isupgrade: true
+    template: deployment.yaml
     set:
-       # unit test does not support lookup functions, so to test the behavior we use this undoc value 
+       # unit test does not support lookup functions, so to test the behavior we use this undoc value
        # https://github.com/helm/helm/issues/8137
        unitTestUpgrade: true
     values:
@@ -59,10 +56,9 @@ tests:
           path: spec.template.spec
 
   - it: sets Deployment annotations when specified if action is Upgrade
-    release:
-      isupgrade: true
+    template: deployment.yaml
     set:
-       # unit test does not support lookup functions, so to test the behavior we use this undoc value 
+       # unit test does not support lookup functions, so to test the behavior we use this undoc value
        # https://github.com/helm/helm/issues/8137
        unitTestUpgrade: true
     values:
@@ -77,10 +73,9 @@ tests:
       - matchSnapshot: {}
 
   - it: sets Pod annotations when specified if action is Upgrade
-    release:
-      isupgrade: true
+    template: deployment.yaml
     set:
-       # unit test does not support lookup functions, so to test the behavior we use this undoc value 
+       # unit test does not support lookup functions, so to test the behavior we use this undoc value
        # https://github.com/helm/helm/issues/8137
        unitTestUpgrade: true
     values:
@@ -96,10 +91,9 @@ tests:
           path: spec.template.spec
 
   - it: should have one replica when replicaCount is not set if action is Upgrade
-    release:
-      isupgrade: true
+    template: deployment.yaml
     set:
-       # unit test does not support lookup functions, so to test the behavior we use this undoc value 
+       # unit test does not support lookup functions, so to test the behavior we use this undoc value
        # https://github.com/helm/helm/issues/8137
        unitTestUpgrade: true
     values:
@@ -112,16 +106,14 @@ tests:
           path: spec.template.spec
 
   - it: should have multiple replicas when replicaCount is set (using .replicaCount, deprecated) if action is Upgrade
-    release:
-      isupgrade: true
+    template: deployment.yaml
     set:
-       # unit test does not support lookup functions, so to test the behavior we use this undoc value 
+       # unit test does not support lookup functions, so to test the behavior we use this undoc value
        # https://github.com/helm/helm/issues/8137
        unitTestUpgrade: true
+       replicaCount: 3
     values:
       - ../.lint/backwards-compatibility.yaml
-    set:
-      replicaCount: 3
     asserts:
       - equal:
           path: spec.replicas
@@ -130,15 +122,13 @@ tests:
           path: spec.template.spec
 
   - it: should have multiple replicas when replicaCount is set (using highAvailability.replicaCount) if action is Upgrade
-    release:
-      isupgrade: true
-    set:
-       # unit test does not support lookup functions, so to test the behavior we use this undoc value 
-       # https://github.com/helm/helm/issues/8137
-       unitTestUpgrade: true
+    template: deployment.yaml
     values:
       - ../.lint/backwards-compatibility.yaml
     set:
+      # unit test does not support lookup functions, so to test the behavior we use this undoc value
+      # https://github.com/helm/helm/issues/8137
+      unitTestUpgrade: true
       highAvailability:
         replicaCount: 3
     asserts:
@@ -149,10 +139,9 @@ tests:
           path: spec.template.spec
 
   - it: should set affinity when set in values if action is Upgrade
-    release:
-      isupgrade: true 
+    template: deployment.yaml
     set:
-       # unit test does not support lookup functions, so to test the behavior we use this undoc value 
+       # unit test does not support lookup functions, so to test the behavior we use this undoc value
        # https://github.com/helm/helm/issues/8137
        unitTestUpgrade: true
     values:
@@ -164,12 +153,11 @@ tests:
           path: spec.template.spec
 
   - it: should set required affinity when highAvailability.requireAntiAffinity is set if action is Upgrade
-    release:
-      isupgrade: true
+    template: deployment.yaml
     values:
       - ../.lint/backwards-compatibility.yaml
     set:
-      # unit test does not support lookup functions, so to test the behavior we use this undoc value 
+      # unit test does not support lookup functions, so to test the behavior we use this undoc value
       # https://github.com/helm/helm/issues/8137
       unitTestUpgrade: true
 
@@ -189,12 +177,11 @@ tests:
           path: spec.template.spec
 
   - it: should set preferred affinity when more than one replica is used if action is Upgrade
-    release:
-      isupgrade: true
+    template: deployment.yaml
     values:
       - ../.lint/backwards-compatibility.yaml
     set:
-      # unit test does not support lookup functions, so to test the behavior we use this undoc value 
+      # unit test does not support lookup functions, so to test the behavior we use this undoc value
       # https://github.com/helm/helm/issues/8137
       unitTestUpgrade: true
 
@@ -213,10 +200,9 @@ tests:
           path: spec.template.spec
 
   - it: should set tolerations when set in values if action is Upgrade
-    release:
-      isupgrade: true 
+    template: deployment.yaml
     set:
-       # unit test does not support lookup functions, so to test the behavior we use this undoc value 
+       # unit test does not support lookup functions, so to test the behavior we use this undoc value
        # https://github.com/helm/helm/issues/8137
        unitTestUpgrade: true
     values:
@@ -228,10 +214,9 @@ tests:
           path: spec.template.spec
 
   - it: should set resources when set in values if action is Upgrade
-    release:
-      isupgrade: true
+    template: deployment.yaml
     set:
-       # unit test does not support lookup functions, so to test the behavior we use this undoc value 
+       # unit test does not support lookup functions, so to test the behavior we use this undoc value
        # https://github.com/helm/helm/issues/8137
        unitTestUpgrade: true
     values:
@@ -253,10 +238,9 @@ tests:
           path: spec.template.spec
 
   - it: should set SecurityContext if action is Upgrade
-    release:
-      isupgrade: true
+    template: deployment.yaml
     set:
-       # unit test does not support lookup functions, so to test the behavior we use this undoc value 
+       # unit test does not support lookup functions, so to test the behavior we use this undoc value
        # https://github.com/helm/helm/issues/8137
        unitTestUpgrade: true
     values:
@@ -283,28 +267,60 @@ tests:
           path: spec.template.spec
 
   - it: should set image and tag correctly if action is Upgrade
-    release:
-      isupgrade: true
+    template: deployment.yaml
     values:
       - ../.lint/backwards-compatibility.yaml
     set:
-      # unit test does not support lookup functions, so to test the behavior we use this undoc value 
+      # unit test does not support lookup functions, so to test the behavior we use this undoc value
       # https://github.com/helm/helm/issues/8137
       unitTestUpgrade: true
 
-      teleportVersionOverride: 8.3.4
+      teleportVersionOverride: 12.2.1
     asserts:
       - equal:
           path: spec.template.spec.containers[0].image
-          value: public.ecr.aws/gravitational/teleport:8.3.4
+          value: public.ecr.aws/gravitational/teleport-distroless:12.2.1
       - matchSnapshot:
           path: spec.template.spec
 
-  - it: should mount extraVolumes and extraVolumeMounts if action is Upgrade
-    release:
-      isupgrade: true
+  - it: should have only one container when no `extraContainers` is set in values
+    template: deployment.yaml
     set:
-       # unit test does not support lookup functions, so to test the behavior we use this undoc value 
+      extraContainers: []
+      proxyAddr: helm-lint.example.com
+      kubeClusterName: helm-lint.example.com
+      unitTestUpgrade: true
+    asserts:
+      - isNotNull:
+          path: spec.template.spec.containers[0]
+      - isNull:
+          path: spec.template.spec.containers[1]
+
+  - it: should add one more container when `extraContainers` is set in values
+    template: deployment.yaml
+    set:
+      unitTestUpgrade: true
+    values:
+      - ../.lint/extra-containers.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[1]
+          value:
+            name: nscenter
+            command:
+              - /bin/bash
+              - -c
+              - sleep infinity & wait
+            image: praqma/network-multitool
+            imagePullPolicy: IfNotPresent
+            securityContext:
+              privileged: true
+              runAsNonRoot: false
+
+  - it: should mount extraVolumes and extraVolumeMounts if action is Upgrade
+    template: deployment.yaml
+    set:
+       # unit test does not support lookup functions, so to test the behavior we use this undoc value
        # https://github.com/helm/helm/issues/8137
        unitTestUpgrade: true
     values:
@@ -325,12 +341,11 @@ tests:
           path: spec.template.spec
 
   - it: should set imagePullPolicy when set in values if action is Upgrade
-    release:
-      isupgrade: true
+    template: deployment.yaml
     values:
       - ../.lint/backwards-compatibility.yaml
     set:
-      # unit test does not support lookup functions, so to test the behavior we use this undoc value 
+      # unit test does not support lookup functions, so to test the behavior we use this undoc value
       # https://github.com/helm/helm/issues/8137
       unitTestUpgrade: true
 
@@ -343,10 +358,9 @@ tests:
           path: spec.template.spec
 
   - it: should set environment when extraEnv set in values if action is Upgrade
-    release:
-      isupgrade: true
+    template: deployment.yaml
     set:
-      # unit test does not support lookup functions, so to test the behavior we use this undoc value 
+      # unit test does not support lookup functions, so to test the behavior we use this undoc value
       # https://github.com/helm/helm/issues/8137
       unitTestUpgrade: true
 
@@ -366,10 +380,9 @@ tests:
           path: spec.template.spec
 
   - it: should provision initContainer correctly when set in values if action is Upgrade
-    release:
-      isupgrade: true
+    template: deployment.yaml
     set:
-       # unit test does not support lookup functions, so to test the behavior we use this undoc value 
+       # unit test does not support lookup functions, so to test the behavior we use this undoc value
        # https://github.com/helm/helm/issues/8137
        unitTestUpgrade: true
     values:
@@ -400,12 +413,11 @@ tests:
           path: spec.template.spec
 
   - it: should add insecureSkipProxyTLSVerify to args when set in values if action is Upgrade
-    release:
-      isupgrade: true
+    template: deployment.yaml
     values:
       - ../.lint/backwards-compatibility.yaml
     set:
-      # unit test does not support lookup functions, so to test the behavior we use this undoc value 
+      # unit test does not support lookup functions, so to test the behavior we use this undoc value
       # https://github.com/helm/helm/issues/8137
       unitTestUpgrade: true
 
@@ -418,10 +430,9 @@ tests:
           path: spec.template.spec
 
   - it: should expose diag port if action is Upgrade
-    release:
-      isupgrade: true
+    template: deployment.yaml
     set:
-       # unit test does not support lookup functions, so to test the behavior we use this undoc value 
+       # unit test does not support lookup functions, so to test the behavior we use this undoc value
        # https://github.com/helm/helm/issues/8137
        unitTestUpgrade: true
     values:
@@ -437,10 +448,9 @@ tests:
           path: spec.template.spec
 
   - it: should set nodeSelector if set in values if action is Upgrade
-    release:
-      isupgrade: true
+    template: deployment.yaml
     set:
-       # unit test does not support lookup functions, so to test the behavior we use this undoc value 
+       # unit test does not support lookup functions, so to test the behavior we use this undoc value
        # https://github.com/helm/helm/issues/8137
        unitTestUpgrade: true
     values:
@@ -454,10 +464,9 @@ tests:
           path: spec.template.spec
 
   - it: should add emptyDir for data when existingDataVolume is not set if action is Upgrade
-    release:
-      isupgrade: true
+    template: deployment.yaml
     set:
-       # unit test does not support lookup functions, so to test the behavior we use this undoc value 
+       # unit test does not support lookup functions, so to test the behavior we use this undoc value
        # https://github.com/helm/helm/issues/8137
        unitTestUpgrade: true
     values:
@@ -477,10 +486,9 @@ tests:
           path: spec.template.spec
 
   - it: should correctly configure existingDataVolume when set if action is Upgrade
-    release:
-      isupgrade: true
+    template: deployment.yaml
     set:
-       # unit test does not support lookup functions, so to test the behavior we use this undoc value 
+       # unit test does not support lookup functions, so to test the behavior we use this undoc value
        # https://github.com/helm/helm/issues/8137
        unitTestUpgrade: true
     values:
@@ -500,10 +508,9 @@ tests:
           path: spec.template.spec
 
   - it: should mount tls.existingCASecretName and set environment when set in values if action is Upgrade
-    release:
-      isupgrade: true
+    template: deployment.yaml
     set:
-       # unit test does not support lookup functions, so to test the behavior we use this undoc value 
+       # unit test does not support lookup functions, so to test the behavior we use this undoc value
        # https://github.com/helm/helm/issues/8137
        unitTestUpgrade: true
     values:
@@ -530,10 +537,9 @@ tests:
           path: spec.template.spec
 
   - it: should mount tls.existingCASecretName and set extra environment when set in values if action is Upgrade
-    release:
-      isupgrade: true
+    template: deployment.yaml
     set:
-       # unit test does not support lookup functions, so to test the behavior we use this undoc value 
+       # unit test does not support lookup functions, so to test the behavior we use this undoc value
        # https://github.com/helm/helm/issues/8137
        unitTestUpgrade: true
     values:
@@ -566,10 +572,9 @@ tests:
           path: spec.template.spec
 
   - it: should set priorityClassName when set in values if action is Upgrade
-    release:
-      isupgrade: true
+    template: deployment.yaml
     set:
-       # unit test does not support lookup functions, so to test the behavior we use this undoc value 
+       # unit test does not support lookup functions, so to test the behavior we use this undoc value
        # https://github.com/helm/helm/issues/8137
        unitTestUpgrade: true
     values:
@@ -582,10 +587,9 @@ tests:
           path: spec.template.spec
 
   - it: should set not set priorityClassName when not set in values if action is Upgrade
-    release:
-      isupgrade: true
+    template: deployment.yaml
     set:
-       # unit test does not support lookup functions, so to test the behavior we use this undoc value 
+       # unit test does not support lookup functions, so to test the behavior we use this undoc value
        # https://github.com/helm/helm/issues/8137
        unitTestUpgrade: true
     values:
@@ -597,10 +601,9 @@ tests:
           path: spec.template.spec
 
   - it: should set serviceAccountName when set in values if action is Upgrade
-    release:
-      isupgrade: true
+    template: deployment.yaml
     set:
-       # unit test does not support lookup functions, so to test the behavior we use this undoc value 
+       # unit test does not support lookup functions, so to test the behavior we use this undoc value
        # https://github.com/helm/helm/issues/8137
        unitTestUpgrade: true
     values:
@@ -613,10 +616,9 @@ tests:
           path: spec.template.spec
 
   - it: should set default serviceAccountName when not set in values if action is Upgrade
-    release:
-      isupgrade: true
+    template: deployment.yaml
     set:
-       # unit test does not support lookup functions, so to test the behavior we use this undoc value 
+       # unit test does not support lookup functions, so to test the behavior we use this undoc value
        # https://github.com/helm/helm/issues/8137
        unitTestUpgrade: true
     values:
@@ -629,12 +631,11 @@ tests:
           path: spec.template.spec
 
   - it: should set probeTimeoutSeconds when set in values if action is Upgrade
-    release:
-      isupgrade: true
+    template: deployment.yaml
     set:
-       # unit test does not support lookup functions, so to test the behavior we use this undoc value 
-       # https://github.com/helm/helm/issues/8137
-       unitTestUpgrade: true
+      # unit test does not support lookup functions, so to test the behavior we use this undoc value
+      # https://github.com/helm/helm/issues/8137
+      unitTestUpgrade: true
     values:
       - ../.lint/probe-timeout-seconds.yaml
     asserts:
@@ -647,9 +648,38 @@ tests:
       - matchSnapshot:
           path: spec.template.spec
 
+  - it: should set dnsConfig when set in values if action is Upgrade
+    template: deployment.yaml
+    set:
+      # unit test does not support lookup functions, so to test the behavior we use this undoc value
+      # https://github.com/helm/helm/issues/8137
+      unitTestUpgrade: true
+    values:
+      - ../.lint/dnsconfig.yaml
+    asserts:
+      - notEqual:
+          path: spec.template.spec.dnsConfig
+          value: null
+      - matchSnapshot:
+          path: spec.template.spec.dnsConfig
+
+  - it: should set dnsPolicy when set in values if action is Upgrade
+    template: deployment.yaml
+    set:
+      # unit test does not support lookup functions, so to test the behavior we use this undoc value
+      # https://github.com/helm/helm/issues/8137
+      unitTestUpgrade: true
+    values:
+      - ../.lint/dnsconfig.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.dnsPolicy
+          value: ClusterFirstWithHostNet
+
   - it: should not render Deployment if action is fresh install without storage
+    template: deployment.yaml
     release:
-      isupgrade: false
+      upgrade: false
     values:
       - ../.lint/all-v6.yaml
     set:
@@ -659,3 +689,33 @@ tests:
       - hasDocuments:
           count: 0
 
+  - it: sets by default a container security context if action is Upgrade
+    template: deployment.yaml
+    set:
+      # unit test does not support lookup functions, so to test the behavior we use this undoc value
+      # https://github.com/helm/helm/issues/8137
+      unitTestUpgrade: true
+    values:
+      - ../.lint/initcontainers.yaml
+    asserts:
+      - matchSnapshot:
+          path: spec.template.spec.initContainers[0].securityContext
+      - matchSnapshot:
+          path: spec.template.spec.containers[0].securityContext
+
+  - it: sets no container security context when manually unset and if action is Upgrade
+    template: deployment.yaml
+    set:
+      # unit test does not support lookup functions, so to test the behavior we use this undoc value
+      # https://github.com/helm/helm/issues/8137
+      unitTestUpgrade: true
+    values:
+      - ../.lint/initcontainers.yaml
+      - ../.lint/security-context-empty.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].securityContext
+          value: null
+      - equal:
+          path: spec.template.spec.containers[0].securityContext
+          value: null

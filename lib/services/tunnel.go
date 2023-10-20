@@ -19,10 +19,10 @@ package services
 import (
 	"encoding/json"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
 )
 
 // ValidateReverseTunnel validates the OIDC connector and sets default values
@@ -65,6 +65,9 @@ func UnmarshalReverseTunnel(bytes []byte, opts ...MarshalOption) (types.ReverseT
 		if cfg.ID != 0 {
 			r.SetResourceID(cfg.ID)
 		}
+		if cfg.Revision != "" {
+			r.SetRevision(cfg.Revision)
+		}
 		if !cfg.Expires.IsZero() {
 			r.SetExpiry(cfg.Expires)
 		}
@@ -91,6 +94,7 @@ func MarshalReverseTunnel(reverseTunnel types.ReverseTunnel, opts ...MarshalOpti
 			// to prevent unexpected data races
 			copy := *reverseTunnel
 			copy.SetResourceID(0)
+			copy.SetRevision("")
 			reverseTunnel = &copy
 		}
 		return utils.FastMarshal(reverseTunnel)

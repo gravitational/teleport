@@ -17,20 +17,35 @@ limitations under the License.
 package services
 
 import (
-	"github.com/gravitational/teleport/api/types"
+	"strings"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 // CompareResources compares two resources by all significant fields.
 func CompareResources(resA, resB types.Resource) int {
 	equal := cmp.Equal(resA, resB,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+		ignoreProtoXXXFields(),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 		cmpopts.IgnoreFields(types.DatabaseV3{}, "Status"),
-		cmpopts.EquateEmpty())
+		cmpopts.EquateEmpty(),
+	)
 	if equal {
 		return Equal
 	}
 	return Different
+}
+
+// ignoreProtoXXXFields is a cmp.Option that ignores XXX_* fields from proto
+// messages.
+func ignoreProtoXXXFields() cmp.Option {
+	return cmp.FilterPath(func(path cmp.Path) bool {
+		if field, ok := path.Last().(cmp.StructField); ok {
+			return strings.HasPrefix(field.Name(), "XXX_")
+		}
+		return false
+	}, cmp.Ignore())
 }

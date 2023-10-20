@@ -22,33 +22,48 @@ import (
 	"github.com/gravitational/teleport/api/types"
 )
 
-// ssoDiagContext is a helper type for accumulating the SSO diagnostic info prior to writing it to the backend.
-type ssoDiagContext struct {
-	// authKind is auth kind such as types.KindSAML
-	authKind string
-	// createSSODiagnosticInfo is a callback to create the types.SSODiagnosticInfo record in the backend.
-	createSSODiagnosticInfo func(ctx context.Context, authKind string, authRequestID string, info types.SSODiagnosticInfo) error
-	// requestID is the ID of the auth request being processed.
-	requestID string
-	// info accumulates SSO diagnostic info
-	info types.SSODiagnosticInfo
+// SSODiagContext is a helper type for accumulating the SSO diagnostic info prior to writing it to the backend.
+type SSODiagContext struct {
+	// AuthKind is auth kind such as types.KindSAML
+	AuthKind string
+	// DiagService is the SSODiagService that will record our diagnostic info in the backend.
+	DiagService SSODiagService
+	// RequestID is the ID of the auth request being processed.
+	RequestID string
+	// Info accumulates SSO diagnostic Info
+	Info types.SSODiagnosticInfo
 }
 
-// writeToBackend saves the accumulated SSO diagnostic information to the backend.
-func (c *ssoDiagContext) writeToBackend(ctx context.Context) {
-	if c.info.TestFlow {
-		err := c.createSSODiagnosticInfo(ctx, c.authKind, c.requestID, c.info)
+// SSODiagService is a thin slice of services.Identity required by SSODiagContext
+// to record the SSO diagnostic info in a store.
+type SSODiagService interface {
+	// CreateSSODiagnosticInfo creates new SSO diagnostic info record.
+	CreateSSODiagnosticInfo(ctx context.Context, authKind string, authRequestID string, entry types.SSODiagnosticInfo) error
+}
+
+// SSODiagServiceFunc is an adaptor allowing a function to be used in place
+// of the SSODiagService interface.
+type SSODiagServiceFunc func(ctx context.Context, authKind string, authRequestID string, entry types.SSODiagnosticInfo) error
+
+func (f SSODiagServiceFunc) CreateSSODiagnosticInfo(ctx context.Context, authKind string, authRequestID string, entry types.SSODiagnosticInfo) error {
+	return f(ctx, authKind, authRequestID, entry)
+}
+
+// WriteToBackend saves the accumulated SSO diagnostic information to the backend.
+func (c *SSODiagContext) WriteToBackend(ctx context.Context) {
+	if c.Info.TestFlow {
+		err := c.DiagService.CreateSSODiagnosticInfo(ctx, c.AuthKind, c.RequestID, c.Info)
 		if err != nil {
-			log.WithError(err).WithField("requestID", c.requestID).Warn("failed to write SSO diag info data")
+			log.WithError(err).WithField("requestID", c.RequestID).Warn("failed to write SSO diag info data")
 		}
 	}
 }
 
-// newSSODiagContext returns new ssoDiagContext referencing particular Server.
+// NewSSODiagContext returns new ssoDiagContext referencing particular Server.
 // authKind must be one of supported auth kinds (e.g. types.KindSAML).
-func (a *Server) newSSODiagContext(authKind string) *ssoDiagContext {
-	return &ssoDiagContext{
-		authKind:                authKind,
-		createSSODiagnosticInfo: a.CreateSSODiagnosticInfo,
+func NewSSODiagContext(authKind string, diagSvc SSODiagService) *SSODiagContext {
+	return &SSODiagContext{
+		AuthKind:    authKind,
+		DiagService: diagSvc,
 	}
 }

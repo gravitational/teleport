@@ -20,33 +20,35 @@ import (
 	"context"
 	"testing"
 
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/cloud"
-	"github.com/gravitational/teleport/lib/defaults"
-
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/elasticache"
 	"github.com/aws/aws-sdk-go/service/memorydb"
 	"github.com/aws/aws-sdk-go/service/rds"
 	"github.com/aws/aws-sdk-go/service/redshift"
+	"github.com/aws/aws-sdk-go/service/redshiftserverless"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/cloud"
+	"github.com/gravitational/teleport/lib/cloud/mocks"
+	"github.com/gravitational/teleport/lib/defaults"
 )
 
 // TestAWSMetadata tests fetching AWS metadata for RDS and Redshift databases.
 func TestAWSMetadata(t *testing.T) {
 	// Configure RDS API mock.
-	rds := &RDSMock{
+	rds := &mocks.RDSMock{
 		DBInstances: []*rds.DBInstance{
 			// Standalone RDS instance.
 			{
-				DBInstanceArn:                    aws.String("arn:aws:rds:us-west-1:1234567890:db:postgres-rds"),
+				DBInstanceArn:                    aws.String("arn:aws:rds:us-west-1:123456789012:db:postgres-rds"),
 				DBInstanceIdentifier:             aws.String("postgres-rds"),
 				DbiResourceId:                    aws.String("db-xyz"),
 				IAMDatabaseAuthenticationEnabled: aws.Bool(true),
 			},
 			// Instance that is a part of an Aurora cluster.
 			{
-				DBInstanceArn:        aws.String("arn:aws:rds:us-east-1:1234567890:db:postgres-aurora-1"),
+				DBInstanceArn:        aws.String("arn:aws:rds:us-east-1:123456789012:db:postgres-aurora-1"),
 				DBInstanceIdentifier: aws.String("postgres-aurora-1"),
 				DBClusterIdentifier:  aws.String("postgres-aurora"),
 			},
@@ -54,32 +56,44 @@ func TestAWSMetadata(t *testing.T) {
 		DBClusters: []*rds.DBCluster{
 			// Aurora cluster.
 			{
-				DBClusterArn:        aws.String("arn:aws:rds:us-east-1:1234567890:cluster:postgres-aurora"),
+				DBClusterArn:        aws.String("arn:aws:rds:us-east-1:123456789012:cluster:postgres-aurora"),
 				DBClusterIdentifier: aws.String("postgres-aurora"),
 				DbClusterResourceId: aws.String("cluster-xyz"),
+			},
+		},
+		DBProxies: []*rds.DBProxy{
+			{
+				DBProxyArn:  aws.String("arn:aws:rds:us-east-1:123456789012:db-proxy:prx-resource-id"),
+				DBProxyName: aws.String("rds-proxy"),
+			},
+		},
+		DBProxyEndpoints: []*rds.DBProxyEndpoint{
+			{
+				DBProxyEndpointName: aws.String("rds-proxy-endpoint"),
+				DBProxyName:         aws.String("rds-proxy"),
 			},
 		},
 	}
 
 	// Configure Redshift API mock.
-	redshift := &RedshiftMock{
+	redshift := &mocks.RedshiftMock{
 		Clusters: []*redshift.Cluster{
 			{
-				ClusterNamespaceArn: aws.String("arn:aws:redshift:us-west-1:1234567890:namespace:namespace-id"),
+				ClusterNamespaceArn: aws.String("arn:aws:redshift:us-west-1:123456789012:namespace:namespace-id"),
 				ClusterIdentifier:   aws.String("redshift-cluster-1"),
 			},
 			{
-				ClusterNamespaceArn: aws.String("arn:aws:redshift:us-east-2:0987654321:namespace:namespace-id"),
+				ClusterNamespaceArn: aws.String("arn:aws:redshift:us-east-2:210987654321:namespace:namespace-id"),
 				ClusterIdentifier:   aws.String("redshift-cluster-2"),
 			},
 		},
 	}
 
 	// Configure ElastiCache API mock.
-	elasticache := &ElastiCacheMock{
+	elasticache := &mocks.ElastiCacheMock{
 		ReplicationGroups: []*elasticache.ReplicationGroup{
 			{
-				ARN:                      aws.String("arn:aws:elasticache:us-west-1:123456789:replicationgroup:my-redis"),
+				ARN:                      aws.String("arn:aws:elasticache:us-west-1:123456789012:replicationgroup:my-redis"),
 				ReplicationGroupId:       aws.String("my-redis"),
 				ClusterEnabled:           aws.Bool(true),
 				TransitEncryptionEnabled: aws.Bool(true),
@@ -89,10 +103,10 @@ func TestAWSMetadata(t *testing.T) {
 	}
 
 	// Configure MemoryDB API mock.
-	memorydb := &MemoryDBMock{
+	memorydb := &mocks.MemoryDBMock{
 		Clusters: []*memorydb.Cluster{
 			{
-				ARN:        aws.String("arn:aws:memorydb:us-west-1:123456789:cluster:my-cluster"),
+				ARN:        aws.String("arn:aws:memorydb:us-west-1:123456789012:cluster:my-cluster"),
 				Name:       aws.String("my-cluster"),
 				TLSEnabled: aws.Bool(true),
 				ACLName:    aws.String("my-user-group"),
@@ -100,13 +114,25 @@ func TestAWSMetadata(t *testing.T) {
 		},
 	}
 
+	stsMock := &mocks.STSMock{}
+
+	// Configure Redshift Serverless API mock.
+	redshiftServerlessWorkgroup := mocks.RedshiftServerlessWorkgroup("my-workgroup", "us-west-1")
+	redshiftServerlessEndpoint := mocks.RedshiftServerlessEndpointAccess(redshiftServerlessWorkgroup, "my-endpoint", "us-west-1")
+	redshiftServerless := &mocks.RedshiftServerlessMock{
+		Workgroups: []*redshiftserverless.Workgroup{redshiftServerlessWorkgroup},
+		Endpoints:  []*redshiftserverless.EndpointAccess{redshiftServerlessEndpoint},
+	}
+
 	// Create metadata fetcher.
 	metadata, err := NewMetadata(MetadataConfig{
 		Clients: &cloud.TestCloudClients{
-			RDS:         rds,
-			Redshift:    redshift,
-			ElastiCache: elasticache,
-			MemoryDB:    memorydb,
+			RDS:                rds,
+			Redshift:           redshift,
+			ElastiCache:        elasticache,
+			MemoryDB:           memorydb,
+			RedshiftServerless: redshiftServerless,
+			STS:                stsMock,
 		},
 	})
 	require.NoError(t, err)
@@ -119,13 +145,17 @@ func TestAWSMetadata(t *testing.T) {
 		{
 			name: "RDS instance",
 			inAWS: types.AWS{
+				AssumeRoleARN: "arn:aws:iam::123456789012:role/DBDiscoverer",
+				ExternalID:    "externalID123",
 				RDS: types.RDS{
 					InstanceID: "postgres-rds",
 				},
 			},
 			outAWS: types.AWS{
-				Region:    "us-west-1",
-				AccountID: "1234567890",
+				Region:        "us-west-1",
+				AccountID:     "123456789012",
+				AssumeRoleARN: "arn:aws:iam::123456789012:role/DBDiscoverer",
+				ExternalID:    "externalID123",
 				RDS: types.RDS{
 					InstanceID: "postgres-rds",
 					ResourceID: "db-xyz",
@@ -136,13 +166,17 @@ func TestAWSMetadata(t *testing.T) {
 		{
 			name: "Aurora cluster",
 			inAWS: types.AWS{
+				AssumeRoleARN: "arn:aws:iam::123456789012:role/DBDiscoverer",
+				ExternalID:    "externalID123",
 				RDS: types.RDS{
 					InstanceID: "postgres-aurora",
 				},
 			},
 			outAWS: types.AWS{
-				Region:    "us-east-1",
-				AccountID: "1234567890",
+				Region:        "us-east-1",
+				AccountID:     "123456789012",
+				AssumeRoleARN: "arn:aws:iam::123456789012:role/DBDiscoverer",
+				ExternalID:    "externalID123",
 				RDS: types.RDS{
 					ClusterID:  "postgres-aurora",
 					ResourceID: "cluster-xyz",
@@ -152,13 +186,17 @@ func TestAWSMetadata(t *testing.T) {
 		{
 			name: "RDS instance, part of Aurora cluster",
 			inAWS: types.AWS{
+				AssumeRoleARN: "arn:aws:iam::123456789012:role/DBDiscoverer",
+				ExternalID:    "externalID123",
 				RDS: types.RDS{
 					InstanceID: "postgres-aurora-1",
 				},
 			},
 			outAWS: types.AWS{
-				Region:    "us-east-1",
-				AccountID: "1234567890",
+				Region:        "us-east-1",
+				AccountID:     "123456789012",
+				AssumeRoleARN: "arn:aws:iam::123456789012:role/DBDiscoverer",
+				ExternalID:    "externalID123",
 				RDS: types.RDS{
 					ClusterID:  "postgres-aurora",
 					ResourceID: "cluster-xyz",
@@ -168,13 +206,17 @@ func TestAWSMetadata(t *testing.T) {
 		{
 			name: "Redshift cluster 1",
 			inAWS: types.AWS{
+				AssumeRoleARN: "arn:aws:iam::123456789012:role/DBDiscoverer",
+				ExternalID:    "externalID123",
 				Redshift: types.Redshift{
 					ClusterID: "redshift-cluster-1",
 				},
 			},
 			outAWS: types.AWS{
-				AccountID: "1234567890",
-				Region:    "us-west-1",
+				AccountID:     "123456789012",
+				Region:        "us-west-1",
+				AssumeRoleARN: "arn:aws:iam::123456789012:role/DBDiscoverer",
+				ExternalID:    "externalID123",
 				Redshift: types.Redshift{
 					ClusterID: "redshift-cluster-1",
 				},
@@ -183,13 +225,17 @@ func TestAWSMetadata(t *testing.T) {
 		{
 			name: "Redshift cluster 2",
 			inAWS: types.AWS{
+				AssumeRoleARN: "arn:aws:iam::123456789012:role/DBDiscoverer",
+				ExternalID:    "externalID123",
 				Redshift: types.Redshift{
 					ClusterID: "redshift-cluster-2",
 				},
 			},
 			outAWS: types.AWS{
-				AccountID: "0987654321",
-				Region:    "us-east-2",
+				AccountID:     "210987654321",
+				Region:        "us-east-2",
+				AssumeRoleARN: "arn:aws:iam::123456789012:role/DBDiscoverer",
+				ExternalID:    "externalID123",
 				Redshift: types.Redshift{
 					ClusterID: "redshift-cluster-2",
 				},
@@ -198,14 +244,18 @@ func TestAWSMetadata(t *testing.T) {
 		{
 			name: "ElastiCache",
 			inAWS: types.AWS{
+				AssumeRoleARN: "arn:aws:iam::123456789012:role/DBDiscoverer",
+				ExternalID:    "externalID123",
 				ElastiCache: types.ElastiCache{
 					ReplicationGroupID: "my-redis",
 					EndpointType:       "configuration",
 				},
 			},
 			outAWS: types.AWS{
-				AccountID: "123456789",
-				Region:    "us-west-1",
+				AccountID:     "123456789012",
+				Region:        "us-west-1",
+				AssumeRoleARN: "arn:aws:iam::123456789012:role/DBDiscoverer",
+				ExternalID:    "externalID123",
 				ElastiCache: types.ElastiCache{
 					ReplicationGroupID:       "my-redis",
 					UserGroupIDs:             []string{"my-user-group"},
@@ -217,19 +267,109 @@ func TestAWSMetadata(t *testing.T) {
 		{
 			name: "MemoryDB",
 			inAWS: types.AWS{
+				AssumeRoleARN: "arn:aws:iam::123456789012:role/DBDiscoverer",
+				ExternalID:    "externalID123",
 				MemoryDB: types.MemoryDB{
 					ClusterName:  "my-cluster",
 					EndpointType: "cluster",
 				},
 			},
 			outAWS: types.AWS{
-				AccountID: "123456789",
-				Region:    "us-west-1",
+				AccountID:     "123456789012",
+				Region:        "us-west-1",
+				AssumeRoleARN: "arn:aws:iam::123456789012:role/DBDiscoverer",
+				ExternalID:    "externalID123",
 				MemoryDB: types.MemoryDB{
 					ClusterName:  "my-cluster",
 					ACLName:      "my-user-group",
 					TLSEnabled:   true,
 					EndpointType: "cluster",
+				},
+			},
+		},
+		{
+			name: "RDS Proxy",
+			inAWS: types.AWS{
+				Region:        "us-east-1",
+				AssumeRoleARN: "arn:aws:iam::123456789012:role/DBDiscoverer",
+				ExternalID:    "externalID123",
+				RDSProxy: types.RDSProxy{
+					Name: "rds-proxy",
+				},
+			},
+			outAWS: types.AWS{
+				AccountID:     "123456789012",
+				Region:        "us-east-1",
+				AssumeRoleARN: "arn:aws:iam::123456789012:role/DBDiscoverer",
+				ExternalID:    "externalID123",
+				RDSProxy: types.RDSProxy{
+					Name:       "rds-proxy",
+					ResourceID: "prx-resource-id",
+				},
+			},
+		},
+		{
+			name: "RDS Proxy custom endpoint",
+			inAWS: types.AWS{
+				Region:        "us-east-1",
+				AssumeRoleARN: "arn:aws:iam::123456789012:role/DBDiscoverer",
+				ExternalID:    "externalID123",
+				RDSProxy: types.RDSProxy{
+					CustomEndpointName: "rds-proxy-endpoint",
+				},
+			},
+			outAWS: types.AWS{
+				AccountID:     "123456789012",
+				Region:        "us-east-1",
+				AssumeRoleARN: "arn:aws:iam::123456789012:role/DBDiscoverer",
+				ExternalID:    "externalID123",
+				RDSProxy: types.RDSProxy{
+					Name:               "rds-proxy",
+					CustomEndpointName: "rds-proxy-endpoint",
+					ResourceID:         "prx-resource-id",
+				},
+			},
+		},
+		{
+			name: "Redshift Serverless workgroup",
+			inAWS: types.AWS{
+				Region:        "us-west-1",
+				AssumeRoleARN: "arn:aws:iam::123456789012:role/DBDiscoverer",
+				ExternalID:    "externalID123",
+				RedshiftServerless: types.RedshiftServerless{
+					WorkgroupName: "my-workgroup",
+				},
+			},
+			outAWS: types.AWS{
+				AccountID:     "123456789012",
+				Region:        "us-west-1",
+				AssumeRoleARN: "arn:aws:iam::123456789012:role/DBDiscoverer",
+				ExternalID:    "externalID123",
+				RedshiftServerless: types.RedshiftServerless{
+					WorkgroupName: "my-workgroup",
+					WorkgroupID:   "some-uuid-for-my-workgroup",
+				},
+			},
+		},
+		{
+			name: "Redshift Serverless VPC endpoint",
+			inAWS: types.AWS{
+				Region:        "us-west-1",
+				AssumeRoleARN: "arn:aws:iam::123456789012:role/DBDiscoverer",
+				ExternalID:    "externalID123",
+				RedshiftServerless: types.RedshiftServerless{
+					EndpointName: "my-endpoint",
+				},
+			},
+			outAWS: types.AWS{
+				AccountID:     "123456789012",
+				Region:        "us-west-1",
+				AssumeRoleARN: "arn:aws:iam::123456789012:role/DBDiscoverer",
+				ExternalID:    "externalID123",
+				RedshiftServerless: types.RedshiftServerless{
+					WorkgroupName: "my-workgroup",
+					EndpointName:  "my-endpoint",
+					WorkgroupID:   "some-uuid-for-my-workgroup",
 				},
 			},
 		},
@@ -250,6 +390,9 @@ func TestAWSMetadata(t *testing.T) {
 			err = metadata.Update(ctx, database)
 			require.NoError(t, err)
 			require.Equal(t, test.outAWS, database.GetAWS())
+			require.Equal(t, []string{test.inAWS.AssumeRoleARN}, stsMock.GetAssumedRoleARNs())
+			require.Equal(t, []string{test.inAWS.ExternalID}, stsMock.GetAssumedRoleExternalIDs())
+			stsMock.ResetAssumeRoleHistory()
 		})
 	}
 }
@@ -258,14 +401,17 @@ func TestAWSMetadata(t *testing.T) {
 // cause an error.
 func TestAWSMetadataNoPermissions(t *testing.T) {
 	// Create unauthorized mocks.
-	rds := &RDSMockUnauth{}
-	redshift := &RedshiftMockUnauth{}
+	rds := &mocks.RDSMockUnauth{}
+	redshift := &mocks.RedshiftMockUnauth{}
+
+	stsMock := &mocks.STSMock{}
 
 	// Create metadata fetcher.
 	metadata, err := NewMetadata(MetadataConfig{
 		Clients: &cloud.TestCloudClients{
 			RDS:      rds,
 			Redshift: redshift,
+			STS:      stsMock,
 		},
 	})
 	require.NoError(t, err)
@@ -277,14 +423,38 @@ func TestAWSMetadataNoPermissions(t *testing.T) {
 		{
 			name: "RDS instance",
 			meta: types.AWS{
+				AssumeRoleARN: "arn:aws:iam::123456789012:role/DBDiscoverer",
+				ExternalID:    "externalID123",
 				RDS: types.RDS{
 					InstanceID: "postgres-rds",
 				},
 			},
 		},
 		{
+			name: "RDS proxy",
+			meta: types.AWS{
+				AssumeRoleARN: "arn:aws:iam::123456789012:role/DBDiscoverer",
+				ExternalID:    "externalID123",
+				RDSProxy: types.RDSProxy{
+					Name: "rds-proxy",
+				},
+			},
+		},
+		{
+			name: "RDS proxy endpoint",
+			meta: types.AWS{
+				AssumeRoleARN: "arn:aws:iam::123456789012:role/DBDiscoverer",
+				ExternalID:    "externalID123",
+				RDSProxy: types.RDSProxy{
+					CustomEndpointName: "rds-proxy-endpoint",
+				},
+			},
+		},
+		{
 			name: "Redshift cluster",
 			meta: types.AWS{
+				AssumeRoleARN: "arn:aws:iam::123456789012:role/DBDiscoverer",
+				ExternalID:    "externalID123",
 				Redshift: types.Redshift{
 					ClusterID: "redshift-cluster-1",
 				},
@@ -308,6 +478,9 @@ func TestAWSMetadataNoPermissions(t *testing.T) {
 			err = metadata.Update(ctx, database)
 			require.NoError(t, err)
 			require.Equal(t, test.meta, database.GetAWS())
+			require.Equal(t, []string{test.meta.AssumeRoleARN}, stsMock.GetAssumedRoleARNs())
+			require.Equal(t, []string{test.meta.ExternalID}, stsMock.GetAssumedRoleExternalIDs())
+			stsMock.ResetAssumeRoleHistory()
 		})
 	}
 }

@@ -1,0 +1,17 @@
+To grant Teleport permissions, the custom role you created must be assigned to the Teleport service principal -
+either the managed identity or the app registration you created earlier.
+
+Navigate to the resource scope where you want to make the role assignment. Click *Access control (IAM)* and 
+select *Add > Add role assignment*. Choose the custom role you created as the role and the Teleport
+service principal as a member.
+
+<Figure align="left">
+![Assign role](../../../img/server-access/guides/azure/create-role-assignment@2x.png)
+</Figure>
+
+<Admonition type="note" title="Azure Role Assignments">
+The role assignment should be at a high enough scope to allow the Teleport Discovery Service to discover
+all matching virtual machines. See
+[Identify the needed scope](https://docs.microsoft.com/en-us/azure/role-based-access-control/role-assignments-steps#step-3-identify-the-needed-scope)
+for more information about Azure scopes and creating role assignments.
+</Admonition>

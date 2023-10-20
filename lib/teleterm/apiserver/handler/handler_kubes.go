@@ -18,22 +18,25 @@ import (
 	"context"
 	"sort"
 
-	api "github.com/gravitational/teleport/lib/teleterm/api/protogen/golang/v1"
-	"github.com/gravitational/teleport/lib/teleterm/clusters"
-
 	"github.com/gravitational/trace"
+
+	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
+	"github.com/gravitational/teleport/lib/teleterm/clusters"
 )
 
-// ListKubes lists kubernetes clusters
-func (s *Handler) ListKubes(ctx context.Context, req *api.ListKubesRequest) (*api.ListKubesResponse, error) {
-	kubes, err := s.DaemonService.ListKubes(ctx, req.ClusterUri)
+// GetKubes accepts parameterized input to enable searching, sorting, and pagination
+func (s *Handler) GetKubes(ctx context.Context, req *api.GetKubesRequest) (*api.GetKubesResponse, error) {
+	resp, err := s.DaemonService.GetKubes(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	response := &api.ListKubesResponse{}
-	for _, k := range kubes {
-		response.Kubes = append(response.Kubes, newAPIKube(k))
+	response := &api.GetKubesResponse{
+		TotalCount: int32(resp.TotalCount),
+		StartKey:   resp.StartKey,
+	}
+	for _, kube := range resp.Kubes {
+		response.Agents = append(response.Agents, newAPIKube(kube))
 	}
 
 	return response, nil

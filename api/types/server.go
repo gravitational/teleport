@@ -18,16 +18,15 @@ package types
 
 import (
 	"fmt"
-	"regexp"
+	"net"
 	"sort"
 	"strings"
 	"time"
 
-	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/api/utils"
-
-	"github.com/gogo/protobuf/proto"
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/utils"
 )
 
 // Server represents a Node, Proxy or Auth server in a Teleport cluster
@@ -48,8 +47,10 @@ type Server interface {
 	GetCmdLabels() map[string]CommandLabel
 	// SetCmdLabels sets command labels.
 	SetCmdLabels(cmdLabels map[string]CommandLabel)
-	// GetPublicAddr is an optional field that returns the public address this cluster can be reached at.
+	// GetPublicAddr returns a public address where this server can be reached.
 	GetPublicAddr() string
+	// GetPublicAddrs returns a list of public addresses where this server can be reached.
+	GetPublicAddrs() []string
 	// GetRotation gets the state of certificate authority rotation.
 	GetRotation() Rotation
 	// SetRotation sets the state of certificate authority rotation.
@@ -62,39 +63,34 @@ type Server interface {
 	String() string
 	// SetAddr sets server address
 	SetAddr(addr string)
-	// SetPublicAddr sets the public address this cluster can be reached at.
-	SetPublicAddr(string)
+	// SetPublicAddrs sets the public addresses where this server can be reached.
+	SetPublicAddrs([]string)
 	// SetNamespace sets server namespace
 	SetNamespace(namespace string)
-	// GetApps gets the list of applications this server is proxying.
-	// DELETE IN 9.0.
-	GetApps() []*App
-	// GetApps gets the list of applications this server is proxying.
-	// DELETE IN 9.0.
-	SetApps([]*App)
-	// GetKubeClusters returns the kubernetes clusters directly handled by this
-	// server.
-	// DELETE IN 12.0.0
-	GetKubernetesClusters() []*KubernetesCluster
-	// SetKubeClusters sets the kubernetes clusters handled by this server.
-	// DELETE IN 12.0.0
-	SetKubernetesClusters([]*KubernetesCluster)
 	// GetPeerAddr returns the peer address of the server.
 	GetPeerAddr() string
 	// SetPeerAddr sets the peer address of the server.
 	SetPeerAddr(string)
 	// ProxiedService provides common methods for a proxied service.
 	ProxiedService
-	// MatchAgainst takes a map of labels and returns True if this server
-	// has ALL of them
-	//
-	// Any server matches against an empty label set
-	MatchAgainst(labels map[string]string) bool
-	// LabelsString returns a comma separated string with all node's labels
-	LabelsString() string
 
 	// DeepCopy creates a clone of this server value
 	DeepCopy() Server
+
+	// CloneResource is used to return a clone of the Server and match the CloneAny interface
+	// This is helpful when interfacing with multiple types at the same time in unified resources
+	CloneResource() ResourceWithLabels
+
+	// GetCloudMetadata gets the cloud metadata for the server.
+	GetCloudMetadata() *CloudMetadata
+	// GetAWSInfo returns the AWSInfo for the server.
+	GetAWSInfo() *AWSInfo
+	// SetCloudMetadata sets the server's cloud metadata.
+	SetCloudMetadata(meta *CloudMetadata)
+
+	// IsOpenSSHNode returns whether the connection to this Server must use OpenSSH.
+	// This returns true for SubKindOpenSSHNode and SubKindOpenSSHEICENode.
+	IsOpenSSHNode() bool
 }
 
 // NewServer creates an instance of Server.
@@ -107,6 +103,23 @@ func NewServer(name, kind string, spec ServerSpecV2) (Server, error) {
 func NewServerWithLabels(name, kind string, spec ServerSpecV2, labels map[string]string) (Server, error) {
 	server := &ServerV2{
 		Kind: kind,
+		Metadata: Metadata{
+			Name:   name,
+			Labels: labels,
+		},
+		Spec: spec,
+	}
+	if err := server.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return server, nil
+}
+
+// NewNode is a convenience method to create a Server of Kind Node.
+func NewNode(name, subKind string, spec ServerSpecV2, labels map[string]string) (Server, error) {
+	server := &ServerV2{
+		Kind:    KindNode,
+		SubKind: subKind,
 		Metadata: Metadata{
 			Name:   name,
 			Labels: labels,
@@ -136,6 +149,11 @@ func (s *ServerV2) GetKind() string {
 
 // GetSubKind returns resource sub kind
 func (s *ServerV2) GetSubKind() string {
+	// if the server is a node subkind isn't set, this is a teleport node.
+	if s.Kind == KindNode && s.SubKind == "" {
+		return SubKindTeleportNode
+	}
+
 	return s.SubKind
 }
 
@@ -152,6 +170,16 @@ func (s *ServerV2) GetResourceID() int64 {
 // SetResourceID sets resource ID
 func (s *ServerV2) SetResourceID(id int64) {
 	s.Metadata.ID = id
+}
+
+// GetRevision returns the revision
+func (s *ServerV2) GetRevision() string {
+	return s.Metadata.GetRevision()
+}
+
+// SetRevision sets the revision
+func (s *ServerV2) SetRevision(rev string) {
+	s.Metadata.SetRevision(rev)
 }
 
 // GetMetadata returns metadata
@@ -179,9 +207,13 @@ func (s *ServerV2) Expiry() time.Time {
 	return s.Metadata.Expiry()
 }
 
-// SetPublicAddr sets the public address this cluster can be reached at.
-func (s *ServerV2) SetPublicAddr(addr string) {
-	s.Spec.PublicAddr = addr
+// SetPublicAddrs sets the public proxy addresses where this server can be reached.
+func (s *ServerV2) SetPublicAddrs(addrs []string) {
+	s.Spec.PublicAddrs = addrs
+	// DELETE IN 15.0. (Joerger) PublicAddr deprecated in favor of PublicAddrs
+	if len(addrs) != 0 {
+		s.Spec.PublicAddr = addrs[0]
+	}
 }
 
 // GetName returns server name
@@ -199,9 +231,22 @@ func (s *ServerV2) GetAddr() string {
 	return s.Spec.Addr
 }
 
-// GetPublicAddr is an optional field that returns the public address this cluster can be reached at.
+// GetPublicAddr returns a public address where this server can be reached.
 func (s *ServerV2) GetPublicAddr() string {
-	return s.Spec.PublicAddr
+	addrs := s.GetPublicAddrs()
+	if len(addrs) != 0 {
+		return addrs[0]
+	}
+	return ""
+}
+
+// GetPublicAddrs returns a list of public addresses where this server can be reached.
+func (s *ServerV2) GetPublicAddrs() []string {
+	// DELETE IN 15.0. (Joerger) PublicAddr deprecated in favor of PublicAddrs
+	if len(s.Spec.PublicAddrs) == 0 && s.Spec.PublicAddr != "" {
+		return []string{s.Spec.PublicAddr}
+	}
+	return s.Spec.PublicAddrs
 }
 
 // GetRotation gets the state of certificate authority rotation.
@@ -229,16 +274,29 @@ func (s *ServerV2) GetHostname() string {
 	return s.Spec.Hostname
 }
 
+// GetLabel retrieves the label with the provided key. If not found
+// value will be empty and ok will be false.
+func (s *ServerV2) GetLabel(key string) (value string, ok bool) {
+	if cmd, ok := s.Spec.CmdLabels[key]; ok {
+		return cmd.Result, ok
+	}
+
+	v, ok := s.Metadata.Labels[key]
+	return v, ok
+}
+
+// GetLabels returns server's static label key pairs.
 // GetLabels and GetStaticLabels are the same, and that is intentional. GetLabels
 // exists to preserve backwards compatibility, while GetStaticLabels exists to
 // implement ResourcesWithLabels.
-
-// GetLabels returns server's static label key pairs
 func (s *ServerV2) GetLabels() map[string]string {
 	return s.Metadata.Labels
 }
 
 // GetStaticLabels returns the server static labels.
+// GetLabels and GetStaticLabels are the same, and that is intentional. GetLabels
+// exists to preserve backwards compatibility, while GetStaticLabels exists to
+// implement ResourcesWithLabels.
 func (s *ServerV2) GetStaticLabels() map[string]string {
 	return s.Metadata.Labels
 }
@@ -271,16 +329,6 @@ func (s *ServerV2) SetCmdLabels(cmdLabels map[string]CommandLabel) {
 	s.Spec.CmdLabels = LabelsToV2(cmdLabels)
 }
 
-// GetApps gets the list of applications this server is proxying.
-func (s *ServerV2) GetApps() []*App {
-	return s.Spec.Apps
-}
-
-// SetApps sets the list of applications this server is proxying.
-func (s *ServerV2) SetApps(apps []*App) {
-	s.Spec.Apps = apps
-}
-
 func (s *ServerV2) String() string {
 	return fmt.Sprintf("Server(name=%v, namespace=%v, addr=%v, labels=%v)", s.Metadata.Name, s.Metadata.Namespace, s.Spec.Addr, s.Metadata.Labels)
 }
@@ -305,19 +353,6 @@ func (s *ServerV2) SetProxyIDs(proxyIDs []string) {
 func (s *ServerV2) GetAllLabels() map[string]string {
 	// server labels (static and dynamic)
 	labels := CombineLabels(s.Metadata.Labels, s.Spec.CmdLabels)
-
-	// server-specific labels
-	switch s.Kind {
-	case KindKubeService:
-		for _, cluster := range s.Spec.KubernetesClusters {
-			// Combine cluster static and dynamic labels, and merge into
-			// `labels`.
-			for name, value := range CombineLabels(cluster.StaticLabels, cluster.DynamicLabels) {
-				labels[name] = value
-			}
-		}
-	}
-
 	return labels
 }
 
@@ -333,17 +368,6 @@ func CombineLabels(static map[string]string, dynamic map[string]CommandLabelV2) 
 	return lmap
 }
 
-// GetKubernetesClusters returns the kubernetes clusters directly handled by this
-// server.
-// DEPRECATED, remove in 12.0.0
-func (s *ServerV2) GetKubernetesClusters() []*KubernetesCluster { return s.Spec.KubernetesClusters }
-
-// SetKubernetesClusters sets the kubernetes clusters handled by this server.
-// DEPRECATED, remove in 12.0.0
-func (s *ServerV2) SetKubernetesClusters(clusters []*KubernetesCluster) {
-	s.Spec.KubernetesClusters = clusters
-}
-
 // GetPeerAddr returns the peer address of the server.
 func (s *ServerV2) GetPeerAddr() string {
 	return s.Spec.PeerAddr
@@ -354,36 +378,74 @@ func (s *ServerV2) SetPeerAddr(addr string) {
 	s.Spec.PeerAddr = addr
 }
 
-// MatchAgainst takes a map of labels and returns True if this server
-// has ALL of them
-//
-// Any server matches against an empty label set
-func (s *ServerV2) MatchAgainst(labels map[string]string) bool {
-	return MatchLabels(s, labels)
-}
-
-// LabelsString returns a comma separated string of all labels.
-func (s *ServerV2) LabelsString() string {
-	return LabelsAsString(s.Metadata.Labels, s.Spec.CmdLabels)
-}
-
-// LabelsAsString combines static and dynamic labels and returns a comma
-// separated string.
-func LabelsAsString(static map[string]string, dynamic map[string]CommandLabelV2) string {
-	labels := []string{}
-	for key, val := range static {
-		labels = append(labels, fmt.Sprintf("%s=%s", key, val))
-	}
-	for key, val := range dynamic {
-		labels = append(labels, fmt.Sprintf("%s=%s", key, val.Result))
-	}
-	sort.Strings(labels)
-	return strings.Join(labels, ",")
-}
-
 // setStaticFields sets static resource header and metadata fields.
 func (s *ServerV2) setStaticFields() {
 	s.Version = V2
+}
+
+// IsOpenSSHNode returns whether the connection to this Server must use OpenSSH.
+// This returns true for SubKindOpenSSHNode and SubKindOpenSSHEICENode.
+func (s *ServerV2) IsOpenSSHNode() bool {
+	return IsOpenSSHNodeSubKind(s.SubKind)
+}
+
+// IsOpenSSHNodeSubKind returns whether the Node SubKind is from a server which accepts connections over the
+// OpenSSH daemon (instead of a Teleport Node).
+func IsOpenSSHNodeSubKind(subkind string) bool {
+	return subkind == SubKindOpenSSHNode || subkind == SubKindOpenSSHEICENode
+}
+
+// openSSHNodeCheckAndSetDefaults are common validations for OpenSSH nodes.
+// They include SubKindOpenSSHNode and SubKindOpenSSHEICENode.
+func (s *ServerV2) openSSHNodeCheckAndSetDefaults() error {
+	if s.Spec.Addr == "" {
+		return trace.BadParameter("addr must be set when server SubKind is %q", s.GetSubKind())
+	}
+	if len(s.GetPublicAddrs()) != 0 {
+		return trace.BadParameter("publicAddrs must not be set when server SubKind is %q", s.GetSubKind())
+	}
+	if s.Spec.Hostname == "" {
+		return trace.BadParameter("hostname must be set when server SubKind is %q", s.GetSubKind())
+	}
+
+	_, _, err := net.SplitHostPort(s.Spec.Addr)
+	if err != nil {
+		return trace.BadParameter("invalid Addr %q: %v", s.Spec.Addr, err)
+	}
+	return nil
+}
+
+// openSSHEC2InstanceConnectEndpointNodeCheckAndSetDefaults are validations for SubKindOpenSSHEICENode.
+func (s *ServerV2) openSSHEC2InstanceConnectEndpointNodeCheckAndSetDefaults() error {
+	if err := s.openSSHNodeCheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// AWS fields are required for SubKindOpenSSHEICENode.
+	switch {
+	case s.Spec.CloudMetadata == nil || s.Spec.CloudMetadata.AWS == nil:
+		return trace.BadParameter("missing AWS CloudMetadata (required for %q SubKind)", s.SubKind)
+
+	case s.Spec.CloudMetadata.AWS.AccountID == "":
+		return trace.BadParameter("missing AWS Account ID (required for %q SubKind)", s.SubKind)
+
+	case s.Spec.CloudMetadata.AWS.Region == "":
+		return trace.BadParameter("missing AWS Region (required for %q SubKind)", s.SubKind)
+
+	case s.Spec.CloudMetadata.AWS.Integration == "":
+		return trace.BadParameter("missing AWS OIDC Integration (required for %q SubKind)", s.SubKind)
+
+	case s.Spec.CloudMetadata.AWS.InstanceID == "":
+		return trace.BadParameter("missing AWS InstanceID (required for %q SubKind)", s.SubKind)
+
+	case s.Spec.CloudMetadata.AWS.VPCID == "":
+		return trace.BadParameter("missing AWS VPC ID (required for %q SubKind)", s.SubKind)
+
+	case s.Spec.CloudMetadata.AWS.SubnetID == "":
+		return trace.BadParameter("missing AWS Subnet ID (required for %q SubKind)", s.SubKind)
+	}
+
+	return nil
 }
 
 // CheckAndSetDefaults checks and set default values for any missing fields.
@@ -391,6 +453,13 @@ func (s *ServerV2) CheckAndSetDefaults() error {
 	// TODO(awly): default s.Metadata.Expiry if not set (use
 	// defaults.ServerAnnounceTTL).
 	s.setStaticFields()
+
+	// if the server is a registered OpenSSH node, allow the name to be
+	// randomly generated
+	if s.Metadata.Name == "" && s.IsOpenSSHNode() {
+		s.Metadata.Name = uuid.New().String()
+	}
+
 	if err := s.Metadata.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -398,15 +467,30 @@ func (s *ServerV2) CheckAndSetDefaults() error {
 	if s.Kind == "" {
 		return trace.BadParameter("server Kind is empty")
 	}
+	if s.Kind != KindNode && s.SubKind != "" {
+		return trace.BadParameter(`server SubKind must only be set when Kind is "node"`)
+	}
+
+	switch s.SubKind {
+	case "", SubKindTeleportNode:
+		// allow but do nothing
+	case SubKindOpenSSHNode:
+		if err := s.openSSHNodeCheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
+
+	case SubKindOpenSSHEICENode:
+		if err := s.openSSHEC2InstanceConnectEndpointNodeCheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
+
+	default:
+		return trace.BadParameter("invalid SubKind %q", s.SubKind)
+	}
 
 	for key := range s.Spec.CmdLabels {
 		if !IsValidLabelKey(key) {
 			return trace.BadParameter("invalid label key: %q", key)
-		}
-	}
-	for _, kc := range s.Spec.KubernetesClusters {
-		if !validKubeClusterName.MatchString(kc.Name) {
-			return trace.BadParameter("invalid kubernetes cluster name: %q", kc.Name)
 		}
 	}
 
@@ -421,6 +505,7 @@ func (s *ServerV2) MatchSearch(values []string) bool {
 
 	if s.GetKind() == KindNode {
 		fieldVals = append(utils.MapToStrings(s.GetAllLabels()), s.GetName(), s.GetHostname(), s.GetAddr())
+		fieldVals = append(fieldVals, s.GetPublicAddrs()...)
 
 		if s.GetUseTunnel() {
 			custom = func(val string) bool {
@@ -434,17 +519,31 @@ func (s *ServerV2) MatchSearch(values []string) bool {
 
 // DeepCopy creates a clone of this server value
 func (s *ServerV2) DeepCopy() Server {
-	return proto.Clone(s).(*ServerV2)
+	return utils.CloneProtoMsg(s)
 }
 
-// IsAWSConsole returns true if this app is AWS management console.
-func (a *App) IsAWSConsole() bool {
-	return strings.HasPrefix(a.URI, constants.AWSConsoleURL)
+// CloneResource creates a clone of this server value
+func (s *ServerV2) CloneResource() ResourceWithLabels {
+	return s.DeepCopy()
 }
 
-// GetAWSAccountID returns value of label containing AWS account ID on this app.
-func (a *App) GetAWSAccountID() string {
-	return a.StaticLabels[constants.AWSAccountIDLabel]
+// GetCloudMetadata gets the cloud metadata for the server.
+func (s *ServerV2) GetCloudMetadata() *CloudMetadata {
+	return s.Spec.CloudMetadata
+}
+
+// GetAWSInfo gets the AWS Cloud metadata for the server.
+func (s *ServerV2) GetAWSInfo() *AWSInfo {
+	if s.Spec.CloudMetadata == nil {
+		return nil
+	}
+
+	return s.Spec.CloudMetadata.AWS
+}
+
+// SetCloudMetadata sets the server's cloud metadata.
+func (s *ServerV2) SetCloudMetadata(meta *CloudMetadata) {
+	s.Spec.CloudMetadata = meta
 }
 
 // CommandLabel is a label that has a value as a result of the
@@ -522,12 +621,6 @@ func LabelsToV2(labels map[string]CommandLabel) map[string]CommandLabelV2 {
 	}
 	return out
 }
-
-// validKubeClusterName filters the allowed characters in kubernetes cluster
-// names. We need this because cluster names are used for cert filenames on the
-// client side, in the ~/.tsh directory. Restricting characters helps with
-// sneaky cluster names being used for client directory traversal and exploits.
-var validKubeClusterName = regexp.MustCompile(`^[a-zA-Z0-9._-]+$`)
 
 // Servers represents a list of servers.
 type Servers []Server

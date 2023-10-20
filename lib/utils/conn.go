@@ -167,7 +167,11 @@ func (r *TrackingReader) Count() uint64 {
 func (r *TrackingReader) Read(b []byte) (int, error) {
 	n, err := r.r.Read(b)
 	atomic.AddUint64(&r.count, uint64(n))
-	return n, trace.Wrap(err)
+
+	// This has to use the original error type or else utilities using the connection
+	// (like io.Copy, which is used by the oxy forwarder) may incorrectly categorize
+	// the error produced by this and terminate the connection unnecessarily.
+	return n, err
 }
 
 // TrackingWriter is an io.Writer that counts the total number of bytes
@@ -192,4 +196,31 @@ func (w *TrackingWriter) Write(b []byte) (int, error) {
 	n, err := w.w.Write(b)
 	atomic.AddUint64(&w.count, uint64(n))
 	return n, trace.Wrap(err)
+}
+
+// ConnWithSrcAddr is a net.Conn wrapper that allows us to specify remote client address
+type ConnWithSrcAddr struct {
+	net.Conn
+	clientSrcAddr net.Addr
+}
+
+// RemoteAddr returns specified client source address
+func (c *ConnWithSrcAddr) RemoteAddr() net.Addr {
+	if c.clientSrcAddr == nil {
+		return c.Conn.RemoteAddr()
+	}
+	return c.clientSrcAddr
+}
+
+// NetConn returns the underlying net.Conn.
+func (c *ConnWithSrcAddr) NetConn() net.Conn {
+	return c.Conn
+}
+
+// NewConnWithSrcAddr wraps provided connection and overrides client remote address
+func NewConnWithSrcAddr(conn net.Conn, clientSrcAddr net.Addr) *ConnWithSrcAddr {
+	return &ConnWithSrcAddr{
+		Conn:          conn,
+		clientSrcAddr: clientSrcAddr,
+	}
 }

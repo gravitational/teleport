@@ -18,6 +18,7 @@ package srv
 
 import (
 	"context"
+	"errors"
 	"io"
 	"os"
 	"os/exec"
@@ -25,6 +26,7 @@ import (
 	"strconv"
 	"sync"
 	"syscall"
+	"time"
 
 	"github.com/creack/pty"
 	"github.com/gravitational/trace"
@@ -34,6 +36,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
 )
@@ -58,9 +61,16 @@ type Terminal interface {
 	// Wait will block until the terminal is complete.
 	Wait() (*ExecResult, error)
 
+	// WaitForChild blocks until the child process has completed any required
+	// setup operations before proceeding with execution.
+	WaitForChild() error
+
 	// Continue will resume execution of the process after it completes its
 	// pre-processing routine (placed in a cgroup).
 	Continue()
+
+	// KillUnderlyingShell tries to gracefully stop the terminal process.
+	KillUnderlyingShell(ctx context.Context) error
 
 	// Kill will force kill the terminal.
 	Kill(ctx context.Context) error
@@ -108,7 +118,7 @@ func NewTerminal(ctx *ServerContext) (Terminal, error) {
 
 	// If this is not a Teleport node, find out what mode the cluster is in and
 	// return the correct terminal.
-	if services.IsRecordAtProxy(ctx.SessionRecordingConfig.GetMode()) {
+	if types.IsOpenSSHNodeSubKind(ctx.ServerSubKind) || services.IsRecordAtProxy(ctx.SessionRecordingConfig.GetMode()) {
 		return newRemoteTerminal(ctx)
 	}
 	return newLocalTerminal(ctx)
@@ -121,11 +131,15 @@ type terminal struct {
 
 	log *log.Entry
 
-	cmd *exec.Cmd
-	ctx *ServerContext
+	cmd           *exec.Cmd
+	serverContext *ServerContext
 
 	pty *os.File
 	tty *os.File
+
+	// terminateFD when closed informs the terminal that
+	// the process running in the shell should be killed.
+	terminateFD *os.File
 
 	pid int
 
@@ -141,7 +155,8 @@ func newLocalTerminal(ctx *ServerContext) (*terminal, error) {
 		log: log.WithFields(log.Fields{
 			trace.Component: teleport.ComponentLocalTerm,
 		}),
-		ctx: ctx,
+		serverContext: ctx,
+		terminateFD:   ctx.killShellw,
 	}
 
 	// Open PTY and corresponding TTY.
@@ -169,11 +184,15 @@ func (t *terminal) AddParty(delta int) {
 
 // Run will run the terminal.
 func (t *terminal) Run(ctx context.Context) error {
-	var err error
-	defer t.closeTTY()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+	}
 
+	var err error
 	// Create the command that will actually execute.
-	t.cmd, err = ConfigureCommand(t.ctx)
+	t.cmd, err = ConfigureCommand(t.serverContext)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -192,6 +211,13 @@ func (t *terminal) Run(ctx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	// Close our half of the write pipe since it is only to be used by the child process.
+	// Not closing prevents being signaled when the child closes its half.
+	if err := t.serverContext.readyw.Close(); err != nil {
+		t.serverContext.Logger.WithError(err).Warn("Failed to close parent process ready signal write fd")
+	}
+	t.serverContext.readyw = nil
 
 	// Save off the PID of the Teleport process under which the shell is executing.
 	t.pid = t.cmd.Process.Pid
@@ -221,14 +247,55 @@ func (t *terminal) Wait() (*ExecResult, error) {
 	}, nil
 }
 
+func (t *terminal) WaitForChild() error {
+	err := waitForSignal(t.serverContext.readyr, 20*time.Second)
+	closeErr := t.serverContext.readyr.Close()
+	// Set to nil so the close in the context doesn't attempt to re-close.
+	t.serverContext.readyr = nil
+	return trace.NewAggregate(err, closeErr)
+}
+
 // Continue will resume execution of the process after it completes its
 // pre-processing routine (placed in a cgroup).
 func (t *terminal) Continue() {
-	t.ctx.contw.Close()
+	if err := t.serverContext.contw.Close(); err != nil {
+		t.log.Warnf("failed to close server context")
+	}
 }
 
-// Kill will force kill the terminal.
-func (t *terminal) Kill(ctx context.Context) error {
+// KillUnderlyingShell tries to kill the shell/bash process and waits for the process PID to be released.
+func (t *terminal) KillUnderlyingShell(ctx context.Context) error {
+	if err := t.terminateFD.Close(); err != nil {
+		if !errors.Is(err, os.ErrClosed) {
+			t.log.WithError(err).Debug("Failed to close the shell file descriptor")
+		}
+	}
+
+	pid := t.PID()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+
+		proc, err := os.FindProcess(pid)
+		if err != nil {
+			return trace.Errorf("failed to find the shell process: %w", err)
+		}
+
+		if err := proc.Signal(syscall.Signal(0)); errors.Is(err, os.ErrProcessDone) {
+			t.log.Debugf("Terminal child process has been stopped")
+			return nil
+		}
+
+		time.Sleep(10 * time.Millisecond)
+	}
+}
+
+// Kill will force kill the child Teleport process.
+func (t *terminal) Kill(_ context.Context) error {
 	if t.cmd != nil && t.cmd.Process != nil {
 		if err := t.cmd.Process.Kill(); err != nil {
 			if err.Error() != "os: process already finished" {
@@ -269,10 +336,14 @@ func (t *terminal) Close() error {
 }
 
 func (t *terminal) closeTTY() error {
+	t.log.Debugf("Closing TTY")
+	defer t.log.Debugf("Closed TTY")
+
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
 	if t.tty == nil {
+		t.log.Debugf("TTY already closed")
 		return nil
 	}
 
@@ -287,14 +358,21 @@ func (t *terminal) closeTTY() error {
 }
 
 func (t *terminal) closePTY() {
+	defer t.log.Debugf("Closed PTY")
+
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	defer t.log.Debugf("Closed PTY")
 
 	// wait until all copying is over (all participants have left)
 	t.wg.Wait()
 
-	t.pty.Close()
+	if t.pty == nil {
+		return
+	}
+
+	if err := t.pty.Close(); err != nil {
+		t.log.Warnf("Failed to close PTY: %v", err)
+	}
 	t.pty = nil
 }
 
@@ -375,13 +453,13 @@ func getOwner(login string, lookupUser LookupUser, lookupGroup LookupGroup) (int
 		if err != nil {
 			return 0, 0, 0, trace.Wrap(err)
 		}
-		mode = 0620
+		mode = 0o620
 	} else {
 		gid, err = strconv.Atoi(group.Gid)
 		if err != nil {
 			return 0, 0, 0, trace.Wrap(err)
 		}
-		mode = 0600
+		mode = 0o600
 	}
 
 	return uid, gid, mode, nil
@@ -389,12 +467,12 @@ func getOwner(login string, lookupUser LookupUser, lookupGroup LookupGroup) (int
 
 // setOwner changes the owner and mode of the TTY.
 func (t *terminal) setOwner() error {
-	uid, gid, mode, err := getOwner(t.ctx.Identity.Login, user.Lookup, user.LookupGroup)
+	uid, gid, mode, err := getOwner(t.serverContext.Identity.Login, user.Lookup, user.LookupGroup)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	err = os.Chown(t.tty.Name(), uid, gid)
+	err = os.Lchown(t.tty.Name(), uid, gid)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -458,7 +536,7 @@ func (b *ptyBuffer) Write(p []byte) (n int, err error) {
 }
 
 func (t *remoteTerminal) Run(ctx context.Context) error {
-	// prepare the remote remote session by setting environment variables
+	// prepare the remote session by setting environment variables
 	t.prepareRemoteSession(ctx, t.session, t.ctx)
 
 	// combine stdout and stderr
@@ -533,8 +611,17 @@ func (t *remoteTerminal) Wait() (*ExecResult, error) {
 	}, nil
 }
 
+func (t *remoteTerminal) WaitForChild() error {
+	return nil
+}
+
 // Continue does nothing for remote command execution.
 func (t *remoteTerminal) Continue() {}
+
+// Terminate does nothing for remote command execution.
+func (t *remoteTerminal) KillUnderlyingShell(_ context.Context) error {
+	return nil
+}
 
 func (t *remoteTerminal) Kill(ctx context.Context) error {
 	err := t.session.Signal(ctx, ssh.SIGKILL)
@@ -560,6 +647,7 @@ func (t *remoteTerminal) PID() int {
 }
 
 func (t *remoteTerminal) Close() error {
+	t.wg.Wait()
 	// this closes the underlying stdin,stdout,stderr which is what ptyBuffer is
 	// hooked to directly
 	err := t.session.Close()
@@ -623,15 +711,12 @@ func (t *remoteTerminal) windowChange(ctx context.Context, w int, h int) error {
 func (t *remoteTerminal) prepareRemoteSession(ctx context.Context, session *tracessh.Session, scx *ServerContext) {
 	envs := map[string]string{
 		teleport.SSHTeleportUser:        scx.Identity.TeleportUser,
-		teleport.SSHSessionWebproxyAddr: scx.ProxyPublicAddress(),
 		teleport.SSHTeleportHostUUID:    scx.srv.ID(),
 		teleport.SSHTeleportClusterName: scx.ClusterName,
 		teleport.SSHSessionID:           string(scx.SessionID()),
 	}
 
-	for k, v := range envs {
-		if err := session.Setenv(ctx, k, v); err != nil {
-			t.log.Debugf("Unable to set environment variable: %v: %v", k, v)
-		}
+	if err := session.SetEnvs(ctx, envs); err != nil {
+		t.log.WithError(err).Debug("Unable to set environment variables")
 	}
 }

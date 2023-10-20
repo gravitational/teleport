@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package auth
 
 import (
@@ -30,10 +31,12 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 const (
@@ -101,7 +104,7 @@ func (s *Server) StartAccountRecovery(ctx context.Context, req *proto.StartAccou
 // After MaxAccountRecoveryAttempts, user is temporarily locked from further attempts at recovering and also
 // locked from logging in. Modeled after existing function WithUserLock.
 func (s *Server) verifyCodeWithRecoveryLock(ctx context.Context, username string, recoveryCode []byte) error {
-	user, err := s.Services.GetUser(username, false)
+	user, err := s.Services.GetUser(ctx, username, false)
 	switch {
 	case trace.IsNotFound(err):
 		// If user is not found, still authenticate. It should always return an error.
@@ -138,7 +141,8 @@ func (s *Server) verifyCodeWithRecoveryLock(ctx context.Context, username string
 
 	// Temp lock both user login and recovery attempts.
 	user.SetRecoveryAttemptLockExpires(lockedUntil, accountLockedMsg)
-	if err := s.UpsertUser(user); err != nil {
+	_, err = s.UpsertUser(ctx, user)
+	if err != nil {
 		log.Error(trace.DebugReport(err))
 		return trace.Wrap(verifyCodeErr)
 	}
@@ -173,7 +177,7 @@ func (s *Server) verifyRecoveryCode(ctx context.Context, user string, givenCode 
 			continue
 		}
 		codeMatch = true
-		// Mark matched token as used in backend so it can't be used again.
+		// Mark matched token as used in backend, so it can't be used again.
 		recovery.GetCodes()[i].IsUsed = true
 		if err := s.UpsertRecoveryCodes(ctx, user, recovery); err != nil {
 			log.Error(trace.DebugReport(err))
@@ -187,9 +191,7 @@ func (s *Server) verifyRecoveryCode(ctx context.Context, user string, givenCode 
 			Type: events.RecoveryCodeUsedEvent,
 			Code: events.RecoveryCodeUseSuccessCode,
 		},
-		UserMetadata: apievents.UserMetadata{
-			User: user,
-		},
+		UserMetadata: authz.ClientUserMetadataWithUser(ctx, user),
 		Status: apievents.Status{
 			Success: true,
 		},
@@ -290,7 +292,7 @@ func (s *Server) VerifyAccountRecovery(ctx context.Context, req *proto.VerifyAcc
 func (s *Server) verifyAuthnWithRecoveryLock(ctx context.Context, startToken types.UserToken, authenticateFn func() error) error {
 	// Determine user exists first since an existence of token
 	// does not guarantee the user defined in token exists anymore.
-	user, err := s.Services.GetUser(startToken.GetUser(), false)
+	user, err := s.Services.GetUser(ctx, startToken.GetUser(), false)
 	if err != nil {
 		log.Error(trace.DebugReport(err))
 		return trace.AccessDenied(verifyRecoveryGenericErrMsg)
@@ -338,7 +340,8 @@ func (s *Server) verifyAuthnWithRecoveryLock(ctx context.Context, startToken typ
 
 	// Lock the user from logging in.
 	user.SetLocked(lockedUntil, accountLockedMsg)
-	if err := s.UpsertUser(user); err != nil {
+	_, err = s.UpsertUser(ctx, user)
+	if err != nil {
 		log.Error(trace.DebugReport(err))
 		return trace.AccessDenied(verifyRecoveryBadAuthnErrMsg)
 	}
@@ -431,7 +434,7 @@ func (s *Server) CompleteAccountRecovery(ctx context.Context, req *proto.Complet
 	}
 
 	// Check and remove user locks so user can immediately sign in after finishing recovering.
-	user, err := s.Services.GetUser(approvedToken.GetUser(), false /* without secrets */)
+	user, err := s.Services.GetUser(ctx, approvedToken.GetUser(), false /* without secrets */)
 	if err != nil {
 		log.Error(trace.DebugReport(err))
 		return trace.AccessDenied(completeRecoveryGenericErrMsg)
@@ -439,7 +442,8 @@ func (s *Server) CompleteAccountRecovery(ctx context.Context, req *proto.Complet
 
 	if user.GetStatus().IsLocked {
 		user.ResetLocks()
-		if err := s.UpsertUser(user); err != nil {
+		_, err = s.UpsertUser(ctx, user)
+		if err != nil {
 			log.Error(trace.DebugReport(err))
 			return trace.AccessDenied(completeRecoveryGenericErrMsg)
 		}
@@ -509,7 +513,7 @@ func (s *Server) GetAccountRecoveryToken(ctx context.Context, req *proto.GetAcco
 
 // GetAccountRecoveryCodes implements AuthService.GetAccountRecoveryCodes.
 func (s *Server) GetAccountRecoveryCodes(ctx context.Context, req *proto.GetAccountRecoveryCodesRequest) (*proto.RecoveryCodes, error) {
-	username, err := GetClientUsername(ctx)
+	username, err := authz.GetClientUsername(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -532,7 +536,7 @@ func (s *Server) generateAndUpsertRecoveryCodes(ctx context.Context, username st
 
 	hashedCodes := make([]types.RecoveryCode, len(codes))
 	for i, token := range codes {
-		hashedCode, err := bcrypt.GenerateFromPassword([]byte(token), bcrypt.DefaultCost)
+		hashedCode, err := utils.BcryptFromPassword([]byte(token), bcrypt.DefaultCost)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -554,9 +558,7 @@ func (s *Server) generateAndUpsertRecoveryCodes(ctx context.Context, username st
 			Type: events.RecoveryCodeGeneratedEvent,
 			Code: events.RecoveryCodesGenerateCode,
 		},
-		UserMetadata: apievents.UserMetadata{
-			User: username,
-		},
+		UserMetadata: authz.ClientUserMetadataWithUser(ctx, username),
 	}); err != nil {
 		log.WithError(err).WithFields(logrus.Fields{"user": username}).Warn("Failed to emit recovery tokens generate event.")
 	}
@@ -570,8 +572,8 @@ func (s *Server) generateAndUpsertRecoveryCodes(ctx context.Context, username st
 // isAccountRecoveryAllowed gets cluster auth configuration and check if cloud, local auth
 // and second factor is allowed, which are required for account recovery.
 func (s *Server) isAccountRecoveryAllowed(ctx context.Context) error {
-	if !modules.GetModules().Features().Cloud {
-		return trace.AccessDenied("account recovery is only available for enterprise cloud")
+	if !modules.GetModules().Features().RecoveryCodes {
+		return trace.AccessDenied("account recovery is only available for Teleport enterprise")
 	}
 
 	authPref, err := s.GetAuthPreference(ctx)

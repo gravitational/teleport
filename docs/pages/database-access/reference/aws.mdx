@@ -16,8 +16,8 @@ users and permission to manage the passwords in AWS Secrets Manager.
 
 You can generate and manage the permissions with the [`teleport db configure
 bootstrap`](../../database-access/reference/cli.mdx#teleport-db-configure-bootstrap)
-command. For example, the following command would generate and print the
-IAM policies:
+command. For example, the following command would generate and print the IAM
+policies:
 
 ```code
 $ teleport db configure bootstrap --manual
@@ -31,7 +31,8 @@ policies for each discovery type are shown below.
 <Tabs>
   <TabItem label="RDS / IAM user">
   Use this policy if you're connecting to RDS instances and your Teleport
-  database agent runs as an IAM user (for example, uses an AWS credentials file).
+  Database Service instance runs as an IAM user (for example, uses an AWS
+  credentials file).
 
   Replace `{account-id}` with your AWS Account ID:
   ```json
@@ -153,6 +154,85 @@ policies for each discovery type are shown below.
   </TabItem>
 </Tabs>
 
+<Admonition type="note">
+Teleport uses `rds:ModifyDBInstance` and `rds:ModifyDBCluster` to
+automatically enable [IAM
+authentication](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/UsingWithRDS.IAMDBAuth.html)
+on the RDS instance and the Aurora cluster, respectively. You can omit these
+permissions if IAM authentication is already enabled.
+</Admonition>
+
+### RDS Proxy
+
+<Tabs>
+  <TabItem label="IAM user">
+  Use this policy if you're connecting to RDS Proxy instances and your Teleport
+  Database Service instance runs as an IAM user (for example, uses an AWS
+  credentials file).
+
+  Replace `{account-id}` with your AWS Account ID:
+  ```json
+  {
+      "Version": "2012-10-17",
+      "Statement": [
+          {
+              "Effect": "Allow",
+              "Action": [
+                  "rds:DescribeDBProxies",
+                  "rds:DescribeDBProxyEndpoints",
+                  "rds:DescribeDBProxyTargets",
+                  "rds:ListTagsForResource",
+              ],
+              "Resource": "*"
+          },
+          {
+              "Effect": "Allow",
+              "Action": [
+                  "iam:GetUserPolicy",
+                  "iam:PutUserPolicy",
+                  "iam:DeleteUserPolicy"
+              ],
+              "Resource": "arn:aws:iam::{account-id}:user/sample-user"
+          }
+      ]
+  }
+  ```
+  </TabItem>
+  <TabItem label="IAM role">
+  Use this policy if you're connecting to RDS Proxy instances and your Teleport
+  Database Service runs as an IAM role (for example, on an EC2 instance with an
+  attached IAM role).
+
+  Replace `{account-id}` with your AWS Account ID:
+  ```json
+  {
+      "Version": "2012-10-17",
+      "Statement": [
+          {
+              "Effect": "Allow",
+              "Action": [
+                  "rds:DescribeDBProxies",
+                  "rds:DescribeDBProxyEndpoints",
+                  "rds:DescribeDBProxyTargets",
+                  "rds:ListTagsForResource",
+              ],
+              "Resource": "*"
+          },
+          {
+              "Effect": "Allow",
+              "Action": [
+                  "iam:GetRolePolicy",
+                  "iam:PutRolePolicy",
+                  "iam:DeleteRolePolicy"
+              ],
+              "Resource": "arn:aws:iam::{account-id}:role/sample-role"
+          }
+      ]
+  }
+  ```
+  </TabItem>
+</Tabs>
+
 ### Redshift
 
 <Tabs>
@@ -187,8 +267,8 @@ policies for each discovery type are shown below.
   ```
   </TabItem>
   <TabItem label="IAM role">
-  Use this permission boundary if your Teleport database agent runs as an IAM
-  role (for example, on an EC2 instance with an attached IAM role).
+  Use this permission boundary if your Teleport Database Service instance runs
+  as an IAM role (for example, on an EC2 instance with an attached IAM role).
 
   Replace `{account-id}` with your AWS Account ID:
   ```json
@@ -314,12 +394,12 @@ manually using a [static configuration](./configuration.mdx) or
 [`tctl`](../guides/dynamic-registration.mdx) and manage IAM yourself, example
 IAM policies with the required permissions are shown below.
 
-### RDS or Aurora policy
+### RDS, Aurora, or RDS Proxy policy
 
-To connect to an RDS database, the database agent's IAM identity needs to have
-`rds-db:connect` permissions for it:
+To connect to an RDS database, the Database Service instance's IAM identity
+needs to have `rds-db:connect` permissions for it:
 
-<Details title="Example IAM policy document" opened={false}>
+<Details title="Example IAM policy document">
 ```json
 {
    "Version": "2012-10-17",
@@ -330,10 +410,12 @@ To connect to an RDS database, the database agent's IAM identity needs to have
              "rds-db:connect"
          ],
          "Resource": [
-             // Use db-XXX as a resource identifier for RDS databases.
+             // Use db-XXX as a resource identifier for RDS instances.
              "arn:aws:rds-db:us-east-2:1234567890:dbuser:db-ABCDEFGHIJKL01234/*",
              // Use cluster-XXX as a resource identifier for Aurora clusters.
              "arn:aws:rds-db:us-east-2:1234567890:dbuser:cluster-ABCDEFGHIJKL01234/*"
+             // Use prx-XXX as a resource identifier for RDS proxies.
+             "arn:aws:rds-db:us-east-2:1234567890:dbuser:prx-ABCDEFGHIJKL01234/*"
          ]
       }
    ]
@@ -351,7 +433,7 @@ arn:aws:rds-db:<region>:<account-id>:dbuser:<resource-id>/<db-user>
 | ------------- | ----------- |
 | `region`      | AWS region where the database cluster is deployed. |
 | `account-id`  | AWS account ID the database cluster is deployed under. |
-| `resource-id` | Database AWS resource identifier: `db-XXX` for RDS, `cluster-XXX` for Aurora. Can be found under Configuration section in the RDS control panel. |
+| `resource-id` | Database AWS resource identifier: `db-XXX` for RDS instances, `cluster-XXX` for Aurora clusters, "prx-XXX` for RDS Proxy. Can be found under Configuration section in the RDS control panel. |
 | `db-user`     | Database user to associate with IAM authentication. Can be a wildcard. |
 
 See [Creating and using an IAM policy for IAM database access](https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/UsingWithRDS.IAMDBAuth.IAMPolicy.html)
@@ -364,7 +446,7 @@ Redshift databases.
 In order to authorize Teleport to generate temporary IAM tokens, create an IAM
 role with the `GetClusterCredentials` permission:
 
-<Details title="Example IAM policy document" opened={false}>
+<Details title="Example IAM policy document">
 ```json
 {
     "Version": "2012-10-17",

@@ -35,13 +35,17 @@ type Client struct {
 
 // New creates and connects a new Client based on opts.
 func New(cfg Config) (*Client, error) {
-	return &Client{}, errors.New("the real rdpclient.Client implementation was not included in this build")
+	return nil, errors.New("the real rdpclient.Client implementation was not included in this build")
 }
 
 // Run starts the rdp client and blocks until the client disconnects,
 // then runs the cleanup.
 func (c *Client) Run(ctx context.Context) error {
 	return errors.New("the real rdpclient.Client implementation was not included in this build")
+}
+
+func (c *Client) GetClientUsername() string {
+	return ""
 }
 
 // GetClientLastActive returns the time of the last recorded activity.

@@ -17,11 +17,11 @@ limitations under the License.
 package webauthn
 
 import (
-	"github.com/duo-labs/webauthn/protocol"
+	"github.com/go-webauthn/webauthn/protocol"
+	wan "github.com/go-webauthn/webauthn/webauthn"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
-
-	wan "github.com/duo-labs/webauthn/webauthn"
 )
 
 const (
@@ -59,7 +59,7 @@ func newWebAuthn(p webAuthnParams) (*wan.WebAuthn, error) {
 
 	return wan.New(&wan.Config{
 		RPID:                  p.rpID,
-		RPOrigin:              p.origin,
+		RPOrigins:             []string{p.origin},
 		RPDisplayName:         defaultDisplayName,
 		RPIcon:                defaultIcon,
 		AttestationPreference: attestation,

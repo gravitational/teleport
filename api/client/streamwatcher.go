@@ -20,24 +20,23 @@ import (
 	"context"
 	"sync"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
-
-	"github.com/gravitational/trace"
-	"github.com/gravitational/trace/trail"
 )
 
 // NewWatcher returns a new streamWatcher
 func (c *Client) NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error) {
 	cancelCtx, cancel := context.WithCancel(ctx)
-	var protoWatch proto.Watch
-	for _, kind := range watch.Kinds {
-		protoWatch.Kinds = append(protoWatch.Kinds, proto.FromWatchKind(kind))
+	protoWatch := proto.Watch{
+		Kinds:               watch.Kinds,
+		AllowPartialSuccess: watch.AllowPartialSuccess,
 	}
-	stream, err := c.grpc.WatchEvents(cancelCtx, &protoWatch, c.callOpts...)
+	stream, err := c.grpc.WatchEvents(cancelCtx, &protoWatch)
 	if err != nil {
 		cancel()
-		return nil, trail.FromGRPC(err)
+		return nil, trace.Wrap(err)
 	}
 	w := &streamWatcher{
 		stream:  stream,
@@ -84,12 +83,12 @@ func (w *streamWatcher) receiveEvents() {
 	for {
 		event, err := w.stream.Recv()
 		if err != nil {
-			w.closeWithError(trail.FromGRPC(err))
+			w.closeWithError(trace.Wrap(err))
 			return
 		}
-		out, err := EventFromGRPC(*event)
+		out, err := EventFromGRPC(event)
 		if err != nil {
-			w.closeWithError(trail.FromGRPC(err))
+			w.closeWithError(trace.Wrap(err))
 			return
 		}
 		select {

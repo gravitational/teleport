@@ -29,6 +29,9 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/utils/keys"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
@@ -60,8 +63,19 @@ func (s *Server) ChangeUserAuthentication(ctx context.Context, req *proto.Change
 		}
 	}
 
-	webSession, err := s.createUserWebSession(ctx, user)
+	webSession, err := s.createUserWebSession(ctx, user, req.LoginIP)
 	if err != nil {
+		if keys.IsPrivateKeyPolicyError(err) {
+			// Do not return an error, otherwise
+			// the user won't be able to receive
+			// recovery codes. Even with no recovery codes
+			// this positive response indicates the user
+			// has successfully reset/registered their account.
+			return &proto.ChangeUserAuthenticationResponse{
+				Recovery:                newRecovery,
+				PrivateKeyPolicyEnabled: true,
+			}, nil
+		}
 		return nil, trace.Wrap(err)
 	}
 
@@ -79,8 +93,8 @@ func (s *Server) ChangeUserAuthentication(ctx context.Context, req *proto.Change
 // ResetPassword securely generates a new random password and assigns it to user.
 // This method is used to invalidate existing user password during password
 // reset process.
-func (s *Server) ResetPassword(username string) (string, error) {
-	user, err := s.GetUser(username, false)
+func (s *Server) ResetPassword(ctx context.Context, username string) (string, error) {
+	user, err := s.GetUser(ctx, username, false)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -99,8 +113,7 @@ func (s *Server) ResetPassword(username string) (string, error) {
 }
 
 // ChangePassword updates users password based on the old password.
-func (s *Server) ChangePassword(req services.ChangePasswordReq) error {
-	ctx := context.TODO()
+func (s *Server) ChangePassword(ctx context.Context, req *proto.ChangePasswordRequest) error {
 	// validate new password
 	if err := services.VerifyPassword(req.NewPassword); err != nil {
 		return trace.Wrap(err)
@@ -110,7 +123,7 @@ func (s *Server) ChangePassword(req services.ChangePasswordReq) error {
 	user := req.User
 	authReq := AuthenticateUserRequest{
 		Username: user,
-		Webauthn: req.WebauthnResponse,
+		Webauthn: wantypes.CredentialAssertionResponseFromProto(req.Webauthn),
 	}
 	if len(req.OldPassword) > 0 {
 		authReq.Pass = &PassCreds{
@@ -136,9 +149,7 @@ func (s *Server) ChangePassword(req services.ChangePasswordReq) error {
 			Type: events.UserPasswordChangeEvent,
 			Code: events.UserPasswordChangeCode,
 		},
-		UserMetadata: apievents.UserMetadata{
-			User: user,
-		},
+		UserMetadata: authz.ClientUserMetadataWithUser(ctx, user),
 	}); err != nil {
 		log.WithError(err).Warn("Failed to emit password change event.")
 	}
@@ -314,7 +325,7 @@ func (s *Server) changeUserAuthentication(ctx context.Context, req *proto.Change
 		}
 	}
 
-	user, err := s.GetUser(username, false)
+	user, err := s.GetUser(ctx, username, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

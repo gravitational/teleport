@@ -1,0 +1,17 @@
+{{- $auth := mustMergeOverwrite (mustDeepCopy .Values) .Values.auth -}}
+{{- if $auth.highAvailability.podDisruptionBudget.enabled }}
+{{- if .Capabilities.APIVersions.Has "policy/v1" }}
+apiVersion: policy/v1
+{{- else }}
+apiVersion: policy/v1beta1
+{{- end }}
+kind: PodDisruptionBudget
+metadata:
+  name: {{ .Release.Name }}-auth
+  namespace: {{ .Release.Namespace }}
+  labels: {{- include "teleport-cluster.auth.labels" . | nindent 4 }}
+spec:
+  minAvailable: {{ $auth.highAvailability.podDisruptionBudget.minAvailable }}
+  selector:
+    matchLabels: {{- include "teleport-cluster.auth.selectorLabels" . | nindent 6 }}
+{{- end }}

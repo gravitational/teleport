@@ -1,17 +1,15 @@
 ---
 title: Use JWT Tokens With Application Access
-description: How to use JWT tokens for authentication with Teleport Application Access.
+description: How to use JWT tokens for authentication with Teleport application access.
 ---
-
-# Integrating with JWTs
 
 Teleport sends a JWT token signed with Teleport's authority with each request
 to a target application in a `Teleport-Jwt-Assertion` header.
 
 You can use the JWT token to get information about the authenticated Teleport
-user and its roles. This allows you to:
+user, its roles, and its traits. This allows you to:
 
-- Map Teleport identity/roles onto the identity/roles of your web application.
+- Map Teleport identity/roles/traits onto the identity/roles/traits of your web application.
 - Trust Teleport identity to automatically sign in users into your application.
 
 ## Introduction to JWTs
@@ -56,6 +54,14 @@ Teleport JWTs include three sections:
   "roles": [
     "admin"
   ],
+  // Teleport user traits.
+  "traits": {
+    "logins": [
+      "root",
+      "ubuntu",
+      "ec2-user"
+    ]
+  },
   // Teleport identity expiration.
   "exp": 1603943800,
 }

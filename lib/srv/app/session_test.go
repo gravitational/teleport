@@ -20,11 +20,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport/lib/events"
-
 	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib/events"
 )
 
 func newSessionChunk(timeout time.Duration) *sessionChunk {
@@ -34,7 +34,7 @@ func newSessionChunk(timeout time.Duration) *sessionChunk {
 		inflightCond: sync.NewCond(&sync.Mutex{}),
 		closeTimeout: timeout,
 		log:          logrus.NewEntry(logrus.StandardLogger()),
-		streamWriter: &events.DiscardStream{},
+		streamCloser: events.NewDiscardRecorder(),
 	}
 }
 

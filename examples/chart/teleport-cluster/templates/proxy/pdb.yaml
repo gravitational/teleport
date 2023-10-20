@@ -1,0 +1,17 @@
+{{- $proxy := mustMergeOverwrite (mustDeepCopy .Values) .Values.proxy -}}
+{{- if $proxy.highAvailability.podDisruptionBudget.enabled }}
+{{- if .Capabilities.APIVersions.Has "policy/v1" }}
+apiVersion: policy/v1
+{{- else }}
+apiVersion: policy/v1beta1
+{{- end }}
+kind: PodDisruptionBudget
+metadata:
+  name: {{ .Release.Name }}-proxy
+  namespace: {{ .Release.Namespace }}
+  labels: {{- include "teleport-cluster.proxy.labels" . | nindent 4 }}
+spec:
+  minAvailable: {{ $proxy.highAvailability.podDisruptionBudget.minAvailable }}
+  selector:
+    matchLabels: {{- include "teleport-cluster.proxy.selectorLabels" . | nindent 6 }}
+{{- end }}

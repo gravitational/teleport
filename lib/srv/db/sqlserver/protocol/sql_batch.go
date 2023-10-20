@@ -21,8 +21,8 @@ import (
 	"encoding/binary"
 	"io"
 
-	mssql "github.com/denisenkom/go-mssqldb"
 	"github.com/gravitational/trace"
+	mssql "github.com/microsoft/go-mssqldb"
 )
 
 // SQLBatch is a representation of MSServer SQL Batch packet.

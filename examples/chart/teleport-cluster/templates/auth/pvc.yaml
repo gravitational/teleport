@@ -1,0 +1,24 @@
+{{- $auth := mustMergeOverwrite (mustDeepCopy .Values) .Values.auth -}}
+{{- if $auth.persistence.enabled }}
+  {{/* Disable persistence for cloud modes */}}
+  {{- if and (not (eq $auth.chartMode "aws")) (not (eq $auth.chartMode "gcp")) (not (eq $auth.chartMode "azure")) }}
+    {{/* No need to create a PVC if we reuse an existing claim */}}
+    {{- if not $auth.persistence.existingClaimName }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ .Release.Name }}
+  namespace: {{ .Release.Namespace }}
+  labels: {{- include "teleport-cluster.auth.labels" . | nindent 4 }}
+spec:
+  accessModes:
+  - ReadWriteOnce
+  {{- if $auth.persistence.storageClassName }}
+  storageClassName: {{ $auth.persistence.storageClassName }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ required "persistence.volumeSize is required in chart values" $auth.persistence.volumeSize }}
+    {{- end }}
+  {{- end }}
+{{- end }}

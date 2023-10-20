@@ -23,19 +23,13 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/base64"
+	"errors"
 	"os"
 	"sort"
+	"strconv"
 	"strings"
+	"sync"
 	"time"
-
-	apidefaults "github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/api/types"
-	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/observability/metrics"
-	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils"
-	cq "github.com/gravitational/teleport/lib/utils/concurrentqueue"
 
 	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
@@ -45,18 +39,30 @@ import (
 	"go.etcd.io/etcd/api/v3/mvccpb"
 	"go.etcd.io/etcd/api/v3/v3rpc/rpctypes"
 	clientv3 "go.etcd.io/etcd/client/v3"
-	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
 	"github.com/gravitational/teleport"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/observability/metrics"
+	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils"
+	cq "github.com/gravitational/teleport/lib/utils/concurrentqueue"
+)
+
+const (
+	// defaultClientPoolSize is the default number of etcd clients to use
+	defaultClientPoolSize = 3
 )
 
 var (
 	writeRequests = prometheus.NewCounter(
 		prometheus.CounterOpts{
 			Name: "etcd_backend_write_requests",
-			Help: "Number of wrtie requests to the database",
+			Help: "Number of write requests to the database",
 		},
 	)
 	readRequests = prometheus.NewCounter(
@@ -115,20 +121,23 @@ var (
 	)
 	eventCount = prometheus.NewCounter(
 		prometheus.CounterOpts{
-			Name: "etcd_events",
-			Help: "Number of etcd events",
+			Namespace: teleport.MetricNamespace,
+			Name:      "etcd_events",
+			Help:      "Number of etcd events processed",
 		},
 	)
 	eventBackpressure = prometheus.NewCounter(
 		prometheus.CounterOpts{
-			Name: "etcd_event_backpressure",
-			Help: "Number of etcd events that hit backpressure",
+			Namespace: teleport.MetricNamespace,
+			Name:      "etcd_event_backpressure",
+			Help:      "Number of etcd events that hit backpressure",
 		},
 	)
 
 	prometheusCollectors = []prometheus.Collector{
 		writeLatencies, txLatencies, batchReadLatencies,
 		readLatencies, writeRequests, txRequests, batchReadRequests, readRequests,
+		eventCount, eventBackpressure,
 	}
 )
 
@@ -136,7 +145,7 @@ type EtcdBackend struct {
 	nodes []string
 	*log.Entry
 	cfg         *Config
-	client      *clientv3.Client
+	clients     roundRobin[*clientv3.Client]
 	cancelC     chan bool
 	stopC       chan bool
 	clock       clockwork.Clock
@@ -177,6 +186,8 @@ type Config struct {
 	// MaxClientMsgSizeBytes optionally specifies the size limit on client send message size.
 	// See https://github.com/etcd-io/etcd/blob/221f0cc107cb3497eeb20fb241e1bcafca2e9115/clientv3/config.go#L49
 	MaxClientMsgSizeBytes int `json:"etcd_max_client_msg_size_bytes,omitempty"`
+	// ClientPoolSize is the number of concurrent clients to use.
+	ClientPoolSize int `json:"client_pool_size,omitempty"`
 }
 
 // GetName returns the name of etcd backend as it appears in 'storage/type' section
@@ -186,7 +197,7 @@ func GetName() string {
 }
 
 // keep this here to test interface conformance
-var _ backend.Backend = &EtcdBackend{}
+var _ backend.Backend = (*EtcdBackend)(nil)
 
 // Option is an etcd backend functional option (used in tests).
 type Option func(*options)
@@ -255,12 +266,14 @@ func New(ctx context.Context, params backend.Params, opts ...Option) (*EtcdBacke
 		CleanupInterval: utils.SeventhJitter(time.Minute * 2),
 	})
 	if err != nil {
+		cancel()
 		return nil, trace.Wrap(err)
 	}
 
 	b := &EtcdBackend{
 		Entry:       log.WithFields(log.Fields{trace.Component: GetName()}),
 		cfg:         cfg,
+		clients:     newRoundRobin[*clientv3.Client](nil), // initialized below in reconnect()
 		nodes:       cfg.Nodes,
 		cancelC:     make(chan bool, 1),
 		stopC:       make(chan bool, 1),
@@ -274,34 +287,76 @@ func New(ctx context.Context, params backend.Params, opts ...Option) (*EtcdBacke
 	}
 
 	// Check that the etcd nodes are at least the minimum version supported
-	if err = b.reconnect(ctx); err != nil {
+	if err = b.reconnect(b.ctx); err != nil {
+		b.Close()
 		return nil, trace.Wrap(err)
 	}
-	timeout, cancel := context.WithTimeout(ctx, time.Second*3*time.Duration(len(cfg.Nodes)))
-	defer cancel()
-	for _, n := range cfg.Nodes {
-		status, err := b.client.Status(timeout, n)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		ver := semver.New(status.Version)
-		min := semver.New(teleport.MinimumEtcdVersion)
-		if ver.LessThan(*min) {
-			return nil, trace.BadParameter("unsupported version of etcd %v for node %v, must be %v or greater",
-				status.Version, n, teleport.MinimumEtcdVersion)
-		}
+	if err := b.checkVersion(b.ctx); err != nil {
+		b.Close()
+		return nil, trace.Wrap(err)
 	}
 
 	// Reconnect the etcd client to work around a data race in their code.
 	// Upstream fix: https://github.com/etcd-io/etcd/pull/12992
-	if err = b.reconnect(ctx); err != nil {
+	if err = b.reconnect(b.ctx); err != nil {
+		b.Close()
 		return nil, trace.Wrap(err)
 	}
 	go b.asyncWatch()
 
 	// Wrap backend in a input sanitizer and return it.
 	return b, nil
+}
+
+func (b *EtcdBackend) checkVersion(ctx context.Context) error {
+	// scope version check to one third the default I/O timeout since slowness that is
+	// anywhere near the default timeout is going to cause systemic issues.
+	ctx, cancel := context.WithTimeout(ctx, apidefaults.DefaultIOTimeout/3)
+
+	results := make(chan error, len(b.cfg.Nodes))
+
+	var wg sync.WaitGroup
+	for _, nn := range b.cfg.Nodes {
+		wg.Add(1)
+		go func(n string) (err error) {
+			defer func() {
+				results <- err
+				wg.Done()
+			}()
+			status, err := b.clients.Next().Status(ctx, n)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
+			ver, err := semver.NewVersion(status.Version)
+			if err != nil {
+				return trace.BadParameter("failed to parse etcd version %q: %v", status.Version, err)
+			}
+
+			min := semver.New(teleport.MinimumEtcdVersion)
+			if ver.LessThan(*min) {
+				return trace.BadParameter("unsupported version of etcd %v for node %v, must be %v or greater",
+					status.Version, n, teleport.MinimumEtcdVersion)
+			}
+
+			return nil
+		}(nn)
+	}
+
+	// wait for results
+	var err error
+	for range b.cfg.Nodes {
+		err = <-results
+		if err == nil {
+			// stop on first success, we don't care about all endpoints
+			// being healthy, just that at least one is.
+			break
+		}
+	}
+
+	cancel()
+	wg.Wait()
+	return trace.Wrap(err)
 }
 
 // Validate checks if all the parameters are present/valid
@@ -325,7 +380,7 @@ func (cfg *Config) Validate() error {
 		cfg.BufferSize = backend.DefaultBufferCapacity
 	}
 	if cfg.DialTimeout == 0 {
-		cfg.DialTimeout = apidefaults.DefaultDialTimeout
+		cfg.DialTimeout = apidefaults.DefaultIOTimeout
 	}
 	if cfg.PasswordFile != "" {
 		out, err := os.ReadFile(cfg.PasswordFile)
@@ -335,7 +390,15 @@ func (cfg *Config) Validate() error {
 		// trim newlines as passwords in files tend to have newlines
 		cfg.Password = strings.TrimSpace(string(out))
 	}
+
+	if cfg.ClientPoolSize < 1 {
+		cfg.ClientPoolSize = defaultClientPoolSize
+	}
 	return nil
+}
+
+func (b *EtcdBackend) GetName() string {
+	return GetName()
 }
 
 func (b *EtcdBackend) Clock() clockwork.Clock {
@@ -345,7 +408,11 @@ func (b *EtcdBackend) Clock() clockwork.Clock {
 func (b *EtcdBackend) Close() error {
 	b.cancel()
 	b.buf.Close()
-	return b.client.Close()
+	var errs []error
+	for _, clt := range b.clients.items {
+		errs = append(errs, clt.Close())
+	}
+	return trace.NewAggregate(errs...)
 }
 
 // CloseWatchers closes all the watchers
@@ -355,11 +422,12 @@ func (b *EtcdBackend) CloseWatchers() {
 }
 
 func (b *EtcdBackend) reconnect(ctx context.Context) error {
-	if b.client != nil {
-		if err := b.client.Close(); err != nil {
+	for _, clt := range b.clients.items {
+		if err := clt.Close(); err != nil {
 			b.Entry.WithError(err).Warning("Failed closing existing etcd client on reconnect.")
 		}
 	}
+	b.clients.items = nil
 
 	tlsConfig := utils.TLSConfig(nil)
 
@@ -398,19 +466,24 @@ func (b *EtcdBackend) reconnect(ctx context.Context) error {
 		tlsConfig.ClientCAs = certPool
 	}
 
-	clt, err := clientv3.New(clientv3.Config{
-		Endpoints:          b.nodes,
-		TLS:                tlsConfig,
-		DialTimeout:        b.cfg.DialTimeout,
-		DialOptions:        []grpc.DialOption{grpc.WithBlock()},
-		Username:           b.cfg.Username,
-		Password:           b.cfg.Password,
-		MaxCallSendMsgSize: b.cfg.MaxClientMsgSizeBytes,
-	})
-	if err != nil {
-		return trace.Wrap(err)
+	for i := 0; i < b.cfg.ClientPoolSize; i++ {
+		clt, err := clientv3.New(clientv3.Config{
+			Context:            ctx,
+			Endpoints:          b.nodes,
+			TLS:                tlsConfig,
+			DialTimeout:        b.cfg.DialTimeout,
+			Username:           b.cfg.Username,
+			Password:           b.cfg.Password,
+			MaxCallSendMsgSize: b.cfg.MaxClientMsgSizeBytes,
+		})
+		if err != nil {
+			if errors.Is(err, context.DeadlineExceeded) {
+				return trace.WrapWithMessage(err, "timed out dialing etcd endpoints: %s", b.nodes)
+			}
+			return trace.Wrap(err)
+		}
+		b.clients.items = append(b.clients.items, clt)
 	}
-	b.client = clt
 	return nil
 }
 
@@ -455,8 +528,7 @@ func (b *EtcdBackend) watchEvents(ctx context.Context) error {
 	defer cancel()
 
 	// wrap fromEvent in a closure compatible with the concurrent queue
-	workfn := func(v interface{}) interface{} {
-		original := v.(clientv3.Event)
+	workfn := func(original clientv3.Event) eventResult {
 		var event backend.Event
 		e, err := b.fromEvent(ctx, original)
 		if e != nil {
@@ -485,7 +557,7 @@ func (b *EtcdBackend) watchEvents(ctx context.Context) error {
 	emitDone := make(chan struct{})
 
 	// watcher must be registered before we initialize the buffer
-	eventsC := b.client.Watch(ctx, b.cfg.Key, clientv3.WithPrefix())
+	eventsC := b.clients.Next().Watch(ctx, b.cfg.Key, clientv3.WithPrefix())
 
 	// set buffer to initialized state.
 	b.buf.SetInit()
@@ -503,8 +575,7 @@ func (b *EtcdBackend) watchEvents(ctx context.Context) error {
 	EmitEvents:
 		for {
 			select {
-			case p := <-q.Pop():
-				r := p.(eventResult)
+			case r := <-q.Pop():
 				if r.err != nil {
 					b.WithError(r.err).Errorf("Failed to unmarshal event: %v.", r.original)
 					continue EmitEvents
@@ -528,7 +599,7 @@ func (b *EtcdBackend) watchEvents(ctx context.Context) error {
 			for i := range e.Events {
 				eventCount.Inc()
 
-				var event clientv3.Event = *e.Events[i]
+				event := *e.Events[i]
 				// attempt non-blocking push.  We allocate a large input buffer for the queue, so this
 				// aught to succeed reliably.
 				select {
@@ -545,7 +616,7 @@ func (b *EtcdBackend) watchEvents(ctx context.Context) error {
 					lastBacklogWarning = now
 				}
 
-				// fallblack to blocking push
+				// fallback to blocking push
 				select {
 				case q.Push() <- event:
 				case <-ctx.Done():
@@ -576,7 +647,7 @@ func (b *EtcdBackend) GetRange(ctx context.Context, startKey, endKey []byte, lim
 		opts = append(opts, clientv3.WithLimit(int64(limit)))
 	}
 	start := b.clock.Now()
-	re, err := b.client.Get(ctx, b.prependPrefix(startKey), opts...)
+	re, err := b.clients.Next().Get(ctx, b.prependPrefix(startKey), opts...)
 	batchReadLatencies.Observe(time.Since(start).Seconds())
 	batchReadRequests.Inc()
 	if err := convertErr(err); err != nil {
@@ -589,14 +660,27 @@ func (b *EtcdBackend) GetRange(ctx context.Context, startKey, endKey []byte, lim
 			return nil, trace.Wrap(err)
 		}
 		items = append(items, backend.Item{
-			Key:     b.trimPrefix(kv.Key),
-			Value:   value,
-			ID:      kv.ModRevision,
-			LeaseID: kv.Lease,
+			Key:      b.trimPrefix(kv.Key),
+			Value:    value,
+			ID:       kv.ModRevision,
+			Revision: toBackendRevision(kv.ModRevision),
 		})
 	}
 	sort.Sort(backend.Items(items))
 	return &backend.GetResult{Items: items}, nil
+}
+
+func toBackendRevision(rev int64) string {
+	return strconv.FormatInt(rev, 10)
+}
+
+func fromBackendRevision(rev string) (int64, error) {
+	n, err := strconv.ParseInt(rev, 10, 64)
+	if err != nil {
+		return 0, trace.BadParameter("invalid revision: %s", err)
+	}
+
+	return n, err
 }
 
 // Create creates item if it does not exist
@@ -609,9 +693,10 @@ func (b *EtcdBackend) Create(ctx context.Context, item backend.Item) (*backend.L
 		}
 	}
 	start := b.clock.Now()
-	re, err := b.client.Txn(ctx).
-		If(clientv3.Compare(clientv3.CreateRevision(b.prependPrefix(item.Key)), "=", 0)).
-		Then(clientv3.OpPut(b.prependPrefix(item.Key), base64.StdEncoding.EncodeToString(item.Value), opts...)).
+	key := b.prependPrefix(item.Key)
+	re, err := b.clients.Next().Txn(ctx).
+		If(clientv3.Compare(clientv3.CreateRevision(key), "=", 0)).
+		Then(clientv3.OpPut(key, base64.StdEncoding.EncodeToString(item.Value), opts...)).
 		Commit()
 	txLatencies.Observe(time.Since(start).Seconds())
 	txRequests.Inc()
@@ -621,6 +706,8 @@ func (b *EtcdBackend) Create(ctx context.Context, item backend.Item) (*backend.L
 	if !re.Succeeded {
 		return nil, trace.AlreadyExists("%q already exists", string(item.Key))
 	}
+
+	lease.Revision = toBackendRevision(re.Header.Revision)
 	return &lease, nil
 }
 
@@ -634,9 +721,10 @@ func (b *EtcdBackend) Update(ctx context.Context, item backend.Item) (*backend.L
 		}
 	}
 	start := b.clock.Now()
-	re, err := b.client.Txn(ctx).
-		If(clientv3.Compare(clientv3.CreateRevision(b.prependPrefix(item.Key)), "!=", 0)).
-		Then(clientv3.OpPut(b.prependPrefix(item.Key), base64.StdEncoding.EncodeToString(item.Value), opts...)).
+	key := b.prependPrefix(item.Key)
+	re, err := b.clients.Next().Txn(ctx).
+		If(clientv3.Compare(clientv3.CreateRevision(key), "!=", 0)).
+		Then(clientv3.OpPut(key, base64.StdEncoding.EncodeToString(item.Value), opts...)).
 		Commit()
 	txLatencies.Observe(time.Since(start).Seconds())
 	txRequests.Inc()
@@ -646,6 +734,42 @@ func (b *EtcdBackend) Update(ctx context.Context, item backend.Item) (*backend.L
 	if !re.Succeeded {
 		return nil, trace.NotFound("%q is not found", string(item.Key))
 	}
+
+	lease.Revision = toBackendRevision(re.Header.Revision)
+	return &lease, nil
+}
+
+// ConditionalUpdate updates value in the backend if it hasn't been modified.
+func (b *EtcdBackend) ConditionalUpdate(ctx context.Context, item backend.Item) (*backend.Lease, error) {
+	rev, err := fromBackendRevision(item.Revision)
+	if err != nil {
+		return nil, trace.Wrap(backend.ErrIncorrectRevision)
+	}
+
+	var opts []clientv3.OpOption
+	var lease backend.Lease
+	if !item.Expires.IsZero() {
+		if err := b.setupLease(ctx, item, &lease, &opts); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	start := b.clock.Now()
+	key := b.prependPrefix(item.Key)
+	re, err := b.clients.Next().Txn(ctx).
+		If(clientv3.Compare(clientv3.CreateRevision(key), "!=", 0),
+			clientv3.Compare(clientv3.ModRevision(key), "=", rev)).
+		Then(clientv3.OpPut(key, base64.StdEncoding.EncodeToString(item.Value), opts...)).
+		Commit()
+	txLatencies.Observe(time.Since(start).Seconds())
+	txRequests.Inc()
+	if err != nil {
+		return nil, trace.Wrap(convertErr(err))
+	}
+	if !re.Succeeded {
+		return nil, trace.Wrap(backend.ErrIncorrectRevision)
+	}
+
+	lease.Revision = toBackendRevision(re.Header.Revision)
 	return &lease, nil
 }
 
@@ -671,9 +795,10 @@ func (b *EtcdBackend) CompareAndSwap(ctx context.Context, expected backend.Item,
 	encodedPrev := base64.StdEncoding.EncodeToString(expected.Value)
 
 	start := b.clock.Now()
-	re, err := b.client.Txn(ctx).
-		If(clientv3.Compare(clientv3.Value(b.prependPrefix(expected.Key)), "=", encodedPrev)).
-		Then(clientv3.OpPut(b.prependPrefix(expected.Key), base64.StdEncoding.EncodeToString(replaceWith.Value), opts...)).
+	key := b.prependPrefix(expected.Key)
+	re, err := b.clients.Next().Txn(ctx).
+		If(clientv3.Compare(clientv3.Value(key), "=", encodedPrev)).
+		Then(clientv3.OpPut(key, base64.StdEncoding.EncodeToString(replaceWith.Value), opts...)).
 		Commit()
 	txLatencies.Observe(time.Since(start).Seconds())
 	txRequests.Inc()
@@ -687,11 +812,12 @@ func (b *EtcdBackend) CompareAndSwap(ctx context.Context, expected backend.Item,
 	if !re.Succeeded {
 		return nil, trace.CompareFailed("key %q did not match expected value", string(expected.Key))
 	}
+
+	lease.Revision = toBackendRevision(re.Header.Revision)
 	return &lease, nil
 }
 
-// Put puts value into backend (creates if it does not
-// exists, updates it otherwise)
+// Put puts value into backend (creates if it does not exists, updates it otherwise)
 func (b *EtcdBackend) Put(ctx context.Context, item backend.Item) (*backend.Lease, error) {
 	var opts []clientv3.OpOption
 	var lease backend.Lease
@@ -701,7 +827,7 @@ func (b *EtcdBackend) Put(ctx context.Context, item backend.Item) (*backend.Leas
 		}
 	}
 	start := b.clock.Now()
-	_, err := b.client.Put(
+	re, err := b.clients.Next().Put(
 		ctx,
 		b.prependPrefix(item.Key),
 		base64.StdEncoding.EncodeToString(item.Value),
@@ -712,22 +838,13 @@ func (b *EtcdBackend) Put(ctx context.Context, item backend.Item) (*backend.Leas
 		return nil, convertErr(err)
 	}
 
+	lease.Revision = toBackendRevision(re.Header.Revision)
 	return &lease, nil
 }
 
 // KeepAlive updates TTL on the lease ID
 func (b *EtcdBackend) KeepAlive(ctx context.Context, lease backend.Lease, expires time.Time) error {
-	if lease.ID == 0 {
-		return trace.BadParameter("lease is not specified")
-	}
-	re, err := b.client.Get(ctx, b.prependPrefix(lease.Key), clientv3.WithKeysOnly())
-	if err != nil {
-		return convertErr(err)
-	}
-	if len(re.Kvs) == 0 {
-		return trace.NotFound("item %q is not found", string(lease.Key))
-	}
-	// instead of keep-alive on the old lease, setup a new lease
+	// instead of keep-alive on the old lease, set up a new lease
 	// because we would like the event to be generated
 	// which does not happen in case of lease keep-alive
 	var opts []clientv3.OpOption
@@ -736,14 +853,18 @@ func (b *EtcdBackend) KeepAlive(ctx context.Context, lease backend.Lease, expire
 		return trace.Wrap(err)
 	}
 	opts = append(opts, clientv3.WithIgnoreValue())
-	kv := re.Kvs[0]
-	_, err = b.client.Put(ctx, string(kv.Key), "", opts...)
-	return convertErr(err)
+	_, err := b.clients.Next().Put(ctx, b.prependPrefix(lease.Key), "", opts...)
+	err = convertErr(err)
+	if trace.IsNotFound(err) {
+		return trace.NotFound("item %q is not found", string(lease.Key))
+	}
+
+	return err
 }
 
 // Get returns a single item or not found error
 func (b *EtcdBackend) Get(ctx context.Context, key []byte) (*backend.Item, error) {
-	re, err := b.client.Get(ctx, b.prependPrefix(key))
+	re, err := b.clients.Next().Get(ctx, b.prependPrefix(key))
 	if err != nil {
 		return nil, convertErr(err)
 	}
@@ -751,17 +872,22 @@ func (b *EtcdBackend) Get(ctx context.Context, key []byte) (*backend.Item, error
 		return nil, trace.NotFound("item %q is not found", string(key))
 	}
 	kv := re.Kvs[0]
-	bytes, err := unmarshal(kv.Value)
+	value, err := unmarshal(kv.Value)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &backend.Item{Key: key, Value: bytes, ID: kv.ModRevision, LeaseID: kv.Lease}, nil
+	return &backend.Item{
+		Key:      key,
+		Value:    value,
+		ID:       kv.ModRevision,
+		Revision: toBackendRevision(kv.ModRevision),
+	}, nil
 }
 
 // Delete deletes item by key
 func (b *EtcdBackend) Delete(ctx context.Context, key []byte) error {
 	start := b.clock.Now()
-	re, err := b.client.Delete(ctx, b.prependPrefix(key))
+	re, err := b.clients.Next().Delete(ctx, b.prependPrefix(key))
 	writeLatencies.Observe(time.Since(start).Seconds())
 	writeRequests.Inc()
 	if err != nil {
@@ -769,6 +895,31 @@ func (b *EtcdBackend) Delete(ctx context.Context, key []byte) error {
 	}
 	if re.Deleted == 0 {
 		return trace.NotFound("%q is not found", key)
+	}
+
+	return nil
+}
+
+// ConditionalDelete deletes the item if it hasn't been modified.
+func (b *EtcdBackend) ConditionalDelete(ctx context.Context, prefix []byte, rev string) error {
+	r, err := fromBackendRevision(rev)
+	if err != nil {
+		return trace.Wrap(backend.ErrIncorrectRevision)
+	}
+
+	start := b.clock.Now()
+	key := b.prependPrefix(prefix)
+	re, err := b.clients.Next().KV.Txn(ctx).
+		If(clientv3.Compare(clientv3.CreateRevision(key), "!=", 0),
+			clientv3.Compare(clientv3.ModRevision(key), "=", r)).
+		Then(clientv3.OpDelete(key)).Commit()
+	writeLatencies.Observe(time.Since(start).Seconds())
+	writeRequests.Inc()
+	if err != nil {
+		return trace.Wrap(convertErr(err))
+	}
+	if !re.Succeeded {
+		return trace.Wrap(backend.ErrIncorrectRevision)
 	}
 
 	return nil
@@ -783,7 +934,7 @@ func (b *EtcdBackend) DeleteRange(ctx context.Context, startKey, endKey []byte) 
 		return trace.BadParameter("missing parameter endKey")
 	}
 	start := b.clock.Now()
-	_, err := b.client.Delete(ctx, b.prependPrefix(startKey), clientv3.WithRange(b.prependPrefix(endKey)))
+	_, err := b.clients.Next().Delete(ctx, b.prependPrefix(startKey), clientv3.WithRange(b.prependPrefix(endKey)))
 	writeLatencies.Observe(time.Since(start).Seconds())
 	writeRequests.Inc()
 	if err != nil {
@@ -793,15 +944,21 @@ func (b *EtcdBackend) DeleteRange(ctx context.Context, startKey, endKey []byte) 
 	return nil
 }
 
+type leaseKey struct {
+	bucket time.Time
+}
+
+var _ map[leaseKey]struct{} // compile-time hashability check
+
 func (b *EtcdBackend) setupLease(ctx context.Context, item backend.Item, lease *backend.Lease, opts *[]clientv3.OpOption) error {
 	// in order to reduce excess redundant lease generation, we bucket expiry times
 	// to the nearest multiple of 10s and then grant one lease per bucket. Too many
 	// leases can cause problems for etcd at scale.
 	// TODO(fspmarshall): make bucket size configurable.
 	bucket := roundUp(item.Expires, b.leaseBucket)
-	leaseID, err := utils.FnCacheGet(ctx, b.leaseCache, bucket, func(ctx context.Context) (clientv3.LeaseID, error) {
+	leaseID, err := utils.FnCacheGet(ctx, b.leaseCache, leaseKey{bucket: bucket}, func(ctx context.Context) (clientv3.LeaseID, error) {
 		ttl := b.ttl(bucket)
-		elease, err := b.client.Grant(ctx, seconds(ttl))
+		elease, err := b.clients.Next().Grant(ctx, seconds(ttl))
 		if err != nil {
 			return 0, convertErr(err)
 		}
@@ -813,6 +970,7 @@ func (b *EtcdBackend) setupLease(ctx context.Context, item backend.Item, lease *
 	*opts = []clientv3.OpOption{clientv3.WithLease(leaseID)}
 	lease.ID = int64(leaseID)
 	lease.Key = item.Key
+	lease.Revision = item.Revision
 	return nil
 }
 
@@ -829,24 +987,41 @@ func (b *EtcdBackend) ttl(expires time.Time) time.Duration {
 	return backend.TTL(b.clock, expires)
 }
 
+type ttlKey struct {
+	leaseID int64
+}
+
+var _ map[ttlKey]struct{} // compile-time hashability check
+
 func (b *EtcdBackend) fromEvent(ctx context.Context, e clientv3.Event) (*backend.Event, error) {
 	event := &backend.Event{
 		Type: fromType(e.Type),
 		Item: backend.Item{
-			Key: b.trimPrefix(e.Kv.Key),
-			ID:  e.Kv.ModRevision,
+			Key:      b.trimPrefix(e.Kv.Key),
+			ID:       e.Kv.ModRevision,
+			Revision: toBackendRevision(e.Kv.ModRevision),
 		},
 	}
 	if event.Type == types.OpDelete {
 		return event, nil
 	}
-	// get the new expiration date if it was updated
+
+	// Get the new expiration date if it was updated. Multiple resources share the
+	// same lease since the leases are bucketed to the nearest multiple of 10s. To
+	// reduce the number of requests per shared ttl we cache the results per lease id.
 	if e.Kv.Lease != 0 {
-		re, err := b.client.TimeToLive(ctx, clientv3.LeaseID(e.Kv.Lease))
+		ttl, err := utils.FnCacheGet(ctx, b.leaseCache, ttlKey{leaseID: e.Kv.Lease}, func(ctx context.Context) (int64, error) {
+			re, err := b.clients.Next().TimeToLive(ctx, clientv3.LeaseID(e.Kv.Lease))
+			if err != nil {
+				return 0, convertErr(err)
+			}
+			return re.TTL, nil
+		})
 		if err != nil {
-			return nil, convertErr(err)
+			return nil, trace.Wrap(err)
 		}
-		event.Item.Expires = b.clock.Now().UTC().Add(time.Second * time.Duration(re.TTL))
+
+		event.Item.Expires = b.clock.Now().UTC().Add(time.Second * time.Duration(ttl))
 	}
 	value, err := unmarshal(e.Kv.Value)
 	if err != nil {
@@ -875,34 +1050,40 @@ func unmarshal(value []byte) ([]byte, error) {
 }
 
 func convertErr(err error) error {
-	if err == nil {
+	switch {
+	case err == nil:
 		return nil
-	}
-	if err == context.Canceled {
+	case errors.Is(err, context.Canceled):
 		return trace.ConnectionProblem(err, "operation has been canceled")
-	} else if err == context.DeadlineExceeded {
+	case errors.Is(err, context.DeadlineExceeded):
 		return trace.ConnectionProblem(err, "operation has timed out")
-	} else if err == rpctypes.ErrEmptyKey {
+	case errors.Is(err, rpctypes.ErrEmptyKey):
 		return trace.BadParameter(err.Error())
-	} else if ev, ok := status.FromError(err); ok {
-		switch ev.Code() {
-		// server-side context might have timed-out first (due to clock skew)
-		// while original client-side context is not timed-out yet
-		case codes.DeadlineExceeded:
-			return trace.ConnectionProblem(err, "operation has timed out")
-		case codes.NotFound:
-			return trace.NotFound(err.Error())
-		case codes.AlreadyExists:
-			return trace.AlreadyExists(err.Error())
-		case codes.FailedPrecondition:
-			return trace.CompareFailed(err.Error())
-		case codes.ResourceExhausted:
-			return trace.LimitExceeded(err.Error())
-		default:
-			return trace.BadParameter(err.Error())
-		}
+	case errors.Is(err, rpctypes.ErrKeyNotFound):
+		return trace.NotFound(err.Error())
 	}
-	return trace.ConnectionProblem(err, err.Error())
+
+	ev, ok := status.FromError(err)
+	if !ok {
+		return trace.ConnectionProblem(err, err.Error())
+	}
+
+	switch ev.Code() {
+	// server-side context might have timed-out first (due to clock skew)
+	// while original client-side context is not timed-out yet
+	case codes.DeadlineExceeded:
+		return trace.ConnectionProblem(err, "operation has timed out")
+	case codes.NotFound:
+		return trace.NotFound(err.Error())
+	case codes.AlreadyExists:
+		return trace.AlreadyExists(err.Error())
+	case codes.FailedPrecondition:
+		return trace.CompareFailed(err.Error())
+	case codes.ResourceExhausted:
+		return trace.LimitExceeded(err.Error())
+	default:
+		return trace.BadParameter(err.Error())
+	}
 }
 
 func fromType(eventType mvccpb.Event_EventType) types.OpType {

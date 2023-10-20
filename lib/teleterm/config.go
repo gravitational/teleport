@@ -15,26 +15,31 @@
 package teleterm
 
 import (
-	"os"
-	"syscall"
+	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
 )
 
 // Config describes teleterm configuration
 type Config struct {
 	// Addr is the bind address for the server
 	Addr string
-	// ShutdownSignals is the set of captured signals that cause server shutdown.
-	ShutdownSignals []os.Signal
+	// PrehogAddr is the URL where prehog events should be submitted.
+	PrehogAddr string
 	// HomeDir is the directory to store cluster profiles
 	HomeDir string
 	// Directory containing certs used to create secure gRPC connection with daemon service
 	CertsDir string
 	// InsecureSkipVerify is an option to skip HTTPS cert check
 	InsecureSkipVerify bool
+	// ListeningC propagates the address on which the gRPC server listens. Mostly useful in tests, as
+	// the Electron app gets the server port from stdout.
+	ListeningC chan<- utils.NetAddr
+	// KubeconfigsDir is the directory containing kubeconfigs for Kubernetes
+	// Acesss.
+	KubeconfigsDir string
+	// AgentsDir contains agent config files and data directories for Connect My Computer.
+	AgentsDir string
 }
 
 // CheckAndSetDefaults checks and sets default config values.
@@ -60,10 +65,12 @@ func (c *Config) CheckAndSetDefaults() error {
 		return trace.BadParameter("network address should start with unix:// or tcp:// or be empty (tcp:// is used in that case)")
 	}
 
-	if len(c.ShutdownSignals) == 0 {
-		// If ShutdownSignals is empty, the service will be immediately shut down on start as
-		// Signal.Notify relays all signals if it's given no specific signals to watch for.
-		c.ShutdownSignals = []os.Signal{os.Interrupt, syscall.SIGTERM}
+	if c.KubeconfigsDir == "" {
+		return trace.BadParameter("missing kubeconfigs directory")
+	}
+
+	if c.AgentsDir == "" {
+		return trace.BadParameter("missing agents directory")
 	}
 
 	return nil

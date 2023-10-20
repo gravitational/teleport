@@ -19,9 +19,10 @@ package services
 import (
 	"context"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
 )
 
 // ConnectionsDiagnostic defines an interface for managing Connection Diagnostics.
@@ -65,6 +66,7 @@ func MarshalConnectionDiagnostic(s types.ConnectionDiagnostic, opts ...MarshalOp
 			// to prevent unexpected data races
 			copy := *s
 			copy.SetResourceID(0)
+			copy.SetRevision("")
 			s = &copy
 		}
 
@@ -103,6 +105,10 @@ func UnmarshalConnectionDiagnostic(data []byte, opts ...MarshalOption) (types.Co
 
 		if cfg.ID != 0 {
 			s.SetResourceID(cfg.ID)
+		}
+
+		if cfg.Revision != "" {
+			s.SetRevision(cfg.Revision)
 		}
 
 		if !cfg.Expires.IsZero() {

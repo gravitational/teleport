@@ -19,20 +19,21 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils"
-
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestRemoteClusterTunnelManagerSync(t *testing.T) {
 	t.Parallel()
 
-	resolverFn := func(addr string) Resolver {
+	resolverFn := func(addr string) reversetunnelclient.Resolver {
 		return func(context.Context) (*utils.NetAddr, types.ProxyListenerMode, error) {
 			return &utils.NetAddr{
 				Addr:        addr,
@@ -145,7 +146,7 @@ func TestRemoteClusterTunnelManagerSync(t *testing.T) {
 	ctx := context.Background()
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
-			w.cfg.AuthClient = mockAuthClient{
+			w.cfg.AccessPoint = mockAuthClient{
 				reverseTunnels:    tt.reverseTunnels,
 				reverseTunnelsErr: tt.reverseTunnelsErr,
 			}

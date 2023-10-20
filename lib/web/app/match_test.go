@@ -17,82 +17,100 @@ limitations under the License.
 package app
 
 import (
+	"context"
 	"errors"
 	"net"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/reversetunnel"
-	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/stretchr/testify/require"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 )
 
 func TestMatchAll(t *testing.T) {
-	falseMatcher := func(_ types.AppServer) bool { return false }
-	trueMatcher := func(_ types.AppServer) bool { return true }
+	falseMatcher := func(_ context.Context, _ types.AppServer) bool { return false }
+	trueMatcher := func(_ context.Context, _ types.AppServer) bool { return true }
 
-	require.True(t, MatchAll(trueMatcher, trueMatcher, trueMatcher)(nil))
-	require.False(t, MatchAll(trueMatcher, trueMatcher, falseMatcher)(nil))
-	require.False(t, MatchAll(falseMatcher, falseMatcher, falseMatcher)(nil))
+	require.True(t, MatchAll(trueMatcher, trueMatcher, trueMatcher)(nil, nil))
+	require.False(t, MatchAll(trueMatcher, trueMatcher, falseMatcher)(nil, nil))
+	require.False(t, MatchAll(falseMatcher, falseMatcher, falseMatcher)(nil, nil))
 }
 
 func TestMatchHealthy(t *testing.T) {
 	testCases := map[string]struct {
 		dialErr error
 		match   bool
+		app     types.AppServer
 	}{
 		"WithHealthyApp": {
 			match: true,
+			app:   mustNewAppServer(t, types.OriginDynamic),
 		},
 		"WithUnhealthyApp": {
 			dialErr: errors.New("failed to connect"),
 			match:   false,
+			app:     mustNewAppServer(t, types.OriginDynamic),
+		},
+		"WithUnhealthyOktaApp": {
+			dialErr: errors.New("failed to connect"),
+			match:   true,
+			app:     mustNewAppServer(t, types.OriginOkta),
 		},
 	}
 
 	for name, test := range testCases {
 		t.Run(name, func(t *testing.T) {
-			identity := &tlsca.Identity{RouteToApp: tlsca.RouteToApp{ClusterName: ""}}
 			match := MatchHealthy(&mockProxyClient{
 				remoteSite: &mockRemoteSite{
 					dialErr: test.dialErr,
 				},
-			}, identity)
+			}, "")
 
-			app, err := types.NewAppV3(
-				types.Metadata{
-					Name:      "test-app",
-					Namespace: defaults.Namespace,
-				},
-				types.AppSpecV3{
-					URI: "https://app.localhost",
-				},
-			)
-			require.NoError(t, err)
-
-			appServer, err := types.NewAppServerV3FromApp(app, "localhost", "123")
-			require.NoError(t, err)
-			require.Equal(t, test.match, match(appServer))
+			require.Equal(t, test.match, match(context.Background(), test.app))
 		})
 	}
 }
 
+func mustNewAppServer(t *testing.T, origin string) types.AppServer {
+	t.Helper()
+
+	app, err := types.NewAppV3(
+		types.Metadata{
+			Name:      "test-app",
+			Namespace: defaults.Namespace,
+			Labels: map[string]string{
+				types.OriginLabel: origin,
+			},
+		},
+		types.AppSpecV3{
+			URI: "https://app.localhost",
+		},
+	)
+	require.NoError(t, err)
+
+	appServer, err := types.NewAppServerV3FromApp(app, "localhost", "123")
+	require.NoError(t, err)
+
+	return appServer
+}
+
 type mockProxyClient struct {
-	reversetunnel.Tunnel
+	reversetunnelclient.Tunnel
 	remoteSite *mockRemoteSite
 }
 
-func (p *mockProxyClient) GetSite(_ string) (reversetunnel.RemoteSite, error) {
+func (p *mockProxyClient) GetSite(_ string) (reversetunnelclient.RemoteSite, error) {
 	return p.remoteSite, nil
 }
 
 type mockRemoteSite struct {
-	reversetunnel.RemoteSite
+	reversetunnelclient.RemoteSite
 	dialErr error
 }
 
-func (r *mockRemoteSite) Dial(_ reversetunnel.DialParams) (net.Conn, error) {
+func (r *mockRemoteSite) Dial(_ reversetunnelclient.DialParams) (net.Conn, error) {
 	if r.dialErr != nil {
 		return nil, r.dialErr
 	}

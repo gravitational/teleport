@@ -22,14 +22,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gogo/protobuf/proto"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/utils"
 )
 
-// Application represents a web app.
+// Application represents a web, TCP or cloud console application.
 type Application interface {
 	// ResourceWithLabels provides common resource methods.
 	ResourceWithLabels
@@ -43,8 +42,6 @@ type Application interface {
 	GetDynamicLabels() map[string]CommandLabel
 	// SetDynamicLabels sets the app dynamic labels.
 	SetDynamicLabels(map[string]CommandLabel)
-	// LabelsString returns all labels as a string.
-	LabelsString() string
 	// String returns string representation of the app.
 	String() string
 	// GetDescription returns the app description.
@@ -61,6 +58,10 @@ type Application interface {
 	GetRewrite() *Rewrite
 	// IsAWSConsole returns true if this app is AWS management console.
 	IsAWSConsole() bool
+	// IsAzureCloud returns true if this app represents Azure Cloud instance.
+	IsAzureCloud() bool
+	// IsGCP returns true if this app represents GCP instance.
+	IsGCP() bool
 	// IsTCP returns true if this app represents a TCP endpoint.
 	IsTCP() bool
 	// GetProtocol returns the application protocol.
@@ -69,6 +70,10 @@ type Application interface {
 	GetAWSAccountID() string
 	// GetAWSExternalID returns the AWS External ID configured for this app.
 	GetAWSExternalID() string
+	// GetUserGroups will get the list of user group IDs associated with the application.
+	GetUserGroups() []string
+	// SetUserGroups will set the list of user group IDs associated with the application.
+	SetUserGroups([]string)
 	// Copy returns a copy of this app resource.
 	Copy() *AppV3
 }
@@ -113,6 +118,16 @@ func (a *AppV3) GetResourceID() int64 {
 // SetResourceID sets the app resource ID.
 func (a *AppV3) SetResourceID(id int64) {
 	a.Metadata.ID = id
+}
+
+// GetRevision returns the revision
+func (a *AppV3) GetRevision() string {
+	return a.Metadata.GetRevision()
+}
+
+// SetRevision sets the revision
+func (a *AppV3) SetRevision(rev string) {
+	a.Metadata.SetRevision(rev)
 }
 
 // GetMetadata returns the app resource metadata.
@@ -178,14 +193,20 @@ func (a *AppV3) SetDynamicLabels(dl map[string]CommandLabel) {
 	a.Spec.DynamicLabels = LabelsToV2(dl)
 }
 
+// GetLabel retrieves the label with the provided key. If not found
+// value will be empty and ok will be false.
+func (a *AppV3) GetLabel(key string) (value string, ok bool) {
+	if cmd, ok := a.Spec.DynamicLabels[key]; ok {
+		return cmd.Result, ok
+	}
+
+	v, ok := a.Metadata.Labels[key]
+	return v, ok
+}
+
 // GetAllLabels returns the app combined static and dynamic labels.
 func (a *AppV3) GetAllLabels() map[string]string {
 	return CombineLabels(a.Metadata.Labels, a.Spec.DynamicLabels)
-}
-
-// LabelsString returns all app labels as a string.
-func (a *AppV3) LabelsString() string {
-	return LabelsAsString(a.Metadata.Labels, a.Spec.DynamicLabels)
 }
 
 // GetDescription returns the app description.
@@ -231,12 +252,27 @@ func (a *AppV3) IsAWSConsole() bool {
 			return true
 		}
 	}
-	return false
+
+	return a.Spec.Cloud == CloudAWS
+}
+
+// IsAzureCloud returns true if this app is Azure Cloud instance.
+func (a *AppV3) IsAzureCloud() bool {
+	return a.Spec.Cloud == CloudAzure
+}
+
+// IsGCP returns true if this app is GCP instance.
+func (a *AppV3) IsGCP() bool {
+	return a.Spec.Cloud == CloudGCP
 }
 
 // IsTCP returns true if this app represents a TCP endpoint.
 func (a *AppV3) IsTCP() bool {
-	return strings.HasPrefix(a.Spec.URI, "tcp://")
+	return IsAppTCP(a.Spec.URI)
+}
+
+func IsAppTCP(uri string) bool {
+	return strings.HasPrefix(uri, "tcp://")
 }
 
 // GetProtocol returns the application protocol.
@@ -260,6 +296,16 @@ func (a *AppV3) GetAWSExternalID() string {
 	return a.Spec.AWS.ExternalID
 }
 
+// GetUserGroups will get the list of user group IDss associated with the application.
+func (a *AppV3) GetUserGroups() []string {
+	return a.Spec.UserGroups
+}
+
+// SetUserGroups will set the list of user group IDs associated with the application.
+func (a *AppV3) SetUserGroups(userGroups []string) {
+	a.Spec.UserGroups = userGroups
+}
+
 // String returns the app string representation.
 func (a *AppV3) String() string {
 	return fmt.Sprintf("App(Name=%v, PublicAddr=%v, Labels=%v)",
@@ -268,7 +314,7 @@ func (a *AppV3) String() string {
 
 // Copy returns a copy of this database resource.
 func (a *AppV3) Copy() *AppV3 {
-	return proto.Clone(a).(*AppV3)
+	return utils.CloneProtoMsg(a)
 }
 
 // MatchSearch goes through select field values and tries to
@@ -296,9 +342,21 @@ func (a *AppV3) CheckAndSetDefaults() error {
 		}
 	}
 	if a.Spec.URI == "" {
-		return trace.BadParameter("app %q URI is empty", a.GetName())
+		if a.Spec.Cloud != "" {
+			a.Spec.URI = fmt.Sprintf("cloud://%v", a.Spec.Cloud)
+		} else {
+			return trace.BadParameter("app %q URI is empty", a.GetName())
+		}
 	}
-
+	if a.Spec.Cloud == "" && a.IsAWSConsole() {
+		a.Spec.Cloud = CloudAWS
+	}
+	switch a.Spec.Cloud {
+	case "", CloudAWS, CloudAzure, CloudGCP:
+		break
+	default:
+		return trace.BadParameter("app %q has unexpected Cloud value %q", a.GetName(), a.Spec.Cloud)
+	}
 	url, err := url.Parse(a.Spec.PublicAddr)
 	if err != nil {
 		return trace.BadParameter("invalid PublicAddr format: %v", err)
@@ -308,15 +366,18 @@ func (a *AppV3) CheckAndSetDefaults() error {
 		host = url.Host
 	}
 
-	// DEPRECATED DELETE IN 11.0 use KubeTeleportProxyALPNPrefix check only.
-	if strings.HasPrefix(host, constants.KubeSNIPrefix) {
-		return trace.BadParameter("app %q DNS prefix found in %q public_url is reserved for internal usage",
-			constants.KubeSNIPrefix, a.Spec.PublicAddr)
-	}
-
 	if strings.HasPrefix(host, constants.KubeTeleportProxyALPNPrefix) {
 		return trace.BadParameter("app %q DNS prefix found in %q public_url is reserved for internal usage",
 			constants.KubeTeleportProxyALPNPrefix, a.Spec.PublicAddr)
+	}
+
+	if a.Spec.Rewrite != nil {
+		switch a.Spec.Rewrite.JWTClaims {
+		case "", JWTClaimsRewriteRolesAndTraits, JWTClaimsRewriteRoles, JWTClaimsRewriteNone, JWTClaimsRewriteTraits:
+		default:
+			return trace.BadParameter("app %q has unexpected JWT rewrite value %q", a.GetName(), a.Spec.Rewrite.JWTClaims)
+
+		}
 	}
 
 	return nil

@@ -17,12 +17,11 @@ limitations under the License.
 package services
 
 import (
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/google/uuid"
 )
 
 // NewClusterNameWithRandomID creates a ClusterName, supplying a random
@@ -59,6 +58,9 @@ func UnmarshalClusterName(bytes []byte, opts ...MarshalOption) (types.ClusterNam
 	if cfg.ID != 0 {
 		clusterName.SetResourceID(cfg.ID)
 	}
+	if cfg.Revision != "" {
+		clusterName.SetRevision(cfg.Revision)
+	}
 	if !cfg.Expires.IsZero() {
 		clusterName.SetExpiry(cfg.Expires)
 	}
@@ -84,6 +86,7 @@ func MarshalClusterName(clusterName types.ClusterName, opts ...MarshalOption) ([
 			// to prevent unexpected data races
 			copy := *clusterName
 			copy.SetResourceID(0)
+			copy.SetRevision("")
 			clusterName = &copy
 		}
 		return utils.FastMarshal(clusterName)

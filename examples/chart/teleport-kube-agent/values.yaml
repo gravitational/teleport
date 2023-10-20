@@ -2,14 +2,29 @@
 # Values that must always be provided by the user.
 ################################################################
 
-# Join token for the cluster.
-# Leave empty if the secret "teleport-kube-agent-join-token"
-# has been created before and contains a valid join token
+# Join token for the cluster. `joinParams` can also pass the join token,
+# but supports more join methods and takes precedence if set.
 authToken: ""
+
 # Address of the teleport proxy with port (usually :3080).
 proxyAddr: ""
-# Comma-separated list of roles to enable (any of: kube,db,app)
+# Comma-separated list of roles to enable (any of: kube,db,app,discovery)
 roles: "kube"
+
+################################################################
+# Values that must be provided if IAM or EC2 joining is enabled.
+################################################################
+
+# Specify how to join the Teleport cluster
+joinParams:
+  # Supported join methods are "token", "ec2", "iam".
+  # method "token", is equivalent to using authToken to join a cluster
+  method: "token"
+
+  # Leave empty only when method is "token" and the secret
+  # "teleport-kube-agent-join-token" has been created before and
+  # contains a valid join token.
+  tokenName: ""
 
 ################################################################
 # Values that must be provided if Kubernetes access is enabled.
@@ -41,10 +56,10 @@ appResources: []
 # Values that must be provided if Database access is enabled.
 ################################################################
 
-# At least one of 'databases', 'awsDatabases' or 'databaseResources' must be provided
+# At least one of 'databases', 'awsDatabases', 'azureDatabases', or 'databaseResources' must be provided
 # when database access is enabled. See the README for more details.
 
-# Database auto-discovery mode (AWS only)
+# Database auto-discovery mode (AWS)
 # Details of at least one awsDatabase discovery pattern to be discovered
 # and proxied. Example:
 # awsDatabases:
@@ -53,6 +68,20 @@ appResources: []
 #   tags:
 #     "environment": "production"
 awsDatabases: []
+
+# Database auto-discovery mode (Azure)
+# Details of at least one azureDatabase discovery pattern to be discovered
+# and proxied. Example:
+# azureDatabases:
+# - types: ["mysql", "postgres"]
+#   tags:
+#     "environment": "production"
+#   regions: ["eastus", "centralus"]
+#   subscriptions: ["subID1", "subID2"]
+#   resource_groups: ["group1", "group2"]
+# Note that regions, subscriptions, and resource_groups are optional, and by default
+# the pattern for these selectors is ["*"] which will match all regions, subscriptions, or resource groups.
+azureDatabases: []
 
 # Manual database configuration mode
 # Details of at least one database to be proxied. Example:
@@ -71,10 +100,29 @@ databases: []
 databaseResources: []
 
 ################################################################
+# Values that must be provided for Kubernetes Discovery
+################################################################
+
+# kubernetesDiscovery controls configuration for discovery service if it's enabled.
+# discovery service is enabled when the agent `roles` contains "discovery".
+# Default value will try to discovery all apps, use needs to override it to limit
+# scope of the discovered apps.
+kubernetesDiscovery:
+  - types: ["app"]
+    namespaces: ["*"]
+    labels:
+      "*": "*"
+
+################################################################
 # Values that you may need to change.
 ################################################################
 
-# Version of teleport image, if different from appVersion in Chart.yaml.
+# Version of teleport image, if different from chart version in Chart.yaml.
+# DANGER: `teleportVersionOverride` MUST NOT be used to control the Teleport version.
+# This chart is designed to run a specific teleport version (see Chart.yaml).
+# You will face compatibility issues trying to run a different Teleport version with it.
+#
+# If you want to run Teleport version X, you should use `helm --version X` instead.
 teleportVersionOverride: ""
 
 # Optional CA pins of the auth server. This enables a more secure way of
@@ -89,6 +137,14 @@ caPin: []
 # certificate.
 insecureSkipProxyTLSVerify: false
 
+# Set enterprise to true to use enterprise image.
+enterprise: false
+
+# teleportConfig contains additional teleport configuration
+# The configuration will be merged with the chart-generated configuration
+# and will take precedence in case of conflict
+teleportConfig: {}
+
 # Settings for mounting your own TLS material in the agent pod.
 # The agent does not expose a TLS server, so this is only used to trust CAs.
 tls:
@@ -99,6 +155,19 @@ tls:
   # The filename inside the secret is important - it _must_ be ca.pem
   existingCASecretName: ""
 
+updater:
+  enabled: false
+  # `updater.versionServer` is the URL of the version server the agent fetches
+  # the target version from. The complete version endpoint is built by
+  # concatenating `versionServer` and `releaseChannel`.
+  versionServer: "https://updates.releases.teleport.dev/v1/"
+  # Release channel the agent subscribes to.
+  releaseChannel: "stable/cloud"
+  image: public.ecr.aws/gravitational/teleport-kube-agent-updater
+  serviceAccount:
+    # service account name defaults to "<kube agent sa name>-updater"
+    name: ""
+
 # If set, will use an existing volume mounted via extraVolumes
 # as the Teleport data directory.
 # If anything is set under the "storage" key, this will be ignored.
@@ -106,7 +175,8 @@ existingDataVolume: ""
 
 # If true, create & use Pod Security Policy resources
 # https://kubernetes.io/docs/concepts/policy/pod-security-policy/
-# Note: the PSP won't be deployed if Kubernetes does not support the resource (Kubernetes >= 1.25)
+# WARNING: the PSP won't be deployed for Kubernetes 1.23 and higher.
+# Please read https://goteleport.com/docs/deploy-a-cluster/helm-deployments/migration-kubernetes-1-25-psp/
 podSecurityPolicy:
   enabled: true
 
@@ -128,11 +198,26 @@ highAvailability:
     enabled: false
     minAvailable: 1
 
+# podMonitor controls the PodMonitor CR (from monitoring.coreos.com/v1)
+# This CRD is managed by the prometheus-operator and allows workload to
+# get monitored. To use this value, you need to run a `prometheus-operator`
+# in the cluster for this value to take effect.
+# See https://prometheus-operator.dev/docs/prologue/introduction/
+podMonitor:
+  # Whether the chart should deploy a PodMonitor.
+  # Disabled by default as it requires the PodMonitor CRD to be installed.
+  enabled: false
+  # additionalLabels to put on the PodMonitor.
+  # This is used to be selected by a specific prometheus instance.
+  additionalLabels: {}
+  # interval is the interval between two metrics scrapes. Defaults to 30s
+  interval: 30s
+
 ################################################################
 # Values that must be provided if using persistent storage for Teleport.
 #
-# Assigning a persistent volume to Teleport agent allows the agent to keep session recordings when the pod is restarted if `session_recording` is set to `node` or `proxy`. 
-# The security association between the agent and the Teleport is no longer stored in PV, instead it is stored in a Kubernetes Secret so that the agent does not require PV 
+# Assigning a persistent volume to Teleport agent allows the agent to keep session recordings when the pod is restarted if `session_recording` is set to `node` or `proxy`.
+# The security association between the agent and the Teleport is no longer stored in PV, instead it is stored in a Kubernetes Secret so that the agent does not require PV
 # to survive restarts and rotations while using short-lived joining tokens.
 #
 # Fields:
@@ -145,13 +230,31 @@ storage:
   storageClassName: ""
   requests: 128Mi
 
+# Settings for configuring an cluster admin role binding.
+# This is useful for granting cluster admin permissions to a Kubernetes Group
+# other than the default "system:masters" group.
+# GKE Autopilot clusters forbid using the "system:masters" group for impersonation
+# and require a custom group to be used instead.
+adminClusterRoleBinding:
+  create: false
+  name: "cluster-admin"
+
 ################################################################
 # Values that you shouldn't need to change.
 ################################################################
 
-# Container image for the agent. Since this runs without the auth_service, we
-# don't need the enterprise version.
-image: public.ecr.aws/gravitational/teleport
+# Container image for the cluster.
+# Since version 13, hardened distroless images are used by default.
+# You can use the deprecated debian-based images by setting the value to
+# `public.ecr.aws/gravitational/teleport`. Those images will be
+# removed with teleport 14.
+image: public.ecr.aws/gravitational/teleport-distroless
+# Enterprise version of the image
+# Since version 13, hardened distroless images are used by default.
+# You can use the deprecated debian-based images by setting the value to
+# `public.ecr.aws/gravitational/teleport-ent`. Those images will be
+# removed with teleport 14.
+enterpriseImage: public.ecr.aws/gravitational/teleport-ent-distroless
 # Optional array of imagePullSecrets, to use when pulling from a private registry
 imagePullSecrets: []
 # - name: myRegistryKeySecretName
@@ -172,14 +275,31 @@ serviceAccountName: ""
 # (optional) Kubernetes service account to create/use.
 serviceAccount:
   # Specifies whether a ServiceAccount should be created
-  create: true 
+  create: true
   # The name of the ServiceAccount to use.
   # If not set and serviceAccount.create is true, the name is generated using the release name.
   # If create is false, the name will be used to reference an existing service account.
   name: ""
 
+# Set to true (default) to create Kubernetes ClusterRole and ClusterRoleBinding.
+rbac:
+  # Specifies whether a ClusterRole and ClusterRoleBinding should be created.
+  # Set to false if your cluster level resources are managed separately.
+  create: true
+
 # Name of the Secret to store the teleport join token.
-secretName: teleport-kube-agent-join-token
+# DEPRECATED Use joinTokenSecret.name instead
+secretName: ""
+
+# Manages the join token secret creation and its name.
+joinTokenSecret:
+  # create controls whether the Helm chart should create and manage the join token
+  # secret.
+  # If false, the chart assumes that the secret with the configured name already exists at the
+  # installation namespace.
+  create: true
+  # Name of the Secret to store the teleport join token.
+  name: teleport-kube-agent-join-token
 
 # Teleport logging configuration
 log:
@@ -206,6 +326,23 @@ log:
 # Affinity for pod assignment
 # https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#affinity-and-anti-affinity
 affinity: {}
+
+# Pod's DNS Configuration
+# https://kubernetes.io/docs/concepts/services-networking/dns-pod-service/#pod-dns-config
+# This value is useful if you need to reduce the DNS load: set "ndots" to 0 and only use FQDNs.
+dnsConfig: {}
+#  nameservers:
+#    - 1.2.3.4
+#  searches:
+#    - ns1.svc.cluster-domain.example
+#    - my.dns.search.suffix
+#  options:
+#    - name: ndots
+#      value: "2"
+
+# Pod's DNS Policy
+# https://kubernetes.io/docs/concepts/services-networking/dns-pod-service/#pod-s-dns-policy
+dnsPolicy: ""
 
 # nodeSelector to apply for pod assignment
 # https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/
@@ -246,6 +383,8 @@ annotations:
   deployment: {}
   # Annotations for each Pod in the Deployment
   pod: {}
+  # Annotations for the Secret (has no effect when `joinTokenSecret.create` is false)
+  secret: {}
   # Annotations for the ServiceAccount object
   serviceAccount: {}
 
@@ -254,6 +393,19 @@ extraArgs: []
 
 # Extra environment to be configured on the Teleport pod
 extraEnv: []
+
+# Extra containers to be added to the Teleport pod
+extraContainers: []
+# - name: nscenter
+#   command:
+#     - /bin/bash
+#     - -c
+#     - sleep infinity & wait
+#   image: praqma/network-multitool
+#   imagePullPolicy: IfNotPresent
+#   securityContext:
+#     privileged: true
+#     runAsNonRoot: false
 
 # Extra volumes to mount into the Teleport pods
 # https://kubernetes.io/docs/concepts/storage/volumes/
@@ -266,6 +418,17 @@ extraVolumes: []
 extraVolumeMounts: []
 # - name: myvolume
 #   mountPath: /path/on/host
+
+# Pod Host aliases (see https://kubernetes.io/docs/tasks/network/customize-hosts-file-for-pods/)
+hostAliases: []
+# - ip: "127.0.0.1"
+#   hostnames:
+#     - "foo.local"
+#     - "bar.local"
+# - ip: "10.1.2.3"
+#   hostnames:
+#     - "foo.remote"
+#     - "bar.remote"
 
 # Allow the imagePullPolicy to be overridden
 imagePullPolicy: IfNotPresent
@@ -283,6 +446,26 @@ resources: {}
 #  requests:
 #    cpu: "1"
 #    memory: "2Gi"
+
+# Security context to add to the initContainer
+initSecurityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - all
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  runAsUser: 9807
+
+# Security context to add to other containers
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - all
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  runAsUser: 9807
 
 # Priority class name to add to the deployment
 priorityClassName: ""

@@ -23,13 +23,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gravitational/teleport/lib/teleagent"
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 
-	"github.com/gravitational/trace"
+	"github.com/gravitational/teleport/lib/teleagent"
 )
 
 // ConnectionContext manages connection-level state.
@@ -104,7 +103,7 @@ func NewConnectionContext(ctx context.Context, nconn net.Conn, sconn *ssh.Server
 // allowing the underlying ssh.Channel to be closed when the agent
 // is no longer needed.
 type agentChannel struct {
-	agent.Agent
+	agent.ExtendedAgent
 	ch ssh.Channel
 }
 
@@ -133,16 +132,17 @@ func (a *agentChannel) Close() error {
 func (c *ConnectionContext) StartAgentChannel() (teleagent.Agent, error) {
 	// refuse to start an agent if forwardAgent has not yet been set.
 	if !c.GetForwardAgent() {
-		return nil, trace.AccessDenied("agent forwarding required in proxy recording mode")
+		return nil, trace.AccessDenied("agent forwarding has not been requested")
 	}
 	// open a agent channel to client
-	ch, _, err := c.ServerConn.OpenChannel(AuthAgentRequest, nil)
+	ch, reqC, err := c.ServerConn.OpenChannel(AuthAgentRequest, nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	go ssh.DiscardRequests(reqC)
 	return &agentChannel{
-		Agent: agent.NewClient(ch),
-		ch:    ch,
+		ExtendedAgent: agent.NewClient(ch),
+		ch:            ch,
 	}, nil
 }
 

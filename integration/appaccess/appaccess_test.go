@@ -29,16 +29,21 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
-	"github.com/gravitational/oxy/forward"
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/web/app"
-	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/require"
 )
 
 // TestAppAccess runs the full application access integration test suite.
@@ -59,7 +64,6 @@ func TestAppAccess(t *testing.T) {
 	t.Run("JWT", bind(pack, testJWT))
 	t.Run("NoHeaderOverrides", bind(pack, testNoHeaderOverrides))
 	t.Run("AuditEvents", bind(pack, testAuditEvents))
-	t.Run("TestAppInvalidateAppSessionsOnLogout", bind(pack, testInvalidateAppSessionsOnLogout))
 
 	// This test should go last because it stops/starts app servers.
 	t.Run("TestAppServersHA", bind(pack, testServersHA))
@@ -68,35 +72,69 @@ func TestAppAccess(t *testing.T) {
 // testForward tests that requests get forwarded to the target application
 // within a single cluster and trusted cluster.
 func testForward(p *Pack, t *testing.T) {
+	rootCookies := helpers.ParseCookies(t, p.CreateAppSession(t, p.rootAppPublicAddr, p.rootAppClusterName))
+	leafCookies := helpers.ParseCookies(t, p.CreateAppSession(t, p.leafAppPublicAddr, p.leafAppClusterName))
 	tests := []struct {
 		desc          string
-		inCookie      string
+		inCookies     []*http.Cookie
 		outStatusCode int
 		outMessage    string
 	}{
 		{
 			desc:          "root cluster, valid application session cookie, success",
-			inCookie:      p.CreateAppSession(t, p.rootAppPublicAddr, p.rootAppClusterName),
+			inCookies:     rootCookies.ToSlice(),
 			outStatusCode: http.StatusOK,
 			outMessage:    p.rootMessage,
 		},
 		{
 			desc:          "leaf cluster, valid application session cookie, success",
-			inCookie:      p.CreateAppSession(t, p.leafAppPublicAddr, p.leafAppClusterName),
+			inCookies:     leafCookies.ToSlice(),
 			outStatusCode: http.StatusOK,
 			outMessage:    p.leafMessage,
 		},
 		{
-			desc:          "invalid application session cookie, redirect to login",
-			inCookie:      "D25C463CD27861559CC6A0A6AE54818079809AA8731CB18037B4B37A80C4FC6C",
+			desc:          "missing root subject session cookie, redirect to login",
+			inCookies:     rootCookies.WithSubjectCookie(nil).ToSlice(),
 			outStatusCode: http.StatusFound,
 			outMessage:    "",
 		},
+		{
+			desc: "root subject session cookie invalid, redirect to login",
+			inCookies: rootCookies.WithSubjectCookie(&http.Cookie{
+				Name:  app.SubjectCookieName,
+				Value: "letmeinplease",
+			}).ToSlice(),
+			outStatusCode: http.StatusFound,
+		},
+		{
+			desc:          "missing leaf subject session cookie, redirect to login",
+			inCookies:     leafCookies.WithSubjectCookie(nil).ToSlice(),
+			outStatusCode: http.StatusFound,
+		},
+		{
+			desc: "leaf subject session cookie invalid, redirect to login",
+			inCookies: leafCookies.WithSubjectCookie(&http.Cookie{
+				Name:  app.SubjectCookieName,
+				Value: "letmeinplease",
+			}).ToSlice(),
+			outStatusCode: http.StatusFound,
+		},
+		{
+			desc: "invalid application session cookie, redirect to login",
+			inCookies: []*http.Cookie{
+				{
+					Name:  app.CookieName,
+					Value: "D25C463CD27861559CC6A0A6AE54818079809AA8731CB18037B4B37A80C4FC6C",
+				},
+			},
+			outStatusCode: http.StatusFound,
+		},
 	}
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.desc, func(t *testing.T) {
-			tt := tt
-			status, body, err := p.MakeRequest(tt.inCookie, http.MethodGet, "/")
+			t.Parallel()
+			status, body, err := p.MakeRequest(tt.inCookies, http.MethodGet, "/")
 			require.NoError(t, err)
 			require.Equal(t, tt.outStatusCode, status)
 			require.Contains(t, body, tt.outMessage)
@@ -108,40 +146,57 @@ func testForward(p *Pack, t *testing.T) {
 func testWebsockets(p *Pack, t *testing.T) {
 	tests := []struct {
 		desc       string
-		inCookie   string
+		inCookies  []*http.Cookie
 		outMessage string
 		err        error
 	}{
 		{
 			desc:       "root cluster, valid application session cookie, successful websocket (ws://) request",
-			inCookie:   p.CreateAppSession(t, p.rootWSPublicAddr, p.rootAppClusterName),
+			inCookies:  p.CreateAppSession(t, p.rootWSPublicAddr, p.rootAppClusterName),
 			outMessage: p.rootWSMessage,
 		},
 		{
 			desc:       "root cluster, valid application session cookie, successful secure websocket (wss://) request",
-			inCookie:   p.CreateAppSession(t, p.rootWSSPublicAddr, p.rootAppClusterName),
+			inCookies:  p.CreateAppSession(t, p.rootWSSPublicAddr, p.rootAppClusterName),
 			outMessage: p.rootWSSMessage,
 		},
 		{
 			desc:       "leaf cluster, valid application session cookie, successful websocket (ws://) request",
-			inCookie:   p.CreateAppSession(t, p.leafWSPublicAddr, p.leafAppClusterName),
+			inCookies:  p.CreateAppSession(t, p.leafWSPublicAddr, p.leafAppClusterName),
 			outMessage: p.leafWSMessage,
 		},
 		{
 			desc:       "leaf cluster, valid application session cookie, successful secure websocket (wss://) request",
-			inCookie:   p.CreateAppSession(t, p.leafWSSPublicAddr, p.leafAppClusterName),
+			inCookies:  p.CreateAppSession(t, p.leafWSSPublicAddr, p.leafAppClusterName),
 			outMessage: p.leafWSSMessage,
 		},
 		{
-			desc:     "invalid application session cookie, websocket request fails to dial",
-			inCookie: "ABCDEFGHIJKLMNOPQRSTUVWXYZ",
-			err:      errors.New(""),
+			desc: "valid application session cookie, invalid subject session cookie, websocket request fails to dial",
+			inCookies: helpers.ParseCookies(t, p.CreateAppSession(t, p.rootWSPublicAddr, p.rootAppClusterName)).WithSubjectCookie(
+				&http.Cookie{
+					Name:  app.SubjectCookieName,
+					Value: "foobarbaz",
+				},
+			).ToSlice(),
+			err: errors.New(""),
+		},
+		{
+			desc: "invalid application session cookie, websocket request fails to dial",
+			inCookies: []*http.Cookie{
+				{
+					Name:  app.CookieName,
+					Value: "ABCDEFGHIJKLMNOPQRSTUVWXYZ",
+				},
+			},
+			err: errors.New(""),
 		},
 	}
+
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.desc, func(t *testing.T) {
-			tt := tt
-			body, err := p.makeWebsocketRequest(tt.inCookie, "/")
+			t.Parallel()
+			body, err := p.makeWebsocketRequest(tt.inCookies, "/")
 			if tt.err != nil {
 				require.IsType(t, tt.err, trace.Unwrap(err))
 			} else {
@@ -171,27 +226,28 @@ func testForwardModes(p *Pack, t *testing.T) {
 	// Requests to root and leaf cluster are successful.
 	tests := []struct {
 		desc          string
-		inCookie      string
+		inCookies     []*http.Cookie
 		outStatusCode int
 		outMessage    string
 	}{
 		{
 			desc:          "root cluster, valid application session cookie, success",
-			inCookie:      p.CreateAppSession(t, p.rootAppPublicAddr, p.rootAppClusterName),
+			inCookies:     p.CreateAppSession(t, p.rootAppPublicAddr, p.rootAppClusterName),
 			outStatusCode: http.StatusOK,
 			outMessage:    p.rootMessage,
 		},
 		{
 			desc:          "leaf cluster, valid application session cookie, success",
-			inCookie:      p.CreateAppSession(t, p.leafAppPublicAddr, p.leafAppClusterName),
+			inCookies:     p.CreateAppSession(t, p.leafAppPublicAddr, p.leafAppClusterName),
 			outStatusCode: http.StatusOK,
 			outMessage:    p.leafMessage,
 		},
 	}
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.desc, func(t *testing.T) {
-			tt := tt
-			status, body, err := p.MakeRequest(tt.inCookie, http.MethodGet, "/")
+			t.Parallel()
+			status, body, err := p.MakeRequest(tt.inCookies, http.MethodGet, "/")
 			require.NoError(t, err)
 			require.Equal(t, tt.outStatusCode, status)
 			require.Contains(t, body, tt.outMessage)
@@ -202,37 +258,88 @@ func testForwardModes(p *Pack, t *testing.T) {
 // testClientCert tests mutual TLS authentication flow with application
 // access typically used in CLI by curl and other clients.
 func testClientCert(p *Pack, t *testing.T) {
+	modules.SetTestModules(t, &modules.TestModules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures: modules.Features{
+			App: true,
+		},
+	})
+	evilUser, _ := p.CreateUser(t)
+	rootWs, err := p.tc.CreateAppSession(context.Background(), types.CreateAppSessionRequest{
+		Username:    p.user.GetName(),
+		PublicAddr:  p.rootAppPublicAddr,
+		ClusterName: p.rootAppClusterName,
+	})
+	require.NoError(t, err)
+
+	leafWs, err := p.tc.CreateAppSession(context.Background(), types.CreateAppSessionRequest{
+		Username:    p.user.GetName(),
+		PublicAddr:  p.leafAppPublicAddr,
+		ClusterName: p.leafAppClusterName,
+	})
+	require.NoError(t, err)
+
 	tests := []struct {
 		desc          string
 		inTLSConfig   *tls.Config
 		outStatusCode int
 		outMessage    string
+		wantErr       bool
 	}{
 		{
 			desc:          "root cluster, valid TLS config, success",
-			inTLSConfig:   p.makeTLSConfig(t, p.rootAppPublicAddr, p.rootAppClusterName),
+			inTLSConfig:   p.makeTLSConfig(t, rootWs.GetName(), rootWs.GetUser(), p.rootAppPublicAddr, p.rootAppClusterName, ""),
 			outStatusCode: http.StatusOK,
 			outMessage:    p.rootMessage,
 		},
 		{
 			desc:          "leaf cluster, valid TLS config, success",
-			inTLSConfig:   p.makeTLSConfig(t, p.leafAppPublicAddr, p.leafAppClusterName),
+			inTLSConfig:   p.makeTLSConfig(t, leafWs.GetName(), leafWs.GetUser(), p.leafAppPublicAddr, p.leafAppClusterName, ""),
 			outStatusCode: http.StatusOK,
 			outMessage:    p.leafMessage,
 		},
 		{
 			desc:          "root cluster, invalid session ID",
 			inTLSConfig:   p.makeTLSConfigNoSession(t, p.rootAppPublicAddr, p.rootAppClusterName),
-			outStatusCode: http.StatusFound,
+			outStatusCode: http.StatusForbidden,
+		},
+		{
+			desc:          "root cluster, invalid session owner",
+			inTLSConfig:   p.makeTLSConfig(t, rootWs.GetName(), evilUser.GetName(), p.rootAppPublicAddr, p.rootAppClusterName, ""),
+			outStatusCode: http.StatusForbidden,
+			outMessage:    "",
+		},
+		{
+			desc:          "leaf cluster, invalid session owner",
+			inTLSConfig:   p.makeTLSConfig(t, leafWs.GetName(), evilUser.GetName(), p.leafAppPublicAddr, p.leafAppClusterName, ""),
+			outStatusCode: http.StatusForbidden,
+			outMessage:    "",
+		},
+		{
+			desc:          "root cluster, valid TLS config with pinned IP, success",
+			inTLSConfig:   p.makeTLSConfig(t, rootWs.GetName(), rootWs.GetUser(), p.rootAppPublicAddr, p.rootAppClusterName, "127.0.0.1"),
+			outStatusCode: http.StatusOK,
+			outMessage:    p.rootMessage,
+		},
+		{
+			desc:          "root cluster, valid TLS config with wrong pinned IP",
+			inTLSConfig:   p.makeTLSConfig(t, rootWs.GetName(), rootWs.GetUser(), p.rootAppPublicAddr, p.rootAppClusterName, "127.0.0.2"),
+			outStatusCode: http.StatusForbidden,
+			wantErr:       true,
 		},
 	}
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.desc, func(t *testing.T) {
-			tt := tt
+			t.Parallel()
 			status, body, err := p.makeRequestWithClientCert(tt.inTLSConfig, http.MethodGet, "/")
-			require.NoError(t, err)
-			require.Equal(t, tt.outStatusCode, status)
-			require.Contains(t, body, tt.outMessage)
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, tt.outStatusCode, status)
+				require.Contains(t, body, tt.outMessage)
+			}
 		})
 	}
 }
@@ -243,11 +350,10 @@ func testFlush(p *Pack, t *testing.T) {
 	req, err := http.NewRequest("GET", p.assembleRootProxyURL("/"), nil)
 	require.NoError(t, err)
 
-	cookie := p.CreateAppSession(t, p.flushAppPublicAddr, p.flushAppClusterName)
-	req.AddCookie(&http.Cookie{
-		Name:  app.CookieName,
-		Value: cookie,
-	})
+	cookies := p.CreateAppSession(t, p.flushAppPublicAddr, p.flushAppClusterName)
+	for _, c := range cookies {
+		req.AddCookie(c)
+	}
 
 	client := &http.Client{
 		Transport: &http.Transport{
@@ -278,10 +384,10 @@ func testFlush(p *Pack, t *testing.T) {
 // rewrite configuration are correctly passed to proxied applications in root.
 func testRewriteHeadersRoot(p *Pack, t *testing.T) {
 	// Create an application session for dumper app in root cluster.
-	appCookie := p.CreateAppSession(t, "dumper-root.example.com", "example.com")
+	appCookies := p.CreateAppSession(t, "dumper-root.example.com", "example.com")
 
 	// Get headers response and make sure headers were passed.
-	status, resp, err := p.MakeRequest(appCookie, http.MethodGet, "/", service.Header{
+	status, resp, err := p.MakeRequest(appCookies, http.MethodGet, "/", servicecfg.Header{
 		Name: "X-Existing", Value: "existing",
 	})
 	require.NoError(t, err)
@@ -294,15 +400,18 @@ func testRewriteHeadersRoot(p *Pack, t *testing.T) {
 	require.Equal(t, req.Header.Get("X-Teleport-Cluster"), "root")
 	require.Equal(t, req.Header.Get("X-External-Env"), "production")
 	require.Equal(t, req.Header.Get("X-Existing"), "rewritten-existing-header")
+
+	// verify these headers were not rewritten.
 	require.NotEqual(t, req.Header.Get(teleport.AppJWTHeader), "rewritten-app-jwt-header")
-	require.NotEqual(t, req.Header.Get(teleport.AppCFHeader), "rewritten-app-cf-header")
-	require.NotEqual(t, req.Header.Get(forward.XForwardedFor), "rewritten-x-forwarded-for-header")
-	require.NotEqual(t, req.Header.Get(forward.XForwardedHost), "rewritten-x-forwarded-host-header")
-	require.NotEqual(t, req.Header.Get(forward.XForwardedProto), "rewritten-x-forwarded-proto-header")
-	require.NotEqual(t, req.Header.Get(forward.XForwardedServer), "rewritten-x-forwarded-server-header")
+	require.NotEqual(t, req.Header.Get(common.TeleportAPIErrorHeader), "rewritten-x-teleport-api-error")
+	require.NotEqual(t, req.Header.Get(reverseproxy.XForwardedFor), "rewritten-x-forwarded-for-header")
+	require.NotEqual(t, req.Header.Get(reverseproxy.XForwardedHost), "rewritten-x-forwarded-host-header")
+	require.NotEqual(t, req.Header.Get(reverseproxy.XForwardedProto), "rewritten-x-forwarded-proto-header")
+	require.NotEqual(t, req.Header.Get(reverseproxy.XForwardedServer), "rewritten-x-forwarded-server-header")
+	require.NotEqual(t, req.Header.Get(common.XForwardedSSL), "rewritten-x-forwarded-ssl")
 
 	// Verify JWT tokens.
-	for _, header := range []string{teleport.AppJWTHeader, teleport.AppCFHeader, "X-JWT"} {
+	for _, header := range []string{teleport.AppJWTHeader, "X-JWT"} {
 		verifyJWT(t, p, req.Header.Get(header), p.dumperAppURI)
 	}
 }
@@ -314,38 +423,43 @@ func testRewriteHeadersLeaf(p *Pack, t *testing.T) {
 	appCookie := p.CreateAppSession(t, "dumper-leaf.example.com", "leaf.example.com")
 
 	// Get headers response and make sure headers were passed.
-	status, resp, err := p.MakeRequest(appCookie, http.MethodGet, "/", service.Header{
+	status, resp, err := p.MakeRequest(appCookie, http.MethodGet, "/", servicecfg.Header{
 		Name: "X-Existing", Value: "existing",
 	})
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, status)
-	require.Contains(t, resp, "X-Teleport-Cluster: leaf")
-	require.Contains(t, resp, "X-Teleport-Login: root")
-	require.Contains(t, resp, "X-Teleport-Login: ubuntu")
-	require.Contains(t, resp, "X-External-Env: production")
-	require.Contains(t, resp, "Host: example.com")
-	require.Contains(t, resp, "X-Existing: rewritten-existing-header")
-	require.NotContains(t, resp, "X-Existing: existing")
-	require.NotContains(t, resp, "rewritten-app-jwt-header")
-	require.NotContains(t, resp, "rewritten-app-cf-header")
-	require.NotContains(t, resp, "rewritten-x-forwarded-for-header")
-	require.NotContains(t, resp, "rewritten-x-forwarded-host-header")
-	require.NotContains(t, resp, "rewritten-x-forwarded-proto-header")
-	require.NotContains(t, resp, "rewritten-x-forwarded-server-header")
+
+	// Dumper app just dumps HTTP request so we should be able to read it back.
+	req, err := http.ReadRequest(bufio.NewReader(strings.NewReader(resp)))
+	require.NoError(t, err)
+	require.Equal(t, req.Host, "example.com")
+	require.Equal(t, req.Header.Get("X-Teleport-Cluster"), "leaf")
+	require.ElementsMatch(t, []string{"root", "ubuntu", "-teleport-internal-join"}, req.Header.Values("X-Teleport-Login"))
+	require.Equal(t, req.Header.Get("X-External-Env"), "production")
+	require.Equal(t, req.Header.Get("X-Existing"), "rewritten-existing-header")
+
+	// verify these headers were not rewritten.
+	require.NotEqual(t, req.Header.Get(teleport.AppJWTHeader), "rewritten-app-jwt-header")
+	require.NotEqual(t, req.Header.Get(common.TeleportAPIErrorHeader), "rewritten-x-teleport-api-error")
+	require.NotEqual(t, req.Header.Get(common.XForwardedSSL), "rewritten-x-forwarded-ssl")
+	require.NotEqual(t, req.Header.Get(reverseproxy.XForwardedFor), "rewritten-x-forwarded-for-header")
+	require.NotEqual(t, req.Header.Get(reverseproxy.XForwardedHost), "rewritten-x-forwarded-host-header")
+	require.NotEqual(t, req.Header.Get(reverseproxy.XForwardedProto), "rewritten-x-forwarded-proto-header")
+	require.NotEqual(t, req.Header.Get(reverseproxy.XForwardedServer), "rewritten-x-forwarded-server-header")
 }
 
 // testLogout verifies the session is removed from the backend when the user logs out.
 func testLogout(p *Pack, t *testing.T) {
 	// Create an application session.
-	appCookie := p.CreateAppSession(t, p.rootAppPublicAddr, p.rootAppClusterName)
+	appCookies := p.CreateAppSession(t, p.rootAppPublicAddr, p.rootAppClusterName)
 
 	// Log user out of session.
-	status, _, err := p.MakeRequest(appCookie, http.MethodGet, "/teleport-logout")
+	status, _, err := p.MakeRequest(appCookies, http.MethodGet, "/teleport-logout")
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, status)
 
 	// Wait until requests using the session cookie have failed.
-	status, err = p.waitForLogout(appCookie)
+	status, err = p.waitForLogout(appCookies)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusFound, status)
 }
@@ -354,10 +468,10 @@ func testLogout(p *Pack, t *testing.T) {
 // be validated.
 func testJWT(p *Pack, t *testing.T) {
 	// Create an application session.
-	appCookie := p.CreateAppSession(t, p.jwtAppPublicAddr, p.jwtAppClusterName)
+	appCookies := p.CreateAppSession(t, p.jwtAppPublicAddr, p.jwtAppClusterName)
 
 	// Get JWT.
-	status, token, err := p.MakeRequest(appCookie, http.MethodGet, "/")
+	status, token, err := p.MakeRequest(appCookies, http.MethodGet, "/")
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, status)
 
@@ -365,8 +479,8 @@ func testJWT(p *Pack, t *testing.T) {
 	verifyJWT(t, p, token, p.jwtAppURI)
 
 	// Connect to websocket application that dumps the upgrade request.
-	wsCookie := p.CreateAppSession(t, p.wsHeaderAppPublicAddr, p.wsHeaderAppClusterName)
-	body, err := p.makeWebsocketRequest(wsCookie, "/")
+	wsCookies := p.CreateAppSession(t, p.wsHeaderAppPublicAddr, p.wsHeaderAppClusterName)
+	body, err := p.makeWebsocketRequest(wsCookies, "/")
 	require.NoError(t, err)
 
 	// Parse the upgrade request the websocket application received.
@@ -383,10 +497,10 @@ func testJWT(p *Pack, t *testing.T) {
 // by values passed in by the user.
 func testNoHeaderOverrides(p *Pack, t *testing.T) {
 	// Create an application session.
-	appCookie := p.CreateAppSession(t, p.headerAppPublicAddr, p.headerAppClusterName)
+	appCookies := p.CreateAppSession(t, p.headerAppPublicAddr, p.headerAppClusterName)
 
 	// Get HTTP headers forwarded to the application.
-	status, origHeaderResp, err := p.MakeRequest(appCookie, http.MethodGet, "/")
+	status, origHeaderResp, err := p.MakeRequest(appCookies, http.MethodGet, "/")
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, status)
 	origHeaders := strings.Split(origHeaderResp, "\n")
@@ -395,10 +509,9 @@ func testNoHeaderOverrides(p *Pack, t *testing.T) {
 	// Construct HTTP request with custom headers.
 	req, err := http.NewRequest(http.MethodGet, p.assembleRootProxyURL("/"), nil)
 	require.NoError(t, err)
-	req.AddCookie(&http.Cookie{
-		Name:  app.CookieName,
-		Value: appCookie,
-	})
+	for _, c := range appCookies {
+		req.AddCookie(c)
+	}
 	for _, headerName := range forwardedHeaderNames {
 		req.Header.Set(headerName, uuid.New().String())
 	}
@@ -417,9 +530,9 @@ func testNoHeaderOverrides(p *Pack, t *testing.T) {
 }
 
 func testAuditEvents(p *Pack, t *testing.T) {
-	inCookie := p.CreateAppSession(t, p.rootAppPublicAddr, p.rootAppClusterName)
+	inCookies := p.CreateAppSession(t, p.rootAppPublicAddr, p.rootAppClusterName)
 
-	status, body, err := p.MakeRequest(inCookie, http.MethodGet, "/")
+	status, body, err := p.MakeRequest(inCookies, http.MethodGet, "/")
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, status)
 	require.Contains(t, body, p.rootMessage)
@@ -471,23 +584,20 @@ func testAuditEvents(p *Pack, t *testing.T) {
 	})
 }
 
-func testInvalidateAppSessionsOnLogout(p *Pack, t *testing.T) {
-	t.Cleanup(func() {
-		// This test will invalidate the web session so init it again after the
-		// test, otherwise tests that run after this one will be getting 403's.
-		p.initWebSession(t)
-	})
+func TestInvalidateAppSessionsOnLogout(t *testing.T) {
+	p := Setup(t)
 
 	// Create an application session.
-	appCookie := p.CreateAppSession(t, p.rootAppPublicAddr, p.rootAppClusterName)
+	appCookies := p.CreateAppSession(t, p.rootAppPublicAddr, p.rootAppClusterName)
+	sessID := helpers.ParseCookies(t, appCookies).SessionCookie.Value
 
 	// Issue a request to the application to guarantee everything is working correctly.
-	status, _, err := p.MakeRequest(appCookie, http.MethodGet, "/")
+	status, _, err := p.MakeRequest(appCookies, http.MethodGet, "/")
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, status)
 
 	// Generates TLS config for making app requests.
-	reqTLS := p.makeTLSConfig(t, p.rootAppPublicAddr, p.rootAppClusterName)
+	reqTLS := p.makeTLSConfig(t, sessID, p.username, p.rootAppPublicAddr, p.rootAppClusterName, "")
 	require.NotNil(t, reqTLS)
 
 	// Issue a request to the application to guarantee everything is working correctly.
@@ -496,7 +606,7 @@ func testInvalidateAppSessionsOnLogout(p *Pack, t *testing.T) {
 	require.Equal(t, http.StatusOK, status)
 
 	// Logout from Teleport.
-	status, _, err = p.makeWebapiRequest(http.MethodDelete, "sessions", []byte{})
+	status, _, err = p.makeWebapiRequest(http.MethodDelete, "sessions/web", []byte{})
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, status)
 
@@ -505,7 +615,7 @@ func testInvalidateAppSessionsOnLogout(p *Pack, t *testing.T) {
 	require.Eventually(t, func() bool {
 		// Issue another request to the application. Now, it should receive a
 		// redirect because the application sessions are gone.
-		status, _, err = p.MakeRequest(appCookie, http.MethodGet, "/")
+		status, _, err = p.MakeRequest(appCookies, http.MethodGet, "/")
 		require.NoError(t, err)
 		return status == http.StatusFound
 	}, time.Second, 250*time.Millisecond)
@@ -516,44 +626,239 @@ func testInvalidateAppSessionsOnLogout(p *Pack, t *testing.T) {
 		// redirect because the application sessions are gone.
 		status, _, err = p.makeRequestWithClientCert(reqTLS, http.MethodGet, "/")
 		require.NoError(t, err)
-		return status == http.StatusFound
+		return status == http.StatusForbidden
 	}, time.Second, 250*time.Millisecond)
 }
 
 // TestTCP tests proxying of plain TCP applications through app access.
 func TestTCP(t *testing.T) {
 	pack := Setup(t)
+	evilUser, _ := pack.CreateUser(t)
+
+	rootWs, err := pack.tc.CreateAppSession(context.Background(), types.CreateAppSessionRequest{
+		Username:    pack.tc.Username,
+		PublicAddr:  pack.rootTCPPublicAddr,
+		ClusterName: pack.rootAppClusterName,
+	})
+	require.NoError(t, err)
+	leafWs, err := pack.tc.CreateAppSession(context.Background(), types.CreateAppSessionRequest{
+		Username:    pack.tc.Username,
+		PublicAddr:  pack.leafTCPPublicAddr,
+		ClusterName: pack.leafAppClusterName,
+	})
+	require.NoError(t, err)
 
 	tests := []struct {
 		description string
 		address     string
 		outMessage  string
+		wantReadErr error
 	}{
 		{
 			description: "TCP app in root cluster",
-			address:     pack.startLocalProxy(t, pack.rootTCPPublicAddr, pack.rootAppClusterName),
-			outMessage:  pack.rootTCPMessage,
+			address: pack.startLocalProxy(t,
+				pack.makeTLSConfig(t, rootWs.GetName(), rootWs.GetUser(), pack.rootTCPPublicAddr, pack.rootAppClusterName, "")),
+			outMessage: pack.rootTCPMessage,
 		},
 		{
 			description: "TCP app in leaf cluster",
-			address:     pack.startLocalProxy(t, pack.leafTCPPublicAddr, pack.leafAppClusterName),
-			outMessage:  pack.leafTCPMessage,
+			address: pack.startLocalProxy(t,
+				pack.makeTLSConfig(t, leafWs.GetName(), leafWs.GetUser(), pack.leafTCPPublicAddr, pack.leafAppClusterName, "")),
+			outMessage: pack.leafTCPMessage,
+		},
+		{
+			description: "TCP app in root cluster, invalid session owner",
+			address: pack.startLocalProxy(t,
+				pack.makeTLSConfig(t, rootWs.GetName(), evilUser.GetName(), pack.rootTCPPublicAddr, pack.rootAppClusterName, "")),
+			wantReadErr: io.EOF, // access denied errors should close the tcp conn
+		},
+		{
+			description: "TCP app in leaf cluster, invalid session owner",
+			address: pack.startLocalProxy(t,
+				pack.makeTLSConfig(t, leafWs.GetName(), evilUser.GetName(), pack.leafTCPPublicAddr, pack.leafAppClusterName, "")),
+			wantReadErr: io.EOF, // access denied errors should close the tcp conn
 		},
 	}
 
 	for _, test := range tests {
+		test := test
 		t.Run(test.description, func(t *testing.T) {
+			t.Parallel()
 			conn, err := net.Dial("tcp", test.address)
 			require.NoError(t, err)
 
 			buf := make([]byte, 1024)
 			n, err := conn.Read(buf)
+			if test.wantReadErr != nil {
+				require.Error(t, err)
+				require.ErrorIs(t, err, test.wantReadErr)
+				return
+			}
 			require.NoError(t, err)
 
 			resp := strings.TrimSpace(string(buf[:n]))
 			require.Equal(t, test.outMessage, resp)
 		})
 	}
+}
+
+// TestTCPLock tests locking TCP applications.
+func TestTCPLock(t *testing.T) {
+	clock := clockwork.NewFakeClockAt(time.Now())
+	mCloseChannel := make(chan struct{}, 1)
+	pack := SetupWithOptions(t, AppTestOptions{
+		Clock:               clock,
+		MonitorCloseChannel: mCloseChannel,
+	})
+
+	msg := []byte(uuid.New().String())
+
+	// Start the proxy to the two way communication app.
+	rootWs, err := pack.tc.CreateAppSession(context.Background(), types.CreateAppSessionRequest{
+		Username:    pack.tc.Username,
+		PublicAddr:  pack.rootTCPTwoWayPublicAddr,
+		ClusterName: pack.rootAppClusterName,
+	})
+	require.NoError(t, err)
+	tlsConfig := pack.makeTLSConfig(t, rootWs.GetName(), rootWs.GetUser(), pack.rootTCPTwoWayPublicAddr, pack.rootAppClusterName, "")
+
+	address := pack.startLocalProxy(t, tlsConfig)
+
+	var conn net.Conn
+	var n int
+	buf := make([]byte, 1024)
+
+	// Try to read for a short amount of time.
+	require.Eventually(t, func() bool {
+		conn, err = net.Dial("tcp", address)
+		if err != nil {
+			return false
+		}
+
+		// Try to read
+		n, err = conn.Read(buf)
+		return err == nil
+	}, time.Second*5, time.Millisecond*100)
+
+	resp := strings.TrimSpace(string(buf[:n]))
+	require.Equal(t, pack.rootTCPTwoWayMessage, resp)
+
+	// Once we've read successfully, write, and then read again to verify the connection
+	_, err = conn.Write(msg)
+	require.NoError(t, err)
+
+	n, err = conn.Read(buf)
+	require.NoError(t, err, buf)
+
+	resp = strings.TrimSpace(string(buf[:n]))
+	require.Equal(t, pack.rootTCPTwoWayMessage, resp)
+
+	// Lock the user and try to write
+	pack.LockUser(t)
+	clock.Advance(10 * time.Second)
+
+	// Wait for the channel closure signal
+	select {
+	case <-mCloseChannel:
+	case <-time.After(time.Second * 10):
+		require.Fail(t, "timeout waiting for monitor channel signal")
+	}
+	_, err = conn.Write(msg)
+	require.NoError(t, err)
+
+	_, err = conn.Read(buf)
+	require.Error(t, err)
+
+	// Close and re-open the connection
+	require.NoError(t, conn.Close())
+
+	conn, err = net.Dial("tcp", address)
+	require.NoError(t, err)
+
+	// Try to read again, expect a failure.
+	_, err = conn.Read(buf)
+	require.Error(t, err, buf)
+}
+
+// TestTCPCertExpiration tests TCP application with certs expiring.
+func TestTCPCertExpiration(t *testing.T) {
+	clock := clockwork.NewFakeClockAt(time.Now())
+	mCloseChannel := make(chan struct{}, 1)
+	pack := SetupWithOptions(t, AppTestOptions{
+		Clock:               clock,
+		MonitorCloseChannel: mCloseChannel,
+	})
+
+	msg := []byte(uuid.New().String())
+
+	// Start the proxy to the two way communication app.
+	rootWs, err := pack.tc.CreateAppSession(context.Background(), types.CreateAppSessionRequest{
+		Username:    pack.tc.Username,
+		PublicAddr:  pack.rootTCPTwoWayPublicAddr,
+		ClusterName: pack.rootAppClusterName,
+	})
+	require.NoError(t, err)
+	tlsConfig := pack.makeTLSConfig(t, rootWs.GetName(), rootWs.GetUser(), pack.rootTCPTwoWayPublicAddr, pack.rootAppClusterName, "")
+
+	address := pack.startLocalProxy(t, tlsConfig)
+
+	var conn net.Conn
+	var n int
+	buf := make([]byte, 1024)
+
+	// Try to read for a short amount of time.
+	require.Eventually(t, func() bool {
+		conn, err = net.Dial("tcp", address)
+		if err != nil {
+			return false
+		}
+
+		// Read, write, and read again to make sure its working as expected.
+		n, err = conn.Read(buf)
+		return err == nil
+	}, time.Second*5, time.Millisecond*100)
+
+	resp := strings.TrimSpace(string(buf[:n]))
+	require.Equal(t, pack.rootTCPTwoWayMessage, resp)
+
+	// Once we've read successfully, write, and then read again to verify the connection
+	_, err = conn.Write(msg)
+	require.NoError(t, err)
+
+	n, err = conn.Read(buf)
+	require.NoError(t, err, buf)
+
+	resp = strings.TrimSpace(string(buf[:n]))
+	require.Equal(t, pack.rootTCPTwoWayMessage, resp)
+
+	// Let the cert expire. We'll choose 24 hours to make sure we go above
+	// any cert durations that could be chosen here.
+	clock.Advance(24 * time.Hour)
+	// Wait for the channel closure signal
+	select {
+	case <-mCloseChannel:
+	case <-time.After(time.Second * 10):
+		require.Fail(t, "timeout waiting for monitor channel signal")
+	}
+	_, err = conn.Write(msg)
+	require.NoError(t, err)
+
+	_, err = conn.Read(buf)
+	require.Error(t, err)
+
+	// Close and re-open the connection
+	require.NoError(t, conn.Close())
+
+	require.Eventually(t, func() bool {
+		conn, err := net.Dial("tcp", address)
+		if err != nil {
+			return false
+		}
+
+		// Try to read again, expect a failure.
+		_, err = conn.Read(buf)
+		return err != nil
+	}, time.Second*5, time.Millisecond*100)
 }
 
 func testServersHA(p *Pack, t *testing.T) {
@@ -579,7 +884,7 @@ func testServersHA(p *Pack, t *testing.T) {
 				}
 			},
 			startAppServers: func(pack *Pack, count int) []*service.TeleportProcess {
-				return pack.startRootAppServers(t, count, []service.App{})
+				return pack.startRootAppServers(t, count, AppTestOptions{})
 			},
 			waitForTunnelConn: func(t *testing.T, pack *Pack, count int) {
 				helpers.WaitForActiveTunnelConnections(t, pack.rootCluster.Tunnel, pack.rootCluster.Secrets.SiteName, count)
@@ -595,7 +900,7 @@ func testServersHA(p *Pack, t *testing.T) {
 				}
 			},
 			startAppServers: func(pack *Pack, count int) []*service.TeleportProcess {
-				return pack.startLeafAppServers(t, count, []service.App{})
+				return pack.startLeafAppServers(t, count, AppTestOptions{})
 			},
 			waitForTunnelConn: func(t *testing.T, pack *Pack, count int) {
 				helpers.WaitForActiveTunnelConnections(t, pack.leafCluster.Tunnel, pack.leafCluster.Secrets.SiteName, count)
@@ -607,7 +912,7 @@ func testServersHA(p *Pack, t *testing.T) {
 	responseWithError := func(t *testing.T, status int, err error) {
 		if status > 0 {
 			require.NoError(t, err)
-			require.Equal(t, http.StatusInternalServerError, status)
+			require.Equal(t, http.StatusFound, status)
 			return
 		}
 
@@ -624,22 +929,23 @@ func testServersHA(p *Pack, t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	makeRequests := func(t *testing.T, pack *Pack, httpCookie, wsCookie string, responseAssertion func(*testing.T, int, error)) {
-		status, _, err := pack.MakeRequest(httpCookie, http.MethodGet, "/")
+	makeRequests := func(t *testing.T, pack *Pack, httpCookies, wsCookies []*http.Cookie, responseAssertion func(*testing.T, int, error)) {
+		status, _, err := pack.MakeRequest(httpCookies, http.MethodGet, "/")
 		responseAssertion(t, status, err)
 
-		_, err = pack.makeWebsocketRequest(wsCookie, "/")
+		_, err = pack.makeWebsocketRequest(wsCookies, "/")
 		responseAssertion(t, 0, err)
 	}
 
 	for name, test := range testCases {
 		name, test := name, test
 		t.Run(name, func(t *testing.T) {
+			t.Parallel()
 			info := test.packInfo(p)
-			httpCookie := p.CreateAppSession(t, info.publicHTTPAddr, info.clusterName)
-			wsCookie := p.CreateAppSession(t, info.publicWSAddr, info.clusterName)
+			httpCookies := p.CreateAppSession(t, info.publicHTTPAddr, info.clusterName)
+			wsCookies := p.CreateAppSession(t, info.publicWSAddr, info.clusterName)
 
-			makeRequests(t, p, httpCookie, wsCookie, responseWithoutError)
+			makeRequests(t, p, httpCookies, wsCookies, responseWithoutError)
 
 			// Stop all root app servers.
 			for i, appServer := range info.appServers {
@@ -648,17 +954,17 @@ func testServersHA(p *Pack, t *testing.T) {
 
 				if i == len(info.appServers)-1 {
 					// fails only when the last one is closed.
-					makeRequests(t, p, httpCookie, wsCookie, responseWithError)
+					makeRequests(t, p, httpCookies, wsCookies, responseWithError)
 				} else {
 					// otherwise the request should be handled by another
 					// server.
-					makeRequests(t, p, httpCookie, wsCookie, responseWithoutError)
+					makeRequests(t, p, httpCookies, wsCookies, responseWithoutError)
 				}
 			}
 
 			servers := test.startAppServers(p, 1)
 			test.waitForTunnelConn(t, p, 1)
-			makeRequests(t, p, httpCookie, wsCookie, responseWithoutError)
+			makeRequests(t, p, httpCookies, wsCookies, responseWithoutError)
 
 			// Start an additional app server and stop all current running
 			// ones.
@@ -672,7 +978,7 @@ func testServersHA(p *Pack, t *testing.T) {
 				// Everytime an app server stops we issue a request to
 				// guarantee that the requests are going to be resolved by
 				// the remaining app servers.
-				makeRequests(t, p, httpCookie, wsCookie, responseWithoutError)
+				makeRequests(t, p, httpCookies, wsCookies, responseWithoutError)
 			}
 		})
 	}

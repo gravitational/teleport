@@ -25,7 +25,6 @@ import (
 
 	"github.com/gravitational/oxy/ratelimit"
 	"github.com/gravitational/trace"
-
 	"github.com/mailgun/timetools"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/peer"
@@ -61,20 +60,24 @@ func (l *Config) SetEnv(v string) error {
 
 // NewLimiter returns new rate and connection limiter
 func NewLimiter(config Config) (*Limiter, error) {
-	var err error
-	limiter := Limiter{}
+	if config.MaxConnections < 0 {
+		config.MaxConnections = 0
+	}
 
-	limiter.ConnectionsLimiter, err = NewConnectionsLimiter(config)
+	connectionsLimiter, err := NewConnectionsLimiter(config)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	limiter.rateLimiter, err = NewRateLimiter(config)
+	rateLimiter, err := NewRateLimiter(config)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return &limiter, nil
+	return &Limiter{
+		ConnectionsLimiter: connectionsLimiter,
+		rateLimiter:        rateLimiter,
+	}, nil
 }
 
 func (l *Limiter) RegisterRequest(token string) error {
@@ -151,7 +154,7 @@ func (l *Limiter) UnaryServerInterceptorWithCustomRate(customRate CustomRateFunc
 	}
 }
 
-// StreamServerInterceptor is a GPRC stream interceptor that rate limits
+// StreamServerInterceptor is a gRPC stream interceptor that rate limits
 // incoming requests by client IP.
 func (l *Limiter) StreamServerInterceptor(srv interface{}, serverStream grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
 	peerInfo, ok := peer.FromContext(serverStream.Context())
@@ -171,4 +174,23 @@ func (l *Limiter) StreamServerInterceptor(srv interface{}, serverStream grpc.Ser
 	}
 	defer l.ConnLimiter.Release(clientIP, 1)
 	return handler(srv, serverStream)
+}
+
+// WrapListener returns a [Listener] that wraps the provided listener
+// with one that limits connections
+func (l *Limiter) WrapListener(ln net.Listener) *Listener {
+	return NewListener(ln, l.ConnectionsLimiter)
+}
+
+type handlerWrapper interface {
+	http.Handler
+	WrapHandle(http.Handler)
+}
+
+// MakeMiddleware creates an HTTP middleware that wraps provided handle.
+func MakeMiddleware(limiter handlerWrapper) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		limiter.WrapHandle(next)
+		return limiter
+	}
 }

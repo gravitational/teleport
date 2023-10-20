@@ -1,0 +1,66 @@
+adds operator permissions to ClusterRole:
+  1: |
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: ClusterRole
+    metadata:
+      name: RELEASE-NAME
+    rules:
+    - apiGroups:
+      - ""
+      resources:
+      - users
+      - groups
+      - serviceaccounts
+      verbs:
+      - impersonate
+    - apiGroups:
+      - ""
+      resources:
+      - pods
+      verbs:
+      - get
+    - apiGroups:
+      - authorization.k8s.io
+      resources:
+      - selfsubjectaccessreviews
+      verbs:
+      - create
+    - apiGroups:
+      - resources.teleport.dev
+      resources:
+      - teleportroles
+      - teleportroles/status
+      - teleportusers
+      - teleportusers/status
+      - teleportgithubconnectors
+      - teleportgithubconnectors/status
+      - teleportoidcconnectors
+      - teleportoidcconnectors/status
+      - teleportsamlconnectors
+      - teleportsamlconnectors/status
+      - teleportloginrules
+      - teleportloginrules/status
+      - teleportprovisiontokens
+      - teleportprovisiontokens/status
+      - teleportoktaimportrules
+      - teleportoktaimportrules/status
+      verbs:
+      - get
+      - list
+      - patch
+      - update
+      - watch
+    - apiGroups:
+      - coordination.k8s.io
+      resources:
+      - leases
+      verbs:
+      - create
+      - get
+      - update
+    - apiGroups:
+      - ""
+      resources:
+      - events
+      verbs:
+      - create

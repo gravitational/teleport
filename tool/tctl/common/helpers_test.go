@@ -23,27 +23,32 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"io"
-	"net"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
-	"github.com/gravitational/kingpin"
-	"github.com/sirupsen/logrus"
+	"github.com/alecthomas/kingpin/v2"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
 
 	"github.com/gravitational/teleport/api/breaker"
-	"github.com/gravitational/teleport/api/defaults"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
 type options struct {
 	CertPool *x509.CertPool
 	Insecure bool
+	Editor   func(string) error
 }
 
 type optionsFunc func(o *options)
@@ -60,12 +65,18 @@ func withInsecure(insecure bool) optionsFunc {
 	}
 }
 
+func withEditor(editor func(string) error) optionsFunc {
+	return func(o *options) {
+		o.Editor = editor
+	}
+}
+
 func getAuthClient(ctx context.Context, t *testing.T, fc *config.FileConfig, opts ...optionsFunc) auth.ClientI {
 	var options options
 	for _, v := range opts {
 		v(&options)
 	}
-	cfg := service.MakeDefaultConfig()
+	cfg := servicecfg.MakeDefaultConfig()
 
 	var ccf GlobalCLIFlags
 	ccf.ConfigString = mustGetBase64EncFileConfig(t, fc)
@@ -80,16 +91,23 @@ func getAuthClient(ctx context.Context, t *testing.T, fc *config.FileConfig, opt
 
 	client, err := authclient.Connect(ctx, clientConfig)
 	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		if closer, ok := client.(io.Closer); ok {
+			closer.Close()
+		}
+	})
+
 	return client
 }
 
 type cliCommand interface {
-	Initialize(app *kingpin.Application, cfg *service.Config)
+	Initialize(app *kingpin.Application, cfg *servicecfg.Config)
 	TryRun(ctx context.Context, cmd string, client auth.ClientI) (bool, error)
 }
 
 func runCommand(t *testing.T, fc *config.FileConfig, cmd cliCommand, args []string, opts ...optionsFunc) error {
-	cfg := service.MakeDefaultConfig()
+	cfg := servicecfg.MakeDefaultConfig()
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 
 	app := utils.InitCLIParser("tctl", GlobalHelpString)
@@ -112,6 +130,25 @@ func runResourceCommand(t *testing.T, fc *config.FileConfig, args []string, opts
 	return &stdoutBuff, runCommand(t, fc, command, args, opts...)
 }
 
+func runEditCommand(t *testing.T, fc *config.FileConfig, args []string, opts ...optionsFunc) (*bytes.Buffer, error) {
+	var o options
+	for _, opt := range opts {
+		opt(&o)
+	}
+
+	var stdoutBuff bytes.Buffer
+	command := &EditCommand{
+		editor: o.Editor,
+	}
+	return &stdoutBuff, runCommand(t, fc, command, args, opts...)
+}
+
+func runLockCommand(t *testing.T, fc *config.FileConfig, args []string, opts ...optionsFunc) error {
+	command := &LockCommand{}
+	args = append([]string{"lock"}, args...)
+	return runCommand(t, fc, command, args, opts...)
+}
+
 func runTokensCommand(t *testing.T, fc *config.FileConfig, args []string, opts ...optionsFunc) (*bytes.Buffer, error) {
 	var stdoutBuff bytes.Buffer
 	command := &TokensCommand{
@@ -128,31 +165,72 @@ func runUserCommand(t *testing.T, fc *config.FileConfig, args []string, opts ...
 	return runCommand(t, fc, command, args, opts...)
 }
 
-func mustDecodeJSON(t *testing.T, r io.Reader, i interface{}) {
-	err := json.NewDecoder(r).Decode(i)
-	require.NoError(t, err)
+func runAuthCommand(t *testing.T, fc *config.FileConfig, args []string, opts ...optionsFunc) error {
+	command := &AuthCommand{}
+	args = append([]string{"auth"}, args...)
+	return runCommand(t, fc, command, args, opts...)
 }
 
-func mustDecodeYAML(t *testing.T, r io.Reader, i interface{}) {
-	err := yaml.NewDecoder(r).Decode(i)
+func mustDecodeJSON[T any](t *testing.T, r io.Reader) T {
+	var out T
+	err := json.NewDecoder(r).Decode(&out)
 	require.NoError(t, err)
+	return out
 }
 
-func mustGetFreeLocalListenerAddr(t *testing.T) string {
-	l, err := net.Listen("tcp", "127.0.0.1:0")
-	require.NoError(t, err)
-	defer l.Close()
-	return l.Addr().String()
+func mustDecodeYAMLDocuments[T any](t *testing.T, r io.Reader, out *[]T) error {
+	decoder := yaml.NewDecoder(r)
+	for {
+		var entry T
+		if err := decoder.Decode(&entry); err != nil {
+			// Break when there are no more documents to decode
+			if err != io.EOF {
+				return err
+			}
+			break
+		}
+		*out = append(*out, entry)
+	}
+	return nil
 }
 
+func mustDecodeYAML[T any](t *testing.T, r io.Reader) T {
+	var out T
+	err := yaml.NewDecoder(r).Decode(&out)
+	require.NoError(t, err)
+	return out
+}
 func mustGetBase64EncFileConfig(t *testing.T, fc *config.FileConfig) string {
 	configYamlContent, err := yaml.Marshal(fc)
 	require.NoError(t, err)
 	return base64.StdEncoding.EncodeToString(configYamlContent)
 }
 
+func mustWriteFileConfig(t *testing.T, fc *config.FileConfig) string {
+	fileConfPath := filepath.Join(t.TempDir(), "teleport.yaml")
+	fileConfYAML, err := yaml.Marshal(fc)
+	require.NoError(t, err)
+	err = os.WriteFile(fileConfPath, fileConfYAML, 0600)
+	require.NoError(t, err)
+	return fileConfPath
+}
+
+func mustAddUser(t *testing.T, fc *config.FileConfig, username string, roles ...string) {
+	err := runUserCommand(t, fc, []string{"add", username, "--roles", strings.Join(roles, ",")})
+	require.NoError(t, err)
+}
+
+func mustWriteIdentityFile(t *testing.T, fc *config.FileConfig, username string) string {
+	identityFilePath := filepath.Join(t.TempDir(), "identity")
+	err := runAuthCommand(t, fc, []string{"sign", "--user", username, "--out", identityFilePath})
+	require.NoError(t, err)
+	return identityFilePath
+}
+
 type testServerOptions struct {
-	fileConfig *config.FileConfig
+	fileConfig      *config.FileConfig
+	fileDescriptors []servicecfg.FileDescriptor
+	fakeClock       clockwork.FakeClock
 }
 
 type testServerOptionFunc func(options *testServerOptions)
@@ -163,6 +241,18 @@ func withFileConfig(fc *config.FileConfig) testServerOptionFunc {
 	}
 }
 
+func withFileDescriptors(fds []servicecfg.FileDescriptor) testServerOptionFunc {
+	return func(options *testServerOptions) {
+		options.fileDescriptors = fds
+	}
+}
+
+func withFakeClock(fakeClock clockwork.FakeClock) testServerOptionFunc {
+	return func(options *testServerOptions) {
+		options.fakeClock = fakeClock
+	}
+}
+
 func makeAndRunTestAuthServer(t *testing.T, opts ...testServerOptionFunc) (auth *service.TeleportProcess) {
 	var options testServerOptions
 	for _, opt := range opts {
@@ -170,8 +260,9 @@ func makeAndRunTestAuthServer(t *testing.T, opts ...testServerOptionFunc) (auth 
 	}
 
 	var err error
-	cfg := service.MakeDefaultConfig()
+	cfg := servicecfg.MakeDefaultConfig()
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
+	cfg.FileDescriptors = options.fileDescriptors
 	if options.fileConfig != nil {
 		err = config.ApplyFileConfig(options.fileConfig, cfg)
 		require.NoError(t, err)
@@ -179,7 +270,12 @@ func makeAndRunTestAuthServer(t *testing.T, opts ...testServerOptionFunc) (auth 
 
 	cfg.CachePolicy.Enabled = false
 	cfg.Proxy.DisableWebInterface = true
+	cfg.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
+	if options.fakeClock != nil {
+		cfg.Clock = options.fakeClock
+	}
 	auth, err = service.NewTeleport(cfg)
+
 	require.NoError(t, err)
 	require.NoError(t, auth.Start())
 
@@ -193,26 +289,47 @@ func makeAndRunTestAuthServer(t *testing.T, opts ...testServerOptionFunc) (auth 
 	// timeout here because this isn't the kind of problem that this test is meant to catch.
 	require.NoError(t, err, "auth server didn't start after 30s")
 
+	// Wait for proxy to start up if it's enabled. Otherwise we may get racy
+	// behavior between startup and shutdown.
+	if cfg.Proxy.Enabled {
+		_, err = auth.WaitForEventTimeout(30*time.Second, service.ProxyWebServerReady)
+		require.NoError(t, err, "proxy server didn't start after 30s")
+	}
+
+	if cfg.Auth.Enabled && cfg.Databases.Enabled {
+		waitForDatabases(t, auth, cfg.Databases.Databases)
+	}
 	return auth
 }
 
-func waitForBackendDatabaseResourcePropagation(t *testing.T, authServer *auth.Server) {
-	deadlineC := time.After(5 * time.Second)
+func waitForDatabases(t *testing.T, auth *service.TeleportProcess, dbs []servicecfg.Database) {
+	if len(dbs) == 0 {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
 	for {
 		select {
-		case <-time.Tick(100 * time.Millisecond):
-			databases, err := authServer.GetDatabaseServers(context.Background(), defaults.Namespace)
-			if err != nil {
-				logrus.WithError(err).Debugf("GetDatabaseServer call failed")
-				continue
+		case <-time.After(500 * time.Millisecond):
+			all, err := auth.GetAuthServer().GetDatabaseServers(ctx, apidefaults.Namespace)
+			require.NoError(t, err)
+
+			// Count how many input "dbs" are registered.
+			var registered int
+			for _, db := range dbs {
+				for _, a := range all {
+					if a.GetName() == db.Name {
+						registered++
+						break
+					}
+				}
 			}
-			if len(databases) == 0 {
-				logrus.Debugf("Database servers not found")
-				continue
+
+			if registered == len(dbs) {
+				return
 			}
-			return
-		case <-deadlineC:
-			t.Fatal("Failed to fetch database servers")
+		case <-ctx.Done():
+			t.Fatal("databases not registered after 10s")
 		}
 	}
 }

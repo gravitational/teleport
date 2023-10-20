@@ -22,16 +22,20 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/api/types"
-
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
+
+	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/types"
 )
 
 // ConnectProxyTransport opens a channel over the remote tunnel and connects
 // to the requested host.
-func ConnectProxyTransport(sconn ssh.Conn, req *DialReq, exclusive bool) (*ChConn, bool, error) {
+//
+// Returns the net.Conn wrapper over an SSH channel, whether the provided ssh.Conn
+// should be considered invalid due to errors opening or sending a request to the
+// channel while setting up the ChConn, and any error that occurs.
+func ConnectProxyTransport(sconn ssh.Conn, req *DialReq, exclusive bool) (conn *ChConn, invalid bool, err error) {
 	if err := req.CheckAndSetDefaults(); err != nil {
 		return nil, false, trace.Wrap(err)
 	}
@@ -41,13 +45,13 @@ func ConnectProxyTransport(sconn ssh.Conn, req *DialReq, exclusive bool) (*ChCon
 		return nil, false, trace.Wrap(err)
 	}
 
-	channel, discard, err := sconn.OpenChannel(constants.ChanTransport, nil)
+	channel, reqC, err := sconn.OpenChannel(constants.ChanTransport, nil)
 	if err != nil {
-		return nil, false, trace.Wrap(err)
+		return nil, true, trace.Wrap(err)
 	}
 
 	// DiscardRequests will return when the channel or underlying connection is closed.
-	go ssh.DiscardRequests(discard)
+	go ssh.DiscardRequests(reqC)
 
 	// Send a special SSH out-of-band request called "teleport-transport"
 	// the agent on the other side will create a new TCP/IP connection to
@@ -55,7 +59,7 @@ func ConnectProxyTransport(sconn ssh.Conn, req *DialReq, exclusive bool) (*ChCon
 	// this SSH channel.
 	ok, err := channel.SendRequest(constants.ChanTransportDialReq, true, payload)
 	if err != nil {
-		return nil, true, trace.Wrap(err)
+		return nil, true, trace.NewAggregate(trace.Wrap(err), channel.Close())
 	}
 	if !ok {
 		defer channel.Close()
@@ -73,6 +77,7 @@ func ConnectProxyTransport(sconn ssh.Conn, req *DialReq, exclusive bool) (*ChCon
 	if exclusive {
 		return NewExclusiveChConn(sconn, channel), false, nil
 	}
+
 	return NewChConn(sconn, channel), false, nil
 }
 
@@ -88,6 +93,17 @@ type DialReq struct {
 
 	// ConnType is the type of connection requested, either node or application.
 	ConnType types.TunnelType `json:"conn_type"`
+
+	// ClientSrcAddr is the original observed client address, it is used to propagate
+	// correct client IP through indirect connections inside teleport
+	ClientSrcAddr string `json:"client_src_addr,omitempty"`
+
+	// ClientDstAddr is the original client's destination address, it is used to propagate
+	// correct client point of contact through indirect connections inside teleport
+	ClientDstAddr string `json:"client_dst_addr,omitempty"`
+
+	// IsAgentlessNode specifies whether the target is an agentless node.
+	IsAgentlessNode bool `json:"is_agentless_node,omitempty"`
 }
 
 // CheckAndSetDefaults verifies all the values are valid.

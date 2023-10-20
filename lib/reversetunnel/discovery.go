@@ -17,84 +17,99 @@ limitations under the License.
 package reversetunnel
 
 import (
-	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
+	"github.com/gravitational/teleport/lib/reversetunnel/track"
 )
 
-// discoveryRequest is a request sent from a connected proxy with the missing proxies.
+// discoveryRequest is the minimal structure that can be exchanged as JSON as a
+// valid gossip message according to the reverse tunnel discovery protocol.
 type discoveryRequest struct {
-	// ClusterName is the name of the cluster that sends the discovery request.
-	ClusterName string `json:"cluster_name"`
-
-	// Type is the type of tunnel, is either node or proxy.
-	Type string `json:"type"`
-
-	// ClusterAddr is the address of the cluster.
-	ClusterAddr utils.NetAddr `json:"-"`
-
-	// Proxies is a list of proxies in the cluster sending the discovery request.
-	Proxies []types.Server `json:"proxies"`
+	Proxies []discoveryProxy `json:"proxies"`
 }
 
-func (r discoveryRequest) String() string {
-	proxyNames := make([]string, 0, len(r.Proxies))
+// discoveryProxy is the minimal structure that can be exchanged as JSON as a
+// valid representation of a proxy in [discoveryRequest] according to the
+// reverse tunnel discovery protocol. The Version field should be set to V2.
+//
+// The ProxyGroupID and ProxyGroupGeneration fields are used to pass the
+// teleport.internal/proxygroup-id and teleport.internal/proxygroup-gen labels
+// of a proxy without having to transfer the full label name.
+type discoveryProxy struct {
+	Version  string `json:"version"`
+	Metadata struct {
+		Name string `json:"name"`
+	} `json:"metadata"`
+
+	ProxyGroupID         string `json:"gid,omitempty"`
+	ProxyGroupGeneration uint64 `json:"ggen,omitempty"`
+}
+
+// SetProxies overwrites the proxy list in the discoveryRequest with data from
+// the slice of [types.Server]s.
+func (r *discoveryRequest) SetProxies(proxies []types.Server) {
+	r.Proxies = make([]discoveryProxy, 0, len(proxies))
+	for _, proxy := range proxies {
+		d := discoveryProxy{
+			Version: types.V2,
+		}
+		d.Metadata.Name = proxy.GetName()
+		d.ProxyGroupID, _ = proxy.GetLabel(types.ProxyGroupIDLabel)
+		proxyGroupGeneration, _ := proxy.GetLabel(types.ProxyGroupGenerationLabel)
+		var err error
+		d.ProxyGroupGeneration, err = strconv.ParseUint(proxyGroupGeneration, 10, 64)
+		if err != nil {
+			// ParseUint can return the maximum uint64 on ErrRange
+			d.ProxyGroupGeneration = 0
+		}
+
+		r.Proxies = append(r.Proxies, d)
+	}
+}
+
+// ProxyNames returns the names of all proxies carried in the request.
+func (r *discoveryRequest) ProxyNames() []string {
+	names := make([]string, 0, len(r.Proxies))
 	for _, p := range r.Proxies {
-		proxyNames = append(proxyNames, p.GetName())
+		names = append(names, p.Metadata.Name)
 	}
-	return fmt.Sprintf("discovery request, cluster name: %v, address: %v, proxies: %v",
-		r.ClusterName, r.ClusterAddr, strings.Join(proxyNames, ","))
+
+	return names
 }
 
-type discoveryRequestRaw struct {
-	ClusterName string            `json:"cluster_name"`
-	Type        string            `json:"type"`
-	Proxies     []json.RawMessage `json:"proxies"`
+// TrackProxies copies the list of proxies received in the request as a slice of
+// [track.Proxy].
+func (r *discoveryRequest) TrackProxies() []track.Proxy {
+	tp := make([]track.Proxy, 0, len(r.Proxies))
+	for _, p := range r.Proxies {
+		tp = append(tp, track.Proxy{
+			Name:       p.Metadata.Name,
+			Group:      p.ProxyGroupID,
+			Generation: p.ProxyGroupGeneration,
+		})
+	}
+	return tp
 }
 
-func marshalDiscoveryRequest(req discoveryRequest) ([]byte, error) {
-	var out discoveryRequestRaw
-	for _, p := range req.Proxies {
-		// Clone the server value to avoid a potential race
-		// since the proxies are shared.
-		// Marshaling attempts to enforce defaults which modifies
-		// the original value.
-		p = p.DeepCopy()
-		data, err := services.MarshalServer(p)
-		if err != nil {
-			return nil, trace.Wrap(err)
+func (r *discoveryRequest) String() string {
+	var b strings.Builder
+	b.WriteRune('[')
+	for i, p := range r.Proxies {
+		if i > 0 {
+			b.WriteString(", ")
 		}
-		out.Proxies = append(out.Proxies, data)
-	}
-	out.ClusterName = req.ClusterName
-	out.Type = req.Type
-	return json.Marshal(out)
-}
-
-func unmarshalDiscoveryRequest(data []byte) (*discoveryRequest, error) {
-	if len(data) == 0 {
-		return nil, trace.BadParameter("missing payload in discovery request")
-	}
-	var raw discoveryRequestRaw
-	err := utils.FastUnmarshal(data, &raw)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var out discoveryRequest
-	for _, bytes := range raw.Proxies {
-		proxy, err := services.UnmarshalServer([]byte(bytes), types.KindProxy)
-		if err != nil {
-			return nil, trace.Wrap(err)
+		b.WriteString(p.Metadata.Name)
+		if p.ProxyGroupID != "" || p.ProxyGroupGeneration != 0 {
+			b.WriteRune('(')
+			b.WriteString(p.ProxyGroupID)
+			b.WriteRune('@')
+			fmt.Fprintf(&b, "%v", p.ProxyGroupGeneration)
+			b.WriteRune(')')
 		}
-		out.Proxies = append(out.Proxies, proxy)
 	}
-	out.ClusterName = raw.ClusterName
-	out.Type = raw.Type
-	return &out, nil
+	b.WriteRune(']')
+	return b.String()
 }

@@ -23,14 +23,13 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/request"
-	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/aws/aws-sdk-go/service/ssm"
 	"github.com/aws/aws-sdk-go/service/ssm/ssmiface"
-	"github.com/gravitational/teleport/api/types/events"
-	apievents "github.com/gravitational/teleport/api/types/events"
-	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/trace"
 	"golang.org/x/sync/errgroup"
+
+	apievents "github.com/gravitational/teleport/api/types/events"
+	libevents "github.com/gravitational/teleport/lib/events"
 )
 
 // SSMInstallerConfig represents configuration for an SSM install
@@ -53,7 +52,7 @@ type SSMRunRequest struct {
 	SSM ssmiface.SSMAPI
 	// Instances is the list of instances that will have the SSM
 	// document executed on them.
-	Instances []*ec2.Instance
+	Instances []EC2Instance
 	// Params is a list of parameters to include when executing the
 	// SSM document.
 	Params map[string]string
@@ -75,13 +74,14 @@ func NewSSMInstaller(cfg SSMInstallerConfig) *SSMInstaller {
 func (si *SSMInstaller) Run(ctx context.Context, req SSMRunRequest) error {
 	ids := make([]string, 0, len(req.Instances))
 	for _, inst := range req.Instances {
-		ids = append(ids, aws.StringValue(inst.InstanceId))
+		ids = append(ids, inst.InstanceID)
 	}
 
 	params := make(map[string][]*string)
 	for k, v := range req.Params {
 		params[k] = []*string{aws.String(v)}
 	}
+
 	output, err := req.SSM.SendCommandWithContext(ctx, &ssm.SendCommandInput{
 		DocumentName: aws.String(req.DocumentName),
 		InstanceIds:  aws.StringSlice(ids),
@@ -139,8 +139,12 @@ func (si *SSMInstaller) checkCommand(ctx context.Context, req SSMRunRequest, com
 		code = libevents.SSMRunSuccessCode
 	}
 
-	event := events.SSMRun{
-		Metadata: events.Metadata{
+	exitCode := aws.Int64Value(cmdOut.ResponseCode)
+	if exitCode == 0 && code == libevents.SSMRunFailCode {
+		exitCode = -1
+	}
+	event := apievents.SSMRun{
+		Metadata: apievents.Metadata{
 			Type: libevents.SSMRunEvent,
 			Code: code,
 		},
@@ -148,7 +152,7 @@ func (si *SSMInstaller) checkCommand(ctx context.Context, req SSMRunRequest, com
 		InstanceID: aws.StringValue(instanceID),
 		AccountID:  req.AccountID,
 		Region:     req.Region,
-		ExitCode:   aws.Int64Value(cmdOut.ResponseCode),
+		ExitCode:   exitCode,
 		Status:     aws.StringValue(cmdOut.Status),
 	}
 

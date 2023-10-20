@@ -1,6 +1,6 @@
 ---
 authors: Nic Klaassen <nic@goteleport.com>
-state: Draft
+state: implemented
 ---
 
 # RFD 50 - Cluster Join Methods and Endpoints
@@ -36,7 +36,7 @@ PKI.
 
 #### Auth `POST /tokens/register`
 
-**Join methods:** token, EC2  
+**Join methods:** token, EC2, github, circleci
 **Server trust:** CA pins
 
 This is the main token register endpoint on the Auth server. Accepts tokens or
@@ -44,7 +44,7 @@ EC2 Identity Documents to authenticate the client.
 
 #### Auth `rpc GenerateHostCerts(HostCertsRequest) returns (Certs)`
 
-**Client trust:** mTLS  
+**Client trust:** mTLS
 **Server trust:** mTLS
 
 This is an mTLS authenticated gRPC endpoint for cert renewal. The node must
@@ -53,7 +53,7 @@ certificate used for the mTLS connection.
 
 #### Proxy `POST /webapi/host/credentials`
 
-**Join methods:** token, EC2  
+**Join methods:** token, EC2, github, circleci
 **Server trust:** PKI
 
 This is the proxy endpoint for registering IoT nodes that don't have a direct
@@ -76,14 +76,14 @@ and it will "just work" transparently.
 
 #### Auth `rpc RegisterUsingIAM(stream RegisterUsingIAMRequest) returns (stream RegisterUsingIAMResponse)`
 
-**Join methods:** IAM  
+**Join methods:** IAM
 **Server trust:** CA pins
 
 This is the Auth endpoint that will complete the IAM join request.
 
 #### Proxy `rpc RegisterUsingIAM(stream RegisterUsingIAMRequest) returns (stream RegisterUsingIAMResponse)`
 
-**Join methods:** IAM  
+**Join methods:** IAM
 **Server trust:** PKI
 
 Normally, authenticated gRPC calls from IoT nodes are tunnelled through the

@@ -22,23 +22,21 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
-	clients "github.com/gravitational/teleport/lib/cloud"
-	awslib "github.com/gravitational/teleport/lib/cloud/aws"
-	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/services"
-
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/aws/aws-sdk-go/service/rds"
 	"github.com/aws/aws-sdk-go/service/redshift"
-
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth"
+	clients "github.com/gravitational/teleport/lib/cloud"
+	"github.com/gravitational/teleport/lib/cloud/mocks"
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 // TestAWSIAM tests RDS, Aurora and Redshift IAM auto-configuration.
@@ -48,37 +46,37 @@ func TestAWSIAM(t *testing.T) {
 
 	// Setup AWS database objects.
 	rdsInstance := &rds.DBInstance{
-		DBInstanceArn:        aws.String("arn:aws:rds:us-west-1:1234567890:db:postgres-rds"),
+		DBInstanceArn:        aws.String("arn:aws:rds:us-west-1:123456789012:db:postgres-rds"),
 		DBInstanceIdentifier: aws.String("postgres-rds"),
 		DbiResourceId:        aws.String("db-xyz"),
 	}
 
 	auroraCluster := &rds.DBCluster{
-		DBClusterArn:        aws.String("arn:aws:rds:us-east-1:1234567890:cluster:postgres-aurora"),
+		DBClusterArn:        aws.String("arn:aws:rds:us-east-1:123456789012:cluster:postgres-aurora"),
 		DBClusterIdentifier: aws.String("postgres-aurora"),
 		DbClusterResourceId: aws.String("cluster-xyz"),
 	}
 
 	redshiftCluster := &redshift.Cluster{
-		ClusterNamespaceArn: aws.String("arn:aws:redshift:us-east-2:1234567890:namespace:namespace-xyz"),
+		ClusterNamespaceArn: aws.String("arn:aws:redshift:us-east-2:123456789012:namespace:namespace-xyz"),
 		ClusterIdentifier:   aws.String("redshift-cluster-1"),
 	}
 
 	// Configure mocks.
-	stsClient := &STSMock{
-		ARN: "arn:aws:iam::1234567890:role/test-role",
+	stsClient := &mocks.STSMock{
+		ARN: "arn:aws:iam::123456789012:role/test-role",
 	}
 
-	rdsClient := &RDSMock{
+	rdsClient := &mocks.RDSMock{
 		DBInstances: []*rds.DBInstance{rdsInstance},
 		DBClusters:  []*rds.DBCluster{auroraCluster},
 	}
 
-	redshiftClient := &RedshiftMock{
+	redshiftClient := &mocks.RedshiftMock{
 		Clusters: []*redshift.Cluster{redshiftCluster},
 	}
 
-	iamClient := &IAMMock{}
+	iamClient := &mocks.IAMMock{}
 
 	// Setup database resources.
 	rdsDatabase, err := types.NewDatabaseV3(types.Metadata{
@@ -86,7 +84,7 @@ func TestAWSIAM(t *testing.T) {
 	}, types.DatabaseSpecV3{
 		Protocol: defaults.ProtocolPostgres,
 		URI:      "localhost",
-		AWS:      types.AWS{Region: "localhost", AccountID: "1234567890", RDS: types.RDS{InstanceID: "postgres-rds", ResourceID: "postgres-rds-resource-id"}},
+		AWS:      types.AWS{Region: "localhost", AccountID: "123456789012", RDS: types.RDS{InstanceID: "postgres-rds", ResourceID: "postgres-rds-resource-id"}},
 	})
 	require.NoError(t, err)
 
@@ -95,7 +93,16 @@ func TestAWSIAM(t *testing.T) {
 	}, types.DatabaseSpecV3{
 		Protocol: defaults.ProtocolPostgres,
 		URI:      "localhost",
-		AWS:      types.AWS{Region: "localhost", AccountID: "1234567890", RDS: types.RDS{ClusterID: "postgres-aurora", ResourceID: "postgres-aurora-resource-id"}},
+		AWS:      types.AWS{Region: "localhost", AccountID: "123456789012", RDS: types.RDS{ClusterID: "postgres-aurora", ResourceID: "postgres-aurora-resource-id"}},
+	})
+	require.NoError(t, err)
+
+	rdsProxy, err := types.NewDatabaseV3(types.Metadata{
+		Name: "rds-proxy",
+	}, types.DatabaseSpecV3{
+		Protocol: defaults.ProtocolPostgres,
+		URI:      "localhost",
+		AWS:      types.AWS{Region: "localhost", AccountID: "123456789012", RDSProxy: types.RDSProxy{Name: "rds-proxy", ResourceID: "rds-proxy-resource-id"}},
 	})
 	require.NoError(t, err)
 
@@ -104,16 +111,21 @@ func TestAWSIAM(t *testing.T) {
 	}, types.DatabaseSpecV3{
 		Protocol: defaults.ProtocolPostgres,
 		URI:      "localhost",
-		AWS:      types.AWS{Region: "localhost", AccountID: "1234567890", Redshift: types.Redshift{ClusterID: "redshift-cluster-1"}},
+		AWS:      types.AWS{Region: "localhost", AccountID: "123456789012", Redshift: types.Redshift{ClusterID: "redshift-cluster-1"}},
 	})
 	require.NoError(t, err)
 
-	databaseMissingMetadata, err := types.NewDatabaseV3(types.Metadata{
-		Name: "redshift",
+	elasticache, err := types.NewDatabaseV3(types.Metadata{
+		Name: "aws-elasticache",
 	}, types.DatabaseSpecV3{
-		Protocol: defaults.ProtocolPostgres,
-		URI:      "localhost",
-		AWS:      types.AWS{Redshift: types.Redshift{ClusterID: "missing metadata"}},
+		Protocol: "redis",
+		URI:      "clustercfg.my-redis-cluster.xxxxxx.cac1.cache.amazonaws.com:6379",
+		AWS: types.AWS{
+			AccountID: "123456789012",
+			ElastiCache: types.ElastiCache{
+				ReplicationGroupID: "some-group",
+			},
+		},
 	})
 	require.NoError(t, err)
 
@@ -125,6 +137,10 @@ func TestAWSIAM(t *testing.T) {
 		case <-time.After(5 * time.Second):
 			require.Fail(t, "Failed to wait for task is processed")
 		}
+	}
+	assumedRole := types.AssumeRole{
+		RoleARN:    "arn:aws:iam::123456789012:role/role-to-assume",
+		ExternalID: "externalid123",
 	}
 	configurator, err := NewIAM(ctx, IAMConfig{
 		AccessPoint: &mockAccessPoint{},
@@ -145,64 +161,105 @@ func TestAWSIAM(t *testing.T) {
 	policyName, err := configurator.getPolicyName()
 	require.NoError(t, err)
 
-	t.Run("RDS", func(t *testing.T) {
-		// Configure RDS database and make sure IAM was enabled and policy was attached.
-		err = configurator.Setup(ctx, rdsDatabase)
-		require.NoError(t, err)
-		waitForTaskProcessed(t)
-		require.True(t, aws.BoolValue(rdsInstance.IAMDatabaseAuthenticationEnabled))
-		policy := iamClient.attachedRolePolicies["test-role"][policyName]
-		require.Contains(t, policy, rdsDatabase.GetAWS().RDS.ResourceID)
+	tests := map[string]struct {
+		database           types.Database
+		wantPolicyContains string
+		getIAMAuthEnabled  func() bool
+	}{
+		"RDS": {
+			database:           rdsDatabase,
+			wantPolicyContains: rdsDatabase.GetAWS().RDS.ResourceID,
+			getIAMAuthEnabled: func() bool {
+				out := aws.BoolValue(rdsInstance.IAMDatabaseAuthenticationEnabled)
+				// reset it
+				rdsInstance.IAMDatabaseAuthenticationEnabled = aws.Bool(false)
+				return out
+			},
+		},
+		"Aurora": {
+			database:           auroraDatabase,
+			wantPolicyContains: auroraDatabase.GetAWS().RDS.ResourceID,
+			getIAMAuthEnabled: func() bool {
+				out := aws.BoolValue(auroraCluster.IAMDatabaseAuthenticationEnabled)
+				// reset it
+				auroraCluster.IAMDatabaseAuthenticationEnabled = aws.Bool(false)
+				return out
+			},
+		},
+		"RDS Proxy": {
+			database:           rdsProxy,
+			wantPolicyContains: rdsProxy.GetAWS().RDSProxy.ResourceID,
+			getIAMAuthEnabled: func() bool {
+				return true // it always is for rds proxy.
+			},
+		},
+		"Redshift": {
+			database:           redshiftDatabase,
+			wantPolicyContains: redshiftDatabase.GetAWS().Redshift.ClusterID,
+			getIAMAuthEnabled: func() bool {
+				return true // it always is for redshift.
+			},
+		},
+		"ElastiCache": {
+			database:           elasticache,
+			wantPolicyContains: elasticache.GetAWS().ElastiCache.ReplicationGroupID,
+			getIAMAuthEnabled: func() bool {
+				return true // it always is for ElastiCache.
+			},
+		},
+	}
 
-		// Deconfigure RDS database, policy should get detached.
-		err = configurator.Teardown(ctx, rdsDatabase)
-		require.NoError(t, err)
-		waitForTaskProcessed(t)
-		policy = iamClient.attachedRolePolicies["test-role"][policyName]
-		require.NotContains(t, policy, rdsDatabase.GetAWS().RDS.ResourceID)
-	})
+	for testName, tt := range tests {
+		for _, assumeRole := range []types.AssumeRole{{}, assumedRole} {
+			getRolePolicyInput := &iam.GetRolePolicyInput{
+				RoleName:   aws.String("test-role"),
+				PolicyName: aws.String(policyName),
+			}
+			database := tt.database.Copy()
+			if assumeRole.RoleARN != "" {
+				testName += " with assumed role"
+				getRolePolicyInput.RoleName = aws.String("role-to-assume")
+				meta := database.GetAWS()
+				meta.AssumeRoleARN = assumeRole.RoleARN
+				meta.ExternalID = assumeRole.ExternalID
+				database.SetStatusAWS(meta)
+			}
+			t.Run(testName, func(t *testing.T) {
+				// Initially unspecified since no tasks has ran yet.
+				require.Equal(t, types.IAMPolicyStatus_IAM_POLICY_STATUS_UNSPECIFIED, database.GetAWS().IAMPolicyStatus)
 
-	t.Run("Aurora", func(t *testing.T) {
-		// Configure Aurora database and make sure IAM was enabled and policy was attached.
-		err = configurator.Setup(ctx, auroraDatabase)
-		require.NoError(t, err)
-		waitForTaskProcessed(t)
-		require.True(t, aws.BoolValue(auroraCluster.IAMDatabaseAuthenticationEnabled))
-		policy := iamClient.attachedRolePolicies["test-role"][policyName]
-		require.Contains(t, policy, auroraDatabase.GetAWS().RDS.ResourceID)
+				// Configure database and make sure IAM is enabled and policy was attached.
+				err = configurator.Setup(ctx, database)
+				require.NoError(t, err)
+				waitForTaskProcessed(t)
+				output, err := iamClient.GetRolePolicyWithContext(ctx, getRolePolicyInput)
+				require.NoError(t, err)
+				require.True(t, tt.getIAMAuthEnabled())
+				require.Contains(t, aws.StringValue(output.PolicyDocument), tt.wantPolicyContains)
 
-		// Deconfigure Aurora database, policy should get detached.
-		err = configurator.Teardown(ctx, auroraDatabase)
-		require.NoError(t, err)
-		waitForTaskProcessed(t)
-		policy = iamClient.attachedRolePolicies["test-role"][policyName]
-		require.NotContains(t, policy, auroraDatabase.GetAWS().RDS.ResourceID)
-	})
+				err = configurator.UpdateIAMStatus(database)
+				require.NoError(t, err)
+				require.Equal(t, types.IAMPolicyStatus_IAM_POLICY_STATUS_SUCCESS, database.GetAWS().IAMPolicyStatus, "must be success because iam policy was set up")
 
-	t.Run("Redshift", func(t *testing.T) {
-		// Configure Redshift database and make sure policy was attached.
-		err = configurator.Setup(ctx, redshiftDatabase)
-		require.NoError(t, err)
-		waitForTaskProcessed(t)
-		policy := iamClient.attachedRolePolicies["test-role"][policyName]
-		require.Contains(t, policy, redshiftDatabase.GetAWS().Redshift.ClusterID)
+				// Deconfigure database, policy should get detached.
+				err = configurator.Teardown(ctx, database)
+				require.NoError(t, err)
+				waitForTaskProcessed(t)
+				_, err = iamClient.GetRolePolicyWithContext(ctx, getRolePolicyInput)
+				require.True(t, trace.IsNotFound(err))
+				meta := database.GetAWS()
+				if meta.AssumeRoleARN != "" {
+					require.Equal(t, []string{meta.AssumeRoleARN}, stsClient.GetAssumedRoleARNs())
+					require.Equal(t, []string{meta.ExternalID}, stsClient.GetAssumedRoleExternalIDs())
+					stsClient.ResetAssumeRoleHistory()
+				}
 
-		// Deconfigure Redshift database, policy should get detached.
-		err = configurator.Teardown(ctx, redshiftDatabase)
-		require.NoError(t, err)
-		waitForTaskProcessed(t)
-		policy = iamClient.attachedRolePolicies["test-role"][policyName]
-		require.NotContains(t, policy, redshiftDatabase.GetAWS().Redshift.ClusterID)
-	})
-
-	// Database misssing metadata for generating IAM actions should NOT be
-	// added to the policy document.
-	t.Run("missing metadata", func(t *testing.T) {
-		err = configurator.Setup(ctx, databaseMissingMetadata)
-		waitForTaskProcessed(t)
-		policy := iamClient.attachedRolePolicies["test-role"][policyName]
-		require.NotContains(t, policy, databaseMissingMetadata.GetAWS().Redshift.ClusterID)
-	})
+				err = configurator.UpdateIAMStatus(database)
+				require.NoError(t, err)
+				require.Equal(t, types.IAMPolicyStatus_IAM_POLICY_STATUS_UNSPECIFIED, database.GetAWS().IAMPolicyStatus, "must be unspecified because task is tearing down")
+			})
+		}
+	}
 }
 
 // TestAWSIAMNoPermissions tests that lack of AWS permissions does not produce
@@ -212,8 +269,8 @@ func TestAWSIAMNoPermissions(t *testing.T) {
 	t.Cleanup(cancel)
 
 	// Create unauthorized mocks for AWS services.
-	stsClient := &STSMock{
-		ARN: "arn:aws:iam::1234567890:role/test-role",
+	stsClient := &mocks.STSMock{
+		ARN: "arn:aws:iam::123456789012:role/test-role",
 	}
 	// Make configurator.
 	configurator, err := NewIAM(ctx, IAMConfig{
@@ -230,10 +287,10 @@ func TestAWSIAMNoPermissions(t *testing.T) {
 	}{
 		{
 			name: "RDS database",
-			meta: types.AWS{Region: "localhost", AccountID: "1234567890", RDS: types.RDS{InstanceID: "postgres-rds", ResourceID: "postgres-rds-resource-id"}},
+			meta: types.AWS{Region: "localhost", AccountID: "123456789012", RDS: types.RDS{InstanceID: "postgres-rds", ResourceID: "postgres-rds-resource-id"}},
 			clients: &clients.TestCloudClients{
-				RDS: &RDSMockUnauth{},
-				IAM: &IAMErrorMock{
+				RDS: &mocks.RDSMockUnauth{},
+				IAM: &mocks.IAMErrorMock{
 					Error: trace.AccessDenied("unauthorized"),
 				},
 				STS: stsClient,
@@ -241,10 +298,21 @@ func TestAWSIAMNoPermissions(t *testing.T) {
 		},
 		{
 			name: "Aurora cluster",
-			meta: types.AWS{Region: "localhost", AccountID: "1234567890", RDS: types.RDS{ClusterID: "postgres-aurora", ResourceID: "postgres-aurora-resource-id"}},
+			meta: types.AWS{Region: "localhost", AccountID: "123456789012", RDS: types.RDS{ClusterID: "postgres-aurora", ResourceID: "postgres-aurora-resource-id"}},
 			clients: &clients.TestCloudClients{
-				RDS: &RDSMockUnauth{},
-				IAM: &IAMErrorMock{
+				RDS: &mocks.RDSMockUnauth{},
+				IAM: &mocks.IAMErrorMock{
+					Error: trace.AccessDenied("unauthorized"),
+				},
+				STS: stsClient,
+			},
+		},
+		{
+			name: "RDS database missing metadata",
+			meta: types.AWS{Region: "localhost", RDS: types.RDS{ClusterID: "postgres-aurora"}},
+			clients: &clients.TestCloudClients{
+				RDS: &mocks.RDSMockUnauth{},
+				IAM: &mocks.IAMErrorMock{
 					Error: trace.AccessDenied("unauthorized"),
 				},
 				STS: stsClient,
@@ -252,10 +320,23 @@ func TestAWSIAMNoPermissions(t *testing.T) {
 		},
 		{
 			name: "Redshift cluster",
-			meta: types.AWS{Region: "localhost", AccountID: "1234567890", Redshift: types.Redshift{ClusterID: "redshift-cluster-1"}},
+			meta: types.AWS{Region: "localhost", AccountID: "123456789012", Redshift: types.Redshift{ClusterID: "redshift-cluster-1"}},
 			clients: &clients.TestCloudClients{
-				Redshift: &RedshiftMockUnauth{},
-				IAM: &IAMErrorMock{
+				Redshift: &mocks.RedshiftMockUnauth{},
+				IAM: &mocks.IAMErrorMock{
+					Error: trace.AccessDenied("unauthorized"),
+				},
+				STS: stsClient,
+			},
+		},
+		{
+			name: "ElastiCache",
+			meta: types.AWS{Region: "localhost", AccountID: "123456789012", ElastiCache: types.ElastiCache{ReplicationGroupID: "some-group"}},
+			clients: &clients.TestCloudClients{
+				// As of writing this API won't be called by the configurator anyway,
+				// but might as well provide it in case that changes.
+				ElastiCache: &mocks.ElastiCacheMock{Unauth: true},
+				IAM: &mocks.IAMErrorMock{
 					Error: trace.AccessDenied("unauthorized"),
 				},
 				STS: stsClient,
@@ -263,10 +344,10 @@ func TestAWSIAMNoPermissions(t *testing.T) {
 		},
 		{
 			name: "IAM UnmodifiableEntityException",
-			meta: types.AWS{Region: "localhost", AccountID: "1234567890", Redshift: types.Redshift{ClusterID: "redshift-cluster-1"}},
+			meta: types.AWS{Region: "localhost", AccountID: "123456789012", Redshift: types.Redshift{ClusterID: "redshift-cluster-1"}},
 			clients: &clients.TestCloudClients{
-				Redshift: &RedshiftMockUnauth{},
-				IAM: &IAMErrorMock{
+				Redshift: &mocks.RedshiftMockUnauth{},
+				IAM: &mocks.IAMErrorMock{
 					Error: awserr.New(iam.ErrCodeUnmodifiableEntityException, "unauthorized", fmt.Errorf("unauthorized")),
 				},
 				STS: stsClient,
@@ -295,61 +376,21 @@ func TestAWSIAMNoPermissions(t *testing.T) {
 			})
 			require.NoError(t, err)
 
+			err = configurator.UpdateIAMStatus(database)
+			require.NoError(t, err)
+			require.Equal(t, types.IAMPolicyStatus_IAM_POLICY_STATUS_FAILED, database.GetAWS().IAMPolicyStatus, "must be invalid because of perm issues")
+
 			err = configurator.processTask(ctx, iamTask{
 				isSetup:  false,
 				database: database,
 			})
 			require.NoError(t, err)
+
+			err = configurator.UpdateIAMStatus(database)
+			require.NoError(t, err)
+			require.Equal(t, types.IAMPolicyStatus_IAM_POLICY_STATUS_UNSPECIFIED, database.GetAWS().IAMPolicyStatus, "must be unspecified, task is tearing down")
 		})
 	}
-}
-
-// DELETE IN 11.0.
-func TestAWSIAMDeleteOldPolicy(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
-
-	// Configure mocks.
-	stsClient := &STSMock{
-		ARN: "arn:aws:iam::1234567890:role/test-role",
-	}
-
-	iamClient := &IAMMock{
-		attachedRolePolicies: map[string]map[string]string{
-			"test-role": map[string]string{
-				"teleport-host-id":                 "old policy",
-				"cluster.local" + policyNameSuffix: "new policy",
-			},
-		},
-	}
-
-	fakeClock := clockwork.NewFakeClock()
-
-	// Make configurator.
-	configurator, err := NewIAM(ctx, IAMConfig{
-		Clock:       fakeClock,
-		AccessPoint: &mockAccessPoint{},
-		Clients: &clients.TestCloudClients{
-			STS: stsClient,
-			IAM: iamClient,
-		},
-		HostID: "host-id",
-	})
-	require.NoError(t, err)
-	require.NoError(t, configurator.Start(ctx))
-
-	isPolicyDeleted := func() bool {
-		// Advance in periodic check to make sure Advance happens after
-		// Clock.Sleep in deleteOldPolicy goroutine.
-		fakeClock.Advance(time.Hour)
-
-		_, err = iamClient.GetRolePolicyWithContext(ctx, &iam.GetRolePolicyInput{
-			RoleName:   aws.String("test-role"),
-			PolicyName: aws.String("teleport-host-id"),
-		})
-		return trace.IsNotFound(awslib.ConvertIAMError(err))
-	}
-	require.Eventually(t, isPolicyDeleted, 2*time.Second, 100*time.Millisecond)
 }
 
 // mockAccessPoint is a mock for auth.DatabaseAccessPoint.

@@ -3,7 +3,7 @@ authors: Forrest Marshall (forrest@goteleport.com)
 state: draft
 ---
 
-# RFD XXXX - Upgrade System
+# RFD 90 - Upgrade System
 
 ## Required Approvers
 * Engineering: @klizhentas && (@zmb3 || @rosstimothy || @espadolini)
@@ -390,7 +390,7 @@ message ClientHello {
     repeated string ServerRoles = 4; 
 }
 
-// Heatbeat periodically 
+// Heartbeat periodically 
 message Heartbeat {
     // TODO
 }
@@ -1641,7 +1641,7 @@ with a given user should their cluster size (approximate or not) be shared for a
 - Cluster identifiers (both the seed/salt value and the ephemeral identifier) should be treated as secrets and
 not emitted in any logs or in any tctl commands that don't include `--with-secrets`.
 
-- Addition of any new metrics in the future should be subject to hightened scrutiny and cynicism. A healthy
+- Addition of any new metrics in the future should be subject to heightened scrutiny and cynicism. A healthy
 dose of 'professional paranoia' is beneficial here.
 
 ### Open Questions

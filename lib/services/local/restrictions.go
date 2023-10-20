@@ -19,11 +19,11 @@ package local
 import (
 	"context"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
-
-	"github.com/gravitational/trace"
 )
 
 // RestrictionsService manages restrictions to be enforced by restricted shell
@@ -38,16 +38,21 @@ func NewRestrictionsService(backend backend.Backend) *RestrictionsService {
 
 // SetNetworkRestrictions upserts NetworkRestrictions
 func (s *RestrictionsService) SetNetworkRestrictions(ctx context.Context, nr types.NetworkRestrictions) error {
+	if err := nr.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+	rev := nr.GetRevision()
 	value, err := services.MarshalNetworkRestrictions(nr)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	item := backend.Item{
-		Key:     backend.Key(restrictionsPrefix, network),
-		Value:   value,
-		Expires: nr.Expiry(),
-		ID:      nr.GetResourceID(),
+		Key:      backend.Key(restrictionsPrefix, network),
+		Value:    value,
+		Expires:  nr.Expiry(),
+		ID:       nr.GetResourceID(),
+		Revision: rev,
 	}
 
 	_, err = s.Put(ctx, item)
@@ -63,7 +68,7 @@ func (s *RestrictionsService) GetNetworkRestrictions(ctx context.Context) (types
 		return nil, trace.Wrap(err)
 	}
 	return services.UnmarshalNetworkRestrictions(item.Value,
-		services.WithResourceID(item.ID), services.WithExpires(item.Expires))
+		services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 }
 
 // SetNetworkRestrictions upserts NetworkRestrictions

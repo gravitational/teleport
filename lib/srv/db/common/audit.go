@@ -19,12 +19,13 @@ package common
 import (
 	"context"
 
-	apidefaults "github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/api/types/events"
-	libevents "github.com/gravitational/teleport/lib/events"
-
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
+
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/events"
+	libevents "github.com/gravitational/teleport/lib/events"
 )
 
 // Audit defines an interface for database access audit events logger.
@@ -55,12 +56,27 @@ type Query struct {
 type AuditConfig struct {
 	// Emitter is used to emit audit events.
 	Emitter events.Emitter
+	// Recorder is used to record session events.
+	Recorder libevents.SessionPreparerRecorder
+	// Database is the database in context.
+	Database types.Database
+	// Component is the component in use.
+	Component string
 }
 
 // Check validates the config.
 func (c *AuditConfig) Check() error {
 	if c.Emitter == nil {
 		return trace.BadParameter("missing Emitter")
+	}
+	if c.Recorder == nil {
+		return trace.BadParameter("missing Recorder")
+	}
+	if c.Database == nil {
+		return trace.BadParameter("missing Database")
+	}
+	if c.Component == "" {
+		c.Component = "db:audit"
 	}
 	return nil
 }
@@ -80,7 +96,7 @@ func NewAudit(config AuditConfig) (Audit, error) {
 	}
 	return &audit{
 		cfg: config,
-		log: logrus.WithField(trace.Component, "db:audit"),
+		log: logrus.WithField(trace.Component, config.Component),
 	}, nil
 }
 
@@ -98,6 +114,7 @@ func (a *audit) OnSessionStart(ctx context.Context, session *Session, sessionErr
 			Success: true,
 		},
 	}
+
 	// If the database session wasn't started successfully, emit
 	// a failure event with error details.
 	if sessionErr != nil {
@@ -134,6 +151,9 @@ func (a *audit) OnQuery(ctx context.Context, session *Session, query Query) {
 		DatabaseMetadata:        MakeDatabaseMetadata(session),
 		DatabaseQuery:           query.Query,
 		DatabaseQueryParameters: query.Parameters,
+		Status: events.Status{
+			Success: true,
+		},
 	}
 	if query.Database != "" {
 		event.DatabaseMetadata.DatabaseName = query.Database
@@ -152,8 +172,17 @@ func (a *audit) OnQuery(ctx context.Context, session *Session, query Query) {
 
 // EmitEvent emits the provided audit event using configured emitter.
 func (a *audit) EmitEvent(ctx context.Context, event events.AuditEvent) {
-	if err := a.cfg.Emitter.EmitAuditEvent(ctx, event); err != nil {
-		a.log.WithError(err).Errorf("Failed to emit audit event: %v.", event)
+	defer methodCallMetrics("EmitEvent", a.cfg.Component, a.cfg.Database)()
+	preparedEvent, err := a.cfg.Recorder.PrepareSessionEvent(event)
+	if err != nil {
+		a.log.WithError(err).Errorf("Failed to setup event: %s - %s.", event.GetType(), event.GetID())
+		return
+	}
+	if err := a.cfg.Recorder.RecordEvent(ctx, preparedEvent); err != nil {
+		a.log.WithError(err).Errorf("Failed to record session event: %s - %s.", event.GetType(), event.GetID())
+	}
+	if err := a.cfg.Emitter.EmitAuditEvent(ctx, preparedEvent.GetAuditEvent()); err != nil {
+		a.log.WithError(err).Errorf("Failed to emit audit event: %s - %s.", event.GetType(), event.GetID())
 	}
 }
 
@@ -182,8 +211,9 @@ func MakeUserMetadata(session *Session) events.UserMetadata {
 // MakeSessionMetadata returns common session metadata for database session.
 func MakeSessionMetadata(session *Session) events.SessionMetadata {
 	return events.SessionMetadata{
-		SessionID: session.ID,
-		WithMFA:   session.Identity.MFAVerified,
+		SessionID:        session.ID,
+		WithMFA:          session.Identity.MFAVerified,
+		PrivateKeyPolicy: string(session.Identity.PrivateKeyPolicy),
 	}
 }
 
@@ -195,5 +225,8 @@ func MakeDatabaseMetadata(session *Session) events.DatabaseMetadata {
 		DatabaseURI:      session.Database.GetURI(),
 		DatabaseName:     session.DatabaseName,
 		DatabaseUser:     session.DatabaseUser,
+		DatabaseRoles:    session.DatabaseRoles,
+		DatabaseType:     session.Database.GetType(),
+		DatabaseOrigin:   session.Database.Origin(),
 	}
 }

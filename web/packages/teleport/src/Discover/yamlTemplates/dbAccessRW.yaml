@@ -1,0 +1,19 @@
+kind: role
+spec:
+  allow:
+    # List of databases on the database server users can access
+    db_names:
+    - '{{internal.db_names}}'
+    - dbName1
+    - '*'
+    # List of database users allowed to open database connections with
+    db_users:
+    - '{{internal.db_users}}'
+    - dbUser1
+    - '*'
+    rules:
+    # Rule that allows users to define their own Database names and users.
+    - resources:
+      - user
+      verbs:
+      - update

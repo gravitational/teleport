@@ -17,10 +17,11 @@ limitations under the License.
 package services
 
 import (
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
 )
 
 // ClusterAuditConfigSpecFromObject returns audit config spec from object.
@@ -58,6 +59,9 @@ func UnmarshalClusterAuditConfig(bytes []byte, opts ...MarshalOption) (types.Clu
 	if cfg.ID != 0 {
 		auditConfig.SetResourceID(cfg.ID)
 	}
+	if cfg.Revision != "" {
+		auditConfig.SetRevision(cfg.Revision)
+	}
 	if !cfg.Expires.IsZero() {
 		auditConfig.SetExpiry(cfg.Expires)
 	}
@@ -82,6 +86,7 @@ func MarshalClusterAuditConfig(auditConfig types.ClusterAuditConfig, opts ...Mar
 			// to prevent unexpected data races
 			copy := *auditConfig
 			copy.SetResourceID(0)
+			copy.SetRevision("")
 			auditConfig = &copy
 		}
 		return utils.FastMarshal(auditConfig)

@@ -22,6 +22,11 @@ import (
 	"net"
 	"time"
 
+	"github.com/go-mysql-org/go-mysql/mysql"
+	"github.com/go-mysql-org/go-mysql/server"
+	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
+
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
@@ -29,13 +34,8 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/dbutils"
 	"github.com/gravitational/teleport/lib/srv/db/mysql/protocol"
+	"github.com/gravitational/teleport/lib/srv/ingress"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/go-mysql-org/go-mysql/mysql"
-	"github.com/go-mysql-org/go-mysql/server"
-
-	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 )
 
 // Proxy proxies connections from MySQL clients to database services
@@ -53,16 +53,26 @@ type Proxy struct {
 	Log logrus.FieldLogger
 	// Limiter limits the number of active connections per client IP.
 	Limiter *limiter.Limiter
+	// IngressReporter reports new and active connections.
+	IngressReporter *ingress.Reporter
+	// ServerVersion allows to overwrite the default Proxy MySQL Engine Version. Note that for TLS Routing connection
+	// the dynamic service version propagation by ALPN extension will take precedes over Proxy ServerVersion.
+	ServerVersion string
 }
 
 // HandleConnection accepts connection from a MySQL client, authenticates
 // it and proxies it to an appropriate database service.
 func (p *Proxy) HandleConnection(ctx context.Context, clientConn net.Conn) (err error) {
+	if p.IngressReporter != nil {
+		p.IngressReporter.ConnectionAccepted(ingress.MySQL, clientConn)
+		defer p.IngressReporter.ConnectionClosed(ingress.MySQL, clientConn)
+	}
+
 	// Wrap the client connection in the connection that can detect the protocol
 	// by peeking into the first few bytes. This is needed to be able to detect
 	// proxy protocol which otherwise would interfere with MySQL protocol.
 	conn := multiplexer.NewConn(clientConn)
-	mysqlServerVersion := getServerVersionFromCtx(ctx)
+	mysqlServerVersion := getServerVersionFromCtx(ctx, p.ServerVersion)
 
 	mysqlServer := p.makeServer(conn, mysqlServerVersion)
 	// If any error happens, make sure to send it back to the client, so it
@@ -85,6 +95,11 @@ func (p *Proxy) HandleConnection(ctx context.Context, clientConn net.Conn) (err 
 		return trace.Wrap(err)
 	}
 
+	if p.IngressReporter != nil {
+		p.IngressReporter.ConnectionAuthenticated(ingress.MySQL, clientConn)
+		defer p.IngressReporter.AuthenticatedConnectionClosed(ingress.MySQL, clientConn)
+	}
+
 	clientIP, err := utils.ClientIPFromConn(clientConn)
 	if err != nil {
 		return trace.Wrap(err)
@@ -105,7 +120,7 @@ func (p *Proxy) HandleConnection(ctx context.Context, clientConn net.Conn) (err 
 		return trace.Wrap(err)
 	}
 
-	serviceConn, err := p.Service.Connect(ctx, proxyCtx)
+	serviceConn, err := p.Service.Connect(ctx, proxyCtx, clientConn.RemoteAddr(), clientConn.LocalAddr())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -128,9 +143,12 @@ func (p *Proxy) HandleConnection(ctx context.Context, clientConn net.Conn) (err 
 
 // getServerVersionFromCtx tries to extract MySQL server version from the passed context.
 // The default version is returned if context doesn't have it.
-func getServerVersionFromCtx(ctx context.Context) string {
-	// Set default server version.
-	mysqlServerVersion := serverVersion
+func getServerVersionFromCtx(ctx context.Context, configEngineVersion string) string {
+	// Set default server version or use the Proxy MySQL Engine Version if it was provided.
+	mysqlServerVersion := DefaultServerVersion
+	if configEngineVersion != "" {
+		mysqlServerVersion = configEngineVersion
+	}
 
 	if mysqlVerCtx := ctx.Value(dbutils.ContextMySQLServerVersion); mysqlVerCtx != nil {
 		version, ok := mysqlVerCtx.(string)
@@ -246,7 +264,13 @@ func (p *Proxy) waitForOK(server *server.Conn, serviceConn net.Conn) error {
 			return trace.Wrap(err)
 		}
 	case *protocol.Error:
-		err = server.WriteError(p)
+		// There may be a difference in capabilities between client <--> proxy
+		// than there is between proxy <--> agent, most notably,
+		// CLIENT_PROTOCOL_41.
+		// So rather than forwarding packet bytes directly, convert the error
+		// packet into MyError and write with respect to caps between
+		// client <--> proxy.
+		err = server.WriteError(mysql.NewError(p.Code, p.Message))
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -257,9 +281,9 @@ func (p *Proxy) waitForOK(server *server.Conn, serviceConn net.Conn) error {
 }
 
 const (
-	// serverVersion is advertised to MySQL clients during handshake.
+	// DefaultServerVersion is advertised to MySQL clients during handshake.
 	//
 	// Some clients may refuse to work with older servers (e.g. MySQL
 	// Workbench requires > 5.5).
-	serverVersion = "8.0.0-Teleport"
+	DefaultServerVersion = "8.0.0-Teleport"
 )

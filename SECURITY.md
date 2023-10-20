@@ -3,13 +3,10 @@
 ## Supported Versions
 
 The list of supported versions can be found
-[here](https://goteleport.com/teleport/download/).
+[here](https://goteleport.com/docs/faq/#which-version-of-teleport-is-supported).
 
 ## Reporting a Vulnerability
 
-To make a security vulnerability report, email
-[security@goteleport.com](mailto:security@goteleport.com) with the full
+To report a security vulnerability to us, visit our [HackerOne
+page](https://hackerone.com/teleport) and submit a report to us with full
 details, including steps to reproduce the issue.
-
-You can use the [PGP key](gravitational.asc) in this repo to encrypt the
-contents.

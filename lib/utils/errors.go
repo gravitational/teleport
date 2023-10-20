@@ -18,12 +18,14 @@ package utils
 
 import (
 	"errors"
+	"io"
 	"net"
 	"strings"
 	"syscall"
 
-	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/constants"
 )
 
 // IsUseOfClosedNetworkError returns true if the specified error
@@ -59,7 +61,7 @@ func IsOKNetworkError(err error) bool {
 		}
 		return true
 	}
-	return trace.IsEOF(err) || IsUseOfClosedNetworkError(err) || IsFailedToSendCloseNotifyError(err)
+	return errors.Is(err, io.EOF) || IsUseOfClosedNetworkError(err) || IsFailedToSendCloseNotifyError(err)
 }
 
 // IsConnectionRefused returns true if the given err is "connection refused" error.
@@ -89,5 +91,5 @@ func IsUntrustedCertErr(err error) bool {
 const (
 	// SelfSignedCertsMsg is a helper message to point users towards helpful documentation.
 	SelfSignedCertsMsg = "Your proxy certificate is not trusted or expired. " +
-		"Please update the certificate or follow this guide for self-signed certs: https://goteleport.com/docs/setup/admin/self-signed-certs/"
+		"Please update the certificate or follow this guide for self-signed certs: https://goteleport.com/docs/management/admin/self-signed-certs/"
 )

@@ -24,13 +24,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/types"
-
 	radix "github.com/armon/go-radix"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 )
 
 type bufferConfig struct {
@@ -205,7 +205,8 @@ func (c *CircularBuffer) fanOutEvent(r Event) {
 	}
 }
 
-func removeRedundantPrefixes(prefixes [][]byte) [][]byte {
+// RemoveRedundantPrefixes will remove redundant prefixes from the given prefix list.
+func RemoveRedundantPrefixes(prefixes [][]byte) [][]byte {
 	if len(prefixes) == 0 {
 		return prefixes
 	}
@@ -247,7 +248,7 @@ func (c *CircularBuffer) NewWatcher(ctx context.Context, watch Watch) (Watcher, 
 	} else {
 		// if watcher's prefixes are redundant, keep only shorter prefixes
 		// to avoid double fan out
-		watch.Prefixes = removeRedundantPrefixes(watch.Prefixes)
+		watch.Prefixes = RemoveRedundantPrefixes(watch.Prefixes)
 	}
 
 	closeCtx, cancel := context.WithCancel(ctx)
@@ -277,10 +278,10 @@ func (c *CircularBuffer) removeWatcherWithLock(watcher *BufferWatcher) {
 		c.Warningf("Internal logic error: %v.", trace.DebugReport(trace.BadParameter("empty watcher")))
 		return
 	}
-	c.Debugf("Removing watcher %p via external close.", watcher)
+	c.Debugf("Removing watcher %v (%p) via external close.", watcher.Name, watcher)
 	found := c.watchers.rm(watcher)
 	if !found {
-		c.Debugf("Could not find watcher %v.", watcher)
+		c.Debugf("Could not find watcher %v.", watcher.Name)
 	}
 }
 

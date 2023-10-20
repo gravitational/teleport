@@ -20,6 +20,8 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/types/wrappers"
 )
 
 // GenerateAppTokenRequest are the parameters used to generate an application token.
@@ -29,6 +31,9 @@ type GenerateAppTokenRequest struct {
 
 	// Roles are the roles assigned to the user within Teleport.
 	Roles []string
+
+	// Traits are the traits assigned to the user within Teleport.
+	Traits wrappers.Traits
 
 	// Expiry is time to live for the token.
 	Expires time.Time
@@ -41,9 +46,6 @@ type GenerateAppTokenRequest struct {
 func (p *GenerateAppTokenRequest) Check() error {
 	if p.Username == "" {
 		return trace.BadParameter("username missing")
-	}
-	if len(p.Roles) == 0 {
-		return trace.BadParameter("roles missing")
 	}
 	if p.Expires.IsZero() {
 		return trace.BadParameter("expires missing")

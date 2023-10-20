@@ -13,47 +13,39 @@ the stability of Teleport from a security perspective.
 
 ## Can Teleport be deployed in agentless mode?
 
-Yes.
+Yes. All Teleport services support agentless mode, where the service proxies
+traffic to an upstream infrastructure resource not available on `localhost`.
 
 With Teleport in agentless mode, you can easily control access to SSH servers,
-Kubernetes clusters, desktops, databases, and internal applications without running any
-additional software on your servers. Agentless mode supports session recordings
-and audit logs for deep understanding into user behavior.
+Kubernetes clusters, desktops, databases, and internal applications without
+running any additional software on your servers. Agentless mode supports session
+recordings and audit logs for deep understanding into user behavior.
 
-For capabilities such as kernel-level logging and user provisioning,
-we recommend Teleport as a drop in replacement for OpenSSH. Since Teleport
-replaces the OpenSSH agent while preserving OpenSSH's functionality, you get
-more functionality without a net addition of an agent on your system.
-
-Here are details about running each of Teleport's resource services in agentless
-mode. All resource services except for the Node/SSH Service act as proxies for
-client traffic:
-
-|Service|Supports agent mode|Supports agentless mode|Notes|
-|---|---|---|---|
-|[Application Service](./application-access/introduction.mdx)|&#10004;|&#10004;|Proxies HTTP requests to a user-configured list of applications, which can run on the same host as the `teleport` daemon or at a remote endpoint.|
-|[Database Service](./database-access/introduction.mdx)|&#10004;|&#10004;|Proxies database-specific protocol traffic to a user-configured list of databases, which can run on the same host as the `teleport` daemon or at a remote endpoint.|
-|[Kubernetes Service](./kubernetes-access/introduction.mdx)|&#10006;|&#10004;|Proxies client traffic to the API server of a registered Kubernetes cluster.|
-|[Node/SSH Service](./server-access/introduction.mdx)|&#10004;|&#10004;|You can configure OpenSSH clients and servers to trust Teleport's CA. See our [OpenSSH guide](./server-access/guides/openssh.mdx).<br/><br/>For full functionality, you can run the Node Service, which implements SSH, on each server in your infrastructure.|
-|[Windows Desktop Service](./desktop-access/introduction.mdx)|&#10006;|&#10004;|Proxies RDP traffic from client browsers to remote Windows servers.|
+For capabilities such as kernel-level logging and user provisioning, we
+recommend Teleport as a drop in replacement for OpenSSH. Since Teleport replaces
+the OpenSSH agent while preserving OpenSSH's functionality, you get more
+functionality without a net addition of an agent on your system.
 
 ## Can I use OpenSSH with a Teleport cluster?
 
 Yes, this question comes up often and is related to the previous one. Take a
 look at [Using OpenSSH Guide](./server-access/guides/openssh.mdx).
 
-## Can I connect to Nodes behind a firewall?
+## Can I connect to nodes behind a firewall?
 
 Yes, Teleport supports reverse SSH tunnels out of the box. To configure
-behind-firewall clusters refer to our
-[Trusted Clusters](./management/admin/trustedclusters.mdx) guide.
+behind-firewall clusters, see [Configure Trusted Clusters](./management/admin/trustedclusters.mdx).
+
+## Should we use Teleport Enterprise or Teleport Community Edition for connecting resources to our Teleport cluster?
+(!docs/pages/includes/ent-vs-community-faq.mdx!)
 
 ## Can individual agents create reverse tunnels to the Proxy Service without creating a new cluster?
 
 Yes. When running a Teleport agent, use the `--auth-server` flag to point to the
 Proxy Service address (this would be `public_addr` and `web_listen_addr` in your
 file configuration). For more information, see
-[Adding Nodes to the Cluster](./management/admin/adding-nodes.mdx).
+[Adding Nodes to the
+Cluster](./agents/join-services-to-your-cluster/join-token.mdx).
 
 ## Can Nodes use a single port for reverse tunnels?
 
@@ -62,103 +54,62 @@ Yes, Teleport supports tunnel multiplexing on a single port. Set the
 setting in the `proxy_service` configuration. Teleport will automatically use
 multiplexing with that configuration.
 
+## Can I copy files from one Teleport node to another?
+
+Yes, Teleport supports [Headless WebAuthn authentication](./access-controls/guides/headless.mdx),
+which allows you to perform operations like `tsh ssh` or `tsh scp` from remote systems where you
+are not logged in to Teleport or may not have access to a browser.
+
+## I'm getting `ssh: subsystem request failed` while I try to copy files, what to do?
+
+Make sure that all Teleport components are at least at version 10.3.0. Older versions
+don't support the SFTP protocol, and it's enabled by default in `tsh` v11.0.0 and OpenSSH v9.0.
+
+## `tsh` is very slow on Windows, what to do?
+
+If your host machine is joined to an Active Directory domain, you might find user lookups take a
+lot longer than you expect. The number of Active Directory accounts that must be scanned to
+perform a user lookup can cause tsh to hang waiting to get information about the current user.
+To fix this issue, you can use environment variables to set default account information for your 
+Teleport user. If you are experiencing long lookup times on Windows, do the following:
+
+- Make sure `tsh` is at least at version 12.2.4.
+- Either set the `TELEPORT_USER` environment variable or set the `--user` flag to the name of your Teleport user.
+- Either set the `TELEPORT_LOGIN` environment variable or set the `--login` flag to the name of current host user. This setting can be overridden if you open a new SSH session on a machine as a different user.
+- Set the `TELEPORT_HOME` environment variable to be the home directory of your current host user + `\.tsh`. For example, if your home directory is `C:\Users\Me`, you'd set `TELEPORT_HOME` to `C:\Users\Me\.tsh`.
+
+You can set these environment variables globally in Windows so that you don't have to set them every
+time you run `tsh`.
+
 ## How is Open Source different from Enterprise?
 
-Teleport provides three editions:
+Teleport provides four editions:
 
-- Open Source
-- Enterprise
-- Cloud
+- Teleport Team
+- Teleport Enterprise
+- Teleport Enterprise Cloud
+- Teleport Community Edition
 
 Here is a detailed breakdown of the differences between Teleport's editions.
 
-### Access controls
-
-||Open Source|Enterprise|Cloud|
-|---|---|---|---|
-|[Access Requests](./access-controls/guides/dual-authz.mdx)|Limited|&#10004;|&#10004;|
-|[Single Sign-On](./access-controls/sso.mdx)|GitHub|GitHub, Google Workspace, OIDC, SAML|GitHub, Google Workspace, OIDC, SAML|
-|[Role-Based Access Control](./access-controls/guides/role-templates.mdx)|&#10004;|&#10004;|&#10004;|
-|[Moderated Sessions](./access-controls/guides/moderated-sessions.mdx)|&#10006;|&#10004;|&#10004;|
-
-### Infrastructure access
-
-||Open Source|Enterprise|Cloud|
-|---|---|---|---|
-|[Application Access](./application-access/getting-started.mdx)|&#10004;|&#10004;|&#10004;|
-|[Server Access](./server-access/getting-started.mdx)|&#10004;|&#10004;|&#10004;|
-|[Database Access](./database-access/getting-started.mdx)|&#10004;|&#10004;|&#10004;|
-|[Desktop Access](./desktop-access/getting-started.mdx)|&#10004;|&#10004;|&#10004;|
-|[Kubernetes Access](./kubernetes-access/getting-started.mdx)|&#10004;|&#10004;|&#10004;|
-|[Machine ID](./machine-id/getting-started.mdx)|&#10004;|&#10004;|&#10004;|
-|Agentless integration with [OpenSSH servers](./server-access/guides/openssh.mdx)|&#10004;|&#10004;|&#10004;|
-
-### Session recording
-
-||Open Source|Enterprise|Cloud|
-|---|---|---|---|
-|[Recording Proxy Mode](./server-access/guides/recording-proxy-mode.mdx)|&#10004;|&#10004;|&#10006;|
-|[Enhanced Session Recording](./server-access/guides/bpf-session-recording.mdx)|&#10004;|&#10004;|&#10004;|
-
-### Compliance
-
-||Open Source|Enterprise|Cloud|
-|---|---|---|---|
-|[FedRAMP Control](./access-controls/compliance-frameworks/fedramp.mdx)|&#10006;|&#10004;|&#10006;|
-|PCI DSS Features|Limited|&#10004;|&#10004;|
-|SOC 2 Features|Limited|&#10004;|&#10004;|
-|FIPS-compliant binaries available for FedRAMP High|&#10006;|&#10004;|&#10006;|
-
-### Operations
-
-||Open Source|Enterprise|Cloud|
-|---|---|---|---|
-|Auth and Proxy Service management|Self-hosted|Self-hosted|Fully managed|
-|Proxy Service domain name|Custom|Custom|A subdomain of `teleport.sh`|
-|Version support|All supported releases available to install and download.|All supported releases available to install and download.|Deploys last stable release with 2-3 week lag for stability.|
-|[Backend support](reference/backends.mdx)|Any S3-compatible storage for session records, many managed backends for custom audit log storage.|Any S3-compatible storage for session records, many managed backends for custom audit log storage|All data is stored in DynamoDB and S3 with server-side encryption|
-|Data storage location|Can store data anywhere in the world, on most managed cloud backends|Can store data anywhere in the world, on most managed cloud backends| Data is stored in `us-west-2`, with Proxy Service instances deployed across the world for low-latency access|
-|[Hardware Security Module support](./deploy-a-cluster/teleport-enterprise/hsm.mdx) for encryption at rest|&#10006;|&#10004;|&#10006;|
-
-### Support
-
-||Open Source|Enterprise|Cloud|
-|---|---|---|---|
-|Support|Best-effort, community|24x7 support with premium SLAs and account managers|24x7 support with premium SLAs and account managers|
-
-### Licensing and usage management
-
-||Open Source|Enterprise|Cloud|
-|---|---|---|---|
-|Annual or multi-year contracts, volume discounts|&#10006;|&#10004;|&#10004;|
-|License|Apache 2|Commercial|Commercial|
-|Usage tracking|&#10006;|&#10006;|Enables you to track the number of users per protocol.|
+(!docs/pages/includes/edition-comparison.mdx!)
 
 ## Which version of Teleport is supported?
 
-Teleport provides security-critical support for the current and two previous
-releases. With our typical release cadence, this means a release is usually
-supported for 9 months.
+Teleport releases a new major version approximately every 4 months, and provides
+security-critical support for the current and two previous major versions. With
+our typical release cadence, we usually support each major version for 12
+months.
 
 ### Supported versions
 
-Here are the major and minor versions of Teleport that we currently support:
+Here are the major versions of Teleport and their support windows:
 
-|Release|Release Date|Minimum `tsh` version|
-|---|---|---|
-|v10.1|July 29, 2022|v9.x.x|
-|v10.0|July 8, 2022|v9.x.x|
-|v9.3|May 27, 2022|v8.x.x|
-|v9.2|May 4, 2022|v8.x.x|
-|v9.1|April 20, 2022|v8.x.x|
-|v9.0|March 11, 2022|v8.x.x|
-|v8.3|February 15, 2022|v7.x.x|
-|v8.2|February 8, 2022|v7.x.x|
-|v8.1|January 10, 2022|v7.x.x|
-|v8.0|November 15, 2021|v7.x.x|
-
-See our [Upgrading](./management/operations/upgrading.mdx) guide for more
-information.
+| Release | Release Date       | EOL            | Minimum `tsh` version |
+|---------|--------------------|----------------|-----------------------|
+| v14.0   | September 20, 2023 | September 2024 | v13.0.0               |
+| v13.0   | May 8, 2023        | May 2024       | v12.0.0               |
+| v12.0   | February 6, 2023   | February 2024  | v11.0.0               |
 
 ### Version compatibility
 
@@ -166,39 +117,72 @@ information.
 
 ## Does the Web UI support copy and paste?
 
-Yes. You can copy and paste using a mouse. If you prefer a keyboard, Teleport employs
-`tmux`-like "prefix" mode. To enter prefix mode, use the `Ctrl`+`A` keyboard shortcut.
-
-While in prefix mode, you can press `Ctrl`+`V` to paste, or enter text selection
-mode by pressing `[`. When in text selection mode:
-
-- Move around using the keys `h`, `j`, `k`, and `l`.
-- Select text by toggling `space`.
-- And, copy it via `Ctrl`+`C`.
+Yes. You can copy and paste using a mouse.
 
 ## What TCP ports does Teleport use?
 
 Please refer to our [Networking](./reference/networking.mdx) guide.
 
-## Does Teleport support authentication via OAuth, SAML, or Active Directory?
+## Does Teleport support authentication via OIDC, SAML, or Active Directory?
 
-Teleport offers this feature for the [Enterprise versions of Teleport](deploy-a-cluster/teleport-enterprise/introduction.mdx).
+Teleport offers this feature for the [Enterprise Cloud](choose-an-edition/teleport-cloud/introduction.mdx) and [Enterprise](choose-an-edition/teleport-enterprise/introduction.mdx) versions of Teleport.
+
+## Why do I see an alert that some agents are out of date?
+
+Teleport monitors the inventory of all cluster components and compares their
+Teleport versions with the latest release on our GitHub page. If a component is
+not on the latest release, Teleport will create a cluster alert encouraging
+users to upgrade.
+
+This check is performed against all cluster components, including the Proxy
+Service and Auth Service, as well as agents running other Teleport Services.
+
+## What is the minimum TLS version that Teleport requires?
+
+Teleport requires a minimum of TLS version 1.2.
+
+This means that when applications and clients establish or accept TLS connections with Teleport processes, they must use TLS 1.2 or a higher protocol version. Teleport enforces this requirement in all operations that involve TLS connections.
+
+## Can I suppress warnings about available upgrades?
+
+Yes. The `tctl alerts ack` command can be used to acknowledge an alert and
+temporarily prevent it from being displayed to users. To acknowledge an alert,
+you need its ID. You can get a listing of all alerts and their IDs with the
+`tctl alerts list` command.
+
+For detailed information on this family of commands, see the
+[CLI Reference](./reference/cli/tctl.mdx#tctl-alerts-list).
 
 ## Does Teleport send any data back to the cloud?
 
-The open source and Enterprise editions of Teleport do not send any information
-to our company, and can be used on servers without internet access. 
+The open source edition of Teleport does not send any information to our
+company, and can be used on servers without internet access.
 
 The commercial editions of Teleport can optionally be configured to send
 anonymized information, depending on the license purchased. This information
 contains the following:
 
-- Anonymized user ID: SHA256 hash of a username with a randomly generated prefix.
-- Anonymized server ID: SHA256 hash of a server IP with a randomly generated prefix.
+- Teleport license identifier;
+- anonymized cluster name and Teleport auth server host ID;
+- for each Teleport user, the anonymized user name and a per-protocol count of
+  interactions - Teleport logins, SSH and Kubernetes exec sessions, Application
+  access web sessions and TCP connections, SSH port forwards, Kubernetes API
+  requests, SFTP actions.
 
-This allows Teleport Cloud and Teleport Enterprise to print a warning if users
-are exceeding the usage limits of their license. The reporting library code is
-[on GitHub](https://github.com/gravitational/reporting).
+The anonymization is done by passing names and IDs through HMAC-SHA-256, with a
+HMAC key that's randomly generated when the Teleport cluster is initialized for
+the first time and is never shared with us; this makes it infeasible for anyone
+without access to the cluster to deanonymize the data we store.
+
+The code that aggregates and anonymizes this data can be found [in our
+repository on
+GitHub](https://github.com/gravitational/teleport/tree/master/lib/usagereporter/teleport/aggregating).
 
 Reach out to `sales@goteleport.com` if you have questions about the commercial
 editions of Teleport.
+
+### Teleport Connect
+
+(!docs/pages/includes/teleport-connect-telemetry.mdx!)
+
+If you no longer want to send usage data, see [disabling telemetry](./connect-your-client/teleport-connect.mdx#disabling-telemetry).

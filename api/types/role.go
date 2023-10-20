@@ -19,27 +19,31 @@ package types
 import (
 	"encoding/json"
 	"fmt"
+	"path"
 	"time"
+
+	"github.com/gogo/protobuf/proto"
+	"github.com/gravitational/trace"
+	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
-
-	"github.com/gogo/protobuf/proto"
-	"github.com/gravitational/trace"
 )
+
+type OnSessionLeaveAction string
 
 const (
 	// OnSessionLeaveTerminate is a moderated sessions policy constant that terminates
 	// a session once the require policy is no longer fulfilled.
-	OnSessionLeaveTerminate = "terminate"
+	OnSessionLeaveTerminate OnSessionLeaveAction = "terminate"
 
 	// OnSessionLeaveTerminate is a moderated sessions policy constant that pauses
 	// a session once the require policies is no longer fulfilled. It is resumed
 	// once the requirements are fulfilled again.
-	OnSessionLeavePause = "pause"
+	OnSessionLeavePause OnSessionLeaveAction = "pause"
 )
 
 // Role contains a set of permissions or settings
@@ -55,6 +59,9 @@ type Role interface {
 	// SetOptions sets role options
 	SetOptions(opt RoleOptions)
 
+	// GetCreateDatabaseUserMode gets the create database user mode option.
+	GetCreateDatabaseUserMode() CreateDatabaseUserMode
+
 	// GetLogins gets *nix system logins for allow or deny condition.
 	GetLogins(RoleConditionType) []string
 	// SetLogins sets *nix system logins for allow or deny condition.
@@ -64,6 +71,13 @@ type Role interface {
 	GetNamespaces(RoleConditionType) []string
 	// SetNamespaces sets a list of namespaces this role is allowed or denied access to.
 	SetNamespaces(RoleConditionType, []string)
+
+	// GetLabelMatchers gets the LabelMatchers that match labels of resources of
+	// type [kind] this role is allowed or denied access to.
+	GetLabelMatchers(rct RoleConditionType, kind string) (LabelMatchers, error)
+	// SetLabelMatchers sets the LabelMatchers that match labels of resources of
+	// type [kind] this role is allowed or denied access to.
+	SetLabelMatchers(rct RoleConditionType, kind string, labelMatchers LabelMatchers) error
 
 	// GetNodeLabels gets the map of node labels this role is allowed or denied access to.
 	GetNodeLabels(RoleConditionType) Labels
@@ -102,6 +116,12 @@ type Role interface {
 	// SetKubeUsers sets kubernetes users to impersonate for allow or deny condition.
 	SetKubeUsers(RoleConditionType, []string)
 
+	// GetKubeResources returns the Kubernetes Resources this role grants
+	// access to.
+	GetKubeResources(rct RoleConditionType) []KubernetesResource
+	// SetKubeResources configures the Kubernetes Resources for the RoleConditionType.
+	SetKubeResources(rct RoleConditionType, pods []KubernetesResource)
+
 	// GetAccessRequestConditions gets allow/deny conditions for access requests.
 	GetAccessRequestConditions(RoleConditionType) AccessRequestConditions
 	// SetAccessRequestConditions sets allow/deny conditions for access requests.
@@ -127,15 +147,30 @@ type Role interface {
 	// SetDatabaseUsers sets a list of database users this role is allowed or denied access to.
 	SetDatabaseUsers(RoleConditionType, []string)
 
+	// GetDatabaseRoles gets a list of database roles for auto-provisioned users.
+	GetDatabaseRoles(RoleConditionType) []string
+	// SetDatabaseRoles sets a list of database roles for auto-provisioned users.
+	SetDatabaseRoles(RoleConditionType, []string)
+
 	// GetImpersonateConditions returns conditions this role is allowed or denied to impersonate.
 	GetImpersonateConditions(rct RoleConditionType) ImpersonateConditions
-	// SetImpersonateConditions returns conditions this role is allowed or denied to impersonate.
+	// SetImpersonateConditions sets conditions this role is allowed or denied to impersonate.
 	SetImpersonateConditions(rct RoleConditionType, cond ImpersonateConditions)
 
 	// GetAWSRoleARNs returns a list of AWS role ARNs this role is allowed to assume.
 	GetAWSRoleARNs(RoleConditionType) []string
-	// SetAWSRoleARNs returns a list of AWS role ARNs this role is allowed to assume.
+	// SetAWSRoleARNs sets a list of AWS role ARNs this role is allowed to assume.
 	SetAWSRoleARNs(RoleConditionType, []string)
+
+	// GetAzureIdentities returns a list of Azure identities this role is allowed to assume.
+	GetAzureIdentities(RoleConditionType) []string
+	// SetAzureIdentities sets a list of Azure identities this role is allowed to assume.
+	SetAzureIdentities(RoleConditionType, []string)
+
+	// GetGCPServiceAccounts returns a list of GCP service accounts this role is allowed to assume.
+	GetGCPServiceAccounts(RoleConditionType) []string
+	// SetGCPServiceAccounts sets a list of GCP service accounts this role is allowed to assume.
+	SetGCPServiceAccounts(RoleConditionType, []string)
 
 	// GetWindowsDesktopLabels gets the Windows desktop labels this role
 	// is allowed or denied access to.
@@ -159,19 +194,37 @@ type Role interface {
 	// GetSessionPolicySet returns the RBAC policy set for a role.
 	GetSessionPolicySet() SessionTrackerPolicySet
 
-	// GetSearchAsRoles returns the list of roles which the user should be able
-	// to "assume" while searching for resources, and should be able to request
-	// with a search-based access request.
-	GetSearchAsRoles() []string
-	// SetSearchAsRoles sets the list of roles which the user should be able
-	// to "assume" while searching for resources, and should be able to request
-	// with a search-based access request.
-	SetSearchAsRoles([]string)
+	// GetSearchAsRoles returns the list of extra roles which should apply to a
+	// user while they are searching for resources as part of a Resource Access
+	// Request, and defines the underlying roles which will be requested as part
+	// of any Resource Access Request.
+	GetSearchAsRoles(RoleConditionType) []string
+	// SetSearchAsRoles sets the list of extra roles which should apply to a
+	// user while they are searching for resources as part of a Resource Access
+	// Request, and defines the underlying roles which will be requested as part
+	// of any Resource Access Request.
+	SetSearchAsRoles(RoleConditionType, []string)
+
+	// GetPreviewAsRoles returns the list of extra roles which should apply to a
+	// reviewer while they are viewing a Resource Access Request for the
+	// purposes of viewing details such as the hostname and labels of requested
+	// resources.
+	GetPreviewAsRoles(RoleConditionType) []string
+	// SetPreviewAsRoles sets the list of extra roles which should apply to a
+	// reviewer while they are viewing a Resource Access Request for the
+	// purposes of viewing details such as the hostname and labels of requested
+	// resources.
+	SetPreviewAsRoles(RoleConditionType, []string)
 
 	// GetHostGroups gets the list of groups this role is put in when users are provisioned
 	GetHostGroups(RoleConditionType) []string
 	// SetHostGroups sets the list of groups this role is put in when users are provisioned
 	SetHostGroups(RoleConditionType, []string)
+
+	// GetDesktopGroups gets the list of groups this role is put in when desktop users are provisioned
+	GetDesktopGroups(RoleConditionType) []string
+	// SetDesktopGroups sets the list of groups this role is put in when desktop users are provisioned
+	SetDesktopGroups(RoleConditionType, []string)
 
 	// GetHostSudoers gets the list of sudoers entries for the role
 	GetHostSudoers(RoleConditionType) []string
@@ -180,29 +233,32 @@ type Role interface {
 
 	// GetPrivateKeyPolicy returns the private key policy enforced for this role.
 	GetPrivateKeyPolicy() keys.PrivateKeyPolicy
+
+	// GetDatabaseServiceLabels gets the map of db service labels this role is allowed or denied access to.
+	GetDatabaseServiceLabels(RoleConditionType) Labels
+	// SetDatabaseServiceLabels sets the map of db service labels this role is allowed or denied access to.
+	SetDatabaseServiceLabels(RoleConditionType, Labels)
+
+	// GetGroupLabels gets the map of group labels this role is allowed or denied access to.
+	GetGroupLabels(RoleConditionType) Labels
+	// SetGroupLabels sets the map of group labels this role is allowed or denied access to.
+	SetGroupLabels(RoleConditionType, Labels)
 }
 
-// NewRole constructs new standard V5 role.
-// This creates a V5 role with V4+ RBAC semantics.
-func NewRole(name string, spec RoleSpecV5) (Role, error) {
-	role := RoleV5{
-		Version: V5,
-		Metadata: Metadata{
-			Name: name,
-		},
-		Spec: spec,
-	}
-	if err := role.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &role, nil
+// NewRole constructs new standard V7 role.
+// This creates a V7 role with V4+ RBAC semantics.
+func NewRole(name string, spec RoleSpecV6) (Role, error) {
+	// When incrementing the role version, make sure to update the
+	// role version in the asset file used by the UI.
+	// See: web/packages/teleport/src/Roles/templates/role.yaml
+	role, err := NewRoleWithVersion(name, V7, spec)
+	return role, trace.Wrap(err)
 }
 
-// NewRoleV3 constructs new standard V3 role.
-// This is mostly a legacy function and will create a role with V3 RBAC semantics.
-func NewRoleV3(name string, spec RoleSpecV5) (Role, error) {
-	role := RoleV5{
-		Version: V3,
+// NewRoleWithVersion constructs new standard role with the version specified.
+func NewRoleWithVersion(name string, version string, spec RoleSpecV6) (Role, error) {
+	role := RoleV6{
+		Version: version,
 		Metadata: Metadata{
 			Name: name,
 		},
@@ -225,77 +281,99 @@ const (
 )
 
 // GetVersion returns resource version
-func (r *RoleV5) GetVersion() string {
+func (r *RoleV6) GetVersion() string {
 	return r.Version
 }
 
 // GetKind returns resource kind
-func (r *RoleV5) GetKind() string {
+func (r *RoleV6) GetKind() string {
 	return r.Kind
 }
 
 // GetSubKind returns resource sub kind
-func (r *RoleV5) GetSubKind() string {
+func (r *RoleV6) GetSubKind() string {
 	return r.SubKind
 }
 
 // SetSubKind sets resource subkind
-func (r *RoleV5) SetSubKind(s string) {
+func (r *RoleV6) SetSubKind(s string) {
 	r.SubKind = s
 }
 
 // GetResourceID returns resource ID
-func (r *RoleV5) GetResourceID() int64 {
+func (r *RoleV6) GetResourceID() int64 {
 	return r.Metadata.ID
 }
 
 // SetResourceID sets resource ID
-func (r *RoleV5) SetResourceID(id int64) {
+func (r *RoleV6) SetResourceID(id int64) {
 	r.Metadata.ID = id
 }
 
+// GetRevision returns the revision
+func (r *RoleV6) GetRevision() string {
+	return r.Metadata.GetRevision()
+}
+
+// SetRevision sets the revision
+func (r *RoleV6) SetRevision(rev string) {
+	r.Metadata.SetRevision(rev)
+}
+
 // SetExpiry sets expiry time for the object.
-func (r *RoleV5) SetExpiry(expires time.Time) {
+func (r *RoleV6) SetExpiry(expires time.Time) {
 	r.Metadata.SetExpiry(expires)
 }
 
 // Expiry returns the expiry time for the object.
-func (r *RoleV5) Expiry() time.Time {
+func (r *RoleV6) Expiry() time.Time {
 	return r.Metadata.Expiry()
 }
 
 // SetName sets the role name and is a shortcut for SetMetadata().Name.
-func (r *RoleV5) SetName(s string) {
+func (r *RoleV6) SetName(s string) {
 	r.Metadata.Name = s
 }
 
 // GetName gets the role name and is a shortcut for GetMetadata().Name.
-func (r *RoleV5) GetName() string {
+func (r *RoleV6) GetName() string {
 	return r.Metadata.Name
 }
 
 // GetMetadata returns role metadata.
-func (r *RoleV5) GetMetadata() Metadata {
+func (r *RoleV6) GetMetadata() Metadata {
 	return r.Metadata
 }
 
 // SetMetadata sets role metadata
-func (r *RoleV5) SetMetadata(meta Metadata) {
+func (r *RoleV6) SetMetadata(meta Metadata) {
 	r.Metadata = meta
 }
 
 // GetOptions gets role options.
-func (r *RoleV5) GetOptions() RoleOptions {
+func (r *RoleV6) GetOptions() RoleOptions {
 	return r.Spec.Options
 }
 
 // SetOptions sets role options.
-func (r *RoleV5) SetOptions(options RoleOptions) {
+func (r *RoleV6) SetOptions(options RoleOptions) {
 	r.Spec.Options = options
 }
 
+// GetCreateDatabaseUserMode gets the create database user mode option.
+func (r *RoleV6) GetCreateDatabaseUserMode() CreateDatabaseUserMode {
+	if r.Spec.Options.CreateDatabaseUserMode != CreateDatabaseUserMode_DB_USER_MODE_UNSPECIFIED {
+		return r.Spec.Options.CreateDatabaseUserMode
+	}
+	// To keep backwards compatibility, look at the create database user option.
+	if r.Spec.Options.CreateDatabaseUser != nil && r.Spec.Options.CreateDatabaseUser.Value {
+		return CreateDatabaseUserMode_DB_USER_MODE_KEEP
+	}
+	return CreateDatabaseUserMode_DB_USER_MODE_OFF
+}
+
 // GetLogins gets system logins for allow or deny condition.
-func (r *RoleV5) GetLogins(rct RoleConditionType) []string {
+func (r *RoleV6) GetLogins(rct RoleConditionType) []string {
 	if rct == Allow {
 		return r.Spec.Allow.Logins
 	}
@@ -303,7 +381,7 @@ func (r *RoleV5) GetLogins(rct RoleConditionType) []string {
 }
 
 // SetLogins sets system logins for allow or deny condition.
-func (r *RoleV5) SetLogins(rct RoleConditionType, logins []string) {
+func (r *RoleV6) SetLogins(rct RoleConditionType, logins []string) {
 	lcopy := utils.CopyStrings(logins)
 
 	if rct == Allow {
@@ -314,7 +392,7 @@ func (r *RoleV5) SetLogins(rct RoleConditionType, logins []string) {
 }
 
 // GetKubeGroups returns kubernetes groups
-func (r *RoleV5) GetKubeGroups(rct RoleConditionType) []string {
+func (r *RoleV6) GetKubeGroups(rct RoleConditionType) []string {
 	if rct == Allow {
 		return r.Spec.Allow.KubeGroups
 	}
@@ -322,7 +400,7 @@ func (r *RoleV5) GetKubeGroups(rct RoleConditionType) []string {
 }
 
 // SetKubeGroups sets kubernetes groups for allow or deny condition.
-func (r *RoleV5) SetKubeGroups(rct RoleConditionType, groups []string) {
+func (r *RoleV6) SetKubeGroups(rct RoleConditionType, groups []string) {
 	lcopy := utils.CopyStrings(groups)
 
 	if rct == Allow {
@@ -332,8 +410,70 @@ func (r *RoleV5) SetKubeGroups(rct RoleConditionType, groups []string) {
 	}
 }
 
+// GetKubeResources returns the Kubernetes Resources this role grants
+// access to.
+func (r *RoleV6) GetKubeResources(rct RoleConditionType) []KubernetesResource {
+	if rct == Allow {
+		return r.convertKubernetesResourcesBetweenRoleVersions(r.Spec.Allow.KubernetesResources)
+	}
+	return r.Spec.Deny.KubernetesResources
+}
+
+// convertKubeResourcesBetweenRoleVersions converts Kubernetes resources between role versions.
+// This is required to keep compatibility between role versions to avoid breaking changes
+// when upgrading Teleport.
+// For roles v7, it returns the list as it is.
+// For older roles <v7, if the kind is pod and name and namespace are wildcards,
+// then return a wildcard resource since RoleV6 and below do not restrict access
+// to other resources. This is a simple optimization to reduce the number of resources.
+// Finally, if the older role version is not a wildcard, then it returns the pod resources as is
+// and append the other supported resources - KubernetesResourcesKinds - for Role v7.
+func (r *RoleV6) convertKubernetesResourcesBetweenRoleVersions(resources []KubernetesResource) []KubernetesResource {
+	switch r.Version {
+	case V7:
+		return resources
+	// Teleport does not support role versions < v3.
+	case V6, V5, V4, V3:
+		switch {
+		// If role does not have kube labels, return empty list since it won't match
+		// any kubernetes cluster.
+		case !r.HasLabelMatchers(Allow, KindKubernetesCluster):
+			return nil
+			// If role is not V7 and resources is wildcard, return wildcard for kind as well.
+			// This is an optimization to avoid appending multiple resources.
+			// This check ignores the Kind field because `validateKubeResources` ensures
+			// that for older roles, the Kind field can only be pod.
+		case len(resources) == 1 && resources[0].Name == Wildcard && resources[0].Namespace == Wildcard:
+			return []KubernetesResource{{Kind: Wildcard, Name: Wildcard, Namespace: Wildcard, Verbs: []string{Wildcard}}}
+		default:
+			for _, resource := range KubernetesResourcesKinds {
+				// Ignore Pod resources for older roles because Pods were already supported
+				// so we don't need to keep backwards compatibility for them.
+				// Also ignore Namespace resources because it grants access to all resources
+				// in the namespace.
+				if resource == KindKubePod || resource == KindNamespace {
+					continue
+				}
+				resources = append(resources, KubernetesResource{Kind: resource, Name: Wildcard, Namespace: Wildcard, Verbs: []string{Wildcard}})
+			}
+			return resources
+		}
+	default:
+		return nil
+	}
+}
+
+// SetKubeResources configures the Kubernetes Resources for the RoleConditionType.
+func (r *RoleV6) SetKubeResources(rct RoleConditionType, pods []KubernetesResource) {
+	if rct == Allow {
+		r.Spec.Allow.KubernetesResources = pods
+	} else {
+		r.Spec.Deny.KubernetesResources = pods
+	}
+}
+
 // GetKubeUsers returns kubernetes users
-func (r *RoleV5) GetKubeUsers(rct RoleConditionType) []string {
+func (r *RoleV6) GetKubeUsers(rct RoleConditionType) []string {
 	if rct == Allow {
 		return r.Spec.Allow.KubeUsers
 	}
@@ -341,7 +481,7 @@ func (r *RoleV5) GetKubeUsers(rct RoleConditionType) []string {
 }
 
 // SetKubeUsers sets kubernetes user for allow or deny condition.
-func (r *RoleV5) SetKubeUsers(rct RoleConditionType, users []string) {
+func (r *RoleV6) SetKubeUsers(rct RoleConditionType, users []string) {
 	lcopy := utils.CopyStrings(users)
 
 	if rct == Allow {
@@ -352,7 +492,7 @@ func (r *RoleV5) SetKubeUsers(rct RoleConditionType, users []string) {
 }
 
 // GetAccessRequestConditions gets conditions for access requests.
-func (r *RoleV5) GetAccessRequestConditions(rct RoleConditionType) AccessRequestConditions {
+func (r *RoleV6) GetAccessRequestConditions(rct RoleConditionType) AccessRequestConditions {
 	cond := r.Spec.Deny.Request
 	if rct == Allow {
 		cond = r.Spec.Allow.Request
@@ -364,7 +504,7 @@ func (r *RoleV5) GetAccessRequestConditions(rct RoleConditionType) AccessRequest
 }
 
 // SetAccessRequestConditions sets allow/deny conditions for access requests.
-func (r *RoleV5) SetAccessRequestConditions(rct RoleConditionType, cond AccessRequestConditions) {
+func (r *RoleV6) SetAccessRequestConditions(rct RoleConditionType, cond AccessRequestConditions) {
 	if rct == Allow {
 		r.Spec.Allow.Request = &cond
 	} else {
@@ -373,7 +513,7 @@ func (r *RoleV5) SetAccessRequestConditions(rct RoleConditionType, cond AccessRe
 }
 
 // GetAccessReviewConditions gets conditions for access reviews.
-func (r *RoleV5) GetAccessReviewConditions(rct RoleConditionType) AccessReviewConditions {
+func (r *RoleV6) GetAccessReviewConditions(rct RoleConditionType) AccessReviewConditions {
 	cond := r.Spec.Deny.ReviewRequests
 	if rct == Allow {
 		cond = r.Spec.Allow.ReviewRequests
@@ -385,7 +525,7 @@ func (r *RoleV5) GetAccessReviewConditions(rct RoleConditionType) AccessReviewCo
 }
 
 // SetAccessReviewConditions sets allow/deny conditions for access reviews.
-func (r *RoleV5) SetAccessReviewConditions(rct RoleConditionType, cond AccessReviewConditions) {
+func (r *RoleV6) SetAccessReviewConditions(rct RoleConditionType, cond AccessReviewConditions) {
 	if rct == Allow {
 		r.Spec.Allow.ReviewRequests = &cond
 	} else {
@@ -394,7 +534,7 @@ func (r *RoleV5) SetAccessReviewConditions(rct RoleConditionType, cond AccessRev
 }
 
 // GetNamespaces gets a list of namespaces this role is allowed or denied access to.
-func (r *RoleV5) GetNamespaces(rct RoleConditionType) []string {
+func (r *RoleV6) GetNamespaces(rct RoleConditionType) []string {
 	if rct == Allow {
 		return r.Spec.Allow.Namespaces
 	}
@@ -402,7 +542,7 @@ func (r *RoleV5) GetNamespaces(rct RoleConditionType) []string {
 }
 
 // SetNamespaces sets a list of namespaces this role is allowed or denied access to.
-func (r *RoleV5) SetNamespaces(rct RoleConditionType, namespaces []string) {
+func (r *RoleV6) SetNamespaces(rct RoleConditionType, namespaces []string) {
 	ncopy := utils.CopyStrings(namespaces)
 
 	if rct == Allow {
@@ -413,7 +553,7 @@ func (r *RoleV5) SetNamespaces(rct RoleConditionType, namespaces []string) {
 }
 
 // GetNodeLabels gets the map of node labels this role is allowed or denied access to.
-func (r *RoleV5) GetNodeLabels(rct RoleConditionType) Labels {
+func (r *RoleV6) GetNodeLabels(rct RoleConditionType) Labels {
 	if rct == Allow {
 		return r.Spec.Allow.NodeLabels
 	}
@@ -421,7 +561,7 @@ func (r *RoleV5) GetNodeLabels(rct RoleConditionType) Labels {
 }
 
 // SetNodeLabels sets the map of node labels this role is allowed or denied access to.
-func (r *RoleV5) SetNodeLabels(rct RoleConditionType, labels Labels) {
+func (r *RoleV6) SetNodeLabels(rct RoleConditionType, labels Labels) {
 	if rct == Allow {
 		r.Spec.Allow.NodeLabels = labels.Clone()
 	} else {
@@ -430,7 +570,7 @@ func (r *RoleV5) SetNodeLabels(rct RoleConditionType, labels Labels) {
 }
 
 // GetAppLabels gets the map of app labels this role is allowed or denied access to.
-func (r *RoleV5) GetAppLabels(rct RoleConditionType) Labels {
+func (r *RoleV6) GetAppLabels(rct RoleConditionType) Labels {
 	if rct == Allow {
 		return r.Spec.Allow.AppLabels
 	}
@@ -438,7 +578,7 @@ func (r *RoleV5) GetAppLabels(rct RoleConditionType) Labels {
 }
 
 // SetAppLabels sets the map of node labels this role is allowed or denied access to.
-func (r *RoleV5) SetAppLabels(rct RoleConditionType, labels Labels) {
+func (r *RoleV6) SetAppLabels(rct RoleConditionType, labels Labels) {
 	if rct == Allow {
 		r.Spec.Allow.AppLabels = labels.Clone()
 	} else {
@@ -447,7 +587,7 @@ func (r *RoleV5) SetAppLabels(rct RoleConditionType, labels Labels) {
 }
 
 // GetClusterLabels gets the map of cluster labels this role is allowed or denied access to.
-func (r *RoleV5) GetClusterLabels(rct RoleConditionType) Labels {
+func (r *RoleV6) GetClusterLabels(rct RoleConditionType) Labels {
 	if rct == Allow {
 		return r.Spec.Allow.ClusterLabels
 	}
@@ -455,7 +595,7 @@ func (r *RoleV5) GetClusterLabels(rct RoleConditionType) Labels {
 }
 
 // SetClusterLabels sets the map of cluster labels this role is allowed or denied access to.
-func (r *RoleV5) SetClusterLabels(rct RoleConditionType, labels Labels) {
+func (r *RoleV6) SetClusterLabels(rct RoleConditionType, labels Labels) {
 	if rct == Allow {
 		r.Spec.Allow.ClusterLabels = labels.Clone()
 	} else {
@@ -464,7 +604,7 @@ func (r *RoleV5) SetClusterLabels(rct RoleConditionType, labels Labels) {
 }
 
 // GetKubernetesLabels gets the map of app labels this role is allowed or denied access to.
-func (r *RoleV5) GetKubernetesLabels(rct RoleConditionType) Labels {
+func (r *RoleV6) GetKubernetesLabels(rct RoleConditionType) Labels {
 	if rct == Allow {
 		return r.Spec.Allow.KubernetesLabels
 	}
@@ -472,7 +612,7 @@ func (r *RoleV5) GetKubernetesLabels(rct RoleConditionType) Labels {
 }
 
 // SetKubernetesLabels sets the map of node labels this role is allowed or denied access to.
-func (r *RoleV5) SetKubernetesLabels(rct RoleConditionType, labels Labels) {
+func (r *RoleV6) SetKubernetesLabels(rct RoleConditionType, labels Labels) {
 	if rct == Allow {
 		r.Spec.Allow.KubernetesLabels = labels.Clone()
 	} else {
@@ -480,8 +620,25 @@ func (r *RoleV5) SetKubernetesLabels(rct RoleConditionType, labels Labels) {
 	}
 }
 
+// GetDatabaseServiceLabels gets the map of db service labels this role is allowed or denied access to.
+func (r *RoleV6) GetDatabaseServiceLabels(rct RoleConditionType) Labels {
+	if rct == Allow {
+		return r.Spec.Allow.DatabaseServiceLabels
+	}
+	return r.Spec.Deny.DatabaseServiceLabels
+}
+
+// SetDatabaseServiceLabels sets the map of db service labels this role is allowed or denied access to.
+func (r *RoleV6) SetDatabaseServiceLabels(rct RoleConditionType, labels Labels) {
+	if rct == Allow {
+		r.Spec.Allow.DatabaseServiceLabels = labels.Clone()
+	} else {
+		r.Spec.Deny.DatabaseServiceLabels = labels.Clone()
+	}
+}
+
 // GetDatabaseLabels gets the map of db labels this role is allowed or denied access to.
-func (r *RoleV5) GetDatabaseLabels(rct RoleConditionType) Labels {
+func (r *RoleV6) GetDatabaseLabels(rct RoleConditionType) Labels {
 	if rct == Allow {
 		return r.Spec.Allow.DatabaseLabels
 	}
@@ -489,7 +646,7 @@ func (r *RoleV5) GetDatabaseLabels(rct RoleConditionType) Labels {
 }
 
 // SetDatabaseLabels sets the map of db labels this role is allowed or denied access to.
-func (r *RoleV5) SetDatabaseLabels(rct RoleConditionType, labels Labels) {
+func (r *RoleV6) SetDatabaseLabels(rct RoleConditionType, labels Labels) {
 	if rct == Allow {
 		r.Spec.Allow.DatabaseLabels = labels.Clone()
 	} else {
@@ -498,7 +655,7 @@ func (r *RoleV5) SetDatabaseLabels(rct RoleConditionType, labels Labels) {
 }
 
 // GetDatabaseNames gets a list of database names this role is allowed or denied access to.
-func (r *RoleV5) GetDatabaseNames(rct RoleConditionType) []string {
+func (r *RoleV6) GetDatabaseNames(rct RoleConditionType) []string {
 	if rct == Allow {
 		return r.Spec.Allow.DatabaseNames
 	}
@@ -506,7 +663,7 @@ func (r *RoleV5) GetDatabaseNames(rct RoleConditionType) []string {
 }
 
 // SetDatabaseNames sets a list of database names this role is allowed or denied access to.
-func (r *RoleV5) SetDatabaseNames(rct RoleConditionType, values []string) {
+func (r *RoleV6) SetDatabaseNames(rct RoleConditionType, values []string) {
 	if rct == Allow {
 		r.Spec.Allow.DatabaseNames = values
 	} else {
@@ -515,7 +672,7 @@ func (r *RoleV5) SetDatabaseNames(rct RoleConditionType, values []string) {
 }
 
 // GetDatabaseUsers gets a list of database users this role is allowed or denied access to.
-func (r *RoleV5) GetDatabaseUsers(rct RoleConditionType) []string {
+func (r *RoleV6) GetDatabaseUsers(rct RoleConditionType) []string {
 	if rct == Allow {
 		return r.Spec.Allow.DatabaseUsers
 	}
@@ -523,7 +680,7 @@ func (r *RoleV5) GetDatabaseUsers(rct RoleConditionType) []string {
 }
 
 // SetDatabaseUsers sets a list of database users this role is allowed or denied access to.
-func (r *RoleV5) SetDatabaseUsers(rct RoleConditionType, values []string) {
+func (r *RoleV6) SetDatabaseUsers(rct RoleConditionType, values []string) {
 	if rct == Allow {
 		r.Spec.Allow.DatabaseUsers = values
 	} else {
@@ -531,8 +688,25 @@ func (r *RoleV5) SetDatabaseUsers(rct RoleConditionType, values []string) {
 	}
 }
 
+// GetDatabaseRoles gets a list of database roles for auto-provisioned users.
+func (r *RoleV6) GetDatabaseRoles(rct RoleConditionType) []string {
+	if rct == Allow {
+		return r.Spec.Allow.DatabaseRoles
+	}
+	return r.Spec.Deny.DatabaseRoles
+}
+
+// SetDatabaseRoles sets a list of database roles for auto-provisioned users.
+func (r *RoleV6) SetDatabaseRoles(rct RoleConditionType, values []string) {
+	if rct == Allow {
+		r.Spec.Allow.DatabaseRoles = values
+	} else {
+		r.Spec.Deny.DatabaseRoles = values
+	}
+}
+
 // GetImpersonateConditions returns conditions this role is allowed or denied to impersonate.
-func (r *RoleV5) GetImpersonateConditions(rct RoleConditionType) ImpersonateConditions {
+func (r *RoleV6) GetImpersonateConditions(rct RoleConditionType) ImpersonateConditions {
 	cond := r.Spec.Deny.Impersonate
 	if rct == Allow {
 		cond = r.Spec.Allow.Impersonate
@@ -543,8 +717,8 @@ func (r *RoleV5) GetImpersonateConditions(rct RoleConditionType) ImpersonateCond
 	return *cond
 }
 
-// SetImpersonateConditions returns conditions this role is allowed or denied to impersonate.
-func (r *RoleV5) SetImpersonateConditions(rct RoleConditionType, cond ImpersonateConditions) {
+// SetImpersonateConditions sets conditions this role is allowed or denied to impersonate.
+func (r *RoleV6) SetImpersonateConditions(rct RoleConditionType, cond ImpersonateConditions) {
 	if rct == Allow {
 		r.Spec.Allow.Impersonate = &cond
 	} else {
@@ -553,7 +727,7 @@ func (r *RoleV5) SetImpersonateConditions(rct RoleConditionType, cond Impersonat
 }
 
 // GetAWSRoleARNs returns a list of AWS role ARNs this role is allowed to impersonate.
-func (r *RoleV5) GetAWSRoleARNs(rct RoleConditionType) []string {
+func (r *RoleV6) GetAWSRoleARNs(rct RoleConditionType) []string {
 	if rct == Allow {
 		return r.Spec.Allow.AWSRoleARNs
 	}
@@ -561,7 +735,7 @@ func (r *RoleV5) GetAWSRoleARNs(rct RoleConditionType) []string {
 }
 
 // SetAWSRoleARNs sets a list of AWS role ARNs this role is allowed to impersonate.
-func (r *RoleV5) SetAWSRoleARNs(rct RoleConditionType, arns []string) {
+func (r *RoleV6) SetAWSRoleARNs(rct RoleConditionType, arns []string) {
 	if rct == Allow {
 		r.Spec.Allow.AWSRoleARNs = arns
 	} else {
@@ -569,8 +743,42 @@ func (r *RoleV5) SetAWSRoleARNs(rct RoleConditionType, arns []string) {
 	}
 }
 
+// GetAzureIdentities returns a list of Azure identities this role is allowed to assume.
+func (r *RoleV6) GetAzureIdentities(rct RoleConditionType) []string {
+	if rct == Allow {
+		return r.Spec.Allow.AzureIdentities
+	}
+	return r.Spec.Deny.AzureIdentities
+}
+
+// SetAzureIdentities sets a list of Azure identities this role is allowed to assume.
+func (r *RoleV6) SetAzureIdentities(rct RoleConditionType, identities []string) {
+	if rct == Allow {
+		r.Spec.Allow.AzureIdentities = identities
+	} else {
+		r.Spec.Deny.AzureIdentities = identities
+	}
+}
+
+// GetGCPServiceAccounts returns a list of GCP service accounts this role is allowed to assume.
+func (r *RoleV6) GetGCPServiceAccounts(rct RoleConditionType) []string {
+	if rct == Allow {
+		return r.Spec.Allow.GCPServiceAccounts
+	}
+	return r.Spec.Deny.GCPServiceAccounts
+}
+
+// SetGCPServiceAccounts sets a list of GCP service accounts this role is allowed to assume.
+func (r *RoleV6) SetGCPServiceAccounts(rct RoleConditionType, accounts []string) {
+	if rct == Allow {
+		r.Spec.Allow.GCPServiceAccounts = accounts
+	} else {
+		r.Spec.Deny.GCPServiceAccounts = accounts
+	}
+}
+
 // GetWindowsDesktopLabels gets the desktop labels this role is allowed or denied access to.
-func (r *RoleV5) GetWindowsDesktopLabels(rct RoleConditionType) Labels {
+func (r *RoleV6) GetWindowsDesktopLabels(rct RoleConditionType) Labels {
 	if rct == Allow {
 		return r.Spec.Allow.WindowsDesktopLabels
 	}
@@ -578,7 +786,7 @@ func (r *RoleV5) GetWindowsDesktopLabels(rct RoleConditionType) Labels {
 }
 
 // SetWindowsDesktopLabels sets the desktop labels this role is allowed or denied access to.
-func (r *RoleV5) SetWindowsDesktopLabels(rct RoleConditionType, labels Labels) {
+func (r *RoleV6) SetWindowsDesktopLabels(rct RoleConditionType, labels Labels) {
 	if rct == Allow {
 		r.Spec.Allow.WindowsDesktopLabels = labels.Clone()
 	} else {
@@ -587,7 +795,7 @@ func (r *RoleV5) SetWindowsDesktopLabels(rct RoleConditionType, labels Labels) {
 }
 
 // GetWindowsLogins gets Windows desktop logins for the role's allow or deny condition.
-func (r *RoleV5) GetWindowsLogins(rct RoleConditionType) []string {
+func (r *RoleV6) GetWindowsLogins(rct RoleConditionType) []string {
 	if rct == Allow {
 		return r.Spec.Allow.WindowsDesktopLogins
 	}
@@ -595,7 +803,7 @@ func (r *RoleV5) GetWindowsLogins(rct RoleConditionType) []string {
 }
 
 // SetWindowsLogins sets Windows desktop logins for the role's allow or deny condition.
-func (r *RoleV5) SetWindowsLogins(rct RoleConditionType, logins []string) {
+func (r *RoleV6) SetWindowsLogins(rct RoleConditionType, logins []string) {
 	lcopy := utils.CopyStrings(logins)
 
 	if rct == Allow {
@@ -606,7 +814,7 @@ func (r *RoleV5) SetWindowsLogins(rct RoleConditionType, logins []string) {
 }
 
 // GetRules gets all allow or deny rules.
-func (r *RoleV5) GetRules(rct RoleConditionType) []Rule {
+func (r *RoleV6) GetRules(rct RoleConditionType) []Rule {
 	if rct == Allow {
 		return r.Spec.Allow.Rules
 	}
@@ -614,7 +822,7 @@ func (r *RoleV5) GetRules(rct RoleConditionType) []Rule {
 }
 
 // SetRules sets an allow or deny rule.
-func (r *RoleV5) SetRules(rct RoleConditionType, in []Rule) {
+func (r *RoleV6) SetRules(rct RoleConditionType, in []Rule) {
 	rcopy := CopyRulesSlice(in)
 
 	if rct == Allow {
@@ -624,17 +832,16 @@ func (r *RoleV5) SetRules(rct RoleConditionType, in []Rule) {
 	}
 }
 
-// GetGroups gets all groups for provisioned user
-func (r *RoleV5) GetHostGroups(rct RoleConditionType) []string {
+// GetHostGroups gets all groups for provisioned user
+func (r *RoleV6) GetHostGroups(rct RoleConditionType) []string {
 	if rct == Allow {
 		return r.Spec.Allow.HostGroups
 	}
 	return r.Spec.Deny.HostGroups
-
 }
 
 // SetHostGroups sets all groups for provisioned user
-func (r *RoleV5) SetHostGroups(rct RoleConditionType, groups []string) {
+func (r *RoleV6) SetHostGroups(rct RoleConditionType, groups []string) {
 	ncopy := utils.CopyStrings(groups)
 	if rct == Allow {
 		r.Spec.Allow.HostGroups = ncopy
@@ -643,17 +850,34 @@ func (r *RoleV5) SetHostGroups(rct RoleConditionType, groups []string) {
 	}
 }
 
+// GetDesktopGroups gets all groups for provisioned user
+func (r *RoleV6) GetDesktopGroups(rct RoleConditionType) []string {
+	if rct == Allow {
+		return r.Spec.Allow.DesktopGroups
+	}
+	return r.Spec.Deny.DesktopGroups
+}
+
+// SetDesktopGroups sets all groups for provisioned user
+func (r *RoleV6) SetDesktopGroups(rct RoleConditionType, groups []string) {
+	ncopy := utils.CopyStrings(groups)
+	if rct == Allow {
+		r.Spec.Allow.DesktopGroups = ncopy
+	} else {
+		r.Spec.Deny.DesktopGroups = ncopy
+	}
+}
+
 // GetHostSudoers gets the list of sudoers entries for the role
-func (r *RoleV5) GetHostSudoers(rct RoleConditionType) []string {
+func (r *RoleV6) GetHostSudoers(rct RoleConditionType) []string {
 	if rct == Allow {
 		return r.Spec.Allow.HostSudoers
 	}
 	return r.Spec.Deny.HostSudoers
-
 }
 
 // GetHostSudoers sets the list of sudoers entries for the role
-func (r *RoleV5) SetHostSudoers(rct RoleConditionType, sudoers []string) {
+func (r *RoleV6) SetHostSudoers(rct RoleConditionType, sudoers []string) {
 	ncopy := utils.CopyStrings(sudoers)
 	if rct == Allow {
 		r.Spec.Allow.HostSudoers = ncopy
@@ -663,34 +887,55 @@ func (r *RoleV5) SetHostSudoers(rct RoleConditionType, sudoers []string) {
 }
 
 // GetPrivateKeyPolicy returns the private key policy enforced for this role.
-func (r *RoleV5) GetPrivateKeyPolicy() keys.PrivateKeyPolicy {
+func (r *RoleV6) GetPrivateKeyPolicy() keys.PrivateKeyPolicy {
 	switch r.Spec.Options.RequireMFAType {
 	case RequireMFAType_SESSION_AND_HARDWARE_KEY:
 		return keys.PrivateKeyPolicyHardwareKey
 	case RequireMFAType_HARDWARE_KEY_TOUCH:
 		return keys.PrivateKeyPolicyHardwareKeyTouch
+	case RequireMFAType_HARDWARE_KEY_PIN:
+		return keys.PrivateKeyPolicyHardwareKeyPIN
+	case RequireMFAType_HARDWARE_KEY_TOUCH_AND_PIN:
+		return keys.PrivateKeyPolicyHardwareKeyTouchAndPIN
 	default:
 		return keys.PrivateKeyPolicyNone
 	}
 }
 
 // setStaticFields sets static resource header and metadata fields.
-func (r *RoleV5) setStaticFields() {
+func (r *RoleV6) setStaticFields() {
 	r.Kind = KindRole
-	if r.Version != V3 && r.Version != V4 {
-		r.Version = V5
+	if r.Version != V3 && r.Version != V4 && r.Version != V5 && r.Version != V6 {
+		// When incrementing the role version, make sure to update the
+		// role version in the asset file used by the UI.
+		// See: web/packages/teleport/src/Roles/templates/role.yaml
+		r.Version = V7
+	}
+}
+
+// GetGroupLabels gets the map of group labels this role is allowed or denied access to.
+func (r *RoleV6) GetGroupLabels(rct RoleConditionType) Labels {
+	if rct == Allow {
+		return r.Spec.Allow.GroupLabels
+	}
+	return r.Spec.Deny.GroupLabels
+}
+
+// SetGroupLabels sets the map of group labels this role is allowed or denied access to.
+func (r *RoleV6) SetGroupLabels(rct RoleConditionType, labels Labels) {
+	if rct == Allow {
+		r.Spec.Allow.GroupLabels = labels.Clone()
+	} else {
+		r.Spec.Deny.GroupLabels = labels.Clone()
 	}
 }
 
 // CheckAndSetDefaults checks validity of all parameters and sets defaults
-func (r *RoleV5) CheckAndSetDefaults() error {
+func (r *RoleV6) CheckAndSetDefaults() error {
 	r.setStaticFields()
 	if err := r.Metadata.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
-
-	// DELETE IN 13.0.0
-	r.CheckSetRequireSessionMFA()
 
 	// Make sure all fields have defaults.
 	if r.Spec.Options.CertificateFormat == "" {
@@ -720,11 +965,26 @@ func (r *RoleV5) CheckAndSetDefaults() error {
 	if r.Spec.Options.DesktopDirectorySharing == nil {
 		r.Spec.Options.DesktopDirectorySharing = NewBoolOption(true)
 	}
-	if r.Spec.Options.CreateHostUser == nil {
-		r.Spec.Options.CreateHostUser = NewBoolOption(false)
+	if r.Spec.Options.CreateDesktopUser == nil {
+		r.Spec.Options.CreateDesktopUser = NewBoolOption(false)
+	}
+	if r.Spec.Options.CreateDatabaseUser == nil {
+		r.Spec.Options.CreateDatabaseUser = NewBoolOption(false)
 	}
 	if r.Spec.Options.SSHFileCopy == nil {
 		r.Spec.Options.SSHFileCopy = NewBoolOption(true)
+	}
+	if r.Spec.Options.IDP == nil {
+		// By default, allow users to access the IdP.
+		r.Spec.Options.IDP = &IdPOptions{
+			SAML: &IdPSAMLOptions{
+				Enabled: NewBoolOption(true),
+			},
+		}
+	}
+
+	if _, ok := CreateHostUserMode_name[int32(r.Spec.Options.CreateHostUserMode)]; !ok {
+		return trace.BadParameter("invalid host user mode %q, expected one of off, drop or keep", r.Spec.Options.CreateHostUserMode)
 	}
 
 	switch r.Version {
@@ -749,8 +1009,47 @@ func (r *RoleV5) CheckAndSetDefaults() error {
 		if r.Spec.Allow.DatabaseLabels == nil {
 			r.Spec.Allow.DatabaseLabels = Labels{Wildcard: []string{Wildcard}}
 		}
+
+		fallthrough
 	case V4, V5:
 		// Labels default to nil/empty for v4+ roles
+		// Allow unrestricted access to all pods.
+		if len(r.Spec.Allow.KubernetesResources) == 0 && r.HasLabelMatchers(Allow, KindKubernetesCluster) {
+			r.Spec.Allow.KubernetesResources = []KubernetesResource{
+				{
+					Kind:      KindKubePod,
+					Namespace: Wildcard,
+					Name:      Wildcard,
+				},
+			}
+		}
+
+		setDefaultKubernetesVerbs(&r.Spec)
+		if err := validateRoleSpecKubeResources(r.Version, r.Spec); err != nil {
+			return trace.Wrap(err)
+		}
+
+	case V6:
+		setDefaultKubernetesVerbs(&r.Spec)
+		if err := validateRoleSpecKubeResources(r.Version, r.Spec); err != nil {
+			return trace.Wrap(err)
+		}
+	case V7:
+		// Kubernetes resources default to {kind:*, name:*, namespace:*} for v7 roles.
+		if len(r.Spec.Allow.KubernetesResources) == 0 && r.HasLabelMatchers(Allow, KindKubernetesCluster) {
+			r.Spec.Allow.KubernetesResources = []KubernetesResource{
+				{
+					Kind:      Wildcard,
+					Namespace: Wildcard,
+					Name:      Wildcard,
+					Verbs:     []string{Wildcard},
+				},
+			}
+		}
+
+		if err := validateRoleSpecKubeResources(r.Version, r.Spec); err != nil {
+			return trace.Wrap(err)
+		}
 	default:
 		return trace.BadParameter("unrecognized role version: %v", r.Version)
 	}
@@ -794,6 +1093,21 @@ func (r *RoleV5) CheckAndSetDefaults() error {
 			return trace.BadParameter("wildcard matcher is not allowed in aws_role_arns")
 		}
 	}
+	for _, identity := range r.Spec.Allow.AzureIdentities {
+		if identity == Wildcard {
+			return trace.BadParameter("wildcard matcher is not allowed in allow.azure_identities")
+		}
+	}
+	for _, identity := range r.Spec.Allow.GCPServiceAccounts {
+		if identity == Wildcard {
+			return trace.BadParameter("wildcard matcher is not allowed in allow.gcp_service_accounts")
+		}
+	}
+	for _, role := range r.Spec.Allow.DatabaseRoles {
+		if role == Wildcard {
+			return trace.BadParameter("wildcard is not allowed in allow.database_roles")
+		}
+	}
 	checkWildcardSelector := func(labels Labels) error {
 		for key, val := range labels {
 			if key == Wildcard && !(len(val) == 1 && val[0] == Wildcard) {
@@ -808,6 +1122,7 @@ func (r *RoleV5) CheckAndSetDefaults() error {
 		r.Spec.Allow.KubernetesLabels,
 		r.Spec.Allow.DatabaseLabels,
 		r.Spec.Allow.WindowsDesktopLabels,
+		r.Spec.Allow.GroupLabels,
 	} {
 		if err := checkWildcardSelector(labels); err != nil {
 			return trace.Wrap(err)
@@ -839,23 +1154,15 @@ func (r *RoleV5) CheckAndSetDefaults() error {
 			return trace.Wrap(err)
 		}
 	}
+
 	return nil
 }
 
-// RequireSessionMFA must be checked/set when communicating with an old server or client.
-// DELETE IN 13.0.0
-func (r *RoleV5) CheckSetRequireSessionMFA() {
-	if r.Spec.Options.RequireMFAType != RequireMFAType_OFF {
-		r.Spec.Options.RequireSessionMFA = r.Spec.Options.RequireMFAType.IsSessionMFARequired()
-	} else if r.Spec.Options.RequireSessionMFA {
-		r.Spec.Options.RequireMFAType = RequireMFAType_SESSION
-	}
-}
-
 // String returns the human readable representation of a role.
-func (r *RoleV5) String() string {
-	return fmt.Sprintf("Role(Name=%v,Options=%v,Allow=%+v,Deny=%+v)",
-		r.GetName(), r.Spec.Options, r.Spec.Allow, r.Spec.Deny)
+func (r *RoleV6) String() string {
+	options, _ := json.Marshal(r.Spec.Options)
+	return fmt.Sprintf("Role(Name=%v,Options=%q,Allow=%+v,Deny=%+v)",
+		r.GetName(), string(options), r.Spec.Allow, r.Spec.Deny)
 }
 
 // IsEmpty returns true if conditions are unspecified
@@ -1209,12 +1516,12 @@ func (e WhereExpr) String() string {
 }
 
 // GetSessionRequirePolicies returns the RBAC required policies for a role.
-func (r *RoleV5) GetSessionRequirePolicies() []*SessionRequirePolicy {
+func (r *RoleV6) GetSessionRequirePolicies() []*SessionRequirePolicy {
 	return r.Spec.Allow.RequireSessionJoin
 }
 
 // GetSessionPolicySet returns the RBAC policy set for a session.
-func (r *RoleV5) GetSessionPolicySet() SessionTrackerPolicySet {
+func (r *RoleV6) GetSessionPolicySet() SessionTrackerPolicySet {
 	return SessionTrackerPolicySet{
 		Name:               r.Metadata.Name,
 		Version:            r.Version,
@@ -1223,36 +1530,490 @@ func (r *RoleV5) GetSessionPolicySet() SessionTrackerPolicySet {
 }
 
 // SetSessionRequirePolicies sets the RBAC required policies for a role.
-func (r *RoleV5) SetSessionRequirePolicies(policies []*SessionRequirePolicy) {
+func (r *RoleV6) SetSessionRequirePolicies(policies []*SessionRequirePolicy) {
 	r.Spec.Allow.RequireSessionJoin = policies
 }
 
 // SetSessionJoinPolicies returns the RBAC join policies for a role.
-func (r *RoleV5) GetSessionJoinPolicies() []*SessionJoinPolicy {
+func (r *RoleV6) GetSessionJoinPolicies() []*SessionJoinPolicy {
 	return r.Spec.Allow.JoinSessions
 }
 
 // SetSessionJoinPolicies sets the RBAC join policies for a role.
-func (r *RoleV5) SetSessionJoinPolicies(policies []*SessionJoinPolicy) {
+func (r *RoleV6) SetSessionJoinPolicies(policies []*SessionJoinPolicy) {
 	r.Spec.Allow.JoinSessions = policies
 }
 
-// GetSearchAsRoles returns the list of roles which the user should be able to
-// "assume" while searching for resources, and should be able to request with a
-// search-based access request.
-func (r *RoleV5) GetSearchAsRoles() []string {
-	if r.Spec.Allow.Request == nil {
+// GetSearchAsRoles returns the list of extra roles which should apply to a
+// user while they are searching for resources as part of a Resource Access
+// Request, and defines the underlying roles which will be requested as part
+// of any Resource Access Request.
+func (r *RoleV6) GetSearchAsRoles(rct RoleConditionType) []string {
+	roleConditions := &r.Spec.Allow
+	if rct == Deny {
+		roleConditions = &r.Spec.Deny
+	}
+	if roleConditions.Request == nil {
 		return nil
 	}
-	return r.Spec.Allow.Request.SearchAsRoles
+	return roleConditions.Request.SearchAsRoles
 }
 
-// SetSearchAsRoles sets the list of roles which the user should be able to
-// "assume" while searching for resources, and should be able to request with a
-// search-based access request.
-func (r *RoleV5) SetSearchAsRoles(roles []string) {
-	if r.Spec.Allow.Request == nil {
-		r.Spec.Allow.Request = &AccessRequestConditions{}
+// SetSearchAsRoles sets the list of extra roles which should apply to a
+// user while they are searching for resources as part of a Resource Access
+// Request, and defines the underlying roles which will be requested as part
+// of any Resource Access Request.
+func (r *RoleV6) SetSearchAsRoles(rct RoleConditionType, roles []string) {
+	roleConditions := &r.Spec.Allow
+	if rct == Deny {
+		roleConditions = &r.Spec.Deny
 	}
-	r.Spec.Allow.Request.SearchAsRoles = roles
+	if roleConditions.Request == nil {
+		roleConditions.Request = &AccessRequestConditions{}
+	}
+	roleConditions.Request.SearchAsRoles = roles
+}
+
+// GetPreviewAsRoles returns the list of extra roles which should apply to a
+// reviewer while they are viewing a Resource Access Request for the
+// purposes of viewing details such as the hostname and labels of requested
+// resources.
+func (r *RoleV6) GetPreviewAsRoles(rct RoleConditionType) []string {
+	roleConditions := &r.Spec.Allow
+	if rct == Deny {
+		roleConditions = &r.Spec.Deny
+	}
+	if roleConditions.ReviewRequests == nil {
+		return nil
+	}
+	return roleConditions.ReviewRequests.PreviewAsRoles
+}
+
+// SetPreviewAsRoles sets the list of extra roles which should apply to a
+// reviewer while they are viewing a Resource Access Request for the
+// purposes of viewing details such as the hostname and labels of requested
+// resources.
+func (r *RoleV6) SetPreviewAsRoles(rct RoleConditionType, roles []string) {
+	roleConditions := &r.Spec.Allow
+	if rct == Deny {
+		roleConditions = &r.Spec.Deny
+	}
+	if roleConditions.ReviewRequests == nil {
+		roleConditions.ReviewRequests = &AccessReviewConditions{}
+	}
+	roleConditions.ReviewRequests.PreviewAsRoles = roles
+}
+
+// validateRoleSpecKubeResources validates the Allow/Deny Kubernetes Resources
+// entries.
+func validateRoleSpecKubeResources(version string, spec RoleSpecV6) error {
+	if err := validateKubeResources(version, spec.Allow.KubernetesResources); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := validateKubeResources(version, spec.Deny.KubernetesResources); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// setDefaultKubernetesVerbs sets the default verbs for each KubernetesResource
+// entry if none are specified. This is necessary for backwards compatibility
+// with older versions of Role: V3, V4, V5, and v6.
+func setDefaultKubernetesVerbs(spec *RoleSpecV6) {
+	for _, kubeResources := range [][]KubernetesResource{spec.Allow.KubernetesResources, spec.Deny.KubernetesResources} {
+		for i := range kubeResources {
+			if len(kubeResources[i].Verbs) == 0 {
+				kubeResources[i].Verbs = []string{Wildcard}
+			}
+		}
+	}
+}
+
+// validateKubeResources validates the following rules for each kubeResources entry:
+// - Kind belongs to KubernetesResourcesKinds
+// - Name is not empty
+// - Namespace is not empty
+func validateKubeResources(roleVersion string, kubeResources []KubernetesResource) error {
+	for _, kubeResource := range kubeResources {
+		if !slices.Contains(KubernetesResourcesKinds, kubeResource.Kind) && kubeResource.Kind != Wildcard {
+			return trace.BadParameter("KubernetesResource kind %q is invalid or unsupported; Supported: %v", kubeResource.Kind, append([]string{Wildcard}, KubernetesResourcesKinds...))
+		}
+
+		for _, verb := range kubeResource.Verbs {
+			if !slices.Contains(KubernetesVerbs, verb) && verb != Wildcard {
+				return trace.BadParameter("KubernetesResource verb %q is invalid or unsupported; Supported: %v", verb, KubernetesVerbs)
+			}
+			if verb == Wildcard && len(kubeResource.Verbs) > 1 {
+				return trace.BadParameter("KubernetesResource verb %q cannot be used with other verbs", verb)
+			}
+		}
+
+		// Only Pod resources are supported in role version <=V6.
+		// This is mandatory because we must append the other resources to the
+		// kubernetes resources.
+		switch roleVersion {
+		// Teleport does not support role versions < v3.
+		case V6, V5, V4, V3:
+			if kubeResource.Kind != KindKubePod {
+				return trace.BadParameter("KubernetesResource %q is not supported in role version %q. Upgrade the role version to %q", kubeResource.Kind, roleVersion, V7)
+			}
+			if len(kubeResource.Verbs) != 1 || kubeResource.Verbs[0] != Wildcard {
+				return trace.BadParameter("Role version %q only supports %q verb. Upgrade the role version to %q", roleVersion, Wildcard, V7)
+			}
+		}
+
+		if len(kubeResource.Namespace) == 0 && !slices.Contains(KubernetesClusterWideResourceKinds, kubeResource.Kind) {
+			return trace.BadParameter("KubernetesResource must include Namespace")
+		}
+		if len(kubeResource.Name) == 0 {
+			return trace.BadParameter("KubernetesResource must include Name")
+		}
+	}
+	return nil
+}
+
+// ClusterResource returns the resource name in the following format
+// <namespace>/<name>.
+func (k *KubernetesResource) ClusterResource() string {
+	return path.Join(k.Namespace, k.Name)
+}
+
+// IsEmpty will return true if the condition is empty.
+func (a AccessRequestConditions) IsEmpty() bool {
+	return len(a.Annotations) == 0 &&
+		len(a.ClaimsToRoles) == 0 &&
+		len(a.Roles) == 0 &&
+		len(a.SearchAsRoles) == 0 &&
+		len(a.SuggestedReviewers) == 0 &&
+		len(a.Thresholds) == 0
+}
+
+// IsEmpty will return true if the condition is empty.
+func (a AccessReviewConditions) IsEmpty() bool {
+	return len(a.ClaimsToRoles) == 0 &&
+		len(a.PreviewAsRoles) == 0 &&
+		len(a.Roles) == 0 &&
+		len(a.Where) == 0
+}
+
+// LabelMatchers holds the role label matchers and label expression that are
+// used to match resource labels of a specific resource kind and condition
+// (allow/deny).
+type LabelMatchers struct {
+	Labels     Labels
+	Expression string
+}
+
+// Empty returns true if all elements of the LabelMatchers are empty/unset.
+func (l LabelMatchers) Empty() bool {
+	return len(l.Labels) == 0 && len(l.Expression) == 0
+}
+
+// GetLabelMatchers gets the LabelMatchers that match labels of resources of
+// type [kind] this role is allowed or denied access to.
+func (r *RoleV6) GetLabelMatchers(rct RoleConditionType, kind string) (LabelMatchers, error) {
+	var cond *RoleConditions
+	if rct == Allow {
+		cond = &r.Spec.Allow
+	} else {
+		cond = &r.Spec.Deny
+	}
+	switch kind {
+	case KindRemoteCluster:
+		return LabelMatchers{cond.ClusterLabels, cond.ClusterLabelsExpression}, nil
+	case KindNode:
+		return LabelMatchers{cond.NodeLabels, cond.NodeLabelsExpression}, nil
+	case KindKubernetesCluster:
+		return LabelMatchers{cond.KubernetesLabels, cond.KubernetesLabelsExpression}, nil
+	case KindApp:
+		return LabelMatchers{cond.AppLabels, cond.AppLabelsExpression}, nil
+	case KindDatabase:
+		return LabelMatchers{cond.DatabaseLabels, cond.DatabaseLabelsExpression}, nil
+	case KindDatabaseService:
+		return LabelMatchers{cond.DatabaseServiceLabels, cond.DatabaseServiceLabelsExpression}, nil
+	case KindWindowsDesktop:
+		return LabelMatchers{cond.WindowsDesktopLabels, cond.WindowsDesktopLabelsExpression}, nil
+	case KindWindowsDesktopService:
+		return LabelMatchers{cond.WindowsDesktopLabels, cond.WindowsDesktopLabelsExpression}, nil
+	case KindUserGroup:
+		return LabelMatchers{cond.GroupLabels, cond.GroupLabelsExpression}, nil
+	}
+	return LabelMatchers{}, trace.BadParameter("can't get label matchers for resource kind %q", kind)
+}
+
+// SetLabelMatchers sets the LabelMatchers that match labels of resources of
+// type [kind] this role is allowed or denied access to.
+func (r *RoleV6) SetLabelMatchers(rct RoleConditionType, kind string, labelMatchers LabelMatchers) error {
+	var cond *RoleConditions
+	if rct == Allow {
+		cond = &r.Spec.Allow
+	} else {
+		cond = &r.Spec.Deny
+	}
+	switch kind {
+	case KindRemoteCluster:
+		cond.ClusterLabels = labelMatchers.Labels
+		cond.ClusterLabelsExpression = labelMatchers.Expression
+		return nil
+	case KindNode:
+		cond.NodeLabels = labelMatchers.Labels
+		cond.NodeLabelsExpression = labelMatchers.Expression
+		return nil
+	case KindKubernetesCluster:
+		cond.KubernetesLabels = labelMatchers.Labels
+		cond.KubernetesLabelsExpression = labelMatchers.Expression
+		return nil
+	case KindApp:
+		cond.AppLabels = labelMatchers.Labels
+		cond.AppLabelsExpression = labelMatchers.Expression
+		return nil
+	case KindDatabase:
+		cond.DatabaseLabels = labelMatchers.Labels
+		cond.DatabaseLabelsExpression = labelMatchers.Expression
+		return nil
+	case KindDatabaseService:
+		cond.DatabaseServiceLabels = labelMatchers.Labels
+		cond.DatabaseServiceLabelsExpression = labelMatchers.Expression
+		return nil
+	case KindWindowsDesktop:
+		cond.WindowsDesktopLabels = labelMatchers.Labels
+		cond.WindowsDesktopLabelsExpression = labelMatchers.Expression
+		return nil
+	case KindWindowsDesktopService:
+		cond.WindowsDesktopLabels = labelMatchers.Labels
+		cond.WindowsDesktopLabelsExpression = labelMatchers.Expression
+		return nil
+	case KindUserGroup:
+		cond.GroupLabels = labelMatchers.Labels
+		cond.GroupLabelsExpression = labelMatchers.Expression
+		return nil
+	}
+	return trace.BadParameter("can't set label matchers for resource kind %q", kind)
+}
+
+// HasLabelMatchers returns true if the role has label matchers for the
+// specified resource kind and condition (allow/deny).
+// If the kind is not supported, false is returned.
+func (r *RoleV6) HasLabelMatchers(rct RoleConditionType, kind string) bool {
+	lm, err := r.GetLabelMatchers(rct, kind)
+	return err == nil && !lm.Empty()
+}
+
+// LabelMatcherKinds is the complete list of resource kinds that support label
+// matchers.
+var LabelMatcherKinds = []string{
+	KindRemoteCluster,
+	KindNode,
+	KindKubernetesCluster,
+	KindApp,
+	KindDatabase,
+	KindDatabaseService,
+	KindWindowsDesktop,
+	KindWindowsDesktopService,
+	KindUserGroup,
+}
+
+const (
+	createHostUserModeOffString  = "off"
+	createHostUserModeDropString = "drop"
+	createHostUserModeKeepString = "keep"
+)
+
+func (h CreateHostUserMode) encode() (string, error) {
+	switch h {
+	case CreateHostUserMode_HOST_USER_MODE_UNSPECIFIED:
+		return "", nil
+	case CreateHostUserMode_HOST_USER_MODE_OFF:
+		return createHostUserModeOffString, nil
+	case CreateHostUserMode_HOST_USER_MODE_DROP:
+		return createHostUserModeDropString, nil
+	case CreateHostUserMode_HOST_USER_MODE_KEEP:
+		return createHostUserModeKeepString, nil
+	}
+	return "", trace.BadParameter("invalid host user mode %v", h)
+}
+
+func (h *CreateHostUserMode) decode(val any) error {
+	var valS string
+	switch val := val.(type) {
+	case int32:
+		return trace.Wrap(h.setFromEnum(val))
+	case int64:
+		return trace.Wrap(h.setFromEnum(int32(val)))
+	case int:
+		return trace.Wrap(h.setFromEnum(int32(val)))
+	case float64:
+		return trace.Wrap(h.setFromEnum(int32(val)))
+	case float32:
+		return trace.Wrap(h.setFromEnum(int32(val)))
+	case string:
+		valS = val
+	case bool:
+		if val {
+			return trace.BadParameter("create_host_user_mode cannot be true, got %v", val)
+		}
+		valS = createHostUserModeOffString
+	default:
+		return trace.BadParameter("bad value type %T, expected string or int", val)
+	}
+
+	switch valS {
+	case "":
+		*h = CreateHostUserMode_HOST_USER_MODE_UNSPECIFIED
+	case createHostUserModeOffString:
+		*h = CreateHostUserMode_HOST_USER_MODE_OFF
+	case createHostUserModeDropString:
+		*h = CreateHostUserMode_HOST_USER_MODE_DROP
+	case createHostUserModeKeepString:
+		*h = CreateHostUserMode_HOST_USER_MODE_KEEP
+	default:
+		return trace.BadParameter("invalid host user mode %v", val)
+	}
+	return nil
+}
+
+// setFromEnum sets the value from enum value as int32.
+func (h *CreateHostUserMode) setFromEnum(val int32) error {
+	if _, ok := CreateHostUserMode_name[val]; !ok {
+		return trace.BadParameter("invalid host user mode %v", val)
+	}
+	*h = CreateHostUserMode(val)
+	return nil
+}
+
+// UnmarshalYAML supports parsing CreateHostUserMode from string.
+func (h *CreateHostUserMode) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var val interface{}
+	err := unmarshal(&val)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = h.decode(val)
+	return trace.Wrap(err)
+}
+
+// MarshalYAML marshals CreateHostUserMode to yaml.
+func (h *CreateHostUserMode) MarshalYAML() (interface{}, error) {
+	val, err := h.encode()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return val, nil
+}
+
+// MarshalJSON marshals CreateHostUserMode to json bytes.
+func (h *CreateHostUserMode) MarshalJSON() ([]byte, error) {
+	val, err := h.encode()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	out, err := json.Marshal(val)
+	return out, trace.Wrap(err)
+}
+
+// UnmarshalJSON supports parsing CreateHostUserMode from string.
+func (h *CreateHostUserMode) UnmarshalJSON(data []byte) error {
+	var val interface{}
+	err := json.Unmarshal(data, &val)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = h.decode(val)
+	return trace.Wrap(err)
+}
+
+const (
+	createDatabaseUserModeOffString            = "off"
+	createDatabaseUserModeKeepString           = "keep"
+	createDatabaseUserModeBestEffortDropString = "best_effort_drop"
+)
+
+func (h CreateDatabaseUserMode) encode() (string, error) {
+	switch h {
+	case CreateDatabaseUserMode_DB_USER_MODE_UNSPECIFIED:
+		return "", nil
+	case CreateDatabaseUserMode_DB_USER_MODE_OFF:
+		return createDatabaseUserModeOffString, nil
+	case CreateDatabaseUserMode_DB_USER_MODE_KEEP:
+		return createDatabaseUserModeKeepString, nil
+	case CreateDatabaseUserMode_DB_USER_MODE_BEST_EFFORT_DROP:
+		return createDatabaseUserModeBestEffortDropString, nil
+	}
+
+	return "", trace.BadParameter("invalid database user mode %v", h)
+}
+
+func (h *CreateDatabaseUserMode) decode(val any) error {
+	var str string
+	switch val := val.(type) {
+	case string:
+		str = val
+	default:
+		return trace.BadParameter("bad value type %T, expected string", val)
+	}
+
+	switch str {
+	case "":
+		*h = CreateDatabaseUserMode_DB_USER_MODE_UNSPECIFIED
+	case createDatabaseUserModeOffString:
+		*h = CreateDatabaseUserMode_DB_USER_MODE_OFF
+	case createDatabaseUserModeKeepString:
+		*h = CreateDatabaseUserMode_DB_USER_MODE_KEEP
+	case createDatabaseUserModeBestEffortDropString:
+		*h = CreateDatabaseUserMode_DB_USER_MODE_BEST_EFFORT_DROP
+	default:
+		return trace.BadParameter("invalid database user mode %v", val)
+	}
+
+	return nil
+}
+
+// UnmarshalYAML supports parsing CreateDatabaseUserMode from string.
+func (h *CreateDatabaseUserMode) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var val interface{}
+	err := unmarshal(&val)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = h.decode(val)
+	return trace.Wrap(err)
+}
+
+// MarshalYAML marshals CreateDatabaseUserMode to yaml.
+func (h *CreateDatabaseUserMode) MarshalYAML() (interface{}, error) {
+	val, err := h.encode()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return val, nil
+}
+
+// MarshalJSON marshals CreateDatabaseUserMode to json bytes.
+func (h *CreateDatabaseUserMode) MarshalJSON() ([]byte, error) {
+	val, err := h.encode()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	out, err := json.Marshal(val)
+	return out, trace.Wrap(err)
+}
+
+// UnmarshalJSON supports parsing CreateDatabaseUserMode from string.
+func (h *CreateDatabaseUserMode) UnmarshalJSON(data []byte) error {
+	var val interface{}
+	err := json.Unmarshal(data, &val)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = h.decode(val)
+	return trace.Wrap(err)
+}
+
+// IsEnabled returns true if database automatic user provisioning is enabled.
+func (m CreateDatabaseUserMode) IsEnabled() bool {
+	return m != CreateDatabaseUserMode_DB_USER_MODE_UNSPECIFIED && m != CreateDatabaseUserMode_DB_USER_MODE_OFF
 }

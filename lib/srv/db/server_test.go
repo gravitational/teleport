@@ -18,19 +18,23 @@ package db
 
 import (
 	"context"
+	"io"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/go-mysql-org/go-mysql/client"
 	"github.com/jackc/pgconn"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.mongodb.org/mongo-driver/mongo"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/limiter"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 // TestDatabaseServerStart validates that started database server updates its
@@ -181,6 +185,57 @@ func TestDatabaseServerLimiting(t *testing.T) {
 	})
 }
 
+func TestDatabaseServerAutoDisconnect(t *testing.T) {
+	const (
+		user   = "bob"
+		role   = "admin"
+		dbName = "postgres"
+		dbUser = user
+	)
+
+	ctx := context.Background()
+	allowDbUsers := []string{types.Wildcard}
+	allowDbNames := []string{types.Wildcard}
+
+	testCtx := setupTestContext(ctx, t, withSelfHostedPostgres("postgres"))
+
+	go testCtx.startHandlingConnections()
+	t.Cleanup(func() {
+		require.NoError(t, testCtx.Close())
+	})
+
+	const clientIdleTimeout = time.Second * 30
+
+	// create user/role with client idle timeout
+	testCtx.createUserAndRole(ctx, t, user, role, allowDbUsers, allowDbNames, withClientIdleTimeout(clientIdleTimeout))
+
+	// connect
+	pgConn, err := testCtx.postgresClient(ctx, user, "postgres", dbUser, dbName)
+	require.NoError(t, err)
+
+	// immediate query should work
+	_, err = pgConn.Exec(ctx, "select 1").ReadAll()
+	require.NoError(t, err)
+
+	// advance clock several times, perform query.
+	// the activity should update the idle activity timer.
+	for i := 0; i < 10; i++ {
+		testCtx.clock.Advance(clientIdleTimeout / 2)
+		_, err = pgConn.Exec(ctx, "select 1").ReadAll()
+		require.NoErrorf(t, err, "failed on iteration %v", i+1)
+	}
+
+	// advance clock by full idle timeout, expect the client to be disconnected automatically.
+	testCtx.clock.Advance(clientIdleTimeout)
+	waitForEvent(t, testCtx, events.ClientDisconnectCode)
+
+	// expect failure after timeout.
+	_, err = pgConn.Exec(ctx, "select 1").ReadAll()
+	require.Error(t, err)
+
+	require.NoError(t, pgConn.Close(ctx))
+}
+
 func TestHeartbeatEvents(t *testing.T) {
 	ctx := context.Background()
 
@@ -200,21 +255,24 @@ func TestHeartbeatEvents(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	// The expected heartbeat count is equal to the sum of:
+	// - the number of static Databases
+	// - plus 1 because the DatabaseService heartbeats itself to the cluster
+	expectedHeartbeatCount := func(dbs types.Databases) int64 {
+		return int64(dbs.Len() + 1)
+	}
+
 	tests := map[string]struct {
 		staticDatabases types.Databases
-		heartbeatCount  int64
 	}{
 		"SingleStaticDatabase": {
 			staticDatabases: types.Databases{dbOne},
-			heartbeatCount:  1,
 		},
 		"MultipleStaticDatabases": {
 			staticDatabases: types.Databases{dbOne, dbTwo},
-			heartbeatCount:  2,
 		},
 		"EmptyStaticDatabases": {
 			staticDatabases: types.Databases{},
-			heartbeatCount:  1,
 		},
 	}
 
@@ -239,8 +297,226 @@ func TestHeartbeatEvents(t *testing.T) {
 
 			require.NotNil(t, server)
 			require.Eventually(t, func() bool {
-				return atomic.LoadInt64(&heartbeatEvents) == test.heartbeatCount
+				return atomic.LoadInt64(&heartbeatEvents) == expectedHeartbeatCount(test.staticDatabases)
 			}, 2*time.Second, 500*time.Millisecond)
 		})
 	}
+}
+
+func TestShutdown(t *testing.T) {
+	tests := []struct {
+		name                             string
+		hasForkedChild                   bool
+		wantDatabaseServersAfterShutdown bool
+	}{
+		{
+			name:                             "regular shutdown",
+			hasForkedChild:                   false,
+			wantDatabaseServersAfterShutdown: false,
+		},
+		{
+			name:                             "has forked child",
+			hasForkedChild:                   true,
+			wantDatabaseServersAfterShutdown: true,
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := context.Background()
+			testCtx := setupTestContext(ctx, t)
+
+			db0, err := makeStaticDatabase("db0", nil)
+			require.NoError(t, err)
+
+			server := testCtx.setupDatabaseServer(ctx, t, agentParams{
+				Databases: []types.Database{db0},
+			})
+
+			// Validate that the server is proxying db0 after start.
+			require.Equal(t, server.getProxiedDatabases(), types.Databases{db0})
+
+			// Validate heartbeat is present after start.
+			server.ForceHeartbeat()
+			dbServers, err := testCtx.authClient.GetDatabaseServers(ctx, apidefaults.Namespace)
+			require.NoError(t, err)
+			require.Len(t, dbServers, 1)
+			require.Equal(t, dbServers[0].GetDatabase(), db0)
+
+			// Shutdown should not return error.
+			shutdownCtx, cancel := context.WithTimeout(ctx, time.Second*5)
+			t.Cleanup(cancel)
+			if test.hasForkedChild {
+				shutdownCtx = services.ProcessForkedContext(shutdownCtx)
+			}
+
+			require.NoError(t, server.Shutdown(shutdownCtx))
+
+			// Validate that the server is not proxying db0 after close.
+			require.Empty(t, server.getProxiedDatabases())
+
+			// Validate database servers based on the test.
+			dbServersAfterShutdown, err := testCtx.authClient.GetDatabaseServers(ctx, apidefaults.Namespace)
+			require.NoError(t, err)
+			if test.wantDatabaseServersAfterShutdown {
+				require.Equal(t, dbServers, dbServersAfterShutdown)
+			} else {
+				require.Empty(t, dbServersAfterShutdown)
+			}
+		})
+	}
+}
+
+func TestTrackActiveConnections(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	testCtx := setupTestContext(ctx, t, withSelfHostedPostgres("postgres"))
+	go testCtx.startHandlingConnections()
+	testCtx.createUserAndRole(ctx, t, "alice", "admin", []string{"*"}, []string{"*"})
+
+	numActiveConnections := 5
+	closeFuncs := []func() error{}
+
+	// Create a few connections, increasing the active connections. Keep track
+	// of the closer functions, so we can close them later.
+	for i := 0; i < numActiveConnections; i++ {
+		expectedActiveConnections := int32(i + 1)
+		conn, err := testCtx.postgresClient(ctx, "alice", "postgres", "postgres", "postgres")
+		require.NoError(t, err)
+		closeFuncs = append(closeFuncs, func() error { return conn.Close(ctx) })
+		// We're also adding them to the test cleanup to ensure connections are
+		// closed even when the test fails.
+		t.Cleanup(func() { conn.Close(ctx) })
+
+		require.Eventually(t, func() bool {
+			return expectedActiveConnections == testCtx.server.activeConnections.Load()
+		}, 2*time.Second, 100*time.Millisecond, "expected %d active connections, but got %d", expectedActiveConnections, testCtx.server.activeConnections.Load())
+	}
+
+	// For each connection we close, the active connections should drop too.
+	for i := 0; i < numActiveConnections; i++ {
+		expectedActiveConnections := int32(numActiveConnections - (i + 1))
+		require.NoError(t, closeFuncs[i]())
+
+		// Decreasing the active connection counter is one of the last things to
+		// happen when closing a connection. We might need to give it sometime
+		// to properly close the connection.
+		require.Eventually(t, func() bool {
+			return expectedActiveConnections == testCtx.server.activeConnections.Load()
+		}, 2*time.Second, 100*time.Millisecond, "expected %d active connections, but got %d", expectedActiveConnections, testCtx.server.activeConnections.Load())
+	}
+}
+
+// TestShutdownWithActiveConnections given that a running database server with
+// one active connection constantly sending queries, when the server is
+// gracefully shut down, it should keep running until the client closes the
+// connection.
+func TestShutdownWithActiveConnections(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	server, connErrCh, cancelConn := databaseServerWithActiveConnection(t, ctx)
+
+	shutdownCtx, cancelShutdown := context.WithTimeout(ctx, time.Second*5)
+	defer cancelShutdown()
+	shutdownErrCh := make(chan error)
+	go func() {
+		shutdownErrCh <- server.Shutdown(shutdownCtx)
+	}()
+
+	// Shutdown doesn't return immediately. We must wait for a short period to
+	// ensure it hasn't been completed.
+	require.Never(t, func() bool {
+		select {
+		case <-shutdownErrCh:
+			return true
+		default:
+			return false
+		}
+	}, time.Second, 100*time.Millisecond, "unexpected server shutdown")
+
+	select {
+	case err := <-connErrCh:
+		require.Fail(t, "unexpected connection close", err)
+	default:
+	}
+
+	cancelConn()
+	require.NoError(t, <-connErrCh, "unexpected connection close error")
+	require.NoError(t, <-shutdownErrCh, "unexpected server shutdown error")
+	require.NoError(t, server.Wait(), "unexpected server Wait error")
+}
+
+// TestShutdownWithActiveConnections given that a running database server with
+// one active connection constantly sending queries, when the server is
+// killed/stopped, it should drop connections and cleanup resources.
+func TestCloseWithActiveConnections(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	server, connErrCh, _ := databaseServerWithActiveConnection(t, ctx)
+
+	require.NoError(t, server.Close())
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		select {
+		case err := <-connErrCh:
+			assert.ErrorIs(t, err, io.ErrUnexpectedEOF)
+		default:
+		}
+	}, time.Second, 100*time.Millisecond)
+	require.NoError(t, server.Wait(), "unexpected server Wait error")
+}
+
+// serverWithActiveConnection starts a server with one active connection that
+// will actively make queries.
+func databaseServerWithActiveConnection(t *testing.T, ctx context.Context) (*Server, chan error, context.CancelFunc) {
+	t.Helper()
+
+	databaseName := "postgres"
+	testCtx := setupTestContext(ctx, t, withSelfHostedPostgres(databaseName))
+	go testCtx.startHandlingConnections()
+	testCtx.createUserAndRole(ctx, t, "alice", "admin", []string{"*"}, []string{"*"})
+
+	connCtx, cancelConn := context.WithCancel(ctx)
+	t.Cleanup(cancelConn)
+	connErrCh := make(chan error)
+
+	conn, err := testCtx.postgresClient(ctx, "alice", "postgres", "postgres", "postgres")
+	require.NoError(t, err, "failed to establish connection")
+
+	// Immediately sends a query. This ensures the connection is healthy and
+	// active.
+	_, err = conn.Exec(ctx, "select 1").ReadAll()
+	if err != nil {
+		conn.Close(ctx)
+		require.Fail(t, "failed to send initial query")
+	}
+
+	require.Equal(t, int32(1), testCtx.server.activeConnections.Load(), "expected one active connection, but got none")
+
+	go func() {
+		ticker := time.NewTicker(100 * time.Millisecond)
+		defer ticker.Stop()
+		defer conn.Close(ctx)
+
+		for {
+			select {
+			case <-ticker.C:
+				_, err := conn.Exec(ctx, "select 1").ReadAll()
+				if err != nil {
+					connErrCh <- err
+					return
+				}
+			case <-connCtx.Done():
+				connErrCh <- nil
+				return
+			}
+		}
+	}()
+
+	return testCtx.server, connErrCh, cancelConn
 }

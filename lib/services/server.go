@@ -19,16 +19,21 @@ package services
 import (
 	"encoding/json"
 	"fmt"
+	"net"
 	"time"
+
+	"github.com/aws/aws-sdk-go-v2/aws"
+	ec2Types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/uuid"
+	"github.com/gravitational/trace"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	libaws "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/google/go-cmp/cmp"
-	"github.com/gravitational/trace"
 )
 
 const (
@@ -38,6 +43,9 @@ const (
 	OnlyTimestampsDifferent = iota
 	// Different means that some fields are different
 	Different = iota
+
+	// defaultSSHPort is the default port for the OpenSSH Service.
+	defaultSSHPort = "22"
 )
 
 // CompareServers compares two provided servers.
@@ -60,6 +68,11 @@ func CompareServers(a, b types.Resource) int {
 	if dbA, ok := a.(types.DatabaseServer); ok {
 		if dbB, ok := b.(types.DatabaseServer); ok {
 			return compareDatabaseServers(dbA, dbB)
+		}
+	}
+	if dbServiceA, ok := a.(types.DatabaseService); ok {
+		if dbServiceB, ok := b.(types.DatabaseService); ok {
+			return compareDatabaseServices(dbServiceA, dbServiceB)
 		}
 	}
 	if winA, ok := a.(types.WindowsDesktopService); ok {
@@ -86,8 +99,13 @@ func compareServers(a, b types.Server) int {
 	if a.GetNamespace() != b.GetNamespace() {
 		return Different
 	}
-	if a.GetPublicAddr() != b.GetPublicAddr() {
+	if len(a.GetPublicAddrs()) != len(b.GetPublicAddrs()) {
 		return Different
+	}
+	for i := range a.GetPublicAddrs() {
+		if a.GetPublicAddrs()[i] != b.GetPublicAddrs()[i] {
+			return Different
+		}
 	}
 	r := a.GetRotation()
 	if !r.Matches(b.GetRotation()) {
@@ -105,12 +123,7 @@ func compareServers(a, b types.Server) int {
 	if a.GetTeleportVersion() != b.GetTeleportVersion() {
 		return Different
 	}
-	if !cmp.Equal(a.GetApps(), b.GetApps()) {
-		return Different
-	}
-	if !cmp.Equal(a.GetKubernetesClusters(), b.GetKubernetesClusters()) {
-		return Different
-	}
+
 	if !cmp.Equal(a.GetProxyIDs(), b.GetProxyIDs()) {
 		return Different
 	}
@@ -145,6 +158,25 @@ func compareApplicationServers(a, b types.AppServer) int {
 		return Different
 	}
 	// OnlyTimestampsDifferent check must be after all Different checks.
+	if !a.Expiry().Equal(b.Expiry()) {
+		return OnlyTimestampsDifferent
+	}
+	return Equal
+}
+
+func compareDatabaseServices(a, b types.DatabaseService) int {
+	if a.GetKind() != b.GetKind() {
+		return Different
+	}
+	if a.GetName() != b.GetName() {
+		return Different
+	}
+	if a.GetNamespace() != b.GetNamespace() {
+		return Different
+	}
+	if !cmp.Equal(a.GetResourceMatchers(), b.GetResourceMatchers()) {
+		return Different
+	}
 	if !a.Expiry().Equal(b.Expiry()) {
 		return OnlyTimestampsDifferent
 	}
@@ -320,38 +352,31 @@ func UnmarshalServer(bytes []byte, kind string, opts ...MarshalOption) (types.Se
 		return nil, trace.BadParameter("missing server data")
 	}
 
-	var h types.ResourceHeader
-	if err = utils.FastUnmarshal(bytes, &h); err != nil {
+	var s types.ServerV2
+	if err := utils.FastUnmarshal(bytes, &s); err != nil {
+		return nil, trace.BadParameter(err.Error())
+	}
+	s.Kind = kind
+	if err := s.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	switch h.Version {
-	case types.V2:
-		var s types.ServerV2
-
-		if err := utils.FastUnmarshal(bytes, &s); err != nil {
-			return nil, trace.BadParameter(err.Error())
-		}
-		s.Kind = kind
-		if err := s.CheckAndSetDefaults(); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		if cfg.ID != 0 {
-			s.SetResourceID(cfg.ID)
-		}
-		if !cfg.Expires.IsZero() {
-			s.SetExpiry(cfg.Expires)
-		}
-		if s.Metadata.Expires != nil {
-			apiutils.UTC(s.Metadata.Expires)
-		}
-		// Force the timestamps to UTC for consistency.
-		// See https://github.com/gogo/protobuf/issues/519 for details on issues this causes for proto.Clone
-		apiutils.UTC(&s.Spec.Rotation.Started)
-		apiutils.UTC(&s.Spec.Rotation.LastRotated)
-		return &s, nil
+	if cfg.ID != 0 {
+		s.SetResourceID(cfg.ID)
 	}
-	return nil, trace.BadParameter("server resource version %q is not supported", h.Version)
+	if cfg.Revision != "" {
+		s.SetRevision(cfg.Revision)
+	}
+	if !cfg.Expires.IsZero() {
+		s.SetExpiry(cfg.Expires)
+	}
+	if s.Metadata.Expires != nil {
+		apiutils.UTC(s.Metadata.Expires)
+	}
+	// Force the timestamps to UTC for consistency.
+	// See https://github.com/gogo/protobuf/issues/519 for details on issues this causes for proto.Clone
+	apiutils.UTC(&s.Spec.Rotation.Started)
+	apiutils.UTC(&s.Spec.Rotation.LastRotated)
+	return &s, nil
 }
 
 // MarshalServer marshals the Server resource to JSON.
@@ -372,6 +397,7 @@ func MarshalServer(server types.Server, opts ...MarshalOption) ([]byte, error) {
 			// to prevent unexpected data races
 			copy := *server
 			copy.SetResourceID(0)
+			copy.SetRevision("")
 			server = &copy
 		}
 		return utils.FastMarshal(server)
@@ -390,8 +416,8 @@ func UnmarshalServers(bytes []byte) ([]types.Server, error) {
 	}
 
 	out := make([]types.Server, len(servers))
-	for i, v := range servers {
-		out[i] = types.Server(&v)
+	for i := range servers {
+		out[i] = types.Server(&servers[i])
 	}
 	return out, nil
 }
@@ -410,4 +436,46 @@ func MarshalServers(s []types.Server) ([]byte, error) {
 func NodeHasMissedKeepAlives(s types.Server) bool {
 	serverExpiry := s.Expiry()
 	return serverExpiry.Before(time.Now().Add(apidefaults.ServerAnnounceTTL - (apidefaults.ServerKeepAliveTTL() * 2)))
+}
+
+// NewAWSNodeFromEC2Instance creates a Node resource from an EC2 Instance.
+// It has a pre-populated spec which contains info that is not available in the ec2.Instance object.
+func NewAWSNodeFromEC2Instance(instance ec2Types.Instance, awsCloudMetadata *types.AWSInfo) (types.Server, error) {
+	labels := libaws.TagsToLabels(instance.Tags)
+	if labels == nil {
+		labels = make(map[string]string)
+	}
+	libaws.AddMetadataLabels(labels, awsCloudMetadata.AccountID, awsCloudMetadata.Region)
+
+	instanceID := aws.ToString(instance.InstanceId)
+	labels[types.AWSInstanceIDLabel] = instanceID
+
+	awsCloudMetadata.InstanceID = instanceID
+	awsCloudMetadata.VPCID = aws.ToString(instance.VpcId)
+	awsCloudMetadata.SubnetID = aws.ToString(instance.SubnetId)
+
+	if aws.ToString(instance.PrivateIpAddress) == "" {
+		return nil, trace.BadParameter("private ip address is required from ec2 instance")
+	}
+	// Address requires the Port.
+	// We use the default port for the OpenSSH daemon.
+	addr := net.JoinHostPort(aws.ToString(instance.PrivateIpAddress), defaultSSHPort)
+
+	server, err := types.NewNode(
+		uuid.NewString(),
+		types.SubKindOpenSSHEICENode,
+		types.ServerSpecV2{
+			Hostname: aws.ToString(instance.PrivateDnsName),
+			Addr:     addr,
+			CloudMetadata: &types.CloudMetadata{
+				AWS: awsCloudMetadata,
+			},
+		},
+		labels,
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return server, nil
 }

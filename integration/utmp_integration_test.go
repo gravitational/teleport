@@ -19,6 +19,7 @@ package integration
 import (
 	"context"
 	"os"
+	"os/user"
 	"path"
 	"testing"
 	"time"
@@ -26,6 +27,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 
@@ -36,18 +38,20 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/bpf"
-	"github.com/gravitational/teleport/lib/pam"
 	restricted "github.com/gravitational/teleport/lib/restrictedsession"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/regular"
 	"github.com/gravitational/teleport/lib/srv/uacc"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// teleportTestUser is additional user used for tests
-const teleportTestUser = "teleport-test"
+// teleportFakeUser is a user that doesn't exist, used for tests.
+const teleportFakeUser = "teleport-fake"
 
 // wildcardAllow is used in tests to allow access to all labels.
 var wildcardAllow = types.Labels{
@@ -62,6 +66,8 @@ type SrvCtx struct {
 	nodeClient *auth.Client
 	nodeID     string
 	utmpPath   string
+	wtmpPath   string
+	btmpPath   string
 }
 
 // TestRootUTMPEntryExists verifies that user accounting is done on supported systems.
@@ -70,51 +76,87 @@ func TestRootUTMPEntryExists(t *testing.T) {
 		t.Skip("This test will be skipped because tests are not being run as root.")
 	}
 
+	user, err := user.Current()
+	require.NoError(t, err)
+	teleportTestUser := user.Name
+
 	ctx := context.Background()
 	s := newSrvCtx(ctx, t)
-	up, err := newUpack(ctx, s, teleportTestUser, []string{teleportTestUser}, wildcardAllow)
+	up, err := newUpack(ctx, s, teleportTestUser, []string{teleportTestUser, teleportFakeUser}, wildcardAllow)
 	require.NoError(t, err)
 
-	sshConfig := &ssh.ClientConfig{
-		User:            teleportTestUser,
-		Auth:            []ssh.AuthMethod{ssh.PublicKeys(up.certSigner)},
-		HostKeyCallback: ssh.FixedHostKey(s.signer.PublicKey()),
-	}
+	t.Run("successful login is logged in utmp and wtmp", func(t *testing.T) {
+		sshConfig := &ssh.ClientConfig{
+			User:            teleportTestUser,
+			Auth:            []ssh.AuthMethod{ssh.PublicKeys(up.certSigner)},
+			HostKeyCallback: ssh.FixedHostKey(s.signer.PublicKey()),
+		}
 
-	client, err := ssh.Dial("tcp", s.srv.Addr(), sshConfig)
-	require.NoError(t, err)
-	defer func() {
-		err := client.Close()
+		client, err := ssh.Dial("tcp", s.srv.Addr(), sshConfig)
 		require.NoError(t, err)
-	}()
-
-	se, err := client.NewSession()
-	require.NoError(t, err)
-	defer se.Close()
-
-	modes := ssh.TerminalModes{
-		ssh.ECHO:          0,     // disable echoing
-		ssh.TTY_OP_ISPEED: 14400, // input speed = 14.4kbaud
-		ssh.TTY_OP_OSPEED: 14400, // output speed = 14.4kbaud
-	}
-
-	require.NoError(t, se.RequestPty("xterm", 80, 80, modes), nil)
-	err = se.Shell()
-	require.NoError(t, err)
-
-	start := time.Now()
-	for time.Since(start) < 5*time.Minute {
-		time.Sleep(time.Second)
-		entryExists := uacc.UserWithPtyInDatabase(s.utmpPath, teleportTestUser)
-		if entryExists == nil {
-			return
-		}
-		if !trace.IsNotFound(entryExists) {
+		defer func() {
+			err := client.Close()
 			require.NoError(t, err)
-		}
-	}
+		}()
 
-	t.Errorf("did not detect utmp entry within 5 minutes")
+		se, err := client.NewSession()
+		require.NoError(t, err)
+		defer se.Close()
+
+		modes := ssh.TerminalModes{
+			ssh.ECHO:          0,     // disable echoing
+			ssh.TTY_OP_ISPEED: 14400, // input speed = 14.4kbaud
+			ssh.TTY_OP_OSPEED: 14400, // output speed = 14.4kbaud
+		}
+
+		require.NoError(t, se.RequestPty("xterm", 80, 80, modes), nil)
+		err = se.Shell()
+		require.NoError(t, err)
+
+		require.EventuallyWithTf(t, func(collect *assert.CollectT) {
+			require.NoError(collect, uacc.UserWithPtyInDatabase(s.utmpPath, teleportTestUser))
+			require.NoError(collect, uacc.UserWithPtyInDatabase(s.wtmpPath, teleportTestUser))
+			// Ensure than an entry was not written to btmp.
+			require.True(collect, trace.IsNotFound(uacc.UserWithPtyInDatabase(s.btmpPath, teleportTestUser)), "unexpected error: %v", err)
+		}, 5*time.Minute, time.Second, "did not detect utmp entry within 5 minutes")
+	})
+
+	t.Run("unsuccessful login is logged in btmp", func(t *testing.T) {
+		sshConfig := &ssh.ClientConfig{
+			User:            teleportFakeUser,
+			Auth:            []ssh.AuthMethod{ssh.PublicKeys(up.certSigner)},
+			HostKeyCallback: ssh.FixedHostKey(s.signer.PublicKey()),
+		}
+
+		client, err := ssh.Dial("tcp", s.srv.Addr(), sshConfig)
+		require.NoError(t, err)
+		defer func() {
+			err := client.Close()
+			require.NoError(t, err)
+		}()
+
+		se, err := client.NewSession()
+		require.NoError(t, err)
+		defer se.Close()
+
+		modes := ssh.TerminalModes{
+			ssh.ECHO:          0,     // disable echoing
+			ssh.TTY_OP_ISPEED: 14400, // input speed = 14.4kbaud
+			ssh.TTY_OP_OSPEED: 14400, // output speed = 14.4kbaud
+		}
+
+		require.NoError(t, se.RequestPty("xterm", 80, 80, modes), nil)
+		err = se.Shell()
+		require.NoError(t, err)
+
+		require.EventuallyWithT(t, func(collect *assert.CollectT) {
+			require.NoError(collect, uacc.UserWithPtyInDatabase(s.btmpPath, teleportFakeUser))
+			// Ensure that entries were not written to utmp and wtmp
+			require.True(collect, trace.IsNotFound(uacc.UserWithPtyInDatabase(s.utmpPath, teleportFakeUser)), "unexpected error: %v", err)
+			require.True(collect, trace.IsNotFound(uacc.UserWithPtyInDatabase(s.wtmpPath, teleportFakeUser)), "unexpected error: %v", err)
+		}, 5*time.Minute, time.Second, "did not detect btmp entry within 5 minutes")
+	})
+
 }
 
 // TestUsernameLimit tests that the maximum length of usernames is a hard error.
@@ -137,12 +179,12 @@ func TestRootUsernameLimit(t *testing.T) {
 	host := [4]int32{0, 0, 0, 0}
 	tty := os.NewFile(uintptr(0), "/proc/self/fd/0")
 	err = uacc.Open(utmpPath, wtmpPath, username, "localhost", host, tty)
-	require.Error(t, err)
+	require.True(t, trace.IsBadParameter(err))
 
 	// A 32 character long username.
 	username = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 	err = uacc.Open(utmpPath, wtmpPath, username, "localhost", host, tty)
-	require.NoError(t, err)
+	require.False(t, trace.IsBadParameter(err))
 }
 
 // upack holds all ssh signing artifacts needed for signing and checking user keys
@@ -229,7 +271,7 @@ func newSrvCtx(ctx context.Context, t *testing.T) *SrvCtx {
 
 	s.nodeID = uuid.New().String()
 	s.nodeClient, err = s.server.NewClient(auth.TestIdentity{
-		I: auth.BuiltinRole{
+		I: authz.BuiltinRole{
 			Role:     types.RoleNode,
 			Username: s.nodeID,
 		},
@@ -239,11 +281,13 @@ func newSrvCtx(ctx context.Context, t *testing.T) *SrvCtx {
 	uaccDir := t.TempDir()
 	utmpPath := path.Join(uaccDir, "utmp")
 	wtmpPath := path.Join(uaccDir, "wtmp")
-	err = TouchFile(utmpPath)
-	require.NoError(t, err)
-	err = TouchFile(wtmpPath)
-	require.NoError(t, err)
+	btmpPath := path.Join(uaccDir, "btmp")
+	require.NoError(t, TouchFile(utmpPath))
+	require.NoError(t, TouchFile(wtmpPath))
+	require.NoError(t, TouchFile(btmpPath))
 	s.utmpPath = utmpPath
+	s.wtmpPath = wtmpPath
+	s.btmpPath = btmpPath
 
 	lockWatcher, err := services.NewLockWatcher(ctx, services.LockWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
@@ -254,8 +298,19 @@ func newSrvCtx(ctx context.Context, t *testing.T) *SrvCtx {
 	require.NoError(t, err)
 	t.Cleanup(lockWatcher.Close)
 
+	nodeSessionController, err := srv.NewSessionController(srv.SessionControllerConfig{
+		Semaphores:   s.nodeClient,
+		AccessPoint:  s.nodeClient,
+		LockEnforcer: lockWatcher,
+		Emitter:      s.nodeClient,
+		Component:    teleport.ComponentNode,
+		ServerID:     s.nodeID,
+	})
+	require.NoError(t, err)
+
 	nodeDir := t.TempDir()
 	srv, err := regular.New(
+		ctx,
 		utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
 		s.server.ClusterName(),
 		[]ssh.Signer{s.signer},
@@ -268,7 +323,7 @@ func newSrvCtx(ctx context.Context, t *testing.T) *SrvCtx {
 		regular.SetNamespace(apidefaults.Namespace),
 		regular.SetEmitter(s.nodeClient),
 		regular.SetShell("/bin/sh"),
-		regular.SetPAMConfig(&pam.Config{Enabled: false}),
+		regular.SetPAMConfig(&servicecfg.PAMConfig{Enabled: false}),
 		regular.SetLabels(
 			map[string]string{"foo": "bar"},
 			services.CommandLabels{
@@ -281,12 +336,12 @@ func newSrvCtx(ctx context.Context, t *testing.T) *SrvCtx {
 		regular.SetBPF(&bpf.NOP{}),
 		regular.SetRestrictedSessionManager(&restricted.NOP{}),
 		regular.SetClock(s.clock),
-		regular.SetUtmpPath(utmpPath, utmpPath),
+		regular.SetUserAccountingPaths(utmpPath, wtmpPath, btmpPath),
 		regular.SetLockWatcher(lockWatcher),
+		regular.SetSessionController(nodeSessionController),
 	)
 	require.NoError(t, err)
 	s.srv = srv
-	require.NoError(t, auth.CreateUploaderDir(nodeDir))
 	require.NoError(t, s.srv.Start())
 	return s
 }
@@ -310,12 +365,12 @@ func newUpack(ctx context.Context, s *SrvCtx, username string, allowedLogins []s
 	role.SetOptions(opts)
 	role.SetLogins(types.Allow, allowedLogins)
 	role.SetNodeLabels(types.Allow, allowedLabels)
-	err = auth.UpsertRole(ctx, role)
+	role, err = auth.UpsertRole(ctx, role)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	user.AddRole(role.GetName())
-	err = auth.UpsertUser(user)
+	user, err = auth.UpsertUser(ctx, user)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

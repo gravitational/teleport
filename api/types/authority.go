@@ -20,15 +20,15 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/gravitational/trace"
+	"golang.org/x/exp/slices"
+
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/utils"
-
-	"github.com/gogo/protobuf/proto"
-	"github.com/gravitational/trace"
 )
 
-// CertAuthority is a host or user certificate authority that
-// can check and if it has private key stored as well, sign it too
+// CertAuthority is a host or user certificate authority that can check and if
+// it has private key stored as well, sign it too.
 type CertAuthority interface {
 	// ResourceWithSecrets sets common resource properties
 	ResourceWithSecrets
@@ -71,8 +71,8 @@ type CertAuthority interface {
 	GetRotation() Rotation
 	// SetRotation sets rotation state.
 	SetRotation(Rotation)
-	// AllKeyTypesMatch returns true if all keys in the CA are of the same type.
-	AllKeyTypesMatch() bool
+	// AllKeyTypes returns the set of all different key types in the CA.
+	AllKeyTypes() []string
 	// Clone returns a copy of the cert authority object.
 	Clone() CertAuthority
 }
@@ -108,7 +108,7 @@ func (ca *CertAuthorityV2) SetSubKind(s string) {
 
 // Clone returns a copy of the cert authority object.
 func (ca *CertAuthorityV2) Clone() CertAuthority {
-	return proto.Clone(ca).(*CertAuthorityV2)
+	return utils.CloneProtoMsg(ca)
 }
 
 // GetRotation returns rotation state.
@@ -152,6 +152,16 @@ func (ca *CertAuthorityV2) GetResourceID() int64 {
 // SetResourceID sets resource ID
 func (ca *CertAuthorityV2) SetResourceID(id int64) {
 	ca.Metadata.ID = id
+}
+
+// GetRevision returns the revision
+func (ca *CertAuthorityV2) GetRevision() string {
+	return ca.Metadata.GetRevision()
+}
+
+// SetRevision sets the revision
+func (ca *CertAuthorityV2) SetRevision(rev string) {
+	ca.Metadata.SetRevision(rev)
 }
 
 // WithoutSecrets returns an instance of resource without secrets.
@@ -350,8 +360,8 @@ func (ca *CertAuthorityV2) CheckAndSetDefaults() error {
 	return nil
 }
 
-// AllKeyTypesMatch returns true if all private keys in the given CA are of the same type.
-func (ca *CertAuthorityV2) AllKeyTypesMatch() bool {
+// AllKeyTypes returns the set of all different key types in the CA.
+func (ca *CertAuthorityV2) AllKeyTypes() []string {
 	keyTypes := make(map[PrivateKeyType]struct{})
 	for _, keySet := range []CAKeySet{ca.Spec.ActiveKeys, ca.Spec.AdditionalTrustedKeys} {
 		for _, keyPair := range keySet.SSH {
@@ -364,7 +374,11 @@ func (ca *CertAuthorityV2) AllKeyTypesMatch() bool {
 			keyTypes[keyPair.PrivateKeyType] = struct{}{}
 		}
 	}
-	return len(keyTypes) == 1
+	var strs []string
+	for k := range keyTypes {
+		strs = append(strs, k.String())
+	}
+	return strs
 }
 
 const (
@@ -416,6 +430,16 @@ var RotatePhases = []string{
 // all fields to be the same.
 func (r *Rotation) Matches(rotation Rotation) bool {
 	return r.CurrentID == rotation.CurrentID && r.State == rotation.State && r.Phase == rotation.Phase
+}
+
+// IsZero checks if this is the zero value of Rotation. Works on nil and non-nil rotation
+// values.
+func (r *Rotation) IsZero() bool {
+	if r == nil {
+		return true
+	}
+
+	return r.Matches(Rotation{})
 }
 
 // LastRotatedDescription returns human friendly description.
@@ -544,8 +568,8 @@ type CertRoles struct {
 func (k *TLSKeyPair) Clone() *TLSKeyPair {
 	return &TLSKeyPair{
 		KeyType: k.KeyType,
-		Key:     utils.CopyByteSlice(k.Key),
-		Cert:    utils.CopyByteSlice(k.Cert),
+		Key:     slices.Clone(k.Key),
+		Cert:    slices.Clone(k.Cert),
 	}
 }
 
@@ -554,8 +578,8 @@ func (k *TLSKeyPair) Clone() *TLSKeyPair {
 func (k *JWTKeyPair) Clone() *JWTKeyPair {
 	return &JWTKeyPair{
 		PrivateKeyType: k.PrivateKeyType,
-		PrivateKey:     utils.CopyByteSlice(k.PrivateKey),
-		PublicKey:      utils.CopyByteSlice(k.PublicKey),
+		PrivateKey:     slices.Clone(k.PrivateKey),
+		PublicKey:      slices.Clone(k.PublicKey),
 	}
 }
 
@@ -564,8 +588,8 @@ func (k *JWTKeyPair) Clone() *JWTKeyPair {
 func (k *SSHKeyPair) Clone() *SSHKeyPair {
 	return &SSHKeyPair{
 		PrivateKeyType: k.PrivateKeyType,
-		PrivateKey:     utils.CopyByteSlice(k.PrivateKey),
-		PublicKey:      utils.CopyByteSlice(k.PublicKey),
+		PrivateKey:     slices.Clone(k.PrivateKey),
+		PublicKey:      slices.Clone(k.PublicKey),
 	}
 }
 
@@ -703,5 +727,4 @@ func (f *CertAuthorityFilter) FromMap(m map[string]string) {
 	for key, val := range m {
 		(*f)[CertAuthType(key)] = val
 	}
-
 }

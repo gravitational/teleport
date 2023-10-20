@@ -19,14 +19,14 @@ import (
 	"context"
 	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/utils/interval"
-
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 )
 
 // Config is the config for users service.
@@ -50,7 +50,11 @@ func (c *Config) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing UpdateMeta")
 	}
 	if c.Clients == nil {
-		c.Clients = cloud.NewClients()
+		cloudClients, err := cloud.NewClients()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		c.Clients = cloudClients
 	}
 	if c.Clock == nil {
 		c.Clock = clockwork.NewRealClock()
@@ -192,7 +196,7 @@ func (u *Users) setupAllDatabasesAndRotatePassowrds(ctx context.Context, allData
 			delete(u.usersByID, userID)
 
 			if err := user.Teardown(ctx); err != nil {
-				u.cfg.Log.WithError(err).Errorf("Failed to tear down user %v.", user)
+				u.cfg.Log.WithError(err).Errorf("Failed to tear down user %v.", user.GetID())
 			}
 		}
 	}
@@ -202,6 +206,10 @@ func (u *Users) setupAllDatabasesAndRotatePassowrds(ctx context.Context, allData
 // rotate user passwords.
 func (u *Users) setupDatabasesAndRotatePasswords(ctx context.Context, databases types.Databases, updateMeta bool) {
 	for _, database := range databases {
+		// Reset cache in case the same database name is now used for a
+		// different database server.
+		u.lookup.removeIfURIChanged(database)
+
 		fetcher, found := u.fetchersByType[database.GetType()]
 		if !found {
 			continue
@@ -235,7 +243,7 @@ func (u *Users) setupDatabasesAndRotatePasswords(ctx context.Context, databases 
 		var users []User
 		for _, fetchedUser := range fetchedUsers {
 			if user, err := u.setupUser(ctx, fetchedUser); err != nil {
-				u.cfg.Log.WithError(err).Errorf("Failed to setup user %v for database %v.", fetchedUser, database)
+				u.cfg.Log.WithError(err).Errorf("Failed to setup user %s for database %v.", fetchedUser.GetID(), database)
 			} else {
 				users = append(users, user)
 			}
@@ -244,7 +252,7 @@ func (u *Users) setupDatabasesAndRotatePasswords(ctx context.Context, databases 
 		// Rotate passwords.
 		for _, user := range users {
 			if err = user.RotatePassword(ctx); err != nil {
-				u.cfg.Log.WithError(err).Errorf("Failed to rotate password for user %v", user)
+				u.cfg.Log.WithError(err).Errorf("Failed to rotate password for user %s", user.GetID())
 			}
 		}
 

@@ -11,6 +11,7 @@ BINDIR=/usr/local/bin
 VARDIR=/var/lib/teleport
 
 [ ! $(id -u) != "0" ] || { echo "ERROR: You must be root"; exit 1; }
+echo "Starting Teleport installation..."
 cd $(dirname $0)
 mkdir -p $VARDIR $BINDIR
 cp -f teleport tctl tsh tbot $BINDIR/ || exit 1

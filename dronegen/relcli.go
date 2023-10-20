@@ -14,7 +14,7 @@
 
 package main
 
-const relcliImage = "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/relcli:v1.1.70"
+const relcliImage = "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/relcli:master-57a5d42-20230412T1204687"
 
 func relcliPipeline(trigger trigger, name string, stepName string, command string) pipeline {
 	p := newKubePipeline(name)
@@ -31,28 +31,32 @@ func relcliPipeline(trigger trigger, name string, stepName string, command strin
 			},
 		},
 		waitForDockerStep(),
-		pullRelcliStep(),
+		kubernetesAssumeAwsRoleStep(kubernetesRoleSettings{
+			awsRoleSettings: awsRoleSettings{
+				awsAccessKeyID:     value{fromSecret: "TELEPORT_BUILD_USER_READ_ONLY_KEY"},
+				awsSecretAccessKey: value{fromSecret: "TELEPORT_BUILD_USER_READ_ONLY_SECRET"},
+				role:               value{fromSecret: "TELEPORT_BUILD_READ_ONLY_AWS_ROLE"},
+			},
+			configVolume: volumeRefAwsConfig,
+		}),
+		pullRelcliStep(volumeRefAwsConfig),
 		executeRelcliStep(stepName, command),
 	}
 
-	p.Services = []service{
-		dockerService(volumeRefTmpfs),
-	}
-	p.Volumes = dockerVolumes(volumeTmpfs)
+	p.Services = []service{dockerService(volumeRefTmpfs)}
+	p.Volumes = []volume{volumeTmpfs, volumeAwsConfig, volumeDocker, volumeDockerConfig}
 
 	return p
 }
 
-func pullRelcliStep() step {
+func pullRelcliStep(awsConfigVolumeRef volumeRef) step {
 	return step{
 		Name:  "Pull relcli",
 		Image: "docker:cli",
 		Environment: map[string]value{
-			"AWS_ACCESS_KEY_ID":     {fromSecret: "TELEPORT_BUILD_USER_READ_ONLY_KEY"},
-			"AWS_SECRET_ACCESS_KEY": {fromSecret: "TELEPORT_BUILD_USER_READ_ONLY_SECRET"},
-			"AWS_DEFAULT_REGION":    {raw: "us-west-2"},
+			"AWS_DEFAULT_REGION": {raw: "us-west-2"},
 		},
-		Volumes: dockerVolumeRefs(),
+		Volumes: []volumeRef{volumeRefDocker, volumeRefAwsConfig},
 		Commands: []string{
 			`apk add --no-cache aws-cli`,
 			`aws ecr get-login-password | docker login -u="AWS" --password-stdin 146628656107.dkr.ecr.us-west-2.amazonaws.com`,
@@ -72,10 +76,7 @@ func executeRelcliStep(name string, command string) step {
 			"RELCLI_CERT":     {raw: "/tmpfs/creds/releases.crt"},
 			"RELCLI_KEY":      {raw: "/tmpfs/creds/releases.key"},
 		},
-		Volumes: dockerVolumeRefs(volumeRef{
-			Name: "tmpfs",
-			Path: "/tmpfs",
-		}),
+		Volumes: []volumeRef{volumeRefDocker, volumeRefTmpfs, volumeRefAwsConfig},
 		Commands: []string{
 			`mkdir -p /tmpfs/creds`,
 			`echo "$RELEASES_CERT" | base64 -d > "$RELCLI_CERT"`,

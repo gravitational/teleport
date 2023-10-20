@@ -21,22 +21,22 @@ import (
 	"encoding/json"
 	"strings"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
-
-	"github.com/gravitational/trace"
 )
 
 // CreateResources attempts to dynamically create the supplied resources.
 // This function returns `trace.AlreadyExistsError` if one or more resources
 // would be overwritten, and `trace.NotImplementedError` if any resources
-// are of an unsupported type (see `ItemsFromResources(...)`).
+// are of an unsupported type (see `itemsFromResources(...)`).
 //
 // NOTE: This function is non-atomic and performs no internal synchronization;
 // backend must be locked by caller when operating in parallel environment.
 func CreateResources(ctx context.Context, b backend.Backend, resources ...types.Resource) error {
-	items, err := ItemsFromResources(resources...)
+	items, err := itemsFromResources(resources...)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -60,9 +60,9 @@ func CreateResources(ctx context.Context, b backend.Backend, resources ...types.
 	return nil
 }
 
-// ItemsFromResources attempts to convert resources into instances of backend.Item.
+// itemsFromResources attempts to convert resources into instances of backend.Item.
 // NOTE: this is not necessarily a 1-to-1 conversion.
-func ItemsFromResources(resources ...types.Resource) ([]backend.Item, error) {
+func itemsFromResources(resources ...types.Resource) ([]backend.Item, error) {
 	var allItems []backend.Item
 	for _, rsc := range resources {
 		items, err := itemsFromResource(rsc)
@@ -99,6 +99,10 @@ func itemsFromResource(resource types.Resource) ([]backend.Item, error) {
 		item, err = itemFromOIDCConnector(r)
 	case types.SAMLConnector:
 		item, err = itemFromSAMLConnector(r)
+	case types.ProvisionToken:
+		item, err = itemFromProvisionToken(r)
+	case types.Lock:
+		item, err = itemFromLock(r)
 	default:
 		return nil, trace.NotImplemented("cannot itemFrom resource of type %T", resource)
 	}
@@ -111,85 +115,23 @@ func itemsFromResource(resource types.Resource) ([]backend.Item, error) {
 	return items, nil
 }
 
-// ItemsToResources converts one or more items into one or more resources.
-// NOTE: This is not necessarily a 1-to-1 conversion, and order is not preserved.
-func ItemsToResources(items ...backend.Item) ([]types.Resource, error) {
-	var resources []types.Resource
-	// User resources may be split across multiple items, so we must extract them first.
-	users, rem, err := collectUserItems(items)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	for uname, uitems := range users {
-		user, err := userFromUserItems(uname, uitems)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		resources = append(resources, user)
-	}
-	for _, item := range rem {
-		rsc, err := itemToResource(item)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		resources = append(resources, rsc)
-	}
-	return resources, nil
-}
-
-// itemToResource attempts to decode the supplied `backend.Item` as one
-// of the supported resource types.  If the resource's `kind` does not match
-// one of the supported resource types, `trace.NotImplementedError` is returned.
-func itemToResource(item backend.Item) (types.Resource, error) {
-	var u services.UnknownResource
-	if err := u.UnmarshalJSON(item.Value); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var rsc types.Resource
-	var err error
-	switch kind := u.GetKind(); kind {
-	case types.KindUser:
-		rsc, err = itemToUser(item)
-	case types.KindCertAuthority:
-		rsc, err = itemToCertAuthority(item)
-	case types.KindTrustedCluster:
-		rsc, err = itemToTrustedCluster(item)
-	case types.KindGithubConnector:
-		rsc, err = itemToGithubConnector(item)
-	case types.KindRole:
-		rsc, err = itemToRole(item)
-	case types.KindOIDCConnector:
-		rsc, err = itemToOIDCConnector(item)
-	case types.KindSAMLConnector:
-		rsc, err = itemToSAMLConnector(item)
-	case types.KindMFADevice:
-		rsc, err = itemToMFADevice(item)
-	case "":
-		return nil, trace.BadParameter("item %q is not a resource (missing field 'kind')", string(item.Key))
-	default:
-		return nil, trace.NotImplemented("cannot dynamically decode resource of kind %q", kind)
-	}
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return rsc, nil
-}
-
 // itemFromUser attempts to encode the supplied user as an
 // instance of `backend.Item` suitable for storage.
 func itemFromUser(user types.User) (*backend.Item, error) {
 	if err := services.ValidateUser(user); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	rev := user.GetRevision()
 	value, err := services.MarshalUser(user)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	item := &backend.Item{
-		Key:     backend.Key(webPrefix, usersPrefix, user.GetName(), paramsPrefix),
-		Value:   value,
-		Expires: user.Expiry(),
-		ID:      user.GetResourceID(),
+		Key:      backend.Key(webPrefix, usersPrefix, user.GetName(), paramsPrefix),
+		Value:    value,
+		Expires:  user.Expiry(),
+		ID:       user.GetResourceID(),
+		Revision: rev,
 	}
 	return item, nil
 }
@@ -201,6 +143,7 @@ func itemToUser(item backend.Item) (types.User, error) {
 		item.Value,
 		services.WithResourceID(item.ID),
 		services.WithExpires(item.Expires),
+		services.WithRevision(item.Revision),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -217,34 +160,40 @@ func itemFromCertAuthority(ca types.CertAuthority) (*backend.Item, error) {
 	if err := services.ValidateCertAuthority(ca); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	rev := ca.GetRevision()
 	value, err := services.MarshalCertAuthority(ca)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	item := &backend.Item{
-		Key:     backend.Key(authoritiesPrefix, string(ca.GetType()), ca.GetName()),
-		Value:   value,
-		Expires: ca.Expiry(),
-		ID:      ca.GetResourceID(),
+		Key:      backend.Key(authoritiesPrefix, string(ca.GetType()), ca.GetName()),
+		Value:    value,
+		Expires:  ca.Expiry(),
+		ID:       ca.GetResourceID(),
+		Revision: rev,
 	}
 	return item, nil
 }
 
-// itemToCertAuthority attempts to decode the supplied `backend.Item` as
-// a certificate authority resource (NOTE: does not filter secrets).
-func itemToCertAuthority(item backend.Item) (types.CertAuthority, error) {
-	ca, err := services.UnmarshalCertAuthority(
-		item.Value,
-		services.WithResourceID(item.ID),
-		services.WithExpires(item.Expires),
-	)
+// itemFromProvisionToken attempts to encode the supplied provision token
+// as an instance of `backend.Item` suitable for storage.
+func itemFromProvisionToken(p types.ProvisionToken) (*backend.Item, error) {
+	if err := p.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	rev := p.GetRevision()
+	value, err := services.MarshalProvisionToken(p)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := services.ValidateCertAuthority(ca); err != nil {
-		return nil, trace.Wrap(err)
+	item := &backend.Item{
+		Key:      backend.Key(tokensPrefix, p.GetName()),
+		Value:    value,
+		Expires:  p.Expiry(),
+		ID:       p.GetResourceID(),
+		Revision: rev,
 	}
-	return ca, nil
+	return item, nil
 }
 
 // itemFromTrustedCluster attempts to encode the supplied trusted cluster
@@ -253,31 +202,19 @@ func itemFromTrustedCluster(tc types.TrustedCluster) (*backend.Item, error) {
 	if err := tc.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	rev := tc.GetRevision()
 	value, err := services.MarshalTrustedCluster(tc)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	item := &backend.Item{
-		Key:     backend.Key(trustedClustersPrefix, tc.GetName()),
-		Value:   value,
-		Expires: tc.Expiry(),
-		ID:      tc.GetResourceID(),
+		Key:      backend.Key(trustedClustersPrefix, tc.GetName()),
+		Value:    value,
+		Expires:  tc.Expiry(),
+		ID:       tc.GetResourceID(),
+		Revision: rev,
 	}
 	return item, nil
-}
-
-// itemToTrustedCluster attempts to decode the supplied `backend.Item` as
-// a trusted cluster resource.
-func itemToTrustedCluster(item backend.Item) (types.TrustedCluster, error) {
-	tc, err := services.UnmarshalTrustedCluster(
-		item.Value,
-		services.WithResourceID(item.ID),
-		services.WithExpires(item.Expires),
-	)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return tc, nil
 }
 
 // itemFromGithubConnector attempts to encode the supplied github connector
@@ -286,96 +223,62 @@ func itemFromGithubConnector(gc types.GithubConnector) (*backend.Item, error) {
 	if err := gc.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	rev := gc.GetRevision()
 	value, err := services.MarshalGithubConnector(gc)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	item := &backend.Item{
-		Key:     backend.Key(webPrefix, connectorsPrefix, githubPrefix, connectorsPrefix, gc.GetName()),
-		Value:   value,
-		Expires: gc.Expiry(),
-		ID:      gc.GetResourceID(),
+		Key:      backend.Key(webPrefix, connectorsPrefix, githubPrefix, connectorsPrefix, gc.GetName()),
+		Value:    value,
+		Expires:  gc.Expiry(),
+		ID:       gc.GetResourceID(),
+		Revision: rev,
 	}
 	return item, nil
-}
-
-// itemToGithubConnector attempts to decode the supplied `backend.Item` as
-// a github connector resource.
-func itemToGithubConnector(item backend.Item) (types.GithubConnector, error) {
-	// XXX: The `GithubConnectorMarshaler` interface is an outlier in that it
-	// does not support marshal options (e.g. `WithResourceID(..)`).  Support should
-	// be added unless this is an intentional omission.
-	gc, err := services.UnmarshalGithubConnector(item.Value)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return gc, nil
 }
 
 // itemFromRole attempts to encode the supplied role as an
 // instance of `backend.Item` suitable for storage.
 func itemFromRole(role types.Role) (*backend.Item, error) {
+	rev := role.GetRevision()
 	value, err := services.MarshalRole(role)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	item := &backend.Item{
-		Key:     backend.Key(rolesPrefix, role.GetName(), paramsPrefix),
-		Value:   value,
-		Expires: role.Expiry(),
-		ID:      role.GetResourceID(),
+		Key:      backend.Key(rolesPrefix, role.GetName(), paramsPrefix),
+		Value:    value,
+		Expires:  role.Expiry(),
+		ID:       role.GetResourceID(),
+		Revision: rev,
 	}
 	return item, nil
-}
-
-// itemToRole attempts to decode the supplied `backend.Item` as
-// a role resource.
-func itemToRole(item backend.Item) (types.Role, error) {
-	role, err := services.UnmarshalRole(
-		item.Value,
-		services.WithResourceID(item.ID),
-		services.WithExpires(item.Expires),
-	)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return role, nil
 }
 
 // itemFromOIDCConnector attempts to encode the supplied connector as an
 // instance of `backend.Item` suitable for storage.
 func itemFromOIDCConnector(connector types.OIDCConnector) (*backend.Item, error) {
+	rev := connector.GetRevision()
 	value, err := services.MarshalOIDCConnector(connector)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	item := &backend.Item{
-		Key:     backend.Key(webPrefix, connectorsPrefix, oidcPrefix, connectorsPrefix, connector.GetName()),
-		Value:   value,
-		Expires: connector.Expiry(),
-		ID:      connector.GetResourceID(),
+		Key:      backend.Key(webPrefix, connectorsPrefix, oidcPrefix, connectorsPrefix, connector.GetName()),
+		Value:    value,
+		Expires:  connector.Expiry(),
+		ID:       connector.GetResourceID(),
+		Revision: rev,
 	}
 	return item, nil
-}
-
-// itemToOIDCConnector attempts to decode the supplied `backend.Item` as
-// an oidc connector resource.
-func itemToOIDCConnector(item backend.Item) (types.OIDCConnector, error) {
-	connector, err := services.UnmarshalOIDCConnector(
-		item.Value,
-		services.WithResourceID(item.ID),
-		services.WithExpires(item.Expires),
-	)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return connector, nil
 }
 
 // itemFromSAMLConnector attempts to encode the supplied connector as an
 // instance of `backend.Item` suitable for storage.
 func itemFromSAMLConnector(connector types.SAMLConnector) (*backend.Item, error) {
+	rev := connector.GetRevision()
 	if err := services.ValidateSAMLConnector(connector, nil); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -384,32 +287,13 @@ func itemFromSAMLConnector(connector types.SAMLConnector) (*backend.Item, error)
 		return nil, trace.Wrap(err)
 	}
 	item := &backend.Item{
-		Key:     backend.Key(webPrefix, connectorsPrefix, samlPrefix, connectorsPrefix, connector.GetName()),
-		Value:   value,
-		Expires: connector.Expiry(),
-		ID:      connector.GetResourceID(),
+		Key:      backend.Key(webPrefix, connectorsPrefix, samlPrefix, connectorsPrefix, connector.GetName()),
+		Value:    value,
+		Expires:  connector.Expiry(),
+		ID:       connector.GetResourceID(),
+		Revision: rev,
 	}
 	return item, nil
-}
-
-// itemToSAMLConnector attempts to decode the supplied `backend.Item` as
-// a saml connector resource.
-func itemToSAMLConnector(item backend.Item) (types.SAMLConnector, error) {
-	connector, err := services.UnmarshalSAMLConnector(
-		item.Value,
-		services.WithResourceID(item.ID),
-		services.WithExpires(item.Expires),
-	)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return connector, nil
-}
-
-func itemToMFADevice(item backend.Item) (*types.MFADevice, error) {
-	var d types.MFADevice
-	err := json.Unmarshal(item.Value, &d)
-	return &d, trace.Wrap(err)
 }
 
 // userFromUserItems is an extended variant of itemToUser which can be used
@@ -483,6 +367,26 @@ func itemsFromLocalAuthSecrets(user string, auth types.LocalAuthSecrets) ([]back
 		})
 	}
 	return items, nil
+}
+
+// itemFromLock attempts to encode the supplied lock as an
+// instance of `backend.Item` suitable for storage.
+func itemFromLock(l types.Lock) (*backend.Item, error) {
+	if err := l.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	rev := l.GetRevision()
+	value, err := services.MarshalLock(l)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &backend.Item{
+		Key:      backend.Key(locksPrefix, l.GetName()),
+		Value:    value,
+		Expires:  l.Expiry(),
+		ID:       l.GetResourceID(),
+		Revision: rev,
+	}, nil
 }
 
 // TODO: convert username/suffix ops to work on bytes by default; string/byte conversion

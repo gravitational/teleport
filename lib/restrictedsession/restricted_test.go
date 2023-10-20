@@ -30,17 +30,19 @@ import (
 	"testing"
 	"time"
 
+	gocmp "github.com/google/go-cmp/cmp"
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/require"
+
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	api "github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/utils"
-
-	go_cmp "github.com/google/go-cmp/cmp"
-	"github.com/stretchr/testify/require"
 )
 
 type blockAction int
@@ -61,97 +63,83 @@ const (
 	testPort = 8888
 )
 
-var (
-	testRanges = []blockedRange{
-		{
-			ver:   4,
-			allow: "39.156.69.70/28",
-			deny:  "39.156.69.71",
-			probe: map[string]blockAction{
-				"39.156.69.64": allowed,
-				"39.156.69.79": allowed,
-				"39.156.69.71": denied,
-				"39.156.69.63": denied,
-				"39.156.69.80": denied,
-				"72.156.69.80": denied,
-			},
+var testRanges = []blockedRange{
+	{
+		ver:   4,
+		allow: "39.156.69.70/28",
+		deny:  "39.156.69.71",
+		probe: map[string]blockAction{
+			"39.156.69.64": allowed,
+			"39.156.69.79": allowed,
+			"39.156.69.71": denied,
+			"39.156.69.63": denied,
+			"39.156.69.80": denied,
+			"72.156.69.80": denied,
 		},
-		{
-			ver:   4,
-			allow: "77.88.55.88",
-			probe: map[string]blockAction{
-				"77.88.55.88": allowed,
-				"77.88.55.87": denied,
-				"77.88.55.86": denied,
-				"67.88.55.86": denied,
-			},
+	},
+	{
+		ver:   4,
+		allow: "77.88.55.88",
+		probe: map[string]blockAction{
+			"77.88.55.88": allowed,
+			"77.88.55.87": denied,
+			"77.88.55.86": denied,
+			"67.88.55.86": denied,
 		},
-		{
-			ver:   6,
-			allow: "39.156.68.48/28",
-			deny:  "39.156.68.48/31",
-			probe: map[string]blockAction{
-				"::ffff:39.156.68.48": denied,
-				"::ffff:39.156.68.49": denied,
-				"::ffff:39.156.68.50": allowed,
-				"::ffff:39.156.68.63": allowed,
-				"::ffff:39.156.68.47": denied,
-				"::ffff:39.156.68.64": denied,
-				"::ffff:72.156.68.80": denied,
-			},
+	},
+	{
+		ver:   6,
+		allow: "39.156.68.48/28",
+		deny:  "39.156.68.48/31",
+		probe: map[string]blockAction{
+			"::ffff:39.156.68.48": denied,
+			"::ffff:39.156.68.49": denied,
+			"::ffff:39.156.68.50": allowed,
+			"::ffff:39.156.68.63": allowed,
+			"::ffff:39.156.68.47": denied,
+			"::ffff:39.156.68.64": denied,
+			"::ffff:72.156.68.80": denied,
 		},
-		{
-			ver:   6,
-			allow: "fc80::/64",
-			deny:  "fc80::10/124",
-			probe: map[string]blockAction{
-				"fc80::":                    allowed,
-				"fc80::ffff:ffff:ffff:ffff": allowed,
-				"fc80::10":                  denied,
-				"fc80::1f":                  denied,
-				"fc7f:ffff:ffff:ffff:ffff:ffff:ffff:ffff": denied,
-				"fc60:0:0:1::": denied,
-			},
+	},
+	{
+		ver:   6,
+		allow: "fc80::/64",
+		deny:  "fc80::10/124",
+		probe: map[string]blockAction{
+			"fc80::":                    allowed,
+			"fc80::ffff:ffff:ffff:ffff": allowed,
+			"fc80::10":                  denied,
+			"fc80::1f":                  denied,
+			"fc7f:ffff:ffff:ffff:ffff:ffff:ffff:ffff": denied,
+			"fc60:0:0:1::": denied,
 		},
-		{
-			ver:   6,
-			allow: "2607:f8b0:4005:80a::200e",
-			probe: map[string]blockAction{
-				"2607:f8b0:4005:80a::200e": allowed,
-				"2607:f8b0:4005:80a::200d": denied,
-				"2607:f8b0:4005:80a::200f": denied,
-				"2607:f8b0:4005:80a::300f": denied,
-			},
+	},
+	{
+		ver:   6,
+		allow: "2607:f8b0:4005:80a::200e",
+		probe: map[string]blockAction{
+			"2607:f8b0:4005:80a::200e": allowed,
+			"2607:f8b0:4005:80a::200d": denied,
+			"2607:f8b0:4005:80a::200f": denied,
+			"2607:f8b0:4005:80a::300f": denied,
 		},
-	}
-)
+	},
+}
 
 type bpfContext struct {
 	cgroupDir        string
 	cgroupID         uint64
-	ctx              *srv.ServerContext
+	ctx              *bpf.SessionContext
 	enhancedRecorder bpf.BPF
 	restrictedMgr    Manager
 	srcAddrs         map[int]string
 
 	// Audit events emitted by us
-	emitter             eventstest.MockEmitter
+	emitter             eventstest.MockRecorderEmitter
 	expectedAuditEvents []apievents.AuditEvent
 }
 
-type terminal struct {
-	srv.Terminal
-	pid int
-}
-
-func (t terminal) PID() int {
-	return t.pid
-}
-
 func setupBPFContext(t *testing.T) *bpfContext {
-	tt := bpfContext{}
-	t.Cleanup(func() { tt.Close(t) })
-
 	utils.InitLoggerForTests()
 
 	// This test must be run as root and the host has to be capable of running
@@ -160,40 +148,54 @@ func setupBPFContext(t *testing.T) *bpfContext {
 		t.Skip("Tests for package restrictedsession can only be run as root.")
 	}
 
-	tt.srcAddrs = map[int]string{
+	// Create temporary directory where cgroup2 hierarchy will be mounted.
+	// DO NOT MOVE THIS LINE.
+	// t.TempDir() creates t.Cleanup() action. If this hook is called before
+	// we mount cgroup in Close() this test will fail.
+	cgroupDir := t.TempDir()
+
+	bpfCtx := bpfContext{
+		cgroupDir: cgroupDir,
+	}
+	t.Cleanup(func() { bpfCtx.Close(t) })
+
+	bpfCtx.srcAddrs = map[int]string{
 		4: "0.0.0.0",
 		6: "::",
 	}
 
+	config := &servicecfg.RestrictedSessionConfig{
+		Enabled: true,
+	}
+
 	var err error
-	// Create temporary directory where cgroup2 hierarchy will be mounted.
-	tt.cgroupDir = t.TempDir()
-
-	// Create BPF service since we piggy-back on it
-	tt.enhancedRecorder, err = bpf.New(&bpf.Config{
+	// Create BPF service since we piggyback on it
+	bpfCtx.enhancedRecorder, err = bpf.New(&servicecfg.BPFConfig{
 		Enabled:    true,
-		CgroupPath: tt.cgroupDir,
-	})
+		CgroupPath: bpfCtx.cgroupDir,
+	}, config)
 	require.NoError(t, err)
 
-	server := srv.NewMockServer(t)
-	server.MockEmitter = &tt.emitter
+	// Create the SessionContext used by both enhanced recording and us (restricted session)
+	bpfCtx.ctx = &bpf.SessionContext{
+		Namespace:      apidefaults.Namespace,
+		SessionID:      uuid.New().String(),
+		ServerID:       uuid.New().String(),
+		ServerHostname: "ip-172-31-11-148",
+		Login:          "foo",
+		User:           "foo@example.com",
+		PID:            os.Getpid(),
+		Emitter:        &bpfCtx.emitter,
+		Events:         map[string]bool{},
+	}
 
-	role, err := api.NewRole("restricted", api.RoleSpecV5{})
+	// Create enhanced recording session to piggyback on.
+	bpfCtx.cgroupID, err = bpfCtx.enhancedRecorder.OpenSession(bpfCtx.ctx)
 	require.NoError(t, err)
+	require.Equal(t, bpfCtx.cgroupID > 0, true)
 
-	srvctx := srv.NewTestServerContext(t, server, services.NewRoleSet(role))
-	srvctx.SetTerm(terminal{pid: os.Getpid()})
-
-	tt.ctx = srvctx
-
-	// Create enhanced recording session to piggy-back on.
-	tt.cgroupID, err = tt.enhancedRecorder.OpenSession(tt.ctx)
-	require.NoError(t, err)
-	require.Equal(t, tt.cgroupID > 0, true)
-
-	var deny []api.AddressCondition
-	var allow []api.AddressCondition
+	deny := []api.AddressCondition{}
+	allow := []api.AddressCondition{}
 	for _, r := range testRanges {
 		if len(r.deny) > 0 {
 			deny = append(deny, api.AddressCondition{CIDR: r.deny})
@@ -208,23 +210,19 @@ func setupBPFContext(t *testing.T) *bpfContext {
 	restrictions.SetAllow(allow)
 	restrictions.SetDeny(deny)
 
-	config := &Config{
-		Enabled: true,
-	}
-
 	client := &mockClient{
 		restrictions: restrictions,
 		Fanout:       *services.NewFanout(),
 	}
 
-	tt.restrictedMgr, err = New(config, client)
+	bpfCtx.restrictedMgr, err = New(config, client)
 	require.NoError(t, err)
 
-	client.Fanout.SetInit()
+	client.Fanout.SetInit([]api.WatchKind{{Kind: api.KindNetworkRestrictions}})
 
 	time.Sleep(100 * time.Millisecond)
 
-	return &tt
+	return &bpfCtx
 }
 
 func (tt *bpfContext) Close(t *testing.T) {
@@ -238,6 +236,9 @@ func (tt *bpfContext) Close(t *testing.T) {
 
 	if tt.enhancedRecorder != nil && tt.ctx != nil {
 		err := tt.enhancedRecorder.CloseSession(tt.ctx)
+		require.NoError(t, err)
+		const restarting = false
+		err = tt.enhancedRecorder.Close(restarting)
 		require.NoError(t, err)
 	}
 
@@ -301,27 +302,27 @@ func (tt *bpfContext) sendExpectDeny(t *testing.T, ver int, ip string) {
 }
 
 func (tt *bpfContext) expectedAuditEvent(ver int, ip string, op apievents.SessionNetwork_NetworkOperation) apievents.AuditEvent {
-	sessionID := tt.ctx.SessionID()
 	return &apievents.SessionNetwork{
 		Metadata: apievents.Metadata{
 			Type: events.SessionNetworkEvent,
 			Code: events.SessionNetworkCode,
 		},
 		ServerMetadata: apievents.ServerMetadata{
-			ServerID:        tt.ctx.GetServer().HostUUID(),
-			ServerNamespace: tt.ctx.GetServer().GetNamespace(),
+			ServerID:        tt.ctx.ServerID,
+			ServerHostname:  tt.ctx.ServerHostname,
+			ServerNamespace: tt.ctx.Namespace,
 		},
 		SessionMetadata: apievents.SessionMetadata{
-			SessionID: sessionID.String(),
+			SessionID: tt.ctx.SessionID,
 		},
 		UserMetadata: apievents.UserMetadata{
-			User:  tt.ctx.Identity.TeleportUser,
-			Login: tt.ctx.Identity.Login,
+			User:  tt.ctx.User,
+			Login: tt.ctx.Login,
 		},
 		BPFMetadata: apievents.BPFMetadata{
 			CgroupID: tt.cgroupID,
 			Program:  "restrictedsessi",
-			PID:      uint64(tt.ctx.GetPID()),
+			PID:      uint64(tt.ctx.PID),
 		},
 		DstPort:    testPort,
 		DstAddr:    ip,
@@ -345,7 +346,7 @@ func TestRootNetwork(t *testing.T) {
 		expected blockAction
 	}
 
-	var tests []testCase
+	tests := []testCase{}
 	for _, r := range testRanges {
 		for ip, expected := range r.probe {
 			tests = append(tests, testCase{
@@ -387,9 +388,10 @@ func TestRootNetwork(t *testing.T) {
 
 	// Check that the emitted audit events are correct
 	actualAuditEvents := tt.emitter.Events()
-	require.Empty(t, go_cmp.Diff(actualAuditEvents, tt.expectedAuditEvents))
+	require.Empty(t, gocmp.Diff(tt.expectedAuditEvents, actualAuditEvents),
+		"Audit events mismatch (-want +got)")
 
-	// Clear out the expected and actual evetns
+	// Clear out the expected and actual events
 	tt.expectedAuditEvents = nil
 	tt.emitter.Reset()
 
@@ -402,14 +404,6 @@ func TestRootNetwork(t *testing.T) {
 	// Nothing should be reported to the audit log
 	time.Sleep(100 * time.Millisecond)
 	require.Empty(t, tt.emitter.Events())
-}
-
-func mustParseIPSpec(cidr string) *net.IPNet {
-	ipnet, err := ParseIPSpec(cidr)
-	if err != nil {
-		panic(err)
-	}
-	return ipnet
 }
 
 type mockClient struct {

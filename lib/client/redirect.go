@@ -24,12 +24,14 @@ import (
 	"net/http/httptest"
 	"net/url"
 
-	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/secret"
-	"github.com/gravitational/teleport/lib/utils"
-
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/secret"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 const (
@@ -91,7 +93,7 @@ type RedirectorConfig struct {
 
 // NewRedirector returns new local web server redirector
 func NewRedirector(ctx context.Context, login SSHLoginSSO, config *RedirectorConfig) (*Redirector, error) {
-	clt, proxyURL, err := initClient(login.ProxyAddr, login.Insecure, login.Pool)
+	clt, proxyURL, err := initClient(login.ProxyAddr, login.Insecure, login.Pool, login.ExtraHeaders)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -148,7 +150,13 @@ func (rd *Redirector) Start() error {
 		}
 		rd.server = &httptest.Server{
 			Listener: listener,
-			Config:   &http.Server{Handler: rd.mux},
+			Config: &http.Server{
+				Handler:           rd.mux,
+				ReadTimeout:       apidefaults.DefaultIOTimeout,
+				ReadHeaderTimeout: defaults.ReadHeadersTimeout,
+				WriteTimeout:      apidefaults.DefaultIOTimeout,
+				IdleTimeout:       apidefaults.DefaultIdleTimeout,
+			},
 		}
 		rd.server.Start()
 	} else {
@@ -196,13 +204,13 @@ func (rd *Redirector) issueSSOLoginConsoleRequest(req SSOLoginConsoleReq) (*SSOL
 		return nil, trace.Wrap(err)
 	}
 
-	var re *SSOLoginConsoleResponse
+	var re SSOLoginConsoleResponse
 	err = json.Unmarshal(out.Bytes(), &re)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return re, nil
+	return &re, nil
 }
 
 // Done is called when redirector is closed
@@ -247,13 +255,13 @@ func (rd *Redirector) callback(w http.ResponseWriter, r *http.Request) (*auth.SS
 		return nil, trace.BadParameter("failed to decrypt response: in %v, err: %v", r.URL.String(), err)
 	}
 
-	var re *auth.SSHLoginResponse
+	var re auth.SSHLoginResponse
 	err = json.Unmarshal(plaintext, &re)
 	if err != nil {
 		return nil, trace.BadParameter("failed to decrypt response: in %v, err: %v", r.URL.String(), err)
 	}
 
-	return re, nil
+	return &re, nil
 }
 
 // Close closes redirector and releases all resources

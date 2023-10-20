@@ -20,12 +20,15 @@ import (
 	"context"
 	"sync"
 
-	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/cloud"
-
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/cloud"
+	"github.com/gravitational/teleport/lib/srv/db/common/enterprise"
 )
 
 var (
@@ -51,17 +54,43 @@ func RegisterEngine(fn EngineFn, names ...string) {
 }
 
 // GetEngine returns a new engine for the provided configuration.
-func GetEngine(name string, conf EngineConfig) (Engine, error) {
+func GetEngine(db types.Database, conf EngineConfig) (Engine, error) {
 	if err := conf.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	conf.Auth = newReportingAuth(db, conf.Auth)
 	enginesMu.RLock()
+	name := db.GetProtocol()
 	engineFn := engines[name]
 	enginesMu.RUnlock()
 	if engineFn == nil {
 		return nil, trace.NotFound("database engine %q is not registered", name)
 	}
-	return engineFn(conf), nil
+	engine, err := newReportingEngine(reporterConfig{
+		engine:    engineFn(conf),
+		component: teleport.ComponentDatabase,
+		database:  db,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return engine, nil
+}
+
+// CheckEngines checks if provided engine names are registered.
+func CheckEngines(names ...string) error {
+	enginesMu.RLock()
+	defer enginesMu.RUnlock()
+	for _, name := range names {
+		if err := enterprise.ProtocolValidation(name); err != nil {
+			// Don't assert Enterprise protocol is a build is OSS
+			continue
+		}
+		if engines[name] == nil {
+			return trace.NotFound("database engine %q is not registered", name)
+		}
+	}
+	return nil
 }
 
 // EngineConfig is the common configuration every database engine uses.
@@ -82,6 +111,10 @@ type EngineConfig struct {
 	Log logrus.FieldLogger
 	// Users handles database users.
 	Users Users
+	// DataDir is the Teleport data directory
+	DataDir string
+	// GetUserProvisioner is automatic database users creation handler.
+	GetUserProvisioner func(AutoUsers) *UserProvisioner
 }
 
 // CheckAndSetDefaults validates the config and sets default values.

@@ -90,6 +90,10 @@ func TestSanitize(t *testing.T) {
 
 type nopBackend struct{}
 
+func (n *nopBackend) GetName() string {
+	return "nop"
+}
+
 func (n *nopBackend) Get(_ context.Context, _ []byte) (*Item, error) {
 	return &Item{}, nil
 }
@@ -112,11 +116,19 @@ func (n *nopBackend) Update(_ context.Context, _ Item) (*Lease, error) {
 	return &Lease{}, nil
 }
 
+func (n *nopBackend) ConditionalUpdate(_ context.Context, _ Item) (*Lease, error) {
+	return &Lease{}, nil
+}
+
 func (n *nopBackend) CompareAndSwap(_ context.Context, _ Item, _ Item) (*Lease, error) {
 	return &Lease{}, nil
 }
 
 func (n *nopBackend) Delete(_ context.Context, _ []byte) error {
+	return nil
+}
+
+func (n *nopBackend) ConditionalDelete(ctx context.Context, key []byte, revision string) error {
 	return nil
 }
 

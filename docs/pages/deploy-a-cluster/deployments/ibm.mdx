@@ -7,13 +7,6 @@ We've created this guide to give customers an overview of how to use Teleport on
 [IBM Cloud](https://www.ibm.com/cloud). This guide provides a high-level
 introduction to setting up and running Teleport in production.
 
-<ScopedBlock scope="cloud">
-
-This guide shows you how to deploy the Auth Service and Proxy Service, which
-Teleport Cloud manages for you.
-
-</ScopedBlock>
-
 We have split this guide into:
 
 - [Teleport on IBM FAQ](#teleport-on-ibm-cloud-faq)
@@ -42,13 +35,13 @@ We plan on expanding our guide to eventually include using Teleport with IBM Clo
 
 ## IBM Teleport Introduction
 
-This guide will cover how to setup, configure and run Teleport on IBM Cloud.
+This guide will cover how to set up, configure and run Teleport on IBM Cloud.
 
 IBM Services required to run Teleport in High Availability:
 
 - [IBM Cloud: Virtual Servers with Instance Groups](#ibm-cloud-virtual-servers-with-instance-groups)
 - [Storage: Database for etcd](#storage-database-for-etcd)
-- [Storage: IBM Cloud File Storage](#storage-ibm-cloud-file-storage)
+- [Storage: IBM Cloud Object Storage](#storage-ibm-cloud-object-storage)
 - [Network Services: Cloud DNS](#network-ibm-cloud-dns-services)
 
 Other things needed:
@@ -110,19 +103,14 @@ teleport:
     prefix: '/teleport/'
 ```
 
-### Storage: IBM Cloud File Storage
+### Storage: IBM Cloud Object Storage
 
-We recommend using [IBM Cloud File Storage](https://www.ibm.com/cloud/file-storage) to store Teleport recorded sessions.
+We recommend using [IBM Cloud Object Storage](https://www.ibm.com/cloud/object-storage) to store Teleport recorded sessions.
 
-1. Create New File Storage Resource. [IBM Catalog - File Storage Quick Link](https://cloud.ibm.com/catalog/infrastructure/file-storage)
-
-   1a. We recommend using `Standard`
-
-2. Create a new bucket.
-
-3. Setup [HMAC Credentials](https://cloud.ibm.com/docs/cloud-object-storage?topic=cloud-object-storage-uhc-hmac-credentials-main)
-
-4. Update audit sessions URI: `audit_sessions_uri: 's3://BUCKET-NAME/readonly/records?endpoint=s3.us-east.cloud-object-storage.appdomain.cloud&region=ibm'`
+- Create New Object Storage Resource. [IBM Catalog - Object Storage Quick Link](https://cloud.ibm.com/catalog/infrastructure/object-storage)
+- Create a new bucket.
+- Set up [HMAC Credentials](https://cloud.ibm.com/docs/cloud-object-storage?topic=cloud-object-storage-uhc-hmac-credentials-main)
+- Update audit sessions URI: `audit_sessions_uri: 's3://BUCKET-NAME/readonly/records?endpoint=s3.us-east.cloud-object-storage.appdomain.cloud&region=ibm'`
 
 When setting up `audit_sessions_uri` use `s3://` session prefix.
 
@@ -151,8 +139,8 @@ Save these settings to `~/.aws/credentials`
 ```yaml
 # Example keys from example service account to be saved into ~/.aws/credentials
 [default]
-aws_access_key_id="e668d66374e141668e3432443bc879e"
-aws_secret_access_key="d8762b57f61d5dd524ccd49c7d44861ceafdsfds37d05836"
+aws_access_key_id="(=aws.aws_access_key=)"
+aws_secret_access_key="(=aws.aws_secret_access_key=)"
 ```
 
 Example `/etc/teleport.yaml`
@@ -178,7 +166,7 @@ storage:
 </Admonition>
 
 ```code
-$ teleport start --config=/etc/teleport.yaml -d
+$ sudo teleport start --config=/etc/teleport.yaml -d
 # DEBU [SQLITE]    Connected to: file:/var/lib/teleport/proc/sqlite.db?_busy_timeout=10000&_sync=OFF, poll stream period: 1s lite/lite.go:173
 # DEBU [SQLITE]    Synchronous: 0, busy timeout: 10000 lite/lite.go:220
 # DEBU [KEYGEN]    SSH cert authority is going to pre-compute 25 keys. native/native.go:104

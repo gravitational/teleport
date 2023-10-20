@@ -21,14 +21,17 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"sort"
 	"strings"
 	"time"
 
-	"github.com/gravitational/teleport/api/types"
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-
 	"github.com/jonboulle/clockwork"
+
+	"github.com/gravitational/teleport/api/internalutils/stream"
+	"github.com/gravitational/teleport/api/types"
 )
 
 // Forever means that object TTL will not expire unless deleted
@@ -36,10 +39,17 @@ const (
 	Forever time.Duration = 0
 )
 
+// ErrIncorrectRevision is returned from conditional operations when revisions
+// do not match the expected value.
+var ErrIncorrectRevision = &trace.CompareFailedError{Message: "resource revision does not match, it may have been concurrently created|modified|deleted; please work from the latest state, or use --force to overwrite"}
+
 // Backend implements abstraction over local or remote storage backend.
 // Item keys are assumed to be valid UTF8, which may be enforced by the
 // various Backend implementations.
 type Backend interface {
+	// GetName returns the implementation driver name.
+	GetName() string
+
 	// Create creates item if it does not exist
 	Create(ctx context.Context, i Item) (*Lease, error)
 
@@ -73,6 +83,13 @@ type Backend interface {
 	// in case if the lease managed server side
 	KeepAlive(ctx context.Context, lease Lease, expires time.Time) error
 
+	// ConditionalUpdate updates the value in the backend if the revision of the [Item] matches
+	// the stored revision.
+	ConditionalUpdate(ctx context.Context, i Item) (*Lease, error)
+
+	// ConditionalDelete deletes the item by key if the revision matches the stored revision.
+	ConditionalDelete(ctx context.Context, key []byte, revision string) error
+
 	// NewWatcher returns a new event watcher
 	NewWatcher(ctx context.Context, watch Watch) (Watcher, error)
 
@@ -105,12 +122,33 @@ func IterateRange(ctx context.Context, bk Backend, startKey []byte, endKey []byt
 	}
 }
 
-// Batch implements some batch methods
-// that are not mandatory for all interfaces,
-// only the ones used in bulk operations.
-type Batch interface {
-	// PutRange puts range of items in one transaction
-	PutRange(ctx context.Context, items []Item) error
+// StreamRange constructs a Stream for the given key range. This helper just
+// uses standard pagination under the hood, lazily loading pages as needed. Streams
+// are currently only used for periodic operations, but if they become more widely
+// used in the future, it may become worthwhile to optimize the streaming of backend
+// items further. Two potential improvements of note:
+//
+// 1. update this helper to concurrently load the next page in the background while
+// items from the current page are being yielded.
+//
+// 2. allow individual backends to expose custom streaming methods s.t. the most performant
+// impl for a given backend may be used.
+func StreamRange(ctx context.Context, bk Backend, startKey, endKey []byte, pageSize int) stream.Stream[Item] {
+	return stream.PageFunc[Item](func() ([]Item, error) {
+		if startKey == nil {
+			return nil, io.EOF
+		}
+		rslt, err := bk.GetRange(ctx, startKey, endKey, pageSize)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if len(rslt.Items) < pageSize {
+			startKey = nil
+		} else {
+			startKey = nextKey(rslt.Items[pageSize-1].Key)
+		}
+		return rslt.Items, nil
+	})
 }
 
 // Lease represents a lease on the item that can be used
@@ -118,20 +156,18 @@ type Batch interface {
 //
 // Here is an example of renewing object TTL:
 //
-// item.Expires = time.Now().Add(10 * time.Second)
-// lease, err := backend.Create(ctx, item)
-// expires := time.Now().Add(20 * time.Second)
-// err = backend.KeepAlive(ctx, lease, expires)
+//	item.Expires = time.Now().Add(10 * time.Second)
+//	lease, err := backend.Create(ctx, item)
+//	expires := time.Now().Add(20 * time.Second)
+//	err = backend.KeepAlive(ctx, lease, expires)
 type Lease struct {
-	// Key is an object representing lease
+	// Key is the resource identifier.
 	Key []byte
-	// ID is a lease ID, could be empty
+	// ID is a lease ID, could be empty.
+	// Deprecated: use Revision instead
 	ID int64
-}
-
-// IsEmpty returns true if the lease is empty value
-func (l *Lease) IsEmpty() bool {
-	return l.ID == 0 && len(l.Key) == 0
+	// Revision is the last known version of the object.
+	Revision string
 }
 
 // Watch specifies watcher parameters
@@ -191,10 +227,10 @@ type Item struct {
 	// Expires is an optional record expiry time
 	Expires time.Time
 	// ID is a record ID, newer records have newer ids
+	// Deprecated: use Revision instead
 	ID int64
-	// LeaseID is a lease ID, could be set on objects
-	// with TTL
-	LeaseID int64
+	// Revision is the last known version of the object.
+	Revision string
 }
 
 func (e Event) String() string {
@@ -230,36 +266,6 @@ func (p Params) GetString(key string) string {
 	}
 	s, _ := v.(string)
 	return s
-}
-
-// Cleanse fixes an issue with yamlv2 decoding nested sections to
-// map[interface{}]interface{} rather than map[string]interface{}.
-// ObjectToStruct will fail on the former. yamlv3 corrects this behavior.
-// All non-string keys are dropped.
-func (p Params) Cleanse() {
-	for key, value := range p {
-		if mapValue, ok := value.(map[interface{}]interface{}); ok {
-			p[key] = convertParams(mapValue)
-		}
-	}
-}
-
-// convertParams converts from a map[interface{}]interface{} to
-// map[string]interface{} recursively. All non-string keys are dropped.
-// This function is called by Params.Cleanse.
-func convertParams(from map[interface{}]interface{}) (to map[string]interface{}) {
-	to = make(map[string]interface{}, len(from))
-	for key, value := range from {
-		strKey, ok := key.(string)
-		if !ok {
-			continue
-		}
-		if mapValue, ok := value.(map[interface{}]interface{}); ok {
-			value = convertParams(mapValue)
-		}
-		to[strKey] = value
-	}
-	return to
 }
 
 // NoLimit specifies no limits
@@ -417,4 +423,26 @@ func ExactKey(parts ...string) []byte {
 
 func internalKey(internalPrefix string, parts ...string) []byte {
 	return []byte(strings.Join(append([]string{internalPrefix}, parts...), string(Separator)))
+}
+
+// CreateRevision generates a new identifier to be used
+// as a resource revision. Backend implementations that provide
+// their own mechanism for versioning resources should be
+// preferred.
+func CreateRevision() string {
+	return uuid.NewString()
+}
+
+// BlankRevision is a placeholder revision to be used by backends when
+// the revision of the item in the backend is empty. This can happen
+// to any existing resources that were last written before support for
+// revisions was added.
+var BlankRevision = uuid.Nil.String()
+
+// NewLease creates a lease for the provided [Item].
+func NewLease(item Item) *Lease {
+	return &Lease{
+		Key:      item.Key,
+		Revision: item.Revision,
+	}
 }

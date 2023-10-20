@@ -19,6 +19,7 @@ package constants
 
 import (
 	"encoding/json"
+	"time"
 
 	"github.com/gravitational/trace"
 )
@@ -55,6 +56,9 @@ const (
 	// local/passwordless logins.
 	PasswordlessConnector = "passwordless"
 
+	// HeadlessConnector is the authentication connector for headless logins.
+	HeadlessConnector = "headless"
+
 	// Local means authentication will happen locally within the Teleport cluster.
 	Local = "local"
 
@@ -68,7 +72,7 @@ const (
 	Github = "github"
 
 	// HumanDateFormatSeconds is a human readable date formatting with seconds
-	HumanDateFormatSeconds = "Jan _2 15:04:05 UTC"
+	HumanDateFormatSeconds = "Jan _2 2006 15:04:05 UTC"
 
 	// MaxLeases serves as an identifying error string indicating that the
 	// semaphore system is rejecting an acquisition attempt due to max
@@ -104,6 +108,9 @@ const (
 
 	// KeepAliveKube is the keep alive type for Kubernetes server
 	KeepAliveKube = "kube"
+
+	// KeepAliveDatabaseService is the keep alive type for database service.
+	KeepAliveDatabaseService = "db_service"
 
 	// WindowsOS is the GOOS constant used for Microsoft Windows.
 	WindowsOS = "windows"
@@ -145,14 +152,48 @@ const (
 	// DatabaseCAMinVersion is the minimum Teleport version that supports Database Certificate Authority.
 	DatabaseCAMinVersion = "10.0.0"
 
+	// OpenSSHCAMinVersion is the minimum Teleport version that supports OpenSSH Certificate Authority.
+	OpenSSHCAMinVersion = "12.0.0"
+
 	// SSHRSAType is the string which specifies an "ssh-rsa" formatted keypair
 	SSHRSAType = "ssh-rsa"
+
+	// OktaAssignmentStatusPending is represents a pending status for an Okta assignment.
+	OktaAssignmentStatusPending = "pending"
+
+	// OktaAssignmentStatusProcessing is represents an Okta assignment which is currently being acted on.
+	OktaAssignmentStatusProcessing = "processing"
+
+	// OktaAssignmentStatusSuccessful is represents a successfully applied Okta assignment.
+	OktaAssignmentStatusSuccessful = "successful"
+
+	// OktaAssignmentStatusFailed is represents an Okta assignment which failed to apply. It will be retried.
+	OktaAssignmentStatusFailed = "failed"
+
+	// OktaAssignmentStatusPending is represents a unknown status for an Okta assignment.
+	OktaAssignmentStatusUnknown = "unknown"
+
+	// OktaAssignmentTargetApplication is an application target of an Okta assignment.
+	OktaAssignmentTargetApplication = "application"
+
+	// OktaAssignmentActionTargetGroup is a group target of an Okta assignment.
+	OktaAssignmentTargetGroup = "group"
+
+	// OktaAssignmentTargetUnknown is an unknown target of an Okta assignment.
+	OktaAssignmentTargetUnknown = "unknown"
 )
+
+// LocalConnectors are the system connectors that use local auth.
+var LocalConnectors = []string{
+	LocalConnector,
+	PasswordlessConnector,
+}
 
 // SystemConnectors lists the names of the system-reserved connectors.
 var SystemConnectors = []string{
 	LocalConnector,
 	PasswordlessConnector,
+	HeadlessConnector,
 }
 
 // SecondFactorType is the type of 2FA authentication.
@@ -236,6 +277,23 @@ const (
 	LockingModeBestEffort = LockingMode("best_effort")
 )
 
+// DeviceTrustMode is the mode of verification for trusted devices.
+// DeviceTrustMode is always "off" for OSS.
+// Defaults to "optional" for Enterprise.
+type DeviceTrustMode = string
+
+const (
+	// DeviceTrustModeOff disables both device authentication and authorization.
+	DeviceTrustModeOff DeviceTrustMode = "off"
+	// DeviceTrustModeOptional allows both device authentication and
+	// authorization, but doesn't enforce the presence of device extensions for
+	// sensitive endpoints.
+	DeviceTrustModeOptional DeviceTrustMode = "optional"
+	// DeviceTrustModeRequired enforces the presence of device extensions for
+	// sensitive endpoints.
+	DeviceTrustModeRequired DeviceTrustMode = "required"
+)
+
 const (
 	// ChanTransport is a channel type that can be used to open a net.Conn
 	// through the reverse tunnel server. Used for trusted clusters and dial back
@@ -255,26 +313,15 @@ const (
 	ALPNSNIAuthProtocol = "teleport-auth@"
 	// ALPNSNIProtocolReverseTunnel is TLS ALPN protocol value used to indicate Proxy reversetunnel protocol.
 	ALPNSNIProtocolReverseTunnel = "teleport-reversetunnel"
+	// ALPNSNIProtocolSSH is the TLS ALPN protocol value used to indicate Proxy SSH protocol.
+	ALPNSNIProtocolSSH = "teleport-proxy-ssh"
+	// ALPNSNIProtocolPingSuffix is TLS ALPN suffix used to wrap connections with Ping.
+	ALPNSNIProtocolPingSuffix = "-ping"
 )
 
 const (
-	// KubeSNIPrefix is a SNI Kubernetes prefix used for distinguishing the Kubernetes HTTP traffic.
-	// DELETE IN 11.0. Deprecated, use only KubeTeleportProxyALPNPrefix.
-	KubeSNIPrefix = "kube."
 	// KubeTeleportProxyALPNPrefix is a SNI Kubernetes prefix used for distinguishing the Kubernetes HTTP traffic.
 	KubeTeleportProxyALPNPrefix = "kube-teleport-proxy-alpn."
-)
-
-const (
-	// HTTPSProxy is an environment variable pointing to a HTTPS proxy.
-	HTTPSProxy = "HTTPS_PROXY"
-
-	// HTTPProxy is an environment variable pointing to a HTTP proxy.
-	HTTPProxy = "HTTP_PROXY"
-
-	// NoProxy is an environment variable matching the cases
-	// when HTTPS_PROXY or HTTP_PROXY is ignored
-	NoProxy = "NO_PROXY"
 )
 
 // SessionRecordingService is used to differentiate session recording services.
@@ -325,16 +372,72 @@ const (
 	// allowed database users.
 	TraitDBUsers = "db_users"
 
+	// TraitDBRoles is the name of the role variable used to store
+	// allowed database roles.
+	TraitDBRoles = "db_roles"
+
 	// TraitAWSRoleARNs is the name of the role variable used to store
 	// allowed AWS role ARNs.
 	TraitAWSRoleARNs = "aws_role_arns"
+
+	// TraitAzureIdentities is the name of the role variable used to store
+	// allowed Azure identity names.
+	TraitAzureIdentities = "azure_identities"
+
+	// TraitGCPServiceAccounts is the name of the role variable used to store
+	// allowed GCP service accounts.
+	TraitGCPServiceAccounts = "gcp_service_accounts"
+
+	// TraitHostUserUID is the name of the variable used to specify
+	// the UID to create host user account with.
+	TraitHostUserUID = "host_user_uid"
+
+	// TraitHostUserGID is the name of the variable used to specify
+	// the GID to create host user account with.
+	TraitHostUserGID = "host_user_gid"
 )
 
-// Constants for AWS discovery
 const (
-	AWSServiceTypeEC2 = "ec2"
+	// TimeoutGetClusterAlerts is the timeout for grabbing cluster alerts from tctl and tsh
+	TimeoutGetClusterAlerts = time.Millisecond * 750
 )
 
-// SupportedAWSDiscoveryServices is list of AWS services currently
-// supported by the Teleport discovery service
-var SupportedAWSDiscoveryServices = []string{AWSServiceTypeEC2}
+const (
+	// WebAPIConnUpgrade is the HTTP web API to make the connection upgrade
+	// call.
+	WebAPIConnUpgrade = "/webapi/connectionupgrade"
+	// WebAPIConnUpgradeHeader is the header used to indicate the requested
+	// connection upgrade types in the connection upgrade API.
+	WebAPIConnUpgradeHeader = "Upgrade"
+	// WebAPIConnUpgradeTeleportHeader is a Teleport-specific header used to
+	// indicate the requested connection upgrade types in the connection
+	// upgrade API. This header is sent in addition to "Upgrade" header in case
+	// a load balancer/reverse proxy removes "Upgrade".
+	WebAPIConnUpgradeTeleportHeader = "X-Teleport-Upgrade"
+	// WebAPIConnUpgradeTypeALPN is a connection upgrade type that specifies
+	// the upgraded connection should be handled by the ALPN handler.
+	WebAPIConnUpgradeTypeALPN = "alpn"
+	// WebAPIConnUpgradeTypeALPNPing is a connection upgrade type that
+	// specifies the upgraded connection should be handled by the ALPN handler
+	// wrapped with the Ping protocol.
+	//
+	// This should be used when the tunneled TLS Routing protocol cannot keep
+	// long-lived connections alive as L7 LB usually ignores TCP keepalives and
+	// has very short idle timeouts.
+	WebAPIConnUpgradeTypeALPNPing = "alpn-ping"
+	// WebAPIConnUpgradeConnectionHeader is the standard header that controls
+	// whether the network connection stays open after the current transaction
+	// finishes.
+	WebAPIConnUpgradeConnectionHeader = "Connection"
+	// WebAPIConnUpgradeConnectionType is the value of the "Connection" header
+	// used for connection upgrades.
+	WebAPIConnUpgradeConnectionType = "Upgrade"
+)
+
+const (
+	// InitiateFileTransfer is used when creating a new file transfer request
+	InitiateFileTransfer string = "file-transfer@goteleport.com"
+	// FileTransferDecision is a request that will approve or deny an active file transfer.
+	// Multiple decisions can be sent for the same request if the policy requires it.
+	FileTransferDecision string = "file-transfer-decision@goteleport.com"
+)

@@ -1,0 +1,51 @@
+name: "CodeQL"
+
+on:
+  schedule:
+    - cron: '0 13 * * *' # At 1:00 PM UTC every day
+
+jobs:
+  analyze:
+    name: Analyze
+    if: ${{ !startsWith(github.head_ref, 'dependabot/') }}
+    runs-on: ubuntu-22.04-16core
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+
+    strategy:
+      fail-fast: false
+      matrix:
+        branch: [ 'master' ] # release branches are scanned in teleport-sec-scan repos (see RFD 147)
+        language: [ 'go', 'javascript' ]
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        ref: ${{ matrix.branch }}
+
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        cache: false
+        go-version-file: go.mod
+      if: ${{ matrix.language == 'go' }}
+
+    - name: Initialize the CodeQL tools for scanning
+      uses: github/codeql-action/init@v2
+      with:
+        languages: ${{ matrix.language }}
+        queries: security-extended
+      timeout-minutes: 5
+
+    - name: Autobuild
+      uses: github/codeql-action/autobuild@v2
+      timeout-minutes: 30
+
+    - name: Perform CodeQL Analysis
+      uses: github/codeql-action/analyze@v2
+      with:
+        category: "/language:${{matrix.language}}"
+      timeout-minutes: 10

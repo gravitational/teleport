@@ -25,6 +25,7 @@ resource "aws_instance" "cluster" {
       enable_postgres_listener = var.enable_postgres_listener
       use_acm                  = var.use_acm
       use_letsencrypt          = var.use_letsencrypt
+      use_tls_routing          = var.use_tls_routing
     }
   )
 

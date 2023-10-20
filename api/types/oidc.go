@@ -22,6 +22,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
@@ -33,6 +34,7 @@ import (
 type OIDCConnector interface {
 	// ResourceWithSecrets provides common methods for objects
 	ResourceWithSecrets
+	ResourceWithOrigin
 	// Issuer URL is the endpoint of the provider, e.g. https://accounts.google.com
 	GetIssuerURL() string
 	// ClientID is id for authentication client (in our case it's our Auth server)
@@ -93,6 +95,11 @@ type OIDCConnector interface {
 	GetGoogleAdminEmail() string
 	// GetAllowUnverifiedEmail returns true if unverified emails should be allowed in received users.
 	GetAllowUnverifiedEmail() bool
+	// GetMaxAge returns the amount of time that user logins are
+	// valid for and true if MaxAge is set. If a user logs in, but then
+	// does not login again within this time period, they will be forced
+	// to re-authenticate.
+	GetMaxAge() (time.Duration, bool)
 }
 
 // NewOIDCConnector returns a new OIDCConnector based off a name and OIDCConnectorSpecV3.
@@ -178,6 +185,16 @@ func (o *OIDCConnectorV3) SetResourceID(id int64) {
 	o.Metadata.ID = id
 }
 
+// GetRevision returns the revision
+func (o *OIDCConnectorV3) GetRevision() string {
+	return o.Metadata.GetRevision()
+}
+
+// SetRevision sets the revision
+func (o *OIDCConnectorV3) SetRevision(rev string) {
+	o.Metadata.SetRevision(rev)
+}
+
 // WithoutSecrets returns an instance of resource without secrets.
 func (o *OIDCConnectorV3) WithoutSecrets() Resource {
 	if o.GetClientSecret() == "" && o.GetGoogleServiceAccount() == "" {
@@ -204,6 +221,16 @@ func (o *OIDCConnectorV3) SetDisplay(display string) {
 // GetMetadata returns object metadata
 func (o *OIDCConnectorV3) GetMetadata() Metadata {
 	return o.Metadata
+}
+
+// Origin returns the origin value of the resource.
+func (o *OIDCConnectorV3) Origin() string {
+	return o.Metadata.Origin()
+}
+
+// SetOrigin sets the origin value of the resource.
+func (o *OIDCConnectorV3) SetOrigin(origin string) {
+	o.Metadata.SetOrigin(origin)
 }
 
 // SetExpiry sets expiry time for the object
@@ -364,7 +391,7 @@ func (o *OIDCConnectorV3) CheckAndSetDefaults() error {
 		return trace.Wrap(err)
 	}
 
-	if name := o.Metadata.Name; utils.SliceContainsStr(constants.SystemConnectors, name) {
+	if name := o.Metadata.Name; slices.Contains(constants.SystemConnectors, name) {
 		return trace.BadParameter("ID: invalid connector name, %v is a reserved name", name)
 	}
 
@@ -384,9 +411,6 @@ func (o *OIDCConnectorV3) CheckAndSetDefaults() error {
 	if _, err := url.Parse(o.GetIssuerURL()); err != nil {
 		return trace.BadParameter("bad IssuerURL '%v', err: %v", o.GetIssuerURL(), err)
 	}
-
-	// DELETE IN 11.0.0
-	o.CheckSetRedirectURL()
 
 	if len(o.GetRedirectURLs()) == 0 {
 		return trace.BadParameter("RedirectURL: missing redirect_url")
@@ -420,22 +444,33 @@ func (o *OIDCConnectorV3) CheckAndSetDefaults() error {
 		}
 	}
 
-	return nil
-}
-
-// RedirectURL must be checked/set when communicating with an old server or client.
-// DELETE IN 11.0.0
-func (o *OIDCConnectorV3) CheckSetRedirectURL() {
-	if o.Spec.RedirectURL == "" && len(o.Spec.RedirectURLs) != 0 {
-		o.Spec.RedirectURL = o.Spec.RedirectURLs[0]
-	} else if len(o.Spec.RedirectURLs) == 0 && o.Spec.RedirectURL != "" {
-		o.Spec.RedirectURLs = []string{o.Spec.RedirectURL}
+	if o.Spec.MaxAge != nil {
+		maxAge := o.Spec.MaxAge.Value.Duration()
+		if maxAge < 0 {
+			return trace.BadParameter("max_age cannot be negative")
+		}
+		if maxAge.Round(time.Second) != maxAge {
+			return trace.BadParameter("max_age must be a multiple of seconds")
+		}
 	}
+
+	return nil
 }
 
 // GetAllowUnverifiedEmail returns true if unverified emails should be allowed in received users.
 func (o *OIDCConnectorV3) GetAllowUnverifiedEmail() bool {
 	return o.Spec.AllowUnverifiedEmail
+}
+
+// GetMaxAge returns the amount of time that user logins are
+// valid for and true if MaxAge is set. If a user logs in, but then
+// does not login again within this time period, they will be forced
+// to re-authenticate.
+func (o *OIDCConnectorV3) GetMaxAge() (time.Duration, bool) {
+	if o.Spec.MaxAge == nil {
+		return 0, false
+	}
+	return o.Spec.MaxAge.Value.Duration(), true
 }
 
 // Check returns nil if all parameters are great, err otherwise

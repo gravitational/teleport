@@ -168,3 +168,44 @@ func TestParseMetadataClientError(t *testing.T) {
 		})
 	}
 }
+
+func TestGetInstanceID(t *testing.T) {
+	for _, tc := range []struct {
+		name               string
+		stausCode          int
+		body               []byte
+		expectedResourceID string
+		errAssertion       require.ErrorAssertionFunc
+	}{
+		{
+			name:               "with resource ID",
+			stausCode:          http.StatusOK,
+			body:               []byte(`{"resourceId":"test-id"}`),
+			expectedResourceID: "test-id",
+			errAssertion:       require.NoError,
+		},
+		{
+			name:         "with error",
+			stausCode:    http.StatusOK,
+			body:         []byte(`{"error":"test-error"}`),
+			errAssertion: require.Error,
+		},
+		{
+			name:         "request error",
+			stausCode:    http.StatusNotFound,
+			errAssertion: require.Error,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(http.StatusOK)
+				w.Write(tc.body)
+			}))
+
+			client := NewInstanceMetadataClient(WithBaseURL(server.URL))
+			resourceID, err := client.GetID(context.Background())
+			tc.errAssertion(t, err)
+			require.Equal(t, tc.expectedResourceID, resourceID)
+		})
+	}
+}

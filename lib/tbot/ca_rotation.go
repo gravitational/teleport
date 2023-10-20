@@ -18,15 +18,18 @@ package tbot
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/exp/slices"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 )
 
@@ -81,6 +84,41 @@ func (rd *debouncer) attempt() {
 	})
 }
 
+type channelBroadcaster struct {
+	mu      sync.Mutex
+	chanSet map[chan struct{}]struct{}
+}
+
+func (cb *channelBroadcaster) subscribe() (ch chan struct{}, unsubscribe func()) {
+	cb.mu.Lock()
+	defer cb.mu.Unlock()
+	ch = make(chan struct{}, 1)
+	cb.chanSet[ch] = struct{}{}
+	// Returns a function that should be called to unsubscribe the channel
+	return ch, func() {
+		cb.mu.Lock()
+		defer cb.mu.Unlock()
+		_, ok := cb.chanSet[ch]
+		if ok {
+			delete(cb.chanSet, ch)
+			close(ch)
+		}
+	}
+}
+
+func (cb *channelBroadcaster) broadcast() {
+	cb.mu.Lock()
+	defer cb.mu.Unlock()
+	for ch := range cb.chanSet {
+		select {
+		case ch <- struct{}{}:
+			// Successfully sent notification
+		default:
+			// Channel already has valued queued
+		}
+	}
+}
+
 const caRotationRetryBackoff = time.Second * 2
 
 // caRotationLoop continually triggers `watchCARotations` until the context is
@@ -88,22 +126,9 @@ const caRotationRetryBackoff = time.Second * 2
 //
 // caRotationLoop also manages debouncing the renewals across multiple watch
 // attempts.
-func (b *Bot) caRotationLoop(ctx context.Context) error {
+func (b *Bot) caRotationLoop(ctx context.Context, reload func()) error {
 	rd := debouncer{
-		f: func() {
-			select {
-			case <-ctx.Done():
-				return
-			default:
-			}
-
-			select {
-			case b.reloadChan <- struct{}{}:
-				b.log.Infof("Renewal triggered due to CA rotation.")
-			default:
-				b.log.Debugf("Renewal already queued, ignoring reload request.")
-			}
-		},
+		f:              reload,
 		debouncePeriod: time.Second * 10,
 	}
 	jitter := retryutils.NewJitter()
@@ -115,7 +140,22 @@ func (b *Bot) caRotationLoop(ctx context.Context) error {
 		}
 
 		backoffPeriod := jitter(caRotationRetryBackoff)
-		b.log.WithError(err).Errorf("Error occurred whilst watching CA rotations, retrying in %s.", backoffPeriod)
+
+		// If the error is due to the client being replaced with a new client
+		// as part of the credentials renewal. Ignore it, and immediately begin
+		// watching again with the new client. We can safely check for Canceled
+		// here, because if the context was actually canceled, it would've
+		// been caught in the error check immediately following watchCARotations
+		var statusErr interface {
+			GRPCStatus() *status.Status
+		}
+		isCancelledErr := errors.As(err, &statusErr) && statusErr.GRPCStatus().Code() == codes.Canceled
+		if isCancelledErr {
+			b.log.Debugf("CA watcher detected client closing. Re-watching in %s.", backoffPeriod)
+		} else if err != nil {
+			b.log.WithError(err).Errorf("Error occurred whilst watching CA rotations, retrying in %s.", backoffPeriod)
+		}
+
 		select {
 		case <-ctx.Done():
 			b.log.Warn("Context canceled during backoff for CA rotation watcher. Aborting.")
@@ -129,9 +169,17 @@ func (b *Bot) caRotationLoop(ctx context.Context) error {
 // attempts to trigger a renewal via the debounced reload channel when it
 // detects the entry into an important rotation phase.
 func (b *Bot) watchCARotations(ctx context.Context, queueReload func()) error {
-	clusterName := b.ident().ClusterName
 	b.log.Debugf("Attempting to establish watch for CA events")
-	watcher, err := b.Client().NewWatcher(ctx, types.Watch{
+
+	ident := b.ident()
+	client, err := b.AuthenticatedUserClientFromIdentity(ctx, ident)
+	if err != nil {
+		return trace.Wrap(err, "creating client for ca watcher")
+	}
+	defer client.Close()
+
+	clusterName := ident.ClusterName
+	watcher, err := client.NewWatcher(ctx, types.Watch{
 		Kinds: []types.WatchKind{{
 			Kind: types.KindCertAuthority,
 			Filter: types.CertAuthorityFilter{
@@ -191,7 +239,7 @@ func filterCAEvent(log logrus.FieldLogger, event types.Event, clusterName string
 
 	// We want to update for all phases but init and update_servers
 	phase := ca.GetRotation().Phase
-	if utils.SliceContainsStr([]string{
+	if slices.Contains([]string{
 		"", types.RotationPhaseInit, types.RotationPhaseUpdateServers,
 	}, phase) {
 		return fmt.Sprintf("skipping due to phase '%s'", phase)
@@ -206,8 +254,8 @@ func filterCAEvent(log logrus.FieldLogger, event types.Event, clusterName string
 		)
 	}
 
-	// We want to skip anything that is not host, user, db
-	if !utils.SliceContainsStr([]string{
+	// We want to skip anything that is not host, user, or db
+	if !slices.Contains([]string{
 		string(types.HostCA),
 		string(types.UserCA),
 		string(types.DatabaseCA),

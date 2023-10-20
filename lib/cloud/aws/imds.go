@@ -23,10 +23,11 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/feature/ec2/imds"
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
 )
 
 // InstanceMetadataClient is a wrapper for an imds.Client.
@@ -143,4 +144,46 @@ func (client *InstanceMetadataClient) GetRegion(ctx context.Context) (string, er
 		return "", trace.Wrap(err)
 	}
 	return getRegionOutput.Region, nil
+}
+
+// GetID gets the EC2 instance's ID.
+func (client *InstanceMetadataClient) GetID(ctx context.Context) (string, error) {
+	id, err := client.getMetadata(ctx, "instance-id")
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	if !ec2ResourceIDRE.MatchString(id) {
+		return "", trace.NotFound("instance-id not available")
+	}
+
+	return id, nil
+}
+
+// GetLocalIPV4 gets the EC2 instance's local ipv4 address.
+func (client *InstanceMetadataClient) GetLocalIPV4(ctx context.Context) (string, error) {
+	ip, err := client.getMetadata(ctx, "local-ipv4")
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	return ip, nil
+}
+
+// GetPublicIPV4 gets the EC2 instance's local ipv4 address.
+func (client *InstanceMetadataClient) GetPublicIPV4(ctx context.Context) (string, error) {
+	ip, err := client.getMetadata(ctx, "public-ipv4")
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	return ip, nil
+}
+
+func (client *InstanceMetadataClient) GetAccountID(ctx context.Context) (string, error) {
+	idOut, err := client.c.GetInstanceIdentityDocument(ctx, &imds.GetInstanceIdentityDocumentInput{})
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return idOut.AccountID, nil
 }

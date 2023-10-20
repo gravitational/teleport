@@ -19,11 +19,11 @@ package local
 import (
 	"context"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
-
-	"github.com/gravitational/trace"
 )
 
 // KubernetesService manages kubernetes resources in the backend.
@@ -38,7 +38,7 @@ func NewKubernetesService(backend backend.Backend) *KubernetesService {
 
 // GetKubernetesClusters returns all kubernetes cluster resources.
 func (s *KubernetesService) GetKubernetesClusters(ctx context.Context) ([]types.KubeCluster, error) {
-	startKey := backend.Key(kubernetesPrefix)
+	startKey := backend.ExactKey(kubernetesPrefix)
 	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -46,7 +46,7 @@ func (s *KubernetesService) GetKubernetesClusters(ctx context.Context) ([]types.
 	kubeClusters := make([]types.KubeCluster, len(result.Items))
 	for i, item := range result.Items {
 		cluster, err := services.UnmarshalKubeCluster(item.Value,
-			services.WithResourceID(item.ID), services.WithExpires(item.Expires))
+			services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -65,7 +65,7 @@ func (s *KubernetesService) GetKubernetesCluster(ctx context.Context, name strin
 		return nil, trace.Wrap(err)
 	}
 	cluster, err := services.UnmarshalKubeCluster(item.Value,
-		services.WithResourceID(item.ID), services.WithExpires(item.Expires))
+		services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -99,15 +99,17 @@ func (s *KubernetesService) UpdateKubernetesCluster(ctx context.Context, cluster
 	if err := cluster.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
+	rev := cluster.GetRevision()
 	value, err := services.MarshalKubeCluster(cluster)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:     backend.Key(kubernetesPrefix, cluster.GetName()),
-		Value:   value,
-		Expires: cluster.Expiry(),
-		ID:      cluster.GetResourceID(),
+		Key:      backend.Key(kubernetesPrefix, cluster.GetName()),
+		Value:    value,
+		Expires:  cluster.Expiry(),
+		ID:       cluster.GetResourceID(),
+		Revision: rev,
 	}
 	_, err = s.Update(ctx, item)
 	if err != nil {
@@ -130,7 +132,7 @@ func (s *KubernetesService) DeleteKubernetesCluster(ctx context.Context, name st
 
 // DeleteAllKubernetesClusters removes all kubernetes cluster resources.
 func (s *KubernetesService) DeleteAllKubernetesClusters(ctx context.Context) error {
-	startKey := backend.Key(kubernetesPrefix)
+	startKey := backend.ExactKey(kubernetesPrefix)
 	err := s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey))
 	if err != nil {
 		return trace.Wrap(err)

@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// app package runs the application proxy process. It keeps dynamic labels
+// Package app runs the application proxy process. It keeps dynamic labels
 // updated, heart beats its presence, checks access controls, and forwards
 // connections between the tunnel and the target host.
 package app
@@ -29,11 +29,17 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
+
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/labels"
@@ -41,16 +47,25 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
 	appaws "github.com/gravitational/teleport/lib/srv/app/aws"
+	appazure "github.com/gravitational/teleport/lib/srv/app/azure"
 	"github.com/gravitational/teleport/lib/srv/app/common"
+	appgcp "github.com/gravitational/teleport/lib/srv/app/gcp"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/aws"
-
-	"github.com/gravitational/trace"
-
-	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
+	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 )
+
+type appServerContextKey string
+
+const (
+	connContextKey appServerContextKey = "teleport-connContextKey"
+)
+
+// ConnMonitor monitors authorized connections and terminates them when
+// session controls dictate so.
+type ConnMonitor interface {
+	MonitorConn(ctx context.Context, authzCtx *authz.Context, conn net.Conn) (context.Context, net.Conn, error)
+}
 
 // Config is the configuration for an application server.
 type Config struct {
@@ -80,7 +95,7 @@ type Config struct {
 	HostID string
 
 	// Authorizer is used to authorize requests.
-	Authorizer auth.Authorizer
+	Authorizer authz.Authorizer
 
 	// GetRotation returns the certificate rotation state.
 	GetRotation services.RotationGetter
@@ -106,6 +121,13 @@ type Config struct {
 
 	// ConnectedProxyGetter gets the proxies teleport is connected to.
 	ConnectedProxyGetter *reversetunnel.ConnectedProxyGetter
+
+	// Emitter is an event emitter.
+	Emitter events.Emitter
+
+	// ConnectionMonitor monitors connections and terminates any if
+	// any session controls prevent them.
+	ConnectionMonitor ConnMonitor
 }
 
 // CheckAndSetDefaults makes sure the configuration has the minimum required
@@ -128,7 +150,7 @@ func (c *Config) CheckAndSetDefaults() error {
 		return trace.BadParameter("tls config missing")
 	}
 	if len(c.CipherSuites) == 0 {
-		return trace.BadParameter("cipersuites missing")
+		return trace.BadParameter("ciphersuites missing")
 	}
 	if c.Hostname == "" {
 		return trace.BadParameter("hostname missing")
@@ -176,6 +198,11 @@ type Server struct {
 	heartbeats    map[string]*srv.Heartbeat
 	dynamicLabels map[string]*labels.Dynamic
 
+	connAuthMu sync.Mutex
+	// connAuth is used to map an initial failure of authorization to a connection.
+	// This will force the HTTP server to serve an error and close the connection.
+	connAuth map[net.Conn]error
+
 	// apps are all apps this server currently proxies. Proxied apps are
 	// reconciled against monitoredApps below.
 	apps map[string]types.Application
@@ -189,7 +216,9 @@ type Server struct {
 
 	cache *sessionChunkCache
 
-	awsSigner *appaws.SigningService
+	awsHandler   http.Handler
+	azureHandler http.Handler
+	gcpHandler   http.Handler
 
 	// watcher monitors changes to application resources.
 	watcher *services.AppWatcher
@@ -231,7 +260,34 @@ func New(ctx context.Context, c *Config) (*Server, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	awsSigner, err := appaws.NewSigningService(appaws.SigningServiceConfig{})
+	closeContext, closeFunc := context.WithCancel(ctx)
+	// in case of errors cancel context to avoid context leak
+	callClose := true
+	defer func() {
+		if callClose {
+			closeFunc()
+		}
+	}()
+
+	awsSigner, err := awsutils.NewSigningService(awsutils.SigningServiceConfig{
+		Clock: c.Clock,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	awsHandler, err := appaws.NewAWSSignerHandler(closeContext, appaws.SignerHandlerConfig{
+		SigningService: awsSigner,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	azureHandler, err := appazure.NewAzureHandler(closeContext, appazure.HandlerConfig{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	gcpHandler, err := appgcp.NewGCPHandler(closeContext, appgcp.HandlerConfig{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -244,27 +300,39 @@ func New(ctx context.Context, c *Config) (*Server, error) {
 		heartbeats:    make(map[string]*srv.Heartbeat),
 		dynamicLabels: make(map[string]*labels.Dynamic),
 		apps:          make(map[string]types.Application),
-		awsSigner:     awsSigner,
+		connAuth:      make(map[net.Conn]error),
+		awsHandler:    awsHandler,
+		azureHandler:  azureHandler,
+		gcpHandler:    gcpHandler,
 		monitoredApps: monitoredApps{
 			static: c.Apps,
 		},
-		reconcileCh: make(chan struct{}),
+		reconcileCh:  make(chan struct{}),
+		closeFunc:    closeFunc,
+		closeContext: closeContext,
 	}
-
-	s.closeContext, s.closeFunc = context.WithCancel(ctx)
 
 	// Make copy of server's TLS configuration and update it with the specific
 	// functionality this server needs, like requiring client certificates.
-	s.tlsConfig = copyAndConfigureTLS(s.c.TLSConfig, s.getConfigForClient)
+	s.tlsConfig = CopyAndConfigureTLS(s.log, s.c.AccessPoint, s.c.TLSConfig)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clustername, err := s.c.AccessPoint.GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// Create and configure HTTP server with authorizing middleware.
-	s.httpServer = s.newHTTPServer()
+	s.httpServer = s.newHTTPServer(clustername.GetClusterName())
 
 	// TCP server will handle TCP applications.
-	s.tcpServer = s.newTCPServer()
+	tcpServer, err := s.newTCPServer()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	s.tcpServer = tcpServer
 
 	// Create a new session cache, this holds sessions that can be used to
 	// forward requests.
@@ -276,6 +344,7 @@ func New(ctx context.Context, c *Config) (*Server, error) {
 	// Figure out the port the proxy is running on.
 	s.proxyPort = s.getProxyPort()
 
+	callClose = false
 	return s, nil
 }
 
@@ -301,11 +370,6 @@ func (s *Server) stopApp(ctx context.Context, name string) error {
 	if err := s.stopHeartbeat(name); err != nil {
 		return trace.Wrap(err)
 	}
-	// Heartbeat is stopped but if we don't remove this app server,
-	// it can linger for up to ~10m until its TTL expires.
-	if err := s.removeAppServer(ctx, name); err != nil && !trace.IsNotFound(err) {
-		return trace.Wrap(err)
-	}
 	s.log.Debugf("Stopped app %q.", name)
 	return nil
 }
@@ -314,6 +378,20 @@ func (s *Server) stopApp(ctx context.Context, name string) error {
 func (s *Server) removeAppServer(ctx context.Context, name string) error {
 	return s.c.AuthClient.DeleteApplicationServer(ctx, apidefaults.Namespace,
 		s.c.HostID, name)
+}
+
+// stopAndRemoveApp uninitializes and deletes the app with the specified name.
+func (s *Server) stopAndRemoveApp(ctx context.Context, name string) error {
+	if err := s.stopApp(ctx, name); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Heartbeat is stopped but if we don't remove this app server,
+	// it can linger for up to ~10m until its TTL expires.
+	if err := s.removeAppServer(ctx, name); err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	}
+	return nil
 }
 
 // startDynamicLabels starts dynamic labels for the app if it has them.
@@ -334,17 +412,6 @@ func (s *Server) startDynamicLabels(ctx context.Context, app types.Application) 
 	defer s.mu.Unlock()
 	s.dynamicLabels[app.GetName()] = dynamic
 	return nil
-}
-
-// getDynamicLabels returns dynamic labels for the specified app.
-func (s *Server) getDynamicLabels(name string) *labels.Dynamic {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	dynamic, ok := s.dynamicLabels[name]
-	if !ok {
-		return nil
-	}
-	return dynamic
 }
 
 // stopDynamicLabels stops dynamic labels for the specified app.
@@ -408,16 +475,8 @@ func (s *Server) getServerInfo(app types.Application) (types.Resource, error) {
 	// Make sure to return a new object, because it gets cached by
 	// heartbeat and will always compare as equal otherwise.
 	s.mu.RLock()
-	copy := app.Copy()
+	copy := s.appWithUpdatedLabelsLocked(app)
 	s.mu.RUnlock()
-	// Update dynamic labels if the app has them.
-	labels := s.getDynamicLabels(copy.GetName())
-	if labels != nil {
-		copy.SetDynamicLabels(labels.Get())
-	}
-	if s.c.CloudLabels != nil {
-		s.c.CloudLabels.Apply(copy)
-	}
 	expires := s.c.Clock.Now().UTC().Add(apidefaults.ServerAnnounceTTL)
 	server, err := types.NewAppServerV3(types.Metadata{
 		Name:    copy.GetName(),
@@ -463,12 +522,12 @@ func (s *Server) registerApp(ctx context.Context, app types.Application) error {
 // updateApp updates application that is already registered.
 func (s *Server) updateApp(ctx context.Context, app types.Application) error {
 	// Stop heartbeat and dynamic labels before starting new ones.
-	if err := s.stopApp(ctx, app.GetName()); err != nil {
+	if err := s.stopAndRemoveApp(ctx, app.GetName()); err != nil {
 		return trace.Wrap(err)
 	}
 	if err := s.registerApp(ctx, app); err != nil {
 		// If we failed to re-register, don't keep proxying the old app.
-		if errUnregister := s.unregisterApp(ctx, app.GetName()); errUnregister != nil {
+		if errUnregister := s.unregisterAndRemoveApp(ctx, app.GetName()); errUnregister != nil {
 			return trace.NewAggregate(err, errUnregister)
 		}
 		return trace.Wrap(err)
@@ -479,6 +538,17 @@ func (s *Server) updateApp(ctx context.Context, app types.Application) error {
 // unregisterApp stops proxying the app.
 func (s *Server) unregisterApp(ctx context.Context, name string) error {
 	if err := s.stopApp(ctx, name); err != nil {
+		return trace.Wrap(err)
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.apps, name)
+	return nil
+}
+
+// unregisterAndRemoveApp stops proxying the app and deltes it.
+func (s *Server) unregisterAndRemoveApp(ctx context.Context, name string) error {
+	if err := s.stopAndRemoveApp(ctx, name); err != nil {
 		return trace.Wrap(err)
 	}
 	s.mu.Lock()
@@ -522,12 +592,24 @@ func (s *Server) Start(ctx context.Context) (err error) {
 
 // Close will shut the server down and unblock any resources.
 func (s *Server) Close() error {
+	return trace.Wrap(s.close(s.closeContext))
+}
+
+// Shutdown performs a graceful shutdown.
+func (s *Server) Shutdown(ctx context.Context) error {
+	// TODO wait active connections.
+	return trace.Wrap(s.close(ctx))
+}
+
+func (s *Server) close(ctx context.Context) error {
 	var errs []error
 
 	// Stop all proxied apps.
 	for _, app := range s.getApps() {
-		if err := s.unregisterApp(s.closeContext, app.GetName()); err != nil {
-			errs = append(errs, err)
+		if services.ShouldDeleteServerHeartbeatsOnShutdown(ctx) {
+			errs = append(errs, trace.Wrap(s.unregisterAndRemoveApp(ctx, app.GetName())))
+		} else {
+			errs = append(errs, trace.Wrap(s.unregisterApp(ctx, app.GetName())))
 		}
 	}
 
@@ -571,7 +653,27 @@ func (s *Server) ForceHeartbeat() error {
 	return nil
 }
 
-// HandleConnection takes a connection and wraps it in a listener so it can
+func (s *Server) getAndDeleteConnAuth(conn net.Conn) error {
+	s.connAuthMu.Lock()
+	defer s.connAuthMu.Unlock()
+	err := s.connAuth[conn]
+	delete(s.connAuth, conn)
+	return err
+}
+
+func (s *Server) setConnAuth(conn net.Conn, err error) {
+	s.connAuthMu.Lock()
+	defer s.connAuthMu.Unlock()
+	s.connAuth[conn] = err
+}
+
+func (s *Server) deleteConnAuth(conn net.Conn) {
+	s.connAuthMu.Lock()
+	defer s.connAuthMu.Unlock()
+	delete(s.connAuth, conn)
+}
+
+// HandleConnection takes a connection and wraps it in a listener, so it can
 // be passed to http.Serve to process as a HTTP request.
 func (s *Server) HandleConnection(conn net.Conn) {
 	// Wrap conn in a CloserConn to detect when it is closed.
@@ -579,10 +681,18 @@ func (s *Server) HandleConnection(conn net.Conn) {
 	// httpServer will initiate the close call.
 	closerConn := utils.NewCloserConn(conn)
 
-	if err := s.handleConnection(closerConn); err != nil {
-		s.log.WithError(err).Warnf("Failed to handle client connection.")
-		if err := conn.Close(); err != nil {
-			s.log.WithError(err).Warnf("Failed to close client connection.")
+	cleanup, err := s.handleConnection(closerConn)
+	// Make sure that the cleanup function is run
+	if cleanup != nil {
+		defer cleanup()
+	}
+
+	if err != nil {
+		if !utils.IsOKNetworkError(err) {
+			s.log.WithError(err).Warn("Failed to handle client connection.")
+		}
+		if err := conn.Close(); err != nil && !utils.IsOKNetworkError(err) {
+			s.log.WithError(err).Warn("Failed to close client connection.")
 		}
 		return
 	}
@@ -591,30 +701,64 @@ func (s *Server) HandleConnection(conn net.Conn) {
 	closerConn.Wait()
 }
 
-func (s *Server) handleConnection(conn net.Conn) error {
+func (s *Server) handleConnection(conn net.Conn) (func(), error) {
+	ctx, cancel := context.WithCancelCause(s.closeContext)
+	tc, err := srv.NewTrackingReadConn(srv.TrackingReadConnConfig{
+		Conn:    conn,
+		Clock:   s.c.Clock,
+		Context: ctx,
+		Cancel:  cancel,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// Proxy sends a X.509 client certificate to pass identity information,
 	// extract it and run authorization checks on it.
-	tlsConn, user, app, err := s.getConnectionInfo(s.closeContext, conn)
+	tlsConn, user, app, err := s.getConnectionInfo(s.closeContext, tc)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
+	}
+
+	ctx = authz.ContextWithUser(s.closeContext, user)
+	ctx = authz.ContextWithClientAddr(ctx, conn.RemoteAddr())
+	authCtx, _, err := s.authorizeContext(ctx)
+
+	// The behavior here is a little hard to track. To be clear here, if authorization fails
+	// the following will occur:
+	// 1. If the application is a TCP application, error out immediately as expected.
+	// 2. If the application is an HTTP application, store the error and let the HTTP handler
+	//    serve the error directly so that it's properly converted to an HTTP status code.
+	//    This will ensure users will get a 403 when authorization fails.
+	if err != nil {
+		if !app.IsTCP() {
+			s.setConnAuth(tlsConn, err)
+		} else {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		// Monitor the connection an update the context.
+		ctx, _, err = s.c.ConnectionMonitor.MonitorConn(ctx, authCtx, tc)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	// Application access supports plain TCP connections which are handled
 	// differently than HTTP requests from web apps.
 	if app.IsTCP() {
-		return s.handleTCPApp(s.closeContext, tlsConn, user, app)
+		identity := authCtx.Identity.GetIdentity()
+		return nil, s.handleTCPApp(ctx, tlsConn, &identity, app)
 	}
 
-	return s.handleHTTPApp(s.closeContext, tlsConn)
+	return func() {
+		s.deleteConnAuth(tlsConn)
+	}, s.handleHTTPApp(ctx, tlsConn)
 }
 
 // handleTCPApp handles connection for a TCP application.
-func (s *Server) handleTCPApp(ctx context.Context, conn net.Conn, user auth.IdentityGetter, app types.Application) error {
-	id, _, err := s.authorizeContext(context.WithValue(ctx, auth.ContextUser, user))
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	err = s.tcpServer.handleConnection(s.closeContext, conn, id, app)
+func (s *Server) handleTCPApp(ctx context.Context, conn net.Conn, identity *tlsca.Identity, app types.Application) error {
+	err := s.tcpServer.handleConnection(ctx, conn, identity, app)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -624,7 +768,7 @@ func (s *Server) handleTCPApp(ctx context.Context, conn net.Conn, user auth.Iden
 // handleHTTPApp handles connection for an HTTP application.
 func (s *Server) handleHTTPApp(ctx context.Context, conn net.Conn) error {
 	// Wrap a TLS authorizing conn in a single-use listener.
-	listener := newListener(s.closeContext, conn)
+	listener := newListener(ctx, conn)
 
 	// Serve will return as soon as tlsConn is running in its own goroutine
 	err := s.httpServer.Serve(listener)
@@ -640,11 +784,23 @@ func (s *Server) handleHTTPApp(ctx context.Context, conn net.Conn) error {
 
 // ServeHTTP will forward the *http.Request to the target application.
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if err := s.serveHTTP(w, r); err != nil {
-		s.log.Warnf("Failed to serve request: %v.", err)
+	// See if the initial auth failed. If it didn't, serve the HTTP regularly, which
+	// will include subsequent auth attempts to prevent race-type conditions.
+	conn, ok := r.Context().Value(connContextKey).(net.Conn)
+	if !ok {
+		s.log.Errorf("unable to extract connection from context")
+	}
+	err := s.getAndDeleteConnAuth(conn)
+	if err == nil {
+		err = s.serveHTTP(w, r)
+	}
+	if err != nil {
+		s.log.WithError(err).Warnf("Failed to serve request")
 
-		// Covert trace error type to HTTP and write response.
+		// Covert trace error type to HTTP and write response, make sure we close the
+		// connection afterwards so that the monitor is recreated if needed.
 		code := trace.ErrorToCode(err)
+		w.Header().Set("Connection", "close")
 		http.Error(w, http.StatusText(code), code)
 	}
 }
@@ -652,35 +808,44 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func (s *Server) serveHTTP(w http.ResponseWriter, r *http.Request) error {
 	// Extract the identity and application being requested from the certificate
 	// and check if the caller has access.
-	identity, app, err := s.authorizeContext(r.Context())
+	authCtx, app, err := s.authorizeContext(r.Context())
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
+	identity := authCtx.Identity.GetIdentity()
 	switch {
 	case app.IsAWSConsole():
-		//  Requests from AWS applications are singed by AWS Signature Version
-		//  4 algorithm. AWS CLI and AWS SDKs automatically use SigV4 for all
-		//  services that support it (All services expect Amazon SimpleDB but
-		//  this AWS service has been deprecated)
-		if aws.IsSignedByAWSSigV4(r) {
-			return s.serveSession(w, r, identity, app, s.withAWSForwarder)
+		// Requests from AWS applications are signed by AWS Signature Version 4
+		// algorithm. AWS CLI and AWS SDKs automatically use SigV4 for all
+		// services that support it (All services expect Amazon SimpleDB but
+		// this AWS service has been deprecated)
+		//
+		// Also check header common.TeleportAWSAssumedRole which is added by
+		// the local proxy for AWS requests signed by assumed roles.
+		if awsutils.IsSignedByAWSSigV4(r) || r.Header.Get(common.TeleportAWSAssumedRole) != "" {
+			return s.serveSession(w, r, &identity, app, s.withAWSSigner)
 		}
 
 		// Request for AWS console access originated from Teleport Proxy WebUI
 		// is not signed by SigV4.
-		return s.serveAWSWebConsole(w, r, identity, app)
+		return s.serveAWSWebConsole(w, r, &identity, app)
+
+	case app.IsAzureCloud():
+		return s.serveSession(w, r, &identity, app, s.withAzureHandler)
+
+	case app.IsGCP():
+		return s.serveSession(w, r, &identity, app, s.withGCPHandler)
 
 	default:
-		return s.serveSession(w, r, identity, app, s.withJWTTokenForwarder)
+		return s.serveSession(w, r, &identity, app, s.withJWTTokenForwarder)
 	}
-
 }
 
 // serveAWSWebConsole generates a sign-in URL for AWS management console and
 // redirects the user to it.
 func (s *Server) serveAWSWebConsole(w http.ResponseWriter, r *http.Request, identity *tlsca.Identity, app types.Application) error {
-	s.log.Debugf("Redirecting %v to AWS mananement console with role %v.",
+	s.log.Debugf("Redirecting %v to AWS management console with role %v.",
 		identity.Username, identity.RouteToApp.AWSRoleARN)
 
 	url, err := s.c.Cloud.GetAWSSigninURL(AWSSigninRequest{
@@ -710,11 +875,12 @@ func (s *Server) serveSession(w http.ResponseWriter, r *http.Request, identity *
 	sessionCtx := &common.SessionContext{
 		Identity: identity,
 		App:      app,
-		Emitter:  session.streamWriter,
+		ChunkID:  session.id,
+		Audit:    session.audit,
 	}
 
 	// Forward request to the target application.
-	session.fwd.ServeHTTP(w, common.WithSessionContext(r, sessionCtx))
+	session.handler.ServeHTTP(w, common.WithSessionContext(r, sessionCtx))
 	return nil
 }
 
@@ -723,7 +889,7 @@ func (s *Server) serveSession(w http.ResponseWriter, r *http.Request, identity *
 //
 // The connection comes from the reverse tunnel and is expected to be TLS and
 // carry identity in the client certificate.
-func (s *Server) getConnectionInfo(ctx context.Context, conn net.Conn) (*tls.Conn, auth.IdentityGetter, types.Application, error) {
+func (s *Server) getConnectionInfo(ctx context.Context, conn net.Conn) (*tls.Conn, authz.IdentityGetter, types.Application, error) {
 	tlsConn := tls.Server(conn, s.tlsConfig)
 	if err := tlsConn.Handshake(); err != nil {
 		return nil, nil, nil, trace.Wrap(err, "TLS handshake failed")
@@ -744,11 +910,15 @@ func (s *Server) getConnectionInfo(ctx context.Context, conn net.Conn) (*tls.Con
 
 // authorizeContext will check if the context carries identity information and
 // runs authorization checks on it.
-func (s *Server) authorizeContext(ctx context.Context) (*tlsca.Identity, types.Application, error) {
+func (s *Server) authorizeContext(ctx context.Context) (*authz.Context, types.Application, error) {
 	// Only allow local and remote identities to proxy to an application.
-	userType := ctx.Value(auth.ContextUser)
+	userType, err := authz.UserFromContext(ctx)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
 	switch userType.(type) {
-	case auth.LocalUser, auth.RemoteUser:
+	case authz.LocalUser, authz.RemoteUser:
 	default:
 		return nil, nil, trace.BadParameter("invalid identity: %T", userType)
 	}
@@ -765,7 +935,7 @@ func (s *Server) authorizeContext(ctx context.Context) (*tlsca.Identity, types.A
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	ap, err := s.c.AccessPoint.GetAuthPreference(ctx)
+	authPref, err := s.c.AccessPoint.GetAuthPreference(ctx)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -779,16 +949,33 @@ func (s *Server) authorizeContext(ctx context.Context) (*tlsca.Identity, types.A
 		})
 	}
 
-	mfaParams := authContext.MFAParams(ap.GetRequireMFAType())
+	// When accessing Azure API, check permissions to assume
+	// requested Azure identity as well.
+	if app.IsAzureCloud() {
+		matchers = append(matchers, &services.AzureIdentityMatcher{
+			Identity: identity.RouteToApp.AzureIdentity,
+		})
+	}
+
+	// When accessing GCP API, check permissions to assume
+	// requested GCP service account as well.
+	if app.IsGCP() {
+		matchers = append(matchers, &services.GCPServiceAccountMatcher{
+			ServiceAccount: identity.RouteToApp.GCPServiceAccount,
+		})
+	}
+
+	state := authContext.GetAccessState(authPref)
 	err = authContext.Checker.CheckAccess(
 		app,
-		mfaParams,
+		state,
 		matchers...)
 	if err != nil {
+		s.log.WithError(err).Warnf("access denied to application %v", app.GetName())
 		return nil, nil, utils.OpaqueAccessDenied(err)
 	}
 
-	return &identity, app, nil
+	return authContext, app, nil
 }
 
 // getSession returns a request session used to proxy the request to the
@@ -820,40 +1007,85 @@ func (s *Server) getSession(ctx context.Context, identity *tlsca.Identity, app t
 func (s *Server) getApp(ctx context.Context, publicAddr string) (types.Application, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-
-	for _, a := range s.getApps() {
+	// don't call s.getApps() as this will call RLock and potentially deadlock.
+	for _, a := range s.apps {
 		if publicAddr == a.GetPublicAddr() {
-			return a, nil
+			return s.appWithUpdatedLabelsLocked(a), nil
 		}
 	}
 	return nil, trace.NotFound("no application at %v found", publicAddr)
 }
 
+// appWithUpdatedLabelsLocked will inject updated dynamic and cloud labels into
+// an application object.
+// The caller must invoke an RLock on `s.mu` before calling this function.
+func (s *Server) appWithUpdatedLabelsLocked(app types.Application) *types.AppV3 {
+	// Create a copy of the application to modify
+	copy := app.Copy()
+
+	// Update dynamic labels if the app has them.
+	labels := s.dynamicLabels[copy.GetName()]
+
+	if labels != nil {
+		copy.SetDynamicLabels(labels.Get())
+	}
+
+	// Add in the cloud labels if the app has them.
+	if s.c.CloudLabels != nil {
+		s.c.CloudLabels.Apply(copy)
+	}
+
+	return copy
+}
+
 // newHTTPServer creates an *http.Server that can authorize and forward
 // requests to a target application.
-func (s *Server) newHTTPServer() *http.Server {
+func (s *Server) newHTTPServer(clusterName string) *http.Server {
 	// Reuse the auth.Middleware to authorize requests but only accept
 	// certificates that were specifically generated for applications.
+
 	s.authMiddleware = &auth.Middleware{
-		AccessPoint:   s.c.AccessPoint,
+		ClusterName:   clusterName,
 		AcceptedUsage: []string{teleport.UsageAppsOnly},
 	}
 	s.authMiddleware.Wrap(s)
 
 	return &http.Server{
 		Handler:           httplib.MakeTracingHandler(s.authMiddleware, teleport.ComponentApp),
-		ReadHeaderTimeout: apidefaults.DefaultDialTimeout,
+		ReadTimeout:       apidefaults.DefaultIOTimeout,
+		ReadHeaderTimeout: defaults.ReadHeadersTimeout,
+		WriteTimeout:      apidefaults.DefaultIOTimeout,
+		IdleTimeout:       apidefaults.DefaultIdleTimeout,
 		ErrorLog:          utils.NewStdlogger(s.log.Error, teleport.ComponentApp),
+		ConnContext: func(ctx context.Context, c net.Conn) context.Context {
+			return context.WithValue(ctx, connContextKey, c)
+		},
 	}
 }
 
 // newTCPServer creates a server that proxies TCP applications.
-func (s *Server) newTCPServer() *tcpServer {
+func (s *Server) newTCPServer() (*tcpServer, error) {
 	return &tcpServer{
-		authClient: s.c.AuthClient,
-		hostID:     s.c.HostID,
-		log:        s.log,
-	}
+		newAudit: func(sessionID string) (common.Audit, error) {
+			// Audit stream is using server context, not session context,
+			// to make sure that session is uploaded even after it is closed.
+			rec, err := s.newSessionRecorder(s.closeContext, sessionID)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			audit, err := common.NewAudit(common.AuditConfig{
+				Emitter:  s.c.Emitter,
+				Recorder: rec,
+			})
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			return audit, nil
+		},
+		hostID: s.c.HostID,
+		log:    s.log,
+	}, nil
 }
 
 // getProxyPort tries to figure out the address the proxy is running at.
@@ -872,41 +1104,9 @@ func (s *Server) getProxyPort() string {
 	return port
 }
 
-// getConfigForClient returns the list of CAs that could have signed the
-// client's certificate.
-func (s *Server) getConfigForClient(info *tls.ClientHelloInfo) (*tls.Config, error) {
-	var clusterName string
-	var err error
-
-	// Try and extract the name of the cluster that signed the client's certificate.
-	if info.ServerName != "" {
-		clusterName, err = apiutils.DecodeClusterName(info.ServerName)
-		if err != nil {
-			if !trace.IsNotFound(err) {
-				s.log.Debugf("Ignoring unsupported cluster name %q.", info.ServerName)
-			}
-		}
-	}
-
-	// Fetch list of CAs that could have signed this certificate. If clusterName
-	// is empty, all CAs that this cluster knows about are returned.
-	pool, _, err := auth.DefaultClientCertPool(s.c.AccessPoint, clusterName)
-	if err != nil {
-		// If this request fails, return nil and fallback to the default ClientCAs.
-		s.log.Debugf("Failed to retrieve client pool: %v.", trace.DebugReport(err))
-		return nil, nil
-	}
-
-	// Don't modify the server's *tls.Config, create one per connection because
-	// the requests could be coming from different clusters.
-	tlsCopy := s.tlsConfig.Clone()
-	tlsCopy.ClientCAs = pool
-	return tlsCopy, nil
-}
-
-// copyAndConfigureTLS can be used to copy and modify an existing *tls.Config
+// CopyAndConfigureTLS can be used to copy and modify an existing *tls.Config
 // for Teleport application proxy servers.
-func copyAndConfigureTLS(config *tls.Config, fn func(*tls.ClientHelloInfo) (*tls.Config, error)) *tls.Config {
+func CopyAndConfigureTLS(log logrus.FieldLogger, client auth.AccessCache, config *tls.Config) *tls.Config {
 	tlsConfig := config.Clone()
 
 	// Require clients to present a certificate
@@ -916,7 +1116,39 @@ func copyAndConfigureTLS(config *tls.Config, fn func(*tls.ClientHelloInfo) (*tls
 	// client's certificate to verify the chain presented. If the client does not
 	// pass in the cluster name, this functions pulls back all CA to try and
 	// match the certificate presented against any CA.
-	tlsConfig.GetConfigForClient = fn
+	tlsConfig.GetConfigForClient = newGetConfigForClientFn(log, client, tlsConfig)
 
 	return tlsConfig
+}
+
+func newGetConfigForClientFn(log logrus.FieldLogger, client auth.AccessCache, tlsConfig *tls.Config) func(*tls.ClientHelloInfo) (*tls.Config, error) {
+	return func(info *tls.ClientHelloInfo) (*tls.Config, error) {
+		var clusterName string
+		var err error
+
+		// Try and extract the name of the cluster that signed the client's certificate.
+		if info.ServerName != "" {
+			clusterName, err = apiutils.DecodeClusterName(info.ServerName)
+			if err != nil {
+				if !trace.IsNotFound(err) {
+					log.Debugf("Ignoring unsupported cluster name %q.", info.ServerName)
+				}
+			}
+		}
+
+		// Fetch list of CAs that could have signed this certificate. If clusterName
+		// is empty, all CAs that this cluster knows about are returned.
+		pool, _, err := auth.DefaultClientCertPool(client, clusterName)
+		if err != nil {
+			// If this request fails, return nil and fallback to the default ClientCAs.
+			log.Debugf("Failed to retrieve client pool: %v.", trace.DebugReport(err))
+			return nil, nil
+		}
+
+		// Don't modify the server's *tls.Config, create one per connection because
+		// the requests could be coming from different clusters.
+		tlsCopy := tlsConfig.Clone()
+		tlsCopy.ClientCAs = pool
+		return tlsCopy, nil
+	}
 }

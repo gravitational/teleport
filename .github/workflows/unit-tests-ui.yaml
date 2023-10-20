@@ -1,0 +1,39 @@
+name: Unit Tests UI
+run-name: Unit Tests UI - ${{ github.run_id }} - @${{ github.actor }}
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/unit-tests-ui.yaml'
+      - 'web/**'
+  merge_group:
+    paths:
+      - '.github/workflows/unit-tests-ui.yaml'
+      - 'web/**'
+
+jobs:
+  test:
+    name: Test UI
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout OSS Teleport
+        uses: actions/checkout@v4
+
+      - name: Determine Toolchain Versions
+        run: |
+          echo NODE_VERSION=$(make -s -C build.assets print-node-version) >> $GITHUB_ENV
+
+      - name: Print versions
+        run: |
+          echo "node: ${NODE_VERSION}"
+
+      - name: Setup Node Toolchain
+        uses: actions/setup-node@v3
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install Yarn dependencies
+        run: yarn --frozen-lockfile
+
+      - name: Run tests
+        run: yarn test

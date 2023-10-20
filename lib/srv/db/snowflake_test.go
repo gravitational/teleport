@@ -32,16 +32,21 @@ import (
 	"strconv"
 	"testing"
 
+	// Register Snowflake database driver.
+	// Do not move this dependency outside _test.go file. Doing so will create
+	// ocsp_response_cache.json in random places.
+	_ "github.com/snowflakedb/gosnowflake"
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/snowflake"
-	"github.com/stretchr/testify/require"
 )
 
-func init() {
+func registerTestSnowflakeEngine() {
 	// Override Snowflake engine that is used normally with the test one
 	// with custom HTTP client.
 	common.RegisterEngine(newTestSnowflakeEngine, defaults.ProtocolSnowflake)
@@ -107,14 +112,13 @@ func TestAccessSnowflake(t *testing.T) {
 			err:          "HTTP: 401",
 		},
 		{
-			desc:         "no access to databases",
+			desc:         "database name access is not enforced",
 			user:         "alice",
 			role:         "admin",
 			allowDbNames: []string{},
 			allowDbUsers: []string{types.Wildcard},
 			dbName:       "snowflake",
 			dbUser:       "snowflake",
-			err:          "HTTP: 401",
 		},
 		{
 			desc:         "no access to users",
@@ -239,7 +243,7 @@ func TestAuditSnowflake(t *testing.T) {
 	})
 
 	t.Run("session ends event", func(t *testing.T) {
-		t.Skip() //TODO(jakule): Driver for some reason doesn't terminate the session.
+		t.Skip() // TODO(jakule): Driver for some reason doesn't terminate the session.
 		// Closing connection should trigger session end event.
 		err := dbConn.Close()
 		require.NoError(t, err)
@@ -349,7 +353,7 @@ func TestTokenSession(t *testing.T) {
 }
 
 func withSnowflake(name string, opts ...snowflake.TestServerOption) withDatabaseOption {
-	return func(t *testing.T, ctx context.Context, testCtx *testContext) types.Database {
+	return func(t testing.TB, ctx context.Context, testCtx *testContext) types.Database {
 		snowflakeServer, err := snowflake.NewTestServer(common.TestServerConfig{
 			Name:       name,
 			AuthClient: testCtx.authClient,

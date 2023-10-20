@@ -17,20 +17,20 @@ limitations under the License.
 package common
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
 
+	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
-
-	log "github.com/sirupsen/logrus"
-	"github.com/stretchr/testify/require"
-
-	"github.com/gravitational/trace"
 )
 
 func TestMain(m *testing.M) {
@@ -138,11 +138,24 @@ func TestTeleportMain(t *testing.T) {
 			InitOnly: true,
 		})
 		require.Equal(t, "start", cmd)
-		require.Equal(t, len(bootstrapEntries), len(conf.Auth.Resources))
+		require.Equal(t, len(bootstrapEntries), len(conf.Auth.BootstrapResources))
 		for i, entry := range bootstrapEntries {
-			require.Equal(t, entry.kind, conf.Auth.Resources[i].GetKind(), entry.fileName)
-			require.Equal(t, entry.name, conf.Auth.Resources[i].GetName(), entry.fileName)
-			require.NoError(t, conf.Auth.Resources[i].CheckAndSetDefaults(), entry.fileName)
+			require.Equal(t, entry.kind, conf.Auth.BootstrapResources[i].GetKind(), entry.fileName)
+			require.Equal(t, entry.name, conf.Auth.BootstrapResources[i].GetName(), entry.fileName)
+			require.NoError(t, conf.Auth.BootstrapResources[i].CheckAndSetDefaults(), entry.fileName)
+		}
+	})
+	t.Run("ApplyOnStartup", func(t *testing.T) {
+		_, cmd, conf := Run(Options{
+			Args:     []string{"start", "--apply-on-startup", bootstrapFile},
+			InitOnly: true,
+		})
+		require.Equal(t, "start", cmd)
+		require.Equal(t, len(bootstrapEntries), len(conf.Auth.ApplyOnStartupResources))
+		for i, entry := range bootstrapEntries {
+			require.Equal(t, entry.kind, conf.Auth.ApplyOnStartupResources[i].GetKind(), entry.fileName)
+			require.Equal(t, entry.name, conf.Auth.ApplyOnStartupResources[i].GetName(), entry.fileName)
+			require.NoError(t, conf.Auth.ApplyOnStartupResources[i].CheckAndSetDefaults(), entry.fileName)
 		}
 	})
 }
@@ -174,6 +187,20 @@ func TestConfigure(t *testing.T) {
 		flags := dumpFlags{}
 		err := flags.CheckAndSetDefaults()
 		require.NoError(t, err)
+	})
+
+	t.Run("Suppress output", func(t *testing.T) {
+		tempDir := t.TempDir()
+		var stdout bytes.Buffer
+		err := onConfigDump(dumpFlags{
+			SampleFlags: config.SampleFlags{
+				Silent: true,
+			},
+			output: filepath.Join(tempDir, "teleport.yaml"),
+			stdout: &stdout,
+		})
+		require.NoError(t, err)
+		require.Empty(t, stdout.Bytes())
 	})
 }
 

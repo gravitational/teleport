@@ -23,10 +23,9 @@ import (
 	"github.com/julienschmidt/httprouter"
 
 	"github.com/gravitational/teleport/api/client/proto"
-	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/httplib"
-	"github.com/gravitational/teleport/lib/services"
 )
 
 // changePasswordReq is a request to change user password
@@ -38,7 +37,7 @@ type changePasswordReq struct {
 	// SecondFactorToken is user 2nd factor token
 	SecondFactorToken string `json:"second_factor_token"`
 	// WebauthnAssertionResponse is a Webauthn response
-	WebauthnAssertionResponse *wanlib.CredentialAssertionResponse `json:"webauthnAssertionResponse"`
+	WebauthnAssertionResponse *wantypes.CredentialAssertionResponse `json:"webauthnAssertionResponse"`
 }
 
 // changePassword updates users password based on the old password.
@@ -53,15 +52,17 @@ func (h *Handler) changePassword(w http.ResponseWriter, r *http.Request, p httpr
 		return nil, trace.Wrap(err)
 	}
 
-	servicedReq := services.ChangePasswordReq{
+	protoReq := &proto.ChangePasswordRequest{
 		User:              ctx.GetUser(),
 		OldPassword:       req.OldPassword,
 		NewPassword:       req.NewPassword,
 		SecondFactorToken: req.SecondFactorToken,
-		WebauthnResponse:  req.WebauthnAssertionResponse,
+		Webauthn: wantypes.CredentialAssertionResponseToProto(
+			req.WebauthnAssertionResponse,
+		),
 	}
 
-	if err := clt.ChangePassword(servicedReq); err != nil {
+	if err := clt.ChangePassword(r.Context(), protoReq); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -99,5 +100,5 @@ func (h *Handler) createAuthenticateChallengeWithPassword(w http.ResponseWriter,
 		return nil, trace.Wrap(err)
 	}
 
-	return client.MakeAuthenticateChallenge(chal), nil
+	return makeAuthenticateChallenge(chal), nil
 }

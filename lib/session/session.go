@@ -25,11 +25,10 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/gravitational/trace"
 	"github.com/moby/term"
 
 	"github.com/gravitational/teleport/api/types"
-
-	"github.com/gravitational/trace"
 )
 
 // ID is a unique session ID.
@@ -66,10 +65,9 @@ func NewID() ID {
 	return ID(uuid.New().String())
 }
 
-// Session is an interactive collaboration session that represents one
-// or many sessions started by the teleport user.
+// Session is a session of any kind (SSH, Kubernetes, Desktop, etc)
 type Session struct {
-	// Kind describes what kind of session this is e.g. ssh or kubernetes.
+	// Kind describes what kind of session this is e.g. ssh or k8s.
 	Kind types.SessionKind `json:"kind"`
 	// ID is a unique session identifier
 	ID ID `json:"id"`
@@ -91,12 +89,48 @@ type Session struct {
 	ServerID string `json:"server_id"`
 	// ServerHostname of session
 	ServerHostname string `json:"server_hostname"`
+	// ServerHostPort of session
+	ServerHostPort int `json:"server_hostport"`
 	// ServerAddr of session
 	ServerAddr string `json:"server_addr"`
-	// ClusterName is the name of cluster that this session belongs to.
+	// ClusterName is the name of the Teleport cluster that this session belongs to.
 	ClusterName string `json:"cluster_name"`
 	// KubernetesClusterName is the name of the kube cluster that this session is running in.
 	KubernetesClusterName string `json:"kubernetes_cluster_name"`
+	// DesktopName is the name of the desktop that this session is running in.
+	DesktopName string `json:"desktop_name"`
+	// DatabaseName is the name of the database being accessed.
+	DatabaseName string `json:"database_name"`
+	// AppName is the name of the app being accessed.
+	AppName string `json:"app_name"`
+	// Owner is the name of the session owner, ie the one who created the session.
+	Owner string `json:"owner"`
+	// Moderated is true if the session requires moderation (only relevant for Kind = ssh/k8s).
+	Moderated bool `json:"moderated"`
+	// Command is the command that was executed to start the session.
+	Command string `json:"command"`
+}
+
+// FileTransferRequestParams contain parameters for requesting a file transfer
+type FileTransferRequestParams struct {
+	// Download is true if the request is a download, false if it is an upload
+	Download bool `json:"direction"`
+	// Location is location of file to download, or where to put an upload
+	Location string `json:"location"`
+	// Filename is the name of the file to be uploaded
+	Filename string `json:"filename"`
+	// Requester is the authenticated Teleport user who requested the file transfer
+	Requester string `json:"requester"`
+	// Approvers is a list of teleport users who have approved the file transfer request
+	Approvers []Party `json:"approvers"`
+}
+
+// FileTransferDecisionParams contains parameters for approving or denying a file transfer request
+type FileTransferDecisionParams struct {
+	// RequestID is the ID of the request being responded to
+	RequestID string `json:"requestId"`
+	// Approved is true if the response approves a file transfer request
+	Approved bool `json:"approved"`
 }
 
 // Participants returns the usernames of the current session participants.
@@ -211,7 +245,7 @@ func NewTerminalParamsFromUint32(w uint32, h uint32) (*TerminalParams, error) {
 // NewTerminalParamsFromInt returns new terminal parameters from int width and height
 func NewTerminalParamsFromInt(w int, h int) (*TerminalParams, error) {
 	if w > maxSize || w < minSize {
-		return nil, trace.BadParameter("bad witdth")
+		return nil, trace.BadParameter("bad width")
 	}
 	if h > maxSize || h < minSize {
 		return nil, trace.BadParameter("bad height")

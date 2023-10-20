@@ -20,6 +20,7 @@ import (
 	"context"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 )
 
@@ -35,9 +36,29 @@ type NodesGetter interface {
 	GetNodes(ctx context.Context, namespace string) ([]types.Server, error)
 }
 
+// DatabaseServersGetter is a service that gets database servers.
+type DatabaseServersGetter interface {
+	GetDatabaseServers(context.Context, string, ...MarshalOption) ([]types.DatabaseServer, error)
+}
+
+// AppServersGetter is a service that gets application servers.
+type AppServersGetter interface {
+	GetApplicationServers(ctx context.Context, namespace string) ([]types.AppServer, error)
+}
+
+// NodesStreamGetter is a service that gets nodes.
+type NodesStreamGetter interface {
+	// GetNodeStream returns a list of registered servers.
+	GetNodeStream(ctx context.Context, namespace string) stream.Stream[types.Server]
+}
+
 // Presence records and reports the presence of all components
 // of the cluster - Nodes, Proxies and SSH nodes
 type Presence interface {
+	// Inventory is a subset of Presence dedicated to tracking the status of all
+	// teleport instances independent of any specific service.
+	Inventory
+
 	// Semaphores is responsible for semaphore handling
 	types.Semaphores
 
@@ -57,19 +78,12 @@ type Presence interface {
 	// specified duration with second resolution if it's >= 1 second.
 	UpsertNode(ctx context.Context, server types.Server) (*types.KeepAlive, error)
 
-	// DELETE IN: 5.1.0
-	//
-	// This logic has been moved to KeepAliveServer.
-	//
-	// KeepAliveNode updates node TTL in the storage
-	KeepAliveNode(ctx context.Context, h types.KeepAlive) error
-
 	// GetAuthServers returns a list of registered servers
 	GetAuthServers() ([]types.Server, error)
 
 	// UpsertAuthServer registers auth server presence, permanently if ttl is 0 or
 	// for the specified duration with second resolution if it's >= 1 second
-	UpsertAuthServer(server types.Server) error
+	UpsertAuthServer(ctx context.Context, server types.Server) error
 
 	// DeleteAuthServer deletes auth server by name
 	DeleteAuthServer(name string) error
@@ -79,13 +93,13 @@ type Presence interface {
 
 	// UpsertProxy registers proxy server presence, permanently if ttl is 0 or
 	// for the specified duration with second resolution if it's >= 1 second
-	UpsertProxy(server types.Server) error
+	UpsertProxy(ctx context.Context, server types.Server) error
 
 	// ProxyGetter gets a list of proxies
 	ProxyGetter
 
 	// DeleteProxy deletes proxy by name
-	DeleteProxy(name string) error
+	DeleteProxy(ctx context.Context, name string) error
 
 	// DeleteAllProxies deletes all proxies
 	DeleteAllProxies() error
@@ -119,6 +133,21 @@ type Presence interface {
 
 	// DeleteNamespace deletes namespace by name
 	DeleteNamespace(name string) error
+
+	// GetServerInfos returns a stream of ServerInfos.
+	GetServerInfos(ctx context.Context) stream.Stream[types.ServerInfo]
+
+	// GetServerInfo returns a ServerInfo by name.
+	GetServerInfo(ctx context.Context, name string) (types.ServerInfo, error)
+
+	// UpsertServerInfo upserts a ServerInfo.
+	UpsertServerInfo(ctx context.Context, si types.ServerInfo) error
+
+	// DeleteServerInfo deletes a ServerInfo by name.
+	DeleteServerInfo(ctx context.Context, name string) error
+
+	// DeleteAllServerInfos deletes all ServerInfos.
+	DeleteAllServerInfos(ctx context.Context) error
 
 	// UpsertTrustedCluster creates or updates a TrustedCluster in the backend.
 	UpsertTrustedCluster(ctx context.Context, tc types.TrustedCluster) (types.TrustedCluster, error)
@@ -163,17 +192,10 @@ type Presence interface {
 	GetRemoteCluster(clusterName string) (types.RemoteCluster, error)
 
 	// DeleteRemoteCluster deletes remote cluster by name
-	DeleteRemoteCluster(clusterName string) error
+	DeleteRemoteCluster(ctx context.Context, clusterName string) error
 
 	// DeleteAllRemoteClusters deletes all remote clusters
 	DeleteAllRemoteClusters() error
-
-	// UpsertKubeService registers kubernetes service presence.
-	// DELETE in 11.0. Deprecated, use UpsertKubeServiceV2
-	UpsertKubeService(context.Context, types.Server) error
-
-	// UpsertKubeServiceV2 registers kubernetes service presence
-	UpsertKubeServiceV2(context.Context, types.Server) (*types.KeepAlive, error)
 
 	// GetApplicationServers returns all registered application servers.
 	GetApplicationServers(context.Context, string) ([]types.AppServer, error)
@@ -195,18 +217,6 @@ type Presence interface {
 
 	// KeepAliveServer updates TTL of the server resource in the backend.
 	KeepAliveServer(ctx context.Context, h types.KeepAlive) error
-
-	// GetKubeServices returns a list of registered kubernetes services.
-	// DELETE IN 13.0. Deprecated, use GetKubernetesServers.
-	GetKubeServices(context.Context) ([]types.Server, error)
-
-	// DeleteKubeService deletes a named kubernetes service.
-	// DELETE IN 13.0. Deprecated, use DeleteKubernetesServer.
-	DeleteKubeService(ctx context.Context, name string) error
-
-	// DeleteAllKubeServices deletes all registered kubernetes services.
-	// DELETE IN 13.0. Deprecated, use DeleteAllKubernetesServers.
-	DeleteAllKubeServices(context.Context) error
 
 	// GetKubernetesServers returns a list of registered kubernetes servers.
 	GetKubernetesServers(context.Context) ([]types.KubeServer, error)
@@ -231,6 +241,12 @@ type Presence interface {
 	// DeleteAllWindowsDesktopServices removes all Windows desktop services.
 	DeleteAllWindowsDesktopServices(context.Context) error
 
-	// ListResoures returns a paginated list of resources.
+	// ListResources returns a paginated list of resources.
 	ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error)
+}
+
+// PresenceInternal extends the Presence interface with auth-specific internal methods.
+type PresenceInternal interface {
+	Presence
+	InventoryInternal
 }

@@ -28,6 +28,16 @@ const maxHistoryBytes = 1000
 // maxPausedHistoryBytes is maximum bytes that are buffered when a session is paused.
 const maxPausedHistoryBytes = 10000
 
+// termState indicates the current state of the terminal
+type termState int
+
+const (
+	// dataFlowOff indicates that data shouldn't be transmitted to clients
+	dataFlowOff termState = iota
+	// dataFlowOn indicates that data is allowed to be transmitted to clients
+	dataFlowOn
+)
+
 // TermManager handles the streams of terminal-like sessions.
 // It performs a number of tasks including:
 // - multiplexing
@@ -42,18 +52,22 @@ type TermManager struct {
 	mu           sync.Mutex
 	writers      map[string]io.Writer
 	readerState  map[string]bool
+	OnReadError  func(idString string, err error)
 	OnWriteError func(idString string, err error)
 	// buffer is used to buffer writes when turned off
 	buffer []byte
-	on     bool
-	// history is used to store the scrollback history sent to new clients
+	// state dictates whether data flow is permitted
+	state termState
+	// history is used to store the terminal history sent to new clients
 	history []byte
 	// incoming is a stream of incoming stdin data
 	incoming chan []byte
 	// remaining is a partially read chunk of stdin data
 	// we only support one concurrent reader so this isn't mutex protected
-	remaining         []byte
-	readStateUpdate   *sync.Cond
+	remaining []byte
+	// stateUpdate signals that a state transition has occurred as a result
+	// of calls to On/Off
+	stateUpdate       chan struct{}
 	closed            chan struct{}
 	lastWasBroadcast  bool
 	terminateNotifier chan struct{}
@@ -68,7 +82,7 @@ func NewTermManager() *TermManager {
 		writers:           make(map[string]io.Writer),
 		readerState:       make(map[string]bool),
 		closed:            make(chan struct{}),
-		readStateUpdate:   sync.NewCond(&sync.Mutex{}),
+		stateUpdate:       make(chan struct{}, 1),
 		incoming:          make(chan []byte, 100),
 		terminateNotifier: make(chan struct{}, 1),
 	}
@@ -95,7 +109,6 @@ func (g *TermManager) writeToClients(p []byte) {
 			delete(g.writers, key)
 		}
 	}
-
 }
 
 func (g *TermManager) TerminateNotifier() <-chan struct{} {
@@ -110,7 +123,7 @@ func (g *TermManager) Write(p []byte) (int, error) {
 		return 0, io.EOF
 	}
 
-	if g.on {
+	if g.state == dataFlowOn {
 		g.writeToClients(p)
 	} else {
 		// Only keep the last maxPausedHistoryBytes of stdout/stderr while the session is paused.
@@ -122,55 +135,29 @@ func (g *TermManager) Write(p []byte) (int, error) {
 }
 
 func (g *TermManager) Read(p []byte) (int, error) {
-	if len(g.remaining) > 0 {
-		n := copy(p, g.remaining)
-		g.remaining = g.remaining[n:]
-		return n, nil
-	}
-
-	q := make(chan struct{})
-	defer close(q)
-	c := make(chan bool)
-	go func() {
-		g.readStateUpdate.L.Lock()
-		defer g.readStateUpdate.L.Unlock()
-
-		for {
-			g.mu.Lock()
-			on := g.on
-			g.mu.Unlock()
-
-			select {
-			case c <- on:
-			case <-q:
-				close(c)
-				return
-			}
-
-			g.readStateUpdate.Wait()
-		}
-	}()
-
-	on := <-c
+	// wait until data flow is enabled and there is data to be read, or the session is terminated.
 	for {
-		if !on {
-			select {
-			case <-g.closed:
-				return 0, io.EOF
-			case on = <-c:
-				continue
-			}
+		g.mu.Lock()
+		state := g.state
+		closed := g.isClosed()
+		switch {
+		case closed:
+			g.mu.Unlock()
+			return 0, io.EOF
+		case !closed && state == dataFlowOn && len(g.remaining) > 0:
+			n := copy(p, g.remaining)
+			g.remaining = g.remaining[n:]
+			g.mu.Unlock()
+			return n, nil
 		}
+		g.mu.Unlock()
 
 		select {
 		case <-g.closed:
 			return 0, io.EOF
-		case on = <-c:
-			continue
-		case g.remaining = <-g.incoming:
-			n := copy(p, g.remaining)
-			g.remaining = g.remaining[n:]
-			return n, nil
+		case <-g.stateUpdate:
+		case data := <-g.incoming:
+			g.remaining = append(g.remaining, data...)
 		}
 	}
 }
@@ -193,8 +180,11 @@ func (g *TermManager) BroadcastMessage(message string) {
 func (g *TermManager) On() {
 	g.mu.Lock()
 	defer g.mu.Unlock()
-	g.on = true
-	g.readStateUpdate.Broadcast()
+	g.state = dataFlowOn
+	select {
+	case g.stateUpdate <- struct{}{}:
+	default:
+	}
 	g.writeToClients(g.buffer)
 }
 
@@ -202,8 +192,11 @@ func (g *TermManager) On() {
 func (g *TermManager) Off() {
 	g.mu.Lock()
 	defer g.mu.Unlock()
-	g.on = false
-	g.readStateUpdate.Broadcast()
+	g.state = dataFlowOff
+	select {
+	case g.stateUpdate <- struct{}{}:
+	default:
+	}
 }
 
 func (g *TermManager) AddWriter(name string, w io.Writer) {
@@ -227,6 +220,10 @@ func (g *TermManager) AddReader(name string, r io.Reader) {
 			n, err := r.Read(buf)
 			if err != nil {
 				log.Warnf("Failed to read from remote terminal: %v", err)
+				// Let term manager decide how to handle broken party readers.
+				if g.OnReadError != nil {
+					g.OnReadError(name, err)
+				}
 				g.DeleteReader(name)
 				return
 			}
@@ -235,7 +232,7 @@ func (g *TermManager) AddReader(name string, r io.Reader) {
 				// This is the ASCII control code for CTRL+C.
 				if b == 0x03 {
 					g.mu.Lock()
-					if !g.on && !g.isClosed() {
+					if g.state == dataFlowOff && !g.isClosed() {
 						select {
 						case g.terminateNotifier <- struct{}{}:
 						default:
@@ -248,7 +245,7 @@ func (g *TermManager) AddReader(name string, r io.Reader) {
 
 			g.mu.Lock()
 
-			if g.on {
+			if g.state == dataFlowOn {
 				g.mu.Unlock()
 				g.incoming <- buf[:n]
 				g.mu.Lock()

@@ -23,9 +23,9 @@ import (
 	"path/filepath"
 	"sync"
 
-	"github.com/gravitational/teleport/lib/session"
-
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/lib/session"
 )
 
 const (

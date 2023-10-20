@@ -38,7 +38,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-
 	log "github.com/sirupsen/logrus"
 )
 
@@ -55,6 +54,11 @@ const (
 	// promptReason is the LAContext / Touch ID prompt.
 	// The final prompt is: "$binary is trying to authenticate user".
 	promptReason = "authenticate user"
+)
+
+const (
+	kLAErrorDomain       = "com.apple.LocalAuthentication"
+	kLAErrorSystemCancel = -4
 )
 
 type parsedLabel struct {
@@ -89,11 +93,33 @@ type touchIDImpl struct{}
 func (touchIDImpl) Diag() (*DiagResult, error) {
 	var resC C.DiagResult
 	C.RunDiag(&resC)
+	defer func() {
+		C.free(unsafe.Pointer(resC.la_error_domain))
+		C.free(unsafe.Pointer(resC.la_error_description))
+	}()
 
 	signed := (bool)(resC.has_signature)
 	entitled := (bool)(resC.has_entitlements)
 	passedLA := (bool)(resC.passed_la_policy_test)
 	passedEnclave := (bool)(resC.passed_secure_enclave_test)
+	laErrorCode := int64(resC.la_error_code)
+	laErrorDomain := C.GoString(resC.la_error_domain)
+	laErrorDescription := C.GoString(resC.la_error_description)
+	if !passedLA && laErrorDescription != "" {
+		log.Debugf("Touch ID: LAError description: %v", laErrorDescription)
+	}
+
+	isAvailable := signed && entitled && passedLA && passedEnclave
+	isClamshellFailure := !isAvailable &&
+		// LAContext test failed.
+		!passedLA &&
+		// Everything else worked.
+		signed &&
+		entitled &&
+		passedEnclave &&
+		// We got an LAErrorSystemCancel error.
+		laErrorDomain == kLAErrorDomain &&
+		laErrorCode == kLAErrorSystemCancel
 
 	return &DiagResult{
 		HasCompileSupport:       true,
@@ -101,7 +127,8 @@ func (touchIDImpl) Diag() (*DiagResult, error) {
 		HasEntitlements:         entitled,
 		PassedLAPolicyTest:      passedLA,
 		PassedSecureEnclaveTest: passedEnclave,
-		IsAvailable:             signed && entitled && passedLA && passedEnclave,
+		IsAvailable:             isAvailable,
+		isClamshellFailure:      isClamshellFailure,
 	}, nil
 }
 
@@ -132,7 +159,7 @@ func (c *touchIDContext) Guard(fn func()) error {
 	defer handle.Delete()
 
 	var errMsgC *C.char
-	defer C.free(unsafe.Pointer(errMsgC))
+	defer func() { C.free(unsafe.Pointer(errMsgC)) }()
 
 	res := C.AuthContextGuard(c.ctx, reasonC, C.uintptr_t(handle), &errMsgC)
 	if res != 0 {
@@ -251,7 +278,7 @@ func (touchIDImpl) ListCredentials() ([]CredentialInfo, error) {
 	defer C.free(unsafe.Pointer(reasonC))
 
 	var errMsgC *C.char
-	defer C.free(unsafe.Pointer(errMsgC))
+	defer func() { C.free(unsafe.Pointer(errMsgC)) }()
 
 	infos, res := readCredentialInfos(func(infosOut **C.CredentialInfo) C.int {
 		// ListCredentials lists all Keychain entries we have access to, without
@@ -263,7 +290,7 @@ func (touchIDImpl) ListCredentials() ([]CredentialInfo, error) {
 	})
 	if res < 0 {
 		errMsg := C.GoString(errMsgC)
-		return nil, errorFromStatus("listing credentials", int(res), errMsg)
+		return nil, errorFromStatus("listing credentials", res, errMsg)
 	}
 
 	return infos, nil
@@ -271,7 +298,7 @@ func (touchIDImpl) ListCredentials() ([]CredentialInfo, error) {
 
 func readCredentialInfos(find func(**C.CredentialInfo) C.int) ([]CredentialInfo, int) {
 	var infosC *C.CredentialInfo
-	defer C.free(unsafe.Pointer(infosC))
+	defer func() { C.free(unsafe.Pointer(infosC)) }()
 
 	res := find(&infosC)
 	if res < 0 {
@@ -358,7 +385,7 @@ func (touchIDImpl) DeleteCredential(credentialID string) error {
 	defer C.free(unsafe.Pointer(idC))
 
 	var errC *C.char
-	defer C.free(unsafe.Pointer(errC))
+	defer func() { C.free(unsafe.Pointer(errC)) }()
 
 	switch res := C.DeleteCredential(reasonC, idC, &errC); res {
 	case 0: // aka success

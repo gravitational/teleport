@@ -32,19 +32,26 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/gravitational/trace"
+	"github.com/julienschmidt/httprouter"
+	"k8s.io/apimachinery/pkg/util/validation"
+
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/automaticupgrades"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web/scripts"
 	"github.com/gravitational/teleport/lib/web/ui"
-	"github.com/gravitational/trace"
-	"github.com/julienschmidt/httprouter"
-	"k8s.io/apimachinery/pkg/util/validation"
+)
+
+const (
+	stableCloudChannelRepo = "stable/cloud"
 )
 
 // nodeJoinToken contains node token fields for the UI.
@@ -62,11 +69,22 @@ type nodeJoinToken struct {
 // scriptSettings is used to hold values which are passed into the function that
 // generates the join script.
 type scriptSettings struct {
-	token          string
-	appInstallMode bool
-	appName        string
-	appURI         string
-	joinMethod     string
+	token               string
+	appInstallMode      bool
+	appName             string
+	appURI              string
+	joinMethod          string
+	databaseInstallMode bool
+	installUpdater      bool
+
+	// automaticUpgradesVersionURL is the URL for getting the version when using the cloud/stable channel.
+	// Optional.
+	automaticUpgradesVersionURL string
+}
+
+// automaticUpgrades returns whether automaticUpgrades should be enabled.
+func automaticUpgrades(features proto.Features) bool {
+	return features.AutomaticUpgrades && features.Cloud
 }
 
 func (h *Handler) createTokenHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
@@ -105,13 +123,40 @@ func (h *Handler) createTokenHandle(w http.ResponseWriter, r *http.Request, para
 
 			return &nodeJoinToken{
 				ID:     t.GetName(),
-				Expiry: *t.GetMetadata().Expires,
+				Expiry: t.Expiry(),
 				Method: t.GetJoinMethod(),
 			}, nil
 		}
 
 		// IAM tokens should 'never' expire
 		expires = time.Now().UTC().AddDate(1000, 0, 0)
+	case types.JoinMethodAzure:
+		tokenName, err := generateAzureTokenName(req.Azure.Allow)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		t, err := clt.GetToken(r.Context(), tokenName)
+		if err != nil && !trace.IsNotFound(err) {
+			return nil, trace.Wrap(err)
+		}
+
+		v2token, ok := t.(*types.ProvisionTokenV2)
+		if !ok {
+			return nil, trace.BadParameter("Azure join requires v2 token")
+		}
+
+		if err == nil {
+			if t.GetJoinMethod() != types.JoinMethodAzure || !isSameAzureRuleSet(req.Azure.Allow, v2token.Spec.Azure.Allow) {
+				return nil, trace.BadParameter("failed to create token: token with name %q already exists and does not have the expected allow rules", tokenName)
+			}
+
+			return &nodeJoinToken{
+				ID:     t.GetName(),
+				Expiry: t.Expiry(),
+				Method: t.GetJoinMethod(),
+			}, nil
+		}
 	default:
 		tokenName, err = utils.CryptoRandomHex(auth.TokenLenBytes)
 		if err != nil {
@@ -161,27 +206,14 @@ func (h *Handler) createTokenHandle(w http.ResponseWriter, r *http.Request, para
 	}, nil
 }
 
-func (h *Handler) createNodeTokenHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
-	clt, err := ctx.GetClient()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	roles := types.SystemRoles{
-		types.RoleNode,
-		types.RoleApp,
-	}
-
-	return createJoinToken(r.Context(), clt, roles)
-}
-
 func (h *Handler) getNodeJoinScriptHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params) (interface{}, error) {
-	scripts.SetScriptHeaders(w.Header())
+	httplib.SetScriptHeaders(w.Header())
 
 	settings := scriptSettings{
 		token:          params.ByName("token"),
 		appInstallMode: false,
 		joinMethod:     r.URL.Query().Get("method"),
+		installUpdater: automaticUpgrades(h.ClusterFeatures),
 	}
 
 	script, err := getJoinScript(r.Context(), settings, h.GetProxyClient())
@@ -201,7 +233,7 @@ func (h *Handler) getNodeJoinScriptHandle(w http.ResponseWriter, r *http.Request
 }
 
 func (h *Handler) getAppJoinScriptHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params) (interface{}, error) {
-	scripts.SetScriptHeaders(w.Header())
+	httplib.SetScriptHeaders(w.Header())
 	queryValues := r.URL.Query()
 
 	name, err := url.QueryUnescape(queryValues.Get("name"))
@@ -223,6 +255,7 @@ func (h *Handler) getAppJoinScriptHandle(w http.ResponseWriter, r *http.Request,
 		appInstallMode: true,
 		appName:        name,
 		appURI:         uri,
+		installUpdater: automaticUpgrades(h.ClusterFeatures),
 	}
 
 	script, err := getJoinScript(r.Context(), settings, h.GetProxyClient())
@@ -241,21 +274,29 @@ func (h *Handler) getAppJoinScriptHandle(w http.ResponseWriter, r *http.Request,
 	return nil, nil
 }
 
-func createJoinToken(ctx context.Context, m nodeAPIGetter, roles types.SystemRoles) (*nodeJoinToken, error) {
-	req := &proto.GenerateTokenRequest{
-		Roles: roles,
-		TTL:   proto.Duration(defaults.NodeJoinTokenTTL),
+func (h *Handler) getDatabaseJoinScriptHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params) (interface{}, error) {
+	httplib.SetScriptHeaders(w.Header())
+
+	settings := scriptSettings{
+		token:               params.ByName("token"),
+		databaseInstallMode: true,
+		installUpdater:      automaticUpgrades(h.ClusterFeatures),
 	}
 
-	token, err := m.GenerateToken(ctx, req)
+	script, err := getJoinScript(r.Context(), settings, h.GetProxyClient())
 	if err != nil {
-		return nil, trace.Wrap(err)
+		log.WithError(err).Info("Failed to return the database install script.")
+		w.Write(scripts.ErrorBashScript)
+		return nil, nil
 	}
 
-	return &nodeJoinToken{
-		ID:     token,
-		Expiry: time.Now().UTC().Add(defaults.NodeJoinTokenTTL),
-	}, nil
+	w.WriteHeader(http.StatusOK)
+	if _, err := fmt.Fprintln(w, script); err != nil {
+		log.WithError(err).Debug("Failed to return the database install script.")
+		w.Write(scripts.ErrorBashScript)
+	}
+
+	return nil, nil
 }
 
 func getJoinScript(ctx context.Context, settings scriptSettings, m nodeAPIGetter) (string, error) {
@@ -292,13 +333,19 @@ func getJoinScript(ctx context.Context, settings scriptSettings, m nodeAPIGetter
 	}
 
 	version := proxyServers[0].GetTeleportVersion()
-	hostname, portStr, err := utils.SplitHostPort(proxyServers[0].GetPublicAddr())
+
+	publicAddr := proxyServers[0].GetPublicAddr()
+	if publicAddr == "" {
+		return "", trace.Errorf("proxy public_addr is not set, you must set proxy_service.public_addr to the publicly reachable address of the proxy before you can generate a node join script")
+	}
+
+	hostname, portStr, err := utils.SplitHostPort(publicAddr)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
 
 	// Get the CA pin hashes of the cluster to join.
-	localCAResponse, err := m.GetClusterCACert(context.TODO())
+	localCAResponse, err := m.GetClusterCACert(ctx)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -313,6 +360,15 @@ func getJoinScript(ctx context.Context, settings scriptSettings, m nodeAPIGetter
 		labelsList = append(labelsList, fmt.Sprintf("%s=%s", labelKey, labels))
 	}
 
+	var dbServiceResourceLabels []string
+	if settings.databaseInstallMode {
+		suggestedAgentMatcherLabels := token.GetSuggestedAgentMatcherLabels()
+		dbServiceResourceLabels, err = scripts.MarshalLabelsYAML(suggestedAgentMatcherLabels, 6)
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+	}
+
 	var buf bytes.Buffer
 	// If app install mode is requested but parameters are blank for some reason,
 	// we need to return an error.
@@ -324,9 +380,33 @@ func getJoinScript(ctx context.Context, settings scriptSettings, m nodeAPIGetter
 			return "", trace.BadParameter("appURI %q contains invalid characters", settings.appURI)
 		}
 	}
+
+	packageName := types.PackageNameOSS
+	if modules.GetModules().BuildType() == modules.BuildEnterprise {
+		packageName = types.PackageNameEnt
+	}
+
+	// By default, it will use `stable/v<majorVersion>`, eg stable/v12
+	repoChannel := ""
+
+	// The install script will install the updater (teleport-ent-updater) for Cloud customers enrolled in Automatic Upgrades.
+	// The repo channel used must be `stable/cloud` which has the available packages for the Cloud Customer's agents.
+	// It pins the teleport version to the one specified by https://updates.releases.teleport.dev/v1/stable/cloud/version
+	// This ensures the initial installed version is the same as the `teleport-ent-updater` would install.
+	if settings.installUpdater {
+		repoChannel = stableCloudChannelRepo
+		cloudStableVersion, err := automaticupgrades.Version(ctx, settings.automaticUpgradesVersionURL)
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+
+		// cloudStableVersion has vX.Y.Z format, however the script expects the version to not include the `v`
+		version = strings.TrimPrefix(cloudStableVersion, "v")
+	}
+
 	// This section relies on Go's default zero values to make sure that the settings
 	// are correct when not installing an app.
-	err = scripts.InstallNodeBashScript.Execute(&buf, map[string]string{
+	err = scripts.InstallNodeBashScript.Execute(&buf, map[string]interface{}{
 		"token":    settings.token,
 		"hostname": hostname,
 		"port":     portStr,
@@ -335,14 +415,19 @@ func getJoinScript(ctx context.Context, settings scriptSettings, m nodeAPIGetter
 		// version used space delimited values whereas the teleport command uses
 		// a comma delimeter. The Old version can be removed when the install.sh
 		// file has been completely converted over.
-		"caPinsOld":      strings.Join(caPins, " "),
-		"caPins":         strings.Join(caPins, ","),
-		"version":        version,
-		"appInstallMode": strconv.FormatBool(settings.appInstallMode),
-		"appName":        settings.appName,
-		"appURI":         settings.appURI,
-		"joinMethod":     settings.joinMethod,
-		"labels":         strings.Join(labelsList, ","),
+		"caPinsOld":                  strings.Join(caPins, " "),
+		"caPins":                     strings.Join(caPins, ","),
+		"packageName":                packageName,
+		"repoChannel":                repoChannel,
+		"installUpdater":             strconv.FormatBool(settings.installUpdater),
+		"version":                    version,
+		"appInstallMode":             strconv.FormatBool(settings.appInstallMode),
+		"appName":                    settings.appName,
+		"appURI":                     settings.appURI,
+		"joinMethod":                 settings.joinMethod,
+		"labels":                     strings.Join(labelsList, ","),
+		"databaseInstallMode":        strconv.FormatBool(settings.databaseInstallMode),
+		"db_service_resource_labels": dbServiceResourceLabels,
 	})
 	if err != nil {
 		return "", trace.Wrap(err)
@@ -373,6 +458,24 @@ func generateIAMTokenName(rules []*types.TokenRule) (string, error) {
 	return fmt.Sprintf("teleport-ui-iam-%d", h.Sum32()), nil
 }
 
+// generateAzureTokenName makes a deterministic name for an azure join token
+// based on its rule set.
+func generateAzureTokenName(rules []*types.ProvisionTokenSpecV2Azure_Rule) (string, error) {
+	orderedRules := make([]*types.ProvisionTokenSpecV2Azure_Rule, len(rules))
+	copy(orderedRules, rules)
+	sortAzureRules(orderedRules)
+
+	h := fnv.New32a()
+	for _, r := range orderedRules {
+		_, err := h.Write([]byte(r.Subscription))
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+	}
+
+	return fmt.Sprintf("teleport-ui-azure-%d", h.Sum32()), nil
+}
+
 // sortRules sorts a slice of rules based on their AWS Account ID and ARN
 func sortRules(rules []*types.TokenRule) {
 	sort.Slice(rules, func(i, j int) bool {
@@ -387,6 +490,13 @@ func sortRules(rules []*types.TokenRule) {
 	})
 }
 
+// sortAzureRules sorts a slice of Azure rules based on their subscription.
+func sortAzureRules(rules []*types.ProvisionTokenSpecV2Azure_Rule) {
+	sort.Slice(rules, func(i, j int) bool {
+		return rules[i].Subscription < rules[j].Subscription
+	})
+}
+
 // isSameRuleSet check if r1 and r2 are the same rules, ignoring the order
 func isSameRuleSet(r1 []*types.TokenRule, r2 []*types.TokenRule) bool {
 	sortRules(r1)
@@ -394,16 +504,14 @@ func isSameRuleSet(r1 []*types.TokenRule, r2 []*types.TokenRule) bool {
 	return reflect.DeepEqual(r1, r2)
 }
 
-type nodeAPIGetter interface {
-	// GenerateToken creates a special provisioning token for a new SSH server.
-	//
-	// This token is used by SSH server to authenticate with Auth server
-	// and get a signed certificate.
-	//
-	// If token is not supplied, it will be auto generated and returned.
-	// If TTL is not supplied, token will be valid until removed.
-	GenerateToken(ctx context.Context, req *proto.GenerateTokenRequest) (string, error)
+// isSameAzureRuleSet checks if r1 and r2 are the same rules, ignoring order.
+func isSameAzureRuleSet(r1, r2 []*types.ProvisionTokenSpecV2Azure_Rule) bool {
+	sortAzureRules(r1)
+	sortAzureRules(r2)
+	return reflect.DeepEqual(r1, r2)
+}
 
+type nodeAPIGetter interface {
 	// GetToken looks up a provisioning token.
 	GetToken(ctx context.Context, token string) (types.ProvisionToken, error)
 

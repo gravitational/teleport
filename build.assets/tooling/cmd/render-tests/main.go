@@ -27,15 +27,10 @@ import (
 	"io"
 	"os"
 	"os/signal"
-	"regexp"
-	"sort"
-	"strconv"
 	"time"
 
 	"github.com/gravitational/trace"
 )
-
-var covPattern = regexp.MustCompile(`^coverage: (\d+\.\d+)\% of statements`)
 
 // matches `event` in src/cmd/internal/test2json/test2json.go
 type TestEvent struct {
@@ -47,62 +42,37 @@ type TestEvent struct {
 	Output         string
 }
 
-func (e *TestEvent) FullName() string {
-	if e.Test == "" {
-		return e.Package
-	}
-	return e.Package + "." + e.Test
-}
-
-// action names used by the go test runner in its JSON output
-const (
-	actionPass   = "pass"
-	actionFail   = "fail"
-	actionSkip   = "skip"
-	actionOutput = "output"
-)
-
-// separator for console output
-const separator = "==================================================="
-
 func readInput(input io.Reader, ch chan<- TestEvent, errCh chan<- error) {
 	defer close(ch)
 	decoder := json.NewDecoder(input)
-	for {
+	var err error
+	for err == nil {
 		event := TestEvent{}
-
-		err := decoder.Decode(&event)
-		if errors.Is(err, io.EOF) {
-			return
+		if err = decoder.Decode(&event); err == nil {
+			ch <- event
 		}
+	}
 
-		if err != nil {
-			fmt.Printf("Error parsing JSON test record: %v\n", err)
-
-			scanner := bufio.NewScanner(decoder.Buffered())
-			for scanner.Scan() {
-				line := scanner.Text()
-				if line != "" {
-					err = trace.Errorf(line)
-					break
-				}
+	if !errors.Is(err, io.EOF) {
+		fmt.Printf("Error parsing JSON test record: %v\n", err)
+		scanner := bufio.NewScanner(decoder.Buffered())
+		for scanner.Scan() {
+			line := scanner.Text()
+			if line != "" {
+				err = trace.Errorf(line)
+				break
 			}
-
-			errCh <- err
-
-			return
 		}
-
-		ch <- event
+		errCh <- err
 	}
 }
 
 func main() {
-	args := parseCommandLine()
-
-	testOutput := newOutputMap()
-	failedPackages := make(map[string]*packageOutput)
-	coverage := make(map[string]float64)
+	args, err := parseCommandLine()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
 
 	events := make(chan TestEvent)
 	errors := make(chan error)
@@ -111,124 +81,49 @@ func main() {
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, os.Interrupt)
 
-readloop:
-	for {
+	var summaryOut io.Writer = os.Stdout
+	if args.summaryFile != "" {
+		f, err := os.Create(args.summaryFile)
+		if err != nil {
+			// Don't fatally exit, because we should still summarize the
+			// results to stdout
+			fmt.Fprintf(os.Stderr, "Could not create summary file: %v\n", err)
+		} else {
+			summaryOut = io.MultiWriter(os.Stdout, f)
+			defer f.Close()
+		}
+	}
+
+	rr := newRunResult(args.report, args.top)
+	ok := true
+	for ok {
+		var event TestEvent
 		select {
 		case <-signals:
-			break readloop
+			ok = false
 
 		case err := <-errors:
 			fmt.Printf("FATAL error: %q\n", err)
+			ok = false
 
-		case event, keepGoing := <-events:
-			if !keepGoing {
-				break readloop
-			}
-
-			testName := event.FullName()
-
-			testOutput.record(event)
-
-			if args.report == byTest {
-				switch event.Action {
-				case actionPass, actionFail, actionSkip:
-					fmt.Printf("%s (in %6.2fs): %s\n", event.Action, event.ElapsedSeconds, event.FullName())
-				}
-			}
-
-			// if this is whole-package summary result
-			if event.Test == "" {
-				switch event.Action {
-				case actionOutput:
-					if matches := covPattern.FindStringSubmatch(event.Output); len(matches) != 0 {
-						value, err := strconv.ParseFloat(matches[1], 64)
-						if err != nil {
-							panic("Malformed coverage value: " + err.Error())
-						}
-						coverage[testName] = value
-					}
-
-				case actionFail:
-					// cache the failed test output
-					failedPackages[event.Package] = testOutput.getPkg(event.Package)
-					fallthrough
-
-				case actionPass, actionSkip:
-					if args.report == byPackage {
-						// extract and format coverage value
-						covText := "------"
-						if covValue, ok := coverage[testName]; ok {
-							covText = fmt.Sprintf("%5.1f%%", covValue)
-						}
-
-						// only display package results as progress messages
-						fmt.Printf("%s %s (in %6.2fs): %s\n", covText, event.Action, event.ElapsedSeconds, event.Package)
-					}
-
-					// Don't need this no more
-					testOutput.deletePkg(event.Package)
-				}
+		case event, ok = <-events:
+			if ok {
+				rr.processTestEvent(event)
+				rr.printTestResult(os.Stdout, event)
 			}
 		}
 	}
 
-	fmt.Println(separator)
+	if args.report == byFlakiness {
+		rr.printFlakinessSummary(summaryOut)
+	} else {
+		rr.printSummary(summaryOut)
+	}
+	fmt.Fprintln(os.Stdout, separator)
+	rr.printFailedTestOutput(os.Stdout)
 
-	fmt.Printf("%d tests passed. %d failed, %d skipped\n",
-		testOutput.actionCounts[actionPass], testOutput.actionCounts[actionFail], testOutput.actionCounts[actionSkip])
-
-	fmt.Println(separator)
-
-	if len(failedPackages) == 0 {
-		fmt.Println("All tests pass. Yay!")
+	if rr.testCount.fail == 0 {
 		os.Exit(0)
 	}
-
-	// Generate a sorted list of package names, so that we present the
-	// packages that fail in a repeatable order.
-	names := make([]string, 0, len(failedPackages))
-	for k := range failedPackages {
-		names = append(names, k)
-	}
-	sort.Strings(names)
-
-	// Print a summary list of the failed tests and packages.
-	for _, pkgName := range names {
-		pkg := failedPackages[pkgName]
-
-		fmt.Printf("FAIL: %s\n", pkgName)
-
-		for testName := range pkg.failedSubtests {
-			fmt.Printf("FAIL: %s.%s\n", pkgName, testName)
-		}
-	}
-
-	fmt.Println(separator)
-
-	// Print the output of each failed package or test. Note that we only print
-	// the package output if there is no identifiable test that caused the
-	// failure, as it will probably swamp the individual test output.
-	for _, pkgName := range names {
-		pkg := failedPackages[pkgName]
-
-		if len(pkg.failedSubtests) == 0 {
-			fmt.Printf("OUTPUT %s\n", pkgName)
-			fmt.Println(separator)
-			for _, l := range pkg.output {
-				fmt.Print(l)
-			}
-			fmt.Println(separator)
-		} else {
-			for _, testName := range pkg.FailedTests() {
-				fmt.Printf("OUTPUT %s.%s\n", pkgName, testName)
-				fmt.Println(separator)
-				for _, l := range pkg.failedSubtests[testName] {
-					fmt.Print(l)
-				}
-				fmt.Println(separator)
-			}
-		}
-	}
-
 	os.Exit(1)
 }

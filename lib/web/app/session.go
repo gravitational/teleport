@@ -21,22 +21,22 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/tlsca"
-
 	"github.com/gravitational/trace"
 	"github.com/gravitational/ttlmap"
-
-	"github.com/gravitational/oxy/forward"
-	oxyutils "github.com/gravitational/oxy/utils"
 	"github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/srv/app/common"
+	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 // session holds a request forwarder and web session for this request.
 type session struct {
 	// fwd can rewrite and forward requests to the target application.
-	fwd *forward.Forwarder
+	fwd *reverseproxy.Forwarder
 	// ws represents the services.WebSession this requests belongs to.
 	ws types.WebSession
 	// transport allows to dial an application server.
@@ -66,17 +66,11 @@ func (h *Handler) newSession(ctx context.Context, ws types.WebSession) (*session
 		return nil, trace.Wrap(err)
 	}
 
-	// Match healthy and PublicAddr servers. Having a list of only healthy
-	// servers helps the transport fail before the request is forwarded to a
-	// server (in cases where there are no healthy servers). This process might
-	// take an additional time to execute, but since it is cached, only a few
-	// requests need to perform it.
-	servers, err := Match(ctx, accessPoint, MatchAll(
-		MatchPublicAddr(identity.RouteToApp.PublicAddr),
-		// NOTE: Try to leave this matcher as the last one to dial only the
-		// application servers that match the requested application.
-		MatchHealthy(h.c.ProxyClient, identity),
-	))
+	servers, err := Match(
+		ctx,
+		accessPoint,
+		appServerMatcher(h.c.ProxyClient, identity.RouteToApp.PublicAddr, identity.RouteToApp.ClusterName),
+	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -100,23 +94,44 @@ func (h *Handler) newSession(ctx context.Context, ws types.WebSession) (*session
 		return nil, trace.Wrap(err)
 	}
 
-	fwd, err := forward.New(
-		forward.FlushInterval(100*time.Millisecond),
-		forward.RoundTripper(transport),
-		forward.Logger(h.log),
-		forward.PassHostHeader(true),
-		forward.WebsocketDial(transport.DialWebsocket),
-		forward.ErrorHandler(oxyutils.ErrorHandlerFunc(h.handleForwardError)),
+	// Don't trust any "X-Forward-*" headers the client sends, instead set our own.
+	delegate := reverseproxy.NewHeaderRewriter()
+	delegate.TrustForwardHeader = false
+	hr := common.NewHeaderRewriter(delegate)
+
+	// Create a forwarder that will be used to forward requests.
+	fwd, err := reverseproxy.New(
+		reverseproxy.WithPassHostHeader(),
+		reverseproxy.WithFlushInterval(100*time.Millisecond),
+		reverseproxy.WithRoundTripper(transport),
+		reverseproxy.WithLogger(h.log),
+		reverseproxy.WithErrorHandler(h.handleForwardError),
+		reverseproxy.WithRewriter(hr),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	return &session{
 		fwd: fwd,
 		ws:  ws,
 		tr:  transport,
 	}, nil
+}
+
+// appServerMatcher returns a Matcher function used to find which AppServer can
+// handle the application requests.
+func appServerMatcher(proxyClient reversetunnelclient.Tunnel, publicAddr string, clusterName string) Matcher {
+	// Match healthy and PublicAddr servers. Having a list of only healthy
+	// servers helps the transport fail before the request is forwarded to a
+	// server (in cases where there are no healthy servers). This process might
+	// take an additional time to execute, but since it is cached, only a few
+	// requests need to perform it.
+	return MatchAll(
+		MatchPublicAddr(publicAddr),
+		// NOTE: Try to leave this matcher as the last one to dial only the
+		// application servers that match the requested application.
+		MatchHealthy(proxyClient, clusterName),
+	)
 }
 
 // sessionCache holds a cache of sessions that are used to forward requests.

@@ -18,14 +18,12 @@ package local
 
 import (
 	"context"
-	"time"
+
+	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
-
-	"github.com/gravitational/trace"
 )
 
 // ProvisioningService governs adding new nodes to the cluster
@@ -71,18 +69,17 @@ func (s *ProvisioningService) tokenToItem(p types.ProvisionToken) (*backend.Item
 	if err := p.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if p.Expiry().IsZero() || p.Expiry().Sub(s.Clock().Now().UTC()) < time.Second {
-		p.SetExpiry(s.Clock().Now().UTC().Add(defaults.ProvisioningTokenTTL))
-	}
+	rev := p.GetRevision()
 	data, err := services.MarshalProvisionToken(p)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	item := &backend.Item{
-		Key:     backend.Key(tokensPrefix, p.GetName()),
-		Value:   data,
-		Expires: p.Expiry(),
-		ID:      p.GetResourceID(),
+		Key:      backend.Key(tokensPrefix, p.GetName()),
+		Value:    data,
+		Expires:  p.Expiry(),
+		ID:       p.GetResourceID(),
+		Revision: rev,
 	}
 	return item, nil
 }
@@ -105,7 +102,7 @@ func (s *ProvisioningService) GetToken(ctx context.Context, token string) (types
 		return nil, trace.Wrap(err)
 	}
 
-	return services.UnmarshalProvisionToken(item.Value, services.WithResourceID(item.ID), services.WithExpires(item.Expires))
+	return services.UnmarshalProvisionToken(item.Value, services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 }
 
 // DeleteToken deletes a token by ID
@@ -122,7 +119,7 @@ func (s *ProvisioningService) DeleteToken(ctx context.Context, token string) err
 
 // GetTokens returns all active (non-expired) provisioning tokens
 func (s *ProvisioningService) GetTokens(ctx context.Context) ([]types.ProvisionToken, error) {
-	startKey := backend.Key(tokensPrefix)
+	startKey := backend.ExactKey(tokensPrefix)
 	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -133,6 +130,7 @@ func (s *ProvisioningService) GetTokens(ctx context.Context) ([]types.ProvisionT
 			item.Value,
 			services.WithResourceID(item.ID),
 			services.WithExpires(item.Expires),
+			services.WithRevision(item.Revision),
 		)
 		if err != nil {
 			return nil, trace.Wrap(err)

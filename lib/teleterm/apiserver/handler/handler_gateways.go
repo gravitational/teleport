@@ -16,12 +16,15 @@ package handler
 
 import (
 	"context"
-
-	api "github.com/gravitational/teleport/lib/teleterm/api/protogen/golang/v1"
-	"github.com/gravitational/teleport/lib/teleterm/daemon"
-	"github.com/gravitational/teleport/lib/teleterm/gateway"
+	"fmt"
+	"os/exec"
+	"strings"
 
 	"github.com/gravitational/trace"
+
+	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
+	"github.com/gravitational/teleport/lib/teleterm/daemon"
+	"github.com/gravitational/teleport/lib/teleterm/gateway"
 )
 
 // CreateGateway creates a gateway
@@ -38,7 +41,7 @@ func (s *Handler) CreateGateway(ctx context.Context, req *api.CreateGatewayReque
 		return nil, trace.Wrap(err)
 	}
 
-	apiGateway, err := newAPIGateway(*gateway)
+	apiGateway, err := s.newAPIGateway(gateway)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -52,7 +55,7 @@ func (s *Handler) ListGateways(ctx context.Context, req *api.ListGatewaysRequest
 
 	apiGws := make([]*api.Gateway, 0, len(gws))
 	for _, gw := range gws {
-		apiGateway, err := newAPIGateway(gw)
+		apiGateway, err := s.newAPIGateway(gw)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -74,33 +77,37 @@ func (s *Handler) RemoveGateway(ctx context.Context, req *api.RemoveGatewayReque
 	return &api.EmptyResponse{}, nil
 }
 
-func newAPIGateway(gateway gateway.Gateway) (*api.Gateway, error) {
-	command, err := gateway.CLICommand()
+func (s *Handler) newAPIGateway(gateway gateway.Gateway) (*api.Gateway, error) {
+	command, err := s.DaemonService.GetGatewayCLICommand(gateway)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return &api.Gateway{
 		Uri:                   gateway.URI().String(),
-		TargetUri:             gateway.TargetURI(),
+		TargetUri:             gateway.TargetURI().String(),
 		TargetName:            gateway.TargetName(),
 		TargetUser:            gateway.TargetUser(),
 		TargetSubresourceName: gateway.TargetSubresourceName(),
 		Protocol:              gateway.Protocol(),
 		LocalAddress:          gateway.LocalAddress(),
 		LocalPort:             gateway.LocalPort(),
-		CliCommand:            command,
+		GatewayCliCommand:     makeGatewayCLICommand(command),
 	}, nil
 }
 
-// RestartGateway stops a gateway and starts a new with identical parameters but fresh certs,
-// keeping the original URI.
-func (s *Handler) RestartGateway(ctx context.Context, req *api.RestartGatewayRequest) (*api.EmptyResponse, error) {
-	if err := s.DaemonService.RestartGateway(ctx, req.GatewayUri); err != nil {
-		return nil, trace.Wrap(err)
-	}
+func makeGatewayCLICommand(cmd *exec.Cmd) *api.GatewayCLICommand {
+	cmdString := strings.TrimSpace(
+		fmt.Sprintf("%s %s",
+			strings.Join(cmd.Env, " "),
+			strings.Join(cmd.Args, " ")))
 
-	return &api.EmptyResponse{}, nil
+	return &api.GatewayCLICommand{
+		Path:    cmd.Path,
+		Args:    cmd.Args,
+		Env:     cmd.Env,
+		Preview: cmdString,
+	}
 }
 
 // SetGatewayTargetSubresourceName changes the TargetSubresourceName field of gateway.Gateway
@@ -113,7 +120,7 @@ func (s *Handler) SetGatewayTargetSubresourceName(ctx context.Context, req *api.
 		return nil, trace.Wrap(err)
 	}
 
-	apiGateway, err := newAPIGateway(*gateway)
+	apiGateway, err := s.newAPIGateway(gateway)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -128,7 +135,7 @@ func (s *Handler) SetGatewayLocalPort(ctx context.Context, req *api.SetGatewayLo
 		return nil, trace.Wrap(err)
 	}
 
-	apiGateway, err := newAPIGateway(*gateway)
+	apiGateway, err := s.newAPIGateway(gateway)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

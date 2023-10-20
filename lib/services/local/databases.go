@@ -19,11 +19,11 @@ package local
 import (
 	"context"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
-
-	"github.com/gravitational/trace"
 )
 
 // DatabaseService manages database resources in the backend.
@@ -38,7 +38,7 @@ func NewDatabasesService(backend backend.Backend) *DatabaseService {
 
 // GetDatabases returns all database resources.
 func (s *DatabaseService) GetDatabases(ctx context.Context) ([]types.Database, error) {
-	startKey := backend.Key(databasesPrefix)
+	startKey := backend.ExactKey(databasesPrefix)
 	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -46,7 +46,7 @@ func (s *DatabaseService) GetDatabases(ctx context.Context) ([]types.Database, e
 	databases := make([]types.Database, len(result.Items))
 	for i, item := range result.Items {
 		database, err := services.UnmarshalDatabase(item.Value,
-			services.WithResourceID(item.ID), services.WithExpires(item.Expires))
+			services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -65,7 +65,7 @@ func (s *DatabaseService) GetDatabase(ctx context.Context, name string) (types.D
 		return nil, trace.Wrap(err)
 	}
 	database, err := services.UnmarshalDatabase(item.Value,
-		services.WithResourceID(item.ID), services.WithExpires(item.Expires))
+		services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -99,15 +99,17 @@ func (s *DatabaseService) UpdateDatabase(ctx context.Context, database types.Dat
 	if err := database.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
+	rev := database.GetRevision()
 	value, err := services.MarshalDatabase(database)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:     backend.Key(databasesPrefix, database.GetName()),
-		Value:   value,
-		Expires: database.Expiry(),
-		ID:      database.GetResourceID(),
+		Key:      backend.Key(databasesPrefix, database.GetName()),
+		Value:    value,
+		Expires:  database.Expiry(),
+		ID:       database.GetResourceID(),
+		Revision: rev,
 	}
 	_, err = s.Update(ctx, item)
 	if err != nil {
@@ -130,7 +132,7 @@ func (s *DatabaseService) DeleteDatabase(ctx context.Context, name string) error
 
 // DeleteAllDatabases removes all database resources.
 func (s *DatabaseService) DeleteAllDatabases(ctx context.Context) error {
-	startKey := backend.Key(databasesPrefix)
+	startKey := backend.ExactKey(databasesPrefix)
 	err := s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey))
 	if err != nil {
 		return trace.Wrap(err)

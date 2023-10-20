@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/user"
@@ -26,11 +27,12 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/lib/tbot/botfs"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
-	"github.com/gravitational/trace"
 )
 
 // RootUID is the UID of the root user
@@ -41,14 +43,9 @@ const aclTestFailedMessage = "ACLs are not usable for destination %s; " +
 	"Change the destination's ACL mode to `off` to silence this warning."
 
 // getInitArtifacts returns a map of all desired artifacts for the destination
-func getInitArtifacts(destination *config.DestinationConfig) (map[string]bool, error) {
+func getInitArtifacts(output config.Output) map[string]bool {
 	// true = directory, false = regular file
 	toCreate := map[string]bool{}
-
-	destImpl, err := destination.GetDestination()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 
 	// Collect all base artifacts and filter for the destination.
 	for _, artifact := range identity.GetArtifacts() {
@@ -58,18 +55,11 @@ func getInitArtifacts(destination *config.DestinationConfig) (map[string]bool, e
 	}
 
 	// Collect all config template artifacts.
-	for _, templateConfig := range destination.Configs {
-		template, err := templateConfig.GetConfigTemplate()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		for _, file := range template.Describe(destImpl) {
-			toCreate[file.Name] = file.IsDir
-		}
+	for _, fd := range output.Describe() {
+		toCreate[fd.Name] = fd.IsDir
 	}
 
-	return toCreate, nil
+	return toCreate
 }
 
 // getExistingArtifacts fetches all entries in a destination directory
@@ -251,7 +241,7 @@ func ensurePermissions(params *ensurePermissionsParams, key string, isDir bool) 
 
 		//nolint:staticcheck // staticcheck doesn't like nop implementations in fs_other.go
 		err = botfs.VerifyACL(path, params.aclOptions)
-		//nolint:staticcheck
+		//nolint:staticcheck // staticcheck doesn't like nop implementations in fs_other.go
 		if err != nil && (currentUser.Uid == RootUID || currentUser.Uid == params.ownerUser.Uid) {
 			if verboseLogging {
 				log.Warnf("ACL for %q is not correct and will be corrected: %v", path, err)
@@ -390,25 +380,27 @@ func getAndTestACLOptions(cf *config.CLIConf, destDir string) (*user.User, *user
 }
 
 func onInit(botConfig *config.BotConfig, cf *config.CLIConf) error {
-	var destination *config.DestinationConfig
-	var err error
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
-	// First, resolve the correct destination. If using a config file with only
+	var output config.Output
+	var err error
+	// First, resolve the correct output. If using a config file with only
 	// 1 destination we can assume we want to init that one; otherwise,
 	// --init-dir is required.
 	if cf.InitDir == "" {
-		if len(botConfig.Destinations) == 1 {
-			destination = botConfig.Destinations[0]
+		if len(botConfig.Outputs) == 1 {
+			output = botConfig.Outputs[0]
 		} else {
-			return trace.BadParameter("A destination to initialize must be specified with --init-dir")
+			return trace.BadParameter("An output to initialize must be specified with --init-dir")
 		}
 	} else {
-		destination, err = botConfig.GetDestinationByPath(cf.InitDir)
+		output, err = botConfig.GetOutputByPath(cf.InitDir)
 		if err != nil {
 			return trace.WrapWithMessage(err, "Could not find specified destination %q", cf.InitDir)
 		}
 
-		if destination == nil {
+		if output == nil {
 			// TODO: in the future if/when other backends are supported,
 			// destination might be nil because the user tried to enter a non
 			// filesystem path, so this error message could be misleading.
@@ -417,10 +409,7 @@ func onInit(botConfig *config.BotConfig, cf *config.CLIConf) error {
 		}
 	}
 
-	destImpl, err := destination.GetDestination()
-	if err != nil {
-		return trace.Wrap(err)
-	}
+	destImpl := output.GetDestination()
 
 	destDir, ok := destImpl.(*config.DestinationDirectory)
 	if !ok {
@@ -429,14 +418,9 @@ func onInit(botConfig *config.BotConfig, cf *config.CLIConf) error {
 
 	log.Infof("Initializing destination: %s", destImpl)
 
-	subdirs, err := destination.ListSubdirectories()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	// Create the directory if needed. We haven't checked directory ownership,
 	// but it will fail when the ACLs are created if anything is misconfigured.
-	if err := destDir.Init(subdirs); err != nil {
+	if err := output.Init(ctx); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -482,11 +466,7 @@ func onInit(botConfig *config.BotConfig, cf *config.CLIConf) error {
 	}
 
 	// Next, resolve what we want and what we already have.
-	desired, err := getInitArtifacts(destination)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
+	desired := getInitArtifacts(output)
 	existing, err := getExistingArtifacts(destDir.Path)
 	if err != nil {
 		return trace.Wrap(err)
@@ -559,7 +539,7 @@ func onInit(botConfig *config.BotConfig, cf *config.CLIConf) error {
 		}
 	}
 
-	log.Infof("Destination %s has been initialized. Note that these files "+
+	log.Infof("destination %s has been initialized. Note that these files "+
 		"will be empty and invalid until the bot issues certificates.",
 		destImpl)
 

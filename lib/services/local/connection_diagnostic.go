@@ -19,10 +19,11 @@ package local
 import (
 	"context"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/trace"
 )
 
 // ConnectionDiagnosticService manages connection diagnostic resources in the backend.
@@ -66,15 +67,17 @@ func (s *ConnectionDiagnosticService) UpdateConnectionDiagnostic(ctx context.Con
 	if err := connectionDiagnostic.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
+	rev := connectionDiagnostic.GetRevision()
 	value, err := services.MarshalConnectionDiagnostic(connectionDiagnostic)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:     backend.Key(connectionDiagnosticPrefix, connectionDiagnostic.GetName()),
-		Value:   value,
-		Expires: connectionDiagnostic.Expiry(),
-		ID:      connectionDiagnostic.GetResourceID(),
+		Key:      backend.Key(connectionDiagnosticPrefix, connectionDiagnostic.GetName()),
+		Value:    value,
+		Expires:  connectionDiagnostic.Expiry(),
+		ID:       connectionDiagnostic.GetResourceID(),
+		Revision: rev,
 	}
 	_, err = s.Update(ctx, item)
 
@@ -106,10 +109,11 @@ func (s *ConnectionDiagnosticService) AppendDiagnosticTrace(ctx context.Context,
 	}
 
 	newItem := backend.Item{
-		Key:     backend.Key(connectionDiagnosticPrefix, connectionDiagnostic.GetName()),
-		Value:   value,
-		Expires: connectionDiagnostic.Expiry(),
-		ID:      connectionDiagnostic.GetResourceID(),
+		Key:      backend.Key(connectionDiagnosticPrefix, connectionDiagnostic.GetName()),
+		Value:    value,
+		Expires:  connectionDiagnostic.Expiry(),
+		ID:       connectionDiagnostic.GetResourceID(),
+		Revision: existing.Revision,
 	}
 
 	_, err = s.CompareAndSwap(ctx, *existing, newItem)
@@ -134,7 +138,7 @@ func (s *ConnectionDiagnosticService) GetConnectionDiagnostic(ctx context.Contex
 	}
 
 	connectionDiagnostic, err := services.UnmarshalConnectionDiagnostic(item.Value,
-		services.WithResourceID(item.ID), services.WithExpires(item.Expires))
+		services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

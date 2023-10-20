@@ -37,6 +37,15 @@ spec:
   {{- toYaml .Values.extraLabels.pod | nindent 8 }}
 {{- end }}
     spec:
+      {{- if .Values.dnsConfig }}
+      dnsConfig: {{- toYaml .Values.dnsConfig | nindent 8 }}
+      {{- end }}
+      {{- if .Values.dnsPolicy }}
+      dnsPolicy: {{ .Values.dnsPolicy | quote }}
+      {{- end }}
+      {{- if .Values.hostAliases }}
+      hostAliases: {{- toYaml .Values.hostAliases | nindent 8 }}
+      {{- end }}
       {{- if or .Values.affinity (gt (int $replicaCount) 1) }}
       affinity:
         {{- if .Values.affinity }}
@@ -80,17 +89,11 @@ spec:
 {{- if .Values.initContainers }}
       initContainers: {{- toYaml .Values.initContainers | nindent 6 }}
   {{- if .Values.resources }}
-        resources:
-    {{- toYaml .Values.resources | nindent 10 }}
+        resources: {{- toYaml .Values.resources | nindent 10 }}
   {{- end }}
-        securityContext:
-          allowPrivilegeEscalation: false
-          capabilities:
-            drop:
-            - all
-          readOnlyRootFilesystem: true
-          runAsNonRoot: true
-          runAsUser: 9807
+  {{- if .Values.initSecurityContext }}
+        securityContext: {{- toYaml .Values.initSecurityContext | nindent 10 }}
+  {{- end }}
         volumeMounts:
         - mountPath: /etc/teleport
           name: "config"
@@ -115,19 +118,25 @@ spec:
       {{- end }}
       containers:
       - name: "teleport"
-        image: "{{ if .Values.enterprise }}{{ .Values.enterpriseImage }}{{ else }}{{ .Values.image }}{{ end }}:{{ .teleportVersion }}"
+        image: {{ include "teleport-kube-agent.image" . | quote }}
         {{- if .Values.imagePullPolicy }}
         imagePullPolicy: {{ toYaml .Values.imagePullPolicy }}
         {{- end }}
-        {{- if or .Values.extraEnv .Values.tls.existingCASecretName }}
         env:
+        # This variable is set for telemetry purposes.
+        # Telemetry is opt-in for oss users and controlled at the auth level.
+        - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
+          value: "true"
+        {{- if .Values.updater.enabled }}
+        - name: TELEPORT_EXT_UPGRADER
+          value: kube
+        {{- end }}
         {{- if (gt (len .Values.extraEnv) 0) }}
           {{- toYaml .Values.extraEnv | nindent 8 }}
         {{- end }}
         {{- if .Values.tls.existingCASecretName }}
         - name: SSL_CERT_FILE
           value: /etc/teleport-tls-ca/ca.pem
-        {{- end }}
         {{- end }}
         args:
         - "--diag-addr=0.0.0.0:3000"
@@ -137,14 +146,9 @@ spec:
         {{- if .Values.extraArgs }}
           {{- toYaml .Values.extraArgs | nindent 8 }}
         {{- end }}
-        securityContext:
-          allowPrivilegeEscalation: false
-          capabilities:
-            drop:
-            - all
-          readOnlyRootFilesystem: true
-          runAsNonRoot: true
-          runAsUser: 9807
+        {{- if .Values.securityContext }}
+        securityContext: {{- toYaml .Values.securityContext | nindent 10 }}
+        {{- end }}
         ports:
         - name: diag
           containerPort: 3000
@@ -186,13 +190,16 @@ spec:
 {{- if .Values.extraVolumeMounts }}
   {{- toYaml .Values.extraVolumeMounts | nindent 8 }}
 {{- end }}
+{{- if .Values.extraContainers }}
+  {{- toYaml .Values.extraContainers | nindent 6 }}
+{{- end }}
       volumes:
       - name: "config"
         configMap:
           name: {{ .Release.Name }}
       - name: "auth-token"
         secret:
-          secretName: {{ .Values.secretName }}
+          secretName: {{ coalesce .Values.secretName .Values.joinTokenSecret.name }}
       {{- if not .Values.existingDataVolume }}
       - name: "data"
         emptyDir: {}
@@ -208,5 +215,5 @@ spec:
 {{- if .Values.priorityClassName }}
       priorityClassName: {{ .Values.priorityClassName }}
 {{- end }}
-      serviceAccountName: {{ template "teleport.serviceAccountName" . }}
+      serviceAccountName: {{ template "teleport-kube-agent.serviceAccountName" . }}
 {{- end }}

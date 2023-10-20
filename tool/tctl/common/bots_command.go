@@ -25,17 +25,18 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/alecthomas/kingpin/v2"
 	"github.com/google/uuid"
-	"github.com/gravitational/kingpin"
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
 )
 
 type BotsCommand struct {
@@ -58,11 +59,11 @@ type BotsCommand struct {
 }
 
 // Initialize sets up the "tctl bots" command.
-func (c *BotsCommand) Initialize(app *kingpin.Application, config *service.Config) {
+func (c *BotsCommand) Initialize(app *kingpin.Application, config *servicecfg.Config) {
 	bots := app.Command("bots", "Operate on certificate renewal bots registered with the cluster.")
 
 	c.botsList = bots.Command("ls", "List all certificate renewal bots registered with the cluster.")
-	c.botsList.Flag("format", "Output format, 'text' or 'json'").Hidden().Default(teleport.Text).StringVar(&c.format)
+	c.botsList.Flag("format", "Output format, 'text' or 'json'").Hidden().Default(teleport.Text).EnumVar(&c.format, teleport.Text, teleport.JSON)
 
 	c.botsAdd = bots.Command("add", "Add a new certificate renewal bot to the cluster.")
 	c.botsAdd.Arg("name", "A name to uniquely identify this bot in the cluster.").Required().StringVar(&c.botName)
@@ -108,6 +109,7 @@ func (c *BotsCommand) ListBots(ctx context.Context, client auth.ClientI) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
 	if c.format == teleport.Text {
 		if len(users) == 0 {
 			fmt.Println("No users found")
@@ -130,11 +132,10 @@ func (c *BotsCommand) ListBots(ctx context.Context, client auth.ClientI) error {
 		}
 		fmt.Println(t.AsBuffer().String())
 	} else {
-		out, err := json.MarshalIndent(users, "", "  ")
+		err := utils.WriteJSONArray(os.Stdout, users)
 		if err != nil {
 			return trace.Wrap(err, "failed to marshal users")
 		}
-		fmt.Print(string(out))
 	}
 	return nil
 }
@@ -146,8 +147,8 @@ func bold(text string) string {
 
 var startMessageTemplate = template.Must(template.New("node").Funcs(template.FuncMap{
 	"bold": bold,
-}).Parse(`The bot token: {{.token}}
-This token will expire in {{.minutes}} minutes.
+}).Parse(`The bot token: {{.token}}{{if .minutes}}
+This token will expire in {{.minutes}} minutes.{{end}}
 
 Optionally, if running the bot under an isolated user account, first initialize
 the data directory by running the following command {{ bold "as root" }}:
@@ -223,12 +224,8 @@ func (c *BotsCommand) AddBot(ctx context.Context, client auth.ClientI) error {
 	}
 
 	joinMethod := response.JoinMethod
-	// omit join method output for the token method
-	switch joinMethod {
-	case types.JoinMethodUnspecified, types.JoinMethodToken:
-		// the template will omit an empty string
-		joinMethod = ""
-	default:
+	if joinMethod == types.JoinMethodUnspecified {
+		joinMethod = types.JoinMethodToken
 	}
 
 	return startMessageTemplate.Execute(os.Stdout, map[string]interface{}{
@@ -255,7 +252,7 @@ func (c *BotsCommand) LockBot(ctx context.Context, client auth.ClientI) error {
 		return trace.Wrap(err)
 	}
 
-	user, err := client.GetUser(auth.BotResourceName(c.botName), false)
+	user, err := client.GetUser(ctx, auth.BotResourceName(c.botName), false)
 	if err != nil {
 		return trace.Wrap(err)
 	}

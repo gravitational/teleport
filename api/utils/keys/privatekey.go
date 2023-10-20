@@ -26,12 +26,10 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
-	"fmt"
 	"os"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/crypto/ssh/agent"
 
 	"github.com/gravitational/teleport/api/utils/sshutils/ppk"
 )
@@ -136,40 +134,6 @@ func (k *PrivateKey) TLSCertificate(certPEMBlock []byte) (tls.Certificate, error
 	return cert, nil
 }
 
-// agentKeyComment is used to generate an agent key comment.
-type agentKeyComment struct {
-	user string
-}
-
-func (a *agentKeyComment) String() string {
-	return fmt.Sprintf("teleport:%s", a.user)
-}
-
-// AsAgentKey converts PrivateKey to a agent.AddedKey. If the given PrivateKey is not
-// supported as an agent key, a trace.NotImplemented error is returned.
-func (k *PrivateKey) AsAgentKey(sshCert *ssh.Certificate) (agent.AddedKey, error) {
-	switch k.Signer.(type) {
-	case *rsa.PrivateKey, *ecdsa.PrivateKey, ed25519.PrivateKey:
-		// put a teleport identifier along with the teleport user into the comment field
-		comment := agentKeyComment{user: sshCert.KeyId}
-		return agent.AddedKey{
-			PrivateKey:       k.Signer,
-			Certificate:      sshCert,
-			Comment:          comment.String(),
-			LifetimeSecs:     0,
-			ConfirmBeforeUse: false,
-		}, nil
-	default:
-		// We return a not implemented error because agent.AddedKey only
-		// supports plain RSA, ECDSA, and ED25519 keys. Non-standard private
-		// keys, like hardware-based private keys, will require custom solutions
-		// which may not be included in their initial implementation. This will
-		// only affect functionality related to agent forwarding, so we give the
-		// caller the ability to handle the error gracefully.
-		return agent.AddedKey{}, trace.NotImplemented("cannot create an agent key using private key signer of type %T", k.Signer)
-	}
-}
-
 // PPKFile returns a PuTTY PPK-formatted keypair
 func (k *PrivateKey) PPKFile() ([]byte, error) {
 	rsaKey, ok := k.Signer.(*rsa.PrivateKey)
@@ -242,11 +206,36 @@ func ParsePrivateKey(keyPEM []byte) (*PrivateKey, error) {
 	case pivYubiKeyPrivateKeyType:
 		priv, err := parseYubiKeyPrivateKeyData(block.Bytes)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, trace.Wrap(err, "failed to parse YubiKey private key")
 		}
-		return NewPrivateKey(priv, keyPEM)
+		return priv, nil
 	default:
 		return nil, trace.BadParameter("unexpected private key PEM type %q", block.Type)
+	}
+}
+
+// MarshalPrivateKey will return a PEM encoded crypto.Signer.
+// Only supports rsa, ecdsa, and ed25519 keys.
+func MarshalPrivateKey(key crypto.Signer) ([]byte, error) {
+	switch privateKey := key.(type) {
+	case *rsa.PrivateKey:
+		privPEM := pem.EncodeToMemory(&pem.Block{
+			Type:  PKCS1PrivateKeyType,
+			Bytes: x509.MarshalPKCS1PrivateKey(privateKey),
+		})
+		return privPEM, nil
+	case *ecdsa.PrivateKey, *ed25519.PrivateKey:
+		der, err := x509.MarshalPKCS8PrivateKey(privateKey)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		privPEM := pem.EncodeToMemory(&pem.Block{
+			Type:  PKCS8PrivateKeyType,
+			Bytes: der,
+		})
+		return privPEM, nil
+	default:
+		return nil, trace.BadParameter("unsupported private key type %T", key)
 	}
 }
 
@@ -319,4 +308,29 @@ func X509KeyPair(certPEMBlock, keyPEMBlock []byte) (tls.Certificate, error) {
 	}
 
 	return tlsCert, nil
+}
+
+// IsRSAPrivateKey returns true if the given private key is an RSA private key.
+// This function does a similar check to ParsePrivateKey, followed by key.RSAPrivateKeyPEM()
+// without parsing the private fully into a crypto.Signer.
+// This reduces the time it takes to check if a private key is an RSA private key
+// and improves the performance compared to ParsePrivateKey by a factor of 20.
+func IsRSAPrivateKey(privKey []byte) bool {
+	block, _ := pem.Decode(privKey)
+	if block == nil {
+		return false
+	}
+	switch block.Type {
+	case PKCS1PrivateKeyType:
+		return true
+	case PKCS8PrivateKeyType:
+		priv, err := x509.ParsePKCS8PrivateKey(block.Bytes)
+		if err != nil {
+			return false
+		}
+		_, ok := priv.(*rsa.PrivateKey)
+		return ok
+	default:
+		return false
+	}
 }

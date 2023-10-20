@@ -19,6 +19,7 @@ package db
 import (
 	"context"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"testing"
@@ -28,6 +29,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jackc/pgconn"
 	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.mongodb.org/mongo-driver/bson"
 
@@ -37,9 +39,12 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db"
+	"github.com/gravitational/teleport/lib/srv/db/cassandra"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/mongodb"
 	"github.com/gravitational/teleport/lib/srv/db/mysql"
@@ -54,13 +59,14 @@ import (
 func TestDatabaseAccess(t *testing.T) {
 	pack := SetupDatabaseTest(t,
 		// set tighter rotation intervals
-		WithLeafConfig(func(config *service.Config) {
+		WithLeafConfig(func(config *servicecfg.Config) {
 			config.PollingPeriod = 5 * time.Second
 			config.RotationConnectionInterval = 2 * time.Second
 		}),
-		WithRootConfig(func(config *service.Config) {
+		WithRootConfig(func(config *servicecfg.Config) {
 			config.PollingPeriod = 5 * time.Second
 			config.RotationConnectionInterval = 2 * time.Second
+			config.Proxy.MySQLServerVersion = "8.0.1"
 		}),
 	)
 	pack.WaitForLeaf(t)
@@ -76,6 +82,10 @@ func TestDatabaseAccess(t *testing.T) {
 	t.Run("HALeafCluster", pack.testHALeafCluster)
 	t.Run("LargeQuery", pack.testLargeQuery)
 	t.Run("AgentState", pack.testAgentState)
+	t.Run("CassandraRootCluster", pack.testCassandraRootCluster)
+	t.Run("CassandraLeafCluster", pack.testCassandraLeafCluster)
+
+	t.Run("IPPinning", pack.testIPPinning)
 
 	// This test should go last because it rotates the Database CA.
 	t.Run("RotateTrustedCluster", pack.testRotateTrustedCluster)
@@ -89,6 +99,92 @@ func TestDatabaseAccessSeparateListeners(t *testing.T) {
 
 	t.Run("PostgresSeparateListener", pack.testPostgresSeparateListener)
 	t.Run("MongoSeparateListener", pack.testMongoSeparateListener)
+}
+
+// testIPPinning tests a scenario where a user with IP pinning
+// connects to a database
+func (p *DatabasePack) testIPPinning(t *testing.T) {
+	modules.SetTestModules(t, &modules.TestModules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures:  modules.Features{DB: true},
+	})
+
+	type testCase struct {
+		desc          string
+		targetCluster databaseClusterPack
+		pinnedIP      string
+		wantClientErr string
+	}
+
+	testCases := []testCase{
+		{
+			desc:          "root cluster, no pinned ip",
+			targetCluster: p.Root,
+		},
+		{
+			desc:          "root cluster, correct pinned ip",
+			targetCluster: p.Root,
+			pinnedIP:      "127.0.0.1",
+		},
+		{
+			desc:          "root cluster, incorrect pinned ip",
+			targetCluster: p.Root,
+			wantClientErr: "pinned IP doesn't match observed client IP",
+			pinnedIP:      "127.0.0.2",
+		},
+		{
+			desc:          "leaf cluster, no pinned ip",
+			targetCluster: p.Leaf,
+		},
+		{
+			desc:          "leaf cluster, correct pinned ip",
+			targetCluster: p.Leaf,
+			pinnedIP:      "127.0.0.1",
+		},
+		{
+			desc:          "leaf cluster, incorrect pinned ip",
+			targetCluster: p.Leaf,
+			wantClientErr: "pinned IP doesn't match observed client IP",
+			pinnedIP:      "127.0.0.2",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.desc, func(t *testing.T) {
+			// Connect to the database service in root cluster.
+			testClient, err := postgres.MakeTestClient(context.Background(), common.TestClientConfig{
+				AuthClient: p.Root.Cluster.GetSiteAPI(p.Root.Cluster.Secrets.SiteName),
+				AuthServer: p.Root.Cluster.Process.GetAuthServer(),
+				Address:    p.Root.Cluster.Web,
+				Cluster:    tc.targetCluster.Cluster.Secrets.SiteName,
+				Username:   p.Root.User.GetName(),
+				PinnedIP:   tc.pinnedIP,
+				RouteToDatabase: tlsca.RouteToDatabase{
+					ServiceName: tc.targetCluster.PostgresService.Name,
+					Protocol:    tc.targetCluster.PostgresService.Protocol,
+					Username:    "postgres",
+					Database:    "test",
+				},
+			})
+			if tc.wantClientErr != "" {
+				require.ErrorContains(t, err, tc.wantClientErr)
+				return
+			}
+			require.NoError(t, err)
+
+			wantQueryCount := tc.targetCluster.postgres.QueryCount() + 1
+
+			// Execute a query.
+			result, err := testClient.Exec(context.Background(), "select 1").ReadAll()
+			require.NoError(t, err)
+			require.Equal(t, []*pgconn.Result{postgres.TestQueryResponse}, result)
+			require.Equal(t, wantQueryCount, tc.targetCluster.postgres.QueryCount())
+
+			// Disconnect.
+			err = testClient.Close(context.Background())
+			require.NoError(t, err)
+		})
+	}
 }
 
 // testPostgresRootCluster tests a scenario where a user connects
@@ -366,6 +462,9 @@ func (p *DatabasePack) testMySQLRootCluster(t *testing.T) {
 	require.Equal(t, wantRootQueryCount, p.Root.mysql.QueryCount())
 	require.Equal(t, wantLeafQueryCount, p.Leaf.mysql.QueryCount())
 
+	// Check if default Proxy MYSQL Engine Version was overridden the proxy settings.
+	require.Equal(t, "8.0.1", client.GetServerVersion())
+
 	// Disconnect.
 	err = client.Close()
 	require.NoError(t, err)
@@ -528,6 +627,9 @@ func TestDatabaseRootLeafIdleTimeout(t *testing.T) {
 		idleTimeout = time.Minute
 	)
 
+	rootAuthServer.SetClock(clockwork.NewFakeClockAt(time.Now()))
+	leafAuthServer.SetClock(clockwork.NewFakeClockAt(time.Now()))
+
 	mkMySQLLeafDBClient := func(t *testing.T) *client.Conn {
 		// Connect to the database service in leaf cluster via root cluster.
 		client, err := mysql.MakeTestClient(common.TestClientConfig{
@@ -560,6 +662,12 @@ func TestDatabaseRootLeafIdleTimeout(t *testing.T) {
 
 	t.Run("root role with idle timeout", func(t *testing.T) {
 		setRoleIdleTimeout(t, rootAuthServer, rootRole, idleTimeout)
+		require.Eventually(t, func() bool {
+			role, err := rootAuthServer.GetRole(context.Background(), rootRole.GetName())
+			assert.NoError(t, err)
+			return time.Duration(role.GetOptions().ClientIdleTimeout) == idleTimeout
+		}, time.Second, time.Millisecond*100, "role idle timeout propagation filed")
+
 		client := mkMySQLLeafDBClient(t)
 		_, err := client.Execute("select 1")
 		require.NoError(t, err)
@@ -575,6 +683,12 @@ func TestDatabaseRootLeafIdleTimeout(t *testing.T) {
 
 	t.Run("leaf role with idle timeout", func(t *testing.T) {
 		setRoleIdleTimeout(t, leafAuthServer, leafRole, idleTimeout)
+		require.Eventually(t, func() bool {
+			role, err := leafAuthServer.GetRole(context.Background(), leafRole.GetName())
+			assert.NoError(t, err)
+			return time.Duration(role.GetOptions().ClientIdleTimeout) == idleTimeout
+		}, time.Second, time.Millisecond*100, "role idle timeout propagation filed")
+
 		client := mkMySQLLeafDBClient(t)
 		_, err := client.Execute("select 1")
 		require.NoError(t, err)
@@ -662,7 +776,7 @@ func (p *DatabasePack) testPostgresSeparateListener(t *testing.T) {
 func TestDatabaseAccessPostgresSeparateListenerTLSDisabled(t *testing.T) {
 	pack := SetupDatabaseTest(t,
 		WithListenerSetupDatabaseTest(helpers.SeparatePostgresPortSetup),
-		WithRootConfig(func(config *service.Config) {
+		WithRootConfig(func(config *servicecfg.Config) {
 			config.Proxy.DisableTLS = true
 		}),
 	)
@@ -679,14 +793,23 @@ func init() {
 // database agent when multiple agents are serving the same database and one
 // of them is down in a root cluster.
 func (p *DatabasePack) testHARootCluster(t *testing.T) {
+	database, err := types.NewDatabaseV3(
+		types.Metadata{
+			Name: p.Root.PostgresService.Name,
+		},
+		types.DatabaseSpecV3{
+			Protocol: defaults.ProtocolPostgres,
+			URI:      p.Root.postgresAddr,
+		},
+	)
+	require.NoError(t, err)
 	// Insert a database server entry not backed by an actual running agent
 	// to simulate a scenario when an agent is down but the resource hasn't
 	// expired from the backend yet.
 	dbServer, err := types.NewDatabaseServerV3(types.Metadata{
 		Name: p.Root.PostgresService.Name,
 	}, types.DatabaseServerSpecV3{
-		Protocol: defaults.ProtocolPostgres,
-		URI:      p.Root.postgresAddr,
+		Database: database,
 		// To make sure unhealthy server is always picked in tests first, make
 		// sure its host ID always compares as "smaller" as the tests sort
 		// agents.
@@ -733,14 +856,23 @@ func (p *DatabasePack) testHARootCluster(t *testing.T) {
 // database agent when multiple agents are serving the same database and one
 // of them is down in a leaf cluster.
 func (p *DatabasePack) testHALeafCluster(t *testing.T) {
+	database, err := types.NewDatabaseV3(
+		types.Metadata{
+			Name: p.Leaf.PostgresService.Name,
+		},
+		types.DatabaseSpecV3{
+			Protocol: defaults.ProtocolPostgres,
+			URI:      p.Leaf.postgresAddr,
+		},
+	)
+	require.NoError(t, err)
 	// Insert a database server entry not backed by an actual running agent
 	// to simulate a scenario when an agent is down but the resource hasn't
 	// expired from the backend yet.
 	dbServer, err := types.NewDatabaseServerV3(types.Metadata{
 		Name: p.Leaf.PostgresService.Name,
 	}, types.DatabaseServerSpecV3{
-		Protocol: defaults.ProtocolPostgres,
-		URI:      p.Leaf.postgresAddr,
+		Database: database,
 		// To make sure unhealthy server is always picked in tests first, make
 		// sure its host ID always compares as "smaller" as the tests sort
 		// agents.
@@ -816,7 +948,7 @@ func (p *DatabasePack) testAgentState(t *testing.T) {
 	}{
 		"WithStaticDatabases": {
 			agentParams: databaseAgentStartParams{
-				databases: []service.Database{
+				databases: []servicecfg.Database{
 					{Name: "mysql", Protocol: defaults.ProtocolMySQL, URI: "localhost:3306"},
 					{Name: "pg", Protocol: defaults.ProtocolPostgres, URI: "localhost:5432"},
 				},
@@ -846,15 +978,68 @@ func (p *DatabasePack) testAgentState(t *testing.T) {
 			require.NoError(t, err)
 			defer resp.Body.Close()
 
-			require.Equal(t, http.StatusOK, resp.StatusCode)
+			respBody, err := io.ReadAll(resp.Body)
+			require.NoError(t, err)
+
+			require.Equal(t, http.StatusOK, resp.StatusCode, string(respBody))
 		})
 	}
+}
+
+// testCassandraRootCluster tests a scenario where a user connects
+// to a Cassandra database running in a root cluster.
+func (p *DatabasePack) testCassandraRootCluster(t *testing.T) {
+	// Connect to the database service in root cluster.
+	dbConn, err := cassandra.MakeTestClient(context.Background(), common.TestClientConfig{
+		AuthClient: p.Root.Cluster.GetSiteAPI(p.Root.Cluster.Secrets.SiteName),
+		AuthServer: p.Root.Cluster.Process.GetAuthServer(),
+		Address:    p.Root.Cluster.Web,
+		Cluster:    p.Root.Cluster.Secrets.SiteName,
+		Username:   p.Root.User.GetName(),
+		RouteToDatabase: tlsca.RouteToDatabase{
+			ServiceName: p.Root.CassandraService.Name,
+			Protocol:    p.Root.CassandraService.Protocol,
+			Username:    "cassandra",
+		},
+	})
+	require.NoError(t, err)
+
+	var clusterName string
+	err = dbConn.Query("select cluster_name from system.local").Scan(&clusterName)
+	require.NoError(t, err)
+	require.Equal(t, "Test Cluster", clusterName)
+	dbConn.Close()
+}
+
+// testCassandraLeafCluster tests a scenario where a user connects
+// to a Cassandra database running in a root cluster.
+func (p *DatabasePack) testCassandraLeafCluster(t *testing.T) {
+	// Connect to the database service in root cluster.
+	dbConn, err := cassandra.MakeTestClient(context.Background(), common.TestClientConfig{
+		AuthClient: p.Root.Cluster.GetSiteAPI(p.Root.Cluster.Secrets.SiteName),
+		AuthServer: p.Root.Cluster.Process.GetAuthServer(),
+		Address:    p.Root.Cluster.Web,
+		Cluster:    p.Leaf.Cluster.Secrets.SiteName,
+		Username:   p.Root.User.GetName(),
+		RouteToDatabase: tlsca.RouteToDatabase{
+			ServiceName: p.Leaf.CassandraService.Name,
+			Protocol:    p.Leaf.CassandraService.Protocol,
+			Username:    "cassandra",
+		},
+	})
+	require.NoError(t, err)
+
+	var clusterName string
+	err = dbConn.Query("select cluster_name from system.local").Scan(&clusterName)
+	require.NoError(t, err)
+	require.Equal(t, "Test Cluster", clusterName)
+	dbConn.Close()
 }
 
 func setRoleIdleTimeout(t *testing.T, authServer *auth.Server, role types.Role, idleTimout time.Duration) {
 	opts := role.GetOptions()
 	opts.ClientIdleTimeout = types.Duration(idleTimout)
 	role.SetOptions(opts)
-	err := authServer.UpsertRole(context.Background(), role)
+	_, err := authServer.UpsertRole(context.Background(), role)
 	require.NoError(t, err)
 }

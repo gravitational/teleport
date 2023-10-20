@@ -17,16 +17,21 @@ limitations under the License.
 package postgres
 
 import (
-	"os/user"
+	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 
-	"github.com/gravitational/teleport/lib/client/db/profile"
-
 	"github.com/gravitational/trace"
 	"gopkg.in/ini.v1"
+
+	"github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/client/db/profile"
 )
+
+func init() {
+	ini.PrettyFormat = false // Pretty format breaks psql.
+}
 
 // ServiceFile represents Postgres connection service file.
 //
@@ -38,18 +43,33 @@ type ServiceFile struct {
 	path string
 }
 
-// Load loads Postgres connection service file from the default location.
-func Load() (*ServiceFile, error) {
+// DefaultConfigPath returns the default config path, which is .pg_service.conf
+// file in the user's home directory.
+func defaultConfigPath() (string, error) {
 	// Default location is .pg_service.conf file in the user's home directory.
 	// TODO(r0mant): Check PGSERVICEFILE and PGSYSCONFDIR env vars as well.
-	user, err := user.Current()
-	if err != nil {
-		return nil, trace.ConvertSystemError(err)
+	home, err := os.UserHomeDir()
+	if err != nil || home == "" {
+		usr, err := utils.CurrentUser()
+		if err != nil {
+			return "", trace.ConvertSystemError(err)
+		}
+		home = usr.HomeDir
 	}
-	return LoadFromPath(filepath.Join(user.HomeDir, pgServiceFile))
+
+	return filepath.Join(home, pgServiceFile), nil
 }
 
-// LoadFromPath loads Posrtgres connection service file from the specified path.
+// Load loads Postgres connection service file from the default location.
+func Load() (*ServiceFile, error) {
+	cnfPath, err := defaultConfigPath()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return LoadFromPath(cnfPath)
+}
+
+// LoadFromPath loads Postgres connection service file from the specified path.
 func LoadFromPath(path string) (*ServiceFile, error) {
 	// Loose load will ignore file not found error.
 	iniFile, err := ini.LooseLoad(path)
@@ -104,7 +124,7 @@ func (s *ServiceFile) Upsert(profile profile.ConnectProfile) error {
 	section.NewKey("sslrootcert", profile.CACertPath)
 	section.NewKey("sslcert", profile.CertPath)
 	section.NewKey("sslkey", profile.KeyPath)
-	ini.PrettyFormat = false // Pretty format breaks psql.
+	section.NewKey("gssencmode", "disable") // we dont support GSS encryption.
 	return s.iniFile.SaveTo(s.path)
 }
 
@@ -163,6 +183,13 @@ func (s *ServiceFile) Env(serviceName string) (map[string]string, error) {
 			return nil, trace.Wrap(err)
 		}
 		env["PGDATABASE"] = database.Value()
+	}
+	if section.HasKey("gssencmode") {
+		gssEncMode, err := section.GetKey("gssencmode")
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		env["PGGSSENCMODE"] = gssEncMode.Value()
 	}
 	return env, nil
 }

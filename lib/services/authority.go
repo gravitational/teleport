@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"time"
 
+	"github.com/gogo/protobuf/proto"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
@@ -34,7 +35,6 @@ import (
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
-	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -45,7 +45,18 @@ import (
 // CertAuthoritiesEquivalent checks if a pair of certificate authority resources are equivalent.
 // This differs from normal equality only in that resource IDs are ignored.
 func CertAuthoritiesEquivalent(lhs, rhs types.CertAuthority) bool {
-	return cmp.Equal(lhs, rhs, cmpopts.IgnoreFields(types.Metadata{}, "ID"))
+	return cmp.Equal(lhs, rhs,
+		ignoreProtoXXXFields(),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+		// Optimize types.CAKeySet comparison.
+		cmp.Comparer(func(a, b types.CAKeySet) bool {
+			// Note that Clone drops XXX_ fields. And it's benchmarked that cloning
+			// plus using proto.Equal is more efficient than cmp.Equal.
+			aClone := a.Clone()
+			bClone := b.Clone()
+			return proto.Equal(&aClone, &bClone)
+		}),
+	)
 }
 
 // ValidateCertAuthority validates the CertAuthority
@@ -58,8 +69,12 @@ func ValidateCertAuthority(ca types.CertAuthority) (err error) {
 		err = checkUserOrHostCA(ca)
 	case types.DatabaseCA:
 		err = checkDatabaseCA(ca)
-	case types.JWTSigner:
+	case types.OpenSSHCA:
+		err = checkOpenSSHCA(ca)
+	case types.JWTSigner, types.OIDCIdPCA:
 		err = checkJWTKeys(ca)
+	case types.SAMLIDPCA:
+		err = checkSAMLIDPCA(ca)
 	default:
 		return trace.BadParameter("invalid CA type %q", ca.GetType())
 	}
@@ -114,14 +129,38 @@ func checkDatabaseCA(cai types.CertAuthority) error {
 			if err != nil {
 				return trace.Wrap(err)
 			}
-		}
-		_, err := tlsca.ParseCertificatePEM(pair.Cert)
-		if err != nil {
-			return trace.Wrap(err)
+		} else {
+			_, err := tlsca.ParseCertificatePEM(pair.Cert)
+			if err != nil {
+				return trace.Wrap(err)
+			}
 		}
 	}
 
 	return nil
+}
+
+// checkOpenSSHCA checks if provided certificate authority contains a valid SSH key pair.
+func checkOpenSSHCA(cai types.CertAuthority) error {
+	ca, ok := cai.(*types.CertAuthorityV2)
+	if !ok {
+		return trace.BadParameter("unknown CA type %T", cai)
+	}
+	if len(ca.Spec.ActiveKeys.SSH) == 0 {
+		return trace.BadParameter("certificate authority missing SSH key pairs")
+	}
+	if _, err := sshutils.GetCheckers(ca); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := sshutils.ValidateSigners(ca); err != nil {
+		return trace.Wrap(err)
+	}
+	// This is to force users to migrate
+	if len(ca.GetRoles()) != 0 && len(ca.GetRoleMap()) != 0 {
+		return trace.BadParameter("should set either 'roles' or 'role_map', not both")
+	}
+	_, err := parseRoleMap(ca.GetRoleMap())
+	return trace.Wrap(err)
 }
 
 func checkJWTKeys(cai types.CertAuthority) error {
@@ -161,6 +200,37 @@ func checkJWTKeys(cai types.CertAuthority) error {
 		}
 	}
 
+	return nil
+}
+
+// checkSAMLIDPCA checks if provided certificate authority contains a valid TLS key pair.
+// This function is used to verify the SAML IDP CA.
+func checkSAMLIDPCA(cai types.CertAuthority) error {
+	ca, ok := cai.(*types.CertAuthorityV2)
+	if !ok {
+		return trace.BadParameter("unknown CA type %T", cai)
+	}
+
+	if len(ca.Spec.ActiveKeys.TLS) == 0 {
+		return trace.BadParameter("missing SAML IdP CA")
+	}
+
+	for _, pair := range ca.GetTrustedTLSKeyPairs() {
+		if len(pair.Key) != 0 && pair.KeyType == types.PrivateKeyType_RAW {
+			var err error
+			if len(pair.Cert) > 0 {
+				_, err = tls.X509KeyPair(pair.Cert, pair.Key)
+			} else {
+				_, err = utils.ParsePrivateKey(pair.Key)
+			}
+			if err != nil {
+				return trace.Wrap(err)
+			}
+		}
+		if _, err := tlsca.ParseCertificatePEM(pair.Cert); err != nil {
+			return trace.Wrap(err)
+		}
+	}
 	return nil
 }
 
@@ -235,20 +305,6 @@ func (c HostCertParams) Check() error {
 	return nil
 }
 
-// ChangePasswordReq defines a request to change user password
-type ChangePasswordReq struct {
-	// User is user ID
-	User string
-	// OldPassword is user current password
-	OldPassword []byte `json:"old_password"`
-	// NewPassword is user new password
-	NewPassword []byte `json:"new_password"`
-	// SecondFactorToken is user 2nd factor token
-	SecondFactorToken string `json:"second_factor_token"`
-	// WebauthnResponse is Webauthn sign response
-	WebauthnResponse *wanlib.CredentialAssertionResponse `json:"webauthn_response"`
-}
-
 // UserCertParams defines OpenSSH user certificate parameters
 type UserCertParams struct {
 	// CASigner is the signer that will sign the public key of the user with the CA private key
@@ -287,10 +343,15 @@ type UserCertParams struct {
 	// MFAVerified is the UUID of an MFA device when this Identity was
 	// confirmed immediately after an MFA check.
 	MFAVerified string
-	// ClientIP is an IP of the client to embed in the certificate.
-	ClientIP string
-	// SourceIP is an IP that certificate should be pinned to.
-	SourceIP string
+	// PreviousIdentityExpires is the expiry time of the identity/cert that this
+	// identity/cert was derived from. It is used to determine a session's hard
+	// deadline in cases where both require_session_mfa and disconnect_expired_cert
+	// are enabled. See https://github.com/gravitational/teleport/issues/18544.
+	PreviousIdentityExpires time.Time
+	// LoginIP is an observed IP of the client on the moment of certificate creation.
+	LoginIP string
+	// PinnedIP is an IP from which client must communicate with Teleport.
+	PinnedIP string
 	// DisallowReissue flags that any attempt to request new certificates while
 	// authenticated with this cert should be denied.
 	DisallowReissue bool
@@ -306,6 +367,13 @@ type UserCertParams struct {
 	ConnectionDiagnosticID string
 	// PrivateKeyPolicy is the private key policy supported by this certificate.
 	PrivateKeyPolicy keys.PrivateKeyPolicy
+	// DeviceID is the trusted device identifier.
+	DeviceID string
+	// DeviceAssetTag is the device inventory identifier.
+	DeviceAssetTag string
+	// DeviceCredentialID is the identifier for the credential used by the device
+	// to authenticate itself.
+	DeviceCredentialID string
 }
 
 // CheckAndSetDefaults checks the user certificate parameters
@@ -405,6 +473,9 @@ func UnmarshalCertAuthority(bytes []byte, opts ...MarshalOption) (types.CertAuth
 		if cfg.ID != 0 {
 			ca.SetResourceID(cfg.ID)
 		}
+		if cfg.Revision != "" {
+			ca.SetRevision(cfg.Revision)
+		}
 		// Correct problems with existing CAs that contain non-UTC times, which
 		// causes panics when doing a gogoproto Clone; should only ever be
 		// possible with LastRotated, but we enforce it on all the times anyway.
@@ -441,6 +512,7 @@ func MarshalCertAuthority(certAuthority types.CertAuthority, opts ...MarshalOpti
 			// to prevent unexpected data races
 			copy := *certAuthority
 			copy.SetResourceID(0)
+			copy.SetRevision("")
 			certAuthority = &copy
 		}
 		return utils.FastMarshal(certAuthority)

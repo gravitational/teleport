@@ -20,12 +20,12 @@ import (
 	"context"
 	"net"
 
+	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
+
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/sqlserver/protocol"
-
-	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 )
 
 // Proxy accepts connections from SQL Server clients, performs a Pre-Login
@@ -47,7 +47,7 @@ func (p *Proxy) HandleConnection(ctx context.Context, proxyCtx *common.ProxyCont
 		return trace.Wrap(err)
 	}
 
-	serviceConn, err := p.Service.Connect(ctx, proxyCtx)
+	serviceConn, err := p.Service.Connect(ctx, proxyCtx, conn.RemoteAddr(), conn.LocalAddr())
 	if err != nil {
 		return trace.Wrap(err)
 	}

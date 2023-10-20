@@ -37,9 +37,14 @@ will ensure that Helm is able to validate values at install-time and can prevent
 4) Document any new values or changes to existing behaviour in the [chart reference](../../docs/pages/kubernetes-access/helm/reference).
 
 5) Run `make lint-helm test-helm` from the root of the repo before raising your PR.
-You will need `yamllint`, `helm` and [helm3-unittest](https://github.com/vbehar/helm3-unittest) installed locally.
+You will need `yamllint`, `helm` and [helm-unittest](https://github.com/quintush/helm-unittest) installed locally.
 
 `make -C build.assets lint-helm test-helm` will run these via Docker if you'd prefer not to install locally.
+
+*Note: there are multiple forks for the helm-unittest plugin.
+They are not compatible and don't provide the same featureset (e.g. including templates from sub-directories).
+Our tests rely on features and bugfixes that are only available on the quintush fork
+(which seems to be the most maintained at the time of writing)*
 
 6) If you get a snapshot error during your testing, you should verify that your changes intended to alter the output,
 then run `make test-helm-update-snapshots` to update the snapshots and commit these changes along with your PR.

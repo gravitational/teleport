@@ -20,7 +20,7 @@ import (
 	"context"
 	"crypto/x509"
 	"crypto/x509/pkix"
-	"encoding/asn1"
+	"strconv"
 
 	"github.com/gravitational/trace"
 
@@ -52,7 +52,7 @@ func (s *Server) GenerateWindowsDesktopCert(ctx context.Context, req *proto.Wind
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	caCert, signer, err := s.GetKeyStore().GetTLSCertAndSigner(userCA)
+	caCert, signer, err := s.GetKeyStore().GetTLSCertAndSigner(ctx, userCA)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -63,18 +63,27 @@ func (s *Server) GenerateWindowsDesktopCert(ctx context.Context, req *proto.Wind
 	// See https://docs.microsoft.com/en-us/troubleshoot/windows-server/windows-security/enabling-smart-card-logon-third-party-certification-authorities
 	// for cert requirements for Windows authn.
 	certReq := tlsca.CertificateRequest{
-		Clock:     s.clock,
-		PublicKey: csr.PublicKey,
-		Subject:   csr.Subject,
-		NotAfter:  s.clock.Now().UTC().Add(req.TTL.Get()),
-		// Pass through ExtKeyUsage (which we need for Smartcard Logon usage)
-		// and SubjectAltName (which we need for otherName SAN, not supported
-		// out of the box in crypto/x509) extensions only.
-		ExtraExtensions: filterExtensions(csr.Extensions, oidExtKeyUsage, oidSubjectAltName),
+		Clock:           s.clock,
+		PublicKey:       csr.PublicKey,
+		Subject:         csr.Subject,
+		NotAfter:        s.clock.Now().UTC().Add(req.TTL.Get()),
+		ExtraExtensions: csr.Extensions,
 		KeyUsage:        x509.KeyUsageDigitalSignature,
 		// CRL is required for Windows smartcard certs.
 		CRLDistributionPoints: []string{req.CRLEndpoint},
 	}
+
+	limitExceeded, err := s.desktopsLimitExceeded(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	certReq.ExtraExtensions = append(certReq.ExtraExtensions, pkix.Extension{
+		Id:    tlsca.LicenseOID,
+		Value: []byte(modules.GetModules().BuildType()),
+	}, pkix.Extension{
+		Id:    tlsca.DesktopsLimitExceededOID,
+		Value: []byte(strconv.FormatBool(limitExceeded)),
+	})
 	cert, err := tlsCA.GenerateCertificate(certReq)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -82,21 +91,4 @@ func (s *Server) GenerateWindowsDesktopCert(ctx context.Context, req *proto.Wind
 	return &proto.WindowsDesktopCertResponse{
 		Cert: cert,
 	}, nil
-}
-
-var (
-	oidExtKeyUsage    = asn1.ObjectIdentifier{2, 5, 29, 37}
-	oidSubjectAltName = asn1.ObjectIdentifier{2, 5, 29, 17}
-)
-
-func filterExtensions(extensions []pkix.Extension, oids ...asn1.ObjectIdentifier) []pkix.Extension {
-	filtered := make([]pkix.Extension, 0, len(oids))
-	for _, e := range extensions {
-		for _, id := range oids {
-			if e.Id.Equal(id) {
-				filtered = append(filtered, e)
-			}
-		}
-	}
-	return filtered
 }

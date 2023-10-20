@@ -5,6 +5,7 @@ with an existing Teleport cluster:
 - Teleport Kubernetes access
 - Teleport Application access
 - Teleport Database access
+- Teleport Kubernetes App Discovery
 
 To use it, you will need:
 - an existing Teleport cluster (at least proxy and auth services)
@@ -22,7 +23,7 @@ To use it, you will need:
 
 ## Combining roles
 
-You can combine multiple roles as a comma-separated list: `--set roles=kube\,db\,app`
+You can combine multiple roles as a comma-separated list: `--set roles=kube\,db\,app\,discovery`
 
 Note that commas must be escaped if the values are provided on the command line. This is due to the way that
 Helm parses arguments.
@@ -85,7 +86,7 @@ $ helm install teleport-kube-agent . \
   --set kubeClusterName=${KUBERNETES_CLUSTER_NAME?}
 ```
 
-Note that due to backwards compatbility, the `labels` value **only** applies to the Teleport
+Note that due to backwards compatibility, the `labels` value **only** applies to the Teleport
 Kubernetes service. To set labels for applications or databases, use the different formats
 detailed below.
 
@@ -165,26 +166,33 @@ $ helm install teleport-kube-agent . \
 --set "databaseResources[0].labels.${DB_RESOURCE_KEY?}=${DB_RESOURCE_VALUE?}"
 ```
 
-### Auto-discovery mode (AWS only)
+### Auto-discovery mode (AWS)
 
-To use Teleport database access in auto-discovery mode, you will also need:
-- the database types you are attempting to auto-discover (`$DB_TYPES`)
-- the AWS region(s) you would like to run auto-discovery in (`$DB_REGIONS`)
-- the AWS resource tags if you want to target only certain databases (`$DB_TAGS`)
+To use Teleport database access in AWS database auto-discovery mode, you will also need:
+- the database types you are attempting to auto-discover (`types`)
+- the AWS region(s) you would like to run auto-discovery in (`regions`)
+- the AWS resource tags if you want to target only certain databases (`tags`)
 
-To install the agent in database auto-discovery mode, run:
+See the [AWS databases Helm chart reference](https://goteleport.com/docs/reference/helm-reference/teleport-kube-agent/#awsDatabases)
+for an example of installing an agent with AWS database auto-discovery.
 
-```sh
-$ helm install teleport-kube-agent . \
-  --create-namespace \
-  --namespace teleport \
-  --set roles=db \
-  --set proxyAddr=${PROXY_ENDPOINT?} \
-  --set authToken=${JOIN_TOKEN?} \
-  --set "awsDatabases[0].types=${DB_TYPES?}" \
-  --set "awsDatabases[0].regions=${DB_REGIONS?}" \
-  --set "awsDatabases[0].tags=${DB_TAGS?}"
-```
+### Auto-discovery mode (Azure)
+
+To use Teleport database access in Azure database auto-discovery mode, you will also need:
+- the database types you are attempting to auto-discover (`types`)
+- the Azure resource tags if you want to target only certain databases (`tags`)
+
+You can optionally specify:
+- the Azure subscription(s) to auto-discover in (`subscriptions`)
+- the Azure region(s) to auto-discover in (`regions`)
+- the Azure resource-group(s) to auto-discover in (`resource_groups`)
+
+The default for each of these optional settings is `[*]`, which will auto-discover in all
+subscriptions, regions, or resource groups accessible by the Teleport service
+principal in Azure.
+
+See the [Azure databases Helm chart reference](https://goteleport.com/docs/reference/helm-reference/teleport-kube-agent/#azureDatabases)
+for an example of installing an agent with Azure database auto-discovery.
 
 ### Manual configuration mode
 
@@ -224,6 +232,28 @@ You can add multiple databases using `databases[1].name`, `databases[1].uri`, `d
 `databases[2].name`, `databases[2].uri`, `databases[2].protocol` etc.
 
 After installing, the new database should show up in `tsh db ls` after a few minutes.
+
+## Kubernetes App Discovery
+
+Teleport can be used to automatically discover apps based on services found in the Kubernetes cluster.
+To run Teleport discovery you will need to enabled roles `discovery` and `app` and also provide token that allows access for these roles.
+
+To install the agent, run:
+
+```sh
+$ helm install teleport-kube-agent . \
+  --create-namespace \
+  --namespace teleport \
+  --set roles=kube,app,discovery \
+  --set proxyAddr=${PROXY_ENDPOINT?} \
+  --set authToken=${JOIN_TOKEN?}
+```
+
+With default settings Teleport will try to discovery all apps available in the cluster. To control what namespaces and what service labels
+to use for discovery you can use `kubernetesDiscovery` property of the chart.
+
+When discovery is running, `kubeClusterName` should be set in values, since it is used as a name for discovery field and as a target label
+for the app service, so it can expose discovered apps.
 
 ## Troubleshooting
 

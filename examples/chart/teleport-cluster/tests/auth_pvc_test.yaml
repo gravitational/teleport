@@ -1,0 +1,87 @@
+suite: Auth PersistentVolumeClaim
+templates:
+  - auth/pvc.yaml
+tests:
+  - it: creates a PersistentVolumeClaim when chartMode=standalone with default size
+    set:
+      chartMode: standalone
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: PersistentVolumeClaim
+      - equal:
+          path: spec.resources.requests.storage
+          value: "10Gi"
+
+  - it: creates a PersistentVolumeClaim when chartMode=scratch
+    set:
+      chartMode: scratch
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: PersistentVolumeClaim
+
+  - it: uses a custom size when set
+    values:
+      - ../.lint/standalone-customsize.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: PersistentVolumeClaim
+      - equal:
+          path: spec.resources.requests.storage
+          value: 50Gi
+
+  - it: uses a custom storage class when set
+    values:
+      - ../.lint/standalone-custom-storage-class.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: PersistentVolumeClaim
+      - equal:
+          path: spec.storageClassName
+          value: ebs-ssd
+
+  - it: does not create a PersistentVolumeClaim when chartMode=standalone and existingClaimName is not blank
+    set:
+      chartMode: standalone
+      persistence:
+        existingClaimName: test-claim
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: does not create a PersistentVolumeClaim when chartMode=scratch and existingClaimName is not blank
+    set:
+      chartMode: scratch
+      persistence:
+        existingClaimName: test-claim
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: does not create a PersistentVolumeClaim when chartMode=aws
+    set:
+      chartMode: aws
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: does not create a PersistentVolumeClaim when chartMode=gcp
+    set:
+      chartMode: gcp
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: does not create a PersistentVolumeClaim when chartMode=azure
+    set:
+      chartMode: azure
+    asserts:
+      - hasDocuments:
+          count: 0

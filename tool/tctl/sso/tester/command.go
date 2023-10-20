@@ -16,28 +16,28 @@ package tester
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"strings"
 
+	"github.com/alecthomas/kingpin/v2"
+	"github.com/gravitational/trace"
+	kyaml "k8s.io/apimachinery/pkg/util/yaml"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/kingpin"
-	"github.com/gravitational/trace"
-
-	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 )
 
 // SSOTestCommand implements common.CLICommand interface
 type SSOTestCommand struct {
-	config *service.Config
+	config *servicecfg.Config
 
 	ssoTestCmd *kingpin.CmdClause
 
@@ -54,7 +54,7 @@ type SSOTestCommand struct {
 
 // Initialize allows a caller-defined command to plug itself into CLI
 // argument parsing
-func (cmd *SSOTestCommand) Initialize(app *kingpin.Application, cfg *service.Config) {
+func (cmd *SSOTestCommand) Initialize(app *kingpin.Application, cfg *servicecfg.Config) {
 	cmd.config = cfg
 
 	sso := app.GetCommand("sso")
@@ -98,7 +98,7 @@ func (cmd *SSOTestCommand) getSupportedKinds() []string {
 func (cmd *SSOTestCommand) ssoTestCommand(ctx context.Context, c auth.ClientI) error {
 	reader := os.Stdin
 	if cmd.connectorFileName != "" {
-		f, err := utils.OpenFile(cmd.connectorFileName)
+		f, err := utils.OpenFileAllowingUnsafeLinks(cmd.connectorFileName)
 		if err != nil {
 			return trace.Wrap(err, "could not open connector spec file %v", cmd.connectorFileName)
 		}
@@ -111,7 +111,7 @@ func (cmd *SSOTestCommand) ssoTestCommand(ctx context.Context, c auth.ClientI) e
 		var raw services.UnknownResource
 		err := decoder.Decode(&raw)
 		if err != nil {
-			if err == io.EOF {
+			if errors.Is(err, io.EOF) {
 				return nil
 			}
 			return trace.Wrap(err, "Unable to load resource. Make sure the file is in correct format.")

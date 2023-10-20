@@ -19,11 +19,11 @@ package services
 import (
 	"fmt"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
 )
 
 // LockInForceAccessDenied is an AccessDenied error returned when a lock
@@ -35,8 +35,7 @@ func LockInForceAccessDenied(lock types.Lock) error {
 		s += ": " + msg
 	}
 	err := trace.AccessDenied(s)
-	err.AddField("lock-in-force", lock)
-	return err
+	return trace.WithField(err, "lock-in-force", lock)
 }
 
 // StrictLockingModeAccessDenied is an AccessDenied error returned when strict
@@ -48,6 +47,9 @@ func LockTargetsFromTLSIdentity(id tlsca.Identity) []types.LockTarget {
 	lockTargets := append(RolesToLockTargets(id.Groups), types.LockTarget{User: id.Username})
 	if id.MFAVerified != "" {
 		lockTargets = append(lockTargets, types.LockTarget{MFADevice: id.MFAVerified})
+	}
+	if id.DeviceExtensions.DeviceID != "" {
+		lockTargets = append(lockTargets, types.LockTarget{Device: id.DeviceExtensions.DeviceID})
 	}
 	lockTargets = append(lockTargets, AccessRequestsToLockTargets(id.ActiveRequests)...)
 	return lockTargets
@@ -94,6 +96,9 @@ func UnmarshalLock(bytes []byte, opts ...MarshalOption) (types.Lock, error) {
 	if cfg.ID != 0 {
 		lock.SetResourceID(cfg.ID)
 	}
+	if cfg.Revision != "" {
+		lock.SetRevision(cfg.Revision)
+	}
 	if !cfg.Expires.IsZero() {
 		lock.SetExpiry(cfg.Expires)
 	}
@@ -121,6 +126,7 @@ func MarshalLock(lock types.Lock, opts ...MarshalOption) ([]byte, error) {
 			// to prevent unexpected data races
 			copy := *lock
 			copy.SetResourceID(0)
+			copy.SetRevision("")
 			lock = &copy
 		}
 		return utils.FastMarshal(lock)

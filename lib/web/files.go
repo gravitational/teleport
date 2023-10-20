@@ -17,23 +17,31 @@ limitations under the License.
 package web
 
 import (
+	"context"
+	"encoding/json"
 	"net/http"
-
-	"github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/reversetunnel"
-	"github.com/gravitational/teleport/lib/sshutils/scp"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
+	"golang.org/x/crypto/ssh"
+
+	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/auth"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
+	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/multiplexer"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/sshutils/sftp"
 )
 
 // fileTransferRequest describes HTTP file transfer request
 type fileTransferRequest struct {
 	// Server describes a server to connect to (serverId|hostname[:port]).
-	server string
+	serverID string
 	// Login is Linux username to connect as.
 	login string
 	// Namespace is node namespace.
@@ -44,37 +52,100 @@ type fileTransferRequest struct {
 	remoteLocation string
 	// filename is a file name
 	filename string
+	// webauthn is an optional parameter that contains a webauthn response string used to issue single use certs
+	webauthn string
+	// fileTransferRequestID is used to find a FileTransferRequest on a session
+	fileTransferRequestID string
+	// moderatedSessonID is an ID of a moderated session that has completed a
+	// file transfer request approval process
+	moderatedSessionID string
 }
 
-func (h *Handler) transferFile(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+func (h *Handler) transferFile(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
 	query := r.URL.Query()
 	req := fileTransferRequest{
-		cluster:        p.ByName("site"),
-		login:          p.ByName("login"),
-		server:         p.ByName("server"),
-		remoteLocation: query.Get("location"),
-		filename:       query.Get("filename"),
-		namespace:      defaults.Namespace,
+		cluster:               site.GetName(),
+		login:                 p.ByName("login"),
+		serverID:              p.ByName("server"),
+		remoteLocation:        query.Get("location"),
+		filename:              query.Get("filename"),
+		namespace:             defaults.Namespace,
+		webauthn:              query.Get("webauthn"),
+		fileTransferRequestID: query.Get("fileTransferRequestId"),
+		moderatedSessionID:    query.Get("moderatedSessionId"),
 	}
 
-	clt, err := ctx.GetUserClient(site)
+	// Send an error if only one of these params has been sent. Both should exist or not exist together
+	if (req.fileTransferRequestID != "") != (req.moderatedSessionID != "") {
+		return nil, trace.BadParameter("fileTransferRequestId and moderatedSessionId must both be included in the same request.")
+	}
+
+	clt, err := sctx.GetUserClient(r.Context(), site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	ft := fileTransfer{
-		ctx:           ctx,
+		sctx:          sctx,
 		authClient:    clt,
 		proxyHostPort: h.ProxyHostPort(),
 	}
 
-	isUpload := r.Method == http.MethodPost
-	if isUpload {
-		err = ft.upload(req, r)
-	} else {
-		err = ft.download(req, r, w)
+	mfaReq, err := clt.IsMFARequired(r.Context(), &proto.IsMFARequiredRequest{
+		Target: &proto.IsMFARequiredRequest_Node{
+			Node: &proto.NodeLogin{
+				Node:  p.ByName("server"),
+				Login: p.ByName("login"),
+			},
+		},
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
+	if mfaReq.Required && query.Get("webauthn") == "" {
+		return nil, trace.AccessDenied("MFA required for file transfer")
+	}
+
+	var cfg *sftp.Config
+	isUpload := r.Method == http.MethodPost
+	if isUpload {
+		cfg, err = sftp.CreateHTTPUploadConfig(sftp.HTTPTransferRequest{
+			Src:         req.filename,
+			Dst:         req.remoteLocation,
+			HTTPRequest: r,
+		})
+	} else {
+		cfg, err = sftp.CreateHTTPDownloadConfig(sftp.HTTPTransferRequest{
+			Src:          req.remoteLocation,
+			Dst:          req.filename,
+			HTTPResponse: w,
+		})
+	}
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	tc, err := ft.createClient(req, r, h.cfg.PROXYSigner)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if req.webauthn != "" {
+		err = ft.issueSingleUseCert(req.webauthn, r, tc)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	ctx := r.Context()
+	if req.fileTransferRequestID != "" {
+		// These values should never exist independently of each other so we can set them at the same time
+		ctx = context.WithValue(ctx, sftp.FileTransferRequestID, req.fileTransferRequestID)
+		ctx = context.WithValue(ctx, sftp.ModeratedSessionID, req.moderatedSessionID)
+	}
+
+	err = tc.TransferFiles(ctx, req.login, req.serverID+":0", cfg)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -85,60 +156,13 @@ func (h *Handler) transferFile(w http.ResponseWriter, r *http.Request, p httprou
 }
 
 type fileTransfer struct {
-	// ctx is a web session context for the currently logged in user.
-	ctx           *SessionContext
+	// sctx is a web session context for the currently logged in user.
+	sctx          *SessionContext
 	authClient    auth.ClientI
 	proxyHostPort string
 }
 
-func (f *fileTransfer) download(req fileTransferRequest, httpReq *http.Request, w http.ResponseWriter) error {
-	cmd, err := scp.CreateHTTPDownload(scp.HTTPTransferRequest{
-		RemoteLocation: req.remoteLocation,
-		HTTPResponse:   w,
-		User:           f.ctx.GetUser(),
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	tc, err := f.createClient(req, httpReq)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	err = tc.ExecuteSCP(httpReq.Context(), cmd)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
-}
-
-func (f *fileTransfer) upload(req fileTransferRequest, httpReq *http.Request) error {
-	cmd, err := scp.CreateHTTPUpload(scp.HTTPTransferRequest{
-		RemoteLocation: req.remoteLocation,
-		FileName:       req.filename,
-		HTTPRequest:    httpReq,
-		User:           f.ctx.GetUser(),
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	tc, err := f.createClient(req, httpReq)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	err = tc.ExecuteSCP(httpReq.Context(), cmd)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
-}
-
-func (f *fileTransfer) createClient(req fileTransferRequest, httpReq *http.Request) (*client.TeleportClient, error) {
+func (f *fileTransfer) createClient(req fileTransferRequest, httpReq *http.Request, proxySigner multiplexer.PROXYHeaderSigner) (*client.TeleportClient, error) {
 	if !types.IsValidNamespace(req.namespace) {
 		return nil, trace.BadParameter("invalid namespace %q", req.namespace)
 	}
@@ -152,12 +176,12 @@ func (f *fileTransfer) createClient(req fileTransferRequest, httpReq *http.Reque
 		return nil, trace.Wrap(err)
 	}
 
-	hostName, hostPort, err := resolveServerHostPort(req.server, servers)
+	hostName, hostPort, err := resolveServerHostPort(req.serverID, servers)
 	if err != nil {
-		return nil, trace.BadParameter("invalid server name %q: %v", req.server, err)
+		return nil, trace.BadParameter("invalid server name %q: %v", req.serverID, err)
 	}
 
-	cfg, err := makeTeleportClientConfig(httpReq.Context(), f.ctx)
+	cfg, err := makeTeleportClientConfig(httpReq.Context(), f.sctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -171,6 +195,7 @@ func (f *fileTransfer) createClient(req fileTransferRequest, httpReq *http.Reque
 	cfg.Host = hostName
 	cfg.HostPort = hostPort
 	cfg.ClientAddr = httpReq.RemoteAddr
+	cfg.PROXYSigner = proxySigner
 
 	tc, err := client.NewClient(cfg)
 	if err != nil {
@@ -178,4 +203,55 @@ func (f *fileTransfer) createClient(req fileTransferRequest, httpReq *http.Reque
 	}
 
 	return tc, nil
+}
+
+type mfaRequest struct {
+	// WebauthnResponse is the response from authenticators.
+	WebauthnAssertionResponse *wantypes.CredentialAssertionResponse `json:"webauthnAssertionResponse"`
+}
+
+// issueSingleUseCert will take an assertion response sent from a solved challenge in the web UI
+// and use that to generate a cert. This cert is added to the Teleport Client as an authmethod that
+// can be used to connect to a node.
+func (f *fileTransfer) issueSingleUseCert(webauthn string, httpReq *http.Request, tc *client.TeleportClient) error {
+	var mfaReq mfaRequest
+	err := json.Unmarshal([]byte(webauthn), &mfaReq)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	pk, err := keys.ParsePrivateKey(f.sctx.cfg.Session.GetPriv())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	key := &client.Key{
+		PrivateKey: pk,
+		Cert:       f.sctx.cfg.Session.GetPub(),
+		TLSCert:    f.sctx.cfg.Session.GetTLSCert(),
+	}
+
+	// Always acquire certs from the root cluster, that is where both the user and their devices are registered.
+	cert, err := f.sctx.cfg.RootClient.GenerateUserCerts(httpReq.Context(), proto.UserCertsRequest{
+		PublicKey: key.MarshalSSHPublicKey(),
+		Username:  f.sctx.GetUser(),
+		Expires:   time.Now().Add(time.Minute).UTC(),
+		MFAResponse: &proto.MFAAuthenticateResponse{
+			Response: &proto.MFAAuthenticateResponse_Webauthn{
+				Webauthn: wantypes.CredentialAssertionResponseToProto(mfaReq.WebauthnAssertionResponse),
+			},
+		},
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	key.Cert = cert.SSH
+	am, err := key.AsAuthMethod()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	tc.AuthMethods = []ssh.AuthMethod{am}
+	return nil
 }

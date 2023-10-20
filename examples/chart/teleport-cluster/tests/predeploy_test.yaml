@@ -1,0 +1,111 @@
+suite: Pre-Deploy Config Test Hooks
+templates:
+  - auth/predeploy_job.yaml
+  - auth/predeploy_config.yaml
+  - proxy/predeploy_job.yaml
+  - proxy/predeploy_config.yaml
+tests:
+  - it: Deploys the auth-test config
+    template: auth/predeploy_config.yaml
+    set:
+      clusterName: helm-lint
+    asserts:
+      - containsDocument:
+          kind: ConfigMap
+          apiVersion: v1
+          name: RELEASE-NAME-auth-test
+          namespace: NAMESPACE
+
+  - it: Deploys the proxy-test config
+    template: proxy/predeploy_config.yaml
+    set:
+      clusterName: helm-lint
+    asserts:
+      - containsDocument:
+          kind: ConfigMap
+          apiVersion: v1
+          name: RELEASE-NAME-proxy-test
+          namespace: NAMESPACE
+
+  - it: Deploys the auth-test job
+    template: auth/predeploy_job.yaml
+    set:
+      clusterName: helm-lint
+    asserts:
+      - containsDocument:
+          kind: Job
+          apiVersion: batch/v1
+          name: RELEASE-NAME-auth-test
+          namespace: NAMESPACE
+
+  - it: Is executed as a pre-install and pre-upgrade hook
+    set:
+      clusterName: helm-lint
+    asserts:
+      - equal:
+          path: metadata.annotations.helm\.sh/hook
+          value: pre-install,pre-upgrade
+
+  - it: Does not render hooks when config validation is disabled
+    set:
+      clusterName: helm-lint
+      validateConfigOnDeploy: false
+    asserts:
+      - hasDocuments:
+          count: 0
+  - it: should set resources on auth predeploy job when set in values
+    template: auth/predeploy_job.yaml
+    values:
+      - ../.lint/resources.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits.cpu
+          value: 2
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits.memory
+          value: 4Gi
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.cpu
+          value: 1
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.memory
+          value: 2Gi
+  - it: should set resources on proxy predeploy job when set in values
+    template: proxy/predeploy_job.yaml
+    values:
+      - ../.lint/resources.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits.cpu
+          value: 2
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits.memory
+          value: 4Gi
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.cpu
+          value: 1
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.memory
+          value: 2Gi
+
+  - it: should set imagePullSecrets on proxy predeploy job when set in values
+    template: proxy/predeploy_job.yaml
+    values:
+      - ../.lint/imagepullsecrets.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.imagePullSecrets[0].name
+          value: myRegistryKeySecretName
+      - matchSnapshot:
+          path: spec.template.spec.imagePullSecrets
+
+  - it: should set imagePullSecrets on auth predeploy job when set in values
+    template: auth/predeploy_job.yaml
+    values:
+      - ../.lint/imagepullsecrets.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.imagePullSecrets[0].name
+          value: myRegistryKeySecretName
+      - matchSnapshot:
+          path: spec.template.spec.imagePullSecrets

@@ -21,14 +21,16 @@ package redis
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/alicebob/miniredis/v2"
-	"github.com/go-redis/redis/v8"
-	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/trace"
+	"github.com/redis/go-redis/v9"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/srv/db/common"
 )
 
 // Client alias for easier use.
@@ -37,6 +39,7 @@ type Client = redis.Client
 // ClientOptionsParams is a struct for client configuration options.
 type ClientOptionsParams struct {
 	skipPing bool
+	timeout  time.Duration
 }
 
 // ClientOptions allows setting test client options.
@@ -49,6 +52,13 @@ func SkipPing(skip bool) ClientOptions {
 	}
 }
 
+// WithTimeout overrides test client's default timeout.
+func WithTimeout(timeout time.Duration) ClientOptions {
+	return func(ts *ClientOptionsParams) {
+		ts.timeout = timeout
+	}
+}
+
 // MakeTestClient returns Redis client connection according to the provided
 // parameters.
 func MakeTestClient(ctx context.Context, config common.TestClientConfig, opts ...ClientOptions) (*Client, error) {
@@ -57,15 +67,25 @@ func MakeTestClient(ctx context.Context, config common.TestClientConfig, opts ..
 		return nil, trace.Wrap(err)
 	}
 
-	clientOptions := &ClientOptionsParams{}
+	clientOptions := &ClientOptionsParams{
+		// set default timeout to 10 seconds for test clients.
+		timeout: 10 * time.Second,
+	}
 
 	for _, opt := range opts {
 		opt(clientOptions)
 	}
 
 	client := redis.NewClient(&redis.Options{
-		Addr:      config.Address,
-		TLSConfig: tlsConfig,
+		Addr:         config.Address,
+		TLSConfig:    tlsConfig,
+		DialTimeout:  clientOptions.timeout,
+		ReadTimeout:  clientOptions.timeout,
+		WriteTimeout: clientOptions.timeout,
+		// Set DisableAuthOnConnect to true to avoid automatically sending
+		// HELLO to the server to speed up the tests. Let the caller decide to
+		// send HELLO or not.
+		DisableAuthOnConnect: true,
 	})
 
 	if !clientOptions.skipPing {
@@ -102,7 +122,7 @@ func TestServerPassword(password string) TestServerOption {
 }
 
 // NewTestServer returns a new instance of a test Redis server.
-func NewTestServer(t *testing.T, config common.TestServerConfig, opts ...TestServerOption) (*TestServer, error) {
+func NewTestServer(t testing.TB, config common.TestServerConfig, opts ...TestServerOption) (*TestServer, error) {
 	tlsConfig, err := common.MakeTestServerTLSConfig(config)
 	if err != nil {
 		return nil, trace.Wrap(err)

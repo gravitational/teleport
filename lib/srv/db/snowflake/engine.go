@@ -35,6 +35,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
@@ -44,12 +45,8 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-func init() {
-	common.RegisterEngine(newEngine, defaults.ProtocolSnowflake)
-}
-
-// newEngine create new Snowflake engine.
-func newEngine(ec common.EngineConfig) common.Engine {
+// NewEngine create new Snowflake engine.
+func NewEngine(ec common.EngineConfig) common.Engine {
 	return &Engine{
 		EngineConfig: ec,
 		HTTPClient:   getDefaultHTTPClient(),
@@ -139,6 +136,8 @@ func (e *Engine) SendError(err error) {
 }
 
 func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Session) error {
+	observe := common.GetConnectionSetupTimeObserver(sessionCtx.Database)
+
 	var err error
 	e.accountName, e.snowflakeHost, err = parseConnectionString(sessionCtx.Database.GetURI())
 	if err != nil {
@@ -154,13 +153,18 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 
 	clientConnReader := bufio.NewReader(e.clientConn)
 
+	observe()
+
+	msgFromClient := common.GetMessagesFromClientMetric(e.sessionCtx.Database)
+	msgFromServer := common.GetMessagesFromServerMetric(e.sessionCtx.Database)
+
 	for {
 		req, err := http.ReadRequest(clientConnReader)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
-		err = e.process(ctx, sessionCtx, req)
+		err = e.process(ctx, sessionCtx, req, msgFromClient, msgFromServer)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -169,7 +173,9 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 
 // process reads request from connected Snowflake client, processes the requests/responses and send data back
 // to the client.
-func (e *Engine) process(ctx context.Context, sessionCtx *common.Session, req *http.Request) error {
+func (e *Engine) process(ctx context.Context, sessionCtx *common.Session, req *http.Request, msgFromClient prometheus.Counter, msgFromServer prometheus.Counter) error {
+	msgFromClient.Inc()
+
 	snowflakeToken, err := e.getConnectionToken(ctx, req)
 	if err != nil {
 		return trace.Wrap(err)
@@ -197,6 +203,8 @@ func (e *Engine) process(ctx context.Context, sessionCtx *common.Session, req *h
 		return trace.Wrap(err)
 	}
 	defer resp.Body.Close()
+
+	msgFromServer.Inc()
 
 	switch req.URL.Path {
 	case loginRequestPath:
@@ -345,19 +353,19 @@ func (e *Engine) processResponse(resp *http.Response, modifyReqFn func(body []by
 // authorizeConnection does authorization check for Snowflake connection about
 // to be established.
 func (e *Engine) authorizeConnection(ctx context.Context) error {
-	ap, err := e.Auth.GetAuthPreference(ctx)
+	authPref, err := e.Auth.GetAuthPreference(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	mfaParams := e.sessionCtx.MFAParams(ap.GetRequireMFAType())
+	state := e.sessionCtx.GetAccessState(authPref)
 	dbRoleMatchers := role.DatabaseRoleMatchers(
-		e.sessionCtx.Database.GetProtocol(),
+		e.sessionCtx.Database,
 		e.sessionCtx.DatabaseUser,
 		e.sessionCtx.DatabaseName,
 	)
 	err = e.sessionCtx.Checker.CheckAccess(
 		e.sessionCtx.Database,
-		mfaParams,
+		state,
 		dbRoleMatchers...,
 	)
 	if err != nil {

@@ -19,8 +19,6 @@ limitations under the License.
 
 package bpf
 
-// #cgo LDFLAGS: -ldl
-// #include <stdlib.h>
 import "C"
 
 import (
@@ -34,14 +32,14 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/gravitational/trace"
+	"github.com/gravitational/ttlmap"
+
 	"github.com/gravitational/teleport/api/constants"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	controlgroup "github.com/gravitational/teleport/lib/cgroup"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/srv"
-
-	"github.com/gravitational/trace"
-	"github.com/gravitational/ttlmap"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 )
 
 //go:embed bytecode
@@ -54,24 +52,24 @@ const ArgsCacheSize = 1024
 // SessionWatch is a map of cgroup IDs that the BPF service is watching and
 // emitting events for.
 type SessionWatch struct {
-	watch map[uint64]*srv.ServerContext
+	watch map[uint64]*SessionContext
 	mu    sync.Mutex
 }
 
 func NewSessionWatch() SessionWatch {
 	return SessionWatch{
-		watch: make(map[uint64]*srv.ServerContext),
+		watch: make(map[uint64]*SessionContext),
 	}
 }
 
-func (w *SessionWatch) Get(cgoupID uint64) (ctx *srv.ServerContext, ok bool) {
+func (w *SessionWatch) Get(cgroupID uint64) (ctx *SessionContext, ok bool) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	ctx, ok = w.watch[cgoupID]
+	ctx, ok = w.watch[cgroupID]
 	return
 }
 
-func (w *SessionWatch) Add(cgroupID uint64, ctx *srv.ServerContext) {
+func (w *SessionWatch) Add(cgroupID uint64, ctx *SessionContext) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
@@ -87,7 +85,7 @@ func (w *SessionWatch) Remove(cgroupID uint64) {
 
 // Service manages BPF and control groups orchestration.
 type Service struct {
-	*Config
+	*servicecfg.BPFConfig
 
 	// watch is a map of cgroup IDs that the BPF service is watching and
 	// emitting events for.
@@ -112,13 +110,17 @@ type Service struct {
 	open *open
 
 	// conn is a BPF programs that hooks connect.
+	// conn is set only when restricted sessions are enabled.
 	conn *conn
 }
 
 // New creates a BPF service.
-func New(config *Config) (BPF, error) {
-	err := config.CheckAndSetDefaults()
-	if err != nil {
+func New(config *servicecfg.BPFConfig, restrictedSession *servicecfg.RestrictedSessionConfig) (BPF, error) {
+	if err := config.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := restrictedSession.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -130,8 +132,7 @@ func New(config *Config) (BPF, error) {
 	}
 
 	// Check if the host can run BPF programs.
-	err = IsHostCompatible()
-	if err != nil {
+	if err := IsHostCompatible(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -146,7 +147,7 @@ func New(config *Config) (BPF, error) {
 	closeContext, closeFunc := context.WithCancel(context.Background())
 
 	s := &Service{
-		Config: config,
+		BPFConfig: config,
 
 		watch: NewSessionWatch(),
 
@@ -174,36 +175,51 @@ func New(config *Config) (BPF, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// Load network BPF modules only when required.
 	s.conn, err = startConn(*config.NetworkBufferSize)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	log.Debugf("Started enhanced session recording with buffer sizes (command=%v, "+
-		"disk=%v, network=%v) and cgroup mount path: %v. Took %v.",
-		*s.CommandBufferSize, *s.DiskBufferSize, *s.NetworkBufferSize, s.CgroupPath,
-		time.Since(start))
+		"disk=%v, network=%v), restricted session (bufferSize=%v) "+
+		"and cgroup mount path: %v. Took %v.",
+		*s.CommandBufferSize, *s.DiskBufferSize, *s.NetworkBufferSize,
+		*restrictedSession.EventsBufferSize,
+		s.CgroupPath, time.Since(start))
+
+	go s.processNetworkEvents()
 
 	// Start pulling events off the perf buffers and emitting them to the
 	// Audit Log.
-	go s.loop()
+	go s.processAccessEvents()
 
 	return s, nil
 }
 
 // Close will stop any running BPF programs. Note this is only for a graceful
-// shutdown, from the man page for BPF: "Generally, eBPF programs are loaded
-// by the user process and automatically unloaded when the process exits."
-func (s *Service) Close() error {
+// shutdown, from the man page for BPF: "Generally, eBPF programs are loaded by
+// the user process and automatically unloaded when the process exits". The
+// restarting parameter indicates that Teleport is shutting down because of a
+// restart, and thus we should skip any deinitialization that would interfere
+// with the new Teleport instance.
+func (s *Service) Close(restarting bool) error {
 	// Unload the BPF programs.
 	s.exec.close()
 	s.open.close()
-	s.conn.close()
+	if s.conn != nil {
+		s.conn.close()
+	}
 
-	// Close cgroup service.
-	s.cgroup.Close()
+	// Close cgroup service. We should not unmount the cgroup filesystem if
+	// we're restarting.
+	skipCgroupUnmount := restarting
+	if err := s.cgroup.Close(skipCgroupUnmount); err != nil {
+		log.WithError(err).Warn("Failed to close cgroup")
+	}
 
-	// Signal to the loop pulling events off the perf buffer to shutdown.
+	// Signal to the processAccessEvents pulling events off the perf buffer to shutdown.
 	s.closeFunc()
 
 	return nil
@@ -211,23 +227,42 @@ func (s *Service) Close() error {
 
 // OpenSession will place a process within a cgroup and being monitoring all
 // events from that cgroup and emitting the results to the audit log.
-func (s *Service) OpenSession(ctx *srv.ServerContext) (uint64, error) {
-	sessionID := ctx.SessionID()
-	err := s.cgroup.Create(sessionID.String())
+func (s *Service) OpenSession(ctx *SessionContext) (uint64, error) {
+	err := s.cgroup.Create(ctx.SessionID)
 	if err != nil {
 		return 0, trace.Wrap(err)
 	}
 
-	cgroupID, err := s.cgroup.ID(sessionID.String())
+	cgroupID, err := s.cgroup.ID(ctx.SessionID)
 	if err != nil {
 		return 0, trace.Wrap(err)
+	}
+
+	// initializedModClosures holds all already opened modules closures.
+	initializedModClosures := make([]interface{ endSession(uint64) error }, 0)
+	for _, module := range []cgroupRegister{
+		s.open,
+		s.exec,
+		s.conn,
+	} {
+		// Register cgroup in the BPF module.
+		if err := module.startSession(cgroupID); err != nil {
+			// Clean up all already opened modules.
+			for _, closer := range initializedModClosures {
+				if closeErr := closer.endSession(cgroupID); closeErr != nil {
+					log.Debugf("failed to close session: %v", closeErr)
+				}
+			}
+			return 0, trace.Wrap(err)
+		}
+		initializedModClosures = append(initializedModClosures, module)
 	}
 
 	// Start watching for any events that come from this cgroup.
 	s.watch.Add(cgroupID, ctx)
 
 	// Place requested PID into cgroup.
-	err = s.cgroup.Place(sessionID.String(), ctx.GetPID())
+	err = s.cgroup.Place(ctx.SessionID, ctx.PID)
 	if err != nil {
 		return 0, trace.Wrap(err)
 	}
@@ -237,9 +272,8 @@ func (s *Service) OpenSession(ctx *srv.ServerContext) (uint64, error) {
 
 // CloseSession will stop monitoring events from a particular cgroup and
 // remove the cgroup.
-func (s *Service) CloseSession(ctx *srv.ServerContext) error {
-	sessionID := ctx.SessionID()
-	cgroupID, err := s.cgroup.ID(sessionID.String())
+func (s *Service) CloseSession(ctx *SessionContext) error {
+	cgroupID, err := s.cgroup.ID(ctx.SessionID)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -247,19 +281,30 @@ func (s *Service) CloseSession(ctx *srv.ServerContext) error {
 	// Stop watching for events from this PID.
 	s.watch.Remove(cgroupID)
 
+	var errs []error
 	// Move all PIDs to the root cgroup and remove the cgroup created for this
 	// session.
-	err = s.cgroup.Remove(sessionID.String())
-	if err != nil {
-		return trace.Wrap(err)
+	if err := s.cgroup.Remove(ctx.SessionID); err != nil {
+		errs = append(errs, trace.Wrap(err))
 	}
 
-	return nil
+	for _, module := range []interface{ endSession(cgroupID uint64) error }{
+		s.open,
+		s.exec,
+		s.conn,
+	} {
+		// Remove the cgroup from BPF module.
+		if err := module.endSession(cgroupID); err != nil {
+			errs = append(errs, trace.Wrap(err))
+		}
+	}
+
+	return trace.NewAggregate(errs...)
 }
 
-// loop pulls events off the perf ring buffer, parses them, and emits them to
+// processAccessEvents pulls events off the perf ring buffer, parses them, and emits them to
 // the audit log.
-func (s *Service) loop() {
+func (s *Service) processAccessEvents() {
 	for {
 		select {
 		// Program execution.
@@ -268,10 +313,21 @@ func (s *Service) loop() {
 		// Disk access.
 		case event := <-s.open.events():
 			s.emitDiskEvent(event)
+		case <-s.closeContext.Done():
+			return
+		}
+	}
+}
+
+// processNetworkEvents pulls networks events of the ring buffer and emits them
+// to the audit log.
+func (s *Service) processNetworkEvents() {
+	for {
+		select {
 		// Network access (IPv4).
 		case event := <-s.conn.v4Events():
 			s.emit4NetworkEvent(event)
-		// Network access (IPv4).
+		// Network access (IPv6).
 		case event := <-s.conn.v6Events():
 			s.emit6NetworkEvent(event)
 		case <-s.closeContext.Done():
@@ -297,7 +353,7 @@ func (s *Service) emitCommandEvent(eventBytes []byte) {
 	}
 
 	// If the command event is not being monitored, don't process it.
-	_, ok = ctx.Identity.AccessChecker.EnhancedRecordingSet()[constants.EnhancedRecordingCommand]
+	_, ok = ctx.Events[constants.EnhancedRecordingCommand]
 	if !ok {
 		return
 	}
@@ -329,22 +385,22 @@ func (s *Service) emitCommandEvent(eventBytes []byte) {
 		argv := args.([]string)
 
 		// Emit "command" event.
-		sessionID := ctx.SessionID()
 		sessionCommandEvent := &apievents.SessionCommand{
 			Metadata: apievents.Metadata{
 				Type: events.SessionCommandEvent,
 				Code: events.SessionCommandCode,
 			},
 			ServerMetadata: apievents.ServerMetadata{
-				ServerID:        ctx.GetServer().HostUUID(),
-				ServerNamespace: ctx.GetServer().GetNamespace(),
+				ServerID:        ctx.ServerID,
+				ServerHostname:  ctx.ServerHostname,
+				ServerNamespace: ctx.Namespace,
 			},
 			SessionMetadata: apievents.SessionMetadata{
-				SessionID: sessionID.String(),
+				SessionID: ctx.SessionID,
 			},
 			UserMetadata: apievents.UserMetadata{
-				User:  ctx.Identity.TeleportUser,
-				Login: ctx.Identity.Login,
+				User:  ctx.User,
+				Login: ctx.Login,
 			},
 			BPFMetadata: apievents.BPFMetadata{
 				CgroupID: event.CgroupID,
@@ -356,7 +412,7 @@ func (s *Service) emitCommandEvent(eventBytes []byte) {
 			Path:       argv[0],
 			Argv:       argv[1:],
 		}
-		if err := ctx.StreamWriter().EmitAuditEvent(ctx.Context, sessionCommandEvent); err != nil {
+		if err := ctx.Emitter.EmitAuditEvent(ctx.Context, sessionCommandEvent); err != nil {
 			log.WithError(err).Warn("Failed to emit command event.")
 		}
 
@@ -382,27 +438,27 @@ func (s *Service) emitDiskEvent(eventBytes []byte) {
 	}
 
 	// If the network event is not being monitored, don't process it.
-	_, ok = ctx.Identity.AccessChecker.EnhancedRecordingSet()[constants.EnhancedRecordingDisk]
+	_, ok = ctx.Events[constants.EnhancedRecordingDisk]
 	if !ok {
 		return
 	}
 
-	sessionID := ctx.SessionID()
 	sessionDiskEvent := &apievents.SessionDisk{
 		Metadata: apievents.Metadata{
 			Type: events.SessionDiskEvent,
 			Code: events.SessionDiskCode,
 		},
 		ServerMetadata: apievents.ServerMetadata{
-			ServerID:        ctx.GetServer().HostUUID(),
-			ServerNamespace: ctx.GetServer().GetNamespace(),
+			ServerID:        ctx.ServerID,
+			ServerHostname:  ctx.ServerHostname,
+			ServerNamespace: ctx.Namespace,
 		},
 		SessionMetadata: apievents.SessionMetadata{
-			SessionID: sessionID.String(),
+			SessionID: ctx.SessionID,
 		},
 		UserMetadata: apievents.UserMetadata{
-			User:  ctx.Identity.TeleportUser,
-			Login: ctx.Identity.Login,
+			User:  ctx.User,
+			Login: ctx.Login,
 		},
 		BPFMetadata: apievents.BPFMetadata{
 			CgroupID: event.CgroupID,
@@ -414,7 +470,7 @@ func (s *Service) emitDiskEvent(eventBytes []byte) {
 		ReturnCode: event.ReturnCode,
 	}
 	// Logs can be DoS by event failures here
-	_ = ctx.StreamWriter().EmitAuditEvent(ctx.Context, sessionDiskEvent)
+	_ = ctx.Emitter.EmitAuditEvent(ctx.Context, sessionDiskEvent)
 }
 
 // emit4NetworkEvent will parse and emit IPv4 events to the Audit Log.
@@ -434,37 +490,29 @@ func (s *Service) emit4NetworkEvent(eventBytes []byte) {
 	}
 
 	// If the network event is not being monitored, don't process it.
-	_, ok = ctx.Identity.AccessChecker.EnhancedRecordingSet()[constants.EnhancedRecordingNetwork]
+	_, ok = ctx.Events[constants.EnhancedRecordingNetwork]
 	if !ok {
 		return
 	}
 
-	// Source.
-	src := make([]byte, 4)
-	binary.LittleEndian.PutUint32(src, event.SrcAddr)
-	srcAddr := net.IP(src)
-
-	// Destination.
-	dst := make([]byte, 4)
-	binary.LittleEndian.PutUint32(dst, event.DstAddr)
-	dstAddr := net.IP(dst)
-
-	sessionID := ctx.SessionID()
+	srcAddr := ipv4HostToIP(event.SrcAddr)
+	dstAddr := ipv4HostToIP(event.DstAddr)
 	sessionNetworkEvent := &apievents.SessionNetwork{
 		Metadata: apievents.Metadata{
 			Type: events.SessionNetworkEvent,
 			Code: events.SessionNetworkCode,
 		},
 		ServerMetadata: apievents.ServerMetadata{
-			ServerID:        ctx.GetServer().HostUUID(),
-			ServerNamespace: ctx.GetServer().GetNamespace(),
+			ServerID:        ctx.ServerID,
+			ServerHostname:  ctx.ServerHostname,
+			ServerNamespace: ctx.Namespace,
 		},
 		SessionMetadata: apievents.SessionMetadata{
-			SessionID: sessionID.String(),
+			SessionID: ctx.SessionID,
 		},
 		UserMetadata: apievents.UserMetadata{
-			User:  ctx.Identity.TeleportUser,
-			Login: ctx.Identity.Login,
+			User:  ctx.User,
+			Login: ctx.Login,
 		},
 		BPFMetadata: apievents.BPFMetadata{
 			CgroupID: event.CgroupID,
@@ -476,7 +524,7 @@ func (s *Service) emit4NetworkEvent(eventBytes []byte) {
 		SrcAddr:    srcAddr.String(),
 		TCPVersion: 4,
 	}
-	if err := ctx.StreamWriter().EmitAuditEvent(ctx.Context, sessionNetworkEvent); err != nil {
+	if err := ctx.Emitter.EmitAuditEvent(ctx.Context, sessionNetworkEvent); err != nil {
 		log.WithError(err).Warn("Failed to emit network event.")
 	}
 }
@@ -498,43 +546,29 @@ func (s *Service) emit6NetworkEvent(eventBytes []byte) {
 	}
 
 	// If the network event is not being monitored, don't process it.
-	_, ok = ctx.Identity.AccessChecker.EnhancedRecordingSet()[constants.EnhancedRecordingNetwork]
+	_, ok = ctx.Events[constants.EnhancedRecordingNetwork]
 	if !ok {
 		return
 	}
 
-	// Source.
-	src := make([]byte, 16)
-	binary.LittleEndian.PutUint32(src[0:], event.SrcAddr[0])
-	binary.LittleEndian.PutUint32(src[4:], event.SrcAddr[1])
-	binary.LittleEndian.PutUint32(src[8:], event.SrcAddr[2])
-	binary.LittleEndian.PutUint32(src[12:], event.SrcAddr[3])
-	srcAddr := net.IP(src)
-
-	// Destination.
-	dst := make([]byte, 16)
-	binary.LittleEndian.PutUint32(dst[0:], event.DstAddr[0])
-	binary.LittleEndian.PutUint32(dst[4:], event.DstAddr[1])
-	binary.LittleEndian.PutUint32(dst[8:], event.DstAddr[2])
-	binary.LittleEndian.PutUint32(dst[12:], event.DstAddr[3])
-	dstAddr := net.IP(dst)
-
-	sessionID := ctx.SessionID()
+	srcAddr := ipv6HostToIP(event.SrcAddr)
+	dstAddr := ipv6HostToIP(event.DstAddr)
 	sessionNetworkEvent := &apievents.SessionNetwork{
 		Metadata: apievents.Metadata{
 			Type: events.SessionNetworkEvent,
 			Code: events.SessionNetworkCode,
 		},
 		ServerMetadata: apievents.ServerMetadata{
-			ServerID:        ctx.GetServer().HostUUID(),
-			ServerNamespace: ctx.GetServer().GetNamespace(),
+			ServerID:        ctx.ServerID,
+			ServerHostname:  ctx.ServerHostname,
+			ServerNamespace: ctx.Namespace,
 		},
 		SessionMetadata: apievents.SessionMetadata{
-			SessionID: sessionID.String(),
+			SessionID: ctx.SessionID,
 		},
 		UserMetadata: apievents.UserMetadata{
-			User:  ctx.Identity.TeleportUser,
-			Login: ctx.Identity.Login,
+			User:  ctx.User,
+			Login: ctx.Login,
 		},
 		BPFMetadata: apievents.BPFMetadata{
 			CgroupID: event.CgroupID,
@@ -546,9 +580,24 @@ func (s *Service) emit6NetworkEvent(eventBytes []byte) {
 		SrcAddr:    srcAddr.String(),
 		TCPVersion: 6,
 	}
-	if err := ctx.StreamWriter().EmitAuditEvent(ctx.Context, sessionNetworkEvent); err != nil {
+	if err := ctx.Emitter.EmitAuditEvent(ctx.Context, sessionNetworkEvent); err != nil {
 		log.WithError(err).Warn("Failed to emit network event.")
 	}
+}
+
+func ipv4HostToIP(addr uint32) net.IP {
+	val := make([]byte, 4)
+	binary.LittleEndian.PutUint32(val, addr)
+	return net.IP(val)
+}
+
+func ipv6HostToIP(addr [4]uint32) net.IP {
+	val := make([]byte, 16)
+	binary.LittleEndian.PutUint32(val[0:], addr[0])
+	binary.LittleEndian.PutUint32(val[4:], addr[1])
+	binary.LittleEndian.PutUint32(val[8:], addr[2])
+	binary.LittleEndian.PutUint32(val[12:], addr[3])
+	return net.IP(val)
 }
 
 // unmarshalEvent will unmarshal the perf event.

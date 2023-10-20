@@ -20,8 +20,9 @@ import (
 	"regexp"
 	"time"
 
-	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/defaults"
 )
 
 // NewNamespace returns new namespace
@@ -91,6 +92,16 @@ func (n *Namespace) GetResourceID() int64 {
 // SetResourceID sets resource ID
 func (n *Namespace) SetResourceID(id int64) {
 	n.Metadata.ID = id
+}
+
+// GetRevision returns the revision
+func (n *Namespace) GetRevision() string {
+	return n.Metadata.GetRevision()
+}
+
+// SetRevision sets the revision
+func (n *Namespace) SetRevision(rev string) {
+	n.Metadata.SetRevision(rev)
 }
 
 // GetName returns the name of the cluster.

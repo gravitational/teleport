@@ -34,7 +34,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/bpf"
-	"github.com/gravitational/teleport/lib/srv"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 )
 
 var log = logrus.WithFields(logrus.Fields{
@@ -84,7 +84,7 @@ type sessionMgr struct {
 }
 
 // New creates a RestrictedSession service.
-func New(config *Config, wc RestrictionsWatcherClient) (Manager, error) {
+func New(config *servicecfg.RestrictedSessionConfig, wc RestrictionsWatcherClient) (Manager, error) {
 	err := config.CheckAndSetDefaults()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -164,7 +164,7 @@ func (m *sessionMgr) Close() {
 
 // OpenSession inserts the cgroupID into the BPF hash map to enable
 // enforcement by the kernel
-func (m *sessionMgr) OpenSession(ctx *srv.ServerContext, cgroupID uint64) {
+func (m *sessionMgr) OpenSession(ctx *bpf.SessionContext, cgroupID uint64) {
 	m.watch.Add(cgroupID, ctx)
 
 	key := make([]byte, 8)
@@ -177,7 +177,7 @@ func (m *sessionMgr) OpenSession(ctx *srv.ServerContext, cgroupID uint64) {
 
 // CloseSession removes the cgroupID from the BPF hash map to enable
 // enforcement by the kernel
-func (m *sessionMgr) CloseSession(ctx *srv.ServerContext, cgroupID uint64) {
+func (m *sessionMgr) CloseSession(ctx *bpf.SessionContext, cgroupID uint64) {
 	key := make([]byte, 8)
 	binary.LittleEndian.PutUint64(key, cgroupID)
 
@@ -292,7 +292,7 @@ func (l *auditEventLoop) loop() {
 			continue
 		}
 
-		if err = ctx.StreamWriter().EmitAuditEvent(ctx.Context, event); err != nil {
+		if err = ctx.Emitter.EmitAuditEvent(ctx.Context, event); err != nil {
 			log.WithError(err).Warn("Failed to emit network event.")
 		}
 	}

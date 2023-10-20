@@ -34,15 +34,14 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/google/uuid"
+	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
-
-	"github.com/gravitational/trace"
-
-	"github.com/google/uuid"
-	"github.com/sirupsen/logrus"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 var log = logrus.WithFields(logrus.Fields{
@@ -94,11 +93,17 @@ func New(config *Config) (*Service, error) {
 	return s, nil
 }
 
-// Close will unmount the cgroup filesystem.
-func (s *Service) Close() error {
+// Close will clean up the session cgroups and unmount the cgroup2 filesystem,
+// unless otherwise requested.
+func (s *Service) Close(skipUnmount bool) error {
 	err := s.cleanupHierarchy()
 	if err != nil {
 		return trace.Wrap(err)
+	}
+
+	if skipUnmount {
+		log.Debugf("Cleaned up Teleport session hierarchy at: %v.", s.teleportRoot)
+		return nil
 	}
 
 	err = s.unmount()
@@ -145,7 +150,7 @@ func (s *Service) Remove(sessionID string) error {
 	return nil
 }
 
-// Place  place a process in the cgroup for that session.
+// Place places a process in the cgroup for that session.
 func (s *Service) Place(sessionID string, pid int) error {
 	// Open cgroup.procs file for the cgroup.
 	filepath := filepath.Join(s.teleportRoot, sessionID, cgroupProcs)
@@ -161,13 +166,13 @@ func (s *Service) Place(sessionID string, pid int) error {
 		return trace.Wrap(err)
 	}
 
-	return nil
+	return trace.Wrap(f.Sync())
 }
 
 // readPids returns a slice of PIDs from a file. Used to get list of all PIDs
 // within a cgroup.
 func readPids(path string) ([]string, error) {
-	f, err := os.Open(path)
+	f, err := utils.OpenFileNoUnsafeLinks(path)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -202,7 +207,7 @@ func writePids(path string, pids []string) error {
 		}
 	}
 
-	return nil
+	return trace.Wrap(f.Sync())
 }
 
 // cleanupHierarchy removes any cgroups for any exisiting sessions.

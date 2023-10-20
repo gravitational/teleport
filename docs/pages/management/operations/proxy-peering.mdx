@@ -11,17 +11,14 @@ and Teleport services like the Database Service and Application Service.
 
 ## Prerequisites
 
-An existing Teleport Enterprise cluster. See our [getting started guide](../../deploy-a-cluster/teleport-enterprise/getting-started.mdx) for help
-setting up a Teleport cluster.
-
-All components in the cluster should be running Teleport `10.0` or later. See our
-[upgrade procedure](./upgrading.mdx) for help upgrading a Teleport cluster.
+An existing Teleport Enterprise cluster. See [introduction to Teleport Enterprise](../../choose-an-edition/teleport-enterprise/introduction.mdx) to get started.
 
 Teleport Proxy Service instances must be able to reach each other over the network on port
 `3021` by default. Ensure there are no firewall policies that would block communication
 between instances.
 
 ## Step 1/3. Enable Proxy Peering
+
 Update your cluster's Auth Service configuration to set the tunnel strategy type
 to `proxy_peering`.
 
@@ -39,10 +36,12 @@ For high availability, an `agent_connection_count` greater than 1 can be configu
 This ensures an agent is still reachable if one of the Proxy Service instances it is connected to is not available.
 
 ## Step 2/3. Restart the Auth Services
+
 Restart all Teleport Auth Services running in the cluster to apply the new Auth Service
 configuration.
 
 ## Step 3/3. Restart the Proxy Services
+
 Restart all Teleport Proxy Service instances running in the cluster in order to
 start the services required for Proxy Peering.
 

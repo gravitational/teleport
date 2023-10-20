@@ -89,8 +89,9 @@ function Install-Go {
         [string] $GoVersion
     )
     begin {
+        New-Item -Path "$ToolchainDir" -ItemType Directory -Force | Out-Null
         $GoDownloadUrl = "https://go.dev/dl/go$GoVersion.windows-amd64.zip"
-        $GoInstallZip = "go$GoVersion.windows-amd64.zip"
+        $GoInstallZip = "$ToolchainDir/go$GoVersion.windows-amd64.zip"
         Invoke-WebRequest -Uri $GoDownloadUrl -OutFile $GoInstallZip
         Expand-Archive -Path $GoInstallZip -DestinationPath $ToolchainDir
         Enable-Go -ToolchainDir $ToolchainDir
@@ -113,6 +114,43 @@ function Enable-Go {
     }
 }
 
+function Install-Rust {
+    <#
+    .SYNOPSIS
+        Downloads and installs Rust into the supplied toolchain dir
+    #>
+    [CmdletBinding()]
+    param(
+        [string] $ToolchainDir,
+        [string] $RustVersion
+    )
+    begin {
+        New-Item -Path "$ToolchainDir" -ItemType Directory -Force | Out-Null
+        $RustupFile = "$ToolchainDir/rustup-init.exe"
+        Invoke-WebRequest -Uri https://static.rust-lang.org/rustup/dist/x86_64-pc-windows-gnu/rustup-init.exe -OutFile $RustupFile
+        $Env:RUSTUP_HOME = "$ToolchainDir/rustup"
+        $Env:CARGO_HOME = "$ToolchainDir/cargo"
+        & "$ToolchainDir\rustup-init.exe" --profile minimal -y --default-toolchain "$RustVersion-x86_64-pc-windows-gnu"
+        Enable-Rust -ToolchainDir $ToolchainDir
+    }
+}
+
+function Enable-Rust {
+    <#
+    .SYNOPSIS
+        Adds the Rust toolchain to the system search path
+    #>
+    [CmdletBinding()]
+    param(
+        [string] $ToolchainDir
+    )
+    begin {
+        $Env:RUSTUP_HOME = "$ToolchainDir/rustup"
+        $Env:CARGO_HOME = "$ToolchainDir/cargo"
+        $Env:Path = "$ToolchainDir/cargo/bin;$Env:Path"
+    }
+}
+
 function Install-Node {
     <#
     .SYNOPSIS
@@ -124,12 +162,13 @@ function Install-Node {
         [string] $NodeVersion
     )
     begin {
-        $NodeZipfile = "node-$NodeVersion-win-x64.zip"
+        New-Item -Path "$ToolchainDir" -ItemType Directory -Force | Out-Null
+        $NodeZipfile = "$ToolchainDir/node-$NodeVersion-win-x64.zip"
         Invoke-WebRequest -Uri https://nodejs.org/download/release/v$NodeVersion/node-v$NodeVersion-win-x64.zip -OutFile $NodeZipfile
         Expand-Archive -Path $NodeZipfile -DestinationPath $ToolchainDir
         Rename-Item -Path "$ToolchainDir/node-v$NodeVersion-win-x64" -NewName "$ToolchainDir/node"
         Enable-Node -ToolchainDir $ToolchainDir
-        npm config set msvs_version 2017
+        npm config set msvs_version 2022
         corepack enable yarn
     }
 }
@@ -137,7 +176,7 @@ function Install-Node {
 function Enable-Node {
     <#
     .SYNOPSIS
-        Adds the Node toolchaion to the system search path 
+        Adds the Node toolchain to the system search path
     #>
     [CmdletBinding()]
     param(
@@ -169,6 +208,23 @@ function Format-FileHashes {
     }
 }
 
+function Save-Role {
+    <#
+    .SYNOPSIS
+        Assume an AWS role and save the session to the supplied file
+    #>
+    [CmdletBinding()]
+    param(
+        [string] $RoleArn,
+        [string] $RoleSessionName,
+        [string] $FilePath
+    )
+    begin {
+        $RoleCreds = (Use-STSRole -RoleArn $RoleArn -RoleSessionName $RoleSessionName).Credentials
+        "[default]`r`naws_access_key_id = {0}`r`naws_secret_access_key = {1}`r`naws_session_token = {2}" -f $RoleCreds.AccessKeyId, $RoleCreds.SecretAccessKey, $RoleCreds.SessionToken | Out-File -FilePath $FilePath
+    }
+}
+
 function Copy-Artifacts {
     <#
     .SYNOPSIS
@@ -176,15 +232,16 @@ function Copy-Artifacts {
     #>
     [CmdletBinding()]
     param(
+        [string] $ProfileLocation,
         [string] $Path,
         [string] $Bucket,
-        [string] $DstRoot 
+        [string] $DstRoot
     )
     begin {
         foreach ($file in $(Get-ChildItem $Path)) {
             Write-Output "Uploading $($file.Name)"
             $Key = "$DstRoot/$($file.Name)"
-            Write-S3Object -File $file.FullName -Bucket $Bucket -Key $Key 
+            Write-S3Object -ProfileLocation $ProfileLocation -File $file.FullName -Bucket $Bucket -Key $Key
         }
     }
 }

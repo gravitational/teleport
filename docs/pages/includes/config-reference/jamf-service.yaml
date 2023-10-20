@@ -1,0 +1,70 @@
+# This section configures the Jamf service.
+jamf_service:
+  # Enables the Jamf service. Default is 'no'
+  enabled: yes
+
+  # Name of the sync source corresponding to the service.
+  # Jamf service sources with the same name manage the same devices, which is
+  # particularly relevant during device removal.
+  # If you have multiple Jamf sources, make sure to give them distinct,
+  # descriptive names.
+  # Default is 'jamf'.
+  name: jamf
+
+  # API endpoint for the Jamf Pro API.
+  # Required.
+  api_endpoint: https://yourtenant.jamfcloud.com
+
+  # Username for the Jamf Pro API.
+  # Required.
+  username: teleport
+
+  # Path to a file containing the password for the Jamf Pro API.
+  # It is recommended to set the permissions for the file as restrictively as
+  # possible.
+  # Required.
+  password_file: /var/lib/teleport/jamf_password.txt
+
+  # Delay for initial syncs.
+  # Set to zero for syncs to start after a short random delay (a couple minutes
+  # max).
+  # Set to -1 for immediate syncs on startup.
+  # Default is '0'.
+  sync_delay: 0
+
+  # If `true` the Teleport process runs all Jamf syncs immediately and exits as
+  # soon as they are done. Implies `sync_delay=-1`.
+  # Useful for cron-like executions of Jamf syncs.
+  # Default is `false`.
+  exit_on_sync: false
+
+  # Inventory sync entries.
+  # Each entry corresponds to its own sync schedule and may have different
+  # filters and intervals.
+  # If the inventory section is absent a preset sync configuration is used.
+  inventory:
+    # Sync period for partial syncs.
+    # A partial sync attempts to fetch new and modified devices, but won't scan
+    # the entire Jamf inventory.
+    # Set to zero or -1 to disable partial syncs.
+  - sync_period_partial: 6h
+
+    # Sync period for full syncs.
+    # A full sync scans the entire Jamf inventory, processing new/modified
+    # devices and removals from Jamf.
+    # Set to zero or -1 to disable partial syncs.
+    sync_period_full: 24h
+
+    # Action to take against devices missing from Jamf but present in Teleport.
+    # Valid options are:
+    # 'DELETE' - devices removed from Jamf are removed from Teleport.
+    #            (Requires a full sync.)
+    # 'NOOP' - devices removed from Jamf are left in Teleport.
+    # Default is 'NOOP'.
+    on_missing: NOOP
+
+    # Device filters forwarded to the Jamf Pro API queries.
+    # Refer to https://developer.jamf.com/jamf-pro/reference/get_v1-computers-inventory
+    # for the possible filter values.
+    # Default is ''
+    filter_rsql: ''

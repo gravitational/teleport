@@ -21,33 +21,47 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"os"
+	"strconv"
 	"strings"
 	"time"
 
-	"github.com/gravitational/kingpin"
+	"github.com/alecthomas/kingpin/v2"
+	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/service"
-	"github.com/gravitational/trace"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/gcp"
 )
 
 // UserCommand implements `tctl users` set of commands
 // It implements CLICommand interface
 type UserCommand struct {
-	config               *service.Config
-	login                string
-	allowedLogins        []string
-	allowedWindowsLogins []string
-	allowedKubeUsers     []string
-	allowedKubeGroups    []string
-	allowedDatabaseUsers []string
-	allowedDatabaseNames []string
-	allowedAWSRoleARNs   []string
-	allowedRoles         []string
+	config                    *servicecfg.Config
+	login                     string
+	allowedLogins             []string
+	allowedWindowsLogins      []string
+	allowedKubeUsers          []string
+	allowedKubeGroups         []string
+	allowedDatabaseUsers      []string
+	allowedDatabaseNames      []string
+	allowedDatabaseRoles      []string
+	allowedAWSRoleARNs        []string
+	allowedAzureIdentities    []string
+	allowedGCPServiceAccounts []string
+	allowedRoles              []string
+	hostUserUID               string
+	hostUserUIDProvided       bool
+	hostUserGID               string
+	hostUserGIDProvided       bool
 
 	ttl time.Duration
 
@@ -62,13 +76,13 @@ type UserCommand struct {
 }
 
 // Initialize allows UserCommand to plug itself into the CLI parser
-func (u *UserCommand) Initialize(app *kingpin.Application, config *service.Config) {
+func (u *UserCommand) Initialize(app *kingpin.Application, config *servicecfg.Config) {
 	const helpPrefix string = "[Teleport DB users only]"
 
 	u.config = config
-	users := app.Command("users", "Manage user accounts")
+	users := app.Command("users", "Manage user accounts.")
 
-	u.userAdd = users.Command("add", "Generate a user invitation token "+helpPrefix)
+	u.userAdd = users.Command("add", "Generate a user invitation token "+helpPrefix+".")
 	u.userAdd.Arg("account", "Teleport user account name").Required().StringVar(&u.login)
 
 	u.userAdd.Flag("logins", "List of allowed SSH logins for the new user").StringsVar(&u.allowedLogins)
@@ -77,7 +91,12 @@ func (u *UserCommand) Initialize(app *kingpin.Application, config *service.Confi
 	u.userAdd.Flag("kubernetes-groups", "List of allowed Kubernetes groups for the new user").StringsVar(&u.allowedKubeGroups)
 	u.userAdd.Flag("db-users", "List of allowed database users for the new user").StringsVar(&u.allowedDatabaseUsers)
 	u.userAdd.Flag("db-names", "List of allowed database names for the new user").StringsVar(&u.allowedDatabaseNames)
+	u.userAdd.Flag("db-roles", "List of database roles for automatic database user provisioning").StringsVar(&u.allowedDatabaseRoles)
 	u.userAdd.Flag("aws-role-arns", "List of allowed AWS role ARNs for the new user").StringsVar(&u.allowedAWSRoleARNs)
+	u.userAdd.Flag("azure-identities", "List of allowed Azure identities for the new user").StringsVar(&u.allowedAzureIdentities)
+	u.userAdd.Flag("gcp-service-accounts", "List of allowed GCP service accounts for the new user").StringsVar(&u.allowedGCPServiceAccounts)
+	u.userAdd.Flag("host-user-uid", "UID for auto provisioned host users to use").IsSetByUser(&u.hostUserUIDProvided).StringVar(&u.hostUserUID)
+	u.userAdd.Flag("host-user-gid", "GID for auto provisioned host users to use").IsSetByUser(&u.hostUserGIDProvided).StringVar(&u.hostUserGID)
 
 	u.userAdd.Flag("roles", "List of roles for the new user to assume").Required().StringsVar(&u.allowedRoles)
 
@@ -87,7 +106,7 @@ func (u *UserCommand) Initialize(app *kingpin.Application, config *service.Confi
 	u.userAdd.Flag("format", "Output format, 'text' or 'json'").Hidden().Default(teleport.Text).StringVar(&u.format)
 	u.userAdd.Alias(AddUserHelp)
 
-	u.userUpdate = users.Command("update", "Update user account")
+	u.userUpdate = users.Command("update", "Update user account.")
 	u.userUpdate.Arg("account", "Teleport user account name").Required().StringVar(&u.login)
 	u.userUpdate.Flag("set-roles", "List of roles for the user to assume, replaces current roles").
 		StringsVar(&u.allowedRoles)
@@ -103,17 +122,25 @@ func (u *UserCommand) Initialize(app *kingpin.Application, config *service.Confi
 		StringsVar(&u.allowedDatabaseUsers)
 	u.userUpdate.Flag("set-db-names", "List of allowed database names for the user, replaces current database names").
 		StringsVar(&u.allowedDatabaseNames)
+	u.userUpdate.Flag("set-db-roles", "List of allowed database roles for automatic database user provisioning, replaces current database roles").
+		StringsVar(&u.allowedDatabaseRoles)
 	u.userUpdate.Flag("set-aws-role-arns", "List of allowed AWS role ARNs for the user, replaces current AWS role ARNs").
 		StringsVar(&u.allowedAWSRoleARNs)
+	u.userUpdate.Flag("set-azure-identities", "List of allowed Azure identities for the user, replaces current Azure identities").
+		StringsVar(&u.allowedAzureIdentities)
+	u.userUpdate.Flag("set-gcp-service-accounts", "List of allowed GCP service accounts for the user, replaces current service accounts").
+		StringsVar(&u.allowedGCPServiceAccounts)
+	u.userUpdate.Flag("set-host-user-uid", "UID for auto provisioned host users to use. Value can be reset by providing an empty string").IsSetByUser(&u.hostUserUIDProvided).StringVar(&u.hostUserUID)
+	u.userUpdate.Flag("set-host-user-gid", "GID for auto provisioned host users to use. Value can be reset by providing an empty string").IsSetByUser(&u.hostUserGIDProvided).StringVar(&u.hostUserGID)
 
 	u.userList = users.Command("ls", "Lists all user accounts.")
 	u.userList.Flag("format", "Output format, 'text' or 'json'").Hidden().Default(teleport.Text).StringVar(&u.format)
 
-	u.userDelete = users.Command("rm", "Deletes user accounts").Alias("del")
+	u.userDelete = users.Command("rm", "Deletes user accounts.").Alias("del")
 	u.userDelete.Arg("logins", "Comma-separated list of user logins to delete").
 		Required().StringVar(&u.login)
 
-	u.userResetPassword = users.Command("reset", "Reset user password and generate a new token "+helpPrefix)
+	u.userResetPassword = users.Command("reset", "Reset user password and generate a new token "+helpPrefix+".")
 	u.userResetPassword.Arg("account", "Teleport user account name").Required().StringVar(&u.login)
 	u.userResetPassword.Flag("ttl", fmt.Sprintf("Set expiration time for token, default is %v, maximum is %v",
 		defaults.ChangePasswordTokenTTL, defaults.MaxChangePasswordTokenTTL)).
@@ -217,14 +244,47 @@ func (u *UserCommand) Add(ctx context.Context, client auth.ClientI) error {
 		}
 	}
 
+	azureIdentities := flattenSlice(u.allowedAzureIdentities)
+	for _, identity := range azureIdentities {
+		if !services.MatchValidAzureIdentity(identity) {
+			return trace.BadParameter("Azure identity %q has invalid format.", identity)
+		}
+		if identity == types.Wildcard {
+			return trace.BadParameter("Azure identity cannot be a wildcard.")
+		}
+	}
+
+	gcpServiceAccounts := flattenSlice(u.allowedGCPServiceAccounts)
+	for _, account := range gcpServiceAccounts {
+		if err := gcp.ValidateGCPServiceAccountName(account); err != nil {
+			return trace.Wrap(err, "GCP service account %q is invalid", account)
+		}
+	}
+
+	if u.hostUserUIDProvided && u.hostUserUID != "" {
+		if _, err := strconv.Atoi(u.hostUserUID); err != nil {
+			return trace.BadParameter("host user UID must be a numeric ID")
+		}
+	}
+	if u.hostUserGIDProvided && u.hostUserGID != "" {
+		if _, err := strconv.Atoi(u.hostUserGID); err != nil {
+			return trace.BadParameter("host user GID must be a numeric ID")
+		}
+	}
+
 	traits := map[string][]string{
-		constants.TraitLogins:        u.allowedLogins,
-		constants.TraitWindowsLogins: u.allowedWindowsLogins,
-		constants.TraitKubeUsers:     flattenSlice(u.allowedKubeUsers),
-		constants.TraitKubeGroups:    flattenSlice(u.allowedKubeGroups),
-		constants.TraitDBUsers:       flattenSlice(u.allowedDatabaseUsers),
-		constants.TraitDBNames:       flattenSlice(u.allowedDatabaseNames),
-		constants.TraitAWSRoleARNs:   flattenSlice(u.allowedAWSRoleARNs),
+		constants.TraitLogins:             u.allowedLogins,
+		constants.TraitWindowsLogins:      u.allowedWindowsLogins,
+		constants.TraitKubeUsers:          flattenSlice(u.allowedKubeUsers),
+		constants.TraitKubeGroups:         flattenSlice(u.allowedKubeGroups),
+		constants.TraitDBUsers:            flattenSlice(u.allowedDatabaseUsers),
+		constants.TraitDBNames:            flattenSlice(u.allowedDatabaseNames),
+		constants.TraitDBRoles:            flattenSlice(u.allowedDatabaseRoles),
+		constants.TraitAWSRoleARNs:        flattenSlice(u.allowedAWSRoleARNs),
+		constants.TraitAzureIdentities:    azureIdentities,
+		constants.TraitGCPServiceAccounts: gcpServiceAccounts,
+		constants.TraitHostUserUID:        {u.hostUserUID},
+		constants.TraitHostUserGID:        {u.hostUserGID},
 	}
 
 	user, err := types.NewUser(u.login)
@@ -235,7 +295,13 @@ func (u *UserCommand) Add(ctx context.Context, client auth.ClientI) error {
 	user.SetTraits(traits)
 	user.SetRoles(u.allowedRoles)
 
-	if err := client.CreateUser(ctx, user); err != nil {
+	if _, err := client.CreateUser(ctx, user); err != nil {
+		if trace.IsAlreadyExists(err) {
+			fmt.Printf(`NOTE: To update an existing local user:
+> tctl users update %v --set-roles %v # replace roles
+
+`, u.login, strings.Join(u.allowedRoles, ","))
+		}
 		return trace.Wrap(err)
 	}
 
@@ -289,7 +355,7 @@ func printTokenAsText(token types.UserToken, messageFormat string) error {
 
 // Update updates existing user
 func (u *UserCommand) Update(ctx context.Context, client auth.ClientI) error {
-	user, err := client.GetUser(u.login, false)
+	user, err := client.GetUser(ctx, u.login, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -335,17 +401,71 @@ func (u *UserCommand) Update(ctx context.Context, client auth.ClientI) error {
 		user.SetDatabaseNames(dbNames)
 		updateMessages["database names"] = dbNames
 	}
+	if len(u.allowedDatabaseRoles) > 0 {
+		dbRoles := flattenSlice(u.allowedDatabaseRoles)
+		for _, role := range dbRoles {
+			if role == types.Wildcard {
+				return trace.BadParameter("database role can't be a wildcard")
+			}
+		}
+		user.SetDatabaseRoles(dbRoles)
+		updateMessages["database roles"] = dbRoles
+	}
 	if len(u.allowedAWSRoleARNs) > 0 {
 		awsRoleARNs := flattenSlice(u.allowedAWSRoleARNs)
 		user.SetAWSRoleARNs(awsRoleARNs)
 		updateMessages["AWS role ARNs"] = awsRoleARNs
+	}
+	if len(u.allowedAzureIdentities) > 0 {
+		azureIdentities := flattenSlice(u.allowedAzureIdentities)
+		for _, identity := range azureIdentities {
+			if !services.MatchValidAzureIdentity(identity) {
+				return trace.BadParameter("Azure identity %q has invalid format.", identity)
+			}
+			if identity == types.Wildcard {
+				return trace.BadParameter("Azure identity cannot be a wildcard.")
+			}
+		}
+		user.SetAzureIdentities(azureIdentities)
+		updateMessages["Azure identities"] = azureIdentities
+	}
+	if len(u.allowedGCPServiceAccounts) > 0 {
+		accounts := flattenSlice(u.allowedGCPServiceAccounts)
+		for _, account := range accounts {
+			if err := gcp.ValidateGCPServiceAccountName(account); err != nil {
+				return trace.Wrap(err, "GCP service account %q is invalid", account)
+			}
+		}
+		user.SetGCPServiceAccounts(accounts)
+		updateMessages["GCP service accounts"] = accounts
+	}
+
+	if u.hostUserUIDProvided && u.hostUserUID != "" {
+		if _, err := strconv.Atoi(u.hostUserUID); err != nil {
+			return trace.BadParameter("host user UID must be a numeric ID")
+		}
+
+		user.SetHostUserUID(u.hostUserUID)
+		updateMessages["Host user UID"] = []string{u.hostUserUID}
+	}
+	if u.hostUserGIDProvided && u.hostUserGID != "" {
+		if _, err := strconv.Atoi(u.hostUserGID); err != nil {
+			return trace.BadParameter("host user GID must be a numeric ID")
+		}
+		user.SetHostUserGID(u.hostUserGID)
+		updateMessages["Host user GID"] = []string{u.hostUserGID}
 	}
 
 	if len(updateMessages) == 0 {
 		return trace.BadParameter("Nothing to update. Please provide at least one --set flag.")
 	}
 
-	if err := client.UpsertUser(user); err != nil {
+	for _, roleName := range user.GetRoles() {
+		if _, err := client.GetRole(ctx, roleName); err != nil {
+			log.Warnf("Error checking role %q when upserting user %q: %v", roleName, user.GetName(), err)
+		}
+	}
+	if _, err := client.UpsertUser(ctx, user); err != nil {
 		return trace.Wrap(err)
 	}
 	fmt.Printf("User %v has been updated:\n", user.GetName())
@@ -357,10 +477,11 @@ func (u *UserCommand) Update(ctx context.Context, client auth.ClientI) error {
 
 // List prints all existing user accounts
 func (u *UserCommand) List(ctx context.Context, client auth.ClientI) error {
-	users, err := client.GetUsers(false)
+	users, err := client.GetUsers(ctx, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
 	if u.format == teleport.Text {
 		if len(users) == 0 {
 			fmt.Println("No users found")
@@ -374,11 +495,10 @@ func (u *UserCommand) List(ctx context.Context, client auth.ClientI) error {
 		}
 		fmt.Println(t.AsBuffer().String())
 	} else {
-		out, err := json.MarshalIndent(users, "", "  ")
+		err := utils.WriteJSONArray(os.Stdout, users)
 		if err != nil {
 			return trace.Wrap(err, "failed to marshal users")
 		}
-		fmt.Print(string(out))
 	}
 	return nil
 }

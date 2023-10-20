@@ -19,10 +19,13 @@ package proxy
 import (
 	"context"
 	"sync"
+	"time"
+
+	"github.com/gravitational/trace"
+	"golang.org/x/exp/maps"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/trace"
 )
 
 // startReconciler starts reconciler that registers/unregisters proxied
@@ -46,8 +49,24 @@ func (s *TLSServer) startReconciler(ctx context.Context) (err error) {
 	}
 
 	go func() {
+		// reconcileTicker is used to force reconciliation when the watcher was
+		// previously informed that a `kube_cluster` resource exists/changed but the
+		// creation/update operation failed - e.g. login to AKS/EKS clusters can
+		// fail due to missing permissions.
+		// Once this happens, the state of the resource watcher won't change until
+		// a new update operation is triggered (which can take a lot of time).
+		// This results in the service not being able to enroll the failing cluster,
+		// even if the original issue was already fixed because we won't run reconciliation again.
+		// We force the reconciliation to make sure we don't drift from watcher state if
+		// the issue was fixed.
+		reconcileTicker := time.NewTicker(2 * time.Minute)
+		defer reconcileTicker.Stop()
 		for {
 			select {
+			case <-reconcileTicker.C:
+				if err := s.reconciler.Reconcile(ctx); err != nil {
+					s.log.WithError(err).Error("Failed to reconcile.")
+				}
 			case <-s.reconcileCh:
 				if err := s.reconciler.Reconcile(ctx); err != nil {
 					s.log.WithError(err).Error("Failed to reconcile.")
@@ -63,9 +82,9 @@ func (s *TLSServer) startReconciler(ctx context.Context) (err error) {
 	return nil
 }
 
-// startResourceWatcher starts watching changes to Kube Clusters resources and
+// startKubeClusterResourceWatcher starts watching changes to Kube Clusters resources and
 // registers/unregisters the proxied Kube Cluster accordingly.
-func (s *TLSServer) startResourceWatcher(ctx context.Context) (*services.KubeClusterWatcher, error) {
+func (s *TLSServer) startKubeClusterResourceWatcher(ctx context.Context) (*services.KubeClusterWatcher, error) {
 	if len(s.ResourceMatchers) == 0 || s.KubeServiceType != KubeService {
 		s.log.Debug("Not initializing Kube Cluster resource watcher.")
 		return nil, nil
@@ -159,12 +178,22 @@ func (m *monitoredKubeClusters) get() types.ResourcesWithLabelsMap {
 	return append(m.static, m.resources...).AsResources().ToMap()
 }
 
+func (s *TLSServer) buildClusterDetailsConfigForCluster(cluster types.KubeCluster) clusterDetailsConfig {
+	return clusterDetailsConfig{
+		cloudClients:     s.CloudClients,
+		cluster:          cluster,
+		log:              s.log,
+		checker:          s.CheckImpersonationPermissions,
+		resourceMatchers: s.ResourceMatchers,
+		clock:            s.Clock,
+		component:        s.KubeServiceType,
+	}
+}
+
 func (s *TLSServer) registerKubeCluster(ctx context.Context, cluster types.KubeCluster) error {
 	clusterDetails, err := newClusterDetails(
 		ctx,
-		cluster,
-		s.log,
-		s.CheckImpersonationPermissions,
+		s.buildClusterDetailsConfigForCluster(cluster),
 	)
 	if err != nil {
 		return trace.Wrap(err)
@@ -176,9 +205,7 @@ func (s *TLSServer) registerKubeCluster(ctx context.Context, cluster types.KubeC
 func (s *TLSServer) updateKubeCluster(ctx context.Context, cluster types.KubeCluster) error {
 	clusterDetails, err := newClusterDetails(
 		ctx,
-		cluster,
-		s.log,
-		s.CheckImpersonationPermissions,
+		s.buildClusterDetailsConfigForCluster(cluster),
 	)
 	if err != nil {
 		return trace.Wrap(err)
@@ -187,22 +214,34 @@ func (s *TLSServer) updateKubeCluster(ctx context.Context, cluster types.KubeClu
 	return nil
 }
 
+// unregisterKubeCluster unregisters the proxied Kube Cluster from the agent.
+// This function is called when the dynamic cluster is deleted/no longer match
+// the agent's resource matcher or when the agent is shutting down.
 func (s *TLSServer) unregisterKubeCluster(ctx context.Context, name string) error {
 	var errs []error
 
 	errs = append(errs, s.stopHeartbeat(name))
 	s.fwd.removeKubeDetails(name)
-	errs = append(errs, s.deleteKubernetesServer(ctx, name))
 
+	// A child process can be forked to upgrade the Teleport binary. The child
+	// will take over the heartbeats so do NOT delete them in that case.
+	// When unregistering a dynamic cluster, the context is empty and the
+	// decision will be to delete the kubernetes server.
+	if services.ShouldDeleteServerHeartbeatsOnShutdown(ctx) {
+		errs = append(errs, s.deleteKubernetesServer(ctx, name))
+	}
+
+	// close active sessions before returning.
 	s.fwd.mu.Lock()
+	sessions := maps.Values(s.fwd.sessions)
+	s.fwd.mu.Unlock()
 	// close active sessions
-	for _, sess := range s.fwd.sessions {
-		if sess.ctx.kubeCluster == name {
+	for _, sess := range sessions {
+		if sess.ctx.kubeClusterName == name {
 			// TODO(tigrato): check if we should send errors to each client
 			errs = append(errs, sess.Close())
 		}
 	}
-	s.fwd.mu.Unlock()
 
 	return trace.NewAggregate(errs...)
 }

@@ -6,15 +6,14 @@ package utils
 
 import (
 	"context"
+	"crypto/tls"
 	"net"
 	"strings"
-
-	"crypto/tls"
 
 	"github.com/gravitational/trace"
 )
 
-// DialWithContext dials with context
+// DialWithContextFunc dials with context
 type DialWithContextFunc func(ctx context.Context, network, addr string) (net.Conn, error)
 
 // TLSDial dials and establishes TLS connection using custom dialer

@@ -19,12 +19,14 @@ package db
 import (
 	"context"
 
+	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/srv/db/cloud/watchers"
-
-	"github.com/gravitational/trace"
+	discovery "github.com/gravitational/teleport/lib/srv/discovery/common"
+	dbfetchers "github.com/gravitational/teleport/lib/srv/discovery/fetchers/db"
 )
 
 // startReconciler starts reconciler that registers/unregisters proxied
@@ -49,7 +51,8 @@ func (s *Server) startReconciler(ctx context.Context) error {
 			case <-s.reconcileCh:
 				if err := reconciler.Reconcile(ctx); err != nil {
 					s.log.WithError(err).Error("Failed to reconcile.")
-				} else if s.cfg.OnReconcile != nil {
+				}
+				if s.cfg.OnReconcile != nil {
 					s.cfg.OnReconcile(s.getProxiedDatabases())
 				}
 			case <-ctx.Done():
@@ -102,16 +105,27 @@ func (s *Server) startResourceWatcher(ctx context.Context) (*services.DatabaseWa
 // startCloudWatcher starts fetching cloud databases according to the
 // selectors and register/unregister them appropriately.
 func (s *Server) startCloudWatcher(ctx context.Context) error {
-	watcher, err := watchers.NewWatcher(ctx, watchers.WatcherConfig{
-		AWSMatchers:   s.cfg.AWSMatchers,
-		AzureMatchers: s.cfg.AzureMatchers,
-		Clients:       s.cfg.CloudClients,
+	awsFetchers, err := dbfetchers.MakeAWSFetchers(ctx, s.cfg.CloudClients, s.cfg.AWSMatchers)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	azureFetchers, err := dbfetchers.MakeAzureFetchers(s.cfg.CloudClients, s.cfg.AzureMatchers)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	allFetchers := append(awsFetchers, azureFetchers...)
+	if len(allFetchers) == 0 {
+		s.log.Debugf("Not starting cloud database watcher: %v.", err)
+		return nil
+	}
+
+	watcher, err := discovery.NewWatcher(ctx, discovery.WatcherConfig{
+		FetchersFn: discovery.StaticFetchers(allFetchers),
+		Log:        logrus.WithField(trace.Component, "watcher:cloud"),
+		Origin:     types.OriginCloud,
 	})
 	if err != nil {
-		if trace.IsNotFound(err) {
-			s.log.Debugf("Not starting cloud database watcher: %v.", err)
-			return nil
-		}
 		return trace.Wrap(err)
 	}
 	go watcher.Start()
@@ -119,8 +133,13 @@ func (s *Server) startCloudWatcher(ctx context.Context) error {
 		defer s.log.Debug("Cloud database watcher done.")
 		for {
 			select {
-			case databases := <-watcher.DatabasesC():
-				s.monitoredDatabases.setCloud(databases)
+			case resources := <-watcher.ResourcesC():
+				databases, err := resources.AsDatabases()
+				if err == nil {
+					s.monitoredDatabases.setCloud(databases)
+				} else {
+					s.log.WithError(err).Warnf("Failed to convert resources to databases.")
+				}
 				select {
 				case s.reconcileCh <- struct{}{}:
 				case <-ctx.Done():
@@ -145,7 +164,21 @@ func (s *Server) onCreate(ctx context.Context, resource types.ResourceWithLabels
 	if !ok {
 		return trace.BadParameter("expected types.Database, got %T", resource)
 	}
-	return s.registerDatabase(ctx, database)
+
+	// OnCreate receives a "new" resource from s.monitoredDatabases. Make a
+	// copy here so that any attribute changes to the proxied database will not
+	// affect database objects tracked in s.monitoredDatabases.
+	databaseCopy := database.Copy()
+	applyResourceMatchersToDatabase(databaseCopy, s.cfg.ResourceMatchers)
+
+	// Run DiscoveryResourceChecker after resource matchers are applied to make
+	// sure the correct AssumeRoleARN is used.
+	if s.monitoredDatabases.isDiscoveryResource(database) {
+		if err := s.cfg.discoveryResourceChecker.Check(ctx, databaseCopy); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	return s.registerDatabase(ctx, databaseCopy)
 }
 
 // onUpdate is called by reconciler when an already proxied database is updated.
@@ -154,7 +187,13 @@ func (s *Server) onUpdate(ctx context.Context, resource types.ResourceWithLabels
 	if !ok {
 		return trace.BadParameter("expected types.Database, got %T", resource)
 	}
-	return s.updateDatabase(ctx, database)
+
+	// OnUpdate receives a "new" resource from s.monitoredDatabases. Make a
+	// copy here so that any attribute changes to the proxied database will not
+	// affect database objects tracked in s.monitoredDatabases.
+	databaseCopy := database.Copy()
+	applyResourceMatchersToDatabase(databaseCopy, s.cfg.ResourceMatchers)
+	return s.updateDatabase(ctx, databaseCopy)
 }
 
 // onDelete is called by reconciler when a proxied database is deleted.
@@ -173,13 +212,35 @@ func (s *Server) matcher(resource types.ResourceWithLabels) bool {
 		return false
 	}
 
-	// In the case of CloudOrigin CloudHosted resources the matchers should be skipped.
-	if cloudOrigin(resource) && database.IsCloudHosted() {
+	// In the case of databases discovered by this database server, matchers
+	// should be skipped.
+	if s.monitoredDatabases.isCloud(database) {
 		return true // Cloud fetchers return only matching databases.
 	}
+
+	// Database resources created via CLI, API, or discovery service are
+	// filtered by resource matchers.
 	return services.MatchResourceLabels(s.cfg.ResourceMatchers, database)
 }
 
-func cloudOrigin(r types.ResourceWithLabels) bool {
-	return r.Origin() == types.OriginCloud
+func applyResourceMatchersToDatabase(database types.Database, resourceMatchers []services.ResourceMatcher) {
+	for _, matcher := range resourceMatchers {
+		if len(matcher.Labels) == 0 || matcher.AWS.AssumeRoleARN == "" {
+			continue
+		}
+		if match, _, _ := services.MatchLabels(matcher.Labels, database.GetAllLabels()); !match {
+			continue
+		}
+
+		// Set status AWS instead of spec. Reconciler ignores status fields
+		// when comparing database resources.
+		setStatusAWSAssumeRole(database, matcher.AWS.AssumeRoleARN, matcher.AWS.ExternalID)
+	}
+}
+
+func setStatusAWSAssumeRole(database types.Database, assumeRoleARN, externalID string) {
+	meta := database.GetAWS()
+	meta.AssumeRoleARN = assumeRoleARN
+	meta.ExternalID = externalID
+	database.SetStatusAWS(meta)
 }

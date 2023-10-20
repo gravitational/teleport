@@ -1,0 +1,5 @@
+version: v1
+plugins:
+  - name: gogofast
+    out: ./gogogen
+    opt: plugins=grpc

@@ -26,11 +26,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/defaults"
-	dynamometrics "github.com/gravitational/teleport/lib/observability/metrics/dynamo"
-
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/credentials"
@@ -44,6 +39,11 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/defaults"
+	dynamometrics "github.com/gravitational/teleport/lib/observability/metrics/dynamo"
 )
 
 // Config structure represents DynamoDB configuration as appears in `storage` section
@@ -92,7 +92,17 @@ type Config struct {
 	// WriteTargetValue is the ratio of consumed write capacity to provisioned
 	// capacity. Required to be set if auto scaling is enabled.
 	WriteTargetValue float64 `json:"write_target_value,omitempty"`
+
+	// BillingMode sets on-demand capacity to the DynamoDB tables
+	BillingMode billingMode `json:"billing_mode,omitempty"`
 }
+
+type billingMode string
+
+const (
+	billingModeProvisioned   billingMode = "provisioned"
+	billingModePayPerRequest billingMode = "pay_per_request"
+)
 
 // CheckAndSetDefaults is a helper returns an error if the supplied configuration
 // is not enough to connect to DynamoDB
@@ -100,6 +110,10 @@ func (cfg *Config) CheckAndSetDefaults() error {
 	// Table name is required.
 	if cfg.TableName == "" {
 		return trace.BadParameter("DynamoDB: table_name is not specified")
+	}
+
+	if cfg.BillingMode == "" {
+		cfg.BillingMode = billingModePayPerRequest
 	}
 
 	if cfg.ReadCapacityUnits == 0 {
@@ -143,6 +157,7 @@ type record struct {
 	Timestamp int64
 	Expires   *int64 `json:"Expires,omitempty"`
 	ID        int64
+	Revision  string
 }
 
 type keyLookup struct {
@@ -262,14 +277,21 @@ func New(ctx context.Context, params backend.Params) (*Backend, error) {
 	b.streams = streams
 
 	// check if the table exists?
-	ts, err := b.getTableStatus(ctx, b.TableName)
+	ts, tableBillingMode, err := b.getTableStatus(ctx, b.TableName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	switch ts {
 	case tableStatusOK:
-		break
+		if tableBillingMode == dynamodb.BillingModePayPerRequest {
+			cfg.EnableAutoScaling = false
+			l.Info("Ignoring auto_scaling setting as table is in on-demand mode.")
+		}
 	case tableStatusMissing:
+		if cfg.BillingMode == billingModePayPerRequest {
+			cfg.EnableAutoScaling = false
+			l.Info("Ignoring auto_scaling setting as table is being created in on-demand mode.")
+		}
 		err = b.createTable(ctx, b.TableName, fullPathKey)
 	case tableStatusNeedsMigration:
 		return nil, trace.BadParameter("unsupported schema")
@@ -321,38 +343,45 @@ func New(ctx context.Context, params backend.Params) (*Backend, error) {
 	return b, nil
 }
 
+func (b *Backend) GetName() string {
+	return GetName()
+}
+
 // Create creates item if it does not exist
 func (b *Backend) Create(ctx context.Context, item backend.Item) (*backend.Lease, error) {
-	err := b.create(ctx, item, modeCreate)
+	rev, err := b.create(ctx, item, modeCreate)
 	if trace.IsCompareFailed(err) {
 		err = trace.AlreadyExists(err.Error())
 	}
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return b.newLease(item), nil
+	item.Revision = rev
+	return backend.NewLease(item), nil
 }
 
 // Put puts value into backend (creates if it does not
 // exists, updates it otherwise)
 func (b *Backend) Put(ctx context.Context, item backend.Item) (*backend.Lease, error) {
-	err := b.create(ctx, item, modePut)
+	rev, err := b.create(ctx, item, modePut)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return b.newLease(item), nil
+	item.Revision = rev
+	return backend.NewLease(item), nil
 }
 
 // Update updates value in the backend
 func (b *Backend) Update(ctx context.Context, item backend.Item) (*backend.Lease, error) {
-	err := b.create(ctx, item, modeUpdate)
+	rev, err := b.create(ctx, item, modeUpdate)
 	if trace.IsCompareFailed(err) {
 		err = trace.NotFound(err.Error())
 	}
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return b.newLease(item), nil
+	item.Revision = rev
+	return backend.NewLease(item), nil
 }
 
 // GetRange returns range of elements
@@ -375,11 +404,16 @@ func (b *Backend) GetRange(ctx context.Context, startKey []byte, endKey []byte, 
 	values := make([]backend.Item, len(result.records))
 	for i, r := range result.records {
 		values[i] = backend.Item{
-			Key:   trimPrefix(r.FullPath),
-			Value: r.Value,
+			Key:      trimPrefix(r.FullPath),
+			Value:    r.Value,
+			ID:       r.ID,
+			Revision: r.Revision,
 		}
 		if r.Expires != nil {
 			values[i].Expires = time.Unix(*r.Expires, 0).UTC()
+		}
+		if values[i].Revision == "" {
+			values[i].Revision = backend.BlankRevision
 		}
 	}
 	return &backend.GetResult{Items: values}, nil
@@ -464,12 +498,16 @@ func (b *Backend) Get(ctx context.Context, key []byte) (*backend.Item, error) {
 		return nil, err
 	}
 	item := &backend.Item{
-		Key:   trimPrefix(r.FullPath),
-		Value: r.Value,
-		ID:    r.ID,
+		Key:      trimPrefix(r.FullPath),
+		Value:    r.Value,
+		ID:       r.ID,
+		Revision: r.Revision,
 	}
 	if r.Expires != nil {
 		item.Expires = time.Unix(*r.Expires, 0)
+	}
+	if item.Revision == "" {
+		item.Revision = backend.BlankRevision
 	}
 	return item, nil
 }
@@ -487,12 +525,15 @@ func (b *Backend) CompareAndSwap(ctx context.Context, expected backend.Item, rep
 	if !bytes.Equal(expected.Key, replaceWith.Key) {
 		return nil, trace.BadParameter("expected and replaceWith keys should match")
 	}
+
+	replaceWith.Revision = backend.CreateRevision()
 	r := record{
 		HashKey:   hashKey,
 		FullPath:  prependPrefix(replaceWith.Key),
 		Value:     replaceWith.Value,
 		Timestamp: time.Now().UTC().Unix(),
 		ID:        time.Now().UTC().UnixNano(),
+		Revision:  replaceWith.Revision,
 	}
 	if !replaceWith.Expires.IsZero() {
 		r.Expires = aws.Int64(replaceWith.Expires.UTC().Unix())
@@ -523,18 +564,66 @@ func (b *Backend) CompareAndSwap(ctx context.Context, expected backend.Item, rep
 		}
 		return nil, trace.Wrap(err)
 	}
-	return b.newLease(replaceWith), nil
+	return backend.NewLease(replaceWith), nil
 }
 
 // Delete deletes item by key
 func (b *Backend) Delete(ctx context.Context, key []byte) error {
-	if len(key) == 0 {
-		return trace.BadParameter("missing parameter key")
-	}
 	if _, err := b.getKey(ctx, key); err != nil {
 		return err
 	}
 	return b.deleteKey(ctx, key)
+}
+
+// ConditionalUpdate updates the matching item in Dynamo if the provided revision matches
+// the revision of the item in Dynamo.
+func (b *Backend) ConditionalUpdate(ctx context.Context, item backend.Item) (*backend.Lease, error) {
+	if item.Revision == "" {
+		return nil, trace.Wrap(backend.ErrIncorrectRevision)
+	}
+
+	if item.Revision == backend.BlankRevision {
+		item.Revision = ""
+	}
+
+	rev, err := b.create(ctx, item, modeConditionalUpdate)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	item.Revision = rev
+	return backend.NewLease(item), nil
+}
+
+// ConditionalDelete deletes item by key if the provided revision matches
+// the revision of the item in Dynamo.
+func (b *Backend) ConditionalDelete(ctx context.Context, key []byte, rev string) error {
+	if rev == "" {
+		return trace.Wrap(backend.ErrIncorrectRevision)
+	}
+
+	av, err := dynamodbattribute.MarshalMap(keyLookup{
+		HashKey:  hashKey,
+		FullPath: prependPrefix(key),
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if rev == backend.BlankRevision {
+		rev = ""
+	}
+	input := dynamodb.DeleteItemInput{Key: av, TableName: aws.String(b.TableName)}
+	input.SetConditionExpression("Revision = :rev")
+	input.SetExpressionAttributeValues(map[string]*dynamodb.AttributeValue{":rev": {S: aws.String(rev)}})
+
+	if _, err = b.svc.DeleteItemWithContext(ctx, &input); err != nil {
+		err = convertError(err)
+		if trace.IsCompareFailed(err) {
+			return trace.Wrap(backend.ErrIncorrectRevision)
+		}
+		return trace.Wrap(err)
+	}
+	return nil
 }
 
 // NewWatcher returns a new event watcher
@@ -614,33 +703,31 @@ func (b *Backend) Clock() clockwork.Clock {
 	return b.clock
 }
 
-func (b *Backend) newLease(item backend.Item) *backend.Lease {
-	var lease backend.Lease
-	if item.Expires.IsZero() {
-		return &lease
-	}
-	lease.Key = item.Key
-	return &lease
-}
-
 // getTableStatus checks if a given table exists
-func (b *Backend) getTableStatus(ctx context.Context, tableName string) (tableStatus, error) {
+func (b *Backend) getTableStatus(ctx context.Context, tableName string) (tableStatus, string, error) {
 	td, err := b.svc.DescribeTableWithContext(ctx, &dynamodb.DescribeTableInput{
 		TableName: aws.String(tableName),
 	})
 	err = convertError(err)
 	if err != nil {
 		if trace.IsNotFound(err) {
-			return tableStatusMissing, nil
+			return tableStatusMissing, "", nil
 		}
-		return tableStatusError, trace.Wrap(err)
+		return tableStatusError, "", trace.Wrap(err)
 	}
 	for _, attr := range td.Table.AttributeDefinitions {
 		if *attr.AttributeName == oldPathAttr {
-			return tableStatusNeedsMigration, nil
+			return tableStatusNeedsMigration, "", nil
 		}
 	}
-	return tableStatusOK, nil
+	// the billing mode can be empty unless it was specified on the
+	// initial create table request, and the default billing mode is
+	// PROVISIONED, if unspecified.
+	// https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_BillingModeSummary.html
+	if td.Table.BillingModeSummary == nil {
+		return tableStatusOK, dynamodb.BillingModeProvisioned, nil
+	}
+	return tableStatusOK, aws.StringValue(td.Table.BillingModeSummary.BillingMode), nil
 }
 
 // createTable creates a DynamoDB table with a requested name and applies
@@ -649,11 +736,22 @@ func (b *Backend) getTableStatus(ctx context.Context, tableName string) (tableSt
 // rangeKey is the name of the 'range key' the schema requires.
 // currently is always set to "FullPath" (used to be something else, that's
 // why it's a parameter for migration purposes)
+//
+// Note: If we change DynamoDB table schemas, we must also update the
+// documentation in case users want to set up DynamoDB tables manually. Edit the
+// following docs partial:
+// docs/pages/includes/dynamodb-iam-policy.mdx
 func (b *Backend) createTable(ctx context.Context, tableName string, rangeKey string) error {
-	pThroughput := dynamodb.ProvisionedThroughput{
+	billingMode := aws.String(dynamodb.BillingModeProvisioned)
+	pThroughput := &dynamodb.ProvisionedThroughput{
 		ReadCapacityUnits:  aws.Int64(b.ReadCapacityUnits),
 		WriteCapacityUnits: aws.Int64(b.WriteCapacityUnits),
 	}
+	if b.BillingMode == billingModePayPerRequest {
+		billingMode = aws.String(dynamodb.BillingModePayPerRequest)
+		pThroughput = nil
+	}
+
 	def := []*dynamodb.AttributeDefinition{
 		{
 			AttributeName: aws.String(hashKeyKey),
@@ -678,7 +776,8 @@ func (b *Backend) createTable(ctx context.Context, tableName string, rangeKey st
 		TableName:             aws.String(tableName),
 		AttributeDefinitions:  def,
 		KeySchema:             elems,
-		ProvisionedThroughput: &pThroughput,
+		ProvisionedThroughput: pThroughput,
+		BillingMode:           billingMode,
 	}
 	_, err := b.svc.CreateTableWithContext(ctx, &c)
 	if err != nil {
@@ -781,6 +880,7 @@ const (
 	modeCreate = iota
 	modePut
 	modeUpdate
+	modeConditionalUpdate
 )
 
 // prependPrefix adds leading 'teleport/' to the key for backwards compatibility
@@ -794,42 +894,54 @@ func trimPrefix(key string) []byte {
 	return []byte(strings.TrimPrefix(key, keyPrefix))
 }
 
-// create helper creates a new key/value pair in Dynamo with a given expiration
-// depending on mode, either creates, updates or forces create/update
-func (b *Backend) create(ctx context.Context, item backend.Item, mode int) error {
+// create is a helper that writes a key/value pair in Dynamo with a given expiration.
+// Depending on the mode provided, the item will must various conditions met before
+// the item is persisted in the database. On a successful write the revision of the
+// item is returned.
+func (b *Backend) create(ctx context.Context, item backend.Item, mode int) (string, error) {
 	r := record{
 		HashKey:   hashKey,
 		FullPath:  prependPrefix(item.Key),
 		Value:     item.Value,
 		Timestamp: time.Now().UTC().Unix(),
 		ID:        time.Now().UTC().UnixNano(),
+		Revision:  backend.CreateRevision(),
 	}
 	if !item.Expires.IsZero() {
 		r.Expires = aws.Int64(item.Expires.UTC().Unix())
 	}
 	av, err := dynamodbattribute.MarshalMap(r)
 	if err != nil {
-		return trace.Wrap(err)
+		return "", trace.Wrap(err)
 	}
 	input := dynamodb.PutItemInput{
 		Item:      av,
 		TableName: aws.String(b.TableName),
 	}
+
 	switch mode {
 	case modeCreate:
 		input.SetConditionExpression("attribute_not_exists(FullPath)")
 	case modeUpdate:
 		input.SetConditionExpression("attribute_exists(FullPath)")
 	case modePut:
+	case modeConditionalUpdate:
+		input.SetExpressionAttributeValues(map[string]*dynamodb.AttributeValue{":rev": {S: aws.String(item.Revision)}})
+		input.SetConditionExpression("Revision = :rev AND attribute_exists(FullPath)")
 	default:
-		return trace.BadParameter("unrecognized mode")
+		return "", trace.BadParameter("unrecognized mode")
 	}
 	_, err = b.svc.PutItemWithContext(ctx, &input)
 	err = convertError(err)
 	if err != nil {
-		return trace.Wrap(err)
+		if mode == modeConditionalUpdate && trace.IsCompareFailed(err) {
+			return "", trace.Wrap(backend.ErrIncorrectRevision)
+		}
+
+		return "", trace.Wrap(err)
 	}
-	return nil
+
+	return r.Revision, nil
 }
 
 func (b *Backend) deleteKey(ctx context.Context, key []byte) error {
@@ -845,6 +957,22 @@ func (b *Backend) deleteKey(ctx context.Context, key []byte) error {
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+func (b *Backend) deleteKeyIfExpired(ctx context.Context, key []byte) error {
+	_, err := b.svc.DeleteItemWithContext(ctx, &dynamodb.DeleteItemInput{
+		TableName: aws.String(b.TableName),
+		Key:       keyToAttributeValueMap(key),
+
+		// succeed if the item no longer exists
+		ConditionExpression: aws.String(
+			"attribute_not_exists(FullPath) OR (attribute_exists(Expires) AND Expires <= :timestamp)",
+		),
+		ExpressionAttributeValues: map[string]*dynamodb.AttributeValue{
+			":timestamp": timeToAttributeValue(b.clock.Now()),
+		},
+	})
+	return trace.Wrap(err)
 }
 
 func (b *Backend) getKey(ctx context.Context, key []byte) (*record, error) {
@@ -875,7 +1003,7 @@ func (b *Backend) getKey(ctx context.Context, key []byte) (*record, error) {
 	}
 	// Check if key expired, if expired delete it
 	if r.isExpired(b.clock.Now()) {
-		if err := b.deleteKey(ctx, key); err != nil {
+		if err := b.deleteKeyIfExpired(ctx, key); err != nil {
 			b.Warnf("Failed deleting expired key %q: %v", key, err)
 		}
 		return nil, trace.NotFound("%q is not found", key)
@@ -924,4 +1052,21 @@ func (r records) Swap(i, j int) {
 // Less is part of sort.Interface.
 func (r records) Less(i, j int) bool {
 	return r[i].FullPath < r[j].FullPath
+}
+
+func fullPathToAttributeValueMap(fullPath string) map[string]*dynamodb.AttributeValue {
+	return map[string]*dynamodb.AttributeValue{
+		hashKeyKey:  {S: aws.String(hashKey)},
+		fullPathKey: {S: aws.String(fullPath)},
+	}
+}
+
+func keyToAttributeValueMap(key []byte) map[string]*dynamodb.AttributeValue {
+	return fullPathToAttributeValueMap(prependPrefix(key))
+}
+
+func timeToAttributeValue(t time.Time) *dynamodb.AttributeValue {
+	return &dynamodb.AttributeValue{
+		N: aws.String(strconv.FormatInt(t.Unix(), 10)),
+	}
 }

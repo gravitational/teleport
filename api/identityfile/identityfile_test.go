@@ -34,11 +34,11 @@ func TestIdentityFileBasics(t *testing.T) {
 	writeIDFile := &IdentityFile{
 		PrivateKey: []byte("-----BEGIN RSA PRIVATE KEY-----\nkey\n-----END RSA PRIVATE KEY-----\n"),
 		Certs: Certs{
-			SSH: []byte(ssh.CertAlgoRSAv01),
+			SSH: append([]byte(ssh.CertAlgoRSAv01), '\n'),
 			TLS: []byte("-----BEGIN CERTIFICATE-----\ntls-cert\n-----END CERTIFICATE-----\n"),
 		},
 		CACerts: CACerts{
-			SSH: [][]byte{[]byte("@cert-authority ssh-cacerts")},
+			SSH: [][]byte{[]byte("@cert-authority ssh-cacerts\n")},
 			TLS: [][]byte{[]byte("-----BEGIN CERTIFICATE-----\ntls-cacerts\n-----END CERTIFICATE-----\n")},
 		},
 	}
@@ -50,15 +50,13 @@ func TestIdentityFileBasics(t *testing.T) {
 	// Read identity file from file
 	readIDFile, err := ReadFile(path)
 	require.NoError(t, err)
+	require.Equal(t, writeIDFile, readIDFile)
 
 	// Read identity file from string
 	s, err := os.ReadFile(path)
 	require.NoError(t, err)
 	fromStringIDFile, err := FromString(string(s))
 	require.NoError(t, err)
-
-	// Check that read and write values are equal
-	require.Equal(t, writeIDFile, readIDFile)
 	require.Equal(t, writeIDFile, fromStringIDFile)
 }
 
@@ -87,5 +85,4 @@ func TestIsSSHCert(t *testing.T) {
 			require.Equal(t, tc.expectBool, isSSHCert)
 		})
 	}
-
 }

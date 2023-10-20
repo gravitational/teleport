@@ -20,13 +20,15 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/lib/auth/webauthn"
-	"github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/httplib"
-	"github.com/gravitational/teleport/lib/web/ui"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
+
+	"github.com/gravitational/teleport/api/client/proto"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
+	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/httplib"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/web/ui"
 )
 
 // getMFADevicesWithTokenHandle retrieves the list of registered MFA devices for the user defined in token.
@@ -76,7 +78,7 @@ type addMFADeviceRequest struct {
 	// SecondFactorToken is the totp code.
 	SecondFactorToken string `json:"secondFactorToken"`
 	// WebauthnRegisterResponse is a WebAuthn registration challenge response.
-	WebauthnRegisterResponse *webauthn.CredentialCreationResponse `json:"webauthnRegisterResponse"`
+	WebauthnRegisterResponse *wantypes.CredentialCreationResponse `json:"webauthnRegisterResponse"`
 	// DeviceUsage is the intended usage of the device (MFA, Passwordless, etc).
 	// It mimics the proto.DeviceUsage enum.
 	// Defaults to MFA.
@@ -108,7 +110,7 @@ func (h *Handler) addMFADeviceHandle(w http.ResponseWriter, r *http.Request, par
 		}}
 	case req.WebauthnRegisterResponse != nil:
 		protoReq.NewMFAResponse = &proto.MFARegisterResponse{Response: &proto.MFARegisterResponse_Webauthn{
-			Webauthn: webauthn.CredentialCreationResponseToProto(req.WebauthnRegisterResponse),
+			Webauthn: wantypes.CredentialCreationResponseToProto(req.WebauthnRegisterResponse),
 		}}
 	default:
 		return nil, trace.BadParameter("missing new mfa credentials")
@@ -139,7 +141,7 @@ func (h *Handler) createAuthenticateChallengeHandle(w http.ResponseWriter, r *ht
 		return nil, trace.Wrap(err)
 	}
 
-	return client.MakeAuthenticateChallenge(chal), nil
+	return makeAuthenticateChallenge(chal), nil
 }
 
 // createAuthenticateChallengeWithTokenHandle creates and returns MFA authenticate challenges for the user defined in token.
@@ -151,7 +153,7 @@ func (h *Handler) createAuthenticateChallengeWithTokenHandle(w http.ResponseWrit
 		return nil, trace.Wrap(err)
 	}
 
-	return client.MakeAuthenticateChallenge(chal), nil
+	return makeAuthenticateChallenge(chal), nil
 }
 
 type createRegisterChallengeRequest struct {
@@ -194,7 +196,17 @@ func (h *Handler) createRegisterChallengeWithTokenHandle(w http.ResponseWriter, 
 		return nil, trace.Wrap(err)
 	}
 
-	return client.MakeRegisterChallenge(chal), nil
+	resp := &client.MFARegisterChallenge{}
+	switch chal.GetRequest().(type) {
+	case *proto.MFARegisterChallenge_TOTP:
+		resp.TOTP = &client.TOTPRegisterChallenge{
+			QRCode: chal.GetTOTP().GetQRCode(),
+		}
+	case *proto.MFARegisterChallenge_Webauthn:
+		resp.Webauthn = wantypes.CredentialCreationFromProto(chal.GetWebauthn())
+	}
+
+	return resp, nil
 }
 
 func getDeviceUsage(reqUsage string) (proto.DeviceUsage, error) {
@@ -209,4 +221,173 @@ func getDeviceUsage(reqUsage string) (proto.DeviceUsage, error) {
 	}
 
 	return deviceUsage, nil
+}
+
+type isMFARequiredDatabase struct {
+	// ServiceName is the database service name.
+	ServiceName string `json:"service_name"`
+	// Protocol is the type of the database protocol
+	// eg: "postgres", "mysql", "mongodb", etc.
+	Protocol string `json:"protocol"`
+	// Username is an optional database username.
+	Username string `json:"username,omitempty"`
+	// DatabaseName is an optional database name.
+	DatabaseName string `json:"database_name,omitempty"`
+}
+
+type isMFARequiredKube struct {
+	// ClusterName is the name of the kube cluster.
+	ClusterName string `json:"cluster_name"`
+}
+
+type isMFARequiredNode struct {
+	// NodeName can be node's hostname or UUID.
+	NodeName string `json:"node_name"`
+	// Login is the OS login name.
+	Login string `json:"login"`
+}
+
+type isMFARequiredWindowsDesktop struct {
+	// DesktopName is the Windows Desktop server name.
+	DesktopName string `json:"desktop_name"`
+	// Login is the Windows desktop user login.
+	Login string `json:"login"`
+}
+
+type isMFARequiredRequest struct {
+	// Database contains fields required to check if target database
+	// requires MFA check.
+	Database *isMFARequiredDatabase `json:"database,omitempty"`
+	// Node contains fields required to check if target node
+	// requires MFA check.
+	Node *isMFARequiredNode `json:"node,omitempty"`
+	// WindowsDesktop contains fields required to check if target
+	// windows desktop requires MFA check.
+	WindowsDesktop *isMFARequiredWindowsDesktop `json:"windows_desktop,omitempty"`
+	// Kube is the name of the kube cluster to check if target cluster
+	// requires MFA check.
+	Kube *isMFARequiredKube `json:"kube,omitempty"`
+}
+
+func (r *isMFARequiredRequest) checkAndGetProtoRequest() (*proto.IsMFARequiredRequest, error) {
+	numRequests := 0
+	var protoReq *proto.IsMFARequiredRequest
+
+	if r.Database != nil {
+		numRequests++
+		if r.Database.ServiceName == "" {
+			return nil, trace.BadParameter("missing service_name for checking database target")
+		}
+		if r.Database.Protocol == "" {
+			return nil, trace.BadParameter("missing protocol for checking database target")
+		}
+
+		protoReq = &proto.IsMFARequiredRequest{
+			Target: &proto.IsMFARequiredRequest_Database{
+				Database: &proto.RouteToDatabase{
+					ServiceName: r.Database.ServiceName,
+					Protocol:    r.Database.Protocol,
+					Database:    r.Database.DatabaseName,
+					Username:    r.Database.Username,
+				}},
+		}
+	}
+
+	if r.Kube != nil {
+		numRequests++
+		if r.Kube.ClusterName == "" {
+			return nil, trace.BadParameter("missing cluster_name for checking kubernetes cluster target")
+		}
+
+		protoReq = &proto.IsMFARequiredRequest{
+			Target: &proto.IsMFARequiredRequest_KubernetesCluster{
+				KubernetesCluster: r.Kube.ClusterName,
+			},
+		}
+	}
+
+	if r.WindowsDesktop != nil {
+		numRequests++
+		if r.WindowsDesktop.DesktopName == "" {
+			return nil, trace.BadParameter("missing desktop_name for checking windows desktop target")
+		}
+		if r.WindowsDesktop.Login == "" {
+			return nil, trace.BadParameter("missing login for checking windows desktop target")
+		}
+
+		protoReq = &proto.IsMFARequiredRequest{
+			Target: &proto.IsMFARequiredRequest_WindowsDesktop{
+				WindowsDesktop: &proto.RouteToWindowsDesktop{
+					WindowsDesktop: r.WindowsDesktop.DesktopName,
+					Login:          r.WindowsDesktop.Login,
+				}},
+		}
+	}
+
+	if r.Node != nil {
+		numRequests++
+		if r.Node.Login == "" {
+			return nil, trace.BadParameter("missing login for checking node target")
+		}
+		if r.Node.NodeName == "" {
+			return nil, trace.BadParameter("missing node_name for checking node target")
+		}
+
+		protoReq = &proto.IsMFARequiredRequest{
+			Target: &proto.IsMFARequiredRequest_Node{
+				Node: &proto.NodeLogin{
+					Login: r.Node.Login,
+					Node:  r.Node.NodeName,
+				}},
+		}
+	}
+
+	if numRequests > 1 {
+		return nil, trace.BadParameter("only one target is allowed for MFA check")
+	}
+
+	if protoReq == nil {
+		return nil, trace.BadParameter("missing target for MFA check")
+	}
+
+	return protoReq, nil
+}
+
+type isMfaRequiredResponse struct {
+	Required bool `json:"required"`
+}
+
+func (h *Handler) isMFARequired(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
+	var httpReq *isMFARequiredRequest
+	if err := httplib.ReadJSON(r, &httpReq); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	protoReq, err := httpReq.checkAndGetProtoRequest()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clt, err := sctx.GetUserClient(r.Context(), site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	res, err := clt.IsMFARequired(r.Context(), protoReq)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return isMfaRequiredResponse{Required: res.GetRequired()}, nil
+}
+
+// makeAuthenticateChallenge converts proto to JSON format.
+func makeAuthenticateChallenge(protoChal *proto.MFAAuthenticateChallenge) *client.MFAAuthenticateChallenge {
+	chal := &client.MFAAuthenticateChallenge{
+		TOTPChallenge: protoChal.GetTOTP() != nil,
+	}
+	if protoChal.GetWebauthnChallenge() != nil {
+		chal.WebauthnChallenge = wantypes.CredentialAssertionFromProto(protoChal.WebauthnChallenge)
+	}
+	return chal
 }

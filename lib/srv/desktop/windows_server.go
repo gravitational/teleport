@@ -17,38 +17,32 @@ limitations under the License.
 package desktop
 
 import (
-	"bytes"
 	"context"
-	"crypto/rand"
-	"crypto/rsa"
 	"crypto/tls"
 	"crypto/x509"
-	"crypto/x509/pkix"
-	"encoding/asn1"
-	"encoding/pem"
+	"errors"
 	"fmt"
 	"net"
-	"os"
-	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/go-ldap/ldap/v3"
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 
-	"github.com/gravitational/trace"
-
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/windows"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	libevents "github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/events/filesessions"
+	"github.com/gravitational/teleport/lib/events/recorder"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/reversetunnel"
@@ -68,18 +62,12 @@ const (
 
 	// ldapDialTimeout is the timeout for dialing the LDAP server
 	// when making an initial connection
-	ldapDialTimeout = 5 * time.Second
+	ldapDialTimeout = 15 * time.Second
 
 	// ldapRequestTimeout is the timeout for making LDAP requests.
 	// It is larger than the dial timeout because LDAP queries in large
 	// Active Directory environments may take longer to complete.
-	ldapRequestTimeout = 20 * time.Second
-
-	// windowsDesktopCertTTL is the TTL for Teleport-issued Windows Certificates.
-	// Certificates are requested on each connection attempt, so the TTL is
-	// deliberately set to a small value to give enough time to establish a
-	// single desktop session.
-	windowsDesktopCertTTL = 5 * time.Minute
+	ldapRequestTimeout = 45 * time.Second
 
 	// windowsDesktopServiceCertTTL is the TTL for certificates issued to the
 	// Windows Desktop Service in order to authenticate with the LDAP server.
@@ -91,7 +79,26 @@ const (
 	// windowsDesktopServiceCertRetryInterval indicates how often to retry
 	// issuing an LDAP certificate if the operation fails.
 	windowsDesktopServiceCertRetryInterval = 10 * time.Minute
+
+	// ldapTimeoutRetryInterval indicates how often to retry LDAP initialization
+	// if it times out. It is set lower than windowsDesktopServiceCertRetryInterval
+	// because LDAP timeouts may indicate a temporary issue.
+	ldapTimeoutRetryInterval = 10 * time.Second
 )
+
+// ComputerAttributes are the attributes we fetch when discovering
+// Windows hosts via LDAP
+// see: https://docs.microsoft.com/en-us/windows/win32/adschema/c-computer#windows-server-2012-attributes
+var ComputerAttributes = []string{
+	windows.AttrName,
+	windows.AttrCommonName,
+	windows.AttrDistinguishedName,
+	windows.AttrDNSHostName,
+	windows.AttrObjectGUID,
+	windows.AttrOS,
+	windows.AttrOSVersion,
+	windows.AttrPrimaryGroupID,
+}
 
 // WindowsService implements the RDP-based Windows desktop access service.
 //
@@ -102,13 +109,13 @@ type WindowsService struct {
 	cfg        WindowsServiceConfig
 	middleware *auth.Middleware
 
-	lc *ldapClient
+	ca *windows.CertificateStoreClient
+	lc *windows.LDAPClient
 
 	mu              sync.Mutex // mu protects the fields that follow
+	ldapConfigured  bool
 	ldapInitialized bool
 	ldapCertRenew   *time.Timer
-
-	streamer libevents.Streamer
 
 	// lastDisoveryResults stores the results of the most recent LDAP search
 	// when desktop discovery is enabled.
@@ -125,6 +132,11 @@ type WindowsService struct {
 	// cfg.AccessPoint.GetClusterName multiple times.
 	clusterName string
 
+	// auditCache caches information from shared directory
+	// TDP messages that are needed for
+	// creating shared directory audit events.
+	auditCache sharedDirectoryAuditCache
+
 	closeCtx context.Context
 	close    func()
 }
@@ -138,7 +150,7 @@ type WindowsServiceConfig struct {
 	Clock   clockwork.Clock
 	DataDir string
 	// Authorizer is used to authorize requests.
-	Authorizer auth.Authorizer
+	Authorizer authz.Authorizer
 	// LockWatcher is used to monitor for new locks.
 	LockWatcher *services.LockWatcher
 	// Emitter emits audit log events.
@@ -155,8 +167,18 @@ type WindowsServiceConfig struct {
 	Heartbeat HeartbeatConfig
 	// HostLabelsFn gets labels that should be applied to a Windows host.
 	HostLabelsFn func(host string) map[string]string
+	// ShowDesktopWallpaper determines whether desktop sessions will show a
+	// user-selected wallpaper vs a system-default, single-color wallpaper.
+	ShowDesktopWallpaper bool
 	// LDAPConfig contains parameters for connecting to an LDAP server.
-	LDAPConfig
+	// LDAP functionality is disabled if Addr is empty.
+	windows.LDAPConfig
+	// PKIDomain optionally configures a separate Active Directory domain
+	// for PKI operations. If empty, the domain from the LDAP config is used.
+	// This can be useful for cases where PKI is configured in a root domain
+	// but Teleport is used to provide access to users and computers in a child
+	// domain.
+	PKIDomain string
 	// DiscoveryBaseDN is the base DN for searching for Windows Desktops.
 	// Desktop discovery is disabled if this field is empty.
 	DiscoveryBaseDN string
@@ -174,50 +196,6 @@ type WindowsServiceConfig struct {
 	Labels               map[string]string
 }
 
-// LDAPConfig contains parameters for connecting to an LDAP server.
-type LDAPConfig struct {
-	// Addr is the LDAP server address in the form host:port.
-	// Standard port is 636 for LDAPS.
-	Addr string
-	// Domain is an Active Directory domain name, like "example.com".
-	Domain string
-	// Username is an LDAP username, like "EXAMPLE\Administrator", where
-	// "EXAMPLE" is the NetBIOS version of Domain.
-	Username string
-	// InsecureSkipVerify decides whether whether we skip verifying with the LDAP server's CA when making the LDAPS connection.
-	InsecureSkipVerify bool
-	// ServerName is the name of the LDAP server for TLS.
-	ServerName string
-	// CA is an optional CA cert to be used for verification if InsecureSkipVerify is set to false.
-	CA *x509.Certificate
-}
-
-func (cfg LDAPConfig) check() error {
-	if cfg.Addr == "" {
-		return trace.BadParameter("missing Addr in LDAPConfig")
-	}
-	if cfg.Domain == "" {
-		return trace.BadParameter("missing Domain in LDAPConfig")
-	}
-	if cfg.Username == "" {
-		return trace.BadParameter("missing Username in LDAPConfig")
-	}
-	return nil
-}
-
-func (cfg LDAPConfig) domainDN() string {
-	var sb strings.Builder
-	parts := strings.Split(cfg.Domain, ".")
-	for _, p := range parts {
-		if sb.Len() > 0 {
-			sb.WriteString(",")
-		}
-		sb.WriteString("DC=")
-		sb.WriteString(p)
-	}
-	return sb.String()
-}
-
 // HeartbeatConfig contains the configuration for service heartbeats.
 type HeartbeatConfig struct {
 	// HostUUID is the UUID of the host that this service runs on. Used as the
@@ -227,14 +205,16 @@ type HeartbeatConfig struct {
 	PublicAddr string
 	// OnHeartbeat is called after each heartbeat attempt.
 	OnHeartbeat func(error)
-	// StaticHosts is an optional list of static Windows hosts to register.
+	// StaticHosts is an optional list of AD-connected static Windows hosts to register.
 	StaticHosts []utils.NetAddr
+	// NonADHosts is an optional list of static Windows hosts to register, that are not part of Active Directory.
+	NonADHosts []utils.NetAddr
 }
 
 func (cfg *WindowsServiceConfig) checkAndSetDiscoveryDefaults() error {
 	switch {
 	case cfg.DiscoveryBaseDN == types.Wildcard:
-		cfg.DiscoveryBaseDN = cfg.domainDN()
+		cfg.DiscoveryBaseDN = cfg.DomainDN()
 	case len(cfg.DiscoveryBaseDN) > 0:
 		if _, err := ldap.ParseDN(cfg.DiscoveryBaseDN); err != nil {
 			return trace.BadParameter("WindowsServiceConfig contains an invalid base_dn: %v", err)
@@ -281,8 +261,10 @@ func (cfg *WindowsServiceConfig) CheckAndSetDefaults() error {
 	if err := cfg.Heartbeat.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
-	if err := cfg.LDAPConfig.check(); err != nil {
-		return trace.Wrap(err)
+	if cfg.LDAPConfig.Addr != "" {
+		if err := cfg.LDAPConfig.Check(); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 	if err := cfg.checkAndSetDiscoveryDefaults(); err != nil {
 		return trace.Wrap(err)
@@ -332,23 +314,17 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 		return nil, trace.Wrap(err, "fetching cluster name")
 	}
 
-	// Here we assume the LDAP server is an Active Directory Domain Controller,
-	// which means it should also be a DNS server that can resolve Windows hosts.
-	dnsServer, _, err := net.SplitHostPort(cfg.LDAPConfig.Addr)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	dnsAddr := net.JoinHostPort(dnsServer, "53")
-	cfg.Log.Debugln("DNS lookups will be performed against", dnsAddr)
-
-	ctx, close := context.WithCancel(context.Background())
-	s := &WindowsService{
-		cfg: cfg,
-		middleware: &auth.Middleware{
-			AccessPoint:   cfg.AccessPoint,
-			AcceptedUsage: []string{teleport.UsageWindowsDesktopOnly},
-		},
-		dnsResolver: &net.Resolver{
+	var resolver *net.Resolver
+	if cfg.LDAPConfig.Addr != "" {
+		// Here we assume the LDAP server is an Active Directory Domain Controller,
+		// which means it should also be a DNS server that can resolve Windows hosts.
+		dnsServer, _, err := net.SplitHostPort(cfg.LDAPConfig.Addr)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		dnsAddr := net.JoinHostPort(dnsServer, "53")
+		cfg.Log.Debugln("DNS lookups will be performed against", dnsAddr)
+		resolver = &net.Resolver{
 			PreferGo: true,
 			Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
 				// Ignore the address provided, and always explicitly dial
@@ -356,18 +332,51 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 				d := net.Dialer{Timeout: dnsDialTimeout}
 				return d.DialContext(ctx, network, dnsAddr)
 			},
+		}
+	}
+
+	clustername, err := cfg.AccessPoint.GetClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	ctx, close := context.WithCancel(context.Background())
+	s := &WindowsService{
+		cfg: cfg,
+		middleware: &auth.Middleware{
+			ClusterName:   clustername.GetClusterName(),
+			AcceptedUsage: []string{teleport.UsageWindowsDesktopOnly},
 		},
-		lc:          &ldapClient{cfg: cfg.LDAPConfig},
+		dnsResolver: resolver,
+		lc:          &windows.LDAPClient{Cfg: cfg.LDAPConfig},
 		clusterName: clusterName.GetClusterName(),
 		closeCtx:    ctx,
 		close:       close,
+		auditCache:  newSharedDirectoryAuditCache(),
 	}
 
-	// initialize LDAP - if this fails it will automatically schedule a retry.
-	// we don't want to return an error in this case, because failure to start
-	// the service brings down the entire Teleport process
-	if err := s.initializeLDAP(); err != nil {
-		s.cfg.Log.WithError(err).Error("initializing LDAP client, will retry")
+	caLDAPConfig := s.cfg.LDAPConfig
+	if s.cfg.PKIDomain != "" {
+		caLDAPConfig.Domain = s.cfg.PKIDomain
+	}
+	s.cfg.Log.Infof("Windows PKI will be performed against %v", s.cfg.PKIDomain)
+
+	s.ca = windows.NewCertificateStoreClient(windows.CertificateStoreConfig{
+		AccessPoint: s.cfg.AccessPoint,
+		LDAPConfig:  caLDAPConfig,
+		Log:         s.cfg.Log,
+		ClusterName: s.clusterName,
+		LC:          s.lc,
+	})
+
+	if caLDAPConfig.Addr != "" {
+		s.ldapConfigured = true
+		// initialize LDAP - if this fails it will automatically schedule a retry.
+		// we don't want to return an error in this case, because failure to start
+		// the service brings down the entire Teleport process
+		if err := s.initializeLDAP(); err != nil {
+			s.cfg.Log.WithError(err).Error("initializing LDAP client, will retry")
+		}
 	}
 
 	ok := false
@@ -376,17 +385,6 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 			s.Close()
 		}
 	}()
-
-	recConfig, err := s.cfg.AccessPoint.GetSessionRecordingConfig(s.closeCtx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	streamer, err := s.newStreamer(s.closeCtx, recConfig)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	s.streamer = streamer
 
 	if err := s.startServiceHeartbeat(); err != nil {
 		return nil, trace.Wrap(err)
@@ -400,7 +398,7 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 		if err := s.startDesktopDiscovery(); err != nil {
 			return nil, trace.Wrap(err)
 		}
-	} else if len(s.cfg.Heartbeat.StaticHosts) == 0 {
+	} else if len(s.cfg.Heartbeat.StaticHosts) == 0 && len(s.cfg.Heartbeat.NonADHosts) == 0 {
 		s.cfg.Log.Warnln("desktop discovery via LDAP is disabled, and no hosts are defined in the configuration; there will be no Windows desktops available to connect")
 	} else {
 		s.cfg.Log.Infoln("desktop discovery via LDAP is disabled, set 'base_dn' to enable")
@@ -410,49 +408,21 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 	return s, nil
 }
 
-func (s *WindowsService) newStreamWriter(record bool, sessionID string) (libevents.StreamWriter, error) {
-	return libevents.NewAuditWriter(libevents.AuditWriterConfig{
-		Component:    teleport.ComponentWindowsDesktop,
+func (s *WindowsService) newSessionRecorder(recConfig types.SessionRecordingConfig, sessionID string) (libevents.SessionPreparerRecorder, error) {
+	return recorder.New(recorder.Config{
+		SessionID:    session.ID(sessionID),
+		ServerID:     s.cfg.Heartbeat.HostUUID,
 		Namespace:    apidefaults.Namespace,
-		Context:      s.closeCtx,
 		Clock:        s.cfg.Clock,
 		ClusterName:  s.clusterName,
-		SessionID:    session.ID(sessionID),
-		Streamer:     s.streamer,
-		ServerID:     s.cfg.Heartbeat.HostUUID,
-		RecordOutput: record,
+		RecordingCfg: recConfig,
+		SyncStreamer: s.cfg.AuthClient,
+		DataDir:      s.cfg.DataDir,
+		Component:    teleport.Component(teleport.ComponentSession, teleport.ComponentWindowsDesktop),
+		// Session stream is using server context, not session context,
+		// to make sure that session is uploaded even after it is closed
+		Context: s.closeCtx,
 	})
-}
-
-// newStreamer creates a streamer (sync or async) based on the cluster configuration.
-// Synchronous streamers send events directly to the auth server, and blocks if the server
-// cannot keep up. Asynchronous streamers buffers the events to disk and uploads them later.
-func (s *WindowsService) newStreamer(ctx context.Context, recConfig types.SessionRecordingConfig) (libevents.Streamer, error) {
-	if services.IsRecordSync(recConfig.GetMode()) {
-		s.cfg.Log.Debugf("using sync streamer (for mode %v)", recConfig.GetMode())
-		return s.cfg.AuthClient, nil
-	}
-	s.cfg.Log.Debugf("using async streamer (for mode %v)", recConfig.GetMode())
-	uploadDir := filepath.Join(s.cfg.DataDir, teleport.LogsDir, teleport.ComponentUpload,
-		libevents.StreamingLogsDir, apidefaults.Namespace)
-
-	// ensure upload dir exists
-	_, err := utils.StatDir(uploadDir)
-	if trace.IsNotFound(err) {
-		s.cfg.Log.Debugf("Creating upload dir %v.", uploadDir)
-		if err := os.MkdirAll(uploadDir, 0755); err != nil {
-			return nil, trace.Wrap(err)
-		}
-	} else if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	fileStreamer, err := filesessions.NewStreamer(uploadDir)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return libevents.NewTeeStreamer(fileStreamer, s.cfg.Emitter), nil
 }
 
 func (s *WindowsService) tlsConfigForLDAP() (*tls.Config, error) {
@@ -461,8 +431,17 @@ func (s *WindowsService) tlsConfigForLDAP() (*tls.Config, error) {
 	if i := strings.LastIndex(s.cfg.Username, `\`); i != -1 {
 		user = user[i+1:]
 	}
-
-	certDER, keyDER, err := s.generateCredentials(s.closeCtx, user, s.cfg.Domain, windowsDesktopServiceCertTTL)
+	if s.cfg.SID == "" {
+		s.cfg.Log.Warnf(`Your LDAP config is missing the SID of the user you're
+		using to sign in. This is set to become a strict requirement by May 2023,
+		please update your configuration file before then.`)
+	}
+	certDER, keyDER, err := s.generateCredentials(s.closeCtx, generateCredentialsRequest{
+		username:           user,
+		domain:             s.cfg.Domain,
+		ttl:                windowsDesktopServiceCertTTL,
+		activeDirectorySID: s.cfg.SID,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -503,6 +482,8 @@ func (s *WindowsService) tlsConfigForLDAP() (*tls.Config, error) {
 // place before the certificate expires. If we are unable to obtain a certificate
 // and authenticate with the LDAP server, then the operation will be automatically
 // retried.
+//
+// This method is safe for concurrent calls.
 func (s *WindowsService) initializeLDAP() error {
 	tc, err := s.tlsConfigForLDAP()
 	if trace.IsAccessDenied(err) && modules.GetModules().BuildType() == modules.BuildEnterprise {
@@ -523,13 +504,20 @@ func (s *WindowsService) initializeLDAP() error {
 	if err != nil {
 		s.mu.Lock()
 		s.ldapInitialized = false
-		s.scheduleNextLDAPCertRenewalLocked(windowsDesktopServiceCertRetryInterval)
+
+		// failures due to timeouts might be transient, so retry more frequently
+		retryAfter := windowsDesktopServiceCertRetryInterval
+		if errors.Is(err, context.DeadlineExceeded) {
+			retryAfter = ldapTimeoutRetryInterval
+		}
+
+		s.scheduleNextLDAPCertRenewalLocked(retryAfter)
 		s.mu.Unlock()
 		return trace.Wrap(err, "dial")
 	}
 
 	conn.SetTimeout(ldapRequestTimeout)
-	s.lc.setClient(conn)
+	s.lc.SetClient(conn)
 
 	// Note: admin still needs to import our CA into the Group Policy following
 	// https://docs.vmware.com/en/VMware-Horizon-7/7.13/horizon-installation/GUID-7966AE16-D98F-430E-A916-391E8EAAFE18.html
@@ -542,7 +530,7 @@ func (s *WindowsService) initializeLDAP() error {
 	// https://docs.microsoft.com/en-us/previous-versions/windows/desktop/policy/registry-policy-file-format,
 	// but I'm leaving this for later.
 	//
-	if err := s.updateCA(s.closeCtx); err != nil {
+	if err := s.ca.Update(s.closeCtx); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -560,6 +548,7 @@ func (s *WindowsService) initializeLDAP() error {
 //
 // The lock on s.mu MUST be held.
 func (s *WindowsService) scheduleNextLDAPCertRenewalLocked(after time.Duration) {
+	s.cfg.Log.Infof("next LDAP cert renewal scheduled in %v", after)
 	if s.ldapCertRenew != nil {
 		s.ldapCertRenew.Reset(after)
 	} else {
@@ -604,27 +593,39 @@ func (s *WindowsService) startServiceHeartbeat() error {
 // service itself is running.
 func (s *WindowsService) startStaticHostHeartbeats() error {
 	for _, host := range s.cfg.Heartbeat.StaticHosts {
-		heartbeat, err := srv.NewHeartbeat(srv.HeartbeatConfig{
-			Context:         s.closeCtx,
-			Component:       teleport.ComponentWindowsDesktop,
-			Mode:            srv.HeartbeatModeWindowsDesktop,
-			Announcer:       s.cfg.AccessPoint,
-			GetServerInfo:   s.staticHostHeartbeatInfo(host, s.cfg.HostLabelsFn),
-			KeepAlivePeriod: apidefaults.ServerKeepAliveTTL(),
-			AnnouncePeriod:  apidefaults.ServerAnnounceTTL/2 + utils.RandomDuration(apidefaults.ServerAnnounceTTL/10),
-			CheckPeriod:     defaults.HeartbeatCheckPeriod,
-			ServerTTL:       apidefaults.ServerAnnounceTTL,
-			OnHeartbeat:     s.cfg.Heartbeat.OnHeartbeat,
-		})
-		if err != nil {
+		if err := s.startStaticHostHeartbeat(host, false); err != nil {
+			return err
+		}
+	}
+	for _, host := range s.cfg.Heartbeat.NonADHosts {
+		if err := s.startStaticHostHeartbeat(host, true); err != nil {
 			return trace.Wrap(err)
 		}
-		go func() {
-			if err := heartbeat.Run(); err != nil {
-				s.cfg.Log.WithError(err).Error("Heartbeat ended with error")
-			}
-		}()
 	}
+	return nil
+}
+
+func (s *WindowsService) startStaticHostHeartbeat(host utils.NetAddr, nonAD bool) error {
+	heartbeat, err := srv.NewHeartbeat(srv.HeartbeatConfig{
+		Context:         s.closeCtx,
+		Component:       teleport.ComponentWindowsDesktop,
+		Mode:            srv.HeartbeatModeWindowsDesktop,
+		Announcer:       s.cfg.AccessPoint,
+		GetServerInfo:   s.staticHostHeartbeatInfo(host, s.cfg.HostLabelsFn, nonAD),
+		KeepAlivePeriod: apidefaults.ServerKeepAliveTTL(),
+		AnnouncePeriod:  apidefaults.ServerAnnounceTTL/2 + utils.RandomDuration(apidefaults.ServerAnnounceTTL/10),
+		CheckPeriod:     5 * time.Minute,
+		ServerTTL:       apidefaults.ServerAnnounceTTL,
+		OnHeartbeat:     s.cfg.Heartbeat.OnHeartbeat,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	go func() {
+		if err := heartbeat.Run(); err != nil {
+			s.cfg.Log.WithError(err).Error("Heartbeat ended with error")
+		}
+	}()
 	return nil
 }
 
@@ -638,7 +639,7 @@ func (s *WindowsService) Close() error {
 		s.ldapCertRenew.Stop()
 	}
 	s.close()
-	s.lc.close()
+	s.lc.Close()
 	return nil
 }
 
@@ -669,6 +670,20 @@ func (s *WindowsService) Serve(plainLis net.Listener) error {
 	}
 }
 
+func (s *WindowsService) readyForConnections() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	// If LDAP was not configured, we assume all hosts are non-AD
+	// and the server can accept connections right away.
+	if !s.ldapConfigured {
+		return true
+	}
+
+	// If LDAP was configured, then we need to wait for it to be initialized
+	// before accepting connections.
+	return s.ldapInitialized
+}
+
 func (s *WindowsService) ldapReady() bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -686,14 +701,14 @@ func (s *WindowsService) handleConnection(proxyConn *tls.Conn) {
 
 	// Inline function to enforce that we are centralizing TDP Error sending in this function.
 	sendTDPError := func(message string) {
-		if err := tdpConn.SendError(message); err != nil {
-			s.cfg.Log.Errorf("Failed to send TDP error message %v", err)
+		if err := tdpConn.SendNotification(message, tdp.SeverityError); err != nil {
+			log.Errorf("Failed to send TDP error message %v", err)
 		}
 	}
 
 	// don't handle connections until the LDAP initialization retry loop has succeeded
 	// (it would fail anyway, but this presents a better error to the user)
-	if !s.ldapReady() {
+	if !s.readyForConnections() {
 		const msg = "This service cannot accept connections until LDAP initialization has completed."
 		log.Error(msg)
 		sendTDPError(msg)
@@ -756,12 +771,16 @@ func (s *WindowsService) handleConnection(proxyConn *tls.Conn) {
 
 	if err := s.connectRDP(ctx, log, tdpConn, desktop, authContext); err != nil {
 		log.Errorf("RDP connection failed: %v", err)
-		sendTDPError("RDP connection failed.")
+		msg := "RDP connection failed."
+		if um, ok := err.(trace.UserMessager); ok {
+			msg = um.UserMessage()
+		}
+		sendTDPError(msg)
 		return
 	}
 }
 
-func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger, tdpConn *tdp.Conn, desktop types.WindowsDesktop, authCtx *auth.Context) error {
+func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger, tdpConn *tdp.Conn, desktop types.WindowsDesktop, authCtx *authz.Context) error {
 	identity := authCtx.Identity.GetIdentity()
 
 	netConfig, err := s.cfg.AccessPoint.GetClusterNetworkingConfig(ctx)
@@ -778,26 +797,18 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 
 	// in order for the session to be recorded, the cluster's session recording mode must
 	// not be "off" and the user's roles must enable recording
-	recordSession := false
-	if authCtx.Checker.RecordDesktopSession() {
-		recConfig, err := s.cfg.AccessPoint.GetSessionRecordingConfig(ctx)
+	var recConfig types.SessionRecordingConfig
+	var recordSession bool
+	if !authCtx.Checker.RecordDesktopSession() {
+		recConfig = types.DefaultSessionRecordingConfig()
+		recConfig.SetMode(types.RecordOff)
+		log.Infof("desktop session %v will not be recorded, user %v's roles disable recording", string(sessionID), authCtx.User.GetName())
+	} else {
+		recConfig, err = s.cfg.AccessPoint.GetSessionRecordingConfig(ctx)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-
 		recordSession = recConfig.GetMode() != types.RecordOff
-	} else {
-		log.Infof("desktop session %v will not be recorded, user %v's roles disable recording", string(sessionID), authCtx.User.GetName())
-	}
-
-	var windowsUser string
-	authorize := func(login string) error {
-		windowsUser = login // capture attempted login user
-		mfaParams := authCtx.MFAParams(authPref.GetRequireMFAType())
-		return authCtx.Checker.CheckAccess(
-			desktop,
-			mfaParams,
-			services.NewWindowsLoginMatcher(login))
 	}
 
 	// Use a context that is canceled when we're done handling
@@ -807,13 +818,15 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	// Create a session tracker so that other services, such as
-	// the session upload completer, can track the session's lifetime.
-	if err := s.trackSession(ctx, &identity, windowsUser, string(sessionID), desktop); err != nil {
-		return trace.Wrap(err)
+	authorize := func(login string) error {
+		state := authCtx.GetAccessState(authPref)
+		return authCtx.Checker.CheckAccess(
+			desktop,
+			state,
+			services.NewWindowsLoginMatcher(login))
 	}
 
-	sw, err := s.newStreamWriter(recordSession, string(sessionID))
+	recorder, err := s.newSessionRecorder(recConfig, string(sessionID))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -824,51 +837,83 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 	// the client.
 	defer func() {
 		go func() {
-			if err := sw.Close(context.Background()); err != nil {
+			if err := recorder.Close(context.Background()); err != nil {
 				log.WithError(err).Errorf("closing stream writer for desktop session %v", sessionID.String())
 			}
 		}()
 	}()
 
-	delay := timer()
-	tdpConn.OnSend = s.makeTDPSendHandler(ctx, sw, delay, &identity, string(sessionID), desktop.GetAddr())
-	tdpConn.OnRecv = s.makeTDPReceiveHandler(ctx, sw, delay, &identity, string(sessionID), desktop.GetAddr())
+	// We won't have the windows username until we start to read from the websocket,
+	// but we need to start emitting audit events now. Create an auditor without
+	// specifying the username (we'll update it soon as we have it).
+	audit := s.newSessionAuditor(string(sessionID), &identity, "", desktop)
 
-	sessionStartTime := s.cfg.Clock.Now().UTC().Round(time.Millisecond)
+	groups, err := authCtx.Checker.DesktopGroups(desktop)
+	if err != nil && !trace.IsAccessDenied(err) {
+		startEvent := audit.makeSessionStart(err)
+		s.record(ctx, recorder, startEvent)
+		s.emit(ctx, startEvent)
+		return trace.Wrap(err)
+	}
+	createUsers := err == nil
+
+	// it's important that we set the OnSend and OnRecv handlers prior to
+	// initializing the client so that we capture all relevant data in the
+	// session recording
+	delay := timer()
+	tdpConn.OnSend = s.makeTDPSendHandler(ctx, recorder, delay, tdpConn, audit)
+	tdpConn.OnRecv = s.makeTDPReceiveHandler(ctx, recorder, delay, tdpConn, audit)
+
 	rdpc, err := rdpclient.New(rdpclient.Config{
 		Log: log,
 		GenerateUserCert: func(ctx context.Context, username string, ttl time.Duration) (certDER, keyDER []byte, err error) {
-			return s.generateCredentials(ctx, username, desktop.GetDomain(), ttl)
+			return s.generateUserCert(ctx, username, ttl, desktop, createUsers, groups)
 		},
-		CertTTL:               windowsDesktopCertTTL,
+		CertTTL:               windows.CertTTL,
 		Addr:                  desktop.GetAddr(),
 		Conn:                  tdpConn,
 		AuthorizeFn:           authorize,
 		AllowClipboard:        authCtx.Checker.DesktopClipboard(),
 		AllowDirectorySharing: authCtx.Checker.DesktopDirectorySharing(),
+		ShowDesktopWallpaper:  s.cfg.ShowDesktopWallpaper,
 	})
+	// before we check the error above, we grab the windows user so that
+	// future audit events include the proper username
+	var windowsUser string
+	if rdpc != nil {
+		windowsUser = rdpc.GetClientUsername()
+		audit.windowsUser = windowsUser
+	}
 	if err != nil {
-		s.onSessionStart(ctx, sw, &identity, sessionStartTime, windowsUser, string(sessionID), desktop, err)
+		startEvent := audit.makeSessionStart(err)
+		s.record(ctx, recorder, startEvent)
+		s.emit(ctx, startEvent)
+		return trace.Wrap(err)
+	}
+
+	if err := s.trackSession(ctx, &identity, windowsUser, string(sessionID), desktop); err != nil {
 		return trace.Wrap(err)
 	}
 
 	monitorCfg := srv.MonitorConfig{
-		Context:           ctx,
-		Conn:              tdpConn,
-		Clock:             s.cfg.Clock,
-		ClientIdleTimeout: authCtx.Checker.AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout()),
-		Entry:             log,
-		Emitter:           s.cfg.Emitter,
-		LockWatcher:       s.cfg.LockWatcher,
-		LockingMode:       authCtx.Checker.LockingMode(authPref.GetLockingMode()),
-		LockTargets:       append(services.LockTargetsFromTLSIdentity(identity), types.LockTarget{WindowsDesktop: desktop.GetName()}),
-		Tracker:           rdpc,
-		TeleportUser:      identity.Username,
-		ServerID:          s.cfg.Heartbeat.HostUUID,
-	}
-	shouldDisconnectExpiredCert := authCtx.Checker.AdjustDisconnectExpiredCert(authPref.GetDisconnectExpiredCert())
-	if shouldDisconnectExpiredCert && !identity.Expires.IsZero() {
-		monitorCfg.DisconnectExpiredCert = identity.Expires
+		Context:               ctx,
+		Conn:                  tdpConn,
+		Clock:                 s.cfg.Clock,
+		ClientIdleTimeout:     authCtx.Checker.AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout()),
+		DisconnectExpiredCert: srv.GetDisconnectExpiredCertFromIdentity(authCtx.Checker, authPref, &identity),
+		Entry:                 log,
+		Emitter:               s.cfg.Emitter,
+		LockWatcher:           s.cfg.LockWatcher,
+		LockingMode:           authCtx.Checker.LockingMode(authPref.GetLockingMode()),
+		LockTargets:           append(services.LockTargetsFromTLSIdentity(identity), types.LockTarget{WindowsDesktop: desktop.GetName()}),
+		Tracker:               rdpc,
+		TeleportUser:          identity.Username,
+		ServerID:              s.cfg.Heartbeat.HostUUID,
+		IdleTimeoutMessage:    netConfig.GetClientIdleTimeoutMessage(),
+		MessageWriter: &monitorErrorSender{
+			log:     log,
+			tdpConn: tdpConn,
+		},
 	}
 
 	// UpdateClientActivity before starting monitor to
@@ -880,22 +925,37 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 		// if we can't establish a connection monitor then we can't enforce RBAC.
 		// consider this a connection failure and return an error
 		// (in the happy path, rdpc remains open until Wait() completes)
-		s.onSessionStart(ctx, sw, &identity, sessionStartTime, windowsUser, string(sessionID), desktop, err)
+		startEvent := audit.makeSessionStart(err)
+		s.record(ctx, recorder, startEvent)
+		s.emit(ctx, startEvent)
 		return trace.Wrap(err)
 	}
 
-	s.onSessionStart(ctx, sw, &identity, sessionStartTime, windowsUser, string(sessionID), desktop, nil)
+	startEvent := audit.makeSessionStart(nil)
+	startEvent.AllowUserCreation = createUsers
+	s.record(ctx, recorder, startEvent)
+	s.emit(ctx, startEvent)
+
 	err = rdpc.Run(ctx)
-	s.onSessionEnd(ctx, sw, &identity, sessionStartTime, recordSession, windowsUser, string(sessionID), desktop)
+
+	// ctx may have been canceled, so emit with a separate context
+	endEvent := audit.makeSessionEnd(recordSession)
+	s.record(context.Background(), recorder, endEvent)
+	s.emit(context.Background(), endEvent)
 
 	return trace.Wrap(err)
 }
 
-func (s *WindowsService) makeTDPSendHandler(ctx context.Context, emitter events.Emitter, delay func() int64,
-	id *tlsca.Identity, sessionID, desktopAddr string) func(m tdp.Message, b []byte) {
+func (s *WindowsService) makeTDPSendHandler(
+	ctx context.Context,
+	recorder libevents.SessionPreparerRecorder,
+	delay func() int64,
+	tdpConn *tdp.Conn,
+	audit *desktopSessionAuditor,
+) func(m tdp.Message, b []byte) {
 	return func(m tdp.Message, b []byte) {
 		switch b[0] {
-		case byte(tdp.TypePNG2Frame), byte(tdp.TypePNGFrame), byte(tdp.TypeError):
+		case byte(tdp.TypePNG2Frame), byte(tdp.TypePNGFrame), byte(tdp.TypeError), byte(tdp.TypeNotification):
 			e := &events.DesktopRecording{
 				Metadata: events.Metadata{
 					Type: libevents.DesktopRecordingEvent,
@@ -911,22 +971,58 @@ func (s *WindowsService) makeTDPSendHandler(ctx context.Context, emitter events.
 				// ones are around 2000 bytes. Anything approaching the limit of a single protobuf
 				// is likely some sort of DoS attempt and not legitimate RDP traffic, so we don't log it.
 				s.cfg.Log.Warnf("refusing to record %d byte PNG frame, image too large", len(b))
-			} else if err := emitter.EmitAuditEvent(ctx, e); err != nil {
-				s.cfg.Log.WithError(err).Warning("could not emit desktop recording event")
+			} else {
+				if err := libevents.SetupAndRecordEvent(ctx, recorder, e); err != nil {
+					s.cfg.Log.WithError(err).Warning("could not record desktop recording event")
+				}
 			}
 		case byte(tdp.TypeClipboardData):
 			if clip, ok := m.(tdp.ClipboardData); ok {
 				// the TDP send handler emits a clipboard receive event, because we
 				// received clipboard data from the remote desktop and are sending
 				// it on the TDP connection
-				s.onClipboardReceive(ctx, emitter, id, sessionID, desktopAddr, int32(len(clip)))
+				rxEvent := audit.makeClipboardReceive(int32(len(clip)))
+				s.emit(ctx, rxEvent)
+			}
+		case byte(tdp.TypeSharedDirectoryAcknowledge):
+			if message, ok := m.(tdp.SharedDirectoryAcknowledge); ok {
+				s.emit(ctx, audit.makeSharedDirectoryStart(message))
+			}
+		case byte(tdp.TypeSharedDirectoryReadRequest):
+			if message, ok := m.(tdp.SharedDirectoryReadRequest); ok {
+				errorEvent := audit.onSharedDirectoryReadRequest(message)
+				if errorEvent != nil {
+					// if we can't audit due to a full cache, abort the connection
+					// as a security measure
+					if err := tdpConn.Close(); err != nil {
+						s.cfg.Log.WithError(err).Errorf("error when terminating sessionID(%v) for audit cache maximum size violation", audit.sessionID)
+					}
+					s.emit(ctx, errorEvent)
+				}
+			}
+		case byte(tdp.TypeSharedDirectoryWriteRequest):
+			if message, ok := m.(tdp.SharedDirectoryWriteRequest); ok {
+				errorEvent := audit.onSharedDirectoryWriteRequest(message)
+				if errorEvent != nil {
+					// if we can't audit due to a full cache, abort the connection
+					// as a security measure
+					if err := tdpConn.Close(); err != nil {
+						s.cfg.Log.WithError(err).Errorf("error when terminating sessionID(%v) for audit cache maximum size violation", audit.sessionID)
+					}
+					s.emit(ctx, errorEvent)
+				}
 			}
 		}
 	}
 }
 
-func (s *WindowsService) makeTDPReceiveHandler(ctx context.Context, emitter events.Emitter, delay func() int64,
-	id *tlsca.Identity, sessionID, desktopAddr string) func(m tdp.Message) {
+func (s *WindowsService) makeTDPReceiveHandler(
+	ctx context.Context,
+	recorder libevents.SessionPreparerRecorder,
+	delay func() int64,
+	tdpConn *tdp.Conn,
+	audit *desktopSessionAuditor,
+) func(m tdp.Message) {
 	return func(m tdp.Message) {
 		switch msg := m.(type) {
 		case tdp.ClientScreenSpec, tdp.MouseButton, tdp.MouseMove:
@@ -946,14 +1042,31 @@ func (s *WindowsService) makeTDPReceiveHandler(ctx context.Context, emitter even
 				// screen spec, mouse button, and mouse move are fixed size messages,
 				// so they cannot exceed the maximum size
 				s.cfg.Log.Warnf("refusing to record %d byte %T message", len(b), m)
-			} else if err := emitter.EmitAuditEvent(ctx, e); err != nil {
-				s.cfg.Log.WithError(err).Warning("could not emit desktop recording event")
+			} else {
+				if err := libevents.SetupAndRecordEvent(ctx, recorder, e); err != nil {
+					s.cfg.Log.WithError(err).Warning("could not record desktop recording event")
+				}
 			}
 		case tdp.ClipboardData:
 			// the TDP receive handler emits a clipboard send event, because we
 			// received clipboard data from the user (over TDP) and are sending
 			// it to the remote desktop
-			s.onClipboardSend(ctx, emitter, id, sessionID, desktopAddr, int32(len(msg)))
+			sendEvent := audit.makeClipboardSend(int32(len(msg)))
+			s.emit(ctx, sendEvent)
+		case tdp.SharedDirectoryAnnounce:
+			errorEvent := audit.onSharedDirectoryAnnounce(m.(tdp.SharedDirectoryAnnounce))
+			if errorEvent != nil {
+				// if we can't audit due to a full cache, abort the connection
+				// as a security measure
+				if err := tdpConn.Close(); err != nil {
+					s.cfg.Log.WithError(err).Errorf("error when terminating sessionID(%v) for audit cache maximum size violation", audit.sessionID)
+				}
+				s.emit(ctx, errorEvent)
+			}
+		case tdp.SharedDirectoryReadResponse:
+			s.emit(ctx, audit.makeSharedDirectoryReadResponse(msg))
+		case tdp.SharedDirectoryWriteResponse:
+			s.emit(ctx, audit.makeSharedDirectoryWriteResponse(msg))
 		}
 	}
 }
@@ -980,7 +1093,8 @@ func (s *WindowsService) getServiceHeartbeatInfo() (types.Resource, error) {
 // staticHostHeartbeatInfo generates the Windows Desktop resource
 // for heartbeating statically defined hosts
 func (s *WindowsService) staticHostHeartbeatInfo(netAddr utils.NetAddr,
-	getHostLabels func(string) map[string]string) func() (types.Resource, error) {
+	getHostLabels func(string) map[string]string, nonAD bool,
+) func() (types.Resource, error) {
 	return func() (types.Resource, error) {
 		addr := netAddr.String()
 		name, err := s.nameForStaticHost(addr)
@@ -991,6 +1105,7 @@ func (s *WindowsService) staticHostHeartbeatInfo(netAddr utils.NetAddr,
 		// as the name is a randomly generated UUID
 		labels := getHostLabels(addr)
 		labels[types.OriginLabel] = types.OriginConfigFile
+		labels[types.ADLabel] = strconv.FormatBool(!nonAD)
 		desktop, err := types.NewWindowsDesktopV3(
 			name,
 			labels,
@@ -998,6 +1113,7 @@ func (s *WindowsService) staticHostHeartbeatInfo(netAddr utils.NetAddr,
 				Addr:   addr,
 				Domain: s.cfg.Domain,
 				HostID: s.cfg.Heartbeat.HostUUID,
+				NonAD:  nonAD,
 			})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -1050,163 +1166,66 @@ func timer() func() int64 {
 	}
 }
 
-func (s *WindowsService) updateCA(ctx context.Context) error {
-	// Publish the CA cert for current cluster CA. For trusted clusters, their
-	// respective windows_desktop_services will publish their CAs so we don't
-	// have to do it here.
-	//
-	// TODO(zmb3): support multiple CA certs per cluster (such as with HSMs).
-	ca, err := s.cfg.AccessPoint.GetCertAuthority(ctx, types.CertAuthID{
-		Type:       types.UserCA,
-		DomainName: s.clusterName,
-	}, false)
-	if err != nil {
-		return trace.Wrap(err, "fetching Teleport CA: %v", err)
-	}
-	// LDAP stores certs and CRLs in binary DER format, so remove the outer PEM
-	// wrapper.
-	caPEM := ca.GetTrustedTLSKeyPairs()[0].Cert
-	caBlock, _ := pem.Decode(caPEM)
-	if caBlock == nil {
-		return trace.BadParameter("failed to decode CA PEM block")
-	}
-	caDER := caBlock.Bytes
+// generateUserCert generates a keypair for the given Windows username,
+// optionally querying LDAP for the user's Security Identifier.
+func (s *WindowsService) generateUserCert(ctx context.Context, username string, ttl time.Duration, desktop types.WindowsDesktop, createUsers bool, groups []string) (certDER, keyDER []byte, err error) {
+	var activeDirectorySID string
+	if !desktop.NonAD() {
+		// Find the user's SID
+		filter := windows.CombineLDAPFilters([]string{
+			fmt.Sprintf("(%s=%s)", windows.AttrSAMAccountType, windows.AccountTypeUser),
+			fmt.Sprintf("(%s=%s)", windows.AttrSAMAccountName, username),
+		})
+		s.cfg.Log.Debugf("querying LDAP for objectSid of Windows username %q with filter %v", username, filter)
 
-	crlDER, err := s.cfg.AccessPoint.GenerateCertAuthorityCRL(ctx, types.UserCA)
-	if err != nil {
-		return trace.Wrap(err, "generating CRL: %v", err)
-	}
-
-	// To make the CA trusted, we need 3 things:
-	// 1. put the CA cert into the Trusted Certification Authorities in the
-	//    Group Policy (done manually for now, see public docs)
-	// 2. put the CA cert into NTAuth store in LDAP
-	// 3. put the CRL of the CA into a dedicated LDAP entry
-	//
-	// Below we do #2 and #3.
-	if err := s.updateCAInNTAuthStore(ctx, caDER); err != nil {
-		return trace.Wrap(err, "updating NTAuth store over LDAP: %v", err)
-	}
-	if err := s.updateCRL(ctx, crlDER); err != nil {
-		return trace.Wrap(err, "updating CRL over LDAP: %v", err)
-	}
-	return nil
-}
-
-// updateCAInNTAuthStore records the Teleport user CA in the Windows store which records
-// CAs that are eligible to issue smart card login certificates and perform client
-// private key archival.
-//
-// This function is equivalent to running:
-//
-//	certutil –dspublish –f <PathToCertFile.cer> NTAuthCA
-//
-// You can confirm the cert is present by running:
-//
-//	certutil -viewstore "ldap:///CN=NTAuthCertificates,CN=Public Key Services,CN=Services,CN=Configuration,DC=example,DC=com>?caCertificate"
-//
-// Once the CA is published to LDAP, it should eventually sync and be present in the
-// machine's enterprise NTAuth store. You can check that with:
-//
-//	certutil -viewstore -enterprise NTAuth
-//
-// You can expedite the synchronization by running:
-//
-//	certutil -pulse
-func (s *WindowsService) updateCAInNTAuthStore(ctx context.Context, caDER []byte) error {
-	// Check if our CA is already in the store. The LDAP entry for NTAuth store
-	// is constant and it should always exist.
-	ntAuthDN := "CN=NTAuthCertificates,CN=Public Key Services,CN=Services,CN=Configuration," + s.cfg.LDAPConfig.domainDN()
-	entries, err := s.lc.read(ntAuthDN, "certificationAuthority", []string{"cACertificate"})
-	if err != nil {
-		return trace.Wrap(err, "fetching existing CAs: %v", err)
-	}
-	if len(entries) != 1 {
-		return trace.BadParameter("expected exactly 1 NTAuthCertificates CA store at %q, but found %d", ntAuthDN, len(entries))
-	}
-	// TODO(zmb3): during CA rotation, find the old CA in NTAuthStore and remove it.
-	// Right now we just append the active CA and let the old ones hang around.
-	existingCAs := entries[0].GetRawAttributeValues("cACertificate")
-	for _, existingCADER := range existingCAs {
-		// CA already present.
-		if bytes.Equal(existingCADER, caDER) {
-			s.cfg.Log.Info("Teleport CA already present in NTAuthStore in LDAP")
-			return nil
+		entries, err := s.lc.ReadWithFilter(s.cfg.LDAPConfig.DomainDN(), filter, []string{windows.AttrObjectSid})
+		// if LDAP-based desktop discovery is not enabled, there may not be enough
+		// traffic to keep the connection open. Attempt to open a new LDAP connection
+		// in this case.
+		if trace.IsConnectionProblem(err) {
+			s.initializeLDAP() // ignore error, this is a best effort attempt
+			entries, err = s.lc.ReadWithFilter(s.cfg.LDAPConfig.DomainDN(), filter, []string{windows.AttrObjectSid})
 		}
-	}
-
-	s.cfg.Log.Debugf("None of the %d existing NTAuthCertificates matched Teleport's", len(existingCAs))
-
-	// CA is not in the store, append it.
-	updatedCAs := make([]string, 0, len(existingCAs)+1)
-	for _, existingCADER := range existingCAs {
-		updatedCAs = append(updatedCAs, string(existingCADER))
-	}
-	updatedCAs = append(updatedCAs, string(caDER))
-
-	if err := s.lc.update(ntAuthDN, map[string][]string{
-		"cACertificate": updatedCAs,
-	}); err != nil {
-		return trace.Wrap(err, "updating CA entry: %v", err)
-	}
-	s.cfg.Log.Info("Added Teleport CA to NTAuthStore via LDAP")
-	return nil
-}
-
-func (s *WindowsService) updateCRL(ctx context.Context, crlDER []byte) error {
-	// Publish the CRL for current cluster CA. For trusted clusters, their
-	// respective windows_desktop_services will publish CRLs of their CAs so we
-	// don't have to do it here.
-	//
-	// CRLs live under the CDP (CRL Distribution Point) LDAP container. There's
-	// another nested container with the CA name, I think, and then multiple
-	// separate CRL objects in that container.
-	//
-	// We name our parent container "Teleport" and the CRL object is named
-	// after the Teleport cluster name. For example, CRL for cluster "prod"
-	// will be placed at:
-	// ... > CDP > Teleport > prod
-	containerDN := s.crlContainerDN()
-	crlDN := s.crlDN()
-
-	// Create the parent container.
-	if err := s.lc.createContainer(containerDN); err != nil {
-		return trace.Wrap(err, "creating CRL container: %v", err)
-	}
-
-	// Create the CRL object itself.
-	if err := s.lc.create(
-		crlDN,
-		"cRLDistributionPoint",
-		map[string][]string{"certificateRevocationList": {string(crlDER)}},
-	); err != nil {
-		if !trace.IsAlreadyExists(err) {
-			return trace.Wrap(err)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
 		}
-		// CRL already exists, update it.
-		if err := s.lc.update(
-			crlDN,
-			map[string][]string{"certificateRevocationList": {string(crlDER)}},
-		); err != nil {
-			return trace.Wrap(err)
+		if len(entries) == 0 {
+			return nil, nil, trace.NotFound("could not find Windows account %q", username)
+		} else if len(entries) > 1 {
+			s.cfg.Log.Warnf("found multiple entries for username %q, taking the first", username)
 		}
-		s.cfg.Log.Info("Updated CRL for Windows logins via LDAP")
-	} else {
-		s.cfg.Log.Info("Added CRL for Windows logins via LDAP")
+		activeDirectorySID, err = windows.ADSIDStringFromLDAPEntry(entries[0])
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+		s.cfg.Log.Debugf("Found objectSid %v for Windows username %v", activeDirectorySID, username)
 	}
-	return nil
+	return s.generateCredentials(ctx, generateCredentialsRequest{
+		username:           username,
+		domain:             desktop.GetDomain(),
+		ttl:                ttl,
+		activeDirectorySID: activeDirectorySID,
+		createUser:         createUsers,
+		groups:             groups,
+	})
 }
 
-// crlDN generates the LDAP distinguished name (DN) where this Windows Service
-// will publish its certificate revocation list
-func (s *WindowsService) crlDN() string {
-	return "CN=" + s.clusterName + "," + s.crlContainerDN()
-}
-
-// crlContainerDN generates the LDAP distinguished name (DN) of the container
-// where the certificate revocation list is published
-func (s *WindowsService) crlContainerDN() string {
-	return "CN=Teleport,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration," + s.cfg.LDAPConfig.domainDN()
+// generateCredentialsRequest are the request parameters for generating a windows cert/key pair
+type generateCredentialsRequest struct {
+	// username is the Windows username
+	username string
+	// domain is the Windows domain
+	domain string
+	// ttl for the certificate
+	ttl time.Duration
+	// activeDirectorySID is the SID of the Windows user
+	// specified by Username. If specified (!= ""), it is
+	// encoded in the certificate per https://go.microsoft.com/fwlink/?linkid=2189925.
+	activeDirectorySID string
+	// createUser specifies if Windows user should be created if missing
+	createUser bool
+	// groups are groups that user should be member of
+	groups []string
 }
 
 // generateCredentials generates a private key / certificate pair for the given
@@ -1214,69 +1233,27 @@ func (s *WindowsService) crlContainerDN() string {
 // the regular Teleport user certificate, to meet the requirements of Active
 // Directory. See:
 // https://docs.microsoft.com/en-us/windows/security/identity-protection/smart-cards/smart-card-certificate-requirements-and-enumeration
-func (s *WindowsService) generateCredentials(ctx context.Context, username, domain string, ttl time.Duration) (certDER, keyDER []byte, err error) {
-	// Important: rdpclient currently only supports 2048-bit RSA keys.
-	// If you switch the key type here, update handle_general_authentication in
-	// rdp/rdpclient/src/piv.rs accordingly.
-	rsaKey, err := rsa.GenerateKey(rand.Reader, 2048)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
+func (s *WindowsService) generateCredentials(ctx context.Context, request generateCredentialsRequest) (certDER, keyDER []byte, err error) {
+	// If PKI domain has been overridden, make sure we pass that through
+	// to the cert request, otherwise the CRL in the cert we issue will
+	// point at the wrong domain.
+	lc := s.cfg.LDAPConfig
+	if s.cfg.PKIDomain != "" {
+		lc.Domain = s.cfg.PKIDomain
 	}
-	// Also important: rdpclient expects the private key to be in PKCS1 format.
-	keyDER = x509.MarshalPKCS1PrivateKey(rsaKey)
 
-	// Generate the Windows-compatible certificate, see
-	// https://docs.microsoft.com/en-us/troubleshoot/windows-server/windows-security/enabling-smart-card-logon-third-party-certification-authorities
-	// for requirements.
-	san, err := subjectAltNameExtension(username, domain)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-	csr := &x509.CertificateRequest{
-		Subject: pkix.Name{CommonName: username},
-		// We have to pass SAN and ExtKeyUsage as raw extensions because
-		// crypto/x509 doesn't support what we need:
-		// - x509.ExtKeyUsage doesn't have the Smartcard Logon variant
-		// - x509.CertificateRequest doesn't have OtherName SAN fields (which
-		//   is a type of SAN distinct from DNSNames, EmailAddresses, IPAddresses
-		//   and URIs)
-		ExtraExtensions: []pkix.Extension{
-			enhancedKeyUsageExtension,
-			san,
-		},
-	}
-	csrBytes, err := x509.CreateCertificateRequest(rand.Reader, csr, rsaKey)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-	csrPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: csrBytes})
-	// Note: this CRL DN may or may not be the same DN published in updateCRL.
-	//
-	// There can be multiple AD domains connected to Teleport. Each
-	// windows_desktop_service is connected to a single AD domain and publishes
-	// CRLs in it. Each service can also handle RDP connections for a different
-	// domain, with the assumption that some other windows_desktop_service
-	// published a CRL there.
-	crlDN := s.crlDN()
-	genResp, err := s.cfg.AuthClient.GenerateWindowsDesktopCert(ctx, &proto.WindowsDesktopCertRequest{
-		CSR: csrPEM,
-		// LDAP URI pointing at the CRL created with updateCRL.
-		//
-		// The full format is:
-		// ldap://domain_controller_addr/distinguished_name_and_parameters.
-		//
-		// Using ldap:///distinguished_name_and_parameters (with empty
-		// domain_controller_addr) will cause Windows to fetch the CRL from any
-		// of its current domain controllers.
-		CRLEndpoint: fmt.Sprintf("ldap:///%s?certificateRevocationList?base?objectClass=cRLDistributionPoint", crlDN),
-		TTL:         proto.Duration(ttl),
+	return windows.GenerateWindowsDesktopCredentials(ctx, &windows.GenerateCredentialsRequest{
+		CAType:             types.UserCA,
+		Username:           request.username,
+		Domain:             request.domain,
+		TTL:                request.ttl,
+		ClusterName:        s.clusterName,
+		ActiveDirectorySID: request.activeDirectorySID,
+		LDAPConfig:         lc,
+		AuthClient:         s.cfg.AuthClient,
+		CreateUser:         request.createUser,
+		Groups:             request.groups,
 	})
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-	certBlock, _ := pem.Decode(genResp.Cert)
-	certDER = certBlock.Bytes
-	return certDER, keyDER, nil
 }
 
 // trackSession creates a session tracker for the given sessionID and
@@ -1298,26 +1275,18 @@ func (s *WindowsService) trackSession(ctx context.Context, id *tlsca.Identity, w
 		}},
 		HostUser: id.Username,
 		Created:  s.cfg.Clock.Now(),
+		HostID:   s.cfg.Heartbeat.HostUUID,
 	}
 
 	s.cfg.Log.Debugf("Creating tracker for session %v", sessionID)
 	tracker, err := srv.NewSessionTracker(ctx, trackerSpec, s.cfg.AuthClient)
-	switch {
-	case err == nil:
-	case trace.IsAccessDenied(err):
-		// Ignore access denied errors, which we may get if the auth
-		// server is v9.2.3 or earlier, since only node, proxy, and
-		// kube roles had permission to create session trackers.
-		// DELETE IN 11.0.0
-		s.cfg.Log.Debugf("Insufficient permissions to create session tracker, skipping session tracking for session %v", sessionID)
-		return nil
-	default: // aka err != nil
+	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	go func() {
 		if err := tracker.UpdateExpirationLoop(ctx, s.cfg.Clock); err != nil {
-			s.cfg.Log.WithError(err).Debugf("Failed to update session tracker expiration for session %v", sessionID)
+			s.cfg.Log.WithError(err).Warnf("Failed to update session tracker expiration for session %v", sessionID)
 		}
 	}()
 
@@ -1331,82 +1300,21 @@ func (s *WindowsService) trackSession(ctx context.Context, id *tlsca.Identity, w
 	return nil
 }
 
-// The following vars contain the various object identifiers required for smartcard
-// login certificates.
-//
-// https://docs.microsoft.com/en-us/troubleshoot/windows-server/windows-security/enabling-smart-card-logon-third-party-certification-authorities
-var (
-	// enhancedKeyUsageExtensionOID is the object identifier for a
-	// certificate's enhanced key usage extension
-	enhancedKeyUsageExtensionOID = asn1.ObjectIdentifier{2, 5, 29, 37}
-
-	// subjectAltNameExtensionOID is the object identifier for a
-	// certificate's subject alternative name extension
-	subjectAltNameExtensionOID = asn1.ObjectIdentifier{2, 5, 29, 17}
-
-	// clientAuthenticationOID is the object idnetifier that is used to
-	// include client SSL authentication in a certificate's enhanced
-	// key usage
-	clientAuthenticationOID = asn1.ObjectIdentifier{1, 3, 6, 1, 5, 5, 7, 3, 2}
-
-	// smartcardLogonOID is the object identifier that is used to include
-	// smartcard login in a certificate's enhanced key usage
-	smartcardLogonOID = asn1.ObjectIdentifier{1, 3, 6, 1, 4, 1, 311, 20, 2, 2}
-
-	// upnOtherNameOID is the object identifier that is used to include
-	// the user principal name in a certificate's subject alternative name
-	upnOtherNameOID = asn1.ObjectIdentifier{1, 3, 6, 1, 4, 1, 311, 20, 2, 3}
-)
-
-var enhancedKeyUsageExtension = pkix.Extension{
-	Id: enhancedKeyUsageExtensionOID,
-	Value: func() []byte {
-		val, err := asn1.Marshal([]asn1.ObjectIdentifier{
-			clientAuthenticationOID,
-			smartcardLogonOID,
-		})
-		if err != nil {
-			panic(err)
-		}
-		return val
-	}(),
+// monitorErrorSender implements the io.StringWriter
+// interface in order to allow us to pass connection
+// monitor disconnect messages back to the frontend
+// over the tdp.Conn
+type monitorErrorSender struct {
+	log     logrus.FieldLogger
+	tdpConn *tdp.Conn
 }
 
-func subjectAltNameExtension(user, domain string) (pkix.Extension, error) {
-	// Setting otherName SAN according to
-	// https://samfira.com/2020/05/16/golang-x-509-certificates-and-othername/
-	//
-	// othernName SAN is needed to pass the UPN of the user, per
-	// https://docs.microsoft.com/en-us/troubleshoot/windows-server/windows-security/enabling-smart-card-logon-third-party-certification-authorities
-	ext := pkix.Extension{Id: subjectAltNameExtensionOID}
-	var err error
-	ext.Value, err = asn1.Marshal(
-		subjectAltName{
-			OtherName: otherName{
-				OID: upnOtherNameOID,
-				Value: upn{
-					Value: fmt.Sprintf("%s@%s", user, domain), // TODO(zmb3): sanitize username to avoid domain spoofing
-				},
-			},
-		},
-	)
-	if err != nil {
-		return ext, trace.Wrap(err)
+func (m *monitorErrorSender) WriteString(s string) (n int, err error) {
+	if err := m.tdpConn.SendNotification(s, tdp.SeverityError); err != nil {
+		errMsg := fmt.Sprintf("Failed to send TDP error message %v: %v", s, err)
+		m.log.Error(errMsg)
+		return 0, trace.Errorf(errMsg)
 	}
-	return ext, nil
-}
 
-// Types for ASN.1 SAN serialization.
-
-type subjectAltName struct {
-	OtherName otherName `asn1:"tag:0"`
-}
-
-type otherName struct {
-	OID   asn1.ObjectIdentifier
-	Value upn `asn1:"tag:0"`
-}
-
-type upn struct {
-	Value string `asn1:"utf8"`
+	return len(s), nil
 }

@@ -28,6 +28,7 @@ func ResourceIDs(resourceIDs []types.ResourceID) []ResourceID {
 		out[i].ClusterName = resourceIDs[i].ClusterName
 		out[i].Kind = resourceIDs[i].Kind
 		out[i].Name = resourceIDs[i].Name
+		out[i].SubResourceName = resourceIDs[i].SubResourceName
 	}
 	return out
 }

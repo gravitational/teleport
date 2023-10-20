@@ -20,10 +20,14 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api"
 )
 
-// CertAuthType specifies certificate authority type
+// CertAuthType specifies certificate authority type. New variants should be
+// added to CertAuthTypes and, for one major version, to NewlyAdded().
 type CertAuthType string
 
 const (
@@ -33,15 +37,44 @@ const (
 	UserCA CertAuthType = "user"
 	// DatabaseCA is a certificate authority used in database access.
 	DatabaseCA CertAuthType = "db"
+	// OpenSSHCA is a certificate authority used when connecting to agentless nodes.
+	OpenSSHCA CertAuthType = "openssh"
 	// JWTSigner identifies type of certificate authority as JWT signer. In this
 	// case JWT is not a certificate authority because it does not issue
 	// certificates but rather is an authority that signs tokens, however it behaves
 	// much like a CA in terms of rotation and storage.
 	JWTSigner CertAuthType = "jwt"
+	// SAMLIDPCA identifies the certificate authority that will be used by the
+	// SAML identity provider.
+	SAMLIDPCA CertAuthType = "saml_idp"
+	// OIDCIdPCA (OpenID Connect Identity Provider Certificate Authority) identifies
+	// the certificate authority that will be used by the OIDC Identity Provider.
+	// Similar to JWTSigner, it doesn't issue Certificates but signs JSON Web Tokens.
+	OIDCIdPCA CertAuthType = "oidc_idp"
 )
 
 // CertAuthTypes lists all certificate authority types.
-var CertAuthTypes = []CertAuthType{HostCA, UserCA, DatabaseCA, JWTSigner}
+var CertAuthTypes = []CertAuthType{HostCA, UserCA, DatabaseCA, OpenSSHCA, JWTSigner, SAMLIDPCA, OIDCIdPCA}
+
+// NewlyAdded should return true for CA types that were added in the current
+// major version, so that we can avoid erroring out when a potentially older
+// remote server doesn't know about them.
+func (c CertAuthType) NewlyAdded() bool {
+	return c.addedInMajorVer() >= semver.New(api.Version).Major
+}
+
+// addedInVer return the major version in which given CA was added.
+func (c CertAuthType) addedInMajorVer() int64 {
+	switch c {
+	case DatabaseCA:
+		return 9
+	case OpenSSHCA, SAMLIDPCA, OIDCIdPCA:
+		return 12
+	default:
+		// We don't care about other CAs added before v4.0.0
+		return 4
+	}
+}
 
 // Check checks if certificate authority type value is correct
 func (c CertAuthType) Check() error {

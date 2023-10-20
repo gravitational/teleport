@@ -22,9 +22,13 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
+	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/defaults"
 )
@@ -327,8 +331,7 @@ func TestNewWebClientRespectHTTPProxy(t *testing.T) {
 		ProxyAddr: "localhost:3080",
 	})
 	require.NoError(t, err)
-	// resp should be nil, so there will be no body to close.
-	//nolint:bodyclose
+	//nolint:bodyclose // resp should be nil, so there will be no body to close.
 	resp, err := client.Get("https://fakedomain.example.com")
 	// Client should try to proxy through nonexistent server at localhost.
 	require.Error(t, err, "GET unexpectedly succeeded: %+v", resp)
@@ -345,7 +348,7 @@ func TestNewWebClientNoProxy(t *testing.T) {
 		ProxyAddr: "localhost:3080",
 	})
 	require.NoError(t, err)
-	//nolint:bodyclose
+	//nolint:bodyclose // resp should be nil, so there will be no body to close.
 	resp, err := client.Get("https://fakedomain.example.com")
 	require.Error(t, err, "GET unexpectedly succeeded: %+v", resp)
 	require.NotContains(t, err.Error(), "proxyconnect")
@@ -442,4 +445,63 @@ func TestSSHProxyHostPort(t *testing.T) {
 			require.Equal(t, test.outPort, port)
 		})
 	}
+}
+
+// TestWebClientClosesIdleConnections verifies that all http connections
+// are closed when the http.Client created by newWebClient is no longer
+// being used.
+func TestWebClientClosesIdleConnections(t *testing.T) {
+	expectedResponse := &PingResponse{
+		Proxy: ProxySettings{
+			TLSRoutingEnabled: true,
+		},
+		ServerVersion:    "1.2.3",
+		MinClientVersion: "0.1.2",
+		ClusterName:      "test",
+	}
+
+	expectedStates := []string{
+		http.StateNew.String(), http.StateActive.String(), http.StateClosed.String(), // the https request will fail and cause us to fallback to http
+		http.StateNew.String(), http.StateActive.String(), http.StateIdle.String(), http.StateClosed.String(), // the http request should be processed and closed
+	}
+
+	srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/webapi/find":
+			json.NewEncoder(w).Encode(expectedResponse)
+		default:
+			w.WriteHeader(http.StatusBadRequest)
+		}
+	}))
+
+	stateChange := make(chan string, len(expectedStates))
+	srv.Config.ConnState = func(conn net.Conn, state http.ConnState) {
+		stateChange <- state.String()
+	}
+
+	srv.Start()
+	t.Cleanup(srv.Close)
+
+	resp, err := Find(&Config{
+		Context:   context.Background(),
+		ProxyAddr: strings.TrimPrefix(srv.URL, "http://"),
+		Insecure:  true,
+	})
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(expectedResponse, resp))
+
+	var got []string
+	for i := range expectedStates {
+		select {
+		case state := <-stateChange:
+			got = append(got, state)
+		case <-time.After(3 * time.Second):
+			t.Fatalf("timeout waiting for expected connection state %d", i)
+		}
+	}
+
+	slices.Sort(expectedStates)
+	slices.Sort(got)
+
+	require.Equal(t, expectedStates, got)
 }

@@ -25,16 +25,16 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/elasticache"
 	"github.com/aws/aws-sdk-go/service/memorydb"
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
 	clients "github.com/gravitational/teleport/lib/cloud"
 	libaws "github.com/gravitational/teleport/lib/cloud/aws"
+	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/srv/db/cloud"
 	libsecrets "github.com/gravitational/teleport/lib/srv/db/secrets"
-	"github.com/gravitational/trace"
 )
 
 var managedTags = map[string]string{
@@ -52,14 +52,14 @@ func TestUsers(t *testing.T) {
 	smMock := libsecrets.NewMockSecretsManagerClient(libsecrets.MockSecretsManagerClientConfig{
 		Clock: clock,
 	})
-	ecMock := &cloud.ElastiCacheMock{}
+	ecMock := &mocks.ElastiCacheMock{}
 	ecMock.AddMockUser(elastiCacheUser("alice", "group1"), managedTags)
 	ecMock.AddMockUser(elastiCacheUser("bob", "group1", "group2"), managedTags)
 	ecMock.AddMockUser(elastiCacheUser("charlie", "group2", "group3"), managedTags)
 	ecMock.AddMockUser(elastiCacheUser("dan", "group3"), managedTags)
 	ecMock.AddMockUser(elastiCacheUser("not-managed", "group1", "group2"), nil)
 
-	mdbMock := &cloud.MemoryDBMock{}
+	mdbMock := &mocks.MemoryDBMock{}
 	mdbMock.AddMockUser(memoryDBUser("alice", "acl1"), managedTags)
 	mdbMock.AddMockUser(memoryDBUser("bob", "acl1", "acl2"), managedTags)
 	mdbMock.AddMockUser(memoryDBUser("charlie", "acl2", "acl3"), managedTags)
@@ -119,12 +119,23 @@ func TestUsers(t *testing.T) {
 		// Validate db6 is same as before.
 		requireDatabaseWithManagedUsers(t, users, db6, []string{"alice", "bob"})
 	})
+
+	t.Run("new database with same name", func(t *testing.T) {
+		newDB6 := mustCreateRDSDatabase(t, "db6")
+		users.setupDatabaseAndRotatePasswords(ctx, newDB6)
+
+		// Make sure no users are cached for "db6".
+		_, err := users.GetPassword(context.Background(), db6, "alice")
+		require.Error(t, err)
+	})
 }
 
 func requireDatabaseWithManagedUsers(t *testing.T, users *Users, db types.Database, managedUsers []string) {
 	require.Equal(t, managedUsers, db.GetManagedUsers())
 	for _, username := range managedUsers {
-		password, err := users.GetPassword(context.TODO(), db, username)
+		// Usually a copy of the proxied database is passed to the engine
+		// instead of the same object.
+		password, err := users.GetPassword(context.Background(), db.Copy(), username)
 		require.NoError(t, err)
 		require.NotEmpty(t, password)
 	}
@@ -135,7 +146,7 @@ func mustCreateElastiCacheDatabase(t *testing.T, name string, userGroupIDs ...st
 		Name: name,
 	}, types.DatabaseSpecV3{
 		Protocol: defaults.ProtocolRedis,
-		URI:      "master.redis-cluster.1234567890.use1.cache.amazonaws.com:6379",
+		URI:      "master.redis-cluster.123456789012.use1.cache.amazonaws.com:6379",
 		AWS: types.AWS{
 			ElastiCache: types.ElastiCache{
 				UserGroupIDs: userGroupIDs,
@@ -176,7 +187,7 @@ func mustCreateRDSDatabase(t *testing.T, name string) types.Database {
 func elastiCacheUser(name string, groupIDs ...string) *elasticache.User {
 	return &elasticache.User{
 		UserId:       aws.String(name),
-		ARN:          aws.String("arn:aws:elasticache:us-east-1:1234567890:user:" + name),
+		ARN:          aws.String("arn:aws:elasticache:us-east-1:123456789012:user:" + name),
 		UserName:     aws.String(name),
 		UserGroupIds: aws.StringSlice(groupIDs),
 	}
@@ -184,7 +195,7 @@ func elastiCacheUser(name string, groupIDs ...string) *elasticache.User {
 
 func memoryDBUser(name string, aclNames ...string) *memorydb.User {
 	return &memorydb.User{
-		ARN:      aws.String("arn:aws:memorydb:us-east-1:1234567890:user/" + name),
+		ARN:      aws.String("arn:aws:memorydb:us-east-1:123456789012:user/" + name),
 		Name:     aws.String(name),
 		ACLNames: aws.StringSlice(aclNames),
 	}

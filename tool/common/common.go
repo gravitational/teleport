@@ -17,9 +17,11 @@ limitations under the License.
 package common
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
+	"sort"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -27,6 +29,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/utils"
@@ -52,18 +55,27 @@ type SessionsCollection struct {
 func (e *SessionsCollection) WriteText(w io.Writer) error {
 	t := asciitable.MakeTable([]string{"ID", "Type", "Participants", "Hostname", "Timestamp"})
 	for _, event := range e.SessionEvents {
-		session, ok := event.(*events.SessionEnd)
-		if !ok {
-			log.Warn(trace.BadParameter("unsupported event type: expected SessionEnd: got: %T", event))
+		var id, typ, participants, hostname, timestamp string
+
+		switch session := event.(type) {
+		case *events.SessionEnd:
+			id = session.GetSessionID()
+			typ = session.Protocol
+			participants = strings.Join(session.Participants, ", ")
+			hostname = session.ServerAddr
+			timestamp = session.GetTime().Format(constants.HumanDateFormatSeconds)
+		case *events.WindowsDesktopSessionEnd:
+			id = session.GetSessionID()
+			typ = "windows"
+			participants = strings.Join(session.Participants, ", ")
+			hostname = session.DesktopName
+			timestamp = session.GetTime().Format(constants.HumanDateFormatSeconds)
+		default:
+			log.Warn(trace.BadParameter("unsupported event type: expected SessionEnd or WindowsDesktopSessionEnd: got: %T", event))
 			continue
 		}
-		t.AddRow([]string{
-			session.GetSessionID(),
-			session.Protocol,
-			strings.Join(session.Participants, ", "),
-			session.ServerHostname,
-			session.GetTime().Format(constants.HumanDateFormatSeconds),
-		})
+
+		t.AddRow([]string{id, typ, participants, hostname, timestamp})
 	}
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
@@ -84,7 +96,7 @@ func (e *SessionsCollection) WriteYAML(w io.Writer) error {
 	return utils.WriteYAML(w, e.SessionEvents)
 }
 
-// ShowSessions is s helper function for displaying listed sessions via tsh or tctl
+// ShowSessions is a helper function for displaying listed sessions via tsh or tctl.
 func ShowSessions(events []events.AuditEvent, format string, w io.Writer) error {
 	sessions := &SessionsCollection{SessionEvents: events}
 	switch format {
@@ -97,4 +109,81 @@ func ShowSessions(events []events.AuditEvent, format string, w io.Writer) error 
 	default:
 		return trace.BadParameter("unknown format %q", format)
 	}
+}
+
+// ClusterAlertGetter manages getting cluster alerts.
+type ClusterAlertGetter interface {
+	GetClusterAlerts(ctx context.Context, query types.GetClusterAlertsRequest) ([]types.ClusterAlert, error)
+}
+
+// ShowClusterAlerts shows cluster alerts matching the given labels and minimum severity.
+func ShowClusterAlerts(ctx context.Context, client ClusterAlertGetter, w io.Writer, labels map[string]string, severity types.AlertSeverity) error {
+	// get any "on login" alerts
+	alerts, err := client.GetClusterAlerts(ctx, types.GetClusterAlertsRequest{
+		Labels:   labels,
+		Severity: severity,
+	})
+	if err != nil && !trace.IsNotImplemented(err) {
+		return trace.Wrap(err)
+	}
+
+	types.SortClusterAlerts(alerts)
+	var errs []error
+	for _, alert := range alerts {
+		if err := alert.CheckMessage(); err != nil {
+			errs = append(errs, trace.Errorf("invalid alert %q: %w", alert.Metadata.Name, err))
+			continue
+		}
+		fmt.Fprintf(w, "%s\n\n", utils.FormatAlert(alert))
+	}
+	return trace.NewAggregate(errs...)
+}
+
+// FormatLabels filters out Teleport namespaced (teleport.[dev|hidden|internal])
+// labels in non-verbose mode, groups the labels by namespace, sorts each
+// group, then re-combines the groups and returns the result as a comma
+// separated string.
+func FormatLabels(labels map[string]string, verbose bool) string {
+	var (
+		teleportNamespaced []string
+		namespaced         []string
+		result             []string
+	)
+	for key, val := range labels {
+		if strings.HasPrefix(key, types.TeleportNamespace+"/") ||
+			strings.HasPrefix(key, types.TeleportHiddenLabelPrefix) ||
+			strings.HasPrefix(key, types.TeleportInternalLabelPrefix) {
+			// remove teleport.[dev|hidden|internal] labels in non-verbose mode.
+			if verbose {
+				teleportNamespaced = append(teleportNamespaced, fmt.Sprintf("%s=%s", key, val))
+			}
+			continue
+		}
+		if strings.Contains(key, "/") {
+			namespaced = append(namespaced, fmt.Sprintf("%s=%s", key, val))
+			continue
+		}
+		result = append(result, fmt.Sprintf("%s=%s", key, val))
+	}
+	sort.Strings(result)
+	sort.Strings(namespaced)
+	sort.Strings(teleportNamespaced)
+	namespaced = append(namespaced, teleportNamespaced...)
+	return strings.Join(append(result, namespaced...), ",")
+}
+
+// FormatResourceName returns the resource's name or its name as originally
+// discovered in the cloud by the Teleport Discovery Service.
+// In verbose mode, it always returns the resource name.
+// In non-verbose mode, if the resource came from discovery and has the
+// discovered name label, it returns the discovered name.
+func FormatResourceName(r types.ResourceWithLabels, verbose bool) string {
+	if !verbose {
+		// return the (shorter) discovered name in non-verbose mode.
+		discoveredName, ok := r.GetAllLabels()[types.DiscoveredNameLabel]
+		if ok && discoveredName != "" {
+			return discoveredName
+		}
+	}
+	return r.GetName()
 }

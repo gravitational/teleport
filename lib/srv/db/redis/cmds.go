@@ -24,14 +24,15 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/go-redis/redis/v8"
-	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/trace"
+	"github.com/redis/go-redis/v9"
+	"golang.org/x/exp/slices"
+
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
 	"github.com/gravitational/teleport/lib/srv/db/redis/protocol"
-	"github.com/gravitational/trace"
 )
 
 // List of commands that Teleport handles in a special way by Redis standalone and cluster.
@@ -54,7 +55,12 @@ const (
 //   - Subscribe related commands created a new DB connection as they change Redis request-response model to Pub/Sub.
 func (e *Engine) processCmd(ctx context.Context, cmd *redis.Cmd) error {
 	switch strings.ToLower(cmd.Name()) {
-	case helloCmd, punsubscribeCmd, ssubscribeCmd, sunsubscribeCmd:
+	case helloCmd:
+		// HELLO command is still not supported yet by Teleport. However, some
+		// Redis clients (e.g. go-redis) may explicitly look for the original
+		// Redis unknown command error so it can fallback to RESP2.
+		return protocol.MakeUnknownCommandErrorForCmd(cmd)
+	case punsubscribeCmd, ssubscribeCmd, sunsubscribeCmd:
 		return protocol.ErrCmdNotSupported
 	case authCmd:
 		return e.processAuth(ctx, cmd)
@@ -168,9 +174,9 @@ func (e *Engine) processAuth(ctx context.Context, cmd *redis.Cmd) error {
 		}
 
 		err := e.sessionCtx.Checker.CheckAccess(e.sessionCtx.Database,
-			services.AccessMFAParams{Verified: true},
+			services.AccessState{MFAVerified: true},
 			role.DatabaseRoleMatchers(
-				defaults.ProtocolRedis,
+				e.sessionCtx.Database,
 				e.sessionCtx.DatabaseUser,
 				e.sessionCtx.DatabaseName,
 			)...)
@@ -199,7 +205,7 @@ func (e *Engine) processAuth(ctx context.Context, cmd *redis.Cmd) error {
 		}
 
 		// For Teleport managed users, bypass the passwords sent here.
-		if apiutils.SliceContainsStr(e.sessionCtx.Database.GetManagedUsers(), e.sessionCtx.DatabaseUser) {
+		if slices.Contains(e.sessionCtx.Database.GetManagedUsers(), e.sessionCtx.DatabaseUser) {
 			return trace.Wrap(e.sendToClient([]string{
 				"OK",
 				fmt.Sprintf("Please note that AUTH commands are ignored for Teleport managed user '%s'.", e.sessionCtx.DatabaseUser),
@@ -215,9 +221,9 @@ func (e *Engine) processAuth(ctx context.Context, cmd *redis.Cmd) error {
 		}
 
 		err := e.sessionCtx.Checker.CheckAccess(e.sessionCtx.Database,
-			services.AccessMFAParams{Verified: true},
+			services.AccessState{MFAVerified: true},
 			role.DatabaseRoleMatchers(
-				defaults.ProtocolRedis,
+				e.sessionCtx.Database,
 				e.sessionCtx.DatabaseUser,
 				e.sessionCtx.DatabaseName,
 			)...)

@@ -18,13 +18,16 @@ package types
 
 import (
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 
-	"github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/api/utils"
-
 	"github.com/gravitational/trace"
+	"golang.org/x/exp/slices"
+
+	"github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types/common"
+	"github.com/gravitational/teleport/api/utils"
 )
 
 // Resource represents common properties for all resources.
@@ -48,12 +51,35 @@ type Resource interface {
 	// GetMetadata returns object metadata
 	GetMetadata() Metadata
 	// GetResourceID returns resource ID
+	// Deprecated: use GetRevision instead
 	GetResourceID() int64
 	// SetResourceID sets resource ID
+	// Deprecated: use SetRevision instead
 	SetResourceID(int64)
+	// GetRevision returns the revision
+	GetRevision() string
+	// SetRevision sets the revision
+	SetRevision(string)
 	// CheckAndSetDefaults validates the Resource and sets any empty fields to
 	// default values.
 	CheckAndSetDefaults() error
+}
+
+// IsSystemResource checks to see if the given resource is considered
+// part of the teleport system, as opposed to some user created resource
+// or preset.
+func IsSystemResource(r Resource) bool {
+	metadata := r.GetMetadata()
+	if t, ok := metadata.Labels[TeleportInternalResourceType]; ok {
+		return t == SystemResource
+	}
+	return false
+}
+
+// ResourceDetails includes details about the resource
+type ResourceDetails struct {
+	Hostname     string
+	FriendlyName string
 }
 
 // ResourceWithSecrets includes additional properties which must
@@ -80,6 +106,8 @@ type ResourceWithOrigin interface {
 type ResourceWithLabels interface {
 	// ResourceWithOrigin is the base resource interface.
 	ResourceWithOrigin
+	// GetLabel retrieves the label with the provided key.
+	GetLabel(key string) (value string, ok bool)
 	// GetAllLabels returns all resource's labels.
 	GetAllLabels() map[string]string
 	// GetStaticLabels returns the resource's static labels.
@@ -146,6 +174,19 @@ func (r ResourcesWithLabels) AsServers() ([]Server, error) {
 	return servers, nil
 }
 
+// AsDatabases converts each resource into type Database.
+func (r ResourcesWithLabels) AsDatabases() ([]Database, error) {
+	dbs := make([]Database, 0, len(r))
+	for _, resource := range r {
+		db, ok := resource.(Database)
+		if !ok {
+			return nil, trace.BadParameter("expected types.Database, got: %T", resource)
+		}
+		dbs = append(dbs, db)
+	}
+	return dbs, nil
+}
+
 // AsDatabaseServers converts each resource into type DatabaseServer.
 func (r ResourcesWithLabels) AsDatabaseServers() ([]DatabaseServer, error) {
 	dbs := make([]DatabaseServer, 0, len(r))
@@ -157,6 +198,19 @@ func (r ResourcesWithLabels) AsDatabaseServers() ([]DatabaseServer, error) {
 		dbs = append(dbs, db)
 	}
 	return dbs, nil
+}
+
+// AsDatabaseServices converts each resource into type DatabaseService.
+func (r ResourcesWithLabels) AsDatabaseServices() ([]DatabaseService, error) {
+	services := make([]DatabaseService, len(r))
+	for i, resource := range r {
+		dbService, ok := resource.(DatabaseService)
+		if !ok {
+			return nil, trace.BadParameter("expected types.DatabaseService, got: %T", resource)
+		}
+		services[i] = dbService
+	}
+	return services, nil
 }
 
 // AsWindowsDesktops converts each resource into type WindowsDesktop.
@@ -211,19 +265,44 @@ func (r ResourcesWithLabels) AsKubeServers() ([]KubeServer, error) {
 	return servers, nil
 }
 
+// AsUserGroups converts each resource into type UserGroup.
+func (r ResourcesWithLabels) AsUserGroups() ([]UserGroup, error) {
+	userGroups := make([]UserGroup, 0, len(r))
+	for _, resource := range r {
+		userGroup, ok := resource.(UserGroup)
+		if !ok {
+			return nil, trace.BadParameter("expected types.UserGroup, got: %T", resource)
+		}
+		userGroups = append(userGroups, userGroup)
+	}
+	return userGroups, nil
+}
+
 // GetVersion returns resource version
 func (h *ResourceHeader) GetVersion() string {
 	return h.Version
 }
 
 // GetResourceID returns resource ID
+// Deprecated: Use GetRevision instead.
 func (h *ResourceHeader) GetResourceID() int64 {
 	return h.Metadata.ID
 }
 
 // SetResourceID sets resource ID
+// Deprecated: Use SetRevision instead.
 func (h *ResourceHeader) SetResourceID(id int64) {
 	h.Metadata.ID = id
+}
+
+// GetRevision returns the revision
+func (h *ResourceHeader) GetRevision() string {
+	return h.Metadata.GetRevision()
+}
+
+// SetRevision sets the revision
+func (h *ResourceHeader) SetRevision(rev string) {
+	h.Metadata.SetRevision(rev)
 }
 
 // GetName returns the name of the resource
@@ -266,6 +345,38 @@ func (h *ResourceHeader) SetSubKind(s string) {
 	h.SubKind = s
 }
 
+// Origin returns the origin value of the resource.
+func (h *ResourceHeader) Origin() string {
+	return h.Metadata.Origin()
+}
+
+// SetOrigin sets the origin value of the resource.
+func (h *ResourceHeader) SetOrigin(origin string) {
+	h.Metadata.SetOrigin(origin)
+}
+
+// GetStaticLabels returns the static labels for the resource.
+func (h *ResourceHeader) GetStaticLabels() map[string]string {
+	return h.Metadata.Labels
+}
+
+// SetStaticLabels sets the static labels for the resource.
+func (h *ResourceHeader) SetStaticLabels(sl map[string]string) {
+	h.Metadata.Labels = sl
+}
+
+// GetLabel retrieves the label with the provided key. If not found
+// value will be empty and ok will be false.
+func (h *ResourceHeader) GetLabel(key string) (value string, ok bool) {
+	v, ok := h.Metadata.Labels[key]
+	return v, ok
+}
+
+// GetAllLabels returns all labels from the resource..
+func (h *ResourceHeader) GetAllLabels() map[string]string {
+	return h.Metadata.Labels
+}
+
 func (h *ResourceHeader) CheckAndSetDefaults() error {
 	if h.Kind == "" {
 		return trace.BadParameter("resource has an empty Kind field")
@@ -284,6 +395,16 @@ func (m *Metadata) GetID() int64 {
 // SetID sets resource ID
 func (m *Metadata) SetID(id int64) {
 	m.ID = id
+}
+
+// GetRevision returns the revision
+func (m *Metadata) GetRevision() string {
+	return m.Revision
+}
+
+// SetRevision sets the revision
+func (m *Metadata) SetRevision(rev string) {
+	m.Revision = rev
 }
 
 // GetMetadata returns object metadata
@@ -352,7 +473,7 @@ func (m *Metadata) CheckAndSetDefaults() error {
 
 	// Check the origin value.
 	if m.Origin() != "" {
-		if !utils.SliceContainsStr(OriginValues, m.Origin()) {
+		if !slices.Contains(OriginValues, m.Origin()) {
 			return trace.BadParameter("invalid origin value %q, must be one of %v", m.Origin(), OriginValues)
 		}
 	}
@@ -377,15 +498,25 @@ func MatchLabels(resource ResourceWithLabels, labels map[string]string) bool {
 	return true
 }
 
-// LabelPattern is a regexp that describes a valid label key
-const LabelPattern = `^[a-zA-Z/.0-9_:*-]+$`
-
-var validLabelKey = regexp.MustCompile(LabelPattern)
+// MatchKinds takes an array of strings that represent a Kind and
+// returns true if the resource's kind matches any item in the given array.
+func MatchKinds(resource ResourceWithLabels, kinds []string) bool {
+	if len(kinds) == 0 {
+		return true
+	}
+	resourceKind := resource.GetKind()
+	switch resourceKind {
+	case KindApp, KindSAMLIdPServiceProvider:
+		return slices.Contains(kinds, KindApp)
+	default:
+		return slices.Contains(kinds, resourceKind)
+	}
+}
 
 // IsValidLabelKey checks if the supplied string matches the
 // label key regexp.
 func IsValidLabelKey(s string) bool {
-	return validLabelKey.MatchString(s)
+	return common.IsValidLabelKey(s)
 }
 
 // MatchSearch goes through select field values from a resource
@@ -424,6 +555,85 @@ func stringCompare(a string, b string, isDesc bool) bool {
 	return a < b
 }
 
+var kindsOrder = []string{
+	"app", "db", "windows_desktop", "kube_cluster", "node",
+}
+
+// unifiedKindCompare compares two resource kinds and returns true if a is less than b.
+// Note that it's not just a simple string comparison, since the UI names these
+// kinds slightly differently, and hence uses a different alphabetical order for
+// them.
+//
+// If resources are of the same kind, this function falls back to comparing
+// their unified names.
+func unifiedKindCompare(a, b ResourceWithLabels, isDesc bool) bool {
+	ak := a.GetKind()
+	bk := b.GetKind()
+
+	if ak == bk {
+		return unifiedNameCompare(a, b, isDesc)
+	}
+
+	ia := slices.Index(kindsOrder, ak)
+	ib := slices.Index(kindsOrder, bk)
+	if ia < 0 && ib < 0 {
+		// Fallback for a case of two unknown resources.
+		return stringCompare(ak, bk, isDesc)
+	}
+	if isDesc {
+		return ia > ib
+	}
+	return ia < ib
+}
+
+func unifiedNameCompare(a ResourceWithLabels, b ResourceWithLabels, isDesc bool) bool {
+	var nameA, nameB string
+	switch r := a.(type) {
+	case AppServer:
+		nameA = r.GetApp().GetName()
+	case DatabaseServer:
+		nameA = r.GetDatabase().GetName()
+	case KubeServer:
+		nameA = r.GetCluster().GetName()
+	case Server:
+		nameA = r.GetHostname()
+	default:
+		nameA = a.GetName()
+	}
+
+	switch r := b.(type) {
+	case AppServer:
+		nameB = r.GetApp().GetName()
+	case DatabaseServer:
+		nameB = r.GetDatabase().GetName()
+	case KubeServer:
+		nameB = r.GetCluster().GetName()
+	case Server:
+		nameB = r.GetHostname()
+	default:
+		nameB = a.GetName()
+	}
+
+	return stringCompare(strings.ToLower(nameA), strings.ToLower(nameB), isDesc)
+}
+
+func (r ResourcesWithLabels) SortByCustom(by SortBy) error {
+	isDesc := by.IsDesc
+	switch by.Field {
+	case ResourceMetadataName:
+		sort.SliceStable(r, func(i, j int) bool {
+			return unifiedNameCompare(r[i], r[j], isDesc)
+		})
+	case ResourceKind:
+		sort.SliceStable(r, func(i, j int) bool {
+			return unifiedKindCompare(r[i], r[j], isDesc)
+		})
+	default:
+		return trace.NotImplemented("sorting by field %q for unified resource %q is not supported", by.Field, KindUnifiedResource)
+	}
+	return nil
+}
+
 // ListResourcesResponse describes a non proto response to ListResources.
 type ListResourcesResponse struct {
 	// Resources is a list of resource.
@@ -432,4 +642,30 @@ type ListResourcesResponse struct {
 	NextKey string
 	// TotalCount is the total number of resources available as a whole.
 	TotalCount int
+}
+
+// ValidateResourceName validates a resource name using a given regexp.
+func ValidateResourceName(validationRegex *regexp.Regexp, name string) error {
+	if validationRegex.MatchString(name) {
+		return nil
+	}
+	return trace.BadParameter(
+		"%q does not match regex used for validation %q",
+		name, validationRegex.String(),
+	)
+}
+
+// FriendlyName will return the friendly name for a resource if it has one. Otherwise, it
+// will return an empty string.
+func FriendlyName(resource ResourceWithLabels) string {
+	// Right now, only resources sourced from Okta and nodes have friendly names.
+	if resource.Origin() == OriginOkta {
+		return resource.GetMetadata().Description
+	}
+
+	if hn, ok := resource.(interface{ GetHostname() string }); ok {
+		return hn.GetHostname()
+	}
+
+	return ""
 }

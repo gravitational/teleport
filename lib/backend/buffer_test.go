@@ -22,9 +22,10 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/gravitational/teleport/api/types"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 // TestWatcherSimple tests scenarios with watchers
@@ -144,13 +145,14 @@ func TestWatcherCapacity(t *testing.T) {
 // TestWatcherClose makes sure that closed watcher
 // will be removed
 func TestWatcherClose(t *testing.T) {
+	ctx := context.Background()
 	b := NewCircularBuffer(
 		BufferCapacity(3),
 	)
 	defer b.Close()
 	b.SetInit()
 
-	w, err := b.NewWatcher(context.TODO(), Watch{})
+	w, err := b.NewWatcher(ctx, Watch{})
 	require.NoError(t, err)
 
 	select {
@@ -194,20 +196,21 @@ func TestRemoveRedundantPrefixes(t *testing.T) {
 		},
 	}
 	for _, tc := range tcs {
-		require.Empty(t, cmp.Diff(removeRedundantPrefixes(tc.in), tc.out))
+		require.Empty(t, cmp.Diff(RemoveRedundantPrefixes(tc.in), tc.out))
 	}
 }
 
 // TestWatcherMulti makes sure that watcher
 // with multiple matching prefixes will get an event only once
 func TestWatcherMulti(t *testing.T) {
+	ctx := context.Background()
 	b := NewCircularBuffer(
 		BufferCapacity(3),
 	)
 	defer b.Close()
 	b.SetInit()
 
-	w, err := b.NewWatcher(context.TODO(), Watch{Prefixes: [][]byte{[]byte("/a"), []byte("/a/b")}})
+	w, err := b.NewWatcher(ctx, Watch{Prefixes: [][]byte{[]byte("/a"), []byte("/a/b")}})
 	require.NoError(t, err)
 	defer w.Close()
 
@@ -233,13 +236,14 @@ func TestWatcherMulti(t *testing.T) {
 
 // TestWatcherReset tests scenarios with watchers and buffer resets
 func TestWatcherReset(t *testing.T) {
+	ctx := context.Background()
 	b := NewCircularBuffer(
 		BufferCapacity(3),
 	)
 	defer b.Close()
 	b.SetInit()
 
-	w, err := b.NewWatcher(context.TODO(), Watch{})
+	w, err := b.NewWatcher(ctx, Watch{})
 	require.NoError(t, err)
 	defer w.Close()
 
@@ -260,7 +264,7 @@ func TestWatcherReset(t *testing.T) {
 		t.Fatalf("Timeout waiting for close event.")
 	}
 
-	w2, err := b.NewWatcher(context.TODO(), Watch{})
+	w2, err := b.NewWatcher(ctx, Watch{})
 	require.NoError(t, err)
 	defer w2.Close()
 

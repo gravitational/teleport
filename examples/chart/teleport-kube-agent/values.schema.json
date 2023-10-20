@@ -2,17 +2,19 @@
     "$schema": "http://json-schema.org/draft-07/schema",
     "type": "object",
     "required": [
-        "authToken",
         "proxyAddr",
         "roles",
+        "joinParams",
         "kubeClusterName",
         "apps",
         "appResources",
         "awsDatabases",
+        "azureDatabases",
         "databases",
         "databaseResources",
         "teleportVersionOverride",
         "insecureSkipProxyTLSVerify",
+        "teleportConfig",
         "existingDataVolume",
         "podSecurityPolicy",
         "labels",
@@ -21,11 +23,13 @@
         "clusterRoleBindingName",
         "roleName",
         "roleBindingName",
+        "podMonitor",
         "serviceAccountName",
         "secretName",
         "log",
         "affinity",
         "annotations",
+        "extraContainers",
         "extraVolumes",
         "extraVolumeMounts",
         "imagePullPolicy",
@@ -49,6 +53,24 @@
             "$id": "#/properties/roles",
             "type": "string",
             "default": "kube"
+        },
+        "joinParams": {
+            "$id": "#/properties/joinParams",
+            "type": "object",
+            "required": ["method"],
+            "properties": {
+                "tokenName": {
+                    "$id": "#/properties/joinParams/tokenName",
+                    "type": "string",
+                    "default": ""
+                },
+                "method": {
+                    "$id": "#/properties/joinParams/method",
+                    "type": "string",
+                    "default": "token"
+                },
+                "additionalProperties": false
+            }
         },
         "kubeClusterName": {
             "$id": "#/properties/kubeClusterName",
@@ -120,6 +142,72 @@
                 "additionalProperties": false
             }
         },
+        "azureDatabases": {
+            "$id": "#/properties/azureDatabases",
+            "type": "array",
+            "default": [],
+            "items": {
+                "type": "object",
+                "default": {},
+                "required": [
+                    "types",
+                    "tags"
+                ],
+                "properties": {
+                    "types": {
+                        "$id": "#/properties/azureDatabases/types",
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "default": []
+                    },
+                    "tags": {
+                        "$id": "#/properties/azureDatabases/tags",
+                        "type": "object",
+                        "default": {},
+                        "additionalProperties": {
+                            "oneOf": [
+                                {
+                                    "type": "string"
+                                },
+                                {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "string"
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "subscriptions": {
+                        "$id": "#/properties/azureDatabases/subscriptions",
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "default": []
+                    },
+                    "regions": {
+                        "$id": "#/properties/azureDatabases/regions",
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "default": []
+                    },
+                    "resource_groups": {
+                        "$id": "#/properties/azureDatabases/resource_groups",
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "default": []
+                    },
+                    "additionalProperties": false
+                }
+            }
+        },
         "databases": {
             "$id": "#/properties/databases",
             "type": "array",
@@ -157,6 +245,11 @@
             "$id": "#/properties/insecureSkipProxyTLSVerify",
             "type": "boolean",
             "default": false
+        },
+        "teleportConfig": {
+            "$id": "#/properties/teleportConfig",
+            "type": "object",
+            "default": {}
         },
         "tls": {
             "$id": "#/properties/tls",
@@ -199,7 +292,12 @@
         "image": {
             "$id": "#/properties/image",
             "type": "string",
-            "default": "public.ecr.aws/gravitational/teleport"
+            "default": "public.ecr.aws/gravitational/teleport-distroless"
+        },
+        "enterpriseImage": {
+            "$id": "#/properties/enterpriseImage",
+            "type": "string",
+            "default": "public.ecr.aws/gravitational/teleport-ent-distroless"
         },
         "imagePullSecrets": {
             "$id": "#/properties/imagePullSecrets",
@@ -272,6 +370,29 @@
                 }
             }
         },
+        "podMonitor": {
+            "$id": "#/properties/podMonitor",
+            "type": "object",
+            "required": ["enabled"],
+            "properties": {
+                "enabled": {
+                    "$id": "#/properties/podMonitor/enabled",
+                    "type": "boolean",
+                    "default": false
+                },
+                "additionalLabels": {
+                    "$id": "#/properties/podMonitor/additionalLabels",
+                    "type": "object",
+                    "default": {"prometheus": "default"},
+                    "additionalProperties": {"type": "string"}
+                },
+                "interval": {
+                    "$id": "#/properties/podMonitor/interval",
+                    "type": "string",
+                    "default": "30s"
+                }
+            }
+        },
         "priorityClassName": {
             "$id": "#/properties/priorityClassName",
             "type": "string",
@@ -329,6 +450,16 @@
             "$id": "#/properties/affinity",
             "type": "object",
             "default": {}
+        },
+        "dnsConfig": {
+            "$id": "#/properties/dnsConfig",
+            "type": "object",
+            "default": {}
+        },
+        "dnsPolicy": {
+            "$id": "#/properties/dnsPolicy",
+            "type": "string",
+            "default": ""
         },
         "extraLabels": {
             "$id": "#/properties/extraLabels",
@@ -398,6 +529,7 @@
                 "config",
                 "deployment",
                 "pod",
+                "secret",
                 "serviceAccount"
             ],
             "properties": {
@@ -416,10 +548,44 @@
                     "type": "object",
                     "default": {}
                 },
+                "secret": {
+                    "$id": "#/properties/annotations/properties/secret",
+                    "type": "object",
+                    "default": {}
+                },
                 "serviceAccount": {
                     "$id": "#/properties/annotations/properties/serviceAccount",
                     "type": "object",
                     "default": {}
+                }
+            }
+        },
+        "serviceAccount": {
+            "$id": "#/properties/serviceAccount",
+            "type": "object",
+            "required": [],
+            "properties": {
+                "name": {
+                    "$id": "#properties/serviceAccount/name",
+                    "type": "string",
+                    "default": ""
+                },
+                "create": {
+                    "$id": "#properties/serviceAccount/create",
+                    "type": "boolean",
+                    "default": true
+                }
+            }
+        },
+        "rbac": {
+            "$id": "#/properties/rbac",
+            "type": "object",
+            "required": [],
+            "properties": {
+                "create": {
+                    "$id": "#properties/rbac/create",
+                    "type": "boolean",
+                    "default": true
                 }
             }
         },
@@ -433,6 +599,11 @@
             "type": "array",
             "default": []
         },
+        "extraContainers": {
+            "$id": "#/properties/extraContainers",
+            "type": "array",
+            "default": []
+        },
         "extraVolumes": {
             "$id": "#/properties/extraVolumes",
             "type": "array",
@@ -440,6 +611,11 @@
         },
         "extraVolumeMounts": {
             "$id": "#/properties/extraVolumeMounts",
+            "type": "array",
+            "default": []
+        },
+        "hostAliases": {
+            "$id": "#/properties/hostAliases",
             "type": "array",
             "default": []
         },
@@ -472,6 +648,34 @@
             "$id": "#/properties/probeTimeoutSeconds",
             "type": "integer",
             "default": 1
+        },
+        "kubernetesDiscovery": {
+            "$id": "#/properties/kubernetesDiscovery",
+            "type": "array",
+            "default": [],
+            "properties": {
+                "types": {
+                    "$id": "#/properties/kubernetesDiscovery/types",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "default": []
+                },
+                "namespaces": {
+                    "$id": "#/properties/kubernetesDiscovery/namespaces",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "default": []
+                },
+                "labels": {
+                    "$id": "#/properties/kubernetesDiscovery/labels",
+                    "type": "object"
+                },
+                "additionalProperties": false
+            }
         }
     }
 }

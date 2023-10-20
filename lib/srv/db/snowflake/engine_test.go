@@ -23,6 +23,10 @@ import (
 	"net/http"
 	"testing"
 
+	// Register Snowflake database driver.
+	// Do not move this dependency outside _test.go file. Doing so will create
+	// ocsp_response_cache.json in random places.
+	_ "github.com/snowflakedb/gosnowflake"
 	"github.com/stretchr/testify/require"
 )
 

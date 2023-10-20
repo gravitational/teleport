@@ -1,10 +1,10 @@
 ---
 title: Database Access CLI Reference
-description: CLI reference for Teleport Database Access.
+description: CLI reference for Teleport database access.
 ---
 
 This reference shows you how to run common commands for managing Teleport
-Database Access, including:
+the Database Service, including:
 
 - The `teleport` daemon command, which is executed on the host where you
   will run the Teleport Database Service.
@@ -21,7 +21,8 @@ Database Access, including:
 
 Starts Teleport Database Service.
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
 ```code
 $ teleport db start \
@@ -32,8 +33,8 @@ $ teleport db start \
     --uri=postgres.example.com:5432
 ```
 
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
 ```code
 $ teleport db start \
@@ -44,7 +45,9 @@ $ teleport db start \
     --uri=postgres.mytenant.teleport.sh:5432
 ```
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 | Flag | Description |
 | - | - |
@@ -70,7 +73,8 @@ $ teleport db start \
 
 Creates a sample Database Service configuration.
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
 ```code
 $ teleport db configure create --rds-discovery=us-west-1 --rds-discovery=us-west-2
@@ -83,36 +87,48 @@ $ teleport db configure create \
   --labels=env=prod
 ```
 
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
 ```code
 $ teleport db configure create --rds-discovery=us-west-1 --rds-discovery=us-west-2
 $ teleport db configure create \
   --token=/tmp/token \
-  --proxy=mytenant.teleport.sh:3080 \
+  --proxy=mytenant.teleport.sh:443 \
   --name=example \
   --protocol=postgres \
   --uri=postgres://postgres.mytenant.teleport.sh:5432 \
   --labels=env=prod
 ```
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 | Flag | Description |
 | - | - |
 | `--proxy` | Teleport Proxy Service address to connect to. Default: `0.0.0.0:3080`. |
 | `--token` | Invitation token to register with the Auth Service. Default: none. |
-| `--rds-discovery` | List of AWS regions in which the Database Service will discover RDS/Aurora instances. |
-| `--redshift-discovery` | List of AWS regions in which the Database Service will discover Redshift instances. |
-| `--elasticache-discovery` | List of AWS regions in which the Database Service will discover ElastiCache Redis clusters. |
-| `--memorydb-discovery` | List of AWS regions in which the Database Service will discover MemoryDB clusters. |
+| `--rds-discovery` | List of AWS regions in which the agent will discover RDS/Aurora instances. |
+| `--rdsproxy-discovery` | List of AWS regions in which the agent will discover RDS Proxies. |
+| `--redshift-discovery` | List of AWS regions in which the agent will discover Redshift instances. |
+| `--redshift-serverless-discovery` | List of AWS regions in which the agent will discover Redshift Serverless instances. |
+| `--elasticache-discovery` | List of AWS regions in which the agent will discover ElastiCache Redis clusters. |
+| `--aws-tags` | (Only for AWS discoveries) Comma-separated list of AWS resource tags to match, for example env=dev,dept=it |
+| `--memorydb-discovery` | List of AWS regions in which the agent will discover MemoryDB clusters. |
+| `--azure-mysql-discovery` | List of Azure regions in which the agent will discover MySQL servers. |
+| `--azure-postgres-discovery` | List of Azure regions in which the agent will discover Postgres servers. |
+| `--azure-redis-discovery` | List of Azure regions in which the agent will discover Azure Cache For Redis servers. |
+| `--azure-subscription` | List of Azure subscription IDs for Azure discoveries. Default is "*". |
+| `--azure-resource-group` | List of Azure resource groups for Azure discoveries. Default is "*". |
+| `--azure-tags` | (Only for Azure discoveries) Comma-separated list of Azure resource tags to match, for example env=dev,dept=it |
 | `--ca-pin` | CA pin to validate the Auth Service (can be repeated for multiple pins). |
 | `--name` | Name of the proxied database. |
 | `--protocol` | Proxied database protocol. Supported are: `[postgres mysql mongodb cockroachdb redis sqlserver snowflake]`. |
 | `--uri` | Address the proxied database is reachable at. |
 | `--labels` | Comma-separated list of labels for the database, for example env=dev,dept=it |
 | `-o/--output` | Write to stdout with `-o=stdout`, the default config file with `-o=file`, or a custom path with `-o=file:///path` |
+| `--dynamic-resources-labels` | Comma-separated list(s) of labels to match dynamic resources, for example env=dev,dept=it. Required to enable dynamic resources matching. |
 
 ## teleport db configure bootstrap
 
@@ -138,11 +154,12 @@ $ teleport db configure bootstrap -c /etc/teleport.yaml --manual
 
 When invoked with a `--format=db` (or `--format=mongodb` for MongoDB) flag,
 produces a CA certificate, a client certificate and a private key file used for
-configuring Database Access with self-hosted database instances.
+configuring the Database Service with self-hosted database instances.
 
 <Admonition type="note" title="Note">
   For database formats, `tctl` must be run on an Auth Service host or the remote
-  user must be be able to impersonate the built-in `Db` role and user. See the [impersonation guide](../../access-controls/guides/impersonation.mdx)
+  user must be be able to impersonate the built-in `Db` role and user. See the
+  [impersonation guide](../../access-controls/guides/impersonation.mdx)
   for details on how to allow impersonation.
 </Admonition>
 
@@ -150,6 +167,10 @@ configuring Database Access with self-hosted database instances.
 $ tctl auth sign --format=db --host=db.example.com --out=db --ttl=2190h
 $ tctl auth sign --format=db --host=host1,localhost,127.0.0.1 --out=db --ttl=2190h
 ```
+
+In this example, `db.example.com` is the hostname where the Teleport Database
+Service can reach the database server. The second example assumes a
+database running on the same host as Teleport.
 
 | Flag | Description |
 | - | - |
@@ -181,7 +202,7 @@ spec:
       roles: ['Db']
 ```
 
-Create the fole:
+Create the role:
 
 ```code
 $ tctl create -f db-impersonator.yaml
@@ -274,8 +295,10 @@ $ tsh db login --db-user=postgres --db-name=postgres example
 
 | Flag | Description |
 | - | - |
-| `--db-user` | Optionally, set default database account name to connect as. |
-| `--db-name` | Optionally, set default database name to connect to. |
+| `--db-user` | The database user to log in as. |
+| `--db-name` | The database name to log in to. |
+
+(!docs/pages/includes/db-user-name-flags.mdx!)
 
 ## tsh db logout
 
@@ -306,8 +329,10 @@ $ tsh db connect --db-user=alice --db-name=db example
 
 | Flag | Description |
 | - | - |
-| `--db-user` | Optionally, set database user name to connect as. |
-| `--db-name` | Optionally, set database name to connect to. |
+| `--db-user` | The database user to log in as. |
+| `--db-name` | The database name to log in to. |
+
+(!docs/pages/includes/db-user-name-flags.mdx!)
 
 ## tsh db env
 
@@ -332,3 +357,4 @@ $ tsh db config --format=cmd example
 | Flag | Description |
 | - | - |
 | `--format` | Output format: `text` is default, `cmd` to print native database client connect command. |
+

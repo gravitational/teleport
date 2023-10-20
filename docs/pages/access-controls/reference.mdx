@@ -1,6 +1,6 @@
 ---
 title: Access Controls Reference Documentation
-description: Access Controls reference documentation for role options and properties.
+description: This reference shows you the configuration settings that you can include in a Teleport role, which enables you to apply access controls for your infrastructure.
 h1: Teleport Access Controls Reference
 ---
 
@@ -12,7 +12,7 @@ controls (RBAC) in your Teleport cluster.
 A Teleport `role` works by having two lists of rules: `allow` rules and `deny` rules.
 When declaring access rules, keep in mind the following:
 
-- Everything is denied by default.
+- Nothing is allowed by default.
 - Deny rules get evaluated first and take priority.
 
 A rule consists of two parts: the resources and verbs. Here's an example of an
@@ -25,16 +25,17 @@ allow:
     verbs: [list]
 ```
 
-If this rule was declared in the `deny` section of a role definition, it
-would prohibit users from getting a list of trusted clusters and
-sessions. You can see all of the available resources and verbs under the `allow`
-section in the example role configuration below.
+If this rule was declared in the `deny` section of a role definition, it would
+prohibit users from getting a list of active sessions. You can see all of the
+available resources and verbs under the `allow` section in the example role
+configuration below.
 
 To manage cluster roles, a Teleport administrator can use the Web UI or the
 command line using [tctl resource commands](../reference/resources.mdx).
 To see the list of roles in a Teleport cluster, an administrator can execute:
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
 ```code
 # Log in to your cluster with tsh so you can use tctl from your local machine.
@@ -44,8 +45,8 @@ $ tsh login --user=myuser --proxy=teleport.example.com
 $ tctl get roles
 ```
 
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
 ```code
 # Log in to your cluster with tsh so you can use tctl.
@@ -53,7 +54,9 @@ $ tsh login --user=myuser --proxy=mytenant.teleport.sh
 $ tctl get roles
 ```
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 (!docs/pages/includes/backup-warning.mdx!)
 
@@ -65,8 +68,8 @@ The following variables can be used with `logins` and `windows_desktop_logins` f
 
 | Variable | Description |
 | - | - |
-| `{{internal.logins}}` | Substituted with "allowed logins" parameter used in `tctl users add [user] <allowed logins>` command. This applies only to users stored in Teleport's own local database. |
-| `{{external.xyz}}` | Substituted with a value from an external [SSO provider](https://en.wikipedia.org/wiki/Single_sign-on). If using SAML, this will be expanded with "xyz" assertion value. For OIDC, this will be expanded a value of "xyz" claim. |
+| `{{internal.logins}}` | Substituted with a value stored in Teleport's local user database<br/>and logins from a root cluster. <br/><br/>For local users, Teleport will substitute this with the<br/>"allowed logins" parameter used in the<br/>`tctl users add [user] <allowed logins>` command. <br/><br/>If the role is within a leaf cluster in a [trusted cluster](../management/admin/trustedclusters.mdx),<br/>Teleport will substitute the logins from the root cluster<br/>whether the user is a local user or from an SSO provider. <br/><br/>As an example, if the user has the `ubuntu` login in the root<br/>cluster, then `ubuntu` will be substituted in the leaf<br/>cluster with this variable. |
+| `{{external.xyz}}` | Substituted with a value from an external [SSO provider](https://en.wikipedia.org/wiki/Single_sign-on).<br/>If using SAML, this will be expanded with "xyz" assertion value.<br/>For OIDC, this will be expanded a value of "xyz" claim. |
 
 Both variables above are there to deliver the same benefit: they allow Teleport
 administrators to define allowed OS logins via the user database, be it the
@@ -100,12 +103,13 @@ The table below documents the behavior of each option if multiple roles are assi
 | `forward_agent` | Allow SSH agent forwarding | Logical "OR" i.e. if any role allows agent forwarding, it's allowed |
 | `port_forwarding` | Allow TCP port forwarding | Logical "OR" i.e. if any role allows port forwarding, it's allowed |
 | `ssh_file_copy` | Allow SCP/SFTP | Logical "AND" i.e. if all roles allows file copying, it's allowed |
-| `client_idle_timeout` | Forcefully terminate active SSH sessions after an idle interval | The shortest timeout value wins, i.e. the most restrictive value is selected |
-| `disconnect_expired_cert` | Forcefully terminate active SSH sessions when a client certificate expires | Logical "OR" i.e. evaluates to "yes" if at least one role requires session termination |
+| `client_idle_timeout` | Forcefully terminate active sessions after an idle interval | The shortest timeout value wins, i.e. the most restrictive value is selected |
+| `disconnect_expired_cert` | Forcefully terminate active sessions when a client certificate expires | Logical "OR" i.e. evaluates to "yes" if at least one role requires session termination |
 | `max_sessions` | Total number of session channels which can be established across a single SSH connection via Teleport | |
 | `enhanced_recording` | Indicates which events should be recorded by the BFP-based session recorder | |
 | `permit_x11_forwarding` | Allow users to enable X11 forwarding with OpenSSH clients and servers | |
-| `require_session_mfa` | Require additional MFA tap before initiating a session | Logical "OR" i.e. evaluates to "yes" if at least one role requires session MFA |
+| `device_trust_mode` | Enforce authenticated device access for the owner of this role (`required`, `optional`, `off`) | |
+| `require_session_mfa` | Enforce per-session MFA or PIV-hardware key restrictions on user login sessions (`no`, `yes`, `hardware_key`, `hardware_key_touch`) | For per-session MFA, Logical "OR" i.e. evaluates to "yes" if at least one role requires session MFA |
 | `lock` | Locking mode (`strict` or `best_effort`) | `strict` wins in case of conflict |
 | `request_access` | Enterprise-only Access Request strategy (`optional`, `always` or `reason`) | |
 | `request_prompt` | Prompt for the Access Request "reason" field | |
@@ -113,9 +117,9 @@ The table below documents the behavior of each option if multiple roles are assi
 | `max_kubernetes_connections` | Defines the maximum number of concurrent Kubernetes sessions per user | |
 | `record_session` |Defines the [Session recording mode](../reference/audit.mdx#modes).|The strictest value takes precedence.|
 | `desktop_clipboard` | Allow clipboard sharing for desktop sessions | Logical "AND" i.e. evaluates to "yes" if all roles enable clipboard sharing |
-| `pin_source_ip` | Enable source IP pinning for SSH certificates | Logical "OR" i.e. evaluates to "yes" if at least one role requires session termination |
+| `pin_source_ip` | Enable source IP pinning for SSH certificates. **Note:** IP pinning is currently in Preview mode | Logical "OR" i.e. evaluates to "yes" if at least one role requires session termination |
 | `cert_extensions` | Specifies extensions to be included in SSH certificates | |
-| `create_host_user` | Allow users to be automatically created on a host |  Logical "AND" i.e. evaluates to "yes" if all roles matching a Node enable host user creation |
+| `create_host_user_mode` | Allow users to be automatically created on a host |  Logical "AND" i.e. if all roles matching a server specify host user creation (`off`, `drop`, `keep`), it will evaluate to the option specified by all of the roles. If some roles specify both `drop` or `keep` it will evaluate to `keep`|
 
 ## Preset roles
 
@@ -126,43 +130,45 @@ Teleport provides several pre-defined roles out-of-the-box:
 | `editor` | Allows editing of cluster configuration settings. |
 | `auditor`| Allows reading cluster events, audit logs, and playing back session records. |
 | `access`| Allows access to cluster resources. |
-
-<Details title="Version Warning: Before 8.0" opened={false}>
-Teleport versions prior to 8.0 also included a default `admin` role. This role
-has been deprecated in favor of smaller, more fine-grained roles like the
-presets mentioned above.
-
-Users installing a brand new Teleport cluster on version 8.0 or later will not
-see this `admin` role. Users who upgrade to Teleport 8 from an earlier version
-*will* continue to see the admin role, but are encouraged to migrate to roles
-that are more appropriately scoped.
-</Details>
+| `requester`| Enterprise-only role that allows a user to create Access Requests. |
+| `reviewer`| Enterprise-only role that allows review of Access Requests. |
 
 ### Role versions
 
-There are currently three supported role versions: `v3`, `v4` and `v5`. `v4` and `v5` roles are
+There are currently four supported role versions: `v3`, `v4`, `v5`, `v6` and `v7`. `v4`, `v5` and `v6` roles are
 completely backwards-compatible with `v3`, the only difference lies in the
-default allow labels which will be applied to the role if they are not
-explicitly set. Additionally, `v5` is required to use [Moderated Sessions](./guides/moderated-sessions.mdx).
+default values which will be applied to the role if they are not
+explicitly set. Additionally, roles `v5` or `v6` are required to use [Moderated Sessions](./guides/moderated-sessions.mdx).
 
-Label              | `v3` Default   | `v4` and `v5` Default
+Label              | `v3` Default   | `v4`, `v5` and `v6` Default
 ------------------ | -------------- | ---------------
 `node_labels`       | `[{"*": "*"}]` if the role has any logins, else `[]` | `[]`
 `app_labels`        | `[{"*": "*"}]` | `[]`
 `kubernetes_labels` | `[{"*": "*"}]` | `[]`
-`database_labels`   | `[{"*": "*"}]` | `[]`
+`db_labels`         | `[{"*": "*"}]` | `[]`
 
-## RBAC for hosts
+Role `v6` introduced a new field `kubernetes_resources` that allows
+fine-grained control over Kubernetes resources. See [Kubernetes RBAC](../kubernetes-access/manage-access/rbac.mdx) for more details.
 
-A Teleport role can also define which hosts (nodes) a user can have access to.
-This works by [labeling nodes](../management/admin/labels.mdx) and listing
-allow/deny labels in a role definition.
+Version              |  `kubernetes_resources`
+------------------ | --------------
+`v3`, `v4` and `v5` Default | `[{"kind":"pod", "name":"*", "namespace":"*", "verbs": ["*"]}]`
+`v6` Default |  `[]`
+`v7` Default |  `[{"kind":"*", "name":"*", "namespace":"*", "verbs": ["*"]}]`
+
+## RBAC for resources
+
+A Teleport role defines which resources (e.g., applications, servers, and
+databases) a user can access.
+This works by [labeling resources](../management/admin/labels.mdx) and
+configuring allow/deny labels in a role definition.
 
 Consider the following use case:
 
 The infrastructure is split into staging/production environments using labels
-like `environment=production` and `environment=staging`. You can create roles
-that only have access to one environment. Let's say you create an intern role with the allow rule for label `environment=staging`.
+like `environment=production` and `environment=staging`.
+You can create roles that only have access to one environment.
+Let's say you create an intern role with the allow rule for label `environment=staging`.
 
 ### Example
 
@@ -189,16 +195,27 @@ spec:
       'workload': ['database', 'backup']
 ```
 
+Teleport handles multiple label entries with logical "AND" operations.
+As an example, this entry would match to databases that have the `env: prod`
+label *and* a `region` label of either `us-west-1` or `eu-central-1`:
+
+```yaml
+    db_labels:
+      'env': 'prod'
+      'region': ['us-west-1', 'eu-central-1']
+```
+
 <Admonition
   type="tip"
   title="Dynamic RBAC"
 >
-  Node labels can be dynamic, i.e. determined at runtime by an output of an executable. In this case, you can implement "permissions follow workload"
+  Resource labels can be dynamic, i.e. determined at runtime by an output of an executable.
+  In this case, you can implement "permissions follow workload"
   policies (eg., any server where PostgreSQL is running becomes *automatically*
   accessible only by the members of the "DBA" group and nobody else).
 </Admonition>
 
-### Extended Node labels syntax
+### Extended label matching syntax
 
 Below are a few examples for more complex filtering using various regexes.
 
@@ -221,6 +238,65 @@ spec:
       'environment': '^test|staging$'
 ```
 
+### Label expressions
+
+<Admonition type="warning">
+Label expressions are available starting in Teleport version `13.1.1`.
+All components of your Teleport cluster must be upgraded to version `13.1.1`
+or newer before you will be able to use label expressions.
+This includes the Auth Service and **all** Teleport agents.
+</Admonition>
+
+Teleport roles also support matching resource labels with predicate expressions
+when you need to:
+
+- combine logic with OR and AND operators
+- perform matching on label keys
+- implement negative matches
+
+The following example role would allow access to any nodes labeled `env=staging`
+or labeled `team=<team>`, where `<team>` is one of the values of the user's
+`teams` trait:
+
+```yaml
+kind: role
+version: v7
+metadata:
+  name: example-role
+spec:
+  allow:
+    node_labels_expression: |
+      labels["env"] == "staging" ||
+      contains(user.spec.traits["teams"], labels["team"])
+```
+
+The `<kind>_labels_expression` fields have the same purpose of the
+matching `<kind>_labels` fields, but support predicate expressions instead
+of label matchers.
+They can be used in the following fields of role `spec.allow` and `spec.deny`
+conditions:
+
+- `node_labels_expression`
+- `app_labels_expression`
+- `cluster_labels_expression`
+- `kubernetes_labels_expression`
+- `db_labels_expression`
+- `db_service_labels_expression`
+- `windows_desktop_labels_expression`
+- `group_labels_expression`
+
+Check out our
+[predicate language](../reference/predicate-language.mdx#label-expressions)
+guide for a more in depth explanation of the language.
+
+Typically you will only want to use one of `<kind>_labels` or
+`<kind>_labels_expression` in a single role, but you are allowed to specify
+both.
+If you have both in a deny rule, the matching is greedy, if either one matches
+access will be denied.
+In an allow rule, the matching is not greedy, if both are set they both have to
+match for access to be allowed.
+
 ## Teleport resources
 
 RBAC lets teams limit what resources are available to Teleport users. This can be helpful if, for example,
@@ -239,13 +315,16 @@ allow:
         - node
       verbs: [list, create, read, update, delete]
     - resources:
-        - app_server
+        - app
       verbs: [list, create, read, update, delete]
     - resources:
         - kube_service
       verbs: [list, create, read, update, delete]
     - resources:
-        - db_server
+        - kube_cluster
+      verbs: [list, create, read, update, delete]
+    - resources:
+        - db
       verbs: [list, create, read, update, delete]
     - resources:
         - windows_desktop
@@ -278,8 +357,39 @@ allow:
     - resources:
         - token
       verbs: [list, create, read, update, delete]
-
 ```
+
+### Allowing access to token resources
+
+If you configure a role that allows tokens to be created, users assigned to the 
+role can create tokens to provision any type of Teleport resource. 
+For example, you might create a role with the following configuration to enable assigned
+users to enroll servers:
+
+```yaml
+kind: role
+version: v7
+metadata:
+  name: enroll-servers
+spec:
+  allow:
+    node_labels:
+      'env': 'us-lab'
+    rules:
+      - resources: [token]
+        verbs: [list, create, read, update, delete]
+  deny: {}
+```
+
+With these permissions, users assigned to the role can generate tokens to enroll  
+a server, application, or database, establish a trust relationship between a root 
+cluster and a new Teleport Proxy Service, or add a new leaf cluster.
+
+Because the token resource isn't scoped to a specific context, such as a node or 
+trusted cluster, you should consider any role that provides token permissions to be 
+an administrative role. In particular, you should avoid configuring `allow` rules 
+that grant `create` and `update` permissions on `token` resources to prevent 
+unexpected changes to the configuration or state of your cluster.
 
 ## RBAC for sessions
 
@@ -288,12 +398,6 @@ It is possible to further limit access to
 [session recordings](../architecture/nodes.mdx#ssh-session-recording).
 The examples below illustrate how to restrict session access only for the user
 who created the session.
-
-<Details title="Version Warning: Before 8.1" opened={false}>
-Teleport versions prior to 8.1 don't support the roles shown below.
-You may create these roles after upgrading, but in the event of a cluster
-downgrade they will become invalid.
-</Details>
 
 <Admonition
   type="warning"
@@ -331,18 +435,18 @@ metadata:
 spec:
   allow:
     rules:
-    # Teleport allows shared session access by default, so for our restrictions
-    # to work we first allow access to ssh_sessions...
-    - resources: [ssh_session]
+    # Teleport allows session access to the user's sessions
+    # and sessions they can join by default. This allows seeing any sessions.
+    - resources: [session_tracker]
       verbs: ['*']
   deny:
     rules:
     # ... and then limit that access via a deny rule.
     # Deny rules take precedence over allow rules, so the resulting role allows
     # users to create SSH sessions but to only view their own sessions.
-    - resources: [ssh_session]
+    - resources: [session_tracker]
       verbs: [list, read, update, delete]
-      where: '!contains(ssh_session.participants, user.metadata.name)'
+      where: '!contains(session_tracker.participants, user.metadata.name)'
 ```
 
 ## Second Factor - U2F
@@ -354,12 +458,13 @@ have a cluster using the legacy U2F support.
 
 Here is an explanation of the fields used in the `where` and `filter` conditions within this guide.
 
-| Field                      | Description                                         |
-|----------------------------|-----------------------------------------------------|
-| `user.roles`               | The list of roles assigned to a user              |
+| Field                      | Description                                       |
+| -------------------------- | ------------------------------------------------- |
+| `user.spec.roles`          | The list of roles assigned to a user              |
 | `session.participants`     | The list of participants from a session recording |
-| `ssh_session.participants` | The list of participants from an SSH session       |
-| `user.metadata.name`       | The user's name                                     |
+| `session_tracker.participants` | The list of participants from an SSH session      |
+| `user.metadata.name`       | The user's name                                   |
 
 Check out our [predicate language](../reference/predicate-language.mdx#scoping-allowdeny-rules-in-role-resources)
 guide for a more in depth explanation of the language.
+

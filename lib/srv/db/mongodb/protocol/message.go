@@ -22,11 +22,11 @@ import (
 	"fmt"
 	"io"
 	"math"
-
-	"go.mongodb.org/mongo-driver/x/mongo/driver"
-	"go.mongodb.org/mongo-driver/x/mongo/driver/wiremessage"
+	"strings"
 
 	"github.com/gravitational/trace"
+	"go.mongodb.org/mongo-driver/x/mongo/driver"
+	"go.mongodb.org/mongo-driver/x/mongo/driver/wiremessage"
 )
 
 // Message defines common interface for MongoDB wire protocol messages.
@@ -48,8 +48,8 @@ type Message interface {
 }
 
 // ReadMessage reads the next MongoDB wire protocol message from the reader.
-func ReadMessage(reader io.Reader) (Message, error) {
-	header, payload, err := readHeaderAndPayload(reader)
+func ReadMessage(reader io.Reader, maxMessageSize uint32) (Message, error) {
+	header, payload, err := readHeaderAndPayload(reader, maxMessageSize)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -67,7 +67,7 @@ func ReadMessage(reader io.Reader) (Message, error) {
 	case wiremessage.OpDelete:
 		return readOpDelete(*header, payload)
 	case wiremessage.OpCompressed:
-		return readOpCompressed(*header, payload)
+		return readOpCompressed(*header, payload, maxMessageSize)
 	case wiremessage.OpReply:
 		return readOpReply(*header, payload)
 	case wiremessage.OpKillCursors:
@@ -78,16 +78,15 @@ func ReadMessage(reader io.Reader) (Message, error) {
 }
 
 // ReadServerMessage reads wire protocol message from the MongoDB server connection.
-func ReadServerMessage(ctx context.Context, conn driver.Connection) (Message, error) {
-	var wm []byte
-	wm, err := conn.ReadWireMessage(ctx, wm)
+func ReadServerMessage(ctx context.Context, conn driver.Connection, maxMessageSize uint32) (Message, error) {
+	wm, err := conn.ReadWireMessage(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return ReadMessage(bytes.NewReader(wm))
+	return ReadMessage(bytes.NewReader(wm), maxMessageSize)
 }
 
-func readHeaderAndPayload(reader io.Reader) (*MessageHeader, []byte, error) {
+func readHeaderAndPayload(reader io.Reader, maxMessageSize uint32) (*MessageHeader, []byte, error) {
 	// First read message header which is 16 bytes.
 	var header [headerSizeBytes]byte
 	if _, err := io.ReadFull(reader, header[:]); err != nil {
@@ -103,10 +102,9 @@ func readHeaderAndPayload(reader io.Reader) (*MessageHeader, []byte, error) {
 		return nil, nil, trace.BadParameter("invalid header size %v", header)
 	}
 
-	// Max BSON document size is 16MB
-	// https://www.mongodb.com/docs/manual/reference/limits/#mongodb-limit-BSON-Document-Size
-	if length-headerSizeBytes >= 16*1024*1024 {
-		return nil, nil, trace.BadParameter("exceeded the maximum document size, got length: %d", length)
+	payloadLength := uint32(length - headerSizeBytes)
+	if payloadLength >= maxMessageSize {
+		return nil, nil, trace.BadParameter("exceeded the maximum message size, got length: %d", length)
 	}
 
 	if length-headerSizeBytes <= 0 {
@@ -114,18 +112,24 @@ func readHeaderAndPayload(reader io.Reader) (*MessageHeader, []byte, error) {
 	}
 
 	// Then read the entire message body.
-	payload := make([]byte, length-headerSizeBytes)
-	if _, err := io.ReadFull(reader, payload); err != nil {
+	payloadBuff := bytes.NewBuffer(make([]byte, 0, min(payloadLength, maxMessageSize)))
+	if _, err := io.CopyN(payloadBuff, reader, int64(payloadLength)); err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
+
 	return &MessageHeader{
 		MessageLength: length,
 		RequestID:     requestID,
 		ResponseTo:    responseTo,
 		OpCode:        opCode,
 		bytes:         header,
-	}, payload, nil
+	}, payloadBuff.Bytes(), nil
 }
+
+// DefaultMaxMessageSizeBytes is the default max size of mongoDB message. This
+// value is only used if the MongoDB doesn't impose any value. Defaults to
+// double size of MongoDB default.
+const DefaultMaxMessageSizeBytes = uint32(48000000) * 2
 
 // MessageHeader represents parsed MongoDB wire protocol message header.
 //
@@ -142,3 +146,21 @@ type MessageHeader struct {
 const (
 	headerSizeBytes = 16
 )
+
+const (
+	// IsMasterCommand is legacy handshake command name.
+	IsMasterCommand = "isMaster"
+	// HelloCommand is the handshake command name.
+	HelloCommand = "hello"
+)
+
+// IsHandshake returns true if the message is a handshake request.
+func IsHandshake(m Message) bool {
+	cmd, err := m.GetCommand()
+	if err != nil {
+		return false
+	}
+
+	// Servers must accept alternative casing for IsMasterCommand.
+	return strings.EqualFold(cmd, IsMasterCommand) || cmd == HelloCommand
+}

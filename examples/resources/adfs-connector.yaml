@@ -14,6 +14,9 @@ spec:
   # as a provider
   provider: adfs
 
+  # Controls whether IdP-initiated SSO is allowed. If false, all such requests will be rejected with an error.
+  allow_idp_initiated: false
+
   # entity_descriptor XML can either be copied into connector or fetched from a URL
   entity_descriptor: |
     <EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata">

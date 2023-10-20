@@ -27,28 +27,32 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/gravitational/trace"
+	"github.com/julienschmidt/httprouter"
+	log "github.com/sirupsen/logrus"
+	"golang.org/x/exp/slices"
+	"k8s.io/client-go/tools/remotecommand"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/events/recorder"
 	"github.com/gravitational/teleport/lib/kube/proxy/streamproto"
 	tsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/google/uuid"
-	"github.com/gravitational/trace"
-	"github.com/julienschmidt/httprouter"
-	log "github.com/sirupsen/logrus"
-	"k8s.io/client-go/tools/remotecommand"
 )
 
 const sessionRecorderID = "session-recorder"
 
-const PresenceVerifyInterval = time.Second * 15
-const PresenceMaxDifference = time.Minute
-const sessionMaxLifetime = time.Hour * 24
+const (
+	PresenceVerifyInterval = time.Second * 15
+	PresenceMaxDifference  = time.Minute
+	sessionMaxLifetime     = time.Hour * 24
+)
 
 // remoteClient is either a kubectl or websocket client.
 type remoteClient interface {
@@ -100,11 +104,12 @@ func (p *websocketClientStreams) Close() error {
 
 type kubeProxyClientStreams struct {
 	proxy     *remoteCommandProxy
-	sizeQueue remotecommand.TerminalSizeQueue
+	sizeQueue *termQueue
 	stdin     io.Reader
 	stdout    io.Writer
 	stderr    io.Writer
 	close     chan struct{}
+	wg        sync.WaitGroup
 }
 
 func newKubeProxyClientStreams(proxy *remoteCommandProxy) *kubeProxyClientStreams {
@@ -134,14 +139,20 @@ func (p *kubeProxyClientStreams) stderrStream() io.Writer {
 
 func (p *kubeProxyClientStreams) resizeQueue() <-chan *remotecommand.TerminalSize {
 	ch := make(chan *remotecommand.TerminalSize)
+	p.wg.Add(1)
 	go func() {
+		defer p.wg.Done()
 		for {
 			size := p.sizeQueue.Next()
 			if size == nil {
-				break
+				return
 			}
-
-			ch <- size
+			select {
+			case ch <- size:
+				// Check if the sizeQueue was already terminated.
+			case <-p.sizeQueue.done.Done():
+				return
+			}
 		}
 	}()
 
@@ -163,52 +174,94 @@ func (p *kubeProxyClientStreams) sendStatus(err error) error {
 }
 
 func (p *kubeProxyClientStreams) Close() error {
-	close(p.close)
+	if p.sizeQueue != nil {
+		p.sizeQueue.Close()
+	}
+	p.wg.Wait()
 	return trace.Wrap(p.proxy.Close())
 }
 
 // multiResizeQueue is a merged queue of multiple terminal size queues.
 type multiResizeQueue struct {
-	queues   map[string]<-chan *remotecommand.TerminalSize
-	cases    []reflect.SelectCase
-	callback func(*remotecommand.TerminalSize)
+	queues       map[string]<-chan *remotecommand.TerminalSize
+	cases        []reflect.SelectCase
+	callback     func(*remotecommand.TerminalSize)
+	mutex        sync.Mutex
+	parentCtx    context.Context
+	reloadCtx    context.Context
+	reloadCancel context.CancelFunc
 }
 
-func newMultiResizeQueue() *multiResizeQueue {
+func newMultiResizeQueue(parentCtx context.Context) *multiResizeQueue {
+	ctx, cancel := context.WithCancel(parentCtx)
 	return &multiResizeQueue{
-		queues: make(map[string]<-chan *remotecommand.TerminalSize),
+		queues:       make(map[string]<-chan *remotecommand.TerminalSize),
+		parentCtx:    parentCtx,
+		reloadCtx:    ctx,
+		reloadCancel: cancel,
 	}
 }
 
 func (r *multiResizeQueue) rebuild() {
-	r.cases = nil
+	oldCancel := r.reloadCancel
+	defer oldCancel()
+
+	r.reloadCtx, r.reloadCancel = context.WithCancel(r.parentCtx)
+	r.cases = make([]reflect.SelectCase, 1, len(r.queues)+1)
+	r.cases[0] = reflect.SelectCase{
+		Dir:  reflect.SelectRecv,
+		Chan: reflect.ValueOf(r.reloadCtx.Done()),
+	}
 	for _, queue := range r.queues {
-		r.cases = append(r.cases, reflect.SelectCase{
-			Dir:  reflect.SelectRecv,
-			Chan: reflect.ValueOf(queue),
-		})
+		r.cases = append(r.cases,
+			reflect.SelectCase{
+				Dir:  reflect.SelectRecv,
+				Chan: reflect.ValueOf(queue),
+			},
+		)
 	}
 }
 
+func (r *multiResizeQueue) close() {
+	r.reloadCancel()
+}
+
 func (r *multiResizeQueue) add(id string, queue <-chan *remotecommand.TerminalSize) {
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
 	r.queues[id] = queue
 	r.rebuild()
 }
 
 func (r *multiResizeQueue) remove(id string) {
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
 	delete(r.queues, id)
 	r.rebuild()
 }
 
 func (r *multiResizeQueue) Next() *remotecommand.TerminalSize {
-	_, value, ok := reflect.Select(r.cases)
-	if !ok {
-		return nil
-	}
+loop:
+	for {
+		r.mutex.Lock()
+		cases := r.cases
+		r.mutex.Unlock()
+		idx, value, ok := reflect.Select(cases)
+		if !ok || idx == 0 {
+			select {
+			// if parent context is canceled, the session has ended and we should
+			// return early. Otherwise, it means that we rebuilt and in that case we should continue.
+			case <-r.parentCtx.Done():
+				return nil
+			default:
+				continue loop
+			}
+		}
 
-	size := value.Interface().(*remotecommand.TerminalSize)
-	r.callback(size)
-	return size
+		size := value.Interface().(*remotecommand.TerminalSize)
+		r.callback(size)
+		return size
+	}
 }
 
 // party represents one participant of the session and their associated state.
@@ -232,16 +285,16 @@ func newParty(ctx authContext, mode types.SessionParticipantMode, client remoteC
 	}
 }
 
-// Close closes the party and disconnects the remote end.
-func (p *party) Close() error {
-	var err error
-
+// InformClose informs the party that he must leave the session.
+func (p *party) InformClose() {
 	p.closeOnce.Do(func() {
 		close(p.closeC)
-		err = p.Client.Close()
 	})
+}
 
-	return trace.Wrap(err)
+// CloseConnection closes the party underlying connection.
+func (p *party) CloseConnection() error {
+	return trace.Wrap(p.Client.Close())
 }
 
 // session represents an ongoing k8s session.
@@ -276,7 +329,7 @@ type session struct {
 
 	accessEvaluator auth.SessionAccessEvaluator
 
-	recorder events.StreamWriter
+	recorder events.SessionPreparerRecorder
 
 	emitter apievents.Emitter
 
@@ -300,6 +353,23 @@ type session struct {
 
 	// Set if we should broadcast information about participant requirements to the session.
 	displayParticipantRequirements bool
+
+	// invitedUsers is a list of users that were invited to the session.
+	invitedUsers []string
+	// reason is the reason for the session.
+	reason string
+
+	// eventsWaiter is used to wait for events to be emitted and goroutines closed
+	// when a session is closed.
+	eventsWaiter sync.WaitGroup
+
+	streamContext       context.Context
+	streamContextCancel context.CancelFunc
+	// partiesWg is a sync.WaitGroup that tracks the number of active parties
+	// in this session. It's incremented when a party joins a session and
+	// decremented when he leaves - it waits until the session leave events
+	// are emitted for every party before returning.
+	partiesWg sync.WaitGroup
 }
 
 // newSession creates a new session in pending mode.
@@ -307,12 +377,9 @@ func newSession(ctx authContext, forwarder *Forwarder, req *http.Request, params
 	id := uuid.New()
 	log := forwarder.log.WithField("session", id.String())
 	log.Debug("Creating session")
-	roles, err := getRolesByName(forwarder, ctx.Context.Identity.GetIdentity().Groups)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 
 	var policySets []*types.SessionTrackerPolicySet
+	roles := ctx.Checker.Roles()
 	for _, role := range roles {
 		policySet := role.GetSessionPolicySet()
 		policySets = append(policySets, &policySet)
@@ -322,7 +389,7 @@ func newSession(ctx authContext, forwarder *Forwarder, req *http.Request, params
 	accessEvaluator := auth.NewSessionAccessEvaluator(policySets, types.KubernetesSessionKind, ctx.User.GetName())
 
 	io := srv.NewTermManager()
-
+	streamContext, streamContextCancel := context.WithCancel(forwarder.ctx)
 	s := &session{
 		ctx:                            ctx,
 		forwarder:                      forwarder,
@@ -335,15 +402,23 @@ func newSession(ctx authContext, forwarder *Forwarder, req *http.Request, params
 		io:                             io,
 		accessEvaluator:                accessEvaluator,
 		emitter:                        events.NewDiscardEmitter(),
-		terminalSizeQueue:              newMultiResizeQueue(),
+		terminalSizeQueue:              newMultiResizeQueue(streamContext),
 		started:                        false,
 		sess:                           sess,
 		closeC:                         make(chan struct{}),
 		initiator:                      initiator.ID,
 		expires:                        time.Now().UTC().Add(sessionMaxLifetime),
 		PresenceEnabled:                ctx.Identity.GetIdentity().MFAVerified != "",
-		displayParticipantRequirements: utils.AsBool(q.Get("displayParticipantRequirements")),
+		displayParticipantRequirements: utils.AsBool(q.Get(teleport.KubeSessionDisplayParticipantRequirementsQueryParam)),
+		invitedUsers:                   strings.Split(q.Get(teleport.KubeSessionInvitedQueryParam), ","),
+		reason:                         q.Get(teleport.KubeSessionReasonQueryParam),
+		streamContext:                  streamContext,
+		streamContextCancel:            streamContextCancel,
+		partiesWg:                      sync.WaitGroup{},
 	}
+
+	s.io.OnWriteError = s.disconnectPartyOnErr
+	s.io.OnReadError = s.disconnectPartyOnErr
 
 	s.BroadcastMessage("Creating session with ID: %v...", id.String())
 	s.BroadcastMessage(srv.SessionControlsInfoBroadcast)
@@ -364,6 +439,31 @@ func newSession(ctx authContext, forwarder *Forwarder, req *http.Request, params
 	return s, nil
 }
 
+// disconnectPartyOnErr is called when any party connection returns an error.
+// It is used to properly handle client disconnections.
+func (s *session) disconnectPartyOnErr(idString string, err error) {
+	if idString == sessionRecorderID {
+		s.log.Error("Failed to write to session recorder, closing session.")
+		s.Close()
+		return
+	}
+
+	id, uuidParseErr := uuid.Parse(idString)
+	if uuidParseErr != nil {
+		s.log.WithError(uuidParseErr).Errorf("Unable to decode %q into a UUID.", idString)
+		return
+	}
+
+	wasActive, leaveErr := s.leave(id)
+	if leaveErr != nil {
+		s.log.WithError(leaveErr).Errorf("Failed to disconnect party %v from the session.", idString)
+	}
+	if wasActive {
+		// log the error only if it was the reason for the user disconnection.
+		s.log.Errorf("Encountered error: %v with party %v. Disconnecting them from the session.", err, idString)
+	}
+}
+
 // checkPresence checks the presence timestamp of involved moderators
 // and kicks them if they are not active.
 func (s *session) checkPresence() error {
@@ -378,7 +478,7 @@ func (s *session) checkPresence() error {
 		if participant.Mode == string(types.SessionModeratorMode) && time.Now().UTC().After(participant.LastActive.Add(PresenceMaxDifference)) {
 			s.log.Debugf("Participant %v is not active, kicking.", participant.ID)
 			id, _ := uuid.Parse(participant.ID)
-			err := s.leave(id)
+			_, err := s.unlockedLeave(id)
 			if err != nil {
 				s.log.WithError(err).Warnf("Failed to kick participant %v for inactivity.", participant.ID)
 			}
@@ -418,37 +518,24 @@ func (s *session) launch() error {
 	s.podName = request.podName
 	s.BroadcastMessage("Connecting to %v over K8S", s.podName)
 
-	eventPodMeta := request.eventPodMeta(request.context, s.sess.creds)
-	s.io.OnWriteError = func(idString string, err error) {
-		s.mu.Lock()
-		defer s.mu.Unlock()
-
-		if idString == sessionRecorderID {
-			s.log.Error("Failed to write to session recorder, closing session.")
-			s.Close()
-		}
-
-		s.log.Errorf("Encountered error: %v with party %v. Disconnecting them from the session.", err, idString)
-		id, _ := uuid.Parse(idString)
-		if s.parties[id] != nil {
-			err = s.leave(id)
-			if err != nil {
-				s.log.Errorf("Failed to disconnect party %v from the session: %v.", idString, err)
-			}
-		}
-	}
+	eventPodMeta := request.eventPodMeta(request.context, s.sess.kubeAPICreds)
 
 	onFinished, err := s.lockedSetupLaunch(request, q, eventPodMeta)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	defer func() {
+		// The closure captures the err variable pointer so that the variable can
+		// be changed by the code below, but when defer runs, it gets the last value.
+		onFinished(err)
+	}()
 
 	termParams := tsession.TerminalParams{
 		W: 100,
 		H: 100,
 	}
 
-	sessionStartEvent := &apievents.SessionStart{
+	sessionStartEvent, err := s.recorder.PrepareSessionEvent(&apievents.SessionStart{
 		Metadata: apievents.Metadata{
 			Type:        events.SessionStartEvent,
 			Code:        events.SessionStartCode,
@@ -460,38 +547,39 @@ func (s *session) launch() error {
 			ServerHostname:  s.sess.teleportCluster.name,
 			ServerAddr:      s.sess.kubeAddress,
 		},
-		SessionMetadata: apievents.SessionMetadata{
-			SessionID: s.id.String(),
-			WithMFA:   s.ctx.Identity.GetIdentity().MFAVerified,
-		},
-		UserMetadata: apievents.UserMetadata{
-			User:         s.ctx.User.GetName(),
-			Login:        s.ctx.User.GetName(),
-			Impersonator: s.ctx.Identity.GetIdentity().Impersonator,
-		},
+		SessionMetadata: s.getSessionMetadata(),
+		UserMetadata:    s.ctx.eventUserMeta(),
 		ConnectionMetadata: apievents.ConnectionMetadata{
 			RemoteAddr: s.req.RemoteAddr,
 			LocalAddr:  s.sess.kubeAddress,
 			Protocol:   events.EventProtocolKube,
 		},
 		TerminalSize:              termParams.Serialize(),
-		KubernetesClusterMetadata: s.ctx.eventClusterMeta(),
+		KubernetesClusterMetadata: s.ctx.eventClusterMeta(s.req),
 		KubernetesPodMetadata:     eventPodMeta,
 		InitialCommand:            q["command"],
 		SessionRecording:          s.ctx.recordingConfig.GetMode(),
+	})
+	if err == nil {
+		if err := s.recorder.RecordEvent(s.forwarder.ctx, sessionStartEvent); err != nil {
+			s.forwarder.log.WithError(err).Warn("Failed to record session start event.")
+		}
+		if err := s.emitter.EmitAuditEvent(s.forwarder.ctx, sessionStartEvent.GetAuditEvent()); err != nil {
+			s.forwarder.log.WithError(err).Warn("Failed to emit session start event.")
+		}
+	} else {
+		s.forwarder.log.WithError(err).Warn("Failed to set up session start event - event will not be recorded")
 	}
 
-	if err := s.emitter.EmitAuditEvent(s.forwarder.ctx, sessionStartEvent); err != nil {
-		s.forwarder.log.WithError(err).Warn("Failed to emit event.")
-	}
-
+	s.eventsWaiter.Add(1)
 	go func() {
-		select {
-		case <-time.After(time.Until(s.expires)):
-			s.mu.Lock()
-			defer s.mu.Unlock()
-			s.BroadcastMessage("Session expired, closing...")
+		defer s.eventsWaiter.Done()
+		t := time.NewTimer(time.Until(s.expires))
+		defer t.Stop()
 
+		select {
+		case <-t.C:
+			s.BroadcastMessage("Session expired, closing...")
 			err := s.Close()
 			if err != nil {
 				s.log.WithError(err).Error("Failed to close session")
@@ -500,20 +588,13 @@ func (s *session) launch() error {
 		}
 	}()
 
-	if err := s.tracker.UpdateState(s.forwarder.ctx, types.SessionState_SessionStateRunning); err != nil {
-		s.log.Warn("Failed to set tracker state to running")
+	if err = s.tracker.UpdateState(s.forwarder.ctx, types.SessionState_SessionStateRunning); err != nil {
+		s.log.WithError(err).Warn("Failed to set tracker state to running")
 	}
 
-	var (
-		executor remotecommand.Executor
-	)
+	var executor remotecommand.Executor
 
-	defer func() {
-		// catch err by reference so we can access any write into it in the two calls that follow
-		onFinished(err)
-	}()
-
-	executor, err = s.forwarder.getExecutor(s.ctx, s.sess, s.req)
+	executor, err = s.forwarder.getExecutor(s.sess, s.req)
 	if err != nil {
 		s.log.WithError(err).Warning("Failed creating executor.")
 		return trace.Wrap(err)
@@ -528,11 +609,10 @@ func (s *session) launch() error {
 	}
 
 	s.io.On()
-	if err = executor.Stream(options); err != nil {
+	if err = executor.StreamWithContext(s.streamContext, options); err != nil {
 		s.log.WithError(err).Warning("Executor failed while streaming.")
 		return trace.Wrap(err)
 	}
-
 	return nil
 }
 
@@ -561,7 +641,7 @@ func (s *session) lockedSetupLaunch(request *remoteCommandRequest, q url.Values,
 				H: int(resize.Height),
 			}
 
-			resizeEvent := &apievents.Resize{
+			resizeEvent, err := s.recorder.PrepareSessionEvent(&apievents.Resize{
 				Metadata: apievents.Metadata{
 					Type:        events.ResizeEvent,
 					Code:        events.TerminalResizeCode,
@@ -574,60 +654,54 @@ func (s *session) lockedSetupLaunch(request *remoteCommandRequest, q url.Values,
 				ServerMetadata: apievents.ServerMetadata{
 					ServerNamespace: s.forwarder.cfg.Namespace,
 				},
-				SessionMetadata: apievents.SessionMetadata{
-					SessionID: s.id.String(),
-					WithMFA:   s.ctx.Identity.GetIdentity().MFAVerified,
-				},
-				UserMetadata: apievents.UserMetadata{
-					User:         s.ctx.User.GetName(),
-					Login:        s.ctx.User.GetName(),
-					Impersonator: s.ctx.Identity.GetIdentity().Impersonator,
-				},
+				SessionMetadata:           s.getSessionMetadata(),
+				UserMetadata:              s.ctx.eventUserMeta(),
 				TerminalSize:              params.Serialize(),
-				KubernetesClusterMetadata: s.ctx.eventClusterMeta(),
+				KubernetesClusterMetadata: s.ctx.eventClusterMeta(s.req),
 				KubernetesPodMetadata:     eventPodMeta,
-			}
-
-			// Report the updated window size to the event log (this is so the sessions
-			// can be replayed correctly).
-			if err := s.recorder.EmitAuditEvent(s.forwarder.ctx, resizeEvent); err != nil {
-				s.forwarder.log.WithError(err).Warn("Failed to emit terminal resize event.")
+			})
+			if err == nil {
+				// Report the updated window size to the event log (this is so the sessions
+				// can be replayed correctly).
+				if err := s.recorder.RecordEvent(s.forwarder.ctx, resizeEvent); err != nil {
+					s.forwarder.log.WithError(err).Warn("Failed to emit terminal resize event.")
+				}
+			} else {
+				s.forwarder.log.WithError(err).Warn("Failed to set up terminal resize event - event will not be recorded")
 			}
 		}
 	} else {
 		s.terminalSizeQueue.callback = func(resize *remotecommand.TerminalSize) {}
 	}
 
-	streamer, err := s.forwarder.newStreamer(&s.ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	recorder, err := events.NewAuditWriter(events.AuditWriterConfig{
-		// Audit stream is using server context, not session context,
-		// to make sure that session is uploaded even after it is closed
-		Context:      s.forwarder.ctx,
-		Streamer:     streamer,
-		Clock:        s.forwarder.cfg.Clock,
+	recorder, err := recorder.New(recorder.Config{
 		SessionID:    tsession.ID(s.id.String()),
 		ServerID:     s.forwarder.cfg.HostID,
 		Namespace:    s.forwarder.cfg.Namespace,
-		RecordOutput: s.ctx.recordingConfig.GetMode() != types.RecordOff,
-		Component:    teleport.Component(teleport.ComponentSession, teleport.ComponentProxyKube),
+		Clock:        s.forwarder.cfg.Clock,
 		ClusterName:  s.forwarder.cfg.ClusterName,
+		RecordingCfg: s.ctx.recordingConfig,
+		SyncStreamer: s.forwarder.cfg.AuthClient,
+		DataDir:      s.forwarder.cfg.DataDir,
+		Component:    teleport.Component(teleport.ComponentSession, teleport.ComponentProxyKube),
+		// Session stream is using server context, not session context,
+		// to make sure that session is uploaded even after it is closed
+		Context: s.forwarder.ctx,
 	})
-
-	s.recorder = recorder
-	s.emitter = recorder
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	s.recorder = recorder
+	s.emitter = s.forwarder.cfg.Emitter
 
 	s.io.AddWriter(sessionRecorderID, recorder)
 
 	// If the identity is verified with an MFA device, we enabled MFA-based presence for the session.
 	if s.PresenceEnabled {
+		s.eventsWaiter.Add(1)
 		go func() {
+			defer s.eventsWaiter.Done()
 			ticker := time.NewTicker(PresenceVerifyInterval)
 			defer ticker.Stop()
 
@@ -648,8 +722,15 @@ func (s *session) lockedSetupLaunch(request *remoteCommandRequest, q url.Values,
 			}
 		}()
 	}
+	// If we get here, it means we are going to have a session.end event.
+	// This increments the waiter so that session.Close() guarantees that once called
+	// the events are emitted before closing the emitter/recorder.
+	// It might happen when a user disconnects or when a moderator forces an early
+	// termination.
+	s.eventsWaiter.Add(1)
 	// receive the exec error returned from API call to kube cluster
 	return func(errExec error) {
+		defer s.eventsWaiter.Done()
 		s.mu.Lock()
 		defer s.mu.Unlock()
 
@@ -664,10 +745,7 @@ func (s *session) lockedSetupLaunch(request *remoteCommandRequest, q url.Values,
 			ServerNamespace: s.forwarder.cfg.Namespace,
 		}
 
-		sessionMetadata := apievents.SessionMetadata{
-			SessionID: s.id.String(),
-			WithMFA:   s.ctx.Identity.GetIdentity().MFAVerified,
-		}
+		sessionMetadata := s.getSessionMetadata()
 
 		conMetadata := apievents.ConnectionMetadata{
 			RemoteAddr: s.req.RemoteAddr,
@@ -689,14 +767,13 @@ func (s *session) lockedSetupLaunch(request *remoteCommandRequest, q url.Values,
 			CommandMetadata: apievents.CommandMetadata{
 				Command: strings.Join(request.cmd, " "),
 			},
-			KubernetesClusterMetadata: s.ctx.eventClusterMeta(),
+			KubernetesClusterMetadata: s.ctx.eventClusterMeta(s.req),
 			KubernetesPodMetadata:     eventPodMeta,
 		}
 
 		if errExec != nil {
 			execEvent.Code = events.ExecFailureCode
 			execEvent.Error, execEvent.ExitCode = exitCode(err)
-
 		}
 
 		if err := s.emitter.EmitAuditEvent(s.forwarder.ctx, execEvent); err != nil {
@@ -723,7 +800,7 @@ func (s *session) lockedSetupLaunch(request *remoteCommandRequest, q url.Values,
 			s.forwarder.log.WithError(err).Warn("Failed to emit session data event.")
 		}
 
-		sessionEndEvent := &apievents.SessionEnd{
+		sessionEndEvent, err := s.recorder.PrepareSessionEvent(&apievents.SessionEnd{
 			Metadata: apievents.Metadata{
 				Type:        events.SessionEndEvent,
 				Code:        events.SessionEndCode,
@@ -737,14 +814,20 @@ func (s *session) lockedSetupLaunch(request *remoteCommandRequest, q url.Values,
 			Participants:              s.allParticipants(),
 			StartTime:                 sessionStart,
 			EndTime:                   s.forwarder.cfg.Clock.Now().UTC(),
-			KubernetesClusterMetadata: s.ctx.eventClusterMeta(),
+			KubernetesClusterMetadata: s.ctx.eventClusterMeta(s.req),
 			KubernetesPodMetadata:     eventPodMeta,
 			InitialCommand:            request.cmd,
 			SessionRecording:          s.ctx.recordingConfig.GetMode(),
-		}
-
-		if err := s.emitter.EmitAuditEvent(s.forwarder.ctx, sessionEndEvent); err != nil {
-			s.forwarder.log.WithError(err).Warn("Failed to emit session end event.")
+		})
+		if err == nil {
+			if err := s.recorder.RecordEvent(s.forwarder.ctx, sessionEndEvent); err != nil {
+				s.forwarder.log.WithError(err).Warn("Failed to record session end event.")
+			}
+			if err := s.emitter.EmitAuditEvent(s.forwarder.ctx, sessionEndEvent.GetAuditEvent()); err != nil {
+				s.forwarder.log.WithError(err).Warn("Failed to emit session end event.")
+			}
+		} else {
+			s.forwarder.log.WithError(err).Warn("Failed to set up session end event - event will not be recorded")
 		}
 	}, nil
 }
@@ -752,11 +835,7 @@ func (s *session) lockedSetupLaunch(request *remoteCommandRequest, q url.Values,
 // join attempts to connect a party to the session.
 func (s *session) join(p *party) error {
 	if p.Ctx.User.GetName() != s.ctx.User.GetName() {
-		roleNames := p.Ctx.Identity.GetIdentity().Groups
-		roles, err := getRolesByName(s.forwarder, roleNames)
-		if err != nil {
-			return trace.Wrap(err)
-		}
+		roles := p.Ctx.Checker.Roles()
 
 		accessContext := auth.SessionAccessContext{
 			Username: p.Ctx.User.GetName(),
@@ -764,7 +843,7 @@ func (s *session) join(p *party) error {
 		}
 
 		modes := s.accessEvaluator.CanJoin(accessContext)
-		if !auth.SliceContainsMode(modes, p.Mode) {
+		if !slices.Contains(modes, p.Mode) {
 			return trace.AccessDenied("insufficient permissions to join session")
 		}
 	}
@@ -791,19 +870,13 @@ func (s *session) join(p *party) error {
 			ClusterName: s.ctx.teleportCluster.name,
 		},
 		KubernetesClusterMetadata: apievents.KubernetesClusterMetadata{
-			KubernetesCluster: s.ctx.kubeCluster,
+			KubernetesCluster: s.ctx.kubeClusterName,
 			KubernetesUsers:   []string{},
 			KubernetesGroups:  []string{},
 			KubernetesLabels:  s.ctx.kubeClusterLabels,
 		},
-		SessionMetadata: apievents.SessionMetadata{
-			SessionID: s.id.String(),
-		},
-		UserMetadata: apievents.UserMetadata{
-			User:         p.Ctx.User.GetName(),
-			Login:        "root",
-			Impersonator: p.Ctx.Identity.GetIdentity().Impersonator,
-		},
+		SessionMetadata: s.getSessionMetadata(),
+		UserMetadata:    p.Ctx.eventUserMetaWithLogin("root"),
 		ConnectionMetadata: apievents.ConnectionMetadata{
 			RemoteAddr: s.params.ByName("podName"),
 		},
@@ -818,6 +891,9 @@ func (s *session) join(p *party) error {
 		s.log.Warnf("Failed to write history to client: %v.", err)
 	}
 
+	// increment the party track waitgroup.
+	// It is decremented when session.leave() finishes its execution.
+	s.partiesWg.Add(1)
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	stringID := p.ID.String()
@@ -830,10 +906,12 @@ func (s *session) join(p *party) error {
 	}
 
 	s.io.AddWriter(stringID, p.Client.stdoutStream())
-	s.BroadcastMessage("User %v joined the session.", p.Ctx.User.GetName())
+	s.BroadcastMessage("User %v joined the session with participant mode: %v.", p.Ctx.User.GetName(), p.Mode)
 
 	if p.Mode == types.SessionModeratorMode {
+		s.eventsWaiter.Add(1)
 		go func() {
+			defer s.eventsWaiter.Done()
 			c := p.Client.forceTerminate()
 			select {
 			case <-c:
@@ -850,12 +928,12 @@ func (s *session) join(p *party) error {
 		}()
 	}
 
-	if !s.started {
-		canStart, _, err := s.canStart()
-		if err != nil {
-			return trace.Wrap(err)
-		}
+	canStart, _, err := s.canStart()
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
+	if !s.started {
 		if canStart {
 			go func() {
 				if err := s.launch(); err != nil {
@@ -871,30 +949,53 @@ func (s *session) join(p *party) error {
 				s.BroadcastMessage(base)
 			}
 		}
+	} else if canStart && s.tracker.GetState() == types.SessionState_SessionStatePending {
+		// If the session is already running, but the party is a moderator that left
+		// a session with onLeave=pause and then rejoined, we need to unpause the session.
+		// When the moderator left the session, the session was paused, and we spawn
+		// a goroutine to wait for the moderator to rejoin. If the moderator rejoins
+		// before the session ends, we need to unpause the session by updating its state and
+		// the goroutine will unblock the s.io terminal.
+		// types.SessionState_SessionStatePending marks a session that is waiting for
+		// a moderator to rejoin.
+		if err := s.tracker.UpdateState(s.forwarder.ctx, types.SessionState_SessionStateRunning); err != nil {
+			s.log.Warnf("Failed to set tracker state to %v", types.SessionState_SessionStateRunning)
+		}
 	}
 
 	return nil
 }
 
-func (s *session) BroadcastMessage(format string, args ...interface{}) {
+func (s *session) BroadcastMessage(format string, args ...any) {
 	if s.accessEvaluator.IsModerated() {
 		s.io.BroadcastMessage(fmt.Sprintf(format, args...))
 	}
 }
 
-// leave removes a party from the session.
-func (s *session) leave(id uuid.UUID) error {
-	if s.tracker.GetState() == types.SessionState_SessionStateTerminated {
-		return nil
-	}
+// leave removes a party from the session and returns if the party was still active
+// in the session. If the party wasn't found, it returns false, nil.
+func (s *session) leave(id uuid.UUID) (bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.unlockedLeave(id)
+}
 
+// unlockedLeave removes a party from the session without locking the mutex.
+// The boolean returned identifies if the party was still active in the session.
+// If the party wasn't found, it returns false, nil.
+// In order to call this function, lock the mutex before.
+func (s *session) unlockedLeave(id uuid.UUID) (bool, error) {
+	var errs []error
 	stringID := id.String()
 	party := s.parties[id]
 
 	if party == nil {
-		return nil
+		return false, nil
 	}
-
+	// Waits until the function execution ends to release the parties waitgroup.
+	// It's used to prevent the session to terminate the events emitter before
+	// the session leave event is emitted.
+	defer s.partiesWg.Done()
 	delete(s.parties, id)
 	s.terminalSizeQueue.remove(stringID)
 	s.io.DeleteReader(stringID)
@@ -908,14 +1009,8 @@ func (s *session) leave(id uuid.UUID) error {
 			Code:        events.SessionJoinCode,
 			ClusterName: s.ctx.teleportCluster.name,
 		},
-		SessionMetadata: apievents.SessionMetadata{
-			SessionID: s.id.String(),
-		},
-		UserMetadata: apievents.UserMetadata{
-			User:         party.Ctx.User.GetName(),
-			Login:        "root",
-			Impersonator: party.Ctx.Identity.GetIdentity().Impersonator,
-		},
+		SessionMetadata: s.getSessionMetadata(),
+		UserMetadata:    party.Ctx.eventUserMetaWithLogin("root"),
 		ConnectionMetadata: apievents.ConnectionMetadata{
 			RemoteAddr: s.params.ByName("podName"),
 		},
@@ -928,39 +1023,50 @@ func (s *session) leave(id uuid.UUID) error {
 	s.log.Debugf("No longer tracking participant: %v", party.ID)
 	err := s.tracker.RemoveParticipant(s.forwarder.ctx, party.ID.String())
 	if err != nil {
-		return trace.Wrap(err)
+		errs = append(errs, trace.Wrap(err))
 	}
 
-	err = party.Close()
-	if err != nil {
-		s.log.WithError(err).Error("Error closing party")
-		return trace.Wrap(err)
-	}
+	party.InformClose()
+	defer func() {
+		if err := party.Client.Close(); err != nil {
+			s.log.WithError(err).Error("Error closing party")
+			errs = append(errs, trace.Wrap(err))
+		}
+	}()
 
 	if len(s.parties) == 0 || id == s.initiator {
 		go func() {
+			// Currently, Teleport closes the session when the initiator exits.
+			// So, it is safe to remove it
+			s.forwarder.deleteSession(s.id)
+			// close session
 			err := s.Close()
 			if err != nil {
 				s.log.WithError(err).Errorf("Failed to close session")
 			}
 		}()
+		return true, trace.NewAggregate(errs...)
+	}
 
-		return nil
+	// We wait until here to return to check if we should terminate the
+	// session.
+	if len(errs) > 0 {
+		return true, trace.NewAggregate(errs...)
 	}
 
 	canStart, options, err := s.canStart()
 	if err != nil {
-		return trace.Wrap(err)
+		return true, trace.Wrap(err)
 	}
 
 	if !canStart {
-		if options.TerminateOnLeave {
+		if options.OnLeaveAction == types.OnSessionLeaveTerminate {
 			go func() {
 				if err := s.Close(); err != nil {
 					s.log.WithError(err).Errorf("Failed to close session")
 				}
 			}()
-			return nil
+			return true, nil
 		}
 
 		// pause session and wait for another party to resume
@@ -978,7 +1084,7 @@ func (s *session) leave(id uuid.UUID) error {
 		}()
 	}
 
-	return nil
+	return true, nil
 }
 
 // allParticipants returns a list of all historical participants of the session.
@@ -1018,28 +1124,35 @@ func (s *session) canStart() (bool, auth.PolicyOptions, error) {
 
 // Close terminates a session and disconnects all participants.
 func (s *session) Close() error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
 	s.closeOnce.Do(func() {
 		s.BroadcastMessage("Closing session...")
 
 		s.io.Close()
-
+		// Once tracker is closed parties cannot join the session.
+		// check session.join for logic.
 		if err := s.tracker.Close(s.forwarder.ctx); err != nil {
 			s.log.WithError(err).Debug("Failed to close session tracker")
 		}
-
+		s.mu.Lock()
+		// terminate all active parties in the session.
+		for _, party := range s.parties {
+			party.InformClose()
+		}
+		recorder := s.recorder
+		s.mu.Unlock()
 		s.log.Debugf("Closing session %v.", s.id.String())
 		close(s.closeC)
-		for id, party := range s.parties {
-			if err := party.Close(); err != nil {
-				s.log.WithError(err).Errorf("Failed to disconnect party %v", id.String())
-			}
-		}
+		// Wait until every party leaves the session and emits the session leave
+		// event before closing the recorder - if available.
+		s.partiesWg.Wait()
 
-		if s.recorder != nil {
-			s.recorder.Close(s.forwarder.ctx)
+		s.streamContextCancel()
+		s.terminalSizeQueue.close()
+		if recorder != nil {
+			// wait for events to be emitted before closing the recorder/emitter.
+			// If we close it immediately we will lose session.end events.
+			s.eventsWaiter.Wait()
+			recorder.Close(s.forwarder.ctx)
 		}
 	})
 
@@ -1071,25 +1184,56 @@ func (s *session) trackSession(p *party, policySet []*types.SessionTrackerPolicy
 		State:             types.SessionState_SessionStatePending,
 		Hostname:          s.podName,
 		ClusterName:       s.ctx.teleportCluster.name,
-		KubernetesCluster: s.ctx.kubeCluster,
+		KubernetesCluster: s.ctx.kubeClusterName,
 		HostUser:          p.Ctx.User.GetName(),
 		HostPolicies:      policySet,
 		Login:             "root",
-		Created:           time.Now(),
+		Created:           s.forwarder.cfg.Clock.Now(),
+		Reason:            s.reason,
+		Invited:           s.invitedUsers,
+		HostID:            s.forwarder.cfg.HostID,
+		InitialCommand:    s.req.URL.Query()["command"],
 	}
 
 	s.log.Debug("Creating session tracker")
-	var err error
-	s.tracker, err = srv.NewSessionTracker(s.forwarder.ctx, trackerSpec, s.forwarder.cfg.AuthClient)
-	if err != nil {
+	sessionTrackerService := s.forwarder.cfg.AuthClient
+
+	ctx := s.req.Context()
+
+	tracker, err := srv.NewSessionTracker(ctx, trackerSpec, sessionTrackerService)
+	switch {
+	// there was an error creating the tracker for a moderated session - terminate the session
+	case err != nil && s.accessEvaluator.IsModerated():
+		s.log.WithError(err).Warn("Failed to create session tracker, unable to proceed for moderated session")
 		return trace.Wrap(err)
+	// there was an error creating the tracker for a non-moderated session - permit the session with a local tracker
+	case err != nil && !s.accessEvaluator.IsModerated():
+		s.log.Warn("Failed to create session tracker, proceeding with local session tracker for non-moderated session")
+
+		localTracker, err := srv.NewSessionTracker(ctx, trackerSpec, nil)
+		// this error means there are problems with the trackerSpec, we need to return it
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		s.tracker = localTracker
+	// there was an error even though the tracker wasn't being propagated - return it
+	case err != nil:
+		return trace.Wrap(err)
+	// the tracker was created successfully
+	case err == nil:
+		s.tracker = tracker
 	}
 
 	go func() {
 		if err := s.tracker.UpdateExpirationLoop(s.forwarder.ctx, s.forwarder.cfg.Clock); err != nil {
-			s.log.WithError(err).Debug("Failed to update session tracker expiration")
+			s.log.WithError(err).Warn("Failed to update session tracker expiration")
 		}
 	}()
 
 	return nil
+}
+
+func (s *session) getSessionMetadata() apievents.SessionMetadata {
+	return s.ctx.Identity.GetIdentity().GetSessionMetadata(s.id.String())
 }

@@ -15,6 +15,7 @@
 package common
 
 import (
+	"github.com/gravitational/teleport/tool/tctl/common/loginrule"
 	"github.com/gravitational/teleport/tool/tctl/sso/configure"
 	"github.com/gravitational/teleport/tool/tctl/sso/tester"
 )
@@ -40,6 +41,14 @@ func Commands() []CLICommand {
 		&RecordingsCommand{},
 		&AlertCommand{},
 		&ProxyCommand{},
+		&ResourceCommand{},
+		&EditCommand{},
+		&ExternalCloudAuditCommand{},
+		&LoadtestCommand{},
+		&DevicesCommand{},
+		&SAMLCommand{},
+		&ACLCommand{},
+		&loginrule.Command{},
 	}
 }
 
@@ -47,7 +56,6 @@ func Commands() []CLICommand {
 // for oss and ent.
 func OSSCommands() []CLICommand {
 	return []CLICommand{
-		&ResourceCommand{},
 		&configure.SSOConfigureCommand{},
 		&tester.SSOTestCommand{},
 	}

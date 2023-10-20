@@ -23,6 +23,12 @@ import (
 )
 
 func FuzzParseDatabaseEndpoint(f *testing.F) {
+	f.Add("")
+	f.Add("foo")
+	f.Add(":1234")
+	f.Add("foo:1234")
+	f.Add("name.mysql.database.azure.com:1234")
+
 	f.Fuzz(func(t *testing.T, endpoint string) {
 		require.NotPanics(t, func() {
 			ParseDatabaseEndpoint(endpoint)
@@ -31,6 +37,12 @@ func FuzzParseDatabaseEndpoint(f *testing.F) {
 }
 
 func FuzzParseCacheForRedisEndpoint(f *testing.F) {
+	f.Add("")
+	f.Add("foo")
+	f.Add("name.redis.cache.windows.net")
+	f.Add("name.redis.cache.windows.net:1234")
+	f.Add("name.region.redisenterprise.cache.azure.net")
+
 	f.Fuzz(func(t *testing.T, endpoint string) {
 		require.NotPanics(t, func() {
 			ParseCacheForRedisEndpoint(endpoint)
@@ -39,9 +51,30 @@ func FuzzParseCacheForRedisEndpoint(f *testing.F) {
 }
 
 func FuzzNormalizeLocation(f *testing.F) {
+	f.Add("")
+	f.Add("foo")
+	f.Add("northcentralusstage")
+	f.Add("North Central US (Stage)")
+	f.Add("(US) North Central US (Stage)")
+
 	f.Fuzz(func(t *testing.T, location string) {
 		require.NotPanics(t, func() {
-			NormailizeLocation(location)
+			NormalizeLocation(location)
+		})
+	})
+}
+
+func FuzzParseMSSQLEndpoint(f *testing.F) {
+	f.Add("")
+	f.Add("foo")
+	f.Add(":1234")
+	f.Add("foo:1234")
+	f.Add("name.database.windows.net:1234")
+	f.Add(".database.windows.net:1234")
+
+	f.Fuzz(func(t *testing.T, endpoint string) {
+		require.NotPanics(t, func() {
+			ParseMSSQLEndpoint(endpoint)
 		})
 	})
 }

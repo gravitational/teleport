@@ -1,60 +1,84 @@
 ---
-title: Database Access with Microsoft SQL Server with Active Directory authentication (Preview)
-description: How to configure Teleport Database Access with Microsoft SQL Server with Active Directory authentication.
+title: Database Access with Microsoft SQL Server with Active Directory authentication
+description: How to configure Teleport database access with Microsoft SQL Server with Active Directory authentication.
 videoBanner: k2wz79XCexY
 ---
 
-<Details
-  title="Version warning"
-  opened={true}
-  scope={["oss", "enterprise"]}
-  scopeOnly={true}
-  min="9.0"
->
-  Database Access for Microsoft SQL Server with Active Directory authentication
-  is available starting from Teleport `9.0`.
-</Details>
+(!docs/pages/includes/database-access/db-introduction.mdx  dbType="Microsoft SQL Server" dbConfigure="Microsoft SQL Server database with Active Directory authentication" dbName="Microsoft SQL Server" !)
 
-<Admonition type="warning" title="Preview">
-  Database Access for Microsoft SQL Server is currently in Preview mode.
-</Admonition>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
+```mermaid
+%%{ init: { 'flowchart': { 'curve': 'stepBefore' } } }%%
+graph LR
+a(Users)
+b[Teleport Proxy]
+style b fill: #844cff,color: #ffffff
+a-->b
+b-->c
+subgraph local [Private Network]
+style local fill:#C0C0C0,stroke: #000000
+  c[Teleport DB Service]
+  style c fill: #a379ff,color: #ffffff
+  subgraph ad [ ]
+  direction TB
+  style ad fill:none,stroke:none
+    e[(SQL Servers)]
+    d{Active Directory Users}
+  end
+  c-->d
+  c-->e
+  e-->d
+end
+```
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
+```mermaid
+%%{ init: { 'flowchart': { 'curve': 'stepBefore' } } }%%
+graph LR
+a(Users)
+b[Teleport Cloud Tenant]
+style b fill: #844cff,color: #ffffff
+a-->b
+b-->c
+subgraph local [Private Network]
+style local fill:#C0C0C0,stroke: #000000
+  c[Teleport DB Service]
+  style c fill: #a379ff,color: #ffffff
+  subgraph ad [ ]
+  direction TB
+  style ad fill:none,stroke:none
+    e[(SQL Servers)]
+    d{Active Directory Users}
+  end
+  c-->d
+  c-->e
+  e-->d
+end
+```
+</TabItem>
 
-This guide will help you to:
-
-- Install and configure Teleport.
-- Set up access to SQL Server using Active Directory authentication.
-- Connect to SQL Server through Teleport.
-
-<ScopedBlock scope={["oss", "enterprise"]}>
-![Teleport Database Access SQL Server Self-Hosted](../../../img/database-access/guides/sqlserver_selfhosted.png)
-</ScopedBlock>
-
-
-<ScopedBlock scope={["cloud"]}>
-![Teleport Database Access SQL Server Cloud](../../../img/database-access/guides/sqlserver_cloud.png)
-</ScopedBlock>
+</Tabs>
 
 This guide will focus on Amazon RDS for SQL Server using AWS-managed Active
 Directory authentication.
 
 ## Prerequisites
 
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+
 - A SQL Server database with Active Directory authentication enabled.
+- A SQL Server network listener configured with a Certificate using Subject Alternative Names
 - A Windows machine joined to the same Active Directory domain as the database.
 - A Linux node joined to the same Active Directory domain as the database. This
   guide will walk you through the joining steps if you don't have one.
+- (!docs/pages/includes/tctl.mdx!)
 
-(!docs/pages/includes/user-client-prereqs.mdx!)
-
-## Step 1/7. Set up the Teleport Auth and Proxy
-
-(!docs/pages/includes/database-access/start-auth-proxy.mdx!)
-
-## Step 2/7. Create a Teleport user
+## Step 1/7. Create a Teleport user
 
 (!docs/pages/includes/database-access/create-user.mdx!)
 
-## Step 3/7. Join the Linux node to Active Directory
+## Step 2/7. Join the Linux node to Active Directory
 
 <Admonition type="note">
   You can skip this step if you already have a Linux node joined to the same
@@ -129,7 +153,7 @@ example.com
   ...
 ```
 
-## Step 4/7. Create keytab file
+## Step 3/7. Create keytab file
 
 Teleport requires a keytab file to obtain Kerberos service tickets from your
 Active Directory for authentication with SQL Server. The easiest way to generate
@@ -215,7 +239,7 @@ KVNO Principal
   authentication failures.
 </Admonition>
 
-## Step 5/7. Set up the Teleport Database Service
+## Step 4/7. Set up the Teleport Database Service
 
 (!docs/pages/includes/database-access/token.mdx!)
 
@@ -228,15 +252,18 @@ Install Teleport on the host where you will run the Teleport Database Service:
   Active Directory domain as the SQL Server.
 </Admonition>
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
-Start the Teleport Database Service. Make sure to update `--auth-server` to point to
-your Teleport Proxy Service address and `--uri` to the SQL Server endpoint.
+Configure the Teleport Database Service. Make sure to update `--proxy` to
+point to your Teleport Proxy Service address and `--uri` to the SQL Server
+endpoint.
 
   ```code
-  $ teleport db start \
+  $ sudo teleport db configure create \
+    -o file \
     --token=/tmp/token \
-    --auth-server=teleport.example.com:3080 \
+    --proxy=teleport.example.com:443 \
     --name=sqlserver \
     --protocol=sqlserver \
     --uri=sqlserver.example.com:1433 \
@@ -246,17 +273,18 @@ your Teleport Proxy Service address and `--uri` to the SQL Server endpoint.
     --labels=env=dev
   ```
   
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
-Start the Teleport Database Service. Make sure to update `--auth-server` to
+Configure the Teleport Database Service. Make sure to update `--proxy` to
 point to your Teleport Cloud tenant address and `--uri` to the SQL Server
 endpoint.
 
   ```code
-  $ teleport db start \
+  $ sudo teleport db configure create \
+    -o file \
     --token=/tmp/token \
-    --auth-server=mytenant.teleport.sh:443 \
+    --proxy=mytenant.teleport.sh:443 \
     --name=sqlserver \
     --protocol=sqlserver \
     --uri=sqlserver.example.com:1433 \
@@ -266,7 +294,9 @@ endpoint.
     --labels=env=dev
   ```
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 Provide Active Directory parameters:
 
@@ -275,11 +305,6 @@ Provide Active Directory parameters:
 | `--ad-keytab-file` | Path to Kerberos keytab file generated above. |
 | `--ad-domain` | Active Directory domain (Kerberos realm) that SQL Server is joined. |
 | `--ad-spn` | Service Principal Name for SQL Server to fetch Kerberos tickets for. |
-
-<Admonition type="tip">
-  You can start the Teleport Database Service using a configuration file instead of
-  CLI flags. See the [YAML reference](../reference/configuration.mdx).
-</Admonition>
 
 ### Service Principal Name
 
@@ -311,6 +336,10 @@ object typically resides under the AWS Reserved / RDS path:
   toggle is enabled.
 </Admonition>
 
+## Step 5/7. Start the Database Service
+
+(!docs/pages/includes/start-teleport.mdx service="the Teleport Database Service"!)
+
 ## Step 6/7. Create SQL Server AD users
 
 <Admonition type="note">
@@ -330,7 +359,8 @@ master> CREATE LOGIN [EXAMPLE\alice] FROM WINDOWS WITH DEFAULT_DATABASE = [maste
 Log in to your Teleport cluster. Your SQL Server database should appear in the
 list of available databases:
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
 ```code
 $ tsh login --proxy=teleport.example.com --user=alice
@@ -340,8 +370,8 @@ $ tsh db ls
 # sqlserver                     env=dev
 ```
 
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
 ```code
 $ tsh login --proxy=mytenant.teleport.sh --user=alice
@@ -351,7 +381,9 @@ $ tsh db ls
 # sqlserver                     env=dev
 ```
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 To retrieve credentials for a database and connect to it:
 
@@ -359,16 +391,49 @@ To retrieve credentials for a database and connect to it:
 $ tsh db connect --db-user=teleport sqlserver
 ```
 
-<Admonition type="note">
-  The `mssql-cli` command-line client should be available in `PATH` of the machine
-  you're running `tsh db connect` from.
-</Admonition>
+(!docs/pages/includes/database-access/sql-server-connect-note.mdx!)
 
 To log out of the database and remove credentials:
 
 ```code
 $ tsh db logout sqlserver
 ```
+
+## Troubleshooting
+
+### Certificate error
+
+If your `tsh db connect` error includes the following text, the certificate used by SQL Server is not a known Certificate Authority.
+
+```code
+Error message: TLS Handshake failed: x509: certificate signed by unknown authority
+```
+
+To solve this, you can add the CA configuration to the database like the
+following:
+
+```diff
+  databases:
+  - name: sqlserver
+    protocol: sqlserver
+    uri: sqlserver.example.com:1433
+    ad:
+      keytab_file: /path/to/teleport.keytab
+      domain: EXAMPLE.COM
+      spn: MSSQLSvc/sqlserver.example.com:1433
+    static_labels:
+      "env": "dev"
++   tls:
++     # Point it to your Database CA PEM certificate.
++     ca_cert_file: "rdsca.pem"
++     # If your database certificate has an empty CN filed, you must change
++     # the TLS mode to only verify the CA.
++     mode: verify-ca
+```
+
+If you’re unable to acquire the database CA, you can skip TLS verification by
+providing the configuration `tls.mode: "insecure"`. However, we do not recommend
+skipping TLS verification in production environments.
 
 ## Next steps
 
@@ -378,3 +443,4 @@ $ tsh db logout sqlserver
 
 - [Manually join a Linux instance](https://docs.aws.amazon.com/directoryservice/latest/admin-guide/join_linux_instance.html) in the AWS documentation.
 - [Introduction to `adutil`](https://docs.microsoft.com/en-us/sql/linux/sql-server-linux-ad-auth-adutil-introduction) in the Microsoft documentation.
+

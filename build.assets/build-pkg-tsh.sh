@@ -5,9 +5,11 @@ set -eu
 TELEPORT_TYPE=''     # -t, oss or ent
 TELEPORT_VERSION=''  # -v, version, without leading 'v'
 TARBALL_DIRECTORY='' # -s
+BUNDLEID="${TSH_BUNDLEID}"
+PACKAGE_ARCH=amd64   # -a, default to amd64 for backward-compatibilty.
 
 usage() {
-  log "Usage: $0 -t oss|eng -v version [-s tarball_directory] [-n]"
+  log "Usage: $0 -t oss|eng -v version [-s tarball_directory] [-b bundle_id] [-n]"
 }
 
 # make_non_relocatable_plist changes the default component plist of the $root
@@ -34,7 +36,7 @@ main() {
   . "$buildassets/build-common.sh"
 
   local opt=''
-  while getopts "t:v:s:n" opt; do
+  while getopts "t:v:s:b:a:n" opt; do
     case "$opt" in
       t)
         if [[ "$OPTARG" != "oss" && "$OPTARG" != "ent" ]]; then
@@ -53,6 +55,12 @@ main() {
           OPTARG="$PWD/$OPTARG"
         fi
         TARBALL_DIRECTORY="$OPTARG"
+        ;;
+      b)
+        BUNDLEID="$OPTARG"
+        ;;
+      a)
+        PACKAGE_ARCH="$OPTARG"
         ;;
       n)
         DRY_RUN_PREFIX='echo + '  # declared by build-common.sh
@@ -75,6 +83,12 @@ main() {
     exit 1
   fi
 
+  if [[ -z "${BUNDLEID}" ]]; then
+    echo "No bundle ID specified. Either set TSH_BUNDLEID or use -b bundle_id"
+    usage
+    exit 1
+  fi
+
   # Verify environment varibles.
   if [[ "${APPLE_USERNAME:-}" == "" ]]; then
     echo "\
@@ -89,14 +103,28 @@ password created by APPLE_USERNAME"
     exit 1
   fi
 
+  if [[ -z "${DEVELOPER_ID_APPLICATION}" ]]; then
+    echo "\
+The DEVELOPER_ID_APPLICATION environment variable needs to be set to the hash\
+of the key to sign applications"
+    exit 1
+  fi
+
+  if [[ -z "${DEVELOPER_ID_INSTALLER}" ]]; then
+    echo "\
+The DEVELOPER_ID_INSTALLER environment variable needs to be set to the hash\
+of the key to sign packages"
+    exit 1
+  fi
+
   # Use similar find-or-download logic as build-package.sh for compatibility
   # purposes.
   local ent=''
   [[ "$TELEPORT_TYPE" == 'ent' ]] && ent='-ent'
   local tarname=''
   tarname="$(printf \
-    "teleport%s-v%s-darwin-amd64-bin.tar.gz" \
-    "$ent" "$TELEPORT_VERSION")"
+    "teleport%s-v%s-darwin-%s-bin.tar.gz" \
+    "$ent" "$TELEPORT_VERSION" "$PACKAGE_ARCH")"
   [[ -n "$TARBALL_DIRECTORY" ]] && tarname="$TARBALL_DIRECTORY/$tarname"
 
   tarout='' # find_or_fetch_tarball writes to this
@@ -134,14 +162,19 @@ password created by APPLE_USERNAME"
   $DRY_RUN_PREFIX codesign -f \
     -o kill,hard,runtime \
     -s "$DEVELOPER_ID_APPLICATION" \
-    -i "$TSH_BUNDLEID" \
+    -i "$BUNDLEID" \
     --entitlements "$skel"/tsh*.entitlements \
     --timestamp \
     "$target"
 
   # Prepare and sign the installer package.
   # Note that the installer does __NOT__ have a `v` in the version number.
-  target="$tmp/tsh-$TELEPORT_VERSION.pkg" # switches from app to pkg
+  # The package for the universal binary does not have an architecture in the name.
+  local arch_tag=""
+  if [[ "$PACKAGE_ARCH" != "universal" ]]; then
+    arch_tag="-$PACKAGE_ARCH"
+  fi
+  target="$tmp/tsh-$TELEPORT_VERSION$arch_tag.pkg" # switches from app to pkg
   local pkg_root="$tmp/root"
   local pkg_component_plist="$tmp/tsh-component.plist"
   local pkg_scripts="$buildassets/macos/scripts"
@@ -149,7 +182,7 @@ password created by APPLE_USERNAME"
   pkgbuild \
     --root "$pkg_root" \
     --component-plist "$pkg_component_plist" \
-    --identifier "$TSH_BUNDLEID" \
+    --identifier "$BUNDLEID" \
     --version "v$TELEPORT_VERSION" \
     --install-location /Applications \
     --scripts "$pkg_scripts" \
@@ -166,7 +199,7 @@ password created by APPLE_USERNAME"
   fi
 
   # Notarize.
-  notarize "$target" "$TEAMID" "$TSH_BUNDLEID"
+  notarize "$target" "$TEAMID" "$BUNDLEID"
 
   # Copy resulting package to $PWD, generate hashes.
   mv "$target" .

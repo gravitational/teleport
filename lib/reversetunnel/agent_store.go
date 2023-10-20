@@ -65,24 +65,6 @@ func (s *agentStore) remove(agent Agent) bool {
 	return s.unsafeRemove(agent)
 }
 
-// poplen pops an agent from the store if there are more agents in the store
-// than the the given value. The oldest agent is always returned first.
-func (s *agentStore) poplen(l int) (Agent, bool) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	if l < 0 || len(s.agents) == 0 {
-		return nil, false
-	}
-	if len(s.agents) <= l {
-		return nil, false
-	}
-
-	agent := s.agents[0]
-	s.agents = s.agents[1:]
-	return agent, true
-}
-
 // proxyIDs returns a list of proxy ids that each agent is connected to ordered
 // from newest to oldest connected proxy id.
 func (s *agentStore) proxyIDs() []string {

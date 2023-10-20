@@ -16,17 +16,17 @@ package webauthnwin
 
 import (
 	"encoding/base64"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"syscall"
 	"unsafe"
 
-	"github.com/duo-labs/webauthn/protocol"
-	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
+	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/sys/windows"
+
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 )
 
 var (
@@ -46,6 +46,8 @@ var (
 	procGetForegroundWindow = modUser32.NewProc("GetForegroundWindow")
 )
 
+var native nativeWebauthn = newNativeImpl()
+
 // nativeImpl keeps diagnostic informations about windows webauthn support.
 type nativeImpl struct {
 	webauthnAPIVersion int
@@ -61,7 +63,7 @@ type nativeImpl struct {
 func newNativeImpl() *nativeImpl {
 	v, err := checkIfDLLExistsAndGetAPIVersionNumber()
 	if err != nil {
-		log.WithError(err).Warn("WebAuthnWin: failed to check version")
+		log.WithError(err).Debug("WebAuthnWin: failed to check version")
 		return &nativeImpl{
 			hasCompileSupport: true,
 			isAvailable:       false,
@@ -71,7 +73,7 @@ func newNativeImpl() *nativeImpl {
 	if err != nil {
 		// This should not happen if dll exists, however we are fine with
 		// to proceed without uvPlatform.
-		log.WithError(err).Warn("WebAuthnWin: failed to check isUVPlatformAuthenticatorAvailable")
+		log.WithError(err).Debug("WebAuthnWin: failed to check isUVPlatformAuthenticatorAvailable")
 	}
 
 	return &nativeImpl{
@@ -94,33 +96,22 @@ func (n *nativeImpl) CheckSupport() CheckSupportResult {
 // GetAssertion calls WebAuthNAuthenticatorGetAssertion endpoint from
 // webauthn.dll and returns CredentialAssertionResponse.
 // It interacts with both FIDO2 and Windows Hello depending on
-// loginOpts.AuthenticatorAttachment (using auto results in possibilty to select
+// opts.AuthenticatorAttachment (using auto results in possibilty to select
 // either security key or Windows Hello).
 // It does not accept username - during passwordless login webauthn.dll provides
 // its own dialog with credentials selection.
-func (n *nativeImpl) GetAssertion(origin string, in *wanlib.CredentialAssertion, loginOpts *LoginOpts) (*wanlib.CredentialAssertionResponse, error) {
+func (n *nativeImpl) GetAssertion(origin string, in *getAssertionRequest) (*wantypes.CredentialAssertionResponse, error) {
 	hwnd, err := getForegroundWindow()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	rpid, err := windows.UTF16PtrFromString(in.Response.RelyingPartyID)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	cd, jsonEncodedCD, err := clientDataToCType(in.Response.Challenge.String(), origin, string(protocol.AssertCeremony))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	opts, err := n.assertOptionsToCType(in.Response, loginOpts)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+
 	var out *webauthnAssertion
 	ret, _, err := procWebAuthNAuthenticatorGetAssertion.Call(
 		uintptr(hwnd),
-		uintptr(unsafe.Pointer(rpid)),
-		uintptr(unsafe.Pointer(cd)),
-		uintptr(unsafe.Pointer(opts)),
+		uintptr(unsafe.Pointer(in.rpID)),
+		uintptr(unsafe.Pointer(in.clientData)),
+		uintptr(unsafe.Pointer(in.opts)),
 		uintptr(unsafe.Pointer(&out)),
 	)
 	if ret != 0 {
@@ -137,24 +128,24 @@ func (n *nativeImpl) GetAssertion(origin string, in *wanlib.CredentialAssertion,
 
 	authData := bytesFromCBytes(out.cbAuthenticatorData, out.pbAuthenticatorData)
 	signature := bytesFromCBytes(out.cbSignature, out.pbSignature)
-	userID := bytesFromCBytes(out.cbUserId, out.pbUserId)
-	credential := bytesFromCBytes(out.Credential.cbId, out.Credential.pbId)
+	userID := bytesFromCBytes(out.cbUserID, out.pbUserID)
+	credential := bytesFromCBytes(out.Credential.cbID, out.Credential.pbID)
 	credType := windows.UTF16PtrToString(out.Credential.pwszCredentialType)
 
-	return &wanlib.CredentialAssertionResponse{
-		PublicKeyCredential: wanlib.PublicKeyCredential{
+	return &wantypes.CredentialAssertionResponse{
+		PublicKeyCredential: wantypes.PublicKeyCredential{
 			RawID: credential,
-			Credential: wanlib.Credential{
+			Credential: wantypes.Credential{
 				ID:   base64.RawURLEncoding.EncodeToString(credential),
 				Type: credType,
 			},
 		},
-		AssertionResponse: wanlib.AuthenticatorAssertionResponse{
+		AssertionResponse: wantypes.AuthenticatorAssertionResponse{
 			AuthenticatorData: authData,
 			Signature:         signature,
 			UserHandle:        userID,
-			AuthenticatorResponse: wanlib.AuthenticatorResponse{
-				ClientDataJSON: jsonEncodedCD,
+			AuthenticatorResponse: wantypes.AuthenticatorResponse{
+				ClientDataJSON: in.jsonEncodedClientData,
 			},
 		},
 	}, nil
@@ -162,43 +153,24 @@ func (n *nativeImpl) GetAssertion(origin string, in *wanlib.CredentialAssertion,
 
 // MakeCredential calls WebAuthNAuthenticatorMakeCredential endpoint from
 // webauthn.dll and returns CredentialCreationResponse.
-// It interacts with both FIDO2 and Windows Hello depending on
-// wanlib.CredentialCreation (using auto starts with Windows Hello but there is
+// It interacts with both FIDO2 and Windows Hello depending on opts
+// (using auto starts with Windows Hello but there is
 // option to select other devices).
 // Windows Hello keys are always resident.
-func (n *nativeImpl) MakeCredential(origin string, in *wanlib.CredentialCreation) (*wanlib.CredentialCreationResponse, error) {
+func (n *nativeImpl) MakeCredential(origin string, in *makeCredentialRequest) (*wantypes.CredentialCreationResponse, error) {
 	hwnd, err := getForegroundWindow()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	rp, err := rpToCType(in.Response.RelyingParty)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	u, err := userToCType(in.Response.User)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	credParam, err := credParamToCType(in.Response.Parameters)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	cd, jsonEncodedCD, err := clientDataToCType(in.Response.Challenge.String(), origin, string(protocol.CreateCeremony))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	opts, err := n.makeCredOptionsToCType(in.Response)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+
 	var out *webauthnCredentialAttestation
 	ret, _, err := procWebAuthNAuthenticatorMakeCredential.Call(
 		uintptr(hwnd),
-		uintptr(unsafe.Pointer(rp)),
-		uintptr(unsafe.Pointer(u)),
-		uintptr(unsafe.Pointer(credParam)),
-		uintptr(unsafe.Pointer(cd)),
-		uintptr(unsafe.Pointer(opts)),
+		uintptr(unsafe.Pointer(in.rp)),
+		uintptr(unsafe.Pointer(in.user)),
+		uintptr(unsafe.Pointer(in.credParameters)),
+		uintptr(unsafe.Pointer(in.clientData)),
+		uintptr(unsafe.Pointer(in.opts)),
 		uintptr(unsafe.Pointer(&out)),
 	)
 	if ret != 0 {
@@ -213,19 +185,19 @@ func (n *nativeImpl) MakeCredential(origin string, in *wanlib.CredentialCreation
 	// We don't care about free error so ignore it explicitly.
 	defer func() { _ = freeCredentialAttestation(out) }()
 
-	credential := bytesFromCBytes(out.cbCredentialId, out.pbCredentialId)
+	credential := bytesFromCBytes(out.cbCredentialID, out.pbCredentialID)
 
-	return &wanlib.CredentialCreationResponse{
-		PublicKeyCredential: wanlib.PublicKeyCredential{
-			Credential: wanlib.Credential{
+	return &wantypes.CredentialCreationResponse{
+		PublicKeyCredential: wantypes.PublicKeyCredential{
+			Credential: wantypes.Credential{
 				ID:   base64.RawURLEncoding.EncodeToString(credential),
 				Type: string(protocol.PublicKeyCredentialType),
 			},
 			RawID: credential,
 		},
-		AttestationResponse: wanlib.AuthenticatorAttestationResponse{
-			AuthenticatorResponse: wanlib.AuthenticatorResponse{
-				ClientDataJSON: jsonEncodedCD,
+		AttestationResponse: wantypes.AuthenticatorAttestationResponse{
+			AuthenticatorResponse: wantypes.AuthenticatorResponse{
+				ClientDataJSON: in.jsonEncodedClientData,
 			},
 			AttestationObject: bytesFromCBytes(out.cbAttestationObject, out.pbAttestationObject),
 		},
@@ -295,291 +267,6 @@ func isUVPlatformAuthenticatorAvailable() (bool, error) {
 		return false, getErrorNameOrLastErr(ret, err)
 	}
 	return out == 1, nil
-}
-
-func (n *nativeImpl) assertOptionsToCType(in protocol.PublicKeyCredentialRequestOptions, loginOpts *LoginOpts) (*webauthnAuthenticatorGetAssertionOptions, error) {
-	allowCredList, err := credentialsExToCType(in.AllowedCredentials)
-	if err != nil {
-		return nil, err
-	}
-
-	var dwAuthenticatorAttachment uint32
-	if loginOpts != nil {
-		switch loginOpts.AuthenticatorAttachment {
-		case AttachmentPlatform:
-			dwAuthenticatorAttachment = 1
-		case AttachmentCrossPlatform:
-			dwAuthenticatorAttachment = 2
-		}
-	}
-
-	return &webauthnAuthenticatorGetAssertionOptions{
-		// https://github.com/microsoft/webauthn/blob/7ab979cc833bfab9a682ed51761309db57f56c8c/webauthn.h#L36-L97
-		// contains information about different versions.
-		// We can set newest version and it still works on older APIs.
-		dwVersion:                     6,
-		dwTimeoutMilliseconds:         uint32(in.Timeout),
-		dwAuthenticatorAttachment:     dwAuthenticatorAttachment,
-		dwUserVerificationRequirement: userVerificationToCType(in.UserVerification),
-		// TODO(tobiaszheller): support U2fAppId.
-		pAllowCredentialList: allowCredList,
-	}, nil
-}
-
-func rpToCType(in protocol.RelyingPartyEntity) (*webauthnRPEntityInformation, error) {
-	if in.ID == "" {
-		return nil, errors.New("missing RelyingPartyEntity.Id")
-	}
-	if in.Name == "" {
-		return nil, errors.New("missing RelyingPartyEntity.Name")
-	}
-	id, err := windows.UTF16PtrFromString(in.ID)
-	if err != nil {
-		return nil, err
-	}
-	name, err := windows.UTF16PtrFromString(in.Name)
-	if err != nil {
-		return nil, err
-	}
-	var icon *uint16
-	if in.Icon != "" {
-		icon, err = windows.UTF16PtrFromString(in.Icon)
-		if err != nil {
-			return nil, err
-		}
-	}
-	return &webauthnRPEntityInformation{
-		dwVersion: 1,
-		pwszId:    id,
-		pwszName:  name,
-		pwszIcon:  icon,
-	}, nil
-}
-
-func userToCType(in protocol.UserEntity) (*webauthnUserEntityInformation, error) {
-	if len(in.ID) == 0 {
-		return nil, errors.New("missing UserEntity.Id")
-	}
-	if in.Name == "" {
-		return nil, errors.New("missing UserEntity.Name")
-	}
-
-	name, err := windows.UTF16PtrFromString(in.Name)
-	if err != nil {
-		return nil, err
-	}
-	var displayName *uint16
-	if in.DisplayName != "" {
-		displayName, err = windows.UTF16PtrFromString(in.DisplayName)
-		if err != nil {
-			return nil, err
-		}
-	}
-	var icon *uint16
-	if in.Icon != "" {
-		icon, err = windows.UTF16PtrFromString(in.Icon)
-		if err != nil {
-			return nil, err
-		}
-	}
-	return &webauthnUserEntityInformation{
-		dwVersion:       1,
-		cbId:            uint32(len(in.ID)),
-		pbId:            &in.ID[0],
-		pwszName:        name,
-		pwszDisplayName: displayName,
-		pwszIcon:        icon,
-	}, nil
-}
-
-func credParamToCType(in []protocol.CredentialParameter) (*webauthnCoseCredentialParameters, error) {
-	if len(in) == 0 {
-		return nil, errors.New("missing CredentialParameter")
-	}
-	out := make([]webauthnCoseCredentialParameter, 0, len(in))
-	for _, c := range in {
-		pwszCredentialType, err := windows.UTF16PtrFromString(string(c.Type))
-		if err != nil {
-			return nil, err
-		}
-		out = append(out, webauthnCoseCredentialParameter{
-			dwVersion:          1,
-			pwszCredentialType: pwszCredentialType,
-			lAlg:               int32(c.Algorithm),
-		})
-	}
-	return &webauthnCoseCredentialParameters{
-		cCredentialParameters: uint32(len(out)),
-		pCredentialParameters: &out[0],
-	}, nil
-}
-
-func clientDataToCType(challenge, origin, cdType string) (*webauthnClientData, []byte, error) {
-	if challenge == "" {
-		return nil, nil, errors.New("missing ClientData.Challenge")
-	}
-	if origin == "" {
-		return nil, nil, errors.New("missing ClientData.Origin")
-	}
-	algId, err := windows.UTF16PtrFromString("SHA-256")
-	if err != nil {
-		return nil, nil, err
-	}
-	type clientDataJson struct {
-		Type      string `json:"type"`
-		Challenge string `json:"challenge"`
-		Origin    string `json:"origin"`
-	}
-	cd := clientDataJson{
-		Type:      cdType,
-		Challenge: challenge,
-		Origin:    origin,
-	}
-	jsonCD, err := json.Marshal(cd)
-	if err != nil {
-		return nil, nil, err
-	}
-	return &webauthnClientData{
-		dwVersion:        1,
-		cbClientDataJSON: uint32(len(jsonCD)),
-		pbClientDataJSON: &jsonCD[0],
-		pwszHashAlgId:    algId,
-	}, jsonCD, nil
-
-}
-
-func credentialsExToCType(in []protocol.CredentialDescriptor) (*webauthnCredentialList, error) {
-	exCredList := make([]*webauthnCredentialEX, 0, len(in))
-	for _, e := range in {
-		if e.Type == "" {
-			return nil, errors.New("missing CredentialDescriptor.Type")
-		}
-		if len(e.CredentialID) == 0 {
-			return nil, errors.New("missing CredentialDescriptor.CredentialID")
-		}
-		pwszCredentialType, err := windows.UTF16PtrFromString(string(e.Type))
-		if err != nil {
-			return nil, err
-		}
-		exCredList = append(exCredList, &webauthnCredentialEX{
-			dwVersion:          1,
-			cbId:               uint32(len(e.CredentialID)),
-			pbId:               &e.CredentialID[0],
-			pwszCredentialType: pwszCredentialType,
-			dwTransports:       transportsToCType(e.Transport),
-		})
-	}
-
-	if len(exCredList) == 0 {
-		return nil, nil
-	}
-	return &webauthnCredentialList{
-		cCredentials:  uint32(len(exCredList)),
-		ppCredentials: &exCredList[0],
-	}, nil
-}
-
-func transportsToCType(in []protocol.AuthenticatorTransport) uint32 {
-	if len(in) == 0 {
-		return 0
-	}
-	var out uint32
-	for _, at := range in {
-		// Mappped based on:
-		// https://github.com/microsoft/webauthn/blob/7ab979cc833bfab9a682ed51761309db57f56c8c/webauthn.h#L249-L254
-		switch at {
-		case protocol.USB:
-			out += 0x1
-		case protocol.NFC:
-			out += 0x2
-		case protocol.BLE:
-			out += 0x4
-		case protocol.Internal:
-			out += 0x10
-		}
-	}
-	return out
-}
-
-func attachmentToCType(in protocol.AuthenticatorAttachment) uint32 {
-	// Mapped based on:
-	// https://github.com/microsoft/webauthn/blob/7ab979cc833bfab9a682ed51761309db57f56c8c/webauthn.h#L493-L496
-	switch in {
-	case protocol.Platform:
-		return 1
-	case protocol.CrossPlatform:
-		return 2
-	default:
-		return 0
-	}
-}
-
-func conveyancePreferenceToCType(in protocol.ConveyancePreference) uint32 {
-	// Mapped based on:
-	// https://github.com/microsoft/webauthn/blob/7ab979cc833bfab9a682ed51761309db57f56c8c/webauthn.h#L503-L506
-	switch in {
-	case protocol.PreferNoAttestation:
-		return 1
-	case protocol.PreferIndirectAttestation:
-		return 2
-	case protocol.PreferDirectAttestation:
-		return 3
-	default:
-		return 0
-	}
-}
-
-func userVerificationToCType(in protocol.UserVerificationRequirement) uint32 {
-	// Mapped based on:
-	// https://github.com/microsoft/webauthn/blob/7ab979cc833bfab9a682ed51761309db57f56c8c/webauthn.h#L498-L501
-	switch in {
-	case protocol.VerificationRequired:
-		return 1
-	case protocol.VerificationPreferred:
-		return 2
-	case protocol.VerificationDiscouraged:
-		return 3
-	default:
-		return 0
-	}
-}
-
-func requireResidentKeyToCType(in *bool) uint32 {
-	if in == nil {
-		return 0
-	}
-	return boolToUint32(*in)
-}
-
-func (n *nativeImpl) makeCredOptionsToCType(in protocol.PublicKeyCredentialCreationOptions) (*webauthnAuthenticatorMakeCredentialOptions, error) {
-	exCredList, err := credentialsExToCType(in.CredentialExcludeList)
-	if err != nil {
-		return nil, err
-	}
-
-	// TODO (tobiaszheller): teleport server right now does not support
-	// preferResidentKey.
-	var bPreferResidentKey uint32
-	return &webauthnAuthenticatorMakeCredentialOptions{
-		// https://github.com/microsoft/webauthn/blob/7ab979cc833bfab9a682ed51761309db57f56c8c/webauthn.h#L36-L97
-		// contains information about different versions.
-		// We can set newest version and it still works on older APIs.
-		dwVersion:                         5,
-		dwTimeoutMilliseconds:             uint32(in.Timeout),
-		dwAuthenticatorAttachment:         attachmentToCType(in.AuthenticatorSelection.AuthenticatorAttachment),
-		dwAttestationConveyancePreference: conveyancePreferenceToCType(in.Attestation),
-		bRequireResidentKey:               requireResidentKeyToCType(in.AuthenticatorSelection.RequireResidentKey),
-		dwUserVerificationRequirement:     userVerificationToCType(in.AuthenticatorSelection.UserVerification),
-		pExcludeCredentialList:            exCredList,
-		bPreferResidentKey:                bPreferResidentKey,
-	}, nil
-}
-
-func boolToUint32(in bool) uint32 {
-	if in {
-		return 1
-	}
-	return 0
 }
 
 // bytesFromCBytes gets slice of bytes from C type and copies it to new slice

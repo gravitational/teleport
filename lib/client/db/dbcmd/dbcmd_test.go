@@ -16,10 +16,11 @@ package dbcmd
 
 import (
 	"errors"
-	"os"
-	"os/exec"
-	"path/filepath"
+	"strings"
 	"testing"
+
+	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -27,17 +28,6 @@ import (
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/require"
-)
-
-type commandPathBehavior = int
-
-const (
-	system commandPathBehavior = iota
-	forceAbsolutePath
-	forceBasePath
 )
 
 // fakeExec implements execer interface for mocking purposes.
@@ -45,11 +35,6 @@ type fakeExec struct {
 	// execOutput maps binary name and output that should be returned on RunCommand().
 	// Map is also being used to check if a binary exist. Command line args are not supported.
 	execOutput map[string][]byte
-	// commandPathBehavior controls what kind of path will be returned from fakeExec.Command:
-	// * system just calls exec.Command
-	// * forceAbsolutePath guarantees that the returned cmd.Path will be absolute
-	// * forceBasePath guarantees that the returned cmd.Path will be just the binary name
-	commandPathBehavior commandPathBehavior
 }
 
 func (f fakeExec) RunCommand(cmd string, _ ...string) ([]byte, error) {
@@ -66,28 +51,6 @@ func (f fakeExec) LookPath(path string) (string, error) {
 		return "", nil
 	}
 	return "", trace.NotFound("not found")
-}
-
-func (f fakeExec) Command(name string, arg ...string) *exec.Cmd {
-	switch f.commandPathBehavior {
-	case system:
-		return exec.Command(name, arg...)
-	case forceAbsolutePath:
-		path, err := os.Getwd()
-		if err != nil {
-			panic(err)
-		}
-
-		absolutePath := filepath.Join(path, name)
-		cmd := exec.Command(absolutePath, arg...)
-
-		return cmd
-	case forceBasePath:
-		cmd := exec.Command(name, arg...)
-		cmd.Path = filepath.Base(cmd.Path)
-		return cmd
-	}
-	panic("Unknown commandPathBehavior")
 }
 
 func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
@@ -329,11 +292,34 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 			wantErr: false,
 		},
 		{
+			name:         "mariadb (remote proxy)",
+			dbProtocol:   defaults.ProtocolMySQL,
+			databaseName: "mydb",
+			opts:         []ConnectCommandFunc{WithLocalProxy("", 0, "") /* negate default WithLocalProxy*/},
+			execer: &fakeExec{
+				execOutput: map[string][]byte{
+					"mariadb": []byte(""),
+				},
+			},
+			cmd: []string{"mariadb",
+				"--user", "myUser",
+				"--database", "mydb",
+				"--port", "3036",
+				"--host", "proxy.example.com",
+				"--ssl-key", "/tmp/keys/example.com/bob",
+				"--ssl-ca", "/tmp/keys/example.com/cas/root.pem",
+				"--ssl-cert", "/tmp/keys/example.com/bob-db/db.example.com/mysql-x509.pem",
+				"--ssl-verify-server-cert"},
+			wantErr: false,
+		},
+		{
 			name:         "mongodb (legacy)",
 			dbProtocol:   defaults.ProtocolMongoDB,
 			databaseName: "mydb",
 			execer: &fakeExec{
-				execOutput: map[string][]byte{},
+				execOutput: map[string][]byte{
+					"mongo": []byte("legacy"),
+				},
 			},
 			cmd: []string{"mongo",
 				"--ssl",
@@ -343,12 +329,14 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:         "mongodb no TLS",
+			name:         "mongodb no TLS (legacy)",
 			dbProtocol:   defaults.ProtocolMongoDB,
 			databaseName: "mydb",
 			opts:         []ConnectCommandFunc{WithNoTLS()},
 			execer: &fakeExec{
-				execOutput: map[string][]byte{},
+				execOutput: map[string][]byte{
+					"mongo": []byte("legacy"),
+				},
 			},
 			cmd: []string{"mongo",
 				"mongodb://localhost:12345/mydb?serverSelectionTimeoutMS=5000",
@@ -404,11 +392,40 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 			},
 		},
 		{
+			name:         "mongosh preferred",
+			dbProtocol:   defaults.ProtocolMongoDB,
+			databaseName: "mydb",
+			opts:         []ConnectCommandFunc{WithNoTLS()},
+			execer: &fakeExec{
+				execOutput: map[string][]byte{}, // Cannot find either bin.
+			},
+			cmd: []string{"mongosh",
+				"mongodb://localhost:12345/mydb?serverSelectionTimeoutMS=5000",
+			},
+		},
+		{
 			name:         "sqlserver",
 			dbProtocol:   defaults.ProtocolSQLServer,
 			databaseName: "mydb",
 			execer:       &fakeExec{},
 			cmd: []string{mssqlBin,
+				"-S", "localhost,12345",
+				"-U", "myUser",
+				"-P", fixtures.UUID,
+				"-d", "mydb",
+			},
+			wantErr: false,
+		},
+		{
+			name:         "sqlserver sqlcmd",
+			dbProtocol:   defaults.ProtocolSQLServer,
+			databaseName: "mydb",
+			execer: &fakeExec{
+				execOutput: map[string][]byte{
+					"sqlcmd": {},
+				},
+			},
+			cmd: []string{sqlcmdBin,
 				"-S", "localhost,12345",
 				"-U", "myUser",
 				"-P", fixtures.UUID,
@@ -502,6 +519,49 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 			wantErr:      false,
 		},
 		{
+			name:         "opensearchsql not found",
+			dbProtocol:   defaults.ProtocolOpenSearch,
+			opts:         []ConnectCommandFunc{},
+			execer:       &fakeExec{},
+			databaseName: "warehouse1",
+			wantErr:      true,
+		},
+		{
+			name:         "opensearchsql TLS, fail",
+			dbProtocol:   defaults.ProtocolOpenSearch,
+			opts:         []ConnectCommandFunc{},
+			execer:       &fakeExec{execOutput: map[string][]byte{"opensearchsql": []byte("")}},
+			databaseName: "warehouse1",
+			wantErr:      true,
+		},
+		{
+			name:         "opensearchsql no TLS, success",
+			dbProtocol:   defaults.ProtocolOpenSearch,
+			opts:         []ConnectCommandFunc{WithNoTLS()},
+			execer:       &fakeExec{execOutput: map[string][]byte{"opensearchsql": []byte("")}},
+			databaseName: "warehouse1",
+			cmd:          []string{"opensearchsql", "http://localhost:12345"},
+			wantErr:      false,
+		},
+		{
+			name:         "cassandra",
+			dbProtocol:   defaults.ProtocolCassandra,
+			opts:         []ConnectCommandFunc{WithLocalProxy("localhost", 12345, "")},
+			execer:       &fakeExec{},
+			databaseName: "cassandra01",
+			cmd:          []string{"cqlsh", "-u", "myUser", "localhost", "12345"},
+			wantErr:      false,
+		},
+		{
+			name:         "cassandra with password",
+			dbProtocol:   defaults.ProtocolCassandra,
+			opts:         []ConnectCommandFunc{WithLocalProxy("localhost", 12345, ""), WithPassword("password")},
+			execer:       &fakeExec{},
+			databaseName: "cassandra01",
+			cmd:          []string{"cqlsh", "-u", "myUser", "localhost", "12345", "-p", "password"},
+			wantErr:      false,
+		},
+		{
 			name:         "elasticsearch with TLS, errors",
 			dbProtocol:   defaults.ProtocolElasticsearch,
 			opts:         []ConnectCommandFunc{},
@@ -510,6 +570,60 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 			cmd:          nil,
 			wantErr:      true,
 		},
+		{
+			name:         "dynamodb for exec is an error",
+			dbProtocol:   defaults.ProtocolDynamoDB,
+			opts:         []ConnectCommandFunc{WithNoTLS(), WithLocalProxy("localhost", 12345, "")},
+			execer:       &fakeExec{},
+			databaseName: "",
+			cmd:          nil,
+			wantErr:      true,
+		},
+		{
+			name:         "dynamodb without proxy is an error",
+			dbProtocol:   defaults.ProtocolDynamoDB,
+			opts:         []ConnectCommandFunc{WithPrintFormat(), WithNoTLS(), WithLocalProxy("", 0, "")},
+			execer:       &fakeExec{},
+			databaseName: "",
+			cmd:          nil,
+			wantErr:      true,
+		},
+		{
+			name:         "dynamodb with TLS proxy is an error",
+			dbProtocol:   defaults.ProtocolDynamoDB,
+			opts:         []ConnectCommandFunc{WithPrintFormat(), WithLocalProxy("localhost", 12345, "")},
+			execer:       &fakeExec{},
+			databaseName: "",
+			cmd:          nil,
+			wantErr:      true,
+		},
+		{
+			name:         "dynamodb with print format and no-TLS proxy is ok",
+			dbProtocol:   defaults.ProtocolDynamoDB,
+			opts:         []ConnectCommandFunc{WithPrintFormat(), WithNoTLS(), WithLocalProxy("localhost", 12345, "")},
+			execer:       &fakeExec{},
+			databaseName: "",
+			cmd:          []string{"aws", "--endpoint", "http://localhost:12345/", "[dynamodb|dynamodbstreams|dax]", "<command>"},
+			wantErr:      false,
+		},
+		{
+			name:         "oracle",
+			dbProtocol:   defaults.ProtocolOracle,
+			opts:         []ConnectCommandFunc{WithLocalProxy("localhost", 12345, "")},
+			execer:       &fakeExec{},
+			databaseName: "oracle01",
+			cmd:          []string{"sql", "-L", "jdbc:oracle:thin:@tcps://localhost:12345/oracle01?TNS_ADMIN=/tmp/keys/example.com/bob-db/mysql-wallet"},
+			wantErr:      false,
+		},
+		{
+			name:         "Oracle with print format",
+			dbProtocol:   defaults.ProtocolOracle,
+			opts:         []ConnectCommandFunc{WithLocalProxy("localhost", 12345, ""), WithPrintFormat()},
+			execer:       &fakeExec{},
+			databaseName: "oracle01",
+			cmd:          []string{"sql", "-L", "'jdbc:oracle:thin:@tcps://localhost:12345/oracle01?TNS_ADMIN=/tmp/keys/example.com/bob-db/mysql-wallet'"},
+			wantErr:      false,
+		},
 	}
 
 	for _, tt := range tests {
@@ -517,7 +631,7 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			database := &tlsca.RouteToDatabase{
+			database := tlsca.RouteToDatabase{
 				Protocol:    tt.dbProtocol,
 				Database:    tt.databaseName,
 				Username:    "myUser",
@@ -533,9 +647,7 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 			c.uid = utils.NewFakeUID()
 			got, err := c.GetConnectCommand()
 			if tt.wantErr {
-				if err == nil {
-					t.Errorf("getConnectCommand() should return an error, but it didn't")
-				}
+				require.Error(t, err)
 				return
 			}
 
@@ -621,6 +733,60 @@ func TestCLICommandBuilderGetConnectCommandAlternatives(t *testing.T) {
 			},
 			wantErr: false,
 		},
+		{
+			name:         "opensearch, TLS, no binaries",
+			dbProtocol:   defaults.ProtocolOpenSearch,
+			opts:         []ConnectCommandFunc{},
+			execer:       &fakeExec{},
+			databaseName: "warehouse1",
+			cmd: map[string][]string{
+				"run request with curl": {"curl", "https://localhost:12345/", "--key", "/tmp/keys/example.com/bob", "--cert", "/tmp/keys/example.com/bob-db/db.example.com/mysql-x509.pem"}},
+			wantErr: false,
+		},
+		{
+			name:         "opensearch, no TLS, no binaries",
+			dbProtocol:   defaults.ProtocolOpenSearch,
+			opts:         []ConnectCommandFunc{WithNoTLS()},
+			execer:       &fakeExec{},
+			databaseName: "warehouse1",
+			cmd:          map[string][]string{"run request with curl": {"curl", "http://localhost:12345/"}},
+			wantErr:      false,
+		},
+		{
+			name:       "opensearch, TLS, all binaries",
+			dbProtocol: defaults.ProtocolOpenSearch,
+			opts:       []ConnectCommandFunc{},
+			execer: &fakeExec{
+				execOutput: map[string][]byte{
+					"opensearch-cli": {},
+					"opensearchsql":  {},
+				},
+			},
+			databaseName: "warehouse1",
+			cmd: map[string][]string{
+				"run request with curl":           {"curl", "https://localhost:12345/", "--key", "/tmp/keys/example.com/bob", "--cert", "/tmp/keys/example.com/bob-db/db.example.com/mysql-x509.pem"},
+				"run request with opensearch-cli": {"opensearch-cli", "--profile", "teleport", "--config", "/tmp/mysql/opensearch-cli/fb135a4d.yml", "curl", "get", "--path", "/"}},
+
+			wantErr: false,
+		},
+		{
+			name:       "opensearch, no TLS, all binaries",
+			dbProtocol: defaults.ProtocolOpenSearch,
+			opts:       []ConnectCommandFunc{WithNoTLS()},
+			execer: &fakeExec{
+				execOutput: map[string][]byte{
+					"opensearch-cli": {},
+					"opensearchsql":  {},
+				},
+			},
+			databaseName: "warehouse1",
+			cmd: map[string][]string{
+				"run request with curl":                        {"curl", "http://localhost:12345/"},
+				"run request with opensearch-cli":              {"opensearch-cli", "--profile", "teleport", "--config", "/tmp/mysql/opensearch-cli/e397f38c.yml", "curl", "get", "--path", "/"},
+				"start interactive session with opensearchsql": {"opensearchsql", "http://localhost:12345"},
+			},
+			wantErr: false,
+		},
 	}
 
 	for _, tt := range tests {
@@ -628,7 +794,7 @@ func TestCLICommandBuilderGetConnectCommandAlternatives(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			database := &tlsca.RouteToDatabase{
+			database := tlsca.RouteToDatabase{
 				Protocol:    tt.dbProtocol,
 				Database:    tt.databaseName,
 				Username:    "myUser",
@@ -660,9 +826,11 @@ func TestCLICommandBuilderGetConnectCommandAlternatives(t *testing.T) {
 	}
 }
 
-func TestGetConnectCommandNoAbsPathConvertsAbsolutePathToRelative(t *testing.T) {
+func TestConvertCommandError(t *testing.T) {
+	t.Parallel()
+	homePath := t.TempDir()
 	conf := &client.Config{
-		HomePath:     t.TempDir(),
+		HomePath:     homePath,
 		Host:         "localhost",
 		WebProxyAddr: "localhost",
 		SiteName:     "db.example.com",
@@ -675,65 +843,71 @@ func TestGetConnectCommandNoAbsPathConvertsAbsolutePathToRelative(t *testing.T) 
 	profile := &client.ProfileStatus{
 		Name:     "example.com",
 		Username: "bob",
-		Dir:      "/tmp",
+		Dir:      homePath,
 	}
 
-	database := &tlsca.RouteToDatabase{
-		Protocol:    defaults.ProtocolPostgres,
-		Database:    "mydb",
-		Username:    "myUser",
-		ServiceName: "postgres",
+	tests := []struct {
+		desc       string
+		dbProtocol string
+		execer     *fakeExec
+		stderr     []byte
+		wantBin    string
+		wantStdErr string
+	}{
+		{
+			desc:       "converts access denied to helpful message",
+			dbProtocol: defaults.ProtocolMySQL,
+			execer: &fakeExec{
+				execOutput: map[string][]byte{
+					"mysql": []byte("Ver 8.0.27-0ubuntu0.20.04.1 for Linux on x86_64 ((Ubuntu))"),
+				},
+			},
+			stderr:     []byte("access to db denied"),
+			wantBin:    mysqlBin,
+			wantStdErr: "see your available logins, or ask your Teleport administrator",
+		},
+		{
+			desc:       "converts unrecognized redis error to helpful message",
+			dbProtocol: defaults.ProtocolRedis,
+			execer:     &fakeExec{},
+			stderr:     []byte("Unrecognized option or bad number of args for"),
+			wantBin:    redisBin,
+			wantStdErr: "Please make sure 'redis-cli' with version 6.2 or newer is installed",
+		},
 	}
 
-	opts := []ConnectCommandFunc{
-		WithLocalProxy("localhost", 12345, ""),
-		WithNoTLS(),
-		WithExecer(&fakeExec{commandPathBehavior: forceAbsolutePath}),
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.desc, func(t *testing.T) {
+			t.Parallel()
+
+			database := tlsca.RouteToDatabase{
+				Protocol:    tt.dbProtocol,
+				Database:    "DBName",
+				Username:    "myUser",
+				ServiceName: "DBService",
+			}
+
+			opts := []ConnectCommandFunc{
+				WithLocalProxy("localhost", 12345, ""),
+				WithNoTLS(),
+				WithExecer(tt.execer),
+			}
+			c := NewCmdBuilder(tc, profile, database, "root", opts...)
+			c.uid = utils.NewFakeUID()
+
+			cmd, err := c.GetConnectCommand()
+			require.NoError(t, err)
+
+			// make sure the expected test bin is the command bin we got
+			require.True(t, strings.HasSuffix(cmd.Path, tt.wantBin))
+
+			peakStderr := utils.NewCaptureNBytesWriter(PeakStderrSize)
+			_, peakErr := peakStderr.Write(tt.stderr)
+			require.NoError(t, peakErr, "CaptureNBytesWriter should never return error")
+
+			convertedErr := ConvertCommandError(cmd, nil, string(peakStderr.Bytes()))
+			require.ErrorContains(t, convertedErr, tt.wantStdErr)
+		})
 	}
-
-	c := NewCmdBuilder(tc, profile, database, "root", opts...)
-	c.uid = utils.NewFakeUID()
-
-	got, err := c.GetConnectCommandNoAbsPath()
-	require.NoError(t, err)
-	require.Equal(t, "psql postgres://myUser@localhost:12345/mydb", got.String())
-}
-
-func TestGetConnectCommandNoAbsPathIsNoopWhenGivenRelativePath(t *testing.T) {
-	conf := &client.Config{
-		HomePath:     t.TempDir(),
-		Host:         "localhost",
-		WebProxyAddr: "localhost",
-		SiteName:     "db.example.com",
-		Tracer:       tracing.NoopProvider().Tracer("test"),
-	}
-
-	tc, err := client.NewClient(conf)
-	require.NoError(t, err)
-
-	profile := &client.ProfileStatus{
-		Name:     "example.com",
-		Username: "bob",
-		Dir:      "/tmp",
-	}
-
-	database := &tlsca.RouteToDatabase{
-		Protocol:    defaults.ProtocolPostgres,
-		Database:    "mydb",
-		Username:    "myUser",
-		ServiceName: "postgres",
-	}
-
-	opts := []ConnectCommandFunc{
-		WithLocalProxy("localhost", 12345, ""),
-		WithNoTLS(),
-		WithExecer(&fakeExec{commandPathBehavior: forceBasePath}),
-	}
-
-	c := NewCmdBuilder(tc, profile, database, "root", opts...)
-	c.uid = utils.NewFakeUID()
-
-	got, err := c.GetConnectCommandNoAbsPath()
-	require.NoError(t, err)
-	require.Equal(t, "psql postgres://myUser@localhost:12345/mydb", got.String())
 }

@@ -54,10 +54,24 @@ message LockTarget {
 
     // Node specifies the name or UUID of a node.
     // A matching node is also prevented from heartbeating to the auth server.
+    // DEPRECATED: use ServerID instead.
     string Node;
 
     // MFADevice specifies the UUID of a user MFA device.
     string MFADevice;
+
+    // WindowsDesktop specifies the name of a Windows desktop.
+    string WindowsDesktop string
+
+    // AccessRequest specifies the UUID of an access request.
+    AccessRequest string
+
+    // Device is the device ID of a trusted device.
+    // Requires Teleport Enterprise.
+    Device               string
+
+    // ServerID specifies the UUID of a Teleport server.
+    ServerID             string
 }
 ```
 
@@ -234,14 +248,41 @@ Lock targeting Role:"developers" is in force: Cluster maintenance.
 the connection was closed on the remote side on  15 Jun 21 10:43 CEST
 ```
 
-#### Locking out a node
+#### Locking out a node (Deprecated)
+
+`tctl lock --node` was deprecated in favor of `tctl lock --server-id` in Teleport 13.x.x,
+12.4.x and 11.3.x. The `--node` flag is still supported for backward compatibility but
+it is recommended to use `--server-id` instead.
 
 ```
 $ tctl lock --node=node-uuid
+```
+
+#### Locking out any agent
+
+`tctl lock --server-id` was introduced in Teleport 13.x.x,
+12.4.x and 11.3.x and allows locking out any agent (SSH, Kubernetes, Database, etc)
+by specifying the agent's UUID. If the agent runs multiple services, all of them
+will be locked out.
+
+```
+$ tctl lock --server-id=agent-uuid
 ```
 
 #### Locking out an MFA device ID
 
 ```
 $ tctl lock --mfa-device=device-uuid
+```
+
+#### Locking out a Trusted device ID
+
+```
+$ tctl lock --device=device-uuid
+```
+
+#### Locking out a Windows Desktop
+
+```
+$ tctl lock --windows-desktop=windows-desktop-name
 ```

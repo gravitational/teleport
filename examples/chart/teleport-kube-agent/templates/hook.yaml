@@ -8,7 +8,7 @@ metadata:
   annotations:
     "helm.sh/hook": post-upgrade
     "helm.sh/hook-weight": "-4"
-    "helm.sh/hook-delete-policy": hook-succeeded
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
@@ -18,7 +18,7 @@ metadata:
   annotations:
     "helm.sh/hook": post-upgrade
     "helm.sh/hook-weight": "-3"
-    "helm.sh/hook-delete-policy": hook-succeeded
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
 rules:
   - apiGroups: ["apps"]
     resources: ["statefulsets"]
@@ -40,7 +40,7 @@ metadata:
   annotations:
     "helm.sh/hook": post-upgrade
     "helm.sh/hook-weight": "-2"
-    "helm.sh/hook-delete-policy": hook-succeeded
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
@@ -53,41 +53,45 @@ subjects:
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: "{{ .Release.Name }}"-hook
+  name: {{ .Release.Name }}-hook
   namespace: {{ .Release.Namespace }}
   annotations:
     "helm.sh/hook": post-upgrade
     "helm.sh/hook-weight": "-1"
-    "helm.sh/hook-delete-policy": hook-succeeded
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
 spec:
   template:
     metadata:
-      name: "{{ .Release.Name }}"-hook
+      name: {{ .Release.Name }}-hook
     spec:
+{{- if .Values.priorityClassName }}
+      priorityClassName: {{ .Values.priorityClassName }}
+{{- end }}
+{{- if .Values.tolerations }}
+      tolerations:
+        {{- toYaml .Values.tolerations | nindent 6 }}
+{{- end }}
       serviceAccountName: {{ .Release.Name }}-hook
       restartPolicy: OnFailure
+{{- if .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml .Values.nodeSelector | nindent 8 }}
+{{- end }}
       containers:
       - name: post-install-job
-        image: "mirror.gcr.io/library/alpine"
-        command: 
+        image: alpine/k8s:1.26.0
+        command:
         - sh
         - "-c"
         - |
             /bin/sh <<'EOF'
               set -eu -o pipefail
-              # download curl
-              apk add curl
-              # download kubectl
-              curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-              curl -LO "https://dl.k8s.io/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl.sha256"
-              echo "$(cat kubectl.sha256)  kubectl" | sha256sum -c
-              if [ $? -ne 0 ]; then
-                  exit $?
-              fi
-              chmod +x kubectl
               # wait until statefulset is ready
-              ./kubectl rollout status --watch --timeout=600s statefulset/{{ .Release.Name }}
+              kubectl rollout status --watch --timeout=600s statefulset/{{ .Release.Name }}
               # delete deployment
-              ./kubectl delete deployment/{{ .Release.Name }}
+              kubectl delete deployment/{{ .Release.Name }}
             EOF
+        {{- if .Values.securityContext }}
+        securityContext: {{- toYaml .Values.securityContext | nindent 10 }}
+        {{- end }}
 {{- end}}

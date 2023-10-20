@@ -24,13 +24,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gravitational/teleport/api/types"
-	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
-
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials/stscreds"
@@ -38,8 +31,14 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
+	"github.com/digitorus/pkcs7"
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"go.mozilla.org/pkcs7"
+	"golang.org/x/exp/slices"
+
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 type ec2Client interface {
@@ -76,7 +75,7 @@ func checkEC2AllowRules(ctx context.Context, iid *imds.InstanceIdentityDocument,
 		}
 		// if this rule specifies any AWS regions, the IID must match one of them
 		if len(rule.AWSRegions) > 0 {
-			if !apiutils.SliceContainsStr(rule.AWSRegions, iid.Region) {
+			if !slices.Contains(rule.AWSRegions, iid.Region) {
 				continue
 			}
 		}
@@ -253,6 +252,25 @@ func dbExists(ctx context.Context, presence services.Presence, hostID string) (b
 	return false, nil
 }
 
+func oktaExists(ctx context.Context, presence services.Presence, hostID string) (bool, error) {
+	namespaces, err := presence.GetNamespaces()
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	for _, namespace := range namespaces {
+		apps, err := presence.GetApplicationServers(ctx, namespace.GetName())
+		if err != nil {
+			return false, trace.Wrap(err)
+		}
+		for _, app := range apps {
+			if app.GetName() == hostID && app.Origin() == types.OriginOkta {
+				return true, nil
+			}
+		}
+	}
+	return false, nil
+}
+
 func desktopServiceExists(ctx context.Context, presence services.Presence, hostID string) (bool, error) {
 	svcs, err := presence.GetWindowsDesktopServices(ctx)
 	if err != nil {
@@ -293,8 +311,16 @@ func (a *Server) tryToDetectIdentityReuse(ctx context.Context, req *types.Regist
 		instanceExists, err = dbExists(ctx, a, req.HostID)
 	case types.RoleWindowsDesktop:
 		instanceExists, err = desktopServiceExists(ctx, a, req.HostID)
+	case types.RoleOkta:
+		instanceExists, err = oktaExists(ctx, a, req.HostID)
 	case types.RoleInstance:
 		// no appropriate check exists for the Instance role
+		instanceExists = false
+	case types.RoleDiscovery:
+		// no appropriate check exists for the Discovery role
+		instanceExists = false
+	case types.RoleMDM:
+		// no appropriate check exists for the MDM role
 		instanceExists = false
 	default:
 		return trace.BadParameter("unsupported role: %q", req.Role)

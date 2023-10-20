@@ -19,10 +19,9 @@ package protocol
 import (
 	"net"
 
+	"github.com/gravitational/trace"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/x/mongo/driver/wiremessage"
-
-	"github.com/gravitational/trace"
 )
 
 // ReplyError sends error wire message to the client.

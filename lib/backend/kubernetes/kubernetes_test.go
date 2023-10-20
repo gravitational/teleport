@@ -20,7 +20,6 @@ import (
 	"context"
 	"testing"
 
-	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
@@ -29,6 +28,8 @@ import (
 	"k8s.io/client-go/kubernetes/fake"
 	fakecorev1 "k8s.io/client-go/kubernetes/typed/core/v1/fake"
 	k8stesting "k8s.io/client-go/testing"
+
+	"github.com/gravitational/teleport/lib/backend"
 )
 
 func TestBackend_Exists(t *testing.T) {
@@ -93,7 +94,7 @@ func TestBackend_Exists(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// set namespace env variable
 			if len(tt.fields.namespace) > 0 {
-				t.Setenv(namespaceEnv, tt.fields.namespace)
+				t.Setenv(NamespaceEnv, tt.fields.namespace)
 			}
 
 			// set replicaName env variable
@@ -105,13 +106,11 @@ func TestBackend_Exists(t *testing.T) {
 			b, err := NewWithClient(k8sClient)
 			if err != nil && !tt.wantErr {
 				require.NoError(t, err)
-
 			} else if err != nil && tt.wantErr {
 				return
 			}
 
 			require.Equal(t, tt.want, b.Exists(context.TODO()))
-
 		})
 	}
 }
@@ -231,7 +230,7 @@ func TestBackend_Get(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if len(tt.fields.namespace) > 0 {
-				t.Setenv(namespaceEnv, tt.fields.namespace)
+				t.Setenv(NamespaceEnv, tt.fields.namespace)
 			}
 
 			if len(tt.fields.replicaName) > 0 {
@@ -255,9 +254,7 @@ func TestBackend_Get(t *testing.T) {
 }
 
 func TestBackend_Put(t *testing.T) {
-	var (
-		payloadTestData = []byte("testData")
-	)
+	payloadTestData := []byte("testData")
 
 	type fields struct {
 		namespace   string
@@ -331,7 +328,7 @@ func TestBackend_Put(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// set namespace env var
 			if len(tt.fields.namespace) > 0 {
-				t.Setenv(namespaceEnv, tt.fields.namespace)
+				t.Setenv(NamespaceEnv, tt.fields.namespace)
 			}
 
 			// set replicaName env var
@@ -394,8 +391,6 @@ func TestBackend_Put(t *testing.T) {
 			got, err := b.getSecret(context.TODO())
 			require.NoError(t, err)
 			require.Equal(t, got, tt.want)
-
 		})
 	}
-
 }

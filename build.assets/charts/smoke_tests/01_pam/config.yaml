@@ -1,0 +1,31 @@
+version: v3
+teleport:
+  nodename: sshd 
+  data_dir: /var/lib/teleport
+  log:
+    output: stderr
+    severity: INFO
+    format:
+      output: text
+  join_params:
+      method: token
+      token_name: NotARealToken
+  auth_server: localhost:3025
+  diag_addr: ""
+auth_service:
+  enabled: no
+ssh_service:
+  enabled: "yes"
+  commands:
+  - name: hostname
+    command: [hostname]
+    period: 1m0s
+  # Configures PAM integration. See our PAM guide for more details
+  # (https://goteleport.com/docs/features/ssh-pam/).
+  pam:
+    enabled: yes
+    service_name: "sshd"
+    use_pam_auth: true
+
+proxy_service:
+  enabled: no

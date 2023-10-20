@@ -18,12 +18,13 @@ package events
 
 import (
 	"context"
-	"time"
+	"sync/atomic"
 
-	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
+
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/session"
-	log "github.com/sirupsen/logrus"
 )
 
 // DiscardAuditLog is do-nothing, discard-everything implementation
@@ -38,65 +39,93 @@ func NewDiscardAuditLog() *DiscardAuditLog {
 func (d *DiscardAuditLog) Close() error {
 	return nil
 }
+
 func (d *DiscardAuditLog) GetSessionChunk(namespace string, sid session.ID, offsetBytes, maxBytes int) ([]byte, error) {
 	return make([]byte, 0), nil
 }
-func (d *DiscardAuditLog) GetSessionEvents(namespace string, sid session.ID, after int, includePrintEvents bool) ([]EventFields, error) {
+
+func (d *DiscardAuditLog) GetSessionEvents(namespace string, sid session.ID, after int) ([]EventFields, error) {
 	return make([]EventFields, 0), nil
 }
-func (d *DiscardAuditLog) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventType []string, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error) {
+
+func (d *DiscardAuditLog) SearchEvents(ctx context.Context, req SearchEventsRequest) ([]apievents.AuditEvent, string, error) {
 	return make([]apievents.AuditEvent, 0), "", nil
 }
-func (d *DiscardAuditLog) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, order types.EventOrder, startKey string, cond *types.WhereExpr, sessionID string) ([]apievents.AuditEvent, string, error) {
+
+func (d *DiscardAuditLog) SearchSessionEvents(ctx context.Context, req SearchSessionEventsRequest) ([]apievents.AuditEvent, string, error) {
 	return make([]apievents.AuditEvent, 0), "", nil
 }
+
 func (d *DiscardAuditLog) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
 	return nil
 }
+
 func (d *DiscardAuditLog) StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64) (chan apievents.AuditEvent, chan error) {
 	c, e := make(chan apievents.AuditEvent), make(chan error, 1)
 	close(c)
 	return c, e
 }
 
-// DiscardStream returns a stream that discards all events
-type DiscardStream struct{}
+// NewDiscardRecorder returns a [SessionRecorderChecker] that discards events.
+func NewDiscardRecorder() *DiscardRecorder {
+	return &DiscardRecorder{
+		done: make(chan struct{}),
+	}
+}
+
+// DiscardRecorder returns a stream that discards all events
+type DiscardRecorder struct {
+	completed atomic.Bool
+	done      chan struct{}
+}
 
 // Write discards data
-func (*DiscardStream) Write(p []byte) (n int, err error) {
+func (d *DiscardRecorder) Write(p []byte) (n int, err error) {
+	if d.completed.Load() {
+		return 0, trace.BadParameter("stream is closed")
+	}
+
 	return len(p), nil
 }
 
 // Status returns a channel that always blocks
-func (*DiscardStream) Status() <-chan apievents.StreamStatus {
+func (*DiscardRecorder) Status() <-chan apievents.StreamStatus {
 	return nil
 }
 
 // Done returns channel closed when streamer is closed
 // should be used to detect sending errors
-func (*DiscardStream) Done() <-chan struct{} {
-	return nil
+func (d *DiscardRecorder) Done() <-chan struct{} {
+	return d.done
 }
 
 // Close flushes non-uploaded flight stream data without marking
 // the stream completed and closes the stream instance
-func (*DiscardStream) Close(ctx context.Context) error {
+func (d *DiscardRecorder) Close(ctx context.Context) error {
+	return d.Complete(ctx)
+}
+
+// Complete marks the stream as closed
+func (d *DiscardRecorder) Complete(ctx context.Context) error {
+	if !d.completed.CompareAndSwap(false, true) {
+		close(d.done)
+	}
 	return nil
 }
 
-// Complete does nothing
-func (*DiscardStream) Complete(ctx context.Context) error {
-	return nil
-}
+// RecordEvent discards session event
+func (d *DiscardRecorder) RecordEvent(ctx context.Context, pe apievents.PreparedSessionEvent) error {
+	if d.completed.Load() {
+		return trace.BadParameter("stream is closed")
+	}
+	event := pe.GetAuditEvent()
 
-// EmitAuditEvent discards audit event
-func (*DiscardStream) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
 	log.WithFields(log.Fields{
 		"event_id":    event.GetID(),
 		"event_type":  event.GetType(),
 		"event_time":  event.GetTime(),
 		"event_index": event.GetIndex(),
-	}).Debugf("Discarding stream event")
+	}).Traceln("Discarding stream event")
 	return nil
 }
 
@@ -119,12 +148,37 @@ func (*DiscardEmitter) EmitAuditEvent(ctx context.Context, event apievents.Audit
 	return nil
 }
 
+// NewDiscardStreamer returns a streamer that creates streams that
+// discard events
+func NewDiscardStreamer() *DiscardStreamer {
+	return &DiscardStreamer{}
+}
+
+// DiscardStreamer creates DiscardRecorders
+type DiscardStreamer struct{}
+
 // CreateAuditStream creates a stream that discards all events
-func (*DiscardEmitter) CreateAuditStream(ctx context.Context, sid session.ID) (apievents.Stream, error) {
-	return &DiscardStream{}, nil
+func (*DiscardStreamer) CreateAuditStream(ctx context.Context, sid session.ID) (apievents.Stream, error) {
+	return NewDiscardRecorder(), nil
 }
 
 // ResumeAuditStream resumes a stream that discards all events
-func (*DiscardEmitter) ResumeAuditStream(ctx context.Context, sid session.ID, uploadID string) (apievents.Stream, error) {
-	return &DiscardStream{}, nil
+func (*DiscardStreamer) ResumeAuditStream(ctx context.Context, sid session.ID, uploadID string) (apievents.Stream, error) {
+	return NewDiscardRecorder(), nil
+}
+
+// NoOpPreparer is a SessionEventPreparer that doesn't change events
+type NoOpPreparer struct{}
+
+// PrepareSessionEvent returns the event unchanged
+func (m *NoOpPreparer) PrepareSessionEvent(event apievents.AuditEvent) (apievents.PreparedSessionEvent, error) {
+	return preparedSessionEvent{
+		event: event,
+	}, nil
+}
+
+// WithNoOpPreparer wraps rec with a SessionEventPreparer that will leave
+// events unchanged
+func WithNoOpPreparer(rec SessionRecorder) SessionPreparerRecorder {
+	return NewSessionPreparerRecorder(&NoOpPreparer{}, rec)
 }

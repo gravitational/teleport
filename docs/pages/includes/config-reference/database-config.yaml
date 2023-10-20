@@ -1,0 +1,178 @@
+db_service:
+  # Enables the Database Service.
+  enabled: "yes"
+
+  # Matchers for database resources created with "tctl create" command or by the
+  # discovery service.
+  resources:
+    # See "Database labels reference" (https://goteleport.com/docs/database-access/reference/labels/)
+    # to learn more on database labels.
+  - labels:
+      "*": "*"
+    # Optional AWS role that the Database Service will assume to access the
+    # databases.
+    aws:
+      assume_role_arn: "arn:aws:iam::123456789012:role/example-role-name"
+      external_id: "example-external-id"
+
+  # Matchers for registering AWS-hosted databases.
+  aws:
+    # Database types. Valid options are:
+    # 'rds' - discovers and registers AWS RDS and Aurora databases.
+    # 'rdsproxy' - discovers and registers AWS RDS Proxy databases.
+    # 'redshift' - discovers and registers AWS Redshift databases.
+    # 'redshift-serverless' - discovers and registers AWS Redshift Serverless databases.
+    # 'elasticache' - discovers and registers AWS ElastiCache Redis databases.
+    # 'memorydb' - discovers and registers AWS MemoryDB Redis databases.
+    # 'opensearch' - discovers and registers AWS OpenSearch Redis databases.
+  - types: ["rds", "rdsproxy","redshift", "redshift-serverless", "elasticache", "memorydb"]
+    # AWS regions to register databases from.
+    regions: ["us-west-1", "us-east-2"]
+    # Optional AWS role that the Database Service will assume to discover
+    # and register AWS-hosted databases.
+    # Discovered databases are also accessed by the Database Service via
+    # this role.
+    assume_role_arn: "arn:aws:iam::123456789012:role/example-role-name"
+    # Optional AWS external ID that the Database Service will use to assume
+    # a role in an external AWS account.
+    external_id: "example-external-id"
+    # AWS resource tags to match when registering databases.
+    tags:
+      "*": "*"
+
+  # Matchers for registering Azure-hosted databases.
+  azure:
+    # Database types. Valid options are:
+    # 'mysql' - discovers and registers Azure MySQL databases.
+    # 'postgres' - discovers and registers Azure PostgreSQL databases.
+    # 'redis' - discovers and registers Azure Cache for Redis databases.
+    # 'sqlserver' - discovers and registers Azure SQL Server databases.
+  - types: ["mysql", "postgres", "redis", "sqlserver"]
+    # Azure regions to register databases from. Valid options are:
+    # '*' - discovers databases in all regions (default).
+    # Any valid Azure region name. List all valid regions using the Azure "az" cli: `az account list-locations -o table`
+    regions: ["eastus", "westus"]
+    # Azure subscription IDs to register databases from. Valid options are:
+    # '*' - discovers databases in all subscriptions (default).
+    subscriptions: ["11111111-2222-3333-4444-555555555555"]
+    # Azure resource groups to register databases from. Valid options are:
+    # '*' - discovers databases in all resource groups within configured subscription(s) (default).
+    resource_groups: ["group1", "group2"]
+    # Azure resource tags to match when registering databases.
+    tags:
+      "*": "*"
+
+  # Lists statically registered databases proxied by this agent.
+  databases:
+    # Name of the database proxy instance, used to reference in CLI.
+  - name: "prod"
+
+    # Free-form description of the database proxy instance.
+    description: "Production database"
+
+    # Database protocol. Can be: "postgres", "mysql", "mongodb", "oracle", "clickhouse", "clickhouse-http", "cockroachdb", "redis", "snowflake", "sqlserver", "cassandra", "elasticsearch", or "dynamodb"
+    protocol: "postgres"
+
+    # Database connection endpoint. Must be reachable from Database Service.
+    uri: "postgres.example.com:5432"
+
+    # Optional TLS configuration.
+    tls:
+      # TLS verification mode. Valid options are:
+      # 'verify-full' - performs full certificate validation (default).
+      # 'verify-ca' - the same as `verify-full`, but skips the server name validation.
+      # 'insecure' - accepts any certificate provided by database (not recommended).
+      mode: verify-full
+      # Optional database DNS server name. It allows to override the DNS name on
+      # a client certificate when connecting to a database.
+      # Use only with 'verify-full' mode.
+      server_name: db.example.com
+      # Optional path to the CA used to validate the database certificate.
+      ca_cert_file: /path/to/pem
+
+    # MySQL only options.
+    mysql:
+      # The default MySQL server version reported by Teleport Proxy.
+      # When this option is set the Database Agent doesn't try to check the MySQL server version.
+      server_version: 8.0.28
+
+    # Optional AWS configuration for AWS hosted databases. AWS region- and
+    # service-specific configurations can usually be auto-detected from the
+    # endpoint.
+    aws:
+      # Region the database is deployed in.
+      region: "us-east-1"
+      # Optional AWS role that the Database Service will assume to access
+      # this database.
+      assume_role_arn: "arn:aws:iam::123456789012:role/example-role-name"
+      # Optional AWS external ID that the Database Service will use to assume
+      # a role in an external AWS account.
+      external_id: "example-external-id"
+      # Redshift-specific configuration.
+      redshift:
+        # Redshift cluster identifier.
+        cluster_id: "redshift-cluster-1"
+      # RDS-specific configuration.
+      rds:
+        # RDS instance identifier.
+        instance_id: "rds-instance-1"
+        # RDS Aurora cluster identifier.
+        cluster_id: "aurora-cluster-1"
+      # ElastiCache-specific configuration.
+      elasticache:
+        # ElastiCache replication group identifier.
+        replication_group_id: "elasticache-replication-group-1"
+      # MemoryDB-specific configuration.
+      memorydb:
+        # MemoryDB cluster name.
+        cluster_name: "memorydb-cluster-1"
+
+      # Optional AWS Secrets Manager configuration for managing ElastiCache
+      # or MemoryDB users.
+      #
+      # IMPORTANT: please make sure databases sharing the same Teleport-managed
+      # users have the same secret_store configuration. The configuration
+      # should also be consistent across all Database Services in High
+      # Availability (HA) mode.
+      secret_store:
+        # Prefix to all secrets created by the service. Defaults to 'teleport/'.
+        key_prefix: "teleport/"
+        # KMS Key ID used for secret encryption and description. If not
+        # specified, Secrets Manager uses AWS managed key 'aws/secretsmanager'
+        # by default.
+        kms_key_id: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+
+    # GCP specific configuration for Cloud SQL databases.
+    gcp:
+      # GCP project ID.
+      project_id: "xxx-1234"
+      # Cloud SQL instance ID.
+      instance_id: "example"
+
+    # Settings specific to Active Directory authentication e.g. for SQL Server.
+    ad:
+      # Path to Kerberos keytab file.
+      keytab_file: /path/to/keytab
+      # Active Directory domain name.
+      domain: EXAMPLE.COM
+      # Service Principal Name to obtain Kerberos tickets for.
+      spn: MSSQLSvc/ec2amaz-4kn05du.dbadir.teleportdemo.net:1433
+      # Optional path to Kerberos configuration file. Defaults to /etc/krb5.conf.
+      krb5_file: /etc/krb5.conf
+
+    # Optional configuration for Azure hosted databases.
+    azure:
+      # Set is_flexi_server to true when using an Azure flexible server.
+      is_flexi_server: false
+      # Resource ID for the database in Azure. This field is required for Azure Cache for Redis databases.
+      resource_id: "/subscriptions/00000000-1111-2222-3333-444444444444/resourceGroups/example-group/providers/Microsoft.Cache/Redis/example-db-name"
+
+    # Static labels to assign to the database. Used in RBAC.
+    static_labels:
+      env: "prod"
+
+    # Dynamic labels ("commands"). Used in RBAC.
+    dynamic_labels:
+    - name: "hostname"
+      command: ["hostname"]
+      period: 1m0s

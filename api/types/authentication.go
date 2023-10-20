@@ -26,12 +26,12 @@ import (
 
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/tlsutils"
-
-	log "github.com/sirupsen/logrus"
 )
 
 // AuthPreference defines the authentication preferences for a specific
@@ -87,10 +87,17 @@ type AuthPreference interface {
 	// SetAllowPasswordless sets the value of the allow passwordless setting.
 	SetAllowPasswordless(b bool)
 
+	// GetAllowHeadless returns if headless is allowed by cluster settings.
+	GetAllowHeadless() bool
+	// SetAllowHeadless sets the value of the allow headless setting.
+	SetAllowHeadless(b bool)
+
 	// GetRequireMFAType returns the type of MFA requirement enforced for this cluster.
 	GetRequireMFAType() RequireMFAType
 	// GetPrivateKeyPolicy returns the configured private key policy for the cluster.
 	GetPrivateKeyPolicy() keys.PrivateKeyPolicy
+	// GetPIVSlot returns the configured piv slot for the cluster.
+	GetPIVSlot() keys.PIVSlot
 
 	// GetDisconnectExpiredCert returns disconnect expired certificate setting
 	GetDisconnectExpiredCert() bool
@@ -111,6 +118,27 @@ type AuthPreference interface {
 	GetLockingMode() constants.LockingMode
 	// SetLockingMode sets the cluster-wide locking mode default.
 	SetLockingMode(constants.LockingMode)
+
+	// GetDeviceTrust returns the cluster device trust settings, or nil if no
+	// explicit configurations are present.
+	GetDeviceTrust() *DeviceTrust
+	// SetDeviceTrust sets the cluster device trust settings.
+	SetDeviceTrust(*DeviceTrust)
+
+	// IsSAMLIdPEnabled returns true if the SAML IdP is enabled.
+	IsSAMLIdPEnabled() bool
+	// SetSAMLIdPEnabled sets the SAML IdP to enabled.
+	SetSAMLIdPEnabled(bool)
+
+	// GetDefaultSessionTTL retrieves the max session ttl
+	GetDefaultSessionTTL() Duration
+	// SetDefaultSessionTTL sets the max session ttl
+	SetDefaultSessionTTL(Duration)
+
+	// GetOktaSyncPeriod returns the duration between Okta synchronization calls if the Okta service is running.
+	GetOktaSyncPeriod() time.Duration
+	// SetOktaSyncPeriod sets the duration between Okta synchronzation calls.
+	SetOktaSyncPeriod(timeBetweenSyncs time.Duration)
 
 	// String represents a human readable version of authentication settings.
 	String() string
@@ -190,6 +218,16 @@ func (c *AuthPreferenceV2) GetResourceID() int64 {
 // SetResourceID sets resource ID.
 func (c *AuthPreferenceV2) SetResourceID(id int64) {
 	c.Metadata.ID = id
+}
+
+// GetRevision returns the revision
+func (c *AuthPreferenceV2) GetRevision() string {
+	return c.Metadata.GetRevision()
+}
+
+// SetRevision sets the revision
+func (c *AuthPreferenceV2) SetRevision(rev string) {
+	c.Metadata.SetRevision(rev)
 }
 
 // Origin returns the origin value of the resource.
@@ -331,6 +369,14 @@ func (c *AuthPreferenceV2) SetAllowPasswordless(b bool) {
 	c.Spec.AllowPasswordless = NewBoolOption(b)
 }
 
+func (c *AuthPreferenceV2) GetAllowHeadless() bool {
+	return c.Spec.AllowHeadless != nil && c.Spec.AllowHeadless.Value
+}
+
+func (c *AuthPreferenceV2) SetAllowHeadless(b bool) {
+	c.Spec.AllowHeadless = NewBoolOption(b)
+}
+
 // GetRequireMFAType returns the type of MFA requirement enforced for this cluster.
 func (c *AuthPreferenceV2) GetRequireMFAType() RequireMFAType {
 	return c.Spec.RequireMFAType
@@ -343,9 +389,18 @@ func (c *AuthPreferenceV2) GetPrivateKeyPolicy() keys.PrivateKeyPolicy {
 		return keys.PrivateKeyPolicyHardwareKey
 	case RequireMFAType_HARDWARE_KEY_TOUCH:
 		return keys.PrivateKeyPolicyHardwareKeyTouch
+	case RequireMFAType_HARDWARE_KEY_PIN:
+		return keys.PrivateKeyPolicyHardwareKeyPIN
+	case RequireMFAType_HARDWARE_KEY_TOUCH_AND_PIN:
+		return keys.PrivateKeyPolicyHardwareKeyTouchAndPIN
 	default:
 		return keys.PrivateKeyPolicyNone
 	}
+}
+
+// GetPIVSlot returns the configured piv slot for the cluster.
+func (c *AuthPreferenceV2) GetPIVSlot() keys.PIVSlot {
+	return keys.PIVSlot(c.Spec.PIVSlot)
 }
 
 // GetDisconnectExpiredCert returns disconnect expired certificate setting
@@ -388,6 +443,50 @@ func (c *AuthPreferenceV2) SetLockingMode(mode constants.LockingMode) {
 	c.Spec.LockingMode = mode
 }
 
+// GetDeviceTrust returns the cluster device trust settings, or nil if no
+// explicit configurations are present.
+func (c *AuthPreferenceV2) GetDeviceTrust() *DeviceTrust {
+	if c == nil {
+		return nil
+	}
+	return c.Spec.DeviceTrust
+}
+
+// SetDeviceTrust sets the cluster device trust settings.
+func (c *AuthPreferenceV2) SetDeviceTrust(dt *DeviceTrust) {
+	c.Spec.DeviceTrust = dt
+}
+
+// IsSAMLIdPEnabled returns true if the SAML IdP is enabled.
+func (c *AuthPreferenceV2) IsSAMLIdPEnabled() bool {
+	return c.Spec.IDP.SAML.Enabled.Value
+}
+
+// SetSAMLIdPEnabled sets the SAML IdP to enabled.
+func (c *AuthPreferenceV2) SetSAMLIdPEnabled(enabled bool) {
+	c.Spec.IDP.SAML.Enabled = NewBoolOption(enabled)
+}
+
+// SetDefaultSessionTTL sets the default session ttl
+func (c *AuthPreferenceV2) SetDefaultSessionTTL(sessionTTL Duration) {
+	c.Spec.DefaultSessionTTL = sessionTTL
+}
+
+// GetDefaultSessionTTL retrieves the default session ttl
+func (c *AuthPreferenceV2) GetDefaultSessionTTL() Duration {
+	return c.Spec.DefaultSessionTTL
+}
+
+// GetOktaSyncPeriod returns the duration between Okta synchronization calls if the Okta service is running.
+func (c *AuthPreferenceV2) GetOktaSyncPeriod() time.Duration {
+	return c.Spec.Okta.SyncPeriod.Duration()
+}
+
+// SetOktaSyncPeriod sets the duration between Okta synchronzation calls.
+func (c *AuthPreferenceV2) SetOktaSyncPeriod(syncPeriod time.Duration) {
+	c.Spec.Okta.SyncPeriod = Duration(syncPeriod)
+}
+
 // setStaticFields sets static resource header and metadata fields.
 func (c *AuthPreferenceV2) setStaticFields() {
 	c.Kind = KindClusterAuthPreference
@@ -401,9 +500,6 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 	if err := c.Metadata.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
-
-	// DELETE IN 13.0.0
-	c.CheckSetRequireSessionMFA()
 
 	if c.Spec.Type == "" {
 		c.Spec.Type = constants.Local
@@ -424,13 +520,15 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 		c.SetOrigin(OriginDynamic)
 	}
 
+	if c.Spec.DefaultSessionTTL == 0 {
+		c.Spec.DefaultSessionTTL = Duration(defaults.CertDuration)
+	}
+
 	switch c.Spec.Type {
-	case constants.Local:
-		if !c.Spec.AllowLocalAuth.Value {
-			log.Warn("Ignoring local_auth=false when authentication.type=local")
-			c.Spec.AllowLocalAuth.Value = true
-		}
-	case constants.OIDC, constants.SAML, constants.Github:
+	case constants.Local, constants.OIDC, constants.SAML, constants.Github:
+		// Note that "type:local" and "local_auth:false" is considered a valid
+		// setting, as it is a common idiom for clusters that rely on dynamic
+		// configuration.
 	default:
 		return trace.BadParameter("authentication type %q not supported", c.Spec.Type)
 	}
@@ -503,6 +601,14 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing required Webauthn configuration for passwordless=true")
 	}
 
+	// Set/validate AllowHeadless. We need Webauthn first to do this properly.
+	switch {
+	case c.Spec.AllowHeadless == nil:
+		c.Spec.AllowHeadless = NewBoolOption(hasWebauthn)
+	case !hasWebauthn && c.Spec.AllowHeadless.Value:
+		return trace.BadParameter("missing required Webauthn configuration for headless=true")
+	}
+
 	// Validate connector name for type=local.
 	if c.Spec.Type == constants.Local {
 		switch connectorName := c.Spec.ConnectorName; connectorName {
@@ -510,6 +616,10 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 		case constants.PasswordlessConnector:
 			if !c.Spec.AllowPasswordless.Value {
 				return trace.BadParameter("invalid local connector %q, passwordless not allowed by cluster settings", connectorName)
+			}
+		case constants.HeadlessConnector:
+			if !c.Spec.AllowHeadless.Value {
+				return trace.BadParameter("invalid local connector %q, headless not allowed by cluster settings", connectorName)
 			}
 		default:
 			return trace.BadParameter("invalid local connector %q", connectorName)
@@ -522,17 +632,46 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 		return trace.BadParameter("locking mode %q not supported", c.Spec.LockingMode)
 	}
 
-	return nil
-}
+	if dt := c.Spec.DeviceTrust; dt != nil {
+		switch dt.Mode {
+		case "": // OK, "default" mode. Varies depending on OSS or Enterprise.
+		case constants.DeviceTrustModeOff,
+			constants.DeviceTrustModeOptional,
+			constants.DeviceTrustModeRequired: // OK.
+		default:
+			return trace.BadParameter("device trust mode %q not supported", dt.Mode)
+		}
 
-// RequireSessionMFA must be checked/set when communicating with an old server or client.
-// DELETE IN 13.0.0
-func (c *AuthPreferenceV2) CheckSetRequireSessionMFA() {
-	if c.Spec.RequireMFAType != RequireMFAType_OFF {
-		c.Spec.RequireSessionMFA = c.Spec.RequireMFAType.IsSessionMFARequired()
-	} else if c.Spec.RequireSessionMFA {
-		c.Spec.RequireMFAType = RequireMFAType_SESSION
+		// Ensure configured ekcert_allowed_cas are valid
+		for _, pem := range dt.EKCertAllowedCAs {
+			if err := isValidCertificatePEM(pem); err != nil {
+				return trace.BadParameter("device trust has invalid EKCert allowed CAs entry: %v", err)
+			}
+		}
 	}
+
+	// Make sure the IdP section is populated.
+	if c.Spec.IDP == nil {
+		c.Spec.IDP = &IdPOptions{}
+	}
+
+	// Make sure the SAML section is populated.
+	if c.Spec.IDP.SAML == nil {
+		c.Spec.IDP.SAML = &IdPSAMLOptions{}
+	}
+
+	// Make sure the SAML enabled field is populated.
+	if c.Spec.IDP.SAML.Enabled == nil {
+		// Enable the IdP by default.
+		c.Spec.IDP.SAML.Enabled = NewBoolOption(true)
+	}
+
+	// Make sure the Okta field is populated.
+	if c.Spec.Okta == nil {
+		c.Spec.Okta = &OktaOptions{}
+	}
+
+	return nil
 }
 
 // String represents a human readable version of authentication settings.
@@ -545,7 +684,7 @@ func (u *U2F) Check() error {
 		return trace.BadParameter("u2f configuration missing app_id")
 	}
 	for _, ca := range u.DeviceAttestationCAs {
-		if err := isValidAttestationCert(ca); err != nil {
+		if err := isValidCertificatePEM(ca); err != nil {
 			return trace.BadParameter("u2f configuration has an invalid attestation CA: %v", err)
 		}
 	}
@@ -586,11 +725,11 @@ func (w *Webauthn) CheckAndSetDefaults(u *U2F) error {
 	// AttestationAllowedCAs.
 	switch {
 	case u != nil && len(u.DeviceAttestationCAs) > 0 && len(w.AttestationAllowedCAs) == 0 && len(w.AttestationDeniedCAs) == 0:
-		log.Infof("WebAuthn: using U2F device attestion CAs as allowed CAs")
+		log.Infof("WebAuthn: using U2F device attestation CAs as allowed CAs")
 		w.AttestationAllowedCAs = u.DeviceAttestationCAs
 	default:
 		for _, pem := range w.AttestationAllowedCAs {
-			if err := isValidAttestationCert(pem); err != nil {
+			if err := isValidCertificatePEM(pem); err != nil {
 				return trace.BadParameter("webauthn allowed CAs entry invalid: %v", err)
 			}
 		}
@@ -598,7 +737,7 @@ func (w *Webauthn) CheckAndSetDefaults(u *U2F) error {
 
 	// AttestationDeniedCAs.
 	for _, pem := range w.AttestationDeniedCAs {
-		if err := isValidAttestationCert(pem); err != nil {
+		if err := isValidCertificatePEM(pem); err != nil {
 			return trace.BadParameter("webauthn denied CAs entry invalid: %v", err)
 		}
 	}
@@ -606,8 +745,8 @@ func (w *Webauthn) CheckAndSetDefaults(u *U2F) error {
 	return nil
 }
 
-func isValidAttestationCert(certOrPath string) error {
-	_, err := tlsutils.ParseCertificatePEM([]byte(certOrPath))
+func isValidCertificatePEM(pem string) error {
+	_, err := tlsutils.ParseCertificatePEM([]byte(pem))
 	return err
 }
 
@@ -690,8 +829,10 @@ func (d *MFADevice) GetVersion() string      { return d.Version }
 func (d *MFADevice) GetMetadata() Metadata   { return d.Metadata }
 func (d *MFADevice) GetName() string         { return d.Metadata.GetName() }
 func (d *MFADevice) SetName(n string)        { d.Metadata.SetName(n) }
-func (d *MFADevice) GetResourceID() int64    { return d.Metadata.ID }
+func (d *MFADevice) GetResourceID() int64    { return d.Metadata.GetID() }
 func (d *MFADevice) SetResourceID(id int64)  { d.Metadata.SetID(id) }
+func (d *MFADevice) GetRevision() string     { return d.Metadata.GetRevision() }
+func (d *MFADevice) SetRevision(rev string)  { d.Metadata.SetRevision(rev) }
 func (d *MFADevice) Expiry() time.Time       { return d.Metadata.Expiry() }
 func (d *MFADevice) SetExpiry(exp time.Time) { d.Metadata.SetExpiry(exp) }
 
@@ -716,12 +857,14 @@ func (d *MFADevice) MarshalJSON() ([]byte, error) {
 }
 
 func (d *MFADevice) UnmarshalJSON(buf []byte) error {
-	return jsonpb.Unmarshal(bytes.NewReader(buf), d)
+	unmarshaler := jsonpb.Unmarshaler{AllowUnknownFields: true}
+	err := unmarshaler.Unmarshal(bytes.NewReader(buf), d)
+	return trace.Wrap(err)
 }
 
 // IsSessionMFARequired returns whether this RequireMFAType requires per-session MFA.
 func (r RequireMFAType) IsSessionMFARequired() bool {
-	return r == RequireMFAType_SESSION || r == RequireMFAType_SESSION_AND_HARDWARE_KEY
+	return r != RequireMFAType_OFF
 }
 
 // MarshalJSON marshals RequireMFAType to boolean or string.
@@ -768,8 +911,14 @@ func (r *RequireMFAType) UnmarshalJSON(data []byte) error {
 }
 
 const (
-	RequireMFATypeHardwareKeyString      = "hardware_key"
+	// RequireMFATypeHardwareKeyString is the string representation of RequireMFATypeHardwareKey
+	RequireMFATypeHardwareKeyString = "hardware_key"
+	// RequireMFATypeHardwareKeyTouchString is the string representation of RequireMFATypeHardwareKeyTouch
 	RequireMFATypeHardwareKeyTouchString = "hardware_key_touch"
+	// RequireMFATypeHardwareKeyPINString is the string representation of RequireMFATypeHardwareKeyPIN
+	RequireMFATypeHardwareKeyPINString = "hardware_key_pin"
+	// RequireMFATypeHardwareKeyTouchAndPINString is the string representation of RequireMFATypeHardwareKeyTouchAndPIN
+	RequireMFATypeHardwareKeyTouchAndPINString = "hardware_key_touch_and_pin"
 )
 
 // encode RequireMFAType into a string or boolean. This is necessary for
@@ -785,6 +934,10 @@ func (r *RequireMFAType) encode() (interface{}, error) {
 		return RequireMFATypeHardwareKeyString, nil
 	case RequireMFAType_HARDWARE_KEY_TOUCH:
 		return RequireMFATypeHardwareKeyTouchString, nil
+	case RequireMFAType_HARDWARE_KEY_PIN:
+		return RequireMFATypeHardwareKeyPINString, nil
+	case RequireMFAType_HARDWARE_KEY_TOUCH_AND_PIN:
+		return RequireMFATypeHardwareKeyTouchAndPINString, nil
 	default:
 		return nil, trace.BadParameter("RequireMFAType invalid value %v", *r)
 	}
@@ -801,6 +954,10 @@ func (r *RequireMFAType) decode(val interface{}) error {
 			*r = RequireMFAType_SESSION_AND_HARDWARE_KEY
 		case RequireMFATypeHardwareKeyTouchString:
 			*r = RequireMFAType_HARDWARE_KEY_TOUCH
+		case RequireMFATypeHardwareKeyPINString:
+			*r = RequireMFAType_HARDWARE_KEY_PIN
+		case RequireMFATypeHardwareKeyTouchAndPINString:
+			*r = RequireMFAType_HARDWARE_KEY_TOUCH_AND_PIN
 		case "":
 			// default to off
 			*r = RequireMFAType_OFF
@@ -821,8 +978,27 @@ func (r *RequireMFAType) decode(val interface{}) error {
 		} else {
 			*r = RequireMFAType_OFF
 		}
+	case int32:
+		return trace.Wrap(r.setFromEnum(v))
+	case int64:
+		return trace.Wrap(r.setFromEnum(int32(v)))
+	case int:
+		return trace.Wrap(r.setFromEnum(int32(v)))
+	case float64:
+		return trace.Wrap(r.setFromEnum(int32(v)))
+	case float32:
+		return trace.Wrap(r.setFromEnum(int32(v)))
 	default:
 		return trace.BadParameter("RequireMFAType invalid type %T", val)
 	}
+	return nil
+}
+
+// setFromEnum sets the value from enum value as int32.
+func (r *RequireMFAType) setFromEnum(val int32) error {
+	if _, ok := RequireMFAType_name[val]; !ok {
+		return trace.BadParameter("invalid required mfa mode %v", val)
+	}
+	*r = RequireMFAType(val)
 	return nil
 }

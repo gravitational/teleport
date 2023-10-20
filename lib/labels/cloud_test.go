@@ -20,10 +20,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 type mockIMDSClient struct {
@@ -52,6 +53,10 @@ func (m *mockIMDSClient) GetHostname(ctx context.Context) (string, error) {
 		return "", trace.NotFound("Tag TeleportHostname not found")
 	}
 	return value, nil
+}
+
+func (m *mockIMDSClient) GetID(ctx context.Context) (string, error) {
+	return "", nil
 }
 
 func TestCloudLabelsSync(t *testing.T) {

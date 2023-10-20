@@ -23,7 +23,25 @@ import (
 	"crypto/x509/pkix"
 	"fmt"
 	"io"
+	"net/http"
+	"net/url"
+	"strings"
 	"time"
+
+	gcpcredentialspb "cloud.google.com/go/iam/credentials/apiv1/credentialspb"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/credentials"
+	v4 "github.com/aws/aws-sdk-go/aws/signer/v4"
+	"github.com/aws/aws-sdk-go/service/elasticache"
+	"github.com/aws/aws-sdk-go/service/rds/rdsutils"
+	"github.com/aws/aws-sdk-go/service/redshift"
+	"github.com/aws/aws-sdk-go/service/redshiftserverless"
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
+	sqladmin "google.golang.org/api/sqladmin/v1beta4"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
@@ -32,32 +50,30 @@ import (
 	libauth "github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/cloud"
+	awslib "github.com/gravitational/teleport/lib/cloud/aws"
 	libazure "github.com/gravitational/teleport/lib/cloud/azure"
+	"github.com/gravitational/teleport/lib/cloud/gcp"
 	"github.com/gravitational/teleport/lib/defaults"
+	dbiam "github.com/gravitational/teleport/lib/srv/db/common/iam"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
-
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/rds/rdsutils"
-	"github.com/aws/aws-sdk-go/service/redshift"
-
-	sqladmin "google.golang.org/api/sqladmin/v1beta4"
-	gcpcredentialspb "google.golang.org/genproto/googleapis/iam/credentials/v1"
-
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
+	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 )
+
+// azureVirtualMachineCacheTTL is the default TTL for Azure virtual machine
+// cache entries.
+const azureVirtualMachineCacheTTL = 5 * time.Minute
 
 // Auth defines interface for creating auth tokens and TLS configurations.
 type Auth interface {
 	// GetRDSAuthToken generates RDS/Aurora auth token.
-	GetRDSAuthToken(sessionCtx *Session) (string, error)
+	GetRDSAuthToken(ctx context.Context, sessionCtx *Session) (string, error)
 	// GetRedshiftAuthToken generates Redshift auth token.
-	GetRedshiftAuthToken(sessionCtx *Session) (string, string, error)
+	GetRedshiftAuthToken(ctx context.Context, sessionCtx *Session) (string, string, error)
+	// GetRedshiftServerlessAuthToken generates Redshift Serverless auth token.
+	GetRedshiftServerlessAuthToken(ctx context.Context, sessionCtx *Session) (string, string, error)
+	// GetElastiCacheRedisToken generates an ElastiCache Redis auth token.
+	GetElastiCacheRedisToken(ctx context.Context, sessionCtx *Session) (string, error)
 	// GetCloudSQLAuthToken generates Cloud SQL auth token.
 	GetCloudSQLAuthToken(ctx context.Context, sessionCtx *Session) (string, error)
 	// GetCloudSQLPassword generates password for a Cloud SQL database user.
@@ -70,6 +86,13 @@ type Auth interface {
 	GetTLSConfig(ctx context.Context, sessionCtx *Session) (*tls.Config, error)
 	// GetAuthPreference returns the cluster authentication config.
 	GetAuthPreference(ctx context.Context) (types.AuthPreference, error)
+	// GetAzureIdentityResourceID returns the Azure identity resource ID
+	// attached to the current compute instance. If Teleport is not running on
+	// Azure VM returns an error.
+	GetAzureIdentityResourceID(ctx context.Context, identityName string) (string, error)
+	// GetAWSIAMCreds returns the AWS IAM credentials, including access key,
+	// secret access key and session token.
+	GetAWSIAMCreds(ctx context.Context, sessionCtx *Session) (string, string, string, error)
 	// Closer releases all resources used by authenticator.
 	io.Closer
 }
@@ -102,7 +125,11 @@ func (c *AuthConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing AuthClient")
 	}
 	if c.Clients == nil {
-		c.Clients = cloud.NewClients()
+		cloudClients, err := cloud.NewClients()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		c.Clients = cloudClients
 	}
 	if c.Clock == nil {
 		c.Clock = clockwork.NewRealClock()
@@ -117,6 +144,10 @@ func (c *AuthConfig) CheckAndSetDefaults() error {
 // generating auth tokens when connecting to databases.
 type dbAuth struct {
 	cfg AuthConfig
+	// azureVirtualMachineCache caches the current Azure virtual machine.
+	// Avoiding the need to query the metadata server on every database
+	// connection.
+	azureVirtualMachineCache *utils.FnCache
 }
 
 // NewAuth returns a new instance of database access authenticator.
@@ -124,26 +155,37 @@ func NewAuth(config AuthConfig) (Auth, error) {
 	if err := config.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	azureVirtualMachineCache, err := utils.NewFnCache(utils.FnCacheConfig{
+		TTL:   azureVirtualMachineCacheTTL,
+		Clock: config.Clock,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return &dbAuth{
-		cfg: config,
+		cfg:                      config,
+		azureVirtualMachineCache: azureVirtualMachineCache,
 	}, nil
 }
 
 // GetRDSAuthToken returns authorization token that will be used as a password
 // when connecting to RDS and Aurora databases.
-func (a *dbAuth) GetRDSAuthToken(sessionCtx *Session) (string, error) {
-	awsSession, err := a.cfg.Clients.GetAWSSession(sessionCtx.Database.GetAWS().Region)
+func (a *dbAuth) GetRDSAuthToken(ctx context.Context, sessionCtx *Session) (string, error) {
+	meta := sessionCtx.Database.GetAWS()
+	awsSession, err := a.cfg.Clients.GetAWSSession(ctx, meta.Region, cloud.WithAssumeRoleFromAWSMeta(meta))
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
 	a.cfg.Log.Debugf("Generating RDS auth token for %s.", sessionCtx)
 	token, err := rdsutils.BuildAuthToken(
 		sessionCtx.Database.GetURI(),
-		sessionCtx.Database.GetAWS().Region,
+		meta.Region,
 		sessionCtx.DatabaseUser,
 		awsSession.Config.Credentials)
 	if err != nil {
-		policy, getPolicyErr := sessionCtx.Database.GetIAMPolicy()
+		policy, getPolicyErr := dbiam.GetReadableAWSPolicyDocument(sessionCtx.Database)
 		if getPolicyErr != nil {
 			policy = fmt.Sprintf("failed to generate IAM policy: %v", getPolicyErr)
 		}
@@ -162,14 +204,15 @@ permissions (note that IAM changes may take a few minutes to propagate):
 
 // GetRedshiftAuthToken returns authorization token that will be used as a
 // password when connecting to Redshift databases.
-func (a *dbAuth) GetRedshiftAuthToken(sessionCtx *Session) (string, string, error) {
-	awsSession, err := a.cfg.Clients.GetAWSSession(sessionCtx.Database.GetAWS().Region)
+func (a *dbAuth) GetRedshiftAuthToken(ctx context.Context, sessionCtx *Session) (string, string, error) {
+	meta := sessionCtx.Database.GetAWS()
+	redshiftClient, err := a.cfg.Clients.GetAWSRedshiftClient(ctx, meta.Region, cloud.WithAssumeRoleFromAWSMeta(meta))
 	if err != nil {
 		return "", "", trace.Wrap(err)
 	}
 	a.cfg.Log.Debugf("Generating Redshift auth token for %s.", sessionCtx)
-	resp, err := redshift.New(awsSession).GetClusterCredentials(&redshift.GetClusterCredentialsInput{
-		ClusterIdentifier: aws.String(sessionCtx.Database.GetAWS().Redshift.ClusterID),
+	resp, err := redshiftClient.GetClusterCredentialsWithContext(ctx, &redshift.GetClusterCredentialsInput{
+		ClusterIdentifier: aws.String(meta.Redshift.ClusterID),
 		DbUser:            aws.String(sessionCtx.DatabaseUser),
 		DbName:            aws.String(sessionCtx.DatabaseName),
 		// TODO(r0mant): Do not auto-create database account if DbUser doesn't
@@ -180,7 +223,7 @@ func (a *dbAuth) GetRedshiftAuthToken(sessionCtx *Session) (string, string, erro
 		DbGroups: []*string{},
 	})
 	if err != nil {
-		policy, getPolicyErr := sessionCtx.Database.GetIAMPolicy()
+		policy, getPolicyErr := dbiam.GetReadableAWSPolicyDocument(sessionCtx.Database)
 		if getPolicyErr != nil {
 			policy = fmt.Sprintf("failed to generate IAM policy: %v", getPolicyErr)
 		}
@@ -196,6 +239,61 @@ propagate):
 `, err, policy)
 	}
 	return *resp.DbUser, *resp.DbPassword, nil
+}
+
+// GetRedshiftServerlessAuthToken generates Redshift Serverless auth token.
+func (a *dbAuth) GetRedshiftServerlessAuthToken(ctx context.Context, sessionCtx *Session) (string, string, error) {
+	// Redshift Serverless maps caller IAM users/roles to database users. For
+	// example, an IAM role "arn:aws:iam::1234567890:role/my-role-name" will be
+	// mapped to a Postgres user "IAMR:my-role-name" inside the database. So we
+	// first need to assume this IAM role before getting auth token.
+	meta := sessionCtx.Database.GetAWS()
+	roleARN, err := redshiftServerlessUsernameToRoleARN(meta, sessionCtx.DatabaseUser)
+	if err != nil {
+		return "", "", trace.Wrap(err)
+	}
+	baseSession, err := a.cfg.Clients.GetAWSSession(ctx, meta.Region, cloud.WithAssumeRoleFromAWSMeta(meta))
+	if err != nil {
+		return "", "", trace.Wrap(err)
+	}
+	var externalID string
+	if meta.AssumeRoleARN == "" {
+		externalID = meta.ExternalID
+	}
+	// Assume the configured AWS role before assuming the role we need to get the
+	// auth token. This allows cross-account AWS access.
+	client, err := a.cfg.Clients.GetAWSRedshiftServerlessClient(ctx, meta.Region,
+		cloud.WithChainedAssumeRole(baseSession, roleARN, externalID))
+	if err != nil {
+		return "", "", trace.AccessDenied(`Could not generate Redshift Serverless auth token:
+
+  %v
+
+Make sure that IAM role %q has a trust relationship with Teleport database agent's IAM identity.
+`, err, roleARN)
+	}
+
+	// Now make the API call to generate the temporary credentials.
+	a.cfg.Log.Debugf("Generating Redshift Serverless auth token for %s.", sessionCtx)
+	resp, err := client.GetCredentialsWithContext(ctx, &redshiftserverless.GetCredentialsInput{
+		WorkgroupName: aws.String(meta.RedshiftServerless.WorkgroupName),
+		DbName:        aws.String(sessionCtx.DatabaseName),
+	})
+	if err != nil {
+		policy, getPolicyErr := dbiam.GetReadableAWSPolicyDocumentForAssumedRole(sessionCtx.Database)
+		if getPolicyErr != nil {
+			policy = fmt.Sprintf("failed to generate IAM policy: %v", getPolicyErr)
+		}
+		return "", "", trace.AccessDenied(`Could not generate Redshift Serverless auth token:
+
+  %v
+
+Make sure that IAM role %q has permissions to generate credentials. Here is a sample IAM policy:
+
+%v
+`, err, roleARN, policy)
+	}
+	return aws.StringValue(resp.DbUser), aws.StringValue(resp.DbPassword), nil
 }
 
 // GetCloudSQLAuthToken returns authorization token that will be used as a
@@ -276,7 +374,7 @@ func (a *dbAuth) GetCloudSQLPassword(ctx context.Context, sessionCtx *Session) (
 }
 
 // updateCloudSQLUser makes a request to Cloud SQL API to update the provided user.
-func (a *dbAuth) updateCloudSQLUser(ctx context.Context, sessionCtx *Session, gcpCloudSQL cloud.GCPSQLAdminClient, user *sqladmin.User) error {
+func (a *dbAuth) updateCloudSQLUser(ctx context.Context, sessionCtx *Session, gcpCloudSQL gcp.SQLAdminClient, user *sqladmin.User) error {
 	err := gcpCloudSQL.UpdateUser(ctx, sessionCtx.Database, sessionCtx.DatabaseUser, user)
 	if err != nil {
 		return trace.AccessDenied(`Could not update Cloud SQL user %q password:
@@ -307,6 +405,27 @@ func (a *dbAuth) GetAzureAccessToken(ctx context.Context, sessionCtx *Session) (
 		return "", trace.Wrap(err)
 	}
 	return token.Token, nil
+}
+
+// GetElastiCacheRedisToken generates an ElastiCache Redis auth token.
+func (a *dbAuth) GetElastiCacheRedisToken(ctx context.Context, sessionCtx *Session) (string, error) {
+	meta := sessionCtx.Database.GetAWS()
+	awsSession, err := a.cfg.Clients.GetAWSSession(ctx, meta.Region, cloud.WithAssumeRoleFromAWSMeta(meta))
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	a.cfg.Log.Debugf("Generating ElastiCache Redis auth token for %s.", sessionCtx)
+	tokenReq := &elastiCacheRedisIAMTokenRequest{
+		// For IAM-enabled ElastiCache users, the username and user id properties must be identical.
+		// https://docs.aws.amazon.com/AmazonElastiCache/latest/red-ug/auth-iam.html#auth-iam-limits
+		userID:             sessionCtx.DatabaseUser,
+		replicationGroupId: meta.ElastiCache.ReplicationGroupID,
+		region:             meta.Region,
+		credentials:        awsSession.Config.Credentials,
+		clock:              a.cfg.Clock,
+	}
+	token, err := tokenReq.toSignedRequestURI()
+	return token, trace.Wrap(err)
 }
 
 // GetAzureCacheForRedisToken retrieves auth token for Azure Cache for Redis.
@@ -426,6 +545,12 @@ func (a *dbAuth) getTLSConfigVerifyFull(ctx context.Context, sessionCtx *Session
 		return tlsConfig, nil
 	}
 
+	// MongoDB Atlas doesn't not require client certificates if is using AWS
+	// authentication.
+	if awsutils.IsRoleARN(sessionCtx.DatabaseUser) && sessionCtx.Database.GetType() == types.DatabaseTypeMongoAtlas {
+		return tlsConfig, nil
+	}
+
 	// Otherwise, when connecting to an onprem database, generate a client
 	// certificate. The database instance should be configured with
 	// Teleport's CA obtained with 'tctl auth sign --type=db'.
@@ -487,10 +612,18 @@ func (a *dbAuth) appendClientCert(ctx context.Context, sessionCtx *Session, tlsC
 // setupTLSConfigRootCAs initializes the root CA cert pool for the provided
 // tlsConfig based on session context.
 func setupTLSConfigRootCAs(tlsConfig *tls.Config, sessionCtx *Session) error {
-	// Start with an empty pool.
-	tlsConfig.RootCAs = x509.NewCertPool()
+	// Start with an empty pool or a system cert pool.
+	if shouldUseSystemCertPool(sessionCtx) {
+		systemCertPool, err := x509.SystemCertPool()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		tlsConfig.RootCAs = systemCertPool
+	} else {
+		tlsConfig.RootCAs = x509.NewCertPool()
+	}
 
-	// If CA is provided by the database object, always use it.
+	// If CAs are provided by the database object, add them to the pool.
 	if len(sessionCtx.Database.GetCA()) != 0 {
 		if !tlsConfig.RootCAs.AppendCertsFromPEM([]byte(sessionCtx.Database.GetCA())) {
 			return trace.BadParameter("invalid server CA certificate")
@@ -498,17 +631,7 @@ func setupTLSConfigRootCAs(tlsConfig *tls.Config, sessionCtx *Session) error {
 		return nil
 	}
 
-	// Overwrite with the system cert pool, if required.
-	if shouldUseSystemCertPool(sessionCtx) {
-		systemCertPool, err := x509.SystemCertPool()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		tlsConfig.RootCAs = systemCertPool
-		return nil
-	}
-
-	// Use the empty pool. Client cert will be added later.
+	// Done. Client cert may also be added later for non-cloud databases.
 	return nil
 }
 
@@ -516,8 +639,25 @@ func setupTLSConfigRootCAs(tlsConfig *tls.Config, sessionCtx *Session) error {
 // certificates signed by publicly trusted CAs so a system cert pool can be
 // used.
 func shouldUseSystemCertPool(sessionCtx *Session) bool {
-	// Azure Cache for Redis certificates are signed by DigiCert Global Root G2.
-	return sessionCtx.Database.IsAzure() && sessionCtx.Database.GetProtocol() == defaults.ProtocolRedis
+	switch sessionCtx.Database.GetType() {
+	// Azure databases either use Baltimore Root CA or DigiCert Global Root G2.
+	//
+	// https://docs.microsoft.com/en-us/azure/postgresql/concepts-ssl-connection-security
+	// https://docs.microsoft.com/en-us/azure/mysql/howto-configure-ssl
+	case types.DatabaseTypeAzure:
+		return true
+
+	case types.DatabaseTypeRDSProxy:
+		// AWS RDS Proxy uses Amazon Root CAs.
+		//
+		// https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/rds-proxy.howitworks.html#rds-proxy-security.tls
+		return true
+
+	case types.DatabaseTypeOpenSearch:
+		// OpenSearch is commonly hosted on AWS and uses Amazon Root CAs.
+		return true
+	}
+	return false
 }
 
 // setupTLSConfigServerName initializes the server name for the provided
@@ -540,7 +680,10 @@ func setupTLSConfigServerName(tlsConfig *tls.Config, sessionCtx *Session) error 
 		// of replica set the driver may dial multiple servers and will set
 		// ServerName itself.
 		return nil
-
+	case defaults.ProtocolDynamoDB:
+		// Don't set the server name for DynamoDB - the engine may dial different endpoints
+		// based on the client request and will set ServerName itself.
+		return nil
 	case defaults.ProtocolRedis:
 		// Azure Redis servers always serve the certificates with the proper
 		// hostnames. However, OSS cluster mode may redirect to an IP address,
@@ -558,7 +701,17 @@ func setupTLSConfigServerName(tlsConfig *tls.Config, sessionCtx *Session) error 
 
 		// Redis is using custom URI schema.
 		return nil
-
+	case defaults.ProtocolClickHouse, defaults.ProtocolClickHouseHTTP:
+		u, err := url.Parse(sessionCtx.Database.GetURI())
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		addr, err := utils.ParseAddr(u.Host)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		tlsConfig.ServerName = addr.Host()
+		return nil
 	default:
 		// For other databases we're always connecting to the server specified
 		// in URI so set ServerName ourselves.
@@ -633,6 +786,124 @@ func (a *dbAuth) GetAuthPreference(ctx context.Context) (types.AuthPreference, e
 	return a.cfg.AuthClient.GetAuthPreference(ctx)
 }
 
+// GetAzureIdentityResourceID returns the Azure identity resource ID attached to
+// the current compute instance.
+func (a *dbAuth) GetAzureIdentityResourceID(ctx context.Context, identityName string) (string, error) {
+	if identityName == "" {
+		return "", trace.BadParameter("empty identity name")
+	}
+
+	vm, err := utils.FnCacheGet(ctx, a.azureVirtualMachineCache, "", a.getCurrentAzureVM)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	for _, identity := range vm.Identities {
+		if matchAzureResourceName(identity.ResourceID, identityName) {
+			return identity.ResourceID, nil
+		}
+	}
+
+	return "", trace.NotFound("could not find identity %q attached to the instance", identityName)
+}
+
+// getCurrentAzureVM fetches current Azure Virtual Machine struct. If Teleport
+// is not running on Azure, returns an error.
+func (a *dbAuth) getCurrentAzureVM(ctx context.Context) (*libazure.VirtualMachine, error) {
+	metadataClient, err := a.cfg.Clients.GetInstanceMetadataClient(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if metadataClient.GetType() != types.InstanceMetadataTypeAzure {
+		return nil, trace.BadParameter("fetching Azure identity resource ID is only supported on Azure")
+	}
+
+	instanceID, err := metadataClient.GetID(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	parsedInstanceID, err := arm.ParseResourceID(instanceID)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	vmClient, err := a.cfg.Clients.GetAzureVirtualMachinesClient(parsedInstanceID.SubscriptionID)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	vm, err := vmClient.Get(ctx, instanceID)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return vm, nil
+}
+
+// GetAWSIAMCreds returns the AWS IAM credentials, including access key, secret
+// access key and session token.
+func (a *dbAuth) GetAWSIAMCreds(ctx context.Context, sessionCtx *Session) (string, string, string, error) {
+	dbAWS := sessionCtx.Database.GetAWS()
+	awsAccountID := dbAWS.AccountID
+
+	if awsutils.IsPartialRoleARN(sessionCtx.DatabaseUser) && awsAccountID == "" {
+		switch {
+		case dbAWS.AssumeRoleARN != "":
+			a.cfg.Log.Debugf("Using AWS Account ID from assumed role")
+			assumeRoleARN, err := awsutils.ParseRoleARN(dbAWS.AssumeRoleARN)
+			if err != nil {
+				return "", "", "", trace.Wrap(err)
+			}
+
+			awsAccountID = assumeRoleARN.AccountID
+		default:
+			a.cfg.Log.Debugf("Fetching AWS Account ID to build role ARN")
+			stsClient, err := a.cfg.Clients.GetAWSSTSClient(ctx, dbAWS.Region)
+			if err != nil {
+				return "", "", "", trace.Wrap(err)
+			}
+
+			identity, err := awslib.GetIdentityWithClient(ctx, stsClient)
+			if err != nil {
+				return "", "", "", trace.Wrap(err)
+			}
+
+			awsAccountID = identity.GetAccountID()
+		}
+	}
+
+	arn, err := awsutils.BuildRoleARN(sessionCtx.DatabaseUser, dbAWS.Region, awsAccountID)
+	if err != nil {
+		return "", "", "", trace.Wrap(err)
+	}
+
+	baseSession, err := a.cfg.Clients.GetAWSSession(ctx, dbAWS.Region, cloud.WithAssumeRoleFromAWSMeta(dbAWS))
+	if err != nil {
+		return "", "", "", trace.Wrap(err)
+	}
+
+	// ExternalID should only be used once. If the baseSession assumes a role,
+	// the chained sessions should have an empty external ID.
+	awsExternalID := ""
+	if dbAWS.AssumeRoleARN == "" {
+		awsExternalID = dbAWS.ExternalID
+	}
+
+	sess, err := a.cfg.Clients.GetAWSSession(ctx, dbAWS.Region, cloud.WithChainedAssumeRole(baseSession, arn, awsExternalID))
+	if err != nil {
+		return "", "", "", trace.Wrap(err)
+	}
+
+	creds, err := sess.Config.Credentials.Get()
+	if err != nil {
+		return "", "", "", trace.Wrap(err)
+	}
+
+	return creds.AccessKeyID, creds.SecretAccessKey, creds.SessionToken, nil
+}
+
 // Close releases all resources used by authenticator.
 func (a *dbAuth) Close() error {
 	return a.cfg.Clients.Close()
@@ -659,3 +930,128 @@ func getVerifyCloudSQLCertificate(roots *x509.CertPool) func(tls.ConnectionState
 		return err
 	}
 }
+
+// matchAzureResourceName receives a resource ID and checks if the resource name
+// matches.
+func matchAzureResourceName(resourceID, name string) bool {
+	parsedResource, err := arm.ParseResourceID(resourceID)
+	if err != nil {
+		return false
+	}
+
+	return parsedResource.Name == name
+}
+
+// redshiftServerlessUsernameToRoleARN converts a database username to AWS role
+// ARN for a Redshift Serverless database.
+func redshiftServerlessUsernameToRoleARN(aws types.AWS, username string) (string, error) {
+	// These are in-database usernames created when logged in as IAM
+	// users/roles. We will enforce Teleport users to provide IAM roles
+	// instead.
+	if strings.HasPrefix(username, "IAM:") || strings.HasPrefix(username, "IAMR:") {
+		return "", trace.BadParameter("expecting name or ARN of an AWS IAM role but got %v", username)
+	}
+	return awsutils.BuildRoleARN(username, aws.Region, aws.AccountID)
+}
+
+// elastiCacheRedisIAMTokenRequest builds an AWS IAM auth token for ElastiCache
+// Redis.
+// Implemented following the AWS example:
+// https://docs.aws.amazon.com/AmazonElastiCache/latest/red-ug/auth-iam.html#auth-iam-Connecting
+type elastiCacheRedisIAMTokenRequest struct {
+	// userID is the ElastiCache user ID.
+	userID string
+	// replicationGroupId is the ElastiCache replication group ID.
+	replicationGroupId string
+	// region is the AWS region.
+	region string
+	// credentials are used to presign with AWS SigV4.
+	credentials *credentials.Credentials
+	// clock is the clock implementation.
+	clock clockwork.Clock
+}
+
+// checkAndSetDefaults validates config and sets defaults.
+func (r *elastiCacheRedisIAMTokenRequest) checkAndSetDefaults() error {
+	if r.userID == "" {
+		return trace.BadParameter("missing user ID")
+	}
+	if r.replicationGroupId == "" {
+		return trace.BadParameter("missing replication group ID")
+	}
+	if r.region == "" {
+		return trace.BadParameter("missing region")
+	}
+	if r.credentials == nil {
+		return trace.BadParameter("missing credentials")
+	}
+	if r.clock == nil {
+		r.clock = clockwork.NewRealClock()
+	}
+	return nil
+}
+
+// toSignedRequestURI creates a new AWS SigV4 pre-signed request URI.
+// This pre-signed request URI can then be used to authenticate as an
+// ElastiCache Redis user.
+func (r *elastiCacheRedisIAMTokenRequest) toSignedRequestURI() (string, error) {
+	if err := r.checkAndSetDefaults(); err != nil {
+		return "", trace.Wrap(err)
+	}
+	req, err := r.getSignableRequest()
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	s := v4.NewSigner(r.credentials)
+	_, err = s.Presign(req, nil, elasticache.ServiceName, r.region, time.Minute*15, r.clock.Now())
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	res := url.URL{
+		Host:     req.URL.Host,
+		Path:     "/",
+		RawQuery: req.URL.RawQuery,
+	}
+	return strings.TrimPrefix(res.String(), "//"), nil
+}
+
+// getSignableRequest creates a new request suitable for pre-signing with SigV4.
+func (r *elastiCacheRedisIAMTokenRequest) getSignableRequest() (*http.Request, error) {
+	query := url.Values{
+		"Action": {"connect"},
+		"User":   {r.userID},
+	}
+	reqURI := url.URL{
+		Scheme:   "http",
+		Host:     r.replicationGroupId,
+		Path:     "/",
+		RawQuery: query.Encode(),
+	}
+	req, err := http.NewRequest(http.MethodGet, reqURI.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+	return req, nil
+}
+
+type reportingAuth struct {
+	Auth
+	component string
+	db        types.Database
+}
+
+// newReportingAuth returns a reporting version of Auth, wrapping the original Auth instance.
+func newReportingAuth(db types.Database, auth Auth) *reportingAuth {
+	return &reportingAuth{
+		Auth:      auth,
+		component: "db:auth",
+		db:        db,
+	}
+}
+
+func (r *reportingAuth) GetTLSConfig(ctx context.Context, sessionCtx *Session) (*tls.Config, error) {
+	defer methodCallMetrics("GetTLSConfig", r.component, r.db)()
+	return r.Auth.GetTLSConfig(ctx, sessionCtx)
+}
+
+var _ Auth = (*reportingAuth)(nil)

@@ -21,22 +21,22 @@ import (
 	"os"
 	"text/template"
 
+	"github.com/alecthomas/kingpin/v2"
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	libclient "github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/kingpin"
-	"github.com/gravitational/trace"
 )
 
 // DBCommand implements "tctl db" group of commands.
 type DBCommand struct {
-	config *service.Config
+	config *servicecfg.Config
 
 	// format is the output format (text, json or yaml).
 	format string
@@ -53,7 +53,7 @@ type DBCommand struct {
 }
 
 // Initialize allows DBCommand to plug itself into the CLI parser.
-func (c *DBCommand) Initialize(app *kingpin.Application, config *service.Config) {
+func (c *DBCommand) Initialize(app *kingpin.Application, config *servicecfg.Config) {
 	c.config = config
 
 	db := app.Command("db", "Operate on databases registered with the cluster.")
@@ -84,30 +84,23 @@ func (c *DBCommand) ListDatabases(ctx context.Context, clt auth.ClientI) error {
 		return trace.Wrap(err)
 	}
 
-	var servers []types.DatabaseServer
-	resources, err := client.GetResourcesWithFilters(ctx, clt, proto.ListResourcesRequest{
+	servers, err := client.GetAllResources[types.DatabaseServer](ctx, clt, &proto.ListResourcesRequest{
 		ResourceType:        types.KindDatabaseServer,
 		Labels:              labels,
 		PredicateExpression: c.predicateExpr,
 		SearchKeywords:      libclient.ParseSearchKeywords(c.searchKeywords, ','),
 	})
-	switch {
-	case err != nil:
+	if err != nil {
 		if utils.IsPredicateError(err) {
 			return trace.Wrap(utils.PredicateError{Err: err})
 		}
 		return trace.Wrap(err)
-	default:
-		servers, err = types.ResourcesWithLabels(resources).AsDatabaseServers()
-		if err != nil {
-			return trace.Wrap(err)
-		}
 	}
 
-	coll := &databaseServerCollection{servers: servers, verbose: c.verbose}
+	coll := &databaseServerCollection{servers: servers}
 	switch c.format {
 	case teleport.Text:
-		return trace.Wrap(coll.writeText(os.Stdout))
+		return trace.Wrap(coll.writeText(os.Stdout, c.verbose))
 	case teleport.JSON:
 		return trace.Wrap(coll.writeJSON(os.Stdout))
 	case teleport.YAML:
@@ -120,17 +113,7 @@ func (c *DBCommand) ListDatabases(ctx context.Context, clt auth.ClientI) error {
 var dbMessageTemplate = template.Must(template.New("db").Parse(`The invite token: {{.token}}
 This token will expire in {{.minutes}} minutes.
 
-Fill out and run this command on a node to start proxying the database:
-
-> teleport db start \
-   --token={{.token}} \{{range .ca_pins}}
-   --ca-pin={{.}} \{{end}}
-   --auth-server={{.auth_server}} \
-   --name={{.db_name}} \
-   --protocol={{.db_protocol}} \
-   --uri={{.db_uri}}
-
-Or, generate the configuration and start a Teleport agent using it:
+Generate the configuration and start a Teleport agent using it:
 
 > teleport db configure create \
    --token={{.token}} \{{range .ca_pins}}

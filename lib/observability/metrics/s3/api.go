@@ -130,7 +130,7 @@ func (m *APIMetrics) CompleteMultipartUploadWithContext(ctx context.Context, inp
 	start := time.Now()
 	output, err := m.S3API.CompleteMultipartUploadWithContext(ctx, input, opts...)
 
-	recordMetrics("create_multipart_upload", err, time.Since(start).Seconds())
+	recordMetrics("complete_multipart_upload", err, time.Since(start).Seconds())
 	return output, err
 }
 

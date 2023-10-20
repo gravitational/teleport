@@ -46,7 +46,7 @@ message ClusterConfig {
     // if true, connections with expired client certificates will get disconnected
     bool DisconnectExpiredCert;
 
-    // KeepAliveInterval is the interval the server sends keep-alive messsages
+    // KeepAliveInterval is the interval the server sends keep-alive messages
     // to the client at.
     int64 KeepAliveInterval;
 

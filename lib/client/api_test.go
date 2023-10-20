@@ -18,6 +18,7 @@ package client
 
 import (
 	"context"
+	"crypto/x509"
 	"errors"
 	"fmt"
 	"io"
@@ -46,124 +47,124 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
+var parseProxyHostTestCases = []struct {
+	name      string
+	input     string
+	expectErr bool
+	expect    ParsedProxyHost
+}{
+	{
+		name:      "Empty port string",
+		input:     "example.org",
+		expectErr: false,
+		expect: ParsedProxyHost{
+			Host:                     "example.org",
+			UsingDefaultWebProxyPort: true,
+			WebProxyAddr:             "example.org:3080",
+			SSHProxyAddr:             "example.org:3023",
+		},
+	}, {
+		name:      "Web proxy port only",
+		input:     "example.org:1234",
+		expectErr: false,
+		expect: ParsedProxyHost{
+			Host:                     "example.org",
+			UsingDefaultWebProxyPort: false,
+			WebProxyAddr:             "example.org:1234",
+			SSHProxyAddr:             "example.org:3023",
+		},
+	}, {
+		name:      "Web proxy port with whitespace",
+		input:     "example.org: 1234",
+		expectErr: false,
+		expect: ParsedProxyHost{
+			Host:                     "example.org",
+			UsingDefaultWebProxyPort: false,
+			WebProxyAddr:             "example.org:1234",
+			SSHProxyAddr:             "example.org:3023",
+		},
+	}, {
+		name:      "Web proxy port empty with whitespace",
+		input:     "example.org:  ,200",
+		expectErr: false,
+		expect: ParsedProxyHost{
+			Host:                     "example.org",
+			UsingDefaultWebProxyPort: true,
+			WebProxyAddr:             "example.org:3080",
+			SSHProxyAddr:             "example.org:200",
+		},
+	}, {
+		name:      "SSH port only",
+		input:     "example.org:,200",
+		expectErr: false,
+		expect: ParsedProxyHost{
+			Host:                     "example.org",
+			UsingDefaultWebProxyPort: true,
+			WebProxyAddr:             "example.org:3080",
+			SSHProxyAddr:             "example.org:200",
+		},
+	}, {
+		name:      "SSH port empty",
+		input:     "example.org:100,",
+		expectErr: false,
+		expect: ParsedProxyHost{
+			Host:                     "example.org",
+			UsingDefaultWebProxyPort: false,
+			WebProxyAddr:             "example.org:100",
+			SSHProxyAddr:             "example.org:3023",
+		},
+	}, {
+		name:      "SSH port with whitespace",
+		input:     "example.org:100, 200 ",
+		expectErr: false,
+		expect: ParsedProxyHost{
+			Host:                     "example.org",
+			UsingDefaultWebProxyPort: false,
+			WebProxyAddr:             "example.org:100",
+			SSHProxyAddr:             "example.org:200",
+		},
+	}, {
+		name:      "SSH port empty with whitespace",
+		input:     "example.org:100,  ",
+		expectErr: false,
+		expect: ParsedProxyHost{
+			Host:                     "example.org",
+			UsingDefaultWebProxyPort: false,
+			WebProxyAddr:             "example.org:100",
+			SSHProxyAddr:             "example.org:3023",
+		},
+	}, {
+		name:      "Both ports specified",
+		input:     "example.org:100,200",
+		expectErr: false,
+		expect: ParsedProxyHost{
+			Host:                     "example.org",
+			UsingDefaultWebProxyPort: false,
+			WebProxyAddr:             "example.org:100",
+			SSHProxyAddr:             "example.org:200",
+		},
+	}, {
+		name:      "Both ports empty with whitespace",
+		input:     "example.org: , ",
+		expectErr: false,
+		expect: ParsedProxyHost{
+			Host:                     "example.org",
+			UsingDefaultWebProxyPort: true,
+			WebProxyAddr:             "example.org:3080",
+			SSHProxyAddr:             "example.org:3023",
+		},
+	}, {
+		name:      "Too many parts",
+		input:     "example.org:100,200,300,400",
+		expectErr: true,
+		expect:    ParsedProxyHost{},
+	},
+}
+
 func TestParseProxyHostString(t *testing.T) {
 	t.Parallel()
 
-	testCases := []struct {
-		name      string
-		input     string
-		expectErr bool
-		expect    ParsedProxyHost
-	}{
-		{
-			name:      "Empty port string",
-			input:     "example.org",
-			expectErr: false,
-			expect: ParsedProxyHost{
-				Host:                     "example.org",
-				UsingDefaultWebProxyPort: true,
-				WebProxyAddr:             "example.org:3080",
-				SSHProxyAddr:             "example.org:3023",
-			},
-		}, {
-			name:      "Web proxy port only",
-			input:     "example.org:1234",
-			expectErr: false,
-			expect: ParsedProxyHost{
-				Host:                     "example.org",
-				UsingDefaultWebProxyPort: false,
-				WebProxyAddr:             "example.org:1234",
-				SSHProxyAddr:             "example.org:3023",
-			},
-		}, {
-			name:      "Web proxy port with whitespace",
-			input:     "example.org: 1234",
-			expectErr: false,
-			expect: ParsedProxyHost{
-				Host:                     "example.org",
-				UsingDefaultWebProxyPort: false,
-				WebProxyAddr:             "example.org:1234",
-				SSHProxyAddr:             "example.org:3023",
-			},
-		}, {
-			name:      "Web proxy port empty with whitespace",
-			input:     "example.org:  ,200",
-			expectErr: false,
-			expect: ParsedProxyHost{
-				Host:                     "example.org",
-				UsingDefaultWebProxyPort: true,
-				WebProxyAddr:             "example.org:3080",
-				SSHProxyAddr:             "example.org:200",
-			},
-		}, {
-			name:      "SSH port only",
-			input:     "example.org:,200",
-			expectErr: false,
-			expect: ParsedProxyHost{
-				Host:                     "example.org",
-				UsingDefaultWebProxyPort: true,
-				WebProxyAddr:             "example.org:3080",
-				SSHProxyAddr:             "example.org:200",
-			},
-		}, {
-			name:      "SSH port empty",
-			input:     "example.org:100,",
-			expectErr: false,
-			expect: ParsedProxyHost{
-				Host:                     "example.org",
-				UsingDefaultWebProxyPort: false,
-				WebProxyAddr:             "example.org:100",
-				SSHProxyAddr:             "example.org:3023",
-			},
-		}, {
-			name:      "SSH port with whitespace",
-			input:     "example.org:100, 200 ",
-			expectErr: false,
-			expect: ParsedProxyHost{
-				Host:                     "example.org",
-				UsingDefaultWebProxyPort: false,
-				WebProxyAddr:             "example.org:100",
-				SSHProxyAddr:             "example.org:200",
-			},
-		}, {
-			name:      "SSH port empty with whitespace",
-			input:     "example.org:100,  ",
-			expectErr: false,
-			expect: ParsedProxyHost{
-				Host:                     "example.org",
-				UsingDefaultWebProxyPort: false,
-				WebProxyAddr:             "example.org:100",
-				SSHProxyAddr:             "example.org:3023",
-			},
-		}, {
-			name:      "Both ports specified",
-			input:     "example.org:100,200",
-			expectErr: false,
-			expect: ParsedProxyHost{
-				Host:                     "example.org",
-				UsingDefaultWebProxyPort: false,
-				WebProxyAddr:             "example.org:100",
-				SSHProxyAddr:             "example.org:200",
-			},
-		}, {
-			name:      "Both ports empty with whitespace",
-			input:     "example.org: , ",
-			expectErr: false,
-			expect: ParsedProxyHost{
-				Host:                     "example.org",
-				UsingDefaultWebProxyPort: true,
-				WebProxyAddr:             "example.org:3080",
-				SSHProxyAddr:             "example.org:3023",
-			},
-		}, {
-			name:      "Too many parts",
-			input:     "example.org:100,200,300,400",
-			expectErr: true,
-			expect:    ParsedProxyHost{},
-		},
-	}
-
-	for _, testCase := range testCases {
+	for _, testCase := range parseProxyHostTestCases {
 		t.Run(testCase.name, func(t *testing.T) {
 			expected := testCase.expect
 			actual, err := ParseProxyHost(testCase.input)
@@ -188,7 +189,7 @@ func TestNew(t *testing.T) {
 		Host:      "localhost",
 		HostLogin: "vincent",
 		HostPort:  22,
-		KeysDir:   "/tmp",
+		KeysDir:   t.TempDir(),
 		Username:  "localuser",
 		SiteName:  "site",
 		Tracer:    tracing.NoopProvider().Tracer("test"),
@@ -283,94 +284,94 @@ func TestPortsParsing(t *testing.T) {
 	require.True(t, trace.IsBadParameter(err), "expected bad parameter, got %v", err)
 }
 
-func TestDynamicPortsParsing(t *testing.T) {
-	tests := []struct {
-		spec    []string
-		isError bool
-		output  DynamicForwardedPorts
-	}{
-		{
-			spec:    nil,
-			isError: false,
-			output:  DynamicForwardedPorts{},
-		},
-		{
-			spec:    []string{},
-			isError: false,
-			output:  DynamicForwardedPorts{},
-		},
-		{
-			spec:    []string{"localhost"},
-			isError: true,
-			output:  DynamicForwardedPorts{},
-		},
-		{
-			spec:    []string{"localhost:123:456"},
-			isError: true,
-			output:  DynamicForwardedPorts{},
-		},
-		{
-			spec:    []string{"8080"},
-			isError: false,
-			output: DynamicForwardedPorts{
-				DynamicForwardedPort{
-					SrcIP:   "127.0.0.1",
-					SrcPort: 8080,
-				},
+var dynamicPortForwardParsingTestCases = []struct {
+	spec    []string
+	isError bool
+	output  DynamicForwardedPorts
+}{
+	{
+		spec:    nil,
+		isError: false,
+		output:  DynamicForwardedPorts{},
+	},
+	{
+		spec:    []string{},
+		isError: false,
+		output:  DynamicForwardedPorts{},
+	},
+	{
+		spec:    []string{"localhost"},
+		isError: true,
+		output:  DynamicForwardedPorts{},
+	},
+	{
+		spec:    []string{"localhost:123:456"},
+		isError: true,
+		output:  DynamicForwardedPorts{},
+	},
+	{
+		spec:    []string{"8080"},
+		isError: false,
+		output: DynamicForwardedPorts{
+			DynamicForwardedPort{
+				SrcIP:   "127.0.0.1",
+				SrcPort: 8080,
 			},
 		},
-		{
-			spec:    []string{":8080"},
-			isError: false,
-			output: DynamicForwardedPorts{
-				DynamicForwardedPort{
-					SrcIP:   "127.0.0.1",
-					SrcPort: 8080,
-				},
+	},
+	{
+		spec:    []string{":8080"},
+		isError: false,
+		output: DynamicForwardedPorts{
+			DynamicForwardedPort{
+				SrcIP:   "127.0.0.1",
+				SrcPort: 8080,
 			},
 		},
-		{
-			spec:    []string{":8080:8081"},
-			isError: true,
-			output:  DynamicForwardedPorts{},
-		},
-		{
-			spec:    []string{"[::1]:8080"},
-			isError: false,
-			output: DynamicForwardedPorts{
-				DynamicForwardedPort{
-					SrcIP:   "::1",
-					SrcPort: 8080,
-				},
+	},
+	{
+		spec:    []string{":8080:8081"},
+		isError: true,
+		output:  DynamicForwardedPorts{},
+	},
+	{
+		spec:    []string{"[::1]:8080"},
+		isError: false,
+		output: DynamicForwardedPorts{
+			DynamicForwardedPort{
+				SrcIP:   "::1",
+				SrcPort: 8080,
 			},
 		},
-		{
-			spec:    []string{"10.0.0.1:8080"},
-			isError: false,
-			output: DynamicForwardedPorts{
-				DynamicForwardedPort{
-					SrcIP:   "10.0.0.1",
-					SrcPort: 8080,
-				},
+	},
+	{
+		spec:    []string{"10.0.0.1:8080"},
+		isError: false,
+		output: DynamicForwardedPorts{
+			DynamicForwardedPort{
+				SrcIP:   "10.0.0.1",
+				SrcPort: 8080,
 			},
 		},
-		{
-			spec:    []string{":8080", "10.0.0.1:8080"},
-			isError: false,
-			output: DynamicForwardedPorts{
-				DynamicForwardedPort{
-					SrcIP:   "127.0.0.1",
-					SrcPort: 8080,
-				},
-				DynamicForwardedPort{
-					SrcIP:   "10.0.0.1",
-					SrcPort: 8080,
-				},
+	},
+	{
+		spec:    []string{":8080", "10.0.0.1:8080"},
+		isError: false,
+		output: DynamicForwardedPorts{
+			DynamicForwardedPort{
+				SrcIP:   "127.0.0.1",
+				SrcPort: 8080,
+			},
+			DynamicForwardedPort{
+				SrcIP:   "10.0.0.1",
+				SrcPort: 8080,
 			},
 		},
-	}
+	},
+}
 
-	for _, tt := range tests {
+func TestDynamicPortsParsing(t *testing.T) {
+	for _, tt := range dynamicPortForwardParsingTestCases {
 		specs, err := ParseDynamicPortForwardSpec(tt.spec)
 		if tt.isError {
 			require.NotNil(t, err)
@@ -436,22 +437,22 @@ func TestGetKubeTLSServerName(t *testing.T) {
 		{
 			name:          "ipv4 format, API domain should be used",
 			kubeProxyAddr: "127.0.0.1",
-			want:          "kube.teleport.cluster.local",
+			want:          "kube-teleport-proxy-alpn.teleport.cluster.local",
 		},
 		{
 			name:          "empty host, API domain should be used",
 			kubeProxyAddr: "",
-			want:          "kube.teleport.cluster.local",
+			want:          "kube-teleport-proxy-alpn.teleport.cluster.local",
 		},
 		{
 			name:          "ipv4 unspecified, API domain should be used ",
 			kubeProxyAddr: "0.0.0.0",
-			want:          "kube.teleport.cluster.local",
+			want:          "kube-teleport-proxy-alpn.teleport.cluster.local",
 		},
 		{
 			name:          "valid hostname",
 			kubeProxyAddr: "example.com",
-			want:          "kube.example.com",
+			want:          "kube-teleport-proxy-alpn.example.com",
 		},
 	}
 
@@ -546,7 +547,7 @@ func TestApplyProxySettings(t *testing.T) {
 type mockAgent struct {
 	// Agent is embedded to avoid redeclaring all interface methods.
 	// Only the Signers method is implemented by testAgent.
-	agent.Agent
+	agent.ExtendedAgent
 	ValidPrincipals []string
 }
 
@@ -569,58 +570,102 @@ func (m *mockAgent) Signers() ([]ssh.Signer, error) {
 	return []ssh.Signer{&mockSigner{ValidPrincipals: m.ValidPrincipals}}, nil
 }
 
-func TestNewClient_UseKeyPrincipals(t *testing.T) {
-	cfg := &Config{
-		Username:         "xyz",
-		HostLogin:        "xyz",
-		WebProxyAddr:     "localhost",
-		SkipLocalAuth:    true,
-		UseKeyPrincipals: true, // causes VALID to be returned, as key was used
-		Agent:            &mockAgent{ValidPrincipals: []string{"VALID"}},
-		AuthMethods:      []ssh.AuthMethod{ssh.Password("xyz") /* placeholder authmethod */},
-		Tracer:           tracing.NoopProvider().Tracer("test"),
+func TestNewClient_getProxySSHPrincipal(t *testing.T) {
+	for _, tc := range []struct {
+		name            string
+		cfg             *Config
+		expectPrincipal string
+	}{
+		{
+			name: "ProxySSHPrincipal override",
+			cfg: &Config{
+				Username:          "teleport_user",
+				HostLogin:         "host_login",
+				WebProxyAddr:      "localhost",
+				ProxySSHPrincipal: "proxy_ssh_principal_override",
+				Agent:             &mockAgent{ValidPrincipals: []string{"key_principal"}},
+				AuthMethods:       []ssh.AuthMethod{ssh.Password("xyz") /* placeholder authmethod */},
+				Tracer:            tracing.NoopProvider().Tracer("test"),
+			},
+			expectPrincipal: "proxy_ssh_principal_override",
+		}, {
+			name: "Key principal",
+			cfg: &Config{
+				Username:     "teleport_user",
+				HostLogin:    "host_login",
+				WebProxyAddr: "localhost",
+				Agent:        &mockAgent{ValidPrincipals: []string{"key_principal"}},
+				AuthMethods:  []ssh.AuthMethod{ssh.Password("xyz") /* placeholder authmethod */},
+				Tracer:       tracing.NoopProvider().Tracer("test"),
+			},
+			expectPrincipal: "key_principal",
+		}, {
+			name: "Host login default",
+			cfg: &Config{
+				Username:     "teleport_user",
+				HostLogin:    "host_login",
+				WebProxyAddr: "localhost",
+				Agent:        &mockAgent{ /* no agent key principals */ },
+				AuthMethods:  []ssh.AuthMethod{ssh.Password("xyz") /* placeholder authmethod */},
+				Tracer:       tracing.NoopProvider().Tracer("test"),
+			},
+			expectPrincipal: "host_login",
+		}, {
+			name: "Jump host",
+			cfg: &Config{
+				Username:     "teleport_user",
+				HostLogin:    "host_login",
+				WebProxyAddr: "localhost",
+				JumpHosts: []utils.JumpHost{
+					{
+						Username: "jumphost_user",
+					},
+				},
+				Agent:       &mockAgent{ /* no agent key principals */ },
+				AuthMethods: []ssh.AuthMethod{ssh.Password("xyz") /* placeholder authmethod */},
+				Tracer:      tracing.NoopProvider().Tracer("test"),
+			},
+			expectPrincipal: "jumphost_user",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			client, err := NewClient(tc.cfg)
+			require.NoError(t, err)
+			require.Equal(t, tc.expectPrincipal, client.getProxySSHPrincipal(), "ProxySSHPrincipal mismatch")
+		})
 	}
-	client, err := NewClient(cfg)
-	require.NoError(t, err)
-	require.Equal(t, "VALID", client.getProxySSHPrincipal(), "ProxySSHPrincipal mismatch")
+}
 
-	cfg.UseKeyPrincipals = false // causes xyz to be returned as key was not used
-
-	client, err = NewClient(cfg)
-	require.NoError(t, err)
-	require.Equal(t, "xyz", client.getProxySSHPrincipal(), "ProxySSHPrincipal mismatch")
+var parseSearchKeywordsTestCases = []struct {
+	name     string
+	spec     string
+	expected []string
+}{
+	{
+		name: "empty input",
+		spec: "",
+	},
+	{
+		name:     "simple input",
+		spec:     "foo",
+		expected: []string{"foo"},
+	},
+	{
+		name:     "complex input",
+		spec:     `"foo,bar","some phrase's",baz=qux's ,"some other  phrase"," another one  "`,
+		expected: []string{"foo,bar", "some phrase's", "baz=qux's", "some other  phrase", "another one"},
+	},
+	{
+		name:     "unicode input",
+		spec:     `"服务器环境=测试,操作系统类别", Linux , 机房=华北 `,
+		expected: []string{"服务器环境=测试,操作系统类别", "Linux", "机房=华北"},
+	},
 }
 
 func TestParseSearchKeywords(t *testing.T) {
 	t.Parallel()
 
-	testCases := []struct {
-		name     string
-		spec     string
-		expected []string
-	}{
-		{
-			name: "empty input",
-			spec: "",
-		},
-		{
-			name:     "simple input",
-			spec:     "foo",
-			expected: []string{"foo"},
-		},
-		{
-			name:     "complex input",
-			spec:     `"foo,bar","some phrase's",baz=qux's ,"some other  phrase"," another one  "`,
-			expected: []string{"foo,bar", "some phrase's", "baz=qux's", "some other  phrase", "another one"},
-		},
-		{
-			name:     "unicode input",
-			spec:     `"服务器环境=测试,操作系统类别", Linux , 机房=华北 `,
-			expected: []string{"服务器环境=测试,操作系统类别", "Linux", "机房=华北"},
-		},
-	}
-
-	for _, tc := range testCases {
+	for _, tc := range parseSearchKeywordsTestCases {
 		t.Run(tc.name, func(t *testing.T) {
 			m := ParseSearchKeywords(tc.spec, ',')
 			require.Equal(t, tc.expected, m)
@@ -885,7 +930,7 @@ func TestCommandLimit(t *testing.T) {
 			mfaRequired: true,
 			expected:    1,
 			getter: mockRoleGetter(func(ctx context.Context) ([]types.Role, error) {
-				role, err := types.NewRole("test", types.RoleSpecV5{
+				role, err := types.NewRole("test", types.RoleSpecV6{
 					Options: types.RoleOptions{MaxConnections: 500},
 				})
 				require.NoError(t, err)
@@ -911,7 +956,7 @@ func TestCommandLimit(t *testing.T) {
 			name:     "max_connections=1",
 			expected: 1,
 			getter: mockRoleGetter(func(ctx context.Context) ([]types.Role, error) {
-				role, err := types.NewRole("test", types.RoleSpecV5{
+				role, err := types.NewRole("test", types.RoleSpecV6{
 					Options: types.RoleOptions{MaxConnections: 1},
 				})
 				require.NoError(t, err)
@@ -923,7 +968,7 @@ func TestCommandLimit(t *testing.T) {
 			name:     "max_connections=2",
 			expected: 1,
 			getter: mockRoleGetter(func(ctx context.Context) ([]types.Role, error) {
-				role, err := types.NewRole("test", types.RoleSpecV5{
+				role, err := types.NewRole("test", types.RoleSpecV6{
 					Options: types.RoleOptions{MaxConnections: 2},
 				})
 				require.NoError(t, err)
@@ -935,7 +980,7 @@ func TestCommandLimit(t *testing.T) {
 			name:     "max_connections=500",
 			expected: 250,
 			getter: mockRoleGetter(func(ctx context.Context) ([]types.Role, error) {
-				role, err := types.NewRole("test", types.RoleSpecV5{
+				role, err := types.NewRole("test", types.RoleSpecV6{
 					Options: types.RoleOptions{MaxConnections: 500},
 				})
 				require.NoError(t, err)
@@ -947,7 +992,7 @@ func TestCommandLimit(t *testing.T) {
 			name:     "max_connections=max",
 			expected: math.MaxInt64 / 2,
 			getter: mockRoleGetter(func(ctx context.Context) ([]types.Role, error) {
-				role, err := types.NewRole("test", types.RoleSpecV5{
+				role, err := types.NewRole("test", types.RoleSpecV6{
 					Options: types.RoleOptions{MaxConnections: math.MaxInt64},
 				})
 				require.NoError(t, err)
@@ -964,4 +1009,153 @@ func TestCommandLimit(t *testing.T) {
 			require.Equal(t, tt.expected, commandLimit(context.Background(), tt.getter, tt.mfaRequired))
 		})
 	}
+}
+
+func TestRootClusterName(t *testing.T) {
+	ctx := context.Background()
+	ca := newTestAuthority(t)
+
+	rootCluster := ca.trustedCerts.ClusterName
+	leafCluster := "leaf-cluster"
+	key := ca.makeSignedKey(t, KeyIndex{
+		ProxyHost:   "proxy.example.com",
+		ClusterName: leafCluster,
+		Username:    "teleport-user",
+	}, false)
+
+	for _, tc := range []struct {
+		name      string
+		modifyCfg func(t *Config)
+	}{
+		{
+			name: "static TLS",
+			modifyCfg: func(c *Config) {
+				tlsConfig, err := key.TeleportClientTLSConfig(nil, []string{leafCluster, rootCluster})
+				require.NoError(t, err)
+				c.TLS = tlsConfig
+			},
+		}, {
+			name: "key store",
+			modifyCfg: func(c *Config) {
+				c.ClientStore = NewMemClientStore()
+				err := c.ClientStore.AddKey(key)
+				require.NoError(t, err)
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := &Config{
+				WebProxyAddr: "proxy.example.com",
+				Username:     "teleport-user",
+				SiteName:     leafCluster,
+			}
+			tc.modifyCfg(cfg)
+
+			tc, err := NewClient(cfg)
+			require.NoError(t, err)
+
+			clusterName, err := tc.RootClusterName(ctx)
+			require.NoError(t, err)
+			require.Equal(t, rootCluster, clusterName)
+		})
+	}
+}
+
+func TestLoadTLSConfigForClusters(t *testing.T) {
+	rootCA := newTestAuthority(t)
+
+	rootCluster := rootCA.trustedCerts.ClusterName
+	key := rootCA.makeSignedKey(t, KeyIndex{
+		ProxyHost:   "proxy.example.com",
+		ClusterName: rootCluster,
+		Username:    "teleport-user",
+	}, false)
+
+	tlsCertPoolNoCA, err := key.clientCertPool()
+	require.NoError(t, err)
+	tlsCertPoolRootCA, err := key.clientCertPool(rootCluster)
+	require.NoError(t, err)
+
+	tlsConfig, err := key.TeleportClientTLSConfig(nil, []string{rootCluster})
+	require.NoError(t, err)
+
+	for _, tt := range []struct {
+		name      string
+		clusters  []string
+		modifyCfg func(t *Config)
+		expectCAs *x509.CertPool
+	}{
+		{
+			name:     "static TLS",
+			clusters: []string{rootCluster},
+			modifyCfg: func(c *Config) {
+				c.TLS = tlsConfig.Clone()
+			},
+			expectCAs: tlsCertPoolRootCA,
+		}, {
+			name:     "key store no clusters",
+			clusters: []string{},
+			modifyCfg: func(c *Config) {
+				c.ClientStore = NewMemClientStore()
+				err := c.ClientStore.AddKey(key)
+				require.NoError(t, err)
+			},
+			expectCAs: tlsCertPoolNoCA,
+		}, {
+			name:     "key store root cluster",
+			clusters: []string{rootCluster},
+			modifyCfg: func(c *Config) {
+				c.ClientStore = NewMemClientStore()
+				err := c.ClientStore.AddKey(key)
+				require.NoError(t, err)
+			},
+			expectCAs: tlsCertPoolRootCA,
+		}, {
+			name:     "key store unknown clusters",
+			clusters: []string{"leaf-1", "leaf-2"},
+			modifyCfg: func(c *Config) {
+				c.ClientStore = NewMemClientStore()
+				err := c.ClientStore.AddKey(key)
+				require.NoError(t, err)
+			},
+			expectCAs: tlsCertPoolNoCA,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := &Config{
+				WebProxyAddr: "proxy.example.com",
+				Username:     "teleport-user",
+				SiteName:     rootCluster,
+			}
+			tt.modifyCfg(cfg)
+
+			tc, err := NewClient(cfg)
+			require.NoError(t, err)
+
+			tlsConfig, err := tc.LoadTLSConfigForClusters(tt.clusters)
+			require.NoError(t, err)
+			require.True(t, tlsConfig.RootCAs.Equal(tt.expectCAs))
+		})
+	}
+}
+
+func TestConnectToProxyCancelledContext(t *testing.T) {
+	cfg := MakeDefaultConfig()
+
+	cfg.Agent = &mockAgent{}
+	cfg.AuthMethods = []ssh.AuthMethod{ssh.Password("xyz")}
+	cfg.AddKeysToAgent = AddKeysToAgentNo
+	cfg.WebProxyAddr = "dummy"
+	cfg.KeysDir = t.TempDir()
+	cfg.TLSRoutingEnabled = true
+
+	clt, err := NewClient(cfg)
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	proxy, err := clt.ConnectToProxy(ctx)
+	require.Nil(t, proxy)
+	require.Error(t, err)
 }

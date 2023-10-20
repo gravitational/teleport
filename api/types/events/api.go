@@ -31,7 +31,7 @@ type ProtoMarshaler interface {
 	MarshalTo(dAtA []byte) (int, error)
 }
 
-// AuditEvent represents audit event
+// AuditEvent represents an audit event.
 type AuditEvent interface {
 	// ProtoMarshaler implements efficient
 	// protobuf marshaling methods
@@ -71,17 +71,25 @@ type AuditEvent interface {
 	SetClusterName(string)
 }
 
-// Emitter creates and manages audit log streams
+// Emitter emits audit events.
 type Emitter interface {
 	// EmitAuditEvent emits a single audit event.
 	EmitAuditEvent(context.Context, AuditEvent) error
 }
 
+// PreparedSessionEvent is an event that has been prepared by
+// a [github.com/gravitational/teleport/lib/events.SessionEventPreparer].
+// More specifically, it is a wrapper around an AuditEvent that signifies
+// the event has been prepared and is ready to be recorded or emitted.
+type PreparedSessionEvent interface {
+	GetAuditEvent() AuditEvent
+}
+
 // Stream is used to create continuous ordered sequence of events
 // associated with a session.
 type Stream interface {
-	// Emitter allows stream to emit audit event in the context of the event stream
-	Emitter
+	// RecordEvent records a single session event if session recording is enabled.
+	RecordEvent(ctx context.Context, event PreparedSessionEvent) error
 	// Status returns channel broadcasting updates about the stream state:
 	// last event index that was uploaded and the upload ID
 	Status() <-chan StreamStatus

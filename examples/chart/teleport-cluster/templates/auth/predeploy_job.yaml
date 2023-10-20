@@ -1,0 +1,103 @@
+{{- $auth := mustMergeOverwrite (mustDeepCopy .Values) .Values.auth -}}
+{{- if $auth.validateConfigOnDeploy }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .Release.Name }}-auth-test
+  namespace: {{ .Release.Namespace }}
+  labels: {{- include "teleport-cluster.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-weight": "5"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 1
+  template:
+    spec:
+{{- if $auth.affinity }}
+      affinity: {{- toYaml $auth.affinity | nindent 8 }}
+{{- end }}
+{{- if $auth.tolerations }}
+      tolerations: {{- toYaml $auth.tolerations | nindent 6 }}
+{{- end }}
+{{- if $auth.imagePullSecrets }}
+      imagePullSecrets:
+  {{- toYaml $auth.imagePullSecrets | nindent 6 }}
+{{- end }}
+      restartPolicy: Never
+      containers:
+      - name: "teleport-config-check"
+        image: '{{ if $auth.enterprise }}{{ $auth.enterpriseImage }}{{ else }}{{ $auth.image }}{{ end }}:{{ include "teleport-cluster.version" . }}'
+        imagePullPolicy: {{ $auth.imagePullPolicy }}
+{{- if $auth.resources }}
+        resources:
+  {{- toYaml $auth.resources | nindent 10 }}
+{{- end }}        
+{{- if or $auth.extraEnv $auth.tls.existingCASecretName }}
+        env:
+  {{- if (gt (len $auth.extraEnv) 0) }}
+    {{- toYaml $auth.extraEnv | nindent 8 }}
+  {{- end }}
+  {{- if $auth.tls.existingCASecretName }}
+        - name: SSL_CERT_FILE
+          value: /etc/teleport-tls-ca/ca.pem
+  {{- end }}
+{{- end }}
+        command:
+          - "teleport"
+          - "configure"
+        args:
+          - "--test"
+          - "/etc/teleport/teleport.yaml"
+{{- if .Values.securityContext }}
+        securityContext: {{- toYaml .Values.securityContext | nindent 10 }}
+{{- end }}
+        volumeMounts:
+{{- if .Values.enterprise }}
+        - mountPath: /var/lib/license
+          name: "license"
+          readOnly: true
+{{- end }}
+{{- if and (.Values.gcp.credentialSecretName) (eq .Values.chartMode "gcp") }}
+        - mountPath: /etc/teleport-secrets
+          name: "gcp-credentials"
+          readOnly: true
+{{- end }}
+{{- if .Values.tls.existingCASecretName }}
+        - mountPath: /etc/teleport-tls-ca
+          name: "teleport-tls-ca"
+          readOnly: true
+{{- end }}
+        - mountPath: /etc/teleport
+          name: "config"
+          readOnly: true
+        - mountPath: /var/lib/teleport
+          name: "data"
+{{- if .Values.extraVolumeMounts }}
+  {{- toYaml .Values.extraVolumeMounts | nindent 8 }}
+{{- end }}
+      volumes:
+{{- if .Values.enterprise }}
+      - name: license
+        secret:
+          secretName: "license"
+{{- end }}
+{{- if and (.Values.gcp.credentialSecretName) (eq .Values.chartMode "gcp") }}
+      - name: gcp-credentials
+        secret:
+          secretName: {{ .Values.gcp.credentialSecretName | quote }}
+{{- end }}
+{{- if .Values.tls.existingCASecretName }}
+      - name: teleport-tls-ca
+        secret:
+          secretName: {{ .Values.tls.existingCASecretName }}
+{{- end }}
+      - name: "config"
+        configMap:
+          name: {{ .Release.Name }}-auth-test
+      - name: "data"
+        emptyDir: {}
+{{- if .Values.extraVolumes }}
+  {{- toYaml .Values.extraVolumes | nindent 6 }}
+{{- end }}
+{{- end }}

@@ -27,7 +27,7 @@ import (
 
 // WindowsDesktops defines an interface for managing Windows desktop hosts.
 type WindowsDesktops interface {
-	GetWindowsDesktops(context.Context, types.WindowsDesktopFilter) ([]types.WindowsDesktop, error)
+	WindowsDesktopGetter
 	CreateWindowsDesktop(context.Context, types.WindowsDesktop) error
 	UpdateWindowsDesktop(context.Context, types.WindowsDesktop) error
 	UpsertWindowsDesktop(ctx context.Context, desktop types.WindowsDesktop) error
@@ -35,6 +35,11 @@ type WindowsDesktops interface {
 	DeleteAllWindowsDesktops(context.Context) error
 	ListWindowsDesktops(ctx context.Context, req types.ListWindowsDesktopsRequest) (*types.ListWindowsDesktopsResponse, error)
 	ListWindowsDesktopServices(ctx context.Context, req types.ListWindowsDesktopServicesRequest) (*types.ListWindowsDesktopServicesResponse, error)
+}
+
+// WindowsDesktopGetter is an interface for fetching WindowsDesktop resources.
+type WindowsDesktopGetter interface {
+	GetWindowsDesktops(context.Context, types.WindowsDesktopFilter) ([]types.WindowsDesktop, error)
 }
 
 // MarshalWindowsDesktop marshals the WindowsDesktop resource to JSON.
@@ -55,6 +60,7 @@ func MarshalWindowsDesktop(s types.WindowsDesktop, opts ...MarshalOption) ([]byt
 			// to prevent unexpected data races
 			copy := *s
 			copy.SetResourceID(0)
+			copy.SetRevision("")
 			s = &copy
 		}
 		return utils.FastMarshal(s)
@@ -88,6 +94,9 @@ func UnmarshalWindowsDesktop(data []byte, opts ...MarshalOption) (types.WindowsD
 		if cfg.ID != 0 {
 			s.SetResourceID(cfg.ID)
 		}
+		if cfg.Revision != "" {
+			s.SetRevision(cfg.Revision)
+		}
 		if !cfg.Expires.IsZero() {
 			s.SetExpiry(cfg.Expires)
 		}
@@ -114,6 +123,7 @@ func MarshalWindowsDesktopService(s types.WindowsDesktopService, opts ...Marshal
 			// to prevent unexpected data races
 			copy := *s
 			copy.SetResourceID(0)
+			copy.SetRevision("")
 			s = &copy
 		}
 		return utils.FastMarshal(s)
@@ -146,6 +156,9 @@ func UnmarshalWindowsDesktopService(data []byte, opts ...MarshalOption) (types.W
 		}
 		if cfg.ID != 0 {
 			s.SetResourceID(cfg.ID)
+		}
+		if cfg.Revision != "" {
+			s.SetRevision(cfg.Revision)
 		}
 		if !cfg.Expires.IsZero() {
 			s.SetExpiry(cfg.Expires)

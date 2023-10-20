@@ -22,9 +22,10 @@ import (
 	"image/png"
 	"time"
 
-	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 )
 
 // Config for creating a new Client.
@@ -53,6 +54,10 @@ type Config struct {
 	// directory sharing.
 	AllowDirectorySharing bool
 
+	// ShowDesktopWallpaper determines whether desktop sessions will show a
+	// user-selected wallpaper vs a system-default, single-color wallpaper.
+	ShowDesktopWallpaper bool
+
 	// Log is the logger for status messages.
 	Log logrus.FieldLogger
 }
@@ -60,7 +65,7 @@ type Config struct {
 // GenerateUserCertFn generates user certificates for RDP authentication.
 type GenerateUserCertFn func(ctx context.Context, username string, ttl time.Duration) (certDER, keyDER []byte, err error)
 
-//nolint:unused
+//nolint:unused // used in client.go that is behind desktop_access_rdp build flag
 func (c *Config) checkAndSetDefaults() error {
 	if c.Addr == "" {
 		return trace.BadParameter("missing Addr in rdpclient.Config")

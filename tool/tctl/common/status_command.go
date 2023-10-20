@@ -20,28 +20,29 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/gravitational/kingpin"
+	"github.com/alecthomas/kingpin/v2"
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/trace"
 )
 
 // StatusCommand implements `tctl token` group of commands.
 type StatusCommand struct {
-	config *service.Config
+	config *servicecfg.Config
 
 	// CLI clauses (subcommands)
 	status *kingpin.CmdClause
 }
 
 // Initialize allows StatusCommand to plug itself into the CLI parser.
-func (c *StatusCommand) Initialize(app *kingpin.Application, config *service.Config) {
+func (c *StatusCommand) Initialize(app *kingpin.Application, config *servicecfg.Config) {
 	c.config = config
-	c.status = app.Command("status", "Report cluster status")
+	c.status = app.Command("status", "Report cluster status.")
 }
 
 // TryRun takes the CLI command as an argument (like "nodes ls") and executes it.
@@ -116,8 +117,8 @@ func (c *StatusCommand) Status(ctx context.Context, client auth.ClientI) error {
 				// with a new HSM (or without an HSM and all other auth servers
 				// have HSMs)
 				fmt.Println("WARNING: One or more auth servers has a newly added or removed " +
-					"HSM. You should not route traffic to that server until a CA rotation " +
-					"has been completed.")
+					"HSM or KMS configured. You should not route traffic to that server until " +
+					"a CA rotation has been completed.")
 			}
 			if c.config.Debug {
 				table.AddRow([]string{

@@ -20,10 +20,10 @@ import (
 	"io"
 	"net"
 
-	"github.com/gravitational/teleport/lib/utils"
-
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // TestProxy is tcp passthrough proxy that sends a proxy-line when connecting
@@ -131,7 +131,11 @@ func (p *TestProxy) sendProxyLine(clientConn, serverConn net.Conn) error {
 	}
 	p.log.Debugf("Sending %v to %v.", proxyLine.String(), serverConn.RemoteAddr().String())
 	if p.v2 {
-		_, err = serverConn.Write(proxyLine.Bytes())
+		b, bErr := proxyLine.Bytes()
+		if bErr != nil {
+			return trace.Wrap(err)
+		}
+		_, err = serverConn.Write(b)
 	} else {
 		_, err = serverConn.Write([]byte(proxyLine.String()))
 	}

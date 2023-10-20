@@ -192,6 +192,11 @@ func TestNewResourceParser(t *testing.T) {
 			`search("os", "mac", "prod")`,
 			`search()`,
 			`!search("_")`,
+			// Test hasPrefix.
+			`hasPrefix(name, "")`,
+			`hasPrefix(name, "test-h")`,
+			`!hasPrefix(name, "foo")`,
+			`hasPrefix(resource.metadata.labels["env"], "pro")`,
 			// Test exists.
 			`exists(labels.env)`,
 			`!exists(labels.undefined)`,
@@ -206,6 +211,7 @@ func TestNewResourceParser(t *testing.T) {
 			`labels.os == "mac" && name == "test-hostname" && search("v8")`,
 			`exists(labels.env) && labels["env"] != "qa"`,
 			`search("does", "not", "exist") || resource.spec.addr == "_" || labels.version == "v8"`,
+			`hasPrefix(labels.os, "m") && !hasPrefix(labels.env, "dev") && name == "test-hostname"`,
 			// Test operator precedence
 			`exists(labels.env) || (exists(labels.os) && labels.os != "mac")`,
 			`exists(labels.env) || exists(labels.os) && labels.os != "mac"`,
@@ -233,6 +239,7 @@ func TestNewResourceParser(t *testing.T) {
 			`equals(resource.metadata.labels["env"], "wrong-value")`,
 			`equals(resource.spec.hostname, "wrong-value")`,
 			`search("mac", "not-found")`,
+			`hasPrefix(name, "x")`,
 		}
 		for _, expr := range exprs {
 			t.Run(expr, func(t *testing.T) {
@@ -269,6 +276,10 @@ func TestNewResourceParser(t *testing.T) {
 			`exists(labels.env, "too", "many")`,
 			`search(1,2)`,
 			`"just-string"`,
+			`hasPrefix(1, 2)`,
+			`hasPrefix(name)`,
+			`hasPrefix(name, 1)`,
+			`hasPrefix(name, "too", "many")`,
 			"",
 		}
 		for _, expr := range exprs {

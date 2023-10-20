@@ -62,7 +62,7 @@ This list is called "role mappings".
 Teleport supports non-interactive users for automation services, e.g. Jenkins or micro-services
 running in your organization.
 
-### Local non-interactive users
+#### Local non-interactive users
 
 Local non-interactive users also have a user entry that maps their name to roles,
 but they do not have credentials stored in the database.
@@ -75,11 +75,11 @@ of non-interactive users:
   bordered="true"
   caption="Machine-ID certs"
   >
-  
+
 ![Certificates for services](../../img/architecture/certs-machine-id@1.8x.svg)
 </Figure>
 
-### External non-interactive users
+#### External non-interactive users
 
 External non-interactive users behave just like local ones, but it is another
 cluster or certificate authority that issues certificates for them.
@@ -169,6 +169,13 @@ spec:
        'environment': ['test', 'stage']
     kubernetes_labels:
        'environment': ['test', 'stage']
+    # Allow access to any Kubernetes resources in a cluster with the labels specified
+    # above.
+    kubernetes_resources:
+      - kind: '*'
+        namespace: '*'
+        name: '*'
+        verbs: ['*']
 ```
 
 Prod role allows SSH access as `ubuntu` and `view` access to kubernetes for
@@ -185,6 +192,11 @@ spec:
        'environment': ['prod']
     kubernetes_labels:
        'environment': ['prod']
+    kubernetes_resources:
+      - kind: '*'
+        namespace: '*'
+        name: '*'
+        verbs: ['*']
 ```
 
 Here is how Teleport will evaluate Alice's access:
@@ -197,7 +209,6 @@ The same applies to Kubernetes:
 
 - Alice can access kubernetes cluster as `system:masters` if it's labeled as `test` or `stage`.
 - Alice can access kubernetes clusters only as a `view` role if it's labeled as `prod`.
-
 
 ### Role templates
 
@@ -252,6 +263,10 @@ spec:
     kubernetes_groups: ["{{external.k8s_groups}}"]
     kubernetes_labels:
        "env": ["{{external.env}}"]
+    kubernetes_resources:
+      - kind: pod
+        namespace: "*"
+        name: "*"
 ```
 
 User Alice authenticates with Teleport and receives the following variables from
@@ -275,6 +290,10 @@ spec:
     kubernetes_groups: ["view", "edit"]
     kubernetes_labels:
        "env": ["stage"]
+    kubernetes_resources:
+      - kind: pod
+        namespace: "*"
+        name: "*"
 ```
 
 Finally, the proxy applies the resulting role to the kubernetes cluster Alice tries to
@@ -334,15 +353,12 @@ options, Teleport will choose `strict` option.
 
 ### Just in Time Access Requests
 
-<ScopedBlock
-  scope={["oss"]}
->
-
 <Notice type="tip">
-  The full version of Just In Time Access Requests is available only in Teleport Cloud or Enterprise.
-</Notice>
 
-</ScopedBlock>
+  The full version of Just In Time Access Requests is available only in Teleport
+  Enterprise (including Enterprise Cloud).
+
+</Notice>
 
 Roles allow requesting elevated privileges - other roles or individual resources.
 
@@ -375,7 +391,8 @@ spec:
 - [Access Control Reference](../access-controls/reference.mdx).
 - [Teleport Predicate Language](../reference/predicate-language.mdx).
 - [Access Requests Guides](../access-controls/access-requests.mdx)
-- [Architecture Overview](overview.mdx)
+- [Architecture Overview](../core-concepts.mdx)
 - [Teleport Auth](authentication.mdx)
 - [Teleport Nodes](nodes.mdx)
 - [Teleport Proxy](proxy.mdx)
+

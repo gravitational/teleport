@@ -20,41 +20,63 @@ import (
 	"context"
 	"net"
 	"sync"
+	"sync/atomic"
 	"testing"
-
-	"github.com/gravitational/teleport/api/client"
-	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/lib/utils"
+	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/test/bufconn"
+
+	"github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 )
 
 type mockJoinServiceClient struct {
-	sendChallenge        string
-	returnCerts          *proto.Certs
-	returnError          error
-	gotChallengeResponse *proto.RegisterUsingIAMMethodRequest
+	sendChallenge             string
+	returnCerts               *proto.Certs
+	returnError               error
+	gotIAMChallengeResponse   *proto.RegisterUsingIAMMethodRequest
+	gotAzureChallengeResponse *proto.RegisterUsingAzureMethodRequest
 }
 
-func (c *mockJoinServiceClient) RegisterUsingIAMMethod(ctx context.Context, challengeResponse client.RegisterChallengeResponseFunc) (*proto.Certs, error) {
+func (c *mockJoinServiceClient) RegisterUsingIAMMethod(ctx context.Context, challengeResponse client.RegisterIAMChallengeResponseFunc) (*proto.Certs, error) {
 	resp, err := challengeResponse(c.sendChallenge)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	c.gotChallengeResponse = resp
+	c.gotIAMChallengeResponse = resp
 	return c.returnCerts, c.returnError
 }
 
-func newGRPCServer(t *testing.T) (*grpc.Server, *bufconn.Listener) {
+func (c *mockJoinServiceClient) RegisterUsingAzureMethod(ctx context.Context, challengeResponse client.RegisterAzureChallengeResponseFunc) (*proto.Certs, error) {
+	resp, err := challengeResponse(c.sendChallenge)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	c.gotAzureChallengeResponse = resp
+	return c.returnCerts, c.returnError
+}
+
+func ConnectionCountingStreamInterceptor(count *atomic.Int32) grpc.StreamServerInterceptor {
+	return func(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
+		count.Add(1)
+		defer count.Add(-1)
+		return handler(srv, ss)
+	}
+}
+
+func newGRPCServer(t *testing.T, opts ...grpc.ServerOption) (*grpc.Server, *bufconn.Listener) {
 	lis := bufconn.Listen(1024)
-	s := grpc.NewServer(
-		grpc.UnaryInterceptor(utils.GRPCServerUnaryErrorInterceptor),
-		grpc.StreamInterceptor(utils.GRPCServerStreamErrorInterceptor),
+	opts = append(opts,
+		grpc.ChainUnaryInterceptor(interceptors.GRPCServerUnaryErrorInterceptor),
+		grpc.ChainStreamInterceptor(interceptors.GRPCServerStreamErrorInterceptor),
 	)
+	s := grpc.NewServer(opts...)
 	return s, lis
 }
 
@@ -71,29 +93,41 @@ func newGRPCConn(t *testing.T, l *bufconn.Listener) *grpc.ClientConn {
 	return conn
 }
 
-func TestJoinServiceGRPCServer_RegisterUsingIAMMethod(t *testing.T) {
+type testPack struct {
+	authClient, proxyClient         *client.JoinServiceClient
+	authGRPCClient, proxyGRPCClient proto.JoinServiceClient
+	authServer, proxyServer         *JoinServiceGRPCServer
+	streamConnectionCount           *atomic.Int32
+	mockAuthServer                  *mockJoinServiceClient
+}
+
+func newTestPack(t *testing.T) *testPack {
 	// create a mock auth server which implements RegisterUsingIAMMethod
 	mockAuthServer := &mockJoinServiceClient{}
 
+	streamConnectionCount := &atomic.Int32{}
+
 	// create the first instance of JoinServiceGRPCServer wrapping the mock auth
 	// server, to imitate the JoinServiceGRPCServer which runs on Auth
-	authGRPCServer, authGRPCListener := newGRPCServer(t)
-	authJoinService := NewJoinServiceGRPCServer(mockAuthServer)
-	proto.RegisterJoinServiceServer(authGRPCServer, authJoinService)
+	authGRPCServer, authGRPCListener := newGRPCServer(t, grpc.ChainStreamInterceptor(ConnectionCountingStreamInterceptor(streamConnectionCount)))
+	authServer := NewJoinServiceGRPCServer(mockAuthServer)
+	proto.RegisterJoinServiceServer(authGRPCServer, authServer)
 
 	// create a client to the "auth" gRPC service
 	authConn := newGRPCConn(t, authGRPCListener)
-	authJoinServiceClient := client.NewJoinServiceClient(proto.NewJoinServiceClient(authConn))
+	authGRPCClient := proto.NewJoinServiceClient(authConn)
+	authJoinServiceClient := client.NewJoinServiceClient(authGRPCClient)
 
 	// create a second instance of JoinServiceGRPCServer wrapping the "auth"
 	// gRPC client, to imitate the JoinServiceGRPCServer which runs on Proxy
-	proxyGRPCServer, proxyGRPCListener := newGRPCServer(t)
-	proxyJoinService := NewJoinServiceGRPCServer(authJoinServiceClient)
-	proto.RegisterJoinServiceServer(proxyGRPCServer, proxyJoinService)
+	proxyGRPCServer, proxyGRPCListener := newGRPCServer(t, grpc.ChainStreamInterceptor(ConnectionCountingStreamInterceptor(streamConnectionCount)))
+	proxyServer := NewJoinServiceGRPCServer(authJoinServiceClient)
+	proto.RegisterJoinServiceServer(proxyGRPCServer, proxyServer)
 
 	// create a client to the "proxy" gRPC service
 	proxyConn := newGRPCConn(t, proxyGRPCListener)
-	proxyJoinServiceClient := client.NewJoinServiceClient(proto.NewJoinServiceClient(proxyConn))
+	proxyGRPCClient := proto.NewJoinServiceClient(proxyConn)
+	proxyJoinServiceClient := client.NewJoinServiceClient(proxyGRPCClient)
 
 	wg := &sync.WaitGroup{}
 	wg.Add(2)
@@ -111,6 +145,22 @@ func TestJoinServiceGRPCServer_RegisterUsingIAMMethod(t *testing.T) {
 		proxyGRPCServer.Stop()
 		wg.Wait()
 	})
+
+	return &testPack{
+		authServer:            authServer,
+		proxyServer:           proxyServer,
+		authGRPCClient:        authGRPCClient,
+		authClient:            authJoinServiceClient,
+		proxyGRPCClient:       proxyGRPCClient,
+		proxyClient:           proxyJoinServiceClient,
+		streamConnectionCount: streamConnectionCount,
+		mockAuthServer:        mockAuthServer,
+	}
+}
+
+func TestJoinServiceGRPCServer_RegisterUsingIAMMethod(t *testing.T) {
+	t.Parallel()
+	testPack := newTestPack(t)
 
 	testCases := []struct {
 		desc                 string
@@ -140,9 +190,9 @@ func TestJoinServiceGRPCServer_RegisterUsingIAMMethod(t *testing.T) {
 	}
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
-			mockAuthServer.sendChallenge = tc.challenge
-			mockAuthServer.returnCerts = tc.certs
-			mockAuthServer.returnError = tc.authErr
+			testPack.mockAuthServer.sendChallenge = tc.challenge
+			testPack.mockAuthServer.returnCerts = tc.certs
+			testPack.mockAuthServer.returnError = tc.authErr
 			challengeResponder := func(challenge string) (*proto.RegisterUsingIAMMethodRequest, error) {
 				// client should get the challenge from auth
 				require.Equal(t, tc.challenge, challenge)
@@ -150,8 +200,8 @@ func TestJoinServiceGRPCServer_RegisterUsingIAMMethod(t *testing.T) {
 			}
 
 			for suffix, clt := range map[string]*client.JoinServiceClient{
-				"_auth":  authJoinServiceClient,
-				"_proxy": proxyJoinServiceClient,
+				"_auth":  testPack.authClient,
+				"_proxy": testPack.proxyClient,
 			} {
 				t.Run(tc.desc+suffix, func(t *testing.T) {
 					certs, err := clt.RegisterUsingIAMMethod(context.Background(), challengeResponder)
@@ -172,9 +222,153 @@ func TestJoinServiceGRPCServer_RegisterUsingIAMMethod(t *testing.T) {
 					// client should get the certs from auth
 					require.Equal(t, tc.certs, certs)
 					// auth should get the challenge response from client
-					require.Equal(t, tc.challengeResponse, mockAuthServer.gotChallengeResponse)
+					require.Equal(t, tc.challengeResponse, testPack.mockAuthServer.gotIAMChallengeResponse)
 				})
 			}
+		})
+	}
+}
+
+func TestJoinServiceGRPCServer_RegisterUsingAzureMethod(t *testing.T) {
+	t.Parallel()
+	testPack := newTestPack(t)
+
+	testCases := []struct {
+		desc                 string
+		challenge            string
+		challengeResponse    *proto.RegisterUsingAzureMethodRequest
+		challengeResponseErr error
+		authErr              error
+		certs                *proto.Certs
+	}{
+		{
+			desc:              "pass case",
+			challenge:         "foo",
+			challengeResponse: &proto.RegisterUsingAzureMethodRequest{AttestedData: []byte("bar"), AccessToken: "baz"},
+			certs:             &proto.Certs{SSH: []byte("qux")},
+		},
+		{
+			desc:              "auth error",
+			challenge:         "foo",
+			challengeResponse: &proto.RegisterUsingAzureMethodRequest{AttestedData: []byte("bar"), AccessToken: "baz"},
+			authErr:           trace.AccessDenied("test auth error"),
+		},
+		{
+			desc:                 "challenge response error",
+			challenge:            "foo",
+			challengeResponseErr: trace.BadParameter("test challenge error"),
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.desc, func(t *testing.T) {
+			testPack.mockAuthServer.sendChallenge = tc.challenge
+			testPack.mockAuthServer.returnCerts = tc.certs
+			testPack.mockAuthServer.returnError = tc.authErr
+			challengeResponder := func(challenge string) (*proto.RegisterUsingAzureMethodRequest, error) {
+				require.Equal(t, tc.challenge, challenge)
+				return tc.challengeResponse, tc.challengeResponseErr
+			}
+
+			for suffix, clt := range map[string]*client.JoinServiceClient{
+				"_auth":  testPack.authClient,
+				"_proxy": testPack.proxyClient,
+			} {
+				t.Run(tc.desc+suffix, func(t *testing.T) {
+					certs, err := clt.RegisterUsingAzureMethod(context.Background(), challengeResponder)
+					if tc.challengeResponseErr != nil {
+						require.Equal(t, tc.challengeResponseErr, err)
+						return
+					}
+					if tc.authErr != nil {
+						require.Contains(t, err.Error(), tc.authErr.Error())
+						return
+					}
+					require.NoError(t, err)
+					require.Equal(t, tc.certs, certs)
+					require.Equal(t, tc.challengeResponse, testPack.mockAuthServer.gotAzureChallengeResponse)
+				})
+			}
+		})
+	}
+}
+
+func TestTimeout(t *testing.T) {
+	t.Parallel()
+
+	testPack := newTestPack(t)
+
+	fakeClock := clockwork.NewFakeClock()
+	testPack.authServer.clock = fakeClock
+	testPack.proxyServer.clock = fakeClock
+
+	for _, tc := range []struct {
+		desc string
+		clt  *client.JoinServiceClient
+	}{
+		{
+			desc: "good auth client",
+			clt:  testPack.authClient,
+		},
+		{
+			desc: "good proxy client",
+			clt:  testPack.proxyClient,
+		},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			// When a well-behaved client returns an error responding to the
+			// challenge, the client should cancel the context immediately and all
+			// open stream connections should quickly be closed, much before the
+			// request timeout has to come into effect.
+			tc.clt.RegisterUsingIAMMethod(context.Background(), func(challenge string) (*proto.RegisterUsingIAMMethodRequest, error) {
+				return nil, trace.BadParameter("")
+			})
+			require.Eventually(t, func() bool {
+				return testPack.streamConnectionCount.Load() == 0
+			}, 10*time.Second, 1*time.Millisecond)
+			// ^ This timeout is absurdly large but I really don't want this to
+			// be flaky in CI. This test is still pretty fast most of the time and
+			// still tests what it is meant to - if the connections never close
+			// this would still fail.
+		})
+	}
+
+	for _, tc := range []struct {
+		desc string
+		clt  proto.JoinServiceClient
+	}{
+		{
+			desc: "bad auth client",
+			clt:  testPack.authGRPCClient,
+		},
+		{
+			desc: "bad proxy client",
+			clt:  testPack.proxyGRPCClient,
+		},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			srv, err := tc.clt.RegisterUsingIAMMethod(context.Background())
+			require.NoError(t, err)
+
+			_, err = srv.Recv()
+			require.NoError(t, err)
+
+			// Sanity check there are some open connections after the first gRPC
+			// Recv
+			require.Greater(t, testPack.streamConnectionCount.Load(), int32(0))
+
+			// Instead of sending a challenge response, a poorly behaved client
+			// might just hang and never close the connection.
+			//
+			// Make sure the request is automatically timed out on the server and all
+			// connections are closed shortly after the timeout.
+			fakeClock.Advance(iamJoinRequestTimeout)
+			require.Eventually(t, func() bool {
+				return testPack.streamConnectionCount.Load() == 0
+			}, 10*time.Second, 1*time.Millisecond)
+			// ^ This timeout is absurdly large but I really don't want this to
+			// be flaky in CI. This test is still pretty fast most of the time and
+			// still tests what it is meant to - if the connections never close
+			// this would still fail.
 		})
 	}
 }

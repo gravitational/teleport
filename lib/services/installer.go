@@ -17,10 +17,10 @@
 package services
 
 import (
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
 )
 
 // UnmarshalInstaller unmarshals the installer resource from JSON.
@@ -46,6 +46,9 @@ func UnmarshalInstaller(data []byte, opts ...MarshalOption) (types.Installer, er
 	if cfg.ID != 0 {
 		installer.SetResourceID(cfg.ID)
 	}
+	if cfg.Revision != "" {
+		installer.SetRevision(cfg.Revision)
+	}
 	if !cfg.Expires.IsZero() {
 		installer.SetExpiry(cfg.Expires)
 	}
@@ -68,6 +71,7 @@ func MarshalInstaller(installer types.Installer, opts ...MarshalOption) ([]byte,
 			// to prevent unexpected data races
 			copy := *installer
 			copy.SetResourceID(0)
+			copy.SetRevision("")
 			installer = &copy
 		}
 		return utils.FastMarshal(installer)

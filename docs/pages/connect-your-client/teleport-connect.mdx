@@ -3,10 +3,10 @@ title: Using Teleport Connect
 description: Using Teleport Connect
 ---
 
-Teleport Connect provides easy and secure access to SSH servers and databases, with support for
-other resources such as Kubernetes clusters and applications coming in the future.
+Teleport Connect provides easy and secure access to SSH servers, databases, and Kubernetes clusters,
+with support for other resources coming in the future.
 
-![resources tab in Teleport Connect](../../img/use-teleport/connect-cluster.png)
+![resources tab in Teleport Connect](../../img/use-teleport/connect-cluster@2x.png)
 
 ## Installation & upgrade
 
@@ -26,7 +26,7 @@ your package manager. Repeat the process for in-place upgrades.
 You can also download the project as a `tar.gz` file to extract and run it in place:
 
 ```code
-$ tar -xf  teleport-(=teleport.version=)-linux-*.tar.gz
+$ tar -xf  teleport-connect-(=teleport.version=)-linux-*.tar.gz
 ```
 </TabItem>
 <TabItem label="Windows">
@@ -34,12 +34,19 @@ Download and run the installer `.exe` file. It will install and open Teleport Co
 further user input.
 
 Repeat the process with newer versions to upgrade.
+
+A silent installation can be performed by running the installer with the `/S` flag. This will hide
+the progress bar and skip the launch of the app after the installation is complete.
+
+```code
+$ "Teleport Connect Setup-(=teleport.version=).exe" /S
+```
 </TabItem>
 </Tabs>
 
 ## User interface
 
-![user interface of Teleport Connect](../../img/use-teleport/connect-ui-overview.png)
+![user interface of Teleport Connect](../../img/use-teleport/connect-ui-overview@2x.png)
 
 The top bar of Teleport Connect consists of:
 
@@ -47,30 +54,242 @@ The top bar of Teleport Connect consists of:
   Teleport clusters as well as log in or out of the clusters.
 - The **connection list** (the top left) showing recent connections, allowing you to seamlessly switch
   between them.
-- The **command bar** (in the middle), which launches any command you input in a new terminal tab.
-- The **cluster selector** (to the left of the command bar), which shows up only if you have set up
-  Trusted Clusters and there are leaf clusters connected to the root cluster. It lets you browse
-  leaf cluster resources. It also changes which cluster the commands in the command bar are going to target.
+- The **search bar** (in the middle), which allows you to search for resources across clusters.
+- The **cluster selector** (to the left of the search bar), which shows up only if you have set up
+  trusted clusters and there are leaf clusters connected to the root cluster. It lets you browse
+  leaf cluster resources. Also, the "Open new terminal" action will bind new terminal tabs to the selected cluster.
+- The **additional actions menu** (to the left of the profile selector), containing options such as
+  opening a config file or creating an access request in an Enterprise cluster.
+
+The **status bar** at the bottom displays **cluster breadcrumbs** in the bottom left, indicating
+which cluster the current tab is bound to, and the **Share Feedback** button in the bottom right.
+
+## Connect My Computer
+
+Connect My Computer makes it possible to add your personal machine to a Teleport cluster in just a
+couple of clicks.
+
+It is the easiest way to add a computer to the cluster, whether you're exploring the capabilities of
+Teleport or want your computer to be available in a Teleport-powered home lab.
+
+Connect My Computer sets up a Teleport agent managed completely by Teleport Connect, without having
+to use the terminal to get the job done and without the need for tools like `systemctl` to control
+the lifecycle of the agent.
+
+### Prerequisites
+
+(!docs/pages/connect-your-client/includes/connect-my-computer-prerequisites.mdx!)
+{/* The permission to read and update users is needed during setup but not for regular usage,
+that's why it's not listed in the partial. */}
+- Permissions to read and update user objects in the backend (verbs `read` and `update` for [the
+  `user` resource](../access-controls/reference.mdx#teleport-resources)).
+
+The agent runs as the current system user, not as root. Some features are thus not available, such
+as logging in as other system users or [host user creation](../server-access/guides/host-user-creation.mdx).
+
+### Setup and usage
+
+To begin the setup, click on the laptop icon in the top left and select "Connect My Computer". The
+new tab will guide you through an interaction-free setup. Click "Connect" to start the setup.
+
+![Connect My Computer in the top bar](../../img/use-teleport/connect-my-computer-top-bar@2x.png)
+
+The setup creates a new role in the cluster which grants access to your device as the current system
+user. The role is then added to your user object.
+
+<Admonition type="warning">
+The role is responsible merely for granting SSH access as your system user to the node managed by
+Connect My Computer. The node is subject to RBAC like any other SSH node in the cluster.
+
+In practice it means that users with administrative privileges can craft another role which grants
+access to the node or simply assign the Connect My Computer role to themselves.
+
+We recommend using Connect My Computer only in scenarios where no other user could plausibly gain
+access to the node, such as when exploring a Teleport cluster as its only user or in a home lab.
+</Admonition>
+
+Next, the setup downloads a Teleport agent for your platform and runs `teleport node configure`
+pointed at the current cluster. Once that is done, Connect My Computer starts the agent and waits
+for it to show up in the cluster as an SSH node.
+
+![Connect My Computer setup](../../img/use-teleport/connect-my-computer-setup@2x.png)
+
+After the agent joins the cluster, the tab transitions to showing the status of the agent. From
+here, you can connect to the node made available by the agent, stop and start the agent, as well as
+completely remove it. Manually logging out of the cluster will remove the agent as well.
+
+![Connect My Computer status](../../img/use-teleport/connect-my-computer-status@2x.png)
+
+Your computer will be shared while Teleport Connect is open. To stop sharing, close Teleport Connect
+or stop the agent through the Connect My Computer tab. Sharing will resume on app restart, unless
+you stop the agent before exiting. The agent stops immediately if Teleport Connect unexpectedly
+crashes.
+
+### Agent maintenance
+
+The version of the agent downloaded by Teleport Connect always matches the version of Teleport
+Connect. After upgrading Teleport Connect, Connect My Computer is going to automatically attempt to
+download a matching agent version before launching the agent.
+
+Connect My Computer always stores just a single version of the agent on disk.
+
+<Tabs>
+<TabItem label="macOS">
+The agent is stored at `~/Library/Caches/Teleport Connect/teleport/teleport`.
+</TabItem>
+<TabItem label="Linux">
+The agent is stored at `~/.cache/Teleport Connect/teleport/teleport` by default. The path respects
+`$XDG_CACHE_HOME`.
+</TabItem>
+</Tabs>
+
+### Troubleshooting Connect My Computer
+
+#### Accessing agent logs
+
+After the setup is done, open the Connect My Computer tab and from the three dots menu within the
+tab choose "Open agent logs directory".
+
+<Tabs>
+<TabItem label="macOS">
+The logs are stored at `~/Library/Application Support/Teleport Connect/agents/<cluster>/logs`.
+</TabItem>
+<TabItem label="Linux">
+The logs are stored at `~/.config/Teleport Connect/agents/<cluster>/logs`.
+</TabItem>
+</Tabs>
+
+#### The Connect My Computer icon is not visible in the top bar
+
+The icon is visible only if your setup satisfies the following requirements:
+
+(!docs/pages/connect-your-client/includes/connect-my-computer-prerequisites.mdx!)
+
+#### The Connect My Computer tab says that the agent is running, but the computer is not visible in the cluster
+
+Click "Connect" in the Connect My Computer tab. If the error message in the new tab says "access
+denied", it likely means that there's a role assigned to your cluster user which denies access to
+the Connect My Computer node, either by denying the specific login or access to the node itself
+through fields like `node_labels`. To resolve this problem, inspect the role list in the Management
+section of the Web UI. First, check what roles are assigned to your user object and then inspect
+each role. Look for a role with broad `deny` rules.
+
+If the error message mentions a node or a tunnel not being found, it means that while the cluster
+has a cached view of the agent, the agent did not join the cluster just yet. Wait for a couple of
+seconds and try connecting to the node again. If the problem persists, check [the agent logs](#accessing-agent-logs).
+
+#### Connect My Computer does not work after changing system username
+
+The system username that was in use at the time of configuring Connect My Computer is persisted in
+the Connect My Computer role for the given cluster user. To regain access to the Connect My Computer
+node, add the new system username under the `logins` section of the role. The role can be identified
+by its name following the format `connect-my-computer-<name of cluster user>`.
+
+Another solution is to [restart the setup](#restarting-the-setup).
+
+#### The agent cannot join the cluster and the logs say the token has expired or was not found
+
+In that scenario, the agent emits logs like these when starting up:
+
+```text
+INFO [PROC:1]    Joining the cluster with a secure token. pid:54364.1 service/connect.go:460
+INFO [AUTH]      Attempting registration via proxy server. auth/register.go:279
+ERRO [PROC:1]    Can not join the cluster as node, the token expired or not found. Regenerate the token and try again. pid:54364.1 service/connect.go:106
+```
+
+During the setup, Connect My Computer creates [a join token](../agents/join-services-to-your-cluster/join-token.mdx)
+that is valid for up to five minutes. If the logs say that the token has expired, it most likely
+means that the initial attempt to join the cluster has failed and you started another one after more
+than five minutes.
+
+To resolve this problem, remove the agent and [perform the setup again](#restarting-the-setup).
+
+#### Restarting the setup
+
+Since Teleport nodes are completely stateless, in case of problems with starting the agent or
+joining the cluster you may attempt to run the setup again. Either click "Retry" if the setup has
+failed or choose "Remove agent" from the three dots menu within the Connect My Computer tab after
+the agent was successfully configured.
+
+#### Preventing user access to Connect My Computer
+
+If you wish to prevent cluster users from using Connect My Computer, make sure they don't have
+permissions to create new join tokens. This is controlled by the `create` verb for the `token`
+resource. Either deny this permission explicitly or do not grant it in the first place. See [Access
+Controls Reference Documentation](../access-controls/reference.mdx#teleport-resources) for more
+details. Denying this permission will hide the icon in the top bar.
+
+Users who already set up agents will still be able to manage those agents, even after the denying
+them permissions to create join tokens. This is to ensure that a malicious admin is not able to make
+a user set up an agent and then lock the user out of removing the agent.
+
+To instantly revoke access to agents that have already joined the cluster, look for nodes labeled
+with the `teleport.dev/connect-my-computer/owner` label and then [place
+locks](../access-controls/guides/locking.mdx) on those nodes.
+
+```code
+$ tctl nodes ls -v --query='labels["teleport.dev/connect-my-computer/owner"] != ""'
+$ tctl lock --server-id=<Var name="Node UUID" /> --message="Using Connect My Computer is forbidden"
+```
 
 ## Connecting to an SSH server
 
 1. Open a tab with cluster resources by clicking on the plus symbol at the right end of the tab bar.
-  You can also press `Ctrl/Cmd + T` to achieve the same result.
-2. Look for the SSH server you want to connect to and click the Connect button to the right.
-3. Select or enter the SSH user you wish to log in as and press `Enter`.
-4. A new tab will open with a shell session on the chosen server.
+   You can also press <span style="white-space: nowrap;">`Ctrl/Cmd + T`</span> to achieve the same result.
+1. Look for the SSH server you want to connect to and click the Connect button to the right.
+1. Select or enter the SSH user you wish to log in as and press `Enter`.
 
-Alternatively, you can type `tsh ssh` into the command bar in the Teleport Connect window, and the autocompletion will help
-you connect to a server.
+A new tab will open with a shell session on the chosen server.
+
+Alternatively, you can look for the server in the search bar and press `Enter` to connect to it.
+
+## Opening a local terminal
+
+To open a terminal with a local shell session, either select "Open new terminal" from the additional
+actions menu or press <span style="white-space: nowrap;">`Ctrl/Cmd + Shift + T`</span>.
+
+Any tsh command executed within the tab targets the current cluster. Teleport Connect accomplishes
+this by setting the environment variables `TELEPORT_PROXY` and `TELEPORT_CLUSTER` for the session.
+Additionally, Teleport Connect prepends the `PATH`/`Path` environment variable in the session with the
+directory containing the tsh binary, even if [tsh is not globally available](#using-tsh-outside-of-teleport-connect).
+
+When using [trusted clusters](../management/admin/trustedclusters.mdx), the cluster selector allows
+you to determine which cluster the shell session will be bound to. The selected cluster will be
+reflected in both the tab title and the status bar.
+
+## Connecting to a Kubernetes cluster
+
+1. Open a tab with cluster resources by clicking on the plus symbol at the right end of the tab bar.
+   You can also press <span style="white-space: nowrap;">`Ctrl/Cmd + T`</span> to achieve the same result.
+1. Select the Kubes section.
+1. Look for the cluster you wish to connect to and click the Connect button to the right.
+
+Alternatively, you can look for the cluster in the search bar and press `Enter`
+to connect to it.
+
+A new local terminal tab will open which is preconfigured with the `KUBECONFIG`
+environment variable pointing to a configuration for the specified cluster. Any
+tools that respect the `KUBECONFIG` environment variable (`kubectl`, `helm`,
+etc.) will work without additional configuration. To identify the path to this
+config for use in other tools, inspect the value of the `KUBECONFIG`
+environment variable.
+
+The value of the `KUBECONFIG` environment variable will persist between app
+restarts, but this configuration file will not be available or usable when the
+Kubernetes cluster is removed from the connection list in the top left, or when
+Teleport Connect is closed.
 
 ## Connecting to a database
 
 1. Open a tab with cluster resources by clicking on the plus symbol at the end of the tab bar. You
-  can also press `Ctrl/Cmd + T` to achieve the same result.
-2. Select the Databases section.
-3. Look for the database server you wish to connect to and click the Connect button to the right.
-4. Select or enter the database user you with to use and press `Enter`.
-5. A new tab will open with a new connection established between your device and the database server.
+  can also press <span style="white-space: nowrap;">`Ctrl/Cmd + T`</span> to achieve the same result.
+1. Select the Databases section.
+1. Look for the database server you wish to connect to and click the Connect button to the right.
+1. Select or enter the database user you wish to use and press `Enter`.
+
+A new tab will open with a new connection established between your device and the database server.
+
+Alternatively, you can look for the database in the search bar and press `Enter` to connect to it.
 
 This connection will remain active until you click the Close Connection button or close Teleport
 Connect. The port number will persist between app restarts—you can set up your favorite client
@@ -93,10 +312,9 @@ Teleport Connect allows you to log in to multiple clusters at the same time. Aft
 your first cluster, open the profile selector at the top right and click the *+Add another cluster*
 button. You can switch between active profiles in multiple ways:
 
-- Click at the profile selector button at the top right.
-- Open the profile selector with a shortcut (`Ctrl/Cmd + I`).
-- Using the connection list at the top left to select a connection will automatically switch you to
-  the right profile.
+1. Click at the profile selector button at the top right.
+1. Open the profile selector with a shortcut (<span style="white-space: nowrap;">`Ctrl/Cmd + I`</span>).
+1. Select a connection from the connection list at the top to automatically switch to the right profile.
 
 At the moment Teleport Connect supports only one user per cluster. To log in as a different user,
 log out of the cluster first.
@@ -110,29 +328,142 @@ Connect will restore connections to all resources that were active before you cl
 When restoring terminal tabs, Teleport Connect doesn't attempt to re-execute commands that were in
 progress when the app was closed. It will only restore the working directory for those tabs.
 
-## Troubleshooting
+## Using tsh outside of Teleport Connect
 
-Logging out of a cluster, closing the app and logging in again resets all app state related to that
-cluster. This can help if you encounter a bug which renders the user interface partially unusable.
-It might also help if you have issues with connecting to an active cluster that don't happen in the
-Web UI.
+Teleport Connect ships with its own bundled version of tsh. Teleport Connect will always use this
+version of tsh for any actions performed within the app.
+
+Teleport Connect makes tsh available to use in your terminal of choice as well. Please note that at
+the moment tsh and Teleport Connect operate on different sets of profiles, as Teleport Connect sets
+a custom home location through [the `TELEPORT_HOME` environment
+variable](../reference/cli/tsh.mdx#tsh-environment-variables). For example, logging in to a new cluster
+through tsh will not make that cluster show up in Teleport Connect.
 
 <Tabs>
 <TabItem label="macOS">
-To force the app to log you out of all clusters, close the app and remove the `~/Library/Application
-Support/Teleport Connect/tsh` folder. Removing the file `~/Library/Application
-Support/Teleport Connect/app_state.json` will clear all remembered tabs and connections.
+To add tsh to `PATH`, open the additional actions menu and select "Install tsh in PATH". This will
+symlink tsh to `/usr/local/bin`. You can remove the symlink by selecting "Remove tsh from PATH".
+
+If you used the tsh macOS .pkg installer before, this will overwrite the symlink made by that installer.
 </TabItem>
 <TabItem label="Linux">
-To force the app to log you out of all clusters, close the app and remove the `~/.config/Teleport
-Connect/tsh` folder. Removing the file `/.config/Teleport Connect/app_state.json` will clear
-all remembered tabs and connections.
+During installation, Teleport Connect automatically adds a symlink to tsh under
+`/usr/local/bin/tsh`, unless you have already installed the `teleport` package, which also creates
+that symlink.
 </TabItem>
 <TabItem label="Windows">
-To force the app to log you out of all clusters, close the app and remove the
-`C:\Users\%UserName%\AppData\Roaming\Teleport Connect\tsh` folder. Removing the file
-`C:\Users\%UserName%\AppData\Roaming\Teleport Connect\app_state.json` will clear all remembered tabs
-and connections.
+During installation, Teleport Connect automatically adds the `resources\bin` folder from the
+installation directory to the `Path` user environment variable.
+</TabItem>
+</Tabs>
+
+## Configuration
+
+Teleport Connect can be configured by editing the `app_config.json` file, which it creates on first launch.
+To open the config file, select "Open config file" from the additional actions menu.
+The file will open in your default editor.
+
+<Admonition
+  type="note"
+  title="Note"
+>
+  Any changes to the config file will take effect at the next launch.
+</Admonition>
+
+Below is the list of the supported config properties.
+
+| Property                      | Default                                                                                                              | Description                                                            |
+|-------------------------------|----------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------|
+| `theme`                       | `system`                                                                                                             | Color theme for the app. Available modes: `light`, `dark`, `system`.   |
+| `terminal.fontFamily`         | `Menlo, Monaco, monospace` on macOS<br/>`Consolas, monospace` on Windows<br/>`'Droid Sans Mono', monospace` on Linux | Font family for the terminal.                                          |
+| `terminal.fontSize`           | 15                                                                                                                   | Font size for the terminal.                                            |
+| `usageReporting.enabled`      | `false`                                                                                                              | Enables collecting anonymous usage data (see [Telemetry](#telemetry)). |
+| `keymap.tab1` - `keymap.tab9` | `Command+1` - `Command+9` on macOS <br/> `Ctrl+1` - `Ctrl+9` on Windows<br/>`Alt+1` - `Alt+9` on Linux               | Shortcut to open tab 1–9.                                              |
+| `keymap.closeTab`             | `Command+W` on macOS<br/>`Ctrl+W` on Windows/Linux                                                                   | Shortcut to close a tab.                                               |
+| `keymap.newTab`               | `Command+T` on macOS<br/>`Ctrl+T` on Windows/Linux                                                                   | Shortcut to open a new tab.                                            |
+| `keymap.newTerminalTab`       | `Shift+Command+T` on macOS<br/>`Ctrl+Shift+T` on Windows/Linux                                                       | Shortcut to open a new terminal tab.                                   |
+| `keymap.previousTab`          | `Shift+Command+Tab` on macOS<br/>`Ctrl+Shift+Tab` on Windows/Linux                                                   | Shortcut to go to the previous tab.                                    |
+| `keymap.nextTab`              | `Command+Tab` on macOS<br/>`Ctrl+Tab` on Windows/Linux                                                               | Shortcut to go to the next tab.                                        |
+| `keymap.openConnections`      | `Command+P` on macOS<br/>`Ctrl+P` on Windows/Linux                                                                   | Shortcut to open the connection list.                                  |
+| `keymap.openClusters`         | `Command+E` on macOS<br/>`Ctrl+E` on Windows/Linux                                                                   | Shortcut to open the cluster selector.                                 |
+| `keymap.openProfiles`         | `Command+I` on macOS<br/>`Ctrl+I` on Windows/Linux                                                                   | Shortcut to open the profile selector.                                 |
+| `keymap.openSearchBar`        | `Command+K` on macOS<br/>`Ctrl+K` on Windows/Linux                                                                   | Shortcut to open the search bar.                                       |
+| `headless.skipConfirm` | false | Skips the confirmation prompt for Headless WebAuthn approval and instead prompts for WebAuthn immediately. |
+
+<Admonition
+  type="note"
+  title="Note"
+>
+  The additional `$schema` property present in the config file allows text editors to provide autocompletion.
+  It should not be modified.
+</Admonition>
+
+### Configuring keyboard shortcuts
+
+A valid shortcut contains at least one modifier and a single key code, for example <span style="white-space: nowrap;">`Shift+Tab`</span>.
+Function keys such as `F1` do not require a modifier.
+Modifiers and a key code must be combined by the `+` character.
+
+Available modifiers:
+
+- `Control`, `Option`, `Shift`, `Command` on macOS.
+- `Ctrl`, `Alt`, `Shift` on Windows and Linux.
+
+Available key codes:
+- `0` to `9`
+- `A` to `Z`
+- `F1` to `F24`
+- `,`, `.`, `/`, `\`, `` ` ``, `-`, `=`, `;`, `'`, `[`, `]`
+- `Space`, `Tab`, `CapsLock`, `NumLock`, `ScrollLock`, `Backspace`, `Delete`, `Insert`, `Enter`, `Up`, `Down`, `Left`, `Right`, `Home`, `End`, `PageUp`, `PageDown`, `Escape`, `IntlBackslash`
+
+## Telemetry
+
+(!docs/pages/includes/teleport-connect-telemetry.mdx!)
+
+### Disabling telemetry
+
+If you initially agreed to share telemetry data, but now want to opt out, you need to set `usageReporting.enabled` in the config to `false` (see [Configuration](#configuration)):
+```json
+"usageReporting.enabled": false
+```
+
+The changes will take effect at the next launch.
+
+## Troubleshooting
+
+Resetting the app state might help with UI crashes caused by Teleport Connect getting into an
+abnormal state. This might happen after downgrading Teleport Connect or performing substantial
+server-side changes. Those UI crashes typically manifest as a blank window or an Internal Error
+alert.
+
+To reset the state related to a particular cluster:
+
+1. Log out of the cluster.
+1. Close Teleport Connect.
+1. Open Teleport Connect, then log back in to the cluster.
+
+To completely wipe all app state:
+
+1. Close Teleport Connect.
+1. Remove the internal `tsh` folder and the `app_state.json` file to log out of all clusters and
+   clear all remembered tabs and connections.
+
+<Tabs>
+<TabItem label="macOS">
+```code
+$ rm -rf ~/Library/Application\ Support/Teleport\ Connect/{tsh,app_state.json}
+```
+</TabItem>
+<TabItem label="Linux">
+```code
+$ rm -rf ~/.config/Teleport\ Connect/{tsh,app_state.json}
+```
+</TabItem>
+<TabItem label="Windows">
+```code
+$ rmdir /s /q C:\Users\%UserName%\AppData\Roaming\"Teleport Connect"\tsh
+$ del C:\Users\%UserName%\AppData\Roaming\"Teleport Connect"\app_state.json
+```
 </TabItem>
 </Tabs>
 
@@ -143,17 +474,40 @@ and follow the *Submit a Bug* link.
 
 <Tabs>
 <TabItem label="macOS">
-Be sure to attach logs, which can be found under `~/Library/Application Support/Teleport Connect/logs`.
-The version of the app can be found in the app menu under the About Teleport Connect menu item.
+Be sure to attach logs, which can be found in the app menu under Help -> Open Logs Directory. The
+logs are stored in `~/Library/Application Support/Teleport Connect/logs`.
+
+The app version can be found in the app menu under Teleport Connect -> About Teleport Connect.
+
+To get more detailed logs, run Teleport Connect with the `--connect-debug` flag:
+
+(!docs/pages/connect-your-client/includes/launch-connect-with-flags-macos.mdx flags="--connect-debug"!)
 </TabItem>
 <TabItem label="Linux">
-Be sure to attach logs, which can be found under `~/.config/Teleport Connect/logs`. The app version
-can be found by pressing `Alt` to access the app menu, then -> Help -> About Teleport Connect.
+Be sure to attach logs, which can be found by pressing `Alt` to access the app menu, then Help ->
+Open Logs Directory. The logs are stored in `~/.config/Teleport Connect/logs`.
+
+The app version can be found under Help -> About Teleport Connect.
+
+To get more detailed logs, run Teleport Connect with the `--connect-debug` flag:
+
+```code
+$ teleport-connect --connect-debug
+````
 </TabItem>
 <TabItem label="Windows">
-Be sure to attach logs, which can be found under `C:\Users\%UserName%\AppData\Roaming\Teleport Connect\logs`.
+Be sure to attach logs, which can be found by pressing `Alt` to access the app menu, then Help ->
+Open Logs Directory. The logs are stored in `C:\Users\%UserName%\AppData\Roaming\Teleport
+Connect\logs`.
 You may need to adjust File Explorer to [view hidden files and folders](https://support.microsoft.com/en-us/search?query=how%20to%20view%20hidden%20files%20in%20windows%2010).
-The app version can be found by pressing `Alt` to access the app menu -> Help -> About Teleport Connect.
+
+The app version can be found under Help -> About Teleport Connect.
+
+To get more detailed logs, open Teleport Connect from the Command Prompt with the `--connect-debug` flag:
+
+```code
+$ "%LocalAppData%\Programs\teleport-connect\Teleport Connect.exe" --connect-debug
+````
 </TabItem>
 </Tabs>
 
@@ -163,24 +517,20 @@ Teleport Connect updates and caches the local shell environment on app restart a
 a new shell session. If you add new environment variables to your shell startup files, Connect will
 see them only after you restart the app.
 
-### Insecure mode
+### Skipping TLS certificate verification
 
-You can open Teleport Connect in insecure mode, which skips HTTPS certificate verification when
-talking to a Teleport Proxy Service. This is useful in test environments or for demo purposes. We
-do not recommend using this mode in production.
+You can open Teleport Connect in insecure mode, which skips TLS certificate verification when
+talking to a Teleport Proxy Service. This is useful in [test environments with self-signed
+certificates](../management/admin/self-signed-certs.mdx) or for demo purposes. We do not recommend
+using this mode in production.
 
 <Tabs>
 <TabItem label="macOS">
 To launch the app in insecure mode, open a terminal first. From there you can launch the app in one
 of two ways:
 
-```code
-# Using macOS open utility:
-$ open -a "Teleport Connect" --args --insecure
+(!docs/pages/connect-your-client/includes/launch-connect-with-flags-macos.mdx flags="--insecure"!)
 
-# Passing the flag to the executable directly:
-$ /Applications/Teleport\ Connect.app/Contents/MacOS/Teleport\ Connect --insecure
-```
 </TabItem>
 <TabItem label="Linux">
 From a terminal, open Teleport Connect with the `--insecure` flag:
@@ -197,3 +547,53 @@ $ "%LocalAppData%\Programs\teleport-connect\Teleport Connect.exe" --insecure
 ````
 </TabItem>
 </Tabs>
+
+## Uninstalling Teleport Connect
+
+<Tabs>
+<TabItem label="macOS">
+
+Remove Teleport Connect for MacOS from the Applications directory with this command:
+
+```code
+$ sudo rm -rf /Applications/Teleport\ Connect.app
+```
+
+To remove the local user data directory:
+
+```code
+$ rm -rf ~/Library/Application\ Support/Teleport\ Connect
+```
+
+</TabItem>
+<TabItem label="Windows">
+
+(!docs/pages/includes/uninstall-teleport-connect-windows.mdx!)
+
+To remove the local user data directory:
+
+```powershell
+$ rmdir /s /q "%APPDATA%\Teleport Connect"
+```
+
+</TabItem>
+<TabItem label="Linux">
+
+For DEB installations uninstall Teleport Connect using APT:
+
+```code
+$ sudo apt remove teleport-connect
+```
+
+For RPM installations uninstall Teleport Connect using YUM:
+
+```code
+$ sudo yum remove teleport-connect
+```
+
+Installs based on a tarball should remove the
+`teleport-connect` directory and any copied/linked executables.
+
+</TabItem>
+</Tabs>
+

@@ -22,37 +22,19 @@ package srv
 import (
 	"fmt"
 	"os"
-	os_exec "os/exec"
+	"os/exec"
 	"os/user"
 	"strconv"
 	"syscall"
 	"testing"
 	"time"
 
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
-
-	"github.com/gravitational/teleport/lib/utils"
 )
 
-// TestMain will re-execute Teleport to run a command if "exec" is passed to
-// it as an argument. Otherwise it will run tests as normal.
-func TestMain(m *testing.M) {
-	utils.InitLoggerForTests()
-
-	// If the test is re-executing itself, execute the command that comes over
-	// the pipe.
-	if IsReexec() {
-		RunAndExit(os.Args[1])
-		return
-	}
-
-	// Otherwise run tests as normal.
-	code := m.Run()
-	os.Exit(code)
-}
-
 func TestOSCommandPrep(t *testing.T) {
-	srv := NewMockServer(t)
+	srv := newMockServer(t)
 	scx := newExecServerContext(t, srv)
 
 	usr, err := user.Current()
@@ -69,7 +51,6 @@ func TestOSCommandPrep(t *testing.T) {
 		"TERM=xterm",
 		fmt.Sprintf("SSH_TTY=%v", scx.session.term.TTY().Name()),
 		"SSH_SESSION_ID=xxx",
-		"SSH_SESSION_WEBPROXY_ADDR=<proxyhost>:3080",
 		"SSH_TELEPORT_HOST_UUID=testID",
 		"SSH_TELEPORT_CLUSTER_NAME=localhost",
 		"SSH_TELEPORT_USER=teleportUser",
@@ -135,12 +116,12 @@ func TestOSCommandPrep(t *testing.T) {
 // TestContinue tests if the process hangs if a continue signal is not sent
 // and makes sure the process continues once it has been sent.
 func TestContinue(t *testing.T) {
-	srv := NewMockServer(t)
+	srv := newMockServer(t)
 	scx := newExecServerContext(t, srv)
 
 	// Configure Session Context to re-exec "ls".
 	var err error
-	lsPath, err := os_exec.LookPath("ls")
+	lsPath, err := exec.LookPath("ls")
 	require.NoError(t, err)
 	scx.execRequest.SetCommand(lsPath)
 
@@ -154,7 +135,13 @@ func TestContinue(t *testing.T) {
 	// Re-execute Teleport and run "ls". Signal over the context when execution
 	// is complete.
 	go func() {
-		cmdDone <- cmd.Run()
+		if err := cmd.Start(); err != nil {
+			cmdDone <- err
+		}
+
+		// Close the read half of the pipe to unblock the ready signal.
+		closeErr := scx.readyw.Close()
+		cmdDone <- trace.NewAggregate(closeErr, cmd.Wait())
 	}()
 
 	// Wait for the process. Since the continue pipe has not been closed, the
@@ -165,10 +152,11 @@ func TestContinue(t *testing.T) {
 	case <-time.After(5 * time.Second):
 	}
 
-	// Close the continue pipe to signal to Teleport to now execute the
-	// requested program.
-	err = scx.contw.Close()
-	require.NoError(t, err)
+	// Wait for the child process to indicate its completed initialization.
+	require.NoError(t, scx.execRequest.WaitForChild())
+
+	// Signal to child that it may execute the requested program.
+	scx.execRequest.Continue()
 
 	// Program should have executed now. If the complete signal has not come
 	// over the context, something failed.

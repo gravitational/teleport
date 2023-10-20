@@ -18,12 +18,15 @@ package common
 
 import (
 	"fmt"
-
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/tlsca"
+	"strings"
 
 	"github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/authz"
+	dtauthz "github.com/gravitational/teleport/lib/devicetrust/authz"
+	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 // Session combines parameters for a database connection session.
@@ -40,27 +43,52 @@ type Session struct {
 	Identity tlsca.Identity
 	// Checker is the access checker for the identity.
 	Checker services.AccessChecker
+	// AutoCreateUserMode indicates whether the database user should be auto-created.
+	AutoCreateUserMode types.CreateDatabaseUserMode
 	// DatabaseUser is the requested database user.
 	DatabaseUser string
 	// DatabaseName is the requested database name.
 	DatabaseName string
+	// DatabaseRoles is a list of roles for auto-provisioned users.
+	DatabaseRoles []string
 	// StartupParameters define initial connection parameters such as date style.
 	StartupParameters map[string]string
 	// Log is the logger with session specific fields.
 	Log logrus.FieldLogger
 	// LockTargets is a list of lock targets applicable to this session.
 	LockTargets []types.LockTarget
+	// AuthContext is the identity context of the user.
+	AuthContext *authz.Context
 }
 
 // String returns string representation of the session parameters.
 func (c *Session) String() string {
-	return fmt.Sprintf("db[%v] identity[%v] dbUser[%v] dbName[%v]",
-		c.Database.GetName(), c.Identity.Username, c.DatabaseUser, c.DatabaseName)
+	return fmt.Sprintf("db[%v] identity[%v] dbUser[%v] dbName[%v] autoCreate[%v] dbRoles[%v]",
+		c.Database.GetName(), c.Identity.Username, c.DatabaseUser, c.DatabaseName,
+		c.AutoCreateUserMode, strings.Join(c.DatabaseRoles, ","))
 }
 
-// MFAParams returns MFA params for the given auth context and auth preference MFA requirement.
-func (c *Session) MFAParams(authPrefMFARequirement types.RequireMFAType) services.AccessMFAParams {
-	params := c.Checker.MFAParams(authPrefMFARequirement)
-	params.Verified = c.Identity.MFAVerified != ""
-	return params
+// GetAccessState returns the AccessState based on the underlying
+// [services.AccessChecker] and [tlsca.Identity].
+func (c *Session) GetAccessState(authPref types.AuthPreference) services.AccessState {
+	state := c.Checker.GetAccessState(authPref)
+	state.MFAVerified = c.Identity.IsMFAVerified()
+	state.EnableDeviceVerification = true
+	state.DeviceVerified = dtauthz.IsTLSDeviceVerified(&c.Identity.DeviceExtensions)
+	return state
+}
+
+// WithUser returns a shallow copy of the session with overridden database user.
+func (c *Session) WithUser(user string) *Session {
+	copy := *c
+	copy.DatabaseUser = user
+	return &copy
+}
+
+// WithUserAndDatabase returns a shallow copy of the session with overridden
+// database user and overridden database name.
+func (c *Session) WithUserAndDatabase(user string, defaultDatabase string) *Session {
+	copy := c.WithUser(user)
+	copy.DatabaseName = defaultDatabase
+	return copy
 }

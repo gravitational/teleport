@@ -23,25 +23,22 @@ import (
 	"io/fs"
 	"net"
 	"os"
-	"os/user"
 	"path/filepath"
 	"strings"
-
-	"github.com/gravitational/teleport/api/utils/keypaths"
-	"github.com/gravitational/teleport/api/utils/keys"
-	"github.com/gravitational/teleport/api/utils/sshutils"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 	"gopkg.in/yaml.v2"
+
+	"github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/keypaths"
+	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils/sshutils"
 )
 
 const (
 	// profileDir is the default root directory where tsh stores profiles.
 	profileDir = ".tsh"
-	// currentProfileFilename is a file which stores the name of the
-	// currently active profile.
-	currentProfileFilename = "current-profile"
 )
 
 // Profile is a collection of most frequently used CLI flags
@@ -74,9 +71,6 @@ type Profile struct {
 	// SiteName is equivalent to the --cluster flag
 	SiteName string `yaml:"cluster,omitempty"`
 
-	// ForwardedPorts is the list of ports to forward to the target node.
-	ForwardedPorts []string `yaml:"forward_ports,omitempty"`
-
 	// DynamicForwardedPorts is a list of ports to use for dynamic port
 	// forwarding (SOCKS5).
 	DynamicForwardedPorts []string `yaml:"dynamic_forward_ports,omitempty"`
@@ -88,6 +82,13 @@ type Profile struct {
 	// all proxy services are exposed on a single TLS listener (Proxy Web Listener).
 	TLSRoutingEnabled bool `yaml:"tls_routing_enabled,omitempty"`
 
+	// TLSRoutingConnUpgradeRequired indicates that ALPN connection upgrades
+	// are required for making TLS routing requests.
+	//
+	// Note that this is applicable to the Proxy's Web port regardless of
+	// whether the Proxy is in single-port or multi-port configuration.
+	TLSRoutingConnUpgradeRequired bool `yaml:"tls_routing_conn_upgrade_required,omitempty"`
+
 	// AuthConnector (like "google", "passwordless").
 	// Equivalent to the --auth tsh flag.
 	AuthConnector string `yaml:"auth_connector,omitempty"`
@@ -95,6 +96,25 @@ type Profile struct {
 	// LoadAllCAs indicates that tsh should load the CAs of all clusters
 	// instead of just the current cluster.
 	LoadAllCAs bool `yaml:"load_all_cas,omitempty"`
+
+	// MFAMode ("auto", "platform", "cross-platform").
+	// Equivalent to the --mfa-mode tsh flag.
+	MFAMode string `yaml:"mfa_mode,omitempty"`
+
+	// PrivateKeyPolicy is a key policy enforced for this profile.
+	PrivateKeyPolicy keys.PrivateKeyPolicy `yaml:"private_key_policy"`
+
+	// PIVSlot is a specific piv slot that Teleport clients should use for hardware key support.
+	PIVSlot keys.PIVSlot `yaml:"piv_slot"`
+}
+
+// Copy returns a shallow copy of p, or nil if p is nil.
+func (p *Profile) Copy() *Profile {
+	if p == nil {
+		return nil
+	}
+	copy := *p
+	return &copy
 }
 
 // Name returns the name of the profile.
@@ -123,6 +143,12 @@ func (p *Profile) TLSConfig() (*tls.Config, error) {
 		Certificates: []tls.Certificate{cert},
 		RootCAs:      pool,
 	}, nil
+}
+
+// RequireKubeLocalProxy returns true if this profile indicates a local proxy
+// is required for kube access.
+func (p *Profile) RequireKubeLocalProxy() bool {
+	return p.KubeProxyAddr == p.WebProxyAddr && p.TLSRoutingConnUpgradeRequired
 }
 
 func certPoolFromProfile(p *Profile) (*x509.CertPool, error) {
@@ -217,8 +243,8 @@ func SetCurrentProfileName(dir string, name string) error {
 		return trace.BadParameter("cannot set current profile: missing dir")
 	}
 
-	path := filepath.Join(dir, currentProfileFilename)
-	if err := os.WriteFile(path, []byte(strings.TrimSpace(name)+"\n"), 0660); err != nil {
+	path := keypaths.CurrentProfileFilePath(dir)
+	if err := os.WriteFile(path, []byte(strings.TrimSpace(name)+"\n"), 0o660); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
@@ -240,7 +266,7 @@ func GetCurrentProfileName(dir string) (name string, err error) {
 		return "", trace.BadParameter("cannot get current profile: missing dir")
 	}
 
-	data, err := os.ReadFile(filepath.Join(dir, currentProfileFilename))
+	data, err := os.ReadFile(keypaths.CurrentProfileFilePath(dir))
 	if err != nil {
 		if os.IsNotExist(err) {
 			return "", trace.NotFound("current-profile is not set")
@@ -293,8 +319,16 @@ func FullProfilePath(dir string) string {
 
 // defaultProfilePath retrieves the default path of the TSH profile.
 func defaultProfilePath() string {
-	home := os.TempDir()
-	if u, err := user.Current(); err == nil && u.HomeDir != "" {
+	// start with UserHomeDir, which is the fastest option as it
+	// relies only on environment variables and does not perform
+	// a user lookup (which can be very slow on large AD environments)
+	home, err := os.UserHomeDir()
+	if err == nil && home != "" {
+		return filepath.Join(home, profileDir)
+	}
+
+	home = os.TempDir()
+	if u, err := utils.CurrentUser(); err == nil && u.HomeDir != "" {
 		home = u.HomeDir
 	}
 	return filepath.Join(home, profileDir)
@@ -312,7 +346,7 @@ func FromDir(dir string, name string) (*Profile, error) {
 			return nil, trace.Wrap(err)
 		}
 	}
-	p, err := profileFromFile(filepath.Join(dir, name+".yaml"))
+	p, err := profileFromFile(keypaths.ProfileFilePath(dir, name))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -346,7 +380,7 @@ func (p *Profile) SaveToDir(dir string, makeCurrent bool) error {
 	if dir == "" {
 		return trace.BadParameter("cannot save profile: missing dir")
 	}
-	if err := p.saveToFile(filepath.Join(dir, p.Name()+".yaml")); err != nil {
+	if err := p.saveToFile(keypaths.ProfileFilePath(dir, p.Name())); err != nil {
 		return trace.Wrap(err)
 	}
 	if makeCurrent {
@@ -361,7 +395,7 @@ func (p *Profile) saveToFile(filepath string) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err = os.WriteFile(filepath, bytes, 0660); err != nil {
+	if err = os.WriteFile(filepath, bytes, 0o660); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil

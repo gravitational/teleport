@@ -14,7 +14,7 @@ AWS_REGION ?= us-west-2
 # This must be a _released_ version of Teleport, i.e. one which has binaries
 # available for download on https://gravitational.com/teleport/download
 # Unreleased versions will fail to build.
-TELEPORT_VERSION ?= 10.3.1
+TELEPORT_VERSION ?= 14.1.0
 
 # Teleport UID is the UID of a non-privileged 'teleport' user
 TELEPORT_UID ?= 1007
@@ -114,30 +114,24 @@ check-vars:
 	  echo "TELEPORT_VERSION is not set"; exit 1; \
 	fi;
 
-.PHONY: update-ami-ids-cloudformation
-update-ami-ids-cloudformation:
-	@echo -e "\nUpdating OSS Cloudformation image IDs"
-	./update-ami-ids.sh -a $(AWS_ACCOUNT_ID) -m cloudformation -t oss -r $(DESTINATION_REGIONS) -v $(TELEPORT_VERSION)
-	@echo -e "\nUpdating Enterprise Cloudformation image IDs"
-	./update-ami-ids.sh -a $(AWS_ACCOUNT_ID) -m cloudformation -t ent -r $(DESTINATION_REGIONS) -v $(TELEPORT_VERSION)
-
 .PHONY: update-ami-ids-terraform
 update-ami-ids-terraform:
 	@echo -e "\nUpdating OSS Terraform image IDs"
-	./update-ami-ids.sh -a $(AWS_ACCOUNT_ID) -m terraform -t oss -r $(DESTINATION_REGIONS) -v $(TELEPORT_VERSION)
+	go run ./cmd/update-ami-id --aws-account $(AWS_ACCOUNT_ID) --regions $(DESTINATION_REGIONS) --version $(TELEPORT_VERSION) --type oss
 	@echo -e "\nUpdating Enterprise Terraform image IDs"
-	./update-ami-ids.sh -a $(AWS_ACCOUNT_ID) -m terraform -t ent -r $(DESTINATION_REGIONS) -v $(TELEPORT_VERSION)
+	go run ./cmd/update-ami-id --aws-account $(AWS_ACCOUNT_ID) --regions $(DESTINATION_REGIONS) --version $(TELEPORT_VERSION) --type ent
 	@echo -e "\nUpdating Enterprise FIPS Terraform image IDs"
-	./update-ami-ids.sh -a $(AWS_ACCOUNT_ID) -m terraform -t ent-fips -r $(DESTINATION_REGIONS) -v $(TELEPORT_VERSION)
+	go run ./cmd/update-ami-id --aws-account $(AWS_ACCOUNT_ID) --regions $(DESTINATION_REGIONS) --version $(TELEPORT_VERSION) --type ent-fips
 
 # you will need the Github 'gh' CLI installed and working to be able to use this target
 # https://github.com/cli/cli/releases/latest
 AUTO_BRANCH_NAME := "ami-auto-branch-$(shell date +%s)"
 MAKEFILE_PATH := $(abspath $(lastword $(MAKEFILE_LIST)))
 .PHONY: create-update-pr
-create-update-pr: update-ami-ids-cloudformation update-ami-ids-terraform
+create-update-pr: update-ami-ids-terraform
 	@echo "Creating PR for updates"
-	sed -i -E "s/^TELEPORT_VERSION \?= [0-9.]+$$/TELEPORT_VERSION ?= $(TELEPORT_VERSION)/g" $(MAKEFILE_PATH)
+	sed -E "s/^TELEPORT_VERSION \?= [0-9.]+$$/TELEPORT_VERSION ?= $(TELEPORT_VERSION)/g" $(MAKEFILE_PATH) > Makefile.tmp
+	mv Makefile.tmp $(MAKEFILE_PATH)
 	git add -A ../../examples/aws $(shell pwd)
 	git checkout -b $(AUTO_BRANCH_NAME)
 	git commit -am "[auto] Update AMI IDs for $(TELEPORT_VERSION)"

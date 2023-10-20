@@ -17,64 +17,62 @@ limitations under the License.
 package bpf
 
 import (
-	"os"
 	"testing"
 
-	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
-)
 
-func TestMain(m *testing.M) {
-	utils.InitLoggerForTests()
-	os.Exit(m.Run())
-}
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
+)
 
 // TestCheckAndSetDefaults makes sure defaults are set when the user does not
 // provide values for the page sizes and hard coded values (like zero or a
 // specific page size) are respected when given.
-func TestCheckAndSetDefaults(t *testing.T) {
-	var perfBufferPageCount = defaults.PerfBufferPageCount
-	var openPerfBufferPageCount = defaults.OpenPerfBufferPageCount
-	var zeroPageCount = 0
+func TestBPFConfig_CheckAndSetDefaults(t *testing.T) {
+	perfBufferPageCount := defaults.PerfBufferPageCount
+	openPerfBufferPageCount := defaults.OpenPerfBufferPageCount
+	zeroPageCount := 0
 
 	var tests = []struct {
-		inConfig  *Config
-		outConfig *Config
+		name string
+		got  *servicecfg.BPFConfig
+		want *servicecfg.BPFConfig
 	}{
-		// Empty values get defaults.
 		{
-			inConfig: &Config{
-				CommandBufferSize: nil,
-				DiskBufferSize:    nil,
-				NetworkBufferSize: nil,
-			},
-			outConfig: &Config{
+			name: "all defaults",
+			got:  &servicecfg.BPFConfig{},
+			want: &servicecfg.BPFConfig{
 				CommandBufferSize: &perfBufferPageCount,
 				DiskBufferSize:    &openPerfBufferPageCount,
 				NetworkBufferSize: &perfBufferPageCount,
+				CgroupPath:        defaults.CgroupPath,
 			},
 		},
-		// Values are not wiped out with defaults.
 		{
-			inConfig: &Config{
+			name: "values set",
+			got: &servicecfg.BPFConfig{
 				CommandBufferSize: &zeroPageCount,
 				DiskBufferSize:    &zeroPageCount,
 				NetworkBufferSize: &perfBufferPageCount,
+				CgroupPath:        "/my/cgroup/",
 			},
-			outConfig: &Config{
+			want: &servicecfg.BPFConfig{
 				CommandBufferSize: &zeroPageCount,
 				DiskBufferSize:    &zeroPageCount,
 				NetworkBufferSize: &perfBufferPageCount,
+				CgroupPath:        "/my/cgroup/",
 			},
 		},
 	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			err := test.got.CheckAndSetDefaults()
+			require.NoError(t, err, "CheckAndSetDefaults errored")
 
-	for _, tt := range tests {
-		err := tt.inConfig.CheckAndSetDefaults()
-		require.NoError(t, err)
-		require.Equal(t, *tt.outConfig.CommandBufferSize, *tt.inConfig.CommandBufferSize)
-		require.Equal(t, *tt.outConfig.DiskBufferSize, *tt.inConfig.DiskBufferSize)
-		require.Equal(t, *tt.outConfig.NetworkBufferSize, *tt.inConfig.NetworkBufferSize)
+			if diff := cmp.Diff(test.want, test.got); diff != "" {
+				t.Errorf("CheckAndSetDefaults mismatch (-want +got)\n%s", diff)
+			}
+		})
 	}
 }

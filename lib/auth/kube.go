@@ -20,14 +20,13 @@ import (
 	"context"
 	"time"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
-
-	"github.com/gravitational/trace"
 )
 
 // KubeCSR is a kubernetes CSR request
@@ -64,9 +63,8 @@ type KubeCSRResponse struct {
 // signed certificate if successful.
 func (s *Server) ProcessKubeCSR(req KubeCSR) (*KubeCSRResponse, error) {
 	ctx := context.TODO()
-	if !modules.GetModules().Features().Kubernetes {
-		return nil, trace.AccessDenied(
-			"this Teleport cluster is not licensed for Kubernetes, please contact the cluster administrator")
+	if err := enforceLicense(types.KindKubernetesCluster); err != nil {
+		return nil, trace.Wrap(err)
 	}
 	if err := req.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
@@ -140,7 +138,7 @@ func (s *Server) ProcessKubeCSR(req KubeCSR) (*KubeCSRResponse, error) {
 		return nil, trace.Wrap(err)
 	}
 	// generate TLS certificate
-	cert, signer, err := s.GetKeyStore().GetTLSCertAndSigner(userCA)
+	cert, signer, err := s.GetKeyStore().GetTLSCertAndSigner(ctx, userCA)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

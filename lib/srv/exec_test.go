@@ -28,16 +28,38 @@ import (
 
 	"github.com/gravitational/teleport"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/sshutils"
+	"github.com/gravitational/teleport/lib/utils"
 )
+
+// TestMain will re-execute Teleport to run a command if "exec" is passed to
+// it as an argument. Otherwise, it will run tests as normal.
+func TestMain(m *testing.M) {
+	utils.InitLoggerForTests()
+
+	// If the test is re-executing itself, execute the command that comes over
+	// the pipe.
+	if IsReexec() {
+		RunAndExit(os.Args[1])
+		return
+	}
+
+	// Otherwise run tests as normal.
+	code := m.Run()
+	os.Exit(code)
+}
 
 // TestEmitExecAuditEvent make sure the full command and exit code for a
 // command is always recorded.
 func TestEmitExecAuditEvent(t *testing.T) {
 	t.Parallel()
 
-	srv := NewMockServer(t)
+	srv := newMockServer(t)
 	scx := newExecServerContext(t, srv)
+
+	rec, ok := scx.session.recorder.(*mockRecorder)
+	require.True(t, ok)
 
 	expectedUsr, err := user.Current()
 	require.NoError(t, err)
@@ -56,7 +78,7 @@ func TestEmitExecAuditEvent(t *testing.T) {
 		XXX_sizecache:        0,
 	}
 
-	var tests = []struct {
+	tests := []struct {
 		inCommand  string
 		inError    error
 		outCommand string
@@ -86,7 +108,7 @@ func TestEmitExecAuditEvent(t *testing.T) {
 	}
 	for _, tt := range tests {
 		emitExecAuditEvent(scx, tt.inCommand, tt.inError)
-		execEvent := srv.MockEmitter.LastEvent().(*apievents.Exec)
+		execEvent := rec.emitter.LastEvent().(*apievents.Exec)
 		require.Equal(t, tt.outCommand, execEvent.Command)
 		require.Equal(t, tt.outCode, execEvent.ExitCode)
 		require.Equal(t, expectedMeta, execEvent.UserMetadata)
@@ -96,6 +118,7 @@ func TestEmitExecAuditEvent(t *testing.T) {
 		require.Equal(t, "xxx", execEvent.SessionID)
 		require.Equal(t, "10.0.0.5:4817", execEvent.RemoteAddr)
 		require.Equal(t, "127.0.0.1:3022", execEvent.LocalAddr)
+		require.NotZero(t, events.EventID)
 	}
 }
 
@@ -111,14 +134,19 @@ func TestLoginDefsParser(t *testing.T) {
 }
 
 func newExecServerContext(t *testing.T, srv Server) *ServerContext {
-	scx := NewTestServerContext(t, srv, nil)
+	scx := newTestServerContext(t, srv, nil)
 
 	term, err := newLocalTerminal(scx)
 	require.NoError(t, err)
 	term.SetTermType("xterm")
 
-	scx.session = &session{id: "xxx"}
-	scx.session.term = term
+	rec := &mockRecorder{done: false}
+	scx.session = &session{
+		id:       "xxx",
+		term:     term,
+		emitter:  rec,
+		recorder: rec,
+	}
 	err = scx.SetSSHRequest(&ssh.Request{Type: sshutils.ExecRequest})
 	require.NoError(t, err)
 

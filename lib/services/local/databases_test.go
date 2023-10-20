@@ -20,15 +20,15 @@ import (
 	"context"
 	"testing"
 
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/backend/memory"
-	"github.com/gravitational/teleport/lib/defaults"
-
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/defaults"
 )
 
 // TestDatabasesCRUD tests backend operations with database resources.
@@ -70,18 +70,28 @@ func TestDatabasesCRUD(t *testing.T) {
 	err = service.CreateDatabase(ctx, db2)
 	require.NoError(t, err)
 
+	// Try to create an invalid database.
+	dbBadURI, err := types.NewDatabaseV3(types.Metadata{
+		Name: "db-missing-port",
+	}, types.DatabaseSpecV3{
+		Protocol: defaults.ProtocolMySQL,
+		URI:      "localhost",
+	})
+	require.NoError(t, err)
+	require.NoError(t, service.CreateDatabase(ctx, dbBadURI))
+
 	// Fetch all databases.
 	out, err = service.GetDatabases(ctx)
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff([]types.Database{db1, db2}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+	require.Empty(t, cmp.Diff([]types.Database{dbBadURI, db1, db2}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 	))
 
 	// Fetch a specific database.
 	db, err := service.GetDatabase(ctx, db2.GetName())
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(db2, db,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 	))
 
 	// Try to fetch a database that doesn't exist.
@@ -99,7 +109,7 @@ func TestDatabasesCRUD(t *testing.T) {
 	db, err = service.GetDatabase(ctx, db1.GetName())
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(db1, db,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 	))
 
 	// Delete a database.
@@ -107,8 +117,8 @@ func TestDatabasesCRUD(t *testing.T) {
 	require.NoError(t, err)
 	out, err = service.GetDatabases(ctx)
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff([]types.Database{db2}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+	require.Empty(t, cmp.Diff([]types.Database{dbBadURI, db2}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 	))
 
 	// Try to delete a database that doesn't exist.

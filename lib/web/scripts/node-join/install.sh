@@ -9,12 +9,13 @@ COPY_COMMAND="cp"
 DISTRO_TYPE=""
 IGNORE_CONNECTIVITY_CHECK="${TELEPORT_IGNORE_CONNECTIVITY_CHECK:-false}"
 LAUNCHD_CONFIG_PATH="/Library/LaunchDaemons"
+LAUNCHD_PLIST_FILE="com.goteleport.teleport.plist"
 LOG_FILENAME="$(mktemp -t ${SCRIPT_NAME}.log.XXXXXXXXXX)"
 MACOS_STDERR_LOG="/var/log/teleport-stderr.log"
 MACOS_STDOUT_LOG="/var/log/teleport-stdout.log"
 SYSTEMD_UNIT_PATH="/lib/systemd/system/teleport.service"
 TARGET_PORT_DEFAULT=443
-TELEPORT_ARCHIVE_PATH="teleport"
+TELEPORT_ARCHIVE_PATH='{{.packageName}}'
 TELEPORT_BINARY_DIR="/usr/local/bin"
 TELEPORT_BINARY_LIST="teleport tctl tsh"
 TELEPORT_CONFIG_PATH="/etc/teleport.yaml"
@@ -36,6 +37,8 @@ INTERACTIVE=false
 # the default value of each variable is a templatable Go value so that it can
 # optionally be replaced by the server before the script is served up
 TELEPORT_VERSION='{{.version}}'
+TELEPORT_PACKAGE_NAME='{{.packageName}}'
+REPO_CHANNEL='{{.repoChannel}}'
 TARGET_HOSTNAME='{{.hostname}}'
 TARGET_PORT='{{.port}}'
 JOIN_TOKEN='{{.token}}'
@@ -57,10 +60,11 @@ ARG_CA_PIN_HASHES=""
 APP_INSTALL_MODE='{{.appInstallMode}}'
 APP_NAME='{{.appName}}'
 APP_URI='{{.appURI}}'
+DB_INSTALL_MODE='{{.databaseInstallMode}}'
 
 # usage message
 # shellcheck disable=SC2086
-usage() { echo "Usage: $(basename $0) [-v teleport_version] [-h target_hostname] [-p target_port> [-j join_token ] [-c ca_pin_hash]... [-q] [-l log_filename] [-a app_name] [-u app_uri] " 1>&2; exit 1; }
+usage() { echo "Usage: $(basename $0) [-v teleport_version] [-h target_hostname] [-p target_port] [-j join_token] [-c ca_pin_hash]... [-q] [-l log_filename] [-a app_name] [-u app_uri] " 1>&2; exit 1; }
 while getopts ":v:h:p:j:c:f:ql:ika:u:" o; do
     case "${o}" in
         v)  TELEPORT_VERSION=${OPTARG};;
@@ -68,7 +72,7 @@ while getopts ":v:h:p:j:c:f:ql:ika:u:" o; do
         p)  TARGET_PORT=${OPTARG};;
         j)  JOIN_TOKEN=${OPTARG};;
         c)  ARG_CA_PIN_HASHES="${ARG_CA_PIN_HASHES} ${OPTARG}";;
-        f)  f=${OPTARG}; if [[ ${f} != "tarball" && ${f} != "deb" && ${f} != "rpm" && ${f} != "rpm-centos6" ]]; then usage; fi;;
+        f)  f=${OPTARG}; if [[ ${f} != "tarball" && ${f} != "deb" && ${f} != "rpm" ]]; then usage; fi;;
         q)  QUIET=true;;
         l)  l=${OPTARG};;
         i)  IGNORE_CHECKS=true; COPY_COMMAND="cp -f";;
@@ -234,6 +238,11 @@ log_cleanup_message() {
     log_only "- remove any Teleport binaries (${TELEPORT_BINARY_LIST}) installed under ${TELEPORT_BINARY_DIR}"
     for BINARY in ${TELEPORT_BINARY_LIST}; do EXAMPLE_DELETE_COMMAND+="${TELEPORT_BINARY_DIR}/${BINARY} "; done
     log_only "  - rm -f ${EXAMPLE_DELETE_COMMAND}"
+    if is_macos_host; then
+        log_only "- unload and remove Teleport launchd config ${LAUNCHD_CONFIG_PATH}/${LAUNCHD_PLIST_FILE}"
+        log_only "  - launchctl unload ${LAUNCHD_CONFIG_PATH}/${LAUNCHD_PLIST_FILE}"
+        log_only "  - rm -f ${LAUNCHD_CONFIG_PATH}/${LAUNCHD_PLIST_FILE}"
+    fi
     log_only "Run this installer again when done."
     log_only
 }
@@ -344,7 +353,7 @@ download() {
     fi
     # if we have a hashing utility installed, also download and validate the checksum
     SHA_COMMAND=""
-    # shasum is installed by default on MacOS and some distros
+    # shasum is installed by default on macOS and some distros
     if check_exists shasum; then
         SHA_COMMAND="shasum -a 256"
     # sha256sum is installed by default in some other distros
@@ -389,7 +398,7 @@ get_teleport_start_command() {
 # installs the teleport-provided launchd config
 install_launchd_config() {
     log "Installing Teleport launchd config to ${LAUNCHD_CONFIG_PATH}"
-    ${COPY_COMMAND} ./${TELEPORT_ARCHIVE_PATH}/examples/launchd/com.goteleport.teleport.plist ${LAUNCHD_CONFIG_PATH}/com.goteleport.teleport.plist
+    ${COPY_COMMAND} ./${TELEPORT_ARCHIVE_PATH}/examples/launchd/${LAUNCHD_PLIST_FILE} ${LAUNCHD_CONFIG_PATH}/${LAUNCHD_PLIST_FILE}
 }
 # installs the teleport-provided systemd unit
 install_systemd_unit() {
@@ -437,6 +446,40 @@ app_service:
     public_addr: ${APP_PUBLIC_ADDR}
 EOF
 }
+# installs the provided teleport config (for database service)
+install_teleport_database_config() {
+    log "Writing Teleport database service config to ${TELEPORT_CONFIG_PATH}"
+    CA_PINS_CONFIG=$(get_yaml_list "ca_pin" "${CA_PIN_HASHES}" "  ")
+
+    # This file is processed by `shellschek` as part of the lint step
+    # It detects an issue because of un-set variables - $index and $line. This check is called SC2154.
+    # However, that's not an issue, because those variables are replaced when we run go's text/template engine over it.
+    # When executing the script, those are no long variables but actual values.
+    # shellcheck disable=SC2154
+    cat << EOF > ${TELEPORT_CONFIG_PATH}
+version: v3
+teleport:
+  nodename: ${NODENAME}
+  auth_token: ${JOIN_TOKEN}
+${CA_PINS_CONFIG}
+  proxy_server: ${TARGET_HOSTNAME}:${TARGET_PORT}
+  log:
+    output: stderr
+    severity: INFO
+auth_service:
+  enabled: no
+ssh_service:
+  enabled: no
+proxy_service:
+  enabled: no
+db_service:
+  enabled: "yes"
+  resources:
+    - labels:{{range $index, $line := .db_service_resource_labels}}
+        {{$line -}}
+{{end}}
+EOF
+}
 # installs the provided teleport config (for node service)
 install_teleport_node_config() {
     log "Writing Teleport node service config to ${TELEPORT_CONFIG_PATH}"
@@ -448,7 +491,7 @@ install_teleport_node_config() {
       "${LABELS_FLAG[@]}" \
       --output ${TELEPORT_CONFIG_PATH}
 }
-# checks whether the given host is running MacOS
+# checks whether the given host is running macOS
 is_macos_host() { if [[ ${OSTYPE} == "darwin"* ]]; then return 0; else return 1; fi }
 # checks whether teleport is already running on the host
 is_running_teleport() {
@@ -488,8 +531,8 @@ print_welcome_message() {
             log_only "To start Teleport again if you stop it, run 'sudo systemctl start teleport.service'"
         elif is_macos_host; then
             log_only "View Teleport logs in '${MACOS_STDERR_LOG}' and '${MACOS_STDOUT_LOG}'"
-            log_only "To stop Teleport, run 'sudo launchctl unload ${LAUNCHD_CONFIG_PATH}/com.goteleport.teleport.plist'"
-            log_only "To start Teleport again if you stop it, run 'sudo launchctl load ${LAUNCHD_CONFIG_PATH}/com.goteleport.teleport.plist'"
+            log_only "To stop Teleport, run 'sudo launchctl unload ${LAUNCHD_CONFIG_PATH}/${LAUNCHD_PLIST_FILE}'"
+            log_only "To start Teleport again if you stop it, run 'sudo launchctl load ${LAUNCHD_CONFIG_PATH}/${LAUNCHD_PLIST_FILE}'"
         fi
         log_only ""
         log_only "You can see this node connected in the Teleport web UI or 'tsh ls' with the name '${NODENAME}'"
@@ -515,7 +558,7 @@ start_teleport_foreground() {
 # start teleport via launchd (after installing config)
 start_teleport_launchd() {
     log "Starting Teleport via launchctl. It will automatically be started whenever the system reboots."
-    launchctl load ${LAUNCHD_CONFIG_PATH}/com.goteleport.teleport.plist
+    launchctl load ${LAUNCHD_CONFIG_PATH}/${LAUNCHD_PLIST_FILE}
     sleep ${ALIVE_CHECK_DELAY}
 }
 # start teleport via systemd (after installing unit)
@@ -535,6 +578,8 @@ teleport_binaries_exist() {
 teleport_config_exists() { if [ -f ${TELEPORT_CONFIG_PATH} ]; then return 0; else return 1; fi; }
 # checks whether a teleport data dir exists on the host
 teleport_datadir_exists() { if [ -d ${TELEPORT_DATA_DIR} ]; then return 0; else return 1; fi; }
+# checks whether a launchd plist file for teleport already exists on the host
+launchd_plist_file_exists() { if [ -f ${LAUNCHD_CONFIG_PATH}/${LAUNCHD_PLIST_FILE} ]; then return 0; else return 1; fi; }
 
 # error out if any required values are not set
 check_set TELEPORT_VERSION
@@ -573,7 +618,7 @@ else
 fi
 
 # use OSTYPE variable to figure out host type/arch
-if [[ "${OSTYPE}" == "linux-gnu"* ]]; then
+if [[ "${OSTYPE}" == "linux"* ]]; then
     # linux host, now detect arch
     TELEPORT_BINARY_TYPE="linux"
     ARCH=$(uname -m)
@@ -598,8 +643,9 @@ if [[ "${OSTYPE}" == "linux-gnu"* ]]; then
         if [ ! -f /etc/os-release ]; then
             if [ -f /etc/centos-release ]; then
                 if grep -q 'CentOS release 6' /etc/centos-release; then
-                    DISTRO_TYPE="centos6"
-                    TELEPORT_FORMAT="rpm-centos6"
+                    log_important "Detected host type: CentOS 6 [$(cat /etc/centos-release)]"
+                    log_important "Teleport will not work on CentOS 6 -based servers due to the glibc version being too low."
+                    exit 1
                 fi
             elif [ -f /etc/redhat-release ]; then
                 if grep -q 'Red Hat Enterprise Linux Server release 5' /etc/redhat-release; then
@@ -607,9 +653,9 @@ if [[ "${OSTYPE}" == "linux-gnu"* ]]; then
                     log_important "Teleport will not work on RHEL5-based servers due to the glibc version being too low."
                     exit 1
                 elif grep -q 'Red Hat Enterprise Linux Server release 6' /etc/redhat-release; then
-                    DISTRO_TYPE="redhat"
-                    TELEPORT_FORMAT="rpm-centos6"
-                    log "Detected host type: RHEL6 [$(cat /etc/redhat-release)]"
+                    log_important "Detected host type: RHEL6 [$(cat /etc/redhat-release)]"
+                    log_important "Teleport will not work on RHEL6-based servers due to the glibc version being too low."
+                    exit 1
                 fi
             fi
         # use ID_LIKE value from /etc/os-release (if set)
@@ -623,7 +669,8 @@ if [[ "${OSTYPE}" == "linux-gnu"* ]]; then
             fi
             if [[ ${DISTRO_TYPE} =~ "debian" ]]; then
                 TELEPORT_FORMAT="deb"
-            elif [[ ${DISTRO_TYPE} =~ "centos"* ]] || [[ ${DISTRO_TYPE} =~ "rhel" ]] || [[ ${DISTRO_TYPE} =~ "fedora"* ]]; then
+            elif [[ "$DISTRO_TYPE" =~ "amzn"* ]] || [[ ${DISTRO_TYPE} =~ "centos"* ]] || [[ ${DISTRO_TYPE} =~ "rhel" ]] || [[ ${DISTRO_TYPE} =~ "fedora"* ]] || \
+                     [[ ${DISTRO_TYPE} == *"suse"* ]] || [[ ${DISTRO_TYPE} =~ "sles"* ]]; then
                 TELEPORT_FORMAT="rpm"
             else
                 log "Couldn't match a distro type using /etc/os-release, falling back to tarball installer"
@@ -637,22 +684,25 @@ if [[ "${OSTYPE}" == "linux-gnu"* ]]; then
         fi
     fi
 elif [[ "${OSTYPE}" == "darwin"* ]]; then
-    # macos host, now detect arch
+    # macOS host, now detect arch
     TELEPORT_BINARY_TYPE="darwin"
     ARCH=$(uname -m)
     log "Detected host: ${OSTYPE}, using Teleport binary type ${TELEPORT_BINARY_TYPE}"
-    if [[ ${ARCH} == "aarch64" || ${ARCH} == "arm64" ]]; then
+    if [[ ${ARCH} == "arm64" ]]; then
         TELEPORT_ARCH="arm64"
-        log_important "Error: detected ${ARCH} but Teleport doesn't build binaries for this architecture yet, exiting"
-        exit 1
     elif [[ ${ARCH} == "x86_64" ]]; then
         TELEPORT_ARCH="amd64"
     else
         log_important "Error: unsupported architecture from uname -m: ${ARCH}"
         exit 1
     fi
-    log "Detected MacOS ${ARCH} architecture, using Teleport arch ${TELEPORT_ARCH}"
+    log "Detected macOS ${ARCH} architecture, using Teleport arch ${TELEPORT_ARCH}"
     TELEPORT_FORMAT="tarball"
+    if launchd_plist_file_exists; then
+        log_header "Warning: Found existing Teleport launchd config ${LAUNCHD_CONFIG_PATH}/${LAUNCHD_PLIST_FILE}."
+        log_cleanup_message
+        exit 1
+    fi
 else
     log_important "Error - unsupported platform: ${OSTYPE}"
     exit 1
@@ -722,107 +772,208 @@ if teleport_binaries_exist; then
     fi
 fi
 
-# handle centos6 installations
-if [[ ${TELEPORT_FORMAT} == "rpm-centos6" ]]; then
-    # Error if arch != amd64, as we don't have CentOS 6 packages for any other arch
-    if [[ ${TELEPORT_ARCH} != "amd64" ]]; then
-        log_important "Your distro appears to be CentOS/RHEL 6 and your arch is ${ARCH}."
-        log_important "Teleport only produces amd64 binaries for CentOS 6, so this script cannot install Teleport on this host."
-        log_important "Contact Teleport support for further assistance."
+install_from_file() {
+    # select correct URL/installation method based on distro
+    if [[ ${TELEPORT_FORMAT} == "tarball" ]]; then
+        URL="https://get.gravitational.com/${TELEPORT_PACKAGE_NAME}-v${TELEPORT_VERSION}-${TELEPORT_BINARY_TYPE}-${TELEPORT_ARCH}-bin.tar.gz"
+
+        # check that needed tools are installed
+        check_exists_fatal curl tar
+        # download tarball
+        log "Downloading Teleport ${TELEPORT_FORMAT} release ${TELEPORT_VERSION}"
+        DOWNLOAD_FILENAME=$(get_download_filename "${URL}")
+        download "${URL}" "${TEMP_DIR}/${DOWNLOAD_FILENAME}"
+        # extract tarball
+        tar -xzf "${TEMP_DIR}/${DOWNLOAD_FILENAME}" -C "${TEMP_DIR}"
+        # install binaries to /usr/local/bin
+        for BINARY in ${TELEPORT_BINARY_LIST}; do
+            ${COPY_COMMAND} "${TELEPORT_ARCHIVE_PATH}/${BINARY}" "${TELEPORT_BINARY_DIR}/"
+        done
+    elif [[ ${TELEPORT_FORMAT} == "deb" ]]; then
+        # convert teleport arch to deb arch
+        if [[ ${TELEPORT_ARCH} == "amd64" ]]; then
+            DEB_ARCH="amd64"
+        elif [[ ${TELEPORT_ARCH} == "386" ]]; then
+            DEB_ARCH="i386"
+        elif [[ ${TELEPORT_ARCH} == "arm" ]]; then
+            DEB_ARCH="arm"
+        elif [[ ${TELEPORT_ARCH} == "arm64" ]]; then
+            DEB_ARCH="arm64"
+        fi
+        URL="https://get.gravitational.com/${TELEPORT_PACKAGE_NAME}_${TELEPORT_VERSION}_${DEB_ARCH}.deb"
+        check_deb_not_already_installed
+        # check that needed tools are installed
+        check_exists_fatal curl dpkg
+        # download deb and register cleanup operation
+        log "Downloading Teleport ${TELEPORT_FORMAT} release ${TELEPORT_VERSION}"
+        DOWNLOAD_FILENAME=$(get_download_filename "${URL}")
+        download "${URL}" "${TEMP_DIR}/${DOWNLOAD_FILENAME}"
+        # install deb
+        log "Using dpkg to install ${TEMP_DIR}/${DOWNLOAD_FILENAME}"
+        dpkg -i "${TEMP_DIR}/${DOWNLOAD_FILENAME}"
+    elif [[ ${TELEPORT_FORMAT} == "rpm" ]]; then
+        # convert teleport arch to rpm arch
+        if [[ ${TELEPORT_ARCH} == "amd64" ]]; then
+            RPM_ARCH="x86_64"
+        elif [[ ${TELEPORT_ARCH} == "386" ]]; then
+            RPM_ARCH="i386"
+        elif [[ ${TELEPORT_ARCH} == "arm" ]]; then
+            RPM_ARCH="arm"
+        elif [[ ${TELEPORT_ARCH} == "arm64" ]]; then
+            RPM_ARCH="arm64"
+        fi
+        URL="https://get.gravitational.com/${TELEPORT_PACKAGE_NAME}-${TELEPORT_VERSION}-1.${RPM_ARCH}.rpm"
+        check_rpm_not_already_installed
+        # check for package managers
+        if check_exists dnf; then
+            log "Found 'dnf' package manager, using it"
+            PACKAGE_MANAGER_COMMAND="dnf -y install"
+        elif check_exists yum; then
+            log "Found 'yum' package manager, using it"
+            PACKAGE_MANAGER_COMMAND="yum -y localinstall"
+        elif check_exists zypper; then
+            log "Found 'zypper' package manager, using it"
+            PACKAGE_MANAGER_COMMAND="zypper --non-interactive install"
+        else
+            PACKAGE_MANAGER_COMMAND=""
+            log "Cannot find 'yum' or 'dnf' package manager commands, will try installing the rpm manually instead"
+        fi
+        # check that needed tools are installed
+        check_exists_fatal curl
+        log "Downloading Teleport ${TELEPORT_FORMAT} release ${TELEPORT_VERSION}"
+        DOWNLOAD_FILENAME=$(get_download_filename "${URL}")
+        download "${URL}" "${TEMP_DIR}/${DOWNLOAD_FILENAME}"
+        # install with package manager if available
+        if [[ ${PACKAGE_MANAGER_COMMAND} != "" ]]; then
+            log "Installing Teleport release from ${TEMP_DIR}/${DOWNLOAD_FILENAME} using ${PACKAGE_MANAGER_COMMAND}"
+            # install rpm with package manager
+            ${PACKAGE_MANAGER_COMMAND} "${TEMP_DIR}/${DOWNLOAD_FILENAME}"
+        # use rpm if we couldn't find a package manager
+        else
+            # install RPM (in upgrade mode)
+            log "Using rpm to install ${TEMP_DIR}/${DOWNLOAD_FILENAME}"
+            rpm -Uvh "${TEMP_DIR}/${DOWNLOAD_FILENAME}"
+        fi
+    else
+        log_important "Can't figure out what Teleport format to use"
         exit 1
     fi
-    # override the format to 'tarball' (as that's how centos6 binaries are packaged)
-    # also override DISTRO_TYPE to centos6 as that's used for the URL check below
-    log "Overriding format for centos6 installation to use tarball"
-    TELEPORT_FORMAT="tarball"
-    DISTRO_TYPE="centos6"
-fi
+}
 
-# select correct URL/installation method based on distro
-if [[ ${TELEPORT_FORMAT} == "tarball" ]]; then
-    # handle centos6 URL override
-    if [[ ${DISTRO_TYPE} == "centos6" ]]; then
-        URL="https://get.gravitational.com/teleport-v${TELEPORT_VERSION}-${TELEPORT_BINARY_TYPE}-${TELEPORT_ARCH}-centos6-bin.tar.gz"
+install_from_repo() {
+    if [[ "${REPO_CHANNEL}" == "" ]]; then
+        # By default, use the current version's channel.
+        REPO_CHANNEL=stable/v"${TELEPORT_VERSION//.*/}"
+    fi
+
+    # Populate $ID, $VERSION_ID, $VERSION_CODENAME and other env vars identifying the OS.
+    # shellcheck disable=SC1091
+    . /etc/os-release
+
+    PACKAGE_LIST=$(package_list)
+    if [ "$ID" == "debian" ] || [ "$ID" == "ubuntu" ]; then
+        # old versions of ubuntu require that keys get added by `apt-key add`, without
+        # adding the key apt shows a key signing error when installing teleport.
+        if [[
+            ($ID == "ubuntu" && $VERSION_ID == "16.04") || \
+            ($ID == "debian" && $VERSION_ID == "9" )
+        ]]; then
+            apt install apt-transport-https gnupg -y
+            curl -fsSL https://apt.releases.teleport.dev/gpg | apt-key add -
+            echo "deb https://apt.releases.teleport.dev/${ID} ${VERSION_CODENAME} ${REPO_CHANNEL}" > /etc/apt/sources.list.d/teleport.list
+        else
+            curl -fsSL https://apt.releases.teleport.dev/gpg \
+                -o /usr/share/keyrings/teleport-archive-keyring.asc
+            echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc] \
+            https://apt.releases.teleport.dev/${ID} ${VERSION_CODENAME} ${REPO_CHANNEL}" > /etc/apt/sources.list.d/teleport.list
+        fi
+        apt-get update
+        apt-get install -y ${PACKAGE_LIST}
+    elif [ "$ID" = "amzn" ] || [ "$ID" = "rhel" ] || [ "$ID" = "centos" ]; then
+        if [ "$ID" = "rhel" ]; then
+            VERSION_ID="${VERSION_ID//.*/}" # convert version numbers like '7.2' to only include the major version
+        fi
+        yum install -y yum-utils
+        yum-config-manager --add-repo \
+        "$(rpm --eval "https://yum.releases.teleport.dev/$ID/$VERSION_ID/Teleport/%{_arch}/${REPO_CHANNEL}/teleport.repo")"
+
+        # Remove metadata cache to prevent cache from other channel (eg, prior version)
+        # See: https://github.com/gravitational/teleport/issues/22581
+        yum --disablerepo="*" --enablerepo="teleport" clean metadata
+
+        yum install -y ${PACKAGE_LIST}
+    elif [ "$ID" = "sles" ] || [ "$ID" = "opensuse-tumbleweed" ] || [ "$ID" = "opensuse-leap" ]; then
+        if [ "$ID" = "opensuse-tumbleweed" ]; then
+          VERSION_ID="15" # tumbleweed uses dated VERSION_IDs like 20230702
+        else
+          VERSION_ID="${VERSION_ID//.*/}" # convert version numbers like '7.2' to only include the major version
+        fi
+        sudo rpm --import "https://zypper.releases.teleport.dev/gpg"
+        sudo zypper --non-interactive addrepo "$(rpm --eval "https://zypper.releases.teleport.dev/sles/$VERSION_ID/Teleport/%{_arch}/${REPO_CHANNEL}/teleport.repo")"
+        sudo zypper --gpg-auto-import-keys refresh
+        sudo zypper --non-interactive install ${PACKAGE_LIST}
     else
-        URL="https://get.gravitational.com/teleport-v${TELEPORT_VERSION}-${TELEPORT_BINARY_TYPE}-${TELEPORT_ARCH}-bin.tar.gz"
+        echo "Unsupported distro: $ID"
+        exit 1
     fi
-    # check that needed tools are installed
-    check_exists_fatal curl tar
-    # download tarball
-    log "Downloading Teleport ${TELEPORT_FORMAT} release ${TELEPORT_VERSION}"
-    DOWNLOAD_FILENAME=$(get_download_filename "${URL}")
-    download "${URL}" "${TEMP_DIR}/${DOWNLOAD_FILENAME}"
-    # extract tarball
-    tar -xzf "${TEMP_DIR}/${DOWNLOAD_FILENAME}" -C "${TEMP_DIR}"
-    # install binaries to /usr/local/bin
-    for BINARY in ${TELEPORT_BINARY_LIST}; do
-        ${COPY_COMMAND} "${TELEPORT_ARCHIVE_PATH}/${BINARY}" "${TELEPORT_BINARY_DIR}/"
-    done
-elif [[ ${TELEPORT_FORMAT} == "deb" ]]; then
-    # convert teleport arch to deb arch
-    if [[ ${TELEPORT_ARCH} == "amd64" ]]; then
-        DEB_ARCH="amd64"
-    elif [[ ${TELEPORT_ARCH} == "386" ]]; then
-        DEB_ARCH="i386"
-    elif [[ ${TELEPORT_ARCH} == "arm" ]]; then
-        DEB_ARCH="arm"
-    elif [[ ${TELEPORT_ARCH} == "arm64" ]]; then
-        DEB_ARCH="arm64"
+}
+
+# package_list returns the list of packages to install.
+# The list of packages can be fed into yum or apt because they already have the expected format when pinning versions.
+package_list() {
+    TELEPORT_PACKAGE_PIN_VERSION=${TELEPORT_PACKAGE_NAME}
+    TELEPORT_UPDATER_PIN_VERSION="${TELEPORT_PACKAGE_NAME}-updater"
+
+    if [[ "${TELEPORT_FORMAT}" == "deb" ]]; then
+        TELEPORT_PACKAGE_PIN_VERSION+="=${TELEPORT_VERSION}"
+        TELEPORT_UPDATER_PIN_VERSION+="=${TELEPORT_VERSION}"
+
+    elif [[ "${TELEPORT_FORMAT}" == "rpm" ]]; then
+        TELEPORT_YUM_VERSION="${TELEPORT_VERSION//-/_}"
+        TELEPORT_PACKAGE_PIN_VERSION+="-${TELEPORT_YUM_VERSION}"
+        TELEPORT_UPDATER_PIN_VERSION+="-${TELEPORT_YUM_VERSION}"
     fi
-    URL="https://get.gravitational.com/teleport_${TELEPORT_VERSION}_${DEB_ARCH}.deb"
-    check_deb_not_already_installed
-    # check that needed tools are installed
-    check_exists_fatal curl dpkg
-    # download deb and register cleanup operation
-    log "Downloading Teleport ${TELEPORT_FORMAT} release ${TELEPORT_VERSION}"
-    DOWNLOAD_FILENAME=$(get_download_filename "${URL}")
-    download "${URL}" "${TEMP_DIR}/${DOWNLOAD_FILENAME}"
-    # install deb
-    log "Using dpkg to install ${TEMP_DIR}/${DOWNLOAD_FILENAME}"
-    dpkg -i "${TEMP_DIR}/${DOWNLOAD_FILENAME}"
-elif [[ ${TELEPORT_FORMAT} == "rpm" ]]; then
-    # convert teleport arch to rpm arch
-    if [[ ${TELEPORT_ARCH} == "amd64" ]]; then
-        RPM_ARCH="x86_64"
-    elif [[ ${TELEPORT_ARCH} == "386" ]]; then
-        RPM_ARCH="i386"
-    elif [[ ${TELEPORT_ARCH} == "arm" ]]; then
-        RPM_ARCH="arm"
-    elif [[ ${TELEPORT_ARCH} == "arm64" ]]; then
-        RPM_ARCH="arm64"
+
+    PACKAGE_LIST=${TELEPORT_PACKAGE_PIN_VERSION}
+    # (warning): This expression is constant. Did you forget the $ on a variable?
+    # Disabling the warning above because expression is templated.
+    # shellcheck disable=SC2050
+    if is_using_systemd && [[ "{{.installUpdater}}" == "true" ]]; then
+        # Teleport Updater requires systemd.
+        PACKAGE_LIST+=" ${TELEPORT_UPDATER_PIN_VERSION}"
     fi
-    URL="https://get.gravitational.com/teleport-${TELEPORT_VERSION}-1.${RPM_ARCH}.rpm"
-    check_rpm_not_already_installed
-    # check for package managers
-    if check_exists dnf; then
-        log "Found 'dnf' package manager, using it"
-        PACKAGE_MANAGER_COMMAND="dnf -y install"
-    elif check_exists yum; then
-        log "Found 'yum' package manager, using it"
-        PACKAGE_MANAGER_COMMAND="yum -y localinstall"
-    else
-        PACKAGE_MANAGER_COMMAND=""
-        log "Cannot find 'yum' or 'dnf' package manager commands, will try installing the rpm manually instead"
+    echo ${PACKAGE_LIST}
+}
+
+is_repo_available() {
+    if [[ "${OSTYPE}" != "linux"* ]]; then
+        return 1
     fi
-    # check that needed tools are installed
-    check_exists_fatal curl
-    log "Downloading Teleport ${TELEPORT_FORMAT} release ${TELEPORT_VERSION}"
-    DOWNLOAD_FILENAME=$(get_download_filename "${URL}")
-    download "${URL}" "${TEMP_DIR}/${DOWNLOAD_FILENAME}"
-    # install with package manager if available
-    if [[ ${PACKAGE_MANAGER_COMMAND} != "" ]]; then
-        log "Installing Teleport release from ${TEMP_DIR}/${DOWNLOAD_FILENAME} using ${PACKAGE_MANAGER_COMMAND}"
-        # install rpm with package manager
-        ${PACKAGE_MANAGER_COMMAND} "${TEMP_DIR}/${DOWNLOAD_FILENAME}"
-    # use rpm if we couldn't find a package manager
-    else
-        # install RPM (in upgrade mode)
-        log "Using rpm to install ${TEMP_DIR}/${DOWNLOAD_FILENAME}"
-        rpm -Uvh "${TEMP_DIR}/${DOWNLOAD_FILENAME}"
-    fi
+
+    # Populate $ID, $VERSION_ID and other env vars identifying the OS.
+    # shellcheck disable=SC1091
+    . /etc/os-release
+
+    # The following distros+version have a Teleport repository to install from.
+    case "${ID}-${VERSION_ID}" in
+        ubuntu-16.04* | ubuntu-18.04* | ubuntu-20.04* | ubuntu-22.04* | \
+        debian-9* | debian-10* | debian-11* | debian-12* | \
+        rhel-7* | rhel-8* | rhel-9* | \
+        centos-7* | centos-8* | centos-9* | \
+        amzn-2 | amzn-2023 | \
+        opensuse-tumbleweed* | sles-12* | sles-15* | opensuse-leap-15*)
+            return 0;;
+    esac
+
+    return 1
+}
+
+if is_repo_available; then
+    log "Installing repo for distro $ID."
+    install_from_repo
 else
-    log_important "Can't figure out what Teleport format to use"
-    exit 1
+    log "Installing from binary file."
+    install_from_file
 fi
 
 # check that teleport binary can be found and runs
@@ -835,12 +986,18 @@ if ! check_teleport_binary; then
 fi
 
 # install teleport config
-# check whether we're running in app mode so we can write the appropriate config type
+# check the mode and write the appropriate config type
 if [[ "${APP_INSTALL_MODE}" == "true" ]]; then
     install_teleport_app_config
+elif [[ "${DB_INSTALL_MODE}" == "true" ]]; then
+    install_teleport_database_config
 else
     install_teleport_node_config
 fi
+
+
+# Used to track whether a Teleport agent was installed using this method.
+export TELEPORT_INSTALL_METHOD_NODE_SCRIPT="true"
 
 # install systemd unit if applicable (linux hosts)
 if is_using_systemd; then
@@ -852,13 +1009,13 @@ if is_using_systemd; then
     fi
     start_teleport_systemd
     print_welcome_message
-# install launchd config on MacOS hosts
+# install launchd config on macOS hosts
 elif is_macos_host; then
-    log "Host is running MacOS"
+    log "Host is running macOS"
     install_launchd_config
     start_teleport_launchd
     print_welcome_message
-# not a MacOS host and no systemd available, print a warning
+# not a macOS host and no systemd available, print a warning
 # and temporarily start Teleport in the foreground
 else
     log "Host does not appear to be using systemd"

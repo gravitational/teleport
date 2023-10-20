@@ -19,24 +19,20 @@ limitations under the License.
 package sshutils
 
 import (
+	"bytes"
+	"context"
 	"crypto"
 	"crypto/subtle"
+	"errors"
 	"io"
 	"net"
-
-	"github.com/gravitational/teleport/api/defaults"
+	"regexp"
+	"strings"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
-)
 
-const (
-	// ProxyHelloSignature is a string which Teleport proxy will send
-	// right after the initial SSH "handshake/version" message if it detects
-	// talking to a Teleport server.
-	//
-	// This is also leveraged by tsh to propagate its tracing span ID.
-	ProxyHelloSignature = "Teleport-Proxy"
+	"github.com/gravitational/teleport/api/defaults"
 )
 
 // HandshakePayload structure is sent as a JSON blob by the teleport
@@ -67,21 +63,65 @@ func ParseCertificate(buf []byte) (*ssh.Certificate, error) {
 }
 
 // ParseKnownHosts parses provided known_hosts entries into ssh.PublicKey list.
-func ParseKnownHosts(knownHosts [][]byte) ([]ssh.PublicKey, error) {
+// If one or more hostnames are provided, only keys that have at least one match
+// will be returned.
+func ParseKnownHosts(knownHosts [][]byte, matchHostnames ...string) ([]ssh.PublicKey, error) {
 	var keys []ssh.PublicKey
 	for _, line := range knownHosts {
 		for {
-			_, _, publicKey, _, bytes, err := ssh.ParseKnownHosts(line)
-			if err == io.EOF {
+			_, hosts, publicKey, _, bytes, err := ssh.ParseKnownHosts(line)
+			if errors.Is(err, io.EOF) {
 				break
 			} else if err != nil {
 				return nil, trace.Wrap(err, "failed parsing known hosts: %v; raw line: %q", err, line)
 			}
-			keys = append(keys, publicKey)
+
+			if len(matchHostnames) == 0 || HostNameMatch(matchHostnames, hosts) {
+				keys = append(keys, publicKey)
+			}
+
 			line = bytes
 		}
 	}
 	return keys, nil
+}
+
+// HostNameMatch returns whether at least one of the given hosts matches one
+// of the given matchHosts. If a host has a wildcard prefix "*.", it will be
+// used to match. Ex: "*.example.com" will  match "proxy.example.com".
+func HostNameMatch(matchHosts []string, hosts []string) bool {
+	for _, matchHost := range matchHosts {
+		for _, host := range hosts {
+			if host == matchHost || matchesWildcard(matchHost, host) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// matchesWildcard ensures the given `hostname` matches the given `pattern`.
+// The `pattern` should be prefixed with `*.` which will match exactly one domain
+// segment, meaning `*.example.com` will match `foo.example.com` but not
+// `foo.bar.example.com`.
+func matchesWildcard(hostname, pattern string) bool {
+	pattern = strings.TrimSpace(pattern)
+
+	// Don't allow non-wildcard or empty patterns.
+	if !strings.HasPrefix(pattern, "*.") || len(pattern) < 3 {
+		return false
+	}
+	matchHost := pattern[2:]
+
+	// Trim any trailing "." in case of an absolute domain.
+	hostname = strings.TrimSuffix(hostname, ".")
+
+	_, hostnameRoot, found := strings.Cut(hostname, ".")
+	if !found {
+		return false
+	}
+
+	return hostnameRoot == matchHost
 }
 
 // ParseAuthorizedKeys parses provided authorized_keys entries into ssh.PublicKey list.
@@ -98,10 +138,10 @@ func ParseAuthorizedKeys(authorizedKeys [][]byte) ([]ssh.PublicKey, error) {
 }
 
 // ProxyClientSSHConfig returns an ssh.ClientConfig from the given ssh.AuthMethod.
-// If sshCAs are provided, they will be used in the config's HostKeyCallback.
+// If known_hosts are provided, they will be used in the config's HostKeyCallback.
 //
 // The config is set up to authenticate to proxy with the first available principal.
-func ProxyClientSSHConfig(sshCert *ssh.Certificate, priv crypto.Signer, sshCAs ...[]byte) (*ssh.ClientConfig, error) {
+func ProxyClientSSHConfig(sshCert *ssh.Certificate, priv crypto.Signer, knownHosts ...[]byte) (*ssh.ClientConfig, error) {
 	authMethod, err := AsAuthMethod(sshCert, priv)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -109,7 +149,7 @@ func ProxyClientSSHConfig(sshCert *ssh.Certificate, priv crypto.Signer, sshCAs .
 
 	cfg := &ssh.ClientConfig{
 		Auth:    []ssh.AuthMethod{authMethod},
-		Timeout: defaults.DefaultDialTimeout,
+		Timeout: defaults.DefaultIOTimeout,
 	}
 
 	// The KeyId is not always a valid principal, so we use the first valid principal instead.
@@ -118,9 +158,13 @@ func ProxyClientSSHConfig(sshCert *ssh.Certificate, priv crypto.Signer, sshCAs .
 		cfg.User = sshCert.ValidPrincipals[0]
 	}
 
-	if len(sshCAs) > 0 {
-		var err error
-		cfg.HostKeyCallback, err = HostKeyCallback(sshCAs, false)
+	if len(knownHosts) > 0 {
+		trustedKeys, err := ParseKnownHosts(knownHosts)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		cfg.HostKeyCallback, err = HostKeyCallback(trustedKeys, false)
 		if err != nil {
 			return nil, trace.Wrap(err, "failed to convert certificate authorities to HostKeyCallback")
 		}
@@ -154,19 +198,13 @@ func AsAuthMethod(sshCert *ssh.Certificate, signer crypto.Signer) (ssh.AuthMetho
 }
 
 // HostKeyCallback returns an ssh.HostKeyCallback that validates host
-// keys/certs against SSH CAs in the Key.
+// keys/certs against trusted host keys, usually associated with trusted CAs.
 //
-// If not CAs are present in the Key, the returned ssh.HostKeyCallback is nil.
+// If no trusted keys are provided, the returned ssh.HostKeyCallback is nil.
 // This causes golang.org/x/crypto/ssh to prompt the user to verify host key
 // fingerprint (same as OpenSSH does for an unknown host).
-func HostKeyCallback(caCerts [][]byte, withHostKeyFallback bool) (ssh.HostKeyCallback, error) {
-	trustedKeys, err := ParseKnownHosts(caCerts)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// No CAs are provided, return a nil callback which will prompt the user
-	// for trust.
+func HostKeyCallback(trustedKeys []ssh.PublicKey, withHostKeyFallback bool) (ssh.HostKeyCallback, error) {
+	// No trusted keys are provided, return a nil callback which will prompt the user for trust.
 	if len(trustedKeys) == 0 {
 		return nil, nil
 	}
@@ -205,4 +243,76 @@ func KeysEqual(ak, bk ssh.PublicKey) bool {
 	a := ak.Marshal()
 	b := bk.Marshal()
 	return subtle.ConstantTimeCompare(a, b) == 1
+}
+
+// OpenSSH cert types look like "<key-type>-cert-v<version>@openssh.com".
+var sshCertTypeRegex = regexp.MustCompile(`^[a-z0-9\-]+-cert-v[0-9]{2}@openssh\.com$`)
+
+// IsSSHCertType checks if the given string looks like an ssh cert type.
+// e.g. ssh-rsa-cert-v01@openssh.com.
+func IsSSHCertType(val string) bool {
+	return sshCertTypeRegex.MatchString(val)
+}
+
+type contextDialer func(ctx context.Context, network, addr string) (net.Conn, error)
+
+type runSSHOpts struct {
+	dialContext contextDialer
+}
+
+// RunSSHOption allows setting options as functional arguments to RunSSH.
+type RunSSHOption func(*runSSHOpts)
+
+// WithDialer connects to an SSH server with a custom dialer.
+func WithDialer(dialer contextDialer) RunSSHOption {
+	return func(opts *runSSHOpts) {
+		opts.dialContext = dialer
+	}
+}
+
+// RunSSH runs a command on an SSH server and returns the output.
+func RunSSH(ctx context.Context, addr, command string, cfg *ssh.ClientConfig, opts ...RunSSHOption) ([]byte, error) {
+	var options runSSHOpts
+	for _, opt := range opts {
+		opt(&options)
+	}
+
+	conn, err := options.dialContext(ctx, "tcp", addr)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clientConn, newCh, requestsCh, err := ssh.NewClientConn(conn, addr, cfg)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	sshClient := ssh.NewClient(clientConn, newCh, requestsCh)
+	defer sshClient.Close()
+	session, err := sshClient.NewSession()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer session.Close()
+
+	// Execute the command.
+	var b bytes.Buffer
+	session.Stdout = &b
+	err = session.Run(command)
+	return b.Bytes(), trace.Wrap(err)
+}
+
+// ChannelReadWriter represents the data streams of an ssh.Channel-like object.
+type ChannelReadWriter interface {
+	io.ReadWriter
+	Stderr() io.ReadWriter
+}
+
+// DiscardChannelData discards all data received from an ssh channel in the
+// background.
+func DiscardChannelData(ch ChannelReadWriter) {
+	if ch == nil {
+		return
+	}
+	go io.Copy(io.Discard, ch)
+	go io.Copy(io.Discard, ch.Stderr())
 }

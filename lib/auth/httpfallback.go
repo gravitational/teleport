@@ -18,5 +18,3 @@ package auth
 
 // httpfallback.go holds endpoints that have been converted to gRPC
 // but still need http fallback logic in the old client.
-
-// empty for now...

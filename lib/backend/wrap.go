@@ -42,6 +42,10 @@ func NewWrapper(backend Backend) *Wrapper {
 	}
 }
 
+func (s *Wrapper) GetName() string {
+	return s.backend.GetName()
+}
+
 // GetReadError returns error to be returned by
 // read backend operations
 func (s *Wrapper) GetReadError() error {
@@ -81,6 +85,11 @@ func (s *Wrapper) Update(ctx context.Context, i Item) (*Lease, error) {
 	return s.backend.Update(ctx, i)
 }
 
+// ConditionalUpdate updates value in the backend if revisions match.
+func (s *Wrapper) ConditionalUpdate(ctx context.Context, i Item) (*Lease, error) {
+	return s.backend.ConditionalUpdate(ctx, i)
+}
+
 // Get returns a single item or not found error
 func (s *Wrapper) Get(ctx context.Context, key []byte) (*Item, error) {
 	if err := s.GetReadError(); err != nil {
@@ -98,6 +107,11 @@ func (s *Wrapper) CompareAndSwap(ctx context.Context, expected Item, replaceWith
 // Delete deletes item by key
 func (s *Wrapper) Delete(ctx context.Context, key []byte) error {
 	return s.backend.Delete(ctx, key)
+}
+
+// ConditionalDelete deletes item by key if revisions match.
+func (s *Wrapper) ConditionalDelete(ctx context.Context, key []byte, revision string) error {
+	return s.backend.ConditionalDelete(ctx, key, revision)
 }
 
 // DeleteRange deletes range of items

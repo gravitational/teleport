@@ -22,54 +22,77 @@ const (
 	perBuildWorkspace = `$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER`
 	toolchainDir      = `/toolchains`
 	teleportSrc       = `/go/src/github.com/gravitational/teleport`
-	webappsSrc        = `/go/src/github.com/gravitational/webapps`
 
-	relcliURL    = `https://cdn.teleport.dev/relcli-v1.1.70-windows.exe`
-	relcliSha256 = `1cd0e4e2912ded6c6b61a82018ac3d76eac091f9719b5a80795d79ff194788a7`
+	relcliURL    = `https://cdn.teleport.dev/relcli-master-93a9f40-20230504T2005101-windows.exe`
+	relcliSha256 = `22d32a57a4b999e619162bebb96d0adf4b3df2596ef4c89b77154e7f96abbf30`
 )
 
 func newWindowsPipeline(name string) pipeline {
 	p := newExecPipeline(name)
 	p.Workspace.Path = path.Join("C:/Drone/Workspace", name)
-	p.Concurrency.Limit = 1
 	p.Platform = platform{OS: "windows", Arch: "amd64"}
+	p.Node = map[string]value{
+		"buildbox_version": buildboxVersion,
+	}
 	return p
 }
 
 func windowsTagPipeline() pipeline {
 	p := newWindowsPipeline("build-native-windows-amd64")
-
+	p.Concurrency.Limit = 1
 	p.DependsOn = []string{tagCleanupPipelineName}
 	p.Trigger = triggerTag
 
 	p.Steps = []step{
 		cloneWindowsRepositoriesStep(p.Workspace.Path),
 		updateWindowsSubreposStep(p.Workspace.Path),
+		installWindowsRustToolchainStep(p.Workspace.Path),
 		installWindowsNodeToolchainStep(p.Workspace.Path),
 		installWindowsGoToolchainStep(p.Workspace.Path),
+		buildWindowsAuthenticationPackageStep(p.Workspace.Path),
 		buildWindowsTshStep(p.Workspace.Path),
+		signTshStep(p.Workspace.Path),
 		buildWindowsTeleportConnectStep(p.Workspace.Path),
 		{
-			Name: "Upload Artifacts",
+			Name: "Assume AWS Role",
 			Environment: map[string]value{
 				"WORKSPACE_DIR":         {raw: p.Workspace.Path},
-				"AWS_REGION":            {raw: "us-west-2"},
-				"AWS_S3_BUCKET":         {fromSecret: "AWS_S3_BUCKET"},
 				"AWS_ACCESS_KEY_ID":     {fromSecret: "AWS_ACCESS_KEY_ID"},
 				"AWS_SECRET_ACCESS_KEY": {fromSecret: "AWS_SECRET_ACCESS_KEY"},
+				"AWS_ROLE":              {fromSecret: "AWS_ROLE"},
 			},
 			Commands: []string{
 				`$Workspace = "` + perBuildWorkspace + `"`,
 				`$TeleportSrc = "$Workspace` + teleportSrc + `"`,
-				`$WebappsSrc = "$Workspace` + webappsSrc + `"`,
+				`$AwsSharedCredentialsFile = "$Workspace/credentials"`,
+				`$SessionName = "drone-$Env:DRONE_REPO-$Env:DRONE_BUILD_NUMBER".replace("/", "-")`,
+				`. "$TeleportSrc/build.assets/windows/build.ps1"`,
+				`Get-STSCallerIdentity`,
+				`Save-Role -RoleArn $Env:AWS_ROLE -RoleSessionName $SessionName -FilePath $AwsSharedCredentialsFile`,
+				`Get-ChildItem -Path Env: | Where-Object {($_.Name -Like "AWS_SECRET_ACCESS_KEY") -or ($_.Name -Like "AWS_ACCESS_KEY_ID") } | Remove-Item`,
+				`Get-STSCallerIdentity -ProfileLocation $AwsSharedCredentialsFile`,
+			},
+		},
+		{
+			Name: "Upload Artifacts",
+			Environment: map[string]value{
+				"WORKSPACE_DIR": {raw: p.Workspace.Path},
+				"AWS_REGION":    {raw: "us-west-2"},
+				"AWS_S3_BUCKET": {fromSecret: "AWS_S3_BUCKET"},
+			},
+			Commands: []string{
+				`$Workspace = "` + perBuildWorkspace + `"`,
+				`$TeleportSrc = "$Workspace` + teleportSrc + `"`,
 				`$TeleportVersion=$Env:DRONE_TAG.TrimStart('v')`,
+				`$AwsSharedCredentialsFile = "$Workspace/credentials"`,
 				`$OutputsDir="$Workspace/outputs"`,
 				`New-Item -Path "$OutputsDir" -ItemType 'Directory' | Out-Null`,
-				`Get-ChildItem "$WebappsSrc/packages/teleterm/build/release`,
-				`Copy-Item -Path "$WebappsSrc/packages/teleterm/build/release/Teleport Connect Setup*.exe" -Destination $OutputsDir`,
+				`Get-ChildItem "$TeleportSrc/web/packages/teleterm/build/release`,
+				`Copy-Item -Path "$TeleportSrc/web/packages/teleterm/build/release/Teleport Connect Setup*.exe" -Destination $OutputsDir`,
+				`Copy-Item -Path "$TeleportSrc/e/windowsauth/build/teleport-windows-auth-setup-*.exe" -Destination $OutputsDir`,
 				`. "$TeleportSrc/build.assets/windows/build.ps1"`,
 				`Format-FileHashes -PathGlob "$OutputsDir/*.exe"`,
-				`Copy-Artifacts -Path $OutputsDir -Bucket $Env:AWS_S3_BUCKET -DstRoot "/teleport/tag/$TeleportVersion"`,
+				`Copy-Artifacts -ProfileLocation $AwsSharedCredentialsFile -Path $OutputsDir -Bucket $Env:AWS_S3_BUCKET -DstRoot "/teleport/tag/$TeleportVersion"`,
 			},
 		},
 		windowsRegisterArtifactsStep(p.Workspace.Path),
@@ -89,10 +112,13 @@ func windowsPushPipeline() pipeline {
 	p.Steps = []step{
 		cloneWindowsRepositoriesStep(p.Workspace.Path),
 		updateWindowsSubreposStep(p.Workspace.Path),
+		installWindowsRustToolchainStep(p.Workspace.Path),
 		installWindowsNodeToolchainStep(p.Workspace.Path),
 		installWindowsGoToolchainStep(p.Workspace.Path),
 		buildWindowsTshStep(p.Workspace.Path),
+		signTshStep(p.Workspace.Path),
 		buildWindowsTeleportConnectStep(p.Workspace.Path),
+		buildWindowsAuthenticationPackageStep(p.Workspace.Path),
 		cleanUpWindowsWorkspaceStep(p.Workspace.Path),
 		{
 			Name: "Send Slack notification (exec)",
@@ -123,16 +149,11 @@ func cloneWindowsRepositoriesStep(workspace string) step {
 			`$ErrorActionPreference = 'Stop'`,
 			`$Workspace = "` + perBuildWorkspace + `"`,
 			`$TeleportSrc = "$Workspace` + teleportSrc + `"`,
-			`$WebappsSrc = "$Workspace` + webappsSrc + `"`,
 			`$TeleportRev = if ($Env:DRONE_TAG -ne $null) { $Env:DRONE_TAG } else { $Env:DRONE_COMMIT }`,
 			`New-Item -Path $TeleportSrc -ItemType Directory | Out-Null`,
 			`cd $TeleportSrc`,
 			`git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .`,
 			`git checkout $TeleportRev`,
-			`New-Item -Path $WebappsSrc -ItemType Directory | Out-Null`,
-			`cd $WebappsSrc`,
-			`git clone https://github.com/gravitational/webapps.git .`,
-			`git checkout $(& $TeleportSrc/build.assets/webapps/webapps-version.ps1)`,
 		},
 	}
 }
@@ -152,8 +173,25 @@ func updateWindowsSubreposStep(workspace string) step {
 			`Enable-Git -Workspace $Workspace -PrivateKey $Env:GITHUB_PRIVATE_KEY`,
 			`cd $TeleportSrc`,
 			`git submodule update --init e`,
-			`git submodule update --init --recursive webassets`,
 			`Reset-Git -Workspace $Workspace`,
+		},
+	}
+}
+
+func installWindowsRustToolchainStep(workspacePath string) step {
+	return step{
+		Name:        "Install Rust Toolchain",
+		Environment: map[string]value{"WORKSPACE_DIR": {raw: workspacePath}},
+		Commands: []string{
+			`$ProgressPreference = 'SilentlyContinue'`,
+			`$ErrorActionPreference = 'Stop'`,
+			`$Workspace = "` + perBuildWorkspace + `"`,
+			`$TeleportSrc = "$Workspace` + teleportSrc + `"`,
+			`. "$TeleportSrc/build.assets/windows/build.ps1"`,
+			`Push-Location "$TeleportSrc/build.assets"`,
+			`$RustVersion = $(make print-rust-version).Trim()`,
+			`Pop-Location`,
+			`Install-Rust -RustVersion $RustVersion -ToolchainDir "$Workspace` + toolchainDir + `"`,
 		},
 	}
 }
@@ -198,8 +236,7 @@ func buildWindowsTshStep(workspace string) step {
 	return step{
 		Name: "Build tsh",
 		Environment: map[string]value{
-			"WORKSPACE_DIR":        {raw: workspace},
-			"WINDOWS_SIGNING_CERT": {fromSecret: "WINDOWS_SIGNING_CERT"},
+			"WORKSPACE_DIR": {raw: workspace},
 		},
 		Commands: []string{
 			`$ErrorActionPreference = 'Stop'`,
@@ -210,7 +247,28 @@ func buildWindowsTshStep(workspace string) step {
 			`Enable-Go -ToolchainDir "$Workspace` + toolchainDir + `"`,
 			`cd $TeleportSrc`,
 			`$Env:GCO_ENABLED=1`,
-			`go build -o build/tsh.exe ./tool/tsh`,
+			`go build -o build/tsh-unsigned.exe ./tool/tsh`,
+		},
+	}
+}
+
+func signTshStep(workspace string) step {
+	return step{
+		Name: "Sign tsh",
+		Environment: map[string]value{
+			"WORKSPACE_DIR":        {raw: workspace},
+			"WINDOWS_SIGNING_CERT": {fromSecret: "WINDOWS_SIGNING_CERT"},
+		},
+		Commands: []string{
+			`$ErrorActionPreference = 'Stop'`,
+			`$Workspace = "` + perBuildWorkspace + `"`,
+			`$TeleportSrc = "$Workspace` + teleportSrc + `"`,
+			`. "$TeleportSrc/build.assets/windows/build.ps1"`,
+			`cd $TeleportSrc`,
+			`([System.Convert]::FromBase64String($ENV:WINDOWS_SIGNING_CERT)) | Set-Content windows-signing-cert.pfx -Encoding Byte`,
+			`& 'C:\Program Files (x86)\Windows Kits\10\App Certification Kit\signtool.exe' sign /f windows-signing-cert.pfx /d Teleport /t http://timestamp.digicert.com /du https://goteleport.com /fd sha256 build\tsh-unsigned.exe`,
+			`mv build\tsh-unsigned.exe build\tsh.exe`,
+			`rm -r windows-signing-cert.pfx`,
 		},
 	}
 }
@@ -226,17 +284,40 @@ func buildWindowsTeleportConnectStep(workspace string) step {
 			`$ErrorActionPreference = 'Stop'`,
 			`$Workspace = "` + perBuildWorkspace + `"`,
 			`$TeleportSrc = "$Workspace` + teleportSrc + `"`,
-			`$WebappsSrc = "$Workspace` + webappsSrc + `"`,
 			`. "$TeleportSrc/build.assets/windows/build.ps1"`,
 			`Enable-Node -ToolchainDir "$Workspace` + toolchainDir + `"`,
 			`Push-Location $TeleportSrc`,
 			`$TeleportVersion=$(make print-version).Trim()`,
-			`Pop-Location`,
-			`cd $WebappsSrc`,
 			`$Env:CONNECT_TSH_BIN_PATH="$TeleportSrc\build\tsh.exe"`,
 			`yarn install --frozen-lockfile`,
 			`yarn build-term`,
 			`yarn package-term "-c.extraMetadata.version=$TeleportVersion"`,
+		},
+	}
+}
+
+func buildWindowsAuthenticationPackageStep(workspace string) step {
+	return step{
+		Name: "Build Windows Authentication Package",
+		Environment: map[string]value{
+			"WORKSPACE_DIR":        {raw: workspace},
+			"WINDOWS_SIGNING_CERT": {fromSecret: "WINDOWS_SIGNING_CERT"},
+		},
+		Commands: []string{
+			`$ErrorActionPreference = 'Stop'`,
+			`$Workspace = "` + perBuildWorkspace + `"`,
+			`$Env:GOCACHE = "$Workspace/gocache"`,
+			`$TeleportSrc = "$Workspace` + teleportSrc + `"`,
+			`. "$TeleportSrc/build.assets/windows/build.ps1"`,
+			`Enable-Go -ToolchainDir "$Workspace` + toolchainDir + `"`,
+			`Enable-Rust -ToolchainDir "$Workspace` + toolchainDir + `"`,
+			`cd $TeleportSrc`,
+			`$TeleportVersion=$(make print-version).Trim()`,
+			`cd "$TeleportSrc\e\windowsauth"`,
+			`make VERSION=v$TeleportVersion  all`,
+			`([System.Convert]::FromBase64String($ENV:WINDOWS_SIGNING_CERT)) | Set-Content windows-signing-cert.pfx -Encoding Byte`,
+			`& 'C:\Program Files (x86)\Windows Kits\10\App Certification Kit\signtool.exe' sign /f windows-signing-cert.pfx /d Teleport /t http://timestamp.digicert.com /du https://goteleport.com /fd sha256 build/teleport-windows-auth-setup-v$TeleportVersion-amd64.exe`,
+			`rm -r windows-signing-cert.pfx`,
 		},
 	}
 }

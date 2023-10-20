@@ -15,6 +15,7 @@
 package helpers
 
 import (
+	"bytes"
 	"context"
 	"testing"
 	"time"
@@ -27,7 +28,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 )
 
 // WaitForTunnelConnections waits for remote tunnels connections
@@ -75,7 +76,7 @@ func TryCreateTrustedCluster(t *testing.T, authServer *auth.Server, trustedClust
 	require.FailNow(t, "Timeout creating trusted cluster")
 }
 
-func WaitForClusters(tun reversetunnel.Server, expected int) func() bool {
+func WaitForClusters(tun reversetunnelclient.Server, expected int) func() bool {
 	return func() bool {
 		clusters, err := tun.GetSites()
 		if err != nil {
@@ -119,7 +120,7 @@ func WaitForNodeCount(ctx context.Context, t *TeleInstance, clusterName string, 
 		if len(nodes) == count {
 			return nil
 		}
-		return trace.BadParameter("did not find %v nodes", count)
+		return trace.BadParameter("found %v nodes, but wanted to find %v nodes", len(nodes), count)
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -128,7 +129,7 @@ func WaitForNodeCount(ctx context.Context, t *TeleInstance, clusterName string, 
 }
 
 // WaitForActiveTunnelConnections waits for remote cluster to report a minimum number of active connections
-func WaitForActiveTunnelConnections(t *testing.T, tunnel reversetunnel.Server, clusterName string, expectedCount int) {
+func WaitForActiveTunnelConnections(t *testing.T, tunnel reversetunnelclient.Server, clusterName string, expectedCount int) {
 	require.Eventually(t, func() bool {
 		cluster, err := tunnel.GetSite(clusterName)
 		if err != nil {
@@ -138,6 +139,72 @@ func WaitForActiveTunnelConnections(t *testing.T, tunnel reversetunnel.Server, c
 	},
 		30*time.Second,
 		time.Second,
-		"Active tunnel connections did not reach %v in the expected time frame", expectedCount,
+		"Active tunnel connections did not reach %v in the expected time frame %v", expectedCount, 30*time.Second,
 	)
+}
+
+// TrustedClusterSetup is a grouping of configuration options describing the current trusted
+// clusters being tested used for passing info about the clusters to be tested to helper functions.
+type TrustedClusterSetup struct {
+	Aux         *TeleInstance
+	Main        *TeleInstance
+	Username    string
+	ClusterAux  string
+	UseJumpHost bool
+}
+
+// CheckTrustedClustersCanConnect check the cluster setup described in tcSetup can connect to each other.
+func CheckTrustedClustersCanConnect(ctx context.Context, t *testing.T, tcSetup TrustedClusterSetup) {
+	aux := tcSetup.Aux
+	main := tcSetup.Main
+	username := tcSetup.Username
+	clusterAux := tcSetup.ClusterAux
+	useJumpHost := tcSetup.UseJumpHost
+
+	// ensure cluster that was enabled from disabled still works
+	sshPort, _, _ := aux.StartNodeAndProxy(t, "aux-node")
+
+	// Wait for both cluster to see each other via reverse tunnels.
+	require.Eventually(t, WaitForClusters(main.Tunnel, 1), 10*time.Second, 1*time.Second,
+		"Two clusters do not see each other: tunnels are not working.")
+	require.Eventually(t, WaitForClusters(aux.Tunnel, 1), 10*time.Second, 1*time.Second,
+		"Two clusters do not see each other: tunnels are not working.")
+
+	// Try and connect to a node in the Aux cluster from the Main cluster using
+	// direct dialing.
+	creds, err := GenerateUserCreds(UserCredsRequest{
+		Process:        main.Process,
+		Username:       username,
+		RouteToCluster: clusterAux,
+	})
+	require.NoError(t, err)
+
+	tc, err := main.NewClientWithCreds(ClientConfig{
+		Login:    username,
+		Cluster:  clusterAux,
+		Host:     Loopback,
+		Port:     sshPort,
+		JumpHost: useJumpHost,
+	}, *creds)
+	require.NoError(t, err)
+
+	// tell the client to trust aux cluster CAs (from secrets). this is the
+	// equivalent of 'known hosts' in openssh
+	auxCAS, err := aux.Secrets.GetCAs()
+	require.NoError(t, err)
+	for _, auxCA := range auxCAS {
+		err = tc.AddTrustedCA(ctx, auxCA)
+		require.NoError(t, err)
+	}
+
+	output := &bytes.Buffer{}
+	tc.Stdout = output
+
+	cmd := []string{"echo", "hello world"}
+
+	require.Eventually(t, func() bool {
+		return tc.SSH(ctx, cmd, false) == nil
+	}, 10*time.Second, 1*time.Second, "Two clusters cannot connect to each other")
+
+	require.Equal(t, "hello world\n", output.String())
 }

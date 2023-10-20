@@ -21,8 +21,9 @@ import (
 	"encoding/hex"
 	"net/http"
 
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 const (
@@ -33,11 +34,18 @@ const (
 	CookieName = "__Host-grv_csrf"
 	// HeaderName is the default HTTP request header to inspect.
 	HeaderName = "X-CSRF-Token"
+	// FormFieldName is the default form field to inspect.
+	FormFieldName = "csrf_token"
 	// tokenLenBytes is CSRF token length in bytes.
 	tokenLenBytes = 32
 	// defaultMaxAge is the default MaxAge for cookies.
 	defaultMaxAge = 0
 )
+
+// GenerateToken generates a random CSRF token.
+func GenerateToken() (string, error) {
+	return utils.CryptoRandomHex(tokenLenBytes)
+}
 
 // AddCSRFProtection adds CSRF token into the user session via secure cookie,
 // it implements "double submit cookie" approach to check against CSRF attacks
@@ -46,7 +54,7 @@ func AddCSRFProtection(w http.ResponseWriter, r *http.Request) (string, error) {
 	token, err := ExtractTokenFromCookie(r)
 	// if there was an error retrieving the token, the token doesn't exist
 	if err != nil || len(token) == 0 {
-		token, err = utils.CryptoRandomHex(tokenLenBytes)
+		token, err = GenerateToken()
 		if err != nil {
 			return "", trace.Wrap(err)
 		}
@@ -60,6 +68,21 @@ func VerifyHTTPHeader(r *http.Request) error {
 	token := r.Header.Get(HeaderName)
 	if len(token) == 0 {
 		return trace.BadParameter("cannot retrieve CSRF token from HTTP header %q", HeaderName)
+	}
+
+	err := VerifyToken(token, r)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+// VerifyFormField checks if HTTP form value matches the cookie.
+func VerifyFormField(r *http.Request) error {
+	token := r.FormValue(FormFieldName)
+	if len(token) == 0 {
+		return trace.BadParameter("cannot retrieve CSRF token from form field %q", FormFieldName)
 	}
 
 	err := VerifyToken(token, r)

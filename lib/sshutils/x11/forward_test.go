@@ -27,7 +27,7 @@ func TestForward(t *testing.T) {
 
 	// Open a dual sided connection on a new tcp listener
 	openConn := func(t *testing.T) (clientConn net.Conn, serverConn net.Conn) {
-		l, err := net.Listen("tcp", ":0")
+		l, err := net.Listen("tcp", "localhost:0")
 		require.NoError(t, err)
 		t.Cleanup(func() { require.NoError(t, l.Close()) })
 

@@ -1,0 +1,155 @@
+/*
+Copyright 2022 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package fetchers
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
+	"golang.org/x/exp/slices"
+
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/cloud/azure"
+	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv/discovery/common"
+)
+
+type aksFetcher struct {
+	AKSFetcherConfig
+}
+
+// AKSFetcherConfig configures the AKS fetcher.
+type AKSFetcherConfig struct {
+	// Client is the Azure AKS client.
+	Client azure.AKSClient
+	// Regions are the regions where the clusters should be located.
+	Regions []string
+	// ResourceGroups are the Azure resource groups the clusters must belong to.
+	ResourceGroups []string
+	// FilterLabels are the filter criteria.
+	FilterLabels types.Labels
+	// Log is the logger.
+	Log logrus.FieldLogger
+}
+
+// CheckAndSetDefaults validates and sets the defaults values.
+func (c *AKSFetcherConfig) CheckAndSetDefaults() error {
+	if c.Client == nil {
+		return trace.BadParameter("missing Client field")
+	}
+	if len(c.Regions) == 0 {
+		return trace.BadParameter("missing Regions field")
+	}
+
+	if len(c.FilterLabels) == 0 {
+		return trace.BadParameter("missing FilterLabels field")
+	}
+
+	if c.Log == nil {
+		c.Log = logrus.WithField(trace.Component, "fetcher:aks")
+	}
+	return nil
+}
+
+// NewAKSFetcher creates a new AKS fetcher configuration.
+func NewAKSFetcher(cfg AKSFetcherConfig) (common.Fetcher, error) {
+	if err := cfg.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &aksFetcher{cfg}, nil
+}
+
+func (a *aksFetcher) Get(ctx context.Context) (types.ResourcesWithLabels, error) {
+	clusters, err := a.getAKSClusters(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var kubeClusters types.KubeClusters
+	for _, cluster := range clusters {
+		if !a.isRegionSupported(cluster.Location) {
+			a.Log.Debugf("Cluster region %q does not match with allowed values.", cluster.Location)
+			continue
+		}
+		kubeCluster, err := services.NewKubeClusterFromAzureAKS(cluster)
+		if err != nil {
+			a.Log.WithError(err).Warn("Unable to create Kubernetes cluster from azure.AKSCluster.")
+			continue
+		}
+		if match, reason, err := services.MatchLabels(a.FilterLabels, kubeCluster.GetAllLabels()); err != nil {
+			a.Log.WithError(err).Warn("Unable to match AKS cluster labels against match labels.")
+			continue
+		} else if !match {
+			a.Log.Debugf("AKS cluster labels does not match the selector: %s.", reason)
+			continue
+		}
+
+		kubeClusters = append(kubeClusters, kubeCluster)
+	}
+
+	a.rewriteKubeClusters(kubeClusters)
+	return kubeClusters.AsResources(), nil
+}
+
+// rewriteKubeClusters rewrites the discovered kube clusters.
+func (a *aksFetcher) rewriteKubeClusters(clusters types.KubeClusters) {
+	for _, c := range clusters {
+		common.ApplyAKSNameSuffix(c)
+	}
+}
+
+func (a *aksFetcher) getAKSClusters(ctx context.Context) ([]*azure.AKSCluster, error) {
+	var (
+		clusters []*azure.AKSCluster
+		err      error
+	)
+	if len(a.ResourceGroups) == 1 && a.ResourceGroups[0] == types.Wildcard {
+		clusters, err = a.Client.ListAll(ctx)
+	} else {
+		var errs []error
+		for _, resourceGroup := range a.ResourceGroups {
+			lClusters, lerr := a.Client.ListWithinGroup(ctx, resourceGroup)
+			if lerr != nil {
+				errs = append(errs, trace.Wrap(lerr))
+				continue
+			}
+			clusters = append(clusters, lClusters...)
+		}
+		err = trace.NewAggregate(errs...)
+	}
+	return clusters, trace.Wrap(err)
+}
+
+func (a *aksFetcher) isRegionSupported(region string) bool {
+	return slices.Contains(a.Regions, types.Wildcard) || slices.Contains(a.Regions, region)
+}
+
+func (a *aksFetcher) ResourceType() string {
+	return types.KindKubernetesCluster
+}
+
+func (a *aksFetcher) Cloud() string {
+	return types.CloudAzure
+}
+
+func (a *aksFetcher) String() string {
+	return fmt.Sprintf("aksFetcher(ResourceGroups=%v, Regions=%v, FilterLabels=%v)",
+		a.ResourceGroups, a.Regions, a.FilterLabels)
+}

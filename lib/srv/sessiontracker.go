@@ -21,13 +21,14 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/jonboulle/clockwork"
-
-	"github.com/gravitational/trace"
 )
 
 // SessionTracker is a session tracker for a specific session. It tracks
@@ -71,29 +72,90 @@ func (s *SessionTracker) Close(ctx context.Context) error {
 	return trace.Wrap(err)
 }
 
-const sessionTrackerExpirationUpdateInterval = apidefaults.SessionTrackerTTL / 6
+const sessionTrackerExpirationUpdateInterval = apidefaults.SessionTrackerTTL / 3
 
-// UpdateExpirationLoop extends the session tracker expiration by 1 hour every 10 minutes
-// until the SessionTracker or ctx is closed.
+// UpdateExpirationLoop extends the session tracker expiration by 30 minutes every 10 minutes
+// until the SessionTracker or ctx is closed. If there is a failure to write the updated
+// SessionTracker to the backend, the write is retried with exponential backoff up until the original
+// SessionTracker expiry.
 func (s *SessionTracker) UpdateExpirationLoop(ctx context.Context, clock clockwork.Clock) error {
-	ticker := clock.NewTicker(sessionTrackerExpirationUpdateInterval)
-	defer ticker.Stop()
-	return s.updateExpirationLoop(ctx, ticker)
-}
+	// Use a timer and reset every loop (instead of a ticker) for two reasons:
+	// 1. We always want to wait the full interval after a successful update,
+	//    whether or not a retry was necessary.
+	// 2. It's easier for tests to wait for the timer to be reset, tickers
+	//    always count as a blocker.
+	timer := clock.NewTimer(sessionTrackerExpirationUpdateInterval)
+	defer timer.Stop()
 
-// updateExpirationLoop is used in tests
-func (s *SessionTracker) updateExpirationLoop(ctx context.Context, ticker clockwork.Ticker) error {
 	for {
 		select {
-		case time := <-ticker.Chan():
-			expiry := time.Add(apidefaults.SessionTrackerTTL)
+		case t := <-timer.Chan():
+			expiry := t.Add(apidefaults.SessionTrackerTTL)
 			if err := s.UpdateExpiration(ctx, expiry); err != nil {
-				return trace.Wrap(err)
+				// If the tracker doesn't exist in the backend then
+				// the update loop will never succeed.
+				if trace.IsNotFound(err) {
+					return trace.Wrap(err)
+				}
+
+				if err := s.retryUpdate(ctx, clock); err != nil {
+					return trace.Wrap(err)
+				}
 			}
+			// Tracker was updated, reset the timer to wait another full
+			// update interval and proceed with the update loop.
+			timer.Reset(sessionTrackerExpirationUpdateInterval)
 		case <-ctx.Done():
 			return nil
 		case <-s.closeC:
 			return nil
+		}
+	}
+}
+
+// retryUpdate attempts to periodically retry updating the session tracker
+func (s *SessionTracker) retryUpdate(ctx context.Context, clock clockwork.Clock) error {
+	retry, err := retryutils.NewLinear(retryutils.LinearConfig{
+		Clock:  clock,
+		Max:    3 * time.Minute,
+		First:  time.Minute,
+		Step:   time.Minute,
+		Jitter: retryutils.NewHalfJitter(),
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	originalExpiry := s.tracker.Expiry()
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-s.closeC:
+			return nil
+		case <-retry.After():
+			retry.Inc()
+
+			// try sending another update
+			err := s.UpdateExpiration(ctx, clock.Now().Add(apidefaults.SessionTrackerTTL))
+
+			// update was successful return
+			if err == nil {
+				return nil
+			}
+
+			// the tracker wasn't found which means we were
+			// able to reach the auth server, but the tracker
+			// no longer exists and likely expired
+			if trace.IsNotFound(err) {
+				return trace.Wrap(err)
+			}
+
+			// the tracker has grown stale and retrying
+			// can be aborted
+			if clock.Now().UTC().After(originalExpiry.UTC()) {
+				return trace.Wrap(err)
+			}
 		}
 	}
 }
@@ -145,7 +207,9 @@ func (s *SessionTracker) AddParticipant(ctx context.Context, p *types.Participan
 func (s *SessionTracker) RemoveParticipant(ctx context.Context, participantID string) error {
 	s.trackerCond.L.Lock()
 	defer s.trackerCond.L.Unlock()
-	s.tracker.RemoveParticipant(participantID)
+	if err := s.tracker.RemoveParticipant(participantID); err != nil {
+		return trace.Wrap(err)
+	}
 	s.trackerCond.Broadcast()
 
 	if s.service != nil {

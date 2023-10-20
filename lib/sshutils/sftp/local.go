@@ -19,23 +19,40 @@ package sftp
 import (
 	"context"
 	"io"
+	"io/fs"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/lib/defaults"
 )
 
 // localFS provides API for accessing the files on
 // the local file system
 type localFS struct{}
 
-func (l *localFS) Type() string {
+func (l localFS) Type() string {
 	return "local"
+}
+
+func (l *localFS) Glob(ctx context.Context, pattern string) ([]string, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	matches, err := filepath.Glob(pattern)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return matches, nil
 }
 
 func (l localFS) Stat(ctx context.Context, path string) (os.FileInfo, error) {
 	if err := ctx.Err(); err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
 
 	fi, err := os.Stat(path)
@@ -48,28 +65,36 @@ func (l localFS) Stat(ctx context.Context, path string) (os.FileInfo, error) {
 
 func (l localFS) ReadDir(ctx context.Context, path string) ([]os.FileInfo, error) {
 	if err := ctx.Err(); err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
 
-	// normally os.ReadDir would be used as it's potentially more efficient,
-	// but because we want os.FileInfos of every file this is easier
-	f, err := os.Open(path)
+	entries, err := os.ReadDir(path)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	defer f.Close()
+	fileInfos := make([]fs.FileInfo, len(entries))
+	for i, entry := range entries {
+		info, err := entry.Info()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		// if the file is a symlink, return the info of the linked file
+		if info.Mode().Type()&os.ModeSymlink != 0 {
+			info, err = os.Stat(filepath.Join(path, info.Name()))
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+		}
 
-	fileInfos, err := f.Readdir(-1)
-	if err != nil {
-		return nil, trace.Wrap(err)
+		fileInfos[i] = info
 	}
 
 	return fileInfos, nil
 }
 
-func (l localFS) Open(ctx context.Context, path string) (io.ReadCloser, error) {
+func (l localFS) Open(ctx context.Context, path string) (fs.File, error) {
 	if err := ctx.Err(); err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
 
 	f, err := os.Open(path)
@@ -77,15 +102,15 @@ func (l localFS) Open(ctx context.Context, path string) (io.ReadCloser, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	return f, nil
+	return &fileWrapper{file: f}, nil
 }
 
-func (l localFS) Create(ctx context.Context, path string, mode os.FileMode) (io.WriteCloser, error) {
+func (l localFS) Create(ctx context.Context, path string, _ int64) (io.WriteCloser, error) {
 	if err := ctx.Err(); err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
 
-	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, mode)
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, defaults.FilePermissions)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -93,12 +118,12 @@ func (l localFS) Create(ctx context.Context, path string, mode os.FileMode) (io.
 	return f, nil
 }
 
-func (l localFS) Mkdir(ctx context.Context, path string, mode os.FileMode) error {
+func (l localFS) Mkdir(ctx context.Context, path string) error {
 	if err := ctx.Err(); err != nil {
-		return err
+		return trace.Wrap(err)
 	}
 
-	err := os.MkdirAll(path, mode)
+	err := os.MkdirAll(path, defaults.DirectoryPermissions)
 	if err != nil && !os.IsExist(err) {
 		return trace.ConvertSystemError(err)
 	}
@@ -108,7 +133,7 @@ func (l localFS) Mkdir(ctx context.Context, path string, mode os.FileMode) error
 
 func (l localFS) Chmod(ctx context.Context, path string, mode os.FileMode) error {
 	if err := ctx.Err(); err != nil {
-		return err
+		return trace.Wrap(err)
 	}
 
 	return trace.Wrap(os.Chmod(path, mode))
@@ -116,7 +141,7 @@ func (l localFS) Chmod(ctx context.Context, path string, mode os.FileMode) error
 
 func (l localFS) Chtimes(ctx context.Context, path string, atime, mtime time.Time) error {
 	if err := ctx.Err(); err != nil {
-		return err
+		return trace.Wrap(err)
 	}
 
 	return trace.ConvertSystemError(os.Chtimes(path, atime, mtime))

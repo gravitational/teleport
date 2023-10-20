@@ -12,9 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::errors::{invalid_data_error, NTSTATUS_OK, SPECIAL_NO_RESPONSE};
-use crate::Payload;
+use crate::errors::{invalid_data_error, not_implemented_error};
+use crate::rdpdr::consts::NTSTATUS;
 use crate::{piv, Message};
+use crate::{Encode, Payload};
 use bitflags::bitflags;
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use iso7816::command::Command as CardCommand;
@@ -25,7 +26,10 @@ use std::char::{decode_utf16, REPLACEMENT_CHARACTER};
 use std::collections::HashMap;
 use std::convert::TryInto;
 use std::io::{Read, Write};
+use std::vec;
 use uuid::Uuid;
+
+use super::{DeviceControlRequest, DeviceControlResponse};
 
 // Client implements the smartcard emulator, forwarded over an RDP virtual channel.
 // Spec: https://winprotocoldoc.blob.core.windows.net/productionwindowsarchives/MS-RDPESC/%5bMS-RDPESC%5d.pdf
@@ -55,8 +59,12 @@ impl Client {
     }
 
     // ioctl handles messages coming from the RDP server over the RDPDR channel.
-    pub fn ioctl(&mut self, code: IoctlCode, input: &mut Payload) -> RdpResult<(u32, Vec<u8>)> {
-        debug!("got IoctlCode {:?}", &code);
+    pub(super) fn ioctl(
+        &mut self,
+        ioctl: &DeviceControlRequest,
+        input: &mut Payload,
+    ) -> RdpResult<Vec<DeviceControlResponse>> {
+        debug!("got IoctlCode {:?}", &ioctl.io_control_code);
         // Note: this is an incomplete implementation of the scard API.
         // It's the bare minimum needed to make RDP authentication using a smartcard work.
         //
@@ -64,117 +72,215 @@ impl Client {
         // fail, but most modern Windows hosts shouldn't call those. If you're reading this because
         // some SCARD_IOCTL_*A call is failing, I was wrong and you'll have to implement the Ascii
         // calls.
-        let resp = match code {
-            IoctlCode::SCARD_IOCTL_ACCESSSTARTEDEVENT => self.handle_access_started_event(input),
-            IoctlCode::SCARD_IOCTL_ESTABLISHCONTEXT => self.handle_establish_context(input),
-            IoctlCode::SCARD_IOCTL_RELEASECONTEXT => self.handle_release_context(input),
-            IoctlCode::SCARD_IOCTL_CANCEL => self.handle_cancel(input),
-            IoctlCode::SCARD_IOCTL_ISVALIDCONTEXT => self.handle_is_valid_context(input),
-            IoctlCode::SCARD_IOCTL_LISTREADERSW => self.handle_list_readers(input),
-            IoctlCode::SCARD_IOCTL_GETSTATUSCHANGEW => self.handle_get_status_change(input),
-            IoctlCode::SCARD_IOCTL_CONNECTW => self.handle_connect(input),
-            IoctlCode::SCARD_IOCTL_DISCONNECT => self.handle_disconnect(input),
-            IoctlCode::SCARD_IOCTL_BEGINTRANSACTION => self.handle_begin_transaction(input),
-            IoctlCode::SCARD_IOCTL_ENDTRANSACTION => self.handle_end_transaction(input),
-            IoctlCode::SCARD_IOCTL_STATUSA => self.handle_status(input, StringEncoding::Ascii),
-            IoctlCode::SCARD_IOCTL_STATUSW => self.handle_status(input, StringEncoding::Unicode),
+        match ioctl.io_control_code {
+            IoctlCode::SCARD_IOCTL_ACCESSSTARTEDEVENT => {
+                self.handle_access_started_event(ioctl, input)
+            }
+            IoctlCode::SCARD_IOCTL_ESTABLISHCONTEXT => self.handle_establish_context(ioctl, input),
+            IoctlCode::SCARD_IOCTL_RELEASECONTEXT => self.handle_release_context(ioctl, input),
+            IoctlCode::SCARD_IOCTL_CANCEL => self.handle_cancel(ioctl, input),
+            IoctlCode::SCARD_IOCTL_ISVALIDCONTEXT => self.handle_is_valid_context(ioctl, input),
+            IoctlCode::SCARD_IOCTL_LISTREADERSW => self.handle_list_readers(ioctl, input),
+            IoctlCode::SCARD_IOCTL_GETSTATUSCHANGEW => self.handle_get_status_change(ioctl, input),
+            IoctlCode::SCARD_IOCTL_CONNECTW => self.handle_connect(ioctl, input),
+            IoctlCode::SCARD_IOCTL_DISCONNECT => self.handle_disconnect(ioctl, input),
+            IoctlCode::SCARD_IOCTL_BEGINTRANSACTION => self.handle_begin_transaction(ioctl, input),
+            IoctlCode::SCARD_IOCTL_ENDTRANSACTION => self.handle_end_transaction(ioctl, input),
+            IoctlCode::SCARD_IOCTL_STATUSA => {
+                self.handle_status(ioctl, input, StringEncoding::Ascii)
+            }
+            IoctlCode::SCARD_IOCTL_STATUSW => {
+                self.handle_status(ioctl, input, StringEncoding::Unicode)
+            }
             // Transmit is where communication with the actual smartcard (and the PIV application
             // on it) happens. All other messages are managing the smartcard reader and
             // establishing a connection to the smartcard.
-            IoctlCode::SCARD_IOCTL_TRANSMIT => self.handle_transmit(input),
-            IoctlCode::SCARD_IOCTL_GETDEVICETYPEID => self.handle_get_device_type_id(input),
+            IoctlCode::SCARD_IOCTL_TRANSMIT => self.handle_transmit(ioctl, input),
+            IoctlCode::SCARD_IOCTL_GETDEVICETYPEID => self.handle_get_device_type_id(ioctl, input),
             // Note: we keep an in-memory hashmap as a cache to implement these commands. Windows
             // doesn't seem to like a smartcard without a functioning cache.
-            IoctlCode::SCARD_IOCTL_READCACHEW => self.handle_read_cache(input),
-            IoctlCode::SCARD_IOCTL_WRITECACHEW => self.handle_write_cache(input),
-            IoctlCode::SCARD_IOCTL_GETREADERICON => self.handle_get_reader_icon(input),
-            _ => {
-                warn!("unimplemented IOCTL: {:?}", code);
-                let resp = Long_Return::new(ReturnCode::SCARD_F_INTERNAL_ERROR);
-                debug!("sending {:?}", resp);
-                Ok(Some(resp.encode()?))
-            }
-        }?;
-
-        if let Some(resp) = resp {
-            Ok((NTSTATUS_OK, encode_response(resp)?))
-        } else {
-            Ok((SPECIAL_NO_RESPONSE, vec![]))
+            IoctlCode::SCARD_IOCTL_READCACHEW => self.handle_read_cache(ioctl, input),
+            IoctlCode::SCARD_IOCTL_WRITECACHEW => self.handle_write_cache(ioctl, input),
+            IoctlCode::SCARD_IOCTL_GETREADERICON => self.handle_get_reader_icon(ioctl, input),
+            _ => self.handle_unimplemented_ioctl(ioctl, ioctl.io_control_code),
         }
     }
 
-    fn handle_access_started_event(&self, input: &mut Payload) -> RdpResult<Option<Vec<u8>>> {
+    fn handle_access_started_event(
+        &self,
+        ioctl: &DeviceControlRequest,
+        input: &mut Payload,
+    ) -> RdpResult<Vec<DeviceControlResponse>> {
         let req = ScardAccessStartedEvent_Call::decode(input)?;
         debug!("got {:?}", req);
         let resp = Long_Return::new(ReturnCode::SCARD_S_SUCCESS);
         debug!("sending {:?}", resp);
-        Ok(Some(resp.encode()?))
+        Ok(vec![DeviceControlResponse::new(
+            ioctl,
+            NTSTATUS::STATUS_SUCCESS,
+            Box::new(resp),
+        )])
     }
 
-    fn handle_establish_context(&mut self, input: &mut Payload) -> RdpResult<Option<Vec<u8>>> {
+    fn handle_establish_context(
+        &mut self,
+        ioctl: &DeviceControlRequest,
+        input: &mut Payload,
+    ) -> RdpResult<Vec<DeviceControlResponse>> {
         let req = EstablishContext_Call::decode(input)?;
         debug!("got {:?}", req);
         let ctx = self.contexts.establish();
         let resp = EstablishContext_Return::new(ReturnCode::SCARD_S_SUCCESS, ctx);
         debug!("sending {:?}", resp);
-        Ok(Some(resp.encode()?))
+        Ok(vec![DeviceControlResponse::new(
+            ioctl,
+            NTSTATUS::STATUS_SUCCESS,
+            Box::new(resp),
+        )])
     }
 
-    fn handle_release_context(&mut self, input: &mut Payload) -> RdpResult<Option<Vec<u8>>> {
+    fn handle_release_context(
+        &mut self,
+        ioctl: &DeviceControlRequest,
+        input: &mut Payload,
+    ) -> RdpResult<Vec<DeviceControlResponse>> {
         let req = Context_Call::decode(input)?;
         debug!("got {:?}", req);
         self.contexts.release(req.context.value);
         let resp = Long_Return::new(ReturnCode::SCARD_S_SUCCESS);
         debug!("sending {:?}", resp);
-        Ok(Some(resp.encode()?))
+        Ok(vec![DeviceControlResponse::new(
+            ioctl,
+            NTSTATUS::STATUS_SUCCESS,
+            Box::new(resp),
+        )])
     }
 
-    fn handle_cancel(&self, input: &mut Payload) -> RdpResult<Option<Vec<u8>>> {
+    fn handle_cancel(
+        &mut self,
+        ioctl: &DeviceControlRequest,
+        input: &mut Payload,
+    ) -> RdpResult<Vec<DeviceControlResponse>> {
+        let mut responses = vec![];
+        let req = Context_Call::decode(input)?;
+        debug!("got {:?}", req);
+
+        // Fetch the pending SCARD_IOCTL_GETSTATUSCHANGEW response and add it to the responses.
+        if let Some(dcr) = self
+            .contexts
+            .get(req.context.value)?
+            .scard_cancel_response
+            .take()
+        {
+            responses.push(dcr);
+        } else {
+            warn!("Received SCARD_IOCTL_CANCEL for a context without a pending SCARD_IOCTL_GETSTATUSCHANGEW.")
+        }
+
+        // Also add the response to the SCARD_IOCTL_CANCEL request.
+        responses.push(DeviceControlResponse::new(
+            ioctl,
+            NTSTATUS::STATUS_SUCCESS,
+            Box::new(Long_Return::new(ReturnCode::SCARD_S_SUCCESS)),
+        ));
+        debug!("sending {:?}", responses);
+        Ok(responses)
+    }
+
+    fn handle_is_valid_context(
+        &self,
+        ioctl: &DeviceControlRequest,
+        input: &mut Payload,
+    ) -> RdpResult<Vec<DeviceControlResponse>> {
         let req = Context_Call::decode(input)?;
         debug!("got {:?}", req);
         let resp = Long_Return::new(ReturnCode::SCARD_S_SUCCESS);
         debug!("sending {:?}", resp);
-        Ok(Some(resp.encode()?))
+        Ok(vec![DeviceControlResponse::new(
+            ioctl,
+            NTSTATUS::STATUS_SUCCESS,
+            Box::new(resp),
+        )])
     }
 
-    fn handle_is_valid_context(&self, input: &mut Payload) -> RdpResult<Option<Vec<u8>>> {
-        let req = Context_Call::decode(input)?;
-        debug!("got {:?}", req);
-        let resp = Long_Return::new(ReturnCode::SCARD_S_SUCCESS);
-        debug!("sending {:?}", resp);
-        Ok(Some(resp.encode()?))
-    }
-
-    fn handle_list_readers(&self, input: &mut Payload) -> RdpResult<Option<Vec<u8>>> {
+    fn handle_list_readers(
+        &self,
+        ioctl: &DeviceControlRequest,
+        input: &mut Payload,
+    ) -> RdpResult<Vec<DeviceControlResponse>> {
         let req = ListReaders_Call::decode(input)?;
         debug!("got {:?}", req);
         let resp =
             ListReaders_Return::new(ReturnCode::SCARD_S_SUCCESS, vec!["Teleport".to_string()]);
         debug!("sending {:?}", resp);
-        Ok(Some(resp.encode()?))
+        Ok(vec![DeviceControlResponse::new(
+            ioctl,
+            NTSTATUS::STATUS_SUCCESS,
+            Box::new(resp),
+        )])
     }
 
-    fn handle_get_status_change(&self, input: &mut Payload) -> RdpResult<Option<Vec<u8>>> {
+    fn handle_get_status_change(
+        &mut self,
+        ioctl: &DeviceControlRequest,
+        input: &mut Payload,
+    ) -> RdpResult<Vec<DeviceControlResponse>> {
         let req = GetStatusChange_Call::decode(input)?;
+        let timeout = req.timeout;
+        let context_value = req.context.value;
         debug!("got {:?}", req);
-        let resp = GetStatusChange_Return::new(ReturnCode::SCARD_S_SUCCESS, req);
+
+        if timeout != TIMEOUT_INFINITE && timeout != TIMEOUT_IMMEDIATE {
+            // We've never seen one of these but we log a warning here in case we ever come
+            // across one and need to debug a related issue.
+            warn!(
+                "logic for a non-infinite/non-immediate timeout [{}] is not implemented",
+                timeout
+            );
+        }
+
+        let mut resp = GetStatusChange_Return::new(ReturnCode::SCARD_S_SUCCESS, req);
         if resp.no_change() {
-            debug!("blocking GetStatusChange call indefinitely, no response since our status will never change");
-            Ok(None)
+            if timeout != TIMEOUT_INFINITE {
+                return Err(not_implemented_error(&format!(
+                    "no change for non-infinite timeout [{}] is not implemented",
+                    timeout
+                )));
+            }
+
+            // Received a GetStatusChange_Call with an infinite timeout, so we're adding
+            // a corresponding DeviceControlResponse request holding a GetStatusChange_Return
+            // with its return code set to SCARD_E_CANCELLED to this Context. This value will
+            // be returned when we get an SCARD_IOCTL_CANCEL call for this Context.
+            resp.set_return_code(ReturnCode::SCARD_E_CANCELLED);
+            self.contexts
+                .get(context_value)?
+                .set_scard_cancel_response(DeviceControlResponse::new(
+                    ioctl,
+                    NTSTATUS::STATUS_SUCCESS,
+                    Box::new(resp),
+                ))?;
+            debug!("blocking GetStatusChange call indefinitely (since our status never changes) until we receive an SCARD_IOCTL_CANCEL");
+            Ok(vec![])
         } else {
             debug!("sending {:?}", resp);
-            Ok(Some(resp.encode()?))
+            Ok(vec![DeviceControlResponse::new(
+                ioctl,
+                NTSTATUS::STATUS_SUCCESS,
+                Box::new(resp),
+            )])
         }
     }
 
-    fn handle_connect(&mut self, input: &mut Payload) -> RdpResult<Option<Vec<u8>>> {
+    fn handle_connect(
+        &mut self,
+        ioctl: &DeviceControlRequest,
+        input: &mut Payload,
+    ) -> RdpResult<Vec<DeviceControlResponse>> {
         let req = Connect_Call::decode(input)?;
         debug!("got {:?}", req);
 
-        let ctx = self
-            .contexts
-            .get(req.common.context.value)
-            .ok_or_else(|| invalid_data_error("unknown context ID"))?;
+        let ctx = self.contexts.get(req.common.context.value)?;
         let handle = ctx.connect(
             req.common.context,
             self.uuid,
@@ -185,44 +291,72 @@ impl Client {
 
         let resp = Connect_Return::new(ReturnCode::SCARD_S_SUCCESS, handle);
         debug!("sending {:?}", resp);
-        Ok(Some(resp.encode()?))
+        Ok(vec![DeviceControlResponse::new(
+            ioctl,
+            NTSTATUS::STATUS_SUCCESS,
+            Box::new(resp),
+        )])
     }
 
-    fn handle_disconnect(&mut self, input: &mut Payload) -> RdpResult<Option<Vec<u8>>> {
+    fn handle_disconnect(
+        &mut self,
+        ioctl: &DeviceControlRequest,
+        input: &mut Payload,
+    ) -> RdpResult<Vec<DeviceControlResponse>> {
         let req = HCardAndDisposition_Call::decode(input)?;
         debug!("got {:?}", req);
 
         self.contexts
-            .get(req.handle.context.value)
-            .ok_or_else(|| invalid_data_error("unknown context ID"))?
+            .get(req.handle.context.value)?
             .disconnect(req.handle.value);
 
         let resp = Long_Return::new(ReturnCode::SCARD_S_SUCCESS);
         debug!("sending {:?}", resp);
-        Ok(Some(resp.encode()?))
+        Ok(vec![DeviceControlResponse::new(
+            ioctl,
+            NTSTATUS::STATUS_SUCCESS,
+            Box::new(resp),
+        )])
     }
 
-    fn handle_begin_transaction(&self, input: &mut Payload) -> RdpResult<Option<Vec<u8>>> {
+    fn handle_begin_transaction(
+        &self,
+        ioctl: &DeviceControlRequest,
+        input: &mut Payload,
+    ) -> RdpResult<Vec<DeviceControlResponse>> {
         let req = HCardAndDisposition_Call::decode(input)?;
         debug!("got {:?}", req);
         let resp = Long_Return::new(ReturnCode::SCARD_S_SUCCESS);
         debug!("sending {:?}", resp);
-        Ok(Some(resp.encode()?))
+        Ok(vec![DeviceControlResponse::new(
+            ioctl,
+            NTSTATUS::STATUS_SUCCESS,
+            Box::new(resp),
+        )])
     }
 
-    fn handle_end_transaction(&self, input: &mut Payload) -> RdpResult<Option<Vec<u8>>> {
+    fn handle_end_transaction(
+        &self,
+        ioctl: &DeviceControlRequest,
+        input: &mut Payload,
+    ) -> RdpResult<Vec<DeviceControlResponse>> {
         let req = HCardAndDisposition_Call::decode(input)?;
         debug!("got {:?}", req);
         let resp = Long_Return::new(ReturnCode::SCARD_S_SUCCESS);
         debug!("sending {:?}", resp);
-        Ok(Some(resp.encode()?))
+        Ok(vec![DeviceControlResponse::new(
+            ioctl,
+            NTSTATUS::STATUS_SUCCESS,
+            Box::new(resp),
+        )])
     }
 
     fn handle_status(
         &self,
+        ioctl: &DeviceControlRequest,
         input: &mut Payload,
         enc: StringEncoding,
-    ) -> RdpResult<Option<Vec<u8>>> {
+    ) -> RdpResult<Vec<DeviceControlResponse>> {
         let req = Status_Call::decode(input)?;
         debug!("got {:?}", req);
         let resp = Status_Return::new(
@@ -231,10 +365,18 @@ impl Client {
             enc,
         );
         debug!("sending {:?}", resp);
-        Ok(Some(resp.encode()?))
+        Ok(vec![DeviceControlResponse::new(
+            ioctl,
+            NTSTATUS::STATUS_SUCCESS,
+            Box::new(resp),
+        )])
     }
 
-    fn handle_transmit(&mut self, input: &mut Payload) -> RdpResult<Option<Vec<u8>>> {
+    fn handle_transmit(
+        &mut self,
+        ioctl: &DeviceControlRequest,
+        input: &mut Payload,
+    ) -> RdpResult<Vec<DeviceControlResponse>> {
         let req = Transmit_Call::decode(input)?;
         debug!("got {:?}", req);
 
@@ -250,8 +392,7 @@ impl Client {
 
         let card = self
             .contexts
-            .get(req.handle.context.value)
-            .ok_or_else(|| invalid_data_error("unknown context ID"))?
+            .get(req.handle.context.value)?
             .get(req.handle.value)
             .ok_or_else(|| invalid_data_error("unknown handle ID"))?;
 
@@ -259,64 +400,107 @@ impl Client {
 
         let resp = Transmit_Return::new(ReturnCode::SCARD_S_SUCCESS, resp.encode());
         debug!("sending {:?}", resp);
-        Ok(Some(resp.encode()?))
+        Ok(vec![DeviceControlResponse::new(
+            ioctl,
+            NTSTATUS::STATUS_SUCCESS,
+            Box::new(resp),
+        )])
     }
 
-    fn handle_get_device_type_id(&mut self, input: &mut Payload) -> RdpResult<Option<Vec<u8>>> {
+    fn handle_get_device_type_id(
+        &mut self,
+        ioctl: &DeviceControlRequest,
+        input: &mut Payload,
+    ) -> RdpResult<Vec<DeviceControlResponse>> {
         let req = GetDeviceTypeId_Call::decode(input)?;
         debug!("got {:?}", req);
 
-        let _ctx = self
-            .contexts
-            .get(req.context.value)
-            .ok_or_else(|| invalid_data_error("unknown context ID"))?;
+        let _ctx = self.contexts.get(req.context.value)?;
 
         let resp = GetDeviceTypeId_Return::new(ReturnCode::SCARD_S_SUCCESS);
         debug!("sending {:?}", resp);
-        Ok(Some(resp.encode()?))
+        Ok(vec![DeviceControlResponse::new(
+            ioctl,
+            NTSTATUS::STATUS_SUCCESS,
+            Box::new(resp),
+        )])
     }
 
-    fn handle_read_cache(&mut self, input: &mut Payload) -> RdpResult<Option<Vec<u8>>> {
+    fn handle_read_cache(
+        &mut self,
+        ioctl: &DeviceControlRequest,
+        input: &mut Payload,
+    ) -> RdpResult<Vec<DeviceControlResponse>> {
         let req = ReadCache_Call::decode(input)?;
         debug!("got {:?}", req);
 
         let val = self
             .contexts
-            .get(req.common.context.value)
-            .ok_or_else(|| invalid_data_error("unknown context ID"))?
+            .get(req.common.context.value)?
             .cache_read(&req.lookup_name);
 
         let resp = ReadCache_Return::new(val);
         debug!("sending {:?}", resp);
-        Ok(Some(resp.encode()?))
+        Ok(vec![DeviceControlResponse::new(
+            ioctl,
+            NTSTATUS::STATUS_SUCCESS,
+            Box::new(resp),
+        )])
     }
 
-    fn handle_write_cache(&mut self, input: &mut Payload) -> RdpResult<Option<Vec<u8>>> {
+    fn handle_write_cache(
+        &mut self,
+        ioctl: &DeviceControlRequest,
+        input: &mut Payload,
+    ) -> RdpResult<Vec<DeviceControlResponse>> {
         let req = WriteCache_Call::decode(input)?;
         debug!("got {:?}", req);
 
         self.contexts
-            .get(req.common.context.value)
-            .ok_or_else(|| invalid_data_error("unknown context ID"))?
+            .get(req.common.context.value)?
             .cache_write(req.lookup_name, req.common.data);
 
         let resp = Long_Return::new(ReturnCode::SCARD_S_SUCCESS);
         debug!("sending {:?}", resp);
-        Ok(Some(resp.encode()?))
+        Ok(vec![DeviceControlResponse::new(
+            ioctl,
+            NTSTATUS::STATUS_SUCCESS,
+            Box::new(resp),
+        )])
     }
 
-    fn handle_get_reader_icon(&mut self, input: &mut Payload) -> RdpResult<Option<Vec<u8>>> {
+    fn handle_get_reader_icon(
+        &mut self,
+        ioctl: &DeviceControlRequest,
+        input: &mut Payload,
+    ) -> RdpResult<Vec<DeviceControlResponse>> {
         let req = GetReaderIcon_Call::decode(input)?;
         debug!("got {:?}", req);
 
-        let _ctx = self
-            .contexts
-            .get(req.context.value)
-            .ok_or_else(|| invalid_data_error("unknown context ID"))?;
+        let _ctx = self.contexts.get(req.context.value)?;
 
         let resp = GetReaderIcon_Return::new(ReturnCode::SCARD_E_UNSUPPORTED_FEATURE);
         debug!("sending {:?}", resp);
-        Ok(Some(resp.encode()?))
+        Ok(vec![DeviceControlResponse::new(
+            ioctl,
+            NTSTATUS::STATUS_SUCCESS,
+            Box::new(resp),
+        )])
+    }
+
+    fn handle_unimplemented_ioctl(
+        &self,
+        ioctl: &DeviceControlRequest,
+        code: IoctlCode,
+    ) -> RdpResult<Vec<DeviceControlResponse>> {
+        warn!("unimplemented IOCTL: {:?}", code);
+        let resp = Long_Return::new(ReturnCode::SCARD_F_INTERNAL_ERROR);
+        debug!("sending {:?}", resp);
+        Ok(vec![DeviceControlResponse::new(
+            ioctl,
+            NTSTATUS::STATUS_SUCCESS,
+            Box::new(resp),
+        )])
     }
 }
 
@@ -464,7 +648,7 @@ impl RPCEStreamHeader {
     }
 }
 
-fn encode_response(resp: Vec<u8>) -> RdpResult<Vec<u8>> {
+fn pad_and_add_headers(resp: Vec<u8>) -> RdpResult<Vec<u8>> {
     let mut resp = resp;
     // Pad response to be 8-byte aligned.
     let tail = resp.length() % 8;
@@ -524,6 +708,17 @@ impl ScardAccessStartedEvent_Call {
         })
     }
 }
+
+impl Encode for ScardAccessStartedEvent_Call {
+    fn encode(&self) -> RdpResult<Message> {
+        let mut w = vec![];
+        w.write_u32::<LittleEndian>(self._unused)?;
+        Ok(w)
+    }
+}
+
+const TIMEOUT_INFINITE: u32 = 0xffffffff;
+const TIMEOUT_IMMEDIATE: u32 = 0;
 
 #[derive(Debug, FromPrimitive, ToPrimitive)]
 #[allow(non_camel_case_types)]
@@ -608,10 +803,13 @@ impl Long_Return {
     fn new(return_code: ReturnCode) -> Self {
         Self { return_code }
     }
+}
+
+impl Encode for Long_Return {
     fn encode(&self) -> RdpResult<Message> {
         let mut w = vec![];
         w.write_u32::<LittleEndian>(self.return_code.to_u32().unwrap())?;
-        Ok(w)
+        pad_and_add_headers(w)
     }
 }
 
@@ -628,9 +826,19 @@ impl EstablishContext_Call {
         let scope = payload.read_u32::<LittleEndian>()?;
         Ok(Self {
             scope: Scope::from_u32(scope).ok_or_else(|| {
-                invalid_data_error(&format!("invalid smart card scope {:?}", scope))
+                invalid_data_error(&format!("invalid smart card scope {scope:?}"))
             })?,
         })
+    }
+}
+
+impl Encode for EstablishContext_Call {
+    fn encode(&self) -> RdpResult<Message> {
+        let mut w = vec![];
+        w.extend(RPCEStreamHeader::new().encode()?);
+        RPCETypeHeader::new(0).encode(&mut w)?;
+        w.write_u32::<LittleEndian>(self.scope as u32)?;
+        Ok(w)
     }
 }
 
@@ -656,13 +864,16 @@ impl EstablishContext_Return {
             context,
         }
     }
+}
+
+impl Encode for EstablishContext_Return {
     fn encode(&self) -> RdpResult<Message> {
         let mut w = vec![];
         w.write_u32::<LittleEndian>(self.return_code.to_u32().unwrap())?;
         let mut index = 0;
         self.context.encode_ptr(&mut index, &mut w)?;
         self.context.encode_value(&mut w)?;
-        Ok(w)
+        pad_and_add_headers(w)
     }
 }
 
@@ -728,8 +939,7 @@ fn decode_ptr(payload: &mut Payload, index: &mut u32) -> RdpResult<u32> {
     *index += 1;
     if ptr != expect_ptr {
         Err(invalid_data_error(&format!(
-            "invalid NDR pointer value {:#010X}, expected {:#010X}",
-            ptr, expect_ptr
+            "invalid NDR pointer value {ptr:#010X}, expected {expect_ptr:#010X}"
         )))
     } else {
         Ok(ptr)
@@ -792,6 +1002,29 @@ impl ListReaders_Call {
     }
 }
 
+impl Encode for ListReaders_Call {
+    fn encode(&self) -> RdpResult<Message> {
+        let mut w = vec![];
+
+        w.extend(RPCEStreamHeader::new().encode()?);
+        RPCETypeHeader::new(0).encode(&mut w)?;
+
+        let mut index = 0;
+        self.context.encode_ptr(&mut index, &mut w)?;
+        encode_ptr(Some(self.groups_ptr_length), &mut index, &mut w)?; // takes care of encoding groups_ptr
+        let readers_is_null = u32::from(self.readers_is_null);
+        w.write_u32::<LittleEndian>(readers_is_null)?;
+        w.write_u32::<LittleEndian>(self.readers_size)?;
+
+        self.context.encode_value(&mut w)?;
+
+        w.write_u32::<LittleEndian>(self.groups_length)?;
+        w.extend(encode_multistring_unicode(&self.groups)?);
+
+        Ok(w)
+    }
+}
+
 #[derive(Debug)]
 #[allow(non_camel_case_types)]
 struct ListReaders_Return {
@@ -806,6 +1039,9 @@ impl ListReaders_Return {
             readers,
         }
     }
+}
+
+impl Encode for ListReaders_Return {
     fn encode(&self) -> RdpResult<Message> {
         let mut w = vec![];
         w.write_u32::<LittleEndian>(self.return_code.to_u32().unwrap())?;
@@ -816,7 +1052,7 @@ impl ListReaders_Return {
         w.write_u32::<LittleEndian>(readers.length() as u32)?;
         w.extend_from_slice(&readers);
 
-        Ok(w)
+        pad_and_add_headers(w)
     }
 }
 
@@ -873,6 +1109,29 @@ fn decode_string_unicode(payload: &mut Payload) -> RdpResult<String> {
     Ok(s)
 }
 
+fn encode_str_unicode(s: &str) -> RdpResult<Vec<u8>> {
+    let mut buf = vec![];
+
+    // It's not exactly clear what the purpose of these length/offset fields are,
+    // but they're expected for single unicode strings.
+    let len = s.len() as u32 + 1; // +1 for the null terminator.
+    buf.write_u32::<LittleEndian>(len)?;
+    buf.write_u32::<LittleEndian>(0)?;
+    buf.write_u32::<LittleEndian>(len)?;
+
+    for c in s.encode_utf16() {
+        buf.write_u16::<LittleEndian>(c)?;
+    }
+    buf.write_u16::<LittleEndian>(0)?;
+
+    if (len - 1) % 2 == 0 {
+        // Add extra padding for a 4-byte aligned NULL-terminated string.
+        buf.write_u16::<LittleEndian>(0)?;
+    }
+
+    Ok(buf)
+}
+
 fn encode_multistring_unicode(items: &[String]) -> RdpResult<Vec<u8>> {
     let mut buf = vec![];
     for s in items.iter() {
@@ -911,6 +1170,21 @@ impl Context_Call {
         let mut context = Context::decode_ptr(payload, &mut index)?;
         context.decode_value(payload)?;
         Ok(Self { context })
+    }
+}
+
+impl Encode for Context_Call {
+    fn encode(&self) -> RdpResult<Message> {
+        let mut w = vec![];
+
+        w.extend(RPCEStreamHeader::new().encode()?);
+        RPCETypeHeader::new(0).encode(&mut w)?;
+
+        let mut index = 0;
+        self.context.encode_ptr(&mut index, &mut w)?;
+        self.context.encode_value(&mut w)?;
+
+        Ok(w)
     }
 }
 
@@ -959,6 +1233,33 @@ impl GetStatusChange_Call {
     }
 }
 
+impl Encode for GetStatusChange_Call {
+    fn encode(&self) -> RdpResult<Message> {
+        let mut w = vec![];
+
+        w.extend(RPCEStreamHeader::new().encode()?);
+        RPCETypeHeader::new(0).encode(&mut w)?;
+
+        let mut index = 0;
+        self.context.encode_ptr(&mut index, &mut w)?;
+
+        w.write_u32::<LittleEndian>(self.timeout)?;
+        encode_ptr(Some(self.states_ptr_length), &mut index, &mut w)?; // takes care of encoding states_ptr
+
+        self.context.encode_value(&mut w)?;
+
+        w.write_u32::<LittleEndian>(self.states_length)?;
+        for state in &self.states {
+            state.encode_ptr(&mut index, &mut w)?;
+        }
+        for state in &self.states {
+            state.encode_value(&mut w)?;
+        }
+
+        Ok(w)
+    }
+}
+
 #[derive(Debug)]
 struct ReaderState {
     reader: String,
@@ -979,6 +1280,17 @@ impl ReaderState {
         self.reader = decode_string_unicode(payload)?;
         Ok(())
     }
+
+    fn encode_ptr(&self, index: &mut u32, w: &mut Vec<u8>) -> RdpResult<()> {
+        encode_ptr(None, index, w)?;
+        self.common.encode(w)?;
+        Ok(())
+    }
+
+    fn encode_value(&self, w: &mut Vec<u8>) -> RdpResult<()> {
+        w.extend(encode_str_unicode(&self.reader)?);
+        Ok(())
+    }
 }
 
 #[derive(Debug)]
@@ -995,8 +1307,7 @@ impl ReaderState_Common_Call {
         let current_state = CardStateFlags::from_bits_truncate(payload.read_u32::<LittleEndian>()?);
         let event_state = CardStateFlags::from_bits_truncate(payload.read_u32::<LittleEndian>()?);
         let atr_length = payload.read_u32::<LittleEndian>()?;
-        let mut atr = vec![];
-        atr.resize(36, 0);
+        let mut atr = vec![0; 36];
         payload.read_exact(&mut atr)?;
         Ok(Self {
             current_state,
@@ -1016,6 +1327,7 @@ impl ReaderState_Common_Call {
 }
 
 bitflags! {
+    #[derive(Debug, PartialEq, Clone, Copy)]
     struct CardStateFlags: u32 {
         const SCARD_STATE_UNAWARE = 0x0000;
         const SCARD_STATE_IGNORE = 0x0001;
@@ -1103,6 +1415,22 @@ impl GetStatusChange_Return {
             reader_states,
         }
     }
+
+    fn set_return_code(&mut self, return_code: ReturnCode) {
+        self.return_code = return_code;
+    }
+
+    fn no_change(&self) -> bool {
+        for state in &self.reader_states {
+            if state.current_state != state.event_state {
+                return false;
+            }
+        }
+        true
+    }
+}
+
+impl Encode for GetStatusChange_Return {
     fn encode(&self) -> RdpResult<Message> {
         let mut w = vec![];
         w.write_u32::<LittleEndian>(self.return_code.to_u32().unwrap())?;
@@ -1114,16 +1442,7 @@ impl GetStatusChange_Return {
             state.encode(&mut w)?;
         }
 
-        Ok(w)
-    }
-
-    fn no_change(&self) -> bool {
-        for state in &self.reader_states {
-            if state.current_state != state.event_state {
-                return false;
-            }
-        }
-        true
+        pad_and_add_headers(w)
     }
 }
 
@@ -1148,7 +1467,25 @@ impl Connect_Call {
     }
 }
 
+impl Encode for Connect_Call {
+    fn encode(&self) -> RdpResult<Message> {
+        let mut w = vec![];
+
+        w.extend(RPCEStreamHeader::new().encode()?);
+        RPCETypeHeader::new(0).encode(&mut w)?;
+
+        let mut index = 0;
+        encode_ptr(None, &mut index, &mut w)?;
+        self.common.encode_ptr(&mut index, &mut w)?;
+        w.extend(encode_str_unicode(&self.reader)?);
+        self.common.encode_value(&mut w)?;
+
+        Ok(w)
+    }
+}
+
 bitflags! {
+    #[derive(Debug, Clone)]
     struct CardProtocol: u32 {
         const SCARD_PROTOCOL_UNDEFINED = 0x00000000;
         const SCARD_PROTOCOL_T0 = 0x00000001;
@@ -1182,9 +1519,21 @@ impl Connect_Common {
             preferred_protocols,
         })
     }
+
     fn decode_value(&mut self, payload: &mut Payload) -> RdpResult<()> {
         self.context.decode_value(payload)?;
         Ok(())
+    }
+
+    fn encode_ptr(&self, index: &mut u32, w: &mut dyn Write) -> RdpResult<()> {
+        self.context.encode_ptr(index, w)?;
+        w.write_u32::<LittleEndian>(self.share_mode)?;
+        w.write_u32::<LittleEndian>(self.preferred_protocols.bits())?;
+        Ok(())
+    }
+
+    fn encode_value(&self, w: &mut dyn Write) -> RdpResult<()> {
+        self.context.encode_value(w)
     }
 }
 
@@ -1204,6 +1553,9 @@ impl Connect_Return {
             active_protocol: CardProtocol::SCARD_PROTOCOL_T1,
         }
     }
+}
+
+impl Encode for Connect_Return {
     fn encode(&self) -> RdpResult<Message> {
         let mut w = vec![];
         w.write_u32::<LittleEndian>(self.return_code.to_u32().unwrap())?;
@@ -1211,7 +1563,7 @@ impl Connect_Return {
         self.handle.encode_ptr(&mut index, &mut w)?;
         w.write_u32::<LittleEndian>(self.active_protocol.bits())?;
         self.handle.encode_value(&mut w)?;
-        Ok(w)
+        pad_and_add_headers(w)
     }
 }
 
@@ -1291,6 +1643,22 @@ impl HCardAndDisposition_Call {
     }
 }
 
+impl Encode for HCardAndDisposition_Call {
+    fn encode(&self) -> RdpResult<Message> {
+        let mut w = vec![];
+
+        w.extend(RPCEStreamHeader::new().encode()?);
+        RPCETypeHeader::new(0).encode(&mut w)?;
+
+        let mut index = 0;
+        self.handle.encode_ptr(&mut index, &mut w)?;
+        w.write_u32::<LittleEndian>(self.disposition)?;
+        self.handle.encode_value(&mut w)?;
+
+        Ok(w)
+    }
+}
+
 #[derive(Debug)]
 #[allow(dead_code, non_camel_case_types)]
 struct Status_Call {
@@ -1317,6 +1685,25 @@ impl Status_Call {
             reader_length,
             atr_length,
         })
+    }
+}
+
+impl Encode for Status_Call {
+    fn encode(&self) -> RdpResult<Message> {
+        let mut w = vec![];
+
+        w.extend(RPCEStreamHeader::new().encode()?);
+        RPCETypeHeader::new(0).encode(&mut w)?;
+
+        let mut index = 0;
+        self.handle.encode_ptr(&mut index, &mut w)?;
+        let reader_names_is_null = u32::from(self.reader_names_is_null);
+        w.write_u32::<LittleEndian>(reader_names_is_null)?;
+        w.write_u32::<LittleEndian>(self.reader_length)?;
+        w.write_u32::<LittleEndian>(self.atr_length)?;
+        self.handle.encode_value(&mut w)?;
+
+        Ok(w)
     }
 }
 
@@ -1367,6 +1754,9 @@ impl Status_Return {
             encoding,
         }
     }
+}
+
+impl Encode for Status_Return {
     fn encode(&self) -> RdpResult<Message> {
         let mut w = vec![];
         w.write_u32::<LittleEndian>(self.return_code.to_u32().unwrap())?;
@@ -1386,7 +1776,7 @@ impl Status_Return {
         w.write_u32::<LittleEndian>(reader_names.length() as u32)?;
         w.extend_from_slice(&reader_names);
 
-        Ok(w)
+        pad_and_add_headers(w)
     }
 }
 
@@ -1420,8 +1810,7 @@ impl Transmit_Call {
         send_pci.decode_value(payload)?;
 
         let send_length = payload.read_u32::<LittleEndian>()?;
-        let mut send_buffer = vec![];
-        send_buffer.resize(send_length as usize, 0);
+        let mut send_buffer = vec![0; send_length as usize];
         payload.read_exact(&mut send_buffer)?;
 
         let recv_pci = if recv_pci_ptr != 0 {
@@ -1444,7 +1833,44 @@ impl Transmit_Call {
     }
 }
 
-#[derive(Debug)]
+impl Encode for Transmit_Call {
+    fn encode(&self) -> RdpResult<Message> {
+        let mut w = vec![];
+
+        w.extend(RPCEStreamHeader::new().encode()?);
+        RPCETypeHeader::new(0).encode(&mut w)?;
+
+        let mut index = 0;
+        self.handle.encode_ptr(&mut index, &mut w)?;
+        self.send_pci.encode_ptr(&mut index, &mut w)?;
+        w.write_u32::<LittleEndian>(0)?; // _send_length
+        encode_ptr(None, &mut index, &mut w)?; // _send_buffer_ptr
+                                               // recv_pci_ptr
+        if let Some(_recv_pci) = self.recv_pci.clone() {
+            encode_ptr(None, &mut index, &mut w)?;
+        } else {
+            w.write_u32::<LittleEndian>(0)?;
+        }
+        let recv_buffer_is_null = u32::from(self.recv_buffer_is_null);
+        w.write_u32::<LittleEndian>(recv_buffer_is_null)?;
+        w.write_u32::<LittleEndian>(self.recv_length)?;
+
+        self.handle.encode_value(&mut w)?;
+        self.send_pci.encode_value(&mut w)?;
+
+        w.write_u32::<LittleEndian>(self.send_length)?;
+        w.extend(self.send_buffer.clone());
+
+        if let Some(recv_pci) = self.recv_pci.clone() {
+            recv_pci.encode_ptr(&mut index, &mut w)?;
+            recv_pci.encode_value(&mut w)?;
+        }
+
+        Ok(w)
+    }
+}
+
+#[derive(Debug, Clone)]
 #[allow(dead_code, non_camel_case_types)]
 struct SCardIO_Request {
     protocol: CardProtocol,
@@ -1458,8 +1884,7 @@ impl SCardIO_Request {
             .ok_or_else(|| invalid_data_error("invalid protocol bits in SCardIO_Request"))?;
         let extra_bytes_length = payload.read_u32::<LittleEndian>()?;
         let _extra_bytes_ptr = decode_ptr(payload, index)?;
-        let mut extra_bytes = vec![];
-        extra_bytes.resize(extra_bytes_length as usize, 0);
+        let extra_bytes = vec![0; extra_bytes_length as usize];
         Ok(Self {
             protocol,
             extra_bytes_length,
@@ -1468,6 +1893,16 @@ impl SCardIO_Request {
     }
     fn decode_value(&mut self, payload: &mut Payload) -> RdpResult<()> {
         payload.read_exact(&mut self.extra_bytes)?;
+        Ok(())
+    }
+
+    fn encode_ptr(&self, index: &mut u32, w: &mut dyn Write) -> RdpResult<()> {
+        w.write_u32::<LittleEndian>(self.protocol.bits())?;
+        encode_ptr(Some(self.extra_bytes_length), index, w)
+    }
+
+    fn encode_value(&self, w: &mut Vec<u8>) -> RdpResult<()> {
+        w.extend_from_slice(&self.extra_bytes);
         Ok(())
     }
 }
@@ -1486,6 +1921,9 @@ impl Transmit_Return {
             recv_buffer,
         }
     }
+}
+
+impl Encode for Transmit_Return {
     fn encode(&self) -> RdpResult<Message> {
         let mut w = vec![];
         w.write_u32::<LittleEndian>(self.return_code.to_u32().unwrap())?;
@@ -1499,7 +1937,7 @@ impl Transmit_Return {
         w.write_u32::<LittleEndian>(self.recv_buffer.len() as u32)?;
         w.extend_from_slice(&self.recv_buffer);
 
-        Ok(w)
+        pad_and_add_headers(w)
     }
 }
 
@@ -1531,6 +1969,26 @@ impl GetDeviceTypeId_Call {
     }
 }
 
+impl Encode for GetDeviceTypeId_Call {
+    fn encode(&self) -> RdpResult<Message> {
+        let mut w = vec![];
+
+        w.extend(RPCEStreamHeader::new().encode()?);
+        RPCETypeHeader::new(0).encode(&mut w)?;
+
+        let mut index = 0;
+        self.context.encode_ptr(&mut index, &mut w)?;
+
+        encode_ptr(None, &mut index, &mut w)?;
+
+        self.context.encode_value(&mut w)?;
+
+        let reader_name = encode_str_unicode(&self.reader_name)?;
+        w.extend(reader_name);
+        Ok(w)
+    }
+}
+
 #[derive(Debug)]
 #[allow(non_camel_case_types)]
 struct GetDeviceTypeId_Return {
@@ -1551,11 +2009,14 @@ impl GetDeviceTypeId_Return {
             device_type_id: SCARD_READER_TYPE_VENDOR,
         }
     }
+}
+
+impl Encode for GetDeviceTypeId_Return {
     fn encode(&self) -> RdpResult<Message> {
         let mut w = vec![];
         w.write_u32::<LittleEndian>(self.return_code.to_u32().unwrap())?;
         w.write_u32::<LittleEndian>(self.device_type_id)?;
-        Ok(w)
+        pad_and_add_headers(w)
     }
 }
 
@@ -1581,6 +2042,24 @@ impl ReadCache_Call {
             lookup_name,
             common,
         })
+    }
+}
+
+impl Encode for ReadCache_Call {
+    fn encode(&self) -> RdpResult<Message> {
+        let mut w = vec![];
+
+        w.extend(RPCEStreamHeader::new().encode()?);
+        RPCETypeHeader::new(0).encode(&mut w)?;
+
+        let mut index = 0;
+        encode_ptr(None, &mut index, &mut w)?; // _send_buffer_ptr
+        self.common.encode_ptr(&mut index, &mut w)?;
+
+        w.extend(encode_str_unicode(&self.lookup_name)?);
+        self.common.encode_value(&mut w)?;
+
+        Ok(w)
     }
 }
 
@@ -1618,6 +2097,24 @@ impl ReadCache_Common {
         payload.read_exact(&mut self.card_uuid)?;
         Ok(())
     }
+
+    fn encode_ptr(&self, index: &mut u32, w: &mut dyn Write) -> RdpResult<()> {
+        self.context.encode_ptr(index, w)?;
+        encode_ptr(None, index, w)?; // _card_uuid_ptr
+
+        w.write_u32::<LittleEndian>(self.freshness_counter)?;
+        let data_is_null = u32::from(self.data_is_null);
+        w.write_u32::<LittleEndian>(data_is_null)?;
+        w.write_u32::<LittleEndian>(self.data_len)?;
+
+        Ok(())
+    }
+
+    fn encode_value(&self, w: &mut Vec<u8>) -> RdpResult<()> {
+        self.context.encode_value(w)?;
+        w.extend_from_slice(&self.card_uuid);
+        Ok(())
+    }
 }
 
 #[derive(Debug)]
@@ -1640,6 +2137,9 @@ impl ReadCache_Return {
             },
         }
     }
+}
+
+impl Encode for ReadCache_Return {
     fn encode(&self) -> RdpResult<Message> {
         let mut w = vec![];
         w.write_u32::<LittleEndian>(self.return_code.to_u32().unwrap())?;
@@ -1648,7 +2148,7 @@ impl ReadCache_Return {
         encode_ptr(Some(self.data.length() as u32), &mut index, &mut w)?;
         w.write_u32::<LittleEndian>(self.data.length() as u32)?;
         w.extend_from_slice(&self.data);
-        Ok(w)
+        pad_and_add_headers(w)
     }
 }
 
@@ -1674,6 +2174,24 @@ impl WriteCache_Call {
             lookup_name,
             common,
         })
+    }
+}
+
+impl Encode for WriteCache_Call {
+    fn encode(&self) -> RdpResult<Message> {
+        let mut w = vec![];
+
+        w.extend(RPCEStreamHeader::new().encode()?);
+        RPCETypeHeader::new(0).encode(&mut w)?;
+
+        let mut index = 0;
+        encode_ptr(None, &mut index, &mut w)?; // _lookup_name_ptr
+        self.common.encode_ptr(&mut index, &mut w)?;
+
+        w.extend(encode_str_unicode(&self.lookup_name)?);
+        self.common.encode_value(&mut w)?;
+
+        Ok(w)
     }
 }
 
@@ -1713,6 +2231,24 @@ impl WriteCache_Common {
 
         Ok(())
     }
+
+    fn encode_ptr(&self, index: &mut u32, w: &mut dyn Write) -> RdpResult<()> {
+        self.context.encode_ptr(index, w)?;
+        encode_ptr(None, index, w)?; // _card_uuid_ptr
+        w.write_u32::<LittleEndian>(self.freshness_counter)?;
+        encode_ptr(Some(0), index, w)?; // _data_len and _data_ptr
+
+        Ok(())
+    }
+
+    fn encode_value(&self, w: &mut Vec<u8>) -> RdpResult<()> {
+        self.context.encode_value(w)?;
+        w.extend_from_slice(&self.card_uuid);
+
+        w.write_u32::<LittleEndian>(self.data.len() as u32)?;
+        w.extend_from_slice(&self.data);
+        Ok(())
+    }
 }
 
 #[derive(Debug)]
@@ -1741,6 +2277,25 @@ impl GetReaderIcon_Call {
     }
 }
 
+impl Encode for GetReaderIcon_Call {
+    fn encode(&self) -> RdpResult<Message> {
+        let mut w = vec![];
+
+        w.extend(RPCEStreamHeader::new().encode()?);
+        RPCETypeHeader::new(0).encode(&mut w)?;
+
+        let mut index = 0;
+        self.context.encode_ptr(&mut index, &mut w)?;
+
+        encode_ptr(None, &mut index, &mut w)?; // _reader_ptr
+
+        self.context.encode_value(&mut w)?;
+        w.extend(encode_str_unicode(&self.reader_name)?);
+
+        Ok(w)
+    }
+}
+
 #[derive(Debug)]
 #[allow(non_camel_case_types)]
 struct GetReaderIcon_Return {
@@ -1751,6 +2306,9 @@ impl GetReaderIcon_Return {
     fn new(return_code: ReturnCode) -> Self {
         Self { return_code }
     }
+}
+
+impl Encode for GetReaderIcon_Return {
     fn encode(&self) -> RdpResult<Message> {
         let mut w = vec![];
         w.write_u32::<LittleEndian>(self.return_code.to_u32().unwrap())?;
@@ -1760,7 +2318,7 @@ impl GetReaderIcon_Return {
         let mut index = 0;
         encode_ptr(Some(0), &mut index, &mut w)?;
         w.write_u32::<LittleEndian>(0)?;
-        Ok(w)
+        pad_and_add_headers(w)
     }
 }
 
@@ -1787,8 +2345,10 @@ impl Contexts {
         ctx
     }
 
-    fn get(&mut self, id: u32) -> Option<&mut ContextInternal> {
-        self.contexts.get_mut(&id)
+    fn get(&mut self, id: u32) -> RdpResult<&mut ContextInternal> {
+        self.contexts
+            .get_mut(&id)
+            .ok_or_else(|| invalid_data_error(&format!("unknown context id: {}", id)))
     }
 
     fn release(&mut self, id: u32) {
@@ -1796,11 +2356,19 @@ impl Contexts {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug)]
 struct ContextInternal {
     handles: HashMap<u32, piv::Card<TRANSMIT_DATA_LIMIT>>,
     next_id: u32,
     cache: HashMap<String, Vec<u8>>,
+    // If we receive a SCARD_IOCTL_GETSTATUSCHANGEW with an infinite timeout, we need to
+    // return a GetStatusChange_Return (embedded in a DeviceControlResponse) with
+    // its return code set to SCARD_E_CANCELLED in the case that we receive a
+    // SCARD_IOCTL_CANCEL.
+    //
+    // This value will be set during the handling of the SCARD_IOCTL_GETSTATUSCHANGEW, so that
+    // it can be fetched and returned in response to a SCARD_IOCTL_CANCEL.
+    scard_cancel_response: Option<DeviceControlResponse>,
 }
 
 impl ContextInternal {
@@ -1809,7 +2377,16 @@ impl ContextInternal {
             next_id: 1,
             handles: HashMap::new(),
             cache: HashMap::new(),
+            scard_cancel_response: None,
         }
+    }
+
+    fn set_scard_cancel_response(&mut self, response: DeviceControlResponse) -> RdpResult<()> {
+        if self.scard_cancel_response.is_some() {
+            return Err(invalid_data_error("SCARD_IOCTL_CANCEL already received"));
+        }
+        self.scard_cancel_response = Some(response);
+        Ok(())
     }
 
     fn connect(
@@ -1852,4 +2429,638 @@ fn debug_print_payload(payload: &mut Payload) {
     let from = payload.position() as usize;
     let buf = &payload.into_inner()[from..];
     info!("========== payload {:?}", &buf);
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{
+        rdpdr::{
+            consts::{MajorFunction, MinorFunction, SCARD_DEVICE_ID},
+            DeviceIoRequest,
+        },
+        Encode,
+    };
+
+    use super::*;
+    fn client() -> Client {
+        Client::new(
+            vec![
+                48, 130, 4, 145, 48, 130, 3, 121, 160, 3, 2, 1, 2, 2, 16, 101, 91, 145, 220, 167,
+                255, 174, 125, 129, 42, 229, 37, 240, 54, 206, 209, 48, 13, 6, 9, 42, 134, 72, 134,
+                247, 13, 1, 1, 11, 5, 0, 48, 122, 49, 34, 48, 32, 6, 3, 85, 4, 10, 19, 25, 73, 115,
+                97, 105, 97, 104, 115, 45, 77, 97, 99, 66, 111, 111, 107, 45, 80, 114, 111, 46,
+                108, 111, 99, 97, 108, 49, 34, 48, 32, 6, 3, 85, 4, 3, 19, 25, 73, 115, 97, 105,
+                97, 104, 115, 45, 77, 97, 99, 66, 111, 111, 107, 45, 80, 114, 111, 46, 108, 111,
+                99, 97, 108, 49, 48, 48, 46, 6, 3, 85, 4, 5, 19, 39, 49, 56, 57, 50, 51, 56, 51,
+                48, 50, 52, 50, 50, 52, 48, 52, 56, 56, 56, 48, 49, 48, 51, 50, 56, 57, 49, 53, 53,
+                55, 56, 55, 54, 55, 50, 52, 57, 50, 53, 51, 48, 30, 23, 13, 50, 50, 48, 57, 49, 54,
+                50, 50, 52, 48, 50, 50, 90, 23, 13, 50, 50, 48, 57, 49, 54, 50, 50, 52, 54, 50, 50,
+                90, 48, 24, 49, 22, 48, 20, 6, 3, 85, 4, 3, 19, 13, 65, 100, 109, 105, 110, 105,
+                115, 116, 114, 97, 116, 111, 114, 48, 130, 1, 34, 48, 13, 6, 9, 42, 134, 72, 134,
+                247, 13, 1, 1, 1, 5, 0, 3, 130, 1, 15, 0, 48, 130, 1, 10, 2, 130, 1, 1, 0, 199,
+                156, 191, 93, 193, 211, 66, 72, 35, 172, 242, 26, 214, 215, 157, 116, 92, 1, 15,
+                91, 90, 220, 8, 12, 222, 194, 144, 51, 150, 158, 80, 93, 180, 61, 44, 203, 4, 79,
+                26, 241, 6, 39, 87, 146, 182, 216, 119, 78, 236, 182, 90, 87, 89, 91, 148, 192,
+                248, 34, 71, 215, 209, 212, 223, 121, 117, 220, 88, 82, 208, 28, 4, 228, 98, 1,
+                254, 210, 179, 41, 163, 85, 200, 242, 107, 250, 148, 170, 254, 65, 245, 52, 167,
+                153, 176, 216, 157, 111, 133, 40, 74, 66, 214, 165, 219, 238, 119, 160, 44, 172,
+                24, 244, 161, 186, 50, 80, 192, 98, 109, 242, 125, 246, 155, 191, 127, 126, 94,
+                149, 122, 75, 143, 209, 24, 28, 170, 191, 207, 247, 245, 223, 7, 165, 126, 168, 33,
+                24, 154, 79, 53, 63, 70, 153, 113, 212, 114, 95, 198, 238, 12, 101, 239, 217, 79,
+                184, 129, 146, 25, 34, 172, 221, 29, 188, 120, 143, 128, 6, 55, 127, 156, 198, 193,
+                216, 9, 177, 212, 117, 121, 70, 245, 64, 2, 118, 242, 9, 50, 211, 97, 107, 128, 24,
+                95, 25, 143, 128, 144, 17, 183, 83, 111, 168, 30, 188, 34, 121, 150, 43, 58, 134,
+                200, 95, 34, 43, 219, 64, 97, 114, 113, 47, 198, 117, 198, 51, 159, 145, 106, 183,
+                240, 112, 61, 97, 13, 88, 142, 153, 168, 207, 148, 5, 109, 182, 37, 214, 11, 75,
+                142, 99, 35, 123, 2, 3, 1, 0, 1, 163, 130, 1, 115, 48, 130, 1, 111, 48, 14, 6, 3,
+                85, 29, 15, 1, 1, 255, 4, 4, 3, 2, 7, 128, 48, 12, 6, 3, 85, 29, 19, 1, 1, 255, 4,
+                2, 48, 0, 48, 31, 6, 3, 85, 29, 35, 4, 24, 48, 22, 128, 20, 171, 253, 63, 101, 19,
+                143, 160, 188, 223, 135, 95, 0, 250, 242, 75, 243, 201, 83, 122, 126, 48, 129, 213,
+                6, 3, 85, 29, 31, 4, 129, 205, 48, 129, 202, 48, 129, 199, 160, 129, 196, 160, 129,
+                193, 134, 129, 190, 108, 100, 97, 112, 58, 47, 47, 47, 67, 78, 61, 73, 115, 97,
+                105, 97, 104, 115, 45, 77, 97, 99, 66, 111, 111, 107, 45, 80, 114, 111, 46, 108,
+                111, 99, 97, 108, 44, 67, 78, 61, 84, 101, 108, 101, 112, 111, 114, 116, 44, 67,
+                78, 61, 67, 68, 80, 44, 67, 78, 61, 80, 117, 98, 108, 105, 99, 32, 75, 101, 121,
+                32, 83, 101, 114, 118, 105, 99, 101, 115, 44, 67, 78, 61, 83, 101, 114, 118, 105,
+                99, 101, 115, 44, 67, 78, 61, 67, 111, 110, 102, 105, 103, 117, 114, 97, 116, 105,
+                111, 110, 44, 68, 67, 61, 116, 101, 108, 101, 112, 111, 114, 116, 44, 68, 67, 61,
+                100, 101, 118, 63, 99, 101, 114, 116, 105, 102, 105, 99, 97, 116, 101, 82, 101,
+                118, 111, 99, 97, 116, 105, 111, 110, 76, 105, 115, 116, 63, 98, 97, 115, 101, 63,
+                111, 98, 106, 101, 99, 116, 67, 108, 97, 115, 115, 61, 99, 82, 76, 68, 105, 115,
+                116, 114, 105, 98, 117, 116, 105, 111, 110, 80, 111, 105, 110, 116, 48, 31, 6, 3,
+                85, 29, 37, 4, 24, 48, 22, 6, 8, 43, 6, 1, 5, 5, 7, 3, 2, 6, 10, 43, 6, 1, 4, 1,
+                130, 55, 20, 2, 2, 48, 53, 6, 3, 85, 29, 17, 4, 46, 48, 44, 160, 42, 6, 10, 43, 6,
+                1, 4, 1, 130, 55, 20, 2, 3, 160, 28, 12, 26, 65, 100, 109, 105, 110, 105, 115, 116,
+                114, 97, 116, 111, 114, 64, 116, 101, 108, 101, 112, 111, 114, 116, 46, 100, 101,
+                118, 48, 13, 6, 9, 42, 134, 72, 134, 247, 13, 1, 1, 11, 5, 0, 3, 130, 1, 1, 0, 234,
+                9, 25, 253, 27, 189, 163, 187, 130, 134, 206, 82, 174, 9, 2, 161, 27, 9, 168, 70,
+                149, 101, 82, 114, 130, 214, 221, 36, 154, 248, 94, 46, 133, 193, 52, 223, 80, 99,
+                111, 208, 95, 93, 86, 70, 215, 77, 176, 77, 176, 139, 109, 98, 118, 72, 147, 247,
+                39, 170, 223, 195, 96, 149, 213, 252, 134, 78, 53, 105, 136, 135, 150, 118, 100,
+                180, 51, 166, 202, 180, 104, 33, 244, 215, 60, 198, 255, 142, 20, 228, 86, 30, 229,
+                181, 70, 19, 201, 97, 46, 139, 161, 90, 253, 178, 149, 173, 238, 44, 8, 119, 116,
+                18, 106, 146, 82, 229, 234, 53, 24, 158, 13, 192, 196, 15, 136, 167, 154, 88, 109,
+                103, 79, 49, 242, 231, 167, 248, 85, 80, 215, 236, 135, 135, 129, 4, 192, 88, 150,
+                94, 60, 134, 224, 219, 176, 228, 200, 82, 101, 209, 195, 36, 181, 64, 35, 233, 34,
+                93, 22, 221, 221, 202, 60, 69, 37, 129, 69, 17, 51, 125, 10, 175, 40, 73, 120, 99,
+                246, 65, 133, 199, 61, 255, 72, 117, 121, 88, 227, 254, 219, 116, 240, 248, 220,
+                146, 222, 241, 229, 53, 179, 146, 57, 149, 151, 113, 63, 122, 27, 14, 159, 36, 153,
+                90, 7, 188, 13, 152, 106, 192, 191, 125, 153, 126, 84, 190, 48, 27, 29, 108, 69,
+                195, 209, 202, 243, 113, 87, 244, 115, 95, 157, 188, 157, 255, 169, 30, 85, 52,
+                175, 44, 118, 255,
+            ],
+            vec![
+                48, 130, 4, 165, 2, 1, 0, 2, 130, 1, 1, 0, 199, 156, 191, 93, 193, 211, 66, 72, 35,
+                172, 242, 26, 214, 215, 157, 116, 92, 1, 15, 91, 90, 220, 8, 12, 222, 194, 144, 51,
+                150, 158, 80, 93, 180, 61, 44, 203, 4, 79, 26, 241, 6, 39, 87, 146, 182, 216, 119,
+                78, 236, 182, 90, 87, 89, 91, 148, 192, 248, 34, 71, 215, 209, 212, 223, 121, 117,
+                220, 88, 82, 208, 28, 4, 228, 98, 1, 254, 210, 179, 41, 163, 85, 200, 242, 107,
+                250, 148, 170, 254, 65, 245, 52, 167, 153, 176, 216, 157, 111, 133, 40, 74, 66,
+                214, 165, 219, 238, 119, 160, 44, 172, 24, 244, 161, 186, 50, 80, 192, 98, 109,
+                242, 125, 246, 155, 191, 127, 126, 94, 149, 122, 75, 143, 209, 24, 28, 170, 191,
+                207, 247, 245, 223, 7, 165, 126, 168, 33, 24, 154, 79, 53, 63, 70, 153, 113, 212,
+                114, 95, 198, 238, 12, 101, 239, 217, 79, 184, 129, 146, 25, 34, 172, 221, 29, 188,
+                120, 143, 128, 6, 55, 127, 156, 198, 193, 216, 9, 177, 212, 117, 121, 70, 245, 64,
+                2, 118, 242, 9, 50, 211, 97, 107, 128, 24, 95, 25, 143, 128, 144, 17, 183, 83, 111,
+                168, 30, 188, 34, 121, 150, 43, 58, 134, 200, 95, 34, 43, 219, 64, 97, 114, 113,
+                47, 198, 117, 198, 51, 159, 145, 106, 183, 240, 112, 61, 97, 13, 88, 142, 153, 168,
+                207, 148, 5, 109, 182, 37, 214, 11, 75, 142, 99, 35, 123, 2, 3, 1, 0, 1, 2, 130, 1,
+                0, 110, 65, 254, 210, 99, 5, 182, 78, 242, 165, 204, 245, 86, 70, 179, 10, 90, 231,
+                154, 251, 243, 44, 38, 166, 53, 69, 115, 49, 139, 184, 214, 219, 107, 123, 127, 10,
+                132, 206, 205, 42, 229, 35, 70, 20, 28, 59, 101, 107, 139, 5, 14, 209, 192, 225,
+                253, 64, 185, 206, 245, 176, 24, 143, 101, 1, 74, 64, 243, 232, 138, 91, 111, 184,
+                87, 10, 147, 30, 255, 39, 184, 184, 225, 206, 70, 38, 155, 135, 247, 249, 166, 223,
+                246, 211, 198, 3, 96, 179, 0, 242, 72, 82, 179, 13, 218, 117, 214, 77, 251, 94,
+                244, 73, 236, 43, 85, 47, 149, 148, 200, 246, 112, 237, 143, 10, 47, 250, 53, 116,
+                139, 159, 198, 103, 154, 135, 111, 92, 88, 115, 126, 154, 95, 237, 229, 96, 23, 57,
+                137, 244, 122, 61, 178, 14, 243, 187, 157, 7, 103, 183, 26, 252, 46, 33, 214, 70,
+                187, 103, 70, 175, 8, 34, 119, 177, 105, 58, 131, 172, 220, 147, 29, 222, 182, 15,
+                9, 99, 4, 59, 114, 31, 133, 68, 214, 132, 93, 42, 84, 102, 224, 196, 105, 204, 133,
+                142, 228, 170, 112, 177, 23, 144, 68, 127, 16, 33, 156, 6, 131, 53, 143, 48, 142,
+                161, 218, 114, 47, 106, 111, 203, 225, 32, 74, 142, 151, 150, 42, 70, 254, 190,
+                132, 198, 116, 153, 195, 244, 132, 27, 211, 26, 12, 97, 150, 185, 120, 162, 209,
+                165, 129, 96, 5, 193, 2, 129, 129, 0, 248, 205, 132, 65, 11, 44, 236, 203, 74, 170,
+                87, 190, 88, 35, 35, 66, 144, 149, 29, 77, 230, 112, 36, 89, 97, 78, 177, 44, 104,
+                166, 98, 128, 151, 90, 192, 94, 20, 146, 165, 104, 191, 118, 213, 211, 62, 92, 43,
+                230, 211, 68, 149, 3, 196, 58, 77, 232, 81, 255, 185, 21, 42, 6, 52, 180, 196, 152,
+                138, 73, 200, 252, 187, 175, 87, 233, 76, 70, 242, 190, 74, 118, 221, 173, 106,
+                140, 64, 38, 183, 242, 197, 181, 105, 251, 39, 36, 145, 70, 1, 77, 182, 63, 237, 5,
+                8, 191, 110, 51, 98, 229, 246, 221, 240, 151, 116, 57, 162, 23, 41, 194, 194, 224,
+                154, 134, 131, 191, 247, 150, 114, 143, 2, 129, 129, 0, 205, 98, 244, 169, 239,
+                255, 0, 181, 34, 36, 2, 12, 28, 220, 6, 253, 89, 87, 101, 212, 169, 114, 250, 119,
+                185, 47, 96, 27, 31, 29, 59, 83, 210, 214, 207, 251, 182, 27, 10, 142, 57, 91, 162,
+                253, 144, 194, 138, 82, 244, 241, 225, 211, 196, 31, 116, 175, 71, 143, 182, 28,
+                129, 93, 21, 7, 151, 89, 220, 253, 255, 161, 69, 165, 140, 84, 134, 134, 108, 138,
+                253, 94, 94, 48, 75, 92, 14, 209, 104, 0, 93, 187, 35, 7, 244, 233, 18, 67, 189,
+                63, 98, 165, 188, 220, 109, 254, 85, 105, 254, 152, 249, 160, 48, 14, 242, 255, 45,
+                23, 205, 177, 92, 160, 94, 92, 47, 160, 70, 36, 70, 85, 2, 129, 129, 0, 241, 30,
+                115, 18, 122, 27, 34, 172, 237, 130, 98, 32, 148, 216, 16, 190, 220, 209, 182, 33,
+                157, 182, 134, 115, 156, 139, 31, 199, 50, 240, 52, 187, 252, 114, 181, 197, 55,
+                88, 219, 54, 197, 127, 12, 64, 121, 201, 231, 189, 254, 119, 19, 151, 31, 223, 133,
+                75, 37, 212, 151, 112, 252, 86, 33, 84, 34, 198, 214, 22, 37, 211, 80, 172, 224,
+                156, 183, 16, 119, 5, 149, 178, 214, 168, 206, 126, 119, 89, 78, 161, 215, 155, 53,
+                199, 113, 170, 205, 163, 51, 118, 53, 174, 132, 44, 129, 202, 203, 168, 191, 42,
+                176, 113, 108, 77, 203, 20, 99, 146, 225, 36, 223, 169, 189, 247, 168, 205, 44,
+                203, 191, 223, 2, 129, 129, 0, 146, 46, 77, 63, 42, 142, 207, 189, 28, 8, 142, 224,
+                122, 37, 236, 95, 163, 151, 253, 229, 71, 153, 139, 69, 109, 43, 151, 246, 149,
+                197, 163, 117, 60, 202, 33, 139, 225, 8, 12, 18, 64, 38, 197, 178, 61, 183, 8, 230,
+                148, 106, 24, 54, 54, 15, 193, 104, 3, 193, 248, 118, 255, 103, 245, 208, 202, 91,
+                110, 91, 229, 246, 173, 240, 111, 25, 182, 9, 180, 245, 147, 241, 247, 141, 222, 5,
+                46, 146, 194, 184, 7, 254, 106, 167, 126, 27, 233, 33, 7, 112, 54, 209, 9, 195,
+                198, 17, 208, 79, 57, 163, 61, 128, 82, 212, 65, 5, 119, 221, 202, 75, 227, 70, 77,
+                2, 197, 239, 8, 29, 71, 101, 2, 129, 129, 0, 141, 75, 99, 52, 181, 42, 232, 22, 82,
+                120, 119, 201, 255, 122, 220, 146, 225, 193, 162, 102, 82, 30, 94, 140, 197, 50,
+                59, 122, 2, 92, 75, 64, 178, 230, 209, 216, 171, 40, 172, 143, 128, 77, 160, 241,
+                130, 40, 205, 123, 241, 181, 38, 13, 24, 215, 218, 53, 217, 82, 125, 201, 153, 141,
+                149, 236, 191, 149, 137, 125, 208, 56, 69, 217, 228, 65, 85, 148, 234, 30, 115, 31,
+                81, 234, 98, 250, 222, 165, 236, 164, 56, 19, 34, 29, 150, 172, 118, 228, 179, 91,
+                26, 208, 186, 161, 49, 218, 225, 211, 204, 48, 207, 193, 226, 158, 174, 105, 177,
+                227, 28, 132, 109, 252, 218, 102, 20, 175, 152, 91, 201, 168,
+            ],
+            "68971585".to_string(),
+        )
+    }
+
+    fn to_payload(e: &dyn Encode) -> Payload {
+        Payload::new(e.encode().unwrap())
+    }
+
+    fn test_ioctl(
+        established_ctxs: u32,
+        connect_scard_to_ctx: Option<u32>,
+        ctl_code: IoctlCode,
+        payload: &dyn Encode,
+        expected: &dyn Encode,
+    ) {
+        let mut c = client();
+
+        for _ in 0..established_ctxs {
+            c.contexts.establish();
+        }
+        if let Some(connect_scard_to_ctx) = connect_scard_to_ctx {
+            connect_scard(&mut c, connect_scard_to_ctx);
+        }
+
+        let res = c
+            .ioctl(
+                &DeviceControlRequest::new(
+                    DeviceIoRequest::new(
+                        SCARD_DEVICE_ID,
+                        0,
+                        0,
+                        MajorFunction::IRP_MJ_DEVICE_CONTROL,
+                        MinorFunction::IRP_MN_NONE,
+                    ),
+                    0,
+                    0,
+                    ctl_code,
+                ),
+                &mut to_payload(payload),
+            )
+            .unwrap();
+        assert_eq!(
+            expected.encode().unwrap(),
+            // Only SCARD_IOCTL_CANCEL every returns more than a single
+            // result, and it's currently not tested, so res[0] works here
+            // for now.
+            res[0].output_buffer.encode().unwrap()
+        );
+    }
+
+    /// Connects a piv::Card to the client's internal context cache
+    /// (on the context corresponding to context_value). This is a manual
+    /// way of doing what test_scard_ioctl_connectw does to the Client's
+    /// internal state.
+    fn connect_scard(c: &mut Client, context_value: u32) {
+        let ctx = c.contexts.get(context_value).unwrap();
+        ctx.connect(
+            Context {
+                length: 4,
+                value: context_value,
+            },
+            c.uuid,
+            &c.cert_der,
+            &c.key_der,
+            c.pin.clone(),
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn test_accessstartedevent() {
+        test_ioctl(
+            0,
+            None,
+            IoctlCode::SCARD_IOCTL_ACCESSSTARTEDEVENT,
+            &ScardAccessStartedEvent_Call {
+                _unused: 3234823568,
+            },
+            &Long_Return {
+                return_code: ReturnCode::SCARD_S_SUCCESS,
+            },
+        )
+    }
+
+    #[test]
+    fn test_establishcontext() {
+        test_ioctl(
+            0,
+            None,
+            IoctlCode::SCARD_IOCTL_ESTABLISHCONTEXT,
+            &EstablishContext_Call {
+                scope: Scope::SCARD_SCOPE_SYSTEM,
+            },
+            &EstablishContext_Return {
+                return_code: ReturnCode::SCARD_S_SUCCESS,
+                context: Context {
+                    length: 4,
+                    value: 1,
+                },
+            },
+        )
+    }
+
+    #[test]
+    fn test_listreadersw() {
+        test_ioctl(
+            0,
+            None,
+            IoctlCode::SCARD_IOCTL_LISTREADERSW,
+            &ListReaders_Call {
+                context: Context {
+                    length: 4,
+                    value: 2,
+                },
+                groups_ptr_length: 36,
+                groups_length: 36,
+                groups_ptr: 131076,
+                groups: vec!["SCard$AllReaders".to_string()],
+                readers_is_null: false,
+                readers_size: 4294967295,
+            },
+            &ListReaders_Return {
+                return_code: ReturnCode::SCARD_S_SUCCESS,
+                readers: vec!["Teleport".to_string()],
+            },
+        )
+    }
+
+    #[test]
+    fn test_getdevicetypeid() {
+        let context_value = 2;
+        test_ioctl(
+            context_value,
+            None,
+            IoctlCode::SCARD_IOCTL_GETDEVICETYPEID,
+            &GetDeviceTypeId_Call {
+                context: Context {
+                    length: 4,
+                    value: context_value,
+                },
+                reader_ptr: 131076,
+                reader_name: "Teleport".to_string(),
+            },
+            &GetDeviceTypeId_Return {
+                return_code: ReturnCode::SCARD_S_SUCCESS,
+                device_type_id: 240,
+            },
+        )
+    }
+
+    #[test]
+    fn test_releasecontext() {
+        let context_value = 2;
+        test_ioctl(
+            context_value,
+            None,
+            IoctlCode::SCARD_IOCTL_RELEASECONTEXT,
+            &Context_Call {
+                context: Context {
+                    length: 4,
+                    value: context_value,
+                },
+            },
+            &Long_Return {
+                return_code: ReturnCode::SCARD_S_SUCCESS,
+            },
+        )
+    }
+
+    #[test]
+    fn test_getstatuschangew() {
+        let context_value = 1;
+        test_ioctl(
+            context_value,
+            None,
+            IoctlCode::SCARD_IOCTL_GETSTATUSCHANGEW,
+            &GetStatusChange_Call {
+                context: Context {
+                    length: 4,
+                    value: context_value,
+                },
+                timeout: 4294967295,
+                states_ptr_length: 2,
+                states_ptr: 131076,
+                states_length: 2,
+                states: vec![
+                    ReaderState {
+                        reader: "\\\\?PnP?\\Notification".to_string(),
+                        common: ReaderState_Common_Call {
+                            current_state: CardStateFlags::SCARD_STATE_UNAWARE,
+                            event_state: CardStateFlags::SCARD_STATE_UNAWARE,
+                            atr_length: 0,
+                            atr: [0; 36],
+                        },
+                    },
+                    ReaderState {
+                        reader: "Teleport".to_string(),
+                        common: ReaderState_Common_Call {
+                            current_state: CardStateFlags::SCARD_STATE_EMPTY,
+                            event_state: CardStateFlags::SCARD_STATE_UNAWARE,
+                            atr_length: 0,
+                            atr: [0; 36],
+                        },
+                    },
+                ],
+            },
+            &GetStatusChange_Return {
+                return_code: ReturnCode::SCARD_S_SUCCESS,
+                reader_states: vec![
+                    ReaderState_Common_Call {
+                        current_state: CardStateFlags::SCARD_STATE_UNAWARE,
+                        event_state: CardStateFlags::SCARD_STATE_UNAWARE,
+                        atr_length: 0,
+                        atr: [
+                            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                        ],
+                    },
+                    ReaderState_Common_Call {
+                        current_state: CardStateFlags::SCARD_STATE_EMPTY,
+                        event_state: CardStateFlags::SCARD_STATE_CHANGED
+                            | CardStateFlags::SCARD_STATE_PRESENT,
+                        atr_length: 11,
+                        atr: [
+                            59, 149, 19, 129, 1, 128, 115, 255, 1, 0, 11, 0, 0, 0, 0, 0, 0, 0, 0,
+                            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                        ],
+                    },
+                ],
+            },
+        )
+    }
+
+    #[test]
+    fn test_connectw() {
+        let context_value = 5;
+        test_ioctl(
+            context_value,
+            None,
+            IoctlCode::SCARD_IOCTL_CONNECTW,
+            &Connect_Call {
+                reader: "Teleport".to_string(),
+                common: Connect_Common {
+                    context: Context {
+                        length: 4,
+                        value: context_value,
+                    },
+                    share_mode: 2,
+                    preferred_protocols: CardProtocol::SCARD_PROTOCOL_T0
+                        | CardProtocol::SCARD_PROTOCOL_T1
+                        | CardProtocol::SCARD_PROTOCOL_TX,
+                },
+            },
+            &Connect_Return {
+                return_code: ReturnCode::SCARD_S_SUCCESS,
+                handle: Handle {
+                    context: Context {
+                        length: 4,
+                        value: 5,
+                    },
+                    length: 4,
+                    value: 1,
+                },
+                active_protocol: CardProtocol::SCARD_PROTOCOL_T1,
+            },
+        )
+    }
+
+    #[test]
+    fn test_begintransaction() {
+        let context_value = 5;
+        test_ioctl(
+            context_value,
+            None,
+            IoctlCode::SCARD_IOCTL_BEGINTRANSACTION,
+            &HCardAndDisposition_Call {
+                handle: Handle {
+                    context: Context {
+                        length: 4,
+                        value: 5,
+                    },
+                    length: 4,
+                    value: 1,
+                },
+                disposition: 0,
+            },
+            &Long_Return {
+                return_code: ReturnCode::SCARD_S_SUCCESS,
+            },
+        )
+    }
+
+    #[test]
+    fn test_statusw() {
+        let context_value = 5;
+        test_ioctl(
+            context_value,
+            None,
+            IoctlCode::SCARD_IOCTL_STATUSW,
+            &Status_Call {
+                handle: Handle {
+                    context: Context {
+                        length: 4,
+                        value: 5,
+                    },
+                    length: 4,
+                    value: 1,
+                },
+                reader_names_is_null: false,
+                reader_length: 4294967295,
+                atr_length: 32,
+            },
+            &Status_Return {
+                return_code: ReturnCode::SCARD_S_SUCCESS,
+                reader_names: vec!["Teleport".to_string()],
+                state: State::SCARD_SPECIFICMODE,
+                protocol: CardProtocol::SCARD_PROTOCOL_T1,
+                atr: [
+                    59, 149, 19, 129, 1, 128, 115, 255, 1, 0, 11, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                ],
+                atr_length: 11,
+                encoding: StringEncoding::Unicode,
+            },
+        )
+    }
+
+    #[test]
+    fn test_transmit() {
+        let context_value = 5;
+        test_ioctl(
+            context_value,
+            Some(context_value),
+            IoctlCode::SCARD_IOCTL_TRANSMIT,
+            &Transmit_Call {
+                handle: Handle {
+                    context: Context {
+                        length: 4,
+                        value: 5,
+                    },
+                    length: 4,
+                    value: 1,
+                },
+                send_pci: SCardIO_Request {
+                    protocol: CardProtocol::SCARD_PROTOCOL_T1,
+                    extra_bytes_length: 0,
+                    extra_bytes: vec![],
+                },
+                send_length: 14,
+                send_buffer: vec![0, 164, 4, 0, 9, 160, 0, 0, 3, 8, 0, 0, 16, 0],
+                recv_pci: None,
+                recv_buffer_is_null: false,
+                recv_length: 258,
+            },
+            &Transmit_Return {
+                return_code: ReturnCode::SCARD_S_SUCCESS,
+                recv_buffer: vec![
+                    97, 17, 79, 6, 0, 0, 16, 0, 1, 0, 121, 7, 79, 5, 160, 0, 0, 3, 8, 144, 0,
+                ],
+            },
+        )
+    }
+
+    #[test]
+    fn test_readcachew() {
+        let context_value = 5;
+        test_ioctl(
+            context_value,
+            None,
+            IoctlCode::SCARD_IOCTL_READCACHEW,
+            &ReadCache_Call {
+                lookup_name: "Cached_CardmodFile\\Cached_Pin_Freshness".to_string(),
+                common: ReadCache_Common {
+                    context: Context {
+                        length: 4,
+                        value: 5,
+                    },
+                    card_uuid: vec![
+                        138, 113, 14, 35, 145, 213, 78, 249, 174, 208, 142, 171, 174, 121, 3, 76,
+                    ],
+                    freshness_counter: 0,
+                    data_is_null: false,
+                    data_len: 4294967295,
+                },
+            },
+            &ReadCache_Return {
+                return_code: ReturnCode::SCARD_W_CACHE_ITEM_NOT_FOUND,
+                data: vec![],
+            },
+        )
+    }
+
+    #[test]
+    fn test_writecachew() {
+        let context_value = 5;
+        test_ioctl(
+            context_value,
+            None,
+            IoctlCode::SCARD_IOCTL_WRITECACHEW,
+            &WriteCache_Call {
+                lookup_name: "Cached_CardProperty_Read Only Mode_0".to_string(),
+                common: WriteCache_Common {
+                    context: Context {
+                        length: 4,
+                        value: context_value,
+                    },
+                    card_uuid: vec![
+                        138, 113, 14, 35, 145, 213, 78, 249, 174, 208, 142, 171, 174, 121, 3, 76,
+                    ],
+                    freshness_counter: 0,
+                    data: vec![1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 1, 0, 0, 0],
+                },
+            },
+            &Long_Return {
+                return_code: ReturnCode::SCARD_S_SUCCESS,
+            },
+        )
+    }
+
+    #[test]
+    fn test_endtransaction() {
+        let context_value = 5;
+        test_ioctl(
+            context_value,
+            None,
+            IoctlCode::SCARD_IOCTL_ENDTRANSACTION,
+            &HCardAndDisposition_Call {
+                handle: Handle {
+                    context: Context {
+                        length: 4,
+                        value: context_value,
+                    },
+                    length: 4,
+                    value: 1,
+                },
+                disposition: 0,
+            },
+            &Long_Return {
+                return_code: ReturnCode::SCARD_S_SUCCESS,
+            },
+        )
+    }
+
+    #[test]
+    fn test_disconnect() {
+        let context_value = 5;
+        test_ioctl(
+            context_value,
+            None,
+            IoctlCode::SCARD_IOCTL_DISCONNECT,
+            &HCardAndDisposition_Call {
+                handle: Handle {
+                    context: Context {
+                        length: 4,
+                        value: context_value,
+                    },
+                    length: 4,
+                    value: 1,
+                },
+                disposition: 0,
+            },
+            &Long_Return {
+                return_code: ReturnCode::SCARD_S_SUCCESS,
+            },
+        )
+    }
+
+    #[test]
+    fn test_getreadericon() {
+        let context_value = 5;
+        test_ioctl(
+            context_value,
+            None,
+            IoctlCode::SCARD_IOCTL_GETREADERICON,
+            &GetReaderIcon_Call {
+                context: Context {
+                    length: 4,
+                    value: context_value,
+                },
+                reader_name: "Teleport".to_string(),
+            },
+            &GetReaderIcon_Return {
+                return_code: ReturnCode::SCARD_E_UNSUPPORTED_FEATURE,
+            },
+        )
+    }
 }

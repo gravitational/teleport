@@ -15,15 +15,15 @@ limitations under the License.
 */
 
 // Package keystore provides a generic client and associated helpers for handling
-// private keys that may be backed by an HSM.
+// private keys that may be backed by an HSM or KMS.
 //
 // # Notes on testing
 //
-// Testing the Keystore package predictably requires an HSM. Testcases are
-// currently written for the "raw" KeyStore (no HSM), SoftHSMv2, YubiHSM2, and
-// AWS CloudHSM. Only the "raw" tests run without any setup, but testing for
-// SoftHSM is enabled by default in the Teleport docker buildbox and will be
-// run in CI.
+// Fully testing the Keystore package predictably requires an HSM. Testcases are
+// currently written for the software KeyStore (no HSM), SoftHSMv2, YubiHSM2,
+// AWS CloudHSM, and GCP KMS. Only the software tests run without any setup, but
+// testing for SoftHSM is enabled by default in the Teleport docker buildbox and
+// will be run in CI.
 //
 // # Testing this package with SoftHSMv2
 //
@@ -70,7 +70,25 @@ limitations under the License.
 //
 // 6. Run the test on the connected EC2 instance
 //
+// # Testing this package with GCP CloudHSM
+//
+// 1. Sign into the Gcloud CLI
+//
+//  2. Create a keyring
+//     ```
+//     gcloud kms keyrings create "test" --location global
+//     ```
+//
+//  3. Set GCP_KMS_KEYRING to the name of the keyring you just created
+//     ```
+//     gcloud kms keyrings list --location global
+//     export GCP_KMS_KEYRING=<name from above>
+//     ```
+//
+// 4. Run the unit tests
+//
 // # Testing Teleport with an HSM-backed CA
 //
-// TBD as full support is added.
+// Integration tests can be found in integration/hsm. They run with SoftHSM by
+// default, manually alter the auth config as necessary to test different HSMs.
 package keystore

@@ -21,10 +21,10 @@ import (
 	"sort"
 	"time"
 
-	"github.com/gravitational/teleport/api"
-
-	"github.com/gogo/protobuf/proto"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api"
+	"github.com/gravitational/teleport/api/utils"
 )
 
 // AppServer represents a single proxied web app.
@@ -47,10 +47,15 @@ type AppServer interface {
 	String() string
 	// Copy returns a copy of this app server object.
 	Copy() AppServer
+
+	// CloneResource returns a copy of the AppServer as a ResourceWithLabels
+	CloneResource() ResourceWithLabels
 	// GetApp returns the app this app server proxies.
 	GetApp() Application
 	// SetApp sets the app this app server proxies.
 	SetApp(Application) error
+	// GetTunnelType returns the tunnel type associated with the app server.
+	GetTunnelType() TunnelType
 	// ProxiedService provides common methods for a proxied service.
 	ProxiedService
 }
@@ -123,6 +128,16 @@ func (s *AppServerV3) SetResourceID(id int64) {
 	s.Metadata.ID = id
 }
 
+// GetRevision returns the revision
+func (s *AppServerV3) GetRevision() string {
+	return s.Metadata.GetRevision()
+}
+
+// SetRevision sets the revision
+func (s *AppServerV3) SetRevision(rev string) {
+	s.Metadata.SetRevision(rev)
+}
+
 // GetMetadata returns the resource metadata.
 func (s *AppServerV3) GetMetadata() Metadata {
 	return s.Metadata
@@ -165,6 +180,9 @@ func (s *AppServerV3) SetRotation(r Rotation) {
 
 // GetApp returns the app this app server proxies.
 func (s *AppServerV3) GetApp() Application {
+	if s.Spec.App == nil {
+		return nil
+	}
 	return s.Spec.App
 }
 
@@ -176,6 +194,16 @@ func (s *AppServerV3) SetApp(app Application) error {
 	}
 	s.Spec.App = appV3
 	return nil
+}
+
+// GetTunnelType returns the tunnel type associated with the app server.
+func (s *AppServerV3) GetTunnelType() TunnelType {
+	switch {
+	case s.Origin() == OriginOkta:
+		return OktaTunnel
+	default:
+		return AppTunnel
+	}
 }
 
 // String returns the server string representation.
@@ -231,6 +259,19 @@ func (s *AppServerV3) SetProxyIDs(proxyIDs []string) {
 	s.Spec.ProxyIDs = proxyIDs
 }
 
+// GetLabel retrieves the label with the provided key. If not found
+// value will be empty and ok will be false.
+func (s *AppServerV3) GetLabel(key string) (value string, ok bool) {
+	if s.Spec.App != nil {
+		if v, ok := s.Spec.App.GetLabel(key); ok {
+			return v, ok
+		}
+	}
+
+	v, ok := s.Metadata.Labels[key]
+	return v, ok
+}
+
 // GetAllLabels returns all resource's labels. Considering:
 // * Static labels from `Metadata.Labels` and `Spec.App`.
 // * Dynamic labels from `Spec.App.Spec`.
@@ -264,7 +305,11 @@ func (s *AppServerV3) SetStaticLabels(sl map[string]string) {
 
 // Copy returns a copy of this app server object.
 func (s *AppServerV3) Copy() AppServer {
-	return proto.Clone(s).(*AppServerV3)
+	return utils.CloneProtoMsg(s)
+}
+
+func (s *AppServerV3) CloneResource() ResourceWithLabels {
+	return s.Copy()
 }
 
 // MatchSearch goes through select field values and tries to

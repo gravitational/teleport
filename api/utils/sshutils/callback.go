@@ -18,6 +18,7 @@ package sshutils
 
 import (
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 )
@@ -34,13 +35,18 @@ type HostKeyCallbackConfig struct {
 	// FIPS allows to set FIPS mode which will validate algorithms.
 	FIPS bool
 	// OnCheckCert is called on SSH certificate validation.
-	OnCheckCert func(*ssh.Certificate)
+	OnCheckCert func(*ssh.Certificate) error
+	// Clock is used to set the Checker Time
+	Clock clockwork.Clock
 }
 
 // Check validates the config.
 func (c *HostKeyCallbackConfig) Check() error {
 	if c.GetHostCheckers == nil {
 		return trace.BadParameter("missing GetHostCheckers")
+	}
+	if c.Clock == nil {
+		c.Clock = clockwork.NewRealClock()
 	}
 	return nil
 }
@@ -54,6 +60,7 @@ func NewHostKeyCallback(conf HostKeyCallbackConfig) (ssh.HostKeyCallback, error)
 		CertChecker: ssh.CertChecker{
 			IsHostAuthority: makeIsHostAuthorityFunc(conf.GetHostCheckers),
 			HostKeyFallback: conf.HostKeyFallback,
+			Clock:           conf.Clock.Now,
 		},
 		FIPS:        conf.FIPS,
 		OnCheckCert: conf.OnCheckCert,

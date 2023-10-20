@@ -22,16 +22,15 @@ import (
 	"net"
 	"strconv"
 
+	"github.com/gravitational/trace"
+	mssql "github.com/microsoft/go-mssqldb"
+	"github.com/microsoft/go-mssqldb/msdsn"
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/sqlserver/protocol"
 	"github.com/gravitational/teleport/lib/utils"
-
-	mssql "github.com/denisenkom/go-mssqldb"
-	"github.com/denisenkom/go-mssqldb/msdsn"
-	"github.com/gravitational/trace"
 )
 
 // MakeTestClient returns SQL Server client used in tests.
@@ -52,6 +51,7 @@ func MakeTestClient(ctx context.Context, config common.TestClientConfig) (*mssql
 		User:       config.RouteToDatabase.Username,
 		Database:   config.RouteToDatabase.Database,
 		Encryption: msdsn.EncryptionDisabled,
+		Protocols:  []string{"tcp"},
 	}, nil)
 
 	conn, err := connector.Connect(ctx)
@@ -93,6 +93,7 @@ func (c *TestConnector) Connect(ctx context.Context, sessionCtx *common.Session,
 		Host:         host,
 		Port:         portI,
 		LoginOptions: options,
+		Protocols:    []string{"tcp"},
 	}, nil)
 
 	conn, err := connector.Connect(ctx)

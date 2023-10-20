@@ -20,20 +20,21 @@ import (
 	"context"
 	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
+
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
-
-	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 )
 
 const (
-	sessionPrefix                 = "session_tracker"
-	retryDelay      time.Duration = time.Second
-	casRetryLimit   int           = 7
-	casErrorMessage string        = "CompareAndSwap reached retry limit"
+	sessionPrefix   = "session_tracker"
+	retryDelay      = time.Second
+	terminatedTTL   = 3 * time.Minute
+	casRetryLimit   = 7
+	casErrorMessage = "CompareAndSwap reached retry limit"
 )
 
 type sessionTracker struct {
@@ -71,8 +72,7 @@ func (s *sessionTracker) UpdatePresence(ctx context.Context, sessionID, user str
 			return trace.Wrap(err)
 		}
 
-		err = session.UpdatePresence(user)
-		if err != nil {
+		if err := session.UpdatePresence(user, s.bk.Clock().Now().UTC()); err != nil {
 			return trace.Wrap(err)
 		}
 
@@ -82,9 +82,10 @@ func (s *sessionTracker) UpdatePresence(ctx context.Context, sessionID, user str
 		}
 
 		item := backend.Item{
-			Key:     backend.Key(sessionPrefix, sessionID),
-			Value:   sessionJSON,
-			Expires: session.Expiry(),
+			Key:      backend.Key(sessionPrefix, sessionID),
+			Value:    sessionJSON,
+			Expires:  session.Expiry(),
+			Revision: sessionItem.Revision,
 		}
 		_, err = s.bk.CompareAndSwap(ctx, *sessionItem, item)
 		if trace.IsCompareFailed(err) {
@@ -112,9 +113,8 @@ func (s *sessionTracker) GetSessionTracker(ctx context.Context, sessionID string
 	return session, nil
 }
 
-// GetActiveSessionTrackers returns a list of active session trackers.
-func (s *sessionTracker) GetActiveSessionTrackers(ctx context.Context) ([]types.SessionTracker, error) {
-	prefix := backend.Key(sessionPrefix)
+func (s *sessionTracker) getActiveSessionTrackers(ctx context.Context, filter *types.SessionTrackerFilter) ([]types.SessionTracker, error) {
+	prefix := backend.ExactKey(sessionPrefix)
 	result, err := s.bk.GetRange(ctx, prefix, backend.RangeEnd(prefix), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -141,8 +141,10 @@ func (s *sessionTracker) GetActiveSessionTrackers(ctx context.Context) ([]types.
 
 		switch {
 		case after:
-			// Keep any items that aren't expired.
-			sessions = append(sessions, session)
+			// Keep any items that aren't expired and which match the filter.
+			if filter == nil || (filter != nil && filter.Match(session)) {
+				sessions = append(sessions, session)
+			}
 		case !after && item.Expires.IsZero():
 			// Clear item if expiry is not set on the backend.
 			noExpiry = append(noExpiry, item)
@@ -164,6 +166,16 @@ func (s *sessionTracker) GetActiveSessionTrackers(ctx context.Context) ([]types.
 	}
 
 	return sessions, nil
+}
+
+// GetActiveSessionTrackers returns a list of active session trackers.
+func (s *sessionTracker) GetActiveSessionTrackers(ctx context.Context) ([]types.SessionTracker, error) {
+	return s.getActiveSessionTrackers(ctx, nil)
+}
+
+// GetActiveSessionTrackersWithFilter returns a list of active sessions filtered by a filter.
+func (s *sessionTracker) GetActiveSessionTrackersWithFilter(ctx context.Context, filter *types.SessionTrackerFilter) ([]types.SessionTracker, error) {
+	return s.getActiveSessionTrackers(ctx, filter)
 }
 
 // CreateSessionTracker creates a tracker resource for an active session.
@@ -203,11 +215,29 @@ func (s *sessionTracker) UpdateSessionTracker(ctx context.Context, req *proto.Up
 		case *types.SessionTrackerV1:
 			switch update := req.Update.(type) {
 			case *proto.UpdateSessionTrackerRequest_UpdateState:
-				session.SetState(update.UpdateState.State)
+				// Since we are using a CAS loop, we can safely check the state of the session
+				// before updating it. If the session is already closed, we can return an error
+				// to the caller to indicate that the session is no longer active and the update
+				// should not be applied.
+				// Before, we were relying on the caller to send the updates in the correct order
+				// and to not send updates for closed sessions. This was error prone and led to
+				// sessions getting stuck as active. The expiry of the session was correctly stored
+				// in the backend, but since dynamodb deletion is eventually consistent, the session
+				// could still be returned by GetActiveSessionTrackers for days if a
+				// running event is received after the session termination event.
+				if session.GetState() == types.SessionState_SessionStateTerminated {
+					return trace.BadParameter("session %q is already closed", session.GetSessionID())
+				}
+
+				if err := session.SetState(update.UpdateState.State); err != nil {
+					return trace.Wrap(err)
+				}
 			case *proto.UpdateSessionTrackerRequest_AddParticipant:
 				session.AddParticipant(*update.AddParticipant.Participant)
 			case *proto.UpdateSessionTrackerRequest_RemoveParticipant:
-				session.RemoveParticipant(update.RemoveParticipant.ParticipantID)
+				if err := session.RemoveParticipant(update.RemoveParticipant.ParticipantID); err != nil {
+					return trace.Wrap(err)
+				}
 			case *proto.UpdateSessionTrackerRequest_UpdateExpiry:
 				session.SetExpiry(*update.UpdateExpiry.Expires)
 			}
@@ -220,10 +250,21 @@ func (s *sessionTracker) UpdateSessionTracker(ctx context.Context, req *proto.Up
 			return trace.Wrap(err)
 		}
 
+		expiry := session.Expiry()
+
+		// Terminated sessions don't need to stick around for the full TTL.
+		// Instead of explicitly deleting the item from the backend the TTL
+		// is set to a sooner time so that the backend can automatically
+		// clean it up.
+		if session.GetState() == types.SessionState_SessionStateTerminated {
+			expiry = s.bk.Clock().Now().UTC().Add(terminatedTTL)
+		}
+
 		item := backend.Item{
-			Key:     backend.Key(sessionPrefix, req.SessionID),
-			Value:   sessionJSON,
-			Expires: session.Expiry(),
+			Key:      backend.Key(sessionPrefix, req.SessionID),
+			Value:    sessionJSON,
+			Expires:  expiry,
+			Revision: sessionItem.Revision,
 		}
 		_, err = s.bk.CompareAndSwap(ctx, *sessionItem, item)
 		if trace.IsCompareFailed(err) {

@@ -1,0 +1,26 @@
+authToken: auth-token
+proxyAddr: proxy.example.com:3080
+roles: db
+azureDatabases:
+- types: ["mysql", "postgres"]
+  tags:
+    "*": "*"
+- types: ["mysql"]
+  tags:
+    "env": ["dev", "staging"]
+    "origin": "alice"
+  regions: ["eastus", "centralus"]
+  subscriptions: ["subID1", "subID2"]
+  resource_groups: ["group1", "group2"]
+# environment variables can be used to authenticate as the Azure service principal
+extraEnv:
+- name: AZURE_CLIENT_SECRET
+  valueFrom:
+    secretKeyRef:
+    name: teleport-azure-client-secret
+    key: client_secret
+    optional: false
+- name: AZURE_TENANT_ID
+  value: "11111111-2222-3333-4444-555555555555"
+- name: AZURE_CLIENT_ID
+  value: "11111111-2222-3333-4444-555555555555"

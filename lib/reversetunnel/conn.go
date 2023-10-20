@@ -17,19 +17,20 @@ limitations under the License.
 package reversetunnel
 
 import (
+	"encoding/json"
 	"fmt"
 	"net"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/sshutils"
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 )
 
 // connKey is a key used to identify tunnel connections. It contains the UUID
@@ -47,7 +48,7 @@ type connKey struct {
 type remoteConn struct {
 	// lastHeartbeat is the last time a heartbeat was received.
 	// intentionally placed first to ensure 64-bit alignment
-	lastHeartbeat int64
+	lastHeartbeat atomic.Int64
 
 	*connConfig
 	mu  sync.Mutex
@@ -61,17 +62,20 @@ type remoteConn struct {
 
 	// invalid indicates the connection is invalid and connections can no longer
 	// be made on it.
-	invalid int32
+	invalid atomic.Bool
 
 	// lastError is the last error that occurred before this connection became
 	// invalid.
 	lastError error
 
 	// Used to make sure calling Close on the connection multiple times is safe.
-	closed int32
+	closed atomic.Bool
 
 	// clock is used to control time in tests.
 	clock clockwork.Clock
+
+	// sessions counts the number of active sessions being serviced by this connection
+	sessions atomic.Int64
 }
 
 // connConfig is the configuration for the remoteConn.
@@ -119,32 +123,34 @@ func (c *remoteConn) String() string {
 
 func (c *remoteConn) Close() error {
 	// If the connection has already been closed, return right away.
-	if !atomic.CompareAndSwapInt32(&c.closed, 0, 1) {
+	if c.closed.Swap(true) {
 		return nil
 	}
 
+	var errs []error
 	// Close the discovery channel.
 	if c.discoveryCh != nil {
-		c.discoveryCh.Close()
+		errs = append(errs, c.discoveryCh.Close())
 		c.discoveryCh = nil
 	}
 
 	// Close the SSH connection which will close the underlying net.Conn as well.
 	err := c.sconn.Close()
 	if err != nil {
-		return trace.Wrap(err)
+		errs = append(errs, err)
 	}
 
-	return nil
+	return trace.NewAggregate(errs...)
 
 }
 
 // OpenChannel will open a SSH channel to the remote side.
 func (c *remoteConn) OpenChannel(name string, data []byte) (ssh.Channel, error) {
-	channel, _, err := c.sconn.OpenChannel(name, data)
+	channel, reqC, err := c.sconn.OpenChannel(name, data)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	go ssh.DiscardRequests(reqC)
 
 	return channel, nil
 }
@@ -154,27 +160,66 @@ func (c *remoteConn) ChannelConn(channel ssh.Channel) net.Conn {
 	return sshutils.NewChConn(c.sconn, channel)
 }
 
+func (c *remoteConn) incrementActiveSessions() {
+	c.sessions.Add(1)
+}
+
+func (c *remoteConn) decrementActiveSessions() {
+	c.sessions.Add(-1)
+}
+
+func (c *remoteConn) activeSessions() int64 {
+	return c.sessions.Load()
+}
+
 func (c *remoteConn) markInvalid(err error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	c.lastError = err
-	atomic.StoreInt32(&c.invalid, 1)
-	c.log.Debugf("Disconnecting connection to %v %v: %v.", c.clusterName, c.conn.RemoteAddr(), err)
+	c.invalid.Store(true)
+	c.log.Warnf("Unhealthy connection to %v %v: %v.", c.clusterName, c.conn.RemoteAddr(), err)
+}
+
+func (c *remoteConn) markValid() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.lastError = nil
+	c.invalid.Store(false)
 }
 
 func (c *remoteConn) isInvalid() bool {
-	return atomic.LoadInt32(&c.invalid) == 1
+	return c.invalid.Load()
+}
+
+// isOffline determines if the remoteConn has missed
+// enough heartbeats to be considered offline. Any active connections
+// still being serviced by the connection will cause a true return
+// even if the threshold has been exceeded.
+func (c *remoteConn) isOffline(now time.Time, threshold time.Duration) bool {
+	hb := c.getLastHeartbeat()
+	count := c.activeSessions()
+	return now.After(hb.Add(threshold)) && count == 0
 }
 
 func (c *remoteConn) setLastHeartbeat(tm time.Time) {
-	atomic.StoreInt64(&c.lastHeartbeat, tm.UnixNano())
+	c.lastHeartbeat.Store(tm.UnixNano())
+}
+
+func (c *remoteConn) getLastHeartbeat() time.Time {
+	hb := c.lastHeartbeat.Load()
+	if hb == 0 {
+		return time.Time{}
+	}
+
+	return time.Unix(0, hb)
 }
 
 // isReady returns true when connection is ready to be tried,
 // it returns true when connection has received the first heartbeat
 func (c *remoteConn) isReady() bool {
-	return atomic.LoadInt64(&c.lastHeartbeat) != 0
+	return c.lastHeartbeat.Load() != 0
 }
 
 func (c *remoteConn) openDiscoveryChannel() (ssh.Channel, error) {
@@ -189,11 +234,13 @@ func (c *remoteConn) openDiscoveryChannel() (ssh.Channel, error) {
 		return c.discoveryCh, nil
 	}
 
-	c.discoveryCh, _, err = c.sconn.OpenChannel(chanDiscovery, nil)
+	discoveryCh, reqC, err := c.sconn.OpenChannel(chanDiscovery, nil)
 	if err != nil {
 		c.markInvalid(err)
 		return nil, trace.Wrap(err)
 	}
+	go ssh.DiscardRequests(reqC)
+	c.discoveryCh = discoveryCh
 	return c.discoveryCh, nil
 }
 
@@ -225,22 +272,16 @@ func (c *remoteConn) sendDiscoveryRequest(req discoveryRequest) error {
 
 	// Marshal and send the request. If the connection failed, mark the
 	// connection as invalid so it will be removed later.
-	payload, err := marshalDiscoveryRequest(req)
+	payload, err := json.Marshal(req)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	// Log the discovery request being sent. Useful for debugging to know what
 	// proxies the tunnel server thinks exist.
-	names := make([]string, 0, len(req.Proxies))
-	for _, proxy := range req.Proxies {
-		names = append(names, proxy.GetName())
-	}
-	c.log.Debugf("Sending %v discovery request with proxies %q to %v.",
-		req.Type, names, c.sconn.RemoteAddr())
+	c.log.Debugf("Sending discovery request with proxies %v to %v.", req.ProxyNames(), c.sconn.RemoteAddr())
 
-	_, err = discoveryCh.SendRequest(chanDiscoveryReq, false, payload)
-	if err != nil {
+	if _, err := discoveryCh.SendRequest(chanDiscoveryReq, false, payload); err != nil {
 		c.markInvalid(err)
 		return trace.Wrap(err)
 	}

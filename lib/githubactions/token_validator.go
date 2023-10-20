@@ -18,37 +18,36 @@ package githubactions
 
 import (
 	"context"
-	"encoding/json"
-	"sync"
+	"fmt"
 	"time"
 
 	"github.com/coreos/go-oidc"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+
+	"github.com/gravitational/teleport/lib/jwt"
 )
 
 type IDTokenValidatorConfig struct {
 	// Clock is used by the validator when checking expiry and issuer times of
 	// tokens. If omitted, a real clock will be used.
 	Clock clockwork.Clock
-	// IssuerURL is the URL of the OIDC token issuer, on which the
-	// /well-known/openid-configuration endpoint can be found.
-	// If this is omitted, a default value will be set.
-	IssuerURL string
+	// GitHubIssuerHost is the host of the Issuer for tokens issued by
+	// GitHub's cloud hosted version. If no GHESHost override is provided to
+	// the call to Validate, then this will be used as the host.
+	GitHubIssuerHost string
+	// insecure configures the validator to use HTTP rather than HTTPS. This
+	// is not exported as this is only used in the test for now.
+	insecure bool
 }
 
 type IDTokenValidator struct {
 	IDTokenValidatorConfig
-
-	mu sync.Mutex
-	// oidc is protected by mu and should only be accessed via the getProvider
-	// method.
-	oidc *oidc.Provider
 }
 
 func NewIDTokenValidator(cfg IDTokenValidatorConfig) *IDTokenValidator {
-	if cfg.IssuerURL == "" {
-		cfg.IssuerURL = IssuerURL
+	if cfg.GitHubIssuerHost == "" {
+		cfg.GitHubIssuerHost = DefaultIssuerHost
 	}
 	if cfg.Clock == nil {
 		cfg.Clock = clockwork.NewRealClock()
@@ -59,29 +58,23 @@ func NewIDTokenValidator(cfg IDTokenValidatorConfig) *IDTokenValidator {
 	}
 }
 
-// getProvider allows the lazy initialisation of the oidc provider.
-func (id *IDTokenValidator) getProvider() (*oidc.Provider, error) {
-	id.mu.Lock()
-	defer id.mu.Unlock()
-	if id.oidc != nil {
-		return id.oidc, nil
-	}
-	// Intentionally use context.Background() here since this actually controls
-	// cache functionality.
-	p, err := oidc.NewProvider(
-		context.Background(),
-		id.IDTokenValidatorConfig.IssuerURL,
-	)
-	if err != nil {
-		return nil, trace.Wrap(err)
+func (id *IDTokenValidator) issuerURL(GHESHost string) string {
+	scheme := "https"
+	if id.insecure {
+		scheme = "http"
 	}
 
-	id.oidc = p
-	return p, nil
+	if GHESHost == "" {
+		return fmt.Sprintf("%s://%s", scheme, id.GitHubIssuerHost)
+	}
+	return fmt.Sprintf("%s://%s/_services/token", scheme, GHESHost)
 }
 
-func (id *IDTokenValidator) Validate(ctx context.Context, token string) (*IDTokenClaims, error) {
-	p, err := id.getProvider()
+func (id *IDTokenValidator) Validate(ctx context.Context, GHESHost string, token string) (*IDTokenClaims, error) {
+	p, err := oidc.NewProvider(
+		ctx,
+		id.issuerURL(GHESHost),
+	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -98,7 +91,7 @@ func (id *IDTokenValidator) Validate(ctx context.Context, token string) (*IDToke
 
 	// `go-oidc` does not implement not before check, so we need to manually
 	// perform this
-	if err := checkNotBefore(id.Clock.Now(), time.Minute*2, idToken); err != nil {
+	if err := jwt.CheckNotBefore(id.Clock.Now(), time.Minute*2, idToken); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -107,51 +100,4 @@ func (id *IDTokenValidator) Validate(ctx context.Context, token string) (*IDToke
 		return nil, trace.Wrap(err)
 	}
 	return &claims, nil
-}
-
-// checkNotBefore ensures the token was not issued in the future.
-// https://www.rfc-editor.org/rfc/rfc7519#section-4.1.5
-// 4.1.5.  "nbf" (Not Before) Claim
-// TODO(strideynet): upstream support for `nbf` into the go-oidc lib.
-func checkNotBefore(now time.Time, leeway time.Duration, token *oidc.IDToken) error {
-	claims := struct {
-		NotBefore *jsonTime `json:"nbf"`
-	}{}
-	if err := token.Claims(&claims); err != nil {
-		return trace.Wrap(err)
-	}
-
-	if claims.NotBefore != nil {
-		adjustedNow := now.Add(leeway)
-		nbf := time.Time(*claims.NotBefore)
-		if adjustedNow.Before(nbf) {
-			return trace.AccessDenied("token not before in future")
-		}
-	}
-
-	return nil
-}
-
-// jsonTime unmarshaling sourced from https://github.com/gravitational/go-oidc/blob/master/oidc.go#L295
-// TODO(strideynet): upstream support for `nbf` into the go-oidc lib.
-type jsonTime time.Time
-
-func (j *jsonTime) UnmarshalJSON(b []byte) error {
-	var n json.Number
-	if err := json.Unmarshal(b, &n); err != nil {
-		return err
-	}
-	var unix int64
-
-	if t, err := n.Int64(); err == nil {
-		unix = t
-	} else {
-		f, err := n.Float64()
-		if err != nil {
-			return err
-		}
-		unix = int64(f)
-	}
-	*j = jsonTime(time.Unix(unix, 0))
-	return nil
 }

@@ -15,12 +15,22 @@
 package desktop
 
 import (
+	"context"
+	"errors"
+	"io"
+	"net"
 	"strconv"
 	"testing"
+	"time"
 
 	"github.com/go-ldap/ldap/v3"
-	"github.com/gravitational/teleport/api/types"
+	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth/windows"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // TestDiscoveryLDAPFilter verifies that WindowsService produces a valid
@@ -63,14 +73,14 @@ func TestDiscoveryLDAPFilter(t *testing.T) {
 func TestAppliesLDAPLabels(t *testing.T) {
 	l := make(map[string]string)
 	entry := ldap.NewEntry("CN=test,DC=example,DC=com", map[string][]string{
-		attrDNSHostName:       {"foo.example.com"},
-		attrName:              {"foo"},
-		attrOS:                {"Windows Server"},
-		attrOSVersion:         {"6.1"},
-		attrDistinguishedName: {"CN=foo,OU=IT,DC=goteleport,DC=com"},
-		attrCommonName:        {"foo"},
-		"bar":                 {"baz"},
-		"quux":                {""},
+		windows.AttrDNSHostName:       {"foo.example.com"},
+		windows.AttrName:              {"foo"},
+		windows.AttrOS:                {"Windows Server"},
+		windows.AttrOSVersion:         {"6.1"},
+		windows.AttrDistinguishedName: {"CN=foo,OU=IT,DC=goteleport,DC=com"},
+		windows.AttrCommonName:        {"foo"},
+		"bar":                         {"baz"},
+		"quux":                        {""},
 	})
 
 	s := &WindowsService{
@@ -82,13 +92,13 @@ func TestAppliesLDAPLabels(t *testing.T) {
 
 	// check default labels
 	require.Equal(t, l[types.OriginLabel], types.OriginDynamic)
-	require.Equal(t, l[types.TeleportNamespace+"/dns_host_name"], "foo.example.com")
-	require.Equal(t, l[types.TeleportNamespace+"/computer_name"], "foo")
-	require.Equal(t, l[types.TeleportNamespace+"/os"], "Windows Server")
-	require.Equal(t, l[types.TeleportNamespace+"/os_version"], "6.1")
+	require.Equal(t, l[types.DiscoveryLabelWindowsDNSHostName], "foo.example.com")
+	require.Equal(t, l[types.DiscoveryLabelWindowsComputerName], "foo")
+	require.Equal(t, l[types.DiscoveryLabelWindowsOS], "Windows Server")
+	require.Equal(t, l[types.DiscoveryLabelWindowsOSVersion], "6.1")
 
 	// check OU label
-	require.Equal(t, l[types.TeleportNamespace+"/ou"], "OU=IT,DC=goteleport,DC=com")
+	require.Equal(t, l[types.DiscoveryLabelWindowsOU], "OU=IT,DC=goteleport,DC=com")
 
 	// check custom labels
 	require.Equal(t, l["ldap/bar"], "baz")
@@ -105,21 +115,21 @@ func TestLabelsDomainControllers(t *testing.T) {
 		{
 			desc: "DC",
 			entry: ldap.NewEntry("CN=test,DC=example,DC=com", map[string][]string{
-				attrPrimaryGroupID: {writableDomainControllerGroupID},
+				windows.AttrPrimaryGroupID: {windows.WritableDomainControllerGroupID},
 			}),
 			assert: require.True,
 		},
 		{
 			desc: "RODC",
 			entry: ldap.NewEntry("CN=test,DC=example,DC=com", map[string][]string{
-				attrPrimaryGroupID: {readOnlyDomainControllerGroupID},
+				windows.AttrPrimaryGroupID: {windows.ReadOnlyDomainControllerGroupID},
 			}),
 			assert: require.True,
 		},
 		{
 			desc: "computer",
 			entry: ldap.NewEntry("CN=test,DC=example,DC=com", map[string][]string{
-				attrPrimaryGroupID: {"515"},
+				windows.AttrPrimaryGroupID: {"515"},
 			}),
 			assert: require.False,
 		},
@@ -128,8 +138,34 @@ func TestLabelsDomainControllers(t *testing.T) {
 			l := make(map[string]string)
 			s.applyLabelsFromLDAP(test.entry, l)
 
-			b, _ := strconv.ParseBool(l[types.TeleportNamespace+"/is_domain_controller"])
+			b, _ := strconv.ParseBool(l[types.DiscoveryLabelWindowsIsDomainController])
 			test.assert(t, b)
 		})
 	}
+}
+
+// TestDNSErrors verifies that errors are handled quickly
+// and do not block discovery for too long.
+func TestDNSErrors(t *testing.T) {
+	logger := utils.NewLoggerForTests()
+	logger.SetLevel(logrus.PanicLevel)
+	logger.SetOutput(io.Discard)
+
+	s := &WindowsService{
+		cfg: WindowsServiceConfig{
+			Log:   logger,
+			Clock: clockwork.NewRealClock(),
+		},
+		dnsResolver: &net.Resolver{
+			PreferGo: true,
+			Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
+				return nil, errors.New("this resolver always fails")
+			},
+		},
+	}
+
+	start := time.Now()
+	_, err := s.lookupDesktop(context.Background(), "$invalid hostname")
+	require.Less(t, time.Since(start), dnsQueryTimeout-1*time.Second)
+	require.Error(t, err)
 }

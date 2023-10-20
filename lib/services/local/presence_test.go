@@ -25,21 +25,116 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services/suite"
-
-	"github.com/gravitational/trace"
 )
 
+func TestRemoteClusterCRUD(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	bk, err := lite.New(ctx, backend.Params{"path": t.TempDir()})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, bk.Close()) })
+
+	presenceBackend := NewPresenceService(bk)
+	clock := clockwork.NewFakeClockAt(time.Now())
+
+	originalLabels := map[string]string{
+		"a": "b",
+		"c": "d",
+	}
+
+	rc, err := types.NewRemoteCluster("foo")
+	require.NoError(t, err)
+	rc.SetConnectionStatus(teleport.RemoteClusterStatusOffline)
+	rc.SetLastHeartbeat(clock.Now())
+	rc.SetMetadata(types.Metadata{
+		Name:   "foo",
+		Labels: originalLabels,
+	})
+
+	src, err := types.NewRemoteCluster("bar")
+	require.NoError(t, err)
+	src.SetConnectionStatus(teleport.RemoteClusterStatusOnline)
+	src.SetLastHeartbeat(clock.Now().Add(-time.Hour))
+
+	// create remote clusters
+	err = presenceBackend.CreateRemoteCluster(rc)
+	require.NoError(t, err)
+	err = presenceBackend.CreateRemoteCluster(src)
+	require.NoError(t, err)
+
+	// get remote cluster make sure it's correct
+	gotRC, err := presenceBackend.GetRemoteCluster("foo")
+	require.NoError(t, err)
+	require.Equal(t, "foo", gotRC.GetName())
+	require.Equal(t, teleport.RemoteClusterStatusOffline, gotRC.GetConnectionStatus())
+	require.Equal(t, clock.Now().Nanosecond(), gotRC.GetLastHeartbeat().Nanosecond())
+	require.Equal(t, originalLabels, gotRC.GetMetadata().Labels)
+
+	updatedLabels := map[string]string{
+		"e": "f",
+		"g": "h",
+	}
+
+	// update remote clusters
+	rc.SetConnectionStatus(teleport.RemoteClusterStatusOnline)
+	rc.SetLastHeartbeat(clock.Now().Add(time.Hour))
+	rc.SetMetadata(types.Metadata{
+		Name:   "foo",
+		Labels: updatedLabels,
+	})
+	err = presenceBackend.UpdateRemoteCluster(ctx, rc)
+	require.NoError(t, err)
+
+	src.SetConnectionStatus(teleport.RemoteClusterStatusOffline)
+	src.SetLastHeartbeat(clock.Now())
+	err = presenceBackend.UpdateRemoteCluster(ctx, src)
+	require.NoError(t, err)
+
+	// get remote cluster make sure it's correct
+	gotRC, err = presenceBackend.GetRemoteCluster("foo")
+	require.NoError(t, err)
+	require.Equal(t, "foo", gotRC.GetName())
+	require.Equal(t, teleport.RemoteClusterStatusOnline, gotRC.GetConnectionStatus())
+	require.Equal(t, clock.Now().Add(time.Hour).Nanosecond(), gotRC.GetLastHeartbeat().Nanosecond())
+	require.Equal(t, updatedLabels, gotRC.GetMetadata().Labels)
+
+	gotRC, err = presenceBackend.GetRemoteCluster("bar")
+	require.NoError(t, err)
+	require.Equal(t, "bar", gotRC.GetName())
+	require.Equal(t, teleport.RemoteClusterStatusOffline, gotRC.GetConnectionStatus())
+	require.Equal(t, clock.Now().Nanosecond(), gotRC.GetLastHeartbeat().Nanosecond())
+
+	// get all clusters
+	allRC, err := presenceBackend.GetRemoteClusters()
+	require.NoError(t, err)
+	require.Len(t, allRC, 2)
+
+	// delete cluster
+	err = presenceBackend.DeleteRemoteCluster(ctx, "foo")
+	require.NoError(t, err)
+
+	// make sure it's really gone
+	err = presenceBackend.DeleteRemoteCluster(ctx, "foo")
+	require.Error(t, err)
+	require.ErrorIs(t, err, trace.NotFound("key /remoteClusters/foo is not found"))
+}
+
 func TestTrustedClusterCRUD(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 
 	bk, err := lite.New(ctx, backend.Params{"path": t.TempDir()})
@@ -100,6 +195,7 @@ func TestTrustedClusterCRUD(t *testing.T) {
 
 // TestApplicationServersCRUD verifies backend operations on app servers.
 func TestApplicationServersCRUD(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	clock := clockwork.NewFakeClock()
 
@@ -156,7 +252,7 @@ func TestApplicationServersCRUD(t *testing.T) {
 	servers := types.AppServers(out)
 	require.NoError(t, servers.SortByCustom(types.SortBy{Field: types.ResourceMetadataName}))
 	require.Empty(t, cmp.Diff([]types.AppServer{serverA, serverB}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
 	// Delete an app server.
 	err = presence.DeleteApplicationServer(ctx, serverA.GetNamespace(), serverA.GetHostID(), serverA.GetName())
@@ -166,7 +262,7 @@ func TestApplicationServersCRUD(t *testing.T) {
 	out, err = presence.GetApplicationServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff([]types.AppServer{serverB}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
 	// Upsert server with TTL.
 	serverA.SetExpiry(clock.Now().UTC().Add(time.Hour))
@@ -191,7 +287,22 @@ func TestApplicationServersCRUD(t *testing.T) {
 	require.Empty(t, out)
 }
 
+func mustCreateDatabase(t *testing.T, name, protocol, uri string) *types.DatabaseV3 {
+	database, err := types.NewDatabaseV3(
+		types.Metadata{
+			Name: name,
+		},
+		types.DatabaseSpecV3{
+			Protocol: protocol,
+			URI:      uri,
+		},
+	)
+	require.NoError(t, err)
+	return database
+}
+
 func TestDatabaseServersCRUD(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	clock := clockwork.NewFakeClock()
 
@@ -207,8 +318,7 @@ func TestDatabaseServersCRUD(t *testing.T) {
 	server, err := types.NewDatabaseServerV3(types.Metadata{
 		Name: "foo",
 	}, types.DatabaseServerSpecV3{
-		Protocol: defaults.ProtocolPostgres,
-		URI:      "localhost:5432",
+		Database: mustCreateDatabase(t, "foo", defaults.ProtocolPostgres, "localhost:5432"),
 		Hostname: "localhost",
 		HostID:   uuid.New().String(),
 	})
@@ -227,8 +337,7 @@ func TestDatabaseServersCRUD(t *testing.T) {
 	// Check again, expect a single server to be found.
 	out, err = presence.GetDatabaseServers(ctx, server.GetNamespace())
 	require.NoError(t, err)
-	server.SetResourceID(out[0].GetResourceID())
-	require.EqualValues(t, []types.DatabaseServer{server}, out)
+	require.Empty(t, cmp.Diff([]types.DatabaseServer{server}, out, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
 	// Make sure can't delete with empty namespace or host ID or name.
 	err = presence.DeleteDatabaseServer(ctx, server.GetNamespace(), server.GetHostID(), "")
@@ -279,6 +388,7 @@ func TestDatabaseServersCRUD(t *testing.T) {
 }
 
 func TestNodeCRUD(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	lite, err := lite.NewWithConfig(ctx, lite.Config{Path: t.TempDir()})
 	require.NoError(t, err)
@@ -313,7 +423,7 @@ func TestNodeCRUD(t *testing.T) {
 			require.NoError(t, err)
 			require.EqualValues(t, len(nodes), 2)
 			require.Empty(t, cmp.Diff([]types.Server{node1, node2}, nodes,
-				cmpopts.IgnoreFields(types.Metadata{}, "ID")))
+				cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
 			// GetNodes should fail if namespace isn't provided
 			_, err = presence.GetNodes(ctx, "")
@@ -325,7 +435,7 @@ func TestNodeCRUD(t *testing.T) {
 			node, err := presence.GetNode(ctx, apidefaults.Namespace, "node1")
 			require.NoError(t, err)
 			require.Empty(t, cmp.Diff(node1, node,
-				cmpopts.IgnoreFields(types.Metadata{}, "ID")))
+				cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
 			// GetNode should fail if node name isn't provided
 			_, err = presence.GetNode(ctx, apidefaults.Namespace, "")
@@ -373,12 +483,13 @@ func TestListResources(t *testing.T) {
 		"DatabaseServers": {
 			resourceType: types.KindDatabaseServer,
 			createResourceFunc: func(ctx context.Context, presence *PresenceService, name string, labels map[string]string) error {
+				db := mustCreateDatabase(t, name, defaults.ProtocolPostgres, "localhost:5432")
+				db.SetStaticLabels(labels)
 				server, err := types.NewDatabaseServerV3(types.Metadata{
 					Name:   name,
 					Labels: labels,
 				}, types.DatabaseServerSpecV3{
-					Protocol: defaults.ProtocolPostgres,
-					URI:      "localhost:5432",
+					Database: db,
 					Hostname: "localhost",
 					HostID:   uuid.New().String(),
 				})
@@ -397,12 +508,13 @@ func TestListResources(t *testing.T) {
 		"DatabaseServersSameHost": {
 			resourceType: types.KindDatabaseServer,
 			createResourceFunc: func(ctx context.Context, presence *PresenceService, name string, labels map[string]string) error {
+				db := mustCreateDatabase(t, name, defaults.ProtocolPostgres, "localhost:5432")
+				db.SetStaticLabels(labels)
 				server, err := types.NewDatabaseServerV3(types.Metadata{
 					Name:   name,
 					Labels: labels,
 				}, types.DatabaseServerSpecV3{
-					Protocol: defaults.ProtocolPostgres,
-					URI:      "localhost:5432",
+					Database: db,
 					Hostname: "localhost",
 					HostID:   "some-host",
 				})
@@ -484,23 +596,30 @@ func TestListResources(t *testing.T) {
 				return presence.DeleteAllApplicationServers(ctx, apidefaults.Namespace)
 			},
 		},
-		"KubeService": {
-			resourceType: types.KindKubeService,
+		"KubeServer": {
+			resourceType: types.KindKubeServer,
 			createResourceFunc: func(ctx context.Context, presence *PresenceService, name string, labels map[string]string) error {
-				server, err := types.NewServerWithLabels(name, types.KindKubeService, types.ServerSpecV2{
-					KubernetesClusters: []*types.KubernetesCluster{
-						{Name: name, StaticLabels: labels},
+				kube, err := types.NewKubernetesClusterV3(
+					types.Metadata{
+						Name:   name,
+						Labels: labels,
 					},
-				}, labels)
+					types.KubernetesClusterSpecV3{},
+				)
+				if err != nil {
+					return err
+				}
+				kubeServer, err := types.NewKubernetesServerV3FromCluster(kube, "host", "hostID")
 				if err != nil {
 					return err
 				}
 
 				// Upsert server.
-				return presence.UpsertKubeService(ctx, server)
+				_, err = presence.UpsertKubernetesServer(ctx, kubeServer)
+				return err
 			},
 			deleteAllResourcesFunc: func(ctx context.Context, presence *PresenceService) error {
-				return presence.DeleteAllKubeServices(ctx)
+				return presence.DeleteAllKubernetesServers(ctx)
 			},
 		},
 		"Node": {
@@ -544,6 +663,29 @@ func TestListResources(t *testing.T) {
 			},
 			deleteAllResourcesFunc: func(ctx context.Context, presence *PresenceService) error {
 				return presence.DeleteAllNodes(ctx, apidefaults.Namespace)
+			},
+		},
+		"WindowsDesktopService": {
+			resourceType: types.KindWindowsDesktopService,
+			createResourceFunc: func(ctx context.Context, presence *PresenceService, name string, labels map[string]string) error {
+				desktop, err := types.NewWindowsDesktopServiceV3(
+					types.Metadata{
+						Name:   name,
+						Labels: labels,
+					},
+					types.WindowsDesktopServiceSpecV3{
+						Addr:            "localhost:1234",
+						TeleportVersion: teleport.Version,
+					})
+				if err != nil {
+					return err
+				}
+
+				_, err = presence.UpsertWindowsDesktopService(ctx, desktop)
+				return err
+			},
+			deleteAllResourcesFunc: func(ctx context.Context, presence *PresenceService) error {
+				return presence.DeleteAllWindowsDesktopServices(ctx)
 			},
 		},
 	}
@@ -719,7 +861,14 @@ func TestListResources_Helpers(t *testing.T) {
 				nodes, err := presence.GetNodes(ctx, namespace)
 				require.NoError(t, err)
 
-				return FakePaginate(types.Servers(nodes).AsResources(), req)
+				return FakePaginate(types.Servers(nodes).AsResources(), FakePaginateParams{
+					ResourceType:        req.ResourceType,
+					Limit:               req.Limit,
+					Labels:              req.Labels,
+					SearchKeywords:      req.SearchKeywords,
+					PredicateExpression: req.PredicateExpression,
+					StartKey:            req.StartKey,
+				})
 			},
 		},
 	}
@@ -758,6 +907,7 @@ func TestListResources_Helpers(t *testing.T) {
 		req := proto.ListResourcesRequest{
 			ResourceType: types.KindNode,
 			Namespace:    namespace,
+			Limit:        -1,
 		}
 		for _, tc := range tests {
 			tc := tc
@@ -933,7 +1083,7 @@ func TestFakePaginate_TotalCount(t *testing.T) {
 			tc := tc
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
-				req := proto.ListResourcesRequest{
+				req := FakePaginateParams{
 					ResourceType:   types.KindNode,
 					Limit:          int32(tc.limit),
 					NeedTotalCount: true,
@@ -967,7 +1117,7 @@ func TestFakePaginate_TotalCount(t *testing.T) {
 
 	t.Run("total count with no match", func(t *testing.T) {
 		t.Parallel()
-		req := proto.ListResourcesRequest{
+		req := FakePaginateParams{
 			ResourceType:   types.KindNode,
 			Limit:          5,
 			NeedTotalCount: true,
@@ -982,7 +1132,7 @@ func TestFakePaginate_TotalCount(t *testing.T) {
 
 	t.Run("total count with all matches", func(t *testing.T) {
 		t.Parallel()
-		req := proto.ListResourcesRequest{
+		req := FakePaginateParams{
 			ResourceType:   types.KindNode,
 			Limit:          5,
 			NeedTotalCount: true,
@@ -997,6 +1147,7 @@ func TestFakePaginate_TotalCount(t *testing.T) {
 }
 
 func TestPresenceService_CancelSemaphoreLease(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	bk, err := lite.New(ctx, backend.Params{"path": t.TempDir()})
 	require.NoError(t, err)
@@ -1126,7 +1277,8 @@ func TestListResources_DuplicateResourceFilterByLabel(t *testing.T) {
 								Name:   names[i],
 								Labels: labels[i],
 							},
-							Spec: types.AppSpecV3{URI: "_"}},
+							Spec: types.AppSpecV3{URI: "_"},
+						},
 					})
 					require.NoError(t, err)
 					_, err = presence.UpsertApplicationServer(ctx, server)
@@ -1139,16 +1291,25 @@ func TestListResources_DuplicateResourceFilterByLabel(t *testing.T) {
 			kind: types.KindKubernetesCluster,
 			insertResources: func() {
 				for i := 0; i < len(names); i++ {
-					server, err := types.NewServer(fmt.Sprintf("name-%v", i), types.KindKubeService, types.ServerSpecV2{
-						KubernetesClusters: []*types.KubernetesCluster{
-							// Test dedup inside this list as well as from each service.
-							{Name: names[i], StaticLabels: labels[i]},
-							{Name: names[i], StaticLabels: labels[i]},
+
+					kube, err := types.NewKubernetesClusterV3(
+						types.Metadata{
+							Name:   names[i],
+							Labels: labels[i],
 						},
-					})
+						types.KubernetesClusterSpecV3{},
+					)
 					require.NoError(t, err)
-					_, err = presence.UpsertKubeServiceV2(ctx, server)
+					kubeServer, err := types.NewKubernetesServerV3FromCluster(
+						kube,
+						fmt.Sprintf("host-%v", i),
+						fmt.Sprintf("hostID-%v", i),
+					)
 					require.NoError(t, err)
+					// Upsert server.
+					_, err = presence.UpsertKubernetesServer(ctx, kubeServer)
+					require.NoError(t, err)
+
 				}
 			},
 		},
@@ -1171,4 +1332,81 @@ func TestListResources_DuplicateResourceFilterByLabel(t *testing.T) {
 			require.Equal(t, map[string]string{"env": "dev"}, resp.Resources[0].GetAllLabels())
 		})
 	}
+}
+
+func TestServerInfoCRUD(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	bk, err := lite.New(ctx, backend.Params{"path": t.TempDir()})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, bk.Close()) })
+
+	presence := NewPresenceService(bk)
+
+	serverInfoA, err := types.NewServerInfo(types.Metadata{
+		Name: "server1",
+		Labels: map[string]string{
+			"a": "b",
+			"c": "d",
+		},
+	}, types.ServerInfoSpecV1{})
+	require.NoError(t, err)
+	serverInfoA.SetSubKind(types.SubKindCloudInfo)
+
+	serverInfoB, err := types.NewServerInfo(types.Metadata{
+		Name: "server2",
+	}, types.ServerInfoSpecV1{})
+	require.NoError(t, err)
+	serverInfoB.SetSubKind(types.SubKindCloudInfo)
+
+	// No infos present initially.
+	out, err := stream.Collect(presence.GetServerInfos(ctx))
+	require.NoError(t, err)
+	require.Empty(t, out)
+
+	// Create infos.
+	require.NoError(t, presence.UpsertServerInfo(ctx, serverInfoA))
+	require.NoError(t, presence.UpsertServerInfo(ctx, serverInfoB))
+
+	// Get server infos.
+	out, err = stream.Collect(presence.GetServerInfos(ctx))
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff([]types.ServerInfo{serverInfoA, serverInfoB}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+
+	outInfo, err := presence.GetServerInfo(ctx, serverInfoA.GetName())
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(serverInfoA, outInfo, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+
+	outInfo, err = presence.GetServerInfo(ctx, serverInfoB.GetName())
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(serverInfoB, outInfo, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+
+	_, err = presence.GetServerInfo(ctx, "nonexistant")
+	require.True(t, trace.IsNotFound(err))
+
+	// Delete a server info.
+	require.NoError(t, presence.DeleteServerInfo(ctx, serverInfoA.GetName()))
+	out, err = stream.Collect(presence.GetServerInfos(ctx))
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff([]types.ServerInfo{serverInfoB}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+
+	// Update server info.
+	serverInfoB.SetStaticLabels(map[string]string{
+		"e": "f",
+		"g": "h",
+	})
+	require.NoError(t, presence.UpsertServerInfo(ctx, serverInfoB))
+	out, err = stream.Collect(presence.GetServerInfos(ctx))
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff([]types.ServerInfo{serverInfoB}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+
+	// Delete all server infos.
+	require.NoError(t, presence.DeleteAllServerInfos(ctx))
+	out, err = stream.Collect(presence.GetServerInfos(ctx))
+	require.NoError(t, err)
+	require.Empty(t, out)
 }

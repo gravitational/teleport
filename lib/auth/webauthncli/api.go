@@ -19,13 +19,22 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/lib/auth/touchid"
 	"github.com/gravitational/trace"
-
-	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	log "github.com/sirupsen/logrus"
+	oteltrace "go.opentelemetry.io/otel/trace"
+
+	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/observability/tracing"
+	"github.com/gravitational/teleport/lib/auth/touchid"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
+	wanwin "github.com/gravitational/teleport/lib/auth/webauthnwin"
 )
+
+// ErrUsingNonRegisteredDevice is returned from Login when the user attempts to
+// authenticate with a non-registered security key.
+// The error message is meant to be displayed to end-users, thus it breaks the
+// usual Go error conventions (capitalized sentences, punctuation).
+var ErrUsingNonRegisteredDevice = errors.New("You are using a security key that is not registered with Teleport. Try a different security key.")
 
 // AuthenticatorAttachment allows callers to choose a specific attachment.
 type AuthenticatorAttachment int
@@ -35,6 +44,18 @@ const (
 	AttachmentCrossPlatform
 	AttachmentPlatform
 )
+
+func (a AuthenticatorAttachment) String() string {
+	switch a {
+	case AttachmentAuto:
+		return "auto"
+	case AttachmentCrossPlatform:
+		return "cross-platform"
+	case AttachmentPlatform:
+		return "platform"
+	}
+	return ""
+}
 
 // CredentialInfo holds information about a WebAuthn credential, typically a
 // resident public key credential.
@@ -59,13 +80,21 @@ type LoginPrompt interface {
 	// PromptTouch prompts the user for a security key touch.
 	// In certain situations multiple touches may be required (PIN-protected
 	// devices, passwordless flows, etc).
-	PromptTouch() error
+	// Returns a TouchAcknowledger which should be called to signal to the user
+	// that the touch was successfully detected.
+	// Returns an error if the prompt fails to be sent to the user.
+	PromptTouch() (TouchAcknowledger, error)
 	// PromptCredential prompts the user to choose a credential, in case multiple
 	// credentials are available.
 	// Callers are free to modify the slice, such as by sorting the credentials,
 	// but must return one of the pointers contained within.
 	PromptCredential(creds []*CredentialInfo) (*CredentialInfo, error)
 }
+
+// TouchAcknowledger is a function type which should be called to signal to the
+// user that a security key touch was successfully detected.
+// May return an error if the acknowledgement fails to be sent to the user.
+type TouchAcknowledger func() error
 
 // LoginOpts groups non-mandatory options for Login.
 type LoginOpts struct {
@@ -90,8 +119,15 @@ type LoginOpts struct {
 // authentication and connected devices.
 func Login(
 	ctx context.Context,
-	origin string, assertion *wanlib.CredentialAssertion, prompt LoginPrompt, opts *LoginOpts,
+	origin string, assertion *wantypes.CredentialAssertion, prompt LoginPrompt, opts *LoginOpts,
 ) (*proto.MFAAuthenticateResponse, string, error) {
+	ctx, span := tracing.NewTracer("mfa").Start(
+		ctx,
+		"webauthncli/Login",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+	)
+	defer span.End()
+
 	// origin vs RPID sanity check.
 	// Doesn't necessarily means a failure, but it's likely to be one.
 	switch {
@@ -108,6 +144,13 @@ func Login(
 	if opts != nil {
 		attachment = opts.AuthenticatorAttachment
 		user = opts.User
+	}
+
+	if wanwin.IsAvailable() {
+		log.Debug("WebAuthnWin: Using windows webauthn for credential assertion")
+		return wanwin.Login(ctx, origin, assertion, &wanwin.LoginOpts{
+			AuthenticatorAttachment: wanwin.AuthenticatorAttachment(attachment),
+		})
 	}
 
 	switch attachment {
@@ -131,28 +174,38 @@ func Login(
 
 func crossPlatformLogin(
 	ctx context.Context,
-	origin string, assertion *wanlib.CredentialAssertion, prompt LoginPrompt, opts *LoginOpts,
+	origin string, assertion *wantypes.CredentialAssertion, prompt LoginPrompt, opts *LoginOpts,
 ) (*proto.MFAAuthenticateResponse, string, error) {
-	if IsFIDO2Available() {
+	if isLibfido2Enabled() {
 		log.Debug("FIDO2: Using libfido2 for assertion")
 		return FIDO2Login(ctx, origin, assertion, prompt, opts)
 	}
 
-	if err := prompt.PromptTouch(); err != nil {
+	ackTouch, err := prompt.PromptTouch()
+	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
+
 	resp, err := U2FLogin(ctx, origin, assertion)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	if err := ackTouch(); err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
 	return resp, "" /* credentialUser */, err
 }
 
-func platformLogin(origin, user string, assertion *wanlib.CredentialAssertion, prompt LoginPrompt) (*proto.MFAAuthenticateResponse, string, error) {
+func platformLogin(origin, user string, assertion *wantypes.CredentialAssertion, prompt LoginPrompt) (*proto.MFAAuthenticateResponse, string, error) {
 	resp, credentialUser, err := touchid.AttemptLogin(origin, user, assertion, ToTouchIDCredentialPicker(prompt))
 	if err != nil {
 		return nil, "", err
 	}
 	return &proto.MFAAuthenticateResponse{
 		Response: &proto.MFAAuthenticateResponse_Webauthn{
-			Webauthn: wanlib.CredentialAssertionResponseToProto(resp),
+			Webauthn: wantypes.CredentialAssertionResponseToProto(resp),
 		},
 	}, credentialUser, nil
 }
@@ -164,9 +217,12 @@ type RegisterPrompt interface {
 	// PromptPIN prompts the user for their PIN.
 	PromptPIN() (string, error)
 	// PromptTouch prompts the user for a security key touch.
-	// In certain situations multiple touches may be required (eg, PIN-protected
-	// devices)
-	PromptTouch() error
+	// In certain situations multiple touches may be required (PIN-protected
+	// devices, passwordless flows, etc).
+	// Returns a TouchAcknowledger which should be called to signal to the user
+	// that the touch was successfully detected.
+	// Returns an error if the prompt fails to be sent to the user.
+	PromptTouch() (TouchAcknowledger, error)
 }
 
 // Register performs client-side, U2F-compatible, Webauthn registration.
@@ -178,14 +234,38 @@ type RegisterPrompt interface {
 // type of authentication and connected devices.
 func Register(
 	ctx context.Context,
-	origin string, cc *wanlib.CredentialCreation, prompt RegisterPrompt) (*proto.MFARegisterResponse, error) {
-	if IsFIDO2Available() {
+	origin string, cc *wantypes.CredentialCreation, prompt RegisterPrompt) (*proto.MFARegisterResponse, error) {
+	if wanwin.IsAvailable() {
+		log.Debug("WebAuthnWin: Using windows webauthn for credential creation")
+		return wanwin.Register(ctx, origin, cc)
+	}
+
+	if isLibfido2Enabled() {
 		log.Debug("FIDO2: Using libfido2 for credential creation")
 		return FIDO2Register(ctx, origin, cc, prompt)
 	}
 
-	if err := prompt.PromptTouch(); err != nil {
+	ackTouch, err := prompt.PromptTouch()
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return U2FRegister(ctx, origin, cc)
+
+	resp, err := U2FRegister(ctx, origin, cc)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return resp, trace.Wrap(ackTouch())
+}
+
+// HasPlatformSupport returns true if the platform supports client-side
+// WebAuthn-compatible logins.
+func HasPlatformSupport() bool {
+	return IsFIDO2Available() || touchid.IsAvailable() || isU2FAvailable()
+}
+
+// IsFIDO2Available returns true if FIDO2 is implemented either via native
+// libfido2 library or Windows WebAuthn API.
+func IsFIDO2Available() bool {
+	return isLibfido2Enabled() || wanwin.IsAvailable()
 }

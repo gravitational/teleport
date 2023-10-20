@@ -19,14 +19,16 @@ package utils
 import (
 	"archive/tar"
 	"compress/gzip"
+	"errors"
 	"io"
 	"io/fs"
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport"
 )
 
 type mockFileReader struct {
@@ -101,7 +103,7 @@ func TestCompressAsTarGzArchive(t *testing.T) {
 		tarReader := tar.NewReader(gzipReader)
 		for {
 			header, err := tarReader.Next()
-			if err == io.EOF {
+			if errors.Is(err, io.EOF) {
 				break
 			}
 			require.NoError(t, err)
@@ -112,7 +114,6 @@ func TestCompressAsTarGzArchive(t *testing.T) {
 
 			gotBytes, err := io.ReadAll(tarReader)
 			require.NoError(t, err)
-			t.Log(string(gotBytes))
 
 			require.Equal(t, tt.fsContents[header.Name].content, gotBytes)
 			require.Equal(t, tt.fsContents[header.Name].mode, fs.FileMode(header.Mode))

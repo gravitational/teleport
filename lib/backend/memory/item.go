@@ -19,9 +19,9 @@ package memory
 import (
 	"bytes"
 
-	"github.com/gravitational/teleport/lib/backend"
-
 	"github.com/google/btree"
+
+	"github.com/gravitational/teleport/lib/backend"
 )
 
 // btreeItem is a copy of a backend item

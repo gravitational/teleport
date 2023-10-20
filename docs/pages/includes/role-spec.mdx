@@ -1,6 +1,6 @@
 ```yaml
 kind: role
-version: v5
+version: v7
 metadata:
   name: example
 spec:
@@ -25,8 +25,9 @@ spec:
     # certificates expire in the middle of an active session.
     # It overrides the global cluster setting.
     disconnect_expired_cert: no
-    # max_sessions is total number of session channels that can be established
+    # max_sessions is the total number of session channels that can be established
     # across a single connection. Setting it to 10 matches OpenSSH default behavior.
+    # (enterprise-only)
     max_sessions: 10
     # Defines which events are recorded by the BPF-based session recorder.
     enhanced_recording:
@@ -36,6 +37,8 @@ spec:
     # permit_x11_forwarding allows users to use X11 forwarding with openssh
     # clients and servers through the proxy
     permit_x11_forwarding: true
+    # device_trust_mode enforces authenticated device access for the owner of this role.
+    device_trust_mode: optional|required|off
     # require_session_mfa require per-session MFA for any owner of this role
     require_session_mfa: true
     # lock sets locking mode for user of this role,
@@ -80,9 +83,10 @@ spec:
     # if unspecified. If one or more of the user's roles has disabled
     # the clipboard, then it will be disabled.
     desktop_clipboard: true
-    # enterprise-only: when enabled, the source IP that was used to log in is embedded in the SSH
-    # certificate, preventing a compromised certificate from being used on other
-    # devices. The default is false.
+    # enterprise-only: when enabled, the source IP that was used to log in is embedded in the user
+    # certificates, preventing a compromised certificate from being used on another
+    # network. The default is false.
+    # Note: Source IP pinning is currently in Preview mode.
     pin_source_ip: true
     # Specify a list of names and associated values to be included in user SSH keys.
     # The key type can only be "ssh" and the mode can only be "extension".
@@ -93,8 +97,19 @@ spec:
        mode: extension
        name: login@github.com
        value: "{{ external.github_login }}"
-    # Controls whether this role supports auto provisioning of users.
-    create_host_user: true
+    # Controls whether this role supports auto provisioning of SSH users.
+    # Options: drop (remove user on session end), keep (keep users at session end)
+    #          and off (disable host user creation)
+    create_host_user_mode: drop
+    # Controls whether this role requires automatic database user provisioning.
+    create_db_user: true
+    # Specifies role specific options for identity provider access.
+    idp:
+      # Specifies role specific options for SAML identity provider access.
+      saml:
+        # Specifies whether this role has access to the SAML identity provider.
+        # Defaults to true.
+        enabled: true
 
   # The allow section declares a list of resource/verb combinations that are
   # allowed for the users of this role. By default, nothing is allowed.
@@ -107,7 +122,7 @@ spec:
     windows_desktop_logins: [Administrator, '{{internal.logins}}']
 
     # node_labels: a user with this role will be allowed to connect to
-    # SSH nodes, which labels match expressions below.
+    # SSH nodes with labels matching below.
     node_labels:
       # literal strings:
       'env': 'test'
@@ -115,9 +130,11 @@ spec:
       '*': '*'
       # a list of alternative options:
       'region': ['us-west-1', 'eu-central-1']
-      # regular expressions start with ^ and end with $
-      # Teleport uses golang regexp syntax.
-      # of the list example above can be expressed as:
+      # Regular expressions start with ^ and end with $.
+      # Teleport uses Go's regular expression syntax:
+      # https://github.com/google/re2/wiki/Syntax
+      # The list example above can be expressed as:
+      # 'region': '^us-west-1|eu-central-1$'
       'reg': '^us-west-1|eu-central-1$'
 
     # kubernetes_groups specifies Kubernetes groups a user with this role will assume.
@@ -130,24 +147,81 @@ spec:
     kubernetes_users: ['IAM#{{external.foo}};']
 
     # kubernetes_labels: a user with this role will be allowed to connect to
-    # k8s clusters, which labels match expressions below.
+    # k8s clusters with labels matching below.
     kubernetes_labels:
       # A user can only access prod environments
       'env': 'prod'
       # User can access any region in us-west, e.g us-west-1, us-west-2
       'region': 'us-west-*'
-      # regular expressions start with ^ and ending with $
-      # Teleport uses golang regexp syntax.
+      # Regular expressions start with ^ and end with $.
+      # Teleport uses Go's regular expression syntax:
+      # https://github.com/google/re2/wiki/Syntax
+      # The list example above can be expressed as:
+      # 'region': '^us-west-1|eu-central-1$'
       'cluster_name': '^us.*\.example\.com$'
+
+    # kubernetes_resources indicates the Kubernetes resources that a user with
+    # this role is allowed to access.
+    kubernetes_resources:
+        # The resource kind. Teleport currently supports:
+        # - * (all resources)
+        # - pod
+        # - secret
+        # - configmap
+        # - namespace
+        # - service
+        # - serviceaccount
+        # - kube_node
+        # - persistentvolume
+        # - persistentvolumeclaim
+        # - deployment
+        # - replicaset
+        # - statefulset
+        # - daemonset
+        # - clusterrole
+        # - kube_role
+        # - clusterrolebinding
+        # - rolebinding
+        # - cronjob
+        # - job
+        # - certificatesigningrequest
+        # - ingress
+      - kind: '*'
+        # The name of the Kubernetes namespace in which to allow access the
+        # resources you specify with "name" and "kind".
+        # The wildcard character "*" matches any sequence of characters.
+        # If the value begins with "^" and ends with "$", the Kubernetes
+        # Service will treat it as a regular expression.
+        namespace: "*"
+        # The name of the resource to allow access to.
+        # The wildcard character "*" matches any sequence of characters.
+        # If the value begins with "^" and ends with "$", the Kubernetes
+        # Service will treat it as a regular expression.
+        name: "^nginx-[a-z0-9-]+$"
+        # The verbs that the user is allowed to perform on the resource.
+        # Teleport currently supports:
+        # - * (all verbs)
+        # - get
+        # - list
+        # - watch
+        # - create
+        # - update
+        # - patch
+        # - delete
+        # - deletecollection
+        # - exec - allows users to execute commands in a pod
+        # - portforward - allows users to forward ports from a pod
+        verbs: ['*']
 
     # Functions transform variables.
     db_users: ['{{email.local(external.email)}}']
     db_names: ['{{external.db_names}}']
+    db_roles: ['{{external.db_roles}}']
     db_labels:
-      'env': '{{regexp.replace(external.access["env"], "^(staging)$", "$1")}}'
+      'env': '{{regexp.replace(external.env, "^(staging)$", "$1")}}'
 
     # app_labels: a user with this role will be allowed to connect to
-    # applications, which labels match expressions below.
+    # applications with labels matching below.
     app_labels:
       # A user can only access prod environments
       'env': 'prod'
@@ -159,6 +233,37 @@ spec:
       # The list example above can be expressed as:
       # 'region': '^us-west-1|eu-central-1$'
       'cluster_name': '^us.*\.example\.com$'
+
+    # group_labels: a user with this role will be given permissions to the
+    # underlying user_groups. Services such as the Okta service may use these
+    # permissions to grant access to external services.
+    group_labels:
+      # A user is given group membership to production related groups.
+      'env': 'prod'
+
+    # cluster_labels: a user with this role will be allowed to connect to remote
+    # clusters with labels matching below.
+    cluster_labels:
+      'env': 'prod'
+
+    # node_labels_expression has the same purpose as node_labels but
+    # supports predicate expressions to configure custom logic.
+    # A user with this role will be allowed to access nodes if they are in the
+    # staging environment *or* if they belong to one of the user's own teams.
+    node_labels_expression: |
+      labels["env"] == "staging" ||
+      contains(user.spec.traits["teams"] , labels["team"])
+
+    # The below <kind>_labels_expression fields have the same purpose of the
+    # matching <kind>_labels fields, but support predicate expressions instead
+    # of label matchers.
+    app_labels_expression: 'labels["env"] == "staging"'
+    cluster_labels_expression: 'labels["env"] == "staging"'
+    kubernetes_labels_expression: 'labels["env"] == "staging"'
+    db_labels_expression: 'labels["env"] == "staging"'
+    db_service_labels_expression: 'labels["env"] == "staging"'
+    windows_desktop_labels_expression: 'labels["env"] == "staging"'
+    group_labels_expression: 'labels["env"] == "staging"'
 
     # aws_role_arns allows a user with this role to assume AWS roles when
     # accessing AWS console using UI or AWS API using CLI
@@ -179,9 +284,14 @@ spec:
         contains(user.spec.traits["group"], impersonate_user.metadata.labels["group"])
 
     # review_requests allows a user holding this role
-    # to approve or deny Access Requests
+    # to approve or deny Access Requests (enterprise-only)
     review_requests:
+      # the reviewer can view and approve or deny access requests for any roles
+      # listed here
       roles: ['dbadmin']
+      # the reviewer can preview details about resources accessible by any roles
+      # listed in preview_as_roles when reviewing Resource Access Requests
+      preview_as_roles: ['dbadmin']
 
     # request allows a user user request roles matching
     # expressions below
@@ -190,20 +300,33 @@ spec:
       roles: ['common', 'dev-*']
 
       # `search_as_roles` allows users to search for and request access to
-      # resources accessible by the listed roles
+      # resources accessible by the listed roles (enterprise-only)
       search_as_roles: ['access']
 
       # thresholds specifies minimum amount of approvers and deniers,
-      # defaults to 1 for both
+      # defaults to 1 for both (enterprise-only)
       thresholds:
         # requires at least two qualifying approvers and at least one denier.
         - approve: 2
           deny: 1
 
+      # max_duration specifies the maximum duration for which a user can request
+      # access to a role. The duration can be specified in seconds (s), minutes
+      # (m), hours (h), or days (d), e.g. 4d, 10h, 30m, 60s.
+      # The maximum duration is 7 days.
+      max_duration: 7d
+
       # the `claims_to_roles` mapping works the same as it does in
       # the OIDC connector, with the added benefit that the roles being mapped to
-      # can also be matchers. the below mapping says that users with
-      # the claims `groups: admins` can request any role in the system.
+      # can also be matchers.
+      #
+      # This example leverages Teleport's regular expression support, which allows
+      # for dynamic mapping from claims. The below mapping says that users with
+      # claims that match "projects: product-(.*)" can request roles that match
+      # "$1-admin", where "$1" is the first capture group in the
+      # regular expression.
+      # Example: the "projects: product-foo" claim allows a user to request the
+      # "foo-admin" role
       claims_to_roles:
         - claim: 'projects'
           # matches all group names with a leading 'product-'
@@ -226,7 +349,7 @@ spec:
       - name: Auditor oversight
         # Specifies an RBAC predicate that is used to define
         # which users count against the required user count of the policy.
-        filter: 'contains(user.roles, "auditor")'
+        filter: 'contains(user.spec.roles, "auditor")'
         # The different session kinds this policy applies to.
         kinds: ['k8s', 'ssh']
         # A list of session participant modes that a participant must have
@@ -252,7 +375,7 @@ spec:
         modes: ['moderator', 'observer']
 
     # rules allow a user holding this role to modify other resources
-    # matching expressions below
+    # matching the expressions below
     # supported resources:
     # role               - role resource
     # user               - user resource
@@ -262,25 +385,28 @@ spec:
     # saml               - connector resource
     # github             - GitHub connector resource
     #
-    # trusted_cluster    - trusted cluster resource
+    # trusted_cluster    - Trusted cluster resource
     # remote_cluster     - remote cluster resource
     #
     # access_request     - Access Request resource
     # access_plugin_data - allows modifying Access Request plugin data
     #
     # session            - session playback records
-    # ssh_session        - an active SSH session
+    # session_tracker    - an active session
+    # ssh_session        - allows seeing active sessions page
+    # instance           - a Teleport instance
     # event              - structured audit logging event
     #
     #
     # lock                  - lock resource.
     # network_restrictions  - restrictions for SSH sessions
     #
-    # auth_server           - auth server resource
-    # proxy                 - proxy resource
+    # auth_server           - Auth Service resource
+    # proxy                 - Proxy Service resource
     # node                  - SSH node resource
-    # app_server            - application server resource
-    # db_server             - database proxy server resource
+    # app                   - application resource
+    # db                    - database  resource
+    # kube_cluster          - Kubernetes cluster resource
     # token                 - provisioning token resource
     # cert_authority        - certificate authority resource
     #

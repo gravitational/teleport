@@ -7,22 +7,24 @@ description: How to rotate Teleport's certificate authority
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
-(!docs/pages/includes/tctl.mdx!)
+- (!docs/pages/includes/tctl.mdx!)
 
-## Certificate Authority rotation
+## Certificate authority rotation
 
-This section will show you how to implement certificate rotation in practice.
+This section will show you how to rotate Teleport's certificate authority.
 
-If you are using [CA Pinning](../admin/adding-nodes.mdx#obtain-a-ca-pin)
-when adding new nodes, the CA pin will change after the rotation. Make sure you
-use the *new* CA pin when adding nodes after rotation.
+If you are joining Teleport processes to a cluster via the Teleport Auth Service
+using a [join token](../../agents/join-services-to-your-cluster/join-token.mdx), each
+Teleport process will need a CA pin to trust the Auth Service. The CA pin will
+change after each CA rotation. Make sure you use the *new* CA pin when adding
+Teleport services after rotation.
 
 <Admonition type="warning" title="Desktop Access">
 Teleport signs Windows Desktop certificates with the user certificate authority.
 If the user CA is rotated, the new CA certificate will need to be exported and
 configured in group policy.
 
-[Read more about exporting the Teleport CA](../../desktop-access/getting-started.mdx#export-the-teleport-ca)
+[Read more about exporting the Teleport CA](../../desktop-access/active-directory-manual.mdx#export-the-teleport-ca)
 </Admonition>
 
 ### Rotation phases
@@ -62,8 +64,8 @@ following order:
 Administrators can abort the rotation and revert all changes any time before
 the rotation is completed by entering the `rollback` phase.
 
-```sh
-$ tctl auth rotate --phase=rollback --manual
+```code
+$ tctl auth rotate --phase=rollback --type=<Var name="type" description="Certificate authority to rotate"/> --manual
 ```
 
 For example, if an admin has detected that some nodes failed to upgrade during
@@ -77,9 +79,8 @@ the phase transitions look like this:
   and gotchas before going with semi-automatic version.
 </Admonition>
 
-It is possible to rotate a specific set of certificate authorities using the 
-`--type` flag. If this flag is not provided, then all certificate authorities
-will be rotated. 
+To specify which certificate authority to rotate, you must provide a value via
+the `--type` flag. If no value is provided, `tctl` will display an error and exit.
 
 ## Manual rotation
 
@@ -91,7 +92,7 @@ of the cluster.
 Initiate the manual rotation of host certificate authorities:
 
 ```code
-$ tctl auth rotate --phase=init --manual
+$ tctl auth rotate --phase=init --type=<Var name="type" description="Certificate authority to rotate"/> --manual
 Updated rotation phase to "init". To check status use 'tctl status'
 ```
 
@@ -101,9 +102,9 @@ Use `tctl` to confirm that there is an active rotation in progress:
 $ tctl status
 # Cluster  acme.cluster
 # Version  (=teleport.version=)
-# Host CA  initialized (mode: manual, started: Sep 20 01:44:36 UTC, ending: Sep 21 07:44:36 UTC)
-# User CA  rotated Sep 20 01:42:54 UTC
-# Jwt CA   rotated Sep 20 01:42:54 UTC
+# Host CA  initialized (mode: manual, started: Sep 20 01:44:36 UTC, ending: Sep 21 2023 07:44:36 UTC)
+# User CA  rotated Sep 20 2023 01:42:54 UTC
+# Jwt CA   rotated Sep 20 2023 01:42:54 UTC
 # CA pin   sha256:hash
 ```
 
@@ -135,12 +136,12 @@ transitions.
 Execute the transition from `init` to `update_clients`:
 
 ```code
-$ tctl auth rotate --phase=update_clients --manual
+$ tctl auth rotate --phase=update_clients --type=<Var name="type" description="Certificate authority to rotate"/> --manual
 # Updated rotation phase to "update_clients". To check status use 'tctl status'
 $ tctl status
 # Cluster  acme.cluster
 # Version  (=teleport.version=)
-# Host CA  rotating clients (mode: manual, started: Sep 20 01:44:36 UTC, ending: Sep 21 07:44:36 UTC)
+# Host CA  rotating clients (mode: manual, started: Sep 20 2023 01:44:36 UTC, ending: Sep 21 2023 07:44:36 UTC)
 ```
 
 <Admonition type="note">
@@ -165,13 +166,13 @@ Now that all nodes have caught up, execute the transition from `update_clients`
 to `update_servers`:
 
 ```code
-$ tctl auth rotate --phase=update_servers --manual
+$ tctl auth rotate --phase=update_servers --type=<Var name="type" description="Certificate authority to rotate"/> --manual
 # Updated rotation phase to "update_servers". To check status use 'tctl status'
 
 $ tctl status
 # Cluster  acme.cluster
 # Version  (=teleport.version=)
-# Host CA  rotating servers (mode: manual, started: Sep 20 01:44:36 UTC, ending: Sep 21 07:44:36 UTC)
+# Host CA  rotating servers (mode: manual, started: Sep 20 2023 01:44:36 UTC, ending: Sep 21 2023 07:44:36 UTC)
 ```
 
 <Admonition type="note">
@@ -206,7 +207,7 @@ $ tsh ssh hello@terminal
 </Admonition>
 
 ```code
-$ tctl auth rotate --phase=standby --manual
+$ tctl auth rotate --phase=standby --type=<Var name="type" description="Certificate authority to rotate"/> --manual
 ```
 
 Verify that the rotation has completed with `tctl`:
@@ -215,9 +216,9 @@ Verify that the rotation has completed with `tctl`:
 $ tctl status
 Cluster  acme.cluster
 Version  (=teleport.version=)
-Host CA  rotated Sep 20 02:11:25 UTC
-User CA  rotated Sep 20 01:42:54 UTC
-Jwt CA   rotated Sep 20 01:42:54 UTC
+Host CA  rotated Sep 20 2023 02:11:25 UTC
+User CA  rotated Sep 20 2023 01:42:54 UTC
+Jwt CA   rotated Sep 20 2023 01:42:54 UTC
 CA pin   sha256:hash
 ```
 
@@ -244,12 +245,12 @@ You can trigger semi-automatic rotation by omitting the `--manual` and `--phase`
 flags.
 
 ```code
-$ tctl auth rotate
+$ tctl auth rotate --type=host
 ```
 
-This will trigger a rotation process for both hosts and users with a default
-grace period of 48 hours. During the grace period, certificates issued both by
-old and new certificate authority work.
+This will trigger a rotation process for hosts with a default grace period of
+48 hours. During the grace period, certificates issued both by old and new
+certificate authority work.
 
 You can customize grace period and CA type with additional flags:
 
@@ -285,7 +286,7 @@ Check the cluster status:
 $ tctl status
 Cluster  acme.cluster
 Version  (=teleport.version=)
-Host CA  initialized (mode: manual, started: Sep 20 01:44:36 UTC, ending: Sep 21 07:44:36 UTC)
+Host CA  initialized (mode: manual, started: Sep 20 2023 01:44:36 UTC, ending: Sep 21 2023 07:44:36 UTC)
 ```
 
 Check the status of individual nodes:
@@ -310,7 +311,7 @@ Rollback must be performed before the rotation enters `standby` state.
 First, enter the rollback phase with a manual phase transition:
 
 ```code
-$ tctl auth rotate --phase=rollback --manual
+$ tctl auth rotate --phase=rollback --type=<Var name="type" description="Certificate authority to rotate"/> --manual
 # Updated rotation phase to "rollback". To check status use 'tctl status'
 ```
 

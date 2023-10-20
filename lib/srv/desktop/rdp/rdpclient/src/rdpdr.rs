@@ -16,14 +16,12 @@ mod consts;
 mod flags;
 pub(crate) mod path;
 mod scard;
-
 use self::path::{UnixPath, WindowsPath};
 use self::scard::IoctlCode;
 use crate::errors::{
-    invalid_data_error, not_implemented_error, rejected_by_server_error, try_error, NTSTATUS_OK,
-    SPECIAL_NO_RESPONSE,
+    invalid_data_error, not_implemented_error, rejected_by_server_error, try_error,
 };
-use crate::{util, Encode, Messages};
+use crate::{util, Encode, Messages, MAX_ALLOWED_VCHAN_MSG_SIZE};
 use crate::{vchan, Message};
 use crate::{
     FileSystemObject, FileType, Payload, SharedDirectoryAcknowledge, SharedDirectoryCreateRequest,
@@ -35,6 +33,7 @@ use crate::{
 };
 
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
+pub use consts::CHANNEL_NAME;
 use consts::{
     CapabilityType, Component, DeviceType, FileInformationClassLevel,
     FileSystemInformationClassLevel, MajorFunction, MinorFunction, PacketId, BOOL_SIZE,
@@ -43,18 +42,14 @@ use consts::{
     SMARTCARD_CAPABILITY_VERSION_01, TDP_FALSE, U32_SIZE, U8_SIZE, VERSION_MAJOR, VERSION_MINOR,
 };
 use num_traits::{FromPrimitive, ToPrimitive};
-use rdp::core::mcs;
 use rdp::core::tpkt;
-use rdp::model::data::Message as MessageTrait;
 use rdp::model::error::Error as RdpError;
 use rdp::model::error::*;
 use std::collections::HashMap;
 use std::convert::{TryFrom, TryInto};
-use std::io::{Read, Seek, SeekFrom, Write};
-
-pub use consts::CHANNEL_NAME;
-
 use std::ffi::CString;
+use std::io::{Read, Seek, SeekFrom};
+use std::vec;
 
 /// Client implements a device redirection (RDPDR) client, as defined in
 /// https://winprotocoldoc.blob.core.windows.net/productionwindowsarchives/MS-RDPEFS/%5bMS-RDPEFS%5d.pdf
@@ -116,7 +111,7 @@ impl Client {
             debug!("creating rdpdr client with directory sharing disabled")
         }
         Client {
-            vchan: vchan::Client::new(),
+            vchan: vchan::Client::new(MAX_ALLOWED_VCHAN_MSG_SIZE),
             scard: scard::Client::new(cfg.cert_der, cfg.key_der, cfg.pin),
 
             allow_directory_sharing: cfg.allow_directory_sharing,
@@ -224,19 +219,12 @@ impl Client {
         let req = ServerClientIdConfirm::decode(payload)?;
         debug!("received RDP ServerClientIdConfirm: {:?}", req);
 
-        // The smartcard initialization sequence that contains this message happens once at session startup,
-        // and once when login succeeds. We only need to announce the smartcard once.
-        let resp = if !self.active_device_ids.contains(&SCARD_DEVICE_ID) {
+        if !self.active_device_ids.contains(&SCARD_DEVICE_ID) {
             self.push_active_device_id(SCARD_DEVICE_ID)?;
-            let resp = ClientDeviceListAnnounceRequest::new_smartcard(SCARD_DEVICE_ID);
-            debug!("sending RDP {:?}", resp);
-            self.add_headers_and_chunkify(PacketId::PAKID_CORE_DEVICELIST_ANNOUNCE, resp.encode()?)?
-        } else {
-            let resp = ClientDeviceListAnnounceRequest::new_empty();
-            debug!("sending RDP {:?}", resp);
-            self.add_headers_and_chunkify(PacketId::PAKID_CORE_DEVICELIST_ANNOUNCE, resp.encode()?)?
-        };
-        Ok(resp)
+        }
+        let resp = ClientDeviceListAnnounceRequest::new_smartcard(SCARD_DEVICE_ID);
+        debug!("sending RDP {:?}", resp);
+        self.add_headers_and_chunkify(PacketId::PAKID_CORE_DEVICELIST_ANNOUNCE, resp.encode()?)
     }
 
     fn handle_device_reply(&self, payload: &mut Payload) -> RdpResult<Messages> {
@@ -253,9 +241,9 @@ impl Client {
         if req.device_id != self.get_scard_device_id()? {
             // This was for a directory we're sharing over TDP
             let mut err_code = TdpErrCode::Nil;
-            if req.result_code != NTSTATUS_OK {
+            if req.result_code != NTSTATUS::STATUS_SUCCESS {
                 err_code = TdpErrCode::Failed;
-                debug!("ServerDeviceAnnounceResponse for smartcard redirection failed with result code NTSTATUS({})", &req.result_code);
+                debug!("ServerDeviceAnnounceResponse for smartcard redirection failed with result code {:?}", req.result_code);
             } else {
                 debug!("ServerDeviceAnnounceResponse for shared directory succeeded")
             }
@@ -266,12 +254,12 @@ impl Client {
             })?;
         } else {
             // This was for the smart card
-            if req.result_code != NTSTATUS_OK {
+            if req.result_code != NTSTATUS::STATUS_SUCCESS {
                 // End the session, we cannot continue without
                 // the smart card being redirected.
                 return Err(rejected_by_server_error(&format!(
-                        "ServerDeviceAnnounceResponse for smartcard redirection failed with result code NTSTATUS({})",
-                        &req.result_code
+                        "ServerDeviceAnnounceResponse for smartcard redirection failed with result code {:?}",
+                        req.result_code
                     )));
             }
             debug!("ServerDeviceAnnounceResponse for smartcard redirection succeeded");
@@ -338,22 +326,30 @@ impl Client {
         if !is_smart_card_op && !self.allow_directory_sharing {
             return Err(Error::TryError("received a drive redirection major function when drive redirection was not allowed".to_string()));
         }
-        let resp = if is_smart_card_op {
+
+        let device_control_responses = if is_smart_card_op {
             // Smart card control
-            let (code, res) = self.scard.ioctl(ioctl.io_control_code, payload)?;
-            if code == SPECIAL_NO_RESPONSE {
-                return Ok(vec![]);
-            }
-            DeviceControlResponse::new(&ioctl, code, res)
+            self.scard.ioctl(&ioctl, payload)?
         } else {
             // Drive redirection, mimic FreeRDP's "no-op"
             // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L677-L684
-            DeviceControlResponse::new(&ioctl, NTSTATUS::STATUS_SUCCESS.to_u32().unwrap(), vec![])
+            vec![DeviceControlResponse::new(
+                &ioctl,
+                NTSTATUS::STATUS_SUCCESS,
+                Box::new(NoOp::new()),
+            )]
         };
-        debug!("sending RDP: {:?}", resp);
-        let resp = self
-            .add_headers_and_chunkify(PacketId::PAKID_CORE_DEVICE_IOCOMPLETION, resp.encode()?)?;
-        Ok(resp)
+
+        let mut messages: Messages = vec![];
+        for resp in device_control_responses {
+            debug!("sending RDP: {:?}", resp);
+            messages.extend(self.add_headers_and_chunkify(
+                PacketId::PAKID_CORE_DEVICE_IOCOMPLETION,
+                resp.encode()?,
+            )?);
+        }
+
+        Ok(messages)
     }
 
     fn process_irp_create(
@@ -377,8 +373,6 @@ impl Client {
             rdp_req.device_io_request.completion_id,
             Box::new(
                 |cli: &mut Self, res: SharedDirectoryInfoResponse| -> RdpResult<Messages> {
-                    let rdp_req = rdp_req;
-
                     match res.err_code {
                         TdpErrCode::Failed | TdpErrCode::AlreadyExists => {
                             return Err(try_error(&format!(
@@ -534,8 +528,7 @@ impl Client {
                         }
                         _ => {
                             return Err(invalid_data_error(&format!(
-                                "received unknown CreateDisposition value for RDP {:?}",
-                                rdp_req
+                                "received unknown CreateDisposition value for RDP {rdp_req:?}"
                             )));
                         }
                     }
@@ -845,11 +838,14 @@ impl Client {
         self.vchan.add_header_and_chunkify(None, vec![])
     }
 
-    pub fn write_client_device_list_announce<S: Read + Write>(
+    pub fn handle_client_device_list_announce(
         &mut self,
         req: ClientDeviceListAnnounce,
-        mcs: &mut mcs::Client<S>,
-    ) -> RdpResult<()> {
+    ) -> RdpResult<Messages> {
+        if !self.allow_directory_sharing {
+            return Err(try_error("directory sharing disabled"));
+        }
+
         self.push_active_device_id(req.device_list[0].device_id)?;
         debug!(
             "sending new drive for redirection over RDP, ClientDeviceListAnnounce: {:?}",
@@ -858,30 +854,25 @@ impl Client {
 
         let responses =
             self.add_headers_and_chunkify(PacketId::PAKID_CORE_DEVICELIST_ANNOUNCE, req.encode()?)?;
-        let chan = &CHANNEL_NAME.to_string();
-        for resp in responses {
-            mcs.write(chan, resp)?;
-        }
 
-        Ok(())
+        Ok(responses)
     }
 
-    pub fn handle_tdp_sd_info_response<S: Read + Write>(
+    pub fn handle_tdp_sd_info_response(
         &mut self,
         res: SharedDirectoryInfoResponse,
-        mcs: &mut mcs::Client<S>,
-    ) -> RdpResult<()> {
+    ) -> RdpResult<Messages> {
+        if !self.allow_directory_sharing {
+            return Err(try_error("directory sharing disabled"));
+        }
+
         debug!("received TDP SharedDirectoryInfoResponse: {:?}", res);
         if let Some(tdp_resp_handler) = self
             .pending_sd_info_resp_handlers
             .remove(&res.completion_id)
         {
             let rdp_responses = tdp_resp_handler(self, res)?;
-            let chan = &CHANNEL_NAME.to_string();
-            for resp in rdp_responses {
-                mcs.write(chan, resp)?;
-            }
-            return Ok(());
+            return Ok(rdp_responses);
         }
 
         Err(try_error(&format!(
@@ -890,22 +881,21 @@ impl Client {
         )))
     }
 
-    pub fn handle_tdp_sd_create_response<S: Read + Write>(
+    pub fn handle_tdp_sd_create_response(
         &mut self,
         res: SharedDirectoryCreateResponse,
-        mcs: &mut mcs::Client<S>,
-    ) -> RdpResult<()> {
+    ) -> RdpResult<Messages> {
+        if !self.allow_directory_sharing {
+            return Err(try_error("directory sharing disabled"));
+        }
+
         debug!("received TDP SharedDirectoryCreateResponse: {:?}", res);
         if let Some(tdp_resp_handler) = self
             .pending_sd_create_resp_handlers
             .remove(&res.completion_id)
         {
             let rdp_responses = tdp_resp_handler(self, res)?;
-            let chan = &CHANNEL_NAME.to_string();
-            for resp in rdp_responses {
-                mcs.write(chan, resp)?;
-            }
-            return Ok(());
+            return Ok(rdp_responses);
         }
 
         Err(try_error(&format!(
@@ -914,22 +904,21 @@ impl Client {
         )))
     }
 
-    pub fn handle_tdp_sd_delete_response<S: Read + Write>(
+    pub fn handle_tdp_sd_delete_response(
         &mut self,
         res: SharedDirectoryDeleteResponse,
-        mcs: &mut mcs::Client<S>,
-    ) -> RdpResult<()> {
+    ) -> RdpResult<Messages> {
+        if !self.allow_directory_sharing {
+            return Err(try_error("directory sharing disabled"));
+        }
+
         debug!("received TDP SharedDirectoryDeleteResponse: {:?}", res);
         if let Some(tdp_resp_handler) = self
             .pending_sd_delete_resp_handlers
             .remove(&res.completion_id)
         {
             let rdp_responses = tdp_resp_handler(self, res)?;
-            let chan = &CHANNEL_NAME.to_string();
-            for resp in rdp_responses {
-                mcs.write(chan, resp)?;
-            }
-            return Ok(());
+            return Ok(rdp_responses);
         }
 
         Err(try_error(&format!(
@@ -938,22 +927,21 @@ impl Client {
         )))
     }
 
-    pub fn handle_tdp_sd_list_response<S: Read + Write>(
+    pub fn handle_tdp_sd_list_response(
         &mut self,
         res: SharedDirectoryListResponse,
-        mcs: &mut mcs::Client<S>,
-    ) -> RdpResult<()> {
+    ) -> RdpResult<Messages> {
+        if !self.allow_directory_sharing {
+            return Err(try_error("directory sharing disabled"));
+        }
+
         debug!("received TDP SharedDirectoryListResponse: {:?}", res);
         if let Some(tdp_resp_handler) = self
             .pending_sd_list_resp_handlers
             .remove(&res.completion_id)
         {
             let rdp_responses = tdp_resp_handler(self, res)?;
-            let chan = &CHANNEL_NAME.to_string();
-            for resp in rdp_responses {
-                mcs.write(chan, resp)?;
-            }
-            return Ok(());
+            return Ok(rdp_responses);
         }
 
         Err(try_error(&format!(
@@ -962,22 +950,21 @@ impl Client {
         )))
     }
 
-    pub fn handle_tdp_sd_read_response<S: Read + Write>(
+    pub fn handle_tdp_sd_read_response(
         &mut self,
         res: SharedDirectoryReadResponse,
-        mcs: &mut mcs::Client<S>,
-    ) -> RdpResult<()> {
+    ) -> RdpResult<Messages> {
+        if !self.allow_directory_sharing {
+            return Err(try_error("directory sharing disabled"));
+        }
+
         debug!("received TDP: {:?}", res);
         if let Some(tdp_resp_handler) = self
             .pending_sd_read_resp_handlers
             .remove(&res.completion_id)
         {
             let rdp_responses = tdp_resp_handler(self, res)?;
-            let chan = &CHANNEL_NAME.to_string();
-            for resp in rdp_responses {
-                mcs.write(chan, resp)?;
-            }
-            return Ok(());
+            return Ok(rdp_responses);
         }
 
         Err(try_error(&format!(
@@ -986,22 +973,21 @@ impl Client {
         )))
     }
 
-    pub fn handle_tdp_sd_write_response<S: Read + Write>(
+    pub fn handle_tdp_sd_write_response(
         &mut self,
         res: SharedDirectoryWriteResponse,
-        mcs: &mut mcs::Client<S>,
-    ) -> RdpResult<()> {
+    ) -> RdpResult<Messages> {
+        if !self.allow_directory_sharing {
+            return Err(try_error("directory sharing disabled"));
+        }
+
         debug!("received TDP: {:?}", res);
         if let Some(tdp_resp_handler) = self
             .pending_sd_write_resp_handlers
             .remove(&res.completion_id)
         {
             let rdp_responses = tdp_resp_handler(self, res)?;
-            let chan = &CHANNEL_NAME.to_string();
-            for resp in rdp_responses {
-                mcs.write(chan, resp)?;
-            }
-            return Ok(());
+            return Ok(rdp_responses);
         }
 
         Err(try_error(&format!(
@@ -1010,22 +996,21 @@ impl Client {
         )))
     }
 
-    pub fn handle_tdp_sd_move_response<S: Read + Write>(
+    pub fn handle_tdp_sd_move_response(
         &mut self,
         res: SharedDirectoryMoveResponse,
-        mcs: &mut mcs::Client<S>,
-    ) -> RdpResult<()> {
+    ) -> RdpResult<Messages> {
+        if !self.allow_directory_sharing {
+            return Err(try_error("directory sharing disabled"));
+        }
+
         debug!("received TDP SharedDirectoryMoveResponse: {:?}", res);
         if let Some(tdp_resp_handler) = self
             .pending_sd_move_resp_handlers
             .remove(&res.completion_id)
         {
             let rdp_responses = tdp_resp_handler(self, res)?;
-            let chan = &CHANNEL_NAME.to_string();
-            for resp in rdp_responses {
-                mcs.write(chan, resp)?;
-            }
-            return Ok(());
+            return Ok(rdp_responses);
         }
 
         Err(try_error(&format!(
@@ -1693,10 +1678,10 @@ impl SharedHeader {
         let packet_id = payload.read_u16::<LittleEndian>()?;
         Ok(Self {
             component: Component::from_u16(component).ok_or_else(|| {
-                invalid_data_error(&format!("invalid component value {:#06x}", component))
+                invalid_data_error(&format!("invalid component value {component:#06x}"))
             })?,
             packet_id: PacketId::from_u16(packet_id).ok_or_else(|| {
-                invalid_data_error(&format!("invalid packet_id value {:#06x}", packet_id))
+                invalid_data_error(&format!("invalid packet_id value {packet_id:#06x}"))
             })?,
         })
     }
@@ -1876,7 +1861,7 @@ impl CapabilityHeader {
         let cap_type = payload.read_u16::<LittleEndian>()?;
         Ok(Self {
             cap_type: CapabilityType::from_u16(cap_type).ok_or_else(|| {
-                invalid_data_error(&format!("invalid capability type {:#06x}", cap_type))
+                invalid_data_error(&format!("invalid capability type {cap_type:#06x}"))
             })?,
             length: payload.read_u16::<LittleEndian>()?,
             version: payload.read_u32::<LittleEndian>()?,
@@ -1978,46 +1963,18 @@ impl ClientDeviceListAnnounceRequest {
     // We only need to announce the smartcard in this Client Device List Announce Request.
     // Drives (directories) can be announced at any time with a Client Drive Device List Announce.
     fn new_smartcard(device_id: u32) -> Self {
-        Self {
-            device_count: 1,
-            device_list: vec![DeviceAnnounceHeader {
-                device_type: DeviceType::RDPDR_DTYP_SMARTCARD,
-                device_id,
-                // This name is a constant defined by the spec.
-                preferred_dos_name: "SCARD".to_string(),
-                device_data_length: 0,
-                device_data: vec![],
-            }],
-        }
+        Self::new(vec![DeviceAnnounceHeader::new_smartcard(device_id)])
     }
 
     /// A new drive can be announced at any time during RDP's operation. It is up to the caller
-    pub fn new_drive(device_id: u32, drive_name: String) -> Self {
-        // If the client supports DRIVE_CAPABILITY_VERSION_02 in the Drive Capability Set,
-        // then the full name MUST also be specified in the DeviceData field, as a null-terminated
-        // Unicode string. If the DeviceDataLength field is nonzero, the content of the
-        // PreferredDosName field is ignored.
-        //
-        // In the RDP spec, Unicode typically means null-terminated UTF-16LE, however empirically it
-        // appears that this field expects null-terminated UTF-8.
-        let device_data = util::to_utf8(&drive_name);
-
-        Self {
-            device_count: 1,
-            device_list: vec![DeviceAnnounceHeader {
-                device_type: DeviceType::RDPDR_DTYP_FILESYSTEM,
-                device_id,
-                preferred_dos_name: drive_name,
-                device_data_length: device_data.len() as u32,
-                device_data,
-            }],
-        }
+    pub fn new_drive(device_id: u32, name: String) -> Self {
+        Self::new(vec![DeviceAnnounceHeader::new_drive(device_id, name)])
     }
 
-    fn new_empty() -> Self {
+    fn new(device_list: Vec<DeviceAnnounceHeader>) -> Self {
         Self {
-            device_count: 0,
-            device_list: vec![],
+            device_count: device_list.len() as u32,
+            device_list,
         }
     }
 }
@@ -2037,27 +1994,72 @@ impl Encode for ClientDeviceListAnnounceRequest {
 /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/32e34332-774b-4ead-8c9d-5d64720d6bf9
 #[derive(Debug)]
 struct DeviceAnnounceHeader {
+    name: String,
     device_type: DeviceType,
     device_id: u32,
-    preferred_dos_name: String,
-    device_data_length: u32,
-    device_data: Vec<u8>,
 }
 
 impl DeviceAnnounceHeader {
+    fn new_smartcard(device_id: u32) -> Self {
+        Self {
+            name: "".to_string(), // ignored for smartcards
+            device_type: DeviceType::RDPDR_DTYP_SMARTCARD,
+            device_id,
+        }
+    }
+
+    fn new_drive(device_id: u32, name: String) -> Self {
+        Self {
+            name,
+            device_type: DeviceType::RDPDR_DTYP_FILESYSTEM,
+            device_id,
+        }
+    }
+
     fn encode(&self) -> RdpResult<Message> {
         let mut w = vec![];
         w.write_u32::<LittleEndian>(self.device_type.to_u32().unwrap())?;
         w.write_u32::<LittleEndian>(self.device_id)?;
-        let mut name: &str = &self.preferred_dos_name;
-        // See "PreferredDosName" at
-        // https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/32e34332-774b-4ead-8c9d-5d64720d6bf9
-        if name.len() > 7 {
-            name = &name[..7];
+        // Initially preferred_dos_name was set to the first 7 ASCII characters (per the spec)
+        // of the drive name when the drive was of type DeviceType::RDPDR_DTYP_FILESYSTEM,
+        // however this was causing a panic when the user shared a directory with a name with
+        // non-ASCII characters (e.g. 中文测试).
+        let mut preferred_dos_name: &str = match self.device_type {
+            // In this case we can just use any random value, since it will be ignored in favor
+            // of the UTF-8 encoded drive name in the DeviceData field.
+            //
+            // We may need to revisit this if we ever support multiple drives
+            // (i.e. do "FILE1", "FILE2", etc).
+            DeviceType::RDPDR_DTYP_FILESYSTEM => "FILE",
+            // If DeviceType is set to RDPDR_DTYP_SMARTCARD, the PreferredDosName MUST be set to "SCARD".
+            // See: https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/32e34332-774b-4ead-8c9d-5d64720d6bf9
+            DeviceType::RDPDR_DTYP_SMARTCARD => "SCARD",
+            _ => {
+                return Err(RdpError::TryError(format!(
+                    "unsupported device type {device_type:?}",
+                    device_type = self.device_type
+                )))
+            }
+        };
+        // Sanity check to make sure we don't write more than
+        // 8 bytes (including the null terminator) for PreferredDosName.
+        if preferred_dos_name.len() > 7 {
+            preferred_dos_name = &preferred_dos_name[..7];
         }
-        w.extend_from_slice(&format!("{:\x00<8}", name).into_bytes());
-        w.write_u32::<LittleEndian>(self.device_data_length)?;
-        w.extend_from_slice(&self.device_data);
+        w.extend_from_slice(&format!("{preferred_dos_name:\x00<8}").into_bytes());
+
+        // If the client supports DRIVE_CAPABILITY_VERSION_02 in the Drive Capability Set (which we do),
+        // then the full name MUST also be specified in the DeviceData field, as a null-terminated
+        // Unicode string. If the DeviceDataLength field is nonzero, the content of the
+        // PreferredDosName field is ignored.
+        //
+        // In the RDP spec, Unicode typically means null-terminated UTF-16LE, however empirically it
+        // appears that this field expects null-terminated UTF-8.
+        let device_data = util::to_utf8(&self.name);
+        let device_data_length = device_data.len() as u32;
+
+        w.write_u32::<LittleEndian>(device_data_length)?;
+        w.extend_from_slice(&device_data);
         Ok(w)
     }
 }
@@ -2065,15 +2067,22 @@ impl DeviceAnnounceHeader {
 #[derive(Debug)]
 struct ServerDeviceAnnounceResponse {
     device_id: u32,
-    result_code: u32,
+    result_code: NTSTATUS,
 }
 
 impl ServerDeviceAnnounceResponse {
     fn decode(payload: &mut Payload) -> RdpResult<Self> {
-        Ok(Self {
-            device_id: payload.read_u32::<LittleEndian>()?,
-            result_code: payload.read_u32::<LittleEndian>()?,
-        })
+        let device_id = payload.read_u32::<LittleEndian>()?;
+        let result_code = payload.read_u32::<LittleEndian>()?;
+        if let Some(result_code) = NTSTATUS::from_u32(result_code) {
+            return Ok(Self {
+                device_id,
+                result_code,
+            });
+        }
+        Err(RdpError::TryError(format!(
+            "Read unsupported NTSTATUS: {result_code}",
+        )))
     }
 }
 
@@ -2081,7 +2090,7 @@ impl Encode for ServerDeviceAnnounceResponse {
     fn encode(&self) -> RdpResult<Message> {
         let mut w = vec![];
         w.write_u32::<LittleEndian>(self.device_id)?;
-        w.write_u32::<LittleEndian>(self.result_code)?;
+        w.write_u32::<LittleEndian>(self.result_code as u32)?;
         Ok(w)
     }
 }
@@ -2148,6 +2157,23 @@ pub struct DeviceIoRequest {
 }
 
 impl DeviceIoRequest {
+    #[cfg(test)]
+    fn new(
+        device_id: u32,
+        file_id: u32,
+        completion_id: u32,
+        major_function: MajorFunction,
+        minor_function: MinorFunction,
+    ) -> Self {
+        Self {
+            device_id,
+            file_id,
+            completion_id,
+            major_function,
+            minor_function,
+        }
+    }
+
     fn decode(payload: &mut Payload) -> RdpResult<Self> {
         let device_id = payload.read_u32::<LittleEndian>()?;
         let file_id = payload.read_u32::<LittleEndian>()?;
@@ -2155,8 +2181,7 @@ impl DeviceIoRequest {
         let major_function = payload.read_u32::<LittleEndian>()?;
         let major_function = MajorFunction::from_u32(major_function).ok_or_else(|| {
             invalid_data_error(&format!(
-                "invalid major function value {:#010x}",
-                major_function
+                "invalid major function value {major_function:#010x}"
             ))
         })?;
         let minor_function = payload.read_u32::<LittleEndian>()?;
@@ -2174,8 +2199,7 @@ impl DeviceIoRequest {
         };
         let minor_function = MinorFunction::from_u32(minor_function).ok_or_else(|| {
             invalid_data_error(&format!(
-                "invalid minor function value {:#010x}",
-                minor_function
+                "invalid minor function value {minor_function:#010x}"
             ))
         })?;
 
@@ -2213,14 +2237,28 @@ struct DeviceControlRequest {
 }
 
 impl DeviceControlRequest {
+    #[cfg(test)]
+    fn new(
+        header: DeviceIoRequest,
+        output_buffer_length: u32,
+        input_buffer_length: u32,
+        io_control_code: IoctlCode,
+    ) -> Self {
+        Self {
+            header,
+            output_buffer_length,
+            input_buffer_length,
+            io_control_code,
+        }
+    }
+
     fn decode(header: DeviceIoRequest, payload: &mut Payload) -> RdpResult<Self> {
         let output_buffer_length = payload.read_u32::<LittleEndian>()?;
         let input_buffer_length = payload.read_u32::<LittleEndian>()?;
         let io_control_code = payload.read_u32::<LittleEndian>()?;
         let io_control_code = IoctlCode::from_u32(io_control_code).ok_or_else(|| {
             invalid_data_error(&format!(
-                "invalid I/O control code value {:#010x}",
-                io_control_code
+                "invalid I/O control code value {io_control_code:#010x}"
             ))
         })?;
         payload.seek(SeekFrom::Current(20))?; // padding
@@ -2252,11 +2290,11 @@ impl Encode for DeviceControlRequest {
 struct DeviceIoResponse {
     device_id: u32,
     completion_id: u32,
-    io_status: u32,
+    io_status: NTSTATUS,
 }
 
 impl DeviceIoResponse {
-    fn new(req: &DeviceIoRequest, io_status: u32) -> Self {
+    fn new(req: &DeviceIoRequest, io_status: NTSTATUS) -> Self {
         Self {
             device_id: req.device_id,
             completion_id: req.completion_id,
@@ -2268,7 +2306,7 @@ impl DeviceIoResponse {
         let mut w = vec![];
         w.write_u32::<LittleEndian>(self.device_id)?;
         w.write_u32::<LittleEndian>(self.completion_id)?;
-        w.write_u32::<LittleEndian>(self.io_status)?;
+        w.write_u32::<LittleEndian>(self.io_status as u32)?;
         Ok(w)
     }
 }
@@ -2276,15 +2314,13 @@ impl DeviceIoResponse {
 #[derive(Debug)]
 struct DeviceControlResponse {
     header: DeviceIoResponse,
-    output_buffer_length: u32,
-    output_buffer: Vec<u8>,
+    output_buffer: Box<dyn Encode>,
 }
 
 impl DeviceControlResponse {
-    fn new(req: &DeviceControlRequest, io_status: u32, output: Vec<u8>) -> Self {
+    fn new(req: &DeviceControlRequest, io_status: NTSTATUS, output: Box<dyn Encode>) -> Self {
         Self {
             header: DeviceIoResponse::new(&req.header, io_status),
-            output_buffer_length: output.length() as u32,
             output_buffer: output,
         }
     }
@@ -2294,8 +2330,9 @@ impl Encode for DeviceControlResponse {
     fn encode(&self) -> RdpResult<Message> {
         let mut w = vec![];
         w.extend_from_slice(&self.header.encode()?);
-        w.write_u32::<LittleEndian>(self.output_buffer_length)?;
-        w.extend_from_slice(&self.output_buffer);
+        let output_buffer_enc = self.output_buffer.encode()?;
+        w.write_u32::<LittleEndian>(output_buffer_enc.len() as u32)?; // output_buffer_length
+        w.extend_from_slice(&output_buffer_enc);
         Ok(w)
     }
 }
@@ -2326,8 +2363,7 @@ impl DeviceCreateRequest {
         debug!("In DeviceCreateRequest decode");
         let invalid_flags = |flag_name: &str, v: u32| {
             invalid_data_error(&format!(
-                "invalid flags in Device Create Request: {} = {}",
-                flag_name, v
+                "invalid flags in Device Create Request: {flag_name} = {v}"
             ))
         };
 
@@ -2422,10 +2458,7 @@ impl DeviceCreateResponse {
         }
 
         Self {
-            device_io_reply: DeviceIoResponse::new(
-                device_io_request,
-                NTSTATUS::to_u32(&io_status).unwrap(),
-            ),
+            device_io_reply: DeviceIoResponse::new(device_io_request, io_status),
             file_id,
             information,
         }
@@ -2482,8 +2515,7 @@ impl ServerDriveQueryInformationRequest {
 
         Err(invalid_data_error(
             format!(
-                "received invalid FileInformationClass in ServerDriveQueryInformationRequest: {}",
-                n
+                "received invalid FileInformationClass in ServerDriveQueryInformationRequest: {n}"
             )
             .as_str(),
         ))
@@ -2555,8 +2587,7 @@ impl FileInformationClass {
                 ))
             }
             _ => Err(invalid_data_error(&format!(
-                "decode invalid FileInformationClassLevel: {:?}",
-                file_information_class_level
+                "decode invalid FileInformationClassLevel: {file_information_class_level:?}"
             ))),
         }
     }
@@ -2983,7 +3014,7 @@ impl FileRenameInformation {
         w.write_u8(Boolean::to_u8(&self.replace_if_exists).unwrap())?;
         // RootDirectory. For network operations, this value MUST be zero.
         w.write_u8(0)?;
-        w.write_u32::<LittleEndian>(self.file_name.len() as u32)?;
+        w.write_u32::<LittleEndian>(self.file_name.len())?;
         w.extend_from_slice(&util::to_unicode(&self.file_name.path, false));
         Ok(w)
     }
@@ -3005,7 +3036,7 @@ impl FileRenameInformation {
     }
 
     fn size(&self) -> u32 {
-        Self::BASE_SIZE + self.file_name.len() as u32
+        Self::BASE_SIZE + self.file_name.len()
     }
 }
 
@@ -3431,10 +3462,7 @@ impl ClientDriveQueryInformationResponse {
         // device_io_response and don't need to create/encode the rest.
         if io_status == NTSTATUS::STATUS_UNSUCCESSFUL {
             return Ok(Self {
-                device_io_response: DeviceIoResponse::new(
-                    &req.device_io_request,
-                    NTSTATUS::to_u32(&io_status).unwrap(),
-                ),
+                device_io_response: DeviceIoResponse::new(&req.device_io_request, io_status),
                 length: None,
                 buffer: None,
             });
@@ -3502,10 +3530,7 @@ impl ClientDriveQueryInformationResponse {
             };
 
             Ok(Self {
-                device_io_response: DeviceIoResponse::new(
-                    &req.device_io_request,
-                    NTSTATUS::to_u32(&io_status).unwrap(),
-                ),
+                device_io_response: DeviceIoResponse::new(&req.device_io_request, io_status),
                 length,
                 buffer,
             })
@@ -3557,7 +3582,7 @@ impl DeviceCloseResponse {
         Self {
             device_io_response: DeviceIoResponse::new(
                 &device_close_request.device_io_request,
-                NTSTATUS::to_u32(&io_status).unwrap(),
+                io_status,
             ),
             padding: 0,
         }
@@ -3657,10 +3682,7 @@ impl DeviceReadResponse {
         let device_io_request = &device_read_request.device_io_request;
 
         Self {
-            device_io_reply: DeviceIoResponse::new(
-                device_io_request,
-                NTSTATUS::to_u32(&io_status).unwrap(),
-            ),
+            device_io_reply: DeviceIoResponse::new(device_io_request, io_status),
             length: u32::try_from(read_data.len()).unwrap(),
             read_data,
         }
@@ -3734,10 +3756,7 @@ pub struct DeviceWriteResponse {
 impl DeviceWriteResponse {
     fn new(device_io_request: &DeviceIoRequest, io_status: NTSTATUS, length: u32) -> Self {
         Self {
-            device_io_reply: DeviceIoResponse::new(
-                device_io_request,
-                NTSTATUS::to_u32(&io_status).unwrap(),
-            ),
+            device_io_reply: DeviceIoResponse::new(device_io_request, io_status),
             length,
         }
     }
@@ -3764,11 +3783,8 @@ struct ClientDriveSetInformationResponse {
 impl ClientDriveSetInformationResponse {
     fn new(req: &ServerDriveSetInformationRequest, io_status: NTSTATUS) -> Self {
         Self {
-            device_io_reply: DeviceIoResponse::new(
-                &req.device_io_request,
-                NTSTATUS::to_u32(&io_status).unwrap(),
-            ),
-            length: req.set_buffer.size() as u32,
+            device_io_reply: DeviceIoResponse::new(&req.device_io_request, io_status),
+            length: req.set_buffer.size(),
         }
     }
 
@@ -3806,8 +3822,7 @@ impl ServerDriveSetInformationRequest {
             | FileInformationClassLevel::FileAllocationInformation => {}
             _ => {
                 return Err(invalid_data_error(&format!(
-                    "read invalid FileInformationClassLevel: {:?}",
-                    file_information_class_level
+                    "read invalid FileInformationClassLevel: {file_information_class_level:?}"
                 )))
             }
         };
@@ -3871,8 +3886,7 @@ impl ServerDriveQueryDirectoryRequest {
 
         if !VALID_LEVELS.contains(&file_info_class_lvl) {
             return Err(invalid_data_error(&format!(
-                "read invalid FileInformationClassLevel: {:?}, expected one of {:?}",
-                file_info_class_lvl, VALID_LEVELS,
+                "read invalid FileInformationClassLevel: {file_info_class_lvl:?}, expected one of {VALID_LEVELS:?}",
             )));
         }
 
@@ -3940,16 +3954,14 @@ impl ClientDriveQueryDirectoryResponse {
             | NTSTATUS::STATUS_UNSUCCESSFUL => {
                 if buffer.is_some() {
                     return Err(invalid_data_error(&format!(
-                        "a ClientDriveQueryDirectoryResponse with NTSTATUS = {:?} \
-                        should have a None buffer, got {:?}",
-                        io_status, buffer,
+                        "a ClientDriveQueryDirectoryResponse with NTSTATUS = {io_status:?} \
+                        should have a None buffer, got {buffer:?}",
                     )));
                 }
             }
             _ => {
                 return Err(invalid_data_error(&format!(
-                    "received unsupported io_status for ClientDriveQueryDirectoryResponse: {:?}",
-                    io_status
+                    "received unsupported io_status for ClientDriveQueryDirectoryResponse: {io_status:?}"
                 )))
             }
         }
@@ -3967,17 +3979,14 @@ impl ClientDriveQueryDirectoryResponse {
                     fs_info_class.size()
                 }
                 _ => {
-                    return Err(not_implemented_error(&format!("ClientDriveQueryDirectoryResponse not implemented for fs_information_class {:?}", fs_information_class)));
+                    return Err(not_implemented_error(&format!("ClientDriveQueryDirectoryResponse not implemented for fs_information_class {fs_information_class:?}")));
                 }
             },
             None => 0,
         };
 
         Ok(Self {
-            device_io_reply: DeviceIoResponse::new(
-                device_io_request,
-                NTSTATUS::to_u32(&io_status).unwrap(),
-            ),
+            device_io_reply: DeviceIoResponse::new(device_io_request, io_status),
             length,
             buffer,
         })
@@ -3990,9 +3999,7 @@ impl ClientDriveQueryDirectoryResponse {
         if let Some(buffer) = &self.buffer {
             w.extend_from_slice(&buffer.encode()?);
         }
-        if self.device_io_reply.io_status
-            == NTSTATUS::to_u32(&NTSTATUS::STATUS_NO_MORE_FILES).unwrap()
-        {
+        if self.device_io_reply.io_status == NTSTATUS::STATUS_NO_MORE_FILES {
             // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L937
             w.write_u8(0)?;
         }
@@ -4033,8 +4040,7 @@ impl ServerDriveQueryVolumeInformationRequest {
 
         if !VALID_LEVELS.contains(&fs_info_class_lvl) {
             return Err(invalid_data_error(&format!(
-                "read invalid FileInformationClassLevel: {:?}, expected one of {:?}",
-                fs_info_class_lvl, VALID_LEVELS,
+                "read invalid FileInformationClassLevel: {fs_info_class_lvl:?}, expected one of {VALID_LEVELS:?}",
             )));
         }
 
@@ -4074,16 +4080,14 @@ impl ClientDriveQueryVolumeInformationResponse {
             NTSTATUS::STATUS_UNSUCCESSFUL => {
                 if buffer.is_some() {
                     return Err(invalid_data_error(&format!(
-                        "a ClientDriveQueryVolumeInformationResponse with NTSTATUS = {:?} \
-                        should have a None buffer, got {:?}",
-                        io_status, buffer,
+                        "a ClientDriveQueryVolumeInformationResponse with NTSTATUS = {io_status:?} \
+                        should have a None buffer, got {buffer:?}",
                     )));
                 }
             }
             _ => {
                 return Err(invalid_data_error(&format!(
-                    "received unsupported io_status for ClientDriveQueryVolumeInformationResponse: {:?}",
-                    io_status
+                    "received unsupported io_status for ClientDriveQueryVolumeInformationResponse: {io_status:?}"
                 )))
             }
         }
@@ -4100,10 +4104,7 @@ impl ClientDriveQueryVolumeInformationResponse {
         };
 
         Ok(Self {
-            device_io_reply: DeviceIoResponse::new(
-                device_io_request,
-                NTSTATUS::to_u32(&io_status).unwrap(),
-            ),
+            device_io_reply: DeviceIoResponse::new(device_io_request, io_status),
             length,
             buffer,
         })
@@ -4118,6 +4119,19 @@ impl ClientDriveQueryVolumeInformationResponse {
         }
 
         Ok(w)
+    }
+}
+
+#[derive(Debug)]
+struct NoOp {}
+impl NoOp {
+    fn new() -> Self {
+        Self {}
+    }
+}
+impl Encode for NoOp {
+    fn encode(&self) -> RdpResult<Message> {
+        Ok(vec![])
     }
 }
 

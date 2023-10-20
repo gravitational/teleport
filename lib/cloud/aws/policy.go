@@ -19,16 +19,17 @@ package aws
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/url"
 	"sort"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/aws/aws-sdk-go/service/iam/iamiface"
-	log "github.com/sirupsen/logrus"
-
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
+	"golang.org/x/exp/slices"
+
+	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 )
 
 // Policy represents an AWS IAM policy.
@@ -70,9 +71,35 @@ type Statement struct {
 	// Effect is the statement effect such as Allow or Deny.
 	Effect string `json:"Effect"`
 	// Actions is a list of actions.
-	Actions []string `json:"Action"`
+	Actions SliceOrString `json:"Action"`
 	// Resources is a list of resources.
-	Resources []string `json:"Resource"`
+	Resources SliceOrString `json:"Resource,omitempty"`
+	// Principals is a list of principals.
+	Principals map[string]SliceOrString `json:"Principal,omitempty"`
+	// Conditions is a list of conditions that must be satisfied for the action to be allowed.
+	// Example:
+	// Condition:
+	//    StringEquals:
+	//        "proxy.example.com:aud": "discover.teleport"
+	Conditions map[string]map[string]SliceOrString `json:"Condition,omitempty"`
+	// StatementID is an optional identifier for the statement.
+	StatementID string `json:"Sid,omitempty"`
+}
+
+// ensureResource ensures that the statement contains the specified resource.
+//
+// Returns true if the resource was already a part of the statement.
+func (s *Statement) ensureResource(resource string) bool {
+	if slices.Contains(s.Resources, resource) {
+		return true
+	}
+	s.Resources = append(s.Resources, resource)
+	return false
+}
+func (s *Statement) ensureResources(resources []string) {
+	for _, resource := range resources {
+		s.ensureResource(resource)
+	}
 }
 
 // ParsePolicyDocument returns parsed AWS IAM policy document.
@@ -91,9 +118,10 @@ func ParsePolicyDocument(document string) (*PolicyDocument, error) {
 }
 
 // NewPolicyDocument returns new empty AWS IAM policy document.
-func NewPolicyDocument() *PolicyDocument {
+func NewPolicyDocument(statements ...*Statement) *PolicyDocument {
 	return &PolicyDocument{
-		Version: PolicyVersion,
+		Version:    PolicyVersion,
+		Statements: statements,
 	}
 }
 
@@ -103,25 +131,10 @@ func NewPolicyDocument() *PolicyDocument {
 // Returns true if the resource action was already a part of the policy and
 // false otherwise.
 func (p *PolicyDocument) Ensure(effect, action, resource string) bool {
-	for _, s := range p.Statements {
-		if s.Effect != effect {
-			continue
-		}
-		for _, a := range s.Actions {
-			if a != action {
-				continue
-			}
-			for _, r := range s.Resources {
-				// Resource action is already in the policy.
-				if r == resource {
-					return true
-				}
-			}
-			// Action exists but resource is missing.
-			s.Resources = append(s.Resources, resource)
-			return false
-		}
+	if existingStatement := p.findStatement(effect, action); existingStatement != nil {
+		return existingStatement.ensureResource(resource)
 	}
+
 	// No statement yet for this resource action, add it.
 	p.Statements = append(p.Statements, &Statement{
 		Effect:    effect,
@@ -158,6 +171,38 @@ func (p *PolicyDocument) Delete(effect, action, resource string) {
 	p.Statements = statements
 }
 
+// EnsureStatements ensures that the policy document contains all resource
+// actions from the provided statements.
+//
+// The main benefit of using this function (versus appending to p.Statements
+// directly) is to avoid duplications.
+func (p *PolicyDocument) EnsureStatements(statements ...*Statement) {
+	for _, statement := range statements {
+		if statement == nil {
+			continue
+		}
+
+		// Try to find an existing statement by the action, and add the resources there.
+		var newActions []string
+		for _, action := range statement.Actions {
+			if existingStatement := p.findStatement(statement.Effect, action); existingStatement != nil {
+				existingStatement.ensureResources(statement.Resources)
+			} else {
+				newActions = append(newActions, action)
+			}
+		}
+
+		// Add the leftover actions as a new statement.
+		if len(newActions) > 0 {
+			p.Statements = append(p.Statements, &Statement{
+				Effect:    statement.Effect,
+				Actions:   newActions,
+				Resources: statement.Resources,
+			})
+		}
+	}
+}
+
 // Marshal formats the PolicyDocument in a "friendly" format, which can be
 // presented to end users.
 func (p *PolicyDocument) Marshal() (string, error) {
@@ -167,6 +212,71 @@ func (p *PolicyDocument) Marshal() (string, error) {
 	}
 
 	return string(b), nil
+}
+
+// ForEach loops through each action and resource of each statement.
+func (p *PolicyDocument) ForEach(fn func(effect, action, resource string)) {
+	for _, statement := range p.Statements {
+		for _, action := range statement.Actions {
+			for _, resource := range statement.Resources {
+				fn(statement.Effect, action, resource)
+			}
+		}
+	}
+}
+
+func (p *PolicyDocument) findStatement(effect, action string) *Statement {
+	for _, s := range p.Statements {
+		if s.Effect != effect {
+			continue
+		}
+		if slices.Contains(s.Actions, action) {
+			return s
+		}
+	}
+	return nil
+
+}
+
+// SliceOrString defines a type that can be either a single string or a slice.
+//
+// For example, these types can be either a single string or a slice:
+// https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_action.html
+// https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_resource.html
+type SliceOrString []string
+
+// UnmarshalJSON implements json.Unmarshaller.
+func (s *SliceOrString) UnmarshalJSON(bytes []byte) error {
+	// Check if input is a slice of strings.
+	var slice []string
+	sliceErr := json.Unmarshal(bytes, &slice)
+	if sliceErr == nil {
+		*s = slice
+		return nil
+	}
+
+	// Check if input is a single string.
+	var str string
+	strErr := json.Unmarshal(bytes, &str)
+	if strErr == nil {
+		*s = []string{str}
+		return nil
+	}
+
+	// Failed both format.
+	return trace.NewAggregate(sliceErr, strErr)
+}
+
+// MarshalJSON implements json.Marshaler.
+func (s SliceOrString) MarshalJSON() ([]byte, error) {
+	switch len(s) {
+	case 0:
+		return json.Marshal([]string{})
+	case 1:
+		return json.Marshal(s[0])
+	default:
+		return json.Marshal([]string(s))
+	}
 }
 
 // Policies set of IAM Policy helper functions defined as an interface to make
@@ -219,7 +329,7 @@ func NewPolicies(partitionID string, accountID string, iamClient iamiface.IAMAPI
 // * `iam:DeletePolicyVersion`: wildcard ("*") or policy that will be created;
 // * `iam:CreatePolicyVersion`: wildcard ("*") or policy that will be created;
 func (p *policies) Upsert(ctx context.Context, policy *Policy) (string, error) {
-	policyARN := fmt.Sprintf("arn:%s:iam::%s:policy/%s", p.partitionID, p.accountID, policy.Name)
+	policyARN := awsutils.PolicyARN(p.partitionID, p.accountID, policy.Name)
 	encodedPolicyDocument, err := json.Marshal(policy.Document)
 	if err != nil {
 		return "", trace.Wrap(err)

@@ -22,34 +22,40 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
-	"os/signal"
 	"path/filepath"
-	"syscall"
+	"runtime"
 
-	"github.com/gravitational/kingpin"
+	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
-	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/client/identityfile"
+	"github.com/gravitational/teleport/lib/client/mfa"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
-	toolcommon "github.com/gravitational/teleport/tool/common"
+	"github.com/gravitational/teleport/tool/common"
 )
 
 const (
 	searchHelp = `List of comma separated search keywords or phrases enclosed in quotations (e.g. --search=foo,bar,"some phrase")`
 	queryHelp  = `Query by predicate language enclosed in single quotes. Supports ==, !=, &&, and || (e.g. --query='labels["key1"] == "value1" && labels["key2"] != "value2"')`
 	labelHelp  = "List of comma separated labels to filter by labels (e.g. key1=value1,key2=value2)"
+)
+
+const (
+	identityFileEnvVar = "TELEPORT_IDENTITY_FILE"
+	authAddrEnvVar     = "TELEPORT_AUTH_SERVER"
 )
 
 // GlobalCLIFlags keeps the CLI flags that apply to all tctl commands
@@ -77,7 +83,7 @@ type GlobalCLIFlags struct {
 type CLICommand interface {
 	// Initialize allows a caller-defined command to plug itself into CLI
 	// argument parsing
-	Initialize(*kingpin.Application, *service.Config)
+	Initialize(*kingpin.Application, *servicecfg.Config)
 
 	// TryRun is executed after the CLI parsing is done. The command must
 	// determine if selectedCommand belongs to it and return match=true
@@ -91,7 +97,7 @@ type CLICommand interface {
 func Run(commands []CLICommand) {
 	err := TryRun(commands, os.Args[1:])
 	if err != nil {
-		var exitError *toolcommon.ExitCodeError
+		var exitError *common.ExitCodeError
 		if errors.As(err, &exitError) {
 			os.Exit(exitError.Code)
 		}
@@ -109,7 +115,7 @@ func TryRun(commands []CLICommand, args []string) error {
 
 	// cfg (teleport auth server configuration) is going to be shared by all
 	// commands
-	cfg := service.MakeDefaultConfig()
+	cfg := servicecfg.MakeDefaultConfig()
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 
 	// each command will add itself to the CLI parser:
@@ -142,16 +148,18 @@ func TryRun(commands []CLICommand, args []string) error {
 		"Base64 encoded configuration string").Hidden().Envar(defaults.ConfigEnvar).StringVar(&ccf.ConfigString)
 	app.Flag("auth-server",
 		fmt.Sprintf("Attempts to connect to specific auth/proxy address(es) instead of local auth [%v]", defaults.AuthConnectAddr().Addr)).
+		Envar(authAddrEnvVar).
 		StringsVar(&ccf.AuthServerAddr)
 	app.Flag("identity",
 		"Path to an identity file. Must be provided to make remote connections to auth. An identity file can be exported with 'tctl auth sign'").
 		Short('i').
+		Envar(identityFileEnvVar).
 		StringVar(&ccf.IdentityFilePath)
 	app.Flag("insecure", "When specifying a proxy address in --auth-server, do not verify its TLS certificate. Danger: any data you send can be intercepted or modified by an attacker.").
 		BoolVar(&ccf.Insecure)
 
 	// "version" command is always available:
-	ver := app.Command("version", "Print the version of your tctl binary")
+	ver := app.Command("version", "Print the version of your tctl binary.")
 	app.HelpFlag.Short('h')
 
 	// parse CLI commands+flags:
@@ -162,9 +170,16 @@ func TryRun(commands []CLICommand, args []string) error {
 		return trace.Wrap(err)
 	}
 
+	// Identity files do not currently contain a proxy address. When loading an
+	// Identity file, an auth server address must be passed on the command line
+	// as well.
+	if ccf.IdentityFilePath != "" && len(ccf.AuthServerAddr) == 0 {
+		return trace.BadParameter("tctl --identity also requires --auth-server")
+	}
+
 	// "version" command?
 	if selectedCmd == ver.FullCommand() {
-		utils.PrintVersion()
+		modules.GetModules().PrintVersion()
 		return nil
 	}
 
@@ -179,21 +194,29 @@ func TryRun(commands []CLICommand, args []string) error {
 		return trace.Wrap(err)
 	}
 
-	ctx, cancel := signal.NotifyContext(
-		context.Background(), syscall.SIGTERM, syscall.SIGINT,
-	)
-	defer cancel()
+	ctx := context.Background()
+
+	mfaPrompt := mfa.NewPrompt("")
+	mfaPrompt.HintBeforePrompt = mfa.AdminMFAHintBeforePrompt
+	clientConfig.PromptAdminRequestMFA = mfaPrompt.Run
 
 	client, err := authclient.Connect(ctx, clientConfig)
 	if err != nil {
 		if utils.IsUntrustedCertErr(err) {
 			err = trace.WrapWithMessage(err, utils.SelfSignedCertsMsg)
 		}
-		utils.Consolef(os.Stderr, log.WithField(trace.Component, teleport.ComponentClient), teleport.ComponentClient,
-			"Cannot connect to the auth server: %v.\nIs the auth server running on %q?",
-			err, cfg.AuthServerAddresses()[0].Addr)
-		return trace.NewAggregate(&toolcommon.ExitCodeError{Code: 1}, err)
+		fmt.Fprintf(os.Stderr,
+			"ERROR: Cannot connect to the auth server. Is the auth server running on %q?\n",
+			cfg.AuthServerAddresses()[0].Addr)
+		return trace.NewAggregate(&common.ExitCodeError{Code: 1}, err)
 	}
+
+	// Set proxy address for the MFA prompt from the ping response.
+	resp, err := client.Ping(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	mfaPrompt.ProxyAddress = resp.ProxyPublicAddr
 
 	// execute whatever is selected:
 	var match bool
@@ -206,15 +229,23 @@ func TryRun(commands []CLICommand, args []string) error {
 			break
 		}
 	}
+
+	ctx, cancel := context.WithTimeout(ctx, constants.TimeoutGetClusterAlerts)
+	defer cancel()
+	if err := common.ShowClusterAlerts(ctx, client, os.Stderr, nil,
+		types.AlertSeverity_HIGH); err != nil {
+		log.WithError(err).Warn("Failed to display cluster alerts.")
+	}
+
 	return nil
 }
 
 // ApplyConfig takes configuration values from the config file and applies them
-// to 'service.Config' object.
+// to 'servicecfg.Config' object.
 //
 // The returned authclient.Config has the credentials needed to dial the auth
 // server.
-func ApplyConfig(ccf *GlobalCLIFlags, cfg *service.Config) (*authclient.Config, error) {
+func ApplyConfig(ccf *GlobalCLIFlags, cfg *servicecfg.Config) (*authclient.Config, error) {
 	// --debug flag
 	if ccf.Debug {
 		cfg.Debug = ccf.Debug
@@ -263,9 +294,8 @@ func ApplyConfig(ccf *GlobalCLIFlags, cfg *service.Config) (*authclient.Config, 
 	}
 
 	// Config file should take precedence, if available.
-	if fileConf == nil && ccf.IdentityFilePath == "" {
-		// No config file or identity file.
-		// Try the extension loader.
+	if fileConf == nil {
+		// No config file. Try profile or identity file.
 		log.Debug("No config file or identity file, loading auth config via extension.")
 		authConfig, err := LoadConfigFromProfile(ccf, cfg)
 		if err == nil {
@@ -273,6 +303,12 @@ func ApplyConfig(ccf *GlobalCLIFlags, cfg *service.Config) (*authclient.Config, 
 		}
 		if !trace.IsNotFound(err) {
 			return nil, trace.Wrap(err)
+		} else if runtime.GOOS == constants.WindowsOS {
+			// On macOS/Linux, a not found error here is okay, as we can attempt
+			// to use the local auth identity. The auth server itself doesn't run
+			// on Windows though, so exit early with a clear error.
+			return nil, trace.BadParameter("tctl requires a tsh profile on Windows. " +
+				"Try logging in with tsh first.")
 		}
 	}
 
@@ -290,55 +326,33 @@ func ApplyConfig(ccf *GlobalCLIFlags, cfg *service.Config) (*authclient.Config, 
 	}
 
 	authConfig := new(authclient.Config)
-	// --identity flag
-	if ccf.IdentityFilePath != "" {
-		key, err := client.KeyFromIdentityFile(ccf.IdentityFilePath)
-		if err != nil {
-			return nil, trace.Wrap(err)
+	// read the host UUID only in case the identity was not provided,
+	// because it will be used for reading local auth server identity
+	cfg.HostUUID, err = utils.ReadHostUUID(cfg.DataDir)
+	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil, trace.Wrap(err, "Could not load Teleport host UUID file at %s. "+
+				"Please make sure that Teleport is up and running prior to using tctl.",
+				filepath.Join(cfg.DataDir, utils.HostUUIDFile))
+		} else if errors.Is(err, fs.ErrPermission) {
+			return nil, trace.Wrap(err, "Teleport does not have permission to read Teleport host UUID file at %s. "+
+				"Ensure that you are running as a user with appropriate permissions.",
+				filepath.Join(cfg.DataDir, utils.HostUUIDFile))
 		}
-		clusterName, err := key.RootClusterName()
-		if err != nil {
-			return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
+	}
+	identity, err := auth.ReadLocalIdentity(filepath.Join(cfg.DataDir, teleport.ComponentProcess), auth.IdentityID{Role: types.RoleAdmin, HostUUID: cfg.HostUUID})
+	if err != nil {
+		// The "admin" identity is not present? This means the tctl is running
+		// NOT on the auth server
+		if trace.IsNotFound(err) {
+			return nil, trace.AccessDenied("tctl must be either used on the auth server or provided with the identity file via --identity flag")
 		}
-
-		authConfig.TLS, err = key.TeleportClientTLSConfig(cfg.CipherSuites, []string{clusterName})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		authConfig.SSH, err = key.ProxyClientSSHConfig(&sshTrustedHostKeyWrapper{key}, clusterName)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	} else {
-		// read the host UUID only in case the identity was not provided,
-		// because it will be used for reading local auth server identity
-		cfg.HostUUID, err = utils.ReadHostUUID(cfg.DataDir)
-		if err != nil {
-			if errors.Is(err, fs.ErrNotExist) {
-				return nil, trace.Wrap(err, "Could not load Teleport host UUID file at %s. "+
-					"Please make sure that Teleport is up and running prior to using tctl.",
-					filepath.Join(cfg.DataDir, utils.HostUUIDFile))
-			} else if errors.Is(err, fs.ErrPermission) {
-				return nil, trace.Wrap(err, "Teleport does not have permission to read Teleport host UUID file at %s. "+
-					"Ensure that you are running as a user with appropriate permissions.",
-					filepath.Join(cfg.DataDir, utils.HostUUIDFile))
-			}
-			return nil, trace.Wrap(err)
-		}
-		identity, err := auth.ReadLocalIdentity(filepath.Join(cfg.DataDir, teleport.ComponentProcess), auth.IdentityID{Role: types.RoleAdmin, HostUUID: cfg.HostUUID})
-		if err != nil {
-			// The "admin" identity is not present? This means the tctl is running
-			// NOT on the auth server
-			if trace.IsNotFound(err) {
-				return nil, trace.AccessDenied("tctl must be either used on the auth server or provided with the identity file via --identity flag")
-			}
-			return nil, trace.Wrap(err)
-		}
-		authConfig.TLS, err = identity.TLSConfig(cfg.CipherSuites)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
+		return nil, trace.Wrap(err)
+	}
+	authConfig.TLS, err = identity.TLSConfig(cfg.CipherSuites)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 	authConfig.TLS.InsecureSkipVerify = ccf.Insecure
 	authConfig.AuthServers = cfg.AuthServerAddresses()
@@ -347,61 +361,39 @@ func ApplyConfig(ccf *GlobalCLIFlags, cfg *service.Config) (*authclient.Config, 
 	return authConfig, nil
 }
 
-// sshTrustedHostKeyWrapper wraps a client Key allowing to call GetKnownHostKeys function for particular hostname.
-type sshTrustedHostKeyWrapper struct {
-	*client.Key
-}
-
-// GetKnownHostKeys returns know trusted key for a particular hostname.
-func (m *sshTrustedHostKeyWrapper) GetKnownHostKeys(hostname string) ([]ssh.PublicKey, error) {
-	ca, err := m.Key.SSHCAsForClusters([]string{hostname})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	trustedKeys, err := sshutils.ParseKnownHosts(ca)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return trustedKeys, nil
-}
-
 // LoadConfigFromProfile applies config from ~/.tsh/ profile if it's present
-func LoadConfigFromProfile(ccf *GlobalCLIFlags, cfg *service.Config) (*authclient.Config, error) {
-	if ccf.IdentityFilePath != "" {
-		return nil, trace.NotFound("identity has been supplied, skip loading the config")
-	}
-
+func LoadConfigFromProfile(ccf *GlobalCLIFlags, cfg *servicecfg.Config) (*authclient.Config, error) {
 	proxyAddr := ""
 	if len(ccf.AuthServerAddr) != 0 {
 		proxyAddr = ccf.AuthServerAddr[0]
 	}
-	profile, _, err := client.Status(cfg.TeleportHome, proxyAddr)
-	if err != nil {
-		if !trace.IsNotFound(err) {
+
+	clientStore := client.NewFSClientStore(cfg.TeleportHome)
+	if ccf.IdentityFilePath != "" {
+		var err error
+		clientStore, err = identityfile.NewClientStoreFromIdentityFile(ccf.IdentityFilePath, proxyAddr, "")
+		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
-	// client is already logged in using tsh login and profile is not expired
-	if profile == nil {
-		return nil, trace.NotFound("profile is not found")
+
+	profile, err := clientStore.ReadProfileStatus(proxyAddr)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 	if profile.IsExpired(clockwork.NewRealClock()) {
 		return nil, trace.BadParameter("your credentials have expired, please login using `tsh login`")
 	}
 
-	log.WithFields(log.Fields{"proxy": profile.ProxyURL.String(), "user": profile.Username}).Debugf("Found active profile.")
-
 	c := client.MakeDefaultConfig()
-	if err := c.LoadProfile(cfg.TeleportHome, proxyAddr); err != nil {
+	log.WithFields(log.Fields{"proxy": profile.ProxyURL.String(), "user": profile.Username}).Debugf("Found profile.")
+	if err := c.LoadProfile(clientStore, proxyAddr); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	keyStore, err := client.NewFSLocalKeyStore(c.KeysDir)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+
 	webProxyHost, _ := c.WebProxyHostPort()
 	idx := client.KeyIndex{ProxyHost: webProxyHost, Username: c.Username, ClusterName: profile.Cluster}
-	key, err := keyStore.GetKey(idx, client.WithSSHCerts{})
+	key, err := clientStore.GetKey(idx, client.WithSSHCerts{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -421,7 +413,7 @@ func LoadConfigFromProfile(ccf *GlobalCLIFlags, cfg *service.Config) (*authclien
 		return nil, trace.Wrap(err)
 	}
 	authConfig.TLS.InsecureSkipVerify = ccf.Insecure
-	authConfig.SSH, err = key.ProxyClientSSHConfig(keyStore, rootCluster)
+	authConfig.SSH, err = key.ProxyClientSSHConfig(rootCluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -436,6 +428,10 @@ func LoadConfigFromProfile(ccf *GlobalCLIFlags, cfg *service.Config) (*authclien
 	}
 	authConfig.AuthServers = cfg.AuthServerAddresses()
 	authConfig.Log = cfg.Log
+
+	if c.TLSRoutingEnabled {
+		cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+	}
 
 	return authConfig, nil
 }

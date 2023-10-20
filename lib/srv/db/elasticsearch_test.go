@@ -36,7 +36,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/elasticsearch"
 )
 
-func init() {
+func registerTestElasticsearchEngine() {
 	// Override Elasticsearch engine that is used normally with the test one
 	// with custom HTTP client.
 	common.RegisterEngine(newTestElasticsearchEngine, defaults.ProtocolElasticsearch)
@@ -190,7 +190,7 @@ func TestAuditElasticsearch(t *testing.T) {
 }
 
 func withElasticsearch(name string, opts ...elasticsearch.TestServerOption) withDatabaseOption {
-	return func(t *testing.T, ctx context.Context, testCtx *testContext) types.Database {
+	return func(t testing.TB, ctx context.Context, testCtx *testContext) types.Database {
 		ElasticsearchServer, err := elasticsearch.NewTestServer(common.TestServerConfig{
 			Name:       name,
 			AuthClient: testCtx.authClient,

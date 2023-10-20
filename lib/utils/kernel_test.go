@@ -70,20 +70,39 @@ func TestKernelVersion(t *testing.T) {
 			inMax:      "5.1.0",
 			outRelease: "5.0.0",
 		},
+		// Windows WSL2
+		{
+			inRelease:  "5.15.68.1-microsoft-standard-WSL2",
+			inMin:      "5.14.0",
+			inMax:      "5.16.0",
+			outRelease: "5.15.68",
+		},
 	}
 
 	for _, tt := range tests {
-		// Check the version is parsed correctly.
-		version, err := kernelVersion(strings.NewReader(tt.inRelease))
-		require.NoError(t, err)
-		require.Equal(t, version.String(), tt.outRelease)
+		t.Run(tt.inRelease, func(t *testing.T) {
+			// Check the version is parsed correctly.
+			version, err := kernelVersion(strings.NewReader(tt.inRelease))
+			require.NoError(t, err)
+			require.Equal(t, version.String(), tt.outRelease)
 
-		// Check that version comparisons work.
-		min, err := semver.NewVersion(tt.inMin)
-		require.NoError(t, err)
-		max, err := semver.NewVersion(tt.inMax)
-		require.NoError(t, err)
-		require.Equal(t, version.LessThan(*max), true)
-		require.Equal(t, version.LessThan(*min), false)
+			// Check that version comparisons work.
+			min, err := semver.NewVersion(tt.inMin)
+			require.NoError(t, err)
+			max, err := semver.NewVersion(tt.inMax)
+			require.NoError(t, err)
+			require.Equal(t, version.LessThan(*max), true)
+			require.Equal(t, version.LessThan(*min), false)
+		})
 	}
+
+	t.Run("invalid kernel version", func(t *testing.T) {
+		v, err := kernelVersion(strings.NewReader("10.23"))
+		require.Nil(t, v)
+		require.EqualError(
+			t,
+			err,
+			`unable to extract kernel semver from string "10.23"`,
+		)
+	})
 }

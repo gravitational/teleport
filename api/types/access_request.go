@@ -23,14 +23,14 @@ import (
 	"sort"
 	"time"
 
-	"github.com/gravitational/teleport/api/utils"
-
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/utils"
 )
 
 // AccessRequest is a request for temporarily granted roles
 type AccessRequest interface {
-	Resource
+	ResourceWithLabels
 	// GetUser gets the name of the requesting user
 	GetUser() string
 	// GetRoles gets the roles being requested by the user
@@ -46,12 +46,16 @@ type AccessRequest interface {
 	GetCreationTime() time.Time
 	// SetCreationTime sets the creation time of the request.
 	SetCreationTime(time.Time)
-	// GetAccessExpiry gets the upper limit for which this request
-	// may be considered active.
+	// GetAccessExpiry gets the expiration time for the elevated certificate
+	// that will be issued if the Access Request is approved.
 	GetAccessExpiry() time.Time
-	// SetAccessExpiry sets the upper limit for which this request
-	// may be considered active.
+	// SetAccessExpiry sets the expiration time for the elevated certificate
+	// that will be issued if the Access Request is approved.
 	SetAccessExpiry(time.Time)
+	// GetSessionTLL gets the session TTL for generated certificates.
+	GetSessionTLL() time.Time
+	// SetSessionTLL sets the session TTL for generated certificates.
+	SetSessionTLL(time.Time)
 	// GetRequestReason gets the reason for the request's creation.
 	GetRequestReason() string
 	// SetRequestReason sets the reason for the request's creation.
@@ -86,6 +90,18 @@ type AccessRequest interface {
 	GetReviews() []AccessReview
 	// SetReviews sets the list of currently applied access reviews (internal use only).
 	SetReviews([]AccessReview)
+	// GetPromotedAccessListName returns the access list name that this access request
+	// was promoted to.
+	GetPromotedAccessListName() string
+	// SetPromotedAccessListName sets the access list name that this access request
+	// was promoted to.
+	SetPromotedAccessListName(name string)
+	// GetPromotedAccessListTitle returns the access list title that this access request
+	// was promoted to.
+	GetPromotedAccessListTitle() string
+	// SetPromotedAccessListTitle sets the access list title that this access request
+	// was promoted to.
+	SetPromotedAccessListTitle(string)
 	// GetSuggestedReviewers gets the suggested reviewer list.
 	GetSuggestedReviewers() []string
 	// SetSuggestedReviewers sets the suggested reviewer list.
@@ -98,11 +114,17 @@ type AccessRequest interface {
 	GetLoginHint() string
 	// SetLoginHint sets the requested login hint.
 	SetLoginHint(string)
+	// GetMaxDuration gets the maximum time at which the access should be approved for.
+	GetMaxDuration() time.Time
+	// SetMaxDuration sets the maximum time at which the access should be approved for.
+	SetMaxDuration(time.Time)
 	// GetDryRun returns true if this request should not be created and is only
 	// a dry run to validate request capabilities.
 	GetDryRun() bool
 	// SetDryRun sets the dry run flag on the request.
 	SetDryRun(bool)
+	// Copy returns a copy of the access request resource.
+	Copy() AccessRequest
 }
 
 // NewAccessRequest assembles an AccessRequest resource.
@@ -168,7 +190,7 @@ func (r *AccessRequestV3) GetCreationTime() time.Time {
 
 // SetCreationTime sets CreationTime
 func (r *AccessRequestV3) SetCreationTime(t time.Time) {
-	r.Spec.Created = t
+	r.Spec.Created = t.UTC()
 }
 
 // GetAccessExpiry gets AccessExpiry
@@ -178,7 +200,17 @@ func (r *AccessRequestV3) GetAccessExpiry() time.Time {
 
 // SetAccessExpiry sets AccessExpiry
 func (r *AccessRequestV3) SetAccessExpiry(expiry time.Time) {
-	r.Spec.Expires = expiry
+	r.Spec.Expires = expiry.UTC()
+}
+
+// GetSessionTLL gets SessionTLL
+func (r *AccessRequestV3) GetSessionTLL() time.Time {
+	return r.Spec.SessionTTL
+}
+
+// SetSessionTLL sets SessionTLL
+func (r *AccessRequestV3) SetSessionTLL(t time.Time) {
+	r.Spec.SessionTTL = t.UTC()
 }
 
 // GetRequestReason gets RequestReason
@@ -261,7 +293,12 @@ func (r *AccessRequestV3) SetRoleThresholdMapping(rtm map[string]ThresholdIndexS
 
 // SetReviews sets the list of currently applied access reviews.
 func (r *AccessRequestV3) SetReviews(revs []AccessReview) {
-	r.Spec.Reviews = revs
+	utcRevs := make([]AccessReview, len(revs))
+	for i, rev := range revs {
+		utcRevs[i] = rev
+		utcRevs[i].Created = rev.Created.UTC()
+	}
+	r.Spec.Reviews = utcRevs
 }
 
 // GetReviews gets the list of currently applied access reviews.
@@ -277,6 +314,38 @@ func (r *AccessRequestV3) GetSuggestedReviewers() []string {
 // SetSuggestedReviewers sets the suggested reviewer list.
 func (r *AccessRequestV3) SetSuggestedReviewers(reviewers []string) {
 	r.Spec.SuggestedReviewers = reviewers
+}
+
+// GetPromotedAccessListName returns PromotedAccessListName.
+func (r *AccessRequestV3) GetPromotedAccessListName() string {
+	if r.Spec.AccessList == nil {
+		return ""
+	}
+	return r.Spec.AccessList.Name
+}
+
+// SetPromotedAccessListName sets PromotedAccessListName.
+func (r *AccessRequestV3) SetPromotedAccessListName(name string) {
+	if r.Spec.AccessList == nil {
+		r.Spec.AccessList = &PromotedAccessList{}
+	}
+	r.Spec.AccessList.Name = name
+}
+
+// GetPromotedAccessListTitle returns PromotedAccessListTitle.
+func (r *AccessRequestV3) GetPromotedAccessListTitle() string {
+	if r.Spec.AccessList == nil {
+		return ""
+	}
+	return r.Spec.AccessList.Title
+}
+
+// SetPromotedAccessListTitle sets PromotedAccessListTitle.
+func (r *AccessRequestV3) SetPromotedAccessListTitle(title string) {
+	if r.Spec.AccessList == nil {
+		r.Spec.AccessList = &PromotedAccessList{}
+	}
+	r.Spec.AccessList.Title = title
 }
 
 // setStaticFields sets static resource header and metadata fields.
@@ -363,7 +432,7 @@ func (r *AccessRequestV3) Expiry() time.Time {
 
 // SetExpiry sets Expiry
 func (r *AccessRequestV3) SetExpiry(expiry time.Time) {
-	r.Metadata.SetExpiry(expiry)
+	r.Metadata.SetExpiry(expiry.UTC())
 }
 
 // GetMetadata gets Metadata
@@ -379,6 +448,16 @@ func (r *AccessRequestV3) GetResourceID() int64 {
 // SetResourceID sets ResourceID
 func (r *AccessRequestV3) SetResourceID(id int64) {
 	r.Metadata.SetID(id)
+}
+
+// GetRevision returns the revision
+func (r *AccessRequestV3) GetRevision() string {
+	return r.Metadata.GetRevision()
+}
+
+// SetRevision sets the revision
+func (r *AccessRequestV3) SetRevision(rev string) {
+	r.Metadata.SetRevision(rev)
 }
 
 // GetRequestedResourceIDs gets the resource IDs to which access is being requested.
@@ -407,9 +486,63 @@ func (r *AccessRequestV3) GetDryRun() bool {
 	return r.Spec.DryRun
 }
 
+// GetMaxDuration gets the maximum time at which the access should be approved for.
+func (r *AccessRequestV3) GetMaxDuration() time.Time {
+	return r.Spec.MaxDuration
+}
+
+// SetMaxDuration sets the maximum time at which the access should be approved for.
+func (r *AccessRequestV3) SetMaxDuration(t time.Time) {
+	r.Spec.MaxDuration = t
+}
+
 // SetDryRun sets the dry run flag on the request.
 func (r *AccessRequestV3) SetDryRun(dryRun bool) {
 	r.Spec.DryRun = dryRun
+}
+
+// Copy returns a copy of the access request resource.
+func (r *AccessRequestV3) Copy() AccessRequest {
+	return utils.CloneProtoMsg(r)
+}
+
+// GetLabel retrieves the label with the provided key. If not found
+// value will be empty and ok will be false.
+func (r *AccessRequestV3) GetLabel(key string) (value string, ok bool) {
+	v, ok := r.Metadata.Labels[key]
+	return v, ok
+}
+
+// GetStaticLabels returns the access request static labels.
+func (r *AccessRequestV3) GetStaticLabels() map[string]string {
+	return r.Metadata.Labels
+}
+
+// SetStaticLabels sets the access request static labels.
+func (r *AccessRequestV3) SetStaticLabels(sl map[string]string) {
+	r.Metadata.Labels = sl
+}
+
+// GetAllLabels returns the access request static labels.
+func (r *AccessRequestV3) GetAllLabels() map[string]string {
+	return r.Metadata.Labels
+}
+
+// MatchSearch goes through select field values and tries to
+// match against the list of search values.
+func (r *AccessRequestV3) MatchSearch(values []string) bool {
+	fieldVals := append(utils.MapToStrings(r.GetAllLabels()), r.GetName())
+	return MatchSearch(fieldVals, values, nil)
+}
+
+// Origin returns the origin value of the resource.
+func (r *AccessRequestV3) Origin() string {
+	return r.Metadata.Origin()
+}
+
+// SetOrigin sets the origin value of the resource.
+func (r *AccessRequestV3) SetOrigin(origin string) {
+	r.Metadata.SetOrigin(origin)
 }
 
 // String returns a text representation of this AccessRequest
@@ -435,6 +568,22 @@ func (s AccessReview) Check() error {
 	}
 
 	return nil
+}
+
+// GetAccessListName returns the access list name used for the promotion.
+func (s AccessReview) GetAccessListName() string {
+	if s.AccessList == nil {
+		return ""
+	}
+	return s.AccessList.Name
+}
+
+// GetAccessListTitle returns the access list title used for the promotion.
+func (s AccessReview) GetAccessListTitle() string {
+	if s.AccessList == nil {
+		return ""
+	}
+	return s.AccessList.Title
 }
 
 // AccessRequestUpdate encompasses the parameters of a
@@ -514,11 +663,12 @@ func (s RequestStrategy) RequireReason() bool {
 
 // stateVariants allows iteration of the expected variants
 // of RequestState.
-var stateVariants = [4]RequestState{
+var stateVariants = [5]RequestState{
 	RequestState_NONE,
 	RequestState_PENDING,
 	RequestState_APPROVED,
 	RequestState_DENIED,
+	RequestState_PROMOTED,
 }
 
 // Parse attempts to interpret a value as a string representation
@@ -553,9 +703,14 @@ func (s RequestState) IsDenied() bool {
 	return s == RequestState_DENIED
 }
 
+// IsPromoted returns true is the request in the PROMOTED state.
+func (s RequestState) IsPromoted() bool {
+	return s == RequestState_PROMOTED
+}
+
 // IsResolved request state
 func (s RequestState) IsResolved() bool {
-	return s.IsApproved() || s.IsDenied()
+	return s.IsApproved() || s.IsDenied() || s.IsPromoted()
 }
 
 // key values for map encoding of request filter
@@ -611,4 +766,44 @@ func (f *AccessRequestFilter) Match(req AccessRequest) bool {
 		return false
 	}
 	return true
+}
+
+// AccessRequests is a list of AccessRequest resources.
+type AccessRequests []AccessRequest
+
+// ToMap returns these access requests as a map keyed by access request name.
+func (a AccessRequests) ToMap() map[string]AccessRequest {
+	m := make(map[string]AccessRequest)
+	for _, accessRequest := range a {
+		m[accessRequest.GetName()] = accessRequest
+	}
+	return m
+}
+
+// AsResources returns these access requests as resources with labels.
+func (a AccessRequests) AsResources() (resources ResourcesWithLabels) {
+	for _, accessRequest := range a {
+		resources = append(resources, accessRequest)
+	}
+	return resources
+}
+
+// Len returns the slice length.
+func (a AccessRequests) Len() int { return len(a) }
+
+// Less compares access requests by name.
+func (a AccessRequests) Less(i, j int) bool { return a[i].GetName() < a[j].GetName() }
+
+// Swap swaps two access requests.
+func (a AccessRequests) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
+
+// NewAccessRequestAllowedPromotions returns a new AccessRequestAllowedPromotions resource.
+func NewAccessRequestAllowedPromotions(promotions []*AccessRequestAllowedPromotion) *AccessRequestAllowedPromotions {
+	if promotions == nil {
+		promotions = make([]*AccessRequestAllowedPromotion, 0)
+	}
+
+	return &AccessRequestAllowedPromotions{
+		Promotions: promotions,
+	}
 }

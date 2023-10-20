@@ -18,22 +18,30 @@ package local_test
 
 import (
 	"context"
+	"crypto/x509"
 	"encoding/base64"
+	"encoding/json"
+	"encoding/pem"
+	"errors"
 	"testing"
 	"time"
 
-	"github.com/duo-labs/webauthn/protocol"
+	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/api/types"
+	wanpb "github.com/gravitational/teleport/api/types/webauthn"
+	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/services/local"
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	"github.com/stretchr/testify/require"
-
-	wantypes "github.com/gravitational/teleport/api/types/webauthn"
 )
 
 func newIdentityService(t *testing.T, clock clockwork.Clock) *local.IdentityService {
@@ -104,7 +112,7 @@ func TestRecoveryCodesCRUD(t *testing.T) {
 		// Create a user.
 		userResource := &types.UserV2{}
 		userResource.SetName(username)
-		err := identity.CreateUser(userResource)
+		_, err := identity.CreateUser(ctx, userResource)
 		require.NoError(t, err)
 
 		// Test codes exist for user.
@@ -130,14 +138,14 @@ func TestRecoveryCodesCRUD(t *testing.T) {
 		// Create a user.
 		userResource1 := &types.UserV2{}
 		userResource1.SetName(username1)
-		err := identity.CreateUser(userResource1)
+		_, err := identity.CreateUser(ctx, userResource1)
 		require.NoError(t, err)
 
 		// Create another user whose username which is prefixed with
 		// the previous username.
 		userResource2 := &types.UserV2{}
 		userResource2.SetName(username2)
-		err = identity.CreateUser(userResource2)
+		_, err = identity.CreateUser(ctx, userResource2)
 		require.NoError(t, err)
 
 		// Test codes exist for the first user.
@@ -179,7 +187,7 @@ func TestRecoveryCodesCRUD(t *testing.T) {
 		// Create a user.
 		userResource := &types.UserV2{}
 		userResource.SetName(username)
-		err := identity.CreateUser(userResource)
+		_, err := identity.CreateUser(ctx, userResource)
 		require.NoError(t, err)
 
 		// Test codes exist for user.
@@ -225,9 +233,9 @@ func TestRecoveryAttemptsCRUD(t *testing.T) {
 		attempts, err := identity.GetUserRecoveryAttempts(ctx, username)
 		require.NoError(t, err)
 		require.Len(t, attempts, 3)
-		require.Equal(t, time1, attempts[0].Time)
-		require.Equal(t, time2, attempts[1].Time)
-		require.Equal(t, time3, attempts[2].Time)
+		require.WithinDuration(t, time1, attempts[0].Time, time.Second)
+		require.WithinDuration(t, time2, attempts[1].Time, time.Second)
+		require.WithinDuration(t, time3, attempts[2].Time, time.Second)
 
 		// Test delete all recovery attempts.
 		err = identity.DeleteUserRecoveryAttempts(ctx, username)
@@ -243,7 +251,7 @@ func TestRecoveryAttemptsCRUD(t *testing.T) {
 		// Create a user, to test deletion of recovery attempts with user.
 		userResource := &types.UserV2{}
 		userResource.SetName(username)
-		err := identity.CreateUser(userResource)
+		_, err := identity.CreateUser(ctx, userResource)
 		require.NoError(t, err)
 
 		err = identity.CreateUserRecoveryAttempt(ctx, username, &types.RecoveryAttempt{Time: time3, Expires: time3})
@@ -478,11 +486,11 @@ func TestIdentityService_UpsertWebauthnLocalAuth(t *testing.T) {
 		las.Webauthn = wal
 		u.SetLocalAuth(las)
 
-		err = identity.UpsertUser(u)
+		_, err = identity.UpsertUser(ctx, u)
 		return err
 	}
 	getViaUser := func(ctx context.Context, user string) (*types.WebauthnLocalAuth, error) {
-		u, err := identity.GetUser(user, true /* withSecrets */)
+		u, err := identity.GetUser(ctx, user, true /* withSecrets */)
 		if err != nil {
 			return nil, err
 		}
@@ -490,15 +498,15 @@ func TestIdentityService_UpsertWebauthnLocalAuth(t *testing.T) {
 	}
 
 	// Create a user to begin with.
+	ctx := context.Background()
 	const name = "llama"
 	user, err := types.NewUser(name)
 	require.NoError(t, err)
-	err = identity.UpsertUser(user)
+	_, err = identity.UpsertUser(ctx, user)
 	require.NoError(t, err)
 
 	// Try a few empty reads.
-	ctx := context.Background()
-	_, err = identity.GetUser(name, true /* withSecrets */)
+	_, err = identity.GetUser(ctx, name, true /* withSecrets */)
 	require.NoError(t, err) // User read should be fine.
 	_, err = identity.GetWebauthnLocalAuth(ctx, name)
 	require.True(t, trace.IsNotFound(err)) // Direct WAL read should fail.
@@ -508,7 +516,7 @@ func TestIdentityService_UpsertWebauthnLocalAuth(t *testing.T) {
 	err = identity.UpsertWebauthnLocalAuth(ctx, name, badWAL)
 	require.True(t, trace.IsBadParameter(err))
 	user.SetLocalAuth(&types.LocalAuthSecrets{Webauthn: badWAL})
-	err = identity.UpdateUser(ctx, user)
+	_, err = identity.UpdateUser(ctx, user)
 	require.True(t, trace.IsBadParameter(err))
 
 	// Update/Read tests.
@@ -606,16 +614,16 @@ func TestIdentityService_WebauthnSessionDataCRUD(t *testing.T) {
 	const user2 = "alpaca"
 	// Prepare a few different objects so we can assert that both "user" and
 	// "session" key components are used correctly.
-	user1Reg := &wantypes.SessionData{
+	user1Reg := &wanpb.SessionData{
 		Challenge: []byte("challenge1-reg"),
 		UserId:    []byte("llamaid"),
 	}
-	user1Login := &wantypes.SessionData{
+	user1Login := &wanpb.SessionData{
 		Challenge:        []byte("challenge1-login"),
 		UserId:           []byte("llamaid"),
 		AllowCredentials: [][]byte{[]byte("cred1"), []byte("cred2")},
 	}
-	user2Login := &wantypes.SessionData{
+	user2Login := &wanpb.SessionData{
 		Challenge: []byte("challenge2"),
 		UserId:    []byte("alpacaid"),
 	}
@@ -625,7 +633,7 @@ func TestIdentityService_WebauthnSessionDataCRUD(t *testing.T) {
 	const loginSession = "login"
 	params := []struct {
 		user, session string
-		sd            *wantypes.SessionData
+		sd            *wanpb.SessionData
 	}{
 		{user: user1, session: registerSession, sd: user1Reg},
 		{user: user1, session: loginSession, sd: user1Login},
@@ -649,7 +657,7 @@ func TestIdentityService_WebauthnSessionDataCRUD(t *testing.T) {
 	}
 
 	// Verify upsert/update.
-	user1Reg = &wantypes.SessionData{
+	user1Reg = &wanpb.SessionData{
 		Challenge: []byte("challenge1reg--another"),
 		UserId:    []byte("llamaid"),
 	}
@@ -677,23 +685,23 @@ func TestIdentityService_GlobalWebauthnSessionDataCRUD(t *testing.T) {
 	t.Parallel()
 	identity := newIdentityService(t, clockwork.NewFakeClock())
 
-	user1Login1 := &wantypes.SessionData{
+	user1Login1 := &wanpb.SessionData{
 		Challenge:        []byte("challenge1"),
 		UserId:           []byte("user1-web-id"),
 		UserVerification: string(protocol.VerificationRequired),
 	}
-	user1Login2 := &wantypes.SessionData{
+	user1Login2 := &wanpb.SessionData{
 		Challenge:        []byte("challenge2"),
 		UserId:           []byte("user1-web-id"),
 		UserVerification: string(protocol.VerificationRequired),
 	}
-	user1Registration := &wantypes.SessionData{
+	user1Registration := &wanpb.SessionData{
 		Challenge:        []byte("challenge3"),
 		UserId:           []byte("user1-web-id"),
 		ResidentKey:      true,
 		UserVerification: string(protocol.VerificationRequired),
 	}
-	user2Login := &wantypes.SessionData{
+	user2Login := &wanpb.SessionData{
 		Challenge:        []byte("challenge4"),
 		UserId:           []byte("user2-web-id"),
 		ResidentKey:      true,
@@ -706,7 +714,7 @@ func TestIdentityService_GlobalWebauthnSessionDataCRUD(t *testing.T) {
 	const scopeRegister = "register"
 	params := []struct {
 		scope, id string
-		sd        *wantypes.SessionData
+		sd        *wanpb.SessionData
 	}{
 		{scope: scopeLogin, id: base64.RawURLEncoding.EncodeToString(user1Login1.Challenge), sd: user1Login1},
 		{scope: scopeLogin, id: base64.RawURLEncoding.EncodeToString(user1Login2.Challenge), sd: user1Login2},
@@ -773,7 +781,7 @@ func TestIdentityService_UpsertGlobalWebauthnSessionData_maxLimit(t *testing.T) 
 	const id2 = "challenge2"
 	const id3 = "challenge3"
 	const id4 = "challenge4"
-	sd := &wantypes.SessionData{
+	sd := &wanpb.SessionData{
 		Challenge:        []byte("supersecretchallenge"), // typically matches the key
 		UserVerification: "required",
 	}
@@ -844,4 +852,240 @@ func TestIdentityService_SSODiagnosticInfoCrud(t *testing.T) {
 	infoGet, err := identity.GetSSODiagnosticInfo(ctx, types.KindSAML, "MY_ID")
 	require.NoError(t, err)
 	require.Equal(t, &info, infoGet)
+}
+
+func TestIdentityService_UpsertKeyAttestationData(t *testing.T) {
+	t.Parallel()
+	identity := newIdentityService(t, clockwork.NewFakeClock())
+	ctx := context.Background()
+
+	for _, tc := range []struct {
+		name             string
+		pubKeyPEM        string
+		expectPubKeyHash string
+	}{
+		{
+			name: "public key",
+			pubKeyPEM: `-----BEGIN PUBLIC KEY-----
+MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDCep78YgY5I8RrvhE5zra4k1hx
+JZoZL1NsgqBz/f49OZsck24rcxurnC0lKAJmSGtKZrv54E/XZuPtatUkrXtIFKC6
+shHLLAc/LAVtDX2/E/aLgM0srYtt1/kku9H1C9+Ou7RzOIdblRkNMYcbUOhKBNld
+AnYsqjU9/7IaQSp8DwIDAQAB
+-----END PUBLIC KEY-----`,
+		}, {
+			name: "public key with // in plain sha hash",
+			pubKeyPEM: `-----BEGIN PUBLIC KEY-----
+MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCwh1y2u/z8Rm4jD51oawtI00NO
+yHPtEsk3AcetyxYXM5jXAZuQBJwFoxQa3tlJoumigfVEsdYhETu1zwJLZhjgmYOp
+eKMx+eKGKvDF73w1Kfap+JrGA2d1+XtPfNZkmcjYThe+GY0yfinnIwcjd+lmqCqb
+Tirv9LjajEBxUnuV+wIDAQAB
+-----END PUBLIC KEY-----`,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			p, _ := pem.Decode([]byte(tc.pubKeyPEM))
+			require.NotNil(t, p)
+			pubDer := p.Bytes
+
+			attestationData := &keys.AttestationData{
+				PublicKeyDER:     pubDer,
+				PrivateKeyPolicy: keys.PrivateKeyPolicyHardwareKey,
+			}
+
+			err := identity.UpsertKeyAttestationData(ctx, attestationData, time.Hour)
+			require.NoError(t, err, "UpsertKeyAttestationData failed")
+
+			pub, err := x509.ParsePKIXPublicKey(pubDer)
+			require.NoError(t, err, "ParsePKIXPublicKey failed")
+
+			retrievedAttestationData, err := identity.GetKeyAttestationData(ctx, pub)
+			require.NoError(t, err, "GetKeyAttestationData failed")
+			require.Equal(t, attestationData, retrievedAttestationData, "GetKeyAttestationData mismatch")
+		})
+	}
+}
+
+// DELETE IN 13.0, old fingerprints not in use by then (Joerger).
+func TestIdentityService_GetKeyAttestationDataV11Fingerprint(t *testing.T) {
+	t.Parallel()
+	identity := newIdentityService(t, clockwork.NewFakeClock())
+	ctx := context.Background()
+
+	key, err := native.GenerateRSAPrivateKey()
+	require.NoError(t, err)
+
+	pubDER, err := x509.MarshalPKIXPublicKey(key.Public())
+	require.NoError(t, err)
+
+	attestationData := &keys.AttestationData{
+		PrivateKeyPolicy: keys.PrivateKeyPolicyNone,
+		PublicKeyDER:     pubDER,
+	}
+
+	// manually insert attestation data with old style fingerprint.
+	value, err := json.Marshal(attestationData)
+	require.NoError(t, err)
+
+	backendKey, err := local.KeyAttestationDataFingerprintV11(key.Public())
+	require.NoError(t, err)
+
+	item := backend.Item{
+		Key:   backend.Key("key_attestations", backendKey),
+		Value: value,
+	}
+	_, err = identity.Put(ctx, item)
+	require.NoError(t, err)
+
+	// Should be able to retrieve attestation data despite old fingerprint.
+	retrievedAttestationData, err := identity.GetKeyAttestationData(ctx, key.Public())
+	require.NoError(t, err)
+	require.Equal(t, attestationData, retrievedAttestationData)
+}
+
+func TestIdentityService_UpdateAndSwapUser(t *testing.T) {
+	t.Parallel()
+	identity := newIdentityService(t, clockwork.NewFakeClock())
+	ctx := context.Background()
+
+	type updateParams struct {
+		user        string
+		withSecrets bool
+		fn          func(u types.User) (changed bool, err error)
+	}
+
+	tests := []struct {
+		name     string
+		makeUser func() (types.User, error) // if not nil, the user is created
+		updateParams
+		wantErr  string
+		wantNoop bool
+	}{
+		{
+			name: "update without secrets",
+			makeUser: func() (types.User, error) {
+				return types.NewUser("updateNoSecrets1")
+			},
+			updateParams: updateParams{
+				fn: func(u types.User) (bool, error) {
+					u.SetLogins([]string{"llama", "alpaca"})
+					return true, nil
+				},
+			},
+		},
+		{
+			name: "update without secrets can't write secrets",
+			makeUser: func() (types.User, error) {
+				return types.NewUser("updateNoSecrets2")
+			},
+			updateParams: updateParams{
+				fn: func(u types.User) (bool, error) {
+					u.SetLogins([]string{"llama", "alpaca"})
+					u.SetLocalAuth(&types.LocalAuthSecrets{
+						Webauthn: &types.WebauthnLocalAuth{
+							UserID: []byte("superwebllama"),
+						},
+					})
+					return true, nil
+				},
+			},
+		},
+		{
+			name: "update with secrets",
+			makeUser: func() (types.User, error) {
+				return types.NewUser("updateWithSecrets")
+			},
+			updateParams: updateParams{
+				withSecrets: true,
+				fn: func(u types.User) (bool, error) {
+					u.SetLogins([]string{"llama", "alpaca"})
+					u.SetLocalAuth(&types.LocalAuthSecrets{
+						Webauthn: &types.WebauthnLocalAuth{
+							UserID: []byte("superwebllama"),
+						},
+					})
+					return true, nil
+				},
+			},
+		},
+		{
+			name: "noop fn",
+			makeUser: func() (types.User, error) {
+				return types.NewUser("noop1")
+			},
+			updateParams: updateParams{
+				fn: func(u types.User) (changed bool, err error) {
+					u.SetLogins([]string{"llama"}) // not written to storage!
+					return false, nil
+				},
+			},
+			wantNoop: true,
+		},
+		{
+			name: "user not found",
+			updateParams: updateParams{
+				user: "unknown",
+				fn:   func(u types.User) (changed bool, err error) { return false, nil },
+			},
+			wantErr: "not found",
+		},
+		{
+			name: "fn error surfaced",
+			makeUser: func() (types.User, error) {
+				return types.NewUser("fnErr")
+			},
+			updateParams: updateParams{
+				fn: func(u types.User) (changed bool, err error) {
+					return false, errors.New("something really terrible happened")
+				},
+			},
+			wantErr: "something really terrible",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			var before types.User
+
+			// Create user?
+			if test.makeUser != nil {
+				var err error
+				before, err = test.makeUser()
+				require.NoError(t, err, "makeUser failed")
+				_, err = identity.CreateUser(ctx, before)
+				require.NoError(t, err, "CreateUser failed")
+
+				if test.user == "" {
+					test.user = before.GetName()
+				} else if test.user != before.GetName() {
+					t.Fatal("Test has both makeUser and updateParams.user, but they don't match")
+				}
+			}
+
+			updated, err := identity.UpdateAndSwapUser(ctx, test.user, test.withSecrets, test.fn)
+			if test.wantErr != "" {
+				assert.ErrorContains(t, err, test.wantErr, "UpdateAndSwapUser didn't error")
+				return
+			}
+
+			// Determine wanted user based on `before` and params.
+			want := before
+			if !test.wantNoop {
+				test.fn(want)
+			}
+			if !test.withSecrets {
+				want = want.WithoutSecrets().(types.User)
+			}
+
+			// Assert update response.
+			if diff := cmp.Diff(want, updated, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")); diff != "" {
+				t.Errorf("UpdateAndSwapUser return mismatch (-want +got)\n%s", diff)
+			}
+
+			// Assert stored.
+			stored, err := identity.GetUser(ctx, test.user, test.withSecrets)
+			require.NoError(t, err, "GetUser failed")
+			if diff := cmp.Diff(want, stored, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")); diff != "" {
+				t.Errorf("UpdateAndSwapUser storage mismatch (-want +got)\n%s", diff)
+			}
+		})
+	}
 }

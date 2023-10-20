@@ -22,6 +22,7 @@ import (
 	"compress/gzip"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -38,7 +39,6 @@ import (
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/observability/metrics"
@@ -52,11 +52,17 @@ const (
 	// in /var/lib/teleport/log/sessions
 	SessionLogsDir = "sessions"
 
-	// StreamingLogsDir is a subdirectory of sessions /var/lib/teleport/log/streaming
-	// is used in new versions of the uploader. This directory is used in asynchronous
+	// StreamingSessionsDir is a subdirectory of sessions (/var/lib/teleport/log/upload/streaming)
+	// that is used in new versions of the uploader. This directory is used in asynchronous
 	// recording modes where recordings are buffered to disk before being uploaded
 	// to the auth server.
-	StreamingLogsDir = "streaming"
+	StreamingSessionsDir = "streaming"
+
+	// CorruptedSessionsDir is a subdirectory of sessions (/var/lib/teleport/log/upload/corrupted)
+	// where corrupted session recordings are placed. This ensures that the uploader doesn't
+	// continue to try to upload corrupted sessions, but preserves the recording in case it contains
+	// valuable info.
+	CorruptedSessionsDir = "corrupted"
 
 	// RecordsDir is an auth server subdirectory with session recordings that is used
 	// when the auth server is not configured for external cloud storage. It is not
@@ -72,6 +78,36 @@ const (
 	// SymlinkFilename is a name of the symlink pointing to the last
 	// current log file
 	SymlinkFilename = "events.log"
+
+	// AuditBackoffTimeout is a time out before audit logger will
+	// start losing events
+	AuditBackoffTimeout = 5 * time.Second
+
+	// NetworkBackoffDuration is a standard backoff on network requests
+	// usually is slow, e.g. once in 30 seconds
+	NetworkBackoffDuration = time.Second * 30
+
+	// NetworkRetryDuration is a standard retry on network requests
+	// to retry quickly, e.g. once in one second
+	NetworkRetryDuration = time.Second
+
+	// FastAttempts is the initial amount of fast retry attempts
+	// before switching to slow mode
+	FastAttempts = 10
+
+	// DiskAlertThreshold is the disk space alerting threshold.
+	DiskAlertThreshold = 90
+
+	// DiskAlertInterval is disk space check interval.
+	DiskAlertInterval = 5 * time.Minute
+
+	// InactivityFlushPeriod is a period of inactivity
+	// that triggers upload of the data - flush.
+	InactivityFlushPeriod = 5 * time.Minute
+
+	// AbandonedUploadPollingRate defines how often to check for
+	// abandoned uploads which need to be completed.
+	AbandonedUploadPollingRate = apidefaults.SessionTrackerTTL / 6
 )
 
 var (
@@ -115,7 +151,7 @@ var (
 )
 
 // AuditLog is a new combined facility to record Teleport events and
-// sessions. It implements IAuditLog
+// sessions. It implements AuditLogSessionStreamer
 type AuditLog struct {
 	sync.RWMutex
 	AuditLogConfig
@@ -179,7 +215,7 @@ type AuditLogConfig struct {
 	UploadHandler MultipartHandler
 
 	// ExternalLog is a pluggable external log service
-	ExternalLog IAuditLog
+	ExternalLog AuditLogger
 
 	// Context is audit log context
 	Context context.Context
@@ -260,15 +296,15 @@ func NewAuditLog(cfg AuditLogConfig) (*AuditLog, error) {
 		return nil, trace.ConvertSystemError(err)
 	}
 	if cfg.UID != nil && cfg.GID != nil {
-		err := os.Chown(cfg.DataDir, *cfg.UID, *cfg.GID)
+		err := os.Lchown(cfg.DataDir, *cfg.UID, *cfg.GID)
 		if err != nil {
 			return nil, trace.ConvertSystemError(err)
 		}
-		err = os.Chown(sessionDir, *cfg.UID, *cfg.GID)
+		err = os.Lchown(sessionDir, *cfg.UID, *cfg.GID)
 		if err != nil {
 			return nil, trace.ConvertSystemError(err)
 		}
-		err = os.Chown(al.playbackDir, *cfg.UID, *cfg.GID)
+		err = os.Lchown(al.playbackDir, *cfg.UID, *cfg.GID)
 		if err != nil {
 			return nil, trace.ConvertSystemError(err)
 		}
@@ -418,7 +454,7 @@ func readSessionIndex(dataDir string, authServers []string, namespace string, si
 	}
 	for _, authServer := range authServers {
 		indexFileName := filepath.Join(dataDir, authServer, SessionLogsDir, namespace, fmt.Sprintf("%v.index", sid))
-		indexFile, err := os.OpenFile(indexFileName, os.O_RDONLY, 0640)
+		indexFile, err := os.OpenFile(indexFileName, os.O_RDONLY, 0o640)
 		err = trace.ConvertSystemError(err)
 		if err != nil {
 			if !trace.IsNotFound(err) {
@@ -525,7 +561,7 @@ func (l *AuditLog) downloadSession(namespace string, sid session.ID) error {
 	}
 	start := time.Now()
 	l.log.Debugf("Starting download of %v.", sid)
-	tarball, err := os.OpenFile(tarballPath, os.O_CREATE|os.O_RDWR|os.O_TRUNC, 0640)
+	tarball, err := os.OpenFile(tarballPath, os.O_CREATE|os.O_RDWR|os.O_TRUNC, 0o640)
 	if err != nil {
 		return trace.ConvertSystemError(err)
 	}
@@ -607,7 +643,7 @@ func (l *AuditLog) GetSessionChunk(namespace string, sid session.ID, offsetBytes
 	for {
 		out, err := l.getSessionChunk(namespace, sid, offsetBytes, maxBytes)
 		if err != nil {
-			if err == io.EOF {
+			if errors.Is(err, io.EOF) {
 				return data, nil
 			}
 			return nil, trace.Wrap(err)
@@ -678,16 +714,16 @@ func (l *AuditLog) unpackFile(fileName string) (readSeekCloser, error) {
 		}
 		// no new data has been added
 		if unpackedInfo.ModTime().Unix() >= packedInfo.ModTime().Unix() {
-			return os.OpenFile(unpackedFile, os.O_RDONLY, 0640)
+			return os.OpenFile(unpackedFile, os.O_RDONLY, 0o640)
 		}
 	}
 
 	start := l.Clock.Now()
-	dest, err := os.OpenFile(unpackedFile, os.O_CREATE|os.O_RDWR|os.O_TRUNC, 0640)
+	dest, err := os.OpenFile(unpackedFile, os.O_CREATE|os.O_RDWR|os.O_TRUNC, 0o640)
 	if err != nil {
 		return nil, trace.ConvertSystemError(err)
 	}
-	source, err := os.OpenFile(fileName, os.O_RDONLY, 0640)
+	source, err := os.OpenFile(fileName, os.O_RDONLY, 0o640)
 	if err != nil {
 		return nil, trace.ConvertSystemError(err)
 	}
@@ -747,25 +783,13 @@ func (l *AuditLog) getSessionChunk(namespace string, sid session.ID, offsetBytes
 // (oldest first).
 //
 // Can be filtered by 'after' (cursor value to return events newer than)
-//
-// This function is usually used in conjunction with GetSessionReader to
-// replay recorded session streams.
-func (l *AuditLog) GetSessionEvents(namespace string, sid session.ID, afterN int, includePrintEvents bool) ([]EventFields, error) {
-	l.log.WithFields(log.Fields{"sid": string(sid), "afterN": afterN, "printEvents": includePrintEvents}).Debugf("GetSessionEvents.")
+
+func (l *AuditLog) GetSessionEvents(namespace string, sid session.ID, afterN int) ([]EventFields, error) {
+	l.log.WithFields(log.Fields{"sid": string(sid), "afterN": afterN}).Debugf("GetSessionEvents.")
 	if namespace == "" {
 		return nil, trace.BadParameter("missing parameter namespace")
 	}
-	// Print events are stored in the context of the downloaded session
-	// so pull them
-	if !includePrintEvents && l.ExternalLog != nil {
-		events, err := l.ExternalLog.GetSessionEvents(namespace, sid, afterN, includePrintEvents)
-		// some loggers (e.g. FileLog) do not support retrieving session only print events,
-		// in this case rely on local fallback to download the session,
-		// unpack it and use local search
-		if !trace.IsNotImplemented(err) {
-			return events, err
-		}
-	}
+
 	// If code has to fetch print events (for playback) it has to download
 	// the playback from external storage first
 	if err := l.downloadSession(namespace, sid); err != nil {
@@ -795,7 +819,7 @@ func (l *AuditLog) GetSessionEvents(namespace string, sid session.ID, afterN int
 }
 
 func (l *AuditLog) fetchSessionEvents(fileName string, afterN int) ([]EventFields, error) {
-	logFile, err := os.OpenFile(fileName, os.O_RDONLY, 0640)
+	logFile, err := os.OpenFile(fileName, os.O_RDONLY, 0o640)
 	if err != nil {
 		// no file found? this means no events have been logged yet
 		if os.IsNotExist(err) {
@@ -846,6 +870,18 @@ func (l *AuditLog) EmitAuditEvent(ctx context.Context, event apievents.AuditEven
 	return nil
 }
 
+// CurrentFileSymlink returns the path to the symlink pointing at the current
+// local file being used for logging.
+func (l *AuditLog) CurrentFileSymlink() string {
+	return filepath.Join(l.localLog.SymlinkDir, SymlinkFilename)
+}
+
+// CurrentFile returns the path to the current local file
+// being used for logging.
+func (l *AuditLog) CurrentFile() string {
+	return l.localLog.file.Name()
+}
+
 // auditDirs returns directories used for audit log storage
 func (l *AuditLog) auditDirs() ([]string, error) {
 	authServers, err := getAuthServers(l.DataDir)
@@ -860,27 +896,29 @@ func (l *AuditLog) auditDirs() ([]string, error) {
 	return out, nil
 }
 
-func (l *AuditLog) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventType []string, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error) {
-	g := l.log.WithFields(log.Fields{"namespace": namespace, "eventType": eventType, "limit": limit})
-	g.Debugf("SearchEvents(%v, %v)", fromUTC, toUTC)
+func (l *AuditLog) SearchEvents(ctx context.Context, req SearchEventsRequest) ([]apievents.AuditEvent, string, error) {
+	g := l.log.WithFields(log.Fields{"eventType": req.EventTypes, "limit": req.Limit})
+	g.Debugf("SearchEvents(%v, %v)", req.From, req.To)
+	limit := req.Limit
 	if limit <= 0 {
 		limit = defaults.EventsIterationLimit
 	}
 	if limit > defaults.EventsMaxIterationLimit {
 		return nil, "", trace.BadParameter("limit %v exceeds max iteration limit %v", limit, defaults.MaxIterationLimit)
 	}
+	req.Limit = limit
 	if l.ExternalLog != nil {
-		return l.ExternalLog.SearchEvents(fromUTC, toUTC, namespace, eventType, limit, order, startKey)
+		return l.ExternalLog.SearchEvents(ctx, req)
 	}
-	return l.localLog.SearchEvents(fromUTC, toUTC, namespace, eventType, limit, order, startKey)
+	return l.localLog.SearchEvents(ctx, req)
 }
 
-func (l *AuditLog) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, order types.EventOrder, startKey string, cond *types.WhereExpr, sessionID string) ([]apievents.AuditEvent, string, error) {
-	l.log.Debugf("SearchSessionEvents(%v, %v, %v)", fromUTC, toUTC, limit)
+func (l *AuditLog) SearchSessionEvents(ctx context.Context, req SearchSessionEventsRequest) ([]apievents.AuditEvent, string, error) {
+	l.log.Debugf("SearchSessionEvents(%v, %v, %v)", req.From, req.To, req.Limit)
 	if l.ExternalLog != nil {
-		return l.ExternalLog.SearchSessionEvents(fromUTC, toUTC, limit, order, startKey, cond, sessionID)
+		return l.ExternalLog.SearchSessionEvents(ctx, req)
 	}
-	return l.localLog.SearchSessionEvents(fromUTC, toUTC, limit, order, startKey, cond, sessionID)
+	return l.localLog.SearchSessionEvents(ctx, req)
 }
 
 // StreamSessionEvents streams all events from a given session recording. An error is returned on the first
@@ -907,7 +945,7 @@ func (l *AuditLog) StreamSessionEvents(ctx context.Context, sessionID session.ID
 		defer cancel()
 	}
 
-	rawSession, err := os.OpenFile(tarballPath, os.O_CREATE|os.O_RDWR|os.O_TRUNC, 0640)
+	rawSession, err := os.OpenFile(tarballPath, os.O_CREATE|os.O_RDWR|os.O_TRUNC, 0o640)
 	if err != nil {
 		e <- trace.Wrap(err)
 		return c, e
@@ -965,8 +1003,8 @@ func (l *AuditLog) StreamSessionEvents(ctx context.Context, sessionID session.ID
 	return c, e
 }
 
-// getLocalLog returns the local (file based) audit log.
-func (l *AuditLog) getLocalLog() IAuditLog {
+// getLocalLog returns the local (file based) AuditLogger.
+func (l *AuditLog) getLocalLog() AuditLogger {
 	l.RLock()
 	defer l.RUnlock()
 
@@ -1018,7 +1056,7 @@ func (l *AuditLog) periodicCleanupPlaybacks() {
 // periodicSpaceMonitor run forever monitoring how much disk space has been
 // used on disk. Values are emitted to a Prometheus gauge.
 func (l *AuditLog) periodicSpaceMonitor() {
-	ticker := time.NewTicker(defaults.DiskAlertInterval)
+	ticker := time.NewTicker(DiskAlertInterval)
 	defer ticker.Stop()
 
 	for {
@@ -1037,7 +1075,7 @@ func (l *AuditLog) periodicSpaceMonitor() {
 			auditDiskUsed.Set(usedPercent)
 
 			// If used percentage goes above the alerting level, write to logs as well.
-			if usedPercent > float64(defaults.DiskAlertThreshold) {
+			if usedPercent > float64(DiskAlertThreshold) {
 				log.Warnf("Free disk space for audit log is running low, %v%% of disk used.", usedPercent)
 			}
 		case <-l.ctx.Done():

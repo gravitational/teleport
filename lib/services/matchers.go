@@ -17,63 +17,92 @@ limitations under the License.
 package services
 
 import (
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/trace"
+	"fmt"
 
+	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/exp/slices"
+
+	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
+	azureutils "github.com/gravitational/teleport/api/utils/azure"
 )
 
 // ResourceMatcher matches cluster resources.
 type ResourceMatcher struct {
 	// Labels match resource labels.
 	Labels types.Labels
+	// AWS contains AWS specific settings.
+	AWS ResourceMatcherAWS
 }
 
-// AWSSSM provides options to use when executing SSM documents
-type AWSSSM struct {
-	// DocumentName is the name of the document to use when executing an
-	// SSM command
-	DocumentName string
+// ResourceMatcherAWS contains AWS specific settings.
+type ResourceMatcherAWS struct {
+	// AssumeRoleARN is the AWS role to assume for accessing the resource.
+	AssumeRoleARN string
+	// ExternalID is an optional AWS external ID used to enable assuming an AWS
+	// role across accounts.
+	ExternalID string
 }
 
-// InstallerParams are passed to the AWS SSM document
-type InstallerParams struct {
-	// JoinMethod is the method to use when joining the cluster
-	JoinMethod types.JoinMethod
-	// JoinToken is the token to use when joining the cluster
-	JoinToken string
-	// ScriptName is the name of the teleport script for the EC2
-	// instance to execute
-	ScriptName string
+// ResourceMatchersToTypes converts []]services.ResourceMatchers into []*types.ResourceMatcher
+func ResourceMatchersToTypes(in []ResourceMatcher) []*types.DatabaseResourceMatcher {
+	out := make([]*types.DatabaseResourceMatcher, len(in))
+	for i, resMatcher := range in {
+		resMatcher := resMatcher
+		out[i] = &types.DatabaseResourceMatcher{
+			Labels: &resMatcher.Labels,
+			AWS: types.ResourceMatcherAWS{
+				AssumeRoleARN: resMatcher.AWS.AssumeRoleARN,
+				ExternalID:    resMatcher.AWS.ExternalID,
+			},
+		}
+	}
+	return out
 }
 
-// AWSMatcher matches AWS databases.
-type AWSMatcher struct {
-	// Types are AWS database types to match, "rds" or "redshift".
-	Types []string
-	// Regions are AWS regions to query for databases.
-	Regions []string
-	// Tags are AWS tags to match.
-	Tags types.Labels
-	// Params are passed to AWS when executing the SSM document
-	Params InstallerParams
-	// SSM provides options to use when sending a document command to
-	// an EC2 node
-	SSM *AWSSSM
+// AssumeRoleFromAWSMetadata is a conversion helper function that extracts
+// AWS IAM role ARN and external ID from AWS metadata.
+func AssumeRoleFromAWSMetadata(meta *types.AWS) types.AssumeRole {
+	return types.AssumeRole{
+		RoleARN:    meta.AssumeRoleARN,
+		ExternalID: meta.ExternalID,
+	}
 }
 
-// AzureMatcher matches Azure databases.
-type AzureMatcher struct {
-	// Subscriptions are Azure subscriptions to query for resources.
-	Subscriptions []string
-	// ResourceGroups are Azure resource groups to query for resources.
-	ResourceGroups []string
-	// Types are Azure resource types to match, for example "mysql" or "postgres".
-	Types []string
-	// Regions are Azure regions to query for databases.
-	Regions []string
-	// ResourceTags are Azure tags to match.
-	ResourceTags types.Labels
+// SimplifyAzureMatchers returns simplified Azure Matchers.
+// Selectors are deduplicated, wildcard in a selector reduces the selector
+// to just the wildcard, and defaults are applied.
+func SimplifyAzureMatchers(matchers []types.AzureMatcher) []types.AzureMatcher {
+	result := make([]types.AzureMatcher, 0, len(matchers))
+	for _, m := range matchers {
+		subs := apiutils.Deduplicate(m.Subscriptions)
+		groups := apiutils.Deduplicate(m.ResourceGroups)
+		regions := apiutils.Deduplicate(m.Regions)
+		ts := apiutils.Deduplicate(m.Types)
+		if len(subs) == 0 || slices.Contains(subs, types.Wildcard) {
+			subs = []string{types.Wildcard}
+		}
+		if len(groups) == 0 || slices.Contains(groups, types.Wildcard) {
+			groups = []string{types.Wildcard}
+		}
+		if len(regions) == 0 || slices.Contains(regions, types.Wildcard) {
+			regions = []string{types.Wildcard}
+		} else {
+			for i, region := range regions {
+				regions[i] = azureutils.NormalizeLocation(region)
+			}
+		}
+		result = append(result, types.AzureMatcher{
+			Subscriptions:  subs,
+			ResourceGroups: groups,
+			Regions:        regions,
+			Types:          ts,
+			ResourceTags:   m.ResourceTags,
+			Params:         m.Params,
+		})
+	}
+	return result
 }
 
 // MatchResourceLabels returns true if any of the provided selectors matches the provided database.
@@ -113,30 +142,25 @@ type ResourceSeenKey struct{ name, addr string }
 // is not provided but is provided for kind `KubernetesCluster`.
 func MatchResourceByFilters(resource types.ResourceWithLabels, filter MatchResourceFilter, seenMap map[ResourceSeenKey]struct{}) (bool, error) {
 	var specResource types.ResourceWithLabels
+	resourceKind := resource.GetKind()
 
 	// We assume when filtering for services like KubeService, AppServer, and DatabaseServer
 	// the user is wanting to filter the contained resource ie. KubeClusters, Application, and Database.
 	resourceKey := ResourceSeenKey{}
-	switch filter.ResourceKind {
-	case types.KindNode, types.KindWindowsDesktop, types.KindWindowsDesktopService, types.KindKubernetesCluster:
+	switch resourceKind {
+	case types.KindNode,
+		types.KindDatabaseService,
+		types.KindKubernetesCluster,
+		types.KindWindowsDesktop, types.KindWindowsDesktopService,
+		types.KindUserGroup:
 		specResource = resource
-		resourceKey.name = specResource.GetName()
+		resourceKey.name = fmt.Sprintf("%s/%s", specResource.GetName(), resourceKind)
 
-	case types.KindKubeService, types.KindKubeServer:
+	case types.KindKubeServer:
 		if seenMap != nil {
 			return false, trace.BadParameter("checking for duplicate matches for resource kind %q is not supported", filter.ResourceKind)
 		}
 		return matchAndFilterKubeClusters(resource, filter)
-
-	case types.KindAppServer:
-		server, ok := resource.(types.AppServer)
-		if !ok {
-			return false, trace.BadParameter("expected types.AppServer, got %T", resource)
-		}
-		specResource = server.GetApp()
-		app := server.GetApp()
-		resourceKey.name = app.GetName()
-		resourceKey.addr = app.GetPublicAddr()
 
 	case types.KindDatabaseServer:
 		server, ok := resource.(types.DatabaseServer)
@@ -144,15 +168,35 @@ func MatchResourceByFilters(resource types.ResourceWithLabels, filter MatchResou
 			return false, trace.BadParameter("expected types.DatabaseServer, got %T", resource)
 		}
 		specResource = server.GetDatabase()
-		resourceKey.name = specResource.GetName()
+		resourceKey.name = fmt.Sprintf("%s/%s/", specResource.GetName(), resourceKind)
 
+	case types.KindAppServer, types.KindSAMLIdPServiceProvider, types.KindAppOrSAMLIdPServiceProvider:
+		switch appOrSP := resource.(type) {
+		case types.AppServer:
+			app := appOrSP.GetApp()
+			specResource = app
+			resourceKey.name = fmt.Sprintf("%s/%s/", specResource.GetName(), resourceKind)
+			resourceKey.addr = app.GetPublicAddr()
+		case types.SAMLIdPServiceProvider:
+			specResource = appOrSP
+			resourceKey.name = fmt.Sprintf("%s/%s/", specResource.GetName(), resourceKind)
+		default:
+			return false, trace.BadParameter("expected types.SAMLIdPServiceProvider or types.AppServer, got %T", resource)
+		}
 	default:
-		return false, trace.NotImplemented("filtering for resource kind %q not supported", filter.ResourceKind)
+		// We check if the resource kind is a Kubernetes resource kind to reduce the amount of
+		// of cases we need to handle. If the resource type didn't match any arm before
+		// and it is not a Kubernetes resource kind, we return an error.
+		if !slices.Contains(types.KubernetesResourcesKinds, filter.ResourceKind) {
+			return false, trace.NotImplemented("filtering for resource kind %q not supported", resourceKind)
+		}
+		specResource = resource
+		resourceKey.name = fmt.Sprintf("%s/%s/", specResource.GetName(), resourceKind)
 	}
 
 	var match bool
 
-	if len(filter.Labels) == 0 && len(filter.SearchKeywords) == 0 && filter.PredicateExpression == "" {
+	if filter.IsSimple() {
 		match = true
 	}
 
@@ -190,6 +234,10 @@ func matchResourceByFilters(resource types.ResourceWithLabels, filter MatchResou
 		}
 	}
 
+	if !types.MatchKinds(resource, filter.Kinds) {
+		return false, nil
+	}
+
 	if !types.MatchLabels(resource, filter.Labels) {
 		return false, nil
 	}
@@ -208,13 +256,11 @@ func matchResourceByFilters(resource types.ResourceWithLabels, filter MatchResou
 //     modified in place with only the matched clusters
 //  3. only returns true if the service contained any matched cluster
 func matchAndFilterKubeClusters(resource types.ResourceWithLabels, filter MatchResourceFilter) (bool, error) {
-	if len(filter.Labels) == 0 && len(filter.SearchKeywords) == 0 && filter.PredicateExpression == "" {
+	if filter.IsSimple() {
 		return true, nil
 	}
 
 	switch server := resource.(type) {
-	case types.Server:
-		return matchAndFilterKubeClustersLegacy(server, filter)
 	case types.KubeServer:
 		kubeCluster := server.GetCluster()
 		if kubeCluster == nil {
@@ -225,36 +271,6 @@ func matchAndFilterKubeClusters(resource types.ResourceWithLabels, filter MatchR
 	default:
 		return false, trace.BadParameter("unexpected kube server of type %T", resource)
 	}
-
-}
-
-// matchAndFilterKubeClustersLegacy is used by matchAndFilterKubeClusters to filter kube clusters that are stil living in old kube services
-// REMOVE in 13.0
-func matchAndFilterKubeClustersLegacy(server types.Server, filter MatchResourceFilter) (bool, error) {
-	kubeClusters := server.GetKubernetesClusters()
-
-	// Apply filter to each kube cluster.
-	filtered := make([]*types.KubernetesCluster, 0, len(kubeClusters))
-	for _, kube := range kubeClusters {
-		kubeResource, err := types.NewKubernetesClusterV3FromLegacyCluster(server.GetNamespace(), kube)
-		if err != nil {
-			return false, trace.Wrap(err)
-		}
-
-		match, err := matchResourceByFilters(kubeResource, filter)
-		if err != nil {
-			return false, trace.Wrap(err)
-		}
-		if match {
-			filtered = append(filtered, kube)
-		}
-	}
-
-	// Update in place with the filtered clusters.
-	server.SetKubernetesClusters(filtered)
-
-	// Length of 0 means this service does not contain any matches.
-	return len(filtered) > 0, nil
 }
 
 // MatchResourceFilter holds the filter values to match against a resource.
@@ -267,23 +283,17 @@ type MatchResourceFilter struct {
 	SearchKeywords []string
 	// PredicateExpression holds boolean conditions that must be matched.
 	PredicateExpression string
+	// Kinds is a list of resourceKinds to be used when doing a unified resource query.
+	// It will filter out any kind not present in the list. If the list is not present or empty
+	// then all kinds are valid and will be returned (still subject to other included filters)
+	Kinds []string
 }
 
-const (
-	// AWSMatcherRDS is the AWS matcher type for RDS databases.
-	AWSMatcherRDS = "rds"
-	// AWSMatcherRedshift is the AWS matcher type for Redshift databases.
-	AWSMatcherRedshift = "redshift"
-	// AWSMatcherElastiCache is the AWS matcher type for ElastiCache databases.
-	AWSMatcherElastiCache = "elasticache"
-	// AWSMatcherMemoryDB is the AWS matcher type for MemoryDB databases.
-	AWSMatcherMemoryDB = "memorydb"
-	// AWSMatcherEC2 is the AWS matcher type for EC2 instances.
-	AWSMatcherEC2 = "ec2"
-	// AzureMatcherMySQL is the Azure matcher type for Azure MySQL databases.
-	AzureMatcherMySQL = "mysql"
-	// AzureMatcherPostgres is the Azure matcher type for Azure Postgres databases.
-	AzureMatcherPostgres = "postgres"
-	// AzureMatcherRedis is the Azure matcher type for Azure Cache for Redis databases.
-	AzureMatcherRedis = "redis"
-)
+// IsSimple is used to short-circuit matching when a filter doesn't specify anything more
+// specific than resource kind.
+func (m *MatchResourceFilter) IsSimple() bool {
+	return len(m.Labels) == 0 &&
+		len(m.SearchKeywords) == 0 &&
+		m.PredicateExpression == "" &&
+		len(m.Kinds) == 0
+}

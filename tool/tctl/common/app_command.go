@@ -21,7 +21,7 @@ import (
 	"os"
 	"text/template"
 
-	"github.com/gravitational/kingpin"
+	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
@@ -30,13 +30,13 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	libclient "github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
 // AppsCommand implements "tctl apps" group of commands.
 type AppsCommand struct {
-	config *service.Config
+	config *servicecfg.Config
 
 	// format is the output format (text, json, or yaml)
 	format string
@@ -53,7 +53,7 @@ type AppsCommand struct {
 }
 
 // Initialize allows AppsCommand to plug itself into the CLI parser
-func (c *AppsCommand) Initialize(app *kingpin.Application, config *service.Config) {
+func (c *AppsCommand) Initialize(app *kingpin.Application, config *servicecfg.Config) {
 	c.config = config
 
 	apps := app.Command("apps", "Operate on applications registered with the cluster.")
@@ -104,11 +104,11 @@ func (c *AppsCommand) ListApps(ctx context.Context, clt auth.ClientI) error {
 		}
 	}
 
-	coll := &appServerCollection{servers: servers, verbose: c.verbose}
+	coll := &appServerCollection{servers: servers}
 
 	switch c.format {
 	case teleport.Text:
-		return trace.Wrap(coll.writeText(os.Stdout))
+		return trace.Wrap(coll.writeText(os.Stdout, c.verbose))
 	case teleport.JSON:
 		return trace.Wrap(coll.writeJSON(os.Stdout))
 	case teleport.YAML:

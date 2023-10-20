@@ -25,14 +25,14 @@ import (
 	"os/exec"
 
 	"github.com/gogo/protobuf/jsonpb"
+	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
+	"golang.org/x/crypto/ssh"
+
 	"github.com/gravitational/teleport"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
-
-	"github.com/sirupsen/logrus"
-	"golang.org/x/crypto/ssh"
 )
 
 // number of goroutines that copy SFTP data from a SSH channel to
@@ -40,10 +40,10 @@ import (
 const copyingGoroutines = 2
 
 type sftpSubsys struct {
-	sftpCmd *exec.Cmd
-	ch      ssh.Channel
-	errCh   chan error
-	log     *logrus.Entry
+	sftpCmd   *exec.Cmd
+	serverCtx *srv.ServerContext
+	errCh     chan error
+	log       *logrus.Entry
 }
 
 func newSFTPSubsys() (*sftpSubsys, error) {
@@ -55,7 +55,9 @@ func newSFTPSubsys() (*sftpSubsys, error) {
 	}, nil
 }
 
-func (s *sftpSubsys) Start(ctx context.Context, serverConn *ssh.ServerConn, ch ssh.Channel, req *ssh.Request, serverCtx *srv.ServerContext) error {
+func (s *sftpSubsys) Start(ctx context.Context, serverConn *ssh.ServerConn, ch ssh.Channel, _ *ssh.Request,
+	serverCtx *srv.ServerContext,
+) error {
 	// Check that file copying is allowed Node-wide again here in case
 	// this connection was proxied, the proxy doesn't know if file copying
 	// is allowed for certain Nodes.
@@ -63,7 +65,7 @@ func (s *sftpSubsys) Start(ctx context.Context, serverConn *ssh.ServerConn, ch s
 		return srv.ErrNodeFileCopyingNotPermitted
 	}
 
-	s.ch = ch
+	s.serverCtx = serverCtx
 
 	// Create two sets of anonymous pipes to give the child process
 	// access to the SSH channel
@@ -118,13 +120,13 @@ func (s *sftpSubsys) Start(ctx context.Context, serverConn *ssh.ServerConn, ch s
 	go func() {
 		defer chReadPipeIn.Close()
 
-		_, err := io.Copy(chReadPipeIn, s.ch)
+		_, err := io.Copy(chReadPipeIn, ch)
 		s.errCh <- err
 	}()
 	go func() {
 		defer chWritePipeOut.Close()
 
-		_, err := io.Copy(s.ch, chWritePipeOut)
+		_, err := io.Copy(ch, chWritePipeOut)
 		s.errCh <- err
 	}()
 
@@ -133,15 +135,8 @@ func (s *sftpSubsys) Start(ctx context.Context, serverConn *ssh.ServerConn, ch s
 		defer auditPipeOut.Close()
 
 		// Create common fields for events
-		serverMeta := apievents.ServerMetadata{
-			ServerID:        serverCtx.GetServer().HostUUID(),
-			ServerHostname:  serverCtx.GetServer().GetInfo().GetHostname(),
-			ServerNamespace: serverCtx.GetServer().GetNamespace(),
-		}
-		sessionMeta := apievents.SessionMetadata{
-			SessionID: string(serverCtx.SessionID()),
-			WithMFA:   serverCtx.Identity.Certificate.Extensions[teleport.CertExtensionMFAVerified],
-		}
+		serverMeta := serverCtx.GetServerMetadata()
+		sessionMeta := serverCtx.GetSessionMetadata()
 		userMeta := serverCtx.Identity.GetUserMetadata()
 		connectionMeta := apievents.ConnectionMetadata{
 			RemoteAddr: serverConn.RemoteAddr().String(),
@@ -186,6 +181,11 @@ func (s *sftpSubsys) Wait() error {
 	waitErr := s.sftpCmd.Wait()
 	s.log.Debug("SFTP process finished")
 
+	s.serverCtx.SendExecResult(srv.ExecResult{
+		Command: s.sftpCmd.String(),
+		Code:    s.sftpCmd.ProcessState.ExitCode(),
+	})
+
 	errs := []error{waitErr}
 	for i := 0; i < copyingGoroutines; i++ {
 		err := <-s.errCh
@@ -194,7 +194,6 @@ func (s *sftpSubsys) Wait() error {
 			errs = append(errs, err)
 		}
 	}
-	errs = append(errs, s.ch.Close())
 
 	return trace.NewAggregate(errs...)
 }

@@ -21,14 +21,14 @@ import (
 	"context"
 	"time"
 
+	"github.com/gravitational/trace"
+	"golang.org/x/exp/slices"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
-	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
-
-	"github.com/gravitational/trace"
 )
 
 // DynamicAccessService manages dynamic RBAC
@@ -43,20 +43,27 @@ func NewDynamicAccessService(backend backend.Backend) *DynamicAccessService {
 
 // CreateAccessRequest stores a new access request.
 func (s *DynamicAccessService) CreateAccessRequest(ctx context.Context, req types.AccessRequest) error {
+	_, err := s.CreateAccessRequestV2(ctx, req)
+	return trace.Wrap(err)
+}
+
+// CreateAccessRequestV2 stores a new access request.
+func (s *DynamicAccessService) CreateAccessRequestV2(ctx context.Context, req types.AccessRequest) (types.AccessRequest, error) {
 	if err := services.ValidateAccessRequest(req); err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	if req.GetDryRun() {
-		return trace.BadParameter("dry run access request made it to DynamicAccessService, this is a bug")
+		return nil, trace.BadParameter("dry run access request made it to DynamicAccessService, this is a bug")
 	}
 	item, err := itemFromAccessRequest(req)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	if _, err := s.Create(ctx, item); err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-	return nil
+
+	return req, nil
 }
 
 // SetAccessRequestState updates the state of an existing access request.
@@ -95,7 +102,7 @@ func (s *DynamicAccessService) SetAccessRequestState(ctx context.Context, params
 		req.SetResolveAnnotations(params.Annotations)
 		if len(params.Roles) > 0 {
 			for _, role := range params.Roles {
-				if !apiutils.SliceContainsStr(req.GetRoles(), role) {
+				if !slices.Contains(req.GetRoles(), role) {
 					return nil, trace.BadParameter("role %q not in original request, overrides must be a subset of original role list", role)
 				}
 			}
@@ -164,7 +171,7 @@ func (s *DynamicAccessService) ApplyAccessReview(ctx context.Context, params typ
 		}
 
 		// run the application logic
-		if err := services.ApplyAccessReview(req, params.Review, checker.User); err != nil {
+		if err := services.ApplyAccessReview(req, params.Review, checker.UserState); err != nil {
 			return nil, trace.Wrap(err)
 		}
 
@@ -225,7 +232,9 @@ func (s *DynamicAccessService) GetAccessRequests(ctx context.Context, filter typ
 		}
 		return []types.AccessRequest{req}, nil
 	}
-	result, err := s.GetRange(ctx, backend.Key(accessRequestsPrefix), backend.RangeEnd(backend.Key(accessRequestsPrefix)), backend.NoLimit)
+	startKey := backend.ExactKey(accessRequestsPrefix)
+	endKey := backend.RangeEnd(startKey)
+	result, err := s.GetRange(ctx, startKey, endKey, backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -261,7 +270,9 @@ func (s *DynamicAccessService) DeleteAccessRequest(ctx context.Context, name str
 }
 
 func (s *DynamicAccessService) DeleteAllAccessRequests(ctx context.Context) error {
-	return trace.Wrap(s.DeleteRange(ctx, backend.Key(accessRequestsPrefix), backend.RangeEnd(backend.Key(accessRequestsPrefix))))
+	startKey := backend.ExactKey(accessRequestsPrefix)
+	endKey := backend.RangeEnd(startKey)
+	return trace.Wrap(s.DeleteRange(ctx, startKey, endKey))
 }
 
 func (s *DynamicAccessService) UpsertAccessRequest(ctx context.Context, req types.AccessRequest) error {
@@ -276,6 +287,43 @@ func (s *DynamicAccessService) UpsertAccessRequest(ctx context.Context, req type
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+// CreateAccessRequestAllowedPromotions creates AccessRequestAllowedPromotions object.
+func (s *DynamicAccessService) CreateAccessRequestAllowedPromotions(ctx context.Context, req types.AccessRequest, accessLists *types.AccessRequestAllowedPromotions) error {
+	// create the new access request promotion object
+	item, err := itemFromAccessListPromotions(req, accessLists)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	// Currently, this logic is used only internally (no API exposed), and
+	// there is only one place that calls it. If this ever changes, we will
+	// need to do a CompareAndSwap here.
+	if _, err := s.Put(ctx, item); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// GetAccessRequestAllowedPromotions returns AccessRequestAllowedPromotions object.
+func (s *DynamicAccessService) GetAccessRequestAllowedPromotions(ctx context.Context, req types.AccessRequest) (*types.AccessRequestAllowedPromotions, error) {
+	// get the access request promotions from the backend
+	item, err := s.Get(ctx, AccessRequestAllowedPromotionKey(req.GetName()))
+	if err != nil {
+		if trace.IsNotFound(err) {
+			// do not return nil as the caller will assume that nil error
+			// means that there are some promotions
+			return types.NewAccessRequestAllowedPromotions(nil), nil
+		}
+		return nil, trace.Wrap(err)
+	}
+	// unmarshal the access request promotions
+	promotions, err := services.UnmarshalAccessRequestAllowedPromotion(item.Value)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return promotions, nil
 }
 
 // GetPluginData loads all plugin data matching the supplied filter.
@@ -316,7 +364,7 @@ func (s *DynamicAccessService) getAccessRequestPluginData(ctx context.Context, f
 		}
 		return []types.PluginData{data}, nil
 	}
-	prefix := backend.Key(pluginDataPrefix, types.KindAccessRequest)
+	prefix := backend.ExactKey(pluginDataPrefix, types.KindAccessRequest)
 	result, err := s.GetRange(ctx, prefix, backend.RangeEnd(prefix), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -433,15 +481,31 @@ func (s *DynamicAccessService) updateAccessRequestPluginData(ctx context.Context
 }
 
 func itemFromAccessRequest(req types.AccessRequest) (backend.Item, error) {
+	rev := req.GetRevision()
 	value, err := services.MarshalAccessRequest(req)
 	if err != nil {
 		return backend.Item{}, trace.Wrap(err)
 	}
 	return backend.Item{
-		Key:     accessRequestKey(req.GetName()),
-		Value:   value,
-		Expires: req.Expiry(),
-		ID:      req.GetResourceID(),
+		Key:      accessRequestKey(req.GetName()),
+		Value:    value,
+		Expires:  req.Expiry(),
+		ID:       req.GetResourceID(),
+		Revision: rev,
+	}, nil
+}
+
+func itemFromAccessListPromotions(req types.AccessRequest, suggestedItems *types.AccessRequestAllowedPromotions) (backend.Item, error) {
+	value, err := services.MarshalAccessRequestAllowedPromotion(suggestedItems)
+	if err != nil {
+		return backend.Item{}, trace.Wrap(err)
+	}
+	return backend.Item{
+		Key:      AccessRequestAllowedPromotionKey(req.GetName()),
+		Value:    value,
+		Expires:  req.Expiry(), // expire the promotion at the same time as the access request
+		ID:       req.GetResourceID(),
+		Revision: req.GetRevision(),
 	}, nil
 }
 
@@ -450,6 +514,7 @@ func itemToAccessRequest(item backend.Item, opts ...services.MarshalOption) (typ
 		opts,
 		services.WithResourceID(item.ID),
 		services.WithExpires(item.Expires),
+		services.WithRevision(item.Revision),
 	)
 	req, err := services.UnmarshalAccessRequest(
 		item.Value,
@@ -462,6 +527,7 @@ func itemToAccessRequest(item backend.Item, opts ...services.MarshalOption) (typ
 }
 
 func itemFromPluginData(data types.PluginData) (backend.Item, error) {
+	rev := data.GetRevision()
 	value, err := services.MarshalPluginData(data)
 	if err != nil {
 		return backend.Item{}, trace.Wrap(err)
@@ -472,10 +538,11 @@ func itemFromPluginData(data types.PluginData) (backend.Item, error) {
 		return backend.Item{}, trace.BadParameter("plugin data size limit exceeded")
 	}
 	return backend.Item{
-		Key:     pluginDataKey(data.GetSubKind(), data.GetName()),
-		Value:   value,
-		Expires: data.Expiry(),
-		ID:      data.GetResourceID(),
+		Key:      pluginDataKey(data.GetSubKind(), data.GetName()),
+		Value:    value,
+		Expires:  data.Expiry(),
+		ID:       data.GetResourceID(),
+		Revision: rev,
 	}, nil
 }
 
@@ -484,6 +551,7 @@ func itemToPluginData(item backend.Item) (types.PluginData, error) {
 		item.Value,
 		services.WithResourceID(item.ID),
 		services.WithExpires(item.Expires),
+		services.WithRevision(item.Revision),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -495,13 +563,18 @@ func accessRequestKey(name string) []byte {
 	return backend.Key(accessRequestsPrefix, name, paramsPrefix)
 }
 
+func AccessRequestAllowedPromotionKey(name string) []byte {
+	return backend.Key(accessRequestPromotionPrefix, name, paramsPrefix)
+}
+
 func pluginDataKey(kind string, name string) []byte {
 	return backend.Key(pluginDataPrefix, kind, name, paramsPrefix)
 }
 
 const (
-	accessRequestsPrefix = "access_requests"
-	pluginDataPrefix     = "plugin_data"
-	maxCmpAttempts       = 7
-	retryPeriodMs        = 2048
+	accessRequestsPrefix         = "access_requests"
+	accessRequestPromotionPrefix = "access_request_promotions"
+	pluginDataPrefix             = "plugin_data"
+	maxCmpAttempts               = 7
+	retryPeriodMs                = 2048
 )

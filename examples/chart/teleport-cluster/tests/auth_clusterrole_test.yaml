@@ -1,0 +1,19 @@
+suite: Auth ClusterRole
+templates:
+  - auth/clusterrole.yaml
+tests:
+  - it: creates a ClusterRole
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ClusterRole
+  - it: adds operator permissions to ClusterRole
+    values:
+      - ../.lint/operator.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ClusterRole
+      - matchSnapshot: {}

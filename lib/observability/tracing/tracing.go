@@ -22,9 +22,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/observability/tracing"
-
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel"
@@ -32,8 +29,11 @@ import (
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
-	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.21.0"
 	oteltrace "go.opentelemetry.io/otel/trace"
+
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/observability/tracing"
 )
 
 const (
@@ -193,15 +193,13 @@ func NewTraceProvider(ctx context.Context, cfg Config) (*Provider, error) {
 	attrs = append(attrs, cfg.Attributes...)
 
 	res, err := resource.New(ctx,
+		resource.WithSchemaURL(semconv.SchemaURL),
 		resource.WithFromEnv(),
-		resource.WithProcessPID(),
 		resource.WithProcessExecutableName(),
-		resource.WithProcessExecutablePath(),
 		resource.WithProcessRuntimeName(),
 		resource.WithProcessRuntimeVersion(),
 		resource.WithProcessRuntimeDescription(),
 		resource.WithTelemetrySDK(),
-		resource.WithHost(),
 		resource.WithAttributes(attrs...),
 	)
 	if err != nil {
@@ -225,6 +223,7 @@ func NewTraceProvider(ctx context.Context, cfg Config) (*Provider, error) {
 			sdktrace.WithSpanProcessor(sdktrace.NewBatchSpanProcessor(exporter)),
 		),
 	}
+
 	otel.SetTracerProvider(provider)
 
 	return provider, nil

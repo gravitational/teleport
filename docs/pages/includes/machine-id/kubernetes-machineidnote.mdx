@@ -1,0 +1,30 @@
+<Admonition type="note"
+  title="Kubernetes Public Address Required for non-TLS Routing"
+  scope={["oss", "enterprise"]} scopeOnly
+>
+For self-hosted Teleport Clusters that have non-TLS routing the Kubernetes public
+address must be set for Machine ID Kubernetes connections.
+
+To confirm the TLS routing mode check the `proxy.tls_routing_enabled` from this
+command with your proxy address:
+
+```code
+$ curl https://teleport.example.com:443/webapi/ping | jq
+```
+
+The optional tool [`jq`](https://stedolan.github.io/jq/) is used here to help display the JSON output.
+If the value `proxy.tls_routing_enabled` is `false` then non-TLS routing
+is set and a Kubernetes public address is required so Machine ID
+will connect to the right port. You can confirm the Kubernetes public
+address is set if `proxy.kube.public_addr` is populated.
+
+The `kube_public_addr` is set within the `proxy_service` by Teleport administrators:
+
+```yaml
+proxy_service:
+  enabled: true
+  kube_listen_addr: 0.0.0.0:3026
+  kube_public_addr: teleport.example.com:3026
+```
+
+</Admonition>

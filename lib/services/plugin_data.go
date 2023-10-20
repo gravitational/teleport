@@ -41,6 +41,7 @@ func MarshalPluginData(pluginData types.PluginData, opts ...MarshalOption) ([]by
 			// to prevent unexpected data races
 			cp := *pluginData
 			cp.SetResourceID(0)
+			cp.SetRevision("")
 			pluginData = &cp
 		}
 		return utils.FastMarshal(pluginData)
@@ -64,6 +65,9 @@ func UnmarshalPluginData(raw []byte, opts ...MarshalOption) (types.PluginData, e
 	}
 	if cfg.ID != 0 {
 		data.SetResourceID(cfg.ID)
+	}
+	if cfg.Revision != "" {
+		data.SetRevision(cfg.Revision)
 	}
 	if !cfg.Expires.IsZero() {
 		data.SetExpiry(cfg.Expires)

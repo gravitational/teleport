@@ -23,9 +23,8 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redis/armredis/v2"
-	"github.com/sirupsen/logrus"
-
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 )
 
 // armRedisClient is an interface defines a subset of functions of armredis.Client.

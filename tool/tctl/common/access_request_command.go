@@ -25,27 +25,32 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravitational/kingpin"
+	"github.com/alecthomas/kingpin/v2"
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/trace"
+	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 // AccessRequestCommand implements `tctl users` set of commands
 // It implements CLICommand interface
 type AccessRequestCommand struct {
-	config *service.Config
+	config *servicecfg.Config
 	reqIDs string
 
-	user        string
-	roles       string
-	delegator   string
-	reason      string
-	annotations string
+	user                 string
+	roles                string
+	requestedResourceIDs []string
+	delegator            string
+	reason               string
+	annotations          string
 	// format is the output format, e.g. text or json
 	format string
 
@@ -65,44 +70,45 @@ type AccessRequestCommand struct {
 }
 
 // Initialize allows AccessRequestCommand to plug itself into the CLI parser
-func (c *AccessRequestCommand) Initialize(app *kingpin.Application, config *service.Config) {
+func (c *AccessRequestCommand) Initialize(app *kingpin.Application, config *servicecfg.Config) {
 	c.config = config
-	requests := app.Command("requests", "Manage access requests").Alias("request")
+	requests := app.Command("requests", "Manage access requests.").Alias("request")
 
-	c.requestList = requests.Command("ls", "Show active access requests")
+	c.requestList = requests.Command("ls", "Show active access requests.")
 	c.requestList.Flag("format", "Output format, 'text' or 'json'").Hidden().Default(teleport.Text).StringVar(&c.format)
 
-	c.requestGet = requests.Command("get", "Show access request by ID")
+	c.requestGet = requests.Command("get", "Show access request by ID.")
 	c.requestGet.Arg("request-id", "ID of target request(s)").Required().StringVar(&c.reqIDs)
 	c.requestGet.Flag("format", "Output format, 'text' or 'json'").Hidden().Default(teleport.Text).StringVar(&c.format)
 
-	c.requestApprove = requests.Command("approve", "Approve pending access request")
+	c.requestApprove = requests.Command("approve", "Approve pending access request.")
 	c.requestApprove.Arg("request-id", "ID of target request(s)").Required().StringVar(&c.reqIDs)
 	c.requestApprove.Flag("delegator", "Optional delegating identity").StringVar(&c.delegator)
 	c.requestApprove.Flag("reason", "Optional reason message").StringVar(&c.reason)
 	c.requestApprove.Flag("annotations", "Resolution attributes <key>=<val>[,...]").StringVar(&c.annotations)
 	c.requestApprove.Flag("roles", "Override requested roles <role>[,...]").StringVar(&c.roles)
 
-	c.requestDeny = requests.Command("deny", "Deny pending access request")
+	c.requestDeny = requests.Command("deny", "Deny pending access request.")
 	c.requestDeny.Arg("request-id", "ID of target request(s)").Required().StringVar(&c.reqIDs)
 	c.requestDeny.Flag("delegator", "Optional delegating identity").StringVar(&c.delegator)
 	c.requestDeny.Flag("reason", "Optional reason message").StringVar(&c.reason)
 	c.requestDeny.Flag("annotations", "Resolution annotations <key>=<val>[,...]").StringVar(&c.annotations)
 
-	c.requestCreate = requests.Command("create", "Create pending access request")
+	c.requestCreate = requests.Command("create", "Create pending access request.")
 	c.requestCreate.Arg("username", "Name of target user").Required().StringVar(&c.user)
-	c.requestCreate.Flag("roles", "Roles to be requested").Default("*").StringVar(&c.roles)
+	c.requestCreate.Flag("roles", "Roles to be requested").StringVar(&c.roles)
+	c.requestCreate.Flag("resource", "Resource ID to be requested").StringsVar(&c.requestedResourceIDs)
 	c.requestCreate.Flag("reason", "Optional reason message").StringVar(&c.reason)
 	c.requestCreate.Flag("dry-run", "Don't actually generate the access request").BoolVar(&c.dryRun)
 
-	c.requestDelete = requests.Command("rm", "Delete an access request")
+	c.requestDelete = requests.Command("rm", "Delete an access request.")
 	c.requestDelete.Arg("request-id", "ID of target request(s)").Required().StringVar(&c.reqIDs)
 	c.requestDelete.Flag("force", "Force the deletion of an active access request").Short('f').BoolVar(&c.force)
 
-	c.requestCaps = requests.Command("capabilities", "Check a user's access capabilities").Alias("caps").Hidden()
+	c.requestCaps = requests.Command("capabilities", "Check a user's access capabilities.").Alias("caps").Hidden()
 	c.requestCaps.Arg("username", "Name of target user").Required().StringVar(&c.user)
 	c.requestCaps.Flag("format", "Output format, 'text' or 'json'").Hidden().Default(teleport.Text).StringVar(&c.format)
-	c.requestReview = requests.Command("review", "Review an access request")
+	c.requestReview = requests.Command("review", "Review an access request.")
 	c.requestReview.Arg("request-id", "ID of target request").Required().StringVar(&c.reqIDs)
 	c.requestReview.Flag("author", "Username of reviewer").Required().StringVar(&c.user)
 	c.requestReview.Flag("approve", "Review proposes approval").BoolVar(&c.approve)
@@ -214,7 +220,7 @@ func (c *AccessRequestCommand) splitRoles() []string {
 
 func (c *AccessRequestCommand) Approve(ctx context.Context, client auth.ClientI) error {
 	if c.delegator != "" {
-		ctx = auth.WithDelegator(ctx, c.delegator)
+		ctx = authz.WithDelegator(ctx, c.delegator)
 	}
 	annotations, err := c.splitAnnotations()
 	if err != nil {
@@ -236,7 +242,7 @@ func (c *AccessRequestCommand) Approve(ctx context.Context, client auth.ClientI)
 
 func (c *AccessRequestCommand) Deny(ctx context.Context, client auth.ClientI) error {
 	if c.delegator != "" {
-		ctx = auth.WithDelegator(ctx, c.delegator)
+		ctx = authz.WithDelegator(ctx, c.delegator)
 	}
 	annotations, err := c.splitAnnotations()
 	if err != nil {
@@ -256,20 +262,35 @@ func (c *AccessRequestCommand) Deny(ctx context.Context, client auth.ClientI) er
 }
 
 func (c *AccessRequestCommand) Create(ctx context.Context, client auth.ClientI) error {
-	req, err := services.NewAccessRequest(c.user, c.splitRoles()...)
+	if len(c.roles) == 0 && len(c.requestedResourceIDs) == 0 {
+		c.roles = "*"
+	}
+	requestedResourceIDs, err := types.ResourceIDsFromStrings(c.requestedResourceIDs)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	req, err := services.NewAccessRequestWithResources(c.user, c.splitRoles(), requestedResourceIDs)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	req.SetRequestReason(c.reason)
 
 	if c.dryRun {
-		err = services.ValidateAccessRequestForUser(ctx, client, req, services.ExpandVars(true))
+		users := &struct {
+			auth.ClientI
+			services.UserLoginStatesGetter
+		}{
+			ClientI:               client,
+			UserLoginStatesGetter: client.UserLoginStateClient(),
+		}
+		err = services.ValidateAccessRequestForUser(ctx, clockwork.NewRealClock(), users, req, tlsca.Identity{}, services.ExpandVars(true))
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		return trace.Wrap(printJSON(req, "request"))
 	}
-	if err := client.CreateAccessRequest(ctx, req); err != nil {
+	req, err = client.CreateAccessRequestV2(ctx, req)
+	if err != nil {
 		return trace.Wrap(err)
 	}
 	fmt.Printf("%s\n", req.GetName())
@@ -399,6 +420,8 @@ func printRequestsOverview(reqs []types.AccessRequest, format string) error {
 			"[+]",
 			"Requested resources truncated, use the `tctl requests get` subcommand to view the full list")
 		table.AddColumn(asciitable.Column{Title: "Created At (UTC)"})
+		table.AddColumn(asciitable.Column{Title: "Request TTL"})
+		table.AddColumn(asciitable.Column{Title: "Session TTL"})
 		table.AddColumn(asciitable.Column{Title: "Status"})
 		table.AddColumn(asciitable.Column{
 			Title:         "Request Reason",
@@ -425,6 +448,8 @@ func printRequestsOverview(reqs []types.AccessRequest, format string) error {
 				fmt.Sprintf("roles=%s", strings.Join(req.GetRoles(), ",")),
 				resourceIDsString,
 				req.GetCreationTime().Format(time.RFC822),
+				time.Until(req.Expiry()).Round(time.Minute).String(),
+				time.Until(req.GetAccessExpiry()).Round(time.Minute).String(),
 				req.GetState().String(),
 				quoteOrDefault(req.GetRequestReason(), ""),
 				quoteOrDefault(req.GetResolveReason(), ""),

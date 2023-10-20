@@ -1,15 +1,15 @@
 ---
 title: Web Application Access
-description: How to configure Teleport for Application Access.
+description: In this getting started guide, learn how to connect an application to your Teleport cluster by running the Teleport Application Service.
 ---
 
-Download the latest version of Teleport for your platform from our [downloads page](https://goteleport.com/teleport/download)
+Download the latest version of Teleport for your platform from the [downloads page](https://goteleport.com/download)
 and follow the installation [instructions](../../installation.mdx).
 
 ## Start Auth/Proxy service
 
 Create a configuration file for a Teleport service that will be running
-auth and proxy servers:
+the Auth and Proxy Services:
 
 ```yaml
 teleport:
@@ -26,15 +26,11 @@ ssh_service:
 
 (!docs/pages/includes/permission-warning.mdx!)
 
-Start the service:
-
-```code
-$ sudo teleport start --config=/path/to/teleport.yaml
-```
+(!docs/pages/includes/start-teleport.mdx!)
 
 ### Generate a token
 
-A join token is required to authorize a Teleport Application Proxy service to
+A join token is required to authorize a Teleport Application Service to
 join the cluster. Generate a short-lived join token and save it for example
 in `/tmp/token`:
 
@@ -42,7 +38,7 @@ in `/tmp/token`:
 # Log in to your cluster with tsh so you can use tctl from your local machine.
 # You can also run tctl on your Auth Service host without running "tsh login"
 # first.
-$ tsh login --user=myuser --proxy=teleport.example.com
+$ tsh login --user=<Var name="myuser"/> --proxy=<Var name="teleport.example.com"/>
 $ tctl tokens add \
     --type=app \
     --app-name=grafana \
@@ -51,42 +47,22 @@ $ tctl tokens add \
 
 ### TLS requirements
 
-TLS is required to secure Teleport's Access Plane and any connected
+TLS is required to secure the Teleport Access Platform and any connected
 applications. When setting up Teleport, the minimum requirement is a certificate
-for the proxy and a wildcard certificate for its sub-domain. This is where
+for the Teleport Proxy Service and a wildcard certificate for its sub-domain. This is where
 everyone will log into Teleport.
 
 <Admonition type="tip" title="Application Access and DNS">
 (!docs/pages/includes/dns-app-access.mdx!)
 </Admonition>
 
-In our example:
+In this example:
 
-- `teleport.example.com` will host the Access Plane.
-- `*.teleport.example.com` will host all of the applications e.g. `grafana.teleport.example.com`.
+- `teleport.example.com` hosts the Teleport Auth Service and the Teleport Proxy Service that are the 
+  that form the core cluster services of the Teleport Access Platform.
+- `*.teleport.example.com` hosts all of the applications, for example, `grafana.teleport.example.com`.
 
-You can either configure Teleport to obtain a TLS certificate via Let's Encrypt or use an existing certificate and private key (e.g. using [certbot](https://certbot.eff.org/)).
-<Tabs>
-<TabItem label="Let's Encrypt">
-(!docs/pages/includes/acme.mdx!)
-</TabItem>
-<TabItem label="Existing Credentials">
-If you have obtained certificate/key pairs for your domain they can be provided directly
-to the proxy service:
-
-```yaml
-proxy_service:
-  enabled: "yes"
-  web_listen_addr: "0.0.0.0:443"
-  public_addr: "teleport.example.com:443"
-  https_keypairs:
-  - key_file: "/etc/letsencrypt/live/teleport.example.com/privkey.pem"
-    cert_file: "/etc/letsencrypt/live/teleport.example.com/fullchain.pem"
-  - key_file: "/etc/letsencrypt/live/*.teleport.example.com/privkey.pem"
-    cert_file: "/etc/letsencrypt/live/*.teleport.example.com/fullchain.pem"
-```
-</TabItem>
-</Tabs>
+(!docs/pages/includes/tls-certificate-setup.mdx!)
 
 ### Create a user
 
@@ -97,7 +73,7 @@ comes with a built-in `access` role that grants access to all apps:
 $ tctl --config=/path/to/teleport.yaml users add --roles=access appuser
 ```
 
-## Start application service with CLI flags
+## Start the Application Service with CLI flags
 
 Install Teleport:
 
@@ -116,10 +92,16 @@ $ sudo teleport start \
 ```
 
 Note that the `--auth-server` flag must point to the Teleport cluster's proxy
-endpoint because the application service always connects back to the cluster over
+endpoint because the Application Service always connects back to the cluster over
 a reverse tunnel.
 
 ### Application name
+
+{/*
+Note: this section of the docs is linked to from error messages in the product.
+Please make sure to update lib/srv/servicecfg/app.go if you change this section
+header or move this page.
+*/}
 
 An application name should make a valid sub-domain (\<=63 characters, no spaces, only `a-z 0-9 -` allowed).
 
@@ -128,7 +110,7 @@ e.g. `grafana.teleport.example.com`. You can also override `public_addr` e.g
 `grafana.acme.com` if you configure the appropriate DNS entry to point to the
 Teleport proxy server.
 
-## Start application service with a config file
+## Start the Teleport Application Service with a config file
 
 Example `teleport.yaml` configuration:
 
@@ -147,9 +129,9 @@ teleport:
   proxy_server: teleport.example.com:3080
 app_service:
     enabled: yes
-    # Teleport provides a small debug app that can be used to make sure application
-    # access is working correctly. It'll output JWTs so it can be useful
-    # when extending your application.
+    # Teleport provides a small debug app called "dumper" that can be used
+    # to make sure application access is working correctly. It outputs JWTs,
+    #  so it can be useful when extending your application.
     debug_app: true
     # This section contains definitions of all applications proxied by this
     # service. It can contain multiple items.
@@ -176,7 +158,7 @@ proxy_service:
   enabled: "no"
 ```
 
-Start the application service:
+Start the Application Service:
 
 ```code
 $ sudo teleport start --config=/path/to/teleport.yaml
@@ -184,10 +166,10 @@ $ sudo teleport start --config=/path/to/teleport.yaml
 
 ## Advanced options
 
-### Running the debug application
+### Running the dumper application
 
-For testing and debugging purposes, we provide a built-in debug app. It can
-be turned on using `debug_app: true`.
+For testing and debugging purposes, we provide a built-in debug app called "dumper".
+It can be turned on using `debug_app: true`.
 
 ```yaml
 app_service:
@@ -195,7 +177,7 @@ app_service:
    debug_app: true
 ```
 
-The app will dump all the request headers in the response.
+The dumper app will dump all the request headers in the response.
 
 ### Customize public address
 
@@ -237,7 +219,7 @@ The URI should be updated to include the subdirectory:
 
 ```yaml
 - name: "k8s"
-  uri: "http://10.0.1.60:8001/api/v1/namespaces/kube-system/services/https:kubernetes-dashboard:/proxy/#/overview?namespace=default"
+  uri: "http://10.0.1.60:8001/api/v1/namespaces/kube-system/services/https:kubernetes-dashboard:/proxy/#/overview"
   public_addr: "k8s.example.com"
 ```
 
@@ -283,7 +265,12 @@ requests forwarded to a web application.
 
 Headers injected this way override any headers with the same names that may
 be sent by an application. The following headers are reserved and can't be
-rewritten: `Teleport-Jwt-Assertion`, `Cf-Access-Token`, and any `X-Forwarded-*`.
+rewritten:
+
+- `Teleport-Jwt-Assertion`
+- `Cf-Access-Token`
+- Any header matching the pattern `X-Teleport-*`
+- Any header matching the pattern `X-Forwarded-*`
 
 Rewritten header values support the same templating variables as [role templates](../../access-controls/guides/role-templates.mdx).
 In the example above, `X-Internal-Trait` header will be populated with the value
@@ -293,6 +280,32 @@ of the user's external `env` trait coming from the identity provider.
 Additionally, the `{{internal.jwt}}` template variable will be replaced with
 a JWT token signed by Teleport that contains user identity information. See
 [Integrating with JWTs](../jwt/introduction.mdx) for more details.
+
+### Configuring the JWT token
+
+By default, Teleport includes a user's roles and traits in the JWT
+generated for application access. If your application doesn't care
+about these values, or you are encountering an error due to exceeding
+the size limit of HTTP headers, you can configure Teleport to omit
+this information from the token.
+
+```yaml
+- name: "dashboard"
+  uri: https://localhost:4321
+  public_addr: dashboard.example.com
+  rewrite:
+    # Specify whether to include roles or traits in the JWT.
+    # Options:
+    # - roles-and-traits: include both roles and traits
+    # - roles: include only roles
+    # - traits: include only traits
+    # - none: exclude both roles and traits from the JWT token
+    # Default: roles-and-traits
+    jwt_claims: roles-and-traits
+    headers:
+    # Inject header with Teleport-signed JWT token.
+    - "Authorization: Bearer {{internal.jwt}}"
+```
 
 ## View applications in Teleport
 

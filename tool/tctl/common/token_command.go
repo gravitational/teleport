@@ -24,27 +24,41 @@ import (
 	"os"
 	"sort"
 	"strings"
+	"text/template"
 	"time"
 
+	"github.com/alecthomas/kingpin/v2"
 	"github.com/ghodss/yaml"
+	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
+
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/tlsca"
-	log "github.com/sirupsen/logrus"
-
-	"github.com/gravitational/kingpin"
-	"github.com/gravitational/trace"
+	"github.com/gravitational/teleport/lib/utils"
 )
+
+var mdmTokenAddTemplate = template.Must(
+	template.New("mdmTokenAdd").Parse(`The invite token: {{.token}}
+This token will expire in {{.minutes}} minutes.
+
+Use this token to add an MDM service to Teleport.
+
+> teleport start \
+   --token={{.token}} \{{range .ca_pins}}
+   --ca-pin={{.}} \{{end}}
+   --config=/path/to/teleport.yaml
+
+`))
 
 // TokensCommand implements `tctl tokens` group of commands
 type TokensCommand struct {
-	config *service.Config
+	config *servicecfg.Config
 
 	// format is the output format, e.g. text or json
 	format string
@@ -90,7 +104,7 @@ type TokensCommand struct {
 }
 
 // Initialize allows TokenCommand to plug itself into the CLI parser
-func (c *TokensCommand) Initialize(app *kingpin.Application, config *service.Config) {
+func (c *TokensCommand) Initialize(app *kingpin.Application, config *servicecfg.Config) {
 	c.config = config
 
 	tokens := app.Command("tokens", "List or revoke invitation tokens")
@@ -98,13 +112,13 @@ func (c *TokensCommand) Initialize(app *kingpin.Application, config *service.Con
 	formats := []string{teleport.Text, teleport.JSON, teleport.YAML}
 
 	// tctl tokens add ..."
-	c.tokenAdd = tokens.Command("add", "Create a invitation token")
-	c.tokenAdd.Flag("type", "Type(s) of token to add, e.g. --type=node,app,db").Required().StringVar(&c.tokenType)
-	c.tokenAdd.Flag("value", "Value of token to add").StringVar(&c.value)
+	c.tokenAdd = tokens.Command("add", "Create a invitation token.")
+	c.tokenAdd.Flag("type", "Type(s) of token to add, e.g. --type=node,app,db,proxy,etc").Required().StringVar(&c.tokenType)
+	c.tokenAdd.Flag("value", "Override the default random generated token with a specified value").StringVar(&c.value)
 	c.tokenAdd.Flag("labels", "Set token labels, e.g. env=prod,region=us-west").StringVar(&c.labels)
-	c.tokenAdd.Flag("ttl", fmt.Sprintf("Set expiration time for token, default is %v hour",
-		int(defaults.SignupTokenTTL/time.Hour))).
-		Default(fmt.Sprintf("%v", defaults.SignupTokenTTL)).
+	c.tokenAdd.Flag("ttl", fmt.Sprintf("Set expiration time for token, default is %v minutes",
+		int(defaults.ProvisioningTokenTTL/time.Minute))).
+		Default(fmt.Sprintf("%v", defaults.ProvisioningTokenTTL)).
 		DurationVar(&c.ttl)
 	c.tokenAdd.Flag("app-name", "Name of the application to add").Default("example-app").StringVar(&c.appName)
 	c.tokenAdd.Flag("app-uri", "URI of the application to add").Default("http://localhost:8080").StringVar(&c.appURI)
@@ -114,11 +128,11 @@ func (c *TokensCommand) Initialize(app *kingpin.Application, config *service.Con
 	c.tokenAdd.Flag("format", "Output format, 'text', 'json', or 'yaml'").EnumVar(&c.format, formats...)
 
 	// "tctl tokens rm ..."
-	c.tokenDel = tokens.Command("rm", "Delete/revoke an invitation token").Alias("del")
+	c.tokenDel = tokens.Command("rm", "Delete/revoke an invitation token.").Alias("del")
 	c.tokenDel.Arg("token", "Token to delete").StringVar(&c.value)
 
 	// "tctl tokens ls"
-	c.tokenList = tokens.Command("ls", "List node and user invitation tokens")
+	c.tokenList = tokens.Command("ls", "List node and user invitation tokens.")
 	c.tokenList.Flag("format", "Output format, 'text', 'json' or 'yaml'").EnumVar(&c.format, formats...)
 
 	if c.stdout == nil {
@@ -149,23 +163,44 @@ func (c *TokensCommand) Add(ctx context.Context, client auth.ClientI) error {
 		return trace.Wrap(err)
 	}
 
-	var labels map[string]string
-	if c.labels != "" {
-		labels, err = libclient.ParseLabelSpec(c.labels)
+	// If it's Kube, then enable App and Discovery roles automatically so users
+	// don't have problems with running Kubernetes App Discovery by default.
+	if len(roles) == 1 && roles[0] == types.RoleKube {
+		roles = append(roles, types.RoleApp, types.RoleDiscovery)
+	}
+
+	token := c.value
+	if c.value == "" {
+		token, err = utils.CryptoRandomHex(auth.TokenLenBytes)
 		if err != nil {
-			return trace.Wrap(err)
+			return trace.Wrap(err, "generating token value")
 		}
 	}
 
-	// Generate token.
-	token, err := client.GenerateToken(ctx, &proto.GenerateTokenRequest{
-		Roles:  roles,
-		TTL:    proto.Duration(c.ttl),
-		Token:  c.value,
-		Labels: labels,
-	})
+	expires := time.Now().UTC().Add(c.ttl)
+	pt, err := types.NewProvisionToken(token, roles, expires)
 	if err != nil {
 		return trace.Wrap(err)
+	}
+
+	if c.labels != "" {
+		labels, err := libclient.ParseLabelSpec(c.labels)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		meta := pt.GetMetadata()
+		meta.Labels = labels
+		pt.SetMetadata(meta)
+	}
+
+	if err := client.CreateToken(ctx, pt); err != nil {
+		if trace.IsAlreadyExists(err) {
+			return trace.AlreadyExists(
+				"failed to create token (%q already exists), please use another name",
+				pt.GetName(),
+			)
+		}
+		return trace.Wrap(err, "creating token")
 	}
 
 	// Print token information formatted with JSON, YAML, or just print the raw token.
@@ -220,6 +255,22 @@ func (c *TokensCommand) Add(ctx context.Context, client auth.ClientI) error {
 
 	// Print signup message.
 	switch {
+	case roles.Include(types.RoleKube):
+		proxies, err := client.GetProxies()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if len(proxies) == 0 {
+			return trace.NotFound("cluster has no proxies")
+		}
+		setRoles := strings.ToLower(strings.Join(roles.StringSlice(), "\\,"))
+		return kubeMessageTemplate.Execute(c.stdout,
+			map[string]interface{}{
+				"auth_server": proxies[0].GetPublicAddr(),
+				"token":       token,
+				"minutes":     c.ttl.Minutes(),
+				"set_roles":   setRoles,
+			})
 	case roles.Include(types.RoleApp):
 		proxies, err := client.GetProxies()
 		if err != nil {
@@ -262,12 +313,24 @@ func (c *TokensCommand) Add(ctx context.Context, client auth.ClientI) error {
 		fmt.Fprintf(c.stdout, trustedClusterMessage,
 			token,
 			int(c.ttl.Minutes()))
+	case roles.Include(types.RoleWindowsDesktop):
+		return desktopMessageTemplate.Execute(c.stdout,
+			map[string]interface{}{
+				"token":   token,
+				"minutes": c.ttl.Minutes(),
+			})
+	case roles.Include(types.RoleMDM):
+		return mdmTokenAddTemplate.Execute(c.stdout, map[string]interface{}{
+			"token":   token,
+			"minutes": c.ttl.Minutes(),
+			"ca_pins": caPins,
+		})
 	default:
 		authServer := authServers[0].GetAddr()
 
 		pingResponse, err := client.Ping(ctx)
 		if err != nil {
-			log.Debugf("unnable to ping auth client: %s.", err.Error())
+			log.Debugf("unable to ping auth client: %s.", err.Error())
 		}
 
 		if err == nil && pingResponse.GetServerFeatures().Cloud {
@@ -311,7 +374,7 @@ func (c *TokensCommand) List(ctx context.Context, client auth.ClientI) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if len(tokens) == 0 {
+	if len(tokens) == 0 && c.format == teleport.Text {
 		fmt.Fprintln(c.stdout, "No active tokens found.")
 		return nil
 	}
@@ -321,17 +384,15 @@ func (c *TokensCommand) List(ctx context.Context, client auth.ClientI) error {
 
 	switch c.format {
 	case teleport.JSON:
-		data, err := json.MarshalIndent(tokens, "", "  ")
+		err := utils.WriteJSONArray(c.stdout, tokens)
 		if err != nil {
 			return trace.Wrap(err, "failed to marshal tokens")
 		}
-		fmt.Fprint(c.stdout, string(data))
 	case teleport.YAML:
-		data, err := yaml.Marshal(tokens)
+		err := utils.WriteYAML(c.stdout, tokens)
 		if err != nil {
 			return trace.Wrap(err, "failed to marshal tokens")
 		}
-		fmt.Fprint(c.stdout, string(data))
 	case teleport.Text:
 		for _, token := range tokens {
 			fmt.Fprintln(c.stdout, token.GetName())
@@ -342,7 +403,7 @@ func (c *TokensCommand) List(ctx context.Context, client auth.ClientI) error {
 			now := time.Now()
 			for _, t := range tokens {
 				expiry := "never"
-				if t.Expiry().Unix() > 0 {
+				if !t.Expiry().IsZero() {
 					exptime := t.Expiry().Format(time.RFC822)
 					expdur := t.Expiry().Sub(now).Round(time.Second)
 					expiry = fmt.Sprintf("%s (%s)", exptime, expdur.String())

@@ -35,6 +35,9 @@ type Event struct {
 //     eg: All user related events are grouped under 1xxx.
 //
 //   - Suffix code with one of these letters: I (info), W (warn), E (error).
+//
+// After defining an event code, make sure to keep
+// `web/packages/teleport/src/services/audit/types.ts` in sync.
 const (
 	// UserLocalLoginCode is the successful local user login event code.
 	UserLocalLoginCode = "T1000I"
@@ -108,6 +111,8 @@ const (
 	AppSessionEndCode = "T2011I"
 	// SessionRecordingAccessCode is the session recording view data event code.
 	SessionRecordingAccessCode = "T2012I"
+	// AppSessionDynamoDBRequestCode is the application request/response code.
+	AppSessionDynamoDBRequestCode = "T2013I"
 
 	// AppCreateCode is the app.create event code.
 	AppCreateCode = "TAP03I"
@@ -172,8 +177,30 @@ const (
 	// SQLServerRPCRequestCode is the db.session.sqlserver.rpc_request event code.
 	SQLServerRPCRequestCode = "TMS00I"
 
+	// CassandraBatchEventCode is the db.session.cassandra.batch event code.
+	CassandraBatchEventCode = "TCA01I"
+	// CassandraPrepareEventCode is the db.session.cassandra.prepare event code.
+	CassandraPrepareEventCode = "TCA02I"
+	// CassandraExecuteEventCode is the db.session.cassandra.execute event code.
+	CassandraExecuteEventCode = "TCA03I"
+	// CassandraRegisterEventCode is the db.session.cassandra.register event code.
+	CassandraRegisterEventCode = "TCA04I"
+
 	// ElasticsearchRequestCode is the db.session.elasticsearch.request event code.
 	ElasticsearchRequestCode = "TES00I"
+	// ElasticsearchRequestFailureCode is the db.session.elasticsearch.request event failure code.
+	ElasticsearchRequestFailureCode = "TES00E"
+
+	// OpenSearchRequestCode is the db.session.opensearch.request event code.
+	OpenSearchRequestCode = "TOS00I"
+	// OpenSearchRequestFailureCode is the db.session.opensearch.request event failure code.
+	OpenSearchRequestFailureCode = "TOS00E"
+
+	// DynamoDBRequestCode is the db.session.dynamodb.request event code.
+	DynamoDBRequestCode = "TDY01I"
+	// DynamoDBRequestFailureCode is the db.session.dynamodb.request event failure code.
+	// This is indicates that the database agent http transport failed to round trip the request.
+	DynamoDBRequestFailureCode = "TDY01E"
 
 	// DatabaseCreateCode is the db.create event code.
 	DatabaseCreateCode = "TDB03I"
@@ -193,6 +220,24 @@ const (
 	DesktopClipboardSendCode = "TDP02I"
 	// DesktopClipboardReceiveCode is the desktop clipboard receive code.
 	DesktopClipboardReceiveCode = "TDP03I"
+	// DesktopSharedDirectoryStartCode is the desktop directory start code.
+	DesktopSharedDirectoryStartCode = "TDP04I"
+	// DesktopSharedDirectoryStartFailureCode is the desktop directory start code
+	// for when a start operation fails, or for when the internal cache state was corrupted
+	// causing information loss, or for when the internal cache has exceeded its max size.
+	DesktopSharedDirectoryStartFailureCode = "TDP04W"
+	// DesktopSharedDirectoryReadCode is the desktop directory read code.
+	DesktopSharedDirectoryReadCode = "TDP05I"
+	// DesktopSharedDirectoryReadFailureCode is the desktop directory read code
+	// for when a read operation fails, or for if the internal cache state was corrupted
+	// causing information loss, or for when the internal cache has exceeded its max size.
+	DesktopSharedDirectoryReadFailureCode = "TDP05W"
+	// DesktopSharedDirectoryWriteCode is the desktop directory write code.
+	DesktopSharedDirectoryWriteCode = "TDP06I"
+	// DesktopSharedDirectoryWriteFailureCode is the desktop directory write code
+	// for when a write operation fails, or for if the internal cache state was corrupted
+	// causing information loss, or for when the internal cache has exceeded its max size.
+	DesktopSharedDirectoryWriteFailureCode = "TDP06W"
 
 	// SubsystemCode is the subsystem event code.
 	SubsystemCode = "T3001I"
@@ -272,6 +317,8 @@ const (
 	SFTPReadlinkFailureCode = "TS017E"
 	SFTPSymlinkCode         = "TS018I"
 	SFTPSymlinkFailureCode  = "TS018E"
+	SFTPLinkCode            = "TS019I"
+	SFTPLinkFailureCode     = "TS019E"
 
 	// SessionCommandCode is a session command code.
 	SessionCommandCode = "T4000I"
@@ -302,9 +349,15 @@ const (
 	TrustedClusterCreateCode = "T7000I"
 	// TrustedClusterDeleteCode is the event code for removing a trusted cluster.
 	TrustedClusterDeleteCode = "T7001I"
-	// TrustedClusterTokenCreateCode is the event code for
-	// creating new join token for a trusted cluster.
+	// TrustedClusterTokenCreateCode is the event code for creating new
+	// provisioning token for a trusted cluster. Deprecated in favor of
+	// [ProvisionTokenCreateEvent].
 	TrustedClusterTokenCreateCode = "T7002I"
+
+	// ProvisionTokenCreateCode is the event code for creating a provisioning
+	// token, also known as Join Token. See
+	// [github.com/gravitational/teleport/api/types.ProvisionToken].
+	ProvisionTokenCreateCode = "TJT00I"
 
 	// GithubConnectorCreatedCode is the Github connector created event code.
 	GithubConnectorCreatedCode = "T8000I"
@@ -326,6 +379,11 @@ const (
 	// RoleDeletedCode is the role deleted event code.
 	RoleDeletedCode = "T9001I"
 
+	// BotJoinCode is the 'bot.join' event code.
+	BotJoinCode = "TJ001I"
+	// InstanceJoinCode is the 'node.join' event code.
+	InstanceJoinCode = "TJ002I"
+
 	// LockCreatedCode is the lock created event code.
 	LockCreatedCode = "TLK00I"
 	// LockDeletedCode is the lock deleted event code.
@@ -345,6 +403,128 @@ const (
 	SSMRunSuccessCode = "TDS00I"
 	// SSMRunFailCode is the discovery script success code.
 	SSMRunFailCode = "TDS00W"
+
+	// DeviceCreateCode is the device creation/registration code.
+	DeviceCreateCode = "TV001I"
+	// DeviceDeleteCode is the device deletion code.
+	DeviceDeleteCode = "TV002I"
+	// DeviceEnrollTokenCreateCode is the device enroll token creation code
+	DeviceEnrollTokenCreateCode = "TV003I"
+	// DeviceEnrollTokenSpentCode is the device enroll token spent code.
+	DeviceEnrollTokenSpentCode = "TV004I"
+	// DeviceEnrollCode is the device enrollment completion code.
+	DeviceEnrollCode = "TV005I"
+	// DeviceAuthenticateCode is the device authentication code.
+	DeviceAuthenticateCode = "TV006I"
+	// DeviceUpdateCode is the device update code.
+	DeviceUpdateCode = "TV007I"
+
+	// LoginRuleCreateCode is the login rule create code.
+	LoginRuleCreateCode = "TLR00I"
+	// LoginRuleDeleteCode is the login rule delete code.
+	LoginRuleDeleteCode = "TLR01I"
+
+	// SAMLIdPAuthAttemptCode is the SAML IdP auth attempt code.
+	SAMLIdPAuthAttemptCode = "TSI000I"
+
+	// SAMLIdPServiceProviderCreateCode is the SAML IdP service provider create code.
+	SAMLIdPServiceProviderCreateCode = "TSI001I"
+
+	// SAMLIdPServiceProviderCreateFailureCode is the SAML IdP service provider create failure code.
+	SAMLIdPServiceProviderCreateFailureCode = "TSI001W"
+
+	// SAMLIdPServiceProviderUpdateCode is the SAML IdP service provider update code.
+	SAMLIdPServiceProviderUpdateCode = "TSI002I"
+
+	// SAMLIdPServiceProviderUpdateFailureCode is the SAML IdP service provider update failure code.
+	SAMLIdPServiceProviderUpdateFailureCode = "TSI002W"
+
+	// SAMLIdPServiceProviderDeleteCode is the SAML IdP service provider delete code.
+	SAMLIdPServiceProviderDeleteCode = "TSI003I"
+
+	// SAMLIdPServiceProviderDeleteFailureCode is the SAML IdP service provider delete failure code.
+	SAMLIdPServiceProviderDeleteFailureCode = "TSI003W"
+
+	// SAMLIdPServiceProviderDeleteAllCode is the SAML IdP service provider delete all code.
+	SAMLIdPServiceProviderDeleteAllCode = "TSI004I"
+
+	// SAMLIdPServiceProviderDeleteAllFailureCode is the SAML IdP service provider delete all failure code.
+	SAMLIdPServiceProviderDeleteAllFailureCode = "TSI004W"
+
+	// OktaGroupsUpdateCode is the Okta groups updated code.
+	OktaGroupsUpdateCode = "TOK001I"
+
+	// OktaApplicationsUpdateCode is the Okta applications updated code.
+	OktaApplicationsUpdateCode = "TOK002I"
+
+	// OktaSyncFailureCode is the Okta synchronization failure code.
+	OktaSyncFailureCode = "TOK003E"
+
+	// OktaAssignmentProcessSuccessCode is the Okta assignment process success code.
+	OktaAssignmentProcessSuccessCode = "TOK004I"
+
+	// OktaAssignmentProcessFailureCode is the Okta assignment process failure code.
+	OktaAssignmentProcessFailureCode = "TOK004E"
+
+	// OktaAssignmentCleanupSuccessCode is the Okta assignment cleanup success code.
+	OktaAssignmentCleanupSuccessCode = "TOK005I"
+
+	// OktaAssignmentCleanupFailureCode is the Okta assignment cleanup failure code.
+	OktaAssignmentCleanupFailureCode = "TOK005E"
+
+	// AccessListCreateSuccessCode is the access list create success code.
+	AccessListCreateSuccessCode = "TAL001I"
+
+	// AccessListCreateFailureCode is the access list create failure code.
+	AccessListCreateFailureCode = "TAL001E"
+
+	// AccessListUpdateSuccessCode is the access list update success code.
+	AccessListUpdateSuccessCode = "TAL002I"
+
+	// AccessListUpdateFailureCode is the access list update failure code.
+	AccessListUpdateFailureCode = "TAL002E"
+
+	// AccessListDeleteSuccessCode is the access list delete success code.
+	AccessListDeleteSuccessCode = "TAL003I"
+
+	// AccessListDeleteFailureCode is the access list delete failure code.
+	AccessListDeleteFailureCode = "TAL003E"
+
+	// AccessListReviewSuccessCode is the access list review success code.
+	AccessListReviewSuccessCode = "TAL004I"
+
+	// AccessListReviewFailureCode is the access list review failure code.
+	AccessListReviewFailureCode = "TAL004E"
+
+	// AccessListMemberCreateSuccessCode is the access list member create success code.
+	AccessListMemberCreateSuccessCode = "TAL005I"
+
+	// AccessListMemberCreateFailureCode is the access list member create failure code.
+	AccessListMemberCreateFailureCode = "TAL005E"
+
+	// AccessListMemberUpdateSuccessCode is the access list member update success code.
+	AccessListMemberUpdateSuccessCode = "TAL006I"
+
+	// AccessListMemberUpdateFailureCode is the access list member update failure code.
+	AccessListMemberUpdateFailureCode = "TAL006E"
+
+	// AccessListMemberDeleteSuccessCode is the access list member delete success code.
+	AccessListMemberDeleteSuccessCode = "TAL007I"
+
+	// AccessListMemberDeleteFailureCode is the access list member delete failure code.
+	AccessListMemberDeleteFailureCode = "TAL007E"
+
+	// AccessListMemberDeleteAllForAccessListSuccessCode is the access list all member delete success code.
+	AccessListMemberDeleteAllForAccessListSuccessCode = "TAL008I"
+
+	// AccessListMemberDeleteAllForAccessListFailureCode is the access list member delete failure code.
+	AccessListMemberDeleteAllForAccessListFailureCode = "TAL008E"
+
+	// SecReportsAuditQueryRunCode is used when a custom Security Reports Query is run.
+	SecReportsAuditQueryRunCode = "SRE001I"
+
+	// SecReportsReportRunCode is used when a report in run.
+	SecReportsReportRunCode = "SRE002I"
 
 	// UnknownCode is used when an event of unknown type is encountered.
 	UnknownCode = apievents.UnknownCode

@@ -22,27 +22,26 @@ import (
 	"errors"
 
 	"github.com/gravitational/teleport/api/client/proto"
-
-	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 )
 
 var errFIDO2Unavailable = errors.New("FIDO2 unavailable in current build")
 
-// IsFIDO2Available returns true if libfido2 is available in the current build.
-func IsFIDO2Available() bool {
+// isLibfido2Enabled returns true if libfido2 is available in the current build.
+func isLibfido2Enabled() bool {
 	return false
 }
 
 func fido2Login(
 	ctx context.Context,
-	origin string, assertion *wanlib.CredentialAssertion, prompt LoginPrompt, opts *LoginOpts,
+	origin string, assertion *wantypes.CredentialAssertion, prompt LoginPrompt, opts *LoginOpts,
 ) (*proto.MFAAuthenticateResponse, string, error) {
 	return nil, "", errFIDO2Unavailable
 }
 
 func fido2Register(
 	ctx context.Context,
-	origin string, cc *wanlib.CredentialCreation, prompt RegisterPrompt,
+	origin string, cc *wantypes.CredentialCreation, prompt RegisterPrompt,
 ) (*proto.MFARegisterResponse, error) {
 	return nil, errFIDO2Unavailable
 }

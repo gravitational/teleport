@@ -20,22 +20,20 @@ import (
 	"context"
 	"net"
 
-	apidefaults "github.com/gravitational/teleport/api/defaults"
-	apitypes "github.com/gravitational/teleport/api/types"
-	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils"
-
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
+
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	apitypes "github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/srv/app/common"
+	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 type tcpServer struct {
-	authClient *auth.Client
-	hostID     string
-	log        logrus.FieldLogger
+	newAudit func(sessionID string) (common.Audit, error)
+	hostID   string
+	log      logrus.FieldLogger
 }
 
 // handleConnection handles connection from a TCP application.
@@ -48,19 +46,22 @@ func (s *tcpServer) handleConnection(ctx context.Context, clientConn net.Conn, i
 		return trace.BadParameter(`unexpected app %q address network, expected "tcp": %+v`, app.GetName(), addr)
 	}
 	dialer := net.Dialer{
-		Timeout: apidefaults.DefaultDialTimeout,
+		Timeout: apidefaults.DefaultIOTimeout,
 	}
 	serverConn, err := dialer.DialContext(ctx, addr.AddrNetwork, addr.String())
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = s.emitStartEvent(ctx, identity, app)
+
+	audit, err := s.newAudit(identity.RouteToApp.SessionID)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	if err := audit.OnSessionStart(ctx, s.hostID, identity, app); err != nil {
+		return trace.Wrap(err)
+	}
 	defer func() {
-		err = s.emitEndEvent(ctx, identity, app)
-		if err != nil {
+		if err := audit.OnSessionEnd(ctx, s.hostID, identity, app); err != nil {
 			s.log.WithError(err).Warnf("Failed to emit session end event for app %v.", app.GetName())
 		}
 	}()
@@ -69,58 +70,4 @@ func (s *tcpServer) handleConnection(ctx context.Context, clientConn net.Conn, i
 		return trace.Wrap(err)
 	}
 	return nil
-}
-
-func (s *tcpServer) emitStartEvent(ctx context.Context, identity *tlsca.Identity, app apitypes.Application) error {
-	return s.authClient.EmitAuditEvent(ctx, &apievents.AppSessionStart{
-		Metadata: apievents.Metadata{
-			Type:        events.AppSessionStartEvent,
-			Code:        events.AppSessionStartCode,
-			ClusterName: identity.RouteToApp.ClusterName,
-		},
-		ServerMetadata: apievents.ServerMetadata{
-			ServerID:        s.hostID,
-			ServerNamespace: apidefaults.Namespace,
-		},
-		SessionMetadata: apievents.SessionMetadata{
-			SessionID: identity.RouteToApp.SessionID,
-			WithMFA:   identity.MFAVerified,
-		},
-		UserMetadata: identity.GetUserMetadata(),
-		ConnectionMetadata: apievents.ConnectionMetadata{
-			RemoteAddr: identity.ClientIP,
-		},
-		AppMetadata: apievents.AppMetadata{
-			AppURI:        app.GetURI(),
-			AppPublicAddr: app.GetPublicAddr(),
-			AppName:       app.GetName(),
-		},
-	})
-}
-
-func (s *tcpServer) emitEndEvent(ctx context.Context, identity *tlsca.Identity, app apitypes.Application) error {
-	return s.authClient.EmitAuditEvent(ctx, &apievents.AppSessionEnd{
-		Metadata: apievents.Metadata{
-			Type:        events.AppSessionEndEvent,
-			Code:        events.AppSessionEndCode,
-			ClusterName: identity.RouteToApp.ClusterName,
-		},
-		ServerMetadata: apievents.ServerMetadata{
-			ServerID:        s.hostID,
-			ServerNamespace: apidefaults.Namespace,
-		},
-		SessionMetadata: apievents.SessionMetadata{
-			SessionID: identity.RouteToApp.SessionID,
-			WithMFA:   identity.MFAVerified,
-		},
-		UserMetadata: identity.GetUserMetadata(),
-		ConnectionMetadata: apievents.ConnectionMetadata{
-			RemoteAddr: identity.ClientIP,
-		},
-		AppMetadata: apievents.AppMetadata{
-			AppURI:        app.GetURI(),
-			AppPublicAddr: app.GetPublicAddr(),
-			AppName:       app.GetName(),
-		},
-	})
 }

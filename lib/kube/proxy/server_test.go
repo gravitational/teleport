@@ -29,6 +29,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/http"
 	"sort"
 	"testing"
 	"time"
@@ -45,6 +46,18 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
+
+func TestServeConfigureError(t *testing.T) {
+	srv := &TLSServer{Server: &http.Server{TLSConfig: &tls.Config{MinVersion: tls.VersionTLS12, CipherSuites: []uint16{}}}}
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	defer listener.Close()
+
+	err = srv.Serve(listener)
+	require.Error(t, err) // expected due to incompatible ciphers
+
+	require.True(t, srv.mu.TryLock()) // verify that lock was released despite error
+}
 
 func TestMTLSClientCAs(t *testing.T) {
 	ap := &mockAccessPoint{
@@ -190,7 +203,7 @@ func TestGetServerInfo(t *testing.T) {
 		cas: make(map[string]types.CertAuthority),
 	}
 
-	listener, err := net.Listen("tcp", "")
+	listener, err := net.Listen("tcp", "localhost:")
 	require.NoError(t, err)
 
 	srv := &TLSServer{
@@ -249,11 +262,11 @@ func TestHeartbeat(t *testing.T) {
 	t.Cleanup(func() { kubeMock.Close() })
 
 	// creates a Kubernetes service with a configured cluster pointing to mock api server
-	testCtx := setupTestContext(
+	testCtx := SetupTestContext(
 		context.Background(),
 		t,
-		testConfig{
-			clusters: []kubeClusterConfig{{name: kubeCluster1, apiEndpoint: kubeMock.URL}, {name: kubeCluster2, apiEndpoint: kubeMock.URL}},
+		TestConfig{
+			Clusters: []KubeClusterConfig{{Name: kubeCluster1, APIEndpoint: kubeMock.URL}, {Name: kubeCluster2, APIEndpoint: kubeMock.URL}},
 		},
 	)
 
@@ -263,36 +276,15 @@ func TestHeartbeat(t *testing.T) {
 		kubeClusterGetter func(auth.ClientI) []string
 	}
 	tests := []struct {
-		name string
-		args args
+		name      string
+		args      args
+		wantEmpty bool
 	}{
-		{
-			name: "List KubeServices (legacy)",
-			args: args{
-				kubeClusterGetter: func(authClient auth.ClientI) []string {
-					rsp, err := authClient.ListResources(testCtx.ctx, proto.ListResourcesRequest{
-						ResourceType: types.KindKubeService,
-						Limit:        10,
-					})
-					require.NoError(t, err)
-					clusters := []string{}
-					for _, resource := range rsp.Resources {
-						srv, ok := resource.(types.Server)
-						require.Truef(t, ok, "type is %T; expected types.Server", srv)
-						for _, kubeCluster := range srv.GetKubernetesClusters() {
-							clusters = append(clusters, kubeCluster.Name)
-						}
-					}
-					sort.Strings(clusters)
-					return clusters
-				},
-			},
-		},
 		{
 			name: "List KubeServers",
 			args: args{
 				kubeClusterGetter: func(authClient auth.ClientI) []string {
-					rsp, err := authClient.ListResources(testCtx.ctx, proto.ListResourcesRequest{
+					rsp, err := authClient.ListResources(testCtx.Context, proto.ListResourcesRequest{
 						ResourceType: types.KindKubeServer,
 						Limit:        10,
 					})
@@ -311,10 +303,63 @@ func TestHeartbeat(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-
-			kubeClusters := tt.args.kubeClusterGetter(testCtx.authClient)
-			require.Equal(t, []string{kubeCluster1, kubeCluster2}, kubeClusters)
+			kubeClusters := tt.args.kubeClusterGetter(testCtx.AuthClient)
+			if tt.wantEmpty {
+				require.Empty(t, kubeClusters)
+			} else {
+				require.Equal(t, []string{kubeCluster1, kubeCluster2}, kubeClusters)
+			}
 		})
 	}
+}
 
+func TestTLSServerConfig_validateLabelsKey(t *testing.T) {
+	type fields struct {
+		staticLabels map[string]string
+	}
+	tests := []struct {
+		name           string
+		fields         fields
+		errorAssertion require.ErrorAssertionFunc
+	}{
+		{
+			name: "valid labels",
+			fields: fields{
+				staticLabels: map[string]string{
+					"key1": "value1",
+					"key2": "value2",
+				},
+			},
+			errorAssertion: require.NoError,
+		},
+		{
+			name: "invalid labels",
+			fields: fields{
+				staticLabels: map[string]string{
+					"key 1": "value1",
+					"key2":  "value2",
+				},
+			},
+			errorAssertion: require.Error,
+		},
+		{
+			name: "invalid labels",
+			fields: fields{
+				staticLabels: map[string]string{
+					"key\\1": "value1",
+					"key2":   "value2",
+				},
+			},
+			errorAssertion: require.Error,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := &TLSServerConfig{
+				StaticLabels: tt.fields.staticLabels,
+			}
+			err := c.validateLabelKeys()
+			tt.errorAssertion(t, err)
+		})
+	}
 }

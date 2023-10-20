@@ -20,10 +20,11 @@ import (
 	"context"
 	"time"
 
-	"github.com/gravitational/teleport/lib/srv/db/secrets"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport/lib/srv/db/secrets"
 )
 
 // User represents a managed cloud database user.

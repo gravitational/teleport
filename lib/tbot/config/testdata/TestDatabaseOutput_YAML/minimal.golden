@@ -1,0 +1,4 @@
+type: database
+destination:
+  type: memory
+service: my-database-service

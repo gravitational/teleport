@@ -1,16 +1,21 @@
 ---
 title: Database Access FAQ
-description: Frequently asked questions about Teleport Database Access.
+description: Frequently asked questions about Teleport database access.
 ---
 
-## Which database protocols does Teleport Database Access support?
+## Which database protocols does Teleport the Database Service support?
 
-Teleport Database Access currently supports the following protocols:
+The Teleport Database Service currently supports the following protocols:
 
+- Cassandra
+- ClickHouse
+- CockroachDB
+- DynamoDB
 - MariaDB
 - Microsoft SQL Server
 - MongoDB
 - MySQL
+- Oracle
 - PostgreSQL
 - Redis
 - Snowflake
@@ -29,12 +34,14 @@ See the available [guides](./guides.mdx) for all supported configurations.
 
 The following PostgreSQL protocol features aren't currently supported:
 
-- [Canceling requests in progress](https://www.postgresql.org/docs/current/protocol-flow.html#id-1.10.5.7.9).
-  Cancel requests issued by the PostgreSQL clients connected to the Teleport
-  Proxy Service won't be passed to the database server.
 - Any [authentication methods](https://www.postgresql.org/docs/current/auth-methods.html)
   except for client certificate authentication and IAM authentication for cloud
   databases.
+
+
+## Are database sessions listed under recorded sessions?
+
+(!docs/pages/includes/database-access/db-audit-events.mdx!)
 
 ## Can database clients use a public address different from the web public address?
 
@@ -52,10 +59,10 @@ This is useful when the Teleport Web UI is running behind an L7 load balancer
 on a plain TCP load balancer (e.g. NLB in AWS).
 
 </TabItem>
-<TabItem scope={["cloud"]} label="Teleport Cloud">
+<TabItem scope={["cloud","team"]} label="Cloud-Hosted">
 
-In Teleport Cloud, the Proxy Service uses the following ports for
-Database Access client traffic:
+In Teleport Team and Teleport Enterprise Cloud, the Proxy Service uses the
+following ports for Database Service client traffic:
 
 |Configuration setting|Port|
 |---|---|
@@ -114,3 +121,23 @@ check, you can use `mode` under the `tls` option in the Teleport configuration f
 
 For more details please refer to the reference
 [configuration file](./reference/configuration.mdx#database-service-configuration).
+
+## Can I disable read-only and custom endpoints from auto-discovered databases?
+
+Yes, you can use the Teleport generated label `endpoint-type` on your `aws`
+matcher to filter the endpoints. For example, to disable read-only and custom
+endpoints for RDS auto-discovery, you can specify other endpoint types to
+match:
+```
+  aws:
+  - types: ["rds"]
+    regions: ["us-west-1"]
+    tags:
+      "env": "dev"
+      "endpoint-type":
+        - "primary"
+        - "instance"
+```
+
+See [labels reference](./reference/labels.mdx) for a full list of Teleport
+generated labels and values.

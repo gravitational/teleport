@@ -1,18 +1,18 @@
 ---
-title: TCP Application Access (Preview)
+title: TCP Application Access
 description: How to configure Teleport for accessing plain TCP apps
 ---
 
 Teleport can provide access to any TCP-based application. This allows users to
 connect to applications which Teleport doesn't natively support such as SMTP
-servers or databases not yet natively supported in Database Access.
+servers or databases not yet natively supported by the Teleport Database
+Service.
 
 ## Prerequisites
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
-(!docs/pages/includes/tctl.mdx!)
-
+- (!docs/pages/includes/tctl.mdx!)
 - TCP application to connect to. In this guide we'll use a PostgreSQL running
   in Docker as an example. You can also use any TCP-based application you may
   already have.
@@ -41,7 +41,8 @@ $ docker run --name postgres -p 5432:5432 -e POSTGRES_PASSWORD=<pass> -d postgre
 
 Teleport Application Service requires a valid auth token to join the cluster.
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 To generate one, run the following command on your Auth Service node:
 
 ```code
@@ -54,16 +55,18 @@ connect to cluster applications:
 ```code
 $ tctl users add --roles=access alice
 ```
-</ScopedBlock>
+</TabItem>
 
-<ScopedBlock scope={["cloud"]}>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 To generate one, log into your Cloud tenant and run the following command:
 
 ```code
 $ tsh login --proxy=mytenant.teleport.sh
 $ tctl tokens add --type=app
 ```
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 Save the generated token in `/tmp/token` on the node where Application Service
 will run.
@@ -97,11 +100,7 @@ app_service:
 Note that the URI scheme must be `tcp://` in order for Teleport to recognize
 this as a TCP application.
 
-Start Teleport:
-
-```code
-$ teleport start
-```
+(!docs/pages/includes/start-teleport.mdx!)
 
 ## Step 3/4. Start app proxy
 
@@ -109,7 +108,7 @@ Log into your Teleport cluster and view available applications:
 
 ```code
 $ tsh login --proxy=teleport.example.com
-$ tsh app ls
+$ tsh apps ls
 Application Description   Type Public Address                   Labels
 ----------- ------------- ---- -------------------------------- -----------
 tcp-app                   TCP  tcp-app.root.gravitational.io
@@ -120,7 +119,7 @@ Your TCP application should show up and be denoted with a `TCP` type.
 Now log into the application:
 
 ```code
-$ tsh app login tcp-app
+$ tsh apps login tcp-app
 Logged into TCP app tcp-app. Start the local TCP proxy for it:
 
   tsh proxy app tcp-app
@@ -149,4 +148,5 @@ $ psql postgres://postgres@localhost:55868/postgres
 
 ## Next steps
 
-* Learn about [access controls](../controls.mdx) for applications.
+- Learn about [access controls](../controls.mdx) for applications.
+

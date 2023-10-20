@@ -19,10 +19,11 @@ import (
 	"context"
 	"time"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/cloud/azure"
-	"github.com/gravitational/trace"
 )
 
 const (
@@ -45,6 +46,8 @@ type InstanceMetadata interface {
 	GetHostname(ctx context.Context) (string, error)
 	// GetType gets the cloud instance type.
 	GetType() types.InstanceMetadataType
+	// GetID gets the cloud instance ID.
+	GetID(ctx context.Context) (string, error)
 }
 
 type imConstructor func(ctx context.Context) (InstanceMetadata, error)
@@ -94,4 +97,33 @@ func DiscoverInstanceMetadata(ctx context.Context) (InstanceMetadata, error) {
 	case <-ctx.Done():
 		return nil, trace.NotFound("no instance metadata service found")
 	}
+}
+
+// DisabledIMDSClient is an EC2 instance metadata client that is always disabled. This is faster
+// than the default client when not testing instance metadata behavior.
+type DisabledIMDSClient struct{}
+
+// NewDisabledIMDSClient creates a new DisabledIMDSClient.
+func NewDisabledIMDSClient() InstanceMetadata {
+	return &DisabledIMDSClient{}
+}
+
+func (d *DisabledIMDSClient) IsAvailable(ctx context.Context) bool {
+	return false
+}
+
+func (d *DisabledIMDSClient) GetTags(ctx context.Context) (map[string]string, error) {
+	return nil, nil
+}
+
+func (d *DisabledIMDSClient) GetHostname(ctx context.Context) (string, error) {
+	return "", nil
+}
+
+func (d *DisabledIMDSClient) GetType() types.InstanceMetadataType {
+	return types.InstanceMetadataTypeDisabled
+}
+
+func (d *DisabledIMDSClient) GetID(ctx context.Context) (string, error) {
+	return "", nil
 }

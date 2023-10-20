@@ -22,16 +22,16 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	lru "github.com/hashicorp/golang-lru"
+	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel/attribute"
 	oteltrace "go.opentelemetry.io/otel/trace"
+	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
-	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 )
@@ -81,7 +81,7 @@ type Reporter struct {
 	//
 	// This will keep an upper limit on our memory usage while still always
 	// reporting the most active keys.
-	topRequestsCache *lru.Cache
+	topRequestsCache *lru.Cache[topRequestsCacheKey, struct{}]
 }
 
 // NewReporter returns a new Reporter.
@@ -95,12 +95,7 @@ func NewReporter(cfg ReporterConfig) (*Reporter, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	cache, err := lru.NewWithEvict(cfg.TopRequestsCount, func(key interface{}, value interface{}) {
-		labels, ok := key.(topRequestsCacheKey)
-		if !ok {
-			log.Errorf("BUG: invalid cache key type: %T", key)
-			return
-		}
+	cache, err := lru.NewWithEvict(cfg.TopRequestsCount, func(labels topRequestsCacheKey, value struct{}) {
 		// Evict the key from requests metric.
 		requests.DeleteLabelValues(labels.component, labels.key, labels.isRange)
 	})
@@ -112,6 +107,10 @@ func NewReporter(cfg ReporterConfig) (*Reporter, error) {
 		topRequestsCache: cache,
 	}
 	return r, nil
+}
+
+func (s *Reporter) GetName() string {
+	return s.Backend.GetName()
 }
 
 // GetRange returns query range
@@ -129,7 +128,7 @@ func (s *Reporter) GetRange(ctx context.Context, startKey []byte, endKey []byte,
 
 	start := s.Clock().Now()
 	res, err := s.Backend.GetRange(ctx, startKey, endKey, limit)
-	batchReadLatencies.WithLabelValues(s.Component).Observe(time.Since(start).Seconds())
+	batchReadLatencies.WithLabelValues(s.Component).Observe(s.Clock().Since(start).Seconds())
 	batchReadRequests.WithLabelValues(s.Component).Inc()
 	if err != nil {
 		batchReadRequestsFailed.WithLabelValues(s.Component).Inc()
@@ -144,6 +143,7 @@ func (s *Reporter) Create(ctx context.Context, i Item) (*Lease, error) {
 		ctx,
 		"backend/Create",
 		oteltrace.WithAttributes(
+			attribute.String("revision", i.Revision),
 			attribute.String("key", string(i.Key)),
 		),
 	)
@@ -151,7 +151,7 @@ func (s *Reporter) Create(ctx context.Context, i Item) (*Lease, error) {
 
 	start := s.Clock().Now()
 	lease, err := s.Backend.Create(ctx, i)
-	writeLatencies.WithLabelValues(s.Component).Observe(time.Since(start).Seconds())
+	writeLatencies.WithLabelValues(s.Component).Observe(s.Clock().Since(start).Seconds())
 	writeRequests.WithLabelValues(s.Component).Inc()
 	if err != nil {
 		writeRequestsFailed.WithLabelValues(s.Component).Inc()
@@ -167,6 +167,7 @@ func (s *Reporter) Put(ctx context.Context, i Item) (*Lease, error) {
 		ctx,
 		"backend/Put",
 		oteltrace.WithAttributes(
+			attribute.String("revision", i.Revision),
 			attribute.String("key", string(i.Key)),
 		),
 	)
@@ -174,7 +175,7 @@ func (s *Reporter) Put(ctx context.Context, i Item) (*Lease, error) {
 
 	start := s.Clock().Now()
 	lease, err := s.Backend.Put(ctx, i)
-	writeLatencies.WithLabelValues(s.Component).Observe(time.Since(start).Seconds())
+	writeLatencies.WithLabelValues(s.Component).Observe(s.Clock().Since(start).Seconds())
 	writeRequests.WithLabelValues(s.Component).Inc()
 	if err != nil {
 		writeRequestsFailed.WithLabelValues(s.Component).Inc()
@@ -189,6 +190,7 @@ func (s *Reporter) Update(ctx context.Context, i Item) (*Lease, error) {
 		ctx,
 		"backend/Update",
 		oteltrace.WithAttributes(
+			attribute.String("revision", i.Revision),
 			attribute.String("key", string(i.Key)),
 		),
 	)
@@ -196,7 +198,30 @@ func (s *Reporter) Update(ctx context.Context, i Item) (*Lease, error) {
 
 	start := s.Clock().Now()
 	lease, err := s.Backend.Update(ctx, i)
-	writeLatencies.WithLabelValues(s.Component).Observe(time.Since(start).Seconds())
+	writeLatencies.WithLabelValues(s.Component).Observe(s.Clock().Since(start).Seconds())
+	writeRequests.WithLabelValues(s.Component).Inc()
+	if err != nil {
+		writeRequestsFailed.WithLabelValues(s.Component).Inc()
+	}
+	s.trackRequest(types.OpPut, i.Key, nil)
+	return lease, err
+}
+
+// ConditionalUpdate updates value in the backend if revisions match.
+func (s *Reporter) ConditionalUpdate(ctx context.Context, i Item) (*Lease, error) {
+	ctx, span := s.Tracer.Start(
+		ctx,
+		"backend/ConditionalUpdate",
+		oteltrace.WithAttributes(
+			attribute.String("revision", i.Revision),
+			attribute.String("key", string(i.Key)),
+		),
+	)
+	defer span.End()
+
+	start := s.Clock().Now()
+	lease, err := s.Backend.ConditionalUpdate(ctx, i)
+	writeLatencies.WithLabelValues(s.Component).Observe(s.Clock().Since(start).Seconds())
 	writeRequests.WithLabelValues(s.Component).Inc()
 	if err != nil {
 		writeRequestsFailed.WithLabelValues(s.Component).Inc()
@@ -217,9 +242,9 @@ func (s *Reporter) Get(ctx context.Context, key []byte) (*Item, error) {
 	defer span.End()
 
 	start := s.Clock().Now()
-	readLatencies.WithLabelValues(s.Component).Observe(time.Since(start).Seconds())
-	readRequests.WithLabelValues(s.Component).Inc()
 	item, err := s.Backend.Get(ctx, key)
+	readLatencies.WithLabelValues(s.Component).Observe(s.Clock().Since(start).Seconds())
+	readRequests.WithLabelValues(s.Component).Inc()
 	if err != nil && !trace.IsNotFound(err) {
 		readRequestsFailed.WithLabelValues(s.Component).Inc()
 	}
@@ -241,7 +266,7 @@ func (s *Reporter) CompareAndSwap(ctx context.Context, expected Item, replaceWit
 
 	start := s.Clock().Now()
 	lease, err := s.Backend.CompareAndSwap(ctx, expected, replaceWith)
-	writeLatencies.WithLabelValues(s.Component).Observe(time.Since(start).Seconds())
+	writeLatencies.WithLabelValues(s.Component).Observe(s.Clock().Since(start).Seconds())
 	writeRequests.WithLabelValues(s.Component).Inc()
 	if err != nil && !trace.IsNotFound(err) && !trace.IsCompareFailed(err) {
 		writeRequestsFailed.WithLabelValues(s.Component).Inc()
@@ -263,7 +288,30 @@ func (s *Reporter) Delete(ctx context.Context, key []byte) error {
 
 	start := s.Clock().Now()
 	err := s.Backend.Delete(ctx, key)
-	writeLatencies.WithLabelValues(s.Component).Observe(time.Since(start).Seconds())
+	writeLatencies.WithLabelValues(s.Component).Observe(s.Clock().Since(start).Seconds())
+	writeRequests.WithLabelValues(s.Component).Inc()
+	if err != nil && !trace.IsNotFound(err) {
+		writeRequestsFailed.WithLabelValues(s.Component).Inc()
+	}
+	s.trackRequest(types.OpDelete, key, nil)
+	return err
+}
+
+// ConditionalDelete deletes the item by key if the revision matches the stored revision.
+func (s *Reporter) ConditionalDelete(ctx context.Context, key []byte, revision string) error {
+	ctx, span := s.Tracer.Start(
+		ctx,
+		"backend/ConditionalDelete",
+		oteltrace.WithAttributes(
+			attribute.String("revision", revision),
+			attribute.String("key", string(key)),
+		),
+	)
+	defer span.End()
+
+	start := s.Clock().Now()
+	err := s.Backend.ConditionalDelete(ctx, key, revision)
+	writeLatencies.WithLabelValues(s.Component).Observe(s.Clock().Since(start).Seconds())
 	writeRequests.WithLabelValues(s.Component).Inc()
 	if err != nil && !trace.IsNotFound(err) {
 		writeRequestsFailed.WithLabelValues(s.Component).Inc()
@@ -286,7 +334,7 @@ func (s *Reporter) DeleteRange(ctx context.Context, startKey []byte, endKey []by
 
 	start := s.Clock().Now()
 	err := s.Backend.DeleteRange(ctx, startKey, endKey)
-	batchWriteLatencies.WithLabelValues(s.Component).Observe(time.Since(start).Seconds())
+	batchWriteLatencies.WithLabelValues(s.Component).Observe(s.Clock().Since(start).Seconds())
 	batchWriteRequests.WithLabelValues(s.Component).Inc()
 	if err != nil && !trace.IsNotFound(err) {
 		batchWriteRequestsFailed.WithLabelValues(s.Component).Inc()
@@ -304,6 +352,7 @@ func (s *Reporter) KeepAlive(ctx context.Context, lease Lease, expires time.Time
 		ctx,
 		"backend/KeepAlive",
 		oteltrace.WithAttributes(
+			attribute.String("revision", lease.Revision),
 			attribute.Int64("lease", lease.ID),
 			attribute.String("key", string(lease.Key)),
 		),
@@ -312,7 +361,7 @@ func (s *Reporter) KeepAlive(ctx context.Context, lease Lease, expires time.Time
 
 	start := s.Clock().Now()
 	err := s.Backend.KeepAlive(ctx, lease, expires)
-	writeLatencies.WithLabelValues(s.Component).Observe(time.Since(start).Seconds())
+	writeLatencies.WithLabelValues(s.Component).Observe(s.Clock().Since(start).Seconds())
 	writeRequests.WithLabelValues(s.Component).Inc()
 	if err != nil && !trace.IsNotFound(err) {
 		writeRequestsFailed.WithLabelValues(s.Component).Inc()
@@ -366,18 +415,30 @@ func (s *Reporter) trackRequest(opType types.OpType, key []byte, endKey []byte) 
 	if len(key) == 0 {
 		return
 	}
-	keyLabel := buildKeyLabel(string(key), sensitiveBackendPrefixes)
+	keyLabel := buildKeyLabel(string(key), sensitiveBackendPrefixes, singletonBackendPrefixes, len(endKey) != 0)
 	rangeSuffix := teleport.TagFalse
 	if len(endKey) != 0 {
 		// Range denotes range queries in stat entry
 		rangeSuffix = teleport.TagTrue
 	}
 
-	s.topRequestsCache.Add(topRequestsCacheKey{
+	cacheKey := topRequestsCacheKey{
 		component: s.Component,
 		key:       keyLabel,
 		isRange:   rangeSuffix,
-	}, struct{}{})
+	}
+	// We need to do ContainsOrAdd and then Get because if we do Add we hit
+	// https://github.com/hashicorp/golang-lru/issues/141 which can cause a
+	// memory leak in certain workloads (where we keep overwriting the same
+	// key); it's not clear if Add to overwrite would be the correct thing to do
+	// here anyway, as we use LRU eviction to delete unused metrics, but
+	// overwriting might cause an eviction of the same metric we are about to
+	// bump up in freshness, which is obviously wrong
+	if ok, _ := s.topRequestsCache.ContainsOrAdd(cacheKey, struct{}{}); ok {
+		// Refresh the key's position in the LRU cache, if it was already in it.
+		s.topRequestsCache.Get(cacheKey)
+	}
+
 	counter, err := requests.GetMetricWithLabelValues(s.Component, keyLabel, rangeSuffix)
 	if err != nil {
 		log.Warningf("Failed to get counter: %v", err)
@@ -388,29 +449,59 @@ func (s *Reporter) trackRequest(opType types.OpType, key []byte, endKey []byte) 
 
 // buildKeyLabel builds the key label for storing to the backend. The key's name
 // is masked if it is determined to be sensitive based on sensitivePrefixes.
-func buildKeyLabel(key string, sensitivePrefixes []string) string {
+func buildKeyLabel(key string, sensitivePrefixes, singletonPrefixes []string, isRange bool) string {
 	parts := strings.Split(key, string(Separator))
-	if len(parts) > 3 {
-		// Cut the key down to 3 parts, otherwise too many
-		// distinct requests can end up in the key label map.
-		parts = parts[:3]
+
+	finalLen := len(parts)
+	var realStart int
+
+	// skip leading space if one exists so that we can consistently access path segments by
+	// index regardless of whether or not the specific path has a leading separator.
+	if finalLen-realStart > 1 && parts[realStart] == "" {
+		realStart = 1
 	}
 
-	// If the key matches "/sensitiveprefix/keyname", mask the key.
-	if len(parts) == 3 && len(parts[0]) == 0 && apiutils.SliceContainsStr(sensitivePrefixes, parts[1]) {
-		parts[2] = string(MaskKeyName(parts[2]))
+	// trim trailing space for consistency
+	if finalLen-realStart > 1 && parts[finalLen-1] == "" {
+		finalLen -= 1
 	}
 
-	return strings.Join(parts, string(Separator))
+	// we typically always want to trim the final element from any multipart path to avoid tracking individual
+	// resources. the two exceptions are if the path originates from a range request, or if the first element
+	// in the path is a known singleton range.
+	if finalLen-realStart > 1 && !isRange && !slices.Contains(singletonPrefixes, parts[realStart]) {
+		finalLen -= 1
+	}
+
+	// paths may contain at most two segments excluding leading blank
+	if finalLen-realStart > 2 {
+		finalLen = realStart + 2
+	}
+
+	// if the first non-empty segment is a secret range and there are at least two non-empty
+	// segments, then the second non-empty segment should be masked.
+	if finalLen-realStart > 1 && slices.Contains(sensitivePrefixes, parts[realStart]) {
+		parts[realStart+1] = string(MaskKeyName(parts[realStart+1]))
+	}
+
+	return strings.Join(parts[:finalLen], string(Separator))
 }
 
 // sensitiveBackendPrefixes is a list of backend request prefixes preceding
 // sensitive values.
 var sensitiveBackendPrefixes = []string{
 	"tokens",
-	"resetpasswordtokens",
-	"adduseru2fchallenges",
+	"usertoken",
+	// Global passwordless challenges, keyed by challenge, as per
+	// https://github.com/gravitational/teleport/blob/01775b73f138ff124ff0351209d629bb01836869/lib/services/local/users.go#L1510.
+	"sessionData",
 	"access_requests",
+}
+
+// singletonBackendPrefixes is a list of prefixes where its not necessary to trim the trailing
+// path component automatically since the range only contains singleton values.
+var singletonBackendPrefixes = []string{
+	"cluster_configuration",
 }
 
 // ReporterWatcher is a wrapper around backend
@@ -445,7 +536,7 @@ var (
 	requests = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: teleport.MetricBackendRequests,
-			Help: "Number of write requests to the backend",
+			Help: "Number of requests to the backend (reads, writes, and keepalives)",
 		},
 		[]string{teleport.ComponentLabel, teleport.TagReq, teleport.TagRange},
 	)

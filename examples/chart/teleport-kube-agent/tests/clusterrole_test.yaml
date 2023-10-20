@@ -21,3 +21,23 @@ tests:
           path: metadata.labels.resource
           value: clusterrole
       - matchSnapshot: {}
+
+  - it: adds services listing permission if discovery is enabled
+    set:
+      roles: kube,discovery
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ClusterRole
+      - matchSnapshot: {}
+
+  - it: does not add services listing permission if discovery is disabled
+    set:
+      roles: kube
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ClusterRole
+      - matchSnapshot: {}

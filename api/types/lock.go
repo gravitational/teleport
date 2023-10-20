@@ -20,11 +20,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravitational/teleport/api/utils"
-
 	"github.com/gogo/protobuf/proto"
-	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/utils"
 )
 
 // Lock configures locking out of a particular access vector.
@@ -45,6 +44,15 @@ type Lock interface {
 	LockExpiry() *time.Time
 	// SetLockExpiry sets the lock's expiry.
 	SetLockExpiry(*time.Time)
+
+	// CreatedAt returns the time the lock was created.
+	CreatedAt() time.Time
+	// SetCreatedAt sets the lock's created time.
+	SetCreatedAt(time.Time)
+	// CreatedBy returns the user that created the lock.
+	CreatedBy() string
+	// SetCreatedBy sets the lock's creator.
+	SetCreatedBy(string)
 
 	// IsInForce returns whether the lock is in force at a particular time.
 	IsInForce(time.Time) bool
@@ -104,6 +112,16 @@ func (c *LockV2) SetResourceID(id int64) {
 	c.Metadata.ID = id
 }
 
+// GetRevision returns the revision
+func (c *LockV2) GetRevision() string {
+	return c.Metadata.GetRevision()
+}
+
+// SetRevision sets the revision
+func (c *LockV2) SetRevision(rev string) {
+	c.Metadata.SetRevision(rev)
+}
+
 // GetKind returns resource kind.
 func (c *LockV2) GetKind() string {
 	return c.Kind
@@ -149,6 +167,22 @@ func (c *LockV2) SetLockExpiry(expiry *time.Time) {
 	c.Spec.Expires = expiry
 }
 
+func (c *LockV2) CreatedAt() time.Time {
+	return c.Spec.CreatedAt
+}
+
+func (c *LockV2) SetCreatedAt(t time.Time) {
+	c.Spec.CreatedAt = t
+}
+
+func (c *LockV2) CreatedBy() string {
+	return c.Spec.CreatedBy
+}
+
+func (c *LockV2) SetCreatedBy(user string) {
+	c.Spec.CreatedBy = user
+}
+
 // IsInForce returns whether the lock is in force at a particular time.
 func (c *LockV2) IsInForce(t time.Time) bool {
 	if c.Spec.Expires == nil {
@@ -174,12 +208,14 @@ func (c *LockV2) CheckAndSetDefaults() error {
 	if c.Spec.Target.IsEmpty() {
 		return trace.BadParameter("at least one target field must be set")
 	}
+	// If the user specifies a server ID but not a node, copy the server ID to the node
+	// field. This is for backwards compatibility with previous versions of Teleport
+	// so that locking a node still works.
+	// TODO: DELETE IN 15.0.0
+	if c.Spec.Target.ServerID != "" && c.Spec.Target.Node == "" {
+		c.Spec.Target.Node = c.Spec.Target.ServerID
+	}
 	return nil
-}
-
-// IsEmpty returns true if none of the target's fields is set.
-func (t LockTarget) IsEmpty() bool {
-	return cmp.Equal(t, LockTarget{})
 }
 
 // IntoMap returns the target attributes in the form of a map.
@@ -196,34 +232,39 @@ func (t *LockTarget) FromMap(m map[string]string) error {
 	return trace.Wrap(utils.ObjectToStruct(m, t))
 }
 
+// IsEmpty returns true if none of the target's fields is set.
+func (t LockTarget) IsEmpty() bool {
+	return t.User == "" &&
+		t.Role == "" &&
+		t.Login == "" &&
+		t.Node == "" &&
+		t.MFADevice == "" &&
+		t.WindowsDesktop == "" &&
+		t.AccessRequest == "" &&
+		t.Device == "" &&
+		t.ServerID == ""
+}
+
 // Match returns true if the lock's target is matched by this target.
 func (t LockTarget) Match(lock Lock) bool {
 	if t.IsEmpty() {
 		return false
 	}
 	lockTarget := lock.Target()
-	if t.User != "" && lockTarget.User != t.User {
-		return false
-	}
-	if t.Role != "" && lockTarget.Role != t.Role {
-		return false
-	}
-	if t.Login != "" && lockTarget.Login != t.Login {
-		return false
-	}
-	if t.Node != "" && lockTarget.Node != t.Node {
-		return false
-	}
-	if t.MFADevice != "" && lockTarget.MFADevice != t.MFADevice {
-		return false
-	}
-	if t.WindowsDesktop != "" && lockTarget.WindowsDesktop != t.WindowsDesktop {
-		return false
-	}
-	if t.AccessRequest != "" && lockTarget.AccessRequest != t.AccessRequest {
-		return false
-	}
-	return true
+	return (t.User == "" || lockTarget.User == t.User) &&
+		(t.Role == "" || lockTarget.Role == t.Role) &&
+		(t.Login == "" || lockTarget.Login == t.Login) &&
+		(t.MFADevice == "" || lockTarget.MFADevice == t.MFADevice) &&
+		(t.WindowsDesktop == "" || lockTarget.WindowsDesktop == t.WindowsDesktop) &&
+		(t.AccessRequest == "" || lockTarget.AccessRequest == t.AccessRequest) &&
+		(t.Device == "" || lockTarget.Device == t.Device) &&
+		((t.Node == "" && t.ServerID == "") ||
+			// Node lock overrides ServerID lock because we want to keep backwards compatibility
+			// with previous versions of Teleport where a node lock only locked the ssh_service
+			// and not the other services running on that host.
+			// Newer versions of Teleport will lock all services based on the ServerID field.
+			(lockTarget.Node != "" && lockTarget.Node == t.Node) ||
+			(lockTarget.ServerID != "" && lockTarget.ServerID == t.ServerID))
 }
 
 // String returns string representation of the LockTarget.

@@ -23,9 +23,10 @@ import (
 	"github.com/aws/aws-sdk-go/service/memorydb"
 	"github.com/aws/aws-sdk-go/service/memorydb/memorydbiface"
 	"github.com/gravitational/trace"
+	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/cloud"
 	libaws "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	libsecrets "github.com/gravitational/teleport/lib/srv/db/secrets"
@@ -67,22 +68,23 @@ func (f *memoryDBFetcher) GetType() string {
 
 // FetchDatabaseUsers fetches users for provided database. Implements Fetcher.
 func (f *memoryDBFetcher) FetchDatabaseUsers(ctx context.Context, database types.Database) ([]User, error) {
-	if database.GetAWS().MemoryDB.ACLName == "" {
+	meta := database.GetAWS()
+	if meta.MemoryDB.ACLName == "" {
 		return nil, nil
 	}
 
-	client, err := f.cfg.Clients.GetAWSMemoryDBClient(database.GetAWS().Region)
+	client, err := f.cfg.Clients.GetAWSMemoryDBClient(ctx, meta.Region, cloud.WithAssumeRoleFromAWSMeta(meta))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	secrets, err := newSecretStore(database, f.cfg.Clients)
+	secrets, err := newSecretStore(ctx, database, f.cfg.Clients)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	users := []User{}
-	mdbUsers, err := f.getManagedUsersForACL(ctx, database.GetAWS().Region, database.GetAWS().MemoryDB.ACLName, client)
+	mdbUsers, err := f.getManagedUsersForACL(ctx, meta.Region, meta.MemoryDB.ACLName, client)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -108,7 +110,7 @@ func (f *memoryDBFetcher) getManagedUsersForACL(ctx context.Context, region, acl
 	managedUsers := []*memorydb.User{}
 	for _, user := range allUsers {
 		// Match ACL.
-		if !utils.SliceContainsStr(aws.StringValueSlice(user.ACLNames), aclName) {
+		if !slices.Contains(aws.StringValueSlice(user.ACLNames), aclName) {
 			continue
 		}
 

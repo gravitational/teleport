@@ -23,6 +23,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -137,4 +138,198 @@ func TestNoReadWhenOff(t *testing.T) {
 	n, err = m.Read(data)
 	require.NoError(t, err)
 	require.Equal(t, []byte{1, 2, 3}, data[:n])
+}
+
+// wrappedTermManagerReader wraps a TermManager and alerts
+// that a Read is attempted via the reading chanel
+type wrappedTermManagerReader struct {
+	m       *TermManager
+	reading chan struct{}
+}
+
+func (r *wrappedTermManagerReader) Read(p []byte) (int, error) {
+	r.reading <- struct{}{}
+	return r.m.Read(p)
+}
+
+func TestTermManagerRead(t *testing.T) {
+	t.Parallel()
+
+	data := []byte{1, 2, 3}
+	const timeout = 10 * time.Second
+
+	cases := []struct {
+		name          string
+		reader        func() io.Reader
+		readAssertion func(n int, err error, d []byte)
+	}{
+		{
+			name: "data flow on and data to read",
+			reader: func() io.Reader {
+				m := NewTermManager()
+				m.On()
+				m.remaining = data
+
+				return m
+			},
+			readAssertion: func(n int, err error, d []byte) {
+				assert.NoError(t, err)
+				assert.Equal(t, n, len(data))
+				assert.Equal(t, data, d)
+			},
+		},
+		{
+			name: "data flow on and data to read but closed",
+			reader: func() io.Reader {
+				m := NewTermManager()
+				m.On()
+				m.remaining = data
+				m.Close()
+
+				return m
+			},
+			readAssertion: func(n int, err error, d []byte) {
+				assert.ErrorIs(t, err, io.EOF)
+				assert.Zero(t, n)
+				assert.Empty(t, d)
+			},
+		},
+		{
+			name: "closed while waiting",
+			reader: func() io.Reader {
+				m := NewTermManager()
+				m.Off()
+
+				r := &wrappedTermManagerReader{
+					m:       m,
+					reading: make(chan struct{}, 1),
+				}
+
+				go func() {
+					// wait until read occurs
+					select {
+					case <-r.reading:
+					case <-time.After(timeout):
+						m.Close()
+						return
+					}
+
+					// transition between on and off a few times
+					for i := 0; i < 5; i++ {
+						if i%2 == 0 {
+							m.Off()
+						} else {
+							m.On()
+						}
+					}
+
+					// close the reader and return
+					m.Close()
+				}()
+
+				return r
+			},
+			readAssertion: func(n int, err error, d []byte) {
+				assert.ErrorIs(t, err, io.EOF)
+				assert.Zero(t, n)
+				assert.Empty(t, d)
+			},
+		},
+		{
+			name: "data flow changes to on while waiting with existing data to read",
+			reader: func() io.Reader {
+				m := NewTermManager()
+				m.Off()
+				m.remaining = data
+
+				r := &wrappedTermManagerReader{
+					m:       m,
+					reading: make(chan struct{}, 1),
+				}
+
+				go func() {
+					// wait until read occurs
+					select {
+					case <-r.reading:
+					case <-time.After(timeout):
+						m.Close()
+						return
+					}
+
+					// transition between on and off a few times
+					for i := 0; i <= 5; i++ {
+						if i < 5 {
+							m.Off()
+						} else {
+							m.On()
+						}
+					}
+				}()
+
+				return r
+			},
+			readAssertion: func(n int, err error, d []byte) {
+				assert.NoError(t, err)
+				assert.Equal(t, n, len(data))
+				assert.Equal(t, data, d)
+			},
+		},
+		{
+			name: "data flow is on but waits for data to read",
+			reader: func() io.Reader {
+				m := NewTermManager()
+				m.On()
+
+				r := &wrappedTermManagerReader{
+					m:       m,
+					reading: make(chan struct{}, 1),
+				}
+
+				go func() {
+					// wait until read occurs
+					select {
+					case <-r.reading:
+					case <-time.After(timeout):
+						m.Close()
+						return
+					}
+
+					// transition between on and off a few times
+					for i := 0; i < 5; i++ {
+						if i%2 == 0 {
+							m.Off()
+						} else {
+							m.On()
+						}
+					}
+
+					// explicitly set on
+					m.On()
+
+					// send empty data first
+					m.incoming <- []byte{}
+
+					// send actual data that should be read
+					m.incoming <- data
+				}()
+
+				return r
+			},
+			readAssertion: func(n int, err error, d []byte) {
+				assert.NoError(t, err)
+				assert.Equal(t, n, len(data))
+				assert.Equal(t, data, d)
+			},
+		},
+	}
+
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			r := tt.reader()
+			d := make([]byte, 100)
+			n, err := r.Read(d)
+			tt.readAssertion(n, err, d[:n])
+		})
+	}
+
 }

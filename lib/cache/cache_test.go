@@ -30,13 +30,19 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/types/discoveryconfig"
+	"github.com/gravitational/teleport/api/types/header"
+	"github.com/gravitational/teleport/api/types/secreports"
+	"github.com/gravitational/teleport/api/types/trait"
+	"github.com/gravitational/teleport/api/types/userloginstate"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/backend/memory"
@@ -68,19 +74,39 @@ type testPack struct {
 	provisionerS   services.Provisioner
 	clusterConfigS services.ClusterConfiguration
 
-	usersS            services.UsersService
-	accessS           services.Access
-	dynamicAccessS    services.DynamicAccessCore
-	presenceS         services.Presence
-	appSessionS       services.AppSession
-	snowflakeSessionS services.SnowflakeSession
-	restrictions      services.Restrictions
-	apps              services.Apps
-	kubernetes        services.Kubernetes
-	databases         services.Databases
-	webSessionS       types.WebSessionInterface
-	webTokenS         types.WebTokenInterface
-	windowsDesktops   services.WindowsDesktops
+	usersS                  services.UsersService
+	accessS                 services.Access
+	dynamicAccessS          services.DynamicAccessCore
+	presenceS               services.Presence
+	appSessionS             services.AppSession
+	snowflakeSessionS       services.SnowflakeSession
+	samlIdPSessionsS        services.SAMLIdPSession //nolint:revive // Because we want this to be IdP.
+	restrictions            services.Restrictions
+	apps                    services.Apps
+	kubernetes              services.Kubernetes
+	databases               services.Databases
+	databaseServices        services.DatabaseServices
+	webSessionS             types.WebSessionInterface
+	webTokenS               types.WebTokenInterface
+	windowsDesktops         services.WindowsDesktops
+	samlIDPServiceProviders services.SAMLIdPServiceProviders
+	userGroups              services.UserGroups
+	okta                    services.Okta
+	integrations            services.Integrations
+	discoveryConfigs        services.DiscoveryConfigs
+	userLoginStates         services.UserLoginStates
+	secReports              services.SecReports
+}
+
+// testFuncs are functions to support testing an object in a cache.
+type testFuncs[T types.Resource] struct {
+	newResource func(string) (T, error)
+	create      func(context.Context, T) error
+	list        func(context.Context) ([]T, error)
+	cacheGet    func(context.Context, string) (T, error)
+	cacheList   func(context.Context) ([]T, error)
+	update      func(context.Context, T) error
+	deleteAll   func(context.Context) error
 }
 
 func (t *testPack) Close() {
@@ -104,10 +130,6 @@ func newPackForProxy(t *testing.T) *testPack {
 	return newTestPack(t, ForProxy)
 }
 
-func newPackForNode(t *testing.T) *testPack {
-	return newTestPack(t, ForNode)
-}
-
 func newTestPack(t *testing.T, setupConfig SetupConfigFn) *testPack {
 	pack, err := newPack(t.TempDir(), setupConfig)
 	require.NoError(t, err)
@@ -122,6 +144,7 @@ func newTestPackWithoutCache(t *testing.T) *testPack {
 
 type packCfg struct {
 	memoryBackend bool
+	ignoreKinds   []types.WatchKind
 }
 
 type packOption func(cfg *packCfg)
@@ -129,6 +152,14 @@ type packOption func(cfg *packCfg)
 func memoryBackend(bool) packOption {
 	return func(cfg *packCfg) {
 		cfg.memoryBackend = true
+	}
+}
+
+// ignoreKinds specifies the list of kinds that should be removed from the watch request by eventsProxy
+// to simulate cache resource type rejection due to version incompatibility.
+func ignoreKinds(kinds []types.WatchKind) packOption {
+	return func(cfg *packCfg) {
+		cfg.ignoreKinds = kinds
 	}
 }
 
@@ -180,7 +211,7 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 	p.trustS = local.NewCAService(p.backend)
 	p.clusterConfigS = clusterConfig
 	p.provisionerS = local.NewProvisioningService(p.backend)
-	p.eventsS = &proxyEvents{events: local.NewEventsService(p.backend)}
+	p.eventsS = newProxyEvents(local.NewEventsService(p.backend), cfg.ignoreKinds)
 	p.presenceS = local.NewPresenceService(p.backend)
 	p.usersS = local.NewIdentityService(p.backend)
 	p.accessS = local.NewAccessService(p.backend)
@@ -188,12 +219,51 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 	p.appSessionS = local.NewIdentityService(p.backend)
 	p.webSessionS = local.NewIdentityService(p.backend).WebSessions()
 	p.snowflakeSessionS = local.NewIdentityService(p.backend)
+	p.samlIdPSessionsS = local.NewIdentityService(p.backend)
 	p.webTokenS = local.NewIdentityService(p.backend).WebTokens()
 	p.restrictions = local.NewRestrictionsService(p.backend)
 	p.apps = local.NewAppService(p.backend)
 	p.kubernetes = local.NewKubernetesService(p.backend)
 	p.databases = local.NewDatabasesService(p.backend)
+	p.databaseServices = local.NewDatabaseServicesService(p.backend)
 	p.windowsDesktops = local.NewWindowsDesktopService(p.backend)
+	p.samlIDPServiceProviders, err = local.NewSAMLIdPServiceProviderService(p.backend)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	p.userGroups, err = local.NewUserGroupService(p.backend)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	oktaSvc, err := local.NewOktaService(p.backend, p.backend.Clock())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	p.okta = oktaSvc
+
+	igSvc, err := local.NewIntegrationsService(p.backend)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	p.integrations = igSvc
+
+	dcSvc, err := local.NewDiscoveryConfigService(p.backend)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	p.discoveryConfigs = dcSvc
+
+	ulsSvc, err := local.NewUserLoginStateService(p.backend)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	p.userLoginStates = ulsSvc
+
+	secReportsSvc, err := local.NewSecReportsService(p.backend, p.backend.Clock())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	p.secReports = secReportsSvc
 
 	return p, nil
 }
@@ -207,27 +277,36 @@ func newPack(dir string, setupConfig func(c Config) Config, opts ...packOption) 
 	}
 
 	p.cache, err = New(setupConfig(Config{
-		Context:          ctx,
-		Backend:          p.cacheBackend,
-		Events:           p.eventsS,
-		ClusterConfig:    p.clusterConfigS,
-		Provisioner:      p.provisionerS,
-		Trust:            p.trustS,
-		Users:            p.usersS,
-		Access:           p.accessS,
-		DynamicAccess:    p.dynamicAccessS,
-		Presence:         p.presenceS,
-		AppSession:       p.appSessionS,
-		WebSession:       p.webSessionS,
-		WebToken:         p.webTokenS,
-		SnowflakeSession: p.snowflakeSessionS,
-		Restrictions:     p.restrictions,
-		Apps:             p.apps,
-		Kubernetes:       p.kubernetes,
-		Databases:        p.databases,
-		WindowsDesktops:  p.windowsDesktops,
-		MaxRetryPeriod:   200 * time.Millisecond,
-		EventsC:          p.eventsC,
+		Context:                 ctx,
+		Backend:                 p.cacheBackend,
+		Events:                  p.eventsS,
+		ClusterConfig:           p.clusterConfigS,
+		Provisioner:             p.provisionerS,
+		Trust:                   p.trustS,
+		Users:                   p.usersS,
+		Access:                  p.accessS,
+		DynamicAccess:           p.dynamicAccessS,
+		Presence:                p.presenceS,
+		AppSession:              p.appSessionS,
+		WebSession:              p.webSessionS,
+		WebToken:                p.webTokenS,
+		SnowflakeSession:        p.snowflakeSessionS,
+		SAMLIdPSession:          p.samlIdPSessionsS,
+		Restrictions:            p.restrictions,
+		Apps:                    p.apps,
+		Kubernetes:              p.kubernetes,
+		DatabaseServices:        p.databaseServices,
+		Databases:               p.databases,
+		WindowsDesktops:         p.windowsDesktops,
+		SAMLIdPServiceProviders: p.samlIDPServiceProviders,
+		UserGroups:              p.userGroups,
+		Okta:                    p.okta,
+		Integrations:            p.integrations,
+		DiscoveryConfigs:        p.discoveryConfigs,
+		UserLoginStates:         p.userLoginStates,
+		SecReports:              p.secReports,
+		MaxRetryPeriod:          200 * time.Millisecond,
+		EventsC:                 p.eventsC,
 	}))
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -254,7 +333,7 @@ func TestCA(t *testing.T) {
 	ctx := context.Background()
 
 	ca := suite.NewTestCA(types.UserCA, "example.com")
-	require.NoError(t, p.trustS.UpsertCertAuthority(ca))
+	require.NoError(t, p.trustS.UpsertCertAuthority(ctx, ca))
 
 	select {
 	case <-p.eventsC:
@@ -264,10 +343,9 @@ func TestCA(t *testing.T) {
 
 	out, err := p.cache.GetCertAuthority(ctx, ca.GetID(), true)
 	require.NoError(t, err)
-	ca.SetResourceID(out.GetResourceID())
-	require.Empty(t, cmp.Diff(ca, out))
+	require.Empty(t, cmp.Diff(ca, out, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
-	err = p.trustS.DeleteCertAuthority(ca.GetID())
+	err = p.trustS.DeleteCertAuthority(ctx, ca.GetID())
 	require.NoError(t, err)
 
 	select {
@@ -318,7 +396,7 @@ func TestWatchers(t *testing.T) {
 	}
 
 	ca := suite.NewTestCA(types.UserCA, "example.com")
-	require.NoError(t, p.trustS.UpsertCertAuthority(ca))
+	require.NoError(t, p.trustS.UpsertCertAuthority(ctx, ca))
 
 	select {
 	case e := <-w.Events():
@@ -332,7 +410,8 @@ func TestWatchers(t *testing.T) {
 	req, err := services.NewAccessRequest("alice", "dictator")
 	require.NoError(t, err)
 
-	require.NoError(t, p.dynamicAccessS.CreateAccessRequest(ctx, req))
+	req, err = p.dynamicAccessS.CreateAccessRequestV2(ctx, req)
+	require.NoError(t, err)
 
 	select {
 	case e := <-w.Events():
@@ -357,7 +436,8 @@ func TestWatchers(t *testing.T) {
 	require.NoError(t, err)
 
 	// create and then delete the non-matching request.
-	require.NoError(t, p.dynamicAccessS.CreateAccessRequest(ctx, req2))
+	req2, err = p.dynamicAccessS.CreateAccessRequestV2(ctx, req2)
+	require.NoError(t, err)
 	require.NoError(t, p.dynamicAccessS.DeleteAccessRequest(ctx, req2.GetName()))
 
 	// because our filter did not match the request, the create event should never
@@ -375,8 +455,8 @@ func TestWatchers(t *testing.T) {
 	// this ca will not be matched by our filter, so the same reasoning applies
 	// as we upsert it and delete it
 	filteredCa := suite.NewTestCA(types.HostCA, "example.net")
-	require.NoError(t, p.trustS.UpsertCertAuthority(filteredCa))
-	require.NoError(t, p.trustS.DeleteCertAuthority(filteredCa.GetID()))
+	require.NoError(t, p.trustS.UpsertCertAuthority(ctx, filteredCa))
+	require.NoError(t, p.trustS.DeleteCertAuthority(ctx, filteredCa.GetID()))
 
 	select {
 	case e := <-w.Events():
@@ -418,28 +498,36 @@ func TestNodeCAFiltering(t *testing.T) {
 
 	// this mimics a cache for a node pulling events from the auth server via WatchEvents
 	nodeCache, err := New(ForNode(Config{
-		Events:          p.cache,
-		Trust:           p.cache.trustCache,
-		ClusterConfig:   p.cache.clusterConfigCache,
-		Provisioner:     p.cache.provisionerCache,
-		Users:           p.cache.usersCache,
-		Access:          p.cache.accessCache,
-		DynamicAccess:   p.cache.dynamicAccessCache,
-		Presence:        p.cache.presenceCache,
-		Restrictions:    p.cache.restrictionsCache,
-		Apps:            p.cache.appsCache,
-		Kubernetes:      p.cache.kubernetesCache,
-		Databases:       p.cache.databasesCache,
-		AppSession:      p.cache.appSessionCache,
-		WebSession:      p.cache.webSessionCache,
-		WebToken:        p.cache.webTokenCache,
-		WindowsDesktops: p.cache.windowsDesktopsCache,
-		Backend:         nodeCacheBackend,
+		Events:                  p.cache,
+		Trust:                   p.cache.trustCache,
+		ClusterConfig:           p.cache.clusterConfigCache,
+		Provisioner:             p.cache.provisionerCache,
+		Users:                   p.cache.usersCache,
+		Access:                  p.cache.accessCache,
+		DynamicAccess:           p.cache.dynamicAccessCache,
+		Presence:                p.cache.presenceCache,
+		Restrictions:            p.cache.restrictionsCache,
+		Apps:                    p.cache.appsCache,
+		Kubernetes:              p.cache.kubernetesCache,
+		Databases:               p.cache.databasesCache,
+		DatabaseServices:        p.cache.databaseServicesCache,
+		AppSession:              p.cache.appSessionCache,
+		WebSession:              p.cache.webSessionCache,
+		WebToken:                p.cache.webTokenCache,
+		WindowsDesktops:         p.cache.windowsDesktopsCache,
+		SAMLIdPServiceProviders: p.samlIDPServiceProviders,
+		UserGroups:              p.userGroups,
+		Backend:                 nodeCacheBackend,
 	}))
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, nodeCache.Close()) })
 
-	cacheWatcher, err := nodeCache.NewWatcher(ctx, types.Watch{Kinds: []types.WatchKind{{Kind: types.KindCertAuthority}}})
+	cacheWatcher, err := nodeCache.NewWatcher(ctx, types.Watch{Kinds: []types.WatchKind{
+		{
+			Kind:   types.KindCertAuthority,
+			Filter: map[string]string{"host": "example.com", "user": "*"},
+		},
+	}})
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, cacheWatcher.Close()) })
 
@@ -456,8 +544,8 @@ func TestNodeCAFiltering(t *testing.T) {
 
 	// upsert and delete a local host CA, we expect to see a Put and a Delete event
 	localCA := suite.NewTestCA(types.HostCA, "example.com")
-	require.NoError(t, p.trustS.UpsertCertAuthority(localCA))
-	require.NoError(t, p.trustS.DeleteCertAuthority(localCA.GetID()))
+	require.NoError(t, p.trustS.UpsertCertAuthority(ctx, localCA))
+	require.NoError(t, p.trustS.DeleteCertAuthority(ctx, localCA.GetID()))
 
 	ev := fetchEvent()
 	require.Equal(t, types.OpPut, ev.Type)
@@ -471,8 +559,8 @@ func TestNodeCAFiltering(t *testing.T) {
 
 	// upsert and delete a nonlocal host CA, we expect to only see the Delete event
 	nonlocalCA := suite.NewTestCA(types.HostCA, "example.net")
-	require.NoError(t, p.trustS.UpsertCertAuthority(nonlocalCA))
-	require.NoError(t, p.trustS.DeleteCertAuthority(nonlocalCA.GetID()))
+	require.NoError(t, p.trustS.UpsertCertAuthority(ctx, nonlocalCA))
+	require.NoError(t, p.trustS.DeleteCertAuthority(ctx, nonlocalCA.GetID()))
 
 	ev = fetchEvent()
 	require.Equal(t, types.OpDelete, ev.Type)
@@ -481,8 +569,8 @@ func TestNodeCAFiltering(t *testing.T) {
 
 	// whereas we expect to see the Put and Delete for a trusted *user* CA
 	trustedUserCA := suite.NewTestCA(types.UserCA, "example.net")
-	require.NoError(t, p.trustS.UpsertCertAuthority(trustedUserCA))
-	require.NoError(t, p.trustS.DeleteCertAuthority(trustedUserCA.GetID()))
+	require.NoError(t, p.trustS.UpsertCertAuthority(ctx, trustedUserCA))
+	require.NoError(t, p.trustS.DeleteCertAuthority(ctx, trustedUserCA.GetID()))
 
 	ev = fetchEvent()
 	require.Equal(t, types.OpPut, ev.Type)
@@ -543,7 +631,7 @@ func expectNextEvent(t *testing.T, eventsC <-chan Event, expectedEvent string, s
 		// wait for watcher to restart
 		select {
 		case event := <-eventsC:
-			if apiutils.SliceContainsStr(skipEvents, event.Type) {
+			if slices.Contains(skipEvents, event.Type) {
 				continue
 			}
 			require.Equal(t, expectedEvent, event.Type)
@@ -568,7 +656,7 @@ func TestCompletenessInit(t *testing.T) {
 	// put lots of CAs in the backend
 	for i := 0; i < caCount; i++ {
 		ca := suite.NewTestCA(types.UserCA, fmt.Sprintf("%d.example.com", i))
-		require.NoError(t, p.trustS.UpsertCertAuthority(ca))
+		require.NoError(t, p.trustS.UpsertCertAuthority(ctx, ca))
 	}
 
 	for i := 0; i < inits; i++ {
@@ -586,27 +674,36 @@ func TestCompletenessInit(t *testing.T) {
 		p.eventsS.closeWatchers()
 
 		p.cache, err = New(ForAuth(Config{
-			Context:          ctx,
-			Backend:          p.cacheBackend,
-			Events:           p.eventsS,
-			ClusterConfig:    p.clusterConfigS,
-			Provisioner:      p.provisionerS,
-			Trust:            p.trustS,
-			Users:            p.usersS,
-			Access:           p.accessS,
-			DynamicAccess:    p.dynamicAccessS,
-			Presence:         p.presenceS,
-			AppSession:       p.appSessionS,
-			WebSession:       p.webSessionS,
-			SnowflakeSession: p.snowflakeSessionS,
-			WebToken:         p.webTokenS,
-			Restrictions:     p.restrictions,
-			Apps:             p.apps,
-			Kubernetes:       p.kubernetes,
-			Databases:        p.databases,
-			WindowsDesktops:  p.windowsDesktops,
-			MaxRetryPeriod:   200 * time.Millisecond,
-			EventsC:          p.eventsC,
+			Context:                 ctx,
+			Backend:                 p.cacheBackend,
+			Events:                  p.eventsS,
+			ClusterConfig:           p.clusterConfigS,
+			Provisioner:             p.provisionerS,
+			Trust:                   p.trustS,
+			Users:                   p.usersS,
+			Access:                  p.accessS,
+			DynamicAccess:           p.dynamicAccessS,
+			Presence:                p.presenceS,
+			AppSession:              p.appSessionS,
+			WebSession:              p.webSessionS,
+			SnowflakeSession:        p.snowflakeSessionS,
+			SAMLIdPSession:          p.samlIdPSessionsS,
+			WebToken:                p.webTokenS,
+			Restrictions:            p.restrictions,
+			Apps:                    p.apps,
+			Kubernetes:              p.kubernetes,
+			DatabaseServices:        p.databaseServices,
+			Databases:               p.databases,
+			WindowsDesktops:         p.windowsDesktops,
+			SAMLIdPServiceProviders: p.samlIDPServiceProviders,
+			UserGroups:              p.userGroups,
+			Okta:                    p.okta,
+			Integrations:            p.integrations,
+			DiscoveryConfigs:        p.discoveryConfigs,
+			UserLoginStates:         p.userLoginStates,
+			SecReports:              p.secReports,
+			MaxRetryPeriod:          200 * time.Millisecond,
+			EventsC:                 p.eventsC,
 		}))
 		require.NoError(t, err)
 
@@ -643,32 +740,41 @@ func TestCompletenessReset(t *testing.T) {
 	// put lots of CAs in the backend
 	for i := 0; i < caCount; i++ {
 		ca := suite.NewTestCA(types.UserCA, fmt.Sprintf("%d.example.com", i))
-		require.NoError(t, p.trustS.UpsertCertAuthority(ca))
+		require.NoError(t, p.trustS.UpsertCertAuthority(ctx, ca))
 	}
 
 	var err error
 	p.cache, err = New(ForAuth(Config{
-		Context:          ctx,
-		Backend:          p.cacheBackend,
-		Events:           p.eventsS,
-		ClusterConfig:    p.clusterConfigS,
-		Provisioner:      p.provisionerS,
-		Trust:            p.trustS,
-		Users:            p.usersS,
-		Access:           p.accessS,
-		DynamicAccess:    p.dynamicAccessS,
-		Presence:         p.presenceS,
-		AppSession:       p.appSessionS,
-		WebSession:       p.webSessionS,
-		SnowflakeSession: p.snowflakeSessionS,
-		WebToken:         p.webTokenS,
-		Restrictions:     p.restrictions,
-		Apps:             p.apps,
-		Kubernetes:       p.kubernetes,
-		Databases:        p.databases,
-		WindowsDesktops:  p.windowsDesktops,
-		MaxRetryPeriod:   200 * time.Millisecond,
-		EventsC:          p.eventsC,
+		Context:                 ctx,
+		Backend:                 p.cacheBackend,
+		Events:                  p.eventsS,
+		ClusterConfig:           p.clusterConfigS,
+		Provisioner:             p.provisionerS,
+		Trust:                   p.trustS,
+		Users:                   p.usersS,
+		Access:                  p.accessS,
+		DynamicAccess:           p.dynamicAccessS,
+		Presence:                p.presenceS,
+		AppSession:              p.appSessionS,
+		WebSession:              p.webSessionS,
+		SnowflakeSession:        p.snowflakeSessionS,
+		SAMLIdPSession:          p.samlIdPSessionsS,
+		WebToken:                p.webTokenS,
+		Restrictions:            p.restrictions,
+		Apps:                    p.apps,
+		Kubernetes:              p.kubernetes,
+		DatabaseServices:        p.databaseServices,
+		Databases:               p.databases,
+		WindowsDesktops:         p.windowsDesktops,
+		SAMLIdPServiceProviders: p.samlIDPServiceProviders,
+		UserGroups:              p.userGroups,
+		Okta:                    p.okta,
+		Integrations:            p.integrations,
+		DiscoveryConfigs:        p.discoveryConfigs,
+		UserLoginStates:         p.userLoginStates,
+		SecReports:              p.secReports,
+		MaxRetryPeriod:          200 * time.Millisecond,
+		EventsC:                 p.eventsC,
 	}))
 	require.NoError(t, err)
 
@@ -822,28 +928,37 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 	t.Cleanup(p.Close)
 
 	p.cache, err = New(ForAuth(Config{
-		Context:          ctx,
-		Backend:          p.cacheBackend,
-		Events:           p.eventsS,
-		ClusterConfig:    p.clusterConfigS,
-		Provisioner:      p.provisionerS,
-		Trust:            p.trustS,
-		Users:            p.usersS,
-		Access:           p.accessS,
-		DynamicAccess:    p.dynamicAccessS,
-		Presence:         p.presenceS,
-		AppSession:       p.appSessionS,
-		WebSession:       p.webSessionS,
-		WebToken:         p.webTokenS,
-		SnowflakeSession: p.snowflakeSessionS,
-		Restrictions:     p.restrictions,
-		Apps:             p.apps,
-		Kubernetes:       p.kubernetes,
-		Databases:        p.databases,
-		WindowsDesktops:  p.windowsDesktops,
-		MaxRetryPeriod:   200 * time.Millisecond,
-		EventsC:          p.eventsC,
-		neverOK:          true, // ensure reads are never healthy
+		Context:                 ctx,
+		Backend:                 p.cacheBackend,
+		Events:                  p.eventsS,
+		ClusterConfig:           p.clusterConfigS,
+		Provisioner:             p.provisionerS,
+		Trust:                   p.trustS,
+		Users:                   p.usersS,
+		Access:                  p.accessS,
+		DynamicAccess:           p.dynamicAccessS,
+		Presence:                p.presenceS,
+		AppSession:              p.appSessionS,
+		WebSession:              p.webSessionS,
+		WebToken:                p.webTokenS,
+		SnowflakeSession:        p.snowflakeSessionS,
+		SAMLIdPSession:          p.samlIdPSessionsS,
+		Restrictions:            p.restrictions,
+		Apps:                    p.apps,
+		Kubernetes:              p.kubernetes,
+		DatabaseServices:        p.databaseServices,
+		Databases:               p.databases,
+		WindowsDesktops:         p.windowsDesktops,
+		SAMLIdPServiceProviders: p.samlIDPServiceProviders,
+		UserGroups:              p.userGroups,
+		Okta:                    p.okta,
+		Integrations:            p.integrations,
+		DiscoveryConfigs:        p.discoveryConfigs,
+		UserLoginStates:         p.userLoginStates,
+		SecReports:              p.secReports,
+		MaxRetryPeriod:          200 * time.Millisecond,
+		EventsC:                 p.eventsC,
+		neverOK:                 true, // ensure reads are never healthy
 	}))
 	require.NoError(t, err)
 
@@ -865,7 +980,7 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 		Field:  types.ResourceMetadataName,
 		IsDesc: true,
 	}
-	require.Eventually(t, func() bool {
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		resp, err := p.cache.ListResources(ctx, proto.ListResourcesRequest{
 			Namespace:    apidefaults.Namespace,
 			ResourceType: types.KindNode,
@@ -873,10 +988,11 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 			Limit:        int32(pageSize),
 			SortBy:       sortBy,
 		})
-		require.NoError(t, err)
+		assert.NoError(t, err)
+
 		resources = append(resources, resp.Resources...)
 		listResourcesStartKey = resp.NextKey
-		return len(resources) == nodeCount
+		assert.Len(t, resources, nodeCount)
 	}, 5*time.Second, 100*time.Millisecond)
 
 	servers, err := types.ResourcesWithLabels(resources).AsServers()
@@ -894,27 +1010,36 @@ func initStrategy(t *testing.T) {
 	p.backend.SetReadError(trace.ConnectionProblem(nil, "backend is out"))
 	var err error
 	p.cache, err = New(ForAuth(Config{
-		Context:          ctx,
-		Backend:          p.cacheBackend,
-		Events:           p.eventsS,
-		ClusterConfig:    p.clusterConfigS,
-		Provisioner:      p.provisionerS,
-		Trust:            p.trustS,
-		Users:            p.usersS,
-		Access:           p.accessS,
-		DynamicAccess:    p.dynamicAccessS,
-		Presence:         p.presenceS,
-		AppSession:       p.appSessionS,
-		SnowflakeSession: p.snowflakeSessionS,
-		WebSession:       p.webSessionS,
-		WebToken:         p.webTokenS,
-		Restrictions:     p.restrictions,
-		Apps:             p.apps,
-		Kubernetes:       p.kubernetes,
-		Databases:        p.databases,
-		WindowsDesktops:  p.windowsDesktops,
-		MaxRetryPeriod:   200 * time.Millisecond,
-		EventsC:          p.eventsC,
+		Context:                 ctx,
+		Backend:                 p.cacheBackend,
+		Events:                  p.eventsS,
+		ClusterConfig:           p.clusterConfigS,
+		Provisioner:             p.provisionerS,
+		Trust:                   p.trustS,
+		Users:                   p.usersS,
+		Access:                  p.accessS,
+		DynamicAccess:           p.dynamicAccessS,
+		Presence:                p.presenceS,
+		AppSession:              p.appSessionS,
+		SnowflakeSession:        p.snowflakeSessionS,
+		SAMLIdPSession:          p.samlIdPSessionsS,
+		WebSession:              p.webSessionS,
+		WebToken:                p.webTokenS,
+		Restrictions:            p.restrictions,
+		Apps:                    p.apps,
+		Kubernetes:              p.kubernetes,
+		DatabaseServices:        p.databaseServices,
+		Databases:               p.databases,
+		WindowsDesktops:         p.windowsDesktops,
+		SAMLIdPServiceProviders: p.samlIDPServiceProviders,
+		UserGroups:              p.userGroups,
+		Okta:                    p.okta,
+		Integrations:            p.integrations,
+		DiscoveryConfigs:        p.discoveryConfigs,
+		UserLoginStates:         p.userLoginStates,
+		SecReports:              p.secReports,
+		MaxRetryPeriod:          200 * time.Millisecond,
+		EventsC:                 p.eventsC,
 	}))
 	require.NoError(t, err)
 
@@ -925,7 +1050,7 @@ func initStrategy(t *testing.T) {
 	// NOTE 1: this could produce event processed
 	// below, based on whether watcher restarts to get the event
 	// or not, which is normal, but has to be accounted below
-	require.NoError(t, p.trustS.UpsertCertAuthority(ca))
+	require.NoError(t, p.trustS.UpsertCertAuthority(ctx, ca))
 	p.backend.SetReadError(nil)
 
 	// wait for watcher to restart
@@ -933,7 +1058,6 @@ func initStrategy(t *testing.T) {
 
 	normalizeCA := func(ca types.CertAuthority) types.CertAuthority {
 		ca = ca.Clone()
-		ca.SetResourceID(0)
 		ca.SetExpiry(time.Time{})
 		types.RemoveCASecrets(ca)
 		return ca
@@ -942,7 +1066,7 @@ func initStrategy(t *testing.T) {
 
 	out, err := p.cache.GetCertAuthority(ctx, ca.GetID(), false)
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(normalizeCA(ca), normalizeCA(out)))
+	require.Empty(t, cmp.Diff(normalizeCA(ca), normalizeCA(out), cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
 	// fail again, make sure last recent data is still served
 	// on errors
@@ -957,11 +1081,11 @@ func initStrategy(t *testing.T) {
 	out2, err := p.cache.GetCertAuthority(ctx, ca.GetID(), false)
 	require.NoError(t, err)
 	require.Equal(t, out.GetResourceID(), out2.GetResourceID())
-	require.Empty(t, cmp.Diff(normalizeCA(ca), normalizeCA(out)))
+	require.Empty(t, cmp.Diff(normalizeCA(ca), normalizeCA(out), cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
 	// add modification and expect the resource to recover
 	ca.SetRoleMap(types.RoleMap{types.RoleMapping{Remote: "test", Local: []string{"local-test"}}})
-	require.NoError(t, p.trustS.UpsertCertAuthority(ca))
+	require.NoError(t, p.trustS.UpsertCertAuthority(ctx, ca))
 
 	// now, recover the backend and make sure the
 	// service is back and the new value has propagated
@@ -974,18 +1098,19 @@ func initStrategy(t *testing.T) {
 	// new value is available now
 	out, err = p.cache.GetCertAuthority(ctx, ca.GetID(), false)
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(normalizeCA(ca), normalizeCA(out)))
+	require.Empty(t, cmp.Diff(normalizeCA(ca), normalizeCA(out), cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 }
 
 // TestRecovery tests error recovery scenario
 func TestRecovery(t *testing.T) {
 	t.Parallel()
+	ctx := context.Background()
 
 	p := newPackForAuth(t)
 	t.Cleanup(p.Close)
 
 	ca := suite.NewTestCA(types.UserCA, "example.com")
-	require.NoError(t, p.trustS.UpsertCertAuthority(ca))
+	require.NoError(t, p.trustS.UpsertCertAuthority(ctx, ca))
 
 	select {
 	case event := <-p.eventsC:
@@ -1004,7 +1129,7 @@ func TestRecovery(t *testing.T) {
 
 	// add modification and expect the resource to recover
 	ca2 := suite.NewTestCA(types.UserCA, "example2.com")
-	require.NoError(t, p.trustS.UpsertCertAuthority(ca2))
+	require.NoError(t, p.trustS.UpsertCertAuthority(ctx, ca2))
 
 	// wait for watcher to receive an event
 	select {
@@ -1016,9 +1141,8 @@ func TestRecovery(t *testing.T) {
 
 	out, err := p.cache.GetCertAuthority(context.Background(), ca2.GetID(), false)
 	require.NoError(t, err)
-	ca2.SetResourceID(out.GetResourceID())
 	types.RemoveCASecrets(ca2)
-	require.Empty(t, cmp.Diff(ca2, out))
+	require.Empty(t, cmp.Diff(ca2, out, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 }
 
 // TestTokens tests static and dynamic tokens
@@ -1052,8 +1176,7 @@ func TestTokens(t *testing.T) {
 
 	out, err := p.cache.GetStaticTokens()
 	require.NoError(t, err)
-	staticTokens.SetResourceID(out.GetResourceID())
-	require.Empty(t, cmp.Diff(staticTokens, out))
+	require.Empty(t, cmp.Diff(staticTokens, out, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
 	expires := time.Now().Add(10 * time.Hour).Truncate(time.Second).UTC()
 	token, err := types.NewProvisionToken("token", types.SystemRoles{types.RoleAuth, types.RoleNode}, expires)
@@ -1071,8 +1194,7 @@ func TestTokens(t *testing.T) {
 
 	tout, err := p.cache.GetToken(ctx, token.GetName())
 	require.NoError(t, err)
-	token.SetResourceID(tout.GetResourceID())
-	require.Empty(t, cmp.Diff(token, tout))
+	require.Empty(t, cmp.Diff(token, tout, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
 	err = p.provisionerS.DeleteToken(ctx, token.GetName())
 	require.NoError(t, err)
@@ -1114,8 +1236,7 @@ func TestAuthPreference(t *testing.T) {
 	outAuthPref, err := p.cache.GetAuthPreference(ctx)
 	require.NoError(t, err)
 
-	authPref.SetResourceID(outAuthPref.GetResourceID())
-	require.Empty(t, cmp.Diff(outAuthPref, authPref))
+	require.Empty(t, cmp.Diff(outAuthPref, authPref, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 }
 
 func TestClusterNetworkingConfig(t *testing.T) {
@@ -1144,8 +1265,7 @@ func TestClusterNetworkingConfig(t *testing.T) {
 	outNetConfig, err := p.cache.GetClusterNetworkingConfig(ctx)
 	require.NoError(t, err)
 
-	netConfig.SetResourceID(outNetConfig.GetResourceID())
-	require.Empty(t, cmp.Diff(outNetConfig, netConfig))
+	require.Empty(t, cmp.Diff(outNetConfig, netConfig, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 }
 
 func TestSessionRecordingConfig(t *testing.T) {
@@ -1174,8 +1294,7 @@ func TestSessionRecordingConfig(t *testing.T) {
 	outRecConfig, err := p.cache.GetSessionRecordingConfig(ctx)
 	require.NoError(t, err)
 
-	recConfig.SetResourceID(outRecConfig.GetResourceID())
-	require.Empty(t, cmp.Diff(outRecConfig, recConfig))
+	require.Empty(t, cmp.Diff(outRecConfig, recConfig, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 }
 
 func TestClusterAuditConfig(t *testing.T) {
@@ -1203,8 +1322,7 @@ func TestClusterAuditConfig(t *testing.T) {
 	outAuditConfig, err := p.cache.GetClusterAuditConfig(ctx)
 	require.NoError(t, err)
 
-	auditConfig.SetResourceID(outAuditConfig.GetResourceID())
-	require.Empty(t, cmp.Diff(outAuditConfig, auditConfig))
+	require.Empty(t, cmp.Diff(outAuditConfig, auditConfig, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 }
 
 func TestClusterName(t *testing.T) {
@@ -1231,8 +1349,7 @@ func TestClusterName(t *testing.T) {
 	outName, err := p.cache.GetClusterName()
 	require.NoError(t, err)
 
-	clusterName.SetResourceID(outName.GetResourceID())
-	require.Empty(t, cmp.Diff(outName, clusterName))
+	require.Empty(t, cmp.Diff(outName, clusterName, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 }
 
 // TestNamespaces tests caching of namespaces
@@ -1260,8 +1377,7 @@ func TestNamespaces(t *testing.T) {
 
 	out, err := p.cache.GetNamespace(ns.GetName())
 	require.NoError(t, err)
-	ns.SetResourceID(out.GetResourceID())
-	require.Empty(t, cmp.Diff(ns, out))
+	require.Empty(t, cmp.Diff(ns, out, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
 	// update namespace metadata
 	ns.Metadata.Labels = map[string]string{"a": "b"}
@@ -1281,8 +1397,7 @@ func TestNamespaces(t *testing.T) {
 
 	out, err = p.cache.GetNamespace(ns.GetName())
 	require.NoError(t, err)
-	ns.SetResourceID(out.GetResourceID())
-	require.Empty(t, cmp.Diff(ns, out))
+	require.Empty(t, cmp.Diff(ns, out, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
 	err = p.presenceS.DeleteNamespace(ns.GetName())
 	require.NoError(t, err)
@@ -1301,664 +1416,253 @@ func TestNamespaces(t *testing.T) {
 func TestUsers(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
-	p := newPackForProxy(t)
+	p := newTestPack(t, ForProxy)
 	t.Cleanup(p.Close)
 
-	user, err := types.NewUser("bob")
-	require.NoError(t, err)
-	err = p.usersS.UpsertUser(user)
-	require.NoError(t, err)
-
-	user, err = p.usersS.GetUser(user.GetName(), false)
-	require.NoError(t, err)
-
-	select {
-	case event := <-p.eventsC:
-		require.Equal(t, EventProcessed, event.Type)
-	case <-time.After(time.Second):
-		t.Fatalf("timeout waiting for event")
-	}
-
-	out, err := p.cache.GetUser(user.GetName(), false)
-	require.NoError(t, err)
-	user.SetResourceID(out.GetResourceID())
-	require.Empty(t, cmp.Diff(user, out))
-
-	// update user's roles
-	user.SetRoles([]string{"access"})
-	require.NoError(t, err)
-	err = p.usersS.UpsertUser(user)
-	require.NoError(t, err)
-
-	user, err = p.usersS.GetUser(user.GetName(), false)
-	require.NoError(t, err)
-
-	select {
-	case event := <-p.eventsC:
-		require.Equal(t, EventProcessed, event.Type)
-	case <-time.After(time.Second):
-		t.Fatalf("timeout waiting for event")
-	}
-
-	out, err = p.cache.GetUser(user.GetName(), false)
-	require.NoError(t, err)
-	user.SetResourceID(out.GetResourceID())
-	require.Empty(t, cmp.Diff(user, out))
-
-	err = p.usersS.DeleteUser(ctx, user.GetName())
-	require.NoError(t, err)
-
-	select {
-	case <-p.eventsC:
-	case <-time.After(time.Second):
-		t.Fatalf("timeout waiting for event")
-	}
-
-	_, err = p.cache.GetUser(user.GetName(), false)
-	require.True(t, trace.IsNotFound(err))
+	testResources(t, p, testFuncs[types.User]{
+		newResource: func(name string) (types.User, error) {
+			return types.NewUser("bob")
+		},
+		create: func(ctx context.Context, user types.User) error {
+			_, err := p.usersS.UpsertUser(ctx, user)
+			return err
+		},
+		list: func(ctx context.Context) ([]types.User, error) {
+			return p.usersS.GetUsers(ctx, false)
+		},
+		cacheList: func(ctx context.Context) ([]types.User, error) {
+			return p.cache.GetUsers(ctx, false)
+		},
+		update: func(ctx context.Context, user types.User) error {
+			_, err := p.usersS.UpdateUser(ctx, user)
+			return err
+		},
+		deleteAll: func(ctx context.Context) error {
+			return p.usersS.DeleteAllUsers(ctx)
+		},
+	})
 }
 
 // TestRoles tests caching of roles
 func TestRoles(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
-	p := newPackForNode(t)
+	p := newTestPack(t, ForNode)
 	t.Cleanup(p.Close)
 
-	role, err := types.NewRoleV3("role1", types.RoleSpecV5{
-		Options: types.RoleOptions{
-			MaxSessionTTL: types.Duration(time.Hour),
+	testResources(t, p, testFuncs[types.Role]{
+		newResource: func(name string) (types.Role, error) {
+			return types.NewRole("role1", types.RoleSpecV6{
+				Options: types.RoleOptions{
+					MaxSessionTTL: types.Duration(time.Hour),
+				},
+				Allow: types.RoleConditions{
+					Logins:     []string{"root", "bob"},
+					NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+				},
+				Deny: types.RoleConditions{},
+			})
 		},
-		Allow: types.RoleConditions{
-			Logins:     []string{"root", "bob"},
-			NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+		create: func(ctx context.Context, role types.Role) error {
+			_, err := p.accessS.UpsertRole(ctx, role)
+			return err
 		},
-		Deny: types.RoleConditions{},
+		list:      p.accessS.GetRoles,
+		cacheGet:  p.cache.GetRole,
+		cacheList: p.cache.GetRoles,
+		update: func(ctx context.Context, role types.Role) error {
+			_, err := p.accessS.UpsertRole(ctx, role)
+			return err
+		},
+		deleteAll: func(ctx context.Context) error {
+			return p.accessS.DeleteAllRoles(ctx)
+		},
 	})
-	require.NoError(t, err)
-	err = p.accessS.UpsertRole(ctx, role)
-	require.NoError(t, err)
-
-	role, err = p.accessS.GetRole(ctx, role.GetName())
-	require.NoError(t, err)
-
-	select {
-	case event := <-p.eventsC:
-		require.Equal(t, EventProcessed, event.Type)
-	case <-time.After(time.Second):
-		t.Fatalf("timeout waiting for event")
-	}
-
-	out, err := p.cache.GetRole(ctx, role.GetName())
-	require.NoError(t, err)
-	role.SetResourceID(out.GetResourceID())
-	require.Empty(t, cmp.Diff(role, out))
-
-	// update role
-	role.SetLogins(types.Allow, []string{"admin"})
-	require.NoError(t, err)
-	err = p.accessS.UpsertRole(ctx, role)
-	require.NoError(t, err)
-
-	role, err = p.accessS.GetRole(ctx, role.GetName())
-	require.NoError(t, err)
-
-	select {
-	case event := <-p.eventsC:
-		require.Equal(t, EventProcessed, event.Type)
-	case <-time.After(time.Second):
-		t.Fatalf("timeout waiting for event")
-	}
-
-	out, err = p.cache.GetRole(ctx, role.GetName())
-	require.NoError(t, err)
-	role.SetResourceID(out.GetResourceID())
-	require.Empty(t, cmp.Diff(role, out))
-
-	err = p.accessS.DeleteRole(ctx, role.GetName())
-	require.NoError(t, err)
-
-	select {
-	case <-p.eventsC:
-	case <-time.After(time.Second):
-		t.Fatalf("timeout waiting for event")
-	}
-
-	_, err = p.cache.GetRole(ctx, role.GetName())
-	require.True(t, trace.IsNotFound(err))
 }
 
 // TestReverseTunnels tests reverse tunnels caching
 func TestReverseTunnels(t *testing.T) {
 	t.Parallel()
 
-	p := newPackForProxy(t)
+	p, err := newPack(t.TempDir(), ForProxy)
+	require.NoError(t, err)
 	t.Cleanup(p.Close)
 
-	tunnel, err := types.NewReverseTunnel("example.com", []string{"example.com:2023"})
-	require.NoError(t, err)
-	require.NoError(t, p.presenceS.UpsertReverseTunnel(tunnel))
-
-	tunnel, err = p.presenceS.GetReverseTunnel(tunnel.GetName())
-	require.NoError(t, err)
-
-	select {
-	case event := <-p.eventsC:
-		require.Equal(t, EventProcessed, event.Type)
-	case <-time.After(time.Second):
-		t.Fatalf("timeout waiting for event")
-	}
-
-	out, err := p.cache.GetReverseTunnels(context.Background())
-	require.NoError(t, err)
-	require.Len(t, out, 1)
-
-	tunnel.SetResourceID(out[0].GetResourceID())
-	require.Empty(t, cmp.Diff(tunnel, out[0]))
-
-	// update tunnel's parameters
-	tunnel.SetClusterName("new.example.com")
-	require.NoError(t, err)
-	err = p.presenceS.UpsertReverseTunnel(tunnel)
-	require.NoError(t, err)
-
-	out, err = p.presenceS.GetReverseTunnels(context.Background())
-	require.NoError(t, err)
-	require.Len(t, out, 1)
-	tunnel = out[0]
-
-	select {
-	case event := <-p.eventsC:
-		require.Equal(t, EventProcessed, event.Type)
-	case <-time.After(time.Second):
-		t.Fatalf("timeout waiting for event")
-	}
-
-	out, err = p.cache.GetReverseTunnels(context.Background())
-	require.NoError(t, err)
-	require.Len(t, out, 1)
-
-	tunnel.SetResourceID(out[0].GetResourceID())
-	require.Empty(t, cmp.Diff(tunnel, out[0]))
-
-	err = p.presenceS.DeleteAllReverseTunnels()
-	require.NoError(t, err)
-
-	select {
-	case <-p.eventsC:
-	case <-time.After(time.Second):
-		t.Fatalf("timeout waiting for event")
-	}
-
-	out, err = p.cache.GetReverseTunnels(context.Background())
-	require.NoError(t, err)
-	require.Empty(t, out)
+	testResources(t, p, testFuncs[types.ReverseTunnel]{
+		newResource: func(name string) (types.ReverseTunnel, error) {
+			return types.NewReverseTunnel(name, []string{"example.com:2023"})
+		},
+		create: modifyNoContext(p.presenceS.UpsertReverseTunnel),
+		list: func(ctx context.Context) ([]types.ReverseTunnel, error) {
+			return p.presenceS.GetReverseTunnels(ctx)
+		},
+		cacheList: func(ctx context.Context) ([]types.ReverseTunnel, error) {
+			return p.cache.GetReverseTunnels(ctx)
+		},
+		update: modifyNoContext(p.presenceS.UpsertReverseTunnel),
+		deleteAll: func(ctx context.Context) error {
+			return p.presenceS.DeleteAllReverseTunnels()
+		},
+	})
 }
 
 // TestTunnelConnections tests tunnel connections caching
 func TestTunnelConnections(t *testing.T) {
 	t.Parallel()
 
-	p := newPackForProxy(t)
+	p := newTestPack(t, ForProxy)
 	t.Cleanup(p.Close)
 
 	clusterName := "example.com"
-	hb := time.Now().UTC()
-	conn, err := types.NewTunnelConnection("conn1", types.TunnelConnectionSpecV2{
-		ClusterName:   clusterName,
-		ProxyName:     "p1",
-		LastHeartbeat: hb,
+	testResources(t, p, testFuncs[types.TunnelConnection]{
+		newResource: func(name string) (types.TunnelConnection, error) {
+			return types.NewTunnelConnection(name, types.TunnelConnectionSpecV2{
+				ClusterName:   clusterName,
+				ProxyName:     "p1",
+				LastHeartbeat: time.Now().UTC(),
+			})
+		},
+		create: modifyNoContext(p.presenceS.UpsertTunnelConnection),
+		list: func(ctx context.Context) ([]types.TunnelConnection, error) {
+			return p.presenceS.GetTunnelConnections(clusterName)
+		},
+		cacheList: func(ctx context.Context) ([]types.TunnelConnection, error) {
+			return p.cache.GetTunnelConnections(clusterName)
+		},
+		update: modifyNoContext(p.presenceS.UpsertTunnelConnection),
+		deleteAll: func(ctx context.Context) error {
+			return p.presenceS.DeleteAllTunnelConnections()
+		},
 	})
-	require.NoError(t, err)
-	require.NoError(t, p.presenceS.UpsertTunnelConnection(conn))
-
-	out, err := p.presenceS.GetTunnelConnections(clusterName)
-	require.NoError(t, err)
-	require.Len(t, out, 1)
-	conn = out[0]
-
-	select {
-	case event := <-p.eventsC:
-		require.Equal(t, EventProcessed, event.Type)
-	case <-time.After(time.Second):
-		t.Fatalf("timeout waiting for event")
-	}
-
-	out, err = p.cache.GetTunnelConnections(clusterName)
-	require.NoError(t, err)
-	require.Len(t, out, 1)
-
-	conn.SetResourceID(out[0].GetResourceID())
-	require.Empty(t, cmp.Diff(conn, out[0]))
-
-	// update conn's parameters
-	hb = hb.Add(time.Second)
-	conn.SetLastHeartbeat(hb)
-
-	err = p.presenceS.UpsertTunnelConnection(conn)
-	require.NoError(t, err)
-
-	out, err = p.presenceS.GetTunnelConnections(clusterName)
-	require.NoError(t, err)
-	require.Len(t, out, 1)
-	conn = out[0]
-
-	select {
-	case event := <-p.eventsC:
-		require.Equal(t, EventProcessed, event.Type)
-	case <-time.After(time.Second):
-		t.Fatalf("timeout waiting for event")
-	}
-
-	out, err = p.cache.GetTunnelConnections(clusterName)
-	require.NoError(t, err)
-	require.Len(t, out, 1)
-
-	conn.SetResourceID(out[0].GetResourceID())
-	require.Empty(t, cmp.Diff(conn, out[0]))
-
-	err = p.presenceS.DeleteTunnelConnections(clusterName)
-	require.NoError(t, err)
-
-	select {
-	case <-p.eventsC:
-	case <-time.After(time.Second):
-		t.Fatalf("timeout waiting for event")
-	}
-
-	out, err = p.cache.GetTunnelConnections(clusterName)
-	require.NoError(t, err)
-	require.Empty(t, out)
 }
 
 // TestNodes tests nodes cache
 func TestNodes(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
-
-	p := newPackForProxy(t)
+	p := newTestPack(t, ForProxy)
 	t.Cleanup(p.Close)
 
-	server := suite.NewServer(types.KindNode, "srv1", "127.0.0.1:2022", apidefaults.Namespace)
-	_, err := p.presenceS.UpsertNode(ctx, server)
-	require.NoError(t, err)
-
-	out, err := p.presenceS.GetNodes(ctx, apidefaults.Namespace)
-	require.NoError(t, err)
-	require.Len(t, out, 1)
-	srv := out[0]
-
-	select {
-	case event := <-p.eventsC:
-		require.Equal(t, EventProcessed, event.Type)
-	case <-time.After(time.Second):
-		t.Fatalf("timeout waiting for event")
-	}
-
-	out, err = p.cache.GetNodes(ctx, apidefaults.Namespace)
-	require.NoError(t, err)
-	require.Len(t, out, 1)
-
-	srv.SetResourceID(out[0].GetResourceID())
-	require.Empty(t, cmp.Diff(srv, out[0]))
-
-	// update srv parameters
-	srv.SetExpiry(time.Now().Add(30 * time.Minute).UTC())
-	srv.SetAddr("127.0.0.2:2033")
-
-	lease, err := p.presenceS.UpsertNode(ctx, srv)
-	require.NoError(t, err)
-
-	out, err = p.presenceS.GetNodes(ctx, apidefaults.Namespace)
-	require.NoError(t, err)
-	require.Len(t, out, 1)
-	srv = out[0]
-
-	select {
-	case event := <-p.eventsC:
-		require.Equal(t, EventProcessed, event.Type)
-	case <-time.After(time.Second):
-		t.Fatalf("timeout waiting for event")
-	}
-
-	out, err = p.cache.GetNodes(ctx, apidefaults.Namespace)
-	require.NoError(t, err)
-	require.Len(t, out, 1)
-
-	srv.SetResourceID(out[0].GetResourceID())
-	require.Empty(t, cmp.Diff(srv, out[0]))
-
-	// update keep alive on the node and make sure
-	// it propagates
-	lease.Expires = time.Now().UTC().Add(time.Hour)
-	err = p.presenceS.KeepAliveNode(ctx, *lease)
-	require.NoError(t, err)
-
-	select {
-	case event := <-p.eventsC:
-		require.Equal(t, EventProcessed, event.Type)
-	case <-time.After(time.Second):
-		t.Fatalf("timeout waiting for event")
-	}
-
-	out, err = p.cache.GetNodes(ctx, apidefaults.Namespace)
-	require.NoError(t, err)
-	require.Len(t, out, 1)
-
-	srv.SetResourceID(out[0].GetResourceID())
-	srv.SetExpiry(lease.Expires)
-	require.Empty(t, cmp.Diff(srv, out[0]))
-
-	err = p.presenceS.DeleteAllNodes(ctx, apidefaults.Namespace)
-	require.NoError(t, err)
-
-	select {
-	case <-p.eventsC:
-	case <-time.After(time.Second):
-		t.Fatalf("timeout waiting for event")
-	}
-
-	out, err = p.cache.GetNodes(ctx, apidefaults.Namespace)
-	require.NoError(t, err)
-	require.Empty(t, out)
+	testResources(t, p, testFuncs[types.Server]{
+		newResource: func(name string) (types.Server, error) {
+			return suite.NewServer(types.KindNode, name, "127.0.0.1:2022", apidefaults.Namespace), nil
+		},
+		create: withKeepalive(p.presenceS.UpsertNode),
+		list: func(ctx context.Context) ([]types.Server, error) {
+			return p.presenceS.GetNodes(ctx, apidefaults.Namespace)
+		},
+		cacheGet: func(ctx context.Context, name string) (types.Server, error) {
+			return p.cache.GetNode(ctx, apidefaults.Namespace, name)
+		},
+		cacheList: func(ctx context.Context) ([]types.Server, error) {
+			return p.cache.GetNodes(ctx, apidefaults.Namespace)
+		},
+		update: withKeepalive(p.presenceS.UpsertNode),
+		deleteAll: func(ctx context.Context) error {
+			return p.presenceS.DeleteAllNodes(ctx, apidefaults.Namespace)
+		},
+	})
 }
 
 // TestProxies tests proxies cache
 func TestProxies(t *testing.T) {
 	t.Parallel()
 
-	p := newPackForProxy(t)
+	p := newTestPack(t, ForProxy)
 	t.Cleanup(p.Close)
 
-	server := suite.NewServer(types.KindProxy, "srv1", "127.0.0.1:2022", apidefaults.Namespace)
-	err := p.presenceS.UpsertProxy(server)
-	require.NoError(t, err)
-
-	out, err := p.presenceS.GetProxies()
-	require.NoError(t, err)
-	require.Len(t, out, 1)
-	srv := out[0]
-
-	select {
-	case event := <-p.eventsC:
-		require.Equal(t, EventProcessed, event.Type)
-	case <-time.After(time.Second):
-		t.Fatalf("timeout waiting for event")
-	}
-
-	out, err = p.cache.GetProxies()
-	require.NoError(t, err)
-	require.Len(t, out, 1)
-
-	srv.SetResourceID(out[0].GetResourceID())
-	require.Empty(t, cmp.Diff(srv, out[0]))
-
-	// update srv parameters
-	srv.SetAddr("127.0.0.2:2033")
-
-	err = p.presenceS.UpsertProxy(srv)
-	require.NoError(t, err)
-
-	out, err = p.presenceS.GetProxies()
-	require.NoError(t, err)
-	require.Len(t, out, 1)
-	srv = out[0]
-
-	select {
-	case event := <-p.eventsC:
-		require.Equal(t, EventProcessed, event.Type)
-	case <-time.After(time.Second):
-		t.Fatalf("timeout waiting for event")
-	}
-
-	out, err = p.cache.GetProxies()
-	require.NoError(t, err)
-	require.Len(t, out, 1)
-
-	srv.SetResourceID(out[0].GetResourceID())
-	require.Empty(t, cmp.Diff(srv, out[0]))
-
-	err = p.presenceS.DeleteAllProxies()
-	require.NoError(t, err)
-
-	select {
-	case <-p.eventsC:
-	case <-time.After(time.Second):
-		t.Fatalf("timeout waiting for event")
-	}
-
-	out, err = p.cache.GetProxies()
-	require.NoError(t, err)
-	require.Empty(t, out)
+	testResources(t, p, testFuncs[types.Server]{
+		newResource: func(name string) (types.Server, error) {
+			return suite.NewServer(types.KindProxy, name, "127.0.0.1:2022", apidefaults.Namespace), nil
+		},
+		create: p.presenceS.UpsertProxy,
+		list: func(_ context.Context) ([]types.Server, error) {
+			return p.presenceS.GetProxies()
+		},
+		cacheList: func(_ context.Context) ([]types.Server, error) {
+			return p.cache.GetProxies()
+		},
+		update: p.presenceS.UpsertProxy,
+		deleteAll: func(_ context.Context) error {
+			return p.presenceS.DeleteAllProxies()
+		},
+	})
 }
 
 // TestAuthServers tests auth servers cache
 func TestAuthServers(t *testing.T) {
 	t.Parallel()
 
-	p := newPackForProxy(t)
+	p := newTestPack(t, ForProxy)
 	t.Cleanup(p.Close)
 
-	server := suite.NewServer(types.KindAuthServer, "srv1", "127.0.0.1:2022", apidefaults.Namespace)
-	err := p.presenceS.UpsertAuthServer(server)
-	require.NoError(t, err)
-
-	out, err := p.presenceS.GetAuthServers()
-	require.NoError(t, err)
-	require.Len(t, out, 1)
-	srv := out[0]
-
-	select {
-	case event := <-p.eventsC:
-		require.Equal(t, EventProcessed, event.Type)
-	case <-time.After(time.Second):
-		t.Fatalf("timeout waiting for event")
-	}
-
-	out, err = p.cache.GetAuthServers()
-	require.NoError(t, err)
-	require.Len(t, out, 1)
-
-	srv.SetResourceID(out[0].GetResourceID())
-	require.Empty(t, cmp.Diff(srv, out[0]))
-
-	// update srv parameters
-	srv.SetAddr("127.0.0.2:2033")
-
-	err = p.presenceS.UpsertAuthServer(srv)
-	require.NoError(t, err)
-
-	out, err = p.presenceS.GetAuthServers()
-	require.NoError(t, err)
-	require.Len(t, out, 1)
-	srv = out[0]
-
-	select {
-	case event := <-p.eventsC:
-		require.Equal(t, EventProcessed, event.Type)
-	case <-time.After(time.Second):
-		t.Fatalf("timeout waiting for event")
-	}
-
-	out, err = p.cache.GetAuthServers()
-	require.NoError(t, err)
-	require.Len(t, out, 1)
-
-	srv.SetResourceID(out[0].GetResourceID())
-	require.Empty(t, cmp.Diff(srv, out[0]))
-
-	err = p.presenceS.DeleteAllAuthServers()
-	require.NoError(t, err)
-
-	select {
-	case <-p.eventsC:
-	case <-time.After(time.Second):
-		t.Fatalf("timeout waiting for event")
-	}
-
-	out, err = p.cache.GetAuthServers()
-	require.NoError(t, err)
-	require.Empty(t, out)
+	testResources(t, p, testFuncs[types.Server]{
+		newResource: func(name string) (types.Server, error) {
+			return suite.NewServer(types.KindAuthServer, name, "127.0.0.1:2022", apidefaults.Namespace), nil
+		},
+		create: p.presenceS.UpsertAuthServer,
+		list: func(_ context.Context) ([]types.Server, error) {
+			return p.presenceS.GetAuthServers()
+		},
+		cacheList: func(_ context.Context) ([]types.Server, error) {
+			return p.cache.GetAuthServers()
+		},
+		update: p.presenceS.UpsertAuthServer,
+		deleteAll: func(_ context.Context) error {
+			return p.presenceS.DeleteAllAuthServers()
+		},
+	})
 }
 
 // TestRemoteClusters tests remote clusters caching
 func TestRemoteClusters(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
-	p := newPackForProxy(t)
+	p := newTestPack(t, ForProxy)
 	t.Cleanup(p.Close)
 
-	clusterName := "example.com"
-	rc, err := types.NewRemoteCluster(clusterName)
-	require.NoError(t, err)
-	require.NoError(t, p.presenceS.CreateRemoteCluster(rc))
-
-	out, err := p.presenceS.GetRemoteClusters()
-	require.NoError(t, err)
-	require.Len(t, out, 1)
-	rc = out[0]
-
-	select {
-	case event := <-p.eventsC:
-		require.Equal(t, EventProcessed, event.Type)
-	case <-time.After(time.Second):
-		t.Fatalf("timeout waiting for event")
-	}
-
-	out, err = p.cache.GetRemoteClusters()
-	require.NoError(t, err)
-	require.Len(t, out, 1)
-
-	rc.SetResourceID(out[0].GetResourceID())
-	require.Empty(t, cmp.Diff(rc, out[0]))
-
-	// update conn's parameters
-	meta := rc.GetMetadata()
-	meta.Labels = map[string]string{"env": "prod"}
-	rc.SetMetadata(meta)
-
-	err = p.presenceS.UpdateRemoteCluster(ctx, rc)
-	require.NoError(t, err)
-
-	out, err = p.presenceS.GetRemoteClusters()
-	require.NoError(t, err)
-	require.Len(t, out, 1)
-	require.Empty(t, cmp.Diff(meta.Labels, out[0].GetMetadata().Labels))
-	rc = out[0]
-
-	select {
-	case event := <-p.eventsC:
-		require.Equal(t, EventProcessed, event.Type)
-	case <-time.After(time.Second):
-		t.Fatalf("timeout waiting for event")
-	}
-
-	out, err = p.cache.GetRemoteClusters()
-	require.NoError(t, err)
-	require.Len(t, out, 1)
-
-	rc.SetResourceID(out[0].GetResourceID())
-	require.Empty(t, cmp.Diff(rc, out[0]))
-
-	err = p.presenceS.DeleteAllRemoteClusters()
-	require.NoError(t, err)
-
-	select {
-	case <-p.eventsC:
-	case <-time.After(time.Second):
-		t.Fatalf("timeout waiting for event")
-	}
-
-	out, err = p.cache.GetRemoteClusters()
-	require.NoError(t, err)
-	require.Empty(t, out)
+	testResources(t, p, testFuncs[types.RemoteCluster]{
+		newResource: func(name string) (types.RemoteCluster, error) {
+			return types.NewRemoteCluster(name)
+		},
+		create: modifyNoContext(p.presenceS.CreateRemoteCluster),
+		list: func(ctx context.Context) ([]types.RemoteCluster, error) {
+			return p.presenceS.GetRemoteClusters()
+		},
+		cacheGet: func(ctx context.Context, name string) (types.RemoteCluster, error) {
+			return p.cache.GetRemoteCluster(name)
+		},
+		cacheList: func(_ context.Context) ([]types.RemoteCluster, error) {
+			return p.cache.GetRemoteClusters()
+		},
+		update: p.presenceS.UpdateRemoteCluster,
+		deleteAll: func(_ context.Context) error {
+			return p.presenceS.DeleteAllRemoteClusters()
+		},
+	})
 }
 
 // TestKubernetes tests that CRUD operations on kubernetes clusters resources are
 // replicated from the backend to the cache.
 func TestKubernetes(t *testing.T) {
 	t.Parallel()
-	p, err := newPack(t.TempDir(), ForProxy)
-	require.NoError(t, err)
+
+	p := newTestPack(t, ForProxy)
 	t.Cleanup(p.Close)
 
-	ctx := context.Background()
-
-	// Create an cluster.
-	cluster, err := types.NewKubernetesClusterV3(types.Metadata{
-		Name: "foo",
-	}, types.KubernetesClusterSpecV3{})
-	require.NoError(t, err)
-
-	err = p.kubernetes.CreateKubernetesCluster(ctx, cluster)
-	require.NoError(t, err)
-
-	// Check that the cluster is now in the backend.
-	out, err := p.kubernetes.GetKubernetesClusters(ctx)
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff([]types.KubeCluster{cluster}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
-
-	// Wait until the information has been replicated to the cache.
-	select {
-	case event := <-p.eventsC:
-		require.Equal(t, EventProcessed, event.Type)
-	case <-time.After(time.Second):
-		t.Fatal("timeout waiting for event")
-	}
-
-	// Make sure the cache has a single cluster in it.
-	out, err = p.kubernetes.GetKubernetesClusters(ctx)
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff([]types.KubeCluster{cluster}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
-
-	// Update the cluster and upsert it into the backend again.
-	cluster.SetExpiry(time.Now().Add(30 * time.Minute).UTC())
-	err = p.kubernetes.UpdateKubernetesCluster(ctx, cluster)
-	require.NoError(t, err)
-
-	// Check that the cluster is in the backend and only one exists (so an
-	// update occurred).
-	out, err = p.kubernetes.GetKubernetesClusters(ctx)
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff([]types.KubeCluster{cluster}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
-
-	// Check that information has been replicated to the cache.
-	select {
-	case event := <-p.eventsC:
-		require.Equal(t, EventProcessed, event.Type)
-	case <-time.After(time.Second):
-		t.Fatal("timeout waiting for event")
-	}
-
-	// Make sure the cache has a single cluster in it.
-	out, err = p.cache.GetKubernetesClusters(ctx)
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff([]types.KubeCluster{cluster}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
-
-	// Remove all clusters from the backend.
-	err = p.kubernetes.DeleteAllKubernetesClusters(ctx)
-	require.NoError(t, err)
-
-	// Check that information has been replicated to the cache.
-	select {
-	case event := <-p.eventsC:
-		require.Equal(t, EventProcessed, event.Type)
-	case <-time.After(time.Second):
-		t.Fatal("timeout waiting for event")
-	}
-
-	// Check that the cache is now empty.
-	out, err = p.kubernetes.GetKubernetesClusters(ctx)
-	require.NoError(t, err)
-	require.Equal(t, 0, len(out))
+	testResources(t, p, testFuncs[types.KubeCluster]{
+		newResource: func(name string) (types.KubeCluster, error) {
+			return types.NewKubernetesClusterV3(types.Metadata{
+				Name: name,
+			}, types.KubernetesClusterSpecV3{})
+		},
+		create:    p.kubernetes.CreateKubernetesCluster,
+		list:      p.kubernetes.GetKubernetesClusters,
+		cacheGet:  p.cache.GetKubernetesCluster,
+		cacheList: p.cache.GetKubernetesClusters,
+		update:    p.kubernetes.UpdateKubernetesCluster,
+		deleteAll: p.kubernetes.DeleteAllKubernetesClusters,
+	})
 }
 
 // TestApplicationServers tests that CRUD operations on app servers are
@@ -1966,83 +1670,55 @@ func TestKubernetes(t *testing.T) {
 func TestApplicationServers(t *testing.T) {
 	t.Parallel()
 
-	p, err := newPack(t.TempDir(), ForProxy)
-	require.NoError(t, err)
+	p := newTestPack(t, ForProxy)
 	t.Cleanup(p.Close)
 
-	ctx := context.Background()
+	testResources(t, p, testFuncs[types.AppServer]{
+		newResource: func(name string) (types.AppServer, error) {
+			app, err := types.NewAppV3(types.Metadata{Name: name}, types.AppSpecV3{URI: "localhost"})
+			require.NoError(t, err)
+			return types.NewAppServerV3FromApp(app, "host", uuid.New().String())
+		},
+		create: withKeepalive(p.presenceS.UpsertApplicationServer),
+		list: func(ctx context.Context) ([]types.AppServer, error) {
+			return p.presenceS.GetApplicationServers(ctx, apidefaults.Namespace)
+		},
+		cacheList: func(ctx context.Context) ([]types.AppServer, error) {
+			return p.cache.GetApplicationServers(ctx, apidefaults.Namespace)
+		},
+		update: withKeepalive(p.presenceS.UpsertApplicationServer),
+		deleteAll: func(ctx context.Context) error {
+			return p.presenceS.DeleteAllApplicationServers(ctx, apidefaults.Namespace)
+		},
+	})
+}
 
-	// Upsert app server into backend.
-	app, err := types.NewAppV3(types.Metadata{Name: "app"}, types.AppSpecV3{URI: "localhost"})
-	require.NoError(t, err)
-	server, err := types.NewAppServerV3FromApp(app, "host", uuid.New().String())
-	require.NoError(t, err)
+// TestKubernetesServers tests that CRUD operations on kube servers are
+// replicated from the backend to the cache.
+func TestKubernetesServers(t *testing.T) {
+	t.Parallel()
 
-	_, err = p.presenceS.UpsertApplicationServer(ctx, server)
-	require.NoError(t, err)
+	p := newTestPack(t, ForProxy)
+	t.Cleanup(p.Close)
 
-	// Check that the app server is now in the backend.
-	out, err := p.presenceS.GetApplicationServers(context.Background(), apidefaults.Namespace)
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff([]types.AppServer{server}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
-
-	// Wait until the information has been replicated to the cache.
-	select {
-	case event := <-p.eventsC:
-		require.Equal(t, EventProcessed, event.Type)
-	case <-time.After(time.Second):
-		t.Fatal("timeout waiting for event")
-	}
-
-	// Make sure the cache has a single app server in it.
-	out, err = p.cache.GetApplicationServers(context.Background(), apidefaults.Namespace)
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff([]types.AppServer{server}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
-
-	// Update the server and upsert it into the backend again.
-	server.SetExpiry(time.Now().Add(30 * time.Minute).UTC())
-	_, err = p.presenceS.UpsertApplicationServer(context.Background(), server)
-	require.NoError(t, err)
-
-	// Check that the server is in the backend and only one exists (so an
-	// update occurred).
-	out, err = p.presenceS.GetApplicationServers(context.Background(), apidefaults.Namespace)
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff([]types.AppServer{server}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
-
-	// Check that information has been replicated to the cache.
-	select {
-	case event := <-p.eventsC:
-		require.Equal(t, EventProcessed, event.Type)
-	case <-time.After(time.Second):
-		t.Fatal("timeout waiting for event")
-	}
-
-	// Make sure the cache has a single server in it.
-	out, err = p.cache.GetApplicationServers(context.Background(), apidefaults.Namespace)
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff([]types.AppServer{server}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
-
-	// Remove all servers from the backend.
-	err = p.presenceS.DeleteAllApplicationServers(context.Background(), apidefaults.Namespace)
-	require.NoError(t, err)
-
-	// Check that information has been replicated to the cache.
-	select {
-	case event := <-p.eventsC:
-		require.Equal(t, EventProcessed, event.Type)
-	case <-time.After(time.Second):
-		t.Fatal("timeout waiting for event")
-	}
-
-	// Check that the cache is now empty.
-	out, err = p.cache.GetApplicationServers(context.Background(), apidefaults.Namespace)
-	require.NoError(t, err)
-	require.Equal(t, 0, len(out))
+	testResources(t, p, testFuncs[types.KubeServer]{
+		newResource: func(name string) (types.KubeServer, error) {
+			app, err := types.NewKubernetesClusterV3(types.Metadata{Name: name}, types.KubernetesClusterSpecV3{})
+			require.NoError(t, err)
+			return types.NewKubernetesServerV3FromCluster(app, "host", uuid.New().String())
+		},
+		create: withKeepalive(p.presenceS.UpsertKubernetesServer),
+		list: func(ctx context.Context) ([]types.KubeServer, error) {
+			return p.presenceS.GetKubernetesServers(ctx)
+		},
+		cacheList: func(ctx context.Context) ([]types.KubeServer, error) {
+			return p.cache.GetKubernetesServers(ctx)
+		},
+		update: withKeepalive(p.presenceS.UpsertKubernetesServer),
+		deleteAll: func(ctx context.Context) error {
+			return p.presenceS.DeleteAllKubernetesServers(ctx)
+		},
+	})
 }
 
 // TestApps tests that CRUD operations on application resources are
@@ -2054,81 +1730,35 @@ func TestApps(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(p.Close)
 
-	ctx := context.Background()
-
-	// Create an app.
-	app, err := types.NewAppV3(types.Metadata{
-		Name: "foo",
-	}, types.AppSpecV3{
-		URI: "localhost",
+	testResources(t, p, testFuncs[types.Application]{
+		newResource: func(name string) (types.Application, error) {
+			return types.NewAppV3(types.Metadata{
+				Name: "foo",
+			}, types.AppSpecV3{
+				URI: "localhost",
+			})
+		},
+		create:    p.apps.CreateApp,
+		list:      p.apps.GetApps,
+		cacheGet:  p.cache.GetApp,
+		cacheList: p.cache.GetApps,
+		update:    p.apps.UpdateApp,
+		deleteAll: p.apps.DeleteAllApps,
 	})
+}
+
+func mustCreateDatabase(t *testing.T, name, protocol, uri string) *types.DatabaseV3 {
+	database, err := types.NewDatabaseV3(
+		types.Metadata{
+			Name: name,
+		},
+		types.DatabaseSpecV3{
+			Protocol: protocol,
+			URI:      uri,
+		},
+	)
 	require.NoError(t, err)
-
-	err = p.apps.CreateApp(ctx, app)
-	require.NoError(t, err)
-
-	// Check that the app is now in the backend.
-	out, err := p.apps.GetApps(ctx)
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff([]types.Application{app}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
-
-	// Wait until the information has been replicated to the cache.
-	select {
-	case event := <-p.eventsC:
-		require.Equal(t, EventProcessed, event.Type)
-	case <-time.After(time.Second):
-		t.Fatal("timeout waiting for event")
-	}
-
-	// Make sure the cache has a single app in it.
-	out, err = p.apps.GetApps(ctx)
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff([]types.Application{app}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
-
-	// Update the app and upsert it into the backend again.
-	app.SetExpiry(time.Now().Add(30 * time.Minute).UTC())
-	err = p.apps.UpdateApp(ctx, app)
-	require.NoError(t, err)
-
-	// Check that the app is in the backend and only one exists (so an
-	// update occurred).
-	out, err = p.apps.GetApps(ctx)
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff([]types.Application{app}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
-
-	// Check that information has been replicated to the cache.
-	select {
-	case event := <-p.eventsC:
-		require.Equal(t, EventProcessed, event.Type)
-	case <-time.After(time.Second):
-		t.Fatal("timeout waiting for event")
-	}
-
-	// Make sure the cache has a single app in it.
-	out, err = p.cache.GetApps(ctx)
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff([]types.Application{app}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
-
-	// Remove all apps from the backend.
-	err = p.apps.DeleteAllApps(ctx)
-	require.NoError(t, err)
-
-	// Check that information has been replicated to the cache.
-	select {
-	case event := <-p.eventsC:
-		require.Equal(t, EventProcessed, event.Type)
-	case <-time.After(time.Second):
-		t.Fatal("timeout waiting for event")
-	}
-
-	// Check that the cache is now empty.
-	out, err = p.apps.GetApps(ctx)
-	require.NoError(t, err)
-	require.Equal(t, 0, len(out))
+	return database
 }
 
 // TestDatabaseServers tests that CRUD operations on database servers are
@@ -2136,88 +1766,71 @@ func TestApps(t *testing.T) {
 func TestDatabaseServers(t *testing.T) {
 	t.Parallel()
 
-	p, err := newPack(t.TempDir(), ForProxy)
-	require.NoError(t, err)
+	p := newTestPack(t, ForProxy)
 	t.Cleanup(p.Close)
 
-	ctx := context.Background()
-
-	// Upsert database server into backend.
-	server, err := types.NewDatabaseServerV3(types.Metadata{
-		Name: "foo",
-	}, types.DatabaseServerSpecV3{
-		Protocol: defaults.ProtocolPostgres,
-		URI:      "localhost:5432",
-		Hostname: "localhost",
-		HostID:   uuid.New().String(),
+	testResources(t, p, testFuncs[types.DatabaseServer]{
+		newResource: func(name string) (types.DatabaseServer, error) {
+			return types.NewDatabaseServerV3(types.Metadata{
+				Name: name,
+			}, types.DatabaseServerSpecV3{
+				Database: mustCreateDatabase(t, name, defaults.ProtocolPostgres, "localhost:5432"),
+				Hostname: "localhost",
+				HostID:   uuid.New().String(),
+			})
+		},
+		create: withKeepalive(p.presenceS.UpsertDatabaseServer),
+		list: func(ctx context.Context) ([]types.DatabaseServer, error) {
+			return p.presenceS.GetDatabaseServers(ctx, apidefaults.Namespace)
+		},
+		cacheList: func(ctx context.Context) ([]types.DatabaseServer, error) {
+			return p.cache.GetDatabaseServers(ctx, apidefaults.Namespace)
+		},
+		update: withKeepalive(p.presenceS.UpsertDatabaseServer),
+		deleteAll: func(ctx context.Context) error {
+			return p.presenceS.DeleteAllDatabaseServers(ctx, apidefaults.Namespace)
+		},
 	})
-	require.NoError(t, err)
+}
 
-	_, err = p.presenceS.UpsertDatabaseServer(ctx, server)
-	require.NoError(t, err)
+// TestDatabaseServices tests that CRUD operations on DatabaseServices are
+// replicated from the backend to the cache.
+func TestDatabaseServices(t *testing.T) {
+	t.Parallel()
 
-	// Check that the database server is now in the backend.
-	out, err := p.presenceS.GetDatabaseServers(context.Background(), apidefaults.Namespace)
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff([]types.DatabaseServer{server}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
+	p := newTestPack(t, ForProxy)
+	t.Cleanup(p.Close)
 
-	// Wait until the information has been replicated to the cache.
-	select {
-	case event := <-p.eventsC:
-		require.Equal(t, EventProcessed, event.Type)
-	case <-time.After(time.Second):
-		t.Fatal("timeout waiting for event")
-	}
-
-	// Make sure the cache has a single database server in it.
-	out, err = p.cache.GetDatabaseServers(context.Background(), apidefaults.Namespace)
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff([]types.DatabaseServer{server}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
-
-	// Update the server and upsert it into the backend again.
-	server.SetExpiry(time.Now().Add(30 * time.Minute).UTC())
-	_, err = p.presenceS.UpsertDatabaseServer(context.Background(), server)
-	require.NoError(t, err)
-
-	// Check that the server is in the backend and only one exists (so an
-	// update occurred).
-	out, err = p.presenceS.GetDatabaseServers(context.Background(), apidefaults.Namespace)
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff([]types.DatabaseServer{server}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
-
-	// Check that information has been replicated to the cache.
-	select {
-	case event := <-p.eventsC:
-		require.Equal(t, EventProcessed, event.Type)
-	case <-time.After(time.Second):
-		t.Fatal("timeout waiting for event")
-	}
-
-	// Make sure the cache has a single database server in it.
-	out, err = p.cache.GetDatabaseServers(context.Background(), apidefaults.Namespace)
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff([]types.DatabaseServer{server}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
-
-	// Remove all database servers from the backend.
-	err = p.presenceS.DeleteAllDatabaseServers(context.Background(), apidefaults.Namespace)
-	require.NoError(t, err)
-
-	// Check that information has been replicated to the cache.
-	select {
-	case event := <-p.eventsC:
-		require.Equal(t, EventProcessed, event.Type)
-	case <-time.After(time.Second):
-		t.Fatal("timeout waiting for event")
-	}
-
-	// Check that the cache is now empty.
-	out, err = p.cache.GetDatabaseServers(context.Background(), apidefaults.Namespace)
-	require.NoError(t, err)
-	require.Equal(t, 0, len(out))
+	testResources(t, p, testFuncs[types.DatabaseService]{
+		newResource: func(name string) (types.DatabaseService, error) {
+			return types.NewDatabaseServiceV1(types.Metadata{
+				Name: uuid.NewString(),
+			}, types.DatabaseServiceSpecV1{
+				ResourceMatchers: []*types.DatabaseResourceMatcher{
+					{Labels: &types.Labels{"env": []string{"prod"}}},
+				},
+			})
+		},
+		create: withKeepalive(p.databaseServices.UpsertDatabaseService),
+		list: func(ctx context.Context) ([]types.DatabaseService, error) {
+			listServicesResp, err := p.presenceS.ListResources(ctx, proto.ListResourcesRequest{
+				ResourceType: types.KindDatabaseService,
+				Limit:        apidefaults.DefaultChunkSize,
+			})
+			require.NoError(t, err)
+			return types.ResourcesWithLabels(listServicesResp.Resources).AsDatabaseServices()
+		},
+		cacheList: func(ctx context.Context) ([]types.DatabaseService, error) {
+			listServicesResp, err := p.cache.ListResources(ctx, proto.ListResourcesRequest{
+				ResourceType: types.KindDatabaseService,
+				Limit:        apidefaults.DefaultChunkSize,
+			})
+			require.NoError(t, err)
+			return types.ResourcesWithLabels(listServicesResp.Resources).AsDatabaseServices()
+		},
+		update:    withKeepalive(p.databaseServices.UpsertDatabaseService),
+		deleteAll: p.databaseServices.DeleteAllDatabaseServices,
+	})
 }
 
 // TestDatabases tests that CRUD operations on database resources are
@@ -2225,86 +1838,490 @@ func TestDatabaseServers(t *testing.T) {
 func TestDatabases(t *testing.T) {
 	t.Parallel()
 
-	p, err := newPack(t.TempDir(), ForProxy)
-	require.NoError(t, err)
+	p := newTestPack(t, ForProxy)
 	t.Cleanup(p.Close)
 
+	testResources(t, p, testFuncs[types.Database]{
+		newResource: func(name string) (types.Database, error) {
+			return types.NewDatabaseV3(types.Metadata{
+				Name: name,
+			}, types.DatabaseSpecV3{
+				Protocol: defaults.ProtocolPostgres,
+				URI:      "localhost:5432",
+			})
+		},
+		create:    p.databases.CreateDatabase,
+		list:      p.databases.GetDatabases,
+		cacheGet:  p.cache.GetDatabase,
+		cacheList: p.cache.GetDatabases,
+		update:    p.databases.UpdateDatabase,
+		deleteAll: p.databases.DeleteAllDatabases,
+	})
+}
+
+// TestSAMLIdPServiceProviders tests that CRUD operations on SAML IdP service provider resources are
+// replicated from the backend to the cache.
+func TestSAMLIdPServiceProviders(t *testing.T) {
+	t.Parallel()
+
+	p := newTestPack(t, ForAuth)
+	t.Cleanup(p.Close)
+
+	testResources(t, p, testFuncs[types.SAMLIdPServiceProvider]{
+		newResource: func(name string) (types.SAMLIdPServiceProvider, error) {
+			return types.NewSAMLIdPServiceProvider(
+				types.Metadata{
+					Name: name,
+				},
+				types.SAMLIdPServiceProviderSpecV1{
+					EntityDescriptor: testEntityDescriptor,
+					EntityID:         "IAMShowcase",
+				})
+		},
+		create: p.samlIDPServiceProviders.CreateSAMLIdPServiceProvider,
+		list: func(ctx context.Context) ([]types.SAMLIdPServiceProvider, error) {
+			results, _, err := p.samlIDPServiceProviders.ListSAMLIdPServiceProviders(ctx, 0, "")
+			return results, err
+		},
+		cacheGet: p.cache.GetSAMLIdPServiceProvider,
+		cacheList: func(ctx context.Context) ([]types.SAMLIdPServiceProvider, error) {
+			results, _, err := p.cache.ListSAMLIdPServiceProviders(ctx, 0, "")
+			return results, err
+		},
+		update:    p.samlIDPServiceProviders.UpdateSAMLIdPServiceProvider,
+		deleteAll: p.samlIDPServiceProviders.DeleteAllSAMLIdPServiceProviders,
+	})
+}
+
+// TestUserGroups tests that CRUD operations on user group resources are
+// replicated from the backend to the cache.
+func TestUserGroups(t *testing.T) {
+	t.Parallel()
+
+	p := newTestPack(t, ForAuth)
+	t.Cleanup(p.Close)
+
+	testResources(t, p, testFuncs[types.UserGroup]{
+		newResource: func(name string) (types.UserGroup, error) {
+			return types.NewUserGroup(
+				types.Metadata{
+					Name: name,
+				}, types.UserGroupSpecV1{},
+			)
+		},
+		create: p.userGroups.CreateUserGroup,
+		list: func(ctx context.Context) ([]types.UserGroup, error) {
+			results, _, err := p.userGroups.ListUserGroups(ctx, 0, "")
+			return results, err
+		},
+		cacheGet: p.cache.GetUserGroup,
+		cacheList: func(ctx context.Context) ([]types.UserGroup, error) {
+			results, _, err := p.cache.ListUserGroups(ctx, 0, "")
+			return results, err
+		},
+		update:    p.userGroups.UpdateUserGroup,
+		deleteAll: p.userGroups.DeleteAllUserGroups,
+	})
+}
+
+// TestLocks tests that CRUD operations on lock resources are
+// replicated from the backend to the cache.
+func TestLocks(t *testing.T) {
+	t.Parallel()
+
+	p := newTestPack(t, ForAuth)
+	t.Cleanup(p.Close)
+
+	testResources(t, p, testFuncs[types.Lock]{
+		newResource: func(name string) (types.Lock, error) {
+			return types.NewLock(
+				name,
+				types.LockSpecV2{
+					Target: types.LockTarget{
+						Role: "target-role",
+					},
+				},
+			)
+		},
+		create: p.accessS.UpsertLock,
+		list: func(ctx context.Context) ([]types.Lock, error) {
+			results, err := p.accessS.GetLocks(ctx, false)
+			return results, err
+		},
+		cacheGet: p.cache.GetLock,
+		cacheList: func(ctx context.Context) ([]types.Lock, error) {
+			results, err := p.cache.GetLocks(ctx, false)
+			return results, err
+		},
+		update:    p.accessS.UpsertLock,
+		deleteAll: p.accessS.DeleteAllLocks,
+	})
+}
+
+// TestOktaImportRules tests that CRUD operations on Okta import rule resources are
+// replicated from the backend to the cache.
+func TestOktaImportRules(t *testing.T) {
+	t.Parallel()
+
+	p := newTestPack(t, ForOkta)
+	t.Cleanup(p.Close)
+
+	testResources(t, p, testFuncs[types.OktaImportRule]{
+		newResource: func(name string) (types.OktaImportRule, error) {
+			return types.NewOktaImportRule(
+				types.Metadata{
+					Name: name,
+				},
+				types.OktaImportRuleSpecV1{
+					Mappings: []*types.OktaImportRuleMappingV1{
+						{
+							Match: []*types.OktaImportRuleMatchV1{
+								{
+									AppIDs: []string{"yes"},
+								},
+							},
+							AddLabels: map[string]string{
+								"label1": "value1",
+							},
+						},
+						{
+							Match: []*types.OktaImportRuleMatchV1{
+								{
+									GroupIDs: []string{"yes"},
+								},
+							},
+							AddLabels: map[string]string{
+								"label1": "value1",
+							},
+						},
+					},
+				},
+			)
+		},
+		create: func(ctx context.Context, resource types.OktaImportRule) error {
+			_, err := p.okta.CreateOktaImportRule(ctx, resource)
+			return trace.Wrap(err)
+		},
+		list: func(ctx context.Context) ([]types.OktaImportRule, error) {
+			results, _, err := p.okta.ListOktaImportRules(ctx, 0, "")
+			return results, err
+		},
+		cacheGet: p.cache.GetOktaImportRule,
+		cacheList: func(ctx context.Context) ([]types.OktaImportRule, error) {
+			results, _, err := p.cache.ListOktaImportRules(ctx, 0, "")
+			return results, err
+		},
+		update: func(ctx context.Context, resource types.OktaImportRule) error {
+			_, err := p.okta.UpdateOktaImportRule(ctx, resource)
+			return trace.Wrap(err)
+		},
+		deleteAll: p.okta.DeleteAllOktaImportRules,
+	})
+}
+
+// TestOktaAssignments tests that CRUD operations on Okta import rule resources are
+// replicated from the backend to the cache.
+func TestOktaAssignments(t *testing.T) {
+	t.Parallel()
+
+	p := newTestPack(t, ForOkta)
+	t.Cleanup(p.Close)
+
+	testResources(t, p, testFuncs[types.OktaAssignment]{
+		newResource: func(name string) (types.OktaAssignment, error) {
+			return types.NewOktaAssignment(
+				types.Metadata{
+					Name: name,
+				},
+				types.OktaAssignmentSpecV1{
+					User: "test-user@test.user",
+					Targets: []*types.OktaAssignmentTargetV1{
+						{
+							Type: types.OktaAssignmentTargetV1_APPLICATION,
+							Id:   "123456",
+						},
+						{
+							Type: types.OktaAssignmentTargetV1_GROUP,
+							Id:   "234567",
+						},
+					},
+				},
+			)
+		},
+		create: func(ctx context.Context, resource types.OktaAssignment) error {
+			_, err := p.okta.CreateOktaAssignment(ctx, resource)
+			return trace.Wrap(err)
+		},
+		list: func(ctx context.Context) ([]types.OktaAssignment, error) {
+			results, _, err := p.okta.ListOktaAssignments(ctx, 0, "")
+			return results, err
+		},
+		cacheGet: p.cache.GetOktaAssignment,
+		cacheList: func(ctx context.Context) ([]types.OktaAssignment, error) {
+			results, _, err := p.cache.ListOktaAssignments(ctx, 0, "")
+			return results, err
+		},
+		update: func(ctx context.Context, resource types.OktaAssignment) error {
+			_, err := p.okta.UpdateOktaAssignment(ctx, resource)
+			return trace.Wrap(err)
+		},
+		deleteAll: p.okta.DeleteAllOktaAssignments,
+	})
+}
+
+// TestIntegrations tests that CRUD operations on integrations resources are
+// replicated from the backend to the cache.
+func TestIntegrations(t *testing.T) {
+	t.Parallel()
+
+	p := newTestPack(t, ForAuth)
+	t.Cleanup(p.Close)
+
+	testResources(t, p, testFuncs[types.Integration]{
+		newResource: func(name string) (types.Integration, error) {
+			return types.NewIntegrationAWSOIDC(
+				types.Metadata{Name: name},
+				&types.AWSOIDCIntegrationSpecV1{
+					RoleARN: "arn:aws:iam::123456789012:role/OpsTeam",
+				},
+			)
+		},
+		create: func(ctx context.Context, i types.Integration) error {
+			_, err := p.integrations.CreateIntegration(ctx, i)
+			return err
+		},
+		list: func(ctx context.Context) ([]types.Integration, error) {
+			results, _, err := p.integrations.ListIntegrations(ctx, 0, "")
+			return results, err
+		},
+		cacheGet: p.cache.GetIntegration,
+		cacheList: func(ctx context.Context) ([]types.Integration, error) {
+			results, _, err := p.cache.ListIntegrations(ctx, 0, "")
+			return results, err
+		},
+		update: func(ctx context.Context, i types.Integration) error {
+			_, err := p.integrations.UpdateIntegration(ctx, i)
+			return err
+		},
+		deleteAll: p.integrations.DeleteAllIntegrations,
+	})
+}
+
+// TestDiscoveryConfig tests that CRUD operations on DiscoveryConfig resources are
+// replicated from the backend to the cache.
+func TestDiscoveryConfig(t *testing.T) {
+	t.Parallel()
+
+	p := newTestPack(t, ForAuth)
+	t.Cleanup(p.Close)
+
+	testResources(t, p, testFuncs[*discoveryconfig.DiscoveryConfig]{
+		newResource: func(name string) (*discoveryconfig.DiscoveryConfig, error) {
+			dc, err := discoveryconfig.NewDiscoveryConfig(
+				header.Metadata{Name: "mydc"},
+				discoveryconfig.Spec{
+					DiscoveryGroup: "group001",
+				})
+			require.NoError(t, err)
+			return dc, nil
+		},
+		create: func(ctx context.Context, discoveryConfig *discoveryconfig.DiscoveryConfig) error {
+			_, err := p.discoveryConfigs.CreateDiscoveryConfig(ctx, discoveryConfig)
+			return trace.Wrap(err)
+		},
+		list: func(ctx context.Context) ([]*discoveryconfig.DiscoveryConfig, error) {
+			results, _, err := p.discoveryConfigs.ListDiscoveryConfigs(ctx, 0, "")
+			return results, err
+		},
+		cacheGet: p.cache.GetDiscoveryConfig,
+		cacheList: func(ctx context.Context) ([]*discoveryconfig.DiscoveryConfig, error) {
+			results, _, err := p.cache.ListDiscoveryConfigs(ctx, 0, "")
+			return results, err
+		},
+		update: func(ctx context.Context, discoveryConfig *discoveryconfig.DiscoveryConfig) error {
+			_, err := p.discoveryConfigs.UpdateDiscoveryConfig(ctx, discoveryConfig)
+			return trace.Wrap(err)
+		},
+		deleteAll: p.discoveryConfigs.DeleteAllDiscoveryConfigs,
+	})
+}
+
+// TestAccessListRules tests that CRUD operations on access list rule resources are
+// replicated from the backend to the cache.
+func TestAuditQuery(t *testing.T) {
+	t.Parallel()
+
+	p := newTestPack(t, ForAuth)
+	t.Cleanup(p.Close)
+
+	testResources(t, p, testFuncs[*secreports.AuditQuery]{
+		newResource: func(name string) (*secreports.AuditQuery, error) {
+			return newAuditQuery(t, name), nil
+		},
+		create: func(ctx context.Context, item *secreports.AuditQuery) error {
+			err := p.secReports.UpsertSecurityAuditQuery(ctx, item)
+			return trace.Wrap(err)
+		},
+		list:      p.secReports.GetSecurityAuditQueries,
+		cacheGet:  p.cache.GetSecurityAuditQuery,
+		cacheList: p.cache.GetSecurityAuditQueries,
+		update: func(ctx context.Context, item *secreports.AuditQuery) error {
+			err := p.secReports.UpsertSecurityAuditQuery(ctx, item)
+			return trace.Wrap(err)
+		},
+		deleteAll: p.secReports.DeleteAllSecurityAuditQueries,
+	})
+}
+
+// TestSecurityReportState tests that CRUD operations on security report state resources are
+// replicated from the backend to the cache.
+func TestSecurityReports(t *testing.T) {
+	t.Parallel()
+
+	p := newTestPack(t, ForAuth)
+	t.Cleanup(p.Close)
+
+	testResources(t, p, testFuncs[*secreports.Report]{
+		newResource: func(name string) (*secreports.Report, error) {
+			return newSecurityReport(t, name), nil
+		},
+		create: func(ctx context.Context, item *secreports.Report) error {
+			err := p.secReports.UpsertSecurityReport(ctx, item)
+			return trace.Wrap(err)
+		},
+		list:      p.secReports.GetSecurityReports,
+		cacheGet:  p.cache.GetSecurityReport,
+		cacheList: p.cache.GetSecurityReports,
+		update: func(ctx context.Context, item *secreports.Report) error {
+			err := p.secReports.UpsertSecurityReport(ctx, item)
+			return trace.Wrap(err)
+		},
+		deleteAll: p.secReports.DeleteAllSecurityReports,
+	})
+}
+
+// TestSecurityReportState tests that CRUD operations on security report state resources are
+// replicated from the backend to the cache.
+func TestSecurityReportState(t *testing.T) {
+	t.Parallel()
+
+	p := newTestPack(t, ForAuth)
+	t.Cleanup(p.Close)
+
+	testResources(t, p, testFuncs[*secreports.ReportState]{
+		newResource: func(name string) (*secreports.ReportState, error) {
+			return newSecurityReportState(t, name), nil
+		},
+		create: func(ctx context.Context, item *secreports.ReportState) error {
+			err := p.secReports.UpsertSecurityReportsState(ctx, item)
+			return trace.Wrap(err)
+		},
+		list:      p.secReports.GetSecurityReportsStates,
+		cacheGet:  p.cache.GetSecurityReportState,
+		cacheList: p.cache.GetSecurityReportsStates,
+		update: func(ctx context.Context, item *secreports.ReportState) error {
+			err := p.secReports.UpsertSecurityReportsState(ctx, item)
+			return trace.Wrap(err)
+		},
+		deleteAll: p.secReports.DeleteAllSecurityReportsStates,
+	})
+}
+
+// TestUserLoginStates tests that CRUD operations on user login state resources are
+// replicated from the backend to the cache.
+func TestUserLoginStates(t *testing.T) {
+	t.Parallel()
+
+	p := newTestPack(t, ForAuth)
+	t.Cleanup(p.Close)
+
+	testResources(t, p, testFuncs[*userloginstate.UserLoginState]{
+		newResource: func(name string) (*userloginstate.UserLoginState, error) {
+			return newUserLoginState(t, name), nil
+		},
+		create: func(ctx context.Context, uls *userloginstate.UserLoginState) error {
+			_, err := p.userLoginStates.UpsertUserLoginState(ctx, uls)
+			return trace.Wrap(err)
+		},
+		list:      p.userLoginStates.GetUserLoginStates,
+		cacheGet:  p.cache.GetUserLoginState,
+		cacheList: p.cache.GetUserLoginStates,
+		update: func(ctx context.Context, uls *userloginstate.UserLoginState) error {
+			_, err := p.userLoginStates.UpsertUserLoginState(ctx, uls)
+			return trace.Wrap(err)
+		},
+		deleteAll: p.userLoginStates.DeleteAllUserLoginStates,
+	})
+}
+
+// testResources is a generic tester for resources.
+func testResources[T types.Resource](t *testing.T, p *testPack, funcs testFuncs[T]) {
 	ctx := context.Background()
 
-	// Create a database resource.
-	database, err := types.NewDatabaseV3(types.Metadata{
-		Name: "foo",
-	}, types.DatabaseSpecV3{
-		Protocol: defaults.ProtocolPostgres,
-		URI:      "localhost:5432",
-	})
+	// Create a resource.
+	r, err := funcs.newResource("test-sp")
+	require.NoError(t, err)
+	r.SetExpiry(time.Now().Add(30 * time.Minute))
+
+	err = funcs.create(ctx, r)
 	require.NoError(t, err)
 
-	err = p.databases.CreateDatabase(ctx, database)
-	require.NoError(t, err)
+	cmpOpts := []cmp.Option{
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+		cmpopts.IgnoreFields(header.Metadata{}, "ID", "Revision"),
+	}
 
-	// Check that the database is now in the backend.
-	out, err := p.databases.GetDatabases(ctx)
+	// Check that the resource is now in the backend.
+	out, err := funcs.list(ctx)
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff([]types.Database{database}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
+	require.Empty(t, cmp.Diff([]T{r}, out, cmpOpts...))
 
 	// Wait until the information has been replicated to the cache.
-	select {
-	case event := <-p.eventsC:
-		require.Equal(t, EventProcessed, event.Type)
-	case <-time.After(time.Second):
-		t.Fatal("timeout waiting for event")
+	require.Eventually(t, func() bool {
+		// Make sure the cache has a single resource in it.
+		out, err = funcs.cacheList(ctx)
+		assert.NoError(t, err)
+		return len(cmp.Diff([]T{r}, out, cmpOpts...)) == 0
+	}, time.Second*2, time.Millisecond*250)
+
+	// cacheGet is optional as not every resource implements it
+	if funcs.cacheGet != nil {
+		// Make sure a single cache get works.
+		getR, err := funcs.cacheGet(ctx, r.GetName())
+		require.NoError(t, err)
+		require.Empty(t, cmp.Diff(r, getR, cmpOpts...))
 	}
 
-	// Make sure the cache has a single database in it.
-	out, err = p.databases.GetDatabases(ctx)
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff([]types.Database{database}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
-
-	// Update the database and upsert it into the backend again.
-	database.SetExpiry(time.Now().Add(30 * time.Minute).UTC())
-	err = p.databases.UpdateDatabase(ctx, database)
+	// Update the resource and upsert it into the backend again.
+	r.SetExpiry(r.Expiry().Add(30 * time.Minute))
+	err = funcs.update(ctx, r)
 	require.NoError(t, err)
 
-	// Check that the database is in the backend and only one exists (so an
+	// Check that the resource is in the backend and only one exists (so an
 	// update occurred).
-	out, err = p.databases.GetDatabases(ctx)
+	out, err = funcs.list(ctx)
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff([]types.Database{database}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
+	require.Empty(t, cmp.Diff([]T{r}, out, cmpOpts...))
 
 	// Check that information has been replicated to the cache.
-	select {
-	case event := <-p.eventsC:
-		require.Equal(t, EventProcessed, event.Type)
-	case <-time.After(time.Second):
-		t.Fatal("timeout waiting for event")
-	}
+	require.Eventually(t, func() bool {
+		// Make sure the cache has a single resource in it.
+		out, err = funcs.cacheList(ctx)
+		assert.NoError(t, err)
+		return len(cmp.Diff([]T{r}, out, cmpOpts...)) == 0
+	}, time.Second*2, time.Millisecond*250)
 
-	// Make sure the cache has a single database in it.
-	out, err = p.cache.GetDatabases(ctx)
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff([]types.Database{database}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
-
-	// Remove all database from the backend.
-	err = p.databases.DeleteAllDatabases(ctx)
+	// Remove all service providers from the backend.
+	err = funcs.deleteAll(ctx)
 	require.NoError(t, err)
 
 	// Check that information has been replicated to the cache.
-	select {
-	case event := <-p.eventsC:
-		require.Equal(t, EventProcessed, event.Type)
-	case <-time.After(time.Second):
-		t.Fatal("timeout waiting for event")
-	}
-
-	// Check that the cache is now empty.
-	out, err = p.databases.GetDatabases(ctx)
-	require.NoError(t, err)
-	require.Equal(t, 0, len(out))
+	require.Eventually(t, func() bool {
+		// Check that the cache is now empty.
+		out, err = funcs.cacheList(ctx)
+		assert.NoError(t, err)
+		return len(out) == 0
+	}, time.Second*2, time.Millisecond*250)
 }
 
 func TestRelativeExpiry(t *testing.T) {
@@ -2489,7 +2506,7 @@ func TestCache_Backoff(t *testing.T) {
 	p.eventsS.closeWatchers()
 	p.backend.SetReadError(trace.ConnectionProblem(nil, "backend is unavailable"))
 
-	step := p.cache.Config.MaxRetryPeriod / 5.0
+	step := p.cache.Config.MaxRetryPeriod / 16.0
 	for i := 0; i < 5; i++ {
 		// wait for cache to reload
 		select {
@@ -2498,8 +2515,16 @@ func TestCache_Backoff(t *testing.T) {
 			duration, err := time.ParseDuration(event.Event.Resource.GetKind())
 			require.NoError(t, err)
 
-			stepMin := step * time.Duration(i) / 2
-			stepMax := step * time.Duration(i+1)
+			// emulate the logic of exponential backoff multiplier calc
+			var mul int64
+			if i == 0 {
+				mul = 0
+			} else {
+				mul = 1 << (i - 1)
+			}
+
+			stepMin := step * time.Duration(mul) / 2
+			stepMax := step * time.Duration(mul+1)
 
 			require.GreaterOrEqual(t, duration, stepMin)
 			require.LessOrEqual(t, duration, stepMax)
@@ -2523,10 +2548,43 @@ func TestCache_Backoff(t *testing.T) {
 	}
 }
 
+// TestSetupConfigFns ensures that all WatchKinds used in setup config functions are present in ForAuth() as well.
+func TestSetupConfigFns(t *testing.T) {
+	setupFuncs := map[string]SetupConfigFn{
+		"ForProxy":          ForProxy,
+		"ForRemoteProxy":    ForRemoteProxy,
+		"ForOldRemoteProxy": ForOldRemoteProxy,
+		"ForNode":           ForNode,
+		"ForKubernetes":     ForKubernetes,
+		"ForApps":           ForApps,
+		"ForDatabases":      ForDatabases,
+		"ForWindowsDesktop": ForWindowsDesktop,
+		"ForDiscovery":      ForDiscovery,
+		"ForOkta":           ForOkta,
+	}
+
+	authKindMap := make(map[resourceKind]types.WatchKind)
+	for _, wk := range ForAuth(Config{}).Watches {
+		authKindMap[resourceKind{kind: wk.Kind, subkind: wk.SubKind}] = wk
+	}
+
+	for name, f := range setupFuncs {
+		t.Run(name, func(t *testing.T) {
+			for _, wk := range f(Config{}).Watches {
+				authWK, ok := authKindMap[resourceKind{kind: wk.Kind, subkind: wk.SubKind}]
+				if !ok || !authWK.Contains(wk) {
+					t.Errorf("%s includes WatchKind %s that is missing from ForAuth", name, wk.String())
+				}
+			}
+		})
+	}
+}
+
 type proxyEvents struct {
 	sync.Mutex
-	watchers []types.Watcher
-	events   types.Events
+	watchers    []types.Watcher
+	events      types.Events
+	ignoreKinds map[resourceKind]struct{}
 }
 
 func (p *proxyEvents) getWatchers() []types.Watcher {
@@ -2547,6 +2605,19 @@ func (p *proxyEvents) closeWatchers() {
 }
 
 func (p *proxyEvents) NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error) {
+	var effectiveKinds []types.WatchKind
+	for _, requested := range watch.Kinds {
+		if _, ok := p.ignoreKinds[resourceKind{kind: requested.Kind, subkind: requested.SubKind}]; ok {
+			continue
+		}
+		effectiveKinds = append(effectiveKinds, requested)
+	}
+
+	if len(effectiveKinds) == 0 {
+		return nil, trace.BadParameter("all of the requested kinds were ignored")
+	}
+
+	watch.Kinds = effectiveKinds
 	w, err := p.events.NewWatcher(ctx, watch)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2555,6 +2626,17 @@ func (p *proxyEvents) NewWatcher(ctx context.Context, watch types.Watch) (types.
 	defer p.Unlock()
 	p.watchers = append(p.watchers, w)
 	return w, nil
+}
+
+func newProxyEvents(events types.Events, ignoreKinds []types.WatchKind) *proxyEvents {
+	ignoreSet := make(map[resourceKind]struct{}, len(ignoreKinds))
+	for _, kind := range ignoreKinds {
+		ignoreSet[resourceKind{kind: kind.Kind, subkind: kind.SubKind}] = struct{}{}
+	}
+	return &proxyEvents{
+		events:      events,
+		ignoreKinds: ignoreSet,
+	}
 }
 
 // TestCacheWatchKindExistsInEvents ensures that the watch kinds for each cache component are in sync
@@ -2577,6 +2659,7 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		"ForKubernetes":     ForKubernetes(Config{}),
 		"ForApps":           ForApps(Config{}),
 		"ForDatabases":      ForDatabases(Config{}),
+		"ForOkta":           ForOkta(Config{}),
 	}
 
 	events := map[string]types.Resource{
@@ -2586,10 +2669,11 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		types.KindClusterNetworkingConfig: types.DefaultClusterNetworkingConfig(),
 		types.KindClusterAuthPreference:   types.DefaultAuthPreference(),
 		types.KindSessionRecordingConfig:  types.DefaultSessionRecordingConfig(),
+		types.KindUIConfig:                &types.UIConfigV1{},
 		types.KindStaticTokens:            &types.StaticTokensV2{},
 		types.KindToken:                   &types.ProvisionTokenV2{},
 		types.KindUser:                    &types.UserV2{},
-		types.KindRole:                    &types.RoleV5{Version: types.V4},
+		types.KindRole:                    &types.RoleV6{Version: types.V4},
 		types.KindNamespace:               &types.Namespace{},
 		types.KindNode:                    &types.ServerV2{},
 		types.KindProxy:                   &types.ServerV2{},
@@ -2602,10 +2686,11 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		types.KindWebSession:              &types.WebSessionV2{SubKind: types.KindWebSession},
 		types.KindAppSession:              &types.WebSessionV2{SubKind: types.KindAppSession},
 		types.KindSnowflakeSession:        &types.WebSessionV2{SubKind: types.KindSnowflakeSession},
+		types.KindSAMLIdPSession:          &types.WebSessionV2{SubKind: types.KindSAMLIdPServiceProvider},
 		types.KindWebToken:                &types.WebTokenV3{},
 		types.KindRemoteCluster:           &types.RemoteClusterV3{},
-		types.KindKubeService:             &types.ServerV2{},
 		types.KindKubeServer:              &types.KubernetesServerV3{},
+		types.KindDatabaseService:         &types.DatabaseServiceV1{},
 		types.KindDatabaseServer:          &types.DatabaseServerV3{},
 		types.KindDatabase:                &types.DatabaseV3{},
 		types.KindNetworkRestrictions:     &types.NetworkRestrictionsV4{},
@@ -2614,6 +2699,17 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		types.KindWindowsDesktop:          &types.WindowsDesktopV3{},
 		types.KindInstaller:               &types.InstallerV1{},
 		types.KindKubernetesCluster:       &types.KubernetesClusterV3{},
+		types.KindSAMLIdPServiceProvider:  &types.SAMLIdPServiceProviderV1{},
+		types.KindUserGroup:               &types.UserGroupV1{},
+		types.KindOktaImportRule:          &types.OktaImportRuleV1{},
+		types.KindOktaAssignment:          &types.OktaAssignmentV1{},
+		types.KindIntegration:             &types.IntegrationV1{},
+		types.KindDiscoveryConfig:         newDiscoveryConfig(t, "discovery-config"),
+		types.KindHeadlessAuthentication:  &types.HeadlessAuthentication{},
+		types.KindUserLoginState:          newUserLoginState(t, "user-login-state"),
+		types.KindAuditQuery:              newAuditQuery(t, "audit-query"),
+		types.KindSecurityReport:          newSecurityReport(t, "security-report"),
+		types.KindSecurityReportState:     newSecurityReport(t, "security-report-state"),
 	}
 
 	for name, cfg := range cases {
@@ -2628,7 +2724,7 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 				})
 				require.NoError(t, err)
 
-				event, err := client.EventFromGRPC(*protoEvent)
+				event, err := client.EventFromGRPC(protoEvent)
 				require.NoError(t, err)
 
 				require.Empty(t, cmp.Diff(resource, event.Resource))
@@ -2636,3 +2732,301 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		})
 	}
 }
+
+// TestPartialHealth ensures that when an event source confirms only some resource kinds specified on the watch request,
+// Cache operates in partially healthy mode in which it serves reads of the confirmed kinds from the cache and
+// lets everything else pass through.
+func TestPartialHealth(t *testing.T) {
+	ctx := context.Background()
+
+	// setup cache such that role resources wouldn't be recognized by the event source and wouldn't be cached.
+	p, err := newPack(t.TempDir(), ForApps, ignoreKinds([]types.WatchKind{{Kind: types.KindRole}}))
+	require.NoError(t, err)
+	t.Cleanup(p.Close)
+
+	role, err := types.NewRole("editor", types.RoleSpecV6{})
+	require.NoError(t, err)
+	_, err = p.accessS.UpsertRole(ctx, role)
+	require.NoError(t, err)
+
+	user, err := types.NewUser("bob")
+	require.NoError(t, err)
+	user, err = p.usersS.UpsertUser(ctx, user)
+	require.NoError(t, err)
+	select {
+	case event := <-p.eventsC:
+		require.Equal(t, EventProcessed, event.Type)
+		require.Equal(t, types.KindUser, event.Event.Resource.GetKind())
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for event")
+	}
+
+	// make sure that the user resource works as normal and gets replicated to cache
+	replicatedUsers, err := p.cache.GetUsers(ctx, false)
+	require.NoError(t, err)
+	require.Len(t, replicatedUsers, 1)
+
+	// now add a label to the user directly in the cache
+	meta := user.GetMetadata()
+	meta.Labels = map[string]string{"origin": "cache"}
+	user.SetMetadata(meta)
+	_, err = p.cache.usersCache.UpsertUser(ctx, user)
+	require.NoError(t, err)
+
+	// the label on the returned user proves that it came from the cache
+	resultUser, err := p.cache.GetUser(ctx, "bob", false)
+	require.NoError(t, err)
+	require.Equal(t, "cache", resultUser.GetMetadata().Labels["origin"])
+
+	// query cache storage directly to ensure roles haven't been replicated
+	rolesStoredInCache, err := p.cache.accessCache.GetRoles(ctx)
+	require.NoError(t, err)
+	require.Empty(t, rolesStoredInCache)
+
+	// non-empty result here proves that it was not served from cache
+	resultRoles, err := p.cache.GetRoles(ctx)
+	require.NoError(t, err)
+	require.Len(t, resultRoles, 1)
+
+	// ensure that cache cannot be watched for resources that weren't confirmed in regular mode
+	testWatch := types.Watch{
+		Kinds: []types.WatchKind{
+			{Kind: types.KindUser},
+			{Kind: types.KindRole},
+		},
+	}
+	_, err = p.cache.NewWatcher(ctx, testWatch)
+	require.Error(t, err)
+
+	// same request should work in partial success mode, but WatchStatus on the OpInit event should indicate
+	// that only user resources will be watched.
+	testWatch.AllowPartialSuccess = true
+	w, err := p.cache.NewWatcher(ctx, testWatch)
+	require.NoError(t, err)
+
+	select {
+	case e := <-w.Events():
+		require.Equal(t, types.OpInit, e.Type)
+		watchStatus, ok := e.Resource.(types.WatchStatus)
+		require.True(t, ok)
+		require.Equal(t, []types.WatchKind{{Kind: types.KindUser}}, watchStatus.GetKinds())
+	case <-time.After(time.Second):
+		t.Fatal("Timeout waiting for event.")
+	}
+}
+
+// TestInvalidDatbases given a database that returns an error on validation, the
+// cache should not be impacted, and the database must be on it. This scenario
+// is most common on Teleport upgrades/downgrades where the database validation
+// can have new rules, causing the existing database to fail on validation.
+func TestInvalidDatabases(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	generateInvalidDB := func(t *testing.T, resourceID int64, name string) types.Database {
+		db := &types.DatabaseV3{Metadata: types.Metadata{
+			ID:   resourceID,
+			Name: name,
+		}, Spec: types.DatabaseSpecV3{
+			Protocol: "invalid-protocol",
+			URI:      "non-empty-uri",
+		}}
+		// Just ensures the database we're using on this test will trigger a
+		// validation failure.
+		require.Error(t, services.ValidateDatabase(db))
+		return db
+	}
+
+	for name, tc := range map[string]struct {
+		storeFunc func(*testing.T, *backend.Wrapper, *Cache)
+	}{
+		"CreateDatabase": {
+			storeFunc: func(t *testing.T, b *backend.Wrapper, _ *Cache) {
+				db := generateInvalidDB(t, 0, "invalid-db")
+				value, err := services.MarshalDatabase(db)
+				require.NoError(t, err)
+				_, err = b.Create(ctx, backend.Item{
+					Key:     backend.Key("db", db.GetName()),
+					Value:   value,
+					Expires: db.Expiry(),
+					ID:      db.GetResourceID(),
+				})
+				require.NoError(t, err)
+			},
+		},
+		"UpdateDatabase": {
+			storeFunc: func(t *testing.T, b *backend.Wrapper, c *Cache) {
+				dbName := "updated-db"
+				validDB, err := types.NewDatabaseV3(types.Metadata{
+					Name: dbName,
+				}, types.DatabaseSpecV3{
+					Protocol: defaults.ProtocolPostgres,
+					URI:      "postgres://localhost",
+				})
+				require.NoError(t, err)
+				require.NoError(t, services.ValidateDatabase(validDB))
+
+				marshalledDB, err := services.MarshalDatabase(validDB)
+				require.NoError(t, err)
+				_, err = b.Create(ctx, backend.Item{
+					Key:     backend.Key("db", validDB.GetName()),
+					Value:   marshalledDB,
+					Expires: validDB.Expiry(),
+					ID:      validDB.GetResourceID(),
+				})
+				require.NoError(t, err)
+
+				// Wait until the database appear on cache.
+				require.EventuallyWithT(t, func(t *assert.CollectT) {
+					dbs, err := c.GetDatabases(ctx)
+					assert.NoError(t, err)
+					assert.Len(t, dbs, 1)
+				}, time.Second, 100*time.Millisecond, "expected database to be on cache, but nothing found")
+
+				cacheDB, err := c.GetDatabase(ctx, dbName)
+				require.NoError(t, err)
+
+				invalidDB := generateInvalidDB(t, cacheDB.GetResourceID(), cacheDB.GetName())
+				value, err := services.MarshalDatabase(invalidDB)
+				require.NoError(t, err)
+				_, err = b.Update(ctx, backend.Item{
+					Key:     backend.Key("db", cacheDB.GetName()),
+					Value:   value,
+					Expires: invalidDB.Expiry(),
+					ID:      cacheDB.GetResourceID(),
+				})
+				require.NoError(t, err)
+			},
+		},
+	} {
+		tc := tc
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			p := newTestPack(t, ForAuth)
+			t.Cleanup(p.Close)
+
+			tc.storeFunc(t, p.backend, p.cache)
+
+			// Events processing should not restart due to an invalid database error.
+			unexpectedEvent(t, p.eventsC, Reloading)
+		})
+	}
+}
+
+func newDiscoveryConfig(t *testing.T, name string) *discoveryconfig.DiscoveryConfig {
+	t.Helper()
+
+	discoveryConfig, err := discoveryconfig.NewDiscoveryConfig(
+		header.Metadata{
+			Name: name,
+		},
+		discoveryconfig.Spec{
+			DiscoveryGroup: "mygroup",
+			AWS:            []types.AWSMatcher{},
+			Azure:          []types.AzureMatcher{},
+			GCP:            []types.GCPMatcher{},
+			Kube:           []types.KubernetesMatcher{},
+		},
+	)
+	require.NoError(t, err)
+	return discoveryConfig
+}
+func newAuditQuery(t *testing.T, name string) *secreports.AuditQuery {
+	t.Helper()
+
+	item, err := secreports.NewAuditQuery(
+		header.Metadata{
+			Name: name,
+		},
+		secreports.AuditQuerySpec{
+			Name:        name,
+			Title:       "title",
+			Description: "desc",
+			Query:       "query",
+		},
+	)
+	require.NoError(t, err)
+	return item
+}
+
+func newSecurityReport(t *testing.T, name string) *secreports.Report {
+	t.Helper()
+	item, err := secreports.NewReport(
+		header.Metadata{
+			Name: name,
+		},
+		secreports.ReportSpec{
+			Name:  name,
+			Title: "title",
+			AuditQueries: []*secreports.AuditQuerySpec{
+				{
+					Name:        "name",
+					Title:       "title",
+					Description: "desc",
+					Query:       "query",
+				},
+			},
+			Version: "0.0.0",
+		},
+	)
+	require.NoError(t, err)
+	return item
+}
+
+func newSecurityReportState(t *testing.T, name string) *secreports.ReportState {
+	t.Helper()
+	item, err := secreports.NewReportState(
+		header.Metadata{
+			Name: name,
+		},
+		secreports.ReportStateSpec{
+			Status:    "RUNNING",
+			UpdatedAt: time.Now().UTC(),
+		},
+	)
+	require.NoError(t, err)
+	return item
+}
+
+func newUserLoginState(t *testing.T, name string) *userloginstate.UserLoginState {
+	t.Helper()
+
+	uls, err := userloginstate.New(
+		header.Metadata{
+			Name: name,
+		},
+		userloginstate.Spec{
+			Roles: []string{"role1", "role2"},
+			Traits: trait.Traits{
+				"key1": []string{"value1"},
+				"key2": []string{"value2"},
+			},
+		},
+	)
+	require.NoError(t, err)
+	return uls
+}
+
+func withKeepalive[T any](fn func(context.Context, T) (*types.KeepAlive, error)) func(context.Context, T) error {
+	return func(ctx context.Context, resource T) error {
+		_, err := fn(ctx, resource)
+		return err
+	}
+}
+
+func modifyNoContext[T any](fn func(T) error) func(context.Context, T) error {
+	return func(_ context.Context, resource T) error {
+		return fn(resource)
+	}
+}
+
+// A test entity descriptor from https://sptest.iamshowcase.com/testsp_metadata.xml.
+const testEntityDescriptor = `<?xml version="1.0" encoding="UTF-8"?>
+<md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" xmlns:ds="http://www.w3.org/2000/09/xmldsig#" entityID="IAMShowcase" validUntil="2025-12-09T09:13:31.006Z">
+   <md:SPSSODescriptor AuthnRequestsSigned="false" WantAssertionsSigned="true" protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
+      <md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified</md:NameIDFormat>
+      <md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress</md:NameIDFormat>
+      <md:AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="https://sptest.iamshowcase.com/acs" index="0" isDefault="true"/>
+   </md:SPSSODescriptor>
+</md:EntityDescriptor>
+`

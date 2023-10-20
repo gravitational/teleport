@@ -19,6 +19,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/gravitational/teleport/lib/benchmark"
@@ -34,7 +35,16 @@ func main() {
 	}
 
 	// Run Linear generator
-	results, err := benchmark.Run(context.TODO(), linear, "ls -l /", "host", "username", "teleport.example.com")
+	results, err := benchmark.Run(
+		context.TODO(),
+		linear,
+		"host",
+		"username",
+		"teleport.example.com",
+		benchmark.SSHBenchmark{
+			Command: strings.Split("ls -l /", " "),
+		},
+	)
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)

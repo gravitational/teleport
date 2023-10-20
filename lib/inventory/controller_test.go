@@ -18,17 +18,21 @@ package inventory
 
 import (
 	"context"
+	"runtime"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
-
-	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/require"
+	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 type fakeAuth struct {
@@ -42,6 +46,11 @@ type fakeAuth struct {
 
 	expectAddr      string
 	unexpectedAddrs int
+
+	failUpsertInstance int
+
+	lastInstance    types.Instance
+	lastRawInstance []byte
 }
 
 func (a *fakeAuth) UpsertNode(_ context.Context, server types.Server) (*types.KeepAlive, error) {
@@ -71,12 +80,34 @@ func (a *fakeAuth) KeepAliveServer(_ context.Context, _ types.KeepAlive) error {
 	return a.err
 }
 
-// TestControllerBasics verifies basic expected behaviors for a single control stream.
-func TestControllerBasics(t *testing.T) {
+func (a *fakeAuth) UpsertInstance(ctx context.Context, instance types.Instance) error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	if a.failUpsertInstance > 0 {
+		a.failUpsertInstance--
+		return trace.Errorf("upsert instance failed as test condition")
+	}
+
+	a.lastInstance = instance.Clone()
+	var err error
+	a.lastRawInstance, err = utils.FastMarshal(instance)
+	if err != nil {
+		panic("fastmarshal of instance should be infallible")
+	}
+
+	return nil
+}
+
+// TestSSHServerBasics verifies basic expected behaviors for a single control stream heartbeating
+// an ssh service.
+func TestSSHServerBasics(t *testing.T) {
 	const serverID = "test-server"
 	const zeroAddr = "0.0.0.0:123"
 	const peerAddr = "1.2.3.4:456"
 	const wantAddr = "1.2.3.4:123"
+
+	t.Parallel()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -89,6 +120,7 @@ func TestControllerBasics(t *testing.T) {
 
 	controller := NewController(
 		auth,
+		usagereporter.DiscardUsageReporter{},
 		withServerKeepAlive(time.Millisecond*200),
 		withTestEventsChannel(events),
 	)
@@ -174,8 +206,9 @@ func TestControllerBasics(t *testing.T) {
 	// limit time of ping call
 	pingCtx, cancel := context.WithTimeout(ctx, time.Second*10)
 	defer cancel()
+
 	// execute ping
-	_, err = handle.Ping(pingCtx)
+	_, err = handle.Ping(pingCtx, 1)
 	require.NoError(t, err)
 
 	// set up to induce enough consecutive errors to cause stream closure
@@ -221,6 +254,264 @@ func TestControllerBasics(t *testing.T) {
 	unexpectedAddrs := auth.unexpectedAddrs
 	auth.mu.Unlock()
 	require.Zero(t, unexpectedAddrs)
+}
+
+// TestInstanceHeartbeat verifies basic expected behaviors for instance heartbeat.
+func TestInstanceHeartbeat_Disabled(t *testing.T) {
+	const serverID = "test-instance"
+	const peerAddr = "1.2.3.4:456"
+
+	events := make(chan testEvent, 1024)
+
+	auth := &fakeAuth{}
+
+	controller := NewController(
+		auth,
+		usagereporter.DiscardUsageReporter{},
+		withInstanceHBInterval(time.Millisecond*200),
+		withTestEventsChannel(events),
+	)
+	defer controller.Close()
+
+	// set up fake in-memory control stream
+	upstream, _ := client.InventoryControlStreamPipe(client.ICSPipePeerAddr(peerAddr))
+
+	controller.RegisterControlStream(upstream, proto.UpstreamInventoryHello{
+		ServerID: serverID,
+		Version:  teleport.Version,
+		Services: []types.SystemRole{types.RoleNode},
+	})
+
+	// verify that control stream handle is now accessible
+	_, ok := controller.GetControlStream(serverID)
+	require.True(t, ok)
+
+	// verify that no instance heartbeats are emitted
+	awaitEvents(t, events,
+		deny(instanceHeartbeatOk, instanceHeartbeatErr, instanceCompareFailed, handlerClose),
+	)
+}
+
+// TestInstanceHeartbeat verifies basic expected behaviors for instance heartbeat.
+func TestInstanceHeartbeat(t *testing.T) {
+	t.Setenv("TELEPORT_UNSTABLE_ENABLE_INSTANCE_HB", "yes")
+
+	const serverID = "test-instance"
+	const peerAddr = "1.2.3.4:456"
+
+	events := make(chan testEvent, 1024)
+
+	auth := &fakeAuth{}
+
+	controller := NewController(
+		auth,
+		usagereporter.DiscardUsageReporter{},
+		withInstanceHBInterval(time.Millisecond*200),
+		withTestEventsChannel(events),
+	)
+	defer controller.Close()
+
+	// set up fake in-memory control stream
+	upstream, downstream := client.InventoryControlStreamPipe(client.ICSPipePeerAddr(peerAddr))
+
+	controller.RegisterControlStream(upstream, proto.UpstreamInventoryHello{
+		ServerID: serverID,
+		Version:  teleport.Version,
+		Services: []types.SystemRole{types.RoleNode, types.RoleApp},
+	})
+
+	// verify that control stream handle is now accessible
+	handle, ok := controller.GetControlStream(serverID)
+	require.True(t, ok)
+
+	// verify that instance heartbeat succeeds
+	awaitEvents(t, events,
+		expect(instanceHeartbeatOk),
+		deny(instanceHeartbeatErr, instanceCompareFailed, handlerClose),
+	)
+
+	// verify the service counter shows the correct number for the given services.
+	require.Equal(t, uint64(1), controller.serviceCounter.get(types.RoleNode))
+	require.Equal(t, uint64(1), controller.serviceCounter.get(types.RoleApp))
+
+	// this service was not seen, so it should be 0.
+	require.Equal(t, uint64(0), controller.serviceCounter.get(types.RoleOkta))
+
+	// set up single failure of upsert. stream should recover.
+	auth.mu.Lock()
+	auth.failUpsertInstance = 1
+	auth.mu.Unlock()
+
+	// verify that heartbeat error occurs
+	awaitEvents(t, events,
+		expect(instanceHeartbeatErr),
+		deny(instanceCompareFailed, handlerClose),
+	)
+
+	// verify that recovery happens
+	awaitEvents(t, events,
+		expect(instanceHeartbeatOk),
+		deny(instanceHeartbeatErr, instanceCompareFailed, handlerClose),
+	)
+
+	// verify the service counter shows the correct number for the given services.
+	require.Equal(t, map[types.SystemRole]uint64{
+		types.RoleApp:  1,
+		types.RoleNode: 1,
+	}, controller.ConnectedServiceCounts())
+	require.Equal(t, uint64(1), controller.ConnectedServiceCount(types.RoleNode))
+	require.Equal(t, uint64(1), controller.ConnectedServiceCount(types.RoleApp))
+
+	// set up double failure of CAS. stream should not recover.
+	auth.mu.Lock()
+	auth.failUpsertInstance = 2
+	auth.mu.Unlock()
+
+	// expect failure and handle closure
+	awaitEvents(t, events,
+		expect(instanceHeartbeatErr, handlerClose),
+	)
+
+	// verify that closure propagates to server and client side interfaces
+	closeTimeout := time.After(time.Second * 10)
+	select {
+	case <-handle.Done():
+	case <-closeTimeout:
+		t.Fatal("timeout waiting for handle closure")
+	}
+	select {
+	case <-downstream.Done():
+	case <-closeTimeout:
+		t.Fatal("timeout waiting for handle closure")
+	}
+
+	// verify the service counter now shows no connected services.
+	require.Equal(t, map[types.SystemRole]uint64{
+		types.RoleApp:  0,
+		types.RoleNode: 0,
+	}, controller.ConnectedServiceCounts())
+	require.Equal(t, uint64(0), controller.ConnectedServiceCount(types.RoleNode))
+	require.Equal(t, uint64(0), controller.ConnectedServiceCount(types.RoleApp))
+}
+
+// TestUpdateLabels verifies that an instance's labels can be updated over an
+// inventory control stream.
+func TestUpdateLabels(t *testing.T) {
+	t.Parallel()
+	const serverID = "test-instance"
+	const peerAddr = "1.2.3.4:456"
+
+	events := make(chan testEvent, 1024)
+
+	auth := &fakeAuth{}
+
+	controller := NewController(
+		auth,
+		usagereporter.DiscardUsageReporter{},
+		withInstanceHBInterval(time.Millisecond*200),
+		withTestEventsChannel(events),
+	)
+	defer controller.Close()
+
+	// Set up fake in-memory control stream.
+	upstream, downstream := client.InventoryControlStreamPipe(client.ICSPipePeerAddr(peerAddr))
+	upstreamHello := proto.UpstreamInventoryHello{
+		ServerID: serverID,
+		Version:  teleport.Version,
+		Services: []types.SystemRole{types.RoleNode},
+	}
+	downstreamHello := proto.DownstreamInventoryHello{
+		Version:  teleport.Version,
+		ServerID: "auth",
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	downstreamHandle := NewDownstreamHandle(func(ctx context.Context) (client.DownstreamInventoryControlStream, error) {
+		return downstream, nil
+	}, upstreamHello)
+
+	// Wait for upstream hello.
+	select {
+	case msg := <-upstream.Recv():
+		require.Equal(t, upstreamHello, msg)
+	case <-ctx.Done():
+		require.Fail(t, "never got upstream hello")
+	}
+	require.NoError(t, upstream.Send(ctx, downstreamHello))
+	controller.RegisterControlStream(upstream, upstreamHello)
+
+	// Verify that control stream upstreamHandle is now accessible.
+	upstreamHandle, ok := controller.GetControlStream(serverID)
+	require.True(t, ok)
+
+	// Update labels.
+	labels := map[string]string{"a": "1", "b": "2"}
+	require.NoError(t, upstreamHandle.UpdateLabels(ctx, proto.LabelUpdateKind_SSHServerCloudLabels, labels))
+
+	require.Eventually(t, func() bool {
+		require.Equal(t, labels, downstreamHandle.GetUpstreamLabels(proto.LabelUpdateKind_SSHServerCloudLabels))
+		return true
+	}, time.Second, 100*time.Millisecond)
+}
+
+// TestAgentMetadata verifies that an instance's agent metadata is received in
+// inventory control stream.
+func TestAgentMetadata(t *testing.T) {
+	// set the install method to validate it was returned as agent metadata
+	t.Setenv("TELEPORT_INSTALL_METHOD_AWSOIDC_DEPLOYSERVICE", "true")
+	const serverID = "test-instance"
+	const peerAddr = "1.2.3.4:456"
+
+	events := make(chan testEvent, 1024)
+
+	auth := &fakeAuth{}
+
+	controller := NewController(
+		auth,
+		usagereporter.DiscardUsageReporter{},
+		withInstanceHBInterval(time.Millisecond*200),
+		withTestEventsChannel(events),
+	)
+	defer controller.Close()
+
+	// Set up fake in-memory control stream.
+	upstream, downstream := client.InventoryControlStreamPipe(client.ICSPipePeerAddr(peerAddr))
+	upstreamHello := proto.UpstreamInventoryHello{
+		ServerID: serverID,
+		Version:  teleport.Version,
+		Services: []types.SystemRole{types.RoleNode},
+	}
+	downstreamHello := proto.DownstreamInventoryHello{
+		Version:  teleport.Version,
+		ServerID: "auth",
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	NewDownstreamHandle(func(ctx context.Context) (client.DownstreamInventoryControlStream, error) {
+		return downstream, nil
+	}, upstreamHello)
+
+	// Wait for upstream hello.
+	select {
+	case msg := <-upstream.Recv():
+		require.Equal(t, upstreamHello, msg)
+	case <-ctx.Done():
+		require.Fail(t, "never got upstream hello")
+	}
+	require.NoError(t, upstream.Send(ctx, downstreamHello))
+	controller.RegisterControlStream(upstream, upstreamHello)
+
+	// Verify that control stream upstreamHandle is now accessible.
+	upstreamHandle, ok := controller.GetControlStream(serverID)
+	require.True(t, ok)
+
+	// Validate that the agent's metadata ends up in the auth server.
+	require.Eventually(t, func() bool {
+		return slices.Equal(upstreamHandle.AgentMetadata().InstallMethods, []string{"awsoidc_deployservice"}) &&
+			upstreamHandle.AgentMetadata().OS == runtime.GOOS
+	}, 5*time.Second, 200*time.Millisecond)
 }
 
 type eventOpts struct {

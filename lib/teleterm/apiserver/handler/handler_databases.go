@@ -18,27 +18,31 @@ import (
 	"context"
 	"sort"
 
-	api "github.com/gravitational/teleport/lib/teleterm/api/protogen/golang/v1"
-	"github.com/gravitational/teleport/lib/teleterm/clusters"
-
 	"github.com/gravitational/trace"
+
+	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
+	"github.com/gravitational/teleport/lib/teleterm/clusters"
 )
 
-// ListDatabases lists databases
-func (s *Handler) ListDatabases(ctx context.Context, req *api.ListDatabasesRequest) (*api.ListDatabasesResponse, error) {
-	cluster, err := s.DaemonService.ResolveCluster(req.ClusterUri)
+// GetDatabases gets databses with filters and returns paginated results
+func (s *Handler) GetDatabases(ctx context.Context, req *api.GetDatabasesRequest) (*api.GetDatabasesResponse, error) {
+	cluster, _, err := s.DaemonService.ResolveCluster(req.ClusterUri)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	dbs, err := cluster.GetDatabases(ctx)
+	resp, err := cluster.GetDatabases(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	response := &api.ListDatabasesResponse{}
-	for _, db := range dbs {
-		response.Databases = append(response.Databases, newAPIDatabase(db))
+	response := &api.GetDatabasesResponse{
+		StartKey:   resp.StartKey,
+		TotalCount: int32(resp.TotalCount),
+	}
+
+	for _, database := range resp.Databases {
+		response.Agents = append(response.Agents, newAPIDatabase(database))
 	}
 
 	return response, nil
@@ -50,7 +54,7 @@ func (s *Handler) ListDatabases(ctx context.Context, req *api.ListDatabasesReque
 // The list is based on whatever we can deduce from the role set, so it's similar to the behavior of
 // `tsh db ls -v`, with the exception that Teleterm is interested only in the allowed usernames.
 func (s *Handler) ListDatabaseUsers(ctx context.Context, req *api.ListDatabaseUsersRequest) (*api.ListDatabaseUsersResponse, error) {
-	cluster, err := s.DaemonService.ResolveCluster(req.DbUri)
+	cluster, _, err := s.DaemonService.ResolveCluster(req.DbUri)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

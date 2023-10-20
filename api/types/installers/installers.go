@@ -25,13 +25,24 @@ import (
 //go:embed installer.sh.tmpl
 var defaultInstallScript string
 
+//go:embed agentless-installer.sh.tmpl
+var defaultAgentlessInstallScript string
+
 // InstallerScriptName is the name of the by default populated, EC2
 // installer script
-const InstallerScriptName = "default-installer"
+const InstallerScriptName = types.DefaultInstallerScriptName
+
+// InstallerScriptName is the name of the by default populated, EC2
+// installer script when agentless mode is enabled for a matcher
+const InstallerScriptNameAgentless = types.DefaultInstallerScriptNameAgentless
 
 // DefaultInstaller represents a the default installer script provided
 // by teleport
 var DefaultInstaller = types.MustNewInstallerV1(InstallerScriptName, defaultInstallScript)
+
+// DefaultAgentlessInstaller represents a the default agentless installer script provided
+// by teleport
+var DefaultAgentlessInstaller = types.MustNewInstallerV1(InstallerScriptNameAgentless, defaultAgentlessInstallScript)
 
 // Template is used to fill proxy address and version information into
 // the installer script
@@ -40,4 +51,15 @@ type Template struct {
 	PublicProxyAddr string
 	// MajorVersion is the major version of the Teleport auth node
 	MajorVersion string
+	// TeleportPackage is the teleport package to use. `teleport` or
+	// `teleport-ent` depending on if the cluster is enterprise or not.
+	TeleportPackage string
+	// RepoChannel is the repo's channel name to install.
+	RepoChannel string
+	// AutomaticUpgrades indicates whether Automatic Upgrades are enabled or disabled.
+	// Its value is either `true` or `false`.
+	AutomaticUpgrades string
+	// AzureClientID is the client ID of the managed identity to use when joining
+	// the cluster. Only applicable for the azure join method.
+	AzureClientID string
 }

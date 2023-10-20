@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package events
+package events_test
 
 import (
 	"context"
@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/session"
 )
@@ -37,10 +38,10 @@ import (
 // completes uploads that don't have an associated session tracker.
 func TestUploadCompleterCompletesAbandonedUploads(t *testing.T) {
 	clock := clockwork.NewFakeClock()
-	mu := NewMemoryUploader()
+	mu := eventstest.NewMemoryUploader()
 	mu.Clock = clock
 
-	log := &mockAuditLog{}
+	log := &eventstest.MockAuditLog{}
 
 	sessionID := session.NewID()
 	expires := clock.Now().Add(time.Hour * 1)
@@ -60,7 +61,7 @@ func TestUploadCompleterCompletesAbandonedUploads(t *testing.T) {
 		trackers: []types.SessionTracker{sessionTracker},
 	}
 
-	uc, err := NewUploadCompleter(UploadCompleterConfig{
+	uc, err := events.NewUploadCompleter(events.UploadCompleterConfig{
 		Uploader:       mu,
 		AuditLog:       log,
 		SessionTracker: sessionTrackerService,
@@ -72,15 +73,15 @@ func TestUploadCompleterCompletesAbandonedUploads(t *testing.T) {
 	upload, err := mu.CreateUpload(context.Background(), sessionID)
 	require.NoError(t, err)
 
-	err = uc.checkUploads(context.Background())
+	err = uc.CheckUploads(context.Background())
 	require.NoError(t, err)
-	require.False(t, mu.uploads[upload.ID].completed)
+	require.False(t, mu.IsCompleted(upload.ID))
 
 	clock.Advance(1 * time.Hour)
 
-	err = uc.checkUploads(context.Background())
+	err = uc.CheckUploads(context.Background())
 	require.NoError(t, err)
-	require.True(t, mu.uploads[upload.ID].completed)
+	require.True(t, mu.IsCompleted(upload.ID))
 }
 
 // TestUploadCompleterEmitsSessionEnd verifies that the upload completer
@@ -91,26 +92,27 @@ func TestUploadCompleterEmitsSessionEnd(t *testing.T) {
 		startEvent   apievents.AuditEvent
 		endEventType string
 	}{
-		{&apievents.SessionStart{}, SessionEndEvent},
-		{&apievents.WindowsDesktopSessionStart{}, WindowsDesktopSessionEndEvent},
+		{&apievents.SessionStart{}, events.SessionEndEvent},
+		{&apievents.WindowsDesktopSessionStart{}, events.WindowsDesktopSessionEndEvent},
 	} {
 		t.Run(test.endEventType, func(t *testing.T) {
 			clock := clockwork.NewFakeClock()
-			mu := NewMemoryUploader()
+			mu := eventstest.NewMemoryUploader()
 			mu.Clock = clock
 			startTime := clock.Now().UTC()
 			endTime := startTime.Add(2 * time.Minute)
 
 			test.startEvent.SetTime(startTime)
 
-			log := &mockAuditLog{
-				sessionEvents: []apievents.AuditEvent{
+			log := &eventstest.MockAuditLog{
+				Emitter: &eventstest.MockRecorderEmitter{},
+				SessionEvents: []apievents.AuditEvent{
 					test.startEvent,
 					&apievents.SessionPrint{Metadata: apievents.Metadata{Time: endTime}},
 				},
 			}
 
-			uc, err := NewUploadCompleter(UploadCompleterConfig{
+			uc, err := events.NewUploadCompleter(events.UploadCompleterConfig{
 				Uploader:       mu,
 				AuditLog:       log,
 				Clock:          clock,
@@ -127,7 +129,7 @@ func TestUploadCompleterEmitsSessionEnd(t *testing.T) {
 			_, err = mu.UploadPart(context.Background(), *upload, 0, strings.NewReader("part"))
 			require.NoError(t, err)
 
-			err = uc.checkUploads(context.Background())
+			err = uc.CheckUploads(context.Background())
 			require.NoError(t, err)
 
 			// advance the clock to force the asynchronous session end event emission
@@ -136,45 +138,15 @@ func TestUploadCompleterEmitsSessionEnd(t *testing.T) {
 
 			// expect two events - a session end and a session upload
 			// the session end is done asynchronously, so wait for that
-			require.Eventually(t, func() bool { return len(log.emitter.Events()) == 2 }, 5*time.Second, 1*time.Second,
-				"should have emitted 2 events, but only got %d", len(log.emitter.Events()))
+			require.Eventually(t, func() bool { return len(log.Emitter.Events()) == 2 }, 5*time.Second, 1*time.Second,
+				"should have emitted 2 events, but only got %d", len(log.Emitter.Events()))
 
-			require.IsType(t, &apievents.SessionUpload{}, log.emitter.Events()[0])
-			require.Equal(t, startTime, log.emitter.Events()[0].GetTime())
-			require.Equal(t, test.endEventType, log.emitter.Events()[1].GetType())
-			require.Equal(t, endTime, log.emitter.Events()[1].GetTime())
+			require.IsType(t, &apievents.SessionUpload{}, log.Emitter.Events()[0])
+			require.Equal(t, startTime, log.Emitter.Events()[0].GetTime())
+			require.Equal(t, test.endEventType, log.Emitter.Events()[1].GetType())
+			require.Equal(t, endTime, log.Emitter.Events()[1].GetTime())
 		})
 	}
-}
-
-type mockAuditLog struct {
-	DiscardAuditLog
-
-	emitter       eventstest.MockEmitter
-	sessionEvents []apievents.AuditEvent
-}
-
-func (m *mockAuditLog) StreamSessionEvents(ctx context.Context, sid session.ID, startIndex int64) (chan apievents.AuditEvent, chan error) {
-	errors := make(chan error, 1)
-	events := make(chan apievents.AuditEvent)
-
-	go func() {
-		defer close(events)
-
-		for _, event := range m.sessionEvents {
-			select {
-			case <-ctx.Done():
-				return
-			case events <- event:
-			}
-		}
-	}()
-
-	return events, errors
-}
-
-func (m *mockAuditLog) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
-	return m.emitter.EmitAuditEvent(ctx, event)
 }
 
 type mockSessionTrackerService struct {
@@ -191,6 +163,10 @@ func (m *mockSessionTrackerService) GetActiveSessionTrackers(ctx context.Context
 		}
 	}
 	return trackers, nil
+}
+
+func (m *mockSessionTrackerService) GetActiveSessionTrackersWithFilter(ctx context.Context, filter *types.SessionTrackerFilter) ([]types.SessionTracker, error) {
+	return nil, trace.NotImplemented("GetActiveSessionTrackersWithFilter is not implemented")
 }
 
 func (m *mockSessionTrackerService) GetSessionTracker(ctx context.Context, sessionID string) (types.SessionTracker, error) {

@@ -1,56 +1,33 @@
 ---
 title: Database Access with Azure PostgreSQL and MySQL
-description: How to configure Teleport Database Access with Azure Database for PostgreSQL and MySQL.
+description: How to configure Teleport database access with Azure Database for PostgreSQL and MySQL.
 ---
 
-<Details
-  title="Version warning"
-  opened={true}
-  scope={["oss", "enterprise"]}
-  scopeOnly={true}
-  min="8.1"
->
-  Static configuration of database access for Azure PostgreSQL/MySQL is available starting from Teleport
-  `8.1` and Azure database auto-discovery is available starting from Teleport `10.2`.
-</Details>
+(!docs/pages/includes/database-access/db-introduction.mdx  dbType="Azure PostgreSQL or MySQL" dbConfigure="Azure PostgreSQL or MySQL database with IAM authentication" dbName="Azure PostgreSQL or MySQL" !)
 
-This guide will help you to:
+Database auto-discovery for Azure PostgreSQL/MySQL flexible servers is available starting from
+Teleport `12.0`.
 
-- Install and configure Teleport.
-- Set up access to Azure Database for PostgreSQL or Azure Database for MySQL.
-- Connect to the database server through Teleport.
-
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 ![Teleport Database Access Azure PostgreSQL/MySQL Self-Hosted](../../../img/database-access/guides/azure_selfhosted.png)
-</ScopedBlock>
-
-
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 ![Teleport Database Access Azure PostgreSQL/MySQL Cloud](../../../img/database-access/guides/azure_cloud.png)
-</ScopedBlock>
-
-<Admonition type="note">
-    Teleport uses Azure Active Directory authentication with Azure PostgreSQL
-    and MySQL databases which at the moment of this writing is only supported
-    by Single Server. Flexible Server does not support Azure AD authentication.
-</Admonition>
+</TabItem>
+</Tabs>
 
 ## Prerequisites
+
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
 - Deployed Azure Database for PostgreSQL or MySQL server.
 - Azure Active Directory administrative privileges.
 - A host, e.g., an Azure VM instance, where you will run the Teleport Database
   Service.
+- (!docs/pages/includes/tctl.mdx!)
 
-(!docs/pages/includes/user-client-prereqs.mdx!)
-
-## Step 1/5. Install and configure Teleport
-
-### Set up the Teleport Auth and Proxy Services
-
-(!docs/pages/includes/database-access/start-auth-proxy.mdx!)
-
-### Set up the Teleport Database Service
+## Step 1/5. Install the Teleport Database Service
 
 (!docs/pages/includes/database-access/token.mdx!)
 
@@ -58,17 +35,20 @@ Install Teleport on the host where you will run the Teleport Database Service:
 
 (!docs/pages/includes/install-linux.mdx!)
 
-Create the Database Service configuration, specifying a region like this:
-
-<ScopedBlock scope={["oss", "enterprise"]}>
+Create the Database Service configuration.
 
 <Tabs>
 <TabItem label="PostgreSQL">
 
+- Specify the region for your database(s) in `--azure-postgres-discovery`.
+
+- Replace the `--proxy` value with your Teleport proxy address or Teleport cloud
+  URI (e.g. `mytenant.teleport.sh:443`):
+
   ```code
-  $ teleport db configure create \
+  $ sudo teleport db configure create \
     -o file \
-    --proxy=tele.example.com:443 \
+    --proxy=teleport.example.com:443 \
     --token=/tmp/token \
     --azure-postgres-discovery=eastus
   ```
@@ -76,132 +56,106 @@ Create the Database Service configuration, specifying a region like this:
 </TabItem>
 <TabItem label="MySQL">
 
+- Specify the region for your database(s) in `--azure-mysql-discovery`.
+
+- Replace the `--proxy` value with your Teleport proxy address or Teleport cloud
+  URI (e.g. `mytenant.teleport.sh:443`):
+
   ```code
-  $ teleport db configure create \
+  $ sudo teleport db configure create \
     -o file \
-    --proxy=teleport.example.com:3080 \
+    --proxy=teleport.example.com:443 \
     --token=/tmp/token \
     --azure-mysql-discovery=eastus
   ```
 
 </TabItem>
-</Tabs>
 
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+<TabItem label="PostgreSQL and MySQL">
 
-<Tabs>
-<TabItem label="PostgreSQL">
+Run the following command on your Database Service host:
 
   ```code
-  $ teleport db configure create \
+  $ sudo teleport db configure create \
     -o file \
-    --proxy=teleport.example.com:3080 \
+    --proxy=teleport.example.com:443 \
     --token=/tmp/token \
+    --azure-mysql-discovery=eastus \
     --azure-postgres-discovery=eastus
   ```
 
-</TabItem>
-<TabItem label="MySQL">
+<Admonition type="tip">
+This will create two `types` entities in `teleport.yaml`, one for each database
+type. This is useful if you want different regions, tags, or labels for each
+database type.
 
-  ```code
-  $ teleport db configure create \
-    -o file \
-    --proxy=teleport.example.com:3080 \
-    --token=/tmp/token \
-    --azure-mysql-discovery=eastus
-  ```
+Alternatively, you can edit `teleport.yaml` to include both database types in a
+single entry:
+
+```yaml
+db_service:
+  azure:
+  - types: ["mysql", "postgres"]
+  ...
+```
+
+</Admonition>
 
 </TabItem>
+
 </Tabs>
 
-</ScopedBlock>
-
-The command will generate a Database Service configuration with Azure MySQL/Postgres
+This command will generate a Database Service configuration with Azure MySQL/Postgres
 database auto-discovery enabled in the `eastus` region and place it at the
 `/etc/teleport.yaml` location.
 
-### Create a Teleport user
+### Create a Teleport role
 
-(!docs/pages/includes/database-access/create-user.mdx!)
+On your workstation logged in to your Teleport cluster with `tsh`, define a new
+role to provide access to your Azure database. Create a file called `azure-database-role.yaml` with the following content:
 
-## Step 2/5. Configure Azure service principal
+```yaml
+version: v7
+kind: role
+metadata:
+  name: azure-database-access
+spec:
+  allow:
+    db_labels:
+      'engine':
+        - "Microsoft.DBforMySQL/servers"
+        - "Microsoft.DBforMySQL/flexibleServers"
+        - "Microsoft.DBforPostgreSQL/servers"
+        - "Microsoft.DBforPostgreSQL/flexibleServers"
+    db_names:
+    - '*'
+    db_users:
+    - teleport
+```
+
+| Flag                       | Description                                                                                                                              |
+|----------------------------|------------------------------------------------------------------------------------------------------------------------------------------|
+| `--db-users` | List of database usernames the user will be allowed to use when connecting to the databases. A wildcard allows any user.                 |
+| `--db-names` | List of logical databases (aka schemas) the user will be allowed to connect to within a database server. A wildcard allows any database. |
+| `--db-labels` | List of labels assigned to the database the user will be able to access. A wildcard entry allows any database.                           |
+
+Save this file and apply it to your Teleport cluster:
+
+```code
+$ tctl create -f azure-database-role.yaml
+role 'azure-database-role.yaml' has been created
+```
+
+(\!docs/pages/includes/add-role-to-user.mdx role="azure-database-access" \!)
+
+## Step 3/6. Configure Azure service principal
 
 To authenticate with PostgreSQL or MySQL databases, Teleport Database Service
-needs to obtain access tokens from Azure AD. There are a couple of ways to
-achieve that:
+needs to obtain access tokens from Azure AD.
 
-- The Database Service can be registered as an Azure AD application (via AD's "App
-  registrations") and configured with its credentials. This is only recommended
-  for development and testing purposes since it requires Azure credentials to
-  be present in the Database Service's environment.
-- The Database Service can run on an Azure VM with attached managed identity. This
-  is the recommended way of deploying the Database Service in production since
-  it eliminates the need to manage Azure credentials.
+(!docs/pages/includes/database-access/azure-configure-service-principal.mdx!)
 
-<Tabs>
-<TabItem label="Using managed identity">
-  Go to the [Managed Identities](https://portal.azure.com/#blade/HubsExtension/BrowseResource/resourceType/Microsoft.ManagedIdentity%2FuserAssignedIdentities)
-  page in your Azure portal and click *Create* to create a new user-assigned
-  managed identity:
-
-  ![Managed identities](../../../img/database-access/guides/azure/managed-identities@2x.png)
-
-  Pick a name and resource group for the new identity and create it:
-
-  ![New identity](../../../img/database-access/guides/azure/new-identity@2x.png)
-
-  Take note of the created identity's *Client ID*:
-
-  ![Created identity](../../../img/database-access/guides/azure/created-identity@2x.png)
-
-  Next, navigate to the Azure VM that will run your Database Service instance and
-  add the identity you've just created to it:
-
-  ![VM identity](../../../img/database-access/guides/azure/vm-identity@2x.png)
-
-  Attach this identity to all Azure VMs that will be running the Database
-  Service.
-</TabItem>
-<TabItem label="Using app registrations">
-  <Admonition type="note">
-    Registering the Database Service as Azure AD application is suitable for
-    test and development scenarios, or if your Database Service does not run on
-    an Azure VM. For production scenarios prefer to use the managed identity
-    approach.
-  </Admonition>
-
-  Go the the [App registrations](https://portal.azure.com/#blade/Microsoft_AAD_IAM/ActiveDirectoryMenuBlade/RegisteredApps)
-  page of your Azure Active Directory and click on *New registration*:
-
-  ![App registrations](../../../img/database-access/guides/azure/app-registrations@2x.png)
-
-  Pick a name (e.g. *DatabaseService*) and register a new application. Once the
-  app has been created, take note of its *Application (client) ID* and click on
-  *Add a certificate or secret*:
-
-  ![Registered app](../../../img/database-access/guides/azure/registered-app@2x.png)
-
-  Create a new client secret that the Database Service agent will use to
-  authenticate with the Azure API:
-
-  ![Registered app secrets](../../../img/database-access/guides/azure/registered-app-secrets@2x.png)
-
-  The Teleport Database Service uses Azure SDK's default credential provider chain to
-  look for credentials. Refer to [Azure SDK Authorization](https://docs.microsoft.com/en-us/azure/developer/go/azure-sdk-authorization)
-  to pick a method suitable for your use-case. For example, to use
-  environment-based authentication with a client secret, the Database Service should
-  have the following environment variables set:
-
-  ```code
-  export AZURE_TENANT_ID=
-  export AZURE_CLIENT_ID=
-  export AZURE_CLIENT_SECRET=
-  ```
-</TabItem>
-</Tabs>
-
-## Step 3/5. Configure IAM permissions for Teleport
+## Step 4/6. Configure IAM permissions for Teleport
 
 ### Create a custom role
 
@@ -220,7 +174,9 @@ Create a role with assignable scope(s) that include all databases that Teleport 
             {
                 "actions": [
                     "Microsoft.DBforMySQL/servers/read",
-                    "Microsoft.DBforPostgreSQL/servers/read"
+                    "Microsoft.DBforPostgreSQL/servers/read",
+                    "Microsoft.DBforMySQL/flexibleServers/read",
+                    "Microsoft.DBforPostgreSQL/flexibleServers/read"
                 ],
                 "notActions": [],
                 "dataActions": [],
@@ -231,7 +187,7 @@ Create a role with assignable scope(s) that include all databases that Teleport 
 }
 ```
 
-This role definition allows Teleport to discover MySQL and PostgreSQL databases, but Teleport only needs 
+This role definition allows Teleport to discover MySQL and PostgreSQL databases, but Teleport only needs
 permissions for the database types you have. The assignable scopes include a subscription, so
 the role can be assigned at any resource scope within that subscription, or assigned using the
 subscription scope itself.
@@ -241,7 +197,7 @@ Custom roles, unlike
 [Azure built-in roles](https://docs.microsoft.com/en-us/azure/role-based-access-control/built-in-roles),
 can not have a root assignable scope. The highest assignable scope that
 can be used in a custom role is subscription scope. Using a management group scope is currently an Azure
-preview feature, and only allows for a single management group in the "assignableScopes" of a role 
+preview feature, and only allows for a single management group in the "assignableScopes" of a role
 definition.
 See [Azure RBAC custom roles](https://docs.microsoft.com/en-us/azure/role-based-access-control/custom-roles) for
 more information.
@@ -251,7 +207,7 @@ Go to the [Subscriptions](https://portal.azure.com/#view/Microsoft_Azure_Billing
 
 Click on *Access control (IAM)* in the subscription and select *Add > Add custom role*:
 <Figure align="left">
-![IAM custom role](../../../img/database-access/guides/azure/add-custom-role@2x.png)
+![IAM custom role](../../../img/azure/add-custom-role@2x.png)
 </Figure>
 
 In the custom role creation page, click the *JSON* tab and click *Edit*, then paste the JSON example
@@ -260,26 +216,11 @@ and replace the subscription in "assignableScopes" with your own subscription id
 ![Create JSON role](../../../img/database-access/guides/azure/create-role-from-json@2x.png)
 </Figure>
 
-### Create a role assignment for the Teleport Database Service principal.
+### Create a role assignment for the Teleport Database Service principal
 
-To grant Teleport permissions, the custom role you created must be assigned to the Teleport service principal -
-either the managed identity or the app registration you created earlier.
+(!docs/pages/includes/database-access/azure-assign-service-principal.mdx!)
 
-Navigate to the resource scope where you want to make the role assignment. Click *Access control (IAM)* and 
-select *Add > Add role assignment*. Choose the custom role you created as the role and the Teleport
-service principal as a member.
-
-<Figure align="left">
-![Assign role](../../../img/database-access/guides/azure/create-role-assignment@2x.png)
-</Figure>
-
-<Admonition type="note" title="Azure Role Assignments">
-The role assignment should be at a high enough scope to allow the Teleport Database Service to discover
-all matching databases. See
-[Identify the needed scope](https://docs.microsoft.com/en-us/azure/role-based-access-control/role-assignments-steps#step-3-identify-the-needed-scope)
-for more information about Azure scopes and creating role assignments.
-</Admonition>
-## Step 4/5. Create Azure database users
+## Step 5/6. Create Azure database users
 
 To let Teleport connect to your Azure database authenticating as a service
 principal, you need to create Azure AD users authenticated by that principal in the database.
@@ -287,10 +228,31 @@ principal, you need to create Azure AD users authenticated by that principal in 
 ### Assign Azure AD administrator
 
 Only the Azure AD administrator for the database can connect to it and create
-Azure AD users. Go to your database's *Active Directory admin* page
+Azure AD users.
+
+<Tabs>
+<TabItem label="MySQL Flexible">
+Go to your database's **Authentication** page and set the AD
+admin using the edit button:
+
+![Set AD admin](../../../img/database-access/guides/azure/set-ad-admin.png)
+
+</TabItem>
+<TabItem label="PostgreSQL Flexible">
+Go to your database's **Authentication** page and set the AD
+admin by selecting **+ Add Azure AD Admins**:
+
+![Set AD admin](../../../img/database-access/guides/azure/set-ad-admin-postgres.png)
+
+</TabItem>
+<TabItem label="Single server">
+Go to your database's *Active Directory admin* page
 and set the AD admin using the *Set admin* button:
 
 ![Set AD admin](../../../img/database-access/guides/azure/set-ad-admin@2x.png)
+
+</TabItem>
+</Tabs>
 
 <Admonition type="note" title="Azure AD Admin">
 Only one Azure user (or group) can be set as an Azure AD admin for the database.
@@ -308,19 +270,41 @@ Use the Azure `az` CLI utility to log in as the user that you set as the AD admi
 fetch the access token and use it as a password when connecting to the database:
 
 <Tabs>
+<TabItem label="PostgreSQL Flexible">
+
+```code
+$ az login -u ad@example.com
+$ TOKEN=`az account get-access-token --resource-type oss-rdbms --output tsv --query accessToken`
+$ PGPASSWORD=$TOKEN psql "host=example.postgres.database.azure.com user=ad@example.com sslmode=require dbname=postgres"
+```
+
+</TabItem>
 <TabItem label="PostgreSQL">
-  ```code
-  $ az login -u ad@example.com
-  $ export PGPASSWORD=`az account get-access-token --resource-type oss-rdbms --output tsv --query accessToken`
-  $ psql "host=example.postgres.database.azure.com user=ad@example.com@instance-name sslmode=require dbname=postgres"
-  ```
+
+```code
+$ az login -u ad@example.com
+$ TOKEN=`az account get-access-token --resource-type oss-rdbms --output tsv --query accessToken`
+$ PGPASSWORD=$TOKEN psql "host=example.postgres.database.azure.com user=ad@example.com@instance-name sslmode=require dbname=postgres"
+```
+
+</TabItem>
+<TabItem label="MySQL Flexible">
+
+```code
+$ az login -u ad-admin@example.com
+$ TOKEN=`az account get-access-token --resource-type oss-rdbms --output tsv --query accessToken`
+$ mysql -h example.mysql.database.azure.com -P 3306 -u ad@example.com --enable-cleartext-plugin --password=$TOKEN
+```
+
 </TabItem>
 <TabItem label="MySQL">
-  ```code
-  $ az login -u ad-admin@example.com
-  $ export TOKEN=`az account get-access-token --resource-type oss-rdbms --output tsv --query accessToken`
-  $ mysql -h example.mysql.database.azure.com -P 3306 -u ad@example.com@instance-name --enable-cleartext-plugin --password=$TOKEN
-  ```
+
+```code
+$ az login -u ad-admin@example.com
+$ TOKEN=`az account get-access-token --resource-type oss-rdbms --output tsv --query accessToken`
+$ mysql -h example.mysql.database.azure.com -P 3306 -u ad@example.com@instance-name --enable-cleartext-plugin --password=$TOKEN
+```
+
 </TabItem>
 </Tabs>
 
@@ -336,37 +320,52 @@ registrations:
 
 <Tabs>
 <TabItem label="PostgreSQL">
-  ```
-  postgres=> SET aad_validate_oids_in_tenant = off;
-  SET
-  postgres=> CREATE ROLE teleport WITH LOGIN PASSWORD '11111111-2222-3333-4444-555555555555' IN ROLE azure_ad_user;
-  CREATE ROLE
-  ```
+
+```sql
+postgres=> SET aad_validate_oids_in_tenant = off;
+SET
+postgres=> CREATE ROLE teleport WITH LOGIN PASSWORD '11111111-2222-3333-4444-555555555555' IN ROLE azure_ad_user;
+CREATE ROLE
+```
+
+</TabItem>
+<TabItem label="PostgreSQL Flexible">
+
+```sql
+postgres=> SELECT * FROM pgaadauth_create_principal_with_oid('teleport', '11111111-2222-3333-4444-555555555555', 'service', false, false);
+-------------------------------------
+ Created role for teleport
+(1 row)
+```
+
 </TabItem>
 <TabItem label="MySQL">
-  ```
-  mysql> SET aad_auth_validate_oids_in_tenant = OFF;
-  mysql> CREATE AADUSER 'teleport' IDENTIFIED BY '11111111-2222-3333-4444-555555555555';
-  Query OK, 0 rows affected (0.92 sec)
-  ```
 
-  The created user may not have access to anything by default so let's grant it
-  some permissions:
+```sql
+mysql> SET aad_auth_validate_oids_in_tenant = OFF;
+mysql> CREATE AADUSER 'teleport' IDENTIFIED BY '11111111-2222-3333-4444-555555555555';
+Query OK, 0 rows affected (0.92 sec)
+```
 
-  ```sql
-  GRANT ALL ON `%`.* TO 'teleport'@'%';
-  ```
+The created user may not have access to anything by default so let's grant it
+some permissions:
+
+```sql
+GRANT ALL ON `%`.* TO 'teleport'@'%';
+```
+
 </TabItem>
 </Tabs>
 
 You can create multiple database users identified by the same service principal.
 
-## Step 5/5. Connect
+## Step 6/6. Connect
 
 Log in to your Teleport cluster. Your Azure database should appear in the list of
 available databases:
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
 ```code
 $ tsh login --proxy=teleport.example.com --user=alice
@@ -376,8 +375,8 @@ $ tsh db ls
 # azure-db                     env=dev
 ```
 
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
 ```code
 $ tsh login --proxy=mytenant.teleport.sh --user=alice
@@ -387,17 +386,32 @@ $ tsh db ls
 # azure-db                     env=dev
 ```
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 To retrieve credentials for a database and connect to it:
+
+<Tabs>
+<TabItem label="MySQL">
 
 ```code
 $ tsh db connect --db-user=teleport azure-db
 ```
 
+</TabItem>
+<TabItem label="PostgreSQL">
+
+```code
+$ tsh db connect --db-user=teleport --db-name=postgres azure-db
+```
+
+</TabItem>
+</Tabs>
+
 <Admonition type="note">
-  The appropriate database command-line client (`psql`, `mysql`) should be
-  available in the `PATH` of the machine you're running `tsh db connect` from.
+The appropriate database command-line client (`psql`, `mysql`) should be
+available in the `PATH` of the machine you're running `tsh db connect` from.
 </Admonition>
 
 To log out of the database and remove credentials:
@@ -413,3 +427,4 @@ $ tsh db logout azure-db
 ## Next steps
 
 (!docs/pages/includes/database-access/guides-next-steps.mdx!)
+

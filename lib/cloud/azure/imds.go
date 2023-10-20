@@ -18,13 +18,15 @@ package azure
 import (
 	"context"
 	"net/http"
+	"net/url"
 	"sync"
+
+	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
 )
 
 const (
@@ -97,7 +99,7 @@ func (client *InstanceMetadataClient) selectVersion(ctx context.Context) error {
 }
 
 // getRawMetadata gets the raw metadata from a specified path.
-func (client *InstanceMetadataClient) getRawMetadata(ctx context.Context, route string) ([]byte, error) {
+func (client *InstanceMetadataClient) getRawMetadata(ctx context.Context, route string, queryParams url.Values) ([]byte, error) {
 	httpClient, err := defaults.HTTPClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -108,13 +110,11 @@ func (client *InstanceMetadataClient) getRawMetadata(ctx context.Context, route 
 	}
 
 	req.Header.Add("Metadata", "True")
-	query := req.URL.Query()
-	query.Add("format", "json")
 	apiVersion := client.GetAPIVersion()
 	if apiVersion != "" {
-		query.Add("api-version", apiVersion)
+		queryParams.Add("api-version", apiVersion)
 	}
-	req.URL.RawQuery = query.Encode()
+	req.URL.RawQuery = queryParams.Encode()
 
 	resp, err := httpClient.Do(req)
 	if err != nil {
@@ -137,7 +137,7 @@ func (client *InstanceMetadataClient) getVersions(ctx context.Context) ([]string
 	versions := struct {
 		APIVersions []string `json:"apiVersions"`
 	}{}
-	body, err := client.getRawMetadata(ctx, "/versions")
+	body, err := client.getRawMetadata(ctx, "/versions", url.Values{"format": []string{"json"}})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -167,7 +167,7 @@ func (client *InstanceMetadataClient) GetTags(ctx context.Context) (map[string]s
 		Name  string `json:"name"`
 		Value string `json:"value"`
 	}{}
-	body, err := client.getRawMetadata(ctx, "/instance/compute/tagsList")
+	body, err := client.getRawMetadata(ctx, "/instance/compute/tagsList", url.Values{"format": []string{"json"}})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -194,6 +194,51 @@ func (client *InstanceMetadataClient) GetHostname(ctx context.Context) (string, 
 		return "", trace.NotFound("tag %q not found", types.CloudHostnameTag)
 	}
 	return value, nil
+}
+
+// GetID gets the Azure resource ID of the cloud instance.
+func (client *InstanceMetadataClient) GetID(ctx context.Context) (string, error) {
+	compute := struct {
+		ResourceID string `json:"resourceId"`
+	}{}
+	body, err := client.getRawMetadata(ctx, "/instance/compute", url.Values{"format": []string{"json"}})
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	if err := utils.FastUnmarshal(body, &compute); err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	if compute.ResourceID == "" {
+		return "", trace.NotFound("instance resource ID not available")
+	}
+
+	return compute.ResourceID, nil
+}
+
+// GetAttestedData gets attested data from the instance.
+func (client *InstanceMetadataClient) GetAttestedData(ctx context.Context, nonce string) ([]byte, error) {
+	body, err := client.getRawMetadata(ctx, "/attested/document", url.Values{"nonce": []string{nonce}, "format": []string{"json"}})
+	return body, trace.Wrap(err)
+}
+
+// GetAccessToken gets an oauth2 access token from the instance.
+func (client *InstanceMetadataClient) GetAccessToken(ctx context.Context, clientID string) (string, error) {
+	params := url.Values{"resource": []string{"https://management.azure.com/"}}
+	if clientID != "" {
+		params["client_id"] = []string{clientID}
+	}
+	body, err := client.getRawMetadata(ctx, "/identity/oauth2/token", params)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	var tokenResponse struct {
+		AccessToken string `json:"access_token"`
+	}
+	if err := utils.FastUnmarshal(body, &tokenResponse); err != nil {
+		return "", trace.Wrap(err)
+	}
+	return tokenResponse.AccessToken, nil
 }
 
 // selectVersion selects the most recent API version greater than or equal to

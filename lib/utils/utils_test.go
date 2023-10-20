@@ -27,12 +27,12 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-
-	"github.com/gravitational/teleport/lib/fixtures"
-
+	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/trace"
+	"github.com/gravitational/teleport/lib/fixtures"
+	"github.com/gravitational/teleport/lib/utils/cert"
 )
 
 func TestMain(m *testing.M) {
@@ -91,7 +91,7 @@ func TestHostUUIDRegenerateEmpty(t *testing.T) {
 func TestSelfSignedCert(t *testing.T) {
 	t.Parallel()
 
-	creds, err := GenerateSelfSignedCert([]string{"example.com"})
+	creds, err := cert.GenerateSelfSignedCert([]string{"example.com"}, nil)
 	require.NoError(t, err)
 	require.NotNil(t, creds)
 	require.Equal(t, 4, len(creds.PublicKey)/100)
@@ -149,6 +149,7 @@ func TestVersions(t *testing.T) {
 	for _, testCase := range successTestCases {
 		t.Run(testCase.info, func(t *testing.T) {
 			require.NoError(t, CheckVersion(testCase.client, testCase.minClient))
+			assert.True(t, MeetsVersion(testCase.client, testCase.minClient), "MeetsVersion expected to succeed")
 		})
 	}
 
@@ -159,6 +160,7 @@ func TestVersions(t *testing.T) {
 	for _, testCase := range failTestCases {
 		t.Run(testCase.info, func(t *testing.T) {
 			fixtures.AssertBadParameter(t, CheckVersion(testCase.client, testCase.minClient))
+			assert.False(t, MeetsVersion(testCase.client, testCase.minClient), "MeetsVersion expected to fail")
 		})
 	}
 }
@@ -616,6 +618,56 @@ func TestReadAtMost(t *testing.T) {
 			data, err := ReadAtMost(r, tc.limit)
 			require.Equal(t, []byte(tc.data), data)
 			require.ErrorIs(t, err, tc.err)
+		})
+	}
+}
+
+func TestByteCount(t *testing.T) {
+	tt := []struct {
+		name     string
+		size     int64
+		expected string
+	}{
+		{
+			name:     "1 byte",
+			size:     1,
+			expected: "1 B",
+		},
+		{
+			name:     "2 byte2",
+			size:     2,
+			expected: "2 B",
+		},
+		{
+			name:     "1kb",
+			size:     1000,
+			expected: "1.0 kB",
+		},
+		{
+			name:     "1mb",
+			size:     1000_000,
+			expected: "1.0 MB",
+		},
+		{
+			name:     "1gb",
+			size:     1000_000_000,
+			expected: "1.0 GB",
+		},
+		{
+			name:     "1tb",
+			size:     1000_000_000_000,
+			expected: "1.0 TB",
+		},
+		{
+			name:     "1.6 kb",
+			size:     1600,
+			expected: "1.6 kB",
+		},
+	}
+
+	for _, tc := range tt {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, ByteCount(tc.size), tc.expected)
 		})
 	}
 }

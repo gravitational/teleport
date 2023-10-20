@@ -20,14 +20,14 @@ import (
 	"context"
 	"testing"
 
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/backend/memory"
-
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/backend/memory"
 )
 
 // TestKubernetesCRUD tests backend operations with kubernetes resources.
@@ -67,14 +67,14 @@ func TestKubernetesCRUD(t *testing.T) {
 	out, err = service.GetKubernetesClusters(ctx)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff([]types.KubeCluster{kubeCluster1, kubeCluster2}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 	))
 
 	// Fetch a specific Kubernetes.
 	cluster, err := service.GetKubernetesCluster(ctx, kubeCluster2.GetName())
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(kubeCluster2, cluster,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 	))
 
 	// Try to fetch a Kubernetes that doesn't exist.
@@ -92,7 +92,7 @@ func TestKubernetesCRUD(t *testing.T) {
 	cluster, err = service.GetKubernetesCluster(ctx, kubeCluster1.GetName())
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(kubeCluster1, cluster,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 	))
 
 	// Delete a Kubernetes.
@@ -101,7 +101,7 @@ func TestKubernetesCRUD(t *testing.T) {
 	out, err = service.GetKubernetesClusters(ctx)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff([]types.KubeCluster{kubeCluster2}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 	))
 
 	// Try to delete a Kubernetes that doesn't exist.

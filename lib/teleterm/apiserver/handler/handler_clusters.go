@@ -17,10 +17,10 @@ package handler
 import (
 	"context"
 
-	api "github.com/gravitational/teleport/lib/teleterm/api/protogen/golang/v1"
-	"github.com/gravitational/teleport/lib/teleterm/clusters"
-
 	"github.com/gravitational/trace"
+
+	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
+	"github.com/gravitational/teleport/lib/teleterm/clusters"
 )
 
 // ListRootClusters lists root clusters
@@ -76,27 +76,54 @@ func (s *Handler) RemoveCluster(ctx context.Context, req *api.RemoveClusterReque
 
 // GetCluster returns a cluster
 func (s *Handler) GetCluster(ctx context.Context, req *api.GetClusterRequest) (*api.Cluster, error) {
-	cluster, err := s.DaemonService.ResolveCluster(req.ClusterUri)
+	cluster, _, err := s.DaemonService.ResolveClusterWithDetails(ctx, req.ClusterUri)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return newAPIRootCluster(cluster), nil
+	apiRootClusterWithDetails, err := newAPIRootClusterWithDetails(cluster)
+
+	return apiRootClusterWithDetails, trace.Wrap(err)
 }
 
 func newAPIRootCluster(cluster *clusters.Cluster) *api.Cluster {
 	loggedInUser := cluster.GetLoggedInUser()
-	return &api.Cluster{
+
+	apiCluster := &api.Cluster{
 		Uri:       cluster.URI.String(),
 		Name:      cluster.Name,
 		ProxyHost: cluster.GetProxyHost(),
 		Connected: cluster.Connected(),
 		LoggedInUser: &api.LoggedInUser{
-			Name:      loggedInUser.Name,
-			SshLogins: loggedInUser.SSHLogins,
-			Roles:     loggedInUser.Roles,
+			Name:           loggedInUser.Name,
+			SshLogins:      loggedInUser.SSHLogins,
+			Roles:          loggedInUser.Roles,
+			ActiveRequests: loggedInUser.ActiveRequests,
 		},
 	}
+
+	return apiCluster
+}
+
+func newAPIRootClusterWithDetails(cluster *clusters.ClusterWithDetails) (*api.Cluster, error) {
+	apiCluster := newAPIRootCluster(cluster.Cluster)
+
+	apiCluster.Features = &api.Features{
+		AdvancedAccessWorkflows: cluster.Features.GetAdvancedAccessWorkflows(),
+		IsUsageBasedBilling:     cluster.Features.GetIsUsageBased(),
+	}
+	apiCluster.LoggedInUser.RequestableRoles = cluster.RequestableRoles
+	apiCluster.LoggedInUser.SuggestedReviewers = cluster.SuggestedReviewers
+	apiCluster.AuthClusterId = cluster.AuthClusterID
+	apiCluster.LoggedInUser.Acl = cluster.ACL
+	userType, err := clusters.UserTypeFromString(cluster.UserType)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	apiCluster.LoggedInUser.UserType = userType
+	apiCluster.ProxyVersion = cluster.ProxyVersion
+
+	return apiCluster, nil
 }
 
 func newAPILeafCluster(leaf clusters.LeafCluster) *api.Cluster {

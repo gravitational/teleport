@@ -1,0 +1,45 @@
+# This workflow is required to ensure that required check passes even if
+# the actual "OS Compatibility Test" workflow is skipped due to path filtering.
+# Otherwise it will stay pending forever.
+#
+# See "Handling skipped but required checks" for more info:
+#
+# https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/defining-the-mergeability-of-pull-requests/troubleshooting-required-status-checks#handling-skipped-but-required-checks
+#
+# Note both workflows must have the same name.
+name: OS Compatibility Test
+run-name: OS Compatibility Test
+on:
+  pull_request:
+   paths:
+      - 'docs/**'
+      - 'web/**'
+      - 'rfd/**'
+      - '**/*.md*'
+  merge_group:
+   paths:
+      - 'docs/**'
+      - 'web/**'
+      - 'rfd/**'
+      - '**/*.md*'
+
+jobs:
+  build:
+    name: OS Compatibility Build
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: none
+
+    steps:
+    - run: 'echo "No changes to verify"'  
+
+  test-compat:
+    name: OS Compatibility Test
+    runs-on: ubuntu-latest  
+    
+    permissions:
+      contents: none
+
+    steps:
+    - run: 'echo "No changes to verify"' 

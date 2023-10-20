@@ -4,6 +4,8 @@ sets Pod annotations when specified:
     - args:
       - --diag-addr=0.0.0.0:3000
       env:
+      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
+        value: "true"
       - name: TELEPORT_REPLICA_NAME
         valueFrom:
           fieldRef:
@@ -14,7 +16,7 @@ sets Pod annotations when specified:
             fieldPath: metadata.namespace
       - name: RELEASE_NAME
         value: RELEASE-NAME
-      image: public.ecr.aws/gravitational/teleport:11.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:15.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -70,6 +72,8 @@ sets Pod labels when specified:
     - args:
       - --diag-addr=0.0.0.0:3000
       env:
+      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
+        value: "true"
       - name: TELEPORT_REPLICA_NAME
         valueFrom:
           fieldRef:
@@ -80,7 +84,7 @@ sets Pod labels when specified:
             fieldPath: metadata.namespace
       - name: RELEASE_NAME
         value: RELEASE-NAME
-      image: public.ecr.aws/gravitational/teleport:11.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:15.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -150,7 +154,7 @@ sets StatefulSet labels when specified:
       template:
         metadata:
           annotations:
-            checksum/config: e23c34c3027af13bb06e161dfe1fe316312a1d5621ef217502a5c76596e49668
+            checksum/config: 759fbcfcd1e9750bb5682ac3777c0e6146b5228d7ae9bba03136f7989eafd12d
           labels:
             app: RELEASE-NAME
             app.kubernetes.io/name: teleport-kube-agent
@@ -160,6 +164,8 @@ sets StatefulSet labels when specified:
           - args:
             - --diag-addr=0.0.0.0:3000
             env:
+            - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
+              value: "true"
             - name: TELEPORT_REPLICA_NAME
               valueFrom:
                 fieldRef:
@@ -170,7 +176,7 @@ sets StatefulSet labels when specified:
                   fieldPath: metadata.namespace
             - name: RELEASE_NAME
               value: RELEASE-NAME
-            image: public.ecr.aws/gravitational/teleport:11.0.0-dev
+            image: public.ecr.aws/gravitational/teleport-distroless:15.0.0-dev
             imagePullPolicy: IfNotPresent
             livenessProbe:
               failureThreshold: 6
@@ -230,6 +236,23 @@ sets StatefulSet labels when specified:
             requests:
               storage: 128Mi
           storageClassName: aws-gp2
+sets by default a container security context:
+  1: |
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+      - all
+    readOnlyRootFilesystem: true
+    runAsNonRoot: true
+    runAsUser: 9807
+  2: |
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+      - all
+    readOnlyRootFilesystem: true
+    runAsNonRoot: true
+    runAsUser: 9807
 should add insecureSkipProxyTLSVerify to args when set in values:
   1: |
     containers:
@@ -237,6 +260,8 @@ should add insecureSkipProxyTLSVerify to args when set in values:
       - --diag-addr=0.0.0.0:3000
       - --insecure
       env:
+      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
+        value: "true"
       - name: TELEPORT_REPLICA_NAME
         valueFrom:
           fieldRef:
@@ -247,7 +272,7 @@ should add insecureSkipProxyTLSVerify to args when set in values:
             fieldPath: metadata.namespace
       - name: RELEASE_NAME
         value: RELEASE-NAME
-      image: public.ecr.aws/gravitational/teleport:11.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:15.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -303,6 +328,8 @@ should add volumeClaimTemplate for data volume when using StatefulSet and action
     - args:
       - --diag-addr=0.0.0.0:3000
       env:
+      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
+        value: "true"
       - name: TELEPORT_REPLICA_NAME
         valueFrom:
           fieldRef:
@@ -313,7 +340,7 @@ should add volumeClaimTemplate for data volume when using StatefulSet and action
             fieldPath: metadata.namespace
       - name: RELEASE_NAME
         value: RELEASE-NAME
-      image: public.ecr.aws/gravitational/teleport:11.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:15.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -381,7 +408,7 @@ should add volumeClaimTemplate for data volume when using StatefulSet and is Fre
       template:
         metadata:
           annotations:
-            checksum/config: 85faa83e7e3e6789b109a5d52e61141243de9d7c5e408af802fb5ad544f79698
+            checksum/config: 98a7bc8bca7ccc7b9b16552b81cfec61134d375b7a6fb3dc897f3f07bd1164e2
           labels:
             app: RELEASE-NAME
         spec:
@@ -389,6 +416,8 @@ should add volumeClaimTemplate for data volume when using StatefulSet and is Fre
           - args:
             - --diag-addr=0.0.0.0:3000
             env:
+            - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
+              value: "true"
             - name: TELEPORT_REPLICA_NAME
               valueFrom:
                 fieldRef:
@@ -399,7 +428,7 @@ should add volumeClaimTemplate for data volume when using StatefulSet and is Fre
                   fieldPath: metadata.namespace
             - name: RELEASE_NAME
               value: RELEASE-NAME
-            image: public.ecr.aws/gravitational/teleport:11.0.0-dev
+            image: public.ecr.aws/gravitational/teleport-distroless:15.0.0-dev
             imagePullPolicy: IfNotPresent
             livenessProbe:
               failureThreshold: 6
@@ -465,6 +494,8 @@ should add volumeMount for data volume when using StatefulSet:
     - args:
       - --diag-addr=0.0.0.0:3000
       env:
+      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
+        value: "true"
       - name: TELEPORT_REPLICA_NAME
         valueFrom:
           fieldRef:
@@ -475,7 +506,7 @@ should add volumeMount for data volume when using StatefulSet:
             fieldPath: metadata.namespace
       - name: RELEASE_NAME
         value: RELEASE-NAME
-      image: public.ecr.aws/gravitational/teleport:11.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:15.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -531,6 +562,8 @@ should expose diag port:
     - args:
       - --diag-addr=0.0.0.0:3000
       env:
+      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
+        value: "true"
       - name: TELEPORT_REPLICA_NAME
         valueFrom:
           fieldRef:
@@ -541,7 +574,7 @@ should expose diag port:
             fieldPath: metadata.namespace
       - name: RELEASE_NAME
         value: RELEASE-NAME
-      image: public.ecr.aws/gravitational/teleport:11.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:15.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -597,6 +630,8 @@ should generate Statefulset when storage is disabled and mode is a Upgrade:
     - args:
       - --diag-addr=0.0.0.0:3000
       env:
+      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
+        value: "true"
       - name: TELEPORT_REPLICA_NAME
         valueFrom:
           fieldRef:
@@ -607,7 +642,7 @@ should generate Statefulset when storage is disabled and mode is a Upgrade:
             fieldPath: metadata.namespace
       - name: RELEASE_NAME
         value: RELEASE-NAME
-      image: public.ecr.aws/gravitational/teleport:11.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:15.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -677,6 +712,8 @@ should have multiple replicas when replicaCount is set (using .replicaCount, dep
     - args:
       - --diag-addr=0.0.0.0:3000
       env:
+      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
+        value: "true"
       - name: TELEPORT_REPLICA_NAME
         valueFrom:
           fieldRef:
@@ -687,7 +724,7 @@ should have multiple replicas when replicaCount is set (using .replicaCount, dep
             fieldPath: metadata.namespace
       - name: RELEASE_NAME
         value: RELEASE-NAME
-      image: public.ecr.aws/gravitational/teleport:11.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:15.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -755,6 +792,8 @@ should have multiple replicas when replicaCount is set (using highAvailability.r
     - args:
       - --diag-addr=0.0.0.0:3000
       env:
+      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
+        value: "true"
       - name: TELEPORT_REPLICA_NAME
         valueFrom:
           fieldRef:
@@ -765,7 +804,7 @@ should have multiple replicas when replicaCount is set (using highAvailability.r
             fieldPath: metadata.namespace
       - name: RELEASE_NAME
         value: RELEASE-NAME
-      image: public.ecr.aws/gravitational/teleport:11.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:15.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -821,6 +860,8 @@ should have one replica when replicaCount is not set:
     - args:
       - --diag-addr=0.0.0.0:3000
       env:
+      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
+        value: "true"
       - name: TELEPORT_REPLICA_NAME
         valueFrom:
           fieldRef:
@@ -831,7 +872,7 @@ should have one replica when replicaCount is not set:
             fieldPath: metadata.namespace
       - name: RELEASE_NAME
         value: RELEASE-NAME
-      image: public.ecr.aws/gravitational/teleport:11.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:15.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -887,6 +928,8 @@ should install Statefulset when storage is disabled and mode is a Fresh Install:
     - args:
       - --diag-addr=0.0.0.0:3000
       env:
+      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
+        value: "true"
       - name: TELEPORT_REPLICA_NAME
         valueFrom:
           fieldRef:
@@ -897,7 +940,7 @@ should install Statefulset when storage is disabled and mode is a Fresh Install:
             fieldPath: metadata.namespace
       - name: RELEASE_NAME
         value: RELEASE-NAME
-      image: public.ecr.aws/gravitational/teleport:11.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:15.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -955,6 +998,8 @@ should mount extraVolumes and extraVolumeMounts:
     - args:
       - --diag-addr=0.0.0.0:3000
       env:
+      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
+        value: "true"
       - name: TELEPORT_REPLICA_NAME
         valueFrom:
           fieldRef:
@@ -965,7 +1010,7 @@ should mount extraVolumes and extraVolumeMounts:
             fieldPath: metadata.namespace
       - name: RELEASE_NAME
         value: RELEASE-NAME
-      image: public.ecr.aws/gravitational/teleport:11.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:15.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -1026,6 +1071,8 @@ should mount tls.existingCASecretName and set environment when set in values:
     - args:
       - --diag-addr=0.0.0.0:3000
       env:
+      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
+        value: "true"
       - name: TELEPORT_REPLICA_NAME
         valueFrom:
           fieldRef:
@@ -1038,7 +1085,7 @@ should mount tls.existingCASecretName and set environment when set in values:
         value: RELEASE-NAME
       - name: SSL_CERT_FILE
         value: /etc/teleport-tls-ca/ca.pem
-      image: public.ecr.aws/gravitational/teleport:11.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:15.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -1102,6 +1149,8 @@ should mount tls.existingCASecretName and set extra environment when set in valu
     - args:
       - --diag-addr=0.0.0.0:3000
       env:
+      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
+        value: "true"
       - name: TELEPORT_REPLICA_NAME
         valueFrom:
           fieldRef:
@@ -1116,7 +1165,7 @@ should mount tls.existingCASecretName and set extra environment when set in valu
         value: /etc/teleport-tls-ca/ca.pem
       - name: HTTPS_PROXY
         value: http://username:password@my.proxy.host:3128
-      image: public.ecr.aws/gravitational/teleport:11.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:15.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -1180,6 +1229,8 @@ should not add emptyDir for data when using StatefulSet:
     - args:
       - --diag-addr=0.0.0.0:3000
       env:
+      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
+        value: "true"
       - name: TELEPORT_REPLICA_NAME
         valueFrom:
           fieldRef:
@@ -1190,7 +1241,7 @@ should not add emptyDir for data when using StatefulSet:
             fieldPath: metadata.namespace
       - name: RELEASE_NAME
         value: RELEASE-NAME
-      image: public.ecr.aws/gravitational/teleport:11.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:15.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -1246,6 +1297,8 @@ should provision initContainer correctly when set in values:
     - args:
       - --diag-addr=0.0.0.0:3000
       env:
+      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
+        value: "true"
       - name: TELEPORT_REPLICA_NAME
         valueFrom:
           fieldRef:
@@ -1256,7 +1309,7 @@ should provision initContainer correctly when set in values:
             fieldPath: metadata.namespace
       - name: RELEASE_NAME
         value: RELEASE-NAME
-      image: public.ecr.aws/gravitational/teleport:11.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:15.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -1348,6 +1401,8 @@ should set SecurityContext:
     - args:
       - --diag-addr=0.0.0.0:3000
       env:
+      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
+        value: "true"
       - name: TELEPORT_REPLICA_NAME
         valueFrom:
           fieldRef:
@@ -1358,7 +1413,7 @@ should set SecurityContext:
             fieldPath: metadata.namespace
       - name: RELEASE_NAME
         value: RELEASE-NAME
-      image: public.ecr.aws/gravitational/teleport:11.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:15.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -1434,6 +1489,8 @@ should set affinity when set in values:
     - args:
       - --diag-addr=0.0.0.0:3000
       env:
+      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
+        value: "true"
       - name: TELEPORT_REPLICA_NAME
         valueFrom:
           fieldRef:
@@ -1444,7 +1501,7 @@ should set affinity when set in values:
             fieldPath: metadata.namespace
       - name: RELEASE_NAME
         value: RELEASE-NAME
-      image: public.ecr.aws/gravitational/teleport:11.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:15.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -1500,6 +1557,8 @@ should set default serviceAccountName when not set in values:
     - args:
       - --diag-addr=0.0.0.0:3000
       env:
+      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
+        value: "true"
       - name: TELEPORT_REPLICA_NAME
         valueFrom:
           fieldRef:
@@ -1510,7 +1569,7 @@ should set default serviceAccountName when not set in values:
             fieldPath: metadata.namespace
       - name: RELEASE_NAME
         value: RELEASE-NAME
-      image: public.ecr.aws/gravitational/teleport:11.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:15.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -1560,12 +1619,25 @@ should set default serviceAccountName when not set in values:
     - name: auth-token
       secret:
         secretName: teleport-kube-agent-join-token
+should set dnsConfig when set in values:
+  1: |
+    nameservers:
+    - 1.2.3.4
+    options:
+    - name: ndots
+      value: "2"
+    - name: edns0
+    searches:
+    - ns1.svc.cluster-domain.example
+    - my.dns.search.suffix
 should set environment when extraEnv set in values:
   1: |
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
       env:
+      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
+        value: "true"
       - name: TELEPORT_REPLICA_NAME
         valueFrom:
           fieldRef:
@@ -1578,7 +1650,7 @@ should set environment when extraEnv set in values:
         value: RELEASE-NAME
       - name: HTTPS_PROXY
         value: http://username:password@my.proxy.host:3128
-      image: public.ecr.aws/gravitational/teleport:11.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:15.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -1634,6 +1706,8 @@ should set image and tag correctly:
     - args:
       - --diag-addr=0.0.0.0:3000
       env:
+      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
+        value: "true"
       - name: TELEPORT_REPLICA_NAME
         valueFrom:
           fieldRef:
@@ -1644,7 +1718,7 @@ should set image and tag correctly:
             fieldPath: metadata.namespace
       - name: RELEASE_NAME
         value: RELEASE-NAME
-      image: public.ecr.aws/gravitational/teleport:8.3.4
+      image: public.ecr.aws/gravitational/teleport-distroless:12.2.1
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -1700,6 +1774,8 @@ should set imagePullPolicy when set in values:
     - args:
       - --diag-addr=0.0.0.0:3000
       env:
+      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
+        value: "true"
       - name: TELEPORT_REPLICA_NAME
         valueFrom:
           fieldRef:
@@ -1710,7 +1786,7 @@ should set imagePullPolicy when set in values:
             fieldPath: metadata.namespace
       - name: RELEASE_NAME
         value: RELEASE-NAME
-      image: public.ecr.aws/gravitational/teleport:11.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:15.0.0-dev
       imagePullPolicy: Always
       livenessProbe:
         failureThreshold: 6
@@ -1766,6 +1842,8 @@ should set nodeSelector if set in values:
     - args:
       - --diag-addr=0.0.0.0:3000
       env:
+      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
+        value: "true"
       - name: TELEPORT_REPLICA_NAME
         valueFrom:
           fieldRef:
@@ -1776,7 +1854,7 @@ should set nodeSelector if set in values:
             fieldPath: metadata.namespace
       - name: RELEASE_NAME
         value: RELEASE-NAME
-      image: public.ecr.aws/gravitational/teleport:11.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:15.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -1846,6 +1924,8 @@ should set preferred affinity when more than one replica is used:
     - args:
       - --diag-addr=0.0.0.0:3000
       env:
+      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
+        value: "true"
       - name: TELEPORT_REPLICA_NAME
         valueFrom:
           fieldRef:
@@ -1856,7 +1936,7 @@ should set preferred affinity when more than one replica is used:
             fieldPath: metadata.namespace
       - name: RELEASE_NAME
         value: RELEASE-NAME
-      image: public.ecr.aws/gravitational/teleport:11.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:15.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -1912,6 +1992,8 @@ should set probeTimeoutSeconds when set in values:
     - args:
       - --diag-addr=0.0.0.0:3000
       env:
+      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
+        value: "true"
       - name: TELEPORT_REPLICA_NAME
         valueFrom:
           fieldRef:
@@ -1922,7 +2004,7 @@ should set probeTimeoutSeconds when set in values:
             fieldPath: metadata.namespace
       - name: RELEASE_NAME
         value: RELEASE-NAME
-      image: public.ecr.aws/gravitational/teleport:11.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:15.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -1988,6 +2070,8 @@ should set required affinity when highAvailability.requireAntiAffinity is set:
     - args:
       - --diag-addr=0.0.0.0:3000
       env:
+      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
+        value: "true"
       - name: TELEPORT_REPLICA_NAME
         valueFrom:
           fieldRef:
@@ -1998,7 +2082,7 @@ should set required affinity when highAvailability.requireAntiAffinity is set:
             fieldPath: metadata.namespace
       - name: RELEASE_NAME
         value: RELEASE-NAME
-      image: public.ecr.aws/gravitational/teleport:11.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:15.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -2054,6 +2138,8 @@ should set resources when set in values:
     - args:
       - --diag-addr=0.0.0.0:3000
       env:
+      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
+        value: "true"
       - name: TELEPORT_REPLICA_NAME
         valueFrom:
           fieldRef:
@@ -2064,7 +2150,7 @@ should set resources when set in values:
             fieldPath: metadata.namespace
       - name: RELEASE_NAME
         value: RELEASE-NAME
-      image: public.ecr.aws/gravitational/teleport:11.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:15.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -2127,6 +2213,8 @@ should set serviceAccountName when set in values:
     - args:
       - --diag-addr=0.0.0.0:3000
       env:
+      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
+        value: "true"
       - name: TELEPORT_REPLICA_NAME
         valueFrom:
           fieldRef:
@@ -2137,7 +2225,7 @@ should set serviceAccountName when set in values:
             fieldPath: metadata.namespace
       - name: RELEASE_NAME
         value: RELEASE-NAME
-      image: public.ecr.aws/gravitational/teleport:11.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:15.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -2193,6 +2281,8 @@ should set storage.requests when set in values and action is an Upgrade:
     - args:
       - --diag-addr=0.0.0.0:3000
       env:
+      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
+        value: "true"
       - name: TELEPORT_REPLICA_NAME
         valueFrom:
           fieldRef:
@@ -2203,7 +2293,7 @@ should set storage.requests when set in values and action is an Upgrade:
             fieldPath: metadata.namespace
       - name: RELEASE_NAME
         value: RELEASE-NAME
-      image: public.ecr.aws/gravitational/teleport:11.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:15.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -2259,6 +2349,8 @@ should set storage.storageClassName when set in values and action is an Upgrade:
     - args:
       - --diag-addr=0.0.0.0:3000
       env:
+      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
+        value: "true"
       - name: TELEPORT_REPLICA_NAME
         valueFrom:
           fieldRef:
@@ -2269,7 +2361,7 @@ should set storage.storageClassName when set in values and action is an Upgrade:
             fieldPath: metadata.namespace
       - name: RELEASE_NAME
         value: RELEASE-NAME
-      image: public.ecr.aws/gravitational/teleport:11.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:15.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -2325,6 +2417,8 @@ should set tolerations when set in values:
     - args:
       - --diag-addr=0.0.0.0:3000
       env:
+      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
+        value: "true"
       - name: TELEPORT_REPLICA_NAME
         valueFrom:
           fieldRef:
@@ -2335,7 +2429,7 @@ should set tolerations when set in values:
             fieldPath: metadata.namespace
       - name: RELEASE_NAME
         value: RELEASE-NAME
-      image: public.ecr.aws/gravitational/teleport:11.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:15.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6

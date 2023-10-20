@@ -18,15 +18,18 @@ package utils
 
 import (
 	"bytes"
+	"encoding/json"
+	"errors"
 	"io"
 	"reflect"
 	"unicode"
 
+	"github.com/ghodss/yaml"
 	"github.com/gravitational/trace"
 	jsoniter "github.com/json-iterator/go"
-
-	"github.com/ghodss/yaml"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
+
+	"github.com/gravitational/teleport/api/internalutils/stream"
 )
 
 // ToJSON converts a single YAML document into a JSON document
@@ -79,6 +82,16 @@ var SafeConfig = jsoniter.Config{
 	SortMapKeys:                   true,
 }.Froze()
 
+// SafeConfigWithIndent is equivalent to SafeConfig except with indentation
+// enabled.
+var SafeConfigWithIndent = jsoniter.Config{
+	IndentionStep:                 2,
+	EscapeHTML:                    false,
+	MarshalFloatWith6Digits:       true, // will lose precision
+	ObjectFieldMustBeSimpleString: true, // do not unescape object field
+	SortMapKeys:                   true,
+}.Froze()
+
 // FastMarshal uses the json-iterator library for fast JSON marshaling.
 // Note, this function unmarshals floats with 6 digits precision.
 func FastMarshal(v interface{}) ([]byte, error) {
@@ -101,6 +114,55 @@ func FastMarshalIndent(v interface{}, prefix, indent string) ([]byte, error) {
 	return data, nil
 }
 
+// WriteJSONArray marshals values as a JSON array.
+func WriteJSONArray[T any](w io.Writer, values []T) error {
+	if len(values) == 0 {
+		_, err := w.Write([]byte("[]"))
+		return err
+	}
+	return WriteJSON(w, values)
+}
+
+// WriteJSONObject marshals m as a JSON object.
+func WriteJSONObject[M ~map[K]V, K comparable, V any](w io.Writer, m M) error {
+	if len(m) == 0 {
+		_, err := w.Write([]byte("{}"))
+		return err
+	}
+	return WriteJSON(w, m)
+}
+
+// WriteJSON marshals multiple documents as a JSON list with indentation.
+func WriteJSON(w io.Writer, values interface{}) error {
+	encoder := json.NewEncoder(w)
+	encoder.SetIndent("", "    ")
+	err := encoder.Encode(values)
+	return trace.Wrap(err)
+}
+
+// StremJSONArray streams the elements of a stream.Stream as a json array
+// with optional indentation (used to stream to CLI).
+func StreamJSONArray[T any](items stream.Stream[T], out io.Writer, indent bool) error {
+	cfg := SafeConfig
+	if indent {
+		cfg = SafeConfigWithIndent
+	}
+	stream := jsoniter.NewStream(cfg, out, 512)
+	stream.WriteArrayStart()
+	var prev bool
+	for items.Next() {
+		if prev {
+			// if a previous item was written to the array, we need to
+			// write a comma first.
+			stream.WriteMore()
+		}
+		stream.WriteVal(items.Item())
+		prev = true
+	}
+	stream.WriteArrayEnd()
+	return trace.NewAggregate(items.Done(), stream.Flush())
+}
+
 const yamlDocDelimiter = "---"
 
 // WriteYAML detects whether value is a list
@@ -112,6 +174,11 @@ func WriteYAML(w io.Writer, values interface{}) error {
 	}
 	// first pass makes sure that all values are documents (objects or maps)
 	slice := reflect.ValueOf(values)
+	if slice.Len() == 0 {
+		_, err := w.Write([]byte("[]"))
+		return err
+	}
+
 	allDocs := func() bool {
 		for i := 0; i < slice.Len(); i++ {
 			if !isDoc(slice.Index(i)) {
@@ -170,7 +237,7 @@ func ReadYAML(reader io.Reader) (interface{}, error) {
 		var val interface{}
 		err := decoder.Decode(&val)
 		if err != nil {
-			if err == io.EOF {
+			if errors.Is(err, io.EOF) {
 				if len(values) == 0 {
 					return nil, trace.BadParameter("no resources found, empty input?")
 				}

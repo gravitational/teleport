@@ -29,18 +29,6 @@ const (
 	KindBotInternal ArtifactKind = "bot-internal"
 )
 
-// ContainsKind determines if a particular artifact kind is included in the
-// list of kinds.
-func ContainsKind(kind ArtifactKind, kinds []ArtifactKind) bool {
-	for _, k := range kinds {
-		if kind == k {
-			return true
-		}
-	}
-
-	return false
-}
-
 // BotKinds returns a list of all artifact kinds used internally by the bot.
 // End-user destinations may contain a different set of artifacts.
 func BotKinds() []ArtifactKind {

@@ -1,0 +1,78 @@
+// Copyright 2021 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package teleport.lib.teleterm.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1;teletermv1";
+
+message AccessRequest {
+  string id = 1;
+  // the request state of Access Request. option of PENDING, APPROVED, DENIED, PROMOTED, NONE
+  string state = 2;
+  string resolve_reason = 3;
+  string request_reason = 4;
+  // user is the user who submitted the Access Request
+  string user = 5;
+  // a list of roles requested in the AccessRequest
+  repeated string roles = 6;
+  google.protobuf.Timestamp created = 7;
+  google.protobuf.Timestamp expires = 8;
+  repeated AccessRequestReview reviews = 9;
+  repeated string suggested_reviewers = 10;
+  // thresholds specifies minimum amount of approvers or deniers. Defaults to 'default'
+  repeated string threshold_names = 11;
+  // TODO(avatus) remove the resource_ids field once the changes to rely on resources instead is merged
+  // a list of resourceIDs requested in the AccessRequest
+  repeated ResourceID resource_ids = 12;
+  repeated Resource resources = 13;
+  // promoted_access_list_title is the title of the access
+  // list that this access request was promoted to.
+  string promoted_access_list_title = 14;
+}
+
+message AccessRequestReview {
+  // author is the creator of the AccessRequestReview.
+  string author = 1;
+  // list of roles approved
+  repeated string roles = 2;
+  // the state of the review, either APPROVED or DENIED
+  string state = 3;
+  // reason is why the request was approved or denied
+  string reason = 4;
+  google.protobuf.Timestamp created = 5;
+  // promoted_access_list_title is the title of the access
+  // list that the access request was promoted to.
+  string promoted_access_list_title = 6;
+}
+
+message ResourceID {
+  string kind = 1;
+  string name = 2;
+  string cluster_name = 3;
+  string sub_resource_name = 4;
+}
+
+message ResourceDetails {
+  string hostname = 1;
+  string friendly_name = 2;
+}
+
+message Resource {
+  ResourceID id = 1;
+  ResourceDetails details = 2;
+}

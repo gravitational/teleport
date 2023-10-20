@@ -23,45 +23,51 @@ package services
 import (
 	"context"
 	"crypto"
+	"crypto/x509"
 	"time"
+
+	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
-	wantypes "github.com/gravitational/teleport/api/types/webauthn"
+	wanpb "github.com/gravitational/teleport/api/types/webauthn"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/defaults"
-
-	"github.com/gravitational/trace"
 )
 
 // UserGetter is responsible for getting users
 type UserGetter interface {
 	// GetUser returns a user by name
-	GetUser(user string, withSecrets bool) (types.User, error)
+	GetUser(ctx context.Context, user string, withSecrets bool) (types.User, error)
 }
 
 // UsersService is responsible for basic user management
 type UsersService interface {
 	UserGetter
 	// UpdateUser updates an existing user.
-	UpdateUser(ctx context.Context, user types.User) error
+	UpdateUser(ctx context.Context, user types.User) (types.User, error)
+	// UpdateAndSwapUser reads an existing user, runs `fn` against it and writes
+	// the result to storage. Return `false` from `fn` to avoid storage changes.
+	// Roughly equivalent to [GetUser] followed by [CompareAndSwapUser].
+	// Returns the storage user.
+	UpdateAndSwapUser(ctx context.Context, user string, withSecrets bool, fn func(types.User) (changed bool, err error)) (types.User, error)
 	// UpsertUser updates parameters about user
-	UpsertUser(user types.User) error
+	UpsertUser(ctx context.Context, user types.User) (types.User, error)
 	// CompareAndSwapUser updates an existing user, but fails if the user does
 	// not match an expected backend value.
 	CompareAndSwapUser(ctx context.Context, new, existing types.User) error
 	// DeleteUser deletes a user with all the keys from the backend
 	DeleteUser(ctx context.Context, user string) error
 	// GetUsers returns a list of users registered with the local auth server
-	GetUsers(withSecrets bool) ([]types.User, error)
+	GetUsers(ctx context.Context, withSecrets bool) ([]types.User, error)
 	// DeleteAllUsers deletes all users
-	DeleteAllUsers() error
+	DeleteAllUsers(ctx context.Context) error
 }
 
 // Identity is responsible for managing user entries and external identities
 type Identity interface {
 	// CreateUser creates user, only if the user entry does not exist
-	CreateUser(user types.User) error
+	CreateUser(ctx context.Context, user types.User) (types.User, error)
 
 	// UsersService implements most methods
 	UsersService
@@ -124,11 +130,11 @@ type Identity interface {
 	// storage, for the purpose of later verifying an authentication or
 	// registration challenge.
 	// Session data is expected to expire according to backend settings.
-	UpsertWebauthnSessionData(ctx context.Context, user, sessionID string, sd *wantypes.SessionData) error
+	UpsertWebauthnSessionData(ctx context.Context, user, sessionID string, sd *wanpb.SessionData) error
 
 	// GetWebauthnSessionData retrieves a previously-stored session data by ID,
 	// if it exists and has not expired.
-	GetWebauthnSessionData(ctx context.Context, user, sessionID string) (*wantypes.SessionData, error)
+	GetWebauthnSessionData(ctx context.Context, user, sessionID string) (*wanpb.SessionData, error)
 
 	// DeleteWebauthnSessionData deletes session data by ID, if it exists and has
 	// not expired.
@@ -138,12 +144,12 @@ type Identity interface {
 	// storage, for the purpose of later verifying an authentication challenge.
 	// Session data is expected to expire according to backend settings.
 	// Used for passwordless challenges.
-	UpsertGlobalWebauthnSessionData(ctx context.Context, scope, id string, sd *wantypes.SessionData) error
+	UpsertGlobalWebauthnSessionData(ctx context.Context, scope, id string, sd *wanpb.SessionData) error
 
 	// GetGlobalWebauthnSessionData retrieves previously-stored session data by ID,
 	// if it exists and has not expired.
 	// Used for passwordless challenges.
-	GetGlobalWebauthnSessionData(ctx context.Context, scope, id string) (*wantypes.SessionData, error)
+	GetGlobalWebauthnSessionData(ctx context.Context, scope, id string) (*wanpb.SessionData, error)
 
 	// DeleteGlobalWebauthnSessionData deletes session data by ID, if it exists
 	// and has not expired.
@@ -158,7 +164,11 @@ type Identity interface {
 	// DeleteMFADevice deletes an MFA device for the user by ID.
 	DeleteMFADevice(ctx context.Context, user, id string) error
 
-	// UpsertOIDCConnector upserts OIDC Connector
+	// CreateOIDCConnector creates a new OIDC connector.
+	CreateOIDCConnector(ctx context.Context, connector types.OIDCConnector) (types.OIDCConnector, error)
+	// UpdateOIDCConnector updates an existing OIDC connector.
+	UpdateOIDCConnector(ctx context.Context, connector types.OIDCConnector) (types.OIDCConnector, error)
+	// UpsertOIDCConnector updates or creates an OIDC connector.
 	UpsertOIDCConnector(ctx context.Context, connector types.OIDCConnector) error
 
 	// DeleteOIDCConnector deletes OIDC Connector
@@ -176,7 +186,11 @@ type Identity interface {
 	// GetOIDCAuthRequest returns OIDC auth request if found
 	GetOIDCAuthRequest(ctx context.Context, stateToken string) (*types.OIDCAuthRequest, error)
 
-	// UpsertSAMLConnector upserts SAML Connector
+	// CreateSAMLConnector creates a new SAML connector.
+	CreateSAMLConnector(ctx context.Context, connector types.SAMLConnector) (types.SAMLConnector, error)
+	// UpdateSAMLConnector updates an existing SAML connector
+	UpdateSAMLConnector(ctx context.Context, connector types.SAMLConnector) (types.SAMLConnector, error)
+	// UpsertSAMLConnector updates or creates a SAML connector
 	UpsertSAMLConnector(ctx context.Context, connector types.SAMLConnector) error
 
 	// DeleteSAMLConnector deletes OIDC Connector
@@ -200,7 +214,11 @@ type Identity interface {
 	// GetSSODiagnosticInfo returns SSO diagnostic info records.
 	GetSSODiagnosticInfo(ctx context.Context, authKind string, authRequestID string) (*types.SSODiagnosticInfo, error)
 
-	// UpsertGithubConnector creates or updates a new Github connector
+	// CreateGithubConnector creates a new Github connector.
+	CreateGithubConnector(ctx context.Context, connector types.GithubConnector) (types.GithubConnector, error)
+	// UpdateGithubConnector updates an existing Github connector.
+	UpdateGithubConnector(ctx context.Context, connector types.GithubConnector) (types.GithubConnector, error)
+	// UpsertGithubConnector creates or updates a Github connector.
 	UpsertGithubConnector(ctx context.Context, connector types.GithubConnector) error
 
 	// GetGithubConnectors returns all configured Github connectors
@@ -257,6 +275,8 @@ type Identity interface {
 	// GetKeyAttestationData gets a verified public key attestation response.
 	GetKeyAttestationData(ctx context.Context, publicKey crypto.PublicKey) (*keys.AttestationData, error)
 
+	HeadlessAuthenticationService
+
 	types.WebSessionsGetter
 	types.WebTokensGetter
 
@@ -264,14 +284,16 @@ type Identity interface {
 	AppSession
 	// SnowflakeSession defines Snowflake session features.
 	SnowflakeSession
+	// SAMLIdPSession defines SAML IdP session features.
+	SAMLIdPSession
 }
 
 // AppSession defines application session features.
 type AppSession interface {
 	// GetAppSession gets an application web session.
 	GetAppSession(context.Context, types.GetAppSessionRequest) (types.WebSession, error)
-	// GetAppSessions gets all application web sessions.
-	GetAppSessions(context.Context) ([]types.WebSession, error)
+	// ListAppSessions gets a paginated list of application web sessions.
+	ListAppSessions(ctx context.Context, pageSize int, pageToken, user string) ([]types.WebSession, string, error)
 	// UpsertAppSession upserts an application web session.
 	UpsertAppSession(context.Context, types.WebSession) error
 	// DeleteAppSession removes an application web session.
@@ -294,6 +316,44 @@ type SnowflakeSession interface {
 	DeleteSnowflakeSession(context.Context, types.DeleteSnowflakeSessionRequest) error
 	// DeleteAllSnowflakeSessions removes all Snowflake web sessions.
 	DeleteAllSnowflakeSessions(context.Context) error
+}
+
+// SAMLIdPSession defines SAML IdP session features.
+type SAMLIdPSession interface {
+	// GetSAMLIdPSession gets a SAML IdP session.
+	GetSAMLIdPSession(context.Context, types.GetSAMLIdPSessionRequest) (types.WebSession, error)
+	// ListSAMLIdPSessions gets a paginated list of SAML IdP sessions.
+	ListSAMLIdPSessions(ctx context.Context, pageSize int, pageToken, user string) ([]types.WebSession, string, error)
+	// UpsertSAMLIdPSession upserts a SAML IdP session.
+	UpsertSAMLIdPSession(context.Context, types.WebSession) error
+	// DeleteSAMLIdPSession removes a SAML IdP session.
+	DeleteSAMLIdPSession(context.Context, types.DeleteSAMLIdPSessionRequest) error
+	// DeleteAllSAMLIdPSessions removes all SAML IdP sessions.
+	DeleteAllSAMLIdPSessions(context.Context) error
+	// DeleteUserSAMLIdPSessions deletes all of a user's SAML IdP sessions.
+	DeleteUserSAMLIdPSessions(ctx context.Context, user string) error
+}
+
+// HeadlessAuthenticationService is responsible for headless authentication resource management
+type HeadlessAuthenticationService interface {
+	// GetHeadlessAuthentication gets a headless authentication.
+	GetHeadlessAuthentication(ctx context.Context, username, name string) (*types.HeadlessAuthentication, error)
+
+	// GetHeadlessAuthentications gets all headless authentications.
+	GetHeadlessAuthentications(ctx context.Context) ([]*types.HeadlessAuthentication, error)
+
+	// UpsertHeadlessAuthentication upserts a headless authentication.
+	UpsertHeadlessAuthentication(ctx context.Context, ha *types.HeadlessAuthentication) error
+
+	// CompareAndSwapHeadlessAuthentication performs a compare
+	// and swap replacement on a headless authentication resource.
+	CompareAndSwapHeadlessAuthentication(ctx context.Context, old, new *types.HeadlessAuthentication) (*types.HeadlessAuthentication, error)
+
+	// DeleteHeadlessAuthentication deletes a headless authentication from the backend.
+	DeleteHeadlessAuthentication(ctx context.Context, username, name string) error
+
+	// DeleteAllHeadlessAuthentications deletes all headless authentications from the backend.
+	DeleteAllHeadlessAuthentications(ctx context.Context) error
 }
 
 // VerifyPassword makes sure password satisfies our requirements (relaxed),
@@ -358,4 +418,21 @@ func LastFailed(x int, attempts []LoginAttempt) bool {
 		}
 	}
 	return false
+}
+
+// NewWebSessionAttestationData creates attestation data for a web session key.
+// Inserting data to the Auth server will allow certificates generated for the
+// web session key to pass private key policies that are unobtainable in the web
+// (hardware key policies). In exchange, these keys must be kept strictly in the
+// Auth and Proxy processes and Auth storage. These keys and certs can only be
+// retrieved by users in the form of web session cookies.
+func NewWebSessionAttestationData(pub crypto.PublicKey) (*keys.AttestationData, error) {
+	pubDER, err := x509.MarshalPKIXPublicKey(pub)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &keys.AttestationData{
+		PublicKeyDER:     pubDER,
+		PrivateKeyPolicy: keys.PrivateKeyPolicyWebSession,
+	}, nil
 }

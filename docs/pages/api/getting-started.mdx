@@ -3,21 +3,22 @@ title: API Getting Started Guide
 description: Get started working with the Teleport API programmatically using Go.
 ---
 
-# Getting Started
-
 In this getting started guide we will use the Teleport API Go client to connect
 to a Teleport Auth Service.
 
 Here are the steps we'll walkthrough:
 
-1. Create an API user using a simple role-based authentication method.
-2. Generate credentials for that user.
-3. Create and connect a Go client to interact with Teleport's API.
+- Create an API user using a simple role-based authentication method.
+- Generate credentials for that user.
+- Create and connect a Go client to interact with Teleport's API.
 
 ## Prerequisites
 
 - Install [Go](https://golang.org/doc/install) (=teleport.golang=)+ and Go development environment.
-- Set up Teleport through one of our [getting started guides](../getting-started.mdx). You can also begin a [free trial](https://goteleport.com/signup/) of Teleport Cloud.
+
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+
+- (!docs/pages/includes/tctl.mdx!)
 
 ## Step 1/3. Create a user
 
@@ -56,6 +57,19 @@ $ mkdir client-demo && cd client-demo
 $ go mod init client-demo
 $ go get github.com/gravitational/teleport/api/client
 ```
+
+<Admonition type="tip" title="API Version">
+To ensure compatibility, you should use a version of Teleport's API library that matches
+the major version of Teleport running in your cluster.
+
+To find the pseudoversion appropriate for a go.mod file for a specific git tag,
+run the following command from the `teleport` repository:
+
+```code
+$ go list -f '{{.Version}}' -m "github.com/gravitational/teleport/api@$(git rev-parse v12.1.0)"
+v0.0.0-20230307032901-49a6de744a3a
+```
+</Admonition>
 
 Create a file called `main.go`, modifying the `Addrs` strings as needed:
 

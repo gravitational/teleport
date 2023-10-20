@@ -62,6 +62,9 @@ type claims struct {
 
 	// Roles returns the list of roles assigned to the user within Teleport.
 	Roles []string `json:"roles"`
+
+	// Traits returns the mapping of traits assigned to the user within Teleport.
+	Traits map[string][]string `json:"traits"`
 }
 
 // getPublicKey fetches the public key from the JWK endpoint.
@@ -140,6 +143,27 @@ func printClaims(claims *claims) {
 	fmt.Printf("-----------\n")
 	fmt.Printf("Username: %v.\n", claims.Username)
 	fmt.Printf("Roles:    %v.\n", strings.Join(claims.Roles, ","))
+
+	// Calculate the spacing between trait name and trait values.
+	maxLength := 0
+	printTraits := false
+	for name := range claims.Traits {
+		printTraits = true
+		nameLength := len(name)
+		if nameLength > maxLength {
+			maxLength = nameLength
+		}
+	}
+	maxLength++ // Increment by one for aligned trait values.
+
+	// Pretty print the traits (if there are any)
+	if printTraits {
+		fmt.Println("Traits:")
+		for name, values := range claims.Traits {
+			fmt.Printf("  %-*s %s\n", maxLength, name+":", strings.Join(values, ","))
+		}
+	}
+
 	fmt.Printf("Issuer:   %v.\n", claims.Issuer)
 	fmt.Printf("Subject:  %v.\n", claims.Subject)
 	fmt.Printf("Audience: %v.\n", claims.Audience)

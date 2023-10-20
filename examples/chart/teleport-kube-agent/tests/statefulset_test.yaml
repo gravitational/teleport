@@ -4,10 +4,11 @@ templates:
   - config.yaml
 tests:
   - it: creates a StatefulSet
+    template: statefulset.yaml
     values:
       - ../.lint/stateful.yaml
-    elease:
-      isupgrade: true
+    release:
+      upgrade: true
     asserts:
       - isKind:
           of: StatefulSet
@@ -15,6 +16,7 @@ tests:
           count: 1
 
   - it: sets StatefulSet labels when specified
+    template: statefulset.yaml
     values:
       - ../.lint/stateful.yaml
       - ../.lint/extra-labels.yaml
@@ -28,6 +30,7 @@ tests:
       - matchSnapshot: {}
 
   - it: sets Pod labels when specified
+    template: statefulset.yaml
     values:
       - ../.lint/stateful.yaml
       - ../.lint/extra-labels.yaml
@@ -42,6 +45,7 @@ tests:
           path: spec.template.spec
 
   - it: sets Pod annotations when specified
+    template: statefulset.yaml
     values:
       - ../.lint/annotations.yaml
       - ../.lint/stateful.yaml
@@ -56,6 +60,7 @@ tests:
           path: spec.template.spec
 
   - it: should have one replica when replicaCount is not set
+    template: statefulset.yaml
     values:
       - ../.lint/stateful.yaml
     asserts:
@@ -66,6 +71,7 @@ tests:
           path: spec.template.spec
 
   - it: should have multiple replicas when replicaCount is set (using .replicaCount, deprecated)
+    template: statefulset.yaml
     values:
       - ../.lint/stateful.yaml
     set:
@@ -78,6 +84,7 @@ tests:
           path: spec.template.spec
 
   - it: should have multiple replicas when replicaCount is set (using highAvailability.replicaCount)
+    template: statefulset.yaml
     values:
       - ../.lint/stateful.yaml
     set:
@@ -91,6 +98,7 @@ tests:
           path: spec.template.spec
 
   - it: should set affinity when set in values
+    template: statefulset.yaml
     values:
       - ../.lint/stateful.yaml
       - ../.lint/affinity.yaml
@@ -101,6 +109,7 @@ tests:
           path: spec.template.spec
 
   - it: should set required affinity when highAvailability.requireAntiAffinity is set
+    template: statefulset.yaml
     values:
       - ../.lint/stateful.yaml
     set:
@@ -120,6 +129,7 @@ tests:
           path: spec.template.spec
 
   - it: should set preferred affinity when more than one replica is used
+    template: statefulset.yaml
     values:
       - ../.lint/stateful.yaml
     set:
@@ -138,6 +148,7 @@ tests:
           path: spec.template.spec
 
   - it: should set tolerations when set in values
+    template: statefulset.yaml
     values:
       - ../.lint/stateful.yaml
       - ../.lint/tolerations.yaml
@@ -148,6 +159,7 @@ tests:
           path: spec.template.spec
 
   - it: should set resources when set in values
+    template: statefulset.yaml
     values:
       - ../.lint/stateful.yaml
       - ../.lint/resources.yaml
@@ -168,6 +180,7 @@ tests:
           path: spec.template.spec
 
   - it: should set SecurityContext
+    template: statefulset.yaml
     values:
       - ../.lint/stateful.yaml
     asserts:
@@ -192,18 +205,51 @@ tests:
           path: spec.template.spec
 
   - it: should set image and tag correctly
+    template: statefulset.yaml
     values:
       - ../.lint/stateful.yaml
     set:
-      teleportVersionOverride: 8.3.4
+      teleportVersionOverride: 12.2.1
     asserts:
       - equal:
           path: spec.template.spec.containers[0].image
-          value: public.ecr.aws/gravitational/teleport:8.3.4
+          value: public.ecr.aws/gravitational/teleport-distroless:12.2.1
       - matchSnapshot:
           path: spec.template.spec
 
+  - it: should have only one container when no `extraContainers` is set in values
+    template: statefulset.yaml
+    set:
+      extraContainers: []
+      proxyAddr: helm-lint.example.com
+      kubeClusterName: helm-lint.example.com
+    asserts:
+      - isNotNull:
+          path: spec.template.spec.containers[0]
+      - isNull:
+          path: spec.template.spec.containers[1]
+
+  - it: should add one more container when `extraContainers` is set in values
+    template: statefulset.yaml
+    values:
+      - ../.lint/extra-containers.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[1]
+          value:
+            name: nscenter
+            command:
+              - /bin/bash
+              - -c
+              - sleep infinity & wait
+            image: praqma/network-multitool
+            imagePullPolicy: IfNotPresent
+            securityContext:
+              privileged: true
+              runAsNonRoot: false
+
   - it: should mount extraVolumes and extraVolumeMounts
+    template: statefulset.yaml
     values:
       - ../.lint/stateful.yaml
       - ../.lint/volumes.yaml
@@ -222,7 +268,26 @@ tests:
       - matchSnapshot:
           path: spec.template.spec
 
+  - it: should mount auth token if token is provided
+    template: statefulset.yaml
+    values:
+      - ../.lint/join-params-token.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            mountPath: /etc/teleport-secrets
+            name: auth-token
+            readOnly: true
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: auth-token
+            secret:
+              secretName: teleport-kube-agent-join-token
+
   - it: should set imagePullPolicy when set in values
+    template: statefulset.yaml
     values:
       - ../.lint/stateful.yaml
     set:
@@ -235,6 +300,7 @@ tests:
           path: spec.template.spec
 
   - it: should set environment when extraEnv set in values
+    template: statefulset.yaml
     values:
       - ../.lint/stateful.yaml
     set:
@@ -265,6 +331,7 @@ tests:
           path: spec.template.spec
 
   - it: should provision initContainer correctly when set in values
+    template: statefulset.yaml
     values:
       - ../.lint/stateful.yaml
       - ../.lint/initcontainers.yaml
@@ -294,6 +361,7 @@ tests:
           path: spec.template.spec
 
   - it: should add insecureSkipProxyTLSVerify to args when set in values
+    template: statefulset.yaml
     values:
       - ../.lint/stateful.yaml
     set:
@@ -306,6 +374,7 @@ tests:
           path: spec.template.spec
 
   - it: should expose diag port
+    template: statefulset.yaml
     values:
       - ../.lint/stateful.yaml
     asserts:
@@ -319,6 +388,7 @@ tests:
           path: spec.template.spec
 
   - it: should set nodeSelector if set in values
+    template: statefulset.yaml
     values:
       - ../.lint/stateful.yaml
       - ../.lint/node-selector.yaml
@@ -331,8 +401,9 @@ tests:
           path: spec.template.spec
 
   - it: should not add emptyDir for data when using StatefulSet
+    template: statefulset.yaml
     release:
-      isupgrade: true
+      upgrade: true
     set:
       unitTestUpgrade: true
     values:
@@ -347,6 +418,7 @@ tests:
           path: spec.template.spec
 
   - it: should add volumeMount for data volume when using StatefulSet
+    template: statefulset.yaml
     values:
       - ../.lint/stateful.yaml
     asserts:
@@ -359,14 +431,15 @@ tests:
           path: spec.template.spec
 
   - it: should add volumeClaimTemplate for data volume when using StatefulSet and action is an Upgrade
+    template: statefulset.yaml
     values:
       - ../.lint/stateful.yaml
     set:
-       # unit test does not support lookup functions, so to test the behavior we use this undoc value 
+       # unit test does not support lookup functions, so to test the behavior we use this undoc value
        # https://github.com/helm/helm/issues/8137
        unitTestUpgrade: true
     release:
-      isupgrade: true
+      upgrade: true
     asserts:
       - isNotNull:
           path: spec.volumeClaimTemplates[0].spec
@@ -374,10 +447,11 @@ tests:
           path: spec.template.spec
 
   - it: should add volumeClaimTemplate for data volume when using StatefulSet and is Fresh Install
+    template: statefulset.yaml
     values:
       - ../.lint/stateful.yaml
     set:
-       # unit test does not support lookup functions, so to test the behavior we use this undoc value 
+       # unit test does not support lookup functions, so to test the behavior we use this undoc value
        # https://github.com/helm/helm/issues/8137
        unitTestUpgrade: true
     release:
@@ -388,12 +462,13 @@ tests:
       - matchSnapshot: {}
 
   - it: should set storage.storageClassName when set in values and action is an Upgrade
+    template: statefulset.yaml
     values:
       - ../.lint/stateful.yaml
     release:
-      isupgrade: true
+      upgrade: true
     set:
-      # unit test does not support lookup functions, so to test the behavior we use this undoc value 
+      # unit test does not support lookup functions, so to test the behavior we use this undoc value
       # https://github.com/helm/helm/issues/8137
       unitTestUpgrade: true
 
@@ -407,14 +482,15 @@ tests:
           path: spec.template.spec
 
   - it: should set storage.requests when set in values and action is an Upgrade
+    template: statefulset.yaml
     values:
       - ../.lint/stateful.yaml
     release:
-      isupgrade: true
+      upgrade: true
     set:
       storage:
         requests: 256Mi
-      # unit test does not support lookup functions, so to test the behavior we use this undoc value 
+      # unit test does not support lookup functions, so to test the behavior we use this undoc value
       # https://github.com/helm/helm/issues/8137
       unitTestUpgrade: true
     asserts:
@@ -425,6 +501,7 @@ tests:
           path: spec.template.spec
 
   - it: should mount tls.existingCASecretName and set environment when set in values
+    template: statefulset.yaml
     values:
       - ../.lint/existing-tls-secret-with-ca.yaml
     asserts:
@@ -449,6 +526,7 @@ tests:
           path: spec.template.spec
 
   - it: should mount tls.existingCASecretName and set extra environment when set in values
+    template: statefulset.yaml
     values:
       - ../.lint/existing-tls-secret-with-ca.yaml
       - ../.lint/extra-env.yaml
@@ -480,6 +558,7 @@ tests:
 
 
   - it: should set serviceAccountName when set in values
+    template: statefulset.yaml
     values:
       - ../.lint/stateful.yaml
       - ../.lint/service-account-name.yaml
@@ -491,6 +570,7 @@ tests:
           path: spec.template.spec
 
   - it: should set default serviceAccountName when not set in values
+    template: statefulset.yaml
     values:
       - ../.lint/stateful.yaml
       - ../.lint/backwards-compatibility.yaml
@@ -502,6 +582,7 @@ tests:
           path: spec.template.spec
 
   - it: should set probeTimeoutSeconds when set in values
+    template: statefulset.yaml
     values:
       - ../.lint/stateful.yaml
       - ../.lint/probe-timeout-seconds.yaml
@@ -515,13 +596,36 @@ tests:
       - matchSnapshot:
           path: spec.template.spec
 
+  - it: should set dnsConfig when set in values
+    template: statefulset.yaml
+    values:
+      - ../.lint/stateful.yaml
+      - ../.lint/dnsconfig.yaml
+    asserts:
+      - notEqual:
+          path: spec.template.spec.dnsConfig
+          value: null
+      - matchSnapshot:
+          path: spec.template.spec.dnsConfig
+
+  - it: should set dnsPolicy when set in values
+    template: statefulset.yaml
+    values:
+      - ../.lint/stateful.yaml
+      - ../.lint/dnsconfig.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.dnsPolicy
+          value: ClusterFirstWithHostNet
+
   - it: should install Statefulset when storage is disabled and mode is a Fresh Install
+    template: statefulset.yaml
     release:
       isupgrade: false
     values:
       - ../.lint/stateful.yaml
     set:
-      storage: 
+      storage:
         enabled: false
     asserts:
       - contains:
@@ -549,13 +653,14 @@ tests:
           path: spec.template.spec
 
   - it: should generate Statefulset when storage is disabled and mode is a Upgrade
+    template: statefulset.yaml
     release:
-      isupgrade: true
+      upgrade: true
     values:
       - ../.lint/stateful.yaml
     set:
-      unitTestUpgrade: false
-      storage: 
+      unitTestUpgrade: true
+      storage:
         enabled: false
     asserts:
       - contains:
@@ -581,3 +686,67 @@ tests:
           path: spec.volumeClaimTemplates
       - matchSnapshot:
           path: spec.template.spec
+
+  - it: sets by default a container security context
+    template: statefulset.yaml
+    values:
+      - ../.lint/initcontainers.yaml
+    asserts:
+      - matchSnapshot:
+          path: spec.template.spec.initContainers[0].securityContext
+      - matchSnapshot:
+          path: spec.template.spec.containers[0].securityContext
+
+  - it: sets no container security context when manually unset
+    template: statefulset.yaml
+    values:
+      - ../.lint/initcontainers.yaml
+      - ../.lint/security-context-empty.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].securityContext
+          value: null
+      - equal:
+          path: spec.template.spec.containers[0].securityContext
+          value: null
+
+  - it: should enable maintenance schedule export when updater is enabled
+    template: statefulset.yaml
+    values:
+      - ../.lint/existing-tls-secret-with-ca.yaml
+      - ../.lint/updater.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: TELEPORT_EXT_UPGRADER
+            value: kube
+
+  - it: should set the installation method environment variable
+    template: statefulset.yaml
+    values:
+      - ../.lint/stateful.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
+            value: "true"
+
+  - it: should set the hostAliases when specified
+    template: statefulset.yaml
+    values:
+      - ../.lint/stateful.yaml
+      - ../.lint/host-aliases.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.hostAliases
+          value:
+            - ip: "127.0.0.1"
+              hostnames:
+                - "foo.local"
+                - "bar.local"
+            - ip: "10.1.2.3"
+              hostnames:
+                - "foo.remote"
+                - "bar.remote"

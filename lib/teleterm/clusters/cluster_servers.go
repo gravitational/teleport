@@ -19,12 +19,16 @@ package clusters
 import (
 	"context"
 
+	"github.com/gravitational/trace"
+
+	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
+	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
-
-	"github.com/gravitational/trace"
 )
 
 // Database describes database
@@ -35,19 +39,40 @@ type Server struct {
 	types.Server
 }
 
-// GetServers returns cluster servers
-func (c *Cluster) GetServers(ctx context.Context) ([]Server, error) {
-	var clusterServers []types.Server
-	err := addMetadataToRetryableError(ctx, func() error {
-		proxyClient, err := c.clusterClient.ConnectToProxy(ctx)
+// GetServers returns a paginated list of servers.
+func (c *Cluster) GetServers(ctx context.Context, r *api.GetServersRequest) (*GetServersResponse, error) {
+	var (
+		page        apiclient.ResourcePage[types.Server]
+		authClient  auth.ClientI
+		proxyClient *client.ProxyClient
+		err         error
+	)
+
+	req := &proto.ListResourcesRequest{
+		Namespace:           defaults.Namespace,
+		ResourceType:        types.KindNode,
+		Limit:               r.Limit,
+		SortBy:              types.GetSortByFromString(r.SortBy),
+		StartKey:            r.StartKey,
+		PredicateExpression: r.Query,
+		SearchKeywords:      client.ParseSearchKeywords(r.Search, ' '),
+		UseSearchAsRoles:    r.SearchAsRoles == "yes",
+	}
+
+	err = AddMetadataToRetryableError(ctx, func() error {
+		proxyClient, err = c.clusterClient.ConnectToProxy(ctx)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		defer proxyClient.Close()
 
-		clusterServers, err = proxyClient.FindNodesByFilters(ctx, proto.ListResourcesRequest{
-			Namespace: defaults.Namespace,
-		})
+		authClient, err = proxyClient.ConnectToCluster(ctx, c.clusterClient.SiteName)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer authClient.Close()
+
+		page, err = apiclient.GetResourcePage[types.Server](ctx, authClient, req)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -58,13 +83,25 @@ func (c *Cluster) GetServers(ctx context.Context) ([]Server, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	results := []Server{}
-	for _, server := range clusterServers {
+	results := make([]Server, 0, len(page.Resources))
+	for _, server := range page.Resources {
 		results = append(results, Server{
 			URI:    c.URI.AppendServer(server.GetName()),
 			Server: server,
 		})
 	}
 
-	return results, nil
+	return &GetServersResponse{
+		Servers:    results,
+		StartKey:   page.NextKey,
+		TotalCount: page.Total,
+	}, nil
+}
+
+type GetServersResponse struct {
+	Servers []Server
+	// StartKey is the next key to use as a starting point.
+	StartKey string
+	// TotalCount is the total number of resources available as a whole.
+	TotalCount int
 }

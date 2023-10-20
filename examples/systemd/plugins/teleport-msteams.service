@@ -5,9 +5,9 @@ After=network.target
 [Service]
 Type=simple
 Restart=on-failure
-ExecStart=/usr/local/bin/teleport-ms-teams start --config=/etc/teleport-ms-teams.toml
+ExecStart=/usr/local/bin/teleport-msteams start --config=/etc/teleport-msteams.toml
 ExecReload=/bin/kill -HUP $MAINPID
-PIDFile=/run/teleport-ms-teams.pid
+PIDFile=/run/teleport-msteams.pid
 
 [Install]
 WantedBy=multi-user.target

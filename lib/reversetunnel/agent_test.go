@@ -25,16 +25,16 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/ssh"
+
 	"github.com/gravitational/teleport"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/reversetunnel/track"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"golang.org/x/crypto/ssh"
 )
 
 type mockSSHClient struct {
@@ -104,16 +104,19 @@ func (m *mockSSHClient) GlobalRequests() <-chan *ssh.Request {
 	return m.MockGlobalRequests
 }
 
+type fakeReaderWriter struct{}
+
+func (n fakeReaderWriter) Read(_ []byte) (int, error) {
+	return 0, io.EOF
+}
+
+func (n fakeReaderWriter) Write(b []byte) (int, error) {
+	return len(b), nil
+}
+
 type mockSSHChannel struct {
+	fakeReaderWriter
 	MockSendRequest func(name string, wantReply bool, payload []byte) (bool, error)
-}
-
-func (m *mockSSHChannel) Read(data []byte) (int, error) {
-	return 0, trace.NotImplemented("")
-}
-
-func (m *mockSSHChannel) Write(data []byte) (int, error) {
-	return 0, trace.NotImplemented("")
 }
 
 func (m *mockSSHChannel) Close() error { return nil }
@@ -129,7 +132,7 @@ func (m *mockSSHChannel) SendRequest(name string, wantReply bool, payload []byte
 }
 
 func (m *mockSSHChannel) Stderr() io.ReadWriter {
-	return nil
+	return fakeReaderWriter{}
 }
 
 // mockAgentInjection implements several interfaces for injecting into an agent.
@@ -150,17 +153,15 @@ func (m *mockAgentInjection) getVersion(context.Context) (string, error) {
 }
 
 func testAgent(t *testing.T) (*agent, *mockSSHClient) {
-	tracker, err := track.New(context.Background(), track.Config{
+	tracker, err := track.New(track.Config{
 		ClusterName: "test",
 	})
 	require.NoError(t, err)
 
 	addr := utils.NetAddr{Addr: "test-proxy-addr"}
 
-	tracker.Start()
-	t.Cleanup(tracker.StopAll)
-
-	lease := <-tracker.Acquire()
+	lease := tracker.TryAcquire()
+	require.NotNil(t, lease)
 
 	client := &mockSSHClient{
 		MockPrincipals:        []string{"default"},
@@ -237,7 +238,11 @@ func TestAgentFailedToClaimLease(t *testing.T) {
 
 	callback := newCallback()
 	agent.stateCallback = callback.callback
-	agent.tracker.Claim(claimedProxy)
+
+	agent.tracker.TrackExpected(track.Proxy{Name: claimedProxy}, track.Proxy{Name: "other-proxy"})
+	lease := agent.tracker.TryAcquire()
+	require.NotNil(t, lease)
+	lease.Claim(claimedProxy)
 
 	client.MockPrincipals = []string{claimedProxy}
 
@@ -246,7 +251,7 @@ func TestAgentFailedToClaimLease(t *testing.T) {
 
 	err := agent.Start(ctx)
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "Failed to claim proxy", "Expected failed to claim proxy error.")
+	require.Contains(t, err.Error(), proxyAlreadyClaimedError, "Expected failed to claim proxy error.")
 
 	callback.waitForCount(t, 2)
 	require.Contains(t, callback.states, AgentConnecting)
@@ -323,14 +328,9 @@ func TestAgentStart(t *testing.T) {
 	require.Equal(t, 2, callback.calls, "Unexpected number of state changes.")
 	require.Equal(t, AgentConnected, agent.GetState())
 
-	unclaimed := false
-	agent.unclaim = func() {
-		unclaimed = true
-	}
-
 	err = agent.Stop()
 	require.NoError(t, err)
-	require.True(t, unclaimed, "Expected unclaim to be called.")
+	require.True(t, agent.lease.IsReleased(), "Expected lease to be released.")
 
 	callback.waitForCount(t, 3)
 	require.Contains(t, callback.states, AgentClosed)

@@ -1,4 +1,4 @@
-//go:build linux && !libpcsclite
+//go:build !piv
 
 /*
 Copyright 2022 Gravitational, Inc.
@@ -17,7 +17,6 @@ package keys
 
 import (
 	"context"
-	"crypto"
 	"errors"
 
 	"github.com/gravitational/trace"
@@ -25,10 +24,14 @@ import (
 
 var errPIVUnavailable = errors.New("PIV is unavailable in current build")
 
-func getOrGenerateYubiKeyPrivateKey(ctx context.Context, touchRequired bool) (*PrivateKey, error) {
+func getOrGenerateYubiKeyPrivateKey(ctx context.Context, policy PrivateKeyPolicy, slot PIVSlot) (*PrivateKey, error) {
 	return nil, trace.Wrap(errPIVUnavailable)
 }
 
-func parseYubiKeyPrivateKeyData(keyDataBytes []byte) (crypto.Signer, error) {
+func parseYubiKeyPrivateKeyData(keyDataBytes []byte) (*PrivateKey, error) {
 	return nil, trace.Wrap(errPIVUnavailable)
+}
+
+func (s PIVSlot) validate() error {
+	return trace.Wrap(errPIVUnavailable)
 }

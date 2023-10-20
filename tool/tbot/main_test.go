@@ -21,8 +21,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/gravitational/teleport/lib/utils/golden"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib/utils/golden"
 )
 
 func TestRun_Configure(t *testing.T) {
@@ -44,7 +45,7 @@ func TestRun_Configure(t *testing.T) {
 		return cpy
 	}
 
-	baseArgs := []string{"configure"}
+	baseArgs := []string{"configure", "--join-method", "token"}
 	tests := []struct {
 		name string
 		args []string
@@ -64,6 +65,7 @@ func TestRun_Configure(t *testing.T) {
 				"--oneshot",
 				"--certificate-ttl", "42m",
 				"--renewal-interval", "21m",
+				"--fips",
 			}...),
 		},
 	}

@@ -23,11 +23,12 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 	"k8s.io/client-go/tools/remotecommand"
+
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // metaMessage is a control message containing one or more payloads.
@@ -75,7 +76,7 @@ type SessionStream struct {
 
 // NewSessionStream creates a new session stream.
 // The type of the handshake parameter determines if this is the client or server end.
-func NewSessionStream(conn *websocket.Conn, handshake interface{}) (*SessionStream, error) {
+func NewSessionStream(conn *websocket.Conn, handshake any) (*SessionStream, error) {
 	s := &SessionStream{
 		conn:           conn,
 		in:             make(chan []byte),
@@ -170,7 +171,11 @@ func (s *SessionStream) readTask() {
 		}
 
 		if ty == websocket.BinaryMessage {
-			s.in <- data
+			select {
+			case s.in <- data:
+			case <-s.done:
+				return
+			}
 		}
 
 		if ty == websocket.TextMessage {
@@ -180,7 +185,11 @@ func (s *SessionStream) readTask() {
 			}
 
 			if msg.Resize != nil {
-				s.resizeQueue <- msg.Resize
+				select {
+				case s.resizeQueue <- msg.Resize:
+				case <-s.done:
+					return
+				}
 			}
 
 			if msg.ForceTerminate {
@@ -265,19 +274,19 @@ func (s *SessionStream) Done() <-chan struct{} {
 
 // Close closes the stream.
 func (s *SessionStream) Close() error {
-	if atomic.LoadInt32(&s.closed) == 0 {
-		atomic.StoreInt32(&s.closed, 1)
-
+	if atomic.CompareAndSwapInt32(&s.closed, 0, 1) {
 		err := s.conn.WriteMessage(websocket.CloseMessage, []byte{})
 		if err != nil {
 			log.Warnf("Failed to gracefully close websocket connection: %v", err)
 		}
-
+		t := time.NewTimer(time.Second * 5)
+		defer t.Stop()
 		select {
 		case <-s.done:
-		case <-time.After(time.Second * 5):
+		case <-t.C:
 			s.conn.Close()
 		}
+		s.closeOnce.Do(func() { close(s.done) })
 	}
 
 	return nil

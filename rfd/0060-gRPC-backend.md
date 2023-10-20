@@ -1,6 +1,6 @@
 ---
 authors: Michael McAllister (michael.mcallister@goteleport.com)
-state: draft
+state: canceled
 ---
 
 # RFD 60 - gRPC Backend
@@ -11,11 +11,11 @@ A new [backend](https://github.com/gravitational/teleport/tree/v8.3.1/lib/backen
 
 ## Why
 
-As Cloud-Hosted Teleport continues to grow, so does our need to have greater flexibility on not only what persistence layer we use (be it currently supported backends like DynamoDB, or otherwise) but _how_ these are implemented. 
+As Cloud-Hosted Teleport continues to grow, so does our need to have greater flexibility on not only what persistence layer we use (be it currently supported backends like DynamoDB, or otherwise) but _how_ these are implemented.
 
 Take for instance, the current implementation of the [DynamoDB backend](https://github.com/gravitational/teleport/tree/v8.3.1/lib/backend/dynamo) which allows in its configuration to specify the table name, but does not presently have the ability to customize the Partition key. This means that it's not possible to co-locate multiple installations of Teleport within the same DynamoDB table, and as a result are bounded by [AWS account limits](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/ServiceQuotas.html#limits-tables) when deploying multiple installations.
 
-Other backend solutions have their own challenges regarding authentication and authorization. For instance, most databases have limits on the number of users/roles that you can define which we'd need to leverage to ensure strong data isolation between each deployment. Using an authentication method that would allow one tenant to access another tenants data would be a non-option. 
+Other backend solutions have their own challenges regarding authentication and authorization. For instance, most databases have limits on the number of users/roles that you can define which we'd need to leverage to ensure strong data isolation between each deployment. Using an authentication method that would allow one tenant to access another tenants data would be a non-option.
 
 Implementing a gRPC client within Teleport allows not only the Cloud team, but external developers to implement:
  - A custom persistence layer that may not be supported by Teleport natively
@@ -176,7 +176,7 @@ service BackendService {
 
 In order for the gRPC client (the Teleport side) to be able to talk to a server, at minimum the address of the server providing the gRPC service will be required, additionally the following existing configuration properties will be reused:
 
-- buffer size for client size buffering 
+- buffer size for client size buffering
 - mTLS details (CA, Cert, Key) (currently used for etcd)
 
 Representing this in yaml the storage stanza of the configuration could potentially look like:

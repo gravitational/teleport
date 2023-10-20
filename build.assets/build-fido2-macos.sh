@@ -13,12 +13,22 @@ set -eu
 
 readonly MACOS_VERSION_MIN=10.13
 
-# Note: versions are the same as the corresponding git tags for each repo.
-readonly CBOR_VERSION=v0.9.0
-readonly CRYPTO_VERSION=OpenSSL_1_1_1q
-readonly FIDO2_VERSION=1.12.0
+# Cross-architecture building
+# Set C_ARCH to $(uname -m) if unset, and validate supported architecture
+if ! [[ "${C_ARCH:=$(uname -m)}" =~ ^(x86_64|arm64)$ ]]; then
+  echo "unknown or unsupported build architecture: $C_ARCH" >&2
+  exit 1
+fi
 
-readonly LIB_CACHE="/tmp/teleport-fido2-cache"
+# Note: versions are the same as the corresponding git tags for each repo.
+readonly CBOR_VERSION=v0.10.2
+readonly CBOR_COMMIT=efa6c0886bae46bdaef9b679f61f4b9d8bc296ae
+readonly CRYPTO_VERSION=openssl-3.0.11
+readonly CRYPTO_COMMIT=6ba3884c3235e1bb474b379026087f8216afacf4
+readonly FIDO2_VERSION=1.13.0
+readonly FIDO2_COMMIT=486a8f8667e42f55cee2bba301b41433cacec830
+
+readonly LIB_CACHE="/tmp/teleport-fido2-cache-$C_ARCH"
 readonly PKGFILE_DIR="$LIB_CACHE/fido2-${FIDO2_VERSION}_cbor-${CBOR_VERSION}_crypto-${CRYPTO_VERSION}"
 
 # Library cache paths, implicitly matched by fetch_and_build.
@@ -26,19 +36,22 @@ readonly CBOR_PATH="$LIB_CACHE/cbor-$CBOR_VERSION"
 readonly CRYPTO_PATH="$LIB_CACHE/crypto-$CRYPTO_VERSION"
 readonly FIDO2_PATH="$LIB_CACHE/fido2-$FIDO2_VERSION"
 
+# List of folders/files to remove on exit.
+# See cleanup and main.
+CLEANUPS=()
+
 fetch_and_build() {
   local name="$1"      # eg, cbor
   local version="$2"   # eg, v0.9.0
-  local url="$3"       # eg, https://github.com/...
-  local buildcmd="$4"  # eg, cbor_build, a bash function name
+  local commit="$3"    # eg, 58b3319b8c3ec15171cb00f01a3a1e9d400899e1
+  local url="$4"       # eg, https://github.com/...
+  local buildcmd="$5"  # eg, cbor_build, a bash function name
   echo "$name: fetch and build" >&2
 
   mkdir -p "$LIB_CACHE"
   local tmp=''
   tmp="$(mktemp -d "$LIB_CACHE/build.XXXXXX")"
-  # Early expansion on purpose.
-  #shellcheck disable=SC2064
-  trap "rm -fr '$tmp'" EXIT
+  CLEANUPS+=("$tmp")
 
   local fullname="$name-$version"
   local install_path="$tmp/$fullname"
@@ -46,6 +59,13 @@ fetch_and_build() {
   cd "$tmp"
   git clone --depth=1 -b "$version" "$url"
   cd "$(ls)"  # a single folder exists at this point
+  local head
+  head="$(git rev-parse HEAD)"
+  if [[ "$head" != "$commit" ]]; then
+    echo "Found unexpected HEAD commit for $name, aborting: $head" >&2
+    exit 1
+  fi
+
   mkdir -p "$install_path"
   eval "$buildcmd '$PWD' '$install_path'"
 
@@ -69,7 +89,7 @@ cbor_build() {
   cd "$src"
 
   cmake \
-    -DCBOR_CUSTOM_ALLOC=ON \
+    -DCMAKE_OSX_ARCHITECTURES="$C_ARCH" \
     -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_INSTALL_PREFIX="$dest" \
     -DCMAKE_OSX_DEPLOYMENT_TARGET="$MACOS_VERSION_MIN" \
@@ -83,7 +103,8 @@ cbor_build() {
 
 cbor_fetch_and_build() {
   fetch_and_build \
-    cbor "$CBOR_VERSION" 'https://github.com/pjk/libcbor.git' cbor_build
+    cbor "$CBOR_VERSION" "$CBOR_COMMIT" 'https://github.com/pjk/libcbor.git' \
+    cbor_build
 }
 
 crypto_build() {
@@ -92,10 +113,10 @@ crypto_build() {
   echo 'crypto: building' >&2
   cd "$src"
 
-  ./config \
+  ./Configure \
+    "darwin64-$C_ARCH-cc" \
     -mmacosx-version-min="$MACOS_VERSION_MIN" \
     --prefix="$dest" \
-    --openssldir="$dest/openssl@1.1" \
     no-shared \
     no-zlib
   # Build and copy only what we need instead of 'make && make install'.
@@ -109,7 +130,8 @@ crypto_build() {
 
 crypto_fetch_and_build() {
   fetch_and_build \
-    crypto "$CRYPTO_VERSION" 'https://github.com/openssl/openssl.git' \
+    crypto "$CRYPTO_VERSION" "$CRYPTO_COMMIT" \
+    'https://github.com/openssl/openssl.git' \
     crypto_build
 }
 
@@ -124,26 +146,28 @@ fido2_build() {
     -DBUILD_EXAMPLES=OFF \
     -DBUILD_MANPAGES=OFF \
     -DBUILD_TOOLS=OFF \
+    -DCMAKE_OSX_ARCHITECTURES="$C_ARCH" \
     -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_INSTALL_PREFIX="$dest" \
     -DCMAKE_OSX_DEPLOYMENT_TARGET="$MACOS_VERSION_MIN" \
     -G "Unix Makefiles" \
     .
+  grep 'CRYPTO_VERSION:INTERNAL=3\.0\.' CMakeCache.txt # double-check OpenSSL
   make
   make install
 }
 
 fido2_fetch_and_build() {
   fetch_and_build \
-    fido2 "$FIDO2_VERSION" 'https://github.com/Yubico/libfido2.git' fido2_build
+    fido2 "$FIDO2_VERSION" "$FIDO2_COMMIT" \
+    'https://github.com/Yubico/libfido2.git' \
+    fido2_build
 }
 
 fido2_compile_toy() {
   local toydir=''
   toydir="$(mktemp -d)"
-  # Early expansion on purpose.
-  #shellcheck disable=SC2064
-  trap "rm -fr '$toydir'" EXIT
+  CLEANUPS+=("$toydir")
 
   cat >"$toydir/toy.c" <<EOF
 #include <fido.h>
@@ -158,6 +182,7 @@ EOF
   # Word splitting desired for pkg-config.
   #shellcheck disable=SC2046
   gcc \
+    -arch "$C_ARCH" \
     $(pkg-config --cflags --libs libfido2-static) \
     -o "$toydir/toy.bin" \
     "$toydir/toy.c"
@@ -184,9 +209,7 @@ build() {
   if [[ ! -f "$pkgfile" ]]; then
     local tmp=''
     tmp="$(mktemp)"  # file, not dir!
-    # Early expansion on purpose.
-    #shellcheck disable=SC2064
-    trap "rm -f '$tmp'" EXIT
+    CLEANUPS+=("$tmp")
 
     # Write libfido2-static.pc to tmp.
     cat >"$tmp" <<EOF
@@ -212,11 +235,23 @@ EOF
   fi
 }
 
+cleanup() {
+  # The strange looking expansion below (`${arr[@]+"${arr[@]}"}`) avoids unbound
+  # errors when the array is empty. (The actual expansion is quoted.)
+  # See https://stackoverflow.com/a/7577209.
+  #shellcheck disable=SC2068
+  for path in ${CLEANUPS[@]+"${CLEANUPS[@]}"}; do
+    echo "Removing: $path" >&2
+    rm -fr "$path"
+  done
+}
+
 main() {
   if [[ $# -ne 1 ]]; then
     usage
     exit 1
   fi
+  trap cleanup EXIT
 
   case "$1" in
     build)

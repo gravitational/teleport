@@ -33,16 +33,16 @@ import (
 	"strings"
 	"sync"
 	"time"
-
-	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/constants"
-	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/lib/modules"
-	"k8s.io/apimachinery/pkg/util/validation"
+	"unicode"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
+	"k8s.io/apimachinery/pkg/util/validation"
+
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
+	apiutils "github.com/gravitational/teleport/api/utils"
 )
 
 // WriteContextCloser provides close method with context
@@ -323,6 +323,31 @@ func IsValidHostname(hostname string) bool {
 	return true
 }
 
+// IsValidUnixUser checks if a string represents a valid
+// UNIX username.
+func IsValidUnixUser(u string) bool {
+	// See http://www.unix.com/man-page/linux/8/useradd:
+	//
+	// On Debian, the only constraints are that usernames must neither start with a dash ('-')
+	// nor contain a colon (':') or a whitespace (space: ' ', end of line: '\n', tabulation:
+	// '\t', etc.). Note that using a slash ('/') may break the default algorithm for the
+	// definition of the user's home directory.
+
+	const maxUsernameLen = 32
+	if len(u) > maxUsernameLen || len(u) == 0 || u[0] == '-' {
+		return false
+	}
+	if strings.ContainsAny(u, ":/") {
+		return false
+	}
+	for _, r := range u {
+		if unicode.IsSpace(r) || unicode.IsControl(r) {
+			return false
+		}
+	}
+	return true
+}
+
 // ReadPath reads file contents
 func ReadPath(path string) ([]byte, error) {
 	if path == "" {
@@ -426,16 +451,6 @@ func (p *PortList) PopInt() int {
 	return i
 }
 
-// PopIntSlice returns a slice of values from the list, it panics if not enough
-// ports were allocated
-func (p *PortList) PopIntSlice(num int) []int {
-	ports := make([]int, num)
-	for i := range ports {
-		ports[i] = p.PopInt()
-	}
-	return ports
-}
-
 // PortStartingNumber is a starting port number for tests
 const PortStartingNumber = 20000
 
@@ -452,9 +467,20 @@ func GetFreeTCPPorts(n int, offset ...int) (PortList, error) {
 	return PortList{ports: list}, nil
 }
 
+// GetHostUUIDPath returns the path to the host UUID file given the data directory.
+func GetHostUUIDPath(dataDir string) string {
+	return filepath.Join(dataDir, HostUUIDFile)
+}
+
+// HostUUIDExistsLocally checks if dataDir/host_uuid file exists in local storage.
+func HostUUIDExistsLocally(dataDir string) bool {
+	_, err := ReadHostUUID(dataDir)
+	return err == nil
+}
+
 // ReadHostUUID reads host UUID from the file in the data dir
 func ReadHostUUID(dataDir string) (string, error) {
-	out, err := ReadPath(filepath.Join(dataDir, HostUUIDFile))
+	out, err := ReadPath(GetHostUUIDPath(dataDir))
 	if err != nil {
 		if errors.Is(err, fs.ErrPermission) {
 			//do not convert to system error as this loses the ability to compare that it is a permission error
@@ -471,7 +497,7 @@ func ReadHostUUID(dataDir string) (string, error) {
 
 // WriteHostUUID writes host UUID into a file
 func WriteHostUUID(dataDir string, id string) error {
-	err := os.WriteFile(filepath.Join(dataDir, HostUUIDFile), []byte(id), os.ModeExclusive|0400)
+	err := os.WriteFile(GetHostUUIDPath(dataDir), []byte(id), os.ModeExclusive|0400)
 	if err != nil {
 		if errors.Is(err, fs.ErrPermission) {
 			//do not convert to system error as this loses the ability to compare that it is a permission error
@@ -508,11 +534,6 @@ func ReadOrMakeHostUUID(dataDir string) (string, error) {
 		return "", trace.Wrap(err)
 	}
 	return id, nil
-}
-
-// PrintVersion prints human readable version
-func PrintVersion() {
-	modules.GetModules().PrintVersion()
 }
 
 // StringSliceSubset returns true if b is a subset of a.
@@ -641,6 +662,21 @@ func HasPrefixAny(prefix string, values []string) bool {
 	}
 
 	return false
+}
+
+// ByteCount converts a size in bytes to a human-readable string.
+func ByteCount(b int64) string {
+	const unit = 1000
+	if b < unit {
+		return fmt.Sprintf("%d B", b)
+	}
+	div, exp := int64(unit), 0
+	for n := b / unit; n >= unit; n /= unit {
+		div *= unit
+		exp++
+	}
+	return fmt.Sprintf("%.1f %cB",
+		float64(b)/float64(div), "kMGTPE"[exp])
 }
 
 // ErrLimitReached means that the read limit is reached.

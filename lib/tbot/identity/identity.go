@@ -17,10 +17,15 @@ limitations under the License.
 package identity
 
 import (
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
 	"strings"
+
+	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
+	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -29,12 +34,10 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
-	"golang.org/x/crypto/ssh"
 )
 
 const (
@@ -227,10 +230,11 @@ func (i *Identity) getSSHCheckers() ([]ssh.PublicKey, error) {
 
 // SSHClientConfig returns a ssh.ClientConfig used by the bot to connect to
 // the reverse tunnel server.
-func (i *Identity) SSHClientConfig() (*ssh.ClientConfig, error) {
+func (i *Identity) SSHClientConfig(fips bool) (*ssh.ClientConfig, error) {
 	callback, err := apisshutils.NewHostKeyCallback(
 		apisshutils.HostKeyCallbackConfig{
 			GetHostCheckers: i.getSSHCheckers,
+			FIPS:            fips,
 		})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -238,12 +242,21 @@ func (i *Identity) SSHClientConfig() (*ssh.ClientConfig, error) {
 	if len(i.SSHCert.ValidPrincipals) < 1 {
 		return nil, trace.BadParameter("user cert has no valid principals")
 	}
-	return &ssh.ClientConfig{
+	config := &ssh.ClientConfig{
 		User:            i.SSHCert.ValidPrincipals[0],
 		Auth:            []ssh.AuthMethod{ssh.PublicKeys(i.KeySigner)},
 		HostKeyCallback: callback,
-		Timeout:         apidefaults.DefaultDialTimeout,
-	}, nil
+		Timeout:         apidefaults.DefaultIOTimeout,
+	}
+	if fips {
+		config.Config = ssh.Config{
+			KeyExchanges: defaults.FIPSKEXAlgorithms,
+			MACs:         defaults.FIPSMACAlgorithms,
+			Ciphers:      defaults.FIPSCiphers,
+		}
+	}
+
+	return config, nil
 }
 
 // ReadIdentityFromStore reads stored identity credentials
@@ -306,7 +319,7 @@ func ReadTLSIdentityFromKeyPair(identity *Identity, keyBytes, certBytes []byte, 
 
 	clusterName := cert.Issuer.Organization[0]
 	if clusterName == "" {
-		return trace.BadParameter("misssing cluster name")
+		return trace.BadParameter("missing cluster name")
 	}
 
 	identity.ClusterName = clusterName
@@ -382,8 +395,8 @@ func ReadSSHIdentityFromKeyPair(identity *Identity, keyBytes, publicKeyBytes, ce
 // VerifyWrite attempts to write to the .write-test artifact inside the given
 // destination. It should be called before attempting a renewal to help ensure
 // we won't then fail to save the identity.
-func VerifyWrite(dest bot.Destination) error {
-	return trace.Wrap(dest.Write(WriteTestKey, []byte{}))
+func VerifyWrite(ctx context.Context, dest bot.Destination) error {
+	return trace.Wrap(dest.Write(ctx, WriteTestKey, []byte{}))
 }
 
 // ListKeys returns a list of artifact keys that will be written given a list
@@ -402,7 +415,7 @@ func ListKeys(kinds ...ArtifactKind) []string {
 }
 
 // SaveIdentity saves a bot identity to a destination.
-func SaveIdentity(id *Identity, d bot.Destination, kinds ...ArtifactKind) error {
+func SaveIdentity(ctx context.Context, id *Identity, d bot.Destination, kinds ...ArtifactKind) error {
 	for _, artifact := range GetArtifacts() {
 		// Only store artifacts matching one of the set kinds.
 		if !artifact.Matches(kinds...) {
@@ -412,7 +425,7 @@ func SaveIdentity(id *Identity, d bot.Destination, kinds ...ArtifactKind) error 
 		data := artifact.ToBytes(id)
 
 		log.Debugf("Writing %s", artifact.Key)
-		if err := d.Write(artifact.Key, data); err != nil {
+		if err := d.Write(ctx, artifact.Key, data); err != nil {
 			return trace.Wrap(err, "could not write to %v", artifact.Key)
 		}
 	}
@@ -421,7 +434,7 @@ func SaveIdentity(id *Identity, d bot.Destination, kinds ...ArtifactKind) error 
 }
 
 // LoadIdentity loads a bot identity from a destination.
-func LoadIdentity(d bot.Destination, kinds ...ArtifactKind) (*Identity, error) {
+func LoadIdentity(ctx context.Context, d bot.Destination, kinds ...ArtifactKind) (*Identity, error) {
 	var certs proto.Certs
 	var params LoadIdentityParams
 
@@ -431,7 +444,7 @@ func LoadIdentity(d bot.Destination, kinds ...ArtifactKind) (*Identity, error) {
 			continue
 		}
 
-		data, err := d.Read(artifact.Key)
+		data, err := d.Read(ctx, artifact.Key)
 		if err != nil {
 			return nil, trace.Wrap(err, "could not read artifact %q from destination %s", artifact.Key, d)
 		}
@@ -446,7 +459,7 @@ func LoadIdentity(d bot.Destination, kinds ...ArtifactKind) (*Identity, error) {
 				artifact.Key,
 				artifact.OldKey,
 			)
-			data, err = d.Read(artifact.OldKey)
+			data, err = d.Read(ctx, artifact.OldKey)
 			if err != nil {
 				return nil, trace.Wrap(
 					err,
