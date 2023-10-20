@@ -248,7 +248,7 @@ func (c *proxyKubeCommand) printPrepare(cf *CLIConf, title string, clusters kube
 func (c *proxyKubeCommand) printTemplate(cf *CLIConf, localProxy *kubeLocalProxy) error {
 	if cf.Headless {
 		return trace.Wrap(proxyKubeHeadlessTemplate.Execute(cf.Stdout(), map[string]interface{}{
-			"addr": localProxy.GetAddr(),
+			"multipleContexts": len(localProxy.kubeconfig.Contexts) > 1,
 		}))
 	}
 	return trace.Wrap(proxyKubeTemplate.Execute(cf.Stdout(), map[string]interface{}{
@@ -647,12 +647,15 @@ kubectl version
 
 // proxyKubeHeadlessTemplate is the message that gets printed to a user when a kube proxy is started with --headless.
 var proxyKubeHeadlessTemplate = template.Must(template.New("").
-	Parse(fmt.Sprintf(`Started local proxy for Kubernetes on {{.addr}} in the background.
+	Parse(fmt.Sprintf(`Started local proxy for Kubernetes Access in the background.
 
-%v New shell will now be started with kubectl automatically set up to work with the local proxy.
-When you are done, you will need to close this internal shell by issuing "exit" command - that
-will return you to your original shell and all certificates will be automatically cleaned up.
+%v Teleport will initiate a new shell configured with kubectl for local proxy access. 
+To conclude the session, simply use the "exit" command. Upon exiting, your original shell will be restored, 
+the local proxy will be closed, and future access through this headless session won't be possible.
 
-To use different contexts use "kubectl --context='example' ...".
+{{ if .multipleContexts}} To work with different contexts use "kubectl --context", for example:
+"kubectl --context='staging' get pods".
+"kubectl --context='dev' get pods".
+{{end}}
 Try issuing a command, for example "kubectl version".
-`, utils.Color(utils.Yellow, "Attention!"))))
+`, utils.Color(utils.Yellow, "Warning!"))))
