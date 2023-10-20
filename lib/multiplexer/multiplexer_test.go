@@ -644,8 +644,9 @@ func TestMux(t *testing.T) {
 			_, err = conn.Write(sampleProxyV2Line)
 			require.NoError(t, err)
 
-			frontend := pgproto3.NewFrontend(pgproto3.NewChunkReader(conn), conn)
-			err = frontend.Send(&pgproto3.SSLRequest{})
+			frontend := pgproto3.NewFrontend(conn, conn)
+			frontend.Send(&pgproto3.SSLRequest{})
+			err = frontend.Flush()
 			require.NoError(t, err)
 
 			// This should not hang indefinitely since we set timeout on the mux context above.
