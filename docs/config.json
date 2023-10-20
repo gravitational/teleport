@@ -1228,10 +1228,20 @@
             {
               "title": "RBAC",
               "slug": "/database-access/rbac/configuring-access/"
+            }
+          ]
+        },
+        {
+          "title": "Automatic User Provisioning",
+          "slug": "/database-access/auto-user-provisioning/",
+          "entries": [
+            {
+              "title": "MySQL",
+              "slug": "/database-access/auto-user-provisioning/mysql/"
             },
             {
-              "title": "Automatic User Provisioning ",
-              "slug": "/database-access/rbac/configuring-auto-user-provisioning/"
+              "title": "PostgreSQL",
+              "slug": "/database-access/auto-user-provisioning/postgres/"
             }
           ]
         },
@@ -2922,6 +2932,11 @@
     {
       "source": "/connect-your-client/putty/",
       "destination": "/connect-your-client/putty-winscp/",
+      "permanent": true
+    },
+    {
+      "source": "/database-access/rbac/configuring-auto-user-provisioning/",
+      "destination": "/database-access/auto-user-provisioning/",
       "permanent": true
     }
   ]
