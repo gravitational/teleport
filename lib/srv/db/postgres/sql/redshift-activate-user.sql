@@ -30,7 +30,7 @@ BEGIN
         CALL teleport_deactivate_user(username);
         EXECUTE 'ALTER USER ' || QUOTE_IDENT(username) || ' CONNECTION LIMIT UNLIMITED';
     ELSE
-        EXECUTE 'CREATE USER ' || QUOTE_IDENT(username) || 'WITH PASSWORD DISABLE';
+        EXECUTE 'CREATE USER ' || QUOTE_IDENT(username) || ' WITH PASSWORD DISABLE';
         EXECUTE 'GRANT ROLE "teleport-auto-user" TO ' || QUOTE_IDENT(username);
     END IF;
     -- Assign all roles to the created/activated user.

@@ -15,6 +15,6 @@ BEGIN
              EXECUTE 'REVOKE ROLE ' || QUOTE_IDENT(rec.role_name) || ' FROM ' || QUOTE_IDENT(username);
         END LOOP;
         -- Disable ability to login for the user.
-        EXECUTE 'ALTER USER ' || QUOTE_IDENT(username) || 'WITH CONNECTION LIMIT 0';
+        EXECUTE 'ALTER USER ' || QUOTE_IDENT(username) || ' WITH CONNECTION LIMIT 0';
     END IF;
 END;$$;

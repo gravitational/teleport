@@ -221,24 +221,24 @@ const (
 )
 
 var (
-	//go:embed activate-user.sql
+	//go:embed sql/activate-user.sql
 	activateProc string
 	// activateQuery is the query for calling user activation procedure.
 	activateQuery = fmt.Sprintf(`call %v($1, $2)`, activateProcName)
 
-	//go:embed deactivate-user.sql
+	//go:embed sql/deactivate-user.sql
 	deactivateProc string
 	// deactivateQuery is the query for calling user deactivation procedure.
 	deactivateQuery = fmt.Sprintf(`call %v($1)`, deactivateProcName)
 
-	//go:embed delete-user.sql
+	//go:embed sql/delete-user.sql
 	deleteProc string
 	// deleteQuery is the query for calling user deletion procedure.
 	deleteQuery = fmt.Sprintf(`call %v($1)`, deleteProcName)
 
-	//go:embed redshift-activate-user.sql
+	//go:embed sql/redshift-activate-user.sql
 	redshiftActivateProc string
-	//go:embed redshift-deactivate-user.sql
+	//go:embed sql/redshift-deactivate-user.sql
 	redshiftDeactivateProc string
 
 	procs = map[string]string{
