@@ -149,7 +149,7 @@ func runHeadlessKubeProxy(cf *CLIConf, localProxy *kubeLocalProxy) error {
 		lpErrChan <- localProxy.Start(ctx)
 	}()
 
-	err = reexecToShell(ctx, string(configBytes))
+	err = reexecToShell(ctx, configBytes)
 	err = trace.NewAggregate(err, localProxy.Close())
 	_, _ = fmt.Fprint(cf.Stdout(), "Local proxy for Kubernetes is closed.\n")
 	err = trace.NewAggregate(err, <-lpErrChan)

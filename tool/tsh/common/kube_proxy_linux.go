@@ -62,9 +62,9 @@ func memFile(name string, fileContent []byte) (int, error) {
 	return fd, nil
 }
 
-func reexecToShell(ctx context.Context, kubeconfigData string) (err error) {
+func reexecToShell(ctx context.Context, kubeconfigData []byte) (err error) {
 	// Create in-memory file containing kubeconfig and return file descriptor.
-	fd, err := memFile("proxy-kubeconfig", []byte(kubeconfigData))
+	fd, err := memFile("proxy-kubeconfig", kubeconfigData)
 	if err != nil {
 		return trace.Wrap(err, "failed to create in-memory file")
 	}
