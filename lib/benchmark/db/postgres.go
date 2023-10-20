@@ -19,7 +19,7 @@ import (
 	"fmt"
 
 	"github.com/gravitational/trace"
-	"github.com/jackc/pgconn"
+	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/benchmark"

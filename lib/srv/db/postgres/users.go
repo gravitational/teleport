@@ -24,7 +24,7 @@ import (
 	"strings"
 
 	"github.com/gravitational/trace"
-	"github.com/jackc/pgx/v4"
+	"github.com/jackc/pgx/v5"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/srv/db/common"

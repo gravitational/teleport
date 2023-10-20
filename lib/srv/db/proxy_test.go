@@ -26,7 +26,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jackc/pgproto3/v2"
+	"github.com/jackc/pgx/v5/pgproto3"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
@@ -276,7 +276,7 @@ func checkNextMessage(conn net.Conn, wantMsg []byte) responseChecker {
 
 // checkReceiveReadyMessage checks that a pgproto3.ReadyForQuery message is eventually received.
 func checkReceiveReadyMessage(t *testing.T, conn net.Conn, wantErr error) {
-	frontend := pgproto3.NewFrontend(pgproto3.NewChunkReader(conn), conn)
+	frontend := pgproto3.NewFrontend(conn, conn)
 	for {
 		msg, err := frontend.Receive()
 		if wantErr != nil {

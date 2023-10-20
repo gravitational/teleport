@@ -26,7 +26,7 @@ import (
 	"time"
 
 	mysqlclient "github.com/go-mysql-org/go-mysql/client"
-	"github.com/jackc/pgconn"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 

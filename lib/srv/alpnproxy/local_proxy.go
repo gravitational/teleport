@@ -29,7 +29,7 @@ import (
 	"sync"
 
 	"github.com/gravitational/trace"
-	"github.com/jackc/pgproto3/v2"
+	"github.com/jackc/pgx/v5/pgproto3"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
@@ -473,7 +473,7 @@ func peekPostgresStartupMessage(ctx context.Context, conn net.Conn) (pgproto3.Fr
 	// wrap the conn in a read-only conn to be sure the conn is not written to.
 	rConn := readOnlyConn{reader: io.TeeReader(conn, buff)}
 	// backend acts as a server for the Postgres wire protocol.
-	backend := pgproto3.NewBackend(pgproto3.NewChunkReader(rConn), rConn)
+	backend := pgproto3.NewBackend(rConn, rConn)
 	startupMessage, err := backend.ReceiveStartupMessage()
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
