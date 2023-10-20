@@ -31,7 +31,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-func reexecToShell(ctx context.Context, kubeconfigData string) (err error) {
+func reexecToShell(ctx context.Context, kubeconfigData []byte) (err error) {
 	// Prepare to re-exec shell
 	command := "/bin/bash"
 	if shell, ok := os.LookupEnv("SHELL"); ok {
@@ -45,7 +45,7 @@ func reexecToShell(ctx context.Context, kubeconfigData string) (err error) {
 	defer func() { err = trace.NewAggregate(err, utils.RemoveFileIfExist(f.Name())) }()
 	defer func() { err = trace.NewAggregate(err, f.Close()) }()
 
-	_, err = f.Write([]byte(kubeconfigData))
+	_, err = f.Write(kubeconfigData)
 	if err != nil {
 		return trace.Wrap(err, "failed to write kubeconfig into temporary file")
 	}
