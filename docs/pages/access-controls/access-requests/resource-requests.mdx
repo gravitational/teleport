@@ -623,29 +623,6 @@ local                 /teleport.example.com/kube_cluster/local
 
 ```
 
-### Allow reviewers to see the hostnames of SSH nodes
-
-It is possible for a reviewer to view Resource Access Requests for SSH Nodes to
-which that reviewer does not have access.
-In this case, the reviewer will not be able to view the hostname of the requested node
-and they will only see the node's UUID.
-
-To give the reviewer permission to view the Node hostname, use the
-`allow.review_requests.preview_as_roles` field in the reviewer's role, e.g.:
-
-```
-kind: role
-spec:
-  allow:
-    review_requests:
-      preview_as_roles: [access]
-```
-
-This can often be set to the same value as `allow.review_requests.roles`.
-When any of the `preview_as_roles` set for the reviewer would allow access to
-the requested node, the hostname will be displayed in the Review Request page of
-the Teleport Web UI.
-
 ### Integrating with an external tool
 
 With Teleport's Access Request plugins, users can manage Access Requests from
@@ -653,12 +630,6 @@ within your organization's existing messaging and project management solutions.
 
 (!docs/pages/includes/access-request-integrations.mdx!)
 
-### Using TTLs with Access Requests
-
-`tsh request create` supports flags to control TTLs for the request and
-elevated access. See the [CLI
-Reference](../../reference/cli/tsh.mdx#tsh-request-create) for more
-details.
-
 ## Next Steps
+
 - Learn more about [Access Lists](../access-lists.mdx)
