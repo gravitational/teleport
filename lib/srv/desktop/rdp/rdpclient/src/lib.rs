@@ -95,7 +95,6 @@ pub unsafe extern "C" fn client_run(cgo_handle: CgoHandle, params: CGOConnectPar
     trace!("client_run");
     // Convert from C to Rust types.
     let addr = from_c_string(params.go_addr);
-    let username = from_c_string(params.go_username);
     let cert_der = from_go_array(params.cert_der, params.cert_der_len);
     let key_der = from_go_array(params.key_der, params.key_der_len);
 
@@ -103,7 +102,6 @@ pub unsafe extern "C" fn client_run(cgo_handle: CgoHandle, params: CGOConnectPar
         cgo_handle,
         ConnectParams {
             addr,
-            username,
             cert_der,
             key_der,
             screen_width: params.screen_width,
@@ -362,7 +360,6 @@ pub unsafe extern "C" fn client_close_rdp(cgo_reg: usize) -> CGOErrCode {
 #[repr(C)]
 pub struct CGOConnectParams {
     go_addr: *const c_char,
-    go_username: *const c_char,
     cert_der_len: u32,
     cert_der: *mut u8,
     key_der_len: u32,

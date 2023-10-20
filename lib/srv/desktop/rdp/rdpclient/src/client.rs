@@ -1,7 +1,7 @@
 use bitflags::Flags;
 use bytes::BytesMut;
 use ironrdp_cliprdr::{Cliprdr, CliprdrSvcMessages};
-use ironrdp_connector::{Config, ConnectorError};
+use ironrdp_connector::{Config, ConnectorError, Credentials};
 use ironrdp_pdu::input::fast_path::{FastPathInput, FastPathInputEvent, KeyboardFlags};
 use ironrdp_pdu::input::mouse::PointerFlags;
 use ironrdp_pdu::input::{InputEventError, MousePdu};
@@ -19,7 +19,6 @@ use ironrdp_svc::{StaticVirtualChannelProcessor, SvcMessage, SvcProcessorMessage
 use ironrdp_tls::TlsStream;
 use ironrdp_tokio::{Framed, TokioStream};
 use rand::{Rng, SeedableRng};
-use sspi::network_client::reqwest_network_client::RequestClientFactory;
 use std::fmt::{Debug, Display, Formatter};
 use std::io::Error as IoError;
 use std::net::ToSocketAddrs;
@@ -86,41 +85,39 @@ impl Client {
         // Create a framed stream for use by connect_begin
         let mut framed = ironrdp_tokio::TokioFramed::new(stream);
 
-        let connector_config =
-            create_config(params.screen_width, params.screen_height, params.username);
-
-        // Create a channel for sending/receiving function calls to/from the Client.
-        let (client_handle, function_receiver) = channel(100);
-
         // Generate a random 8-digit PIN for our smartcard.
         let mut rng = rand_chacha::ChaCha20Rng::from_entropy();
         let pin = format!("{:08}", rng.gen_range(0i32..=99999999i32));
 
+        let connector_config =
+            create_config(params.screen_width, params.screen_height, pin.clone());
+
+        // Create a channel for sending/receiving function calls to/from the Client.
+        let (client_handle, function_receiver) = channel(100);
+
         let mut connector = ironrdp_connector::ClientConnector::new(connector_config)
             .with_server_addr(server_socket_addr)
             .with_server_name(server_addr)
-            .with_credssp_network_client(RequestClientFactory);
+            .with_static_channel(Rdpsnd::new()) // required for rdpdr to work
+            .with_static_channel(
+                Rdpdr::new(
+                    Box::new(TeleportRdpdrBackend::new(
+                        SCARD_DEVICE_ID,
+                        client_handle.clone(),
+                        params.cert_der,
+                        params.key_der,
+                        pin,
+                    )),
+                    "IronRDP".to_string(),
+                )
+                .with_smartcard(SCARD_DEVICE_ID),
+            );
 
         if params.allow_clipboard {
             connector = connector.with_static_channel(Cliprdr::new(Box::new(
                 TeleportCliprdrBackend::new(client_handle.clone()),
             )));
         }
-        // Temporarily disabled because they were causing problems unrelated to clipboard sharing.
-        // .with_static_channel(Rdpsnd::new()) // required for rdpdr
-        // .with_static_channel(
-        //     Rdpdr::new(
-        //         Box::new(TeleportRdpdrBackend::new(
-        //             SCARD_DEVICE_ID,
-        //             client_handle.clone(),
-        //             params.cert_der,
-        //             params.key_der,
-        //             pin,
-        //         )),
-        //         "IronRDP".to_string(),
-        //     )
-        //     .with_smartcard(SCARD_DEVICE_ID),
-        // );
 
         let should_upgrade = ironrdp_tokio::connect_begin(&mut framed, &mut connector).await?;
 
@@ -540,14 +537,16 @@ pub type FunctionReceiver = Receiver<ClientFunction>;
 type RdpReadStream = Framed<TokioStream<ReadHalf<TlsStream<TokioTcpStream>>>>;
 type RdpWriteStream = Framed<TokioStream<WriteHalf<TlsStream<TokioTcpStream>>>>;
 
-fn create_config(width: u16, height: u16, username: String) -> Config {
+fn create_config(width: u16, height: u16, pin: String) -> Config {
     Config {
         desktop_size: ironrdp_connector::DesktopSize { width, height },
-        security_protocol: SecurityProtocol::HYBRID_EX,
-        username,
-        password: std::env::var("RDP_PASSWORD").unwrap(), //todo(isaiah)
+        security_protocol: SecurityProtocol::SSL,
+        credentials: Credentials::SmartCard { pin },
         domain: None,
-        client_build: 0,
+        // Windows 10, Version 1909, same as FreeRDP as of October 5th, 2021.
+        // This determines which Smart Card Redirection dialect we use per
+        // https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpesc/568e22ee-c9ee-4e87-80c5-54795f667062.
+        client_build: 18363,
         client_name: "Teleport".to_string(),
         keyboard_type: ironrdp_pdu::gcc::KeyboardType::IbmEnhanced,
         keyboard_subtype: 0,
@@ -562,13 +561,13 @@ fn create_config(width: u16, height: u16, username: String) -> Config {
         client_dir: "C:\\Windows\\System32\\mstscax.dll".to_string(),
         platform: MajorPlatformType::UNSPECIFIED,
         no_server_pointer: false,
+        autologon: true,
     }
 }
 
 #[derive(Debug)]
 pub struct ConnectParams {
     pub addr: String,
-    pub username: String,
     pub cert_der: Vec<u8>,
     pub key_der: Vec<u8>,
     pub screen_width: u16,
