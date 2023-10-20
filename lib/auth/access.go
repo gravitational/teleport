@@ -117,7 +117,7 @@ func (a *Server) DeleteRole(ctx context.Context, name string) error {
 				// Mask the actual error here as it could be used to enumerate users
 				// within the system.
 				log.Warnf("Failed to delete role: role %v is used by user %v.", name, u.GetName())
-				return errDeleteRoleUser
+				return trace.Wrap(errDeleteRoleUser)
 			}
 		}
 	}
@@ -133,7 +133,7 @@ func (a *Server) DeleteRole(ctx context.Context, name string) error {
 				// Mask the actual error here as it could be used to enumerate users
 				// within the system.
 				log.Warnf("Failed to delete role: role %v is used by user cert authority %v", name, a.GetClusterName())
-				return errDeleteRoleCA
+				return trace.Wrap(errDeleteRoleCA)
 			}
 		}
 	}
@@ -151,21 +151,21 @@ func (a *Server) DeleteRole(ctx context.Context, name string) error {
 			for _, r := range accessList.Spec.Grants.Roles {
 				if r == name {
 					log.Warnf("Failed to delete role: role %v is granted by access list %s", name, accessList.GetName())
-					return errDeleteRoleAccessList
+					return trace.Wrap(errDeleteRoleAccessList)
 				}
 			}
 
 			for _, r := range accessList.Spec.MembershipRequires.Roles {
 				if r == name {
 					log.Warnf("Failed to delete role: role %v is required by members of access list %s", name, accessList.GetName())
-					return errDeleteRoleAccessList
+					return trace.Wrap(errDeleteRoleAccessList)
 				}
 			}
 
 			for _, r := range accessList.Spec.OwnershipRequires.Roles {
 				if r == name {
 					log.Warnf("Failed to delete role: role %v is required by owners of access list %s", name, accessList.GetName())
-					return errDeleteRoleAccessList
+					return trace.Wrap(errDeleteRoleAccessList)
 				}
 			}
 		}
