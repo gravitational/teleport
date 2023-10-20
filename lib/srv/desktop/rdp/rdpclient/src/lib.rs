@@ -24,37 +24,28 @@
 
 #[macro_use]
 extern crate log;
-#[macro_use]
-extern crate num_derive;
 
+use crate::client::{Client, ClientFunction};
+use client::{call_function_on_handle, ConnectParams};
+use ironrdp_pdu::{other_err, PduError};
+use ironrdp_session::image::DecodedImage;
+use rdpdr::path::UnixPath;
+use rdpdr::tdp::{
+    FileSystemObject, FileType, SharedDirectoryAcknowledge, SharedDirectoryDeleteResponse,
+    SharedDirectoryMoveResponse, SharedDirectoryWriteResponse, TdpErrCode,
+};
 use std::convert::TryFrom;
 use std::ffi::CString;
 use std::fmt::Debug;
 use std::io::Cursor;
 use std::os::raw::c_char;
 use std::{mem, ptr, time};
-
-use ironrdp_session::image::DecodedImage;
-use rdp::core::event::*;
-use rdp::model::error::{Error as RdpError, RdpResult};
-
-use client::{call_function_on_handle, ConnectParams};
-use rdpdr::path::UnixPath;
-use rdpdr::tdp::{
-    FileSystemObject, FileType, SharedDirectoryAcknowledge, SharedDirectoryDeleteResponse,
-    SharedDirectoryMoveResponse, SharedDirectoryWriteResponse, TdpErrCode,
-};
 use util::{encode_png, from_c_string, from_go_array};
-
-use crate::client::{Client, ClientFunction};
-
 pub mod client;
 mod cliprdr;
-mod errors;
 mod piv;
 mod rdpdr;
 mod util;
-mod vchan;
 
 #[no_mangle]
 pub extern "C" fn init() {
@@ -158,10 +149,7 @@ pub unsafe extern "C" fn client_update_clipboard(
 ) -> CGOErrCode {
     let data = from_go_array(data, len);
     match String::from_utf8(data) {
-        Ok(s) => call_function_on_handle(
-            cgo_handle,
-            ClientFunction::UpdateClipboard(s),
-        ),
+        Ok(s) => call_function_on_handle(cgo_handle, ClientFunction::UpdateClipboard(s)),
         Err(e) => {
             error!("can't convert clipboard data: {}", e);
             CGOErrCode::ErrCodeFailure
@@ -384,42 +372,8 @@ pub struct CGOPNG {
     pub data_cap: usize,
 }
 
-impl TryFrom<BitmapEvent> for CGOPNG {
-    type Error = RdpError;
-
-    fn try_from(e: BitmapEvent) -> Result<Self, Self::Error> {
-        let mut res = CGOPNG {
-            dest_left: e.dest_left,
-            dest_top: e.dest_top,
-            dest_right: e.dest_right,
-            dest_bottom: e.dest_bottom,
-            data_ptr: ptr::null_mut(),
-            data_len: 0,
-            data_cap: 0,
-        };
-
-        let w: u16 = e.width;
-        let h: u16 = e.height;
-
-        let mut encoded = Vec::with_capacity(8192);
-        encode_png(&mut encoded, w, h, e.decompress()?).map_err(|err| {
-            Self::Error::TryError(format!("failed to encode bitmap to png: {err:?}"))
-        })?;
-
-        res.data_ptr = encoded.as_mut_ptr();
-        res.data_len = encoded.len();
-        res.data_cap = encoded.capacity();
-
-        // Prevent the data field from being freed while Go handles it.
-        // It will be dropped once CGOPNG is dropped (see below).
-        mem::forget(encoded);
-
-        Ok(res)
-    }
-}
-
 impl TryFrom<&DecodedImage> for CGOPNG {
-    type Error = RdpError;
+    type Error = PduError;
 
     fn try_from(image: &DecodedImage) -> Result<Self, Self::Error> {
         let w: u16 = image.width();
@@ -436,7 +390,10 @@ impl TryFrom<&DecodedImage> for CGOPNG {
 
         let mut encoded = Vec::with_capacity(8192);
         encode_png(&mut encoded, w, h, image.data().to_vec()).map_err(|err| {
-            Self::Error::TryError(format!("failed to encode bitmap to png: {err:?}"))
+            other_err!(
+                "TryFrom<&DecodedImage> for CGOPNG",
+                "failed to encode bitmap to png"
+            )
         })?;
 
         res.data_ptr = encoded.as_mut_ptr();
@@ -470,20 +427,6 @@ pub struct CGOKeyboardEvent {
     // interpreting those.
     pub code: u16,
     pub down: bool,
-}
-
-impl From<CGOKeyboardEvent> for KeyboardEvent {
-    fn from(k: CGOKeyboardEvent) -> KeyboardEvent {
-        // # Safety
-        //
-        // This function MUST NOT hang on to any of the pointers passed in to it after it returns.
-        // In other words, all pointer data that needs to persist after this function returns MUST
-        // be copied into Rust-owned memory.
-        KeyboardEvent {
-            code: k.code,
-            down: k.down,
-        }
-    }
 }
 
 #[repr(C)]
@@ -538,33 +481,6 @@ pub enum CGOPointerWheel {
     PointerWheelNone,
     PointerWheelVertical,
     PointerWheelHorizontal,
-}
-
-impl From<CGOMousePointerEvent> for PointerEvent {
-    fn from(p: CGOMousePointerEvent) -> PointerEvent {
-        // # Safety
-        //
-        // This function MUST NOT hang on to any of the pointers passed in to it after it returns.
-        // In other words, all pointer data that needs to persist after this function returns MUST
-        // be copied into Rust-owned memory.
-        PointerEvent {
-            x: p.x,
-            y: p.y,
-            button: match p.button {
-                CGOPointerButton::PointerButtonNone => PointerButton::None,
-                CGOPointerButton::PointerButtonLeft => PointerButton::Left,
-                CGOPointerButton::PointerButtonRight => PointerButton::Right,
-                CGOPointerButton::PointerButtonMiddle => PointerButton::Middle,
-            },
-            down: p.down,
-            wheel: match p.wheel {
-                CGOPointerWheel::PointerWheelNone => PointerWheel::None,
-                CGOPointerWheel::PointerWheelVertical => PointerWheel::Vertical,
-                CGOPointerWheel::PointerWheelHorizontal => PointerWheel::Horizontal,
-            },
-            wheel_delta: p.wheel_delta,
-        }
-    }
 }
 
 #[repr(C)]
@@ -764,11 +680,6 @@ pub(crate) type Payload = Cursor<Vec<u8>>;
 /// Message represents a raw outgoing RDP message to send to the RDP server.
 pub(crate) type Message = Vec<u8>;
 pub(crate) type Messages = Vec<Message>;
-
-/// Encode is an object that can be encoded for sending to the RDP server.
-pub(crate) trait Encode: std::fmt::Debug {
-    fn encode(&self) -> RdpResult<Message>;
-}
 
 /// A [cgo.Handle] passed to us by Go.
 ///

@@ -1,13 +1,10 @@
-use rdp::model::error::RdpResult;
-
+use super::path::UnixPath;
 use crate::{
-    errors::try_error,
     util::{self, from_c_string, from_go_array},
     CGOSharedDirectoryAnnounce, CGOSharedDirectoryCreateResponse, CGOSharedDirectoryInfoResponse,
     CGOSharedDirectoryListResponse, CGOSharedDirectoryReadResponse,
 };
-
-use super::{path::UnixPath, ServerCreateDriveRequest};
+use ironrdp_pdu::{custom_err, PduResult};
 
 /// SharedDirectoryAnnounce is sent by the TDP client to the server
 /// to announce a new directory to be shared over TDP.
@@ -50,16 +47,6 @@ pub struct SharedDirectoryInfoRequest {
     pub path: UnixPath,
 }
 
-impl From<ServerCreateDriveRequest> for SharedDirectoryInfoRequest {
-    fn from(req: ServerCreateDriveRequest) -> SharedDirectoryInfoRequest {
-        SharedDirectoryInfoRequest {
-            completion_id: req.device_io_request.completion_id,
-            directory_id: req.device_io_request.device_id,
-            path: UnixPath::from(&req.path),
-        }
-    }
-}
-
 /// SharedDirectoryInfoResponse is sent by the TDP client to the server
 /// in response to a `Shared Directory Info Request`.
 #[derive(Debug)]
@@ -96,14 +83,14 @@ pub struct FileSystemObject {
 }
 
 impl FileSystemObject {
-    pub fn name(&self) -> RdpResult<String> {
+    pub fn name(&self) -> PduResult<String> {
         if let Some(name) = self.path.last() {
             Ok(name.to_string())
         } else {
-            Err(try_error(&format!(
-                "failed to extract name from path: {:?}",
-                self.path
-            )))
+            Err(custom_err!(
+                "FileSystemObject::name",
+                TdpHandlingError(format!("failed to extract name from path: {:?}", self.path))
+            ))
         }
     }
 }
@@ -314,3 +301,17 @@ pub enum FileType {
     File = 0,
     Directory = 1,
 }
+
+/// A generic error type that can contain any arbitrary error message.
+///
+/// TODO: This is a temporary solution until we can figure out a better error handling system.
+#[derive(Debug)]
+pub struct TdpHandlingError(pub String);
+
+impl std::fmt::Display for TdpHandlingError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:#?}", self)
+    }
+}
+
+impl std::error::Error for TdpHandlingError {}
