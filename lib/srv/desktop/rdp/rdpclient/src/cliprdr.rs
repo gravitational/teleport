@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use futures_util::future::err;
 use std::fmt::{Debug, Formatter};
 
 use ironrdp_cliprdr::backend::CliprdrBackend;
