@@ -27,7 +27,7 @@ import { nodes } from 'teleport/Nodes/fixtures';
 import { UrlResourcesParams } from 'teleport/config';
 import { ResourcesResponse } from 'teleport/services/agents';
 
-import { UnifiedResources } from './UnifiedResources';
+import { UnifiedResources, UnifiedResourcesPinning } from './UnifiedResources';
 import { SharedUnifiedResource } from './types';
 
 export default {
@@ -56,12 +56,20 @@ const allResources = [
   ...nodes,
 ];
 
-const story = (
+const story = ({
+  fetchFunc,
+  pinning = {
+    kind: 'supported',
+    getClusterPinnedResources: async () => [],
+    updateClusterPinnedResources: async () => undefined,
+  },
+}: {
   fetchFunc: (
     params: UrlResourcesParams,
     signal: AbortSignal
-  ) => Promise<ResourcesResponse<SharedUnifiedResource['resource']>>
-) => {
+  ) => Promise<ResourcesResponse<SharedUnifiedResource['resource']>>;
+  pinning?: UnifiedResourcesPinning;
+}) => {
   return () => (
     <UnifiedResources
       availableKinds={['app', 'db', 'node', 'kube_cluster', 'windows_desktop']}
@@ -72,12 +80,10 @@ const story = (
       )}
       params={{ sort: { dir: 'ASC', fieldName: 'name' } }}
       setParams={() => undefined}
+      pinning={pinning}
       updateUnifiedResourcesPreferences={() => undefined}
-      pinningNotSupported={false}
-      getClusterPinnedResources={async () => []}
       onLabelClick={() => undefined}
       EmptySearchResults={undefined}
-      updateClusterPinnedResources={() => undefined}
       fetchFunc={fetchFunc}
       mapToResource={resource => ({
         resource,
@@ -89,36 +95,60 @@ const story = (
   );
 };
 
-export const Empty = story(async () => ({ agents: [], startKey: '' }));
+export const Empty = story({
+  fetchFunc: async () => ({ agents: [], startKey: '' }),
+});
 
-export const List = story(async () => ({
-  agents: allResources,
-}));
+export const List = story({
+  fetchFunc: async () => ({
+    agents: allResources,
+  }),
+});
 
-export const Loading = story(
-  (_, signal) =>
+export const Loading = story({
+  fetchFunc: (_, signal) =>
     new Promise<never>((resolve, reject) => {
       signal.addEventListener('abort', reject);
-    })
-);
-
-export const LoadingAfterScrolling = story(async params => {
-  if (params.startKey === 'next-key') {
-    return new Promise(() => {});
-  }
-  return {
-    agents: allResources,
-    startKey: 'next-key',
-  };
+    }),
 });
 
-export const Errored = story(async () => {
-  throw new Error('Failed to fetch');
+export const LoadingAfterScrolling = story({
+  fetchFunc: async params => {
+    if (params.startKey === 'next-key') {
+      return new Promise(() => {});
+    }
+    return {
+      agents: allResources,
+      startKey: 'next-key',
+    };
+  },
 });
 
-export const ErroredAfterScrolling = story(async params => {
-  if (params.startKey === 'next-key') {
+export const Errored = story({
+  fetchFunc: async () => {
     throw new Error('Failed to fetch');
-  }
-  return { agents: allResources, startKey: 'next-key' };
+  },
+});
+
+export const ErroredAfterScrolling = story({
+  fetchFunc: async params => {
+    if (params.startKey === 'next-key') {
+      throw new Error('Failed to fetch');
+    }
+    return { agents: allResources, startKey: 'next-key' };
+  },
+});
+
+export const PinningNotSupported = story({
+  fetchFunc: async () => {
+    return { agents: allResources, startKey: 'next-key' };
+  },
+  pinning: { kind: 'not-supported' },
+});
+
+export const PinningHidden = story({
+  fetchFunc: async () => {
+    return { agents: allResources, startKey: 'next-key' };
+  },
+  pinning: { kind: 'hidden' },
 });
