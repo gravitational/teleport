@@ -914,33 +914,6 @@ workgroup_id: "string"
 
 ```
 
-### Resource Header
-
-A shared resource header used in cases when only type and name is known
-
-{/*Automatically generated from: typestest.pb.go*/}
-
-
-|Field Name|Description|Type|
-|---|---|---|
-|kind|A resource kind|`string`|
-|sub_kind|An optional resource sub kind, used in some resources|`string`|
-|version|Version|`string`|
-|metadata|Resource metadata|`[Metadata](#metadata)`|
- 
-
-
-Example:
-
-```yaml
-kind: "string"
-sub_kind: "string"
-version: "string"
-metadata: 
-# [...]
-
-```
-
 ### Rewrite
 
 A list of rewriting rules to apply to requests and responses.
