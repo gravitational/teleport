@@ -667,7 +667,7 @@ func TestGenerateUserCertsForHeadlessKube(t *testing.T) {
 	role2Opts.MaxSessionTTL = types.NewDuration(2 * time.Hour)
 	role2.SetOptions(role2Opts)
 
-	err = srv.Auth().UpsertRole(ctx, role2)
+	_, err = srv.Auth().UpsertRole(ctx, role2)
 	require.NoError(t, err)
 
 	user1, err = srv.Auth().UpdateUser(ctx, user1)
