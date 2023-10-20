@@ -277,6 +277,9 @@ const (
 	// ComponentAssist represents Teleport Assist
 	ComponentAssist = "assist"
 
+	// ComponentCLIUpdater represents the teleport client tools updater
+	ComponentCLIUpdater = "cli_updater"
+
 	// VerboseLogEnvVar forces all logs to be verbose (down to DEBUG level)
 	VerboseLogsEnvVar = "TELEPORT_DEBUG"
 
