@@ -94,8 +94,8 @@ A role matcher can include the following values:
   `db-writer-us-west-2` roles.
 
 To add the values of `claims_to_roles` to the lists of role matchers, the Auth
-Service evalutes template expressions with the user's traits. See the [Role
-Templates](../guides/role-templates.mdx#templating-in-access-reqeusts) for more
+Service evaluates template expressions with the user's traits. See the [Role
+Templates](../guides/role-templates.mdx#templating-in-access-requests) for more
 information on how Teleport executes template expressions with user traits in
 the `claims_to_roles` field.
 
@@ -115,7 +115,7 @@ they search for a Teleport resource:
 - `deny.request.search_as_roles`
 
 For example, the following role enables a user to search for resources by
-assuming all roles _except_ for the `k8s-viewer` role:
+assuming all roles *except* for the `k8s-viewer` role:
 
 ```yaml
 # requester.yaml
@@ -143,7 +143,7 @@ user's Teleport roles in order to validate the user's Access Requests.
 
 When a user attempts to list Teleport resources (such as servers and databases)
 or Kubernetes resources (such as pods and deployments), the Auth Service checks
-the roles that the user is allowed to search as. If a user's Teleport roles _or_
+the roles that the user is allowed to search as. If a user's Teleport roles *or*
 a role specified in `search_as_roles` allow the user to search for a resource,
 the Teleport Auth Service will return information about the resource.
 
@@ -170,12 +170,11 @@ privileges:
 
 1. Calculate the maximum duration of elevated privileges if the Access Request
    were granted. This is the lowest value of:
-    - The `--max-duration` flag of the [`tsh request
-      create`](../../reference/cli/tsh.mdx#tsh-request-create) command (if the
-      user creating the request provides this flag).
-    - The lowest value of the `request.max_duration` field included in one of
-      the user's requested roles. 
-
+   - The `--max-duration` flag of the [`tsh request
+     create`](../../reference/cli/tsh.mdx#tsh-request-create) command (if the
+     user creating the request provides this flag).
+   - The lowest value of the `request.max_duration` field included in one of
+     the user's requested roles. 
 1. Calculate the session TTL of the certificate the user would receive if
    Teleport were to grant the Access Request. This calculation chooses the
    lowest value of: 
@@ -185,7 +184,6 @@ privileges:
    - The remaining time in the user's current Teleport session.
    - The lowest value of the `options.max_session_ttl` field in the user's
      requested roles.
-
 1. If the maximum duration is greater than zero, set the duration of elevated
    privileges to either the maximum duration or the session TTL calculated
    earlier, whichever is shorter. Otherwise, set the duration of elevated
@@ -229,15 +227,12 @@ valid while it awaits approval:
    set with the `--request-ttl` flag of the [`tsh request
    create`](../../reference/cli/tsh.mdx#tsh-request-create) command. If this is
    unset, the request TTL is one hour.
-
 1. If the user's Teleport session is due to expire before the base expiration
    time, Teleport sets the Access Request expiration to the end of the Teleport
    session.
-
 1. If any of the Teleport roles requested by the Access Request has an
    `options.max_session_ttl` that expires before the expiration time, Teleport
    sets the expiration of the Access Request to that time.
-
 1. Return an error if the value of `--request-ttl` is greater than the request
    TTL calculated in the previous step.
 
@@ -334,14 +329,14 @@ In the `devops` role above, there are two thresholds associated with the
 the request is approved is denied:
 
 1. Three users must approve the request, and two users must deny it, as long as
-   those users do not have a `tream` trait with the value `dev`.
+   those users do not have a `team` trait with the value `dev`.
 1. One user must approve the review, and one user must deny it, as long as the
    user submitting the review has the `admin` role.
 
 ### Threshold filters
 
 When Teleport processes an Access Request for a specific role, it checks whether
-the request has met the critera specified in one of the thresholds in
+the request has met the criteria specified in one of the thresholds in
 `allow.request.thresholds` associated with that role. 
 
 The value of `filter` is an expression that uses the Teleport [predicate
@@ -445,9 +440,9 @@ following role fields:
 - `deny.review_requests.roles`
 - `deny.review_requests.claims_to_roles`
 
-The Auth Service evalutes the `claims_to_roles` field using template expressions
-with the user's traits. See the [Role
-Templates](../guides/role-templates.mdx#templating-in-access-reqeusts) for more
+The Auth Service evaluates the `claims_to_roles` field using template
+expressions with the user's traits. See the [Role
+Templates](../guides/role-templates.mdx#templating-in-access-requests) for more
 information on how Teleport executes template expressions with user traits in
 the `claims_to_roles` field.
 
@@ -465,7 +460,7 @@ applies the allow or deny rules for the `review_requests_claims_to_roles` and
 `review_requests.roles` fields.
 
 For example, the following configuration allows a reviewer to review requests
-for all roles _unless_ the role is `contractor-prod` and the request reason is
+for all roles *unless* the role is `contractor-prod` and the request reason is
 empty:
 
 ```yaml
@@ -625,4 +620,4 @@ Requests with the key `my-annotation`.
 
 For a full description of the configuration options within a Teleport role,
 refer to the [Access Controls
-Reference](docs/pages/access-controls/reference.mdx).
+Reference](../reference.mdx).
