@@ -13,11 +13,16 @@ A Teleport role manages access by having two lists of rules: `allow` rules and
 - Nothing is allowed by default.
 - Deny rules get evaluated first and take priority.
 
-To manage cluster roles, as well as other dynamic resources, a Teleport
-administrator can use the Web UI or a [Teleport client
-tool](../management/dynamic-resources.mdx) like `tctl`, the Teleport Terraform
-provider, or the Teleport Kubernetes operator, as well as [custom API
-clients](../api/rbac.mdx).
+You can use any of the following to manage Teleport roles and other dynamic
+resources:
+- Teleport Web UI
+- The `tctl` client tool
+- Teleport Terraform provider
+- Teleport Kubernetes operator
+- [Custom API clients](../api/rbac.mdx)
+
+To read more about managing dynamic resources, see the [Dynamic
+Resources](../management/dynamic-resources.mdx) guide.
 
 You can view all roles in your cluster on your local workstation by running the
 following commands:
@@ -396,10 +401,10 @@ Teleport does not perform variable expansion on the values of the fields above.
 ### Label expressions
 
 <Admonition type="warning">
-Label expressions are available starting in Teleport version `13.1.1`.
-All components of your Teleport cluster must be upgraded to version `13.1.1`
-or newer before you will be able to use label expressions.
-This includes the Auth Service and **all** Teleport agents.
+Label expressions are available starting in Teleport version `13.1.1`. All
+components of your Teleport cluster must be upgraded to version `13.1.1` or
+newer before you can use label expressions. This includes the Auth Service and
+**all** Teleport agents.
 </Admonition>
 
 Teleport roles support matching resource labels with predicate expressions when
@@ -425,13 +430,13 @@ spec:
       contains(user.spec.traits["teams"], labels["team"])
 ```
 
-Typically you will only want to use one of `<kind>_labels` or
+Typically, you would only use either `<kind>_labels` or
 `<kind>_labels_expression` in a single role, but you are allowed to specify
 both.
-If you have both in a deny rule, the matching is greedy, if either one matches
-access will be denied.
-In an allow rule, the matching is not greedy, if both are set they both have to
-match for access to be allowed.
+
+If you have both in a deny rule, the matching is greedy. If either expression
+matches, access is denied. In an allow rule, the matching is not greedy. If both
+expressions are set, both expressions must be matched for access to be allowed.
 
 #### Fields
 
@@ -493,7 +498,7 @@ Labels for resources enrolled with Teleport:
 - `node_labels`
 - `windows_desktop_labels`
 
-Principals a user can assume on third-party systems:
+Principals a user can assume on infrastructure resources:
 - `aws_role_arns`
 - `azure_identities`
 - `db_names`
@@ -508,15 +513,14 @@ Principals a user can assume on third-party systems:
 - `logins`
 - `windows_desktop_logins`
 
-Teleport principals that user can impersonate:
+Teleport principals that a user can impersonate:
 - `impersonate.rules`
 - `impersonate.users`
 
 #### Functions
 
 You can use the following functions in role fields that govern access to
-principals on external systems. Both functions can take a template variable
-named above as an argument:
+principals on infrastructure resources:
 
 |Function|Description|
 |---|---|
@@ -533,7 +537,7 @@ sign-on provider.
 | Variable | Description |
 | - | - |
 | `{{internal.logins}}` | Substituted with a value stored in Teleport's local user database and logins from a root cluster. <br/><br/>For local users, Teleport will substitute this with the "allowed logins" parameter used in the `tctl users add [user] <allowed logins>` command. <br/><br/>If the role is within a leaf cluster in a [trusted cluster](../management/admin/trustedclusters.mdx), Teleport will substitute the logins from the root cluster whether the user is a local user or from an SSO provider. <br/><br/>As an example, if the user has the `ubuntu` login in the root cluster, then `ubuntu` will be substituted in the leaf cluster with this variable. |
-|`{{internal.azure_identities}}`| Returns the Azure identities defined in Teleport available to the user. Azure identities can set for a specific user or defined in a role.|
+|`{{internal.azure_identities}}`| Returns the Azure identities defined in Teleport available to the user. Azure identities can be set for a specific user or defined in a role.|
 |`{{internal.db_names}}`|List of all allowed database names for the user.|
 |`{{internal.db_users}}`|List of all allowed database users for the user.|
 |`{{internal.gcp_service_accounts}}`|List of GCP service accounts for the user.|
@@ -542,7 +546,7 @@ sign-on provider.
 |`{{internal.kubernetes_users}}`|List of allowed Kubernetes users for the user.|
 |`{{internal.logins}}`|List of allowed SSH logins for the user.|
 |`{{internal.windows_logins}}`|List of allowed Windows logins for the user.|
-| `{{external.xyz}}` | Substituted with a value from an external [SSO provider](https://en.wikipedia.org/wiki/Single_sign-on). If using SAML, this will be expanded with "xyz" assertion value. For OIDC, this will be expanded a value of "xyz" claim. See the next section for more information on referring to the `external` variable in Teleport roles. |
+| `{{external.xyz}}` | Substituted with a value from an external [SSO provider](https://en.wikipedia.org/wiki/Single_sign-on). If using SAML, this will be expanded with "xyz" assertion value. For OIDC, the variable is expanded to the value of the "xyz" claim. See the next section for more information on referring to the `external` variable in Teleport roles. |
 
 #### Accessing external traits in Teleport roles
 
@@ -573,7 +577,7 @@ formats, where `trait` is the name of the trait:
 - **Dot syntax:** `{{external.trait}}`
 - **Bracket syntax:** `{{external["trait"]}}`
 
-Teleport will expand the template variables above with the value of the SAML
+Teleport expands the template variables above with the value of the SAML
 attribute or OIDC claim called `trait`.
 
 You can specify an external trait in dot syntax if it begins with a letter and
