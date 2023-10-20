@@ -147,6 +147,7 @@ func TestNewDiscoveryConfig(t *testing.T) {
 							JoinMethod: "azure",
 							JoinToken:  "azure-discovery-token",
 							ScriptName: "default-installer",
+							Azure:      &types.AzureInstallerParams{},
 						},
 					}},
 					GCP:  make([]types.GCPMatcher, 0),
