@@ -198,6 +198,7 @@ interface AccessGraphColors {
     disallowedRequest: AccessGraphNodeColors;
     allowedReview: AccessGraphNodeColors;
     disallowedReview: AccessGraphNodeColors;
+    accessRequest: AccessGraphNodeColors;
   };
   edges: {
     dynamicMemberOf: AccessGraphEdgeColors;
@@ -207,6 +208,9 @@ interface AccessGraphColors {
     disallowed: AccessGraphEdgeColors;
     restricted: AccessGraphEdgeColors;
     default: AccessGraphEdgeColors;
+    requestedBy: AccessGraphEdgeColors;
+    requestedResource: AccessGraphEdgeColors;
+    requestedAction: AccessGraphEdgeColors;
   };
 }
 

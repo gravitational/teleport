@@ -18,6 +18,7 @@ import { darken, lighten } from '../utils/colorManipulator';
 import {
   blue,
   green,
+  grey,
   indigo,
   orange,
   pink,
@@ -209,8 +210,8 @@ const colors: ThemeColors = {
         stroke: '#c6c7c9',
       },
       reverse: {
-        color: blue[700],
-        stroke: blue[300],
+        color: 'rgba(0, 0, 0, 0.7)',
+        stroke: '#c6c7c9',
       },
       allowed: {
         color: green[700],
@@ -225,6 +226,18 @@ const colors: ThemeColors = {
         stroke: yellow[900],
       },
       default: {
+        color: 'rgba(0, 0, 0, 0.7)',
+        stroke: '#c6c7c9',
+      },
+      requestedBy: {
+        color: 'rgba(0, 0, 0, 0.7)',
+        stroke: '#c6c7c9',
+      },
+      requestedAction: {
+        color: 'rgba(0, 0, 0, 0.7)',
+        stroke: '#c6c7c9',
+      },
+      requestedResource: {
         color: 'rgba(0, 0, 0, 0.7)',
         stroke: '#c6c7c9',
       },
@@ -348,6 +361,18 @@ const colors: ThemeColors = {
         label: {
           background: purple[200],
           color: purple[700],
+        },
+      },
+      accessRequest: {
+        background: lighten(grey[300], 0.9),
+        borderColor: grey[300],
+        typeColor: grey[700],
+        iconBackground: grey[700],
+        handleColor: grey[400],
+        highlightColor: grey[300],
+        label: {
+          background: grey[200],
+          color: grey[700],
         },
       },
     },

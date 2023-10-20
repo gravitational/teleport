@@ -17,6 +17,7 @@ limitations under the License.
 import {
   blue,
   green,
+  grey,
   indigo,
   orange,
   pink,
@@ -233,6 +234,18 @@ const colors: ThemeColors = {
         color: 'rgba(255, 255, 255, 0.7)',
         stroke: 'rgba(255, 255, 255, 0.2)',
       },
+      requestedResource: {
+        color: 'rgba(255, 255, 255, 0.7)',
+        stroke: '#484c6a',
+      },
+      requestedAction: {
+        color: 'rgba(255, 255, 255, 0.7)',
+        stroke: '#484c6a',
+      },
+      requestedBy: {
+        color: 'rgba(255, 255, 255, 0.7)',
+        stroke: '#484c6a',
+      },
     },
     nodes: {
       user: {
@@ -353,6 +366,18 @@ const colors: ThemeColors = {
         label: {
           background: purple[200],
           color: purple[700],
+        },
+      },
+      accessRequest: {
+        background: lighten(grey[300], 0.9),
+        borderColor: grey[300],
+        typeColor: grey[700],
+        iconBackground: grey[700],
+        handleColor: grey[400],
+        highlightColor: grey[300],
+        label: {
+          background: grey[200],
+          color: grey[700],
         },
       },
     },
