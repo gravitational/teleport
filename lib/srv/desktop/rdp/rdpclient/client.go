@@ -267,8 +267,6 @@ func (c *Client) startRustRDP(ctx context.Context) error {
 	// C.client_run. They are copied on the Rust side and can be freed here.
 	addr := C.CString(c.cfg.Addr)
 	defer C.free(unsafe.Pointer(addr))
-	username := C.CString(c.username)
-	defer C.free(unsafe.Pointer(username))
 
 	cert_der, err := utils.UnsafeSliceData(userCertDER)
 	if err != nil {
@@ -287,8 +285,7 @@ func (c *Client) startRustRDP(ctx context.Context) error {
 	if res := C.client_run(
 		C.uintptr_t(c.handle),
 		C.CGOConnectParams{
-			go_addr:     addr,
-			go_username: username,
+			go_addr: addr,
 			// cert length and bytes.
 			cert_der_len: C.uint32_t(len(userCertDER)),
 			cert_der:     (*C.uint8_t)(cert_der),

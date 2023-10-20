@@ -8,7 +8,7 @@ use crate::{
 };
 use bitflags::Flags;
 use bytes::BytesMut;
-use ironrdp_connector::{Config, ConnectorError};
+use ironrdp_connector::{Config, ConnectorError, Credentials};
 use ironrdp_pdu::input::fast_path::{FastPathInput, FastPathInputEvent, KeyboardFlags};
 use ironrdp_pdu::input::mouse::PointerFlags;
 use ironrdp_pdu::input::{InputEventError, MousePdu};
@@ -88,12 +88,8 @@ impl Client {
         let mut rng = rand_chacha::ChaCha20Rng::from_entropy();
         let pin = format!("{:08}", rng.gen_range(0i32..=99999999i32));
 
-        let connector_config = create_config(
-            params.screen_width,
-            params.screen_height,
-            params.username,
-            pin.clone(),
-        );
+        let connector_config =
+            create_config(params.screen_width, params.screen_height, pin.clone());
 
         // Create a channel for sending/receiving function calls to/from the Client.
         let (client_handle, function_receiver) = channel(100);
@@ -480,12 +476,11 @@ pub type FunctionReceiver = Receiver<ClientFunction>;
 type RdpReadStream = Framed<TokioStream<ReadHalf<TlsStream<TokioTcpStream>>>>;
 type RdpWriteStream = Framed<TokioStream<WriteHalf<TlsStream<TokioTcpStream>>>>;
 
-fn create_config(width: u16, height: u16, username: String, password: String) -> Config {
+fn create_config(width: u16, height: u16, pin: String) -> Config {
     Config {
         desktop_size: ironrdp_connector::DesktopSize { width, height },
         security_protocol: SecurityProtocol::SSL,
-        username,
-        password,
+        credentials: Credentials::SmartCard { pin },
         domain: None,
         // Windows 10, Version 1909, same as FreeRDP as of October 5th, 2021.
         // This determines which Smart Card Redirection dialect we use per
@@ -505,14 +500,13 @@ fn create_config(width: u16, height: u16, username: String, password: String) ->
         client_dir: "C:\\Windows\\System32\\mstscax.dll".to_string(),
         platform: MajorPlatformType::UNSPECIFIED,
         no_server_pointer: false,
-        client_info_flags: Some(ClientInfoFlags::PASSWORD_IS_SC_PIN | ClientInfoFlags::AUTOLOGON),
+        autologon: true,
     }
 }
 
 #[derive(Debug)]
 pub struct ConnectParams {
     pub addr: String,
-    pub username: String,
     pub cert_der: Vec<u8>,
     pub key_der: Vec<u8>,
     pub screen_width: u16,
