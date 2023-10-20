@@ -1340,12 +1340,36 @@ func requireGotDatabaseServers(t *testing.T, buf *bytes.Buffer, want ...types.Da
 	))
 }
 
-func TestCreateGithubConnector(t *testing.T) {
+// TestCreateResources asserts that tctl create and tctl create -f
+// operate as expected when a resource does and does not already exist.
+func TestCreateResources(t *testing.T) {
 	t.Parallel()
 
 	fc, fds := testhelpers.DefaultConfig(t)
 	_ = testhelpers.MakeAndRunTestAuthServer(t, utils.NewLoggerForTests(), fc, fds)
 
+	tests := []struct {
+		kind   string
+		create func(t *testing.T, fc *config.FileConfig)
+	}{
+		{
+			kind:   types.KindGithubConnector,
+			create: testCreateGithubConnector,
+		},
+		{
+			kind:   types.KindRole,
+			create: testCreateRole,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.kind, func(t *testing.T) {
+			test.create(t, fc)
+		})
+	}
+}
+
+func testCreateGithubConnector(t *testing.T, fc *config.FileConfig) {
 	// Ensure there are no connectors to start
 	buf, err := runResourceCommand(t, fc, []string{"get", types.KindGithubConnector, "--format=json"})
 	require.NoError(t, err)
@@ -1574,5 +1598,88 @@ spec:
 	require.True(t, trace.IsAlreadyExists(err))
 
 	_, err = runResourceCommand(t, fc, []string{"create", "-f", connectorYAMLPath})
+	require.NoError(t, err)
+}
+
+func testCreateRole(t *testing.T, fc *config.FileConfig) {
+	// Ensure that our test role does not exist
+	_, err := runResourceCommand(t, fc, []string{"get", types.KindRole + "/test-role", "--format=json"})
+	require.True(t, trace.IsNotFound(err), "expected test-role to not exist prior to being created")
+
+	const roleYAML = `kind: role
+metadata:
+  name: test-role
+spec:
+  allow:
+    app_labels:
+      '*': '*'
+    db_labels:
+      '*': '*'
+    kubernetes_labels:
+      '*': '*'
+    kubernetes_resources:
+    - kind: pod
+      name: '*'
+      namespace: '*'
+    logins:
+    - test
+    node_labels:
+      '*': '*'
+  deny: {}
+  options:
+    cert_format: standard
+    create_db_user: false
+    create_desktop_user: false
+    desktop_clipboard: true
+    desktop_directory_sharing: true
+    enhanced_recording:
+    - command
+    - network
+    forward_agent: false
+    idp:
+      saml:
+        enabled: true
+    max_session_ttl: 30h0m0s
+    pin_source_ip: false
+    port_forwarding: true
+    record_session:
+      default: best_effort
+      desktop: true
+    ssh_file_copy: true
+version: v7
+`
+
+	// Create the connector
+	roleYAMLPath := filepath.Join(t.TempDir(), "role.yaml")
+	require.NoError(t, os.WriteFile(roleYAMLPath, []byte(roleYAML), 0644))
+	_, err = runResourceCommand(t, fc, []string{"create", roleYAMLPath})
+	require.NoError(t, err)
+
+	// Fetch the connector
+	buf, err := runResourceCommand(t, fc, []string{"get", types.KindRole + "/test-role", "--format=json"})
+	require.NoError(t, err)
+	roles := mustDecodeJSON[[]*types.RoleV6](t, buf)
+	require.Len(t, roles, 1)
+
+	var expected types.RoleV6
+	require.NoError(t, yaml.Unmarshal([]byte(roleYAML), &expected))
+
+	require.Empty(t, cmp.Diff(
+		[]*types.RoleV6{&expected},
+		roles,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+	))
+
+	// Explicitly change the revision and try creating the role with and without
+	// the force flag.
+	expected.SetRevision(uuid.NewString())
+	connectorBytes, err := services.MarshalRole(&expected, services.PreserveResourceID())
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(roleYAMLPath, connectorBytes, 0644))
+
+	_, err = runResourceCommand(t, fc, []string{"create", roleYAMLPath})
+	require.True(t, trace.IsAlreadyExists(err))
+
+	_, err = runResourceCommand(t, fc, []string{"create", "-f", roleYAMLPath})
 	require.NoError(t, err)
 }
