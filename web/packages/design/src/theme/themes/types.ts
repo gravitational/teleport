@@ -199,6 +199,7 @@ interface AccessGraphColors {
     allowedReview: AccessGraphNodeColors;
     disallowedReview: AccessGraphNodeColors;
     accessRequest: AccessGraphNodeColors;
+    temporaryUserGroup: AccessGraphNodeColors;
   };
   edges: {
     dynamicMemberOf: AccessGraphEdgeColors;

@@ -267,6 +267,18 @@ const colors: ThemeColors = {
           color: orange[700],
         },
       },
+      temporaryUserGroup: {
+        background: lighten(orange[200], 0.9),
+        borderColor: orange[200],
+        typeColor: orange[200],
+        iconBackground: orange[200],
+        handleColor: orange[300],
+        highlightColor: orange[200],
+        label: {
+          background: orange[200],
+          color: orange[300],
+        },
+      },
       resource: {
         background: lighten(blue[300], 0.9),
         borderColor: blue[300],
