@@ -56,7 +56,7 @@ teleport:
 
         # By default, Teleport stores stores audit events with an AWS TTL of 1 year.
         # This value can be configured as shown below. If set to 0 seconds, TTL is disabled.
-        audit_retention_period: 365d
+        retention_period: 365d
 
         # minimum/maximum read capacity in units
         read_min_capacity: int

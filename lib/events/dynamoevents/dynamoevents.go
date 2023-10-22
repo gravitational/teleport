@@ -102,7 +102,7 @@ type Config struct {
 	// WriteCapacityUnits is Dynamodb write capacity units
 	WriteCapacityUnits int64 `json:"write_capacity_units"`
 	// RetentionPeriod is a default retention period for events.
-	RetentionPeriod *types.Duration `json:"audit_retention_period"`
+	RetentionPeriod *types.Duration `json:"retention_period"`
 	// Clock is a clock interface, used in tests
 	Clock clockwork.Clock
 	// UIDGenerator is unique ID generator
