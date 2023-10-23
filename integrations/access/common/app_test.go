@@ -23,13 +23,16 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/header"
+	"github.com/gravitational/teleport/integrations/lib"
 	pd "github.com/gravitational/teleport/integrations/lib/plugindata"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 type mockBot struct {
@@ -69,6 +72,8 @@ func (m *mockBot) FetchRecipient(ctx context.Context, recipient string) (*Recipi
 }
 
 func TestAccessListReminders(t *testing.T) {
+	t.Parallel()
+
 	clock := clockwork.NewFakeClockAt(time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC))
 
 	server, err := auth.NewTestServer(auth.TestServerConfig{
@@ -94,6 +99,24 @@ func TestAccessListReminders(t *testing.T) {
 	}
 	app.initBackend()
 
+	app.alMonitorJob = lib.NewServiceJob(app.accessListMonitorRun)
+
+	ctx := context.Background()
+	go func() {
+		app.Process = lib.NewProcess(ctx)
+		app.SpawnCriticalJob(app.alMonitorJob)
+	}()
+
+	ready, err := app.alMonitorJob.WaitReady(ctx)
+	require.NoError(t, err)
+	require.True(t, ready)
+
+	t.Cleanup(func() {
+		app.Terminate()
+		<-app.alMonitorJob.Done()
+		require.NoError(t, app.alMonitorJob.Err())
+	})
+
 	accessList, err := accesslist.NewAccessList(header.Metadata{
 		Name: "test-access-list",
 	}, accesslist.Spec{
@@ -112,49 +135,54 @@ func TestAccessListReminders(t *testing.T) {
 	require.NoError(t, err)
 
 	// No notifications for today
-	advanceAndLookForRecipients(t, bot, app, clock, 0, accessList)
+	advanceAndLookForRecipients(t, bot, as, clock, 0, accessList)
 
 	// Advance by one week, expect no notifications.
-	advanceAndLookForRecipients(t, bot, app, clock, 24*7*time.Hour, accessList)
+	advanceAndLookForRecipients(t, bot, as, clock, 24*7*time.Hour, accessList)
 
 	// Advance by one week, expect a notification. "not-found" will be missing as a recipient.
-	advanceAndLookForRecipients(t, bot, app, clock, 24*7*time.Hour, accessList, "owner1")
+	advanceAndLookForRecipients(t, bot, as, clock, 24*7*time.Hour, accessList, "owner1")
 
 	// Add a new owner.
 	accessList.Spec.Owners = append(accessList.Spec.Owners, accesslist.Owner{Name: "owner2"})
 
 	// Advance by one day, expect a notification only to the new owner.
-	advanceAndLookForRecipients(t, bot, app, clock, 24*time.Hour, accessList, "owner2")
+	advanceAndLookForRecipients(t, bot, as, clock, 24*time.Hour, accessList, "owner2")
 
 	// Advance by one day, expect no notifications.
-	advanceAndLookForRecipients(t, bot, app, clock, 24*time.Hour, accessList)
+	advanceAndLookForRecipients(t, bot, as, clock, 24*time.Hour, accessList)
 
 	// Advance by five more days, to the next week, expect two notifications
-	advanceAndLookForRecipients(t, bot, app, clock, 24*5*time.Hour, accessList, "owner1", "owner2")
+	advanceAndLookForRecipients(t, bot, as, clock, 24*5*time.Hour, accessList, "owner1", "owner2")
 
 	// Advance by one day, expect no notifications
-	advanceAndLookForRecipients(t, bot, app, clock, 24*time.Hour, accessList)
+	advanceAndLookForRecipients(t, bot, as, clock, 24*time.Hour, accessList)
 
 	// Advance by one day, expect no notifications
-	advanceAndLookForRecipients(t, bot, app, clock, 24*time.Hour, accessList)
+	advanceAndLookForRecipients(t, bot, as, clock, 24*time.Hour, accessList)
 
 	// Advance by five more days, to the next week, expect two notifications
-	advanceAndLookForRecipients(t, bot, app, clock, 24*5*time.Hour, accessList, "owner1", "owner2")
+	advanceAndLookForRecipients(t, bot, as, clock, 24*5*time.Hour, accessList, "owner1", "owner2")
 
 	// Advance by one year a week at a time, expect two notifications each time.
 	for i := 0; i < 52; i++ {
-		advanceAndLookForRecipients(t, bot, app, clock, 24*7*time.Hour, accessList, "owner1", "owner2")
+		advanceAndLookForRecipients(t, bot, as, clock, 24*7*time.Hour, accessList, "owner1", "owner2")
 	}
 }
 
 func advanceAndLookForRecipients(t *testing.T,
 	bot *mockBot,
-	app *BaseApp,
+	alSvc services.AccessLists,
 	clock clockwork.FakeClock,
 	advance time.Duration,
 	accessList *accesslist.AccessList,
 	recipients ...string) {
+
 	ctx := context.Background()
+
+	_, err := alSvc.UpsertAccessList(ctx, accessList)
+	require.NoError(t, err)
+
 	bot.lastReminderRecipients = nil
 
 	var expectedRecipients []Recipient
@@ -165,6 +193,9 @@ func advanceAndLookForRecipients(t *testing.T,
 		}
 	}
 	clock.Advance(advance)
-	require.NoError(t, app.notifyForAccessListReviews(ctx, accessList))
-	require.ElementsMatch(t, expectedRecipients, bot.lastReminderRecipients)
+	//require.NoError(t, app.notifyForAccessListReviews(ctx, accessList))
+
+	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+		require.ElementsMatch(collect, expectedRecipients, bot.lastReminderRecipients)
+	}, 5*time.Second, 250*time.Millisecond)
 }

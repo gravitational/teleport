@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/go-co-op/gocron"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
@@ -29,12 +28,15 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/integrations/access/common/teleport"
 	"github.com/gravitational/teleport/integrations/lib"
 	"github.com/gravitational/teleport/integrations/lib/logger"
 	pd "github.com/gravitational/teleport/integrations/lib/plugindata"
 	"github.com/gravitational/teleport/integrations/lib/watcherjob"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/interval"
 )
 
 const (
@@ -46,8 +48,6 @@ const (
 	initTimeout = time.Second * 10
 	// handlerTimeout is used to bound the execution time of watcher event handler.
 	handlerTimeout = time.Second * 5
-	// accessListReviewCron is the cron definition for how often access list review reminders should be sent out.
-	accessListReviewCron = "0 * * * *" // At the top of every hour
 	// oneWeek is the number of hours in a week assuming 24 hours is one day.
 	oneWeek = 24 * time.Hour * 7
 )
@@ -199,53 +199,47 @@ func (a *BaseApp) accessListMonitorRun(ctx context.Context) error {
 		return nil
 	})
 
-	s := gocron.NewScheduler(time.UTC).Cron(accessListReviewCron)
+	remindInterval := interval.New(interval.Config{
+		Duration:      time.Hour * 3,
+		FirstDuration: utils.FullJitter(time.Second * 30),
+		Jitter:        retryutils.NewSeventhJitter(),
+		Clock:         a.clock,
+	})
 	log := logger.Get(ctx)
 
 	log.Info("Access list monitor is running")
 
-	job, err := s.Do(func() {
-		log.Info("Looking for Access List Review reminders")
+	a.alMonitorJob.SetReady(true)
+	for {
+		select {
+		case <-remindInterval.Next():
+			log.Info("Looking for Access List Review reminders")
 
-		var nextToken string
-		var err error
-		for {
-			var accessLists []*accesslist.AccessList
-			accessLists, nextToken, err = a.accessLists.ListAccessLists(ctx, 0 /* default page size */, nextToken)
-			if err != nil {
-				log.Errorf("error listing access lists: %v", err)
-				return
-			}
+			var nextToken string
+			var err error
+			for {
+				var accessLists []*accesslist.AccessList
+				accessLists, nextToken, err = a.accessLists.ListAccessLists(ctx, 0 /* default page size */, nextToken)
+				if err != nil {
+					log.Errorf("error listing access lists: %v", err)
+					continue
+				}
 
-			for _, accessList := range accessLists {
-				if err := a.notifyForAccessListReviews(ctx, accessList); err != nil {
-					log.WithError(err).Warn("Error notifying for access list reviews")
+				for _, accessList := range accessLists {
+					if err := a.notifyForAccessListReviews(ctx, accessList); err != nil {
+						log.WithError(err).Warn("Error notifying for access list reviews")
+					}
+				}
+
+				if nextToken == "" {
+					break
 				}
 			}
-
-			if nextToken == "" {
-				break
-			}
+		case <-ctx.Done():
+			log.Info("Access list monitor is finished")
+			return nil
 		}
-	})
-	if err != nil {
-		return trace.Wrap(err)
 	}
-
-	// Start the scheduler.
-	s.StartAsync()
-	a.alMonitorJob.SetReady(true)
-
-	select {
-	case <-ctx.Done():
-		s.Stop()
-	case <-job.Context().Done():
-		return trace.Wrap(job.Error())
-	}
-
-	log.Info("Access list monitor is finished")
-
-	return nil
 }
 
 // notifyForAccessListReviews will notify if access list review dates are getting close. At the moment, this
