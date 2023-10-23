@@ -52,7 +52,7 @@ type Incident struct {
 	WorkNotes string `json:"work_notes,omitempty"`
 	// Caller is the user on whose behalf the incident is being created. (Must be an existing servicenow user)
 	Caller string `json:"caller_id,omitempty"`
-	// AssignedTo is the person who the incident is assigned.
+	// AssignedTo is the ServiceNow user the incident is assigned.
 	AssignedTo string `json:"assigned_to,omitempty"`
 }
 
