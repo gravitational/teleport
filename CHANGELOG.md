@@ -2,8 +2,8 @@
 
 ## 14.1.1 (10/23/23)
 
-* Fix the top bar breaking layout when the window is narrow in Connect [#33821](https://github.com/gravitational/teleport/pull/33821)
-* Limit Snowflake decompressed request to 10MB [#33764](https://github.com/gravitational/teleport/pull/33764)
+* Fixed the top bar breaking layout when the window is narrow in Connect [#33821](https://github.com/gravitational/teleport/pull/33821)
+* Limited Snowflake decompressed request to 10MB [#33764](https://github.com/gravitational/teleport/pull/33764)
 * Added MySQL auto-user deletion [#33710](https://github.com/gravitational/teleport/pull/33710)
 * Configured Connect to intercept deep link clicks [#33684](https://github.com/gravitational/teleport/pull/33684)
 * Added URL and SAML connector name in entity descriptor URL errors [#33667](https://github.com/gravitational/teleport/pull/33667)
