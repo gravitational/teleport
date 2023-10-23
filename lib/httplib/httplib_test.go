@@ -366,3 +366,63 @@ func TestSetRedirectPageContentSecurityPolicy(t *testing.T) {
 		require.Contains(t, actualCsp, expectedCspSubString)
 	}
 }
+
+func TestOriginLocalRedirectURI(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name     string
+		input    string
+		expected string
+		wantErr  bool
+	}{
+		{
+			name:     "empty",
+			input:    "",
+			expected: "/",
+			wantErr:  false,
+		},
+		{
+			name:     "simple path",
+			input:    "/foo",
+			expected: "/foo",
+			wantErr:  false,
+		},
+		{
+			name:     "host only",
+			input:    "https://localhost",
+			expected: "/",
+			wantErr:  false,
+		},
+		{
+			name:     "host and simple path",
+			input:    "https://localhost/bar",
+			expected: "/bar",
+			wantErr:  false,
+		},
+		{
+			name:     "double slash redirect with host",
+			input:    "https://localhost//goteleport.com/",
+			expected: "",
+			wantErr:  true,
+		},
+		{
+			name:     "basic auth redirect with host",
+			input:    "https://localhost/@goteleport.com/",
+			expected: "",
+			wantErr:  true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			result, err := OriginLocalRedirectURI(tc.input)
+			require.Equal(t, tc.expected, result)
+			if tc.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
