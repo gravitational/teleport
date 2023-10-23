@@ -849,8 +849,8 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 			d.GetName())
 	}
 
-	// Admin user (for automatic user provisioning) is only supported for
-	// PostgreSQL currently.
+	// Admin user should only be specified for databases that support automatic
+	// user provisioning.
 	if d.GetAdminUser().Name != "" && !d.SupportsAutoUsers() {
 		return trace.BadParameter("cannot set admin user on database %q: %v/%v databases don't support automatic user provisioning yet",
 			d.GetName(), d.GetProtocol(), d.GetType())

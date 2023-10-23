@@ -557,20 +557,20 @@ const (
 )
 
 var (
-	//go:embed mysql_activate_user.sql
+	//go:embed sql/mysql_activate_user.sql
 	activateUserProcedure string
-	//go:embed mysql_deactivate_user.sql
+	//go:embed sql/mysql_deactivate_user.sql
 	deactivateUserProcedure string
-	//go:embed mysql_revoke_roles.sql
+	//go:embed sql/mysql_revoke_roles.sql
 	revokeRolesProcedure string
-	//go:embed mysql_delete_user.sql
+	//go:embed sql/mysql_delete_user.sql
 	deleteProcedure string
 
-	//go:embed mariadb_activate_user.sql
+	//go:embed sql/mariadb_activate_user.sql
 	mariadbActivateUserProcedure string
-	//go:embed mariadb_deactivate_user.sql
+	//go:embed sql/mariadb_deactivate_user.sql
 	mariadbDeactivateUserProcedure string
-	//go:embed mariadb_revoke_roles.sql
+	//go:embed sql/mariadb_revoke_roles.sql
 	mariadbRevokeRolesProcedure string
 
 	// allProcedureNames contains a list of all procedures required to setup
