@@ -227,6 +227,8 @@ message UserCertsRequest {
     TSH_DB_LOCAL_PROXY_TUNNEL = 1;
     // TSH_KUBE_LOCAL_PROXY is set when the request was sent by a tsh kube local proxy.
     TSH_KUBE_LOCAL_PROXY = 2;
+    // TSH_KUBE_LOCAL_PROXY_HEADLESS is set when the request was sent by a tsh kube local proxy in headless mode.
+    TSH_KUBE_LOCAL_PROXY_HEADLESS = 3;
   }
   // RequesterName identifies who sent the request.
   Requester RequesterName = 17 [(gogoproto.jsontag) = "requester_name"];
