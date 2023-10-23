@@ -321,7 +321,7 @@ func (d *DatabaseV3) SupportsAutoUsers() bool {
 	switch d.GetProtocol() {
 	case DatabaseProtocolPostgreSQL:
 		switch d.GetType() {
-		case DatabaseTypeSelfHosted, DatabaseTypeRDS:
+		case DatabaseTypeSelfHosted, DatabaseTypeRDS, DatabaseTypeRedshift:
 			return true
 		}
 	case DatabaseProtocolMySQL:
