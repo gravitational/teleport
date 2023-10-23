@@ -32,11 +32,11 @@ import (
 
 // ActivateUser creates or enables the database user.
 func (e *Engine) ActivateUser(ctx context.Context, sessionCtx *common.Session) error {
-	if sessionCtx.Database.GetAdminUser() == "" {
+	if sessionCtx.Database.GetAdminUser().Name == "" {
 		return trace.BadParameter("Teleport does not have admin user configured for this database")
 	}
 
-	conn, err := e.pgxConnect(ctx, sessionCtx.WithUser(sessionCtx.Database.GetAdminUser()))
+	conn, err := e.pgxConnect(ctx, sessionCtx.WithUser(sessionCtx.Database.GetAdminUser().Name))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -68,11 +68,11 @@ func (e *Engine) ActivateUser(ctx context.Context, sessionCtx *common.Session) e
 
 // DeactivateUser disables the database user.
 func (e *Engine) DeactivateUser(ctx context.Context, sessionCtx *common.Session) error {
-	if sessionCtx.Database.GetAdminUser() == "" {
+	if sessionCtx.Database.GetAdminUser().Name == "" {
 		return trace.BadParameter("Teleport does not have admin user configured for this database")
 	}
 
-	conn, err := e.pgxConnect(ctx, sessionCtx.WithUser(sessionCtx.Database.GetAdminUser()))
+	conn, err := e.pgxConnect(ctx, sessionCtx.WithUser(sessionCtx.Database.GetAdminUser().Name))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -96,11 +96,11 @@ func (e *Engine) DeleteUser(ctx context.Context, sessionCtx *common.Session) err
 		return trace.Wrap(e.DeactivateUser(ctx, sessionCtx))
 	}
 
-	if sessionCtx.Database.GetAdminUser() == "" {
+	if sessionCtx.Database.GetAdminUser().Name == "" {
 		return trace.BadParameter("Teleport does not have admin user configured for this database")
 	}
 
-	conn, err := e.pgxConnect(ctx, sessionCtx.WithUser(sessionCtx.Database.GetAdminUser()))
+	conn, err := e.pgxConnect(ctx, sessionCtx.WithUser(sessionCtx.Database.GetAdminUser().Name))
 	if err != nil {
 		return trace.Wrap(err)
 	}
