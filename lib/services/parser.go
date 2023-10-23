@@ -322,6 +322,10 @@ func (ctx *Context) GetResource() (types.Resource, error) {
 
 // GetIdentifier returns identifier defined in a context
 func (ctx *Context) GetIdentifier(fields []string) (interface{}, error) {
+	log.Errorf("Looking for %s", fields)
+	log.Errorf("User        set %t", ctx.User != nil)
+	log.Errorf("Resource is set %t", ctx.Resource != nil)
+
 	switch fields[0] {
 	case UserIdentifier:
 		var user UserState
@@ -336,9 +340,17 @@ func (ctx *Context) GetIdentifier(fields []string) (interface{}, error) {
 		if ctx.Resource == nil {
 			resource = emptyResource
 		} else {
+			log.Errorf("Getting resource %s/%s.%s",
+				ctx.Resource.GetKind(),
+				ctx.Resource.GetName(),
+				fields[1:],
+			)
 			resource = ctx.Resource
 		}
-		return predicate.GetFieldByTag(resource, teleport.JSON, fields[1:])
+		v, err := predicate.GetFieldByTag(resource, teleport.JSON, fields[1:])
+		log.Errorf("found value: %s (err: %s)", v, err)
+		return v, err
+
 	case SessionIdentifier:
 		var session events.AuditEvent = &events.SessionEnd{}
 		switch ctx.Session.(type) {

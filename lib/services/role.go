@@ -758,6 +758,8 @@ func matchesWhere(r *types.Rule, parser predicate.Parser) (bool, error) {
 	if r.Where == "" {
 		return true, nil
 	}
+	log.Errorf("Checking rule: %s", r.Where)
+
 	ifn, err := parser.Parse(r.Where)
 	if err != nil {
 		return false, trace.Wrap(err)
@@ -766,6 +768,7 @@ func matchesWhere(r *types.Rule, parser predicate.Parser) (bool, error) {
 	if !ok {
 		return false, trace.BadParameter("invalid predicate type for where expression: %v", r.Where)
 	}
+
 	return fn(), nil
 }
 
