@@ -1300,8 +1300,7 @@
         },
         {
           "title": "Configure local Windows users",
-          "slug": "/desktop-access/getting-started/",
-          "forScopes": ["enterprise", "cloud"]
+          "slug": "/desktop-access/getting-started/"
         },
         {
           "title": "Active Directory",

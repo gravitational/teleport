@@ -107,49 +107,24 @@ func (h *Handler) deleteRole(w http.ResponseWriter, r *http.Request, params http
 	return OK(), nil
 }
 
-func (h *Handler) upsertRoleHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
+func (h *Handler) createRoleHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
 	clt, err := ctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	var req ui.ResourceItem
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return upsertRole(r.Context(), clt, req.Content, r.Method, params)
+	item, err := CreateResource(r, types.KindRole, services.UnmarshalRole, clt.CreateRole)
+	return item, trace.Wrap(err)
 }
 
-func upsertRole(ctx context.Context, clt resourcesAPIGetter, content, httpMethod string, params httprouter.Params) (*ui.ResourceItem, error) {
-	get := func(ctx context.Context, name string) (types.Resource, error) {
-		return clt.GetRole(ctx, name)
-	}
-
-	extractedRes, err := ExtractResourceAndValidate(content)
+func (h *Handler) updateRoleHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
+	clt, err := ctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if extractedRes.Kind != types.KindRole {
-		return nil, trace.BadParameter("resource kind %q is invalid", extractedRes.Kind)
-	}
-
-	if err := CheckResourceUpsert(ctx, httpMethod, params, extractedRes.Metadata.Name, get); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	role, err := services.UnmarshalRole(extractedRes.Raw)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	upserted, err := clt.UpsertRole(ctx, role)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return ui.NewResourceItem(upserted)
+	item, err := UpdateResource(r, params, types.KindRole, services.UnmarshalRole, clt.UpdateRole)
+	return item, trace.Wrap(err)
 }
 
 // getPresetRoles returns a list of preset roles expected to be available on
@@ -209,7 +184,7 @@ func (h *Handler) createGithubConnectorHandle(w http.ResponseWriter, r *http.Req
 		return nil, trace.Wrap(err)
 	}
 
-	item, err := CreateResource[types.GithubConnector](r, types.KindGithubConnector, services.UnmarshalGithubConnector, clt.CreateGithubConnector)
+	item, err := CreateResource(r, types.KindGithubConnector, services.UnmarshalGithubConnector, clt.CreateGithubConnector)
 	return item, trace.Wrap(err)
 }
 
