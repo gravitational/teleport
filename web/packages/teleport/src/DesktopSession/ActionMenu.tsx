@@ -36,7 +36,7 @@ export default function ActionMenu(props: Props) {
         {showShareDirectory && (
           <MenuItem onClick={onShareDirectory}>
             <MenuItemIcon as={Icons.FolderPlus} mr="2" />
-            Share Directory (preview)
+            Share Directory
           </MenuItem>
         )}
         <MenuItem onClick={onDisconnect}>
