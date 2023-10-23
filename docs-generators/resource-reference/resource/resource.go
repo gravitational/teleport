@@ -675,7 +675,13 @@ func NewFromDecl(decl DeclarationInfo, allDecls map[PackageInfo]DeclarationInfo,
 	deps := []PackageInfo{}
 	for _, f := range rs.fields {
 		// Don't make separate reference entries for embedded structs
-		if f.name == "" {
+		// since they are part of the containing struct for the purposes
+		// of unmarshaling YAML.
+		//
+		// Also ignore fields we are overriding with a custom YAML
+		// example because the actual type is something we want to hide
+		// from docs readers.
+		if f.name == "" || strings.Contains(f.doc, yamlExampleDelimeter) {
 			continue
 		}
 		deps = append(deps, f.kind.customFieldData()...)
