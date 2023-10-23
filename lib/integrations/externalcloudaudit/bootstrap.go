@@ -80,13 +80,11 @@ func BootstrapInfra(ctx context.Context, clt BootstrapInfraClient, eca *ecatypes
 		return trace.Wrap(err)
 	}
 
-	// Create LTS bucket
 	err = createLTSBucket(ctx, clt, ltsBucket, region)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	// Create transient bucket
 	err = createTransientBucket(ctx, clt, transientBucket, region)
 	if err != nil {
 		return trace.Wrap(err)
@@ -144,11 +142,7 @@ func createLTSBucket(ctx context.Context, clt createBucketClient, bucketName str
 			},
 		},
 	})
-	if err != nil {
-		return trace.Wrap(awsutil.ConvertS3Error(err))
-	}
-
-	return nil
+	return trace.Wrap(awsutil.ConvertS3Error(err), "setting object lock default retention on S3 bucket")
 }
 
 // createTransientBucket is similar to createLTSBucket however object locking is not enabled and instead a lifecycle
@@ -195,11 +189,7 @@ func createTransientBucket(ctx context.Context, clt createBucketClient, bucketNa
 			},
 		},
 	})
-	if err != nil {
-		return trace.Wrap(awsutil.ConvertS3Error(err))
-	}
-
-	return nil
+	return trace.Wrap(awsutil.ConvertS3Error(err), "setting lifecycle configuration on S3 bucket")
 }
 
 func createBucket(ctx context.Context, clt createBucketClient, bucketName string, region string, objectLock bool) error {
@@ -222,11 +212,7 @@ func createBucket(ctx context.Context, clt createBucketClient, bucketName string
 			Status: s3types.BucketVersioningStatusEnabled,
 		},
 	})
-	if err != nil {
-		return trace.Wrap(awsutil.ConvertS3Error(err))
-	}
-
-	return nil
+	return trace.Wrap(awsutil.ConvertS3Error(err), "setting versioning configuration on S3 bucket")
 }
 
 // createAthenaWorkgroupClient describes the required methods to ensure and configure athena workgroups for external cloud audit
