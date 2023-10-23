@@ -346,24 +346,26 @@ export function UnifiedResources<T>(props: UnifiedResourcesProps<T>) {
         selected={allSelected}
         shouldUnpin={shouldUnpin}
       />
-      <Flex gap={4} mb={3}>
-        {tabs.map(tab => (
-          <ResourceTab
-            key={tab.value}
-            onClick={() => selectTab(tab.value)}
-            disabled={
-              tab.value === UnifiedTabPreference.Pinned &&
-              pinning.kind === 'not-supported'
-            }
-            title={tab.label}
-            isSelected={
-              params.pinnedOnly
-                ? tab.value === UnifiedTabPreference.Pinned
-                : tab.value === UnifiedTabPreference.All
-            }
-          />
-        ))}
-      </Flex>
+      {pinning.kind !== 'hidden' && (
+        <Flex gap={4} mb={3}>
+          {tabs.map(tab => (
+            <ResourceTab
+              key={tab.value}
+              onClick={() => selectTab(tab.value)}
+              disabled={
+                tab.value === UnifiedTabPreference.Pinned &&
+                pinning.kind === 'not-supported'
+              }
+              title={tab.label}
+              isSelected={
+                params.pinnedOnly
+                  ? tab.value === UnifiedTabPreference.Pinned
+                  : tab.value === UnifiedTabPreference.All
+              }
+            />
+          ))}
+        </Flex>
+      )}
       {pinning.kind === 'not-supported' && params.pinnedOnly ? (
         <PinningNotSupported />
       ) : (
