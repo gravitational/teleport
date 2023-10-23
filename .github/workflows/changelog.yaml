@@ -1,36 +1,25 @@
 # This changelog ensures that PR bodies include a `changelog: <changelog entry>` section,
 # or a `no-changelog` label set. If they do not, then a comment will be added to the PR
 # asking the developer to add one of the two.
-#
-# NOTE: pull_request_target behaves the same as pull_request except it grants a
-# read/write token to workflows running on a pull request from a fork. While
-# this may seem unsafe, the permissions for the token are limited below and
-# the permissions can not be changed without merging to master which is
-# protected by CODEOWNERS.
 name: Validate changelog entry
 on:
-  pull_request_target:
-    types: 
+  pull_request:
+    types:
+      - edited
+      - labeled
       - opened
       - ready_for_review
-      - labeled
-      - unlabeled
+      - reopened
       - synchronize
+      - unlabeled
 
-# Limit the permissions on the GitHub token for this workflow to the subset
-# that is required. In this case, the assign workflow only needs to be able
-# write to the pull request, so it needs "pull-requests", and nothing else.
 permissions:
-    pull-requests: write
-    actions: none
-    checks: none
-    contents: none
-    deployments: none
-    issues: none
-    packages: none
-    repository-projects: none
-    security-events: none
-    statuses: none
+  pull-requests: write
+
+concurrency: 
+  cancel-in-progress: true
+  # This value is arbitrary as long as it includes the pull request number
+  group: 'limit to running one instance at a time for the pull request ${{ github.event.pull_request.number }}'
 
 jobs:
   validate-changelog:
