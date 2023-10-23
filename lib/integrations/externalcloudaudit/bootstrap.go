@@ -125,7 +125,7 @@ func createLTSBucket(ctx context.Context, clt createBucketClient, bucketName str
 	err := createBucket(ctx, clt, bucketName, region, true)
 	if err != nil {
 		if !trace.IsAlreadyExists(err) {
-			return trace.Wrap(err)
+			return trace.Wrap(err, "creating long-term S3 bucket")
 		}
 	}
 
@@ -153,7 +153,7 @@ func createTransientBucket(ctx context.Context, clt createBucketClient, bucketNa
 	err := createBucket(ctx, clt, bucketName, region, false)
 	if err != nil {
 		if !trace.IsAlreadyExists(err) {
-			return trace.Wrap(err)
+			return trace.Wrap(err, "creating transient S3 bucket")
 		}
 	}
 
@@ -229,7 +229,7 @@ func createAthenaWorkgroup(ctx context.Context, clt createAthenaWorkgroupClient,
 	})
 	if err != nil {
 		if !strings.Contains(err.Error(), "is already created") {
-			return trace.Wrap(err)
+			return trace.Wrap(err, "creating athena workgroup")
 		}
 	}
 
@@ -261,7 +261,7 @@ func createGlueInfra(ctx context.Context, clt createGlueInfraClient, table, data
 	if err != nil {
 		var aee *gluetypes.AlreadyExistsException
 		if !errors.As(err, &aee) {
-			return trace.Wrap(err)
+			return trace.Wrap(err, "creating glue database")
 		}
 	}
 
@@ -276,7 +276,7 @@ func createGlueInfra(ctx context.Context, clt createGlueInfraClient, table, data
 	if err != nil {
 		var aee *gluetypes.AlreadyExistsException
 		if !errors.As(err, &aee) {
-			return trace.Wrap(err)
+			return trace.Wrap(err, "creating glue table")
 		}
 
 		_, err = clt.UpdateTable(ctx, &glue.UpdateTableInput{
@@ -284,7 +284,7 @@ func createGlueInfra(ctx context.Context, clt createGlueInfraClient, table, data
 			TableInput:   getGlueTableInput(table, eventBucket),
 		})
 		if err != nil {
-			return trace.Wrap(err)
+			return trace.Wrap(err, "updating glue table")
 		}
 	}
 
