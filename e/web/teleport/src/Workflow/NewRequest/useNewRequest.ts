@@ -4,7 +4,7 @@ import useAttempt from 'shared/hooks/useAttemptNext';
 import useStickyClusterId from 'teleport/useStickyClusterId';
 
 import { App } from 'teleport/services/apps';
-import { WindowsDesktopService } from 'teleport/services/desktops';
+import { Desktop } from 'teleport/services/desktops';
 import { Kube } from 'teleport/services/kube';
 import { Database } from 'teleport/services/databases';
 import { Node } from 'teleport/services/nodes';
@@ -314,7 +314,7 @@ export function useNewRequest(ctx: Ctx) {
         );
         break;
       case 'windows_desktop':
-        (agents as WindowsDesktopService[]).forEach(
+        (agents as Desktop[]).forEach(
           desktop =>
             (addedResources[selectedResource][desktop.name] = desktop.addr)
         );
@@ -355,7 +355,7 @@ export function useNewRequest(ctx: Ctx) {
         );
         break;
       case 'windows_desktop':
-        (fetchedData.agents as WindowsDesktopService[]).forEach(
+        (fetchedData.agents as Desktop[]).forEach(
           desktop => delete addedResources[selectedResource][desktop.name]
         );
         break;
@@ -477,7 +477,7 @@ export function useNewRequest(ctx: Ctx) {
         case 'windows_desktop':
           if (
             addedResources[selectedResource][
-              (fetchedData.agents[agent] as WindowsDesktopService).name
+              (fetchedData.agents[agent] as Desktop).name
             ]
           ) {
             count++;
