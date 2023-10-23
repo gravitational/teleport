@@ -1,3 +1,6 @@
+//go:build !darwin && !linux
+// +build !darwin,!linux
+
 /*
 Copyright 2023 Gravitational, Inc.
 
@@ -14,26 +17,15 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package etcdbk
+package common
 
-import "sync/atomic"
+import (
+	"context"
+	"runtime"
 
-// roundRobin is a helper for distributing load across multiple resources in a round-robin
-// fashion (used to implement simple client pooling).
-type roundRobin[T any] struct {
-	ct    *atomic.Uint64
-	items []T
-}
+	"github.com/gravitational/trace"
+)
 
-func newRoundRobin[T any](items []T) roundRobin[T] {
-	return roundRobin[T]{
-		ct:    new(atomic.Uint64),
-		items: items,
-	}
-}
-
-func (r roundRobin[T]) Next() T {
-	n := r.ct.Add(1) - 1
-	l := uint64(len(r.items))
-	return r.items[int(n%l)]
+func reexecToShell(_ context.Context, _ []byte) error {
+	return trace.NotImplemented("headless mode for local Kubernetes proxy is not implemented for %s", runtime.GOOS)
 }

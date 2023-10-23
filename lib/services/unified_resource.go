@@ -154,7 +154,10 @@ func (c *UnifiedResourceCache) delete(ctx context.Context, res types.Resource) e
 
 	// delete generally only sends the id, so we will fetch the actual resource from our resources
 	// map and generate our sort keys. Then we can delete from the map and all the trees at once
-	resource := c.resources[key]
+	resource, exists := c.resources[key]
+	if !exists {
+		return trace.NotFound("cannot delete resource: key %s not found in unified resource cache", key)
+	}
 
 	sortKey := makeResourceSortKey(resource)
 
