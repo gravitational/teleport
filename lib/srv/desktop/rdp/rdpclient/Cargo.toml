@@ -8,7 +8,7 @@ edition = "2018"
 crate-type = ["staticlib"]
 
 [dependencies]
-bitflags = "2.4.0"
+bitflags = "2.4.1"
 byteorder = "1.5.0"
 env_logger = "0.10.0"
 iso7816 = "0.1.1"
@@ -20,7 +20,7 @@ num-traits = "0.2.17"
 rand = { version = "0.8.5", features = ["getrandom"] }
 rand_chacha = "0.3.1"
 rsa = "0.9.2"
-uuid = { version = "1.4.1", features = ["v4"] }
+uuid = { version = "1.5.0", features = ["v4"] }
 utf16string = "0.2.0"
 png = "0.17.10"
 parking_lot = "0.12.1"

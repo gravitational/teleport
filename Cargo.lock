@@ -200,9 +200,9 @@ checksum = "bef38d45163c2f1dde094a7dfd33ccf595c92905c8f8f4fdc18d06fb1037718a"
 
 [[package]]
 name = "bitflags"
-version = "2.4.0"
+version = "2.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b4682ae6287fcf752ecaabbfcc7b6f9b72aa33933dc23a554d853aea8eea8635"
+checksum = "327762f6e5a765692301e5bb513e0d9fef63be86bbc14528052b1cd3e6f03e07"
 
 [[package]]
 name = "bitvec"
@@ -1256,7 +1256,7 @@ name = "ironrdp-cliprdr"
 version = "0.1.0"
 source = "git+https://github.com/Devolutions/IronRDP?rev=47bc49b50e49020942138a8474828eb3cfe36a91#47bc49b50e49020942138a8474828eb3cfe36a91"
 dependencies = [
- "bitflags 2.4.0",
+ "bitflags 2.4.1",
  "ironrdp-pdu",
  "ironrdp-svc",
  "thiserror",
@@ -1288,7 +1288,7 @@ version = "0.1.0"
 source = "git+https://github.com/Devolutions/IronRDP?rev=47bc49b50e49020942138a8474828eb3cfe36a91#47bc49b50e49020942138a8474828eb3cfe36a91"
 dependencies = [
  "bit_field",
- "bitflags 2.4.0",
+ "bitflags 2.4.1",
  "bitvec",
  "byteorder",
  "ironrdp-error",
@@ -1305,7 +1305,7 @@ version = "0.1.0"
 source = "git+https://github.com/Devolutions/IronRDP?rev=47bc49b50e49020942138a8474828eb3cfe36a91#47bc49b50e49020942138a8474828eb3cfe36a91"
 dependencies = [
  "bit_field",
- "bitflags 2.4.0",
+ "bitflags 2.4.1",
  "byteorder",
  "der-parser",
  "ironrdp-error",
@@ -1326,7 +1326,7 @@ name = "ironrdp-rdpdr"
 version = "0.1.0"
 source = "git+https://github.com/Devolutions/IronRDP?rev=47bc49b50e49020942138a8474828eb3cfe36a91#47bc49b50e49020942138a8474828eb3cfe36a91"
 dependencies = [
- "bitflags 2.4.0",
+ "bitflags 2.4.1",
  "ironrdp-error",
  "ironrdp-pdu",
  "ironrdp-svc",
@@ -1347,7 +1347,7 @@ name = "ironrdp-session"
 version = "0.1.0"
 source = "git+https://github.com/Devolutions/IronRDP?rev=47bc49b50e49020942138a8474828eb3cfe36a91#47bc49b50e49020942138a8474828eb3cfe36a91"
 dependencies = [
- "bitflags 2.4.0",
+ "bitflags 2.4.1",
  "ironrdp-connector",
  "ironrdp-error",
  "ironrdp-graphics",
@@ -1361,7 +1361,7 @@ name = "ironrdp-svc"
 version = "0.1.0"
 source = "git+https://github.com/Devolutions/IronRDP?rev=47bc49b50e49020942138a8474828eb3cfe36a91#47bc49b50e49020942138a8474828eb3cfe36a91"
 dependencies = [
- "bitflags 2.4.0",
+ "bitflags 2.4.1",
  "ironrdp-pdu",
 ]
 
@@ -2223,7 +2223,7 @@ dependencies = [
 name = "rdp-client"
 version = "0.1.0"
 dependencies = [
- "bitflags 2.4.0",
+ "bitflags 2.4.1",
  "byteorder",
  "bytes",
  "cbindgen",
@@ -2463,7 +2463,7 @@ version = "0.38.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0a962918ea88d644592894bc6dc55acc6c0956488adcebbfb6e273506b7fd6e5"
 dependencies = [
- "bitflags 2.4.0",
+ "bitflags 2.4.1",
  "errno",
  "libc",
  "linux-raw-sys 0.4.3",
@@ -3343,9 +3343,9 @@ dependencies = [
 
 [[package]]
 name = "uuid"
-version = "1.4.1"
+version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "79daa5ed5740825c40b389c5e50312b9c86df53fccd33f281df655642b43869d"
+checksum = "88ad59a7560b41a70d191093a945f0b87bc1deeda46fb237479708a1d6b6cdfc"
 dependencies = [
  "getrandom 0.2.8",
  "serde",

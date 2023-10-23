@@ -646,6 +646,10 @@ const (
 	// discovered databases.
 	DatabaseAdminLabel = TeleportNamespace + "/db-admin"
 
+	// DatabaseAdminDefaultDatabaseLabel is used to identify the database that
+	// the admin user logs into by default.
+	DatabaseAdminDefaultDatabaseLabel = TeleportNamespace + "/db-admin-default-database"
+
 	// cloudKubeClusterNameOverrideLabel is a cloud agnostic label key for
 	// overriding kubernetes cluster name in discovered cloud kube clusters.
 	// It's used for AWS, GCP, and Azure, but not exported to decouple the
