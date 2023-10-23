@@ -85,12 +85,12 @@ func TestUpsertDeleteDependentRoles(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create a role and assign it to a user.
-	role, err = p.a.UpsertRole(ctx, role)
+	err = p.a.UpsertRole(ctx, role)
 	require.NoError(t, err)
 	user, err := types.NewUser("test-user")
 	require.NoError(t, err)
 	user.AddRole(role.GetName())
-	_, err = p.a.CreateUser(ctx, user)
+	err = p.a.CreateUser(ctx, user)
 	require.NoError(t, err)
 
 	// Deletion should fail.

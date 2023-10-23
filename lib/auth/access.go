@@ -19,6 +19,7 @@ package auth
 import (
 	"context"
 	"errors"
+	"slices"
 
 	"github.com/gravitational/trace"
 
@@ -64,13 +65,11 @@ func (a *Server) DeleteRole(ctx context.Context, name string) error {
 		return trace.Wrap(err)
 	}
 	for _, u := range users {
-		for _, r := range u.GetRoles() {
-			if r == name {
-				// Mask the actual error here as it could be used to enumerate users
-				// within the system.
-				log.Warnf("Failed to delete role: role %v is used by user %v.", name, u.GetName())
-				return trace.Wrap(errDeleteRoleUser)
-			}
+		if slices.Contains(u.GetRoles(), name) {
+			// Mask the actual error here as it could be used to enumerate users
+			// within the system.
+			log.Warnf("Failed to delete role: role %v is used by user %v.", name, u.GetName())
+			return trace.Wrap(errDeleteRoleUser)
 		}
 	}
 	// check if it's used by some external cert authorities, e.g.
@@ -80,13 +79,11 @@ func (a *Server) DeleteRole(ctx context.Context, name string) error {
 		return trace.Wrap(err)
 	}
 	for _, a := range cas {
-		for _, r := range a.GetRoles() {
-			if r == name {
-				// Mask the actual error here as it could be used to enumerate users
-				// within the system.
-				log.Warnf("Failed to delete role: role %v is used by user cert authority %v", name, a.GetClusterName())
-				return trace.Wrap(errDeleteRoleCA)
-			}
+		if slices.Contains(a.GetRoles(), name) {
+			// Mask the actual error here as it could be used to enumerate users
+			// within the system.
+			log.Warnf("Failed to delete role: role %v is used by user cert authority %v", name, a.GetClusterName())
+			return trace.Wrap(errDeleteRoleCA)
 		}
 	}
 
@@ -100,25 +97,19 @@ func (a *Server) DeleteRole(ctx context.Context, name string) error {
 		}
 
 		for _, accessList := range accessLists {
-			for _, r := range accessList.Spec.Grants.Roles {
-				if r == name {
-					log.Warnf("Failed to delete role: role %v is granted by access list %s", name, accessList.GetName())
-					return trace.Wrap(errDeleteRoleAccessList)
-				}
+			if slices.Contains(accessList.Spec.Grants.Roles, name) {
+				log.Warnf("Failed to delete role: role %v is granted by access list %s", name, accessList.GetName())
+				return trace.Wrap(errDeleteRoleAccessList)
 			}
 
-			for _, r := range accessList.Spec.MembershipRequires.Roles {
-				if r == name {
-					log.Warnf("Failed to delete role: role %v is required by members of access list %s", name, accessList.GetName())
-					return trace.Wrap(errDeleteRoleAccessList)
-				}
+			if slices.Contains(accessList.Spec.MembershipRequires.Roles, name) {
+				log.Warnf("Failed to delete role: role %v is required by members of access list %s", name, accessList.GetName())
+				return trace.Wrap(errDeleteRoleAccessList)
 			}
 
-			for _, r := range accessList.Spec.OwnershipRequires.Roles {
-				if r == name {
-					log.Warnf("Failed to delete role: role %v is required by owners of access list %s", name, accessList.GetName())
-					return trace.Wrap(errDeleteRoleAccessList)
-				}
+			if slices.Contains(accessList.Spec.OwnershipRequires.Roles, name) {
+				log.Warnf("Failed to delete role: role %v is required by owners of access list %s", name, accessList.GetName())
+				return trace.Wrap(errDeleteRoleAccessList)
 			}
 		}
 
