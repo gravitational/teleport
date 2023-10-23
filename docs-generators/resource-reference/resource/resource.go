@@ -325,9 +325,18 @@ func makeYAMLExample(fields []rawField) (string, error) {
 	var buf bytes.Buffer
 
 	for _, field := range fields {
+		var example string
+		if strings.Contains(field.doc, yamlExampleDelimeter) {
+			sides := strings.Split(field.doc, yamlExampleDelimeter)
+			if len(sides) != 2 {
+				return "", errors.New("malformed example YAML in description: " + field.doc)
+			}
+			example = "\n" + sides[1]
+		} else {
+			example = field.kind.formatForExampleYAML(0) + "\n"
+		}
 		buf.WriteString(getJSONTag(field.tags) + ": ")
-		buf.WriteString(field.kind.formatForExampleYAML(0))
-		buf.WriteString("\n")
+		buf.WriteString(example)
 	}
 
 	return buf.String(), nil
@@ -485,7 +494,17 @@ func makeRawField(field *ast.Field, packageName string) (rawField, error) {
 func makeFieldTableInfo(fields []rawField) ([]Field, error) {
 	var result []Field
 	for _, field := range fields {
-		desc := strings.Trim(strings.ReplaceAll(field.doc, "\n", " "), " ")
+		var desc string
+		if strings.Contains(field.doc, yamlExampleDelimeter) {
+			sides := strings.Split(field.doc, yamlExampleDelimeter)
+			if len(sides) != 2 {
+				return nil, errors.New("malformed example YAML in description: " + field.doc)
+			}
+			desc = sides[0]
+		} else {
+			desc = field.doc
+		}
+		desc = strings.Trim(strings.ReplaceAll(desc, "\n", " "), " ")
 
 		result = append(result, Field{
 			Description: descriptionWithoutName(desc, field.name),

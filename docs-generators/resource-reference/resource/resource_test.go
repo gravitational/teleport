@@ -942,7 +942,7 @@ type ServerSpecV1 struct {
 					SectionName: "Server",
 					Description: "Includes information about a server registered with Teleport.",
 					SourcePath:  "myfile.go",
-					YAMLExample: `name: string 
+					YAMLExample: `name: "string"
 label_maps: 
 - label1: ["my_value0", "my_value1", "my_value2"]
   label2: ["my_value0", "my_value1", "my_value2"]
