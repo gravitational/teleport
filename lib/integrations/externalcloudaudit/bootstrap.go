@@ -154,7 +154,6 @@ func createLTSBucket(ctx context.Context, clt createBucketClient, bucketName str
 // createTransientBucket is similar to createLTSBucket however object locking is not enabled and instead a lifecycle
 // policy is created that cleans up transient storage:
 // * Query results expire after 1 day
-// * Large payloads expire after 4 days
 // * DeleteMarkers, NonCurrentVersions and IncompleteMultipartUploads are also removed
 func createTransientBucket(ctx context.Context, clt createBucketClient, bucketName string, region string) error {
 	err := createBucket(ctx, clt, bucketName, region, false)
@@ -168,16 +167,6 @@ func createTransientBucket(ctx context.Context, clt createBucketClient, bucketNa
 		Bucket: &bucketName,
 		LifecycleConfiguration: &s3types.BucketLifecycleConfiguration{
 			Rules: []s3types.LifecycleRule{
-				{
-					Status: s3types.ExpirationStatusEnabled,
-					ID:     aws.String("ExpireLargePayloads"),
-					Expiration: &s3types.LifecycleExpiration{
-						Days: 4,
-					},
-					Filter: &s3types.LifecycleRuleFilterMemberPrefix{
-						Value: "/large_payloads",
-					},
-				},
 				{
 					Status: s3types.ExpirationStatusEnabled,
 					ID:     aws.String("ExpireQueryResults"),
