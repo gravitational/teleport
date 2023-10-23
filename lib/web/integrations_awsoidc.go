@@ -470,6 +470,11 @@ func (h *Handler) awsOIDCConfigureIdP(w http.ResponseWriter, r *http.Request, p 
 		return nil, trace.BadParameter("invalid role %q", role)
 	}
 
+	proxyAddr := h.PublicProxyAddr()
+	if !strings.HasPrefix(proxyAddr, "https://") && !strings.HasPrefix(proxyAddr, "http://") {
+		proxyAddr = "https://" + proxyAddr
+	}
+
 	// The script must execute the following command:
 	// teleport integration configure awsoidc-idp
 	argsList := []string{
@@ -477,7 +482,7 @@ func (h *Handler) awsOIDCConfigureIdP(w http.ResponseWriter, r *http.Request, p 
 		fmt.Sprintf("--cluster=%s", clusterName),
 		fmt.Sprintf("--name=%s", integrationName),
 		fmt.Sprintf("--role=%s", role),
-		fmt.Sprintf("--proxy-public-url=%s", h.PublicProxyAddr()),
+		fmt.Sprintf("--proxy-public-url=%s", proxyAddr),
 	}
 	script, err := oneoff.BuildScript(oneoff.OneOffScriptParams{
 		TeleportArgs:   strings.Join(argsList, " "),
