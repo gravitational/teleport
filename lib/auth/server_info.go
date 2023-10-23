@@ -70,32 +70,53 @@ func (a *Server) ReconcileServerInfos(ctx context.Context) error {
 	}
 }
 
+func getServerInfoNames(node types.Server) []string {
+	var names []string
+	if meta := node.GetCloudMetadata(); meta != nil && meta.AWS != nil {
+		names = append(names, meta.AWS.GetServerInfoName())
+	}
+	names = append(names, "si-"+node.GetName())
+	return names
+}
+
 func (a *Server) setCloudLabelsOnNodes(ctx context.Context, nodes []types.Server) (failedUpdates int, err error) {
 	for _, node := range nodes {
-		meta := node.GetCloudMetadata()
-		if meta != nil && meta.AWS != nil {
-			si, err := a.GetServerInfo(ctx, meta.AWS.GetServerInfoName())
+		serverInfoNames := getServerInfoNames(node)
+		serverInfos := make([]types.ServerInfo, 0, len(serverInfoNames))
+		for _, name := range serverInfoNames {
+			si, err := a.GetServerInfo(ctx, name)
 			if err == nil {
-				err := a.updateLabelsOnNode(ctx, node, si)
-				// Didn't find control stream for node, save count for logging.
-				if trace.IsNotFound(err) {
-					failedUpdates++
-				} else if err != nil {
-					return failedUpdates, trace.Wrap(err)
-				}
+				serverInfos = append(serverInfos, si)
 			} else if !trace.IsNotFound(err) {
 				return failedUpdates, trace.Wrap(err)
 			}
+		}
+		if len(serverInfos) == 0 {
+			continue
+		}
+
+		err := a.updateLabelsOnNode(ctx, node, serverInfos)
+		// Didn't find control stream for node, save count for logging.
+		if trace.IsNotFound(err) {
+			failedUpdates++
+		} else if err != nil {
+			return failedUpdates, trace.Wrap(err)
 		}
 	}
 	return failedUpdates, nil
 }
 
-func (a *Server) updateLabelsOnNode(ctx context.Context, node types.Server, si types.ServerInfo) error {
+func (a *Server) updateLabelsOnNode(ctx context.Context, node types.Server, serverInfos []types.ServerInfo) error {
+	newLabels := make(map[string]string)
+	for _, si := range serverInfos {
+		for k, v := range si.GetStaticLabels() {
+			newLabels[k] = v
+		}
+	}
 	err := a.UpdateLabels(ctx, proto.InventoryUpdateLabelsRequest{
 		ServerID: node.GetName(),
 		Kind:     proto.LabelUpdateKind_SSHServerCloudLabels,
-		Labels:   si.GetStaticLabels(),
+		Labels:   newLabels,
 	})
 	return trace.Wrap(err)
 }
