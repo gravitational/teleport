@@ -5,8 +5,8 @@ go 1.18
 require (
 	github.com/Masterminds/sprig/v3 v3.2.3
 	github.com/alecthomas/kingpin/v2 v2.3.2 // replaced
-	github.com/bmatcuk/doublestar/v4 v4.6.0
-	github.com/bradleyfalzon/ghinstallation/v2 v2.7.0
+	github.com/bmatcuk/doublestar/v4 v4.6.1
+	github.com/bradleyfalzon/ghinstallation/v2 v2.8.0
 	github.com/gogo/protobuf v1.3.2
 	github.com/google/go-github/v41 v41.0.0
 	github.com/google/uuid v1.3.1
@@ -20,15 +20,13 @@ require (
 	golang.org/x/mod v0.13.0
 	golang.org/x/oauth2 v0.13.0
 	howett.net/plist v1.0.0
-	k8s.io/apiextensions-apiserver v0.28.2
+	k8s.io/apiextensions-apiserver v0.28.3
 )
 
 require (
 	github.com/Masterminds/goutils v1.1.1 // indirect
 	github.com/Masterminds/semver/v3 v3.2.0 // indirect
-	github.com/ProtonMail/go-crypto v0.0.0-20230717121422-5aa5874ade95 // indirect
 	github.com/alecthomas/units v0.0.0-20211218093645-b94a6e3cc137 // indirect
-	github.com/cloudflare/circl v1.3.3 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/fatih/color v1.15.0 // indirect
 	github.com/go-logr/logr v1.2.4 // indirect
@@ -66,7 +64,7 @@ require (
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
-	k8s.io/apimachinery v0.28.2 // indirect
+	k8s.io/apimachinery v0.28.3 // indirect
 	k8s.io/klog/v2 v2.100.1 // indirect
 	k8s.io/utils v0.0.0-20230406110748-d93618cff8a2 // indirect
 	sigs.k8s.io/json v0.0.0-20221116044647-bc3834ca7abd // indirect
@@ -74,7 +72,7 @@ require (
 )
 
 require (
-	github.com/google/go-github/v55 v55.0.0 // indirect
+	github.com/google/go-github/v56 v56.0.0 // indirect
 	github.com/kr/text v0.2.0 // indirect
 )
 
