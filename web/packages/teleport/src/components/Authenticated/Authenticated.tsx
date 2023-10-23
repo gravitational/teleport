@@ -19,13 +19,13 @@ import { throttle } from 'shared/utils/highbar';
 import Logger from 'shared/libs/logger';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import { getErrMessage } from 'shared/utils/errorType';
+import { Box, Indicator } from 'design';
 
 import session from 'teleport/services/websession';
-import history from 'teleport/services/history';
 import localStorage from 'teleport/services/localStorage';
 import { ApiError } from 'teleport/services/api/parseError';
 
-import { ErrorDialogue } from './ErrorDialogue';
+import { ErrorDialog } from './ErrorDialogue';
 
 const logger = Logger.create('/components/Authenticated');
 const ACTIVITY_CHECKER_INTERVAL_MS = 30 * 1000;
@@ -47,19 +47,19 @@ const Authenticated: React.FC = ({ children }) => {
   const { attempt, setAttempt } = useAttempt('processing');
 
   useEffect(() => {
-    const checkUserIsAuthenticated = async () => {
-      try {
-        if (!session.isValid()) {
-          logger.warn('invalid session');
-          session.clear();
-          history.goToLogin(true);
-          return;
-        }
+    const checkIfUserIsAuthenticated = async () => {
+      if (!session.isValid()) {
+        logger.warn('invalid session');
+        session.logout(true /* rememberLocation */);
+        return;
+      }
 
+      try {
         await session.validateCookieAndSession();
         setAttempt({ status: 'success' });
       } catch (e) {
         if (e instanceof ApiError && e.response?.status == 403) {
+          logger.warn('invalid session');
           session.logout(true /* rememberLocation */);
           // No need to update attempt, as `logout` will
           // redirect user to login page.
@@ -70,7 +70,7 @@ const Authenticated: React.FC = ({ children }) => {
       }
     };
 
-    checkUserIsAuthenticated();
+    checkIfUserIsAuthenticated();
   }, []);
 
   useEffect(() => {
@@ -93,10 +93,14 @@ const Authenticated: React.FC = ({ children }) => {
   }
 
   if (attempt.status === 'failed') {
-    return <ErrorDialogue errMsg={attempt.statusText} />;
+    return <ErrorDialog errMsg={attempt.statusText} />;
   }
 
-  return null;
+  return (
+    <Box textAlign="center">
+      <Indicator />
+    </Box>
+  );
 };
 
 export default Authenticated;
