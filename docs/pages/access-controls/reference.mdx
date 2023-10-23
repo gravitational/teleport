@@ -357,129 +357,18 @@ spec:
       where: '!contains(session_tracker.participants, user.metadata.name)'
 ```
 
-## Role predicates
+## Role templates
 
 In a Teleport role resource, certain fields allow you to use functions and
 variables to configure a user's access. The functions and variables available
 for a field depend on the access controls that the field configures.
 
-### Access Request predicate functions
+### Template expressions for access to infrastructure resources
 
-The following variables and functions allow more fine-grained control over a
-user's permissions to submit and review Access Requests.
-
-#### Fields
-
-You can use Access Request predicate functions in the following fields. You can
-include these fields within either `allow` rules or `deny` rules:
-
-- `request.search_as_roles`
-- `request.roles`
-- `review_requests.preview_as_roles`
-- `review_requests.roles`
-- `review_requests.where`
-
-#### Functions
-
-Access Requests support the following role predicate functions:
-
-|Function|Description|
-|---|---|
-|`{{regexp.match(regexp)}}`|Returns `true` if the regular expression matches a user's role.|
-|`{{regexp.not_match(regexp)}}`|Returns `true` if the regular expression does not match a user's role.|
-
-Regular expressions support both wildcards (the `*` character) and [Go-style
-regular expressions](https://pkg.go.dev/regexp). If an expression begins with
-the `^` character and ends with the `$` character, Teleport will evaluate it as
-a regular expression. Otherwise, it will evaluate it as a wildcard expression.
-Wildcards match a sequence of one or more characters.
-
-#### Variables
-
-Teleport does not perform variable expansion on the values of the fields above.
-
-### Label expressions
-
-<Admonition type="warning">
-Label expressions are available starting in Teleport version `13.1.1`. All
-components of your Teleport cluster must be upgraded to version `13.1.1` or
-newer before you can use label expressions. This includes the Auth Service and
-**all** Teleport agents.
-</Admonition>
-
-Teleport roles support matching resource labels with predicate expressions when
-you need to:
-
-- combine logic with OR and AND operators
-- perform matching on label keys
-- implement negative matches
-
-The following example role would allow access to any nodes labeled `env=staging`
-or labeled `team=<team>`, where `<team>` is one of the values of the user's
-`teams` trait:
-
-```yaml
-kind: role
-version: v7
-metadata:
-  name: example-role
-spec:
-  allow:
-    node_labels_expression: |
-      labels["env"] == "staging" ||
-      contains(user.spec.traits["teams"], labels["team"])
-```
-
-Typically, you would only use either `<kind>_labels` or
-`<kind>_labels_expression` in a single role, but you are allowed to specify
-both.
-
-If you have both in a deny rule, the matching is greedy. If either expression
-matches, access is denied. In an allow rule, the matching is not greedy. If both
-expressions are set, both expressions must be matched for access to be allowed.
-
-#### Fields
-
-The `<kind>_labels_expression` fields have the same purpose as the matching
-`<kind>_labels` fields, but support predicate expressions instead of label
-matchers.  They can be used in the following fields of role `spec.allow` and
-`spec.deny` conditions:
-
-- `node_labels_expression`
-- `app_labels_expression`
-- `cluster_labels_expression`
-- `kubernetes_labels_expression`
-- `db_labels_expression`
-- `db_service_labels_expression`
-- `windows_desktop_labels_expression`
-- `group_labels_expression`
-
-#### Variables
-
-You can use the following template variables in label expression fields:
-
-|Variable|Type|Description|
-|---|---|---|
-|`{{user.spec.traits}}`|`map[string][]string`|All of the user's traits. Use `{{user.spec.traits<key>}}` to get a list of trait values for the specified key.|
-|`{{labels}}`|`map[string]string`|All of the user's labels. Use `{{labels.<key>}}` to get the value for the specified key.|
-
-#### Functions
-
-You can use the following functions in label expression fields:
-
-|Function|Description|
-|---|---|
-|`{{contains(list,item)}}`|Returns `true` if the list of strings in `list` contains the specified `item` and `false` otherwise.|
-|`{{regexp.match(list,regexp)}}`|Returns `true` if the regular expression in `regexp` matches any of the strings in list of strings `list`. Returns `false` otherwise.|
-|`{{regexp.replace(list,regexp,replacement)}}`|Checks the list of strings `list`, returning a new list where each item that matches `regexp` is replaced with `replacement`. You can use `$n` in the replacement string to indicate a submatch group, e.g., `$1` to indicate the first submatch.|
-|`{{strings.upper(list)}}`|Returns the new list of strings that results from uppercasing each item in `list`, a list of strings.|
-|`{{strings.lower(list)}}`|Returns the new list of strings that results from lowercasing each item in `list`, a list of strings.|
-
-### Predicates for access to infrastructure resources
-
-When a user attempts to authenticate to an infrastructure resource
-proxied by Teleport, such as a database or Kubernetes cluster, Teleport determines from the user's roles:
-- Which infrastructure resources the user is authorized to authenticate to. 
+When a user attempts to authenticate to an infrastructure resource proxied by
+Teleport, such as a database or Kubernetes cluster, Teleport determines from the
+user's roles:
+- Whether the user is authorized to connect to the resource.
 - Which principals the user can assume when they authenticate (for example,
   Linux server logins and Kubernetes groups).
 
@@ -527,10 +416,10 @@ principals on infrastructure resources:
 |`{{email.local(variable)}}`|Extracts the local part of an email address.|
 |`{{regexp.replace(variable, expression, replacement)}}`|Finds all matches of the expression within the variable and replaces them with the replacement.|
 
-#### Variables
+#### Traits
 
 For fields that configure access to infrastructure resources, Teleport
-substitutes the following variables with data from the authenticating user,
+substitutes the following **traits** with data from the authenticating user,
 drawing from the local user database as well as the user's external single
 sign-on provider.
 
@@ -598,6 +487,118 @@ supported data type.
 
 Refer to your identity provider's documentation for the complete list of
 available claims and attributes.
+
+### Access Request template functions
+
+The following variables and functions allow more fine-grained control over a
+user's permissions to submit and review Access Requests.
+
+#### Fields
+
+You can use Access Request template functions in the following fields. You can
+include these fields within either `allow` rules or `deny` rules:
+
+- `request.search_as_roles`
+- `request.roles`
+- `review_requests.preview_as_roles`
+- `review_requests.roles`
+- `review_requests.where`
+
+#### Functions
+
+Access Requests support the following role template functions:
+
+|Function|Description|
+|---|---|
+|`{{regexp.match(regexp)}}`|Returns `true` if the regular expression matches a user's role.|
+|`{{regexp.not_match(regexp)}}`|Returns `true` if the regular expression does not match a user's role.|
+
+Regular expressions support both glob-style wildcards (the `*` character) and
+[Go-style regular expressions](https://pkg.go.dev/regexp). If an expression
+begins with the `^` character and ends with the `$` character, Teleport will
+evaluate it as a regular expression. Otherwise, it will evaluate it as a
+wildcard expression.  Wildcards match a sequence of one or more characters.
+
+#### Variables
+
+Teleport does not perform variable expansion on the values of the fields above.
+
+### Label expressions
+
+<Admonition type="warning">
+Label expressions are available starting in Teleport version `13.1.1`. All
+components of your Teleport cluster must be upgraded to version `13.1.1` or
+newer before you can use label expressions. This includes the Auth Service and
+**all** Teleport agents.
+</Admonition>
+
+Teleport roles support matching resource labels with template expressions when
+you need to:
+
+- combine logic with OR and AND operators
+- perform matching on label keys
+- implement negative matches
+
+The following example role would allow access to any nodes labeled `env=staging`
+or labeled `team=<team>`, where `<team>` is one of the values of the user's
+`teams` trait:
+
+```yaml
+kind: role
+version: v7
+metadata:
+  name: example-role
+spec:
+  allow:
+    node_labels_expression: |
+      labels["env"] == "staging" ||
+      contains(user.spec.traits["teams"], labels["team"])
+```
+
+Typically, you would only use either `<kind>_labels` or
+`<kind>_labels_expression` in a single role, but you are allowed to specify
+both.
+
+If you have both in a deny rule, the matching is greedy. If either expression
+matches, access is denied. In an allow rule, the matching is not greedy. If both
+expressions are set, both expressions must be matched for access to be allowed.
+
+#### Fields
+
+The `<kind>_labels_expression` fields have the same purpose as the matching
+`<kind>_labels` fields, but support label expressions instead of label matchers.
+They can be used in the following fields of role `spec.allow` and `spec.deny`
+conditions:
+
+- `node_labels_expression`
+- `app_labels_expression`
+- `cluster_labels_expression`
+- `kubernetes_labels_expression`
+- `db_labels_expression`
+- `db_service_labels_expression`
+- `windows_desktop_labels_expression`
+- `group_labels_expression`
+
+#### Variables
+
+You can use the following template variables in label expression fields:
+
+|Variable|Type|Description|
+|---|---|---|
+|`{{user.spec.traits}}`|`map[string][]string`|All of the user's traits. Use `{{user.spec.traits<key>}}` to get a list of trait values for the specified key.|
+|`{{labels}}`|`map[string]string`|All of the user's labels. Use `{{labels.<key>}}` to get the value for the specified key.|
+
+#### Functions
+
+You can use the following functions in label expression fields:
+
+|Function|Description|
+|---|---|
+|`{{contains(list,item)}}`|Returns `true` if the list of strings in `list` contains the specified `item` and `false` otherwise.|
+|`{{regexp.match(list,regexp)}}`|Returns `true` if the regular expression in `regexp` matches any of the strings in list of strings `list`. Returns `false` otherwise.|
+|`{{regexp.replace(list,regexp,replacement)}}`|Checks the list of strings `list`, returning a new list where each item that matches `regexp` is replaced with `replacement`. You can use `$n` in the replacement string to indicate a submatch group, e.g., `$1` to indicate the first submatch.|
+|`{{strings.upper(list)}}`|Returns the new list of strings that results from uppercasing each item in `list`, a list of strings.|
+|`{{strings.lower(list)}}`|Returns the new list of strings that results from lowercasing each item in `list`, a list of strings.|
 
 ## Filter fields
 
