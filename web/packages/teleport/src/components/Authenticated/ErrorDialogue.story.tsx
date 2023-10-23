@@ -16,10 +16,10 @@
 
 import React from 'react';
 
-import { ErrorDialogue } from './ErrorDialogue';
+import { ErrorDialog } from './ErrorDialogue';
 
 export default {
   title: 'Teleport/Authenticate/ErrorDialogue',
 };
 
-export const Story = () => <ErrorDialogue errMsg="some error message" />;
+export const Story = () => <ErrorDialog errMsg="some error message" />;

@@ -205,8 +205,7 @@ const session = {
 
   /**
    * validateCookieAndSessionFromBackend makes an authenticated request
-   * which just checks if the cookie sent from browser is valid and user
-   * session is still valid.
+   * which checks if the cookie and the user session are still valid.
    */
   validateCookieAndSession() {
     return api.get(cfg.api.userStatusPath);

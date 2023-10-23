@@ -25,7 +25,7 @@ import Dialog, {
 
 import history from 'teleport/services/history';
 
-export function ErrorDialogue({ errMsg }: { errMsg: string }) {
+export function ErrorDialog({ errMsg }: { errMsg: string }) {
   return (
     <Dialog
       dialogCss={() => ({ maxWidth: '500px', width: '100%' })}
@@ -36,7 +36,7 @@ export function ErrorDialogue({ errMsg }: { errMsg: string }) {
       </DialogHeader>
       <DialogContent>
         <Alert kind="danger" children={errMsg} />
-        <Text mb={3}>Try again by refreshing the browser.</Text>
+        <Text mb={3}>Try again by refreshing the page.</Text>
       </DialogContent>
       <DialogFooter>
         <ButtonSecondary
