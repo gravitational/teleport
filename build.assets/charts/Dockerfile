@@ -3,7 +3,9 @@ FROM ubuntu:20.04 AS teleport
 
 # Copy the deb archive
 ARG DEB_PATH
-COPY ${DEB_PATH?} /tmp/teleport.deb
+ARG DEB_BASE
+ARG TARGETARCH
+COPY ${DEB_PATH:-${DEB_BASE}_${TARGETARCH}.deb} /tmp/teleport.deb
 
 # Install dumb-init and ca-certificates. The dumb-init package is to ensure
 # signals and orphaned processes are are handled correctly. The ca-certificate
