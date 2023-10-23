@@ -400,7 +400,7 @@ exports[`connected settings false 1`] = `
           <span
             class="c5 icon icon-foldershared"
             style="color: rgba(255, 255, 255, 0.72);"
-            title="Directory Sharing Disabled"
+            title="Directory Sharing Inactive"
           >
             <svg
               fill="currentColor"
@@ -1211,7 +1211,7 @@ exports[`disconnected 1`] = `
           <span
             class="c5 icon icon-foldershared"
             style="color: rgba(255, 255, 255, 0.72);"
-            title="Directory Sharing Disabled"
+            title="Directory Sharing Inactive"
           >
             <svg
               fill="currentColor"
@@ -1921,7 +1921,7 @@ exports[`processing 1`] = `
           <span
             class="c5 icon icon-foldershared"
             style="color: rgba(255, 255, 255, 0.72);"
-            title="Directory Sharing Disabled"
+            title="Directory Sharing Inactive"
           >
             <svg
               fill="currentColor"
@@ -2231,7 +2231,7 @@ exports[`tdp processing 1`] = `
           <span
             class="c5 icon icon-foldershared"
             style="color: rgba(255, 255, 255, 0.72);"
-            title="Directory Sharing Disabled"
+            title="Directory Sharing Inactive"
           >
             <svg
               fill="currentColor"
