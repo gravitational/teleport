@@ -14,4 +14,4 @@ jobs:
     steps:
       - name: No-op
         run: |
-          echo "Linting for web has been moved to the lint workflow"
+          echo "Linting for web has been moved to the lint-all workflow"

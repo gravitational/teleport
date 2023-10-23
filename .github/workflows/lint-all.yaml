@@ -1,0 +1,242 @@
+name: Lint
+run-name: lint all
+on:
+  pull_request:
+  merge_group:
+
+jobs:
+  changes:
+    name: Check for relevant changes
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+    outputs:
+      go: ${{ steps.changes.outputs.go }}
+      godeps: ${{ steps.changes.outputs.godeps }}
+      helm: ${{ steps.changes.outputs.helm }}
+      proto: ${{ steps.changes.outputs.proto }}
+      rust: ${{ steps.changes.outputs.rust }}
+      sh: ${{ steps.changes.outputs.sh }}
+      terraform: ${{ steps.changes.outputs.terraform }}
+      web: ${{ steps.changes.outputs.web }}
+    steps:
+      - name: Checkout
+        if: ${{ github.event_name == 'merge_group' }}
+        uses: actions/checkout@v4
+      - uses: dorny/paths-filter@4512585405083f25c027a35db413c2b3b9006d50 # v2.11.1
+        id: changes
+        with:
+          base: ${{ github.event.pull_request.base.ref || github.event.merge_group.base_ref }}
+          ref: ${{ github.event.pull_request.head.ref || github.event.merge_group.head_ref }}
+          filters: |
+            go:
+              - **/*.go
+              - **/go.mod
+              - **/go.sum
+            godeps:
+              - **/go.mod
+              - **/go.sum
+            helm:
+              - examples/chart/**
+            rust:
+              - **/Cargo.lock
+              - **/Cargo.toml
+              - **/*.rs
+            proto:
+              - **/*.proto
+            web:
+              - web/**
+            terraform:
+              - '**.tf'
+              - '**.tf.json'
+              - '**.hcl'
+            sh:
+              - **/*.sh
+              - **/*.sh.tmpl
+
+  lint-terraform:
+    needs: changes
+    if: ${{ needs.changes.outputs.terraform == 'true' }}
+    uses: gravitational/shared-workflows/.github/workflows/terraform-lint.yaml@main
+    permissions:
+      actions: read
+      contents: read
+      pull-requests: write
+      security-events: write
+
+  lint-rust:
+    name: Lint (Rust)
+    needs: changes
+    if: ${{ needs.changes.outputs.rust == 'true' }}
+    runs-on: ubuntu-22.04-16core
+
+    permissions:
+      contents: read
+
+    container:
+      image: ghcr.io/gravitational/teleport-buildbox:teleport14
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        # TODO(codingllama): Consider https://github.com/actions-rs/clippy-check
+      - name: Run Rust linter
+        run: make lint-rust
+
+  lint-license:
+    name: Check license
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    container:
+      image: ghcr.io/gravitational/teleport-buildbox:teleport14
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Run license linter
+        run: make lint-license
+
+  lint-helm:
+    name: Lint (helm)
+    needs: changes
+    if: ${{ needs.changes.outputs.helm == 'true' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    container:
+      image: ghcr.io/gravitational/teleport-buildbox:teleport14
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Run helm linter
+        run: make lint-helm
+
+  lint-web:
+    name: Lint (UI)
+    needs: changes
+    if: ${{ needs.changes.outputs.web == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout OSS Teleport
+        uses: actions/checkout@v4
+      - name: Determine Toolchain Versions
+        run: |
+          echo NODE_VERSION=$(make -s -C build.assets print-node-version) >> $GITHUB_ENV
+      - name: Print versions
+        run: |
+          echo "node: ${NODE_VERSION}"
+      - name: Setup Node Toolchain
+        uses: actions/setup-node@v3
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - name: Install Yarn dependencies
+        run: yarn --frozen-lockfile
+      - name: Run lint
+        run: yarn lint
+      - name: Run Type Check
+        run: yarn type-check
+
+  lint-sh:
+    name: Lint (shell)
+    needs: changes
+    if: ${{ needs.changes.outputs.sh == 'true' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    container:
+      image: ghcr.io/gravitational/teleport-buildbox:teleport14
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+    - name: Check shell scripts
+      run: make lint-sh
+
+  lint-go:
+    name: Lint (Go + Protobuf)
+    needs: changes
+    if: ${{ needs.changes.outputs.go == 'true' || needs.changes.outputs.proto == 'true' }}
+    runs-on: ubuntu-22.04-16core
+
+    permissions:
+      contents: read
+
+    container:
+      image: ghcr.io/gravitational/teleport-buildbox:teleport15
+
+    env:
+      GOLANGCI_LINT_VERSION: v1.54.2
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run `go mod tidy`
+        if: ${{ needs.changes.outputs.godeps == 'true' }}
+        run: rm go.sum api/go.sum && go mod tidy && (cd api && go mod tidy)
+
+      - name: Check for no changes after `go mod tidy`
+        if: ${{ needs.changes.outputs.godeps == 'true' }}
+        # We have to add the current directory as a safe directory or else git commands will not work as expected.
+        run: git config --global --add safe.directory $( realpath . ) && git diff --exit-code -- go.mod go.sum api/go.mod api/go.sum
+
+      # Run various golangci-lint checks.
+      # TODO(codingllama): Using go.work could save a bunch of repetition here.
+      - name: golangci-lint (api)
+        uses: golangci/golangci-lint-action@v3
+        with:
+          version: ${{ env.GOLANGCI_LINT_VERSION }}
+          working-directory: api
+          skip-cache: true
+      - name: golangci-lint (teleport)
+        uses: golangci/golangci-lint-action@v3
+        with:
+          version: ${{ env.GOLANGCI_LINT_VERSION }}
+          args: --build-tags libfido2,piv
+          skip-cache: true
+      - name: golangci-lint (kube-agent-updater)
+        uses: golangci/golangci-lint-action@v3
+        with:
+          version: ${{ env.GOLANGCI_LINT_VERSION }}
+          working-directory: integrations/kube-agent-updater
+          skip-cache: true
+      - name: golangci-lint (assets/backport)
+        uses: golangci/golangci-lint-action@v3
+        with:
+          version: ${{ env.GOLANGCI_LINT_VERSION }}
+          working-directory: assets/backport
+          skip-cache: true
+      - name: golangci-lint (build.assets/tooling)
+        uses: golangci/golangci-lint-action@v3
+        with:
+          version: ${{ env.GOLANGCI_LINT_VERSION }}
+          working-directory: build.assets/tooling
+          skip-cache: true
+
+      - uses: bufbuild/buf-setup-action@v1
+        if: ${{ needs.changes.outputs.proto == 'true' }}
+        with:
+          github_token: ${{ github.token }}
+          version: v1.27.0
+      - uses: bufbuild/buf-lint-action@v1
+        if: ${{ needs.changes.outputs.proto == 'true' }}
+      - name: buf breaking from parent to self
+        if: ${{ needs.changes.outputs.proto == 'true' }}
+        uses: bufbuild/buf-breaking-action@v1
+        with:
+          against: "https://github.com/${GITHUB_REPOSITORY}.git#branch=${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}"
+      - name: buf breaking from self to master
+        uses: bufbuild/buf-breaking-action@v1
+        if: ${{ github.base_ref != 'master' && github.event.merge_group.base_ref != 'refs/heads/master' && needs.changes.outputs.proto == 'true' }}
+        with:
+          input: "https://github.com/${GITHUB_REPOSITORY}.git#branch=master"
+          against: "."
+
+      - name: Check if protos are up to date
+        if: ${{ needs.changes.outputs.proto == 'true' }}
+        # We have to add the current directory as a safe directory or else git commands will not work as expected.
+        run: git config --global --add safe.directory $(realpath .) && make protos-up-to-date/host
+
+      - name: Check if Operator CRDs are up to date
+        if: ${{ needs.changes.outputs.proto == 'true' }}
+        # We have to add the current directory as a safe directory or else git commands will not work as expected.
+        run: git config --global --add safe.directory $(realpath .) && make crds-up-to-date
