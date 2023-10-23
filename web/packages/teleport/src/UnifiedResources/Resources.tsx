@@ -417,9 +417,9 @@ export function Resources() {
 
 export function resourceKey(resource: UnifiedResource) {
   if (resource.kind === 'node') {
-    return `${resource.hostname}/${resource.id}/node`;
+    return `${resource.hostname}/${resource.id}/node`.toLowerCase();
   }
-  return `${resource.name}/${resource.kind}`;
+  return `${resource.name}/${resource.kind}`.toLowerCase();
 }
 
 export function resourceName(resource: UnifiedResource) {

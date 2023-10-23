@@ -40,6 +40,7 @@ const (
 	ExternalCloudAuditService_PromoteToClusterExternalCloudAudit_FullMethodName = "/teleport.externalcloudaudit.v1.ExternalCloudAuditService/PromoteToClusterExternalCloudAudit"
 	ExternalCloudAuditService_GetClusterExternalCloudAudit_FullMethodName       = "/teleport.externalcloudaudit.v1.ExternalCloudAuditService/GetClusterExternalCloudAudit"
 	ExternalCloudAuditService_DisableClusterExternalCloudAudit_FullMethodName   = "/teleport.externalcloudaudit.v1.ExternalCloudAuditService/DisableClusterExternalCloudAudit"
+	ExternalCloudAuditService_GenerateDraftExternalCloudAudit_FullMethodName    = "/teleport.externalcloudaudit.v1.ExternalCloudAuditService/GenerateDraftExternalCloudAudit"
 )
 
 // ExternalCloudAuditServiceClient is the client API for ExternalCloudAuditService service.
@@ -61,6 +62,10 @@ type ExternalCloudAuditServiceClient interface {
 	// DisableClusterExternalCloudAudit disables the external cloud audit feature.
 	// This method causes the Teleport Auth service to reload.
 	DisableClusterExternalCloudAudit(ctx context.Context, in *DisableClusterExternalCloudAuditRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	// GenerateDraftExternalCloudAudit generates a new external cloud audit
+	// resource with randomized resource names and upserts it as the current
+	// draft.
+	GenerateDraftExternalCloudAudit(ctx context.Context, in *GenerateDraftExternalCloudAuditRequest, opts ...grpc.CallOption) (*GenerateDraftExternalCloudAuditResponse, error)
 }
 
 type externalCloudAuditServiceClient struct {
@@ -125,6 +130,15 @@ func (c *externalCloudAuditServiceClient) DisableClusterExternalCloudAudit(ctx c
 	return out, nil
 }
 
+func (c *externalCloudAuditServiceClient) GenerateDraftExternalCloudAudit(ctx context.Context, in *GenerateDraftExternalCloudAuditRequest, opts ...grpc.CallOption) (*GenerateDraftExternalCloudAuditResponse, error) {
+	out := new(GenerateDraftExternalCloudAuditResponse)
+	err := c.cc.Invoke(ctx, ExternalCloudAuditService_GenerateDraftExternalCloudAudit_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ExternalCloudAuditServiceServer is the server API for ExternalCloudAuditService service.
 // All implementations must embed UnimplementedExternalCloudAuditServiceServer
 // for forward compatibility
@@ -144,6 +158,10 @@ type ExternalCloudAuditServiceServer interface {
 	// DisableClusterExternalCloudAudit disables the external cloud audit feature.
 	// This method causes the Teleport Auth service to reload.
 	DisableClusterExternalCloudAudit(context.Context, *DisableClusterExternalCloudAuditRequest) (*emptypb.Empty, error)
+	// GenerateDraftExternalCloudAudit generates a new external cloud audit
+	// resource with randomized resource names and upserts it as the current
+	// draft.
+	GenerateDraftExternalCloudAudit(context.Context, *GenerateDraftExternalCloudAuditRequest) (*GenerateDraftExternalCloudAuditResponse, error)
 	mustEmbedUnimplementedExternalCloudAuditServiceServer()
 }
 
@@ -168,6 +186,9 @@ func (UnimplementedExternalCloudAuditServiceServer) GetClusterExternalCloudAudit
 }
 func (UnimplementedExternalCloudAuditServiceServer) DisableClusterExternalCloudAudit(context.Context, *DisableClusterExternalCloudAuditRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DisableClusterExternalCloudAudit not implemented")
+}
+func (UnimplementedExternalCloudAuditServiceServer) GenerateDraftExternalCloudAudit(context.Context, *GenerateDraftExternalCloudAuditRequest) (*GenerateDraftExternalCloudAuditResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GenerateDraftExternalCloudAudit not implemented")
 }
 func (UnimplementedExternalCloudAuditServiceServer) mustEmbedUnimplementedExternalCloudAuditServiceServer() {
 }
@@ -291,6 +312,24 @@ func _ExternalCloudAuditService_DisableClusterExternalCloudAudit_Handler(srv int
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ExternalCloudAuditService_GenerateDraftExternalCloudAudit_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GenerateDraftExternalCloudAuditRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ExternalCloudAuditServiceServer).GenerateDraftExternalCloudAudit(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ExternalCloudAuditService_GenerateDraftExternalCloudAudit_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ExternalCloudAuditServiceServer).GenerateDraftExternalCloudAudit(ctx, req.(*GenerateDraftExternalCloudAuditRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // ExternalCloudAuditService_ServiceDesc is the grpc.ServiceDesc for ExternalCloudAuditService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -321,6 +360,10 @@ var ExternalCloudAuditService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DisableClusterExternalCloudAudit",
 			Handler:    _ExternalCloudAuditService_DisableClusterExternalCloudAudit_Handler,
+		},
+		{
+			MethodName: "GenerateDraftExternalCloudAudit",
+			Handler:    _ExternalCloudAuditService_GenerateDraftExternalCloudAudit_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

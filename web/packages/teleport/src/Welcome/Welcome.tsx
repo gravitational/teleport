@@ -18,11 +18,17 @@ import React from 'react';
 
 import { WelcomeWrapper } from 'design/Onboard/WelcomeWrapper';
 
-import { Route, Switch, useParams } from 'teleport/components/Router';
+import {
+  Route,
+  Switch,
+  useParams,
+  useLocation,
+} from 'teleport/components/Router';
 import history from 'teleport/services/history';
 import cfg from 'teleport/config';
 import { NewCredentialsContainerProps } from 'teleport/Welcome/NewCredentials';
 
+import { CLOUD_INVITE_URL_PARAM } from './const';
 import { CardWelcome } from './CardWelcome';
 
 type WelcomeProps = {
@@ -31,9 +37,17 @@ type WelcomeProps = {
 
 export default function Welcome({ NewCredentials }: WelcomeProps) {
   const { tokenId } = useParams<{ tokenId: string }>();
+  const { search } = useLocation();
 
   const handleOnInviteContinue = () => {
-    history.push(cfg.getUserInviteTokenContinueRoute(tokenId));
+    // We need to pass through the `invite` query parameter (if it exists) to
+    // render the invite collaborators form for Cloud users.
+    let suffix = '';
+    if (new URLSearchParams(search).has(CLOUD_INVITE_URL_PARAM)) {
+      suffix = `?${CLOUD_INVITE_URL_PARAM}`;
+    }
+
+    history.push(`${cfg.getUserInviteTokenContinueRoute(tokenId)}${suffix}`);
   };
 
   const handleOnResetContinue = () => {

@@ -27,6 +27,7 @@
   "private": true,
   "resolutions": {
     "react": "16.14.0",
+    "**/d3-color": "^3.1.0",
     "**/minimist": "^1.2.8",
     "**/@types/react": "^16.9.49",
     "**/trim": "0.0.3",

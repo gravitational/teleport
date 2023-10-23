@@ -3080,13 +3080,21 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 			if max := a.authServer.GetClock().Now().Add(defaults.MaxRenewableCertTTL); req.Expires.After(max) {
 				req.Expires = max
 			}
-		} else {
+		} else if req.GetUsage() == proto.UserCertsRequest_Kubernetes && req.GetRequesterName() == proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY_HEADLESS {
+			// If requested certificate is for headless Kubernetes access of local proxy it is limited by max session ttl.
+
+			// Calculate the expiration time.
+			roleSet, err := services.FetchRoles(user.GetRoles(), a, user.GetTraits())
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			sessionTTL := roleSet.AdjustSessionTTL(authPref.GetDefaultSessionTTL().Duration())
+			req.Expires = a.authServer.GetClock().Now().UTC().Add(sessionTTL)
+		} else if req.Expires.After(sessionExpires) {
 			// Standard user impersonation has an expiry limited to the expiry
 			// of the current session. This prevents a user renewing their
 			// own certificates indefinitely to avoid re-authenticating.
-			if req.Expires.After(sessionExpires) {
-				req.Expires = sessionExpires
-			}
+			req.Expires = sessionExpires
 		}
 	}
 
@@ -6863,31 +6871,43 @@ func (a *ServerWithRoles) UpdateHeadlessAuthenticationState(ctx context.Context,
 	replaceHeadlessAuthn := *headlessAuthn
 	replaceHeadlessAuthn.State = state
 
+	eventCode := ""
 	switch state {
 	case types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_APPROVED:
 		// The user must authenticate with MFA to change the state to approved.
 		if mfaResp == nil {
-			return trace.BadParameter("expected MFA auth challenge response")
+			err = trace.BadParameter("expected MFA auth challenge response")
+			emitHeadlessLoginEvent(ctx, events.UserHeadlessLoginApprovedFailureCode, a.authServer.emitter, headlessAuthn, err)
+			return err
 		}
 
 		// Only WebAuthn is supported in headless login flow for superior phishing prevention.
 		if _, ok := mfaResp.Response.(*proto.MFAAuthenticateResponse_Webauthn); !ok {
-			return trace.BadParameter("expected WebAuthn challenge response, but got %T", mfaResp.Response)
+			err = trace.BadParameter("expected WebAuthn challenge response, but got %T", mfaResp.Response)
+			emitHeadlessLoginEvent(ctx, events.UserHeadlessLoginApprovedFailureCode, a.authServer.emitter, headlessAuthn, err)
+			return err
 		}
 
 		mfaDevice, _, err := a.authServer.validateMFAAuthResponse(ctx, mfaResp, headlessAuthn.User, false /* passwordless */)
 		if err != nil {
+			emitHeadlessLoginEvent(ctx, events.UserHeadlessLoginApprovedFailureCode, a.authServer.emitter, headlessAuthn, err)
 			return trace.Wrap(err)
 		}
 
 		replaceHeadlessAuthn.MfaDevice = mfaDevice
+		eventCode = events.UserHeadlessLoginApprovedCode
 	case types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_DENIED:
+		eventCode = events.UserHeadlessLoginRejectedCode
 		// continue to compare and swap without MFA.
 	default:
 		return trace.AccessDenied("cannot update a headless authentication state to %v", state.String())
 	}
 
 	_, err = a.authServer.CompareAndSwapHeadlessAuthentication(ctx, headlessAuthn, &replaceHeadlessAuthn)
+	if err != nil && eventCode == events.UserHeadlessLoginApprovedCode {
+		eventCode = events.UserHeadlessLoginApprovedFailureCode
+	}
+	emitHeadlessLoginEvent(ctx, eventCode, a.authServer.emitter, headlessAuthn, err)
 	return trace.Wrap(err)
 }
 
@@ -7056,6 +7076,49 @@ func NewAdminAuthServer(authServer *Server, alog events.AuditLogSessionStreamer)
 	}, nil
 }
 
+func emitHeadlessLoginEvent(ctx context.Context, code string, emitter apievents.Emitter, headlessAuthn *types.HeadlessAuthentication, err error) {
+	clientAddr := ""
+	if code == events.UserHeadlessLoginRequestedCode {
+		clientAddr = headlessAuthn.ClientIpAddress
+	} else if c, err := authz.ClientAddrFromContext(ctx); err == nil {
+		clientAddr = c.String()
+	}
+
+	message := ""
+	if code != events.UserHeadlessLoginRequestedCode {
+		// For events.UserHeadlessLoginRequestedCode remote.addr will be the IP of requester.
+		// For other events that IP will be different because user will be approving the request from another machine,
+		// so we mentioned requester IP in the message.
+		message = fmt.Sprintf("Headless login was requested from the address %s", headlessAuthn.ClientIpAddress)
+	}
+	errorMessage := ""
+	if err != nil {
+		errorMessage = trace.Unwrap(err).Error()
+	}
+	event := apievents.UserLogin{
+		Metadata: apievents.Metadata{
+			Type: events.UserLoginEvent,
+			Code: code,
+		},
+		Method: events.LoginMethodHeadless,
+		UserMetadata: apievents.UserMetadata{
+			User: headlessAuthn.User,
+		},
+		ConnectionMetadata: apievents.ConnectionMetadata{
+			RemoteAddr: clientAddr,
+		},
+		Status: apievents.Status{
+			Success:     code == events.UserHeadlessLoginApprovedCode,
+			UserMessage: message,
+			Error:       errorMessage,
+		},
+	}
+
+	if emitErr := emitter.EmitAuditEvent(ctx, &event); emitErr != nil {
+		log.WithError(err).Warnf("Failed to emit %q login event, code %q: %v", events.LoginMethodHeadless, code, emitErr)
+	}
+}
+
 func emitSSOLoginFailureEvent(ctx context.Context, emitter apievents.Emitter, method string, err error, testFlow bool) {
 	code := events.UserSSOLoginFailureCode
 	if testFlow {
@@ -7076,7 +7139,7 @@ func emitSSOLoginFailureEvent(ctx context.Context, emitter apievents.Emitter, me
 	})
 
 	if emitErr != nil {
-		log.WithError(err).Warnf("Failed to emit %v login failure event.", method)
+		log.WithError(err).Warnf("Failed to emit %v login failure event: %v", method, emitErr)
 	}
 }
 
