@@ -12,8 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::errors::invalid_data_error;
-use rdp::model::error::RdpResult;
+use ironrdp_pdu::{other_err, PduResult};
 use std::convert::TryFrom;
 use std::ffi::{CStr, CString, NulError};
 use std::os::raw::c_char;
@@ -38,9 +37,9 @@ pub fn to_unicode(s: &str, with_null_term: bool) -> Vec<u8> {
 }
 
 #[allow(clippy::bind_instead_of_map)]
-pub fn from_unicode(s: Vec<u8>) -> RdpResult<String> {
+pub fn from_unicode(s: Vec<u8>) -> PduResult<String> {
     let mut with_null_terminator = WString::from_utf16le(s)
-        .or_else(|_| Err(invalid_data_error("invalid Unicode")))?
+        .or_else(|_| Err(other_err!("from_unicode", "invalid Unicode")))?
         .to_utf8();
     with_null_terminator.pop();
     let without_null_terminator = with_null_terminator;
@@ -52,9 +51,9 @@ pub fn to_utf8(s: &str) -> Vec<u8> {
     format!("{s}\x00").into_bytes()
 }
 
-pub fn from_utf8(s: Vec<u8>) -> RdpResult<String> {
+pub fn from_utf8(s: Vec<u8>) -> PduResult<String> {
     let mut with_null_terminator =
-        String::from_utf8(s).or_else(|_| Err(invalid_data_error("invalid Unicode")))?;
+        String::from_utf8(s).or_else(|_| Err(other_err!("from_utf8", "invalid Unicode")))?;
     with_null_terminator.pop();
     let without_null_terminator = with_null_terminator;
     Ok(without_null_terminator)

@@ -1,4 +1,3 @@
-use bitflags::Flags;
 use bytes::BytesMut;
 use ironrdp_cliprdr::{Cliprdr, CliprdrSvcMessages};
 use ironrdp_connector::{Config, ConnectorError, Credentials};
@@ -7,7 +6,6 @@ use ironrdp_pdu::input::mouse::PointerFlags;
 use ironrdp_pdu::input::{InputEventError, MousePdu};
 use ironrdp_pdu::nego::SecurityProtocol;
 use ironrdp_pdu::rdp::capability_sets::MajorPlatformType;
-use ironrdp_pdu::rdp::client_info::ClientInfoFlags;
 use ironrdp_pdu::rdp::RdpError;
 use ironrdp_pdu::{PduError, PduParsing};
 use ironrdp_rdpdr::pdu::RdpdrPdu;
@@ -32,12 +30,12 @@ use tokio::task::JoinError;
 pub(crate) use global::call_function_on_handle;
 
 use crate::{
-    cliprdr, handle_fastpath_pdu, handle_rdp_channel_ids, handle_remote_copy, CGOErrCode,
-    CGOKeyboardEvent, CGOMousePointerEvent, CGOPointerButton, CGOPointerWheel, CgoHandle,
+    handle_fastpath_pdu, handle_rdp_channel_ids, handle_remote_copy, CGOErrCode, CGOKeyboardEvent,
+    CGOMousePointerEvent, CGOPointerButton, CGOPointerWheel, CgoHandle,
 };
 // Export this for crate level use.
-use crate::cliprdr::{available_formats, ClipboardFn, TeleportCliprdrBackend};
-use crate::rdpdr::consts::SCARD_DEVICE_ID;
+use crate::cliprdr::{ClipboardFn, TeleportCliprdrBackend};
+use crate::rdpdr::scard::SCARD_DEVICE_ID;
 use crate::rdpdr::TeleportRdpdrBackend;
 
 pub mod global;
