@@ -963,6 +963,69 @@ label_maps:
 				},
 			},
 		},
+		{
+			description: "struct field with an override for an existing field type definition",
+			source: `
+package mypkg
+
+// Server includes information about a server registered with Teleport.
+type Server struct {
+    // Name is the name of the server.
+    Name string BACKTICKjson:"name"BACKTICK
+    // LabelMaps includes a map of strings to labels.
+    // Example YAML:
+    // ---
+    // - label1: ["my_value0", "my_value1", "my_value2"]
+    //   label2: ["my_value0", "my_value1", "my_value2"]
+    // - label3: ["my_value0", "my_value1", "my_value2"]
+    //   label4: ["my_value0", "my_value1", "my_value2"]
+    LabelMaps []map[string]mypkg.Label BACKTICKjson:"label_maps"BACKTICK
+}
+`,
+			declSources: []string{`package types
+// ServerSpecV1 includes aspects of a proxied server.
+type ServerSpecV1 struct {
+    // The address of the server.
+    Address string BACKTICKjson:"address"BACKTICK
+}`,
+				`package mypkg
+
+// Label is some more information you can add to a resource.
+type Label struct {
+  name string
+  number int
+}
+`,
+			},
+			expected: map[PackageInfo]ReferenceEntry{
+				PackageInfo{
+					DeclName:    "Server",
+					PackageName: "mypkg",
+				}: {
+					SectionName: "Server",
+					Description: "Includes information about a server registered with Teleport.",
+					SourcePath:  "myfile.go",
+					YAMLExample: `name: "string"
+label_maps: 
+- label1: ["my_value0", "my_value1", "my_value2"]
+  label2: ["my_value0", "my_value1", "my_value2"]
+- label3: ["my_value0", "my_value1", "my_value2"]
+  label4: ["my_value0", "my_value1", "my_value2"]
+`,
+					Fields: []Field{
+						Field{
+							Name:        "name",
+							Description: "The name of the server.",
+							Type:        "string"},
+						Field{
+							Name:        "label_maps",
+							Description: "Includes a map of strings to labels.",
+							Type:        "See YAML example.",
+						},
+					},
+				},
+			},
+		},
 	}
 
 	for _, tc := range cases {
