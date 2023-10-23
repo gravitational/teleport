@@ -36,9 +36,10 @@ import {
   IntegrationEnrollKind,
   userEventService,
 } from 'teleport/services/userEvent';
-import { Header, HeaderSubtitle } from 'teleport/Discover/Shared';
+import { Header } from 'teleport/Discover/Shared';
 import { DiscoverUrlLocationState } from 'teleport/Discover/useDiscover';
 import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
+
 import {
   awsRegionMap,
   Integration,
@@ -130,11 +131,30 @@ export function AwsOidc() {
     <Box pt={3}>
       <Header>Set up your AWS account</Header>
 
-      <HeaderSubtitle>
+      <Box width="800px" mb={4}>
         Instead of storing long-lived static credentials, Teleport will become a
         trusted OIDC provider with AWS to be able to request short lived
-        credentials when performing operations automatically.
-      </HeaderSubtitle>
+        credentials when performing operations automatically such as when
+        connecting{' '}
+        <RouteLink
+          to={{
+            pathname: `${cfg.routes.root}/discover`,
+            state: { searchKeywords: 'ec2' },
+          }}
+        >
+          AWS EC2
+        </RouteLink>{' '}
+        or{' '}
+        <RouteLink
+          to={{
+            pathname: `${cfg.routes.root}/discover`,
+            state: { searchKeywords: 'rds' },
+          }}
+        >
+          AWS RDS
+        </RouteLink>{' '}
+        instances during resource enrollment.
+      </Box>
 
       <Validation>
         {({ validator }) => (
@@ -303,3 +323,12 @@ const requiredRoleArn = (roleName: string) => (roleArn: string) => () => {
       'invalid role ARN, double check you copied and pasted the correct output',
   };
 };
+
+const RouteLink = styled(InternalRouteLink)`
+  color: ${({ theme }) => theme.colors.buttons.link.default};
+
+  &:hover,
+  &:focus {
+    color: ${({ theme }) => theme.colors.buttons.link.hover};
+  }
+`;
