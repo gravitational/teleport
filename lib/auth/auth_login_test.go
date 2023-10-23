@@ -385,9 +385,8 @@ func TestCreateAuthenticateChallenge_mfaVerification(t *testing.T) {
 		},
 	})
 	require.NoError(t, err, "NewRole(prod)")
-	require.NoError(t,
-		adminClient.UpsertRole(ctx, prodRole),
-		"UpsertRole(%q)", prodRole.GetName())
+	prodRole, err = adminClient.UpsertRole(ctx, prodRole)
+	require.NoError(t, err, "UpsertRole(%q)", prodRole.GetName())
 
 	// Create a user with MFA devices...
 	userCreds, err := createUserWithSecondFactors(testServer)

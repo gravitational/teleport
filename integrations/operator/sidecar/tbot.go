@@ -217,7 +217,7 @@ func CreateAndBootstrapBot(ctx context.Context, opts Options) (*Bot, *proto.Feat
 		return nil, nil, trace.WrapWithMessage(err, "failed to create role")
 	}
 
-	if err := authClient.UpsertRole(ctx, role); err != nil {
+	if _, err := authClient.UpsertRole(ctx, role); err != nil {
 		return nil, nil, trace.WrapWithMessage(err, "failed to create operator's role")
 	}
 	log.Debug("Operator role created")

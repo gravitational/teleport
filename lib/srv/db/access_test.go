@@ -2034,7 +2034,7 @@ func (c *testContext) createUserAndRole(ctx context.Context, t testing.TB, userN
 	for _, roleOpt := range roleOpts {
 		roleOpt(role)
 	}
-	err = c.tlsServer.Auth().UpsertRole(ctx, role)
+	role, err = c.tlsServer.Auth().UpsertRole(ctx, role)
 	require.NoError(t, err)
 	return user, role
 }

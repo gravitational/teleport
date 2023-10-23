@@ -300,7 +300,7 @@ export class FeatureUsers implements TeleportFeature {
     title: 'Manage Users',
     path: cfg.routes.users,
     exact: true,
-    component: Users,
+    component: () => <Users />,
   };
 
   hasAccess(flags: FeatureFlags): boolean {
@@ -315,6 +315,10 @@ export class FeatureUsers implements TeleportFeature {
       return cfg.getUsersRoute();
     },
   };
+
+  getRoute() {
+    return this.route;
+  }
 }
 
 export class FeatureRoles implements TeleportFeature {

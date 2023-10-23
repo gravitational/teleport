@@ -17,7 +17,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        branch: [ 'master', 'branch/v12', 'branch/v13', 'branch/v14' ]
+        branch: [ 'master' ] # release branches are scanned in teleport-sec-scan repos (see RFD 147)
         language: [ 'go', 'javascript' ]
 
     steps:

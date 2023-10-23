@@ -42,6 +42,10 @@ type ExternalCloudAudits interface {
 
 	// UpsertDraftExternalCloudAudit upserts the draft external cloud audit resource.
 	UpsertDraftExternalCloudAudit(context.Context, *externalcloudaudit.ExternalCloudAudit) (*externalcloudaudit.ExternalCloudAudit, error)
+	// GenerateDraftExternalCloudAudit create a new draft external cloud audit
+	// resource with randomized resource names and upserts it as the current
+	// draft.
+	GenerateDraftExternalCloudAudit(ctx context.Context, integrationName, region string) (*externalcloudaudit.ExternalCloudAudit, error)
 	// DeleteDraftExternalCloudAudit deletes the draft external cloud audit resource.
 	DeleteDraftExternalCloudAudit(context.Context) error
 	// PromoteToClusterExternalCloudAudit promotes draft to cluster external
