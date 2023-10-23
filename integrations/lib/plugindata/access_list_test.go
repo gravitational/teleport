@@ -30,7 +30,7 @@ var sampleAccessListNotificationData = AccessListNotificationData{
 
 func TestEncodeAccessListNotificationData(t *testing.T) {
 	dataMap, err := EncodeAccessListNotificationData(sampleAccessListNotificationData)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Len(t, dataMap, 2)
 	assert.Equal(t, map[string]string{
 		"un_user-foo":   sampleAccessListNotificationData.UserNotifications["user-foo"].Format(time.RFC3339Nano),
@@ -43,21 +43,21 @@ func TestDecodeAccessListNotificationData(t *testing.T) {
 		"un_user-foo":   sampleAccessListNotificationData.UserNotifications["user-foo"].Format(time.RFC3339Nano),
 		"un_user-foo-2": sampleAccessListNotificationData.UserNotifications["user-foo-2"].Format(time.RFC3339Nano),
 	})
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, sampleAccessListNotificationData, pluginData)
 }
 
 func TestEncodeEmptyAccessListNotificationtData(t *testing.T) {
 	dataMap, err := EncodeAccessListNotificationData(AccessListNotificationData{})
-	assert.Nil(t, err)
-	assert.Len(t, dataMap, 0)
+	assert.NoError(t, err)
+	assert.Empty(t, dataMap)
 }
 
 func TestDecodeEmptyAccessListNotificationtData(t *testing.T) {
 	decoded, err := DecodeAccessListNotificationData(nil)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Empty(t, decoded)
 	decoded, err = DecodeAccessListNotificationData(make(map[string]string))
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Empty(t, decoded)
 }

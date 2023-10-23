@@ -268,7 +268,7 @@ func (a *BaseApp) notifyForAccessListReviews(ctx context.Context, accessList *ac
 	for _, owner := range accessList.Spec.Owners {
 		recipient, err := a.bot.FetchRecipient(ctx, owner.Name)
 		if err != nil {
-			log.WithError(err).Debugf("error getting recipient %s", owner.Name)
+			log.Debugf("error getting recipient %s", owner.Name)
 			continue
 		}
 		allRecipients[owner.Name] = *recipient
@@ -290,7 +290,7 @@ func (a *BaseApp) notifyForAccessListReviews(ctx context.Context, accessList *ac
 
 	// Error is okay so long as it's already exists.
 	if err != nil && !trace.IsAlreadyExists(err) {
-		return trace.Wrap(err, "error during create")
+		return trace.Wrap(err, "during create")
 	}
 
 	// Calculate weeks from start.

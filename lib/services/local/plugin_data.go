@@ -123,7 +123,6 @@ func (p *PluginDataService) UpdatePluginData(ctx context.Context, params types.P
 }
 
 func (p *PluginDataService) updatePluginData(ctx context.Context, params types.PluginDataUpdateParams) error {
-	retryPeriod := retryPeriodMs * time.Millisecond
 	retry, err := retryutils.NewLinear(retryutils.LinearConfig{
 		Step: retryPeriod / 7,
 		Max:  retryPeriod,

@@ -70,7 +70,6 @@ func (s *DynamicAccessService) SetAccessRequestState(ctx context.Context, params
 	if err := params.Check(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	retryPeriod := retryPeriodMs * time.Millisecond
 	retry, err := retryutils.NewLinear(retryutils.LinearConfig{
 		Step: retryPeriod / 7,
 		Max:  retryPeriod,
@@ -139,7 +138,6 @@ func (s *DynamicAccessService) ApplyAccessReview(ctx context.Context, params typ
 	if err := params.Check(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	retryPeriod := retryPeriodMs * time.Millisecond
 	retry, err := retryutils.NewLinear(retryutils.LinearConfig{
 		Step: retryPeriod / 7,
 		Max:  retryPeriod,
@@ -383,5 +381,5 @@ const (
 	accessRequestsPrefix         = "access_requests"
 	accessRequestPromotionPrefix = "access_request_promotions"
 	maxCmpAttempts               = 7
-	retryPeriodMs                = 2048
+	retryPeriod                  = 2048 * time.Millisecond
 )
