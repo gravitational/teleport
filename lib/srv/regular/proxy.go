@@ -302,9 +302,12 @@ type checkedPrefixReader struct {
 }
 
 func (c *checkedPrefixReader) Read(b []byte) (int, error) {
-	// If pointer reached end of required prefix the check is done.
 	if len(c.requiredPrefix) == c.requiredPointer {
+		// If pointer reached end of required prefix the check was already successful.
 		return c.ReadWriteCloser.Read(b)
+	} else if c.requiredPointer < 0 {
+		// If it's negative, it means check has already failed
+		return 0, trace.AccessDenied("required prefix %q was not found", c.requiredPrefix)
 	}
 
 	n, err := c.ReadWriteCloser.Read(b)
@@ -316,6 +319,7 @@ func (c *checkedPrefixReader) Read(b []byte) (int, error) {
 	}
 
 	if !bytes.HasPrefix(big, small) {
+		c.requiredPointer = -1
 		return n, trace.AccessDenied("required prefix %q was not found", c.requiredPrefix)
 	}
 
