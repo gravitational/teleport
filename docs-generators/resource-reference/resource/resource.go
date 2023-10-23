@@ -495,21 +495,24 @@ func makeFieldTableInfo(fields []rawField) ([]Field, error) {
 	var result []Field
 	for _, field := range fields {
 		var desc string
+		var typ string
 		if strings.Contains(field.doc, yamlExampleDelimeter) {
 			sides := strings.Split(field.doc, yamlExampleDelimeter)
 			if len(sides) != 2 {
 				return nil, errors.New("malformed example YAML in description: " + field.doc)
 			}
 			desc = sides[0]
+			typ = "See YAML example."
 		} else {
 			desc = field.doc
+			typ = field.kind.formatForTable()
 		}
 		desc = strings.Trim(strings.ReplaceAll(desc, "\n", " "), " ")
 
 		result = append(result, Field{
 			Description: descriptionWithoutName(desc, field.name),
 			Name:        field.jsonName,
-			Type:        field.kind.formatForTable(),
+			Type:        typ,
 		})
 	}
 	return result, nil
