@@ -35,14 +35,15 @@ const (
 
 // AccessRequestData represents generic plugin data required for access request processing
 type AccessRequestData struct {
-	User              string
-	Roles             []string
-	RequestReason     string
-	ReviewsCount      int
-	ResolutionTag     ResolutionTag
-	ResolutionReason  string
-	SystemAnnotations map[string][]string
-	Resources         []string
+	User               string
+	Roles              []string
+	RequestReason      string
+	ReviewsCount       int
+	ResolutionTag      ResolutionTag
+	ResolutionReason   string
+	SystemAnnotations  map[string][]string
+	Resources          []string
+	SuggestedReviewers []string
 }
 
 // DecodeAccessRequestData deserializes a string map to PluginData struct.
@@ -74,6 +75,17 @@ func DecodeAccessRequestData(dataMap map[string]string) (data AccessRequestData,
 		}
 		if len(data.SystemAnnotations) == 0 {
 			data.SystemAnnotations = nil
+		}
+	}
+
+	if str, ok := dataMap["suggested_reviewers"]; ok {
+		err = json.Unmarshal([]byte(str), &data.SuggestedReviewers)
+		if err != nil {
+			err = trace.Wrap(err)
+			return
+		}
+		if len(data.SuggestedReviewers) == 0 {
+			data.SuggestedReviewers = nil
 		}
 	}
 	return
@@ -110,6 +122,14 @@ func EncodeAccessRequestData(data AccessRequestData) (map[string]string, error) 
 			return nil, trace.Wrap(err)
 		}
 		result["system_annotations"] = string(annotaions)
+	}
+
+	if len(data.SuggestedReviewers) != 0 {
+		reviewers, err := json.Marshal(data.SuggestedReviewers)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		result["suggested_reviewers"] = string(reviewers)
 	}
 	return result, nil
 }
