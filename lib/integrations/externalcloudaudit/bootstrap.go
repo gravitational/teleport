@@ -235,7 +235,7 @@ type createAthenaWorkgroupClient interface {
 	CreateWorkGroup(ctx context.Context, params *athena.CreateWorkGroupInput, optFns ...func(*athena.Options)) (*athena.CreateWorkGroupOutput, error)
 }
 
-// ensureAthenaWorkgroup ensures an athena workgroup in which to run the athena sql queries in
+// createAthenaWorkgroup creates an athena workgroup in which to run the athena sql queries
 func createAthenaWorkgroup(ctx context.Context, clt createAthenaWorkgroupClient, workgroup string) error {
 	_, err := clt.CreateWorkGroup(ctx, &athena.CreateWorkGroupInput{
 		Name:          &workgroup,
