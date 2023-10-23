@@ -8,7 +8,7 @@ on:
 
 jobs:
   lint:
-    name: no-op
+    name: Lint (Go)
     runs-on: ubuntu-latest
     steps:
       - name: No-op
