@@ -71,13 +71,6 @@ endif
 DOCKERFLAGS := $(DOCKERFLAGS) -v $(GOCACHE):/go/cache -e GOCACHE=/go/cache
 endif
 
-ifeq ("$(RUNTIME_ARCH)","arm64")
-	# devtoolset-11 is not available on CentOS 7 aarch64
-	DEVTOOLSET ?= devtoolset-10
-else
-	DEVTOOLSET ?= devtoolset-11
-endif
-
 #
 # Build 'teleport' release inside a docker container
 #
@@ -177,6 +170,7 @@ buildbox-centos7-fips:
 		--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
 		--build-arg RUST_VERSION=$(RUST_VERSION) \
 		--build-arg WASM_PACK_VERSION=$(WASM_PACK_VERSION) \
+		--build-arg DEVTOOLSET=$(DEVTOOLSET) \
 		--build-arg LIBBPF_VERSION=$(LIBBPF_VERSION) \
 		--cache-from $(BUILDBOX_CENTOS7_FIPS) \
 		--tag $(BUILDBOX_CENTOS7_FIPS) -f Dockerfile-centos7-fips .
@@ -533,8 +527,10 @@ build-centos7-assets:
 #################################################################################
 
 GCC_VERSION ?= 10.4.0
-CLANG_BPF_VERSION ?= 10.0.1
-CLANG_FIPS_VERSION ?= 7.0.1
+# This version of Clang is explicitly required for FIPS compliance when building BoringSSL.
+# For more information please refer to the section 12. Guidance and Secure Operation of:
+# https://csrc.nist.gov/CSRC/media/projects/cryptographic-module-validation-program/documents/security-policies/140sp4407.pdf
+CLANG_VERSION ?= 12.0.0
 BUILDBOX_PREFIX ?= ghcr.io/gravitational
 
 #
@@ -552,28 +548,14 @@ build-multiarch-base:
 		--file Dockerfile-multiarch-base .
 
 #
-# Build Dockerfile-multiarch-clang on GHA with clang-10, based on -base
+# Build Dockerfile-multiarch-clang on GHA with clang-12, based on -base
 #
-.PHONY:build-multiarch-clang10
-build-multiarch-clang10: BUILDBOX=$(BUILDBOX_PREFIX)/buildbox-multiarch-clang10:$(BUILDBOX_VERSION)-$(ARCH)
-build-multiarch-clang10:
+.PHONY:build-multiarch-clang12
+build-multiarch-clang12: BUILDBOX=$(BUILDBOX_PREFIX)/buildbox-multiarch-clang12:$(BUILDBOX_VERSION)-$(ARCH)
+build-multiarch-clang12:
 	DOCKER_BUILDKIT=1 docker build --platform=$(PLATFORM) \
 		--cache-from type=gha \
-		--build-arg CLANG_VERSION=$(CLANG_BPF_VERSION) \
-		--build-arg BUILDBOX_VERSION=$(BUILDBOX_VERSION) \
-		--build-arg BUILDBOX_PREFIX=$(BUILDBOX_PREFIX) \
-		--tag $(BUILDBOX) \
-		--file Dockerfile-multiarch-clang .
-
-#
-# Build Dockerfile-multiarch-clang on GHA with clang-7, based on -base
-#
-.PHONY:build-multiarch-clang7
-build-multiarch-clang7: BUILDBOX=$(BUILDBOX_PREFIX)/buildbox-multiarch-clang7:$(BUILDBOX_VERSION)-$(ARCH)
-build-multiarch-clang7:
-	DOCKER_BUILDKIT=1 docker build --platform=$(PLATFORM) \
-		--cache-from type=gha \
-		--build-arg CLANG_VERSION=$(CLANG_FIPS_VERSION) \
+		--build-arg CLANG_VERSION=$(CLANG_VERSION) \
 		--build-arg BUILDBOX_VERSION=$(BUILDBOX_VERSION) \
 		--build-arg BUILDBOX_PREFIX=$(BUILDBOX_PREFIX) \
 		--tag $(BUILDBOX) \

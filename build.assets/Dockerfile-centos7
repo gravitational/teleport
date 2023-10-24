@@ -25,9 +25,9 @@ RUN yum groupinstall -y 'Development Tools' && \
     ${DEVTOOLSET}-make && \
     yum clean all
 
-RUN wget https://github.com/git/git/archive/refs/tags/v2.42.0.tar.gz && \
-    tar xf v2.42.0.tar.gz && \
-    cd git-2.42.0/ && \
+RUN git clone --depth=1 https://github.com/git/git.git -b v2.42.0 && \
+    cd git && \
+    [ "$(git rev-parse HEAD)" = '43c8a30d150ecede9709c1f2527c8fba92c65f40' ] && \
     scl enable ${DEVTOOLSET} "make configure && \
     ./configure --prefix=/usr/local && \
     make -j"$(nproc)" all && \
@@ -180,7 +180,7 @@ RUN yum groupinstall -y 'Development Tools' && \
     yum update -y && \
     yum -y install centos-release-scl-rh && \
     yum install -y \
-    #required by libbpf
+    # required by libbpf
     centos-release-scl \
     # required by libbpf
     ${DEVTOOLSET}-* \
