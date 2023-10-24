@@ -30,7 +30,6 @@ import (
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 
@@ -49,13 +48,14 @@ import (
 
 type proxyKubeCommand struct {
 	*kingpin.CmdClause
-	kubeClusters      []string
-	siteName          string
-	impersonateUser   string
-	impersonateGroups []string
-	namespace         string
-	port              string
-	format            string
+	kubeClusters        []string
+	siteName            string
+	impersonateUser     string
+	impersonateGroups   []string
+	namespace           string
+	port                string
+	format              string
+	overrideContextName string
 
 	labels              string
 	predicateExpression string
@@ -76,6 +76,11 @@ func newProxyKubeCommand(parent *kingpin.CmdClause) *proxyKubeCommand {
 	c.Flag("format", envVarFormatFlagDescription()).Short('f').Default(envVarDefaultFormat()).EnumVar(&c.format, envVarFormats...)
 	c.Flag("labels", labelHelp).StringVar(&c.labels)
 	c.Flag("query", queryHelp).StringVar(&c.predicateExpression)
+	c.Flag("set-context-name", "Define a custom context name or template.").
+		// Use the default context name template if --set-context-name is not set.
+		// This works as an hint to the user that the context name can be customized.
+		Default(kubeconfig.ContextName("{{.ClusterName}}", "{{.KubeName}}")).
+		StringVar(&c.overrideContextName)
 	return c
 }
 
@@ -83,6 +88,14 @@ func (c *proxyKubeCommand) run(cf *CLIConf) error {
 	cf.Labels = c.labels
 	cf.PredicateExpression = c.predicateExpression
 	cf.SiteName = c.siteName
+
+	if len(c.kubeClusters) > 1 || cf.Labels != "" || cf.PredicateExpression != "" {
+		err := kubeconfig.CheckContextOverrideTemplate(c.overrideContextName)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
 	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
@@ -96,7 +109,7 @@ func (c *proxyKubeCommand) run(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	localProxy, err := makeKubeLocalProxy(cf, tc, clusters, defaultConfig, c.port)
+	localProxy, err := makeKubeLocalProxy(cf, tc, clusters, defaultConfig, c.port, c.overrideContextName)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -278,7 +291,7 @@ type kubeLocalProxy struct {
 	forwardProxy *alpnproxy.ForwardProxy
 }
 
-func makeKubeLocalProxy(cf *CLIConf, tc *client.TeleportClient, clusters kubeconfig.LocalProxyClusters, originalKubeConfig *clientcmdapi.Config, port string) (*kubeLocalProxy, error) {
+func makeKubeLocalProxy(cf *CLIConf, tc *client.TeleportClient, clusters kubeconfig.LocalProxyClusters, originalKubeConfig *clientcmdapi.Config, port, overrideContext string) (*kubeLocalProxy, error) {
 	certs, err := loadKubeUserCerts(cf.Context, tc, clusters)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -314,9 +327,16 @@ func makeKubeLocalProxy(cf *CLIConf, tc *client.TeleportClient, clusters kubecon
 		localCAs:  cas,
 	}
 
+	kubeMiddleware := alpnproxy.NewKubeMiddleware(alpnproxy.KubeMiddlewareConfig{
+		Certs:        certs,
+		CertReissuer: kubeProxy.getCertReissuer(tc),
+		Headless:     cf.Headless,
+		Logger:       log,
+	})
+
 	localProxy, err := alpnproxy.NewLocalProxy(
 		makeBasicLocalProxyConfig(cf, tc, lpListener),
-		alpnproxy.WithHTTPMiddleware(alpnproxy.NewKubeMiddleware(certs, kubeProxy.getCertReissuer(tc), clockwork.NewRealClock(), log)),
+		alpnproxy.WithHTTPMiddleware(kubeMiddleware),
 		alpnproxy.WithSNI(client.GetKubeTLSServerName(tc.WebProxyHost())),
 		alpnproxy.WithClusterCAs(cf.Context, tc.RootClusterCACertPool),
 	)
@@ -342,7 +362,7 @@ func makeKubeLocalProxy(cf *CLIConf, tc *client.TeleportClient, clusters kubecon
 		}
 	}
 
-	kubeProxy.kubeconfig, err = kubeProxy.createKubeConfig(originalKubeConfig)
+	kubeProxy.kubeconfig, err = kubeProxy.createKubeConfig(originalKubeConfig, overrideContext)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -389,7 +409,7 @@ func (k *kubeLocalProxy) KubeConfigPath() string {
 }
 
 // createKubeConfig creates local proxy settings for the ephemeral kubeconfig.
-func (k *kubeLocalProxy) createKubeConfig(defaultConfig *clientcmdapi.Config) (*clientcmdapi.Config, error) {
+func (k *kubeLocalProxy) createKubeConfig(defaultConfig *clientcmdapi.Config, overrideContext string) (*clientcmdapi.Config, error) {
 	if defaultConfig == nil {
 		return nil, trace.BadParameter("empty default config")
 	}
@@ -399,6 +419,7 @@ func (k *kubeLocalProxy) createKubeConfig(defaultConfig *clientcmdapi.Config) (*
 		LocalProxyCAs:           map[string][]byte{},
 		ClientKeyData:           k.clientKey.PrivateKeyPEM(),
 		Clusters:                k.clusters,
+		OverrideContext:         overrideContext,
 	}
 	for _, kubeCluster := range k.clusters {
 		ca, ok := k.localCAs[kubeCluster.TeleportCluster]
@@ -413,7 +434,8 @@ func (k *kubeLocalProxy) createKubeConfig(defaultConfig *clientcmdapi.Config) (*
 		values.LocalProxyCAs[kubeCluster.TeleportCluster] = pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: x509Cert.Raw})
 	}
 
-	return kubeconfig.CreateLocalProxyConfig(defaultConfig, values), nil
+	cfg, err := kubeconfig.CreateLocalProxyConfig(defaultConfig, values)
+	return cfg, trace.Wrap(err)
 }
 
 // WriteKubeConfig saves local proxy settings in the temporary kubeconfig.

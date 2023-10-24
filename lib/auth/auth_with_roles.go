@@ -1396,10 +1396,27 @@ func (a *ServerWithRoles) KeepAliveServer(ctx context.Context, handle types.Keep
 	return a.authServer.KeepAliveServer(ctx, handle)
 }
 
+// NewStream returns a new event stream (equivalent to NewWatcher, but with slightly different
+// performance characteristics).
+func (a *ServerWithRoles) NewStream(ctx context.Context, watch types.Watch) (stream.Stream[types.Event], error) {
+	if err := a.authorizeWatchRequest(&watch); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return a.authServer.NewStream(ctx, watch)
+}
+
 // NewWatcher returns a new event watcher
 func (a *ServerWithRoles) NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error) {
+	if err := a.authorizeWatchRequest(&watch); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return a.authServer.NewWatcher(ctx, watch)
+}
+
+// authorizeWatchRequest performs permission checks and filtering on incoming watch requests.
+func (a *ServerWithRoles) authorizeWatchRequest(watch *types.Watch) error {
 	if len(watch.Kinds) == 0 {
-		return nil, trace.AccessDenied("can't setup global watch")
+		return trace.AccessDenied("can't setup global watch")
 	}
 
 	validKinds := make([]types.WatchKind, 0, len(watch.Kinds))
@@ -1409,14 +1426,14 @@ func (a *ServerWithRoles) NewWatcher(ctx context.Context, watch types.Watch) (ty
 			if watch.AllowPartialSuccess {
 				continue
 			}
-			return nil, trace.Wrap(err)
+			return trace.Wrap(err)
 		}
 
 		validKinds = append(validKinds, kind)
 	}
 
 	if len(validKinds) == 0 {
-		return nil, trace.BadParameter("none of the requested kinds can be watched")
+		return trace.BadParameter("none of the requested kinds can be watched")
 	}
 
 	watch.Kinds = validKinds
@@ -1426,7 +1443,8 @@ func (a *ServerWithRoles) NewWatcher(ctx context.Context, watch types.Watch) (ty
 	case a.hasBuiltinRole(types.RoleNode):
 		watch.QueueSize = defaults.NodeQueueSize
 	}
-	return a.authServer.NewWatcher(ctx, watch)
+
+	return nil
 }
 
 // hasWatchPermissionForKind checks the permissions for data of each kind.

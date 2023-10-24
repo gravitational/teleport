@@ -14,26 +14,34 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package etcdbk
+package utils
 
 import "sync/atomic"
 
-// roundRobin is a helper for distributing load across multiple resources in a round-robin
-// fashion (used to implement simple client pooling).
-type roundRobin[T any] struct {
-	ct    *atomic.Uint64
+// RoundRobin is a helper for distributing load across multiple resources in a round-robin
+// fashion.
+type RoundRobin[T any] struct {
+	ct    atomic.Uint64
 	items []T
 }
 
-func newRoundRobin[T any](items []T) roundRobin[T] {
-	return roundRobin[T]{
-		ct:    new(atomic.Uint64),
+// NewRoundRobin creates a new round-robin inst
+func NewRoundRobin[T any](items []T) *RoundRobin[T] {
+	return &RoundRobin[T]{
 		items: items,
 	}
 }
 
-func (r roundRobin[T]) Next() T {
+// Next gets the next item that is up for use.
+func (r *RoundRobin[T]) Next() T {
 	n := r.ct.Add(1) - 1
 	l := uint64(len(r.items))
 	return r.items[int(n%l)]
+}
+
+// ForEach applies the supplied closure to each item.
+func (r *RoundRobin[T]) ForEach(fn func(T)) {
+	for _, item := range r.items {
+		fn(item)
+	}
 }
