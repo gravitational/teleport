@@ -21,7 +21,6 @@ package httplib
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"mime"
 	"net"
 	"net/http"
@@ -268,7 +267,6 @@ func OriginLocalRedirectURI(redirectURL string) (string, error) {
 	} else if strings.Contains(resultURI, "@") {
 		return "", trace.BadParameter("Basic Auth not allowed in redirect")
 	}
-	fmt.Printf("Valid redirect: %s\n", resultURI)
 	return resultURI, nil
 }
 

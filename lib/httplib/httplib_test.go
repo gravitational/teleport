@@ -374,43 +374,43 @@ func TestOriginLocalRedirectURI(t *testing.T) {
 		name     string
 		input    string
 		expected string
-		wantErr  bool
+		errCheck require.ErrorAssertionFunc
 	}{
 		{
 			name:     "empty",
 			input:    "",
 			expected: "/",
-			wantErr:  false,
+			errCheck: require.NoError,
 		},
 		{
 			name:     "simple path",
 			input:    "/foo",
 			expected: "/foo",
-			wantErr:  false,
+			errCheck: require.NoError,
 		},
 		{
 			name:     "host only",
 			input:    "https://localhost",
 			expected: "/",
-			wantErr:  false,
+			errCheck: require.NoError,
 		},
 		{
 			name:     "host and simple path",
 			input:    "https://localhost/bar",
 			expected: "/bar",
-			wantErr:  false,
+			errCheck: require.NoError,
 		},
 		{
 			name:     "double slash redirect with host",
 			input:    "https://localhost//goteleport.com/",
 			expected: "",
-			wantErr:  true,
+			errCheck: require.Error,
 		},
 		{
 			name:     "basic auth redirect with host",
 			input:    "https://localhost/@goteleport.com/",
 			expected: "",
-			wantErr:  true,
+			errCheck: require.Error,
 		},
 	}
 
@@ -418,11 +418,7 @@ func TestOriginLocalRedirectURI(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			result, err := OriginLocalRedirectURI(tc.input)
 			require.Equal(t, tc.expected, result)
-			if tc.wantErr {
-				require.Error(t, err)
-			} else {
-				require.NoError(t, err)
-			}
+			tc.errCheck(t, err)
 		})
 	}
 }
