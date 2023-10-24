@@ -1086,7 +1086,7 @@ func getAuthSettings(ctx context.Context, authClient auth.ClientI) (webclient.Au
 // traces forwards spans from the web ui to the upstream collector configured for the proxy. If tracing is
 // disabled then the forwarding is a noop.
 func (h *Handler) traces(w http.ResponseWriter, r *http.Request, _ httprouter.Params, _ *SessionContext) (interface{}, error) {
-	body, err := io.ReadAll(io.LimitReader(r.Body, teleport.MaxHTTPRequestSize))
+	body, err := utils.ReadAtMost(r.Body, teleport.MaxHTTPResponseSize)
 	if err != nil {
 		h.log.WithError(err).Error("Failed to read traces request")
 		w.WriteHeader(http.StatusBadRequest)

@@ -21,7 +21,6 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"os"
 	"os/exec"
@@ -31,8 +30,10 @@ import (
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // Metadata contains the instance "system" metadata.
@@ -220,7 +221,7 @@ func (c *fetchConfig) fetchContainerOrchestrator() string {
 	}
 	defer resp.Body.Close()
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := utils.ReadAtMost(resp.Body, teleport.MaxHTTPResponseSize)
 	if err != nil {
 		return ""
 	}
@@ -272,7 +273,7 @@ func (c *fetchConfig) awsHTTPGetSuccess() bool {
 	}
 	defer resp.Body.Close()
 
-	imdsToken, err := io.ReadAll(resp.Body)
+	imdsToken, err := utils.ReadAtMost(resp.Body, teleport.MaxHTTPResponseSize)
 	if err != nil {
 		return false
 	}
@@ -355,7 +356,7 @@ func (c *fetchConfig) httpReqSuccess(req *http.Request) bool {
 // boolEnvIsTrue returns true if the environment variable is set to a value
 // that represent true (e.g. true, yes, y, ...).
 func (c *fetchConfig) boolEnvIsTrue(name string) bool {
-	b, err := utils.ParseBool(c.getenv(name))
+	b, err := apiutils.ParseBool(c.getenv(name))
 	if err != nil {
 		return false
 	}
