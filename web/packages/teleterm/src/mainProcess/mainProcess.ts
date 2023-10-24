@@ -33,7 +33,11 @@ import {
 import { FileStorage, RuntimeSettings } from 'teleterm/types';
 import { subscribeToFileStorageEvents } from 'teleterm/services/fileStorage';
 import { LoggerColor, createFileLoggerService } from 'teleterm/services/logger';
-import { ChildProcessAddresses } from 'teleterm/mainProcess/types';
+import {
+  ChildProcessAddresses,
+  MainProcessIpc,
+  RendererIpc,
+} from 'teleterm/mainProcess/types';
 import { getAssetPath } from 'teleterm/mainProcess/runtimeSettings';
 import { RootClusterUri } from 'teleterm/ui/uri';
 import Logger from 'teleterm/logger';
@@ -104,7 +108,7 @@ export default class MainProcess {
           return;
         }
         window.webContents.send(
-          'renderer-connect-my-computer-agent-update',
+          RendererIpc.ConnectMyComputerAgentUpdate,
           rootClusterUri,
           state
         );
@@ -202,7 +206,7 @@ export default class MainProcess {
   }
 
   private _initIpc() {
-    ipcMain.on('main-process-get-runtime-settings', event => {
+    ipcMain.on(MainProcessIpc.GetRuntimeSettings, event => {
       event.returnValue = this.settings;
     });
 

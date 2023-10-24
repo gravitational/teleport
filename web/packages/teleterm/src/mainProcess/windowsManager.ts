@@ -28,7 +28,11 @@ import {
 
 import Logger from 'teleterm/logger';
 import { FileStorage } from 'teleterm/services/fileStorage';
-import { RuntimeSettings } from 'teleterm/mainProcess/types';
+import {
+  RendererIpc,
+  RuntimeSettings,
+  WindowsManagerIpc,
+} from 'teleterm/mainProcess/types';
 import { darkTheme, lightTheme } from 'teleterm/ui/ThemeProvider/theme';
 import { DeepLinkParseResult } from 'teleterm/deepLinks';
 
@@ -66,7 +70,7 @@ export class WindowsManager {
     });
 
     ipcMain.once(
-      'windows-manager-signal-user-interface-readiness',
+      WindowsManagerIpc.SignalUserInterfaceReadiness,
       (event, args) => {
         if (args.success) {
           this.frontendAppInit.resolve();
@@ -137,7 +141,7 @@ export class WindowsManager {
     });
 
     nativeTheme.on('updated', () => {
-      window.webContents.send('renderer-native-theme-update', {
+      window.webContents.send(RendererIpc.NativeThemeUpdate, {
         shouldUseDarkColors: nativeTheme.shouldUseDarkColors,
       });
     });
@@ -178,7 +182,7 @@ export class WindowsManager {
     }
 
     this.window.webContents.send(
-      'renderer-deep-link-launch',
+      RendererIpc.DeepLinkLaunch,
       deepLinkParseResult
     );
   }
