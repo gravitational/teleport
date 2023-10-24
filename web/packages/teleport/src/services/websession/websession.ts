@@ -33,9 +33,9 @@ const logger = Logger.create('services/session');
 let sesstionCheckerTimerId = null;
 
 const session = {
-  logout() {
+  logout(rememberLocation = false) {
     api.delete(cfg.api.webSessionPath).finally(() => {
-      history.goToLogin();
+      history.goToLogin(rememberLocation);
     });
 
     this.clear();
@@ -75,6 +75,11 @@ const session = {
     return this._renewToken(req).then(token => token.sessionExpires);
   },
 
+  /**
+   * isValid first extracts bearer token from HTML if
+   * not already extracted and sets in the local storage.
+   * Then checks if token is not expired.
+   */
   isValid() {
     return this._timeLeft() > 0;
   },
@@ -190,12 +195,20 @@ const session = {
   },
 
   _fetchStatus() {
-    api.get(cfg.api.userStatusPath).catch(err => {
+    this.validateCookieAndSession().catch(err => {
       // this indicates that session is no longer valid (caused by server restarts or updates)
       if (err.response.status == 403) {
         this.logout();
       }
     });
+  },
+
+  /**
+   * validateCookieAndSessionFromBackend makes an authenticated request
+   * which checks if the cookie and the user session are still valid.
+   */
+  validateCookieAndSession() {
+    return api.get(cfg.api.userStatusPath);
   },
 
   _startTokenChecker() {
