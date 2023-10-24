@@ -237,3 +237,30 @@ export enum FileStorageEventType {
   GetFilePath = 'GetFilePath',
   GetFileLoadingError = 'GetFileLoadingError',
 }
+
+/*
+ * IPC channel enums
+ *
+ * The enum values are used as IPC channels [1], so they should be unique across all enums. That's
+ * why the values are prefixed with the recipient name.
+ *
+ * The enums are grouped by the recipient, e.g. RendererIpc contains messages sent from the main
+ * process to the renderer, WindowsManagerIpc contains messages sent from the renderer to the
+ * windows manager (which lives in the main process).
+ *
+ * [1] https://www.electronjs.org/docs/latest/tutorial/ipc
+ */
+
+export enum RendererIpc {
+  NativeThemeUpdate = 'renderer-native-theme-update',
+  ConnectMyComputerAgentUpdate = 'renderer-connect-my-computer-agent-update',
+  DeepLinkLaunch = 'renderer-deep-link-launch',
+}
+
+export enum MainProcessIpc {
+  GetRuntimeSettings = 'main-process-get-runtime-settings',
+}
+
+export enum WindowsManagerIpc {
+  SignalUserInterfaceReadiness = 'windows-manager-signal-user-interface-readiness',
+}

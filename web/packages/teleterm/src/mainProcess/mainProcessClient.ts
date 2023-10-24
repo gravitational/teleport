@@ -29,6 +29,9 @@ import {
   MainProcessClient,
   ChildProcessAddresses,
   AgentProcessState,
+  MainProcessIpc,
+  RendererIpc,
+  WindowsManagerIpc,
 } from './types';
 
 export default function createMainProcessClient(): MainProcessClient {
@@ -39,10 +42,13 @@ export default function createMainProcessClient(): MainProcessClient {
     subscribeToNativeThemeUpdate: listener => {
       const onThemeChange = (_, value: { shouldUseDarkColors: boolean }) =>
         listener(value);
-      const channel = 'renderer-native-theme-update';
-      ipcRenderer.addListener(channel, onThemeChange);
+      ipcRenderer.addListener(RendererIpc.NativeThemeUpdate, onThemeChange);
       return {
-        cleanup: () => ipcRenderer.removeListener(channel, onThemeChange),
+        cleanup: () =>
+          ipcRenderer.removeListener(
+            RendererIpc.NativeThemeUpdate,
+            onThemeChange
+          ),
       };
     },
     subscribeToAgentUpdate: (rootClusterUri, listener) => {
@@ -55,21 +61,27 @@ export default function createMainProcessClient(): MainProcessClient {
           listener(eventState);
         }
       };
-      const channel = 'renderer-connect-my-computer-agent-update';
-      ipcRenderer.addListener(channel, onChange);
+      ipcRenderer.addListener(
+        RendererIpc.ConnectMyComputerAgentUpdate,
+        onChange
+      );
       return {
-        cleanup: () => ipcRenderer.removeListener(channel, onChange),
+        cleanup: () =>
+          ipcRenderer.removeListener(
+            RendererIpc.ConnectMyComputerAgentUpdate,
+            onChange
+          ),
       };
     },
     subscribeToDeepLinkLaunch: listener => {
       const ipcListener = (event, args) => {
         listener(args);
       };
-      const channel = 'renderer-deep-link-launch';
 
-      ipcRenderer.addListener(channel, ipcListener);
+      ipcRenderer.addListener(RendererIpc.DeepLinkLaunch, ipcListener);
       return {
-        cleanup: () => ipcRenderer.removeListener(channel, ipcListener),
+        cleanup: () =>
+          ipcRenderer.removeListener(RendererIpc.DeepLinkLaunch, ipcListener),
       };
     },
 
@@ -77,8 +89,10 @@ export default function createMainProcessClient(): MainProcessClient {
      * Messages sent from the renderer to the main process.
      */
     getRuntimeSettings() {
-      return ipcRenderer.sendSync('main-process-get-runtime-settings');
+      return ipcRenderer.sendSync(MainProcessIpc.GetRuntimeSettings);
     },
+    // TODO(ravicious): Convert the rest of IPC channels to use enums defined in types.ts such as
+    // MainProcessIpc rather than hardcoded strings.
     getResolvedChildProcessAddresses(): Promise<ChildProcessAddresses> {
       return ipcRenderer.invoke(
         'main-process-get-resolved-child-process-addresses'
@@ -173,7 +187,7 @@ export default function createMainProcessClient(): MainProcessClient {
      * interacted with the relevant modals during startup and is free to use the app.
      */
     signalUserInterfaceReadiness(args: { success: boolean }) {
-      ipcRenderer.send('windows-manager-signal-user-interface-readiness', args);
+      ipcRenderer.send(WindowsManagerIpc.SignalUserInterfaceReadiness, args);
     },
   };
 }
