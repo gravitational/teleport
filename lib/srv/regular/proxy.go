@@ -320,7 +320,7 @@ func (c *checkedPrefixReader) Read(b []byte) (int, error) {
 
 	if !bytes.HasPrefix(big, small) {
 		c.requiredPointer = -1
-		return n, trace.AccessDenied("required prefix %q was not found", c.requiredPrefix)
+		return 0, trace.AccessDenied("required prefix %q was not found", c.requiredPrefix)
 	}
 
 	// Advance pointer by confirmed portion of the prefix.
