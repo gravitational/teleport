@@ -197,7 +197,24 @@ You can now connect to your Windows desktops from the Teleport Web UI:
 
 ## Next Steps
 
-- See the [RBAC page](./rbac.mdx) for more information about setting up
-Windows desktop access permissions.
-- See the [Access Controls Getting Started](../access-controls/getting-started.mdx#step-13-add-local-users-with-preset-roles)
-guide for instructions on how to create or update a user with a given role.
+1. Select **Resources**.
+
+1. Click **Type**, then select **Desktops**.
+
+1. Click **Connect** for the Windows desktop you want to access, then select the 
+Windows login to use for the connection.
+
+   ![Connect to a Windows desktop from the Teleport Web UI](../../img/desktop-access/non-ad-connect.png)
+
+   Teleport opens a remote desktop connection and starts recording the desktop session. When you're
+   finished working with the Windows desktop, click the **More items** menu, then click **Disconnect**.
+
+   To view the recording, select **Management** in the Teleport Web UI, then click **Session Recordings** 
+   in the Activity section.
+
+## Next steps
+
+For more general information about how to create, assign, and update roles, see [Access Controls 
+Getting Started](../access-controls/getting-started.mdx#step-13-add-local-users-with-preset-roles).
+For more specific information about configuring Windows-specific role permissions, see 
+[Role-Based Access Control for Desktops](./rbac.mdx).
