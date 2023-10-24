@@ -534,6 +534,12 @@ function PinButton({
     pinningSupport === PinningSupport.Disabled ||
     pinningSupport === PinningSupport.NotSupported;
 
+  const $content = pinned ? (
+    <PushPinFilled color="brand" size="small" />
+  ) : (
+    <PushPin size="small" />
+  );
+
   return (
     <ButtonIcon
       css={`
@@ -550,13 +556,12 @@ function PinButton({
       size={0}
       onClick={setPinned}
     >
-      <HoverTooltip tipContent={<>{tipContent}</>}>
-        {pinned ? (
-          <PushPinFilled color="brand" size="small" />
-        ) : (
-          <PushPin size="small" />
-        )}
-      </HoverTooltip>
+      {tipContent ? (
+        <HoverTooltip tipContent={<>{tipContent}</>}>{$content}</HoverTooltip>
+      ) : (
+        $content
+      )}
+      <HoverTooltip tipContent={<>{tipContent}</>}></HoverTooltip>
     </ButtonIcon>
   );
 }
