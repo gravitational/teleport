@@ -610,10 +610,22 @@ func (s *session) launch() error {
 
 	s.io.On()
 	if err = executor.StreamWithContext(s.streamContext, options); err != nil {
+		s.reportErrorToSessionRecorder(err)
 		s.log.WithError(err).Warning("Executor failed while streaming.")
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+// reportErrorToSessionRecorder reports the error to the session recorder
+// if it is set.
+func (s *session) reportErrorToSessionRecorder(err error) {
+	if err == nil {
+		return
+	}
+	if s.recorder != nil {
+		fmt.Fprintf(s.recorder, "\n---\nSession exited with error: %v\n", err)
+	}
 }
 
 func (s *session) lockedSetupLaunch(request *remoteCommandRequest, q url.Values, eventPodMeta apievents.KubernetesPodMetadata) (func(error), error) {
