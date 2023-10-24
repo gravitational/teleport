@@ -42,9 +42,31 @@ import { ResourceActionButton } from './ResourceActionButton';
 import SearchPanel from './SearchPanel';
 
 export function UnifiedResources() {
-  const teleCtx = useTeleport();
   const { clusterId, isLeafCluster } = useStickyClusterId();
   const enabled = localStorage.areUnifiedResourcesEnabled();
+
+  if (!enabled) {
+    history.replace(cfg.getNodesRoute(clusterId));
+  }
+
+  return (
+    <Wrapper
+      key={clusterId} // when the current cluster changes, remount the component
+      clusterId={clusterId}
+      isLeafCluster={isLeafCluster}
+    />
+  );
+}
+
+function Wrapper({
+  clusterId,
+  isLeafCluster,
+}: {
+  clusterId: string;
+  isLeafCluster: boolean;
+}) {
+  const teleCtx = useTeleport();
+
   const pinningNotSupported = localStorage.arePinnedResourcesDisabled();
   const {
     getClusterPinnedResources,
@@ -64,10 +86,6 @@ export function UnifiedResources() {
         preferences.unifiedResourcePreferences.defaultTab ===
         UnifiedTabPreference.Pinned,
     });
-
-  if (!enabled) {
-    history.replace(cfg.getNodesRoute(clusterId));
-  }
 
   const getCurrentClusterPinnedResources = useCallback(
     () => getClusterPinnedResources(clusterId),
@@ -157,7 +175,6 @@ export function UnifiedResources() {
           )
         );
       }}
-      key={clusterId} // when the current cluster changes, remount the component
       pinning={pinning}
       onLabelClick={onLabelClick}
       EmptySearchResults={
