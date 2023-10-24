@@ -103,12 +103,20 @@ function Wrapper({
       };
 
   const { fetch, resources, attempt } = useUnifiedResourcesFetch({
-    params: params,
     fetchFunc: useCallback(
-      async (params, signal) => {
+      async (paginationParams, signal) => {
         const response = await teleCtx.resourceService.fetchUnifiedResources(
           clusterId,
-          params,
+          {
+            search: params.search,
+            query: params.query,
+            pinnedOnly: params.pinnedOnly,
+            sort: params.sort,
+            kinds: params.kinds,
+            searchAsRoles: '',
+            limit: paginationParams.limit,
+            startKey: paginationParams.startKey,
+          },
           signal
         );
 
@@ -118,7 +126,15 @@ function Wrapper({
           totalCount: response.agents.length,
         };
       },
-      [clusterId, teleCtx.resourceService]
+      [
+        clusterId,
+        params.kinds,
+        params.pinnedOnly,
+        params.query,
+        params.search,
+        params.sort,
+        teleCtx.resourceService,
+      ]
     ),
   });
 

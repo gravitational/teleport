@@ -36,7 +36,6 @@ import {
   ResourceLabel,
   ResourceFilter,
 } from 'teleport/services/agents';
-import { UrlResourcesParams } from 'teleport/config';
 import { FeatureBox } from 'teleport/components/Layout';
 import { TextIcon } from 'teleport/Discover/Shared';
 import {
@@ -130,15 +129,13 @@ interface UnifiedResourcesProps {
 }
 
 export function useUnifiedResourcesFetch<T>(props: {
-  params: ResourceFilter;
   fetchFunc(
-    params: UrlResourcesParams,
+    paginationParams: { limit: number; startKey: string },
     signal: AbortSignal
   ): Promise<ResourcesResponse<T>>;
 }) {
   return useKeyBasedPagination({
     fetchFunc: props.fetchFunc,
-    filter: props.params,
     initialFetchSize: INITIAL_FETCH_SIZE,
     fetchMoreSize: FETCH_MORE_SIZE,
   });
