@@ -64,7 +64,7 @@ export class WindowsManager {
       width: windowState.width,
       height: windowState.height,
       backgroundColor: activeTheme.colors.levels.sunken,
-      minWidth: 400,
+      minWidth: 430,
       minHeight: 300,
       show: false,
       autoHideMenuBar: true,

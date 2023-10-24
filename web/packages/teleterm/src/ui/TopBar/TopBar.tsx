@@ -56,6 +56,7 @@ const CentralContainer = styled(Flex).attrs({ gap: 3 })`
   align-items: center;
   justify-content: center;
   height: 100%;
+  min-width: 0;
   max-width: calc(${props => props.theme.space[10]}px * 9);
 `;
 
