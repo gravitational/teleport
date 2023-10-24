@@ -4,9 +4,9 @@
 
 * Fixed the top bar breaking layout when the window is narrow in Connect [#33822](https://github.com/gravitational/teleport/pull/33822)
 * Web UI will now redirect to login upon missing session cookie [#33807](https://github.com/gravitational/teleport/pull/33807)
-* Limited Snowflake decompressed request to 10MB [#33763](https://github.com/gravitational/teleport/pull/33763)
+* Limited Snowflake decompressed request size to 10MB [#33763](https://github.com/gravitational/teleport/pull/33763)
 * Added URL and SAML connector name in entity descriptor URL errors [#33668](https://github.com/gravitational/teleport/pull/33668)
-* Added support for HTTPS proxy server references [#33647](https://github.com/gravitational/teleport/pull/33647)
+* Updated `tsh` to accept `--proxy` values with `https://` prefixes [#33647](https://github.com/gravitational/teleport/pull/33647)
 
 **Enhanced PuTTY/WinSCP Support**
 
