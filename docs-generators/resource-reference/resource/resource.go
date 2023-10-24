@@ -449,7 +449,7 @@ func getYAMLType(field *ast.Field, pkg string) (yamlKindNode, error) {
 func makeRawField(field *ast.Field, packageName string) (rawField, error) {
 	doc := field.Doc.Text()
 	if len(field.Names) > 1 {
-		return rawField{}, fmt.Errorf("field %+v contains more than one name", field)
+		return rawField{}, fmt.Errorf("field %+v in %v contains more than one name", field, packageName)
 	}
 
 	var name string
@@ -584,7 +584,8 @@ func handleEmbeddedStructFields(decl DeclarationInfo, fld []rawField, allDecls m
 		d, ok := allDecls[p]
 		if !ok {
 			return nil, fmt.Errorf(
-				"field %v.%v is not declared anywhere",
+				"%v: field %v.%v is not declared anywhere",
+				decl.FilePath,
 				l.packageName,
 				c.name,
 			)
@@ -637,12 +638,12 @@ func NewFromDecl(decl DeclarationInfo, allDecls map[PackageInfo]DeclarationInfo,
 		}]
 		for _, e := range m {
 			if e.Name == "UnmarshalYAML" || e.Name == "UnmarshalJSON" {
-				return nil, fmt.Errorf("type %v.%v has a custom unmarshaler, so it needs a custom YAML example (a comment beginning \"Example YAML:\n---\"", rs.name, decl.PackageName)
+				return nil, fmt.Errorf("%v: type %v.%v has a custom unmarshaler, so it needs a custom YAML example (a comment beginning \"Example YAML:\n---\"", decl.FilePath, rs.name, decl.PackageName)
 			}
 		}
 
 		if len(rs.fields) == 0 {
-			return nil, fmt.Errorf("declaration %v has no fields and no example YAML in the GoDoc", rs.name)
+			return nil, fmt.Errorf("%v: declaration %v has no fields and no example YAML in the GoDoc", decl.FilePath, rs.name)
 		}
 		example, err = makeYAMLExample(fieldsToProcess)
 		if err != nil {
@@ -794,7 +795,8 @@ func GetMethodInfo(decls []DeclarationInfo) (map[PackageInfo][]MethodInfo, error
 		}
 
 		if len(f.Recv.List) != 1 {
-			return nil, fmt.Errorf("method %v.%v has an unexpected number of receivers",
+			return nil, fmt.Errorf("%v: method %v.%v has an unexpected number of receivers",
+				decl.FilePath,
 				decl.PackageName,
 				f.Name.Name,
 			)
@@ -805,7 +807,8 @@ func GetMethodInfo(decls []DeclarationInfo) (map[PackageInfo][]MethodInfo, error
 		case *ast.StarExpr:
 			d, ok := t.X.(*ast.Ident)
 			if !ok {
-				return nil, fmt.Errorf("method %v.%v has a receiver type with a star expression but no identifier",
+				return nil, fmt.Errorf("%v: method %v.%v has a receiver type with a star expression but no identifier",
+					decl.FilePath,
 					decl.PackageName,
 					f.Name.Name,
 				)
