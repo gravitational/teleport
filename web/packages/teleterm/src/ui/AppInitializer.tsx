@@ -14,9 +14,11 @@
  * limitations under the License.
  */
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState, useRef } from 'react';
 import styled from 'styled-components';
 import { Indicator } from 'design';
+
+import Logger from 'teleterm/logger';
 
 import { useAppContext } from './appContextProvider';
 import { initUi } from './initUi';
@@ -24,21 +26,31 @@ import ModalsHost from './ModalsHost';
 import { LayoutManager } from './LayoutManager';
 
 export const AppInitializer = () => {
-  const ctx = useAppContext();
+  const loggerRef = useRef<Logger>(null);
+  if (loggerRef.current === null) {
+    loggerRef.current = new Logger('AppInitializer');
+  }
+
+  const appContext = useAppContext();
   const [isUiReady, setIsUiReady] = useState(false);
 
   const initializeApp = useCallback(async () => {
     try {
-      await ctx.init();
-      await initUi(ctx);
+      await appContext.init();
+      await initUi(appContext);
       setIsUiReady(true);
-      ctx.mainProcessClient.signalUserInterfaceReadiness({ success: true });
+      appContext.mainProcessClient.signalUserInterfaceReadiness({
+        success: true,
+      });
     } catch (error) {
+      loggerRef.current.error(error?.message);
       setIsUiReady(true);
-      ctx.notificationsService.notifyError(error?.message);
-      ctx.mainProcessClient.signalUserInterfaceReadiness({ success: false });
+      appContext?.notificationsService.notifyError(error?.message);
+      appContext?.mainProcessClient.signalUserInterfaceReadiness({
+        success: false,
+      });
     }
-  }, [ctx]);
+  }, [appContext]);
 
   useEffect(() => {
     initializeApp();
