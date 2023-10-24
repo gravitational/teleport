@@ -19,11 +19,11 @@ import styled from 'styled-components';
 import { Indicator } from 'design';
 
 import { useLogger } from 'teleterm/ui/hooks/useLogger';
+import { useAppContext } from 'teleterm/ui/appContextProvider';
+import ModalsHost from 'teleterm/ui/ModalsHost';
+import { LayoutManager } from 'teleterm/ui/LayoutManager';
 
-import { useAppContext } from './appContextProvider';
-import { initUi } from './initUi';
-import ModalsHost from './ModalsHost';
-import { LayoutManager } from './LayoutManager';
+import { showStartupModalsAndNotifications } from './showStartupModalsAndNotifications';
 
 export const AppInitializer = () => {
   const logger = useLogger('AppInitializer');
@@ -33,8 +33,8 @@ export const AppInitializer = () => {
 
   const initializeApp = useCallback(async () => {
     try {
-      await appContext.init();
-      await initUi(appContext);
+      await appContext.pullInitialState();
+      await showStartupModalsAndNotifications(appContext);
       setIsUiReady(true);
       appContext.mainProcessClient.signalUserInterfaceReadiness({
         success: true,
