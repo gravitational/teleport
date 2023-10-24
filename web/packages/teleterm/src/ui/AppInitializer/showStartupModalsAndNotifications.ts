@@ -25,8 +25,6 @@ import { KeyboardShortcutsService } from 'teleterm/ui/services/keyboardShortcuts
 
 /**
  * Runs after the UI becomes visible.
- * If possible, put the initialization code here, instead of `appContext.init()`,
- * where it blocks the rendering of the app.
  */
 export async function showStartupModalsAndNotifications(
   ctx: IAppContext
@@ -47,7 +45,7 @@ export async function showStartupModalsAndNotifications(
 
   // If there's a workspace that was active before the user closed the app, restorePersistedState
   // will block until the user interacts with the login modal (if the cert is not valid anymore) and
-  // the modal for restoring documents. No other UI will be shown until this completes.
+  // the modal for restoring documents.
   await ctx.workspacesService.restorePersistedState();
 
   notifyAboutConfigErrors(configService, ctx.notificationsService);
