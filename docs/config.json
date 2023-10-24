@@ -2947,6 +2947,21 @@
       "source": "/database-access/rbac/configuring-auto-user-provisioning/",
       "destination": "/database-access/auto-user-provisioning/",
       "permanent": true
+    },
+    {	
+      "source": "/database-access/guides/rds-proxy/",
+      "destination": "/database-access/guides/",
+      "permanent": true
+    },
+    {
+      "source": "/deploy-a-cluster/deployments/aws-terraform/",
+      "destination": "/deploy-a-cluster/deployments/aws-ha-autoscale-cluster-terraform/",
+      "permanent": true
+    },
+    {
+      "source": "/machine-id/guides/github-actions/",
+      "destination": "/machine-id/deployment/github-actions/",
+      "permanent": true
     }
   ]
 }
