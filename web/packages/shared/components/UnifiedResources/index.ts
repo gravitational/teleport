@@ -14,5 +14,4 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// export as default for use with React.lazy
-export { UnifiedResources as default } from './UnifiedResources';
+export * from './UnifiedResources';

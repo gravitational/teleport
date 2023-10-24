@@ -23,41 +23,38 @@ import Menu, { MenuItem } from 'design/Menu';
 import { StyledCheckbox } from 'design/Checkbox';
 import { ArrowUp, ArrowDown, ChevronDown } from 'design/Icon';
 
-import { encodeUrlQueryParams } from 'teleport/components/hooks/useUrlFiltering';
 import { ResourceFilter, SortType } from 'teleport/services/agents';
 
-import { HoverTooltip } from './Resources';
+import { HoverTooltip } from './UnifiedResources';
+import { SharedUnifiedResource } from './types';
 
-const kindOptions = [
-  { label: 'Application', value: 'app' },
-  { label: 'Database', value: 'db' },
-  { label: 'Desktop', value: 'windows_desktop' },
-  { label: 'Kubernetes', value: 'kube_cluster' },
-  { label: 'Server', value: 'node' },
-];
+const kindToLabel: Record<SharedUnifiedResource['resource']['kind'], string> = {
+  app: 'Application',
+  db: 'Database',
+  windows_desktop: 'Desktop',
+  kube_cluster: 'Kubernetes',
+  node: 'Server',
+  user_group: 'User group',
+};
 
 const sortFieldOptions = [
   { label: 'Name', value: 'name' },
   { label: 'Type', value: 'kind' },
 ];
 
-export interface FilterPanelProps {
-  pathname: string;
-  replaceHistory: (path: string) => void;
+interface FilterPanelProps {
+  availableKinds: SharedUnifiedResource['resource']['kind'][];
   params: ResourceFilter;
   setParams: (params: ResourceFilter) => void;
-  setSort: (sort: SortType) => void;
   selectVisible: () => void;
   selected: boolean;
   shouldUnpin: boolean;
 }
 
 export function FilterPanel({
-  pathname,
-  replaceHistory,
+  availableKinds,
   params,
   setParams,
-  setSort,
   selectVisible,
   selected,
   shouldUnpin,
@@ -70,27 +67,14 @@ export function FilterPanel({
 
   const onKindsChanged = (newKinds: string[]) => {
     setParams({ ...params, kinds: newKinds });
-    // TODO(bl-nero): We really shouldn't have to do it, that's what setParams
-    // should be for.
-    const isAdvancedSearch = !!params.query;
-    replaceHistory(
-      encodeUrlQueryParams(
-        pathname,
-        params.search ?? params.query,
-        params.sort,
-        newKinds,
-        isAdvancedSearch,
-        params.pinnedOnly
-      )
-    );
   };
 
   const onSortFieldChange = (value: string) => {
-    setSort({ ...sort, fieldName: value });
+    setParams({ ...params, sort: { ...params.sort, fieldName: value } });
   };
 
   const onSortOrderButtonClicked = () => {
-    setSort(oppositeSort(sort));
+    setParams({ ...params, sort: oppositeSort(sort) });
   };
 
   return (
@@ -103,6 +87,7 @@ export function FilterPanel({
         </HoverTooltip>
         <FilterTypesMenu
           onChange={onKindsChanged}
+          availableKinds={availableKinds}
           kindsFromParams={kinds || []}
         />
       </Flex>
@@ -129,14 +114,21 @@ function oppositeSort(sort: SortType): SortType {
 }
 
 type FilterTypesMenuProps = {
+  availableKinds: SharedUnifiedResource['resource']['kind'][];
   kindsFromParams: string[];
   onChange: (kinds: string[]) => void;
 };
 
 const FilterTypesMenu = ({
   onChange,
+  availableKinds,
   kindsFromParams,
 }: FilterTypesMenuProps) => {
+  const kindOptions = availableKinds.map(kind => ({
+    value: kind,
+    label: kindToLabel[kind],
+  }));
+
   const [anchorEl, setAnchorEl] = useState(null);
   // we have a separate state in the filter so we can select a few different things and then click "apply"
   const [kinds, setKinds] = useState<string[]>(kindsFromParams || []);
