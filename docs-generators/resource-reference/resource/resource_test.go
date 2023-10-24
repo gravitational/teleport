@@ -1059,7 +1059,8 @@ func (stream *streamFunc[T]) Next() bool {
 					SectionName: "Resource",
 					Description: "A resource.",
 					SourcePath:  "myfile.go",
-					YAMLExample: `name: "string"`,
+					YAMLExample: `name: "string"
+`,
 					Fields: []Field{
 						Field{
 							Name:        "name",
@@ -1573,7 +1574,7 @@ func (stream *streamFunc[T]) Next() bool {
 				}: []MethodInfo{
 					{
 						Name:             "Next",
-						FieldAssignments: nil,
+						FieldAssignments: map[string]string{},
 					},
 				},
 			},

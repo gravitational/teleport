@@ -805,8 +805,22 @@ func GetMethodInfo(decls []DeclarationInfo) (map[PackageInfo][]MethodInfo, error
 		var i *ast.Ident
 		switch t := f.Recv.List[0].Type.(type) {
 		case *ast.StarExpr:
-			d, ok := t.X.(*ast.Ident)
-			if !ok {
+			switch xt := t.X.(type) {
+			case *ast.Ident:
+				i = xt
+			// The function has a type parameter
+			case *ast.IndexExpr:
+				d, ok := xt.X.(*ast.Ident)
+				if !ok {
+					return nil, fmt.Errorf("%v: method %v.%v has a receiver type with a star expression and type param but no identifier",
+						decl.FilePath,
+						decl.PackageName,
+						f.Name.Name,
+					)
+
+				}
+				i = d
+			default:
 				return nil, fmt.Errorf("%v: method %v.%v has a receiver type with a star expression but no identifier",
 					decl.FilePath,
 					decl.PackageName,
@@ -814,7 +828,6 @@ func GetMethodInfo(decls []DeclarationInfo) (map[PackageInfo][]MethodInfo, error
 				)
 
 			}
-			i = d
 		case *ast.Ident:
 			i = t
 		}
