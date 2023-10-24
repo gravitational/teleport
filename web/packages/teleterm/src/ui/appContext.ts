@@ -156,17 +156,17 @@ export default class AppContext implements IAppContext {
         let reason: string;
         switch (result.reason) {
           case 'unknown-protocol': {
-            reason = `The received URL is of an unknown protocol.`;
+            reason = `The URL of the link is of an unknown protocol.`;
             break;
           }
           case 'unsupported-uri': {
             reason =
-              'The received URL does not point at a resource that can be launched from a deep link. ' +
-              'Either this version of Teleport Connect does not support launching this resource or the URL is incorrect.';
+              'The received link does not point at a resource or an action that can be launched from a link. ' +
+              'Either this version of Teleport Connect does not support it or the link is incorrect.';
             break;
           }
           case 'malformed-url': {
-            reason = `The URL of the deep link appears to be malformed.`;
+            reason = `The URL of the link appears to be malformed.`;
             break;
           }
           default: {
@@ -175,7 +175,7 @@ export default class AppContext implements IAppContext {
         }
 
         this.notificationsService.notifyWarning({
-          title: 'Cannot open the deep link',
+          title: 'Cannot open the link',
           description: reason,
         });
         return;
