@@ -198,6 +198,10 @@ func Generate(out io.Writer, conf GeneratorConfig) error {
 		if info.IsDir() {
 			return nil
 		}
+
+		if filepath.Ext(info.Name()) != ".go" {
+			return nil
+		}
 		// There is an error with the path, so we can't load Go source
 		if err != nil {
 			return err
