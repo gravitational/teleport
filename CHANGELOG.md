@@ -1,5 +1,16 @@
 # Changelog
 
+## 14.1.1 (10/23/23)
+
+* Fixed the top bar breaking layout when the window is narrow in Connect [#33821](https://github.com/gravitational/teleport/pull/33821)
+* Limited Snowflake decompressed request to 10MB [#33764](https://github.com/gravitational/teleport/pull/33764)
+* Added MySQL auto-user deletion [#33710](https://github.com/gravitational/teleport/pull/33710)
+* Configured Connect to intercept deep link clicks [#33684](https://github.com/gravitational/teleport/pull/33684)
+* Added URL and SAML connector name in entity descriptor URL errors [#33667](https://github.com/gravitational/teleport/pull/33667)
+* Added the ability to run a specific tool to Assist. [#33640](https://github.com/gravitational/teleport/pull/33640)
+* Added PostgreSQL auto-user deletion [#33570](https://github.com/gravitational/teleport/pull/33570)
+* Added DiscoveryConfig CRUD operations [#33380](https://github.com/gravitational/teleport/pull/33380)
+
 ## 14.1.0 (10/18/23)
 
 ### New features
@@ -1720,7 +1731,7 @@ Visit the individual repositories to find out more and see usage examples:
 - https://github.com/teleport-actions/auth-k8s
 
 For a more in-depth guide, see our
-[documentation](./docs/pages/machine-id/guides/github-actions.mdx) for using
+[documentation](./docs/pages/machine-id/deployment/github-actions.mdx) for using
 Teleport with GitHub Actions.
 
 ### Secure certificate mapping for Desktop Access
@@ -2258,7 +2269,7 @@ In Teleport 10 we’ve added database access support to Machine ID. Applications
 can use Machine ID to access databases protected by Teleport.
 
 You can find Machine ID guide for database access in the
-[documentation](docs/pages/machine-id/guides/databases.mdx).
+[documentation](docs/pages/machine-id/access-guides/databases.mdx).
 
 ### Breaking changes
 
