@@ -30,16 +30,13 @@ import useAttempt, { Attempt } from 'shared/hooks/useAttemptNext';
  *
  * The hook maintains an invariant that there's only up to one valid
  * pending request at all times. Any out-of-order responses are discarded.
- *
- * This hook is an implementation detail of the `useInfiniteScroll` hook and
- * should not be used directly.
  */
 export function useKeyBasedPagination<T>({
   fetchFunc,
   filter,
   initialFetchSize = 30,
   fetchMoreSize = 20,
-}: Props<T>): State<T> {
+}: KeyBasedPaginationOptions<T>): KeyBasedPagination<T> {
   const { attempt, setAttempt } = useAttempt();
   const [finished, setFinished] = useState(false);
   const [resources, setResources] = useState<T[]>([]);
@@ -49,6 +46,17 @@ export function useKeyBasedPagination<T>({
   // cause rerenders.
   const abortController = useRef<AbortController | null>(null);
   const pendingPromise = useRef<Promise<ResourcesResponse<T>> | null>(null);
+
+  const clear = useCallback(() => {
+    abortController.current?.abort();
+    abortController.current = null;
+    pendingPromise.current = null;
+
+    setAttempt({ status: '', statusText: '' });
+    setFinished(false);
+    setResources([]);
+    setStartKey(null);
+  }, [setAttempt]);
 
   // This state is used to recognize when the `filter` prop has changed,
   // and reset the overall state of this hook. It's tempting to use a
@@ -65,18 +73,9 @@ export function useKeyBasedPagination<T>({
   // we can ensure that the state is reset before anything renders, and thereby
   // ensure that the new `fetch` function is used.
   const [prevFilter, setPrevFilter] = useState(filter);
-
   if (prevFilter !== filter) {
     setPrevFilter(filter);
-
-    abortController.current?.abort();
-    abortController.current = null;
-    pendingPromise.current = null;
-
-    setAttempt({ status: '', statusText: '' });
-    setFinished(false);
-    setResources([]);
-    setStartKey(null);
+    clear();
   }
 
   const fetchInternal = async (force: boolean) => {
@@ -141,14 +140,18 @@ export function useKeyBasedPagination<T>({
     }
   };
 
-  const callbackDeps = [filter, startKey, resources, finished, attempt];
-
-  const fetch = useCallback(() => fetchInternal(false), callbackDeps);
-  const forceFetch = useCallback(() => fetchInternal(true), callbackDeps);
+  const fetch = useCallback(
+    async (options: { force?: boolean; fromStart?: boolean }) => {
+      if (options?.fromStart) {
+        clear();
+      }
+      await fetchInternal(!!options?.force);
+    },
+    [filter, startKey, resources, finished, attempt, clear]
+  );
 
   return {
     fetch,
-    forceFetch,
     attempt,
     resources,
     finished,
@@ -159,7 +162,7 @@ const isAbortError = (err: any): boolean =>
   (err instanceof DOMException && err.name === 'AbortError') ||
   (err.cause && isAbortError(err.cause));
 
-export type Props<T> = {
+export type KeyBasedPaginationOptions<T> = {
   fetchFunc: (
     params: UrlResourcesParams,
     signal?: AbortSignal
@@ -169,24 +172,20 @@ export type Props<T> = {
   fetchMoreSize?: number;
 };
 
-export type State<T> = {
+type KeyBasedPagination<T> = {
   /**
    * Attempts to fetch a new batch of data, unless one is already being fetched,
    * or the previous fetch resulted with an error. It is intended to be called
    * as a mere suggestion to fetch more data and can be called multiple times,
-   * for example when the user scrolls to the bottom of the page. This is the
-   * function that you should pass to `useInfiniteScroll` hook.
-   */
-  fetch: () => Promise<void>;
-
-  /**
-   * Fetches a new batch of data. Cancels a pending request, if there is one.
+   * for example, when the user scrolls to the bottom of the page.
+   *
+   * @param options.force Cancels a pending request, if there is one.
    * Disregards whether error has previously occurred. Intended for using as an
    * explicit user's action. Don't call it from `useInfiniteScroll`, or you'll
    * risk flooding the server with requests!
+   * @param options.fromStart Clears all fetched data and fetches a batch from the start.
    */
-  forceFetch: () => Promise<void>;
-
+  fetch: (options?: { force?: boolean; fromStart?: boolean }) => Promise<void>;
   attempt: Attempt;
   resources: T[];
   finished: boolean;

@@ -48,10 +48,14 @@ import {
   makeEmptyAttempt,
   makeSuccessAttempt,
   useAsync,
-  Attempt,
+  Attempt as AsyncAttempt,
 } from 'shared/hooks/useAsync';
 
-import { useInfiniteScroll } from '../../hooks';
+import {
+  useKeyBasedPagination,
+  useInfiniteScroll,
+} from 'shared/hooks/useInfiniteScroll';
+import { Attempt } from 'shared/hooks/useAttemptNext';
 
 import { SharedUnifiedResource } from './types';
 import {
@@ -103,8 +107,11 @@ export type UnifiedResourcesPinning =
       kind: 'hidden';
     };
 
-interface UnifiedResourcesProps<T> {
+interface UnifiedResourcesProps {
   params: ResourceFilter;
+  resourcesFetchAttempt: Attempt;
+  fetchResources: (options?: { force?: boolean }) => Promise<void>;
+  resources: SharedUnifiedResource[];
   //TODO(gzdunek): the pin button should be moved to some other place
   //according to the new designs
   Header(pinAllButton: React.ReactElement): React.ReactElement;
@@ -115,17 +122,6 @@ interface UnifiedResourcesProps<T> {
    */
   pinning: UnifiedResourcesPinning;
   availableKinds: SharedUnifiedResource['resource']['kind'][];
-  /**
-   * Fetches the resources.
-   * The type of particular resource is not specified; the fetched resource
-   * should be mapped to `SharedUnifiedResource` via the `mapToResource` prop.
-   * */
-  fetchFunc(
-    params: UrlResourcesParams,
-    signal: AbortSignal
-  ): Promise<ResourcesResponse<T>>;
-  /** Maps fetched data to `SharedUnifiedResource`. */
-  mapToResource(response: T): SharedUnifiedResource;
   setParams(params: ResourceFilter): void;
   onLabelClick(label: ResourceLabel): void;
   updateUnifiedResourcesPreferences(
@@ -133,28 +129,37 @@ interface UnifiedResourcesProps<T> {
   ): void;
 }
 
-export function UnifiedResources<T>(props: UnifiedResourcesProps<T>) {
+export function useUnifiedResourcesFetch<T>(props: {
+  params: ResourceFilter;
+  fetchFunc(
+    params: UrlResourcesParams,
+    signal: AbortSignal
+  ): Promise<ResourcesResponse<T>>;
+}) {
+  return useKeyBasedPagination({
+    fetchFunc: props.fetchFunc,
+    filter: props.params,
+    initialFetchSize: INITIAL_FETCH_SIZE,
+    fetchMoreSize: FETCH_MORE_SIZE,
+  });
+}
+
+export function UnifiedResources(props: UnifiedResourcesProps) {
   const {
     params,
     setParams,
+    resourcesFetchAttempt,
+    resources,
+    fetchResources,
     onLabelClick,
     availableKinds,
     pinning,
     updateUnifiedResourcesPreferences,
   } = props;
-  const {
-    setTrigger: setScrollDetector,
-    forceFetch,
-    resources: rawResources,
-    attempt,
-  } = useInfiniteScroll({
-    fetchFunc: props.fetchFunc,
-    filter: params,
-    initialFetchSize: INITIAL_FETCH_SIZE,
-    fetchMoreSize: FETCH_MORE_SIZE,
-  });
 
-  const resources = rawResources.map(props.mapToResource);
+  const { setTrigger } = useInfiniteScroll({
+    fetch: fetchResources,
+  });
 
   const [selectedResources, setSelectedResources] = useState<string[]>([]);
 
@@ -237,7 +242,8 @@ export function UnifiedResources<T>(props: UnifiedResourcesProps<T>) {
     updatePinnedResources(newPinned);
   };
 
-  const noResults = attempt.status === 'success' && resources.length === 0;
+  const noResults =
+    resourcesFetchAttempt.status === 'success' && resources.length === 0;
 
   const [isSearchEmpty, setIsSearchEmpty] = useState(true);
 
@@ -248,7 +254,7 @@ export function UnifiedResources<T>(props: UnifiedResourcesProps<T>) {
   }, [params.query, params.search]);
 
   const onRetryClicked = () => {
-    forceFetch();
+    fetchResources({ force: true });
   };
 
   const allSelected =
@@ -303,13 +309,13 @@ export function UnifiedResources<T>(props: UnifiedResourcesProps<T>) {
         margin: auto;
       `}
     >
-      {attempt.status === 'failed' && (
+      {resourcesFetchAttempt.status === 'failed' && (
         <ErrorBox>
           <ErrorBoxInternal>
             <Danger>
-              {attempt.statusText}
+              {resourcesFetchAttempt.statusText}
               {/* we don't want them to try another request with BAD REQUEST, it will just fail again. */}
-              {attempt.statusCode !== 400 && (
+              {resourcesFetchAttempt.statusCode !== 400 && (
                 <Box flex="0 0 auto" ml={2}>
                   <ButtonLink onClick={onRetryClicked}>Retry</ButtonLink>
                 </Box>
@@ -399,16 +405,16 @@ export function UnifiedResources<T>(props: UnifiedResourcesProps<T>) {
               />
             ))}
           {/* Using index as key here is ok because these elements never change order */}
-          {(attempt.status === 'processing' ||
+          {(resourcesFetchAttempt.status === 'processing' ||
             getPinnedResourcesAttempt.status === 'processing') &&
             loadingCardArray.map((_, i) => (
               <LoadingCard delay="short" key={i} />
             ))}
         </ResourcesContainer>
       )}
-      <div ref={setScrollDetector} />
+      <div ref={setTrigger} data-testid="scroll-trigger" />
       <ListFooter>
-        {attempt.status === 'failed' && resources.length > 0 && (
+        {resourcesFetchAttempt.status === 'failed' && resources.length > 0 && (
           <ButtonSecondary onClick={onRetryClicked}>Load more</ButtonSecondary>
         )}
         {noResults &&
@@ -429,7 +435,7 @@ export function UnifiedResources<T>(props: UnifiedResourcesProps<T>) {
 
 function getResourcePinningSupport(
   pinning: UnifiedResourcesPinning['kind'],
-  updatePinnedResourcesAttempt: Attempt<void>
+  updatePinnedResourcesAttempt: AsyncAttempt<void>
 ): PinningSupport {
   if (pinning === 'not-supported') {
     return PinningSupport.NotSupported;
