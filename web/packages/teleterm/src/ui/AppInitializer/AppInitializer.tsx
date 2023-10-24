@@ -29,19 +29,23 @@ export const AppInitializer = () => {
   const logger = useLogger('AppInitializer');
 
   const appContext = useAppContext();
-  const [isUiReady, setIsUiReady] = useState(false);
+  const [shouldShowUi, setShouldShowUi] = useState(false);
 
   const initializeApp = useCallback(async () => {
     try {
       await appContext.pullInitialState();
+
+      setShouldShowUi(true);
+
       await showStartupModalsAndNotifications(appContext);
-      setIsUiReady(true);
+
       appContext.mainProcessClient.signalUserInterfaceReadiness({
         success: true,
       });
     } catch (error) {
       logger.error(error?.message);
-      setIsUiReady(true);
+
+      setShouldShowUi(true);
       appContext?.notificationsService.notifyError(error?.message);
       appContext?.mainProcessClient.signalUserInterfaceReadiness({
         success: false,
@@ -56,7 +60,7 @@ export const AppInitializer = () => {
   return (
     <>
       <LayoutManager />
-      {!isUiReady && (
+      {!shouldShowUi && (
         <Centered>
           <Indicator delay="short" />
         </Centered>
