@@ -66,7 +66,7 @@ export class WindowsManager {
     });
 
     ipcMain.once(
-      'windows-manager-signal-frontend-app-readiness',
+      'windows-manager-signal-user-interface-readiness',
       (event, args) => {
         if (args.success) {
           this.frontendAppInit.resolve();
