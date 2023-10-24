@@ -29,6 +29,7 @@ import (
 	"golang.org/x/exp/slices"
 
 	tp "github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/accessrequest"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integrations/access/common"
@@ -60,6 +61,7 @@ var errMissingAnnotation = errors.New("access request is missing annotations")
 // App is a wrapper around the base app to allow for extra functionality.
 type App struct {
 	*lib.Process
+	common.BaseApp
 
 	PluginName string
 	teleport   teleport.Client
@@ -137,6 +139,7 @@ func (a *App) run(ctx context.Context) error {
 func (a *App) init(ctx context.Context) error {
 	ctx, cancel := context.WithTimeout(ctx, initTimeout)
 	defer cancel()
+	log := logger.Get(ctx)
 
 	var err error
 	if a.teleport == nil {
@@ -160,6 +163,13 @@ func (a *App) init(ctx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	log.Debug("Starting API health check...")
+	if err = a.serviceNow.CheckHealth(ctx); err != nil {
+		return trace.Wrap(err, "API health check failed")
+	}
+	log.Debug("API health check finished ok")
+
 	return nil
 }
 
@@ -227,27 +237,53 @@ func (a *App) onWatcherEvent(ctx context.Context, event types.Event) error {
 }
 
 func (a *App) onPendingRequest(ctx context.Context, req types.AccessRequest) error {
-	if len(req.GetSystemAnnotations()) == 0 {
-		logger.Get(ctx).Debug("Cannot proceed further. Request is missing any annotations")
-		return nil
+	log := logger.Get(ctx)
+
+	reqID := req.GetName()
+
+	resourceNames, err := a.getResourceNames(ctx, req)
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
-	// First, try to create a notification incident.
-	isNew, notifyErr := a.tryNotifyService(ctx, req)
+	reqData := RequestData{
+		User:              req.GetUser(),
+		Roles:             req.GetRoles(),
+		RequestReason:     req.GetRequestReason(),
+		SystemAnnotations: req.GetSystemAnnotations(),
+		Resources:         resourceNames,
+	}
+
+	// Create plugin data if it didn't exist before.
+	isNew, err := a.modifyPluginData(ctx, reqID, func(existing *PluginData) (PluginData, bool) {
+		if existing != nil {
+			return PluginData{}, false
+		}
+		return PluginData{RequestData: reqData}, true
+	})
+	if err != nil {
+		return trace.Wrap(err, "updating plugin data")
+	}
 
 	// To minimize the count of auto-approval tries, let's only attempt it only when we have just created an incident.
 	// But if there's an error, we can't really know if the incident is new or not so lets just try.
-	if !isNew && notifyErr == nil {
+	if !isNew {
 		return nil
 	}
-	// Don't show the error if the annotation is just missing.
-	if errors.Is(notifyErr, errMissingAnnotation) {
-		notifyErr = nil
+
+	log.Infof("Creating servicenow incident for : %v", reqID)
+	if err = a.createIncident(ctx, reqID, reqData); err != nil {
+		return trace.Wrap(err, "creating ServiceNow incident")
+	}
+
+	if reqReviews := req.GetReviews(); len(reqReviews) > 0 {
+		if err = a.postReviewNotes(ctx, reqID, reqReviews); err != nil {
+			return trace.Wrap(err, "posting review notes")
+		}
 	}
 
 	// Then, try to approve the request if user is currently on-call.
-	approveErr := trace.Wrap(a.tryApproveRequest(ctx, req))
-	return trace.NewAggregate(notifyErr, approveErr)
+	return trace.Wrap(a.tryApproveRequest(ctx, req))
 }
 
 func (a *App) onResolvedRequest(ctx context.Context, req types.AccessRequest) error {
@@ -278,14 +314,6 @@ func (a *App) onDeletedRequest(ctx context.Context, reqID string) error {
 	return a.resolveIncident(ctx, reqID, Resolution{State: ResolutionStateResolved})
 }
 
-func (a *App) getNotifyServiceNames(req types.AccessRequest) ([]string, error) {
-	services, ok := req.GetSystemAnnotations()[types.TeleportNamespace+types.ReqAnnotationNotifyServicesLabel]
-	if !ok {
-		return nil, trace.NotFound("notify services not specified")
-	}
-	return services, nil
-}
-
 func (a *App) getOnCallServiceNames(req types.AccessRequest) ([]string, error) {
 	services, ok := req.GetSystemAnnotations()[types.TeleportNamespace+types.ReqAnnotationSchedulesLabel]
 	if !ok {
@@ -294,54 +322,8 @@ func (a *App) getOnCallServiceNames(req types.AccessRequest) ([]string, error) {
 	return services, nil
 }
 
-func (a *App) tryNotifyService(ctx context.Context, req types.AccessRequest) (bool, error) {
-	log := logger.Get(ctx)
-
-	serviceNames, err := a.getNotifyServiceNames(req)
-	if err != nil {
-		log.Debugf("Skipping the notification: %s", err)
-		return false, trace.Wrap(errMissingAnnotation)
-	}
-
-	reqID := req.GetName()
-	reqData := RequestData{
-		User:          req.GetUser(),
-		Roles:         req.GetRoles(),
-		Created:       req.GetCreationTime(),
-		RequestReason: req.GetRequestReason(),
-	}
-
-	// Create plugin data if it didn't exist before.
-	isNew, err := a.modifyPluginData(ctx, reqID, func(existing *PluginData) (PluginData, bool) {
-		if existing != nil {
-			return PluginData{}, false
-		}
-		return PluginData{RequestData: reqData}, true
-	})
-	if err != nil {
-		return isNew, trace.Wrap(err, "updating plugin data")
-	}
-
-	if isNew {
-		for _, serviceName := range serviceNames {
-			incidentCtx, _ := logger.WithField(ctx, "servicenow_service_name", serviceName)
-
-			if err = a.createIncident(incidentCtx, serviceName, reqID, reqData); err != nil {
-				return isNew, trace.Wrap(err, "creating ServiceNow incident")
-			}
-		}
-
-		if reqReviews := req.GetReviews(); len(reqReviews) > 0 {
-			if err = a.postReviewNotes(ctx, reqID, reqReviews); err != nil {
-				return isNew, trace.Wrap(err)
-			}
-		}
-	}
-	return isNew, nil
-}
-
 // createIncident posts an incident with request information.
-func (a *App) createIncident(ctx context.Context, serviceID, reqID string, reqData RequestData) error {
+func (a *App) createIncident(ctx context.Context, reqID string, reqData RequestData) error {
 	data, err := a.serviceNow.CreateIncident(ctx, reqID, reqData)
 	if err != nil {
 		return trace.Wrap(err)
@@ -573,4 +555,26 @@ func (a *App) updatePluginData(ctx context.Context, reqID string, data PluginDat
 		Set:      EncodePluginData(data),
 		Expect:   EncodePluginData(expectData),
 	})
+}
+
+// getResourceNames returns the names of the requested resources.
+func (a *App) getResourceNames(ctx context.Context, req types.AccessRequest) ([]string, error) {
+	resourceNames := make([]string, 0, len(req.GetRequestedResourceIDs()))
+	resourcesByCluster := accessrequest.GetResourceIDsByCluster(req)
+
+	for cluster, resources := range resourcesByCluster {
+		resourceDetails, err := accessrequest.GetResourceDetails(ctx, cluster, a.teleport, resources)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		for _, resource := range resources {
+			resourceName := types.ResourceIDToString(resource)
+			if details, ok := resourceDetails[resourceName]; ok && details.FriendlyName != "" {
+				resourceName = fmt.Sprintf("%s/%s", resource.Kind, details.FriendlyName)
+			}
+			resourceNames = append(resourceNames, resourceName)
+		}
+	}
+	return resourceNames, nil
 }

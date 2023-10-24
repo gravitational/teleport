@@ -224,15 +224,15 @@ func (snc *Client) GetOnCall(ctx context.Context, rotaID string) ([]string, erro
 	if len(result.Result) == 0 {
 		return nil, trace.NotFound("no user found for given rota: %q", rotaID)
 	}
-	var emails []string
+	var userNames []string
 	for _, result := range result.Result {
-		email, err := snc.GetUserEmail(ctx, result.UserID)
+		userName, err := snc.GetUserName(ctx, result.UserID)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		emails = append(emails, email)
+		userNames = append(userNames, userName)
 	}
-	return emails, nil
+	return userNames, nil
 }
 
 // CheckHealth pings servicenow to check if it is reachable.
@@ -270,13 +270,13 @@ func (snc *Client) CheckHealth(ctx context.Context) error {
 	return nil
 }
 
-// GetUserEmail returns the email address for the given user ID
-func (snc *Client) GetUserEmail(ctx context.Context, userID string) (string, error) {
+// GetUserName returns the name for the given user ID
+func (snc *Client) GetUserName(ctx context.Context, userID string) (string, error) {
 	var result userResult
 	resp, err := snc.client.NewRequest().
 		SetContext(ctx).
 		SetQueryParams(map[string]string{
-			"sysparm_fields": "email",
+			"sysparm_fields": "user_name",
 		}).
 		SetPathParams(map[string]string{"user_id": userID}).
 		SetResult(&result).
@@ -288,13 +288,10 @@ func (snc *Client) GetUserEmail(ctx context.Context, userID string) (string, err
 	if resp.IsError() {
 		return "", errWrapper(resp.StatusCode(), string(resp.Body()))
 	}
-	if len(result.Result) == 0 {
-		return "", trace.NotFound("no user found for given id")
+	if result.Result.UserName == "" {
+		return "", trace.NotFound("no username found for given id: %v", userID)
 	}
-	if len(result.Result) != 1 {
-		return "", trace.NotFound("more than one user returned for given id")
-	}
-	return result.Result[0].Email, nil
+	return result.Result.UserName, nil
 }
 
 var (

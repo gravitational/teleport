@@ -18,8 +18,6 @@ package servicenow
 
 import (
 	"time"
-
-	"github.com/gravitational/teleport/api/types"
 )
 
 // PluginData is a data associated with access request that we store in Teleport using UpdatePluginData API.
@@ -89,7 +87,7 @@ type RequestData struct {
 	// Resolution is the final resolution of the access request.
 	Resolution Resolution
 	// SystemAnnotations contains key value annotations for the request.
-	SystemAnnotations types.Labels
+	SystemAnnotations map[string][]string
 	// Resources are the resources being requested.
 	Resources []string
 	// SuggestedReviewers are the suggested reviewers for this access request.
@@ -104,9 +102,9 @@ type onCallResult struct {
 }
 
 type userResult struct {
-	Result []struct {
-		// Email is the email address in servicenow of the requested user.
-		Email string `json:"email"`
+	Result struct {
+		// UserName is the username in servicenow of the requested user.
+		UserName string `json:"user_name"`
 	} `json:"result"`
 }
 
