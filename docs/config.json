@@ -2057,6 +2057,11 @@
       "permanent": true
     },
     {
+      "source": "/desktop-access/",
+      "destination": "/desktop-access/introduction/",
+      "permanent": true
+    },
+    {
       "source": "/kubernetes-access/",
       "destination": "/kubernetes-access/introduction/",
       "permanent": true
