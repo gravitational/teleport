@@ -18,6 +18,7 @@ import { useState, useRef, useCallback } from 'react';
 
 import { ResourcesResponse, ResourceFilter } from 'teleport/services/agents';
 import { UrlResourcesParams } from 'teleport/config';
+import { ApiError } from 'teleport/services/api/parseError';
 
 import useAttempt, { Attempt } from 'shared/hooks/useAttemptNext';
 
@@ -132,7 +133,11 @@ export function useKeyBasedPagination<T>({
         setAttempt({ status: '', statusText: '' });
         return;
       }
-      setAttempt({ status: 'failed', statusText: err.message });
+      let statusCode;
+      if (err instanceof ApiError && err.response) {
+        statusCode = err.response.status;
+      }
+      setAttempt({ status: 'failed', statusText: err.message, statusCode });
     }
   };
 

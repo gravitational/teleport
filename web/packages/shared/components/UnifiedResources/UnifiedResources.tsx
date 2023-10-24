@@ -308,9 +308,12 @@ export function UnifiedResources<T>(props: UnifiedResourcesProps<T>) {
           <ErrorBoxInternal>
             <Danger>
               {attempt.statusText}
-              <Box flex="0 0 auto" ml={2}>
-                <ButtonLink onClick={onRetryClicked}>Retry</ButtonLink>
-              </Box>
+              {/* we don't want them to try another request with BAD REQUEST, it will just fail again. */}
+              {attempt.statusCode !== 400 && (
+                <Box flex="0 0 auto" ml={2}>
+                  <ButtonLink onClick={onRetryClicked}>Retry</ButtonLink>
+                </Box>
+              )}
             </Danger>
           </ErrorBoxInternal>
         </ErrorBox>
