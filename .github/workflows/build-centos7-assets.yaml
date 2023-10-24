@@ -36,6 +36,15 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Ensure required packages are installed
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          if [ "$CI_SYSTEM" = "ARC" ]; then
+            sudo apt update
+            sudo apt install -y make
+          fi
+
       # We need to keep env vars in sync, so, we can't use standard build actions
       - name: Build buildbox assets image
         run: cd build.assets && make build-centos7-assets
