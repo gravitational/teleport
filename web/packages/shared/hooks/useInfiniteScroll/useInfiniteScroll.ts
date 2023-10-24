@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { useLayoutEffect, useRef } from 'react';
+import { useLayoutEffect, useRef, useCallback } from 'react';
 
 /**
  * Calls fetch function whenever the `trigger` element intersects the
@@ -31,7 +31,7 @@ export function useInfiniteScroll({
   const observer = useRef<IntersectionObserver | null>(null);
   const trigger = useRef<Element | null>(null);
 
-  const recreateObserver = () => {
+  const recreateObserver = useCallback(() => {
     observer.current?.disconnect();
     if (trigger.current) {
       observer.current = new IntersectionObserver(entries => {
@@ -41,7 +41,7 @@ export function useInfiniteScroll({
       });
       observer.current.observe(trigger.current);
     }
-  };
+  }, [fetch]);
 
   const setTrigger = (el: Element | null) => {
     trigger.current = el;
@@ -60,7 +60,7 @@ export function useInfiniteScroll({
     return () => {
       observer.current?.disconnect();
     };
-  }, [fetch]);
+  }, [recreateObserver]);
 
   return { setTrigger };
 }
