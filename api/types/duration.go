@@ -27,6 +27,9 @@ import (
 )
 
 // Duration is a wrapper around duration to set up custom marshal/unmarshal
+// Example YAML:
+// ---
+// 5h
 type Duration time.Duration
 
 // Duration returns time.Duration from Duration typex

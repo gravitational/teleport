@@ -379,6 +379,9 @@ message DatabaseStatusV3 {
 // This enum is set in a Sync.Map during an IAM task that checks for the
 // validity of IAM policy, and the database gets updated with the value
 // from this map during a heartbeat.
+// Example YAML:
+// ---
+// 0
 enum IAMPolicyStatus {
   // IAM_POLICY_STATUS_UNSPECIFIED represents a zero value where
   // nothing has been attempted yet.

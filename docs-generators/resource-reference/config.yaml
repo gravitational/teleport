@@ -1,0 +1,16 @@
+# This configuration file used for:
+#   - The golden file test TestGenerate in reference/referente_test.go
+#   - Generating a new golden file, which you can do by navigating to the
+#     "docs-generators/resource-reference/reference" directory and running the
+#     following command:
+# go run gen-resource-ref -config=testdata/config.yaml
+required_field_types:
+  - package: "types"
+    name: "ResourceHeader"
+  - package: "types"
+    name: "Metadata"
+source: "../../api"
+destination: "../../docs/pages/includes/resources.mdx"
+excluded_resource_types:
+  - package: "types"
+    name: "ResourceHeader"
