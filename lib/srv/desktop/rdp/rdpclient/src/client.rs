@@ -1,3 +1,5 @@
+use bitflags::Flags;
+use boring::error::ErrorStack;
 use bytes::BytesMut;
 use ironrdp_cliprdr::{Cliprdr, CliprdrSvcMessages};
 use ironrdp_connector::{Config, ConnectorError, Credentials};
@@ -15,7 +17,6 @@ use ironrdp_session::x224::{Processor as X224Processor, Processor};
 use ironrdp_session::SessionErrorKind::Reason;
 use ironrdp_session::{reason_err, SessionError, SessionResult};
 use ironrdp_svc::{StaticVirtualChannelProcessor, SvcMessage, SvcProcessorMessages};
-use ironrdp_tls::TlsStream;
 use ironrdp_tokio::{Framed, TokioStream};
 use rand::{Rng, SeedableRng};
 use std::fmt::{Debug, Display, Formatter};
@@ -26,12 +27,13 @@ use tokio::io::{split, ReadHalf, WriteHalf};
 use tokio::net::TcpStream as TokioTcpStream;
 use tokio::sync::mpsc::{channel, error::SendError, Receiver, Sender};
 use tokio::task::JoinError;
+use tokio_boring::{HandshakeError, SslStream};
 
 pub(crate) use global::call_function_on_handle;
 
 use crate::{
-    handle_fastpath_pdu, handle_rdp_channel_ids, handle_remote_copy, CGOErrCode, CGOKeyboardEvent,
-    CGOMousePointerEvent, CGOPointerButton, CGOPointerWheel, CgoHandle,
+    handle_fastpath_pdu, handle_rdp_channel_ids, handle_remote_copy, ssl, CGOErrCode,
+    CGOKeyboardEvent, CGOMousePointerEvent, CGOPointerButton, CGOPointerWheel, CgoHandle,
 };
 // Export this for crate level use.
 use crate::cliprdr::{ClipboardFn, TeleportCliprdrBackend};
@@ -123,7 +125,7 @@ impl Client {
         // Take the stream back out of the framed object for upgrading
         let initial_stream = framed.into_inner_no_leftover();
         let (upgraded_stream, server_public_key) =
-            ironrdp_tls::upgrade(initial_stream, &server_socket_addr.ip().to_string()).await?;
+            ssl::upgrade(initial_stream, &server_socket_addr.ip().to_string()).await?;
 
         // Upgrade the stream
         let upgraded =
@@ -533,8 +535,8 @@ pub type ClientHandle = Sender<ClientFunction>;
 /// [`ClientHandle`].
 pub type FunctionReceiver = Receiver<ClientFunction>;
 
-type RdpReadStream = Framed<TokioStream<ReadHalf<TlsStream<TokioTcpStream>>>>;
-type RdpWriteStream = Framed<TokioStream<WriteHalf<TlsStream<TokioTcpStream>>>>;
+type RdpReadStream = Framed<TokioStream<ReadHalf<SslStream<TokioTcpStream>>>>;
+type RdpWriteStream = Framed<TokioStream<WriteHalf<SslStream<TokioTcpStream>>>>;
 
 fn create_config(width: u16, height: u16, pin: String) -> Config {
     Config {
@@ -589,6 +591,8 @@ pub enum ClientError {
     InternalError,
     UnknownAddress,
     InputEventError(InputEventError),
+    ErrorStack(ErrorStack),
+    HandshakeError(HandshakeError<TokioTcpStream>),
 }
 
 impl Display for ClientError {
@@ -608,6 +612,8 @@ impl Display for ClientError {
             ClientError::InternalError => Display::fmt("Internal error", f),
             ClientError::UnknownAddress => Display::fmt("Unknown address", f),
             ClientError::PduError(e) => Display::fmt(e, f),
+            ClientError::ErrorStack(e) => Display::fmt(e, f),
+            ClientError::HandshakeError(e) => Display::fmt(e, f),
         }
     }
 }
@@ -660,7 +666,19 @@ impl From<PduError> for ClientError {
     }
 }
 
-type ClientResult<T> = Result<T, ClientError>;
+impl From<ErrorStack> for ClientError {
+    fn from(e: ErrorStack) -> Self {
+        ClientError::ErrorStack(e)
+    }
+}
+
+impl From<HandshakeError<TokioTcpStream>> for ClientError {
+    fn from(e: HandshakeError<TokioTcpStream>) -> Self {
+        ClientError::HandshakeError(e)
+    }
+}
+
+pub type ClientResult<T> = Result<T, ClientError>;
 
 impl From<CGOErrCode> for ClientResult<()> {
     fn from(value: CGOErrCode) -> Self {
