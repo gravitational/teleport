@@ -1002,6 +1002,9 @@ message AppAWS {
 }
 
 // PrivateKeyType is the storage type of a private key.
+// Example YAML:
+// ---
+// 0
 enum PrivateKeyType {
   // RAW is a plaintext private key.
   RAW = 0;
@@ -1639,6 +1642,9 @@ message ClusterAuditConfigSpecV2 {
   ];
 
   // FIPSEndpointState represents an AWS FIPS endpoint state.
+  // Example YAML:
+  // ---
+  // 0
   enum FIPSEndpointState {
     // FIPS_UNSET allows setting FIPS state for AWS S3/Dynamo using configuration files or
     // environment variables
@@ -1737,6 +1743,9 @@ message ClusterNetworkingConfigSpecV2 {
 }
 
 // TunnelStrategyV1 defines possible tunnel strategy types.
+// Example YAML:
+// ---
+// agent_connection_count: 2
 message TunnelStrategyV1 {
   oneof Strategy {
     AgentMeshTunnelStrategy AgentMesh = 1 [(gogoproto.jsontag) = "agent_mesh,omitempty"];
@@ -1766,7 +1775,7 @@ enum ProxyListenerMode {
 }
 
 // RoutingStrategy determines the strategy used to route to nodes.
-// YAML Example:
+// Example YAML:
 // ---
 // 0
 enum RoutingStrategy {
@@ -2235,6 +2244,9 @@ message AccessReviewSubmission {
 }
 
 // RequestState represents the state of a request for escalated privilege.
+// Example YAML:
+// ---
+// 0
 enum RequestState {
   // NONE variant exists to allow RequestState to be explicitly omitted
   // in certain circumstances (e.g. in an AccessRequestFilter).
@@ -2788,6 +2800,9 @@ message RecordSession {
 }
 
 // CertExtensionMode specifies the type of extension to use in the cert.
+// Example YAML:
+// ---
+// 0
 enum CertExtensionMode {
   // EXTENSION represents a cert extension that may or may not be
   // honored by the server.
@@ -2796,6 +2811,9 @@ enum CertExtensionMode {
 
 // CertExtensionType represents the certificate type the extension is for.
 // Currently only ssh is supported.
+// Example YAML:
+// ---
+// ssh
 enum CertExtensionType {
   // SSH is used when extending an ssh certificate
   SSH = 0;
