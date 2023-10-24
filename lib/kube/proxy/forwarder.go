@@ -1581,6 +1581,9 @@ func exitCode(err error) (errMsg, code string) {
 			return
 		}
 		errMsg = kubeStatusErr.ErrStatus.Message
+		if errMsg == "" {
+			errMsg = string(kubeStatusErr.ErrStatus.Reason)
+		}
 		code = strconv.Itoa(int(kubeStatusErr.ErrStatus.Code))
 	} else if errors.As(err, &kubeExecErr) {
 		if kubeExecErr.Err != nil {
