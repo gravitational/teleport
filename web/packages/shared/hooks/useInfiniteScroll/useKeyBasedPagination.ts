@@ -16,8 +16,7 @@
 
 import { useState, useRef, useCallback } from 'react';
 
-import { ResourcesResponse, ResourceFilter } from 'teleport/services/agents';
-import { UrlResourcesParams } from 'teleport/config';
+import { ResourcesResponse } from 'teleport/services/agents';
 import { ApiError } from 'teleport/services/api/parseError';
 
 import useAttempt, { Attempt } from 'shared/hooks/useAttemptNext';
@@ -33,7 +32,6 @@ import useAttempt, { Attempt } from 'shared/hooks/useAttemptNext';
  */
 export function useKeyBasedPagination<T>({
   fetchFunc,
-  filter,
   initialFetchSize = 30,
   fetchMoreSize = 20,
 }: KeyBasedPaginationOptions<T>): KeyBasedPagination<T> {
@@ -72,9 +70,11 @@ export function useKeyBasedPagination<T>({
   // https://react.dev/learn/you-might-not-need-an-effect#adjusting-some-state-when-a-prop-changes,
   // we can ensure that the state is reset before anything renders, and thereby
   // ensure that the new `fetch` function is used.
-  const [prevFilter, setPrevFilter] = useState(filter);
-  if (prevFilter !== filter) {
-    setPrevFilter(filter);
+  const [prevFetchFunc, setPrevFetchFunc] = useState(() => fetchFunc);
+  if (prevFetchFunc !== fetchFunc) {
+    // we have to use the callback form because we want to store a function
+    // in the state, not the returned value
+    setPrevFetchFunc(() => fetchFunc);
     clear();
   }
 
@@ -96,7 +96,6 @@ export function useKeyBasedPagination<T>({
       const limit = resources.length > 0 ? fetchMoreSize : initialFetchSize;
       const newPromise = fetchFunc(
         {
-          ...filter,
           limit,
           startKey,
         },
@@ -147,7 +146,7 @@ export function useKeyBasedPagination<T>({
       }
       await fetchInternal(!!options?.force);
     },
-    [filter, startKey, resources, finished, attempt, clear]
+    [fetchFunc, startKey, resources, finished, attempt, clear]
   );
 
   return {
@@ -164,10 +163,9 @@ const isAbortError = (err: any): boolean =>
 
 export type KeyBasedPaginationOptions<T> = {
   fetchFunc: (
-    params: UrlResourcesParams,
+    paginationParams: { limit: number; startKey: string },
     signal?: AbortSignal
   ) => Promise<ResourcesResponse<T>>;
-  filter: ResourceFilter;
   initialFetchSize?: number;
   fetchMoreSize?: number;
 };

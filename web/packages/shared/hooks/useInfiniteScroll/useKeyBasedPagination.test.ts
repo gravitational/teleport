@@ -34,8 +34,9 @@ import {
 
 function hookProps(overrides: Partial<KeyBasedPaginationOptions<Node>> = {}) {
   return {
-    fetchFunc: newFetchFunc('test-cluster', 7),
-    clusterId: 'test-cluster',
+    fetchFunc: newFetchFunc({
+      numResources: 7,
+    }),
     filter: {},
     initialFetchSize: 2,
     fetchMoreSize: 3,
@@ -51,7 +52,9 @@ test.each`
 `('fetches one data batch, n=$n', async ({ n, names }) => {
   const { result } = renderHook(useKeyBasedPagination, {
     initialProps: hookProps({
-      fetchFunc: newFetchFunc('test-cluster', 4),
+      fetchFunc: newFetchFunc({
+        numResources: 4,
+      }),
       initialFetchSize: n,
     }),
   });
@@ -103,10 +106,13 @@ test('maintains attempt state', async () => {
   expect(result.current.attempt.status).toBe('success');
 });
 
-test('restarts after query params change', async () => {
+test('restarts after fetch function change', async () => {
   let props = hookProps({
-    fetchFunc: newFetchFunc('cluster1', 4),
-    filter: { search: 'foo' },
+    fetchFunc: newFetchFunc({
+      clusterId: 'cluster1',
+      search: 'foo',
+      numResources: 4,
+    }),
   });
   const { result, rerender } = renderHook(useKeyBasedPagination, {
     initialProps: props,
@@ -116,7 +122,13 @@ test('restarts after query params change', async () => {
   expect(resourceClusterIds(result)).toEqual(['cluster1', 'cluster1']);
   expect(resourceNames(result)).toEqual(['foo0', 'foo1']);
 
-  props = { ...props, filter: { search: 'bar' } };
+  props = {
+    ...props,
+    fetchFunc: newFetchFunc({
+      search: 'bar',
+      numResources: 4,
+    }),
+  };
   rerender(props);
   await act(result.current.fetch);
   expect(resourceNames(result)).toEqual(['bar0', 'bar1']);
@@ -124,7 +136,13 @@ test('restarts after query params change', async () => {
   // Make sure we reached the end of the data set.
   await act(result.current.fetch);
   expect(result.current.finished).toBe(true);
-  props = { ...props, filter: { search: 'xyz' } };
+  props = {
+    ...props,
+    fetchFunc: newFetchFunc({
+      search: 'xyz',
+      numResources: 4,
+    }),
+  };
   rerender(props);
   expect(result.current.finished).toBe(false);
 
@@ -132,7 +150,7 @@ test('restarts after query params change', async () => {
   expect(resourceNames(result)).toEqual(['xyz0', 'xyz1']);
 });
 
-test("doesn't restart if params didn't change on rerender", async () => {
+test("doesn't restart if fetch function didn't change on rerender", async () => {
   const props = hookProps();
   const { result, rerender } = renderHook(useKeyBasedPagination, {
     initialProps: props,
@@ -191,7 +209,10 @@ test.each([
   ['ApiError', newApiAbortError],
 ])('aborts pending request if params change (%s)', async (_, newError) => {
   let props = hookProps({
-    fetchFunc: newFetchFunc('cluster1', 7, newError),
+    fetchFunc: newFetchFunc({
+      numResources: 7,
+      newAbortError: newError,
+    }),
   });
   const { result, rerender } = renderHook(useKeyBasedPagination, {
     initialProps: props,
@@ -200,7 +221,14 @@ test.each([
   act(() => {
     fetchPromise = result.current.fetch();
   });
-  props = { ...props, filter: { search: 'bar' } };
+  props = {
+    ...props,
+    fetchFunc: newFetchFunc({
+      numResources: 7,
+      search: 'bar',
+      newAbortError: newError,
+    }),
+  };
   rerender(props);
   await act(async () => fetchPromise);
   expect(resourceNames(result)).toEqual([]);
@@ -215,10 +243,10 @@ describe.each`
 `('for error type $name', ({ ErrorType }) => {
   it('stops fetching more pages once error is encountered', async () => {
     const props = hookProps();
+    const fetchSpy = jest.spyOn(props, 'fetchFunc');
     const { result } = renderHook(useKeyBasedPagination, {
       initialProps: props,
     });
-    const fetchSpy = jest.spyOn(props, 'fetchFunc');
 
     await act(result.current.fetch);
     expect(resourceNames(result)).toEqual(['r0', 'r1']);
@@ -235,8 +263,13 @@ describe.each`
     expect(resourceNames(result)).toEqual(['r0', 'r1']);
   });
 
-  it('restarts fetching after error if params change', async () => {
-    let props = hookProps({ filter: { search: 'foo' } });
+  it('restarts fetching after error if fetch function changes', async () => {
+    let props = hookProps({
+      fetchFunc: newFetchFunc({
+        search: 'foo',
+        numResources: 7,
+      }),
+    });
     const fetchSpy = jest.spyOn(props, 'fetchFunc');
 
     const { result, rerender } = renderHook(useKeyBasedPagination, {
@@ -254,8 +287,14 @@ describe.each`
     await act(result.current.fetch);
     expect(resourceNames(result)).toEqual(['foo0', 'foo1']);
 
-    // Rerender with different props: expect new data to be fetched.
-    props = { ...props, filter: { search: 'bar' } };
+    // Rerender with different fetch function: expect new data to be fetched.
+    props = {
+      ...props,
+      fetchFunc: newFetchFunc({
+        search: 'bar',
+        numResources: 7,
+      }),
+    };
     rerender(props);
     await act(result.current.fetch);
     expect(resourceNames(result)).toEqual(['bar0', 'bar1']);
@@ -263,10 +302,10 @@ describe.each`
 
   it('resumes fetching once forceFetch is called after an error', async () => {
     const props = hookProps();
+    const fetchSpy = jest.spyOn(props, 'fetchFunc');
     const { result } = renderHook(useKeyBasedPagination, {
       initialProps: props,
     });
-    const fetchSpy = jest.spyOn(props, 'fetchFunc');
 
     await act(result.current.fetch);
     fetchSpy.mockImplementationOnce(async () => {
@@ -321,8 +360,11 @@ test("doesn't get confused if aborting a request still results in a successful p
   // like this hook can't really trust the abort signal to be 100% effective.
   let props = hookProps({
     // Create a function that will never throw an abort error.
-    fetchFunc: newFetchFunc('test-cluster', 1, () => null),
-    filter: { search: 'rabbit' },
+    fetchFunc: newFetchFunc({
+      search: 'rabbit',
+      numResources: 1,
+      newAbortError: () => null,
+    }),
   });
   const { result, rerender } = renderHook(useKeyBasedPagination, {
     initialProps: props,

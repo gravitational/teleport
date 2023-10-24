@@ -77,7 +77,6 @@ const story = ({
   const params = { sort: { dir: 'ASC', fieldName: 'name' } } as const;
   return () => {
     const { fetch, attempt, resources } = useUnifiedResourcesFetch({
-      params,
       fetchFunc,
     });
     return (
