@@ -15,3 +15,4 @@
  */
 
 export { useInfiniteScroll } from './useInfiniteScroll';
+export { useKeyBasedPagination } from './useKeyBasedPagination';

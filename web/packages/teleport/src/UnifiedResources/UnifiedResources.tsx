@@ -21,6 +21,7 @@ import { Flex } from 'design';
 import {
   UnifiedResources as SharedUnifiedResources,
   UnifiedResourcesPinning,
+  useUnifiedResourcesFetch,
 } from 'shared/components/UnifiedResources';
 
 import useStickyClusterId from 'teleport/useStickyClusterId';
@@ -83,9 +84,31 @@ export function UnifiedResources() {
         getClusterPinnedResources: getCurrentClusterPinnedResources,
       };
 
+  const { fetch, resources, attempt } = useUnifiedResourcesFetch({
+    params: params,
+    fetchFunc: useCallback(
+      async (params, signal) => {
+        const response = await teleCtx.resourceService.fetchUnifiedResources(
+          clusterId,
+          params,
+          signal
+        );
+
+        return {
+          startKey: response.startKey,
+          agents: response.agents,
+          totalCount: response.agents.length,
+        };
+      },
+      [clusterId, teleCtx.resourceService]
+    ),
+  });
+
   return (
     <SharedUnifiedResources
       params={params}
+      fetchResources={fetch}
+      resourcesFetchAttempt={attempt}
       updateUnifiedResourcesPreferences={preferences => {
         updatePreferences({ unifiedResourcePreferences: preferences });
       }}
@@ -144,28 +167,12 @@ export function UnifiedResources() {
           emptyStateInfo={emptyStateInfo}
         />
       }
-      fetchFunc={useCallback(
-        async (params, signal) => {
-          const resp = await teleCtx.resourceService.fetchUnifiedResources(
-            clusterId,
-            params,
-            signal
-          );
-
-          return {
-            startKey: resp.startKey,
-            agents: resp.agents,
-            totalCount: resp.agents.length,
-          };
-        },
-        [clusterId, teleCtx.resourceService]
-      )}
-      mapToResource={resource => ({
+      resources={resources.map(resource => ({
         resource,
         ui: {
           ActionButton: <ResourceActionButton resource={resource} />,
         },
-      })}
+      }))}
     />
   );
 }

@@ -20,7 +20,10 @@ import { ApiError } from 'teleport/services/api/parseError';
 
 import { Node } from 'teleport/services/nodes';
 
-import { useKeyBasedPagination, Props } from './useKeyBasedPagination';
+import {
+  useKeyBasedPagination,
+  KeyBasedPaginationOptions,
+} from './useKeyBasedPagination';
 import {
   newApiAbortError,
   newDOMAbortError,
@@ -29,7 +32,7 @@ import {
   resourceNames,
 } from './testUtils';
 
-function hookProps(overrides: Partial<Props<Node>> = {}) {
+function hookProps(overrides: Partial<KeyBasedPaginationOptions<Node>> = {}) {
   return {
     fetchFunc: newFetchFunc('test-cluster', 7),
     clusterId: 'test-cluster',
@@ -142,7 +145,7 @@ test("doesn't restart if params didn't change on rerender", async () => {
 });
 
 describe("doesn't react to fetch() calls before the previous one finishes", () => {
-  let props: Props<Node>, fetchSpy;
+  let props: KeyBasedPaginationOptions<Node>, fetchSpy;
 
   beforeEach(() => {
     props = hookProps();
@@ -270,7 +273,7 @@ describe.each`
       throw new ErrorType('OMGOMG');
     });
     await act(result.current.fetch);
-    await act(result.current.forceFetch);
+    await act(() => result.current.fetch({ force: true }));
 
     expect(result.current.attempt.status).toBe('success');
     expect(resourceNames(result)).toEqual(['r0', 'r1', 'r2', 'r3', 'r4']);
@@ -304,7 +307,7 @@ test('forceFetch spawns another request, even if there is one pending', async ()
     f1 = result.current.fetch();
   });
   act(() => {
-    f2 = result.current.forceFetch();
+    f2 = result.current.fetch({ force: true });
   });
   await act(async () => Promise.all([f1, f2]));
   expect(resourceNames(result)).toEqual(['r0', 'r1']);
