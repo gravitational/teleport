@@ -638,7 +638,7 @@ func NewFromDecl(decl DeclarationInfo, allDecls map[PackageInfo]DeclarationInfo,
 		}]
 		for _, e := range m {
 			if e.Name == "UnmarshalYAML" || e.Name == "UnmarshalJSON" {
-				return nil, fmt.Errorf("%v: type %v.%v has a custom unmarshaler, so it needs a custom YAML example (a comment beginning \"Example YAML:\n---\"", decl.FilePath, rs.name, decl.PackageName)
+				return nil, fmt.Errorf("%v: type %v.%v has a custom unmarshaler, so it needs a custom YAML example (a comment beginning \"Example YAML:\n---\"", decl.FilePath, decl.PackageName, rs.name)
 			}
 		}
 
