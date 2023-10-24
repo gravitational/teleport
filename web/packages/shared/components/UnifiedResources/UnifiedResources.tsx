@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 
 import styled from 'styled-components';
 import {
@@ -27,40 +27,45 @@ import {
   Popover,
 } from 'design';
 import { Magnifier, PushPin } from 'design/Icon';
-
 import { Danger } from 'design/Alert';
+
+import './unifiedStyles.css';
+
+import {
+  ResourcesResponse,
+  ResourceLabel,
+  ResourceFilter,
+} from 'teleport/services/agents';
+import { UrlResourcesParams } from 'teleport/config';
+import { FeatureBox } from 'teleport/components/Layout';
+import { TextIcon } from 'teleport/Discover/Shared';
+import {
+  UnifiedTabPreference,
+  UnifiedResourcePreferences,
+} from 'teleport/services/userPreferences/types';
+
 import {
   makeEmptyAttempt,
   makeSuccessAttempt,
   useAsync,
+  Attempt,
 } from 'shared/hooks/useAsync';
 
-import { TextIcon } from 'teleport/Discover/Shared';
+import { useInfiniteScroll } from '../../hooks';
 
+import { SharedUnifiedResource } from './types';
 import {
-  FeatureBox,
-  FeatureHeader,
-  FeatureHeaderTitle,
-} from 'teleport/components/Layout';
-import Empty, { EmptyStateInfo } from 'teleport/components/Empty';
-import useTeleport from 'teleport/useTeleport';
-import cfg from 'teleport/config';
-import history from 'teleport/services/history/history';
-import localStorage from 'teleport/services/localStorage';
-import useStickyClusterId from 'teleport/useStickyClusterId';
-import AgentButtonAdd from 'teleport/components/AgentButtonAdd';
-import { SearchResource } from 'teleport/Discover/SelectResource';
-import { useUrlFiltering, useInfiniteScroll } from 'teleport/components/hooks';
-import { UnifiedResource } from 'teleport/services/agents';
-import { useUser } from 'teleport/User/UserContext';
-import { encodeUrlQueryParams } from 'teleport/components/hooks/useUrlFiltering';
-import { UnifiedTabPreference } from 'teleport/services/userPreferences/types';
+  makeUnifiedResourceCardNode,
+  makeUnifiedResourceCardDatabase,
+  makeUnifiedResourceCardKube,
+  makeUnifiedResourceCardApp,
+  makeUnifiedResourceCardDesktop,
+  makeUnifiedResourceCardUserGroup,
+} from './cards';
 
 import { ResourceTab } from './ResourceTab';
-import { ResourceCard, LoadingCard } from './ResourceCard';
-import SearchPanel from './SearchPanel';
+import { ResourceCard, LoadingCard, PinningSupport } from './ResourceCard';
 import { FilterPanel } from './FilterPanel';
-import './unifiedStyles.css';
 
 const RESOURCES_MAX_WIDTH = '1800px';
 // get 48 resources to start
@@ -84,33 +89,92 @@ const tabs: { label: string; value: UnifiedTabPreference }[] = [
   },
 ];
 
-export function Resources() {
-  const { isLeafCluster, clusterId } = useStickyClusterId();
-  const enabled = localStorage.areUnifiedResourcesEnabled();
-  const pinningNotSupported = localStorage.arePinnedResourcesDisabled();
+export type UnifiedResourcesPinning =
+  | {
+      kind: 'supported';
+      /** `getClusterPinnedResources` has to be stable, it is used in `useEffect`. */
+      getClusterPinnedResources(): Promise<string[]>;
+      updateClusterPinnedResources(pinned: string[]): Promise<void>;
+    }
+  | {
+      kind: 'not-supported';
+    }
+  | {
+      kind: 'hidden';
+    };
+
+interface UnifiedResourcesProps<T> {
+  params: ResourceFilter;
+  //TODO(gzdunek): the pin button should be moved to some other place
+  //according to the new designs
+  Header(pinAllButton: React.ReactElement): React.ReactElement;
+  EmptySearchResults: React.ReactElement;
+  /**
+   * If pinning is supported, the functions to get and update pinned resources
+   * can be passed here.
+   */
+  pinning: UnifiedResourcesPinning;
+  availableKinds: SharedUnifiedResource['resource']['kind'][];
+  /**
+   * Fetches the resources.
+   * The type of particular resource is not specified; the fetched resource
+   * should be mapped to `SharedUnifiedResource` via the `mapToResource` prop.
+   * */
+  fetchFunc(
+    params: UrlResourcesParams,
+    signal: AbortSignal
+  ): Promise<ResourcesResponse<T>>;
+  /** Maps fetched data to `SharedUnifiedResource`. */
+  mapToResource(response: T): SharedUnifiedResource;
+  setParams(params: ResourceFilter): void;
+  onLabelClick(label: ResourceLabel): void;
+  updateUnifiedResourcesPreferences(
+    preferences: UnifiedResourcePreferences
+  ): void;
+}
+
+export function UnifiedResources<T>(props: UnifiedResourcesProps<T>) {
   const {
-    getClusterPinnedResources,
-    preferences,
-    updatePreferences,
-    updateClusterPinnedResources,
-  } = useUser();
-  const teleCtx = useTeleport();
-  const canCreate = teleCtx.storeUser.getTokenAccess().create;
+    params,
+    setParams,
+    onLabelClick,
+    availableKinds,
+    pinning,
+    updateUnifiedResourcesPreferences,
+  } = props;
+  const {
+    setTrigger: setScrollDetector,
+    forceFetch,
+    resources: rawResources,
+    attempt,
+  } = useInfiniteScroll({
+    fetchFunc: props.fetchFunc,
+    filter: params,
+    initialFetchSize: INITIAL_FETCH_SIZE,
+    fetchMoreSize: FETCH_MORE_SIZE,
+  });
+
+  const resources = rawResources.map(props.mapToResource);
+
   const [selectedResources, setSelectedResources] = useState<string[]>([]);
 
+  const pinnedResourcesGetter =
+    pinning.kind === 'supported'
+      ? pinning.getClusterPinnedResources
+      : undefined;
   const [getPinnedResourcesAttempt, getPinnedResources, setPinnedResources] =
     useAsync(
-      useCallback(
-        () => getClusterPinnedResources(clusterId),
-        [clusterId, getClusterPinnedResources]
-      )
+      useCallback(async () => {
+        if (pinnedResourcesGetter) {
+          return await pinnedResourcesGetter();
+        }
+        return [];
+      }, [pinnedResourcesGetter])
     );
 
   useEffect(() => {
     getPinnedResources();
-    setSelectedResources([]);
-    setUpdatePinnedResources(makeEmptyAttempt());
-  }, [clusterId, getPinnedResources]);
+  }, [getPinnedResources]);
 
   const pinnedResources = getPinnedResourcesAttempt.data || [];
 
@@ -119,20 +183,11 @@ export function Resources() {
     updatePinnedResources,
     setUpdatePinnedResources,
   ] = useAsync(async (newPinnedResources: string[]) => {
-    await updateClusterPinnedResources(clusterId, newPinnedResources);
-    setPinnedResources(makeSuccessAttempt(newPinnedResources));
+    if (pinning.kind === 'supported') {
+      await pinning.updateClusterPinnedResources(newPinnedResources);
+      setPinnedResources(makeSuccessAttempt(newPinnedResources));
+    }
   });
-
-  const { params, setParams, replaceHistory, pathname, setSort, onLabelClick } =
-    useUrlFiltering({
-      sort: {
-        fieldName: 'name',
-        dir: 'ASC',
-      },
-      pinnedOnly:
-        preferences.unifiedResourcePreferences.defaultTab ===
-        UnifiedTabPreference.Pinned,
-    });
 
   useEffect(() => {
     const handleKeyDown = event => {
@@ -162,11 +217,12 @@ export function Resources() {
   );
 
   const handleSelectResources = (resourceId: string) => {
-    if (selectedResources.includes(resourceId)) {
-      setSelectedResources(selectedResources.filter(i => i !== resourceId));
-      return;
-    }
-    setSelectedResources([...selectedResources, resourceId]);
+    setSelectedResources(prevResources => {
+      if (selectedResources.includes(resourceId)) {
+        return prevResources.filter(i => i !== resourceId);
+      }
+      return [...prevResources, resourceId];
+    });
   };
 
   const handlePinSelected = (unpin: boolean) => {
@@ -181,19 +237,6 @@ export function Resources() {
     updatePinnedResources(newPinned);
   };
 
-  const {
-    setTrigger: setScrollDetector,
-    forceFetch,
-    resources,
-    attempt,
-  } = useInfiniteScroll({
-    fetchFunc: teleCtx.resourceService.fetchUnifiedResources,
-    clusterId,
-    filter: params,
-    initialFetchSize: INITIAL_FETCH_SIZE,
-    fetchMoreSize: FETCH_MORE_SIZE,
-  });
-
   const noResults = attempt.status === 'success' && resources.length === 0;
 
   const [isSearchEmpty, setIsSearchEmpty] = useState(true);
@@ -204,10 +247,6 @@ export function Resources() {
     setIsSearchEmpty(!params?.query && !params?.search);
   }, [params.query, params.search]);
 
-  if (!enabled) {
-    history.replace(cfg.getNodesRoute(clusterId));
-  }
-
   const onRetryClicked = () => {
     forceFetch();
   };
@@ -215,7 +254,7 @@ export function Resources() {
   const allSelected =
     resources.length > 0 &&
     resources.every(resource =>
-      selectedResources.includes(resourceKey(resource))
+      selectedResources.includes(generateResourceKey(resource))
     );
 
   const toggleSelectVisible = () => {
@@ -223,7 +262,9 @@ export function Resources() {
       setSelectedResources([]);
       return;
     }
-    setSelectedResources(resources.map(resource => resourceKey(resource)));
+    setSelectedResources(
+      resources.map(resource => generateResourceKey(resource))
+    );
   };
 
   const selectTab = (value: UnifiedTabPreference) => {
@@ -234,25 +275,14 @@ export function Resources() {
     });
     setSelectedResources([]);
     setUpdatePinnedResources(makeEmptyAttempt());
-    setPinnedResources(makeSuccessAttempt(getPinnedResourcesAttempt.data));
-    updatePreferences({ unifiedResourcePreferences: { defaultTab: value } });
-    replaceHistory(
-      encodeUrlQueryParams(
-        pathname,
-        params.search,
-        params.sort,
-        params.kinds,
-        !!params.query /* isAdvancedSearch */,
-        pinnedOnly
-      )
-    );
+    updateUnifiedResourcesPreferences({ defaultTab: value });
   };
 
   const $pinAllButton = (
     <ButtonBorder
       onClick={() => handlePinSelected(shouldUnpin)}
       textTransform="none"
-      disabled={pinningNotSupported}
+      disabled={pinning.kind === 'not-supported'}
       css={`
         border: none;
         color: ${props => props.theme.colors.brand};
@@ -295,94 +325,76 @@ export function Resources() {
           <Danger>{updatePinnedResourcesAttempt.statusText}</Danger>
         </ErrorBox>
       )}
-      <FeatureHeader
-        css={`
-          border-bottom: none;
-        `}
-        mb={1}
-        alignItems="center"
-        justifyContent="space-between"
-      >
-        <FeatureHeaderTitle>Resources</FeatureHeaderTitle>
-        <Flex alignItems="center">
-          <AgentButtonAdd
-            agent={SearchResource.UNIFIED_RESOURCE}
-            beginsWithVowel={false}
-            isLeafCluster={isLeafCluster}
-            canCreate={canCreate}
-          />
-        </Flex>
-      </FeatureHeader>
-      <Flex alignItems="center" justifyContent="space-between">
-        <SearchPanel
-          params={params}
-          setParams={setParams}
-          pathname={pathname}
-          replaceHistory={replaceHistory}
-        />
-        {selectedResources.length > 0 &&
-          (pinningNotSupported ? (
-            <HoverTooltip tipContent={<>{PINNING_NOT_SUPPORTED_MESSAGE}</>}>
-              {$pinAllButton}
-            </HoverTooltip>
-          ) : (
-            $pinAllButton
-          ))}
-      </Flex>
+      {props.Header(
+        <>
+          {selectedResources.length > 0 &&
+            pinning.kind !== 'hidden' &&
+            (pinning.kind === 'not-supported' ? (
+              <HoverTooltip tipContent={<>{PINNING_NOT_SUPPORTED_MESSAGE}</>}>
+                {$pinAllButton}
+              </HoverTooltip>
+            ) : (
+              $pinAllButton
+            ))}
+        </>
+      )}
       <FilterPanel
         params={params}
         setParams={setParams}
-        setSort={setSort}
-        pathname={pathname}
-        replaceHistory={replaceHistory}
+        availableKinds={availableKinds}
         selectVisible={toggleSelectVisible}
         selected={allSelected}
         shouldUnpin={shouldUnpin}
       />
-      <Flex gap={4} mb={3}>
-        {tabs.map(tab => (
-          <ResourceTab
-            key={tab.value}
-            onClick={() => selectTab(tab.value)}
-            disabled={
-              tab.value === UnifiedTabPreference.Pinned && pinningNotSupported
-            }
-            title={tab.label}
-            isSelected={
-              params.pinnedOnly
-                ? tab.value === UnifiedTabPreference.Pinned
-                : tab.value === UnifiedTabPreference.All
-            }
-          />
-        ))}
-      </Flex>
-      {pinningNotSupported && params.pinnedOnly ? (
+      {pinning.kind !== 'hidden' && (
+        <Flex gap={4} mb={3}>
+          {tabs.map(tab => (
+            <ResourceTab
+              key={tab.value}
+              onClick={() => selectTab(tab.value)}
+              disabled={
+                tab.value === UnifiedTabPreference.Pinned &&
+                pinning.kind === 'not-supported'
+              }
+              title={tab.label}
+              isSelected={
+                params.pinnedOnly
+                  ? tab.value === UnifiedTabPreference.Pinned
+                  : tab.value === UnifiedTabPreference.All
+              }
+            />
+          ))}
+        </Flex>
+      )}
+      {pinning.kind === 'not-supported' && params.pinnedOnly ? (
         <PinningNotSupported />
       ) : (
         <ResourcesContainer className="ResourcesContainer" gap={2}>
-          {getPinnedResourcesAttempt.status !== 'processing' &&
-            resources.map(res => {
-              const key = resourceKey(res);
-              return (
-                <ResourceCard
-                  key={key}
-                  resource={res}
-                  onLabelClick={onLabelClick}
-                  pinResource={handlePinResource}
-                  pinned={pinnedResources.includes(key)}
-                  // pinningDisabled is used to disable the button during
-                  // a pinning network request
-                  pinningDisabled={
-                    updatePinnedResourcesAttempt.status === 'processing'
-                  }
-                  // pinningNotSupported is when the cluster does not have
-                  // pinning enabled (old version)
-                  pinningNotSupported={pinningNotSupported}
-                  selected={selectedResources.includes(key)}
-                  selectResource={handleSelectResources}
-                />
-              );
-            })}
+          {resources
+            .map(unifiedResource => ({
+              card: mapResourceToCard(unifiedResource),
+              key: generateResourceKey(unifiedResource),
+            }))
+            .map(({ card, key }) => (
+              <ResourceCard
+                key={key}
+                name={card.name}
+                ActionButton={card.ActionButton}
+                primaryIconName={card.primaryIconName}
+                onLabelClick={onLabelClick}
+                SecondaryIcon={card.SecondaryIcon}
+                description={card.description}
+                labels={card.labels}
+                pinned={pinnedResources.includes(key)}
+                pinningSupport={getResourcePinningSupport(
+                  pinning.kind,
+                  updatePinnedResourcesAttempt
+                )}
+                selected={selectedResources.includes(key)}
+                selectResource={() => handleSelectResources(key)}
+                pinResource={() => handlePinResource(key)}
+              />
+            ))}
           {/* Using index as key here is ok because these elements never change order */}
           {(attempt.status === 'processing' ||
             getPinnedResourcesAttempt.status === 'processing') &&
@@ -396,13 +408,10 @@ export function Resources() {
         {attempt.status === 'failed' && resources.length > 0 && (
           <ButtonSecondary onClick={onRetryClicked}>Load more</ButtonSecondary>
         )}
-        {noResults && isSearchEmpty && !params.pinnedOnly && (
-          <Empty
-            clusterId={clusterId}
-            canCreate={canCreate && !isLeafCluster}
-            emptyStateInfo={emptyStateInfo}
-          />
-        )}
+        {noResults &&
+          isSearchEmpty &&
+          !params.pinnedOnly &&
+          props.EmptySearchResults}
         {noResults && params.pinnedOnly && isSearchEmpty && <NoPinned />}
         {noResults && !isSearchEmpty && (
           <NoResults
@@ -415,21 +424,30 @@ export function Resources() {
   );
 }
 
-export function resourceKey(resource: UnifiedResource) {
+function getResourcePinningSupport(
+  pinning: UnifiedResourcesPinning['kind'],
+  updatePinnedResourcesAttempt: Attempt<void>
+): PinningSupport {
+  if (pinning === 'not-supported') {
+    return PinningSupport.NotSupported;
+  }
+
+  if (pinning === 'hidden') {
+    return PinningSupport.Hidden;
+  }
+
+  if (updatePinnedResourcesAttempt.status === 'processing') {
+    return PinningSupport.Disabled;
+  }
+
+  return PinningSupport.Supported;
+}
+
+function generateResourceKey({ resource }: SharedUnifiedResource): string {
   if (resource.kind === 'node') {
     return `${resource.hostname}/${resource.id}/node`.toLowerCase();
   }
   return `${resource.name}/${resource.kind}`.toLowerCase();
-}
-
-export function resourceName(resource: UnifiedResource) {
-  if (resource.kind === 'app' && resource.friendlyName) {
-    return resource.friendlyName;
-  }
-  if (resource.kind === 'node') {
-    return resource.hostname;
-  }
-  return resource.name;
 }
 
 function NoPinned() {
@@ -511,17 +529,6 @@ const ListFooter = styled.div`
   text-align: center;
 `;
 
-const emptyStateInfo: EmptyStateInfo = {
-  title: 'Add your first resource to Teleport',
-  byline:
-    'Connect SSH servers, Kubernetes clusters, Windows Desktops, Databases, Web apps and more from our integrations catalog.',
-  readOnly: {
-    title: 'No Resources Found',
-    resource: 'resources',
-  },
-  resourceType: 'unified_resource',
-};
-
 // TODO (avatus) extract to the shared package in ToolTip
 export const HoverTooltip: React.FC<{
   tipContent: React.ReactElement;
@@ -576,3 +583,20 @@ const StyledOnHover = styled(Text)`
   background-color: ${props => props.theme.colors.tooltip.background};
   max-width: 350px;
 `;
+
+function mapResourceToCard({ resource, ui }: SharedUnifiedResource) {
+  switch (resource.kind) {
+    case 'node':
+      return makeUnifiedResourceCardNode(resource, ui);
+    case 'db':
+      return makeUnifiedResourceCardDatabase(resource, ui);
+    case 'kube_cluster':
+      return makeUnifiedResourceCardKube(resource, ui);
+    case 'app':
+      return makeUnifiedResourceCardApp(resource, ui);
+    case 'windows_desktop':
+      return makeUnifiedResourceCardDesktop(resource, ui);
+    case 'user_group':
+      return makeUnifiedResourceCardUserGroup(resource, ui);
+  }
+}

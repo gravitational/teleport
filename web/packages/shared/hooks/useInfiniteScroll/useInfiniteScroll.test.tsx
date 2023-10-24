@@ -27,9 +27,8 @@ const mio = mockIntersectionObserver();
 
 function hookProps() {
   return {
-    fetchFunc: newFetchFunc(7),
+    fetchFunc: newFetchFunc('test-cluster', 7),
     trigger: null,
-    clusterId: 'test-cluster',
     filter: {},
     initialFetchSize: 2,
     fetchMoreSize: 3,

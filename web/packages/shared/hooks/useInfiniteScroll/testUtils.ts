@@ -61,14 +61,11 @@ export function newApiAbortError() {
  * name prefix.
  */
 export function newFetchFunc(
+  clusterId: string,
   numResources: number,
   newAbortError: () => Error = newDOMAbortError
 ) {
-  return async (
-    clusterId: string,
-    params: UrlResourcesParams,
-    signal?: AbortSignal
-  ) => {
+  return async (params: UrlResourcesParams, signal?: AbortSignal) => {
     const { startKey, limit } = params;
     const startIndex = parseInt(startKey || '0');
     const namePrefix = params.search ?? 'r';
