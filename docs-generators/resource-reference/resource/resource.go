@@ -776,6 +776,21 @@ func GetTopLevelStringAssignments(decls []ast.Decl, pkg string) (map[PackageInfo
 	return result, nil
 }
 
+func getMethodName(exp ast.Expr) (string, error) {
+	switch t := exp.(type) {
+	case *ast.IndexExpr:
+		return getMethodName(t.X)
+	case *ast.IndexListExpr:
+		return getMethodName(t.X)
+	case *ast.StarExpr:
+		return getMethodName(t.X)
+	case *ast.Ident:
+		return t.Name, nil
+	default:
+		return "", errors.New("method has an unexpected receiver type")
+	}
+}
+
 func GetMethodInfo(decls []DeclarationInfo) (map[PackageInfo][]MethodInfo, error) {
 	if decls == nil || len(decls) == 0 {
 		return map[PackageInfo][]MethodInfo{}, nil
@@ -802,56 +817,19 @@ func GetMethodInfo(decls []DeclarationInfo) (map[PackageInfo][]MethodInfo, error
 			)
 		}
 
-		var i *ast.Ident
-		switch t := f.Recv.List[0].Type.(type) {
-		case *ast.StarExpr:
-			switch xt := t.X.(type) {
-			case *ast.Ident:
-				i = xt
-			// The function has a type parameter
-			case *ast.IndexExpr:
-				d, ok := xt.X.(*ast.Ident)
-				if !ok {
-					return nil, fmt.Errorf("%v: method %v.%v has a receiver type with a star expression and type parameter but no identifier",
-						decl.FilePath,
-						decl.PackageName,
-						f.Name.Name,
-					)
-
-				}
-				i = d
-			case *ast.IndexListExpr:
-				d, ok := xt.X.(*ast.Ident)
-				if !ok {
-					return nil, fmt.Errorf("%v: method %v.%v has a receiver type with a star expression and type parameter but no identifier",
-						decl.FilePath,
-						decl.PackageName,
-						f.Name.Name,
-					)
-
-				}
-				i = d
-			default:
-				return nil, fmt.Errorf("%v: method %v.%v has a receiver type with a star expression but no identifier",
-					decl.FilePath,
-					decl.PackageName,
-					f.Name.Name,
-				)
-
-			}
-		case *ast.Ident:
-			i = t
-		default:
-			return nil, fmt.Errorf("%v: method %v.%v has an unexpected receiver list type",
+		i, err := getMethodName(f.Recv.List[0].Type)
+		if err != nil {
+			return nil, fmt.Errorf("%v: method %v.%v has an unexpected receiver type",
 				decl.FilePath,
 				decl.PackageName,
 				f.Name.Name,
 			)
 
 		}
+
 		pi := PackageInfo{
 			PackageName: decl.PackageName,
-			DeclName:    i.Name,
+			DeclName:    i,
 		}
 
 		mi := MethodInfo{
