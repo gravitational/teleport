@@ -14,3 +14,7 @@ destination: "../../docs/pages/includes/resources.mdx"
 excluded_resource_types:
   - package: "types"
     name: "ResourceHeader"
+  # This is an entire resource with a custom unmarshaler, so we should take care
+  # to determine how to document it.
+  - package: "types"
+    name: "MFADevice"

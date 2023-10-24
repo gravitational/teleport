@@ -1312,7 +1312,7 @@ func NewBoolP(b bool) *Bool {
 }
 
 // Bool is a wrapper around boolean values
-// YAML example:
+// Example YAML:
 // ---
 // true|false
 type Bool bool
