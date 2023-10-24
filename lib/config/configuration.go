@@ -292,8 +292,6 @@ type IntegrationConfExternalCloudAudit struct {
 	GlueTable string
 	// Partition is the AWS partition to use (default: aws).
 	Partition string
-	// Bootstrap controls whether required infrastructure is created or not
-	Bootstrap bool
 }
 
 // ReadConfigFile reads /etc/teleport.yaml (or whatever is passed via --config flag)
