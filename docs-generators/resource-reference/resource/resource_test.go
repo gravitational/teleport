@@ -1026,6 +1026,50 @@ label_maps:
 				},
 			},
 		},
+		{
+			description: "type parameter",
+			source: `package mypkg
+// Resource is a resource.
+type Resource struct {
+  // The name of the resource.
+  Name string BACKTICKjson:"name"BACKTICK
+}
+`,
+			declSources: []string{
+				`package mypkg
+// streamFunc is a wrapper that converts a closure into a stream.
+type streamFunc[T any] struct {
+	fn        func() (T, error)
+	doneFuncs []func()
+	item      T
+	err       error
+}
+
+func (stream *streamFunc[T]) Next() bool {
+	stream.item, stream.err = stream.fn()
+	return stream.err == nil
+}
+`,
+			},
+			expected: map[PackageInfo]ReferenceEntry{
+				PackageInfo{
+					PackageName: "mypkg",
+					DeclName:    "Resource",
+				}: ReferenceEntry{
+					SectionName: "Resource",
+					Description: "A resource.",
+					SourcePath:  "myfile.go",
+					YAMLExample: `name: "string"`,
+					Fields: []Field{
+						Field{
+							Name:        "name",
+							Description: "The name of the resource.",
+							Type:        "string",
+						},
+					},
+				},
+			},
+		},
 	}
 
 	for _, tc := range cases {
@@ -1510,6 +1554,26 @@ func (mystruct) getMessage() string {
 					{
 						Name:             "getMessage",
 						FieldAssignments: map[string]string{},
+					},
+				},
+			},
+		},
+		{
+			description: "type parameters",
+			source: `package mypkg
+func (stream *streamFunc[T]) Next() bool {
+	stream.item, stream.err = stream.fn()
+	return stream.err == nil
+}
+`,
+			expected: map[PackageInfo][]MethodInfo{
+				PackageInfo{
+					PackageName: "mypkg",
+					DeclName:    "streamFunc",
+				}: []MethodInfo{
+					{
+						Name:             "Next",
+						FieldAssignments: nil,
 					},
 				},
 			},
