@@ -1607,6 +1607,34 @@ func (stream *filterMap[A, B]) Next() bool {
 				},
 			},
 		},
+		{
+			description: "type params with value receiver",
+			source: `package mypkg
+
+func (stream MyStream[T]) Next() bool {
+	return false
+}
+
+func (stream MyStream[A, B]) Finish() bool {
+	return false
+}
+`,
+			expected: map[PackageInfo][]MethodInfo{
+				PackageInfo{
+					PackageName: "mypkg",
+					DeclName:    "MyStream",
+				}: []MethodInfo{
+					{
+						Name:             "Next",
+						FieldAssignments: map[string]string{},
+					},
+					{
+						Name:             "Finish",
+						FieldAssignments: map[string]string{},
+					},
+				},
+			},
+		},
 	}
 
 	for _, c := range cases {

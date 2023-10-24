@@ -831,7 +831,6 @@ func GetMethodInfo(decls []DeclarationInfo) (map[PackageInfo][]MethodInfo, error
 
 				}
 				i = d
-
 			default:
 				return nil, fmt.Errorf("%v: method %v.%v has a receiver type with a star expression but no identifier",
 					decl.FilePath,
@@ -842,6 +841,13 @@ func GetMethodInfo(decls []DeclarationInfo) (map[PackageInfo][]MethodInfo, error
 			}
 		case *ast.Ident:
 			i = t
+		default:
+			return nil, fmt.Errorf("%v: method %v.%v has an unexpected receiver list type",
+				decl.FilePath,
+				decl.PackageName,
+				f.Name.Name,
+			)
+
 		}
 		pi := PackageInfo{
 			PackageName: decl.PackageName,
