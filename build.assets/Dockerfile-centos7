@@ -5,8 +5,21 @@ ARG RUST_VERSION
 # git2 packages are not available on ARM64, so we need to build it from source.
 FROM centos:7 AS git2
 
+ARG BUILDARCH
+ARG TARGETARCH
 ARG DEVTOOLSET
 
+# devtoolset-12 is only in CentOS buildlogs. The rpms are unsigned since they never were
+# published to the official CentOS SCL repos.
+RUN cat <<EOF > /etc/yum.repos.d/${DEVTOOLSET}-build.repo
+[${DEVTOOLSET}-build]
+name=${DEVTOOLSET} - Build
+baseurl=https://buildlogs.centos.org/c7-${DEVTOOLSET}.${TARGETARCH}/
+gpgcheck=0
+enabled=1
+EOF
+
+# Install required dependencies.
 RUN yum groupinstall -y 'Development Tools' && \
     yum install -y \
     ca-certificates  \
@@ -20,14 +33,18 @@ RUN yum groupinstall -y 'Development Tools' && \
     yum update -y && \
     yum -y install centos-release-scl-rh && \
     yum install -y \
-    centos-release-scl \
-    ${DEVTOOLSET}-gcc* \
-    ${DEVTOOLSET}-make && \
+    centos-release-scl && \
     yum clean all
 
-RUN wget https://github.com/git/git/archive/refs/tags/v2.42.0.tar.gz && \
-    tar xf v2.42.0.tar.gz && \
-    cd git-2.42.0/ && \
+# As mentioned above, these packages are unsigned.
+RUN yum install --nogpgcheck -y \
+        ${DEVTOOLSET}-gcc* \
+        ${DEVTOOLSET}-make && \
+    yum clean all
+
+RUN git clone --depth=1 https://github.com/git/git.git -b v2.42.0 && \
+    cd git && \
+    [ "$(git rev-parse HEAD)" = '43c8a30d150ecede9709c1f2527c8fba92c65f40' ] && \
     scl enable ${DEVTOOLSET} "make configure && \
     ./configure --prefix=/usr/local && \
     make -j"$(nproc)" all && \
@@ -43,6 +60,17 @@ FROM ghcr.io/gravitational/teleport-buildbox-centos7-assets:teleport14-${BUILDAR
 FROM centos:7 AS libfido2
 
 ARG DEVTOOLSET
+ARG TARGETARCH
+
+# devtoolset-12 is only in CentOS buildlogs. The rpms are unsigned since they never were
+# published to the official CentOS SCL repos.
+RUN cat <<EOF > /etc/yum.repos.d/${DEVTOOLSET}-build.repo
+[${DEVTOOLSET}-build]
+name=${DEVTOOLSET} - Build
+baseurl=https://buildlogs.centos.org/c7-${DEVTOOLSET}.${TARGETARCH}/
+gpgcheck=0
+enabled=1
+EOF
 
 RUN yum groupinstall -y 'Development Tools' && \
     yum install -y epel-release && \
@@ -50,11 +78,15 @@ RUN yum groupinstall -y 'Development Tools' && \
     yum update -y && \
     yum install -y \
         cmake3 \
-        ${DEVTOOLSET}-gcc* \
         git \
         libudev-devel \
         perl-IPC-Cmd \
         zlib-devel && \
+    yum clean all
+
+# As mentioned above, these packages are unsigned.
+RUN yum install --nogpgcheck -y \
+        ${DEVTOOLSET}-gcc* && \
     yum clean all
 
 # Install libudev-zero.
@@ -108,6 +140,17 @@ RUN git clone --depth=1 https://github.com/Yubico/libfido2.git -b 1.13.0 && \
 FROM centos:7 AS libbpf
 
 ARG DEVTOOLSET
+ARG TARGETARCH
+
+# devtoolset-12 is only in CentOS buildlogs. The rpms are unsigned since they never were
+# published to the official CentOS SCL repos.
+RUN cat <<EOF > /etc/yum.repos.d/${DEVTOOLSET}-build.repo
+[${DEVTOOLSET}-build]
+name=${DEVTOOLSET} - Build
+baseurl=https://buildlogs.centos.org/c7-${DEVTOOLSET}.${TARGETARCH}/
+gpgcheck=0
+enabled=1
+EOF
 
 # Install required dependencies.
 RUN yum groupinstall -y 'Development Tools' && \
@@ -116,10 +159,14 @@ RUN yum groupinstall -y 'Development Tools' && \
     yum -y install centos-release-scl-rh && \
     yum install -y \
         centos-release-scl \
-        ${DEVTOOLSET}-gcc* \
-        ${DEVTOOLSET}-make \
         elfutils-libelf-devel-static \
         scl-utils && \
+    yum clean all
+
+# As mentioned above, these packages are unsigned.
+RUN yum install --nogpgcheck -y \
+        ${DEVTOOLSET}-gcc* \
+        ${DEVTOOLSET}-make && \
     yum clean all
 
 # Install libbpf - compile with a newer GCC. The one installed by default is not able to compile it.
@@ -135,6 +182,17 @@ RUN mkdir -p /opt && cd /opt && \
 FROM centos:7 AS libpcsclite
 
 ARG DEVTOOLSET
+ARG TARGETARCH
+
+# devtoolset-12 is only in CentOS buildlogs. The rpms are unsigned since they never were
+# published to the official CentOS SCL repos.
+RUN cat <<EOF > /etc/yum.repos.d/${DEVTOOLSET}-build.repo
+[${DEVTOOLSET}-build]
+name=${DEVTOOLSET} - Build
+baseurl=https://buildlogs.centos.org/c7-${DEVTOOLSET}.${TARGETARCH}/
+gpgcheck=0
+enabled=1
+EOF
 
 # Install required dependencies.
 RUN yum groupinstall -y 'Development Tools' && \
@@ -145,6 +203,10 @@ RUN yum groupinstall -y 'Development Tools' && \
         libudev-devel \
         scl-utils \
         centos-release-scl \
+    yum clean all
+
+# As mentioned above, these packages are unsigned.
+RUN yum install --nogpgcheck -y \
         ${DEVTOOLSET}-gcc* && \
     yum clean all
 
@@ -169,21 +231,30 @@ ENV LANGUAGE=en_US.UTF-8 \
 ARG GOLANG_VERSION
 ARG RUST_VERSION
 ARG DEVTOOLSET
+ARG TARGETARCH
 
 ARG UID
 ARG GID
 RUN (groupadd ci --gid=$GID -o && useradd ci --uid=$UID --gid=$GID --create-home --shell=/bin/sh && \
      mkdir -p -m0700 /var/lib/teleport && chown -R ci /var/lib/teleport)
 
+# devtoolset-12 is only in CentOS buildlogs. The rpms are unsigned since they never were
+# published to the official CentOS SCL repos.
+RUN cat <<EOF > /etc/yum.repos.d/${DEVTOOLSET}-build.repo
+[${DEVTOOLSET}-build]
+name=${DEVTOOLSET} - Build
+baseurl=https://buildlogs.centos.org/c7-${DEVTOOLSET}.${TARGETARCH}/
+gpgcheck=0
+enabled=1
+EOF
+
 RUN yum groupinstall -y 'Development Tools' && \
     yum install -y epel-release && \
     yum update -y && \
     yum -y install centos-release-scl-rh && \
     yum install -y \
-    #required by libbpf
-    centos-release-scl \
     # required by libbpf
-    ${DEVTOOLSET}-* \
+    centos-release-scl \
     # required by libbpf
     elfutils-libelf-devel-static \
     net-tools \
@@ -198,6 +269,11 @@ RUN yum groupinstall -y 'Development Tools' && \
     zlib-static && \
     yum clean all && \
     localedef -c -i en_US -f UTF-8 en_US.UTF-8
+
+# As mentioned above, these packages are unsigned.
+RUN yum install --nogpgcheck -y \
+        ${DEVTOOLSET}-* && \
+    yum clean all
 
 # Override the old git in /usr/local installed by yum. We need git 2+ on GitHub Actions.
 COPY --from=git2 /opt/git /
