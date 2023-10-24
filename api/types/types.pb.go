@@ -91,6 +91,9 @@ func (IAMPolicyStatus) EnumDescriptor() ([]byte, []int) {
 
 // DatabaseTLSMode represents the level of TLS verification performed by
 // DB agent when connecting to a database.
+// Example YAML:
+// ---
+// 0
 type DatabaseTLSMode int32
 
 const (
@@ -188,6 +191,9 @@ func (ProxyListenerMode) EnumDescriptor() ([]byte, []int) {
 }
 
 // RoutingStrategy determines the strategy used to route to nodes.
+// YAML Example:
+// ---
+// 0
 type RoutingStrategy int32
 
 const (
@@ -662,6 +668,9 @@ func (KeepAlive_KeepAliveType) EnumDescriptor() ([]byte, []int) {
 
 // SigningAlg is the algorithm used for signing new SSH certificates using
 // SigningKeys.
+// Example YAML:
+// ---
+// 0
 type CertAuthoritySpecV2_SigningAlgType int32
 
 const (
