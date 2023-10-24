@@ -12,9 +12,10 @@ import (
 	gluetypes "github.com/aws/aws-sdk-go-v2/service/glue/types"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
-	ecatypes "github.com/gravitational/teleport/api/types/externalcloudaudit"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+
+	ecatypes "github.com/gravitational/teleport/api/types/externalcloudaudit"
 )
 
 func TestBootstrapInfra(t *testing.T) {

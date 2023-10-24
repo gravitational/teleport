@@ -14,9 +14,10 @@ import (
 	gluetypes "github.com/aws/aws-sdk-go-v2/service/glue/types"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
+	"github.com/gravitational/trace"
+
 	ecatypes "github.com/gravitational/teleport/api/types/externalcloudaudit"
 	awsutil "github.com/gravitational/teleport/lib/utils/aws"
-	"github.com/gravitational/trace"
 )
 
 const (
