@@ -773,7 +773,7 @@ func (s *session) lockedSetupLaunch(request *remoteCommandRequest, q url.Values,
 
 		if errExec != nil {
 			execEvent.Code = events.ExecFailureCode
-			execEvent.Error, execEvent.ExitCode = exitCode(err)
+			execEvent.Error, execEvent.ExitCode = exitCode(errExec)
 		}
 
 		if err := s.emitter.EmitAuditEvent(s.forwarder.ctx, execEvent); err != nil {
