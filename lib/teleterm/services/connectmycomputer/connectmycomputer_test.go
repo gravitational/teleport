@@ -149,6 +149,8 @@ func TestNodeJoinWaitRun_WatchesForOpPutIfNodeWasNotFound(t *testing.T) {
 	accessAndIdentity := &mockAccessAndIdentity{
 		callCounts: make(map[string]int),
 		events:     events,
+		// Setting to true because we manually fire OpPut from test body.
+		requireManualOpInitFire: true,
 	}
 
 	nodeJoinWait, err := NewNodeJoinWait(&NodeJoinWaitConfig{AgentsDir: t.TempDir()})
@@ -175,6 +177,8 @@ func TestNodeJoinWaitRun_WatchesForOpPutIfNodeWasNotFound(t *testing.T) {
 
 	err = accessAndIdentity.events.WaitSomeWatchers(ctx)
 	require.NoError(t, err)
+	accessAndIdentity.events.Fire(types.Event{Type: types.OpInit})
+
 	// Fire an event with another node first to verify that NodeJoinWait does the comparison correctly.
 	accessAndIdentity.events.Fire(types.Event{
 		Type:     types.OpPut,
@@ -225,8 +229,20 @@ type mockAccessAndIdentity struct {
 	role       types.Role
 	callCounts map[string]int
 	events     *mockEvents
-	node       types.Server
-	nodeErr    error
+	// requireManualOpInitFire makes mockAccessAndIdentity.NewWatcher skip firing OpInit.
+	//
+	// In regular tests where this field is false, the code under tests calls
+	// mockAccessAndIdentity.NewWatcher (which fires OpInit), waits for OpInit, and then calls another
+	// method on mockAccessAndIdentity which fires an event.
+	//
+	// In tests where events such as OpPut are triggered directly from the test body and not as a
+	// result of the code under tests calling methods on mockAccessAndIdentity, setting it to true
+	// allows manually firing OpInit first before firing other events. This ensures that the first
+	// event that watchers observe is OpInit.
+	//
+	requireManualOpInitFire bool
+	node                    types.Server
+	nodeErr                 error
 }
 
 func (m *mockAccessAndIdentity) GetUser(name string, withSecrets bool) (types.User, error) {
@@ -256,7 +272,9 @@ func (m *mockAccessAndIdentity) NewWatcher(ctx context.Context, watch types.Watc
 		return nil, trace.Wrap(err)
 	}
 
-	m.events.Fire(types.Event{Type: types.OpInit})
+	if !m.requireManualOpInitFire {
+		m.events.Fire(types.Event{Type: types.OpInit})
+	}
 
 	return watcher, nil
 }
