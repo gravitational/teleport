@@ -70,6 +70,8 @@ type Database interface {
 	GetMySQL() MySQLOptions
 	// GetOracle returns the database options from spec.
 	GetOracle() OracleOptions
+	// GetCassandra returns the database options from spec.
+	GetCassandra() CassandraOptions
 	// GetMySQLServerVersion returns the MySQL server version either from configuration or
 	// reported by the database.
 	GetMySQLServerVersion() string
@@ -313,6 +315,11 @@ func (d *DatabaseV3) GetAdminUser() (ret DatabaseAdminUser) {
 // GetOracle returns the Oracle options from spec.
 func (d *DatabaseV3) GetOracle() OracleOptions {
 	return d.Spec.Oracle
+}
+
+// GetCassandra returns the Cassandra options from spec.
+func (d *DatabaseV3) GetCassandra() CassandraOptions {
+	return d.Spec.Cassandra
 }
 
 // SupportsAutoUsers returns true if this database supports automatic user

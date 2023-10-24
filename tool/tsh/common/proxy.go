@@ -498,7 +498,7 @@ func maybeAddDBUserPassword(cf *CLIConf, tc *libclient.TeleportClient, dbInfo *d
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		if db.IsAWSHosted() {
+		if db.IsAWSHosted() || db.GetCassandra().CertAuth {
 			// Cassandra client always prompt for password, so we need to provide it
 			// Provide an auto generated random password to skip the prompt in case of
 			// connection to AWS hosted cassandra.

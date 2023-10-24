@@ -1652,6 +1652,9 @@ func applyDatabasesConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 				DefaultDatabase: database.AdminUser.DefaultDatabase,
 			},
 			Oracle: convOracleOptions(database.Oracle),
+			Cassandra: servicecfg.CassandraOptions{
+				CertAuth: database.Cassandra.CertAuth,
+			},
 			AWS: servicecfg.DatabaseAWS{
 				AccountID:     database.AWS.AccountID,
 				AssumeRoleARN: database.AWS.AssumeRoleARN,

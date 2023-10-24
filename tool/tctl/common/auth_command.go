@@ -751,6 +751,12 @@ client_encryption_options:
    keyfile: /path/to/{{.output}}.key
    truststore:  /path/to/{{.output}}.cas
    require_client_auth: True
+
+To enable x509 certificate authentication on you Scylla server (available from
+Scylla version 5.4.0), add the following to your scylla.yaml configuration file:
+
+authenticator: com.scylladb.auth.CertificateAuthenticator
+auth_certificate_role_query: CN=([^,\s]+)
 `))
 )
 

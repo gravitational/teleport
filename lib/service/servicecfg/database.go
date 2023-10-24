@@ -74,6 +74,8 @@ type Database struct {
 	AdminUser DatabaseAdminUser
 	// Oracle are additional Oracle database options.
 	Oracle OracleOptions
+	// Cassandra are additional Cassandra database options.
+	Cassandra CassandraOptions
 }
 
 // DatabaseAdminUser contains information about database admin user.
@@ -92,6 +94,13 @@ type DatabaseAdminUser struct {
 type OracleOptions struct {
 	// AuditUser is the Oracle database user privilege to access internal Oracle audit trail.
 	AuditUser string
+}
+
+// CassandraOptions are additional Cassandra options.
+type CassandraOptions struct {
+	// CertAuth indicates if the database is using certificate based
+	// authentication.
+	CertAuth bool
 }
 
 // CheckAndSetDefaults validates the database proxy configuration.
@@ -168,6 +177,9 @@ func (d *Database) ToDatabase() (types.Database, error) {
 			DefaultDatabase: d.AdminUser.DefaultDatabase,
 		},
 		Oracle: convOracleOptions(d.Oracle),
+		Cassandra: types.CassandraOptions{
+			CertAuth: d.Cassandra.CertAuth,
+		},
 		AWS: types.AWS{
 			AccountID:     d.AWS.AccountID,
 			AssumeRoleARN: d.AWS.AssumeRoleARN,

@@ -329,6 +329,11 @@ message DatabaseSpecV3 {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "oracle,omitempty"
   ];
+  // Cassandra is an additional Cassandra configuraiton options.
+  CassandraOptions Cassandra = 14 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "cassandra,omitempty"
+  ];
 }
 
 // DatabaseAdminUser contains information about privileged database user used
@@ -349,6 +354,13 @@ message DatabaseAdminUser {
 message OracleOptions {
   // AuditUser is the Oracle database user privilege to access internal Oracle audit trail.
   string AuditUser = 1 [(gogoproto.jsontag) = "audit_user"];
+}
+
+// CassandraOptions are additional Cassandra database options.
+message CassandraOptions {
+  // CertAuth indicates if the database is using certificate based
+  // authentication.
+  bool CertAuth = 1 [(gogoproto.jsontag) = "cert_auth"];
 }
 
 // DatabaseStatusV3 contains runtime information about the database.
