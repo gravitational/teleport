@@ -29,6 +29,9 @@ import (
 )
 
 // JoinMethod is the method used for new nodes to join the cluster.
+// Example YAML:
+// ---
+// "token"
 type JoinMethod string
 
 const (
