@@ -28,7 +28,9 @@ import { KeyboardShortcutsService } from 'teleterm/ui/services/keyboardShortcuts
  * If possible, put the initialization code here, instead of `appContext.init()`,
  * where it blocks the rendering of the app.
  */
-export async function initUi(ctx: IAppContext): Promise<void> {
+export async function showStartupModalsAndNotifications(
+  ctx: IAppContext
+): Promise<void> {
   const { configService } = ctx.mainProcessClient;
 
   await askAboutUserJobRoleIfNeeded(
