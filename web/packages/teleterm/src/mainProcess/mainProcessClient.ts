@@ -172,8 +172,8 @@ export default function createMainProcessClient(): MainProcessClient {
      * Signals to the windows manager that the UI has been fully initialized, that is the user has
      * interacted with the relevant modals during startup and is free to use the app.
      */
-    signalFrontendAppReadiness(args: { success: boolean }) {
-      ipcRenderer.send('windows-manager-signal-frontend-app-readiness', args);
+    signalUserInterfaceReadiness(args: { success: boolean }) {
+      ipcRenderer.send('windows-manager-signal-user-interface-readiness', args);
     },
   };
 }

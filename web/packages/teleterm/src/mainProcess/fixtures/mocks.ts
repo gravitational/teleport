@@ -128,7 +128,7 @@ export class MockMainProcessClient implements MainProcessClient {
     return Promise.resolve();
   }
 
-  signalFrontendAppReadiness() {}
+  signalUserInterfaceReadiness() {}
 }
 
 export const makeRuntimeSettings = (
