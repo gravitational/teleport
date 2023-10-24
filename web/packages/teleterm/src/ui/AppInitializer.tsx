@@ -32,9 +32,11 @@ export const AppInitializer = () => {
       await ctx.init();
       await initUi(ctx);
       setIsUiReady(true);
+      ctx.mainProcessClient.signalUserInterfaceReadiness({ success: true });
     } catch (error) {
       setIsUiReady(true);
       ctx.notificationsService.notifyError(error?.message);
+      ctx.mainProcessClient.signalUserInterfaceReadiness({ success: false });
     }
   }, [ctx]);
 
