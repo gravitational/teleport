@@ -38,6 +38,9 @@ const _ = proto.GoGoProtoPackageIsVersion3 // please upgrade the proto package
 // This enum is set in a Sync.Map during an IAM task that checks for the
 // validity of IAM policy, and the database gets updated with the value
 // from this map during a heartbeat.
+// Example YAML:
+// ---
+// 0
 type IAMPolicyStatus int32
 
 const (
@@ -152,6 +155,9 @@ func (PrivateKeyType) EnumDescriptor() ([]byte, []int) {
 }
 
 // ProxyListenerMode represents the cluster proxy listener mode.
+// Example YAML:
+// ---
+// 0
 type ProxyListenerMode int32
 
 const (

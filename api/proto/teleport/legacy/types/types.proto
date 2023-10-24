@@ -1747,6 +1747,9 @@ message ProxyPeeringTunnelStrategy {
 }
 
 // ProxyListenerMode represents the cluster proxy listener mode.
+// Example YAML:
+// ---
+// 0
 enum ProxyListenerMode {
   // Separate is the proxy listener mode indicating that proxies are running
   // in separate listener mode where Teleport Proxy services use different listeners.

@@ -28,6 +28,9 @@ import (
 
 // CertAuthType specifies certificate authority type. New variants should be
 // added to CertAuthTypes and, for one major version, to NewlyAdded().
+// Example YAML:
+// ---
+// host|user|db|openssh|jwt|saml_idp|oidc_idp
 type CertAuthType string
 
 const (
