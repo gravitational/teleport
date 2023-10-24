@@ -29,13 +29,70 @@ import {
   MainProcessClient,
   ChildProcessAddresses,
   AgentProcessState,
+  MainProcessIpc,
+  RendererIpc,
+  WindowsManagerIpc,
 } from './types';
 
 export default function createMainProcessClient(): MainProcessClient {
   return {
-    getRuntimeSettings() {
-      return ipcRenderer.sendSync('main-process-get-runtime-settings');
+    /*
+     * Listeners for messages received by the renderer from the main process.
+     */
+    subscribeToNativeThemeUpdate: listener => {
+      const onThemeChange = (_, value: { shouldUseDarkColors: boolean }) =>
+        listener(value);
+      ipcRenderer.addListener(RendererIpc.NativeThemeUpdate, onThemeChange);
+      return {
+        cleanup: () =>
+          ipcRenderer.removeListener(
+            RendererIpc.NativeThemeUpdate,
+            onThemeChange
+          ),
+      };
     },
+    subscribeToAgentUpdate: (rootClusterUri, listener) => {
+      const onChange = (
+        _,
+        eventRootClusterUri: RootClusterUri,
+        eventState: AgentProcessState
+      ) => {
+        if (eventRootClusterUri === rootClusterUri) {
+          listener(eventState);
+        }
+      };
+      ipcRenderer.addListener(
+        RendererIpc.ConnectMyComputerAgentUpdate,
+        onChange
+      );
+      return {
+        cleanup: () =>
+          ipcRenderer.removeListener(
+            RendererIpc.ConnectMyComputerAgentUpdate,
+            onChange
+          ),
+      };
+    },
+    subscribeToDeepLinkLaunch: listener => {
+      const ipcListener = (event, args) => {
+        listener(args);
+      };
+
+      ipcRenderer.addListener(RendererIpc.DeepLinkLaunch, ipcListener);
+      return {
+        cleanup: () =>
+          ipcRenderer.removeListener(RendererIpc.DeepLinkLaunch, ipcListener),
+      };
+    },
+
+    /*
+     * Messages sent from the renderer to the main process.
+     */
+    getRuntimeSettings() {
+      return ipcRenderer.sendSync(MainProcessIpc.GetRuntimeSettings);
+    },
+    // TODO(ravicious): Convert the rest of IPC channels to use enums defined in types.ts such as
+    // MainProcessIpc rather than hardcoded strings.
     getResolvedChildProcessAddresses(): Promise<ChildProcessAddresses> {
       return ipcRenderer.invoke(
         'main-process-get-resolved-child-process-addresses'
@@ -65,15 +122,6 @@ export default function createMainProcessClient(): MainProcessClient {
     },
     shouldUseDarkColors() {
       return ipcRenderer.sendSync('main-process-should-use-dark-colors');
-    },
-    subscribeToNativeThemeUpdate: listener => {
-      const onThemeChange = (_, value: { shouldUseDarkColors: boolean }) =>
-        listener(value);
-      const channel = 'main-process-native-theme-update';
-      ipcRenderer.addListener(channel, onThemeChange);
-      return {
-        cleanup: () => ipcRenderer.removeListener(channel, onThemeChange),
-      };
     },
     downloadAgent() {
       return ipcRenderer.invoke(
@@ -134,21 +182,12 @@ export default function createMainProcessClient(): MainProcessClient {
         clusterProperties
       );
     },
-    subscribeToAgentUpdate: (rootClusterUri, listener) => {
-      const onChange = (
-        _,
-        eventRootClusterUri: RootClusterUri,
-        eventState: AgentProcessState
-      ) => {
-        if (eventRootClusterUri === rootClusterUri) {
-          listener(eventState);
-        }
-      };
-      const channel = 'main-process-connect-my-computer-agent-update';
-      ipcRenderer.addListener(channel, onChange);
-      return {
-        cleanup: () => ipcRenderer.removeListener(channel, onChange),
-      };
+    /**
+     * Signals to the windows manager that the UI has been fully initialized, that is the user has
+     * interacted with the relevant modals during startup and is free to use the app.
+     */
+    signalUserInterfaceReadiness(args: { success: boolean }) {
+      ipcRenderer.send(WindowsManagerIpc.SignalUserInterfaceReadiness, args);
     },
   };
 }
