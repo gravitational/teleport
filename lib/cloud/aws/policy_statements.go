@@ -160,6 +160,7 @@ func StatementForListRDSDatabases() *Statement {
 		Actions: []string{
 			"rds:DescribeDBInstances",
 			"rds:DescribeDBClusters",
+			"ec2:DescribeSecurityGroups",
 		},
 		Resources: allResources,
 	}

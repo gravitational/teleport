@@ -98,7 +98,8 @@ export function ConfigureIamPerms({
       "Effect": "Allow",
       "Action": [
         "rds:DescribeDBInstances",
-        "rds:DescribeDBClusters"
+        "rds:DescribeDBClusters",
+        "ec2:DescribeSecurityGroups"
       ],
       "Resource": "*"
     }
