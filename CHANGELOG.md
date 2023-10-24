@@ -12,8 +12,6 @@
 
 `tsh` on Windows now supports the `tsh puttyconfig` command, which can easily configure saved sessions inside the well-known PuTTY and WinSCP clients to connect to Teleport SSH services.
 
-For more information, see [docs](https://goteleport.com/docs/ver/13.x/connect-your-client/putty-winscp/).
-
 ## 13.4.4 (10/18/23)
 
 * Prevented remote proxies from impersonating users from different clusters. [#33540](https://github.com/gravitational/teleport/pull/33540)
