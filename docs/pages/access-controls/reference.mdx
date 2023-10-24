@@ -189,6 +189,65 @@ spec:
       'environment': '^test|staging$'
 ```
 
+### Label expressions
+
+<Admonition type="warning">
+Label expressions are available starting in Teleport version `13.1.1`.
+All components of your Teleport cluster must be upgraded to version `13.1.1`
+or newer before you will be able to use label expressions.
+This includes the Auth Service and **all** Teleport agents.
+</Admonition>
+
+Teleport roles also support matching resource labels with predicate expressions
+when you need to:
+
+- combine logic with OR and AND operators
+- perform matching on label keys
+- implement negative matches
+
+The following example role would allow access to any nodes labeled `env=staging`
+or labeled `team=<team>`, where `<team>` is one of the values of the user's
+`teams` trait:
+
+```yaml
+kind: role
+version: v7
+metadata:
+  name: example-role
+spec:
+  allow:
+    node_labels_expression: |
+      labels["env"] == "staging" ||
+      contains(user.spec.traits["teams"], labels["team"])
+```
+
+The `<kind>_labels_expression` fields have the same purpose of the
+matching `<kind>_labels` fields, but support predicate expressions instead
+of label matchers.
+They can be used in the following fields of role `spec.allow` and `spec.deny`
+conditions:
+
+- `node_labels_expression`
+- `app_labels_expression`
+- `cluster_labels_expression`
+- `kubernetes_labels_expression`
+- `db_labels_expression`
+- `db_service_labels_expression`
+- `windows_desktop_labels_expression`
+- `group_labels_expression`
+
+Check out our
+[predicate language](../reference/predicate-language.mdx#label-expressions)
+guide for a more in depth explanation of the language.
+
+Typically you will only want to use one of `<kind>_labels` or
+`<kind>_labels_expression` in a single role, but you are allowed to specify
+both.
+If you have both in a deny rule, the matching is greedy, if either one matches
+access will be denied.
+In an allow rule, the matching is not greedy, if both are set they both have to
+match for access to be allowed.
+
 ## RBAC for dynamic Teleport resources
 
 RBAC lets teams limit what resources are available to Teleport users. This can
@@ -522,83 +581,6 @@ wildcard expression.  Wildcards match a sequence of one or more characters.
 #### Variables
 
 Teleport does not perform variable expansion on the values of the fields above.
-
-### Label expressions
-
-<Admonition type="warning">
-Label expressions are available starting in Teleport version `13.1.1`. All
-components of your Teleport cluster must be upgraded to version `13.1.1` or
-newer before you can use label expressions. This includes the Auth Service and
-**all** Teleport agents.
-</Admonition>
-
-Teleport roles support matching resource labels with template expressions when
-you need to:
-
-- combine logic with OR and AND operators
-- perform matching on label keys
-- implement negative matches
-
-The following example role would allow access to any nodes labeled `env=staging`
-or labeled `team=<team>`, where `<team>` is one of the values of the user's
-`teams` trait:
-
-```yaml
-kind: role
-version: v7
-metadata:
-  name: example-role
-spec:
-  allow:
-    node_labels_expression: |
-      labels["env"] == "staging" ||
-      contains(user.spec.traits["teams"], labels["team"])
-```
-
-Typically, you would only use either `<kind>_labels` or
-`<kind>_labels_expression` in a single role, but you are allowed to specify
-both.
-
-If you have both in a deny rule, the matching is greedy. If either expression
-matches, access is denied. In an allow rule, the matching is not greedy. If both
-expressions are set, both expressions must be matched for access to be allowed.
-
-#### Fields
-
-The `<kind>_labels_expression` fields have the same purpose as the matching
-`<kind>_labels` fields, but support label expressions instead of label matchers.
-They can be used in the following fields of role `spec.allow` and `spec.deny`
-conditions:
-
-- `node_labels_expression`
-- `app_labels_expression`
-- `cluster_labels_expression`
-- `kubernetes_labels_expression`
-- `db_labels_expression`
-- `db_service_labels_expression`
-- `windows_desktop_labels_expression`
-- `group_labels_expression`
-
-#### Variables
-
-You can use the following template variables in label expression fields:
-
-|Variable|Type|Description|
-|---|---|---|
-|`{{user.spec.traits}}`|`map[string][]string`|All of the user's traits. Use `{{user.spec.traits<key>}}` to get a list of trait values for the specified key.|
-|`{{labels}}`|`map[string]string`|All of the user's labels. Use `{{labels.<key>}}` to get the value for the specified key.|
-
-#### Functions
-
-You can use the following functions in label expression fields:
-
-|Function|Description|
-|---|---|
-|`{{contains(list,item)}}`|Returns `true` if the list of strings in `list` contains the specified `item` and `false` otherwise.|
-|`{{regexp.match(list,regexp)}}`|Returns `true` if the regular expression in `regexp` matches any of the strings in list of strings `list`. Returns `false` otherwise.|
-|`{{regexp.replace(list,regexp,replacement)}}`|Checks the list of strings `list`, returning a new list where each item that matches `regexp` is replaced with `replacement`. You can use `$n` in the replacement string to indicate a submatch group, e.g., `$1` to indicate the first submatch.|
-|`{{strings.upper(list)}}`|Returns the new list of strings that results from uppercasing each item in `list`, a list of strings.|
-|`{{strings.lower(list)}}`|Returns the new list of strings that results from lowercasing each item in `list`, a list of strings.|
 
 ## Filter fields
 
