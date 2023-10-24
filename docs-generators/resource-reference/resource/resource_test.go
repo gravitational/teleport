@@ -1560,7 +1560,7 @@ func (mystruct) getMessage() string {
 			},
 		},
 		{
-			description: "type parameters",
+			description: "type parameter",
 			source: `package mypkg
 func (stream *streamFunc[T]) Next() bool {
 	stream.item, stream.err = stream.fn()
@@ -1571,6 +1571,34 @@ func (stream *streamFunc[T]) Next() bool {
 				PackageInfo{
 					PackageName: "mypkg",
 					DeclName:    "streamFunc",
+				}: []MethodInfo{
+					{
+						Name:             "Next",
+						FieldAssignments: map[string]string{},
+					},
+				},
+			},
+		},
+		{
+			description: "two type parameters",
+			source: `package mypkg
+func (stream *filterMap[A, B]) Next() bool {
+	for {
+		if !stream.inner.Next() {
+			return false
+		}
+		var ok bool
+		stream.item, ok = stream.fn(stream.inner.Item())
+		if !ok {
+			continue
+		}
+		return true
+	}
+}`,
+			expected: map[PackageInfo][]MethodInfo{
+				PackageInfo{
+					PackageName: "mypkg",
+					DeclName:    "filterMap",
 				}: []MethodInfo{
 					{
 						Name:             "Next",
