@@ -166,7 +166,7 @@ func (a *App) init(ctx context.Context) error {
 
 	log.Debug("Starting API health check...")
 	if err = a.serviceNow.CheckHealth(ctx); err != nil {
-		return trace.Wrap(err, "API health check failed")
+		log.Errorf("API health check failed: %v", err)
 	}
 	log.Debug("API health check finished ok")
 
