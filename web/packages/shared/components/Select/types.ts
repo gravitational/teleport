@@ -88,9 +88,10 @@ export type ActionMeta = {
  *
  * @template CustomOption - the data type used for react-select `options`
  */
+// prettier-ignore
 export type CustomSelectComponentProps<
   CustomProps,
-  CustomOption = Option
+  CustomOption = Option,
 > = CustomOption & {
   /**
    * selectProps is the field to use to access the props that were

@@ -1396,10 +1396,27 @@ func (a *ServerWithRoles) KeepAliveServer(ctx context.Context, handle types.Keep
 	return a.authServer.KeepAliveServer(ctx, handle)
 }
 
+// NewStream returns a new event stream (equivalent to NewWatcher, but with slightly different
+// performance characteristics).
+func (a *ServerWithRoles) NewStream(ctx context.Context, watch types.Watch) (stream.Stream[types.Event], error) {
+	if err := a.authorizeWatchRequest(&watch); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return a.authServer.NewStream(ctx, watch)
+}
+
 // NewWatcher returns a new event watcher
 func (a *ServerWithRoles) NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error) {
+	if err := a.authorizeWatchRequest(&watch); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return a.authServer.NewWatcher(ctx, watch)
+}
+
+// authorizeWatchRequest performs permission checks and filtering on incoming watch requests.
+func (a *ServerWithRoles) authorizeWatchRequest(watch *types.Watch) error {
 	if len(watch.Kinds) == 0 {
-		return nil, trace.AccessDenied("can't setup global watch")
+		return trace.AccessDenied("can't setup global watch")
 	}
 
 	validKinds := make([]types.WatchKind, 0, len(watch.Kinds))
@@ -1409,14 +1426,14 @@ func (a *ServerWithRoles) NewWatcher(ctx context.Context, watch types.Watch) (ty
 			if watch.AllowPartialSuccess {
 				continue
 			}
-			return nil, trace.Wrap(err)
+			return trace.Wrap(err)
 		}
 
 		validKinds = append(validKinds, kind)
 	}
 
 	if len(validKinds) == 0 {
-		return nil, trace.BadParameter("none of the requested kinds can be watched")
+		return trace.BadParameter("none of the requested kinds can be watched")
 	}
 
 	watch.Kinds = validKinds
@@ -1426,7 +1443,8 @@ func (a *ServerWithRoles) NewWatcher(ctx context.Context, watch types.Watch) (ty
 	case a.hasBuiltinRole(types.RoleNode):
 		watch.QueueSize = defaults.NodeQueueSize
 	}
-	return a.authServer.NewWatcher(ctx, watch)
+
+	return nil
 }
 
 // hasWatchPermissionForKind checks the permissions for data of each kind.
@@ -1571,7 +1589,7 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 		if len(prefs.ClusterPreferences.PinnedResources.ResourceIds) == 0 {
 			return &proto.ListUnifiedResourcesResponse{}, nil
 		}
-		unifiedResources, err = a.authServer.UnifiedResourceCache.GetUnifiedResourcesByIDs(ctx, prefs.ClusterPreferences.PinnedResources.GetResourceIds(), func(resource types.ResourceWithLabels) bool {
+		unifiedResources, err = a.authServer.UnifiedResourceCache.GetUnifiedResourcesByIDs(ctx, prefs.ClusterPreferences.PinnedResources.GetResourceIds(), func(resource types.ResourceWithLabels) (bool, error) {
 			var err error
 			switch r := resource.(type) {
 			// TODO (avatus) we should add this type into the `resourceChecker.CanAccess` method
@@ -1581,13 +1599,18 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 				err = resourceChecker.CanAccess(r)
 			}
 			if err != nil {
-				return false
+				// skip access denied error. It is expected that resources won't be available
+				// to some users and we want to keep iterating until we've reached the request limit
+				// of resources they have access to
+				if trace.IsAccessDenied(err) {
+					return false, nil
+				}
+				return false, trace.Wrap(err)
 			}
-			match, _ := services.MatchResourceByFilters(resource, filter, nil)
-			return match
+			return services.MatchResourceByFilters(resource, filter, nil)
 		})
 		if err != nil {
-			return nil, trace.Wrap(err, "getting unified resources by ID")
+			return nil, trace.Wrap(err)
 		}
 
 		// we need to sort pinned resources manually because they are fetched in the order they were pinned
@@ -1607,6 +1630,9 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 			}
 
 			if err != nil {
+				// skip access denied error. It is expected that resources won't be available
+				// to some users and we want to keep iterating until we've reached the request limit
+				// of resources they have access to
 				if trace.IsAccessDenied(err) {
 					return false, nil
 				}
@@ -1616,7 +1642,7 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 			return match, trace.Wrap(err)
 		}, req)
 		if err != nil {
-			return nil, trace.Wrap(err, "filtering unified resources")
+			return nil, trace.Wrap(err)
 		}
 	}
 

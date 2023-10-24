@@ -553,7 +553,11 @@ func TestKubeMiddleware(t *testing.T) {
 					ServerName: tt.reqClusterName,
 				},
 			}
-			km := NewKubeMiddleware(tt.startCerts, certReissuer, tt.clock, nil)
+			km := NewKubeMiddleware(KubeMiddlewareConfig{
+				Certs:        tt.startCerts,
+				CertReissuer: certReissuer,
+				Clock:        tt.clock,
+			})
 
 			// HandleRequest will reissue certificate if needed
 			km.HandleRequest(responsewriters.NewMemoryResponseWriter(), &req)
