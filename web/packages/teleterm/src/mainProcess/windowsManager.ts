@@ -157,8 +157,8 @@ export class WindowsManager {
   }
 
   /**
-   * dispose exists as a cleanup function MainProcess can call during 'will-quit' event of the
-   * Electron app.
+   * dispose exists as a cleanup function that the MainProcess can call during 'will-quit' event of
+   * the Electron app.
    *
    * dispose doesn't have to close the window as that's typically done by Electron itself. It should
    * however clean up any other remaining resources.
