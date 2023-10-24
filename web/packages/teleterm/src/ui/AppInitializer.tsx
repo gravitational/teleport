@@ -14,11 +14,11 @@
  * limitations under the License.
  */
 
-import React, { useCallback, useEffect, useState, useRef } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import styled from 'styled-components';
 import { Indicator } from 'design';
 
-import Logger from 'teleterm/logger';
+import { useLogger } from 'teleterm/ui/hooks/useLogger';
 
 import { useAppContext } from './appContextProvider';
 import { initUi } from './initUi';
@@ -26,10 +26,7 @@ import ModalsHost from './ModalsHost';
 import { LayoutManager } from './LayoutManager';
 
 export const AppInitializer = () => {
-  const loggerRef = useRef<Logger>(null);
-  if (loggerRef.current === null) {
-    loggerRef.current = new Logger('AppInitializer');
-  }
+  const logger = useLogger('AppInitializer');
 
   const appContext = useAppContext();
   const [isUiReady, setIsUiReady] = useState(false);
@@ -43,14 +40,14 @@ export const AppInitializer = () => {
         success: true,
       });
     } catch (error) {
-      loggerRef.current.error(error?.message);
+      logger.error(error?.message);
       setIsUiReady(true);
       appContext?.notificationsService.notifyError(error?.message);
       appContext?.mainProcessClient.signalUserInterfaceReadiness({
         success: false,
       });
     }
-  }, [appContext]);
+  }, [appContext, logger]);
 
   useEffect(() => {
     initializeApp();
