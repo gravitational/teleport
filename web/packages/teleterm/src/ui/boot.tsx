@@ -32,8 +32,9 @@ async function boot(): Promise<void> {
     const appContext = new AppContext(globals);
 
     window.addEventListener('error', event => {
-      console.error(event.error.stack);
-      logger.error(event.error.stack);
+      const message = event.error ? event.error.stack : event.message;
+      console.error(message);
+      logger.error(message);
     });
 
     window.addEventListener('unhandledrejection', event => {
