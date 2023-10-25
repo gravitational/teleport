@@ -21,22 +21,22 @@ import FieldInput from 'shared/components/FieldInput';
 import Validation from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
 import { DialogContent, DialogHeader } from 'design/Dialog';
+import { useAsync } from 'shared/hooks/useAsync';
 
-import { Attempt } from 'shared/hooks/useAsync';
+import { useAppContext } from 'teleterm/ui/appContextProvider';
 
-import { useClusterAdd } from 'teleterm/ui/ClusterConnect/ClusterAdd/useClusterAdd';
-
-export function ClusterAdd(props: ClusterAddProps) {
-  const clusterAdd = useClusterAdd(props);
-  return <ClusterAddPresentation {...clusterAdd} />;
-}
-
-export function ClusterAddPresentation({
-  onCancel,
-  addCluster,
-  status,
-  statusText,
-}: ClusterAddPresentationProps) {
+export function ClusterAdd(props: {
+  onCancel(): void;
+  onSuccess(clusterUri: string): void;
+}) {
+  const { clustersService } = useAppContext();
+  const [{ status, statusText }, addCluster] = useAsync(
+    async (addr: string) => {
+      const proxyAddr = parseClusterProxyWebAddr(addr);
+      const cluster = await clustersService.addRootCluster(proxyAddr);
+      return props.onSuccess(cluster.uri);
+    }
+  );
   const [addr, setAddr] = useState('');
 
   return (
@@ -76,7 +76,7 @@ export function ClusterAddPresentation({
                   type="button"
                   onClick={e => {
                     e.preventDefault();
-                    onCancel();
+                    props.onCancel();
                   }}
                 >
                   CANCEL
@@ -90,14 +90,12 @@ export function ClusterAddPresentation({
   );
 }
 
-export type ClusterAddProps = {
-  onCancel(): void;
-  onSuccess(clusterUri: string): void;
-};
+function parseClusterProxyWebAddr(addr: string) {
+  addr = addr || '';
+  if (addr.startsWith('http')) {
+    const url = new URL(addr);
+    return url.host;
+  }
 
-export type ClusterAddPresentationProps = {
-  onCancel(): void;
-  addCluster(address: string): void;
-  status: Attempt<any>['status'];
-  statusText: string;
-};
+  return addr;
+}

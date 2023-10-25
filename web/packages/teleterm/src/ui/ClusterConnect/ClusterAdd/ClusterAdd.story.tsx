@@ -16,7 +16,9 @@
 
 import React from 'react';
 
-import { ClusterAddPresentation } from './ClusterAdd';
+import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
+
+import { ClusterAdd } from './ClusterAdd';
 
 export default {
   title: 'Teleterm/ModalsHost/ClusterAdd',
@@ -24,11 +26,8 @@ export default {
 
 export const Story = () => {
   return (
-    <ClusterAddPresentation
-      addCluster={() => null}
-      onCancel={() => null}
-      status="success"
-      statusText="Success"
-    />
+    <MockAppContextProvider>
+      <ClusterAdd onSuccess={() => {}} onCancel={() => {}} />
+    </MockAppContextProvider>
   );
 };
