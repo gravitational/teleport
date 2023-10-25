@@ -102,7 +102,8 @@ type GeneratorConfig struct {
 
 // shouldProcess indicates whether we should generate reference entries from d,
 // that is, whether s has any field types in
-func shouldProcess(d resource.DeclarationInfo, types []TypeInfo) bool {
+func shouldProcess(d resource.DeclarationInfo, requiredTypes, excludedResources []TypeInfo) bool {
+	// The declaration cannot be a type declaration, so we can't process it.
 	gendecl, ok := d.Decl.(*ast.GenDecl)
 	if !ok {
 		return false
@@ -111,8 +112,7 @@ func shouldProcess(d resource.DeclarationInfo, types []TypeInfo) bool {
 		return false
 	}
 
-	// Name the section after the first type declaration found. We expect
-	// there to be one type spec.
+	// We expect there to be one type spec.
 	var t *ast.TypeSpec
 	for _, s := range gendecl.Specs {
 		ts, ok := s.(*ast.TypeSpec)
@@ -129,16 +129,25 @@ func shouldProcess(d resource.DeclarationInfo, types []TypeInfo) bool {
 		return false
 	}
 
+	// If the declaration type is not a struct, we can't process it as a
+	// root resource entry.
 	str, ok := t.Type.(*ast.StructType)
 	if !ok {
 		return false
 	}
 
+	// If the configured excluded resources include this type declaration,
+	// don't process it.
+	for _, r := range excludedResources {
+		if t.Name.Name == r.Name && d.PackageName == r.Package {
+			return false
+		}
+	}
 	// Use only the final segment of each desired package path
 	// in the comparison, since that is what is preserved in the
 	// AST.
-	finalTypes := make([]TypeInfo, len(types))
-	for i, t := range types {
+	finalTypes := make([]TypeInfo, len(requiredTypes))
+	for i, t := range requiredTypes {
 		segs := strings.Split(t.Package, "/")
 		finalTypes[i] = TypeInfo{
 			Package: segs[len(segs)-1],
@@ -146,8 +155,8 @@ func shouldProcess(d resource.DeclarationInfo, types []TypeInfo) bool {
 		}
 	}
 
-	// Only process types with a types.Metadata field, indicating a
-	// dynamic resource.
+	// Only process types with a required field, indicating a dynamic
+	// resource.
 	var m bool
 	for _, fld := range str.Fields.List {
 		if len(fld.Names) != 1 {
@@ -268,7 +277,7 @@ func Generate(out io.Writer, conf GeneratorConfig) error {
 	}
 
 	for k, decl := range typeDecls {
-		if !shouldProcess(decl, conf.RequiredFieldTypes) {
+		if !shouldProcess(decl, conf.RequiredFieldTypes, conf.ExcludedResourceTypes) {
 			continue
 		}
 		entries, err := resource.NewFromDecl(decl, typeDecls, methods)
@@ -285,17 +294,7 @@ func Generate(out io.Writer, conf GeneratorConfig) error {
 		// require a version number and `kind` value, so we search the
 		// methods of the resource type for the one that specifies these
 		// values.
-	fieldOrResourceTypes:
 		for pi, e := range entries {
-			// If we have excluded this resource via the
-			// config, don't create a separate section for
-			// it.
-			for _, ex := range conf.ExcludedResourceTypes {
-				if ex.Name == pi.DeclName && ex.Package == pi.PackageName {
-					continue fieldOrResourceTypes
-				}
-			}
-
 			entryMethods, ok := methods[pi]
 			// Can't be a resource since it does not have methods.
 			if !ok {
