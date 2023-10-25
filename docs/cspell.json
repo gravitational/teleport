@@ -572,6 +572,7 @@
     "noprompt",
     "nosql",
     "nowait",
+    "ntauth",
     "nvme",
     "obtainlicense",
     "octocat",

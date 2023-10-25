@@ -149,6 +149,22 @@ func mustDecodeJSON(t *testing.T, r io.Reader, i interface{}) {
 	require.NoError(t, err)
 }
 
+func mustDecodeYAMLDocuments[T any](t *testing.T, r io.Reader, out *[]T) error {
+	decoder := yaml.NewDecoder(r)
+	for {
+		var entry T
+		if err := decoder.Decode(&entry); err != nil {
+			// Break when there are no more documents to decode
+			if err != io.EOF {
+				return err
+			}
+			break
+		}
+		*out = append(*out, entry)
+	}
+	return nil
+}
+
 func mustDecodeYAML(t *testing.T, r io.Reader, i interface{}) {
 	err := yaml.NewDecoder(r).Decode(i)
 	require.NoError(t, err)

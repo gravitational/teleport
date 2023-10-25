@@ -16,14 +16,6 @@
 
 import { arrayBufferToBase64 } from 'shared/utils/base64';
 
-// This is needed for tests until jsdom adds support for TextEncoder (https://github.com/jsdom/jsdom/issues/2524)
-const {
-  TextEncoder: TestTextEncoder,
-  TextDecoder: TestTextDecoder,
-} = require('util');
-window.TextEncoder = window.TextEncoder || TestTextEncoder;
-window.TextDecoder = window.TextDecoder || TestTextDecoder;
-
 export type Message = ArrayBuffer;
 
 export enum MessageType {

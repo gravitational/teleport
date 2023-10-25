@@ -166,7 +166,7 @@ func (s *serverCollection) writeYAML(w io.Writer) error {
 }
 
 func (s *serverCollection) writeJSON(w io.Writer) error {
-	return utils.WriteJSON(w, s.servers)
+	return utils.WriteJSONArray(w, s.servers)
 }
 
 type userCollection struct {

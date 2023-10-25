@@ -18,12 +18,13 @@ package utils
 
 import (
 	"context"
-	"io"
 	"regexp"
 
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/feature/ec2/imds"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport"
 )
 
 // GetEC2IdentityDocument fetches the PKCS7 RSA2048 InstanceIdentityDocument
@@ -40,7 +41,7 @@ func GetEC2IdentityDocument() ([]byte, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	iidBytes, err := io.ReadAll(output.Content)
+	iidBytes, err := ReadAtMost(output.Content, teleport.MaxHTTPResponseSize)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

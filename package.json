@@ -28,7 +28,8 @@
     "react": "16.14.0",
     "**/minimist": "^1.2.8",
     "**/@types/react": "^16.9.49",
-    "**/trim": "0.0.3"
+    "**/trim": "0.0.3",
+    "x-default-browser": "^0.5.2"
   },
   "devDependencies": {
     "prettier": "^2.5.0",
