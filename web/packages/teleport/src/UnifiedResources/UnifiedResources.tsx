@@ -193,7 +193,7 @@ function Wrapper({
       }}
       pinning={pinning}
       onLabelClick={onLabelClick}
-      EmptySearchResults={
+      NoResources={
         <Empty
           clusterId={clusterId}
           canCreate={canCreate && !isLeafCluster}
