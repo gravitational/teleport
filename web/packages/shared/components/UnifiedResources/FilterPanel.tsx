@@ -23,10 +23,8 @@ import Menu, { MenuItem } from 'design/Menu';
 import { StyledCheckbox } from 'design/Checkbox';
 import { ArrowUp, ArrowDown, ChevronDown } from 'design/Icon';
 
-import { ResourceFilter, SortType } from 'teleport/services/agents';
-
 import { HoverTooltip } from './UnifiedResources';
-import { SharedUnifiedResource } from './types';
+import { SharedUnifiedResource, UnifiedResourcesQueryParams } from './types';
 
 const kindToLabel: Record<SharedUnifiedResource['resource']['kind'], string> = {
   app: 'Application',
@@ -44,8 +42,8 @@ const sortFieldOptions = [
 
 interface FilterPanelProps {
   availableKinds: SharedUnifiedResource['resource']['kind'][];
-  params: ResourceFilter;
-  setParams: (params: ResourceFilter) => void;
+  params: UnifiedResourcesQueryParams;
+  setParams: (params: UnifiedResourcesQueryParams) => void;
   selectVisible: () => void;
   selected: boolean;
   shouldUnpin: boolean;
@@ -101,7 +99,9 @@ export function FilterPanel({
   );
 }
 
-function oppositeSort(sort: SortType): SortType {
+function oppositeSort(
+  sort: UnifiedResourcesQueryParams['sort']
+): UnifiedResourcesQueryParams['sort'] {
   switch (sort.dir) {
     case 'ASC':
       return { ...sort, dir: 'DESC' };
