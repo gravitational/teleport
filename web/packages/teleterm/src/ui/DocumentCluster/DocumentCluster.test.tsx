@@ -15,7 +15,9 @@
  */
 
 import React from 'react';
+import { act } from '@testing-library/react';
 import { render, screen } from 'design/utils/testing';
+import { mockIntersectionObserver } from 'jsdom-testing-mocks';
 
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
@@ -29,7 +31,9 @@ import { ConnectMyComputerContextProvider } from 'teleterm/ui/ConnectMyComputer'
 
 import { ResourcesContextProvider } from './resourcesContext';
 
-import DocumentCluster from '.';
+import DocumentCluster from './DocumentCluster';
+
+const mio = mockIntersectionObserver();
 
 it('displays a button for Connect My Computer in the empty state if the user can use Connect My Computer', async () => {
   const doc = {
@@ -74,12 +78,12 @@ it('displays a button for Connect My Computer in the empty state if the user can
   });
 
   const emptyResponse = {
-    agentsList: [],
+    resources: [],
     totalCount: 0,
-    startKey: '',
+    nextKey: '',
   };
   jest
-    .spyOn(appContext.resourcesService, 'fetchServers')
+    .spyOn(appContext.resourcesService, 'listUnifiedResources')
     .mockResolvedValue(emptyResponse);
 
   render(
@@ -93,6 +97,9 @@ it('displays a button for Connect My Computer in the empty state if the user can
       </MockWorkspaceContextProvider>
     </MockAppContextProvider>
   );
+
+  const scrollTrigger = screen.getByTestId('scroll-trigger');
+  act(() => mio.enterNode(scrollTrigger));
 
   await expect(
     screen.findByRole('button', { name: 'Connect My Computer' })
@@ -142,12 +149,12 @@ it('does not display a button for Connect My Computer in the empty state if the 
   });
 
   const emptyResponse = {
-    agentsList: [],
+    resources: [],
     totalCount: 0,
-    startKey: '',
+    nextKey: '',
   };
   jest
-    .spyOn(appContext.resourcesService, 'fetchServers')
+    .spyOn(appContext.resourcesService, 'listUnifiedResources')
     .mockResolvedValue(emptyResponse);
 
   render(
@@ -162,8 +169,11 @@ it('does not display a button for Connect My Computer in the empty state if the 
     </MockAppContextProvider>
   );
 
+  const scrollTrigger = screen.getByTestId('scroll-trigger');
+  act(() => mio.enterNode(scrollTrigger));
+
   await expect(
-    screen.findByText('No servers found.')
+    screen.findByText('No Resources Found')
   ).resolves.toBeInTheDocument();
 
   expect(
