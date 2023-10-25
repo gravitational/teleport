@@ -17,3 +17,5 @@ excluded_resource_types:
   # This one is somewhat complex, so we will save it for later.
   - package: "types"
     name: "PluginSpecV1"
+  - package: "types"
+    name: "Namespace"
