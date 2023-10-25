@@ -175,7 +175,9 @@ func (p *DatabasePack) testIPPinning(t *testing.T) {
 			wantQueryCount := tc.targetCluster.postgres.QueryCount() + 1
 
 			// Execute a query.
-			result, err := testClient.Exec(context.Background(), "select 1").ReadAll()
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+			defer cancel()
+			result, err := testClient.Exec(ctx, "select 1").ReadAll()
 			require.NoError(t, err)
 			require.Equal(t, []*pgconn.Result{postgres.TestQueryResponse}, result)
 			require.Equal(t, wantQueryCount, tc.targetCluster.postgres.QueryCount())
@@ -210,7 +212,9 @@ func (p *DatabasePack) testPostgresRootCluster(t *testing.T) {
 	wantLeafQueryCount := p.Leaf.postgres.QueryCount()
 
 	// Execute a query.
-	result, err := client.Exec(context.Background(), "select 1").ReadAll()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	defer cancel()
+	result, err := client.Exec(ctx, "select 1").ReadAll()
 	require.NoError(t, err)
 	require.Equal(t, []*pgconn.Result{postgres.TestQueryResponse}, result)
 	require.Equal(t, wantRootQueryCount, p.Root.postgres.QueryCount())
@@ -244,7 +248,9 @@ func (p *DatabasePack) testPostgresLeafCluster(t *testing.T) {
 	wantLeafQueryCount := p.Leaf.postgres.QueryCount() + 1
 
 	// Execute a query.
-	result, err := client.Exec(context.Background(), "select 1").ReadAll()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	defer cancel()
+	result, err := client.Exec(ctx, "select 1").ReadAll()
 	require.NoError(t, err)
 	require.Equal(t, []*pgconn.Result{postgres.TestQueryResponse}, result)
 	require.Equal(t, wantLeafQueryCount, p.Leaf.postgres.QueryCount())
@@ -357,8 +363,9 @@ func (p *DatabasePack) testRotateTrustedCluster(t *testing.T) {
 
 	wantLeafQueryCount := p.Leaf.postgres.QueryCount() + 1
 	wantRootQueryCount := p.Root.postgres.QueryCount()
-
-	result, err := dbClient.Exec(context.Background(), "select 1").ReadAll()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	defer cancel()
+	result, err := dbClient.Exec(ctx, "select 1").ReadAll()
 	require.NoError(t, err)
 	require.Equal(t, []*pgconn.Result{postgres.TestQueryResponse}, result)
 	require.Equal(t, wantLeafQueryCount, p.Leaf.postgres.QueryCount())
@@ -728,7 +735,9 @@ func TestDatabaseAccessUnspecifiedHostname(t *testing.T) {
 	require.NoError(t, err)
 
 	// Execute a query.
-	result, err := client.Exec(context.Background(), "select 1").ReadAll()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	defer cancel()
+	result, err := client.Exec(ctx, "select 1").ReadAll()
 	require.NoError(t, err)
 	require.Equal(t, []*pgconn.Result{postgres.TestQueryResponse}, result)
 	require.Equal(t, uint32(1), pack.Root.postgres.QueryCount())
@@ -760,7 +769,9 @@ func (p *DatabasePack) testPostgresSeparateListener(t *testing.T) {
 	wantLeafQueryCount := p.Root.postgres.QueryCount()
 
 	// Execute a query.
-	result, err := client.Exec(context.Background(), "select 1").ReadAll()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	defer cancel()
+	result, err := client.Exec(ctx, "select 1").ReadAll()
 	require.NoError(t, err)
 	require.Equal(t, []*pgconn.Result{postgres.TestQueryResponse}, result)
 	require.Equal(t, wantRootQueryCount, p.Root.postgres.QueryCount())
@@ -841,7 +852,9 @@ func (p *DatabasePack) testHARootCluster(t *testing.T) {
 	wantRootQueryCount := p.Root.postgres.QueryCount() + 1
 	wantLeafQueryCount := p.Leaf.postgres.QueryCount()
 	// Execute a query.
-	result, err := client.Exec(context.Background(), "select 1").ReadAll()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	defer cancel()
+	result, err := client.Exec(ctx, "select 1").ReadAll()
 	require.NoError(t, err)
 	require.Equal(t, []*pgconn.Result{postgres.TestQueryResponse}, result)
 	require.Equal(t, wantRootQueryCount, p.Root.postgres.QueryCount())
@@ -905,7 +918,9 @@ func (p *DatabasePack) testHALeafCluster(t *testing.T) {
 	wantLeafQueryCount := p.Leaf.postgres.QueryCount() + 1
 
 	// Execute a query.
-	result, err := client.Exec(context.Background(), "select 1").ReadAll()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	defer cancel()
+	result, err := client.Exec(ctx, "select 1").ReadAll()
 	require.NoError(t, err)
 	require.Equal(t, []*pgconn.Result{postgres.TestQueryResponse}, result)
 	require.Equal(t, wantLeafQueryCount, p.Leaf.postgres.QueryCount())
