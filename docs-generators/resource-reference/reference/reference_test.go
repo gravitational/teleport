@@ -24,13 +24,14 @@ type MyStruct struct{
 }
 `
 	cases := []struct {
-		description string
-		input       []TypeInfo
-		expected    bool
+		description       string
+		requiredFields    []TypeInfo
+		excludedResources []TypeInfo
+		expected          bool
 	}{
 		{
 			description: "one required type from a separate package",
-			input: []TypeInfo{
+			requiredFields: []TypeInfo{
 				{
 					Package: "types",
 					Name:    "Metadata",
@@ -40,7 +41,7 @@ type MyStruct struct{
 		},
 		{
 			description: "two required types from separate packages",
-			input: []TypeInfo{
+			requiredFields: []TypeInfo{
 				{
 					Package: "types",
 					Name:    "Metadata",
@@ -54,7 +55,7 @@ type MyStruct struct{
 		},
 		{
 			description: "field from another package is not present",
-			input: []TypeInfo{
+			requiredFields: []TypeInfo{
 				{
 					Package: "types",
 					Name:    "AbsentType",
@@ -64,7 +65,7 @@ type MyStruct struct{
 		},
 		{
 			description: "field from the same package",
-			input: []TypeInfo{
+			requiredFields: []TypeInfo{
 				{
 					Package: "testpkg",
 					Name:    "Metadata",
@@ -74,7 +75,7 @@ type MyStruct struct{
 		},
 		{
 			description: "one required type with long path from a separate package",
-			input: []TypeInfo{
+			requiredFields: []TypeInfo{
 				{
 					Package: "long/package/path/types",
 					Name:    "Metadata",
@@ -84,13 +85,29 @@ type MyStruct struct{
 		},
 		{
 			description: "one required type with long path from the current  package",
-			input: []TypeInfo{
+			requiredFields: []TypeInfo{
 				{
 					Package: "long/package/path/testpkg",
 					Name:    "Metadata",
 				},
 			},
 			expected: true,
+		},
+		{
+			description: "excluded type",
+			requiredFields: []TypeInfo{
+				{
+					Package: "testpkg",
+					Name:    "Metadata",
+				},
+			},
+			excludedResources: []TypeInfo{
+				{
+					Package: "testpkg",
+					Name:    "MyStruct",
+				},
+			},
+			expected: false,
 		},
 	}
 
@@ -121,7 +138,7 @@ type MyStruct struct{
 				FilePath:    "myfile.go",
 				Decl:        l,
 				PackageName: "testpkg",
-			}, c.input))
+			}, c.requiredFields, c.excludedResources))
 		})
 	}
 }
