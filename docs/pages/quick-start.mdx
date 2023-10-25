@@ -6,27 +6,33 @@ keywords:
 
 Teleport is available in different editions to support different deployment models and feature requirements. 
 This _Quick Start_ provides a brief overview of what's available and your deployment options to help you decide
-what's right for your organization large or small.
+what's right for your organization, large or small.
 
-Before diving into details, the fist most important thing you should know about Teleport is that it revolves around the concept 
-of a cluster.
+Before diving into details, the first most important thing you should know about Teleport is that it is a
+secure **access platform** that protects **resources**—including servers, applications, databases, and 
+devices—within a conceptual boundary called the **Teleport cluster**.
+
+The cluster can be as simple as a single Linux server or a collection of resources distributed on a global scale.
+At a minimum, the cluster provides at least one Teleport Auth Service and at least one Teleport Proxy Service.
 
 ## Get Teleport
 
-deployment options, editions, compare editions, sign up for Team)
-### Self-hosted private network
-Physical or virtual machines
-Docker containers
-Kubernetes cluster
+There are many ways you can prepare a development environment for testing and evaluating Teleport features and 
+performing common administrative tasks. 
+For example, you can deploy Teleport:
 
-### Cloud-hosted public network
-AWS EC2 instance
-Google Cloud
-Azure
+- As a self-hosted private network consisting of physical or virtual machines, Docker containers, or in 
+  a Kubernetes cluster.
+- On a cloud-hosted public network using AWS EC2, Google Cloud, or Microsoft Azure instances or Kubernetes
+  clusters.
+- By enrolling and configuring infrastructure for a Teleport Team or Teleport Enterprise account in a 
+  Teleport-hosted cloud.
 
-### Teleport-hosted cloud network
-Teleport Team
-Teleport Enterprise
+There are getting started guides and examples of the different deployment options in other sections throughout 
+the documentation. However, if you want to minimize the preparation time and management involved, you can 
+start your Teleport journey by signing up for a Teleport Team account. Teleport Team offers a free trial period 
+so you can learn the basics of managing your infrastructure without installing or managing the Teleport cluster 
+core services—the **Teleport Auth Service** and the **Teleport Proxy Service**. 
 
 ## Sign up for Teleport Team
 
