@@ -31,11 +31,7 @@ import { Danger } from 'design/Alert';
 
 import './unifiedStyles.css';
 
-import {
-  ResourcesResponse,
-  ResourceLabel,
-  ResourceFilter,
-} from 'teleport/services/agents';
+import { ResourcesResponse, ResourceLabel } from 'teleport/services/agents';
 import { FeatureBox } from 'teleport/components/Layout';
 import { TextIcon } from 'teleport/Discover/Shared';
 import {
@@ -56,7 +52,7 @@ import {
 } from 'shared/hooks/useInfiniteScroll';
 import { Attempt } from 'shared/hooks/useAttemptNext';
 
-import { SharedUnifiedResource } from './types';
+import { SharedUnifiedResource, UnifiedResourcesQueryParams } from './types';
 import {
   makeUnifiedResourceCardNode,
   makeUnifiedResourceCardDatabase,
@@ -107,7 +103,7 @@ export type UnifiedResourcesPinning =
     };
 
 interface UnifiedResourcesProps {
-  params: ResourceFilter;
+  params: UnifiedResourcesQueryParams;
   resourcesFetchAttempt: Attempt;
   fetchResources: (options?: { force?: boolean }) => Promise<void>;
   resources: SharedUnifiedResource[];
@@ -122,7 +118,7 @@ interface UnifiedResourcesProps {
    */
   pinning: UnifiedResourcesPinning;
   availableKinds: SharedUnifiedResource['resource']['kind'][];
-  setParams(params: ResourceFilter): void;
+  setParams(params: UnifiedResourcesQueryParams): void;
   onLabelClick(label: ResourceLabel): void;
   updateUnifiedResourcesPreferences(
     preferences: UnifiedResourcePreferences
