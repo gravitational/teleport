@@ -3,8 +3,10 @@ run-name: Integration Tests (Non-root) - ${{ github.run_id }} - @${{ github.acto
 
 on:
   pull_request:
-
   merge_group:
+  push:
+    branches:
+      - tener/*
 
 jobs:
   changes:
