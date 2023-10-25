@@ -67,7 +67,7 @@ type FakeIncident struct {
 	Incident
 }
 
-func NewFakeServiceNow(concurrency int) *FakeServiceNow {
+func NewFakeServiceNow(concurrency int, onCallUser string) *FakeServiceNow {
 	router := httprouter.New()
 
 	serviceNow := &FakeServiceNow{
@@ -135,6 +135,27 @@ func NewFakeServiceNow(concurrency int) *FakeServiceNow {
 		}
 		serviceNow.StoreIncident(incident)
 		serviceNow.incidentUpdates <- incident
+	})
+	router.GET("/api/now/on_call_rota/whoisoncall", func(rw http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+		rw.Header().Add("Content-Type", "application/json")
+
+		err := json.NewEncoder(rw).Encode(onCallResult{Result: []struct {
+			UserID string `json:"userId"`
+		}{
+			{
+				UserID: "someUserID",
+			},
+		}})
+		panicIf(err)
+	})
+	router.GET("/api/now/table/sys_user/:UserID", func(rw http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+		rw.Header().Add("Content-Type", "application/json")
+		err := json.NewEncoder(rw).Encode(userResult{Result: struct {
+			UserName string `json:"user_name"`
+		}{
+			UserName: onCallUser,
+		}})
+		panicIf(err)
 	})
 	return serviceNow
 }

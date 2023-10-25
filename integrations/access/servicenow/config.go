@@ -37,6 +37,10 @@ type Config struct {
 	// the Teleport auth server. The Jira app will create a gRPC-based
 	// client on startup if this is not set.
 	Client teleport.Client
+
+	// TeleportUser is the name of the Teleport user that will act
+	// as the access request approver
+	TeleportUser string
 }
 
 // CheckAndSetDefaults checks the config struct for any logical errors, and sets default values
