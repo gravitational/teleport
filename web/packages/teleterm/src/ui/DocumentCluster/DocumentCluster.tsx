@@ -28,7 +28,7 @@ import ClusterCtx, {
   ClusterContextProvider,
   useClusterContext,
 } from './clusterContext';
-import ClusterResources from './ClusterResources';
+import { UnifiedResources } from './UnifiedResources';
 
 export default function Container(props: DocumentProps) {
   const { clusterUri } = props.doc;
@@ -82,8 +82,8 @@ export function Cluster() {
   }
 
   return (
-    <Layout mx="auto" px={5} pt={2} height="100%">
-      <ClusterResources />
+    <Layout mx="auto" px={5} pt={4} height="100%">
+      <UnifiedResources clusterUri={clusterCtx.clusterUri} />
     </Layout>
   );
 }
@@ -142,10 +142,5 @@ const Layout = styled(Box)`
   flex-direction: column;
   display: flex;
   flex: 1;
-  max-width: 1248px;
-
-  ::after {
-    content: ' ';
-    padding-bottom: 24px;
-  }
+  height: max-content;
 `;
