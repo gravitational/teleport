@@ -3,25 +3,57 @@ authors: Ryan Clark (ryan.clark@goteleport.com), Lisa Kim (lisa@goteleport.com)
 state: implemented
 ---
 
-# RFD 103 - Application Access Web UI Auth Flow
+# RFD 103 - Application Access Web UI Authn Flow
 
 ## What
 
-This is an overview of the flow used for setting the relevant cookies when a user logs in to an
-application through Teleport Web UI.
+This is an overview of the authn flow used through the Teleport Web UI for setting the relevant cookies for when a user accesses an
+application.
 
 ## Why
 
 To document and understand the HTTP application access authn flow for future reference.
 
+### Document
+
+- Original [AAP document](https://docs.google.com/document/d/1CIFURGOSy-qQccRH7rPTzw_TscD3iHMswkv6qzTv6_E/edit#heading=h.7pympy0nya4) about session
+
 ## Details
 
-When a user wants to login to an application, a new application session has to be created in
-the auth service. This application session has two values (a session name and a bearer token) that need to be provided
-as cookies when the user navigates to the application's URL.
+When a user wants to access an application, the authn flow to this application involves a series of redirects to ultimately set the two cookies required to authenticate requests to the target application:
 
-The flow to be able to set the needed cookies from the application session across different domains is
-as follows (using debug dumper app as example):
+1. Application session cookie `__Host-grv_app_session`: Stores the application web session's id.
+2. Application session subject cookie `__Host-grv_app_session_subject`: Stores the application web session's bearer token. This was required to use as a secret to prevent an auditor from [hijacking user sessions](https://github.com/gravitational/teleport-private/pull/216), since we log the session id in our audit log.
+
+If authenticating requests to the target application fails (missing/invalid cookies), Teleport will redirect the user to the Teleport webapp's [AppLauncher.tsx](https://github.com/gravitational/teleport/blob/860623e72a97825ff4c943055e7d91a00da7700a/web/packages/teleport/src/AppLauncher/AppLauncher.tsx).
+
+The Teleport webapp, may redirect the user to the login screen first before loading the `AppLauncher.tsx`. The handler that [creates application web session](https://github.com/gravitational/teleport/blob/07abd2277e17639a4a505158f2d1cb5104db7d32/lib/web/apiserver.go#L639) requires that the user is authenticated and has a valid web session. After logging in, the webapp will redirect user back to the `AppLauncher.tsx`.
+
+The `AppLauncher.tsx` conducts the initial app authn flow and does the following:
+
+1. It navigates to app route `/x-teleport-auth` that initiates the Oauth like `state` exchange
+2. `/x-teleport-auth` responds by redirecting user back to `AppLauncher.tsx` with a query param `state`, a query param that preserves the originally requested URL path & query, and a short lived `state` cookie
+3. It creates an application web session
+4. It navigates back to app route `/x-teleport-auth` passing the `state`, the originally requested URL path & query, and the app session response via URL params
+
+OAuth like `state` exchange pattern is used to protect the app route `/x-teleport-auth` from CSRF. The authn flow uses two HTTP methods:
+
+- GET: `begins` the authn flow. Performs two different actions:
+  1. If the request URL does not contain `state` query param, it creates a random token and redirects the user back to the `AppLaunhcer.tsx` with both a `state` query param and a `state` cookie set with the random token value
+  2. If the `state` query param is present, it serves a `app redirection HTML` (contains inline JS that runs after page is loaded)
+- POST: `completes` the authn flow. This method is called within the inline JS served by the GET method and does the following:
+  - checks that the `state` value passed via request body matches the value found in `state` cookie (double submit cookie method)
+  - validates the app session values passed via request body (session ID and bearer token)
+  - sets the required app cookies with the validated app session values
+
+The `app redirection HTML` is just a blank HTML page with an inline JS that runs upon loading. The JS makes a fetch-based POST request to `/x-teleport-auth` with a JSON body containing the `state` value, the session id, and the session bearer token. After successful validation of these values in the backend, the handler completes the authn flow by setting the required app cookies. After returning from the request, the JS will redirect the user to the originally requested URL.
+
+It's important to note that browser's will now block `3rd party cookies` by default. But all the cookies we set during this authn flow are considered `first party cookies`. That's because we first navigate to the app's domain (by app route `/x-teleport-auth`), and then we set the cookie while we are still at the app domain.
+
+A visual flow below using the debug dumper app as an example `dumper.localhost:3080`. Note that there is two ways to begin the flow:
+
+1. Directly navigating to the application eg: copy paste URL or clicking on a app link
+2. User clicks on the app `launch` button in the Teleport Web UI
 
 ```mermaid
 sequenceDiagram
@@ -31,44 +63,29 @@ sequenceDiagram
     participant App Handler
     end
     participant Auth Service
-    alt Requesting app outside of web UI
-    Note right of Browser: User copy pastes app URL into browser <br/>https://dumper.localhost:3080
-    Browser->>App Handler: Proxy determines requesting an application and builds a redirect URL back to web launcher
-    App Handler->>Browser: Redirect to web launcher, requested path and query params are preserved in the URL <br/>(In subsequent requests both the path and query gets preserved as path)<br/>REDIRECT /web/launch/dumper.localhost?path=<requested-path>&query=<requested-query>
-    Note left of Browser: Redirected to app launcher <br>/web/launcher/dumper.localhost?path=...
-    alt User is NOT logged in
-        Browser->>Browser: Web UI routes to login <br>/web/login?redirect_uri=https://localhost:3080/web/launcher/dumber.localhost...
-        Browser->>Web Handler: User provides auth credentials <br>POST /v1/webapi/sessions/web
-        Web Handler->>Auth Service: AuthenticateWebUser
-        Auth Service->>Web Handler: Creates web session and bearer token on success
-        Web Handler->>Browser: Sets web session cookie and returns bearer token and expiration
-        Browser->>Browser: Web UI routes back to app launcher
+    alt Directly navigating to application
+    Note left of Browser: User copy pastes app URL into browser <br/>https://dumper.localhost:3080
+    Browser->>App Handler: Proxy determines requesting an application and builds a redirect URL to AppLauncher.tsx
+    App Handler->>Browser: REDIRECT /web/launch/dumper.localhost?path=<requested-path>&query=<requested-query>
+    Note left of Browser: At AppLauncher.tsx <br>/web/launcher/dumper.localhost?path=...
+    else Using the web launcher
+    Note left of Browser: In the web UI user clicks on `launch` button for the target app
+    Note left of Browser: Web UI routes to AppLauncher.tsx <br/>/web/launch/dumper.localhost/cluster-name/dumper.localhost<br/>route format: /web/launch/:fqdn/:clusterId?/:publicAddr?
     end
-    else Requesting app within the web UI (user is already logged in at this point)
-    Note left of Browser: In web UI user clicks on `launch` button for the target app
-    Note left of Browser: Web UI routes to app launcher <br/>/web/launch/dumper.localhost/cluster-name/dumper.localhost<br/>route format: /web/launch/:fqdn/:clusterId?/:publicAddr?
-    end
-    Note right of Browser: App launcher navigates to app authn handler <br/>https://dumper.localhost:3080/x-teleport-auth
-    Browser->>App Handler: Navigating to app authn handler start's the auth exchange <br/>GET /dumper.localhost/x-teleport-auth
-    App Handler->>Browser: Create state token, set the token value in a cookie, and as a query param in the redirect URL back to web launcher<br/>REDIRECT /web/launch/dumper.localhost/cluster-name/dumper.localhost?state=<token>
-    Note left of Browser: Redirected back to app launcher
-    Browser->>Web Handler: Create App Session <br>POST /v1/webapi/sessions/app with body:<br>{fqdn: dumper.localhost, plubic_addr: dumper.localhost, cluster_name: cluster-name}
+    Note left of Browser: AppLauncher.tsx navigates to app authn route <br/>https://dumper.localhost:3080/x-teleport-auth
+    Browser->>App Handler: GET /dumper.localhost/x-teleport-auth<br>Creates state token
+    App Handler->>Browser: REDIRECT /web/launch/dumper.localhost/cluster-name/dumper.localhost?state=<TOKEN><br>set cookie with the same <TOKEN>
+    Note left of Browser: Back at AppLauncher.tsx
+    Browser->>Web Handler: POST /v1/webapi/sessions/app with body:<br>{fqdn: dumper.localhost, plubic_addr: dumper.localhost, cluster_name: cluster-name}
     Web Handler->>Auth Service: CreateAppSession
-    Auth Service->>Web Handler: Creates web app session and bearer token
-    Web Handler->>Browser: Returns web app session (to be used as app session cookie value) <br>and bearer token (to be used as subject cookie value)
-    Note right of Browser: App launcher navigates back to app authn handler <br>https://dumper.localhost:3080/x-teleport-auth?state=<token>&subject=<subject-cookie-value>#35;value=<session-cookie-value>
-    Browser->>App Handler: Continue auth exchange <br>GET /dumper.localhost:3080/x-teleport-auth?state=<token>&subject=<subject-cookie-value>#35;value=<session-cookie-value>
-    App Handler->>Browser: After checking that a "state" query param exists, serve the app redirection HTML <br>(Just a blank page with inline JS that contains logic to complete auth exchange and redirect to target app path)
-    Note right of Browser: Redirection HTML page with inline JS is loaded
-    Browser->>App Handler: Complete auth exchange <br>POST /dumper.localhost:3080/x-teleport-auth with body:<br>{state_value: <token>, cookie_value: <session-cookie_value>, subject_cookie: <subject-cookie-value>}
-    App Handler->>Browser: After verifying the state token matches with the cookie sent automatically by browser, verifying app session <br>and its bearer token, sets session cookie (the web app session) and sets subject cookie (the bearer token)
-    Browser-->Browser: User is authenticated<br>Redirect to the originally requested path https://dumper.localhost:3080 <br/>(In this case it was just the root path)
+    Auth Service->>Web Handler: Returns created session
+    Web Handler->>Browser: Returns with the app <SESSION_BEARER_TOKEN> and <SESSION_ID> as JSON response
+    Note left of Browser: AppLauncher.tsx navigates back to app authn route with:<br>https://dumper.localhost:3080/<br>x-teleport-auth?<br>state=<TOKEN><br>&subject=<SESSION_BEARER_TOKEN><br>&path=<ORIGINAL_PATH_QUERY><br>#35;value=<SESSION_ID>
+    Browser->>App Handler: GET /dumper.localhost:3080/x-teleport-auth?state=<TOKEN>&subject=<SESSION_BEARER_TOKEN>#35;value=<SESSION_ID>
+    App Handler->>Browser: Serve the app redirection HTML <br>(Just a blank page with inline JS that contains logic to complete auth exchange and redirect to target app path)
+    Note left of Browser: App redirection HTML is loaded at <br>https://dumper.localhost:3080/x-teleport-auth...
+    Browser->>App Handler: POST /dumper.localhost:3080/x-teleport-auth with body:<br>{state_value: <TOKEN>, subject_cookie: <SESSION_BEARER_TOKEN>, cookie_value: <SESSION_ID>}
+    App Handler->>Browser: Set the subject cookie with SESSION_BEARER_TOKEN and the session cookie with SESSION_ID
+    Note left of Browser: App redirection HTML redirects user back to the <br>originally requested path
+    Note left of Browser: User is now at: https://dumper.localhost:3080
 ```
-
-### CSRF Protection
-
-We use the double submit cookie technique to protect against CSRF for the endpoint `POST /target-app/x-teleport-auth` which grants the cookies that is required by the target app (session cookie and subject cookie).
-
-When initiating auth exchange, the backend will create a crypto safe random token and send back this token value as part of a query param called `state` and as a cookie (set on the target app domain).
-
-Call to `POST /target-app/x-teleport-auth` will check that the `state` query param matches with the value of the cookie sent automatically by the browser.
