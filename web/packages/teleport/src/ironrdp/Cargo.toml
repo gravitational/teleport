@@ -24,10 +24,9 @@ tracing-web = "0.1.2"
 time = { version = "0.3", features = ["wasm-bindgen"] }
 console_error_panic_hook = "0.1.7"
 
-# Change this once https://github.com/Devolutions/IronRDP/pull/234 lands
-ironrdp-session = { git = "https://github.com/Devolutions/IronRDP", rev = "f7c14ea1ea77713c7b502a73559294c371bd2619" }
-ironrdp-pdu = { git = "https://github.com/Devolutions/IronRDP", rev = "f7c14ea1ea77713c7b502a73559294c371bd2619" }
-ironrdp-graphics = { git = "https://github.com/Devolutions/IronRDP", rev = "f7c14ea1ea77713c7b502a73559294c371bd2619" }
+ironrdp-session = { git = "https://github.com/Devolutions/IronRDP", rev = "2075833ff2d02e6cea256e8a24e4e6e5e805ce88" }
+ironrdp-pdu = { git = "https://github.com/Devolutions/IronRDP", rev = "2075833ff2d02e6cea256e8a24e4e6e5e805ce88" }
+ironrdp-graphics = { git = "https://github.com/Devolutions/IronRDP", rev = "2075833ff2d02e6cea256e8a24e4e6e5e805ce88" }
 
 # Uncomment the following lines and comment out the ones above to use local crates instead of the ones from github
 # ironrdp-session = { path = "/path/to/your/local/IronRDP/crates/ironrdp-session" }
