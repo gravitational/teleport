@@ -41,10 +41,6 @@ GRANT ROLE "sys:superuser" TO "teleport-admin";
 Users created by Teleport will be assigned the `teleport-auto-user` role in the
 database, which will be created automatically if it doesn't exist.
 
-Teleport will not delete the automatically created user at the end of the
-session. Instead, the user will be stripped of all roles, updated with
-`CONNECTION LIMIT 0` trait and reactivated during the next connection.
-
 (!docs/pages/includes/database-access/auto-user-provisioning/db-definition.mdx protocol="postgres" uri="redshift-cluster-1.abcdefghijklmnop.us-east-1.redshift.amazonaws.com:5439" !)
 
 ## Step 2/3. Configure Teleport role

@@ -70,10 +70,6 @@ GRANT ALTER ROUTINE, CREATE ROUTINE, EXECUTE ON `teleport`.* TO 'teleport-admin'
 Users created by Teleport will be assigned the `teleport-auto-user` role in the
 database, which will be created automatically if it doesn't exist.
 
-Teleport will not delete the automatically created user at the end of the
-session. Instead, the user will be stripped of all roles and the user account
-will be locked.
-
 (!docs/pages/includes/database-access/auto-user-provisioning/db-definition.mdx protocol="mysql" uri="localhost:3306" !)
 
 ## Step 2/3. Configure Teleport role
