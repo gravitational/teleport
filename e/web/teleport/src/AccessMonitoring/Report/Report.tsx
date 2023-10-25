@@ -64,18 +64,16 @@ export function Report() {
 
       const state = await getReportState(clusterId, name, daysInt);
 
-      setReportStatus(state.status);
-
-      if (state.status === ReportState.Ready) {
+      if (
+        state.status === ReportState.Ready ||
+        state.status === ReportState.Running
+      ) {
         const res = await getReport(clusterId, name, daysInt);
 
         setData(res);
 
-        return;
-      }
-
-      if (state.status === ReportState.Running) {
-        setShouldPoll(true);
+        // even if it's running, we can grab the last report and display it, so we mark the status as ready
+        setReportStatus(ReportState.Ready);
       }
     }
 
@@ -93,11 +91,12 @@ export function Report() {
       setReportStatus(state.status);
 
       if (state.status === ReportState.Ready) {
+        setShouldPoll(false);
+
         run(async () => {
           const res = await getReport(clusterId, name, daysInt);
 
           setData(res);
-          setShouldPoll(false);
         });
       }
     }, 5000);
