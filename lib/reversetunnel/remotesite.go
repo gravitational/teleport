@@ -855,7 +855,7 @@ func (s *remoteSite) dialAndForward(params reversetunnelclient.DialParams) (_ ne
 	// Note: A localClient is passed to the forwarding server to make sure the
 	// session gets recorded in the local cluster instead of the remote cluster.
 	serverConfig := forward.ServerConfig{
-		AuthClient:      s.localClient,
+		AuthClient:      s.remoteClient,
 		UserAgent:       userAgent,
 		IsAgentlessNode: params.IsAgentlessNode,
 		AgentlessSigner: params.AgentlessSigner,
