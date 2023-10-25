@@ -35,10 +35,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils/interval"
 )
 
-func init() {
-	common.RegisterAppCreator("accesslist", NewApp)
-}
-
 const (
 	// oneWeek is the number of hours in a week.
 	oneWeek = 24 * time.Hour * 7
@@ -56,13 +52,10 @@ type App struct {
 }
 
 // NewApp will create a new access list application.
-func NewApp(bot common.MessagingBot) (common.App, error) {
-	if _, ok := bot.(MessagingBot); !ok {
-		return nil, trace.BadParameter("bot does not support this app")
-	}
+func NewApp(bot MessagingBot) common.App {
 	app := &App{}
 	app.job = lib.NewServiceJob(app.run)
-	return app, nil
+	return app
 }
 
 // Init will initialize the application.
@@ -234,9 +227,11 @@ func (a *App) sendMessages(ctx context.Context, accessList *accesslist.AccessLis
 
 			// If the notification window is before the last notification date, then this user doesn't need a notification.
 			if !windowStart.After(lastNotification) {
-				log.Debugf("User %s has already been notified", recipient.Name)
+				log.Debugf("User %s has already been notified for access list %s", recipient.Name, accessList.GetName())
 				userNotifications[recipient.Name] = lastNotification
 				continue
+			} else {
+				log.Debugf("User %s should be notified for access list %s", recipient.Name, accessList.GetName())
 			}
 
 			recipients = append(recipients, recipient)
@@ -246,11 +241,17 @@ func (a *App) sendMessages(ctx context.Context, accessList *accesslist.AccessLis
 			return pd.AccessListNotificationData{}, trace.NotFound("nobody to notify for access list %s", accessList.GetName())
 		}
 
-		if err := a.bot.SendReviewReminders(ctx, recipients, accessList); err != nil {
-			return pd.AccessListNotificationData{}, trace.Wrap(err)
-		}
-
 		return pd.AccessListNotificationData{UserNotifications: userNotifications}, nil
 	})
-	return trace.Wrap(err)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	for _, recipient := range recipients {
+		if err := a.bot.SendReviewReminders(ctx, recipient, accessList); err != nil {
+			log.WithError(err).Errorf("Error sending access review reminders for access list %s", accessList.GetName())
+		}
+	}
+
+	return nil
 }

@@ -44,8 +44,8 @@ func (m *mockMessagingBot) CheckHealth(ctx context.Context) error {
 	return nil
 }
 
-func (m *mockMessagingBot) SendReviewReminders(ctx context.Context, recipients []common.Recipient, accessList *accesslist.AccessList) error {
-	m.lastReminderRecipients = recipients
+func (m *mockMessagingBot) SendReviewReminders(ctx context.Context, recipient common.Recipient, accessList *accesslist.AccessList) error {
+	m.lastReminderRecipients = append(m.lastReminderRecipients, recipient)
 	return nil
 }
 
@@ -56,6 +56,12 @@ func (m *mockMessagingBot) FetchRecipient(ctx context.Context, recipient string)
 	}
 
 	return fetchedRecipient, nil
+}
+
+func (m *mockMessagingBot) SupportedApps() []common.App {
+	return []common.App{
+		NewApp(m),
+	}
 }
 
 type mockPluginConfig struct {

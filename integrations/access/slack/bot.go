@@ -19,15 +19,18 @@ package slack
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/url"
 	"time"
 
 	"github.com/go-resty/resty/v2"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
+	appAccesslist "github.com/gravitational/teleport/integrations/access/accesslist"
 	"github.com/gravitational/teleport/integrations/access/accessrequest"
 	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/integrations/lib"
@@ -44,6 +47,7 @@ const statusEmitTimeout = 10 * time.Second
 // request is processed/updated.
 type Bot struct {
 	client      *resty.Client
+	clock       clockwork.Clock
 	clusterName string
 	webProxyURL *url.URL
 }
@@ -83,6 +87,14 @@ func onAfterResponseSlack(sink common.StatusSink) func(_ *resty.Client, resp *re
 	}
 }
 
+// SupportedApps are the apps supported by this bot.
+func (b Bot) SupportedApps() []common.App {
+	return []common.App{
+		accessrequest.NewApp(b),
+		appAccesslist.NewApp(b),
+	}
+}
+
 func (b Bot) CheckHealth(ctx context.Context) error {
 	_, err := b.client.NewRequest().
 		SetContext(ctx).
@@ -97,8 +109,14 @@ func (b Bot) CheckHealth(ctx context.Context) error {
 }
 
 // SendReviewReminders will send a review reminder that an access list needs to be reviewed.
-func (b Bot) SendReviewReminders(ctx context.Context, recipients []common.Recipient, accessList *accesslist.AccessList) error {
-	return trace.NotImplemented("access list review reminder is not yet implemented")
+func (b Bot) SendReviewReminders(ctx context.Context, recipient common.Recipient, accessList *accesslist.AccessList) error {
+	var result ChatMsgResponse
+	_, err := b.client.NewRequest().
+		SetContext(ctx).
+		SetBody(Message{BaseMessage: BaseMessage{Channel: recipient.ID}, BlockItems: b.slackAccessListReminderMsgSection(accessList)}).
+		SetResult(&result).
+		Post("chat.postMessage")
+	return trace.Wrap(err)
 }
 
 // BroadcastAccessRequestMessage posts request info to Slack with action buttons.
@@ -206,6 +224,31 @@ func (b Bot) FetchRecipient(ctx context.Context, name string) (*common.Recipient
 		Kind: "Channel",
 		Data: nil,
 	}, nil
+}
+
+// slackAccessListReminderMsgSection builds an access list reminder Slack message section (obeys markdown).
+func (b Bot) slackAccessListReminderMsgSection(accessList *accesslist.AccessList) []BlockItem {
+	nextAuditDate := accessList.Spec.Audit.NextAuditDate
+
+	name := fmt.Sprintf("*%s* (name: %s)", accessList.Spec.Title, accessList.GetName())
+	var msg string
+	if b.clock.Now().After(nextAuditDate) {
+		daysSinceDue := int(b.clock.Since(nextAuditDate).Hours() / 24)
+		msg = fmt.Sprintf("Access List %s is %d day(s) past due for a review! Please review it.",
+			name, daysSinceDue)
+	} else {
+		msg = fmt.Sprintf(
+			"Access List %s is due for a review by %s. Please review it soon!",
+			name, accessList.Spec.Audit.NextAuditDate.Format(time.DateOnly))
+	}
+
+	sections := []BlockItem{
+		NewBlockItem(SectionBlock{
+			Text: NewTextObjectItem(MarkdownObject{Text: msg}),
+		}),
+	}
+
+	return sections
 }
 
 // slackAccessRequestMsgSection builds an access request Slack message section (obeys markdown).

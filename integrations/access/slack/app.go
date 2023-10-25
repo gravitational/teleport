@@ -27,5 +27,7 @@ const (
 
 // NewSlackApp initializes a new teleport-slack app and returns it.
 func NewSlackApp(conf *Config) *common.BaseApp {
-	return common.NewApp(conf, slackPluginName)
+	app := common.NewApp(conf, slackPluginName)
+	app.Clock = conf.clock
+	return app
 }
