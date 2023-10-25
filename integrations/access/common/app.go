@@ -18,8 +18,6 @@ package common
 
 import (
 	"context"
-	"fmt"
-	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -37,26 +35,6 @@ const (
 	// InitTimeout is used to bound execution time of health check and teleport version check.
 	initTimeout = time.Second * 10
 )
-
-var (
-	appCreatorRegistry   = map[string]AppCreator{}
-	appCreatorRegistryMu sync.Mutex
-)
-
-// AppCreator will create an application for use by the plugin.
-type AppCreator func(bot MessagingBot) (App, error)
-
-// RegisterApp will register the app creator function.
-func RegisterAppCreator(name string, fn AppCreator) {
-	appCreatorRegistryMu.Lock()
-	defer appCreatorRegistryMu.Unlock()
-
-	if _, ok := appCreatorRegistry[name]; ok {
-		panic(fmt.Sprintf("duplicate plugin application %s", name))
-	}
-
-	appCreatorRegistry[name] = fn
-}
 
 // BaseApp is responsible for handling the common features for a plugin.
 // It will start a Teleport client, listen for events and treat them.
@@ -196,6 +174,10 @@ func (a *BaseApp) init(ctx context.Context) error {
 	defer cancel()
 	log := logger.Get(ctx)
 
+	if a.Clock == nil {
+		a.Clock = clockwork.NewRealClock()
+	}
+
 	clusterName, webProxyAddr, err := a.initTeleport(ctx, a.Conf)
 	if err != nil {
 		return trace.Wrap(err)
@@ -206,17 +188,7 @@ func (a *BaseApp) init(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
-	appCreatorRegistryMu.Lock()
-	for appName, appCreatorFn := range appCreatorRegistry {
-		app, err := appCreatorFn(a.Bot)
-		if err != nil {
-			log.Debugf("Plugin %s does not support app %s", a.PluginName, appName)
-			continue
-		}
-
-		a.apps = append(a.apps, app)
-	}
-	appCreatorRegistryMu.Unlock()
+	a.apps = a.Bot.SupportedApps()
 
 	if len(a.apps) == 0 {
 		return trace.BadParameter("no apps supported for this plugin")
