@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"sync"
 
@@ -24,6 +25,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -308,11 +310,11 @@ func (sas *SAMLAuthService) createSAMLUser(ctx context.Context, p *auth.CreateUs
 		return nil, trace.Wrap(err)
 	}
 
-	// Overwrite exisiting user if it was created from an external identity provider.
+	// Overwrite existing user if it was created from an external identity provider.
 	if existingUser != nil {
 		connectorRef := existingUser.GetCreatedBy().Connector
 
-		// If the exisiting user is a local user, fail and advise how to fix the problem.
+		// If the existing user is a local user, fail and advise how to fix the problem.
 		if connectorRef == nil {
 			return nil, trace.AlreadyExists("local user with name %q already exists. Either change "+
 				"NameID in assertion or remove local user and try again.", existingUser.GetName())
@@ -441,8 +443,11 @@ func (sas *SAMLAuthService) ValidateSAMLResponse(ctx context.Context, samlRespon
 	return auth, nil
 }
 
+// Name of the test connector used to simulate identity provider initiated flow.
+const idpInitiatedSAMLTestConn = "idp-initiated-saml-test-conn"
+
 func (sas *SAMLAuthService) checkIDPInitiatedSAML(ctx context.Context, connector types.SAMLConnector, assertion *saml2.AssertionInfo) error {
-	if !connector.GetAllowIDPInitiated() {
+	if !connector.GetAllowIDPInitiated() && connector.GetName() != idpInitiatedSAMLTestConn {
 		return trace.AccessDenied("IdP initiated SAML is not allowed by the connector configuration")
 	}
 
@@ -461,6 +466,14 @@ func (sas *SAMLAuthService) validateSAMLResponse(ctx context.Context, diagCtx *a
 	var provider *saml2.SAMLServiceProvider
 	var request *types.SAMLAuthRequest
 	requestID, err := ParseSAMLInResponseTo(samlResponse)
+
+	if connectorID == idpInitiatedSAMLTestConn {
+		// Simulate identity provider initiated SAML login, when there's no original request on our side.
+		requestID = ""
+		err = trace.NotFound("")
+		diagCtx.Info.TestFlow = true
+	}
+
 	switch {
 	case trace.IsNotFound(err):
 		if connectorID == "" {
@@ -559,7 +572,7 @@ func (sas *SAMLAuthService) validateSAMLResponse(ctx context.Context, diagCtx *a
 		SessionTTL:    types.Duration(params.SessionTTL),
 	}
 
-	user, err := sas.createSAMLUser(ctx, params, request != nil && request.SSOTestFlow)
+	user, err := sas.createSAMLUser(ctx, params, diagCtx.Info.TestFlow)
 	if err != nil {
 		return nil, trace.Wrap(err, "Failed to create user from provided parameters.")
 	}
@@ -590,15 +603,15 @@ func (sas *SAMLAuthService) validateSAMLResponse(ctx context.Context, diagCtx *a
 		}
 	}
 
-	// In test flow skip signing and creating web sessions.
-	if request != nil && request.SSOTestFlow {
-		diagCtx.Info.Success = true
-		return resp, nil
-	}
-
 	loginIP := ""
 	if request != nil {
 		loginIP = request.ClientLoginIP
+	} else if addr, err := authz.ClientAddrFromContext(ctx); err == nil {
+		host, _, err := net.SplitHostPort(addr.String())
+		if err != nil {
+			return nil, trace.Wrap(err, "failed to parse client source address")
+		}
+		loginIP = host
 	}
 	// If the request is coming from a browser, create a web session.
 	if request == nil || request.CreateWebSession {
