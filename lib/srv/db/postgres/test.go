@@ -26,6 +26,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"os"
 	"regexp"
 	"strconv"
 	"strings"
@@ -62,6 +63,8 @@ func MakeTestClient(ctx context.Context, config common.TestClientConfig) (*pgcon
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	// enable tracing
+	pgConn.Frontend().Trace(os.Stdout, pgproto3.TracerOptions{})
 	return pgConn, nil
 }
 
