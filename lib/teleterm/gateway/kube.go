@@ -134,7 +134,12 @@ func (k *kube) makeKubeMiddleware() (alpnproxy.LocalProxyHTTPMiddleware, error) 
 
 	certs := make(alpnproxy.KubeClientCerts)
 	certs.Add(k.cfg.ClusterName, k.cfg.TargetName, cert)
-	return alpnproxy.NewKubeMiddleware(certs, certReissuer.reissueCert, k.cfg.Clock, k.cfg.Log), nil
+	return alpnproxy.NewKubeMiddleware(alpnproxy.KubeMiddlewareConfig{
+		Certs:        certs,
+		CertReissuer: certReissuer.reissueCert,
+		Clock:        k.cfg.Clock,
+		Logger:       k.cfg.Log,
+	}), nil
 }
 
 func (k *kube) makeForwardProxyForKube() error {
@@ -201,7 +206,10 @@ func (k *kube) writeKubeconfig(key *keys.PrivateKey, cas map[string]tls.Certific
 		},
 	}
 
-	config := kubeconfig.CreateLocalProxyConfig(clientcmdapi.NewConfig(), values)
+	config, err := kubeconfig.CreateLocalProxyConfig(clientcmdapi.NewConfig(), values)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	if err := kubeconfig.Save(k.KubeconfigPath(), *config); err != nil {
 		return trace.Wrap(err)
 	}

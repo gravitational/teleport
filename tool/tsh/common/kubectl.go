@@ -443,8 +443,12 @@ func makeAndStartKubeLocalProxy(cf *CLIConf, config *clientcmdapi.Config, cluste
 		return nil, "", trace.Wrap(err)
 	}
 
-	localProxy, err := makeKubeLocalProxy(cf, tc, clusters, config, cf.LocalProxyPort)
+	localProxy, err := makeKubeLocalProxy(cf, tc, clusters, config, cf.LocalProxyPort, "")
 	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	if err := localProxy.WriteKubeConfig(); err != nil {
 		return nil, "", trace.Wrap(err)
 	}
 
