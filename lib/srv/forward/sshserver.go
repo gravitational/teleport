@@ -179,6 +179,10 @@ type Server struct {
 
 // ServerConfig is the configuration needed to create an instance of a Server.
 type ServerConfig struct {
+	// AccessPoint is a client that provides access to cluster being connected to,
+	// either a local or remote cluster.
+	AccessPoint auth.ClientI
+	// AuthClient is a client that provides access to this local cluster.
 	AuthClient      auth.ClientI
 	UserAgent       teleagent.Agent
 	TargetConn      net.Conn
@@ -366,7 +370,7 @@ func New(c ServerConfig) (*Server, error) {
 		Server:       s,
 		Component:    teleport.ComponentForwardingNode,
 		Emitter:      c.Emitter,
-		AccessPoint:  c.AuthClient,
+		AccessPoint:  c.AccessPoint,
 		TargetServer: c.TargetServer,
 		FIPS:         c.FIPS,
 		Clock:        c.Clock,

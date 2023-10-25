@@ -397,6 +397,7 @@ func (s *localSite) dialAndForward(params reversetunnelclient.DialParams) (_ net
 	// server does not need to close, it will close and release all resources
 	// once conn is closed.
 	serverConfig := forward.ServerConfig{
+		AccessPoint:     s.client,
 		AuthClient:      s.client,
 		UserAgent:       userAgent,
 		IsAgentlessNode: params.IsAgentlessNode,
