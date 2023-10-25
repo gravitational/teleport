@@ -110,7 +110,11 @@ interface UnifiedResourcesProps {
   //TODO(gzdunek): the pin button should be moved to some other place
   //according to the new designs
   Header(pinAllButton: React.ReactElement): React.ReactElement;
-  /** Rendered when resource list and search query are empty. */
+  /**
+   * Typically used to inform the user that there are no matching resources when
+   * they want to list resources without filtering the list with a search query.
+   * Rendered only when the resource list is empty and there's no search query.
+   * */
   NoResources: React.ReactElement;
   /**
    * If pinning is supported, the functions to get and update pinned resources
@@ -123,19 +127,6 @@ interface UnifiedResourcesProps {
   updateUnifiedResourcesPreferences(
     preferences: UnifiedResourcePreferences
   ): void;
-}
-
-export function useUnifiedResourcesFetch<T>(props: {
-  fetchFunc(
-    paginationParams: { limit: number; startKey: string },
-    signal: AbortSignal
-  ): Promise<ResourcesResponse<T>>;
-}) {
-  return useKeyBasedPagination({
-    fetchFunc: props.fetchFunc,
-    initialFetchSize: INITIAL_FETCH_SIZE,
-    fetchMoreSize: FETCH_MORE_SIZE,
-  });
 }
 
 export function UnifiedResources(props: UnifiedResourcesProps) {
@@ -422,6 +413,19 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
       </ListFooter>
     </FeatureBox>
   );
+}
+
+export function useUnifiedResourcesFetch<T>(props: {
+  fetchFunc(
+    paginationParams: { limit: number; startKey: string },
+    signal: AbortSignal
+  ): Promise<ResourcesResponse<T>>;
+}) {
+  return useKeyBasedPagination({
+    fetchFunc: props.fetchFunc,
+    initialFetchSize: INITIAL_FETCH_SIZE,
+    fetchMoreSize: FETCH_MORE_SIZE,
+  });
 }
 
 function getResourcePinningSupport(
