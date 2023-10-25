@@ -477,13 +477,15 @@ func (u *Uploader) upload(ctx context.Context, up *upload) error {
 		}
 	}
 
-	defer func() {
+	// explicitly pass in the context so that the deferred
+	// func doesn't observe future changes to the ctx var
+	defer func(ctx context.Context) {
 		if err := stream.Close(ctx); err != nil {
 			if trace.Unwrap(err) != io.EOF {
 				u.log.WithError(err).Debugf("Failed to close stream.")
 			}
 		}
-	}()
+	}(ctx)
 
 	// The call to CreateAuditStream is async. To learn
 	// if it was successful get the first status update
