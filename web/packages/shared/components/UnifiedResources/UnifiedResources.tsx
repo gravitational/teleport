@@ -406,7 +406,7 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
             ))}
         </ResourcesContainer>
       )}
-      <div ref={setTrigger} data-testid="scroll-trigger" />
+      <div ref={setTrigger} />
       <ListFooter>
         {resourcesFetchAttempt.status === 'failed' && resources.length > 0 && (
           <ButtonSecondary onClick={onRetryClicked}>Load more</ButtonSecondary>
