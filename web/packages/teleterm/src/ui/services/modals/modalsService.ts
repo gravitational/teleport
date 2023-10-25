@@ -97,13 +97,16 @@ export class ModalsService extends ImmutableStore<State> {
 
   // TODO(ravicious): Remove this method in favor of calling openRegularDialog directly.
   openClusterConnectDialog(options: {
-    clusterUri?: RootClusterUri;
-    onSuccess?(clusterUri: RootClusterUri): void;
+    clusterUri: RootClusterUri;
+    onSuccess(clusterUri: RootClusterUri): void;
     onCancel?(): void;
   }) {
     return this.openRegularDialog({
       kind: 'cluster-connect',
-      ...options,
+      clusterUri: options.clusterUri,
+      onSuccess: options.onSuccess,
+      onCancel: options.onCancel,
+      reason: undefined,
     });
   }
 
@@ -134,10 +137,14 @@ export interface DialogNone {
 
 export interface DialogClusterConnect {
   kind: 'cluster-connect';
-  clusterUri?: RootClusterUri;
-  reason?: ClusterConnectReason;
-  onSuccess?(clusterUri: RootClusterUri): void;
-  onCancel?(): void;
+  /**
+   * Supplying clusterUri makes the modal go straight to the credentials step and skips the first
+   * step with providing the cluster address.
+   */
+  clusterUri: RootClusterUri | undefined;
+  reason: ClusterConnectReason | undefined;
+  onSuccess(clusterUri: RootClusterUri): void;
+  onCancel(): void;
 }
 
 export interface ClusterConnectReasonGatewayCertExpired {
