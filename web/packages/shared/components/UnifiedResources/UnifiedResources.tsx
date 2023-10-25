@@ -114,7 +114,8 @@ interface UnifiedResourcesProps {
   //TODO(gzdunek): the pin button should be moved to some other place
   //according to the new designs
   Header(pinAllButton: React.ReactElement): React.ReactElement;
-  EmptySearchResults: React.ReactElement;
+  /** Rendered when resource list and search query are empty. */
+  NoResources: React.ReactElement;
   /**
    * If pinning is supported, the functions to get and update pinned resources
    * can be passed here.
@@ -414,10 +415,7 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
         {resourcesFetchAttempt.status === 'failed' && resources.length > 0 && (
           <ButtonSecondary onClick={onRetryClicked}>Load more</ButtonSecondary>
         )}
-        {noResults &&
-          isSearchEmpty &&
-          !params.pinnedOnly &&
-          props.EmptySearchResults}
+        {noResults && isSearchEmpty && !params.pinnedOnly && props.NoResources}
         {noResults && params.pinnedOnly && isSearchEmpty && <NoPinned />}
         {noResults && !isSearchEmpty && (
           <NoResults
