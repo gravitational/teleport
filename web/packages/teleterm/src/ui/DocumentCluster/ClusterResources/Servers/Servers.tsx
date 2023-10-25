@@ -22,17 +22,18 @@ import Table, {
 import { ButtonPrimary } from 'design';
 import { Danger } from 'design/Alert';
 import * as icons from 'design/Icon';
-import { MenuLogin } from 'shared/components/MenuLogin';
 import { SearchPanel, SearchPagination } from 'shared/components/Search';
 
-import { makeServer } from 'teleterm/ui/services/clusters';
 import { useWorkspaceLoggedInUser } from 'teleterm/ui/hooks/useLoggedInUser';
 import { useWorkspaceContext } from 'teleterm/ui/Documents';
 import { useConnectMyComputerContext } from 'teleterm/ui/ConnectMyComputer';
+import { Server } from 'teleterm/services/tshd/types';
 
 import { DarkenWhileDisabled } from '../DarkenWhileDisabled';
 import { getEmptyTableStatus, getEmptyTableText } from '../getEmptyTableText';
 import { useClusterContext } from '../../clusterContext';
+
+import { ConnectServerActionButton } from '../../actionButtons';
 
 import { useServers, State } from './useServers';
 
@@ -43,8 +44,6 @@ export default function Container() {
 
 function ServerList(props: State) {
   const {
-    getSshLogins,
-    connect,
     fetchAttempt,
     agentFilter,
     pageCount,
@@ -61,7 +60,7 @@ function ServerList(props: State) {
   const { canUse: hasPermissionsForConnectMyComputer, agentCompatibility } =
     useConnectMyComputerContext();
 
-  const servers = fetchAttempt.data?.agentsList.map(makeServer) || [];
+  const servers = fetchAttempt.data?.agentsList || [];
   const disabled = fetchAttempt.status === 'processing';
   const isRootCluster = clusterUri === rootClusterUri;
   const canAddResources = isRootCluster && loggedInUser?.acl?.tokens.create;
@@ -128,22 +127,22 @@ function ServerList(props: State) {
                 render: renderAddressCell,
               },
               {
-                key: 'labels',
+                key: 'labelsList',
                 headerText: 'Labels',
-                render: ({ labels }) => (
+                render: ({ labelsList }) => (
                   <ClickableLabelCell
-                    labels={labels}
+                    labels={labelsList}
                     onClick={onAgentLabelClick}
                   />
                 ),
               },
               {
                 altKey: 'connect-btn',
-                render: server =>
-                  renderConnectCell(
-                    () => getSshLogins(server.uri),
-                    login => connect(server, login)
-                  ),
+                render: server => (
+                  <Cell align="right">
+                    <ConnectServerActionButton server={server} />
+                  </Cell>
+                ),
               },
             ]}
             customSort={customSort}
@@ -159,29 +158,7 @@ function ServerList(props: State) {
   );
 }
 
-const renderConnectCell = (
-  getSshLogins: () => string[],
-  onConnect: (login: string) => void
-) => {
-  return (
-    <Cell align="right">
-      <MenuLogin
-        getLoginItems={() => getSshLogins().map(login => ({ login, url: '' }))}
-        onSelect={(e, login) => onConnect(login)}
-        transformOrigin={{
-          vertical: 'top',
-          horizontal: 'right',
-        }}
-        anchorOrigin={{
-          vertical: 'center',
-          horizontal: 'right',
-        }}
-      />
-    </Cell>
-  );
-};
-
-const renderAddressCell = ({ addr, tunnel }: ReturnType<typeof makeServer>) => (
+const renderAddressCell = ({ addr, tunnel }: Server) => (
   <Cell>
     {tunnel && (
       <span
