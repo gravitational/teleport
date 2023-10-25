@@ -423,10 +423,10 @@ func (s *TestServer) handleQuery(client *pgproto3.Backend, query string, pid uin
 	for _, message := range messages {
 		s.log.DebugContext(context.Background(), "Sending.", "message", fmt.Sprintf("%#v", message))
 		client.Send(message)
-		err := client.Flush()
-		if err != nil {
-			return trace.Wrap(err)
-		}
+	}
+	err := client.Flush()
+	if err != nil {
+		return trace.Wrap(err)
 	}
 	return nil
 }
