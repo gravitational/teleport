@@ -117,7 +117,7 @@ func newAccessRequestTestPack(ctx context.Context, t *testing.T) *accessRequestT
 		role, err := types.NewRole(roleName, roleSpec)
 		require.NoError(t, err)
 
-		err = tlsServer.Auth().UpsertRole(ctx, role)
+		_, err = tlsServer.Auth().UpsertRole(ctx, role)
 		require.NoError(t, err)
 	}
 

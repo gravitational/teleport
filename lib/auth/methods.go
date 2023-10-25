@@ -438,6 +438,8 @@ func (s *Server) authenticateHeadless(ctx context.Context, req AuthenticateUserR
 		return nil, trace.Wrap(err)
 	}
 
+	emitHeadlessLoginEvent(ctx, events.UserHeadlessLoginRequestedCode, s.emitter, ha, nil)
+
 	// Headless authentication requests are made without any prior authentication. To avoid DDos
 	// attacks on the Auth server's backend, we don't create the headless authentication in the
 	// backend until an authenticated client creates a headless authentication stub. This serves

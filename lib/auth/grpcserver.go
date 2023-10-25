@@ -376,7 +376,7 @@ func (g *GRPCServer) CreateAuditStream(stream authpb.AuthService_CreateAuditStre
 const logInterval = 10000
 
 // WatchEvents returns a new stream of cluster events
-func (g *GRPCServer) WatchEvents(watch *authpb.Watch, stream authpb.AuthService_WatchEventsServer) error {
+func (g *GRPCServer) WatchEvents(watch *authpb.Watch, stream authpb.AuthService_WatchEventsServer) (err error) {
 	auth, err := g.authenticate(stream.Context())
 	if err != nil {
 		return trace.Wrap(err)
@@ -387,40 +387,43 @@ func (g *GRPCServer) WatchEvents(watch *authpb.Watch, stream authpb.AuthService_
 		AllowPartialSuccess: watch.AllowPartialSuccess,
 	}
 
-	watcher, err := auth.NewWatcher(stream.Context(), servicesWatch)
+	events, err := auth.NewStream(stream.Context(), servicesWatch)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	defer watcher.Close()
 
-	for {
-		select {
-		case <-stream.Context().Done():
-			return nil
-		case <-watcher.Done():
-			return watcher.Error()
-		case event := <-watcher.Events():
-			if role, ok := event.Resource.(*types.RoleV6); ok {
-				downgraded, err := maybeDowngradeRole(stream.Context(), role)
-				if err != nil {
-					return trace.Wrap(err)
-				}
-				event.Resource = downgraded
-			}
-			out, err := client.EventToGRPC(event)
+	defer func() {
+		serr := events.Done()
+		if err == nil {
+			err = serr
+		}
+	}()
+
+	for events.Next() {
+		event := events.Item()
+		if role, ok := event.Resource.(*types.RoleV6); ok {
+			downgraded, err := maybeDowngradeRole(stream.Context(), role)
 			if err != nil {
 				return trace.Wrap(err)
 			}
+			event.Resource = downgraded
+		}
+		out, err := client.EventToGRPC(event)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 
-			size := float64(proto.Size(out))
-			watcherEventsEmitted.WithLabelValues(resourceLabel(event)).Observe(size)
-			watcherEventSizes.Observe(size)
+		size := float64(proto.Size(out))
+		watcherEventsEmitted.WithLabelValues(resourceLabel(event)).Observe(size)
+		watcherEventSizes.Observe(size)
 
-			if err := stream.Send(out); err != nil {
-				return trace.Wrap(err)
-			}
+		if err := stream.Send(out); err != nil {
+			return trace.Wrap(err)
 		}
 	}
+
+	// defferred cleanup func will inject stream error if needed
+	return nil
 }
 
 // resourceLabel returns the label for the provided types.Event
@@ -2253,23 +2256,91 @@ func (g *GRPCServer) GetRoles(ctx context.Context, _ *emptypb.Empty) (*authpb.Ge
 	}, nil
 }
 
-// UpsertRole upserts a role.
-func (g *GRPCServer) UpsertRole(ctx context.Context, role *types.RoleV6) (*emptypb.Empty, error) {
+// CreateRole creates a new role.
+func (g *GRPCServer) CreateRole(ctx context.Context, req *authpb.CreateRoleRequest) (*types.RoleV6, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err = services.ValidateRole(role); err != nil {
+
+	if err = services.ValidateRole(req.Role); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	err = auth.ServerWithRoles.UpsertRole(ctx, role)
+
+	created, err := auth.ServerWithRoles.CreateRole(ctx, req.Role)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	g.Debugf("%q role upserted", role.GetName())
+	g.Debugf("%q role upserted", req.Role.GetName())
 
-	return &emptypb.Empty{}, nil
+	v6, ok := created.(*types.RoleV6)
+	if !ok {
+		log.Warnf("expected type RoleV6, got %T for role %q", created, created.GetName())
+		return nil, trace.BadParameter("encountered unexpected role type")
+	}
+
+	return v6, nil
+}
+
+// UpdateRole updates an existing  role.
+func (g *GRPCServer) UpdateRole(ctx context.Context, req *authpb.UpdateRoleRequest) (*types.RoleV6, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err = services.ValidateRole(req.Role); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	updated, err := auth.ServerWithRoles.UpdateRole(ctx, req.Role)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	g.Debugf("%q role upserted", req.Role.GetName())
+
+	v6, ok := updated.(*types.RoleV6)
+	if !ok {
+		log.Warnf("expected type RoleV6, got %T for role %q", updated, updated.GetName())
+		return nil, trace.BadParameter("encountered unexpected role type")
+	}
+
+	return v6, nil
+}
+
+// UpsertRoleV2 upserts a role.
+func (g *GRPCServer) UpsertRoleV2(ctx context.Context, req *authpb.UpsertRoleRequest) (*types.RoleV6, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err = services.ValidateRole(req.Role); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	upserted, err := auth.ServerWithRoles.UpsertRole(ctx, req.Role)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	g.Debugf("%q role upserted", req.Role.GetName())
+
+	v6, ok := upserted.(*types.RoleV6)
+	if !ok {
+		log.Warnf("expected type RoleV6, got %T for role %q", upserted, upserted.GetName())
+		return nil, trace.BadParameter("encountered unexpected role type")
+	}
+
+	return v6, nil
+}
+
+// UpsertRole upserts a role.
+func (g *GRPCServer) UpsertRole(ctx context.Context, role *types.RoleV6) (*emptypb.Empty, error) {
+	_, err := g.UpsertRoleV2(ctx, &authpb.UpsertRoleRequest{Role: role})
+	return &emptypb.Empty{}, trace.Wrap(err)
 }
 
 // DeleteRole deletes a role by name.

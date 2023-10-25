@@ -45,6 +45,8 @@ func newDraftExternalCloudAudit(t *testing.T) *externalcloudaudit.ExternalCloudA
 		header.Metadata{},
 		externalcloudaudit.ExternalCloudAuditSpec{
 			IntegrationName:        "integration1",
+			PolicyName:             "policy1",
+			Region:                 "us-west-2",
 			SessionsRecordingsURI:  "s3://mybucket/myprefix",
 			AthenaWorkgroup:        "athena_workgroup",
 			GlueDatabase:           "teleport_db",
@@ -63,6 +65,8 @@ func newClusterExternalCloudAudit(t *testing.T) *externalcloudaudit.ExternalClou
 		header.Metadata{},
 		externalcloudaudit.ExternalCloudAuditSpec{
 			IntegrationName:        "integration1",
+			PolicyName:             "policy1",
+			Region:                 "us-west-2",
 			SessionsRecordingsURI:  "s3://mybucket/myprefix",
 			AthenaWorkgroup:        "athena_workgroup",
 			GlueDatabase:           "teleport_db",

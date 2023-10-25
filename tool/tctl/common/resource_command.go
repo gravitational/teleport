@@ -142,6 +142,9 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *servicec
 	rc.UpdateHandlers = map[ResourceKind]ResourceCreateHandler{
 		types.KindUser:            rc.updateUser,
 		types.KindGithubConnector: rc.updateGithubConnector,
+		types.KindOIDCConnector:   rc.updateOIDCConnector,
+		types.KindSAMLConnector:   rc.updateSAMLConnector,
+		types.KindRole:            rc.updateRole,
 	}
 	rc.config = config
 
@@ -436,10 +439,34 @@ func (rc *ResourceCommand) createRole(ctx context.Context, client auth.ClientI, 
 	if roleExists && !rc.IsForced() {
 		return trace.AlreadyExists("role '%s' already exists", roleName)
 	}
-	if err := client.UpsertRole(ctx, role); err != nil {
+	if _, err := client.UpsertRole(ctx, role); err != nil {
 		return trace.Wrap(err)
 	}
 	fmt.Printf("role '%s' has been %s\n", roleName, UpsertVerb(roleExists, rc.IsForced()))
+	return nil
+}
+
+func (rc *ResourceCommand) updateRole(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
+	role, err := services.UnmarshalRole(raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	err = role.CheckAndSetDefaults()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := services.ValidateAccessPredicates(role); err != nil {
+		// check for syntax errors in predicates
+		return trace.Wrap(err)
+	}
+
+	warnAboutKubernetesResources(rc.config.Log, role)
+
+	if _, err := client.UpdateRole(ctx, role); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("role '%s' has been updated\n", role.GetName())
 	return nil
 }
 
@@ -823,6 +850,20 @@ func (rc *ResourceCommand) createOIDCConnector(ctx context.Context, client auth.
 	return nil
 }
 
+// updateGithubConnector updates an existing OIDC connector.
+func (rc *ResourceCommand) updateOIDCConnector(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
+	connector, err := services.UnmarshalOIDCConnector(raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if _, err := client.UpdateOIDCConnector(ctx, connector); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("authentication connector %q has been updated\n", connector.GetName())
+	return nil
+}
+
 func (rc *ResourceCommand) createSAMLConnector(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
 	// Create services.SAMLConnector from raw YAML to extract the connector name.
 	conn, err := services.UnmarshalSAMLConnector(raw.Raw)
@@ -855,6 +896,20 @@ func (rc *ResourceCommand) createSAMLConnector(ctx context.Context, client auth.
 		return trace.Wrap(err)
 	}
 	fmt.Printf("authentication connector '%s' has been %s\n", connectorName, UpsertVerb(exists, rc.IsForced()))
+	return nil
+}
+
+func (rc *ResourceCommand) updateSAMLConnector(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
+	// Create services.SAMLConnector from raw YAML to extract the connector name.
+	conn, err := services.UnmarshalSAMLConnector(raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if _, err = client.UpdateSAMLConnector(ctx, conn); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("authentication connector '%s' has been updated\n", conn.GetName())
 	return nil
 }
 
