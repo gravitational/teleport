@@ -44,7 +44,7 @@ func (a *Server) ReconcileServerInfos(ctx context.Context) error {
 
 		for moreNodes := true; moreNodes; {
 			nodes, moreNodes = stream.Take(nodeStream, batchSize)
-			updates, err := a.setCloudLabelsOnNodes(ctx, nodes)
+			updates, err := a.setLabelsOnNodes(ctx, nodes)
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -79,7 +79,7 @@ func getServerInfoNames(node types.Server) []string {
 	return names
 }
 
-func (a *Server) setCloudLabelsOnNodes(ctx context.Context, nodes []types.Server) (failedUpdates int, err error) {
+func (a *Server) setLabelsOnNodes(ctx context.Context, nodes []types.Server) (failedUpdates int, err error) {
 	for _, node := range nodes {
 		serverInfoNames := getServerInfoNames(node)
 		serverInfos := make([]types.ServerInfo, 0, len(serverInfoNames))
@@ -109,7 +109,7 @@ func (a *Server) setCloudLabelsOnNodes(ctx context.Context, nodes []types.Server
 func (a *Server) updateLabelsOnNode(ctx context.Context, node types.Server, serverInfos []types.ServerInfo) error {
 	newLabels := make(map[string]string)
 	for _, si := range serverInfos {
-		for k, v := range si.GetStaticLabels() {
+		for k, v := range si.GetNewLabels() {
 			newLabels[k] = v
 		}
 	}

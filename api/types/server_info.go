@@ -155,7 +155,10 @@ func (s *ServerInfoV1) MatchSearch(searchValues []string) bool {
 
 // GetNewLabels gets the labels to apply to matched Nodes.
 func (s *ServerInfoV1) GetNewLabels() map[string]string {
-	return s.Spec.NewLabels
+	if len(s.Spec.NewLabels) > 0 {
+		return s.Spec.NewLabels
+	}
+	return s.Metadata.Labels
 }
 
 // SetNewLabels sets the labels to apply to matched Nodes.
