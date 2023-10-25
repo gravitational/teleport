@@ -412,6 +412,18 @@ func TestOriginLocalRedirectURI(t *testing.T) {
 			expected: "",
 			errCheck: require.Error,
 		},
+		{
+			name:     "ftp scheme",
+			input:    "ftp://localhost",
+			expected: "",
+			errCheck: require.Error,
+		},
+		{
+			name:     "invalid url",
+			input:    "https://foo com",
+			expected: "",
+			errCheck: require.Error,
+		},
 	}
 
 	for _, tc := range testCases {
