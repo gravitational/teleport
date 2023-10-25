@@ -17,12 +17,15 @@ limitations under the License.
 package slack
 
 import (
+	"bytes"
+	"io"
+	"net/http"
 	"net/url"
 	"strings"
 
-	"github.com/go-resty/resty/v2"
 	"github.com/gravitational/trace"
 	"github.com/pelletier/go-toml"
+	"github.com/slack-go/slack"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integrations/access/common"
@@ -99,6 +102,43 @@ func (c *Config) CheckAndSetDefaults() error {
 	return nil
 }
 
+type roundTripper struct {
+	accessTokenProvider auth.AccessTokenProvider
+	statusSink          common.StatusSink
+	delegate            http.RoundTripper
+}
+
+func (r *roundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	newReq := req.Clone(req.Context())
+	token, err := r.accessTokenProvider.GetAccessToken()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	newReq.Header.Add("Authorization", "Bearer "+token)
+
+	resp, err := r.delegate.RoundTrip(newReq)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := resp.Body.Close(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp.Body = io.NopCloser(bytes.NewBuffer(data))
+
+	if err := onAfterResponseSlack(r.statusSink, resp.StatusCode, data); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return resp, nil
+}
+
 // NewBot initializes the new Slack message generator (SlackBot)
 // takes GenericAPIConfig as an argument.
 func (c *Config) NewBot(clusterName, webProxyAddr string) (common.MessagingBot, error) {
@@ -112,21 +152,19 @@ func (c *Config) NewBot(clusterName, webProxyAddr string) (common.MessagingBot, 
 		}
 	}
 
-	var apiURL = slackAPIURL
+	var apiURL = slack.APIURL
 	if endpoint := c.Slack.APIURL; endpoint != "" {
 		apiURL = endpoint
 	}
 
-	client := makeSlackClient(apiURL).
-		OnBeforeRequest(func(_ *resty.Client, r *resty.Request) error {
-			token, err := c.AccessTokenProvider.GetAccessToken()
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			r.SetHeader("Authorization", "Bearer "+token)
-			return nil
-		}).
-		OnAfterResponse(onAfterResponseSlack(c.StatusSink))
+	httpClient := &http.Client{
+		Transport: &roundTripper{
+			accessTokenProvider: c.AccessTokenProvider,
+			statusSink:          c.StatusSink,
+			delegate:            http.DefaultTransport,
+		},
+	}
+	client := slack.New("", slack.OptionAPIURL(apiURL), slack.OptionHTTPClient(httpClient))
 
 	return Bot{
 		client:      client,

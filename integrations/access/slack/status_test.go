@@ -19,6 +19,7 @@ package slack
 import (
 	"testing"
 
+	"github.com/slack-go/slack"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
@@ -27,27 +28,27 @@ import (
 func TestStatusFromResponse(t *testing.T) {
 	testCases := []struct {
 		name     string
-		response *APIResponse
+		response *slack.SlackResponse
 		want     types.PluginStatusCode
 	}{
 		{
 			name:     "ok",
-			response: &APIResponse{Ok: true},
+			response: &slack.SlackResponse{Ok: true},
 			want:     types.PluginStatusCode_RUNNING,
 		},
 		{
 			name:     "not_in_channel",
-			response: &APIResponse{Error: "not_in_channel"},
+			response: &slack.SlackResponse{Error: "not_in_channel"},
 			want:     types.PluginStatusCode_SLACK_NOT_IN_CHANNEL,
 		},
 		{
 			name:     "unauthorized",
-			response: &APIResponse{Error: "token_revoked"},
+			response: &slack.SlackResponse{Error: "token_revoked"},
 			want:     types.PluginStatusCode_UNAUTHORIZED,
 		},
 		{
 			name:     "other",
-			response: &APIResponse{Error: "some_error"},
+			response: &slack.SlackResponse{Error: "some_error"},
 			want:     types.PluginStatusCode_OTHER_ERROR,
 		},
 	}

@@ -16,10 +16,11 @@ package slack
 
 import (
 	"context"
+	"net/http"
 	"time"
 
-	"github.com/go-resty/resty/v2"
 	"github.com/gravitational/trace"
+	"github.com/slack-go/slack"
 
 	"github.com/gravitational/teleport/integrations/access/common/auth/oauth"
 	"github.com/gravitational/teleport/integrations/access/common/auth/storage"
@@ -27,13 +28,12 @@ import (
 
 // Authorizer implements oauth2.Authorizer for Slack API.
 type Authorizer struct {
-	client *resty.Client
-
+	client       *http.Client
 	clientID     string
 	clientSecret string
 }
 
-func newAuthorizer(client *resty.Client, clientID string, clientSecret string) *Authorizer {
+func newAuthorizer(client *http.Client, clientID string, clientSecret string) *Authorizer {
 	return &Authorizer{
 		client:       client,
 		clientID:     clientID,
@@ -46,22 +46,12 @@ func newAuthorizer(client *resty.Client, clientID string, clientSecret string) *
 // clientID is the Client ID for this Slack app as specified by OAuth2.
 // clientSecret is the Client Secret for this Slack app as specified by OAuth2.
 func NewAuthorizer(clientID string, clientSecret string) *Authorizer {
-	client := makeSlackClient(slackAPIURL)
-	return newAuthorizer(client, clientID, clientSecret)
+	return newAuthorizer(http.DefaultClient, clientID, clientSecret)
 }
 
 // Exchange implements oauth.Exchanger
 func (a *Authorizer) Exchange(ctx context.Context, authorizationCode string, redirectURI string) (*storage.Credentials, error) {
-	var result AccessResponse
-
-	_, err := a.client.R().
-		SetQueryParam("client_id", a.clientID).
-		SetQueryParam("client_secret", a.clientSecret).
-		SetQueryParam("code", authorizationCode).
-		SetQueryParam("redirect_uri", redirectURI).
-		SetResult(&result).
-		Post("oauth.v2.access")
-
+	result, err := slack.GetOAuthV2ResponseContext(ctx, a.client, a.clientID, a.clientSecret, authorizationCode, redirectURI)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -73,21 +63,13 @@ func (a *Authorizer) Exchange(ctx context.Context, authorizationCode string, red
 	return &storage.Credentials{
 		AccessToken:  result.AccessToken,
 		RefreshToken: result.RefreshToken,
-		ExpiresAt:    time.Now().UTC().Add(time.Duration(result.ExpiresInSeconds) * time.Second),
+		ExpiresAt:    time.Now().UTC().Add(time.Duration(result.ExpiresIn) * time.Second),
 	}, nil
 }
 
 // Refresh implements oauth.Refresher
 func (a *Authorizer) Refresh(ctx context.Context, refreshToken string) (*storage.Credentials, error) {
-	var result AccessResponse
-	_, err := a.client.R().
-		SetQueryParam("client_id", a.clientID).
-		SetQueryParam("client_secret", a.clientSecret).
-		SetQueryParam("grant_type", "refresh_token").
-		SetQueryParam("refresh_token", refreshToken).
-		SetResult(&result).
-		Post("oauth.v2.access")
-
+	result, err := slack.RefreshOAuthV2TokenContext(ctx, a.client, a.clientID, a.clientSecret, refreshToken)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -99,7 +81,7 @@ func (a *Authorizer) Refresh(ctx context.Context, refreshToken string) (*storage
 	return &storage.Credentials{
 		AccessToken:  result.AccessToken,
 		RefreshToken: result.RefreshToken,
-		ExpiresAt:    time.Now().UTC().Add(time.Duration(result.ExpiresInSeconds) * time.Second),
+		ExpiresAt:    time.Now().UTC().Add(time.Duration(result.ExpiresIn) * time.Second),
 	}, nil
 }
 

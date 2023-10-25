@@ -17,6 +17,8 @@ limitations under the License.
 package slack
 
 import (
+	"github.com/slack-go/slack"
+
 	"github.com/gravitational/teleport/api/types"
 )
 
@@ -24,7 +26,7 @@ import (
 // to a PluginStatus.
 //
 // Ref: https://github.com/slackapi/slack-api-specs/blob/bc08db49625630e3585bf2f1322128ea04f2a7f3/web-api/slack_web_openapi_v2.json
-func statusFromResponse(resp *APIResponse) types.PluginStatus {
+func statusFromResponse(resp *slack.SlackResponse) types.PluginStatus {
 	if resp.Ok {
 		return &types.PluginStatusV1{Code: types.PluginStatusCode_RUNNING}
 	}

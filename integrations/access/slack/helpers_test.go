@@ -17,12 +17,16 @@ package slack
 import (
 	"context"
 	"sync/atomic"
+	"testing"
+
+	"github.com/slack-go/slack"
+	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integrations/access/common"
 )
 
-type SlackMessageSlice []Message
+type SlackMessageSlice []slack.Message
 type SlackDataMessageSet map[common.MessageData]struct{}
 
 func (slice SlackMessageSlice) Len() int {
@@ -50,6 +54,7 @@ func (set SlackDataMessageSet) Contains(msg common.MessageData) bool {
 }
 
 type fakeStatusSink struct {
+	t      *testing.T
 	status atomic.Pointer[types.PluginStatus]
 }
 
@@ -60,8 +65,6 @@ func (s *fakeStatusSink) Emit(_ context.Context, status types.PluginStatus) erro
 
 func (s *fakeStatusSink) Get() types.PluginStatus {
 	status := s.status.Load()
-	if status == nil {
-		panic("expected status to be set, but it has not been")
-	}
+	require.NotNil(s.t, status, "expected status to be set, but it has not been")
 	return *status
 }
