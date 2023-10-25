@@ -148,7 +148,7 @@ func (r *RoleReconciler) Upsert(ctx context.Context, obj kclient.Object) error {
 	r.AddTeleportResourceOrigin(teleportResource)
 
 	// If an error happens we want to put it in status.conditions before returning.
-	err = teleportClient.UpsertRole(ctx, teleportResource)
+	_, err = teleportClient.UpsertRole(ctx, teleportResource)
 	newReconciliationCondition := getReconciliationConditionFromError(err)
 	meta.SetStatusCondition(k8sResource.StatusConditions(), newReconciliationCondition)
 	if err != nil {

@@ -130,6 +130,11 @@ func (snc *Client) CreateIncident(ctx context.Context, reqID string, reqData Req
 		Caller:           reqData.User,
 	}
 
+	if len(reqData.SuggestedReviewers) != 0 {
+		// Only one assignee per incident allowed so just grab the first.
+		body.AssignedTo = reqData.SuggestedReviewers[0]
+	}
+
 	var result incidentResult
 	resp, err := snc.client.NewRequest().
 		SetContext(ctx).

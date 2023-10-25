@@ -336,6 +336,12 @@ message DatabaseSpecV3 {
 message DatabaseAdminUser {
   // Name is the username of the privileged database user.
   string Name = 1 [(gogoproto.jsontag) = "name"];
+  // DefaultDatabase is the database that the privileged database user logs
+  // into by default.
+  //
+  // Depending on the database type, this database may be used to store
+  // procedures or data for managing database users.
+  string DefaultDatabase = 2 [(gogoproto.jsontag) = "default_database"];
 }
 
 // OracleOptions contains information about privileged database user used
@@ -5506,6 +5512,9 @@ message PluginOktaSettings {
 
   // OrgUrl is the Okta organization URL to use for API communication.
   string org_url = 1;
+
+  // EnableUserSync controls the user sync in the Okta integration service.
+  bool enable_user_sync = 2;
 }
 
 // Defines a set of discord channel IDs

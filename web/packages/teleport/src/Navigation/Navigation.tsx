@@ -174,13 +174,13 @@ export function Navigation({
           onChange={handleCategoryChange}
           value={view}
           items={[
+            { category: NavigationCategory.Resources },
             {
               category: NavigationCategory.Management,
               requiresAttention: ctx.storeNotifications.hasNotificationsByKind(
                 NotificationKind.AccessList
               ),
             },
-            { category: NavigationCategory.Resources },
           ]}
         />
       )}

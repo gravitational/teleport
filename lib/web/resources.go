@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -106,48 +107,33 @@ func (h *Handler) deleteRole(w http.ResponseWriter, r *http.Request, params http
 	return OK(), nil
 }
 
-func (h *Handler) upsertRoleHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
+func (h *Handler) createRoleHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
 	clt, err := ctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	var req ui.ResourceItem
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return upsertRole(r.Context(), clt, req.Content, r.Method, params)
+	item, err := CreateResource(r, types.KindRole, services.UnmarshalRole, clt.CreateRole)
+	return item, trace.Wrap(err)
 }
 
-func upsertRole(ctx context.Context, clt resourcesAPIGetter, content, httpMethod string, params httprouter.Params) (*ui.ResourceItem, error) {
-	get := func(ctx context.Context, name string) (types.Resource, error) {
-		return clt.GetRole(ctx, name)
-	}
-
-	extractedRes, err := ExtractResourceAndValidate(content)
+func (h *Handler) updateRoleHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
+	clt, err := ctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if extractedRes.Kind != types.KindRole {
-		return nil, trace.BadParameter("resource kind %q is invalid", extractedRes.Kind)
-	}
+	item, err := UpdateResource(r, params, types.KindRole, services.UnmarshalRole, clt.UpdateRole)
+	return item, trace.Wrap(err)
+}
 
-	if err := CheckResourceUpsert(ctx, httpMethod, params, extractedRes.Metadata.Name, get); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	role, err := services.UnmarshalRole(extractedRes.Raw)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if err := clt.UpsertRole(ctx, role); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return ui.NewResourceItem(role)
+// getPresetRoles returns a list of preset roles expected to be available on
+// this server. These are hard-coded for a given Teleport version, so this
+// should have the same security implications as the Teleport version exposed
+// via the public ping endpoint.
+func (h *Handler) getPresetRoles(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	presets := auth.GetPresetRoles()
+	return ui.NewRoles(presets)
 }
 
 func (h *Handler) getGithubConnectorsHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
@@ -198,7 +184,7 @@ func (h *Handler) createGithubConnectorHandle(w http.ResponseWriter, r *http.Req
 		return nil, trace.Wrap(err)
 	}
 
-	item, err := CreateResource[types.GithubConnector](r, types.KindGithubConnector, services.UnmarshalGithubConnector, clt.CreateGithubConnector)
+	item, err := CreateResource(r, types.KindGithubConnector, services.UnmarshalGithubConnector, clt.CreateGithubConnector)
 	return item, trace.Wrap(err)
 }
 
@@ -522,7 +508,7 @@ type resourcesAPIGetter interface {
 	// GetRoles returns a list of roles
 	GetRoles(ctx context.Context) ([]types.Role, error)
 	// UpsertRole creates or updates role
-	UpsertRole(ctx context.Context, role types.Role) error
+	UpsertRole(ctx context.Context, role types.Role) (types.Role, error)
 	// UpsertGithubConnector creates or updates a Github connector
 	UpsertGithubConnector(ctx context.Context, connector types.GithubConnector) error
 	// GetGithubConnectors returns all configured Github connectors

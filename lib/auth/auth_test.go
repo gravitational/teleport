@@ -282,7 +282,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	role.SetKubeUsers(types.Allow, []string{user})
 	role.SetKubeGroups(types.Allow, []string{"system:masters"})
 
-	err = s.a.UpsertRole(ctx, role)
+	role, err = s.a.UpsertRole(ctx, role)
 	require.NoError(t, err)
 
 	kg := testauthority.New()
@@ -973,7 +973,7 @@ func TestSAMLConnectorCRUDEventsEmitted(t *testing.T) {
 	// SAML connector validation requires the roles in mappings exist.
 	role, err := types.NewRole("dummy", types.RoleSpecV6{})
 	require.NoError(t, err)
-	err = s.a.CreateRole(ctx, role)
+	role, err = s.a.CreateRole(ctx, role)
 	require.NoError(t, err)
 
 	saml, err := types.NewSAMLConnector("test", types.SAMLConnectorSpecV2{
@@ -1675,7 +1675,7 @@ func TestGenerateUserCertIPPinning(t *testing.T) {
 	_, pub, err := keygen.GetNewKeyPairFromPool()
 	require.NoError(t, err)
 
-	err = s.a.UpsertRole(ctx, pinnedRole)
+	_, err = s.a.UpsertRole(ctx, pinnedRole)
 	require.NoError(t, err)
 
 	findTLSLoginIP := func(names []pkix.AttributeTypeAndValue) any {
@@ -1803,7 +1803,7 @@ func TestGenerateUserCertWithCertExtension(t *testing.T) {
 	options := role.GetOptions()
 	options.CertExtensions = []*types.CertExtension{&extension}
 	role.SetOptions(options)
-	err = p.a.UpsertRole(ctx, role)
+	_, err = p.a.UpsertRole(ctx, role)
 	require.NoError(t, err)
 
 	accessInfo := services.AccessInfoFromUserState(user)
@@ -2054,8 +2054,10 @@ func TestGenerateUserCertWithUserLoginState(t *testing.T) {
 	ulsRole2, err := types.NewRole("uls-role2", types.RoleSpecV6{})
 	require.NoError(t, err)
 
-	require.NoError(t, p.a.UpsertRole(ctx, ulsRole1))
-	require.NoError(t, p.a.UpsertRole(ctx, ulsRole2))
+	_, err = p.a.UpsertRole(ctx, ulsRole1)
+	require.NoError(t, err)
+	_, err = p.a.UpsertRole(ctx, ulsRole2)
+	require.NoError(t, err)
 
 	userState, err = p.a.GetUserOrLoginState(ctx, user.GetName())
 	require.NoError(t, err)

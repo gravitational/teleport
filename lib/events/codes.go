@@ -71,6 +71,14 @@ const (
 	UserSSOTestFlowLoginCode = "T1010I"
 	// UserSSOTestFlowLoginFailureCode is the unsuccessful SSO test flow user login event code.
 	UserSSOTestFlowLoginFailureCode = "T1011W"
+	// UserHeadlessLoginRequestedCode is an event code for when headless login attempt was requested.
+	UserHeadlessLoginRequestedCode = "T1012I"
+	// UserHeadlessLoginApprovedCode is an event code for when headless login attempt was successfully approved.
+	UserHeadlessLoginApprovedCode = "T1013I"
+	// UserHeadlessLoginApprovedFailureCode is an event code for when headless login was approved with an error.
+	UserHeadlessLoginApprovedFailureCode = "T1013W"
+	// UserHeadlessLoginRejectedCode is an event code for when headless login attempt was rejected.
+	UserHeadlessLoginRejectedCode = "T1014W"
 
 	// BillingCardCreateCode is an event code for when a user creates a new credit card.
 	BillingCardCreateCode = "TBL00I"

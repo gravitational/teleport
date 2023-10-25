@@ -167,6 +167,8 @@ const (
 	LoginMethodSAML = "saml"
 	// LoginMethodGithub represents login with Github
 	LoginMethodGithub = "github"
+	// LoginMethodHeadless represents headless login request
+	LoginMethodHeadless = "headless"
 
 	// UserUpdatedEvent is emitted when the user is updated.
 	UserUpdatedEvent = "user.update"
