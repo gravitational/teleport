@@ -76,6 +76,8 @@ function renderDialog(dialog: Dialog, handleClose: () => void) {
     case 'documents-reopen': {
       return (
         <DocumentsReopen
+          rootClusterUri={dialog.rootClusterUri}
+          numberOfDocuments={dialog.numberOfDocuments}
           onCancel={() => {
             handleClose();
             dialog.onCancel();
