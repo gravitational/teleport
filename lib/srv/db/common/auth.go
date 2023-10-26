@@ -423,10 +423,10 @@ func (a *dbAuth) GetElastiCacheRedisToken(ctx context.Context, sessionCtx *Sessi
 		// https://docs.aws.amazon.com/AmazonElastiCache/latest/red-ug/auth-iam.html#auth-iam-limits
 		userID:      sessionCtx.DatabaseUser,
 		targetID:    meta.ElastiCache.ReplicationGroupID,
+		serviceName: elasticache.ServiceName,
 		region:      meta.Region,
 		credentials: awsSession.Config.Credentials,
 		clock:       a.cfg.Clock,
-		serviceName: elasticache.ServiceName,
 	}
 	token, err := tokenReq.toSignedRequestURI()
 	return token, trace.Wrap(err)
@@ -443,10 +443,10 @@ func (a *dbAuth) GetMemoryDBToken(ctx context.Context, sessionCtx *Session) (str
 	tokenReq := &awsRedisIAMTokenRequest{
 		userID:      sessionCtx.DatabaseUser,
 		targetID:    meta.MemoryDB.ClusterName,
+		serviceName: strings.ToLower(memorydb.ServiceName),
 		region:      meta.Region,
 		credentials: awsSession.Config.Credentials,
 		clock:       a.cfg.Clock,
-		serviceName: strings.ToLower(memorydb.ServiceName),
 	}
 	token, err := tokenReq.toSignedRequestURI()
 	return token, trace.Wrap(err)
@@ -979,7 +979,7 @@ func redshiftServerlessUsernameToRoleARN(aws types.AWS, username string) (string
 }
 
 // awsRedisIAMTokenRequest builds an AWS IAM auth token for ElastiCache
-// Redis.
+// Redis and MemoryDB.
 // Implemented following the AWS examples:
 // https://docs.aws.amazon.com/AmazonElastiCache/latest/red-ug/auth-iam.html#auth-iam-Connecting
 // https://docs.aws.amazon.com/memorydb/latest/devguide/auth-iam.html#auth-iam-Connecting
@@ -1004,7 +1004,7 @@ func (r *awsRedisIAMTokenRequest) checkAndSetDefaults() error {
 		return trace.BadParameter("missing user ID")
 	}
 	if r.targetID == "" {
-		return trace.BadParameter("missing host name for signing")
+		return trace.BadParameter("missing target ID for signing")
 	}
 	if r.region == "" {
 		return trace.BadParameter("missing region")
@@ -1023,7 +1023,7 @@ func (r *awsRedisIAMTokenRequest) checkAndSetDefaults() error {
 
 // toSignedRequestURI creates a new AWS SigV4 pre-signed request URI.
 // This pre-signed request URI can then be used to authenticate as an
-// ElastiCache Redis user.
+// ElastiCache Redis or MemoryDB user.
 func (r *awsRedisIAMTokenRequest) toSignedRequestURI() (string, error) {
 	if err := r.checkAndSetDefaults(); err != nil {
 		return "", trace.Wrap(err)

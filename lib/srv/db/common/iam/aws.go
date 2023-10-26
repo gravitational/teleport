@@ -104,7 +104,7 @@ func checkRedisEngineVersionSupportsIAMAuth(version string) (bool, error) {
 
 // CheckMemoryDBSupportsIAMAuth returns whether the given MemoryDB database
 // supports IAM auth.
-// AWS MemoryDB Redis supports IAM auth for redis version 7+.
+// AWS MemoryDB supports IAM auth for redis version 7+.
 func CheckMemoryDBSupportsIAMAuth(database types.Database) (bool, error) {
 	version, ok := database.GetLabel("engine-version")
 	if !ok {
