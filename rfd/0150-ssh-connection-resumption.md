@@ -72,7 +72,7 @@ After the acknowledgement, both sides will send a count of how many bytes they h
 
 ### Data exchange
 
-After both sides agree that the connection can proceed, data is exchanged in frames consisting of an integer count of how many bytes are being acknowledged as successfully received (since the previous acknowledgement, or since the beginning of the connection, to reduce the size of the variable-length integer), then a length-prefixed chunk of data. The size of the chunk must not exceed a size of 128KiB. If either side cannot proceed from the exchanged resume point, or if either side wants to explicitly close the connection, a value of `0xffff_ffff_ffff_ffff` should be sent (as the acknowledgement). Upon receiving such value, the connection should be considered closed by the remote side.
+After both sides agree that the connection can proceed, data is exchanged in frames consisting of an integer count of how many bytes are being acknowledged as successfully received (since the previous acknowledgement, or since the beginning of the connection, to reduce the size of the variable-length integer), then a length-prefixed chunk of data. The size of the chunk must not exceed a size of 128KiB. If either side cannot proceed from the exchanged resume point, or if either side wants to explicitly close the connection, a value of `0xffff_ffff_ffff_ffff` should be sent (as the acknowledgement). Upon receiving such value, the connection should be considered closed by the remote side and the resumption token invalidated.
 
 ### State
 
