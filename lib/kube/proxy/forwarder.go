@@ -1205,7 +1205,7 @@ func (f *Forwarder) join(ctx *authContext, w http.ResponseWriter, req *http.Requ
 		client := &websocketClientStreams{stream}
 		party := newParty(*ctx, stream.Mode, client)
 
-		err = session.join(party)
+		err = session.join(party, true /* emitSessionJoinEvent */)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -1694,7 +1694,9 @@ func (f *Forwarder) exec(authCtx *authContext, w http.ResponseWriter, req *http.
 	}
 
 	f.setSession(session.id, session)
-	err = session.join(party)
+	// When Teleport attaches the original session creator terminal streams to the
+	// session, we don't wan't to emmit session.join event since it won't be required.
+	err = session.join(party, false /* emitSessionJoinEvent */)
 	if err != nil {
 		// This error must be forwarded to SPDY error stream, otherwise the client
 		// will hang waiting for the response.
