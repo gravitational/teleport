@@ -39,7 +39,7 @@ func DecodeAccessListNotificationData(dataMap map[string]string) (data AccessLis
 		}
 	}
 
-	return
+	return data, err
 }
 
 // EncodeAccessListNotificationData deserializes a string map to PluginData struct.

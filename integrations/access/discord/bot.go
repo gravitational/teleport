@@ -107,8 +107,8 @@ func (b DiscordBot) CheckHealth(ctx context.Context) error {
 	return nil
 }
 
-// AccessListReviewReminder will send a review reminder that an access list needs to be reviewed.
-func (b DiscordBot) AccessListReviewReminder(ctx context.Context, recipients []common.Recipient, accessList *accesslist.AccessList) error {
+// SendReviewReminders will send a review reminder that an access list needs to be reviewed.
+func (b DiscordBot) SendReviewReminders(ctx context.Context, recipients []common.Recipient, accessList *accesslist.AccessList) error {
 	return trace.NotImplemented("access list review reminder is not yet implemented")
 }
 

@@ -205,6 +205,7 @@ func (a *BaseApp) accessListMonitorRun(ctx context.Context) error {
 		Jitter:        retryutils.NewSeventhJitter(),
 		Clock:         a.clock,
 	})
+	defer remindInterval.Stop()
 	log := logger.Get(ctx)
 
 	log.Info("Access list monitor is running")
@@ -269,7 +270,7 @@ func (a *BaseApp) notifyForAccessListReviews(ctx context.Context, accessList *ac
 	}
 
 	if len(allRecipients) == 0 {
-		return trace.NotFound("no recipients could be fetched")
+		return trace.NotFound("no recipients could be fetched for access list %s", accessList.GetName())
 	}
 
 	// Try to create base notification data with a zero notification date. If these objects already
@@ -318,7 +319,7 @@ func (a *BaseApp) notifyForAccessListReviews(ctx context.Context, accessList *ac
 		return nil
 	}
 
-	return trace.Wrap(a.bot.AccessListReviewReminder(ctx, recipients, accessList))
+	return trace.Wrap(a.bot.SendReviewReminders(ctx, recipients, accessList))
 }
 
 // run starts the event watcher job and blocks utils it stops

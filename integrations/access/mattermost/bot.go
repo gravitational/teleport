@@ -229,8 +229,8 @@ func (b Bot) GetMe(ctx context.Context) (User, error) {
 	return userResult(resp)
 }
 
-// AccessListReviewReminder will send a review reminder that an access list needs to be reviewed.
-func (b Bot) AccessListReviewReminder(ctx context.Context, recipients []common.Recipient, accessList *accesslist.AccessList) error {
+// SendReviewReminders will send a review reminder that an access list needs to be reviewed.
+func (b Bot) SendReviewReminders(ctx context.Context, recipients []common.Recipient, accessList *accesslist.AccessList) error {
 	return trace.NotImplemented("access list review reminder is not yet implemented")
 }
 

@@ -35,34 +35,34 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 )
 
-type mockBot struct {
+type mockMessagingBot struct {
 	lastReminderRecipients    []Recipient
 	accessRequestSentMessages SentMessages
 	recipients                map[string]*Recipient
 }
 
-func (m *mockBot) CheckHealth(ctx context.Context) error {
+func (m *mockMessagingBot) CheckHealth(ctx context.Context) error {
 	return nil
 }
 
-func (m *mockBot) AccessListReviewReminder(ctx context.Context, recipients []Recipient, accessList *accesslist.AccessList) error {
+func (m *mockMessagingBot) SendReviewReminders(ctx context.Context, recipients []Recipient, accessList *accesslist.AccessList) error {
 	m.lastReminderRecipients = recipients
 	return nil
 }
 
-func (m *mockBot) BroadcastAccessRequestMessage(ctx context.Context, recipients []Recipient, reqID string, reqData pd.AccessRequestData) (data SentMessages, err error) {
+func (m *mockMessagingBot) BroadcastAccessRequestMessage(ctx context.Context, recipients []Recipient, reqID string, reqData pd.AccessRequestData) (data SentMessages, err error) {
 	return m.accessRequestSentMessages, nil
 }
 
-func (m *mockBot) PostReviewReply(ctx context.Context, channelID string, threadID string, review types.AccessReview) error {
+func (m *mockMessagingBot) PostReviewReply(ctx context.Context, channelID string, threadID string, review types.AccessReview) error {
 	return nil
 }
 
-func (m *mockBot) UpdateMessages(ctx context.Context, reqID string, data pd.AccessRequestData, messageData SentMessages, reviews []types.AccessReview) error {
+func (m *mockMessagingBot) UpdateMessages(ctx context.Context, reqID string, data pd.AccessRequestData, messageData SentMessages, reviews []types.AccessReview) error {
 	return nil
 }
 
-func (m *mockBot) FetchRecipient(ctx context.Context, recipient string) (*Recipient, error) {
+func (m *mockMessagingBot) FetchRecipient(ctx context.Context, recipient string) (*Recipient, error) {
 	fetchedRecipient, ok := m.recipients[recipient]
 	if !ok {
 		return nil, trace.NotFound("recipient %s not found", recipient)
@@ -85,7 +85,7 @@ func TestAccessListReminders(t *testing.T) {
 	require.NoError(t, err)
 	as := server.Auth()
 
-	bot := &mockBot{
+	bot := &mockMessagingBot{
 		recipients: map[string]*Recipient{
 			"owner1": {Name: "owner1"},
 			"owner2": {Name: "owner2"},
@@ -171,12 +171,13 @@ func TestAccessListReminders(t *testing.T) {
 }
 
 func advanceAndLookForRecipients(t *testing.T,
-	bot *mockBot,
+	bot *mockMessagingBot,
 	alSvc services.AccessLists,
 	clock clockwork.FakeClock,
 	advance time.Duration,
 	accessList *accesslist.AccessList,
 	recipients ...string) {
+	t.Helper()
 
 	ctx := context.Background()
 
@@ -193,7 +194,6 @@ func advanceAndLookForRecipients(t *testing.T,
 		}
 	}
 	clock.Advance(advance)
-	//require.NoError(t, app.notifyForAccessListReviews(ctx, accessList))
 
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
 		require.ElementsMatch(collect, expectedRecipients, bot.lastReminderRecipients)
