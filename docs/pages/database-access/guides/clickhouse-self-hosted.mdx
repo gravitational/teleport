@@ -172,38 +172,12 @@ with the Teleport Database Service configuration.
 <Tabs>
 <TabItem label="HTTP">
 
-```code
-$ JOIN_TOKEN=$(cat /tmp/token)
-$ helm install teleport-kube-agent teleport/teleport-kube-agent \
-  --create-namespace \
-  --namespace teleport-agent \
-  --set roles=db \
-  --set proxyAddr=<Var name="teleport.example.com" description="Your Teleport Proxy Service or Teleport Cloud tenant address"/>:443 \
-  --set authToken=${JOIN_TOKEN?} \
-  --set "databases[0].name=example-clickhouse" \
-  --set "databases[0].uri=clickhouse.example.com:8443" \
-  --set "databases[0].protocol=clickhouse-http" \
-  --set "labels.env=dev" \
-  --version (=teleport.version=)
-```
+(!docs/pages/includes/database-access/db-helm-install.mdx dbName="example-clickhouse" dbProtocol="clickhouse-http" databaseAddress="clickhouse.example.com:8443" !)
 
 </TabItem>
 <TabItem label="Native (TCP)">
 
-```code
-$ JOIN_TOKEN=$(cat /tmp/token)
-$ helm install teleport-kube-agent teleport/teleport-kube-agent \
-  --create-namespace \
-  --namespace teleport-agent \
-  --set roles=db \
-  --set proxyAddr=<Var name="teleport.example.com" description="Your Teleport Proxy Service or Teleport Cloud tenant address"/>:443 \
-  --set authToken=${JOIN_TOKEN?} \
-  --set "databases[0].name=example-clickhouse" \
-  --set "databases[0].uri=clickhouse.example.com:9440" \
-  --set "databases[0].protocol=clickhouse" \
-  --set "labels.env=dev" \
-  --version (=teleport.version=)
-```
+(!docs/pages/includes/database-access/db-helm-install.mdx dbName="example-clickhouse" dbProtocol="clickhouse" databaseAddress="clickhouse.example.com:9440" !)
 
 </TabItem>
 </Tabs>

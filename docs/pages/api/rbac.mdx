@@ -342,17 +342,7 @@ name="proxy-address" /> to the host **and port** of your Teleport Proxy Service
 (e.g., `mytenant.teleport.sh:443`) and <Var name="token" /> to the token you
 requested earlier:
 
-```code
-$ helm install teleport-agent teleport/teleport-kube-agent \
-  --set kubeClusterName=minikube \
-  --set roles="kube\,app\,discovery" \
-  --set proxyAddr=<Var name="proxy-address" /> \
-  --set authToken=<Var name="token" /> \
-  --create-namespace \
-  --namespace=teleport-agent \
-  --set labels.environment=demo \
-  --version (=teleport.version=)
-```
+(!docs/pages/includes/kubernetes-access/helm-discovery-app.mdx!)
 
 After a few seconds, verify that you have deployed the Teleport Kubernetes
 Service by running the following command:

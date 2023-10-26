@@ -51,15 +51,8 @@ by adding the `kube`, `app`, and `discovery` to roles as shown below.
 Deploy a new Teleport agent running your configured services by installing the
 `teleport-kube-agent` Helm chart:
 
-```code
-$ helm install teleport-agent teleport/teleport-kube-agent \
-  --set roles=kube\,app\,discovery \
-  --set kubeClusterName=main-cluster \
-  --set proxyAddr=<Var name="proxy-address" /> \
-  --set authToken=<Var name="token" /> \
-  --create-namespace \
-  --namespace=teleport
-```
+(!docs/pages/includes/kubernetes-access/helm-discovery-app.mdx clusterName="main-cluster" !)
+
 
 </TabItem>
 

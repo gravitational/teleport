@@ -163,6 +163,8 @@ access to a different web application.
 Install the `teleport-kube-agent` Helm chart into your Kubernetes cluster to proxy Grafana
 with a command similar to the following:
 
+<Tabs>
+<TabItem scope={["oss"]} label="Teleport Community Edition">
 ```code
 $ JOIN_TOKEN=$(cat /tmp/token)
 $ helm install teleport-kube-agent teleport/teleport-kube-agent \
@@ -176,6 +178,41 @@ $ helm install teleport-kube-agent teleport/teleport-kube-agent \
   --set "labels.env=dev" \
   --version (=teleport.version=)
 ```
+</TabItem>
+<TabItem scope={["enterprise"]} label="Enterprise">
+```code
+$ JOIN_TOKEN=$(cat /tmp/token)
+$ helm install teleport-kube-agent teleport/teleport-kube-agent \
+  --create-namespace \
+  --namespace teleport-agent \
+  --set roles=app \
+  --set proxyAddr=<Var name="teleport.example.com" />:443 \
+  --set authToken=${JOIN_TOKEN?} \
+  --set "apps[0].name=grafana" \
+  --set "apps[0].uri=http://example-grafana.example-grafana.svc.cluster.local" \
+  --set "labels.env=dev" \
+  --set enterprise=true \
+  --version (=teleport.version=)
+```
+</TabItem>
+<TabItem scope={["team", "cloud"]} label="Team/Cloud">
+```code
+$ JOIN_TOKEN=$(cat /tmp/token)
+$ helm install teleport-kube-agent teleport/teleport-kube-agent \
+  --create-namespace \
+  --namespace teleport-agent \
+  --set roles=app \
+  --set proxyAddr=<Var name="teleport.example.com" />:443 \
+  --set authToken=${JOIN_TOKEN?} \
+  --set "apps[0].name=grafana" \
+  --set "apps[0].uri=http://example-grafana.example-grafana.svc.cluster.local" \
+  --set "labels.env=dev" \
+  --set enterprise=true \
+  --set "updater.enabled=true" \
+  --version (=cloud.version=)
+```
+</TabItem>
+</Tabs>   
 
 - Set `proxyAddr` to the address for your Teleport cluster (for example, 
 `teleport.example.com` or `mytenant.teleport.sh`).

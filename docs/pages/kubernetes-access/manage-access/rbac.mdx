@@ -223,6 +223,8 @@ name="proxy-address" /> to the host **and port** of your Teleport Proxy Service
 (e.g., `mytenant.teleport.sh:443`) and <Var name="token" /> to the token you
 requested earlier:
 
+<Tabs>
+<TabItem scope={["oss"]} label="Teleport Community Edition">
 ```code
 $ helm install teleport-agent teleport/teleport-kube-agent \
   --set kubeClusterName=minikube \
@@ -234,6 +236,38 @@ $ helm install teleport-agent teleport/teleport-kube-agent \
   --namespace=teleport-agent \
   --version (=teleport.version=)
 ```
+</TabItem>
+<TabItem scope={["enterprise"]} label="Enterprise">
+```code
+$ helm install teleport-agent teleport/teleport-kube-agent \
+  --set kubeClusterName=minikube \
+  --set roles="kube\,app\,discovery" \
+  --set proxyAddr=<Var name="proxy-address" /> \
+  --set authToken=<Var name="token" /> \
+  --set labels.region=local --set labels.platform=minikube \
+  --create-namespace \
+  --namespace=teleport-agent \
+  --set enterprise=true \
+  --version (=teleport.version=)
+```
+</TabItem>
+<TabItem scope={["cloud"]} label="Team/Cloud">
+```code
+$ helm install teleport-agent teleport/teleport-kube-agent \
+  --set kubeClusterName=minikube \
+  --set roles="kube\,app\,discovery" \
+  --set proxyAddr=<Var name="proxy-address" /> \
+  --set authToken=<Var name="token" /> \
+  --set labels.region=local --set labels.platform=minikube \
+  --create-namespace \
+  --namespace=teleport-agent \
+  --set enterprise=true \
+  --set "updater.enabled=true" \  
+  --version (=cloud.version=)
+```
+</TabItem>
+</Tabs>
+
 
 This `helm install` command supplies the soon-to-be-added Kubernetes Service
 instance with two labels: `region:local` and `platform:minikube`. We will use

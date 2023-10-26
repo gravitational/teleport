@@ -198,12 +198,14 @@ Configure the `teleport-kube-agent` chart to deploy Teleport instances running
 the Application Service by creating a `values.yaml` file with the
 following content:
 
+<Tabs>
+<TabItem scope={["oss"]} label="Teleport Community Edition">
 ```yaml
 # values.yaml
 
 # Public address of the Teleport cluster with port.
 # You must replace the placeholder with your proxy address.
-proxyAddr: "teleport.example.com:443"
+proxyAddr: "<Var name="teleport.example.com" />:443"
 
 # Comma-separated list of services the `teleport-kube-agent` chart must run
 # (supported values are: kube,db,app,discovery)
@@ -220,6 +222,62 @@ apps:
   - name: demo-app
     uri: "http://demo-app.demo-app.svc.cluster.local:80"
 ```
+</TabItem>
+<TabItem scope={["enterprise"]} label="Enterprise">
+```yaml
+# values.yaml
+
+# Public address of the Teleport cluster with port.
+# You must replace the placeholder with your proxy address.
+proxyAddr: "<Var name="teleport.example.com" />:443"
+
+# Comma-separated list of services the `teleport-kube-agent` chart must run
+# (supported values are: kube,db,app,discovery)
+# In this guide we only deploy app access.
+# Adding more services here also requires to add role to the provision token created in step 1.
+roles: app
+
+joinParams:
+  method: "kubernetes"
+  # this must match the provision token created in Step 1.
+  tokenName: "kubernetes-token"
+  
+apps:
+  - name: demo-app
+    uri: "http://demo-app.demo-app.svc.cluster.local:80"
+
+enterprise: true
+```
+</TabItem>
+<TabItem scope={["team", "cloud"]} label="Team/Cloud">
+```yaml
+# values.yaml
+
+# Public address of the Teleport cluster with port.
+# You must replace the placeholder with your proxy address.
+proxyAddr: "<Var name="teleport.example.com" />:443"
+
+# Comma-separated list of services the `teleport-kube-agent` chart must run
+# (supported values are: kube,db,app,discovery)
+# In this guide we only deploy app access.
+# Adding more services here also requires to add role to the provision token created in step 1.
+roles: app
+
+joinParams:
+  method: "kubernetes"
+  # this must match the provision token created in Step 1.
+  tokenName: "kubernetes-token"
+  
+apps:
+  - name: demo-app
+    uri: "http://demo-app.demo-app.svc.cluster.local:80"
+
+enterprise: true
+updater:
+  enabled: true
+```
+</TabItem>
+</Tabs>
 
 ## Step 4/5. Deploy the Application Service
 
@@ -230,9 +288,35 @@ The `teleport-kube-agent` chart that you will install in this section will take 
 
 Deploy the Teleport Application Service by running the following command:
 
+<Tabs>
+<TabItem scope={["oss"]} label="Teleport Community Edition">
 ```code
-$ helm install teleport-app-service teleport/teleport-kube-agent -n teleport-agent --create-namespace -f values.yaml
+$ helm install teleport-agent teleport/teleport-kube-agent \
+  -f values.yaml \
+  --create-namespace \
+  --namespace=teleport-agent \
+  --version (=teleport.version=)
 ```
+<TabItem scope={["enterprise"]} label="Enterprise">
+</TabItem>
+```code
+$ helm install teleport-agent teleport/teleport-kube-agent \
+  -f values.yaml \
+  --create-namespace \
+  --namespace=teleport-agent \
+  --version (=teleport.version=)
+```
+</TabItem>
+<TabItem scope={["team", "cloud"]} label="Team/Cloud">
+```code
+$ helm install teleport-agent teleport/teleport-kube-agent \
+  -f values.yaml \
+  --create-namespace \
+  --namespace=teleport-agent \
+  --version (=cloud.version=)
+```
+</TabItem>
+</Tabs>
 
 Then, validate the pod is running after a couple of seconds:
 

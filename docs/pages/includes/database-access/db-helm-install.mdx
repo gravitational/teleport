@@ -1,6 +1,6 @@
 {{ dbName="test" }}
 <Tabs>
-<TabItem label="Self-Hosted" scope={["oss", "enterprise"]}>
+<TabItem label="Teleport Community Edition" scope={["oss"]}>
 Install the Teleport Kube Agent into your Kubernetes Cluster
 with the Teleport Database Service configuration.
 
@@ -10,11 +10,32 @@ $ helm install teleport-kube-agent teleport/teleport-kube-agent \
   --create-namespace \
   --namespace teleport-agent \
   --set roles=db \
-  --set proxyAddr=teleport.example.com:443 \
+  --set proxyAddr=<Var name="teleport.example.com" description="Your Teleport Proxy Service or Teleport Cloud tenant address"/>:443 \
   --set authToken=${JOIN_TOKEN?} \
   --set "databases[0].name={{ dbName }}" \
   --set "databases[0].uri={{ databaseAddress }}" \
   --set "databases[0].protocol={{ dbProtocol }}" \
+  --set "labels.env=dev" \
+  --version (=teleport.version=)
+```
+
+</TabItem>
+<TabItem label="Enterprise" scope={["enterprise"]}>
+Install the Teleport Kube Agent into your Kubernetes Cluster
+with the Teleport Database Service configuration.
+
+```code
+$ JOIN_TOKEN=$(cat /tmp/token)
+$ helm install teleport-kube-agent teleport/teleport-kube-agent \
+  --create-namespace \
+  --namespace teleport-agent \
+  --set roles=db \
+  --set proxyAddr=<Var name="teleport.example.com" description="Your Teleport Proxy Service or Teleport Cloud tenant address"/>:443 \
+  --set authToken=${JOIN_TOKEN?} \
+  --set "databases[0].name={{ dbName }}" \
+  --set "databases[0].uri={{ databaseAddress }}" \
+  --set "databases[0].protocol={{ dbProtocol }}" \
+  --set enterprise=true \
   --set "labels.env=dev" \
   --version (=teleport.version=)
 ```
@@ -30,12 +51,14 @@ $ helm install teleport-kube-agent teleport/teleport-kube-agent \
   --create-namespace \
   --namespace teleport-agent \
   --set roles=db \
-  --set proxyAddr=mytenant.teleport.sh:443 \
+  --set proxyAddr=<Var name="teleport.example.com" description="Your Teleport Proxy Service or Teleport Cloud tenant address"/>:443 \
   --set authToken=${JOIN_TOKEN?} \
   --set "databases[0].name={{ dbName }}" \
   --set "databases[0].uri={{ databaseAddress }}" \
   --set "databases[0].protocol={{ dbProtocol }}" \
+  --set enterprise=true \  
   --set "labels.env=dev" \
+  --set "updater.enabled=true" \
   --version (=cloud.version=)
 ```
 
