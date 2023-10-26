@@ -21,7 +21,6 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/sashabaranov/go-openai"
-	"github.com/tiktoken-go/tokenizer"
 
 	"github.com/gravitational/teleport/lib/ai/model"
 	"github.com/gravitational/teleport/lib/ai/model/output"
@@ -30,10 +29,9 @@ import (
 
 // Chat represents a conversation between a user and an assistant with context memory.
 type Chat struct {
-	client    *Client
-	messages  []openai.ChatCompletionMessage
-	tokenizer tokenizer.Codec
-	agent     *model.Agent
+	client   *Client
+	messages []openai.ChatCompletionMessage
+	agent    *model.Agent
 }
 
 // Insert inserts a message into the conversation. Returns the index of the message.

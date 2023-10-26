@@ -59,8 +59,8 @@ type Role interface {
 	// SetOptions sets role options
 	SetOptions(opt RoleOptions)
 
-	// GetCreateDatabaseUserOption returns value of "create_db_user" option.
-	GetCreateDatabaseUserOption() bool
+	// GetCreateDatabaseUserMode gets the create database user mode option.
+	GetCreateDatabaseUserMode() CreateDatabaseUserMode
 
 	// GetLogins gets *nix system logins for allow or deny condition.
 	GetLogins(RoleConditionType) []string
@@ -360,12 +360,16 @@ func (r *RoleV6) SetOptions(options RoleOptions) {
 	r.Spec.Options = options
 }
 
-// GetCreateDatabaseUserOption returns value of "create_db_user" option.
-func (r *RoleV6) GetCreateDatabaseUserOption() bool {
-	if r.Spec.Options.CreateDatabaseUser == nil {
-		return false
+// GetCreateDatabaseUserMode gets the create database user mode option.
+func (r *RoleV6) GetCreateDatabaseUserMode() CreateDatabaseUserMode {
+	if r.Spec.Options.CreateDatabaseUserMode != CreateDatabaseUserMode_DB_USER_MODE_UNSPECIFIED {
+		return r.Spec.Options.CreateDatabaseUserMode
 	}
-	return r.Spec.Options.CreateDatabaseUser.Value
+	// To keep backwards compatibility, look at the create database user option.
+	if r.Spec.Options.CreateDatabaseUser != nil && r.Spec.Options.CreateDatabaseUser.Value {
+		return CreateDatabaseUserMode_DB_USER_MODE_KEEP
+	}
+	return CreateDatabaseUserMode_DB_USER_MODE_OFF
 }
 
 // GetLogins gets system logins for allow or deny condition.
@@ -1918,4 +1922,98 @@ func (h *CreateHostUserMode) UnmarshalJSON(data []byte) error {
 
 	err = h.decode(val)
 	return trace.Wrap(err)
+}
+
+const (
+	createDatabaseUserModeOffString            = "off"
+	createDatabaseUserModeKeepString           = "keep"
+	createDatabaseUserModeBestEffortDropString = "best_effort_drop"
+)
+
+func (h CreateDatabaseUserMode) encode() (string, error) {
+	switch h {
+	case CreateDatabaseUserMode_DB_USER_MODE_UNSPECIFIED:
+		return "", nil
+	case CreateDatabaseUserMode_DB_USER_MODE_OFF:
+		return createDatabaseUserModeOffString, nil
+	case CreateDatabaseUserMode_DB_USER_MODE_KEEP:
+		return createDatabaseUserModeKeepString, nil
+	case CreateDatabaseUserMode_DB_USER_MODE_BEST_EFFORT_DROP:
+		return createDatabaseUserModeBestEffortDropString, nil
+	}
+
+	return "", trace.BadParameter("invalid database user mode %v", h)
+}
+
+func (h *CreateDatabaseUserMode) decode(val any) error {
+	var str string
+	switch val := val.(type) {
+	case string:
+		str = val
+	default:
+		return trace.BadParameter("bad value type %T, expected string", val)
+	}
+
+	switch str {
+	case "":
+		*h = CreateDatabaseUserMode_DB_USER_MODE_UNSPECIFIED
+	case createDatabaseUserModeOffString:
+		*h = CreateDatabaseUserMode_DB_USER_MODE_OFF
+	case createDatabaseUserModeKeepString:
+		*h = CreateDatabaseUserMode_DB_USER_MODE_KEEP
+	case createDatabaseUserModeBestEffortDropString:
+		*h = CreateDatabaseUserMode_DB_USER_MODE_BEST_EFFORT_DROP
+	default:
+		return trace.BadParameter("invalid database user mode %v", val)
+	}
+
+	return nil
+}
+
+// UnmarshalYAML supports parsing CreateDatabaseUserMode from string.
+func (h *CreateDatabaseUserMode) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var val interface{}
+	err := unmarshal(&val)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = h.decode(val)
+	return trace.Wrap(err)
+}
+
+// MarshalYAML marshals CreateDatabaseUserMode to yaml.
+func (h *CreateDatabaseUserMode) MarshalYAML() (interface{}, error) {
+	val, err := h.encode()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return val, nil
+}
+
+// MarshalJSON marshals CreateDatabaseUserMode to json bytes.
+func (h *CreateDatabaseUserMode) MarshalJSON() ([]byte, error) {
+	val, err := h.encode()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	out, err := json.Marshal(val)
+	return out, trace.Wrap(err)
+}
+
+// UnmarshalJSON supports parsing CreateDatabaseUserMode from string.
+func (h *CreateDatabaseUserMode) UnmarshalJSON(data []byte) error {
+	var val interface{}
+	err := json.Unmarshal(data, &val)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = h.decode(val)
+	return trace.Wrap(err)
+}
+
+// IsEnabled returns true if database automatic user provisioning is enabled.
+func (m CreateDatabaseUserMode) IsEnabled() bool {
+	return m != CreateDatabaseUserMode_DB_USER_MODE_UNSPECIFIED && m != CreateDatabaseUserMode_DB_USER_MODE_OFF
 }
