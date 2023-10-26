@@ -25,6 +25,7 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/elasticache"
+	"github.com/aws/aws-sdk-go/service/memorydb"
 	"github.com/gravitational/trace"
 	"github.com/redis/go-redis/v9"
 	"github.com/sirupsen/logrus"
@@ -282,8 +283,9 @@ func (e *Engine) createOnClientConnectFunc(ctx context.Context, sessionCtx *comm
 	// See: https://docs.aws.amazon.com/AmazonElastiCache/latest/red-ug/auth-iam.html#auth-iam-limits
 	// So we must check that the database supports IAM auth and that the
 	// ElastiCache user has IAM auth enabled.
+	// Same applies for AWS MemoryDB.
 	case e.isAWSIAMAuthSupported(ctx, sessionCtx):
-		credFetchFn := elasticacheIAMTokenFetchFunc(sessionCtx, e.Auth)
+		credFetchFn := awsIAMTokenFetchFunc(sessionCtx, e.Auth)
 		return fetchCredentialsOnConnect(e.Context, sessionCtx, e.Audit, credFetchFn)
 
 	default:
@@ -300,6 +302,9 @@ func (e *Engine) isAWSIAMAuthSupported(ctx context.Context, sessionCtx *common.S
 	defer func() {
 		// cache result to avoid API calls on each new instance connection.
 		e.awsIAMAuthSupported = &res
+		if res {
+			logrus.Debugf("IAM Auth is enabled for user %q in database %q.", sessionCtx.DatabaseUser, sessionCtx.Database.GetName())
+		}
 	}()
 	// check if the db supports IAM auth. If we get an error, assume the db does
 	// support IAM auth. False positives just incur an extra API call.
@@ -309,9 +314,8 @@ func (e *Engine) isAWSIAMAuthSupported(ctx context.Context, sessionCtx *common.S
 	} else if !ok {
 		return false
 	}
-	awsMeta := sessionCtx.Database.GetAWS()
 	dbUser := sessionCtx.DatabaseUser
-	ok, err := checkUserIAMAuthIsEnabled(ctx, e.CloudClients, awsMeta, dbUser)
+	ok, err := checkUserIAMAuthIsEnabled(ctx, sessionCtx, e.CloudClients, dbUser)
 	if err != nil {
 		e.Log.WithError(err).Debugf("Assuming IAM auth is not enabled for user %s.",
 			dbUser)
@@ -321,18 +325,33 @@ func (e *Engine) isAWSIAMAuthSupported(ctx context.Context, sessionCtx *common.S
 }
 
 // checkDBSupportsIAMAuth returns whether the given database is an ElastiCache
-// database that supports IAM auth.
-// AWS ElastiCache Redis supports IAM auth for redis version 7+.
+// or MemoryDB database that supports IAM auth.
+// AWS ElastiCache Redis/MemoryDB supports IAM auth for redis version 7+.
 func checkDBSupportsIAMAuth(database types.Database) (bool, error) {
-	if !database.IsElastiCache() {
+	switch database.GetType() {
+	case types.DatabaseTypeElastiCache:
+		return iam.CheckElastiCacheSupportsIAMAuth(database)
+	case types.DatabaseTypeMemoryDB:
+		return iam.CheckMemoryDBSupportsIAMAuth(database)
+	default:
 		return false, nil
 	}
-	return iam.CheckElastiCacheSupportsIAMAuth(database)
 }
 
-// checkUserIAMAuthIsEnabled returns whether a given ElastiCache user has IAM auth
-// enabled.
-func checkUserIAMAuthIsEnabled(ctx context.Context, clients cloud.Clients, awsMeta types.AWS, username string) (bool, error) {
+// checkUserIAMAuthIsEnabled returns whether a given ElastiCache or MemoryDB
+// user has IAM auth enabled.
+func checkUserIAMAuthIsEnabled(ctx context.Context, sessionCtx *common.Session, clients cloud.Clients, username string) (bool, error) {
+	switch sessionCtx.Database.GetType() {
+	case types.DatabaseTypeElastiCache:
+		return checkElastiCacheUserIAMAuthIsEnabled(ctx, clients, sessionCtx.Database.GetAWS(), username)
+	case types.DatabaseTypeMemoryDB:
+		return checkMemoryDBUserIAMAuthIsEnabled(ctx, clients, sessionCtx.Database.GetAWS(), username)
+	default:
+		return false, nil
+	}
+}
+
+func checkElastiCacheUserIAMAuthIsEnabled(ctx context.Context, clients cloud.Clients, awsMeta types.AWS, username string) (bool, error) {
 	client, err := clients.GetAWSElastiCacheClient(ctx, awsMeta.Region,
 		cloud.WithAssumeRoleFromAWSMeta(awsMeta))
 	if err != nil {
@@ -351,6 +370,24 @@ func checkUserIAMAuthIsEnabled(ctx context.Context, clients cloud.Clients, awsMe
 	}
 	authType := aws.StringValue(out.Users[0].Authentication.Type)
 	return elasticache.AuthenticationTypeIam == authType, nil
+}
+
+func checkMemoryDBUserIAMAuthIsEnabled(ctx context.Context, clients cloud.Clients, awsMeta types.AWS, username string) (bool, error) {
+	client, err := clients.GetAWSMemoryDBClient(ctx, awsMeta.Region,
+		cloud.WithAssumeRoleFromAWSMeta(awsMeta))
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	input := memorydb.DescribeUsersInput{UserName: aws.String(username)}
+	out, err := client.DescribeUsersWithContext(ctx, &input)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	if len(out.Users) < 1 || out.Users[0].Authentication == nil {
+		return false, nil
+	}
+	authType := aws.StringValue(out.Users[0].Authentication.Type)
+	return memorydb.AuthenticationTypeIam == authType, nil
 }
 
 // reconnect closes the current Redis server connection and creates a new one pre-authenticated

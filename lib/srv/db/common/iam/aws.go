@@ -38,6 +38,8 @@ func GetAWSPolicyDocument(db types.Database) (*awslib.PolicyDocument, Placeholde
 		return getRedshiftPolicyDocument(db)
 	case types.DatabaseTypeElastiCache:
 		return getElastiCachePolicyDocument(db)
+	case types.DatabaseTypeMemoryDB:
+		return getMemoryDBPolicyDocument(db)
 	default:
 		return nil, nil, trace.BadParameter("GetAWSPolicyDocument is not supported for database type %s", db.GetType())
 	}
@@ -89,11 +91,31 @@ func CheckElastiCacheSupportsIAMAuth(database types.Database) (bool, error) {
 	if !ok {
 		return false, trace.NotFound("database missing engine-version label")
 	}
+	return checkRedisEngineVersionSupportsIAMAuth(version)
+}
+
+func checkRedisEngineVersionSupportsIAMAuth(version string) (bool, error) {
 	v, err := semver.NewVersion(strings.TrimPrefix(version, "v"))
 	if err != nil {
 		return false, trace.Wrap(err, "failed to parse engine-version")
 	}
 	return v.Major >= 7, nil
+}
+
+// CheckMemoryDBSupportsIAMAuth returns whether the given MemoryDB database
+// supports IAM auth.
+// AWS MemoryDB Redis supports IAM auth for redis version 7+.
+func CheckMemoryDBSupportsIAMAuth(database types.Database) (bool, error) {
+	version, ok := database.GetLabel("engine-version")
+	if !ok {
+		return false, trace.NotFound("database missing engine-version label")
+	}
+
+	// MemoryDB version may not have patch version (e.g. "7.0")
+	if strings.Count(version, ".") == 1 {
+		version = version + ".0"
+	}
+	return checkRedisEngineVersionSupportsIAMAuth(version)
 }
 
 func getRDSPolicyDocument(db types.Database) (*awslib.PolicyDocument, Placeholders, error) {
@@ -206,6 +228,37 @@ func getElastiCachePolicyDocument(db types.Database) (*awslib.PolicyDocument, Pl
 		Resources: awslib.SliceOrString{
 			fmt.Sprintf("arn:%v:elasticache:%v:%v:replicationgroup:%v", partition, region, accountID, replicationGroupID),
 			fmt.Sprintf("arn:%v:elasticache:%v:%v:user:*", partition, region, accountID),
+		},
+	})
+	return policyDoc, placeholders, nil
+}
+
+// getMemoryDBPolicyDocument returns the policy document used for MemoryDB
+// databases.
+//
+// https://docs.aws.amazon.com/memorydb/latest/devguide/auth-iam.html
+func getMemoryDBPolicyDocument(db types.Database) (*awslib.PolicyDocument, Placeholders, error) {
+	meta := db.GetAWS()
+	partition := awsutils.GetPartitionFromRegion(meta.Region)
+	region := meta.Region
+	accountID := meta.AccountID
+	clusterName := meta.MemoryDB.ClusterName
+
+	placeholders := Placeholders(nil).
+		setPlaceholderIfEmpty(&region, "{region}").
+		setPlaceholderIfEmpty(&partition, "{partition}").
+		setPlaceholderIfEmpty(&accountID, "{account_id}").
+		setPlaceholderIfEmpty(&clusterName, "{cluster_name}")
+
+	policyDoc := awslib.NewPolicyDocument(&awslib.Statement{
+		Effect:  awslib.EffectAllow,
+		Actions: awslib.SliceOrString{"memorydb:Connect"},
+		Resources: awslib.SliceOrString{
+			// Note that MemoryDB requires `/` to divide resources like
+			// `cluster/<cluster_name>`, whereas ElastiCache requires `:` like
+			// `replicationgroup:<id>`.
+			fmt.Sprintf("arn:%v:memorydb:%v:%v:cluster/%v", partition, region, accountID, clusterName),
+			fmt.Sprintf("arn:%v:memorydb:%v:%v:user/*", partition, region, accountID),
 		},
 	})
 	return policyDoc, placeholders, nil
