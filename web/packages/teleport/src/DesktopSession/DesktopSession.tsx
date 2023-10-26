@@ -23,7 +23,7 @@ import {
   ButtonSecondary,
   ButtonPrimary,
 } from 'design';
-import { Danger } from 'design/Alert';
+import { Info } from 'design/Alert';
 import Dialog, {
   DialogHeader,
   DialogTitle,
@@ -126,12 +126,12 @@ export function DesktopSession(props: State) {
           open={errorDialog.open}
         >
           <DialogHeader style={{ flexDirection: 'column' }}>
-            <DialogTitle>Error</DialogTitle>
+            <DialogTitle>Disconnected</DialogTitle>
           </DialogHeader>
           <DialogContent>
             <>
-              <Danger children={<>{errorDialog.text}</>} />
-              Refresh the page to try again.
+              <Info children={<>{errorDialog.text}</>} />
+              Refresh the page to reconnect.
             </>
           </DialogContent>
           <DialogFooter>
