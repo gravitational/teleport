@@ -107,6 +107,7 @@ export class ModalsService extends ImmutableStore<State> {
       onSuccess: options.onSuccess,
       onCancel: options.onCancel,
       reason: undefined,
+      prefill: undefined,
     });
   }
 
@@ -143,6 +144,7 @@ export interface DialogClusterConnect {
    */
   clusterUri: RootClusterUri | undefined;
   reason: ClusterConnectReason | undefined;
+  prefill: { clusterAddress: string; username: string } | undefined;
   onSuccess(clusterUri: RootClusterUri): void;
   onCancel(): void;
 }

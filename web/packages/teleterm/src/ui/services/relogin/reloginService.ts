@@ -54,6 +54,7 @@ export class ReloginService {
         kind: 'cluster-connect',
         clusterUri: request.rootClusterUri,
         reason,
+        prefill: undefined,
         onSuccess: () => resolve(),
         onCancel: () =>
           reject(new Error('Login process was canceled by the user')),
