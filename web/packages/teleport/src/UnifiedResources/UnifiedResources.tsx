@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import React, { useCallback } from 'react';
+import React, { useCallback, useState } from 'react';
 
 import { Flex } from 'design';
 
@@ -102,7 +102,7 @@ function Wrapper({
         getClusterPinnedResources: getCurrentClusterPinnedResources,
       };
 
-  const { fetch, resources, attempt } = useUnifiedResourcesFetch({
+  const { fetch, resources, attempt, clear } = useUnifiedResourcesFetch({
     fetchFunc: useCallback(
       async (paginationParams, signal) => {
         const response = await teleCtx.resourceService.fetchUnifiedResources(
@@ -137,6 +137,26 @@ function Wrapper({
       ]
     ),
   });
+
+  // This state is used to recognize when the `params` value has changed,
+  // and reset the overall state of `useUnifiedResourcesFetch` hook. It's tempting to use a
+  // `useEffect` here, but doing so can cause unwanted behavior where the previous,
+  // now stale `fetch` is executed once more before the new one (with the new
+  // `filter`) is executed. This is because the `useEffect` is
+  // executed after the render, and `fetch` is called by an IntersectionObserver
+  // in `useInfiniteScroll`. If the render includes `useInfiniteScroll`'s `trigger`
+  // element, the old, stale `fetch` will be called before `useEffect` has a chance
+  // to run and update the state, and thereby the `fetch` function.
+  //
+  // By using the pattern described in this article:
+  // https://react.dev/learn/you-might-not-need-an-effect#adjusting-some-state-when-a-prop-changes,
+  // we can ensure that the state is reset before anything renders, and thereby
+  // ensure that the new `fetch` function is used.
+  const [prevParams, setPrevParams] = useState(params);
+  if (prevParams !== params) {
+    setPrevParams(params);
+    clear();
+  }
 
   return (
     <SharedUnifiedResources

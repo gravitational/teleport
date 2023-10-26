@@ -107,6 +107,18 @@ test('maintains attempt state', async () => {
 });
 
 test('restarts after fetch function change', async () => {
+  const updateSearch = (search: string) => {
+    // clears resources before fetching new data
+    act(() => result.current.clear());
+    rerender({
+      ...props,
+      fetchFunc: newFetchFunc({
+        search,
+        numResources: 4,
+      }),
+    });
+  };
+
   let props = hookProps({
     fetchFunc: newFetchFunc({
       clusterId: 'cluster1',
@@ -122,44 +134,33 @@ test('restarts after fetch function change', async () => {
   expect(resourceClusterIds(result)).toEqual(['cluster1', 'cluster1']);
   expect(resourceNames(result)).toEqual(['foo0', 'foo1']);
 
-  props = {
-    ...props,
-    fetchFunc: newFetchFunc({
-      search: 'bar',
-      numResources: 4,
-    }),
-  };
-  rerender(props);
+  updateSearch('bar');
   await act(result.current.fetch);
   expect(resourceNames(result)).toEqual(['bar0', 'bar1']);
 
   // Make sure we reached the end of the data set.
   await act(result.current.fetch);
   expect(result.current.finished).toBe(true);
-  props = {
-    ...props,
-    fetchFunc: newFetchFunc({
-      search: 'xyz',
-      numResources: 4,
-    }),
-  };
-  rerender(props);
+
+  updateSearch('xyz');
   expect(result.current.finished).toBe(false);
 
   await act(result.current.fetch);
   expect(resourceNames(result)).toEqual(['xyz0', 'xyz1']);
 });
 
-test("doesn't restart if fetch function didn't change on rerender", async () => {
+test('clear() resets the state', async () => {
   const props = hookProps();
   const { result, rerender } = renderHook(useKeyBasedPagination, {
     initialProps: props,
   });
   await act(result.current.fetch);
   expect(resourceNames(result)).toEqual(['r0', 'r1']);
+
+  act(result.current.clear);
   rerender(props);
-  await act(result.current.fetch);
-  expect(resourceNames(result)).toEqual(['r0', 'r1', 'r2', 'r3', 'r4']);
+  expect(result.current.resources).toEqual([]);
+  expect(result.current.attempt.status).toBe('');
 });
 
 describe("doesn't react to fetch() calls before the previous one finishes", () => {
@@ -207,31 +208,30 @@ describe("doesn't react to fetch() calls before the previous one finishes", () =
 test.each([
   ['DOMException', newDOMAbortError],
   ['ApiError', newApiAbortError],
-])('aborts pending request if params change (%s)', async (_, newError) => {
+])('%s gracefully aborts pending request', async (_, newError) => {
   let props = hookProps({
     fetchFunc: newFetchFunc({
       numResources: 7,
+      search: 'bar',
       newAbortError: newError,
     }),
   });
-  const { result, rerender } = renderHook(useKeyBasedPagination, {
+  const { result } = renderHook(useKeyBasedPagination, {
     initialProps: props,
   });
   let fetchPromise;
   act(() => {
     fetchPromise = result.current.fetch();
   });
-  props = {
-    ...props,
-    fetchFunc: newFetchFunc({
-      numResources: 7,
-      search: 'bar',
-      newAbortError: newError,
-    }),
-  };
-  rerender(props);
+
+  // aborts the previous request
+  act(() => result.current.clear());
   await act(async () => fetchPromise);
+
+  // the abort error has been handled, data is empty
   expect(resourceNames(result)).toEqual([]);
+
+  // fires another request
   await act(result.current.fetch);
   expect(resourceNames(result)).toEqual(['bar0', 'bar1']);
 });
@@ -264,6 +264,16 @@ describe.each`
   });
 
   it('restarts fetching after error if fetch function changes', async () => {
+    const updateSearch = (search: string) => {
+      act(() => result.current.clear());
+      rerender({
+        ...props,
+        fetchFunc: newFetchFunc({
+          search,
+          numResources: 7,
+        }),
+      });
+    };
     let props = hookProps({
       fetchFunc: newFetchFunc({
         search: 'foo',
@@ -282,20 +292,14 @@ describe.each`
       throw new ErrorType('OMGOMG');
     });
 
-    // Rerender with the same options: still no action expected.
+    // Rerender with the same fetch function,
+    // without clearing the params: noting should happen.
     rerender(props);
     await act(result.current.fetch);
     expect(resourceNames(result)).toEqual(['foo0', 'foo1']);
 
     // Rerender with different fetch function: expect new data to be fetched.
-    props = {
-      ...props,
-      fetchFunc: newFetchFunc({
-        search: 'bar',
-        numResources: 7,
-      }),
-    };
-    rerender(props);
+    updateSearch('bar');
     await act(result.current.fetch);
     expect(resourceNames(result)).toEqual(['bar0', 'bar1']);
   });
