@@ -16,28 +16,41 @@
  * /
  */
 
-use boring::ssl::{SslConnector, SslMethod, SslVerifyMode};
-use std::io;
-use tokio::io::AsyncWriteExt;
 use tokio::net::TcpStream;
-use tokio_boring::SslStream;
 
-use crate::client::ClientResult;
+use crate::client::{ClientError, ClientResult};
+
+#[cfg(feature = "fips")]
+pub type TlsStream<S> = tokio_boring::SslStream<S>;
+
+#[cfg(not(feature = "fips"))]
+pub type TlsStream<S> = ironrdp_tls::TlsStream<S>;
 
 pub(crate) async fn upgrade(
     initial_stream: TcpStream,
     server_name: &str,
-) -> ClientResult<(SslStream<TcpStream>, Vec<u8>)> {
-    let mut builder = SslConnector::builder(SslMethod::tls_client())?;
-    builder.set_verify(SslVerifyMode::NONE);
-    let configuration = builder.build().configure()?;
-    let mut tls_stream = tokio_boring::connect(configuration, server_name, initial_stream).await?;
-    tls_stream.flush().await?;
-    let cert = tls_stream
-        .ssl()
-        .peer_certificate()
-        .ok_or_else(|| io::Error::new(io::ErrorKind::Other, "peer certificate is missing"))?;
-    let public_key = cert.public_key()?;
-    let bytes = public_key.public_key_to_der()?;
-    Ok((tls_stream, bytes))
+) -> ClientResult<(TlsStream<TcpStream>, Vec<u8>)> {
+    #[cfg(feature = "fips")]
+    {
+        use boring::ssl::{SslConnector, SslMethod, SslVerifyMode};
+        use std::io;
+        use tokio::io::AsyncWriteExt;
+        let mut builder = SslConnector::builder(SslMethod::tls_client())?;
+        builder.set_verify(SslVerifyMode::NONE);
+        let configuration = builder.build().configure()?;
+        let mut tls_stream =
+            tokio_boring::connect(configuration, server_name, initial_stream).await?;
+        tls_stream.flush().await?;
+        let cert = tls_stream
+            .ssl()
+            .peer_certificate()
+            .ok_or_else(|| io::Error::new(io::ErrorKind::Other, "peer certificate is missing"))?;
+        let public_key = cert.public_key()?;
+        let bytes = public_key.public_key_to_der()?;
+        Ok((tls_stream, bytes))
+    }
+    #[cfg(not(feature = "fips"))]
+    ironrdp_tls::upgrade(initial_stream, server_name)
+        .await
+        .map_err(ClientError::from)
 }

@@ -1489,6 +1489,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "ironrdp-tls"
+version = "0.1.0"
+source = "git+https://github.com/Devolutions/IronRDP?rev=47bc49b50e49020942138a8474828eb3cfe36a91#47bc49b50e49020942138a8474828eb3cfe36a91"
+dependencies = [
+ "tokio",
+ "tokio-rustls",
+ "x509-cert",
+]
+
+[[package]]
 name = "ironrdp-tokio"
 version = "0.1.0"
 source = "git+https://github.com/Devolutions/IronRDP?rev=47bc49b50e49020942138a8474828eb3cfe36a91#47bc49b50e49020942138a8474828eb3cfe36a91"
@@ -2371,6 +2381,7 @@ dependencies = [
  "ironrdp-rdpsnd",
  "ironrdp-session",
  "ironrdp-svc",
+ "ironrdp-tls",
  "ironrdp-tokio",
  "iso7816",
  "iso7816-tlv",

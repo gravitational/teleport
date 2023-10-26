@@ -1,4 +1,5 @@
 use bitflags::Flags;
+#[cfg(feature = "fips")]
 use boring::error::ErrorStack;
 use bytes::BytesMut;
 use ironrdp_cliprdr::{Cliprdr, CliprdrSvcMessages};
@@ -27,6 +28,7 @@ use tokio::io::{split, ReadHalf, WriteHalf};
 use tokio::net::TcpStream as TokioTcpStream;
 use tokio::sync::mpsc::{channel, error::SendError, Receiver, Sender};
 use tokio::task::JoinError;
+#[cfg(feature = "fips")]
 use tokio_boring::{HandshakeError, SslStream};
 
 pub(crate) use global::call_function_on_handle;
@@ -39,6 +41,7 @@ use crate::{
 use crate::cliprdr::{ClipboardFn, TeleportCliprdrBackend};
 use crate::rdpdr::scard::SCARD_DEVICE_ID;
 use crate::rdpdr::TeleportRdpdrBackend;
+use crate::ssl::TlsStream;
 
 pub mod global;
 
@@ -535,8 +538,8 @@ pub type ClientHandle = Sender<ClientFunction>;
 /// [`ClientHandle`].
 pub type FunctionReceiver = Receiver<ClientFunction>;
 
-type RdpReadStream = Framed<TokioStream<ReadHalf<SslStream<TokioTcpStream>>>>;
-type RdpWriteStream = Framed<TokioStream<WriteHalf<SslStream<TokioTcpStream>>>>;
+type RdpReadStream = Framed<TokioStream<ReadHalf<TlsStream<TokioTcpStream>>>>;
+type RdpWriteStream = Framed<TokioStream<WriteHalf<TlsStream<TokioTcpStream>>>>;
 
 fn create_config(width: u16, height: u16, pin: String) -> Config {
     Config {
@@ -591,7 +594,9 @@ pub enum ClientError {
     InternalError,
     UnknownAddress,
     InputEventError(InputEventError),
+    #[cfg(feature = "fips")]
     ErrorStack(ErrorStack),
+    #[cfg(feature = "fips")]
     HandshakeError(HandshakeError<TokioTcpStream>),
 }
 
@@ -612,7 +617,9 @@ impl Display for ClientError {
             ClientError::InternalError => Display::fmt("Internal error", f),
             ClientError::UnknownAddress => Display::fmt("Unknown address", f),
             ClientError::PduError(e) => Display::fmt(e, f),
+            #[cfg(feature = "fips")]
             ClientError::ErrorStack(e) => Display::fmt(e, f),
+            #[cfg(feature = "fips")]
             ClientError::HandshakeError(e) => Display::fmt(e, f),
         }
     }
@@ -666,12 +673,14 @@ impl From<PduError> for ClientError {
     }
 }
 
+#[cfg(feature = "fips")]
 impl From<ErrorStack> for ClientError {
     fn from(e: ErrorStack) -> Self {
         ClientError::ErrorStack(e)
     }
 }
 
+#[cfg(feature = "fips")]
 impl From<HandshakeError<TokioTcpStream>> for ClientError {
     fn from(e: HandshakeError<TokioTcpStream>) -> Self {
         ClientError::HandshakeError(e)
