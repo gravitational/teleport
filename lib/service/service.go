@@ -1412,23 +1412,19 @@ func initAuthUploadHandler(ctx context.Context, auditConfig types.ClusterAuditCo
 		}
 		return handler, nil
 	case teleport.SchemeS3:
-		var config s3sessions.Config
-		if externalCloudAudit == nil {
-			config = s3sessions.Config{UseFIPSEndpoint: auditConfig.GetUseFIPSEndpoint()}
-			if err := config.SetFromURL(uri, auditConfig.Region()); err != nil {
-				return nil, trace.Wrap(err)
-			}
-		} else {
-			uri, err := apiutils.ParseSessionsURI(externalCloudAudit.GetSpec().SessionsRecordingsURI)
+		config := s3sessions.Config{
+			UseFIPSEndpoint: auditConfig.GetUseFIPSEndpoint(),
+		}
+		s3URI := uri
+		if externalCloudAudit.IsUsed() {
+			config.Credentials = externalCloudAudit.CredentialsSDKV1()
+			s3URI, err = apiutils.ParseSessionsURI(externalCloudAudit.GetSpec().SessionsRecordingsURI)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			config = s3sessions.Config{
-				Credentials: externalCloudAudit.CredentialsSDKV1(),
-			}
-			if err := config.SetFromURL(uri, auditConfig.Region()); err != nil {
-				return nil, trace.Wrap(err)
-			}
+		}
+		if err := config.SetFromURL(s3URI, auditConfig.Region()); err != nil {
+			return nil, trace.Wrap(err)
 		}
 
 		handler, err := s3sessions.NewHandler(ctx, config)
@@ -1625,7 +1621,7 @@ func (process *TeleportProcess) initAuthService() error {
 	var emitter apievents.Emitter
 	var streamer events.Streamer
 	var uploadHandler events.MultipartHandler
-	var externalCloudAuditConfiguratior *externalcloudaudit.Configurator
+	var externalCloudAuditConfigurator *externalcloudaudit.Configurator
 
 	// create the audit log, which will be consuming (and recording) all events
 	// and recording all sessions.
@@ -1651,13 +1647,13 @@ func (process *TeleportProcess) initAuthService() error {
 			cfg.Auth.AuditConfig.SetUseFIPSEndpoint(types.ClusterAuditConfigSpecV2_FIPS_ENABLED)
 		}
 
-		externalCloudAuditConfiguratior, err = externalcloudaudit.NewConfigurator(process.ExitContext(), b)
+		externalCloudAuditConfigurator, err = externalcloudaudit.NewConfigurator(process.ExitContext(), b)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
 		uploadHandler, err = initAuthUploadHandler(
-			process.ExitContext(), cfg.Auth.AuditConfig, filepath.Join(cfg.DataDir, teleport.LogsDir), externalCloudAuditConfiguratior)
+			process.ExitContext(), cfg.Auth.AuditConfig, filepath.Join(cfg.DataDir, teleport.LogsDir), externalCloudAuditConfigurator)
 		if err != nil {
 			if !trace.IsNotFound(err) {
 				return trace.Wrap(err)
@@ -1672,7 +1668,7 @@ func (process *TeleportProcess) initAuthService() error {
 
 		// initialize external loggers.  may return (nil, nil) if no
 		// external loggers have been defined.
-		externalLog, err := initAuthExternalAuditLog(process.ExitContext(), cfg.Auth.AuditConfig, process.backend, process.TracingProvider, externalCloudAuditConfiguratior)
+		externalLog, err := initAuthExternalAuditLog(process.ExitContext(), cfg.Auth.AuditConfig, process.backend, process.TracingProvider, externalCloudAuditConfigurator)
 		if err != nil {
 			if !trace.IsNotFound(err) {
 				return trace.Wrap(err)
@@ -1841,8 +1837,8 @@ func (process *TeleportProcess) initAuthService() error {
 	}
 	authServer.SetLockWatcher(lockWatcher)
 
-	if externalCloudAuditConfiguratior.IsUsed() {
-		externalCloudAuditConfiguratior.SetRetrieveCredentialsFn(authServer.RetrieveExternalCloudAuditCredentials)
+	if externalCloudAuditConfigurator.IsUsed() {
+		externalCloudAuditConfigurator.SetRetrieveCredentialsFn(authServer.RetrieveExternalCloudAuditCredentials)
 		log.Infof("BYOB SetRetrieveCredentialsFn initialized cache")
 	}
 

@@ -1,3 +1,17 @@
+// Copyright 2023 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package externalcloudaudit
 
 import (
@@ -16,13 +30,14 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestConfiguratorIsUsed(t *testing.T) {
 	draftConfig, err := externalcloudaudit.NewDraftExternalCloudAudit(header.Metadata{},
 		externalcloudaudit.ExternalCloudAuditSpec{
 			IntegrationName:        "aws-integration-1",
+			PolicyName:             "ecaPolicy",
+			Region:                 "us-west-2",
 			SessionsRecordingsURI:  "s3://bucket/sess_rec",
 			AthenaWorkgroup:        "primary",
 			GlueDatabase:           "teleport_db",
@@ -122,15 +137,12 @@ func TestConfiguratorIsUsed(t *testing.T) {
 }
 
 func TestCredentialsCache(t *testing.T) {
-	cc, err := newCredentialsCache(CacheConfig{
-		IntegratioName: "test",
-		Log:            utils.NewLoggerForTests(),
-	})
+	cc, err := newCredentialsCache("test")
 	require.NoError(t, err)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	go cc.run(ctx)
-	// TODO(tobiaszheller): rework to use from sdkv1/v2
+	// TODO(nklaassen): rework to use from sdkv1/v2
 
 	t.Run("retrieve fn not initialized yet, expect err", func(t *testing.T) {
 		// This test case covers scenario when auth is not yet initialized.
