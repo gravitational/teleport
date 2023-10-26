@@ -620,6 +620,8 @@ func NewFromDecl(decl DeclarationInfo, allDecls map[PackageInfo]DeclarationInfo,
 		return nil, err
 	}
 
+	var overridden bool
+
 	// Handle example YAML within the declaration's GoDoc.
 	description := rs.doc
 	var example string
@@ -630,6 +632,7 @@ func NewFromDecl(decl DeclarationInfo, allDecls map[PackageInfo]DeclarationInfo,
 		}
 		example = sides[1]
 		description = sides[0]
+		overridden = true
 	} else {
 
 		m := allMethods[PackageInfo{
@@ -654,21 +657,33 @@ func NewFromDecl(decl DeclarationInfo, allDecls map[PackageInfo]DeclarationInfo,
 	// Initialize the return value and insert the root reference entry
 	// provided by decl.
 	refs := make(map[PackageInfo]ReferenceEntry)
+
+	description = strings.Trim(strings.ReplaceAll(description, "\n", " "), " ")
+	entry := ReferenceEntry{
+		SectionName: makeSectionName(rs.name),
+		Description: descriptionWithoutName(description, rs.name),
+		SourcePath:  decl.FilePath,
+		YAMLExample: example,
+		Fields:      []Field{},
+	}
+	key := PackageInfo{
+		DeclName:    rs.name,
+		PackageName: decl.PackageName,
+	}
+
+	// We are describing this reference entry via a YAML example override,
+	// so we don't create reference entries for its fields.
+	if overridden {
+		refs[key] = entry
+		return refs, nil
+	}
+
 	fld, err := makeFieldTableInfo(fieldsToProcess)
 	if err != nil {
 		return nil, err
 	}
-	description = strings.Trim(strings.ReplaceAll(description, "\n", " "), " ")
-	refs[PackageInfo{
-		DeclName:    rs.name,
-		PackageName: decl.PackageName,
-	}] = ReferenceEntry{
-		SectionName: makeSectionName(rs.name),
-		Description: descriptionWithoutName(description, rs.name),
-		SourcePath:  decl.FilePath,
-		Fields:      fld,
-		YAMLExample: example,
-	}
+	entry.Fields = fld
+	refs[key] = entry
 
 	// For any fields within decl that have a custom type, look up the
 	// declaration for that type and create a separate reference entry for
