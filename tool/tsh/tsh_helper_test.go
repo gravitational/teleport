@@ -473,5 +473,4 @@ func mustRegisterKubeClusters(t *testing.T, ctx context.Context, authSrv *auth.S
 			assert.Contains(c, gotNames, name, "missing kube cluster")
 		}
 	}, time.Second*10, time.Millisecond*500, "dynamically created kube clusters failed to register")
-
 }

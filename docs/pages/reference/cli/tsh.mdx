@@ -158,6 +158,37 @@ $ tsh config
 $ tsh config >> ~/.ssh/config
 ```
 
+## tsh puttyconfig
+
+Adds a PuTTY saved session to the Windows registry for the currently logged in Windows user.
+
+```
+$ tsh puttyconfig [--leaf <leaf-cluster-name>] [login@]hostname
+```
+
+### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `-l, --login` | none | Linux username | Default Linux username to use. Will translate to SSH config's `User` option. |
+| `-p`, `--port` | 3022 | port | Default SSH port to use. Will translate to SSH config's `Port` option. |
+| `--leaf` | none | Leaf cluster name | Leaf cluster name to add to the saved session. |
+
+### Examples
+
+```code
+# Add a saved PuTTY session on 'node' for the user 'ec2-user'
+$ tsh puttyconfig ec2-user@node
+
+# Add a saved PuTTY session for the Teleport-registered OpenSSH node 'openssh' for the user 'ubuntu'
+$ tsh puttyconfig --port 22 ubuntu@openssh
+
+# Add a saved PuTTY session on leaf-node for the user 'ec2-user' on the leaf cluster 'example.teleport.sh'
+$ tsh puttyconfig --leaf example.teleport.sh ec2-user@leaf-node
+```
+
+See [full docs on `tsh puttyconfig` here](../../connect-your-client/putty-winscp.mdx).
+
 ## tsh apps ls
 
 List all available applications:
@@ -509,6 +540,8 @@ proxy ssh`:
 ```code
 $ ssh myuser@node1.example.com
 ```
+
+See [full docs on `tsh puttyconfig` here](../../connect-your-client/putty-winscp.mdx).
 
 ## tsh proxy app
 

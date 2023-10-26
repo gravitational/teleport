@@ -1,5 +1,17 @@
 # Changelog
 
+## 13.4.5 (10/24/23)
+
+* Fixed the top bar breaking layout when the window is narrow in Connect [#33822](https://github.com/gravitational/teleport/pull/33822)
+* Web UI will now redirect to login upon missing session cookie [#33807](https://github.com/gravitational/teleport/pull/33807)
+* Limited Snowflake decompressed request size to 10MB [#33763](https://github.com/gravitational/teleport/pull/33763)
+* Added URL and SAML connector name in entity descriptor URL errors [#33668](https://github.com/gravitational/teleport/pull/33668)
+* Updated `tsh` to accept `--proxy` values with `https://` prefixes [#33647](https://github.com/gravitational/teleport/pull/33647)
+
+**Enhanced PuTTY/WinSCP Support**
+
+`tsh` on Windows now supports the `tsh puttyconfig` command, which can easily configure saved sessions inside the well-known PuTTY and WinSCP clients to connect to Teleport SSH services.
+
 ## 13.4.4 (10/18/23)
 
 * Prevented remote proxies from impersonating users from different clusters. [#33540](https://github.com/gravitational/teleport/pull/33540)
