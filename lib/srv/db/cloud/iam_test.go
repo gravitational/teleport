@@ -227,7 +227,7 @@ func TestAWSIAM(t *testing.T) {
 			database:           memorydb,
 			wantPolicyContains: memorydb.GetAWS().MemoryDB.ClusterName,
 			getIAMAuthEnabled: func() bool {
-				return true // it always is for ElastiCache.
+				return true // it always is for MemoryDB.
 			},
 		},
 	}
