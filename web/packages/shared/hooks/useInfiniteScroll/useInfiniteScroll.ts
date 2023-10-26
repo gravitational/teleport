@@ -18,7 +18,9 @@ import { useLayoutEffect, useRef, useCallback } from 'react';
 
 /**
  * Calls fetch function whenever the `trigger` element intersects the
- * viewport until the list is exhausted or an error happens.
+ * viewport.
+ * It also triggers the initial request when the `trigger` element
+ * is rendered for the first time.
  *
  * Callers must set the `trigger` element by passing the [`State.setTrigger`] function
  * as the `ref` prop of the element they want to use as the trigger.
@@ -56,6 +58,7 @@ export function useInfiniteScroll({
   // switching this to `useEffect` and rapidly changing filtering data on the
   // resources list page).
   useLayoutEffect(() => {
+    // triggers the initial request
     recreateObserver();
     return () => {
       observer.current?.disconnect();
