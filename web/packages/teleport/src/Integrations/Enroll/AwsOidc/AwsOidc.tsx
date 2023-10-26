@@ -234,16 +234,16 @@ export function AwsOidc() {
                 </Container>
                 <Container mb={5}>
                   <Text bold>Step 3</Text>
-                  Copy and paste the IAM Role ARN output from the command you
-                  ran above or from your{' '}
+                  After configuring is finished, go to your{' '}
                   <Link
                     target="_blank"
                     href={`https://console.aws.amazon.com/iamv2/home#/roles/details/${roleName}`}
                   >
                     IAM Role dashboard
-                  </Link>
+                  </Link>{' '}
+                  and copy and paste the ARN below.
                   <FieldInput
-                    mt={3}
+                    mt={2}
                     rule={requiredRoleArn(roleName)}
                     value={roleArn}
                     label="Role ARN (Amazon Resource Name)"

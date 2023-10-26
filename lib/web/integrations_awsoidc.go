@@ -470,9 +470,9 @@ func (h *Handler) awsOIDCConfigureIdP(w http.ResponseWriter, r *http.Request, p 
 		return nil, trace.BadParameter("invalid role %q", role)
 	}
 
-	proxyAddr := h.PublicProxyAddr()
-	if !strings.HasPrefix(proxyAddr, "https://") && !strings.HasPrefix(proxyAddr, "http://") {
-		proxyAddr = "https://" + proxyAddr
+	proxyAddr, err := awsoidc.IssuerFromPublicAddress(h.cfg.PublicProxyAddr)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	// The script must execute the following command:

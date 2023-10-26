@@ -25,7 +25,7 @@ export interface ValidationResult {
 /**
  * A function to validate a field value.
  */
-export type Rule<T, R = ValidationResult> = (value: T) => () => R;
+export type Rule<T = string, R = ValidationResult> = (value: T) => () => R;
 
 /**
  * requiredField checks for empty strings and arrays.
@@ -44,7 +44,7 @@ const requiredField =
     };
   };
 
-const requiredToken: Rule<string> = (value: string) => () => {
+const requiredToken: Rule = value => () => {
   if (!value || value.length === 0) {
     return {
       valid: false,
@@ -57,7 +57,7 @@ const requiredToken: Rule<string> = (value: string) => () => {
   };
 };
 
-const requiredPassword: Rule<string> = (value: string) => () => {
+const requiredPassword: Rule = value => () => {
   if (!value || value.length < 6) {
     return {
       valid: false,
@@ -71,7 +71,7 @@ const requiredPassword: Rule<string> = (value: string) => () => {
 };
 
 const requiredConfirmedPassword =
-  (password: string): Rule<string> =>
+  (password: string): Rule =>
   (confirmedPassword: string) =>
   () => {
     if (!confirmedPassword) {
@@ -106,7 +106,7 @@ const isIamRoleNameValid = roleName => {
   );
 };
 
-const requiredIamRoleName: Rule<string> = (value: string) => () => {
+const requiredIamRoleName: Rule = value => () => {
   if (!value) {
     return {
       valid: false,
@@ -144,7 +144,7 @@ const requiredIamRoleName: Rule<string> = (value: string) => () => {
  * arn:aws<OTHER_PARTITION>:iam::<ACOUNT_NUMBER>:role/<ROLE_NAME>
  */
 const ROLE_ARN_REGEX_STR = '^arn:aws.*:iam::\\d{12}:role\\/';
-const requiredRoleArn: Rule<string> = (roleArn: string) => () => {
+const requiredRoleArn: Rule = roleArn => () => {
   if (!roleArn) {
     return {
       valid: false,
@@ -173,30 +173,29 @@ export interface EmailValidationResult extends ValidationResult {
 
 // requiredEmailLike ensures a string contains a plausible email, i.e. that it
 // contains an '@' and some characters on each side.
-const requiredEmailLike: Rule<string, EmailValidationResult> =
-  (email: string) => () => {
-    if (!email) {
-      return {
-        valid: false,
-        kind: 'empty',
-        message: 'Email address is required',
-      };
-    }
-
-    // Must contain an @, i.e. 2 entries, and each must be nonempty.
-    let parts = email.split('@');
-    if (parts.length !== 2 || !parts[0] || !parts[1]) {
-      return {
-        valid: false,
-        kind: 'invalid',
-        message: `Email address '${email}' is invalid`,
-      };
-    }
-
+const requiredEmailLike: Rule<string, EmailValidationResult> = email => () => {
+  if (!email) {
     return {
-      valid: true,
+      valid: false,
+      kind: 'empty',
+      message: 'Email address is required',
     };
+  }
+
+  // Must contain an @, i.e. 2 entries, and each must be nonempty.
+  let parts = email.split('@');
+  if (parts.length !== 2 || !parts[0] || !parts[1]) {
+    return {
+      valid: false,
+      kind: 'invalid',
+      message: `Email address '${email}' is invalid`,
+    };
+  }
+
+  return {
+    valid: true,
   };
+};
 
 export {
   requiredToken,

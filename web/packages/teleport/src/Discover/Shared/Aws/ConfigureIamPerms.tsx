@@ -14,11 +14,12 @@
  * limitations under the License.
  */
 
-import React, { useState } from 'react';
+import React from 'react';
 import styled from 'styled-components';
-import { Flex, Link, Text, ButtonText } from 'design';
+import { Flex, Link, Text, Box } from 'design';
 import { assertUnreachable } from 'shared/utils/assertUnreachable';
 import TextEditor from 'shared/components/TextEditor';
+import { ToolTipInfo } from 'shared/components/ToolTip';
 
 import { CommandBox } from 'teleport/Discover/Shared/CommandBox';
 import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
@@ -36,8 +37,6 @@ export function ConfigureIamPerms({
   integrationRoleArn: string;
   kind: AwsResourceKind;
 }) {
-  const [showRequiredPerms, setShowRequiredPerms] = useState(false);
-
   // arn's are formatted as `don-care-about-this-part/role-arn`.
   // We are splitting by slash and getting the last element.
   const iamRoleName = integrationRoleArn.split('/').pop();
@@ -45,8 +44,11 @@ export function ConfigureIamPerms({
   let scriptUrl;
   let msg;
   let editor;
+  let iamPolicyName;
+
   switch (kind) {
     case 'ec2': {
+      iamPolicyName = 'EC2InstanceConnectEndpoint';
       msg = 'We were unable to list your EC2 instances.';
       scriptUrl = cfg.getEc2InstanceConnectIAMConfigureScriptUrl({
         region,
@@ -79,12 +81,14 @@ export function ConfigureIamPerms({
           <TextEditor
             readOnly={true}
             data={[{ content: json, type: 'json' }]}
+            bg="levels.deep"
           />
         </EditorWrapper>
       );
       break;
     }
     case 'rds': {
+      iamPolicyName = 'ListDatabases';
       msg = 'We were unable to list your RDS instances.';
       scriptUrl = cfg.getAwsConfigureIamScriptListDatabasesUrl({
         region,
@@ -107,10 +111,11 @@ export function ConfigureIamPerms({
 }`;
 
       editor = (
-        <EditorWrapper $height={235}>
+        <EditorWrapper $height={245}>
           <TextEditor
             readOnly={true}
             data={[{ content: json, type: 'json' }]}
+            bg="levels.deep"
           />
         </EditorWrapper>
       );
@@ -125,7 +130,16 @@ export function ConfigureIamPerms({
     <CommandBox
       header={
         <>
-          <Text bold>Configure your AWS IAM permissions</Text>
+          <Flex alignItems="center">
+            <Text bold mr={1}>
+              Configure your AWS IAM permissions
+            </Text>
+            <ToolTipInfo sticky={true} maxWidth={450}>
+              The following IAM permissions will be added as an inline policy
+              named <b>{iamPolicyName}</b> to IAM role <b>{iamRoleName}</b>
+              <Box mb={2}>{editor}</Box>
+            </ToolTipInfo>
+          </Flex>
           <Text typography="subtitle1" mb={3}>
             {msg} Run the command below on your{' '}
             <Link
@@ -141,16 +155,9 @@ export function ConfigureIamPerms({
       }
       hasTtl={false}
     >
-      <>
-        <TextSelectCopyMulti
-          lines={[{ text: `bash -c "$(curl '${scriptUrl}')"` }]}
-        />
-        <ButtonText mt={3} pl={0} onClick={() => setShowRequiredPerms(b => !b)}>
-          View the required IAM perms that will be added as an inline policy to
-          IAM role "{iamRoleName}"
-        </ButtonText>
-        {showRequiredPerms && editor}
-      </>
+      <TextSelectCopyMulti
+        lines={[{ text: `bash -c "$(curl '${scriptUrl}')"` }]}
+      />
     </CommandBox>
   );
 }
@@ -159,4 +166,5 @@ const EditorWrapper = styled(Flex)`
   flex-directions: column;
   height: ${p => p.$height}px;
   margin-top: ${p => p.theme.space[3]}px;
+  width: 450px;
 `;
