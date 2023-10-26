@@ -194,11 +194,6 @@ func (e *Engine) DeleteUser(ctx context.Context, sessionCtx *common.Session) err
 	}
 	defer conn.Close()
 
-	// TODO support DeleteUser for MariaDB.
-	if conn.isMariaDB() {
-		return trace.Wrap(e.DeactivateUser(ctx, sessionCtx))
-	}
-
 	e.Log.Infof("Deleting MySQL user %q for %v.", sessionCtx.DatabaseUser, sessionCtx.Identity.Username)
 
 	result, err := conn.Execute(fmt.Sprintf("CALL %s(?)", deleteUserProcedureName), sessionCtx.DatabaseUser)
@@ -473,7 +468,8 @@ func isProcedureUpdateRequired(conn *clientConn, wantSchema, wantVersion string)
 		return true, nil
 	}
 
-	// Paranoia, make sure the names match.
+	// Double check if all procedures are in place, this ensures that newly
+	// added procedures will be created even when there is no version bump.
 	foundProcedures := make([]string, 0, result.RowNumber())
 	for row := range result.Values {
 		procedure, err := result.GetString(row, 0)
@@ -527,7 +523,7 @@ func getCreateProcedureCommand(conn *clientConn, procedureName string) (string, 
 const (
 	// procedureVersion is a hard-coded string that is set as procedure
 	// comments to indicate the procedure version.
-	procedureVersion = "teleport-auto-user-v1"
+	procedureVersion = "teleport-auto-user-v2"
 
 	// mysqlMaxUsernameLength is the maximum username/role length for MySQL.
 	//
@@ -572,6 +568,8 @@ var (
 	mariadbDeactivateUserProcedure string
 	//go:embed sql/mariadb_revoke_roles.sql
 	mariadbRevokeRolesProcedure string
+	//go:embed sql/mariadb_delete_user.sql
+	mariadbDeleteProcedure string
 
 	// allProcedureNames contains a list of all procedures required to setup
 	// auto-user provisioning. Note that order matters here as later procedures
@@ -580,6 +578,7 @@ var (
 		revokeRolesProcedureName,
 		activateUserProcedureName,
 		deactivateUserProcedureName,
+		deleteUserProcedureName,
 	}
 
 	// mysqlProcedures maps procedure names to the procedures used for MySQL.
@@ -615,5 +614,6 @@ var (
 		activateUserProcedureName:   mariadbActivateUserProcedure,
 		deactivateUserProcedureName: mariadbDeactivateUserProcedure,
 		revokeRolesProcedureName:    mariadbRevokeRolesProcedure,
+		deleteUserProcedureName:     mariadbDeleteProcedure,
 	}
 )
