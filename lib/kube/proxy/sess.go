@@ -1017,8 +1017,8 @@ func (s *session) unlockedLeave(id uuid.UUID) (bool, error) {
 
 	sessionLeaveEvent := &apievents.SessionLeave{
 		Metadata: apievents.Metadata{
-			Type:        events.SessionJoinEvent,
-			Code:        events.SessionJoinCode,
+			Type:        events.SessionLeaveEvent,
+			Code:        events.SessionLeaveCode,
 			ClusterName: s.ctx.teleportCluster.name,
 		},
 		SessionMetadata: s.getSessionMetadata(),
