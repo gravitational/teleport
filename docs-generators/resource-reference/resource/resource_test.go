@@ -324,13 +324,7 @@ type Server struct {
      env:dev
      role:primary
 `,
-					Fields: []Field{
-						Field{
-							Name:        "qualities",
-							Description: "A list of either maps or \"key:value\" strings.",
-							Type:        "[Custom Attributes](#custom-attributes)",
-						},
-					},
+					Fields: []Field{},
 				},
 			},
 		},
@@ -512,6 +506,7 @@ label_maps:
 					SourcePath:  "myfile1.go",
 					YAMLExample: `["my_value0", "my_value1", "my_value2"]
 `,
+					Fields: []Field{},
 				},
 			},
 		},
