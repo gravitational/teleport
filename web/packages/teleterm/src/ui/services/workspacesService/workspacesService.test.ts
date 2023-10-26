@@ -25,52 +25,6 @@ import { Workspace, WorkspacesService } from './workspacesService';
 import { DocumentCluster, DocumentsService } from './documentsService';
 
 describe('restoring workspace', () => {
-  function getTestSetup(options: {
-    clusterUri: RootClusterUri; // assumes that only one cluster can be added
-    persistedWorkspaces: Record<string, Workspace>;
-  }) {
-    const statePersistenceService: Partial<StatePersistenceService> = {
-      getWorkspacesState: () => ({
-        workspaces: options.persistedWorkspaces,
-      }),
-      saveWorkspacesState: jest.fn(),
-    };
-
-    const cluster = makeRootCluster({
-          uri: options.clusterUri,
-          name: 'Test cluster',
-          proxyHost: 'test:3030',
-    });
-
-    const clustersService: Partial<ClustersService> = {
-      findCluster: jest.fn(() => cluster),
-      getRootClusters: () => [cluster],
-    };
-
-    const clusterDocument: DocumentCluster = {
-      kind: 'doc.cluster',
-      title: 'Cluster Test',
-      clusterUri: options.clusterUri,
-      uri: '/docs/test-cluster-uri',
-    };
-
-    const workspacesService = new WorkspacesService(
-      undefined,
-      clustersService as ClustersService,
-      undefined,
-      statePersistenceService as StatePersistenceService
-    );
-
-    workspacesService.getWorkspaceDocumentService = () =>
-      ({
-      createClusterDocument() {
-        return clusterDocument;
-      },
-      } as Partial<DocumentsService> as DocumentsService);
-
-    return { workspacesService, clusterDocument };
-  }
-
   it('restores the workspace if there is a persisted state for given clusterUri', async () => {
     const testClusterUri = '/clusters/test-uri';
     const testWorkspace: Workspace = {
@@ -152,3 +106,49 @@ describe('restoring workspace', () => {
     });
   });
 });
+
+function getTestSetup(options: {
+  clusterUri: RootClusterUri; // assumes that only one cluster can be added
+  persistedWorkspaces: Record<string, Workspace>;
+}) {
+  const statePersistenceService: Partial<StatePersistenceService> = {
+    getWorkspacesState: () => ({
+      workspaces: options.persistedWorkspaces,
+    }),
+    saveWorkspacesState: jest.fn(),
+  };
+
+  const cluster = makeRootCluster({
+    uri: options.clusterUri,
+    name: 'Test cluster',
+    proxyHost: 'test:3030',
+  });
+
+  const clustersService: Partial<ClustersService> = {
+    findCluster: jest.fn(() => cluster),
+    getRootClusters: () => [cluster],
+  };
+
+  const clusterDocument: DocumentCluster = {
+    kind: 'doc.cluster',
+    title: 'Cluster Test',
+    clusterUri: options.clusterUri,
+    uri: '/docs/test-cluster-uri',
+  };
+
+  const workspacesService = new WorkspacesService(
+    undefined,
+    clustersService as ClustersService,
+    undefined,
+    statePersistenceService as StatePersistenceService
+  );
+
+  workspacesService.getWorkspaceDocumentService = () =>
+    ({
+      createClusterDocument() {
+        return clusterDocument;
+      },
+    } as Partial<DocumentsService> as DocumentsService);
+
+  return { workspacesService, clusterDocument };
+}
