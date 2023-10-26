@@ -218,7 +218,14 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
    *
    * setActiveWorkspace never returns a rejected promise on its own.
    */
-  setActiveWorkspace(clusterUri: RootClusterUri): Promise<{
+  setActiveWorkspace(
+    clusterUri: RootClusterUri,
+    /**
+     * Prefill values to be used in ClusterConnectDialog if the cluster is in the state but there's
+     * no valid cert. The user will be asked to log in before the workspace is set as active.
+     */
+    prefill?: { clusterAddress: string; username: string }
+  ): Promise<{
     /**
      * Determines whether the call to setActiveWorkspace actually succeeded in switching to the
      * workspace of the given cluster.
@@ -274,7 +281,7 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
         kind: 'cluster-connect',
         clusterUri,
         reason: undefined,
-        prefill: undefined,
+        prefill,
         onCancel: () => {
           reject();
         },
