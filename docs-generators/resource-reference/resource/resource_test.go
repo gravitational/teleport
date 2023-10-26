@@ -516,6 +516,40 @@ label_maps:
 			},
 		},
 		{
+			description: "struct type with an override and unprocessable field",
+			source: `
+package mypkg
+
+// Server includes information about a server registered with Teleport.
+// Example YAML:
+// ---
+// name: MyServer
+type Server struct {
+  Name string
+  Impl ServerImplementation
+}
+`,
+			declSources: []string{`package mypkg
+type ServerImplementation interface{
+  GetURL() string
+}
+`,
+			},
+			expected: map[PackageInfo]ReferenceEntry{
+				PackageInfo{
+					DeclName:    "Server",
+					PackageName: "mypkg",
+				}: {
+					SectionName: "Server",
+					Description: "Includes information about a server registered with Teleport.",
+					SourcePath:  "myfile.go",
+					YAMLExample: `name: MyServer
+`,
+					Fields: []Field{},
+				},
+			},
+		},
+		{
 			description: "embedded struct",
 			source: `package mypkg
 // MyResource is a resource declared for testing.
