@@ -290,6 +290,8 @@ function checkHasAccess(acl: Acl, resourceKind: ResourceKind) {
       return acl.nodes.list;
     case ResourceKind.SamlApplication:
       return acl.samlIdpServiceProvider.create;
+    case ResourceKind.ExternalCloudAudit:
+      return true; // TODO acl.externalCloudAudit.create;
     default:
       return false;
   }

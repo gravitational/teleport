@@ -36,6 +36,7 @@ import cfg from 'teleport/config';
 import {
   Integration,
   IntegrationKind,
+  IntegrationStatusCode,
   integrationService,
 } from 'teleport/services/integrations';
 import {
@@ -115,7 +116,15 @@ export function AwsAccount() {
             };
           }
         });
-        setAwsIntegrations(options);
+        setAwsIntegrations([{
+          value: {
+            kind: IntegrationKind.AwsOidc,
+            spec: { roleArn: "role-arn" },
+            name: 'my oidc aws int',
+            resourceType: 'integration',
+            statusCode: IntegrationStatusCode.Running,
+          }, label: 'my oidc aws int'
+        }]);
       })
     );
   }

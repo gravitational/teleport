@@ -36,3 +36,14 @@ export const SAML_APPLICATIONS: ResourceSpec[] = [
     event: DiscoverEventResource.SamlApplication,
   },
 ];
+
+
+export const EXTERNAL_CLOUD_AUDIT: ResourceSpec[] = [
+  {
+    name: 'BYOB',
+    kind: ResourceKind.ExternalCloudAudit,
+    keywords: 'external cloud audit byob bring your own bucket',
+    icon: 'Aws',
+    event: DiscoverEventResource.Kubernetes, // TODO
+  }
+];

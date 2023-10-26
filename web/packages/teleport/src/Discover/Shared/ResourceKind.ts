@@ -26,6 +26,7 @@ export enum ResourceKind {
   Server,
   SamlApplication,
   Discovery,
+  ExternalCloudAudit,
 }
 
 export function resourceKindToJoinRole(kind: ResourceKind): JoinRole {
