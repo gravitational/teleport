@@ -131,9 +131,13 @@ describe('setActiveWorkspace', () => {
 
     // Resolve the modal immediately.
     jest
-      .spyOn(modalsService, 'openClusterConnectDialog')
-      .mockImplementation(({ onSuccess }) => {
-        onSuccess(cluster.uri);
+      .spyOn(modalsService, 'openRegularDialog')
+      .mockImplementation(dialog => {
+        if (dialog.kind === 'cluster-connect') {
+          dialog.onSuccess(cluster.uri);
+        } else {
+          throw new Error(`Got unexpected dialog ${dialog.kind}`);
+        }
 
         return { closeDialog: () => {} };
       });
@@ -171,9 +175,13 @@ describe('setActiveWorkspace', () => {
 
     // Cancel the modal immediately.
     jest
-      .spyOn(modalsService, 'openClusterConnectDialog')
-      .mockImplementation(({ onCancel }) => {
-        onCancel();
+      .spyOn(modalsService, 'openRegularDialog')
+      .mockImplementation(dialog => {
+        if (dialog.kind === 'cluster-connect') {
+          dialog.onCancel();
+        } else {
+          throw new Error(`Got unexpected dialog ${dialog.kind}`);
+        }
 
         return { closeDialog: () => {} };
       });
