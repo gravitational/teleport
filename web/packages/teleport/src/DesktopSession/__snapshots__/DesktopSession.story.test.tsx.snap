@@ -796,7 +796,7 @@ exports[`connection error 1`] = `
   overflow: auto;
   word-break: break-word;
   line-height: 1.5;
-  background: #FF6257;
+  background: #039be5;
   color: #000000;
 }
 
@@ -907,7 +907,7 @@ exports[`connection error 1`] = `
           class="c5"
           color="text.main"
         >
-          Error
+          Disconnected
         </div>
       </div>
       <div
@@ -915,11 +915,11 @@ exports[`connection error 1`] = `
       >
         <div
           class="c7"
-          kind="danger"
+          kind="info"
         >
           some connection error
         </div>
-        Refresh the page to try again.
+        Refresh the page to reconnect.
       </div>
       <div
         class="c8"
@@ -1276,7 +1276,7 @@ exports[`fetch error 1`] = `
   overflow: auto;
   word-break: break-word;
   line-height: 1.5;
-  background: #FF6257;
+  background: #039be5;
   color: #000000;
 }
 
@@ -1387,7 +1387,7 @@ exports[`fetch error 1`] = `
           class="c5"
           color="text.main"
         >
-          Error
+          Disconnected
         </div>
       </div>
       <div
@@ -1395,11 +1395,11 @@ exports[`fetch error 1`] = `
       >
         <div
           class="c7"
-          kind="danger"
+          kind="info"
         >
           some fetch  error
         </div>
-        Refresh the page to try again.
+        Refresh the page to reconnect.
       </div>
       <div
         class="c8"
@@ -1473,7 +1473,7 @@ exports[`invalid processing 1`] = `
   overflow: auto;
   word-break: break-word;
   line-height: 1.5;
-  background: #FF6257;
+  background: #039be5;
   color: #000000;
 }
 
@@ -1584,7 +1584,7 @@ exports[`invalid processing 1`] = `
           class="c5"
           color="text.main"
         >
-          Error
+          Disconnected
         </div>
       </div>
       <div
@@ -1592,11 +1592,11 @@ exports[`invalid processing 1`] = `
       >
         <div
           class="c7"
-          kind="danger"
+          kind="info"
         >
           The application has detected an invalid internal application state.         Please file a bug report for this issue at         https://github.com/gravitational/teleport/issues/new?assignees=&labels=bug&template=bug_report.md
         </div>
-        Refresh the page to try again.
+        Refresh the page to reconnect.
       </div>
       <div
         class="c8"
@@ -2212,7 +2212,7 @@ exports[`unintended disconnect 1`] = `
   overflow: auto;
   word-break: break-word;
   line-height: 1.5;
-  background: #FF6257;
+  background: #039be5;
   color: #000000;
 }
 
@@ -2323,7 +2323,7 @@ exports[`unintended disconnect 1`] = `
           class="c5"
           color="text.main"
         >
-          Error
+          Disconnected
         </div>
       </div>
       <div
@@ -2331,11 +2331,11 @@ exports[`unintended disconnect 1`] = `
       >
         <div
           class="c7"
-          kind="danger"
+          kind="info"
         >
           Session disconnected for an unknown reason.
         </div>
-        Refresh the page to try again.
+        Refresh the page to reconnect.
       </div>
       <div
         class="c8"
