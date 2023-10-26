@@ -3356,6 +3356,13 @@ message LocalAuthSecrets {
 
 // MFADevice is a multi-factor authentication device, such as a security key or
 // an OTP app.
+// Example YAML:
+// ---
+// kind: mfa_device
+// version: v1
+// metadata:
+//  name: "string"
+// id: 00000000-0000-0000-0000-000000000000
 message MFADevice {
   // Boilerplate for implementing the Resource interface.
   string kind = 1;
