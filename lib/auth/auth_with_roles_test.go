@@ -1438,6 +1438,9 @@ func TestGetAndList_Nodes(t *testing.T) {
 		require.NoError(t, err)
 	}
 
+	// ensure nodes have propagated to cache
+	flushCache(t, srv.Auth())
+
 	testNodes, err := srv.Auth().GetNodes(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
 
@@ -1475,6 +1478,9 @@ func TestGetAndList_Nodes(t *testing.T) {
 	role.SetNodeLabels(types.Deny, types.Labels{"name": {testResources[3].GetName()}})
 	_, err = srv.Auth().UpsertRole(ctx, role)
 	require.NoError(t, err)
+
+	// ensure updated role has propagated to cache
+	flushCache(t, srv.Auth())
 
 	// listing nodes 0-4 should skip the third node and add the fifth to the end.
 	resp, err = clt.ListResources(ctx, proto.ListResourcesRequest{
@@ -1965,6 +1971,9 @@ func TestKubernetesClusterCRUD_DiscoveryService(t *testing.T) {
 		require.True(t, trace.IsAccessDenied(discoveryClt.CreateKubernetesCluster(ctx, clusterWithDynamicLabels)))
 	})
 	t.Run("Read", func(t *testing.T) {
+		// ensure resources have propagated to cache
+		flushCache(t, srv.Auth())
+
 		clusters, err := discoveryClt.GetKubernetesClusters(ctx)
 		require.NoError(t, err)
 		require.Empty(t, cmp.Diff([]types.KubeCluster{eksCluster}, clusters, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
@@ -1975,6 +1984,10 @@ func TestKubernetesClusterCRUD_DiscoveryService(t *testing.T) {
 	})
 	t.Run("Delete", func(t *testing.T) {
 		require.NoError(t, discoveryClt.DeleteAllKubernetesClusters(ctx))
+
+		// ensure resources have propagated to cache
+		flushCache(t, srv.Auth())
+
 		clusters, err := discoveryClt.GetKubernetesClusters(ctx)
 		require.NoError(t, err)
 		require.Empty(t, clusters)
@@ -2019,6 +2032,9 @@ func TestGetAndList_DatabaseServers(t *testing.T) {
 		require.NoError(t, err)
 	}
 
+	// ensure resources have propagated to cache
+	flushCache(t, srv.Auth())
+
 	testServers, err := srv.Auth().GetDatabaseServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
 
@@ -2046,6 +2062,10 @@ func TestGetAndList_DatabaseServers(t *testing.T) {
 	role.SetDatabaseLabels(types.Allow, types.Labels{"name": {testServers[0].GetName()}})
 	_, err = srv.Auth().UpsertRole(ctx, role)
 	require.NoError(t, err)
+
+	// ensure updated role has propagated to cache
+	flushCache(t, srv.Auth())
+
 	servers, err := clt.GetDatabaseServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
 	require.Len(t, servers, 1)
@@ -2059,6 +2079,10 @@ func TestGetAndList_DatabaseServers(t *testing.T) {
 	role.SetDatabaseLabels(types.Allow, types.Labels{types.Wildcard: {types.Wildcard}})
 	_, err = srv.Auth().UpsertRole(ctx, role)
 	require.NoError(t, err)
+
+	// ensure updated role has propagated to cache
+	flushCache(t, srv.Auth())
+
 	servers, err = clt.GetDatabaseServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
 	require.EqualValues(t, len(testServers), len(servers))
@@ -2102,6 +2126,10 @@ func TestGetAndList_DatabaseServers(t *testing.T) {
 	// deny user to get the first database
 	role.SetDatabaseLabels(types.Deny, types.Labels{"name": {testServers[0].GetName()}})
 	_, err = srv.Auth().UpsertRole(ctx, role)
+
+	// ensure updated role has propagated to cache
+	flushCache(t, srv.Auth())
+
 	require.NoError(t, err)
 	servers, err = clt.GetDatabaseServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
@@ -2115,6 +2143,10 @@ func TestGetAndList_DatabaseServers(t *testing.T) {
 	// deny user to get all databases
 	role.SetDatabaseLabels(types.Deny, types.Labels{types.Wildcard: {types.Wildcard}})
 	_, err = srv.Auth().UpsertRole(ctx, role)
+
+	// ensure updated role has propagated to cache
+	flushCache(t, srv.Auth())
+
 	require.NoError(t, err)
 	servers, err = clt.GetDatabaseServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
@@ -2146,6 +2178,9 @@ func TestGetAndList_ApplicationServers(t *testing.T) {
 		require.NoError(t, err)
 	}
 
+	// ensure resources have propagated to cache
+	flushCache(t, srv.Auth())
+
 	testServers, err := srv.Auth().GetApplicationServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
 
@@ -2173,6 +2208,10 @@ func TestGetAndList_ApplicationServers(t *testing.T) {
 	role.SetAppLabels(types.Allow, types.Labels{"name": {testServers[0].GetName()}})
 	_, err = srv.Auth().UpsertRole(ctx, role)
 	require.NoError(t, err)
+
+	// ensure updated role has propagated to cache
+	flushCache(t, srv.Auth())
+
 	servers, err := clt.GetApplicationServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
 	require.EqualValues(t, 1, len(servers))
@@ -2186,6 +2225,10 @@ func TestGetAndList_ApplicationServers(t *testing.T) {
 	role.SetAppLabels(types.Allow, types.Labels{types.Wildcard: {types.Wildcard}})
 	_, err = srv.Auth().UpsertRole(ctx, role)
 	require.NoError(t, err)
+
+	// ensure updated role has propagated to cache
+	flushCache(t, srv.Auth())
+
 	servers, err = clt.GetApplicationServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
 	require.EqualValues(t, len(testServers), len(servers))
@@ -2230,6 +2273,10 @@ func TestGetAndList_ApplicationServers(t *testing.T) {
 	role.SetAppLabels(types.Deny, types.Labels{"name": {testServers[0].GetName()}})
 	_, err = srv.Auth().UpsertRole(ctx, role)
 	require.NoError(t, err)
+
+	// ensure updated role has propagated to cache
+	flushCache(t, srv.Auth())
+
 	servers, err = clt.GetApplicationServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
 	require.EqualValues(t, len(testServers[1:]), len(servers))
@@ -2243,6 +2290,10 @@ func TestGetAndList_ApplicationServers(t *testing.T) {
 	role.SetAppLabels(types.Deny, types.Labels{types.Wildcard: {types.Wildcard}})
 	_, err = srv.Auth().UpsertRole(ctx, role)
 	require.NoError(t, err)
+
+	// ensure updated role has propagated to cache
+	flushCache(t, srv.Auth())
+
 	servers, err = clt.GetApplicationServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
 	require.EqualValues(t, 0, len(servers))
@@ -2301,6 +2352,9 @@ func TestGetAndList_AppServersAndSAMLIdPServiceProviders(t *testing.T) {
 		}
 	}
 
+	// ensure resources have propagated to cache
+	flushCache(t, srv.Auth())
+
 	testAppServers, err := srv.Auth().GetApplicationServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
 
@@ -2339,6 +2393,10 @@ func TestGetAndList_AppServersAndSAMLIdPServiceProviders(t *testing.T) {
 	role.SetAppLabels(types.Allow, types.Labels{"name": {testAppServers[0].GetName()}})
 	_, err = srv.Auth().UpsertRole(ctx, role)
 	require.NoError(t, err)
+
+	// ensure updated role has propagated to cache
+	flushCache(t, srv.Auth())
+
 	servers, err := clt.GetApplicationServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
 	require.EqualValues(t, 1, len(servers))
@@ -2353,6 +2411,9 @@ func TestGetAndList_AppServersAndSAMLIdPServiceProviders(t *testing.T) {
 
 	_, err = srv.Auth().UpsertRole(ctx, role)
 	require.NoError(t, err)
+
+	// ensure updated role has propagated to cache
+	flushCache(t, srv.Auth())
 
 	// Test getting all apps and SAML IdP service providers.
 	resp, err = clt.ListResources(ctx, listRequest)
@@ -2402,6 +2463,10 @@ func TestGetAndList_AppServersAndSAMLIdPServiceProviders(t *testing.T) {
 	role.SetAppLabels(types.Deny, types.Labels{"name": {testAppServers[0].GetName()}})
 	_, err = srv.Auth().UpsertRole(ctx, role)
 	require.NoError(t, err)
+
+	// ensure updated role has propagated to cache
+	flushCache(t, srv.Auth())
+
 	servers, err = clt.GetApplicationServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
 	require.EqualValues(t, len(testAppServers[1:]), len(servers))
@@ -2421,6 +2486,10 @@ func TestGetAndList_AppServersAndSAMLIdPServiceProviders(t *testing.T) {
 	})
 	_, err = srv.Auth().UpsertRole(ctx, role)
 	require.NoError(t, err)
+
+	// ensure updated role has propagated to cache
+	flushCache(t, srv.Auth())
+
 	servers, err = clt.GetApplicationServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
 	require.EqualValues(t, 0, len(servers))
@@ -2888,6 +2957,9 @@ func TestGetAndList_KubernetesServers(t *testing.T) {
 		require.NoError(t, err)
 	}
 
+	// ensure resources have propagated to cache
+	flushCache(t, srv.Auth())
+
 	testServers, err := srv.Auth().GetKubernetesServers(ctx)
 	require.NoError(t, err)
 	require.Len(t, testServers, 5)
@@ -2916,6 +2988,10 @@ func TestGetAndList_KubernetesServers(t *testing.T) {
 	role.SetKubernetesLabels(types.Allow, types.Labels{types.Wildcard: {types.Wildcard}})
 	_, err = srv.Auth().UpsertRole(ctx, role)
 	require.NoError(t, err)
+
+	// ensure updated role has propagated to cache
+	flushCache(t, srv.Auth())
+
 	servers, err := clt.GetKubernetesServers(ctx)
 	require.NoError(t, err)
 	require.Len(t, testServers, len(testServers))
@@ -2960,6 +3036,10 @@ func TestGetAndList_KubernetesServers(t *testing.T) {
 	role.SetKubernetesLabels(types.Deny, types.Labels{"name": {testServers[0].GetName()}})
 	_, err = srv.Auth().UpsertRole(ctx, role)
 	require.NoError(t, err)
+
+	// ensure updated role has propagated to cache
+	flushCache(t, srv.Auth())
+
 	servers, err = clt.GetKubernetesServers(ctx)
 	require.NoError(t, err)
 	require.Len(t, servers, len(testServers)-1)
@@ -2973,6 +3053,10 @@ func TestGetAndList_KubernetesServers(t *testing.T) {
 	role.SetKubernetesLabels(types.Deny, types.Labels{types.Wildcard: {types.Wildcard}})
 	_, err = srv.Auth().UpsertRole(ctx, role)
 	require.NoError(t, err)
+
+	// ensure updated role has propagated to cache
+	flushCache(t, srv.Auth())
+
 	servers, err = clt.GetKubernetesServers(ctx)
 	require.NoError(t, err)
 	require.Len(t, servers, 0)
@@ -3008,6 +3092,9 @@ func TestListDatabaseServices(t *testing.T) {
 		require.NoError(t, err)
 	}
 
+	// ensure changes have propagated to cache
+	flushCache(t, srv.Auth())
+
 	listServicesResp, err := srv.Auth().ListResources(ctx,
 		proto.ListResourcesRequest{
 			ResourceType: types.KindDatabaseService,
@@ -3015,6 +3102,7 @@ func TestListDatabaseServices(t *testing.T) {
 		},
 	)
 	require.NoError(t, err)
+	require.Len(t, listServicesResp.Resources, numInitialResources)
 	databaseServices, err := types.ResourcesWithLabels(listServicesResp.Resources).AsDatabaseServices()
 	require.NoError(t, err)
 
@@ -3046,6 +3134,9 @@ func TestListDatabaseServices(t *testing.T) {
 	role.SetDatabaseServiceLabels(types.Allow, types.Labels{types.Wildcard: []string{types.Wildcard}})
 	_, err = srv.Auth().UpsertRole(ctx, role)
 	require.NoError(t, err)
+
+	// ensure changes have propagated to cache
+	flushCache(t, srv.Auth())
 
 	listServicesResp, err = clt.ListResources(ctx,
 		proto.ListResourcesRequest{
@@ -3080,6 +3171,9 @@ func TestListDatabaseServices(t *testing.T) {
 	role.SetRules(types.Allow, append(currentAllowRules, types.NewRule(types.KindDatabaseService, services.RW())))
 	_, err = srv.Auth().UpsertRole(ctx, role)
 	require.NoError(t, err)
+
+	// ensure updated role has propagated to cache
+	flushCache(t, srv.Auth())
 
 	_, err = clt.UpsertDatabaseService(ctx, extraDatabaseService)
 	require.NoError(t, err)
@@ -3198,6 +3292,9 @@ func TestListResources_SearchAsRoles(t *testing.T) {
 		_, err = srv.Auth().UpsertNode(ctx, node)
 		require.NoError(t, err)
 	}
+
+	// ensure nodes have propagated to cache
+	flushCache(t, srv.Auth())
 
 	testNodes, err := srv.Auth().GetNodes(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
@@ -3487,6 +3584,9 @@ func TestListResources_KindKubernetesCluster(t *testing.T) {
 	// Add a kube service with 2 clusters.
 	// Includes a duplicate cluster name to test deduplicate.
 	createKubeServer(t, s, []string{"a", "c"}, "host2")
+
+	// ensure resources have propagated to cache
+	flushCache(t, srv.AuthServer)
 
 	// Test upsert.
 	kubeServers, err := s.GetKubernetesServers(ctx)
@@ -4192,6 +4292,11 @@ func TestListUnifiedResources_KindsFilter(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
+
+	assert.Eventually(t, func() bool {
+		return srv.Auth().UnifiedResourceCache.IsInitialized()
+	}, 5*time.Second, 10*time.Millisecond, "unified resource watcher never initialized")
+
 	for i := 0; i < 5; i++ {
 		name := uuid.New().String()
 		node, err := types.NewServerWithLabels(

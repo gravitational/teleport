@@ -747,6 +747,9 @@ func TestAppTokenRotation(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	// ensure resources have propagated to cache
+	flushCache(t, testSrv.Auth())
+
 	// At this point in rotation, two JWT key pairs should exist.
 	oldCA, err = testSrv.Auth().GetCertAuthority(ctx, types.CertAuthID{
 		DomainName: testSrv.ClusterName(),
@@ -769,6 +772,9 @@ func TestAppTokenRotation(t *testing.T) {
 		Mode:        types.RotationModeManual,
 	})
 	require.NoError(t, err)
+
+	// ensure resources have propagated to cache
+	flushCache(t, testSrv.Auth())
 
 	// New tokens should now fail to validate with the old key.
 	newJWT, err := client.GenerateAppToken(ctx,
@@ -809,6 +815,9 @@ func TestAppTokenRotation(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	// ensure resources have propagated to cache
+	flushCache(t, testSrv.Auth())
+
 	// At this point only the phase on the CA should have changed.
 	newCA, err = testSrv.Auth().GetCertAuthority(ctx, types.CertAuthID{
 		DomainName: testSrv.ClusterName(),
@@ -832,6 +841,9 @@ func TestAppTokenRotation(t *testing.T) {
 		Mode:        types.RotationModeManual,
 	})
 	require.NoError(t, err)
+
+	// ensure resources have propagated to cache
+	flushCache(t, testSrv.Auth())
 
 	// The new CA should now only have a single key.
 	newCA, err = testSrv.Auth().GetCertAuthority(ctx, types.CertAuthID{

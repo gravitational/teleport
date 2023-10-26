@@ -76,6 +76,7 @@ import (
 	"github.com/gravitational/teleport/lib/ai/embedding"
 	"github.com/gravitational/teleport/lib/auditd"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/accesspoint"
 	"github.com/gravitational/teleport/lib/auth/keygen"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/authz"
@@ -85,7 +86,6 @@ import (
 	"github.com/gravitational/teleport/lib/backend/firestore"
 	"github.com/gravitational/teleport/lib/backend/kubernetes"
 	"github.com/gravitational/teleport/lib/backend/lite"
-	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/backend/pgbk"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/cache"
@@ -1780,12 +1780,12 @@ func (process *TeleportProcess) initAuthService() error {
 				return nil
 			}
 
-			cache, err := process.newAccessCache(accessCacheConfig{
-				services:  as.Services,
-				setup:     cache.ForAuth,
-				cacheName: []string{teleport.ComponentAuth},
-				events:    true,
-				unstarted: true,
+			cache, err := process.newAccessCache(accesspoint.AccessCacheConfig{
+				Services:  as.Services,
+				Setup:     cache.ForAuth,
+				CacheName: []string{teleport.ComponentAuth},
+				Events:    true,
+				Unstarted: true,
 			})
 			if err != nil {
 				return trace.Wrap(err)
@@ -2147,94 +2147,14 @@ func (process *TeleportProcess) OnExit(serviceName string, callback func(interfa
 	})
 }
 
-// accessCacheConfig contains
-// configuration for access cache
-type accessCacheConfig struct {
-	// services is a collection
-	// of services to use as a cache base
-	services services.Services
-	// setup is a function that takes
-	// cache configuration and modifies it
-	setup cache.SetupConfigFn
-	// cacheName is a cache name
-	cacheName []string
-	// events is true if cache should turn on events
-	events bool
-	// unstarted is true if the cache should not be started
-	unstarted bool
-}
-
-func (c *accessCacheConfig) CheckAndSetDefaults() error {
-	if c.services == nil {
-		return trace.BadParameter("missing parameter services")
-	}
-	if c.setup == nil {
-		return trace.BadParameter("missing parameter setup")
-	}
-	if len(c.cacheName) == 0 {
-		return trace.BadParameter("missing parameter cacheName")
-	}
-	return nil
-}
-
 // newAccessCache returns new local cache access point
-func (process *TeleportProcess) newAccessCache(cfg accessCacheConfig) (*cache.Cache, error) {
-	if err := cfg.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	process.log.Debugf("Creating in-memory backend for %v.", cfg.cacheName)
-	mem, err := memory.New(memory.Config{
-		Context:   process.ExitContext(),
-		EventsOff: !cfg.events,
-		Mirror:    true,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	reporter, err := backend.NewReporter(backend.ReporterConfig{
-		Component: teleport.ComponentCache,
-		Backend:   mem,
-		Tracer:    process.TracingProvider.Tracer(teleport.ComponentCache),
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+func (process *TeleportProcess) newAccessCache(cfg accesspoint.AccessCacheConfig) (*cache.Cache, error) {
+	cfg.Context = process.ExitContext()
+	cfg.ProcessID = process.id
+	cfg.TracingProvider = process.TracingProvider
+	cfg.MaxRetryPeriod = process.Config.CachePolicy.MaxRetryPeriod
 
-	return cache.New(cfg.setup(cache.Config{
-		Context:                 process.ExitContext(),
-		Backend:                 reporter,
-		Events:                  cfg.services,
-		ClusterConfig:           cfg.services,
-		Provisioner:             cfg.services,
-		Trust:                   cfg.services,
-		Users:                   cfg.services,
-		Access:                  cfg.services,
-		DynamicAccess:           cfg.services,
-		Presence:                cfg.services,
-		Restrictions:            cfg.services,
-		Apps:                    cfg.services,
-		Kubernetes:              cfg.services,
-		DatabaseServices:        cfg.services,
-		Databases:               cfg.services,
-		AppSession:              cfg.services,
-		SnowflakeSession:        cfg.services,
-		SAMLIdPSession:          cfg.services,
-		WindowsDesktops:         cfg.services,
-		SAMLIdPServiceProviders: cfg.services,
-		UserGroups:              cfg.services,
-		Okta:                    cfg.services.OktaClient(),
-		SecReports:              cfg.services.SecReportsClient(),
-		UserLoginStates:         cfg.services.UserLoginStateClient(),
-		Integrations:            cfg.services,
-		DiscoveryConfigs:        cfg.services.DiscoveryConfigClient(),
-		WebSession:              cfg.services.WebSessions(),
-		WebToken:                cfg.services.WebTokens(),
-		Component:               teleport.Component(append(cfg.cacheName, process.id, teleport.ComponentCache)...),
-		MetricComponent:         teleport.Component(append(cfg.cacheName, teleport.ComponentCache)...),
-		Tracer:                  process.TracingProvider.Tracer(teleport.ComponentCache),
-		MaxRetryPeriod:          process.Config.CachePolicy.MaxRetryPeriod,
-		Unstarted:               cfg.unstarted,
-	}))
+	return accesspoint.NewAccessCache(cfg)
 }
 
 // newLocalCacheForNode returns new instance of access point configured for a local proxy.
@@ -2386,10 +2306,10 @@ func (process *TeleportProcess) newLocalCacheForWindowsDesktop(clt auth.ClientI,
 
 // NewLocalCache returns new instance of access point
 func (process *TeleportProcess) NewLocalCache(clt auth.ClientI, setupConfig cache.SetupConfigFn, cacheName []string) (*cache.Cache, error) {
-	return process.newAccessCache(accessCacheConfig{
-		services:  clt,
-		setup:     setupConfig,
-		cacheName: cacheName,
+	return process.newAccessCache(accesspoint.AccessCacheConfig{
+		Services:  clt,
+		Setup:     setupConfig,
+		CacheName: cacheName,
 	})
 }
 

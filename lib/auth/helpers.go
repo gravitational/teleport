@@ -21,9 +21,11 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"net"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
@@ -39,12 +41,14 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/ai"
 	"github.com/gravitational/teleport/lib/ai/embedding"
+	"github.com/gravitational/teleport/lib/auth/accesspoint"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/native"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/cache"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
@@ -294,6 +298,17 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	srv.AuthServer.Cache, err = accesspoint.NewAccessCache(accesspoint.AccessCacheConfig{
+		Context:   ctx,
+		Services:  srv.AuthServer.Services,
+		Setup:     cache.ForAuth,
+		CacheName: []string{teleport.ComponentAuth},
+		Events:    true,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	err = srv.AuthServer.SetClusterAuditConfig(ctx, types.DefaultClusterAuditConfig())
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -411,6 +426,8 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	panic("TODO")
 
 	return srv, nil
 }
@@ -752,6 +769,7 @@ func NewTestTLSServer(cfg TestTLSServerConfig) (*TestTLSServer, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	// Register TLS endpoint of the auth service
 	tlsConfig, err := srv.Identity.TLSConfig(srv.AuthServer.CipherSuites)
 	if err != nil {
@@ -1241,4 +1259,64 @@ type noopEmbedder struct{}
 
 func (n noopEmbedder) ComputeEmbeddings(_ context.Context, _ []string) ([]embedding.Vector64, error) {
 	return []embedding.Vector64{}, nil
+}
+
+// flushClt is the set of methods expected by the the flushCache helper.
+type flushClt interface {
+	// GetNamespace returns namespace by name
+	GetNamespace(name string) (*types.Namespace, error)
+	// UpsertNamespace upserts namespace
+	UpsertNamespace(types.Namespace) error
+	// DeleteNamespace deletes namespace by name
+	DeleteNamespace(name string) error
+}
+
+// flushCache is a helper for waiting until preceeding changes have propagated to the
+// cache during a test. this is useful for writing tests that may want to update backend
+// state and then perform some operation that depends on the auth server knoowing that state.
+// note that this is only intended for use with the memory backend, as this helper relies on the assumption that
+// write events for different keys show up in the order in which the writes were performed, which
+// is not necessarily true for all backends.
+func flushCache(t *testing.T, clt flushClt) {
+	// the pattern of writing a resource and then waiting for it to appear
+	// works for any resource type (when using memory backend). we use namespaces
+	// here because namespaces are deprecated and therefore unlikely to interfer
+	// with tests.
+	name := strings.ReplaceAll(uuid.NewString(), "-", "")
+	defer clt.DeleteNamespace(name)
+
+	ns, err := types.NewNamespace(name)
+	require.NoError(t, err)
+
+	require.NoError(t, clt.UpsertNamespace(ns))
+	require.Eventually(t, func() bool {
+		_, err := clt.GetNamespace(name)
+		return err == nil
+	}, time.Second*20, time.Millisecond*200)
+}
+
+// tryFlushCache is equivalent to flushCache except that failures are expressed by returning
+// and error instead of failing the encompassing test.
+func tryFlushCache(clt flushClt) error {
+	name := strings.ReplaceAll(uuid.NewString(), "-", "")
+	defer clt.DeleteNamespace(name)
+
+	ns, err := types.NewNamespace(name)
+	require.NoError(t, err)
+
+	require.NoError(t, clt.UpsertNamespace(ns))
+
+	timeout := time.After(time.Second * 20)
+	for {
+		_, err := clt.GetNamespace(name)
+		if err == nil {
+			return nil
+		}
+
+		select {
+		case <-time.After(time.Millisecond * 200):
+		case <-timout:
+			return trace.Errorf("failed to flush cache within timeout")
+		}
+	}
 }

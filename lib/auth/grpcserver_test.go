@@ -2756,6 +2756,9 @@ func TestDatabasesCRUD(t *testing.T) {
 	err = clt.CreateDatabase(ctx, db2)
 	require.NoError(t, err)
 
+	// ensure resources have propagated to cache
+	flushCache(t, srv.Auth())
+
 	// Fetch all databases.
 	out, err = clt.GetDatabases(ctx)
 	require.NoError(t, err)
@@ -2804,6 +2807,10 @@ func TestDatabasesCRUD(t *testing.T) {
 	// Delete all databases.
 	err = clt.DeleteAllDatabases(ctx)
 	require.NoError(t, err)
+
+	// ensure deletion has propagated to cache
+	flushCache(t, srv.Auth())
+
 	out, err = clt.GetDatabases(ctx)
 	require.NoError(t, err)
 	require.Len(t, out, 0)
