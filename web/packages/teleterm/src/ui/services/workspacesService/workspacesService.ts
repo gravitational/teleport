@@ -270,8 +270,11 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
         setWorkspace();
         return resolve();
       }
-      this.modalsService.openClusterConnectDialog({
-        clusterUri: clusterUri,
+      this.modalsService.openRegularDialog({
+        kind: 'cluster-connect',
+        clusterUri,
+        reason: undefined,
+        prefill: undefined,
         onCancel: () => {
           reject();
         },

@@ -95,22 +95,6 @@ export class ModalsService extends ImmutableStore<State> {
     };
   }
 
-  // TODO(ravicious): Remove this method in favor of calling openRegularDialog directly.
-  openClusterConnectDialog(options: {
-    clusterUri: RootClusterUri;
-    onSuccess(clusterUri: RootClusterUri): void;
-    onCancel?(): void;
-  }) {
-    return this.openRegularDialog({
-      kind: 'cluster-connect',
-      clusterUri: options.clusterUri,
-      onSuccess: options.onSuccess,
-      onCancel: options.onCancel,
-      reason: undefined,
-      prefill: undefined,
-    });
-  }
-
   closeRegularDialog() {
     this.setState(draftState => {
       draftState.regular = {
@@ -146,7 +130,7 @@ export interface DialogClusterConnect {
   reason: ClusterConnectReason | undefined;
   prefill: { clusterAddress: string; username: string } | undefined;
   onSuccess(clusterUri: RootClusterUri): void;
-  onCancel(): void;
+  onCancel: (() => void) | undefined;
 }
 
 export interface ClusterConnectReasonGatewayCertExpired {
