@@ -70,17 +70,21 @@ func (a *Server) ReconcileServerInfos(ctx context.Context) error {
 	}
 }
 
+// getServerInfoNames gets the names of ServerInfos that could exist for a
+// node.
 func getServerInfoNames(node types.Server) []string {
 	var names []string
 	if meta := node.GetCloudMetadata(); meta != nil && meta.AWS != nil {
 		names = append(names, meta.AWS.GetServerInfoName())
 	}
+	// Manually added ServerInfos should override any other ServerInfos.
 	names = append(names, "si-"+node.GetName())
 	return names
 }
 
 func (a *Server) setLabelsOnNodes(ctx context.Context, nodes []types.Server) (failedUpdates int, err error) {
 	for _, node := range nodes {
+		// Get the server infos that match this node.
 		serverInfoNames := getServerInfoNames(node)
 		serverInfos := make([]types.ServerInfo, 0, len(serverInfoNames))
 		for _, name := range serverInfoNames {
@@ -107,6 +111,8 @@ func (a *Server) setLabelsOnNodes(ctx context.Context, nodes []types.Server) (fa
 }
 
 func (a *Server) updateLabelsOnNode(ctx context.Context, node types.Server, serverInfos []types.ServerInfo) error {
+	// Merge labels from server infos. Later label sets should override earlier
+	// ones if they conflict.
 	newLabels := make(map[string]string)
 	for _, si := range serverInfos {
 		for k, v := range si.GetNewLabels() {

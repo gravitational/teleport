@@ -751,6 +751,14 @@ spec:
   - types: ["ec2"]
     regions: ["eu-west-2"]
 `
+	serverInfoYAML = `kind: server_info
+metadata:
+	name: foo
+spec:
+	new_labels:
+		a: 1
+		b: 2
+`
 )
 
 func TestCreateClusterAuthPreference_WithSupportForSecondFactorWithoutQuotes(t *testing.T) {
@@ -1360,6 +1368,10 @@ func TestCreateResources(t *testing.T) {
 			kind:   types.KindRole,
 			create: testCreateRole,
 		},
+		{
+			kind:   types.KindServerInfo,
+			create: testCreateServerInfo,
+		},
 	}
 
 	for _, test := range tests {
@@ -1681,5 +1693,56 @@ version: v7
 	require.True(t, trace.IsAlreadyExists(err))
 
 	_, err = runResourceCommand(t, fc, []string{"create", "-f", roleYAMLPath})
+	require.NoError(t, err)
+}
+
+func testCreateServerInfo(t *testing.T, fc *config.FileConfig) {
+	// Ensure that our test server info does not exist
+	_, err := runResourceCommand(t, fc, []string{"get", types.KindServerInfo + "/test-server-info", "--format=json"})
+	require.True(t, trace.IsNotFound(err), "expected test-role to not exist prior to being created")
+
+	const serverInfoYAML = `kind: server_info
+sub_kind: cloud_info
+version: v1
+metadata:
+  name: test-server-info
+spec:
+  new_labels:
+    'a': '1'
+    'b': '2'
+`
+
+	// Create the server info
+	serverInfoYAMLPath := filepath.Join(t.TempDir(), "role.yaml")
+	require.NoError(t, os.WriteFile(serverInfoYAMLPath, []byte(serverInfoYAML), 0644))
+	_, err = runResourceCommand(t, fc, []string{"create", serverInfoYAMLPath})
+	require.NoError(t, err)
+
+	// Fetch the server info
+	buf, err := runResourceCommand(t, fc, []string{"get", types.KindServerInfo + "/test-server-info", "--format=json"})
+	require.NoError(t, err)
+	roles := mustDecodeJSON[[]*types.ServerInfoV1](t, buf)
+	require.Len(t, roles, 1)
+
+	var expected types.ServerInfoV1
+	require.NoError(t, yaml.Unmarshal([]byte(serverInfoYAML), &expected))
+
+	require.Empty(t, cmp.Diff(
+		[]*types.ServerInfoV1{&expected},
+		roles,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+	))
+
+	// Explicitly change the revision and try creating the role with and without
+	// the force flag.
+	expected.SetRevision(uuid.NewString())
+	connectorBytes, err := services.MarshalServerInfo(&expected, services.PreserveResourceID())
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(serverInfoYAMLPath, connectorBytes, 0644))
+
+	_, err = runResourceCommand(t, fc, []string{"create", serverInfoYAMLPath})
+	require.True(t, trace.IsAlreadyExists(err))
+
+	_, err = runResourceCommand(t, fc, []string{"create", "-f", serverInfoYAMLPath})
 	require.NoError(t, err)
 }
