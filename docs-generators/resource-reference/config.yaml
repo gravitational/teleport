@@ -14,8 +14,8 @@ destination: "../../docs/pages/includes/resources.mdx"
 excluded_resource_types:
   - package: "types"
     name: "ResourceHeader"
-  # This one is somewhat complex, so we will save it for later.
+  # PluginV1 is not intended to be user facing, as it configures hosted plugins.
   - package: "types"
-    name: "PluginSpecV1"
+    name: "PluginV1"
   - package: "types"
     name: "Namespace"
