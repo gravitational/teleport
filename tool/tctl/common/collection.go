@@ -168,7 +168,7 @@ func (s *serverCollection) writeYAML(w io.Writer) error {
 }
 
 func (s *serverCollection) writeJSON(w io.Writer) error {
-	return utils.WriteJSON(w, s.servers)
+	return utils.WriteJSONArray(w, s.servers)
 }
 
 type userCollection struct {
@@ -439,7 +439,7 @@ func formatLastHeartbeat(t time.Time) string {
 }
 
 func writeJSON(c ResourceCollection, w io.Writer) error {
-	return utils.WriteJSON(w, c.resources())
+	return utils.WriteJSONArray(w, c.resources())
 }
 
 func writeYAML(c ResourceCollection, w io.Writer) error {
@@ -503,7 +503,7 @@ func (a *appServerCollection) writeText(w io.Writer, verbose bool) error {
 }
 
 func (a *appServerCollection) writeJSON(w io.Writer) error {
-	return utils.WriteJSON(w, a.servers)
+	return utils.WriteJSONArray(w, a.servers)
 }
 
 func (a *appServerCollection) writeYAML(w io.Writer) error {
@@ -711,7 +711,7 @@ func (c *databaseServerCollection) writeText(w io.Writer, verbose bool) error {
 }
 
 func (c *databaseServerCollection) writeJSON(w io.Writer) error {
-	return utils.WriteJSON(w, c.servers)
+	return utils.WriteJSONArray(w, c.servers)
 }
 
 func (c *databaseServerCollection) writeYAML(w io.Writer) error {
@@ -835,7 +835,7 @@ func (c *windowsDesktopCollection) writeYAML(w io.Writer) error {
 }
 
 func (c *windowsDesktopCollection) writeJSON(w io.Writer) error {
-	return utils.WriteJSON(w, c.desktops)
+	return utils.WriteJSONArray(w, c.desktops)
 }
 
 type tokenCollection struct {
@@ -904,7 +904,7 @@ func (c *kubeServerCollection) writeYAML(w io.Writer) error {
 }
 
 func (c *kubeServerCollection) writeJSON(w io.Writer) error {
-	return utils.WriteJSON(w, c.servers)
+	return utils.WriteJSONArray(w, c.servers)
 }
 
 type kubeClusterCollection struct {
