@@ -8242,6 +8242,15 @@ var xxx_messageInfo_LocalAuthSecrets proto.InternalMessageInfo
 
 // MFADevice is a multi-factor authentication device, such as a security key or
 // an OTP app.
+// Example YAML:
+// ---
+// kind: mfa_device
+// version: v1
+// metadata:
+//
+//	name: "string"
+//
+// id: 00000000-0000-0000-0000-000000000000
 type MFADevice struct {
 	// Boilerplate for implementing the Resource interface.
 	Kind     string   `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`
