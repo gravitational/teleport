@@ -28,6 +28,7 @@ import { useAppContext } from 'teleterm/ui/appContextProvider';
 export function ClusterAdd(props: {
   onCancel(): void;
   onSuccess(clusterUri: string): void;
+  prefill: { clusterAddress: string };
 }) {
   const { clustersService } = useAppContext();
   const [{ status, statusText }, addCluster] = useAsync(
@@ -37,7 +38,7 @@ export function ClusterAdd(props: {
       return props.onSuccess(cluster.uri);
     }
   );
-  const [addr, setAddr] = useState('');
+  const [addr, setAddr] = useState(props.prefill.clusterAddress || '');
 
   return (
     <Box p={4}>

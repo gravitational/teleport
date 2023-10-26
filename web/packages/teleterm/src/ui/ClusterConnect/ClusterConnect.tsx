@@ -56,11 +56,13 @@ export function ClusterConnect(props: { dialog: DialogClusterConnect }) {
         <ClusterAdd
           onCancel={props.dialog.onCancel}
           onSuccess={handleClusterAdd}
+          prefill={{ clusterAddress: props.dialog.prefill?.clusterAddress }}
         />
       ) : (
         <ClusterLogin
           reason={props.dialog.reason}
           clusterUri={clusterUri}
+          prefill={{ username: props.dialog.prefill?.username }}
           onCancel={props.dialog.onCancel}
           onSuccess={() => props.dialog.onSuccess(clusterUri)}
         />
