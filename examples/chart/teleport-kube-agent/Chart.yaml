@@ -1,4 +1,4 @@
-.version: &version "14.0.4-dev.fspm.2"
+.version: &version "14.0.4-dev.fspm.3"
 
 name: teleport-kube-agent
 apiVersion: v2
