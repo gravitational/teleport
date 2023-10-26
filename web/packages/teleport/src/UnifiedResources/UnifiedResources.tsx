@@ -50,7 +50,7 @@ export function UnifiedResources() {
   }
 
   return (
-    <Wrapper
+    <ClusterResources
       key={clusterId} // when the current cluster changes, remount the component
       clusterId={clusterId}
       isLeafCluster={isLeafCluster}
@@ -58,7 +58,7 @@ export function UnifiedResources() {
   );
 }
 
-function Wrapper({
+function ClusterResources({
   clusterId,
   isLeafCluster,
 }: {
