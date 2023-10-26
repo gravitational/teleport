@@ -416,7 +416,7 @@ PagerDuty plugin to use these credentials, plus adjust any settings required for
 your environment.
 
 <Tabs>
-  <TabItem label="Executable">
+  <TabItem label="Executable or Docker">
 Teleport's PagerDuty plugin has its own configuration file in TOML format. On
 the host where you will run the PagerDuty plugin, generate a boilerplate config
 by running the following commands:
@@ -484,7 +484,7 @@ fields.
 The final configuration should resemble the following:
 
 <Tabs>
-<TabItem label="Executable">
+<TabItem label="Executable or Docker">
 ```yaml
 (!examples/resources/plugins/teleport-pagerduty-cloud.toml!)
 ```
@@ -515,6 +515,13 @@ $ teleport-pagerduty start -d
 # DEBU   Watcher connected pagerduty/main.go:252
 # DEBU   PagerDuty API health check finished ok pagerduty/main.go:176
 # DEBU   Setting up the webhook extensions pagerduty/main.go:178
+```
+</TabItem>
+<TabItem label="Docker">
+Run the plugin:
+
+```code
+$ docker run -v <path-to-config>:/etc/teleport-pagerduty.toml public.ecr.aws/gravitational/teleport-plugin-pagerduty:(=teleport.version=) start
 ```
 </TabItem>
 <TabItem label="Helm Chart">
@@ -625,4 +632,3 @@ Enable and start the plugin:
 $ sudo systemctl enable teleport-pagerduty
 $ sudo systemctl start teleport-pagerduty
 ```
-
