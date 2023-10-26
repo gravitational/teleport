@@ -260,6 +260,9 @@ func (s *ServerConfig) CheckDefaults() error {
 	if s.LocalAuthClient == nil {
 		return trace.BadParameter("auth client required")
 	}
+	if s.TargetClusterAccessPoint == nil {
+		return trace.BadParameter("auth client required")
+	}
 	if s.DataDir == "" {
 		return trace.BadParameter("missing parameter DataDir")
 	}
