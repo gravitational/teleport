@@ -105,7 +105,7 @@ export type UnifiedResourcesPinning =
 interface UnifiedResourcesProps {
   params: UnifiedResourcesQueryParams;
   resourcesFetchAttempt: Attempt;
-  fetchResources: (options?: { force?: boolean }) => Promise<void>;
+  fetchResources(options?: { force?: boolean }): Promise<void>;
   resources: SharedUnifiedResource[];
   //TODO(gzdunek): the pin button should be moved to some other place
   //according to the new designs

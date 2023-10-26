@@ -56,28 +56,6 @@ export function useKeyBasedPagination<T>({
     setStartKey(null);
   }, [setAttempt]);
 
-  // This state is used to recognize when the `filter` prop has changed,
-  // and reset the overall state of this hook. It's tempting to use a
-  // `useEffect` here, but doing so can cause unwanted behavior where the previous,
-  // now stale `fetch` is executed once more before the new one (with the new
-  // `filter`) is executed. This is because the `useEffect` is
-  // executed after the render, and `fetch` is called by an IntersectionObserver
-  // in `useInfiniteScroll`. If the render includes `useInfiniteScroll`'s `trigger`
-  // element, the old, stale `fetch` will be called before `useEffect` has a chance
-  // to run and update the state, and thereby the `fetch` function.
-  //
-  // By using the pattern described in this article:
-  // https://react.dev/learn/you-might-not-need-an-effect#adjusting-some-state-when-a-prop-changes,
-  // we can ensure that the state is reset before anything renders, and thereby
-  // ensure that the new `fetch` function is used.
-  const [prevFetchFunc, setPrevFetchFunc] = useState(() => fetchFunc);
-  if (prevFetchFunc !== fetchFunc) {
-    // we have to use the callback form because we want to store a function
-    // in the state, not the returned value
-    setPrevFetchFunc(() => fetchFunc);
-    clear();
-  }
-
   const fetchInternal = async (force: boolean) => {
     if (
       finished ||
@@ -151,6 +129,7 @@ export function useKeyBasedPagination<T>({
 
   return {
     fetch,
+    clear,
     attempt,
     resources,
     finished,
@@ -181,9 +160,10 @@ type KeyBasedPagination<T> = {
    * Disregards whether error has previously occurred. Intended for using as an
    * explicit user's action. Don't call it from `useInfiniteScroll`, or you'll
    * risk flooding the server with requests!
-   * @param options.fromStart Clears all fetched data and fetches a batch from the start.
    */
-  fetch: (options?: { force?: boolean; fromStart?: boolean }) => Promise<void>;
+  fetch(options?: { force?: boolean }): Promise<void>;
+  /** Aborts a pending request and clears the state. **/
+  clear(): void;
   attempt: Attempt;
   resources: T[];
   finished: boolean;
