@@ -14,16 +14,15 @@
  * limitations under the License.
  */
 
-/**
- * pluralize adds an 's' to the given word if num is bigger than 1.
- */
-// If you ever need to pluralize a word which cannot be pluralized by appending 's', just add a
-// third optional argument which is the pluralized noun.
-// https://api.rubyonrails.org/v7.0.4.2/classes/ActionView/Helpers/TextHelper.html#method-i-pluralize
-export function pluralize(num: number, word: string) {
-  if (num > 1) {
-    return `${word}s`;
+import { useRef } from 'react';
+
+import Logger from 'teleterm/logger';
+
+export function useLogger(name: string) {
+  const loggerRef = useRef<Logger>(null);
+  if (loggerRef.current === null) {
+    loggerRef.current = new Logger(name);
   }
 
-  return word;
+  return loggerRef.current;
 }

@@ -210,6 +210,14 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
     });
   }
 
+  /**
+   * setActiveWorkspace changes the active workspace to that of the given root cluster.
+   * If the root cluster doesn't have a workspace yet, setActiveWorkspace creates a default
+   * workspace state for the cluster and then asks the user about restoring documents from the
+   * previous session if there are any.
+   *
+   * The promise returned by it never rejects.
+   */
   setActiveWorkspace(clusterUri: RootClusterUri): Promise<void> {
     const setWorkspace = () => {
       this.setState(draftState => {
@@ -260,10 +268,17 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
     })
       .then(() => {
         return new Promise<void>(resolve => {
-          if (!this.getWorkspace(clusterUri)?.previous) {
+          const previousWorkspaceState =
+            this.getWorkspace(clusterUri)?.previous;
+          if (!previousWorkspaceState) {
             return resolve();
           }
-          this.modalsService.openDocumentsReopenDialog({
+          const numberOfDocuments = previousWorkspaceState.documents.length;
+
+          this.modalsService.openRegularDialog({
+            kind: 'documents-reopen',
+            rootClusterUri: clusterUri,
+            numberOfDocuments,
             onConfirm: () => {
               this.reopenPreviousDocuments(clusterUri);
               resolve();
@@ -290,7 +305,7 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
     );
   }
 
-  restorePersistedState(): void {
+  async restorePersistedState(): Promise<void> {
     const persistedState = this.statePersistenceService.getWorkspacesState();
     const restoredWorkspaces = this.clustersService
       .getRootClusters()
@@ -322,7 +337,7 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
     });
 
     if (persistedState.rootClusterUri) {
-      this.setActiveWorkspace(persistedState.rootClusterUri);
+      await this.setActiveWorkspace(persistedState.rootClusterUri);
     }
   }
 
