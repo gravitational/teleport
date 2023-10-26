@@ -22,6 +22,7 @@ import { StatePersistenceService } from '../statePersistence';
 
 import { getEmptyPendingAccessRequest } from './accessRequestsService';
 import { Workspace, WorkspacesService } from './workspacesService';
+import { DocumentCluster, DocumentsService } from './documentsService';
 
 describe('restoring workspace', () => {
   function getTestSetup(options: {
@@ -35,22 +36,18 @@ describe('restoring workspace', () => {
       saveWorkspacesState: jest.fn(),
     };
 
-    const clustersService: Partial<ClustersService> = {
-      subscribe: jest.fn(),
-      unsubscribe: jest.fn(),
-      findRootClusterByResource: jest.fn(),
-      findCluster: jest.fn(),
-      findGateway: jest.fn(),
-      getRootClusters: () => [
-        makeRootCluster({
+    const cluster = makeRootCluster({
           uri: options.clusterUri,
           name: 'Test cluster',
           proxyHost: 'test:3030',
-        }),
-      ],
+    });
+
+    const clustersService: Partial<ClustersService> = {
+      findCluster: jest.fn(() => cluster),
+      getRootClusters: () => [cluster],
     };
 
-    const clusterDocument = {
+    const clusterDocument: DocumentCluster = {
       kind: 'doc.cluster',
       title: 'Cluster Test',
       clusterUri: options.clusterUri,
@@ -59,18 +56,17 @@ describe('restoring workspace', () => {
 
     const workspacesService = new WorkspacesService(
       undefined,
-      // @ts-expect-error using mocks
-      clustersService,
+      clustersService as ClustersService,
       undefined,
-      statePersistenceService
+      statePersistenceService as StatePersistenceService
     );
 
-    workspacesService.getWorkspaceDocumentService = () => ({
-      // @ts-expect-error using mocks
+    workspacesService.getWorkspaceDocumentService = () =>
+      ({
       createClusterDocument() {
         return clusterDocument;
       },
-    });
+      } as Partial<DocumentsService> as DocumentsService);
 
     return { workspacesService, clusterDocument };
   }
