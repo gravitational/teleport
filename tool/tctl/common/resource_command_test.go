@@ -751,14 +751,6 @@ spec:
   - types: ["ec2"]
     regions: ["eu-west-2"]
 `
-	serverInfoYAML = `kind: server_info
-metadata:
-	name: foo
-spec:
-	new_labels:
-		a: 1
-		b: 2
-`
 )
 
 func TestCreateClusterAuthPreference_WithSupportForSecondFactorWithoutQuotes(t *testing.T) {
