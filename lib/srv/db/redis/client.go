@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/redis/go-redis/v9"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
@@ -223,6 +224,30 @@ func elasticacheIAMTokenFetchFunc(sessionCtx *common.Session, auth common.Auth) 
 				sessionCtx.DatabaseUser, err)
 		}
 		return sessionCtx.DatabaseUser, password, nil
+	}
+}
+
+// memorydbIAMTokenFetchFunc fetches an AWS MemoryDB IAM auth token.
+func memorydbIAMTokenFetchFunc(sessionCtx *common.Session, auth common.Auth) fetchCredentialsFunc {
+	return func(ctx context.Context) (string, string, error) {
+		password, err := auth.GetMemoryDBToken(ctx, sessionCtx)
+		if err != nil {
+			return "", "", trace.AccessDenied(
+				"failed to get AWS MemoryDB IAM auth token for %v: %v",
+				sessionCtx.DatabaseUser, err)
+		}
+		return sessionCtx.DatabaseUser, password, nil
+	}
+}
+
+func awsIAMTokenFetchFunc(sessionCtx *common.Session, auth common.Auth) fetchCredentialsFunc {
+	switch sessionCtx.Database.GetType() {
+	case types.DatabaseTypeElastiCache:
+		return elasticacheIAMTokenFetchFunc(sessionCtx, auth)
+	case types.DatabaseTypeMemoryDB:
+		return memorydbIAMTokenFetchFunc(sessionCtx, auth)
+	default:
+		return nil
 	}
 }
 

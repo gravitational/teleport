@@ -129,6 +129,22 @@ func TestAWSIAM(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	memorydb, err := types.NewDatabaseV3(types.Metadata{
+		Name: "aws-memorydb",
+	}, types.DatabaseSpecV3{
+		Protocol: "redis",
+		URI:      "clustercfg.my-memorydb.xxxxxx.memorydb.us-east-1.amazonaws.com:6379",
+		AWS: types.AWS{
+			AccountID: "123456789012",
+			MemoryDB: types.MemoryDB{
+				ClusterName:  "my-memorydb",
+				TLSEnabled:   true,
+				EndpointType: "cluster",
+			},
+		},
+	})
+	require.NoError(t, err)
+
 	// Make configurator.
 	taskChan := make(chan struct{})
 	waitForTaskProcessed := func(t *testing.T) {
@@ -203,6 +219,13 @@ func TestAWSIAM(t *testing.T) {
 		"ElastiCache": {
 			database:           elasticache,
 			wantPolicyContains: elasticache.GetAWS().ElastiCache.ReplicationGroupID,
+			getIAMAuthEnabled: func() bool {
+				return true // it always is for ElastiCache.
+			},
+		},
+		"MemoryDB": {
+			database:           memorydb,
+			wantPolicyContains: memorydb.GetAWS().MemoryDB.ClusterName,
 			getIAMAuthEnabled: func() bool {
 				return true // it always is for ElastiCache.
 			},
