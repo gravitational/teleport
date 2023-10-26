@@ -169,6 +169,9 @@ func (s *ServerInfoV1) SetNewLabels(labels map[string]string) {
 func (s *ServerInfoV1) setStaticFields() {
 	s.Kind = KindServerInfo
 	s.Version = V1
+	if s.SubKind == "" {
+		s.SubKind = SubKindCloudInfo
+	}
 }
 
 // CheckAndSetDefaults validates the Resource and sets any empty fields to
