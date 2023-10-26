@@ -122,7 +122,7 @@ jobs:
           repo-access-app-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
 
       - name: Assume Legacy Drone storage AWS role
-        uses: aws-actions/configure-aws-credentials@04b98b3f9e85f563fb061be8751a0352327246b0 # v3.0.1
+        uses: aws-actions/configure-aws-credentials@010d0da01d0b5a38af31e9c3470dbfdabdecca3a # v4.0.1
         with:
           aws-region:  us-west-2
           role-to-assume: ${{ inputs.ci-storage-access-role-arn }}
@@ -143,7 +143,7 @@ jobs:
           echo path=$(readlink -f ./${TARBALL_NAME}) >> $GITHUB_OUTPUT
 
       - name: Assume tag build AWS role
-        uses: aws-actions/configure-aws-credentials@04b98b3f9e85f563fb061be8751a0352327246b0 # v3.0.1
+        uses: aws-actions/configure-aws-credentials@010d0da01d0b5a38af31e9c3470dbfdabdecca3a # v4.0.1
         with:
           aws-region:  us-west-2
           role-to-assume: ${{ inputs.build-role-arn }}
