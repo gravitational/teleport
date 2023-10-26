@@ -21,7 +21,7 @@ on:
         description: "The base image to be used when building the docker image"
         required: true
         type: string
- 
+
       dest-image-registry:
         description: "The destination image registry"
         required: true
@@ -44,7 +44,7 @@ on:
         type: string
 
       teleport-release:
-        description: | 
+        description: |
           The release of teleport to include on the image. Must be either `oss`
           `enterprise`, or `fips`
         required: true
@@ -52,14 +52,14 @@ on:
 
       teleport-version:
         description: |
-          Teleport version used for constructing the debian package filename. Must 
+          Teleport version used for constructing the debian package filename. Must
           not include a leading `v` in the version tag.
         required: true
         type: string
 
       dronestorage-access-role-arn:
         description: |
-          ARN of the role used to access the dronestorage bucket, for retreiving 
+          ARN of the role used to access the dronestorage bucket, for retreiving
           artefacts built by Drone. This is required only when
           inputs.dronestorage-bucket-name is set.
         required: false
@@ -116,7 +116,7 @@ on:
       scan-image:
         description: |
           Should the resulting image be run through the `trivy` scanner as part
-          of the build? Only turn this off if you know that the image will be 
+          of the build? Only turn this off if you know that the image will be
           automatically scanned in some other way.
         type: boolean
         default: true
@@ -146,7 +146,7 @@ on:
         required: true
 
       deploy-access-app-key:
-        description: | 
+        description: |
           The private key used to authenticate against the deployment access
           GitGub app.
         required: true
@@ -203,7 +203,7 @@ jobs:
           cosign-release: 'v2.2.0'
 
       # Attempt to fetch a deploy token from the GitHub App we use to broker
-      # access to private repositories. If this fails, we are in one of 2 
+      # access to private repositories. If this fails, we are in one of 2
       # situations:
       #
       # 1. The App is not installed on the target repo (e.g. public Teleport), or
@@ -218,9 +218,9 @@ jobs:
         id: fetch-token
         continue-on-error: true
         with:
-          app_id: ${{ secrets.deploy-access-app-id }}
+          app-id: ${{ secrets.deploy-access-app-id }}
+          private-key: ${{ secrets.deploy-access-app-key }}
           repositories: ${{ inputs.oss-teleport-repo }}
-          private_key: ${{ secrets.deploy-access-app-key }}
 
       - name: Select GitHub deploy token
         id: select-deploy-token
@@ -316,7 +316,7 @@ jobs:
           registry: ${{ inputs.dest-image-registry }}
           ecr: true
         env:
-          AWS_REGION: ${{ inputs.dest-image-registry-region }} 
+          AWS_REGION: ${{ inputs.dest-image-registry-region }}
 
       - name: Check if building would overwrite destination tag
         id: check
@@ -350,7 +350,7 @@ jobs:
           tags: ${{ steps.expand.outputs.tags }}
           sbom: true
           build-args: |
-            BASE_IMAGE=${{ inputs.base-image }}@${{ env.BASE_IMAGE_HASH }}            
+            BASE_IMAGE=${{ inputs.base-image }}@${{ env.BASE_IMAGE_HASH }}
             TELEPORT_RELEASE_INFIX=${{ env.DEB_RELEASE_INFIX }}
             ${{ inputs.image-build-args }}
 
@@ -383,7 +383,7 @@ jobs:
         with:
           registry: ${{ inputs.dest-image-registry }}
         env:
-          AWS_REGION: ${{ inputs.dest-image-registry-region }} 
+          AWS_REGION: ${{ inputs.dest-image-registry-region }}
 
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@master
@@ -391,7 +391,7 @@ jobs:
           image-ref: "${{ inputs.dest-image-registry }}/${{ inputs.dest-image-repo }}@${{ needs.build-docker-image.outputs.image-digest }}"
           ignore-unfixed: true
           format: "sarif"
-          output: "trivy-results.sarif"          
+          output: "trivy-results.sarif"
 
       - name: Upload Trivy scan results to GitHub Security tab
         uses: github/codeql-action/upload-sarif@v2

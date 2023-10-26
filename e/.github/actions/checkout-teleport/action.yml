@@ -72,8 +72,8 @@ runs:
       uses: actions/create-github-app-token@v1
       continue-on-error: true
       with:
-        app_id: ${{ inputs.repo-access-app-id }}
-        private_key: ${{ inputs.repo-access-app-key }}
+        app-id: ${{ inputs.repo-access-app-id }}
+        private-key: ${{ inputs.repo-access-app-key }}
         repositories: ${{ inputs.oss-teleport-repo }}
 
     - id: select-access-token

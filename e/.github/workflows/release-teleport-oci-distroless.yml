@@ -1,7 +1,7 @@
 name: Build Distroless Images
 on:
   workflow_dispatch:
-    inputs: 
+    inputs:
       oss-teleport-repo:
         description: |
           The name of the OSS teleport repo to checkout
@@ -17,7 +17,7 @@ on:
 
       source-tag:
         description: |
-          The semver version of Teleport that we're building for. If not set 
+          The semver version of Teleport that we're building for. If not set
           will be inferred form the `oss-teleport-ref` by assuming that it's
           a standard Teleport release tag in the form vX.Y.Z.
         type: string
@@ -33,7 +33,7 @@ on:
 
       dronestorage-access-role-arn:
         description: |
-          ARN of the role used to access the dronestorage bucket, for retreiving 
+          ARN of the role used to access the dronestorage bucket, for retreiving
           artefacts built by Drone.
         required: true
         type: string
@@ -59,7 +59,7 @@ on:
         description: |
           Registry and namespace prefix for the destination repository,
           formatted for use with Docker (that is, like a URI, not the AWS
-          ARN). 
+          ARN).
         type: string
         required: true
         default: 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational
@@ -152,7 +152,7 @@ jobs:
     secrets:
       deploy-access-app-id: ${{ secrets.DEPLOY_APP_ID }}
       deploy-access-app-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
-               
+
   smoke-tests:
     runs-on: ubuntu-latest
     needs: [configure, build-docker-images]
@@ -185,7 +185,7 @@ jobs:
     name: "Smoke test ${{ matrix.arch }}/${{ matrix.release }}/${{ matrix.mode }}"
     steps:
       # Attempt to fetch a deploy token from the GitHub App we use to broker
-      # access to private repositories. If this fails, we are in one of 2 
+      # access to private repositories. If this fails, we are in one of 2
       # situations:
       #
       # 1. The App is not installed on the target repo (e.g. public Teleport), or
@@ -200,9 +200,9 @@ jobs:
         id: fetch-token
         continue-on-error: true
         with:
+          app-id: ${{ secrets.DEPLOY_APP_ID  }}
+          private-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
           repositories: ${{ inputs.oss-teleport-repo }}
-          app_id: ${{ secrets.DEPLOY_APP_ID  }}
-          private_key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
 
       - name: Select token
         id: select-deploy-token
@@ -243,7 +243,7 @@ jobs:
       #       that the tag referrs to the image built in the last step is the
       #       correct one
       - name: Smoke tests
-        run: |          
+        run: |
           IMAGE_UNDER_TEST=${{ inputs.dest-repo-prefix}}/teleport${{ matrix.repo-enterprise-infix }}-distroless${{ matrix.repo-debug-suffix }}:${{ needs.configure.outputs.teleport_version }}
           ./run linux/${{ matrix.arch }} $IMAGE_UNDER_TEST ${{ matrix.release }}
-        working-directory: ./teleport/build.assets/charts/smoke_tests      
+        working-directory: ./teleport/build.assets/charts/smoke_tests
