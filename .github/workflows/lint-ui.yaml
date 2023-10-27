@@ -25,11 +25,6 @@ jobs:
         run: |
           echo "node: ${NODE_VERSION}"
 
-      - name: Setup Node Toolchain
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-
       - name: Install Yarn dependencies
         run: yarn --frozen-lockfile
 
