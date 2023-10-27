@@ -20,6 +20,7 @@ import {
   UnifiedResources as SharedUnifiedResources,
   useUnifiedResourcesFetch,
   UnifiedResourcesQueryParams,
+  SharedUnifiedResource,
 } from 'shared/components/UnifiedResources';
 import {
   DbProtocol,
@@ -35,6 +36,7 @@ import stack from 'design/assets/resources/stack.png';
 
 import SearchPanel from 'teleport/UnifiedResources/SearchPanel';
 
+import { UnifiedResourceResponse } from 'teleterm/services/tshd/types';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import * as uri from 'teleterm/ui/uri';
 import { useWorkspaceContext } from 'teleterm/ui/Documents';
@@ -128,64 +130,7 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
       updateUnifiedResourcesPreferences={() => alert('Not implemented')}
       onLabelClick={() => alert('Not implemented')}
       pinning={{ kind: 'hidden' }}
-      resources={resources
-        .map(resource => {
-          switch (resource.kind) {
-            case 'server': {
-              const { resource: server } = resource;
-              return {
-                resource: {
-                  kind: 'node' as const,
-                  labels: server.labelsList,
-                  id: server.name,
-                  name: server.name,
-                  hostname: server.hostname,
-                  addr: server.addr,
-                  tunnel: server.tunnel,
-                },
-                ui: {
-                  ActionButton: <ConnectServerActionButton server={server} />,
-                },
-              };
-            }
-            case 'database': {
-              const { resource: database } = resource;
-              return {
-                resource: {
-                  kind: 'db' as const,
-                  labels: database.labelsList,
-                  description: database.desc,
-                  name: database.name,
-                  type: formatDatabaseInfo(
-                    database.type as DbType,
-                    database.protocol as DbProtocol
-                  ).title,
-                  protocol: database.protocol as DbProtocol,
-                },
-                ui: {
-                  ActionButton: (
-                    <ConnectDatabaseActionButton database={database} />
-                  ),
-                },
-              };
-            }
-            case 'kube': {
-              const { resource: kube } = resource;
-
-              return {
-                resource: {
-                  kind: 'kube_cluster' as const,
-                  labels: kube.labelsList,
-                  name: kube.name,
-                },
-                ui: {
-                  ActionButton: <ConnectKubeActionButton kube={kube} />,
-                },
-              };
-            }
-          }
-        })
-        .filter(Boolean)}
+      resources={resources.map(mapToSharedResource)}
       resourcesFetchAttempt={attempt}
       fetchResources={fetch}
       availableKinds={['db', 'kube_cluster', 'node']}
@@ -214,13 +159,67 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
   );
 }
 
-interface NoResourcesProps {
+const mapToSharedResource = (
+  resource: UnifiedResourceResponse
+): SharedUnifiedResource => {
+  switch (resource.kind) {
+    case 'server': {
+      const { resource: server } = resource;
+      return {
+        resource: {
+          kind: 'node' as const,
+          labels: server.labelsList,
+          id: server.name,
+          hostname: server.hostname,
+          addr: server.addr,
+          tunnel: server.tunnel,
+        },
+        ui: {
+          ActionButton: <ConnectServerActionButton server={server} />,
+        },
+      };
+    }
+    case 'database': {
+      const { resource: database } = resource;
+      return {
+        resource: {
+          kind: 'db' as const,
+          labels: database.labelsList,
+          description: database.desc,
+          name: database.name,
+          type: formatDatabaseInfo(
+            database.type as DbType,
+            database.protocol as DbProtocol
+          ).title,
+          protocol: database.protocol as DbProtocol,
+        },
+        ui: {
+          ActionButton: <ConnectDatabaseActionButton database={database} />,
+        },
+      };
+    }
+    case 'kube': {
+      const { resource: kube } = resource;
+
+      return {
+        resource: {
+          kind: 'kube_cluster' as const,
+          labels: kube.labelsList,
+          name: kube.name,
+        },
+        ui: {
+          ActionButton: <ConnectKubeActionButton kube={kube} />,
+        },
+      };
+    }
+  }
+};
+
+function NoResources(props: {
   canCreate: boolean;
   canUseConnectMyComputer: boolean;
   onConnectMyComputerCtaClick(): void;
-}
-
-function NoResources(props: NoResourcesProps) {
+}) {
   let $content: React.ReactElement;
   if (!props.canCreate) {
     $content = (

@@ -365,16 +365,16 @@ export type WaitForConnectMyComputerNodeJoinResponse =
 export type ListUnifiedResourcesRequest =
   apiService.ListUnifiedResourcesRequest.AsObject;
 export type ListUnifiedResourcesResponse = {
-  resources: (
-    | { kind: 'server'; resource: Server }
-    | {
-        kind: 'database';
-        resource: Database;
-      }
-    | { kind: 'kube'; resource: Kube }
-  )[];
+  resources: UnifiedResourceResponse[];
   nextKey: string;
 };
+export type UnifiedResourceResponse =
+  | { kind: 'server'; resource: Server }
+  | {
+      kind: 'database';
+      resource: Database;
+    }
+  | { kind: 'kube'; resource: Kube };
 
 // Replaces object property with a new type
 type Modify<T, R> = Omit<T, keyof R> & R;
