@@ -33,6 +33,7 @@ import { codeOrSignal } from 'teleterm/ui/utils/process';
 import { isAccessDeniedError } from 'teleterm/services/tshd/errors';
 import { useResourcesContext } from 'teleterm/ui/DocumentCluster/resourcesContext';
 import { useLogger } from 'teleterm/ui/hooks/useLogger';
+import { DocumentConnectMyComputer } from 'teleterm/ui/services/workspacesService';
 
 import { useAgentProperties } from '../useAgentProperties';
 import { Logs } from '../Logs';
@@ -41,7 +42,9 @@ import { ConnectMyComputerAccessNoAccess } from '../access';
 
 import { ProgressBar } from './ProgressBar';
 
-export function Setup() {
+export function Setup(props: {
+  updateDocumentStatus: (status: DocumentConnectMyComputer['status']) => void;
+}) {
   const [step, setStep] = useState<'information' | 'agent-setup'>(
     'information'
   );
@@ -52,14 +55,21 @@ export function Setup() {
         Connect My Computer
       </Text>
       {step === 'information' && (
-        <Information onSetUpAgentClick={() => setStep('agent-setup')} />
+        <Information
+          onSetUpAgentClick={() => setStep('agent-setup')}
+          updateDocumentStatus={props.updateDocumentStatus}
+        />
       )}
       {step === 'agent-setup' && <AgentSetup />}
     </Box>
   );
 }
 
-function Information(props: { onSetUpAgentClick(): void }) {
+function Information(props: {
+  onSetUpAgentClick(): void;
+  updateDocumentStatus(status: DocumentConnectMyComputer['status']): void;
+}) {
+  const { updateDocumentStatus } = props;
   const { systemUsername, hostname, roleName, clusterName } =
     useAgentProperties();
   const { agentCompatibility, access } = useConnectMyComputerContext();
@@ -75,6 +85,17 @@ function Information(props: { onSetUpAgentClick(): void }) {
     disabledButtonReason =
       'The agent version is not compatible with the cluster version.';
   }
+
+  const isWaiting =
+    access.status === 'unknown' || agentCompatibility === 'unknown';
+
+  useEffect(() => {
+    if (isWaiting) {
+      updateDocumentStatus('connecting');
+    } else {
+      updateDocumentStatus('connected');
+    }
+  }, [isWaiting, updateDocumentStatus]);
 
   let $alert: JSX.Element;
   if (access.status === 'no-access') {
