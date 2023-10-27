@@ -170,7 +170,7 @@ function setupAppContext(): {
           <connectMyComputerContext.ConnectMyComputerContextProvider
             rootClusterUri={cluster.uri}
           >
-            <Setup />
+            <Setup updateDocumentStatus={() => {}} />
           </connectMyComputerContext.ConnectMyComputerContextProvider>
         </useResourcesContext.ResourcesContextProvider>
       </MockWorkspaceContextProvider>

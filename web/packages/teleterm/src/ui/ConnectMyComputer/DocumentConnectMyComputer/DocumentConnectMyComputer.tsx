@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import React from 'react';
+import React, { useCallback } from 'react';
 
 import Indicator from 'design/Indicator';
 
@@ -37,17 +37,28 @@ export function DocumentConnectMyComputer(props: {
     isAgentConfiguredAttempt.status === 'success' &&
     !isAgentConfiguredAttempt.data;
 
+  const closeDocument = useCallback(() => {
+    documentsService.close(props.doc.uri);
+  }, [documentsService, props.doc.uri]);
+
+  const updateDocumentStatus = useCallback(
+    (status: types.DocumentConnectMyComputer['status']) => {
+      documentsService.update(props.doc.uri, { status });
+    },
+    [documentsService, props.doc.uri]
+  );
+
   if (isAgentConfiguredAttempt.status === 'processing') {
     return <Indicator m="auto" />;
   }
 
-  function closeDocument(): void {
-    documentsService.close(props.doc.uri);
-  }
-
   return (
     <Document visible={props.visible}>
-      {shouldShowSetup ? <Setup /> : <Status closeDocument={closeDocument} />}
+      {shouldShowSetup ? (
+        <Setup updateDocumentStatus={updateDocumentStatus} />
+      ) : (
+        <Status closeDocument={closeDocument} />
+      )}
     </Document>
   );
 }

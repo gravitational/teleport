@@ -181,7 +181,7 @@ function ShowState({
       <MockWorkspaceContextProvider rootClusterUri={cluster.uri}>
         <ResourcesContextProvider>
           <ConnectMyComputerContextProvider rootClusterUri={cluster.uri}>
-            <Setup />
+            <Setup updateDocumentStatus={() => {}} />
           </ConnectMyComputerContextProvider>
         </ResourcesContextProvider>
       </MockWorkspaceContextProvider>
