@@ -2737,6 +2737,11 @@ func (a *ServerWithRoles) GetUsers(ctx context.Context, withSecrets bool) ([]typ
 	return users, trace.Wrap(err)
 }
 
+// ListUsers returns a page of users.
+func (a *ServerWithRoles) ListUsers(ctx context.Context, pageSize int, nextToken string, withSecrets bool) ([]types.User, string, error) {
+	return nil, "", trace.NotImplemented("ListUsers is not implemented yet")
+}
+
 func (a *ServerWithRoles) GetUser(ctx context.Context, name string, withSecrets bool) (types.User, error) {
 	if withSecrets {
 		// TODO(fspmarshall): replace admin requirement with VerbReadWithSecrets once we've
@@ -3406,7 +3411,7 @@ func (a *ServerWithRoles) UpdateUser(ctx context.Context, user types.User) (type
 		return nil, trace.Wrap(err)
 	}
 
-	updated, err := a.authServer.UpdateUserWithContext(ctx, user)
+	updated, err := a.authServer.UpdateUser(ctx, user)
 	return updated, trace.Wrap(err)
 }
 

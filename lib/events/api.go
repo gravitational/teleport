@@ -342,8 +342,10 @@ const (
 	// TCPVersion is the version of TCP (4 or 6).
 	TCPVersion = "version"
 
-	// RoleCreatedEvent fires when role is created/updated.
+	// RoleCreatedEvent fires when role is created or upserted.
 	RoleCreatedEvent = "role.created"
+	// RoleUpdatedEvent fires when role is updated.
+	RoleUpdatedEvent = "role.updated"
 	// RoleDeletedEvent fires when role is deleted.
 	RoleDeletedEvent = "role.deleted"
 
@@ -360,24 +362,30 @@ const (
 	// also known as Join Token. See [types.ProvisionToken].
 	ProvisionTokenCreateEvent = "join_token.create"
 
-	// GithubConnectorCreatedEvent fires when a Github connector is created/updated.
+	// GithubConnectorCreatedEvent fires when a Github connector is created.
 	GithubConnectorCreatedEvent = "github.created"
+	// GithubConnectorUpdatedEvent fires when a Github connector is updated.
+	GithubConnectorUpdatedEvent = "github.updated"
 	// GithubConnectorDeletedEvent fires when a Github connector is deleted.
 	GithubConnectorDeletedEvent = "github.deleted"
-	// OIDCConnectorCreatedEvent fires when OIDC connector is created/updated.
+	// OIDCConnectorCreatedEvent fires when OIDC connector is created.
 	OIDCConnectorCreatedEvent = "oidc.created"
+	// OIDCConnectorUpdatedEvent fires when OIDC connector is updated.
+	OIDCConnectorUpdatedEvent = "oidc.updated"
 	// OIDCConnectorDeletedEvent fires when OIDC connector is deleted.
 	OIDCConnectorDeletedEvent = "oidc.deleted"
-	// SAMLConnectorCreatedEvent fires when SAML connector is created/updated.
+	// SAMLConnectorCreatedEvent fires when SAML connector is created.
 	SAMLConnectorCreatedEvent = "saml.created"
+	// SAMLConnectorUpdatedEvent fires when SAML connector is updated.
+	SAMLConnectorUpdatedEvent = "saml.updated"
 	// SAMLConnectorDeletedEvent fires when SAML connector is deleted.
 	SAMLConnectorDeletedEvent = "saml.deleted"
 
-	// SessionRejected fires when a user's attempt to create an authenticated
+	// SessionRejectedEvent fires when a user's attempt to create an authenticated
 	// session has been rejected due to exceeding a session control limit.
 	SessionRejectedEvent = "session.rejected"
 
-	// SessionConnect is emitted when any ssh connection is made
+	// SessionConnectEvent is emitted when any ssh connection is made
 	SessionConnectEvent = "session.connect"
 
 	// AppCreateEvent is emitted when an application resource is created.

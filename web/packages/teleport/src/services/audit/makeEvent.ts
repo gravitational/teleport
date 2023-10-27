@@ -185,13 +185,19 @@ export const formatters: Formatters = {
     type: 'github.created',
     desc: 'GITHUB Auth Connector Created',
     format: ({ user, name }) =>
-      `User [${user}] created GitHub connector [${name}] has been created`,
+      `User [${user}] created GitHub connector [${name}]`,
   },
   [eventCodes.GITHUB_CONNECTOR_DELETED]: {
     type: 'github.deleted',
     desc: 'GITHUB Auth Connector Deleted',
     format: ({ user, name }) =>
       `User [${user}] deleted GitHub connector [${name}]`,
+  },
+  [eventCodes.GITHUB_CONNECTOR_UPDATED]: {
+    type: 'github.updated',
+    desc: 'GITHUB Auth Connector Updated',
+    format: ({ user, name }) =>
+      `User [${user}] updated GitHub connector [${name}]`,
   },
   [eventCodes.OIDC_CONNECTOR_CREATED]: {
     type: 'oidc.created',
@@ -204,6 +210,12 @@ export const formatters: Formatters = {
     desc: 'OIDC Auth Connector Deleted',
     format: ({ user, name }) =>
       `User [${user}] deleted OIDC connector [${name}]`,
+  },
+  [eventCodes.OIDC_CONNECTOR_UPDATED]: {
+    type: 'oidc.updated',
+    desc: 'OIDC Auth Connector Updated',
+    format: ({ user, name }) =>
+      `User [${user}] updated OIDC connector [${name}]`,
   },
   [eventCodes.PORTFORWARD]: {
     type: 'port',
@@ -227,6 +239,12 @@ export const formatters: Formatters = {
     desc: 'SAML Connector Deleted',
     format: ({ user, name }) =>
       `User [${user}] deleted SAML connector [${name}]`,
+  },
+  [eventCodes.SAML_CONNECTOR_UPDATED]: {
+    type: 'saml.updated',
+    desc: 'SAML Connector Updated',
+    format: ({ user, name }) =>
+      `User [${user}] updated SAML connector [${name}]`,
   },
   [eventCodes.SCP_DOWNLOAD]: {
     type: 'scp',
@@ -730,6 +748,11 @@ export const formatters: Formatters = {
     type: 'role.deleted',
     desc: 'User Role Deleted',
     format: ({ user, name }) => `User [${user}] deleted a role [${name}]`,
+  },
+  [eventCodes.ROLE_UPDATED]: {
+    type: 'role.updated',
+    desc: 'User Role Updated',
+    format: ({ user, name }) => `User [${user}] updated a role [${name}]`,
   },
   [eventCodes.TRUSTED_CLUSTER_TOKEN_CREATED]: {
     type: 'trusted_cluster_token.create',

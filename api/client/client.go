@@ -942,6 +942,11 @@ func (c *Client) GetUsers(ctx context.Context, withSecrets bool) ([]types.User, 
 	return users, nil
 }
 
+// ListUsers returns a page of users.
+func (c *Client) ListUsers(ctx context.Context, pageSize int, nextToken string, withSecrets bool) ([]types.User, string, error) {
+	return nil, "", trace.NotImplemented("ListUsers is not implemented yet")
+}
+
 // DeleteUser deletes a user by name.
 func (c *Client) DeleteUser(ctx context.Context, user string) error {
 	//nolint:staticcheck // SA1019. Kept for backward compatibility.
