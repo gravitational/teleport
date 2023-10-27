@@ -1,0 +1,6204 @@
+
+## Resources
+
+
+### Access Request v3
+
+**Kind**: `access_request`
+**Version**: `v3`
+
+AccessRequest represents an access request resource specification
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|kind|A resource kind|`string`|
+|sub_kind|An optional resource sub kind, used in some resources|`string`|
+|version|Version|`string`|
+|metadata|AccessRequest metadata|`[Metadata](#metadata)`|
+|spec|An AccessRequest specification|`[Access Request Spec v3](#access-request-spec-v3)`|
+ 
+
+
+Example:
+
+```yaml
+kind: "string"
+sub_kind: "string"
+version: "string"
+metadata: 
+# [...]
+spec: 
+# [...]
+
+```
+
+### App Server v3
+
+**Kind**: `app_server`
+**Version**: `v3`
+
+Represents a single proxied web app.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|kind|The app server resource kind. Always "app_server".|`string`|
+|sub_kind|An optional resource subkind.|`string`|
+|version|The resource version.|`string`|
+|metadata|The app server metadata.|`[Metadata](#metadata)`|
+|spec|The app server spec.|`[App Server Spec v3](#app-server-spec-v3)`|
+ 
+
+
+Example:
+
+```yaml
+kind: "string"
+sub_kind: "string"
+version: "string"
+metadata: 
+# [...]
+spec: 
+# [...]
+
+```
+
+### App v3
+
+**Kind**: `app`
+**Version**: `v3`
+
+Represents an app resource.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|kind|The app resource kind. Always "app".|`string`|
+|sub_kind|An optional resource subkind.|`string`|
+|version|The resource version.|`string`|
+|metadata|The app resource metadata.|`[Metadata](#metadata)`|
+|spec|The app resource spec.|`[App Spec v3](#app-spec-v3)`|
+ 
+
+
+Example:
+
+```yaml
+kind: "string"
+sub_kind: "string"
+version: "string"
+metadata: 
+# [...]
+spec: 
+# [...]
+
+```
+
+### Auth Preference v2
+
+**Kind**: `cluster_auth_preference`
+**Version**: `v2`
+
+Implements the AuthPreference interface.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|kind|A resource kind|`string`|
+|sub_kind|An optional resource sub kind, used in some resources|`string`|
+|version|A resource version|`string`|
+|metadata|Resource metadata|`[Metadata](#metadata)`|
+|spec|An AuthPreference specification|`[Auth Preference Spec v2](#auth-preference-spec-v2)`|
+ 
+
+
+Example:
+
+```yaml
+kind: "string"
+sub_kind: "string"
+version: "string"
+metadata: 
+# [...]
+spec: 
+# [...]
+
+```
+
+### Cert Authority v2
+
+**Kind**: `cert_authority`
+**Version**: `v2`
+
+Version 2 resource spec for Cert Authority
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|kind|A resource kind|`string`|
+|sub_kind|An optional resource sub kind, used in some resources|`string`|
+|version|Version|`string`|
+|metadata|Connector metadata|`[Metadata](#metadata)`|
+|spec|Contains cert authority specification|`[Cert Authority Spec v2](#cert-authority-spec-v2)`|
+ 
+
+
+Example:
+
+```yaml
+kind: "string"
+sub_kind: "string"
+version: "string"
+metadata: 
+# [...]
+spec: 
+# [...]
+
+```
+
+### Cluster Audit Config v2
+
+**Kind**: `cluster_audit_config`
+**Version**: `v2`
+
+Represents audit log settings in the cluster.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|kind|A resource kind|`string`|
+|sub_kind|An optional resource sub kind, used in some resources|`string`|
+|version|A resource version|`string`|
+|metadata|Resource metadata|`[Metadata](#metadata)`|
+|spec|A ClusterAuditConfig specification|`[Cluster Audit Config Spec v2](#cluster-audit-config-spec-v2)`|
+ 
+
+
+Example:
+
+```yaml
+kind: "string"
+sub_kind: "string"
+version: "string"
+metadata: 
+# [...]
+spec: 
+# [...]
+
+```
+
+### Cluster Name v2
+
+**Kind**: `cluster_name`
+**Version**: `v2`
+
+Implements the ClusterName interface.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|kind|A resource kind|`string`|
+|sub_kind|An optional resource sub kind, used in some resources|`string`|
+|version|Version|`string`|
+|metadata|Resource metadata|`[Metadata](#metadata)`|
+|spec|A cluster name V2 spec|`[Cluster Name Spec v2](#cluster-name-spec-v2)`|
+ 
+
+
+Example:
+
+```yaml
+kind: "string"
+sub_kind: "string"
+version: "string"
+metadata: 
+# [...]
+spec: 
+# [...]
+
+```
+
+### Cluster Networking Config v2
+
+**Kind**: `cluster_networking_config`
+**Version**: `v2`
+
+Contains cluster-wide networking configuration.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|kind|A resource kind|`string`|
+|sub_kind|An optional resource sub kind, used in some resources|`string`|
+|version|A resource version|`string`|
+|metadata|Resource metadata|`[Metadata](#metadata)`|
+|spec|A ClusterNetworkingConfig specification|`[Cluster Networking Config Spec v2](#cluster-networking-config-spec-v2)`|
+ 
+
+
+Example:
+
+```yaml
+kind: "string"
+sub_kind: "string"
+version: "string"
+metadata: 
+# [...]
+spec: 
+# [...]
+
+```
+
+### Database Server v3
+
+**Kind**: `db_server`
+**Version**: `v3`
+
+Represents a database access server.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|kind|The database server resource kind.|`string`|
+|sub_kind|An optional resource subkind.|`string`|
+|version|The resource version.|`string`|
+|metadata|The database server metadata.|`[Metadata](#metadata)`|
+|spec|The database server spec.|`[Database Server Spec v3](#database-server-spec-v3)`|
+ 
+
+
+Example:
+
+```yaml
+kind: "string"
+sub_kind: "string"
+version: "string"
+metadata: 
+# [...]
+spec: 
+# [...]
+
+```
+
+### Database v3
+
+**Kind**: `db`
+**Version**: `v3`
+
+Represents a single proxied database.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|kind|The database resource kind.|`string`|
+|sub_kind|An optional resource subkind.|`string`|
+|version|The resource version.|`string`|
+|metadata|The database metadata.|`[Metadata](#metadata)`|
+|spec|The database spec.|`[Database Spec v3](#database-spec-v3)`|
+|status|The database runtime information.|`[Database Status v3](#database-status-v3)`|
+ 
+
+
+Example:
+
+```yaml
+kind: "string"
+sub_kind: "string"
+version: "string"
+metadata: 
+# [...]
+spec: 
+# [...]
+status: 
+# [...]
+
+```
+
+### Github Connector v3
+
+**Kind**: `github`
+**Version**: `v3`
+
+Represents a Github connector.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|kind|A resource kind.|`string`|
+|sub_kind|An optional resource sub kind, used in some resources.|`string`|
+|version|A resource version.|`string`|
+|metadata|Holds resource metadata.|`[Metadata](#metadata)`|
+|spec|An Github connector specification.|`[Github Connector Spec v3](#github-connector-spec-v3)`|
+ 
+
+
+Example:
+
+```yaml
+kind: "string"
+sub_kind: "string"
+version: "string"
+metadata: 
+# [...]
+spec: 
+# [...]
+
+```
+
+### Installer v1
+
+**Kind**: `installer`
+**Version**: `v1`
+
+Represents an installer script resource. Used to provide a script to install teleport on discovered nodes.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|kind|The resource kind.|`string`|
+|sub_kind|An optional resource subkind. Currently unused for this resource.|`string`|
+|version|The resource version.|`string`|
+|metadata|The resource metadata.|`[Metadata](#metadata)`|
+|spec|The resource spec.|`[Installer Spec v1](#installer-spec-v1)`|
+ 
+
+
+Example:
+
+```yaml
+kind: "string"
+sub_kind: "string"
+version: "string"
+metadata: 
+# [...]
+spec: 
+# [...]
+
+```
+
+### Kubernetes Cluster v3
+
+**Kind**: `kube_cluster`
+**Version**: `v3`
+
+Represents a named kubernetes API endpoint.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|kind|The cluster resource kind.|`string`|
+|sub_kind|An optional resource subkind.|`string`|
+|version|The resource version.|`string`|
+|metadata|The resource metadata.|`[Metadata](#metadata)`|
+|spec|The resource spec.|`[Kubernetes Cluster Spec v3](#kubernetes-cluster-spec-v3)`|
+ 
+
+
+Example:
+
+```yaml
+kind: "string"
+sub_kind: "string"
+version: "string"
+metadata: 
+# [...]
+spec: 
+# [...]
+
+```
+
+### Kubernetes Server v3
+
+**Kind**: `kube_server`
+**Version**: `v3`
+
+Represents a Kubernetes server.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|kind|The Kubernetes server resource kind. Always "kube_server".|`string`|
+|sub_kind|An optional resource subkind.|`string`|
+|version|The resource version.|`string`|
+|metadata|The Kubernetes server metadata.|`[Metadata](#metadata)`|
+|spec|The Kubernetes server spec.|`[Kubernetes Server Spec v3](#kubernetes-server-spec-v3)`|
+ 
+
+
+Example:
+
+```yaml
+kind: "string"
+sub_kind: "string"
+version: "string"
+metadata: 
+# [...]
+spec: 
+# [...]
+
+```
+
+### License v3
+
+**Kind**: `license`
+**Version**: `v3`
+
+Represents License resource version V3. When changing this, keep in mind that other consumers of teleport/api (Houston, Sales Center) might still need to generate or parse licenses for older versions of Teleport.
+
+{/*Automatically generated from: license.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|kind|A resource kind - always resource.|`string`|
+|sub_kind|A resource sub kind|`string`|
+|version|A resource version.|`string`|
+|metadata|Metadata about the resource.|`[Metadata](#metadata)`|
+|spec|The specification of the resource.|`[License Spec v3](#license-spec-v3)`|
+ 
+
+
+Example:
+
+```yaml
+kind: "string"
+sub_kind: "string"
+version: "string"
+metadata: 
+# [...]
+spec: 
+# [...]
+
+```
+
+### Lock v2
+
+**Kind**: `lock`
+**Version**: `v2`
+
+Represents a lock. Locks are used to restrict access to a Teleport environment by disabling interactions involving a user, an RBAC role, a node, etc. See rfd/0009-locking.md for more details.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|kind|A resource kind.|`string`|
+|sub_kind|An optional resource sub kind, used in some resources.|`string`|
+|version|A resource version.|`string`|
+|metadata|Holds resource metadata.|`[Metadata](#metadata)`|
+|spec|A Lock specification.|`[Lock Spec v2](#lock-spec-v2)`|
+ 
+
+
+Example:
+
+```yaml
+kind: "string"
+sub_kind: "string"
+version: "string"
+metadata: 
+# [...]
+spec: 
+# [...]
+
+```
+
+### MFADevice
+
+**Kind**: `mfa_device`
+**Version**: `v1`
+
+A multi-factor authentication device, such as a security key or an OTP app.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+
+Example:
+
+```yaml
+kind: mfa_device
+version: v1
+metadata:
+
+	name: "string"
+
+id: 00000000-0000-0000-0000-000000000000
+
+```
+
+### Plugin Data v3
+
+**Kind**: `plugin_data`
+**Version**: `v3`
+
+PluginData stores a collection of values associated with a specific resource.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|kind|A resource kind|`string`|
+|sub_kind|An optional resource sub kind, used in some resources|`string`|
+|version|Version|`string`|
+|metadata|PluginData metadata|`[Metadata](#metadata)`|
+|spec|A PluginData specification|`[Plugin Data Spec v3](#plugin-data-spec-v3)`|
+ 
+
+
+Example:
+
+```yaml
+kind: "string"
+sub_kind: "string"
+version: "string"
+metadata: 
+# [...]
+spec: 
+# [...]
+
+```
+
+### Provision Token v2
+
+**Kind**: `token`
+**Version**: `v2`
+
+Specifies provisioning token
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|kind|A resource kind|`string`|
+|sub_kind|An optional resource sub kind, used in some resources|`string`|
+|version|Version|`string`|
+|metadata|Resource metadata|`[Metadata](#metadata)`|
+|spec|A provisioning token V2 spec|`[Provision Token Spec v2](#provision-token-spec-v2)`|
+ 
+
+
+Example:
+
+```yaml
+kind: "string"
+sub_kind: "string"
+version: "string"
+metadata: 
+# [...]
+spec: 
+# [...]
+
+```
+
+### Recovery Codes v1
+
+**Kind**: `recovery_codes`
+**Version**: `v1`
+
+RecoveryCodes holds a user's recovery code information. Recovery codes allows users to regain access to their account by restoring their lost password or second factor. Once a recovery code is successfully verified, the code is mark used (which invalidates it), and lets the user begin the recovery flow. When a user successfully finishes the recovery flow, users will get a new set of codes that will replace all the previous ones.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|kind|The resource kind.|`string`|
+|sub_kind|An optional resource subkind. Currently unused for this resource.|`string`|
+|version|The resource version.|`string`|
+|metadata|The resource metadata.|`[Metadata](#metadata)`|
+|spec|The resource spec.|`[Recovery Codes Spec v1](#recovery-codes-spec-v1)`|
+ 
+
+
+Example:
+
+```yaml
+kind: "string"
+sub_kind: "string"
+version: "string"
+metadata: 
+# [...]
+spec: 
+# [...]
+
+```
+
+### Remote Cluster v3
+
+**Kind**: `remote_cluster`
+**Version**: `v3`
+
+Represents remote cluster resource specification
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|kind|A resource kind|`string`|
+|sub_kind|An optional resource sub kind, used in some resources|`string`|
+|version|Resource API version|`string`|
+|metadata|Resource metadata|`[Metadata](#metadata)`|
+|status|A remote cluster status|`[Remote Cluster Status v3](#remote-cluster-status-v3)`|
+ 
+
+
+Example:
+
+```yaml
+kind: "string"
+sub_kind: "string"
+version: "string"
+metadata: 
+# [...]
+status: 
+# [...]
+
+```
+
+### Reverse Tunnel v2
+
+**Kind**: `tunnel`
+**Version**: `v2`
+
+Version 2 of the resource spec of the reverse tunnel
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|kind|A resource kind|`string`|
+|sub_kind|An optional resource sub kind, used in some resources|`string`|
+|version|Version|`string`|
+|metadata|A resource metadata|`[Metadata](#metadata)`|
+|spec|A reverse tunnel specification|`[Reverse Tunnel Spec v2](#reverse-tunnel-spec-v2)`|
+ 
+
+
+Example:
+
+```yaml
+kind: "string"
+sub_kind: "string"
+version: "string"
+metadata: 
+# [...]
+spec: 
+# [...]
+
+```
+
+### SAMLConnector v2
+
+**Kind**: `saml`
+**Version**: `v2`
+
+Represents a SAML connector.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|kind|A resource kind.|`string`|
+|sub_kind|An optional resource sub kind, used in some resources.|`string`|
+|version|A resource version.|`string`|
+|metadata|Holds resource metadata.|`[Metadata](#metadata)`|
+|spec|An SAML connector specification.|`[SAMLConnector Spec v2](#samlconnector-spec-v2)`|
+ 
+
+
+Example:
+
+```yaml
+kind: "string"
+sub_kind: "string"
+version: "string"
+metadata: 
+# [...]
+spec: 
+# [...]
+
+```
+
+### Semaphore v3
+
+**Kind**: `semaphore`
+**Version**: `v3`
+
+Implements Semaphore interface
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|kind|A resource kind|`string`|
+|sub_kind|An optional resource sub kind, used in some resources|`string`|
+|version|Version|`string`|
+|metadata|Semaphore metadata|`[Metadata](#metadata)`|
+|spec|A lease V3 spec|`[Semaphore Spec v3](#semaphore-spec-v3)`|
+ 
+
+
+Example:
+
+```yaml
+kind: "string"
+sub_kind: "string"
+version: "string"
+metadata: 
+# [...]
+spec: 
+# [...]
+
+```
+
+### Server Info v1
+
+**Kind**: `server_info`
+**Version**: `v1`
+
+Contains info that should be applied to joining Nodes.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|kind|The resource kind.|`string`|
+|sub_kind|An optional resource subkind.|`string`|
+|version|The resource version.|`string`|
+|metadata|The resource metadata.|`[Metadata](#metadata)`|
+|spec|The resource spec.|`[Server Info Spec v1](#server-info-spec-v1)`|
+ 
+
+
+Example:
+
+```yaml
+kind: "string"
+sub_kind: "string"
+version: "string"
+metadata: 
+# [...]
+spec: 
+# [...]
+
+```
+
+### Session Recording Config v2
+
+**Kind**: `session_recording_config`
+**Version**: `v2`
+
+Contains session recording configuration.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|kind|A resource kind|`string`|
+|sub_kind|An optional resource sub kind, used in some resources|`string`|
+|version|A resource version|`string`|
+|metadata|Resource metadata|`[Metadata](#metadata)`|
+|spec|A SessionRecordingConfig specification|`[Session Recording Config Spec v2](#session-recording-config-spec-v2)`|
+ 
+
+
+Example:
+
+```yaml
+kind: "string"
+sub_kind: "string"
+version: "string"
+metadata: 
+# [...]
+spec: 
+# [...]
+
+```
+
+### Static Tokens v2
+
+**Kind**: `static_tokens`
+**Version**: `v2`
+
+Implements the StaticTokens interface.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|kind|A resource kind|`string`|
+|sub_kind|An optional resource sub kind, used in some resources|`string`|
+|version|Version|`string`|
+|metadata|Resource metadata|`[Metadata](#metadata)`|
+|spec|A provisioning token V2 spec|`[Static Tokens Spec v2](#static-tokens-spec-v2)`|
+ 
+
+
+Example:
+
+```yaml
+kind: "string"
+sub_kind: "string"
+version: "string"
+metadata: 
+# [...]
+spec: 
+# [...]
+
+```
+
+### Trusted Cluster v2
+
+**Kind**: `trusted_cluster`
+**Version**: `v2`
+
+Represents a Trusted Cluster.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|kind|A resource kind.|`string`|
+|sub_kind|An optional resource sub kind, used in some resources.|`string`|
+|version|A resource version.|`string`|
+|metadata|Holds resource metadata.|`[Metadata](#metadata)`|
+|spec|A Trusted Cluster specification.|`[Trusted Cluster Spec v2](#trusted-cluster-spec-v2)`|
+ 
+
+
+Example:
+
+```yaml
+kind: "string"
+sub_kind: "string"
+version: "string"
+metadata: 
+# [...]
+spec: 
+# [...]
+
+```
+
+### Tunnel Connection v2
+
+**Kind**: `tunnel_connection`
+**Version**: `v2`
+
+Version 2 of the resource spec of the tunnel connection
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|kind|A resource kind|`string`|
+|sub_kind|An optional resource sub kind, used in some resources|`string`|
+|version|Version|`string`|
+|metadata|A resource metadata|`[Metadata](#metadata)`|
+|spec|A tunnel specification|`[Tunnel Connection Spec v2](#tunnel-connection-spec-v2)`|
+ 
+
+
+Example:
+
+```yaml
+kind: "string"
+sub_kind: "string"
+version: "string"
+metadata: 
+# [...]
+spec: 
+# [...]
+
+```
+
+### User Token Secrets v3
+
+**Kind**: `user_token_secrets`
+**Version**: `v3`
+
+
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|kind|A resource kind|`string`|
+|sub_kind|An optional resource sub kind, used in some resources|`string`|
+|version|Version|`string`|
+|metadata|Resource metadata|`[Metadata](#metadata)`|
+|spec|An resource specification|`[User Token Secrets Spec v3](#user-token-secrets-spec-v3)`|
+ 
+
+
+Example:
+
+```yaml
+kind: "string"
+sub_kind: "string"
+version: "string"
+metadata: 
+# [...]
+spec: 
+# [...]
+
+```
+
+### User Token v3
+
+**Kind**: `user_token`
+**Version**: `v3`
+
+
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|kind|A resource kind|`string`|
+|sub_kind|A resource sub kind, used to define the type of user token.|`string`|
+|version|Version|`string`|
+|metadata|Resource metadata|`[Metadata](#metadata)`|
+|spec|An resource specification|`[User Token Spec v3](#user-token-spec-v3)`|
+ 
+
+
+Example:
+
+```yaml
+kind: "string"
+sub_kind: "string"
+version: "string"
+metadata: 
+# [...]
+spec: 
+# [...]
+
+```
+
+### User v2
+
+**Kind**: `user`
+**Version**: `v2`
+
+Version 2 resource spec of the user
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|kind|A resource kind|`string`|
+|sub_kind|An optional resource sub kind, used in some resources|`string`|
+|version|Version|`string`|
+|metadata|Resource metadata|`[Metadata](#metadata)`|
+|spec|A user specification|`[User Spec v2](#user-spec-v2)`|
+ 
+
+
+Example:
+
+```yaml
+kind: "string"
+sub_kind: "string"
+version: "string"
+metadata: 
+# [...]
+spec: 
+# [...]
+
+```
+
+### Web Session v2
+
+**Kind**: `web_session`
+**Version**: `v2`
+
+Represents an application or UI web session.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|kind|A resource kind.|`string`|
+|sub_kind|An optional resource sub kind, used in some resources.|`string`|
+|version|Version.|`string`|
+|metadata|A resource metadata.|`[Metadata](#metadata)`|
+|spec|A tunnel specification.|`[Web Session Spec v2](#web-session-spec-v2)`|
+ 
+
+
+Example:
+
+```yaml
+kind: "string"
+sub_kind: "string"
+version: "string"
+metadata: 
+# [...]
+spec: 
+# [...]
+
+```
+
+### Web Token v3
+
+**Kind**: `web_token`
+**Version**: `v3`
+
+Describes a web token. Web tokens are used as a transport to relay bearer tokens to the client. Initially bound to a web session, these have been factored out into a separate resource to enable separate lifecycle management.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|kind|A resource kind|`string`|
+|sub_kind|An optional resource sub kind|`string`|
+|version|The resource version|`string`|
+|metadata|Resource metadata|`[Metadata](#metadata)`|
+|spec|Defines the web token|`[Web Token Spec v3](#web-token-spec-v3)`|
+ 
+
+
+Example:
+
+```yaml
+kind: "string"
+sub_kind: "string"
+version: "string"
+metadata: 
+# [...]
+spec: 
+# [...]
+
+```
+
+
+## Resource fields
+
+
+### AD
+
+Contains Active Directory specific database configuration.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|keytab_file|The path to the Kerberos keytab file.|`string`|
+|krb5_file|The path to the Kerberos configuration file. Defaults to /etc/krb5.conf.|`string`|
+|domain|The Active Directory domain the database resides in.|`string`|
+|spn|The service principal name for the database.|`string`|
+|ldap_cert|A certificate from Windows LDAP/AD, optional; only for x509 Authentication.|`string`|
+|kdc_host_name|The host name for a KDC for x509 Authentication.|`string`|
+ 
+
+
+Example:
+
+```yaml
+keytab_file: "string"
+krb5_file: "string"
+domain: "string"
+spn: "string"
+ldap_cert: "string"
+kdc_host_name: "string"
+
+```
+
+### AWS
+
+Contains AWS metadata about the database.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|region|A AWS cloud region.|`string`|
+|redshift|Contains Redshift specific metadata.|`[Redshift](#redshift)`|
+|rds|Contains RDS specific metadata.|`[RDS](#rds)`|
+|account_id|The AWS account ID this database belongs to.|`string`|
+|elasticache|Contains AWS ElastiCache Redis specific metadata.|`[Elasti Cache](#elasti-cache)`|
+|secret_store|Contains secret store configurations.|`[Secret Store](#secret-store)`|
+|memorydb|Contains AWS MemoryDB specific metadata.|`[Memory DB](#memory-db)`|
+|rdsproxy|Contains AWS Proxy specific metadata.|`[RDSProxy](#rdsproxy)`|
+|redshift_serverless|Contains AWS Redshift Serverless specific metadata.|`[Redshift Serverless](#redshift-serverless)`|
+|external_id|An optional AWS external ID used to enable assuming an AWS role across accounts.|`string`|
+|assume_role_arn|An optional AWS role ARN to assume when accessing a database. Set this field and ExternalID to enable access across AWS accounts.|`string`|
+|opensearch|Contains AWS OpenSearch specific metadata.|`[Open Search](#open-search)`|
+|iam_policy_status|Indicates whether the IAM Policy is configured properly for database access. If not, the user must update the AWS profile identity to allow access to the Database. Eg for an RDS Database: the underlying AWS profile allows for `rds-db:connect` for the Database.|`[IAMPolicy Status](#iampolicy-status)`|
+ 
+
+
+Example:
+
+```yaml
+region: "string"
+redshift: 
+# [...]
+rds: 
+# [...]
+account_id: "string"
+elasticache: 
+# [...]
+secret_store: 
+# [...]
+memorydb: 
+# [...]
+rdsproxy: 
+# [...]
+redshift_serverless: 
+# [...]
+external_id: "string"
+assume_role_arn: "string"
+opensearch: 
+# [...]
+iam_policy_status: 
+# [...]
+
+```
+
+### AWSInfo
+
+Contains attributes to match to an EC2 instance.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|account_id|An AWS account ID.|`string`|
+|instance_id|An EC2 instance ID.|`string`|
+|region|The AWS EC2 Instance Region.|`string`|
+|vpc_id|The AWS VPC ID where the Instance is running.|`string`|
+|integration|The integration name that added this Node. When connecting to it, it will use this integration to issue AWS API calls in order to set up the connection. This includes sending an SSH Key and then opening a tunnel (EC2 Instance Connect Endpoint) so Teleport can connect to it.|`string`|
+|subnet_id|The Subnet ID in use by the instance.|`string`|
+ 
+
+
+Example:
+
+```yaml
+account_id: "string"
+instance_id: "string"
+region: "string"
+vpc_id: "string"
+integration: "string"
+subnet_id: "string"
+
+```
+
+### Access Request Conditions
+
+A matcher for allow/deny restrictions on access-requests. Please remember to update IsEmpty when updating this message.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|roles|The name of roles which will match the request rule.|`[]string`|
+|claims_to_roles|Specifies a mapping from claims (traits) to teleport roles.|`[][Claim Mapping](#claim-mapping)`|
+|annotations|A collection of annotations to be programmatically appended to pending access requests at the time of their creation. These annotations serve as a mechanism to propagate extra information to plugins.  Since these annotations support variable interpolation syntax, they also offer a mechanism for forwarding claims from an external identity provider, to a plugin via `{{external.trait_name}}` style substitutions.|`[Traits](#traits)`|
+|thresholds|A list of thresholds, one of which must be met in order for reviews to trigger a state-transition.  If no thresholds are provided, a default threshold of 1 for approval and denial is used.|`[][Access Review Threshold](#access-review-threshold)`|
+|suggested_reviewers|A list of reviewer suggestions.  These can be teleport usernames, but that is not a requirement.|`[]string`|
+|search_as_roles|A list of extra roles which should apply to a user while they are searching for resources as part of a Resource Access Request, and defines the underlying roles which will be requested as part of any Resource Access Request.|`[]string`|
+|max_duration|The amount of time the access will be granted for. If this is zero, the default duration is used.|`[Duration](#duration)`|
+ 
+
+
+Example:
+
+```yaml
+roles: 
+- "string"
+- "string"
+- "string"
+claims_to_roles: 
+- 
+  # [...]
+- 
+  # [...]
+- 
+  # [...]
+annotations: 
+# [...]
+thresholds: 
+- 
+  # [...]
+- 
+  # [...]
+- 
+  # [...]
+suggested_reviewers: 
+- "string"
+- "string"
+- "string"
+search_as_roles: 
+- "string"
+- "string"
+- "string"
+max_duration: 
+# [...]
+
+```
+
+### Access Request Spec v3
+
+AccessRequestSpec is the specification for AccessRequest
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|user|The name of the user to whom the roles will be applied.|`string`|
+|roles|The name of the roles being requested.|`[]string`|
+|state|The current state of this access request.|`[Request State](#request-state)`|
+|created|Encodes the time at which the request was registered with the auth server.|`[Time](#time)`|
+|expires|Constrains the maximum lifetime of any login session for which this request is active.|`[Time](#time)`|
+|request_reason|An optional message explaining the reason for the request.|`string`|
+|resolve_reason|An optional message explaining the reason for the resolution of the request (approval, denial, etc...).|`string`|
+|resolve_annotations|A set of arbitrary values received from plugins or other resolving parties during approval/denial.  Importantly, these annotations are included in the access_request.update event, allowing plugins to propagate arbitrary structured data to the audit log.|`[Traits](#traits)`|
+|system_annotations|A set of programmatically generated annotations attached to pending access requests by teleport.  These annotations are generated by applying variable interpolation to the RoleConditions.Request.Annotations block of a user's role(s).  These annotations serve as a mechanism for administrators to pass extra information to plugins when they process pending access requests.|`[Traits](#traits)`|
+|thresholds|A list of review thresholds relevant to this request.  Order must be preserved, as thresholds are referenced by index (internal use only).|`[][Access Review Threshold](#access-review-threshold)`|
+|rtm|Encodes the relationship between the requested roles and the review threshold requirements for the given role (internal use only). By storing a representation of which thresholds must pass for each requested role, we both eliminate the need to cache the requestor's roles directly, and allow future versions of teleport to become smarter about calculating more granular requirements in a backwards-compatible manner (i.e. calculation can become smarter in minor releases). Storing this relationship on the request is necessary in order to avoid unexpected or inconsistent behavior due to review submission timing.|`map[string][Threshold Index Sets](#threshold-index-sets)`|
+|reviews|A list of reviews applied to this request (internal use only).|`[][Access Review](#access-review)`|
+|suggested_reviewers|A list of reviewer suggestions.  These can be teleport usernames, but that is not a requirement.|`[]string`|
+|resource_ids|A set of resources to which access is being requested.|`[][Resource ID](#resource-id)`|
+|login_hint|Used as a hint for search-based access requests to select roles based on the login the user is attempting.|`string`|
+|dry_run|Indicates that the request should not actually be created, the auth server should only validate the access request.|`Boolean`|
+|max_duration|Indicates how long the access should be granted for.|`[Time](#time)`|
+|session_ttl|SessionTLL indicated how long a certificate for a session should be valid for.|`[Time](#time)`|
+|access_list|PromotedAccessListTitle is the title of the access list that this request was promoted to. Used by WebUI to display the title of the access list. This field is only populated when the request is in the PROMOTED state.|`[Promoted Access List](#promoted-access-list)`|
+ 
+
+
+Example:
+
+```yaml
+user: "string"
+roles: 
+- "string"
+- "string"
+- "string"
+state: 
+# [...]
+created: 
+# [...]
+expires: 
+# [...]
+request_reason: "string"
+resolve_reason: "string"
+resolve_annotations: 
+# [...]
+system_annotations: 
+# [...]
+thresholds: 
+- 
+  # [...]
+- 
+  # [...]
+- 
+  # [...]
+rtm: 
+  "string": 
+    # [...]
+  "string": 
+    # [...]
+  "string": 
+    # [...]
+reviews: 
+- 
+  # [...]
+- 
+  # [...]
+- 
+  # [...]
+suggested_reviewers: 
+- "string"
+- "string"
+- "string"
+resource_ids: 
+- 
+  # [...]
+- 
+  # [...]
+- 
+  # [...]
+login_hint: "string"
+dry_run: true
+max_duration: 
+# [...]
+session_ttl: 
+# [...]
+access_list: 
+# [...]
+
+```
+
+### Access Review
+
+A review to be applied to an access request.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|author|The teleport username of the review author.|`string`|
+|roles|A list used for role-subselection (not yet fully supported).|`[]string`|
+|proposed_state|The proposed state (must be APPROVED or DENIED).|`[Request State](#request-state)`|
+|reason|An optional human-readable reason for why the above state is being proposed.|`string`|
+|created|The time at which the review was created.|`[Time](#time)`|
+|annotations|The proposed value of the request's resolve_annotations field.|`[Traits](#traits)`|
+|i|Stores the indexes of thresholds which this review matches (internal use only).|`[]number`|
+|access_list|The access list that this request was promoted to. This field is only populated when the request is in the PROMOTED state.|`[Promoted Access List](#promoted-access-list)`|
+ 
+
+
+Example:
+
+```yaml
+author: "string"
+roles: 
+- "string"
+- "string"
+- "string"
+proposed_state: 
+# [...]
+reason: "string"
+created: 
+# [...]
+annotations: 
+# [...]
+i: 
+- 1
+- 1
+- 1
+access_list: 
+# [...]
+
+```
+
+### Access Review Conditions
+
+A matcher for allow/deny restrictions on access reviews. Please remember to update IsEmpty when updating this message.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|roles|The name of roles which may be reviewed.|`[]string`|
+|claims_to_roles|Specifies a mapping from claims (traits) to teleport roles.|`[][Claim Mapping](#claim-mapping)`|
+|where|An optional predicate which further limits which requests are reviewable.|`string`|
+|preview_as_roles|A list of extra roles which should apply to a reviewer while they are viewing a Resource Access Request for the purposes of viewing details such as the hostname and labels of requested resources.|`[]string`|
+ 
+
+
+Example:
+
+```yaml
+roles: 
+- "string"
+- "string"
+- "string"
+claims_to_roles: 
+- 
+  # [...]
+- 
+  # [...]
+- 
+  # [...]
+where: "string"
+preview_as_roles: 
+- "string"
+- "string"
+- "string"
+
+```
+
+### Access Review Threshold
+
+Describes a filter used to match access reviews, as well as approval/denial counts which trigger state-transitions.  This type can be used to describe policies such as "can be approved by 2 admins" or "can be denied by any non-contractor".
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|name|The optional human-readable name of the threshold.|`string`|
+|filter|An optional predicate used to determine which reviews count toward this threshold.|`string`|
+|approve|The number of matching approvals needed for state-transition.|`number`|
+|deny|The number of denials needed for state-transition.|`number`|
+ 
+
+
+Example:
+
+```yaml
+name: "string"
+filter: "string"
+approve: 1
+deny: 1
+
+```
+
+### Address Condition
+
+Represents a set of addresses. Presently the addresses are specified exclusively in terms of IPv4/IPv6 ranges.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|cidr|IPv4 or IPv6 address. Valid value are either CIDR ranges (e.g. "10.0.1.0/24", "fe::/8") or a single IP address (e.g "10.1.2.3")|`string`|
+ 
+
+
+Example:
+
+```yaml
+cidr: "string"
+
+```
+
+### App AWS
+
+Contains additional options for AWS applications.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|external_id|The AWS External ID used when assuming roles in this app.|`string`|
+ 
+
+
+Example:
+
+```yaml
+external_id: "string"
+
+```
+
+### App Server Spec v3
+
+The app access server spec.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|version|The Teleport version that the server is running.|`string`|
+|hostname|The app server hostname.|`string`|
+|host_id|The app server host uuid.|`string`|
+|rotation|Contains the app server CA rotation information.|`[Rotation](#rotation)`|
+|app|The app proxied by this app server.|`[App v3](#app-v3)`|
+|proxy_ids|A list of proxy IDs this server is expected to be connected to.|`[]string`|
+ 
+
+
+Example:
+
+```yaml
+version: "string"
+hostname: "string"
+host_id: "string"
+rotation: 
+# [...]
+app: 
+# [...]
+proxy_ids: 
+- "string"
+- "string"
+- "string"
+
+```
+
+### App Spec v3
+
+The AppV3 resource spec.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|uri|The web app endpoint.|`string`|
+|public_addr|The public address the application is accessible at.|`string`|
+|dynamic_labels|The app's command labels.|`map[string][Command Label v2](#command-label-v2)`|
+|insecure_skip_verify|Disables app's TLS certificate verification.|`Boolean`|
+|rewrite|A list of rewriting rules to apply to requests and responses.|`[Rewrite](#rewrite)`|
+|aws|Contains additional options for AWS applications.|`[App AWS](#app-aws)`|
+|cloud|Identifies the cloud instance the app represents.|`string`|
+|UserGroups|A list of user group IDs that this app is associated with.|`[]string`|
+ 
+
+
+Example:
+
+```yaml
+uri: "string"
+public_addr: "string"
+dynamic_labels: 
+  "string": 
+    # [...]
+  "string": 
+    # [...]
+  "string": 
+    # [...]
+insecure_skip_verify: true
+rewrite: 
+# [...]
+aws: 
+# [...]
+cloud: "string"
+UserGroups: 
+- "string"
+- "string"
+- "string"
+
+```
+
+### Asymmetric Key Pair
+
+A combination of a public certificate and private key that can be used for encryption and signing.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|private_key|A PEM encoded x509 private key.|`string`|
+|cert|A PEM-encoded x509 certificate.|`string`|
+ 
+
+
+Example:
+
+```yaml
+private_key: "string"
+cert: "string"
+
+```
+
+### Attribute Mapping
+
+Maps a SAML attribute statement to teleport roles.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|name|An attribute statement name.|`string`|
+|value|An attribute statement value to match.|`string`|
+|roles|A list of static teleport roles to map to.|`[]string`|
+ 
+
+
+Example:
+
+```yaml
+name: "string"
+value: "string"
+roles: 
+- "string"
+- "string"
+- "string"
+
+```
+
+### Auth Preference Spec v2
+
+The actual data we care about for AuthPreference.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|type|The type of authentication.|`string`|
+|second_factor|The type of second factor.|`[Second Factor Type](#second-factor-type)`|
+|connector_name|The name of the OIDC or SAML connector. If this value is not set the first connector in the backend will be used.|`string`|
+|u2f|The settings for the U2F device.|`[U2F](#u2f)`|
+|disconnect_expired_cert|Provides disconnect expired certificate setting - if true, connections with expired client certificates will get disconnected|`[Bool Option](#bool-option)`|
+|allow_local_auth|True if local authentication is enabled.|`[Bool Option](#bool-option)`|
+|message_of_the_day||`string`|
+|locking_mode|The cluster-wide locking mode default.|`[Locking Mode](#locking-mode)`|
+|webauthn|The settings for server-side Web Authentication support.|`[Webauthn](#webauthn)`|
+|allow_passwordless|Enables/disables passwordless support. Passwordless requires Webauthn to work. Defaults to true if the Webauthn is configured, defaults to false otherwise.|`[Bool Option](#bool-option)`|
+|require_session_mfa|The type of MFA requirement enforced for this cluster.|`[Require MFAType](#require-mfatype)`|
+|device_trust|Holds settings related to trusted device verification. Requires Teleport Enterprise.|`[Device Trust](#device-trust)`|
+|idp|A set of options related to accessing IdPs within Teleport. Requires Teleport Enterprise.|`[Id POptions](#id-poptions)`|
+|allow_headless|Enables/disables headless support. Headless authentication requires Webauthn to work. Defaults to true if the Webauthn is configured, defaults to false otherwise.|`[Bool Option](#bool-option)`|
+|default_session_ttl|The TTL to use for user certs when an explicit TTL is not requested.|`[Duration](#duration)`|
+|okta|A set of options related to the Okta service in Teleport. Requires Teleport Enterprise.|`[Okta Options](#okta-options)`|
+|piv_slot|A PIV slot that Teleport clients should use instead of the default based on private key policy. For example, "9a" or "9e".|`string`|
+ 
+
+
+Example:
+
+```yaml
+type: "string"
+second_factor: 
+# [...]
+connector_name: "string"
+u2f: 
+# [...]
+disconnect_expired_cert: 
+# [...]
+allow_local_auth: 
+# [...]
+message_of_the_day: "string"
+locking_mode: 
+# [...]
+webauthn: 
+# [...]
+allow_passwordless: 
+# [...]
+require_session_mfa: 
+# [...]
+device_trust: 
+# [...]
+idp: 
+# [...]
+allow_headless: 
+# [...]
+default_session_ttl: 
+# [...]
+okta: 
+# [...]
+piv_slot: "string"
+
+```
+
+### Azure
+
+Contains Azure specific database metadata.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|name|The Azure database server name.|`string`|
+|resource_id|The Azure fully qualified ID for the resource.|`string`|
+|redis|Contains Azure Cache for Redis specific database metadata.|`[Azure Redis](#azure-redis)`|
+|is_flexi_server|True if the database is an Azure Flexible server.|`Boolean`|
+ 
+
+
+Example:
+
+```yaml
+name: "string"
+resource_id: "string"
+redis: 
+# [...]
+is_flexi_server: true
+
+```
+
+### Azure Redis
+
+Contains Azure Cache for Redis specific database metadata.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|clustering_policy|The clustering policy for Redis Enterprise.|`string`|
+ 
+
+
+Example:
+
+```yaml
+clustering_policy: "string"
+
+```
+
+### Bool
+
+A wrapper around boolean values
+
+{/*Automatically generated from: role.go*/}
+
+
+
+Example:
+
+```yaml
+true|false
+
+```
+
+### Bool Option
+
+A wrapper around bool that can take multiple values: * true, false and non-set (when pointer is nil) and can marshal itself to protobuf equivalent BoolValue
+
+{/*Automatically generated from: role.go*/}
+
+
+
+Example:
+
+```yaml
+true, false
+
+```
+
+### CAKey Set
+
+The set of CA keys.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|ssh|Contains SSH CA key pairs.|`[][SSHKey Pair](#sshkey-pair)`|
+|tls|Contains TLS CA key/cert pairs.|`[][TLSKey Pair](#tlskey-pair)`|
+|jwt|Contains JWT signing key pairs.|`[][JWTKey Pair](#jwtkey-pair)`|
+ 
+
+
+Example:
+
+```yaml
+ssh: 
+- 
+  # [...]
+- 
+  # [...]
+- 
+  # [...]
+tls: 
+- 
+  # [...]
+- 
+  # [...]
+- 
+  # [...]
+jwt: 
+- 
+  # [...]
+- 
+  # [...]
+- 
+  # [...]
+
+```
+
+### Cert Auth Type
+
+Specifies certificate authority type. New variants should be added to CertAuthTypes and, for one major version, to NewlyAdded().
+
+{/*Automatically generated from: trust.go*/}
+
+
+
+Example:
+
+```yaml
+host|user|db|openssh|jwt|saml_idp|oidc_idp
+
+```
+
+### Cert Authority Spec v2
+
+A host or user certificate authority that can check and if it has private key stored as well, sign it too
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|type|Either user or host certificate authority|`[Cert Auth Type](#cert-auth-type)`|
+|cluster_name|DELETE IN(2.7.0) this field is deprecated, as resource name matches cluster name after migrations. and this property is enforced by the auth server code. ClusterName identifies cluster name this authority serves, for host authorities that means base hostname of all servers, for user authorities that means organization name|`string`|
+|roles|A list of roles assumed by users signed by this CA|`[]string`|
+|role_map|Specifies role mappings to remote roles|`[][Role Mapping](#role-mapping)`|
+|rotation|A status of the certificate authority rotation|`[Rotation](#rotation)`|
+|signing_alg||`[Cert Authority Spec v2_Signing Alg Type](#cert-authority-spec-v2_signing-alg-type)`|
+|active_keys|The CA key sets used to sign any new certificates.|`[CAKey Set](#cakey-set)`|
+|additional_trusted_keys|Additional CA key sets that can be used to verify certificates. Certificates should be verified with AdditionalTrustedKeys and ActiveKeys combined.|`[CAKey Set](#cakey-set)`|
+ 
+
+
+Example:
+
+```yaml
+type: 
+# [...]
+cluster_name: "string"
+roles: 
+- "string"
+- "string"
+- "string"
+role_map: 
+- 
+  # [...]
+- 
+  # [...]
+- 
+  # [...]
+rotation: 
+# [...]
+signing_alg: 
+# [...]
+active_keys: 
+# [...]
+additional_trusted_keys: 
+# [...]
+
+```
+
+### Cert Authority Spec v2_Signing Alg Type
+
+SigningAlg is the algorithm used for signing new SSH certificates using SigningKeys.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+
+Example:
+
+```yaml
+0
+
+```
+
+### Cert Extension
+
+Represents a key/value for a certificate extension
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|type|Represents the certificate type being extended, only ssh is supported at this time.|`[Cert Extension Type](#cert-extension-type)`|
+|mode|The type of extension to be used -- currently critical-option is not supported|`[Cert Extension Mode](#cert-extension-mode)`|
+|name|Specifies the key to be used in the cert extension.|`string`|
+|value|Specifies the value to be used in the cert extension.|`string`|
+ 
+
+
+Example:
+
+```yaml
+type: 
+# [...]
+mode: 
+# [...]
+name: "string"
+value: "string"
+
+```
+
+### Cert Extension Mode
+
+Specifies the type of extension to use in the cert.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+
+Example:
+
+```yaml
+0
+
+```
+
+### Cert Extension Type
+
+Represents the certificate type the extension is for. Currently only ssh is supported.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+
+Example:
+
+```yaml
+ssh
+
+```
+
+### Claim Mapping
+
+Maps a claim to teleport roles.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|claim|A claim name.|`string`|
+|value|A claim value to match.|`string`|
+|roles|A list of static teleport roles to match.|`[]string`|
+ 
+
+
+Example:
+
+```yaml
+claim: "string"
+value: "string"
+roles: 
+- "string"
+- "string"
+- "string"
+
+```
+
+### Cloud Metadata
+
+Contains info about the cloud instance a server is running on, if any.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|aws|Info contains attributes to match to an EC2 instance.|`[AWSInfo](#awsinfo)`|
+ 
+
+
+Example:
+
+```yaml
+aws: 
+# [...]
+
+```
+
+### Cluster Audit Config Spec v2
+
+The actual data we care about for ClusterAuditConfig.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|type|Audit backend type|`string`|
+|region|A region setting for audit sessions used by cloud providers|`string`|
+|audit_sessions_uri|A parameter where to upload sessions|`string`|
+|audit_events_uri|A parameter with all supported outputs for audit events|`[Strings](#strings)`|
+|continuous_backups|Used to enable (or disable) PITR (Point-In-Time Recovery).|`Boolean`|
+|auto_scaling|Used to enable (or disable) auto scaling policy.|`Boolean`|
+|read_max_capacity|The maximum provisioned read capacity.|`number`|
+|read_min_capacity|The minimum provisioned read capacity.|`number`|
+|read_target_value|The ratio of consumed read to provisioned capacity.|`number`|
+|write_max_capacity|The maximum provisioned write capacity.|`number`|
+|write_min_capacity|The minimum provisioned write capacity.|`number`|
+|write_target_value|The ratio of consumed write to provisioned capacity.|`number`|
+|retention_period|The retention period for audit events.|`[Duration](#duration)`|
+|use_fips_endpoint|Configures AWS endpoints to use FIPS.|`[Cluster Audit Config Spec v2_FIPSEndpoint State](#cluster-audit-config-spec-v2_fipsendpoint-state)`|
+ 
+
+
+Example:
+
+```yaml
+type: "string"
+region: "string"
+audit_sessions_uri: "string"
+audit_events_uri: 
+# [...]
+continuous_backups: true
+auto_scaling: true
+read_max_capacity: 1
+read_min_capacity: 1
+read_target_value: 1
+write_max_capacity: 1
+write_min_capacity: 1
+write_target_value: 1
+retention_period: 
+# [...]
+use_fips_endpoint: 
+# [...]
+
+```
+
+### Cluster Audit Config Spec v2_FIPSEndpoint State
+
+FIPSEndpointState represents an AWS FIPS endpoint state.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+
+Example:
+
+```yaml
+0
+
+```
+
+### Cluster Name Spec v2
+
+The actual data we care about for ClusterName.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|cluster_name|The name of the cluster. Changing this value once the cluster is setup can and will cause catastrophic problems.|`string`|
+|cluster_id|The unique cluster ID that is set once during the first auth server startup.|`string`|
+ 
+
+
+Example:
+
+```yaml
+cluster_name: "string"
+cluster_id: "string"
+
+```
+
+### Cluster Networking Config Spec v2
+
+The actual data we care about for ClusterNetworkingConfig.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|client_idle_timeout|Sets global cluster default setting for client idle timeouts.|`[Duration](#duration)`|
+|keep_alive_interval|The interval at which the server sends keep-alive messages to the client.|`[Duration](#duration)`|
+|keep_alive_count_max|The number of keep-alive messages that can be missed before the server disconnects the connection to the client.|`number`|
+|session_control_timeout|The session control lease expiry and defines the upper limit of how long a node may be out of contact with the auth server before it begins terminating controlled sessions.|`[Duration](#duration)`|
+|idle_timeout_message|The message sent to the user when a connection times out.|`string`|
+|web_idle_timeout|Sets global cluster default setting for the web UI idle timeouts.|`[Duration](#duration)`|
+|proxy_listener_mode|Proxy listener mode used by Teleport Proxies.|`[Proxy Listener Mode](#proxy-listener-mode)`|
+|routing_strategy|Determines the strategy used to route to nodes.|`[Routing Strategy](#routing-strategy)`|
+|tunnel_strategy|V1 determines the tunnel strategy used in the cluster.|`[Tunnel Strategy v1](#tunnel-strategy-v1)`|
+|proxy_ping_interval|Defines in which interval the TLS routing ping message should be sent. This is applicable only when using ping-wrapped connections, regular TLS routing connections are not affected.|`[Duration](#duration)`|
+|assist_command_execution_workers|Determines the number of workers that will execute arbitrary Assist commands on servers in parallel|`number`|
+|case_insensitive_routing|Causes proxies to use case-insensitive hostname matching.|`Boolean`|
+ 
+
+
+Example:
+
+```yaml
+client_idle_timeout: 
+# [...]
+keep_alive_interval: 
+# [...]
+keep_alive_count_max: 1
+session_control_timeout: 
+# [...]
+idle_timeout_message: "string"
+web_idle_timeout: 
+# [...]
+proxy_listener_mode: 
+# [...]
+routing_strategy: 
+# [...]
+tunnel_strategy: 
+# [...]
+proxy_ping_interval: 
+# [...]
+assist_command_execution_workers: 1
+case_insensitive_routing: true
+
+```
+
+### Command Label v2
+
+A label that has a value as a result of the output generated by running command, e.g. hostname
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|period|A time between command runs|`[Duration](#duration)`|
+|command|A command to run|`[]string`|
+|result|Captures standard output|`string`|
+ 
+
+
+Example:
+
+```yaml
+period: 
+# [...]
+command: 
+- "string"
+- "string"
+- "string"
+result: "string"
+
+```
+
+### Connector Ref
+
+Holds information about OIDC connector
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|type|Connector type|`string`|
+|id|Connector ID|`string`|
+|identity|External identity of the user|`string`|
+ 
+
+
+Example:
+
+```yaml
+type: "string"
+id: "string"
+identity: "string"
+
+```
+
+### Create Database User Mode
+
+Determines whether database user creation should be disabled or if users should be cleaned up or kept after sessions end.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+
+Example:
+
+```yaml
+0
+
+```
+
+### Create Host User Mode
+
+Determines whether host user creation should be disabled or if host users should be cleaned up or kept after sessions end.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+
+Example:
+
+```yaml
+0
+
+```
+
+### Created By
+
+Holds information about the person or agent who created the user
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|connector|Identity if present means that user was automatically created by identity|`[Connector Ref](#connector-ref)`|
+|time|Specifies when user was created|`[Time](#time)`|
+|user|Holds information about user|`[User Ref](#user-ref)`|
+ 
+
+
+Example:
+
+```yaml
+connector: 
+# [...]
+time: 
+# [...]
+user: 
+# [...]
+
+```
+
+### Database Admin User
+
+Contains information about privileged database user used for automatic user provisioning.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|name|The username of the privileged database user.|`string`|
+|default_database|The database that the privileged database user logs into by default.  Depending on the database type, this database may be used to store procedures or data for managing database users.|`string`|
+ 
+
+
+Example:
+
+```yaml
+name: "string"
+default_database: "string"
+
+```
+
+### Database Server Spec v3
+
+The database server spec.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|version|The Teleport version that the server is running.|`string`|
+|hostname|The database server hostname.|`string`|
+|host_id|The ID of the host the database server is running on.|`string`|
+|rotation|Contains the server CA rotation information.|`[Rotation](#rotation)`|
+|database|The database proxied by this database server.|`[Database v3](#database-v3)`|
+|proxy_ids|A list of proxy IDs this server is expected to be connected to.|`[]string`|
+ 
+
+
+Example:
+
+```yaml
+version: "string"
+hostname: "string"
+host_id: "string"
+rotation: 
+# [...]
+database: 
+# [...]
+proxy_ids: 
+- "string"
+- "string"
+- "string"
+
+```
+
+### Database Spec v3
+
+The database spec.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|protocol|The database protocol: postgres, mysql, mongodb, etc.|`string`|
+|uri|The database connection endpoint.|`string`|
+|ca_cert|The PEM-encoded database CA certificate.  DEPRECATED: Moved to TLS.CACert. DELETE IN 10.0.|`string`|
+|dynamic_labels|The database dynamic labels.|`map[string][Command Label v2](#command-label-v2)`|
+|aws|Contains AWS specific settings for RDS/Aurora/Redshift databases.|`[AWS](#aws)`|
+|gcp|Contains parameters specific to GCP Cloud SQL databases.|`[GCPCloud SQL](#gcpcloud-sql)`|
+|azure|Contains Azure specific database metadata.|`[Azure](#azure)`|
+|tls|The TLS configuration used when establishing connection to target database. Allows to provide custom CA cert or override server name.|`[Database TLS](#database-tls)`|
+|ad|The Active Directory configuration for the database.|`[AD](#ad)`|
+|mysql|An additional section with MySQL database options.|`[My SQLOptions](#my-sqloptions)`|
+|admin_user|The database admin user for automatic user provisioning.|`[Database Admin User](#database-admin-user)`|
+|mongo_atlas|Contains Atlas metadata about the database.|`[Mongo Atlas](#mongo-atlas)`|
+|oracle|An additional Oracle configuration options.|`[Oracle Options](#oracle-options)`|
+ 
+
+
+Example:
+
+```yaml
+protocol: "string"
+uri: "string"
+ca_cert: "string"
+dynamic_labels: 
+  "string": 
+    # [...]
+  "string": 
+    # [...]
+  "string": 
+    # [...]
+aws: 
+# [...]
+gcp: 
+# [...]
+azure: 
+# [...]
+tls: 
+# [...]
+ad: 
+# [...]
+mysql: 
+# [...]
+admin_user: 
+# [...]
+mongo_atlas: 
+# [...]
+oracle: 
+# [...]
+
+```
+
+### Database Status v3
+
+Contains runtime information about the database.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|ca_cert|The auto-downloaded cloud database CA certificate.|`string`|
+|aws|The auto-discovered AWS cloud database metadata.|`[AWS](#aws)`|
+|mysql|An additional section with MySQL runtime database information.|`[My SQLOptions](#my-sqloptions)`|
+|managed_users|A list of database users that are managed by Teleport.|`[]string`|
+|azure|The auto-discovered Azure cloud database metadata.|`[Azure](#azure)`|
+ 
+
+
+Example:
+
+```yaml
+ca_cert: "string"
+aws: 
+# [...]
+mysql: 
+# [...]
+managed_users: 
+- "string"
+- "string"
+- "string"
+azure: 
+# [...]
+
+```
+
+### Database TLS
+
+Contains TLS configuration options.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|mode|A TLS connection mode. See DatabaseTLSMode for details.|`[Database TLSMode](#database-tlsmode)`|
+|ca_cert|An optional user provided CA certificate used for verifying database TLS connection.|`string`|
+|server_name|Allows to provide custom hostname. This value will override the servername/hostname on a certificate during validation.|`string`|
+ 
+
+
+Example:
+
+```yaml
+mode: 
+# [...]
+ca_cert: "string"
+server_name: "string"
+
+```
+
+### Database TLSMode
+
+Represents the level of TLS verification performed by DB agent when connecting to a database.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+
+Example:
+
+```yaml
+0
+
+```
+
+### Device Trust
+
+Holds settings related to trusted device verification. Requires Teleport Enterprise.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|mode|Of verification for trusted devices.  The following modes are supported:    - "off": disables both device authentication and authorization.   - "optional": allows both device authentication and authorization, but     doesn't enforce the presence of device extensions for sensitive     endpoints.   - "required": enforces the presence of device extensions for sensitive     endpoints.  Mode is always "off" for OSS. Defaults to "optional" for Enterprise.|`string`|
+|auto_enroll|Enable device auto-enroll. Auto-enroll lets any user issue a device enrollment token for a known device that is not already enrolled. `tsh` takes advantage of auto-enroll to automatically enroll devices on user login, when appropriate. The effective cluster Mode still applies: AutoEnroll=true is meaningless if Mode="off".|`Boolean`|
+|ekcert_allowed_cas|Allow list of EKCert CAs in PEM format. If present, only TPM devices that present an EKCert that is signed by a CA specified here may be enrolled (existing enrollments are unchanged).  If not present, then the CA of TPM EKCerts will not be checked during enrollment, this allows any device to enroll.|`[]string`|
+ 
+
+
+Example:
+
+```yaml
+mode: "string"
+auto_enroll: true
+ekcert_allowed_cas: 
+- "string"
+- "string"
+- "string"
+
+```
+
+### Duration
+
+A wrapper around duration to set up custom marshal/unmarshal
+
+{/*Automatically generated from: duration.go*/}
+
+
+
+Example:
+
+```yaml
+5h
+
+```
+
+### Elasti Cache
+
+Contains AWS ElastiCache Redis specific metadata.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|replication_group_id|The Redis replication group ID.|`string`|
+|user_group_ids|A list of user group IDs.|`[]string`|
+|transit_encryption_enabled|Indicates whether in-transit encryption (TLS) is enabled.|`Boolean`|
+|endpoint_type|The type of the endpoint.|`string`|
+ 
+
+
+Example:
+
+```yaml
+replication_group_id: "string"
+user_group_ids: 
+- "string"
+- "string"
+- "string"
+transit_encryption_enabled: true
+endpoint_type: "string"
+
+```
+
+### External Identity
+
+OpenID Connect/SAML or Github identity that is linked to particular user and connector and lets user to log in using external credentials, e.g. google
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|connector_id|Id of registered OIDC connector, e.g. 'google-example.com'|`string`|
+|username|Username supplied by external identity provider|`string`|
+ 
+
+
+Example:
+
+```yaml
+connector_id: "string"
+username: "string"
+
+```
+
+### Feature Source
+
+Defines where the list of features enabled by the license is.
+
+{/*Automatically generated from: license.go*/}
+
+
+
+Example:
+
+```yaml
+license
+
+```
+
+### GCPCloud SQL
+
+Contains parameters specific to GCP Cloud SQL databases.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|project_id|The GCP project ID the Cloud SQL instance resides in.|`string`|
+|instance_id|The Cloud SQL instance ID.|`string`|
+ 
+
+
+Example:
+
+```yaml
+project_id: "string"
+instance_id: "string"
+
+```
+
+### Github Connector Spec v3
+
+A Github connector specification.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|client_id|The Github OAuth app client ID.|`string`|
+|client_secret|The Github OAuth app client secret.|`string`|
+|redirect_url|The authorization callback URL.|`string`|
+|teams_to_logins|Maps Github team memberships onto allowed logins/roles.  DELETE IN 11.0.0 Deprecated: use GithubTeamsToRoles instead.|`[][Team Mapping](#team-mapping)`|
+|display|The connector display name.|`string`|
+|teams_to_roles|Maps Github team memberships onto allowed roles.|`[][Team Roles Mapping](#team-roles-mapping)`|
+|endpoint_url|The URL of the GitHub instance this connector is for.|`string`|
+|api_endpoint_url|The URL of the API endpoint of the Github instance this connector is for.|`string`|
+ 
+
+
+Example:
+
+```yaml
+client_id: "string"
+client_secret: "string"
+redirect_url: "string"
+teams_to_logins: 
+- 
+  # [...]
+- 
+  # [...]
+- 
+  # [...]
+display: "string"
+teams_to_roles: 
+- 
+  # [...]
+- 
+  # [...]
+- 
+  # [...]
+endpoint_url: "string"
+api_endpoint_url: "string"
+
+```
+
+### Header
+
+Represents a single http header passed over to the proxied application.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|name|The http header name.|`string`|
+|value|The http header value.|`string`|
+ 
+
+
+Example:
+
+```yaml
+name: "string"
+value: "string"
+
+```
+
+### IAMPolicy Status
+
+Represents states that describe if an AWS database has its IAM policy properly configured or not. This enum is set in a Sync.Map during an IAM task that checks for the validity of IAM policy, and the database gets updated with the value from this map during a heartbeat.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+
+Example:
+
+```yaml
+0
+
+```
+
+### Id POptions
+
+Specify options related to access Teleport IdPs.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|saml|Options related to the Teleport SAML IdP.|`[Id PSAMLOptions](#id-psamloptions)`|
+ 
+
+
+Example:
+
+```yaml
+saml: 
+# [...]
+
+```
+
+### Id PSAMLOptions
+
+Specifies options related to accessing the Teleport SAML IdP.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|enabled|Set to true if this option allows access to the Teleport SAML IdP.|`[Bool Option](#bool-option)`|
+ 
+
+
+Example:
+
+```yaml
+enabled: 
+# [...]
+
+```
+
+### Impersonate Conditions
+
+Specifies whether users are allowed to issue certificates for other users or groups.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|users|A list of resources this role is allowed to impersonate, could be an empty list or a Wildcard pattern|`[]string`|
+|roles|A list of resources this role is allowed to impersonate|`[]string`|
+|where|Specifies optional advanced matcher|`string`|
+ 
+
+
+Example:
+
+```yaml
+users: 
+- "string"
+- "string"
+- "string"
+roles: 
+- "string"
+- "string"
+- "string"
+where: "string"
+
+```
+
+### Installer Spec v1
+
+The specification for an Installer
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|script|Represents the contents of a installer shell script|`string`|
+ 
+
+
+Example:
+
+```yaml
+script: "string"
+
+```
+
+### JWTKey Pair
+
+A PEM encoded keypair used for signing JWT tokens.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|public_key|A PEM encoded public key.|`[][byte](#byte)`|
+|private_key|A PEM encoded private key.|`[][byte](#byte)`|
+|private_key_type|The type of the PrivateKey.|`[Private Key Type](#private-key-type)`|
+ 
+
+
+Example:
+
+```yaml
+public_key: 
+- 
+  # [...]
+- 
+  # [...]
+- 
+  # [...]
+private_key: 
+- 
+  # [...]
+- 
+  # [...]
+- 
+  # [...]
+private_key_type: 
+# [...]
+
+```
+
+### Join Method
+
+The method used for new nodes to join the cluster.
+
+{/*Automatically generated from: provisioning.go*/}
+
+
+
+Example:
+
+```yaml
+"token"
+
+```
+
+### Kube AWS
+
+Contains the AWS information about the cluster.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|region|A AWS cloud region.|`string`|
+|account_id|A AWS Account ID.|`string`|
+|name|A AWS EKS cluster name.|`string`|
+ 
+
+
+Example:
+
+```yaml
+region: "string"
+account_id: "string"
+name: "string"
+
+```
+
+### Kube Azure
+
+Contains the Azure information about the cluster.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|resource_name|The AKS cluster name.|`string`|
+|resource_group|The Azure resource group name.|`string`|
+|tenant_id|The AKS cluster Tenant ID.|`string`|
+|subscription_id|The AKS cluster SubscriptionID.|`string`|
+ 
+
+
+Example:
+
+```yaml
+resource_name: "string"
+resource_group: "string"
+tenant_id: "string"
+subscription_id: "string"
+
+```
+
+### Kube GCP
+
+Contains the GCP information about the cluster.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|location|A GKE cluster location.|`string`|
+|project_id|The GKE Project ID.|`string`|
+|name|A GCP GKE cluster name.|`string`|
+ 
+
+
+Example:
+
+```yaml
+location: "string"
+project_id: "string"
+name: "string"
+
+```
+
+### Kubernetes Cluster Spec v3
+
+A specification for a Kubernetes cluster.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|dynamic_labels|The cluster's dynamic labels.|`map[string][Command Label v2](#command-label-v2)`|
+|kubeconfig|The kubeconfig file payload that grants access to the cluster. If multiple contexts are specified, the first will be selected.|`[][byte](#byte)`|
+|azure|Holds the required Azure information for Teleport to access the cluster.|`[Kube Azure](#kube-azure)`|
+|aws|Holds the required AWS information for Teleport to access the cluster.|`[Kube AWS](#kube-aws)`|
+|gcp|Holds the required GCP information for Teleport to access the cluster.|`[Kube GCP](#kube-gcp)`|
+ 
+
+
+Example:
+
+```yaml
+dynamic_labels: 
+  "string": 
+    # [...]
+  "string": 
+    # [...]
+  "string": 
+    # [...]
+kubeconfig: 
+- 
+  # [...]
+- 
+  # [...]
+- 
+  # [...]
+azure: 
+# [...]
+aws: 
+# [...]
+gcp: 
+# [...]
+
+```
+
+### Kubernetes Join Type
+
+
+
+{/*Automatically generated from: provisioning.go*/}
+
+
+
+Example:
+
+```yaml
+in_cluster
+
+```
+
+### Kubernetes Resource
+
+The Kubernetes resource identifier.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|kind|Specifies the Kubernetes Resource type. At the moment only "pod" is supported.|`string`|
+|namespace|The resource namespace. It supports wildcards.|`string`|
+|name|The resource name. It supports wildcards.|`string`|
+|verbs|The allowed Kubernetes verbs for the following resource.|`[]string`|
+ 
+
+
+Example:
+
+```yaml
+kind: "string"
+namespace: "string"
+name: "string"
+verbs: 
+- "string"
+- "string"
+- "string"
+
+```
+
+### Kubernetes Resource Spec v1
+
+The Kubernetes resource spec.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|namespace|The resource namespace.|`string`|
+ 
+
+
+Example:
+
+```yaml
+namespace: "string"
+
+```
+
+### Kubernetes Resource v1
+
+Represents a Kubernetes resource.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|kind|A resource kind|`string`|
+|sub_kind|An optional resource sub kind, used in some resources|`string`|
+|version|Version|`string`|
+|metadata|KubernetesResourceV1 metadata|`[Metadata](#metadata)`|
+|spec|Contains the Kubernetes resource data.|`[Kubernetes Resource Spec v1](#kubernetes-resource-spec-v1)`|
+ 
+
+
+Example:
+
+```yaml
+kind: "string"
+sub_kind: "string"
+version: "string"
+metadata: 
+# [...]
+spec: 
+# [...]
+
+```
+
+### Kubernetes Server Spec v3
+
+The Kubernetes server spec.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|version|The Teleport version that the server is running.|`string`|
+|hostname|The Kubernetes server hostname.|`string`|
+|host_id|The Kubernetes server host uuid.|`string`|
+|rotation|Contains the Kubernetes server CA rotation information.|`[Rotation](#rotation)`|
+|cluster|A Kubernetes Cluster proxied by this Kubernetes server.|`[Kubernetes Cluster v3](#kubernetes-cluster-v3)`|
+|proxy_ids|A list of proxy IDs this server is expected to be connected to.|`[]string`|
+ 
+
+
+Example:
+
+```yaml
+version: "string"
+hostname: "string"
+host_id: "string"
+rotation: 
+# [...]
+cluster: 
+# [...]
+proxy_ids: 
+- "string"
+- "string"
+- "string"
+
+```
+
+### Labels
+
+A wrapper around map that can marshal and unmarshal itself from scalar and list values
+
+{/*Automatically generated from: role.go*/}
+
+
+
+Example:
+
+```yaml
+label1: [val1, val2]
+label2: val3
+
+```
+
+### License Spec v3
+
+The actual data we care about for LicenseV3. When changing this, keep in mind that other consumers of teleport/api (Houston, Sales Center) might still need to generate or parse licenses for older versions of Teleport.
+
+{/*Automatically generated from: license.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|account_id|A customer account ID|`string`|
+|aws_pid|Limits usage to AWS instance with a product ID|`string`|
+|aws_account|Limits usage to AWS instance within account ID|`string`|
+|k8s|Turns kubernetes support on or off|`[Bool](#bool)`|
+|app|Turns application access on or off Note it's a pointer for backward compatibility|`[Bool](#bool)`|
+|db|Turns database access on or off|`[Bool](#bool)`|
+|desktop|Turns desktop access on or off|`[Bool](#bool)`|
+|usage|Turns Houston usage reporting on or off|`[Bool](#bool)`|
+|reporting|Turns Sales Center usage reporting on or off|`[Bool](#bool)`|
+|cloud|Turned on when teleport is hosted by Gravitational|`[Bool](#bool)`|
+|moderated_sessions|Turns on moderated sessions|`[Bool](#bool)`|
+|machine_id|Turns MachineID support on or off|`[Bool](#bool)`|
+|resource_access_requests|Turns resource access request support on or off|`[Bool](#bool)`|
+|feature_hiding|Turns feature hiding support on or off|`[Bool](#bool)`|
+|trial|True for trial licenses|`[Bool](#bool)`|
+|feature_source|The source of the set of enabled feature|`[Feature Source](#feature-source)`|
+|custom_theme|The name of the WebUI custom theme|`string`|
+ 
+
+
+Example:
+
+```yaml
+account_id: "string"
+aws_pid: "string"
+aws_account: "string"
+k8s: 
+# [...]
+app: 
+# [...]
+db: 
+# [...]
+desktop: 
+# [...]
+usage: 
+# [...]
+reporting: 
+# [...]
+cloud: 
+# [...]
+moderated_sessions: 
+# [...]
+machine_id: 
+# [...]
+resource_access_requests: 
+# [...]
+feature_hiding: 
+# [...]
+trial: 
+# [...]
+feature_source: 
+# [...]
+custom_theme: "string"
+
+```
+
+### Local Auth Secrets
+
+Holds sensitive data used to authenticate a local user.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|password_hash|Encodes a combined salt & hash for password verification.|`[][byte](#byte)`|
+|totp_key|Deprecated 2nd factor fields, use MFA below instead.|`string`|
+|mfa||`[][MFADevice](#mfadevice)`|
+|webauthn|Holds settings necessary for webauthn local auth. May be null for legacy users or users that haven't yet used webauthn as their second factor.|`[Webauthn Local Auth](#webauthn-local-auth)`|
+ 
+
+
+Example:
+
+```yaml
+password_hash: 
+- 
+  # [...]
+- 
+  # [...]
+- 
+  # [...]
+totp_key: "string"
+mfa: 
+- 
+  # [...]
+- 
+  # [...]
+- 
+  # [...]
+webauthn: 
+# [...]
+
+```
+
+### Lock Spec v2
+
+A Lock specification.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|target|Describes the set of interactions that the lock applies to.|`[Lock Target](#lock-target)`|
+|message|The message displayed to locked-out users.|`string`|
+|expires|If set specifies when the lock ceases to be in force.|`[Time](#time)`|
+|created_at|The date time that the lock was created.|`[Time](#time)`|
+|created_by|The username of the author of the lock.|`string`|
+ 
+
+
+Example:
+
+```yaml
+target: 
+# [...]
+message: "string"
+expires: 
+# [...]
+created_at: 
+# [...]
+created_by: "string"
+
+```
+
+### Lock Target
+
+Lists the attributes of interactions to be disabled.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|user|Specifies the name of a Teleport user.|`string`|
+|role|Specifies the name of an RBAC role known to the root cluster. In remote clusters, this constraint is evaluated before translating to local roles.|`string`|
+|login|Specifies the name of a local UNIX user.|`string`|
+|node|Specifies the UUID of a Teleport node. A matching node is also prevented from heartbeating to the auth server. DEPRECATED: use ServerID instead.|`string`|
+|mfa_device|Specifies the UUID of a user MFA device.|`string`|
+|windows_desktop|Specifies the name of a Windows desktop.|`string`|
+|access_request|Specifies the UUID of an access request.|`string`|
+|device|The device ID of a trusted device. Requires Teleport Enterprise.|`string`|
+|server_id|The host id of the Teleport instance.|`string`|
+ 
+
+
+Example:
+
+```yaml
+user: "string"
+role: "string"
+login: "string"
+node: "string"
+mfa_device: "string"
+windows_desktop: "string"
+access_request: "string"
+device: "string"
+server_id: "string"
+
+```
+
+### Login Status
+
+A login status of the user
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|is_locked|Tells us if user is locked|`Boolean`|
+|locked_message|Contains the message in case if user is locked|`string`|
+|locked_time|Contains time when user was locked|`[Time](#time)`|
+|lock_expires|Contains time when this lock will expire|`[Time](#time)`|
+|recovery_attempt_lock_expires|Contains the time when this lock will expire from reaching MaxAccountRecoveryAttempts. This field is used to determine if a user got locked from recovery attempts.|`[Time](#time)`|
+ 
+
+
+Example:
+
+```yaml
+is_locked: true
+locked_message: "string"
+locked_time: 
+# [...]
+lock_expires: 
+# [...]
+recovery_attempt_lock_expires: 
+# [...]
+
+```
+
+### Memory DB
+
+Contains AWS MemoryDB specific metadata.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|cluster_name|The name of the MemoryDB cluster.|`string`|
+|acl_name|The name of the ACL associated with the cluster.|`string`|
+|tls_enabled|Indicates whether in-transit encryption (TLS) is enabled.|`Boolean`|
+|endpoint_type|The type of the endpoint.|`string`|
+ 
+
+
+Example:
+
+```yaml
+cluster_name: "string"
+acl_name: "string"
+tls_enabled: true
+endpoint_type: "string"
+
+```
+
+### Metadata
+
+Resource metadata
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|name|An object name|`string`|
+|description|Object description|`string`|
+|labels|A set of labels|`map[string]string`|
+|expires|A global expiry time header can be set on any resource in the system.|`[Time](#time)`|
+|id|A record ID. Deprecated: Use revision instead.|`number`|
+|revision|An opaque identifier which tracks the versions of a resource over time. Clients should ignore and not alter its value but must return the revision in any updates of a resource.|`string`|
+ 
+
+
+Example:
+
+```yaml
+name: "string"
+description: "string"
+labels: 
+  "string": "string"
+  "string": "string"
+  "string": "string"
+expires: 
+# [...]
+id: 1
+revision: "string"
+
+```
+
+### Mongo Atlas
+
+Contains Atlas metadata about the database.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|name|The Atlas database instance name.|`string`|
+ 
+
+
+Example:
+
+```yaml
+name: "string"
+
+```
+
+### My SQLOptions
+
+Additional MySQL database options.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|server_version|The server version reported by DB proxy if the runtime information is not available.|`string`|
+ 
+
+
+Example:
+
+```yaml
+server_version: "string"
+
+```
+
+### Network Restrictions Spec v4
+
+
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|allow|Lists the addresses that should be allowed.|`[][Address Condition](#address-condition)`|
+|deny|Lists the addresses that should be denied even if they're allowed by Allow condition.|`[][Address Condition](#address-condition)`|
+ 
+
+
+Example:
+
+```yaml
+allow: 
+- 
+  # [...]
+- 
+  # [...]
+- 
+  # [...]
+deny: 
+- 
+  # [...]
+- 
+  # [...]
+- 
+  # [...]
+
+```
+
+### Network Restrictions v4
+
+NetworkRestrictions specifies a list of addresses to restrict (block). The deny list is checked first and the allow lists overrides it. Thus an empty allow list does not mean that no addresses will be allowed, that will only be the case if the deny list covers the whole address range.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|kind|The network restrictions resource kind.|`string`|
+|sub_kind|An optional resource subkind.|`string`|
+|version|The resource version.|`string`|
+|metadata|The network restrictions metadata.|`[Metadata](#metadata)`|
+|spec|Contains the network restrictions data|`[Network Restrictions Spec v4](#network-restrictions-spec-v4)`|
+ 
+
+
+Example:
+
+```yaml
+kind: "string"
+sub_kind: "string"
+version: "string"
+metadata: 
+# [...]
+spec: 
+# [...]
+
+```
+
+### OIDCConnector Spec v3
+
+An OIDC connector specification.  It specifies configuration for Open ID Connect compatible external identity provider: https://openid.net/specs/openid-connect-core-1_0.html
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|issuer_url|The endpoint of the provider, e.g. https://accounts.google.com.|`string`|
+|client_id|The id of the authentication client (Teleport Auth server).|`string`|
+|client_secret|Used to authenticate the client.|`string`|
+|acr_values|An Authentication Context Class Reference value. The meaning of the ACR value is context-specific and varies for identity providers.|`string`|
+|provider|The external identity provider.|`string`|
+|display|The friendly name for this provider.|`string`|
+|scope|Specifies additional scopes set by provider.|`[]string`|
+|prompt|An optional OIDC prompt. An empty string omits prompt. If not specified, it defaults to select_account for backwards compatibility.|`string`|
+|claims_to_roles|Specifies a dynamic mapping from claims to roles.|`[][Claim Mapping](#claim-mapping)`|
+|google_service_account_uri|A path to a google service account uri.|`string`|
+|google_service_account|A string containing google service account credentials.|`string`|
+|google_admin_email|The email of a google admin to impersonate.|`string`|
+|redirect_url|A list of callback URLs which the identity provider can use to redirect the client back to the Teleport Proxy to complete authentication. This list should match the URLs on the provider's side. The URL used for a given auth request will be chosen to match the requesting Proxy's public address. If there is no match, the first url in the list will be used.|`[Strings](#strings)`|
+|allow_unverified_email|Tells the connector to accept OIDC users with unverified emails.|`Boolean`|
+|username_claim|Specifies the name of the claim from the OIDC connector to be used as the user's username.|`string`|
+|max_age||`[Duration](#duration)`|
+ 
+
+
+Example:
+
+```yaml
+issuer_url: "string"
+client_id: "string"
+client_secret: "string"
+acr_values: "string"
+provider: "string"
+display: "string"
+scope: 
+- "string"
+- "string"
+- "string"
+prompt: "string"
+claims_to_roles: 
+- 
+  # [...]
+- 
+  # [...]
+- 
+  # [...]
+google_service_account_uri: "string"
+google_service_account: "string"
+google_admin_email: "string"
+redirect_url: 
+# [...]
+allow_unverified_email: true
+username_claim: "string"
+max_age: 
+# [...]
+
+```
+
+### OIDCConnector v3
+
+Represents an OIDC connector.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|kind|A resource kind.|`string`|
+|sub_kind|An optional resource sub kind, used in some resources.|`string`|
+|version|A resource version.|`string`|
+|metadata|Holds resource metadata.|`[Metadata](#metadata)`|
+|spec|An OIDC connector specification.|`[OIDCConnector Spec v3](#oidcconnector-spec-v3)`|
+ 
+
+
+Example:
+
+```yaml
+kind: "string"
+sub_kind: "string"
+version: "string"
+metadata: 
+# [...]
+spec: 
+# [...]
+
+```
+
+### Okta Options
+
+Specify options related to the Okta service.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|sync_period|The duration between synchronization calls in nanoseconds.|`[Duration](#duration)`|
+ 
+
+
+Example:
+
+```yaml
+sync_period: 
+# [...]
+
+```
+
+### Open Search
+
+Contains AWS OpenSearch specific metadata.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|domain_name|The name of the domain.|`string`|
+|domain_id|The ID of the domain.|`string`|
+|endpoint_type|The type of the endpoint.|`string`|
+ 
+
+
+Example:
+
+```yaml
+domain_name: "string"
+domain_id: "string"
+endpoint_type: "string"
+
+```
+
+### Oracle Options
+
+Contains information about privileged database user used for database audit.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|audit_user|The Oracle database user privilege to access internal Oracle audit trail.|`string`|
+ 
+
+
+Example:
+
+```yaml
+audit_user: "string"
+
+```
+
+### Plugin Data Entry
+
+Wraps a mapping of arbitrary string values used by plugins to store per-resource information.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|data|A mapping of arbitrary string values.|`map[string]string`|
+ 
+
+
+Example:
+
+```yaml
+data: 
+  "string": "string"
+  "string": "string"
+  "string": "string"
+
+```
+
+### Plugin Data Spec v3
+
+PluginData stores a collection of values associated with a specific resource.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|entries|A collection of PluginData values organized by plugin name.|`map[string][Plugin Data Entry](#plugin-data-entry)`|
+ 
+
+
+Example:
+
+```yaml
+entries: 
+  "string": 
+    # [...]
+  "string": 
+    # [...]
+  "string": 
+    # [...]
+
+```
+
+### Private Key Type
+
+The storage type of a private key.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+
+Example:
+
+```yaml
+0
+
+```
+
+### Promoted Access List
+
+A minimal access list representation used for promoting access requests to access lists.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|name|The name of the access list.|`string`|
+|title|The title of the access list.|`string`|
+ 
+
+
+Example:
+
+```yaml
+name: "string"
+title: "string"
+
+```
+
+### Provision Token Spec v2
+
+A specification for V2 token
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|roles|A list of roles associated with the token, that will be converted to metadata in the SSH and X509 certificates issued to the user of the token|`[][System Role](#system-role)`|
+|allow|A list of TokenRules, nodes using this token must match one allow rule to use this token.|`[][Token Rule](#token-rule)`|
+|aws_iid_ttl|The TTL to use for AWS EC2 Instance Identity Documents used to join the cluster with this token.|`[Duration](#duration)`|
+|join_method|The joining method required in order to use this token. Supported joining methods include "token", "ec2", and "iam".|`[Join Method](#join-method)`|
+|bot_name|The name of the bot this token grants access to, if any|`string`|
+|suggested_labels|A set of labels that resources should set when using this token to enroll themselves in the cluster. Currently, only node-join scripts create a configuration according to the suggestion.|`[Labels](#labels)`|
+|github|Allows the configuration of options specific to the "github" join method.|`[Provision Token Spec v2Git Hub](#provision-token-spec-v2git-hub)`|
+|circleci|Allows the configuration of options specific to the "circleci" join method.|`[Provision Token Spec v2Circle CI](#provision-token-spec-v2circle-ci)`|
+|suggested_agent_matcher_labels|A set of labels to be used by agents to match on resources. When an agent uses this token, the agent should monitor resources that match those labels. For databases, this means adding the labels to `db_service.resources.labels`. Currently, only node-join scripts create a configuration according to the suggestion.|`[Labels](#labels)`|
+|kubernetes|Allows the configuration of options specific to the "kubernetes" join method.|`[Provision Token Spec v2Kubernetes](#provision-token-spec-v2kubernetes)`|
+|azure|Allows the configuration of options specific to the "azure" join method.|`[Provision Token Spec v2Azure](#provision-token-spec-v2azure)`|
+|gitlab|Allows the configuration of options specific to the "gitlab" join method.|`[Provision Token Spec v2Git Lab](#provision-token-spec-v2git-lab)`|
+|gcp|Allows the configuration of options specific to the "gcp" join method.|`[Provision Token Spec v2GCP](#provision-token-spec-v2gcp)`|
+ 
+
+
+Example:
+
+```yaml
+roles: 
+- 
+  # [...]
+- 
+  # [...]
+- 
+  # [...]
+allow: 
+- 
+  # [...]
+- 
+  # [...]
+- 
+  # [...]
+aws_iid_ttl: 
+# [...]
+join_method: 
+# [...]
+bot_name: "string"
+suggested_labels: 
+# [...]
+github: 
+# [...]
+circleci: 
+# [...]
+suggested_agent_matcher_labels: 
+# [...]
+kubernetes: 
+# [...]
+azure: 
+# [...]
+gitlab: 
+# [...]
+gcp: 
+# [...]
+
+```
+
+### Provision Token Spec v2Azure
+
+Contains the Azure-specific part of the ProvisionTokenSpecV2.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|allow|A list of Rules, nodes using this token must match one allow rule to use this token.|`[][Provision Token Spec v2Azure_Rule](#provision-token-spec-v2azure_rule)`|
+ 
+
+
+Example:
+
+```yaml
+allow: 
+- 
+  # [...]
+- 
+  # [...]
+- 
+  # [...]
+
+```
+
+### Provision Token Spec v2Azure_Rule
+
+Rule is a set of properties the Azure-issued token might have to be allowed to use this ProvisionToken.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|subscription|The Azure subscription.|`string`|
+|resource_groups|A list of Azure resource groups the node is allowed to join from.|`[]string`|
+ 
+
+
+Example:
+
+```yaml
+subscription: "string"
+resource_groups: 
+- "string"
+- "string"
+- "string"
+
+```
+
+### Provision Token Spec v2Circle CI
+
+Contains the CircleCI-specific part of the ProvisionTokenSpecV2
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|allow|A list of TokenRules, nodes using this token must match one allow rule to use this token.|`[][Provision Token Spec v2Circle CI_Rule](#provision-token-spec-v2circle-ci_rule)`|
+|organization_id||`string`|
+ 
+
+
+Example:
+
+```yaml
+allow: 
+- 
+  # [...]
+- 
+  # [...]
+- 
+  # [...]
+organization_id: "string"
+
+```
+
+### Provision Token Spec v2Circle CI_Rule
+
+
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|project_id||`string`|
+|context_id||`string`|
+ 
+
+
+Example:
+
+```yaml
+project_id: "string"
+context_id: "string"
+
+```
+
+### Provision Token Spec v2GCP
+
+Contains the GCP-specific part of the ProvisionTokenSpecV2.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|allow|A list of Rules, nodes using this token must match one allow rule to use this token.|`[][Provision Token Spec v2GCP_Rule](#provision-token-spec-v2gcp_rule)`|
+ 
+
+
+Example:
+
+```yaml
+allow: 
+- 
+  # [...]
+- 
+  # [...]
+- 
+  # [...]
+
+```
+
+### Provision Token Spec v2GCP_Rule
+
+Rule is a set of properties the GCP-ussued token might have to be allowed to use this ProvisionToken.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|project_ids|A list of project IDs (e.g. "<example-id-123456>").|`[]string`|
+|locations|A list of regions (e.g. "us-west1") and/or zones (e.g. "us-west1-b").|`[]string`|
+|service_accounts|A list of service account emails (e.g. "<project-number>-compute@developer.gserviceaccount.com").|`[]string`|
+ 
+
+
+Example:
+
+```yaml
+project_ids: 
+- "string"
+- "string"
+- "string"
+locations: 
+- "string"
+- "string"
+- "string"
+service_accounts: 
+- "string"
+- "string"
+- "string"
+
+```
+
+### Provision Token Spec v2Git Hub
+
+ProvisionTokenSpecV2Github contains the GitHub-specific part of the ProvisionTokenSpecV2
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|allow|A list of TokenRules, nodes using this token must match one allow rule to use this token.|`[][Provision Token Spec v2Git Hub_Rule](#provision-token-spec-v2git-hub_rule)`|
+|enterprise_server_host|Allows joining from runners associated with a GitHub Enterprise Server instance. When unconfigured, tokens will be validated against github.com, but when configured to the host of a GHES instance, then the tokens will be validated against host.  This value should be the hostname of the GHES instance, and should not include the scheme or a path. The instance must be accessible over HTTPS at this hostname and the certificate must be trusted by the Auth Server.|`string`|
+ 
+
+
+Example:
+
+```yaml
+allow: 
+- 
+  # [...]
+- 
+  # [...]
+- 
+  # [...]
+enterprise_server_host: "string"
+
+```
+
+### Provision Token Spec v2Git Hub_Rule
+
+Rule includes fields mapped from `lib/githubactions.IDToken` Not all fields should be included, only ones that we expect to be useful when trying to create rules around which workflows should be allowed to authenticate against a cluster.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|sub|Also known as Subject is a string that roughly uniquely identifies the workload. The format of this varies depending on the type of github action run.|`string`|
+|repository|The repository from where the workflow is running. This includes the name of the owner e.g `gravitational/teleport`|`string`|
+|repository_owner|The name of the organization in which the repository is stored.|`string`|
+|workflow|The name of the workflow.|`string`|
+|environment|The name of the environment used by the job.|`string`|
+|actor|The personal account that initiated the workflow run.|`string`|
+|ref|The git ref that triggered the workflow run.|`string`|
+|ref_type|The type of ref, for example: "branch".|`string`|
+ 
+
+
+Example:
+
+```yaml
+sub: "string"
+repository: "string"
+repository_owner: "string"
+workflow: "string"
+environment: "string"
+actor: "string"
+ref: "string"
+ref_type: "string"
+
+```
+
+### Provision Token Spec v2Git Lab
+
+Contains the GitLab-specific part of the ProvisionTokenSpecV2
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|allow|A list of TokenRules, nodes using this token must match one allow rule to use this token.|`[][Provision Token Spec v2Git Lab_Rule](#provision-token-spec-v2git-lab_rule)`|
+|domain|The domain of your GitLab instance. This will default to `gitlab.com` - but can be set to the domain of your self-hosted GitLab e.g `gitlab.example.com`.|`string`|
+ 
+
+
+Example:
+
+```yaml
+allow: 
+- 
+  # [...]
+- 
+  # [...]
+- 
+  # [...]
+domain: "string"
+
+```
+
+### Provision Token Spec v2Git Lab_Rule
+
+
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|sub|Roughly uniquely identifies the workload. Example: `project_path:mygroup/my-project:ref_type:branch:ref:main` project_path:{group}/{project}:ref_type:{type}:ref:{branch_name}|`string`|
+|ref|Allows access to be limited to jobs triggered by a specific git ref. Ensure this is used in combination with ref_type.|`string`|
+|ref_type|Allows access to be limited to jobs triggered by a specific git ref type. Example: `branch` or `tag`|`string`|
+|namespace_path|Used to limit access to jobs in a group or user's projects. Example: `mygroup`|`string`|
+|project_path|Used to limit access to jobs belonging to an individual project. Example: `mygroup/myproject`|`string`|
+|pipeline_source|Limits access by the job pipeline source type. https://docs.gitlab.com/ee/ci/jobs/job_control.html#common-if-clauses-for-rules Example: `web`|`string`|
+|environment|Limits access by the environment the job deploys to (if one is associated)|`string`|
+ 
+
+
+Example:
+
+```yaml
+sub: "string"
+ref: "string"
+ref_type: "string"
+namespace_path: "string"
+project_path: "string"
+pipeline_source: "string"
+environment: "string"
+
+```
+
+### Provision Token Spec v2Kubernetes
+
+Contains the Kubernetes-specific part of the ProvisionTokenSpecV2
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|allow|A list of Rules, nodes using this token must match one allow rule to use this token.|`[][Provision Token Spec v2Kubernetes_Rule](#provision-token-spec-v2kubernetes_rule)`|
+|type|Controls which behavior should be used for validating the Kubernetes Service Account token. Support values: - `in_cluster` - `static_jwks` If unset, this defaults to `in_cluster`.|`[Kubernetes Join Type](#kubernetes-join-type)`|
+|static_jwks|The configuration specific to the `static_jwks` type.|`[Provision Token Spec v2Kubernetes_Static JWKSConfig](#provision-token-spec-v2kubernetes_static-jwksconfig)`|
+ 
+
+
+Example:
+
+```yaml
+allow: 
+- 
+  # [...]
+- 
+  # [...]
+- 
+  # [...]
+type: 
+# [...]
+static_jwks: 
+# [...]
+
+```
+
+### Provision Token Spec v2Kubernetes_Rule
+
+Rule is a set of properties the Kubernetes-issued token might have to be allowed to use this ProvisionToken
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|service_account|The namespaced name of the Kubernetes service account. Its format is "namespace:service-account".|`string`|
+ 
+
+
+Example:
+
+```yaml
+service_account: "string"
+
+```
+
+### Provision Token Spec v2Kubernetes_Static JWKSConfig
+
+
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|jwks|Should be the JSON Web Key Set formatted public keys of that the Kubernetes Cluster uses to sign service account tokens. This can be fetched from /openid/v1/jwks on the Kubernetes API Server.|`string`|
+ 
+
+
+Example:
+
+```yaml
+jwks: "string"
+
+```
+
+### Provision Token v1
+
+A provisioning token V1
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|roles|A list of roles associated with the token, that will be converted to metadata in the SSH and X509 certificates issued to the user of the token|`[][System Role](#system-role)`|
+|expires|A global expiry time header can be set on any resource in the system.|`[Time](#time)`|
+|token|A token name|`string`|
+ 
+
+
+Example:
+
+```yaml
+roles: 
+- 
+  # [...]
+- 
+  # [...]
+- 
+  # [...]
+expires: 
+# [...]
+token: "string"
+
+```
+
+### Proxy Listener Mode
+
+Represents the cluster proxy listener mode.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+
+Example:
+
+```yaml
+0
+
+```
+
+### RDS
+
+Contains AWS RDS specific database metadata.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|instance_id|The RDS instance identifier.|`string`|
+|cluster_id|The RDS cluster (Aurora) identifier.|`string`|
+|resource_id|The RDS instance resource identifier (db-xxx).|`string`|
+|iam_auth|Indicates whether database IAM authentication is enabled.|`Boolean`|
+|subnets|A list of subnets for the RDS instance.|`[]string`|
+|vpc_id|The VPC where the RDS is running.|`string`|
+ 
+
+
+Example:
+
+```yaml
+instance_id: "string"
+cluster_id: "string"
+resource_id: "string"
+iam_auth: true
+subnets: 
+- "string"
+- "string"
+- "string"
+vpc_id: "string"
+
+```
+
+### RDSProxy
+
+Contains AWS RDS Proxy specific database metadata.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|name|The identifier of an RDS Proxy.|`string`|
+|custom_endpoint_name|The identifier of an RDS Proxy custom endpoint.|`string`|
+|resource_id|The RDS instance resource identifier (prx-xxx).|`string`|
+ 
+
+
+Example:
+
+```yaml
+name: "string"
+custom_endpoint_name: "string"
+resource_id: "string"
+
+```
+
+### Record Session
+
+
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|desktop|Indicates whether desktop sessions should be recorded. It defaults to true unless explicitly set to false.|`[Bool Option](#bool-option)`|
+|default|Indicates the default value for the services.|`[Session Recording Mode](#session-recording-mode)`|
+|ssh|Indicates the session mode used on SSH sessions.|`[Session Recording Mode](#session-recording-mode)`|
+ 
+
+
+Example:
+
+```yaml
+desktop: 
+# [...]
+default: 
+# [...]
+ssh: 
+# [...]
+
+```
+
+### Recovery Code
+
+Describes a recovery code.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|hashed_code|A bcrypt hash of this recovery code.|`[][byte](#byte)`|
+|is_used|Determines if this recovery code was used.|`Boolean`|
+ 
+
+
+Example:
+
+```yaml
+hashed_code: 
+- 
+  # [...]
+- 
+  # [...]
+- 
+  # [...]
+is_used: true
+
+```
+
+### Recovery Codes Spec v1
+
+The recovery codes spec.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|codes|Hold a list of numOfRecoveryCodes.|`[][Recovery Code](#recovery-code)`|
+|created|When the set of recovery codes were generated. Updated when a new set of recovery codes are inserted.|`[Time](#time)`|
+ 
+
+
+Example:
+
+```yaml
+codes: 
+- 
+  # [...]
+- 
+  # [...]
+- 
+  # [...]
+created: 
+# [...]
+
+```
+
+### Redshift
+
+Contains AWS Redshift specific database metadata.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|cluster_id|The Redshift cluster identifier.|`string`|
+ 
+
+
+Example:
+
+```yaml
+cluster_id: "string"
+
+```
+
+### Redshift Serverless
+
+Contains AWS Redshift Serverless specific metadata.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|workgroup_name|The workgroup name.|`string`|
+|endpoint_name|The VPC endpoint name.|`string`|
+|workgroup_id|The workgroup ID.|`string`|
+ 
+
+
+Example:
+
+```yaml
+workgroup_name: "string"
+endpoint_name: "string"
+workgroup_id: "string"
+
+```
+
+### Remote Cluster Status v3
+
+Represents status of the remote cluster
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|connection|Represents connection status, online or offline|`string`|
+|last_heartbeat|Records last heartbeat of the cluster|`[Time](#time)`|
+ 
+
+
+Example:
+
+```yaml
+connection: "string"
+last_heartbeat: 
+# [...]
+
+```
+
+### Request State
+
+Represents the state of a request for escalated privilege.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+
+Example:
+
+```yaml
+0
+
+```
+
+### Request Strategy
+
+An indicator of how access requests should be handled for holders of a given role.
+
+{/*Automatically generated from: access_request.go*/}
+
+
+
+Example:
+
+```yaml
+optional
+
+```
+
+### Require MFAType
+
+A type of MFA requirement enforced outside of login, such as per-session MFA or per-request PIV touch.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+
+Example:
+
+```yaml
+0
+
+```
+
+### Resource ID
+
+A unique identifier for a teleport resource.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|cluster|The name of the cluster the resource is in.|`string`|
+|kind|The resource kind.|`string`|
+|name|The name of the specific resource.|`string`|
+|sub_resource|The resource belonging to resource identified by "Name" that the user is allowed to access to. When granting access to a subresource, access to other resources is limited. Currently it just supports resources of Kind=pod and the format is the following "<kube_namespace>/<kube_pod>".|`string`|
+ 
+
+
+Example:
+
+```yaml
+cluster: "string"
+kind: "string"
+name: "string"
+sub_resource: "string"
+
+```
+
+### Reverse Tunnel Spec v2
+
+A specification for V2 reverse tunnel
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|cluster_name|A domain name of remote cluster we are connecting to|`string`|
+|dial_addrs|A list of remote address to establish a connection to it's always SSH over TCP|`[]string`|
+|type|The type of reverse tunnel, either proxy or node.|`[Tunnel Type](#tunnel-type)`|
+ 
+
+
+Example:
+
+```yaml
+cluster_name: "string"
+dial_addrs: 
+- "string"
+- "string"
+- "string"
+type: 
+# [...]
+
+```
+
+### Rewrite
+
+A list of rewriting rules to apply to requests and responses.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|redirect|Defines a list of hosts which will be rewritten to the public address of the application if they occur in the "Location" header.|`[]string`|
+|headers|A list of headers to inject when passing the request over to the application.|`[][Header](#header)`|
+|jwt_claims|Configures whether roles/traits are included in the JWT token.|`string`|
+ 
+
+
+Example:
+
+```yaml
+redirect: 
+- "string"
+- "string"
+- "string"
+headers: 
+- 
+  # [...]
+- 
+  # [...]
+- 
+  # [...]
+jwt_claims: "string"
+
+```
+
+### Role Conditions
+
+A set of conditions that must all match to be allowed or denied access.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|logins|A list of *nix system logins.|`[]string`|
+|node_labels|A map of node labels (used to dynamically grant access to nodes).|`[Labels](#labels)`|
+|rules|A list of rules and their access levels. Rules are a high level construct used for access control.|`[][Rule](#rule)`|
+|kubernetes_groups|A list of kubernetes groups|`[]string`|
+|request||`[Access Request Conditions](#access-request-conditions)`|
+|kubernetes_users|An optional kubernetes users to impersonate|`[]string`|
+|app_labels|A map of labels used as part of the RBAC system.|`[Labels](#labels)`|
+|cluster_labels|A map of node labels (used to dynamically grant access to clusters).|`[Labels](#labels)`|
+|kubernetes_labels|A map of kubernetes cluster labels used for RBAC.|`[Labels](#labels)`|
+|db_labels|Used in RBAC system to allow/deny access to databases.|`[Labels](#labels)`|
+|db_names|A list of database names this role is allowed to connect to.|`[]string`|
+|db_users|A list of databases users this role is allowed to connect as.|`[]string`|
+|impersonate|Specifies what users and roles this role is allowed to impersonate by issuing certificates or other possible means.|`[Impersonate Conditions](#impersonate-conditions)`|
+|review_requests|Defines conditions for submitting access reviews.|`[Access Review Conditions](#access-review-conditions)`|
+|aws_role_arns|A list of AWS role ARNs this role is allowed to assume.|`[]string`|
+|windows_desktop_logins|A list of desktop login names allowed/denied for Windows desktops.|`[]string`|
+|windows_desktop_labels|Used in the RBAC system to allow/deny access to Windows desktops.|`[Labels](#labels)`|
+|require_session_join|Specifies policies for required users to start a session.|`[][Session Require Policy](#session-require-policy)`|
+|join_sessions|Specifies policies to allow users to join other sessions.|`[][Session Join Policy](#session-join-policy)`|
+|host_groups|A list of groups for created users to be added to|`[]string`|
+|host_sudoers|A list of entries to include in a users sudoer file|`[]string`|
+|azure_identities|A list of Azure identities this role is allowed to assume.|`[]string`|
+|kubernetes_resources|The Kubernetes Resources this Role grants access to.|`[][Kubernetes Resource](#kubernetes-resource)`|
+|gcp_service_accounts|A list of GCP service accounts this role is allowed to assume.|`[]string`|
+|db_service_labels|Used in RBAC system to allow/deny access to Database Services.|`[Labels](#labels)`|
+|group_labels|A map of labels used as part of the RBAC system.|`[Labels](#labels)`|
+|desktop_groups|A list of groups for created desktop users to be added to|`[]string`|
+|db_roles|A list of databases roles for automatic user creation.|`[]string`|
+|node_labels_expression|A predicate expression used to allow/deny access to SSH nodes.|`string`|
+|app_labels_expression|A predicate expression used to allow/deny access to Apps.|`string`|
+|cluster_labels_expression|A predicate expression used to allow/deny access to remote Teleport clusters.|`string`|
+|kubernetes_labels_expression|A predicate expression used to allow/deny access to kubernetes clusters.|`string`|
+|db_labels_expression|A predicate expression used to allow/deny access to Databases.|`string`|
+|db_service_labels_expression|A predicate expression used to allow/deny access to Database Services.|`string`|
+|windows_desktop_labels_expression|A predicate expression used to allow/deny access to Windows desktops.|`string`|
+|group_labels_expression|A predicate expression used to allow/deny access to user groups.|`string`|
+ 
+
+
+Example:
+
+```yaml
+logins: 
+- "string"
+- "string"
+- "string"
+node_labels: 
+# [...]
+rules: 
+- 
+  # [...]
+- 
+  # [...]
+- 
+  # [...]
+kubernetes_groups: 
+- "string"
+- "string"
+- "string"
+request: 
+# [...]
+kubernetes_users: 
+- "string"
+- "string"
+- "string"
+app_labels: 
+# [...]
+cluster_labels: 
+# [...]
+kubernetes_labels: 
+# [...]
+db_labels: 
+# [...]
+db_names: 
+- "string"
+- "string"
+- "string"
+db_users: 
+- "string"
+- "string"
+- "string"
+impersonate: 
+# [...]
+review_requests: 
+# [...]
+aws_role_arns: 
+- "string"
+- "string"
+- "string"
+windows_desktop_logins: 
+- "string"
+- "string"
+- "string"
+windows_desktop_labels: 
+# [...]
+require_session_join: 
+- 
+  # [...]
+- 
+  # [...]
+- 
+  # [...]
+join_sessions: 
+- 
+  # [...]
+- 
+  # [...]
+- 
+  # [...]
+host_groups: 
+- "string"
+- "string"
+- "string"
+host_sudoers: 
+- "string"
+- "string"
+- "string"
+azure_identities: 
+- "string"
+- "string"
+- "string"
+kubernetes_resources: 
+- 
+  # [...]
+- 
+  # [...]
+- 
+  # [...]
+gcp_service_accounts: 
+- "string"
+- "string"
+- "string"
+db_service_labels: 
+# [...]
+group_labels: 
+# [...]
+desktop_groups: 
+- "string"
+- "string"
+- "string"
+db_roles: 
+- "string"
+- "string"
+- "string"
+node_labels_expression: "string"
+app_labels_expression: "string"
+cluster_labels_expression: "string"
+kubernetes_labels_expression: "string"
+db_labels_expression: "string"
+db_service_labels_expression: "string"
+windows_desktop_labels_expression: "string"
+group_labels_expression: "string"
+
+```
+
+### Role Mapping
+
+Provides mapping of remote roles to local roles for trusted clusters
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|remote|Specifies remote role name to map from|`string`|
+|local|Specifies local roles to map to|`[]string`|
+ 
+
+
+Example:
+
+```yaml
+remote: "string"
+local: 
+- "string"
+- "string"
+- "string"
+
+```
+
+### Role Options
+
+A set of role options
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|forward_agent|SSH agent forwarding.|`[Bool](#bool)`|
+|max_session_ttl|Defines how long a SSH session can last for.|`[Duration](#duration)`|
+|port_forwarding|Defines if the certificate will have "permit-port-forwarding" in the certificate. PortForwarding is "yes" if not set, that's why this is a pointer|`[Bool Option](#bool-option)`|
+|cert_format|Defines the format of the user certificate to allow compatibility with older versions of OpenSSH.|`string`|
+|client_idle_timeout|Sets disconnect clients on idle timeout behavior, if set to 0 means do not disconnect, otherwise is set to the idle duration.|`[Duration](#duration)`|
+|disconnect_expired_cert|Sets disconnect clients on expired certificates.|`[Bool](#bool)`|
+|enhanced_recording|Defines what events to record for the BPF-based session recorder.|`[]string`|
+|permit_x11_forwarding|Authorizes use of X11 forwarding.|`[Bool](#bool)`|
+|max_connections|Defines the maximum number of concurrent connections a user may hold.|`number`|
+|max_sessions|Defines the maximum number of concurrent sessions per connection.|`number`|
+|request_access|Defines the access request strategy (optional|note|always) where optional is the default.|`[Request Strategy](#request-strategy)`|
+|request_prompt|An optional message which tells users what they aught to request.|`string`|
+|lock|Specifies the locking mode (strict|best_effort) to be applied with the role.|`[Locking Mode](#locking-mode)`|
+|record_session|RecordDesktopSession indicates whether desktop access sessions should be recorded. It defaults to true unless explicitly set to false.|`[Record Session](#record-session)`|
+|desktop_clipboard|Indicates whether clipboard sharing is allowed between the user's workstation and the remote desktop. It defaults to true unless explicitly set to false.|`[Bool Option](#bool-option)`|
+|cert_extensions|Specifies the key/values|`[][Cert Extension](#cert-extension)`|
+|max_kubernetes_connections|Defines the maximum number of concurrent Kubernetes sessions a user may hold.|`number`|
+|desktop_directory_sharing|Indicates whether directory sharing is allowed between the user's workstation and the remote desktop. It defaults to false unless explicitly set to true.|`[Bool Option](#bool-option)`|
+|create_host_user|Allows users to be automatically created on a host|`[Bool Option](#bool-option)`|
+|pin_source_ip|Forces the same client IP for certificate generation and usage|`[Bool](#bool)`|
+|ssh_file_copy|Indicates whether remote file operations via SCP or SFTP are allowed over an SSH session. It defaults to true unless explicitly set to false.|`[Bool Option](#bool-option)`|
+|require_session_mfa|The type of MFA requirement enforced for this user.|`[Require MFAType](#require-mfatype)`|
+|device_trust_mode|The device authorization mode used for the resources associated with the role. See DeviceTrust.Mode. Reserved for future use, not yet used by Teleport.|`string`|
+|idp|A set of options related to accessing IdPs within Teleport. Requires Teleport Enterprise.|`[Id POptions](#id-poptions)`|
+|create_desktop_user|Allows users to be automatically created on a Windows desktop|`[Bool Option](#bool-option)`|
+|create_db_user|Enabled automatic database user creation.|`[Bool Option](#bool-option)`|
+|create_host_user_mode|Allows users to be automatically created on a host when not set to off|`[Create Host User Mode](#create-host-user-mode)`|
+|create_db_user_mode|Allows users to be automatically created on a database when not set to off.|`[Create Database User Mode](#create-database-user-mode)`|
+ 
+
+
+Example:
+
+```yaml
+forward_agent: 
+# [...]
+max_session_ttl: 
+# [...]
+port_forwarding: 
+# [...]
+cert_format: "string"
+client_idle_timeout: 
+# [...]
+disconnect_expired_cert: 
+# [...]
+enhanced_recording: 
+- "string"
+- "string"
+- "string"
+permit_x11_forwarding: 
+# [...]
+max_connections: 1
+max_sessions: 1
+request_access: 
+# [...]
+request_prompt: "string"
+lock: 
+# [...]
+record_session: 
+# [...]
+desktop_clipboard: 
+# [...]
+cert_extensions: 
+- 
+  # [...]
+- 
+  # [...]
+- 
+  # [...]
+max_kubernetes_connections: 1
+desktop_directory_sharing: 
+# [...]
+create_host_user: 
+# [...]
+pin_source_ip: 
+# [...]
+ssh_file_copy: 
+# [...]
+require_session_mfa: 
+# [...]
+device_trust_mode: "string"
+idp: 
+# [...]
+create_desktop_user: 
+# [...]
+create_db_user: 
+# [...]
+create_host_user_mode: 
+# [...]
+create_db_user_mode: 
+# [...]
+
+```
+
+### Role Spec v6
+
+Role specification for RoleV6.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|options|For OpenSSH options like agent forwarding.|`[Role Options](#role-options)`|
+|allow|The set of conditions evaluated to grant access.|`[Role Conditions](#role-conditions)`|
+|deny|The set of conditions evaluated to deny access. Deny takes priority over allow.|`[Role Conditions](#role-conditions)`|
+ 
+
+
+Example:
+
+```yaml
+options: 
+# [...]
+allow: 
+# [...]
+deny: 
+# [...]
+
+```
+
+### Role v6
+
+Represents role resource specification
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|kind|A resource kind|`string`|
+|sub_kind|An optional resource sub kind, used in some resources|`string`|
+|version|Version|`string`|
+|metadata|Resource metadata|`[Metadata](#metadata)`|
+|spec|A role specification|`[Role Spec v6](#role-spec-v6)`|
+ 
+
+
+Example:
+
+```yaml
+kind: "string"
+sub_kind: "string"
+version: "string"
+metadata: 
+# [...]
+spec: 
+# [...]
+
+```
+
+### Rotation
+
+A status of the rotation of the certificate authority
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|state|Could be one of "init" or "in_progress".|`string`|
+|phase|The current rotation phase.|`string`|
+|mode|Sets manual or automatic rotation mode.|`string`|
+|current_id|The ID of the rotation operation to differentiate between rotation attempts.|`string`|
+|started|Set to the time when rotation has been started in case if the state of the rotation is "in_progress".|`[Time](#time)`|
+|grace_period|A period during which old and new CA are valid for checking purposes, but only new CA is issuing certificates.|`[Duration](#duration)`|
+|last_rotated|Specifies the last time of the completed rotation.|`[Time](#time)`|
+|schedule|A rotation schedule - used in automatic mode to switch between phases.|`[Rotation Schedule](#rotation-schedule)`|
+ 
+
+
+Example:
+
+```yaml
+state: "string"
+phase: "string"
+mode: "string"
+current_id: "string"
+started: 
+# [...]
+grace_period: 
+# [...]
+last_rotated: 
+# [...]
+schedule: 
+# [...]
+
+```
+
+### Rotation Schedule
+
+A rotation schedule setting time switches for different phases.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|update_clients|Specifies time to switch to the "Update clients" phase|`[Time](#time)`|
+|update_servers|Specifies time to switch to the "Update servers" phase.|`[Time](#time)`|
+|standby|Specifies time to switch to the "Standby" phase.|`[Time](#time)`|
+ 
+
+
+Example:
+
+```yaml
+update_clients: 
+# [...]
+update_servers: 
+# [...]
+standby: 
+# [...]
+
+```
+
+### Routing Strategy
+
+Determines the strategy used to route to nodes.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+
+Example:
+
+```yaml
+0
+
+```
+
+### Rule
+
+Represents allow or deny rule that is executed to check if user or service have access to resource
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|resources|A list of resources|`[]string`|
+|verbs|A list of verbs|`[]string`|
+|where|Specifies optional advanced matcher|`string`|
+|actions|Specifies optional actions taken when this rule matches|`[]string`|
+ 
+
+
+Example:
+
+```yaml
+resources: 
+- "string"
+- "string"
+- "string"
+verbs: 
+- "string"
+- "string"
+- "string"
+where: "string"
+actions: 
+- "string"
+- "string"
+- "string"
+
+```
+
+### SAMLAttribute
+
+Contains an attribute name and associated values. Defined in http://docs.oasis-open.org/security/saml/v2.0/saml-core-2.0-os.pdf.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|friendly_name|A user readable name for the attribute.|`string`|
+|name|A full name for the attribute, typically an OID value.|`string`|
+|name_format|The format of the name.|`string`|
+|values|A list of attribute values.|`[][SAMLAttribute Value](#samlattribute-value)`|
+ 
+
+
+Example:
+
+```yaml
+friendly_name: "string"
+name: "string"
+name_format: "string"
+values: 
+- 
+  # [...]
+- 
+  # [...]
+- 
+  # [...]
+
+```
+
+### SAMLAttribute Value
+
+S contains a type, value, and an associated name ID block. Defined in http://docs.oasis-open.org/security/saml/v2.0/saml-core-2.0-os.pdf.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|type|The type of value this attribute represents.|`string`|
+|value|The value of the attribute.|`string`|
+|name_id|A more restrictive identifier for the attribute value.|`[SAMLName ID](#samlname-id)`|
+ 
+
+
+Example:
+
+```yaml
+type: "string"
+value: "string"
+name_id: 
+# [...]
+
+```
+
+### SAMLConnector Spec v2
+
+A SAML connector specification.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|issuer|The identity provider issuer.|`string`|
+|sso|The URL of the identity provider's SSO service.|`string`|
+|cert|The identity provider certificate PEM. IDP signs <Response> responses using this certificate.|`string`|
+|display|Controls how this connector is displayed.|`string`|
+|acs|A URL for assertion consumer service on the service provider (Teleport's side).|`string`|
+|audience|Uniquely identifies our service provider.|`string`|
+|service_provider_issuer|The issuer of the service provider (Teleport).|`string`|
+|entity_descriptor|XML with descriptor. It can be used to supply configuration parameters in one XML file rather than supplying them in the individual elements.|`string`|
+|entity_descriptor_url|A URL that supplies a configuration XML.|`string`|
+|attributes_to_roles|A list of mappings of attribute statements to roles.|`[][Attribute Mapping](#attribute-mapping)`|
+|signing_key_pair|An x509 key pair used to sign AuthnRequest.|`[Asymmetric Key Pair](#asymmetric-key-pair)`|
+|provider|The external identity provider.|`string`|
+|assertion_key_pair|A key pair used for decrypting SAML assertions.|`[Asymmetric Key Pair](#asymmetric-key-pair)`|
+|allow_idp_initiated|A flag that indicates if the connector can be used for IdP-initiated logins.|`Boolean`|
+ 
+
+
+Example:
+
+```yaml
+issuer: "string"
+sso: "string"
+cert: "string"
+display: "string"
+acs: "string"
+audience: "string"
+service_provider_issuer: "string"
+entity_descriptor: "string"
+entity_descriptor_url: "string"
+attributes_to_roles: 
+- 
+  # [...]
+- 
+  # [...]
+- 
+  # [...]
+signing_key_pair: 
+# [...]
+provider: "string"
+assertion_key_pair: 
+# [...]
+allow_idp_initiated: true
+
+```
+
+### SAMLName ID
+
+A more restrictive identifier for an object in SAML. Defined in http://docs.oasis-open.org/security/saml/v2.0/saml-core-2.0-os.pdf.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|name_qualifier|The domain that qualifies the identifier.|`string`|
+|sp_name_qualifier|Qualifies the identifier with the name of the service provider.|`string`|
+|format|The format of the identifier.|`string`|
+|sp_provider_id|An identifier established by the service provider.|`string`|
+|value|The value of the name ID.|`string`|
+ 
+
+
+Example:
+
+```yaml
+name_qualifier: "string"
+sp_name_qualifier: "string"
+format: "string"
+sp_provider_id: "string"
+value: "string"
+
+```
+
+### SAMLSession Data
+
+Contains data for a SAML session. Based on crewjam/saml's session object: https://github.com/crewjam/saml/blob/main/identity_provider.go
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|id|The identifier for the SAML session.|`string`|
+|create_time|The time that the session was created.|`[Time](#time)`|
+|expire_time|The time that the session will expire.|`[Time](#time)`|
+|index|The session index that allows the IdP to uniquely identify a session.|`string`|
+|name_id|An identifier for the session.|`string`|
+|name_id_format|The format of the Name ID.|`string`|
+|subject_id|The identifier for the subject of the session.|`string`|
+|groups|A list of groups that the user has access to.|`[]string`|
+|user_name|The user's name.|`string`|
+|user_email|The user's e-mail.|`string`|
+|user_common_name|The user's common name.|`string`|
+|user_surname|The user's surname.|`string`|
+|user_given_name|The user's given name.|`string`|
+|user_scoped_affiliation|The user's scoped affiliation.|`string`|
+|custom_attributes|Any custom attributes associated with the request.|`[][SAMLAttribute](#samlattribute)`|
+ 
+
+
+Example:
+
+```yaml
+id: "string"
+create_time: 
+# [...]
+expire_time: 
+# [...]
+index: "string"
+name_id: "string"
+name_id_format: "string"
+subject_id: "string"
+groups: 
+- "string"
+- "string"
+- "string"
+user_name: "string"
+user_email: "string"
+user_common_name: "string"
+user_surname: "string"
+user_given_name: "string"
+user_scoped_affiliation: "string"
+custom_attributes: 
+- 
+  # [...]
+- 
+  # [...]
+- 
+  # [...]
+
+```
+
+### SSHKey Pair
+
+An SSH CA key pair.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|public_key|The SSH public key.|`[][byte](#byte)`|
+|private_key|The SSH private key.|`[][byte](#byte)`|
+|private_key_type|The type of the PrivateKey.|`[Private Key Type](#private-key-type)`|
+ 
+
+
+Example:
+
+```yaml
+public_key: 
+- 
+  # [...]
+- 
+  # [...]
+- 
+  # [...]
+private_key: 
+- 
+  # [...]
+- 
+  # [...]
+- 
+  # [...]
+private_key_type: 
+# [...]
+
+```
+
+### Secret Store
+
+Contains secret store configurations.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|key_prefix|Specifies the secret key prefix.|`string`|
+|kms_key_id|Specifies the AWS KMS key for encryption.|`string`|
+ 
+
+
+Example:
+
+```yaml
+key_prefix: "string"
+kms_key_id: "string"
+
+```
+
+### Semaphore Lease Ref
+
+Identifies an existent lease.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|lease_id|The unique ID of the lease.|`string`|
+|expires|The time at which the lease expires.|`[Time](#time)`|
+|holder|Identifies the lease holder.|`string`|
+ 
+
+
+Example:
+
+```yaml
+lease_id: "string"
+expires: 
+# [...]
+holder: "string"
+
+```
+
+### Semaphore Spec v3
+
+Contains the data about lease
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|leases|A list of all currently acquired leases.|`[][Semaphore Lease Ref](#semaphore-lease-ref)`|
+ 
+
+
+Example:
+
+```yaml
+leases: 
+- 
+  # [...]
+- 
+  # [...]
+- 
+  # [...]
+
+```
+
+### Server Info Spec v1
+
+Contains fields used to match Nodes to this ServerInfo.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|new_labels|The set of labels to add to nodes matching this ServerInfo.|`map[string]string`|
+ 
+
+
+Example:
+
+```yaml
+new_labels: 
+  "string": "string"
+  "string": "string"
+  "string": "string"
+
+```
+
+### Server Spec v2
+
+A specification for V2 Server
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|addr|A host:port address where this server can be reached.|`string`|
+|public_addr|The public address where this server can be reached. DELETE IN 15.0. (joerger) Deprecated in favor of public_addrs.|`string`|
+|hostname|Server hostname|`string`|
+|cmd_labels|Server dynamic labels|`map[string][Command Label v2](#command-label-v2)`|
+|rotation|Specifies server rotation|`[Rotation](#rotation)`|
+|use_tunnel|Indicates that connections to this server should occur over a reverse tunnel.|`Boolean`|
+|version|TeleportVersion is the teleport version that the server is running on|`string`|
+|peer_addr|The address a proxy server is reachable at by its peer proxies.|`string`|
+|proxy_ids|A list of proxy IDs this server is expected to be connected to.|`[]string`|
+|public_addrs|A list of public addresses where this server can be reached.|`[]string`|
+|cloud_metadata|Contains info about the cloud instance the server is running on, if any.|`[Cloud Metadata](#cloud-metadata)`|
+ 
+
+
+Example:
+
+```yaml
+addr: "string"
+public_addr: "string"
+hostname: "string"
+cmd_labels: 
+  "string": 
+    # [...]
+  "string": 
+    # [...]
+  "string": 
+    # [...]
+rotation: 
+# [...]
+use_tunnel: true
+version: "string"
+peer_addr: "string"
+proxy_ids: 
+- "string"
+- "string"
+- "string"
+public_addrs: 
+- "string"
+- "string"
+- "string"
+cloud_metadata: 
+# [...]
+
+```
+
+### Server v2
+
+Represents a Node, App, Database, Proxy or Auth server in a Teleport cluster.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|kind|A resource kind|`string`|
+|sub_kind|An optional resource sub kind, used in some resources|`string`|
+|version|Version|`string`|
+|metadata|Resource metadata|`[Metadata](#metadata)`|
+|spec|A server spec|`[Server Spec v2](#server-spec-v2)`|
+ 
+
+
+Example:
+
+```yaml
+kind: "string"
+sub_kind: "string"
+version: "string"
+metadata: 
+# [...]
+spec: 
+# [...]
+
+```
+
+### Session Join Policy
+
+Defines a policy that allows a user to join sessions.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|name|The name of the policy.|`string`|
+|roles|A list of roles that you can join the session of.|`[]string`|
+|kinds|The session kinds this policy applies to.|`[]string`|
+|modes|A list of permitted participant modes for this policy.|`[]string`|
+ 
+
+
+Example:
+
+```yaml
+name: "string"
+roles: 
+- "string"
+- "string"
+- "string"
+kinds: 
+- "string"
+- "string"
+- "string"
+modes: 
+- "string"
+- "string"
+- "string"
+
+```
+
+### Session Recording Config Spec v2
+
+The actual data we care about for SessionRecordingConfig.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|mode|Controls where (or if) the session is recorded.|`string`|
+|proxy_checks_host_keys|Used to control if the proxy will check host keys when in recording mode.|`[Bool Option](#bool-option)`|
+ 
+
+
+Example:
+
+```yaml
+mode: "string"
+proxy_checks_host_keys: 
+# [...]
+
+```
+
+### Session Require Policy
+
+A requirement policy that needs to be fulfilled to grant access.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|name|The name of the policy.|`string`|
+|filter|A predicate that determines what users count towards this policy.|`string`|
+|kinds|The session kinds this policy applies to.|`[]string`|
+|count|The amount of people that need to be matched for this policy to be fulfilled.|`number`|
+|modes|The list of modes that may be used to fulfill this policy.|`[]string`|
+|on_leave|The behaviour that's used when the policy is no longer fulfilled for a live session.|`string`|
+ 
+
+
+Example:
+
+```yaml
+name: "string"
+filter: "string"
+kinds: 
+- "string"
+- "string"
+- "string"
+count: 1
+modes: 
+- "string"
+- "string"
+- "string"
+on_leave: "string"
+
+```
+
+### Static Tokens Spec v2
+
+The actual data we care about for StaticTokensSpecV2.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|static_tokens|A list of tokens that can be used to add nodes to the cluster.|`[][Provision Token v1](#provision-token-v1)`|
+ 
+
+
+Example:
+
+```yaml
+static_tokens: 
+- 
+  # [...]
+- 
+  # [...]
+- 
+  # [...]
+
+```
+
+### System Role
+
+Identifies the role of an SSH connection. Unlike "user roles" introduced as part of RBAC in Teleport 1.4+ these are built-in roles used for different Teleport components when connecting to each other.
+
+{/*Automatically generated from: system_role.go*/}
+
+
+
+Example:
+
+```yaml
+Node
+
+```
+
+### TLSKey Pair
+
+A TLS key pair
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|cert|A PEM encoded TLS cert|`[][byte](#byte)`|
+|key|A PEM encoded TLS key|`[][byte](#byte)`|
+|key_type|The type of the Key.|`[Private Key Type](#private-key-type)`|
+ 
+
+
+Example:
+
+```yaml
+cert: 
+- 
+  # [...]
+- 
+  # [...]
+- 
+  # [...]
+key: 
+- 
+  # [...]
+- 
+  # [...]
+- 
+  # [...]
+key_type: 
+# [...]
+
+```
+
+### Team Mapping
+
+Represents a single team membership mapping.  DELETE IN 11.0.0
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|organization|A Github organization a user belongs to.|`string`|
+|team|A team within the organization a user belongs to.|`string`|
+|logins|A list of allowed logins for this org/team.|`[]string`|
+|kubernetes_groups|A list of allowed kubernetes groups for this org/team.|`[]string`|
+|kubernetes_users|A list of allowed kubernetes users to impersonate for this org/team.|`[]string`|
+ 
+
+
+Example:
+
+```yaml
+organization: "string"
+team: "string"
+logins: 
+- "string"
+- "string"
+- "string"
+kubernetes_groups: 
+- "string"
+- "string"
+- "string"
+kubernetes_users: 
+- "string"
+- "string"
+- "string"
+
+```
+
+### Team Roles Mapping
+
+Represents a single team membership mapping.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|organization|A Github organization a user belongs to.|`string`|
+|team|A team within the organization a user belongs to.|`string`|
+|roles|A list of allowed logins for this org/team.|`[]string`|
+ 
+
+
+Example:
+
+```yaml
+organization: "string"
+team: "string"
+roles: 
+- "string"
+- "string"
+- "string"
+
+```
+
+### Threshold Index Set
+
+Encodes a list of threshold indexes. One of the listed thresholds must pass for the set to be considered to have passed (i.e. this is an `or` operator).
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|i|The indexes of thresholds which relate to the role.|`[]number`|
+ 
+
+
+Example:
+
+```yaml
+i: 
+- 1
+- 1
+- 1
+
+```
+
+### Threshold Index Sets
+
+A list of threshold index sets.  Each of the individual sets must pass (i.e. this is an `and` operator).
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|s|The sets that make up this group.|`[][Threshold Index Set](#threshold-index-set)`|
+ 
+
+
+Example:
+
+```yaml
+s: 
+- 
+  # [...]
+- 
+  # [...]
+- 
+  # [...]
+
+```
+
+### Token Rule
+
+A rule that a joining node must match in order to use the associated token.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|aws_account|The AWS account ID.|`string`|
+|aws_regions|Used for the EC2 join method and is a list of AWS regions a node is allowed to join from.|`[]string`|
+|aws_role|Used for the EC2 join method and is the the ARN of the AWS role that the auth server will assume in order to call the ec2 API.|`string`|
+|aws_arn|Used for the IAM join method, the AWS identity of joining nodes must match this ARN. Supports wildcards "*" and "?".|`string`|
+ 
+
+
+Example:
+
+```yaml
+aws_account: "string"
+aws_regions: 
+- "string"
+- "string"
+- "string"
+aws_role: "string"
+aws_arn: "string"
+
+```
+
+### Trusted Cluster Spec v2
+
+A Trusted Cluster specification.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|enabled|A bool that indicates if the TrustedCluster is enabled or disabled. Setting Enabled to false has a side effect of deleting the user and host certificate authority (CA).|`Boolean`|
+|roles|A list of roles that users will be assuming when connecting to this cluster.|`[]string`|
+|token|The authorization token provided by another cluster needed by this cluster to join.|`string`|
+|web_proxy_addr|The address of the web proxy server of the cluster to join. If not set, it is derived from <metadata.name>:<default web proxy server port>.|`string`|
+|tunnel_addr|The address of the SSH proxy server of the cluster to join. If not set, it is derived from <metadata.name>:<default reverse tunnel port>.|`string`|
+|role_map|Specifies role mappings to remote roles.|`[][Role Mapping](#role-mapping)`|
+ 
+
+
+Example:
+
+```yaml
+enabled: true
+roles: 
+- "string"
+- "string"
+- "string"
+token: "string"
+web_proxy_addr: "string"
+tunnel_addr: "string"
+role_map: 
+- 
+  # [...]
+- 
+  # [...]
+- 
+  # [...]
+
+```
+
+### Tunnel Connection Spec v2
+
+A specification for V2 tunnel connection
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|cluster_name|A name of the cluster|`string`|
+|proxy_name|The name of the proxy server|`string`|
+|last_heartbeat|A time of the last heartbeat|`[Time](#time)`|
+|type|The type of reverse tunnel, either proxy or node.|`[Tunnel Type](#tunnel-type)`|
+ 
+
+
+Example:
+
+```yaml
+cluster_name: "string"
+proxy_name: "string"
+last_heartbeat: 
+# [...]
+type: 
+# [...]
+
+```
+
+### Tunnel Strategy v1
+
+Defines possible tunnel strategy types.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+
+Example:
+
+```yaml
+agent_connection_count: 2
+
+```
+
+### Tunnel Type
+
+The type of tunnel.
+
+{/*Automatically generated from: constants.go*/}
+
+
+
+Example:
+
+```yaml
+node|proxy|app|kube|db|windows_desktop|okta
+
+```
+
+### U2F
+
+Defines settings for U2F device. Deprecated: U2F is transparently converted to WebAuthn by Teleport. Prefer using WebAuthn instead.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|app_id|Returns the application ID for universal second factor.|`string`|
+|facets|Returns the facets for universal second factor. Deprecated: Kept for backwards compatibility reasons, but Facets have no effect since Teleport v10, when Webauthn replaced the U2F implementation.|`[]string`|
+|device_attestation_cas|Contains the trusted attestation CAs for U2F devices.|`[]string`|
+ 
+
+
+Example:
+
+```yaml
+app_id: "string"
+facets: 
+- "string"
+- "string"
+- "string"
+device_attestation_cas: 
+- "string"
+- "string"
+- "string"
+
+```
+
+### User Ref
+
+Holds references to user
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|name|Name of the user|`string`|
+ 
+
+
+Example:
+
+```yaml
+name: "string"
+
+```
+
+### User Spec v2
+
+A specification for V2 user
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|oidc_identities|Lists associated OpenID Connect identities that let user log in using externally verified identity|`[][External Identity](#external-identity)`|
+|saml_identities|Lists associated SAML identities that let user log in using externally verified identity|`[][External Identity](#external-identity)`|
+|github_identities|List associated Github OAuth2 identities that let user log in using externally verified identity|`[][External Identity](#external-identity)`|
+|roles|A list of roles assigned to user|`[]string`|
+|traits|Key/value pairs received from an identity provider (through OIDC claims or SAML assertions) or from a system administrator for local accounts. Traits are used to populate role variables.|`[Traits](#traits)`|
+|status|A login status of the user|`[Login Status](#login-status)`|
+|expires|If set sets TTL on the user|`[Time](#time)`|
+|created_by|Holds information about agent or person created this user|`[Created By](#created-by)`|
+|local_auth|Holds sensitive data necessary for performing local authentication|`[Local Auth Secrets](#local-auth-secrets)`|
+|trusted_device_ids|Contains the IDs of trusted devices enrolled by the user. Managed by the Device Trust subsystem, avoid manual edits.|`[]string`|
+ 
+
+
+Example:
+
+```yaml
+oidc_identities: 
+- 
+  # [...]
+- 
+  # [...]
+- 
+  # [...]
+saml_identities: 
+- 
+  # [...]
+- 
+  # [...]
+- 
+  # [...]
+github_identities: 
+- 
+  # [...]
+- 
+  # [...]
+- 
+  # [...]
+roles: 
+- "string"
+- "string"
+- "string"
+traits: 
+# [...]
+status: 
+# [...]
+expires: 
+# [...]
+created_by: 
+# [...]
+local_auth: 
+# [...]
+trusted_device_ids: 
+- "string"
+- "string"
+- "string"
+
+```
+
+### User Token Secrets Spec v3
+
+
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|opt_key|Is a secret value of one time password secret generator|`string`|
+|qr_code|OTPKey is is a secret value of one time password secret generator|`string`|
+|created|Holds information about when the token was created|`[Time](#time)`|
+ 
+
+
+Example:
+
+```yaml
+opt_key: "string"
+qr_code: "string"
+created: 
+# [...]
+
+```
+
+### User Token Spec v3
+
+
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|user|User name associated with this token|`string`|
+|url|This token URL|`string`|
+|usage|An optional field that provides more information about how this token will be used.|`[User Token Usage](#user-token-usage)`|
+|created|Holds information about when the token was created|`[Time](#time)`|
+ 
+
+
+Example:
+
+```yaml
+user: "string"
+url: "string"
+usage: 
+# [...]
+created: 
+# [...]
+
+```
+
+### User Token Usage
+
+Contains additional information about the intended usage of a user token.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+
+Example:
+
+```yaml
+0
+
+```
+
+### Watch Kind
+
+Specifies resource kind to watch When adding fields to this struct, make sure to review/update WatchKind.Contains method.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|kind|A resource kind to watch|`string`|
+|load_secrets|Specifies whether to load secrets|`Boolean`|
+|name|An optional specific resource type to watch, if specified only the events with a specific resource name will be sent|`string`|
+|filter|An optional mapping of custom filter parameters. Valid values vary by resource kind.|`map[string]string`|
+|sub_kind|A resource subkind to watch|`string`|
+|version|Optionally specifies the resource version to watch. Currently this field is ignored.|`string`|
+ 
+
+
+Example:
+
+```yaml
+kind: "string"
+load_secrets: true
+name: "string"
+filter: 
+  "string": "string"
+  "string": "string"
+  "string": "string"
+sub_kind: "string"
+version: "string"
+
+```
+
+### Watch Status Spec v1
+
+Contains resource kinds confirmed by WatchEvents to be included in the event stream.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|kinds||`[][Watch Kind](#watch-kind)`|
+ 
+
+
+Example:
+
+```yaml
+kinds: 
+- 
+  # [...]
+- 
+  # [...]
+- 
+  # [...]
+
+```
+
+### Watch Status v1
+
+Intended to be attached to OpInit events and contain information about a successful WatchEvents call.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|kind|The resource kind.|`string`|
+|sub_kind|An optional resource subkind. Currently unused for this resource.|`string`|
+|version|The resource version.|`string`|
+|metadata|The resource metadata.|`[Metadata](#metadata)`|
+|spec|The resource spec.|`[Watch Status Spec v1](#watch-status-spec-v1)`|
+ 
+
+
+Example:
+
+```yaml
+kind: "string"
+sub_kind: "string"
+version: "string"
+metadata: 
+# [...]
+spec: 
+# [...]
+
+```
+
+### Web Session Spec v2
+
+A specification for web session.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|user|The identity of the user to which the web session belongs.|`string`|
+|pub|The SSH certificate for the user.|`[][byte](#byte)`|
+|priv|The SSH private key for the user.|`[][byte](#byte)`|
+|tls_cert|The TLS certificate for the user.|`[][byte](#byte)`|
+|bearer_token|A token that is paired with the session cookie for authentication. It is periodically rotated so a stolen cookie itself is not enough to steal a session. In addition it is used for CSRF mitigation.|`string`|
+|bearer_token_expires|The absolute time when the token expires.|`[Time](#time)`|
+|expires|The absolute time when the session expires.|`[Time](#time)`|
+|login_time|The time this user recently logged in.|`[Time](#time)`|
+|idle_timeout|The max time a user can be inactive in a session.|`[Duration](#duration)`|
+|consumed_access_request_id|The ID of the access request from which additional roles to assume were obtained.|`string`|
+|saml_session|Data associated with a SAML IdP session.|`[SAMLSession Data](#samlsession-data)`|
+ 
+
+
+Example:
+
+```yaml
+user: "string"
+pub: 
+- 
+  # [...]
+- 
+  # [...]
+- 
+  # [...]
+priv: 
+- 
+  # [...]
+- 
+  # [...]
+- 
+  # [...]
+tls_cert: 
+- 
+  # [...]
+- 
+  # [...]
+- 
+  # [...]
+bearer_token: "string"
+bearer_token_expires: 
+# [...]
+expires: 
+# [...]
+login_time: 
+# [...]
+idle_timeout: 
+# [...]
+consumed_access_request_id: "string"
+saml_session: 
+# [...]
+
+```
+
+### Web Token Spec v3
+
+A unique time-limited token bound to a user's web session
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|user|Specifies the user the token is bound to.|`string`|
+|token|Specifies the token's value.|`string`|
+ 
+
+
+Example:
+
+```yaml
+user: "string"
+token: "string"
+
+```
+
+### Webauthn
+
+Defines user-visible settings for server-side Web Authentication support.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|rp_id|The ID of the Relying Party. It should be set to the domain name of the Teleport installation.  IMPORTANT: RPID must never change in the lifetime of the cluster, because it's recorded in the registration data on the WebAuthn device. If the RPID changes, all existing WebAuthn key registrations will become invalid and all users who use WebAuthn as the second factor will need to re-register.|`string`|
+|attestation_allowed_cas|Allow list of device attestation CAs in PEM format. If present, only devices whose attestation certificates match the certificates specified here may be registered (existing registrations are unchanged). If supplied in conjunction with AttestationDeniedCAs, then both conditions need to be true for registration to be allowed (the device MUST match an allowed CA and MUST NOT match a denied CA). By default all devices are allowed.|`[]string`|
+|attestation_denied_cas|Deny list of device attestation CAs in PEM format. If present, only devices whose attestation certificates don't match the certificates specified here may be registered (existing registrations are unchanged). If supplied in conjunction with AttestationAllowedCAs, then both conditions need to be true for registration to be allowed (the device MUST match an allowed CA and MUST NOT match a denied CA). By default no devices are denied.|`[]string`|
+ 
+
+
+Example:
+
+```yaml
+rp_id: "string"
+attestation_allowed_cas: 
+- "string"
+- "string"
+- "string"
+attestation_denied_cas: 
+- "string"
+- "string"
+- "string"
+
+```
+
+### Webauthn Local Auth
+
+Holds settings necessary for local webauthn use.
+
+{/*Automatically generated from: types.pb.go*/}
+
+
+|Field Name|Description|Type|
+|---|---|---|
+|user_id|The random user handle generated for the user. See https://www.w3.org/TR/webauthn-2/#sctn-user-handle-privacy.|`[][byte](#byte)`|
+ 
+
+
+Example:
+
+```yaml
+user_id: 
+- 
+  # [...]
+- 
+  # [...]
+- 
+  # [...]
+
+```
+
