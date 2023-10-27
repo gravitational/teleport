@@ -18,37 +18,44 @@ import { makeRuntimeSettings } from 'teleterm/mainProcess/fixtures/mocks';
 import { Platform } from 'teleterm/mainProcess/types';
 import { makeLoggedInUser } from 'teleterm/services/tshd/testHelpers';
 
-import { hasConnectMyComputerPermissions } from './permissions';
+import {
+  ConnectMyComputerAccess,
+  ConnectMyComputerAccessNoAccess,
+  getConnectMyComputerAccess,
+} from './access';
 
 const testCases: {
   name: string;
   platform: Platform;
   canCreateToken: boolean;
-  expect: boolean;
+  expect: ConnectMyComputerAccess['status'];
+  expectReason?: ConnectMyComputerAccessNoAccess['reason'];
 }[] = [
   {
-    name: 'should be true when OS is darwin and can create token',
+    name: 'access is granted when OS is darwin and can create token',
     platform: 'darwin',
     canCreateToken: true,
-    expect: true,
+    expect: 'ok',
   },
   {
-    name: 'should be true when OS is  linux and can create token',
+    name: 'access is granted when OS is  linux and can create token',
     platform: 'linux',
     canCreateToken: true,
-    expect: true,
+    expect: 'ok',
   },
   {
-    name: 'should be false when OS is windows and can create token',
+    name: 'access is not granted when OS is windows and can create token',
     platform: 'win32',
     canCreateToken: true,
-    expect: false,
+    expect: 'no-access',
+    expectReason: 'unsupported-platform',
   },
   {
-    name: 'should be false when OS is darwin and cannot create token',
+    name: 'access is not granted when OS is darwin and cannot create token',
     platform: 'darwin',
     canCreateToken: false,
-    expect: false,
+    expect: 'no-access',
+    expectReason: 'insufficient-permissions',
   },
 ];
 
@@ -67,9 +74,12 @@ test.each(testCases)('$name', testCase => {
   });
   const runtimeSettings = makeRuntimeSettings({ platform: testCase.platform });
 
-  const isPermitted = hasConnectMyComputerPermissions(
-    loggedInUser,
-    runtimeSettings
-  );
-  expect(isPermitted).toEqual(testCase.expect);
+  const access = getConnectMyComputerAccess(loggedInUser, runtimeSettings);
+  expect(access.status).toEqual(testCase.expect);
+  if (testCase.expectReason) {
+    // eslint-disable-next-line jest/no-conditional-expect
+    expect((access as ConnectMyComputerAccessNoAccess).reason).toEqual(
+      testCase.expectReason
+    );
+  }
 });
