@@ -35,15 +35,9 @@ import { DatabaseUri } from 'teleterm/ui/uri';
 import { IAppContext } from 'teleterm/ui/types';
 import { retryWithRelogin } from 'teleterm/ui/utils';
 
-import { useClusterContext } from './clusterContext';
-
-interface ConnectServerActionButtonProps {
+export function ConnectServerActionButton(props: {
   server: Server;
-}
-
-export function ConnectServerActionButton(
-  props: ConnectServerActionButtonProps
-): React.JSX.Element {
+}): React.JSX.Element {
   const ctx = useAppContext();
 
   function getSshLogins(): string[] {
@@ -78,14 +72,9 @@ export function ConnectServerActionButton(
   );
 }
 
-interface ConnectKubeActionButtonProps {
+export function ConnectKubeActionButton(props: {
   kube: Kube;
-}
-
-export function ConnectKubeActionButton(
-  props: ConnectKubeActionButtonProps
-): React.JSX.Element {
-  const ctx = useClusterContext();
+}): React.JSX.Element {
 
   function connect(): void {
     ctx.connectKube(props.kube.uri, { origin: 'resource_table' });
@@ -98,13 +87,9 @@ export function ConnectKubeActionButton(
   );
 }
 
-interface ConnectDatabaseActionButtonProps {
+export function ConnectDatabaseActionButton(props: {
   database: Database;
-}
-
-export function ConnectDatabaseActionButton(
-  props: ConnectDatabaseActionButtonProps
-): React.JSX.Element {
+}): React.JSX.Element {
   const appContext = useAppContext();
 
   function connect(dbUser: string): void {
@@ -118,7 +103,9 @@ export function ConnectDatabaseActionButton(
 
   return (
     <MenuLogin
-      {...getMenuLoginOptions(props.database.protocol as GatewayProtocol)}
+      {...getDatabaseMenuLoginOptions(
+        props.database.protocol as GatewayProtocol
+      )}
       width="195px"
       getLoginItems={() => getDatabaseUsers(appContext, props.database.uri)}
       onSelect={(_, user) => {
@@ -136,7 +123,7 @@ export function ConnectDatabaseActionButton(
   );
 }
 
-function getMenuLoginOptions(
+function getDatabaseMenuLoginOptions(
   protocol: GatewayProtocol
 ): Pick<MenuLoginProps, 'placeholder' | 'required'> {
   if (protocol === 'redis') {
