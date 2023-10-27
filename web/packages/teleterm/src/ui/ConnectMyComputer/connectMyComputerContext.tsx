@@ -41,8 +41,7 @@ import {
 
 import { assertUnreachable, retryWithRelogin } from '../utils';
 
-import { hasConnectMyComputerPermissions } from './permissions';
-
+import { getConnectMyComputerAccess } from './access';
 import {
   checkAgentCompatibility,
   AgentCompatibility,
@@ -127,14 +126,14 @@ export const ConnectMyComputerContextProvider: FC<{
   const { loggedInUser } = rootCluster;
 
   const canUse = useMemo(() => {
-    const hasPermissions = hasConnectMyComputerPermissions(
+    const access = getConnectMyComputerAccess(
       loggedInUser,
       mainProcessClient.getRuntimeSettings()
     );
 
     // We check `isAgentConfigured`, because the user should always have access to the agent after configuring it.
     // https://github.com/gravitational/teleport/blob/master/rfd/0133-connect-my-computer.md#access-to-ui-and-autostart
-    return hasPermissions || isAgentConfigured;
+    return access.status === 'ok' || isAgentConfigured;
   }, [isAgentConfigured, mainProcessClient, loggedInUser]);
 
   const agentCompatibility = useMemo(
