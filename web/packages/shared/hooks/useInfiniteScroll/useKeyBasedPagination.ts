@@ -20,6 +20,7 @@ import { ResourcesResponse } from 'teleport/services/agents';
 import { ApiError } from 'teleport/services/api/parseError';
 
 import useAttempt, { Attempt } from 'shared/hooks/useAttemptNext';
+import { isAbortError } from 'shared/utils/abortError';
 
 /**
  * Supports fetching more data from the server when more data is available. Pass
@@ -135,10 +136,6 @@ export function useKeyBasedPagination<T>({
     finished,
   };
 }
-
-const isAbortError = (err: any): boolean =>
-  (err instanceof DOMException && err.name === 'AbortError') ||
-  (err.cause && isAbortError(err.cause));
 
 export type KeyBasedPaginationOptions<T> = {
   fetchFunc: (

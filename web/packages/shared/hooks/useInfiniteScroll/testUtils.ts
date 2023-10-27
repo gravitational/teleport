@@ -16,7 +16,6 @@
 
 import 'whatwg-fetch';
 import { RenderResult } from '@testing-library/react-hooks';
-import { ApiError } from 'teleport/services/api/parseError';
 
 import { Node } from 'teleport/services/nodes';
 
@@ -45,12 +44,6 @@ function makeTestResources(
 
 export function newDOMAbortError() {
   return new DOMException('Aborted', 'AbortError');
-}
-
-export function newApiAbortError() {
-  return new ApiError('The user aborted a request', new Response(), {
-    cause: newDOMAbortError(),
-  });
 }
 
 /**
