@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 
-import { AbortError } from 'shared/utils/abortError';
-
 import api from 'teleport/services/api';
 import cfg, { UrlResourcesParams } from 'teleport/config';
 import history from 'teleport/services/history';
@@ -63,10 +61,6 @@ class ResourceService {
             'true'
           );
           history.replace(cfg.getNodesRoute(clusterId));
-        }
-
-        if (isAbortError(res)) {
-          throw new AbortError();
         }
         throw res;
       });
@@ -140,7 +134,3 @@ class ResourceService {
 }
 
 export default ResourceService;
-
-const isAbortError = (err: any): boolean =>
-  (err instanceof DOMException && err.name === 'AbortError') ||
-  (err.cause && isAbortError(err.cause));
