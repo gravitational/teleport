@@ -354,6 +354,7 @@ func getDestinationAddress(clientSrc, listenerAddr net.Addr) (net.Addr, error) {
 }
 
 // checkedPrefixConn checks that read data has the specified prefix.
+// All changes should be mirrored to the implementation to 'checkedPrefixReader' in /lib/srv/regular/proxy.go
 type checkedPrefixConn struct {
 	net.Conn
 

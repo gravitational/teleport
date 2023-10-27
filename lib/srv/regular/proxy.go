@@ -294,6 +294,7 @@ func (t *proxySubsys) proxyToHost(ctx context.Context, ch ssh.Channel, clientSrc
 }
 
 // checkedPrefixReader checks that read data has the specified prefix.
+// All changes should be mirrored to the implementation to 'checkedPrefixConn' in /lib/srv/transport/transportv1/transport.go
 type checkedPrefixReader struct {
 	io.ReadWriteCloser
 
