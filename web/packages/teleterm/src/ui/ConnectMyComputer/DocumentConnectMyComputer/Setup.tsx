@@ -29,11 +29,11 @@ import {
   NodeWaitJoinTimeout,
   useConnectMyComputerContext,
 } from 'teleterm/ui/ConnectMyComputer';
-import Logger from 'teleterm/logger';
 import { codeOrSignal } from 'teleterm/ui/utils/process';
 import { RootClusterUri } from 'teleterm/ui/uri';
 import { isAccessDeniedError } from 'teleterm/services/tshd/errors';
 import { useResourcesContext } from 'teleterm/ui/DocumentCluster/resourcesContext';
+import { useLogger } from 'teleterm/ui/hooks/useLogger';
 
 import { useAgentProperties } from '../useAgentProperties';
 import { Logs } from '../Logs';
@@ -41,10 +41,7 @@ import { CompatibilityError } from '../CompatibilityPromise';
 
 import { ProgressBar } from './ProgressBar';
 
-const logger = new Logger('DocumentConnectMyComputerSetup');
-
-// TODO(gzdunek): Rename to `Setup`
-export function DocumentConnectMyComputerSetup() {
+export function Setup() {
   const [step, setStep] = useState<'information' | 'agent-setup'>(
     'information'
   );
@@ -118,6 +115,7 @@ function Information(props: { onSetUpAgentClick(): void }) {
 }
 
 function AgentSetup({ rootClusterUri }: { rootClusterUri: RootClusterUri }) {
+  const logger = useLogger('AgentSetup');
   const ctx = useAppContext();
   const {
     startAgent,
@@ -206,6 +204,7 @@ function AgentSetup({ rootClusterUri }: { rootClusterUri: RootClusterUri }) {
         ctx.connectMyComputerService,
         cluster.uri,
         requestResourcesRefresh,
+        logger,
       ])
     );
 

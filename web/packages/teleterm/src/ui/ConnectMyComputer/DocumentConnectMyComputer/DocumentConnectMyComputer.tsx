@@ -22,18 +22,15 @@ import * as types from 'teleterm/ui/services/workspacesService';
 import Document from 'teleterm/ui/Document';
 import { useWorkspaceContext } from 'teleterm/ui/Documents';
 
-import { useConnectMyComputerContext } from './connectMyComputerContext';
-import { DocumentConnectMyComputerStatus } from './DocumentConnectMyComputerStatus/DocumentConnectMyComputerStatus';
-import { DocumentConnectMyComputerSetup } from './DocumentConnectMyComputerSetup/DocumentConnectMyComputerSetup';
+import { useConnectMyComputerContext } from '../connectMyComputerContext';
 
-interface DocumentConnectMyComputerProps {
+import { Status } from './Status';
+import { Setup } from './Setup';
+
+export function DocumentConnectMyComputer(props: {
   visible: boolean;
   doc: types.DocumentConnectMyComputer;
-}
-
-export function DocumentConnectMyComputer(
-  props: DocumentConnectMyComputerProps
-) {
+}) {
   const { documentsService } = useWorkspaceContext();
   const { isAgentConfiguredAttempt } = useConnectMyComputerContext();
   const shouldShowSetup =
@@ -50,11 +47,7 @@ export function DocumentConnectMyComputer(
 
   return (
     <Document visible={props.visible}>
-      {shouldShowSetup ? (
-        <DocumentConnectMyComputerSetup />
-      ) : (
-        <DocumentConnectMyComputerStatus closeDocument={closeDocument} />
-      )}
+      {shouldShowSetup ? <Setup /> : <Status closeDocument={closeDocument} />}
     </Document>
   );
 }

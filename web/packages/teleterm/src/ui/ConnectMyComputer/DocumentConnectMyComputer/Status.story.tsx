@@ -35,7 +35,7 @@ import {
   NodeWaitJoinTimeout,
 } from '../connectMyComputerContext';
 
-import { DocumentConnectMyComputerStatus } from './DocumentConnectMyComputerStatus';
+import { Status } from './Status';
 
 export default {
   title: 'Teleterm/ConnectMyComputer/Status',
@@ -271,7 +271,7 @@ function ShowState(props: {
     <MockAppContextProvider appContext={appContext}>
       <MockWorkspaceContextProvider rootClusterUri={cluster.uri}>
         <ConnectMyComputerContextProvider rootClusterUri={cluster.uri}>
-          <DocumentConnectMyComputerStatus />
+          <Status />
         </ConnectMyComputerContextProvider>
       </MockWorkspaceContextProvider>
     </MockAppContextProvider>
