@@ -96,7 +96,6 @@ impl Client {
 
         let mut rdpdr = Rdpdr::new(
             Box::new(TeleportRdpdrBackend::new(
-                SCARD_DEVICE_ID,
                 client_handle.clone(),
                 params.cert_der,
                 params.key_der,
@@ -518,20 +517,10 @@ impl Client {
         global::TOKIO_RT
             .spawn_blocking(move || {
                 let mut x224_processor = Self::x224_lock(&x224_processor)?;
-
                 let rdpdr = x224_processor
                     .get_svc_processor_mut::<Rdpdr>()
                     .ok_or(ClientError::InternalError)?;
-                // Add drive to rdpdr
                 let pdu = rdpdr.add_drive(sda.directory_id, sda.name);
-
-                let teleport_rdpdr_backend = rdpdr
-                    .downcast_backend_mut::<TeleportRdpdrBackend>()
-                    .ok_or(ClientError::InternalError)?;
-                // Add device_id to teleport rdpdr backend
-                teleport_rdpdr_backend.add_active_device_id(sda.directory_id);
-
-                // Return the ClientDeviceListAnnounce for sending to the server.
                 Ok(pdu)
             })
             .await?
