@@ -16,9 +16,10 @@
 
 import 'whatwg-fetch';
 import { RenderResult } from '@testing-library/react-hooks';
-import { ApiError } from 'teleport/services/api/parseError';
 
 import { Node } from 'teleport/services/nodes';
+
+import { AbortError } from 'shared/utils/abortError';
 
 /**
  * Creates `n` nodes. We use the `Node` type for testing, because it's slim and
@@ -43,16 +44,6 @@ function makeTestResources(
     }));
 }
 
-export function newDOMAbortError() {
-  return new DOMException('Aborted', 'AbortError');
-}
-
-export function newApiAbortError() {
-  return new ApiError('The user aborted a request', new Response(), {
-    cause: newDOMAbortError(),
-  });
-}
-
 /**
  * Creates a mock fetch function that pretends to query a pool of given number
  * of resources. To simulate a search, `params.search` is used as a resource
@@ -62,7 +53,7 @@ export function newFetchFunc({
   clusterId = 'test-cluster',
   search,
   numResources,
-  newAbortError = newDOMAbortError,
+  newAbortError = () => new AbortError(),
 }: {
   clusterId?: string;
   search?: string;

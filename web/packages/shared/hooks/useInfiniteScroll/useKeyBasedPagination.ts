@@ -20,6 +20,7 @@ import { ResourcesResponse } from 'teleport/services/agents';
 import { ApiError } from 'teleport/services/api/parseError';
 
 import useAttempt, { Attempt } from 'shared/hooks/useAttemptNext';
+import { AbortError } from 'shared/utils/abortError';
 
 /**
  * Supports fetching more data from the server when more data is available. Pass
@@ -105,10 +106,13 @@ export function useKeyBasedPagination<T>({
       setAttempt({ status: 'success' });
     } catch (err) {
       // Aborting is not really an error here.
-      if (isAbortError(err)) {
+      if (err instanceof AbortError) {
         setAttempt({ status: '', statusText: '' });
         return;
       }
+      // TODO(gzdunek): The UnifiedResources component checks if statusCode === 400
+      // (bad request) to hide the retry button.
+      // Refactor this hook to use useAsync to allow returning a custom error class.
       let statusCode;
       if (err instanceof ApiError && err.response) {
         statusCode = err.response.status;
@@ -135,10 +139,6 @@ export function useKeyBasedPagination<T>({
     finished,
   };
 }
-
-const isAbortError = (err: any): boolean =>
-  (err instanceof DOMException && err.name === 'AbortError') ||
-  (err.cause && isAbortError(err.cause));
 
 export type KeyBasedPaginationOptions<T> = {
   fetchFunc: (
