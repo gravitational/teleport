@@ -5,6 +5,7 @@ use crate::{
     CGOSharedDirectoryListResponse, CGOSharedDirectoryReadResponse,
 };
 use ironrdp_pdu::{custom_err, PduResult};
+use ironrdp_rdpdr::pdu::efs::DeviceCreateRequest;
 
 /// SharedDirectoryAnnounce is sent by the TDP client to the server
 /// to announce a new directory to be shared over TDP.
@@ -46,6 +47,16 @@ pub struct SharedDirectoryInfoRequest {
     pub completion_id: u32,
     pub directory_id: u32,
     pub path: UnixPath,
+}
+
+impl From<&DeviceCreateRequest> for SharedDirectoryInfoRequest {
+    fn from(req: &DeviceCreateRequest) -> SharedDirectoryInfoRequest {
+        SharedDirectoryInfoRequest {
+            completion_id: req.device_io_request.completion_id,
+            directory_id: req.device_io_request.device_id,
+            path: UnixPath::from(&(*req.path)),
+        }
+    }
 }
 
 /// SharedDirectoryInfoResponse is sent by the TDP client to the server

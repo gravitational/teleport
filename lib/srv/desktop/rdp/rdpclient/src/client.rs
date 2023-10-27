@@ -101,6 +101,7 @@ impl Client {
                 params.cert_der,
                 params.key_der,
                 pin,
+                cgo_handle,
             )),
             "IronRDP".to_string(),
         )
@@ -307,6 +308,14 @@ impl Client {
                             )
                             .await?;
                         }
+                        ClientFunction::HandleTdpSdInfoResponse(res) => {
+                            Client::handle_tdp_sd_info_response(
+                                &mut write_stream,
+                                x224_processor.clone(),
+                                res,
+                            )
+                            .await?;
+                        }
                         ClientFunction::WriteCliprdr(f) => {
                             Client::write_cliprdr(x224_processor.clone(), &mut write_stream, f)
                                 .await?;
@@ -483,6 +492,25 @@ impl Client {
         Ok(())
     }
 
+    async fn handle_tdp_sd_info_response(
+        write_stream: &mut RdpWriteStream,
+        x224_processor: Arc<Mutex<X224Processor>>,
+        res: tdp::SharedDirectoryInfoResponse,
+    ) -> ClientResult<()> {
+        global::TOKIO_RT
+            .spawn_blocking(move || {
+                let mut x224_processor = Self::x224_lock(&x224_processor)?;
+                let teleport_rdpdr_backend = x224_processor
+                    .get_svc_processor_mut::<Rdpdr>()
+                    .ok_or(ClientError::InternalError)?
+                    .downcast_backend_mut::<TeleportRdpdrBackend>()
+                    .ok_or(ClientError::InternalError)?;
+                teleport_rdpdr_backend.handle_tdp_sd_info_response(res)?;
+                Ok(())
+            })
+            .await?
+    }
+
     async fn add_drive(
         x224_processor: Arc<Mutex<X224Processor>>,
         sda: tdp::SharedDirectoryAnnounce,
@@ -573,6 +601,8 @@ pub enum ClientFunction {
     WriteRdpdr(RdpdrPdu),
     /// Corresponds to [`Client::handle_tdp_sd_announce`]
     HandleTdpSdAnnounce(tdp::SharedDirectoryAnnounce),
+    /// Corresponds to [`Client::handle_tdp_sd_info_response`]
+    HandleTdpSdInfoResponse(tdp::SharedDirectoryInfoResponse),
     /// Corresponds to [`Client::write_cliprdr`]
     WriteCliprdr(Box<dyn ClipboardFn>),
     /// Corresponds to [`Client::update_clipboard`]
