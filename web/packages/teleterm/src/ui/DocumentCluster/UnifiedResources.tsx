@@ -27,7 +27,7 @@ import {
   DbType,
 } from 'shared/services/databases';
 
-import { Flex, ButtonPrimary, Box, Text } from 'design';
+import { Flex, ButtonPrimary, Text } from 'design';
 
 import * as icons from 'design/Icon';
 import Image from 'design/Image';
@@ -271,11 +271,10 @@ function NoResources(props: NoResourcesProps) {
   }
 
   return (
-    <Box
+    <Flex
       maxWidth={600}
       p={8}
       pt={5}
-      as={Flex}
       width="100%"
       mx="auto"
       flexDirection="column"
@@ -283,6 +282,6 @@ function NoResources(props: NoResourcesProps) {
       justifyContent="center"
     >
       {$content}
-    </Box>
+    </Flex>
   );
 }
