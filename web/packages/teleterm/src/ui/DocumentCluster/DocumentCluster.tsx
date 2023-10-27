@@ -82,7 +82,7 @@ export function Cluster() {
   }
 
   return (
-    <Layout mx="auto" px={5} pt={4} height="100%">
+    <Layout>
       <UnifiedResources clusterUri={clusterCtx.clusterUri} />
     </Layout>
   );
@@ -138,7 +138,7 @@ type DocumentProps = {
   doc: types.DocumentCluster;
 };
 
-const Layout = styled(Box)`
+const Layout = styled(Box).attrs({ mx: 'auto', px: 5, pt: 4, height: '100%' })`
   flex-direction: column;
   display: flex;
   flex: 1;
