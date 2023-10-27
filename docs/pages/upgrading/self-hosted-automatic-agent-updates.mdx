@@ -1,0 +1,300 @@
+---
+title: Set up Automatic Upgrade Infrastructure
+description: Describes how to setup automatic agent upgrades for self-hosted Teleport deployments.
+---
+
+Teleport supports automatic agent upgrades for systemd-based Linux distributions
+using `apt`, `yum`, and `zypper` package managers, as well as Kubernetes
+clusters. 
+
+Teleport agents run an **updater** that queries a **version server** to
+determine whether they are out of date. This guide desribes how to set up your
+infrastructure to support automatic upgrades. If you are a Teleport Cloud user
+or run a version server already, return to the [Upgrading](../upgrading.mdx)
+menu for the appropriate next steps to upgrade Teleport.
+
+The [Automatic Update Architecture](../architecture/agent-update-management.mdx)
+guide explains how automatic agent upgrades work in more detail.
+
+<Admonition type="warning">
+Systemd agents enrolled into automatic upgrades can only install versions
+present in their package repositories. As Teleport 14 won't be published to
+`stable/v13`, those agents will require manual intervention to be upgraded to
+the next major version (adding a new APT/YUM/zypper repo for `stable/v14`).
+Alternatively, you can use the `stable/rolling` channel, which contains
+Teleport v13.3.2 forward, including future major releases.
+
+</Admonition>
+
+## Prerequisites
+
+- Familiarity with the [Upgrading Compatibility Overview](./overview.mdx) guide,
+  which describes the sequence in which to upgrade components of your cluster.
+- Self-hosted Teleport cluster v13.0 or higher.
+
+The version server must be hosted on a webserver with trusted TLS certificates
+and reachable by all agents. You must have either:
+  - A public Amazon S3 or Google Cloud Storage bucket.
+  - A web server accessible from all agents with valid TLS certificates.
+
+If you do not have an S3 or GCS bucket for your version server, this guide
+provides an example of how to create one using Terraform. You can [install
+Terraform](https://developer.hashicorp.com/terraform/downloads) to spin up a
+demo version server along with this guide so you can get started with automatic
+agent upgrades. Terraform is not required to set up a version server. 
+
+- (!docs/pages/includes/tctl.mdx!)
+
+## Step 1/3. Create release channel files
+
+A **release channel** contains two pieces of information: the targeted version
+and if the upgrade is critical. Updaters subscribe to a release channel and will
+upgrade to the provided version during a **maintenance window** (which we will
+configure later in this guide). If the upgrade is critical, updaters will ignore
+the maintenance schedule and upgrade as soon as possible.
+
+The version server is a static file server that responds to the following queries:
+
+```code
+$ curl https://<hosting-domain-and-path>/current/version
+(=teleport.version=)
+
+$ curl https://<hosting-domain-and-path>/current/critical
+no
+```
+
+1. Create a project directory for the files we create in this guide:
+
+   ```code
+   $ mkdir version-server
+   $ cd version-server
+   ```
+
+1. Create a directory for the new release channel `current`.
+
+   ```code
+   $ mkdir current/
+   ```
+
+1. Make the `current` release channel target the version (=teleport.version=):
+
+   ```code
+   $ echo -n "(=teleport.version=)" > current/version
+   ```
+
+1. And mark the upgrade as not critical:
+
+   ```code
+   $ echo -n "no" > current/critical
+   ```
+
+## Step 2/3. Create a Terraform configuration
+
+1. In the project directory you created in the previous section, create a file
+   called `main.tf` and populate it with the following content, depending on
+   whether you will use Amazon S3 or Google Cloud Storage:
+
+   <Tabs>
+   <TabItem label="Amazon S3">
+
+   In the configuration below, replace `REGION` with the name of the AWS region
+   where you will deploy the version server:
+   
+   ```hcl
+   terraform {
+     required_providers {
+       aws = {
+         source  = "hashicorp/aws"
+         version = "~> 5.0"
+       }
+     }
+   }
+
+   provider "aws" {
+     region = "REGION"
+   }
+
+   resource "aws_s3_bucket" "version_server" {
+     // Replace the bucket name to ensure it is unique
+     bucket = "version-server"
+   }
+   
+   resource "aws_s3_object" "version" {
+     bucket = aws_s3_bucket.version_server.id
+     key = "current/version"
+     source = "${path.root}/current/version"
+   }
+   
+   resource "aws_s3_object" "critical" {
+     bucket = aws_s3_bucket.version_server.id
+     key = "current/critical"
+     source = "${path.root}/current/critical"
+   }
+
+   resource "aws_s3_bucket_policy" "version_server" {
+     depends_on = [aws_s3_bucket_public_access_block.version_server]
+     bucket = aws_s3_bucket.version_server.id
+     policy = jsonencode({
+       Version = "2012-10-17"
+       Statement = [
+         {
+           Sid       = "GrantAnonymousReadPermissions"
+           Principal = "*"
+           Action = [
+             "s3:GetObject",
+           ]
+           Effect   = "Allow"
+           Resource = ["${aws_s3_bucket.version_server.arn}/*"]
+         },
+       ]
+     })
+   }
+   
+   resource "aws_s3_bucket_public_access_block" "version_server" {
+     bucket = aws_s3_bucket.version_server.id
+   
+     block_public_acls       = false
+     block_public_policy     = false
+     ignore_public_acls      = false
+     restrict_public_buckets = false
+   }
+   ```
+   </TabItem>
+   <TabItem label="Google Cloud Storage">
+
+   In the configuration below, replace `PROJECT` and `REGION` with the Google
+   Cloud project and region where you will deploy the version server:
+   
+   ```hcl
+   terraform {
+     required_providers {
+       google = {
+         source  = "hashicorp/google"
+         version = "~> 5.0"
+       }
+     }
+   }
+
+   provider "google" {
+     project     = "PROJECT"
+     region      = "REGION"
+   }
+
+   resource "google_storage_bucket" "version_server" {
+     // Change the location as needed. See:
+     // https://cloud.google.com/storage/docs/locations
+     location = "US-EAST1"
+     // Replace this to ensure it is unique
+     name = "version-server"
+   }
+   
+   resource "google_storage_bucket_object" "version" {
+     name   = "current/version"
+     source = "${path.root}/current/version"
+     bucket = google_storage_bucket.version_server.name
+   }
+   
+   resource "google_storage_bucket_object" "critical" {
+     name   = "current/critical"
+     source = "${path.root}/current/critical"
+     bucket = google_storage_bucket.version_server.name
+   }
+
+   data "google_iam_policy" "viewer" {
+     binding {
+       role = "roles/storage.objectViewer"
+       members = [
+           "allUsers",
+       ] 
+     }
+   }
+   
+   resource "google_storage_bucket_iam_policy" "version_server" {
+     bucket = google_storage_bucket.version_server.name
+     policy_data = data.google_iam_policy.viewer.policy_data
+   }
+   ```
+   </TabItem>
+   </Tabs>
+
+1. Make your cloud provider credentials available to Terraform. The method to
+   use depends on your organization, e.g., pasting environment variables into
+   your terminal.
+
+1. Apply the configuration:
+
+  ```code
+  $ terraform init
+  $ terraform apply
+  ```
+
+## Step 3/3. Configure the maintenance schedule
+
+At this point the updaters can be configured to pull the version from the
+release channel and upgrade the agents. In this step you'll configure a
+maintenance schedule for the Teleport cluster that agents will use to determine
+when to check for upgrades.
+
+### Create a Teleport role
+
+Create a Teleport role that can manage cluster maintenance configurations
+through the `cluster_maintenance_config` dynamic resource. No preset Teleport
+roles provide this ability, so you will need to create one.
+
+1. Create a file called `cmc-editor.yaml` with the following content:
+
+   ```yaml
+   kind: role
+   version: v7
+   metadata:
+     name: cmc-editor
+   allow:
+     rules:
+       - resources: ['cluster_maintenance_config']
+         verbs: ['create', 'read', 'update', 'delete']
+   ```
+
+1. Create the role resource:
+
+   ```code
+   $ tctl create cmd-editor.yaml
+   ```
+
+1. Add the role to your Teleport user:
+
+  (!docs/pages/includes/add-role-to-user.mdx!)
+
+### Create a cluster maintenance configuration
+
+Create the following `cmc.yaml` manifest allowing maintenance on Monday,
+Wednesday and Friday between 02:00 and 03:00 UTC.
+
+(!docs/pages/includes/cluster-maintenance-config-spec.mdx!)
+
+Finally, apply the manifest using `tctl`:
+
+```code
+$ tctl create cmc.yaml
+maintenance window has been updated
+```
+
+## Next steps
+
+At this point, the cluster is ready for agent automatic upgrades. Agents
+configured to automatically upgrade will fetch their version from the version
+server. By changing the target version served by the version server you can
+upgrade or downgrade the agents.
+
+Read one of the following guides for how to upgrade the Auth Service and Proxy
+Service and enroll agents in automatic upgrades on your platform:
+
+- [Upgrade Self-Hosted Teleport Deployments on
+  Kubernetes](./self-hosted-kubernetes.mdx)
+- [Upgrade Self-Hosted Teleport Deployments on Linux
+  Servers](./self-hosted-linux.mdx)
+
+While this guide showed you how to apply a `cluster_maintenance_config` resource
+using `tctl`, we recommend using infrastructure as code to maintain your
+Teleport resources. See the
+[`teleport_cluster_maintenance_config`](../reference/terraform-provider.mdx#teleport_cluster_maintenance_config)
+for how to declare a cluster maintenance configuration with Terraform.

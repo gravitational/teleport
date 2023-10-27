@@ -1,0 +1,153 @@
+---
+title: Upgrade Self-Hosted Teleport Clusters on Kubernetes
+description: Provides instructions for upgrading self-hosted Teleport clusters that run on Kubernetes. 
+---
+
+This guide explains how to upgrade self-hosted Teleport clusters running on
+Kubernetes.
+
+## Prerequisites
+
+- Familiarity with the [Upgrading Compatibility Overview](./overview.mdx) guide,
+  which describes the sequence in which to upgrade components of your cluster.
+- A self-hosted Teleport cluster in which the Auth Service and Proxy Service run
+  on Kubernetes. This guide assumes that you have deployed the Teleport cluster
+  using the `teleport-cluster` Helm chart.
+
+Teleport supports automatic agent updates for the `teleport-kube-agent` Helm
+chart. The [Automatic Update Architecture
+](../architecture/agent-update-management.mdx) guide describes how agent
+updating works. Automatic agent upgrades require:
+
+- A Teleport cluster running version 13.0.0 or above.
+- At least one Teleport Enterprise agent deployed via the `teleport-kube-agent`
+  Helm chart.
+- A **version server** in your infrastructure that agents can query in order to
+  upgrade themselves. Read [Set up Automatic Upgrade
+  Infrastructure](./self-hosted-automatic-agent-updates.mdx) for how to deploy a
+  version server.
+
+This guide assumes that you have configured the `teleport-cluster` Helm chart
+with a values file called `values.yaml`, and that your `teleport-cluster`
+release is called `teleport-cluster`.
+
+## Step 1/3. Shrink the Auth Service pool
+
+You must reduce the number of Auth Service instances to one in order to ensure a
+consistent cluster state during the upgrade.
+
+Ensure that your `teleport-cluster` values file includes the followinmg
+configuration:
+
+```yaml
+auth:
+  highAvailability:
+    replicaCount: 1
+```
+
+Once you have completed this guide and upgraded the cluster, you can configure
+your cluster for high availability again.
+
+## Step 2/3. Upgrade the Auth Service and Proxy Service
+
+Run the following commands to upgrade Auth Service and Proxy Service instances
+running on Kubernetes.
+
+1. Update the Teleport Helm chart repository so you can install the latest
+   version of the `teleport-cluster` chart:
+
+    (!docs/pages//kubernetes-access/helm/includes/helm-repo-add.mdx!)
+
+1. Upgrade the Helm release:
+
+    ```code
+    $ helm upgrade teleport-cluster teleport/teleport-cluster --values=values.yaml
+    ```
+
+The `teleport-cluster` Helm chart automatically waits for the previous version
+of the Proxy Service to stop responding to requests before running a new version
+of the Auth Service.
+
+
+## Step 3/3. Enroll agents in automatic upgrades
+
+This section assumes that the name of your `teleport-kube-agent` release is
+`teleport-agent`, and that you have installed it in the `teleport-agent`
+namespace.
+
+1. Confirm you are using the Teleport Enterprise edition of the
+   `teleport-kube-agent` chart. You should see the following when you query your
+   `teleport-kube-agent` release:
+
+   ```code
+   $ helm -n teleport-agent get values teleport-agent -o json | jq '.enterprise'
+   true   
+   ```
+
+1. Add the following chart values to the values file for the
+   `teleport-kube-agent` chart:
+
+   ```yaml
+   updater:
+     enabled: true
+     versionServer: https://<version-server-domain-and-path>
+     releaseChannel: <release-channel>
+   ```
+
+   Change `<release-channel>` to the name of the release channel you would like
+   the agent to query for upgrades. For the current version, choose `current`.
+
+1. Update the Helm chart release with the new values:
+
+   ```code
+   $ helm -n teleport-agent upgrade teleport-agent teleport/teleport-kube-agent --values=values.yaml
+   ```
+
+1. You can validate the updater is running properly by checking if its pod is ready:
+
+   ```code
+   $ kubectl -n teleport-agent get pods
+   NAME                               READY   STATUS    RESTARTS   AGE
+   <your-agent-release>-0                         1/1     Running   0          14m
+   <your-agent-release>-1                         1/1     Running   0          14m
+   <your-agent-release>-2                         1/1     Running   0          14m
+   <your-agent-release>-updater-d9f97f5dd-v57g9   1/1     Running   0          16m
+   ```
+   
+   Check for any deployment issues by checking the updater logs:
+   
+   ```code
+   $ kubectl -n teleport-agent logs deployment/teleport-agent-updater
+   2023-04-28T13:13:30Z	INFO	StatefulSet is already up-to-date, not updating.	{"controller": "statefulset", "controllerGroup": "apps", "controllerKind": "StatefulSet", "StatefulSet": {"name":"my-agent","namespace":"agent"}, "namespace": "agent", "name": "my-agent", "reconcileID": "10419f20-a4c9-45d4-a16f-406866b7fc05", "namespacedname": "agent/my-agent", "kind": "StatefulSet", "err": "no new version (current: \"v12.2.3\", next: \"v12.2.3\")"}
+   ```
+
+The updater is a controller that periodically reconciles expected Kubernetes
+resources with those in the cluster. The updater executes a reconciliation loop
+every 30 minutes or in response to a Kubernetes event. If you don't want to wait
+until the next reconciliation, you can trigger an event. Any deployment update
+will send an event, so the updater can be triggered by annotating the resource:
+
+```code
+$ kubectl -n teleport-agent annotate statefulset/teleport-agent 'debug.teleport.dev/trigger-event=1'
+```
+
+To suspend automatic upgrades for an agent, annotate the agent deployment with
+`teleport.dev/skipreconcile: "true"`, either by setting the
+`annotations.deployment` value in Helm, or by patching the deployment directly
+with `kubectl`.
+
+## Manually upgrading agents
+
+Run the following commands to upgrade Teleport agents running on Kubernetes.
+
+1. Update the Teleport Helm chart repository so you can install the latest
+   version of the `teleport-kube-agent` chart:
+
+      (!docs/pages/kubernetes-access/helm/includes/helm-repo-add.mdx!)
+
+1. Upgrade the Helm release:
+
+   ```code
+   $ helm -n teleport-agent upgrade teleport-agent teleport/teleport-kube-agent --values=values.yaml
+   ```
+
