@@ -107,16 +107,7 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
           totalCount: response.resources.length,
         };
       },
-      [
-        appContext,
-        params.kinds,
-        params.pinnedOnly,
-        params.query,
-        params.search,
-        params.sort.dir,
-        params.sort.fieldName,
-        props.clusterUri,
-      ]
+      [appContext, params, props.clusterUri]
     ),
   });
 
