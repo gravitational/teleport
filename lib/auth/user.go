@@ -80,12 +80,6 @@ func (s *Server) CreateUser(ctx context.Context, user types.User) (types.User, e
 
 // UpdateUser updates an existing user in a backend.
 func (s *Server) UpdateUser(ctx context.Context, user types.User) (types.User, error) {
-	updated, err := s.UpdateUserWithContext(ctx, user)
-	return updated, trace.Wrap(err)
-}
-
-// UpdateUserWithContext updates an existing user in a backend.
-func (s *Server) UpdateUserWithContext(ctx context.Context, user types.User) (types.User, error) {
 	prevUser, err := s.GetUser(ctx, user.GetName(), false)
 	var omitEditorEvent bool
 	if err != nil {
@@ -106,7 +100,7 @@ func (s *Server) UpdateUserWithContext(ctx context.Context, user types.User) (ty
 		connectorName = updated.GetCreatedBy().Connector.ID
 	}
 
-	if err := s.emitter.EmitAuditEvent(ctx, &apievents.UserCreate{
+	if err := s.emitter.EmitAuditEvent(ctx, &apievents.UserUpdate{
 		Metadata: apievents.Metadata{
 			Type: events.UserUpdatedEvent,
 			Code: events.UserUpdateCode,
@@ -199,7 +193,7 @@ func (s *Server) CompareAndSwapUser(ctx context.Context, new, existing types.Use
 		connectorName = new.GetCreatedBy().Connector.ID
 	}
 
-	if err := s.emitter.EmitAuditEvent(ctx, &apievents.UserCreate{
+	if err := s.emitter.EmitAuditEvent(ctx, &apievents.UserUpdate{
 		Metadata: apievents.Metadata{
 			Type: events.UserUpdatedEvent,
 			Code: events.UserUpdateCode,
@@ -220,7 +214,7 @@ func (s *Server) CompareAndSwapUser(ctx context.Context, new, existing types.Use
 	return nil
 }
 
-// DeleteUser deletes an existng user in a backend by username.
+// DeleteUser deletes an existing user in a backend by username.
 func (s *Server) DeleteUser(ctx context.Context, user string) error {
 	prevUser, err := s.GetUser(ctx, user, false)
 	var omitEditorEvent bool
