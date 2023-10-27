@@ -19,11 +19,7 @@ import { matchPath } from 'react-router';
 import { useStore, Store } from 'shared/libs/stores';
 
 import { IAppContext } from 'teleterm/ui/types';
-import { ClusterUri, DocumentUri, KubeUri, routing } from 'teleterm/ui/uri';
-import {
-  connectToKube,
-  DocumentOrigin,
-} from 'teleterm/ui/services/workspacesService';
+import { ClusterUri, DocumentUri, routing } from 'teleterm/ui/uri';
 
 import type * as tsh from 'teleterm/services/tshd/types';
 
