@@ -258,10 +258,10 @@ type ServerConfig struct {
 // CheckDefaults makes sure all required parameters are passed in.
 func (s *ServerConfig) CheckDefaults() error {
 	if s.LocalAuthClient == nil {
-		return trace.BadParameter("auth client required")
+		return trace.BadParameter("local auth client required")
 	}
 	if s.TargetClusterAccessPoint == nil {
-		return trace.BadParameter("auth client required")
+		return trace.BadParameter("target cluster access point client required")
 	}
 	if s.DataDir == "" {
 		return trace.BadParameter("missing parameter DataDir")
