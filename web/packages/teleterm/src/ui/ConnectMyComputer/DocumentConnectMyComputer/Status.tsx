@@ -57,14 +57,7 @@ import {
 import type * as tsh from 'teleterm/services/tshd/types';
 import type { IconProps } from 'design/Icon/Icon';
 
-interface DocumentConnectMyComputerStatusProps {
-  closeDocument?(): void;
-}
-
-// TODO(gzdunek): Rename to `Status`
-export function DocumentConnectMyComputerStatus(
-  props: DocumentConnectMyComputerStatusProps
-) {
+export function Status(props: { closeDocument?: () => void }) {
   const ctx = useAppContext();
   const {
     currentAction,

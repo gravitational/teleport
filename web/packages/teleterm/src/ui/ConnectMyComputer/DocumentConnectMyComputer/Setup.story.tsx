@@ -29,7 +29,7 @@ import { ResourcesContextProvider } from 'teleterm/ui/DocumentCluster/resourcesC
 
 import { ConnectMyComputerContextProvider } from '../connectMyComputerContext';
 
-import { DocumentConnectMyComputerSetup } from './DocumentConnectMyComputerSetup';
+import { Setup } from './Setup';
 
 export default {
   title: 'Teleterm/ConnectMyComputer/Setup',
@@ -153,7 +153,7 @@ function ShowState({
       <MockWorkspaceContextProvider rootClusterUri={cluster.uri}>
         <ResourcesContextProvider>
           <ConnectMyComputerContextProvider rootClusterUri={cluster.uri}>
-            <DocumentConnectMyComputerSetup />
+            <Setup />
           </ConnectMyComputerContextProvider>
         </ResourcesContextProvider>
       </MockWorkspaceContextProvider>
