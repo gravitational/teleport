@@ -1,4 +1,12 @@
+pub mod global;
+
+use crate::rdpdr::tdp;
+use crate::{
+    handle_fastpath_pdu, handle_rdp_channel_ids, handle_remote_copy, CGOErrCode, CGOKeyboardEvent,
+    CGOMousePointerEvent, CGOPointerButton, CGOPointerWheel, CgoHandle,
+};
 use bytes::BytesMut;
+pub(crate) use global::call_function_on_handle;
 use ironrdp_cliprdr::{Cliprdr, CliprdrSvcMessages};
 use ironrdp_connector::{Config, ConnectorError, Credentials};
 use ironrdp_pdu::input::fast_path::{FastPathInput, FastPathInputEvent, KeyboardFlags};
@@ -8,6 +16,7 @@ use ironrdp_pdu::nego::SecurityProtocol;
 use ironrdp_pdu::rdp::capability_sets::MajorPlatformType;
 use ironrdp_pdu::rdp::RdpError;
 use ironrdp_pdu::{PduError, PduParsing};
+use ironrdp_rdpdr::pdu::efs::ClientDeviceListAnnounce;
 use ironrdp_rdpdr::pdu::RdpdrPdu;
 use ironrdp_rdpdr::Rdpdr;
 use ironrdp_rdpsnd::Rdpsnd;
@@ -26,19 +35,10 @@ use tokio::io::{split, ReadHalf, WriteHalf};
 use tokio::net::TcpStream as TokioTcpStream;
 use tokio::sync::mpsc::{channel, error::SendError, Receiver, Sender};
 use tokio::task::JoinError;
-
-pub(crate) use global::call_function_on_handle;
-
-use crate::{
-    handle_fastpath_pdu, handle_rdp_channel_ids, handle_remote_copy, CGOErrCode, CGOKeyboardEvent,
-    CGOMousePointerEvent, CGOPointerButton, CGOPointerWheel, CgoHandle,
-};
 // Export this for crate level use.
 use crate::cliprdr::{ClipboardFn, TeleportCliprdrBackend};
 use crate::rdpdr::scard::SCARD_DEVICE_ID;
 use crate::rdpdr::TeleportRdpdrBackend;
-
-pub mod global;
 
 /// The RDP client on the Rust side of things. Each `Client`
 /// corresponds with a Go `Client` specified by `cgo_handle`.
@@ -94,23 +94,30 @@ impl Client {
         // Create a channel for sending/receiving function calls to/from the Client.
         let (client_handle, function_receiver) = channel(100);
 
+        let mut rdpdr = Rdpdr::new(
+            Box::new(TeleportRdpdrBackend::new(
+                SCARD_DEVICE_ID,
+                client_handle.clone(),
+                params.cert_der,
+                params.key_der,
+                pin,
+            )),
+            "IronRDP".to_string(),
+        )
+        .with_smartcard(SCARD_DEVICE_ID);
+
+        if params.allow_directory_sharing {
+            debug!("creating rdpdr client with directory sharing enabled");
+            rdpdr = rdpdr.with_drives(None);
+        } else {
+            debug!("creating rdpdr client with directory sharing disabled")
+        }
+
         let mut connector = ironrdp_connector::ClientConnector::new(connector_config)
             .with_server_addr(server_socket_addr)
             .with_server_name(server_addr)
             .with_static_channel(Rdpsnd::new()) // required for rdpdr to work
-            .with_static_channel(
-                Rdpdr::new(
-                    Box::new(TeleportRdpdrBackend::new(
-                        SCARD_DEVICE_ID,
-                        client_handle.clone(),
-                        params.cert_der,
-                        params.key_der,
-                        pin,
-                    )),
-                    "IronRDP".to_string(),
-                )
-                .with_smartcard(SCARD_DEVICE_ID),
-            );
+            .with_static_channel(rdpdr);
 
         if params.allow_clipboard {
             connector = connector.with_static_channel(Cliprdr::new(Box::new(
@@ -292,6 +299,14 @@ impl Client {
                             Client::write_rdpdr(&mut write_stream, x224_processor.clone(), args)
                                 .await?;
                         }
+                        ClientFunction::HandleTdpSdAnnounce(sda) => {
+                            Client::handle_tdp_sd_announce(
+                                &mut write_stream,
+                                x224_processor.clone(),
+                                sda,
+                            )
+                            .await?;
+                        }
                         ClientFunction::WriteCliprdr(f) => {
                             Client::write_cliprdr(x224_processor.clone(), &mut write_stream, f)
                                 .await?;
@@ -452,6 +467,48 @@ impl Client {
         Ok(())
     }
 
+    async fn handle_tdp_sd_announce(
+        write_stream: &mut RdpWriteStream,
+        x224_processor: Arc<Mutex<X224Processor>>,
+        sda: tdp::SharedDirectoryAnnounce,
+    ) -> ClientResult<()> {
+        debug!("handling tdp sd announce: {:?}", sda);
+        let pdu = Self::add_drive(x224_processor.clone(), sda).await?;
+        Self::write_rdpdr(
+            write_stream,
+            x224_processor,
+            RdpdrPdu::ClientDeviceListAnnounce(pdu),
+        )
+        .await?;
+        Ok(())
+    }
+
+    async fn add_drive(
+        x224_processor: Arc<Mutex<X224Processor>>,
+        sda: tdp::SharedDirectoryAnnounce,
+    ) -> ClientResult<ClientDeviceListAnnounce> {
+        global::TOKIO_RT
+            .spawn_blocking(move || {
+                let mut x224_processor = Self::x224_lock(&x224_processor)?;
+
+                let rdpdr = x224_processor
+                    .get_svc_processor_mut::<Rdpdr>()
+                    .ok_or(ClientError::InternalError)?;
+                // Add drive to rdpdr
+                let pdu = rdpdr.add_drive(sda.directory_id, sda.name);
+
+                let teleport_rdpdr_backend = rdpdr
+                    .downcast_backend_mut::<TeleportRdpdrBackend>()
+                    .ok_or(ClientError::InternalError)?;
+                // Add device_id to teleport rdpdr backend
+                teleport_rdpdr_backend.add_active_device_id(sda.directory_id);
+
+                // Return the ClientDeviceListAnnounce for sending to the server.
+                Ok(pdu)
+            })
+            .await?
+    }
+
     /// Processes an x224 frame on a blocking thread.
     ///
     /// We use a blocking task here so we don't block the tokio runtime
@@ -514,6 +571,8 @@ pub enum ClientFunction {
     WriteRawPdu(Vec<u8>),
     /// Corresponds to [`Client::write_rdpdr`]
     WriteRdpdr(RdpdrPdu),
+    /// Corresponds to [`Client::handle_tdp_sd_announce`]
+    HandleTdpSdAnnounce(tdp::SharedDirectoryAnnounce),
     /// Corresponds to [`Client::write_cliprdr`]
     WriteCliprdr(Box<dyn ClipboardFn>),
     /// Corresponds to [`Client::update_clipboard`]
