@@ -25,20 +25,18 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
-	"go.mongodb.org/mongo-driver/x/mongo/driver/auth"
 
 	"github.com/gravitational/teleport/lib/srv/db/common"
 )
 
-type userCustomData struct {
-	TeleportAutoUser bool `bson:"teleport-auto-user"`
-}
 type user struct {
 	Username   string         `bson:"user"`
 	Roles      []userRole     `bson:"roles"`
 	CustomData userCustomData `bson:"customData"`
+}
+
+type userCustomData struct {
+	TeleportAutoUser bool `bson:"teleport-auto-user"`
 }
 
 type userRole struct {
@@ -61,7 +59,7 @@ func (e *Engine) ActivateUser(ctx context.Context, sessionCtx *common.Session) e
 		return trace.Wrap(err)
 	}
 
-	client, err := e.connectAsAdmin(ctx, sessionCtx)
+	client, err := connectAsAdmin(ctx, sessionCtx, e)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -88,7 +86,7 @@ func (e *Engine) ActivateUser(ctx context.Context, sessionCtx *common.Session) e
 		if !slices.Equal(user.Roles, userRoles) {
 			return trace.CompareFailed("roles for user %q has changed. Please quit all active connections and try again.", sessionCtx.DatabaseUser)
 		}
-		e.Log.Debugf("User %q is active and roles are the same.")
+		e.Log.Debugf("User %q is active and roles are the same.", sessionCtx.DatabaseUser)
 		return nil
 
 	default:
@@ -104,7 +102,7 @@ func (e *Engine) DeactivateUser(ctx context.Context, sessionCtx *common.Session)
 
 	e.Log.Infof("Deactivating MongoDB user %q.", sessionCtx.DatabaseUser)
 
-	client, err := e.connectAsAdmin(ctx, sessionCtx)
+	client, err := connectAsAdmin(ctx, sessionCtx, e)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -120,7 +118,7 @@ func (e *Engine) DeactivateUser(ctx context.Context, sessionCtx *common.Session)
 		return nil
 
 	default:
-		return trace.Wrap(e.updateUser(ctx, sessionCtx, client, nil, lockedAuthRestrictions))
+		return trace.Wrap(e.updateUser(ctx, sessionCtx, client, []userRole{}, lockedAuthRestrictions))
 	}
 }
 
@@ -132,7 +130,7 @@ func (e *Engine) DeleteUser(ctx context.Context, sessionCtx *common.Session) err
 
 	e.Log.Infof("Deleting MongoDB user %q.", sessionCtx.DatabaseUser)
 
-	client, err := e.connectAsAdmin(ctx, sessionCtx)
+	client, err := connectAsAdmin(ctx, sessionCtx, e)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -152,29 +150,7 @@ func (e *Engine) DeleteUser(ctx context.Context, sessionCtx *common.Session) err
 	}
 }
 
-func (e *Engine) connectAsAdmin(ctx context.Context, sessionCtx *common.Session) (*mongo.Client, error) {
-	sessionCtx = sessionCtx.WithUser(sessionCtx.Database.GetAdminUser().Name)
-
-	tlsConfig, err := e.Auth.GetTLSConfig(ctx, sessionCtx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	clientCfg, err := makeClientOptionsFromDatabaseURI(sessionCtx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	clientCfg.SetTLSConfig(tlsConfig)
-	clientCfg.SetAuth(options.Credential{
-		AuthMechanism: auth.MongoDBX509,
-		Username:      x509Username(sessionCtx),
-	})
-
-	client, err := mongo.Connect(ctx, clientCfg)
-	return client, trace.Wrap(err)
-}
-
-func (e *Engine) isUserActive(ctx context.Context, sessionCtx *common.Session, client *mongo.Client) (bool, error) {
+func (e *Engine) isUserActive(ctx context.Context, sessionCtx *common.Session, client adminClient) (bool, error) {
 	logrus.Debugf("Checking if user %q is active.", sessionCtx.DatabaseUser)
 	var resp struct {
 		Inprog []interface{} `bson:"inprog"`
@@ -199,7 +175,7 @@ func (e *Engine) isUserActive(ctx context.Context, sessionCtx *common.Session, c
 	return len(resp.Inprog) > 0, nil
 }
 
-func (e *Engine) getUser(ctx context.Context, sessionCtx *common.Session, client *mongo.Client) (*user, bool, error) {
+func (e *Engine) getUser(ctx context.Context, sessionCtx *common.Session, client adminClient) (*user, bool, error) {
 	logrus.Debugf("Getting user info for %q.", sessionCtx.DatabaseUser)
 	var resp struct {
 		Users []user `bson:"users"`
@@ -226,7 +202,7 @@ func (e *Engine) getUser(ctx context.Context, sessionCtx *common.Session, client
 	}
 }
 
-func (e *Engine) createUser(ctx context.Context, sessionCtx *common.Session, client *mongo.Client, userRoles []userRole) error {
+func (e *Engine) createUser(ctx context.Context, sessionCtx *common.Session, client adminClient, userRoles []userRole) error {
 	logrus.Debugf("Creating user %q.", sessionCtx.DatabaseUser)
 	return trace.Wrap(client.Database(externalDatabaseName).RunCommand(ctx, bson.D{
 		{Key: "createUser", Value: x509Username(sessionCtx)},
@@ -237,18 +213,17 @@ func (e *Engine) createUser(ctx context.Context, sessionCtx *common.Session, cli
 	}).Err())
 }
 
-func (e *Engine) updateUser(ctx context.Context, sessionCtx *common.Session, client *mongo.Client, userRoles []userRole, authRestrictions authRestrictions) error {
+func (e *Engine) updateUser(ctx context.Context, sessionCtx *common.Session, client adminClient, userRoles []userRole, authRestrictions authRestrictions) error {
 	logrus.Debugf("Updating roles for user %q.", sessionCtx.DatabaseUser)
 	return trace.Wrap(client.Database(externalDatabaseName).RunCommand(ctx, bson.D{
 		{Key: "updateUser", Value: x509Username(sessionCtx)},
 		{Key: "roles", Value: userRoles},
-		{Key: "customData", Value: userCustomData{TeleportAutoUser: true}},
 		{Key: "authenticationRestrictions", Value: authRestrictions},
 		{Key: "comment", Value: runCommandComment},
 	}).Err())
 }
 
-func (e *Engine) dropUser(ctx context.Context, sessionCtx *common.Session, client *mongo.Client) error {
+func (e *Engine) dropUser(ctx context.Context, sessionCtx *common.Session, client adminClient) error {
 	logrus.Debugf("Dropping user %q.", sessionCtx.DatabaseUser)
 	return trace.Wrap(client.Database(externalDatabaseName).RunCommand(ctx, bson.D{
 		{Key: "dropUser", Value: x509Username(sessionCtx)},
@@ -281,13 +256,19 @@ func compareUserRole(a, b userRole) int {
 	return cmp.Compare(a.Rolename, b.Rolename)
 }
 
-type authRestrictions bson.A
-
 const (
+	// externalDatabaseName is the name of the "$external" database that
+	// manages X.509 users.
 	externalDatabaseName = "$external"
-	adminDatabaseName    = "admin"
-	runCommandComment    = "by Teleport Database Service"
+	// adminDatabaseName is the name of the "admin" database that "currentOp"
+	// command runs at.
+	adminDatabaseName = "admin"
+	// runCommandComment is a comment used in "runCommand" calls to identify
+	// the commands are run by Teleport.
+	runCommandComment = "by Teleport Database Service"
 )
+
+type authRestrictions bson.A
 
 var (
 	unLockedAuthRestrictions authRestrictions = authRestrictions{bson.M{
