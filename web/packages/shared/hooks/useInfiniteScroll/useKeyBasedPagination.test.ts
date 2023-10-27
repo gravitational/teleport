@@ -17,15 +17,20 @@
 import { renderHook, act } from '@testing-library/react-hooks';
 
 import { ApiError } from 'teleport/services/api/parseError';
-import { Node } from 'teleport/services/nodes';
 
-import { AbortError } from 'shared/utils/abortError';
+import { Node } from 'teleport/services/nodes';
 
 import {
   useKeyBasedPagination,
   KeyBasedPaginationOptions,
 } from './useKeyBasedPagination';
-import { newFetchFunc, resourceClusterIds, resourceNames } from './testUtils';
+import {
+  newApiAbortError,
+  newDOMAbortError,
+  newFetchFunc,
+  resourceClusterIds,
+  resourceNames,
+} from './testUtils';
 
 function hookProps(overrides: Partial<KeyBasedPaginationOptions<Node>> = {}) {
   return {
@@ -200,12 +205,15 @@ describe("doesn't react to fetch() calls before the previous one finishes", () =
   });
 });
 
-test('abortError gracefully aborts pending request', async () => {
+test.each([
+  ['DOMException', newDOMAbortError],
+  ['ApiError', newApiAbortError],
+])('%s gracefully aborts pending request', async (_, newError) => {
   let props = hookProps({
     fetchFunc: newFetchFunc({
       numResources: 7,
       search: 'bar',
-      newAbortError: () => new AbortError(),
+      newAbortError: newError,
     }),
   });
   const { result } = renderHook(useKeyBasedPagination, {
