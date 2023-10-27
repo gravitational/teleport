@@ -127,6 +127,14 @@ exists in the database and is not managed by Teleport (i.e. not a part of the
 
 ## Next steps
 
-- Connect using your [GUI database client](../../connect-your-client/gui-clients.mdx).
-- Learn about [role templating](../../access-controls/guides/role-templates.mdx#interpolation-rules).
-- Read automatic user provisioning [RFD](https://github.com/gravitational/teleport/blob/master/rfd/0113-automatic-database-users.md).
+- Connect using your [GUI database
+  client](../../connect-your-client/gui-clients.mdx).
+- Learn about [role
+  templating](../../access-controls/guides/role-templates.mdx#interpolation-rules).
+- Read automatic user provisioning
+  [RFD](https://github.com/gravitational/teleport/blob/master/rfd/0113-automatic-database-users.md).
+- The `internal.db_roles` traits we illustrated in this guide
+  are replaced with values from the Teleport local user database. For full
+  details on how variable expansion works in Teleport roles, see the [Teleport
+  Access Controls Reference](../../access-controls/reference.mdx).
+
