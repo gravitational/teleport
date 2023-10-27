@@ -31,7 +31,7 @@ import (
 
 // GenerateWindowsDesktopCert generates client certificate for Windows RDP
 // authentication.
-func (s *Server) GenerateWindowsDesktopCert(ctx context.Context, req *proto.WindowsDesktopCertRequest) (*proto.WindowsDesktopCertResponse, error) {
+func (a *Server) GenerateWindowsDesktopCert(ctx context.Context, req *proto.WindowsDesktopCertRequest) (*proto.WindowsDesktopCertResponse, error) {
 	if !modules.GetModules().Features().Desktop {
 		return nil, trace.AccessDenied(
 			"this Teleport cluster is not licensed for desktop access, please contact the cluster administrator")
@@ -40,18 +40,18 @@ func (s *Server) GenerateWindowsDesktopCert(ctx context.Context, req *proto.Wind
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	clusterName, err := s.GetClusterName()
+	clusterName, err := a.GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	userCA, err := s.GetCertAuthority(ctx, types.CertAuthID{
+	userCA, err := a.GetCertAuthority(ctx, types.CertAuthID{
 		Type:       types.UserCA,
 		DomainName: clusterName.GetClusterName(),
 	}, true)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	caCert, signer, err := s.GetKeyStore().GetTLSCertAndSigner(ctx, userCA)
+	caCert, signer, err := a.GetKeyStore().GetTLSCertAndSigner(ctx, userCA)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -62,10 +62,10 @@ func (s *Server) GenerateWindowsDesktopCert(ctx context.Context, req *proto.Wind
 	// See https://docs.microsoft.com/en-us/troubleshoot/windows-server/windows-security/enabling-smart-card-logon-third-party-certification-authorities
 	// for cert requirements for Windows authn.
 	certReq := tlsca.CertificateRequest{
-		Clock:           s.clock,
+		Clock:           a.clock,
 		PublicKey:       csr.PublicKey,
 		Subject:         csr.Subject,
-		NotAfter:        s.clock.Now().UTC().Add(req.TTL.Get()),
+		NotAfter:        a.clock.Now().UTC().Add(req.TTL.Get()),
 		ExtraExtensions: csr.Extensions,
 		KeyUsage:        x509.KeyUsageDigitalSignature,
 		// CRL is required for Windows smartcard certs.
