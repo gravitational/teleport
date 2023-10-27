@@ -26,6 +26,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
@@ -65,8 +66,8 @@ func TestSAMLIdPServiceProviderCRUD(t *testing.T) {
 		})
 	require.NoError(t, err)
 
-	// Try to create an invalid service provider with an invalid acs.
-	sp3, err := types.NewSAMLIdPServiceProvider(
+	// Try to create a service provider with an invalid acs.
+	invalidSP, err := types.NewSAMLIdPServiceProvider(
 		types.Metadata{
 			Name: "sp3",
 		},
@@ -75,9 +76,23 @@ func TestSAMLIdPServiceProviderCRUD(t *testing.T) {
 			EntityID:         "sp1",
 		})
 	require.NoError(t, err)
-	err = service.CreateSAMLIdPServiceProvider(ctx, sp3)
-	require.Error(t, err)
-	require.True(t, trace.IsBadParameter(err))
+	err = service.CreateSAMLIdPServiceProvider(ctx, invalidSP)
+	assert.Error(t, err)
+	require.True(t, trace.IsBadParameter(err), "CreateSAMLIdPServiceProvider error mismatch, wanted BadParameter, got %q (%T)", err, trace.Unwrap(err))
+
+	// Try to create a service provider with a http acs.
+	invalidSP, err = types.NewSAMLIdPServiceProvider(
+		types.Metadata{
+			Name: "sp3",
+		},
+		types.SAMLIdPServiceProviderSpecV1{
+			EntityDescriptor: newHTTPACSEntityDescriptor("sp1"),
+			EntityID:         "sp1",
+		})
+	require.NoError(t, err)
+	err = service.CreateSAMLIdPServiceProvider(ctx, invalidSP)
+	assert.Error(t, err)
+	require.True(t, trace.IsBadParameter(err), "CreateSAMLIdPServiceProvider error mismatch, wanted BadParameter, got %q (%T)", err, trace.Unwrap(err))
 
 	// Initially we expect no service providers.
 	out, nextToken, err := service.ListSAMLIdPServiceProviders(ctx, 200, "")
@@ -179,12 +194,18 @@ func TestSAMLIdPServiceProviderCRUD(t *testing.T) {
 	require.Error(t, err)
 
 	// Update a service provider with an invalid acs.
-	sp, err = service.GetSAMLIdPServiceProvider(ctx, sp1.GetName())
+	invalidSP, err = service.GetSAMLIdPServiceProvider(ctx, sp1.GetName())
 	require.NoError(t, err)
-	sp.SetEntityDescriptor(newInvalidACSEntityDescriptor(sp1.GetEntityID()))
-	err = service.UpdateSAMLIdPServiceProvider(ctx, sp)
-	require.Error(t, err)
-	require.True(t, trace.IsBadParameter(err))
+	invalidSP.SetEntityDescriptor(newInvalidACSEntityDescriptor(invalidSP.GetEntityID()))
+	err = service.UpdateSAMLIdPServiceProvider(ctx, invalidSP)
+	assert.Error(t, err)
+	require.True(t, trace.IsBadParameter(err), "CreateSAMLIdPServiceProvider error mismatch, wanted BadParameter, got %q (%T)", err, trace.Unwrap(err))
+
+	// Update a service provider with a http acs.
+	invalidSP.SetEntityDescriptor(newHTTPACSEntityDescriptor(invalidSP.GetEntityID()))
+	err = service.UpdateSAMLIdPServiceProvider(ctx, invalidSP)
+	assert.Error(t, err)
+	require.True(t, trace.IsBadParameter(err), "UpdateSAMLIdPServiceProvider error mismatch, wanted BadParameter, got %q (%T)", err, trace.Unwrap(err))
 
 	// Delete a service provider.
 	err = service.DeleteSAMLIdPServiceProvider(ctx, sp1.GetName())
@@ -278,6 +299,21 @@ const invalidEntityDescriptor = `<?xml version="1.0" encoding="UTF-8"?>
       <md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified</md:NameIDFormat>
       <md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress</md:NameIDFormat>
       <md:AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="javascript://sptest.iamshowcase.com/acs" index="0" isDefault="true"/>
+   </md:SPSSODescriptor>
+</md:EntityDescriptor>
+`
+
+func newHTTPACSEntityDescriptor(entityID string) string {
+	return fmt.Sprintf(httpEntityDescriptor, entityID)
+}
+
+// A test entity descriptor from https://sptest.iamshowcase.com/testsp_metadata.xml with a http ACS locations.
+const httpEntityDescriptor = `<?xml version="1.0" encoding="UTF-8"?>
+<md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" xmlns:ds="http://www.w3.org/2000/09/xmldsig#" entityID="%s" validUntil="2025-12-09T09:13:31.006Z">
+   <md:SPSSODescriptor AuthnRequestsSigned="false" WantAssertionsSigned="true" protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
+      <md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified</md:NameIDFormat>
+      <md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress</md:NameIDFormat>
+      <md:AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="http://sptest.iamshowcase.com/acs" index="0" isDefault="true"/>
    </md:SPSSODescriptor>
 </md:EntityDescriptor>
 `
