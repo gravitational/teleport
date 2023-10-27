@@ -35,7 +35,9 @@ resource "aws_instance" "teleport_agent" {
     teleport_version      = var.teleport_version
   })
 
-  // The following two blocks adhere to security best practices.
+  // The following settings adhere to security best practices.
+
+  associate_public_ip_address = false
 
   metadata_options {
     http_endpoint = "enabled"
