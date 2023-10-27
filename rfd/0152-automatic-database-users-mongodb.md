@@ -68,14 +68,32 @@ Differences will be outlined in the sections below.
 ### The admin user connection
 
 The Database Service will connect as an admin user in order to manage database
-users. The admin user requires the following privileges:
+users. The admin user requires a role on `admin` database with the following
+privileges:
 ```json
 {
-  "createUser": "CN=teleport-admin",
-  "roles": [
-    { "role": "clusterMonitor", "db": "admin" },
-    { "role": "userAdminAnyDatabase", "db": "admin" }
-  ]
+  "createRole": "teleport-admin-role",
+  "privileges": [
+    { "resource": { "cluster": true }, "actions": [ "inprog" ] },
+    { "resource": { "db": "", "collection": "" }, "actions": [ "grantRole", "revokeRole" ] }, 
+    { "resource": { "db": "$external", "collection": "" }, "actions": [ "createUser", "updateUser", "dropUser", "viewUser", "setAuthenticationRestriction", "changeCustomData"] }
+  ],
+  "roles": []
+}
+```
+Where:
+- `inprog` action is required to run `currentOp` for searching active
+  connections.
+- `grantRole` and `revokeRole` actions are required to manage roles on all
+  databases.
+- User related actions are limited on database `$external` database as X.509
+  users only exist on `$external`.
+
+The admin user must be created on `$external` database with X.509 authentication:
+```json
+{
+    "createUser": "CN=teleport-admin",
+    "roles": [ {"role": "teleport-admin-role", "db": "admin"} ]
 }
 ```
 
@@ -133,8 +151,19 @@ Note that in the above example, even though the user is assigned role
 New users with name `CN=<teleport-username>` will be created on `$external`
 database to use X.509 authentication.
 
-All auto-provisioned users will be assigned role `teleport-auto-user@admin`.
-The `teleport-auto-user` is created on database `admin` with empty privileges.
+All auto-provisioned users will have the following `customData` to indicate the
+user is managed by Teleport:
+```json
+{
+    "teleport-auto-user": true
+}
+```
+
+MongoDB admins can easily find all Teleport-managed users by running this command
+on `$external`:
+```json
+{ "usersInfo": 1, "filter": { "customData": { "teleport-auto-user": true } } }
+```
 
 There is no built-in way to lock an user account in MongoDB, for deactivation
 purpose. As a workaround, the following `authenticationRestrictions` will be
@@ -143,6 +172,9 @@ applied to the user account, in addition to stripping the roles:
 ```json
 {
   "updateUser": "CN=<teleport-username>",
+  "customData": {
+    "teleport-auto-user": true
+  },
   "roles": [
     { "role": "teleport-auto-user", "db": "admin" }
   ],
@@ -180,13 +212,41 @@ Database roles must be specified in format of `<role-name>@<db-name>`. See
 
 ## Security
 
-The admin user requires role `clusterMonitor@admin` and role
-`userAdminAnyDatabase@admin` to monitor connections and manage users.
+### Admin user privileges
+The admin user requires the following privileges:
+```json
+{
+  "privileges": [
+    { "resource": { "cluster": true }, "actions": [ "inprog" ] },
+    { "resource": { "db": "", "collection": "" }, "actions": [ "grantRole", "revokeRole" ] }, 
+    { "resource": { "db": "$external", "collection": "" }, "actions": [ "createUser", "updateUser", "dropUser", "viewUser", "setAuthenticationRestriction", "changeCustomData"] }
+  ]
+}
+```
+
+Note that with `grantRole` on all databases, the admin user can technically
+grant itself any admin roles.
+
+We should document this fact in our official documentation guide, and encourage
+users to limit the `grantRole` to specific databases. For example, if only
+roles on `db1` and `db2` will be assigned to auto-provisioned users, the
+privileges can be limited to:
+```
+{
+  "privileges": [
+    { "resource": { "cluster": true }, "actions": [ "inprog" ] },
+    { "resource": { "db": "", "collection": "" }, "actions": [ "revokeRole"] }, 
+    { "resource": { "db": "db1", "collection": "" }, "actions": [ "grantRole"] }, 
+    { "resource": { "db": "db2", "collection": "" }, "actions": [ "grantRole"] }, 
+    { "resource": { "db": "$external", "collection": "" }, "actions": [ "createUser", "updateUser", "dropUser", "viewUser", "setAuthenticationRestriction", "changeCustomData"] }
+  ]
+}
+```
+
+### Locking database user when deactivated
 
 Auth restrictions `clientSource: ["0.0.0.0"]` is used to lock an user account
 when deactivated.
-
-See above sections for more details.
 
 ## Performance
 
@@ -196,7 +256,7 @@ clients usually spawn multiple connections to the server resulting multiple
 parallel database sessions on the Database Service. The number of connections
 can be limited using a smaller `maxPoolSize` (default 100) in the connection
 string, but Teleport does not have full control on this as it's specified from
-the MongoDB clients.
+the MongoDB clients (e.g GUI clients via `tsh proxy kube`).
 
 To speed things up, the admin user connection will be kept open and reused for
-up to a minute, per MongoDB database per Teleport user per Database Service.
+up to a minute, per MongoDB database per Admin user per Database Service.
