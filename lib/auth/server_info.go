@@ -30,21 +30,21 @@ import (
 
 // ReconcileServerInfos periodically reconciles the labels of ServerInfo
 // resources with their corresponding Teleport SSH servers.
-func (s *Server) ReconcileServerInfos(ctx context.Context) error {
+func (a *Server) ReconcileServerInfos(ctx context.Context) error {
 	const batchSize = 100
 	const timeBetweenBatches = 10 * time.Second
 	const timeBetweenReconciliationLoops = 10 * time.Minute
-	clock := s.GetClock()
+	clock := a.GetClock()
 
 	for {
 		var failedUpdates int
 		// Iterate over nodes in batches.
-		nodeStream := s.GetNodeStream(ctx, defaults.Namespace)
+		nodeStream := a.GetNodeStream(ctx, defaults.Namespace)
 		var nodes []types.Server
 
 		for moreNodes := true; moreNodes; {
 			nodes, moreNodes = stream.Take(nodeStream, batchSize)
-			updates, err := s.setCloudLabelsOnNodes(ctx, nodes)
+			updates, err := a.setCloudLabelsOnNodes(ctx, nodes)
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -70,13 +70,13 @@ func (s *Server) ReconcileServerInfos(ctx context.Context) error {
 	}
 }
 
-func (s *Server) setCloudLabelsOnNodes(ctx context.Context, nodes []types.Server) (failedUpdates int, err error) {
+func (a *Server) setCloudLabelsOnNodes(ctx context.Context, nodes []types.Server) (failedUpdates int, err error) {
 	for _, node := range nodes {
 		meta := node.GetCloudMetadata()
 		if meta != nil && meta.AWS != nil {
-			si, err := s.GetServerInfo(ctx, meta.AWS.GetServerInfoName())
+			si, err := a.GetServerInfo(ctx, meta.AWS.GetServerInfoName())
 			if err == nil {
-				err := s.updateLabelsOnNode(ctx, node, si)
+				err := a.updateLabelsOnNode(ctx, node, si)
 				// Didn't find control stream for node, save count for logging.
 				if trace.IsNotFound(err) {
 					failedUpdates++
@@ -91,8 +91,8 @@ func (s *Server) setCloudLabelsOnNodes(ctx context.Context, nodes []types.Server
 	return failedUpdates, nil
 }
 
-func (s *Server) updateLabelsOnNode(ctx context.Context, node types.Server, si types.ServerInfo) error {
-	err := s.UpdateLabels(ctx, proto.InventoryUpdateLabelsRequest{
+func (a *Server) updateLabelsOnNode(ctx context.Context, node types.Server, si types.ServerInfo) error {
+	err := a.UpdateLabels(ctx, proto.InventoryUpdateLabelsRequest{
 		ServerID: node.GetName(),
 		Kind:     proto.LabelUpdateKind_SSHServerCloudLabels,
 		Labels:   si.GetStaticLabels(),
