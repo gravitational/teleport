@@ -15,3 +15,4 @@ limitations under the License.
 */
 
 export * from './UnifiedResources';
+export * from './types';

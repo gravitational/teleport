@@ -14,13 +14,14 @@
  * limitations under the License.
  */
 
-import React, { useCallback } from 'react';
+import React, { useCallback, useState } from 'react';
 
 import { Flex } from 'design';
 
 import {
   UnifiedResources as SharedUnifiedResources,
   UnifiedResourcesPinning,
+  useUnifiedResourcesFetch,
 } from 'shared/components/UnifiedResources';
 
 import useStickyClusterId from 'teleport/useStickyClusterId';
@@ -41,9 +42,31 @@ import { ResourceActionButton } from './ResourceActionButton';
 import SearchPanel from './SearchPanel';
 
 export function UnifiedResources() {
-  const teleCtx = useTeleport();
   const { clusterId, isLeafCluster } = useStickyClusterId();
   const enabled = localStorage.areUnifiedResourcesEnabled();
+
+  if (!enabled) {
+    history.replace(cfg.getNodesRoute(clusterId));
+  }
+
+  return (
+    <ClusterResources
+      key={clusterId} // when the current cluster changes, remount the component
+      clusterId={clusterId}
+      isLeafCluster={isLeafCluster}
+    />
+  );
+}
+
+function ClusterResources({
+  clusterId,
+  isLeafCluster,
+}: {
+  clusterId: string;
+  isLeafCluster: boolean;
+}) {
+  const teleCtx = useTeleport();
+
   const pinningNotSupported = localStorage.arePinnedResourcesDisabled();
   const {
     getClusterPinnedResources,
@@ -64,10 +87,6 @@ export function UnifiedResources() {
         UnifiedTabPreference.Pinned,
     });
 
-  if (!enabled) {
-    history.replace(cfg.getNodesRoute(clusterId));
-  }
-
   const getCurrentClusterPinnedResources = useCallback(
     () => getClusterPinnedResources(clusterId),
     [clusterId, getClusterPinnedResources]
@@ -83,9 +102,67 @@ export function UnifiedResources() {
         getClusterPinnedResources: getCurrentClusterPinnedResources,
       };
 
+  const { fetch, resources, attempt, clear } = useUnifiedResourcesFetch({
+    fetchFunc: useCallback(
+      async (paginationParams, signal) => {
+        const response = await teleCtx.resourceService.fetchUnifiedResources(
+          clusterId,
+          {
+            search: params.search,
+            query: params.query,
+            pinnedOnly: params.pinnedOnly,
+            sort: params.sort,
+            kinds: params.kinds,
+            searchAsRoles: '',
+            limit: paginationParams.limit,
+            startKey: paginationParams.startKey,
+          },
+          signal
+        );
+
+        return {
+          startKey: response.startKey,
+          agents: response.agents,
+          totalCount: response.agents.length,
+        };
+      },
+      [
+        clusterId,
+        params.kinds,
+        params.pinnedOnly,
+        params.query,
+        params.search,
+        params.sort,
+        teleCtx.resourceService,
+      ]
+    ),
+  });
+
+  // This state is used to recognize when the `params` value has changed,
+  // and reset the overall state of `useUnifiedResourcesFetch` hook. It's tempting to use a
+  // `useEffect` here, but doing so can cause unwanted behavior where the previous,
+  // now stale `fetch` is executed once more before the new one (with the new
+  // `filter`) is executed. This is because the `useEffect` is
+  // executed after the render, and `fetch` is called by an IntersectionObserver
+  // in `useInfiniteScroll`. If the render includes `useInfiniteScroll`'s `trigger`
+  // element, the old, stale `fetch` will be called before `useEffect` has a chance
+  // to run and update the state, and thereby the `fetch` function.
+  //
+  // By using the pattern described in this article:
+  // https://react.dev/learn/you-might-not-need-an-effect#adjusting-some-state-when-a-prop-changes,
+  // we can ensure that the state is reset before anything renders, and thereby
+  // ensure that the new `fetch` function is used.
+  const [prevParams, setPrevParams] = useState(params);
+  if (prevParams !== params) {
+    setPrevParams(params);
+    clear();
+  }
+
   return (
     <SharedUnifiedResources
       params={params}
+      fetchResources={fetch}
+      resourcesFetchAttempt={attempt}
       updateUnifiedResourcesPreferences={preferences => {
         updatePreferences({ unifiedResourcePreferences: preferences });
       }}
@@ -134,38 +211,21 @@ export function UnifiedResources() {
           )
         );
       }}
-      key={clusterId} // when the current cluster changes, remount the component
       pinning={pinning}
       onLabelClick={onLabelClick}
-      EmptySearchResults={
+      NoResources={
         <Empty
           clusterId={clusterId}
           canCreate={canCreate && !isLeafCluster}
           emptyStateInfo={emptyStateInfo}
         />
       }
-      fetchFunc={useCallback(
-        async (params, signal) => {
-          const resp = await teleCtx.resourceService.fetchUnifiedResources(
-            clusterId,
-            params,
-            signal
-          );
-
-          return {
-            startKey: resp.startKey,
-            agents: resp.agents,
-            totalCount: resp.agents.length,
-          };
-        },
-        [clusterId, teleCtx.resourceService]
-      )}
-      mapToResource={resource => ({
+      resources={resources.map(resource => ({
         resource,
         ui: {
           ActionButton: <ResourceActionButton resource={resource} />,
         },
-      })}
+      }))}
     />
   );
 }
