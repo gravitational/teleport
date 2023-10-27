@@ -166,7 +166,11 @@ on `$external`:
 ```
 
 There is no built-in way to lock an user account in MongoDB, for deactivation
-purpose. As a workaround, the following `authenticationRestrictions` will be
+purpose. However, MongoDB has builtin
+[`authenticationRestrictions`](https://www.mongodb.com/docs/manual/reference/method/db.createUser/#authentication-restrictions)
+that restricts logins by `clientSource` or `serverAddress`.
+
+For example, the following `authenticationRestrictions` can be
 applied to the user account, in addition to stripping the roles:
 
 ```json
