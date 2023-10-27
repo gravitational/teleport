@@ -3878,6 +3878,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			otelgrpc.StreamServerInterceptor(),
 		),
 		grpc.Creds(credentials.NewTLS(serverTLSConfig)),
+		grpc.MaxConcurrentStreams(defaults.GRPCMaxConcurrentStreams),
 	)
 
 	process.RegisterCriticalFunc("proxy.ssh", func() error {
@@ -5394,6 +5395,7 @@ func (process *TeleportProcess) initPublicGRPCServer(
 			// available for some time.
 			MaxConnectionIdle: 10 * time.Second,
 		}),
+		grpc.MaxConcurrentStreams(defaults.GRPCMaxConcurrentStreams),
 	)
 	joinServiceServer := joinserver.NewJoinServiceGRPCServer(conn.Client)
 	proto.RegisterJoinServiceServer(server, joinServiceServer)
@@ -5443,6 +5445,7 @@ func (process *TeleportProcess) initSecureGRPCServer(cfg initSecureGRPCServerCfg
 		grpc.Creds(credentials.NewTLS(
 			copyAndConfigureTLS(serverTLSConfig, process.log, cfg.accessPoint, clusterName),
 		)),
+		grpc.MaxConcurrentStreams(defaults.GRPCMaxConcurrentStreams),
 	)
 
 	kubeServer, err := kubegrpc.New(kubegrpc.Config{
