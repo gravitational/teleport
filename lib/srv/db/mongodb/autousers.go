@@ -32,9 +32,13 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/common"
 )
 
+type userCustomData struct {
+	TeleportAutoUser bool `bson:"teleport-auto-user"`
+}
 type user struct {
-	Username string     `bson:"user"`
-	Roles    []userRole `bson:"roles"`
+	Username   string         `bson:"user"`
+	Roles      []userRole     `bson:"roles"`
+	CustomData userCustomData `bson:"customData"`
 }
 
 type userRole struct {
@@ -42,13 +46,8 @@ type userRole struct {
 	Database string `bson:"db"`
 }
 
-func (u *user) isManagedByTeleport() bool {
-	for _, role := range u.Roles {
-		if role == teleportAutoUserRole {
-			return true
-		}
-	}
-	return false
+func (u *user) sortRoles() {
+	slices.SortFunc(u.Roles, compareUserRole)
 }
 
 // ActivateUser creates or enables the database user.
@@ -70,17 +69,13 @@ func (e *Engine) ActivateUser(ctx context.Context, sessionCtx *common.Session) e
 
 	e.Log.Infof("Activating MongoDB user %q with roles %v.", sessionCtx.DatabaseUser, sessionCtx.DatabaseRoles)
 
-	if err := e.createAutoUserRole(ctx, client); err != nil {
-		return trace.Wrap(err)
-	}
-
 	user, found, err := e.getUser(ctx, sessionCtx, client)
 	switch {
 	case err != nil:
 		return trace.Wrap(err)
 	case !found:
 		return trace.Wrap(e.createUser(ctx, sessionCtx, client, userRoles))
-	case !user.isManagedByTeleport():
+	case !user.CustomData.TeleportAutoUser:
 		return trace.AlreadyExists("user %q already exists in this MongoDB database and is not managed by Teleport", sessionCtx.DatabaseUser)
 	}
 
@@ -125,7 +120,7 @@ func (e *Engine) DeactivateUser(ctx context.Context, sessionCtx *common.Session)
 		return nil
 
 	default:
-		return trace.Wrap(e.updateUser(ctx, sessionCtx, client, []userRole{teleportAutoUserRole}, lockedAuthRestrictions))
+		return trace.Wrap(e.updateUser(ctx, sessionCtx, client, nil, lockedAuthRestrictions))
 	}
 }
 
@@ -179,24 +174,6 @@ func (e *Engine) connectAsAdmin(ctx context.Context, sessionCtx *common.Session)
 	return client, trace.Wrap(err)
 }
 
-func (e *Engine) createAutoUserRole(ctx context.Context, client *mongo.Client) error {
-	logrus.Debugf("Creating role %v.", teleportAutoUserRole.Rolename)
-	err := client.Database(adminDatabaseName).RunCommand(ctx, bson.D{
-		{Key: "createRole", Value: teleportAutoUserRole.Rolename},
-		{Key: "privileges", Value: bson.A{}},
-		{Key: "roles", Value: bson.A{}},
-	}).Err()
-	if err != nil {
-		if !strings.Contains(err.Error(), "already exists") {
-			return trace.Wrap(err)
-		}
-		e.Log.Debugf("MongoDB role %q already exists.", teleportAutoUserRole.Rolename)
-	} else {
-		e.Log.Debugf("Created MongoDB role %q.", teleportAutoUserRole.Rolename)
-	}
-	return nil
-}
-
 func (e *Engine) isUserActive(ctx context.Context, sessionCtx *common.Session, client *mongo.Client) (bool, error) {
 	logrus.Debugf("Checking if user %q is active.", sessionCtx.DatabaseUser)
 	var resp struct {
@@ -230,6 +207,7 @@ func (e *Engine) getUser(ctx context.Context, sessionCtx *common.Session, client
 
 	err := client.Database(externalDatabaseName).RunCommand(ctx, bson.D{
 		{Key: "usersInfo", Value: x509Username(sessionCtx)},
+		{Key: "showCustomData", Value: true},
 		{Key: "comment", Value: runCommandComment},
 	}).Decode(&resp)
 	if err != nil {
@@ -241,7 +219,7 @@ func (e *Engine) getUser(ctx context.Context, sessionCtx *common.Session, client
 		return nil, false, nil
 	case 1:
 		user := &resp.Users[0]
-		slices.SortFunc(user.Roles, compareUserRole)
+		user.sortRoles()
 		return user, true, nil
 	default:
 		return nil, false, trace.BadParameter("expect one MongoDB user but got %v", resp.Users)
@@ -253,6 +231,8 @@ func (e *Engine) createUser(ctx context.Context, sessionCtx *common.Session, cli
 	return trace.Wrap(client.Database(externalDatabaseName).RunCommand(ctx, bson.D{
 		{Key: "createUser", Value: x509Username(sessionCtx)},
 		{Key: "roles", Value: userRoles},
+		{Key: "customData", Value: userCustomData{TeleportAutoUser: true}},
+		{Key: "authenticationRestrictions", Value: unLockedAuthRestrictions},
 		{Key: "comment", Value: runCommandComment},
 	}).Err())
 }
@@ -262,6 +242,7 @@ func (e *Engine) updateUser(ctx context.Context, sessionCtx *common.Session, cli
 	return trace.Wrap(client.Database(externalDatabaseName).RunCommand(ctx, bson.D{
 		{Key: "updateUser", Value: x509Username(sessionCtx)},
 		{Key: "roles", Value: userRoles},
+		{Key: "customData", Value: userCustomData{TeleportAutoUser: true}},
 		{Key: "authenticationRestrictions", Value: authRestrictions},
 		{Key: "comment", Value: runCommandComment},
 	}).Err())
@@ -276,8 +257,7 @@ func (e *Engine) dropUser(ctx context.Context, sessionCtx *common.Session, clien
 }
 
 func makeUserRoles(roles []string) ([]userRole, error) {
-	userRoles := make([]userRole, 0, len(roles)+1)
-	userRoles = append(userRoles, teleportAutoUserRole)
+	userRoles := make([]userRole, 0, len(roles))
 
 	for _, role := range roles {
 		rolename, database, ok := strings.Cut(role, "@")
@@ -310,11 +290,6 @@ const (
 )
 
 var (
-	teleportAutoUserRole = userRole{
-		Rolename: "teleport-auto-user",
-		Database: adminDatabaseName,
-	}
-
 	unLockedAuthRestrictions authRestrictions = authRestrictions{bson.M{
 		"clientSource": bson.A{"0.0.0.0/0"},
 	}}
