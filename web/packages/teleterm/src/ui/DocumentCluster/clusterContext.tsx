@@ -75,10 +75,6 @@ class ClusterContext extends Store<State> {
     });
   };
 
-  connectKube = (kubeUri: KubeUri, params: { origin: DocumentOrigin }) => {
-    connectToKube(this.appCtx, { uri: kubeUri }, { origin: params.origin });
-  };
-
   refresh = () => {
     const rootCluster = this.appCtx.clustersService.findRootClusterByResource(
       this.clusterUri
