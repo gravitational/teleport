@@ -32,6 +32,9 @@ async function boot(): Promise<void> {
     const appContext = new AppContext(globals);
 
     window.addEventListener('error', event => {
+      // The event object is a `ErrorEvent` instance if it was generated from
+      // a user interface element, or an `Event` instance otherwise.
+      // https://developer.mozilla.org/en-US/docs/Web/API/Window/error_event#event_type
       const message = event.error ? event.error.stack : event.message;
       console.error(message);
       logger.error(message);
