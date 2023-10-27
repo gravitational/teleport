@@ -21,7 +21,11 @@ import {
   useUnifiedResourcesFetch,
   UnifiedResourcesQueryParams,
 } from 'shared/components/UnifiedResources';
-import { DbProtocol } from 'shared/services/databases';
+import {
+  DbProtocol,
+  formatDatabaseInfo,
+  DbType,
+} from 'shared/services/databases';
 
 import { Flex, ButtonPrimary, Box, Text } from 'design';
 
@@ -167,7 +171,10 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
                   labels: database.labelsList,
                   description: database.desc,
                   name: database.name,
-                  type: database.type,
+                  type: formatDatabaseInfo(
+                    database.type as DbType,
+                    database.protocol as DbProtocol
+                  ).title,
                   protocol: database.protocol as DbProtocol,
                 },
                 ui: {

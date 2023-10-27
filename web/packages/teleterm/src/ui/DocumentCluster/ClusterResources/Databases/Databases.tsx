@@ -21,6 +21,11 @@ import Table, {
 } from 'design/DataTable';
 import { Danger } from 'design/Alert';
 import { SearchPanel, SearchPagination } from 'shared/components/Search';
+import {
+  formatDatabaseInfo,
+  DbType,
+  DbProtocol,
+} from 'shared/services/databases';
 
 import { routing } from 'teleterm/ui/uri';
 import { useWorkspaceLoggedInUser } from 'teleterm/ui/hooks/useLoggedInUser';
@@ -98,6 +103,14 @@ function DatabaseList(props: State) {
                 key: 'type',
                 headerText: 'Type',
                 isSortable: true,
+                render: ({ type, protocol }) => (
+                  <Cell>
+                    {
+                      formatDatabaseInfo(type as DbType, protocol as DbProtocol)
+                        .title
+                    }
+                  </Cell>
+                ),
               },
               {
                 key: 'labelsList',
