@@ -174,8 +174,8 @@ func (cfg *Config) CheckAndSetDefaults() error {
 	if cfg.WriteCapacityUnits == 0 {
 		cfg.WriteCapacityUnits = DefaultWriteCapacityUnits
 	}
-	if cfg.RetentionPeriod == nil {
-		duration := types.Duration(DefaultRetentionPeriod)
+	if cfg.RetentionPeriod == nil || cfg.RetentionPeriod.Duration() == 0 {
+		duration := DefaultRetentionPeriod
 		cfg.RetentionPeriod = &duration
 	}
 	if cfg.Clock == nil {
@@ -241,7 +241,7 @@ const (
 
 	// DefaultRetentionPeriod is a default data retention period in events table.
 	// The default is 1 year.
-	DefaultRetentionPeriod = 365 * 24 * time.Hour
+	DefaultRetentionPeriod = types.Duration(365 * 24 * time.Hour)
 )
 
 // New returns new instance of DynamoDB backend.
