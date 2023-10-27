@@ -24,7 +24,7 @@ import {
   makeServer,
 } from 'teleterm/services/tshd/testHelpers';
 import { IAppContext } from 'teleterm/ui/types';
-import { Cluster } from 'teleterm/services/tshd/types';
+import { Cluster, UserType } from 'teleterm/services/tshd/types';
 import { ResourcesContextProvider } from 'teleterm/ui/DocumentCluster/resourcesContext';
 
 import { ConnectMyComputerContextProvider } from '../connectMyComputerContext';
@@ -109,6 +109,34 @@ export function AgentVersionTooNew() {
 export function AgentVersionTooOld() {
   const cluster = makeRootCluster({ proxyVersion: '16.3.0' });
   const appContext = new MockAppContext({ appVersion: '14.1.0' });
+  return (
+    <ShowState
+      cluster={cluster}
+      appContext={appContext}
+      clickStartSetup={false}
+    />
+  );
+}
+
+export function NoAccess() {
+  const cluster = makeRootCluster();
+  cluster.loggedInUser.acl.tokens.create = false;
+  const appContext = new MockAppContext({});
+
+  return (
+    <ShowState
+      cluster={cluster}
+      appContext={appContext}
+      clickStartSetup={false}
+    />
+  );
+}
+
+export function AccessUnknown() {
+  const cluster = makeRootCluster();
+  cluster.loggedInUser.userType = UserType.USER_TYPE_UNSPECIFIED;
+  const appContext = new MockAppContext({});
+
   return (
     <ShowState
       cluster={cluster}
