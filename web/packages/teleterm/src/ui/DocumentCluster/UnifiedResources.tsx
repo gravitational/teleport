@@ -77,7 +77,7 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
     hasPermissionsForConnectMyComputer &&
     agentCompatibility === 'compatible';
 
-  const { fetch, resources, attempt } = useUnifiedResourcesFetch({
+  const { fetch, resources, attempt, clear } = useUnifiedResourcesFetch({
     fetchFunc: useCallback(
       async (paginationParams, signal) => {
         const response = await retryWithRelogin(
@@ -114,19 +114,22 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
   });
 
   useEffect(() => {
-    const { cleanup } = onResourcesRefreshRequest(() =>
-      fetch({
-        force: true,
-        fromStart: true,
-      })
-    );
+    const { cleanup } = onResourcesRefreshRequest(() => {
+      clear();
+      fetch({ force: true });
+    });
     return cleanup;
-  }, [onResourcesRefreshRequest, fetch]);
+  }, [onResourcesRefreshRequest, fetch, clear]);
+
+  function onParamsChange(newParams: UnifiedResourcesQueryParams): void {
+    clear();
+    setParams(newParams);
+  }
 
   return (
     <SharedUnifiedResources
       params={params}
-      setParams={setParams}
+      setParams={onParamsChange}
       updateUnifiedResourcesPreferences={() => alert('Not implemented')}
       onLabelClick={() => alert('Not implemented')}
       pinning={{ kind: 'hidden' }}
@@ -141,7 +144,7 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
             params={params}
             pathname={''}
             replaceHistory={() => undefined}
-            setParams={setParams}
+            setParams={onParamsChange}
           />
           {pinAllButton}
         </Flex>
