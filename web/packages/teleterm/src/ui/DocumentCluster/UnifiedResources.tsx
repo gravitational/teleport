@@ -42,7 +42,6 @@ import { useWorkspaceLoggedInUser } from 'teleterm/ui/hooks/useLoggedInUser';
 import { useConnectMyComputerContext } from 'teleterm/ui/ConnectMyComputer';
 
 import { retryWithRelogin } from 'teleterm/ui/utils';
-import { routing } from 'teleterm/ui/uri';
 
 import {
   ConnectServerActionButton,
@@ -143,16 +142,11 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
           switch (resource.kind) {
             case 'server': {
               const { resource: server } = resource;
-              const serverId = routing.parseServerUri(server.uri)?.params
-                ?.serverId;
-              if (!serverId) {
-                return;
-              }
               return {
                 resource: {
                   kind: 'node' as const,
                   labels: server.labelsList,
-                  id: serverId,
+                  id: server.name,
                   name: server.name,
                   hostname: server.hostname,
                   addr: server.addr,
