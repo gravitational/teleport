@@ -44,20 +44,20 @@ type cmdHandler struct {
 
 func (c *Command) initAuditQueryCommands(auditCmd *kingpin.CmdClause, cfg *servicecfg.Config) {
 	query := auditCmd.Command("query", "Audit query.")
-	getCmd := query.Command("get", "Get Audit Query.")
+	getCmd := query.Command("get", "Get audit query.")
 	getCmd.Arg("name", "name of the audit query").Required().StringVar(&c.handler.name)
 
-	rmCmd := query.Command("rm", "Remove audit query")
+	rmCmd := query.Command("rm", "Remove audit query.")
 	rmCmd.Arg("name", "name of the audit query").Required().StringVar(&c.handler.name)
 
-	lsCmd := query.Command("ls", "List audit queries")
+	lsCmd := query.Command("ls", "List audit queries.")
 
-	execCmd := query.Command("exec", "Execute audit query")
+	execCmd := query.Command("exec", "Execute audit query.")
 	execCmd.Arg("query", "SQL Query").StringVar(&c.handler.auditQuery)
 
 	schemaCmd := auditCmd.Command("schema", "Print audit query schema.")
 
-	createCmd := query.Command("create", "Create a audit query")
+	createCmd := query.Command("create", "Create an audit query.")
 	createCmd.Arg("query", "SQL Query").StringVar(&c.handler.auditQuery)
 	createCmd.Flag("name", "Audit query name").StringVar(&c.handler.name)
 
