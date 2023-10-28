@@ -1667,7 +1667,7 @@ exports[`render with all access 1`] = `
     </a>
     <a
       class="c15 c7"
-      data-testid="2"
+      data-testid="1"
       href="https://goteleport.com/docs/desktop-access/getting-started/"
       rel="noreferrer"
       style="text-decoration: none;"
