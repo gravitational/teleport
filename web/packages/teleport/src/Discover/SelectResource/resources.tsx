@@ -34,6 +34,10 @@ import {
 } from './types';
 import { SAML_APPLICATIONS } from './resourcesE';
 
+function getDesktopLocalWindowsDocLink() {
+  return `https://goteleport.com/docs/desktop-access/getting-started/';
+}
+
 const baseServerKeywords = 'server node';
 export const SERVERS: ResourceSpec[] = [
   {
@@ -107,13 +111,14 @@ export const WINDOWS_DESKTOPS: ResourceSpec[] = [
     event: DiscoverEventResource.WindowsDesktop,
     platform: Platform.PLATFORM_WINDOWS,
   },
-  // {
-  //   name: 'Non Active Directory',
-  //   kind: ResourceKind.Desktop,
-  //   keywords: 'windows desktop non-ad',
-  //   Icon: iconLookup.Windows,
-  //   comingSoon: true,
-  // },
+  {
+    name: 'Local Windows',
+    keywords: 'windows desktop local',
+    kind: ResourceKind.Desktop,
+    icon: 'Windows',
+    unguidedLink: getDesktopLocalWindowsDocLink(),
+    event: DiscoverEventResource.WindowsDesktop,
+  },
 ];
 
 export const KUBERNETES: ResourceSpec[] = [
