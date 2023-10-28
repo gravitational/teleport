@@ -1,5 +1,3 @@
-# syntax=docker/dockerfile:1
-
 ARG RUST_VERSION
 
 ## GIT2 ###################################################################
@@ -13,14 +11,11 @@ ARG DEVTOOLSET
 
 # devtoolset-12 is only in CentOS buildlogs. The rpms are unsigned since they never were
 # published to the official CentOS SCL repos.
-RUN if [ "${TARGETARCH}" = "arm64" ]; then export TARGETARCH="aarch64"; fi && \
-    cat <<EOF > /etc/yum.repos.d/${DEVTOOLSET}-build.repo
-[${DEVTOOLSET}-build]
-name=${DEVTOOLSET} - Build
-baseurl=https://buildlogs.centos.org/c7-${DEVTOOLSET}.${TARGETARCH}/
-gpgcheck=0
-enabled=1
-EOF
+ENV DEVTOOLSET=${DEVTOOLSET} \
+    TARGETARCH=${TARGETARCH}
+
+RUN bash -c 'if [ "${TARGETARCH}" = "arm64" ]; then export TARGETARCH="aarch64"; fi; \
+    echo -e "[${DEVTOOLSET}-build]\nname=${DEVTOOLSET} - Build\nbaseurl=https://buildlogs.centos.org/c7-${DEVTOOLSET}.${TARGETARCH}/\ngpgcheck=0\nenabled=1" > /etc/yum.repos.d/${DEVTOOLSET}-build.repo'
 
 # Install required dependencies.
 RUN yum groupinstall -y 'Development Tools' && \
@@ -67,14 +62,11 @@ ARG TARGETARCH
 
 # devtoolset-12 is only in CentOS buildlogs. The rpms are unsigned since they never were
 # published to the official CentOS SCL repos.
-RUN if [ "${TARGETARCH}" = "arm64" ]; then export TARGETARCH="aarch64"; fi && \
-    cat <<EOF > /etc/yum.repos.d/${DEVTOOLSET}-build.repo
-[${DEVTOOLSET}-build]
-name=${DEVTOOLSET} - Build
-baseurl=https://buildlogs.centos.org/c7-${DEVTOOLSET}.${TARGETARCH}/
-gpgcheck=0
-enabled=1
-EOF
+ENV DEVTOOLSET=${DEVTOOLSET} \
+    TARGETARCH=${TARGETARCH}
+
+RUN bash -c 'if [ "${TARGETARCH}" = "arm64" ]; then export TARGETARCH="aarch64"; fi; \
+    echo -e "[${DEVTOOLSET}-build]\nname=${DEVTOOLSET} - Build\nbaseurl=https://buildlogs.centos.org/c7-${DEVTOOLSET}.${TARGETARCH}/\ngpgcheck=0\nenabled=1" > /etc/yum.repos.d/${DEVTOOLSET}-build.repo'
 
 RUN yum groupinstall -y 'Development Tools' && \
     yum install -y epel-release && \
@@ -148,14 +140,11 @@ ARG TARGETARCH
 
 # devtoolset-12 is only in CentOS buildlogs. The rpms are unsigned since they never were
 # published to the official CentOS SCL repos.
-RUN if [ "${TARGETARCH}" = "arm64" ]; then export TARGETARCH="aarch64"; fi && \
-    cat <<EOF > /etc/yum.repos.d/${DEVTOOLSET}-build.repo
-[${DEVTOOLSET}-build]
-name=${DEVTOOLSET} - Build
-baseurl=https://buildlogs.centos.org/c7-${DEVTOOLSET}.${TARGETARCH}/
-gpgcheck=0
-enabled=1
-EOF
+ENV DEVTOOLSET=${DEVTOOLSET} \
+    TARGETARCH=${TARGETARCH}
+
+RUN bash -c 'if [ "${TARGETARCH}" = "arm64" ]; then export TARGETARCH="aarch64"; fi; \
+    echo -e "[${DEVTOOLSET}-build]\nname=${DEVTOOLSET} - Build\nbaseurl=https://buildlogs.centos.org/c7-${DEVTOOLSET}.${TARGETARCH}/\ngpgcheck=0\nenabled=1" > /etc/yum.repos.d/${DEVTOOLSET}-build.repo'
 
 # Install required dependencies.
 RUN yum groupinstall -y 'Development Tools' && \
@@ -191,14 +180,11 @@ ARG TARGETARCH
 
 # devtoolset-12 is only in CentOS buildlogs. The rpms are unsigned since they never were
 # published to the official CentOS SCL repos.
-RUN if [ "${TARGETARCH}" = "arm64" ]; then export TARGETARCH="aarch64"; fi && \
-    cat <<EOF > /etc/yum.repos.d/${DEVTOOLSET}-build.repo
-[${DEVTOOLSET}-build]
-name=${DEVTOOLSET} - Build
-baseurl=https://buildlogs.centos.org/c7-${DEVTOOLSET}.${TARGETARCH}/
-gpgcheck=0
-enabled=1
-EOF
+ENV DEVTOOLSET=${DEVTOOLSET} \
+    TARGETARCH=${TARGETARCH}
+
+RUN bash -c 'if [ "${TARGETARCH}" = "arm64" ]; then export TARGETARCH="aarch64"; fi; \
+    echo -e "[${DEVTOOLSET}-build]\nname=${DEVTOOLSET} - Build\nbaseurl=https://buildlogs.centos.org/c7-${DEVTOOLSET}.${TARGETARCH}/\ngpgcheck=0\nenabled=1" > /etc/yum.repos.d/${DEVTOOLSET}-build.repo'
 
 # Install required dependencies.
 RUN yum groupinstall -y 'Development Tools' && \
@@ -246,14 +232,11 @@ RUN (groupadd ci --gid=$GID -o && useradd ci --uid=$UID --gid=$GID --create-home
 
 # devtoolset-12 is only in CentOS buildlogs. The rpms are unsigned since they never were
 # published to the official CentOS SCL repos.
-RUN if [ "${TARGETARCH}" = "arm64" ]; then export TARGETARCH="aarch64"; fi && \
-    cat <<EOF > /etc/yum.repos.d/${DEVTOOLSET}-build.repo
-[${DEVTOOLSET}-build]
-name=${DEVTOOLSET} - Build
-baseurl=https://buildlogs.centos.org/c7-${DEVTOOLSET}.${TARGETARCH}/
-gpgcheck=0
-enabled=1
-EOF
+ENV DEVTOOLSET=${DEVTOOLSET} \
+    TARGETARCH=${TARGETARCH}
+
+RUN bash -c 'if [ "${TARGETARCH}" = "arm64" ]; then export TARGETARCH="aarch64"; fi; \
+    echo -e "[${DEVTOOLSET}-build]\nname=${DEVTOOLSET} - Build\nbaseurl=https://buildlogs.centos.org/c7-${DEVTOOLSET}.${TARGETARCH}/\ngpgcheck=0\nenabled=1" > /etc/yum.repos.d/${DEVTOOLSET}-build.repo'
 
 RUN yum groupinstall -y 'Development Tools' && \
     yum install -y epel-release && \
