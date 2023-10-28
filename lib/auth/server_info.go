@@ -75,10 +75,10 @@ func (a *Server) ReconcileServerInfos(ctx context.Context) error {
 func getServerInfoNames(node types.Server) []string {
 	var names []string
 	if meta := node.GetCloudMetadata(); meta != nil && meta.AWS != nil {
-		names = append(names, meta.AWS.GetServerInfoName())
+		names = append(names, types.ServerInfoNameFromAWS(meta.AWS.AccountID, meta.AWS.InstanceID))
 	}
 	// Manually added ServerInfos should override any other ServerInfos.
-	names = append(names, "si-"+node.GetName())
+	names = append(names, types.ServerInfoNameFromNodeName(node.GetName()))
 	return names
 }
 

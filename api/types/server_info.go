@@ -181,8 +181,14 @@ func (s *ServerInfoV1) CheckAndSetDefaults() error {
 	return trace.Wrap(s.Metadata.CheckAndSetDefaults())
 }
 
-// GetServerInfoName gets the name of the ServerInfo generated for a discovered
-// EC2 instance with this account ID and instance ID.
-func (a *AWSInfo) GetServerInfoName() string {
-	return fmt.Sprintf("aws-%v-%v", a.AccountID, a.InstanceID)
+// ServerInfoNameFromAWS gets the name of the ServerInfo that matches the node
+// with the given AWS account ID and instance ID.
+func ServerInfoNameFromAWS(accountID, instanceID string) string {
+	return fmt.Sprintf("aws-%v-%v", accountID, instanceID)
+}
+
+// ServerInfoNameFromNodeName gets the name of the ServerInfo that matches the
+// node with the given name.
+func ServerInfoNameFromNodeName(name string) string {
+	return fmt.Sprintf("si-%v", name)
 }

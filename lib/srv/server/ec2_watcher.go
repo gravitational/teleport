@@ -18,7 +18,6 @@ package server
 
 import (
 	"context"
-	"fmt"
 	"sync"
 	"time"
 
@@ -97,14 +96,13 @@ func ToEC2Instances(insts []*ec2.Instance) []EC2Instance {
 func (i *EC2Instances) ServerInfos() ([]types.ServerInfo, error) {
 	serverInfos := make([]types.ServerInfo, 0, len(i.Instances))
 	for _, instance := range i.Instances {
-		name := fmt.Sprintf("aws-%v-%v", i.AccountID, instance.InstanceID)
 		tags := make(map[string]string, len(instance.Tags))
 		for k, v := range instance.Tags {
 			tags[labels.FormatCloudLabelKey(labels.AWSLabelNamespace, k)] = v
 		}
 
 		si, err := types.NewServerInfo(types.Metadata{
-			Name: name,
+			Name: types.ServerInfoNameFromAWS(i.AccountID, instance.InstanceID),
 		}, types.ServerInfoSpecV1{
 			NewLabels: tags,
 		})
