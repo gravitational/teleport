@@ -35,7 +35,7 @@ import {
 import { SAML_APPLICATIONS } from './resourcesE';
 
 function getDesktopLocalWindowsDocLink() {
-  return `https://goteleport.com/docs/desktop-access/getting-started/';
+  return 'https://goteleport.com/docs/desktop-access/getting-started/';
 }
 
 const baseServerKeywords = 'server node';
