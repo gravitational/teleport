@@ -28,6 +28,9 @@ use iso7816::Command as CardCommand;
 use std::collections::HashMap;
 use uuid::Uuid;
 
+/// `ScardBackend` implements the smartcard device redirection backend as described in [\[MS-RDPESC\]: Remote Desktop Protocol: Smart Card Virtual Channel Extension]
+///
+/// [\[MS-RDPESC\]: Remote Desktop Protocol: Smart Card Virtual Channel Extension]: https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpesc/0428ca28-b4dc-46a3-97c3-01887fa44a90
 #[derive(Debug)]
 pub struct ScardBackend {
     /// contexts holds all the active contexts for the server, established using
@@ -127,7 +130,7 @@ impl ScardBackend {
                 _ => Self::unsupported_combo_error(req.io_control_code, call),
             },
             _ => Err(custom_err!(
-                "TeleportRdpdrBackend::handle_scard_call",
+                "SmartcardBackend::handle",
                 SmartcardBackendError(format!(
                     "received unhandled ScardIoCtlCode: {:?}",
                     req.io_control_code
@@ -186,7 +189,7 @@ impl ScardBackend {
         if Self::has_no_change(&get_status_change_ret) {
             if timeout != TIMEOUT_INFINITE {
                 return Err(other_err!(
-                    "TeleportRdpdrBackend::handle_list_readers",
+                    "SmartcardBackend::handle_get_status_change",
                     "got no change for non-infinite timeout",
                 ));
             }
@@ -307,7 +310,7 @@ impl ScardBackend {
         let cmd =
             CardCommand::<TRANSMIT_DATA_LIMIT>::try_from(&call.send_buffer).map_err(|err| {
                 custom_err!(
-                    "TeleportRdpdrBackend::handle_transmit",
+                    "SmartcardBackend::handle_transmit",
                     SmartcardBackendError(format!(
                         "failed to parse smartcard command {:?}: {:?}",
                         &call.send_buffer, err
@@ -333,7 +336,7 @@ impl ScardBackend {
             ScardIoCtlCode::StatusA => CharacterSet::Ansi,
             _ => {
                 return Err(custom_err!(
-                    "TeleportRdpdrBackend::handle_status",
+                    "SmartcardBackend::handle_status",
                     SmartcardBackendError(format!(
                         "got unexpected ScardIoCtlCode with a StatusCall: {:?}",
                         req.io_control_code
@@ -432,7 +435,7 @@ impl ScardBackend {
             )
         } else {
             Err(custom_err!(
-                "TeleportRdpdrBackend::handle_get_device_type_id",
+                "SmartcardBackend::handle_get_device_type_id",
                 SmartcardBackendError(format!(
                     "got GetDeviceTypeIdCall for unknown context [{}]",
                     call.context.value
@@ -478,7 +481,7 @@ impl ScardBackend {
         call: ScardCall,
     ) -> PduResult<Option<DeviceControlResponse>> {
         Err(custom_err!(
-            "TeleportRdpdrBackend::unsupported_combo_error",
+            "SmartcardBackend::unsupported_combo_error",
             SmartcardBackendError(format!(
                 "received unsupported combination of ScardIoCtlCode [{:?}] with ScardCall [{:?}]",
                 ioctl, call
@@ -685,7 +688,7 @@ const TRANSMIT_DATA_LIMIT: usize = 1024;
 const TIMEOUT_INFINITE: u32 = 0xffffffff;
 const TIMEOUT_IMMEDIATE: u32 = 0;
 
-/// A generic error type for the TeleportRdpdrBackend that can contain any arbitrary error message.
+/// A generic error type for the SmartcardBackend that can contain any arbitrary error message.
 #[derive(Debug)]
 struct SmartcardBackendError(pub String);
 

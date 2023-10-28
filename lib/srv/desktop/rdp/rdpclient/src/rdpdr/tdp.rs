@@ -314,6 +314,10 @@ pub enum FileType {
     Directory = 1,
 }
 
+pub const FALSE: u8 = 0;
+#[allow(dead_code)]
+pub const TRUE: u8 = 1;
+
 /// A generic error type that can contain any arbitrary error message.
 ///
 /// TODO: This is a temporary solution until we can figure out a better error handling system.

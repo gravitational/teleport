@@ -78,19 +78,25 @@ impl UnixPath {
 
 impl From<&WindowsPath> for UnixPath {
     fn from(p: &WindowsPath) -> UnixPath {
-        Self::from(to_unix_path(&p.path))
+        Self {
+            path: to_unix_path(&p.path),
+        }
     }
 }
 
 impl From<&str> for UnixPath {
     fn from(p: &str) -> UnixPath {
-        Self::from(to_unix_path(&p))
+        Self {
+            path: to_unix_path(&p),
+        }
     }
 }
 
 impl From<String> for UnixPath {
-    fn from(path: String) -> UnixPath {
-        Self { path }
+    fn from(p: String) -> UnixPath {
+        Self {
+            path: to_unix_path(&p),
+        }
     }
 }
 

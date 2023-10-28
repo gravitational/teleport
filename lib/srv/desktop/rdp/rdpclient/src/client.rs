@@ -295,7 +295,6 @@ impl Client {
                             Client::write_raw_pdu(&mut write_stream, args).await?;
                         }
                         ClientFunction::WriteRdpdr(args) => {
-                            debug!("sending: {:?}", args);
                             Client::write_rdpdr(&mut write_stream, x224_processor.clone(), args)
                                 .await?;
                         }
@@ -308,12 +307,8 @@ impl Client {
                             .await?;
                         }
                         ClientFunction::HandleTdpSdInfoResponse(res) => {
-                            Client::handle_tdp_sd_info_response(
-                                &mut write_stream,
-                                x224_processor.clone(),
-                                res,
-                            )
-                            .await?;
+                            Client::handle_tdp_sd_info_response(x224_processor.clone(), res)
+                                .await?;
                         }
                         ClientFunction::WriteCliprdr(f) => {
                             Client::write_cliprdr(x224_processor.clone(), &mut write_stream, f)
@@ -463,6 +458,7 @@ impl Client {
         x224_processor: Arc<Mutex<X224Processor>>,
         pdu: RdpdrPdu,
     ) -> ClientResult<()> {
+        debug!("sending rdp: {:?}", pdu);
         // Process the RDPDR PDU.
         let encoded = Client::x224_process_svc_messages(
             x224_processor,
@@ -480,7 +476,7 @@ impl Client {
         x224_processor: Arc<Mutex<X224Processor>>,
         sda: tdp::SharedDirectoryAnnounce,
     ) -> ClientResult<()> {
-        debug!("handling tdp sd announce: {:?}", sda);
+        debug!("received tdp: {:?}", sda);
         let pdu = Self::add_drive(x224_processor.clone(), sda).await?;
         Self::write_rdpdr(
             write_stream,
@@ -492,12 +488,12 @@ impl Client {
     }
 
     async fn handle_tdp_sd_info_response(
-        write_stream: &mut RdpWriteStream,
         x224_processor: Arc<Mutex<X224Processor>>,
         res: tdp::SharedDirectoryInfoResponse,
     ) -> ClientResult<()> {
         global::TOKIO_RT
             .spawn_blocking(move || {
+                debug!("received tdp: {:?}", res);
                 let mut x224_processor = Self::x224_lock(&x224_processor)?;
                 let teleport_rdpdr_backend = x224_processor
                     .get_svc_processor_mut::<Rdpdr>()
