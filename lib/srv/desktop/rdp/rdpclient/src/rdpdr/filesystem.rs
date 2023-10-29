@@ -247,6 +247,49 @@ impl FilesystemBackend {
         ))
     }
 
+    /// Sends a [`tdp::SharedDirectoryCreateRequest`] to the browser based on the passed
+    /// [`efs::DeviceCreateRequest`]. Adds a [`SharedDirectoryCreateResponseHandler`] to
+    /// [`Self::pending_sd_create_resp_handlers`] to send an RDP [`efs::DeviceCreateResponse`]
+    /// back to the RDP server when the browser responds with a [`tdp::SharedDirectoryCreateResponse`].
+    fn tdp_sd_create(
+        &mut self,
+        rdp_req: efs::DeviceCreateRequest,
+        file_type: tdp::FileType,
+    ) -> PduResult<()> {
+        self.send_tdp_sd_create_request(tdp::SharedDirectoryCreateRequest::from(
+            &rdp_req, file_type,
+        ))?;
+        self.pending_sd_create_resp_handlers.insert(
+            rdp_req.device_io_request.completion_id,
+            SharedDirectoryCreateResponseHandler::new(Box::new(
+                move |this: &mut FilesystemBackend,
+                      tdp_res: tdp::SharedDirectoryCreateResponse|
+                      -> PduResult<Option<RdpdrPdu>> {
+                    if tdp_res.err_code != TdpErrCode::Nil {
+                        return Self::make_device_create_response(
+                            &rdp_req,
+                            NtStatus::Unsuccessful,
+                            0,
+                        );
+                    }
+                    let file_id = this.file_cache.insert(FileCacheObject::new(
+                        UnixPath::from(&rdp_req.path),
+                        tdp_res.fso,
+                    ))?;
+                    Self::make_device_create_response(&rdp_req, NtStatus::Success, file_id)
+                },
+            )),
+        );
+        Ok(())
+    }
+
+    /// Helper function for combining a TDP SharedDirectoryDeleteRequest
+    /// with a TDP SharedDirectoryCreateRequest to overwrite a file, based
+    /// on an RDP DeviceCreateRequest.
+    fn tdp_sd_overwrite(&mut self, rdp_req: efs::DeviceCreateRequest) -> PduResult<()> {
+        todo!()
+    }
+
     /// Sends a [`tdp::SharedDirectoryInfoRequest`] to the browser.
     fn send_tdp_sd_info_request(&self, req: tdp::SharedDirectoryInfoRequest) -> PduResult<()> {
         debug!("sending tdp: {:?}", req);
@@ -256,6 +299,20 @@ impl FilesystemBackend {
             FilesystemBackendError(format!(
                 "failed to send TDP Shared Directory Info Request: {:?}",
                 err
+            ));
+        };
+        Ok(())
+    }
+
+    /// Sends a [`tdp::SharedDirectoryCreateRequest`] to the browser.
+    fn send_tdp_sd_create_request(&self, req: tdp::SharedDirectoryCreateRequest) -> PduResult<()> {
+        debug!("sending tdp: {:?}", req);
+        let (mut req, _path) = req.into_cgo()?;
+        let err = unsafe { tdp_sd_create_request(self.cgo_handle, &mut req) };
+        if err != CGOErrCode::ErrCodeSuccess {
+            return Err(other_err!(
+                "FilesystemBackend::send_tdp_sd_create",
+                "call to tdp_sd_create_request failed",
             ));
         };
         Ok(())
@@ -309,61 +366,7 @@ impl FilesystemBackend {
         }
     }
 
-    /// Sends a [`tdp::SharedDirectoryCreateRequest`] to the browser based on the passed
-    /// [`efs::DeviceCreateRequest`]. Adds a [`SharedDirectoryCreateResponseHandler`] to
-    /// [`Self::pending_sd_create_resp_handlers`] to send an RDP [`efs::DeviceCreateResponse`]
-    /// back to the RDP server when the browser responds with a [`tdp::SharedDirectoryCreateResponse`].
-    fn tdp_sd_create(
-        &mut self,
-        rdp_req: efs::DeviceCreateRequest,
-        file_type: tdp::FileType,
-    ) -> PduResult<()> {
-        self.send_tdp_sd_create(tdp::SharedDirectoryCreateRequest::from(&rdp_req, file_type))?;
-        self.pending_sd_create_resp_handlers.insert(
-            rdp_req.device_io_request.completion_id,
-            SharedDirectoryCreateResponseHandler::new(Box::new(
-                move |this: &mut FilesystemBackend,
-                      tdp_res: tdp::SharedDirectoryCreateResponse|
-                      -> PduResult<Option<RdpdrPdu>> {
-                    if tdp_res.err_code != TdpErrCode::Nil {
-                        return Self::make_device_create_response(
-                            &rdp_req,
-                            NtStatus::Unsuccessful,
-                            0,
-                        );
-                    }
-                    let file_id = this.file_cache.insert(FileCacheObject::new(
-                        UnixPath::from(&rdp_req.path),
-                        tdp_res.fso,
-                    ))?;
-                    Self::make_device_create_response(&rdp_req, NtStatus::Success, file_id)
-                },
-            )),
-        );
-        Ok(())
-    }
-
-    /// Sends a [`tdp::SharedDirectoryCreateRequest`] to the browser.
-    fn send_tdp_sd_create(&self, req: tdp::SharedDirectoryCreateRequest) -> PduResult<()> {
-        debug!("sending tdp: {:?}", req);
-        let (mut req, _path) = req.into_cgo()?;
-        let err = unsafe { tdp_sd_create_request(self.cgo_handle, &mut req) };
-        if err != CGOErrCode::ErrCodeSuccess {
-            return Err(other_err!(
-                "FilesystemBackend::send_tdp_sd_create",
-                "call to tdp_sd_create_request failed",
-            ));
-        };
-        Ok(())
-    }
-
-    /// Helper function for combining a TDP SharedDirectoryDeleteRequest
-    /// with a TDP SharedDirectoryCreateRequest to overwrite a file, based
-    /// on an RDP DeviceCreateRequest.
-    fn tdp_sd_overwrite(&mut self, rdp_req: efs::DeviceCreateRequest) -> PduResult<()> {
-        todo!()
-    }
-
+    /// Helper function for creating an RDP [`efs::DeviceCreateResponse`] from an RDP [`efs::DeviceCreateRequest`].
     fn make_device_create_response(
         device_create_request: &efs::DeviceCreateRequest,
         io_status: efs::NtStatus,
