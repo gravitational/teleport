@@ -149,7 +149,7 @@ export default class AppContext implements IAppContext {
     );
   }
 
-  async init(): Promise<void> {
+  async pullInitialState(): Promise<void> {
     this.setUpTshdEventSubscriptions();
     this.mainProcessClient.subscribeToDeepLinkLaunch(result => {
       if (result.status === 'error') {

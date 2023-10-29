@@ -63,7 +63,7 @@ require (
 	github.com/coreos/go-oidc v2.2.1+incompatible // replaced
 	github.com/coreos/go-semver v0.3.1
 	github.com/creack/pty v1.1.18
-	github.com/crewjam/saml v0.4.14-0.20230420111643-34930b26d33b
+	github.com/crewjam/saml v0.4.14
 	github.com/datastax/go-cassandra-native-protocol v0.0.0-20220706104457-5e8aad05cf90
 	github.com/digitorus/pkcs7 v0.0.0-20230818184609-3a137a874352
 	github.com/dustin/go-humanize v1.0.1
@@ -176,7 +176,7 @@ require (
 	golang.org/x/time v0.3.0
 	google.golang.org/api v0.138.0
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20230807174057-1744710a1577
-	google.golang.org/grpc v1.58.2
+	google.golang.org/grpc v1.58.3
 	google.golang.org/grpc/cmd/protoc-gen-go-grpc v1.3.0
 	google.golang.org/protobuf v1.31.0
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c

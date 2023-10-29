@@ -149,7 +149,7 @@ that supports efficient searching, sorting, and filtering operations. Teleport
 Cloud customers will have their audit log automatically migrated to this new
 backend.
 
-See the documentation [here](docs/pages/reference/backends.mdx#athena-preview).
+See the documentation [here](docs/pages/reference/backends.mdx#athena).
 
 #### Access lists
 

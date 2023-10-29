@@ -19,7 +19,7 @@ import Logger, { NullService } from 'teleterm/logger';
 import AppContext from 'teleterm/ui/appContext';
 import { Dialog } from 'teleterm/ui/services/modals';
 
-import { initUi } from './initUi';
+import { showStartupModalsAndNotifications } from './showStartupModalsAndNotifications';
 
 beforeAll(() => {
   Logger.init(new NullService());
@@ -34,7 +34,7 @@ describe('usage reporting dialogs', () => {
       }
     });
 
-    await initUi(mockedAppContext);
+    await showStartupModalsAndNotifications(mockedAppContext);
 
     expect(
       mockedAppContext.modalsService.openRegularDialog
@@ -55,7 +55,7 @@ describe('usage reporting dialogs', () => {
       }
     });
 
-    await initUi(mockedAppContext);
+    await showStartupModalsAndNotifications(mockedAppContext);
 
     expect(
       mockedAppContext.modalsService.openRegularDialog
@@ -70,7 +70,7 @@ describe('usage reporting dialogs', () => {
     mockUsageReportingEnabled(mockedAppContext, { enabled: false });
     mockOpenRegularDialog(mockedAppContext);
 
-    await initUi(mockedAppContext);
+    await showStartupModalsAndNotifications(mockedAppContext);
 
     expect(
       mockedAppContext.modalsService.openRegularDialog
@@ -90,7 +90,7 @@ describe('usage reporting dialogs', () => {
       .mockImplementation(() => ({ askedForUserJobRole: true }));
     mockOpenRegularDialog(mockedAppContext);
 
-    await initUi(mockedAppContext);
+    await showStartupModalsAndNotifications(mockedAppContext);
 
     expect(
       mockedAppContext.modalsService.openRegularDialog
@@ -110,7 +110,7 @@ test('no dialog is shown when config file did not load properly', async () => {
     .mockImplementation(() => ({ source: 'file-loading', error: new Error() }));
   mockOpenRegularDialog(mockedAppContext);
 
-  await initUi(mockedAppContext);
+  await showStartupModalsAndNotifications(mockedAppContext);
 
   expect(
     mockedAppContext.modalsService.openRegularDialog
