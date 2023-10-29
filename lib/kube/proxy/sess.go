@@ -61,6 +61,7 @@ type remoteClient interface {
 	stderrStream() io.Writer
 	resizeQueue() <-chan *remotecommand.TerminalSize
 	resize(size *remotecommand.TerminalSize) error
+	hasResize() bool
 	forceTerminate() <-chan struct{}
 	sendStatus(error) error
 	io.Closer
@@ -84,6 +85,10 @@ func (p *websocketClientStreams) stderrStream() io.Writer {
 
 func (p *websocketClientStreams) resizeQueue() <-chan *remotecommand.TerminalSize {
 	return p.stream.ResizeQueue()
+}
+
+func (p *websocketClientStreams) hasResize() bool {
+	return p.stream.ResizeQueue() != nil
 }
 
 func (p *websocketClientStreams) resize(size *remotecommand.TerminalSize) error {
@@ -135,6 +140,10 @@ func (p *kubeProxyClientStreams) stdoutStream() io.Writer {
 
 func (p *kubeProxyClientStreams) stderrStream() io.Writer {
 	return p.stderr
+}
+
+func (p *kubeProxyClientStreams) hasResize() bool {
+	return p.sizeQueue != nil
 }
 
 func (p *kubeProxyClientStreams) resizeQueue() <-chan *remotecommand.TerminalSize {
@@ -599,12 +608,26 @@ func (s *session) launch() error {
 		s.log.WithError(err).Warning("Failed creating executor.")
 		return trace.Wrap(err)
 	}
+	var (
+		stdin  io.Reader
+		stdout io.Writer
+		stderr io.Writer
+	)
+	if request.stdin {
+		stdin = s.io
+	}
+	if request.stdout {
+		stdout = s.io
+	}
+	if request.stderr {
+		stderr = s.io
+	}
 
 	options := remotecommand.StreamOptions{
-		Stdin:             s.io,
-		Stdout:            s.io,
-		Stderr:            s.io,
-		Tty:               true,
+		Stdin:             stdin,
+		Stdout:            stdout,
+		Stderr:            stderr,
+		Tty:               request.tty,
 		TerminalSizeQueue: s.terminalSizeQueue,
 	}
 
@@ -895,9 +918,11 @@ func (s *session) join(p *party, emitJoinEvent bool) error {
 	stringID := p.ID.String()
 	s.parties[p.ID] = p
 	s.partiesHistorical[p.ID] = p
-	s.terminalSizeQueue.add(stringID, p.Client.resizeQueue())
+	if p.Client.hasResize() {
+		s.terminalSizeQueue.add(stringID, p.Client.resizeQueue())
+	}
 
-	if p.Mode == types.SessionPeerMode {
+	if p.Mode == types.SessionPeerMode && p.Client.stdinStream() != nil {
 		s.io.AddReader(stringID, p.Client.stdinStream())
 	}
 

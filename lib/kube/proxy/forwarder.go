@@ -1674,15 +1674,6 @@ func (f *Forwarder) exec(authCtx *authContext, w http.ResponseWriter, req *http.
 		return f.remoteExec(authCtx, w, req, p, sess, request, proxy)
 	}
 
-	if !request.tty {
-		resp, err = f.execNonInteractive(authCtx, w, req, p, request, proxy, sess)
-		if err != nil {
-			// will hang waiting for the response.
-			proxy.sendStatus(err)
-		}
-		return nil, nil
-	}
-
 	client := newKubeProxyClientStreams(proxy)
 	party := newParty(*authCtx, types.SessionPeerMode, client)
 	session, err := newSession(*authCtx, f, req, p, party, sess)
