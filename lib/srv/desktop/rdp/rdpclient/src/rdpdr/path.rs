@@ -59,12 +59,12 @@ impl UnixPath {
     /// This function will return an error if the UnixPath contains
     /// any characters that can't be handled by CString::new().
     pub fn to_cstring(&self) -> PduResult<CString> {
-        Ok(CString::new(self.path.clone()).map_err(|e| {
+        CString::new(self.path.clone()).map_err(|e| {
             custom_err!(
                 "UnixPath::to_cstring",
                 PathError(format!("Error converting UnixPath to CString: {}", e))
             )
-        })?)
+        })
     }
 
     pub fn len(&self) -> u32 {
@@ -87,7 +87,7 @@ impl From<&WindowsPath> for UnixPath {
 impl From<&str> for UnixPath {
     fn from(p: &str) -> UnixPath {
         Self {
-            path: to_unix_path(&p),
+            path: to_unix_path(p),
         }
     }
 }
@@ -96,6 +96,14 @@ impl From<String> for UnixPath {
     fn from(p: String) -> UnixPath {
         Self {
             path: to_unix_path(&p),
+        }
+    }
+}
+
+impl From<&String> for UnixPath {
+    fn from(p: &String) -> UnixPath {
+        Self {
+            path: to_unix_path(p),
         }
     }
 }

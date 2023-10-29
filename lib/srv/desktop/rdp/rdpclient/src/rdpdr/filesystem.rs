@@ -14,12 +14,15 @@
 
 use ironrdp_pdu::{custom_err, other_err, PduResult};
 use ironrdp_rdpdr::pdu::{
-    efs::{self},
+    efs::{self, NtStatus},
     RdpdrPdu,
 };
 use std::collections::HashMap;
 
-use crate::{tdp_sd_info_request, CGOErrCode, CGOSharedDirectoryInfoRequest, CgoHandle};
+use crate::{
+    tdp_sd_create_request, tdp_sd_info_request, CGOErrCode, CGOSharedDirectoryCreateRequest,
+    CGOSharedDirectoryInfoRequest, CgoHandle,
+};
 
 use super::{
     path::UnixPath,
@@ -40,6 +43,8 @@ pub struct FilesystemBackend {
     file_cache: FileCache,
     /// CompletionId -> SharedDirectoryInfoResponseHandler
     pending_tdp_sd_info_resp_handlers: HashMap<u32, SharedDirectoryInfoResponseHandler>,
+    /// CompletionId -> SharedDirectoryCreateResponseHandler
+    pending_sd_create_resp_handlers: HashMap<u32, SharedDirectoryCreateResponseHandler>,
 }
 
 impl FilesystemBackend {
@@ -48,6 +53,7 @@ impl FilesystemBackend {
             cgo_handle,
             file_cache: FileCache::new(),
             pending_tdp_sd_info_resp_handlers: HashMap::new(),
+            pending_sd_create_resp_handlers: HashMap::new(),
         }
     }
 
@@ -57,21 +63,19 @@ impl FilesystemBackend {
         }
     }
 
+    /// Handles an RDP [`efs::DeviceCreateRequest`] received from the RDP server.
     fn handle_fs_device_create(&mut self, req: efs::DeviceCreateRequest) -> PduResult<()> {
         // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L210
-
-        // Send a tdp::SharedDirectoryInfoRequest to the browser.
         self.send_tdp_sd_info_request(tdp::SharedDirectoryInfoRequest::from(&req))?;
-        // When we get a tdp::SharedDirectoryInfoResponse back, we'll call the handler we're about to add.
         self.pending_tdp_sd_info_resp_handlers.insert(
             req.device_io_request.completion_id,
-            (req, Self::handle_fs_device_create_continued),
+            (req, Self::handle_fs_device_create_cont),
         );
-
         Ok(())
     }
 
-    fn handle_fs_device_create_continued(
+    /// Continues [`Self::handle_fs_device_create`] after a [`tdp::SharedDirectoryInfoResponse`] is received from the browser.
+    fn handle_fs_device_create_cont(
         &mut self,
         req: efs::DeviceCreateRequest,
         res: tdp::SharedDirectoryInfoResponse,
@@ -164,7 +168,7 @@ impl FilesystemBackend {
                 if res.err_code == TdpErrCode::Nil {
                     let file_id = self
                         .file_cache
-                        .insert(FileCacheObject::new(UnixPath::from(&(*req.path)), res.fso))?;
+                        .insert(FileCacheObject::new(UnixPath::from(&req.path), res.fso))?;
                     return Self::make_device_create_response(
                         &req,
                         efs::NtStatus::Success,
@@ -192,7 +196,7 @@ impl FilesystemBackend {
                 if res.err_code == TdpErrCode::Nil {
                     let file_id = self
                         .file_cache
-                        .insert(FileCacheObject::new(UnixPath::from(&(*req.path)), res.fso))?;
+                        .insert(FileCacheObject::new(UnixPath::from(&req.path), res.fso))?;
                     return Self::make_device_create_response(
                         &req,
                         efs::NtStatus::Success,
@@ -239,28 +243,23 @@ impl FilesystemBackend {
         ))
     }
 
+    /// Sends a [`tdp::SharedDirectoryInfoRequest`] to the browser.
     fn send_tdp_sd_info_request(&self, req: tdp::SharedDirectoryInfoRequest) -> PduResult<()> {
         debug!("sending tdp: {:?}", req);
-        let c_string = req.path.to_cstring()?;
-        unsafe {
-            let err = tdp_sd_info_request(
-                self.cgo_handle,
-                &mut CGOSharedDirectoryInfoRequest {
-                    completion_id: req.completion_id,
-                    directory_id: req.directory_id,
-                    path: c_string.as_ptr(),
-                },
-            );
-            if err != CGOErrCode::ErrCodeSuccess {
-                FilesystemBackendError(format!(
-                    "failed to send TDP Shared Directory Info Request: {:?}",
-                    err
-                ));
-            };
-        }
+        let (mut req, _path) = req.into_cgo()?;
+        let err = unsafe { tdp_sd_info_request(self.cgo_handle, &mut req) };
+        if err != CGOErrCode::ErrCodeSuccess {
+            FilesystemBackendError(format!(
+                "failed to send TDP Shared Directory Info Request: {:?}",
+                err
+            ));
+        };
         Ok(())
     }
 
+    /// Called from the Go code when a [`tdp::SharedDirectoryInfoResponse`] is received from the browser.
+    ///
+    /// Calls [`Self::handle_fs_device_create_cont`] with the [`tdp::SharedDirectoryInfoResponse`].
     pub fn handle_tdp_sd_info_response(
         &mut self,
         res: tdp::SharedDirectoryInfoResponse,
@@ -281,14 +280,72 @@ impl FilesystemBackend {
         }
     }
 
-    /// Helper function for sending a TDP SharedDirectoryCreateRequest based on an
-    /// RDP DeviceCreateRequest and handling the TDP SharedDirectoryCreateResponse.
+    /// Called from the Go code when a [`tdp::SharedDirectoryCreateResponse`] is received from the browser.
+    ///
+    /// Calls [`Self::tdp_sd_create_cont`] with the [`tdp::SharedDirectoryCreateResponse`].
+    pub fn handle_tdp_sd_create_response(
+        &mut self,
+        res: tdp::SharedDirectoryCreateResponse,
+    ) -> PduResult<Option<RdpdrPdu>> {
+        if let Some((rdp_req, handler)) = self
+            .pending_sd_create_resp_handlers
+            .remove(&res.completion_id)
+        {
+            handler(self, rdp_req, res)
+        } else {
+            Err(custom_err!(
+                "FilesystemBackend::handle_tdp_sd_create_response",
+                FilesystemBackendError(format!(
+                    "received invalid completion id: {}",
+                    res.completion_id
+                ))
+            ))
+        }
+    }
+
+    /// Sends a [`tdp::SharedDirectoryCreateRequest`] to the browser based on an
+    /// RDP [`efs::DeviceCreateRequest`], adding a handler to the pending handlers
+    /// map to handle the response.
     fn tdp_sd_create(
         &mut self,
-        rdp_req: efs::DeviceCreateRequest,
+        req: efs::DeviceCreateRequest,
         file_type: tdp::FileType,
     ) -> PduResult<()> {
-        todo!()
+        self.send_tdp_sd_create(tdp::SharedDirectoryCreateRequest::from(&req, file_type))?;
+        self.pending_sd_create_resp_handlers.insert(
+            req.device_io_request.completion_id,
+            (req, Self::tdp_sd_create_cont),
+        );
+        Ok(())
+    }
+
+    /// Continues [`Self::tdp_sd_create`] after a [`tdp::SharedDirectoryCreateResponse`] is received from the browser.
+    fn tdp_sd_create_cont(
+        &mut self,
+        req: efs::DeviceCreateRequest,
+        res: tdp::SharedDirectoryCreateResponse,
+    ) -> PduResult<Option<RdpdrPdu>> {
+        if res.err_code != TdpErrCode::Nil {
+            return Self::make_device_create_response(&req, NtStatus::Unsuccessful, 0);
+        }
+        let file_id = self
+            .file_cache
+            .insert(FileCacheObject::new(UnixPath::from(&req.path), res.fso))?;
+        Self::make_device_create_response(&req, NtStatus::Success, file_id)
+    }
+
+    /// Sends a [`tdp::SharedDirectoryCreateRequest`] to the browser.
+    fn send_tdp_sd_create(&self, req: tdp::SharedDirectoryCreateRequest) -> PduResult<()> {
+        debug!("sending tdp: {:?}", req);
+        let (mut req, _path) = req.into_cgo()?;
+        let err = unsafe { tdp_sd_create_request(self.cgo_handle, &mut req) };
+        if err != CGOErrCode::ErrCodeSuccess {
+            return Err(other_err!(
+                "FilesystemBackend::send_tdp_sd_create",
+                "call to tdp_sd_create_request failed",
+            ));
+        };
+        Ok(())
     }
 
     /// Helper function for combining a TDP SharedDirectoryDeleteRequest
@@ -507,5 +564,14 @@ type SharedDirectoryInfoResponseHandler = (
         &mut FilesystemBackend,
         efs::DeviceCreateRequest,
         tdp::SharedDirectoryInfoResponse,
+    ) -> PduResult<Option<RdpdrPdu>>,
+);
+
+type SharedDirectoryCreateResponseHandler = (
+    efs::DeviceCreateRequest,
+    fn(
+        &mut FilesystemBackend,
+        efs::DeviceCreateRequest,
+        tdp::SharedDirectoryCreateResponse,
     ) -> PduResult<Option<RdpdrPdu>>,
 );

@@ -20,7 +20,7 @@ pub(crate) mod tdp;
 
 use self::filesystem::FilesystemBackend;
 use self::scard::ScardBackend;
-use self::tdp::SharedDirectoryInfoResponse;
+use self::tdp::{SharedDirectoryCreateResponse, SharedDirectoryInfoResponse};
 use crate::client::{ClientFunction, ClientHandle};
 use crate::CgoHandle;
 use ironrdp_pdu::{custom_err, PduResult};
@@ -101,6 +101,18 @@ impl TeleportRdpdrBackend {
         tdp_res: SharedDirectoryInfoResponse,
     ) -> PduResult<()> {
         if let Some(resp) = self.fs.handle_tdp_sd_info_response(tdp_res)? {
+            self.write_rdpdr(resp)
+        } else {
+            // Nothing to send back to the server
+            Ok(())
+        }
+    }
+
+    pub fn handle_tdp_sd_create_response(
+        &mut self,
+        tdp_res: SharedDirectoryCreateResponse,
+    ) -> PduResult<()> {
+        if let Some(resp) = self.fs.handle_tdp_sd_create_response(tdp_res)? {
             self.write_rdpdr(resp)
         } else {
             // Nothing to send back to the server

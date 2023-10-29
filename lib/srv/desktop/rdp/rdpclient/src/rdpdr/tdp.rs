@@ -1,8 +1,11 @@
+use std::ffi::CString;
+
 use super::path::UnixPath;
 use crate::{
     util::{self, from_c_string, from_go_array},
-    CGOSharedDirectoryAnnounce, CGOSharedDirectoryCreateResponse, CGOSharedDirectoryInfoResponse,
-    CGOSharedDirectoryListResponse, CGOSharedDirectoryReadResponse,
+    CGOFileSystemObject, CGOSharedDirectoryAnnounce, CGOSharedDirectoryCreateRequest,
+    CGOSharedDirectoryCreateResponse, CGOSharedDirectoryInfoRequest,
+    CGOSharedDirectoryInfoResponse, CGOSharedDirectoryListResponse, CGOSharedDirectoryReadResponse,
 };
 use ironrdp_pdu::{custom_err, PduResult};
 use ironrdp_rdpdr::pdu::efs::DeviceCreateRequest;
@@ -49,12 +52,34 @@ pub struct SharedDirectoryInfoRequest {
     pub path: UnixPath,
 }
 
+impl SharedDirectoryInfoRequest {
+    /// Converts this request into a [`CGOSharedDirectoryInfoRequest`].
+    ///
+    /// Returns a tuple containing the [`CGOSharedDirectoryInfoRequest`] and a [`CString`],
+    /// which is the memory backing the [`CGOSharedDirectoryInfoRequest::path`] field.
+    /// It is the caller's responsibility to ensure that the [`CString`] lives until
+    /// the [`CGOSharedDirectoryInfoRequest::path`] is copied into Go-owned memory.
+    ///
+    /// See the example for [`SharedDirectoryCreateRequest`]'s `into_cgo`.
+    pub fn into_cgo(self) -> PduResult<(CGOSharedDirectoryInfoRequest, CString)> {
+        let path = self.path.to_cstring()?;
+        Ok((
+            CGOSharedDirectoryInfoRequest {
+                completion_id: self.completion_id,
+                directory_id: self.directory_id,
+                path: path.as_ptr(),
+            },
+            path,
+        ))
+    }
+}
+
 impl From<&DeviceCreateRequest> for SharedDirectoryInfoRequest {
     fn from(req: &DeviceCreateRequest) -> SharedDirectoryInfoRequest {
         SharedDirectoryInfoRequest {
             completion_id: req.device_io_request.completion_id,
             directory_id: req.device_io_request.device_id,
-            path: UnixPath::from(&(*req.path)),
+            path: UnixPath::from(&req.path),
         }
     }
 }
@@ -78,7 +103,7 @@ impl From<CGOSharedDirectoryInfoResponse> for SharedDirectoryInfoResponse {
         SharedDirectoryInfoResponse {
             completion_id: cgo_res.completion_id,
             err_code: cgo_res.err_code,
-            fso: FileSystemObject::from(cgo_res.fso),
+            fso: FileSystemObject::from_cgo(cgo_res.fso),
         }
     }
 }
@@ -103,6 +128,21 @@ impl FileSystemObject {
                 "FileSystemObject::name",
                 TdpHandlingError(format!("failed to extract name from path: {:?}", self.path))
             ))
+        }
+    }
+
+    pub fn from_cgo(cgo: CGOFileSystemObject) -> FileSystemObject {
+        // # Safety
+        //
+        // This function MUST NOT hang on to any of the pointers passed in to it after it returns.
+        // In other words, all pointer data that needs to persist after this function returns MUST
+        // be copied into Rust-owned memory.
+        FileSystemObject {
+            last_modified: cgo.last_modified,
+            size: cgo.size,
+            file_type: cgo.file_type,
+            is_empty: cgo.is_empty,
+            path: UnixPath::from(unsafe { from_c_string(cgo.path) }),
         }
     }
 }
@@ -192,6 +232,55 @@ pub struct SharedDirectoryCreateRequest {
     pub path: UnixPath,
 }
 
+impl SharedDirectoryCreateRequest {
+    pub fn from(req: &DeviceCreateRequest, file_type: FileType) -> SharedDirectoryCreateRequest {
+        SharedDirectoryCreateRequest {
+            completion_id: req.device_io_request.completion_id,
+            directory_id: req.device_io_request.device_id,
+            file_type,
+            path: UnixPath::from(&req.path),
+        }
+    }
+
+    /// Converts this request into a [`CGOSharedDirectoryCreateRequest`].
+    ///
+    /// Returns a tuple containing the [`CGOSharedDirectoryCreateRequest`] and a [`CString`],
+    /// which is the memory backing the [`CGOSharedDirectoryCreateRequest::path`] field.
+    /// It is the caller's responsibility to ensure that the [`CString`] lives until
+    /// the [`CGOSharedDirectoryCreateRequest::path`] is copied into Go-owned memory.
+    ///
+    /// ```
+    /// fn example() {
+    ///     let req = SharedDirectoryCreateRequest {
+    ///         completion_id: 0,
+    ///         directory_id: 0,
+    ///         file_type: FileType::File,
+    ///         path: UnixPath::from("/tmp/test.txt"),
+    ///     };
+    ///
+    ///     // using _path (as opposed to _) ensures that the CString is not dropped
+    ///     // until after the CGOSharedDirectoryCreateRequest is copied into Go-owned memory.
+    ///     let (cgo_req, _path) = req.into_cgo().unwrap();
+    ///
+    ///     copy_into_go_memory(cgo_req);
+    ///
+    ///     // _path is dropped here
+    /// }
+    /// ```
+    pub fn into_cgo(self) -> PduResult<(CGOSharedDirectoryCreateRequest, CString)> {
+        let path = self.path.to_cstring()?;
+        Ok((
+            CGOSharedDirectoryCreateRequest {
+                completion_id: self.completion_id,
+                directory_id: self.directory_id,
+                file_type: self.file_type,
+                path: path.as_ptr(),
+            },
+            path,
+        ))
+    }
+}
+
 /// SharedDirectoryListResponse is sent by the TDP client to the server
 /// in response to a SharedDirectoryInfoRequest.
 #[derive(Debug)]
@@ -212,7 +301,7 @@ impl From<CGOSharedDirectoryListResponse> for SharedDirectoryListResponse {
             let cgo_fso_list = from_go_array(cgo.fso_list, cgo.fso_list_length);
             let mut fso_list = vec![];
             for cgo_fso in cgo_fso_list.into_iter() {
-                fso_list.push(FileSystemObject::from(cgo_fso));
+                fso_list.push(FileSystemObject::from_cgo(cgo_fso));
             }
 
             SharedDirectoryListResponse {
@@ -253,7 +342,7 @@ impl From<CGOSharedDirectoryCreateResponse> for SharedDirectoryCreateResponse {
         SharedDirectoryCreateResponse {
             completion_id: cgo_res.completion_id,
             err_code: cgo_res.err_code,
-            fso: FileSystemObject::from(cgo_res.fso),
+            fso: FileSystemObject::from_cgo(cgo_res.fso),
         }
     }
 }

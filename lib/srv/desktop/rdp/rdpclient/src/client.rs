@@ -40,6 +40,33 @@ use crate::cliprdr::{ClipboardFn, TeleportCliprdrBackend};
 use crate::rdpdr::scard::SCARD_DEVICE_ID;
 use crate::rdpdr::TeleportRdpdrBackend;
 
+#[macro_use]
+mod macros {
+    macro_rules! get_svc_processor {
+        ($x224_processor:expr, $svc_processor:ty) => {
+            $x224_processor
+                .get_svc_processor::<$svc_processor>()
+                .ok_or(ClientError::InternalError)?
+        };
+    }
+
+    macro_rules! get_svc_processor_mut {
+        ($x224_processor:expr, $svc_processor:ty) => {
+            $x224_processor
+                .get_svc_processor_mut::<$svc_processor>()
+                .ok_or(ClientError::InternalError)?
+        };
+    }
+
+    macro_rules! get_backend_mut {
+        ($x224_processor:expr, $svc_processor:ty, $backend:ty) => {
+            get_svc_processor_mut!($x224_processor, $svc_processor)
+                .downcast_backend_mut::<$backend>()
+                .ok_or(ClientError::InternalError)?
+        };
+    }
+}
+
 /// The RDP client on the Rust side of things. Each `Client`
 /// corresponds with a Go `Client` specified by `cgo_handle`.
 pub struct Client {
@@ -310,6 +337,10 @@ impl Client {
                             Client::handle_tdp_sd_info_response(x224_processor.clone(), res)
                                 .await?;
                         }
+                        ClientFunction::HandleTdpSdCreateResponse(res) => {
+                            Client::handle_tdp_sd_create_response(x224_processor.clone(), res)
+                                .await?;
+                        }
                         ClientFunction::WriteCliprdr(f) => {
                             Client::write_cliprdr(x224_processor.clone(), &mut write_stream, f)
                                 .await?;
@@ -340,11 +371,7 @@ impl Client {
         global::TOKIO_RT
             .spawn_blocking(move || {
                 let mut x224_processor = Self::x224_lock(&x224_processor)?;
-                let cliprdr = x224_processor
-                    .get_svc_processor_mut::<Cliprdr>()
-                    .ok_or(ClientError::InternalError)?
-                    .downcast_backend_mut::<TeleportCliprdrBackend>()
-                    .ok_or(ClientError::InternalError)?;
+                let cliprdr = get_backend_mut!(x224_processor, Cliprdr, TeleportCliprdrBackend);
                 cliprdr.set_clipboard_data(data.clone());
                 Ok(())
             })
@@ -369,9 +396,7 @@ impl Client {
         let messages: ClientResult<CliprdrSvcMessages> = global::TOKIO_RT
             .spawn_blocking(move || {
                 let mut x224_processor = Self::x224_lock(&processor)?;
-                let cliprdr = x224_processor
-                    .get_svc_processor::<Cliprdr>()
-                    .ok_or(ClientError::InternalError)?;
+                let cliprdr = get_svc_processor!(x224_processor, Cliprdr);
                 Ok(fun.call(cliprdr)?)
             })
             .await?;
@@ -495,12 +520,23 @@ impl Client {
             .spawn_blocking(move || {
                 debug!("received tdp: {:?}", res);
                 let mut x224_processor = Self::x224_lock(&x224_processor)?;
-                let teleport_rdpdr_backend = x224_processor
-                    .get_svc_processor_mut::<Rdpdr>()
-                    .ok_or(ClientError::InternalError)?
-                    .downcast_backend_mut::<TeleportRdpdrBackend>()
-                    .ok_or(ClientError::InternalError)?;
-                teleport_rdpdr_backend.handle_tdp_sd_info_response(res)?;
+                let rdpdr = get_backend_mut!(x224_processor, Rdpdr, TeleportRdpdrBackend);
+                rdpdr.handle_tdp_sd_info_response(res)?;
+                Ok(())
+            })
+            .await?
+    }
+
+    async fn handle_tdp_sd_create_response(
+        x224_processor: Arc<Mutex<X224Processor>>,
+        res: tdp::SharedDirectoryCreateResponse,
+    ) -> ClientResult<()> {
+        global::TOKIO_RT
+            .spawn_blocking(move || {
+                debug!("received tdp: {:?}", res);
+                let mut x224_processor = Self::x224_lock(&x224_processor)?;
+                let rdpdr = get_backend_mut!(x224_processor, Rdpdr, TeleportRdpdrBackend);
+                rdpdr.handle_tdp_sd_create_response(res)?;
                 Ok(())
             })
             .await?
@@ -588,6 +624,8 @@ pub enum ClientFunction {
     HandleTdpSdAnnounce(tdp::SharedDirectoryAnnounce),
     /// Corresponds to [`Client::handle_tdp_sd_info_response`]
     HandleTdpSdInfoResponse(tdp::SharedDirectoryInfoResponse),
+    /// Corresponds to [`Client::handle_tdp_sd_create_response`]
+    HandleTdpSdCreateResponse(tdp::SharedDirectoryCreateResponse),
     /// Corresponds to [`Client::write_cliprdr`]
     WriteCliprdr(Box<dyn ClipboardFn>),
     /// Corresponds to [`Client::update_clipboard`]
