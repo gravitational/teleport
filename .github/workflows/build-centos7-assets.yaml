@@ -17,6 +17,7 @@ jobs:
         runner: [ ubuntu-22.04-32core, ['self-hosted', 'linux', 'arm64'] ]
     # Use bigger worker. Clang takes a while to build.
     runs-on: ${{ matrix.runner }}
+    timeout-minutes: 720
 
     permissions:
       contents: read
@@ -35,6 +36,14 @@ jobs:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Ensure required packages are installed
+        run: |
+          os_id=$(awk -F= '/^ID/{print $2}' /etc/os-release)
+          if [[ ! "$os_id" =~ ^ubuntu.* ]]; then
+            sudo dnf upgrade-minimal -y
+            sudo dnf install -y make
+          fi
 
       # We need to keep env vars in sync, so, we can't use standard build actions
       - name: Build buildbox assets image
