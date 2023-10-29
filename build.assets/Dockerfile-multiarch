@@ -1,3 +1,5 @@
+# syntax=docker/dockerfile:1
+
 # #############################################################################
 # This Dockerfile aims to be the single source of truth for linux buildboxes on
 # all supported architectures. This is still wildly aspirational, and
@@ -73,7 +75,7 @@ RUN yum update -y $YUM_UPDATE_FLAGS && \
 ## Install Go #################################################################
 RUN mkdir -p /opt && \
     mkdir -p /go  && \
-    curl https://storage.googleapis.com/golang/$GOLANG_VERSION.linux-$GOLANG_ARCH.tar.gz | tar xz -C /opt && \
+    curl https://storage.googleapis.com/golang/${GOLANG_VERSION}.linux-${GOLANG_ARCH}.tar.gz | tar xz -C /opt && \
     chmod a+w /go && \
     chmod a+w /var/lib && \
     /opt/go/bin/go version
