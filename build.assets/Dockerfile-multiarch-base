@@ -1,3 +1,5 @@
+# syntax=docker/dockerfile:1
+
 # #############################################################################
 # This image provides platform setup and GCC required for all platforms.
 #
@@ -13,7 +15,7 @@ FROM centos:7 AS base
 ARG TARGETARCH
 
 ARG GCC_VERSION=10.4.0
-ARG CMAKE3_VERSION=3.12.3
+ARG CMAKE3_VERSION=3.20.1
 
 # #############################################################################
 # Platform-specific customisation.
@@ -111,7 +113,7 @@ ENV CXX=/usr/local/bin/g++
 ENV PATH=/usr/local/bin:$PATH
 
 # Install CMake3. CMake3 is required for most dependencies.
-RUN wget https://cmake.org/files/v3.12/cmake-${CMAKE3_VERSION}.tar.gz && \
+RUN wget https://cmake.org/files/v3.20/cmake-${CMAKE3_VERSION}.tar.gz && \
     tar xzvf cmake-${CMAKE3_VERSION}.tar.gz && \
     cd cmake-${CMAKE3_VERSION} && \
     ./bootstrap --prefix=/usr/local && \

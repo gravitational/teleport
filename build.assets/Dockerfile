@@ -1,3 +1,5 @@
+# syntax=docker/dockerfile:1
+
 ###################################################################################
 #                                                                                 #
 #      DO NOT USE FOR PRODUCTION BUILD OR ANYTHING OTHER THAN CI TESTING!         #
@@ -82,7 +84,7 @@ RUN mkdir -p /opt && cd /opt &&  \
     curl -fsSL https://github.com/libbpf/libbpf/archive/refs/tags/v${LIBBPF_VERSION}.tar.gz | tar xz && \
     cd /opt/libbpf-${LIBBPF_VERSION}/src && \
     make &&  \
-    BUILD_STATIC_ONLY=y DESTDIR=/opt/libbpf make install
+    BUILD_STATIC_ONLY=y DESTDIR=/opt/libbpf make install install_uapi_headers
 
 ## BUILDBOX ###################################################################
 #
@@ -251,9 +253,11 @@ RUN make -C /opt/pam_teleport install
 ENV SOFTHSM2_PATH "/usr/lib/softhsm/libsofthsm2.so"
 
 # Install bats.
-RUN curl -fsSL https://github.com/bats-core/bats-core/archive/v1.2.1.tar.gz | tar -xz && \
-    cd bats-core-1.2.1 && ./install.sh /usr/local && cd .. && \
-    rm -r bats-core-1.2.1
+RUN git clone --depth=1 https://github.com/bats-core/bats-core.git -b v1.2.1 && \
+    cd bats-core && \
+    [ "$(git rev-parse HEAD)" = 'dcaec03e32e0b152f8ef9cf14b75296cf5caeaff' ] && \
+    ./install.sh /usr/local && cd .. && \
+    rm -r bats-core
 
 # Install shellcheck.
 RUN scversion='v0.9.0' && \
