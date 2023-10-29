@@ -15,6 +15,7 @@
 package transportv1
 
 import (
+	"bytes"
 	"context"
 	"io"
 	"net"
@@ -310,6 +311,12 @@ func (s *Service) ProxySSH(stream transportv1pb.TransportService_ProxySSHServer)
 		return trace.Wrap(err, "failed sending cluster details ")
 	}
 
+	hostConn = &checkedPrefixConn{
+		Conn: hostConn,
+		// SSH connection MUST start with "SSH-2.0" bytes according to https://datatracker.ietf.org/doc/html/rfc4253#section-4.2
+		requiredPrefix: []byte("SSH-2.0"),
+	}
+
 	// copy data to/from the host/user
 	return trace.Wrap(utils.ProxyConn(monitorCtx, hostConn, userConn))
 }
@@ -344,6 +351,43 @@ func getDestinationAddress(clientSrc, listenerAddr net.Addr) (net.Addr, error) {
 		IP:   net.IPv6loopback,
 		Port: int(la.Port()),
 	}, nil
+}
+
+// checkedPrefixConn checks that read data has the specified prefix.
+// All changes should be mirrored to the implementation to 'checkedPrefixReader' in /lib/srv/regular/proxy.go
+type checkedPrefixConn struct {
+	net.Conn
+
+	requiredPrefix  []byte
+	requiredPointer int
+}
+
+func (c *checkedPrefixConn) Read(b []byte) (int, error) {
+	if len(c.requiredPrefix) == c.requiredPointer {
+		// If pointer reached end of required prefix the check was already successful.
+		return c.Conn.Read(b)
+	} else if c.requiredPointer < 0 {
+		// If it's negative, it means check has already failed
+		return 0, trace.AccessDenied("required prefix %q was not found", c.requiredPrefix)
+	}
+
+	n, err := c.Conn.Read(b)
+
+	// Decide which is smaller, read data or remaining portion of the required prefix
+	small, big := c.requiredPrefix[c.requiredPointer:], b[:n]
+	if len(small) > len(big) {
+		big, small = small, big
+	}
+
+	if !bytes.HasPrefix(big, small) {
+		c.requiredPointer = -1
+		return n, trace.AccessDenied("required prefix %q was not found", c.requiredPrefix)
+	}
+
+	// Advance pointer by confirmed portion of the prefix.
+	c.requiredPointer += len(small)
+
+	return n, err
 }
 
 // sshStream implements the [streamutils.Source] interface

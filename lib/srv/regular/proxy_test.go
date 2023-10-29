@@ -17,8 +17,11 @@ limitations under the License.
 package regular
 
 import (
+	"bytes"
+	"io"
 	"testing"
 
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -125,4 +128,96 @@ func TestParseBadRequests(t *testing.T) {
 			require.Nil(t, subsystem, "test case: %q", tt.input)
 		})
 	}
+}
+
+func TestCheckedPrefixReader(t *testing.T) {
+	getMockReadWriteCloser := func(data []byte) io.ReadWriteCloser {
+		buf := bytes.NewBuffer(data)
+		return struct {
+			io.ReadWriter
+			io.Closer
+		}{
+			ReadWriter: buf,
+			Closer:     io.NopCloser(buf),
+		}
+	}
+
+	testData := []byte("test data")
+	t.Run("missing prefix", func(t *testing.T) {
+		t.Run("single read", func(t *testing.T) {
+			cr := checkedPrefixReader{
+				ReadWriteCloser: getMockReadWriteCloser(testData),
+				requiredPrefix:  []byte("wrong"),
+			}
+
+			_, err := io.ReadAll(&cr)
+			require.True(t, trace.IsAccessDenied(err), "expected trace.AccessDenied error, got: %v", err)
+		})
+		t.Run("two reads", func(t *testing.T) {
+			cr := checkedPrefixReader{
+				ReadWriteCloser: getMockReadWriteCloser(testData),
+				requiredPrefix:  []byte("tesD"),
+			}
+
+			buf := make([]byte, 3)
+			n, err := cr.Read(buf)
+			require.NoError(t, err)
+			require.Equal(t, len(buf), n)
+			require.Equal(t, testData[:len(buf)], buf)
+
+			_, err = cr.Read(buf)
+			require.True(t, trace.IsAccessDenied(err), "expected trace.AccessDenied error, got: %v", err)
+		})
+	})
+	t.Run("success", func(t *testing.T) {
+		t.Run("single read", func(t *testing.T) {
+			cr := checkedPrefixReader{
+				ReadWriteCloser: getMockReadWriteCloser(testData),
+				requiredPrefix:  []byte("test"),
+			}
+
+			res, err := io.ReadAll(&cr)
+			require.NoError(t, err)
+			require.Equal(t, testData, res)
+
+			secondData := []byte("second data")
+			_, err = cr.Write(secondData)
+			require.NoError(t, err)
+
+			res, err = io.ReadAll(&cr)
+			require.NoError(t, err)
+			require.Equal(t, secondData, res)
+		})
+		t.Run("three reads", func(t *testing.T) {
+			cr := checkedPrefixReader{
+				ReadWriteCloser: getMockReadWriteCloser(testData),
+				requiredPrefix:  []byte("test"),
+			}
+
+			buf := make([]byte, 3)
+			n, err := cr.Read(buf)
+			require.NoError(t, err)
+			require.Equal(t, len(buf), n)
+			require.Equal(t, testData[:len(buf)], buf)
+
+			n, err = cr.Read(buf)
+			require.NoError(t, err)
+			require.Equal(t, len(buf), n)
+			require.Equal(t, testData[len(buf):2*len(buf)], buf)
+
+			n, err = cr.Read(buf)
+			require.NoError(t, err)
+			require.Equal(t, len(buf), n)
+			require.Equal(t, testData[2*len(buf):], buf)
+
+			secondData := []byte("second data")
+			_, err = cr.Write(secondData)
+			require.NoError(t, err)
+
+			res, err := io.ReadAll(&cr)
+			require.NoError(t, err)
+			require.Equal(t, secondData, res)
+		})
+
+	})
 }
