@@ -103,7 +103,7 @@ impl From<CGOSharedDirectoryInfoResponse> for SharedDirectoryInfoResponse {
         SharedDirectoryInfoResponse {
             completion_id: cgo_res.completion_id,
             err_code: cgo_res.err_code,
-            fso: FileSystemObject::from_cgo(cgo_res.fso),
+            fso: cgo_res.fso.into(),
         }
     }
 }
@@ -128,21 +128,6 @@ impl FileSystemObject {
                 "FileSystemObject::name",
                 TdpHandlingError(format!("failed to extract name from path: {:?}", self.path))
             ))
-        }
-    }
-
-    pub fn from_cgo(cgo: CGOFileSystemObject) -> FileSystemObject {
-        // # Safety
-        //
-        // This function MUST NOT hang on to any of the pointers passed in to it after it returns.
-        // In other words, all pointer data that needs to persist after this function returns MUST
-        // be copied into Rust-owned memory.
-        FileSystemObject {
-            last_modified: cgo.last_modified,
-            size: cgo.size,
-            file_type: cgo.file_type,
-            is_empty: cgo.is_empty,
-            path: UnixPath::from(unsafe { from_c_string(cgo.path) }),
         }
     }
 }
@@ -301,7 +286,7 @@ impl From<CGOSharedDirectoryListResponse> for SharedDirectoryListResponse {
             let cgo_fso_list = from_go_array(cgo.fso_list, cgo.fso_list_length);
             let mut fso_list = vec![];
             for cgo_fso in cgo_fso_list.into_iter() {
-                fso_list.push(FileSystemObject::from_cgo(cgo_fso));
+                fso_list.push(cgo_fso.into());
             }
 
             SharedDirectoryListResponse {
@@ -342,7 +327,7 @@ impl From<CGOSharedDirectoryCreateResponse> for SharedDirectoryCreateResponse {
         SharedDirectoryCreateResponse {
             completion_id: cgo_res.completion_id,
             err_code: cgo_res.err_code,
-            fso: FileSystemObject::from_cgo(cgo_res.fso),
+            fso: cgo_res.fso.into(),
         }
     }
 }

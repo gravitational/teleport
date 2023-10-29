@@ -531,6 +531,25 @@ pub struct CGOFileSystemObject {
     pub path: *const c_char,
 }
 
+impl From<CGOFileSystemObject> for FileSystemObject {
+    fn from(cgo_fso: CGOFileSystemObject) -> FileSystemObject {
+        // # Safety
+        //
+        // This function MUST NOT hang on to any of the pointers passed in to it after it returns.
+        // In other words, all pointer data that needs to persist after this function returns MUST
+        // be copied into Rust-owned memory.
+        unsafe {
+            FileSystemObject {
+                last_modified: cgo_fso.last_modified,
+                size: cgo_fso.size,
+                file_type: cgo_fso.file_type,
+                is_empty: cgo_fso.is_empty,
+                path: UnixPath::from(from_c_string(cgo_fso.path)),
+            }
+        }
+    }
+}
+
 #[derive(Debug)]
 #[repr(C)]
 pub struct CGOSharedDirectoryWriteRequest {
