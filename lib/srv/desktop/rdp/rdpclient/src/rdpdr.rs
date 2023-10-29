@@ -98,9 +98,9 @@ impl TeleportRdpdrBackend {
 
     pub fn handle_tdp_sd_info_response(
         &mut self,
-        tdp_res: SharedDirectoryInfoResponse,
+        tdp_resp: SharedDirectoryInfoResponse,
     ) -> PduResult<()> {
-        if let Some(resp) = self.fs.handle_tdp_sd_info_response(tdp_res)? {
+        if let Some(resp) = self.fs.handle_tdp_sd_info_response(tdp_resp)? {
             self.write_rdpdr(resp)
         } else {
             // Nothing to send back to the server
@@ -110,9 +110,9 @@ impl TeleportRdpdrBackend {
 
     pub fn handle_tdp_sd_create_response(
         &mut self,
-        tdp_res: SharedDirectoryCreateResponse,
+        tdp_resp: SharedDirectoryCreateResponse,
     ) -> PduResult<()> {
-        if let Some(resp) = self.fs.handle_tdp_sd_create_response(tdp_res)? {
+        if let Some(resp) = self.fs.handle_tdp_sd_create_response(tdp_resp)? {
             self.write_rdpdr(resp)
         } else {
             // Nothing to send back to the server

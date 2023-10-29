@@ -56,30 +56,32 @@ impl FilesystemBackend {
 
     pub fn handle(&mut self, req: efs::FilesystemRequest) -> PduResult<()> {
         match req {
-            efs::FilesystemRequest::DeviceCreateRequest(req) => self.handle_fs_device_create(req),
+            efs::FilesystemRequest::DeviceCreateRequest(req) => {
+                self.handle_rdp_device_create_req(req)
+            }
         }
     }
 
     /// Handles an RDP [`efs::DeviceCreateRequest`] received from the RDP server.
-    fn handle_fs_device_create(&mut self, rdp_req: efs::DeviceCreateRequest) -> PduResult<()> {
+    fn handle_rdp_device_create_req(&mut self, rdp_req: efs::DeviceCreateRequest) -> PduResult<()> {
         // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L210
         self.send_tdp_sd_info_request(tdp::SharedDirectoryInfoRequest::from(&rdp_req))?;
         self.pending_tdp_sd_info_resp_handlers.insert(
             rdp_req.device_io_request.completion_id,
             SharedDirectoryInfoResponseHandler::new(Box::new(
                 |this: &mut FilesystemBackend,
-                 tdp_res: tdp::SharedDirectoryInfoResponse|
+                 tdp_resp: tdp::SharedDirectoryInfoResponse|
                  -> PduResult<Option<RdpdrPdu>> {
-                    this.handle_fs_device_create_cont(rdp_req, tdp_res)
+                    this.handle_rdp_device_create_req_continued(rdp_req, tdp_resp)
                 },
             )),
         );
         Ok(())
     }
 
-    /// Continues [`Self::handle_fs_device_create`] after a [`tdp::SharedDirectoryInfoResponse`] is received from the browser,
+    /// Continues [`Self::handle_rdp_device_create_req`] after a [`tdp::SharedDirectoryInfoResponse`] is received from the browser,
     /// returning any [`RdpdrPdu`]s that need to be sent back to the RDP server.
-    fn handle_fs_device_create_cont(
+    fn handle_rdp_device_create_req_continued(
         &mut self,
         req: efs::DeviceCreateRequest,
         res: tdp::SharedDirectoryInfoResponse,
@@ -263,9 +265,9 @@ impl FilesystemBackend {
             rdp_req.device_io_request.completion_id,
             SharedDirectoryCreateResponseHandler::new(Box::new(
                 move |this: &mut FilesystemBackend,
-                      tdp_res: tdp::SharedDirectoryCreateResponse|
+                      tdp_resp: tdp::SharedDirectoryCreateResponse|
                       -> PduResult<Option<RdpdrPdu>> {
-                    if tdp_res.err_code != TdpErrCode::Nil {
+                    if tdp_resp.err_code != TdpErrCode::Nil {
                         return Self::make_device_create_response(
                             &rdp_req,
                             NtStatus::Unsuccessful,
@@ -274,7 +276,7 @@ impl FilesystemBackend {
                     }
                     let file_id = this.file_cache.insert(FileCacheObject::new(
                         UnixPath::from(&rdp_req.path),
-                        tdp_res.fso,
+                        tdp_resp.fso,
                     ))?;
                     Self::make_device_create_response(&rdp_req, NtStatus::Success, file_id)
                 },
@@ -324,19 +326,19 @@ impl FilesystemBackend {
     /// [`tdp::SharedDirectoryInfoResponse`].
     pub fn handle_tdp_sd_info_response(
         &mut self,
-        tdp_res: tdp::SharedDirectoryInfoResponse,
+        tdp_resp: tdp::SharedDirectoryInfoResponse,
     ) -> PduResult<Option<RdpdrPdu>> {
         if let Some(handler) = self
             .pending_tdp_sd_info_resp_handlers
-            .remove(&tdp_res.completion_id)
+            .remove(&tdp_resp.completion_id)
         {
-            handler.call(self, tdp_res)
+            handler.call(self, tdp_resp)
         } else {
             Err(custom_err!(
                 "FilesystemBackend::handle_tdp_sd_info_response",
                 FilesystemBackendError(format!(
                     "received invalid completion id: {}",
-                    tdp_res.completion_id
+                    tdp_resp.completion_id
                 ))
             ))
         }
