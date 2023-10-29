@@ -7,8 +7,10 @@ NODE_VERSION ?= 18.18.2
 
 # Run lint-rust check locally before merging code after you bump this.
 RUST_VERSION ?= 1.68.0
-LIBBPF_VERSION ?= 1.0.1
+LIBBPF_VERSION ?= 1.2.2
 LIBPCSCLITE_VERSION ?= 1.9.9-teleport
+
+DEVTOOLSET ?= devtoolset-12
 
 # Protogen related versions.
 BUF_VERSION ?= v1.28.0
