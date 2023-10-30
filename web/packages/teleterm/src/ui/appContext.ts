@@ -181,7 +181,7 @@ export default class AppContext implements IAppContext {
         return;
       }
 
-      this.notificationsService.notifyInfo(JSON.stringify(result.parsedUri));
+      this.notificationsService.notifyInfo(JSON.stringify(result.url));
     });
     this.clustersService.syncGatewaysAndCatchErrors();
     await this.clustersService.syncRootClustersAndCatchErrors();
