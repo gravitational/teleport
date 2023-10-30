@@ -85,3 +85,17 @@ export type SharedUnifiedResource = {
     | UnifiedResourceUserGroup;
   ui: UnifiedResourceUi;
 };
+
+export type UnifiedResourcesQueryParams = {
+  /** query is query expression using the predicate language. */
+  query?: string;
+  /** search contains search words/phrases separated by space. */
+  search?: string;
+  sort?: {
+    fieldName: string;
+    dir: 'ASC' | 'DESC';
+  };
+  pinnedOnly?: boolean;
+  // TODO(bl-nero): Remove this once filters are expressed as advanced search.
+  kinds?: string[];
+};

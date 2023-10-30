@@ -20,19 +20,17 @@ import { ApiError } from 'teleport/services/api/parseError';
 
 import { Node } from 'teleport/services/nodes';
 
-import { useKeyBasedPagination, Props } from './useKeyBasedPagination';
 import {
-  newApiAbortError,
-  newDOMAbortError,
-  newFetchFunc,
-  resourceClusterIds,
-  resourceNames,
-} from './testUtils';
+  useKeyBasedPagination,
+  KeyBasedPaginationOptions,
+} from './useKeyBasedPagination';
+import { newFetchFunc, resourceClusterIds, resourceNames } from './testUtils';
 
-function hookProps(overrides: Partial<Props<Node>> = {}) {
+function hookProps(overrides: Partial<KeyBasedPaginationOptions<Node>> = {}) {
   return {
-    fetchFunc: newFetchFunc('test-cluster', 7),
-    clusterId: 'test-cluster',
+    fetchFunc: newFetchFunc({
+      numResources: 7,
+    }),
     filter: {},
     initialFetchSize: 2,
     fetchMoreSize: 3,
@@ -48,7 +46,9 @@ test.each`
 `('fetches one data batch, n=$n', async ({ n, names }) => {
   const { result } = renderHook(useKeyBasedPagination, {
     initialProps: hookProps({
-      fetchFunc: newFetchFunc('test-cluster', 4),
+      fetchFunc: newFetchFunc({
+        numResources: 4,
+      }),
       initialFetchSize: n,
     }),
   });
@@ -100,10 +100,25 @@ test('maintains attempt state', async () => {
   expect(result.current.attempt.status).toBe('success');
 });
 
-test('restarts after query params change', async () => {
+test('restarts after fetch function change', async () => {
+  const updateSearch = (search: string) => {
+    // clears resources before fetching new data
+    act(() => result.current.clear());
+    rerender({
+      ...props,
+      fetchFunc: newFetchFunc({
+        search,
+        numResources: 4,
+      }),
+    });
+  };
+
   let props = hookProps({
-    fetchFunc: newFetchFunc('cluster1', 4),
-    filter: { search: 'foo' },
+    fetchFunc: newFetchFunc({
+      clusterId: 'cluster1',
+      search: 'foo',
+      numResources: 4,
+    }),
   });
   const { result, rerender } = renderHook(useKeyBasedPagination, {
     initialProps: props,
@@ -113,36 +128,37 @@ test('restarts after query params change', async () => {
   expect(resourceClusterIds(result)).toEqual(['cluster1', 'cluster1']);
   expect(resourceNames(result)).toEqual(['foo0', 'foo1']);
 
-  props = { ...props, filter: { search: 'bar' } };
-  rerender(props);
+  updateSearch('bar');
   await act(result.current.fetch);
   expect(resourceNames(result)).toEqual(['bar0', 'bar1']);
 
   // Make sure we reached the end of the data set.
   await act(result.current.fetch);
   expect(result.current.finished).toBe(true);
-  props = { ...props, filter: { search: 'xyz' } };
-  rerender(props);
+
+  updateSearch('xyz');
   expect(result.current.finished).toBe(false);
 
   await act(result.current.fetch);
   expect(resourceNames(result)).toEqual(['xyz0', 'xyz1']);
 });
 
-test("doesn't restart if params didn't change on rerender", async () => {
+test('clear() resets the state', async () => {
   const props = hookProps();
   const { result, rerender } = renderHook(useKeyBasedPagination, {
     initialProps: props,
   });
   await act(result.current.fetch);
   expect(resourceNames(result)).toEqual(['r0', 'r1']);
+
+  act(result.current.clear);
   rerender(props);
-  await act(result.current.fetch);
-  expect(resourceNames(result)).toEqual(['r0', 'r1', 'r2', 'r3', 'r4']);
+  expect(result.current.resources).toEqual([]);
+  expect(result.current.attempt.status).toBe('');
 });
 
 describe("doesn't react to fetch() calls before the previous one finishes", () => {
-  let props: Props<Node>, fetchSpy;
+  let props: KeyBasedPaginationOptions<Node>, fetchSpy;
 
   beforeEach(() => {
     props = hookProps();
@@ -183,24 +199,29 @@ describe("doesn't react to fetch() calls before the previous one finishes", () =
   });
 });
 
-test.each([
-  ['DOMException', newDOMAbortError],
-  ['ApiError', newApiAbortError],
-])('aborts pending request if params change (%s)', async (_, newError) => {
+test('abort errors are gracefully handled', async () => {
   let props = hookProps({
-    fetchFunc: newFetchFunc('cluster1', 7, newError),
+    fetchFunc: newFetchFunc({
+      numResources: 7,
+      search: 'bar',
+    }),
   });
-  const { result, rerender } = renderHook(useKeyBasedPagination, {
+  const { result } = renderHook(useKeyBasedPagination, {
     initialProps: props,
   });
   let fetchPromise;
   act(() => {
     fetchPromise = result.current.fetch();
   });
-  props = { ...props, filter: { search: 'bar' } };
-  rerender(props);
+
+  // aborts the previous request
+  act(() => result.current.clear());
   await act(async () => fetchPromise);
+
+  // the abort error has been handled, data is empty
   expect(resourceNames(result)).toEqual([]);
+
+  // fires another request
   await act(result.current.fetch);
   expect(resourceNames(result)).toEqual(['bar0', 'bar1']);
 });
@@ -212,10 +233,10 @@ describe.each`
 `('for error type $name', ({ ErrorType }) => {
   it('stops fetching more pages once error is encountered', async () => {
     const props = hookProps();
+    const fetchSpy = jest.spyOn(props, 'fetchFunc');
     const { result } = renderHook(useKeyBasedPagination, {
       initialProps: props,
     });
-    const fetchSpy = jest.spyOn(props, 'fetchFunc');
 
     await act(result.current.fetch);
     expect(resourceNames(result)).toEqual(['r0', 'r1']);
@@ -232,8 +253,23 @@ describe.each`
     expect(resourceNames(result)).toEqual(['r0', 'r1']);
   });
 
-  it('restarts fetching after error if params change', async () => {
-    let props = hookProps({ filter: { search: 'foo' } });
+  it('restarts fetching after error if fetch function changes', async () => {
+    const updateSearch = (search: string) => {
+      act(() => result.current.clear());
+      rerender({
+        ...props,
+        fetchFunc: newFetchFunc({
+          search,
+          numResources: 7,
+        }),
+      });
+    };
+    let props = hookProps({
+      fetchFunc: newFetchFunc({
+        search: 'foo',
+        numResources: 7,
+      }),
+    });
     const fetchSpy = jest.spyOn(props, 'fetchFunc');
 
     const { result, rerender } = renderHook(useKeyBasedPagination, {
@@ -246,31 +282,31 @@ describe.each`
       throw new ErrorType('OMGOMG');
     });
 
-    // Rerender with the same options: still no action expected.
+    // Rerender with the same fetch function,
+    // without clearing the params: noting should happen.
     rerender(props);
     await act(result.current.fetch);
     expect(resourceNames(result)).toEqual(['foo0', 'foo1']);
 
-    // Rerender with different props: expect new data to be fetched.
-    props = { ...props, filter: { search: 'bar' } };
-    rerender(props);
+    // Rerender with different fetch function: expect new data to be fetched.
+    updateSearch('bar');
     await act(result.current.fetch);
     expect(resourceNames(result)).toEqual(['bar0', 'bar1']);
   });
 
   it('resumes fetching once forceFetch is called after an error', async () => {
     const props = hookProps();
+    const fetchSpy = jest.spyOn(props, 'fetchFunc');
     const { result } = renderHook(useKeyBasedPagination, {
       initialProps: props,
     });
-    const fetchSpy = jest.spyOn(props, 'fetchFunc');
 
     await act(result.current.fetch);
     fetchSpy.mockImplementationOnce(async () => {
       throw new ErrorType('OMGOMG');
     });
     await act(result.current.fetch);
-    await act(result.current.forceFetch);
+    await act(() => result.current.fetch({ force: true }));
 
     expect(result.current.attempt.status).toBe('success');
     expect(resourceNames(result)).toEqual(['r0', 'r1', 'r2', 'r3', 'r4']);
@@ -304,7 +340,7 @@ test('forceFetch spawns another request, even if there is one pending', async ()
     f1 = result.current.fetch();
   });
   act(() => {
-    f2 = result.current.forceFetch();
+    f2 = result.current.fetch({ force: true });
   });
   await act(async () => Promise.all([f1, f2]));
   expect(resourceNames(result)).toEqual(['r0', 'r1']);
@@ -318,8 +354,11 @@ test("doesn't get confused if aborting a request still results in a successful p
   // like this hook can't really trust the abort signal to be 100% effective.
   let props = hookProps({
     // Create a function that will never throw an abort error.
-    fetchFunc: newFetchFunc('test-cluster', 1, () => null),
-    filter: { search: 'rabbit' },
+    fetchFunc: newFetchFunc({
+      search: 'rabbit',
+      numResources: 1,
+      newAbortError: () => null,
+    }),
   });
   const { result, rerender } = renderHook(useKeyBasedPagination, {
     initialProps: props,
