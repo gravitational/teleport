@@ -5,11 +5,9 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	log "github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
 
 	resourceusagepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/resourceusage/v1"
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/modules"
@@ -66,9 +64,7 @@ func New(cfg ServiceConfig) (*Service, error) {
 
 // GetUsage implements resourceusagev1.ResourceUsageServiceServer.
 func (s *Service) GetUsage(ctx context.Context, in *resourceusagepb.GetUsageRequest) (*resourceusagepb.GetUsageResponse, error) {
-	if _, err := authz.AuthorizeWithVerbs(
-		ctx, log.StandardLogger(), s.authorizer, false /* quiet */, types.KindBilling, types.VerbRead,
-	); err != nil {
+	if _, err := s.authorizer.Authorize(ctx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
