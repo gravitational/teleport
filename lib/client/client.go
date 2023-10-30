@@ -1482,8 +1482,8 @@ func NewNodeClient(ctx context.Context, sshConfig *ssh.ClientConfig, conn net.Co
 			// TODO(codingllama): Improve error message below for device trust.
 			//  An alternative we have here is querying the cluster to check if device
 			//  trust is required, a check similar to `IsMFARequired`.
-			log.Infof("Access denied to %v connecting to %v: %v", sshConfig.User, nodeName, err)
-			return nil, trace.AccessDenied(`access denied to %v connecting to %v. User does not have permissions. Confirm SSH user`, sshConfig.User, nodeName)
+			log.Infof("Access denied connecting to %v as %v: %v", nodeName, sshConfig.User, err)
+			return nil, trace.AccessDenied(`access denied connecting to %v as %v. User does not have permissions. Confirm SSH user`, nodeName, sshConfig.User)
 		}
 		return nil, trace.Wrap(err)
 	}
