@@ -1719,8 +1719,8 @@
       "aws_secret_access_key": "zyxw9876-this-is-an-example"
     },
     "cloud": {
-      "version": "13.4.3",
-      "major_version": "13",
+      "version": "14.1.1",
+      "major_version": "14",
       "sla": {
         "monthly_percentage": "99.9%",
         "monthly_downtime": "44 minutes"
@@ -2956,7 +2956,7 @@
       "destination": "/database-access/auto-user-provisioning/",
       "permanent": true
     },
-    {	
+    {
       "source": "/database-access/guides/rds-proxy/",
       "destination": "/database-access/guides/",
       "permanent": true
