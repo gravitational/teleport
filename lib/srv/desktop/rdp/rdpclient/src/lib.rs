@@ -26,6 +26,7 @@
 extern crate log;
 
 use crate::client::{Client, ClientFunction};
+use crate::rdpdr::tdp::SharedDirectoryAnnounce;
 use client::{call_function_on_handle, ConnectParams};
 use ironrdp_pdu::{other_err, PduError};
 use ironrdp_session::image::DecodedImage;
@@ -173,8 +174,8 @@ pub unsafe extern "C" fn client_handle_tdp_sd_announce(
     cgo_handle: CgoHandle,
     sd_announce: CGOSharedDirectoryAnnounce,
 ) -> CGOErrCode {
-    warn!("unimplemented: client_handle_tdp_sd_announce");
-    CGOErrCode::ErrCodeSuccess
+    let sd_announce = SharedDirectoryAnnounce::from(sd_announce);
+    call_function_on_handle(cgo_handle, ClientFunction::HandleTdpSdAnnounce(sd_announce))
 }
 
 /// client_handle_tdp_sd_info_response handles a TDP Shared Directory Info Response

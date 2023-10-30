@@ -66,7 +66,7 @@ const cfg = {
     second_factor: 'off' as Auth2faType,
     authType: 'local' as AuthType,
     preferredLocalMfa: '' as PreferredMfaType,
-    // motd is message of the day, displayed to users before login.
+    // motd is the message of the day, displayed to users before login.
     motd: '',
   },
 

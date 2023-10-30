@@ -63,10 +63,10 @@ func (a *Server) UpdateOIDCConnector(ctx context.Context, connector types.OIDCCo
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := a.emitter.EmitAuditEvent(ctx, &apievents.OIDCConnectorCreate{
+	if err := a.emitter.EmitAuditEvent(ctx, &apievents.OIDCConnectorUpdate{
 		Metadata: apievents.Metadata{
-			Type: events.OIDCConnectorCreatedEvent,
-			Code: events.OIDCConnectorCreatedCode,
+			Type: events.OIDCConnectorUpdatedEvent,
+			Code: events.OIDCConnectorUpdatedCode,
 		},
 		UserMetadata: authz.ClientUserMetadata(ctx),
 		ResourceMetadata: apievents.ResourceMetadata{

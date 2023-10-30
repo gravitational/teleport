@@ -1,101 +1,51 @@
 ---
-title: Access Controls Reference Documentation
-description: This reference shows you the configuration settings that you can include in a Teleport role, which enables you to apply access controls for your infrastructure.
-h1: Teleport Access Controls Reference
+title: Teleport Access Controls Reference
+description: Explains the configuration settings that you can include in a Teleport role, which enables you to apply access controls for your infrastructure.
+tocDepth: 3
 ---
 
 This guide shows you how to use Teleport roles to manage role-based access
 controls (RBAC) in your Teleport cluster.
 
-## Roles
-
-A Teleport `role` works by having two lists of rules: `allow` rules and `deny` rules.
-When declaring access rules, keep in mind the following:
+A Teleport role manages access by having two lists of rules: `allow` rules and
+`deny` rules.  When declaring access rules, keep in mind the following:
 
 - Nothing is allowed by default.
 - Deny rules get evaluated first and take priority.
 
-A rule consists of two parts: the resources and verbs. Here's an example of an
-`allow` rule describing a `list` verb applied to the SSH `sessions` resource.  It means "allow
-users of this role to see a list of active SSH sessions".
+You can use any of the following to manage Teleport roles and other dynamic
+resources:
+- Teleport Web UI
+- The `tctl` client tool
+- Teleport Terraform provider
+- Teleport Kubernetes operator
+- [Custom API clients](../api/rbac.mdx)
 
-```yaml
-allow:
-  - resources: [session]
-    verbs: [list]
-```
+To read more about managing dynamic resources, see the [Dynamic
+Resources](../management/dynamic-resources.mdx) guide.
 
-If this rule was declared in the `deny` section of a role definition, it would
-prohibit users from getting a list of active sessions. You can see all of the
-available resources and verbs under the `allow` section in the example role
-configuration below.
-
-To manage cluster roles, a Teleport administrator can use the Web UI or the
-command line using [tctl resource commands](../reference/resources.mdx).
-To see the list of roles in a Teleport cluster, an administrator can execute:
-
-<Tabs>
-<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
+You can view all roles in your cluster on your local workstation by running the
+following commands:
 
 ```code
 # Log in to your cluster with tsh so you can use tctl from your local machine.
-# You can also run tctl on your Auth Service host without running "tsh login"
-# first.
-$ tsh login --user=myuser --proxy=teleport.example.com
+$ tsh login --user=myuser --proxy=<Var name="mytenant.teleport.sh" />
 $ tctl get roles
 ```
-
-</TabItem>
-<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
-
-```code
-# Log in to your cluster with tsh so you can use tctl.
-$ tsh login --user=myuser --proxy=mytenant.teleport.sh
-$ tctl get roles
-```
-
-</TabItem>
-
-</Tabs>
 
 (!docs/pages/includes/backup-warning.mdx!)
+
+## Example role specification
 
 Here is a full role specification:
 
 (!docs/pages/includes/role-spec.mdx!)
 
-The following variables can be used with `logins` and `windows_desktop_logins` fields:
+## Role options
 
-| Variable | Description |
-| - | - |
-| `{{internal.logins}}` | Substituted with a value stored in Teleport's local user database<br/>and logins from a root cluster. <br/><br/>For local users, Teleport will substitute this with the<br/>"allowed logins" parameter used in the<br/>`tctl users add [user] <allowed logins>` command. <br/><br/>If the role is within a leaf cluster in a [trusted cluster](../management/admin/trustedclusters.mdx),<br/>Teleport will substitute the logins from the root cluster<br/>whether the user is a local user or from an SSO provider. <br/><br/>As an example, if the user has the `ubuntu` login in the root<br/>cluster, then `ubuntu` will be substituted in the leaf<br/>cluster with this variable. |
-| `{{external.xyz}}` | Substituted with a value from an external [SSO provider](https://en.wikipedia.org/wiki/Single_sign-on).<br/>If using SAML, this will be expanded with "xyz" assertion value.<br/>For OIDC, this will be expanded a value of "xyz" claim. |
-
-Both variables above are there to deliver the same benefit: they allow Teleport
-administrators to define allowed OS logins via the user database, be it the
-local DB, or an identity manager behind a SAML or OIDC endpoint.
-
-### An example of a SAML assertion
-
-Assuming you have the following SAML assertion attribute in your response:
-
-```
-<Attribute Name="http://schemas.microsoft.com/ws/2008/06/identity/claims/windowsaccountname">
-        <AttributeValue>firstname.lastname</AttributeValue>
-</Attribute>
-```
-
-... you can use the following format in your role:
-
-```
-logins:
-   - '{{external["http://schemas.microsoft.com/ws/2008/06/identity/claims/windowsaccountname"]}}'
-```
-
-### Role options
-
-As shown above, a role can define certain restrictions on sessions initiated by users.
-The table below documents the behavior of each option if multiple roles are assigned to a user.
+A role can define certain restrictions on sessions initiated by users. The table
+below documents the behavior of each option if multiple roles are assigned to a
+user:
 
 | Option | Description | Multi-role behavior |
 | - | - | - |
@@ -117,9 +67,10 @@ The table below documents the behavior of each option if multiple roles are assi
 | `max_kubernetes_connections` | Defines the maximum number of concurrent Kubernetes sessions per user | |
 | `record_session` |Defines the [Session recording mode](../reference/audit.mdx#modes).|The strictest value takes precedence.|
 | `desktop_clipboard` | Allow clipboard sharing for desktop sessions | Logical "AND" i.e. evaluates to "yes" if all roles enable clipboard sharing |
-| `pin_source_ip` | Enable source IP pinning for SSH certificates. **Note:** IP pinning is currently in Preview mode | Logical "OR" i.e. evaluates to "yes" if at least one role requires session termination |
+| `pin_source_ip` | Enable source IP pinning for SSH certificates. | Logical "OR" i.e. evaluates to "yes" if at least one role requires session termination |
 | `cert_extensions` | Specifies extensions to be included in SSH certificates | |
 | `create_host_user_mode` | Allow users to be automatically created on a host |  Logical "AND" i.e. if all roles matching a server specify host user creation (`off`, `drop`, `keep`), it will evaluate to the option specified by all of the roles. If some roles specify both `drop` or `keep` it will evaluate to `keep`|
+| `create_db_user_mode` | Allow [database user auto provisioning](../database-access/auto-user-provisioning.mdx). Options: `off` (disable database user auto-provisioning), `keep` (disables the user at session end, removing the roles and locking it), and `best_effort_drop` (try to drop the user at session end, if it doesn't succeed, fallback to disabling it). | Logical "OR" i.e. if any role allows database user auto-provisioning, it's allowed |
 
 ## Preset roles
 
@@ -156,7 +107,7 @@ Version              |  `kubernetes_resources`
 `v6` Default |  `[]`
 `v7` Default |  `[{"kind":"*", "name":"*", "namespace":"*", "verbs": ["*"]}]`
 
-## RBAC for resources
+## RBAC for infrastructure resources
 
 A Teleport role defines which resources (e.g., applications, servers, and
 databases) a user can access.
@@ -297,11 +248,27 @@ access will be denied.
 In an allow rule, the matching is not greedy, if both are set they both have to
 match for access to be allowed.
 
-## Teleport resources
+## RBAC for dynamic Teleport resources
 
-RBAC lets teams limit what resources are available to Teleport users. This can be helpful if, for example,
-you don't want regular users editing SSO (`auth_connector`) or creating and editing new roles
-(`role`).
+RBAC lets teams limit what resources are available to Teleport users. This can
+be helpful if, for example, you don't want regular users editing SSO
+(`auth_connector`) or creating and editing new roles (`role`).
+
+A rule for modifying RBAC resources consists of two parts: the resources and
+verbs. Here's an example of an `allow` rule describing a `list` verb applied to
+the SSH `sessions` resource.  It means "allow users of this role to see a list
+of active SSH sessions".
+
+```yaml
+allow:
+  - resources: [session]
+    verbs: [list]
+```
+
+If this rule was declared in the `deny` section of a role definition, it would
+prohibit users from getting a list of active sessions. You can see all of the
+available resources and verbs under the `allow` section in the example role
+configuration below.
 
 Below is an example `allow` section that illustrates commonly used `rules`.
 Each rule includes a list of Teleport resources and the CRUD
@@ -449,14 +416,176 @@ spec:
       where: '!contains(session_tracker.participants, user.metadata.name)'
 ```
 
-## Second Factor - U2F
+## Role templates
 
-Refer to the [Second Factor - WebAuthn](./guides/webauthn.mdx#u2f) guide if you
-have a cluster using the legacy U2F support.
+In a Teleport role resource, certain fields allow you to use functions and
+variables to configure a user's access. The functions and variables available
+for a field depend on the access controls that the field configures.
+
+### Template expressions for access to infrastructure resources
+
+When a user attempts to authenticate to an infrastructure resource proxied by
+Teleport, such as a database or Kubernetes cluster, Teleport determines from the
+user's roles:
+- Whether the user is authorized to connect to the resource.
+- Which principals the user can assume when they authenticate (for example,
+  Linux server logins and Kubernetes groups).
+
+#### Fields
+
+The following role fields control a user's access to infrastructure resources.
+All of these are fields within the `allow` and `deny` sections of a Teleport
+role resource.
+
+Labels for resources enrolled with Teleport:
+- `app_labels`
+- `cluster_labels`
+- `db_labels`
+- `db_service_labels`
+- `kubernetes_labels`
+- `node_labels`
+- `windows_desktop_labels`
+
+Principals a user can assume on infrastructure resources:
+- `aws_role_arns`
+- `azure_identities`
+- `db_names`
+- `db_roles`
+- `db_users`
+- `desktop_groups`
+- `gcp_service_accounts`
+- `host_groups`
+- `host_sudoers`
+- `kubernetes_groups`
+- `kubernetes_users`
+- `logins`
+- `windows_desktop_logins`
+
+Teleport principals that a user can impersonate:
+- `impersonate.rules`
+- `impersonate.users`
+
+#### Functions
+
+You can use the following functions in role fields that govern access to
+principals on infrastructure resources:
+
+|Function|Description|
+|---|---|
+|`{{email.local(variable)}}`|Extracts the local part of an email address.|
+|`{{regexp.replace(variable, expression, replacement)}}`|Finds all matches of the expression within the variable and replaces them with the replacement.|
+
+#### Traits
+
+For fields that configure access to infrastructure resources, Teleport
+substitutes the following **traits** with data from the authenticating user,
+drawing from the local user database as well as the user's external single
+sign-on provider.
+
+| Variable | Description |
+| - | - |
+| `{{internal.logins}}` | Substituted with a value stored in Teleport's local user database and logins from a root cluster. <br/><br/>For local users, Teleport will substitute this with the "allowed logins" parameter used in the `tctl users add [user] <allowed logins>` command. <br/><br/>If the role is within a leaf cluster in a [trusted cluster](../management/admin/trustedclusters.mdx), Teleport will substitute the logins from the root cluster whether the user is a local user or from an SSO provider. <br/><br/>As an example, if the user has the `ubuntu` login in the root cluster, then `ubuntu` will be substituted in the leaf cluster with this variable. |
+|`{{internal.azure_identities}}`| Returns the Azure identities defined in Teleport available to the user. Azure identities can be set for a specific user or defined in a role.|
+|`{{internal.db_names}}`|List of all allowed database names for the user.|
+|`{{internal.db_users}}`|List of all allowed database users for the user.|
+|`{{internal.gcp_service_accounts}}`|List of GCP service accounts for the user.|
+|`{{internal.kube_username}}`|Kubernetes usernames available to the user.|
+|`{{internal.kubernetes_groups}}`|List of allowed Kubernetes groups for the user.|
+|`{{internal.kubernetes_users}}`|List of allowed Kubernetes users for the user.|
+|`{{internal.logins}}`|List of allowed SSH logins for the user.|
+|`{{internal.windows_logins}}`|List of allowed Windows logins for the user.|
+| `{{external.xyz}}` | Substituted with a value from an external [SSO provider](https://en.wikipedia.org/wiki/Single_sign-on). If using SAML, this will be expanded with "xyz" assertion value. For OIDC, the variable is expanded to the value of the "xyz" claim. See the next section for more information on referring to the `external` variable in Teleport roles. |
+
+#### Accessing external traits in Teleport roles
+
+When a user authenticates to Teleport through a single sign-on identity provider
+(IdP), Teleport populates external variables using traits it receives from the
+IdP.
+
+For example, assuming you have the following SAML assertion attribute in your
+response:
+
+```
+<Attribute Name="http://schemas.microsoft.com/ws/2008/06/identity/claims/windowsaccountname">
+        <AttributeValue>firstname.lastname</AttributeValue>
+</Attribute>
+```
+
+... you can use the following format in your role:
+
+```
+logins:
+   - '{{external["http://schemas.microsoft.com/ws/2008/06/identity/claims/windowsaccountname"]}}'
+```
+
+
+In role templates, you can refer to these variables using the following two
+formats, where `trait` is the name of the trait:
+
+- **Dot syntax:** `{{external.trait}}`
+- **Bracket syntax:** `{{external["trait"]}}`
+
+Teleport expands the template variables above with the value of the SAML
+attribute or OIDC claim called `trait`.
+
+You can specify an external trait in dot syntax if it begins with a letter and
+contains only letters, numbers, and underscores. Otherwise, you must use bracket
+syntax to specify a trait.
+
+Common examples of external traits available through an identity provider
+include the following:
+
+- `{{external.logins}}`
+- `{{external.username}}`
+- `{{external.env}}`
+
+Teleport can only expand an `external` variable to a string or a list of
+strings. If you are using an OIDC-based SSO solution, ensure that you have
+configured your identity provider to include claims with values that have a
+supported data type.
+
+Refer to your identity provider's documentation for the complete list of
+available claims and attributes.
+
+### Access Request template functions
+
+The following variables and functions allow more fine-grained control over a
+user's permissions to submit and review Access Requests.
+
+#### Fields
+
+You can use Access Request template functions in the following fields. You can
+include these fields within either `allow` rules or `deny` rules:
+
+- `request.search_as_roles`
+- `request.roles`
+- `review_requests.preview_as_roles`
+- `review_requests.roles`
+- `review_requests.where`
+
+#### Functions
+
+Access Requests support the following role template functions:
+
+|Function|Description|
+|---|---|
+|`{{regexp.match(regexp)}}`|Returns `true` if the regular expression matches a user's role.|
+|`{{regexp.not_match(regexp)}}`|Returns `true` if the regular expression does not match a user's role.|
+
+Regular expressions support both glob-style wildcards (the `*` character) and
+[Go-style regular expressions](https://pkg.go.dev/regexp). If an expression
+begins with the `^` character and ends with the `$` character, Teleport will
+evaluate it as a regular expression. Otherwise, it will evaluate it as a
+wildcard expression.  Wildcards match a sequence of one or more characters.
+
+#### Variables
+
+Teleport does not perform variable expansion on the values of the fields above.
 
 ## Filter fields
 
-Here is an explanation of the fields used in the `where` and `filter` conditions within this guide.
+Here is an explanation of the fields used in the `where` and `filter` conditions
+within this guide:
 
 | Field                      | Description                                       |
 | -------------------------- | ------------------------------------------------- |
@@ -465,6 +594,13 @@ Here is an explanation of the fields used in the `where` and `filter` conditions
 | `session_tracker.participants` | The list of participants from an SSH session      |
 | `user.metadata.name`       | The user's name                                   |
 
-Check out our [predicate language](../reference/predicate-language.mdx#scoping-allowdeny-rules-in-role-resources)
+Read the [predicate
+language](../reference/predicate-language.mdx#scoping-allowdeny-rules-in-role-resources)
 guide for a more in depth explanation of the language.
+
+## Second Factor - U2F
+
+Refer to the [Second Factor - WebAuthn](./guides/webauthn.mdx#u2f) guide if you
+have a cluster using the legacy U2F support.
+
 

@@ -8,9 +8,10 @@ use ironrdp_pdu::{custom_err, PduResult};
 
 /// SharedDirectoryAnnounce is sent by the TDP client to the server
 /// to announce a new directory to be shared over TDP.
+#[derive(Debug)]
 pub struct SharedDirectoryAnnounce {
-    directory_id: u32,
-    name: String,
+    pub directory_id: u32,
+    pub name: String,
 }
 
 impl From<CGOSharedDirectoryAnnounce> for SharedDirectoryAnnounce {

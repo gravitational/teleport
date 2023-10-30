@@ -39,6 +39,7 @@ use ironrdp_rdpdr::{
     },
     RdpdrBackend,
 };
+use ironrdp_svc::impl_as_any;
 use iso7816::command::Command as CardCommand;
 use std::vec;
 use uuid::Uuid;
@@ -61,6 +62,8 @@ pub struct TeleportRdpdrBackend {
     key_der: Vec<u8>,
     pin: String,
 }
+
+impl_as_any!(TeleportRdpdrBackend);
 
 impl RdpdrBackend for TeleportRdpdrBackend {
     fn handle_server_device_announce_response(
@@ -187,6 +190,10 @@ impl TeleportRdpdrBackend {
             key_der,
             pin,
         }
+    }
+
+    pub fn add_active_device_id(&mut self, device_id: u32) {
+        self.active_device_ids.push(device_id);
     }
 
     fn get_scard_device_id(&self) -> PduResult<u32> {

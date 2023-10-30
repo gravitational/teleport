@@ -19,7 +19,7 @@ num-derive = "0.4.1"
 num-traits = "0.2.17"
 rand = { version = "0.8.5", features = ["getrandom"] }
 rand_chacha = "0.3.1"
-rsa = "0.9.2"
+rsa = "0.9.3"
 uuid = { version = "1.5.0", features = ["v4"] }
 utf16string = "0.2.0"
 png = "0.17.10"
@@ -31,18 +31,15 @@ x509-parser = "0.14"
 sspi = { version = "0.10.1", features = ["network_client", "dns_resolver"] }
 static_init = "1.0.3"
 
-tokio-boring = { version = "3.1.0", optional = true }
-boring = { version = "3.1.0", optional = true }
-
-ironrdp-connector = { git = "https://github.com/Devolutions/IronRDP", rev = "47bc49b50e49020942138a8474828eb3cfe36a91" }
-ironrdp-tls = { git = "https://github.com/Devolutions/IronRDP", rev = "47bc49b50e49020942138a8474828eb3cfe36a91" }
-ironrdp-session = { git = "https://github.com/Devolutions/IronRDP", rev = "47bc49b50e49020942138a8474828eb3cfe36a91" }
-ironrdp-pdu = { git = "https://github.com/Devolutions/IronRDP", rev = "47bc49b50e49020942138a8474828eb3cfe36a91" }
-ironrdp-tokio = { git = "https://github.com/Devolutions/IronRDP", rev = "47bc49b50e49020942138a8474828eb3cfe36a91" }
-ironrdp-rdpsnd = { git = "https://github.com/Devolutions/IronRDP", rev = "47bc49b50e49020942138a8474828eb3cfe36a91" }
-ironrdp-rdpdr = { git = "https://github.com/Devolutions/IronRDP", rev = "47bc49b50e49020942138a8474828eb3cfe36a91" }
-ironrdp-svc = { git = "https://github.com/Devolutions/IronRDP", rev = "47bc49b50e49020942138a8474828eb3cfe36a91" }
-ironrdp-cliprdr = { git = "https://github.com/Devolutions/IronRDP", rev = "47bc49b50e49020942138a8474828eb3cfe36a91" }
+ironrdp-connector = { git = "https://github.com/Devolutions/IronRDP", rev = "2075833ff2d02e6cea256e8a24e4e6e5e805ce88" }
+ironrdp-tls = { git = "https://github.com/Devolutions/IronRDP", rev = "2075833ff2d02e6cea256e8a24e4e6e5e805ce88" }
+ironrdp-session = { git = "https://github.com/Devolutions/IronRDP", rev = "2075833ff2d02e6cea256e8a24e4e6e5e805ce88" }
+ironrdp-pdu = { git = "https://github.com/Devolutions/IronRDP", rev = "2075833ff2d02e6cea256e8a24e4e6e5e805ce88" }
+ironrdp-tokio = { git = "https://github.com/Devolutions/IronRDP", rev = "2075833ff2d02e6cea256e8a24e4e6e5e805ce88" }
+ironrdp-rdpsnd = { git = "https://github.com/Devolutions/IronRDP", rev = "2075833ff2d02e6cea256e8a24e4e6e5e805ce88" }
+ironrdp-rdpdr = { git = "https://github.com/Devolutions/IronRDP", rev = "2075833ff2d02e6cea256e8a24e4e6e5e805ce88" }
+ironrdp-svc = { git = "https://github.com/Devolutions/IronRDP", rev = "2075833ff2d02e6cea256e8a24e4e6e5e805ce88" }
+ironrdp-cliprdr = { git = "https://github.com/Devolutions/IronRDP", rev = "2075833ff2d02e6cea256e8a24e4e6e5e805ce88" }
 
 # Uncomment the following lines to use local crates instead of the ones from github
 # ironrdp-connector = { path = "/Users/ibeckermayer/Devolutions/IronRDP/crates/ironrdp-connector" }
@@ -62,10 +59,12 @@ ironrdp-cliprdr = { git = "https://github.com/Devolutions/IronRDP", rev = "47bc4
 # ironrdp-pdu = { path = "/Users/hesperus/work/IronRDP/crates/ironrdp-pdu" }
 # ironrdp-tokio = { path = "/Users/hesperus/work/IronRDP/crates/ironrdp-tokio" }
 
+tokio-boring = { version = "3.1.0", optional = true }
+boring = { version = "3.1.0", optional = true }
 
 [build-dependencies]
 cbindgen = "0.26.0"
-tempfile = "3.8.0"
+tempfile = "3.8.1"
 
 [features]
 fips = ["tokio-boring/fips", "boring/fips"]
