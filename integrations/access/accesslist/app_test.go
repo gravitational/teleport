@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package common
+package accesslist
 
 import (
 	"context"
@@ -29,46 +29,55 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/header"
-	"github.com/gravitational/teleport/integrations/lib"
-	pd "github.com/gravitational/teleport/integrations/lib/plugindata"
+	"github.com/gravitational/teleport/integrations/access/common"
+	"github.com/gravitational/teleport/integrations/access/common/recipient"
+	"github.com/gravitational/teleport/integrations/access/common/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/services"
 )
 
 type mockMessagingBot struct {
-	lastReminderRecipients    []Recipient
-	accessRequestSentMessages SentMessages
-	recipients                map[string]*Recipient
+	lastReminderRecipients []recipient.Recipient
+	recipients             map[string]*recipient.Recipient
 }
 
 func (m *mockMessagingBot) CheckHealth(ctx context.Context) error {
 	return nil
 }
 
-func (m *mockMessagingBot) SendReviewReminders(ctx context.Context, recipients []Recipient, accessList *accesslist.AccessList) error {
+func (m *mockMessagingBot) SendReviewReminders(ctx context.Context, recipients []recipient.Recipient, accessList *accesslist.AccessList) error {
 	m.lastReminderRecipients = recipients
 	return nil
 }
 
-func (m *mockMessagingBot) BroadcastAccessRequestMessage(ctx context.Context, recipients []Recipient, reqID string, reqData pd.AccessRequestData) (data SentMessages, err error) {
-	return m.accessRequestSentMessages, nil
-}
-
-func (m *mockMessagingBot) PostReviewReply(ctx context.Context, channelID string, threadID string, review types.AccessReview) error {
-	return nil
-}
-
-func (m *mockMessagingBot) UpdateMessages(ctx context.Context, reqID string, data pd.AccessRequestData, messageData SentMessages, reviews []types.AccessReview) error {
-	return nil
-}
-
-func (m *mockMessagingBot) FetchRecipient(ctx context.Context, recipient string) (*Recipient, error) {
+func (m *mockMessagingBot) FetchRecipient(ctx context.Context, recipient string) (*recipient.Recipient, error) {
 	fetchedRecipient, ok := m.recipients[recipient]
 	if !ok {
 		return nil, trace.NotFound("recipient %s not found", recipient)
 	}
 
 	return fetchedRecipient, nil
+}
+
+type mockPluginConfig struct {
+	as  *auth.Server
+	bot *mockMessagingBot
+}
+
+func (m *mockPluginConfig) GetTeleportClient(ctx context.Context) (teleport.Client, error) {
+	return m.as, nil
+}
+
+func (m *mockPluginConfig) GetRecipients() recipient.RawRecipientsMap {
+	return nil
+}
+
+func (m *mockPluginConfig) NewBot(clusterName string, webProxyAddr string) (*mockMessagingBot, error) {
+	return m.bot, nil
+}
+
+func (m *mockPluginConfig) GetPluginType() types.PluginType {
+	return types.PluginTypeSlack
 }
 
 func TestAccessListReminders(t *testing.T) {
@@ -86,35 +95,28 @@ func TestAccessListReminders(t *testing.T) {
 	as := server.Auth()
 
 	bot := &mockMessagingBot{
-		recipients: map[string]*Recipient{
+		recipients: map[string]*recipient.Recipient{
 			"owner1": {Name: "owner1"},
 			"owner2": {Name: "owner2"},
 		},
 	}
-	app := &BaseApp{
-		apiClient:   as,
-		accessLists: as,
-		bot:         bot,
-		clock:       clock,
-	}
-	app.initBackend()
-
-	app.alMonitorJob = lib.NewServiceJob(app.accessListMonitorRun)
-
+	app := NewApp[*mockMessagingBot]()
+	app.clock = clock
+	baseApp := common.NewApp(&mockPluginConfig{as: as, bot: bot}, "test-plugin").
+		AddApp(app)
 	ctx := context.Background()
 	go func() {
-		app.Process = lib.NewProcess(ctx)
-		app.SpawnCriticalJob(app.alMonitorJob)
+		require.NoError(t, baseApp.Run(ctx))
 	}()
 
-	ready, err := app.alMonitorJob.WaitReady(ctx)
+	ready, err := app.job.WaitReady(ctx)
 	require.NoError(t, err)
 	require.True(t, ready)
 
 	t.Cleanup(func() {
-		app.Terminate()
-		<-app.alMonitorJob.Done()
-		require.NoError(t, app.alMonitorJob.Err())
+		baseApp.Terminate()
+		<-app.job.Done()
+		require.NoError(t, app.job.Err())
 	})
 
 	accessList, err := accesslist.NewAccessList(header.Metadata{
@@ -186,11 +188,11 @@ func advanceAndLookForRecipients(t *testing.T,
 
 	bot.lastReminderRecipients = nil
 
-	var expectedRecipients []Recipient
+	var expectedRecipients []recipient.Recipient
 	if len(recipients) > 0 {
-		expectedRecipients = make([]Recipient, len(recipients))
-		for i, recipient := range recipients {
-			expectedRecipients[i] = Recipient{Name: recipient}
+		expectedRecipients = make([]recipient.Recipient, len(recipients))
+		for i, r := range recipients {
+			expectedRecipients[i] = recipient.Recipient{Name: r}
 		}
 	}
 	clock.Advance(advance)

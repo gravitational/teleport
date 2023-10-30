@@ -17,6 +17,7 @@
 package mattermost
 
 import (
+	"github.com/gravitational/teleport/integrations/access/accessrequest"
 	"github.com/gravitational/teleport/integrations/access/common"
 )
 
@@ -25,6 +26,7 @@ const (
 	mattermostPluginName = "mattermost"
 )
 
-func NewMattermostApp(conf *Config) *common.BaseApp {
-	return common.NewApp(conf, mattermostPluginName)
+func NewMattermostApp(conf *Config) *common.BaseApp[Bot] {
+	return common.NewApp[Bot](conf, mattermostPluginName).
+		AddApp(accessrequest.NewApp[Bot]())
 }

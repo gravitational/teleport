@@ -1,11 +1,11 @@
 /*
-Copyright 2022 Gravitational, Inc.
+Copyright 2023 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-http://www.apache.org/licenses/LICENSE-2.0
+    http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -14,20 +14,19 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package discord
+package accesslist
 
 import (
-	"github.com/gravitational/teleport/integrations/access/accessrequest"
+	"context"
+
+	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/integrations/access/common"
+	"github.com/gravitational/teleport/integrations/access/common/recipient"
 )
 
-const (
-	// discordPluginName is used to tag Discord GenericPluginData and as a Delegator in Audit log.
-	discordPluginName = "discord"
-)
+type MessagingBot interface {
+	common.MessagingBot
 
-// NewApp initializes a new teleport-discord app and returns it.
-func NewApp(conf *Config) *common.BaseApp[DiscordBot] {
-	return common.NewApp(conf, discordPluginName).
-		AddApp(accessrequest.NewApp[DiscordBot]())
+	// SendReviewReminders will send a review reminder that an access list needs to be reviewed.
+	SendReviewReminders(ctx context.Context, recipients []recipient.Recipient, accessList *accesslist.AccessList) error
 }

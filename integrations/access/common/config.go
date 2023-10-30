@@ -26,27 +26,28 @@ import (
 
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/integrations/access/common/recipient"
 	"github.com/gravitational/teleport/integrations/access/common/teleport"
 	"github.com/gravitational/teleport/integrations/lib"
 	"github.com/gravitational/teleport/integrations/lib/credentials"
 	"github.com/gravitational/teleport/integrations/lib/logger"
 )
 
-type PluginConfiguration interface {
+type PluginConfiguration[T MessagingBot] interface {
 	GetTeleportClient(ctx context.Context) (teleport.Client, error)
-	GetRecipients() RawRecipientsMap
-	NewBot(clusterName string, webProxyAddr string) (MessagingBot, error)
+	GetRecipients() recipient.RawRecipientsMap
+	NewBot(clusterName string, webProxyAddr string) (T, error)
 	GetPluginType() types.PluginType
 }
 
 type BaseConfig struct {
-	Teleport   lib.TeleportConfig `toml:"teleport"`
-	Recipients RawRecipientsMap   `toml:"role_to_recipients"`
-	Log        logger.Config      `toml:"log"`
+	Teleport   lib.TeleportConfig         `toml:"teleport"`
+	Recipients recipient.RawRecipientsMap `toml:"role_to_recipients"`
+	Log        logger.Config              `toml:"log"`
 	PluginType types.PluginType
 }
 
-func (c BaseConfig) GetRecipients() RawRecipientsMap {
+func (c BaseConfig) GetRecipients() recipient.RawRecipientsMap {
 	return c.Recipients
 }
 

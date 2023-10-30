@@ -25,7 +25,8 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
-	"github.com/gravitational/teleport/integrations/access/common"
+	"github.com/gravitational/teleport/integrations/access/accessrequest"
+	"github.com/gravitational/teleport/integrations/access/common/recipient"
 	pd "github.com/gravitational/teleport/integrations/lib/plugindata"
 )
 
@@ -44,12 +45,12 @@ func (b *Bot) CheckHealth(ctx context.Context) error {
 }
 
 // SendReviewReminders will send a review reminder that an access list needs to be reviewed.
-func (b Bot) SendReviewReminders(ctx context.Context, recipients []common.Recipient, accessList *accesslist.AccessList) error {
+func (b Bot) SendReviewReminders(ctx context.Context, recipients []recipient.Recipient, accessList *accesslist.AccessList) error {
 	return trace.NotImplemented("access list review reminder is not yet implemented")
 }
 
 // BroadcastAccessRequestMessage creates a ServiceNow incident.
-func (b *Bot) BroadcastAccessRequestMessage(ctx context.Context, recipients []common.Recipient, reqID string, reqData pd.AccessRequestData) (data common.SentMessages, err error) {
+func (b *Bot) BroadcastAccessRequestMessage(ctx context.Context, recipients []recipient.Recipient, reqID string, reqData pd.AccessRequestData) (data accessrequest.SentMessages, err error) {
 	serviceNowReqData := RequestData{
 		User:               reqData.User,
 		Roles:              reqData.Roles,
@@ -63,7 +64,7 @@ func (b *Bot) BroadcastAccessRequestMessage(ctx context.Context, recipients []co
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	data = common.SentMessages{{
+	data = accessrequest.SentMessages{{
 		MessageID: serviceNowData.IncidentID,
 	}}
 
@@ -77,7 +78,7 @@ func (b *Bot) PostReviewReply(ctx context.Context, _ string, incidentID string, 
 
 // UpdateMessages add notes to the incident containing updates to status.
 // This will also resolve incidents based on the resolution tag.
-func (b *Bot) UpdateMessages(ctx context.Context, reqID string, data pd.AccessRequestData, incidentData common.SentMessages, reviews []types.AccessReview) error {
+func (b *Bot) UpdateMessages(ctx context.Context, reqID string, data pd.AccessRequestData, incidentData accessrequest.SentMessages, reviews []types.AccessReview) error {
 	var errs []error
 
 	var state string
@@ -102,6 +103,6 @@ func (b *Bot) UpdateMessages(ctx context.Context, reqID string, data pd.AccessRe
 }
 
 // FetchRecipient isn't used by the ServicenoPlugin
-func (b *Bot) FetchRecipient(ctx context.Context, recipient string) (*common.Recipient, error) {
+func (b *Bot) FetchRecipient(ctx context.Context, recipient string) (*recipient.Recipient, error) {
 	return nil, trace.NotImplemented("ServiceNow plugin does not use recipients")
 }

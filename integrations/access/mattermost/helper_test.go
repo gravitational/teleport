@@ -21,11 +21,11 @@ import (
 	"sync/atomic"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/integrations/access/common"
+	"github.com/gravitational/teleport/integrations/access/accessrequest"
 )
 
 type MattermostPostSlice []Post
-type MattermostDataPostSet map[common.MessageData]struct{}
+type MattermostDataPostSet map[accessrequest.MessageData]struct{}
 
 func (slice MattermostPostSlice) Len() int {
 	return len(slice)
@@ -42,11 +42,11 @@ func (slice MattermostPostSlice) Swap(i, j int) {
 	slice[i], slice[j] = slice[j], slice[i]
 }
 
-func (set MattermostDataPostSet) Add(msg common.MessageData) {
+func (set MattermostDataPostSet) Add(msg accessrequest.MessageData) {
 	set[msg] = struct{}{}
 }
 
-func (set MattermostDataPostSet) Contains(msg common.MessageData) bool {
+func (set MattermostDataPostSet) Contains(msg accessrequest.MessageData) bool {
 	_, ok := set[msg]
 	return ok
 }

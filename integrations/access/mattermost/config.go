@@ -24,6 +24,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integrations/access/common"
+	"github.com/gravitational/teleport/integrations/access/common/recipient"
 	"github.com/gravitational/teleport/integrations/lib"
 )
 
@@ -73,7 +74,7 @@ func (c *Config) CheckAndSetDefaults() error {
 
 	// Optional field.
 	if len(c.Mattermost.Recipients) > 0 {
-		c.Recipients = common.RawRecipientsMap{
+		c.Recipients = recipient.RawRecipientsMap{
 			"*": c.Mattermost.Recipients,
 		}
 	}
@@ -89,10 +90,10 @@ func (c *Config) CheckAndSetDefaults() error {
 	return nil
 }
 
-func (c *Config) NewBot(clusterName, webProxyAddr string) (common.MessagingBot, error) {
+func (c *Config) NewBot(clusterName, webProxyAddr string) (Bot, error) {
 	bot, err := NewBot(*c, clusterName, webProxyAddr)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return Bot{}, trace.Wrap(err)
 	}
 	return bot, nil
 }

@@ -28,7 +28,9 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
+	"github.com/gravitational/teleport/integrations/access/accessrequest"
 	"github.com/gravitational/teleport/integrations/access/common"
+	"github.com/gravitational/teleport/integrations/access/common/recipient"
 	"github.com/gravitational/teleport/integrations/lib"
 	pd "github.com/gravitational/teleport/integrations/lib/plugindata"
 )
@@ -96,13 +98,13 @@ func (b Bot) CheckHealth(ctx context.Context) error {
 }
 
 // SendReviewReminders will send a review reminder that an access list needs to be reviewed.
-func (b Bot) SendReviewReminders(ctx context.Context, recipients []common.Recipient, accessList *accesslist.AccessList) error {
+func (b Bot) SendReviewReminders(ctx context.Context, recipients []recipient.Recipient, accessList *accesslist.AccessList) error {
 	return trace.NotImplemented("access list review reminder is not yet implemented")
 }
 
 // BroadcastAccessRequestMessage posts request info to Slack with action buttons.
-func (b Bot) BroadcastAccessRequestMessage(ctx context.Context, recipients []common.Recipient, reqID string, reqData pd.AccessRequestData) (common.SentMessages, error) {
-	var data common.SentMessages
+func (b Bot) BroadcastAccessRequestMessage(ctx context.Context, recipients []recipient.Recipient, reqID string, reqData pd.AccessRequestData) (accessrequest.SentMessages, error) {
+	var data accessrequest.SentMessages
 	var errors []error
 
 	for _, recipient := range recipients {
@@ -116,14 +118,14 @@ func (b Bot) BroadcastAccessRequestMessage(ctx context.Context, recipients []com
 			errors = append(errors, trace.Wrap(err))
 			continue
 		}
-		data = append(data, common.MessageData{ChannelID: result.Channel, MessageID: result.Timestamp})
+		data = append(data, accessrequest.MessageData{ChannelID: result.Channel, MessageID: result.Timestamp})
 	}
 
 	return data, trace.NewAggregate(errors...)
 }
 
 func (b Bot) PostReviewReply(ctx context.Context, channelID, timestamp string, review types.AccessReview) error {
-	text, err := common.MsgReview(review)
+	text, err := accessrequest.MsgReview(review)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -154,7 +156,7 @@ func (b Bot) lookupDirectChannelByEmail(ctx context.Context, email string) (stri
 }
 
 // Expire updates request's Slack post with EXPIRED status and removes action buttons.
-func (b Bot) UpdateMessages(ctx context.Context, reqID string, reqData pd.AccessRequestData, slackData common.SentMessages, reviews []types.AccessReview) error {
+func (b Bot) UpdateMessages(ctx context.Context, reqID string, reqData pd.AccessRequestData, slackData accessrequest.SentMessages, reviews []types.AccessReview) error {
 	var errors []error
 	for _, msg := range slackData {
 		_, err := b.client.NewRequest().
@@ -182,26 +184,26 @@ func (b Bot) UpdateMessages(ctx context.Context, reqID string, reqData pd.Access
 	return nil
 }
 
-func (b Bot) FetchRecipient(ctx context.Context, recipient string) (*common.Recipient, error) {
-	if lib.IsEmail(recipient) {
-		channel, err := b.lookupDirectChannelByEmail(ctx, recipient)
+func (b Bot) FetchRecipient(ctx context.Context, name string) (*recipient.Recipient, error) {
+	if lib.IsEmail(name) {
+		channel, err := b.lookupDirectChannelByEmail(ctx, name)
 		if err != nil {
 			if err.Error() == "users_not_found" {
-				return nil, trace.NotFound("email recipient '%s' not found: %s", recipient, err)
+				return nil, trace.NotFound("email recipient '%s' not found: %s", name, err)
 			}
-			return nil, trace.Errorf("error resolving email recipient %s: %s", recipient, err)
+			return nil, trace.Errorf("error resolving email recipient %s: %s", name, err)
 		}
-		return &common.Recipient{
-			Name: recipient,
+		return &recipient.Recipient{
+			Name: name,
 			ID:   channel,
 			Kind: "Email",
 			Data: nil,
 		}, nil
 	}
 	// TODO: check if channel exists ?
-	return &common.Recipient{
-		Name: recipient,
-		ID:   recipient,
+	return &recipient.Recipient{
+		Name: name,
+		ID:   name,
 		Kind: "Channel",
 		Data: nil,
 	}, nil
@@ -209,8 +211,8 @@ func (b Bot) FetchRecipient(ctx context.Context, recipient string) (*common.Reci
 
 // slackAccessRequestMsgSection builds an access request Slack message section (obeys markdown).
 func (b Bot) slackAccessRequestMsgSections(reqID string, reqData pd.AccessRequestData) []BlockItem {
-	fields := common.MsgFields(reqID, reqData, b.clusterName, b.webProxyURL)
-	statusText := common.MsgStatusText(reqData.ResolutionTag, reqData.ResolutionReason)
+	fields := accessrequest.MsgFields(reqID, reqData, b.clusterName, b.webProxyURL)
+	statusText := accessrequest.MsgStatusText(reqData.ResolutionTag, reqData.ResolutionReason)
 
 	sections := []BlockItem{
 		NewBlockItem(SectionBlock{
