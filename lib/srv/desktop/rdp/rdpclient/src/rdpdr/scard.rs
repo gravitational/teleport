@@ -202,7 +202,7 @@ impl ScardBackend {
                 context_id,
                 DeviceControlResponse::new(
                     req,
-                    NtStatus::Success,
+                    NtStatus::SUCCESS,
                     Box::new(GetStatusChangeReturn::new(
                         ReturnCode::Cancelled,
                         get_status_change_ret.into_inner().reader_states,
@@ -497,7 +497,7 @@ impl ScardBackend {
     ) -> PduResult<Option<DeviceControlResponse>> {
         Ok(Some(DeviceControlResponse::new(
             req,
-            NtStatus::Success,
+            NtStatus::SUCCESS,
             Box::new(output_buffer),
         )))
     }

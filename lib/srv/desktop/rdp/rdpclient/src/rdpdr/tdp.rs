@@ -3,9 +3,9 @@ use std::ffi::CString;
 use super::path::UnixPath;
 use crate::{
     util::{self, from_c_string, from_go_array},
-    CGOFileSystemObject, CGOSharedDirectoryAnnounce, CGOSharedDirectoryCreateRequest,
-    CGOSharedDirectoryCreateResponse, CGOSharedDirectoryInfoRequest,
-    CGOSharedDirectoryInfoResponse, CGOSharedDirectoryListResponse, CGOSharedDirectoryReadResponse,
+    CGOSharedDirectoryAnnounce, CGOSharedDirectoryCreateRequest, CGOSharedDirectoryCreateResponse,
+    CGOSharedDirectoryInfoRequest, CGOSharedDirectoryInfoResponse, CGOSharedDirectoryListResponse,
+    CGOSharedDirectoryReadResponse,
 };
 use ironrdp_pdu::{custom_err, PduResult};
 use ironrdp_rdpdr::pdu::efs::DeviceCreateRequest;

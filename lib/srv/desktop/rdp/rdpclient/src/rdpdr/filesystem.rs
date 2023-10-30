@@ -104,7 +104,7 @@ impl FilesystemBackend {
                         // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L221
                         return Self::make_device_create_response(
                             &req,
-                            efs::NtStatus::ObjectNameCollision,
+                            efs::NtStatus::OBJECT_NAME_COLLISION,
                             0,
                         );
                     }
@@ -116,7 +116,7 @@ impl FilesystemBackend {
                         // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L227
                         return Self::make_device_create_response(
                             &req,
-                            efs::NtStatus::AccessDenied,
+                            efs::NtStatus::ACCESS_DENIED,
                             0,
                         );
                     }
@@ -127,7 +127,7 @@ impl FilesystemBackend {
                     // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L237
                     return Self::make_device_create_response(
                         &req,
-                        efs::NtStatus::NotADirectory,
+                        efs::NtStatus::NOT_A_DIRECTORY,
                         0,
                     );
                 }
@@ -148,7 +148,7 @@ impl FilesystemBackend {
                         // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L258
                         return Self::make_device_create_response(
                             &req,
-                            efs::NtStatus::NoSuchFile,
+                            efs::NtStatus::NO_SUCH_FILE,
                             0,
                         );
                     }
@@ -177,11 +177,11 @@ impl FilesystemBackend {
                         .insert(FileCacheObject::new(UnixPath::from(&req.path), res.fso))?;
                     return Self::make_device_create_response(
                         &req,
-                        efs::NtStatus::Success,
+                        efs::NtStatus::SUCCESS,
                         file_id,
                     );
                 } else if res.err_code == TdpErrCode::DoesNotExist {
-                    return Self::make_device_create_response(&req, efs::NtStatus::NoSuchFile, 0);
+                    return Self::make_device_create_response(&req, efs::NtStatus::NO_SUCH_FILE, 0);
                 }
             }
             efs::CreateDisposition::FILE_CREATE => {
@@ -189,7 +189,7 @@ impl FilesystemBackend {
                 if res.err_code == TdpErrCode::Nil {
                     return Self::make_device_create_response(
                         &req,
-                        efs::NtStatus::ObjectNameCollision,
+                        efs::NtStatus::OBJECT_NAME_COLLISION,
                         0,
                     );
                 } else if res.err_code == TdpErrCode::DoesNotExist {
@@ -205,7 +205,7 @@ impl FilesystemBackend {
                         .insert(FileCacheObject::new(UnixPath::from(&req.path), res.fso))?;
                     return Self::make_device_create_response(
                         &req,
-                        efs::NtStatus::Success,
+                        efs::NtStatus::SUCCESS,
                         file_id,
                     );
                 } else if res.err_code == TdpErrCode::DoesNotExist {
@@ -219,7 +219,7 @@ impl FilesystemBackend {
                     self.tdp_sd_overwrite(req)?;
                     return Ok(None);
                 } else if res.err_code == TdpErrCode::DoesNotExist {
-                    return Self::make_device_create_response(&req, efs::NtStatus::NoSuchFile, 0);
+                    return Self::make_device_create_response(&req, efs::NtStatus::NO_SUCH_FILE, 0);
                 }
             }
             efs::CreateDisposition::FILE_OVERWRITE_IF => {
@@ -270,7 +270,7 @@ impl FilesystemBackend {
                     if tdp_resp.err_code != TdpErrCode::Nil {
                         return Self::make_device_create_response(
                             &rdp_req,
-                            NtStatus::Unsuccessful,
+                            NtStatus::UNSUCCESSFUL,
                             0,
                         );
                     }
@@ -278,7 +278,7 @@ impl FilesystemBackend {
                         UnixPath::from(&rdp_req.path),
                         tdp_resp.fso,
                     ))?;
-                    Self::make_device_create_response(&rdp_req, NtStatus::Success, file_id)
+                    Self::make_device_create_response(&rdp_req, NtStatus::SUCCESS, file_id)
                 },
             )),
         );
@@ -375,7 +375,7 @@ impl FilesystemBackend {
         new_file_id: u32,
     ) -> PduResult<Option<RdpdrPdu>> {
         // See https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L187-L228
-        let information = if io_status != efs::NtStatus::Success
+        let information = if io_status != efs::NtStatus::SUCCESS
             || device_create_request.create_disposition.intersects(
                 efs::CreateDisposition::FILE_SUPERSEDE
                     | efs::CreateDisposition::FILE_OPEN
@@ -399,7 +399,7 @@ impl FilesystemBackend {
         Ok(Some(RdpdrPdu::DeviceCreateResponse(
             efs::DeviceCreateResponse {
                 device_io_reply: efs::DeviceIoResponse::new(
-                    device_create_request.device_io_request,
+                    device_create_request.device_io_request.clone(),
                     io_status,
                 ),
                 file_id: new_file_id,

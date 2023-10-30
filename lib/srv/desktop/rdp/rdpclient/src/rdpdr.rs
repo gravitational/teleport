@@ -49,7 +49,7 @@ impl RdpdrBackend for TeleportRdpdrBackend {
         &mut self,
         pdu: ServerDeviceAnnounceResponse,
     ) -> PduResult<()> {
-        if pdu.result_code != NtStatus::Success {
+        if pdu.result_code != NtStatus::SUCCESS {
             return Err(custom_err!(
                 "TeleportRdpdrBackend::handle_server_device_announce_response",
                 TeleportRdpdrBackendError(format!(
