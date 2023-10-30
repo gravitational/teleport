@@ -281,6 +281,10 @@ Additionally, the `{{internal.jwt}}` template variable will be replaced with
 a JWT token signed by Teleport that contains user identity information. See
 [Integrating with JWTs](../jwt/introduction.mdx) for more details.
 
+For full details on configuring Teleport roles, including how Teleport
+populates the `external` and `internal` traits, see the [Teleport Access
+Controls Reference](../../access-controls/reference.mdx).
+
 ### Configuring the JWT token
 
 By default, Teleport includes a user's roles and traits in the JWT

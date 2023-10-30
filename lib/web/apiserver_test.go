@@ -1223,7 +1223,7 @@ func TestUnifiedResourcesGet(t *testing.T) {
 	noAccessPack := proxy.authPack(t, "test-no-access@example.com", []types.Role{noAccessRole})
 
 	// shouldnt get any results with no access
-	query = url.Values{}
+	query = url.Values{"sort": []string{"name:asc"}}
 	re, err = noAccessPack.clt.Get(context.Background(), endpoint, query)
 	require.NoError(t, err)
 	res = clusterNodesGetResponse{}

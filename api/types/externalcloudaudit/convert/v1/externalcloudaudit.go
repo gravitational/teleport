@@ -37,6 +37,8 @@ func FromProtoDraft(in *externalcloudauditv1.ExternalCloudAudit) (*externalcloud
 
 	externalCloudAudit, err := externalcloudaudit.NewDraftExternalCloudAudit(headerv1.FromMetadataProto(in.Header.Metadata), externalcloudaudit.ExternalCloudAuditSpec{
 		IntegrationName:        in.Spec.IntegrationName,
+		PolicyName:             in.Spec.PolicyName,
+		Region:                 in.Spec.Region,
 		SessionsRecordingsURI:  in.Spec.SessionsRecordingsUri,
 		AthenaWorkgroup:        in.Spec.AthenaWorkgroup,
 		GlueDatabase:           in.Spec.GlueDatabase,
@@ -63,6 +65,8 @@ func FromProtoCluster(in *externalcloudauditv1.ExternalCloudAudit) (*externalclo
 
 	externalCloudAudit, err := externalcloudaudit.NewClusterExternalCloudAudit(headerv1.FromMetadataProto(in.Header.Metadata), externalcloudaudit.ExternalCloudAuditSpec{
 		IntegrationName:        in.Spec.IntegrationName,
+		PolicyName:             in.Spec.PolicyName,
+		Region:                 in.Spec.Region,
 		SessionsRecordingsURI:  in.Spec.SessionsRecordingsUri,
 		AthenaWorkgroup:        in.Spec.AthenaWorkgroup,
 		GlueDatabase:           in.Spec.GlueDatabase,
@@ -83,6 +87,8 @@ func ToProto(in *externalcloudaudit.ExternalCloudAudit) *externalcloudauditv1.Ex
 		Header: headerv1.ToResourceHeaderProto(in.ResourceHeader),
 		Spec: &externalcloudauditv1.ExternalCloudAuditSpec{
 			IntegrationName:        in.Spec.IntegrationName,
+			PolicyName:             in.Spec.PolicyName,
+			Region:                 in.Spec.Region,
 			SessionsRecordingsUri:  in.Spec.SessionsRecordingsURI,
 			AthenaWorkgroup:        in.Spec.AthenaWorkgroup,
 			GlueDatabase:           in.Spec.GlueDatabase,

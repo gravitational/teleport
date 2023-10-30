@@ -107,17 +107,6 @@ export class ModalsService extends ImmutableStore<State> {
     });
   }
 
-  // TODO(ravicious): Remove this method in favor of calling openRegularDialog directly.
-  openDocumentsReopenDialog(options: {
-    onConfirm?(): void;
-    onCancel?(): void;
-  }) {
-    return this.openRegularDialog({
-      kind: 'documents-reopen',
-      ...options,
-    });
-  }
-
   closeRegularDialog() {
     this.setState(draftState => {
       draftState.regular = {
@@ -169,6 +158,8 @@ export interface DialogClusterLogout {
 
 export interface DialogDocumentsReopen {
   kind: 'documents-reopen';
+  rootClusterUri: RootClusterUri;
+  numberOfDocuments: number;
   onConfirm?(): void;
   onCancel?(): void;
 }
