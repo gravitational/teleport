@@ -14,4 +14,4 @@
  * limitations under the License.
  */
 
-export { useInfiniteScroll } from './useInfiniteScroll';
+export { AppInitializer } from './AppInitializer';

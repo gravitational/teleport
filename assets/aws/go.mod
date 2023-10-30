@@ -5,8 +5,8 @@ go 1.19
 require (
 	github.com/alecthomas/kingpin/v2 v2.3.2 // replaced
 	github.com/aws/aws-sdk-go-v2 v1.21.2
-	github.com/aws/aws-sdk-go-v2/config v1.18.45
-	github.com/aws/aws-sdk-go-v2/service/ec2 v1.125.0
+	github.com/aws/aws-sdk-go-v2/config v1.19.1
+	github.com/aws/aws-sdk-go-v2/service/ec2 v1.128.0
 )
 
 require (

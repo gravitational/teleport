@@ -21,39 +21,32 @@ import { render, screen } from 'design/utils/testing';
 import { mockIntersectionObserver } from 'jsdom-testing-mocks';
 
 import { useInfiniteScroll } from './useInfiniteScroll';
-import { newFetchFunc, resourceNames } from './testUtils';
 
 const mio = mockIntersectionObserver();
 
 function hookProps() {
   return {
-    fetchFunc: newFetchFunc(7),
-    trigger: null,
-    clusterId: 'test-cluster',
-    filter: {},
-    initialFetchSize: 2,
-    fetchMoreSize: 3,
+    fetch: jest.fn(),
   };
 }
 
-test('fetches data whenever an element is in view', async () => {
-  const { result, waitForNextUpdate } = renderHook(useInfiniteScroll, {
-    initialProps: hookProps(),
+test('calls fetch function whenever an element is in view', async () => {
+  const props = hookProps();
+  const { result } = renderHook(useInfiniteScroll, {
+    initialProps: props,
   });
   render(<div ref={result.current.setTrigger} data-testid="trigger" />);
   const trigger = screen.getByTestId('trigger');
-  expect(resourceNames(result)).toEqual([]);
+  expect(props.fetch).toHaveBeenCalledTimes(0);
 
   act(() => mio.enterNode(trigger));
-  await waitForNextUpdate();
-  expect(resourceNames(result)).toEqual(['r0', 'r1']);
+  expect(props.fetch).toHaveBeenCalledTimes(1);
 
   act(() => mio.leaveNode(trigger));
-  expect(resourceNames(result)).toEqual(['r0', 'r1']);
+  expect(props.fetch).toHaveBeenCalledTimes(1);
 
   act(() => mio.enterNode(trigger));
-  await waitForNextUpdate();
-  expect(resourceNames(result)).toEqual(['r0', 'r1', 'r2', 'r3', 'r4']);
+  expect(props.fetch).toHaveBeenCalledTimes(2);
 });
 
 test('supports changing nodes', async () => {
@@ -65,26 +58,19 @@ test('supports changing nodes', async () => {
   );
   const trigger1 = screen.getByTestId('trigger1');
   const trigger2 = screen.getByTestId('trigger2');
-  let props = hookProps();
-  const { result, rerender, waitForNextUpdate } = renderHook(
-    useInfiniteScroll,
-    {
-      initialProps: props,
-    }
-  );
+  const props = hookProps();
+  const { result, rerender } = renderHook(useInfiniteScroll, {
+    initialProps: props,
+  });
   result.current.setTrigger(trigger1);
 
   act(() => mio.enterNode(trigger1));
-  await waitForNextUpdate();
-  expect(resourceNames(result)).toEqual(['r0', 'r1']);
+  expect(props.fetch).toHaveBeenCalledTimes(1);
 
   rerender(props);
   result.current.setTrigger(trigger2);
 
-  // Should only register entering trigger2, reading resources r2 through r4.
-  act(() => mio.leaveNode(trigger1));
-  act(() => mio.enterNode(trigger1));
+  // Should register entering trigger2.
   act(() => mio.enterNode(trigger2));
-  await waitForNextUpdate();
-  expect(resourceNames(result)).toEqual(['r0', 'r1', 'r2', 'r3', 'r4']);
+  expect(props.fetch).toHaveBeenCalledTimes(2);
 });

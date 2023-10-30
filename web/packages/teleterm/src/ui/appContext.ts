@@ -41,6 +41,7 @@ import { ResourcesService } from 'teleterm/ui/services/resources';
 import { ConnectMyComputerService } from 'teleterm/ui/services/connectMyComputer';
 import { ConfigService } from 'teleterm/services/config';
 import { IAppContext } from 'teleterm/ui/types';
+import { assertUnreachable } from 'teleterm/ui/utils';
 
 import { CommandLauncher } from './commandLauncher';
 
@@ -148,8 +149,40 @@ export default class AppContext implements IAppContext {
     );
   }
 
-  async init(): Promise<void> {
+  async pullInitialState(): Promise<void> {
     this.setUpTshdEventSubscriptions();
+    this.mainProcessClient.subscribeToDeepLinkLaunch(result => {
+      if (result.status === 'error') {
+        let reason: string;
+        switch (result.reason) {
+          case 'unknown-protocol': {
+            reason = `The URL of the link is of an unknown protocol.`;
+            break;
+          }
+          case 'unsupported-uri': {
+            reason =
+              'The received link does not point at a resource or an action that can be launched from a link. ' +
+              'Either this version of Teleport Connect does not support it or the link is incorrect.';
+            break;
+          }
+          case 'malformed-url': {
+            reason = `The URL of the link appears to be malformed.`;
+            break;
+          }
+          default: {
+            assertUnreachable(result);
+          }
+        }
+
+        this.notificationsService.notifyWarning({
+          title: 'Cannot open the link',
+          description: reason,
+        });
+        return;
+      }
+
+      this.notificationsService.notifyInfo(JSON.stringify(result.url));
+    });
     this.clustersService.syncGatewaysAndCatchErrors();
     await this.clustersService.syncRootClustersAndCatchErrors();
   }

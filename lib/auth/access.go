@@ -19,6 +19,7 @@ package auth
 import (
 	"context"
 	"errors"
+	"slices"
 
 	"github.com/gravitational/trace"
 
@@ -58,14 +59,10 @@ func (a *Server) UpdateRole(ctx context.Context, role types.Role) (types.Role, e
 		return nil, trace.Wrap(err)
 	}
 
-	// TODO(tross): add a RoleUpdate type, RoleUpdatedEvent/Code for metadata
-	// and convert this to use them instead of a create event. As is this matches
-	// existing behavior since all updates to a role were done vie upsert which
-	// only ever emits a create event.
-	if err := a.emitter.EmitAuditEvent(a.closeCtx, &apievents.RoleCreate{
+	if err := a.emitter.EmitAuditEvent(a.closeCtx, &apievents.RoleUpdate{
 		Metadata: apievents.Metadata{
-			Type: events.RoleCreatedEvent,
-			Code: events.RoleCreatedCode,
+			Type: events.RoleUpdatedEvent,
+			Code: events.RoleUpdatedCode,
 		},
 		UserMetadata: authz.ClientUserMetadata(ctx),
 		ResourceMetadata: apievents.ResourceMetadata{
@@ -113,13 +110,11 @@ func (a *Server) DeleteRole(ctx context.Context, name string) error {
 		return trace.Wrap(err)
 	}
 	for _, u := range users {
-		for _, r := range u.GetRoles() {
-			if r == name {
-				// Mask the actual error here as it could be used to enumerate users
-				// within the system.
-				log.Warnf("Failed to delete role: role %v is used by user %v.", name, u.GetName())
-				return trace.Wrap(errDeleteRoleUser)
-			}
+		if slices.Contains(u.GetRoles(), name) {
+			// Mask the actual error here as it could be used to enumerate users
+			// within the system.
+			log.Warnf("Failed to delete role: role %v is used by user %v.", name, u.GetName())
+			return trace.Wrap(errDeleteRoleUser)
 		}
 	}
 	// check if it's used by some external cert authorities, e.g.
@@ -129,13 +124,11 @@ func (a *Server) DeleteRole(ctx context.Context, name string) error {
 		return trace.Wrap(err)
 	}
 	for _, a := range cas {
-		for _, r := range a.GetRoles() {
-			if r == name {
-				// Mask the actual error here as it could be used to enumerate users
-				// within the system.
-				log.Warnf("Failed to delete role: role %v is used by user cert authority %v", name, a.GetClusterName())
-				return trace.Wrap(errDeleteRoleCA)
-			}
+		if slices.Contains(a.GetRoles(), name) {
+			// Mask the actual error here as it could be used to enumerate users
+			// within the system.
+			log.Warnf("Failed to delete role: role %v is used by user cert authority %v", name, a.GetClusterName())
+			return trace.Wrap(errDeleteRoleCA)
 		}
 	}
 
@@ -149,25 +142,19 @@ func (a *Server) DeleteRole(ctx context.Context, name string) error {
 		}
 
 		for _, accessList := range accessLists {
-			for _, r := range accessList.Spec.Grants.Roles {
-				if r == name {
-					log.Warnf("Failed to delete role: role %v is granted by access list %s", name, accessList.GetName())
-					return trace.Wrap(errDeleteRoleAccessList)
-				}
+			if slices.Contains(accessList.Spec.Grants.Roles, name) {
+				log.Warnf("Failed to delete role: role %v is granted by access list %s", name, accessList.GetName())
+				return trace.Wrap(errDeleteRoleAccessList)
 			}
 
-			for _, r := range accessList.Spec.MembershipRequires.Roles {
-				if r == name {
-					log.Warnf("Failed to delete role: role %v is required by members of access list %s", name, accessList.GetName())
-					return trace.Wrap(errDeleteRoleAccessList)
-				}
+			if slices.Contains(accessList.Spec.MembershipRequires.Roles, name) {
+				log.Warnf("Failed to delete role: role %v is required by members of access list %s", name, accessList.GetName())
+				return trace.Wrap(errDeleteRoleAccessList)
 			}
 
-			for _, r := range accessList.Spec.OwnershipRequires.Roles {
-				if r == name {
-					log.Warnf("Failed to delete role: role %v is required by owners of access list %s", name, accessList.GetName())
-					return trace.Wrap(errDeleteRoleAccessList)
-				}
+			if slices.Contains(accessList.Spec.OwnershipRequires.Roles, name) {
+				log.Warnf("Failed to delete role: role %v is required by owners of access list %s", name, accessList.GetName())
+				return trace.Wrap(errDeleteRoleAccessList)
 			}
 		}
 

@@ -1589,7 +1589,7 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 		if len(prefs.ClusterPreferences.PinnedResources.ResourceIds) == 0 {
 			return &proto.ListUnifiedResourcesResponse{}, nil
 		}
-		unifiedResources, err = a.authServer.UnifiedResourceCache.GetUnifiedResourcesByIDs(ctx, prefs.ClusterPreferences.PinnedResources.GetResourceIds(), func(resource types.ResourceWithLabels) bool {
+		unifiedResources, err = a.authServer.UnifiedResourceCache.GetUnifiedResourcesByIDs(ctx, prefs.ClusterPreferences.PinnedResources.GetResourceIds(), func(resource types.ResourceWithLabels) (bool, error) {
 			var err error
 			switch r := resource.(type) {
 			// TODO (avatus) we should add this type into the `resourceChecker.CanAccess` method
@@ -1599,13 +1599,18 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 				err = resourceChecker.CanAccess(r)
 			}
 			if err != nil {
-				return false
+				// skip access denied error. It is expected that resources won't be available
+				// to some users and we want to keep iterating until we've reached the request limit
+				// of resources they have access to
+				if trace.IsAccessDenied(err) {
+					return false, nil
+				}
+				return false, trace.Wrap(err)
 			}
-			match, _ := services.MatchResourceByFilters(resource, filter, nil)
-			return match
+			return services.MatchResourceByFilters(resource, filter, nil)
 		})
 		if err != nil {
-			return nil, trace.Wrap(err, "getting unified resources by ID")
+			return nil, trace.Wrap(err)
 		}
 
 		// we need to sort pinned resources manually because they are fetched in the order they were pinned
@@ -1625,6 +1630,9 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 			}
 
 			if err != nil {
+				// skip access denied error. It is expected that resources won't be available
+				// to some users and we want to keep iterating until we've reached the request limit
+				// of resources they have access to
 				if trace.IsAccessDenied(err) {
 					return false, nil
 				}
@@ -1634,7 +1642,7 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 			return match, trace.Wrap(err)
 		}, req)
 		if err != nil {
-			return nil, trace.Wrap(err, "filtering unified resources")
+			return nil, trace.Wrap(err)
 		}
 	}
 
@@ -2729,6 +2737,11 @@ func (a *ServerWithRoles) GetUsers(ctx context.Context, withSecrets bool) ([]typ
 	return users, trace.Wrap(err)
 }
 
+// ListUsers returns a page of users.
+func (a *ServerWithRoles) ListUsers(ctx context.Context, pageSize int, nextToken string, withSecrets bool) ([]types.User, string, error) {
+	return nil, "", trace.NotImplemented("ListUsers is not implemented yet")
+}
+
 func (a *ServerWithRoles) GetUser(ctx context.Context, name string, withSecrets bool) (types.User, error) {
 	if withSecrets {
 		// TODO(fspmarshall): replace admin requirement with VerbReadWithSecrets once we've
@@ -3398,7 +3411,7 @@ func (a *ServerWithRoles) UpdateUser(ctx context.Context, user types.User) (type
 		return nil, trace.Wrap(err)
 	}
 
-	updated, err := a.authServer.UpdateUserWithContext(ctx, user)
+	updated, err := a.authServer.UpdateUser(ctx, user)
 	return updated, trace.Wrap(err)
 }
 

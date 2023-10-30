@@ -1164,6 +1164,7 @@ func (userExecutor) getReader(cache *Cache, cacheOK bool) userGetter {
 type userGetter interface {
 	GetUser(ctx context.Context, user string, withSecrets bool) (types.User, error)
 	GetUsers(ctx context.Context, withSecrets bool) ([]types.User, error)
+	ListUsers(ctx context.Context, pageSize int, nextToken string, withSecrets bool) ([]types.User, string, error)
 }
 
 var _ executor[types.User, userGetter] = userExecutor{}

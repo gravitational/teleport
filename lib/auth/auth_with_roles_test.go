@@ -4598,6 +4598,14 @@ func TestListUnifiedResources_WithPredicate(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, resp.Resources, 1)
 	require.Empty(t, resp.NextKey)
+
+	// fail with bad predicate expression
+	_, err = clt.ListUnifiedResources(ctx, &proto.ListUnifiedResourcesRequest{
+		PredicateExpression: `labels.name == "tifa`,
+		Limit:               10,
+		SortBy:              types.SortBy{IsDesc: true, Field: types.ResourceMetadataName},
+	})
+	require.Error(t, err)
 }
 
 // go test ./lib/auth -bench=BenchmarkListUnifiedResources -run=^$ -v -benchtime 1x
