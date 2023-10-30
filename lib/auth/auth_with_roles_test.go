@@ -39,7 +39,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/slices"
-	"google.golang.org/grpc/metadata"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api"
@@ -47,14 +46,12 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	userpreferencesv1 "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
-	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/installers"
 	wanpb "github.com/gravitational/teleport/api/types/webauthn"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
@@ -7022,168 +7019,5 @@ func inlineEventually(t *testing.T, cond func() bool, waitFor time.Duration, tic
 				return
 			}
 		}
-	}
-}
-
-// TestAuthorizeAdminAction tests authorizeAdminAction.
-func TestAuthorizeAdminAction(t *testing.T) {
-	ctx := context.Background()
-	srv := newTestTLSServer(t)
-	srv.AuthServer.AuthServer.ServerID = uuid.NewString()
-
-	localUser := configureForMFA(t, srv)
-	adminRole := authz.BuiltinRole{
-		Role:     types.RoleAdmin,
-		Username: HostFQDN(srv.AuthServer.AuthServer.ServerID, srv.ClusterName()),
-	}
-	bot, err := srv.Auth().createBot(ctx, &proto.CreateBotRequest{
-		Name:  "robot",
-		Roles: []string{services.RoleNameForUser(localUser.User)},
-	})
-	require.NoError(t, err)
-
-	for _, tc := range []struct {
-		name           string
-		getAuthContext func(t *testing.T) authz.Context
-		getMFAResponse func(t *testing.T, swr *ServerWithRoles) *proto.MFAAuthenticateResponse
-		assertErr      require.ErrorAssertionFunc
-	}{
-		{
-			name: "NOK local user no mfa",
-			getAuthContext: func(t *testing.T) authz.Context {
-				localUser := authz.LocalUser{Username: localUser.User, Identity: tlsca.Identity{
-					Username: localUser.User,
-				}}
-				authContext, err := authz.ContextForLocalUser(ctx, localUser, srv.Auth(), srv.ClusterName(), true /* disableDeviceAuthz */)
-				require.NoError(t, err)
-				return *authContext
-			},
-			assertErr: func(tt require.TestingT, err error, i ...interface{}) {
-				require.ErrorIs(t, err, &mfa.ErrAdminActionMFARequired)
-			},
-		}, {
-			name: "NOK local user with mfa verified cert",
-			getAuthContext: func(t *testing.T) authz.Context {
-				localUser := authz.LocalUser{Username: localUser.User, Identity: tlsca.Identity{
-					Username:    localUser.User,
-					MFAVerified: localUser.WebDev.MFA.Id,
-				}}
-				authContext, err := authz.ContextForLocalUser(ctx, localUser, srv.Auth(), srv.ClusterName(), true /* disableDeviceAuthz */)
-				require.NoError(t, err)
-				return *authContext
-			},
-			assertErr: func(tt require.TestingT, err error, i ...interface{}) {
-				require.ErrorIs(t, err, &mfa.ErrAdminActionMFARequired)
-			},
-		}, {
-			name: "OK local user with context mfa",
-			getAuthContext: func(t *testing.T) authz.Context {
-				localUser := authz.LocalUser{Username: localUser.User, Identity: tlsca.Identity{
-					Username: localUser.User,
-				}}
-				authContext, err := authz.ContextForLocalUser(ctx, localUser, srv.Auth(), srv.ClusterName(), true /* disableDeviceAuthz */)
-				require.NoError(t, err)
-				return *authContext
-			},
-			getMFAResponse: func(t *testing.T, swr *ServerWithRoles) *proto.MFAAuthenticateResponse {
-				mfaChal, err := swr.authServer.mfaAuthChallenge(ctx, localUser.User, false)
-				require.NoError(t, err)
-				mfaResp, err := localUser.WebDev.SolveAuthn(mfaChal)
-				require.NoError(t, err)
-				return mfaResp
-			},
-			assertErr: require.NoError,
-		}, {
-			name: "OK local user with mfa verified private key policy",
-			getAuthContext: func(t *testing.T) authz.Context {
-				localUser := authz.LocalUser{Username: localUser.User, Identity: tlsca.Identity{
-					Username:         localUser.User,
-					PrivateKeyPolicy: keys.PrivateKeyPolicyHardwareKeyTouch,
-				}}
-				authContext, err := authz.ContextForLocalUser(ctx, localUser, srv.Auth(), srv.ClusterName(), true /* disableDeviceAuthz */)
-				require.NoError(t, err)
-				return *authContext
-			},
-			assertErr: require.NoError,
-		}, {
-			name: "OK admin",
-			getAuthContext: func(t *testing.T) authz.Context {
-				authContext, err := authz.ContextForBuiltinRole(adminRole, types.DefaultSessionRecordingConfig())
-				require.NoError(t, err)
-				return *authContext
-			},
-			assertErr: require.NoError,
-		}, {
-			name: "OK bot",
-			getAuthContext: func(t *testing.T) authz.Context {
-				botUser := authz.LocalUser{Username: bot.UserName, Identity: tlsca.Identity{Username: bot.UserName}}
-				authContext, err := authz.ContextForLocalUser(ctx, botUser, srv.Auth(), srv.ClusterName(), true /* disableDeviceAuthz */)
-				require.NoError(t, err)
-				return *authContext
-			},
-			assertErr: require.NoError,
-		}, {
-			name: "OK admin impersonating local user",
-			getAuthContext: func(t *testing.T) authz.Context {
-				localUser := authz.LocalUser{Username: localUser.User, Identity: tlsca.Identity{
-					Username:     localUser.User,
-					Impersonator: adminRole.Username,
-				}}
-				authContext, err := authz.ContextForLocalUser(ctx, localUser, srv.Auth(), srv.ClusterName(), true /* disableDeviceAuthz */)
-				require.NoError(t, err)
-				return *authContext
-			},
-			assertErr: require.NoError,
-		}, {
-			name: "OK bot impersonating local user",
-			getAuthContext: func(t *testing.T) authz.Context {
-				localUser := authz.LocalUser{Username: localUser.User, Identity: tlsca.Identity{
-					Username:     localUser.User,
-					Impersonator: bot.UserName,
-				}}
-				authContext, err := authz.ContextForLocalUser(ctx, localUser, srv.Auth(), srv.ClusterName(), true /* disableDeviceAuthz */)
-				require.NoError(t, err)
-				return *authContext
-			},
-			assertErr: require.NoError,
-		}, {
-			name: "NOK local user with admin role name",
-			getAuthContext: func(t *testing.T) authz.Context {
-				// Create a user with the same name as the admin role.
-				user, _, err := CreateUserAndRole(srv.Auth(), adminRole.Username, []string{"role"}, nil)
-				require.NoError(t, err)
-
-				localUser := authz.LocalUser{Username: user.GetName(), Identity: tlsca.Identity{
-					Username: adminRole.Username,
-				}}
-				authContext, err := authz.ContextForLocalUser(ctx, localUser, srv.Auth(), srv.ClusterName(), true /* disableDeviceAuthz */)
-				require.NoError(t, err)
-				return *authContext
-			},
-			assertErr: func(tt require.TestingT, err error, i ...interface{}) {
-				require.ErrorIs(t, err, &mfa.ErrAdminActionMFARequired)
-			},
-		},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			ctx := ctx
-			swr := &ServerWithRoles{
-				authServer: srv.Auth(),
-				alog:       srv.AuthServer.AuditLog,
-				context:    tc.getAuthContext(t),
-			}
-
-			if tc.getMFAResponse != nil {
-				// Attach mfa response to the context the way a grpc call would.
-				mfaResp := tc.getMFAResponse(t, swr)
-				encodedMFAResp, err := mfa.EncodeMFAChallengeResponseCredentials(mfaResp)
-				require.NoError(t, err)
-				md := metadata.MD{}
-				md.Append(mfa.MFAResponseToken, encodedMFAResp)
-				ctx = metadata.NewIncomingContext(ctx, md)
-			}
-
-			tc.assertErr(t, swr.authorizeAdminAction(ctx))
-		})
 	}
 }

@@ -491,6 +491,13 @@ func (c *Client) DiscoveryConfigClient() services.DiscoveryConfigs {
 	return c.APIClient.DiscoveryConfigClient()
 }
 
+// ValidateMFAAuthResponse validates an MFA or passwordless challenge.
+// Returns the device used to solve the challenge (if applicable) and the
+// username.
+func (c *Client) ValidateMFAAuthResponse(ctx context.Context, resp *proto.MFAAuthenticateResponse, user string, passwordless bool) (*types.MFADevice, string, error) {
+	return nil, "", trace.NotImplemented(notImplementedMessage)
+}
+
 // WebService implements features used by Web UI clients
 type WebService interface {
 	// GetWebSessionInfo checks if a web session is valid, returns session id in case if
@@ -955,4 +962,8 @@ type ClientI interface {
 	// which is what we want when handling things like ambiguous host errors and resource-based access requests,
 	// but may result in confusing behavior if it is used outside of those contexts.
 	GetSSHTargets(ctx context.Context, req *proto.GetSSHTargetsRequest) (*proto.GetSSHTargetsResponse, error)
+
+	// ValidateMFAAuthResponse validates an MFA or passwordless challenge.
+	// Returns the device used to solve the challenge (if applicable) and the username.
+	ValidateMFAAuthResponse(ctx context.Context, resp *proto.MFAAuthenticateResponse, user string, passwordless bool) (*types.MFADevice, string, error)
 }
