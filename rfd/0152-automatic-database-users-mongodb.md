@@ -98,8 +98,7 @@ The admin user must be created on `$external` database with X.509 authentication
 ```
 
 As the implementation of other databases, the name of admin user is
-defined in the database spec `admin_user.name`, and the admin user will
-authenticate using X.509 for self-hosted databases.
+defined in the database spec `admin_user.name`.
 
 However, there is NO concept of "Stored Procedures" in MongoDB. The user
 provisioning logic will be carried through multiple `runCommand` calls
@@ -142,9 +141,17 @@ spec:
     - "myCustomRole@db3"
 ```
 
-Note that in the above example, even though the user is assigned role
+Teleport assigns the roles specified in `db_roles` to the auto-provisioned user
+and the MongoDB cluster restricts in-database access based on the assigned
+roles. On top of that, Teleport enforces that the user can only access
+databases listed in `db_names`.
+
+For example, in the above sample role, even though the user is assigned role
 `readAnyDatabase@admin`, Teleport will block access to databases not in the
 `db_names`.
+
+Of course, the user has the option to use `*` for `db_names` to soly rely on
+MongoDB's role management to restrict access.
 
 ### User accounts
 
@@ -228,13 +235,13 @@ The admin user requires the following privileges:
 }
 ```
 
-Note that with `grantRole` on all databases, the admin user can technically
-grant itself any admin roles.
+Note that there are implications of allowing `grantRole` on all databases: the
+admin user can technically assign any privileges to itself.
 
 We should document this fact in our official documentation guide, and encourage
-users to limit the `grantRole` to specific databases. For example, if only
-roles on `db1` and `db2` will be assigned to auto-provisioned users, the
-privileges can be limited to:
+users to limit the `grantRole` to specific databases, when possible. For
+example, if only roles on `db1` and `db2` will be assigned to auto-provisioned
+users, the privileges can be limited to:
 ```
 {
   "privileges": [
@@ -247,6 +254,10 @@ privileges can be limited to:
 }
 ```
 
+The admin user still requires `revokeRoles` on all databases in order to remove
+roles during the `updateUser` call (see
+[required-access](https://www.mongodb.com/docs/manual/reference/method/db.updateUser/#required-access)).
+
 ### Locking database user when deactivated
 
 Auth restrictions `clientSource: ["0.0.0.0"]` is used to lock an user account
@@ -254,13 +265,36 @@ when deactivated.
 
 ## Performance
 
+### Concurrent connections
+
 As stated in [Issue
 #10950](https://github.com/gravitational/teleport/issues/10950), MongoDB
 clients usually spawn multiple connections to the server resulting multiple
 parallel database sessions on the Database Service. The number of connections
 can be limited using a smaller `maxPoolSize` (default 100) in the connection
 string, but Teleport does not have full control on this as it's specified from
-the MongoDB clients (e.g GUI clients via `tsh proxy kube`).
+the MongoDB clients (e.g GUI clients via `tsh proxy kube`). And even when the
+`maxPoolSize` is set to 1, it's observed that `mongosh` will still keep three
+connections open at the same time.
 
 To speed things up, the admin user connection will be kept open and reused for
 up to a minute, per MongoDB database per Admin user per Database Service.
+
+### Minimizing number of `runCommand` calls
+
+Since there is no stored procedures, the Database Service has to make multiple
+`runCommand` calls to setup the database session.
+
+To minimize number of roundtrips:
+- `teleport-auto-user` is set as `customData` of an user. This avoids the
+  attempt to create the `teleport-auto-user` role at the beginning of each
+  session.
+- Use a single `getUser` command to check:
+    1. Whether the database user exists.
+    1. Whether the database user is managed by Teleport.
+    1. What roles currently assigned to the database user.
+- Use a single `updateUser` command to update both `roles` and
+  `authRestrictions`. The downside using `updateUser` to update roles is the
+  admin user must have `revokeRole` privilege on all databases, whereas
+  `revokeRolesFromUser` only requires `revokeRole` privilege on those specific
+  databases.
