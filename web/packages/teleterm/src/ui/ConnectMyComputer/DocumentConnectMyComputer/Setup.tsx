@@ -152,24 +152,55 @@ function Information(props: {
 }
 
 function AccessError(props: { access: ConnectMyComputerAccessNoAccess }) {
+  const $documentation = (
+    <>
+      See{' '}
+      <a
+        href="https://goteleport.com/docs/connect-your-client/teleport-connect/#prerequisites"
+        target="_blank"
+      >
+        the documentation
+      </a>{' '}
+      for more details.
+    </>
+  );
+
   switch (props.access.reason) {
     case 'unsupported-platform': {
       return (
         <Alert mb={0}>
-          Connect My Computer is not supported on your operating system.
+          <Text>
+            Connect My Computer is not supported on your operating system.
+            <br />
+            {$documentation}
+          </Text>
         </Alert>
       );
     }
     case 'insufficient-permissions': {
       return (
         <Alert mb={0}>
-          You have insufficient permissions to use Connect My Computer.
+          <Text>
+            You have insufficient permissions to use Connect My Computer. Reach
+            out to your Teleport administrator to request{' '}
+            <a
+              href="https://goteleport.com/docs/connect-your-client/teleport-connect/#prerequisites"
+              target="_blank"
+            >
+              additional permissions
+            </a>
+            .
+          </Text>
         </Alert>
       );
     }
     case 'sso-user': {
       return (
-        <Alert mb={0}>Connect My Computer does not work with SSO users.</Alert>
+        <Alert mb={0}>
+          <Text>
+            Connect My Computer does not work with SSO users. {$documentation}
+          </Text>
+        </Alert>
       );
     }
     default: {
