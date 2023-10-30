@@ -1451,7 +1451,7 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 			stdoutAssertion: require.Empty,
 			stderrAssertion: func(t require.TestingT, v any, i ...any) {
 				out, ok := v.(string)
-				require.True(t, ok, i...) ./tool/tsh/common/tsh_test.go
+				require.True(t, ok, i...)
 				require.Contains(t, out, fmt.Sprintf("access denied connecting to %v as %v", sshHostID, user.Username), i...)
 			},
 			errAssertion: require.Error,
