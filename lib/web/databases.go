@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"fmt"
+	"net"
 	"net/http"
 
 	"github.com/gravitational/trace"
@@ -294,13 +295,13 @@ func (h *Handler) handleDatabaseGetIAMPolicy(w http.ResponseWriter, r *http.Requ
 
 func (h *Handler) sqlServerConfigureADScriptHandle(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	tokenStr := p.ByName("token")
-	if tokenStr == "" {
-		return "", trace.BadParameter("invalid token")
+	if err := validateJoinToken(tokenStr); err != nil {
+		return "", trace.Wrap(err)
 	}
 
 	dbAddress := r.URL.Query().Get("uri")
-	if dbAddress == "" {
-		return "", trace.BadParameter("invalid database address")
+	if _, _, err := net.SplitHostPort(dbAddress); err != nil {
+		return "", trace.BadParameter("invalid database address: %v", err)
 	}
 
 	// verify that the token exists

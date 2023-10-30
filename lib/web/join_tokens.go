@@ -302,14 +302,9 @@ func (h *Handler) getDatabaseJoinScriptHandle(w http.ResponseWriter, r *http.Req
 func getJoinScript(ctx context.Context, settings scriptSettings, m nodeAPIGetter) (string, error) {
 	switch types.JoinMethod(settings.joinMethod) {
 	case types.JoinMethodUnspecified, types.JoinMethodToken:
-		decodedToken, err := hex.DecodeString(settings.token)
-		if err != nil {
+		if err := validateJoinToken(settings.token); err != nil {
 			return "", trace.Wrap(err)
 		}
-		if len(decodedToken) != auth.TokenLenBytes {
-			return "", trace.BadParameter("invalid token %q", decodedToken)
-		}
-
 	case types.JoinMethodIAM:
 	default:
 		return "", trace.BadParameter("join method %q is not supported via script", settings.joinMethod)
@@ -434,6 +429,19 @@ func getJoinScript(ctx context.Context, settings scriptSettings, m nodeAPIGetter
 	}
 
 	return buf.String(), nil
+}
+
+// validateJoinToken validate a join token.
+func validateJoinToken(token string) error {
+	decodedToken, err := hex.DecodeString(token)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if len(decodedToken) != auth.TokenLenBytes {
+		return trace.BadParameter("invalid token %q", decodedToken)
+	}
+
+	return nil
 }
 
 // generateIAMTokenName makes a deterministic name for a iam join token

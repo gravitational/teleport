@@ -414,7 +414,7 @@ func TestHandleSQLServerConfigureScript(t *testing.T) {
 	}{
 		{
 			desc: "valid token and uri",
-			uri:  "instance.example.teleport.dev",
+			uri:  "instance.example.teleport.dev:1433",
 			tokenFunc: func(t *testing.T) string {
 				pt, token := generateProvisionToken(t, types.RoleDatabase, env.clock.Now().Add(time.Hour))
 				require.NoError(t, env.server.Auth().CreateToken(ctx, pt))
@@ -423,7 +423,7 @@ func TestHandleSQLServerConfigureScript(t *testing.T) {
 			assertError: require.NoError,
 		},
 		{
-			desc: "valid token and invalid uri",
+			desc: "valid token and empty uri",
 			uri:  "",
 			tokenFunc: func(t *testing.T) string {
 				pt, token := generateProvisionToken(t, types.RoleDatabase, env.clock.Now().Add(time.Hour))
@@ -433,8 +433,18 @@ func TestHandleSQLServerConfigureScript(t *testing.T) {
 			assertError: require.Error,
 		},
 		{
+			desc: "valid token and invalid uri",
+			uri:  "hello#hello",
+			tokenFunc: func(t *testing.T) string {
+				pt, token := generateProvisionToken(t, types.RoleDatabase, env.clock.Now().Add(time.Hour))
+				require.NoError(t, env.server.Auth().CreateToken(ctx, pt))
+				return token
+			},
+			assertError: require.Error,
+		},
+		{
 			desc:        "invalid token",
-			uri:         "instance.example.teleport.dev",
+			uri:         "instance.example.teleport.dev:1433",
 			tokenFunc:   func(_ *testing.T) string { return "random-token" },
 			assertError: require.Error,
 		},
