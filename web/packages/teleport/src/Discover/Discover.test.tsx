@@ -83,9 +83,11 @@ const create = ({ initialEntry = '', preferredResource }: createProps) => {
 test('displays all resources by default', () => {
   create({});
 
-  expect(screen.getAllByTestId(ResourceKind.Server)).toHaveLength(
-    SERVERS.length
-  );
+  expect(
+    screen
+      .getAllByTestId(ResourceKind.Server)
+      .concat(screen.getAllByTestId(ResourceKind.ConnectMyComputer))
+  ).toHaveLength(SERVERS.length);
   expect(screen.getAllByTestId(ResourceKind.Desktop)).toHaveLength(
     WINDOWS_DESKTOPS.length
   );
@@ -122,9 +124,11 @@ describe('location state', () => {
   test('displays servers when the location state is server', () => {
     create({ initialEntry: 'server' });
 
-    expect(screen.getAllByTestId(ResourceKind.Server)).toHaveLength(
-      SERVERS.length
-    );
+    expect(
+      screen
+        .getAllByTestId(ResourceKind.Server)
+        .concat(screen.getAllByTestId(ResourceKind.ConnectMyComputer))
+    ).toHaveLength(SERVERS.length);
 
     // we assert three databases for servers because the naming convention includes "server"
     expect(screen.queryAllByTestId(ResourceKind.Database)).toHaveLength(3);

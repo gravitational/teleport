@@ -514,6 +514,41 @@ exports[`render with URL loc state set to "server" 1`] = `
         </div>
       </div>
     </div>
+    <div
+      class="c11"
+      data-testid="7"
+    >
+      <div
+        class="c12"
+      >
+        Guided
+      </div>
+      <div
+        class="c13"
+      >
+        <div
+          class="c14"
+          width="24px"
+        >
+          <img
+            class="c15"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c16"
+        >
+          
+          <div
+            class="c18"
+          >
+            Connect My Computer
+          </div>
+        </div>
+      </div>
+    </div>
     <a
       class="c19 c11"
       data-testid="1"
@@ -1093,6 +1128,41 @@ exports[`render with all access 1`] = `
             class="c14"
           >
             Aurora PostgreSQL
+          </div>
+        </div>
+      </div>
+    </div>
+    <div
+      class="c7"
+      data-testid="7"
+    >
+      <div
+        class="c8"
+      >
+        Guided
+      </div>
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c11"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          
+          <div
+            class="c14"
+          >
+            Connect My Computer
           </div>
         </div>
       </div>
@@ -3047,6 +3117,42 @@ exports[`render with no access 1`] = `
     </a>
     <div
       class="c7"
+      data-testid="7"
+    >
+      <div
+        class="c8"
+        data-testid="tooltip"
+      >
+        Lacking Permissions
+      </div>
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c11"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          
+          <div
+            class="c14"
+          >
+            Connect My Computer
+          </div>
+        </div>
+      </div>
+    </div>
+    <div
+      class="c7"
       data-testid="4"
     >
       <div
@@ -4679,6 +4785,41 @@ exports[`render with partial access 1`] = `
             class="c14"
           >
             Application
+          </div>
+        </div>
+      </div>
+    </div>
+    <div
+      class="c7"
+      data-testid="7"
+    >
+      <div
+        class="c8"
+      >
+        Guided
+      </div>
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c11"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          
+          <div
+            class="c14"
+          >
+            Connect My Computer
           </div>
         </div>
       </div>
