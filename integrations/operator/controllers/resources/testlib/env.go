@@ -45,6 +45,7 @@ import (
 	resourcesv3 "github.com/gravitational/teleport/integrations/operator/apis/resources/v3"
 	resourcesv5 "github.com/gravitational/teleport/integrations/operator/apis/resources/v5"
 	"github.com/gravitational/teleport/integrations/operator/controllers/resources"
+	"github.com/gravitational/teleport/integrations/operator/sidecar"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 )
@@ -173,8 +174,8 @@ func (s *TestSetup) StartKubernetesOperator(t *testing.T) {
 	}
 
 	// We have to create a new Manager on each start because the Manager does not support to be restarted
-	clientAccessor := func(ctx context.Context) (*client.Client, error) {
-		return s.TeleportClient, nil
+	clientAccessor := func(ctx context.Context) (*sidecar.SyncClient, error) {
+		return sidecar.NewSyncClient(s.TeleportClient), nil
 	}
 
 	k8sManager, err := ctrl.NewManager(s.K8sRestConfig, ctrl.Options{

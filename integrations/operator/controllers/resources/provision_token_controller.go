@@ -35,6 +35,8 @@ func (r provisionTokenClient) Get(ctx context.Context, name string) (types.Provi
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	teleportClient.RLock()
+	defer teleportClient.RUnlock()
 
 	token, err := teleportClient.GetToken(ctx, name)
 	return token, trace.Wrap(err)
@@ -46,6 +48,8 @@ func (r provisionTokenClient) Create(ctx context.Context, token types.ProvisionT
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	teleportClient.RLock()
+	defer teleportClient.RUnlock()
 
 	return trace.Wrap(teleportClient.UpsertToken(ctx, token))
 }
@@ -56,6 +60,8 @@ func (r provisionTokenClient) Update(ctx context.Context, token types.ProvisionT
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	teleportClient.RLock()
+	defer teleportClient.RUnlock()
 
 	return trace.Wrap(teleportClient.UpsertToken(ctx, token))
 }
@@ -66,6 +72,8 @@ func (r provisionTokenClient) Delete(ctx context.Context, name string) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	teleportClient.RLock()
+	defer teleportClient.RUnlock()
 
 	return trace.Wrap(teleportClient.DeleteToken(ctx, name))
 }

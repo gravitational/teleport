@@ -38,6 +38,8 @@ func (r oidcConnectorClient) Get(ctx context.Context, name string) (types.OIDCCo
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	teleportClient.RLock()
+	defer teleportClient.RUnlock()
 
 	oidc, err := teleportClient.GetOIDCConnector(ctx, name, false /* with secrets*/)
 	return oidc, trace.Wrap(err)
@@ -49,6 +51,8 @@ func (r oidcConnectorClient) Create(ctx context.Context, oidc types.OIDCConnecto
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	teleportClient.RLock()
+	defer teleportClient.RUnlock()
 
 	return trace.Wrap(teleportClient.UpsertOIDCConnector(ctx, oidc))
 }
@@ -59,6 +63,8 @@ func (r oidcConnectorClient) Update(ctx context.Context, oidc types.OIDCConnecto
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	teleportClient.RLock()
+	defer teleportClient.RUnlock()
 
 	return trace.Wrap(teleportClient.UpsertOIDCConnector(ctx, oidc))
 }
@@ -69,6 +75,8 @@ func (r oidcConnectorClient) Delete(ctx context.Context, name string) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	teleportClient.RLock()
+	defer teleportClient.RUnlock()
 
 	return trace.Wrap(teleportClient.DeleteOIDCConnector(ctx, name))
 }

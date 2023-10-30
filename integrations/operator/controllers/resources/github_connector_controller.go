@@ -38,6 +38,8 @@ func (r githubConnectorClient) Get(ctx context.Context, name string) (types.Gith
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	teleportClient.RLock()
+	defer teleportClient.RUnlock()
 
 	github, err := teleportClient.GetGithubConnector(ctx, name, false /* with secrets*/)
 	return github, trace.Wrap(err)
@@ -49,6 +51,8 @@ func (r githubConnectorClient) Create(ctx context.Context, github types.GithubCo
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	teleportClient.RLock()
+	defer teleportClient.RUnlock()
 
 	return trace.Wrap(teleportClient.UpsertGithubConnector(ctx, github))
 }
@@ -59,6 +63,8 @@ func (r githubConnectorClient) Update(ctx context.Context, github types.GithubCo
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	teleportClient.RLock()
+	defer teleportClient.RUnlock()
 
 	return trace.Wrap(teleportClient.UpsertGithubConnector(ctx, github))
 }
@@ -69,6 +75,8 @@ func (r githubConnectorClient) Delete(ctx context.Context, name string) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	teleportClient.RLock()
+	defer teleportClient.RUnlock()
 
 	return trace.Wrap(teleportClient.DeleteGithubConnector(ctx, name))
 }
