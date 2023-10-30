@@ -14,29 +14,66 @@
  * limitations under the License.
  */
 
-import { DeepLinkParseResult, parseDeepLink } from './deepLinks';
-import { routing } from './ui/uri';
-
-beforeEach(() => {
-  jest.restoreAllMocks();
-});
+import { DeepLinkParseResult, DeepURL, parseDeepLink } from './deepLinks';
 
 describe('parseDeepLink', () => {
   describe('valid input', () => {
-    const tests: Array<string> = [
-      'teleport:///clusters/foo/connect_my_computer',
-      'teleport:///clusters/test.example.com/connect_my_computer?username=alice@example.com',
+    const tests: Array<{
+      input: string;
+      expectedURL: DeepURL;
+    }> = [
+      {
+        input: 'teleport://cluster.example.com/connect_my_computer',
+        expectedURL: {
+          host: 'cluster.example.com',
+          hostname: 'cluster.example.com',
+          port: '',
+          pathname: '/connect_my_computer',
+          username: '',
+        },
+      },
+      {
+        input: 'teleport://alice@cluster.example.com/connect_my_computer',
+        expectedURL: {
+          host: 'cluster.example.com',
+          hostname: 'cluster.example.com',
+          port: '',
+          pathname: '/connect_my_computer',
+          username: 'alice',
+        },
+      },
+      {
+        input:
+          'teleport://alice.bobson%40example.com@cluster.example.com:1337/connect_my_computer',
+        expectedURL: {
+          host: 'cluster.example.com:1337',
+          hostname: 'cluster.example.com',
+          port: '1337',
+          pathname: '/connect_my_computer',
+          username: 'alice.bobson@example.com',
+        },
+      },
+      // The example below is a bit contrived, usernames in URL should be percent-encoded. However,
+      // Firefox and Safari will let you launch a link without percent-encoded username anyway, so
+      // we just want to make sure that we correctly handle such cases.
+      {
+        input:
+          'teleport://alice.bobson@example.com@cluster.example.com/connect_my_computer',
+        expectedURL: {
+          host: 'cluster.example.com',
+          hostname: 'cluster.example.com',
+          port: '',
+          pathname: '/connect_my_computer',
+          username: 'alice.bobson@example.com',
+        },
+      },
     ];
 
-    test.each(tests)('%s', input => {
-      jest.spyOn(routing, 'parseDeepLinkUri');
-      const uri = input.replace('teleport://', '');
-
+    test.each(tests)('$input', ({ input, expectedURL }) => {
       const result = parseDeepLink(input);
 
       expect(result.status).toBe('success');
-      expect(result.status === 'success' && result.parsedUri).not.toBeFalsy();
-      expect(routing.parseDeepLinkUri).toHaveBeenCalledWith(uri);
+      expect(result.status === 'success' && result.url).toEqual(expectedURL);
     });
   });
 
@@ -52,6 +89,13 @@ describe('parseDeepLink', () => {
       },
       {
         input: 'teleport:///clusters/foo',
+        output: {
+          status: 'error',
+          reason: 'unsupported-uri',
+        },
+      },
+      {
+        input: 'teleport://cluster.example.com/foo',
         output: {
           status: 'error',
           reason: 'unsupported-uri',
@@ -75,8 +119,6 @@ describe('parseDeepLink', () => {
     ];
 
     test.each(tests)('$input', ({ input, output }) => {
-      jest.spyOn(routing, 'parseDeepLinkUri').mockImplementation(() => null);
-
       const result = parseDeepLink(input);
       expect(result).toEqual(output);
     });
