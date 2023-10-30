@@ -36,18 +36,18 @@ import (
 )
 
 // CreateUser inserts a new user entry in a backend.
-func (s *Server) CreateUser(ctx context.Context, user types.User) error {
+func (a *Server) CreateUser(ctx context.Context, user types.User) error {
 	if user.GetCreatedBy().IsEmpty() {
 		user.SetCreatedBy(types.CreatedBy{
 			User: types.UserRef{Name: authz.ClientUsername(ctx)},
-			Time: s.GetClock().Now().UTC(),
+			Time: a.GetClock().Now().UTC(),
 		})
 	}
 
 	// TODO: ctx is being swallowed here because the current implementation of
 	// s.Uncached.CreateUser is an older implementation that does not curently
 	// accept a context.
-	if err := s.Services.CreateUser(user); err != nil {
+	if err := a.Services.CreateUser(user); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -58,7 +58,7 @@ func (s *Server) CreateUser(ctx context.Context, user types.User) error {
 		connectorName = user.GetCreatedBy().Connector.ID
 	}
 
-	if err := s.emitter.EmitAuditEvent(ctx, &apievents.UserCreate{
+	if err := a.emitter.EmitAuditEvent(ctx, &apievents.UserCreate{
 		Metadata: apievents.Metadata{
 			Type: events.UserCreateEvent,
 			Code: events.UserCreateCode,
@@ -78,8 +78,8 @@ func (s *Server) CreateUser(ctx context.Context, user types.User) error {
 }
 
 // UpdateUser updates an existing user in a backend.
-func (s *Server) UpdateUser(ctx context.Context, user types.User) error {
-	if err := s.Services.UpdateUser(ctx, user); err != nil {
+func (a *Server) UpdateUser(ctx context.Context, user types.User) error {
+	if err := a.Services.UpdateUser(ctx, user); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -90,7 +90,7 @@ func (s *Server) UpdateUser(ctx context.Context, user types.User) error {
 		connectorName = user.GetCreatedBy().Connector.ID
 	}
 
-	if err := s.emitter.EmitAuditEvent(ctx, &apievents.UserCreate{
+	if err := a.emitter.EmitAuditEvent(ctx, &apievents.UserCreate{
 		Metadata: apievents.Metadata{
 			Type: events.UserUpdatedEvent,
 			Code: events.UserUpdateCode,
@@ -110,8 +110,8 @@ func (s *Server) UpdateUser(ctx context.Context, user types.User) error {
 }
 
 // UpsertUser updates a user.
-func (s *Server) UpsertUser(user types.User) error {
-	err := s.Services.UpsertUser(user)
+func (a *Server) UpsertUser(user types.User) error {
+	err := a.Services.UpsertUser(user)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -123,7 +123,7 @@ func (s *Server) UpsertUser(user types.User) error {
 		connectorName = user.GetCreatedBy().Connector.ID
 	}
 
-	if err := s.emitter.EmitAuditEvent(s.closeCtx, &apievents.UserCreate{
+	if err := a.emitter.EmitAuditEvent(a.closeCtx, &apievents.UserCreate{
 		Metadata: apievents.Metadata{
 			Type: events.UserCreateEvent,
 			Code: events.UserCreateCode,
@@ -146,8 +146,8 @@ func (s *Server) UpsertUser(user types.User) error {
 
 // CompareAndSwapUser updates a user but fails if the value on the backend does
 // not match the expected value.
-func (s *Server) CompareAndSwapUser(ctx context.Context, new, existing types.User) error {
-	err := s.Services.CompareAndSwapUser(ctx, new, existing)
+func (a *Server) CompareAndSwapUser(ctx context.Context, new, existing types.User) error {
+	err := a.Services.CompareAndSwapUser(ctx, new, existing)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -159,7 +159,7 @@ func (s *Server) CompareAndSwapUser(ctx context.Context, new, existing types.Use
 		connectorName = new.GetCreatedBy().Connector.ID
 	}
 
-	if err := s.emitter.EmitAuditEvent(ctx, &apievents.UserCreate{
+	if err := a.emitter.EmitAuditEvent(ctx, &apievents.UserCreate{
 		Metadata: apievents.Metadata{
 			Type: events.UserUpdatedEvent,
 			Code: events.UserUpdateCode,
@@ -179,27 +179,27 @@ func (s *Server) CompareAndSwapUser(ctx context.Context, new, existing types.Use
 }
 
 // DeleteUser deletes an existng user in a backend by username.
-func (s *Server) DeleteUser(ctx context.Context, user string) error {
-	role, err := s.Services.GetRole(ctx, services.RoleNameForUser(user))
+func (a *Server) DeleteUser(ctx context.Context, user string) error {
+	role, err := a.Services.GetRole(ctx, services.RoleNameForUser(user))
 	if err != nil {
 		if !trace.IsNotFound(err) {
 			return trace.Wrap(err)
 		}
 	} else {
-		if err := s.DeleteRole(ctx, role.GetName()); err != nil {
+		if err := a.DeleteRole(ctx, role.GetName()); err != nil {
 			if !trace.IsNotFound(err) {
 				return trace.Wrap(err)
 			}
 		}
 	}
 
-	err = s.Services.DeleteUser(ctx, user)
+	err = a.Services.DeleteUser(ctx, user)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	// If the user was successfully deleted, emit an event.
-	if err := s.emitter.EmitAuditEvent(s.closeCtx, &apievents.UserDelete{
+	if err := a.emitter.EmitAuditEvent(a.closeCtx, &apievents.UserDelete{
 		Metadata: apievents.Metadata{
 			Type: events.UserDeleteEvent,
 			Code: events.UserDeleteCode,

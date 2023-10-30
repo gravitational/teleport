@@ -112,10 +112,10 @@ type SessionCreds struct {
 
 // AuthenticateUser authenticates user based on the request type.
 // Returns the username of the authenticated user.
-func (s *Server) AuthenticateUser(ctx context.Context, req AuthenticateUserRequest) (types.User, error) {
+func (a *Server) AuthenticateUser(ctx context.Context, req AuthenticateUserRequest) (types.User, error) {
 	username := req.Username
 
-	mfaDev, actualUsername, err := s.authenticateUser(ctx, req)
+	mfaDev, actualUsername, err := a.authenticateUser(ctx, req)
 	// err is handled below.
 	switch {
 	case username != "" && actualUsername != "" && username != actualUsername:
@@ -158,7 +158,7 @@ func (s *Server) AuthenticateUser(ctx context.Context, req AuthenticateUserReque
 		event.Status.Success = true
 
 		var err error
-		user, err = s.GetUser(username, false /* withSecrets */)
+		user, err = a.GetUser(username, false /* withSecrets */)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -166,11 +166,11 @@ func (s *Server) AuthenticateUser(ctx context.Context, req AuthenticateUserReque
 		// After we're sure that the user has been logged in successfully, we should call
 		// the registered login hooks. Login hooks can be registered by other processes to
 		// execute arbitrary operations after a successful login.
-		if err := s.CallLoginHooks(ctx, user); err != nil {
+		if err := a.CallLoginHooks(ctx, user); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
-	if err := s.emitter.EmitAuditEvent(s.closeCtx, event); err != nil {
+	if err := a.emitter.EmitAuditEvent(a.closeCtx, event); err != nil {
 		log.WithError(err).Warn("Failed to emit login event.")
 	}
 	return user, trace.Wrap(err)
@@ -200,7 +200,7 @@ func IsInvalidLocalCredentialError(err error) bool {
 // authenticateUser authenticates a user through various methods (password, MFA,
 // passwordless)
 // Returns the device used to authenticate (if applicable) and the username.
-func (s *Server) authenticateUser(ctx context.Context, req AuthenticateUserRequest) (*types.MFADevice, string, error) {
+func (a *Server) authenticateUser(ctx context.Context, req AuthenticateUserRequest) (*types.MFADevice, string, error) {
 	if err := req.CheckAndSetDefaults(); err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -209,7 +209,7 @@ func (s *Server) authenticateUser(ctx context.Context, req AuthenticateUserReque
 
 	// Only one path if passwordless, other variants shouldn't see an empty user.
 	if passwordless {
-		return s.authenticatePasswordless(ctx, req)
+		return a.authenticatePasswordless(ctx, req)
 	}
 
 	// Try 2nd-factor-enabled authentication schemes first.
@@ -220,7 +220,7 @@ func (s *Server) authenticateUser(ctx context.Context, req AuthenticateUserReque
 	case req.HeadlessAuthenticationID != "":
 		// handle authentication before the user lock to prevent locking out users
 		// due to timed-out/canceled headless authentication attempts.
-		mfaDevice, err := s.authenticateHeadless(ctx, req)
+		mfaDevice, err := a.authenticateHeadless(ctx, req)
 		if err != nil {
 			log.Debugf("Headless Authentication for user %q failed while waiting for approval: %v", user, err)
 			return nil, "", trace.Wrap(authenticateHeadlessError)
@@ -236,7 +236,7 @@ func (s *Server) authenticateUser(ctx context.Context, req AuthenticateUserReque
 					Webauthn: wantypes.CredentialAssertionResponseToProto(req.Webauthn),
 				},
 			}
-			dev, _, err := s.validateMFAAuthResponse(ctx, mfaResponse, user, passwordless)
+			dev, _, err := a.validateMFAAuthResponse(ctx, mfaResponse, user, passwordless)
 			return dev, trace.Wrap(err)
 		}
 		authErr = authenticateWebauthnError
@@ -244,7 +244,7 @@ func (s *Server) authenticateUser(ctx context.Context, req AuthenticateUserReque
 		authenticateFn = func() (*types.MFADevice, error) {
 			// OTP cannot be validated by validateMFAAuthResponse because we need to
 			// check the user's password too.
-			res, err := s.checkPassword(user, req.OTP.Password, req.OTP.Token)
+			res, err := a.checkPassword(user, req.OTP.Password, req.OTP.Token)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -254,7 +254,7 @@ func (s *Server) authenticateUser(ctx context.Context, req AuthenticateUserReque
 	}
 	if authenticateFn != nil {
 		var dev *types.MFADevice
-		err := s.WithUserLock(user, func() error {
+		err := a.WithUserLock(user, func() error {
 			var err error
 			dev, err = authenticateFn()
 			return err
@@ -282,7 +282,7 @@ func (s *Server) authenticateUser(ctx context.Context, req AuthenticateUserReque
 		return nil, "", trace.AccessDenied("unsupported authentication method")
 	}
 
-	authPreference, err := s.GetAuthPreference(ctx)
+	authPreference, err := a.GetAuthPreference(ctx)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -295,7 +295,7 @@ func (s *Server) authenticateUser(ctx context.Context, req AuthenticateUserReque
 	case constants.SecondFactorOptional:
 		// 2FA is optional. Make sure that a user does not have MFA devices
 		// registered.
-		devs, err := s.Services.GetMFADevices(ctx, user, false /* withSecrets */)
+		devs, err := a.Services.GetMFADevices(ctx, user, false /* withSecrets */)
 		if err != nil && !trace.IsNotFound(err) {
 			return nil, "", trace.Wrap(err)
 		}
@@ -310,8 +310,8 @@ func (s *Server) authenticateUser(ctx context.Context, req AuthenticateUserReque
 		log.Warningf("MFA bypass attempt by user %q, access denied.", user)
 		return nil, "", trace.AccessDenied("missing second factor")
 	}
-	if err = s.WithUserLock(user, func() error {
-		return s.checkPasswordWOToken(user, req.Pass.Password)
+	if err = a.WithUserLock(user, func() error {
+		return a.checkPasswordWOToken(user, req.Pass.Password)
 	}); err != nil {
 		if fieldErr := getErrorByTraceField(err); fieldErr != nil {
 			return nil, "", trace.Wrap(fieldErr)
@@ -324,13 +324,13 @@ func (s *Server) authenticateUser(ctx context.Context, req AuthenticateUserReque
 	return nil, user, nil
 }
 
-func (s *Server) authenticatePasswordless(ctx context.Context, req AuthenticateUserRequest) (*types.MFADevice, string, error) {
+func (a *Server) authenticatePasswordless(ctx context.Context, req AuthenticateUserRequest) (*types.MFADevice, string, error) {
 	mfaResponse := &proto.MFAAuthenticateResponse{
 		Response: &proto.MFAAuthenticateResponse_Webauthn{
 			Webauthn: wantypes.CredentialAssertionResponseToProto(req.Webauthn),
 		},
 	}
-	dev, user, err := s.validateMFAAuthResponse(ctx, mfaResponse, "", true /* passwordless */)
+	dev, user, err := a.validateMFAAuthResponse(ctx, mfaResponse, "", true /* passwordless */)
 	if err != nil {
 		log.Debugf("Passwordless authentication failed: %v", err)
 		return nil, "", trace.Wrap(authenticateWebauthnError)
@@ -339,7 +339,7 @@ func (s *Server) authenticatePasswordless(ctx context.Context, req AuthenticateU
 	// A distinction between passwordless and "plain" MFA is that we can't
 	// acquire the user lock beforehand (or at all on failures!)
 	// We do grab it here so successful logins go through the regular process.
-	if err := s.WithUserLock(user, func() error { return nil }); err != nil {
+	if err := a.WithUserLock(user, func() error { return nil }); err != nil {
 		log.Debugf("WithUserLock for user %q failed during passwordless authentication: %v", user, err)
 		return nil, user, trace.Wrap(authenticateWebauthnError)
 	}
@@ -347,11 +347,11 @@ func (s *Server) authenticatePasswordless(ctx context.Context, req AuthenticateU
 	return dev, user, nil
 }
 
-func (s *Server) authenticateHeadless(ctx context.Context, req AuthenticateUserRequest) (mfa *types.MFADevice, err error) {
+func (a *Server) authenticateHeadless(ctx context.Context, req AuthenticateUserRequest) (mfa *types.MFADevice, err error) {
 	// Delete the headless authentication upon failure.
 	defer func() {
 		if err != nil {
-			if err := s.DeleteHeadlessAuthentication(s.CloseContext(), req.Username, req.HeadlessAuthenticationID); err != nil && !trace.IsNotFound(err) {
+			if err := a.DeleteHeadlessAuthentication(a.CloseContext(), req.Username, req.HeadlessAuthenticationID); err != nil && !trace.IsNotFound(err) {
 				log.Debugf("Failed to delete headless authentication: %v", err)
 			}
 		}
@@ -363,7 +363,7 @@ func (s *Server) authenticateHeadless(ctx context.Context, req AuthenticateUserR
 	defer cancel()
 
 	// Headless Authentication should expire when the callback expires.
-	expires := s.clock.Now().Add(defaults.CallbackTimeout)
+	expires := a.clock.Now().Add(defaults.CallbackTimeout)
 
 	// Create the headless authentication and validate request details.
 	ha, err := types.NewHeadlessAuthentication(req.Username, req.HeadlessAuthenticationID, expires)
@@ -382,16 +382,16 @@ func (s *Server) authenticateHeadless(ctx context.Context, req AuthenticateUserR
 	// attacks on the Auth server's backend, we don't create the headless authentication in the
 	// backend until an authenticated client creates a headless authentication stub. This serves
 	// as indirect authorization to insert the full headless authentication details into the backend.
-	if _, err := s.waitForHeadlessStub(ctx, ha); err != nil {
+	if _, err := a.waitForHeadlessStub(ctx, ha); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := s.UpsertHeadlessAuthentication(ctx, ha); err != nil {
+	if err := a.UpsertHeadlessAuthentication(ctx, ha); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// Wait for the request to be approved/denied.
-	approvedHeadlessAuthn, err := s.waitForHeadlessApproval(ctx, req.Username, req.HeadlessAuthenticationID)
+	approvedHeadlessAuthn, err := a.waitForHeadlessApproval(ctx, req.Username, req.HeadlessAuthenticationID)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -407,8 +407,8 @@ func (s *Server) authenticateHeadless(ctx context.Context, req AuthenticateUserR
 	return approvedHeadlessAuthn.MfaDevice, nil
 }
 
-func (s *Server) waitForHeadlessStub(ctx context.Context, ha *types.HeadlessAuthentication) (*types.HeadlessAuthentication, error) {
-	sub, err := s.headlessAuthenticationWatcher.Subscribe(ctx, ha.User, services.HeadlessAuthenticationUserStubID)
+func (a *Server) waitForHeadlessStub(ctx context.Context, ha *types.HeadlessAuthentication) (*types.HeadlessAuthentication, error) {
+	sub, err := a.headlessAuthenticationWatcher.Subscribe(ctx, ha.User, services.HeadlessAuthenticationUserStubID)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -423,8 +423,8 @@ func (s *Server) waitForHeadlessStub(ctx context.Context, ha *types.HeadlessAuth
 	return stub, nil
 }
 
-func (s *Server) waitForHeadlessApproval(ctx context.Context, username, reqID string) (*types.HeadlessAuthentication, error) {
-	sub, err := s.headlessAuthenticationWatcher.Subscribe(ctx, username, reqID)
+func (a *Server) waitForHeadlessApproval(ctx context.Context, username, reqID string) (*types.HeadlessAuthentication, error) {
+	sub, err := a.headlessAuthenticationWatcher.Subscribe(ctx, username, reqID)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -452,10 +452,10 @@ func (s *Server) waitForHeadlessApproval(ctx context.Context, username, reqID st
 // AuthenticateWebUser authenticates web user, creates and returns a web session
 // if authentication is successful. In case the existing session ID is used to authenticate,
 // returns the existing session instead of creating a new one
-func (s *Server) AuthenticateWebUser(ctx context.Context, req AuthenticateUserRequest) (types.WebSession, error) {
+func (a *Server) AuthenticateWebUser(ctx context.Context, req AuthenticateUserRequest) (types.WebSession, error) {
 	username := req.Username // Empty if passwordless.
 
-	authPref, err := s.GetAuthPreference(ctx)
+	authPref, err := a.GetAuthPreference(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -465,12 +465,12 @@ func (s *Server) AuthenticateWebUser(ctx context.Context, req AuthenticateUserRe
 	// This condition uses Session as a blanket check, because any new method added
 	// to the local auth will be disabled by default.
 	if !authPref.GetAllowLocalAuth() && req.Session == nil {
-		s.emitNoLocalAuthEvent(username)
+		a.emitNoLocalAuthEvent(username)
 		return nil, trace.AccessDenied(noLocalAuth)
 	}
 
 	if req.Session != nil {
-		session, err := s.GetWebSession(context.TODO(), types.GetWebSessionRequest{
+		session, err := a.GetWebSession(context.TODO(), types.GetWebSessionRequest{
 			User:      username,
 			SessionID: req.Session.ID,
 		})
@@ -480,12 +480,12 @@ func (s *Server) AuthenticateWebUser(ctx context.Context, req AuthenticateUserRe
 		return session, nil
 	}
 
-	user, err := s.AuthenticateUser(ctx, req)
+	user, err := a.AuthenticateUser(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	sess, err := s.createUserWebSession(context.TODO(), user)
+	sess, err := a.createUserWebSession(context.TODO(), user)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -581,38 +581,38 @@ func AuthoritiesToTrustedCerts(authorities []types.CertAuthority) []TrustedCerts
 
 // AuthenticateSSHUser authenticates an SSH user and returns SSH and TLS
 // certificates for the public key in req.
-func (s *Server) AuthenticateSSHUser(ctx context.Context, req AuthenticateSSHRequest) (*SSHLoginResponse, error) {
+func (a *Server) AuthenticateSSHUser(ctx context.Context, req AuthenticateSSHRequest) (*SSHLoginResponse, error) {
 	username := req.Username // Empty if passwordless.
 
-	authPref, err := s.GetAuthPreference(ctx)
+	authPref, err := a.GetAuthPreference(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if !authPref.GetAllowLocalAuth() {
-		s.emitNoLocalAuthEvent(username)
+		a.emitNoLocalAuthEvent(username)
 		return nil, trace.AccessDenied(noLocalAuth)
 	}
 
-	clusterName, err := s.GetClusterName()
+	clusterName, err := a.GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// It's safe to extract the roles and traits directly from services.User as
 	// this endpoint is only used for local accounts.
-	user, err := s.AuthenticateUser(ctx, req.AuthenticateUserRequest)
+	user, err := a.AuthenticateUser(ctx, req.AuthenticateUserRequest)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	accessInfo := services.AccessInfoFromUser(user)
-	checker, err := services.NewAccessChecker(accessInfo, clusterName.GetClusterName(), s)
+	checker, err := services.NewAccessChecker(accessInfo, clusterName.GetClusterName(), a)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// Return the host CA for this cluster only.
-	authority, err := s.GetCertAuthority(ctx, types.CertAuthID{
+	authority, err := a.GetCertAuthority(ctx, types.CertAuthID{
 		Type:       types.HostCA,
 		DomainName: clusterName.GetClusterName(),
 	}, false)
@@ -650,7 +650,7 @@ func (s *Server) AuthenticateSSHUser(ctx context.Context, req AuthenticateSSHReq
 
 	// For headless authentication, a short-lived mfa-verified cert should be generated.
 	if req.HeadlessAuthenticationID != "" {
-		ha, err := s.GetHeadlessAuthentication(ctx, req.Username, req.HeadlessAuthenticationID)
+		ha, err := a.GetHeadlessAuthentication(ctx, req.Username, req.HeadlessAuthenticationID)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -661,7 +661,7 @@ func (s *Server) AuthenticateSSHUser(ctx context.Context, req AuthenticateSSHReq
 		certReq.ttl = time.Minute
 	}
 
-	certs, err := s.generateUserCert(certReq)
+	certs, err := a.generateUserCert(certReq)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -675,8 +675,8 @@ func (s *Server) AuthenticateSSHUser(ctx context.Context, req AuthenticateSSHReq
 }
 
 // emitNoLocalAuthEvent creates and emits a local authentication is disabled message.
-func (s *Server) emitNoLocalAuthEvent(username string) {
-	if err := s.emitter.EmitAuditEvent(s.closeCtx, &apievents.AuthAttempt{
+func (a *Server) emitNoLocalAuthEvent(username string) {
+	if err := a.emitter.EmitAuditEvent(a.closeCtx, &apievents.AuthAttempt{
 		Metadata: apievents.Metadata{
 			Type: events.AuthAttemptEvent,
 			Code: events.AuthAttemptFailureCode,
@@ -693,14 +693,14 @@ func (s *Server) emitNoLocalAuthEvent(username string) {
 	}
 }
 
-func (s *Server) createUserWebSession(ctx context.Context, user types.User) (types.WebSession, error) {
+func (a *Server) createUserWebSession(ctx context.Context, user types.User) (types.WebSession, error) {
 	// It's safe to extract the roles and traits directly from services.User as this method
 	// is only used for local accounts.
-	return s.CreateWebSessionFromReq(ctx, types.NewWebSessionRequest{
+	return a.CreateWebSessionFromReq(ctx, types.NewWebSessionRequest{
 		User:      user.GetName(),
 		Roles:     user.GetRoles(),
 		Traits:    user.GetTraits(),
-		LoginTime: s.clock.Now().UTC(),
+		LoginTime: a.clock.Now().UTC(),
 	})
 }
 
