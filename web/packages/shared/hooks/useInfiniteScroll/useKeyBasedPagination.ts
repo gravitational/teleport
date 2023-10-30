@@ -16,11 +16,11 @@
 
 import { useState, useRef, useCallback } from 'react';
 
-import { ResourcesResponse, ResourceFilter } from 'teleport/services/agents';
-import { UrlResourcesParams } from 'teleport/config';
+import { ResourcesResponse } from 'teleport/services/agents';
 import { ApiError } from 'teleport/services/api/parseError';
 
 import useAttempt, { Attempt } from 'shared/hooks/useAttemptNext';
+import { isAbortError } from 'shared/utils/abortError';
 
 /**
  * Supports fetching more data from the server when more data is available. Pass
@@ -30,16 +30,12 @@ import useAttempt, { Attempt } from 'shared/hooks/useAttemptNext';
  *
  * The hook maintains an invariant that there's only up to one valid
  * pending request at all times. Any out-of-order responses are discarded.
- *
- * This hook is an implementation detail of the `useInfiniteScroll` hook and
- * should not be used directly.
  */
 export function useKeyBasedPagination<T>({
   fetchFunc,
-  filter,
   initialFetchSize = 30,
   fetchMoreSize = 20,
-}: Props<T>): State<T> {
+}: KeyBasedPaginationOptions<T>): KeyBasedPagination<T> {
   const { attempt, setAttempt } = useAttempt();
   const [finished, setFinished] = useState(false);
   const [resources, setResources] = useState<T[]>([]);
@@ -50,25 +46,7 @@ export function useKeyBasedPagination<T>({
   const abortController = useRef<AbortController | null>(null);
   const pendingPromise = useRef<Promise<ResourcesResponse<T>> | null>(null);
 
-  // This state is used to recognize when the `filter` prop has changed,
-  // and reset the overall state of this hook. It's tempting to use a
-  // `useEffect` here, but doing so can cause unwanted behavior where the previous,
-  // now stale `fetch` is executed once more before the new one (with the new
-  // `filter`) is executed. This is because the `useEffect` is
-  // executed after the render, and `fetch` is called by an IntersectionObserver
-  // in `useInfiniteScroll`. If the render includes `useInfiniteScroll`'s `trigger`
-  // element, the old, stale `fetch` will be called before `useEffect` has a chance
-  // to run and update the state, and thereby the `fetch` function.
-  //
-  // By using the pattern described in this article:
-  // https://react.dev/learn/you-might-not-need-an-effect#adjusting-some-state-when-a-prop-changes,
-  // we can ensure that the state is reset before anything renders, and thereby
-  // ensure that the new `fetch` function is used.
-  const [prevFilter, setPrevFilter] = useState(filter);
-
-  if (prevFilter !== filter) {
-    setPrevFilter(filter);
-
+  const clear = useCallback(() => {
     abortController.current?.abort();
     abortController.current = null;
     pendingPromise.current = null;
@@ -77,7 +55,7 @@ export function useKeyBasedPagination<T>({
     setFinished(false);
     setResources([]);
     setStartKey(null);
-  }
+  }, [setAttempt]);
 
   const fetchInternal = async (force: boolean) => {
     if (
@@ -97,7 +75,6 @@ export function useKeyBasedPagination<T>({
       const limit = resources.length > 0 ? fetchMoreSize : initialFetchSize;
       const newPromise = fetchFunc(
         {
-          ...filter,
           limit,
           startKey,
         },
@@ -141,52 +118,49 @@ export function useKeyBasedPagination<T>({
     }
   };
 
-  const callbackDeps = [filter, startKey, resources, finished, attempt];
-
-  const fetch = useCallback(() => fetchInternal(false), callbackDeps);
-  const forceFetch = useCallback(() => fetchInternal(true), callbackDeps);
+  const fetch = useCallback(
+    async (options: { force?: boolean; fromStart?: boolean }) => {
+      if (options?.fromStart) {
+        clear();
+      }
+      await fetchInternal(!!options?.force);
+    },
+    [fetchFunc, startKey, resources, finished, attempt, clear]
+  );
 
   return {
     fetch,
-    forceFetch,
+    clear,
     attempt,
     resources,
     finished,
   };
 }
 
-const isAbortError = (err: any): boolean =>
-  (err instanceof DOMException && err.name === 'AbortError') ||
-  (err.cause && isAbortError(err.cause));
-
-export type Props<T> = {
+export type KeyBasedPaginationOptions<T> = {
   fetchFunc: (
-    params: UrlResourcesParams,
+    paginationParams: { limit: number; startKey: string },
     signal?: AbortSignal
   ) => Promise<ResourcesResponse<T>>;
-  filter: ResourceFilter;
   initialFetchSize?: number;
   fetchMoreSize?: number;
 };
 
-export type State<T> = {
+type KeyBasedPagination<T> = {
   /**
    * Attempts to fetch a new batch of data, unless one is already being fetched,
    * or the previous fetch resulted with an error. It is intended to be called
    * as a mere suggestion to fetch more data and can be called multiple times,
-   * for example when the user scrolls to the bottom of the page. This is the
-   * function that you should pass to `useInfiniteScroll` hook.
-   */
-  fetch: () => Promise<void>;
-
-  /**
-   * Fetches a new batch of data. Cancels a pending request, if there is one.
+   * for example, when the user scrolls to the bottom of the page.
+   *
+   * @param options.force Cancels a pending request, if there is one.
    * Disregards whether error has previously occurred. Intended for using as an
    * explicit user's action. Don't call it from `useInfiniteScroll`, or you'll
    * risk flooding the server with requests!
    */
-  forceFetch: () => Promise<void>;
-
+  fetch(options?: { force?: boolean }): Promise<void>;
+  /** Aborts a pending request and clears the state. **/
+  clear(): void;
   attempt: Attempt;
   resources: T[];
   finished: boolean;
