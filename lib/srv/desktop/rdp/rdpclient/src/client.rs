@@ -2,9 +2,10 @@ pub mod global;
 
 use crate::rdpdr::tdp;
 use crate::{
-    handle_fastpath_pdu, handle_rdp_channel_ids, handle_remote_copy, CGOErrCode, CGOKeyboardEvent,
-    CGOMousePointerEvent, CGOPointerButton, CGOPointerWheel, CgoHandle,
+    handle_fastpath_pdu, handle_rdp_channel_ids, handle_remote_copy, ssl, CGOErrCode,
+    CGOKeyboardEvent, CGOMousePointerEvent, CGOPointerButton, CGOPointerWheel, CgoHandle,
 };
+use bitflags::Flags;
 #[cfg(feature = "fips")]
 use boring::error::ErrorStack;
 use bytes::BytesMut;
