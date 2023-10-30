@@ -17,6 +17,7 @@
 import { Platform } from 'design/platform';
 
 import { ClusterResource } from 'teleport/services/userPreferences/types';
+import { AuthType } from 'teleport/services/user';
 
 import { ResourceKind } from '../Shared/ResourceKind';
 
@@ -103,6 +104,13 @@ export interface ResourceSpec {
    * An empty array or undefined means that the resource is supported on all platforms.
    */
   supportedPlatforms?: Platform[];
+  /**
+   * supportedAuthTypes indicate particular auth types that the resource is available for. The
+   * resource won't be displayed if the user logged in using an unsupported auth type.
+   *
+   * An empty array or undefined means that the resource is supports all auth types.
+   */
+  supportedAuthTypes?: AuthType[];
 }
 
 export enum SearchResource {

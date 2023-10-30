@@ -760,7 +760,7 @@ describe('filterResources', () => {
       supportedPlatforms: [Platform.macOS],
     });
 
-    const result = filterResources(Platform.macOS, [
+    const result = filterResources(Platform.macOS, 'local', [
       winAndLinux,
       win,
       macosAndLinux,
@@ -773,8 +773,8 @@ describe('filterResources', () => {
     expect(result).not.toContain(win);
   });
 
-  it('does not filter out resources with empty or missing supportedPlatforms', () => {
-    const result = filterResources(Platform.macOS, [
+  it('does not filter out resources with supportedPlatforms and supportedAuthTypes that are missing or empty', () => {
+    const result = filterResources(Platform.macOS, 'local', [
       makeResourceSpec({
         name: 'Empty supportedPlatforms',
         supportedPlatforms: [],
@@ -783,8 +783,47 @@ describe('filterResources', () => {
         name: 'Missing supportedPlatforms',
         supportedPlatforms: undefined,
       }),
+      makeResourceSpec({
+        name: 'Empty supportedAuthTypes',
+        supportedAuthTypes: [],
+      }),
+      makeResourceSpec({
+        name: 'Missing supportedAuthTypes',
+        supportedAuthTypes: undefined,
+      }),
     ]);
 
-    expect(result).toHaveLength(2);
+    expect(result).toHaveLength(4);
+  });
+
+  it('filters out resources based on supportedAuthTypes', () => {
+    const ssoAndPasswordless = makeResourceSpec({
+      name: 'Filtered out with many supported auth types',
+      supportedAuthTypes: ['sso', 'passwordless'],
+    });
+    const sso = makeResourceSpec({
+      name: 'Filtered out with one supported auth type',
+      supportedAuthTypes: ['sso'],
+    });
+    const localAndPasswordless = makeResourceSpec({
+      name: 'Kept with many supported auth types',
+      supportedAuthTypes: ['local', 'passwordless'],
+    });
+    const local = makeResourceSpec({
+      name: 'Kept with one supported auth type',
+      supportedAuthTypes: ['local'],
+    });
+
+    const result = filterResources(Platform.macOS, 'local', [
+      ssoAndPasswordless,
+      sso,
+      localAndPasswordless,
+      local,
+    ]);
+
+    expect(result).toContain(localAndPasswordless);
+    expect(result).toContain(local);
+    expect(result).not.toContain(ssoAndPasswordless);
+    expect(result).not.toContain(sso);
   });
 });

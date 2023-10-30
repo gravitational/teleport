@@ -24,7 +24,7 @@ import { getPlatform, Platform } from 'design/platform';
 
 import useTeleport from 'teleport/useTeleport';
 import { ToolTipNoPermBadge } from 'teleport/components/ToolTipNoPermBadge';
-import { Acl } from 'teleport/services/user';
+import { Acl, AuthType } from 'teleport/services/user';
 import {
   Header,
   HeaderSubtitle,
@@ -93,12 +93,12 @@ export function SelectResource({ onSelect }: SelectResourceProps) {
   useEffect(() => {
     // Apply access check to each resource.
     const userContext = ctx.storeUser.state;
-    const { acl } = userContext;
+    const { acl, authType } = userContext;
     const platform = getPlatform();
 
     const resources = addHasAccessField(
       acl,
-      filterResources(platform, RESOURCES)
+      filterResources(platform, authType, RESOURCES)
     );
     const sortedResources = sortResources(resources, preferences);
     setDefaultResources(sortedResources);
@@ -458,13 +458,22 @@ function getPrioritizedResources(
   };
 }
 
-export function filterResources(platform: Platform, resources: ResourceSpec[]) {
-  return resources.filter(
-    resource =>
-      // Keep resources with empty or undefined supportedPlatforms.
+export function filterResources(
+  platform: Platform,
+  authType: AuthType,
+  resources: ResourceSpec[]
+) {
+  return resources.filter(resource => {
+    const resourceSupportsPlatform =
       !resource.supportedPlatforms?.length ||
-      resource.supportedPlatforms.includes(platform)
-  );
+      resource.supportedPlatforms.includes(platform);
+
+    const resourceSupportsAuthType =
+      !resource.supportedAuthTypes?.length ||
+      resource.supportedAuthTypes.includes(authType);
+
+    return resourceSupportsPlatform && resourceSupportsAuthType;
+  });
 }
 
 function addHasAccessField(
