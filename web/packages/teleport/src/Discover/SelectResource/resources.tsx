@@ -92,6 +92,7 @@ export const SERVERS: ResourceSpec[] = [
     icon: 'Laptop',
     event: DiscoverEventResource.Server,
     supportedPlatforms: [Platform.macOS, Platform.Linux],
+    supportedAuthTypes: ['local', 'passwordless'],
   },
 ];
 
