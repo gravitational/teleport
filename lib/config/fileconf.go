@@ -821,7 +821,7 @@ type AccessGraph struct {
 	UseAuth  bool   `yaml:"use_auth"`
 	Endpoint string `yaml:"endpoint"`
 	CA       string `yaml:"ca"`
-	Insecure *bool  `yaml:"insecure"`
+	Insecure bool   `yaml:"insecure"`
 }
 
 // Opsgenie represents the configuration for the Opsgenie plugin.
