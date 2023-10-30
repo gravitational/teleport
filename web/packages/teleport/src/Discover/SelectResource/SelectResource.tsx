@@ -301,6 +301,10 @@ function checkHasAccess(acl: Acl, resourceKind: ResourceKind) {
       return acl.nodes.list;
     case ResourceKind.SamlApplication:
       return acl.samlIdpServiceProvider.create;
+    case ResourceKind.ConnectMyComputer:
+      // This is probably already true since without this permission the user wouldn't be able to
+      // add any other resource, but let's just leave it for completeness sake.
+      return acl.tokens.create;
     default:
       return false;
   }
