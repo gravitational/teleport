@@ -616,7 +616,8 @@ func TestService_EnrollDevice(t *testing.T) {
 				return // Stop here if handleOSStream failed.
 			}
 			if gotDev == nil {
-				t.Fatalf("EnrollDevice returned nil device on success")
+				t.Fatal("EnrollDevice returned nil device on success")
+				return // Make staticcheck happy.
 			}
 
 			// Verify that basic device fields are updated.

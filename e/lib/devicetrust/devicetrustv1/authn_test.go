@@ -131,6 +131,7 @@ func TestService_AuthenticateDevice(t *testing.T) {
 			block, _ := pem.Decode(certsProto.TLS)
 			if block == nil {
 				t.Fatal("Failed to decode fakeAugmentFunc X.509 PEM")
+				return // Make staticcheck happy.
 			}
 			wantCerts := &devicepb.UserCertificates{
 				X509Der:          block.Bytes,
