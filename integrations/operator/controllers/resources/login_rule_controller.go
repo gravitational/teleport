@@ -37,6 +37,8 @@ func (l loginRuleClient) Get(ctx context.Context, name string) (*resourcesv1.Log
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	teleportClient.RLock()
+	defer teleportClient.RUnlock()
 
 	loginRule, err := teleportClient.GetLoginRule(ctx, name)
 	if err != nil {
@@ -52,6 +54,8 @@ func (l loginRuleClient) Create(ctx context.Context, resource *resourcesv1.Login
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	teleportClient.RLock()
+	defer teleportClient.RUnlock()
 
 	_, err = teleportClient.CreateLoginRule(ctx, resource.LoginRule)
 	return trace.Wrap(err)
@@ -63,6 +67,8 @@ func (l loginRuleClient) Update(ctx context.Context, resource *resourcesv1.Login
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	teleportClient.RLock()
+	defer teleportClient.RUnlock()
 
 	_, err = teleportClient.UpsertLoginRule(ctx, resource.LoginRule)
 	return trace.Wrap(err)
@@ -74,6 +80,8 @@ func (l loginRuleClient) Delete(ctx context.Context, name string) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	teleportClient.RLock()
+	defer teleportClient.RUnlock()
 
 	return trace.Wrap(teleportClient.DeleteLoginRule(ctx, name))
 }

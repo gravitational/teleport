@@ -38,6 +38,8 @@ func (r userClient) Get(ctx context.Context, name string) (types.User, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	teleportClient.RLock()
+	defer teleportClient.RUnlock()
 
 	user, err := teleportClient.GetUser(name, false /* with secrets*/)
 	return user, trace.Wrap(err)
@@ -49,6 +51,8 @@ func (r userClient) Create(ctx context.Context, user types.User) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	teleportClient.RLock()
+	defer teleportClient.RUnlock()
 
 	return trace.Wrap(teleportClient.CreateUser(ctx, user))
 }
@@ -59,6 +63,8 @@ func (r userClient) Update(ctx context.Context, user types.User) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	teleportClient.RLock()
+	defer teleportClient.RUnlock()
 
 	return trace.Wrap(teleportClient.UpdateUser(ctx, user))
 }
@@ -69,6 +75,8 @@ func (r userClient) Delete(ctx context.Context, name string) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	teleportClient.RLock()
+	defer teleportClient.RUnlock()
 
 	return trace.Wrap(teleportClient.DeleteUser(ctx, name))
 }

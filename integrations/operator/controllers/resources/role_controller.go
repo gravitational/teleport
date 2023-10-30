@@ -95,6 +95,9 @@ func (r *RoleReconciler) Delete(ctx context.Context, obj kclient.Object) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	teleportClient.RLock()
+	defer teleportClient.RUnlock()
+
 	return teleportClient.DeleteRole(ctx, obj.GetName())
 }
 
@@ -133,6 +136,8 @@ func (r *RoleReconciler) Upsert(ctx context.Context, obj kclient.Object) error {
 	if err != nil || updateErr != nil {
 		return trace.NewAggregate(err, updateErr)
 	}
+	teleportClient.RLock()
+	defer teleportClient.RUnlock()
 
 	existingResource, err := teleportClient.GetRole(ctx, teleportResource.GetName())
 	updateErr = updateStatus(updateStatusConfig{

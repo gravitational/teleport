@@ -38,6 +38,8 @@ func (r samlConnectorClient) Get(ctx context.Context, name string) (types.SAMLCo
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	teleportClient.RLock()
+	defer teleportClient.RUnlock()
 
 	saml, err := teleportClient.GetSAMLConnector(ctx, name, false /* with secrets*/)
 	return saml, trace.Wrap(err)
@@ -49,6 +51,8 @@ func (r samlConnectorClient) Create(ctx context.Context, saml types.SAMLConnecto
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	teleportClient.RLock()
+	defer teleportClient.RUnlock()
 
 	return trace.Wrap(teleportClient.UpsertSAMLConnector(ctx, saml))
 }
@@ -59,6 +63,8 @@ func (r samlConnectorClient) Update(ctx context.Context, saml types.SAMLConnecto
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	teleportClient.RLock()
+	defer teleportClient.RUnlock()
 
 	return trace.Wrap(teleportClient.UpsertSAMLConnector(ctx, saml))
 }
@@ -69,6 +75,8 @@ func (r samlConnectorClient) Delete(ctx context.Context, name string) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	teleportClient.RLock()
+	defer teleportClient.RUnlock()
 
 	return trace.Wrap(teleportClient.DeleteSAMLConnector(ctx, name))
 }

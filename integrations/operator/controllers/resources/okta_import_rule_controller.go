@@ -38,6 +38,8 @@ func (r oktaImportRuleClient) Get(ctx context.Context, name string) (types.OktaI
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	teleportClient.RLock()
+	defer teleportClient.RUnlock()
 
 	importRule, err := teleportClient.OktaClient().GetOktaImportRule(ctx, name)
 	return importRule, trace.Wrap(err)
@@ -49,6 +51,8 @@ func (r oktaImportRuleClient) Create(ctx context.Context, importRule types.OktaI
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	teleportClient.RLock()
+	defer teleportClient.RUnlock()
 
 	_, err = teleportClient.OktaClient().CreateOktaImportRule(ctx, importRule)
 	return trace.Wrap(err)
@@ -60,6 +64,8 @@ func (r oktaImportRuleClient) Update(ctx context.Context, importRule types.OktaI
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	teleportClient.RLock()
+	defer teleportClient.RUnlock()
 
 	_, err = teleportClient.OktaClient().UpdateOktaImportRule(ctx, importRule)
 	return trace.Wrap(err)
@@ -71,6 +77,8 @@ func (r oktaImportRuleClient) Delete(ctx context.Context, name string) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	teleportClient.RLock()
+	defer teleportClient.RUnlock()
 
 	return trace.Wrap(teleportClient.OktaClient().DeleteOktaImportRule(ctx, name))
 }
