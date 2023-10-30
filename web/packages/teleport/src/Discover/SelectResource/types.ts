@@ -96,6 +96,13 @@ export interface ResourceSpec {
    * Set this value if the resource should be prioritized based on the platform.
    */
   platform?: Platform;
+  /**
+   * supportedPlatforms indicate particular platforms the resource is available on. The resource
+   * won't be displayed on unsupported platforms.
+   *
+   * An empty array or undefined means that the resource is supported on all platforms.
+   */
+  supportedPlatforms?: Platform[];
 }
 
 export enum SearchResource {

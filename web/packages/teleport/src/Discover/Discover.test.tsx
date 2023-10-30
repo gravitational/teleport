@@ -47,12 +47,18 @@ import { makeDefaultUserPreferences } from 'teleport/services/userPreferences/us
 
 import { ResourceKind } from './Shared';
 
+beforeEach(() => {
+  jest.restoreAllMocks();
+});
+
 type createProps = {
   initialEntry?: string;
   preferredResource?: ClusterResource;
 };
 
 const create = ({ initialEntry = '', preferredResource }: createProps) => {
+  jest.spyOn(window.navigator, 'userAgent', 'get').mockReturnValue('Macintosh');
+
   const defaultPref = makeDefaultUserPreferences();
   defaultPref.onboard.preferredResources = preferredResource
     ? [preferredResource]

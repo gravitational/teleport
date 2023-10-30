@@ -25,7 +25,7 @@ import {
 
 import { ResourceKind } from '../Shared';
 
-import { sortResources } from './SelectResource';
+import { filterResources, sortResources } from './SelectResource';
 import { ResourceSpec } from './types';
 
 const setUp = () => {
@@ -738,5 +738,53 @@ describe('os sorted resources', () => {
         kind: ResourceKind.Server,
       }),
     ]);
+  });
+});
+
+describe('filterResources', () => {
+  it('filters out resources based on supportedPlatforms', () => {
+    const winAndLinux = makeResourceSpec({
+      name: 'Filtered out with many supported platforms',
+      supportedPlatforms: [Platform.Windows, Platform.Linux],
+    });
+    const win = makeResourceSpec({
+      name: 'Filtered out with one supported platform',
+      supportedPlatforms: [Platform.Windows],
+    });
+    const macosAndLinux = makeResourceSpec({
+      name: 'Kept with many supported platforms',
+      supportedPlatforms: [Platform.macOS, Platform.Linux],
+    });
+    const macos = makeResourceSpec({
+      name: 'Kept with one supported platform',
+      supportedPlatforms: [Platform.macOS],
+    });
+
+    const result = filterResources(Platform.macOS, [
+      winAndLinux,
+      win,
+      macosAndLinux,
+      macos,
+    ]);
+
+    expect(result).toContain(macosAndLinux);
+    expect(result).toContain(macos);
+    expect(result).not.toContain(winAndLinux);
+    expect(result).not.toContain(win);
+  });
+
+  it('does not filter out resources with empty or missing supportedPlatforms', () => {
+    const result = filterResources(Platform.macOS, [
+      makeResourceSpec({
+        name: 'Empty supportedPlatforms',
+        supportedPlatforms: [],
+      }),
+      makeResourceSpec({
+        name: 'Missing supportedPlatforms',
+        supportedPlatforms: undefined,
+      }),
+    ]);
+
+    expect(result).toHaveLength(2);
   });
 });

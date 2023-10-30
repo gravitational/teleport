@@ -20,8 +20,7 @@ import { useHistory, useLocation } from 'react-router';
 import * as Icons from 'design/Icon';
 import styled from 'styled-components';
 import { Box, Flex, Link, Text } from 'design';
-
-import { getPlatformType, Platform } from 'design/platform';
+import { getPlatform, Platform } from 'design/platform';
 
 import useTeleport from 'teleport/useTeleport';
 import { ToolTipNoPermBadge } from 'teleport/components/ToolTipNoPermBadge';
@@ -95,11 +94,13 @@ export function SelectResource({ onSelect }: SelectResourceProps) {
     // Apply access check to each resource.
     const userContext = ctx.storeUser.state;
     const { acl } = userContext;
+    const platform = getPlatform();
 
-    const sortedResources = sortResources(
-      makeResourcesWithHasAccessField(acl),
-      preferences
+    const resources = addHasAccessField(
+      acl,
+      filterResources(platform, RESOURCES)
     );
+    const sortedResources = sortResources(resources, preferences);
     setDefaultResources(sortedResources);
 
     // A user can come to this screen by clicking on
@@ -356,6 +357,7 @@ export function sortResources(
 ) {
   const { preferredResources, hasPreferredResources } =
     getPrioritizedResources(preferences);
+  const platform = getPlatform();
 
   const sortedResources = [...resources];
   const accessible = sortedResources.filter(r => r.hasAccess);
@@ -372,18 +374,6 @@ export function sortResources(
       bPreferred = preferredResources.includes(
         resourceKindToPreferredResource(b.kind)
       );
-    }
-
-    let platform: string;
-    const platformType = getPlatformType();
-    if (platformType.isMac) {
-      platform = Platform.macOS;
-    }
-    if (platformType.isLinux) {
-      platform = Platform.Linux;
-    }
-    if (platformType.isWin) {
-      platform = Platform.Windows;
     }
 
     // Display platform resources first
@@ -468,8 +458,20 @@ function getPrioritizedResources(
   };
 }
 
-function makeResourcesWithHasAccessField(acl: Acl): ResourceSpec[] {
-  return RESOURCES.map(r => {
+export function filterResources(platform: Platform, resources: ResourceSpec[]) {
+  return resources.filter(
+    resource =>
+      // Keep resources with empty or undefined supportedPlatforms.
+      !resource.supportedPlatforms?.length ||
+      resource.supportedPlatforms.includes(platform)
+  );
+}
+
+function addHasAccessField(
+  acl: Acl,
+  resources: ResourceSpec[]
+): ResourceSpec[] {
+  return resources.map(r => {
     const hasAccess = checkHasAccess(acl, r.kind);
     switch (r.kind) {
       case ResourceKind.Database:
