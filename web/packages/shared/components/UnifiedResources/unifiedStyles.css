@@ -20,14 +20,7 @@
     TODO (avatus): DELETE if we ever upgrade to v6
 */
 .ContainerContext {
-  min-width: 800px;
   container-type: inline-size;
-}
-
-.ResourcesContainer {
-  @container (min-width: 1600px) {
-    grid-template-columns: repeat(4, minmax(400px, 1fr));
-  }
 }
 
 .SearchPanel {
