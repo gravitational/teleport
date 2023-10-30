@@ -91,6 +91,7 @@ export const SERVERS: ResourceSpec[] = [
     keywords: baseServerKeywords + 'connect my computer',
     icon: 'Laptop',
     event: DiscoverEventResource.Server,
+    supportedPlatforms: [Platform.macOS, Platform.Linux],
   },
 ];
 
