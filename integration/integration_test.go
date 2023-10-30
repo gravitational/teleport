@@ -6107,28 +6107,28 @@ func testCmdLabels(t *testing.T, suite *integrationTestSuite) {
 	// test label patterns that match both nodes, and each
 	// node individually.
 	tts := []struct {
-		desc    string
-		command []string
-		labels  map[string]string
-		expect  string
+		desc        string
+		command     []string
+		labels      map[string]string
+		expectLines []string
 	}{
 		{
-			desc:    "Both",
-			command: []string{"echo", "two"},
-			labels:  map[string]string{"spam": "eggs"},
-			expect:  "two\ntwo\n",
+			desc:        "Both",
+			command:     []string{"echo", "two"},
+			labels:      map[string]string{"spam": "eggs"},
+			expectLines: []string{"[server-01] two", "[server-02] two"},
 		},
 		{
-			desc:    "Worker only",
-			command: []string{"echo", "worker"},
-			labels:  map[string]string{"role": "worker"},
-			expect:  "worker\n",
+			desc:        "Worker only",
+			command:     []string{"echo", "worker"},
+			labels:      map[string]string{"role": "worker"},
+			expectLines: []string{"worker"},
 		},
 		{
-			desc:    "Database only",
-			command: []string{"echo", "database"},
-			labels:  map[string]string{"role": "database"},
-			expect:  "database\n",
+			desc:        "Database only",
+			command:     []string{"echo", "database"},
+			labels:      map[string]string{"role": "database"},
+			expectLines: []string{"database"},
 		},
 	}
 
@@ -6142,7 +6142,11 @@ func testCmdLabels(t *testing.T, suite *integrationTestSuite) {
 
 			output, err := runCommand(t, teleport, tt.command, cfg, 1)
 			require.NoError(t, err)
-			require.Equal(t, tt.expect, output)
+			outputLines := strings.Split(strings.TrimSpace(output), "\n")
+			require.Len(t, outputLines, len(tt.expectLines))
+			for _, line := range tt.expectLines {
+				require.Contains(t, outputLines, line)
+			}
 		})
 	}
 }
