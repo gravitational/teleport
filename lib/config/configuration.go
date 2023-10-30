@@ -245,8 +245,6 @@ type IntegrationConfAWSOIDCIdP struct {
 	Cluster string
 	// Name is the integration name.
 	Name string
-	// Region is the AWS Region used to set up the client.
-	Region string
 	// Role is the AWS Role to associate with the Integration
 	Role string
 	// ProxyPublicURL is the IdP Issuer URL (Teleport Proxy Public Address).
