@@ -19,11 +19,13 @@ use ironrdp_rdpdr::pdu::{
 };
 use std::collections::HashMap;
 
-use crate::{tdp_sd_create_request, tdp_sd_info_request, CGOErrCode, CgoHandle};
+use crate::{
+    tdp_sd_create_request, tdp_sd_delete_request, tdp_sd_info_request, CGOErrCode, CgoHandle,
+};
 
 use super::{
     path::UnixPath,
-    tdp::{self, TdpErrCode},
+    tdp::{self, SharedDirectoryDeleteRequest, TdpErrCode},
 };
 
 /// `FilesystemBackend` implements the filesystem redirection backend as described in [\[MS-RDPEFS\]: Remote Desktop Protocol: File System Virtual Channel Extension].
@@ -38,10 +40,12 @@ pub struct FilesystemBackend {
     /// See the documentation of FileCacheObject
     /// for more detail on how this is used.
     file_cache: FileCache,
-    /// CompletionId -> SharedDirectoryInfoResponseHandler
+    /// CompletionId -> [`SharedDirectoryInfoResponseHandler`]
     pending_tdp_sd_info_resp_handlers: HashMap<u32, SharedDirectoryInfoResponseHandler>,
-    /// CompletionId -> SharedDirectoryCreateResponseHandler
+    /// CompletionId -> [`SharedDirectoryCreateResponseHandler`]
     pending_sd_create_resp_handlers: HashMap<u32, SharedDirectoryCreateResponseHandler>,
+    /// CompletionId -> [`SharedDirectoryDeleteResponseHandler`]
+    pending_sd_delete_resp_handlers: HashMap<u32, SharedDirectoryDeleteResponseHandler>,
 }
 
 impl FilesystemBackend {
@@ -51,6 +55,7 @@ impl FilesystemBackend {
             file_cache: FileCache::new(),
             pending_tdp_sd_info_resp_handlers: HashMap::new(),
             pending_sd_create_resp_handlers: HashMap::new(),
+            pending_sd_delete_resp_handlers: HashMap::new(),
         }
     }
 
@@ -249,10 +254,8 @@ impl FilesystemBackend {
         ))
     }
 
-    /// Sends a [`tdp::SharedDirectoryCreateRequest`] to the browser based on the passed
-    /// [`efs::DeviceCreateRequest`]. Adds a [`SharedDirectoryCreateResponseHandler`] to
-    /// [`Self::pending_sd_create_resp_handlers`] to send an RDP [`efs::DeviceCreateResponse`]
-    /// back to the RDP server when the browser responds with a [`tdp::SharedDirectoryCreateResponse`].
+    /// Helper function for writing a [`tdp::SharedDirectoryCreateRequest`] to the browser
+    /// and handling the [`tdp::SharedDirectoryCreateResponse`] that is received in response.
     fn tdp_sd_create(
         &mut self,
         rdp_req: efs::DeviceCreateRequest,
@@ -285,36 +288,73 @@ impl FilesystemBackend {
         Ok(())
     }
 
-    /// Helper function for combining a TDP SharedDirectoryDeleteRequest
-    /// with a TDP SharedDirectoryCreateRequest to overwrite a file, based
-    /// on an RDP DeviceCreateRequest.
+    /// Helper function for combining a [`tdp::SharedDirectoryDeleteRequest`]
+    /// with a [`tdp::SharedDirectoryCreateRequest`] to overwrite a file.
     fn tdp_sd_overwrite(&mut self, rdp_req: efs::DeviceCreateRequest) -> PduResult<()> {
-        todo!()
+        let tdp_req = SharedDirectoryDeleteRequest::from(&rdp_req);
+        self.send_tdp_sd_delete_request(tdp_req)?;
+        self.pending_sd_delete_resp_handlers.insert(
+            rdp_req.device_io_request.completion_id,
+            SharedDirectoryDeleteResponseHandler::new(Box::new(
+                move |this: &mut FilesystemBackend,
+                      tdp_resp: tdp::SharedDirectoryDeleteResponse|
+                      -> PduResult<Option<RdpdrPdu>> {
+                    match tdp_resp.err_code {
+                        TdpErrCode::Nil => {
+                            this.tdp_sd_create(rdp_req, tdp::FileType::File)?;
+                            Ok(None)
+                        }
+                        _ => Self::make_device_create_response(&rdp_req, NtStatus::UNSUCCESSFUL, 0),
+                    }
+                },
+            )),
+        );
+        Ok(())
     }
 
     /// Sends a [`tdp::SharedDirectoryInfoRequest`] to the browser.
-    fn send_tdp_sd_info_request(&self, req: tdp::SharedDirectoryInfoRequest) -> PduResult<()> {
-        debug!("sending tdp: {:?}", req);
-        let (mut req, _path) = req.into_cgo()?;
+    fn send_tdp_sd_info_request(&self, tdp_req: tdp::SharedDirectoryInfoRequest) -> PduResult<()> {
+        debug!("sending tdp: {:?}", tdp_req);
+        let (mut req, _path) = tdp_req.into_cgo()?;
         let err = unsafe { tdp_sd_info_request(self.cgo_handle, &mut req) };
         if err != CGOErrCode::ErrCodeSuccess {
-            FilesystemBackendError(format!(
-                "failed to send TDP Shared Directory Info Request: {:?}",
-                err
+            return Err(custom_err!(
+                "FilesystemBackend::send_tdp_sd_info_request",
+                FilesystemBackendError(format!("call to tdp_sd_info_request failed: {:?}", err))
             ));
         };
         Ok(())
     }
 
     /// Sends a [`tdp::SharedDirectoryCreateRequest`] to the browser.
-    fn send_tdp_sd_create_request(&self, req: tdp::SharedDirectoryCreateRequest) -> PduResult<()> {
-        debug!("sending tdp: {:?}", req);
-        let (mut req, _path) = req.into_cgo()?;
+    fn send_tdp_sd_create_request(
+        &self,
+        tdp_req: tdp::SharedDirectoryCreateRequest,
+    ) -> PduResult<()> {
+        debug!("sending tdp: {:?}", tdp_req);
+        let (mut req, _path) = tdp_req.into_cgo()?;
         let err = unsafe { tdp_sd_create_request(self.cgo_handle, &mut req) };
         if err != CGOErrCode::ErrCodeSuccess {
-            return Err(other_err!(
-                "FilesystemBackend::send_tdp_sd_create",
-                "call to tdp_sd_create_request failed",
+            return Err(custom_err!(
+                "FilesystemBackend::send_tdp_sd_create_request",
+                FilesystemBackendError(format!("call to tdp_sd_create_request failed: {:?}", err))
+            ));
+        };
+        Ok(())
+    }
+
+    /// Sends a [`tdp::SharedDirectoryDeleteRequest`] to the browser.
+    fn send_tdp_sd_delete_request(
+        &self,
+        tdp_req: tdp::SharedDirectoryDeleteRequest,
+    ) -> PduResult<()> {
+        debug!("sending tdp: {:?}", tdp_req);
+        let (mut req, _path) = tdp_req.into_cgo()?;
+        let err = unsafe { tdp_sd_delete_request(self.cgo_handle, &mut req) };
+        if err != CGOErrCode::ErrCodeSuccess {
+            return Err(custom_err!(
+                "FilesystemBackend::send_tdp_sd_delete_request",
+                FilesystemBackendError(format!("call to tdp_sd_create_request failed: {:?}", err))
             ));
         };
         Ok(())
@@ -360,6 +400,30 @@ impl FilesystemBackend {
         } else {
             Err(custom_err!(
                 "FilesystemBackend::handle_tdp_sd_create_response",
+                FilesystemBackendError(format!(
+                    "received invalid completion id: {}",
+                    res.completion_id
+                ))
+            ))
+        }
+    }
+
+    /// Called from the Go code when a [`tdp::SharedDirectoryDeleteResponse`] is received from the browser.
+    ///
+    /// Calls the [`SharedDirectoryDeleteResponseHandler`] associated with the completion id of the
+    /// [`tdp::SharedDirectoryDeleteResponse`].
+    pub fn handle_tdp_sd_delete_response(
+        &mut self,
+        res: tdp::SharedDirectoryDeleteResponse,
+    ) -> PduResult<Option<RdpdrPdu>> {
+        if let Some(handler) = self
+            .pending_sd_delete_resp_handlers
+            .remove(&res.completion_id)
+        {
+            handler.call(self, res)
+        } else {
+            Err(custom_err!(
+                "FilesystemBackend::client_handle_tdp_sd_delete_response",
                 FilesystemBackendError(format!(
                     "received invalid completion id: {}",
                     res.completion_id
@@ -662,4 +726,10 @@ response_handler!(
     SharedDirectoryCreateResponseHandler,
     CreateResponseHandlerFunction,
     tdp::SharedDirectoryCreateResponse
+);
+
+response_handler!(
+    SharedDirectoryDeleteResponseHandler,
+    DeleteResponseHandlerFunction,
+    tdp::SharedDirectoryDeleteResponse
 );

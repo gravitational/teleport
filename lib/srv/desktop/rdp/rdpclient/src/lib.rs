@@ -224,8 +224,7 @@ pub unsafe extern "C" fn client_handle_tdp_sd_delete_response(
     cgo_handle: CgoHandle,
     res: CGOSharedDirectoryDeleteResponse,
 ) -> CGOErrCode {
-    warn!("unimplemented: client_handle_tdp_sd_delete_response");
-    CGOErrCode::ErrCodeSuccess
+    call_function_on_handle(cgo_handle, ClientFunction::HandleTdpSdDeleteResponse(res))
 }
 
 /// client_handle_tdp_sd_list_response handles a TDP Shared Directory List Response message.

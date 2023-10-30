@@ -4,8 +4,8 @@ use super::path::UnixPath;
 use crate::{
     util::{self, from_c_string, from_go_array},
     CGOSharedDirectoryAnnounce, CGOSharedDirectoryCreateRequest, CGOSharedDirectoryCreateResponse,
-    CGOSharedDirectoryInfoRequest, CGOSharedDirectoryInfoResponse, CGOSharedDirectoryListResponse,
-    CGOSharedDirectoryReadResponse,
+    CGOSharedDirectoryDeleteRequest, CGOSharedDirectoryInfoRequest, CGOSharedDirectoryInfoResponse,
+    CGOSharedDirectoryListResponse, CGOSharedDirectoryReadResponse,
 };
 use ironrdp_pdu::{custom_err, PduResult};
 use ironrdp_rdpdr::pdu::efs::DeviceCreateRequest;
@@ -339,6 +339,38 @@ pub struct SharedDirectoryDeleteRequest {
     pub completion_id: u32,
     pub directory_id: u32,
     pub path: UnixPath,
+}
+
+impl SharedDirectoryDeleteRequest {
+    /// Converts this request into a [`SharedDirectoryDeleteRequest`].
+    ///
+    /// Returns a tuple containing the [`SharedDirectoryDeleteRequest`] and a [`CString`],
+    /// which is the memory backing the [`SharedDirectoryDeleteRequest::path`] field.
+    /// It is the caller's responsibility to ensure that the [`CString`] lives until
+    /// the [`SharedDirectoryDeleteRequest::path`] is copied into Go-owned memory.
+    ///
+    /// See the example for [`SharedDirectoryCreateRequest`]'s `into_cgo`.
+    pub fn into_cgo(self) -> PduResult<(CGOSharedDirectoryDeleteRequest, CString)> {
+        let path = self.path.to_cstring()?;
+        Ok((
+            CGOSharedDirectoryDeleteRequest {
+                completion_id: self.completion_id,
+                directory_id: self.directory_id,
+                path: path.as_ptr(),
+            },
+            path,
+        ))
+    }
+}
+
+impl From<&DeviceCreateRequest> for SharedDirectoryDeleteRequest {
+    fn from(req: &DeviceCreateRequest) -> SharedDirectoryDeleteRequest {
+        SharedDirectoryDeleteRequest {
+            completion_id: req.device_io_request.completion_id,
+            directory_id: req.device_io_request.device_id,
+            path: UnixPath::from(&req.path),
+        }
+    }
 }
 
 /// SharedDirectoryDeleteResponse is sent by the TDP client to the server
