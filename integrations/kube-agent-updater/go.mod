@@ -32,7 +32,7 @@ require (
 	github.com/digitorus/pkcs7 v0.0.0-20221212123742-001c36b64ec3 // indirect
 	github.com/digitorus/timestamp v0.0.0-20221019182153-ef3b63b79b31 // indirect
 	github.com/docker/cli v23.0.6+incompatible // indirect
-	github.com/docker/docker v23.0.6+incompatible // indirect
+	github.com/docker/docker v24.0.7+incompatible // indirect
 	github.com/docker/docker-credential-helpers v0.7.0 // indirect
 	github.com/emicklei/go-restful/v3 v3.9.0 // indirect
 	github.com/evanphx/json-patch v4.12.0+incompatible // indirect
