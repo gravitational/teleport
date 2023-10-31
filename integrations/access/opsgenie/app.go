@@ -68,13 +68,8 @@ type App struct {
 
 // NewOpsgenieApp initializes a new teleport-opsgenie app and returns it.
 func NewOpsgenieApp(ctx context.Context, conf *Config) (*App, error) {
-	teleportClient, err := conf.Teleport.NewClient(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 	opsgenieApp := &App{
 		PluginName: pluginName,
-		teleport:   teleportClient,
 		conf:       *conf,
 	}
 	opsgenieApp.mainJob = lib.NewServiceJob(opsgenieApp.run)
