@@ -351,6 +351,9 @@ function sortResourcesByKind(
   return sorted;
 }
 
+const aBeforeB = -1;
+const aAfterB = 1;
+
 export function sortResources(
   resources: ResourceSpec[],
   preferences: UserPreferences
@@ -378,18 +381,18 @@ export function sortResources(
 
     // Display platform resources first
     if (a.platform === platform && b.platform !== platform) {
-      return -1;
+      return aBeforeB;
     }
     if (a.platform !== platform && b.platform === platform) {
-      return 1;
+      return aAfterB;
     }
 
     // Display preferred resources second
     if (aPreferred && !bPreferred) {
-      return -1;
+      return aBeforeB;
     }
     if (!aPreferred && bPreferred) {
-      return 1;
+      return aAfterB;
     }
 
     // Display guided resources third
@@ -397,10 +400,10 @@ export function sortResources(
       return a.name.localeCompare(b.name);
     }
     if (!b.unguidedLink) {
-      return 1;
+      return aAfterB;
     }
     if (!a.unguidedLink) {
-      return -1;
+      return aBeforeB;
     }
 
     // Alpha
