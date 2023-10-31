@@ -70,6 +70,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/touchid"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	"github.com/gravitational/teleport/lib/authz"
+	libmfa "github.com/gravitational/teleport/lib/client/mfa"
 	"github.com/gravitational/teleport/lib/client/terminal"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/devicetrust"
@@ -472,6 +473,9 @@ type Config struct {
 	// SSHLogDir is the directory to log the output of multiple SSH commands to.
 	// If not set, no logs will be created.
 	SSHLogDir string
+
+	// MFAPrompt is a custom MFA prompt constructor to use when prompting for MFA.
+	MFAPromptConstructor func(cfg *libmfa.PromptConfig) mfa.Prompt
 }
 
 // CachePolicy defines cache policy for local clients

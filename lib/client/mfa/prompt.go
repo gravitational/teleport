@@ -72,25 +72,25 @@ func NewPromptConfig(proxyAddr string, opts ...mfa.PromptOpt) *PromptConfig {
 	return cfg
 }
 
-// runOpts are mfa prompt run options.
-type runOpts struct {
-	promptTOTP     bool
-	promptWebauthn bool
+// RunOpts are mfa prompt run options.
+type RunOpts struct {
+	PromptTOTP     bool
+	PromptWebauthn bool
 }
 
-// getRunOptions gets mfa prompt run options by cross referencing the mfa challenge with prompt configuration.
-func (c PromptConfig) getRunOptions(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (runOpts, error) {
+// GetRunOptions gets mfa prompt run options by cross referencing the mfa challenge with prompt configuration.
+func (c PromptConfig) GetRunOptions(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (RunOpts, error) {
 	promptTOTP := chal.TOTP != nil
 	promptWebauthn := chal.WebauthnChallenge != nil
 
 	if !promptTOTP && !promptWebauthn {
-		return runOpts{}, trace.BadParameter("mfa challenge is empty")
+		return RunOpts{}, trace.BadParameter("mfa challenge is empty")
 	}
 
 	// Does the current platform support hardware MFA? Adjust accordingly.
 	switch {
 	case !promptTOTP && !c.WebauthnSupported:
-		return runOpts{}, trace.BadParameter("hardware device MFA not supported by your platform, please register an OTP device")
+		return RunOpts{}, trace.BadParameter("hardware device MFA not supported by your platform, please register an OTP device")
 	case !c.WebauthnSupported:
 		// Do not prompt for hardware devices, it won't work.
 		promptWebauthn = false
@@ -108,10 +108,10 @@ func (c PromptConfig) getRunOptions(ctx context.Context, chal *proto.MFAAuthenti
 		promptTOTP = false
 	}
 
-	return runOpts{promptTOTP, promptWebauthn}, nil
+	return RunOpts{promptTOTP, promptWebauthn}, nil
 }
 
-func (c PromptConfig) getWebauthnOrigin() string {
+func (c PromptConfig) GetWebauthnOrigin() string {
 	if !strings.HasPrefix(c.ProxyAddress, "https://") {
 		return "https://" + c.ProxyAddress
 	}

@@ -53,7 +53,7 @@ func (c *CLIPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChalleng
 	}
 
 	var wg sync.WaitGroup
-	runOpts, err := c.cfg.getRunOptions(ctx, chal)
+	runOpts, err := c.cfg.GetRunOptions(ctx, chal)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -82,7 +82,7 @@ func (c *CLIPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChalleng
 	}
 
 	// Fire TOTP goroutine.
-	if runOpts.promptTOTP {
+	if runOpts.PromptTOTP {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -97,14 +97,14 @@ func (c *CLIPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChalleng
 	}
 
 	// Fire Webauthn goroutine.
-	if runOpts.promptWebauthn {
+	if runOpts.PromptWebauthn {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 
 			// get webauthn prompt and wrap with otp context handler.
 			prompt := &webauthnPromptWithOTP{
-				LoginPrompt:      c.getWebauthnPrompt(ctx, runOpts.promptTOTP),
+				LoginPrompt:      c.getWebauthnPrompt(ctx, runOpts.PromptTOTP),
 				otpCancelAndWait: otpCancelAndWait,
 			}
 
@@ -185,7 +185,7 @@ func (c *CLIPrompt) getWebauthnPrompt(ctx context.Context, withTOTP bool) wancli
 
 func (c *CLIPrompt) promptWebauthn(ctx context.Context, chal *proto.MFAAuthenticateChallenge, prompt wancli.LoginPrompt) (*proto.MFAAuthenticateResponse, error) {
 	opts := &wancli.LoginOpts{AuthenticatorAttachment: c.cfg.AuthenticatorAttachment}
-	resp, _, err := c.cfg.WebauthnLoginFunc(ctx, c.cfg.getWebauthnOrigin(), wantypes.CredentialAssertionFromProto(chal.WebauthnChallenge), prompt, opts)
+	resp, _, err := c.cfg.WebauthnLoginFunc(ctx, c.cfg.GetWebauthnOrigin(), wantypes.CredentialAssertionFromProto(chal.WebauthnChallenge), prompt, opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

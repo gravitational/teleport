@@ -216,7 +216,12 @@ func (s *Service) ResolveCluster(path string) (*clusters.Cluster, *client.Telepo
 // worry about parsing URIs and can assume they are correct.
 func (s *Service) ResolveClusterURI(uri uri.ResourceURI) (*clusters.Cluster, *client.TeleportClient, error) {
 	cluster, clusterClient, err := s.cfg.Storage.GetByResourceURI(uri)
-	return cluster, clusterClient, trace.Wrap(err)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	clusterClient.MFAPromptConstructor = s.NewMFAPromptConstructor(cluster.URI.String())
+	return cluster, clusterClient, nil
 }
 
 // ResolveClusterWithDetails returns fully detailed cluster information. It makes requests to the auth server and includes
