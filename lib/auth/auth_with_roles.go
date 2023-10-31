@@ -146,10 +146,6 @@ func (c actionConfig) action(namespace, resource string, verbs ...string) error 
 	return nil
 }
 
-func (a *ServerWithRoles) resourceAction(namespace, resource string, verbs ...string) error {
-	return a.withOptions().action(namespace, resource, verbs...)
-}
-
 func (a *ServerWithRoles) action(namespace, resource string, verbs ...string) error {
 	return a.withOptions().action(namespace, resource, verbs...)
 }
