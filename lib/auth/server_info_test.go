@@ -99,7 +99,6 @@ func TestReconcileLabels(t *testing.T) {
 		Labels: map[string]string{"a": "1", "b": "2"},
 	}, types.ServerInfoSpecV1{})
 	require.NoError(t, err)
-	awsServerInfo.SetSubKind(types.SubKindCloudInfo)
 	require.NoError(t, pack.a.UpsertServerInfo(ctx, awsServerInfo))
 
 	regularServerInfo, err := types.NewServerInfo(types.Metadata{
@@ -107,7 +106,6 @@ func TestReconcileLabels(t *testing.T) {
 		Labels: map[string]string{"b": "3", "c": "4"},
 	}, types.ServerInfoSpecV1{})
 	require.NoError(t, err)
-	regularServerInfo.SetSubKind(types.SubKindCloudInfo)
 	require.NoError(t, pack.a.UpsertServerInfo(ctx, regularServerInfo))
 
 	go pack.a.ReconcileServerInfos(ctx)

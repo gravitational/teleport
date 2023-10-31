@@ -218,7 +218,7 @@ func ParseShortcut(in string) (string, error) {
 		return types.KindAuditQuery, nil
 	case types.KindSecurityReport:
 		return types.KindSecurityReport, nil
-	case types.KindServerInfo, types.KindServerInfo + "s":
+	case types.KindServerInfo:
 		return types.KindServerInfo, nil
 	}
 	return "", trace.BadParameter("unsupported resource: %q - resources should be expressed as 'type/name', for example 'connector/github'", in)

@@ -155,10 +155,7 @@ func (s *ServerInfoV1) MatchSearch(searchValues []string) bool {
 
 // GetNewLabels gets the labels to apply to matched Nodes.
 func (s *ServerInfoV1) GetNewLabels() map[string]string {
-	if len(s.Spec.NewLabels) > 0 {
-		return s.Spec.NewLabels
-	}
-	return s.Metadata.Labels
+	return s.Spec.NewLabels
 }
 
 // SetNewLabels sets the labels to apply to matched Nodes.
@@ -169,9 +166,7 @@ func (s *ServerInfoV1) SetNewLabels(labels map[string]string) {
 func (s *ServerInfoV1) setStaticFields() {
 	s.Kind = KindServerInfo
 	s.Version = V1
-	if s.SubKind == "" {
-		s.SubKind = SubKindCloudInfo
-	}
+	s.SubKind = SubKindCloudInfo
 }
 
 // CheckAndSetDefaults validates the Resource and sets any empty fields to

@@ -1693,7 +1693,8 @@ func testCreateServerInfo(t *testing.T, fc *config.FileConfig) {
 	_, err := runResourceCommand(t, fc, []string{"get", types.KindServerInfo + "/test-server-info", "--format=json"})
 	require.True(t, trace.IsNotFound(err), "expected test-role to not exist prior to being created")
 
-	const serverInfoYAML = `kind: server_info
+	const serverInfoYAML = `---
+kind: server_info
 sub_kind: cloud_info
 version: v1
 metadata:
@@ -1705,32 +1706,35 @@ spec:
 `
 
 	// Create the server info
-	serverInfoYAMLPath := filepath.Join(t.TempDir(), "role.yaml")
-	require.NoError(t, os.WriteFile(serverInfoYAMLPath, []byte(serverInfoYAML), 0644))
+	serverInfoYAMLPath := filepath.Join(t.TempDir(), "server-info.yaml")
+	err = os.WriteFile(serverInfoYAMLPath, []byte(serverInfoYAML), 0644)
+	require.NoError(t, err)
 	_, err = runResourceCommand(t, fc, []string{"create", serverInfoYAMLPath})
 	require.NoError(t, err)
 
 	// Fetch the server info
 	buf, err := runResourceCommand(t, fc, []string{"get", types.KindServerInfo + "/test-server-info", "--format=json"})
 	require.NoError(t, err)
-	roles := mustDecodeJSON[[]*types.ServerInfoV1](t, buf)
-	require.Len(t, roles, 1)
+	serverInfos := mustDecodeJSON[[]*types.ServerInfoV1](t, buf)
+	require.Len(t, serverInfos, 1)
 
 	var expected types.ServerInfoV1
-	require.NoError(t, yaml.Unmarshal([]byte(serverInfoYAML), &expected))
+	err = yaml.Unmarshal([]byte(serverInfoYAML), &expected)
+	require.NoError(t, err)
 
 	require.Empty(t, cmp.Diff(
 		[]*types.ServerInfoV1{&expected},
-		roles,
+		serverInfos,
 		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 	))
 
-	// Explicitly change the revision and try creating the role with and without
+	// Explicitly change the revision and try creating the resource with and without
 	// the force flag.
 	expected.SetRevision(uuid.NewString())
-	connectorBytes, err := services.MarshalServerInfo(&expected, services.PreserveResourceID())
+	newRevisionServerInfo, err := services.MarshalServerInfo(&expected, services.PreserveResourceID())
 	require.NoError(t, err)
-	require.NoError(t, os.WriteFile(serverInfoYAMLPath, connectorBytes, 0644))
+	err = os.WriteFile(serverInfoYAMLPath, newRevisionServerInfo, 0644)
+	require.NoError(t, err)
 
 	_, err = runResourceCommand(t, fc, []string{"create", serverInfoYAMLPath})
 	require.True(t, trace.IsAlreadyExists(err))

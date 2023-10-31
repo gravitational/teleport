@@ -18,6 +18,7 @@ package auth
 
 import (
 	"context"
+	"maps"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -71,15 +72,16 @@ func (a *Server) ReconcileServerInfos(ctx context.Context) error {
 }
 
 // getServerInfoNames gets the names of ServerInfos that could exist for a
-// node.
+// node. The list of names returned are ordered such that later ServerInfos
+// override earlier ones on conflicting labels.
 func getServerInfoNames(node types.Server) []string {
 	var names []string
 	if meta := node.GetCloudMetadata(); meta != nil && meta.AWS != nil {
 		names = append(names, types.ServerInfoNameFromAWS(meta.AWS.AccountID, meta.AWS.InstanceID))
 	}
-	// Manually added ServerInfos should override any other ServerInfos.
-	names = append(names, types.ServerInfoNameFromNodeName(node.GetName()))
-	return names
+	// ServerInfos matched by node name should override any ServerInfos created
+	// by the discovery service.
+	return append(names, types.ServerInfoNameFromNodeName(node.GetName()))
 }
 
 func (a *Server) setLabelsOnNodes(ctx context.Context, nodes []types.Server) (failedUpdates int, err error) {
@@ -99,9 +101,8 @@ func (a *Server) setLabelsOnNodes(ctx context.Context, nodes []types.Server) (fa
 			continue
 		}
 
-		err := a.updateLabelsOnNode(ctx, node, serverInfos)
 		// Didn't find control stream for node, save count for logging.
-		if trace.IsNotFound(err) {
+		if err := a.updateLabelsOnNode(ctx, node, serverInfos); trace.IsNotFound(err) {
 			failedUpdates++
 		} else if err != nil {
 			return failedUpdates, trace.Wrap(err)
@@ -115,9 +116,7 @@ func (a *Server) updateLabelsOnNode(ctx context.Context, node types.Server, serv
 	// ones if they conflict.
 	newLabels := make(map[string]string)
 	for _, si := range serverInfos {
-		for k, v := range si.GetNewLabels() {
-			newLabels[k] = v
-		}
+		maps.Copy(newLabels, si.GetNewLabels())
 	}
 	err := a.UpdateLabels(ctx, proto.InventoryUpdateLabelsRequest{
 		ServerID: node.GetName(),

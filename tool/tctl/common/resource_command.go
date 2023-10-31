@@ -1129,7 +1129,7 @@ func (rc *ResourceCommand) createServerInfo(ctx context.Context, client auth.Cli
 		return trace.Wrap(err)
 	}
 
-	// Check if the server info already exists.
+	// Check if the ServerInfo already exists.
 	name := si.GetName()
 	_, err = client.GetServerInfo(ctx, name)
 	if err != nil && !trace.IsNotFound(err) {
@@ -1138,14 +1138,14 @@ func (rc *ResourceCommand) createServerInfo(ctx context.Context, client auth.Cli
 
 	exists := (err == nil)
 	if !rc.force && exists {
-		return trace.AlreadyExists("server info %q already exists", name)
+		return trace.AlreadyExists("Server info %q already exists", name)
 	}
 
 	err = client.UpsertServerInfo(ctx, si)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Printf("server info %q has been %s\n",
+	fmt.Printf("Server info %q has been %s\n",
 		name, UpsertVerb(exists, rc.force),
 	)
 	return nil
