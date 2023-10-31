@@ -185,7 +185,13 @@ func (y yamlMapping) formatForExampleYAML(indents int) string {
 		leading += "  "
 	}
 
-	kv := fmt.Sprintf("%v%v: %v", leading, y.keyKind.formatForExampleYAML(0), y.valueKind.formatForExampleYAML(indents+1))
+	val := y.valueKind.formatForExampleYAML(indents)
+	// Remove leading indentation on the first line of the value since the
+	// key/value pair is already indented. This does not affect subsequent
+	// lines of the value.
+	val = strings.TrimLeft(val, " ")
+
+	kv := fmt.Sprintf("%v%v: %v", leading, y.keyKind.formatForExampleYAML(0), val)
 	return fmt.Sprintf("\n%v\n%v\n%v", kv, kv, kv)
 }
 
