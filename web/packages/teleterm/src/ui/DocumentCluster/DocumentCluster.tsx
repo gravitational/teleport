@@ -16,16 +16,17 @@ limitations under the License.
 
 import React, { useEffect } from 'react';
 import styled from 'styled-components';
-import { Box, ButtonPrimary, Flex, Text } from 'design';
+import { Box, ButtonPrimary, Flex, Text, Alert } from 'design';
+import { useAsync, Attempt } from 'shared/hooks/useAsync';
 
 import * as types from 'teleterm/ui/services/workspacesService';
 import Document from 'teleterm/ui/Document';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
+import { retryWithRelogin } from 'teleterm/ui/utils';
+import { Cluster } from 'teleterm/services/tshd/types';
 
 import * as uri from 'teleterm/ui/uri';
 import { routing } from 'teleterm/ui/uri';
-
-import { Cluster } from 'teleterm/services/tshd/types';
 
 import { UnifiedResources } from './UnifiedResources';
 
@@ -52,16 +53,13 @@ export default function DocumentCluster(props: {
       });
   }, [appCtx.workspacesService, clusterName, clusterUri, props.doc.uri]);
 
-  function logIn(): void {
-    appCtx.modalsService.openRegularDialog({
-      kind: 'cluster-connect',
-      clusterUri,
-      reason: undefined,
-      prefill: undefined,
-      onCancel: () => {},
-      onSuccess: () => {},
-    });
-  }
+  const [clusterSyncAttempt, syncCluster] = useAsync(() =>
+    retryWithRelogin(appCtx, clusterUri, () =>
+      appCtx.clustersService.syncRootCluster(
+        routing.ensureRootClusterUri(clusterUri)
+      )
+    )
+  );
 
   return (
     <Document visible={props.visible}>
@@ -71,7 +69,8 @@ export default function DocumentCluster(props: {
           clusterUri={clusterUri}
           rootCluster={rootCluster}
           cluster={cluster}
-          onLogin={logIn}
+          syncCluster={syncCluster}
+          clusterSyncAttempt={clusterSyncAttempt}
         />
       </Layout>
     </Document>
@@ -83,11 +82,16 @@ function ClusterState(props: {
   clusterName: string;
   rootCluster: Cluster;
   cluster: Cluster | undefined;
-  onLogin(): void;
+  syncCluster(): void;
+  clusterSyncAttempt: Attempt<void>;
 }) {
   if (!props.rootCluster.connected) {
     return (
-      <RequiresLogin clusterName={props.clusterName} onLogin={props.onLogin} />
+      <RequiresLogin
+        clusterName={props.clusterName}
+        syncCluster={props.syncCluster}
+        clusterSyncAttempt={props.clusterSyncAttempt}
+      />
     );
   }
 
@@ -96,33 +100,50 @@ function ClusterState(props: {
   }
 
   if (props.cluster.leaf && !props.cluster.connected) {
-    return <LeafDisconnected clusterName={props.clusterName} />;
+    return (
+      <LeafDisconnected
+        clusterName={props.clusterName}
+        syncCluster={props.syncCluster}
+        clusterSyncAttempt={props.clusterSyncAttempt}
+      />
+    );
   }
 
   return <UnifiedResources clusterUri={props.clusterUri} />;
 }
 
-function RequiresLogin(props: { clusterName: string; onLogin(): void }) {
+function RequiresLogin(props: {
+  clusterName: string;
+  syncCluster(): void;
+  clusterSyncAttempt: Attempt<void>;
+}) {
   return (
     <PrintState
       clusterName={props.clusterName}
       clusterState="Cluster is offline."
-      children={
-        <ButtonPrimary mt={4} onClick={props.onLogin}>
-          Connect
-        </ButtonPrimary>
-      }
+      action={{
+        attempt: props.clusterSyncAttempt,
+        label: 'Connect',
+        run: props.syncCluster,
+      }}
     />
   );
 }
 
-// TODO(ravicious): Add a button for syncing the leaf clusters list.
-// https://github.com/gravitational/teleport.e/issues/863
-function LeafDisconnected(props: { clusterName: string }) {
+function LeafDisconnected(props: {
+  clusterName: string;
+  syncCluster(): void;
+  clusterSyncAttempt: Attempt<void>;
+}) {
   return (
     <PrintState
       clusterName={props.clusterName}
       clusterState="Trusted cluster is offline."
+      action={{
+        attempt: props.clusterSyncAttempt,
+        label: 'Reconnect',
+        run: props.syncCluster,
+      }}
     />
   );
 }
@@ -139,7 +160,11 @@ function NotFound(props: { clusterName: string }) {
 function PrintState(props: {
   clusterName: string;
   clusterState: string;
-  children?: React.ReactElement;
+  action?: {
+    label: string;
+    run(): void;
+    attempt: Attempt<void>;
+  };
 }) {
   return (
     <Flex
@@ -148,13 +173,24 @@ function PrintState(props: {
       justifyContent="center"
       alignItems="center"
     >
+      {props.action && props.action.attempt.status === 'error' && (
+        <Alert>{props.action.attempt.statusText}</Alert>
+      )}
       <Text typography="h4" bold>
         {props.clusterName}
       </Text>
       <Text as="span" typography="h5">
         {props.clusterState}
       </Text>
-      {props.children}
+      {props.action && (
+        <ButtonPrimary
+          mt={4}
+          onClick={props.action.run}
+          disabled={props.action.attempt.status === 'processing'}
+        >
+          {props.action.label}
+        </ButtonPrimary>
+      )}
     </Flex>
   );
 }
