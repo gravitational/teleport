@@ -42,8 +42,6 @@ const (
 	pluginName = "servicenow"
 	// minServerVersion is the minimal teleport version the plugin supports.
 	minServerVersion = "13.0.0"
-	// grpcBackoffMaxDelay is a maximum time GRPC client waits before reconnection attempt.
-	grpcBackoffMaxDelay = time.Second * 2
 	// initTimeout is used to bound execution time of health check and teleport version check.
 	initTimeout = time.Second * 10
 	// handlerTimeout is used to bound the execution time of watcher event handler.
