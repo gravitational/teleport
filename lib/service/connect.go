@@ -186,10 +186,10 @@ func (process *TeleportProcess) authServerTooOld(resp *proto.PingResponse) error
 
 	if serverVersion.Major < teleportVersion.Major {
 		if process.Config.SkipVersionCheck {
-			process.log.Warnf("Only versions %d and greater are supported, but auth server is version %d.", teleportVersion.Major, serverVersion.Major)
+			process.log.Warnf("Teleport instance is too new. This instance is running v%d. The auth server is running v%d and only supports instances on v%d or v%d.", teleportVersion.Major, serverVersion.Major, serverVersion.Major, serverVersion.Major-1)
 			return nil
 		}
-		return trace.NotImplemented("only versions %d and greater are supported, but auth server is version %d. To connect anyway pass the '--skip-version-check' flag.", teleportVersion.Major, serverVersion.Major)
+		return trace.NotImplemented("Teleport instance is too new. This instance is running v%d. The auth server is running v%d and only supports instances on v%d or v%d. To connect anyway pass the --skip-version-check flag.", teleportVersion.Major, serverVersion.Major, serverVersion.Major, serverVersion.Major-1)
 	}
 
 	return nil
