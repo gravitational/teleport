@@ -228,7 +228,7 @@ Service reads these parameters to configure its interactions with S3:
   Default value is `false`.
 
 - `disablesse=true` - set to `true` or `false`. The Auth Service checks this
-  value before uploading an object to an S3 bucket. 
+  value before uploading an object to an S3 bucket.
 
   If this is `false`, the Auth Service will set the server-side encryption
   configuration of the upload to use AWS Key Management Service and, if
@@ -481,7 +481,7 @@ teleport:
 
     # By default, Teleport stores audit events with an AWS TTL of 1 year.
     # This value can be configured as shown below. If set to 0 seconds, TTL is disabled.
-    audit_retention_period: 365d
+    retention_period: 365d
 ```
 
 - Replace `us-east-1` and `Example_TELEPORT_DYNAMO_TABLE_NAME`
