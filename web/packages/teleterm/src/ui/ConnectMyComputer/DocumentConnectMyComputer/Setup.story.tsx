@@ -24,12 +24,12 @@ import {
   makeServer,
 } from 'teleterm/services/tshd/testHelpers';
 import { IAppContext } from 'teleterm/ui/types';
-import { Cluster } from 'teleterm/services/tshd/types';
+import { Cluster, UserType } from 'teleterm/services/tshd/types';
 import { ResourcesContextProvider } from 'teleterm/ui/DocumentCluster/resourcesContext';
 
 import { ConnectMyComputerContextProvider } from '../connectMyComputerContext';
 
-import { DocumentConnectMyComputerSetup } from './DocumentConnectMyComputerSetup';
+import { Setup } from './Setup';
 
 export default {
   title: 'Teleterm/ConnectMyComputer/Setup',
@@ -118,6 +118,34 @@ export function AgentVersionTooOld() {
   );
 }
 
+export function NoAccess() {
+  const cluster = makeRootCluster();
+  cluster.loggedInUser.acl.tokens.create = false;
+  const appContext = new MockAppContext({});
+
+  return (
+    <ShowState
+      cluster={cluster}
+      appContext={appContext}
+      clickStartSetup={false}
+    />
+  );
+}
+
+export function AccessUnknown() {
+  const cluster = makeRootCluster();
+  cluster.loggedInUser.userType = UserType.USER_TYPE_UNSPECIFIED;
+  const appContext = new MockAppContext({});
+
+  return (
+    <ShowState
+      cluster={cluster}
+      appContext={appContext}
+      clickStartSetup={false}
+    />
+  );
+}
+
 function ShowState({
   cluster,
   appContext,
@@ -153,7 +181,7 @@ function ShowState({
       <MockWorkspaceContextProvider rootClusterUri={cluster.uri}>
         <ResourcesContextProvider>
           <ConnectMyComputerContextProvider rootClusterUri={cluster.uri}>
-            <DocumentConnectMyComputerSetup />
+            <Setup updateDocumentStatus={() => {}} />
           </ConnectMyComputerContextProvider>
         </ResourcesContextProvider>
       </MockWorkspaceContextProvider>

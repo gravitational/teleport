@@ -133,11 +133,27 @@ export interface Cluster extends apiCluster.Cluster.AsObject {
    * `leafClusterId` is equal to the `name` property of the cluster.
    */
   uri: uri.ClusterUri;
+  /**
+   * loggedInUser is present if the user has logged in to the cluster at least once. This
+   * includes a situation in which the cert has expired. If the cluster was added to the app but the
+   * user is yet to log in, loggedInUser is not present.
+   */
   loggedInUser?: LoggedInUser;
 }
 
+/**
+ * LoggedInUser describes loggedInUser field available on root clusters.
+ *
+ * loggedInUser is present if the user has logged in to the cluster at least once. This
+ * includes a situation in which the cert has expired. If the cluster was added to the app but the
+ * user is yet to log in, loggedInUser is not present.
+ */
 export type LoggedInUser = apiCluster.LoggedInUser.AsObject & {
   assumedRequests?: Record<string, AssumedRequest>;
+  /**
+   * acl is available only after the cluster details are fetched, as acl is not stored on disk.
+   */
+  acl?: apiCluster.ACL.AsObject;
 };
 export type AuthProvider = apiAuthSettings.AuthProvider.AsObject;
 export type AuthSettings = apiAuthSettings.AuthSettings.AsObject;
