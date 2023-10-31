@@ -10,7 +10,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	v1 "github.com/gravitational/teleport/e/api/cloud/v1"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
@@ -385,7 +384,7 @@ func (ac *cloudWithRoles) hasBuiltinProxyRole(ctx context.Context) error {
 		return trace.AccessDenied("access denied")
 	}
 
-	if !auth.HasBuiltinRole(*authCtx, string(types.RoleProxy)) {
+	if !authz.HasBuiltinRole(*authCtx, string(types.RoleProxy)) {
 		return trace.AccessDenied("this request can be only executed by a proxy")
 	}
 

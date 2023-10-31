@@ -16,7 +16,6 @@ import (
 	"github.com/gravitational/teleport/e/lib/jamf"
 	"github.com/gravitational/teleport/e/lib/plugins"
 	"github.com/gravitational/teleport/e/lib/teleport"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -378,7 +377,7 @@ func (s *Service) SearchPluginStaticCredentials(ctx context.Context, req *plugin
 	}
 
 	switch {
-	case auth.HasBuiltinRole(*authCtx, string(types.RoleAdmin)):
+	case authz.HasBuiltinRole(*authCtx, string(types.RoleAdmin)):
 		// RoleAdmin is allowed to retrieve plugin static credentials.
 		credentials, err := s.pluginStaticCredentialsService.GetPluginStaticCredentialsByLabels(ctx, req.Labels)
 		if err != nil {
@@ -398,7 +397,7 @@ func (s *Service) SearchPluginStaticCredentials(ctx context.Context, req *plugin
 		return &pluginspb.SearchPluginStaticCredentialsResponse{
 			Credentials: credentialsV1,
 		}, nil
-	case auth.HasBuiltinRole(*authCtx, string(types.RoleProxy)):
+	case authz.HasBuiltinRole(*authCtx, string(types.RoleProxy)):
 		// RoleProxy is allowed to retrieve the Teleport assist static credential and nothing else. We'll ignore the
 		// request here.
 		credential, err := s.pluginStaticCredentialsService.GetPluginStaticCredentials(ctx, assistCredentialName)

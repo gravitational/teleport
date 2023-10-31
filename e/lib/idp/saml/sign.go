@@ -27,7 +27,6 @@ import (
 
 	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/services"
@@ -104,7 +103,7 @@ func (s *SigningService) ProcessSAMLIdPRequest(ctx context.Context, req *samlidp
 		return nil, trace.AccessDenied("only the proxy may create SAML IdP responses")
 	}
 
-	if !auth.HasBuiltinRole(*authCtx, string(types.RoleProxy)) {
+	if !authz.HasBuiltinRole(*authCtx, string(types.RoleProxy)) {
 		return nil, trace.AccessDenied("this request can be only executed by a proxy")
 	}
 
