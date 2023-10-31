@@ -36,19 +36,19 @@ import (
 
 func TestBootstrapInfra(t *testing.T) {
 	tt := []struct {
-		desc        string
-		region      string
-		eca         *ecatypes.ExternalCloudAuditSpec
-		errExpected bool
+		desc      string
+		region    string
+		eca       *ecatypes.ExternalCloudAuditSpec
+		errWanted string
 	}{
 		{
-			desc:        "nil input",
-			errExpected: true,
+			desc:      "nil input",
+			region:    "us-west-2",
+			errWanted: "param Spec required",
 		},
 		{
-			desc:        "standard input",
-			errExpected: false,
-			region:      "us-west-2",
+			desc:      "empty region input",
+			errWanted: "param Region required",
 			eca: &ecatypes.ExternalCloudAuditSpec{
 				SessionsRecordingsURI:  "s3://long-term-storage-bucket/session",
 				AuditEventsLongTermURI: "s3://long-term-storage-bucket/events",
@@ -59,9 +59,21 @@ func TestBootstrapInfra(t *testing.T) {
 			},
 		},
 		{
-			desc:        "invalid input transient and long-term share same bucket name",
-			errExpected: true,
-			region:      "us-west-2",
+			desc:   "standard input",
+			region: "us-west-2",
+			eca: &ecatypes.ExternalCloudAuditSpec{
+				SessionsRecordingsURI:  "s3://long-term-storage-bucket/session",
+				AuditEventsLongTermURI: "s3://long-term-storage-bucket/events",
+				AthenaResultsURI:       "s3://transient-storage-bucket/query_results",
+				AthenaWorkgroup:        "teleport-workgroup",
+				GlueDatabase:           "teleport-database",
+				GlueTable:              "audit-events",
+			},
+		},
+		{
+			desc:      "invalid input transient and long-term share same bucket name",
+			errWanted: "athena results bucket URI must not match audit events or session bucket URI",
+			region:    "us-west-2",
 			eca: &ecatypes.ExternalCloudAuditSpec{
 				SessionsRecordingsURI:  "s3://long-term-storage-bucket/session",
 				AuditEventsLongTermURI: "s3://long-term-storage-bucket/events",
@@ -72,9 +84,9 @@ func TestBootstrapInfra(t *testing.T) {
 			},
 		},
 		{
-			desc:        "invalid input audit events and session recordings have different URIs",
-			errExpected: true,
-			region:      "us-west-2",
+			desc:      "invalid input audit events and session recordings have different URIs",
+			errWanted: "audit events bucket URI must match session bucket URI",
+			region:    "us-west-2",
 			eca: &ecatypes.ExternalCloudAuditSpec{
 				SessionsRecordingsURI:  "s3://long-term-storage-bucket-sessions/session",
 				AuditEventsLongTermURI: "s3://long-term-storage-bucket-events/events",
@@ -99,8 +111,8 @@ func TestBootstrapInfra(t *testing.T) {
 				Spec:   tc.eca,
 				Region: tc.region,
 			})
-			if tc.errExpected {
-				require.Error(t, err, "an error was expected in BootstrapInfra but was not present")
+			if tc.errWanted != "" {
+				require.ErrorContainsf(t, err, tc.errWanted, "the error returned did not contain: %s", tc.errWanted)
 				return
 			} else {
 				require.NoError(t, err, "an unexpected error occurred in BootstrapInfra")
