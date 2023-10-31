@@ -210,41 +210,68 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
     fullName: 'Okta Integration',
     Description: () => (
       <Text>
-        Teleport provides an Okta Service that is responsible for dealing with
-        all interactions with Okta.
+        <p>
+          The Teleport Okta integration synchronizes Okta and Teleport users,
+          apps and permissions.
+        </p>
+        <ul>
+          <li>
+            <strong>SSO integration</strong>: Installing the Okta integration
+            creates an Okta applicaton with a SAML SSO connector called{' '}
+            <em>okta-integration</em> that grants your Okta users access to the
+            Teleport cluster with the
+            <em>requester</em> role.
+          </li>
+          <li>
+            <strong>App Synchronization</strong>: Routinely synchronizes Okta
+            applications and groups wth Teleport.
+          </li>
+          <li>
+            <strong>User Access</strong>: Longer lived permissions that grant
+            users access to the Okta applications and groups based on their
+            Teleport access permissions.
+          </li>
+          <li>
+            <strong>Access Requests</strong>: Short lived permissions to request
+            temporary access to Okta applications and user groups based on their
+            Teleport access permissions.
+          </li>
+        </ul>
       </Text>
     ),
     permissions: [
       {
-        category: 'Synchronization',
+        category: 'Applications',
         permissions: [
           {
-            title:
-              'Runs every 2 minutes, Okta Service will import both Okta applications and user groups into Teleport',
+            title: 'Manage Applications',
+            description: 'Installing SAML SSO connector',
+          },
+          {
+            title: "Edit application's user assignments",
+            description: 'Synchronizing application access',
           },
         ],
       },
       {
-        category: 'User Access',
+        category: 'Users',
         permissions: [
           {
-            title: 'Longer lived permissions',
-          },
-          {
-            title:
-              'Grant access to Okta applications and user groups that users have access to within Teleport',
+            title: 'View Users and their details',
+            description: 'Synchronizing Teleport users with Okta users',
           },
         ],
       },
       {
-        category: 'Access Requests',
+        category: 'Groups',
         permissions: [
           {
-            title: 'Short lived permissions',
+            title: 'View Groups',
+            description: 'Synchronizing application access',
           },
           {
-            title:
-              'Request temporary access to Okta applications and user groups',
+            title: "Edit groups' application assignments",
+            description: 'Synchronizing application access',
           },
         ],
       },
