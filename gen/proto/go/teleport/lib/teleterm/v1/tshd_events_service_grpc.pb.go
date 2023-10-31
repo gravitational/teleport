@@ -36,6 +36,7 @@ const (
 	TshdEventsService_Relogin_FullMethodName                           = "/teleport.lib.teleterm.v1.TshdEventsService/Relogin"
 	TshdEventsService_SendNotification_FullMethodName                  = "/teleport.lib.teleterm.v1.TshdEventsService/SendNotification"
 	TshdEventsService_SendPendingHeadlessAuthentication_FullMethodName = "/teleport.lib.teleterm.v1.TshdEventsService/SendPendingHeadlessAuthentication"
+	TshdEventsService_PromptMFA_FullMethodName                         = "/teleport.lib.teleterm.v1.TshdEventsService/PromptMFA"
 )
 
 // TshdEventsServiceClient is the client API for TshdEventsService service.
@@ -52,6 +53,8 @@ type TshdEventsServiceClient interface {
 	// SendPendingHeadlessAuthentication notifies the Electron app of a pending headless authentication,
 	// which it can use to initiate headless authentication resolution in the UI.
 	SendPendingHeadlessAuthentication(ctx context.Context, in *SendPendingHeadlessAuthenticationRequest, opts ...grpc.CallOption) (*SendPendingHeadlessAuthenticationResponse, error)
+	// PromptMFA notifies the Electron app that the daemon is waiting for the user to answer an MFA prompt.
+	PromptMFA(ctx context.Context, in *PromptMFARequest, opts ...grpc.CallOption) (*PromptMFAResponse, error)
 }
 
 type tshdEventsServiceClient struct {
@@ -89,6 +92,15 @@ func (c *tshdEventsServiceClient) SendPendingHeadlessAuthentication(ctx context.
 	return out, nil
 }
 
+func (c *tshdEventsServiceClient) PromptMFA(ctx context.Context, in *PromptMFARequest, opts ...grpc.CallOption) (*PromptMFAResponse, error) {
+	out := new(PromptMFAResponse)
+	err := c.cc.Invoke(ctx, TshdEventsService_PromptMFA_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // TshdEventsServiceServer is the server API for TshdEventsService service.
 // All implementations must embed UnimplementedTshdEventsServiceServer
 // for forward compatibility
@@ -103,6 +115,8 @@ type TshdEventsServiceServer interface {
 	// SendPendingHeadlessAuthentication notifies the Electron app of a pending headless authentication,
 	// which it can use to initiate headless authentication resolution in the UI.
 	SendPendingHeadlessAuthentication(context.Context, *SendPendingHeadlessAuthenticationRequest) (*SendPendingHeadlessAuthenticationResponse, error)
+	// PromptMFA notifies the Electron app that the daemon is waiting for the user to answer an MFA prompt.
+	PromptMFA(context.Context, *PromptMFARequest) (*PromptMFAResponse, error)
 	mustEmbedUnimplementedTshdEventsServiceServer()
 }
 
@@ -118,6 +132,9 @@ func (UnimplementedTshdEventsServiceServer) SendNotification(context.Context, *S
 }
 func (UnimplementedTshdEventsServiceServer) SendPendingHeadlessAuthentication(context.Context, *SendPendingHeadlessAuthenticationRequest) (*SendPendingHeadlessAuthenticationResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SendPendingHeadlessAuthentication not implemented")
+}
+func (UnimplementedTshdEventsServiceServer) PromptMFA(context.Context, *PromptMFARequest) (*PromptMFAResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method PromptMFA not implemented")
 }
 func (UnimplementedTshdEventsServiceServer) mustEmbedUnimplementedTshdEventsServiceServer() {}
 
@@ -186,6 +203,24 @@ func _TshdEventsService_SendPendingHeadlessAuthentication_Handler(srv interface{
 	return interceptor(ctx, in, info, handler)
 }
 
+func _TshdEventsService_PromptMFA_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(PromptMFARequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TshdEventsServiceServer).PromptMFA(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: TshdEventsService_PromptMFA_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TshdEventsServiceServer).PromptMFA(ctx, req.(*PromptMFARequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // TshdEventsService_ServiceDesc is the grpc.ServiceDesc for TshdEventsService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -204,6 +239,10 @@ var TshdEventsService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "SendPendingHeadlessAuthentication",
 			Handler:    _TshdEventsService_SendPendingHeadlessAuthentication_Handler,
+		},
+		{
+			MethodName: "PromptMFA",
+			Handler:    _TshdEventsService_PromptMFA_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

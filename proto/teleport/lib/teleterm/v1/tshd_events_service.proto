@@ -31,6 +31,8 @@ service TshdEventsService {
   // SendPendingHeadlessAuthentication notifies the Electron app of a pending headless authentication,
   // which it can use to initiate headless authentication resolution in the UI.
   rpc SendPendingHeadlessAuthentication(SendPendingHeadlessAuthenticationRequest) returns (SendPendingHeadlessAuthenticationResponse);
+  // PromptMFA notifies the Electron app that the daemon is waiting for the user to answer an MFA prompt.
+  rpc PromptMFA(PromptMFARequest) returns (PromptMFAResponse);
 }
 
 // Relogin
@@ -84,3 +86,16 @@ message SendPendingHeadlessAuthenticationRequest {
 }
 
 message SendPendingHeadlessAuthenticationResponse {}
+
+// PromptMFA
+
+message PromptMFARequest {
+  string root_cluster_uri = 1;
+  string reason = 2;
+  bool totp = 3;
+  bool webauthn = 4;
+}
+
+message PromptMFAResponse {
+  string totp_code = 1;
+}
