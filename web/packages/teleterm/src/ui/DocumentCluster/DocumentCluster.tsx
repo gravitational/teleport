@@ -138,9 +138,8 @@ type DocumentProps = {
   doc: types.DocumentCluster;
 };
 
-const Layout = styled(Box).attrs({ mx: 'auto', px: 5, pt: 4, height: '100%' })`
+const Layout = styled(Box).attrs({ mx: 'auto', px: 5, pt: 4 })`
   flex-direction: column;
   display: flex;
   flex: 1;
-  height: max-content;
 `;
