@@ -407,3 +407,71 @@ func TestSetRedirectPageContentSecurityPolicy(t *testing.T) {
 		require.Contains(t, actualCsp, expectedCspSubString)
 	}
 }
+
+func TestOriginLocalRedirectURI(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name     string
+		input    string
+		expected string
+		errCheck require.ErrorAssertionFunc
+	}{
+		{
+			name:     "empty",
+			input:    "",
+			expected: "/",
+			errCheck: require.NoError,
+		},
+		{
+			name:     "simple path",
+			input:    "/foo",
+			expected: "/foo",
+			errCheck: require.NoError,
+		},
+		{
+			name:     "host only",
+			input:    "https://localhost",
+			expected: "/",
+			errCheck: require.NoError,
+		},
+		{
+			name:     "host and simple path",
+			input:    "https://localhost/bar",
+			expected: "/bar",
+			errCheck: require.NoError,
+		},
+		{
+			name:     "double slash redirect with host",
+			input:    "https://localhost//goteleport.com/",
+			expected: "",
+			errCheck: require.Error,
+		},
+		{
+			name:     "basic auth redirect with host",
+			input:    "https://localhost/@goteleport.com/",
+			expected: "",
+			errCheck: require.Error,
+		},
+		{
+			name:     "ftp scheme",
+			input:    "ftp://localhost",
+			expected: "",
+			errCheck: require.Error,
+		},
+		{
+			name:     "invalid url",
+			input:    "https://foo com",
+			expected: "",
+			errCheck: require.Error,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			result, err := OriginLocalRedirectURI(tc.input)
+			require.Equal(t, tc.expected, result)
+			tc.errCheck(t, err)
+		})
+	}
+}
