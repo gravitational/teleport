@@ -740,7 +740,7 @@ func IsReexec() bool {
 // function is run by Teleport while it's re-executing.
 func buildCommand(c *ExecCommand, localUser *user.User, tty *os.File, pty *os.File, pamEnvironment []string) (*exec.Cmd, error) {
 	var cmd exec.Cmd
-	isReexec := false // used for
+	isReexec := false
 
 	// Get the login shell for the user (or fallback to the default).
 	shellPath, err := shell.GetLoginShell(c.Login)
