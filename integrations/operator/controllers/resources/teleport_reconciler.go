@@ -25,6 +25,7 @@ import (
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	"github.com/gravitational/teleport/api/types"
 )
@@ -70,8 +71,8 @@ type TeleportResourceMutator[T TeleportResource] interface {
 // NewTeleportResourceReconciler instanciates a TeleportResourceReconciler from a TeleportResourceClient.
 func NewTeleportResourceReconciler[T TeleportResource, K TeleportKubernetesResource[T]](
 	client kclient.Client,
-	resourceClient TeleportResourceClient[T]) *TeleportResourceReconciler[T, K] {
-
+	resourceClient TeleportResourceClient[T],
+) *TeleportResourceReconciler[T, K] {
 	reconciler := &TeleportResourceReconciler[T, K]{
 		ResourceBaseReconciler: ResourceBaseReconciler{Client: client},
 		resourceClient:         resourceClient,
@@ -148,7 +149,11 @@ func (r TeleportResourceReconciler[T, K]) Reconcile(ctx context.Context, req ctr
 // SetupWithManager have a controllerruntime.Manager run the TeleportResourceReconciler
 func (r TeleportResourceReconciler[T, K]) SetupWithManager(mgr ctrl.Manager) error {
 	kubeResource := newKubeResource[T, K]()
-	return ctrl.NewControllerManagedBy(mgr).For(kubeResource).Complete(r)
+	return ctrl.
+		NewControllerManagedBy(mgr).
+		For(kubeResource).
+		WithEventFilter(predicate.GenerationChangedPredicate{}).
+		Complete(r)
 }
 
 // newKubeResource creates a new TeleportKubernetesResource

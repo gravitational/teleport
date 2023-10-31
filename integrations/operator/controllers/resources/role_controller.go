@@ -27,6 +27,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	ctrl "sigs.k8s.io/controller-runtime"
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	"github.com/gravitational/teleport/api/types"
 	v5 "github.com/gravitational/teleport/integrations/operator/apis/resources/v5"
@@ -87,6 +88,7 @@ func (r *RoleReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	obj := GetUnstructuredObjectFromGVK(TeleportRoleGVKV5)
 	return ctrl.NewControllerManagedBy(mgr).
 		For(obj).
+		WithEventFilter(predicate.GenerationChangedPredicate{}).
 		Complete(r)
 }
 
