@@ -141,9 +141,11 @@ export function EnrollEc2Instance() {
       );
 
       const ec2InstancesLookupByInstanceId: Record<string, Node> = {};
-      fetchedNodes.forEach(
-        d => (ec2InstancesLookupByInstanceId[d?.awsMetadata?.instanceId] = d)
-      );
+      fetchedNodes.forEach(d => {
+        if (d.awsMetadata) {
+          ec2InstancesLookupByInstanceId[d?.awsMetadata?.instanceId] = d;
+        }
+      });
 
       // Check for already existing EC2 instances.
       const checkedEc2Instances: CheckedEc2Instance[] = fetchedEc2Instances.map(
