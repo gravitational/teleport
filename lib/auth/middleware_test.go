@@ -194,7 +194,6 @@ func TestMiddlewareGetUser(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
-
 			m := &Middleware{
 				AccessPoint: s,
 			}
@@ -350,8 +349,10 @@ func TestWrapContextWithUser(t *testing.T) {
 			}
 
 			conn := &testConn{
-				state: tls.ConnectionState{PeerCertificates: tt.peers,
-					HandshakeComplete: !tt.needsHandshake},
+				state: tls.ConnectionState{
+					PeerCertificates:  tt.peers,
+					HandshakeComplete: !tt.needsHandshake,
+				},
 				remoteAddr: utils.MustParseAddr("127.0.0.1:4242"),
 			}
 
