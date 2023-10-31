@@ -373,6 +373,31 @@ To log out of the AWS application and remove credentials:
 $ tsh apps logout awsconsole-test
 ```
 
+## Troubleshooting
+### `remote error: tls: bad certificate` error during SSM sessions
+
+You may encounter the `remote error: tls: bad certificate` error when starting
+System Session Manager (SSM) sessions using `tsh aws ssm start-session` or `tsh
+aws ecs execute-command` commands.
+
+The issue is that `tsh` cannot properly proxy WebSocket connections sent by
+SSM.
+
+Please upgrade to the latest version of `tsh` where workarounds have been
+implemented for [`tsh aws ssm
+start-session`](https://github.com/gravitational/teleport/pull/30510) and [`tsh
+aws ecs
+execute-command`](https://github.com/gravitational/teleport/pull/33705).
+
+If you are using `tsh proxy aws` or if your `tsh` version does not contain the
+above fixes, add the following domain to the `NO_PROXY` environment variable
+before running `tsh` commands to ensure the WebSocket connections bypass `tsh`:
+```bash
+export NO_PROXY=ssmmessages.us-west-1.amazonaws.com
+```
+
+Replace `us-west-1` with the AWS region you are accessing.
+
 ## Next steps
 
 - Take a closer look at [role-based access controls](../controls.mdx).
