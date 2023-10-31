@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect } from 'react';
 import styled from 'styled-components';
 import { Box, ButtonPrimary, Flex, Text } from 'design';
 
@@ -22,73 +22,86 @@ import * as types from 'teleterm/ui/services/workspacesService';
 import Document from 'teleterm/ui/Document';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 
+import * as uri from 'teleterm/ui/uri';
 import { routing } from 'teleterm/ui/uri';
 
-import ClusterCtx, {
-  ClusterContextProvider,
-  useClusterContext,
-} from './clusterContext';
+import { Cluster } from 'teleterm/services/tshd/types';
+
 import { UnifiedResources } from './UnifiedResources';
 
-export default function Container(props: DocumentProps) {
+export default function DocumentCluster(props: {
+  visible: boolean;
+  doc: types.DocumentCluster;
+}) {
   const { clusterUri } = props.doc;
   const appCtx = useAppContext();
-  const [clusterCtx] = useState(
-    () => new ClusterCtx(appCtx, clusterUri, props.doc.uri)
-  );
 
+  const rootCluster =
+    appCtx.clustersService.findRootClusterByResource(clusterUri);
+  const cluster = appCtx.clustersService.findCluster(clusterUri);
+
+  const clusterName = cluster?.name || routing.parseClusterName(clusterUri);
   useEffect(() => {
-    // because we don't wait for the leaf clusters to fetch before we show them
-    // we can't access `actualName` when cluster document is created
+    // because we don't wait for the leaf clusters to fetch before we show them,
+    // we can't access `actualName` when the cluster document is created
     appCtx.workspacesService
       .getWorkspaceDocumentService(routing.ensureRootClusterUri(clusterUri))
       .update(props.doc.uri, {
-        title: clusterCtx.state.clusterName,
+        title: clusterName,
       });
-  }, [clusterCtx.state.clusterName]);
+  }, [appCtx.workspacesService, clusterName, clusterUri, props.doc.uri]);
 
-  useEffect(() => {
-    return () => clusterCtx.dispose();
-  }, []);
+  function logIn(): void {
+    appCtx.modalsService.openRegularDialog({
+      kind: 'cluster-connect',
+      clusterUri,
+      reason: undefined,
+      prefill: undefined,
+      onCancel: () => {},
+      onSuccess: () => {},
+    });
+  }
 
   return (
-    <ClusterContextProvider value={clusterCtx}>
-      <Document visible={props.visible}>
-        <Cluster />
-      </Document>
-    </ClusterContextProvider>
+    <Document visible={props.visible}>
+      <ClusterState
+        clusterUri={clusterUri}
+        rootCluster={rootCluster}
+        cluster={cluster}
+        onLogin={logIn}
+      />
+    </Document>
   );
 }
 
-export function Cluster() {
-  const clusterCtx = useClusterContext();
-  const state = clusterCtx.useState();
-
-  if (state.status === 'requires_login') {
+function ClusterState(props: {
+  clusterUri: uri.ClusterUri;
+  rootCluster: Cluster;
+  cluster: Cluster | undefined;
+  onLogin(): void;
+}) {
+  if (!props.rootCluster.connected) {
     return (
-      <RequiresLogin
-        clusterUri={clusterCtx.clusterUri}
-        onLogin={clusterCtx.login}
-      />
+      <RequiresLogin clusterUri={props.clusterUri} onLogin={props.onLogin} />
     );
   }
 
-  if (state.status === 'not_found') {
-    return <NotFound clusterUri={clusterCtx.clusterUri} />;
+  if (!props.cluster) {
+    return <NotFound clusterUri={props.clusterUri} />;
   }
 
-  if (state.leaf && !state.leafConnected) {
-    return <LeafDisconnected clusterUri={clusterCtx.clusterUri} />;
+  if (props.cluster.leaf && !props.cluster.connected) {
+    return <LeafDisconnected clusterUri={props.clusterUri} />;
   }
 
   return (
     <Layout>
-      <UnifiedResources clusterUri={clusterCtx.clusterUri} />
+      <UnifiedResources clusterUri={props.clusterUri} />
     </Layout>
   );
 }
 
-function RequiresLogin(props: { clusterUri: string; onLogin(): void }) {
+function RequiresLogin(props: { clusterUri: uri.ClusterUri; onLogin(): void }) {
   return (
     <Flex
       flexDirection="column"
@@ -111,7 +124,7 @@ function RequiresLogin(props: { clusterUri: string; onLogin(): void }) {
 
 // TODO(ravicious): Add a button for syncing the leaf clusters list.
 // https://github.com/gravitational/teleport.e/issues/863
-function LeafDisconnected(props: { clusterUri: string }) {
+function LeafDisconnected(props: { clusterUri: uri.ClusterUri }) {
   return (
     <Flex flexDirection="column" mx="auto" alignItems="center">
       <Text typography="h5">{props.clusterUri}</Text>
@@ -122,7 +135,7 @@ function LeafDisconnected(props: { clusterUri: string }) {
   );
 }
 
-function NotFound(props: { clusterUri: string }) {
+function NotFound(props: { clusterUri: uri.ClusterUri }) {
   return (
     <Flex flexDirection="column" mx="auto" alignItems="center">
       <Text typography="h5">{props.clusterUri}</Text>
@@ -132,11 +145,6 @@ function NotFound(props: { clusterUri: string }) {
     </Flex>
   );
 }
-
-type DocumentProps = {
-  visible: boolean;
-  doc: types.DocumentCluster;
-};
 
 const Layout = styled(Box).attrs({ mx: 'auto', px: 5, pt: 4 })`
   flex-direction: column;
