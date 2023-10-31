@@ -411,11 +411,6 @@ type withCauseCloser interface {
 
 func (w *Monitor) disconnectClient(reason string) {
 	w.Entry.Debugf("Disconnecting client: %v", reason)
-	// Emit Audit event first to make sure that that underlying context will not be canceled during
-	// emitting audit event.
-	if err := w.emitDisconnectEvent(reason); err != nil {
-		w.Entry.WithError(err).Warn("Failed to emit audit event.")
-	}
 
 	if connWithCauseCloser, ok := w.Conn.(withCauseCloser); ok {
 		if err := connWithCauseCloser.CloseWithCause(trace.AccessDenied(reason)); err != nil {
@@ -425,6 +420,11 @@ func (w *Monitor) disconnectClient(reason string) {
 		if err := w.Conn.Close(); err != nil {
 			w.Entry.WithError(err).Error("Failed to close connection.")
 		}
+	}
+
+	// emit audit event after client has been disconnected.
+	if err := w.emitDisconnectEvent(reason); err != nil {
+		w.Entry.WithError(err).Warn("Failed to emit audit event.")
 	}
 }
 
@@ -447,7 +447,11 @@ func (w *Monitor) emitDisconnectEvent(reason string) error {
 		},
 		Reason: reason,
 	}
-	return trace.Wrap(w.Emitter.EmitAuditEvent(w.Context, event))
+	// We cannot use w.Context here, because it may have already been cancelled,
+	// since it is scoped to the connection itself.
+	ctx, cancel := context.WithTimeout(context.TODO(), time.Second)
+	defer cancel()
+	return trace.Wrap(w.Emitter.EmitAuditEvent(ctx, event))
 }
 
 func (w *Monitor) handleLockInForce(lockErr error) {
