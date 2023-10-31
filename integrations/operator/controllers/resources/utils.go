@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/gravitational/trace"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
 	ctrllog "sigs.k8s.io/controller-runtime/pkg/log"
@@ -34,9 +35,11 @@ const (
 	ConditionReasonNewResource            = "NewResource"
 	ConditionReasonNoError                = "NoError"
 	ConditionReasonTeleportError          = "TeleportError"
+	ConditionReasonTeleportClientError    = "TeleportClientError"
 	ConditionTypeTeleportResourceOwned    = "TeleportResourceOwned"
 	ConditionTypeSuccessfullyReconciled   = "SuccessfullyReconciled"
 	ConditionTypeValidStructure           = "ValidStructure"
+	ConditionTypeTeleportClient           = "TeleportClient"
 )
 
 var newResourceCondition = metav1.Condition{
@@ -85,25 +88,21 @@ func checkOwnership(existingResource ownedResource) (metav1.Condition, bool) {
 // getReconciliationConditionFromError takes an error returned by a call to Teleport and returns a
 // metav1.Condition describing how the Teleport resource reconciliation went. This is used to provide feedback to
 // the user about the controller's ability to reconcile the resource.
-func getReconciliationConditionFromError(err error) metav1.Condition {
-	var condition metav1.Condition
-	if err == nil {
-		condition = metav1.Condition{
+func getReconciliationConditionFromError(err error, ignoreNotFound bool) metav1.Condition {
+	if err == nil || trace.IsNotFound(err) && ignoreNotFound {
+		return metav1.Condition{
 			Type:    ConditionTypeSuccessfullyReconciled,
 			Status:  metav1.ConditionTrue,
 			Reason:  ConditionReasonNoError,
 			Message: "Teleport resource was successfully reconciled, no error was returned by Teleport.",
 		}
-	} else {
-		condition = metav1.Condition{
-			Type:    ConditionTypeSuccessfullyReconciled,
-			Status:  metav1.ConditionFalse,
-			Reason:  ConditionReasonTeleportError,
-			Message: fmt.Sprintf("Teleport returned the error: %s", err),
-		}
 	}
-
-	return condition
+	return metav1.Condition{
+		Type:    ConditionTypeSuccessfullyReconciled,
+		Status:  metav1.ConditionFalse,
+		Reason:  ConditionReasonTeleportError,
+		Message: fmt.Sprintf("Teleport returned the error: %s", err),
+	}
 }
 
 // getStructureConditionFromError takes a conversion error from k8s apimachinery's runtime.UnstructuredConverter
@@ -123,6 +122,26 @@ func getStructureConditionFromError(err error) metav1.Condition {
 		Status:  metav1.ConditionTrue,
 		Reason:  ConditionReasonNoError,
 		Message: "Kubernetes CR was successfully decoded.",
+	}
+}
+
+// getTeleportClientConditionFromError takes an error returned by a call to Teleport ClientAccessor and returns a
+// metav1.Condition describing how the Teleport client creation went. This is used to provide feedback to
+// the user about the controller's ability to reconcile the resource.
+func getTeleportClientConditionFromError(err error) metav1.Condition {
+	if err != nil {
+		return metav1.Condition{
+			Type:    ConditionTypeTeleportClient,
+			Status:  metav1.ConditionFalse,
+			Reason:  ConditionReasonTeleportClientError,
+			Message: fmt.Sprintf("Failed to create Teleport client: %s", err),
+		}
+	}
+	return metav1.Condition{
+		Type:    ConditionTypeTeleportClient,
+		Status:  metav1.ConditionTrue,
+		Reason:  ConditionReasonNoError,
+		Message: "Teleport client creation was successful.",
 	}
 }
 

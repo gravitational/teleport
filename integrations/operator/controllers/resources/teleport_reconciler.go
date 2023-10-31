@@ -93,7 +93,12 @@ func (r TeleportResourceReconciler[T, K]) Upsert(ctx context.Context, obj kclien
 	teleportResource := k8sResource.ToTeleport()
 
 	existingResource, err := r.resourceClient.Get(ctx, teleportResource.GetName())
+	meta.SetStatusCondition(
+		k8sResource.StatusConditions(),
+		getReconciliationConditionFromError(err, true /* ignoreNotFound */),
+	)
 	if err != nil && !trace.IsNotFound(err) {
+		silentUpdateStatus(ctx, r.Client, k8sResource)
 		return trace.Wrap(err)
 	}
 	// If err is nil, we found the resource. If err != nil (and we did return), then the error was `NotFound`
@@ -103,10 +108,8 @@ func (r TeleportResourceReconciler[T, K]) Upsert(ctx context.Context, obj kclien
 		newOwnershipCondition, isOwned := checkOwnership(existingResource)
 		meta.SetStatusCondition(k8sResource.StatusConditions(), newOwnershipCondition)
 		if !isOwned {
-			return trace.NewAggregate(
-				trace.AlreadyExists("unowned resource '%s' already exists", existingResource.GetName()),
-				r.Status().Update(ctx, k8sResource),
-			)
+			silentUpdateStatus(ctx, r.Client, k8sResource)
+			return trace.AlreadyExists("unowned resource '%s' already exists", existingResource.GetName())
 		}
 	} else {
 		meta.SetStatusCondition(k8sResource.StatusConditions(), newResourceCondition)
@@ -125,10 +128,11 @@ func (r TeleportResourceReconciler[T, K]) Upsert(ctx context.Context, obj kclien
 		err = r.resourceClient.Update(ctx, teleportResource)
 	}
 	// If an error happens we want to put it in status.conditions before returning.
-	newReconciliationCondition := getReconciliationConditionFromError(err)
+	newReconciliationCondition := getReconciliationConditionFromError(err, false /* ignoreNotFound */)
 	meta.SetStatusCondition(k8sResource.StatusConditions(), newReconciliationCondition)
 	if err != nil {
-		return trace.NewAggregate(err, r.Status().Update(ctx, k8sResource))
+		silentUpdateStatus(ctx, r.Client, k8sResource)
+		return trace.Wrap(err)
 	}
 
 	// We update the status conditions on exit
