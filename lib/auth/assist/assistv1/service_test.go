@@ -299,10 +299,3 @@ func initSvc(t *testing.T) (map[string]context.Context, *Service) {
 
 	return ctxs, svc
 }
-
-type nodeGetterFake struct {
-}
-
-func (g *nodeGetterFake) GetNode(ctx context.Context, namespace, name string) (types.Server, error) {
-	return nil, nil
-}

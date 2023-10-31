@@ -64,24 +64,6 @@ type CommandRequest struct {
 	ExecutionID string `json:"execution_id"`
 }
 
-// commandExecResult is a result of a command execution.
-type commandExecResult struct {
-	// NodeID is the ID of the node where the command was executed.
-	NodeID string `json:"node_id"`
-	// NodeName is the name of the node where the command was executed.
-	NodeName string `json:"node_name"`
-	// ExecutionID is a unique ID used to identify the command execution.
-	ExecutionID string `json:"execution_id"`
-	// SessionID is the ID of the session where the command was executed.
-	SessionID string `json:"session_id"`
-}
-
-// sessionEndEvent is an event that is sent when a session ends.
-type sessionEndEvent struct {
-	// NodeID is the ID of the server where the session was created.
-	NodeID string `json:"node_id"`
-}
-
 // Check checks if the request is valid.
 func (c *CommandRequest) Check() error {
 	if c.Command == "" {

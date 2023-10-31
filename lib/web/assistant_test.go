@@ -35,8 +35,10 @@ import (
 	"golang.org/x/time/rate"
 
 	authproto "github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/assist"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 func Test_runAssistant(t *testing.T) {
@@ -168,6 +170,8 @@ func Test_runAssistant(t *testing.T) {
 				tc.setup(t, s)
 			}
 
+			allowAssistAccess(t, s)
+
 			ws, err := s.makeAssistant(t, s.authPack(t, "foo"))
 			require.NoError(t, err)
 			t.Cleanup(func() { require.NoError(t, ws.Close()) })
@@ -186,7 +190,20 @@ func Test_runAssistant(t *testing.T) {
 			tc.act(t, ws)
 		})
 	}
+}
 
+func allowAssistAccess(t *testing.T, s *WebSuite) types.Role {
+	assistRole, err := types.NewRole("assist-access", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Rules: []types.Rule{
+				types.NewRule(types.KindAssistant, services.RW()),
+			},
+		},
+	})
+	require.NoError(t, err)
+	require.NoError(t, s.server.Auth().UpsertRole(s.ctx, assistRole))
+
+	return assistRole
 }
 
 func (s *WebSuite) makeAssistant(t *testing.T, pack *authPack) (*websocket.Conn, error) {
