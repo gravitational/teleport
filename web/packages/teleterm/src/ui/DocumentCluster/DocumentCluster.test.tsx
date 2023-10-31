@@ -98,8 +98,7 @@ it('displays a button for Connect My Computer in the empty state if the user can
     </MockAppContextProvider>
   );
 
-  const scrollTrigger = screen.getByTestId('scroll-trigger');
-  act(() => mio.enterNode(scrollTrigger));
+  act(mio.enterAll);
 
   await expect(
     screen.findByRole('button', { name: 'Connect My Computer' })
@@ -169,8 +168,7 @@ it('does not display a button for Connect My Computer in the empty state if the 
     </MockAppContextProvider>
   );
 
-  const scrollTrigger = screen.getByTestId('scroll-trigger');
-  act(() => mio.enterNode(scrollTrigger));
+  act((mio.enterAll));
 
   await expect(
     screen.findByText('No Resources Found')
