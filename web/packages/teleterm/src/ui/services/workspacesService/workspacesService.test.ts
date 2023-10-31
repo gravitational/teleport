@@ -14,75 +14,37 @@
  * limitations under the License.
  */
 
-import { RootClusterUri } from 'teleterm/ui/uri';
 import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
+import Logger, { NullService } from 'teleterm/logger';
 
 import { ClustersService } from '../clusters';
 import { StatePersistenceService } from '../statePersistence';
+import { NotificationsService } from '../notifications';
+import { ModalsService } from '../modals';
 
 import { getEmptyPendingAccessRequest } from './accessRequestsService';
 import { Workspace, WorkspacesService } from './workspacesService';
+import { DocumentCluster, DocumentsService } from './documentsService';
+
+import type * as tshd from 'teleterm/services/tshd/types';
+
+beforeAll(() => {
+  Logger.init(new NullService());
+});
+
+beforeEach(() => {
+  jest.restoreAllMocks();
+});
 
 describe('restoring workspace', () => {
-  function getTestSetup(options: {
-    clusterUri: RootClusterUri; // assumes that only one cluster can be added
-    persistedWorkspaces: Record<string, Workspace>;
-  }) {
-    const statePersistenceService: Partial<StatePersistenceService> = {
-      getWorkspacesState: () => ({
-        workspaces: options.persistedWorkspaces,
-      }),
-      saveWorkspacesState: jest.fn(),
-    };
-
-    const clustersService: Partial<ClustersService> = {
-      subscribe: jest.fn(),
-      unsubscribe: jest.fn(),
-      findRootClusterByResource: jest.fn(),
-      findCluster: jest.fn(),
-      findGateway: jest.fn(),
-      getRootClusters: () => [
-        makeRootCluster({
-          uri: options.clusterUri,
-          name: 'Test cluster',
-          proxyHost: 'test:3030',
-        }),
-      ],
-    };
-
-    const clusterDocument = {
-      kind: 'doc.cluster',
-      title: 'Cluster Test',
-      clusterUri: options.clusterUri,
-      uri: '/docs/test-cluster-uri',
-    };
-
-    const workspacesService = new WorkspacesService(
-      undefined,
-      // @ts-expect-error using mocks
-      clustersService,
-      undefined,
-      statePersistenceService
-    );
-
-    workspacesService.getWorkspaceDocumentService = () => ({
-      // @ts-expect-error using mocks
-      createClusterDocument() {
-        return clusterDocument;
-      },
-    });
-
-    return { workspacesService, clusterDocument };
-  }
-
   it('restores the workspace if there is a persisted state for given clusterUri', async () => {
-    const testClusterUri = '/clusters/test-uri';
+    const cluster = makeRootCluster();
     const testWorkspace: Workspace = {
       accessRequests: {
         isBarCollapsed: true,
         pending: getEmptyPendingAccessRequest(),
       },
-      localClusterUri: testClusterUri,
+      localClusterUri: cluster.uri,
       documents: [
         {
           kind: 'doc.terminal_shell',
@@ -94,13 +56,13 @@ describe('restoring workspace', () => {
     };
 
     const { workspacesService, clusterDocument } = getTestSetup({
-      clusterUri: testClusterUri,
-      persistedWorkspaces: { [testClusterUri]: testWorkspace },
+      cluster,
+      persistedWorkspaces: { [cluster.uri]: testWorkspace },
     });
 
     await workspacesService.restorePersistedState();
     expect(workspacesService.getWorkspaces()).toStrictEqual({
-      [testClusterUri]: {
+      [cluster.uri]: {
         accessRequests: {
           pending: {
             app: {},
@@ -126,15 +88,15 @@ describe('restoring workspace', () => {
   });
 
   it('creates empty workspace if there is no persisted state for given clusterUri', async () => {
-    const testClusterUri = '/clusters/test-uri';
+    const cluster = makeRootCluster();
     const { workspacesService, clusterDocument } = getTestSetup({
-      clusterUri: testClusterUri,
+      cluster,
       persistedWorkspaces: {},
     });
 
     await workspacesService.restorePersistedState();
     expect(workspacesService.getWorkspaces()).toStrictEqual({
-      [testClusterUri]: {
+      [cluster.uri]: {
         accessRequests: {
           isBarCollapsed: false,
           pending: {
@@ -147,7 +109,7 @@ describe('restoring workspace', () => {
             user_group: {},
           },
         },
-        localClusterUri: testClusterUri,
+        localClusterUri: cluster.uri,
         documents: [clusterDocument],
         location: clusterDocument.uri,
         previous: undefined,
@@ -156,3 +118,133 @@ describe('restoring workspace', () => {
     });
   });
 });
+
+describe('setActiveWorkspace', () => {
+  it('switches the workspace for a cluster that is not connected', async () => {
+    const cluster = makeRootCluster({
+      connected: false,
+    });
+    const { workspacesService, modalsService } = getTestSetup({
+      cluster,
+      persistedWorkspaces: {},
+    });
+
+    // Resolve the modal immediately.
+    jest
+      .spyOn(modalsService, 'openRegularDialog')
+      .mockImplementation(dialog => {
+        if (dialog.kind === 'cluster-connect') {
+          dialog.onSuccess(cluster.uri);
+        } else {
+          throw new Error(`Got unexpected dialog ${dialog.kind}`);
+        }
+
+        return { closeDialog: () => {} };
+      });
+
+    const { isAtDesiredWorkspace } = await workspacesService.setActiveWorkspace(
+      cluster.uri
+    );
+
+    expect(isAtDesiredWorkspace).toBe(true);
+    expect(workspacesService.getRootClusterUri()).toEqual(cluster.uri);
+  });
+
+  it('does not switch the workspace if the cluster is not in the state', async () => {
+    const { workspacesService } = getTestSetup({
+      cluster: undefined,
+      persistedWorkspaces: {},
+    });
+
+    const { isAtDesiredWorkspace } = await workspacesService.setActiveWorkspace(
+      '/clusters/foo'
+    );
+
+    expect(isAtDesiredWorkspace).toBe(false);
+    expect(workspacesService.getRootClusterUri()).toBeUndefined();
+  });
+
+  it('does not switch the workspace if the login modal gets closed', async () => {
+    const cluster = makeRootCluster({
+      connected: false,
+    });
+    const { workspacesService, modalsService } = getTestSetup({
+      cluster,
+      persistedWorkspaces: {},
+    });
+
+    // Cancel the modal immediately.
+    jest
+      .spyOn(modalsService, 'openRegularDialog')
+      .mockImplementation(dialog => {
+        if (dialog.kind === 'cluster-connect') {
+          dialog.onCancel();
+        } else {
+          throw new Error(`Got unexpected dialog ${dialog.kind}`);
+        }
+
+        return { closeDialog: () => {} };
+      });
+
+    const { isAtDesiredWorkspace } = await workspacesService.setActiveWorkspace(
+      cluster.uri
+    );
+
+    expect(isAtDesiredWorkspace).toBe(false);
+    expect(workspacesService.getRootClusterUri()).toBeUndefined();
+  });
+});
+
+function getTestSetup(options: {
+  cluster: tshd.Cluster | undefined; // assumes that only one cluster can be added
+  persistedWorkspaces: Record<string, Workspace>;
+}) {
+  const { cluster } = options;
+
+  jest.mock('../modals');
+  const ModalsServiceMock = ModalsService as jest.MockedClass<
+    typeof ModalsService
+  >;
+  const modalsService = new ModalsServiceMock();
+
+  const statePersistenceService: Partial<StatePersistenceService> = {
+    getWorkspacesState: () => ({
+      workspaces: options.persistedWorkspaces,
+    }),
+    saveWorkspacesState: jest.fn(),
+  };
+
+  const clustersService: Partial<ClustersService> = {
+    findCluster: jest.fn(() => cluster),
+    getRootClusters: () => [cluster].filter(Boolean),
+  };
+
+  let clusterDocument: DocumentCluster;
+  if (cluster) {
+    clusterDocument = {
+      kind: 'doc.cluster',
+      title: 'Cluster Test',
+      clusterUri: cluster?.uri,
+      uri: '/docs/test-cluster-uri',
+    };
+  }
+
+  const workspacesService = new WorkspacesService(
+    modalsService,
+    clustersService as ClustersService,
+    new NotificationsService(),
+    statePersistenceService as StatePersistenceService
+  );
+
+  workspacesService.getWorkspaceDocumentService = () =>
+    ({
+      createClusterDocument() {
+        if (!clusterDocument) {
+          throw new Error('getTestSetup received no cluster');
+        }
+        return clusterDocument;
+      },
+    } as Partial<DocumentsService> as DocumentsService);
+
+  return { workspacesService, clusterDocument, modalsService };
+}
