@@ -40,8 +40,8 @@ export default function DocumentCluster(props: {
   const rootCluster =
     appCtx.clustersService.findRootClusterByResource(clusterUri);
   const cluster = appCtx.clustersService.findCluster(clusterUri);
-
   const clusterName = cluster?.name || routing.parseClusterName(clusterUri);
+
   useEffect(() => {
     // because we don't wait for the leaf clusters to fetch before we show them,
     // we can't access `actualName` when the cluster document is created
@@ -65,84 +65,96 @@ export default function DocumentCluster(props: {
 
   return (
     <Document visible={props.visible}>
-      <ClusterState
-        clusterUri={clusterUri}
-        rootCluster={rootCluster}
-        cluster={cluster}
-        onLogin={logIn}
-      />
+      <Layout>
+        <ClusterState
+          clusterName={clusterName}
+          clusterUri={clusterUri}
+          rootCluster={rootCluster}
+          cluster={cluster}
+          onLogin={logIn}
+        />
+      </Layout>
     </Document>
   );
 }
 
 function ClusterState(props: {
   clusterUri: uri.ClusterUri;
+  clusterName: string;
   rootCluster: Cluster;
   cluster: Cluster | undefined;
   onLogin(): void;
 }) {
   if (!props.rootCluster.connected) {
     return (
-      <RequiresLogin clusterUri={props.clusterUri} onLogin={props.onLogin} />
+      <RequiresLogin clusterName={props.clusterName} onLogin={props.onLogin} />
     );
   }
 
   if (!props.cluster) {
-    return <NotFound clusterUri={props.clusterUri} />;
+    return <NotFound clusterName={props.clusterName} />;
   }
 
   if (props.cluster.leaf && !props.cluster.connected) {
-    return <LeafDisconnected clusterUri={props.clusterUri} />;
+    return <LeafDisconnected clusterName={props.clusterName} />;
   }
 
-  return (
-    <Layout>
-      <UnifiedResources clusterUri={props.clusterUri} />
-    </Layout>
-  );
+  return <UnifiedResources clusterUri={props.clusterUri} />;
 }
 
-function RequiresLogin(props: { clusterUri: uri.ClusterUri; onLogin(): void }) {
+function RequiresLogin(props: { clusterName: string; onLogin(): void }) {
   return (
-    <Flex
-      flexDirection="column"
-      mx="auto"
-      justifyContent="center"
-      alignItems="center"
-    >
-      <Text typography="h4" color="text.main" bold>
-        {props.clusterUri}
-        <Text as="span" typography="h5">
-          {` cluster is offline`}
-        </Text>
-      </Text>
-      <ButtonPrimary mt={4} width="100px" onClick={props.onLogin}>
-        Connect
-      </ButtonPrimary>
-    </Flex>
+    <PrintState
+      clusterName={props.clusterName}
+      clusterState="Cluster is offline."
+      children={
+        <ButtonPrimary mt={4} onClick={props.onLogin}>
+          Connect
+        </ButtonPrimary>
+      }
+    />
   );
 }
 
 // TODO(ravicious): Add a button for syncing the leaf clusters list.
 // https://github.com/gravitational/teleport.e/issues/863
-function LeafDisconnected(props: { clusterUri: uri.ClusterUri }) {
+function LeafDisconnected(props: { clusterName: string }) {
   return (
-    <Flex flexDirection="column" mx="auto" alignItems="center">
-      <Text typography="h5">{props.clusterUri}</Text>
-      <Text as="span" typography="h5">
-        trusted cluster is offline
-      </Text>
-    </Flex>
+    <PrintState
+      clusterName={props.clusterName}
+      clusterState="Trusted cluster is offline."
+    />
   );
 }
 
-function NotFound(props: { clusterUri: uri.ClusterUri }) {
+function NotFound(props: { clusterName: string }) {
   return (
-    <Flex flexDirection="column" mx="auto" alignItems="center">
-      <Text typography="h5">{props.clusterUri}</Text>
-      <Text as="span" typography="h5">
-        Not Found
+    <PrintState
+      clusterName={props.clusterName}
+      clusterState="Cluster is not found."
+    />
+  );
+}
+
+function PrintState(props: {
+  clusterName: string;
+  clusterState: string;
+  children?: React.ReactElement;
+}) {
+  return (
+    <Flex
+      flexDirection="column"
+      m="auto"
+      justifyContent="center"
+      alignItems="center"
+    >
+      <Text typography="h4" bold>
+        {props.clusterName}
       </Text>
+      <Text as="span" typography="h5">
+        {props.clusterState}
+      </Text>
+      {props.children}
     </Flex>
   );
 }
