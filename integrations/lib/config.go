@@ -16,9 +16,6 @@ package lib
 
 import (
 	"context"
-	"github.com/gravitational/teleport/integrations/lib/credentials"
-	"google.golang.org/grpc"
-	grpcbackoff "google.golang.org/grpc/backoff"
 	"io"
 	"os"
 	"strings"
@@ -26,8 +23,11 @@ import (
 
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
+	"google.golang.org/grpc"
+	grpcbackoff "google.golang.org/grpc/backoff"
 
 	"github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/integrations/lib/credentials"
 	"github.com/gravitational/teleport/integrations/lib/stringset"
 )
 
