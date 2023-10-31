@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -33,10 +34,14 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/accesslist"
+	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
+	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
@@ -888,4 +893,104 @@ func TestPromotedRequest(t *testing.T) {
 		require.Equal(t, "0000-00-00-0000", promotedRequest.GetPromotedAccessListName())
 		require.Equal(t, "ACL title", promotedRequest.GetPromotedAccessListTitle())
 	})
+}
+
+func TestUpdateAccessRequestWithAdditionalReviewers(t *testing.T) {
+	t.Parallel()
+
+	clock := clockwork.NewFakeClock()
+
+	mustRequest := func(suggestedReviewers ...string) types.AccessRequest {
+		req, err := services.NewAccessRequest("test-user", "admins")
+		require.NoError(t, err)
+		req.SetSuggestedReviewers(suggestedReviewers)
+		return req
+	}
+
+	mustAccessList := func(name string, owners ...string) *accesslist.AccessList {
+		ownersSpec := make([]accesslist.Owner, len(owners))
+		for i, owner := range owners {
+			ownersSpec[i] = accesslist.Owner{
+				Name: owner,
+			}
+		}
+		accessList, err := accesslist.NewAccessList(header.Metadata{
+			Name: name,
+		}, accesslist.Spec{
+			Title: "simple",
+			Grants: accesslist.Grants{
+				Roles: []string{"grant-role"},
+			},
+			Audit: accesslist.Audit{
+				NextAuditDate: clock.Now().AddDate(1, 0, 0),
+			},
+			Owners: ownersSpec,
+		})
+		require.NoError(t, err)
+		return accessList
+	}
+
+	tests := []struct {
+		name              string
+		req               types.AccessRequest
+		accessLists       []*accesslist.AccessList
+		promotions        *types.AccessRequestAllowedPromotions
+		expectedReviewers []string
+	}{
+		{
+			name:              "nil promotions",
+			req:               mustRequest("rev1", "rev2"),
+			expectedReviewers: []string{"rev1", "rev2"},
+		},
+		{
+			name: "a few promotions",
+			req:  mustRequest("rev1", "rev2"),
+			accessLists: []*accesslist.AccessList{
+				mustAccessList("name1", "owner1", "owner2"),
+				mustAccessList("name2", "owner1", "owner3"),
+				mustAccessList("name3", "owner4", "owner5"),
+			},
+			promotions: &types.AccessRequestAllowedPromotions{
+				Promotions: []*types.AccessRequestAllowedPromotion{
+					{AccessListName: "name1"},
+					{AccessListName: "name2"},
+				},
+			},
+			expectedReviewers: []string{"rev1", "rev2", "owner1", "owner2", "owner3"},
+		},
+		{
+			name: "no promotions",
+			req:  mustRequest("rev1", "rev2"),
+			accessLists: []*accesslist.AccessList{
+				mustAccessList("name1", "owner1", "owner2"),
+				mustAccessList("name2", "owner1", "owner3"),
+				mustAccessList("name3", "owner4", "owner5"),
+			},
+			promotions: &types.AccessRequestAllowedPromotions{
+				Promotions: []*types.AccessRequestAllowedPromotion{},
+			},
+			expectedReviewers: []string{"rev1", "rev2"},
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			mem, err := memory.New(memory.Config{})
+			require.NoError(t, err)
+			accessLists, err := local.NewAccessListService(mem, clock)
+			require.NoError(t, err)
+
+			ctx := context.Background()
+			for _, accessList := range test.accessLists {
+				_, err = accessLists.UpsertAccessList(ctx, accessList)
+				require.NoError(t, err)
+			}
+
+			req := test.req.Copy()
+			updateAccessRequestWithAdditionalReviewers(ctx, req, accessLists, test.promotions)
+			require.Equal(t, test.expectedReviewers, req.GetSuggestedReviewers())
+		})
+	}
 }
