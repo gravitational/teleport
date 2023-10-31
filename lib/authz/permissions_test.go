@@ -562,7 +562,7 @@ func TestCheckIPPinning(t *testing.T) {
 			desc:     "IP pinning enabled, missing client IP",
 			pinnedIP: "127.0.0.1",
 			pinIP:    true,
-			wantErr:  "expected type net.Addr, got <nil>",
+			wantErr:  "client source address was not found in the context",
 		},
 		{
 			desc:       "correct IP pinning",
@@ -575,7 +575,7 @@ func TestCheckIPPinning(t *testing.T) {
 	for _, tt := range testCases {
 		ctx := context.Background()
 		if tt.clientAddr != "" {
-			ctx = ContextWithClientAddr(ctx, utils.MustParseAddr(tt.clientAddr))
+			ctx = ContextWithClientSrcAddr(ctx, utils.MustParseAddr(tt.clientAddr))
 		}
 		identity := tlsca.Identity{PinnedIP: tt.pinnedIP}
 

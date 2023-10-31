@@ -4079,7 +4079,7 @@ func (g *GRPCServer) UpsertWindowsDesktopService(ctx context.Context, service *t
 	// the server.Addr field. It's not useful for other services that want to
 	// connect to it (like a proxy). Remote address of the gRPC connection is
 	// the closest thing we have to a public IP for the service.
-	clientAddr, err := authz.ClientAddrFromContext(ctx)
+	clientAddr, err := authz.ClientSrcAddrFromContext(ctx)
 	if err != nil {
 		g.Logger.WithError(err).Warn("error getting client address from context")
 		return nil, status.Errorf(codes.FailedPrecondition, "client address not found in request context")

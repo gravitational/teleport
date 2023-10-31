@@ -68,6 +68,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/touchid"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/client/mfa"
 	"github.com/gravitational/teleport/lib/client/terminal"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -3102,7 +3103,7 @@ func CreatePROXYHeaderGetter(ctx context.Context, proxySigner multiplexer.PROXYH
 		return nil
 	}
 
-	src, dst := utils.ClientAddrFromContext(ctx)
+	src, dst := authz.ClientAddrsFromContext(ctx)
 	if src != nil && dst != nil {
 		return func() ([]byte, error) {
 			return proxySigner.SignPROXYHeader(src, dst)

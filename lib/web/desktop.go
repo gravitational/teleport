@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -180,7 +181,7 @@ func (h *Handler) createDesktopConnection(
 		return sendTDPError(err)
 	}
 
-	clientSrcAddr, clientDstAddr := utils.ClientAddrFromContext(r.Context())
+	clientSrcAddr, clientDstAddr := authz.ClientAddrsFromContext(r.Context())
 
 	c := &connector{
 		log:           log,

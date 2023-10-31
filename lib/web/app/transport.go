@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
@@ -289,7 +290,7 @@ func dialAppServer(ctx context.Context, proxyClient reversetunnelclient.Tunnel, 
 
 	var from net.Addr
 	from = &utils.NetAddr{AddrNetwork: "tcp", Addr: "@web-proxy"}
-	clientSrcAddr, originalDst := utils.ClientAddrFromContext(ctx)
+	clientSrcAddr, originalDst := authz.ClientAddrsFromContext(ctx)
 	if clientSrcAddr != nil {
 		from = clientSrcAddr
 	}
