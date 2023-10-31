@@ -28,7 +28,6 @@ import (
 	gluetypes "github.com/aws/aws-sdk-go-v2/service/glue/types"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
-	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	ecatypes "github.com/gravitational/teleport/api/types/externalcloudaudit"
@@ -53,8 +52,34 @@ func TestBootstrapInfra(t *testing.T) {
 				SessionsRecordingsURI:  "s3://long-term-storage-bucket/session",
 				AuditEventsLongTermURI: "s3://long-term-storage-bucket/events",
 				AthenaResultsURI:       "s3://transient-storage-bucket/query_results",
-				AthenaWorkgroup:        "teleport",
-				GlueDatabase:           "teleport",
+				AthenaWorkgroup:        "teleport-workgroup",
+				GlueDatabase:           "teleport-database",
+				GlueTable:              "audit-events",
+			},
+		},
+		{
+			desc:        "invalid input transient and long-term share same bucket name",
+			errExpected: true,
+			region:      "us-west-2",
+			eca: &ecatypes.ExternalCloudAuditSpec{
+				SessionsRecordingsURI:  "s3://long-term-storage-bucket/session",
+				AuditEventsLongTermURI: "s3://long-term-storage-bucket/events",
+				AthenaResultsURI:       "s3://long-term-storage-bucket/query_results",
+				AthenaWorkgroup:        "teleport-workgroup",
+				GlueDatabase:           "teleport-database",
+				GlueTable:              "audit-events",
+			},
+		},
+		{
+			desc:        "invalid input audit events and session recordings have different URIs",
+			errExpected: true,
+			region:      "us-west-2",
+			eca: &ecatypes.ExternalCloudAuditSpec{
+				SessionsRecordingsURI:  "s3://long-term-storage-bucket-sessions/session",
+				AuditEventsLongTermURI: "s3://long-term-storage-bucket-events/events",
+				AthenaResultsURI:       "s3://transient-storage-bucket/query_results",
+				AthenaWorkgroup:        "teleport-workgroup",
+				GlueDatabase:           "teleport-database",
 				GlueTable:              "audit-events",
 			},
 		},
@@ -62,14 +87,22 @@ func TestBootstrapInfra(t *testing.T) {
 
 	for _, tc := range tt {
 		t.Run(tc.desc, func(t *testing.T) {
-			clt := &fakeBootstrapInfraClient{buckets: map[string]struct{}{}}
 			testCtx := context.Background()
-			err := BootstrapInfra(testCtx, clt, tc.eca, tc.region)
+			s3Clt := &mockBootstrapS3Client{buckets: map[string]struct{}{}}
+			athenaClt := &mockBootstrapAthenaClient{}
+			glueClt := &mockBootstrapGlueClient{}
+			err := BootstrapInfra(testCtx, BootstrapInfraParams{
+				Athena: athenaClt,
+				Glue:   glueClt,
+				S3:     s3Clt,
+				Spec:   tc.eca,
+				Region: tc.region,
+			})
 			if tc.errExpected {
-				require.Error(t, err)
+				require.Error(t, err, "an error was expected in BootstrapInfra but was not present")
 				return
 			} else {
-				require.NoError(t, err)
+				require.NoError(t, err, "an unexpected error occurred in BootstrapInfra")
 			}
 
 			ltsBucket, err := url.Parse(tc.eca.AuditEventsLongTermURI)
@@ -78,32 +111,44 @@ func TestBootstrapInfra(t *testing.T) {
 			transientBucket, err := url.Parse(tc.eca.AthenaResultsURI)
 			require.NoError(t, err)
 
-			if _, ok := clt.buckets[ltsBucket.Host]; !ok {
-				require.Fail(t, "long-term bucket: %s not created by bootstrap infra", ltsBucket.Host)
+			if _, ok := s3Clt.buckets[ltsBucket.Host]; !ok {
+				t.Fatalf("Long-term bucket: %s not created by bootstrap infra", ltsBucket.Host)
 			}
 
-			if _, ok := clt.buckets[transientBucket.Host]; !ok {
-				require.Fail(t, "transient bucket: %s not created by bootstrap infra", transientBucket.Host)
+			if _, ok := s3Clt.buckets[transientBucket.Host]; !ok {
+				t.Fatalf("Transient bucket: %s not created by bootstrap infra", transientBucket.Host)
 			}
 
-			require.Equal(t, clt.database, tc.eca.GlueDatabase)
-			require.Equal(t, clt.table, tc.eca.GlueTable)
-			require.Equal(t, clt.workgroup, tc.eca.AthenaWorkgroup)
+			require.Equal(t, glueClt.database, tc.eca.GlueDatabase)
+			require.Equal(t, glueClt.table, tc.eca.GlueTable)
+			require.Equal(t, athenaClt.workgroup, tc.eca.AthenaWorkgroup)
 
 			// Re-run bootstrap
-			require.NoError(t, BootstrapInfra(testCtx, clt, tc.eca, tc.region))
+			require.NoError(t, BootstrapInfra(testCtx, BootstrapInfraParams{
+				Athena: athenaClt,
+				Glue:   glueClt,
+				S3:     s3Clt,
+				Spec:   tc.eca,
+				Region: tc.region,
+			}))
 		})
 	}
 }
 
-type fakeBootstrapInfraClient struct {
-	buckets   map[string]struct{}
-	workgroup string
-	table     string
-	database  string
+type mockBootstrapS3Client struct {
+	buckets map[string]struct{}
 }
 
-func (c *fakeBootstrapInfraClient) CreateBucket(ctx context.Context, params *s3.CreateBucketInput, optFns ...func(*s3.Options)) (*s3.CreateBucketOutput, error) {
+type mockBootstrapAthenaClient struct {
+	workgroup string
+}
+
+type mockBootstrapGlueClient struct {
+	table    string
+	database string
+}
+
+func (c *mockBootstrapS3Client) CreateBucket(ctx context.Context, params *s3.CreateBucketInput, optFns ...func(*s3.Options)) (*s3.CreateBucketOutput, error) {
 	if _, ok := c.buckets[*params.Bucket]; ok {
 		// bucket already exists
 		return nil, &s3types.BucketAlreadyExists{Message: aws.String("The bucket already exists")}
@@ -114,33 +159,33 @@ func (c *fakeBootstrapInfraClient) CreateBucket(ctx context.Context, params *s3.
 	return &s3.CreateBucketOutput{}, nil
 }
 
-func (c *fakeBootstrapInfraClient) PutObjectLockConfiguration(ctx context.Context, params *s3.PutObjectLockConfigurationInput, optFns ...func(*s3.Options)) (*s3.PutObjectLockConfigurationOutput, error) {
+func (c *mockBootstrapS3Client) PutObjectLockConfiguration(ctx context.Context, params *s3.PutObjectLockConfigurationInput, optFns ...func(*s3.Options)) (*s3.PutObjectLockConfigurationOutput, error) {
 	if _, ok := c.buckets[*params.Bucket]; !ok {
 		// bucket doesn't exist return no such bucket error
-		return nil, &s3types.NoSuchBucket{Message: aws.String("The bucket doesn't not exist")}
+		return nil, &s3types.NoSuchBucket{Message: aws.String("The bucket doesn't exist")}
 	}
 
 	return &s3.PutObjectLockConfigurationOutput{}, nil
 }
-func (c *fakeBootstrapInfraClient) PutBucketVersioning(ctx context.Context, params *s3.PutBucketVersioningInput, optFns ...func(*s3.Options)) (*s3.PutBucketVersioningOutput, error) {
+func (c *mockBootstrapS3Client) PutBucketVersioning(ctx context.Context, params *s3.PutBucketVersioningInput, optFns ...func(*s3.Options)) (*s3.PutBucketVersioningOutput, error) {
 	if _, ok := c.buckets[*params.Bucket]; !ok {
 		// bucket doesn't exist return no such bucket error
-		return nil, &s3types.NoSuchBucket{Message: aws.String("The bucket doesn't not exist")}
+		return nil, &s3types.NoSuchBucket{Message: aws.String("The bucket doesn't exist")}
 	}
 
 	return &s3.PutBucketVersioningOutput{}, nil
 }
 
-func (c *fakeBootstrapInfraClient) PutBucketLifecycleConfiguration(ctx context.Context, params *s3.PutBucketLifecycleConfigurationInput, optFns ...func(*s3.Options)) (*s3.PutBucketLifecycleConfigurationOutput, error) {
+func (c *mockBootstrapS3Client) PutBucketLifecycleConfiguration(ctx context.Context, params *s3.PutBucketLifecycleConfigurationInput, optFns ...func(*s3.Options)) (*s3.PutBucketLifecycleConfigurationOutput, error) {
 	if _, ok := c.buckets[*params.Bucket]; !ok {
 		// bucket doesn't exist return no such bucket error
-		return nil, &s3types.NoSuchBucket{Message: aws.String("The bucket doesn't not exist")}
+		return nil, &s3types.NoSuchBucket{Message: aws.String("The bucket doesn't exist")}
 	}
 
 	return &s3.PutBucketLifecycleConfigurationOutput{}, nil
 }
 
-func (c *fakeBootstrapInfraClient) CreateWorkGroup(ctx context.Context, params *athena.CreateWorkGroupInput, optFns ...func(*athena.Options)) (*athena.CreateWorkGroupOutput, error) {
+func (c *mockBootstrapAthenaClient) CreateWorkGroup(ctx context.Context, params *athena.CreateWorkGroupInput, optFns ...func(*athena.Options)) (*athena.CreateWorkGroupOutput, error) {
 	if c.workgroup != "" {
 		return nil, &athenatypes.InvalidRequestException{Message: aws.String("workgroup is already created")}
 	}
@@ -150,7 +195,7 @@ func (c *fakeBootstrapInfraClient) CreateWorkGroup(ctx context.Context, params *
 	return &athena.CreateWorkGroupOutput{}, nil
 }
 
-func (c *fakeBootstrapInfraClient) UpdateTable(ctx context.Context, params *glue.UpdateTableInput, optFns ...func(*glue.Options)) (*glue.UpdateTableOutput, error) {
+func (c *mockBootstrapGlueClient) UpdateTable(ctx context.Context, params *glue.UpdateTableInput, optFns ...func(*glue.Options)) (*glue.UpdateTableOutput, error) {
 	if c.table == "" {
 		return nil, &gluetypes.InvalidInputException{Message: aws.String("the table does not exist")}
 	}
@@ -158,7 +203,7 @@ func (c *fakeBootstrapInfraClient) UpdateTable(ctx context.Context, params *glue
 	return &glue.UpdateTableOutput{}, nil
 }
 
-func (c *fakeBootstrapInfraClient) CreateTable(ctx context.Context, params *glue.CreateTableInput, optFns ...func(*glue.Options)) (*glue.CreateTableOutput, error) {
+func (c *mockBootstrapGlueClient) CreateTable(ctx context.Context, params *glue.CreateTableInput, optFns ...func(*glue.Options)) (*glue.CreateTableOutput, error) {
 	if c.table != "" {
 		return nil, &gluetypes.AlreadyExistsException{Message: aws.String("table already exists")}
 	}
@@ -169,7 +214,7 @@ func (c *fakeBootstrapInfraClient) CreateTable(ctx context.Context, params *glue
 }
 
 // Creates a new database in a Data Catalog.
-func (c *fakeBootstrapInfraClient) CreateDatabase(ctx context.Context, params *glue.CreateDatabaseInput, optFns ...func(*glue.Options)) (*glue.CreateDatabaseOutput, error) {
+func (c *mockBootstrapGlueClient) CreateDatabase(ctx context.Context, params *glue.CreateDatabaseInput, optFns ...func(*glue.Options)) (*glue.CreateDatabaseOutput, error) {
 	if c.database != "" {
 		return nil, &gluetypes.AlreadyExistsException{Message: aws.String("database already exists")}
 	}
@@ -177,50 +222,4 @@ func (c *fakeBootstrapInfraClient) CreateDatabase(ctx context.Context, params *g
 	c.database = *params.DatabaseInput.Name
 
 	return &glue.CreateDatabaseOutput{}, nil
-}
-
-func TestValidateAndParseS3Input(t *testing.T) {
-	tt := []struct {
-		desc        string
-		eca         *ecatypes.ExternalCloudAuditSpec
-		errExpected bool
-	}{
-		{
-			desc:        "nil external cloud audit spec",
-			errExpected: true,
-		},
-		{
-			desc:        "unique s3 uris for all three buckets",
-			errExpected: true,
-			eca: &ecatypes.ExternalCloudAuditSpec{
-				SessionsRecordingsURI:  "s3://sessions/prefix",
-				AuditEventsLongTermURI: "s3://events/prefix",
-				AthenaResultsURI:       "s3://results/query_results",
-			},
-		},
-		{
-			desc:        "valid s3 configuration",
-			errExpected: false,
-			eca: &ecatypes.ExternalCloudAuditSpec{
-				SessionsRecordingsURI:  "s3://lts/prefix",
-				AuditEventsLongTermURI: "s3://lts/prefix",
-				AthenaResultsURI:       "s3://results/query_results",
-			},
-		},
-	}
-
-	for _, tc := range tt {
-		t.Run(tc.desc, func(t *testing.T) {
-			ltsBucket, transientBucket, err := validateAndParseS3Input(tc.eca)
-			if tc.errExpected {
-				require.Error(t, err, trace.DebugReport(err))
-				return
-			} else {
-				require.NoError(t, err, trace.DebugReport(err))
-			}
-
-			require.Contains(t, tc.eca.AuditEventsLongTermURI, ltsBucket)
-			require.Contains(t, tc.eca.AthenaResultsURI, transientBucket)
-		})
-	}
 }

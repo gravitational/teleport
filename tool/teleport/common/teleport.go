@@ -1020,20 +1020,20 @@ func onIntegrationConfExternalAuditCmd(params config.IntegrationConfExternalClou
 		return trace.Wrap(err)
 	}
 	if params.Bootstrap {
-		bootstrapClt := &externalcloudaudit.DefaultBootstrapInfraClient{
+		err = externalcloudaudit.BootstrapInfra(ctx, externalcloudaudit.BootstrapInfraParams{
+			Athena: athena.NewFromConfig(cfg),
 			Glue:   glue.NewFromConfig(cfg),
 			S3:     s3.NewFromConfig(cfg),
-			Athena: athena.NewFromConfig(cfg),
-		}
-
-		err = externalcloudaudit.BootstrapInfra(ctx, bootstrapClt, &ecatypes.ExternalCloudAuditSpec{
-			SessionsRecordingsURI:  params.SessionRecordingsURI,
-			AuditEventsLongTermURI: params.AuditEventsURI,
-			AthenaResultsURI:       params.AthenaResultsURI,
-			GlueDatabase:           params.GlueDatabase,
-			GlueTable:              params.GlueTable,
-			AthenaWorkgroup:        params.AthenaWorkgroup,
-		}, params.Region)
+			Spec: &ecatypes.ExternalCloudAuditSpec{
+				SessionsRecordingsURI:  params.SessionRecordingsURI,
+				AuditEventsLongTermURI: params.AuditEventsURI,
+				AthenaResultsURI:       params.AthenaResultsURI,
+				GlueDatabase:           params.GlueDatabase,
+				GlueTable:              params.GlueTable,
+				AthenaWorkgroup:        params.AthenaWorkgroup,
+			},
+			Region: params.Region,
+		})
 		if err != nil {
 			return trace.Wrap(err)
 		}

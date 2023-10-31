@@ -37,91 +37,40 @@ import (
 )
 
 const (
-	// defaultRetentionYears defines default object lock retention period
-	defaultRetentionYears = 4
-	// databaseDescription is the description of the glue database
-	databaseDescription = "Teleport external cloud audit events database for Athena"
+	// defaultObjectLockRetentionYears defines default object lock retention period in years for long-term s3 bucket.
+	defaultObjectLockRetentionYears = 4
+	// glueDatabaseDescription is the description of the glue database created by bootstrapping.
+	glueDatabaseDescription = "Teleport external cloud audit events database for Athena"
 )
 
-// BootstrapInfraClient describes the methods required to create bootstrap the
-// external cloud audit infrastructure
-type BootstrapInfraClient interface {
-	createBucketClient
-	createAthenaWorkgroupClient
-	createGlueInfraClient
+// BootstrapInfraParams are the input parameters for [BootstrapInfra].
+type BootstrapInfraParams struct {
+	Athena BootstrapAthenaClient
+	Glue   BootstrapGlueClient
+	S3     BootstrapS3Client
+
+	Spec   *ecatypes.ExternalCloudAuditSpec
+	Region string
 }
 
-// DefaultDefaultBootstrapInfraClient wraps an glue, s3 and athena client to create a BootstrapInfraClient
-type DefaultBootstrapInfraClient struct {
-	Glue   *glue.Client
-	S3     *s3.Client
-	Athena *athena.Client
+// BootstrapAthenaClient is a subset of [athena.Client] methods needed for athena bootstrap.
+type BootstrapAthenaClient interface {
+	// Creates a workgroup with the specified name.
+	CreateWorkGroup(ctx context.Context, params *athena.CreateWorkGroupInput, optFns ...func(*athena.Options)) (*athena.CreateWorkGroupOutput, error)
 }
 
-func (d *DefaultBootstrapInfraClient) CreateBucket(ctx context.Context, params *s3.CreateBucketInput, optFns ...func(*s3.Options)) (*s3.CreateBucketOutput, error) {
-	return d.S3.CreateBucket(ctx, params, optFns...)
+// BootstrapGlueClient is a subset of [glue.Client] methods needed for glue boostrap.
+type BootstrapGlueClient interface {
+	// Creates a new database in a Data Catalog.
+	CreateDatabase(ctx context.Context, params *glue.CreateDatabaseInput, optFns ...func(*glue.Options)) (*glue.CreateDatabaseOutput, error)
+	// Creates a new table definition in the Data Catalog.
+	CreateTable(ctx context.Context, params *glue.CreateTableInput, optFns ...func(*glue.Options)) (*glue.CreateTableOutput, error)
+	// Updates a metadata table in the Data Catalog.
+	UpdateTable(ctx context.Context, params *glue.UpdateTableInput, optFns ...func(*glue.Options)) (*glue.UpdateTableOutput, error)
 }
 
-func (d *DefaultBootstrapInfraClient) PutObjectLockConfiguration(ctx context.Context, params *s3.PutObjectLockConfigurationInput, optFns ...func(*s3.Options)) (*s3.PutObjectLockConfigurationOutput, error) {
-	return d.S3.PutObjectLockConfiguration(ctx, params, optFns...)
-}
-func (d *DefaultBootstrapInfraClient) PutBucketVersioning(ctx context.Context, params *s3.PutBucketVersioningInput, optFns ...func(*s3.Options)) (*s3.PutBucketVersioningOutput, error) {
-	return d.S3.PutBucketVersioning(ctx, params, optFns...)
-}
-
-func (d *DefaultBootstrapInfraClient) PutBucketLifecycleConfiguration(ctx context.Context, params *s3.PutBucketLifecycleConfigurationInput, optFns ...func(*s3.Options)) (*s3.PutBucketLifecycleConfigurationOutput, error) {
-	return d.S3.PutBucketLifecycleConfiguration(ctx, params, optFns...)
-}
-
-func (d *DefaultBootstrapInfraClient) CreateWorkGroup(ctx context.Context, params *athena.CreateWorkGroupInput, optFns ...func(*athena.Options)) (*athena.CreateWorkGroupOutput, error) {
-	return d.Athena.CreateWorkGroup(ctx, params, optFns...)
-}
-
-func (d *DefaultBootstrapInfraClient) CreateDatabase(ctx context.Context, params *glue.CreateDatabaseInput, optFns ...func(*glue.Options)) (*glue.CreateDatabaseOutput, error) {
-	return d.Glue.CreateDatabase(ctx, params, optFns...)
-}
-
-func (d *DefaultBootstrapInfraClient) CreateTable(ctx context.Context, params *glue.CreateTableInput, optFns ...func(*glue.Options)) (*glue.CreateTableOutput, error) {
-	return d.Glue.CreateTable(ctx, params, optFns...)
-}
-
-func (d *DefaultBootstrapInfraClient) UpdateTable(ctx context.Context, params *glue.UpdateTableInput, optFns ...func(*glue.Options)) (*glue.UpdateTableOutput, error) {
-	return d.Glue.UpdateTable(ctx, params, optFns...)
-}
-
-// BootstrapInfra bootstraps external cloud audit infrastructure
-// We are currently very opinionated about inputs and have additional checks
-func BootstrapInfra(ctx context.Context, clt BootstrapInfraClient, eca *ecatypes.ExternalCloudAuditSpec, region string) error {
-	ltsBucket, transientBucket, err := validateAndParseS3Input(eca)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	err = createLTSBucket(ctx, clt, ltsBucket, region)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	err = createTransientBucket(ctx, clt, transientBucket, region)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	err = createAthenaWorkgroup(ctx, clt, eca.AthenaWorkgroup)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	err = createGlueInfra(ctx, clt, eca.GlueTable, eca.GlueDatabase, ltsBucket)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
-}
-
-// createBucketClient contains methods needed to create a new  bucket
-type createBucketClient interface {
+// BootstrapS3Client is a subset of [s3.Client] methods needed to bootstrap S3 buckets.
+type BootstrapS3Client interface {
 	// Creates a new S3 bucket.
 	CreateBucket(ctx context.Context, params *s3.CreateBucketInput, optFns ...func(*s3.Options)) (*s3.CreateBucketOutput, error)
 	// Places an Object Lock configuration on the specified bucket.
@@ -132,18 +81,57 @@ type createBucketClient interface {
 	PutBucketLifecycleConfiguration(ctx context.Context, params *s3.PutBucketLifecycleConfigurationInput, optFns ...func(*s3.Options)) (*s3.PutBucketLifecycleConfigurationOutput, error)
 }
 
+// BootstrapInfra bootstraps external cloud audit infrastructure.
+// We are currently very opinionated about inputs and have additional checks to ensure
+// a stricter setup is created.
+func BootstrapInfra(ctx context.Context, params BootstrapInfraParams) error {
+	switch {
+	case params.Athena == nil:
+		return trace.BadParameter("param Athena required")
+	case params.Glue == nil:
+		return trace.BadParameter("param Glue required")
+	case params.S3 == nil:
+		return trace.BadParameter("param S3 required")
+	case params.Region == "":
+		return trace.BadParameter("param Region required")
+	case params.Spec == nil:
+		return trace.BadParameter("param Spec required")
+	}
+
+	ltsBucket, transientBucket, err := validateAndParseS3Input(params.Spec)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := createLTSBucket(ctx, params.S3, ltsBucket, params.Region); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := createTransientBucket(ctx, params.S3, transientBucket, params.Region); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := createAthenaWorkgroup(ctx, params.Athena, params.Spec.AthenaWorkgroup); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := createGlueInfra(ctx, params.Glue, params.Spec.GlueTable, params.Spec.GlueDatabase, ltsBucket); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
 // Creates a bucket with the given name in the given region.
 // Long Term Storage buckets have the following properties:
 // * Bucket versioning enabled
 // * Object locking enabled with Governance mode and default retention of 4 years
 // * Object ownership set to BucketOwnerEnforced
 // * Default SSE-S3 encryption
-func createLTSBucket(ctx context.Context, clt createBucketClient, bucketName string, region string) error {
+func createLTSBucket(ctx context.Context, clt BootstrapS3Client, bucketName string, region string) error {
 	err := createBucket(ctx, clt, bucketName, region, true)
-	if err != nil {
-		if !trace.IsAlreadyExists(err) {
-			return trace.Wrap(err, "creating long-term S3 bucket")
-		}
+	if err != nil && !trace.IsAlreadyExists(err) {
+		return trace.Wrap(err, "creating long-term S3 bucket")
 	}
 
 	_, err = clt.PutObjectLockConfiguration(ctx, &s3.PutObjectLockConfigurationInput{
@@ -152,8 +140,8 @@ func createLTSBucket(ctx context.Context, clt createBucketClient, bucketName str
 			ObjectLockEnabled: s3types.ObjectLockEnabledEnabled,
 			Rule: &s3types.ObjectLockRule{
 				DefaultRetention: &s3types.DefaultRetention{
-					Years: defaultRetentionYears,
-					// Modification is prohibited without BypassGovernancePermission iam permission
+					Years: defaultObjectLockRetentionYears,
+					// Modification is prohibited without IAM S3:BypassGovernancePermission
 					Mode: s3types.ObjectLockRetentionModeGovernance,
 				},
 			},
@@ -166,12 +154,10 @@ func createLTSBucket(ctx context.Context, clt createBucketClient, bucketName str
 // policy is created that cleans up transient storage:
 // * Query results expire after 1 day
 // * DeleteMarkers, NonCurrentVersions and IncompleteMultipartUploads are also removed
-func createTransientBucket(ctx context.Context, clt createBucketClient, bucketName string, region string) error {
+func createTransientBucket(ctx context.Context, clt BootstrapS3Client, bucketName string, region string) error {
 	err := createBucket(ctx, clt, bucketName, region, false)
-	if err != nil {
-		if !trace.IsAlreadyExists(err) {
-			return trace.Wrap(err, "creating transient S3 bucket")
-		}
+	if err != nil && !trace.IsAlreadyExists(err) {
+		return trace.Wrap(err, "creating transient S3 bucket")
 	}
 
 	_, err = clt.PutBucketLifecycleConfiguration(ctx, &s3.PutBucketLifecycleConfigurationInput{
@@ -209,7 +195,7 @@ func createTransientBucket(ctx context.Context, clt createBucketClient, bucketNa
 	return trace.Wrap(awsutil.ConvertS3Error(err), "setting lifecycle configuration on S3 bucket")
 }
 
-func createBucket(ctx context.Context, clt createBucketClient, bucketName string, region string, objectLock bool) error {
+func createBucket(ctx context.Context, clt BootstrapS3Client, bucketName string, region string, objectLock bool) error {
 	_, err := clt.CreateBucket(ctx, &s3.CreateBucketInput{
 		Bucket: &bucketName,
 		CreateBucketConfiguration: &s3types.CreateBucketConfiguration{
@@ -232,47 +218,30 @@ func createBucket(ctx context.Context, clt createBucketClient, bucketName string
 	return trace.Wrap(awsutil.ConvertS3Error(err), "setting versioning configuration on S3 bucket")
 }
 
-// createAthenaWorkgroupClient describes the required methods to ensure and configure athena workgroups for external cloud audit
-type createAthenaWorkgroupClient interface {
-	// Creates a workgroup with the specified name.
-	CreateWorkGroup(ctx context.Context, params *athena.CreateWorkGroupInput, optFns ...func(*athena.Options)) (*athena.CreateWorkGroupOutput, error)
-}
-
-// createAthenaWorkgroup creates an athena workgroup in which to run the athena sql queries
-func createAthenaWorkgroup(ctx context.Context, clt createAthenaWorkgroupClient, workgroup string) error {
+// createAthenaWorkgroup creates an athena workgroup in which to run athena sql queries.
+func createAthenaWorkgroup(ctx context.Context, clt BootstrapAthenaClient, workgroup string) error {
 	_, err := clt.CreateWorkGroup(ctx, &athena.CreateWorkGroupInput{
 		Name:          &workgroup,
 		Configuration: &athenatypes.WorkGroupConfiguration{},
 	})
-	if err != nil {
-		if !strings.Contains(err.Error(), "is already created") {
-			return trace.Wrap(err, "creating athena workgroup")
-		}
+	if err != nil && !strings.Contains(err.Error(), "is already created") {
+		return trace.Wrap(err, "creating athena workgroup")
 	}
 
 	return nil
 }
 
-type createGlueInfraClient interface {
-	// Creates a new database in a Data Catalog.
-	CreateDatabase(ctx context.Context, params *glue.CreateDatabaseInput, optFns ...func(*glue.Options)) (*glue.CreateDatabaseOutput, error)
-	// Creates a new table definition in the Data Catalog
-	CreateTable(ctx context.Context, params *glue.CreateTableInput, optFns ...func(*glue.Options)) (*glue.CreateTableOutput, error)
-	// Updates a metadata table in the Data Catalog.
-	UpdateTable(ctx context.Context, params *glue.UpdateTableInput, optFns ...func(*glue.Options)) (*glue.UpdateTableOutput, error)
-}
-
-// createGlueInfra creates necessary infrastructure for glue operations
+// createGlueInfra creates necessary infrastructure for glue operations.
 // https://docs.aws.amazon.com/service-authorization/latest/reference/list_awsglue.html
 // Required IAM Permissions:
 // * CreateDatabase
 // * CreateTable
 // * UpdateTable
-func createGlueInfra(ctx context.Context, clt createGlueInfraClient, table, database, eventBucket string) error {
+func createGlueInfra(ctx context.Context, clt BootstrapGlueClient, table, database, eventBucket string) error {
 	_, err := clt.CreateDatabase(ctx, &glue.CreateDatabaseInput{
 		DatabaseInput: &gluetypes.DatabaseInput{
 			Name:        &database,
-			Description: aws.String(databaseDescription),
+			Description: aws.String(glueDatabaseDescription),
 		},
 	})
 	if err != nil {
@@ -284,8 +253,8 @@ func createGlueInfra(ctx context.Context, clt createGlueInfraClient, table, data
 
 	// Currently matches table input as specified in:
 	// https://github.com/gravitational/cloud/blob/22393dcc9362ec77b0a111c3cc81b65df19da0b0/pkg/tenantcontroller/athena.go#L458-L504
-	// TODO: Consolidate source of truth to a single location. Preferably teleport repository
-	// We do want to ensure that the table that exists has the correct table input so we'll update already existing tables
+	// TODO(logand22): Consolidate source of truth to a single location. Preferably teleport repository.
+	// We do want to ensure that the table that exists has the correct table input so we'll update already existing tables.
 	_, err = clt.CreateTable(ctx, &glue.CreateTableInput{
 		DatabaseName: &database,
 		TableInput:   getGlueTableInput(table, eventBucket),
@@ -308,51 +277,50 @@ func createGlueInfra(ctx context.Context, clt createGlueInfraClient, table, data
 	return nil
 }
 
-// validateAndParseS3Input parses and checks s3 input uris against are strict rules
-// We currently enforce two buckets one for long term storage and one for transient short term storage
-func validateAndParseS3Input(input *ecatypes.ExternalCloudAuditSpec) (string, string, error) {
-	if input == nil {
-		return "", "", trace.BadParameter("input is nil")
-	}
-
+// validateAndParseS3Input parses and checks s3 input uris against our strict rules.
+// We currently enforce two buckets one for long term storage and one for transient short term storage.
+func validateAndParseS3Input(input *ecatypes.ExternalCloudAuditSpec) (auditHost, resultHost string, err error) {
 	auditEventsBucket, err := url.Parse(input.AuditEventsLongTermURI)
 	if err != nil {
 		return "", "", trace.Wrap(err, "parsing audit events URI")
 	}
 	if auditEventsBucket.Scheme != "s3" {
-		return "", "", trace.BadParameter("Invalid scheme for audit events bucket URI")
+		return "", "", trace.BadParameter("invalid scheme for audit events bucket URI")
 	}
+	auditHost = auditEventsBucket.Host
 
 	sessionBucket, err := url.Parse(input.SessionsRecordingsURI)
 	if err != nil {
 		return "", "", trace.Wrap(err, "parsing session recordings URI")
 	}
 	if sessionBucket.Scheme != "s3" {
-		return "", "", trace.BadParameter("Invalid scheme for session bucket URI")
+		return "", "", trace.BadParameter("invalid scheme for session bucket URI")
 	}
+	sessionHost := sessionBucket.Host
 
 	resultBucket, err := url.Parse(input.AthenaResultsURI)
 	if err != nil {
 		return "", "", trace.Wrap(err, "parsing athena results URI")
 	}
 	if resultBucket.Scheme != "s3" {
-		return "", "", trace.BadParameter("Invalid scheme for athena results bucket URI")
+		return "", "", trace.BadParameter("invalid scheme for athena results bucket URI")
+	}
+	resultHost = resultBucket.Host
+
+	if auditHost != sessionHost {
+		return "", "", trace.BadParameter("audit events bucket URI must match session bucket URI")
 	}
 
-	if auditEventsBucket.Host != sessionBucket.Host {
-		return "", "", trace.BadParameter("Audit events bucket URI must match session bucket URI")
+	if resultHost == auditHost {
+		return "", "", trace.BadParameter("athena results bucket URI must not match audit events or session bucket URI")
 	}
 
-	if resultBucket.Host == auditEventsBucket.Host {
-		return "", "", trace.BadParameter("Athena results bucket URI must not match audit events or session bucket URI")
-	}
-
-	return auditEventsBucket.Host, resultBucket.Host, nil
+	return auditHost, resultHost, nil
 }
 
-// getGlueTableInput returns glue table input for both creating and updating a glue table
+// getGlueTableInput returns glue table input for both creating and updating a glue table.
 func getGlueTableInput(table string, eventBucket string) *gluetypes.TableInput {
-	location := fmt.Sprintf("s3://%s", eventBucket)
+	location := fmt.Sprintf("s3://%s/events", eventBucket)
 
 	return &gluetypes.TableInput{
 		Name: &table,
