@@ -3884,12 +3884,11 @@ func SSOSetWebSessionAndRedirectURL(w http.ResponseWriter, r *http.Request, resp
 		return trace.Wrap(err)
 	}
 
-	parsedURL, err := url.Parse(response.ClientRedirectURL)
+	parsedRedirectURL, err := httplib.OriginLocalRedirectURI(response.ClientRedirectURL)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	response.ClientRedirectURL = parsedURL.RequestURI()
+	response.ClientRedirectURL = parsedRedirectURL
 
 	return nil
 }
