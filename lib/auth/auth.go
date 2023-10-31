@@ -51,6 +51,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 	"golang.org/x/time/rate"
 	"google.golang.org/protobuf/types/known/durationpb"
@@ -4234,7 +4235,7 @@ func updateAccessRequestWithAdditionalReviewers(ctx context.Context, req types.A
 	}
 
 	// For promotions, add in access list owners as additional suggested reviewers
-	var additionalReviewers []string
+	additionalReviewers := map[string]struct{}{}
 
 	// Iterate through the promotions, adding the owners of the corresponding access lists as reviewers.
 	for _, promotion := range promotions.Promotions {
@@ -4245,19 +4246,13 @@ func updateAccessRequestWithAdditionalReviewers(ctx context.Context, req types.A
 		}
 
 		for _, owner := range accessList.GetOwners() {
-			additionalReviewers = append(additionalReviewers, owner.Name)
+			additionalReviewers[owner.Name] = struct{}{}
 		}
 	}
 
 	// Only modify the original request if additional reviewers were found.
 	if len(additionalReviewers) > 0 {
-		originalNumSuggestedReviewers := len(req.GetSuggestedReviewers())
-		suggestedReviewers := make([]string, originalNumSuggestedReviewers+len(additionalReviewers))
-		copy(suggestedReviewers, req.GetSuggestedReviewers())
-		copy(suggestedReviewers[originalNumSuggestedReviewers:], additionalReviewers)
-
-		// Update the request, making sure we deduplicate if there are duplicate reviewers.
-		req.SetSuggestedReviewers(apiutils.Deduplicate(suggestedReviewers))
+		req.SetSuggestedReviewers(append(req.GetSuggestedReviewers(), maps.Keys(additionalReviewers)...))
 	}
 }
 
