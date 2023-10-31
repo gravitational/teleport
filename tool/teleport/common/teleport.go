@@ -462,8 +462,6 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 		IntegrationConfAWSOIDCIdPArguments.Cluster)
 	integrationConfAWSOIDCIdPCmd.Flag("name", "Integration name.").Required().StringVar(&ccf.
 		IntegrationConfAWSOIDCIdPArguments.Name)
-	integrationConfAWSOIDCIdPCmd.Flag("aws-region", "AWS Region.").Required().StringVar(&ccf.
-		IntegrationConfAWSOIDCIdPArguments.Region)
 	integrationConfAWSOIDCIdPCmd.Flag("role", "The AWS Role used by the AWS OIDC Integration.").Required().StringVar(&ccf.
 		IntegrationConfAWSOIDCIdPArguments.Role)
 	integrationConfAWSOIDCIdPCmd.Flag("proxy-public-url", "Proxy Public URL (eg https://mytenant.teleport.sh).").Required().StringVar(&ccf.
@@ -944,7 +942,7 @@ func onIntegrationConfEICEIAM(params config.IntegrationConfEICEIAM) error {
 func onIntegrationConfAWSOIDCIdP(params config.IntegrationConfAWSOIDCIdP) error {
 	ctx := context.Background()
 
-	iamClient, err := awsoidc.NewIdPIAMConfigureClient(ctx, params.Region)
+	iamClient, err := awsoidc.NewIdPIAMConfigureClient(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -952,7 +950,6 @@ func onIntegrationConfAWSOIDCIdP(params config.IntegrationConfAWSOIDCIdP) error 
 	err = awsoidc.ConfigureIdPIAM(ctx, iamClient, awsoidc.IdPIAMConfigureRequest{
 		Cluster:            params.Cluster,
 		IntegrationName:    params.Name,
-		Region:             params.Region,
 		IntegrationRole:    params.Role,
 		ProxyPublicAddress: params.ProxyPublicURL,
 	})
