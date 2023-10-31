@@ -353,6 +353,35 @@ function sortResourcesByKind(
 
 const aBeforeB = -1;
 const aAfterB = 1;
+const aEqualsB = 0;
+
+/**
+ * Evaluates the predicate and prioritizes the element matching the predicate over the element that
+ * doesn't.
+ *
+ * @example
+ * comparePredicate({color: 'green'}, {color: 'red'}, (el) => el.color === 'green') // => -1 (a before b)
+ * comparePredicate({color: 'red'}, {color: 'green'}, (el) => el.color === 'green') // => 1  (a after  b)
+ * comparePredicate({color: 'blue'}, {color: 'pink'}, (el) => el.color === 'green') // => 0  (both are equal)
+ */
+function comparePredicate<ElementType>(
+  a: ElementType,
+  b: ElementType,
+  predicate: (resource: ElementType) => boolean
+): -1 | 0 | 1 {
+  const aMatches = predicate(a);
+  const bMatches = predicate(b);
+
+  if (aMatches && !bMatches) {
+    return aBeforeB;
+  }
+
+  if (bMatches && !aMatches) {
+    return aAfterB;
+  }
+
+  return aEqualsB;
+}
 
 export function sortResources(
   resources: ResourceSpec[],
@@ -368,42 +397,29 @@ export function sortResources(
 
   // Sort accessible resources by 1. os 2. preferred 3. guided and 4. alphabetically
   accessible.sort((a, b) => {
-    let aPreferred,
-      bPreferred = false;
-    if (hasPreferredResources) {
-      aPreferred = preferredResources.includes(
-        resourceKindToPreferredResource(a.kind)
-      );
-      bPreferred = preferredResources.includes(
-        resourceKindToPreferredResource(b.kind)
-      );
-    }
+    const compareAB = (predicate: (r: ResourceSpec) => boolean) =>
+      comparePredicate(a, b, predicate);
 
     // Display platform resources first
-    if (a.platform === platform && b.platform !== platform) {
-      return aBeforeB;
-    }
-    if (a.platform !== platform && b.platform === platform) {
-      return aAfterB;
+    const prioritizeUserPlatform = compareAB(r => r.platform === platform);
+    if (prioritizeUserPlatform) {
+      return prioritizeUserPlatform;
     }
 
     // Display preferred resources second
-    if (aPreferred && !bPreferred) {
-      return aBeforeB;
-    }
-    if (!aPreferred && bPreferred) {
-      return aAfterB;
+    if (hasPreferredResources) {
+      const prioritizePreferredResource = compareAB(r =>
+        preferredResources.includes(resourceKindToPreferredResource(r.kind))
+      );
+      if (prioritizePreferredResource) {
+        return prioritizePreferredResource;
+      }
     }
 
     // Display guided resources third
-    if (!a.unguidedLink && !b.unguidedLink) {
-      return a.name.localeCompare(b.name);
-    }
-    if (!b.unguidedLink) {
-      return aAfterB;
-    }
-    if (!a.unguidedLink) {
-      return aBeforeB;
+    const prioritizeGuided = compareAB(r => !r.unguidedLink);
+    if (prioritizeGuided) {
+      return prioritizeGuided;
     }
 
     // Alpha
