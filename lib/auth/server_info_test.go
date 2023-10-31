@@ -95,16 +95,18 @@ func TestReconcileLabels(t *testing.T) {
 
 	// Update the server's labels.
 	awsServerInfo, err := types.NewServerInfo(types.Metadata{
-		Name:   types.ServerInfoNameFromAWS("my-account", "my-instance"),
-		Labels: map[string]string{"a": "1", "b": "2"},
-	}, types.ServerInfoSpecV1{})
+		Name: types.ServerInfoNameFromAWS("my-account", "my-instance"),
+	}, types.ServerInfoSpecV1{
+		NewLabels: map[string]string{"a": "1", "b": "2"},
+	})
 	require.NoError(t, err)
 	require.NoError(t, pack.a.UpsertServerInfo(ctx, awsServerInfo))
 
 	regularServerInfo, err := types.NewServerInfo(types.Metadata{
-		Name:   types.ServerInfoNameFromNodeName(serverName),
-		Labels: map[string]string{"b": "3", "c": "4"},
-	}, types.ServerInfoSpecV1{})
+		Name: types.ServerInfoNameFromNodeName(serverName),
+	}, types.ServerInfoSpecV1{
+		NewLabels: map[string]string{"b": "3", "c": "4"},
+	})
 	require.NoError(t, err)
 	require.NoError(t, pack.a.UpsertServerInfo(ctx, regularServerInfo))
 
