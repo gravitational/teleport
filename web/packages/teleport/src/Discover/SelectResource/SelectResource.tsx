@@ -21,7 +21,7 @@ import * as Icons from 'design/Icon';
 import styled from 'styled-components';
 import { Box, Flex, Link, Text } from 'design';
 
-import { getPlatform, Platform } from 'design/theme/utils';
+import { getPlatformType, Platform } from 'design/platform';
 
 import useTeleport from 'teleport/useTeleport';
 import { ToolTipNoPermBadge } from 'teleport/components/ToolTipNoPermBadge';
@@ -360,15 +360,15 @@ export function sortResources(
     }
 
     let platform: string;
-    const platformType = getPlatform();
+    const platformType = getPlatformType();
     if (platformType.isMac) {
-      platform = Platform.PLATFORM_MACINTOSH;
+      platform = Platform.macOS;
     }
     if (platformType.isLinux) {
-      platform = Platform.PLATFORM_LINUX;
+      platform = Platform.Linux;
     }
     if (platformType.isWin) {
-      platform = Platform.PLATFORM_WINDOWS;
+      platform = Platform.Windows;
     }
 
     // Display platform resources first
