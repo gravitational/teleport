@@ -24,7 +24,7 @@ import { getPlatform, Platform } from 'design/platform';
 
 import useTeleport from 'teleport/useTeleport';
 import { ToolTipNoPermBadge } from 'teleport/components/ToolTipNoPermBadge';
-import { Acl, AuthType } from 'teleport/services/user';
+import { Acl, AuthType, OnboardDiscover } from 'teleport/services/user';
 import {
   Header,
   HeaderSubtitle,
@@ -37,6 +37,7 @@ import {
 } from 'teleport/Discover/SelectResource/resources';
 import AddApp from 'teleport/Apps/AddApp';
 import { useUser } from 'teleport/User/UserContext';
+import localStorage from 'teleport/services/localStorage';
 
 import {
   ClusterResource,
@@ -100,7 +101,12 @@ export function SelectResource({ onSelect }: SelectResourceProps) {
       acl,
       filterResources(platform, authType, RESOURCES)
     );
-    const sortedResources = sortResources(resources, preferences);
+    const onboardDiscover = localStorage.getOnboardDiscover();
+    const sortedResources = sortResources(
+      resources,
+      preferences,
+      onboardDiscover
+    );
     setDefaultResources(sortedResources);
 
     // A user can come to this screen by clicking on
@@ -385,7 +391,8 @@ function comparePredicate<ElementType>(
 
 export function sortResources(
   resources: ResourceSpec[],
-  preferences: UserPreferences
+  preferences: UserPreferences,
+  onboardDiscover: OnboardDiscover | undefined
 ) {
   const { preferredResources, hasPreferredResources } =
     getPrioritizedResources(preferences);
@@ -395,10 +402,69 @@ export function sortResources(
   const accessible = sortedResources.filter(r => r.hasAccess);
   const restricted = sortedResources.filter(r => !r.hasAccess);
 
-  // Sort accessible resources by 1. os 2. preferred 3. guided and 4. alphabetically
+  const hasNoResources = onboardDiscover && !onboardDiscover.hasResource;
+  const prefersServers =
+    hasPreferredResources &&
+    preferredResources.includes(
+      resourceKindToPreferredResource(ResourceKind.Server)
+    );
+  const prefersServersOrNoPreferences =
+    prefersServers || !hasPreferredResources;
+  const shouldShowConnectMyComputerFirst =
+    hasNoResources &&
+    prefersServersOrNoPreferences &&
+    isConnectMyComputerAvailable(accessible);
+
+  // Sort accessible resources by:
+  // 1. os
+  // 2. preferred
+  // 3. guided
+  // 4. alphabetically
+  //
+  // When available on the given platform, Connect My Computer is put either as the first resource
+  // if the user has no resources, otherwise it's at the end of the guided group.
   accessible.sort((a, b) => {
     const compareAB = (predicate: (r: ResourceSpec) => boolean) =>
       comparePredicate(a, b, predicate);
+    const areBothGuided = !a.unguidedLink && !b.unguidedLink;
+
+    // Special cases for Connect My Computer.
+    // Show Connect My Computer tile as the first resource.
+    if (shouldShowConnectMyComputerFirst) {
+      const prioritizeConnectMyComputer = compareAB(
+        r => r.kind === ResourceKind.ConnectMyComputer
+      );
+      if (prioritizeConnectMyComputer) {
+        return prioritizeConnectMyComputer;
+      }
+
+      // Within the guided group, deprioritize server tiles of the current user platform if Connect
+      // My Computer is available.
+      //
+      // If the user has no resources available in the cluster, we want to nudge them towards
+      // Connect My Computer rather than, say, standalone macOS setup.
+      //
+      // Only do this if the user doesn't explicitly prefer servers. If they prefer servers, we
+      // want the servers for their platform to be displayed in their usual place so that the user
+      // doesn't miss that Teleport supports them.
+      if (!prefersServers && areBothGuided) {
+        const deprioritizeServerForUserPlatform = compareAB(
+          r => !(r.kind == ResourceKind.Server && r.platform === platform)
+        );
+        if (deprioritizeServerForUserPlatform) {
+          return deprioritizeServerForUserPlatform;
+        }
+      }
+    } else if (areBothGuided) {
+      // Show Connect My Computer tile as the last guided resource if the user already added some
+      // resources or they prefer other kinds of resources than servers.
+      const deprioritizeConnectMyComputer = compareAB(
+        r => r.kind !== ResourceKind.ConnectMyComputer
+      );
+      if (deprioritizeConnectMyComputer) {
+        return deprioritizeConnectMyComputer;
+      }
+    }
 
     // Display platform resources first
     const prioritizeUserPlatform = compareAB(r => r.platform === platform);
@@ -435,6 +501,14 @@ export function sortResources(
   // top of the list, so it is more visible to
   // the user.
   return [...accessible, ...restricted];
+}
+
+function isConnectMyComputerAvailable(
+  accessibleResources: ResourceSpec[]
+): boolean {
+  return !!accessibleResources.find(
+    resource => resource.kind === ResourceKind.ConnectMyComputer
+  );
 }
 
 /**

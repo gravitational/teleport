@@ -1134,41 +1134,6 @@ exports[`render with all access 1`] = `
     </div>
     <div
       class="c7"
-      data-testid="7"
-    >
-      <div
-        class="c8"
-      >
-        Guided
-      </div>
-      <div
-        class="c9"
-      >
-        <div
-          class="c10"
-          width="24px"
-        >
-          <img
-            class="c11"
-            height="24px"
-            src="file_stub"
-            width="23.9px"
-          />
-        </div>
-        <div
-          class="c12"
-        >
-          
-          <div
-            class="c14"
-          >
-            Connect My Computer
-          </div>
-        </div>
-      </div>
-    </div>
-    <div
-      class="c7"
       data-testid="4"
     >
       <div
@@ -1526,6 +1491,41 @@ exports[`render with all access 1`] = `
             class="c14"
           >
             Ubuntu 14.04+
+          </div>
+        </div>
+      </div>
+    </div>
+    <div
+      class="c7"
+      data-testid="7"
+    >
+      <div
+        class="c8"
+      >
+        Guided
+      </div>
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c11"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          
+          <div
+            class="c14"
+          >
+            Connect My Computer
           </div>
         </div>
       </div>
@@ -4791,41 +4791,6 @@ exports[`render with partial access 1`] = `
     </div>
     <div
       class="c7"
-      data-testid="7"
-    >
-      <div
-        class="c8"
-      >
-        Guided
-      </div>
-      <div
-        class="c9"
-      >
-        <div
-          class="c10"
-          width="24px"
-        >
-          <img
-            class="c11"
-            height="24px"
-            src="file_stub"
-            width="23.9px"
-          />
-        </div>
-        <div
-          class="c12"
-        >
-          
-          <div
-            class="c14"
-          >
-            Connect My Computer
-          </div>
-        </div>
-      </div>
-    </div>
-    <div
-      class="c7"
       data-testid="4"
     >
       <div
@@ -5019,6 +4984,41 @@ exports[`render with partial access 1`] = `
             class="c14"
           >
             Ubuntu 14.04+
+          </div>
+        </div>
+      </div>
+    </div>
+    <div
+      class="c7"
+      data-testid="7"
+    >
+      <div
+        class="c8"
+      >
+        Guided
+      </div>
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c11"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          
+          <div
+            class="c14"
+          >
+            Connect My Computer
           </div>
         </div>
       </div>
