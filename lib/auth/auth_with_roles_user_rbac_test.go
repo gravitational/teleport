@@ -18,11 +18,12 @@ import (
 	"context"
 	"testing"
 
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	"github.com/vulcand/predicate/builder"
+
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 func TestUserCRUDRBAC(t *testing.T) {
@@ -74,7 +75,7 @@ func TestUserCRUDRBAC(t *testing.T) {
 		},
 	})
 	_, err = srv.Auth().UpsertRole(ctx, targetedDenyRole)
-	require.NoError(t, err )
+	require.NoError(t, err)
 
 	// Creates a Teleport client that acts as the supplied user
 	testClientForUser := func(innerT *testing.T, user types.User) *Client {
@@ -260,7 +261,7 @@ func TestUserCRUDRBAC(t *testing.T) {
 		})
 
 		t.Run("denied-without-create-right", func(t *testing.T) {
-			// Given a user with update rights (but not creater rights...
+			// Given a user with update rights (but not creator rights...
 			updateOnlyRules := []types.Rule{
 				types.NewRule(types.KindUser, services.RO()),
 				types.NewRule(types.KindUser, []string{types.VerbUpdate}),
