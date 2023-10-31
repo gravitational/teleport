@@ -127,7 +127,7 @@ type ExecCommand struct {
 
 	// RequestType is the type of request: either "exec" or "shell". This will
 	// be used to control where to connect std{out,err} based on the request
-	// type: "exec" or "shell".
+	// type: "exec", "shell" or "subsystem".
 	RequestType string `json:"request_type"`
 
 	// PAMConfig is the configuration data that needs to be passed to the child and then to PAM modules.
@@ -740,6 +740,7 @@ func IsReexec() bool {
 // function is run by Teleport while it's re-executing.
 func buildCommand(c *ExecCommand, localUser *user.User, tty *os.File, pty *os.File, pamEnvironment []string) (*exec.Cmd, error) {
 	var cmd exec.Cmd
+	isReexec := false // used for
 
 	// Get the login shell for the user (or fallback to the default).
 	shellPath, err := shell.GetLoginShell(c.Login)
@@ -751,9 +752,24 @@ func buildCommand(c *ExecCommand, localUser *user.User, tty *os.File, pty *os.Fi
 		shellPath = "/bin/sh"
 	}
 
-	// If no command was given, configure a shell to run in 'login' mode.
-	// Otherwise, execute a command through the shell.
-	if c.Command == "" {
+	// If a subsystem was requested, handle the known subsystems or error out;
+	// if it's a normal command execution, and if no command was given,
+	// configure a shell to run in 'login' mode. Otherwise, execute a command
+	// through the shell.
+	if c.RequestType == sshutils.SubsystemRequest {
+		switch c.Command {
+		case teleport.SFTPSubsystem:
+			executable, err := os.Executable()
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			cmd.Path = executable
+			cmd.Args = []string{executable, teleport.SFTPSubCommand}
+			isReexec = true
+		default:
+			return nil, trace.BadParameter("unsupported subsystem execution request %q", c.Command)
+		}
+	} else if c.Command == "" {
 		// Set the path to the path of the shell.
 		cmd.Path = shellPath
 
@@ -878,7 +894,11 @@ func buildCommand(c *ExecCommand, localUser *user.User, tty *os.File, pty *os.Fi
 	}
 
 	// Perform OS-specific tweaks to the command.
-	userCommandOSTweaks(&cmd)
+	if isReexec {
+		reexecCommandOSTweaks(&cmd)
+	} else {
+		userCommandOSTweaks(&cmd)
+	}
 
 	return &cmd, nil
 }
