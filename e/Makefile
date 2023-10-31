@@ -241,7 +241,6 @@ teleport-fips-check:
 			echo "BoringCrypto appears enabled."; \
 		else \
 			echo "-- FIPS mode was requested, but the compiled teleport binary does not contain any BoringCrypto symbols. This is an error!"; \
-			echo "-- BoringCrypto is currently only supported for linux/amd64 as per https://go.googlesource.com/go/+/dev.boringcrypto/misc/boring#caveat"; \
 			exit 1; \
 		fi; \
 		rm -f $(BUILDDIR)/teleport-unstripped; \
