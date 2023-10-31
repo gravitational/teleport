@@ -146,6 +146,10 @@ func (c actionConfig) action(namespace, resource string, verbs ...string) error 
 	return nil
 }
 
+func (a *ServerWithRoles) resourceAction(namespace, resource string, verbs ...string) error {
+	return a.withOptions().action(namespace, resource, verbs...)
+}
+
 func (a *ServerWithRoles) action(namespace, resource string, verbs ...string) error {
 	return a.withOptions().action(namespace, resource, verbs...)
 }
@@ -2814,7 +2818,14 @@ func (a *ServerWithRoles) GetCurrentUserRoles(ctx context.Context) ([]types.Role
 
 // DeleteUser deletes an existng user in a backend by username.
 func (a *ServerWithRoles) DeleteUser(ctx context.Context, user string) error {
-	if err := a.action(apidefaults.Namespace, types.KindUser, types.VerbDelete); err != nil {
+	// fetch the destination user. We don't really care if it fails, as the
+	// target user record will be nil which is fine for our purposes.
+	target, _ := a.GetUser(ctx, user, false)
+	sctx := &services.Context{
+		User:     a.context.User,
+		Resource: target,
+	}
+	if err := a.actionWithContext(sctx, apidefaults.Namespace, types.KindUser, types.VerbDelete); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -3397,7 +3408,8 @@ func (a *ServerWithRoles) ChangeUserAuthentication(ctx context.Context, req *pro
 
 // CreateUser inserts a new user entry in a backend.
 func (a *ServerWithRoles) CreateUser(ctx context.Context, user types.User) (types.User, error) {
-	if err := a.action(apidefaults.Namespace, types.KindUser, types.VerbCreate); err != nil {
+	sctx := &services.Context{User: a.context.User, Resource: user}
+	if err := a.actionWithContext(sctx, apidefaults.Namespace, types.KindUser, types.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	created, err := a.authServer.CreateUser(ctx, user)
@@ -3407,16 +3419,47 @@ func (a *ServerWithRoles) CreateUser(ctx context.Context, user types.User) (type
 // UpdateUser updates an existing user in a backend.
 // Captures the auth user who modified the user record.
 func (a *ServerWithRoles) UpdateUser(ctx context.Context, user types.User) (types.User, error) {
-	if err := a.action(apidefaults.Namespace, types.KindUser, types.VerbUpdate); err != nil {
-		return nil, trace.Wrap(err)
-	}
 
-	updated, err := a.authServer.UpdateUser(ctx, user)
-	return updated, trace.Wrap(err)
+	// What to do when checking the updated user? Should we apply the same tests
+	// as if  we were creating the user - if we don't it would be possible for
+	// the user to bypass any `where` restrictions on the create verb, as they
+	// can just create the user and then update it however they want.
+	//
+	// On the other hand, applying the restrictions for the `create` verb could
+	// be surprising to the user. Any guidance appreciated.
+	//
+	// For the purposes of this example I'm just going test that the user can
+	// modify the target user, without considering what they will be updating it
+	// *to*
+
+	// Given the race condition between testing the caller's rights to modify
+	// target user and actually executing that update, we try this in a loop
+	// using `CompareAndSwapUser()` to serialize access. If we find that the
+	// destination user has changed between the access check and the update, we
+	// go around and try again with the updated user.
+	//
+	// We keep doing this until we either succeed or the context expires.
+	for {
+		// fetch the destination user. We don't really care if it fails, as the
+		// target user record will be nil which is fine for our purposes.
+		target, _ := a.authServer.GetUser(ctx, user.GetName(), false)
+
+		sctx := &services.Context{User: a.context.User, Resource: target}
+		if err := a.actionWithContext(sctx, apidefaults.Namespace, types.KindUser, types.VerbUpdate); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		err := a.authServer.CompareAndSwapUser(ctx, user, target)
+		if trace.IsCompareFailed(err) {
+			continue
+		}
+		return user, trace.Wrap(err)
+	}
 }
 
 func (a *ServerWithRoles) UpsertUser(ctx context.Context, u types.User) (types.User, error) {
-	if err := a.action(apidefaults.Namespace, types.KindUser, types.VerbCreate, types.VerbUpdate); err != nil {
+	sctx := &services.Context{User: a.context.User, Resource: u}
+	if err := a.actionWithContext(sctx, apidefaults.Namespace, types.KindUser, types.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -3426,8 +3469,49 @@ func (a *ServerWithRoles) UpsertUser(ctx context.Context, u types.User) (types.U
 			User: types.UserRef{Name: a.context.User.GetName()},
 		})
 	}
-	user, err := a.authServer.UpsertUser(ctx, u)
-	return user, trace.Wrap(err)
+
+	updateCtx := services.Context{User: a.context.User}
+
+	// Given the race condition between testing the caller's rights to modify
+	// target user and actually executing that update, we try this in a loop
+	// using `CompareAndSwapUser()` to serialize access. If we find that the
+	// destination user has changed between the access check and the update, we
+	// go around and try again with the updated user.
+	//
+	// We keep doing this until we either succeed or the context expires.
+	for {
+		// Try a create every iteration, as someone may have deleted the target
+		// user behind our backs
+		result, err := a.CreateUser(ctx, u)
+		switch {
+		case err == nil:
+			return result, nil
+
+		case !trace.IsAlreadyExists(err):
+			return nil, trace.Wrap(err)
+
+		default: // i.e. CreateUser returned "AlreadyExists"
+			// fall through to the update attempt
+		}
+
+		// fetch the destination user. We don't really care if it fails, as the
+		// target user record will be nil which is fine for our purposes.
+		targetUser, _ := a.authServer.GetUser(ctx, u.GetName(), false)
+
+		// (Possibly re-) check that the active user has the right to modify
+		// this user, remembering that the target may have been changed by
+		// someone else since the last time we came through the loop.
+		updateCtx.Resource = targetUser
+		if err := a.actionWithContext(&updateCtx, apidefaults.Namespace, types.KindUser, types.VerbUpdate); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		err = a.authServer.CompareAndSwapUser(ctx, u, targetUser)
+		if trace.IsCompareFailed(err) {
+			continue
+		}
+		return u, trace.Wrap(err)
+	}
 }
 
 // UpdateAndSwapUser exists on [ServerWithRoles] only for compatibility with
@@ -3442,6 +3526,13 @@ func (a *ServerWithRoles) UpdateAndSwapUser(ctx context.Context, user string, wi
 // backend's value does not match the expected value.
 // Captures the auth user who modified the user record.
 func (a *ServerWithRoles) CompareAndSwapUser(ctx context.Context, new, existing types.User) error {
+	target, _ := a.GetUser(ctx, existing.GetName(), false)
+
+	sctx := &services.Context{User: a.context.User, Resource: target}
+	if err := a.actionWithContext(sctx, apidefaults.Namespace, types.KindUser, types.VerbUpdate); err != nil {
+		return nil
+	}
+
 	if err := a.action(apidefaults.Namespace, types.KindUser, types.VerbUpdate); err != nil {
 		return trace.Wrap(err)
 	}
