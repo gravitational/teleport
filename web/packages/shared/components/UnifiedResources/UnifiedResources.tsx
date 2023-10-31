@@ -32,7 +32,6 @@ import { Danger } from 'design/Alert';
 import './unifiedStyles.css';
 
 import { ResourcesResponse, ResourceLabel } from 'teleport/services/agents';
-import { FeatureBox } from 'teleport/components/Layout';
 import { TextIcon } from 'teleport/Discover/Shared';
 import {
   UnifiedTabPreference,
@@ -66,7 +65,6 @@ import { ResourceTab } from './ResourceTab';
 import { ResourceCard, LoadingCard, PinningSupport } from './ResourceCard';
 import { FilterPanel } from './FilterPanel';
 
-const RESOURCES_MAX_WIDTH = '1800px';
 // get 48 resources to start
 const INITIAL_FETCH_SIZE = 48;
 // increment by 24 every fetch
@@ -286,12 +284,12 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
   );
 
   return (
-    <FeatureBox
+    <div
       className="ContainerContext"
-      px={4}
       css={`
-        max-width: ${RESOURCES_MAX_WIDTH};
-        margin: auto;
+        width: 100%;
+        max-width: 1800px;
+        margin: 0 auto;
       `}
     >
       {resourcesFetchAttempt.status === 'failed' && (
@@ -363,7 +361,7 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
       {pinning.kind === 'not-supported' && params.pinnedOnly ? (
         <PinningNotSupported />
       ) : (
-        <ResourcesContainer className="ResourcesContainer" gap={2}>
+        <ResourcesContainer gap={2}>
           {resources
             .map(unifiedResource => ({
               card: mapResourceToCard(unifiedResource),
@@ -411,7 +409,7 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
           />
         )}
       </ListFooter>
-    </FeatureBox>
+    </div>
   );
 }
 

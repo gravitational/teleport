@@ -13,19 +13,4 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-/* 
-    the styled-components@5 doesn't support container queries so
-    we have to create and set the classes manually
-    TODO (avatus): DELETE if we ever upgrade to v6
-*/
-.ContainerContext {
-  container-type: inline-size;
-}
-
-.SearchPanel {
-  width: 100%;
-  @container (min-width: 800px) {
-    width: 70%;
-  }
-}
+export { DeepLinksService } from './deepLinksService';
