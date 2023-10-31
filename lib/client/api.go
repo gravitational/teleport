@@ -465,10 +465,6 @@ type Config struct {
 	// Defaults to [dtenroll.AutoEnroll].
 	dtAutoEnroll dtAutoEnrollFunc
 
-	// PromptMFAFunc allows tests to override the default MFA prompt function.
-	// Defaults to [mfa.NewPrompt().Run].
-	PromptMFAFunc PromptMFAFunc
-
 	// WebauthnLogin allows tests to override the Webauthn Login func.
 	// Defaults to [wancli.Login].
 	WebauthnLogin WebauthnLoginFunc
@@ -476,6 +472,10 @@ type Config struct {
 	// SSHLogDir is the directory to log the output of multiple SSH commands to.
 	// If not set, no logs will be created.
 	SSHLogDir string
+
+	// MFAPrompt is a custom client prompt to use when prompting for MFA.
+	// Defaults to [mfa.CLIPrompt].
+	MFAPrompt mfa.PromptMFA
 }
 
 // CachePolicy defines cache policy for local clients
@@ -2729,7 +2729,7 @@ func (tc *TeleportClient) runCommandOnNodes(ctx context.Context, clt *ClusterCli
 	}
 
 	if tc.SSHLogDir != "" {
-		if err := os.MkdirAll(tc.SSHLogDir, 0700); err != nil {
+		if err := os.MkdirAll(tc.SSHLogDir, 0o700); err != nil {
 			return trace.ConvertSystemError(err)
 		}
 	}
@@ -2963,7 +2963,7 @@ func (tc *TeleportClient) ConnectToCluster(ctx context.Context) (*ClusterClient,
 	}
 
 	authClientCfg := pclt.ClientConfig(ctx, cluster)
-	authClientCfg.PromptAdminRequestMFA = tc.NewMFAPrompt(mfa.WithHintBeforePrompt(mfa.AdminMFAHintBeforePrompt))
+	authClientCfg.PromptAdminRequestMFA = tc.NewMFAPrompt(mfa.WithPromptReasonAdminAction())
 	authClient, err := auth.NewClient(authClientCfg)
 	if err != nil {
 		return nil, trace.NewAggregate(err, pclt.Close())
@@ -5174,7 +5174,7 @@ func (tc *TeleportClient) NewKubernetesServiceClient(ctx context.Context, cluste
 		},
 		ALPNConnUpgradeRequired:  tc.TLSRoutingConnUpgradeRequired,
 		InsecureAddressDiscovery: tc.InsecureSkipVerify,
-		PromptAdminRequestMFA:    tc.NewMFAPrompt(mfa.WithHintBeforePrompt(mfa.AdminMFAHintBeforePrompt)),
+		PromptAdminRequestMFA:    tc.NewMFAPrompt(mfa.WithPromptReasonAdminAction()),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

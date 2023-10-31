@@ -98,19 +98,17 @@ func TestPromptMFAChallenge_usingNonRegisteredDevice(t *testing.T) {
 				return "", ctx.Err()
 			}))
 
-			promptMFA := &mfa.Prompt{
-				ProxyAddress:      proxyAddr,
-				WebauthnSupported: true,
-				WebauthnLogin: func(ctx context.Context, origin string, assertion *wantypes.CredentialAssertion, prompt wancli.LoginPrompt, opts *wancli.LoginOpts) (*proto.MFAAuthenticateResponse, string, error) {
-					return nil, "", wancli.ErrUsingNonRegisteredDevice
-				},
+			prompt := mfa.NewPrompt(proxyAddr)
+			prompt.WebauthnSupported = true
+			prompt.WebauthnLoginFunc = func(ctx context.Context, origin string, assertion *wantypes.CredentialAssertion, prompt wancli.LoginPrompt, opts *wancli.LoginOpts) (*proto.MFAAuthenticateResponse, string, error) {
+				return nil, "", wancli.ErrUsingNonRegisteredDevice
 			}
 
 			if test.customizePrompt != nil {
-				test.customizePrompt(promptMFA)
+				test.customizePrompt(prompt)
 			}
 
-			_, err := promptMFA.Run(ctx, test.challenge)
+			_, err := prompt.Run(ctx, test.challenge)
 			if !errors.Is(err, wancli.ErrUsingNonRegisteredDevice) {
 				t.Errorf("PromptMFAChallenge returned err=%q, want %q", err, wancli.ErrUsingNonRegisteredDevice)
 			}

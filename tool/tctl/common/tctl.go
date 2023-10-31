@@ -197,7 +197,7 @@ func TryRun(commands []CLICommand, args []string) error {
 	ctx := context.Background()
 
 	mfaPrompt := mfa.NewPrompt("")
-	mfaPrompt.HintBeforePrompt = mfa.AdminMFAHintBeforePrompt
+	mfa.WithPromptReasonAdminAction()(mfaPrompt)
 	clientConfig.PromptAdminRequestMFA = mfaPrompt.Run
 
 	client, err := authclient.Connect(ctx, clientConfig)
