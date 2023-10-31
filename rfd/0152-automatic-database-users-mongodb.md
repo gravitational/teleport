@@ -162,20 +162,27 @@ All auto-provisioned users will have the following `customData` to indicate the
 user is managed by Teleport:
 ```json
 {
+  "createUser": "CN=<teleport-username>",
+  "customData": {
     "teleport-auto-user": true
+  },
+  "roles": [
+    { "role": "read", "db": "db1" }
+  ]
 }
 ```
 
 MongoDB admins can easily find all Teleport-managed users by running this command
 on `$external`:
 ```json
-{ "usersInfo": 1, "filter": { "customData": { "teleport-auto-user": true } } }
+{ "usersInfo": 1, "filter": { "customData.teleport-auto-user": true } }
 ```
 
 There is no built-in way to lock an user account in MongoDB, for deactivation
 purpose. However, MongoDB has builtin
 [`authenticationRestrictions`](https://www.mongodb.com/docs/manual/reference/method/db.createUser/#authentication-restrictions)
-that restricts logins by `clientSource` or `serverAddress`.
+that restricts logins by `clientSource` or `serverAddress`, which is always
+checked when a database user is being authenticated.
 
 For example, the following `authenticationRestrictions` can be
 applied to the user account, in addition to stripping the roles:
@@ -183,12 +190,7 @@ applied to the user account, in addition to stripping the roles:
 ```json
 {
   "updateUser": "CN=<teleport-username>",
-  "customData": {
-    "teleport-auto-user": true
-  },
-  "roles": [
-    { "role": "teleport-auto-user", "db": "admin" }
-  ],
+  "roles": [],
   "authenticationRestrictions": [
     { "clientSource": ["0.0.0.0"] }
   ]
@@ -198,6 +200,9 @@ applied to the user account, in addition to stripping the roles:
 Limiting the `clientSource` effectively locks out the user from logging in.
 
 When re-activating the user, `clientSource` will be set to `["0.0.0.0/0"]`.
+
+Also note that `customData` is not modified during `updateUser` commands to
+preserve any `customData` added by the users.
 
 ### Finding active connections
 
