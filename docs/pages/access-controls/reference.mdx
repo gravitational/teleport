@@ -484,7 +484,7 @@ sign-on provider.
 
 | Variable | Description |
 | - | - |
-| `{{internal.logins}}` | Substituted with a value stored in Teleport's local user database and logins from a root cluster. <br/><br/>For local users, Teleport will substitute this with the "allowed logins" parameter used in the `tctl users add [user] <allowed logins>` command. <br/><br/>If the role is within a leaf cluster in a [trusted cluster](../management/admin/trustedclusters.mdx), Teleport will substitute the logins from the root cluster whether the user is a local user or from an SSO provider. <br/><br/>As an example, if the user has the `ubuntu` login in the root cluster, then `ubuntu` will be substituted in the leaf cluster with this variable. |
+|`{{internal.aws_role_arns}}`|List of allowed AWS role ARNS for the user.|
 |`{{internal.azure_identities}}`| Returns the Azure identities defined in Teleport available to the user. Azure identities can be set for a specific user or defined in a role.|
 |`{{internal.db_names}}`|List of all allowed database names for the user.|
 |`{{internal.db_users}}`|List of all allowed database users for the user.|
@@ -492,9 +492,9 @@ sign-on provider.
 |`{{internal.kube_username}}`|Kubernetes usernames available to the user.|
 |`{{internal.kubernetes_groups}}`|List of allowed Kubernetes groups for the user.|
 |`{{internal.kubernetes_users}}`|List of allowed Kubernetes users for the user.|
-|`{{internal.logins}}`|List of allowed SSH logins for the user.|
+|`{{internal.logins}}` | Substituted with a value stored in Teleport's local user database and logins from a root cluster. <br/><br/>For local users, Teleport will substitute this with the "allowed logins" parameter used in the `tctl users add [user] <allowed logins>` command. <br/><br/>If the role is within a leaf cluster in a [trusted cluster](../management/admin/trustedclusters.mdx), Teleport will substitute the logins from the root cluster whether the user is a local user or from an SSO provider. <br/><br/>As an example, if the user has the `ubuntu` login in the root cluster, then `ubuntu` will be substituted in the leaf cluster with this variable. |
 |`{{internal.windows_logins}}`|List of allowed Windows logins for the user.|
-| `{{external.xyz}}` | Substituted with a value from an external [SSO provider](https://en.wikipedia.org/wiki/Single_sign-on). If using SAML, this will be expanded with "xyz" assertion value. For OIDC, the variable is expanded to the value of the "xyz" claim. See the next section for more information on referring to the `external` variable in Teleport roles. |
+|`{{external.xyz}}` | Substituted with a value from an external [SSO provider](https://en.wikipedia.org/wiki/Single_sign-on). If using SAML, this will be expanded with "xyz" assertion value. For OIDC, the variable is expanded to the value of the "xyz" claim. See the next section for more information on referring to the `external` variable in Teleport roles. |
 
 #### Accessing external traits in Teleport roles
 
