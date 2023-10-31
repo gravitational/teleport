@@ -168,7 +168,7 @@ it('does not display a button for Connect My Computer in the empty state if the 
     </MockAppContextProvider>
   );
 
-  act((mio.enterAll));
+  act(mio.enterAll);
 
   await expect(
     screen.findByText('No Resources Found')
