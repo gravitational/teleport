@@ -1037,8 +1037,6 @@ func onIntegrationConfExternalAuditCmd(params config.IntegrationConfExternalClou
 		if err != nil {
 			return trace.Wrap(err)
 		}
-
-		return nil // Remove this (FOR TESTING ONLY)
 	}
 
 	clt := &awsoidc.DefaultConfigureExternalCloudAuditClient{
