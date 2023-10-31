@@ -35,6 +35,7 @@ export default function DocumentCluster(props: {
 }) {
   const { clusterUri } = props.doc;
   const appCtx = useAppContext();
+  appCtx.clustersService.useState();
 
   const rootCluster =
     appCtx.clustersService.findRootClusterByResource(clusterUri);
