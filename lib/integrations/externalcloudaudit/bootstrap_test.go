@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package externalcloudaudit
+package externalcloudaudit_test
 
 import (
 	"context"
@@ -31,6 +31,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	ecatypes "github.com/gravitational/teleport/api/types/externalcloudaudit"
+	"github.com/gravitational/teleport/lib/integrations/externalcloudaudit"
 )
 
 func TestBootstrapInfra(t *testing.T) {
@@ -91,7 +92,7 @@ func TestBootstrapInfra(t *testing.T) {
 			s3Clt := &mockBootstrapS3Client{buckets: map[string]struct{}{}}
 			athenaClt := &mockBootstrapAthenaClient{}
 			glueClt := &mockBootstrapGlueClient{}
-			err := BootstrapInfra(testCtx, BootstrapInfraParams{
+			err := externalcloudaudit.BootstrapInfra(testCtx, externalcloudaudit.BootstrapInfraParams{
 				Athena: athenaClt,
 				Glue:   glueClt,
 				S3:     s3Clt,
@@ -124,7 +125,7 @@ func TestBootstrapInfra(t *testing.T) {
 			require.Equal(t, athenaClt.workgroup, tc.eca.AthenaWorkgroup)
 
 			// Re-run bootstrap
-			require.NoError(t, BootstrapInfra(testCtx, BootstrapInfraParams{
+			require.NoError(t, externalcloudaudit.BootstrapInfra(testCtx, externalcloudaudit.BootstrapInfraParams{
 				Athena: athenaClt,
 				Glue:   glueClt,
 				S3:     s3Clt,
