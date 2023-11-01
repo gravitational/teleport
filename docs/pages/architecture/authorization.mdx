@@ -248,6 +248,10 @@ You can use predicate language function calls in templates, e.g. `{{email.local(
 - Invalid values will be omitted, for example `-foo` is not a valid Unix login, so if variable `external.foo` equals
 `"-foo"`, it will be omitted in `logins: ["{{external.foo}}"]`.
 
+For full details on how variable expansion works in Teleport roles, see the
+[Teleport Access Controls
+Reference](../access-controls/reference.mdx).
+
 **How role templates are evaluated**
 
 Role templates are evaluated at the time of access to any resource either by proxy or node.

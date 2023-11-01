@@ -213,9 +213,9 @@ type CommandLineFlags struct {
 	// `teleport integration configure listdatabases-iam` command
 	IntegrationConfListDatabasesIAMArguments IntegrationConfListDatabasesIAM
 
-	// IntegrationConfExternalCloudAuditIAMArguments contains the arguments of the
-	// `teleport integration configure externalcloudaudit-iam` command
-	IntegrationConfExternalCloudAuditIAMArguments IntegrationConfExternalCloudAuditIAM
+	// IntegrationConfExternalCloudAuditArguments contains the arguments of the
+	// `teleport integration configure externalcloudaudit` command
+	IntegrationConfExternalCloudAuditArguments IntegrationConfExternalCloudAudit
 }
 
 // IntegrationConfDeployServiceIAM contains the arguments of
@@ -249,8 +249,6 @@ type IntegrationConfAWSOIDCIdP struct {
 	Cluster string
 	// Name is the integration name.
 	Name string
-	// Region is the AWS Region used to set up the client.
-	Region string
 	// Role is the AWS Role to associate with the Integration
 	Role string
 	// ProxyPublicURL is the IdP Issuer URL (Teleport Proxy Public Address).
@@ -267,9 +265,11 @@ type IntegrationConfListDatabasesIAM struct {
 	Role string
 }
 
-// IntegrationConfExternalCloudAuditIAM contains the arguments of the
+// IntegrationConfExternalCloudAudit contains the arguments of the
 // `teleport integration configure externalcloudaudit-iam` command
-type IntegrationConfExternalCloudAuditIAM struct {
+type IntegrationConfExternalCloudAudit struct {
+	// Bootstrap is whether to bootstrap infrastructure (default: false).
+	Bootstrap bool
 	// Region is the AWS Region used.
 	Region string
 	// Role is the AWS IAM Role associated with the OIDC integration.
@@ -288,7 +288,7 @@ type IntegrationConfExternalCloudAuditIAM struct {
 	GlueDatabase string
 	// GlueTable is the name of the Glue table used.
 	GlueTable string
-	// Partition is the AWS partition to use (optional).
+	// Partition is the AWS partition to use (default: aws).
 	Partition string
 }
 
@@ -1646,7 +1646,8 @@ func applyDatabasesConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 				Mode:       servicecfg.TLSMode(database.TLS.Mode),
 			},
 			AdminUser: servicecfg.DatabaseAdminUser{
-				Name: database.AdminUser.Name,
+				Name:            database.AdminUser.Name,
+				DefaultDatabase: database.AdminUser.DefaultDatabase,
 			},
 			Oracle: convOracleOptions(database.Oracle),
 			AWS: servicecfg.DatabaseAWS{

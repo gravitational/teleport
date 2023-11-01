@@ -16,14 +16,11 @@ limitations under the License.
 
 import { Kube, GetResourcesParams } from 'teleterm/services/tshd/types';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
-import { useClusterContext } from 'teleterm/ui/DocumentCluster/clusterContext';
-import { KubeUri } from 'teleterm/ui/uri';
 
 import { useServerSideResources } from '../useServerSideResources';
 
 export function useKubes() {
   const appContext = useAppContext();
-  const ctx = useClusterContext();
   const { fetchAttempt, ...serversideResources } = useServerSideResources<Kube>(
     { fieldName: 'name', dir: 'ASC' }, // default sort
     (params: GetResourcesParams) =>
@@ -31,8 +28,6 @@ export function useKubes() {
   );
 
   return {
-    connect: (kubeUri: KubeUri) =>
-      ctx.connectKube(kubeUri, { origin: 'resource_table' }),
     fetchAttempt,
     ...serversideResources,
   };

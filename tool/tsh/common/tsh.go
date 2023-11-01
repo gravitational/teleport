@@ -488,6 +488,10 @@ type CLIConf struct {
 
 	// PIVSlot specifies a specific PIV slot to use with hardware key support.
 	PIVSlot string
+
+	// SSHLogDir is the directory to log the output of multiple SSH commands to.
+	// If not set, no logs will be created.
+	SSHLogDir string
 }
 
 // Stdout returns the stdout writer.
@@ -723,6 +727,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	ssh.Flag("participant-req", "Displays a verbose list of required participants in a moderated session.").BoolVar(&cf.displayParticipantRequirements)
 	ssh.Flag("request-reason", "Reason for requesting access").StringVar(&cf.RequestReason)
 	ssh.Flag("disable-access-request", "Disable automatic resource access requests").BoolVar(&cf.disableAccessRequest)
+	ssh.Flag("log-dir", "Directory to log separated command output, when executing on multiple nodes. If set, output from each node will also be labeled in the terminal.").StringVar(&cf.SSHLogDir)
 
 	// Daemon service for teleterm client
 	daemon := app.Command("daemon", "Daemon is the tsh daemon service.").Hidden()
@@ -3784,6 +3789,7 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 	c.Reason = cf.Reason
 	c.Invited = cf.Invited
 	c.DisplayParticipantRequirements = cf.displayParticipantRequirements
+	c.SSHLogDir = cf.SSHLogDir
 	return c, nil
 }
 

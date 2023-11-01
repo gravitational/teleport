@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 func writeResponse(resp *http.Response, newResp []byte) (*bytes.Buffer, error) {
@@ -69,7 +70,7 @@ func copyRequest(ctx context.Context, req *http.Request, body io.Reader) (*http.
 func readRequestBody(req *http.Request) ([]byte, error) {
 	defer req.Body.Close()
 
-	body, err := io.ReadAll(io.LimitReader(req.Body, teleport.MaxHTTPRequestSize))
+	body, err := utils.ReadAtMost(req.Body, teleport.MaxHTTPRequestSize)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -80,7 +81,7 @@ func readRequestBody(req *http.Request) ([]byte, error) {
 func readResponseBody(resp *http.Response) ([]byte, error) {
 	defer resp.Body.Close()
 
-	body, err := io.ReadAll(io.LimitReader(resp.Body, teleport.MaxHTTPRequestSize))
+	body, err := utils.ReadAtMost(resp.Body, teleport.MaxHTTPRequestSize)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -107,7 +108,7 @@ func maybeReadGzip(headers *http.Header, body []byte) ([]byte, error) {
 	}
 	defer bodyGZ.Close()
 
-	body, err = io.ReadAll(bodyGZ)
+	body, err = utils.ReadAtMost(bodyGZ, teleport.MaxHTTPRequestSize)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

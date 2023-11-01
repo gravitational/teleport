@@ -764,9 +764,10 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/webapi/user/status", h.WithAuth(h.getUserStatus))
 
 	h.GET("/webapi/roles", h.WithAuth(h.getRolesHandle))
-	h.POST("/webapi/roles", h.WithAuth(h.upsertRoleHandle))
-	h.PUT("/webapi/roles/:name", h.WithAuth(h.upsertRoleHandle))
+	h.POST("/webapi/roles", h.WithAuth(h.createRoleHandle))
+	h.PUT("/webapi/roles/:name", h.WithAuth(h.updateRoleHandle))
 	h.DELETE("/webapi/roles/:name", h.WithAuth(h.deleteRole))
+	h.GET("/webapi/presetroles", h.WithUnauthenticatedHighLimiter(h.getPresetRoles))
 
 	h.GET("/webapi/github", h.WithAuth(h.getGithubConnectorsHandle))
 	h.POST("/webapi/github", h.WithAuth(h.createGithubConnectorHandle))
@@ -1205,7 +1206,7 @@ func getAuthSettings(ctx context.Context, authClient auth.ClientI) (webclient.Au
 // traces forwards spans from the web ui to the upstream collector configured for the proxy. If tracing is
 // disabled then the forwarding is a noop.
 func (h *Handler) traces(w http.ResponseWriter, r *http.Request, _ httprouter.Params, _ *SessionContext) (interface{}, error) {
-	body, err := io.ReadAll(io.LimitReader(r.Body, teleport.MaxHTTPRequestSize))
+	body, err := utils.ReadAtMost(r.Body, teleport.MaxHTTPResponseSize)
 	if err != nil {
 		h.log.WithError(err).Error("Failed to read traces request")
 		w.WriteHeader(http.StatusBadRequest)
@@ -4252,12 +4253,11 @@ func SSOSetWebSessionAndRedirectURL(w http.ResponseWriter, r *http.Request, resp
 		return trace.Wrap(err)
 	}
 
-	parsedURL, err := url.Parse(response.ClientRedirectURL)
+	parsedRedirectURL, err := httplib.OriginLocalRedirectURI(response.ClientRedirectURL)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	response.ClientRedirectURL = parsedURL.RequestURI()
+	response.ClientRedirectURL = parsedRedirectURL
 
 	return nil
 }

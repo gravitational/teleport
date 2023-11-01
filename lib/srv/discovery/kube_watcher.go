@@ -67,7 +67,7 @@ func (s *Server) startKubeWatchers() error {
 	}
 
 	watcher, err := common.NewWatcher(s.ctx, common.WatcherConfig{
-		Fetchers:       s.kubeFetchers,
+		FetchersFn:     common.StaticFetchers(s.kubeFetchers),
 		Log:            s.Log.WithField("kind", types.KindKubernetesCluster),
 		DiscoveryGroup: s.DiscoveryGroup,
 		Interval:       s.PollInterval,

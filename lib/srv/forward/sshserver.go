@@ -179,12 +179,19 @@ type Server struct {
 
 // ServerConfig is the configuration needed to create an instance of a Server.
 type ServerConfig struct {
-	AuthClient      auth.ClientI
-	UserAgent       teleagent.Agent
-	TargetConn      net.Conn
-	SrcAddr         net.Addr
-	DstAddr         net.Addr
-	HostCertificate ssh.Signer
+	// LocalAuthClient is a client that provides access to this local cluster.
+	// This is used for actions that should always happen on the local cluster
+	// and not remote clusters, such as session recording.
+	LocalAuthClient auth.ClientI
+	// TargetClusterAccessPoint is a client that provides access to the cluster
+	// of the server being connected to, whether it is the local cluster or a
+	// remote cluster.
+	TargetClusterAccessPoint srv.AccessPoint
+	UserAgent                teleagent.Agent
+	TargetConn               net.Conn
+	SrcAddr                  net.Addr
+	DstAddr                  net.Addr
+	HostCertificate          ssh.Signer
 
 	// AgentlessSigner is used for client authentication when no SSH
 	// user agent is provided, ie when connecting to agentless nodes.
@@ -250,8 +257,11 @@ type ServerConfig struct {
 
 // CheckDefaults makes sure all required parameters are passed in.
 func (s *ServerConfig) CheckDefaults() error {
-	if s.AuthClient == nil {
-		return trace.BadParameter("auth client required")
+	if s.LocalAuthClient == nil {
+		return trace.BadParameter("local auth client required")
+	}
+	if s.TargetClusterAccessPoint == nil {
+		return trace.BadParameter("target cluster access point client required")
 	}
 	if s.DataDir == "" {
 		return trace.BadParameter("missing parameter DataDir")
@@ -332,8 +342,8 @@ func New(c ServerConfig) (*Server, error) {
 		hostCertificate: c.HostCertificate,
 		useTunnel:       c.UseTunnel,
 		address:         c.Address,
-		authClient:      c.AuthClient,
-		authService:     c.AuthClient,
+		authClient:      c.LocalAuthClient,
+		authService:     c.LocalAuthClient,
 		dataDir:         c.DataDir,
 		clock:           c.Clock,
 		hostUUID:        c.HostUUID,
@@ -366,7 +376,7 @@ func New(c ServerConfig) (*Server, error) {
 		Server:       s,
 		Component:    teleport.ComponentForwardingNode,
 		Emitter:      c.Emitter,
-		AccessPoint:  c.AuthClient,
+		AccessPoint:  c.TargetClusterAccessPoint,
 		TargetServer: c.TargetServer,
 		FIPS:         c.FIPS,
 		Clock:        c.Clock,

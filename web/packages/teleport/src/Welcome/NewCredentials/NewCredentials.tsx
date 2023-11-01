@@ -64,6 +64,9 @@ export function NewCredentials(props: NewCredentialsProps) {
     displayOnboardingQuestionnaire = false,
     setDisplayOnboardingQuestionnaire = false,
     Questionnaire = undefined,
+    displayInviteCollaborators = false,
+    setDisplayInviteCollaborators = null,
+    InviteCollaborators = undefined,
   } = props;
 
   // Check which flow to render as default.
@@ -82,6 +85,22 @@ export function NewCredentials(props: NewCredentialsProps) {
 
   if (fetchAttempt.status !== 'success') {
     return null;
+  }
+
+  if (
+    success &&
+    !resetMode &&
+    displayInviteCollaborators &&
+    setDisplayInviteCollaborators &&
+    InviteCollaborators
+  ) {
+    return (
+      <OnboardCard>
+        <InviteCollaborators
+          onSubmit={() => setDisplayInviteCollaborators(false)}
+        />
+      </OnboardCard>
+    );
   }
 
   if (

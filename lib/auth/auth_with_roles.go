@@ -1396,10 +1396,27 @@ func (a *ServerWithRoles) KeepAliveServer(ctx context.Context, handle types.Keep
 	return a.authServer.KeepAliveServer(ctx, handle)
 }
 
+// NewStream returns a new event stream (equivalent to NewWatcher, but with slightly different
+// performance characteristics).
+func (a *ServerWithRoles) NewStream(ctx context.Context, watch types.Watch) (stream.Stream[types.Event], error) {
+	if err := a.authorizeWatchRequest(&watch); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return a.authServer.NewStream(ctx, watch)
+}
+
 // NewWatcher returns a new event watcher
 func (a *ServerWithRoles) NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error) {
+	if err := a.authorizeWatchRequest(&watch); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return a.authServer.NewWatcher(ctx, watch)
+}
+
+// authorizeWatchRequest performs permission checks and filtering on incoming watch requests.
+func (a *ServerWithRoles) authorizeWatchRequest(watch *types.Watch) error {
 	if len(watch.Kinds) == 0 {
-		return nil, trace.AccessDenied("can't setup global watch")
+		return trace.AccessDenied("can't setup global watch")
 	}
 
 	validKinds := make([]types.WatchKind, 0, len(watch.Kinds))
@@ -1409,14 +1426,14 @@ func (a *ServerWithRoles) NewWatcher(ctx context.Context, watch types.Watch) (ty
 			if watch.AllowPartialSuccess {
 				continue
 			}
-			return nil, trace.Wrap(err)
+			return trace.Wrap(err)
 		}
 
 		validKinds = append(validKinds, kind)
 	}
 
 	if len(validKinds) == 0 {
-		return nil, trace.BadParameter("none of the requested kinds can be watched")
+		return trace.BadParameter("none of the requested kinds can be watched")
 	}
 
 	watch.Kinds = validKinds
@@ -1426,7 +1443,8 @@ func (a *ServerWithRoles) NewWatcher(ctx context.Context, watch types.Watch) (ty
 	case a.hasBuiltinRole(types.RoleNode):
 		watch.QueueSize = defaults.NodeQueueSize
 	}
-	return a.authServer.NewWatcher(ctx, watch)
+
+	return nil
 }
 
 // hasWatchPermissionForKind checks the permissions for data of each kind.
@@ -1571,7 +1589,7 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 		if len(prefs.ClusterPreferences.PinnedResources.ResourceIds) == 0 {
 			return &proto.ListUnifiedResourcesResponse{}, nil
 		}
-		unifiedResources, err = a.authServer.UnifiedResourceCache.GetUnifiedResourcesByIDs(ctx, prefs.ClusterPreferences.PinnedResources.GetResourceIds(), func(resource types.ResourceWithLabels) bool {
+		unifiedResources, err = a.authServer.UnifiedResourceCache.GetUnifiedResourcesByIDs(ctx, prefs.ClusterPreferences.PinnedResources.GetResourceIds(), func(resource types.ResourceWithLabels) (bool, error) {
 			var err error
 			switch r := resource.(type) {
 			// TODO (avatus) we should add this type into the `resourceChecker.CanAccess` method
@@ -1581,13 +1599,18 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 				err = resourceChecker.CanAccess(r)
 			}
 			if err != nil {
-				return false
+				// skip access denied error. It is expected that resources won't be available
+				// to some users and we want to keep iterating until we've reached the request limit
+				// of resources they have access to
+				if trace.IsAccessDenied(err) {
+					return false, nil
+				}
+				return false, trace.Wrap(err)
 			}
-			match, _ := services.MatchResourceByFilters(resource, filter, nil)
-			return match
+			return services.MatchResourceByFilters(resource, filter, nil)
 		})
 		if err != nil {
-			return nil, trace.Wrap(err, "getting unified resources by ID")
+			return nil, trace.Wrap(err)
 		}
 
 		// we need to sort pinned resources manually because they are fetched in the order they were pinned
@@ -1607,6 +1630,9 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 			}
 
 			if err != nil {
+				// skip access denied error. It is expected that resources won't be available
+				// to some users and we want to keep iterating until we've reached the request limit
+				// of resources they have access to
 				if trace.IsAccessDenied(err) {
 					return false, nil
 				}
@@ -1616,7 +1642,7 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 			return match, trace.Wrap(err)
 		}, req)
 		if err != nil {
-			return nil, trace.Wrap(err, "filtering unified resources")
+			return nil, trace.Wrap(err)
 		}
 	}
 
@@ -2711,6 +2737,11 @@ func (a *ServerWithRoles) GetUsers(ctx context.Context, withSecrets bool) ([]typ
 	return users, trace.Wrap(err)
 }
 
+// ListUsers returns a page of users.
+func (a *ServerWithRoles) ListUsers(ctx context.Context, pageSize int, nextToken string, withSecrets bool) ([]types.User, string, error) {
+	return nil, "", trace.NotImplemented("ListUsers is not implemented yet")
+}
+
 func (a *ServerWithRoles) GetUser(ctx context.Context, name string, withSecrets bool) (types.User, error) {
 	if withSecrets {
 		// TODO(fspmarshall): replace admin requirement with VerbReadWithSecrets once we've
@@ -3080,13 +3111,21 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 			if max := a.authServer.GetClock().Now().Add(defaults.MaxRenewableCertTTL); req.Expires.After(max) {
 				req.Expires = max
 			}
-		} else {
+		} else if req.GetUsage() == proto.UserCertsRequest_Kubernetes && req.GetRequesterName() == proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY_HEADLESS {
+			// If requested certificate is for headless Kubernetes access of local proxy it is limited by max session ttl.
+
+			// Calculate the expiration time.
+			roleSet, err := services.FetchRoles(user.GetRoles(), a, user.GetTraits())
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			sessionTTL := roleSet.AdjustSessionTTL(authPref.GetDefaultSessionTTL().Duration())
+			req.Expires = a.authServer.GetClock().Now().UTC().Add(sessionTTL)
+		} else if req.Expires.After(sessionExpires) {
 			// Standard user impersonation has an expiry limited to the expiry
 			// of the current session. This prevents a user renewing their
 			// own certificates indefinitely to avoid re-authenticating.
-			if req.Expires.After(sessionExpires) {
-				req.Expires = sessionExpires
-			}
+			req.Expires = sessionExpires
 		}
 	}
 
@@ -3372,7 +3411,7 @@ func (a *ServerWithRoles) UpdateUser(ctx context.Context, user types.User) (type
 		return nil, trace.Wrap(err)
 	}
 
-	updated, err := a.authServer.UpdateUserWithContext(ctx, user)
+	updated, err := a.authServer.UpdateUser(ctx, user)
 	return updated, trace.Wrap(err)
 }
 
@@ -6863,31 +6902,43 @@ func (a *ServerWithRoles) UpdateHeadlessAuthenticationState(ctx context.Context,
 	replaceHeadlessAuthn := *headlessAuthn
 	replaceHeadlessAuthn.State = state
 
+	eventCode := ""
 	switch state {
 	case types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_APPROVED:
 		// The user must authenticate with MFA to change the state to approved.
 		if mfaResp == nil {
-			return trace.BadParameter("expected MFA auth challenge response")
+			err = trace.BadParameter("expected MFA auth challenge response")
+			emitHeadlessLoginEvent(ctx, events.UserHeadlessLoginApprovedFailureCode, a.authServer.emitter, headlessAuthn, err)
+			return err
 		}
 
 		// Only WebAuthn is supported in headless login flow for superior phishing prevention.
 		if _, ok := mfaResp.Response.(*proto.MFAAuthenticateResponse_Webauthn); !ok {
-			return trace.BadParameter("expected WebAuthn challenge response, but got %T", mfaResp.Response)
+			err = trace.BadParameter("expected WebAuthn challenge response, but got %T", mfaResp.Response)
+			emitHeadlessLoginEvent(ctx, events.UserHeadlessLoginApprovedFailureCode, a.authServer.emitter, headlessAuthn, err)
+			return err
 		}
 
 		mfaDevice, _, err := a.authServer.validateMFAAuthResponse(ctx, mfaResp, headlessAuthn.User, false /* passwordless */)
 		if err != nil {
+			emitHeadlessLoginEvent(ctx, events.UserHeadlessLoginApprovedFailureCode, a.authServer.emitter, headlessAuthn, err)
 			return trace.Wrap(err)
 		}
 
 		replaceHeadlessAuthn.MfaDevice = mfaDevice
+		eventCode = events.UserHeadlessLoginApprovedCode
 	case types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_DENIED:
+		eventCode = events.UserHeadlessLoginRejectedCode
 		// continue to compare and swap without MFA.
 	default:
 		return trace.AccessDenied("cannot update a headless authentication state to %v", state.String())
 	}
 
 	_, err = a.authServer.CompareAndSwapHeadlessAuthentication(ctx, headlessAuthn, &replaceHeadlessAuthn)
+	if err != nil && eventCode == events.UserHeadlessLoginApprovedCode {
+		eventCode = events.UserHeadlessLoginApprovedFailureCode
+	}
+	emitHeadlessLoginEvent(ctx, eventCode, a.authServer.emitter, headlessAuthn, err)
 	return trace.Wrap(err)
 }
 
@@ -7056,6 +7107,49 @@ func NewAdminAuthServer(authServer *Server, alog events.AuditLogSessionStreamer)
 	}, nil
 }
 
+func emitHeadlessLoginEvent(ctx context.Context, code string, emitter apievents.Emitter, headlessAuthn *types.HeadlessAuthentication, err error) {
+	clientAddr := ""
+	if code == events.UserHeadlessLoginRequestedCode {
+		clientAddr = headlessAuthn.ClientIpAddress
+	} else if c, err := authz.ClientAddrFromContext(ctx); err == nil {
+		clientAddr = c.String()
+	}
+
+	message := ""
+	if code != events.UserHeadlessLoginRequestedCode {
+		// For events.UserHeadlessLoginRequestedCode remote.addr will be the IP of requester.
+		// For other events that IP will be different because user will be approving the request from another machine,
+		// so we mentioned requester IP in the message.
+		message = fmt.Sprintf("Headless login was requested from the address %s", headlessAuthn.ClientIpAddress)
+	}
+	errorMessage := ""
+	if err != nil {
+		errorMessage = trace.Unwrap(err).Error()
+	}
+	event := apievents.UserLogin{
+		Metadata: apievents.Metadata{
+			Type: events.UserLoginEvent,
+			Code: code,
+		},
+		Method: events.LoginMethodHeadless,
+		UserMetadata: apievents.UserMetadata{
+			User: headlessAuthn.User,
+		},
+		ConnectionMetadata: apievents.ConnectionMetadata{
+			RemoteAddr: clientAddr,
+		},
+		Status: apievents.Status{
+			Success:     code == events.UserHeadlessLoginApprovedCode,
+			UserMessage: message,
+			Error:       errorMessage,
+		},
+	}
+
+	if emitErr := emitter.EmitAuditEvent(ctx, &event); emitErr != nil {
+		log.WithError(err).Warnf("Failed to emit %q login event, code %q: %v", events.LoginMethodHeadless, code, emitErr)
+	}
+}
+
 func emitSSOLoginFailureEvent(ctx context.Context, emitter apievents.Emitter, method string, err error, testFlow bool) {
 	code := events.UserSSOLoginFailureCode
 	if testFlow {
@@ -7076,7 +7170,7 @@ func emitSSOLoginFailureEvent(ctx context.Context, emitter apievents.Emitter, me
 	})
 
 	if emitErr != nil {
-		log.WithError(err).Warnf("Failed to emit %v login failure event.", method)
+		log.WithError(err).Warnf("Failed to emit %v login failure event: %v", method, emitErr)
 	}
 }
 
