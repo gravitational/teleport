@@ -1,3 +1,5 @@
+//go:build windows
+
 // Copyright 2023 Gravitational, Inc
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -152,7 +154,7 @@ func createAndSaveAK(
 	// Write it to the well-known location on disk
 	ref, err := ak.Marshal()
 	if err != nil {
-		return nil, trace.Wrap(err, "marshalling ak")
+		return nil, trace.Wrap(err, "marshaling ak")
 	}
 	err = os.WriteFile(persistencePath, ref, 0600)
 	if err != nil {
@@ -204,7 +206,7 @@ func (d *tpmDevice) enrollDeviceInit() (*devicepb.EnrollDeviceInit, error) {
 
 	ekKey, ekCert, err := getMarshaledEK(tpm)
 	if err != nil {
-		return nil, trace.Wrap(err, "marshalling ek")
+		return nil, trace.Wrap(err, "marshaling ek")
 	}
 
 	credentialID, err := credentialIDFromAK(ak)
