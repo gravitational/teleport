@@ -94,7 +94,7 @@ func onListDatabases(cf *CLIConf) error {
 	}
 
 	sort.Sort(types.Databases(databases))
-	return trace.Wrap(showDatabases(cf.Stdout(), cf.SiteName, databases, activeDatabases, accessChecker, cf.Format, cf.Verbose))
+	return trace.Wrap(showDatabases(cf.Stdout(), tc.Username, cf.SiteName, databases, activeDatabases, accessChecker, cf.Format, cf.Verbose))
 }
 
 func accessCheckerForRemoteCluster(ctx context.Context, profile *client.ProfileStatus, proxy *client.ProxyClient, clusterName string) (services.AccessChecker, error) {
@@ -111,6 +111,7 @@ func accessCheckerForRemoteCluster(ctx context.Context, profile *client.ProfileS
 type databaseListing struct {
 	Proxy         string                 `json:"proxy"`
 	Cluster       string                 `json:"cluster"`
+	Username      string                 `json:"username"`
 	accessChecker services.AccessChecker `json:"-"`
 	Database      types.Database         `json:"database"`
 }
@@ -196,6 +197,7 @@ func listDatabasesAllClusters(cf *CLIConf) error {
 				localDBListings = append(localDBListings, databaseListing{
 					Proxy:         cluster.profile.ProxyURL.Host,
 					Cluster:       cluster.name,
+					Username:      cluster.profile.Username,
 					accessChecker: accessChecker,
 					Database:      database,
 				})
@@ -1654,9 +1656,11 @@ func getDbCmdAlternatives(clusterFlag string, route tlsca.RouteToDatabase) []str
 // message.
 func formatAmbiguousDB(cf *CLIConf, selectors resourceSelectors, matchedDBs types.Databases) string {
 	var activeDBs []tlsca.RouteToDatabase
+	var username string
 	if profile, err := cf.ProfileStatus(); err == nil {
 		if dbs, err := profile.DatabasesForCluster(cf.SiteName); err == nil {
 			activeDBs = dbs
+			username = profile.Username
 		}
 	}
 	// Pass a nil access checker to avoid making a proxy roundtrip.
@@ -1664,7 +1668,7 @@ func formatAmbiguousDB(cf *CLIConf, selectors resourceSelectors, matchedDBs type
 	var checker services.AccessChecker
 	var sb strings.Builder
 	verbose := true
-	showDatabasesAsText(&sb, cf.SiteName, matchedDBs, activeDBs, checker, verbose)
+	showDatabasesAsText(&sb, username, cf.SiteName, matchedDBs, activeDBs, checker, verbose)
 
 	listCommand := formatDatabaseListCommand(cf.SiteName)
 	fullNameExample := matchedDBs[0].GetName()

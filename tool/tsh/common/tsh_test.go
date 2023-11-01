@@ -4512,6 +4512,17 @@ func TestListDatabasesWithUsers(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	dbWithAutoUser, err := types.NewDatabaseV3(types.Metadata{
+		Name: "auto-user",
+	}, types.DatabaseSpecV3{
+		Protocol: "postgres",
+		URI:      "localhost:5432",
+		AdminUser: &types.DatabaseAdminUser{
+			Name: "teleport-admin",
+		},
+	})
+	require.NoError(t, err)
+
 	roleDevStage := &types.RoleV6{
 		Metadata: types.Metadata{Name: "dev-stage", Namespace: apidefaults.Namespace},
 		Spec: types.RoleSpecV6{
@@ -4596,6 +4607,12 @@ func TestListDatabasesWithUsers(t *testing.T) {
 			},
 			wantText: "[dev]",
 		},
+		{
+			name:      "database with automatic user provisioning",
+			database:  dbWithAutoUser,
+			wantUsers: &dbUsers{},
+			wantText:  "alice (+)",
+		},
 	}
 
 	for _, tt := range tests {
@@ -4608,7 +4625,7 @@ func TestListDatabasesWithUsers(t *testing.T) {
 			gotUsers := getDBUsers(tt.database, accessChecker)
 			require.Equal(t, tt.wantUsers, gotUsers)
 
-			gotText := formatUsersForDB(tt.database, accessChecker)
+			gotText := formatUsersForDB("alice", tt.database, accessChecker)
 			require.Equal(t, tt.wantText, gotText)
 		})
 	}

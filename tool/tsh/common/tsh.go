@@ -2747,11 +2747,11 @@ func showAppsAsText(apps []types.Application, active []tlsca.RouteToApp, verbose
 	fmt.Println(t.AsBuffer().String())
 }
 
-func showDatabases(w io.Writer, clusterFlag string, databases []types.Database, active []tlsca.RouteToDatabase, accessChecker services.AccessChecker, format string, verbose bool) error {
+func showDatabases(w io.Writer, username, clusterFlag string, databases []types.Database, active []tlsca.RouteToDatabase, accessChecker services.AccessChecker, format string, verbose bool) error {
 	format = strings.ToLower(format)
 	switch format {
 	case teleport.Text, "":
-		showDatabasesAsText(w, clusterFlag, databases, active, accessChecker, verbose)
+		showDatabasesAsText(w, username, clusterFlag, databases, active, accessChecker, verbose)
 	case teleport.JSON, teleport.YAML:
 		out, err := serializeDatabases(databases, format, accessChecker)
 		if err != nil {
@@ -2862,7 +2862,16 @@ func serializeDatabasesAllClusters(dbListings []databaseListing, format string) 
 	return string(out), trace.Wrap(err)
 }
 
-func formatUsersForDB(database types.Database, accessChecker services.AccessChecker) string {
+func formatUsersForDB(username string, database types.Database, accessChecker services.AccessChecker) string {
+	// When auto-user provisioning is enabled, only username is allowed. `tsh
+	// db ls` will add a footnote for "(+)" to explain this.
+	if database.SupportsAutoUsers() && database.GetAdminUser().Name != "" {
+		if username == "" {
+			return "(+)"
+		}
+		return username + " (+)"
+	}
+
 	// may happen if fetching the role set failed for any reason.
 	if accessChecker == nil {
 		return "(unknown)"
@@ -2879,7 +2888,7 @@ func formatUsersForDB(database types.Database, accessChecker services.AccessChec
 	return fmt.Sprintf("%v, except: %v", dbUsers.Allowed, dbUsers.Denied)
 }
 
-func getDatabaseRow(proxy, cluster, clusterFlag string, database types.Database, active []tlsca.RouteToDatabase, accessChecker services.AccessChecker, verbose bool) []string {
+func getDatabaseRow(proxy, cluster, username, clusterFlag string, database types.Database, active []tlsca.RouteToDatabase, accessChecker services.AccessChecker, verbose bool) []string {
 	name := database.GetName()
 	displayName := common.FormatResourceName(database, verbose)
 	var connect string
@@ -2914,7 +2923,7 @@ func getDatabaseRow(proxy, cluster, clusterFlag string, database types.Database,
 			database.GetProtocol(),
 			database.GetType(),
 			database.GetURI(),
-			formatUsersForDB(database, accessChecker),
+			formatUsersForDB(username, database, accessChecker),
 			labels,
 			connect,
 		)
@@ -2922,7 +2931,7 @@ func getDatabaseRow(proxy, cluster, clusterFlag string, database types.Database,
 		row = append(row,
 			displayName,
 			database.GetDescription(),
-			formatUsersForDB(database, accessChecker),
+			formatUsersForDB(username, database, accessChecker),
 			labels,
 			connect,
 		)
@@ -2931,15 +2940,21 @@ func getDatabaseRow(proxy, cluster, clusterFlag string, database types.Database,
 	return row
 }
 
-func showDatabasesAsText(w io.Writer, clusterFlag string, databases []types.Database, active []tlsca.RouteToDatabase, accessChecker services.AccessChecker, verbose bool) {
+func showDatabasesAsText(w io.Writer, username, clusterFlag string, databases []types.Database, active []tlsca.RouteToDatabase, accessChecker services.AccessChecker, verbose bool) {
 	var rows [][]string
+	var autoUser bool
 	for _, database := range databases {
 		rows = append(rows, getDatabaseRow("", "",
+			username,
 			clusterFlag,
 			database,
 			active,
 			accessChecker,
 			verbose))
+
+		if database.SupportsAutoUsers() && database.GetAdminUser().Name != "" {
+			autoUser = true
+		}
 	}
 	var t asciitable.Table
 	if verbose {
@@ -2947,7 +2962,11 @@ func showDatabasesAsText(w io.Writer, clusterFlag string, databases []types.Data
 	} else {
 		t = asciitable.MakeTableWithTruncatedColumn([]string{"Name", "Description", "Allowed Users", "Labels", "Connect"}, rows, "Labels")
 	}
+
 	fmt.Fprintln(w, t.AsBuffer().String())
+	if autoUser {
+		fmt.Fprintln(w, `(+) Automatic User Provisioning is enabled for the database. Only your username is allowed as --db-user. See https://goteleport.com/docs/database-access/auto-user-provisioning/ for more details.`)
+	}
 }
 
 func printDatabasesWithClusters(clusterFlag string, dbListings []databaseListing, active []tlsca.RouteToDatabase, verbose bool) {
@@ -2956,6 +2975,7 @@ func printDatabasesWithClusters(clusterFlag string, dbListings []databaseListing
 		rows = append(rows, getDatabaseRow(
 			listing.Proxy,
 			listing.Cluster,
+			listing.Username,
 			clusterFlag,
 			listing.Database,
 			active,
