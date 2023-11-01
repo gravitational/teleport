@@ -23,6 +23,7 @@ import (
 	"math/big"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/google/go-attestation/attest"
 	"github.com/gravitational/trace"
@@ -271,12 +272,15 @@ func credentialIDFromAK(ak *attest.AK) (string, error) {
 	}
 }
 
-func firstValidAssetTag(strings ...string) string {
-	for _, str := range strings {
+func firstValidAssetTag(assetTags ...string) string {
+	for _, assetTag := range assetTags {
 		// Skip empty serials and known bad values.
-		if str != "" && str != "Default string" {
-			return str
+		if assetTag == "" ||
+			strings.EqualFold(assetTag, "Default string") ||
+			strings.EqualFold(assetTag, "No Asset Information") {
+			continue
 		}
+		return assetTag
 	}
 	return ""
 }
