@@ -70,6 +70,19 @@ main() {
   echoed buf generate --template=buf-connect-go.gen.yaml \
     --path=proto/prehog/
 
+  # Generate iOS Swift protos.
+  echoed buf generate --template=buf-swift.gen.yaml \
+    --path=api/proto/teleport/legacy/ \
+    --path=api/proto/teleport/accesslist/ \
+    --path=api/proto/teleport/attestation/ \
+    --path=api/proto/teleport/userloginstate/ \
+    --path=api/proto/teleport/discoveryconfig/ \
+    --path=api/proto/teleport/externalcloudaudit/ \
+    --path=api/proto/teleport/header/ \
+    --path=api/proto/teleport/secreports/ \
+    --path=api/proto/teleport/trait/ \
+    --path=api/proto/teleport/usageevents/
+
   # Generate JS protos.
   [[ $skip_js -eq 0 ]] && echoed buf generate --template=buf-js.gen.yaml \
     --path=proto/prehog/ \

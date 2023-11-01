@@ -1,5 +1,25 @@
 # syntax=docker/dockerfile:1
 
+FROM swift:latest as mobile
+
+WORKDIR /app
+
+# Install necessary packages
+RUN apt-get update && apt-get install -y \
+    clang \
+    libssl-dev \
+    libz-dev \
+    make
+
+# Clone the grpc-swift repository
+RUN git clone --depth 1 --branch 1.19.1 https://github.com/grpc/grpc-swift.git
+
+# Move into the grpc-swift directory
+WORKDIR grpc-swift
+
+# Build the project
+RUN make plugins
+
 FROM docker.io/golang:1.21
 
 # Image layers go from less likely to most likely to change.
@@ -39,6 +59,9 @@ RUN VERSION="$PROTOC_VERSION" && \
 ARG BUF_VERSION
 RUN VERSION="$BUF_VERSION"; \
     go install "github.com/bufbuild/buf/cmd/buf@$VERSION"
+
+COPY --from=mobile /usr/lib/swift/linux/* /usr/lib
+COPY --from=mobile /app/grpc-swift/protoc-gen-swift /app/grpc-swift/protoc-gen-grpc-swift /usr/local/bin/
 
 # Pre-install go-runned binaries.
 # This is meant to be the only step that changes depending on the Teleport

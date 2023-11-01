@@ -1,0 +1,6 @@
+version: v1
+plugins:
+  - name: swift
+    out: gen/proto/swift
+  - name: grpc-swift
+    out: gen/proto/swift
