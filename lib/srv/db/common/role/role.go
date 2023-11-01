@@ -32,35 +32,25 @@ type RoleMatchersConfig struct {
 	DatabaseName string
 	// AutoCreateUser is whether database user will be auto-created.
 	AutoCreateUser bool
+	// DisableDatabaseNameMatcher skips DatabaseNameMatcher even if the protocol requires it.
+	DisableDatabaseNameMatcher bool
 }
 
 // GetDatabaseRoleMatchers returns database role matchers for the provided config.
 func GetDatabaseRoleMatchers(conf RoleMatchersConfig) (matchers services.RoleMatchers) {
 	// For automatic user provisioning, don't check against database users as
 	// users will be connecting as their own Teleport username.
-	if conf.Database.SupportsAutoUsers() && conf.AutoCreateUser {
-		if m := databaseNameMatcher(conf.Database.GetProtocol(), conf.DatabaseName); m != nil {
-			matchers = append(matchers, m)
+	disableDatabaseNameMatcher := conf.Database.SupportsAutoUsers() && conf.AutoCreateUser
+	if !disableDatabaseNameMatcher {
+		matchers = append(matchers, services.NewDatabaseUserMatcher(conf.Database, conf.DatabaseUser))
+	}
+
+	if !conf.DisableDatabaseNameMatcher {
+		if matcher := databaseNameMatcher(conf.Database.GetProtocol(), conf.DatabaseName); matcher != nil {
+			matchers = append(matchers, matcher)
 		}
-		return matchers
 	}
-	return DatabaseRoleMatchers(conf.Database, conf.DatabaseUser, conf.DatabaseName)
-}
-
-// DatabaseRoleMatchers returns role matchers based on the database.
-//
-// DEPRECATED: Prefer to use GetDatabaseRoleMatchers above which supports
-// automatic user provisioning and has more flexible config.
-func DatabaseRoleMatchers(db types.Database, user, database string) services.RoleMatchers {
-	roleMatchers := services.RoleMatchers{
-		services.NewDatabaseUserMatcher(db, user),
-	}
-
-	if matcher := databaseNameMatcher(db.GetProtocol(), database); matcher != nil {
-		roleMatchers = append(roleMatchers, matcher)
-	}
-
-	return roleMatchers
+	return
 }
 
 // RequireDatabaseUserMatcher returns true if databases with provided protocol
