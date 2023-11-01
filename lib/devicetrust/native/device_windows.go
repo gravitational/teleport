@@ -25,11 +25,48 @@ import (
 	"github.com/google/go-attestation/attest"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/sys/windows"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/lib/windowsexec"
 )
+
+var windowsDevice = &tpmDevice{
+	isElevatedProcess: func() (bool, error) {
+		return windows.GetCurrentProcessToken().IsElevated(), nil
+	},
+	activateCredentialInElevatedChild: activateCredentialInElevatedChild,
+}
+
+func enrollDeviceInit() (*devicepb.EnrollDeviceInit, error) {
+	return windowsDevice.enrollDeviceInit()
+}
+
+func signChallenge(chal []byte) (sig []byte, err error) {
+	return windowsDevice.signChallenge(chal)
+}
+
+func getDeviceCredential() (*devicepb.DeviceCredential, error) {
+	return windowsDevice.getDeviceCredential()
+}
+
+func solveTPMEnrollChallenge(
+	chal *devicepb.TPMEnrollChallenge,
+	debug bool,
+) (*devicepb.TPMEnrollChallengeResponse, error) {
+	return windowsDevice.solveTPMEnrollChallenge(chal, debug)
+}
+
+func solveTPMAuthnDeviceChallenge(
+	chal *devicepb.TPMAuthenticateDeviceChallenge,
+) (*devicepb.TPMAuthenticateDeviceChallengeResponse, error) {
+	return windowsDevice.solveTPMAuthnDeviceChallenge(chal)
+}
+
+func handleTPMActivateCredential(encryptedCredential, encryptedCredentialSecret string) error {
+	return windowsDevice.handleTPMActivateCredential(encryptedCredential, encryptedCredentialSecret)
+}
 
 // getDeviceSerial returns the serial number of the device using PowerShell to
 // grab the correct WMI objects. Getting it without calling into PS is possible,

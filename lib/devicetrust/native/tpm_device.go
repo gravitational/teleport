@@ -27,7 +27,6 @@ import (
 	"github.com/google/go-attestation/attest"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
-	"golang.org/x/sys/windows"
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/lib/devicetrust"
@@ -38,6 +37,20 @@ const (
 	attestationKeyFileName       = "attestation.key"
 	credentialActivationFileName = "credential-activation"
 )
+
+// tpmDevice implements the generic device trust client-side operations for
+// TPM-based devices (Windows and Linux).
+//
+// Implementors must provide all function fields, as well as the top-level
+// collectDeviceData method.
+type tpmDevice struct {
+	isElevatedProcess                 func() (bool, error)
+	activateCredentialInElevatedChild func(
+		encryptedCredential attest.EncryptedCredential,
+		credActivationPath string,
+		debug bool,
+	) (solutionBytes []byte, err error)
+}
 
 type deviceState struct {
 	attestationKeyPath       string
@@ -148,7 +161,7 @@ func createAndSaveAK(
 	return ak, nil
 }
 
-func enrollDeviceInit() (*devicepb.EnrollDeviceInit, error) {
+func (d *tpmDevice) enrollDeviceInit() (*devicepb.EnrollDeviceInit, error) {
 	stateDir, err := setupDeviceStateDir(userDirFunc)
 	if err != nil {
 		return nil, trace.Wrap(err, "setting up device state directory")
@@ -268,9 +281,9 @@ func firstValidAssetTag(strings ...string) string {
 	return ""
 }
 
-// getDeviceCredential will only return the credential ID on windows. The
-// other information is determined server-side.
-func getDeviceCredential() (*devicepb.DeviceCredential, error) {
+// getDeviceCredential returns the credential ID for TPM devices.
+// Remaining information is determined server-side.
+func (d *tpmDevice) getDeviceCredential() (*devicepb.DeviceCredential, error) {
 	stateDir, err := setupDeviceStateDir(userDirFunc)
 	if err != nil {
 		return nil, trace.Wrap(err, "setting up device state directory")
@@ -304,7 +317,7 @@ func getDeviceCredential() (*devicepb.DeviceCredential, error) {
 	}, nil
 }
 
-func solveTPMEnrollChallenge(
+func (d *tpmDevice) solveTPMEnrollChallenge(
 	challenge *devicepb.TPMEnrollChallenge,
 	debug bool,
 ) (*devicepb.TPMEnrollChallengeResponse, error) {
@@ -353,8 +366,13 @@ func solveTPMEnrollChallenge(
 		return nil, trace.BadParameter("missing encrypted credential in challenge from server")
 	}
 
+	elevated, err := d.isElevatedProcess()
+	if err != nil {
+		return nil, trace.Wrap(err, "checking if process is elevated")
+	}
+
 	var activationSolution []byte
-	if windows.GetCurrentProcessToken().IsElevated() {
+	if elevated {
 		log.Debug("TPM: Detected current process is elevated. Will run credential activation in current process.")
 		// If we are running with elevated privileges, we can just complete the
 		// credential activation here.
@@ -367,7 +385,7 @@ func solveTPMEnrollChallenge(
 		}
 	} else {
 		fmt.Fprintln(os.Stderr, "Detected that tsh is not running with elevated privileges. Triggering a UAC prompt to complete the enrollment in an elevated process.")
-		activationSolution, err = activateCredentialInElevatedChild(
+		activationSolution, err = d.activateCredentialInElevatedChild(
 			*encryptedCredential,
 			stateDir.credentialActivationPath,
 			debug,
@@ -387,7 +405,7 @@ func solveTPMEnrollChallenge(
 	}, nil
 }
 
-func handleTPMActivateCredential(encryptedCredential, encryptedCredentialSecret string) error {
+func (d *tpmDevice) handleTPMActivateCredential(encryptedCredential, encryptedCredentialSecret string) error {
 	log.Debug("Performing credential activation.")
 	// The two input parameters are base64 encoded, so decode them.
 	credentialBytes, err := base64.StdEncoding.DecodeString(encryptedCredential)
@@ -440,7 +458,7 @@ func handleTPMActivateCredential(encryptedCredential, encryptedCredentialSecret 
 	)
 }
 
-func solveTPMAuthnDeviceChallenge(
+func (d *tpmDevice) solveTPMAuthnDeviceChallenge(
 	challenge *devicepb.TPMAuthenticateDeviceChallenge,
 ) (*devicepb.TPMAuthenticateDeviceChallengeResponse, error) {
 	stateDir, err := setupDeviceStateDir(userDirFunc)
@@ -486,8 +504,10 @@ func solveTPMAuthnDeviceChallenge(
 	}, nil
 }
 
-// signChallenge is not implemented on windows as TPM platform attestation
+// signChallenge is not implemented for TPM devices, as platform attestation
 // is used instead.
-func signChallenge(_ []byte) (sig []byte, err error) {
-	return nil, trace.BadParameter("called signChallenge on windows")
+func (d *tpmDevice) signChallenge(_ []byte) (sig []byte, err error) {
+	// NotImplemented may be interpreted as lack of server-side support, so
+	// BadParameter is used instead.
+	return nil, trace.BadParameter("signChallenge not implemented for TPM devices")
 }
