@@ -4325,7 +4325,7 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 	}
 
 	if req.GetDryRun() {
-		_, promotions := a.getAccessRequestPromotions(ctx, req)
+		_, promotions := a.generateAccessRequestPromotions(ctx, req)
 		// update the request with additional reviewers if possible.
 		updateAccessRequestWithAdditionalReviewers(ctx, req, a.AccessListClient(), promotions)
 		// Made it this far with no errors, return before creating the request
@@ -4363,7 +4363,7 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 	}
 
 	// calculate the promotions
-	reqCopy, promotions := a.getAccessRequestPromotions(ctx, req)
+	reqCopy, promotions := a.generateAccessRequestPromotions(ctx, req)
 	if promotions != nil {
 		// Create the promotion entry even if the allowed promotion is empty. Otherwise, we won't
 		// be able to distinguish between an allowed empty set and generation failure.
@@ -4378,8 +4378,9 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 	return req, nil
 }
 
-// getAccessRequestPromotions will return potential access list promotions for an access request.
-func (a *Server) getAccessRequestPromotions(ctx context.Context, req types.AccessRequest) (types.AccessRequest, *types.AccessRequestAllowedPromotions) {
+// generateAccessRequestPromotions will return potential access list promotions for an access request. On error, this function will log
+// the error and return whatever it has. The caller is expected to deal with the possibility of a nil promotions object.
+func (a *Server) generateAccessRequestPromotions(ctx context.Context, req types.AccessRequest) (types.AccessRequest, *types.AccessRequestAllowedPromotions) {
 	reqCopy := req.Copy()
 	promotions, err := modules.GetModules().GenerateAccessRequestPromotions(ctx, a.Services, reqCopy)
 	if err != nil {
