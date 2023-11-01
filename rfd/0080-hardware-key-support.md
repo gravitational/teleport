@@ -39,7 +39,7 @@ Personal Identity Verification (PIV), described in [FIPS-201](https://csrc.nist.
 
 PIV builds upon the PKCS#11 interface and provides us with additional capabilities including:
 
-* Optional PIN and Touch requirements for accessing keys
+* Optional pin and touch requirements for accessing keys
 * PIV secrets for granular [administrative access](https://developers.yubico.com/PIV/Introduction/Admin_access.html)
 * [Attestation](https://docs.yubico.com/yesdk/users-manual/application-piv/attestation.html) of private key slots
 
@@ -68,6 +68,8 @@ Note: the adjustments above will largely be client-side and therefore should not
 
 ### Security
 
+#### Touch enforcement
+
 Currently, Teleport clients generate new RSA private keys to be signed by the Teleport Auth server during login. These keys are then stored on disk alongside the certificates (in `~/.tsh`), where they can be accessed and used to perform actions as the logged in user. These actions include any Teleport Auth server request, such as listing clusters (`tsh ls`), starting an ssh session (`tsh ssh`), or adding/changing cluster resources (`tctl create`). If an attacker manages to exfiltrate a user's `~/.tsh` folder, they could use the contained certificates and key to perform actions as the user.
 
 With the introduction of a hardware private key, the user's key would not be stored on disk in `~/.tsh`. Instead, it would be generated and stored directly on the hardware key, where it can not be exported. Therefore, if an attacker exfiltrates a user's `~/.tsh` folder, the contained certificates would be useless without also having access to the user's hardware key.
@@ -77,13 +79,33 @@ So far, just introducing hardware private keys into the login process prevents s
 For this, we have two options:
 
  1. Enable [per-session MFA](https://goteleport.com/docs/access-controls/guides/per-session-mfa/), which requires you to pass an MFA check (touch) to start a new Teleport Service session (SSH/Kube/etc.)
- 2. Require Touch to access hardware private keys, which can be done with PIV-compatible hardware keys. In this case, touch is required for every Teleport request, not just new Teleport Service sessions
+ 2. Require touch to access hardware private keys, which can be done with PIV-compatible hardware keys. In this case, touch is required for every Teleport request, not just new Teleport Service sessions
 
 The first option is a bit simpler as it rides off the coattails of our existing per-session MFA system. On the other hand, the second option provides better security principles, since touch is enforced for every Teleport request rather than just Session requests, and it requires fewer roundtrips to the Auth server.
 
 In this RFD we'll explore both options together, since they are not mutually exclusive, and may provide unique value.
 
-Note: If either of these options are combined with MFA/PIV PIN enforcement, or biometric key usage (like the [Yubikey Bio Series](https://www.yubico.com/products/yubikey-bio-series/)), then even if a user's computer and hardware key are stolen, the user's login session would not provide access to an attacker. To avoid overcomplicating this RFD, we will omit this consideration and leave it as a possible future improvement.
+#### PIN enforcement
+
+Hardware key private keys can also be configured to require pin to be used in cryptographical operations. When combined with touch, requiring pin provides a level of authentication security similar to passwordless, as both user presence and a user secret are verified.
+
+#### Web Sessions
+
+Unlike WebAuthn, PIV does not have any native browser support. This means that the WebUI is incompatible with Hardware Key support. We could create custom browser extensions for some of the most commonly used browsers, but this induces too large of a development and maintenance cost to justify currently.
+
+Instead, web sessions will be treated as an exception from Hardware Key support. This exception will only apply to web sessions created through the auth http endpoint `POST /:version/users/:user/web/authenticate`. This is the endpoint used by the WebUI login flow. Web Session created through this endpoint can only be accessed by the Auth and Proxy services. This will result in similar security properties to hardware private keys since the user, or an attacker, has no way to extract web session secrets without direct access to the Proxy/Auth services or Auth storage.
+
+Web sessions created by user-authorized endpoints like the auth http endpoint `POST /:version/users/:user/web/sessions` will still be subject to hardware key restrictions to prevent abuse.
+
+##### Web Session Access
+
+Currently, the auth grpc endpoint `GetWebSession` can be used by a user to retrieve a specific web session, including secrets. This endpoint will be restricted to require `read` permissions for `KindWebSession`, similar to `GetWebSessions`. Users will still be able to retrieve non-secret web session info with the auth http endpoint `GET /:version/users/:user/web/sessions/:sid`.
+
+##### Web Session cookies
+
+Although we can guarantee that web session private key material is safely stored, web session cookies are easy to obtain from a user's browser. Web session cookies can only be used with the HTTP web API (`/webapi`), which provides a subset of functionality provided by the main Auth API to web sessions. Essentially, any functionality available in the WebUI is available through the `/webapi`.
+
+Since MFA will still be required for sessions and admin actions, this is an acceptable tradeoff.
 
 ### Server changes
 
@@ -96,8 +118,13 @@ We will start with the following private key policies:
 * `none` (default): No enforcement on private key usage
 * `hardware_key`: A user's private keys must be generated on a hardware key. As a result, the user cannot use their signed certificates unless they have their hardware key connected
 * `hardware_key_touch`: A user's private keys must be generated on a hardware key, and must require touch to be accessed. As a result, the user must touch their hardware key on login, and on subsequent requests (touch is cached on the hardware key for 15 seconds)
+* `hardware_key_pin`: A user's private keys must be generated on a hardware key, and must require pin to be accessed. As a result, the user must enter their PIV pin on login, and on subsequent requests.
+  * Unlike touch, pin is not cached explicitly. However, the pin is cached for the duration of a single PIV transaction. PIV transactions take a few seconds to close and can be reclaimed by subsequent PIV connections during the closing period. In this case, when multiple `tsh` commands are run in quick succession, it is as if the pin is cached.
+  * This policy is intended for rare circumstances where a touch policy can not be configured due to the use of external PIV tools. However, since pin alone does not verify user presence, this option opens the door for remote attacks. When possible, `hardware_key_touch_and_pin` should be used instead of this option.
+* `hardware_key_touch_and_pin`: combination of `hardware_key_touch` and `hardware_key_pin`.
+* `web_session`: private key stored as a web session in the Auth service storage. This key is only accessible by the Auth and Proxy services. Keys with this policy meet all other key policy requirements.
 
-In the future, we could choose to enforce more things, such as requiring PIN to be used, or requiring a specific key algorithm.
+In the future, we could choose to enforce more things, such as requiring a specific key algorithm.
 
 #### Private Key Policy Enforcement
 
@@ -154,7 +181,7 @@ When the Auth Server receives a login request, it will check the attached attest
 After the attestation statement has been verified, we can pull additional properties from the `slot_cert`'s extensions, which includes data like:
 
 * Device information including serial number, model, and version
-* Configured Touch (And PIN) Policies
+* Configured touch and pin Policies
 
 This data will then be checked against the user's private key policy requirement. If the policy requirement is met, the Auth server will sign the user's certificates with a private key policy extension matching the attestation.
 
@@ -193,7 +220,7 @@ auth_service:
   ...
   authentication:
     ...
-    require_session_mfa: off | on | hardware_key | hardware_key_touch
+    require_session_mfa: off | on | hardware_key | hardware_key_touch | hardware_key_pin | hardware_key_touch_and_pin
 ```
 
 ```yaml
@@ -202,7 +229,7 @@ version: v2
 metadata:
   name: cluster-auth-preference
 spec:
-  require_session_mfa: off | on | hardware_key | hardware_key_touch
+  require_session_mfa: off | on | hardware_key | hardware_key_touch | hardware_key_pin | hardware_key_touch_and_pin
 ```
 
 ```yaml
@@ -212,12 +239,23 @@ metadata:
   name: role-name
 spec:
   role_options:
-    require_session_mfa: off | on | hardware_key | hardware_key_touch
+    require_session_mfa: off | on | hardware_key | hardware_key_touch | hardware_key_pin | hardware_key_touch_and_pin
 ```
 
 * `on`: Enforce per-session MFA. Users are required to pass an MFA challenge with a registered MFA device in order to start new SSH|Kubernetes|DB|Desktop sessions. Non-session requests, and app-session requests are not impacted.
 * `hardware_key`: Enforce per-session MFA and private key policy `hardware_key`.
-* `hardware_key_touch`: Enforce private key policy `hardware_key_touch`. This replaces per-session MFA with per-request PIV-touch.
+* `hardware_key_touch`: Enforce private key policy `hardware_key_touch`. This replaces per-session MFA with per-request PIV touch.
+* `hardware_key_pin`: Enforce private key policy `hardware_key_pin`. This replaces per-session MFA with per-request PIV pin.
+* `hardware_key_touch_and_pin`: Enforce private key policy `hardware_key_touch_and_pin`. This replaces per-session MFA with per-request PIV touch and pin.
+
+##### PIV PIN counts as MFA
+
+As [mentioned before](#private-key-policy), `hardware_key_pin` does not verify presence. In order to support this use cases, we have 2 options:
+
+1. Require normal MFA in addition to PIV pin when MFA verification is required (per-session MFA, admin actions MFA). This would be functionally similar to the `hardware_key` option, where MFA touch is only required for sessions.
+2. Treat `hardware_key_pin` as MFA verified, skipping the presence. This would be functionally the same as `hardware_key_touch`, but only PIN would be prompted instead of touch.
+
+For a simpler UX, we will go with option 2. If in the future we decide to switch approaches, we can deprecate `hardware_key_pin` and replace it with `hardware_key_pin_and_mfa` to implement option 1.
 
 ##### Webauthn
 
@@ -233,14 +271,14 @@ auth_service:
     require_session_mfa: on | hardware_key
 ```
 
-However, `hardware_key_touch` used PIV instead of MFA, so it can be configured standalone:
+However, touch/pin policies use PIV instead of MFA, so it can be configured without WebAuthn:
 
 ```yaml
 auth_service:
   authentication:
     type: local
     second_factor: off
-    require_session_mfa: hardware_key_touch
+    require_session_mfa: hardware_key_touch | hardware_key_pin | hardware_key_touch_and_pin
 ```
 
 ##### Per-resource enforcement
@@ -275,7 +313,7 @@ spec:
     ...
 ```
 
-However, the same resource-based approach does not apply to `hardware_key` or `hardware_key_touch`. Since the initial login credentials are used for all requests, regardless of resource, the user's login session must start with the strictest private key policy requirement.
+However, the same resource-based approach does not apply to hardware key policy requirement. Since the initial login credentials are used for all requests, regardless of resource, the user's login session must start with the strictest private key policy requirement.
 
 ### Client changes
 
@@ -295,15 +333,16 @@ If a user's private key policy requirement is increased during an active login, 
 
 On login, a Teleport client will find a private key that meets the private key policy provided (via the key policy guesser or server error). If the key policy is `none`, then a new RSA private key will be generated as usual.
 
-If the key policy is `hardware_key` or `hardware_key_touch`, then a private key will be generated directly on the hardware key. The resulting login certificates will only be operable if:
+If a hardware key policy is required, then a private key will be generated directly on the hardware key. The resulting login certificates will only be operable if:
 
 * The hardware key is connected during the operation
 * The hardware private key can still be found
-* The hardware private key's Touch challenge is passed (if applicable)
+* The hardware private key's touch challenge is passed (if applicable)
+* The hardware private key's pin challenge is passed (if applicable)
 
 #### PIV slot logic
 
-PIV provides us with up to 24 different slots. Each slot has a different intended purpose, but functionally they are the same. We will use the first two slots (`9a` and `9c`) to store up to two keys at a time (the first with `TouchPolicy=never` and the second with `TouchPolicy=cached`).
+PIV provides us with up to 24 different slots. Each slot has a different intended purpose, but functionally they are the same. We will use the first four slots (`9a`, `9c`, `9d`, `9e`) to support each of the 4 hardware key policy requirements (`hardware_key`, `hardware_key_touch`, `hardware_key_pin`, `hardware_key_touch_and_pin` respectively).
 
 Each of these keys will be generated for the first time when a Teleport client is required to meet its respective private key policy. Once a key is generated, it will be reused by any other Teleport client required to meet the same private key policy.
 
@@ -361,14 +400,6 @@ slot=<slot>
 
 `tsh` and Teleport Connect will both support hardware private key login, and `tctl` will be able to use resulting login sessions.
 
-#### Unsupported clients
-
-The WebUI will not be able to support PIV login, since it is browser-based and cannot connect directly to the user's PIV device. If a user with `require_session_mfa: hardware_key` attempts to login on the WebUI, or use an existing login session, it will fail. However, WebUI user registration and password reset logic must still work, regardless of the user's private key policy requirement. After initial registration/reset flow, the user should be directed to a page which notifies them that `tsh` or Teleport Connect must be used.
-
-It may be possible to work around this limitation by introducing a local proxy to connect to the hardware key, or by supporting a hardware key solution which doesn't need a direct connection, but this is out of scope and will not be explored in this PR.
-
-In cases where WebUI access is needed or desired, cluster admins should only apply `require_session_mfa: hardware_key | hardware_key_touch` selectively to roles which warrant more protection. Teleport Connect will also serve as a great UI alternative.
-
 ### UX
 
 #### Hardware key login
@@ -413,7 +444,7 @@ Please insert the YubiKey used during login (serial number XXXXXX) to continue..
 
 ##### Touch requirement
 
-If a user has private key policy `hardware_key_touch`, then Teleport client requests will require touch (cached for 15 seconds). This will be handled by a touch prompt similar to the one used for MFA. This prompt will occur before prompting for login credentials.
+If a user has private key policy `hardware_key_touch` or `hardware_key_touch_and_pin`, then Teleport client requests will require touch (cached for 15 seconds). This will be handled by a touch prompt similar to the one used for MFA. This prompt will occur before prompting for login credentials.
 
 ```bash
 > tsh login --user=dev
@@ -421,6 +452,19 @@ Enter password for Teleport user dev:
 Tap any security key
 Tap your YubiKey
 ```
+
+##### PIN requirement
+
+If a user has private key policy `hardware_key_pin` or `hardware_key_touch_and_pin`, then Teleport client requests will require pin. This will be handled by a password style prompt.
+
+```bash
+> tsh login --user=dev
+Enter password for Teleport user dev:
+Tap any security key
+Enter your YubiKey PIV PIN:
+```
+
+Note: Since this prompt requires stdin, it may not work in environments that do not support stdin (ex: `ssh` with `tsh proxy ssh` ProxyCommand).
 
 ### Additional considerations
 
@@ -448,6 +492,22 @@ Some PIV operations require [administrative access](https://developers.yubico.co
 | PIN            | 8 chars  | `123456`                                           | sign and decrypt data, reset pin          |
 | PUK            | 8 chars  | `12345678`                                         | reset PIN when blocked by failed attempts |
 
-In our case, we only need to use the Management Key to generate a key and set a certificate on the YubiKey. To simplify our implementation and limit UX impact, we will assume the user's PIV device to use the default Management Key. User's can use the private `--piv-management-key` flag during login in case they need to use a non-default management key.
+To simplify our implementation and limit UX impact, we will assume the user's PIV device to use the default Management Key. User's can use the private `--piv-management-key` flag during login in case they need to use a non-default management key.
 
-In the future, we may want to add support for using non-default management key to better protect the generation and retrieval of private keys on the user's PIV key, as well as PIN management if we decide to new private key policies like `hardware_key_touch_pin`.
+However, if pin is required, we must require the user to set a non-default PIN and PUK to prevent these keys from easily being accessed by attackers. To that end, if a user provides `123456` during a PIN prompt, they will be prompted to provide a new PIN and PUK before continuing. Again, the default values will not be accepted.
+
+```bash
+> tsh login --user=dev
+Enter your YubiKey PIV PIN [blank to use default PIN]:
+# \n
+The default PIN 123456 is not supported.
+Please set a new 6 digit PIN:
+Enter your new YubiKey PIV PIN:
+Confirm your new YubiKey PIV PIN:
+Enter your YubiKey PIV PUK to reset PIN [blank to use default PUK]
+# \n
+The default PUK 12345678 is not supported
+Please set a new 8 digit PUK:
+Enter your new YubiKey PIV PUK:
+Confirm your new YubiKey PIV PUK:
+```

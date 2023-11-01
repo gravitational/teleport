@@ -46,9 +46,10 @@ func (u *UserLoginEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequ
 	return prehogv1a.SubmitEventRequest{
 		Event: &prehogv1a.SubmitEventRequest_UserLogin{
 			UserLogin: &prehogv1a.UserLoginEvent{
-				UserName:      a.AnonymizeString(u.UserName),
-				ConnectorType: u.ConnectorType,
-				DeviceId:      deviceID,
+				UserName:                 a.AnonymizeString(u.UserName),
+				ConnectorType:            u.ConnectorType,
+				DeviceId:                 deviceID,
+				RequiredPrivateKeyPolicy: u.RequiredPrivateKeyPolicy,
 			},
 		},
 	}
@@ -97,6 +98,14 @@ func (u *SessionStartEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventR
 			DbType:     u.Database.DbType,
 			DbProtocol: u.Database.DbProtocol,
 			DbOrigin:   u.Database.DbOrigin,
+		}
+	}
+	if u.Desktop != nil {
+		sessionStart.Desktop = &prehogv1a.SessionStartDesktopMetadata{
+			DesktopType:       u.Desktop.DesktopType,
+			Origin:            u.Desktop.Origin,
+			WindowsDomain:     a.AnonymizeString(u.Desktop.WindowsDomain),
+			AllowUserCreation: u.Desktop.AllowUserCreation,
 		}
 	}
 	return prehogv1a.SubmitEventRequest{
@@ -828,6 +837,38 @@ func (e *LicenseLimitEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventR
 		Event: &prehogv1a.SubmitEventRequest_LicenseLimitEvent{
 			LicenseLimitEvent: &prehogv1a.LicenseLimitEvent{
 				LicenseLimit: e.LicenseLimit,
+			},
+		},
+	}
+}
+
+// DesktopDirectoryShareEvent is emitted when a user shares a directory
+// in a Windows desktop session.
+type DesktopDirectoryShareEvent prehogv1a.DesktopDirectoryShareEvent
+
+func (e *DesktopDirectoryShareEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_DesktopDirectoryShare{
+			DesktopDirectoryShare: &prehogv1a.DesktopDirectoryShareEvent{
+				Desktop:       a.AnonymizeString(e.Desktop),
+				UserName:      a.AnonymizeString(e.UserName),
+				DirectoryName: a.AnonymizeString(e.DirectoryName),
+			},
+		},
+	}
+}
+
+// DesktopClipboardEvent is emitted when a user transfers data
+// between their local clipboard and the clipboard on a remote Windows
+// desktop.
+type DesktopClipboardEvent prehogv1a.DesktopClipboardEvent
+
+func (e *DesktopClipboardEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_DesktopClipboardTransfer{
+			DesktopClipboardTransfer: &prehogv1a.DesktopClipboardEvent{
+				Desktop:  a.AnonymizeString(e.Desktop),
+				UserName: a.AnonymizeString(e.UserName),
 			},
 		},
 	}

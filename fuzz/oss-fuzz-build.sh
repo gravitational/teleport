@@ -26,9 +26,6 @@ build_teleport_fuzzers() {
   compile_native_go_fuzzer $TELEPORT_PREFIX/lib/srv/desktop/tdp \
     FuzzDecode fuzz_decode
 
-  compile_native_go_fuzzer $TELEPORT_PREFIX/lib/services \
-    FuzzParserEvalBoolPredicate fuzz_parser_eval_bool_predicate
-
   compile_native_go_fuzzer $TELEPORT_PREFIX/lib/restrictedsession \
     FuzzParseIPSpec fuzz_parse_ip_spec
 

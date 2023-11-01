@@ -95,8 +95,11 @@ function login(
   rootClusterUri: RootClusterUri
 ): Promise<void> {
   return new Promise(resolve => {
-    appContext.modalsService.openClusterConnectDialog({
+    appContext.modalsService.openRegularDialog({
+      kind: 'cluster-connect',
       clusterUri: rootClusterUri,
+      prefill: undefined,
+      reason: undefined,
       onSuccess: () => resolve(),
       onCancel: () => resolve(),
     });

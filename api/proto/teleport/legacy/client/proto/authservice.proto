@@ -227,6 +227,8 @@ message UserCertsRequest {
     TSH_DB_LOCAL_PROXY_TUNNEL = 1;
     // TSH_KUBE_LOCAL_PROXY is set when the request was sent by a tsh kube local proxy.
     TSH_KUBE_LOCAL_PROXY = 2;
+    // TSH_KUBE_LOCAL_PROXY_HEADLESS is set when the request was sent by a tsh kube local proxy in headless mode.
+    TSH_KUBE_LOCAL_PROXY_HEADLESS = 3;
   }
   // RequesterName identifies who sent the request.
   Requester RequesterName = 17 [(gogoproto.jsontag) = "requester_name"];
@@ -520,6 +522,8 @@ message Features {
   AccessRequestsFeature AccessRequests = 21 [(gogoproto.jsontag) = "access_requests,omitempty"];
   // CustomTheme holds the name of WebUI custom theme.
   string CustomTheme = 22 [(gogoproto.jsontag) = "custom_theme,omitempty"];
+  // IdentityGovernance holds the Identity Governance feature settings (Access Monitoring)
+  bool IdentityGovernance = 23 [(gogoproto.jsontag) = "identity_governance,omitempty"];
 }
 
 // DeviceTrustFeature holds the Device Trust feature general and usage-based
@@ -1001,6 +1005,24 @@ message GetRolesResponse {
   repeated types.RoleV6 Roles = 1;
 }
 
+// Request for CreateRole.
+message CreateRoleRequest {
+  // Role to be created.
+  types.RoleV6 Role = 1;
+}
+
+// Request for UpdateRole.
+message UpdateRoleRequest {
+  // Role to be updated.
+  types.RoleV6 Role = 1;
+}
+
+// Request for UpsertRole.
+message UpsertRoleRequest {
+  // Role to be upserted.
+  types.RoleV6 Role = 1;
+}
+
 // DeleteRoleRequest is a request to delete a role.
 message DeleteRoleRequest {
   // Name is the role name to delete.
@@ -1293,6 +1315,8 @@ message GetMFADevicesResponse {
 }
 
 // UserSingleUseCertsRequest is a request for a single-use user certificate.
+//
+// Deprecated: Use [AuthService.GenerateUserCerts] instead.
 message UserSingleUseCertsRequest {
   oneof Request {
     UserCertsRequest Init = 1;
@@ -1301,6 +1325,8 @@ message UserSingleUseCertsRequest {
 }
 
 // UserSingleUseCertsResponse is a response with a single-use user certificate.
+//
+// Deprecated: Use [AuthService.GenerateUserCerts] instead.
 message UserSingleUseCertsResponse {
   oneof Response {
     MFAAuthenticateChallenge MFAChallenge = 1;
@@ -1346,7 +1372,6 @@ message IsMFARequiredResponse {
   bool Required = 1;
   // MFARequired informs whether MFA is required to access the corresponding
   // resource.
-  // TODO(codingllama): Address redundancy between Required and MFARequired.
   MFARequired MFARequired = 2;
 }
 
@@ -2522,6 +2547,8 @@ service AuthService {
   rpc GenerateHostCerts(HostCertsRequest) returns (Certs);
   // GenerateUserSingleUseCerts generates a set of single-use user
   // certificates.
+  //
+  // Deprecated: Superseded by GenerateUserCerts.
   rpc GenerateUserSingleUseCerts(stream UserSingleUseCertsRequest) returns (stream UserSingleUseCertsResponse);
   // GenerateOpenSSHCert signs a SSH certificate that can be used
   // to connect to Agentless nodes.
@@ -2573,20 +2600,44 @@ service AuthService {
   rpc GetBotUsers(GetBotUsersRequest) returns (stream types.UserV2);
 
   // GetUser gets a user resource by name.
-  rpc GetUser(GetUserRequest) returns (types.UserV2);
+  //
+  // Deprecated: Use [teleport.users.v1.UsersService] instead.
+  rpc GetUser(GetUserRequest) returns (types.UserV2) {
+    option deprecated = true;
+  }
   // GetCurrentUser returns current user as seen by the server.
   // Useful especially in the context of remote clusters which perform role and trait mapping.
-  rpc GetCurrentUser(google.protobuf.Empty) returns (types.UserV2);
+  //
+  // Deprecated: Use [teleport.users.v1.UsersService] instead.
+  rpc GetCurrentUser(google.protobuf.Empty) returns (types.UserV2) {
+    option deprecated = true;
+  }
   // GetCurrentUserRoles returns current user's roles.
   rpc GetCurrentUserRoles(google.protobuf.Empty) returns (stream types.RoleV6);
   // GetUsers gets all current user resources.
-  rpc GetUsers(GetUsersRequest) returns (stream types.UserV2);
+  //
+  // Deprecated: Use [teleport.users.v1.UsersService] instead.
+  rpc GetUsers(GetUsersRequest) returns (stream types.UserV2) {
+    option deprecated = true;
+  }
   // CreateUser inserts a new user entry to a backend.
-  rpc CreateUser(types.UserV2) returns (google.protobuf.Empty);
+  //
+  // Deprecated: Use [teleport.users.v1.UsersService] instead.
+  rpc CreateUser(types.UserV2) returns (google.protobuf.Empty) {
+    option deprecated = true;
+  }
   // UpdateUser updates an existing user in a backend.
-  rpc UpdateUser(types.UserV2) returns (google.protobuf.Empty);
+  //
+  // Deprecated: Use [teleport.users.v1.UsersService] instead.
+  rpc UpdateUser(types.UserV2) returns (google.protobuf.Empty) {
+    option deprecated = true;
+  }
   // DeleteUser deletes an existing user in a backend by username.
-  rpc DeleteUser(DeleteUserRequest) returns (google.protobuf.Empty);
+  //
+  // Deprecated: Use [teleport.users.v1.UsersService] instead.
+  rpc DeleteUser(DeleteUserRequest) returns (google.protobuf.Empty) {
+    option deprecated = true;
+  }
   // ChangePassword allows a user to change their own password.
   rpc ChangePassword(ChangePasswordRequest) returns (google.protobuf.Empty);
 
@@ -2712,8 +2763,18 @@ service AuthService {
   rpc GetRole(GetRoleRequest) returns (types.RoleV6);
   // GetRole retrieves all roles.
   rpc GetRoles(google.protobuf.Empty) returns (GetRolesResponse);
+  // CreateRole creates a new role.
+  rpc CreateRole(CreateRoleRequest) returns (types.RoleV6);
+  // UpdateRole updates an existing role.
+  rpc UpdateRole(UpdateRoleRequest) returns (types.RoleV6);
+  // UpsertRoleV2 creates or overwrites an existing role.
+  rpc UpsertRoleV2(UpsertRoleRequest) returns (types.RoleV6);
   // UpsertRole upserts a role in a backend.
-  rpc UpsertRole(types.RoleV6) returns (google.protobuf.Empty);
+  //
+  // Deprecated: use UpsertRoleV2 instead.
+  rpc UpsertRole(types.RoleV6) returns (google.protobuf.Empty) {
+    option deprecated = true;
+  }
   // DeleteRole deletes an existing role in a backend described by the given request.
   rpc DeleteRole(DeleteRoleRequest) returns (google.protobuf.Empty);
 

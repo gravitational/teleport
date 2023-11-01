@@ -47,19 +47,23 @@ export enum NavTitle {
   ActiveSessions = 'Active Sessions',
   Resources = 'Resources',
 
-  // Management
-  //  Access
+  // Access Management
   Users = 'Users',
-  Roles = 'Roles',
-  TrustedDevices = 'Trusted Devices',
+  Roles = 'User Roles',
   AuthConnectors = 'Auth Connectors',
-  SessionAndIdentityLocks = 'Session & Identity Locks',
   Integrations = 'Integrations',
   EnrollNewResource = 'Enroll New Resource',
   EnrollNewIntegration = 'Enroll New Integration',
+
+  // Identity Governance & Security
+  AccessLists = 'Access Lists',
+  SessionAndIdentityLocks = 'Session & Identity Locks',
+  TrustedDevices = 'Trusted Devices',
+  AccessMonitoring = 'Access Monitoring',
+
+  // Resources Requests
   NewRequest = 'New Request',
   ReviewRequests = 'Review Requests',
-  AccessLists = 'Access Lists',
   AccessGraph = 'Access Graph',
 
   // Activity
@@ -156,6 +160,7 @@ export interface FeatureFlags {
   locks: boolean;
   newLocks: boolean;
   assist: boolean;
+  accessMonitoring: boolean;
   // Whether or not the management section should be available.
   managementSection: boolean;
 }

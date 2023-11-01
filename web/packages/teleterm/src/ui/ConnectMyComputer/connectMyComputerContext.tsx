@@ -41,8 +41,7 @@ import {
 
 import { assertUnreachable, retryWithRelogin } from '../utils';
 
-import { hasConnectMyComputerPermissions } from './permissions';
-
+import { ConnectMyComputerAccess, getConnectMyComputerAccess } from './access';
 import {
   checkAgentCompatibility,
   AgentCompatibility,
@@ -77,7 +76,24 @@ export type CurrentAction =
     };
 
 export interface ConnectMyComputerContext {
+  /**
+   * canUse describes whether the user should be allowed to use Connect My Computer.
+   * This is true either when the user has access to Connect My Computer or they have already set up
+   * the agent.
+   *
+   * The second case is there to protect from a scenario where a malicious admin lets the user set
+   * up the agent but then revokes their access for creating tokens. Without checking if the agent
+   * was already set up, the user would have lost control over the agent.
+   * https://github.com/gravitational/teleport/blob/master/rfd/0133-connect-my-computer.md#access-to-ui-and-autostart
+   */
   canUse: boolean;
+  /**
+   * access describes whether the user has the necessary requirements to use Connect My Computer. It
+   * does not account for the agent being already set up. Thus it's mostly useful in scenarios where
+   * this has been already accounted for, for example when showing an alert about insufficient
+   * permissions in the setup step.
+   */
+  access: ConnectMyComputerAccess;
   currentAction: CurrentAction;
   agentProcessState: AgentProcessState;
   agentNode: Server | undefined;
@@ -124,17 +140,17 @@ export const ConnectMyComputerContextProvider: FC<{
     isAgentConfiguredAttempt.data;
 
   const rootCluster = clustersService.findCluster(rootClusterUri);
+  const { loggedInUser } = rootCluster;
 
-  const canUse = useMemo(() => {
-    const hasPermissions = hasConnectMyComputerPermissions(
-      rootCluster,
-      mainProcessClient.getRuntimeSettings()
-    );
-
-    // We check `isAgentConfigured`, because the user should always have access to the agent after configuring it.
-    // https://github.com/gravitational/teleport/blob/master/rfd/0133-connect-my-computer.md#access-to-ui-and-autostart
-    return hasPermissions || isAgentConfigured;
-  }, [isAgentConfigured, mainProcessClient, rootCluster]);
+  const access = useMemo(
+    () =>
+      getConnectMyComputerAccess(
+        loggedInUser,
+        mainProcessClient.getRuntimeSettings()
+      ),
+    [loggedInUser, mainProcessClient]
+  );
+  const canUse = access.status === 'ok' || isAgentConfigured;
 
   const agentCompatibility = useMemo(
     () =>
@@ -424,6 +440,7 @@ export const ConnectMyComputerContextProvider: FC<{
     <ConnectMyComputerContext.Provider
       value={{
         canUse,
+        access,
         currentAction,
         agentProcessState,
         agentNode: startAgentAttempt.data,

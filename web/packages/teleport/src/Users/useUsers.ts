@@ -14,13 +14,13 @@
  * limitations under the License.
  */
 
-import { useState, useEffect } from 'react';
+import { ReactElement, useState, useEffect } from 'react';
 import { useAttempt } from 'shared/hooks';
 
 import { User } from 'teleport/services/user';
 import useTeleport from 'teleport/useTeleport';
 
-export default function useUsers() {
+export default function useUsers({ InviteCollaborators }: UsersContainerProps) {
   const ctx = useTeleport();
   const [attempt, attemptActions] = useAttempt({ isProcessing: true });
   const [users, setUsers] = useState([] as User[]);
@@ -28,6 +28,8 @@ export default function useUsers() {
   const [operation, setOperation] = useState({
     type: 'none',
   } as Operation);
+  const [inviteCollaboratorsOpen, setInviteCollaboratorsOpen] =
+    useState<boolean>(false);
 
   function onStartCreate() {
     const user = { name: '', roles: [], created: new Date() };
@@ -47,6 +49,11 @@ export default function useUsers() {
 
   function onStartReset(user: User) {
     setOperation({ type: 'reset', user });
+  }
+
+  function onStartInviteCollaborators(user: User) {
+    setOperation({ type: 'invite-collaborators', user });
+    setInviteCollaboratorsOpen(true);
   }
 
   function onClose() {
@@ -77,6 +84,15 @@ export default function useUsers() {
       .then(() => ctx.userService.createResetPasswordToken(u.name, 'invite'));
   }
 
+  function onInviteCollaboratorsClose(newUsers?: User[]) {
+    if (newUsers && newUsers.length > 0) {
+      setUsers([...newUsers, ...users]);
+    }
+
+    setInviteCollaboratorsOpen(false);
+    setOperation({ type: 'none' });
+  }
+
   useEffect(() => {
     function fetchRoles() {
       if (ctx.getFeatureFlags().roles) {
@@ -105,17 +121,36 @@ export default function useUsers() {
     onStartDelete,
     onStartEdit,
     onStartReset,
+    onStartInviteCollaborators,
     onClose,
     onDelete,
     onCreate,
     onUpdate,
     onReset,
+    onInviteCollaboratorsClose,
+    InviteCollaborators,
+    inviteCollaboratorsOpen,
   };
 }
 
 type Operation = {
-  type: 'create' | 'edit' | 'delete' | 'reset' | 'none';
+  type:
+    | 'create'
+    | 'invite-collaborators'
+    | 'edit'
+    | 'delete'
+    | 'reset'
+    | 'none';
   user?: User;
+};
+
+export interface InviteCollaboratorsDialogProps {
+  onClose: (users?: User[]) => void;
+  open: boolean;
+}
+
+export type UsersContainerProps = {
+  InviteCollaborators?: (props: InviteCollaboratorsDialogProps) => ReactElement;
 };
 
 export type State = ReturnType<typeof useUsers>;

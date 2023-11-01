@@ -318,9 +318,12 @@ func (a *authorizer) enforcePrivateKeyPolicy(ctx context.Context, authContext *C
 	// Check that the required private key policy, defined by roles and auth pref,
 	// is met by this Identity's tls certificate.
 	identityPolicy := authContext.Identity.GetIdentity().PrivateKeyPolicy
-	requiredPolicy := authContext.Checker.PrivateKeyPolicy(authPref.GetPrivateKeyPolicy())
-	if err := requiredPolicy.VerifyPolicy(identityPolicy); err != nil {
+	requiredPolicy, err := authContext.Checker.PrivateKeyPolicy(authPref.GetPrivateKeyPolicy())
+	if err != nil {
 		return trace.Wrap(err)
+	}
+	if !requiredPolicy.IsSatisfiedBy(identityPolicy) {
+		return keys.NewPrivateKeyPolicyError(requiredPolicy)
 	}
 
 	return nil
@@ -634,6 +637,9 @@ func roleSpecForProxy(clusterName string) types.RoleSpecV6 {
 				types.NewRule(types.KindUserGroup, services.RO()),
 				types.NewRule(types.KindClusterMaintenanceConfig, services.RO()),
 				types.NewRule(types.KindIntegration, append(services.RO(), types.VerbUse)),
+				types.NewRule(types.KindAuditQuery, services.RO()),
+				types.NewRule(types.KindSecurityReport, services.RO()),
+				types.NewRule(types.KindSecurityReportState, services.RO()),
 				// this rule allows cloud proxies to read
 				// plugins of `openai` type, since Assist uses the OpenAI API and runs in Proxy.
 				{
@@ -1406,13 +1412,13 @@ func HasBuiltinRole(authContext Context, name string) bool {
 
 // IsLocalUser checks if the identity is a local user.
 func IsLocalUser(authContext Context) bool {
-	_, ok := authContext.Identity.(LocalUser)
+	_, ok := authContext.UnmappedIdentity.(LocalUser)
 	return ok
 }
 
 // IsLocalOrRemoteUser checks if the identity is either a local or remote user.
 func IsLocalOrRemoteUser(authContext Context) bool {
-	switch authContext.Identity.(type) {
+	switch authContext.UnmappedIdentity.(type) {
 	case LocalUser, RemoteUser:
 		return true
 	default:
@@ -1427,6 +1433,6 @@ func IsCurrentUser(authContext Context, username string) bool {
 
 // IsRemoteUser checks if the identity is a remote user.
 func IsRemoteUser(authContext Context) bool {
-	_, ok := authContext.Identity.(RemoteUser)
+	_, ok := authContext.UnmappedIdentity.(RemoteUser)
 	return ok
 }

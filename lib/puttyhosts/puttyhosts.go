@@ -142,7 +142,7 @@ func AddHostToHostList(hostList []string, hostname string) []string {
 	return outputHostList
 }
 
-var hostnameRegexp = regexp.MustCompile("^(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9]).)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9-]*[A-Za-z0-9])$")
+var hostnameRegexp = regexp.MustCompile(`^([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9])(\.([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9]))*$`)
 
 // NaivelyValidateHostname checks the provided hostname against a naive regex to ensure it doesn't contain obviously
 // illegal characters. It's not guaranteed to be perfect, just a simple sanity check. It returns true when the hostname validates.

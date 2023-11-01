@@ -50,6 +50,10 @@ type Incident struct {
 	IncidentState string `json:"incident_state,omitempty"`
 	// WorkNotes contains comments on the progress of the incident.
 	WorkNotes string `json:"work_notes,omitempty"`
+	// Caller is the user on whose behalf the incident is being created. (Must be an existing servicenow user)
+	Caller string `json:"caller_id,omitempty"`
+	// AssignedTo is the ServiceNow user the incident is assigned.
+	AssignedTo string `json:"assigned_to,omitempty"`
 }
 
 const (
@@ -86,6 +90,10 @@ type RequestData struct {
 	Resolution Resolution
 	// SystemAnnotations contains key value annotations for the request.
 	SystemAnnotations types.Labels
+	// Resources are the resources being requested.
+	Resources []string
+	// SuggestedReviewers are the suggested reviewers for this access request.
+	SuggestedReviewers []string
 }
 
 type onCallResult struct {
@@ -103,5 +111,20 @@ type userResult struct {
 }
 
 type incidentResult struct {
-	Result Incident `json:"result"`
+	Result struct {
+		// IncidentID is the sys_id of the incident
+		IncidentID string `json:"sys_id,omitempty"`
+		// ShortDescription contains a brief summary of the incident.
+		ShortDescription string `json:"short_description,omitempty"`
+		// Description contains the description of the incident.
+		Description string `json:"description,omitempty"`
+		// CloseCode contains the close code of the incident once it is resolved.
+		CloseCode string `json:"close_code,omitempty"`
+		// CloseNotes contains the closing comments on the incident once it is resolved.
+		CloseNotes string `json:"close_notes,omitempty"`
+		// IncidentState contains the current state the incident is in.
+		IncidentState string `json:"incident_state,omitempty"`
+		// WorkNotes contains comments on the progress of the incident.
+		WorkNotes string `json:"work_notes,omitempty"`
+	} `json:"result"`
 }

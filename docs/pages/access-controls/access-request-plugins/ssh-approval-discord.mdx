@@ -1,5 +1,5 @@
 ---
-title: Access Requests with Discord
+title: Run the Discord Access Request plugin
 description: How to set up Teleport's Discord plugin for privilege elevation approvals.
 ---
 
@@ -8,6 +8,12 @@ from Teleport. Teleport's Discord integration notifies individuals and channels 
 Access Requests. Users can then approve and deny Access Requests from within
 Discord, making it easier to implement security best practices without
 compromising productivity.
+
+<Details title="This integration is hosted on Teleport Cloud" open={false}>
+
+(!docs/pages/includes/plugins/enroll.mdx name="the Discord integration"!)
+
+</Details>
 
 (!docs/pages/includes/plugins/diagram.mdx api="Discord" action="Listen for Access Requests" messages="Discord messages" !)
 
@@ -34,6 +40,8 @@ in your Teleport cluster.
 ## Step 3/8. Create a user and role for the plugin
 
 (!docs/pages/includes/plugins/rbac.mdx!)
+
+(!/docs/pages/includes/plugins/rbac-impersonate.mdx!)
 
 ## Step 4/8. Export the access plugin identity
 

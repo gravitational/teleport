@@ -48,6 +48,7 @@ import (
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"github.com/gravitational/roundtrip"
@@ -75,6 +76,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
+	"k8s.io/apimachinery/pkg/util/yaml"
 	authztypes "k8s.io/client-go/kubernetes/typed/authorization/v1"
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
@@ -712,11 +714,11 @@ func (s *WebSuite) authPackWithMFA(t *testing.T, name string, roles ...types.Rol
 
 	userRole := services.RoleForUser(user)
 	userRole.SetLogins(types.Allow, []string{s.user})
-	err = s.server.Auth().UpsertRole(s.ctx, userRole)
+	userRole, err = s.server.Auth().UpsertRole(s.ctx, userRole)
 	require.NoError(t, err)
 
 	for _, role := range roles {
-		err = s.server.Auth().UpsertRole(s.ctx, role)
+		role, err = s.server.Auth().UpsertRole(s.ctx, role)
 		require.NoError(t, err)
 		user.AddRole(role.GetName())
 	}
@@ -799,7 +801,7 @@ func (s *WebSuite) createUser(t *testing.T, user string, login string, pass stri
 	options := role.GetOptions()
 	options.ForwardAgent = types.NewBool(true)
 	role.SetOptions(options)
-	err = s.server.Auth().UpsertRole(s.ctx, role)
+	role, err = s.server.Auth().UpsertRole(s.ctx, role)
 	require.NoError(t, err)
 	teleUser.AddRole(role.GetName())
 
@@ -1221,7 +1223,7 @@ func TestUnifiedResourcesGet(t *testing.T) {
 	noAccessPack := proxy.authPack(t, "test-no-access@example.com", []types.Role{noAccessRole})
 
 	// shouldnt get any results with no access
-	query = url.Values{}
+	query = url.Values{"sort": []string{"name:asc"}}
 	re, err = noAccessPack.clt.Get(context.Background(), endpoint, query)
 	require.NoError(t, err)
 	res = clusterNodesGetResponse{}
@@ -3594,7 +3596,8 @@ func TestCheckAccessToRegisteredResource_AccessDenied(t *testing.T) {
 	fooRole, err := env.server.Auth().GetRole(ctx, "user:foo")
 	require.NoError(t, err)
 	fooRole.SetRules(types.Deny, []types.Rule{types.NewRule(types.KindNode, services.RW())})
-	require.NoError(t, env.server.Auth().UpsertRole(ctx, fooRole))
+	_, err = env.server.Auth().UpsertRole(ctx, fooRole)
+	require.NoError(t, err)
 
 	// Direct querying should return a access denied error.
 	endpoint = pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "nodes")
@@ -5575,7 +5578,7 @@ func TestChangeUserAuthentication_settingDefaultClusterAuthPreference(t *testing
 
 			role := services.RoleForUser(user)
 
-			err = s.server.Auth().UpsertRole(s.ctx, role)
+			role, err = s.server.Auth().UpsertRole(s.ctx, role)
 			require.NoError(t, err)
 
 			user.AddRole(role.GetName())
@@ -5840,7 +5843,8 @@ func TestGetUserOrResetToken(t *testing.T) {
 	fooAllowRules := fooRole.GetRules(types.Allow)
 	fooAllowRules = append(fooAllowRules, types.NewRule(types.KindUser, services.RO()))
 	fooRole.SetRules(types.Allow, fooAllowRules)
-	require.NoError(t, env.server.Auth().UpsertRole(ctx, fooRole))
+	_, err = env.server.Auth().UpsertRole(ctx, fooRole)
+	require.NoError(t, err)
 
 	resp, err := pack.clt.Get(ctx, pack.clt.Endpoint("webapi", "users", username), url.Values{})
 	require.NoError(t, err)
@@ -7205,7 +7209,11 @@ func (mock authProviderMock) IsMFARequired(ctx context.Context, req *authproto.I
 	return nil, nil
 }
 
-func (mock authProviderMock) GenerateUserSingleUseCerts(ctx context.Context) (authproto.AuthService_GenerateUserSingleUseCertsClient, error) {
+func (mock authProviderMock) CreateAuthenticateChallenge(ctx context.Context, req *authproto.CreateAuthenticateChallengeRequest) (*authproto.MFAAuthenticateChallenge, error) {
+	return nil, nil
+}
+
+func (mock authProviderMock) GenerateUserCerts(ctx context.Context, req authproto.UserCertsRequest) (*authproto.Certs, error) {
 	return nil, nil
 }
 
@@ -8066,7 +8074,7 @@ func (r *testProxy) createUser(ctx context.Context, t *testing.T, user, login, p
 	}
 
 	for _, role := range roles {
-		err = r.auth.Auth().UpsertRole(ctx, role)
+		role, err = r.auth.Auth().UpsertRole(ctx, role)
 		require.NoError(t, err)
 
 		teleUser.AddRole(role.GetName())
@@ -8263,7 +8271,7 @@ func TestUserContextWithAccessRequest(t *testing.T) {
 	// Create the requestable role.
 	requestableRole, err := types.NewRole(requestableRolename, types.RoleSpecV6{})
 	require.NoError(t, err)
-	err = env.server.Auth().UpsertRole(ctx, requestableRole)
+	_, err = env.server.Auth().UpsertRole(ctx, requestableRole)
 	require.NoError(t, err)
 
 	identity := tlsca.Identity{
@@ -9263,7 +9271,8 @@ func TestModeratedSession(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	require.NoError(t, s.server.Auth().UpsertRole(s.ctx, peerRole))
+	peerRole, err = s.server.Auth().UpsertRole(s.ctx, peerRole)
+	require.NoError(t, err)
 
 	moderatorRole, err := types.NewRole("moderator", types.RoleSpecV6{
 		Allow: types.RoleConditions{
@@ -9278,7 +9287,8 @@ func TestModeratedSession(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	require.NoError(t, s.server.Auth().UpsertRole(s.ctx, moderatorRole))
+	moderatorRole, err = s.server.Auth().UpsertRole(s.ctx, moderatorRole)
+	require.NoError(t, err)
 
 	peer := s.authPack(t, "foo", peerRole.GetName())
 
@@ -9580,4 +9590,109 @@ func Test_consumeTokenForAPICall(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestGithubConnector(t *testing.T) {
+	ctx := context.Background()
+	env := newWebPack(t, 1)
+
+	proxy := env.proxies[0]
+
+	// Authenticate to get a session token and cookies.
+	pack := proxy.authPack(t, "test-user@example.com", nil)
+
+	expected, err := types.NewGithubConnector("github", types.GithubConnectorSpecV3{
+		ClientID:     "12345",
+		ClientSecret: "678910",
+		RedirectURL:  "https://proxy.example.com/v1/webapi/github/callback",
+		Display:      "Github",
+		TeamsToRoles: []types.TeamRolesMapping{
+			{
+				Organization: "acme",
+				Team:         "users",
+				Roles:        []string{"access", "editor", "auditor"},
+			},
+		},
+	})
+	require.NoError(t, err, "creating initial connector resource")
+
+	createPayload := func(connector types.GithubConnector) ui.ResourceItem {
+		raw, err := services.MarshalGithubConnector(connector, services.PreserveResourceID())
+		require.NoError(t, err, "marshaling connector")
+
+		return ui.ResourceItem{
+			Kind:    types.KindGithubConnector,
+			Name:    connector.GetName(),
+			Content: string(raw),
+		}
+	}
+
+	unmarshalResponse := func(resp []byte) types.GithubConnector {
+		var item ui.ResourceItem
+		require.NoError(t, json.Unmarshal(resp, &item), "response from server contained an invalid resource item")
+
+		var conn types.GithubConnectorV3
+		require.NoError(t, yaml.Unmarshal([]byte(item.Content), &conn), "resource item content was not a github connector")
+		return &conn
+	}
+
+	// Create the initial connector.
+	resp, err := pack.clt.PostJSON(ctx, pack.clt.Endpoint("webapi", "github"), createPayload(expected))
+	require.NoError(t, err, "expected creating the initial connector to succeed")
+	require.Equal(t, http.StatusOK, resp.Code(), "unexpected status code creating connector")
+
+	created := unmarshalResponse(resp.Bytes())
+
+	// Validate that creating the connector again fails.
+	resp, err = pack.clt.PostJSON(ctx, pack.clt.Endpoint("webapi", "github"), createPayload(expected))
+	assert.Error(t, err, "expected an error creating a duplicate connector")
+	assert.True(t, trace.IsAlreadyExists(err), "expected an already exists error got %T", err)
+	assert.Equal(t, http.StatusConflict, resp.Code(), "unexpected status code creating duplicate connector")
+
+	// Update the connector.
+	created.SetDisplay("test")
+	resp, err = pack.clt.PutJSON(ctx, pack.clt.Endpoint("webapi", "github", expected.GetName()), createPayload(created))
+	require.NoError(t, err, "unexpected error updating the connector")
+	require.Equal(t, http.StatusOK, resp.Code(), "unexpected status code updating the connector")
+
+	updated := unmarshalResponse(resp.Bytes())
+
+	require.Empty(t, cmp.Diff(created, updated, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision", "Namespace"),
+		cmpopts.IgnoreFields(types.GithubConnectorSpecV3{}, "Display", "ClientSecret"),
+	))
+	require.NotEqual(t, expected.GetDisplay(), updated.GetDisplay(), "expected update to modify the display name")
+	require.Equal(t, "test", updated.GetDisplay(), "display name should have been updated to test. got %s", updated.GetDisplay())
+
+	// Validate that a stale revision prevents updates.
+	resp, err = pack.clt.PutJSON(ctx, pack.clt.Endpoint("webapi", "github", expected.GetName()), createPayload(expected))
+	assert.Error(t, err, "expected an error updating a connector with a stale revision")
+	assert.True(t, trace.IsCompareFailed(err), "expected a compare failed error got %T", err)
+	assert.Equal(t, http.StatusPreconditionFailed, resp.Code(), "unexpected status code updating the connector")
+
+	// Validate that renaming the connector prevents updates.
+	updated.SetName(uuid.NewString())
+	resp, err = pack.clt.PutJSON(ctx, pack.clt.Endpoint("webapi", "github", expected.GetName()), createPayload(updated))
+	assert.Error(t, err, "expected and error when renaming a connector")
+	assert.True(t, trace.IsBadParameter(err), "expected a bad parameter error got %T", err)
+	assert.Equal(t, http.StatusBadRequest, resp.Code(), "unexpected status code updating the connector")
+
+	// Validate that updating a nonexistent connector fails.
+	updated.SetName(uuid.NewString())
+	resp, err = pack.clt.PutJSON(ctx, pack.clt.Endpoint("webapi", "github", updated.GetName()), createPayload(updated))
+	assert.Error(t, err, "expected updating a nonexistent connector to fail")
+	assert.True(t, trace.IsCompareFailed(err), "expected a compare failed error got %T", err)
+	assert.Equal(t, http.StatusPreconditionFailed, resp.Code(), "unexpected status code updating the connector")
+
+	// Validate that the connector can be deleted
+	_, err = pack.clt.Delete(ctx, pack.clt.Endpoint("webapi", "github", expected.GetName()))
+	require.NoError(t, err, "unexpected error deleting connector")
+
+	resp, err = pack.clt.Get(ctx, pack.clt.Endpoint("webapi", "github"), nil)
+	assert.NoError(t, err, "unexpected error listing github connectors")
+
+	var item []ui.ResourceItem
+	require.NoError(t, json.Unmarshal(resp.Bytes(), &item), "invalid resource item received")
+
+	assert.Empty(t, item)
+	assert.Equal(t, http.StatusOK, resp.Code(), "unexpected status code getting connectors")
 }
