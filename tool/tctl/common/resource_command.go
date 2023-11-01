@@ -1138,7 +1138,7 @@ func (rc *ResourceCommand) createServerInfo(ctx context.Context, client auth.Cli
 
 	exists := (err == nil)
 	if !rc.force && exists {
-		return trace.AlreadyExists("Server info %q already exists", name)
+		return trace.AlreadyExists("server info %q already exists", name)
 	}
 
 	err = client.UpsertServerInfo(ctx, si)
