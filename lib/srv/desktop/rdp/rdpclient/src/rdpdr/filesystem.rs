@@ -37,16 +37,13 @@ use std::convert::TryInto;
 pub struct FilesystemBackend {
     cgo_handle: CgoHandle,
     client_handle: ClientHandle,
-    /// FileId-indexed cache of FileCacheObjects.
-    /// See the documentation of FileCacheObject
-    /// for more detail on how this is used.
+    /// FileId-indexed cache of [`FileCacheObject`]s.
+    ///
+    /// See the documentation for [`FileCacheObject`].
     file_cache: FileCache,
-    /// CompletionId -> [`SharedDirectoryInfoResponseHandler`]
-    pending_tdp_sd_info_resp_handlers: HashMap<u32, SharedDirectoryInfoResponseHandler>,
-    /// CompletionId -> [`SharedDirectoryCreateResponseHandler`]
-    pending_sd_create_resp_handlers: HashMap<u32, SharedDirectoryCreateResponseHandler>,
-    /// CompletionId -> [`SharedDirectoryDeleteResponseHandler`]
-    pending_sd_delete_resp_handlers: HashMap<u32, SharedDirectoryDeleteResponseHandler>,
+    pending_tdp_sd_info_resp_handlers: ResponseCache<SharedDirectoryInfoResponseHandler>,
+    pending_sd_create_resp_handlers: ResponseCache<SharedDirectoryCreateResponseHandler>,
+    pending_sd_delete_resp_handlers: ResponseCache<SharedDirectoryDeleteResponseHandler>,
 }
 
 impl FilesystemBackend {
@@ -55,9 +52,9 @@ impl FilesystemBackend {
             cgo_handle,
             client_handle,
             file_cache: FileCache::new(),
-            pending_tdp_sd_info_resp_handlers: HashMap::new(),
-            pending_sd_create_resp_handlers: HashMap::new(),
-            pending_sd_delete_resp_handlers: HashMap::new(),
+            pending_tdp_sd_info_resp_handlers: ResponseCache::new(),
+            pending_sd_create_resp_handlers: ResponseCache::new(),
+            pending_sd_delete_resp_handlers: ResponseCache::new(),
         }
     }
 
@@ -78,13 +75,13 @@ impl FilesystemBackend {
         self.send_tdp_sd_info_request(tdp::SharedDirectoryInfoRequest::from(&rdp_req))?;
         self.pending_tdp_sd_info_resp_handlers.insert(
             rdp_req.device_io_request.completion_id,
-            SharedDirectoryInfoResponseHandler::new(Box::new(
+            SharedDirectoryInfoResponseHandler::new(
                 |this: &mut FilesystemBackend,
                  tdp_resp: tdp::SharedDirectoryInfoResponse|
                  -> PduResult<()> {
                     this.handle_device_create_req_continued(rdp_req, tdp_resp)
                 },
-            )),
+            ),
         );
         Ok(())
     }
@@ -274,7 +271,7 @@ impl FilesystemBackend {
         ))?;
         self.pending_sd_create_resp_handlers.insert(
             rdp_req.device_io_request.completion_id,
-            SharedDirectoryCreateResponseHandler::new(Box::new(
+            SharedDirectoryCreateResponseHandler::new(
                 move |this: &mut FilesystemBackend,
                       tdp_resp: tdp::SharedDirectoryCreateResponse|
                       -> PduResult<()> {
@@ -291,7 +288,7 @@ impl FilesystemBackend {
                     ))?;
                     this.send_device_create_response(&rdp_req, NtStatus::SUCCESS, file_id)
                 },
-            )),
+            ),
         );
         Ok(())
     }
@@ -303,7 +300,7 @@ impl FilesystemBackend {
         self.send_tdp_sd_delete_request(tdp_req)?;
         self.pending_sd_delete_resp_handlers.insert(
             rdp_req.device_io_request.completion_id,
-            SharedDirectoryDeleteResponseHandler::new(Box::new(
+            SharedDirectoryDeleteResponseHandler::new(
                 move |this: &mut FilesystemBackend,
                       tdp_resp: tdp::SharedDirectoryDeleteResponse|
                       -> PduResult<()> {
@@ -315,7 +312,7 @@ impl FilesystemBackend {
                         _ => this.send_device_create_response(&rdp_req, NtStatus::UNSUCCESSFUL, 0),
                     }
                 },
-            )),
+            ),
         );
         Ok(())
     }
@@ -398,19 +395,19 @@ impl FilesystemBackend {
     /// [`tdp::SharedDirectoryCreateResponse`].
     pub fn handle_tdp_sd_create_response(
         &mut self,
-        res: tdp::SharedDirectoryCreateResponse,
+        tdp_resp: tdp::SharedDirectoryCreateResponse,
     ) -> PduResult<()> {
         if let Some(handler) = self
             .pending_sd_create_resp_handlers
-            .remove(&res.completion_id)
+            .remove(&tdp_resp.completion_id)
         {
-            handler.call(self, res)
+            handler.call(self, tdp_resp)
         } else {
             Err(custom_err!(
                 "FilesystemBackend::handle_tdp_sd_create_response",
                 FilesystemBackendError(format!(
                     "received invalid completion id: {}",
-                    res.completion_id
+                    tdp_resp.completion_id
                 ))
             ))
         }
@@ -422,19 +419,19 @@ impl FilesystemBackend {
     /// [`tdp::SharedDirectoryDeleteResponse`].
     pub fn handle_tdp_sd_delete_response(
         &mut self,
-        res: tdp::SharedDirectoryDeleteResponse,
+        tdp_resp: tdp::SharedDirectoryDeleteResponse,
     ) -> PduResult<()> {
         if let Some(handler) = self
             .pending_sd_delete_resp_handlers
-            .remove(&res.completion_id)
+            .remove(&tdp_resp.completion_id)
         {
-            handler.call(self, res)
+            handler.call(self, tdp_resp)
         } else {
             Err(custom_err!(
                 "FilesystemBackend::client_handle_tdp_sd_delete_response",
                 FilesystemBackendError(format!(
                     "received invalid completion id: {}",
-                    res.completion_id
+                    tdp_resp.completion_id
                 ))
             ))
         }
@@ -756,75 +753,76 @@ impl std::fmt::Display for FilesystemBackendError {
 
 impl std::error::Error for FilesystemBackendError {}
 
-/// A macro for generating a response handler struct and function boilerplate for a given response type.
+/// When we send a TDP Shared Directory Request to the browser, we expect a response
+/// which we will need to call a function on. A [`ResponseHandler`] is a trait that
+/// represents this function (or, more technically, this closure).
 ///
-/// Call this like:
+/// # Example
 ///
 /// ```
+/// // Create a new ResponseHandler type by calling the
+/// // response_handler! macro with the name of the new type
+/// // and the type of the response that it will handle.
 /// response_handler!(
-///   SharedDirectoryInfoResponseHandler,
-///   InfoResponseHandlerFunction,
-///   tdp::SharedDirectoryInfoResponse
+///     SharedDirectoryInfoResponseHandler,
+///     tdp::SharedDirectoryInfoResponse
 /// );
+///
+/// // send a tdp request
+/// send_tdp_sd_info_request(tdp::SharedDirectoryInfoRequest::from(&rdp_req))?;
+///
+/// // Create a handler for handling the response
+/// let handler = SharedDirectoryInfoResponseHandler::new(
+///    move |this: &mut FilesystemBackend,
+///         tdp_resp: tdp::SharedDirectoryInfoResponse|
+///        -> PduResult<()> {
+///         // do something with tdp_resp
+///         Ok(())
+///     },
+///
+/// // Add that handler to a cache of handlers indexed by completion id ([`ResponseCache`]).
 /// ```
-///
-/// in order to generate the following:
-///
-/// ```
-/// type InfoResponseHandlerFunction = Box<
-///     dyn FnOnce(
-///             &mut FilesystemBackend,
-///             tdp::SharedDirectoryInfoResponse,
-///         ) -> PduResult<Option<RdpdrPdu>>
-///         + Send,
-/// >;
-///
-/// struct SharedDirectoryInfoResponseHandler {
-///     handler: InfoResponseHandlerFunction,
-/// }
-///
-/// impl SharedDirectoryInfoResponseHandler {
-///     fn new(handler: InfoResponseHandlerFunction) -> Self {
-///         Self { handler }
-///     }
-///
-///     fn call(
-///         self,
-///         this: &mut FilesystemBackend,
-///         res: tdp::SharedDirectoryInfoResponse,
-///     ) -> PduResult<Option<RdpdrPdu>> {
-///         (self.handler)(this, res)
-///     }
-/// }
-///
-/// impl std::fmt::Debug for SharedDirectoryInfoResponseHandler {
-///     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-///         write!(f, "<SharedDirectoryInfoResponseHandler>")
-///     }
-/// }
-/// ```
+trait ResponseHandler: std::fmt::Debug {
+    type ResponseType;
+
+    fn new(
+        handler: impl FnOnce(&mut FilesystemBackend, Self::ResponseType) -> PduResult<()>
+            + Send
+            + 'static,
+    ) -> Self;
+
+    fn call(self, this: &mut FilesystemBackend, res: Self::ResponseType) -> PduResult<()>;
+}
+
+/// See the example in [`ResponseHandler`].
 macro_rules! response_handler {
-    ($name:ident, $func_name:ident, $response_type:ty) => {
-        type $func_name =
-            Box<dyn FnOnce(&mut FilesystemBackend, $response_type) -> PduResult<()> + Send>;
-
+    ($name:ident, $response_type:ty) => {
         struct $name {
-            handler: $func_name,
-        }
-
-        impl $name {
-            fn new(handler: $func_name) -> Self {
-                Self { handler }
-            }
-
-            fn call(self, this: &mut FilesystemBackend, res: $response_type) -> PduResult<()> {
-                (self.handler)(this, res)
-            }
+            handler:
+                Box<dyn FnOnce(&mut FilesystemBackend, $response_type) -> PduResult<()> + Send>,
         }
 
         impl std::fmt::Debug for $name {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                write!(f, concat!("<", stringify!($name), ">"))
+                write!(f, stringify!($name))
+            }
+        }
+
+        impl ResponseHandler for $name {
+            type ResponseType = $response_type;
+
+            fn new(
+                handler: impl FnOnce(&mut FilesystemBackend, Self::ResponseType) -> PduResult<()>
+                    + Send
+                    + 'static,
+            ) -> Self {
+                Self {
+                    handler: Box::new(handler),
+                }
+            }
+
+            fn call(self, this: &mut FilesystemBackend, res: Self::ResponseType) -> PduResult<()> {
+                (self.handler)(this, res)
             }
         }
     };
@@ -832,18 +830,39 @@ macro_rules! response_handler {
 
 response_handler!(
     SharedDirectoryInfoResponseHandler,
-    InfoResponseHandlerFunction,
     tdp::SharedDirectoryInfoResponse
 );
-
 response_handler!(
     SharedDirectoryCreateResponseHandler,
-    CreateResponseHandlerFunction,
     tdp::SharedDirectoryCreateResponse
 );
-
 response_handler!(
     SharedDirectoryDeleteResponseHandler,
-    DeleteResponseHandlerFunction,
     tdp::SharedDirectoryDeleteResponse
 );
+
+type CompletionId = u32;
+
+/// A generic cache for storing [`ResponseHandler`]s indexed by [`CompletionId`].
+///
+/// See the example in [`ResponseHandler`].
+#[derive(Debug)]
+struct ResponseCache<T: ResponseHandler> {
+    cache: HashMap<CompletionId, T>,
+}
+
+impl<T: ResponseHandler> ResponseCache<T> {
+    fn new() -> Self {
+        Self {
+            cache: HashMap::new(),
+        }
+    }
+
+    fn insert(&mut self, completion_id: CompletionId, handler: T) {
+        self.cache.insert(completion_id, handler);
+    }
+
+    fn remove(&mut self, completion_id: &CompletionId) -> Option<T> {
+        self.cache.remove(completion_id)
+    }
+}
