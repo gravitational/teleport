@@ -4167,6 +4167,9 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 	}
 
 	if req.GetDryRun() {
+		_, promotions := a.getAccessRequestPromotions(ctx, req)
+		// update the request with additional reviewers if possible.
+		updateAccessRequestWithAdditionalReviewers(ctx, req, a.AccessListClient(), promotions)
 		// Made it this far with no errors, return before creating the request
 		// if this is a dry run.
 		return req, nil
@@ -4178,22 +4181,10 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 
 	log.Debugf("Creating Access Request %v with expiry %v.", req.GetName(), req.Expiry())
 
-	// calculate the promotions
-	reqCopy := req.Copy()
-	promotions, err := modules.GetModules().GenerateAccessRequestPromotions(ctx, a.Services, reqCopy)
-	if err != nil {
-		// Do not fail the request if the promotions failed to generate.
-		// The request promotion will be blocked, but the request can still be approved.
-		log.WithError(err).Warn("Failed to generate access list promotions.")
-	}
-
-	// update the request with additional reviewers if possible.
-	updateAccessRequestWithAdditionalReviewers(ctx, req, a.AccessListClient(), promotions)
-
 	if _, err := a.Services.CreateAccessRequestV2(ctx, req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	err = a.emitter.EmitAuditEvent(a.closeCtx, &apievents.AccessRequestCreate{
+	err := a.emitter.EmitAuditEvent(a.closeCtx, &apievents.AccessRequestCreate{
 		Metadata: apievents.Metadata{
 			Type: events.AccessRequestCreateEvent,
 			Code: events.AccessRequestCreateCode,
@@ -4213,6 +4204,8 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 		log.WithError(err).Warn("Failed to emit access request create event.")
 	}
 
+	// calculate the promotions
+	reqCopy, promotions := a.getAccessRequestPromotions(ctx, req)
 	if promotions != nil {
 		// Create the promotion entry even if the allowed promotion is empty. Otherwise, we won't
 		// be able to distinguish between an allowed empty set and generation failure.
@@ -4225,6 +4218,18 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 		strconv.Itoa(len(req.GetRoles())),
 		strconv.Itoa(len(req.GetRequestedResourceIDs()))).Inc()
 	return req, nil
+}
+
+// getAccessRequestPromotions will return potential access list promotions for an access request.
+func (a *Server) getAccessRequestPromotions(ctx context.Context, req types.AccessRequest) (types.AccessRequest, *types.AccessRequestAllowedPromotions) {
+	reqCopy := req.Copy()
+	promotions, err := modules.GetModules().GenerateAccessRequestPromotions(ctx, a.Services, reqCopy)
+	if err != nil {
+		// Do not fail the request if the promotions failed to generate.
+		// The request promotion will be blocked, but the request can still be approved.
+		log.WithError(err).Warn("Failed to generate access list promotions.")
+	}
+	return reqCopy, promotions
 }
 
 // updateAccessRequestWithAdditionalReviewers will update the given access request with additional reviewers given the promotions
