@@ -21,6 +21,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"github.com/gravitational/teleport/api/internalutils/stream"
 	"io"
 	"net"
 	"time"
@@ -392,7 +393,7 @@ type WatchEvent interface {
 }
 
 type Watcher interface {
-	NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error)
+	NewStream(ctx context.Context, watch types.Watch) (stream.Stream[types.Event], error)
 }
 
 func WatchEvents(watch *authpb.Watch, stream WatchEvent, componentName string, auth Watcher) error {
