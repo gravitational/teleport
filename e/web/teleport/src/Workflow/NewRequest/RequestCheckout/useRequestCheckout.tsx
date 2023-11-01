@@ -47,6 +47,7 @@ export function useRequestCheckout({
   const [requestTTLDurationOptions, setRequestTTLDurationOptions] = useState<
     Option<number>[]
   >([]);
+  const [suggestedReviewers, setSuggestedReviewers] = useState<string[]>([]);
 
   // Format data suitable for table listing.
   const data: {
@@ -107,6 +108,8 @@ export function useRequestCheckout({
         if (requestTTLValues.length >= 1) {
           setRequestTTL(requestTTLValues[0]);
         }
+
+        setSuggestedReviewers(resp.reviewers.map(r => r.name));
 
         setFetchStatus('loaded');
         // setAttemptStatus();
@@ -215,7 +218,11 @@ export function useRequestCheckout({
     createAttempt: createAttempt.attempt,
     fetchResourceRequestRolesAttempt: fetchResourceRequestRolesAttempt.attempt,
     requireReason: ctx.storeUser.getAccessStrategy().type === 'reason',
-    reviewers: ctx.storeUser.getSuggestedReviewers(),
+    reviewers: [
+      ...new Set(
+        ctx.storeUser.getSuggestedReviewers().concat(suggestedReviewers)
+      ),
+    ].sort(),
     createRequest,
     resourceRequestRoles,
     data,
