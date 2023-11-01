@@ -2857,7 +2857,18 @@ func serializeDatabasesAllClusters(dbListings []databaseListing, format string) 
 	return string(out), trace.Wrap(err)
 }
 
-func formatUsersForDB(database types.Database, accessChecker services.AccessChecker) string {
+func formatUsersForDB(database types.Database, accessChecker services.AccessChecker) (users string) {
+	// When auto-user provisioning is enabled, only username is allowed. `tsh
+	// db ls` will add a footnote for "(+)" to explain this.
+	if database.SupportsAutoUsers() && database.GetAdminUser().Name != "" {
+		autoUser, _, _ := accessChecker.CheckDatabaseRoles(database)
+		if autoUser.IsEnabled() {
+			defer func() {
+				users = users + " (Auto-provisioned)"
+			}()
+		}
+	}
+
 	// may happen if fetching the role set failed for any reason.
 	if accessChecker == nil {
 		return "(unknown)"
@@ -2942,6 +2953,7 @@ func showDatabasesAsText(w io.Writer, clusterFlag string, databases []types.Data
 	} else {
 		t = asciitable.MakeTableWithTruncatedColumn([]string{"Name", "Description", "Allowed Users", "Labels", "Connect"}, rows, "Labels")
 	}
+
 	fmt.Fprintln(w, t.AsBuffer().String())
 }
 
