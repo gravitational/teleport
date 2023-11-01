@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use crate::client::ClientHandle;
 use crate::piv;
 use ironrdp_pdu::utils::CharacterSet;
 use ironrdp_pdu::{custom_err, other_err, PduResult};
@@ -33,6 +34,7 @@ use uuid::Uuid;
 /// [\[MS-RDPESC\]: Remote Desktop Protocol: Smart Card Virtual Channel Extension]: https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpesc/0428ca28-b4dc-46a3-97c3-01887fa44a90
 #[derive(Debug)]
 pub struct ScardBackend {
+    client_handle: ClientHandle,
     /// contexts holds all the active contexts for the server, established using
     /// SCARD_IOCTL_ESTABLISHCONTEXT. Some IOCTLs are context-specific and pass it as argument.
     ///
@@ -45,8 +47,14 @@ pub struct ScardBackend {
 }
 
 impl ScardBackend {
-    pub fn new(cert_der: Vec<u8>, key_der: Vec<u8>, pin: String) -> Self {
+    pub fn new(
+        client_handle: ClientHandle,
+        cert_der: Vec<u8>,
+        key_der: Vec<u8>,
+        pin: String,
+    ) -> Self {
         Self {
+            client_handle,
             contexts: Contexts::new(),
             uuid: Uuid::new_v4(),
             cert_der,
@@ -59,7 +67,7 @@ impl ScardBackend {
         &mut self,
         req: DeviceControlRequest<ScardIoCtlCode>,
         call: ScardCall,
-    ) -> PduResult<Option<DeviceControlResponse>> {
+    ) -> PduResult<()> {
         match req.io_control_code {
             ScardIoCtlCode::AccessStartedEvent => match call {
                 ScardCall::AccessStartedEventCall(_) => self.handle_access_started_event(req),
@@ -136,30 +144,32 @@ impl ScardBackend {
                     req.io_control_code
                 ))
             )),
-        }
+        }?;
+
+        Ok(())
     }
 
     fn handle_access_started_event(
         &mut self,
         req: DeviceControlRequest<ScardIoCtlCode>,
-    ) -> PduResult<Option<DeviceControlResponse>> {
-        Self::dev_ctl_resp_return(req, LongReturn::new(ReturnCode::Success))
+    ) -> PduResult<()> {
+        self.send_device_control_response(req, LongReturn::new(ReturnCode::Success))
     }
 
     fn handle_establish_context(
         &mut self,
         req: DeviceControlRequest<ScardIoCtlCode>,
-    ) -> PduResult<Option<DeviceControlResponse>> {
+    ) -> PduResult<()> {
         let ctx = self.contexts.establish();
 
-        Self::dev_ctl_resp_return(req, EstablishContextReturn::new(ReturnCode::Success, ctx))
+        self.send_device_control_response(
+            req,
+            EstablishContextReturn::new(ReturnCode::Success, ctx),
+        )
     }
 
-    fn handle_list_readers(
-        &mut self,
-        req: DeviceControlRequest<ScardIoCtlCode>,
-    ) -> PduResult<Option<DeviceControlResponse>> {
-        Self::dev_ctl_resp_return(
+    fn handle_list_readers(&mut self, req: DeviceControlRequest<ScardIoCtlCode>) -> PduResult<()> {
+        self.send_device_control_response(
             req,
             ListReadersReturn::new(ReturnCode::Success, vec![TELEPORT_READER_NAME.to_string()]),
         )
@@ -169,7 +179,7 @@ impl ScardBackend {
         &mut self,
         req: DeviceControlRequest<ScardIoCtlCode>,
         call: GetStatusChangeCall,
-    ) -> PduResult<Option<DeviceControlResponse>> {
+    ) -> PduResult<()> {
         let timeout = call.timeout;
         let context_id = call.context.value;
 
@@ -212,11 +222,11 @@ impl ScardBackend {
 
             debug!("blocking GetStatusChange call indefinitely (since our status never changes) until we receive an SCARD_IOCTL_CANCEL");
 
-            return Ok(None);
+            return Ok(());
         }
 
         // We have some status change to report, send it to the server.
-        Self::dev_ctl_resp_return(req, get_status_change_ret)
+        self.send_device_control_response(req, get_status_change_ret)
     }
 
     fn create_get_status_change_return(
@@ -279,7 +289,7 @@ impl ScardBackend {
         &mut self,
         req: DeviceControlRequest<ScardIoCtlCode>,
         call: ConnectCall,
-    ) -> PduResult<Option<DeviceControlResponse>> {
+    ) -> PduResult<()> {
         let handle = self.contexts.connect(
             call.common.context,
             call.common.context.value,
@@ -289,7 +299,7 @@ impl ScardBackend {
             self.pin.clone(),
         )?;
 
-        Self::dev_ctl_resp_return(
+        self.send_device_control_response(
             req,
             ConnectReturn::new(ReturnCode::Success, handle, CardProtocol::SCARD_PROTOCOL_T1),
         )
@@ -298,15 +308,15 @@ impl ScardBackend {
     fn handle_begin_transaction(
         &mut self,
         req: DeviceControlRequest<ScardIoCtlCode>,
-    ) -> PduResult<Option<DeviceControlResponse>> {
-        Self::dev_ctl_resp_return(req, LongReturn::new(ReturnCode::Success))
+    ) -> PduResult<()> {
+        self.send_device_control_response(req, LongReturn::new(ReturnCode::Success))
     }
 
     fn handle_transmit(
         &mut self,
         req: DeviceControlRequest<ScardIoCtlCode>,
         call: TransmitCall,
-    ) -> PduResult<Option<DeviceControlResponse>> {
+    ) -> PduResult<()> {
         let cmd =
             CardCommand::<TRANSMIT_DATA_LIMIT>::try_from(&call.send_buffer).map_err(|err| {
                 custom_err!(
@@ -321,16 +331,13 @@ impl ScardBackend {
         let card = self.contexts.get_card(&call.handle)?;
         let resp = card.handle(cmd)?;
 
-        Self::dev_ctl_resp_return(
+        self.send_device_control_response(
             req,
             TransmitReturn::new(ReturnCode::Success, None, resp.encode()),
         )
     }
 
-    fn handle_status(
-        &mut self,
-        req: DeviceControlRequest<ScardIoCtlCode>,
-    ) -> PduResult<Option<DeviceControlResponse>> {
+    fn handle_status(&mut self, req: DeviceControlRequest<ScardIoCtlCode>) -> PduResult<()> {
         let enc = match req.io_control_code {
             ScardIoCtlCode::StatusW => CharacterSet::Unicode,
             ScardIoCtlCode::StatusA => CharacterSet::Ansi,
@@ -347,7 +354,7 @@ impl ScardBackend {
 
         let (atr_length, atr) = padded_atr::<32>();
 
-        Self::dev_ctl_resp_return(
+        self.send_device_control_response(
             req,
             StatusReturn::new(
                 ReturnCode::Success,
@@ -368,60 +375,61 @@ impl ScardBackend {
         &mut self,
         req: DeviceControlRequest<ScardIoCtlCode>,
         call: ContextCall,
-    ) -> PduResult<Option<DeviceControlResponse>> {
+    ) -> PduResult<()> {
         self.contexts.release(call.context.value);
-        Self::dev_ctl_resp_return(req, LongReturn::new(ReturnCode::Success))
+        self.send_device_control_response(req, LongReturn::new(ReturnCode::Success))
     }
 
     fn handle_end_transaction(
         &mut self,
         req: DeviceControlRequest<ScardIoCtlCode>,
-    ) -> PduResult<Option<DeviceControlResponse>> {
-        Self::dev_ctl_resp_return(req, LongReturn::new(ReturnCode::Success))
+    ) -> PduResult<()> {
+        self.send_device_control_response(req, LongReturn::new(ReturnCode::Success))
     }
 
     fn handle_disconnect(
         &mut self,
         req: DeviceControlRequest<ScardIoCtlCode>,
         call: HCardAndDispositionCall,
-    ) -> PduResult<Option<DeviceControlResponse>> {
+    ) -> PduResult<()> {
         self.contexts.disconnect(call.handle)?;
-        Self::dev_ctl_resp_return(req, LongReturn::new(ReturnCode::Success))
+        self.send_device_control_response(req, LongReturn::new(ReturnCode::Success))
     }
 
     fn handle_cancel(
         &mut self,
         req: DeviceControlRequest<ScardIoCtlCode>,
         call: ContextCall,
-    ) -> PduResult<Option<DeviceControlResponse>> {
+    ) -> PduResult<()> {
         let resp = self
             .contexts
             .take_scard_cancel_response(call.context.value)?;
         if let Some(resp) = resp {
-            Ok(Some(resp))
+            self.client_handle.write_rdpdr(resp.into())?;
+            Ok(())
         } else {
             // TODO: Currently we're just returning ReturnCode::Success here (based on awly's pre-
             // IronRDP code). Should we instead be returning SCARD_E_CANCELLED (or something else)?
             warn!("Received SCARD_IOCTL_CANCEL for a context without a pending SCARD_IOCTL_GETSTATUSCHANGEW");
-            Self::dev_ctl_resp_return(req, LongReturn::new(ReturnCode::Success))
+            self.send_device_control_response(req, LongReturn::new(ReturnCode::Success))
         }
     }
 
     fn handle_is_valid_context(
         &mut self,
         req: DeviceControlRequest<ScardIoCtlCode>,
-    ) -> PduResult<Option<DeviceControlResponse>> {
+    ) -> PduResult<()> {
         // TODO: Currently we're always just sending ReturnCode::Success (based on awly's pre-
         // IronRDP code). Should we instead be checking if we have such a context in our cache
         // and returning an SCARD_E_INVALID_HANDLE (or something else)?
-        Self::dev_ctl_resp_return(req, LongReturn::new(ReturnCode::Success))
+        self.send_device_control_response(req, LongReturn::new(ReturnCode::Success))
     }
 
     fn handle_get_device_type_id(
         &mut self,
         req: DeviceControlRequest<ScardIoCtlCode>,
         call: GetDeviceTypeIdCall,
-    ) -> PduResult<Option<DeviceControlResponse>> {
+    ) -> PduResult<()> {
         if self.contexts.exists(call.context.value) {
             // Reader type describes the type of the physical connection to the smartcard reader (e.g.
             // USB/serial/TPM). Type "vendor" means a proprietary vendor bus.
@@ -429,7 +437,7 @@ impl ScardBackend {
             // See "ReaderType" in
             // https://docs.microsoft.com/en-us/windows-hardware/drivers/ddi/smclib/ns-smclib-_scard_reader_capabilitiesconst SCARD_READER_TYPE_VENDOR: u32 = 0xF0;
             const SCARD_READER_TYPE_VENDOR: u32 = 0xF0;
-            Self::dev_ctl_resp_return(
+            self.send_device_control_response(
                 req,
                 GetDeviceTypeIdReturn::new(ReturnCode::Success, SCARD_READER_TYPE_VENDOR),
             )
@@ -448,38 +456,35 @@ impl ScardBackend {
         &mut self,
         req: DeviceControlRequest<ScardIoCtlCode>,
         call: ReadCacheCall,
-    ) -> PduResult<Option<DeviceControlResponse>> {
+    ) -> PduResult<()> {
         let (data, return_code) = match self.contexts.read_cache(call)? {
             Some(data) => (data, ReturnCode::Success),
             None => (vec![], ReturnCode::CacheItemNotFound),
         };
-        Self::dev_ctl_resp_return(req, ReadCacheReturn::new(return_code, data))
+        self.send_device_control_response(req, ReadCacheReturn::new(return_code, data))
     }
 
     fn handle_write_cache(
         &mut self,
         req: DeviceControlRequest<ScardIoCtlCode>,
         call: WriteCacheCall,
-    ) -> PduResult<Option<DeviceControlResponse>> {
+    ) -> PduResult<()> {
         self.contexts.write_cache(call)?;
-        Self::dev_ctl_resp_return(req, LongReturn::new(ReturnCode::Success))
+        self.send_device_control_response(req, LongReturn::new(ReturnCode::Success))
     }
 
     fn handle_get_reader_icon(
         &mut self,
         req: DeviceControlRequest<ScardIoCtlCode>,
-    ) -> PduResult<Option<DeviceControlResponse>> {
-        Self::dev_ctl_resp_return(
+    ) -> PduResult<()> {
+        self.send_device_control_response(
             req,
             GetReaderIconReturn::new(ReturnCode::UnsupportedFeature, vec![]),
         )
     }
 
     /// This function returns the error for unsupported combinations of [`ScardIoCtlCode`] and [`ScardCall`].
-    fn unsupported_combo_error(
-        ioctl: ScardIoCtlCode,
-        call: ScardCall,
-    ) -> PduResult<Option<DeviceControlResponse>> {
+    fn unsupported_combo_error(ioctl: ScardIoCtlCode, call: ScardCall) -> PduResult<()> {
         Err(custom_err!(
             "SmartcardBackend::unsupported_combo_error",
             SmartcardBackendError(format!(
@@ -489,17 +494,14 @@ impl ScardBackend {
         ))
     }
 
-    /// Helper function for creating a DeviceControlResponse from a DeviceControlRequest and an
-    /// output buffer wrapped in an Ok(Some(...)), a common pattern in this object's methods.
-    fn dev_ctl_resp_return(
+    fn send_device_control_response(
+        &self,
         req: DeviceControlRequest<ScardIoCtlCode>,
         output_buffer: impl rpce::Encode + 'static,
-    ) -> PduResult<Option<DeviceControlResponse>> {
-        Ok(Some(DeviceControlResponse::new(
-            req,
-            NtStatus::SUCCESS,
-            Box::new(output_buffer),
-        )))
+    ) -> PduResult<()> {
+        let resp = DeviceControlResponse::new(req, NtStatus::SUCCESS, Box::new(output_buffer));
+        self.client_handle.write_rdpdr(resp.into())?;
+        Ok(())
     }
 }
 

@@ -17,8 +17,8 @@ use super::{
     tdp::{self, SharedDirectoryDeleteRequest, TdpErrCode},
 };
 use crate::{
-    client::{ClientFunction, ClientHandle},
-    tdp_sd_create_request, tdp_sd_delete_request, tdp_sd_info_request, CGOErrCode, CgoHandle,
+    client::ClientHandle, tdp_sd_create_request, tdp_sd_delete_request, tdp_sd_info_request,
+    CGOErrCode, CgoHandle,
 };
 use ironrdp_pdu::{cast_length, custom_err, other_err, PduResult};
 use ironrdp_rdpdr::pdu::{
@@ -81,7 +81,7 @@ impl FilesystemBackend {
             SharedDirectoryInfoResponseHandler::new(Box::new(
                 |this: &mut FilesystemBackend,
                  tdp_resp: tdp::SharedDirectoryInfoResponse|
-                 -> PduResult<Option<RdpdrPdu>> {
+                 -> PduResult<()> {
                     this.handle_device_create_req_continued(rdp_req, tdp_resp)
                 },
             )),
@@ -95,7 +95,7 @@ impl FilesystemBackend {
         &mut self,
         req: efs::DeviceCreateRequest,
         res: tdp::SharedDirectoryInfoResponse,
-    ) -> PduResult<Option<RdpdrPdu>> {
+    ) -> PduResult<()> {
         match res.err_code {
             TdpErrCode::Failed | TdpErrCode::AlreadyExists => {
                 return Err(custom_err!(
@@ -112,7 +112,7 @@ impl FilesystemBackend {
                 if res.fso.file_type == tdp::FileType::Directory {
                     if req.create_disposition == efs::CreateDisposition::FILE_CREATE {
                         // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L221
-                        return Self::make_device_create_response(
+                        return self.send_device_create_response(
                             &req,
                             efs::NtStatus::OBJECT_NAME_COLLISION,
                             0,
@@ -124,7 +124,7 @@ impl FilesystemBackend {
                         .contains(efs::CreateOptions::FILE_NON_DIRECTORY_FILE)
                     {
                         // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L227
-                        return Self::make_device_create_response(
+                        return self.send_device_create_response(
                             &req,
                             efs::NtStatus::ACCESS_DENIED,
                             0,
@@ -135,7 +135,7 @@ impl FilesystemBackend {
                     .contains(efs::CreateOptions::FILE_DIRECTORY_FILE)
                 {
                     // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L237
-                    return Self::make_device_create_response(
+                    return self.send_device_create_response(
                         &req,
                         efs::NtStatus::NOT_A_DIRECTORY,
                         0,
@@ -153,10 +153,10 @@ impl FilesystemBackend {
                     ) {
                         // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L252
                         self.tdp_sd_create(req, tdp::FileType::Directory)?;
-                        return Ok(None);
+                        return Ok(());
                     } else {
                         // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L258
-                        return Self::make_device_create_response(
+                        return self.send_device_create_response(
                             &req,
                             efs::NtStatus::NO_SUCH_FILE,
                             0,
@@ -173,10 +173,10 @@ impl FilesystemBackend {
                 // If the file already exists, replace it with the given file. If it does not, create the given file.
                 if res.err_code == TdpErrCode::Nil {
                     self.tdp_sd_overwrite(req)?;
-                    return Ok(None);
+                    return Ok(());
                 } else if res.err_code == TdpErrCode::DoesNotExist {
                     self.tdp_sd_create(req, tdp::FileType::File)?;
-                    return Ok(None);
+                    return Ok(());
                 }
             }
             efs::CreateDisposition::FILE_OPEN => {
@@ -185,26 +185,22 @@ impl FilesystemBackend {
                     let file_id = self
                         .file_cache
                         .insert(FileCacheObject::new(UnixPath::from(&req.path), res.fso))?;
-                    return Self::make_device_create_response(
-                        &req,
-                        efs::NtStatus::SUCCESS,
-                        file_id,
-                    );
+                    return self.send_device_create_response(&req, efs::NtStatus::SUCCESS, file_id);
                 } else if res.err_code == TdpErrCode::DoesNotExist {
-                    return Self::make_device_create_response(&req, efs::NtStatus::NO_SUCH_FILE, 0);
+                    return self.send_device_create_response(&req, efs::NtStatus::NO_SUCH_FILE, 0);
                 }
             }
             efs::CreateDisposition::FILE_CREATE => {
                 // If the file already exists, fail the request and do not create or open the given file. If it does not, create the given file.
                 if res.err_code == TdpErrCode::Nil {
-                    return Self::make_device_create_response(
+                    return self.send_device_create_response(
                         &req,
                         efs::NtStatus::OBJECT_NAME_COLLISION,
                         0,
                     );
                 } else if res.err_code == TdpErrCode::DoesNotExist {
                     self.tdp_sd_create(req, tdp::FileType::File)?;
-                    return Ok(None);
+                    return Ok(());
                 }
             }
             efs::CreateDisposition::FILE_OPEN_IF => {
@@ -213,33 +209,29 @@ impl FilesystemBackend {
                     let file_id = self
                         .file_cache
                         .insert(FileCacheObject::new(UnixPath::from(&req.path), res.fso))?;
-                    return Self::make_device_create_response(
-                        &req,
-                        efs::NtStatus::SUCCESS,
-                        file_id,
-                    );
+                    return self.send_device_create_response(&req, efs::NtStatus::SUCCESS, file_id);
                 } else if res.err_code == TdpErrCode::DoesNotExist {
                     self.tdp_sd_create(req, tdp::FileType::File)?;
-                    return Ok(None);
+                    return Ok(());
                 }
             }
             efs::CreateDisposition::FILE_OVERWRITE => {
                 // If the file already exists, open it and overwrite it. If it does not, fail the request.
                 if res.err_code == TdpErrCode::Nil {
                     self.tdp_sd_overwrite(req)?;
-                    return Ok(None);
+                    return Ok(());
                 } else if res.err_code == TdpErrCode::DoesNotExist {
-                    return Self::make_device_create_response(&req, efs::NtStatus::NO_SUCH_FILE, 0);
+                    return self.send_device_create_response(&req, efs::NtStatus::NO_SUCH_FILE, 0);
                 }
             }
             efs::CreateDisposition::FILE_OVERWRITE_IF => {
                 // If the file already exists, open it and overwrite it. If it does not, create the given file.
                 if res.err_code == TdpErrCode::Nil {
                     self.tdp_sd_overwrite(req)?;
-                    return Ok(None);
+                    return Ok(());
                 } else if res.err_code == TdpErrCode::DoesNotExist {
                     self.tdp_sd_create(req, tdp::FileType::File)?;
-                    return Ok(None);
+                    return Ok(());
                 }
             }
             _ => {
@@ -266,14 +258,7 @@ impl FilesystemBackend {
     ) -> PduResult<()> {
         let file = self.file_cache.get(rdp_req.device_io_request.file_id);
         let rdp_resp = Self::make_client_drive_query_information_response(rdp_req, file)?;
-        self.client_handle
-            .blocking_send(ClientFunction::WriteRdpdr(rdp_resp))
-            .map_err(|e| {
-                custom_err!(
-                    "FilesystemBackend::write_rdpdr",
-                    FilesystemBackendError(format!("{:?}", e))
-                )
-            })?;
+        self.client_handle.write_rdpdr(rdp_resp)?;
         Ok(())
     }
 
@@ -292,9 +277,9 @@ impl FilesystemBackend {
             SharedDirectoryCreateResponseHandler::new(Box::new(
                 move |this: &mut FilesystemBackend,
                       tdp_resp: tdp::SharedDirectoryCreateResponse|
-                      -> PduResult<Option<RdpdrPdu>> {
+                      -> PduResult<()> {
                     if tdp_resp.err_code != TdpErrCode::Nil {
-                        return Self::make_device_create_response(
+                        return this.send_device_create_response(
                             &rdp_req,
                             NtStatus::UNSUCCESSFUL,
                             0,
@@ -304,7 +289,7 @@ impl FilesystemBackend {
                         UnixPath::from(&rdp_req.path),
                         tdp_resp.fso,
                     ))?;
-                    Self::make_device_create_response(&rdp_req, NtStatus::SUCCESS, file_id)
+                    this.send_device_create_response(&rdp_req, NtStatus::SUCCESS, file_id)
                 },
             )),
         );
@@ -321,13 +306,13 @@ impl FilesystemBackend {
             SharedDirectoryDeleteResponseHandler::new(Box::new(
                 move |this: &mut FilesystemBackend,
                       tdp_resp: tdp::SharedDirectoryDeleteResponse|
-                      -> PduResult<Option<RdpdrPdu>> {
+                      -> PduResult<()> {
                     match tdp_resp.err_code {
                         TdpErrCode::Nil => {
                             this.tdp_sd_create(rdp_req, tdp::FileType::File)?;
-                            Ok(None)
+                            Ok(())
                         }
-                        _ => Self::make_device_create_response(&rdp_req, NtStatus::UNSUCCESSFUL, 0),
+                        _ => this.send_device_create_response(&rdp_req, NtStatus::UNSUCCESSFUL, 0),
                     }
                 },
             )),
@@ -390,7 +375,7 @@ impl FilesystemBackend {
     pub fn handle_tdp_sd_info_response(
         &mut self,
         tdp_resp: tdp::SharedDirectoryInfoResponse,
-    ) -> PduResult<Option<RdpdrPdu>> {
+    ) -> PduResult<()> {
         if let Some(handler) = self
             .pending_tdp_sd_info_resp_handlers
             .remove(&tdp_resp.completion_id)
@@ -414,7 +399,7 @@ impl FilesystemBackend {
     pub fn handle_tdp_sd_create_response(
         &mut self,
         res: tdp::SharedDirectoryCreateResponse,
-    ) -> PduResult<Option<RdpdrPdu>> {
+    ) -> PduResult<()> {
         if let Some(handler) = self
             .pending_sd_create_resp_handlers
             .remove(&res.completion_id)
@@ -438,7 +423,7 @@ impl FilesystemBackend {
     pub fn handle_tdp_sd_delete_response(
         &mut self,
         res: tdp::SharedDirectoryDeleteResponse,
-    ) -> PduResult<Option<RdpdrPdu>> {
+    ) -> PduResult<()> {
         if let Some(handler) = self
             .pending_sd_delete_resp_handlers
             .remove(&res.completion_id)
@@ -456,11 +441,12 @@ impl FilesystemBackend {
     }
 
     /// Helper function for creating an RDP [`efs::DeviceCreateResponse`] from an RDP [`efs::DeviceCreateRequest`].
-    fn make_device_create_response(
+    fn send_device_create_response(
+        &self,
         device_create_request: &efs::DeviceCreateRequest,
         io_status: efs::NtStatus,
         new_file_id: u32,
-    ) -> PduResult<Option<RdpdrPdu>> {
+    ) -> PduResult<()> {
         // See https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L187-L228
         let information = if io_status != efs::NtStatus::SUCCESS
             || device_create_request.create_disposition.intersects(
@@ -483,7 +469,7 @@ impl FilesystemBackend {
             ))
         }?;
 
-        Ok(Some(RdpdrPdu::DeviceCreateResponse(
+        self.client_handle.write_rdpdr(
             efs::DeviceCreateResponse {
                 device_io_reply: efs::DeviceIoResponse::new(
                     device_create_request.device_io_request.clone(),
@@ -491,8 +477,10 @@ impl FilesystemBackend {
                 ),
                 file_id: new_file_id,
                 information,
-            },
-        )))
+            }
+            .into(),
+        )?;
+        Ok(())
     }
 
     fn make_client_drive_query_information_response(
@@ -817,10 +805,8 @@ impl std::error::Error for FilesystemBackendError {}
 /// ```
 macro_rules! response_handler {
     ($name:ident, $func_name:ident, $response_type:ty) => {
-        type $func_name = Box<
-            dyn FnOnce(&mut FilesystemBackend, $response_type) -> PduResult<Option<RdpdrPdu>>
-                + Send,
-        >;
+        type $func_name =
+            Box<dyn FnOnce(&mut FilesystemBackend, $response_type) -> PduResult<()> + Send>;
 
         struct $name {
             handler: $func_name,
@@ -831,11 +817,7 @@ macro_rules! response_handler {
                 Self { handler }
             }
 
-            fn call(
-                self,
-                this: &mut FilesystemBackend,
-                res: $response_type,
-            ) -> PduResult<Option<RdpdrPdu>> {
+            fn call(self, this: &mut FilesystemBackend, res: $response_type) -> PduResult<()> {
                 (self.handler)(this, res)
             }
         }

@@ -23,21 +23,18 @@ use self::scard::ScardBackend;
 use self::tdp::{
     SharedDirectoryCreateResponse, SharedDirectoryDeleteResponse, SharedDirectoryInfoResponse,
 };
-use crate::client::{ClientFunction, ClientHandle};
+use crate::client::ClientHandle;
 use crate::CgoHandle;
 use ironrdp_pdu::{custom_err, PduResult};
 use ironrdp_rdpdr::pdu::efs::{
     DeviceControlRequest, NtStatus, ServerDeviceAnnounceResponse, ServerDriveIoRequest,
 };
 use ironrdp_rdpdr::pdu::esc::{ScardCall, ScardIoCtlCode};
-use ironrdp_rdpdr::pdu::RdpdrPdu;
 use ironrdp_rdpdr::RdpdrBackend;
 use ironrdp_svc::impl_as_any;
 
 #[derive(Debug)]
 pub struct TeleportRdpdrBackend {
-    /// The client handle for this backend, used to send messages to the RDP server.
-    client_handle: ClientHandle,
     /// The backend for smart card redirection.
     scard: ScardBackend,
     /// The backend for directory sharing.
@@ -70,12 +67,7 @@ impl RdpdrBackend for TeleportRdpdrBackend {
         req: DeviceControlRequest<ScardIoCtlCode>,
         call: ScardCall,
     ) -> PduResult<()> {
-        if let Some(resp) = self.scard.handle(req, call)? {
-            self.write_rdpdr(resp.into())
-        } else {
-            // Nothing to send back to the server
-            Ok(())
-        }
+        self.scard.handle(req, call)
     }
 
     fn handle_drive_io_request(&mut self, req: ServerDriveIoRequest) -> PduResult<()> {
@@ -92,8 +84,7 @@ impl TeleportRdpdrBackend {
         cgo_handle: CgoHandle,
     ) -> Self {
         Self {
-            client_handle: client_handle.clone(),
-            scard: ScardBackend::new(cert_der, key_der, pin),
+            scard: ScardBackend::new(client_handle.clone(), cert_der, key_der, pin),
             fs: FilesystemBackend::new(cgo_handle, client_handle),
         }
     }
@@ -102,50 +93,21 @@ impl TeleportRdpdrBackend {
         &mut self,
         tdp_resp: SharedDirectoryInfoResponse,
     ) -> PduResult<()> {
-        if let Some(resp) = self.fs.handle_tdp_sd_info_response(tdp_resp)? {
-            self.write_rdpdr(resp)
-        } else {
-            // Nothing to send back to the server
-            Ok(())
-        }
+        self.fs.handle_tdp_sd_info_response(tdp_resp)
     }
 
     pub fn handle_tdp_sd_create_response(
         &mut self,
         tdp_resp: SharedDirectoryCreateResponse,
     ) -> PduResult<()> {
-        if let Some(resp) = self.fs.handle_tdp_sd_create_response(tdp_resp)? {
-            self.write_rdpdr(resp)
-        } else {
-            // Nothing to send back to the server
-            Ok(())
-        }
+        self.fs.handle_tdp_sd_create_response(tdp_resp)
     }
 
     pub fn handle_tdp_sd_delete_response(
         &mut self,
         tdp_resp: SharedDirectoryDeleteResponse,
     ) -> PduResult<()> {
-        if let Some(resp) = self.fs.handle_tdp_sd_delete_response(tdp_resp)? {
-            self.write_rdpdr(resp)
-        } else {
-            // Nothing to send back to the server
-            Ok(())
-        }
-    }
-
-    fn write_rdpdr(&mut self, pdu: RdpdrPdu) -> PduResult<()> {
-        self.client_handle
-            .blocking_send(ClientFunction::WriteRdpdr(pdu))
-            .map_err(|e| {
-                custom_err!(
-                    "TeleportRdpdrBackend::write_rdpdr",
-                    // Due to a long chain of trait dependencies in IronRDP that are impractical to unwind at this point,
-                    // we can't put _e in the source field of the error because it isn't Sync (because ClientFunction itself
-                    // isn't sync). We compromise here by just wrapping its Debug output in a TeleportRdpdrBackendError.
-                    TeleportRdpdrBackendError(format!("{:?}", e))
-                )
-            })
+        self.fs.handle_tdp_sd_delete_response(tdp_resp)
     }
 }
 

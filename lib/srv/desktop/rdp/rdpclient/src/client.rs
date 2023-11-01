@@ -6,7 +6,6 @@ use crate::{
     CGOMousePointerEvent, CGOPointerButton, CGOPointerWheel, CgoHandle,
 };
 use bytes::BytesMut;
-pub(crate) use global::call_function_on_handle;
 use ironrdp_cliprdr::{Cliprdr, CliprdrSvcMessages};
 use ironrdp_connector::{Config, ConnectorError, Credentials};
 use ironrdp_pdu::input::fast_path::{FastPathInput, FastPathInputEvent, KeyboardFlags};
@@ -15,7 +14,7 @@ use ironrdp_pdu::input::{InputEventError, MousePdu};
 use ironrdp_pdu::nego::SecurityProtocol;
 use ironrdp_pdu::rdp::capability_sets::MajorPlatformType;
 use ironrdp_pdu::rdp::RdpError;
-use ironrdp_pdu::{PduError, PduParsing};
+use ironrdp_pdu::{custom_err, PduError, PduParsing};
 use ironrdp_rdpdr::pdu::efs::ClientDeviceListAnnounce;
 use ironrdp_rdpdr::pdu::RdpdrPdu;
 use ironrdp_rdpdr::Rdpdr;
@@ -83,11 +82,11 @@ impl Client {
     ///
     /// After creating the connection, this function registers the newly made Client with
     /// the [`global::ClientHandles`] map, and creates a task for reading frames from the  RDP
-    /// server and sending them back to Go, and receiving function calls via [`global::call_function_on_handle`]
+    /// server and sending them back to Go, and receiving function calls via [`ClientHandle`]
     /// and executing them.
     ///
     /// This function hangs until the RDP session ends or a [`ClientFunction::Stop`] is dispatched
-    /// (see [`global::call_function_on_handle`]).
+    /// (see [`ClientHandle::stop`]).
     pub fn run(cgo_handle: CgoHandle, params: ConnectParams) -> ClientResult<()> {
         global::TOKIO_RT.block_on(async {
             Self::connect(cgo_handle, params)
@@ -119,7 +118,7 @@ impl Client {
             create_config(params.screen_width, params.screen_height, pin.clone());
 
         // Create a channel for sending/receiving function calls to/from the Client.
-        let (client_handle, function_receiver) = channel(100);
+        let (client_handle, function_receiver) = ClientHandle::new(100);
 
         let mut rdpdr = Rdpdr::new(
             Box::new(TeleportRdpdrBackend::new(
@@ -293,9 +292,7 @@ impl Client {
                         // for writing to the RDP server.
                         let res = Client::x224_process(x224_processor.clone(), frame).await?;
                         // Send response frames to write loop for writing to RDP server.
-                        write_requester
-                            .send(ClientFunction::WriteRawPdu(res))
-                            .await?;
+                        write_requester.write_raw_pdu_async(res).await?;
                     }
                 }
             }
@@ -628,9 +625,10 @@ impl Drop for Client {
 
 /// [`ClientFunction`] is an enum representing the different functions that can be called on a client.
 /// Each variant corresponds to a different function, and carries the necessary arguments for that function.
-/// This enum is used in conjunction with the [`call_function_on_handle`] function to call a specific function on a client.
+///
+/// This enum is used by [`ClientHandle`]'s methods to dispatch function calls to the corresponding [`Client`] instance.
 #[derive(Debug)]
-pub enum ClientFunction {
+enum ClientFunction {
     /// Corresponds to [`Client::write_rdp_pointer`]
     WriteRdpPointer(CGOMousePointerEvent),
     /// Corresponds to [`Client::write_rdp_key`]
@@ -659,12 +657,161 @@ pub enum ClientFunction {
 
 /// `ClientHandle` is used to dispatch [`ClientFunction`]s calls
 /// to a corresponding [`FunctionReceiver`] on a `Client`.
-pub type ClientHandle = Sender<ClientFunction>;
+#[derive(Clone, Debug)]
+pub struct ClientHandle(Sender<ClientFunction>);
+
+impl ClientHandle {
+    /// Creates a new `ClientHandle` and corresponding [`FunctionReceiver`] with a buffer of size `buffer`.
+    fn new(buffer: usize) -> (Self, FunctionReceiver) {
+        let (sender, receiver) = channel(buffer);
+        (Self(sender), FunctionReceiver(receiver))
+    }
+
+    pub fn write_rdp_pointer(&self, pointer: CGOMousePointerEvent) -> ClientResult<()> {
+        self.blocking_send(ClientFunction::WriteRdpPointer(pointer))
+    }
+
+    pub async fn write_rdp_pointer_async(&self, pointer: CGOMousePointerEvent) -> ClientResult<()> {
+        self.send(ClientFunction::WriteRdpPointer(pointer)).await
+    }
+
+    pub fn write_rdp_key(&self, key: CGOKeyboardEvent) -> ClientResult<()> {
+        self.blocking_send(ClientFunction::WriteRdpKey(key))
+    }
+
+    pub async fn write_rdp_key_async(&self, key: CGOKeyboardEvent) -> ClientResult<()> {
+        self.send(ClientFunction::WriteRdpKey(key)).await
+    }
+
+    pub fn write_raw_pdu(&self, resp: Vec<u8>) -> ClientResult<()> {
+        self.blocking_send(ClientFunction::WriteRawPdu(resp))
+    }
+
+    pub async fn write_raw_pdu_async(&self, resp: Vec<u8>) -> ClientResult<()> {
+        self.send(ClientFunction::WriteRawPdu(resp)).await
+    }
+
+    pub fn write_rdpdr(&self, pdu: RdpdrPdu) -> ClientResult<()> {
+        self.blocking_send(ClientFunction::WriteRdpdr(pdu))
+    }
+
+    pub async fn write_rdpdr_async(&self, pdu: RdpdrPdu) -> ClientResult<()> {
+        self.send(ClientFunction::WriteRdpdr(pdu)).await
+    }
+
+    pub fn handle_tdp_sd_announce(&self, sda: tdp::SharedDirectoryAnnounce) -> ClientResult<()> {
+        self.blocking_send(ClientFunction::HandleTdpSdAnnounce(sda))
+    }
+
+    pub async fn handle_tdp_sd_announce_async(
+        &self,
+        sda: tdp::SharedDirectoryAnnounce,
+    ) -> ClientResult<()> {
+        self.send(ClientFunction::HandleTdpSdAnnounce(sda)).await
+    }
+
+    pub fn handle_tdp_sd_info_response(
+        &self,
+        res: tdp::SharedDirectoryInfoResponse,
+    ) -> ClientResult<()> {
+        self.blocking_send(ClientFunction::HandleTdpSdInfoResponse(res))
+    }
+
+    pub async fn handle_tdp_sd_info_response_async(
+        &self,
+        res: tdp::SharedDirectoryInfoResponse,
+    ) -> ClientResult<()> {
+        self.send(ClientFunction::HandleTdpSdInfoResponse(res))
+            .await
+    }
+
+    pub fn handle_tdp_sd_create_response(
+        &self,
+        res: tdp::SharedDirectoryCreateResponse,
+    ) -> ClientResult<()> {
+        self.blocking_send(ClientFunction::HandleTdpSdCreateResponse(res))
+    }
+
+    pub async fn handle_tdp_sd_create_response_async(
+        &self,
+        res: tdp::SharedDirectoryCreateResponse,
+    ) -> ClientResult<()> {
+        self.send(ClientFunction::HandleTdpSdCreateResponse(res))
+            .await
+    }
+
+    pub fn handle_tdp_sd_delete_response(
+        &self,
+        res: tdp::SharedDirectoryDeleteResponse,
+    ) -> ClientResult<()> {
+        self.blocking_send(ClientFunction::HandleTdpSdDeleteResponse(res))
+    }
+
+    pub async fn handle_tdp_sd_delete_response_async(
+        &self,
+        res: tdp::SharedDirectoryDeleteResponse,
+    ) -> ClientResult<()> {
+        self.send(ClientFunction::HandleTdpSdDeleteResponse(res))
+            .await
+    }
+
+    pub fn write_cliprdr(&self, f: Box<dyn ClipboardFn>) -> ClientResult<()> {
+        self.blocking_send(ClientFunction::WriteCliprdr(f))
+    }
+
+    pub async fn write_cliprdr_async(&self, f: Box<dyn ClipboardFn>) -> ClientResult<()> {
+        self.send(ClientFunction::WriteCliprdr(f)).await
+    }
+
+    pub fn update_clipboard(&self, data: String) -> ClientResult<()> {
+        self.blocking_send(ClientFunction::UpdateClipboard(data))
+    }
+
+    pub async fn update_clipboard_async(&self, data: String) -> ClientResult<()> {
+        self.send(ClientFunction::UpdateClipboard(data)).await
+    }
+
+    pub fn handle_remote_copy(&self, data: Vec<u8>) -> ClientResult<()> {
+        self.blocking_send(ClientFunction::HandleRemoteCopy(data))
+    }
+
+    pub async fn handle_remote_copy_async(&self, data: Vec<u8>) -> ClientResult<()> {
+        self.send(ClientFunction::HandleRemoteCopy(data)).await
+    }
+
+    pub fn stop(&self) -> ClientResult<()> {
+        self.blocking_send(ClientFunction::Stop)
+    }
+
+    pub async fn stop_async(&self) -> ClientResult<()> {
+        self.send(ClientFunction::Stop).await
+    }
+
+    fn blocking_send(&self, fun: ClientFunction) -> ClientResult<()> {
+        self.0
+            .blocking_send(fun)
+            .map_err(|e| ClientError::SendError(format!("{:?}", e)))
+    }
+
+    async fn send(&self, fun: ClientFunction) -> ClientResult<()> {
+        self.0
+            .send(fun)
+            .await
+            .map_err(|e| ClientError::SendError(format!("{:?}", e)))
+    }
+}
 
 /// Each `Client` has a `FunctionReceiver` that it listens to for
 /// incoming [`ClientFunction`] calls sent via its corresponding
 /// [`ClientHandle`].
-pub type FunctionReceiver = Receiver<ClientFunction>;
+pub struct FunctionReceiver(Receiver<ClientFunction>);
+
+impl FunctionReceiver {
+    /// Receives a [`ClientFunction`] call from the `FunctionReceiver`.
+    async fn recv(&mut self) -> Option<ClientFunction> {
+        self.0.recv().await
+    }
+}
 
 type RdpReadStream = Framed<TokioStream<ReadHalf<TlsStream<TokioTcpStream>>>>;
 type RdpWriteStream = Framed<TokioStream<WriteHalf<TlsStream<TokioTcpStream>>>>;
@@ -717,12 +864,14 @@ pub enum ClientError {
     SessionError(SessionError),
     ConnectorError(ConnectorError),
     CGOErrCode(CGOErrCode),
-    SendError,
+    SendError(String),
     JoinError(JoinError),
     InternalError,
     UnknownAddress,
     InputEventError(InputEventError),
 }
+
+impl std::error::Error for ClientError {}
 
 impl Display for ClientError {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
@@ -737,7 +886,7 @@ impl Display for ClientError {
             ClientError::InputEventError(e) => Display::fmt(e, f),
             ClientError::JoinError(e) => Display::fmt(e, f),
             ClientError::CGOErrCode(e) => Debug::fmt(e, f),
-            ClientError::SendError => Display::fmt("Couldn't send message to channel", f),
+            ClientError::SendError(msg) => Display::fmt(&msg.to_string(), f),
             ClientError::InternalError => Display::fmt("Internal error", f),
             ClientError::UnknownAddress => Display::fmt("Unknown address", f),
             ClientError::PduError(e) => Display::fmt(e, f),
@@ -776,8 +925,8 @@ impl From<SessionError> for ClientError {
 }
 
 impl<T> From<SendError<T>> for ClientError {
-    fn from(_value: SendError<T>) -> Self {
-        ClientError::SendError
+    fn from(value: SendError<T>) -> Self {
+        ClientError::SendError(format!("{:?}", value))
     }
 }
 
@@ -790,6 +939,12 @@ impl From<JoinError> for ClientError {
 impl From<PduError> for ClientError {
     fn from(e: PduError) -> Self {
         ClientError::PduError(e)
+    }
+}
+
+impl From<ClientError> for PduError {
+    fn from(e: ClientError) -> Self {
+        custom_err!("ClientError", e)
     }
 }
 
