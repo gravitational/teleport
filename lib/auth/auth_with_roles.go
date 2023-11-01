@@ -7111,7 +7111,7 @@ func emitHeadlessLoginEvent(ctx context.Context, code string, emitter apievents.
 	clientAddr := ""
 	if code == events.UserHeadlessLoginRequestedCode {
 		clientAddr = headlessAuthn.ClientIpAddress
-	} else if c, err := authz.ClientAddrFromContext(ctx); err == nil {
+	} else if c, err := authz.ClientSrcAddrFromContext(ctx); err == nil {
 		clientAddr = c.String()
 	}
 

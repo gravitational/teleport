@@ -4104,7 +4104,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				ErrorLog:          utils.NewStdlogger(log.Error, teleport.ComponentProxy),
 				ConnState:         ingress.HTTPConnStateReporter(ingress.Web, ingressReporter),
 				ConnContext: func(ctx context.Context, c net.Conn) context.Context {
-					return utils.ClientAddrContext(ctx, c.RemoteAddr(), c.LocalAddr())
+					return authz.ContextWithClientAddrs(ctx, c.RemoteAddr(), c.LocalAddr())
 				},
 			},
 			Handler: webHandler,
