@@ -98,6 +98,8 @@ type UserACL struct {
 	AuditQuery ResourceAccess `json:"auditQuery"`
 	// SecurityReport defines access to security reports.
 	SecurityReport ResourceAccess `json:"securityReport"`
+	// AccessGraph defines access to access graph.
+	AccessGraph ResourceAccess `json:"accessGraph"`
 }
 
 func hasAccess(roleSet RoleSet, ctx *Context, kind string, verbs ...string) bool {
@@ -152,6 +154,9 @@ func NewUserACL(user types.User, userRoles RoleSet, features proto.Features, des
 	if features.Cloud {
 		billingAccess = newAccess(userRoles, ctx, types.KindBilling)
 	}
+
+	//TODO(jakule): move later to the cloud section.
+	accessGraphAccess := newAccess(userRoles, ctx, types.KindAccessGraph)
 
 	var pluginsAccess ResourceAccess
 	if features.Plugins {
@@ -209,5 +214,6 @@ func NewUserACL(user types.User, userRoles RoleSet, features proto.Features, des
 		AccessList:              accessListAccess,
 		AuditQuery:              auditQuery,
 		SecurityReport:          securityReports,
+		AccessGraph:             accessGraphAccess,
 	}
 }
