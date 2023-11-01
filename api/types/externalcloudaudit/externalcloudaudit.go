@@ -112,7 +112,7 @@ func GenerateDraftExternalCloudAudit(integrationName, region string) (*ExternalC
 			Region:                 region,
 			SessionsRecordingsURI:  externalCloudAuditLongtermBucketPrefix + nonce + "/sessions",
 			AuditEventsLongTermURI: externalCloudAuditLongtermBucketPrefix + nonce + "/events",
-			AthenaResultsURI:       externalCloudAuditTransientBucketPrefix + nonce + "/results",
+			AthenaResultsURI:       externalCloudAuditTransientBucketPrefix + nonce + "/query_results",
 			AthenaWorkgroup:        "teleport_events_" + underscoreNonce,
 			GlueDatabase:           "teleport_events_" + underscoreNonce,
 			GlueTable:              "teleport_events",
