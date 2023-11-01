@@ -934,6 +934,10 @@ func ExtractAllowedResourcesFromCert(cert *ssh.Certificate) ([]types.ResourceID,
 	return allowedResources, trace.Wrap(err)
 }
 
+func ExtractUsernameFromCert(cert *ssh.Certificate) (string, error) {
+	return "", nil
+}
+
 // NewRoleSet returns new RoleSet based on the roles
 func NewRoleSet(roles ...types.Role) RoleSet {
 	// unauthenticated Nop role should not have any privileges
