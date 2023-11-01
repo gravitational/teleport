@@ -19,7 +19,7 @@ export default function RequestError({ err }: Props) {
       </DialogHeader>
       <DialogContent>
         <Alert kind="danger" children={err} />
-        <Text mb={3}>Please try again by refreshing page.</Text>
+        <Text mb={3}>Please try again by refreshing the page.</Text>
       </DialogContent>
       <DialogFooter>
         <ButtonSecondary onClick={() => session.logout()}>
