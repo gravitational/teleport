@@ -606,7 +606,7 @@ func (sas *SAMLAuthService) validateSAMLResponse(ctx context.Context, diagCtx *a
 	loginIP := ""
 	if request != nil {
 		loginIP = request.ClientLoginIP
-	} else if addr, err := authz.ClientAddrFromContext(ctx); err == nil {
+	} else if addr, err := authz.ClientSrcAddrFromContext(ctx); err == nil {
 		host, _, err := net.SplitHostPort(addr.String())
 		if err != nil {
 			return nil, trace.Wrap(err, "failed to parse client source address")

@@ -581,7 +581,7 @@ func TestServer_ValidateSAMLResponse(t *testing.T) {
 
 	// check ValidateSAMLResponse for IdP-initiated flow
 	addr := utils.MustParseAddr("1.1.1.1:42")
-	response, err = sas.ValidateSAMLResponse(authz.ContextWithClientAddr(context.Background(), addr), base64.StdEncoding.EncodeToString([]byte(respOkta)), idpInitiatedSAMLTestConn)
+	response, err = sas.ValidateSAMLResponse(authz.ContextWithClientSrcAddr(context.Background(), addr), base64.StdEncoding.EncodeToString([]byte(respOkta)), idpInitiatedSAMLTestConn)
 	require.NoError(t, err)
 	require.NotNil(t, response)
 	cert, err := tlsca.ParseCertificatePEM(response.Session.GetTLSCert())
