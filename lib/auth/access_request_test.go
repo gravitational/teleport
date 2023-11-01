@@ -1033,7 +1033,7 @@ func TestUpdateAccessRequestWithAdditionalReviewers(t *testing.T) {
 
 			req := test.req.Copy()
 			updateAccessRequestWithAdditionalReviewers(ctx, req, accessLists, test.promotions)
-			require.Equal(t, test.expectedReviewers, req.GetSuggestedReviewers())
+			require.ElementsMatch(t, test.expectedReviewers, req.GetSuggestedReviewers())
 		})
 	}
 }
