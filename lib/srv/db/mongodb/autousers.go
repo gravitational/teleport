@@ -31,7 +31,7 @@ import (
 
 type user struct {
 	Username   string         `bson:"user"`
-	Roles      []userRole     `bson:"roles"`
+	Roles      userRoles      `bson:"roles"`
 	CustomData userCustomData `bson:"customData"`
 }
 
@@ -44,22 +44,25 @@ type userRole struct {
 	Database string `bson:"db"`
 }
 
-func (u *user) sortRoles() {
-	slices.SortFunc(u.Roles, compareUserRole)
+type userRoles []userRole
+
+func (r userRoles) sort() {
+	slices.SortFunc(r, func(a, b userRole) int {
+		if cmpDatabase := cmp.Compare(a.Database, b.Database); cmpDatabase != 0 {
+			return cmpDatabase
+		}
+		return cmp.Compare(a.Rolename, b.Rolename)
+	})
 }
 
 // ActivateUser creates or enables the database user.
 func (e *Engine) ActivateUser(ctx context.Context, sessionCtx *common.Session) error {
-	if sessionCtx.Database.GetAdminUser().Name == "" {
-		return trace.BadParameter("Teleport does not have admin user configured for this database")
-	}
-
 	userRoles, err := makeUserRoles(sessionCtx.DatabaseRoles)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	client, err := connectAsAdmin(ctx, sessionCtx, e)
+	client, err := e.connectAsAdmin(ctx, sessionCtx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -90,19 +93,15 @@ func (e *Engine) ActivateUser(ctx context.Context, sessionCtx *common.Session) e
 		return nil
 
 	default:
-		return trace.Wrap(e.updateUser(ctx, sessionCtx, client, userRoles, unLockedAuthRestrictions))
+		return trace.Wrap(e.updateUser(ctx, sessionCtx, client, userRoles, unlockedAuthRestrictions))
 	}
 }
 
 // DeactivateUser disables the database user.
 func (e *Engine) DeactivateUser(ctx context.Context, sessionCtx *common.Session) error {
-	if sessionCtx.Database.GetAdminUser().Name == "" {
-		return trace.BadParameter("Teleport does not have admin user configured for this database")
-	}
-
 	e.Log.Infof("Deactivating MongoDB user %q.", sessionCtx.DatabaseUser)
 
-	client, err := connectAsAdmin(ctx, sessionCtx, e)
+	client, err := e.connectAsAdmin(ctx, sessionCtx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -124,13 +123,9 @@ func (e *Engine) DeactivateUser(ctx context.Context, sessionCtx *common.Session)
 
 // DeleteUser deletes the database user.
 func (e *Engine) DeleteUser(ctx context.Context, sessionCtx *common.Session) error {
-	if sessionCtx.Database.GetAdminUser().Name == "" {
-		return trace.BadParameter("Teleport does not have admin user configured for this database")
-	}
-
 	e.Log.Infof("Deleting MongoDB user %q.", sessionCtx.DatabaseUser)
 
-	client, err := connectAsAdmin(ctx, sessionCtx, e)
+	client, err := e.connectAsAdmin(ctx, sessionCtx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -195,7 +190,7 @@ func (e *Engine) getUser(ctx context.Context, sessionCtx *common.Session, client
 		return nil, false, nil
 	case 1:
 		user := &resp.Users[0]
-		user.sortRoles()
+		user.Roles.sort()
 		return user, true, nil
 	default:
 		return nil, false, trace.BadParameter("expect one MongoDB user but got %v", resp.Users)
@@ -208,7 +203,7 @@ func (e *Engine) createUser(ctx context.Context, sessionCtx *common.Session, cli
 		{Key: "createUser", Value: x509Username(sessionCtx)},
 		{Key: "roles", Value: userRoles},
 		{Key: "customData", Value: userCustomData{TeleportAutoUser: true}},
-		{Key: "authenticationRestrictions", Value: unLockedAuthRestrictions},
+		{Key: "authenticationRestrictions", Value: unlockedAuthRestrictions},
 		{Key: "comment", Value: runCommandComment},
 	}).Err())
 }
@@ -231,8 +226,8 @@ func (e *Engine) dropUser(ctx context.Context, sessionCtx *common.Session, clien
 	}).Err())
 }
 
-func makeUserRoles(roles []string) ([]userRole, error) {
-	userRoles := make([]userRole, 0, len(roles))
+func makeUserRoles(roles []string) (userRoles, error) {
+	userRoles := make(userRoles, 0, len(roles))
 
 	for _, role := range roles {
 		rolename, database, ok := strings.Cut(role, "@")
@@ -245,15 +240,8 @@ func makeUserRoles(roles []string) ([]userRole, error) {
 			Database: database,
 		})
 	}
-	slices.SortFunc(userRoles, compareUserRole)
+	userRoles.sort()
 	return userRoles, nil
-}
-
-func compareUserRole(a, b userRole) int {
-	if cmpDatabase := cmp.Compare(a.Database, b.Database); cmpDatabase != 0 {
-		return cmpDatabase
-	}
-	return cmp.Compare(a.Rolename, b.Rolename)
 }
 
 const (
@@ -271,7 +259,7 @@ const (
 type authRestrictions bson.A
 
 var (
-	unLockedAuthRestrictions authRestrictions = authRestrictions{bson.M{
+	unlockedAuthRestrictions authRestrictions = authRestrictions{bson.M{
 		"clientSource": bson.A{"0.0.0.0/0"},
 	}}
 

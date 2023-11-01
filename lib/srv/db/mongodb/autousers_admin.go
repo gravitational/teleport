@@ -34,71 +34,124 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// adminClient defines a subset of functions provided by *mongo.Client
+// adminClient defines a subset of functions provided by *mongo.Client.
 type adminClient interface {
 	Database(name string, opts ...*options.DatabaseOptions) *mongo.Database
 	Disconnect(ctx context.Context) error
 }
 
-func connectAsAdmin(ctx context.Context, sessionCtx *common.Session, e *Engine) (adminClient, error) {
+func (e *Engine) connectAsAdmin(ctx context.Context, sessionCtx *common.Session) (adminClient, error) {
 	if adminClientFnCache == nil {
 		client, err := makeRawAdminClient(ctx, sessionCtx, e)
 		return client, trace.Wrap(err)
 	}
 
-	key := newAdminClientCacheKey(sessionCtx)
-	adminClient, err := utils.FnCacheGet(ctx, adminClientFnCache, key, func(ctx context.Context) (*sharedAdminClient, error) {
-		rawClient, err := makeRawAdminClient(ctx, sessionCtx, e)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return newSharedAdminClient(rawClient, e.Clock, adminClientCleanupTTL), nil
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return adminClient.acquire(), nil
+	sharedClient, err := getSharedAdminClient(ctx, adminClientFnCache, sessionCtx, e, makeRawAdminClient)
+	return sharedClient, trace.Wrap(err)
 }
 
-type adminClientCacheKey struct {
-	databaseName string
-	databaseURI  string
-	adminUser    string
-}
-
-func newAdminClientCacheKey(sessionCtx *common.Session) adminClientCacheKey {
-	return adminClientCacheKey{
+func getSharedAdminClient(ctx context.Context, cache *utils.FnCache, sessionCtx *common.Session, e *Engine, makeRaw makeRawAdminClientFunc) (*sharedAdminClient, error) {
+	key := struct {
+		databaseName string
+		databaseURI  string
+		adminUser    string
+	}{
 		databaseName: sessionCtx.Database.GetName(),
 		adminUser:    sessionCtx.Database.GetAdminUser().Name,
 		// Just in case the same database name is updated to a different database server.
 		databaseURI: sessionCtx.Database.GetURI(),
 	}
+
+	sharedClient, err := utils.FnCacheGet(ctx, cache, key, func(ctx context.Context) (*sharedAdminClient, error) {
+		rawClient, err := makeRaw(ctx, sessionCtx, e)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		sharedClient, err := newSharedAdminClient(sharedAdminClientConfig{
+			rawClient:    rawClient,
+			adminUser:    sessionCtx.Database.GetAdminUser().Name,
+			databaseName: sessionCtx.Database.GetName(),
+			log:          e.Log,
+			clock:        e.Clock,
+		})
+		return sharedClient, trace.Wrap(err)
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return sharedClient.acquire(), nil
+}
+
+type sharedAdminClientConfig struct {
+	rawClient    adminClient
+	adminUser    string
+	databaseName string
+	clock        clockwork.Clock
+	log          logrus.FieldLogger
+	cleanupTTL   time.Duration
+}
+
+// checkAndSetDefaults validates config and sets defaults.
+func (c *sharedAdminClientConfig) checkAndSetDefaults() error {
+	if c.rawClient == nil {
+		return trace.BadParameter("missing mongo.Client")
+	}
+	if c.adminUser == "" {
+		return trace.BadParameter("missing adminUser")
+	}
+	if c.databaseName == "" {
+		return trace.BadParameter("missing databaseName")
+	}
+	if c.clock == nil {
+		c.clock = clockwork.NewRealClock()
+	}
+	if c.log == nil {
+		c.log = logrus.StandardLogger()
+	}
+	if c.cleanupTTL <= 0 {
+		c.cleanupTTL = adminClientCleanupTTL
+	}
+	return nil
 }
 
 type sharedAdminClient struct {
-	*mongo.Client
-	clock clockwork.Clock
+	adminClient
+	sharedAdminClientConfig
 	wg    sync.WaitGroup
+	timer clockwork.Timer
 }
 
-func newSharedAdminClient(rawClient *mongo.Client, clock clockwork.Clock, ttl time.Duration) *sharedAdminClient {
-	c := &sharedAdminClient{
-		Client: rawClient,
+func newSharedAdminClient(cfg sharedAdminClientConfig) (*sharedAdminClient, error) {
+	if err := cfg.checkAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
-	// Cleanup goroutine.
-	go func() {
-		<-clock.After(ttl)
+	c := &sharedAdminClient{
+		adminClient:             cfg.rawClient,
+		sharedAdminClientConfig: cfg,
+		timer:                   cfg.clock.NewTimer(cfg.cleanupTTL),
+	}
 
-		// Make sure all shared sessions are released.
-		c.wg.Wait()
-		if err := c.Client.Disconnect(context.Background()); err != nil {
-			logrus.Debugf("Failed to disconnect mongodb client: %v.", err)
-		} else {
-			logrus.Debugf("Terminated a MongoDB connection for admin user.")
-		}
-	}()
-	return c
+	go c.waitAndCleanup()
+	return c, nil
+}
+
+func (c *sharedAdminClient) waitAndCleanup() {
+	c.log.Debugf("Created new MongoDB connection as admin user %q on %q.", c.adminUser, c.databaseName)
+
+	// Wait until TTL.
+	<-c.timer.Chan()
+
+	// Wailt until all shared sessions are released.
+	c.wg.Wait()
+
+	// Disconnect.
+	if err := c.adminClient.Disconnect(context.Background()); err != nil {
+		c.log.Warnf("Failed to disconnect MongoDB connection as admin user %q on %q: %v.", c.adminUser, c.databaseName, err)
+	} else {
+		c.log.Debugf("Terminated a MongoDB connection as admin user %q on %q.", c.adminUser, c.databaseName)
+	}
 }
 
 func (c *sharedAdminClient) acquire() *sharedAdminClient {
@@ -111,9 +164,9 @@ func (c *sharedAdminClient) Disconnect(_ context.Context) error {
 	return nil
 }
 
-func makeRawAdminClient(ctx context.Context, sessionCtx *common.Session, e *Engine) (*mongo.Client, error) {
-	e.Log.Debugf("Creating new connection as MongoDB admin user %v on %v.", sessionCtx.Database.GetAdminUser().Name, sessionCtx.Database.GetName())
+type makeRawAdminClientFunc func(context.Context, *common.Session, *Engine) (adminClient, error)
 
+func makeRawAdminClient(ctx context.Context, sessionCtx *common.Session, e *Engine) (adminClient, error) {
 	sessionCtx = sessionCtx.WithUser(sessionCtx.Database.GetAdminUser().Name)
 
 	tlsConfig, err := e.Auth.GetTLSConfig(ctx, sessionCtx)
@@ -157,7 +210,9 @@ func init() {
 	adminClientFnCache, err = utils.NewFnCache(utils.FnCacheConfig{
 		TTL: adminClientFnCacheTTL,
 	})
+	// This should never fail. There is also an unit test to verify it's always
+	// created. Logging just in case.
 	if err != nil {
-		logrus.Warn("Failed to create MongoDB admin connection cache: %v.", err)
+		logrus.Warnf("Failed to create MongoDB admin connection cache: %v.", err)
 	}
 }
