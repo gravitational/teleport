@@ -25,8 +25,6 @@ import {
   requiredField,
   requiredIamRoleName,
 } from 'shared/components/Validation/rules';
-import { Option } from 'shared/components/Select';
-import FieldSelect from 'shared/components/FieldSelect';
 import Validation, { Validator } from 'shared/components/Validation';
 import useAttempt from 'shared/hooks/useAttemptNext';
 
@@ -41,11 +39,9 @@ import { DiscoverUrlLocationState } from 'teleport/Discover/useDiscover';
 import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
 
 import {
-  awsRegionMap,
   Integration,
   IntegrationKind,
   integrationService,
-  Regions,
 } from 'teleport/services/integrations';
 import cfg from 'teleport/config';
 
@@ -55,7 +51,6 @@ export function AwsOidc() {
   const [integrationName, setIntegrationName] = useState('');
   const [roleArn, setRoleArn] = useState('');
   const [roleName, setRoleName] = useState('');
-  const [selectedRegion, setSelectedRegion] = useState<RegionOption>();
   const [scriptUrl, setScriptUrl] = useState('');
   const [createdIntegration, setCreatedIntegration] = useState<Integration>();
   const { attempt, run } = useAttempt('');
@@ -119,7 +114,6 @@ export function AwsOidc() {
     validator.reset();
 
     const newScriptUrl = cfg.getAwsOidcConfigureIdpScriptUrl({
-      region: selectedRegion.value,
       integrationName,
       roleName,
     });
@@ -181,18 +175,6 @@ export function AwsOidc() {
                 onChange={e => setRoleName(e.target.value)}
                 disabled={!!scriptUrl}
               />
-              <Box width="430px" mb={5}>
-                <FieldSelect
-                  label="AWS Region"
-                  rule={requiredField('AWS region required')}
-                  isSearchable
-                  value={selectedRegion}
-                  onChange={(o: RegionOption) => setSelectedRegion(o)}
-                  options={options}
-                  placeholder="Select an AWS region"
-                  isDisabled={!!scriptUrl}
-                />
-              </Box>
               {scriptUrl ? (
                 <ButtonSecondary mb={3} onClick={() => setScriptUrl('')}>
                   Edit
@@ -251,7 +233,7 @@ export function AwsOidc() {
                     width="430px"
                     onChange={e => setRoleArn(e.target.value)}
                     disabled={attempt.status === 'processing'}
-                    toolTipContent={`Unique AWS resource identifier and uses the format: arn:aws:iam::<ACCOUNT_ID>:role/<ROLE_NAME>`}
+                    toolTipContent={`Unique AWS resource identifier and uses the format: arn:aws:iam::<ACCOUNT_ID>:role/<IAM_ROLE_NAME>`}
                   />
                 </Container>
               </>
@@ -293,18 +275,6 @@ const Container = styled(Box)`
   border-radius: ${p => `${p.theme.space[2]}px`};
   padding: ${p => p.theme.space[3]}px;
 `;
-
-type RegionOption = Option<Regions, React.ReactElement>;
-
-const options: RegionOption[] = Object.keys(awsRegionMap).map(region => ({
-  value: region as Regions,
-  label: (
-    <Flex justifyContent="space-between">
-      <div>{awsRegionMap[region]}&nbsp;&nbsp;</div>
-      <div>{region}</div>
-    </Flex>
-  ),
-}));
 
 const requiredRoleArn = (roleName: string) => (roleArn: string) => () => {
   const regex = new RegExp(
