@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import React from 'react';
+import React, { useCallback } from 'react';
 
 import Indicator from 'design/Indicator';
 
@@ -22,38 +22,42 @@ import * as types from 'teleterm/ui/services/workspacesService';
 import Document from 'teleterm/ui/Document';
 import { useWorkspaceContext } from 'teleterm/ui/Documents';
 
-import { useConnectMyComputerContext } from './connectMyComputerContext';
-import { DocumentConnectMyComputerStatus } from './DocumentConnectMyComputerStatus/DocumentConnectMyComputerStatus';
-import { DocumentConnectMyComputerSetup } from './DocumentConnectMyComputerSetup/DocumentConnectMyComputerSetup';
+import { useConnectMyComputerContext } from '../connectMyComputerContext';
 
-interface DocumentConnectMyComputerProps {
+import { Status } from './Status';
+import { Setup } from './Setup';
+
+export function DocumentConnectMyComputer(props: {
   visible: boolean;
   doc: types.DocumentConnectMyComputer;
-}
-
-export function DocumentConnectMyComputer(
-  props: DocumentConnectMyComputerProps
-) {
+}) {
   const { documentsService } = useWorkspaceContext();
   const { isAgentConfiguredAttempt } = useConnectMyComputerContext();
   const shouldShowSetup =
     isAgentConfiguredAttempt.status === 'success' &&
     !isAgentConfiguredAttempt.data;
 
+  const closeDocument = useCallback(() => {
+    documentsService.close(props.doc.uri);
+  }, [documentsService, props.doc.uri]);
+
+  const updateDocumentStatus = useCallback(
+    (status: types.DocumentConnectMyComputer['status']) => {
+      documentsService.update(props.doc.uri, { status });
+    },
+    [documentsService, props.doc.uri]
+  );
+
   if (isAgentConfiguredAttempt.status === 'processing') {
     return <Indicator m="auto" />;
-  }
-
-  function closeDocument(): void {
-    documentsService.close(props.doc.uri);
   }
 
   return (
     <Document visible={props.visible}>
       {shouldShowSetup ? (
-        <DocumentConnectMyComputerSetup />
+        <Setup updateDocumentStatus={updateDocumentStatus} />
       ) : (
-        <DocumentConnectMyComputerStatus closeDocument={closeDocument} />
+        <Status closeDocument={closeDocument} />
       )}
     </Document>
   );

@@ -31,7 +31,7 @@ import * as useResourcesContext from 'teleterm/ui/DocumentCluster/resourcesConte
 
 import * as connectMyComputerContext from '../connectMyComputerContext';
 
-import { DocumentConnectMyComputerSetup } from './DocumentConnectMyComputerSetup';
+import { Setup } from './Setup';
 
 beforeAll(() => {
   Logger.init(new NullService());
@@ -170,7 +170,7 @@ function setupAppContext(): {
           <connectMyComputerContext.ConnectMyComputerContextProvider
             rootClusterUri={cluster.uri}
           >
-            <DocumentConnectMyComputerSetup />
+            <Setup updateDocumentStatus={() => {}} />
           </connectMyComputerContext.ConnectMyComputerContextProvider>
         </useResourcesContext.ResourcesContextProvider>
       </MockWorkspaceContextProvider>
