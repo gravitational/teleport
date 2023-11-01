@@ -32,7 +32,7 @@ func TestGetDatabaseRoleMatchers(t *testing.T) {
 	}, types.DatabaseSpecV3{
 		Protocol: defaults.ProtocolPostgres,
 		URI:      "localhost:5432",
-		AdminUser: types.DatabaseAdminUser{
+		AdminUser: &types.DatabaseAdminUser{
 			Name: "teleport-admin",
 		},
 	})
