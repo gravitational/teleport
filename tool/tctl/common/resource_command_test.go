@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
+	"k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -44,6 +45,8 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/tbot/testhelpers"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // TestDatabaseServerResource tests tctl db_server rm/get commands.
@@ -1334,4 +1337,84 @@ func requireGotDatabaseServers(t *testing.T, buf *bytes.Buffer, want ...types.Da
 	require.Empty(t, cmp.Diff(types.Databases(want).ToMap(), databases.ToMap(),
 		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Namespace", "Expires"),
 	))
+}
+
+// TestCreateResources asserts that tctl create and tctl create -f
+// operate as expected when a resource does and does not already exist.
+func TestCreateResources(t *testing.T) {
+	t.Parallel()
+
+	fc, fds := testhelpers.DefaultConfig(t)
+	_ = testhelpers.MakeAndRunTestAuthServer(t, utils.NewLoggerForTests(), fc, fds)
+
+	tests := []struct {
+		kind   string
+		create func(t *testing.T, fc *config.FileConfig)
+	}{
+		{
+			kind:   types.KindServerInfo,
+			create: testCreateServerInfo,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.kind, func(t *testing.T) {
+			test.create(t, fc)
+		})
+	}
+}
+
+func testCreateServerInfo(t *testing.T, fc *config.FileConfig) {
+	// Ensure that our test server info does not exist
+	_, err := runResourceCommand(t, fc, []string{"get", types.KindServerInfo + "/test-server-info", "--format=json"})
+	require.True(t, trace.IsNotFound(err), "expected test-role to not exist prior to being created")
+
+	const serverInfoYAML = `---
+kind: server_info
+sub_kind: cloud_info
+version: v1
+metadata:
+  name: test-server-info
+spec:
+  new_labels:
+    'a': '1'
+    'b': '2'
+`
+
+	// Create the server info
+	serverInfoYAMLPath := filepath.Join(t.TempDir(), "server-info.yaml")
+	err = os.WriteFile(serverInfoYAMLPath, []byte(serverInfoYAML), 0644)
+	require.NoError(t, err)
+	_, err = runResourceCommand(t, fc, []string{"create", serverInfoYAMLPath})
+	require.NoError(t, err)
+
+	// Fetch the server info
+	buf, err := runResourceCommand(t, fc, []string{"get", types.KindServerInfo + "/test-server-info", "--format=json"})
+	require.NoError(t, err)
+	serverInfos := mustDecodeJSON[[]*types.ServerInfoV1](t, buf)
+	require.Len(t, serverInfos, 1)
+
+	var expected types.ServerInfoV1
+	err = yaml.Unmarshal([]byte(serverInfoYAML), &expected)
+	require.NoError(t, err)
+
+	require.Empty(t, cmp.Diff(
+		[]*types.ServerInfoV1{&expected},
+		serverInfos,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+	))
+
+	// Explicitly change the revision and try creating the resource with and without
+	// the force flag.
+	expected.SetRevision(uuid.NewString())
+	newRevisionServerInfo, err := services.MarshalServerInfo(&expected, services.PreserveResourceID())
+	require.NoError(t, err)
+	err = os.WriteFile(serverInfoYAMLPath, newRevisionServerInfo, 0644)
+	require.NoError(t, err)
+
+	_, err = runResourceCommand(t, fc, []string{"create", serverInfoYAMLPath})
+	require.True(t, trace.IsAlreadyExists(err))
+
+	_, err = runResourceCommand(t, fc, []string{"create", "-f", serverInfoYAMLPath})
+	require.NoError(t, err)
 }
