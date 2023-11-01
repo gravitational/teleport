@@ -4172,6 +4172,12 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 		return req, nil
 	}
 
+	if err := a.verifyAccessRequestMonthlyLimit(ctx); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	log.Debugf("Creating Access Request %v with expiry %v.", req.GetName(), req.Expiry())
+
 	// calculate the promotions
 	reqCopy := req.Copy()
 	promotions, err := modules.GetModules().GenerateAccessRequestPromotions(ctx, a.Services, reqCopy)
@@ -4183,12 +4189,6 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 
 	// update the request with additional reviewers if possible.
 	updateAccessRequestWithAdditionalReviewers(ctx, req, a.AccessListClient(), promotions)
-
-	if err := a.verifyAccessRequestMonthlyLimit(ctx); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	log.Debugf("Creating Access Request %v with expiry %v.", req.GetName(), req.Expiry())
 
 	if _, err := a.Services.CreateAccessRequestV2(ctx, req); err != nil {
 		return nil, trace.Wrap(err)
