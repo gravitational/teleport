@@ -1,28 +1,35 @@
-create or replace procedure teleport_activate_user(username varchar, roles varchar[])
-language plpgsql
-as $$
-declare
+CREATE OR REPLACE PROCEDURE teleport_activate_user(username varchar, roles varchar[])
+LANGUAGE plpgsql
+AS $$
+DECLARE
     role_ varchar;
-begin
+    cur_roles varchar[];
+BEGIN
     -- If the user already exists and was provisioned by Teleport, reactivate
     -- it, otherwise provision a new one.
-    if exists (select * from pg_auth_members where roleid = (select oid from pg_roles where rolname = 'teleport-auto-user') and member = (select oid from pg_roles where rolname = username)) then
-        -- If the user has active connections, just use it to avoid messing up
-        -- its existing roles.
-        if exists (select usename from pg_stat_activity where usename = username) then
-          return;
-        end if;
+    IF EXISTS (SELECT * FROM pg_auth_members WHERE roleid = (SELECT oid FROM pg_roles WHERE rolname = 'teleport-auto-user') and member = (SELECT oid FROM pg_roles WHERE rolname = username)) THEN
+        -- If the user has active connections, make sure the provided roles
+        -- match what the user currently has.
+        IF EXISTS (SELECT usename FROM pg_stat_activity WHERE usename = username) THEN
+            SELECT CAST(array_agg(rolname) as varchar[]) INTO cur_roles FROM pg_auth_members JOIN pg_roles ON roleid = oid WHERE member=(SELECT oid FROM pg_roles WHERE rolname = username) AND rolname != 'teleport-auto-user';
+            -- "a <@ b" checks if all unique elements in "a" are contained by
+            -- "b". Using length check plus "contains" check to avoid sorting.
+            IF ARRAY_LENGTH(roles, 1) = ARRAY_LENGTH(cur_roles, 1) AND roles <@ cur_roles THEN
+                RETURN;
+            END IF;
+            RAISE EXCEPTION SQLSTATE 'TP002' USING MESSAGE = 'TP002: User has active connections and roles have changed';
+        END IF;
         -- Otherwise reactivate the user, but first strip if of all roles to
         -- account for scenarios with left-over roles if database agent crashed
         -- and failed to cleanup upon session termination.
-        call teleport_deactivate_user(username);
-        execute format('alter user %I with login', username);
-    else
-        execute format('create user %I in role "teleport-auto-user"', username);
-    end if;
+        CALL teleport_deactivate_user(username);
+        EXECUTE FORMAT('ALTER USER %I WITH LOGIN', username);
+    ELSE
+        EXECUTE FORMAT('CREATE USER %I IN ROLE "teleport-auto-user"', username);
+    END IF;
     -- Assign all roles to the created/activated user.
-    foreach role_ in array roles
-    loop
-        execute format('grant %I to %I', role_, username);
-    end loop;
-end;$$;
+    FOREACH role_ IN ARRAY roles
+    LOOP
+        EXECUTE FORMAT('GRANT %I TO %I', role_, username);
+    END LOOP;
+END;$$;
