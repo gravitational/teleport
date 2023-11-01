@@ -32,7 +32,6 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/services"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 )
 
@@ -223,19 +222,6 @@ func (a *Server) DeleteUser(ctx context.Context, user string) error {
 		log.WithError(err).Warn("Failed getting user during delete operation")
 		prevUser = nil
 		omitEditorEvent = true
-	}
-
-	role, err := a.Services.GetRole(ctx, services.RoleNameForUser(user))
-	if err != nil {
-		if !trace.IsNotFound(err) {
-			return trace.Wrap(err)
-		}
-	} else {
-		if err := a.DeleteRole(ctx, role.GetName()); err != nil {
-			if !trace.IsNotFound(err) {
-				return trace.Wrap(err)
-			}
-		}
 	}
 
 	err = a.Services.DeleteUser(ctx, user)
