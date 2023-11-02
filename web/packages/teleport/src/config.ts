@@ -39,6 +39,7 @@ const cfg = {
   isCloud: false,
   assistEnabled: false,
   automaticUpgrades: false,
+  automaticUpgradesTargetVersion: '',
   isDashboard: false,
   tunnelPublicAddress: '',
   recoveryCodesEnabled: false,
