@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 	"text/template"
@@ -36,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -56,6 +58,9 @@ type BotsCommand struct {
 	botsAdd    *kingpin.CmdClause
 	botsRemove *kingpin.CmdClause
 	botsLock   *kingpin.CmdClause
+
+	// stdout allows to switch the standard output source. Used in tests.
+	stdout io.Writer
 }
 
 // Initialize sets up the "tctl bots" command.
@@ -81,6 +86,10 @@ func (c *BotsCommand) Initialize(app *kingpin.Application, config *servicecfg.Co
 	c.botsLock.Flag("expires", "Time point (RFC3339) when the lock expires.").StringVar(&c.lockExpires)
 	c.botsLock.Flag("ttl", "Time duration after which the lock expires.").DurationVar(&c.lockTTL)
 	c.botsLock.Hidden()
+
+	if c.stdout == nil {
+		c.stdout = os.Stdout
+	}
 }
 
 // TryRun attempts to run subcommands.
@@ -112,7 +121,7 @@ func (c *BotsCommand) ListBots(ctx context.Context, client auth.ClientI) error {
 
 	if c.format == teleport.Text {
 		if len(users) == 0 {
-			fmt.Println("No users found")
+			fmt.Fprintln(c.stdout, "No users found")
 			return nil
 		}
 		t := asciitable.MakeTable([]string{"Bot", "User", "Roles"})
@@ -130,9 +139,9 @@ func (c *BotsCommand) ListBots(ctx context.Context, client auth.ClientI) error {
 				botName, u.GetName(), strings.Join(u.GetRoles(), ","),
 			})
 		}
-		fmt.Println(t.AsBuffer().String())
+		fmt.Fprintln(c.stdout, t.AsBuffer().String())
 	} else {
-		err := utils.WriteJSONArray(os.Stdout, users)
+		err := utils.WriteJSONArray(c.stdout, users)
 		if err != nil {
 			return trace.Wrap(err, "failed to marshal users")
 		}
@@ -147,6 +156,7 @@ func bold(text string) string {
 
 var startMessageTemplate = template.Must(template.New("node").Funcs(template.FuncMap{
 	"bold": bold,
+	"join": strings.Join,
 }).Parse(`The bot token: {{.token}}{{if .minutes}}
 This token will expire in {{.minutes}} minutes.{{end}}
 
@@ -168,7 +178,9 @@ certificates:
    --destination-dir=./tbot-user \
    --token={{.token}} \
    --auth-server={{.addr}}{{if .join_method}} \
-   --join-method={{.join_method}}{{end}}
+   --join-method={{.join_method}}{{end}}{{ if .ca_pins }} \
+   {{ join .ca_pins " \\\n   "}}
+   {{- end }}
 
 Please note:
 
@@ -207,7 +219,7 @@ func (c *BotsCommand) AddBot(ctx context.Context, client auth.ClientI) error {
 			return trace.Wrap(err, "failed to marshal CreateBot response")
 		}
 
-		fmt.Println(string(out))
+		fmt.Fprintln(c.stdout, string(out))
 		return nil
 	}
 
@@ -223,16 +235,29 @@ func (c *BotsCommand) AddBot(ctx context.Context, client auth.ClientI) error {
 		addr = proxies[0].GetAddr()
 	}
 
+	localCAResponse, err := client.GetClusterCACert(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	caPins, err := tlsca.CalculatePins(localCAResponse.TLSCA)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	for i := range caPins {
+		caPins[i] = fmt.Sprintf("--ca-pin=%q", caPins[i])
+	}
+
 	joinMethod := response.JoinMethod
 	if joinMethod == types.JoinMethodUnspecified {
 		joinMethod = types.JoinMethodToken
 	}
 
-	return startMessageTemplate.Execute(os.Stdout, map[string]interface{}{
+	return startMessageTemplate.Execute(c.stdout, map[string]interface{}{
 		"token":       response.TokenID,
 		"minutes":     int(time.Duration(response.TokenTTL).Minutes()),
 		"addr":        addr,
 		"join_method": joinMethod,
+		"ca_pins":     caPins,
 	})
 }
 
@@ -241,7 +266,7 @@ func (c *BotsCommand) RemoveBot(ctx context.Context, client auth.ClientI) error 
 		return trace.WrapWithMessage(err, "error deleting bot")
 	}
 
-	fmt.Printf("Bot %q deleted successfully.\n", c.botName)
+	fmt.Fprintf(c.stdout, "Bot %q deleted successfully.\n", c.botName)
 
 	return nil
 }
@@ -282,7 +307,7 @@ func (c *BotsCommand) LockBot(ctx context.Context, client auth.ClientI) error {
 		return trace.Wrap(err)
 	}
 
-	fmt.Printf("Created a lock with name %q.\n", lock.GetName())
+	fmt.Fprintf(c.stdout, "Created a lock with name %q.\n", lock.GetName())
 
 	return nil
 }
