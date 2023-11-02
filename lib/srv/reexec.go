@@ -94,7 +94,8 @@ func fdName(f FileFD) string {
 // construct and execute a shell.
 type ExecCommand struct {
 	// Command is the command to execute. If an interactive session is being
-	// requested, will be empty.
+	// requested, will be empty. If a subsystem is requested, it will contain
+	// the subsystem name.
 	Command string `json:"command"`
 
 	// DestinationAddress is the target address to dial to.
