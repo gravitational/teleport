@@ -112,6 +112,10 @@ All connection limits must be enforced on either the resumable connection or its
 
 Additional limits should be considered for connections that are yet to attach to a resumable connection and that are yet to complete authentication as a regular SSH connection.
 
+### Locks
+
+All locks that apply to SSH connections (user, MFA device, device trust device, role, access request) will also apply to resumed connections, with no additional code necessary to support them.
+
 ## Future development
 
 ### Other protocols
