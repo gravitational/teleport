@@ -20,17 +20,17 @@ import Table, {
   ClickableLabelCell,
   StyledTableWrapper,
 } from 'design/DataTable';
-import { ButtonBorder } from 'design';
 import { Danger } from 'design/Alert';
 import { SearchPanel, SearchPagination } from 'shared/components/Search';
 
-import { makeKube } from 'teleterm/ui/services/clusters';
 import { useWorkspaceLoggedInUser } from 'teleterm/ui/hooks/useLoggedInUser';
 import { routing } from 'teleterm/ui/uri';
 
 import { DarkenWhileDisabled } from '../DarkenWhileDisabled';
 import { getEmptyTableStatus, getEmptyTableText } from '../getEmptyTableText';
 import { useClusterContext } from '../../clusterContext';
+
+import { ConnectKubeActionButton } from '../../actionButtons';
 
 import { useKubes, State } from './useKubes';
 
@@ -41,7 +41,6 @@ export default function Container() {
 
 function KubeList(props: State) {
   const {
-    connect,
     fetchAttempt,
     agentFilter,
     pageCount,
@@ -52,7 +51,7 @@ function KubeList(props: State) {
     onAgentLabelClick,
     updateSearch,
   } = props;
-  const kubes = fetchAttempt.data?.agentsList.map(makeKube) || [];
+  const kubes = fetchAttempt.data?.agentsList || [];
   const disabled = fetchAttempt.status === 'processing';
   const loggedInUser = useWorkspaceLoggedInUser();
   const { clusterUri } = useClusterContext();
@@ -89,18 +88,22 @@ function KubeList(props: State) {
                 isSortable: true,
               },
               {
-                key: 'labels',
+                key: 'labelsList',
                 headerText: 'Labels',
-                render: ({ labels }) => (
+                render: ({ labelsList }) => (
                   <ClickableLabelCell
-                    labels={labels}
+                    labels={labelsList}
                     onClick={onAgentLabelClick}
                   />
                 ),
               },
               {
                 altKey: 'connect-btn',
-                render: kube => renderConnectButtonCell(kube.uri, connect),
+                render: kube => (
+                  <Cell align="right">
+                    <ConnectKubeActionButton kube={kube} />
+                  </Cell>
+                ),
               },
             ]}
             customSort={customSort}
@@ -113,21 +116,3 @@ function KubeList(props: State) {
     </>
   );
 }
-
-export const renderConnectButtonCell = (
-  uri: string,
-  connect: (kubeUri: string) => void
-) => {
-  return (
-    <Cell align="right">
-      <ButtonBorder
-        size="small"
-        onClick={() => {
-          connect(uri);
-        }}
-      >
-        Connect
-      </ButtonBorder>
-    </Cell>
-  );
-};

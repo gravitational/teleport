@@ -27,6 +27,7 @@ import (
 	"net/url"
 	"regexp"
 	"strconv"
+	"strings"
 
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
@@ -249,14 +250,24 @@ func RewritePaths(next http.Handler, rewrites ...RewritePair) http.Handler {
 	})
 }
 
-// SafeRedirect performs a relative redirect to the URI part of the provided redirect URL
-func SafeRedirect(w http.ResponseWriter, r *http.Request, redirectURL string) error {
+// OriginLocalRedirectURI will take an incoming URL including optionally the host and scheme and return the URI
+// associated with the URL.  Additionally, it will ensure that the URI does not include any techniques potentially
+// used to redirect to a different origin.
+func OriginLocalRedirectURI(redirectURL string) (string, error) {
 	parsedURL, err := url.Parse(redirectURL)
 	if err != nil {
-		return trace.Wrap(err)
+		return "", trace.Wrap(err)
+	} else if parsedURL.IsAbs() && (parsedURL.Scheme != "http" && parsedURL.Scheme != "https") {
+		return "", trace.BadParameter("Invalid scheme: %s", parsedURL.Scheme)
 	}
-	http.Redirect(w, r, parsedURL.RequestURI(), http.StatusFound)
-	return nil
+
+	resultURI := parsedURL.RequestURI()
+	if strings.HasPrefix(resultURI, "//") {
+		return "", trace.BadParameter("Invalid double slash redirect")
+	} else if strings.Contains(resultURI, "@") {
+		return "", trace.BadParameter("Basic Auth not allowed in redirect")
+	}
+	return resultURI, nil
 }
 
 // ResponseStatusRecorder is an http.ResponseWriter that records the response status code.

@@ -799,15 +799,17 @@ export default function createClient(
           .setClusterUri(params.clusterUri)
           .setLimit(params.limit)
           .setKindsList(params.kindsList)
-          .setSortBy(
-            new api.SortBy()
-              .setField(params.sortBy.field)
-              .setIsDesc(params.sortBy.isDesc)
-          )
           .setStartKey(params.startKey)
           .setSearch(params.search)
           .setQuery(params.query)
           .setSearchAsRoles(params.searchAsRoles);
+        if (params.sortBy) {
+          req.setSortBy(
+            new api.SortBy()
+              .setField(params.sortBy.field)
+              .setIsDesc(params.sortBy.isDesc)
+          );
+        }
 
         return new Promise<types.ListUnifiedResourcesResponse>(
           (resolve, reject) => {

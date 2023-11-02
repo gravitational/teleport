@@ -20,20 +20,21 @@ import Table, {
   StyledTableWrapper,
 } from 'design/DataTable';
 import { Danger } from 'design/Alert';
-import { MenuLogin, MenuLoginProps } from 'shared/components/MenuLogin';
 import { SearchPanel, SearchPagination } from 'shared/components/Search';
+import {
+  formatDatabaseInfo,
+  DbType,
+  DbProtocol,
+} from 'shared/services/databases';
 
-import { useAppContext } from 'teleterm/ui/appContextProvider';
-import { retryWithRelogin } from 'teleterm/ui/utils';
-import { IAppContext } from 'teleterm/ui/types';
-import { GatewayProtocol } from 'teleterm/services/tshd/types';
-import { makeDatabase } from 'teleterm/ui/services/clusters';
-import { DatabaseUri, routing } from 'teleterm/ui/uri';
+import { routing } from 'teleterm/ui/uri';
 import { useWorkspaceLoggedInUser } from 'teleterm/ui/hooks/useLoggedInUser';
 
 import { DarkenWhileDisabled } from '../DarkenWhileDisabled';
 import { getEmptyTableStatus, getEmptyTableText } from '../getEmptyTableText';
 import { useClusterContext } from '../../clusterContext';
+
+import { ConnectDatabaseActionButton } from '../../actionButtons';
 
 import { useDatabases, State } from './useDatabases';
 
@@ -44,7 +45,6 @@ export default function Container() {
 
 function DatabaseList(props: State) {
   const {
-    connect,
     fetchAttempt,
     agentFilter,
     pageCount,
@@ -55,7 +55,7 @@ function DatabaseList(props: State) {
     onAgentLabelClick,
     updateSearch,
   } = props;
-  const dbs = fetchAttempt.data?.agentsList.map(makeDatabase) || [];
+  const dbs = fetchAttempt.data?.agentsList || [];
   const disabled = fetchAttempt.status === 'processing';
   const loggedInUser = useWorkspaceLoggedInUser();
   const { clusterUri } = useClusterContext();
@@ -95,7 +95,7 @@ function DatabaseList(props: State) {
                 isSortable: true,
               },
               {
-                key: 'description',
+                key: 'desc',
                 headerText: 'Description',
                 isSortable: true,
               },
@@ -103,25 +103,31 @@ function DatabaseList(props: State) {
                 key: 'type',
                 headerText: 'Type',
                 isSortable: true,
+                render: ({ type, protocol }) => (
+                  <Cell>
+                    {
+                      formatDatabaseInfo(type as DbType, protocol as DbProtocol)
+                        .title
+                    }
+                  </Cell>
+                ),
               },
               {
-                key: 'labels',
+                key: 'labelsList',
                 headerText: 'Labels',
-                render: ({ labels }) => (
+                render: ({ labelsList }) => (
                   <ClickableLabelCell
-                    labels={labels}
+                    labels={labelsList}
                     onClick={onAgentLabelClick}
                   />
                 ),
               },
               {
                 altKey: 'connect-btn',
-                render: db => (
-                  <ConnectButton
-                    dbUri={db.uri}
-                    protocol={db.protocol as GatewayProtocol}
-                    onConnect={dbUser => connect(db, dbUser)}
-                  />
+                render: database => (
+                  <Cell align="right">
+                    <ConnectDatabaseActionButton database={database} />
+                  </Cell>
                 ),
               },
             ]}
@@ -134,71 +140,4 @@ function DatabaseList(props: State) {
       </StyledTableWrapper>
     </>
   );
-}
-
-function ConnectButton({
-  dbUri,
-  protocol,
-  onConnect,
-}: {
-  dbUri: DatabaseUri;
-  protocol: GatewayProtocol;
-  onConnect: (dbUser: string) => void;
-}) {
-  const appContext = useAppContext();
-
-  return (
-    <Cell align="right">
-      <MenuLogin
-        {...getMenuLoginOptions(protocol)}
-        width="195px"
-        getLoginItems={() => getDatabaseUsers(appContext, dbUri)}
-        onSelect={(_, user) => {
-          onConnect(user);
-        }}
-        transformOrigin={{
-          vertical: 'top',
-          horizontal: 'right',
-        }}
-        anchorOrigin={{
-          vertical: 'center',
-          horizontal: 'right',
-        }}
-      />
-    </Cell>
-  );
-}
-
-function getMenuLoginOptions(
-  protocol: GatewayProtocol
-): Pick<MenuLoginProps, 'placeholder' | 'required'> {
-  if (protocol === 'redis') {
-    return {
-      placeholder: 'Enter username (optional)',
-      required: false,
-    };
-  }
-
-  return {
-    placeholder: 'Enter username',
-    required: true,
-  };
-}
-
-async function getDatabaseUsers(appContext: IAppContext, dbUri: DatabaseUri) {
-  try {
-    const dbUsers = await retryWithRelogin(appContext, dbUri, () =>
-      appContext.resourcesService.getDbUsers(dbUri)
-    );
-    return dbUsers.map(user => ({ login: user, url: '' }));
-  } catch (e) {
-    // Emitting a warning instead of an error here because fetching those username suggestions is
-    // not the most important part of the app.
-    appContext.notificationsService.notifyWarning({
-      title: 'Could not fetch database usernames',
-      description: e.message,
-    });
-
-    throw e;
-  }
 }

@@ -16,39 +16,38 @@ limitations under the License.
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
-import { Box, ButtonPrimary, Flex, Text } from 'design';
+import { Box, ButtonPrimary, Flex, Text, Alert } from 'design';
 import { makeEmptyAttempt, useAsync } from 'shared/hooks/useAsync';
 import { wait } from 'shared/utils/wait';
 import * as Alerts from 'design/Alert';
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { useWorkspaceContext } from 'teleterm/ui/Documents';
-import { retryWithRelogin } from 'teleterm/ui/utils';
+import { assertUnreachable, retryWithRelogin } from 'teleterm/ui/utils';
 import {
   AgentProcessError,
   NodeWaitJoinTimeout,
   useConnectMyComputerContext,
 } from 'teleterm/ui/ConnectMyComputer';
-import Logger from 'teleterm/logger';
 import { codeOrSignal } from 'teleterm/ui/utils/process';
-import { RootClusterUri } from 'teleterm/ui/uri';
 import { isAccessDeniedError } from 'teleterm/services/tshd/errors';
 import { useResourcesContext } from 'teleterm/ui/DocumentCluster/resourcesContext';
+import { useLogger } from 'teleterm/ui/hooks/useLogger';
+import { DocumentConnectMyComputer } from 'teleterm/ui/services/workspacesService';
 
 import { useAgentProperties } from '../useAgentProperties';
 import { Logs } from '../Logs';
 import { CompatibilityError } from '../CompatibilityPromise';
+import { ConnectMyComputerAccessNoAccess } from '../access';
 
 import { ProgressBar } from './ProgressBar';
 
-const logger = new Logger('DocumentConnectMyComputerSetup');
-
-// TODO(gzdunek): Rename to `Setup`
-export function DocumentConnectMyComputerSetup() {
+export function Setup(props: {
+  updateDocumentStatus: (status: DocumentConnectMyComputer['status']) => void;
+}) {
   const [step, setStep] = useState<'information' | 'agent-setup'>(
     'information'
   );
-  const { rootClusterUri } = useWorkspaceContext();
 
   return (
     <Box maxWidth="680px" mx="auto" mt="4" px="5" width="100%">
@@ -56,26 +55,60 @@ export function DocumentConnectMyComputerSetup() {
         Connect My Computer
       </Text>
       {step === 'information' && (
-        <Information onSetUpAgentClick={() => setStep('agent-setup')} />
+        <Information
+          onSetUpAgentClick={() => setStep('agent-setup')}
+          updateDocumentStatus={props.updateDocumentStatus}
+        />
       )}
-      {step === 'agent-setup' && <AgentSetup rootClusterUri={rootClusterUri} />}
+      {step === 'agent-setup' && <AgentSetup />}
     </Box>
   );
 }
 
-function Information(props: { onSetUpAgentClick(): void }) {
+function Information(props: {
+  onSetUpAgentClick(): void;
+  updateDocumentStatus(status: DocumentConnectMyComputer['status']): void;
+}) {
+  const { updateDocumentStatus } = props;
   const { systemUsername, hostname, roleName, clusterName } =
     useAgentProperties();
-  const { agentCompatibility } = useConnectMyComputerContext();
-  const isAgentIncompatible = agentCompatibility === 'incompatible';
-  const isAgentIncompatibleOrUnknown =
-    agentCompatibility === 'incompatible' || agentCompatibility === 'unknown';
+  const { agentCompatibility, access } = useConnectMyComputerContext();
+
+  let disabledButtonReason: string;
+  if (access.status === 'unknown') {
+    disabledButtonReason = 'Checking access…';
+  } else if (access.status === 'no-access') {
+    disabledButtonReason = "You don't have access to use Connect My Computer.";
+  } else if (agentCompatibility === 'unknown') {
+    disabledButtonReason = 'Checking agent compatibility…';
+  } else if (agentCompatibility === 'incompatible') {
+    disabledButtonReason =
+      'The agent version is not compatible with the cluster version.';
+  }
+
+  const isWaiting =
+    access.status === 'unknown' || agentCompatibility === 'unknown';
+
+  useEffect(() => {
+    if (isWaiting) {
+      updateDocumentStatus('connecting');
+    } else {
+      updateDocumentStatus('connected');
+    }
+  }, [isWaiting, updateDocumentStatus]);
+
+  let $alert: JSX.Element;
+  if (access.status === 'no-access') {
+    $alert = <AccessError access={access} />;
+  } else if (agentCompatibility === 'incompatible') {
+    $alert = <CompatibilityError />;
+  }
 
   return (
     <>
-      {isAgentIncompatible && (
+      {$alert && (
         <>
-          <CompatibilityError />
+          {$alert}
           <Separator mt={3} mb={2} />
         </>
       )}
@@ -107,7 +140,8 @@ function Information(props: { onSetUpAgentClick(): void }) {
         css={`
           display: block;
         `}
-        disabled={isAgentIncompatibleOrUnknown}
+        title={disabledButtonReason}
+        disabled={!!disabledButtonReason}
         onClick={props.onSetUpAgentClick}
         data-testid="start-setup"
       >
@@ -117,8 +151,68 @@ function Information(props: { onSetUpAgentClick(): void }) {
   );
 }
 
-function AgentSetup({ rootClusterUri }: { rootClusterUri: RootClusterUri }) {
+function AccessError(props: { access: ConnectMyComputerAccessNoAccess }) {
+  const $documentation = (
+    <>
+      See{' '}
+      <a
+        href="https://goteleport.com/docs/connect-your-client/teleport-connect/#prerequisites"
+        target="_blank"
+      >
+        the documentation
+      </a>{' '}
+      for more details.
+    </>
+  );
+
+  switch (props.access.reason) {
+    case 'unsupported-platform': {
+      return (
+        <Alert mb={0}>
+          <Text>
+            Connect My Computer is not supported on your operating system.
+            <br />
+            {$documentation}
+          </Text>
+        </Alert>
+      );
+    }
+    case 'insufficient-permissions': {
+      return (
+        <Alert mb={0}>
+          <Text>
+            You have insufficient permissions to use Connect My Computer. Reach
+            out to your Teleport administrator to request{' '}
+            <a
+              href="https://goteleport.com/docs/connect-your-client/teleport-connect/#prerequisites"
+              target="_blank"
+            >
+              additional permissions
+            </a>
+            .
+          </Text>
+        </Alert>
+      );
+    }
+    case 'sso-user': {
+      return (
+        <Alert mb={0}>
+          <Text>
+            Connect My Computer does not work with SSO users. {$documentation}
+          </Text>
+        </Alert>
+      );
+    }
+    default: {
+      return assertUnreachable(props.access);
+    }
+  }
+}
+
+function AgentSetup() {
+  const logger = useLogger('AgentSetup');
   const ctx = useAppContext();
+  const { rootClusterUri } = useWorkspaceContext();
   const {
     startAgent,
     markAgentAsConfigured,
@@ -206,6 +300,7 @@ function AgentSetup({ rootClusterUri }: { rootClusterUri: RootClusterUri }) {
         ctx.connectMyComputerService,
         cluster.uri,
         requestResourcesRefresh,
+        logger,
       ])
     );
 
