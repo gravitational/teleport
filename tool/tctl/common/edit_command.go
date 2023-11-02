@@ -47,6 +47,9 @@ type EditCommand struct {
 	config *servicecfg.Config
 	ref    services.Ref
 
+	// editorCommand holds the value of the --editor flag.
+	editorCommand string
+
 	// editor is used by tests to inject the editing mechanism
 	// so that different scenarios can be asserted.
 	editor func(filename string) error
@@ -56,6 +59,7 @@ func (e *EditCommand) Initialize(app *kingpin.Application, config *servicecfg.Co
 	e.app = app
 	e.config = config
 	e.cmd = app.Command("edit", "Edit a Teleport resource.")
+	e.cmd.Flag("editor", fmt.Sprintf("Editor to use. If empty, uses first non-empty env var out of: %v. If all are empty %q will be used.", editorEnvVars, defaultEditor)).StringVar(&e.editorCommand)
 	e.cmd.Arg("resource type/resource name", `Resource to update
 	<resource type>  Type of a resource [for example: rc]
 	<resource name>  Resource name to update
@@ -78,7 +82,7 @@ func (e *EditCommand) runEditor(ctx context.Context, name string) error {
 		return trace.Wrap(e.editor(name))
 	}
 
-	textEditor := getTextEditor()
+	textEditor := getTextEditor(e.editorCommand)
 	args := strings.Fields(textEditor)
 	editorCmd := exec.CommandContext(ctx, args[0], append(args[1:], name)...)
 	editorCmd.Stdin = os.Stdin
@@ -192,14 +196,22 @@ func (e *EditCommand) editResource(ctx context.Context, client auth.ClientI) err
 
 }
 
+var editorEnvVars = []string{"TELEPORT_EDITOR", "VISUAL", "EDITOR"}
+
+const defaultEditor = "vi"
+
 // getTextEditor returns the text editor to be used for editing the resource.
-func getTextEditor() string {
-	for _, v := range []string{"TELEPORT_EDITOR", "VISUAL", "EDITOR"} {
+func getTextEditor(editorFlag string) string {
+	if editorFlag != "" {
+		return editorFlag
+	}
+
+	for _, v := range editorEnvVars {
 		if value := os.Getenv(v); value != "" {
 			return value
 		}
 	}
-	return "vi"
+	return defaultEditor
 }
 
 func checksum(filename string) (string, error) {
