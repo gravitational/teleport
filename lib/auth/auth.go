@@ -5948,7 +5948,7 @@ func (a *Server) GetHeadlessAuthenticationFromWatcher(ctx context.Context, usern
 // that will expire after the standard callback timeout.
 func (a *Server) UpsertHeadlessAuthenticationStub(ctx context.Context, username string) error {
 	// Create the stub. If it already exists, update its expiration.
-	expires := a.clock.Now().Add(defaults.CallbackTimeout)
+	expires := a.clock.Now().Add(defaults.HeadlessLoginTimeout)
 	stub, err := types.NewHeadlessAuthentication(username, services.HeadlessAuthenticationUserStubID, expires)
 	if err != nil {
 		return trace.Wrap(err)
