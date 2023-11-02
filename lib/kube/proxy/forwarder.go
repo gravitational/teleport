@@ -813,7 +813,7 @@ func (f *Forwarder) setupContext(ctx context.Context, authCtx authz.Context, req
 		}
 	}
 
-	clientSrc, clientDst := utils.ClientAddrFromContext(req.Context())
+	clientSrc, clientDst := authz.ClientAddrsFromContext(req.Context())
 
 	forwarderType := f.cfg.KubeServiceType
 
