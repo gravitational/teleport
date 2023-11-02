@@ -33,7 +33,7 @@ var (
 			Namespace: teleport.MetricNamespace,
 			Subsystem: auditSubsystem,
 			Name:      "rate_limited_events_total",
-			Help:      "Number of times queries to the audit events backend was rate limited.",
+			Help:      "Number of times queries to the audit events backend were rate limited.",
 		},
 	)
 
@@ -42,7 +42,7 @@ var (
 			Namespace: teleport.MetricNamespace,
 			Subsystem: auditSubsystem,
 			Name:      "rate_limited_sessions_total",
-			Help:      "Number of times queries to the audit session events backend was rate limited.",
+			Help:      "Number of times queries to the audit session events backend were rate limited.",
 		},
 	)
 )
