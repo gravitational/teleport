@@ -23,6 +23,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/arn"
 	"github.com/aws/aws-sdk-go/aws/awserr"
+	"github.com/aws/aws-sdk-go/aws/endpoints"
 	awssession "github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/aws/aws-sdk-go/service/iam/iamiface"
@@ -40,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/configurators"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/secrets"
 	"github.com/gravitational/teleport/lib/utils"
@@ -241,6 +243,11 @@ func (c *ConfiguratorConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("config file is required")
 	}
 
+	useFIPSEndpoint := endpoints.FIPSEndpointStateUnset
+	if modules.GetModules().IsBoringBinary() {
+		useFIPSEndpoint = endpoints.FIPSEndpointStateEnabled
+	}
+
 	// When running the command in manual mode, we want to have zero dependency
 	// with AWS configurations (like awscli or environment variables), so that
 	// the user can run this command and generate the instructions without any
@@ -251,6 +258,10 @@ func (c *ConfiguratorConfig) CheckAndSetDefaults() error {
 		if c.AWSSession == nil {
 			c.AWSSession, err = awssession.NewSessionWithOptions(awssession.Options{
 				SharedConfigState: awssession.SharedConfigEnable,
+				Config: aws.Config{
+					EC2MetadataEnableFallback: aws.Bool(false),
+					UseFIPSEndpoint:           useFIPSEndpoint,
+				},
 			})
 			if err != nil {
 				return trace.Wrap(err)

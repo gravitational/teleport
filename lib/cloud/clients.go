@@ -32,6 +32,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/credentials/stscreds"
+	"github.com/aws/aws-sdk-go/aws/endpoints"
 	"github.com/aws/aws-sdk-go/aws/session"
 	awssession "github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ec2"
@@ -65,6 +66,7 @@ import (
 	libcloudaws "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/cloud/gcp"
+	"github.com/gravitational/teleport/lib/modules"
 )
 
 // Clients provides interface for obtaining cloud provider clients.
@@ -534,10 +536,16 @@ func (c *cloudClients) initAWSSession(region string) (*awssession.Session, error
 		return session, nil
 	}
 	logrus.Debugf("Initializing AWS session for region %v.", region)
+	useFIPSEndpoint := endpoints.FIPSEndpointStateUnset
+	if modules.GetModules().IsBoringBinary() {
+		useFIPSEndpoint = endpoints.FIPSEndpointStateEnabled
+	}
 	session, err := awssession.NewSessionWithOptions(awssession.Options{
 		SharedConfigState: awssession.SharedConfigEnable,
 		Config: aws.Config{
-			Region: aws.String(region),
+			Region:                    aws.String(region),
+			EC2MetadataEnableFallback: aws.Bool(false),
+			UseFIPSEndpoint:           useFIPSEndpoint,
 		},
 	})
 	if err != nil {
@@ -763,12 +771,19 @@ type TestCloudClients struct {
 
 // GetAWSSession returns AWS session for the specified region.
 func (c *TestCloudClients) GetAWSSession(region string) (*awssession.Session, error) {
+	useFIPSEndpoint := endpoints.FIPSEndpointStateUnset
+	if modules.GetModules().IsBoringBinary() {
+		useFIPSEndpoint = endpoints.FIPSEndpointStateEnabled
+	}
+
 	return session.NewSession(&aws.Config{
 		Credentials: credentials.NewCredentials(&credentials.StaticProvider{Value: credentials.Value{
 			AccessKeyID:     "fakeClientKeyID",
 			SecretAccessKey: "fakeClientSecret",
 		}}),
-		Region: aws.String(region),
+		Region:                    aws.String(region),
+		EC2MetadataEnableFallback: aws.Bool(false),
+		UseFIPSEndpoint:           useFIPSEndpoint,
 	})
 }
 
