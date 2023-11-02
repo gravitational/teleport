@@ -23,6 +23,9 @@ proxy_service:
 {{- else }}
   public_addr: '{{ required "clusterName is required in chart values" .Values.clusterName }}:443'
 {{- end }}
+{{- if .Values.enableProxyPeering }}
+  peer_public_addr: '{{ required "clusterName is required in chart values" .Values.clusterName }}:3021'
+{{- end }}
 {{- if ne .Values.proxyListenerMode "multiplex" }}
   listen_addr: 0.0.0.0:3023
   {{- if .Values.sshPublicAddr }}

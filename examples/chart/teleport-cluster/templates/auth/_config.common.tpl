@@ -48,6 +48,20 @@ auth_service:
     {{- end }}
   {{- end }}
 {{- end }}
+{{- if .Values.enableProxyPeering }}
+  tunnel_strategy:
+    type: proxy_peering 
+    {{- if $replicable }}
+      {{- $proxySpecificHA := default (dict) .Values.proxy.highAvailability }}
+      {{- if $proxySpecificHA.replicaCount }}
+        agent_connection_count: {{ $proxySpecificHA.replicaCount }}
+      {{- else }}
+        agent_connection_count: {{ max .Values.highAvailability.replicaCount 2 }}
+      {{- end }}
+    {{- else }}
+    agent_connection_count: 1
+    {{- end }}
+{{- end }}
 {{- if .Values.sessionRecording }}
   session_recording: {{ .Values.sessionRecording }}
 {{- end }}

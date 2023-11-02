@@ -173,6 +173,16 @@ authentication:
 # Possible values are 'separate' and 'multiplex'
 proxyListenerMode: "separate"
 
+# Enable Proxy Peering on Auth Service, and expose port 3021 on proxy. 
+# This does not deploy an external proxy. 
+# Requires already having the auth service exposed to the external proxy peers.
+# Requires updating the DNS policy with external peers to latency based routing.
+# Refer to documentation for utilizing proxy_peering: https://goteleport.com/docs/deploy-a-cluster/deployments/aws-gslb-proxy-peering-ha-deployment/
+# Agent connection count will be set to same as proxy HA replica count.
+# Assumes cluster names being used as the Public Addr.
+enableProxyPeering: "false"
+
+
 # Optional setting for configuring session recording.
 # See `session_recording` under https://goteleport.com/docs/setup/reference/config/#teleportyaml
 sessionRecording: ""

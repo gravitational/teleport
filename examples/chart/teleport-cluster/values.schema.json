@@ -189,6 +189,11 @@
             "type": "string",
             "default": ""
         },
+        "enableProxyPeering": {
+            "$id": "#/properties/enableProxyPeering",
+            "type": "boolean",
+            "default": "false"   
+        },
         "sessionRecording": {
             "$id": "#/properties/sessionRecording",
             "type": "string",
