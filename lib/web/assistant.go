@@ -356,7 +356,7 @@ func (h *Handler) reserveTokens(usedTokens *tokens.TokenCount) (int, int) {
 	return promptTokens, completionTokens
 }
 
-// reportTokenUsage sends a token usage event for a converssation.
+// reportTokenUsage sends a token usage event for a conversation.
 func (h *Handler) reportConversationTokenUsage(authClient auth.ClientI, usedTokens *tokens.TokenCount, conversationID string) {
 	// Create a new context to not be bounded by the request timeout.
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
