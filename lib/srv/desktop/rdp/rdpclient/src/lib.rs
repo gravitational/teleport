@@ -1516,7 +1516,7 @@ pub unsafe extern "C" fn client_write_sync_keys(
         .write(RdpEvent::Sync(InputSyncEvent { flags }))
     {
         Ok(_) => {
-            info!("client_write_sync_keys");
+            debug!("client_write_sync_keys");
             CGOErrCode::ErrCodeSuccess
         }
         Err(e) => {
