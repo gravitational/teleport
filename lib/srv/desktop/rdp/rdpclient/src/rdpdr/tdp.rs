@@ -1,6 +1,6 @@
 use std::ffi::CString;
 
-use super::path::UnixPath;
+use super::{filesystem::FileCacheObject, path::UnixPath};
 use crate::{
     util::{self, from_c_string, from_go_array},
     CGOSharedDirectoryAnnounce, CGOSharedDirectoryCreateRequest, CGOSharedDirectoryCreateResponse,
@@ -8,7 +8,7 @@ use crate::{
     CGOSharedDirectoryListResponse, CGOSharedDirectoryReadResponse,
 };
 use ironrdp_pdu::{custom_err, PduResult};
-use ironrdp_rdpdr::pdu::efs::DeviceCreateRequest;
+use ironrdp_rdpdr::pdu::efs::{DeviceCloseRequest, DeviceCreateRequest};
 
 /// SharedDirectoryAnnounce is sent by the TDP client to the server
 /// to announce a new directory to be shared over TDP.
@@ -339,6 +339,16 @@ pub struct SharedDirectoryDeleteRequest {
     pub completion_id: u32,
     pub directory_id: u32,
     pub path: UnixPath,
+}
+
+impl SharedDirectoryDeleteRequest {
+    pub fn from_fco(rdp_req: &DeviceCloseRequest, file: FileCacheObject) -> Self {
+        SharedDirectoryDeleteRequest {
+            completion_id: rdp_req.device_io_request.completion_id,
+            directory_id: rdp_req.device_io_request.device_id,
+            path: file.path(),
+        }
+    }
 }
 
 impl SharedDirectoryDeleteRequest {
