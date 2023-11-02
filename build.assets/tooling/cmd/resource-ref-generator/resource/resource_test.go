@@ -213,29 +213,8 @@ type Server struct {
     Spec types.ServerSpecV1 BACKTICKjson:"spec"BACKTICK
 }
 `,
-			expected: map[PackageInfo]ReferenceEntry{
-				PackageInfo{
-					DeclName:    "Server",
-					PackageName: "mypkg",
-				}: {
-					SectionName: "Server",
-					Description: "Includes information about a server registered with Teleport.",
-					SourcePath:  "myfile.go",
-					YAMLExample: `name: "string"
-spec: # [...]
-`,
-					Fields: []Field{
-						Field{
-							Name:        "name",
-							Description: "The name of the resource.",
-							Type:        "string",
-						},
-						Field{
-							Name:        "spec",
-							Description: "Contains information about the server.",
-							Type:        "[Server Spec](#server-spec)"},
-					},
-				}},
+			expected:       nil,
+			errorSubstring: "not declared",
 		},
 		{
 			description: "named scalar type with no override",
@@ -256,7 +235,7 @@ type Server struct {
 type Labels []string
 `,
 			},
-			errorSubstring: "example YAML",
+			errorSubstring: "Example YAML",
 		},
 		{
 			description: "custom type fields with no override and custom JSON unmarshaller",
