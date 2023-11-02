@@ -1095,11 +1095,12 @@ $ tctl get clusters,users
 Modify a Teleport resource using your preferred text editor.
 
 ```code
-$ tctl edit <resource-type/resource-name>
+$ tctl edit [--editor=...] <resource-type/resource-name>
 ```
 
 The text editor is selected by checking the following, in order of precedence:
 
+- the value of the `--editor` flag
 - the `TELEPORT_EDITOR` environment variable
 - the `VISUAL` environment variable
 - the `EDITOR` environment variable
@@ -1142,6 +1143,9 @@ $ tctl edit role/sre
 
 # edit the alice user with the nano editor
 $ TELEPORT_EDITOR=nano tctl edit user/alice
+
+# edit the bob user with the VS Code editor
+$ tctl edit --editor='code --wait' user/bob
 ```
 
 ## tctl status
