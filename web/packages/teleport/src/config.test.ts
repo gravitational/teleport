@@ -37,12 +37,11 @@ test('getDeployServiceIamConfigureScriptPath formatting', async () => {
 test('getAwsOidcConfigureIdpScriptUrl formatting', async () => {
   const params: UrlAwsOidcConfigureIdp = {
     integrationName: 'int-name',
-    region: 'us-east-1',
     roleName: 'role-arn',
   };
   const base =
     'http://localhost/webapi/scripts/integrations/configure/awsoidc-idp.sh?';
-  const expected = `integrationName=${'int-name'}&awsRegion=${'us-east-1'}&role=${'role-arn'}`;
+  const expected = `integrationName=${'int-name'}&role=${'role-arn'}`;
   expect(cfg.getAwsOidcConfigureIdpScriptUrl(params)).toBe(
     `${base}${expected}`
   );
