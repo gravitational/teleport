@@ -708,6 +708,9 @@ const (
 	MaxChunkBytes = 1024 * 1024 * 5
 )
 
+// auditSubsystem is the metric subsystem for Audit.
+const auditSubsystem = "audit"
+
 const (
 	// V1 is the V1 version of slice chunks API,
 	// it is 0 because it was not defined before
