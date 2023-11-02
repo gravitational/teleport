@@ -136,6 +136,10 @@ export default class StoreUserContext extends Store<UserContext> {
     return this.state.acl.accessRequests;
   }
 
+  getAccessGraphAccess() {
+    return this.state.acl.accessGraph;
+  }
+
   // hasPrereqAccessToAddAgents checks if user meets the prerequisite
   // access to add an agent:
   //  - user should be able to create provisioning tokens
