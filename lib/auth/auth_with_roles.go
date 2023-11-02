@@ -2547,11 +2547,11 @@ func (a *ServerWithRoles) GetAccessRequests(ctx context.Context, filter types.Ac
 			continue
 		}
 
-		ok, err := checker.CanReviewRequest(req)
+		canReview, err := checker.CanReviewRequest(req)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		if ok {
+		if canReview == services.CanOnlyPromote || canReview == services.CanReview {
 			filtered = append(filtered, req)
 			continue
 		}
