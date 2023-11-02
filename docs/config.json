@@ -743,9 +743,13 @@
             {
               "title": "Terraform Provider",
               "slug": "/management/dynamic-resources/terraform-provider/"
-            }
-          ]
-        },
+            },
+	    {
+              "title": "Spacelift",
+              "slug": "/management/dynamic-resources/spacelift/"
+	    }
+	  ]
+	},
         {
           "title": "Admin Guides",
           "slug": "/management/admin/",
