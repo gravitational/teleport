@@ -82,6 +82,7 @@ const props: State = {
   setShowAnotherSessionActiveDialog: () => {},
   warnings: [],
   onRemoveWarning: () => {},
+  onFocusOut: () => {},
 };
 
 export const Processing = () => (
