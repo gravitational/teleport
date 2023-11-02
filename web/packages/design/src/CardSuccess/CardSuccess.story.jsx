@@ -19,7 +19,7 @@ import React from 'react';
 import CardSuccess, { CardSuccessLogin } from './index';
 
 export default {
-  title: 'Design/CardSuccess',
+  title: 'Design/Card/Success',
 };
 
 export const Cards = () => (
