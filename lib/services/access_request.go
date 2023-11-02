@@ -812,6 +812,11 @@ func (c *ReviewPermissionChecker) HasAllowDirectives() bool {
 	return false
 }
 
+// IsOwnerOfAccessLists will return true if the user owns any access lists.
+func (c *ReviewPermissionChecker) IsOwnerOfAccessLists() bool {
+	return len(c.AccessListsToGrants) > 0
+}
+
 // CanReviewRequestResponse is the response to the can review request.
 type CanReviewRequestResponse int
 

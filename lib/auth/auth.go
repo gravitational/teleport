@@ -4514,8 +4514,8 @@ func (a *Server) submitAccessReview(
 		return nil, trace.Wrap(err)
 	}
 
-	// don't bother continuing if the author has no allow directives
-	if !checker.HasAllowDirectives() {
+	// don't bother continuing if the author has no allow directives and doesn't own any access lists
+	if !checker.HasAllowDirectives() && !checker.IsOwnerOfAccessLists() {
 		return nil, trace.AccessDenied("user %q cannot submit reviews", params.Review.Author)
 	}
 

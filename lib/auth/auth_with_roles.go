@@ -2524,7 +2524,7 @@ func (a *ServerWithRoles) GetAccessRequests(ctx context.Context, filter types.Ac
 
 	// unless the user has allow directives for reviewing, they will never be able to
 	// see any requests other than their own.
-	if !checker.HasAllowDirectives() {
+	if !checker.HasAllowDirectives() && !checker.IsOwnerOfAccessLists() {
 		if filter.User != "" {
 			// filter specifies a user, but it wasn't caught by the preceding exception,
 			// so just return nothing.
@@ -2551,6 +2551,7 @@ func (a *ServerWithRoles) GetAccessRequests(ctx context.Context, filter types.Ac
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+
 		if canReview == services.CanOnlyPromote || canReview == services.CanReview {
 			filtered = append(filtered, req)
 			continue
@@ -2587,6 +2588,7 @@ func (a *ServerWithRoles) SetAccessRequestState(ctx context.Context, params type
 }
 
 // AuthorizeAccessReviewRequest checks if the current user is allowed to submit the given access review request.
+// TODO(mdwn): Remove this after removing the call in enterprise.
 func AuthorizeAccessReviewRequest(context authz.Context, params types.AccessReviewSubmission) error {
 	// review author must match calling user, except in the case of the builtin admin role. we make this
 	// exception in order to allow for convenient testing with local tctl connections.
@@ -2615,11 +2617,6 @@ func (a *ServerWithRoles) SubmitAccessReview(ctx context.Context, submission typ
 	// review author defaults to username of caller.
 	if submission.Review.Author == "" {
 		submission.Review.Author = a.context.User.GetName()
-	}
-
-	// Check if the current user is allowed to submit the given access review request.
-	if err := AuthorizeAccessReviewRequest(a.context, submission); err != nil {
-		return nil, trace.Wrap(err)
 	}
 
 	// note that we haven't actually enforced any access-control other than requiring
