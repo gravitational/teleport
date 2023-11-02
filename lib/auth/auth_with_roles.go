@@ -2818,6 +2818,12 @@ func (a *ServerWithRoles) DeleteUser(ctx context.Context, user string) error {
 		return trace.Wrap(err)
 	}
 
+	if a.hasBuiltinRole(types.RoleOkta) {
+		if err := a.isOktaUser(ctx, user); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
 	return a.authServer.DeleteUser(ctx, user)
 }
 
@@ -3400,8 +3406,26 @@ func (a *ServerWithRoles) CreateUser(ctx context.Context, user types.User) (type
 	if err := a.action(apidefaults.Namespace, types.KindUser, types.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	if a.hasBuiltinRole(types.RoleOkta) && !hasOriginOkta(user) {
+		return nil, trace.BadParameter("Okta service must supply okta origin")
+	}
+
 	created, err := a.authServer.CreateUser(ctx, user)
 	return created, trace.Wrap(err)
+}
+
+func (a *ServerWithRoles) isOktaUser(ctx context.Context, username string) error {
+	targetUser, err := a.authServer.GetUser(ctx, username, false)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if hasOriginOkta(targetUser) {
+		return nil
+	}
+
+	return trace.AccessDenied("Okta service may only update okta users")
 }
 
 // UpdateUser updates an existing user in a backend.
@@ -3411,6 +3435,16 @@ func (a *ServerWithRoles) UpdateUser(ctx context.Context, user types.User) (type
 		return nil, trace.Wrap(err)
 	}
 
+	if a.hasBuiltinRole(types.RoleOkta) {
+		if !hasOriginOkta(user) {
+			return nil, trace.BadParameter("Okta service must supply okta origin")
+		}
+
+		if err := a.isOktaUser(ctx, user.GetName()); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	updated, err := a.authServer.UpdateUser(ctx, user)
 	return updated, trace.Wrap(err)
 }
@@ -3418,6 +3452,16 @@ func (a *ServerWithRoles) UpdateUser(ctx context.Context, user types.User) (type
 func (a *ServerWithRoles) UpsertUser(ctx context.Context, u types.User) (types.User, error) {
 	if err := a.action(apidefaults.Namespace, types.KindUser, types.VerbCreate, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	if a.hasBuiltinRole(types.RoleOkta) {
+		if !hasOriginOkta(u) {
+			return nil, trace.BadParameter("Okta service must supply okta origin")
+		}
+
+		if err := a.isOktaUser(ctx, u.GetName()); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	createdBy := u.GetCreatedBy()
@@ -3444,6 +3488,16 @@ func (a *ServerWithRoles) UpdateAndSwapUser(ctx context.Context, user string, wi
 func (a *ServerWithRoles) CompareAndSwapUser(ctx context.Context, new, existing types.User) error {
 	if err := a.action(apidefaults.Namespace, types.KindUser, types.VerbUpdate); err != nil {
 		return trace.Wrap(err)
+	}
+
+	if a.hasBuiltinRole(types.RoleOkta) {
+		if !hasOriginOkta(new) {
+			return trace.BadParameter("Okta service must supply okta origin")
+		}
+
+		if err := a.isOktaUser(ctx, new.GetName()); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	return a.authServer.CompareAndSwapUser(ctx, new, existing)
@@ -7182,4 +7236,11 @@ func verbsToReplaceResourceWithOrigin(stored types.ResourceWithOrigin) []string 
 		verbs = append(verbs, types.VerbCreate)
 	}
 	return verbs
+}
+
+func hasOriginOkta(r types.Resource) bool {
+	if resourceOrigin, present := r.GetMetadata().Labels[types.OriginLabel]; present {
+		return resourceOrigin == types.OriginOkta
+	}
+	return false
 }
