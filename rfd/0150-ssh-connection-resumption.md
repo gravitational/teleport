@@ -72,7 +72,7 @@ The client sends the resumption token sent as part of the version exchange; this
 
 The client sends the previously-received _resumption token_ followed by the count of how many bytes it has received from the server; the server will reply with `0xffff_ffff_ffff_ffff` (i.e. eight `\xff` bytes) to signal that the connection should be closed (because the token is unknown or because the connection was already closed - the two things are likely indistinguishable), or with its own count of how many bytes it has received from the client. In the former case, the client should stop further reconnection attempts and treat the connection as closed by the remote side.
 
-These counts are sent as
+These counts are sent as little endian 64 bit unsigned integers.
 
 ### Data exchange
 
