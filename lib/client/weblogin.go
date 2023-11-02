@@ -268,7 +268,7 @@ type SSHLoginMFA struct {
 	SSHLogin
 	// PromptMFA is a customizable MFA prompt function.
 	// Defaults to [mfa.NewPrompt().Run]
-	PromptMFA PromptMFAFunc
+	PromptMFA mfa.Prompt
 	// User is the login username.
 	User string
 	// Password is the login password.
@@ -618,10 +618,10 @@ func SSHAgentMFALogin(ctx context.Context, login SSHLoginMFA) (*auth.SSHLoginRes
 
 	promptMFA := login.PromptMFA
 	if promptMFA == nil {
-		promptMFA = mfa.NewPrompt(login.ProxyAddr).Run
+		promptMFA = mfa.NewCLIPrompt(mfa.DefaultPromptConfig(login.ProxyAddr), os.Stderr)
 	}
 
-	respPB, err := promptMFA(ctx, chal)
+	respPB, err := promptMFA.Run(ctx, chal)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -816,10 +816,10 @@ func SSHAgentMFAWebSessionLogin(ctx context.Context, login SSHLoginMFA) (*WebCli
 
 	promptMFA := login.PromptMFA
 	if promptMFA == nil {
-		promptMFA = mfa.NewPrompt(login.ProxyAddr).Run
+		promptMFA = mfa.NewCLIPrompt(mfa.DefaultPromptConfig(login.ProxyAddr), os.Stderr)
 	}
 
-	respPB, err := promptMFA(ctx, chal)
+	respPB, err := promptMFA.Run(ctx, chal)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}

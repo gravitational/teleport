@@ -473,9 +473,9 @@ type Config struct {
 	// If not set, no logs will be created.
 	SSHLogDir string
 
-	// MFAPrompt is a custom client prompt to use when prompting for MFA.
-	// Defaults to [mfa.CLIPrompt].
-	MFAPrompt mfa.PromptMFA
+	// MFAPrompt is a custom MFA prompt constructor to use when prompting for MFA.
+	// Defaults to [mfa.NewCLIPrompt].
+	MFAPromptConstructor func(cfg *mfa.PromptConfig) mfa.Prompt
 }
 
 // CachePolicy defines cache policy for local clients
@@ -2963,7 +2963,7 @@ func (tc *TeleportClient) ConnectToCluster(ctx context.Context) (*ClusterClient,
 	}
 
 	authClientCfg := pclt.ClientConfig(ctx, cluster)
-	authClientCfg.PromptAdminRequestMFA = tc.NewMFAPrompt(mfa.WithPromptReasonAdminAction())
+	authClientCfg.AdminRequestMFAPrompt = tc.NewMFAPrompt(mfa.WithPromptReasonAdminAction())
 	authClient, err := auth.NewClient(authClientCfg)
 	if err != nil {
 		return nil, trace.NewAggregate(err, pclt.Close())
@@ -3824,7 +3824,7 @@ func (tc *TeleportClient) mfaLocalLoginWeb(ctx context.Context, priv *keys.Priva
 		SSHLogin:  sshLogin,
 		User:      tc.Username,
 		Password:  password,
-		PromptMFA: tc.PromptMFA,
+		PromptMFA: tc.NewMFAPrompt(),
 	})
 	return clt, session, trace.Wrap(err)
 }
@@ -4123,7 +4123,7 @@ func (tc *TeleportClient) mfaLocalLogin(ctx context.Context, priv *keys.PrivateK
 		SSHLogin:  sshLogin,
 		User:      tc.Username,
 		Password:  password,
-		PromptMFA: tc.PromptMFA,
+		PromptMFA: tc.NewMFAPrompt(),
 	})
 
 	return response, trace.Wrap(err)
@@ -5174,7 +5174,7 @@ func (tc *TeleportClient) NewKubernetesServiceClient(ctx context.Context, cluste
 		},
 		ALPNConnUpgradeRequired:  tc.TLSRoutingConnUpgradeRequired,
 		InsecureAddressDiscovery: tc.InsecureSkipVerify,
-		PromptAdminRequestMFA:    tc.NewMFAPrompt(mfa.WithPromptReasonAdminAction()),
+		AdminRequestMFAPrompt:    tc.NewMFAPrompt(mfa.WithPromptReasonAdminAction()),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -5279,7 +5279,7 @@ func (tc *TeleportClient) HeadlessApprove(ctx context.Context, headlessAuthentic
 		return trace.Wrap(err)
 	}
 
-	resp, err := tc.PromptMFA(ctx, chal)
+	resp, err := tc.NewMFAPrompt().Run(ctx, chal)
 	if err != nil {
 		return trace.Wrap(err)
 	}

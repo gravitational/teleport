@@ -443,7 +443,7 @@ func WithMFARequired(mfaRequired *bool) IssueUserCertsOpt {
 }
 
 // IssueUserCertsWithMFA generates a single-use certificate for the user.
-func (proxy *ProxyClient) IssueUserCertsWithMFA(ctx context.Context, params ReissueParams, promptMFA PromptMFAFunc, applyOpts ...IssueUserCertsOpt) (*Key, error) {
+func (proxy *ProxyClient) IssueUserCertsWithMFA(ctx context.Context, params ReissueParams, mfaPrompt mfa.Prompt, applyOpts ...IssueUserCertsOpt) (*Key, error) {
 	ctx, span := proxy.Tracer.Start(
 		ctx,
 		"proxyClient/IssueUserCertsWithMFA",
@@ -558,7 +558,7 @@ func (proxy *ProxyClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 	key, _, err = PerformMFACeremony(ctx, PerformMFACeremonyParams{
 		CurrentAuthClient: proxy.currentCluster,
 		RootAuthClient:    clt,
-		PromptMFA:         promptMFA,
+		MFAPrompt:         mfaPrompt,
 		MFAAgainstRoot:    params.RouteToCluster == rootClusterName,
 		MFARequiredReq:    nil, // No need to check if we got this far.
 		CertsReq:          certsReq,
@@ -1076,7 +1076,7 @@ func (proxy *ProxyClient) ConnectToAuthServiceThroughALPNSNIProxy(ctx context.Co
 		ALPNConnUpgradeRequired:    proxy.teleportClient.IsALPNConnUpgradeRequiredForWebProxy(ctx, proxyAddr),
 		PROXYHeaderGetter:          CreatePROXYHeaderGetter(ctx, proxy.teleportClient.PROXYSigner),
 		InsecureAddressDiscovery:   proxy.teleportClient.InsecureSkipVerify,
-		PromptAdminRequestMFA:      proxy.teleportClient.NewMFAPrompt(mfa.WithPromptReasonAdminAction()),
+		AdminRequestMFAPrompt:      proxy.teleportClient.NewMFAPrompt(mfa.WithPromptReasonAdminAction()),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1155,7 +1155,7 @@ func (proxy *ProxyClient) ConnectToCluster(ctx context.Context, clusterName stri
 			client.LoadTLS(tlsConfig),
 		},
 		CircuitBreakerConfig:  breaker.NoopBreakerConfig(),
-		PromptAdminRequestMFA: proxy.teleportClient.NewMFAPrompt(mfa.WithPromptReasonAdminAction()),
+		AdminRequestMFAPrompt: proxy.teleportClient.NewMFAPrompt(mfa.WithPromptReasonAdminAction()),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

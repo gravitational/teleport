@@ -630,9 +630,11 @@ type Config struct {
 	// PROXYHeaderGetter returns signed PROXY header that is sent to allow Proxy to propagate client's real IP to the
 	// auth server from the Proxy's web server, when we create user's client for the web session.
 	PROXYHeaderGetter PROXYHeaderGetter
-	// PromptAdminRequestMFA is used to prompt the user for MFA on admin requests when needed.
+	// AdminRequestMFAPrompt is used to prompt the user for MFA on admin requests when needed.
 	// If nil, the client will not prompt for MFA.
-	PromptAdminRequestMFA func(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error)
+	AdminRequestMFAPrompt interface {
+		Run(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error)
+	}
 }
 
 // CheckAndSetDefaults checks and sets default config values.

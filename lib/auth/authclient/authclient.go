@@ -29,9 +29,9 @@ import (
 
 	"github.com/gravitational/teleport/api/breaker"
 	apiclient "github.com/gravitational/teleport/api/client"
-	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/client/mfa"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -50,9 +50,9 @@ type Config struct {
 	CircuitBreakerConfig breaker.Config
 	// DialTimeout determines how long to wait for dialing to succeed before aborting.
 	DialTimeout time.Duration
-	// PromptAdminRequestMFA is used to prompt the user for MFA on admin requests when needed.
+	// AdminRequestMFAPrompt is used to prompt the user for MFA on admin requests when needed.
 	// If nil, the client will not prompt for MFA.
-	PromptAdminRequestMFA func(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error)
+	AdminRequestMFAPrompt mfa.Prompt
 }
 
 // Connect creates a valid client connection to the auth service.  It may
@@ -93,7 +93,7 @@ func connectViaAuthDirect(ctx context.Context, cfg *Config) (auth.ClientI, error
 		CircuitBreakerConfig:     cfg.CircuitBreakerConfig,
 		InsecureAddressDiscovery: cfg.TLS.InsecureSkipVerify,
 		DialTimeout:              cfg.DialTimeout,
-		PromptAdminRequestMFA:    cfg.PromptAdminRequestMFA,
+		AdminRequestMFAPrompt:    cfg.AdminRequestMFAPrompt,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -145,7 +145,7 @@ func connectViaProxyTunnel(ctx context.Context, cfg *Config) (auth.ClientI, erro
 		Credentials: []apiclient.Credentials{
 			apiclient.LoadTLS(cfg.TLS),
 		},
-		PromptAdminRequestMFA: cfg.PromptAdminRequestMFA,
+		AdminRequestMFAPrompt: cfg.AdminRequestMFAPrompt,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

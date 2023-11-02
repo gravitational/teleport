@@ -19,33 +19,33 @@ package mfa
 import (
 	"context"
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
-	oteltrace "go.opentelemetry.io/otel/trace"
 
 	"github.com/gravitational/teleport"
+
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/observability/tracing"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 )
 
-var log = logrus.WithFields(logrus.Fields{
-	trace.Component: teleport.ComponentClient,
-})
-
 // Prompt is an MFA prompt.
-type Prompt struct {
-	// PromptMFA is an interchangeable MFA prompt handler using the common config options below.
-	PromptMFA
-	// PromptConfig contains mfa prompt config options.
-	PromptConfig
+type Prompt interface {
+	// Run prompts the user to complete an MFA authentication challenge.
+	Run(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error)
 }
 
-// PromptConfig contains mfa prompt config options.
+// PromptFunc is a function wrapper that implements the Prompt interface.
+type PromptFunc func(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error)
+
+// Run prompts the user to complete an MFA authentication challenge.
+func (f PromptFunc) Run(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
+	return f(ctx, chal)
+}
+
+// PromptConfig contains common mfa prompt config options.
 type PromptConfig struct {
 	// ProxyAddress is the address of the authenticating proxy. required.
 	ProxyAddress string
@@ -72,12 +72,8 @@ type PromptConfig struct {
 	PreferOTP bool
 	// WebauthnSupported indicates whether Webauthn is supported.
 	WebauthnSupported bool
-}
-
-type PromptMFA interface {
-	PromptTOTP(ctx context.Context, chal *proto.MFAAuthenticateChallenge, cfg PromptConfig) (*proto.MFAAuthenticateResponse, error)
-	PromptWebauthn(ctx context.Context, chal *proto.MFAAuthenticateChallenge, cfg PromptConfig) (*proto.MFAAuthenticateResponse, error)
-	PromptWebauthnAndTOTP(ctx context.Context, chal *proto.MFAAuthenticateChallenge, cfg PromptConfig) (*proto.MFAAuthenticateResponse, error)
+	// Log is a logging entry.
+	Log *logrus.Entry
 }
 
 // DeviceDescriptor is a descriptor for a device, such as "registered".
@@ -86,20 +82,32 @@ type DeviceDescriptor string
 // DeviceDescriptorRegistered is a registered device.
 const DeviceDescriptorRegistered = "registered"
 
+// DefaultPromptConfig returns a prompt config that will induce default behavior.
+func DefaultPromptConfig(proxyAddr string) *PromptConfig {
+	return &PromptConfig{
+		ProxyAddress:      proxyAddr,
+		WebauthnLoginFunc: wancli.Login,
+		WebauthnSupported: wancli.HasPlatformSupport(),
+		Log: logrus.WithFields(logrus.Fields{
+			trace.Component: teleport.ComponentClient,
+		}),
+	}
+}
+
 // PromptOpt applies configuration options to a prompt.
-type PromptOpt func(*Prompt)
+type PromptOpt func(*PromptConfig)
 
 // WithQuiet sets the prompt's Quiet field.
 func WithQuiet() PromptOpt {
-	return func(p *Prompt) {
-		p.Quiet = true
+	return func(cfg *PromptConfig) {
+		cfg.Quiet = true
 	}
 }
 
 // WithPromptReason sets the prompt's PromptReason field.
 func WithPromptReason(hint string) PromptOpt {
-	return func(p *Prompt) {
-		p.PromptReason = hint
+	return func(cfg *PromptConfig) {
+		cfg.PromptReason = hint
 	}
 }
 
@@ -116,100 +124,53 @@ func WithPromptReasonSessionMFA(serviceType, serviceName string) PromptOpt {
 
 // WithPromptDeviceType sets the prompt's DeviceType field.
 func WithPromptDeviceType(deviceType DeviceDescriptor) PromptOpt {
-	return func(p *Prompt) {
-		p.DeviceType = deviceType
+	return func(cfg *PromptConfig) {
+		cfg.DeviceType = deviceType
 	}
 }
 
-// NewPrompt creates a new prompt with default behavior.
-// If you want to customize [Prompt], for example for testing purposes, you may
-// create or configure an instance directly, without calling this method.
-func NewPrompt(proxyAddr string) *Prompt {
-	return &Prompt{
-		PromptMFA: NewCLIPrompt(os.Stderr),
-		PromptConfig: PromptConfig{
-			WebauthnLoginFunc: wancli.Login,
-			ProxyAddress:      proxyAddr,
-			WebauthnSupported: wancli.HasPlatformSupport(),
-		},
-	}
+// RunOpts are mfa prompt run options.
+type RunOpts struct {
+	promptTOTP     bool
+	promptWebauthn bool
 }
 
-// Run prompts the user to complete MFA authentication challenges according to the prompt's configuration.
-func (p *Prompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
-	ctx, span := tracing.NewTracer("MFACeremony").Start(
-		ctx,
-		"Run",
-		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
-	)
-	defer span.End()
+// GetRunOptions gets mfa prompt run options by cross referencing the mfa challenge with prompt configuration.
+func (c PromptConfig) GetRunOptions(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (RunOpts, error) {
+	promptTOTP := chal.TOTP != nil
+	promptWebauthn := chal.WebauthnChallenge != nil
 
-	hasTOTP := chal.TOTP != nil
-	hasWebauthn := chal.WebauthnChallenge != nil
+	if !promptTOTP && !promptWebauthn {
+		return RunOpts{}, trace.BadParameter("mfa challenge is empty")
+	}
 
 	// Does the current platform support hardware MFA? Adjust accordingly.
-	if !p.WebauthnSupported {
+	switch {
+	case !promptTOTP && !c.WebauthnSupported:
+		return RunOpts{}, trace.BadParameter("hardware device MFA not supported by your platform, please register an OTP device")
+	case !c.WebauthnSupported:
 		// Do not prompt for hardware devices, it won't work.
-		hasWebauthn = false
-		if !hasTOTP {
-			return nil, trace.BadParameter("hardware device MFA not supported by your platform, please register an OTP device")
-		}
+		promptWebauthn = false
 	}
 
 	// Tweak enabled/disabled methods according to opts.
 	switch {
-	case hasTOTP && p.PreferOTP:
-		return p.PromptTOTP(ctx, chal, p.PromptConfig)
-	case hasWebauthn && p.AuthenticatorAttachment != wancli.AttachmentAuto:
+	case promptTOTP && c.PreferOTP:
+		promptWebauthn = false
+	case promptWebauthn && c.AuthenticatorAttachment != wancli.AttachmentAuto:
 		// Prefer Webauthn if an specific attachment was requested.
-		return p.PromptWebauthn(ctx, chal, p.PromptConfig)
-	case hasWebauthn && !p.AllowStdinHijack:
+		promptTOTP = false
+	case promptWebauthn && !c.AllowStdinHijack:
 		// Use strongest auth if hijack is not allowed.
-		return p.PromptWebauthn(ctx, chal, p.PromptConfig)
+		promptTOTP = false
 	}
 
-	switch {
-	case hasTOTP && hasWebauthn:
-		switch {
-		case p.PreferOTP:
-			return p.PromptTOTP(ctx, chal, p.PromptConfig)
-		case p.AuthenticatorAttachment != wancli.AttachmentAuto:
-			// Prefer Webauthn if an specific attachment was requested.
-			return p.PromptWebauthn(ctx, chal, p.PromptConfig)
-		case !p.AllowStdinHijack:
-			return p.PromptWebauthn(ctx, chal, p.PromptConfig)
-		}
-		return p.PromptWebauthnAndTOTP(ctx, chal, p.PromptConfig)
-	case hasTOTP:
-		return p.PromptTOTP(ctx, chal, p.PromptConfig)
-	case hasWebauthn:
-		return p.PromptWebauthn(ctx, chal, p.PromptConfig)
-	}
-
-	// No challenge present, return an empty response.
-	return &proto.MFAAuthenticateResponse{}, nil
+	return RunOpts{promptTOTP, promptWebauthn}, nil
 }
 
-func (c PromptConfig) promptDevicePrefix() string {
-	if c.DeviceType != "" {
-		return fmt.Sprintf("*%s* ", c.DeviceType)
+func (c PromptConfig) getWebauthnOrigin() string {
+	if !strings.HasPrefix(c.ProxyAddress, "https://") {
+		return "https://" + c.ProxyAddress
 	}
-	return ""
-}
-
-// WebauthnLogin performs client-side Webauthn login from prompt settings.
-func (c PromptConfig) WebauthnLogin(ctx context.Context, chal *proto.MFAAuthenticateChallenge, loginPrompt wancli.LoginPrompt) (*proto.MFAAuthenticateResponse, error) {
-	origin := c.ProxyAddress
-	if !strings.HasPrefix(origin, "https://") {
-		origin = "https://" + origin
-	}
-
-	log.Debugf("WebAuthn: prompting devices with origin %q", origin)
-
-	opts := &wancli.LoginOpts{AuthenticatorAttachment: c.AuthenticatorAttachment}
-	resp, _, err := c.WebauthnLoginFunc(ctx, origin, wantypes.CredentialAssertionFromProto(chal.WebauthnChallenge), loginPrompt, opts)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return resp, nil
+	return c.ProxyAddress
 }

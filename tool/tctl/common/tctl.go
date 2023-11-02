@@ -196,9 +196,10 @@ func TryRun(commands []CLICommand, args []string) error {
 
 	ctx := context.Background()
 
-	mfaPrompt := mfa.NewPrompt("")
-	mfa.WithPromptReasonAdminAction()(mfaPrompt)
-	clientConfig.PromptAdminRequestMFA = mfaPrompt.Run
+	promptCfg := mfa.DefaultPromptConfig("")
+	mfa.WithPromptReasonAdminAction()(promptCfg)
+	prompt := mfa.NewCLIPrompt(promptCfg, os.Stderr)
+	clientConfig.AdminRequestMFAPrompt = prompt
 
 	client, err := authclient.Connect(ctx, clientConfig)
 	if err != nil {
@@ -216,7 +217,7 @@ func TryRun(commands []CLICommand, args []string) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	mfaPrompt.ProxyAddress = resp.ProxyPublicAddr
+	promptCfg.ProxyAddress = resp.ProxyPublicAddr
 
 	// execute whatever is selected:
 	var match bool

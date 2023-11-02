@@ -27,7 +27,7 @@ import (
 // performMFACeremony retrieves an MFA challenge from the server, prompts the
 // user to answer the challenge, and returns the resulting MFA response.
 func (c *Client) performMFACeremony(ctx context.Context) (*proto.MFAAuthenticateResponse, error) {
-	if c.c.PromptAdminRequestMFA == nil {
+	if c.c.AdminRequestMFAPrompt == nil {
 		return nil, trace.BadParameter("missing PromptAdminRequestMFA field, client cannot perform MFA ceremony")
 	}
 
@@ -38,7 +38,7 @@ func (c *Client) performMFACeremony(ctx context.Context) (*proto.MFAAuthenticate
 		return nil, trace.Wrap(err)
 	}
 
-	resp, err := c.c.PromptAdminRequestMFA(ctx, chal)
+	resp, err := c.c.AdminRequestMFAPrompt.Run(ctx, chal)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

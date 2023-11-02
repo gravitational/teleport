@@ -25,37 +25,29 @@ import (
 	"github.com/gravitational/teleport/lib/client/mfa"
 )
 
-// PromptMFAFunc matches the signature of [mfa.Prompt.Run].
-type PromptMFAFunc func(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error)
-
 // WebauthnLoginFunc matches the signature of [wancli.Login].
 type WebauthnLoginFunc func(ctx context.Context, origin string, assertion *wantypes.CredentialAssertion, prompt wancli.LoginPrompt, opts *wancli.LoginOpts) (*proto.MFAAuthenticateResponse, string, error)
 
 // NewMFAPrompt creates a new MFA prompt from client settings.
-func (tc *TeleportClient) NewMFAPrompt(opts ...mfa.PromptOpt) PromptMFAFunc {
-	prompt := mfa.NewPrompt(tc.WebProxyAddr)
-	prompt.AuthenticatorAttachment = tc.AuthenticatorAttachment
-	prompt.PreferOTP = tc.PreferOTP
-	prompt.AllowStdinHijack = tc.AllowStdinHijack
-
-	if tc.MFAPrompt != nil {
-		prompt.PromptMFA = tc.MFAPrompt
-	}
+func (tc *TeleportClient) NewMFAPrompt(opts ...mfa.PromptOpt) mfa.Prompt {
+	cfg := mfa.DefaultPromptConfig(tc.WebProxyAddr)
+	cfg.AuthenticatorAttachment = tc.AuthenticatorAttachment
+	cfg.PreferOTP = tc.PreferOTP
+	cfg.AllowStdinHijack = tc.AllowStdinHijack
 
 	if tc.WebauthnLogin != nil {
-		prompt.WebauthnLoginFunc = tc.WebauthnLogin
-		prompt.WebauthnSupported = true
+		cfg.WebauthnLoginFunc = tc.WebauthnLogin
+		cfg.WebauthnSupported = true
 	}
 
 	for _, opt := range opts {
-		opt(prompt)
+		opt(cfg)
 	}
 
-	return prompt.Run
-}
+	var prompt mfa.Prompt = mfa.NewCLIPrompt(cfg, tc.Stderr)
+	if tc.MFAPromptConstructor != nil {
+		prompt = tc.MFAPromptConstructor(cfg)
+	}
 
-// PromptMFA prompts for MFA for the given challenge using the clients standard settings.
-// Use [NewMFAPrompt] to create a prompt with customizable settings.
-func (tc *TeleportClient) PromptMFA(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
-	return tc.NewMFAPrompt()(ctx, chal)
+	return prompt
 }

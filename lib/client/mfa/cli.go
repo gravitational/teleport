@@ -28,52 +28,31 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/utils/prompt"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/auth/webauthnwin"
 )
 
 // CLIPrompt is the default CLI mfa prompt.
 type CLIPrompt struct {
+	cfg    PromptConfig
 	writer io.Writer
 }
 
-// NewCLIPrompt returns a new CLI mfa prompt with the given writer.
-func NewCLIPrompt(writer io.Writer) *CLIPrompt {
+// NewCLIPrompt returns a new CLI mfa prompt with the config and writer.
+func NewCLIPrompt(cfg *PromptConfig, writer io.Writer) *CLIPrompt {
 	return &CLIPrompt{
+		cfg:    *cfg,
 		writer: writer,
 	}
 }
 
-// PromptTOTP prompts for TOTP.
-func (c *CLIPrompt) PromptTOTP(ctx context.Context, chal *proto.MFAAuthenticateChallenge, cfg PromptConfig) (*proto.MFAAuthenticateResponse, error) {
-	var msg string
-	if !cfg.Quiet {
-		msg = fmt.Sprintf("Enter an OTP code from a %sdevice", cfg.promptDevicePrefix())
-	}
-
-	otp, err := prompt.Password(ctx, c.writer, prompt.Stdin(), msg)
+// Run prompts the user to complete an MFA authentication challenge.
+func (c *CLIPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
+	runOpts, err := c.cfg.GetRunOptions(ctx, chal)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return &proto.MFAAuthenticateResponse{
-		Response: &proto.MFAAuthenticateResponse_TOTP{
-			TOTP: &proto.TOTPResponse{Code: otp},
-		},
-	}, nil
-}
-
-// PromptWebauthn prompts for Webauthn.
-func (c *CLIPrompt) PromptWebauthn(ctx context.Context, chal *proto.MFAAuthenticateChallenge, cfg PromptConfig) (*proto.MFAAuthenticateResponse, error) {
-	resp, err := cfg.WebauthnLogin(ctx, chal, c.getDefaultWebauthnPrompt(ctx, cfg))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return resp, nil
-}
-
-// PromptWebauthnAndTOTP prompts for Webauthn and TOTP.
-func (c *CLIPrompt) PromptWebauthnAndTOTP(ctx context.Context, chal *proto.MFAAuthenticateChallenge, cfg PromptConfig) (*proto.MFAAuthenticateResponse, error) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	var wg sync.WaitGroup
@@ -95,38 +74,34 @@ func (c *CLIPrompt) PromptWebauthnAndTOTP(ctx context.Context, chal *proto.MFAAu
 	}
 
 	// Fire TOTP goroutine.
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		defer close(otpDone)
+	if runOpts.promptTOTP {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			defer close(otpDone)
 
-		// Let Webauthn take the prompt below.
-		otpCfg := cfg
-		otpCfg.Quiet = true
-
-		resp, err := c.PromptTOTP(otpCtx, chal, otpCfg)
-		respC <- response{kind: "TOTP", resp: resp, err: err}
-	}()
+			// Let Webauthn take the prompt below.
+			resp, err := c.promptTOTP(otpCtx, chal, true /*quiet*/)
+			respC <- response{kind: "TOTP", resp: resp, err: err}
+		}()
+	}
 
 	// Fire Webauthn goroutine.
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	if runOpts.promptWebauthn {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
 
-		prompt := c.getDefaultWebauthnPrompt(ctx, cfg)
-		prompt.FirstTouchMessage = fmt.Sprintf("Tap any %ssecurity key or enter a code from a %sOTP device", cfg.promptDevicePrefix(), cfg.promptDevicePrefix())
+			// get webauthn prompt and wrap with otp context handler.
+			prompt := &webauthnPromptWithOTP{
+				LoginPrompt:      c.getWebauthnPrompt(ctx, runOpts.promptTOTP),
+				otpCancelAndWait: otpCancelAndWait,
+			}
 
-		// Customize Windows prompt directly.
-		// Note that the platform popup is a modal and will only go away if canceled.
-		webauthnwin.PromptPlatformMessage = "Follow the OS dialogs for platform authentication, or enter an OTP code here:"
-		defer webauthnwin.ResetPromptPlatformMessage()
-
-		// wrap webauthn prompt with otp context handler.
-		mfaPrompt := &webauthnPromptWithOTP{LoginPrompt: prompt, otpCancelAndWait: otpCancelAndWait}
-
-		resp, err := cfg.WebauthnLogin(ctx, chal, mfaPrompt)
-		respC <- response{kind: "WEBAUTHN", resp: resp, err: err}
-	}()
+			resp, err := c.promptWebauthn(ctx, chal, prompt)
+			respC <- response{kind: "WEBAUTHN", resp: resp, err: err}
+		}()
+	}
 
 	go func() {
 		wg.Wait()
@@ -138,7 +113,7 @@ func (c *CLIPrompt) PromptWebauthnAndTOTP(ctx context.Context, chal *proto.MFAAu
 		case errors.Is(err, wancli.ErrUsingNonRegisteredDevice):
 			// Surface error immediately.
 		case err != nil:
-			log.WithError(err).Debugf("%s authentication failed", resp.kind)
+			c.cfg.Log.WithError(err).Debugf("%s authentication failed", resp.kind)
 			continue
 		}
 
@@ -152,16 +127,61 @@ func (c *CLIPrompt) PromptWebauthnAndTOTP(ctx context.Context, chal *proto.MFAAu
 	return nil, trace.BadParameter("failed to authenticate using available MFA devices, rerun the command with '-d' to see error details for each device")
 }
 
-func (c *CLIPrompt) getDefaultWebauthnPrompt(ctx context.Context, cfg PromptConfig) *wancli.DefaultPrompt {
+func (c *CLIPrompt) promptTOTP(ctx context.Context, chal *proto.MFAAuthenticateChallenge, quiet bool) (*proto.MFAAuthenticateResponse, error) {
+	var msg string
+	if !quiet {
+		msg = fmt.Sprintf("Enter an OTP code from a %sdevice", c.promptDevicePrefix())
+	}
+
+	otp, err := prompt.Password(ctx, c.writer, prompt.Stdin(), msg)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &proto.MFAAuthenticateResponse{
+		Response: &proto.MFAAuthenticateResponse_TOTP{
+			TOTP: &proto.TOTPResponse{Code: otp},
+		},
+	}, nil
+}
+
+func (c *CLIPrompt) getWebauthnPrompt(ctx context.Context, withTOTP bool) wancli.LoginPrompt {
 	writer := c.writer
-	if cfg.Quiet {
+	if c.cfg.Quiet {
 		writer = io.Discard
 	}
 
 	prompt := wancli.NewDefaultPrompt(ctx, writer)
-	prompt.SecondTouchMessage = fmt.Sprintf("Tap your %ssecurity key to complete login", cfg.promptDevicePrefix())
-	prompt.FirstTouchMessage = fmt.Sprintf("Tap any %ssecurity key", cfg.promptDevicePrefix())
+	prompt.SecondTouchMessage = fmt.Sprintf("Tap your %ssecurity key to complete login", c.promptDevicePrefix())
+	prompt.FirstTouchMessage = fmt.Sprintf("Tap any %ssecurity key", c.promptDevicePrefix())
+
+	if withTOTP {
+		prompt.FirstTouchMessage = fmt.Sprintf("Tap any %ssecurity key or enter a code from a %sOTP device", c.promptDevicePrefix(), c.promptDevicePrefix())
+
+		// Customize Windows prompt directly.
+		// Note that the platform popup is a modal and will only go away if canceled.
+		webauthnwin.PromptPlatformMessage = "Follow the OS dialogs for platform authentication, or enter an OTP code here:"
+		defer webauthnwin.ResetPromptPlatformMessage()
+	}
+
 	return prompt
+}
+
+func (c *CLIPrompt) promptWebauthn(ctx context.Context, chal *proto.MFAAuthenticateChallenge, prompt wancli.LoginPrompt) (*proto.MFAAuthenticateResponse, error) {
+	opts := &wancli.LoginOpts{AuthenticatorAttachment: c.cfg.AuthenticatorAttachment}
+	resp, _, err := c.cfg.WebauthnLoginFunc(ctx, c.cfg.getWebauthnOrigin(), wantypes.CredentialAssertionFromProto(chal.WebauthnChallenge), prompt, opts)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return resp, nil
+}
+
+func (c *CLIPrompt) promptDevicePrefix() string {
+	if c.cfg.DeviceType != "" {
+		return fmt.Sprintf("*%s* ", c.cfg.DeviceType)
+	}
+	return ""
 }
 
 // webauthnPromptWithOTP implements wancli.LoginPrompt for MFA logins.

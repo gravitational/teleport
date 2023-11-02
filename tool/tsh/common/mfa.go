@@ -349,7 +349,7 @@ func (c *mfaAddCommand) addDeviceRPC(ctx context.Context, tc *client.TeleportCli
 
 		// Prompt for authentication.
 		// Does nothing if no challenges were issued (aka user has no devices).
-		authnResp, err := tc.NewMFAPrompt(mfa.WithPromptDeviceType(mfa.DeviceDescriptorRegistered))(ctx, authChallenge)
+		authnResp, err := tc.NewMFAPrompt(mfa.WithPromptDeviceType(mfa.DeviceDescriptorRegistered)).Run(ctx, authChallenge)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -599,7 +599,7 @@ func (c *mfaRemoveCommand) run(cf *CLIConf) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		authnSolved, err := tc.PromptMFA(ctx, authnChal)
+		authnSolved, err := tc.NewMFAPrompt().Run(ctx, authnChal)
 		if err != nil {
 			return trace.Wrap(err)
 		}
