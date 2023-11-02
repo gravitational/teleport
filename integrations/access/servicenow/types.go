@@ -104,6 +104,7 @@ type onCallResult struct {
 type userResult struct {
 	Result struct {
 		// UserName is the username in servicenow of the requested user.
+		// username chosen over email as identifier as it is guaranteed to be set.
 		UserName string `json:"user_name"`
 	} `json:"result"`
 }
