@@ -108,7 +108,9 @@ By examining the acknowledgements in the data frames it's possible to gain sligh
 
 It's possible to fill the replay buffer on the remote side of a resumable connection just by not acknowledging any received data; such memory consumption can only be achieved by tricking the remote side into sending the data (which is not very realistic pre-SSH authentication, but should be kept in mind if this ends up being used to resume other protocols), and can only really last until some timeout that closes the connection anyway. As a big replay buffer is only required for throughput, it's also possible to limit the buffer size until the SSH handshake is successful.
 
-The connection limit for a given source address should be reduced upon receiving a connection but should not be increased again until the connection is properly cleaned up by the server or until a new underlying connection replaces the old one. This should be documented, as it might cause issues if connection limits are deliberately kept very low and some connection ends up being lost or not terminated correctly.
+All connection limits must be enforced on either the resumable connection or its at-most-one underlying connection, depending on the type of limit - anything involving users or sessions involves SSH and should thus be enforced on the resumable connection, for instance. The connection limit for a given source address takes some care: it should be possible for a new underlying connection to replace an existing underlying connection (or to attach to a resumable connection with no underlying connection but whose last underlying connection was from the same source address) without incurring additional limitations, to support resumption in scenarios in which connection limits are deliberately kept really low.
+
+Additional limits should be considered for connections that are yet to attach to a resumable connection and that are yet to complete authentication as a regular SSH connection.
 
 ## Future development
 
