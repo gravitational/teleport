@@ -1,4 +1,5 @@
 import api from 'teleport/services/api';
+import { User } from 'teleport/services/user/types';
 
 import cfg from 'e-teleport/config';
 
@@ -15,6 +16,7 @@ import {
   UpdateEmailRequest,
   UpdatePurchaseOrderRequest,
   NonBillableSummaryInformation,
+  SendTeleportInvite,
 } from './types';
 
 class CloudService {
@@ -76,6 +78,10 @@ class CloudService {
 
   cancelSubscription() {
     return api.delete(cfg.api.billingPath);
+  }
+
+  sendTeleportInvite(req: SendTeleportInvite): Promise<User[]> {
+    return api.post(cfg.api.teleportInvitePath, req);
   }
 }
 

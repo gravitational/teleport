@@ -75,6 +75,7 @@ const cfg = {
     paymentsInvoicesPath: '/v1/enterprise/cloud/payments-invoices',
     poPath: '/v1/enterprise/cloud/billing-po',
     setupIntentPath: '/v1/enterprise/cloud/setupintent',
+    teleportInvitePath: '/v1/enterprise/cloud/teleportinvite',
 
     recoveryStartPath: '/v1/enterprise/cloud/recovery/start',
     recoveryVerifyUserPath: '/v1/enterprise/cloud/recovery/verify',

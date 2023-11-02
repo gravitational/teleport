@@ -49,3 +49,8 @@ export type NonBillableSummaryInformation = {
     monthlyUsed: number;
   };
 };
+
+export type SendTeleportInvite = {
+  recipients: Array<string>;
+  roles: Array<string>;
+};

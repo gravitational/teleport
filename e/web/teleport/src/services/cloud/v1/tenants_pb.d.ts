@@ -1019,6 +1019,30 @@ export namespace SetSurveyResultsRequest {
   }
 }
 
+export class SendTeleportInviteRequest extends jspb.Message {
+  getRecipient(): string;
+  setRecipient(value: string): void;
+
+  getInviteUrl(): string;
+  setInviteUrl(value: string): void;
+
+  serializeBinary(): Uint8Array;
+  toObject(includeInstance?: boolean): SendTeleportInviteRequest.AsObject;
+  static toObject(includeInstance: boolean, msg: SendTeleportInviteRequest): SendTeleportInviteRequest.AsObject;
+  static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+  static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+  static serializeBinaryToWriter(message: SendTeleportInviteRequest, writer: jspb.BinaryWriter): void;
+  static deserializeBinary(bytes: Uint8Array): SendTeleportInviteRequest;
+  static deserializeBinaryFromReader(message: SendTeleportInviteRequest, reader: jspb.BinaryReader): SendTeleportInviteRequest;
+}
+
+export namespace SendTeleportInviteRequest {
+  export type AsObject = {
+    recipient: string,
+    inviteUrl: string,
+  }
+}
+
 export class EmptyResponse extends jspb.Message {
   serializeBinary(): Uint8Array;
   toObject(includeInstance?: boolean): EmptyResponse.AsObject;

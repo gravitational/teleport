@@ -243,6 +243,8 @@ func (p *Plugin) RegisterProxyWebHandlers(handler interface{}) error {
 		h.GET("/enterprise/cloud/survey/company", p.withCloud(p.surveyCompanyResponsesHandler))
 		// surveyResultsHandler sends survey responses to sales center for persistence
 		h.POST("/enterprise/cloud/survey", p.withCloudAuth(p.surveyResultsHandler))
+
+		h.POST("/enterprise/cloud/teleportinvite", p.withCloudAuth(p.sendTeleportInviteHandle))
 	}
 
 	// Recovery related endpoints.

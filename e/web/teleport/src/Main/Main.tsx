@@ -1,4 +1,4 @@
-import React, { ReactNode, useMemo } from 'react';
+import React, { ReactNode, useMemo, useState, useEffect } from 'react';
 
 import { Main } from 'teleport/Main/Main';
 
@@ -6,6 +6,7 @@ import localStorage from 'teleport/services/localStorage';
 
 import { useBanner } from 'e-teleport/Banner/useBanner';
 import useTeleport from 'e-teleport/useTeleportE';
+import TeleportEContext from 'e-teleport/teleportContextE';
 import SwitchBack from 'e-teleport/Banner/Switchback';
 import { getEnterpriseFeatures } from 'e-teleport/features';
 import cfg from 'e-teleport/config';
@@ -13,6 +14,15 @@ import { StripeLoader } from 'e-teleport/Billing/StripeLoader/StripeLoader';
 import { BillingInformation } from 'e-teleport/services/cloud';
 import { UsageBasedUpgrade } from 'e-teleport/Banner/UsageBasedUpgrade/UsageBasedUpgrade';
 import { Questionnaire } from 'e-teleport/Welcome/Questionnaire/Questionnaire';
+import {
+  Notifications,
+  NotificationEntry,
+  NotificationItem,
+} from 'e-teleport/InviteCollaborators/Notifications';
+import {
+  createErrorNotification,
+  createSuccessNotification,
+} from 'e-teleport/InviteCollaborators/common';
 
 import { BblpLogo } from './bblpLogo';
 
@@ -81,6 +91,19 @@ export function MainE() {
     bblp: BblpLogo,
   };
 
+  const [inviteNotificationCount, setInviteNotificationCount] =
+    useState<number>(0);
+  const [inviteNotifications, setInviteNotifications] = useState<
+    NotificationItem[]
+  >([]);
+  const inviteCollaboratorsFeedback = InviteCollaboratorsFeedback({
+    ctx,
+    notifications: inviteNotifications,
+    setNotifications: setInviteNotifications,
+    notificationCount: inviteNotificationCount,
+    setNotificationCount: setInviteNotificationCount,
+  });
+
   return (
     <Main
       features={getEnterpriseFeatures()}
@@ -88,6 +111,7 @@ export function MainE() {
       customBanners={customBanners}
       billingBanners={billingBanners}
       Questionnaire={questionnaire}
+      inviteCollaboratorsFeedback={inviteCollaboratorsFeedback}
       navigationProps={
         cfg.oss.customTheme && {
           CustomLogo: CustomLogos[cfg.oss.customTheme],
@@ -96,6 +120,55 @@ export function MainE() {
       }
     />
   );
+}
+
+type InviteCollaboratorsFeedbackProps = {
+  ctx: TeleportEContext;
+  notifications: NotificationItem[];
+  setNotifications: (
+    notifications: React.SetStateAction<NotificationItem[]>
+  ) => void;
+  notificationCount: number;
+  setNotificationCount: (
+    notificationCount: React.SetStateAction<number>
+  ) => void;
+};
+
+function InviteCollaboratorsFeedback({
+  ctx,
+  notifications,
+  setNotifications,
+  notificationCount,
+  setNotificationCount,
+}: InviteCollaboratorsFeedbackProps): React.ReactElement {
+  function addNotification(item: NotificationEntry) {
+    setNotifications([
+      {
+        ...item,
+        id: notificationCount.toString(),
+        dismissAfterMs: item.dismissAfterMs,
+      },
+      ...notifications,
+    ]);
+    setNotificationCount(notificationCount + 1);
+  }
+
+  function dismissNotification(id: string) {
+    setNotifications(notifications.filter(i => i.id != id));
+  }
+
+  useEffect(() => {
+    const userInvites = localStorage.getCloudUserInvites();
+    if (userInvites) {
+      ctx.cloudService
+        .sendTeleportInvite(userInvites)
+        .then(() => addNotification(createSuccessNotification(userInvites)))
+        .catch(err => addNotification(createErrorNotification(err)))
+        .finally(() => localStorage.clearCloudUserInvites());
+    }
+  }, []);
+
+  return <Notifications items={notifications} dismiss={dismissNotification} />;
 }
 
 // SurveyUnanswered checks both the user preferences and the survey

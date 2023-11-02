@@ -60,6 +60,12 @@ const AccessListManagement = lazy(
 );
 const AccessMonitoring = lazy(() => import('e-teleport/AccessMonitoring'));
 
+const Users = lazy(() => import('teleport/Users'));
+
+const InviteCollaboratorsDialog = lazy(
+  () => import('e-teleport/InviteCollaborators')
+);
+
 // ****************************
 // Resource Features
 // ****************************
@@ -390,6 +396,17 @@ class FeatureHelpAndSupport extends OSS.FeatureHelpAndSupport {
   };
 }
 
+class FeatureUsersE extends OSS.FeatureUsers {
+  route = {
+    ...super.getRoute(),
+    component: () => (
+      <Users
+        InviteCollaborators={cfg.oss.isCloud ? InviteCollaboratorsDialog : null}
+      />
+    ),
+  };
+}
+
 export function getEnterpriseFeatures(): TeleportFeature[] {
   return [
     // Resources
@@ -411,7 +428,7 @@ export function getEnterpriseFeatures(): TeleportFeature[] {
     // Management
 
     // - Access
-    new OSS.FeatureUsers(),
+    new FeatureUsersE(),
     new OSS.FeatureRoles(),
     new FeatureAuthConnectors(),
     new FeatureIntegrations(),

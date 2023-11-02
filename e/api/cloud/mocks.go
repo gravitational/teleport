@@ -54,6 +54,8 @@ type MockedClient struct {
 	MockGetSurveyCompany func(ctx context.Context, in *v1.EmptyRequest, opts ...grpc.CallOption) (*v1.SurveyCompanyResponse, error)
 	// MockSetSurveyResults updates the account object with onboarding survey results
 	MockSetSurveyResults func(ctx context.Context, in *v1.SetSurveyResultsRequest, opts ...grpc.CallOption) (*v1.EmptyResponse, error)
+	// MockSendTeleportInvite sends a Teleport invite to a new user in an existing cluster
+	MockSendTeleportInvite func(ctx context.Context, req *v1.SendTeleportInviteRequest) (*v1.EmptyResponse, error)
 }
 
 func (m *MockedClient) SubmitUsageReports(ctx context.Context, in *v1.SubmitUsageReportsRequest, opts ...grpc.CallOption) (*v1.EmptyResponse, error) {
@@ -222,4 +224,12 @@ func (m *MockedClient) SetSurveyResults(ctx context.Context, in *v1.SetSurveyRes
 	}
 
 	return nil, trace.NotImplemented("SetSurveyResults is not implemented")
+}
+
+func (m *MockedClient) SendTeleportInvite(ctx context.Context, req *v1.SendTeleportInviteRequest, _ ...grpc.CallOption) (*v1.EmptyResponse, error) {
+	if m.MockSendTeleportInvite != nil {
+		return m.MockSendTeleportInvite(ctx, req)
+	}
+
+	return nil, trace.NotImplemented("SendTeleportInvite is not implemented")
 }

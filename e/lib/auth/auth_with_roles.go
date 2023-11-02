@@ -337,6 +337,29 @@ func (ac *cloudWithRoles) UpdatePurchaseOrderPrefix(ctx context.Context, req *v1
 	return res, nil
 }
 
+// SendTeleportInvite emails a cluster invitation link to a user via the Cloud
+// API.
+func (ac *cloudWithRoles) SendTeleportInvite(ctx context.Context, req *v1.SendTeleportInviteRequest) (*v1.EmptyResponse, error) {
+	// Note: we want to inherit the permissions of the normal CreateUser() +
+	// CreateResetPasswordToken() flow
+	err := ac.action(ctx, apidefaults.Namespace, types.KindUser, types.VerbCreate)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	err = ac.action(ctx, apidefaults.Namespace, types.KindUser, types.VerbUpdate)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	res, err := ac.plugin.cloudClient.SendTeleportInvite(ctx, req)
+	if err != nil {
+		ac.plugin.authServer.WithError(err).Warnf("SendTeleportInvite failed")
+		return nil, trace.Wrap(err)
+	}
+
+	return res, nil
+}
+
 func (ac *cloudWithRoles) action(ctx context.Context, namespace, resource, action string) error {
 	if ac.plugin.cloudClient == nil {
 		return trace.AccessDenied("cloud features are disabled")
