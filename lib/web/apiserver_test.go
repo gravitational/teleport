@@ -4526,9 +4526,20 @@ func TestGetWebConfig(t *testing.T) {
 	}
 	env.proxies[0].handler.handler.cfg.ProxySettings = mockProxySetting
 
+	httpTestServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, r.URL.Path, "/v1/stable/cloud/version")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("v99.0.1"))
+	}))
+	defer httpTestServer.Close()
+	versionURL, err := url.JoinPath(httpTestServer.URL, "/v1/stable/cloud/version")
+	require.NoError(t, err)
+	env.proxies[0].handler.handler.cfg.AutomaticUpgradesVersionURL = versionURL
+
 	expectedCfg.IsCloud = true
 	expectedCfg.IsUsageBasedBilling = true
 	expectedCfg.AutomaticUpgrades = true
+	expectedCfg.AutomaticUpgradesTargetVersion = "v99.0.1"
 	expectedCfg.AssistEnabled = true
 
 	// request and verify enabled features are enabled.
