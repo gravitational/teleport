@@ -127,9 +127,9 @@ func (o *IdentityOutput) Describe() []FileDescription {
 	return fds
 }
 
-func (o IdentityOutput) MarshalYAML() (interface{}, error) {
+func (o *IdentityOutput) MarshalYAML() (interface{}, error) {
 	type raw IdentityOutput
-	return withTypeHeader(raw(o), IdentityOutputType)
+	return withTypeHeader((*raw)(o), IdentityOutputType)
 }
 
 func (o *IdentityOutput) UnmarshalYAML(node *yaml.Node) error {
