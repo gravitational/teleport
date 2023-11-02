@@ -7809,12 +7809,13 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 	t.Cleanup(sshGRPCServer.Stop)
 
 	connMonitor, err := srv.NewConnectionMonitor(srv.ConnectionMonitorConfig{
-		AccessPoint: client,
-		LockWatcher: proxyLockWatcher,
-		Clock:       clock,
-		ServerID:    proxyID,
-		Emitter:     client,
-		Logger:      log,
+		AccessPoint:    client,
+		LockWatcher:    proxyLockWatcher,
+		Clock:          clock,
+		ServerID:       proxyID,
+		Emitter:        client,
+		EmitterContext: ctx,
+		Logger:         log,
 	})
 	require.NoError(t, err)
 

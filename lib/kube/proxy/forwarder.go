@@ -2216,6 +2216,7 @@ func (s *clusterSession) monitorConn(conn net.Conn, err error) (net.Conn, error)
 		ServerID:              s.parent.cfg.HostID,
 		Entry:                 s.parent.log,
 		Emitter:               s.parent.cfg.AuthClient,
+		EmitterContext:        s.parent.ctx,
 	})
 	if err != nil {
 		tc.CloseWithCause(err)

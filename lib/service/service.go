@@ -4287,12 +4287,13 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	)
 
 	connMonitor, err := srv.NewConnectionMonitor(srv.ConnectionMonitorConfig{
-		AccessPoint: accessPoint,
-		LockWatcher: lockWatcher,
-		Clock:       process.Clock,
-		ServerID:    serverID,
-		Emitter:     asyncEmitter,
-		Logger:      process.log,
+		AccessPoint:    accessPoint,
+		LockWatcher:    lockWatcher,
+		Clock:          process.Clock,
+		ServerID:       serverID,
+		Emitter:        asyncEmitter,
+		EmitterContext: process.ExitContext(),
+		Logger:         process.log,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -5340,6 +5341,7 @@ func (process *TeleportProcess) initApps() {
 			Clock:               process.Config.Clock,
 			ServerID:            process.Config.HostUUID,
 			Emitter:             asyncEmitter,
+			EmitterContext:      process.ExitContext(),
 			Logger:              process.log,
 			MonitorCloseChannel: process.Config.Apps.MonitorCloseChannel,
 		})

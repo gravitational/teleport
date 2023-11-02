@@ -2193,12 +2193,13 @@ func setupTestContext(ctx context.Context, t testing.TB, withDatabases ...withDa
 	testCtx.emitter = eventstest.NewChannelEmitter(100)
 
 	connMonitor, err := srv.NewConnectionMonitor(srv.ConnectionMonitorConfig{
-		AccessPoint: proxyAuthClient,
-		LockWatcher: proxyLockWatcher,
-		Clock:       testCtx.clock,
-		ServerID:    testCtx.hostID,
-		Emitter:     testCtx.emitter,
-		Logger:      utils.NewLoggerForTests(),
+		AccessPoint:    proxyAuthClient,
+		LockWatcher:    proxyLockWatcher,
+		Clock:          testCtx.clock,
+		ServerID:       testCtx.hostID,
+		Emitter:        testCtx.emitter,
+		EmitterContext: ctx,
+		Logger:         utils.NewLoggerForTests(),
 	})
 	require.NoError(t, err)
 
@@ -2337,12 +2338,13 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t testing.TB, p a
 	require.NoError(t, err)
 
 	connMonitor, err := srv.NewConnectionMonitor(srv.ConnectionMonitorConfig{
-		AccessPoint: c.authClient,
-		LockWatcher: lockWatcher,
-		Clock:       c.clock,
-		ServerID:    p.HostID,
-		Emitter:     c.emitter,
-		Logger:      utils.NewLoggerForTests(),
+		AccessPoint:    c.authClient,
+		LockWatcher:    lockWatcher,
+		Clock:          c.clock,
+		ServerID:       p.HostID,
+		Emitter:        c.emitter,
+		EmitterContext: context.Background(),
+		Logger:         utils.NewLoggerForTests(),
 	})
 	require.NoError(t, err)
 

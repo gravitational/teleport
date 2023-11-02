@@ -42,15 +42,16 @@ func newTestMonitor(ctx context.Context, t *testing.T, asrv *auth.TestAuthServer
 	conn := &mockTrackingConn{closedC: make(chan struct{})}
 	emitter := eventstest.NewChannelEmitter(1)
 	cfg := MonitorConfig{
-		Context:     ctx,
-		Conn:        conn,
-		Emitter:     emitter,
-		Clock:       asrv.Clock(),
-		Tracker:     &mockActivityTracker{asrv.Clock()},
-		Entry:       logrus.StandardLogger(),
-		LockWatcher: asrv.LockWatcher,
-		LockTargets: []types.LockTarget{{User: "test-user"}},
-		LockingMode: constants.LockingModeBestEffort,
+		Context:        ctx,
+		Conn:           conn,
+		Emitter:        emitter,
+		EmitterContext: context.Background(),
+		Clock:          asrv.Clock(),
+		Tracker:        &mockActivityTracker{asrv.Clock()},
+		Entry:          logrus.StandardLogger(),
+		LockWatcher:    asrv.LockWatcher,
+		LockTargets:    []types.LockTarget{{User: "test-user"}},
+		LockingMode:    constants.LockingModeBestEffort,
 	}
 	for _, f := range mut {
 		f(&cfg)
@@ -75,12 +76,13 @@ func TestConnectionMonitorLockInForce(t *testing.T) {
 	// Auth server.
 	emitter := eventstest.NewChannelEmitter(1)
 	monitor, err := NewConnectionMonitor(ConnectionMonitorConfig{
-		AccessPoint: asrv.AuthServer,
-		Emitter:     emitter,
-		Clock:       asrv.Clock(),
-		Logger:      logrus.StandardLogger(),
-		LockWatcher: asrv.LockWatcher,
-		ServerID:    "test",
+		AccessPoint:    asrv.AuthServer,
+		Emitter:        emitter,
+		EmitterContext: ctx,
+		Clock:          asrv.Clock(),
+		Logger:         logrus.StandardLogger(),
+		LockWatcher:    asrv.LockWatcher,
+		ServerID:       "test",
 	})
 	require.NoError(t, err)
 
