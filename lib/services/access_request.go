@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/accesslist"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -377,9 +378,20 @@ func ValidateAccessPredicates(role types.Role) error {
 }
 
 // ApplyAccessReview attempts to apply the specified access review to the specified request.
-func ApplyAccessReview(req types.AccessRequest, rev types.AccessReview, author UserState) error {
+func ApplyAccessReview(req types.AccessRequest, rev types.AccessReview, author UserState, canReview CanReviewRequestResponse) error {
 	if rev.Author != author.GetName() {
 		return trace.BadParameter("mismatched review author (expected %q, got %q)", rev.Author, author)
+	}
+
+	switch canReview {
+	case CantReview:
+		return trace.BadParameter("review is not allowed by %s for access request %s", author.GetName(), req.GetName())
+	case CanOnlyPromote:
+		if rev.ProposedState != types.RequestState_PROMOTED {
+			return trace.BadParameter("user %s can only promote access request %s", author.GetName(), req.GetName())
+		}
+	case CanReviewUnknown:
+		return trace.BadParameter("can review state unknown")
 	}
 
 	// role lists must be deduplicated and sorted
@@ -726,6 +738,7 @@ type RequestValidatorGetter interface {
 	UserGetter
 	RoleGetter
 	client.ListResourcesClient
+	AccessListsGetter
 	GetRoles(ctx context.Context) ([]types.Role, error)
 	GetClusterName(opts ...MarshalOption) (types.ClusterName, error)
 }
@@ -785,6 +798,7 @@ type ReviewPermissionChecker struct {
 		// constraining predicate (where) expression.
 		AllowReview, DenyReview map[string][]parse.Matcher
 	}
+	AccessListsToGrants map[string]map[string]struct{}
 }
 
 // HasAllowDirectives checks if any allow directives exist.  A user with
@@ -798,17 +812,34 @@ func (c *ReviewPermissionChecker) HasAllowDirectives() bool {
 	return false
 }
 
+// CanReviewRequestResponse is the response to the can review request.
+type CanReviewRequestResponse int
+
+const (
+	// CanReviewUnknown is the unknown state. This is only really used for testing.
+	CanReviewUnknown CanReviewRequestResponse = iota
+
+	// CantReview asserts that a user cannot review an access request.
+	CantReview
+
+	// CanReview asserts that a user can review an access request.
+	CanReview
+
+	// CanOnlyPromote that a user can only promote an access request.
+	CanOnlyPromote
+)
+
 // CanReviewRequest checks if the user is allowed to review the specified request.
 // note that the ability to review a request does not necessarily imply that any specific
 // approval/denial thresholds will actually match the user's review.  Matching one or more
 // thresholds is not a pre-requisite for review submission.
-func (c *ReviewPermissionChecker) CanReviewRequest(req types.AccessRequest) (bool, error) {
+func (c *ReviewPermissionChecker) CanReviewRequest(req types.AccessRequest) (CanReviewRequestResponse, error) {
 	// TODO(fspmarshall): Refactor this to improve readability when
 	// adding role subselection support.
 
 	// user cannot review their own request
 	if c.UserState.GetName() == req.GetUser() {
-		return false, nil
+		return CantReview, nil
 	}
 
 	// method allocates new array if an override has already been
@@ -827,7 +858,7 @@ func (c *ReviewPermissionChecker) CanReviewRequest(req types.AccessRequest) (boo
 		},
 	})
 	if err != nil {
-		return false, trace.Wrap(err)
+		return CantReview, trace.Wrap(err)
 	}
 
 	// check all denial rules first.
@@ -836,7 +867,7 @@ func (c *ReviewPermissionChecker) CanReviewRequest(req types.AccessRequest) (boo
 		if expr != "" {
 			match, err := parser.EvalBoolPredicate(expr)
 			if err != nil {
-				return false, trace.Wrap(err)
+				return CantReview, trace.Wrap(err)
 			}
 			if !match {
 				continue
@@ -847,7 +878,7 @@ func (c *ReviewPermissionChecker) CanReviewRequest(req types.AccessRequest) (boo
 			for _, deny := range denyMatchers {
 				if deny.Match(role) {
 					// short-circuit on first denial
-					return false, nil
+					return CantReview, nil
 				}
 			}
 		}
@@ -859,13 +890,32 @@ func (c *ReviewPermissionChecker) CanReviewRequest(req types.AccessRequest) (boo
 	needsAllow := make([]string, len(requestedRoles))
 	copy(needsAllow, requestedRoles)
 
+	// Users are allowed to promote a request if the user can grant all of the roles requested
+	canPromote := false
+	for _, grantedRoles := range c.AccessListsToGrants {
+		needsGrant := make([]string, len(requestedRoles))
+		copy(needsGrant, requestedRoles)
+		for _, role := range needsGrant {
+			if _, ok := grantedRoles[role]; ok {
+				// Trim off the matched needs grant.
+				needsGrant = needsGrant[1:]
+			}
+		}
+
+		// If there are no other needsGrant roles left, this user can review/promote.
+		if len(needsGrant) == 0 {
+			canPromote = true
+			break
+		}
+	}
+
 Outer:
 	for expr, allowMatchers := range c.Roles.AllowReview {
 		// if predicate is non-empty, it must match.
 		if expr != "" {
 			match, err := parser.EvalBoolPredicate(expr)
 			if err != nil {
-				return false, trace.Wrap(err)
+				return CantReview, trace.Wrap(err)
 			}
 			if !match {
 				continue Outer
@@ -899,7 +949,15 @@ Outer:
 		}
 	}
 
-	return len(needsAllow) == 0, nil
+	if len(needsAllow) == 0 {
+		return CanReview, nil
+	}
+
+	if canPromote {
+		return CanOnlyPromote, nil
+	}
+
+	return CantReview, nil
 }
 
 type userStateRoleOverride struct {
@@ -920,6 +978,37 @@ func NewReviewPermissionChecker(
 	uls, err := GetUserOrLoginState(ctx, getter, username)
 	if err != nil {
 		return ReviewPermissionChecker{}, trace.Wrap(err)
+	}
+
+	// Additional roles that may need to be added to the user login state
+	rolesFromAccessLists := map[string]map[string]struct{}{}
+
+	// Add in roles that that are granted by the access lists that the user owns.
+	var nextToken string
+	for {
+		var accessLists []*accesslist.AccessList
+		var err error
+		accessLists, nextToken, err = getter.ListAccessLists(ctx, 0, nextToken)
+		if err != nil {
+			return ReviewPermissionChecker{}, trace.Wrap(err)
+		}
+
+		for _, accessList := range accessLists {
+			if err := IsAccessListOwner(tlsca.Identity{
+				Username: uls.GetName(),
+				Groups:   uls.GetRoles(),
+				Traits:   uls.GetTraits(),
+			}, accessList); err == nil {
+				rolesFromAccessLists[accessList.GetName()] = map[string]struct{}{}
+				for _, role := range accessList.GetGrants().Roles {
+					rolesFromAccessLists[accessList.GetName()][role] = struct{}{}
+				}
+			}
+		}
+
+		if nextToken == "" {
+			break
+		}
 	}
 
 	// By default, the users freshly fetched roles are used rather than the
@@ -965,7 +1054,8 @@ func NewReviewPermissionChecker(
 	}
 
 	c := ReviewPermissionChecker{
-		UserState: uls,
+		UserState:           uls,
+		AccessListsToGrants: rolesFromAccessLists,
 	}
 
 	c.Roles.AllowReview = make(map[string][]parse.Matcher)

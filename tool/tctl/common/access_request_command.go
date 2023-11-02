@@ -279,9 +279,11 @@ func (c *AccessRequestCommand) Create(ctx context.Context, client auth.ClientI) 
 		users := &struct {
 			auth.ClientI
 			services.UserLoginStatesGetter
+			services.AccessLists
 		}{
 			ClientI:               client,
 			UserLoginStatesGetter: client.UserLoginStateClient(),
+			AccessLists:           client.AccessListClient(),
 		}
 		err = services.ValidateAccessRequestForUser(ctx, clockwork.NewRealClock(), users, req, tlsca.Identity{}, services.ExpandVars(true))
 		if err != nil {

@@ -163,7 +163,8 @@ func (s *DynamicAccessService) ApplyAccessReview(ctx context.Context, params typ
 		}
 
 		// verify review permissions against request details
-		if ok, err := checker.CanReviewRequest(req); err != nil || !ok {
+		canReview, err := checker.CanReviewRequest(req)
+		if canReview == services.CantReview {
 			if err == nil {
 				err = trace.AccessDenied("user %q cannot review request %q", params.Review.Author, params.RequestID)
 			}
@@ -171,7 +172,7 @@ func (s *DynamicAccessService) ApplyAccessReview(ctx context.Context, params typ
 		}
 
 		// run the application logic
-		if err := services.ApplyAccessReview(req, params.Review, checker.UserState); err != nil {
+		if err := services.ApplyAccessReview(req, params.Review, checker.UserState, canReview); err != nil {
 			return nil, trace.Wrap(err)
 		}
 

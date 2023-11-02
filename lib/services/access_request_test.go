@@ -30,6 +30,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/types/userloginstate"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -39,15 +40,17 @@ import (
 
 // mockGetter mocks the UserAndRoleGetter interface.
 type mockGetter struct {
-	userStates  map[string]*userloginstate.UserLoginState
-	users       map[string]types.User
-	roles       map[string]types.Role
-	nodes       map[string]types.Server
-	kubeServers map[string]types.KubeServer
-	dbServers   map[string]types.DatabaseServer
-	appServers  map[string]types.AppServer
-	desktops    map[string]types.WindowsDesktop
-	clusterName string
+	userStates        map[string]*userloginstate.UserLoginState
+	users             map[string]types.User
+	roles             map[string]types.Role
+	nodes             map[string]types.Server
+	kubeServers       map[string]types.KubeServer
+	dbServers         map[string]types.DatabaseServer
+	appServers        map[string]types.AppServer
+	desktops          map[string]types.WindowsDesktop
+	accessLists       map[string]*accesslist.AccessList
+	accessListMembers map[string]map[string]*accesslist.AccessListMember
+	clusterName       string
 }
 
 // user inserts a new user with the specified roles and returns the username.
@@ -144,6 +147,71 @@ func (m *mockGetter) GetClusterName(opts ...MarshalOption) (types.ClusterName, e
 	})
 }
 
+func (m *mockGetter) GetAccessLists(context.Context) ([]*accesslist.AccessList, error) {
+	accessLists := make([]*accesslist.AccessList, 0, len(m.accessLists))
+	for _, accessList := range m.accessLists {
+		accessLists = append(accessLists, accessList)
+	}
+	return accessLists, nil
+}
+
+func (m *mockGetter) ListAccessLists(ctx context.Context, _ int, _ string) ([]*accesslist.AccessList, string, error) {
+	accessLists, err := m.GetAccessLists(ctx)
+	return accessLists, "", err
+}
+
+func (m *mockGetter) GetAccessList(_ context.Context, name string) (*accesslist.AccessList, error) {
+	accessList, ok := m.accessLists[name]
+	if !ok {
+		return nil, trace.NotFound("access list %q not found", name)
+	}
+	return accessList, nil
+}
+
+func (m *mockGetter) GetAccessListsToReview(context.Context) ([]*accesslist.AccessList, error) {
+	return nil, nil
+}
+
+// ListAccessListMembers returns a paginated list of all access list members.
+func (m *mockGetter) ListAccessListMembers(ctx context.Context, accessList string, _ int, _ string) ([]*accesslist.AccessListMember, string, error) {
+	_, err := m.GetAccessList(ctx, accessList)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	memberMap := m.accessListMembers[accessList]
+	if len(memberMap) == 0 {
+		return nil, "", nil
+	}
+
+	members := make([]*accesslist.AccessListMember, 0, len(memberMap))
+	for _, member := range memberMap {
+		members = append(members, member)
+	}
+
+	return members, "", nil
+}
+
+// GetAccessListMember returns the specified access list member resource.
+func (m *mockGetter) GetAccessListMember(ctx context.Context, accessList string, memberName string) (*accesslist.AccessListMember, error) {
+	_, err := m.GetAccessList(ctx, accessList)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	memberMap := m.accessListMembers[accessList]
+	var member *accesslist.AccessListMember
+	if len(memberMap) > 0 {
+		member = memberMap[memberName]
+	}
+
+	if member == nil {
+		return nil, trace.NotFound("access list %q member %q not found", accessList, memberName)
+	}
+
+	return member, nil
+}
+
 // TestReviewThresholds tests various review threshold scenarios
 func TestReviewThresholds(t *testing.T) {
 	ctx := context.Background()
@@ -153,6 +221,10 @@ func TestReviewThresholds(t *testing.T) {
 	roleDesc := map[string]types.RoleConditions{
 		// dictator is the role that will be requested
 		"dictator": {
+			// ...
+		},
+		// president is a role that will be requested
+		"president": {
 			// ...
 		},
 		// populists can achieve dictatorship via uprising or consensus, but only
@@ -227,7 +299,7 @@ func TestReviewThresholds(t *testing.T) {
 		"proletariat": {
 			ReviewRequests: &types.AccessReviewConditions{
 				Roles: []string{"dictator"},
-				Where: `contains(request.system_annotations["mechanisms"],"uprising")`,
+				Where: `contains(request.system_annotations["mechanism"],"uprising")`,
 			},
 		},
 		// the intelligentsia can put dictators into power via consensus
@@ -241,11 +313,39 @@ func TestReviewThresholds(t *testing.T) {
 		"military": {
 			ReviewRequests: &types.AccessReviewConditions{
 				Roles: []string{"dictator"},
-				Where: `contains(request.system_annotations["mechanisms"],"coup") || contains(request.system_annotations["mechanism"],"treachery")`,
+				Where: `contains(request.system_annotations["mechanism"],"coup") || contains(request.system_annotations["mechanism"],"treachery")`,
+			},
+		},
+		// a private can become a general through a promotion
+		"private": {
+			Request: &types.AccessRequestConditions{
+				Roles: []string{"general"},
+				Annotations: map[string][]string{
+					"mechanism": {"promotion"},
+				},
+				// no explicit thresholds defaults to single approval/denial
+			},
+		},
+		// a citizen can become a president through an election
+		"citizen": {
+			Request: &types.AccessRequestConditions{
+				Roles: []string{"president"},
+				Annotations: map[string][]string{
+					"mechanism": {"election"},
+				},
+				// no explicit thresholds defaults to single approval/denial
 			},
 		},
 		// never is the role that will never be requested
 		"never": {
+			// ...
+		},
+
+		// ownership roles for access lists
+		"orole1": {
+			// ...
+		},
+		"orole2": {
 			// ...
 		},
 	}
@@ -263,9 +363,10 @@ func TestReviewThresholds(t *testing.T) {
 
 	// describes a collection of users with various roles
 	ulsDesc := map[string][]string{
-		"alice": {"populist", "proletariat", "intelligentsia", "military"},
+		"alice": {"populist", "proletariat", "intelligentsia", "military", "private", "citizen"},
 		"carol": {"conqueror", "proletariat", "intelligentsia", "military"},
 		"erika": {"populist", "idealist"},
+		"paula": {"conqueror", "proletariat", "intelligentsia", "military"},
 	}
 
 	userStates := make(map[string]*userloginstate.UserLoginState)
@@ -293,10 +394,50 @@ func TestReviewThresholds(t *testing.T) {
 		users[name] = user
 	}
 
+	// access list users
+	accessLists := map[string]*accesslist.AccessList{}
+	accessListOwnersDesc := map[string]map[string][]string{
+		"jon": {
+			"al1": {"dictator", "general"},
+			"al2": {"proletariat"},
+		},
+		"paula": {
+			"p-al1": {"dictator", "general"},
+		},
+	}
+
+	for username, accessListsDesc := range accessListOwnersDesc {
+		var uls *userloginstate.UserLoginState
+
+		uls = userStates[username]
+		if uls == nil {
+			var err error
+			uls, err = userloginstate.New(header.Metadata{
+				Name: username,
+			}, userloginstate.Spec{
+				Traits: map[string][]string{},
+			})
+			require.NoError(t, err)
+			userStates[uls.GetName()] = uls
+		}
+
+		uls.Spec.Roles = append(uls.Spec.Roles, "orole1", "orole2")
+		uls.Spec.Traits = map[string][]string{
+			"otrait1": {"ovalue1", "ovalue2"},
+			"otrait2": {"ovalue3", "ovalue4"},
+		}
+
+		// access lists owned by the user
+		for alName, grantedRoles := range accessListsDesc {
+			accessLists[alName] = newAccessList(t, alName, username, grantedRoles)
+		}
+	}
+
 	g := &mockGetter{
-		roles:      roles,
-		userStates: userStates,
-		users:      users,
+		roles:       roles,
+		userStates:  userStates,
+		users:       users,
+		accessLists: accessLists,
 	}
 
 	const (
@@ -308,8 +449,10 @@ func TestReviewThresholds(t *testing.T) {
 	type review struct {
 		// author is the name of the review author
 		author string
-		// noReview indicates that author will not be allowed to review
-		noReview bool
+		// canReview indicates the review state
+		canReview CanReviewRequestResponse
+		// skipCanReviewCheck will skip the review check.
+		skipCanReviewCheck bool
 		// propose is the state proposed by the review
 		propose types.RequestState
 		// expect is the expected post-review state of the request (defaults to pending)
@@ -332,12 +475,12 @@ func TestReviewThresholds(t *testing.T) {
 			requestor: "alice", // permitted by role populist
 			reviews: []review{
 				{ // cannot review own requests
-					author:   "alice",
-					noReview: true,
+					author:    "alice",
+					canReview: CantReview,
 				},
 				{ // no matching allow directives
-					author:   g.user(t, "military"),
-					noReview: true,
+					author:    g.user(t, "military"),
+					canReview: CantReview,
 				},
 				{ // adds one approval to all thresholds
 					author:  g.user(t, "proletariat", "intelligentsia", "military"),
@@ -359,12 +502,12 @@ func TestReviewThresholds(t *testing.T) {
 			requestor: "alice", // permitted by role populist
 			reviews: []review{
 				{ // cannot review own requests
-					author:   "alice",
-					noReview: true,
+					author:    "alice",
+					canReview: CantReview,
 				},
 				{ // no matching allow directives
-					author:   g.user(t, "military"),
-					noReview: true,
+					author:    g.user(t, "military"),
+					canReview: CantReview,
 				},
 				{ // adds one approval to all thresholds
 					author:  g.user(t, "proletariat", "intelligentsia", "military"),
@@ -442,8 +585,8 @@ func TestReviewThresholds(t *testing.T) {
 			requestor: "bob", // permitted by role general
 			reviews: []review{
 				{ // cannot review own requests
-					author:   "bob",
-					noReview: true,
+					author:    "bob",
+					canReview: CantReview,
 				},
 				{ // matches "consensus" threshold
 					author:  g.user(t, "intelligentsia"),
@@ -454,8 +597,8 @@ func TestReviewThresholds(t *testing.T) {
 					propose: approve,
 				},
 				{ // no matching allow directives
-					author:   g.user(t, "proletariat"),
-					noReview: true,
+					author:    g.user(t, "proletariat"),
+					canReview: CantReview,
 				},
 				{ // 1 of 2 required denials for "coup" (does not trigger a threshold)
 					author:  g.user(t, "military"),
@@ -477,16 +620,16 @@ func TestReviewThresholds(t *testing.T) {
 			requestor: "carol", // permitted by role conqueror
 			reviews: []review{
 				{ // cannot review own requests
-					author:   "carol",
-					noReview: true,
+					author:    "carol",
+					canReview: CantReview,
 				},
 				{ // no matching allow directives
-					author:   g.user(t, "proletariat"),
-					noReview: true,
+					author:    g.user(t, "proletariat"),
+					canReview: CantReview,
 				},
 				{ // no matching allow directives
-					author:   g.user(t, "intelligentsia"),
-					noReview: true,
+					author:    g.user(t, "intelligentsia"),
+					canReview: CantReview,
 				},
 				{ // triggers "default" threshold for immediate approval
 					author:  g.user(t, "military"),
@@ -580,9 +723,10 @@ func TestReviewThresholds(t *testing.T) {
 			roles:     []string{"dictator", "never"},
 			reviews: []review{
 				{ // matches default threshold from idealist
-					author:  g.user(t, "intelligentsia"),
-					propose: deny,
-					expect:  deny,
+					author:             g.user(t, "intelligentsia"),
+					skipCanReviewCheck: true,
+					propose:            deny,
+					expect:             deny,
 				},
 			},
 		},
@@ -624,6 +768,72 @@ func TestReviewThresholds(t *testing.T) {
 				},
 			},
 		},
+		{
+			desc:      "access list owners can promote",
+			requestor: "alice", // permitted by role populist
+			reviews: []review{
+				{ // matches "consensus" threshold
+					author:  g.user(t, "intelligentsia"),
+					propose: approve,
+				},
+				{ // access list owner promotes the user
+					author:    "jon",
+					canReview: CanOnlyPromote,
+					propose:   promote,
+					expect:    promote,
+				},
+			},
+		},
+		{
+			desc:      "access list owners can promote for multiple roles",
+			requestor: "alice",
+			roles:     []string{"dictator", "general"},
+			reviews: []review{
+				{ // access list owner promotes the user
+					author:    "jon",
+					canReview: CanOnlyPromote,
+					propose:   promote,
+					expect:    promote,
+				},
+			},
+		},
+		{
+			desc:      "access list owners can't review due to partial granting",
+			requestor: "alice",
+			roles:     []string{"dictator", "president"},
+			reviews: []review{
+				{ // access list owner doesn't have access to never
+					author:    "jon",
+					canReview: CantReview,
+				},
+			},
+		},
+		{
+			desc:      "access list owners can't promote unless the access list itself fully matches an access list",
+			requestor: "alice",
+			roles:     []string{"dictator", "president"},
+			reviews: []review{
+				{ // access list owner doesn't have access to never
+					author:    "jon",
+					canReview: CantReview,
+				},
+			},
+		},
+		{
+			desc:      "access list owner can review so long as the owner has other review permissions",
+			requestor: "carol", // permitted by role conqueror
+			reviews: []review{
+				{ // cannot review own requests
+					author:    "carol",
+					canReview: CantReview,
+				},
+				{ // triggers "default" threshold for immediate approval
+					author:  "paula",
+					propose: approve,
+					expect:  approve,
+				},
+			},
+		},
 	}
 
 	for _, tt := range tts {
@@ -653,6 +863,9 @@ func TestReviewThresholds(t *testing.T) {
 				if rt.expect.IsNone() {
 					rt.expect = types.RequestState_PENDING
 				}
+				if rt.canReview == CanReviewUnknown {
+					rt.canReview = CanReview
+				}
 
 				checker, err := NewReviewPermissionChecker(ctx, g, rt.author, nil)
 				require.NoError(t, err, "scenario=%q, rev=%d", tt.desc, ri)
@@ -660,9 +873,14 @@ func TestReviewThresholds(t *testing.T) {
 				canReview, err := checker.CanReviewRequest(req)
 				require.NoError(t, err, "scenario=%q, rev=%d", tt.desc, ri)
 
-				if rt.noReview {
-					require.False(t, canReview, "scenario=%q, rev=%d", tt.desc, ri)
-					continue Inner
+				if !rt.skipCanReviewCheck {
+					require.Equal(t, rt.canReview, canReview, "scenario=%q, rev=%d", tt.desc, ri)
+
+					if rt.canReview == CantReview {
+						continue Inner
+					}
+				} else {
+					canReview = CanReview // Override can review when we skip the check.
 				}
 
 				rev := types.AccessReview{
@@ -673,7 +891,7 @@ func TestReviewThresholds(t *testing.T) {
 				author, ok := userStates[rt.author]
 				require.True(t, ok, "scenario=%q, rev=%d", tt.desc, ri)
 
-				err = ApplyAccessReview(req, rev, author)
+				err = ApplyAccessReview(req, rev, author, canReview)
 				if rt.errCheck != nil {
 					rt.errCheck(t, err)
 					continue

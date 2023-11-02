@@ -259,7 +259,7 @@ func TestIsAccessListOwner(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
-			accessList := newAccessList(t)
+			accessList := newAccessList(t, "test", ownerUser, []string{"grole1", "grole2"})
 			test.errAssertionFunc(t, IsAccessListOwner(test.identity, accessList))
 		})
 	}
@@ -396,7 +396,7 @@ func TestIsAccessListMember(t *testing.T) {
 
 			ctx := context.Background()
 
-			accessList := newAccessList(t)
+			accessList := newAccessList(t, "test", ownerUser, []string{"grole1", "grole2"})
 			members := newAccessListMembers(t)
 
 			memberMap := map[string]map[string]*accesslist.AccessListMember{}
@@ -458,7 +458,7 @@ func TestSelectNextReviewDate(t *testing.T) {
 		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
-			accessList := newAccessList(t)
+			accessList := newAccessList(t, "test", ownerUser, []string{"grole1", "grole2"})
 			accessList.Spec.Audit.NextAuditDate = test.currentReviewDate
 			accessList.Spec.Audit.Recurrence = accesslist.Recurrence{
 				Frequency:  test.frequency,
@@ -570,12 +570,12 @@ func TestAccessListReviewMarshal(t *testing.T) {
 	require.Equal(t, expected, actual)
 }
 
-func newAccessList(t *testing.T) *accesslist.AccessList {
+func newAccessList(t *testing.T, name string, ownerUser string, grantedRoles []string) *accesslist.AccessList {
 	t.Helper()
 
 	accessList, err := accesslist.NewAccessList(
 		header.Metadata{
-			Name: "test",
+			Name: name,
 		},
 		accesslist.Spec{
 			Title:       "title",
@@ -612,7 +612,7 @@ func newAccessList(t *testing.T) *accesslist.AccessList {
 				},
 			},
 			Grants: accesslist.Grants{
-				Roles: []string{"grole1", "grole2"},
+				Roles: grantedRoles,
 				Traits: map[string][]string{
 					"gtrait1": {"gvalue1", "gvalue2"},
 					"gtrait2": {"gvalue3", "gvalue4"},
