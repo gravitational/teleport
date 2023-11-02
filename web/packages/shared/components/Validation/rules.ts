@@ -15,6 +15,19 @@ limitations under the License.
 */
 
 /**
+ * The result of validating a field.
+ */
+export interface ValidationResult {
+  valid: boolean;
+  message?: string;
+}
+
+/**
+ * A function to validate a field value.
+ */
+export type Rule<T = string, R = ValidationResult> = (value: T) => () => R;
+
+/**
  * requiredField checks for empty strings and arrays.
  *
  * @param message The custom error message to display to users.
@@ -31,7 +44,7 @@ const requiredField =
     };
   };
 
-const requiredToken = (value: string) => () => {
+const requiredToken: Rule = value => () => {
   if (!value || value.length === 0) {
     return {
       valid: false,
@@ -44,7 +57,7 @@ const requiredToken = (value: string) => () => {
   };
 };
 
-const requiredPassword = (value: string) => () => {
+const requiredPassword: Rule = value => () => {
   if (!value || value.length < 6) {
     return {
       valid: false,
@@ -58,7 +71,9 @@ const requiredPassword = (value: string) => () => {
 };
 
 const requiredConfirmedPassword =
-  (password: string) => (confirmedPassword: string) => () => {
+  (password: string): Rule =>
+  (confirmedPassword: string) =>
+  () => {
     if (!confirmedPassword) {
       return {
         valid: false,
@@ -78,30 +93,107 @@ const requiredConfirmedPassword =
     };
   };
 
-// requiredRoleArn checks provided arn (AWS role name) is somewhat
-// in the format as documented here:
-// https://docs.aws.amazon.com/IAM/latest/UserGuide/reference-arns.html
-const requiredRoleArn = (roleArn: string) => () => {
-  let parts = [];
-  if (roleArn) {
-    parts = roleArn.split(':role');
+/**
+ * ROLE_ARN_REGEX uses the same regex matcher used in the backend:
+ * https://github.com/gravitational/teleport/blob/2cba82cb332e769ebc8a658d32ff24ddda79daff/api/utils/aws/identifiers.go#L43
+ *
+ * The regex checks for alphanumerics and select few characters.
+ */
+const IAM_ROLE_NAME_REGEX = /^[\w+=,.@-]+$/;
+const isIamRoleNameValid = roleName => {
+  return (
+    roleName && roleName.length <= 64 && roleName.match(IAM_ROLE_NAME_REGEX)
+  );
+};
+
+const requiredIamRoleName: Rule = value => () => {
+  if (!value) {
+    return {
+      valid: false,
+      message: 'IAM role name required',
+    };
   }
 
-  if (
-    parts.length == 2 &&
-    parts[0].startsWith('arn:aws:iam:') &&
-    // the `:role` part can be followed by a forward slash or a colon,
-    // followed by the role name.
-    parts[1].length >= 2
-  ) {
+  if (value.length > 64) {
     return {
-      valid: true,
+      valid: false,
+      message: 'name should be <= 64 characters',
+    };
+  }
+
+  if (!isIamRoleNameValid(value)) {
+    return {
+      valid: false,
+      message: 'name can only contain characters @ = , . + - and alphanumerics',
     };
   }
 
   return {
-    valid: false,
-    message: 'invalid role ARN format',
+    valid: true,
+  };
+};
+
+/**
+ * ROLE_ARN_REGEX_STR checks provided arn (amazon resource names) is
+ * somewhat in the format as documented here:
+ * https://docs.aws.amazon.com/IAM/latest/UserGuide/reference-arns.html
+ *
+ * The regex is in string format, and must be parsed with `new RegExp()`.
+ *
+ * regex details:
+ * arn:aws<OTHER_PARTITION>:iam::<ACOUNT_NUMBER>:role/<ROLE_NAME>
+ */
+const ROLE_ARN_REGEX_STR = '^arn:aws.*:iam::\\d{12}:role\\/';
+const requiredRoleArn: Rule = roleArn => () => {
+  if (!roleArn) {
+    return {
+      valid: false,
+      message: 'role ARN required',
+    };
+  }
+
+  const regex = new RegExp(ROLE_ARN_REGEX_STR + '(.*)$');
+  const match = roleArn.match(regex);
+
+  if (!match || !match[1] || !isIamRoleNameValid(match[1])) {
+    return {
+      valid: false,
+      message: 'invalid role ARN format',
+    };
+  }
+
+  return {
+    valid: true,
+  };
+};
+
+export interface EmailValidationResult extends ValidationResult {
+  kind?: 'empty' | 'invalid';
+}
+
+// requiredEmailLike ensures a string contains a plausible email, i.e. that it
+// contains an '@' and some characters on each side.
+const requiredEmailLike: Rule<string, EmailValidationResult> = email => () => {
+  if (!email) {
+    return {
+      valid: false,
+      kind: 'empty',
+      message: 'Email address is required',
+    };
+  }
+
+  // Must contain an @, i.e. 2 entries, and each must be nonempty.
+  let parts = email.split('@');
+  if (parts.length !== 2 || !parts[0] || !parts[1]) {
+    return {
+      valid: false,
+      kind: 'invalid',
+      message: `Email address '${email}' is invalid`,
+    };
+  }
+
+  return {
+    valid: true,
   };
 };
 
@@ -111,4 +203,6 @@ export {
   requiredConfirmedPassword,
   requiredField,
   requiredRoleArn,
+  requiredIamRoleName,
+  requiredEmailLike,
 };

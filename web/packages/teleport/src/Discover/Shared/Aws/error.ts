@@ -14,17 +14,12 @@
  * limitations under the License.
  */
 
-import React from 'react';
-import { MemoryRouter } from 'react-router';
+import { Attempt } from 'shared/hooks/useAttemptNext';
 
-import { AwsOidc } from './AwsOidc';
-
-export default {
-  title: 'Teleport/Integrations/Enroll/AwsOidc',
-};
-
-export const Flow = () => (
-  <MemoryRouter>
-    <AwsOidc />
-  </MemoryRouter>
-);
+export function isIamPermError(attempt: Attempt) {
+  return (
+    attempt.status === 'failed' &&
+    attempt.statusText.includes('StatusCode: 403, RequestID:') &&
+    attempt.statusText.includes('operation error')
+  );
+}
