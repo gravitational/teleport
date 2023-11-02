@@ -109,6 +109,7 @@ func (c *BotsCommand) ListBots(ctx context.Context, client auth.ClientI) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
 	if c.format == teleport.Text {
 		if len(users) == 0 {
 			fmt.Println("No users found")
@@ -131,11 +132,10 @@ func (c *BotsCommand) ListBots(ctx context.Context, client auth.ClientI) error {
 		}
 		fmt.Println(t.AsBuffer().String())
 	} else {
-		out, err := json.MarshalIndent(users, "", "  ")
+		err := utils.WriteJSONArray(os.Stdout, users)
 		if err != nil {
 			return trace.Wrap(err, "failed to marshal users")
 		}
-		fmt.Print(string(out))
 	}
 	return nil
 }

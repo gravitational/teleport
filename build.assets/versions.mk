@@ -5,13 +5,15 @@
 # Sync with devbox.json.
 GOLANG_VERSION ?= go1.21.3
 
-NODE_VERSION ?= 18.18.0
+NODE_VERSION ?= 18.18.2
 
 # Run lint-rust check locally before merging code after you bump this.
 RUST_VERSION ?= 1.71.1
 WASM_PACK_VERSION ?= 0.11.0
-LIBBPF_VERSION ?= 1.0.1
+LIBBPF_VERSION ?= 1.2.2
 LIBPCSCLITE_VERSION ?= 1.9.9-teleport
+
+DEVTOOLSET ?= devtoolset-12
 
 # Protogen related versions.
 BUF_VERSION ?= v1.27.0

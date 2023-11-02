@@ -34,7 +34,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jackc/pgconn"
-	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
@@ -568,9 +567,12 @@ func mustCreateKubeLocalProxyMiddleware(t *testing.T, teleportCluster, kubeClust
 	certs := make(alpnproxy.KubeClientCerts)
 	certs.Add(teleportCluster, kubeCluster, cert)
 
-	return alpnproxy.NewKubeMiddleware(certs, func(ctx context.Context, teleportCluster, kubeCluster string) (tls.Certificate, error) {
-		return tls.Certificate{}, nil
-	}, clockwork.NewRealClock(), nil)
+	return alpnproxy.NewKubeMiddleware(alpnproxy.KubeMiddlewareConfig{
+		Certs: certs,
+		CertReissuer: func(ctx context.Context, teleportCluster, kubeCluster string) (tls.Certificate, error) {
+			return tls.Certificate{}, nil
+		},
+	})
 }
 
 func makeNodeConfig(nodeName, proxyAddr string) *servicecfg.Config {

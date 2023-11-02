@@ -1,5 +1,17 @@
 # Changelog
 
+## 15.0.0 (xx/xx/24)
+
+### Breaking changes
+
+#### `tsh ssh`
+
+When running a command on multiple nodes with `tsh ssh`, each line of output
+is now labeled with the hostname of the node it was written by. Users that
+rely on parsing the output from multiple nodes should pass the `--log-dir` flag
+to `tsh ssh`, which will create a directory where the separated output of each node
+will be written.
+
 ## 14.0.0 (09/20/23)
 
 Teleport 14 brings the following new major features and improvements:
@@ -30,7 +42,7 @@ that supports efficient searching, sorting, and filtering operations. Teleport
 Cloud customers will have their audit log automatically migrated to this new
 backend.
 
-See the documentation [here](docs/pages/reference/backends.mdx#athena-preview).
+See the documentation [here](docs/pages/reference/backends.mdx#athena).
 
 #### Access lists
 
@@ -1031,7 +1043,7 @@ Visit the individual repositories to find out more and see usage examples:
 - https://github.com/teleport-actions/auth-k8s
 
 For a more in-depth guide, see our
-[documentation](./docs/pages/machine-id/guides/github-actions.mdx) for using
+[documentation](./docs/pages/machine-id/deployment/github-actions.mdx) for using
 Teleport with GitHub Actions.
 
 ### Secure certificate mapping for Desktop Access
@@ -1569,7 +1581,7 @@ In Teleport 10 we’ve added database access support to Machine ID. Applications
 can use Machine ID to access databases protected by Teleport.
 
 You can find Machine ID guide for database access in the
-[documentation](docs/pages/machine-id/guides/databases.mdx).
+[documentation](docs/pages/machine-id/access-guides/databases.mdx).
 
 ### Breaking changes
 

@@ -140,7 +140,6 @@ function SearchBar() {
         position: relative;
         flex: 4;
         flex-shrink: 1;
-        min-width: calc(${props => props.theme.space[7]}px * 2);
         height: 100%;
         border: 1px ${props => props.theme.colors.buttons.border.border} solid;
         border-radius: ${props => props.theme.radii[2]}px;
@@ -185,7 +184,9 @@ function SearchBar() {
 const Input = styled.input`
   height: 38px;
   width: 100%;
-  min-width: calc(${props => props.theme.space[9]}px * 2);
+  // min-width causes the filters and the actual input text to be broken into
+  // two lines when there is no space
+  min-width: calc(${props => props.theme.space[8]}px * 2);
   background: transparent;
   color: inherit;
   box-sizing: border-box;

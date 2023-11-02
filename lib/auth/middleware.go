@@ -138,7 +138,7 @@ type TLSServer struct {
 }
 
 // NewTLSServer returns new unstarted TLS server
-func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
+func NewTLSServer(ctx context.Context, cfg TLSServerConfig) (*TLSServer, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -221,7 +221,7 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 	}
 
 	if cfg.PluginRegistry != nil {
-		if err := cfg.PluginRegistry.RegisterAuthServices(server.grpcServer); err != nil {
+		if err := cfg.PluginRegistry.RegisterAuthServices(ctx, server.grpcServer); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -433,7 +433,7 @@ func (a *Middleware) withAuthenticatedUser(ctx context.Context) (context.Context
 	}
 
 	ctx = authz.ContextWithUserCertificate(ctx, certFromConnState(connState))
-	ctx = authz.ContextWithClientAddr(ctx, peerInfo.Addr)
+	ctx = authz.ContextWithClientSrcAddr(ctx, peerInfo.Addr)
 	ctx = authz.ContextWithUser(ctx, identityGetter)
 
 	return ctx, nil
@@ -665,7 +665,8 @@ func (a *Middleware) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		if user, err = a.extractIdentityFromImpersonationHeader(impersonateUser); err != nil {
+		proxyClusterName := user.GetIdentity().TeleportCluster
+		if user, err = a.extractIdentityFromImpersonationHeader(proxyClusterName, impersonateUser); err != nil {
 			trace.WriteError(w, err)
 			return
 		}
@@ -685,7 +686,7 @@ func (a *Middleware) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx = authz.ContextWithUserCertificate(ctx, certFromConnState(r.TLS))
 	clientSrcAddr, err := utils.ParseAddr(remoteAddr)
 	if err == nil {
-		ctx = authz.ContextWithClientAddr(ctx, clientSrcAddr)
+		ctx = authz.ContextWithClientSrcAddr(ctx, clientSrcAddr)
 	}
 	ctx = authz.ContextWithUser(ctx, user)
 	a.Handler.ServeHTTP(w, r.WithContext(ctx))
@@ -714,7 +715,7 @@ func (a *Middleware) WrapContextWithUserFromTLSConnState(ctx context.Context, tl
 	}
 
 	ctx = authz.ContextWithUserCertificate(ctx, certFromConnState(&tlsState))
-	ctx = authz.ContextWithClientAddr(ctx, remoteAddr)
+	ctx = authz.ContextWithClientSrcAddr(ctx, remoteAddr)
 	ctx = authz.ContextWithUser(ctx, user)
 	return ctx, nil
 }
@@ -790,7 +791,7 @@ func isProxyRole(identity authz.IdentityGetter) bool {
 // extractIdentityFromImpersonationHeader extracts the identity from the impersonation
 // header and returns it. If the impersonation header holds an identity of a
 // system role, an error is returned.
-func (a *Middleware) extractIdentityFromImpersonationHeader(impersonate string) (authz.IdentityGetter, error) {
+func (a *Middleware) extractIdentityFromImpersonationHeader(proxyCluster string, impersonate string) (authz.IdentityGetter, error) {
 	// Unmarshal the impersonated user from the header.
 	var impersonatedIdentity tlsca.Identity
 	if err := json.Unmarshal([]byte(impersonate), &impersonatedIdentity); err != nil {
@@ -802,6 +803,11 @@ func (a *Middleware) extractIdentityFromImpersonationHeader(impersonate string) 
 		// make sure that this user does not have system role
 		// since system roles are not allowed to be impersonated.
 		return nil, trace.AccessDenied("can not impersonate a system role")
+	case proxyCluster != "" && proxyCluster != a.ClusterName && proxyCluster != impersonatedIdentity.TeleportCluster:
+		// If a remote proxy is impersonating a user from a different cluster, we
+		// must reject the request. This is because the proxy is not allowed to
+		// impersonate a user from a different cluster.
+		return nil, trace.AccessDenied("can not impersonate users via a different cluster proxy")
 	case impersonatedIdentity.TeleportCluster != a.ClusterName:
 		// if the impersonated user is from a different cluster, we need to
 		// use him as remote user.
@@ -863,7 +869,7 @@ func (r *ImpersonatorRoundTripper) RoundTrip(req *http.Request) (*http.Response,
 	req.Header.Set(TeleportImpersonateUserHeader, string(b))
 	defer req.Header.Del(TeleportImpersonateUserHeader)
 
-	clientSrcAddr, err := authz.ClientAddrFromContext(req.Context())
+	clientSrcAddr, err := authz.ClientSrcAddrFromContext(req.Context())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -903,7 +909,7 @@ func IdentityForwardingHeaders(ctx context.Context, originalHeaders http.Header)
 	headers := originalHeaders.Clone()
 	headers.Set(TeleportImpersonateUserHeader, string(b))
 
-	clientSrcAddr, err := authz.ClientAddrFromContext(ctx)
+	clientSrcAddr, err := authz.ClientSrcAddrFromContext(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

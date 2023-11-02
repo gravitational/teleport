@@ -1,5 +1,5 @@
 ---
-title: Access Requests with Mattermost
+title: Run the Mattermost Access Request plugin
 description: How to set up Teleport's Mattermost plugin for privilege elevation approvals.
 ---
 
@@ -8,6 +8,12 @@ source messaging platform. The Teleport Mattermost plugin notifies individuals o
 access requests. Users can then approve and deny access requests by following the
 message link, making it easier to implement security best practices without
 compromising productivity.
+
+<Details title="This integration is hosted on Teleport Cloud" open={false}>
+
+(!docs/pages/includes/plugins/enroll.mdx name="the Mattermost integration"!)
+
+</Details>
 
 (!docs/pages/includes/plugins/diagram.mdx api="Mattermost" action="Listen for Access Requests" messages="Mattermost messages" !)
 
@@ -52,6 +58,8 @@ Teleport Proxy Service and your Mattermost deployment.
 ## Step 3/8. Create a user and role for the plugin
 
 (!docs/pages/includes/plugins/rbac.mdx!)
+
+(!/docs/pages/includes/plugins/rbac-impersonate.mdx!)
 
 ## Step 4/8. Export the access plugin identity
 

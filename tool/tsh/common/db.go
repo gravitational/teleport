@@ -205,7 +205,6 @@ func listDatabasesAllClusters(cf *CLIConf) error {
 			mu.Unlock()
 
 			return nil
-
 		})
 	}
 
@@ -869,7 +868,7 @@ func (d *databaseInfo) checkAndSetDefaults(cf *CLIConf, tc *client.TeleportClien
 	// If database has admin user defined, we're most likely using automatic
 	// user provisioning so default to Teleport username unless database
 	// username was provided explicitly.
-	if needDBUser && db.GetAdminUser() != "" {
+	if needDBUser && db.GetAdminUser().Name != "" {
 		log.Debugf("Defaulting to Teleport username %q as database username.", tc.Username)
 		d.Username = tc.Username
 		needDBUser = false
@@ -1526,8 +1525,7 @@ func (r *dbLocalProxyRequirement) addLocalProxyWithTunnel(reasons ...string) {
 // for a given database.
 func getDBLocalProxyRequirement(tc *client.TeleportClient, route tlsca.RouteToDatabase) *dbLocalProxyRequirement {
 	var out dbLocalProxyRequirement
-	switch tc.PrivateKeyPolicy {
-	case keys.PrivateKeyPolicyHardwareKey, keys.PrivateKeyPolicyHardwareKeyTouch:
+	if tc.PrivateKeyPolicy.IsHardwareKeyPolicy() {
 		out.addLocalProxyWithTunnel(formatKeyPolicyReason(tc.PrivateKeyPolicy))
 	}
 

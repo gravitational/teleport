@@ -904,6 +904,9 @@ func (f *Forwarder) emitAuditEvent(req *http.Request, sess *clusterSession, stat
 		Verb:                      req.Method,
 		ResponseCode:              int32(status),
 		KubernetesClusterMetadata: sess.eventClusterMeta(req),
+		SessionMetadata: apievents.SessionMetadata{
+			WithMFA: sess.Identity.GetIdentity().MFAVerified,
+		},
 	}
 
 	r.populateEvent(event)
@@ -1202,7 +1205,7 @@ func (f *Forwarder) join(ctx *authContext, w http.ResponseWriter, req *http.Requ
 		client := &websocketClientStreams{stream}
 		party := newParty(*ctx, stream.Mode, client)
 
-		err = session.join(party)
+		err = session.join(party, true /* emitSessionJoinEvent */)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -1462,10 +1465,7 @@ func (f *Forwarder) execNonInteractive(ctx *authContext, w http.ResponseWriter, 
 		ServerAddr:      sess.kubeAddress,
 	}
 
-	sessionMetadata := apievents.SessionMetadata{
-		SessionID: uuid.NewString(),
-		WithMFA:   ctx.Identity.GetIdentity().MFAVerified,
-	}
+	sessionMetadata := ctx.Identity.GetIdentity().GetSessionMetadata(uuid.NewString())
 
 	connectionMetdata := apievents.ConnectionMetadata{
 		RemoteAddr: req.RemoteAddr,
@@ -1581,6 +1581,9 @@ func exitCode(err error) (errMsg, code string) {
 			return
 		}
 		errMsg = kubeStatusErr.ErrStatus.Message
+		if errMsg == "" {
+			errMsg = string(kubeStatusErr.ErrStatus.Reason)
+		}
 		code = strconv.Itoa(int(kubeStatusErr.ErrStatus.Code))
 	} else if errors.As(err, &kubeExecErr) {
 		if kubeExecErr.Err != nil {
@@ -1691,7 +1694,9 @@ func (f *Forwarder) exec(authCtx *authContext, w http.ResponseWriter, req *http.
 	}
 
 	f.setSession(session.id, session)
-	err = session.join(party)
+	// When Teleport attaches the original session creator terminal streams to the
+	// session, we don't wan't to emmit session.join event since it won't be required.
+	err = session.join(party, false /* emitSessionJoinEvent */)
 	if err != nil {
 		// This error must be forwarded to SPDY error stream, otherwise the client
 		// will hang waiting for the response.

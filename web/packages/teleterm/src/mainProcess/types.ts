@@ -15,6 +15,7 @@
  */
 
 import { AgentConfigFileClusterProperties } from 'teleterm/mainProcess/createAgentConfigFile';
+import { DeepLinkParseResult } from 'teleterm/deepLinks';
 import { RootClusterUri } from 'teleterm/ui/uri';
 
 import { Kind } from 'teleterm/ui/services/workspacesService';
@@ -86,6 +87,24 @@ export type RuntimeSettings = {
 };
 
 export type MainProcessClient = {
+  /** Subscribes to updates of the native theme. Returns a cleanup function. */
+  subscribeToNativeThemeUpdate: (
+    listener: (value: { shouldUseDarkColors: boolean }) => void
+  ) => {
+    cleanup: () => void;
+  };
+  subscribeToAgentUpdate: (
+    rootClusterUri: RootClusterUri,
+    listener: (state: AgentProcessState) => void
+  ) => {
+    cleanup: () => void;
+  };
+  subscribeToDeepLinkLaunch: (
+    listener: (args: DeepLinkParseResult) => void
+  ) => {
+    cleanup: () => void;
+  };
+
   getRuntimeSettings(): RuntimeSettings;
   getResolvedChildProcessAddresses(): Promise<ChildProcessAddresses>;
   openTerminalContextMenu(): void;
@@ -114,12 +133,6 @@ export type MainProcessClient = {
   /** Opens config file and returns a path to it. */
   openConfigFile(): Promise<string>;
   shouldUseDarkColors(): boolean;
-  /** Subscribes to updates of the native theme. Returns a cleanup function. */
-  subscribeToNativeThemeUpdate: (
-    listener: (value: { shouldUseDarkColors: boolean }) => void
-  ) => {
-    cleanup: () => void;
-  };
   downloadAgent(): Promise<void>;
   createAgentConfigFile(
     properties: AgentConfigFileClusterProperties
@@ -135,14 +148,7 @@ export type MainProcessClient = {
   removeAgentDirectory(args: { rootClusterUri: RootClusterUri }): Promise<void>;
   getAgentState(args: { rootClusterUri: RootClusterUri }): AgentProcessState;
   getAgentLogs(args: { rootClusterUri: RootClusterUri }): string;
-  subscribeToAgentUpdate: SubscribeToAgentUpdate;
-};
-
-export type SubscribeToAgentUpdate = (
-  rootClusterUri: RootClusterUri,
-  listener: (state: AgentProcessState) => void
-) => {
-  cleanup: () => void;
+  signalUserInterfaceReadiness(args: { success: boolean }): void;
 };
 
 export type ChildProcessAddresses = {
@@ -230,4 +236,31 @@ export enum FileStorageEventType {
   Replace = 'Replace',
   GetFilePath = 'GetFilePath',
   GetFileLoadingError = 'GetFileLoadingError',
+}
+
+/*
+ * IPC channel enums
+ *
+ * The enum values are used as IPC channels [1], so they should be unique across all enums. That's
+ * why the values are prefixed with the recipient name.
+ *
+ * The enums are grouped by the recipient, e.g. RendererIpc contains messages sent from the main
+ * process to the renderer, WindowsManagerIpc contains messages sent from the renderer to the
+ * windows manager (which lives in the main process).
+ *
+ * [1] https://www.electronjs.org/docs/latest/tutorial/ipc
+ */
+
+export enum RendererIpc {
+  NativeThemeUpdate = 'renderer-native-theme-update',
+  ConnectMyComputerAgentUpdate = 'renderer-connect-my-computer-agent-update',
+  DeepLinkLaunch = 'renderer-deep-link-launch',
+}
+
+export enum MainProcessIpc {
+  GetRuntimeSettings = 'main-process-get-runtime-settings',
+}
+
+export enum WindowsManagerIpc {
+  SignalUserInterfaceReadiness = 'windows-manager-signal-user-interface-readiness',
 }

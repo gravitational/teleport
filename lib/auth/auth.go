@@ -51,6 +51,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 	"golang.org/x/time/rate"
 	"google.golang.org/protobuf/types/known/durationpb"
@@ -58,6 +59,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/client/secreport"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
@@ -78,6 +80,7 @@ import (
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/cache"
 	"github.com/gravitational/teleport/lib/circleci"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -242,6 +245,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			return nil, trace.Wrap(err)
 		}
 	}
+	if cfg.SecReports == nil {
+		cfg.SecReports, err = local.NewSecReportsService(cfg.Backend, cfg.Clock)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
 	if cfg.AccessLists == nil {
 		cfg.AccessLists, err = local.NewAccessListService(cfg.Backend, cfg.Clock)
 		if err != nil {
@@ -325,6 +334,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		Embeddings:              cfg.Embeddings,
 		Okta:                    cfg.Okta,
 		AccessLists:             cfg.AccessLists,
+		SecReports:              cfg.SecReports,
 		UserLoginStates:         cfg.UserLoginState,
 		StatusInternal:          cfg.Status,
 		UsageReporter:           cfg.UsageReporter,
@@ -334,27 +344,28 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 
 	closeCtx, cancelFunc := context.WithCancel(context.TODO())
 	as := Server{
-		bk:                  cfg.Backend,
-		clock:               cfg.Clock,
-		limiter:             limiter,
-		Authority:           cfg.Authority,
-		AuthServiceName:     cfg.AuthServiceName,
-		ServerID:            cfg.HostUUID,
-		githubClients:       make(map[string]*githubClient),
-		cancelFunc:          cancelFunc,
-		closeCtx:            closeCtx,
-		emitter:             cfg.Emitter,
-		Streamer:            cfg.Streamer,
-		Unstable:            local.NewUnstableService(cfg.Backend, cfg.AssertionReplayService),
-		Services:            services,
-		Cache:               services,
-		keyStore:            keyStore,
-		traceClient:         cfg.TraceClient,
-		fips:                cfg.FIPS,
-		loadAllCAs:          cfg.LoadAllCAs,
-		httpClientForAWSSTS: cfg.HTTPClientForAWSSTS,
-		embeddingsRetriever: cfg.EmbeddingRetriever,
-		embedder:            cfg.EmbeddingClient,
+		bk:                      cfg.Backend,
+		clock:                   cfg.Clock,
+		limiter:                 limiter,
+		Authority:               cfg.Authority,
+		AuthServiceName:         cfg.AuthServiceName,
+		ServerID:                cfg.HostUUID,
+		githubClients:           make(map[string]*githubClient),
+		cancelFunc:              cancelFunc,
+		closeCtx:                closeCtx,
+		emitter:                 cfg.Emitter,
+		Streamer:                cfg.Streamer,
+		Unstable:                local.NewUnstableService(cfg.Backend, cfg.AssertionReplayService),
+		Services:                services,
+		Cache:                   services,
+		keyStore:                keyStore,
+		traceClient:             cfg.TraceClient,
+		fips:                    cfg.FIPS,
+		loadAllCAs:              cfg.LoadAllCAs,
+		httpClientForAWSSTS:     cfg.HTTPClientForAWSSTS,
+		embeddingsRetriever:     cfg.EmbeddingRetriever,
+		embedder:                cfg.EmbeddingClient,
+		accessMonitoringEnabled: cfg.AccessMonitoringEnabled,
 	}
 	as.inventory = inventory.NewController(&as, services, inventory.WithAuthServerID(cfg.HostUUID))
 	for _, o := range opts {
@@ -422,7 +433,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	}
 
 	// Add in a login hook for generating state during user login.
-	ulsGenerator, err := userloginstate.NewGenerator(userloginstate.GeneratorConfig{
+	as.ulsGenerator, err = userloginstate.NewGenerator(userloginstate.GeneratorConfig{
 		Log:         log,
 		AccessLists: services,
 		Access:      services,
@@ -433,7 +444,11 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	as.RegisterLoginHook(ulsGenerator.LoginHook(services.UserLoginStates))
+	as.RegisterLoginHook(as.ulsGenerator.LoginHook(services.UserLoginStates))
+
+	if _, ok := as.getCache(); !ok {
+		log.Warn("Auth server starting without cache (may have negative performance implications).")
+	}
 
 	return &as, nil
 }
@@ -468,6 +483,12 @@ type Services struct {
 	usagereporter.UsageReporter
 	types.Events
 	events.AuditLogSessionStreamer
+	services.SecReports
+}
+
+// SecReportsClient returns the security reports client.
+func (r *Services) SecReportsClient() *secreport.Client {
+	return nil
 }
 
 // GetWebSession returns existing web session described by req.
@@ -606,6 +627,15 @@ var (
 		[]string{teleport.TagRoles, teleport.TagResources},
 	)
 
+	userCertificatesGeneratedMetric = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: teleport.MetricNamespace,
+			Name:      teleport.MetricUserCertificatesGenerated,
+			Help:      "Tracks the number of user certificates generated",
+		},
+		[]string{teleport.TagPrivateKeyPolicy},
+	)
+
 	prometheusCollectors = []prometheus.Collector{
 		generateRequestsCount, generateThrottledRequestsCount,
 		generateRequestsCurrent, generateRequestsLatencies, UserLoginCount, heartbeatsMissedByAuth,
@@ -613,6 +643,7 @@ var (
 		totalInstancesMetric, enrolledInUpgradesMetric, upgraderCountsMetric,
 		accessRequestsCreatedMetric,
 		registeredAgentsInstallMethod,
+		userCertificatesGeneratedMetric,
 	}
 )
 
@@ -763,6 +794,12 @@ type Server struct {
 
 	// embedder is an embedder client used to generate embeddings.
 	embedder embedding.Embedder
+
+	// accessMonitoringEnabled is a flag that indicates whether access monitoring is enabled.
+	accessMonitoringEnabled bool
+
+	// ulsGenerator is the user login state generator.
+	ulsGenerator *userloginstate.Generator
 }
 
 // SetSAMLService registers svc as the SAMLService that provides the SAML
@@ -2227,7 +2264,7 @@ func (a *Server) AugmentContextUserCertificates(
 
 // submitCertificateIssuedEvent submits a certificate issued usage event to the
 // usage reporting service.
-func (a *Server) submitCertificateIssuedEvent(req *certRequest) {
+func (a *Server) submitCertificateIssuedEvent(req *certRequest, params services.UserCertParams) {
 	var database, app, kubernetes, desktop bool
 
 	if req.dbService != "" {
@@ -2263,13 +2300,14 @@ func (a *Server) submitCertificateIssuedEvent(req *certRequest) {
 	}
 
 	a.AnonymizeAndSubmit(&usagereporter.UserCertificateIssuedEvent{
-		UserName:        user,
-		Ttl:             durationpb.New(req.ttl),
-		IsBot:           bot,
-		UsageDatabase:   database,
-		UsageApp:        app,
-		UsageKubernetes: kubernetes,
-		UsageDesktop:    desktop,
+		UserName:         user,
+		Ttl:              durationpb.New(req.ttl),
+		IsBot:            bot,
+		UsageDatabase:    database,
+		UsageApp:         app,
+		UsageKubernetes:  kubernetes,
+		UsageDesktop:     desktop,
+		PrivateKeyPolicy: string(params.PrivateKeyPolicy),
 	})
 }
 
@@ -2360,7 +2398,10 @@ func generateCert(a *Server, req certRequest, caType types.CertAuthType) (*proto
 	}
 
 	attestedKeyPolicy := keys.PrivateKeyPolicyNone
-	requiredKeyPolicy := req.checker.PrivateKeyPolicy(authPref.GetPrivateKeyPolicy())
+	requiredKeyPolicy, err := req.checker.PrivateKeyPolicy(authPref.GetPrivateKeyPolicy())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	if !req.skipAttestation && requiredKeyPolicy != keys.PrivateKeyPolicyNone {
 		// verify that the required private key policy for the requesting identity
 		// is met by the provided attestation statement.
@@ -2618,7 +2659,9 @@ func generateCert(a *Server, req certRequest, caType types.CertAuthType) (*proto
 		certs.SSHCACerts = append(certs.SSHCACerts, services.GetSSHCheckingKeys(ca)...)
 	}
 
-	a.submitCertificateIssuedEvent(&req)
+	a.submitCertificateIssuedEvent(&req, params)
+
+	userCertificatesGeneratedMetric.WithLabelValues(string(attestedKeyPolicy)).Inc()
 
 	return certs, nil
 }
@@ -3419,10 +3462,17 @@ func (a *Server) ExtendWebSession(ctx context.Context, req WebSessionReq, identi
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+
+		// Make sure to refresh the user login state.
+		userState, err := a.ulsGenerator.Refresh(ctx, user, a.UserLoginStates)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
 		// Updating traits is needed for guided SSH flow in Discover.
-		traits = user.GetTraits()
+		traits = userState.GetTraits()
 		// Updating roles is needed for guided Connect My Computer flow in Discover.
-		roles = user.GetRoles()
+		roles = userState.GetRoles()
 
 	} else if req.AccessRequestID != "" {
 		accessRequest, err := a.getValidatedAccessRequest(ctx, identity, req.User, req.AccessRequestID)
@@ -3456,7 +3506,7 @@ func (a *Server) ExtendWebSession(ctx context.Context, req WebSessionReq, identi
 		}
 
 		// Get default/static roles.
-		user, err := a.GetUser(ctx, req.User, false)
+		userState, err := a.GetUserOrLoginState(ctx, req.User)
 		if err != nil {
 			return nil, trace.Wrap(err, "failed to switchback")
 		}
@@ -3465,7 +3515,7 @@ func (a *Server) ExtendWebSession(ctx context.Context, req WebSessionReq, identi
 		allowedResourceIDs = nil
 
 		// Calculate expiry time.
-		roleSet, err := services.FetchRoles(user.GetRoles(), a, user.GetTraits())
+		roleSet, err := services.FetchRoles(userState.GetRoles(), a, userState.GetTraits())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -3474,8 +3524,16 @@ func (a *Server) ExtendWebSession(ctx context.Context, req WebSessionReq, identi
 
 		// Set default roles and expiration.
 		expiresAt = prevSession.GetLoginTime().UTC().Add(sessionTTL)
-		roles = user.GetRoles()
+		roles = userState.GetRoles()
 		accessRequests = nil
+	}
+
+	// Create a new web session with the same private key. This way, if the
+	// original session was an attested web session, the extended session will
+	// also be an attested web session.
+	prevKey, err := keys.ParsePrivateKey(prevSession.GetPriv())
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	sessionTTL := utils.ToTTL(a.clock, expiresAt)
@@ -3487,6 +3545,7 @@ func (a *Server) ExtendWebSession(ctx context.Context, req WebSessionReq, identi
 		SessionTTL:           sessionTTL,
 		AccessRequests:       accessRequests,
 		RequestedResourceIDs: allowedResourceIDs,
+		PrivateKey:           prevKey,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -4113,19 +4172,35 @@ func (a *Server) NewWebSession(ctx context.Context, req types.NewWebSessionReque
 		return nil, trace.Wrap(err)
 	}
 
-	priv, pub, err := native.GenerateKeyPair()
-	if err != nil {
-		return nil, trace.Wrap(err)
+	if req.PrivateKey == nil {
+		req.PrivateKey, err = native.GeneratePrivateKey()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
+
 	sessionTTL := req.SessionTTL
 	if sessionTTL == 0 {
 		sessionTTL = checker.AdjustSessionTTL(apidefaults.CertDuration)
 	}
+
+	if req.AttestWebSession {
+		// Upsert web session attestation data so that this key's certs
+		// will be marked with the web session private key policy.
+		webAttData, err := services.NewWebSessionAttestationData(req.PrivateKey.Public())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if err = a.UpsertKeyAttestationData(ctx, webAttData, sessionTTL); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	certs, err := a.generateUserCert(certRequest{
 		user:           userState,
 		loginIP:        req.LoginIP,
 		ttl:            sessionTTL,
-		publicKey:      pub,
+		publicKey:      req.PrivateKey.MarshalSSHPublicKey(),
 		checker:        checker,
 		traits:         req.Traits,
 		activeRequests: services.RequestIDs{AccessRequests: req.AccessRequests},
@@ -4150,7 +4225,7 @@ func (a *Server) NewWebSession(ctx context.Context, req types.NewWebSessionReque
 
 	sessionSpec := types.WebSessionSpecV2{
 		User:               req.User,
-		Priv:               priv,
+		Priv:               req.PrivateKey.PrivateKeyPEM(),
 		Pub:                certs.SSH,
 		TLSCert:            certs.TLS,
 		Expires:            startTime.UTC().Add(sessionTTL),
@@ -4250,6 +4325,9 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 	}
 
 	if req.GetDryRun() {
+		_, promotions := a.generateAccessRequestPromotions(ctx, req)
+		// update the request with additional reviewers if possible.
+		updateAccessRequestWithAdditionalReviewers(ctx, req, a.AccessListClient(), promotions)
 		// Made it this far with no errors, return before creating the request
 		// if this is a dry run.
 		return req, nil
@@ -4283,14 +4361,10 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 	if err != nil {
 		log.WithError(err).Warn("Failed to emit access request create event.")
 	}
+
 	// calculate the promotions
-	reqCopy := req.Copy()
-	promotions, err := modules.GetModules().GenerateAccessRequestPromotions(ctx, a.Services, reqCopy)
-	if err != nil {
-		// Do not fail the request if the promotions failed to generate.
-		// The request promotion will be blocked, but the request can still be approved.
-		log.WithError(err).Warn("Failed to generate access list promotions.")
-	} else if promotions != nil {
+	reqCopy, promotions := a.generateAccessRequestPromotions(ctx, req)
+	if promotions != nil {
 		// Create the promotion entry even if the allowed promotion is empty. Otherwise, we won't
 		// be able to distinguish between an allowed empty set and generation failure.
 		if err := a.Services.CreateAccessRequestAllowedPromotions(ctx, reqCopy, promotions); err != nil {
@@ -4302,6 +4376,48 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 		strconv.Itoa(len(req.GetRoles())),
 		strconv.Itoa(len(req.GetRequestedResourceIDs()))).Inc()
 	return req, nil
+}
+
+// generateAccessRequestPromotions will return potential access list promotions for an access request. On error, this function will log
+// the error and return whatever it has. The caller is expected to deal with the possibility of a nil promotions object.
+func (a *Server) generateAccessRequestPromotions(ctx context.Context, req types.AccessRequest) (types.AccessRequest, *types.AccessRequestAllowedPromotions) {
+	reqCopy := req.Copy()
+	promotions, err := modules.GetModules().GenerateAccessRequestPromotions(ctx, a.Services, reqCopy)
+	if err != nil {
+		// Do not fail the request if the promotions failed to generate.
+		// The request promotion will be blocked, but the request can still be approved.
+		log.WithError(err).Warn("Failed to generate access list promotions.")
+	}
+	return reqCopy, promotions
+}
+
+// updateAccessRequestWithAdditionalReviewers will update the given access request with additional reviewers given the promotions
+// created for the access request.
+func updateAccessRequestWithAdditionalReviewers(ctx context.Context, req types.AccessRequest, accessLists services.AccessListsGetter, promotions *types.AccessRequestAllowedPromotions) {
+	if promotions == nil {
+		return
+	}
+
+	// For promotions, add in access list owners as additional suggested reviewers
+	additionalReviewers := map[string]struct{}{}
+
+	// Iterate through the promotions, adding the owners of the corresponding access lists as reviewers.
+	for _, promotion := range promotions.Promotions {
+		accessList, err := accessLists.GetAccessList(ctx, promotion.AccessListName)
+		if err != nil {
+			log.WithError(err).Warn("Failed to get access list, skipping additional reviewers")
+			break
+		}
+
+		for _, owner := range accessList.GetOwners() {
+			additionalReviewers[owner.Name] = struct{}{}
+		}
+	}
+
+	// Only modify the original request if additional reviewers were found.
+	if len(additionalReviewers) > 0 {
+		req.SetSuggestedReviewers(append(req.GetSuggestedReviewers(), maps.Keys(additionalReviewers)...))
+	}
 }
 
 func (a *Server) DeleteAccessRequest(ctx context.Context, name string) error {
@@ -4360,7 +4476,28 @@ func (a *Server) SetAccessRequestState(ctx context.Context, params types.AccessR
 	return trace.Wrap(err)
 }
 
-func (a *Server) SubmitAccessReview(ctx context.Context, params types.AccessReviewSubmission) (types.AccessRequest, error) {
+// SubmitAccessReview is used to process a review of an Access Request.
+// This is implemented by Server.submitAccessRequest but this method exists
+// to provide a matching signature with the auth client. This allows the
+// hosted plugins to use the Server struct directly as a client.
+func (a *Server) SubmitAccessReview(
+	ctx context.Context,
+	params types.AccessReviewSubmission,
+) (types.AccessRequest, error) {
+	// identity is passed as nil as we do not know which user has triggered
+	// this action.
+	return a.submitAccessReview(ctx, params, nil)
+}
+
+// submitAccessReview implements submitting a review of an Access Request.
+// The `identity` parameter should be the identity of the user that has called
+// an RPC that has invoked this, if applicable. It may be nil if this is
+// unknown.
+func (a *Server) submitAccessReview(
+	ctx context.Context,
+	params types.AccessReviewSubmission,
+	identity *tlsca.Identity,
+) (types.AccessRequest, error) {
 	// When promoting a request, the access list name must be set.
 	if params.Review.ProposedState.IsPromoted() && params.Review.GetAccessListName() == "" {
 		return nil, trace.BadParameter("promoted access list can be only set when promoting access requests")
@@ -4372,7 +4509,7 @@ func (a *Server) SubmitAccessReview(ctx context.Context, params types.AccessRevi
 	}
 
 	// set up a checker for the review author
-	checker, err := services.NewReviewPermissionChecker(ctx, a, params.Review.Author)
+	checker, err := services.NewReviewPermissionChecker(ctx, a, params.Review.Author, identity)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -4428,6 +4565,43 @@ func (a *Server) GetAccessCapabilities(ctx context.Context, req types.AccessCapa
 		return nil, trace.Wrap(err)
 	}
 	return caps, nil
+}
+
+func (a *Server) getCache() (c *cache.Cache, ok bool) {
+	c, ok = a.Cache.(*cache.Cache)
+	return
+}
+
+func (a *Server) NewStream(ctx context.Context, watch types.Watch) (stream.Stream[types.Event], error) {
+	if cache, ok := a.getCache(); ok {
+		// cache exposes a native stream implementation
+		return cache.NewStream(ctx, watch)
+	}
+
+	// fallback to wrapping a watcher in a stream.Stream adapter
+	watcher, err := a.Cache.NewWatcher(ctx, watch)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	closer := func() {
+		watcher.Close()
+	}
+
+	return stream.Func(func() (types.Event, error) {
+		select {
+		case event := <-watcher.Events():
+			return event, nil
+		case <-watcher.Done():
+			err := watcher.Error()
+			if err == nil {
+				// stream.Func needs an error to signal end of stream. io.EOF is
+				// the expected "happy" end of stream singnal.
+				err = io.EOF
+			}
+			return types.Event{}, trace.Wrap(err)
+		}
+	}, closer), nil
 }
 
 // NewKeepAliver returns a new instance of keep aliver
@@ -5076,11 +5250,16 @@ func (a *Server) Ping(ctx context.Context) (proto.PingResponse, error) {
 	if err != nil {
 		return proto.PingResponse{}, trace.Wrap(err)
 	}
+	features := modules.GetModules().Features().ToProto()
+
+	if a.accessMonitoringEnabled {
+		features.IdentityGovernance = a.accessMonitoringEnabled
+	}
 
 	return proto.PingResponse{
 		ClusterName:     cn.GetClusterName(),
 		ServerVersion:   teleport.Version,
-		ServerFeatures:  modules.GetModules().Features().ToProto(),
+		ServerFeatures:  features,
 		ProxyPublicAddr: a.getProxyPublicAddr(),
 		IsBoring:        modules.GetModules().IsBoringBinary(),
 		LoadAllCAs:      a.loadAllCAs,
@@ -5317,7 +5496,7 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 			Database:       db,
 			DatabaseUser:   t.Database.Username,
 			DatabaseName:   t.Database.GetDatabase(),
-			AutoCreateUser: autoCreate,
+			AutoCreateUser: autoCreate.IsEnabled(),
 		})
 		noMFAAccessErr = checker.CheckAccess(
 			db,

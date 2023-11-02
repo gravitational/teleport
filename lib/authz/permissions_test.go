@@ -562,7 +562,7 @@ func TestCheckIPPinning(t *testing.T) {
 			desc:     "IP pinning enabled, missing client IP",
 			pinnedIP: "127.0.0.1",
 			pinIP:    true,
-			wantErr:  "expected type net.Addr, got <nil>",
+			wantErr:  "client source address was not found in the context",
 		},
 		{
 			desc:       "IP pinning enabled, port=0 (marked by proxyProtocolMode unspecified)",
@@ -582,7 +582,7 @@ func TestCheckIPPinning(t *testing.T) {
 	for _, tt := range testCases {
 		ctx := context.Background()
 		if tt.clientAddr != "" {
-			ctx = ContextWithClientAddr(ctx, utils.MustParseAddr(tt.clientAddr))
+			ctx = ContextWithClientSrcAddr(ctx, utils.MustParseAddr(tt.clientAddr))
 		}
 		identity := tlsca.Identity{PinnedIP: tt.pinnedIP}
 
@@ -613,7 +613,7 @@ func TestAuthorizeWithVerbs(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	err = accessService.CreateRole(context.Background(), role)
+	_, err = accessService.CreateRole(context.Background(), role)
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -726,12 +726,17 @@ func TestRoleSetForBuiltinRoles(t *testing.T) {
 }
 
 func TestIsUserFunctions(t *testing.T) {
-	localIdentity := Context{Identity: LocalUser{}}
-	remoteIdentity := Context{Identity: RemoteUser{}}
+	localIdentity := Context{
+		Identity:         LocalUser{},
+		UnmappedIdentity: LocalUser{},
+	}
+	remoteIdentity := Context{
+		Identity:         RemoteUser{},
+		UnmappedIdentity: RemoteUser{},
+	}
 	systemIdentity := Context{
-		Identity: BuiltinRole{
-			Role: types.RoleProxy,
-		},
+		Identity:         BuiltinRole{Role: types.RoleProxy},
+		UnmappedIdentity: BuiltinRole{Role: types.RoleProxy},
 	}
 
 	tests := []struct {
@@ -895,7 +900,7 @@ func createUserAndRole(client *testClient, username string, allowedLogins []stri
 		role.SetRules(types.Allow, allowRules)
 	}
 
-	err = client.UpsertRole(ctx, role)
+	role, err = client.UpsertRole(ctx, role)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}

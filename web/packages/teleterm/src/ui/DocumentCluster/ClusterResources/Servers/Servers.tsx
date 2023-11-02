@@ -19,14 +19,21 @@ import Table, {
   ClickableLabelCell,
   StyledTableWrapper,
 } from 'design/DataTable';
+import { ButtonPrimary } from 'design';
 import { Danger } from 'design/Alert';
-import { MenuLogin } from 'shared/components/MenuLogin';
+import * as icons from 'design/Icon';
 import { SearchPanel, SearchPagination } from 'shared/components/Search';
 
-import { makeServer } from 'teleterm/ui/services/clusters';
+import { useWorkspaceLoggedInUser } from 'teleterm/ui/hooks/useLoggedInUser';
+import { useWorkspaceContext } from 'teleterm/ui/Documents';
+import { useConnectMyComputerContext } from 'teleterm/ui/ConnectMyComputer';
+import { Server } from 'teleterm/services/tshd/types';
 
 import { DarkenWhileDisabled } from '../DarkenWhileDisabled';
-import { getEmptyTableText } from '../getEmptyTableText';
+import { getEmptyTableStatus, getEmptyTableText } from '../getEmptyTableText';
+import { useClusterContext } from '../../clusterContext';
+
+import { ConnectServerActionButton } from '../../actionButtons';
 
 import { useServers, State } from './useServers';
 
@@ -37,8 +44,6 @@ export default function Container() {
 
 function ServerList(props: State) {
   const {
-    getSshLogins,
-    connect,
     fetchAttempt,
     agentFilter,
     pageCount,
@@ -49,9 +54,49 @@ function ServerList(props: State) {
     onAgentLabelClick,
     updateSearch,
   } = props;
-  const servers = fetchAttempt.data?.agentsList.map(makeServer) || [];
+  const { documentsService, rootClusterUri } = useWorkspaceContext();
+  const { clusterUri } = useClusterContext();
+  const loggedInUser = useWorkspaceLoggedInUser();
+  const { canUse: hasPermissionsForConnectMyComputer, agentCompatibility } =
+    useConnectMyComputerContext();
+
+  const servers = fetchAttempt.data?.agentsList || [];
   const disabled = fetchAttempt.status === 'processing';
-  const emptyText = getEmptyTableText(fetchAttempt.status, 'servers');
+  const isRootCluster = clusterUri === rootClusterUri;
+  const canAddResources = isRootCluster && loggedInUser?.acl?.tokens.create;
+
+  const emptyTableStatus = getEmptyTableStatus(
+    fetchAttempt.status,
+    agentFilter.search || agentFilter.query,
+    canAddResources
+  );
+  const canUseConnectMyComputer =
+    isRootCluster &&
+    hasPermissionsForConnectMyComputer &&
+    agentCompatibility === 'compatible';
+  let { emptyText, emptyHint } = getEmptyTableText(emptyTableStatus, 'servers');
+  let emptyButton: JSX.Element;
+
+  if (
+    emptyTableStatus.status === 'no-resources' &&
+    emptyTableStatus.showEnrollingResourcesHint &&
+    canUseConnectMyComputer
+  ) {
+    emptyHint =
+      'You can add them in the Teleport Web UI or by connecting your computer to the cluster.';
+    emptyButton = (
+      <ButtonPrimary
+        type="button"
+        gap={2}
+        onClick={() => {
+          documentsService.openConnectMyComputerDocument({ rootClusterUri });
+        }}
+      >
+        <icons.Laptop size={'medium'} />
+        Connect My Computer
+      </ButtonPrimary>
+    );
+  }
 
   return (
     <>
@@ -82,26 +127,28 @@ function ServerList(props: State) {
                 render: renderAddressCell,
               },
               {
-                key: 'labels',
+                key: 'labelsList',
                 headerText: 'Labels',
-                render: ({ labels }) => (
+                render: ({ labelsList }) => (
                   <ClickableLabelCell
-                    labels={labels}
+                    labels={labelsList}
                     onClick={onAgentLabelClick}
                   />
                 ),
               },
               {
                 altKey: 'connect-btn',
-                render: server =>
-                  renderConnectCell(
-                    () => getSshLogins(server.uri),
-                    login => connect(server, login)
-                  ),
+                render: server => (
+                  <Cell align="right">
+                    <ConnectServerActionButton server={server} />
+                  </Cell>
+                ),
               },
             ]}
             customSort={customSort}
             emptyText={emptyText}
+            emptyHint={emptyHint}
+            emptyButton={emptyButton}
             data={servers}
           />
           <SearchPagination prevPage={prevPage} nextPage={nextPage} />
@@ -111,29 +158,7 @@ function ServerList(props: State) {
   );
 }
 
-const renderConnectCell = (
-  getSshLogins: () => string[],
-  onConnect: (login: string) => void
-) => {
-  return (
-    <Cell align="right">
-      <MenuLogin
-        getLoginItems={() => getSshLogins().map(login => ({ login, url: '' }))}
-        onSelect={(e, login) => onConnect(login)}
-        transformOrigin={{
-          vertical: 'top',
-          horizontal: 'right',
-        }}
-        anchorOrigin={{
-          vertical: 'center',
-          horizontal: 'right',
-        }}
-      />
-    </Cell>
-  );
-};
-
-const renderAddressCell = ({ addr, tunnel }: ReturnType<typeof makeServer>) => (
+const renderAddressCell = ({ addr, tunnel }: Server) => (
   <Cell>
     {tunnel && (
       <span

@@ -92,12 +92,12 @@ func Test_convertActivateError(t *testing.T) {
 	}
 	usernameDoesNotMatchError := &mysql.MyError{
 		Code:    mysql.ER_SIGNAL_EXCEPTION,
-		State:   sqlStateUsernameDoesNotMatch,
+		State:   common.SQLStateUsernameDoesNotMatch,
 		Message: `Teleport username does not match user attributes`,
 	}
 	rolesChangedError := &mysql.MyError{
 		Code:    mysql.ER_SIGNAL_EXCEPTION,
-		State:   sqlStateRolesChanged,
+		State:   common.SQLStateRolesChanged,
 		Message: `user has active connections and roles have changed`,
 	}
 	// Currently not converted to trace.AccessDeined as it may conflict with
@@ -177,6 +177,55 @@ func Test_checkMySQLSupportedVersion(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.input, func(t *testing.T) {
 			test.checkError(t, checkMySQLSupportedVersion(test.input))
+		})
+	}
+}
+
+func Test_checkMariaDBSupportedVersion(t *testing.T) {
+	tests := []struct {
+		input      string
+		checkError require.ErrorAssertionFunc
+	}{
+		{
+			input:      "invalid-server-version",
+			checkError: require.NoError,
+		},
+		{
+			input:      "5.5.5-10.7.8-MariaDB-1:10.7.8+maria~ubu2004",
+			checkError: require.NoError,
+		},
+		{
+			input:      "5.5.5-10.9.8-MariaDB",
+			checkError: require.NoError,
+		},
+		{
+			input:      "5.5.5-10.3.3-MariaDB",
+			checkError: require.NoError,
+		},
+		{
+			input:      "5.5.5-10.2.11-MariaDB",
+			checkError: require.NoError,
+		},
+		{
+			input:      "11.0.3-MariaDB-1:11.0.3+maria~ubu2204",
+			checkError: require.NoError,
+		},
+		{
+			input:      "5.5.5-10.3.2-MariaDB",
+			checkError: require.Error,
+		},
+		{
+			input:      "5.5.5-10.2.10-MariaDB",
+			checkError: require.Error,
+		},
+		{
+			input:      "5.5.5-10.1.0-MariaDB",
+			checkError: require.Error,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.input, func(t *testing.T) {
+			test.checkError(t, checkMariaDBSupportedVersion(test.input))
 		})
 	}
 }

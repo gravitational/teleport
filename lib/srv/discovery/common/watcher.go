@@ -35,8 +35,8 @@ const (
 
 // WatcherConfig is the common discovery watcher configuration.
 type WatcherConfig struct {
-	// Fetchers holds fetchers used for this watcher.
-	Fetchers []Fetcher
+	// FetchersFn is a function that returns the fetchers used for this watcher.
+	FetchersFn func() []Fetcher
 	// Interval is the interval between fetches.
 	Interval time.Duration
 	// Log is the watcher logger.
@@ -66,7 +66,7 @@ func (c *WatcherConfig) CheckAndSetDefaults() error {
 	if c.Clock == nil {
 		c.Clock = clockwork.NewRealClock()
 	}
-	if len(c.Fetchers) == 0 {
+	if c.FetchersFn == nil {
 		return trace.NotFound("missing fetchers")
 	}
 	if c.Origin == "" {
@@ -122,7 +122,7 @@ func (w *Watcher) fetchAndSend() {
 		group, groupCtx     = errgroup.WithContext(w.ctx)
 	)
 	group.SetLimit(concurrencyLimit)
-	for _, fetcher := range w.cfg.Fetchers {
+	for _, fetcher := range w.cfg.FetchersFn() {
 		lFetcher := fetcher
 
 		group.Go(func() error {
@@ -178,4 +178,12 @@ func (w *Watcher) fetchAndSend() {
 // Resources returns a channel that receives fetched cloud resources.
 func (w *Watcher) ResourcesC() <-chan types.ResourcesWithLabels {
 	return w.resourcesC
+}
+
+// StaticFetchers converts a list of Fetchers into a function that returns them.
+// Used to convert a static set of Fetchers into a FetchersFn generator.
+func StaticFetchers(fs []Fetcher) func() []Fetcher {
+	return func() []Fetcher {
+		return fs
+	}
 }

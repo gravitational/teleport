@@ -19,23 +19,23 @@ import React, { useState } from 'react';
 import Dialog from 'design/Dialog';
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
-import { ClusterConnectReason } from 'teleterm/ui/services/modals';
+import { DialogClusterConnect } from 'teleterm/ui/services/modals';
 import { RootClusterUri } from 'teleterm/ui/uri';
 
 import { ClusterAdd } from './ClusterAdd';
 import { ClusterLogin } from './ClusterLogin';
 
-export function ClusterConnect(props: ClusterConnectProps) {
+export function ClusterConnect(props: { dialog: DialogClusterConnect }) {
   const [createdClusterUri, setCreatedClusterUri] = useState<
     RootClusterUri | undefined
   >();
   const { clustersService } = useAppContext();
-  const clusterUri = props.clusterUri || createdClusterUri;
+  const clusterUri = props.dialog.clusterUri || createdClusterUri;
 
   function handleClusterAdd(clusterUri: RootClusterUri): void {
     const cluster = clustersService.findCluster(clusterUri);
     if (cluster?.connected) {
-      props.onSuccess(clusterUri);
+      props.dialog.onSuccess(clusterUri);
     } else {
       setCreatedClusterUri(clusterUri);
     }
@@ -49,26 +49,24 @@ export function ClusterConnect(props: ClusterConnectProps) {
         padding: '0',
       })}
       disableEscapeKeyDown={false}
-      onClose={props.onCancel}
+      onClose={props.dialog.onCancel}
       open={true}
     >
       {!clusterUri ? (
-        <ClusterAdd onCancel={props.onCancel} onSuccess={handleClusterAdd} />
+        <ClusterAdd
+          onCancel={props.dialog.onCancel}
+          onSuccess={handleClusterAdd}
+          prefill={{ clusterAddress: props.dialog.prefill?.clusterAddress }}
+        />
       ) : (
         <ClusterLogin
-          reason={props.reason}
+          reason={props.dialog.reason}
           clusterUri={clusterUri}
-          onCancel={props.onCancel}
-          onSuccess={() => props.onSuccess(clusterUri)}
+          prefill={{ username: props.dialog.prefill?.username }}
+          onCancel={props.dialog.onCancel}
+          onSuccess={() => props.dialog.onSuccess(clusterUri)}
         />
       )}
     </Dialog>
   );
-}
-
-interface ClusterConnectProps {
-  clusterUri?: RootClusterUri;
-  reason: ClusterConnectReason | undefined;
-  onCancel(): void;
-  onSuccess(clusterUri: RootClusterUri): void;
 }

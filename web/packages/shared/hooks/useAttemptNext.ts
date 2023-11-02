@@ -55,6 +55,7 @@ export default function useAttemptNext(status = '' as Attempt['status']) {
 export type Attempt = {
   status: 'processing' | 'failed' | 'success' | '';
   statusText?: string;
+  statusCode?: number;
 };
 
 type Callback = (fn?: any) => Promise<any>;

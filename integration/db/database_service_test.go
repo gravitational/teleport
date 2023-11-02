@@ -67,7 +67,8 @@ func TestDatabaseServiceHeartbeat(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	require.NoError(t, authServer.UpsertRole(ctx, roleWithRODBService))
+	roleWithRODBService, err = authServer.UpsertRole(ctx, roleWithRODBService)
+	require.NoError(t, err)
 
 	// Set up User
 	teleportUser := "user123"

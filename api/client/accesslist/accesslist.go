@@ -16,6 +16,7 @@ package accesslist
 
 import (
 	"context"
+	"time"
 
 	"github.com/gravitational/trace"
 
@@ -89,6 +90,25 @@ func (c *Client) GetAccessList(ctx context.Context, name string) (*accesslist.Ac
 
 	accessList, err := conv.FromProto(resp, conv.WithOwnersIneligibleStatusField(resp.GetSpec().GetOwners()))
 	return accessList, trace.Wrap(err)
+}
+
+// GetAccessListsToReview returns access lists that the user needs to review.
+func (c *Client) GetAccessListsToReview(ctx context.Context) ([]*accesslist.AccessList, error) {
+	resp, err := c.grpcClient.GetAccessListsToReview(ctx, &accesslistv1.GetAccessListsToReviewRequest{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	accessLists := make([]*accesslist.AccessList, len(resp.AccessLists))
+	for i, accessList := range resp.AccessLists {
+		var err error
+		accessLists[i], err = conv.FromProto(accessList)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	return accessLists, nil
 }
 
 // UpsertAccessList creates or updates an access list resource.
@@ -242,15 +262,15 @@ func (c *Client) ListAccessListReviews(ctx context.Context, accessList string, p
 }
 
 // CreateAccessListReview will create a new review for an access list.
-func (c *Client) CreateAccessListReview(ctx context.Context, review *accesslist.Review) (*accesslist.Review, error) {
+func (c *Client) CreateAccessListReview(ctx context.Context, review *accesslist.Review) (*accesslist.Review, time.Time, error) {
 	resp, err := c.grpcClient.CreateAccessListReview(ctx, &accesslistv1.CreateAccessListReviewRequest{
 		Review: conv.ToReviewProto(review),
 	})
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, time.Time{}, trace.Wrap(err)
 	}
 	review.SetName(resp.ReviewName)
-	return review, nil
+	return review, resp.NextAuditDate.AsTime(), nil
 }
 
 // DeleteAccessListReview will delete an access list review from the backend.

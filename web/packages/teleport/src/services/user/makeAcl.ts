@@ -60,6 +60,9 @@ export function makeAcl(json): Acl {
   const deviceTrust = json.deviceTrust || defaultAccess;
   const assist = json.assist || defaultAccess;
 
+  const auditQuery = json.auditQuery || defaultAccess;
+  const securityReport = json.securityReport || defaultAccess;
+
   const samlIdpServiceProvider = json.samlIdpServiceProvider || defaultAccess;
 
   return {
@@ -92,6 +95,8 @@ export function makeAcl(json): Acl {
     lock,
     assist,
     samlIdpServiceProvider,
+    auditQuery,
+    securityReport,
   };
 }
 

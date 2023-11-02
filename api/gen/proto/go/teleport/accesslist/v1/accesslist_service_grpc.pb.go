@@ -40,6 +40,7 @@ const (
 	AccessListService_UpsertAccessList_FullMethodName                        = "/teleport.accesslist.v1.AccessListService/UpsertAccessList"
 	AccessListService_DeleteAccessList_FullMethodName                        = "/teleport.accesslist.v1.AccessListService/DeleteAccessList"
 	AccessListService_DeleteAllAccessLists_FullMethodName                    = "/teleport.accesslist.v1.AccessListService/DeleteAllAccessLists"
+	AccessListService_GetAccessListsToReview_FullMethodName                  = "/teleport.accesslist.v1.AccessListService/GetAccessListsToReview"
 	AccessListService_ListAccessListMembers_FullMethodName                   = "/teleport.accesslist.v1.AccessListService/ListAccessListMembers"
 	AccessListService_GetAccessListMember_FullMethodName                     = "/teleport.accesslist.v1.AccessListService/GetAccessListMember"
 	AccessListService_UpsertAccessListMember_FullMethodName                  = "/teleport.accesslist.v1.AccessListService/UpsertAccessListMember"
@@ -69,6 +70,8 @@ type AccessListServiceClient interface {
 	DeleteAccessList(ctx context.Context, in *DeleteAccessListRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// DeleteAllAccessLists hard deletes all access lists.
 	DeleteAllAccessLists(ctx context.Context, in *DeleteAllAccessListsRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	// GetAccessListsToReview will return access lists that need to be reviewed by the current user.
+	GetAccessListsToReview(ctx context.Context, in *GetAccessListsToReviewRequest, opts ...grpc.CallOption) (*GetAccessListsToReviewResponse, error)
 	// ListAccessListMembers returns a paginated list of all access list members.
 	ListAccessListMembers(ctx context.Context, in *ListAccessListMembersRequest, opts ...grpc.CallOption) (*ListAccessListMembersResponse, error)
 	// GetAccessListMember returns the specified access list member resource.
@@ -150,6 +153,15 @@ func (c *accessListServiceClient) DeleteAccessList(ctx context.Context, in *Dele
 func (c *accessListServiceClient) DeleteAllAccessLists(ctx context.Context, in *DeleteAllAccessListsRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
 	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, AccessListService_DeleteAllAccessLists_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *accessListServiceClient) GetAccessListsToReview(ctx context.Context, in *GetAccessListsToReviewRequest, opts ...grpc.CallOption) (*GetAccessListsToReviewResponse, error) {
+	out := new(GetAccessListsToReviewResponse)
+	err := c.cc.Invoke(ctx, AccessListService_GetAccessListsToReview_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -271,6 +283,8 @@ type AccessListServiceServer interface {
 	DeleteAccessList(context.Context, *DeleteAccessListRequest) (*emptypb.Empty, error)
 	// DeleteAllAccessLists hard deletes all access lists.
 	DeleteAllAccessLists(context.Context, *DeleteAllAccessListsRequest) (*emptypb.Empty, error)
+	// GetAccessListsToReview will return access lists that need to be reviewed by the current user.
+	GetAccessListsToReview(context.Context, *GetAccessListsToReviewRequest) (*GetAccessListsToReviewResponse, error)
 	// ListAccessListMembers returns a paginated list of all access list members.
 	ListAccessListMembers(context.Context, *ListAccessListMembersRequest) (*ListAccessListMembersResponse, error)
 	// GetAccessListMember returns the specified access list member resource.
@@ -318,6 +332,9 @@ func (UnimplementedAccessListServiceServer) DeleteAccessList(context.Context, *D
 }
 func (UnimplementedAccessListServiceServer) DeleteAllAccessLists(context.Context, *DeleteAllAccessListsRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteAllAccessLists not implemented")
+}
+func (UnimplementedAccessListServiceServer) GetAccessListsToReview(context.Context, *GetAccessListsToReviewRequest) (*GetAccessListsToReviewResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetAccessListsToReview not implemented")
 }
 func (UnimplementedAccessListServiceServer) ListAccessListMembers(context.Context, *ListAccessListMembersRequest) (*ListAccessListMembersResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListAccessListMembers not implemented")
@@ -469,6 +486,24 @@ func _AccessListService_DeleteAllAccessLists_Handler(srv interface{}, ctx contex
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(AccessListServiceServer).DeleteAllAccessLists(ctx, req.(*DeleteAllAccessListsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AccessListService_GetAccessListsToReview_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetAccessListsToReviewRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AccessListServiceServer).GetAccessListsToReview(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AccessListService_GetAccessListsToReview_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AccessListServiceServer).GetAccessListsToReview(ctx, req.(*GetAccessListsToReviewRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -701,6 +736,10 @@ var AccessListService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DeleteAllAccessLists",
 			Handler:    _AccessListService_DeleteAllAccessLists_Handler,
+		},
+		{
+			MethodName: "GetAccessListsToReview",
+			Handler:    _AccessListService_GetAccessListsToReview_Handler,
 		},
 		{
 			MethodName: "ListAccessListMembers",

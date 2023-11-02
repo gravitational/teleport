@@ -34,6 +34,7 @@
   },
   "devDependencies": {
     "@types/dompurify": "^3.0.0",
-    "@types/marked": "^4.0.8"
+    "@types/marked": "^4.0.8",
+    "@types/react-highlight": "^0.12.6"
   }
 }

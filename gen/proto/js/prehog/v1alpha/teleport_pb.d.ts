@@ -18,6 +18,9 @@ export class UserLoginEvent extends jspb.Message {
     getDeviceId(): string;
     setDeviceId(value: string): UserLoginEvent;
 
+    getRequiredPrivateKeyPolicy(): string;
+    setRequiredPrivateKeyPolicy(value: string): UserLoginEvent;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): UserLoginEvent.AsObject;
@@ -34,6 +37,7 @@ export namespace UserLoginEvent {
         userName: string,
         connectorType: string,
         deviceId: string,
+        requiredPrivateKeyPolicy: string,
     }
 }
 
@@ -276,6 +280,9 @@ export class UserCertificateIssuedEvent extends jspb.Message {
     getUsageDesktop(): boolean;
     setUsageDesktop(value: boolean): UserCertificateIssuedEvent;
 
+    getPrivateKeyPolicy(): string;
+    setPrivateKeyPolicy(value: string): UserCertificateIssuedEvent;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): UserCertificateIssuedEvent.AsObject;
@@ -296,6 +303,7 @@ export namespace UserCertificateIssuedEvent {
         usageApp: boolean,
         usageKubernetes: boolean,
         usageDesktop: boolean,
+        privateKeyPolicy: string,
     }
 }
 

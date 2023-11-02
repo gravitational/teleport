@@ -78,6 +78,11 @@ type Features struct {
 	AccessRequests AccessRequestsFeature
 	// CustomTheme holds the name of WebUI custom theme.
 	CustomTheme string
+
+	// IsTrialProduct is true if the cluster is in trial mode.
+	IsTrialProduct bool
+	// IsTeam is true if the cluster is a Teleport Team cluster.
+	IsTeamProduct bool
 }
 
 // DeviceTrustFeature holds the Device Trust feature general and usage-based
