@@ -1105,13 +1105,57 @@ func (stream *streamFunc[T]) Next() bool {
 			source: `package mypkg
 
 type Resource struct {
+  // The name of the resource.
   Name string
+  // When the resource expires.
   Expiry time.Time
 }
 `,
 			expected:       nil,
 			declSources:    []string{},
 			errorSubstring: "not declared",
+		},
+		{
+			description: "field type not declared in a loaded package with override",
+			source: `package mypkg
+
+// Resource is a resource.
+type Resource struct {
+  // The name of the resource.
+  Name string BACKTICKjson:"name"BACKTICK
+  // When the resource expires.
+  // Example YAML:
+  // ---
+  // 5h
+  Expiry time.Time BACKTICKjson:"expiry"BACKTICK
+}
+`,
+			expected: map[PackageInfo]ReferenceEntry{
+				PackageInfo{
+					PackageName: "mypkg",
+					DeclName:    "Resource",
+				}: ReferenceEntry{
+					SectionName: "Resource",
+					Description: "A resource.",
+					SourcePath:  "myfile.go",
+					YAMLExample: `name: "string"
+expiry: 5h
+`,
+					Fields: []Field{
+						Field{
+							Name:        "name",
+							Description: "The name of the resource.",
+							Type:        "string",
+						},
+						Field{
+							Name:        "expiry",
+							Description: "When the resource expires.",
+							Type:        "See Example YAML.",
+						},
+					},
+				},
+			},
+			declSources: []string{},
 		},
 	}
 
