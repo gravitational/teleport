@@ -68,7 +68,7 @@ func (s *ClusterConfigurationService) GetClusterName(opts ...services.MarshalOpt
 		return nil, trace.Wrap(err)
 	}
 	return services.UnmarshalClusterName(item.Value,
-		services.AddOptions(opts, services.WithResourceID(item.ID))...)
+		services.AddOptions(opts, services.WithResourceID(item.ID), services.WithRevision(item.Revision))...)
 }
 
 // DeleteClusterName deletes types.ClusterName from the backend.
@@ -86,15 +86,17 @@ func (s *ClusterConfigurationService) DeleteClusterName() error {
 // SetClusterName sets the name of the cluster in the backend. SetClusterName
 // can only be called once on a cluster after which it will return trace.AlreadyExists.
 func (s *ClusterConfigurationService) SetClusterName(c types.ClusterName) error {
+	rev := c.GetRevision()
 	value, err := services.MarshalClusterName(c)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	_, err = s.Create(context.TODO(), backend.Item{
-		Key:     backend.Key(clusterConfigPrefix, namePrefix),
-		Value:   value,
-		Expires: c.Expiry(),
+		Key:      backend.Key(clusterConfigPrefix, namePrefix),
+		Value:    value,
+		Expires:  c.Expiry(),
+		Revision: rev,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -105,16 +107,18 @@ func (s *ClusterConfigurationService) SetClusterName(c types.ClusterName) error 
 
 // UpsertClusterName sets the name of the cluster in the backend.
 func (s *ClusterConfigurationService) UpsertClusterName(c types.ClusterName) error {
+	rev := c.GetRevision()
 	value, err := services.MarshalClusterName(c)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	_, err = s.Put(context.TODO(), backend.Item{
-		Key:     backend.Key(clusterConfigPrefix, namePrefix),
-		Value:   value,
-		Expires: c.Expiry(),
-		ID:      c.GetResourceID(),
+		Key:      backend.Key(clusterConfigPrefix, namePrefix),
+		Value:    value,
+		Expires:  c.Expiry(),
+		ID:       c.GetResourceID(),
+		Revision: rev,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -133,20 +137,22 @@ func (s *ClusterConfigurationService) GetStaticTokens() (types.StaticTokens, err
 		return nil, trace.Wrap(err)
 	}
 	return services.UnmarshalStaticTokens(item.Value,
-		services.WithResourceID(item.ID), services.WithExpires(item.Expires))
+		services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 }
 
 // SetStaticTokens sets the list of static tokens used to provision nodes.
 func (s *ClusterConfigurationService) SetStaticTokens(c types.StaticTokens) error {
+	rev := c.GetRevision()
 	value, err := services.MarshalStaticTokens(c)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	_, err = s.Put(context.TODO(), backend.Item{
-		Key:     backend.Key(clusterConfigPrefix, staticTokensPrefix),
-		Value:   value,
-		Expires: c.Expiry(),
-		ID:      c.GetResourceID(),
+		Key:      backend.Key(clusterConfigPrefix, staticTokensPrefix),
+		Value:    value,
+		Expires:  c.Expiry(),
+		ID:       c.GetResourceID(),
+		Revision: rev,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -178,13 +184,14 @@ func (s *ClusterConfigurationService) GetAuthPreference(ctx context.Context) (ty
 		return nil, trace.Wrap(err)
 	}
 	return services.UnmarshalAuthPreference(item.Value,
-		services.WithResourceID(item.ID), services.WithExpires(item.Expires))
+		services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 }
 
 // SetAuthPreference sets the cluster authentication preferences
 // on the backend.
 func (s *ClusterConfigurationService) SetAuthPreference(ctx context.Context, preferences types.AuthPreference) error {
 	// Perform the modules-provided checks.
+	rev := preferences.GetRevision()
 	if err := modules.ValidateResource(preferences); err != nil {
 		return trace.Wrap(err)
 	}
@@ -195,9 +202,10 @@ func (s *ClusterConfigurationService) SetAuthPreference(ctx context.Context, pre
 	}
 
 	item := backend.Item{
-		Key:   backend.Key(authPrefix, preferencePrefix, generalPrefix),
-		Value: value,
-		ID:    preferences.GetResourceID(),
+		Key:      backend.Key(authPrefix, preferencePrefix, generalPrefix),
+		Value:    value,
+		ID:       preferences.GetResourceID(),
+		Revision: rev,
 	}
 
 	_, err = s.Put(ctx, item)
@@ -229,20 +237,22 @@ func (s *ClusterConfigurationService) GetClusterAuditConfig(ctx context.Context,
 		}
 		return nil, trace.Wrap(err)
 	}
-	return services.UnmarshalClusterAuditConfig(item.Value, append(opts, services.WithResourceID(item.ID), services.WithExpires(item.Expires))...)
+	return services.UnmarshalClusterAuditConfig(item.Value, append(opts, services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))...)
 }
 
 // SetClusterAuditConfig sets the cluster audit config on the backend.
 func (s *ClusterConfigurationService) SetClusterAuditConfig(ctx context.Context, auditConfig types.ClusterAuditConfig) error {
+	rev := auditConfig.GetRevision()
 	value, err := services.MarshalClusterAuditConfig(auditConfig)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	item := backend.Item{
-		Key:   backend.Key(clusterConfigPrefix, auditPrefix),
-		Value: value,
-		ID:    auditConfig.GetResourceID(),
+		Key:      backend.Key(clusterConfigPrefix, auditPrefix),
+		Value:    value,
+		ID:       auditConfig.GetResourceID(),
+		Revision: rev,
 	}
 
 	_, err = s.Put(ctx, item)
@@ -273,7 +283,7 @@ func (s *ClusterConfigurationService) GetClusterNetworkingConfig(ctx context.Con
 		}
 		return nil, trace.Wrap(err)
 	}
-	return services.UnmarshalClusterNetworkingConfig(item.Value, append(opts, services.WithResourceID(item.ID), services.WithExpires(item.Expires))...)
+	return services.UnmarshalClusterNetworkingConfig(item.Value, append(opts, services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))...)
 }
 
 // SetClusterNetworkingConfig sets the cluster networking config
@@ -284,15 +294,17 @@ func (s *ClusterConfigurationService) SetClusterNetworkingConfig(ctx context.Con
 		return trace.Wrap(err)
 	}
 
+	rev := netConfig.GetRevision()
 	value, err := services.MarshalClusterNetworkingConfig(netConfig)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	item := backend.Item{
-		Key:   backend.Key(clusterConfigPrefix, networkingPrefix),
-		Value: value,
-		ID:    netConfig.GetResourceID(),
+		Key:      backend.Key(clusterConfigPrefix, networkingPrefix),
+		Value:    value,
+		ID:       netConfig.GetResourceID(),
+		Revision: rev,
 	}
 
 	_, err = s.Put(ctx, item)
@@ -323,7 +335,7 @@ func (s *ClusterConfigurationService) GetSessionRecordingConfig(ctx context.Cont
 		}
 		return nil, trace.Wrap(err)
 	}
-	return services.UnmarshalSessionRecordingConfig(item.Value, append(opts, services.WithResourceID(item.ID), services.WithExpires(item.Expires))...)
+	return services.UnmarshalSessionRecordingConfig(item.Value, append(opts, services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))...)
 }
 
 // SetSessionRecordingConfig sets session recording config on the backend.
@@ -333,15 +345,17 @@ func (s *ClusterConfigurationService) SetSessionRecordingConfig(ctx context.Cont
 		return trace.Wrap(err)
 	}
 
+	rev := recConfig.GetRevision()
 	value, err := services.MarshalSessionRecordingConfig(recConfig)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	item := backend.Item{
-		Key:   backend.Key(clusterConfigPrefix, sessionRecordingPrefix),
-		Value: value,
-		ID:    recConfig.GetResourceID(),
+		Key:      backend.Key(clusterConfigPrefix, sessionRecordingPrefix),
+		Value:    value,
+		ID:       recConfig.GetResourceID(),
+		Revision: rev,
 	}
 
 	_, err = s.Put(ctx, item)
@@ -365,7 +379,7 @@ func (s *ClusterConfigurationService) DeleteSessionRecordingConfig(ctx context.C
 
 // GetInstallers retrieves all the install scripts.
 func (s *ClusterConfigurationService) GetInstallers(ctx context.Context) ([]types.Installer, error) {
-	startKey := backend.Key(clusterConfigPrefix, scriptsPrefix, installerPrefix, "")
+	startKey := backend.ExactKey(clusterConfigPrefix, scriptsPrefix, installerPrefix)
 	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -391,14 +405,16 @@ func (s *ClusterConfigurationService) GetUIConfig(ctx context.Context) (types.UI
 }
 
 func (s *ClusterConfigurationService) SetUIConfig(ctx context.Context, uic types.UIConfig) error {
+	rev := uic.GetRevision()
 	value, err := services.MarshalUIConfig(uic)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	_, err = s.Put(ctx, backend.Item{
-		Key:   backend.Key(clusterConfigPrefix, uiPrefix),
-		Value: value,
+		Key:      backend.Key(clusterConfigPrefix, uiPrefix),
+		Value:    value,
+		Revision: rev,
 	})
 	return trace.Wrap(err)
 }
@@ -413,20 +429,22 @@ func (s *ClusterConfigurationService) GetInstaller(ctx context.Context, name str
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return services.UnmarshalInstaller(item.Value)
+	return services.UnmarshalInstaller(item.Value, services.WithRevision(item.Revision))
 }
 
 // SetInstaller sets the script of the cluster in the backend
 func (s *ClusterConfigurationService) SetInstaller(ctx context.Context, ins types.Installer) error {
+	rev := ins.GetRevision()
 	value, err := services.MarshalInstaller(ins)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	_, err = s.Put(ctx, backend.Item{
-		Key:     backend.Key(clusterConfigPrefix, scriptsPrefix, installerPrefix, ins.GetName()),
-		Value:   value,
-		Expires: ins.Expiry(),
+		Key:      backend.Key(clusterConfigPrefix, scriptsPrefix, installerPrefix, ins.GetName()),
+		Value:    value,
+		Expires:  ins.Expiry(),
+		Revision: rev,
 	})
 	return trace.Wrap(err)
 }
@@ -439,7 +457,7 @@ func (s *ClusterConfigurationService) DeleteInstaller(ctx context.Context, name 
 
 // DeleteAllInstallers removes all installer resources.
 func (s *ClusterConfigurationService) DeleteAllInstallers(ctx context.Context) error {
-	startKey := backend.Key(clusterConfigPrefix, scriptsPrefix, installerPrefix, "")
+	startKey := backend.ExactKey(clusterConfigPrefix, scriptsPrefix, installerPrefix)
 	err := s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey))
 	if err != nil {
 		return trace.Wrap(err)
@@ -483,6 +501,15 @@ func (s *ClusterConfigurationService) UpdateClusterMaintenanceConfig(ctx context
 	}
 
 	return trace.Wrap(err)
+}
+
+// DeleteClusterMaintenanceConfig deletes the maintenance config singleton resource.
+func (s *ClusterConfigurationService) DeleteClusterMaintenanceConfig(ctx context.Context) error {
+	err := s.Delete(ctx, backend.Key(clusterConfigPrefix, maintenancePrefix))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
 }
 
 const (

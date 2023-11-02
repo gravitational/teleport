@@ -72,6 +72,11 @@ type querierConfig struct {
 	workgroup               string
 	queryResultsS3          string
 	getQueryResultsInterval time.Duration
+	// getQueryResultsInitialDelay allows to set custom getQueryResultsInitialDelay.
+	// If not provided, default will be used.
+	getQueryResultsInitialDelay time.Duration
+
+	disableQueryCostOptimization bool
 
 	clock  clockwork.Clock
 	awsCfg *aws.Config
@@ -95,6 +100,10 @@ func (cfg *querierConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("empty getQueryResultsInterval in athena querier")
 	case cfg.awsCfg == nil:
 		return trace.BadParameter("empty awsCfg in athena querier")
+	}
+
+	if cfg.getQueryResultsInitialDelay == 0 {
+		cfg.getQueryResultsInitialDelay = getQueryResultsInitialDelay
 	}
 
 	if cfg.logger == nil {
@@ -135,17 +144,150 @@ func (q *querier) SearchEvents(ctx context.Context, req events.SearchEventsReque
 		),
 	)
 	defer span.End()
-	filter := searchEventsFilter{eventTypes: req.EventTypes}
+
+	var startKeyset *keyset
+	if req.StartKey != "" {
+		var err error
+		startKeyset, err = fromKey(req.StartKey, req.Order)
+		if err != nil {
+			return nil, "", trace.BadParameter("unsupported keyset format: %v", err)
+		}
+	}
+
+	from := req.From
+	to := req.To
+	// If startKeyset is not nil, we can take shorten time range by taking value
+	// from key set. From ASC order we modify 'from', for desc - 'to'.
+	// This is useful because event-exporter plugin is using always quering with
+	// the same from value, and it's using keyset to query for further data.
+	// For example if exporter started 2023-01-01 and today is 2023-06-01, it will
+	// call with value from=2023-01-01, to=2023-06-01 and ketset.T = 2023-06-01.
+	// Values before 2023-06-01 will be filtered by athena engine, however
+	// it will cause data scans on large timerange.
+	if startKeyset != nil {
+		if req.Order == types.EventOrderAscending && startKeyset.t.After(from) {
+			from = startKeyset.t.UTC()
+		}
+		if req.Order == types.EventOrderDescending && startKeyset.t.Before(to) {
+			to = startKeyset.t.UTC()
+		}
+	}
+
+	// If pagination key was used and range is big, try to optimize costs by
+	// doing queries on smaller range.
+	// This is temporary workaround for polling of event exporter
+	// until we have new API for exporting events.
+	if q.canOptimizePaginatedSearchCosts(ctx, startKeyset, from, to) {
+		events, keyset, err := q.costOptimizedPaginatedSearch(ctx, searchEventsRequest{
+			fromUTC:   from.UTC(),
+			toUTC:     to.UTC(),
+			limit:     req.Limit,
+			order:     req.Order,
+			startKey:  startKeyset,
+			filter:    searchEventsFilter{eventTypes: req.EventTypes},
+			sessionID: "",
+		})
+		return events, keyset, trace.Wrap(err)
+	}
+
 	events, keyset, err := q.searchEvents(ctx, searchEventsRequest{
-		fromUTC:   req.From.UTC(),
-		toUTC:     req.To.UTC(),
+		fromUTC:   from.UTC(),
+		toUTC:     to.UTC(),
 		limit:     req.Limit,
 		order:     req.Order,
-		startKey:  req.StartKey,
-		filter:    filter,
+		startKey:  startKeyset,
+		filter:    searchEventsFilter{eventTypes: req.EventTypes},
 		sessionID: "",
 	})
 	return events, keyset, trace.Wrap(err)
+}
+
+func (q *querier) canOptimizePaginatedSearchCosts(ctx context.Context, startKey *keyset, from, to time.Time) bool {
+	return !q.disableQueryCostOptimization && startKey != nil && to.Sub(from) > 24*time.Hour
+}
+
+// costOptimizedPaginatedSearch instead of scanning data on big time range from request
+// do scans on smaller ranges first and if there are not enough results,
+// it extends range using steps, up to original time range.
+// It's temporary workaround to reduce costs when event exporter is executing
+// search events endpoint using big time range and requesting only small amount
+// of data.
+// Ex. For timerange (2023-04-01 12:00, 2023-08-01 12:00) we will do following calls:
+// - 1. (2023-04-01 12:00, 2023-04-01 13:00) - 1h increase
+// - 2. (2023-04-01 12:00, 2023-04-02 12:00) - 24h increase
+// - 3. (2023-04-01 12:00, 2023-04-08 12:00) - 24*7h increase
+// - 4. (2023-04-01 12:00, 2023-05-01 12:00) - 24*30h increase
+// - 5. (2023-04-01 12:00, 2023-08-01 12:00) - original range.
+// If any of steps returns enough data based on limit, we return immediately.
+func (q *querier) costOptimizedPaginatedSearch(ctx context.Context, req searchEventsRequest) ([]apievents.AuditEvent, string, error) {
+	var events []apievents.AuditEvent
+	var err error
+	var keyset string
+
+	toUTC := req.toUTC
+	fromUTC := req.fromUTC
+
+	for _, dateToMod := range prepareTimeRangesForCostOptimizedSearch(req.fromUTC, req.toUTC, req.order) {
+		if req.order == types.EventOrderAscending {
+			toUTC = dateToMod.UTC()
+			q.logger.Debugf("Doing cost optimized query by modifying to date (original %s, updated %s)", req.toUTC, toUTC)
+		} else {
+			fromUTC = dateToMod.UTC()
+			q.logger.Debugf("Doing cost optimized query by modifying from date (original %s, updated %s)", req.fromUTC, fromUTC)
+
+		}
+		events, keyset, err = q.searchEvents(ctx, searchEventsRequest{
+			fromUTC:   fromUTC,
+			toUTC:     toUTC,
+			limit:     req.limit,
+			order:     req.order,
+			startKey:  req.startKey,
+			filter:    req.filter,
+			sessionID: req.sessionID,
+		})
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+
+		if keyset != "" {
+			// means limit is reached, we can return now.
+			return events, keyset, nil
+		}
+	}
+	// if we never had non empty keyset, we return just last response
+	// which was on original range.
+	return events, keyset, nil
+}
+
+// prepareTimeRangesForCostOptimizedSearch based on order, prepare slice of timestamps
+// which should be used for modification of to/from in searchEvents call.
+func prepareTimeRangesForCostOptimizedSearch(from, to time.Time, order types.EventOrder) []time.Time {
+	stepsToIncrease := []time.Duration{
+		1 * time.Hour,
+		24 * time.Hour,
+		7 * 24 * time.Hour,
+		30 * 24 * time.Hour,
+	}
+	var out []time.Time
+
+	if order == types.EventOrderAscending {
+		for _, durationToAdd := range stepsToIncrease {
+			if newTo := from.Add(durationToAdd); newTo.Before(to) {
+				out = append(out, newTo)
+			}
+		}
+		// at the end add original range.
+		out = append(out, to)
+	} else {
+		for _, durationToAdd := range stepsToIncrease {
+			if newFrom := to.Add(-1 * durationToAdd); newFrom.After(from) {
+				out = append(out, newFrom)
+			}
+		}
+		// at the end add original range.
+		out = append(out, from)
+	}
+	return out
 }
 
 func (q *querier) SearchSessionEvents(ctx context.Context, req events.SearchSessionEventsRequest) ([]apievents.AuditEvent, string, error) {
@@ -169,12 +311,41 @@ func (q *querier) SearchSessionEvents(ctx context.Context, req events.SearchSess
 		}
 		filter.condition = condFn
 	}
+
+	var startKeyset *keyset
+	if req.StartKey != "" {
+		var err error
+		startKeyset, err = fromKey(req.StartKey, req.Order)
+		if err != nil {
+			return nil, "", trace.BadParameter("unsupported keyset format: %v", err)
+		}
+	}
+
+	from := req.From
+	to := req.To
+	// If startKeyset is not nil, we can take shorten time range by taking value
+	// from key set. From ASC order we modify 'from', for desc - 'to'.
+	// This is useful because event-exporter plugin is using always quering with
+	// the same from value, and it's using keyset to query for further data.
+	// For example if exporter started 2023-01-01 and today is 2023-06-01, it will
+	// call with value from=2023-01-01, to=2023-06-01 and ketset.T = 2023-06-01.
+	// Values before 2023-06-01 will be filtered by athena engine, however
+	// it will cause data scans on large timerange.
+	if startKeyset != nil {
+		if req.Order == types.EventOrderAscending && startKeyset.t.After(from) {
+			from = startKeyset.t.UTC()
+		}
+		if req.Order == types.EventOrderDescending && startKeyset.t.Before(to) {
+			to = startKeyset.t.UTC()
+		}
+	}
+
 	events, keyset, err := q.searchEvents(ctx, searchEventsRequest{
-		fromUTC:   req.From.UTC(),
-		toUTC:     req.To.UTC(),
+		fromUTC:   from,
+		toUTC:     to,
 		limit:     req.Limit,
 		order:     req.Order,
-		startKey:  req.StartKey,
+		startKey:  startKeyset,
 		filter:    filter,
 		sessionID: req.SessionID,
 	})
@@ -185,7 +356,7 @@ type searchEventsRequest struct {
 	fromUTC, toUTC time.Time
 	limit          int
 	order          types.EventOrder
-	startKey       string
+	startKey       *keyset
 	filter         searchEventsFilter
 	sessionID      string
 }
@@ -200,14 +371,14 @@ func (q *querier) searchEvents(ctx context.Context, req searchEventsRequest) ([]
 	}
 
 	query, params, err := prepareQuery(searchParams{
-		fromUTC:   req.fromUTC,
-		toUTC:     req.toUTC,
-		order:     req.order,
-		limit:     limit,
-		startKey:  req.startKey,
-		filter:    req.filter,
-		sessionID: req.sessionID,
-		tablename: q.tablename,
+		fromUTC:     req.fromUTC,
+		toUTC:       req.toUTC,
+		order:       req.order,
+		limit:       limit,
+		startKeyset: req.startKey,
+		filter:      req.filter,
+		sessionID:   req.sessionID,
+		tablename:   q.tablename,
 	})
 	if err != nil {
 		return nil, "", trace.Wrap(err)
@@ -272,7 +443,7 @@ type searchParams struct {
 	fromUTC, toUTC time.Time
 	limit          int
 	order          types.EventOrder
-	startKey       string
+	startKeyset    *keyset
 	filter         searchEventsFilter
 	sessionID      string
 	tablename      string
@@ -282,15 +453,6 @@ type searchParams struct {
 // To prevent SQL injection, Athena supports parametrized query.
 // As parameter placeholder '?' should be used.
 func prepareQuery(params searchParams) (query string, execParams []string, err error) {
-	var startKeyset *keyset
-	if params.startKey != "" {
-		var err error
-		startKeyset, err = fromKey(params.startKey, params.order)
-		if err != nil {
-			return "", nil, trace.BadParameter("unsupported keyset format: %v", err)
-		}
-	}
-
 	qb := &queryBuilder{}
 	qb.Append(`SELECT DISTINCT uid, event_time, event_data FROM `)
 	// tablename is validated during config validation.
@@ -298,6 +460,7 @@ func prepareQuery(params searchParams) (query string, execParams []string, err e
 	// Injection.
 	// Athena does not support passing table name as query parameters.
 	qb.Append(params.tablename)
+
 	qb.Append(` WHERE event_date BETWEEN date(?) AND date(?)`, withTicks(params.fromUTC.Format(time.DateOnly)), withTicks(params.toUTC.Format(time.DateOnly)))
 	qb.Append(` AND event_time BETWEEN ? and ?`,
 		fmt.Sprintf("timestamp '%s'", params.fromUTC.Format(athenaTimestampFormat)), fmt.Sprintf("timestamp '%s'", params.toUTC.Format(athenaTimestampFormat)))
@@ -320,16 +483,16 @@ func prepareQuery(params searchParams) (query string, execParams []string, err e
 	}
 
 	if params.order == types.EventOrderAscending {
-		if startKeyset != nil {
+		if params.startKeyset != nil {
 			qb.Append(` AND (event_time, uid) > (?,?)`,
-				fmt.Sprintf("timestamp '%s'", startKeyset.t.Format(athenaTimestampFormat)), fmt.Sprintf("'%s'", startKeyset.uid.String()))
+				fmt.Sprintf("timestamp '%s'", params.startKeyset.t.Format(athenaTimestampFormat)), fmt.Sprintf("'%s'", params.startKeyset.uid.String()))
 		}
 
 		qb.Append(` ORDER BY event_time ASC, uid ASC`)
 	} else {
-		if startKeyset != nil {
+		if params.startKeyset != nil {
 			qb.Append(` AND (event_time, uid) < (?,?)`,
-				fmt.Sprintf("timestamp '%s'", startKeyset.t.Format(athenaTimestampFormat)), fmt.Sprintf("'%s'", startKeyset.uid.String()))
+				fmt.Sprintf("timestamp '%s'", params.startKeyset.t.Format(athenaTimestampFormat)), fmt.Sprintf("'%s'", params.startKeyset.uid.String()))
 		}
 		qb.Append(` ORDER BY event_time DESC, uid DESC`)
 	}
@@ -386,7 +549,7 @@ func (q *querier) waitForSuccess(ctx context.Context, queryId string) error {
 		if i == 0 {
 			// we want a longer initial delay because processing execution on athena takes some time
 			// and that's no real benefit to ask earlier.
-			interval = getQueryResultsInitialDelay
+			interval = q.getQueryResultsInitialDelay
 		}
 		select {
 		case <-ctx.Done():

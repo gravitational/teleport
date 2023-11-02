@@ -185,26 +185,7 @@ func newCustomFixture(t *testing.T, mutateCfg func(*auth.TestServerConfig), sshO
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, testServer.Shutdown(ctx)) })
 
-	priv, pub, err := testauthority.New().GenerateKeyPair()
-	require.NoError(t, err)
-
-	tlsPub, err := auth.PrivateKeyToPublicKeyTLS(priv)
-	require.NoError(t, err)
-
-	certs, err := testServer.Auth().GenerateHostCerts(ctx,
-		&proto.HostCertsRequest{
-			HostID:       hostID,
-			NodeName:     testServer.ClusterName(),
-			Role:         types.RoleNode,
-			PublicSSHKey: pub,
-			PublicTLSKey: tlsPub,
-		})
-	require.NoError(t, err)
-
-	// set up user CA and set up a user that has access to the server
-	signer, err := sshutils.NewSigner(priv, certs.SSH)
-	require.NoError(t, err)
-
+	signer := newSigner(t, ctx, testServer)
 	nodeID := uuid.New().String()
 	nodeClient, err := testServer.NewClient(auth.TestIdentity{
 		I: authz.BuiltinRole{
@@ -595,26 +576,12 @@ func TestLockInForce(t *testing.T) {
 	require.Error(t, err)
 	require.Contains(t, err.Error(), lockInForceMsg)
 
-	// As long as the lock is in force, global requests are rejected.
-	newClient2, err := tracessh.Dial(ctx, "tcp", f.ssh.srvAddress, f.ssh.cltConfig)
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		// The client is expected to be closed by the lock monitor therefore expect
-		// an error on this second attempt.
-		require.Error(t, newClient2.Close())
-	})
-	ok, _, err := newClient2.SendRequest(ctx, teleport.ClusterDetailsReqType, true, nil)
-	require.False(t, ok)
-	require.Error(t, err)
-	require.Contains(t, err.Error(), lockInForceMsg)
-
 	// Once the lock is lifted, new sessions should go through without error.
 	require.NoError(t, f.testSrv.Auth().DeleteLock(ctx, "test-lock"))
-	newClient3, err := tracessh.Dial(ctx, "tcp", f.ssh.srvAddress, f.ssh.cltConfig)
+	newClient2, err := tracessh.Dial(ctx, "tcp", f.ssh.srvAddress, f.ssh.cltConfig)
 	require.NoError(t, err)
-
-	t.Cleanup(func() { require.NoError(t, newClient3.Close()) })
-	_, err = newClient3.NewSession(ctx)
+	t.Cleanup(func() { require.NoError(t, newClient2.Close()) })
+	_, err = newClient2.NewSession(ctx)
 	require.NoError(t, err)
 }
 
@@ -719,7 +686,8 @@ func TestAgentForwardPermission(t *testing.T) {
 	roleOptions := role.GetOptions()
 	roleOptions.ForwardAgent = types.NewBool(false)
 	role.SetOptions(roleOptions)
-	require.NoError(t, f.testSrv.Auth().UpsertRole(ctx, role))
+	_, err = f.testSrv.Auth().UpsertRole(ctx, role)
+	require.NoError(t, err)
 
 	se, err := f.ssh.clt.NewSession(ctx)
 	require.NoError(t, err)
@@ -750,7 +718,7 @@ func TestMaxSessions(t *testing.T) {
 	roleOptions := role.GetOptions()
 	roleOptions.MaxSessions = maxSessions
 	role.SetOptions(roleOptions)
-	err = f.testSrv.Auth().UpsertRole(ctx, role)
+	_, err = f.testSrv.Auth().UpsertRole(ctx, role)
 	require.NoError(t, err)
 
 	for i := int64(0); i < maxSessions; i++ {
@@ -823,7 +791,7 @@ func TestAgentForward(t *testing.T) {
 	roleOptions := role.GetOptions()
 	roleOptions.ForwardAgent = types.NewBool(true)
 	role.SetOptions(roleOptions)
-	err = f.testSrv.Auth().UpsertRole(ctx, role)
+	_, err = f.testSrv.Auth().UpsertRole(ctx, role)
 	require.NoError(t, err)
 
 	se, err := f.ssh.clt.NewSession(ctx)
@@ -929,7 +897,7 @@ func TestX11Forward(t *testing.T) {
 	roleOptions := role.GetOptions()
 	roleOptions.PermitX11Forwarding = types.NewBool(true)
 	role.SetOptions(roleOptions)
-	err = f.testSrv.Auth().UpsertRole(ctx, role)
+	_, err = f.testSrv.Auth().UpsertRole(ctx, role)
 	require.NoError(t, err)
 
 	// Open two x11 sessions from two separate clients to
@@ -989,7 +957,7 @@ func TestRootX11ForwardPermissions(t *testing.T) {
 	roleOptions := role.GetOptions()
 	roleOptions.PermitX11Forwarding = types.NewBool(true)
 	role.SetOptions(roleOptions)
-	err = f.testSrv.Auth().UpsertRole(ctx, role)
+	_, err = f.testSrv.Auth().UpsertRole(ctx, role)
 	require.NoError(t, err)
 
 	// Create a new X11 session as a non-root nonroot in the system.
@@ -2496,6 +2464,84 @@ func TestHandlePuTTYWinadj(t *testing.T) {
 	require.Equal(t, "hello once more\n", string(out))
 }
 
+func TestTargetMetadata(t *testing.T) {
+	ctx := context.Background()
+	testServer, err := auth.NewTestServer(auth.TestServerConfig{
+		Auth: auth.TestAuthServerConfig{
+			ClusterName: "localhost",
+			Dir:         t.TempDir(),
+			Clock:       clockwork.NewFakeClock(),
+		},
+	})
+	require.NoError(t, err)
+
+	nodeID := uuid.New().String()
+	nodeClient, err := testServer.NewClient(auth.TestIdentity{
+		I: authz.BuiltinRole{
+			Role:     types.RoleNode,
+			Username: nodeID,
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, nodeClient.Close()) })
+
+	lockWatcher := newLockWatcher(ctx, t, nodeClient)
+
+	sessionController, err := srv.NewSessionController(srv.SessionControllerConfig{
+		Semaphores:   nodeClient,
+		AccessPoint:  nodeClient,
+		LockEnforcer: lockWatcher,
+		Emitter:      nodeClient,
+		Component:    teleport.ComponentNode,
+		ServerID:     nodeID,
+	})
+	require.NoError(t, err)
+
+	nodeDir := t.TempDir()
+	serverOptions := []ServerOption{
+		SetUUID(nodeID),
+		SetNamespace(apidefaults.Namespace),
+		SetEmitter(nodeClient),
+		SetPAMConfig(&servicecfg.PAMConfig{Enabled: false}),
+		SetLabels(
+			map[string]string{"foo": "bar"},
+			services.CommandLabels{
+				"baz": &types.CommandLabelV2{
+					Period:  types.NewDuration(time.Second),
+					Command: []string{"expr", "1", "+", "3"},
+				},
+			}, nil,
+		),
+		SetBPF(&bpf.NOP{}),
+		SetRestrictedSessionManager(&restricted.NOP{}),
+		SetLockWatcher(lockWatcher),
+		SetX11ForwardingConfig(&x11.ServerConfig{}),
+		SetSessionController(sessionController),
+	}
+
+	sshSrv, err := New(
+		ctx,
+		utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
+		testServer.ClusterName(),
+		[]ssh.Signer{newSigner(t, ctx, testServer)},
+		nodeClient,
+		nodeDir,
+		"",
+		utils.NetAddr{},
+		nodeClient,
+		serverOptions...)
+	require.NoError(t, err)
+
+	metadata := sshSrv.TargetMetadata()
+	require.Equal(t, nodeID, metadata.ServerID)
+	require.Equal(t, apidefaults.Namespace, metadata.ServerNamespace)
+	require.Equal(t, "", metadata.ServerAddr)
+	require.Equal(t, "localhost", metadata.ServerHostname)
+
+	require.Contains(t, metadata.ServerLabels, "foo")
+	require.Contains(t, metadata.ServerLabels, "baz")
+}
+
 // upack holds all ssh signing artifacts needed for signing and checking user keys
 type upack struct {
 	// key is a raw private user key
@@ -2540,12 +2586,12 @@ func newUpack(testSvr *auth.TestServer, username string, allowedLogins []string,
 	role.SetOptions(opts)
 	role.SetLogins(types.Allow, allowedLogins)
 	role.SetNodeLabels(types.Allow, allowedLabels)
-	err = auth.UpsertRole(ctx, role)
+	_, err = auth.UpsertRole(ctx, role)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	user.AddRole(role.GetName())
-	err = auth.UpsertUser(user)
+	user, err = auth.UpsertUser(ctx, user)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2627,6 +2673,32 @@ func requireRoot(t *testing.T) {
 	if os.Geteuid() != 0 {
 		t.Skip("This test will be skipped because tests are not being run as root.")
 	}
+}
+
+// newSigner creates a new SSH signer that can be used by the Server.
+func newSigner(t *testing.T, ctx context.Context, testServer *auth.TestServer) ssh.Signer {
+	t.Helper()
+
+	priv, pub, err := testauthority.New().GenerateKeyPair()
+	require.NoError(t, err)
+
+	tlsPub, err := auth.PrivateKeyToPublicKeyTLS(priv)
+	require.NoError(t, err)
+
+	certs, err := testServer.Auth().GenerateHostCerts(ctx,
+		&proto.HostCertsRequest{
+			HostID:       hostID,
+			NodeName:     testServer.ClusterName(),
+			Role:         types.RoleNode,
+			PublicSSHKey: pub,
+			PublicTLSKey: tlsPub,
+		})
+	require.NoError(t, err)
+
+	// set up user CA and set up a user that has access to the server
+	signer, err := sshutils.NewSigner(priv, certs.SSH)
+	require.NoError(t, err)
+	return signer
 }
 
 // maxPipeSize is one larger than the maximum pipe size for most operating

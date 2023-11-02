@@ -131,7 +131,7 @@ func (a *AgentServer) updatePermissions(user *user.User) error {
 
 	testPermissions()
 
-	if err := os.Chown(a.Path, uid, gid); err != nil {
+	if err := os.Lchown(a.Path, uid, gid); err != nil {
 		return trace.ConvertSystemError(err)
 	}
 
@@ -139,7 +139,7 @@ func (a *AgentServer) updatePermissions(user *user.User) error {
 
 	// To prevent a privilege escalation attack, this must occur
 	// after the socket permissions are updated.
-	if err := os.Chown(a.Dir, uid, gid); err != nil {
+	if err := os.Lchown(a.Dir, uid, gid); err != nil {
 		return trace.ConvertSystemError(err)
 	}
 

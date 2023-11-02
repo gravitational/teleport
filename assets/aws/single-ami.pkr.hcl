@@ -69,7 +69,7 @@ variable "teleport_fips" {
 
 variable "teleport_tarball" {
   description = "Path to teleport tarball"
-  type = string  
+  type = string
 }
 
 variable "teleport_uid" {
@@ -103,10 +103,10 @@ data "amazon-ami" "teleport-hardened-base" {
 }
 
 locals {
-  # apply a default AMI name if no name was specified on the command line. 
+  # apply a default AMI name if no name was specified on the command line.
   unsafe_ami_name = var.ami_name != "" ? var.ami_name : "teleport-debug-ami-${var.teleport_type}-${var.teleport_version}"
 
-  # sanitise the AMI name so that its safe for use with AWS 
+  # sanitise the AMI name so that its safe for use with AWS
   ami_name = regex_replace(local.unsafe_ami_name, "[^a-zA-Z0-9\\- \\(\\).\\'[\\]@]", "-")
 
   # split the comma-separated region list out into a proper array
@@ -115,11 +115,11 @@ locals {
   ami_description = "Teleport${var.teleport_fips ? " with FIPS support" : ""} using Hardened Amazon Linux 2023 AMI"
   build_type      = "production${var.teleport_fips ? "-fips" : ""}"
 
-  # Used in AWS access policies. Do not change without consulting the teleport-prod 
+  # Used in AWS access policies. Do not change without consulting the teleport-prod
   # terraform.
   resource_purpose_tag_value = "release-ami-builder"
 
-  # We can't execute from /tmp due to CIS hardenning guidelines, so we have to 
+  # We can't execute from /tmp due to CIS hardening guidelines, so we have to
   # specify a place to run provisioning scripts
   remote_folder = "/home/ec2-user"
 }
@@ -134,6 +134,12 @@ source "amazon-ebs" "teleport-aws-linux" {
   instance_type                             = var.aws_instance_type
   region                                    = var.aws_region
   encrypt_boot                              = false
+  imds_support                              = "v2.0"
+  metadata_options {
+    http_endpoint               = "enabled"
+    http_tokens                 = "required"
+    http_put_response_hop_limit = 2
+  }
   run_tags = {
     Name    = local.ami_name
     purpose = local.resource_purpose_tag_value

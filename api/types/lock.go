@@ -112,6 +112,16 @@ func (c *LockV2) SetResourceID(id int64) {
 	c.Metadata.ID = id
 }
 
+// GetRevision returns the revision
+func (c *LockV2) GetRevision() string {
+	return c.Metadata.GetRevision()
+}
+
+// SetRevision sets the revision
+func (c *LockV2) SetRevision(rev string) {
+	c.Metadata.SetRevision(rev)
+}
+
 // GetKind returns resource kind.
 func (c *LockV2) GetKind() string {
 	return c.Kind
@@ -208,11 +218,6 @@ func (c *LockV2) CheckAndSetDefaults() error {
 	return nil
 }
 
-// IsEmpty returns true if none of the target's fields is set.
-func (t LockTarget) IsEmpty() bool {
-	return protoKnownFieldsEqual(&t, &LockTarget{})
-}
-
 // IntoMap returns the target attributes in the form of a map.
 func (t LockTarget) IntoMap() (map[string]string, error) {
 	m := map[string]string{}
@@ -225,6 +230,19 @@ func (t LockTarget) IntoMap() (map[string]string, error) {
 // FromMap copies values from a map into this LockTarget.
 func (t *LockTarget) FromMap(m map[string]string) error {
 	return trace.Wrap(utils.ObjectToStruct(m, t))
+}
+
+// IsEmpty returns true if none of the target's fields is set.
+func (t LockTarget) IsEmpty() bool {
+	return t.User == "" &&
+		t.Role == "" &&
+		t.Login == "" &&
+		t.Node == "" &&
+		t.MFADevice == "" &&
+		t.WindowsDesktop == "" &&
+		t.AccessRequest == "" &&
+		t.Device == "" &&
+		t.ServerID == ""
 }
 
 // Match returns true if the lock's target is matched by this target.

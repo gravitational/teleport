@@ -25,13 +25,18 @@ export const KeysEnum = {
   USER_PREFERENCES: 'grv_teleport_user_preferences',
   ONBOARD_SURVEY: 'grv_teleport_onboard_survey',
   RECOMMEND_FEATURE: 'grv_recommend_feature',
+  UNIFIED_RESOURCES_DISABLED: 'grv_teleport_unified_resources_disabled',
+  UNIFIED_RESOURCES_NOT_SUPPORTED:
+    'grv_teleport_unified_resources_not_supported',
+  PINNED_RESOURCES_NOT_SUPPORTED: 'grv_teleport_pinned_resources_not_supported',
+  CLOUD_USER_INVITES: 'grv_teleport_cloud_user_invites',
 };
 
 // SurveyRequest is the request for sending data to the back end
 export type SurveyRequest = {
   companyName: string;
   employeeCount: string;
-  resources: Array<string>;
+  resourcesList: Array<string>;
   role: string;
   team: string;
 };
@@ -39,4 +44,20 @@ export type SurveyRequest = {
 // LocalStorageSurvey is the SurveyRequest type defined in Enterprise
 export type LocalStorageSurvey = SurveyRequest & {
   clusterResources: Array<number>;
+  marketingParams: LocalStorageMarketingParams;
+};
+
+// LocalStorageMarketingParams is the MarketingParams type defined in Enterprise
+export type LocalStorageMarketingParams = {
+  campaign: string;
+  source: string;
+  medium: string;
+  intent: string;
+};
+
+// CloudUserInvites is a set of users and roles which should be submitted after
+// initial login.
+export type CloudUserInvites = {
+  recipients: Array<string>;
+  roles: Array<string>;
 };

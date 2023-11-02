@@ -45,17 +45,23 @@ export enum NavTitle {
   Desktops = 'Desktops',
   AccessRequests = 'Access Requests',
   ActiveSessions = 'Active Sessions',
+  Resources = 'Resources',
 
-  // Management
-  //  Access
+  // Access Management
   Users = 'Users',
-  Roles = 'Roles',
-  TrustedDevices = 'Trusted Devices',
+  Roles = 'User Roles',
   AuthConnectors = 'Auth Connectors',
-  SessionAndIdentityLocks = 'Session & Identity Locks',
   Integrations = 'Integrations',
   EnrollNewResource = 'Enroll New Resource',
   EnrollNewIntegration = 'Enroll New Integration',
+
+  // Identity Governance & Security
+  AccessLists = 'Access Lists',
+  SessionAndIdentityLocks = 'Session & Identity Locks',
+  TrustedDevices = 'Trusted Devices',
+  AccessMonitoring = 'Access Monitoring',
+
+  // Resources Requests
   NewRequest = 'New Request',
   ReviewRequests = 'Review Requests',
 
@@ -92,6 +98,7 @@ export interface TeleportFeature {
   category?: NavigationCategory;
   section?: ManagementSection;
   hasAccess(flags: FeatureFlags): boolean;
+  hideFromNavigation?: boolean;
   // route defines react router Route fields.
   // This field can be left undefined to indicate
   // this feature is a parent to children features
@@ -152,6 +159,7 @@ export interface FeatureFlags {
   locks: boolean;
   newLocks: boolean;
   assist: boolean;
+  accessMonitoring: boolean;
   // Whether or not the management section should be available.
   managementSection: boolean;
 }

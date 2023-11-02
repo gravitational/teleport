@@ -47,6 +47,10 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_UserCreate{
 			UserCreate: e,
 		}
+	case *UserUpdate:
+		out.Event = &OneOf_UserUpdate{
+			UserUpdate: e,
+		}
 	case *UserDelete:
 		out.Event = &OneOf_UserDelete{
 			UserDelete: e,
@@ -139,6 +143,10 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_RoleCreate{
 			RoleCreate: e,
 		}
+	case *RoleUpdate:
+		out.Event = &OneOf_RoleUpdate{
+			RoleUpdate: e,
+		}
 	case *RoleDelete:
 		out.Event = &OneOf_RoleDelete{
 			RoleDelete: e,
@@ -167,6 +175,10 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_GithubConnectorCreate{
 			GithubConnectorCreate: e,
 		}
+	case *GithubConnectorUpdate:
+		out.Event = &OneOf_GithubConnectorUpdate{
+			GithubConnectorUpdate: e,
+		}
 	case *GithubConnectorDelete:
 		out.Event = &OneOf_GithubConnectorDelete{
 			GithubConnectorDelete: e,
@@ -175,6 +187,10 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_OIDCConnectorCreate{
 			OIDCConnectorCreate: e,
 		}
+	case *OIDCConnectorUpdate:
+		out.Event = &OneOf_OIDCConnectorUpdate{
+			OIDCConnectorUpdate: e,
+		}
 	case *OIDCConnectorDelete:
 		out.Event = &OneOf_OIDCConnectorDelete{
 			OIDCConnectorDelete: e,
@@ -182,6 +198,10 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 	case *SAMLConnectorCreate:
 		out.Event = &OneOf_SAMLConnectorCreate{
 			SAMLConnectorCreate: e,
+		}
+	case *SAMLConnectorUpdate:
+		out.Event = &OneOf_SAMLConnectorUpdate{
+			SAMLConnectorUpdate: e,
 		}
 	case *SAMLConnectorDelete:
 		out.Event = &OneOf_SAMLConnectorDelete{
@@ -535,6 +555,47 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_OktaAssignmentResult{
 			OktaAssignmentResult: e,
 		}
+	case *AccessListCreate:
+		out.Event = &OneOf_AccessListCreate{
+			AccessListCreate: e,
+		}
+	case *AccessListUpdate:
+		out.Event = &OneOf_AccessListUpdate{
+			AccessListUpdate: e,
+		}
+	case *AccessListDelete:
+		out.Event = &OneOf_AccessListDelete{
+			AccessListDelete: e,
+		}
+	case *AccessListReview:
+		out.Event = &OneOf_AccessListReview{
+			AccessListReview: e,
+		}
+	case *AccessListMemberCreate:
+		out.Event = &OneOf_AccessListMemberCreate{
+			AccessListMemberCreate: e,
+		}
+	case *AccessListMemberUpdate:
+		out.Event = &OneOf_AccessListMemberUpdate{
+			AccessListMemberUpdate: e,
+		}
+	case *AccessListMemberDelete:
+		out.Event = &OneOf_AccessListMemberDelete{
+			AccessListMemberDelete: e,
+		}
+	case *AccessListMemberDeleteAllForAccessList:
+		out.Event = &OneOf_AccessListMemberDeleteAllForAccessList{
+			AccessListMemberDeleteAllForAccessList: e,
+		}
+	case *AuditQueryRun:
+		out.Event = &OneOf_AuditQueryRun{
+			AuditQueryRun: e,
+		}
+	case *SecurityReportRun:
+		out.Event = &OneOf_SecurityReportRun{
+			SecurityReportRun: e,
+		}
+
 	default:
 		log.Errorf("Attempted to convert dynamic event of unknown type \"%v\" into protobuf event.", in.GetType())
 		unknown := &Unknown{}

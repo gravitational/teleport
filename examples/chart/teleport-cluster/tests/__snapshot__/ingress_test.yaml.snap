@@ -14,6 +14,11 @@ does not set a wildcard of clusterName as a hostname when Ingress is enabled and
 : 1: |
     - hosts:
       - helm-lint.example.com
+does not set tls.secretName by default:
+  1: |
+    - hosts:
+      - teleport.example.com
+      - '*.teleport.example.com'
 exposes all publicAddrs and wildcard publicAddrs as hostnames when Ingress is enabled and multiple publicAddrs are set:
   1: |
     - hosts:
@@ -31,6 +36,18 @@ sets the publicAddr and wildcard of publicAddr as hostnames when Ingress is enab
     - hosts:
       - helm-lint.example.com
       - '*.helm-lint.example.com'
+sets tls.secretName the value of tls.existingSecretName when set:
+  1: |
+    - hosts:
+      - teleport.example.com
+      - '*.teleport.example.com'
+      secretName: helm-lint-tls-secret
+sets tls.secretName when cert-manager is enabled:
+  1: |
+    - hosts:
+      - teleport.example.com
+      - '*.teleport.example.com'
+      secretName: teleport-tls
 trims ports from publicAddr and uses it as the hostname when Ingress is enabled and publicAddr is set:
   1: |
     - hosts:

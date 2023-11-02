@@ -133,11 +133,27 @@ export interface Cluster extends apiCluster.Cluster.AsObject {
    * `leafClusterId` is equal to the `name` property of the cluster.
    */
   uri: uri.ClusterUri;
+  /**
+   * loggedInUser is present if the user has logged in to the cluster at least once. This
+   * includes a situation in which the cert has expired. If the cluster was added to the app but the
+   * user is yet to log in, loggedInUser is not present.
+   */
   loggedInUser?: LoggedInUser;
 }
 
+/**
+ * LoggedInUser describes loggedInUser field available on root clusters.
+ *
+ * loggedInUser is present if the user has logged in to the cluster at least once. This
+ * includes a situation in which the cert has expired. If the cluster was added to the app but the
+ * user is yet to log in, loggedInUser is not present.
+ */
 export type LoggedInUser = apiCluster.LoggedInUser.AsObject & {
   assumedRequests?: Record<string, AssumedRequest>;
+  /**
+   * acl is available only after the cluster details are fetched, as acl is not stored on disk.
+   */
+  acl?: apiCluster.ACL.AsObject;
 };
 export type AuthProvider = apiAuthSettings.AuthProvider.AsObject;
 export type AuthSettings = apiAuthSettings.AuthSettings.AsObject;
@@ -247,11 +263,24 @@ export type TshClient = {
     clusterUri: uri.RootClusterUri,
     token: string
   ) => Promise<void>;
+  waitForConnectMyComputerNodeJoin: (
+    rootClusterUri: uri.RootClusterUri,
+    abortSignal: TshAbortSignal
+  ) => Promise<WaitForConnectMyComputerNodeJoinResponse>;
+  deleteConnectMyComputerNode: (
+    clusterUri: uri.RootClusterUri
+  ) => Promise<void>;
+  getConnectMyComputerNodeName: (uri: uri.RootClusterUri) => Promise<string>;
 
   updateHeadlessAuthenticationState: (
     params: UpdateHeadlessAuthenticationStateParams,
     abortSignal?: TshAbortSignal
   ) => Promise<void>;
+
+  listUnifiedResources: (
+    params: apiService.ListUnifiedResourcesRequest.AsObject,
+    abortSignal?: TshAbortSignal
+  ) => Promise<ListUnifiedResourcesResponse>;
 };
 
 export type TshAbortController = {
@@ -260,6 +289,7 @@ export type TshAbortController = {
 };
 
 export type TshAbortSignal = {
+  readonly aborted: boolean;
   addEventListener(cb: (...args: any[]) => void): void;
   removeEventListener(cb: (...args: any[]) => void): void;
 };
@@ -341,9 +371,26 @@ export type Label = apiLabel.Label.AsObject;
 
 export type CreateConnectMyComputerRoleResponse =
   apiService.CreateConnectMyComputerRoleResponse.AsObject;
-
 export type CreateConnectMyComputerNodeTokenResponse =
   apiService.CreateConnectMyComputerNodeTokenResponse.AsObject;
+export type WaitForConnectMyComputerNodeJoinResponse =
+  apiService.WaitForConnectMyComputerNodeJoinResponse.AsObject & {
+    server: Server;
+  };
+
+export type ListUnifiedResourcesRequest =
+  apiService.ListUnifiedResourcesRequest.AsObject;
+export type ListUnifiedResourcesResponse = {
+  resources: UnifiedResourceResponse[];
+  nextKey: string;
+};
+export type UnifiedResourceResponse =
+  | { kind: 'server'; resource: Server }
+  | {
+      kind: 'database';
+      resource: Database;
+    }
+  | { kind: 'kube'; resource: Kube };
 
 // Replaces object property with a new type
 type Modify<T, R> = Omit<T, keyof R> & R;

@@ -55,11 +55,13 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	dtconfig "github.com/gravitational/teleport/lib/devicetrust/config"
 	"github.com/gravitational/teleport/lib/limiter"
+	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/pam"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 )
 
 // CommandLineFlags stores command line flag values, it's a much simplified subset
@@ -198,6 +200,22 @@ type CommandLineFlags struct {
 	// IntegrationConfDeployServiceIAMArguments contains the arguments of
 	// `teleport integration configure deployservice-iam` command
 	IntegrationConfDeployServiceIAMArguments IntegrationConfDeployServiceIAM
+
+	// IntegrationConfEICEIAMArguments contains the arguments of
+	// `teleport integration configure eice-iam` command
+	IntegrationConfEICEIAMArguments IntegrationConfEICEIAM
+
+	// IntegrationConfAWSOIDCIdPArguments contains the arguments of
+	// `teleport integration configure awsoidc-idp` command
+	IntegrationConfAWSOIDCIdPArguments IntegrationConfAWSOIDCIdP
+
+	// IntegrationConfListDatabasesIAMArguments contains the arguments of
+	// `teleport integration configure listdatabases-iam` command
+	IntegrationConfListDatabasesIAMArguments IntegrationConfListDatabasesIAM
+
+	// IntegrationConfExternalCloudAuditArguments contains the arguments of the
+	// `teleport integration configure externalcloudaudit` command
+	IntegrationConfExternalCloudAuditArguments IntegrationConfExternalCloudAudit
 }
 
 // IntegrationConfDeployServiceIAM contains the arguments of
@@ -213,6 +231,65 @@ type IntegrationConfDeployServiceIAM struct {
 	Role string
 	// TaskRole is the AWS Role to be used by the deployed service.
 	TaskRole string
+}
+
+// IntegrationConfEICEIAM contains the arguments of
+// `teleport integration configure eice-iam` command
+type IntegrationConfEICEIAM struct {
+	// Region is the AWS Region used to set up the client.
+	Region string
+	// Role is the AWS Role associated with the Integration
+	Role string
+}
+
+// IntegrationConfAWSOIDCIdP contains the arguments of
+// `teleport integration configure awsoidc-idp` command
+type IntegrationConfAWSOIDCIdP struct {
+	// Cluster is the teleport cluster name.
+	Cluster string
+	// Name is the integration name.
+	Name string
+	// Role is the AWS Role to associate with the Integration
+	Role string
+	// ProxyPublicURL is the IdP Issuer URL (Teleport Proxy Public Address).
+	// Eg, https://<tenant>.teleport.sh
+	ProxyPublicURL string
+}
+
+// IntegrationConfListDatabasesIAM contains the arguments of
+// `teleport integration configure listdatabases-iam` command
+type IntegrationConfListDatabasesIAM struct {
+	// Region is the AWS Region used to set up the client.
+	Region string
+	// Role is the AWS Role associated with the Integration
+	Role string
+}
+
+// IntegrationConfExternalCloudAudit contains the arguments of the
+// `teleport integration configure externalcloudaudit-iam` command
+type IntegrationConfExternalCloudAudit struct {
+	// Bootstrap is whether to bootstrap infrastructure (default: false).
+	Bootstrap bool
+	// Region is the AWS Region used.
+	Region string
+	// Role is the AWS IAM Role associated with the OIDC integration.
+	Role string
+	// Policy is the name to use for the IAM policy.
+	Policy string
+	// SessionRecordingsURI is the S3 URI where session recordings are stored.
+	SessionRecordingsURI string
+	// AuditEventsURI is the S3 URI where audit events are stored.
+	AuditEventsURI string
+	// AthenaResultsURI is the S3 URI where temporary Athena results are stored.
+	AthenaResultsURI string
+	// AthenaWorkgroup is the name of the Athena workgroup used.
+	AthenaWorkgroup string
+	// GlueDatabase is the name of the Glue database used.
+	GlueDatabase string
+	// GlueTable is the name of the Glue table used.
+	GlueTable string
+	// Partition is the AWS partition to use (default: aws).
+	Partition string
 }
 
 // ReadConfigFile reads /etc/teleport.yaml (or whatever is passed via --config flag)
@@ -237,7 +314,7 @@ func ReadConfigFile(cliConfigPath string) (*FileConfig, error) {
 
 // ReadResources loads a set of resources from a file.
 func ReadResources(filePath string) ([]types.Resource, error) {
-	reader, err := utils.OpenFile(filePath)
+	reader, err := utils.OpenFileAllowingUnsafeLinks(filePath)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -657,10 +734,17 @@ func applyAuthConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 			"been moved to proxy_service section. This setting is ignored."
 		log.Warning(warningMessage)
 	}
-	cfg.Auth.EnableProxyProtocol, err = utils.ParseOnOff("proxy_protocol", fc.Auth.ProxyProtocol, true)
-	if err != nil {
-		return trace.Wrap(err)
+
+	cfg.Auth.PROXYProtocolMode = multiplexer.PROXYProtocolUnspecified
+	if fc.Auth.ProxyProtocol != "" {
+		val := multiplexer.PROXYProtocolMode(fc.Auth.ProxyProtocol)
+		if err := validatePROXYProtocolValue(val); err != nil {
+			return trace.Wrap(err)
+		}
+
+		cfg.Auth.PROXYProtocolMode = val
 	}
+
 	if fc.Auth.ListenAddress != "" {
 		addr, err := utils.ParseHostPortAddr(fc.Auth.ListenAddress, int(defaults.AuthListenPort))
 		if err != nil {
@@ -760,6 +844,7 @@ func applyAuthConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 			TunnelStrategy:                fc.Auth.TunnelStrategy,
 			ProxyPingInterval:             fc.Auth.ProxyPingInterval,
 			AssistCommandExecutionWorkers: assistCommandExecutionWorkers,
+			CaseInsensitiveRouting:        fc.Auth.CaseInsensitiveRouting,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -794,12 +879,19 @@ func applyAuthConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 
 	cfg.Auth.LoadAllCAs = fc.Auth.LoadAllCAs
 
-	if fc.Auth.HostedPlugins.Enabled {
-		cfg.Auth.HostedPlugins.Enabled = true
-		cfg.Auth.HostedPlugins.OAuthProviders, err = fc.Auth.HostedPlugins.OAuthProviders.Parse()
-		if err != nil {
-			return trace.Wrap(err)
+	// Setting this to true at all times to allow self hosting
+	// of plugins that were previously cloud only.
+	cfg.Auth.HostedPlugins.Enabled = true
+	cfg.Auth.HostedPlugins.OAuthProviders, err = fc.Auth.HostedPlugins.OAuthProviders.Parse()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if fc.Auth.AccessMonitoring != nil {
+		if fc.Auth.AccessMonitoring.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err, "failed to validate access monitoring config")
 		}
+		cfg.Auth.AccessMonitoring = fc.Auth.AccessMonitoring
 	}
 
 	return nil
@@ -883,14 +975,29 @@ func applyGoogleCloudKMSConfig(kmsConfig *GoogleCloudKMS, cfg *servicecfg.Config
 	return nil
 }
 
+func validatePROXYProtocolValue(p multiplexer.PROXYProtocolMode) error {
+	allowedOptions := []multiplexer.PROXYProtocolMode{multiplexer.PROXYProtocolOn, multiplexer.PROXYProtocolOff}
+
+	if !slices.Contains(allowedOptions, p) {
+		return trace.BadParameter("invalid 'proxy_protocol' value %q. Available options are: %v", p, allowedOptions)
+	}
+	return nil
+}
+
 // applyProxyConfig applies file configuration for the "proxy_service" section.
 func applyProxyConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	var err error
 
-	cfg.Proxy.EnableProxyProtocol, err = utils.ParseOnOff("proxy_protocol", fc.Proxy.ProxyProtocol, true)
-	if err != nil {
-		return trace.Wrap(err)
+	cfg.Proxy.PROXYProtocolMode = multiplexer.PROXYProtocolUnspecified
+	if fc.Proxy.ProxyProtocol != "" {
+		val := multiplexer.PROXYProtocolMode(fc.Proxy.ProxyProtocol)
+		if err := validatePROXYProtocolValue(val); err != nil {
+			return trace.Wrap(err)
+		}
+
+		cfg.Proxy.PROXYProtocolMode = val
 	}
+
 	if fc.Proxy.ListenAddress != "" {
 		addr, err := utils.ParseHostPortAddr(fc.Proxy.ListenAddress, defaults.SSHProxyListenPort)
 		if err != nil {
@@ -1246,6 +1353,9 @@ func applySSHConfig(fc *FileConfig, cfg *servicecfg.Config) (err error) {
 			return trace.Wrap(err)
 		}
 		cfg.SSH.RestrictedSession = rs
+
+		log.Warnf("Restricted Sessions for SSH were deprecated in Teleport 14 " +
+			"and will be removed in Teleport 15.")
 	}
 
 	cfg.SSH.AllowTCPForwarding = fc.SSH.AllowTCPForwarding()
@@ -1263,16 +1373,23 @@ func applySSHConfig(fc *FileConfig, cfg *servicecfg.Config) (err error) {
 // getInstallerProxyAddr determines the address of the proxy for discovered
 // nodes to connect to.
 func getInstallerProxyAddr(installParams *InstallParams, fc *FileConfig) string {
+	// Explicit proxy address.
 	if installParams != nil && installParams.PublicProxyAddr != "" {
 		return installParams.PublicProxyAddr
 	}
+	// Proxy address from config.
 	if fc.ProxyServer != "" {
 		return fc.ProxyServer
 	}
 	if fc.Proxy.Enabled() && len(fc.Proxy.PublicAddr) > 0 {
 		return fc.Proxy.PublicAddr[0]
 	}
-	return ""
+	// Possible proxy address for v1/v2 config.
+	if len(fc.AuthServers) > 0 {
+		return fc.AuthServers[0]
+	}
+	// Probably not a proxy address, but we have nothing better.
+	return fc.AuthServer
 }
 
 func applyDiscoveryConfig(fc *FileConfig, cfg *servicecfg.Config) error {
@@ -1280,72 +1397,124 @@ func applyDiscoveryConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	cfg.Discovery.DiscoveryGroup = fc.Discovery.DiscoveryGroup
 	cfg.Discovery.PollInterval = fc.Discovery.PollInterval
 	for _, matcher := range fc.Discovery.AWSMatchers {
-		installParams, err := matcher.InstallParams.Parse()
-		if err != nil {
+		var err error
+		var installParams *types.InstallerParams
+		if matcher.InstallParams != nil {
+			installParams, err = matcher.InstallParams.parse()
+			if err != nil {
+				return trace.Wrap(err)
+			}
+		}
+
+		var assumeRole *types.AssumeRole
+		if matcher.AssumeRoleARN != "" || matcher.ExternalID != "" {
+			assumeRole = &types.AssumeRole{
+				RoleARN:    matcher.AssumeRoleARN,
+				ExternalID: matcher.ExternalID,
+			}
+		}
+
+		for _, region := range matcher.Regions {
+			if !awsutils.IsKnownRegion(region) {
+				log.Warnf("AWS matcher uses unknown region %q. "+
+					"There could be a typo in %q. "+
+					"Ignore this message if this is a new AWS region that is unknown to the AWS SDK used to compile this binary. "+
+					"Known regions are: %v.",
+					region, region, awsutils.GetKnownRegions(),
+				)
+			}
+		}
+
+		serviceMatcher := types.AWSMatcher{
+			Types:      matcher.Types,
+			Regions:    matcher.Regions,
+			AssumeRole: assumeRole,
+			Tags:       matcher.Tags,
+			Params:     installParams,
+			SSM:        &types.AWSSSM{DocumentName: matcher.SSM.DocumentName},
+		}
+		if err := serviceMatcher.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
 		}
 
-		cfg.Discovery.AWSMatchers = append(cfg.Discovery.AWSMatchers,
-			types.AWSMatcher{
-				Types:   matcher.Types,
-				Regions: matcher.Regions,
-				AssumeRole: &types.AssumeRole{
-					RoleARN:    matcher.AssumeRoleARN,
-					ExternalID: matcher.ExternalID,
-				},
-				Tags:   matcher.Tags,
-				Params: &installParams,
-				SSM:    &types.AWSSSM{DocumentName: matcher.SSM.DocumentName},
-			})
+		cfg.Discovery.AWSMatchers = append(cfg.Discovery.AWSMatchers, serviceMatcher)
 	}
 
 	for _, matcher := range fc.Discovery.AzureMatchers {
-		m := types.AzureMatcher{
+		var installerParams *types.InstallerParams
+		if matcher.InstallParams != nil {
+			installerParams = &types.InstallerParams{
+				JoinMethod:      matcher.InstallParams.JoinParams.Method,
+				JoinToken:       matcher.InstallParams.JoinParams.TokenName,
+				ScriptName:      matcher.InstallParams.ScriptName,
+				PublicProxyAddr: getInstallerProxyAddr(matcher.InstallParams, fc),
+			}
+			if matcher.InstallParams.Azure != nil {
+				installerParams.Azure = &types.AzureInstallerParams{
+					ClientID: matcher.InstallParams.Azure.ClientID,
+				}
+			}
+		}
+
+		serviceMatcher := types.AzureMatcher{
 			Subscriptions:  matcher.Subscriptions,
 			ResourceGroups: matcher.ResourceGroups,
 			Types:          matcher.Types,
 			Regions:        matcher.Regions,
 			ResourceTags:   matcher.ResourceTags,
+			Params:         installerParams,
+		}
+		if err := serviceMatcher.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
 		}
 
-		if matcher.InstallParams != nil {
-			m.Params = &types.InstallerParams{
-				JoinMethod:      matcher.InstallParams.JoinParams.Method,
-				JoinToken:       matcher.InstallParams.JoinParams.TokenName,
-				ScriptName:      matcher.InstallParams.ScriptName,
-				PublicProxyAddr: getInstallerProxyAddr(matcher.InstallParams, fc),
-			}
-		}
-		cfg.Discovery.AzureMatchers = append(cfg.Discovery.AzureMatchers, m)
+		cfg.Discovery.AzureMatchers = append(cfg.Discovery.AzureMatchers, serviceMatcher)
 	}
 
 	for _, matcher := range fc.Discovery.GCPMatchers {
-		m := types.GCPMatcher{
-			Types:           matcher.Types,
-			Locations:       matcher.Locations,
-			Tags:            matcher.Tags,
-			ProjectIDs:      matcher.ProjectIDs,
-			ServiceAccounts: matcher.ServiceAccounts,
-		}
+		var installerParams *types.InstallerParams
 		if matcher.InstallParams != nil {
-			m.Params = &types.InstallerParams{
+			installerParams = &types.InstallerParams{
 				JoinMethod:      matcher.InstallParams.JoinParams.Method,
 				JoinToken:       matcher.InstallParams.JoinParams.TokenName,
 				ScriptName:      matcher.InstallParams.ScriptName,
 				PublicProxyAddr: getInstallerProxyAddr(matcher.InstallParams, fc),
 			}
 		}
-		cfg.Discovery.GCPMatchers = append(cfg.Discovery.GCPMatchers, m)
+		serviceMatcher := types.GCPMatcher{
+			Types:           matcher.Types,
+			Locations:       matcher.Locations,
+			Labels:          matcher.Labels,
+			Tags:            matcher.Tags,
+			ProjectIDs:      matcher.ProjectIDs,
+			ServiceAccounts: matcher.ServiceAccounts,
+			Params:          installerParams,
+		}
+		if err := serviceMatcher.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
+
+		cfg.Discovery.GCPMatchers = append(cfg.Discovery.GCPMatchers, serviceMatcher)
 	}
 
+	if len(fc.Discovery.KubernetesMatchers) > 0 {
+		if fc.Discovery.DiscoveryGroup == "" {
+			// TODO(anton): add link to documentation when it's available
+			return trace.BadParameter(`parameter 'discovery_group' should be defined for discovery service if
+kubernetes matchers are present`)
+		}
+	}
 	for _, matcher := range fc.Discovery.KubernetesMatchers {
-		cfg.Discovery.KubernetesMatchers = append(cfg.Discovery.KubernetesMatchers,
-			types.KubernetesMatcher{
-				Types:      matcher.Types,
-				Namespaces: matcher.Namespaces,
-				Labels:     matcher.Labels,
-			},
-		)
+		serviceMatcher := types.KubernetesMatcher{
+			Types:      matcher.Types,
+			Namespaces: matcher.Namespaces,
+			Labels:     matcher.Labels,
+		}
+		if err := serviceMatcher.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
+
+		cfg.Discovery.KubernetesMatchers = append(cfg.Discovery.KubernetesMatchers, serviceMatcher)
 	}
 
 	return nil
@@ -1477,8 +1646,10 @@ func applyDatabasesConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 				Mode:       servicecfg.TLSMode(database.TLS.Mode),
 			},
 			AdminUser: servicecfg.DatabaseAdminUser{
-				Name: database.AdminUser.Name,
+				Name:            database.AdminUser.Name,
+				DefaultDatabase: database.AdminUser.DefaultDatabase,
 			},
+			Oracle: convOracleOptions(database.Oracle),
 			AWS: servicecfg.DatabaseAWS{
 				AccountID:     database.AWS.AccountID,
 				AssumeRoleARN: database.AWS.AssumeRoleARN,
@@ -1529,6 +1700,12 @@ func applyDatabasesConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		cfg.Databases.Databases = append(cfg.Databases.Databases, db)
 	}
 	return nil
+}
+
+func convOracleOptions(o DatabaseOracle) servicecfg.OracleOptions {
+	return servicecfg.OracleOptions{
+		AuditUser: o.AuditUser,
+	}
 }
 
 // readCACert reads database CA certificate from the config file.
@@ -1792,6 +1969,8 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		ServerName:         fc.WindowsDesktop.LDAP.ServerName,
 		CA:                 cert,
 	}
+
+	cfg.WindowsDesktop.PKIDomain = fc.WindowsDesktop.PKIDomain
 
 	var hlrs []servicecfg.HostLabelRule
 	for _, rule := range fc.WindowsDesktop.HostLabels {
@@ -2491,6 +2670,7 @@ func applyOktaConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	cfg.Okta.Enabled = fc.Okta.Enabled()
 	cfg.Okta.APIEndpoint = fc.Okta.APIEndpoint
 	cfg.Okta.APITokenPath = fc.Okta.APITokenPath
+	cfg.Okta.SyncPeriod = fc.Okta.SyncPeriod
 	return nil
 }
 

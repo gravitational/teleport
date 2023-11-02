@@ -1,11 +1,7 @@
 ---
-title: Deploy Login Rules via Terraform (Preview)
+title: Deploy Login Rules via Terraform 
 description: Use Teleport's Terraform Provider to deploy Login Rules to your cluster
 ---
-
-<Admonition type="warning" title="Preview">
-  Login Rules are currently in Preview mode.
-</Admonition>
 
 This guide will explain how to:
 
@@ -59,7 +55,7 @@ spec:
     rules:
       - resources: [login_rule]
         verbs: [list, read, create, update, delete]
-version: v6
+version: v7
 ```
 
 Create the role with `tctl`:

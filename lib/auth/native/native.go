@@ -17,10 +17,13 @@ limitations under the License.
 package native
 
 import (
+	"crypto/ed25519"
 	"crypto/rand"
 	"crypto/rsa"
+	"crypto/sha256"
 	"crypto/x509"
 	"encoding/pem"
+	"reflect"
 	"sync"
 	"testing"
 	"time"
@@ -43,6 +46,15 @@ var precomputedKeys = make(chan *rsa.PrivateKey, 25)
 // startPrecomputeOnce is used to start the background task that precomputes key pairs.
 var startPrecomputeOnce sync.Once
 
+// IsBoringBinary checks if the binary was compiled with BoringCrypto.
+func IsBoringBinary() bool {
+	// Check the package name for one of the boring primitives, if the package
+	// path is from BoringCrypto, we know this binary was compiled against the
+	// dev.boringcrypto branch of Go.
+	hash := sha256.New()
+	return reflect.TypeOf(hash).Elem().PkgPath() == "crypto/internal/boring"
+}
+
 // GenerateKeyPair generates a new RSA key pair.
 func GenerateKeyPair() ([]byte, []byte, error) {
 	priv, err := GeneratePrivateKey()
@@ -50,6 +62,25 @@ func GenerateKeyPair() ([]byte, []byte, error) {
 		return nil, nil, trace.Wrap(err)
 	}
 	return priv.PrivateKeyPEM(), priv.MarshalSSHPublicKey(), nil
+}
+
+// GenerateEICEKey generates a key that can be send to an Amazon EC2 instance using the ec2instanceconnect.SendSSHPublicKey method.
+func GenerateEICEKey() (publicKey any, privateKey any, err error) {
+	if IsBoringBinary() {
+		privKey, err := GeneratePrivateKey()
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+
+		return privKey.Public(), privKey, nil
+	}
+
+	pubKey, privKey, err := ed25519.GenerateKey(nil)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	return pubKey, privKey, nil
 }
 
 // GeneratePrivateKey generates a new RSA private key.

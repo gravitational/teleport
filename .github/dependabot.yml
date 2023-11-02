@@ -22,11 +22,20 @@ updates:
       - dependency-name: github.com/redis/go-redis/v9
       - dependency-name: github.com/vulcand/predicate
     open-pull-requests-limit: 10
+    groups:
+      go:
+        update-types:
+          - "minor"
+          - "patch"
     reviewers:
       - codingllama
       - jentfoo
       - rosstimothy
       - zmb3
+    labels:
+      - "dependencies"
+      - "go"
+      - "no-changelog"
 
   - package-ecosystem: gomod
     directory: "/api"
@@ -35,11 +44,20 @@ updates:
       day: "sunday"
       time: "09:00" # 9am UTC
     open-pull-requests-limit: 10
+    groups:
+      go:
+        update-types:
+          - "minor"
+          - "patch"
     reviewers:
       - codingllama
       - jentfoo
       - rosstimothy
       - zmb3
+    labels:
+      - "dependencies"
+      - "go"
+      - "no-changelog"
 
   - package-ecosystem: gomod
     directory: "/assets/aws"
@@ -51,12 +69,21 @@ updates:
       # Forked/replaced dependencies
       - dependency-name: github.com/alecthomas/kingpin/v2
     open-pull-requests-limit: 10
+    groups:
+      go:
+        update-types:
+          - "minor"
+          - "patch"
     reviewers:
       - codingllama
       - jentfoo
       - rosstimothy
       - tcsc
       - zmb3
+    labels:
+      - "dependencies"
+      - "go"
+      - "no-changelog"
 
   - package-ecosystem: gomod
     directory: "/assets/backport"
@@ -65,11 +92,20 @@ updates:
       day: "sunday"
       time: "09:00" # 9am UTC
     open-pull-requests-limit: 10
+    groups:
+      go:
+        update-types:
+          - "minor"
+          - "patch"
     reviewers:
       - codingllama
       - jentfoo
       - rosstimothy
       - zmb3
+    labels:
+      - "dependencies"
+      - "go"
+      - "no-changelog"
 
   - package-ecosystem: gomod
     directory: "/build.assets/tooling"
@@ -81,12 +117,21 @@ updates:
       # Forked/replaced dependencies
       - dependency-name: github.com/alecthomas/kingpin/v2
     open-pull-requests-limit: 10
+    groups:
+      go:
+        update-types:
+          - "minor"
+          - "patch"
     reviewers:
       - codingllama
       - fheinecke
       - jentfoo
       - rosstimothy
       - zmb3
+    labels:
+      - "dependencies"
+      - "go"
+      - "no-changelog"
 
   - package-ecosystem: gomod
     directory: "/integrations/kube-agent-updater"
@@ -95,12 +140,21 @@ updates:
       day: "sunday"
       time: "09:00" # 9am UTC
     open-pull-requests-limit: 10
+    groups:
+      go:
+        update-types:
+          - "minor"
+          - "patch"
     reviewers:
       - codingllama
       - hugoShaka
       - jentfoo
       - rosstimothy
       - zmb3
+    labels:
+      - "dependencies"
+      - "go"
+      - "no-changelog"
 
   - package-ecosystem: cargo
     directory: "/"
@@ -109,12 +163,21 @@ updates:
       day: "sunday"
       time: "09:00" # 9am UTC
     open-pull-requests-limit: 10
+    groups:
+      rust:
+        update-types:
+          - "minor"
+          - "patch"
     reviewers:
       - codingllama
       - ibeckermayer
       - jentfoo
       - rosstimothy
       - zmb3
+    labels:
+      - "dependencies"
+      - "rust"
+      - "no-changelog"
 
   - package-ecosystem: cargo
     directory: "/lib/srv/desktop/rdp/rdpclient"
@@ -123,9 +186,35 @@ updates:
       day: "sunday"
       time: "09:00" # 9am UTC
     open-pull-requests-limit: 10
+    groups:
+      rust:
+        update-types:
+          - "minor"
+          - "patch"
     reviewers:
       - codingllama
       - ibeckermayer
       - jentfoo
       - rosstimothy
       - zmb3
+    labels:
+      - "dependencies"
+      - "rust"
+      - "no-changelog"
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: "America/Los_Angeles"
+    reviewers:
+      - wadells
+      - jentfoo
+      - fheinecke
+      - camscale
+    labels:
+      - "dependencies"
+      - "github_actions"
+      - "no-changelog"

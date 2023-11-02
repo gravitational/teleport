@@ -96,6 +96,8 @@ type AuthPreference interface {
 	GetRequireMFAType() RequireMFAType
 	// GetPrivateKeyPolicy returns the configured private key policy for the cluster.
 	GetPrivateKeyPolicy() keys.PrivateKeyPolicy
+	// GetPIVSlot returns the configured piv slot for the cluster.
+	GetPIVSlot() keys.PIVSlot
 
 	// GetDisconnectExpiredCert returns disconnect expired certificate setting
 	GetDisconnectExpiredCert() bool
@@ -132,6 +134,11 @@ type AuthPreference interface {
 	GetDefaultSessionTTL() Duration
 	// SetDefaultSessionTTL sets the max session ttl
 	SetDefaultSessionTTL(Duration)
+
+	// GetOktaSyncPeriod returns the duration between Okta synchronization calls if the Okta service is running.
+	GetOktaSyncPeriod() time.Duration
+	// SetOktaSyncPeriod sets the duration between Okta synchronzation calls.
+	SetOktaSyncPeriod(timeBetweenSyncs time.Duration)
 
 	// String represents a human readable version of authentication settings.
 	String() string
@@ -211,6 +218,16 @@ func (c *AuthPreferenceV2) GetResourceID() int64 {
 // SetResourceID sets resource ID.
 func (c *AuthPreferenceV2) SetResourceID(id int64) {
 	c.Metadata.ID = id
+}
+
+// GetRevision returns the revision
+func (c *AuthPreferenceV2) GetRevision() string {
+	return c.Metadata.GetRevision()
+}
+
+// SetRevision sets the revision
+func (c *AuthPreferenceV2) SetRevision(rev string) {
+	c.Metadata.SetRevision(rev)
 }
 
 // Origin returns the origin value of the resource.
@@ -372,9 +389,18 @@ func (c *AuthPreferenceV2) GetPrivateKeyPolicy() keys.PrivateKeyPolicy {
 		return keys.PrivateKeyPolicyHardwareKey
 	case RequireMFAType_HARDWARE_KEY_TOUCH:
 		return keys.PrivateKeyPolicyHardwareKeyTouch
+	case RequireMFAType_HARDWARE_KEY_PIN:
+		return keys.PrivateKeyPolicyHardwareKeyPIN
+	case RequireMFAType_HARDWARE_KEY_TOUCH_AND_PIN:
+		return keys.PrivateKeyPolicyHardwareKeyTouchAndPIN
 	default:
 		return keys.PrivateKeyPolicyNone
 	}
+}
+
+// GetPIVSlot returns the configured piv slot for the cluster.
+func (c *AuthPreferenceV2) GetPIVSlot() keys.PIVSlot {
+	return keys.PIVSlot(c.Spec.PIVSlot)
 }
 
 // GetDisconnectExpiredCert returns disconnect expired certificate setting
@@ -449,6 +475,16 @@ func (c *AuthPreferenceV2) SetDefaultSessionTTL(sessionTTL Duration) {
 // GetDefaultSessionTTL retrieves the default session ttl
 func (c *AuthPreferenceV2) GetDefaultSessionTTL() Duration {
 	return c.Spec.DefaultSessionTTL
+}
+
+// GetOktaSyncPeriod returns the duration between Okta synchronization calls if the Okta service is running.
+func (c *AuthPreferenceV2) GetOktaSyncPeriod() time.Duration {
+	return c.Spec.Okta.SyncPeriod.Duration()
+}
+
+// SetOktaSyncPeriod sets the duration between Okta synchronzation calls.
+func (c *AuthPreferenceV2) SetOktaSyncPeriod(syncPeriod time.Duration) {
+	c.Spec.Okta.SyncPeriod = Duration(syncPeriod)
 }
 
 // setStaticFields sets static resource header and metadata fields.
@@ -630,6 +666,11 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 		c.Spec.IDP.SAML.Enabled = NewBoolOption(true)
 	}
 
+	// Make sure the Okta field is populated.
+	if c.Spec.Okta == nil {
+		c.Spec.Okta = &OktaOptions{}
+	}
+
 	return nil
 }
 
@@ -788,8 +829,10 @@ func (d *MFADevice) GetVersion() string      { return d.Version }
 func (d *MFADevice) GetMetadata() Metadata   { return d.Metadata }
 func (d *MFADevice) GetName() string         { return d.Metadata.GetName() }
 func (d *MFADevice) SetName(n string)        { d.Metadata.SetName(n) }
-func (d *MFADevice) GetResourceID() int64    { return d.Metadata.ID }
+func (d *MFADevice) GetResourceID() int64    { return d.Metadata.GetID() }
 func (d *MFADevice) SetResourceID(id int64)  { d.Metadata.SetID(id) }
+func (d *MFADevice) GetRevision() string     { return d.Metadata.GetRevision() }
+func (d *MFADevice) SetRevision(rev string)  { d.Metadata.SetRevision(rev) }
 func (d *MFADevice) Expiry() time.Time       { return d.Metadata.Expiry() }
 func (d *MFADevice) SetExpiry(exp time.Time) { d.Metadata.SetExpiry(exp) }
 
@@ -821,7 +864,7 @@ func (d *MFADevice) UnmarshalJSON(buf []byte) error {
 
 // IsSessionMFARequired returns whether this RequireMFAType requires per-session MFA.
 func (r RequireMFAType) IsSessionMFARequired() bool {
-	return r == RequireMFAType_SESSION || r == RequireMFAType_SESSION_AND_HARDWARE_KEY
+	return r != RequireMFAType_OFF
 }
 
 // MarshalJSON marshals RequireMFAType to boolean or string.
@@ -868,8 +911,14 @@ func (r *RequireMFAType) UnmarshalJSON(data []byte) error {
 }
 
 const (
-	RequireMFATypeHardwareKeyString      = "hardware_key"
+	// RequireMFATypeHardwareKeyString is the string representation of RequireMFATypeHardwareKey
+	RequireMFATypeHardwareKeyString = "hardware_key"
+	// RequireMFATypeHardwareKeyTouchString is the string representation of RequireMFATypeHardwareKeyTouch
 	RequireMFATypeHardwareKeyTouchString = "hardware_key_touch"
+	// RequireMFATypeHardwareKeyPINString is the string representation of RequireMFATypeHardwareKeyPIN
+	RequireMFATypeHardwareKeyPINString = "hardware_key_pin"
+	// RequireMFATypeHardwareKeyTouchAndPINString is the string representation of RequireMFATypeHardwareKeyTouchAndPIN
+	RequireMFATypeHardwareKeyTouchAndPINString = "hardware_key_touch_and_pin"
 )
 
 // encode RequireMFAType into a string or boolean. This is necessary for
@@ -885,6 +934,10 @@ func (r *RequireMFAType) encode() (interface{}, error) {
 		return RequireMFATypeHardwareKeyString, nil
 	case RequireMFAType_HARDWARE_KEY_TOUCH:
 		return RequireMFATypeHardwareKeyTouchString, nil
+	case RequireMFAType_HARDWARE_KEY_PIN:
+		return RequireMFATypeHardwareKeyPINString, nil
+	case RequireMFAType_HARDWARE_KEY_TOUCH_AND_PIN:
+		return RequireMFATypeHardwareKeyTouchAndPINString, nil
 	default:
 		return nil, trace.BadParameter("RequireMFAType invalid value %v", *r)
 	}
@@ -901,6 +954,10 @@ func (r *RequireMFAType) decode(val interface{}) error {
 			*r = RequireMFAType_SESSION_AND_HARDWARE_KEY
 		case RequireMFATypeHardwareKeyTouchString:
 			*r = RequireMFAType_HARDWARE_KEY_TOUCH
+		case RequireMFATypeHardwareKeyPINString:
+			*r = RequireMFAType_HARDWARE_KEY_PIN
+		case RequireMFATypeHardwareKeyTouchAndPINString:
+			*r = RequireMFAType_HARDWARE_KEY_TOUCH_AND_PIN
 		case "":
 			// default to off
 			*r = RequireMFAType_OFF
@@ -921,8 +978,27 @@ func (r *RequireMFAType) decode(val interface{}) error {
 		} else {
 			*r = RequireMFAType_OFF
 		}
+	case int32:
+		return trace.Wrap(r.setFromEnum(v))
+	case int64:
+		return trace.Wrap(r.setFromEnum(int32(v)))
+	case int:
+		return trace.Wrap(r.setFromEnum(int32(v)))
+	case float64:
+		return trace.Wrap(r.setFromEnum(int32(v)))
+	case float32:
+		return trace.Wrap(r.setFromEnum(int32(v)))
 	default:
 		return trace.BadParameter("RequireMFAType invalid type %T", val)
 	}
+	return nil
+}
+
+// setFromEnum sets the value from enum value as int32.
+func (r *RequireMFAType) setFromEnum(val int32) error {
+	if _, ok := RequireMFAType_name[val]; !ok {
+		return trace.BadParameter("invalid required mfa mode %v", val)
+	}
+	*r = RequireMFAType(val)
 	return nil
 }

@@ -33,6 +33,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -96,8 +97,8 @@ type TLSServerConfig struct {
 	// kubernetes_service. The servers are kept in memory to avoid making unnecessary
 	// unmarshal calls followed by filtering and to improve memory usage.
 	KubernetesServersWatcher *services.KubeServerWatcher
-	// EnableProxyProtocol enables proxy protocol support
-	EnableProxyProtocol bool
+	// PROXYProtocolMode controls behavior related to unsigned PROXY protocol headers.
+	PROXYProtocolMode multiplexer.PROXYProtocolMode
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -239,13 +240,16 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 		Server: &http.Server{
 			Handler:           httplib.MakeTracingHandler(limiter, teleport.ComponentKube),
 			ReadHeaderTimeout: apidefaults.DefaultIOTimeout * 2,
-			ReadTimeout:       apidefaults.DefaultIOTimeout,
-			WriteTimeout:      apidefaults.DefaultIOTimeout,
-			IdleTimeout:       apidefaults.DefaultIdleTimeout,
-			TLSConfig:         cfg.TLS,
-			ConnState:         ingress.HTTPConnStateReporter(ingress.Kube, cfg.IngressReporter),
+			// Setting ReadTimeout and WriteTimeout will cause the server to
+			// terminate long running requests. This will cause issues with
+			// long running watch streams. The server will close the connection
+			// and the client will receive incomplete data and will fail to
+			// parse it.
+			IdleTimeout: apidefaults.DefaultIdleTimeout,
+			TLSConfig:   cfg.TLS,
+			ConnState:   ingress.HTTPConnStateReporter(ingress.Kube, cfg.IngressReporter),
 			ConnContext: func(ctx context.Context, c net.Conn) context.Context {
-				return utils.ClientAddrContext(ctx, c.RemoteAddr(), c.LocalAddr())
+				return authz.ContextWithClientAddrs(ctx, c.RemoteAddr(), c.LocalAddr())
 			},
 		},
 		heartbeats: make(map[string]*srv.Heartbeat),
@@ -266,26 +270,43 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 	return server, nil
 }
 
+// ServeOption is a functional option for the multiplexer.
+type ServeOption func(*multiplexer.Config)
+
+// WithMultiplexerIgnoreSelfConnections is used for tests, it makes multiplexer ignore the fact that it's self
+// connection (coming from same IP as the listening address) when deciding if it should drop connection with
+// missing required PROXY header. This is needed since all connections in tests are self connections.
+func WithMultiplexerIgnoreSelfConnections() ServeOption {
+	return func(cfg *multiplexer.Config) {
+		cfg.IgnoreSelfConnections = true
+	}
+}
+
 // Serve takes TCP listener, upgrades to TLS using config and starts serving
-func (t *TLSServer) Serve(listener net.Listener) error {
+func (t *TLSServer) Serve(listener net.Listener, options ...ServeOption) error {
 	caGetter := func(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error) {
 		return t.CachingAuthClient.GetCertAuthority(ctx, id, loadKeys)
 	}
-	// Wrap listener with a multiplexer to get Proxy Protocol support.
-	mux, err := multiplexer.New(multiplexer.Config{
-		Context:                     t.Context,
-		Listener:                    listener,
-		Clock:                       t.Clock,
-		EnableExternalProxyProtocol: t.EnableProxyProtocol,
-		ID:                          t.Component,
-		CertAuthorityGetter:         caGetter,
-		LocalClusterName:            t.ClusterName,
+	muxConfig := multiplexer.Config{
+		Context:             t.Context,
+		Listener:            listener,
+		Clock:               t.Clock,
+		PROXYProtocolMode:   t.PROXYProtocolMode,
+		ID:                  t.Component,
+		CertAuthorityGetter: caGetter,
+		LocalClusterName:    t.ClusterName,
 		// Increases deadline until the agent receives the first byte to 10s.
 		// It's required to accommodate setups with high latency and where the time
 		// between the TCP being accepted and the time for the first byte is longer
 		// than the default value -  1s.
 		ReadDeadline: 10 * time.Second,
-	})
+	}
+	for _, opt := range options {
+		opt(&muxConfig)
+	}
+
+	// Wrap listener with a multiplexer to get PROXY Protocol support.
+	mux, err := multiplexer.New(muxConfig)
 	if err != nil {
 		return trace.Wrap(err)
 	}

@@ -1,6 +1,6 @@
 ```yaml
 kind: role
-version: v6
+version: v7
 metadata:
   name: example
 spec:
@@ -86,7 +86,6 @@ spec:
     # enterprise-only: when enabled, the source IP that was used to log in is embedded in the user
     # certificates, preventing a compromised certificate from being used on another
     # network. The default is false.
-    # Note: Source IP pinning is currently in Preview mode.
     pin_source_ip: true
     # Specify a list of names and associated values to be included in user SSH keys.
     # The key type can only be "ssh" and the mode can only be "extension".
@@ -102,7 +101,11 @@ spec:
     #          and off (disable host user creation)
     create_host_user_mode: drop
     # Controls whether this role requires automatic database user provisioning.
-    create_db_user: true
+    # Options: off (disable database user auto-provisioning), keep (disables the
+    # user at session end, removing the roles and locking it), and
+    # best_effort_drop (try to drop the user at session end, if it doesn't
+    # succeed, fallback to disabling it).
+    create_db_user_mode: keep
     # Specifies role specific options for identity provider access.
     idp:
       # Specifies role specific options for SAML identity provider access.
@@ -163,8 +166,30 @@ spec:
     # kubernetes_resources indicates the Kubernetes resources that a user with
     # this role is allowed to access.
     kubernetes_resources:
-        # The resource kind. Teleport currently only supports "pod".
-      - kind: pod
+        # The resource kind. Teleport currently supports:
+        # - * (all resources)
+        # - pod
+        # - secret
+        # - configmap
+        # - namespace
+        # - service
+        # - serviceaccount
+        # - kube_node
+        # - persistentvolume
+        # - persistentvolumeclaim
+        # - deployment
+        # - replicaset
+        # - statefulset
+        # - daemonset
+        # - clusterrole
+        # - kube_role
+        # - clusterrolebinding
+        # - rolebinding
+        # - cronjob
+        # - job
+        # - certificatesigningrequest
+        # - ingress
+      - kind: '*'
         # The name of the Kubernetes namespace in which to allow access the
         # resources you specify with "name" and "kind".
         # The wildcard character "*" matches any sequence of characters.
@@ -176,13 +201,27 @@ spec:
         # If the value begins with "^" and ends with "$", the Kubernetes
         # Service will treat it as a regular expression.
         name: "^nginx-[a-z0-9-]+$"
+        # The verbs that the user is allowed to perform on the resource.
+        # Teleport currently supports:
+        # - * (all verbs)
+        # - get
+        # - list
+        # - watch
+        # - create
+        # - update
+        # - patch
+        # - delete
+        # - deletecollection
+        # - exec - allows users to execute commands in a pod
+        # - portforward - allows users to forward ports from a pod
+        verbs: ['*']
 
     # Functions transform variables.
     db_users: ['{{email.local(external.email)}}']
     db_names: ['{{external.db_names}}']
     db_roles: ['{{external.db_roles}}']
     db_labels:
-      'env': '{{regexp.replace(external.access["env"], "^(staging)$", "$1")}}'
+      'env': '{{regexp.replace(external.env, "^(staging)$", "$1")}}'
 
     # app_labels: a user with this role will be allowed to connect to
     # applications with labels matching below.
@@ -349,14 +388,16 @@ spec:
     # saml               - connector resource
     # github             - GitHub connector resource
     #
-    # trusted_cluster    - Trusted Cluster resource
+    # trusted_cluster    - Trusted cluster resource
     # remote_cluster     - remote cluster resource
     #
     # access_request     - Access Request resource
     # access_plugin_data - allows modifying Access Request plugin data
     #
     # session            - session playback records
-    # ssh_session        - an active SSH session
+    # session_tracker    - an active session
+    # ssh_session        - allows seeing active sessions page
+    # instance           - a Teleport instance
     # event              - structured audit logging event
     #
     #

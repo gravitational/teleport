@@ -65,12 +65,18 @@ type WebConfig struct {
 	IsUsageBasedBilling bool `json:"isUsageBasedBilling,omitempty"`
 	// AutomaticUpgrades describes whether agents should automatically upgrade.
 	AutomaticUpgrades bool `json:"automaticUpgrades"`
+	// AutomaticUpgradesTargetVersion is the agents version (eg kube agent helm chart) that should be installed.
+	// Eg, v13.4.3
+	// Only present when AutomaticUpgrades are enabled.
+	AutomaticUpgradesTargetVersion string `json:"automaticUpgradesTargetVersion,omitempty"`
 	// AssistEnabled is true when Teleport Assist is enabled.
 	AssistEnabled bool `json:"assistEnabled"`
 	// HideInaccessibleFeatures is true when features should be undiscoverable to users without the necessary permissions.
 	// Usually, in order to encourage discoverability of features, we show UI elements even if the user doesn't have permission to access them,
 	// this flag disables that behavior.
 	HideInaccessibleFeatures bool `json:"hideInaccessibleFeatures"`
+	// CustomTheme is a string that represents the name of the custom theme that the WebUI should use.
+	CustomTheme string `json:"customTheme"`
 }
 
 // UIConfig provides config options for the web UI served by the proxy service.

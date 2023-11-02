@@ -15,7 +15,7 @@
  */
 
 import React, { useState } from 'react';
-import { Box } from 'design';
+import { Box, Text } from 'design';
 import { FetchStatus } from 'design/DataTable/types';
 import { Danger } from 'design/Alert';
 
@@ -30,14 +30,16 @@ import {
   integrationService,
 } from 'teleport/services/integrations';
 import { DatabaseEngine } from 'teleport/Discover/SelectResource';
+import { AwsRegionSelector } from 'teleport/Discover/Shared/AwsRegionSelector';
 import { Database } from 'teleport/services/databases';
+import { ConfigureIamPerms } from 'teleport/Discover/Shared/Aws/ConfigureIamPerms';
+import { isIamPermError } from 'teleport/Discover/Shared/Aws/error';
 
 import { ActionButtons, Header } from '../../Shared';
 
 import { useCreateDatabase } from '../CreateDatabase/useCreateDatabase';
 import { CreateDatabaseDialog } from '../CreateDatabase/CreateDatabaseDialog';
 
-import { AwsRegionSelector } from './AwsRegionSelector';
 import { DatabaseList } from './RdsDatabaseList';
 
 type TableData = {
@@ -93,6 +95,7 @@ export function EnrollRdsDatabase() {
   }
 
   function refreshDatabaseList() {
+    setSelectedDb(null);
     // When refreshing, start the table back at page 1.
     fetchDatabases({ ...tableData, startKey: '', items: [] });
   }
@@ -199,28 +202,48 @@ export function EnrollRdsDatabase() {
     );
   }
 
+  const hasIamPermError = isIamPermError(fetchDbAttempt);
+
   return (
     <Box maxWidth="800px">
       <Header>Enroll a RDS Database</Header>
-      {fetchDbAttempt.status === 'failed' && (
+      {fetchDbAttempt.status === 'failed' && !hasIamPermError && (
         <Danger mt={3}>{fetchDbAttempt.statusText}</Danger>
       )}
+      <Text mt={4}>
+        Select the AWS Region you would like to see databases for:
+      </Text>
       <AwsRegionSelector
         onFetch={fetchDatabasesWithNewRegion}
         onRefresh={refreshDatabaseList}
         clear={clear}
         disableSelector={fetchDbAttempt.status === 'processing'}
       />
-      <DatabaseList
-        items={tableData.items}
-        fetchStatus={tableData.fetchStatus}
-        selectedDatabase={selectedDb}
-        onSelectDatabase={setSelectedDb}
-        fetchNextPage={fetchNextPage}
-      />
+      {!hasIamPermError && tableData.currRegion && (
+        <DatabaseList
+          items={tableData.items}
+          fetchStatus={tableData.fetchStatus}
+          selectedDatabase={selectedDb}
+          onSelectDatabase={setSelectedDb}
+          fetchNextPage={fetchNextPage}
+        />
+      )}
+      {hasIamPermError && (
+        <Box mb={5}>
+          <ConfigureIamPerms
+            kind="rds"
+            region={tableData.currRegion}
+            integrationRoleArn={(agentMeta as DbMeta).integration.spec.roleArn}
+          />
+        </Box>
+      )}
       <ActionButtons
         onProceed={handleOnProceed}
-        disableProceed={fetchDbAttempt.status === 'processing' || !selectedDb}
+        disableProceed={
+          fetchDbAttempt.status === 'processing' ||
+          !selectedDb ||
+          hasIamPermError
+        }
       />
       {registerAttempt.status !== '' && (
         <CreateDatabaseDialog

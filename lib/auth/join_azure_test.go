@@ -27,10 +27,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/digitorus/pkcs7"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
-	"go.mozilla.org/pkcs7"
 	"gopkg.in/square/go-jose.v2"
 	"gopkg.in/square/go-jose.v2/jwt"
 
@@ -385,7 +385,7 @@ func TestAuth_RegisterUsingAzureMethod(t *testing.T) {
 			require.NoError(t, err)
 
 			reqCtx := context.Background()
-			reqCtx = authz.ContextWithClientAddr(reqCtx, &net.IPAddr{})
+			reqCtx = authz.ContextWithClientSrcAddr(reqCtx, &net.IPAddr{})
 
 			vmResult := tc.vmResult
 			if vmResult == nil {

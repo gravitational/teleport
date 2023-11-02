@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React, { Suspense, useState } from 'react';
+import React, { Suspense, useState, lazy } from 'react';
 import styled, { useTheme } from 'styled-components';
 import { Flex, Text, TopNav } from 'design';
 
@@ -46,24 +46,10 @@ import {
 } from 'teleport/Assist/Popup/Popup';
 
 import ClusterSelector from './ClusterSelector';
+import { Notifications } from './Notifications';
+import { ButtonIconContainer } from './Shared';
 
-const Assist = React.lazy(() => import('teleport/Assist'));
-
-const AssistButton = styled.div`
-  padding: 0 10px;
-  height: 48px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 5px;
-  cursor: pointer;
-  user-select: none;
-  margin-right: 5px;
-
-  &:hover {
-    background: ${props => props.theme.colors.spotBackground[0]};
-  }
-`;
+const Assist = lazy(() => import('teleport/Assist'));
 
 const AssistButtonContainer = styled.div`
   position: relative;
@@ -79,7 +65,14 @@ const Background = styled.div`
   background: rgba(0, 0, 0, 0.6);
 `;
 
-export function TopBar() {
+type TopBarProps = {
+  // hidePopup indicates if the popup should be hidden based on parent component states.
+  // if true, another modal is present; and we do not want to display the assist popup.
+  // if false or absent, display as pre normal logical rules.
+  hidePopup?: boolean;
+};
+
+export function TopBar({ hidePopup = false }: TopBarProps) {
   const theme = useTheme();
 
   const ctx = useTeleport();
@@ -109,6 +102,38 @@ export function TopBar() {
     const oldPrefix = cfg.getClusterRoute(clusterId);
 
     const newPath = history.location.pathname.replace(oldPrefix, newPrefix);
+
+    // TODO (avatus) DELETE IN 15 (LEGACY RESOURCES SUPPORT)
+    // this is a temporary hack to support leaf clusters _maybe_ not having access
+    // to unified resources yet. When unified resources are loaded in fetchUnifiedResources,
+    // if the response is a 404 (the endpoint doesnt exist), we:
+    // 1. push them to the servers page (old default)
+    // 2. set this variable conditionally render the "legacy" navigation
+    // When we switch clusters (to leaf or root), we remove the item and perform the check again by pushing
+    // to the resource (new default view).
+    window.localStorage.removeItem(KeysEnum.UNIFIED_RESOURCES_NOT_SUPPORTED);
+    const legacyResourceRoutes = [
+      cfg.getNodesRoute(clusterId),
+      cfg.getAppsRoute(clusterId),
+      cfg.getKubernetesRoute(clusterId),
+      cfg.getDatabasesRoute(clusterId),
+      cfg.getDesktopsRoute(clusterId),
+    ];
+
+    if (
+      legacyResourceRoutes.some(route =>
+        history.location.pathname.includes(route)
+      )
+    ) {
+      const unifiedPath = cfg
+        .getUnifiedResourcesRoute(clusterId)
+        .replace(oldPrefix, newPrefix);
+
+      history.replace(unifiedPath);
+      return;
+    }
+
+    // keep current view just change the clusterId
     history.push(newPath);
   }
 
@@ -150,14 +175,13 @@ export function TopBar() {
       <Flex ml="auto" height="100%" alignItems="center">
         {!hasDockedElement && assistEnabled && (
           <AssistButtonContainer>
-            <AssistButton onClick={() => setShowAssist(true)}>
+            <ButtonIconContainer onClick={() => setShowAssist(true)}>
               <BrainIcon />
-            </AssistButton>
-
-            {showAssistPopup && (
+            </ButtonIconContainer>
+            {showAssistPopup && !hidePopup && (
               <>
                 <Background />
-                <Popup>
+                <Popup data-testid="assistPopup">
                   <PopupTitle>
                     <PopupTitleBackground>New!</PopupTitleBackground>
                   </PopupTitle>{' '}
@@ -167,7 +191,7 @@ export function TopBar() {
                     <PopupLogos>
                       <OpenAIIcon size={30} />
                       <PopupLogosSpacer>+</PopupLogosSpacer>
-                      <TeleportIcon light={theme.name === 'light'} />
+                      <TeleportIcon light={theme.type === 'light'} />
                     </PopupLogos>
 
                     <PopupButton onClick={() => setShowAssistPopup(false)}>
@@ -179,6 +203,7 @@ export function TopBar() {
             )}
           </AssistButtonContainer>
         )}
+        <Notifications />
         <UserMenuNav username={ctx.storeUser.state.username} />
       </Flex>
 

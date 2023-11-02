@@ -42,10 +42,11 @@ import { ServiceDeployMethod } from './Database/common';
 import type { Node } from 'teleport/services/nodes';
 import type { Kube } from 'teleport/services/kube';
 import type { Database } from 'teleport/services/databases';
-import type { AgentLabel } from 'teleport/services/agents';
+import type { ResourceLabel } from 'teleport/services/agents';
 import type { ResourceSpec } from './SelectResource';
 import type {
   AwsRdsDatabase,
+  Ec2InstanceConnectEndpoint,
   Integration,
 } from 'teleport/services/integrations';
 
@@ -458,13 +459,15 @@ type BaseMeta = {
   // agentMatcherLabels are labels that will be used by the agent
   // to pick up the newly created database (looks for matching labels).
   // At least one must match.
-  agentMatcherLabels: AgentLabel[];
+  agentMatcherLabels: ResourceLabel[];
 };
 
 // NodeMeta describes the fields for node resource
 // that needs to be preserved throughout the flow.
 export type NodeMeta = BaseMeta & {
   node: Node;
+  integration?: Integration;
+  ec2Ice?: Ec2InstanceConnectEndpoint;
 };
 
 // DbMeta describes the fields for a db resource

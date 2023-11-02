@@ -5,12 +5,15 @@ description: How to configure Teleport database access with GCP Cloud SQL MySQL.
 
 (!docs/pages/includes/database-access/db-introduction.mdx  dbType="MySQL on Google Cloud SQL" dbConfigure="MySQL on Google Cloud SQL with a service account" dbName="MySQL on Google Cloud SQL" !)
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 ![Teleport Database Access CloudSQL Self-Hosted](../../../img/database-access/guides/cloudsql_selfhosted.png)
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 ![Teleport Database Access CloudSQL Cloud](../../../img/database-access/guides/cloudsql_cloud.png)
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 ## Prerequisites
 
@@ -128,7 +131,8 @@ Install Teleport on the host where you will run the Teleport Database Service:
 Below is an example of a Database Service configuration file that proxies
 a single Cloud SQL MySQL database. Save this file as `/etc/teleport.yaml`:
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
 ```yaml
 version: v3
@@ -139,6 +143,7 @@ teleport:
   # because the Database Service always connects to the cluster over a reverse
   # tunnel.
   proxy_server: teleport.example.com:3080
+  auth_token: "/tmp/token"
 db_service:
   enabled: "yes"
   # This section contains definitions of all databases proxied by this
@@ -171,8 +176,8 @@ proxy_service:
   enabled: "no"
 ```
 
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
 ```yaml
 version: v3
@@ -181,6 +186,7 @@ teleport:
   nodename: test
   # Proxy address to connect to. Use your Teleport Cloud tenant address.
   proxy_server: mytenant.teleport.sh:443
+  auth_token: "/tmp/token"
 db_service:
   enabled: "yes"
   # This section contains definitions of all databases proxied by this
@@ -213,7 +219,9 @@ proxy_service:
   enabled: "no"
 ```
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 <Admonition
   type="tip"
@@ -245,7 +253,8 @@ in the Google Cloud documentation for more details.
 Once the Database Service has joined the cluster, log in to see the available
 databases:
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
 ```code
 $ tsh login --proxy=teleport.example.com --user=alice
@@ -255,8 +264,8 @@ $ tsh db ls
 # cloudsql GCP Cloud SQL MySQL env=dev
 ```
 
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
 ```code
 $ tsh login --proxy=mytenant.teleport.sh --user=alice
@@ -266,7 +275,9 @@ $ tsh db ls
 # cloudsql GCP Cloud SQL MySQL env=dev
 ```
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 Note that you will only be able to see databases your role has access to. See
 our [RBAC](../rbac.mdx) guide for more details.
@@ -297,3 +308,4 @@ $ tsh db logout cloudsql
 # Remove credentials for all database instances.
 $ tsh db logout
 ```
+

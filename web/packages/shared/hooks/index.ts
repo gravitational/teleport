@@ -22,6 +22,7 @@ import useDocTitle from './useDocTitle';
 import useAttemptNext from './useAttemptNext';
 import { useRefAutoFocus } from './useRefAutoFocus';
 import { useInterval } from './useInterval';
+import { useInfiniteScroll } from './useInfiniteScroll';
 
 export {
   useRef,
@@ -33,4 +34,5 @@ export {
   useDocTitle,
   useRefAutoFocus,
   useInterval,
+  useInfiniteScroll,
 };

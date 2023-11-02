@@ -49,12 +49,12 @@ func hostnameContainsDot(hostname string) bool {
 	return strings.Contains(hostname, ".")
 }
 
-func hostnameisWildcard(hostname string) bool {
+func hostnameIsWildcard(hostname string) bool {
 	return strings.HasPrefix(hostname, "*.")
 }
 
 func wildcardFromHostname(hostname string) string {
-	if hostnameisWildcard(hostname) {
+	if hostnameIsWildcard(hostname) {
 		return hostname
 	}
 	// prevent a panic below if the string doesn't contain a hostname. this should never happen,
@@ -142,7 +142,7 @@ func AddHostToHostList(hostList []string, hostname string) []string {
 	return outputHostList
 }
 
-var hostnameRegexp = regexp.MustCompile("^(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9]).)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9-]*[A-Za-z0-9])$")
+var hostnameRegexp = regexp.MustCompile(`^([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9])(\.([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9]))*$`)
 
 // NaivelyValidateHostname checks the provided hostname against a naive regex to ensure it doesn't contain obviously
 // illegal characters. It's not guaranteed to be perfect, just a simple sanity check. It returns true when the hostname validates.
@@ -237,4 +237,55 @@ func FormatHostCAPublicKeysForRegistry(hostCAPublicKeys map[string][]string, hos
 		}
 	}
 	return registryOutput
+}
+
+// CheckAndSplitValidityKey processes PuTTY's "Validity" string key into individual list elements
+// and checks that its formatting follows the simple pattern "<hostname> || <hostname> || ..."
+// PuTTY uses a custom string format to represent what hostnames a given key should be trusted for.
+// See https://the.earth.li/~sgtatham/putty/0.79/htmldoc/Chapter4.html#config-ssh-cert-valid-expr for details.
+func CheckAndSplitValidityKey(input string, caName string) ([]string, error) {
+	var output []string
+	docsURL := "https://goteleport.com/docs/connect-your-client/putty/#troubleshooting"
+
+	// if the input string has no content (because the Validity key has no value yet), return the empty list
+	if len(input) == 0 {
+		return output, nil
+	}
+
+	// split the input string on spaces
+	splitTokens := strings.Fields(input)
+
+	// if the total number of hostnames and tokens doesn't equal an odd number, we can return an error early as the string is invalid
+	if len(splitTokens)%2 != 1 {
+		return nil, trace.BadParameter("validity string for %v contains an even [%d] number of entries but should be odd, see %v",
+			caName, len(splitTokens), docsURL)
+	}
+	for index, token := range splitTokens {
+		// check that every odd value in the string (zero-indexed) is equal to the OR splitter "||" and return an error if not
+		if index%2 == 1 {
+			if token != "||" {
+				return nil, trace.BadParameter("validity string for %v contains invalid splitter token %q in field %d, see %v",
+					caName, token, index, docsURL)
+			}
+		} else {
+			// if the || delimiter is in a non-odd position, return an error
+			if token == "||" {
+				return nil, trace.BadParameter("validity string for %v contains consecutive splitter tokens with no hostname in field %d, see %v",
+					caName, index, docsURL)
+			}
+			// if the string contains any value which is not part of a hostname, return an error
+			if badIndex := strings.IndexAny(token, "()&!:|"); badIndex != -1 {
+				return nil, trace.BadParameter("validity string for %v contains an invalid character %q in field %v, see %v",
+					caName, token[badIndex], index, docsURL)
+			}
+			// check the token using the naive hostname regex and return an error if it doesn't match
+			if !hostnameIsWildcard(token) && !NaivelyValidateHostname(token) {
+				return nil, trace.BadParameter("validity string for %v appears to contain non-hostname %q in field %v, see %v",
+					caName, token, index, docsURL)
+			}
+			output = append(output, token)
+		}
+	}
+
+	return output, nil
 }

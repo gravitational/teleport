@@ -38,6 +38,7 @@ import (
 	transportv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/transport/v1"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/observability/tracing"
+	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 )
 
 // ClientConfig contains configuration needed for a Client
@@ -69,6 +70,9 @@ type ClientConfig struct {
 	// ViaJumpHost indicates if the connection to the cluster is direct
 	// or via another cluster.
 	ViaJumpHost bool
+	// PROXYHeaderGetter is used if present to get signed PROXY headers to propagate client's IP.
+	// Used by proxy's web server to make calls on behalf of connected clients.
+	PROXYHeaderGetter client.PROXYHeaderGetter
 
 	// The below items are intended to be used by tests to connect without mTLS.
 	// The gRPC transport credentials to use when establishing the connection to proxy.
@@ -274,12 +278,14 @@ func newGRPCClient(ctx context.Context, cfg *ClientConfig) (_ *Client, err error
 				append(cfg.UnaryInterceptors,
 					otelgrpc.UnaryClientInterceptor(),
 					metadata.UnaryClientInterceptor,
+					interceptors.GRPCClientUnaryErrorInterceptor,
 				)...,
 			),
 			grpc.WithChainStreamInterceptor(
 				append(cfg.StreamInterceptors,
 					otelgrpc.StreamClientInterceptor(),
 					metadata.StreamClientInterceptor,
+					interceptors.GRPCClientStreamErrorInterceptor,
 				)...,
 			),
 		}, cfg.DialOpts...)...,
@@ -312,6 +318,7 @@ func newDialerForGRPCClient(ctx context.Context, cfg *ClientConfig) func(context
 		client.WithInsecureSkipVerify(cfg.InsecureSkipVerify),
 		client.WithALPNConnUpgrade(cfg.ALPNConnUpgradeRequired),
 		client.WithALPNConnUpgradePing(true), // Use Ping protocol for long-lived connections.
+		client.WithPROXYHeaderGetter(cfg.PROXYHeaderGetter),
 	))
 }
 

@@ -18,6 +18,7 @@ import React from 'react';
 
 import { setupServer } from 'msw/node';
 import { rest } from 'msw';
+import { MemoryRouter } from 'react-router';
 
 import { render, screen, waitFor } from '@testing-library/react';
 
@@ -60,9 +61,11 @@ describe('user context - success state', () => {
 
   it('should render with the settings from the backend', async () => {
     render(
-      <UserContextProvider>
-        <ThemeName />
-      </UserContextProvider>
+      <MemoryRouter>
+        <UserContextProvider>
+          <ThemeName />
+        </UserContextProvider>
+      </MemoryRouter>
     );
 
     const theme = await screen.findByText(/theme: light/i);
@@ -71,7 +74,7 @@ describe('user context - success state', () => {
   });
 
   it('should migrate the previous theme setting from local storage', async () => {
-    let updateBody = {};
+    let updateBody: { theme?: ThemePreference } = {};
 
     server.use(
       rest.put(cfg.api.userPreferencesPath, async (req, res, ctx) => {
@@ -84,16 +87,14 @@ describe('user context - success state', () => {
     localStorage.setItem(KeysEnum.THEME, 'dark');
 
     render(
-      <UserContextProvider>
-        <ThemeName />
-      </UserContextProvider>
+      <MemoryRouter>
+        <UserContextProvider>
+          <ThemeName />
+        </UserContextProvider>
+      </MemoryRouter>
     );
 
-    await waitFor(() =>
-      expect(updateBody).toEqual({
-        theme: ThemePreference.Dark,
-      })
-    );
+    await waitFor(() => expect(updateBody.theme).toEqual(ThemePreference.Dark));
 
     const theme = await screen.findByText(/theme: dark/i);
 
@@ -115,9 +116,11 @@ describe('user context - error state', () => {
 
   it('should render with the default settings', async () => {
     render(
-      <UserContextProvider>
-        <ThemeName />
-      </UserContextProvider>
+      <MemoryRouter>
+        <UserContextProvider>
+          <ThemeName />
+        </UserContextProvider>
+      </MemoryRouter>
     );
 
     const theme = await screen.findByText(/theme: light/i);
@@ -129,9 +132,11 @@ describe('user context - error state', () => {
     localStorage.setItem(KeysEnum.THEME, 'dark');
 
     render(
-      <UserContextProvider>
-        <ThemeName />
-      </UserContextProvider>
+      <MemoryRouter>
+        <UserContextProvider>
+          <ThemeName />
+        </UserContextProvider>
+      </MemoryRouter>
     );
 
     const theme = await screen.findByText(/theme: dark/i);
@@ -149,9 +154,11 @@ describe('user context - error state', () => {
     );
 
     render(
-      <UserContextProvider>
-        <ThemeName />
-      </UserContextProvider>
+      <MemoryRouter>
+        <UserContextProvider>
+          <ThemeName />
+        </UserContextProvider>
+      </MemoryRouter>
     );
 
     const theme = await screen.findByText(/theme: dark/i);

@@ -88,6 +88,16 @@ func (r *ReverseTunnelV2) SetResourceID(id int64) {
 	r.Metadata.ID = id
 }
 
+// GetRevision returns the revision
+func (r *ReverseTunnelV2) GetRevision() string {
+	return r.Metadata.GetRevision()
+}
+
+// SetRevision sets the revision
+func (r *ReverseTunnelV2) SetRevision(rev string) {
+	r.Metadata.SetRevision(rev)
+}
+
 // GetMetadata returns object metadata
 func (r *ReverseTunnelV2) GetMetadata() Metadata {
 	return r.Metadata

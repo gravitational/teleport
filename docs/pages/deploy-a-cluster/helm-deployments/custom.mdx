@@ -123,21 +123,17 @@ $ kubectl label namespace teleport 'pod-security.kubernetes.io/enforce=baseline'
 namespace/teleport labeled
 ```
 
-<ScopedBlock scope="enterprise">
+If you are running a self-hosted Teleport Enterprise cluster, you  will need to
+create a secret that contains your Teleport license information before you can
+install Teleport.
 
-Before you can install Teleport in your Kubernetes cluster, you will need to
-create a secret that contains your Teleport license information.
-
-(!docs/pages/includes//enterprise/obtainlicense.mdx!)
-
-Create a secret from your license file. Teleport will automatically discover
+1. (!docs/pages/includes//enterprise/obtainlicense.mdx!)
+1. Create a secret from your license file. Teleport will automatically discover
 this secret as long as your file is named `license.pem`.
 
-```code
-$ kubectl -n teleport create secret generic license --from-file=license.pem
-```
-
-</ScopedBlock>
+  ```code
+  $ kubectl -n teleport create secret generic license --from-file=license.pem
+  ```
 
 <Admonition type="note" title="External proxy port">
 Note that although the `proxy_service` listens on port 3080 inside the pod,
@@ -210,7 +206,8 @@ If you're not migrating an existing Teleport cluster, you'll need to create a
 user to be able to log into Teleport. This needs to be done on the Teleport
 auth server, so we can run the command using `kubectl`:
 
-<ScopedBlock scope={["oss"]}>
+<Tabs>
+<TabItem scope={["oss"]} label="Teleport Community Edition">
 ```code
 $ kubectl --namespace teleport exec deployment/teleport-auth -- tctl users add test --roles=access,editor
 
@@ -219,8 +216,8 @@ https://teleport.example.com:443/web/invite/91cfbd08bc89122275006e48b516cc68
 
 NOTE: Make sure teleport.example.com:443 points at a Teleport proxy that users can access.
 ```
-</ScopedBlock>
-<ScopedBlock scope={["enterprise", "cloud"]}>
+</TabItem>
+<TabItem scope={["enterprise", "cloud"]} label="Commercial">
 ```code
 $ kubectl --namespace teleport exec deployment/teleport-auth -- tctl users add test --roles=access,editor,reviewer
 
@@ -229,7 +226,9 @@ https://teleport.example.com:443/web/invite/91cfbd08bc89122275006e48b516cc68
 
 NOTE: Make sure teleport.example.com:443 points at a Teleport proxy that users can access.
 ```
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 <Admonition type="note">
 If you didn't set up DNS for your hostname earlier, remember to replace
@@ -277,3 +276,4 @@ users and setting up RBAC.
 To see all of the options you can set in the values file for the
 `teleport-cluster` Helm chart, consult our [reference
 guide](../../reference/helm-reference/teleport-cluster.mdx).
+

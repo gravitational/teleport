@@ -73,10 +73,13 @@ target application's API through Teleport App Access.
   title="CA and Key Pair Files"
 >
   Note the paths to your user's certificate/key pair in the command - `curl` will use a client certificate to authenticate with Teleport.
-  
-  <ScopedBlock scope={["oss", "enterprise"]}>
-    The Teleport Proxy Service is usually configured with a wildcard certificate issued by a public certificate authority such as Let's Encrypt. If your Teleport Proxy Service has been configured to use a self-signed certificate instead, you will need to include it in your `curl` command using `--cacert <path>`.
-  </ScopedBlock>
+ 
+  The Teleport Proxy Service is usually configured with a wildcard certificate
+  issued by a public certificate authority such as Let's Encrypt. If you are
+  running a self-hosted Teleport cluster, and your Teleport Proxy Service has
+  been configured to use a self-signed certificate instead, you will need to
+  include it in your `curl` command using `--cacert <path>`.
+
 </Admonition>
 
 As Grafana's API requires authentication, let's update the `curl` command to

@@ -47,7 +47,7 @@ import (
 func CertAuthoritiesEquivalent(lhs, rhs types.CertAuthority) bool {
 	return cmp.Equal(lhs, rhs,
 		ignoreProtoXXXFields(),
-		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 		// Optimize types.CAKeySet comparison.
 		cmp.Comparer(func(a, b types.CAKeySet) bool {
 			// Note that Clone drops XXX_ fields. And it's benchmarked that cloning
@@ -473,6 +473,9 @@ func UnmarshalCertAuthority(bytes []byte, opts ...MarshalOption) (types.CertAuth
 		if cfg.ID != 0 {
 			ca.SetResourceID(cfg.ID)
 		}
+		if cfg.Revision != "" {
+			ca.SetRevision(cfg.Revision)
+		}
 		// Correct problems with existing CAs that contain non-UTC times, which
 		// causes panics when doing a gogoproto Clone; should only ever be
 		// possible with LastRotated, but we enforce it on all the times anyway.
@@ -509,6 +512,7 @@ func MarshalCertAuthority(certAuthority types.CertAuthority, opts ...MarshalOpti
 			// to prevent unexpected data races
 			copy := *certAuthority
 			copy.SetResourceID(0)
+			copy.SetRevision("")
 			certAuthority = &copy
 		}
 		return utils.FastMarshal(certAuthority)

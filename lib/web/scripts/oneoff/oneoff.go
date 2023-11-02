@@ -22,8 +22,11 @@ import (
 	"text/template"
 
 	"github.com/gravitational/trace"
+	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/modules"
 )
 
 const (
@@ -65,7 +68,19 @@ type OneOffScriptParams struct {
 	// Defaults to v<currentTeleportVersion>
 	// Eg, v13.1.0
 	TeleportVersion string
+
+	// TeleportFlavor is the teleport flavor to download.
+	// Only OSS or Enterprise versions are allowed.
+	// Possible values:
+	// - teleport
+	// - teleport-ent
+	TeleportFlavor string
+
+	// SuccessMessage is a message shown to the user after the one off is completed.
+	SuccessMessage string
 }
+
+var validPackageNames = []string{types.PackageNameOSS, types.PackageNameEnt}
 
 // CheckAndSetDefaults checks if the required params ara present.
 func (p *OneOffScriptParams) CheckAndSetDefaults() error {
@@ -87,6 +102,20 @@ func (p *OneOffScriptParams) CheckAndSetDefaults() error {
 
 	if p.TeleportVersion == "" {
 		p.TeleportVersion = "v" + teleport.Version
+	}
+
+	if p.TeleportFlavor == "" {
+		p.TeleportFlavor = types.PackageNameOSS
+		if modules.GetModules().BuildType() == modules.BuildEnterprise {
+			p.TeleportFlavor = types.PackageNameEnt
+		}
+	}
+	if !slices.Contains(validPackageNames, p.TeleportFlavor) {
+		return trace.BadParameter("invalid teleport flavor, only %v are supported", validPackageNames)
+	}
+
+	if p.SuccessMessage == "" {
+		p.SuccessMessage = "Completed successfully."
 	}
 
 	return nil

@@ -68,6 +68,8 @@ type Database interface {
 	GetStatusCA() string
 	// GetMySQL returns the database options from spec.
 	GetMySQL() MySQLOptions
+	// GetOracle returns the database options from spec.
+	GetOracle() OracleOptions
 	// GetMySQLServerVersion returns the MySQL server version either from configuration or
 	// reported by the database.
 	GetMySQLServerVersion() string
@@ -126,7 +128,7 @@ type Database interface {
 	// Copy returns a copy of this database resource.
 	Copy() *DatabaseV3
 	// GetAdminUser returns database privileged user information.
-	GetAdminUser() string
+	GetAdminUser() DatabaseAdminUser
 	// SupportsAutoUsers returns true if this database supports automatic
 	// user provisioning.
 	SupportsAutoUsers() bool
@@ -177,6 +179,16 @@ func (d *DatabaseV3) GetResourceID() int64 {
 // SetResourceID sets the database resource ID.
 func (d *DatabaseV3) SetResourceID(id int64) {
 	d.Metadata.ID = id
+}
+
+// GetRevision returns the revision
+func (d *DatabaseV3) GetRevision() string {
+	return d.Metadata.GetRevision()
+}
+
+// SetRevision sets the revision
+func (d *DatabaseV3) SetRevision(rev string) {
+	d.Metadata.SetRevision(rev)
 }
 
 // GetMetadata returns the database resource metadata.
@@ -279,13 +291,28 @@ func (d *DatabaseV3) SetURI(uri string) {
 }
 
 // GetAdminUser returns database privileged user information.
-func (d *DatabaseV3) GetAdminUser() string {
+func (d *DatabaseV3) GetAdminUser() (ret DatabaseAdminUser) {
 	// First check the spec.
 	if d.Spec.AdminUser != nil {
-		return d.Spec.AdminUser.Name
+		ret = *d.Spec.AdminUser
 	}
+
 	// If it's not in the spec, check labels (for auto-discovered databases).
-	return d.Metadata.Labels[DatabaseAdminLabel]
+	// TODO Azure will require different labels.
+	if d.Origin() == OriginCloud {
+		if ret.Name == "" {
+			ret.Name = d.Metadata.Labels[DatabaseAdminLabel]
+		}
+		if ret.DefaultDatabase == "" {
+			ret.DefaultDatabase = d.Metadata.Labels[DatabaseAdminDefaultDatabaseLabel]
+		}
+	}
+	return
+}
+
+// GetOracle returns the Oracle options from spec.
+func (d *DatabaseV3) GetOracle() OracleOptions {
+	return d.Spec.Oracle
 }
 
 // SupportsAutoUsers returns true if this database supports automatic user
@@ -293,6 +320,11 @@ func (d *DatabaseV3) GetAdminUser() string {
 func (d *DatabaseV3) SupportsAutoUsers() bool {
 	switch d.GetProtocol() {
 	case DatabaseProtocolPostgreSQL:
+		switch d.GetType() {
+		case DatabaseTypeSelfHosted, DatabaseTypeRDS, DatabaseTypeRedshift:
+			return true
+		}
+	case DatabaseProtocolMySQL:
 		switch d.GetType() {
 		case DatabaseTypeSelfHosted, DatabaseTypeRDS:
 			return true
@@ -817,9 +849,9 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 			d.GetName())
 	}
 
-	// Admin user (for automatic user provisioning) is only supported for
-	// PostgreSQL currently.
-	if d.GetAdminUser() != "" && !d.SupportsAutoUsers() {
+	// Admin user should only be specified for databases that support automatic
+	// user provisioning.
+	if d.GetAdminUser().Name != "" && !d.SupportsAutoUsers() {
 		return trace.BadParameter("cannot set admin user on database %q: %v/%v databases don't support automatic user provisioning yet",
 			d.GetName(), d.GetProtocol(), d.GetType())
 	}
@@ -1143,4 +1175,9 @@ func (s *IAMPolicyStatus) UnmarshalJSON(data []byte) error {
 
 	*s = IAMPolicyStatus(IAMPolicyStatus_value[stringVal])
 	return nil
+}
+
+// IsAuditLogEnabled returns if Oracle Audit Log was enabled
+func (o OracleOptions) IsAuditLogEnabled() bool {
+	return o.AuditUser != ""
 }

@@ -39,7 +39,7 @@ func TestLicenseUnmarshal(t *testing.T) {
 	testCases := []testCase{
 		{
 			description: "simple case",
-			input:       `{"kind": "license", "version": "v3", "metadata": {"name": "Teleport Commercial"}, "spec": {"account_id": "accountID", "usage": true, "k8s": true, "app": true, "db": true, "desktop": true, "feature_hiding": false, "aws_account": "123", "aws_pid": "4"}}`,
+			input:       `{"kind": "license", "version": "v3", "metadata": {"name": "Teleport Commercial"}, "spec": {"account_id": "accountID", "usage": true, "k8s": true, "app": true, "db": true, "desktop": true, "feature_hiding": false, "aws_account": "123", "aws_pid": "4", "custom_theme": "cool-theme"}}`,
 			expected: MustNew("Teleport Commercial", types.LicenseSpecV3{
 				ReportsUsage:              types.NewBool(true),
 				SupportsKubernetes:        types.NewBool(true),
@@ -51,11 +51,12 @@ func TestLicenseUnmarshal(t *testing.T) {
 				AWSAccountID:              "123",
 				AWSProductID:              "4",
 				AccountID:                 "accountID",
+				CustomTheme:               "cool-theme",
 			}),
 		},
 		{
 			description: "simple case with string booleans",
-			input:       `{"kind": "license", "version": "v3", "metadata": {"name": "license"}, "spec": {"account_id": "accountID", "usage": "yes", "k8s": "yes", "app": "yes", "db": "yes", "desktop": "yes", "feature_hiding": "no", "aws_account": "123", "aws_pid": "4"}}`,
+			input:       `{"kind": "license", "version": "v3", "metadata": {"name": "license"}, "spec": {"account_id": "accountID", "usage": "yes", "k8s": "yes", "app": "yes", "db": "yes", "desktop": "yes", "feature_hiding": "no", "aws_account": "123", "aws_pid": "4", "custom_theme": "cool-theme"}}`,
 			expected: MustNew("license", types.LicenseSpecV3{
 				ReportsUsage:              types.NewBool(true),
 				SupportsKubernetes:        types.NewBool(true),
@@ -67,6 +68,7 @@ func TestLicenseUnmarshal(t *testing.T) {
 				AWSAccountID:              "123",
 				AWSProductID:              "4",
 				AccountID:                 "accountID",
+				CustomTheme:               "cool-theme",
 			}),
 		},
 		{

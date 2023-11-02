@@ -67,16 +67,15 @@ func TestKubeGateway(t *testing.T) {
 	proxy := mustStartMockProxyWithKubeAPI(t, identity)
 	gateway, err := New(
 		Config{
-			Clock:              clock,
-			TargetName:         kubeClusterName,
-			TargetURI:          uri.NewClusterURI(teleportClusterName).AppendKube(kubeClusterName),
-			CertPath:           proxy.clientCertPath(),
-			KeyPath:            proxy.clientKeyPath(),
-			WebProxyAddr:       proxy.webProxyAddr,
-			ClusterName:        teleportClusterName,
-			CLICommandProvider: mockCLICommandProvider{},
-			Username:           identity.Username,
-			KubeconfigsDir:     t.TempDir(),
+			Clock:          clock,
+			TargetName:     kubeClusterName,
+			TargetURI:      uri.NewClusterURI(teleportClusterName).AppendKube(kubeClusterName),
+			CertPath:       proxy.clientCertPath(),
+			KeyPath:        proxy.clientKeyPath(),
+			WebProxyAddr:   proxy.webProxyAddr,
+			ClusterName:    teleportClusterName,
+			Username:       identity.Username,
+			KubeconfigsDir: t.TempDir(),
 			RootClusterCACertPoolFunc: func(_ context.Context) (*x509.CertPool, error) {
 				return proxy.certPool(), nil
 			},
@@ -223,16 +222,20 @@ func mustStartMockProxyWithKubeAPI(t *testing.T, identity tlsca.Identity) *mockP
 	return m
 }
 
-func mustGenCAForProxyKubeAddr(t *testing.T, key *keys.PrivateKey, host string) (tls.Certificate, *tlsca.CertAuthority) {
+func mustGenCAForProxyKubeAddr(t *testing.T, key *keys.PrivateKey, hostAddr string) (tls.Certificate, *tlsca.CertAuthority) {
 	t.Helper()
+
+	addr, err := utils.ParseAddr(hostAddr)
+	require.NoError(t, err)
 
 	certPem, err := tlsca.GenerateSelfSignedCAWithConfig(tlsca.GenerateCAConfig{
 		Entity: pkix.Name{
 			CommonName:   "localhost",
 			Organization: []string{"Teleport"},
 		},
-		Signer:   key,
-		DNSNames: []string{client.GetKubeTLSServerName(host)}, // Use special kube SNI.
+		Signer: key,
+		// Use special kube SNI. Make sure only host (no port) is used.
+		DNSNames: []string{client.GetKubeTLSServerName(addr.Host())},
 		TTL:      defaults.CATTL,
 	})
 	require.NoError(t, err)

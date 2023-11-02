@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import styled from 'styled-components';
 
 import AppContextProvider from 'teleterm/ui/appContextProvider';
@@ -24,10 +24,22 @@ import {
   ClustersServiceState,
 } from 'teleterm/ui/services/clusters';
 import { routing } from 'teleterm/ui/uri';
+import {
+  makeLoggedInUser,
+  makeRootCluster,
+  makeServer,
+  makeDatabase,
+  makeKube,
+} from 'teleterm/services/tshd/testHelpers';
 
-import * as docTypes from '../services/workspacesService/documentsService/types';
+import { ResourcesService } from 'teleterm/ui/services/resources';
+import { MockWorkspaceContextProvider } from 'teleterm/ui/fixtures/MockWorkspaceContextProvider';
+import { ConnectMyComputerContextProvider } from 'teleterm/ui/ConnectMyComputer';
+import * as docTypes from 'teleterm/ui/services/workspacesService/documentsService/types';
+import * as tsh from 'teleterm/services/tshd/types';
 
 import DocumentCluster from './DocumentCluster';
+import { ResourcesContextProvider } from './resourcesContext';
 
 export default {
   title: 'Teleterm/DocumentCluster',
@@ -47,56 +59,230 @@ const leafClusterDoc = {
   title: 'sample',
 };
 
-export const Online = () => {
+export const OnlineEmptyResourcesAndCanAddResourcesAndConnectComputer = () => {
   const state = createClusterServiceState();
-  state.clusters.set(rootClusterDoc.clusterUri, {
-    uri: rootClusterDoc.clusterUri,
-    leaf: false,
-    name: 'localhost',
-    connected: true,
-    proxyHost: 'localhost:3080',
-    authClusterId: '73c4746b-d956-4f16-9848-4e3469f70762',
+  state.clusters.set(
+    rootClusterDoc.clusterUri,
+    makeRootCluster({
+      uri: rootClusterDoc.clusterUri,
+      loggedInUser: makeLoggedInUser({
+        userType: tsh.UserType.USER_TYPE_LOCAL,
+        acl: {
+          tokens: {
+            create: true,
+            list: true,
+            edit: true,
+            pb_delete: true,
+            read: true,
+            use: true,
+          },
+        },
+      }),
+    })
+  );
+
+  return renderState({
+    state,
+    doc: rootClusterDoc,
+    platform: 'darwin',
+    listUnifiedResourcesPromise: Promise.resolve({
+      resources: [],
+      totalCount: 0,
+      nextKey: '',
+    }),
+  });
+};
+
+export const OnlineEmptyResourcesAndCanAddResourcesButCannotConnectComputer =
+  () => {
+    const state = createClusterServiceState();
+    state.clusters.set(
+      rootClusterDoc.clusterUri,
+      makeRootCluster({
+        uri: rootClusterDoc.clusterUri,
+        loggedInUser: makeLoggedInUser({
+          userType: tsh.UserType.USER_TYPE_SSO,
+          acl: {
+            tokens: {
+              create: true,
+              list: true,
+              edit: true,
+              pb_delete: true,
+              read: true,
+              use: true,
+            },
+          },
+        }),
+      })
+    );
+
+    return renderState({
+      state,
+      doc: rootClusterDoc,
+      platform: 'win32',
+      listUnifiedResourcesPromise: Promise.resolve({
+        resources: [],
+        totalCount: 0,
+        nextKey: '',
+      }),
+    });
+  };
+
+export const OnlineEmptyResourcesAndCannotAddResources = () => {
+  const state = createClusterServiceState();
+  state.clusters.set(
+    rootClusterDoc.clusterUri,
+    makeRootCluster({
+      uri: rootClusterDoc.clusterUri,
+      loggedInUser: makeLoggedInUser({
+        acl: {
+          tokens: {
+            create: false,
+            list: true,
+            edit: true,
+            pb_delete: true,
+            read: true,
+            use: true,
+          },
+        },
+      }),
+    })
+  );
+
+  return renderState({
+    state,
+    doc: rootClusterDoc,
+    listUnifiedResourcesPromise: Promise.resolve({
+      resources: [],
+      totalCount: 0,
+      nextKey: '',
+    }),
+  });
+};
+
+export const OnlineLoadingResources = () => {
+  const state = createClusterServiceState();
+  state.clusters.set(
+    rootClusterDoc.clusterUri,
+    makeRootCluster({
+      uri: rootClusterDoc.clusterUri,
+    })
+  );
+
+  let rejectPromise: (error: Error) => void;
+  const promiseRejectedOnUnmount = new Promise<any>((resolve, reject) => {
+    rejectPromise = reject;
   });
 
-  return renderState(state, rootClusterDoc);
+  useEffect(() => {
+    return () => {
+      rejectPromise(new Error('Aborted'));
+    };
+  }, [rejectPromise]);
+
+  return renderState({
+    state,
+    doc: rootClusterDoc,
+    listUnifiedResourcesPromise: promiseRejectedOnUnmount,
+  });
+};
+
+export const OnlineLoadedResources = () => {
+  const state = createClusterServiceState();
+  state.clusters.set(
+    rootClusterDoc.clusterUri,
+    makeRootCluster({
+      uri: rootClusterDoc.clusterUri,
+    })
+  );
+
+  return renderState({
+    state,
+    doc: rootClusterDoc,
+    listUnifiedResourcesPromise: Promise.resolve({
+      resources: [
+        {
+          kind: 'server',
+          resource: makeServer(),
+        },
+        {
+          kind: 'server',
+          resource: makeServer({
+            uri: '/clusters/foo/servers/1234',
+            hostname: 'bar',
+            tunnel: true,
+          }),
+        },
+        { kind: 'database', resource: makeDatabase() },
+        { kind: 'kube', resource: makeKube() },
+      ],
+      totalCount: 4,
+      nextKey: '',
+    }),
+  });
+};
+
+export const OnlineErrorLoadingResources = () => {
+  const state = createClusterServiceState();
+  state.clusters.set(
+    rootClusterDoc.clusterUri,
+    makeRootCluster({
+      uri: rootClusterDoc.clusterUri,
+    })
+  );
+
+  return renderState({
+    state,
+    doc: rootClusterDoc,
+    listUnifiedResourcesPromise: Promise.reject(
+      new Error('Whoops, something went wrong, sorry!')
+    ),
+  });
 };
 
 export const Offline = () => {
   const state = createClusterServiceState();
-  state.clusters.set(rootClusterDoc.clusterUri, {
-    uri: rootClusterDoc.clusterUri,
-    leaf: false,
-    name: 'localhost',
-    connected: false,
-    proxyHost: 'localhost:3080',
-    authClusterId: '73c4746b-d956-4f16-9848-4e3469f70762',
-  });
+  state.clusters.set(
+    rootClusterDoc.clusterUri,
+    makeRootCluster({
+      connected: false,
+      uri: rootClusterDoc.clusterUri,
+    })
+  );
 
-  return renderState(state, rootClusterDoc);
+  return renderState({ state, doc: rootClusterDoc });
 };
 
 export const Notfound = () => {
   const state = createClusterServiceState();
-  state.clusters.set(rootClusterDoc.clusterUri, {
-    uri: rootClusterDoc.clusterUri,
-    leaf: false,
-    name: 'localhost',
-    connected: true,
-    proxyHost: 'localhost:3080',
-    authClusterId: '73c4746b-d956-4f16-9848-4e3469f70762',
-  });
-  return renderState(state, leafClusterDoc);
+  state.clusters.set(
+    rootClusterDoc.clusterUri,
+    makeRootCluster({
+      uri: rootClusterDoc.clusterUri,
+    })
+  );
+  return renderState({ state, doc: leafClusterDoc });
 };
 
-function renderState(
-  state: ClustersServiceState,
-  doc: docTypes.DocumentCluster
-) {
-  const appContext = new MockAppContext();
+function renderState({
+  state,
+  doc,
+  listUnifiedResourcesPromise,
+  platform = 'darwin',
+}: {
+  state: ClustersServiceState;
+  doc: docTypes.DocumentCluster;
+  listUnifiedResourcesPromise?: ReturnType<
+    ResourcesService['listUnifiedResources']
+  >;
+  platform?: NodeJS.Platform;
+  userType?: tsh.UserType;
+}) {
+  const appContext = new MockAppContext({ platform });
   appContext.clustersService.state = state;
 
+  const rootClusterUri = routing.ensureRootClusterUri(doc.clusterUri);
   appContext.workspacesService.setState(draftState => {
-    const rootClusterUri = routing.ensureRootClusterUri(doc.clusterUri);
     draftState.rootClusterUri = rootClusterUri;
     draftState.workspaces[rootClusterUri] = {
       localClusterUri: doc.clusterUri,
@@ -106,11 +292,21 @@ function renderState(
     };
   });
 
+  appContext.resourcesService.listUnifiedResources = () =>
+    listUnifiedResourcesPromise ||
+    Promise.reject('No fetchServersPromise passed');
+
   return (
     <AppContextProvider value={appContext}>
-      <Wrapper>
-        <DocumentCluster visible={true} doc={doc} />
-      </Wrapper>
+      <MockWorkspaceContextProvider>
+        <ConnectMyComputerContextProvider rootClusterUri={rootClusterUri}>
+          <ResourcesContextProvider>
+            <Wrapper>
+              <DocumentCluster visible={true} doc={doc} />
+            </Wrapper>
+          </ResourcesContextProvider>
+        </ConnectMyComputerContextProvider>
+      </MockWorkspaceContextProvider>
     </AppContextProvider>
   );
 }

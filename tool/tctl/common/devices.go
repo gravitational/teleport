@@ -24,6 +24,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
+	log "github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
@@ -31,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/devicetrust"
+	dtnative "github.com/gravitational/teleport/lib/devicetrust/native"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 )
 
@@ -66,11 +68,11 @@ func (c *DevicesCommand) Initialize(app *kingpin.Application, cfg *servicecfg.Co
 
 	addCmd := devicesCmd.Command("add", "Register managed devices.")
 	addCmd.Flag("os", "Operating system").
-		Required().
 		EnumVar(&c.add.os, osTypes...)
 	addCmd.Flag("asset-tag", "Inventory identifier for the device (e.g., Mac serial number)").
-		Required().
 		StringVar(&c.add.assetTag)
+	addCmd.Flag("current-device", "Registers the current device. Overrides --os and --asset-tag.").
+		BoolVar(&c.add.currentDevice)
 	addCmd.Flag("enroll", "If set, creates a device enrollment token").
 		BoolVar(&c.add.enroll)
 	addCmd.Flag("enroll-ttl", "Time duration for the enrollment token").
@@ -81,15 +83,21 @@ func (c *DevicesCommand) Initialize(app *kingpin.Application, cfg *servicecfg.Co
 	rmCmd := devicesCmd.Command("rm", "Removes a managed device.")
 	rmCmd.Flag("device-id", "Device identifier").StringVar(&c.rm.deviceID)
 	rmCmd.Flag("asset-tag", "Inventory identifier for the device").StringVar(&c.rm.assetTag)
+	rmCmd.Flag("current-device", "Removes the current device. Overrides --device-id and --asset-tag.").
+		BoolVar(&c.rm.currentDevice)
 
 	enrollCmd := devicesCmd.Command("enroll", "Creates a new device enrollment token.")
 	enrollCmd.Flag("device-id", "Device identifier").StringVar(&c.enroll.deviceID)
 	enrollCmd.Flag("asset-tag", "Inventory identifier for the device").StringVar(&c.enroll.assetTag)
+	enrollCmd.Flag("current-device", "Enrolls the current device. Overrides --device-id and --asset-tag.").
+		BoolVar(&c.enroll.currentDevice)
 	enrollCmd.Flag("ttl", "Time duration for the enrollment token").DurationVar(&c.enroll.ttl)
 
 	lockCmd := devicesCmd.Command("lock", "Locks a device.")
 	lockCmd.Flag("device-id", "Device identifier").StringVar(&c.lock.deviceID)
 	lockCmd.Flag("asset-tag", "Inventory identifier for the device").StringVar(&c.lock.assetTag)
+	lockCmd.Flag("current-device", "Locks the current device. Overrides --device-id and --asset-tag.").
+		BoolVar(&c.lock.currentDevice)
 	lockCmd.Flag("message", "Message to display to locked-out users").StringVar(&c.lock.message)
 	lockCmd.Flag("expires", "Time point (RFC3339) when the lock expires").StringVar(&c.lock.expires)
 	lockCmd.Flag("ttl", "Time duration after which the lock expires").DurationVar(&c.lock.ttl)
@@ -121,16 +129,36 @@ func (c *DevicesCommand) TryRun(ctx context.Context, selectedCommand string, aut
 }
 
 type deviceAddCommand struct {
-	os        string
-	assetTag  string
+	canOperateOnCurrentDevice
+
+	os        string // string from command line, distinct from inherited osType!
 	enroll    bool
 	enrollTTL time.Duration
 }
 
 func (c *deviceAddCommand) Run(ctx context.Context, authClient auth.ClientI) error {
-	osType, ok := osTypeToEnum[c.os]
-	if !ok {
-		return trace.BadParameter("invalid --os: %v", c.os)
+	if _, err := c.setCurrentDevice(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Mimic our required flag errors.
+	if !c.currentDevice {
+		switch {
+		case c.os == "" && c.assetTag == "":
+			return trace.BadParameter("required flags [--os --asset-tag] not provided")
+		case c.os == "":
+			return trace.BadParameter("required flag --os not provided")
+		case c.assetTag == "":
+			return trace.BadParameter("required flag --asset-tag not provided")
+		}
+	}
+
+	if c.os != "" {
+		var ok bool
+		c.osType, ok = osTypeToEnum[c.os]
+		if !ok {
+			return trace.BadParameter("invalid --os: %v", c.os)
+		}
 	}
 
 	var enrollExpireTime *timestamppb.Timestamp
@@ -139,7 +167,7 @@ func (c *deviceAddCommand) Run(ctx context.Context, authClient auth.ClientI) err
 	}
 	created, err := authClient.DevicesClient().CreateDevice(ctx, &devicepb.CreateDeviceRequest{
 		Device: &devicepb.Device{
-			OsType:   osType,
+			OsType:   c.osType,
 			AssetTag: c.assetTag,
 		},
 		CreateEnrollToken:     c.enroll,
@@ -230,10 +258,19 @@ func (c *deviceListCommand) Run(ctx context.Context, authClient auth.ClientI) er
 }
 
 type deviceRemoveCommand struct {
-	deviceID, assetTag string
+	canOperateOnCurrentDevice
+
+	deviceID string
 }
 
 func (c *deviceRemoveCommand) Run(ctx context.Context, authClient auth.ClientI) error {
+	switch ok, err := c.setCurrentDevice(); {
+	case err != nil:
+		return trace.Wrap(err)
+	case ok:
+		c.deviceID = ""
+	}
+
 	switch {
 	case c.deviceID == "" && c.assetTag == "":
 		return trace.BadParameter("either --device-id or --asset-tag must be set")
@@ -260,11 +297,20 @@ func (c *deviceRemoveCommand) Run(ctx context.Context, authClient auth.ClientI) 
 }
 
 type deviceEnrollCommand struct {
-	deviceID, assetTag string
-	ttl                time.Duration
+	canOperateOnCurrentDevice
+
+	deviceID string
+	ttl      time.Duration
 }
 
 func (c *deviceEnrollCommand) Run(ctx context.Context, authClient auth.ClientI) error {
+	switch ok, err := c.setCurrentDevice(); {
+	case err != nil:
+		return trace.Wrap(err)
+	case ok:
+		c.deviceID = ""
+	}
+
 	switch {
 	case c.deviceID == "" && c.assetTag == "":
 		return trace.BadParameter("either --device-id or --asset-tag must be set")
@@ -297,13 +343,26 @@ func (c *deviceEnrollCommand) Run(ctx context.Context, authClient auth.ClientI) 
 }
 
 type deviceLockCommand struct {
-	deviceID, assetTag string
-	message            string
-	expires            string
-	ttl                time.Duration
+	canOperateOnCurrentDevice
+
+	deviceID string
+	message  string
+	expires  string
+	ttl      time.Duration
 }
 
 func (c *deviceLockCommand) Run(ctx context.Context, authClient auth.ClientI) error {
+	switch ok, err := c.setCurrentDevice(); {
+	case err != nil:
+		return trace.Wrap(err)
+	case ok:
+		c.deviceID = ""
+		// Print here, otherwise device information isn't apparent.
+		// In other command modes the user just wrote the ID or asset tag in the
+		// command line.
+		fmt.Printf("Locking device %q.\n", c.assetTag)
+	}
+
 	switch {
 	case c.deviceID == "" && c.assetTag == "":
 		return trace.BadParameter("either --device-id or --asset-tag must be set")
@@ -387,4 +446,35 @@ func findDeviceID(ctx context.Context, devices devicepb.DeviceTrustServiceClient
 	}
 
 	return deviceID, assetTag, nil
+}
+
+// canOperateOnCurrentDevice marks commands capable of operating against the
+// current device.
+type canOperateOnCurrentDevice struct {
+	osType   devicepb.OSType
+	assetTag string
+
+	// currentDevice means osType and assetTag are set according to the current
+	// device.
+	currentDevice bool
+}
+
+func (c *canOperateOnCurrentDevice) setCurrentDevice() (bool, error) {
+	if !c.currentDevice {
+		return false, nil
+	}
+
+	cdd, err := dtnative.CollectDeviceData()
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+
+	c.osType = cdd.OsType
+	c.assetTag = cdd.SerialNumber
+	log.Debugf(
+		"Running device command against current device: %q/%v",
+		c.assetTag,
+		devicetrust.FriendlyOSType(c.osType),
+	)
+	return true, nil
 }

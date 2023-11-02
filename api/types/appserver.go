@@ -128,6 +128,16 @@ func (s *AppServerV3) SetResourceID(id int64) {
 	s.Metadata.ID = id
 }
 
+// GetRevision returns the revision
+func (s *AppServerV3) GetRevision() string {
+	return s.Metadata.GetRevision()
+}
+
+// SetRevision sets the revision
+func (s *AppServerV3) SetRevision(rev string) {
+	s.Metadata.SetRevision(rev)
+}
+
 // GetMetadata returns the resource metadata.
 func (s *AppServerV3) GetMetadata() Metadata {
 	return s.Metadata
@@ -170,6 +180,9 @@ func (s *AppServerV3) SetRotation(r Rotation) {
 
 // GetApp returns the app this app server proxies.
 func (s *AppServerV3) GetApp() Application {
+	if s.Spec.App == nil {
+		return nil
+	}
 	return s.Spec.App
 }
 

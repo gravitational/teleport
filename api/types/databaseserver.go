@@ -116,6 +116,16 @@ func (s *DatabaseServerV3) SetResourceID(id int64) {
 	s.Metadata.ID = id
 }
 
+// GetRevision returns the revision
+func (s *DatabaseServerV3) GetRevision() string {
+	return s.Metadata.GetRevision()
+}
+
+// SetRevision sets the revision
+func (s *DatabaseServerV3) SetRevision(rev string) {
+	s.Metadata.SetRevision(rev)
+}
+
 // GetMetadata returns the resource metadata.
 func (s *DatabaseServerV3) GetMetadata() Metadata {
 	return s.Metadata
@@ -158,6 +168,9 @@ func (s *DatabaseServerV3) SetRotation(r Rotation) {
 
 // GetDatabase returns the database this database server proxies.
 func (s *DatabaseServerV3) GetDatabase() Database {
+	if s.Spec.Database == nil {
+		return nil
+	}
 	return s.Spec.Database
 }
 

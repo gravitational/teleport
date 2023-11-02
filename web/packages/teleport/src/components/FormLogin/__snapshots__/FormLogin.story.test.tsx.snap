@@ -127,9 +127,7 @@ exports[`auth2faType: off 1`] = `
 .c6 {
   color: #FFFFFF;
   display: block;
-  font-size: 11px;
-  font-weight: 500;
-  text-transform: uppercase;
+  font-size: 12px;
   width: 100%;
   margin-bottom: 0px;
 }
@@ -408,9 +406,7 @@ exports[`auth2faType: optional rendering 1`] = `
 .c6 {
   color: #FFFFFF;
   display: block;
-  font-size: 11px;
-  font-weight: 500;
-  text-transform: uppercase;
+  font-size: 12px;
   width: 100%;
   margin-bottom: 0px;
 }
@@ -418,9 +414,7 @@ exports[`auth2faType: optional rendering 1`] = `
 .c11 {
   color: #FFFFFF;
   display: block;
-  font-size: 11px;
-  font-weight: 500;
-  text-transform: uppercase;
+  font-size: 12px;
   width: 100%;
   margin-bottom: 4px;
 }
@@ -734,7 +728,7 @@ exports[`auth2faType: optional rendering 1`] = `
                     font-size="0"
                     for="select"
                   >
-                    Two-factor type
+                    Two-factor Type
                   </label>
                   <div
                     class="c12"
@@ -949,9 +943,7 @@ exports[`auth2faType: otp rendering 1`] = `
 .c6 {
   color: #FFFFFF;
   display: block;
-  font-size: 11px;
-  font-weight: 500;
-  text-transform: uppercase;
+  font-size: 12px;
   width: 100%;
   margin-bottom: 0px;
 }
@@ -959,9 +951,7 @@ exports[`auth2faType: otp rendering 1`] = `
 .c11 {
   color: #FFFFFF;
   display: block;
-  font-size: 11px;
-  font-weight: 500;
-  text-transform: uppercase;
+  font-size: 12px;
   width: 100%;
   margin-bottom: 4px;
 }
@@ -1275,7 +1265,7 @@ exports[`auth2faType: otp rendering 1`] = `
                     font-size="0"
                     for="select"
                   >
-                    Two-factor type
+                    Two-factor Type
                   </label>
                   <div
                     class="c12"
@@ -1339,7 +1329,7 @@ exports[`auth2faType: otp rendering 1`] = `
                     class="c6"
                     font-size="0"
                   >
-                    Authenticator code
+                    Authenticator Code
                     <input
                       autocomplete="one-time-code"
                       class="c7"
@@ -1503,9 +1493,7 @@ exports[`auth2faType: webauthn rendering 1`] = `
 .c6 {
   color: #FFFFFF;
   display: block;
-  font-size: 11px;
-  font-weight: 500;
-  text-transform: uppercase;
+  font-size: 12px;
   width: 100%;
   margin-bottom: 0px;
 }
@@ -1513,9 +1501,7 @@ exports[`auth2faType: webauthn rendering 1`] = `
 .c11 {
   color: #FFFFFF;
   display: block;
-  font-size: 11px;
-  font-weight: 500;
-  text-transform: uppercase;
+  font-size: 12px;
   width: 100%;
   margin-bottom: 4px;
 }
@@ -1829,7 +1815,7 @@ exports[`auth2faType: webauthn rendering 1`] = `
                     font-size="0"
                     for="select"
                   >
-                    Two-factor type
+                    Two-factor Type
                   </label>
                   <div
                     class="c12"
@@ -2118,9 +2104,7 @@ exports[`cloud auth2faType: on rendering 1`] = `
 .c6 {
   color: #FFFFFF;
   display: block;
-  font-size: 11px;
-  font-weight: 500;
-  text-transform: uppercase;
+  font-size: 12px;
   width: 100%;
   margin-bottom: 0px;
 }
@@ -2128,9 +2112,7 @@ exports[`cloud auth2faType: on rendering 1`] = `
 .c16 {
   color: #FFFFFF;
   display: block;
-  font-size: 11px;
-  font-weight: 500;
-  text-transform: uppercase;
+  font-size: 12px;
   width: 100%;
   margin-bottom: 4px;
 }
@@ -2455,7 +2437,7 @@ exports[`cloud auth2faType: on rendering 1`] = `
                     font-size="0"
                     for="select"
                   >
-                    Two-factor type
+                    Two-factor Type
                   </label>
                   <div
                     class="c17"
@@ -2770,9 +2752,7 @@ exports[`server error rendering 1`] = `
 .c7 {
   color: #FFFFFF;
   display: block;
-  font-size: 11px;
-  font-weight: 500;
-  text-transform: uppercase;
+  font-size: 12px;
   width: 100%;
   margin-bottom: 0px;
 }

@@ -35,12 +35,6 @@ int UACC_UTMP_FAILED_TO_SELECT_FILE = 6;
 int UACC_UTMP_OTHER_ERROR = 7;
 int UACC_UTMP_PATH_DOES_NOT_EXIST = 8;
 
-// This is a bit of a hack, but it seems cleaner than doing it any other way when we're dealing with CGO FFI.
-// We use this string pointer to store a potential error message from glibc in certain cases.
-//
-// At first glance this may seem racy, however this pointer is protected by the mutex that wraps all uacc logic on the Go side.
-char* UACC_PATH_ERR;
-
 // I initially attempted to use the login/logout BSD functions but ran into a string of unexpected behaviours such as
 // errno being set to undocument values along with wierd return values in certain cases. They also modify the utmp database
 // in a way we don't want. We want to insert a USER_PROCESS entry directly before we do PAM/cgroup setup and launch the shell
@@ -52,10 +46,8 @@ char* UACC_PATH_ERR;
 // This decision is one of the origins of `strncpy` which has the special property that it will not write a NUL terminator if the
 // source string excluding the NUL terminator is of equal or greater length in comparison to the limit parameter.
 
-static int check_abs_path_err(const char* buffer) {
-    // check for errors
-    if (buffer == NULL) {
-        switch errno {
+static int status_from_errno() {
+    switch errno {
             case EACCES: return UACC_UTMP_MISSING_PERMISSIONS;
             case EINVAL: return UACC_UTMP_FAILED_OPEN;
             case EIO: return UACC_UTMP_READ_ERROR;
@@ -65,12 +57,17 @@ static int check_abs_path_err(const char* buffer) {
             case ENOTDIR: return UACC_UTMP_FAILED_OPEN;
             default: return UACC_UTMP_OTHER_ERROR;
         }
+}
+
+static int check_abs_path_err(const char* buffer, char* uaccPathErr) {
+    // check for errors
+    if (buffer == NULL) {
+        return status_from_errno();
     }
 
     // check for GNU extension errors
     if (errno == EACCES || errno == ENOENT) {
-        UACC_PATH_ERR = (char*)malloc(PATH_MAX);
-        strcpy(UACC_PATH_ERR, buffer);
+        strcpy(uaccPathErr, buffer);
         return UACC_UTMP_OTHER_ERROR;
     }
 
@@ -87,18 +84,17 @@ static int max_len_tty_name() {
 // This function does not perform any argument validation.
 static int uacc_add_utmp_entry(const char *utmp_path, const char *wtmp_path, const char *username,
   const char *hostname, const int32_t remote_addr_v6[4], const char *tty_name, const char *id,
-  int32_t tv_sec, int32_t tv_usec) {
+  int32_t tv_sec, int32_t tv_usec, char* uaccPathErr) {
 
     if (utmp_path == NULL || wtmp_path == NULL) {
       // Return open failed error if any of the provided paths is NULL.
       return UACC_UTMP_FAILED_OPEN;
     }
 
-    UACC_PATH_ERR = NULL;
     char resolved_utmp_buffer[PATH_MAX];
     const char* file = realpath(utmp_path, &resolved_utmp_buffer[0]);
 
-    int status = check_abs_path_err(file);
+    int status = check_abs_path_err(file, uaccPathErr);
     if (status != 0) {
         return status;
     }
@@ -116,7 +112,7 @@ static int uacc_add_utmp_entry(const char *utmp_path, const char *wtmp_path, con
     strncpy((char*) &entry.ut_id, id, sizeof(entry.ut_id));
     strncpy((char*) &entry.ut_host, hostname, sizeof(entry.ut_host));
     strncpy((char*) &entry.ut_user, username, sizeof(entry.ut_user));
-    memcpy(&entry.ut_addr_v6, &remote_addr_v6, sizeof(int32_t) * 4);
+    memcpy(&entry.ut_addr_v6, remote_addr_v6, sizeof(int32_t) * 4);
 
     errno = 0;
     setutent();
@@ -131,26 +127,29 @@ static int uacc_add_utmp_entry(const char *utmp_path, const char *wtmp_path, con
     endutent();
     char resolved_wtmp_buffer[PATH_MAX];
     const char* wtmp_file = realpath(wtmp_path, &resolved_wtmp_buffer[0]);
-    status = check_abs_path_err(wtmp_file);
+    status = check_abs_path_err(wtmp_file, uaccPathErr);
     if (status != 0) {
         return status;
     }
     updwtmp(wtmp_file, &entry);
+    if (errno != 0) {
+        return status_from_errno();
+    }
     return 0;
 }
 
 // Low level C function to mark a database entry as DEAD_PROCESS.
 // This function does not perform string argument validation.
-static int uacc_mark_utmp_entry_dead(const char *utmp_path, const char *wtmp_path, const char *tty_name, int32_t tv_sec, int32_t tv_usec) {
+static int uacc_mark_utmp_entry_dead(const char *utmp_path, const char *wtmp_path, const char *tty_name,
+        int32_t tv_sec, int32_t tv_usec, char* uaccPathErr) {
     if (utmp_path == NULL || wtmp_path == NULL) {
       // Return open failed error if any of the provided paths is NULL.
       return UACC_UTMP_FAILED_OPEN;
     }
 
-    UACC_PATH_ERR = NULL;
     char resolved_utmp_buffer[PATH_MAX];
     const char* file = realpath(utmp_path, &resolved_utmp_buffer[0]);
-    int status = check_abs_path_err(file);
+    int status = check_abs_path_err(file, uaccPathErr);
     if (status != 0) {
         return status;
     }
@@ -191,26 +190,28 @@ static int uacc_mark_utmp_entry_dead(const char *utmp_path, const char *wtmp_pat
     endutent();
     char resolved_wtmp_buffer[PATH_MAX];
     const char* wtmp_file = realpath(wtmp_path, &resolved_wtmp_buffer[0]);
-    status = check_abs_path_err(wtmp_file);
+    status = check_abs_path_err(wtmp_file, uaccPathErr);
     if (status != 0) {
         return status;
     }
     updwtmp(wtmp_file, &log_entry);
+    if (errno != 0) {
+        return status_from_errno();
+    }
     return 0;
 }
 
 // Low level C function to check the database for an entry for a given user.
 // This function does not perform string argument validation.
-static int uacc_has_entry_with_user(const char *utmp_path, const char *user) {
+static int uacc_has_entry_with_user(const char *utmp_path, const char *user, char *uaccPathErr) {
     if (utmp_path == NULL) {
         // Return open failed error if any of the provided paths is NULL.
         return UACC_UTMP_FAILED_OPEN;
     }
 
-    UACC_PATH_ERR = NULL;
     char resolved_utmp_buffer[PATH_MAX];
     const char* file = realpath(utmp_path, &resolved_utmp_buffer[0]);
-    int status = check_abs_path_err(file);
+    int status = check_abs_path_err(file, uaccPathErr);
     if (status != 0) {
         return status;
     }
@@ -233,6 +234,41 @@ static int uacc_has_entry_with_user(const char *utmp_path, const char *user) {
     }
     endutent();
     return errno == 0 ? UACC_UTMP_ENTRY_DOES_NOT_EXIST : errno;
+}
+
+// Low level C function to add a new entry to the failed login log.
+// This function does not perform any argument validation.
+static int uacc_add_btmp_entry(const char *btmp_path, const char *username,
+  const char *hostname, const int32_t remote_addr_v6[4],
+  int32_t tv_sec, int32_t tv_usec, char *uaccPathErr) {
+
+    if (btmp_path == NULL) {
+      // Return open failed error if the provided path is NULL.
+      return UACC_UTMP_FAILED_OPEN;
+    }
+
+    char resolved_btmp_buffer[PATH_MAX];
+    const char* file = realpath(btmp_path, &resolved_btmp_buffer[0]);
+
+    int status = check_abs_path_err(file, uaccPathErr);
+    if (status != 0) {
+        return status;
+    }
+
+    struct utmp entry = {
+        .ut_type = USER_PROCESS,
+        .ut_tv.tv_sec = tv_sec,
+        .ut_tv.tv_usec = tv_usec
+    };
+    strncpy((char*) &entry.ut_host, hostname, sizeof(entry.ut_host));
+    strncpy((char*) &entry.ut_user, username, sizeof(entry.ut_user));
+    memcpy(&entry.ut_addr_v6, remote_addr_v6, sizeof(int32_t) * 4);
+
+    updwtmp(file, &entry);
+    if (errno != 0) {
+        return status_from_errno();
+    }
+    return 0;
 }
 
 #endif

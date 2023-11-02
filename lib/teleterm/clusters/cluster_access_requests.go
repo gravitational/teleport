@@ -21,6 +21,7 @@ import (
 	"github.com/gravitational/trace"
 	"golang.org/x/exp/slices"
 
+	"github.com/gravitational/teleport/api/accessrequest"
 	"github.com/gravitational/teleport/api/types"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/auth"
@@ -145,8 +146,10 @@ func (c *Cluster) CreateAccessRequest(ctx context.Context, req *api.CreateAccess
 	request.SetRequestReason(req.Reason)
 	request.SetSuggestedReviewers(req.SuggestedReviewers)
 
+	var reqOut types.AccessRequest
 	err = AddMetadataToRetryableError(ctx, func() error {
-		return c.clusterClient.CreateAccessRequest(ctx, request)
+		reqOut, err = c.clusterClient.CreateAccessRequestV2(ctx, request)
+		return trace.Wrap(err)
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -154,7 +157,7 @@ func (c *Cluster) CreateAccessRequest(ctx context.Context, req *api.CreateAccess
 
 	return &AccessRequest{
 		URI:           c.URI.AppendAccessRequest(request.GetName()),
-		AccessRequest: request,
+		AccessRequest: reqOut,
 	}, nil
 }
 
@@ -270,11 +273,11 @@ func (c *Cluster) AssumeRole(ctx context.Context, req *api.AssumeRoleRequest) er
 }
 
 func getResourceDetails(ctx context.Context, req types.AccessRequest, clt auth.ClientI) (map[string]ResourceDetails, error) {
-	resourceIDsByCluster := services.GetResourceIDsByCluster(req)
+	resourceIDsByCluster := accessrequest.GetResourceIDsByCluster(req)
 
 	resourceDetails := make(map[string]ResourceDetails)
 	for clusterName, resourceIDs := range resourceIDsByCluster {
-		details, err := services.GetResourceDetails(ctx, clusterName, clt, resourceIDs)
+		details, err := accessrequest.GetResourceDetails(ctx, clusterName, clt, resourceIDs)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

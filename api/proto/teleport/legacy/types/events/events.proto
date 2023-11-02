@@ -59,6 +59,8 @@ message SessionMetadata {
   string SessionID = 1 [(gogoproto.jsontag) = "sid"];
   // WithMFA is a UUID of an MFA device used to start this session.
   string WithMFA = 2 [(gogoproto.jsontag) = "with_mfa,omitempty"];
+  // PrivateKeyPolicy is the private key policy of the private key used to start this session.
+  string PrivateKeyPolicy = 3 [(gogoproto.jsontag) = "private_key_policy,omitempty"];
 }
 
 // UserMetadata is a common user event metadata
@@ -87,6 +89,9 @@ message UserMetadata {
   // TrustedDevice contains information about the users' trusted device.
   // Requires a registered and enrolled device to be used during authentication.
   DeviceMetadata TrustedDevice = 8 [(gogoproto.jsontag) = "trusted_device,omitempty"];
+
+  // RequiredPrivateKeyPolicy is the private key policy enforced for this login.
+  string RequiredPrivateKeyPolicy = 9 [(gogoproto.jsontag) = "required_private_key_policy,omitempty"];
 }
 
 // Server is a server metadata
@@ -212,6 +217,68 @@ message OktaAssignmentMetadata {
 
   // EndingStatus is the ending status of the assignment.
   string EndingStatus = 4 [(gogoproto.jsontag) = "ending_status,omitempty"];
+}
+
+// AccessListMemberMetadata contains common metadata for access list member resource events.
+message AccessListMemberMetadata {
+  // AccessListName is the name of the access list the members are being added to or removed from.
+  string AccessListName = 1 [(gogoproto.jsontag) = "access_list_name,omitempty"];
+
+  // Members are all members affected by the access list membership change.
+  repeated AccessListMember Members = 2 [(gogoproto.jsontag) = "members,omitempty"];
+}
+
+// AccessListMember is metadata surrounding an individual access list member.
+message AccessListMember {
+  // JoinedOn is the date that the member joined.
+  google.protobuf.Timestamp JoinedOn = 1 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "joined_on,omitempty"
+  ];
+
+  // RemovedOn is the date that the access list member was removed. Will only be populated for deletion.
+  google.protobuf.Timestamp RemovedOn = 2 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "removed_on,omitempty"
+  ];
+
+  // Reason is the reason that the member was added, modified, or removed.
+  string Reason = 3 [(gogoproto.jsontag) = "reason,omitempty"];
+
+  // MemberName is the name of the member.
+  string MemberName = 4 [(gogoproto.jsontag) = "member_name,omitempty"];
+}
+
+// AccessListReviewMembershipRequirementsChanged contains information for when membership requirements change as part of a review.
+message AccessListReviewMembershipRequirementsChanged {
+  // Roles are the roles that changed as part of a review.
+  repeated string Roles = 1 [(gogoproto.jsontag) = "roles,omitempty"];
+
+  // Traits are the traits that changed as part of a review.
+  map<string, string> Traits = 2 [(gogoproto.jsontag) = "traits,omitempty"];
+}
+
+// AccessListReviewMetadata contains metadata for access list review events.
+message AccessListReviewMetadata {
+  // Message is the message that was supplied during the review.
+  string Message = 1 [(gogoproto.jsontag) = "message,omitempty"];
+
+  // ReviewID is the ID of the review.
+  string ReviewID = 2 [(gogoproto.jsontag) = "review_id,omitempty"];
+
+  // MembershipRequirementsChanged is populated if the memrship requirements have changed..
+  AccessListReviewMembershipRequirementsChanged MembershipRequirementsChanged = 3 [(gogoproto.jsontag) = "membership_requirements_changed,omitempty"];
+
+  // ReviewFrequencyChanged is populated if the review frequency has changed.
+  string ReviewFrequencyChanged = 4 [(gogoproto.jsontag) = "review_frequency_changed,omitempty"];
+
+  // ReviewDayOfMonthChanged is populated if the review day of month has changed.
+  string ReviewDayOfMonthChanged = 5 [(gogoproto.jsontag) = "review_day_of_month_changed,omitempty"];
+
+  // RemovedMembers are the members that were removed as part of the review.
+  repeated string RemovedMembers = 6 [(gogoproto.jsontag) = "removed_members,omitempty"];
 }
 
 // SessionStart is a session start event
@@ -1164,8 +1231,38 @@ message ResourceMetadata {
   string TTL = 4 [(gogoproto.jsontag) = "ttl,omitempty"];
 }
 
-// UserCreate is emitted when the user is created or updated (upsert).
+// UserCreate is emitted when the user is created or upserted.
 message UserCreate {
+  // Metadata is a common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata
+  UserMetadata User = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ResourceMetadata is a common resource event metadata
+  ResourceMetadata Resource = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Roles is a list of roles for the user.
+  repeated string Roles = 4 [(gogoproto.jsontag) = "roles"];
+
+  // Connector is the connector used to create the user.
+  string Connector = 5 [(gogoproto.jsontag) = "connector"];
+}
+
+// UserUpdate is emitted when the user is updated.
+message UserUpdate {
   // Metadata is a common event metadata
   Metadata Metadata = 1 [
     (gogoproto.nullable) = false,
@@ -1302,6 +1399,14 @@ message AccessRequestCreate {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "max_duration,omitempty"
   ];
+
+  reserved "PromotedAccessListTitle";
+  reserved 14;
+
+  // PromotedAccessListName is the name of the access list that this request
+  // was promoted to.
+  // This field is only populated when the request is in the PROMOTED state.
+  string PromotedAccessListName = 15 [(gogoproto.jsontag) = "promoted_access_list_name,omitempty"];
 }
 
 // ResourceID is a unique identifier for a teleport resource. This is duplicated
@@ -1799,6 +1904,30 @@ message RoleCreate {
   ];
 }
 
+// RoleUpdate is emitted when a role is updated.
+message RoleUpdate {
+  // Metadata is a common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ResourceMetadata is a common resource event metadata
+  ResourceMetadata Resource = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata
+  UserMetadata User = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
 // RoleDelete is emitted when a role is deleted
 message RoleDelete {
   // Metadata is a common event metadata
@@ -1930,8 +2059,32 @@ message TrustedClusterTokenCreate {
   ];
 }
 
-// GithubConnectorCreate fires when a Github connector is created/updated.
+// GithubConnectorCreate fires when a Github connector is created.
 message GithubConnectorCreate {
+  // Metadata is a common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ResourceMetadata is a common resource event metadata
+  ResourceMetadata Resource = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata
+  UserMetadata User = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// GithubConnectorUpdate fires when a Github connector is updated.
+message GithubConnectorUpdate {
   // Metadata is a common event metadata
   Metadata Metadata = 1 [
     (gogoproto.nullable) = false,
@@ -1978,8 +2131,32 @@ message GithubConnectorDelete {
   ];
 }
 
-// OIDCConnectorCreate fires when OIDC connector is created/updated.
+// OIDCConnectorCreate fires when OIDC connector is created.
 message OIDCConnectorCreate {
+  // Metadata is a common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ResourceMetadata is a common resource event metadata
+  ResourceMetadata Resource = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata
+  UserMetadata User = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// OIDCConnectorUpdate fires when OIDC connector is updated.
+message OIDCConnectorUpdate {
   // Metadata is a common event metadata
   Metadata Metadata = 1 [
     (gogoproto.nullable) = false,
@@ -2028,6 +2205,30 @@ message OIDCConnectorDelete {
 
 // SAMLConnectorCreate fires when SAML connector is created/updated.
 message SAMLConnectorCreate {
+  // Metadata is a common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ResourceMetadata is a common resource event metadata
+  ResourceMetadata Resource = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata
+  UserMetadata User = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// SAMLConnectorUpdate fires when SAML connector is updated.
+message SAMLConnectorUpdate {
   // Metadata is a common event metadata
   Metadata Metadata = 1 [
     (gogoproto.nullable) = false,
@@ -2121,6 +2322,13 @@ message KubeRequest {
 
   // Kubernetes has information about a kubernetes cluster, if applicable.
   KubernetesClusterMetadata Kubernetes = 12 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // SessionMetadata is a common event session metadata.
+  SessionMetadata Session = 13 [
     (gogoproto.nullable) = false,
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
@@ -2815,6 +3023,9 @@ message WindowsDesktopSessionStart {
   map<string, string> DesktopLabels = 10 [(gogoproto.jsontag) = "desktop_labels"];
   // DesktopName is the name of the desktop resource.
   string DesktopName = 11 [(gogoproto.jsontag) = "desktop_name"];
+  // AllowUserCreation indicates whether automatic local user creation
+  // is allowed for this session.
+  bool AllowUserCreation = 12 [(gogoproto.jsontag) = "allow_user_creation"];
 }
 
 // DatabaseSessionEnd is emitted when a user ends the database session.
@@ -3185,6 +3396,13 @@ message InstanceJoin {
     (gogoproto.jsontag) = "attributes,omitempty",
     (gogoproto.casttype) = "Struct"
   ];
+  // TokenExpires contain information about token expiration time.
+  // In case of static token the TokenExpiration time is to the Unix epoch start time.
+  google.protobuf.Timestamp TokenExpires = 9 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "token_expires"
+  ];
 }
 
 // Unknown is a fallback event used when we don't recognize an event from the backend.
@@ -3218,6 +3436,22 @@ enum OSType {
   OS_TYPE_WINDOWS = 3;
 }
 
+// DeviceOrigin is the same as teleport.devicetrust.v1.DeviceOrigin.
+// Duplicated because gogo doesn't play well with protoc-gen-go.
+enum DeviceOrigin {
+  // Unspecified or absent origin.
+  DEVICE_ORIGIN_UNSPECIFIED = 0;
+
+  // Devices originated from direct API usage.
+  DEVICE_ORIGIN_API = 1;
+
+  // Devices originated from Jamf sync.
+  DEVICE_ORIGIN_JAMF = 2;
+
+  // Source originated from Microsoft Intune sync.
+  DEVICE_ORIGIN_INTUNE = 3;
+}
+
 // DeviceMetadata groups device information for events.
 message DeviceMetadata {
   // ID of the device.
@@ -3228,6 +3462,8 @@ message DeviceMetadata {
   string asset_tag = 3 [(gogoproto.jsontag) = "asset_tag,omitempty"];
   // Device credential identifier.
   string credential_id = 4 [(gogoproto.jsontag) = "credential_id,omitempty"];
+  // Device origin.
+  DeviceOrigin device_origin = 5 [(gogoproto.jsontag) = "device_origin,omitempty"];
 }
 
 // DeviceEvent is a device-related event.
@@ -3411,6 +3647,21 @@ message OneOf {
     events.OktaSyncFailure OktaSyncFailure = 123;
     events.OktaAssignmentResult OktaAssignmentResult = 124;
     events.ProvisionTokenCreate ProvisionTokenCreate = 125;
+    events.AccessListCreate AccessListCreate = 126;
+    events.AccessListUpdate AccessListUpdate = 127;
+    events.AccessListDelete AccessListDelete = 128;
+    events.AccessListReview AccessListReview = 129;
+    events.AccessListMemberCreate AccessListMemberCreate = 130;
+    events.AccessListMemberUpdate AccessListMemberUpdate = 131;
+    events.AccessListMemberDelete AccessListMemberDelete = 132;
+    events.AccessListMemberDeleteAllForAccessList AccessListMemberDeleteAllForAccessList = 133;
+    events.AuditQueryRun AuditQueryRun = 134;
+    events.SecurityReportRun SecurityReportRun = 135;
+    events.GithubConnectorUpdate GithubConnectorUpdate = 136;
+    events.OIDCConnectorUpdate OIDCConnectorUpdate = 137;
+    events.SAMLConnectorUpdate SAMLConnectorUpdate = 138;
+    events.RoleUpdate RoleUpdate = 139;
+    events.UserUpdate UserUpdate = 140;
   }
 }
 
@@ -3533,6 +3784,8 @@ message Identity {
   repeated string AzureIdentities = 24 [(gogoproto.jsontag) = "azure_identities,omitempty"];
   // GCPServiceAccounts is a list of allowed GCP service accounts user can assume.
   repeated string GCPServiceAccounts = 25 [(gogoproto.jsontag) = "gcp_service_accounts,omitempty"];
+  // PrivateKeyPolicy is the private key policy of the user's private key.
+  string PrivateKeyPolicy = 26 [(gogoproto.jsontag) = "private_key_policy,omitempty"];
 }
 
 // RouteToApp contains parameters for application access certificate requests.
@@ -4895,4 +5148,309 @@ message OktaAssignmentResult {
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
+}
+
+// AccessListCreate is emitted when an access list is created.
+message AccessListCreate {
+  // Metadata is common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Resource is common resource event metadata
+  ResourceMetadata Resource = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Status indicates whether the resource operation was successful.
+  Status Status = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// AccessListUpdate is emitted when an access list is updated.
+message AccessListUpdate {
+  // Metadata is common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Resource is common resource event metadata
+  ResourceMetadata Resource = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Status indicates whether the resource operation was successful.
+  Status Status = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// AccessListDelete is emitted when an access list is deleted.
+message AccessListDelete {
+  // Metadata is common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Resource is common resource event metadata
+  ResourceMetadata Resource = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Status indicates whether the resource operation was successful.
+  Status Status = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// AccessListMemberCreate is emitted when an access list member is created.
+message AccessListMemberCreate {
+  // Metadata is common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Resource is common resource event metadata
+  ResourceMetadata Resource = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // AccessListMember is common access list member metadata.
+  AccessListMemberMetadata AccessListMember = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Status indicates whether the resource operation was successful.
+  Status Status = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// AccessListMemberUpdate is emitted when an access list member is updated.
+message AccessListMemberUpdate {
+  // Metadata is common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Resource is common resource event metadata
+  ResourceMetadata Resource = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // AccessListMember is common access list member metadata.
+  AccessListMemberMetadata AccessListMember = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Status indicates whether the resource operation was successful.
+  Status Status = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// AccessListMemberDelete is emitted when an access list member is deleted.
+message AccessListMemberDelete {
+  // Metadata is common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Resource is common resource event metadata
+  ResourceMetadata Resource = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // AccessListMember is common access list member metadata.
+  AccessListMemberMetadata AccessListMember = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Status indicates whether the resource operation was successful.
+  Status Status = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// AccessListMemberDeleteAllForAccessList is emitted when all members are deleted for an access list.
+message AccessListMemberDeleteAllForAccessList {
+  // Metadata is common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Resource is common resource event metadata
+  ResourceMetadata Resource = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // AccessListMember is common access list member metadata.
+  AccessListMemberMetadata AccessListMember = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Status indicates whether the resource operation was successful.
+  Status Status = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// AccessListReview is emitted when an access list is reviewed.
+message AccessListReview {
+  // Metadata is common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Resource is common resource event metadata
+  ResourceMetadata Resource = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Review is metadata for the access list review.
+  AccessListReviewMetadata Review = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Status indicates whether the review operation was successful.
+  Status status = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// AuditQueryRun is emitted when a user runs an audit query.
+message AuditQueryRun {
+  // Metadata is common event metadata.
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // User is common user event metadata.
+  UserMetadata User = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Status indicates whether the read was successful.
+  Status Status = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Query contains additional query information.
+  AuditQueryDetails Query = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// AuditQueryDetails contains additional query information.
+message AuditQueryDetails {
+  // Name is the name of the query.
+  string Name = 1 [(gogoproto.jsontag) = "name,omitempty"];
+  // Query is the query that was run.
+  string Query = 2 [(gogoproto.jsontag) = "query,omitempty"];
+  // Days is the number of days time range for the query.
+  int32 Days = 3 [(gogoproto.jsontag) = "days,omitempty"];
+  // ExecutionTimeInMillis is the total execution time of the query.
+  int64 ExecutionTimeInMillis = 4 [(gogoproto.jsontag) = "total_execution_time_in_millis,omitempty"];
+  // DataScannedInBytes is the amount of data scanned by the query.
+  int64 DataScannedInBytes = 5 [(gogoproto.jsontag) = "data_scanned_in_bytes"];
+}
+
+// SecurityReportRun is emitted when a user runs an audit query.
+message SecurityReportRun {
+  // Metadata is common event metadata.
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // User is common user event metadata.
+  UserMetadata User = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Status indicates whether the read was successful.
+  Status Status = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Query is the query that was run.
+  string Name = 4 [(gogoproto.jsontag) = "name,omitempty"];
+  // Version is the version of security report.
+  string Version = 5 [(gogoproto.jsontag) = "version,omitempty"];
+  // TotalExecutionTimeInMillis is the total execution time of the query.
+  int64 TotalExecutionTimeInMillis = 6 [(gogoproto.jsontag) = "total_execution_time_in_millis,omitempty"];
+  // TotalDataScannedInBytes is the amount of data scanned by the query.
+  int64 TotalDataScannedInBytes = 7 [(gogoproto.jsontag) = "total_data_scanned_in_bytes"];
+  // AuditQueries is the list of audit queries that were run.
+  repeated AuditQueryDetails AuditQueries = 8 [(gogoproto.jsontag) = "audit_queries,omitempty"];
 }

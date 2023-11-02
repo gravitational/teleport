@@ -322,6 +322,7 @@ func (id *Identity) GetEventIdentity() events.Identity {
 		AccessRequests:          id.ActiveRequests,
 		DisallowReissue:         id.DisallowReissue,
 		AllowedResourceIDs:      events.ResourceIDs(id.AllowedResourceIDs),
+		PrivateKeyPolicy:        string(id.PrivateKeyPolicy),
 	}
 }
 
@@ -484,7 +485,7 @@ var (
 	// the IP the certificate is pinned to.
 	PinnedIPASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 15}
 
-	// CreateWindowsUserOID
+	// CreateWindowsUserOID is an extension OID used to indicate that the user should be created.
 	CreateWindowsUserOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 16}
 
 	// DesktopsLimitExceededOID is an extension OID used indicate if number of non-AD desktops exceeds the limit for OSS distribution.
@@ -1049,6 +1050,19 @@ func (id Identity) GetUserMetadata() events.UserMetadata {
 		AccessRequests:    id.ActiveRequests,
 		TrustedDevice:     device,
 	}
+}
+
+func (id Identity) GetSessionMetadata(sid string) events.SessionMetadata {
+	return events.SessionMetadata{
+		SessionID:        sid,
+		WithMFA:          id.MFAVerified,
+		PrivateKeyPolicy: string(id.PrivateKeyPolicy),
+	}
+}
+
+// IsMFAVerified returns whether this identity is MFA verified.
+func (id *Identity) IsMFAVerified() bool {
+	return id.MFAVerified != "" || id.PrivateKeyPolicy.MFAVerified()
 }
 
 // CertificateRequest is a X.509 signing certificate request

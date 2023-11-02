@@ -63,6 +63,10 @@ app_service:
     cloud: "Azure"
 ```
 
+For full details on configuring Teleport roles, including how Teleport
+populates the `external` traits, see the [Teleport Access Controls
+Reference](../access-controls/reference.mdx).
+
 ## Application resource
 
 Full YAML spec of application resources managed by `tctl` resource commands:
@@ -107,7 +111,8 @@ spec:
 You can create a new `app` resource by running the following commands, which
 assume that you have created a YAML file called `app.yaml` with your configuration:
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
 ```code
 # Log in to your cluster with tsh so you can use tctl from your local machine.
@@ -118,8 +123,8 @@ $ tsh login --proxy=teleport.example.com --user=myuser
 $ tctl create -f app.yaml
 ```
 
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
 ```code
 # Log in to your cluster with tsh so you can use tctl from your local machine.
@@ -128,7 +133,9 @@ $ tsh login --proxy=mytenant.teleport.sh --user=myuser
 $ tctl create -f app.yaml
 ```
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 ## CLI
 
@@ -210,3 +217,4 @@ To run this command, one of the user's roles must include the
 Application Service. To learn how to set up secure access to Azure via Teleport,
 read [Protect the Azure CLI with Teleport Application
 Access](cloud-apis/azure.mdx).
+

@@ -1,0 +1,6 @@
+clusterName: test-kube-cluster-name
+podMonitor:
+  enabled: true
+  additionalLabels:
+    prometheus: default
+  interval: 30s

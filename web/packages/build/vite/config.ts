@@ -28,6 +28,8 @@ import { getStyledComponentsConfig } from './styled';
 
 import type { UserConfig } from 'vite';
 
+const DEFAULT_PROXY_TARGET = '127.0.0.1:3080';
+
 export function createViteConfig(
   rootDirectory: string,
   outputDirectory: string
@@ -42,10 +44,10 @@ export function createViteConfig(
         );
       } else {
         console.warn(
-          '  \x1b[33m⚠ PROXY_TARGET was not set, defaulting to localhost:3080\x1b[0m'
+          `  \x1b[33m⚠ PROXY_TARGET was not set, defaulting to ${DEFAULT_PROXY_TARGET}\x1b[0m`
         );
 
-        target = 'localhost:3080';
+        target = DEFAULT_PROXY_TARGET;
       }
     }
 

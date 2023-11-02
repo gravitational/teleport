@@ -37,6 +37,7 @@ import (
 	"google.golang.org/grpc/test/bufconn"
 
 	transportv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/transport/v1"
+	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 	streamutils "github.com/gravitational/teleport/api/utils/grpc/stream"
 )
 
@@ -537,6 +538,8 @@ func newServer(t *testing.T, srv transportv1pb.TransportServiceServer) testPack 
 		}),
 		grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(1000)),
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithUnaryInterceptor(interceptors.GRPCClientUnaryErrorInterceptor),
+		grpc.WithStreamInterceptor(interceptors.GRPCClientStreamErrorInterceptor),
 	)
 	require.NoError(t, err)
 	t.Cleanup(func() {

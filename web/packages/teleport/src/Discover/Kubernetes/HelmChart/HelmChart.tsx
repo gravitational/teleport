@@ -41,16 +41,16 @@ import { CommandBox } from 'teleport/Discover/Shared/CommandBox';
 
 import {
   ActionButtons,
+  Header,
   HeaderSubtitle,
   Mark,
   ResourceKind,
   TextIcon,
   useShowHint,
-  Header,
 } from '../../Shared';
 
 import type { AgentStepProps } from '../../types';
-import type { JoinToken } from 'teleport/services/joinToken';
+import type { JoinRole, JoinToken } from 'teleport/services/joinToken';
 import type { AgentMeta, KubeMeta } from 'teleport/Discover/useDiscover';
 import type { Kube } from 'teleport/services/kube';
 
@@ -63,7 +63,13 @@ export default function Container(props: AgentStepProps) {
     // This outer CatchError and Suspense handles
     // join token api fetch error and loading states.
     <CatchError
-      onRetry={() => clearCachedJoinTokenResult(ResourceKind.Kubernetes)}
+      onRetry={() =>
+        clearCachedJoinTokenResult([
+          ResourceKind.Kubernetes,
+          ResourceKind.Application,
+          ResourceKind.Discovery,
+        ])
+      }
       fallbackFn={fallbackProps => (
         <Box>
           <Heading />
@@ -147,9 +153,11 @@ export function HelmChart(
     setClusterName(c: string): void;
   }
 ) {
-  const { joinToken, reloadJoinToken } = useJoinTokenSuspender(
-    ResourceKind.Kubernetes
-  );
+  const { joinToken, reloadJoinToken } = useJoinTokenSuspender([
+    ResourceKind.Kubernetes,
+    ResourceKind.Application,
+    ResourceKind.Discovery,
+  ]);
 
   return (
     <Box>
@@ -318,8 +326,11 @@ const generateCmd = (data: {
   isEnterprise: boolean;
   isCloud: boolean;
   automaticUpgradesEnabled: boolean;
+  automaticUpgradesTargetVersion: string;
+  roles: JoinRole[];
 }) => {
   let extraYAMLConfig = '';
+  let deployVersion = data.clusterVersion;
 
   if (data.isEnterprise) {
     extraYAMLConfig += 'enterprise: true\n';
@@ -334,10 +345,17 @@ const generateCmd = (data: {
     extraYAMLConfig += '    podDisruptionBudget:\n';
     extraYAMLConfig += '        enabled: true\n';
     extraYAMLConfig += '        minAvailable: 1\n';
+
+    // Replace the helm version to deploy with the one coming from the AutomaticUpgrades Version URL.
+    // AutomaticUpgradesTargetVersion contains a v, eg, v13.4.2.
+    // However, helm chart expects no 'v', eg, 13.4.2.
+    deployVersion = data.automaticUpgradesTargetVersion.replace(/^v/, '');
   }
 
+  const yamlRoles = data.roles.join(',').toLowerCase();
+
   return `cat << EOF > prod-cluster-values.yaml
-roles: kube
+roles: ${yamlRoles}
 authToken: ${data.tokenId}
 proxyAddr: ${data.proxyAddr}
 kubeClusterName: ${data.clusterName}
@@ -345,7 +363,7 @@ labels:
     teleport.internal/resource-id: ${data.resourceId}
 ${extraYAMLConfig}EOF
  
-helm install teleport-agent teleport/teleport-kube-agent -f prod-cluster-values.yaml --version ${data.clusterVersion} --create-namespace --namespace ${data.namespace}`;
+helm install teleport-agent teleport/teleport-kube-agent -f prod-cluster-values.yaml --version ${deployVersion} --create-namespace --namespace ${data.namespace}`;
 };
 
 const InstallHelmChart = ({
@@ -440,6 +458,8 @@ const InstallHelmChart = ({
     isEnterprise: ctx.isEnterprise,
     isCloud: ctx.isCloud,
     automaticUpgradesEnabled: ctx.automaticUpgradesEnabled,
+    automaticUpgradesTargetVersion: ctx.automaticUpgradesTargetVersion,
+    roles: ['Kube', 'App', 'Discovery'],
   });
 
   return (

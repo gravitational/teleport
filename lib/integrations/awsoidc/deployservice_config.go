@@ -22,6 +22,7 @@ import (
 	"github.com/gravitational/trace"
 	"gopkg.in/yaml.v2"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -40,6 +41,8 @@ func generateTeleportConfigString(req DeployServiceRequest) (string, error) {
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
+
+	teleportConfig.Logger.Severity = teleport.DebugLevel
 
 	// Disable default services
 	teleportConfig.Auth.EnabledFlag = "no"

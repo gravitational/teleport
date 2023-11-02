@@ -1,13 +1,11 @@
-<Tabs>
-<TabItem
-  scope={["enterprise"]} label="Self-Hosted Enterprise">
-
-- A running Teleport Enterprise cluster. For details on how to set this up, see the Enterprise [Getting 
-Started](../choose-an-edition/teleport-enterprise/introduction.mdx) guide.
+- Access to an Enterprise edition of Teleport running in your environment.
+  
+  For information about the differences between Teleport editions, see [Comparing 
+  editions](../choose-an-edition/introduction.mdx#comparing-editions).
 
 - The Enterprise `tctl` admin tool and `tsh` client tool version >= (=teleport.version=). 
-You can download these tools by visiting your [Teleport account](https://teleport.sh).
-You can verify the tools you have installed by running the following commands:
+  
+  You can verify the tools you have installed by running the following commands:
 
   ```code
   $ tctl version
@@ -17,24 +15,5 @@ You can verify the tools you have installed by running the following commands:
   # Teleport v(=teleport.version=) go(=teleport.golang=)
   ```
 
-</TabItem>
-<TabItem scope={["cloud"]}
-  label="Teleport Enterprise Cloud">
-
-- A Teleport Enterprise Cloud account. If you do not have one, visit the [signup
-  page](https://goteleport.com/signup/) to begin a free trial of Teleport Team
-  and upgrade to Teleport Enterprise Cloud. 
-
-- The `tctl` admin tool and `tsh` client tool version >= (=cloud.version=).
-  To download these tools, visit the [Downloads](../choose-an-edition/teleport-cloud/downloads.mdx) page.
-
-  ```code
-  $ tctl version
-  # Teleport Enterprise v(=cloud.version=) go(=teleport.golang=)
-  
-  $ tsh version
-  # Teleport v(=cloud.version=) go(=teleport.golang=)
-  ```
-
-</TabItem>
-</Tabs>
+  You can download these tools by following the appropriate [Installation 
+  instructions](../installation.mdx#installation-instructions) for your environment and Teleport edition.

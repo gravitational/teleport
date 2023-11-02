@@ -16,10 +16,12 @@ package auth
 
 import (
 	"context"
+	"fmt"
 	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -339,6 +341,122 @@ func TestCreateAuthenticateChallenge_WithRecoveryStartToken(t *testing.T) {
 	}
 }
 
+func TestCreateAuthenticateChallenge_mfaVerification(t *testing.T) {
+	t.Parallel()
+
+	testServer := newTestTLSServer(t)
+	ctx := context.Background()
+
+	adminClient, err := testServer.NewClient(TestBuiltin(types.RoleAdmin))
+	require.NoError(t, err, "NewClient(types.RoleAdmin)")
+
+	// Register a couple of SSH nodes.
+	registerNode := func(node, env string) error {
+		_, err := adminClient.UpsertNode(ctx, &types.ServerV2{
+			Kind:    types.KindNode,
+			Version: types.V2,
+			Metadata: types.Metadata{
+				Name: uuid.NewString(),
+				Labels: map[string]string{
+					"env": env,
+				},
+			},
+			Spec: types.ServerSpecV2{
+				Hostname: node,
+			},
+		})
+		return err
+	}
+	const devNode = "node1"
+	const prodNode = "node2"
+	require.NoError(t, registerNode(devNode, "dev"), "registerNode(%q)", devNode)
+	require.NoError(t, registerNode(prodNode, "prod"), "registerNode(%q)", prodNode)
+
+	// Create an MFA required role for "prod" nodes.
+	prodRole, err := types.NewRole("prod_access", types.RoleSpecV6{
+		Options: types.RoleOptions{
+			RequireMFAType: types.RequireMFAType_SESSION,
+		},
+		Allow: types.RoleConditions{
+			Logins: []string{"{{internal.logins}}"},
+			NodeLabels: types.Labels{
+				"env": []string{"prod"},
+			},
+		},
+	})
+	require.NoError(t, err, "NewRole(prod)")
+	prodRole, err = adminClient.UpsertRole(ctx, prodRole)
+	require.NoError(t, err, "UpsertRole(%q)", prodRole.GetName())
+
+	// Create a user with MFA devices...
+	userCreds, err := createUserWithSecondFactors(testServer)
+	require.NoError(t, err, "createUserWithSecondFactors")
+	username := userCreds.username
+
+	// ...and assign the user a sane unix login, plus the prod role.
+	user, err := adminClient.GetUser(ctx, username, false /* withSecrets */)
+	require.NoError(t, err, "GetUser(%q)", username)
+	const login = "llama"
+	user.SetLogins(append(user.GetLogins(), login))
+	user.AddRole(prodRole.GetName())
+	_, err = adminClient.UpdateUser(ctx, user.(*types.UserV2))
+	require.NoError(t, err, "UpdateUser(%q)", username)
+
+	userClient, err := testServer.NewClient(TestUser(username))
+	require.NoError(t, err, "NewClient(%q)", username)
+
+	createReqForNode := func(node string) *proto.CreateAuthenticateChallengeRequest {
+		return &proto.CreateAuthenticateChallengeRequest{
+			Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
+				ContextUser: &proto.ContextUser{},
+			},
+			MFARequiredCheck: &proto.IsMFARequiredRequest{
+				Target: &proto.IsMFARequiredRequest_Node{
+					Node: &proto.NodeLogin{
+						Node:  node,
+						Login: login,
+					},
+				},
+			},
+		}
+	}
+
+	tests := []struct {
+		name            string
+		req             *proto.CreateAuthenticateChallengeRequest
+		wantMFARequired proto.MFARequired
+		wantChallenges  bool
+	}{
+		{
+			name:            "MFA not required, no challenges issued",
+			req:             createReqForNode(devNode),
+			wantMFARequired: proto.MFARequired_MFA_REQUIRED_NO,
+		},
+		{
+			name:            "MFA required",
+			req:             createReqForNode(prodNode),
+			wantMFARequired: proto.MFARequired_MFA_REQUIRED_YES,
+			wantChallenges:  true,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			resp, err := userClient.CreateAuthenticateChallenge(ctx, test.req)
+			require.NoError(t, err, "CreateAuthenticateChallenge")
+
+			assert.Equal(t, test.wantMFARequired, resp.MFARequired, "resp.MFARequired mismatch")
+
+			if test.wantChallenges {
+				assert.NotNil(t, resp.GetTOTP(), "resp.TOTP")
+				assert.NotNil(t, resp.GetWebauthnChallenge(), "resp.WebauthnChallenge")
+			} else {
+				assert.Nil(t, resp.GetTOTP(), "resp.TOTP")
+				assert.Nil(t, resp.GetWebauthnChallenge(), "resp.WebauthnChallenge")
+			}
+		})
+	}
+}
+
 func TestCreateRegisterChallenge(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -380,7 +498,6 @@ func TestCreateRegisterChallenge(t *testing.T) {
 			deviceType: proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
 		},
 	}
-
 	for _, tc := range tests {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
@@ -397,6 +514,144 @@ func TestCreateRegisterChallenge(t *testing.T) {
 			case proto.DeviceType_DEVICE_TYPE_WEBAUTHN:
 				require.NotNil(t, res.GetWebauthn())
 			}
+		})
+	}
+
+	t.Run("register using context user", func(t *testing.T) {
+		authClient, err := srv.NewClient(TestUser(u.username))
+		require.NoError(t, err, "NewClient(%q)", u.username)
+
+		// Attempt without a token or a solved authn challenge should fail.
+		_, err = authClient.CreateRegisterChallenge(ctx, &proto.CreateRegisterChallengeRequest{
+			DeviceType:  proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
+			DeviceUsage: proto.DeviceUsage_DEVICE_USAGE_MFA,
+		})
+		assert.ErrorContains(t, err, "token or an MFA response")
+
+		// Acquire and solve an authn challenge.
+		authnChal, err := authClient.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
+			Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
+				ContextUser: &proto.ContextUser{},
+			},
+		})
+		require.NoError(t, err, "CreateAuthenticateChallenge")
+		authnSolved, err := u.webDev.SolveAuthn(authnChal)
+		require.NoError(t, err, "SolveAuthn")
+
+		// Attempt with a solved authn challenge should work.
+		registerChal, err := authClient.CreateRegisterChallenge(ctx, &proto.CreateRegisterChallengeRequest{
+			ExistingMFAResponse: authnSolved,
+			DeviceType:          proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
+			DeviceUsage:         proto.DeviceUsage_DEVICE_USAGE_MFA,
+		})
+		require.NoError(t, err, "CreateRegisterChallenge")
+		assert.NotNil(t, registerChal.GetWebauthn(), "CreateRegisterChallenge returned a nil Webauthn challenge")
+	})
+}
+
+// TestCreateRegisterChallenge_unusableDevice tests that it is possible to
+// register new devices even if the user has an "unusable" device (due to
+// cluster setting changes).
+func TestCreateRegisterChallenge_unusableDevice(t *testing.T) {
+	t.Parallel()
+
+	testServer := newTestTLSServer(t)
+	authServer := testServer.Auth()
+	clock := authServer.GetClock()
+	ctx := context.Background()
+
+	initialPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+		Type:         constants.Local,
+		SecondFactor: constants.SecondFactorOptional, // most permissive setting
+		Webauthn: &types.Webauthn{
+			RPID: "localhost",
+		},
+	})
+	require.NoError(t, err, "NewAuthPreference")
+
+	setAuthPref := func(t *testing.T, authPref types.AuthPreference) {
+		require.NoError(t,
+			authServer.SetAuthPreference(ctx, authPref),
+			"SetAuthPreference")
+	}
+	setAuthPref(t, initialPref)
+
+	tests := []struct {
+		name                  string
+		existingType, newType proto.DeviceType
+		newAuthSpec           types.AuthPreferenceSpecV2
+	}{
+		{
+			name:         "unusable totp, new webauthn",
+			existingType: proto.DeviceType_DEVICE_TYPE_TOTP,
+			newType:      proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
+			newAuthSpec: types.AuthPreferenceSpecV2{
+				Type:         initialPref.GetType(),
+				SecondFactor: constants.SecondFactorWebauthn, // makes TOTP unusable
+				Webauthn: func() *types.Webauthn {
+					w, _ := initialPref.GetWebauthn()
+					return w
+				}(),
+			},
+		},
+		{
+			name:         "unusable webauthn, new totp",
+			existingType: proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
+			newType:      proto.DeviceType_DEVICE_TYPE_TOTP,
+			newAuthSpec: types.AuthPreferenceSpecV2{
+				Type:         initialPref.GetType(),
+				SecondFactor: constants.SecondFactorOTP, // makes Webauthn unusable
+			},
+		},
+	}
+
+	devOpts := []TestDeviceOpt{WithTestDeviceClock(clock)}
+	for i, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			setAuthPref(t, initialPref) // restore permissive settings.
+
+			// Create user.
+			username := fmt.Sprintf("llama-%d", i)
+			user, _, err := CreateUserAndRole(authServer, username, []string{username} /* logins */, nil /* allowRules */)
+			require.NoError(t, err, "CreateUserAndRole")
+			userClient, err := testServer.NewClient(TestUser(user.GetName()))
+			require.NoError(t, err, "NewClient")
+
+			// Register initial MFA device.
+			_, err = RegisterTestDevice(
+				ctx,
+				userClient,
+				"existing", test.existingType, nil /* authenticator */, devOpts...)
+			require.NoError(t, err, "RegisterTestDevice")
+
+			// Sanity check: register challenges for test.existingType require a
+			// solved authn challenge.
+			_, err = userClient.CreateRegisterChallenge(ctx, &proto.CreateRegisterChallengeRequest{
+				ExistingMFAResponse: &proto.MFAAuthenticateResponse{},
+				DeviceType:          test.existingType,
+				DeviceUsage:         proto.DeviceUsage_DEVICE_USAGE_MFA, // not important for this test
+			})
+			assert.ErrorContains(t, err, "second factor")
+
+			// Restore initial settings after test.
+			defer func() {
+				setAuthPref(t, initialPref)
+			}()
+
+			// Change cluster settings.
+			// This should make the device registered above unusable.
+			newAuthPref, err := types.NewAuthPreference(test.newAuthSpec)
+			require.NoError(t, err, "NewAuthPreference")
+			setAuthPref(t, newAuthPref)
+
+			// Create a challenge for the "new" device without an ExistingMFAResponse.
+			// Not allowed if the device above was usable.
+			_, err = userClient.CreateRegisterChallenge(ctx, &proto.CreateRegisterChallengeRequest{
+				ExistingMFAResponse: &proto.MFAAuthenticateResponse{},
+				DeviceType:          test.newType,
+				DeviceUsage:         proto.DeviceUsage_DEVICE_USAGE_MFA, // not important for this test
+			})
+			assert.NoError(t, err, "CreateRegisterChallenge")
 		})
 	}
 }

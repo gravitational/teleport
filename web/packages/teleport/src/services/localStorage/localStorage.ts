@@ -25,7 +25,7 @@ import {
   UserPreferences,
 } from 'teleport/services/userPreferences/types';
 
-import { KeysEnum, LocalStorageSurvey } from './types';
+import { CloudUserInvites, KeysEnum, LocalStorageSurvey } from './types';
 
 import type { RecommendFeature } from 'teleport/types';
 
@@ -35,6 +35,7 @@ const KEEP_LOCALSTORAGE_KEYS_ON_LOGOUT = [
   KeysEnum.SHOW_ASSIST_POPUP,
   KeysEnum.USER_PREFERENCES,
   KeysEnum.RECOMMEND_FEATURE,
+  KeysEnum.UNIFIED_RESOURCES_DISABLED,
 ];
 
 const storage = {
@@ -141,6 +142,24 @@ const storage = {
     window.localStorage.removeItem(KeysEnum.ONBOARD_SURVEY);
   },
 
+  getCloudUserInvites(): CloudUserInvites {
+    const invites = window.localStorage.getItem(KeysEnum.CLOUD_USER_INVITES);
+    if (invites) {
+      return JSON.parse(invites);
+    }
+    return null;
+  },
+
+  setCloudUserInvites(invites: CloudUserInvites) {
+    const json = JSON.stringify(invites);
+
+    window.localStorage.setItem(KeysEnum.CLOUD_USER_INVITES, json);
+  },
+
+  clearCloudUserInvites() {
+    window.localStorage.removeItem(KeysEnum.CLOUD_USER_INVITES);
+  },
+
   getThemePreference(): ThemePreference {
     const userPreferences = storage.getUserPreferences();
     if (userPreferences) {
@@ -161,7 +180,15 @@ const storage = {
       return userPreferences.onboard;
     }
 
-    return { preferredResources: [] };
+    return {
+      preferredResources: [],
+      marketingParams: {
+        campaign: '',
+        source: '',
+        medium: '',
+        intent: '',
+      },
+    };
   },
 
   // DELETE IN 15 (ryan)
@@ -172,6 +199,29 @@ const storage = {
   // TODO(ryan): remove in v15
   clearDeprecatedThemePreference() {
     window.localStorage.removeItem(KeysEnum.THEME);
+  },
+
+  /**
+   * Returns `true` if the unified resources feature should be visible in the
+   * navigation.
+   *
+   * TODO(bl-nero): remove this setting once unified resources are released. Please also see TODO item in `SelectResource.tsx`.
+   */
+  areUnifiedResourcesEnabled(): boolean {
+    const disabled = window.localStorage.getItem(
+      KeysEnum.UNIFIED_RESOURCES_DISABLED
+    );
+    const notSupported = window.localStorage.getItem(
+      KeysEnum.UNIFIED_RESOURCES_NOT_SUPPORTED
+    );
+    return disabled !== 'true' && notSupported !== 'true';
+  },
+
+  arePinnedResourcesDisabled(): boolean {
+    return (
+      window.localStorage.getItem(KeysEnum.PINNED_RESOURCES_NOT_SUPPORTED) ===
+      'true'
+    );
   },
 
   broadcast(messageType, messageBody) {

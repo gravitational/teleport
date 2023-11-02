@@ -24,7 +24,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestCheckPrerelease(t *testing.T) {
+func TestCheckIsBareRelease(t *testing.T) {
 	tests := []struct {
 		desc    string
 		tag     string
@@ -50,10 +50,15 @@ func TestCheckPrerelease(t *testing.T) {
 			tag:     "v8.0.1",
 			wantErr: require.NoError,
 		},
+		{
+			desc:    "fail-leading-zero",
+			tag:     "v13.3.3-tcsc.02",
+			wantErr: require.Error,
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
-			test.wantErr(t, checkPrerelease(test.tag))
+			test.wantErr(t, checkIsBareRelease(test.tag))
 		})
 	}
 

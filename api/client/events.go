@@ -21,6 +21,12 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	accesslistv1conv "github.com/gravitational/teleport/api/types/accesslist/convert/v1"
+	"github.com/gravitational/teleport/api/types/discoveryconfig"
+	discoveryconfigv1conv "github.com/gravitational/teleport/api/types/discoveryconfig/convert/v1"
+	"github.com/gravitational/teleport/api/types/externalcloudaudit"
+	externalcloudauditv1conv "github.com/gravitational/teleport/api/types/externalcloudaudit/convert/v1"
+	"github.com/gravitational/teleport/api/types/secreports"
+	secreprotsv1conv "github.com/gravitational/teleport/api/types/secreports/convert/v1"
 	"github.com/gravitational/teleport/api/types/userloginstate"
 	userloginstatev1conv "github.com/gravitational/teleport/api/types/userloginstate/convert/v1"
 )
@@ -158,6 +164,10 @@ func EventToGRPC(in types.Event) (*proto.Event, error) {
 		out.Resource = &proto.Event_SessionRecordingConfig{
 			SessionRecordingConfig: r,
 		}
+	case *externalcloudaudit.ExternalCloudAudit:
+		out.Resource = &proto.Event_ExternalCloudAudit{
+			ExternalCloudAudit: externalcloudauditv1conv.ToProto(r),
+		}
 	case *types.AuthPreferenceV2:
 		out.Resource = &proto.Event_AuthPreference{
 			AuthPreference: r,
@@ -221,6 +231,26 @@ func EventToGRPC(in types.Event) (*proto.Event, error) {
 	case *userloginstate.UserLoginState:
 		out.Resource = &proto.Event_UserLoginState{
 			UserLoginState: userloginstatev1conv.ToProto(r),
+		}
+	case *accesslist.AccessListMember:
+		out.Resource = &proto.Event_AccessListMember{
+			AccessListMember: accesslistv1conv.ToMemberProto(r),
+		}
+	case *discoveryconfig.DiscoveryConfig:
+		out.Resource = &proto.Event_DiscoveryConfig{
+			DiscoveryConfig: discoveryconfigv1conv.ToProto(r),
+		}
+	case *secreports.AuditQuery:
+		out.Resource = &proto.Event_AuditQuery{
+			AuditQuery: secreprotsv1conv.ToProtoAuditQuery(r),
+		}
+	case *secreports.Report:
+		out.Resource = &proto.Event_Report{
+			Report: secreprotsv1conv.ToProtoReport(r),
+		}
+	case *secreports.ReportState:
+		out.Resource = &proto.Event_ReportState{
+			ReportState: secreprotsv1conv.ToProtoReportState(r),
 		}
 	default:
 		return nil, trace.BadParameter("resource type %T is not supported", in.Resource)
@@ -385,6 +415,36 @@ func EventFromGRPC(in *proto.Event) (*types.Event, error) {
 		return &out, nil
 	} else if r := in.GetUserLoginState(); r != nil {
 		out.Resource, err = userloginstatev1conv.FromProto(r)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &out, nil
+	} else if r := in.GetAccessListMember(); r != nil {
+		out.Resource, err = accesslistv1conv.FromMemberProto(r)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &out, nil
+	} else if r := in.GetDiscoveryConfig(); r != nil {
+		out.Resource, err = discoveryconfigv1conv.FromProto(r)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &out, nil
+	} else if r := in.GetAuditQuery(); r != nil {
+		out.Resource, err = secreprotsv1conv.FromProtoAuditQuery(r)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &out, nil
+	} else if r := in.GetReport(); r != nil {
+		out.Resource, err = secreprotsv1conv.FromProtoReport(r)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &out, nil
+	} else if r := in.GetReportState(); r != nil {
+		out.Resource, err = secreprotsv1conv.FromProtoReportState(r)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

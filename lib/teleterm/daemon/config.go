@@ -17,21 +17,35 @@ limitations under the License.
 package daemon
 
 import (
+	"context"
+
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 
-	"github.com/gravitational/teleport/lib/client/db/dbcmd"
+	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
-	"github.com/gravitational/teleport/lib/teleterm/cmd"
-	"github.com/gravitational/teleport/lib/teleterm/gateway"
 	"github.com/gravitational/teleport/lib/teleterm/services/connectmycomputer"
 )
 
+// Storage defines an interface for cluster profile storage.
+type Storage interface {
+	clusters.Resolver
+
+	ReadAll() ([]*clusters.Cluster, error)
+	Add(ctx context.Context, webProxyAddress string) (*clusters.Cluster, *client.TeleportClient, error)
+	Remove(ctx context.Context, profileName string) error
+	GetByResourceURI(resourceURI uri.ResourceURI) (*clusters.Cluster, *client.TeleportClient, error)
+}
+
 // Config is the cluster service config
 type Config struct {
+	// Clock is a clock for time-related operations
+	Clock clockwork.Clock
 	// Storage is a storage service that reads/writes to tsh profiles
-	Storage *clusters.Storage
+	Storage Storage
 	// Log is a component logger
 	Log *logrus.Entry
 	// PrehogAddr is the URL where prehog events should be submitted.
@@ -39,10 +53,10 @@ type Config struct {
 	// KubeconfigsDir is the directory containing kubeconfigs for Kubernetes
 	// Acesss.
 	KubeconfigsDir string
+	// AgentsDir contains agent config files and data directories for Connect My Computer.
+	AgentsDir string
 
-	GatewayCreator         GatewayCreator
-	DBCLICommandProvider   gateway.CLICommandProvider
-	KubeCLICommandProvider gateway.CLICommandProvider
+	GatewayCreator GatewayCreator
 	// CreateTshdEventsClientCredsFunc lazily creates creds for the tshd events server ran by the
 	// Electron app. This is to ensure that the server public key is written to the disk under the
 	// expected location by the time we get around to creating the client.
@@ -50,12 +64,19 @@ type Config struct {
 
 	ConnectMyComputerRoleSetup        *connectmycomputer.RoleSetup
 	ConnectMyComputerTokenProvisioner *connectmycomputer.TokenProvisioner
+	ConnectMyComputerNodeJoinWait     *connectmycomputer.NodeJoinWait
+	ConnectMyComputerNodeDelete       *connectmycomputer.NodeDelete
+	ConnectMyComputerNodeName         *connectmycomputer.NodeName
 }
 
 type CreateTshdEventsClientCredsFunc func() (grpc.DialOption, error)
 
 // CheckAndSetDefaults checks the configuration for its validity and sets default values if needed
 func (c *Config) CheckAndSetDefaults() error {
+	if c.Clock == nil {
+		c.Clock = clockwork.NewRealClock()
+	}
+
 	if c.Storage == nil {
 		return trace.BadParameter("missing cluster storage")
 	}
@@ -64,20 +85,16 @@ func (c *Config) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing kubeconfigs directory")
 	}
 
+	if c.AgentsDir == "" {
+		return trace.BadParameter("missing agents directory")
+	}
+
 	if c.GatewayCreator == nil {
 		c.GatewayCreator = clusters.NewGatewayCreator(c.Storage)
 	}
 
 	if c.Log == nil {
 		c.Log = logrus.NewEntry(logrus.StandardLogger()).WithField(trace.Component, "daemon")
-	}
-
-	if c.DBCLICommandProvider == nil {
-		c.DBCLICommandProvider = cmd.NewDBCLICommandProvider(c.Storage, dbcmd.SystemExecer{})
-	}
-
-	if c.KubeCLICommandProvider == nil {
-		c.KubeCLICommandProvider = cmd.NewKubeCLICommandProvider()
 	}
 
 	if c.ConnectMyComputerRoleSetup == nil {
@@ -89,7 +106,37 @@ func (c *Config) CheckAndSetDefaults() error {
 	}
 
 	if c.ConnectMyComputerTokenProvisioner == nil {
-		c.ConnectMyComputerTokenProvisioner = connectmycomputer.NewTokenProvisioner(&connectmycomputer.TokenProvisionerConfig{Clock: c.Storage.Clock})
+		c.ConnectMyComputerTokenProvisioner = connectmycomputer.NewTokenProvisioner(&connectmycomputer.TokenProvisionerConfig{Clock: c.Clock})
 	}
+
+	if c.ConnectMyComputerNodeJoinWait == nil {
+		nodeJoinWait, err := connectmycomputer.NewNodeJoinWait(&connectmycomputer.NodeJoinWaitConfig{
+			AgentsDir: c.AgentsDir,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		c.ConnectMyComputerNodeJoinWait = nodeJoinWait
+	}
+
+	if c.ConnectMyComputerNodeDelete == nil {
+		nodeDelete, err := connectmycomputer.NewNodeDelete(&connectmycomputer.NodeDeleteConfig{AgentsDir: c.AgentsDir})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		c.ConnectMyComputerNodeDelete = nodeDelete
+	}
+
+	if c.ConnectMyComputerNodeName == nil {
+		nodeName, err := connectmycomputer.NewNodeName(&connectmycomputer.NodeNameConfig{AgentsDir: c.AgentsDir})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		c.ConnectMyComputerNodeName = nodeName
+	}
+
 	return nil
 }

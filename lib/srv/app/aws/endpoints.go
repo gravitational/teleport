@@ -53,6 +53,7 @@ import (
 	"github.com/gravitational/trace"
 
 	awsapiutils "github.com/gravitational/teleport/api/utils/aws"
+	libutils "github.com/gravitational/teleport/lib/utils"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 )
 
@@ -61,7 +62,8 @@ import (
 // endpoint.
 func resolveEndpoint(r *http.Request) (*endpoints.ResolvedEndpoint, error) {
 	// Use X-Forwarded-Host header if it is a valid AWS endpoint.
-	if awsapiutils.IsAWSEndpoint(r.Header.Get("X-Forwarded-Host")) {
+	forwardedHost, headErr := libutils.GetSingleHeader(r.Header, "X-Forwarded-Host")
+	if headErr == nil && awsapiutils.IsAWSEndpoint(forwardedHost) {
 		re, err := resolveEndpointByXForwardedHost(r, awsutils.AuthorizationHeader)
 		return re, trace.Wrap(err)
 	}

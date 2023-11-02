@@ -110,7 +110,9 @@ export function makeWebauthnCreationResponse(res) {
 export function makeWebauthnAssertionResponse(res) {
   // Response can be null if Credential cannot be unambiguously obtained.
   if (!res) {
-    throw new Error('error obtaining credential, please try again');
+    throw new Error(
+      'error obtaining credential from the hardware key, please try again'
+    );
   }
 
   const clientExtentions = res.getClientExtensionResults();

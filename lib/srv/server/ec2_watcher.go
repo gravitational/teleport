@@ -30,9 +30,8 @@ import (
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud"
-	"github.com/gravitational/teleport/lib/defaults"
+	awslib "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/labels"
-	"github.com/gravitational/teleport/lib/srv/db/common"
 )
 
 const (
@@ -97,14 +96,13 @@ func ToEC2Instances(insts []*ec2.Instance) []EC2Instance {
 func (i *EC2Instances) ServerInfos() ([]types.ServerInfo, error) {
 	serverInfos := make([]types.ServerInfo, 0, len(i.Instances))
 	for _, instance := range i.Instances {
-		name := i.AccountID + "-" + instance.InstanceID
 		tags := make(map[string]string, len(instance.Tags))
 		for k, v := range instance.Tags {
 			tags[labels.FormatCloudLabelKey(labels.AWSLabelNamespace, k)] = v
 		}
 
 		si, err := types.NewServerInfo(types.Metadata{
-			Name: name,
+			Name: types.ServerInfoNameFromAWS(i.AccountID, instance.InstanceID),
 		}, types.ServerInfoSpecV1{
 			NewLabels: tags,
 		})
@@ -131,7 +129,7 @@ func WithPollInterval(interval time.Duration) Option {
 // MakeEvents generates ResourceCreateEvents for these instances.
 func (instances *EC2Instances) MakeEvents() map[string]*usageeventsv1.ResourceCreateEvent {
 	resourceType := types.DiscoveredResourceNode
-	if instances.DocumentName == defaults.AWSAgentlessInstallerDocument {
+	if instances.DocumentName == types.AWSAgentlessInstallerDocument {
 		resourceType = types.DiscoveredResourceAgentlessNode
 	}
 	events := make(map[string]*usageeventsv1.ResourceCreateEvent, len(instances.Instances))
@@ -387,7 +385,7 @@ func (f *ec2InstanceFetcher) GetInstances(ctx context.Context, rotation bool) ([
 			return true
 		})
 	if err != nil {
-		return nil, common.ConvertError(err)
+		return nil, awslib.ConvertRequestFailureError(err)
 	}
 
 	if len(instances) == 0 {

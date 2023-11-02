@@ -28,7 +28,6 @@ import { makeTestUserContext } from 'teleport/User/testHelpers/makeTestUserConte
 const attempt: Attempt = { status: '' };
 const failedAttempt: Attempt = { status: 'failed' };
 const processingAttempt: Attempt = { status: 'processing' };
-const successAttempt: Attempt = { status: 'success', statusText: 'hey' };
 
 const resetToken: ResetToken = {
   tokenId: 'tokenId',
@@ -54,7 +53,6 @@ const makeProps = (): NewCredentialsProps => {
     redirect: () => {},
     success: false,
     finishedRegister: () => {},
-    privateKeyPolicyEnabled: false,
     resetMode: false,
     isDashboard: false,
   };
@@ -80,32 +78,9 @@ test.each(nullCases)('renders $attempt as null', testCase => {
   expect(container).toBeEmptyDOMElement();
 });
 
-test('renders Reset Complete for success and private key policy enabled during reset', () => {
-  const props = makeProps();
-  props.fetchAttempt = successAttempt;
-  props.success = true;
-  props.privateKeyPolicyEnabled = true;
-  props.resetMode = true;
-  render(<NewCredentials {...props} />);
-
-  expect(screen.getByText(/Reset Complete/i)).toBeInTheDocument();
-});
-
-test('renders Registration Complete for success and private key policy enabled during registration', () => {
-  const props = makeProps();
-  props.fetchAttempt = { status: 'success' };
-  props.success = true;
-  props.privateKeyPolicyEnabled = true;
-  props.resetMode = false;
-  render(<NewCredentials {...props} />);
-
-  expect(screen.getByText(/Registration Complete/i)).toBeInTheDocument();
-});
-
 test('renders Register Success on success', () => {
   const props = makeProps();
   props.fetchAttempt = { status: 'success' };
-  props.privateKeyPolicyEnabled = false;
   props.recoveryCodes = undefined;
   props.success = true;
   render(<NewCredentials {...props} />);
@@ -172,6 +147,21 @@ test('renders questionnaire', () => {
   props.displayOnboardingQuestionnaire = true;
   props.setDisplayOnboardingQuestionnaire = () => {};
   props.Questionnaire = () => <div>Passed Component!</div>;
+  render(<NewCredentials {...props} />);
+
+  expect(screen.getByText(/Passed Component!/i)).toBeInTheDocument();
+});
+
+test('renders invite collaborators', () => {
+  mockUserContextProviderWith(makeTestUserContext());
+
+  const props = makeProps();
+  props.fetchAttempt = { status: 'success' };
+  props.success = true;
+  props.recoveryCodes = undefined;
+  props.displayInviteCollaborators = true;
+  props.setDisplayInviteCollaborators = () => {};
+  props.InviteCollaborators = () => <div>Passed Component!</div>;
   render(<NewCredentials {...props} />);
 
   expect(screen.getByText(/Passed Component!/i)).toBeInTheDocument();

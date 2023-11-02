@@ -99,6 +99,7 @@ func TestCRUD(t *testing.T) {
 	t.Run("TestEvents", tt.suite.Events)
 	t.Run("TestEventsClusterConfig", tt.suite.EventsClusterConfig)
 	t.Run("TestNetworkRestrictions", func(t *testing.T) { tt.suite.NetworkRestrictions(t) })
+	t.Run("TestOIDCCRUD", tt.suite.OIDCCRUD)
 }
 
 func TestSemaphore(t *testing.T) {

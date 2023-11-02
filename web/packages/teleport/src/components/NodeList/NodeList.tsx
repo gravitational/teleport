@@ -20,7 +20,7 @@ import { FetchStatus, SortType } from 'design/DataTable/types';
 import { LoginItem, MenuLogin } from 'shared/components/MenuLogin';
 
 import { Node } from 'teleport/services/nodes';
-import { AgentLabel, AgentFilter } from 'teleport/services/agents';
+import { ResourceLabel, ResourceFilter } from 'teleport/services/agents';
 import ServersideSearchPanel from 'teleport/components/ServersideSearchPanel';
 
 import type { PageIndicators } from 'teleport/components/hooks/useServersidePagination';
@@ -155,12 +155,12 @@ type Props = {
   fetchPrev: () => void;
   fetchStatus: FetchStatus;
   pageSize?: number;
-  params: AgentFilter;
-  setParams: (params: AgentFilter) => void;
+  params: ResourceFilter;
+  setParams: (params: ResourceFilter) => void;
   setSort: (sort: SortType) => void;
   pathname: string;
   replaceHistory: (path: string) => void;
-  onLabelClick: (label: AgentLabel) => void;
+  onLabelClick: (label: ResourceLabel) => void;
   pageIndicators: PageIndicators;
 };
 

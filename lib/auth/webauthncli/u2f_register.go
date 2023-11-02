@@ -17,6 +17,7 @@ package webauthncli
 import (
 	"bytes"
 	"context"
+	"crypto/ecdh"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/sha256"
@@ -26,6 +27,7 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"math/big"
 
 	"github.com/flynn/u2f/u2ftoken"
 	"github.com/fxamacker/cbor/v2"
@@ -180,20 +182,29 @@ func parseU2FRegistrationResponse(resp []byte) (*u2fRegistrationResponse, error)
 	}
 	buf = buf[1:]
 
-	// public key
-	x, y := elliptic.Unmarshal(elliptic.P256(), buf[:pubKeyLen])
-	if x == nil {
-		return nil, trace.BadParameter("failed to parse public key")
+	// public key, "4||X||Y" form.
+	pubKeyBytes := buf[:pubKeyLen]
+	// Validate pubKey points.
+	if _, err := ecdh.P256().NewPublicKey(pubKeyBytes); err != nil {
+		return nil, trace.Wrap(err, "unmarshal public key")
 	}
-	buf = buf[pubKeyLen:]
+	// There's no API to pry away X and Y from ecdh.PublicKey, so we do it
+	// manually, but only after the key is validated.
+	const uncompressedForm = 4
+	if pubKeyBytes[0] != uncompressedForm {
+		return nil, trace.BadParameter("public key not in uncompressed form")
+	}
+	pubKeyBytes = pubKeyBytes[1:] // holds X||Y
+	l := len(pubKeyBytes) / 2     // holds the size of a coordinate (X or Y)
 	pubKey := &ecdsa.PublicKey{
 		Curve: elliptic.P256(),
-		X:     x,
-		Y:     y,
+		X:     new(big.Int).SetBytes(pubKeyBytes[:l]),
+		Y:     new(big.Int).SetBytes(pubKeyBytes[l:]),
 	}
+	buf = buf[pubKeyLen:]
 
 	// key handle
-	l := int(buf[0])
+	l = int(buf[0]) // holds the keyHandle length.
 	buf = buf[1:]
 	// Size checking resumed from now on.
 	if len(buf) < l {

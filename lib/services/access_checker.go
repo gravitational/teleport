@@ -144,7 +144,7 @@ type AccessChecker interface {
 
 	// CheckDatabaseRoles returns whether a user should be auto-created in the
 	// database and a list of database roles to assign.
-	CheckDatabaseRoles(types.Database) (create bool, roles []string, err error)
+	CheckDatabaseRoles(types.Database) (mode types.CreateDatabaseUserMode, roles []string, err error)
 
 	// CheckImpersonate checks whether current user is allowed to impersonate
 	// users and roles
@@ -201,6 +201,9 @@ type AccessChecker interface {
 	// a role disallows host user creation
 	HostUsers(types.Server) (*HostUsersInfo, error)
 
+	// HostSudoers returns host sudoers entries matching a server
+	HostSudoers(types.Server) ([]string, error)
+
 	// DesktopGroups returns the desktop groups a user is allowed to create or an access denied error if a role disallows desktop user creation
 	DesktopGroups(types.WindowsDesktop) ([]string, error)
 
@@ -213,7 +216,7 @@ type AccessChecker interface {
 	GetAccessState(authPref types.AuthPreference) AccessState
 	// PrivateKeyPolicy returns the enforced private key policy for this role set,
 	// or the provided defaultPolicy - whichever is stricter.
-	PrivateKeyPolicy(defaultPolicy keys.PrivateKeyPolicy) keys.PrivateKeyPolicy
+	PrivateKeyPolicy(defaultPolicy keys.PrivateKeyPolicy) (keys.PrivateKeyPolicy, error)
 
 	// GetKubeResources returns the allowed and denied Kubernetes Resources configured
 	// for a user.
@@ -511,40 +514,40 @@ func (a *accessChecker) Traits() wrappers.Traits {
 
 // CheckDatabaseRoles returns whether a user should be auto-created in the
 // database and a list of database roles to assign.
-func (a *accessChecker) CheckDatabaseRoles(database types.Database) (create bool, roles []string, err error) {
-	// First, collect roles from this roleset that have "create_db_user" option.
+func (a *accessChecker) CheckDatabaseRoles(database types.Database) (mode types.CreateDatabaseUserMode, roles []string, err error) {
+	// First, collect roles from this roleset that have create database user mode set.
 	var autoCreateRoles RoleSet
 	for _, role := range a.RoleSet {
-		if role.GetCreateDatabaseUserOption() {
+		if role.GetCreateDatabaseUserMode().IsEnabled() {
 			autoCreateRoles = append(autoCreateRoles, role)
 		}
 	}
 	// If there are no "auto-create user" roles, nothing to do.
 	if len(autoCreateRoles) == 0 {
-		return false, nil, nil
+		return types.CreateDatabaseUserMode_DB_USER_MODE_UNSPECIFIED, nil, nil
 	}
 	// Otherwise, iterate over auto-create roles matching the database user
 	// is connecting to and compile a list of roles database user should be
 	// assigned.
+	var allowedRoleSet RoleSet
 	rolesMap := make(map[string]struct{})
-	var matched bool
 	for _, role := range autoCreateRoles {
 		match, _, err := checkRoleLabelsMatch(types.Allow, role, a.info.Traits, database, false)
 		if err != nil {
-			return false, nil, trace.Wrap(err)
+			return types.CreateDatabaseUserMode_DB_USER_MODE_UNSPECIFIED, nil, trace.Wrap(err)
 		}
 		if !match {
 			continue
 		}
+		allowedRoleSet = append(allowedRoleSet, role)
 		for _, dbRole := range role.GetDatabaseRoles(types.Allow) {
 			rolesMap[dbRole] = struct{}{}
 		}
-		matched = true
 	}
 	for _, role := range autoCreateRoles {
 		match, _, err := checkRoleLabelsMatch(types.Deny, role, a.info.Traits, database, false)
 		if err != nil {
-			return false, nil, trace.Wrap(err)
+			return types.CreateDatabaseUserMode_DB_USER_MODE_UNSPECIFIED, nil, trace.Wrap(err)
 		}
 		if !match {
 			continue
@@ -556,7 +559,7 @@ func (a *accessChecker) CheckDatabaseRoles(database types.Database) (create bool
 	// The collected role list can be empty and that should be ok, we want to
 	// leave the behavior of what happens when a user is created with default
 	// "no roles" configuration up to the target database.
-	return matched, utils.StringsSliceFromSet(rolesMap), nil
+	return allowedRoleSet.GetCreateDatabaseUserMode(), utils.StringsSliceFromSet(rolesMap), nil
 }
 
 // EnumerateDatabaseUsers specializes EnumerateEntities to enumerate db_users.
@@ -833,8 +836,6 @@ func (a *accessChecker) DesktopGroups(s types.WindowsDesktop) ([]string, error) 
 type HostUsersInfo struct {
 	// Groups is the list of groups to include host users in
 	Groups []string
-	// Sudoers is a list of entries for a users sudoers file
-	Sudoers []string
 	// Mode determines if a host user should be deleted after a session
 	// ends or not.
 	Mode types.CreateHostUserMode
@@ -848,17 +849,9 @@ type HostUsersInfo struct {
 // a role disallows host user creation
 func (a *accessChecker) HostUsers(s types.Server) (*HostUsersInfo, error) {
 	groups := make(map[string]struct{})
-	var sudoers []string
 	var mode types.CreateHostUserMode
 
-	roleSet := make([]types.Role, len(a.RoleSet))
-	copy(roleSet, a.RoleSet)
-	slices.SortStableFunc(roleSet, func(a types.Role, b types.Role) int {
-		return strings.Compare(a.GetName(), b.GetName())
-	})
-
-	seenSudoers := make(map[string]struct{})
-	for _, role := range roleSet {
+	for _, role := range a.RoleSet {
 		result, _, err := checkRoleLabelsMatch(types.Allow, role, a.info.Traits, s, false)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -894,6 +887,61 @@ func (a *accessChecker) HostUsers(s types.Server) (*HostUsersInfo, error) {
 		for _, group := range role.GetHostGroups(types.Allow) {
 			groups[group] = struct{}{}
 		}
+	}
+
+	for _, role := range a.RoleSet {
+		result, _, err := checkRoleLabelsMatch(types.Deny, role, a.info.Traits, s, false)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if !result {
+			continue
+		}
+		for _, group := range role.GetHostGroups(types.Deny) {
+			delete(groups, group)
+		}
+	}
+
+	traits := a.Traits()
+	var gid string
+	gidL := traits[constants.TraitHostUserGID]
+	if len(gidL) >= 1 {
+		gid = gidL[0]
+	}
+	var uid string
+	uidL := traits[constants.TraitHostUserUID]
+	if len(uidL) >= 1 {
+		uid = uidL[0]
+	}
+
+	return &HostUsersInfo{
+		Groups: utils.StringsSliceFromSet(groups),
+		Mode:   mode,
+		UID:    uid,
+		GID:    gid,
+	}, nil
+}
+
+// HostSudoers returns host sudoers entries matching a server
+func (a *accessChecker) HostSudoers(s types.Server) ([]string, error) {
+	var sudoers []string
+
+	roleSet := slices.Clone(a.RoleSet)
+	slices.SortFunc(roleSet, func(a types.Role, b types.Role) int {
+		return strings.Compare(a.GetName(), b.GetName())
+	})
+
+	seenSudoers := make(map[string]struct{})
+	for _, role := range roleSet {
+		result, _, err := checkRoleLabelsMatch(types.Allow, role, a.info.Traits, s, false)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		// skip nodes that dont have matching labels
+		if !result {
+			continue
+		}
+
 		for _, sudoer := range role.GetHostSudoers(types.Allow) {
 			if _, ok := seenSudoers[sudoer]; ok {
 				continue
@@ -912,9 +960,6 @@ func (a *accessChecker) HostUsers(s types.Server) (*HostUsersInfo, error) {
 		if !result {
 			continue
 		}
-		for _, group := range role.GetHostGroups(types.Deny) {
-			delete(groups, group)
-		}
 
 	outer:
 		for _, sudoer := range sudoers {
@@ -931,25 +976,7 @@ func (a *accessChecker) HostUsers(s types.Server) (*HostUsersInfo, error) {
 		sudoers = finalSudoers
 	}
 
-	traits := a.Traits()
-	var gid string
-	gidL := traits[constants.TraitHostUserGID]
-	if len(gidL) >= 1 {
-		gid = gidL[0]
-	}
-	var uid string
-	uidL := traits[constants.TraitHostUserUID]
-	if len(uidL) >= 1 {
-		uid = uidL[0]
-	}
-
-	return &HostUsersInfo{
-		Groups:  utils.StringsSliceFromSet(groups),
-		Sudoers: sudoers,
-		Mode:    mode,
-		UID:     uid,
-		GID:     gid,
-	}, nil
+	return sudoers, nil
 }
 
 // AccessInfoFromLocalCertificate returns a new AccessInfo populated from the
@@ -1037,7 +1064,7 @@ func AccessInfoFromLocalIdentity(identity tlsca.Identity, access UserGetter) (*A
 	// empty traits are a valid use case in standard certs,
 	// so we only check for whether roles are empty.
 	if len(identity.Groups) == 0 {
-		u, err := access.GetUser(identity.Username, false)
+		u, err := access.GetUser(context.TODO(), identity.Username, false)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1106,11 +1133,41 @@ func AccessInfoFromRemoteIdentity(identity tlsca.Identity, roleMap types.RoleMap
 	}, nil
 }
 
+// UserState is a representation of a user's current state.
+type UserState interface {
+	// GetName returns the username associated with the user state.
+	GetName() string
+
+	// GetRoles returns the roles associated with the user's current state.
+	GetRoles() []string
+
+	// GetTraits returns the traits associated with the user's current sate.
+	GetTraits() map[string][]string
+
+	// GetUserType returns the user type for the user login state.
+	GetUserType() types.UserType
+
+	// IsBot returns true if the user belongs to a bot.
+	IsBot() bool
+
+	// BotGenerationLabel returns the bot generation label for the user.
+	BotGenerationLabel() string
+}
+
 // AccessInfoFromUser return a new AccessInfo populated from the roles and
 // traits held be the given user. This should only be used in cases where the
 // user does not have any active access requests (initial web login, initial
 // tbot certs, tests).
+// TODO(mdwn): Remove this once enterprise has been moved away from this function.
 func AccessInfoFromUser(user types.User) *AccessInfo {
+	return AccessInfoFromUserState(user)
+}
+
+// AccessInfoFromUserState return a new AccessInfo populated from the roles and
+// traits held be the given user state. This should only be used in cases where the
+// user does not have any active access requests (initial web login, initial
+// tbot certs, tests).
+func AccessInfoFromUserState(user UserState) *AccessInfo {
 	roles := user.GetRoles()
 	traits := user.GetTraits()
 	return &AccessInfo{

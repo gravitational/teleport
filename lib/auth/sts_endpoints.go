@@ -49,6 +49,7 @@ var (
 		"sts.eu-west-1.amazonaws.com",
 		"sts.eu-west-2.amazonaws.com",
 		"sts.eu-west-3.amazonaws.com",
+		"sts.il-central-1.amazonaws.com",
 		"sts.me-central-1.amazonaws.com",
 		"sts.me-south-1.amazonaws.com",
 		"sts.sa-east-1.amazonaws.com",

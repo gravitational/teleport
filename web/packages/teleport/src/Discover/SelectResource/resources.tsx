@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+import { Platform } from 'design/theme/utils';
+
 import { DiscoverEventResource } from 'teleport/services/userEvent';
 import cfg from 'teleport/config';
 
@@ -24,7 +26,12 @@ import {
   DATABASES_UNGUIDED,
   DATABASES_UNGUIDED_DOC,
 } from './databases';
-import { ResourceSpec, DatabaseLocation, DatabaseEngine } from './types';
+import {
+  ResourceSpec,
+  DatabaseLocation,
+  DatabaseEngine,
+  ServerLocation,
+} from './types';
 import { SAML_APPLICATIONS } from './resourcesE';
 
 const baseServerKeywords = 'server node';
@@ -35,6 +42,7 @@ export const SERVERS: ResourceSpec[] = [
     keywords: baseServerKeywords + 'ubuntu',
     icon: 'Linux',
     event: DiscoverEventResource.Server,
+    platform: Platform.PLATFORM_LINUX,
   },
   {
     name: 'Debian 8+',
@@ -42,6 +50,7 @@ export const SERVERS: ResourceSpec[] = [
     keywords: baseServerKeywords + 'debian',
     icon: 'Linux',
     event: DiscoverEventResource.Server,
+    platform: Platform.PLATFORM_LINUX,
   },
   {
     name: 'RHEL/CentOS 7+',
@@ -49,6 +58,7 @@ export const SERVERS: ResourceSpec[] = [
     keywords: baseServerKeywords + 'rhel centos',
     icon: 'Linux',
     event: DiscoverEventResource.Server,
+    platform: Platform.PLATFORM_LINUX,
   },
   {
     name: 'Amazon Linux 2/2023',
@@ -56,6 +66,7 @@ export const SERVERS: ResourceSpec[] = [
     keywords: baseServerKeywords + 'amazon linux',
     icon: 'Aws',
     event: DiscoverEventResource.Server,
+    platform: Platform.PLATFORM_LINUX,
   },
   {
     name: 'macOS',
@@ -63,6 +74,16 @@ export const SERVERS: ResourceSpec[] = [
     keywords: baseServerKeywords + 'mac macos intel silicone apple',
     icon: 'Apple',
     event: DiscoverEventResource.Server,
+    platform: Platform.PLATFORM_MACINTOSH,
+  },
+  {
+    name: 'EC2 Instance',
+    kind: ResourceKind.Server,
+    keywords:
+      baseServerKeywords + 'ec2 instance connect endpoint aws amazon eice',
+    icon: 'Aws',
+    event: DiscoverEventResource.Ec2Instance,
+    nodeMeta: { location: ServerLocation.Aws },
   },
 ];
 
@@ -84,6 +105,7 @@ export const WINDOWS_DESKTOPS: ResourceSpec[] = [
     keywords: 'windows desktop active directory ad',
     icon: 'Windows',
     event: DiscoverEventResource.WindowsDesktop,
+    platform: Platform.PLATFORM_WINDOWS,
   },
   // {
   //   name: 'Non Active Directory',
@@ -147,6 +169,9 @@ export function getResourcePretitle(r: ResourceSpec) {
     case ResourceKind.Desktop:
       return 'Windows Desktop';
     case ResourceKind.Server:
+      if (r.nodeMeta?.location === ServerLocation.Aws) {
+        return 'Amazon Web Services (AWS)';
+      }
       return 'Server';
   }
 

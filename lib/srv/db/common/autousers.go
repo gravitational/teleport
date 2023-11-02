@@ -25,6 +25,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth"
@@ -50,7 +51,7 @@ type UserProvisioner struct {
 // database has been established to release the cluster lock acquired by this
 // function to make sure no 2 processes run user activation simultaneously.
 func (a *UserProvisioner) Activate(ctx context.Context, sessionCtx *Session) (func(), error) {
-	if !sessionCtx.AutoCreateUser {
+	if !sessionCtx.AutoCreateUserMode.IsEnabled() {
 		return func() {}, nil
 	}
 
@@ -61,12 +62,15 @@ func (a *UserProvisioner) Activate(ctx context.Context, sessionCtx *Session) (fu
 				"administrator")
 	}
 
-	if sessionCtx.Database.GetAdminUser() == "" {
+	if sessionCtx.Database.GetAdminUser().Name == "" {
 		return nil, trace.BadParameter(
 			"your Teleport role requires automatic database user provisioning " +
 				"but this database doesn't have admin user configured, contact " +
 				"your Teleport administrator")
 	}
+
+	// Observe.
+	defer methodCallMetrics("UserProvisioner:Activate", teleport.ComponentDatabase, sessionCtx.Database)()
 
 	retryCtx, cancel := context.WithTimeout(ctx, defaults.DatabaseConnectTimeout)
 	defer cancel()
@@ -95,11 +99,24 @@ func (a *UserProvisioner) Activate(ctx context.Context, sessionCtx *Session) (fu
 	return release, nil
 }
 
-// Deactivate disables a database user.
-func (a *UserProvisioner) Deactivate(ctx context.Context, sessionCtx *Session) error {
-	if !sessionCtx.AutoCreateUser {
-		return nil
+// Teardown chooses and call the auto provisioner method used to cleanup a
+// database user.
+func (a *UserProvisioner) Teardown(ctx context.Context, sessionCtx *Session) error {
+	var err error
+	switch sessionCtx.AutoCreateUserMode {
+	case types.CreateDatabaseUserMode_DB_USER_MODE_KEEP:
+		err = a.deactivate(ctx, sessionCtx)
+	case types.CreateDatabaseUserMode_DB_USER_MODE_BEST_EFFORT_DROP:
+		err = a.delete(ctx, sessionCtx)
 	}
+
+	return trace.Wrap(err)
+}
+
+// deactivate disables a database user.
+func (a *UserProvisioner) deactivate(ctx context.Context, sessionCtx *Session) error {
+	// Observe.
+	defer methodCallMetrics("UserProvisioner:Deactivate", teleport.ComponentDatabase, sessionCtx.Database)()
 
 	retryCtx, cancel := context.WithTimeout(ctx, defaults.DatabaseConnectTimeout)
 	defer cancel()
@@ -117,6 +134,34 @@ func (a *UserProvisioner) Deactivate(ctx context.Context, sessionCtx *Session) e
 	}()
 
 	err = a.Backend.DeactivateUser(ctx, sessionCtx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+// delete deletes a database user.
+func (a *UserProvisioner) delete(ctx context.Context, sessionCtx *Session) error {
+	// Observe.
+	defer methodCallMetrics("UserProvisioner:Delete", teleport.ComponentDatabase, sessionCtx.Database)()
+
+	retryCtx, cancel := context.WithTimeout(ctx, defaults.DatabaseConnectTimeout)
+	defer cancel()
+
+	lease, err := services.AcquireSemaphoreWithRetry(retryCtx, a.makeAcquireSemaphoreConfig(sessionCtx))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	defer func() {
+		err := a.AuthClient.CancelSemaphoreLease(ctx, *lease)
+		if err != nil {
+			a.Log.WithError(err).Errorf("Failed to cancel lease: %v.", lease)
+		}
+	}()
+
+	err = a.Backend.DeleteUser(ctx, sessionCtx)
 	if err != nil {
 		return trace.Wrap(err)
 	}

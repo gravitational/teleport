@@ -649,8 +649,10 @@ func emitStream(ctx context.Context, t *testing.T, streamer events.Streamer, inE
 
 // readStream reads and decodes the audit stream from uploadID
 func readStream(ctx context.Context, t *testing.T, uploadID string, uploader *eventstest.MemoryUploader) []apievents.AuditEvent {
+	t.Helper()
+
 	parts, err := uploader.GetParts(uploadID)
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	var outEvents []apievents.AuditEvent
 	var reader *events.ProtoReader
@@ -659,10 +661,11 @@ func readStream(ctx context.Context, t *testing.T, uploadID string, uploader *ev
 			reader = events.NewProtoReader(bytes.NewReader(part))
 		} else {
 			err := reader.Reset(bytes.NewReader(part))
-			require.Nil(t, err)
+			require.NoError(t, err)
 		}
 		out, err := reader.ReadAll(ctx)
-		require.Nil(t, err, "part crash %#v", part)
+		require.NoError(t, err, "part crash %#v", part)
+
 		outEvents = append(outEvents, out...)
 	}
 	return outEvents

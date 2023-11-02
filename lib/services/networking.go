@@ -48,6 +48,9 @@ func UnmarshalClusterNetworkingConfig(bytes []byte, opts ...MarshalOption) (type
 	if cfg.ID != 0 {
 		netConfig.SetResourceID(cfg.ID)
 	}
+	if cfg.Revision != "" {
+		netConfig.SetRevision(cfg.Revision)
+	}
 	if !cfg.Expires.IsZero() {
 		netConfig.SetExpiry(cfg.Expires)
 	}
@@ -72,6 +75,7 @@ func MarshalClusterNetworkingConfig(netConfig types.ClusterNetworkingConfig, opt
 			// to prevent unexpected data races
 			copy := *netConfig
 			copy.SetResourceID(0)
+			copy.SetRevision("")
 			netConfig = &copy
 		}
 		return utils.FastMarshal(netConfig)

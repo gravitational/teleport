@@ -35,6 +35,9 @@ import (
 	pluginsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	"github.com/gravitational/teleport/lib/ai"
 	"github.com/gravitational/teleport/lib/ai/model"
+	"github.com/gravitational/teleport/lib/ai/model/output"
+	"github.com/gravitational/teleport/lib/ai/model/tools"
+	"github.com/gravitational/teleport/lib/ai/tokens"
 )
 
 // MessageType is a type of the Assist message.
@@ -45,6 +48,12 @@ const (
 	MessageKindCommand MessageType = "COMMAND"
 	// MessageKindCommandResult is the type of Assist message that contains the command execution result.
 	MessageKindCommandResult MessageType = "COMMAND_RESULT"
+	// MessageKindAccessRequest is the type of Assist message that contains the access request.
+	// Sent by the backend when it wants the frontend to display a prompt to the user.
+	MessageKindAccessRequest MessageType = "ACCESS_REQUEST"
+	// MessageKindAccessRequestCreated is a marker message to indicate that an access request was created.
+	// Sent by the frontend to the backend to indicate that it was created to future loads of the conversation.
+	MessageKindAccessRequestCreated MessageType = "ACCESS_REQUEST_CREATED"
 	// MessageKindCommandResultSummary is the type of message that is optionally
 	// emitted after a command and contains a summary of the command output.
 	// This message is both sent after the command execution to the web UI,
@@ -120,20 +129,17 @@ type Chat struct {
 }
 
 // NewChat creates a new Assist chat.
-func (a *Assist) NewChat(ctx context.Context, assistService MessageService,
-	conversationID, username string, toolsConfig model.ToolsConfig,
+func (a *Assist) NewChat(ctx context.Context, assistService MessageService, toolContext *tools.ToolContext,
+	conversationID string,
 ) (*Chat, error) {
-	aichat, err := a.client.NewChat(username, toolsConfig)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	aichat := a.client.NewChat(toolContext)
 
 	chat := &Chat{
 		assist:                  a,
-		chat:                    aichat,
 		assistService:           assistService,
+		chat:                    aichat,
 		ConversationID:          conversationID,
-		Username:                username,
+		Username:                toolContext.User,
 		potentiallyStaleHistory: false,
 	}
 
@@ -154,11 +160,7 @@ type LightweightChat struct {
 // NewLightweightChat creates a new Assist chat what doesn't store the history
 // of the conversation.
 func (a *Assist) NewLightweightChat(username string) (*LightweightChat, error) {
-	aichat, err := a.client.NewCommand(username) // TODO(jakule): fix this after all in-flight PRs are merged
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
+	aichat := a.client.NewCommand(username)
 	return &LightweightChat{
 		assist: a,
 		chat:   aichat,
@@ -166,7 +168,7 @@ func (a *Assist) NewLightweightChat(username string) (*LightweightChat, error) {
 }
 
 func (a *Assist) NewSSHCommand(username string) (*ai.Chat, error) {
-	return a.client.NewCommand(username)
+	return a.client.NewCommand(username), nil
 }
 
 // GenerateSummary generates a summary for the given message.
@@ -174,10 +176,49 @@ func (a *Assist) GenerateSummary(ctx context.Context, message string) (string, e
 	return a.client.Summary(ctx, message)
 }
 
+// RunTool runs a model tool without an ai.Chat.
+func (a *Assist) RunTool(ctx context.Context, onMessage onMessageFunc, toolName, userInput string, toolContext *tools.ToolContext,
+) (*tokens.TokenCount, error) {
+	message, tc, err := a.client.RunTool(ctx, toolContext, toolName, userInput)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	switch message := message.(type) {
+	case *output.Message:
+		if err := onMessage(MessageKindAssistantMessage, []byte(message.Content), a.clock.Now().UTC()); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	case *output.GeneratedCommand:
+		if err := onMessage(MessageKindCommand, []byte(message.Command), a.clock.Now().UTC()); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	case *output.StreamingMessage:
+		if err := func() error {
+			var text strings.Builder
+			defer onMessage(MessageKindAssistantPartialFinalize, nil, a.clock.Now().UTC())
+			for part := range message.Parts {
+				text.WriteString(part)
+
+				if err := onMessage(MessageKindAssistantPartialMessage, []byte(part), a.clock.Now().UTC()); err != nil {
+					return trace.Wrap(err)
+				}
+			}
+			return nil
+		}(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	default:
+		return nil, trace.Errorf("Unexpected message type: %T", message)
+	}
+
+	return tc, nil
+}
+
 // GenerateCommandSummary summarizes the output of a command executed on one or
 // many nodes. The conversation history is also sent into the prompt in order
 // to gather context and know what information is relevant in the command output.
-func (a *Assist) GenerateCommandSummary(ctx context.Context, messages []*assist.AssistantMessage, output map[string][]byte) (string, *model.TokenCount, error) {
+func (a *Assist) GenerateCommandSummary(ctx context.Context, messages []*assist.AssistantMessage, output map[string][]byte) (string, *tokens.TokenCount, error) {
 	// Create system prompt
 	modelMessages := []openai.ChatCompletionMessage{
 		{Role: openai.ChatMessageRoleSystem, Content: model.PromptSummarizeCommand},
@@ -293,9 +334,33 @@ func getAssistantClient(ctx context.Context, proxyClient PluginGetter,
 // onMessageFunc is a function that is called when a message is received.
 type onMessageFunc func(kind MessageType, payload []byte, createdTime time.Time) error
 
+// RecordMessage is used to record out-of-band messages such as hidden acknowledgements.
+func (c *Chat) RecordMesssage(ctx context.Context, kind MessageType, payload string) error {
+	switch kind {
+	case MessageKindAccessRequestCreated:
+		protoMsg := &assist.CreateAssistantMessageRequest{
+			ConversationId: c.ConversationID,
+			Username:       c.Username,
+			Message: &assist.AssistantMessage{
+				Type:        string(MessageKindAssistantMessage),
+				Payload:     payload,
+				CreatedTime: timestamppb.New(c.assist.clock.Now().UTC()),
+			},
+		}
+
+		if err := c.assistService.CreateAssistantMessage(ctx, protoMsg); err != nil {
+			return trace.Wrap(err)
+		}
+	default:
+		return trace.BadParameter("unsupported marker message kind: %v", kind)
+	}
+
+	return nil
+}
+
 // ProcessComplete processes the completion request and returns the number of tokens used.
 func (c *Chat) ProcessComplete(ctx context.Context, onMessage onMessageFunc, userInput string,
-) (*model.TokenCount, error) {
+) (*tokens.TokenCount, error) {
 	progressUpdates := func(update *model.AgentAction) {
 		payload, err := json.Marshal(update)
 		if err != nil {
@@ -342,7 +407,7 @@ func (c *Chat) ProcessComplete(ctx context.Context, onMessage onMessageFunc, use
 	}
 
 	switch message := message.(type) {
-	case *model.Message:
+	case *output.Message:
 		c.chat.Insert(openai.ChatMessageRoleAssistant, message.Content)
 
 		// write an assistant message to persistent storage
@@ -363,7 +428,7 @@ func (c *Chat) ProcessComplete(ctx context.Context, onMessage onMessageFunc, use
 		if err := onMessage(MessageKindAssistantMessage, []byte(message.Content), c.assist.clock.Now().UTC()); err != nil {
 			return nil, trace.Wrap(err)
 		}
-	case *model.StreamingMessage:
+	case *output.StreamingMessage:
 		var text strings.Builder
 		defer onMessage(MessageKindAssistantPartialFinalize, nil, c.assist.clock.Now().UTC())
 		for part := range message.Parts {
@@ -390,14 +455,8 @@ func (c *Chat) ProcessComplete(ctx context.Context, onMessage onMessageFunc, use
 		if err := c.assistService.CreateAssistantMessage(ctx, protoMsg); err != nil {
 			return nil, trace.Wrap(err)
 		}
-	case *model.CompletionCommand:
-		payload := commandPayload{
-			Command: message.Command,
-			Nodes:   message.Nodes,
-			Labels:  message.Labels,
-		}
-
-		payloadJson, err := json.Marshal(payload)
+	case *output.CompletionCommand:
+		payloadJson, err := json.Marshal(message)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -424,6 +483,29 @@ func (c *Chat) ProcessComplete(ctx context.Context, onMessage onMessageFunc, use
 		// To take this command summary into account, we note the history might
 		// be stale.
 		c.potentiallyStaleHistory = true
+	case *output.AccessRequest:
+		payloadJson, err := json.Marshal(message)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		msg := &assist.CreateAssistantMessageRequest{
+			ConversationId: c.ConversationID,
+			Username:       c.Username,
+			Message: &assist.AssistantMessage{
+				Type:        string(MessageKindAccessRequest),
+				Payload:     string(payloadJson),
+				CreatedTime: timestamppb.New(c.assist.clock.Now().UTC()),
+			},
+		}
+
+		if err := c.assistService.CreateAssistantMessage(ctx, msg); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		if err := onMessage(MessageKindAccessRequest, payloadJson, c.assist.clock.Now().UTC()); nil != err {
+			return nil, trace.Wrap(err)
+		}
 	default:
 		return nil, trace.Errorf("unknown message type: %T", message)
 	}
@@ -433,7 +515,7 @@ func (c *Chat) ProcessComplete(ctx context.Context, onMessage onMessageFunc, use
 
 // ProcessComplete processes a user message and returns the assistant's response.
 func (c *LightweightChat) ProcessComplete(ctx context.Context, onMessage onMessageFunc, userInput string,
-) (*model.TokenCount, error) {
+) (*tokens.TokenCount, error) {
 	progressUpdates := func(update *model.AgentAction) {
 		payload, err := json.Marshal(update)
 		if err != nil {
@@ -455,17 +537,17 @@ func (c *LightweightChat) ProcessComplete(ctx context.Context, onMessage onMessa
 	c.chat.Insert(openai.ChatMessageRoleUser, userInput)
 
 	switch message := message.(type) {
-	case *model.Message:
+	case *output.Message:
 		c.chat.Insert(openai.ChatMessageRoleAssistant, message.Content)
 		if err := onMessage(MessageKindAssistantMessage, []byte(message.Content), c.assist.clock.Now().UTC()); err != nil {
 			return nil, trace.Wrap(err)
 		}
-	case *model.GeneratedCommand:
+	case *output.GeneratedCommand:
 		c.chat.Insert(openai.ChatMessageRoleAssistant, message.Command)
 		if err := onMessage(MessageKindCommand, []byte(message.Command), c.assist.clock.Now().UTC()); err != nil {
 			return nil, trace.Wrap(err)
 		}
-	case *model.StreamingMessage:
+	case *output.StreamingMessage:
 		if err := func() error {
 			var text strings.Builder
 			defer onMessage(MessageKindAssistantPartialFinalize, nil, c.assist.clock.Now().UTC())

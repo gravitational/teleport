@@ -118,7 +118,7 @@ func (c *Cluster) UpdateHeadlessAuthenticationState(ctx context.Context, headles
 				return trace.Wrap(err)
 			}
 
-			mfaResponse, err = c.clusterClient.PromptMFAChallenge(ctx, c.clusterClient.WebProxyAddr, chall, nil)
+			mfaResponse, err = c.clusterClient.PromptMFA(ctx, chall)
 			if err != nil {
 				return trace.Wrap(err)
 			}

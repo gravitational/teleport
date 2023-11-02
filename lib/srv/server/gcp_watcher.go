@@ -113,7 +113,7 @@ func newGCPInstanceFetcher(cfg gcpFetcherConfig) *gcpInstanceFetcher {
 		Zones:           cfg.Matcher.Locations,
 		ProjectIDs:      cfg.Matcher.ProjectIDs,
 		ServiceAccounts: cfg.Matcher.ServiceAccounts,
-		Labels:          cfg.Matcher.Tags,
+		Labels:          cfg.Matcher.GetLabels(),
 	}
 	if cfg.Matcher.Params != nil {
 		fetcher.Parameters = map[string]string{

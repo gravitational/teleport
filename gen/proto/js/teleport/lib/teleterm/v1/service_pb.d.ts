@@ -1493,6 +1493,293 @@ export namespace DeleteConnectMyComputerTokenResponse {
     }
 }
 
+export class WaitForConnectMyComputerNodeJoinRequest extends jspb.Message { 
+    getRootClusterUri(): string;
+    setRootClusterUri(value: string): WaitForConnectMyComputerNodeJoinRequest;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): WaitForConnectMyComputerNodeJoinRequest.AsObject;
+    static toObject(includeInstance: boolean, msg: WaitForConnectMyComputerNodeJoinRequest): WaitForConnectMyComputerNodeJoinRequest.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: WaitForConnectMyComputerNodeJoinRequest, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): WaitForConnectMyComputerNodeJoinRequest;
+    static deserializeBinaryFromReader(message: WaitForConnectMyComputerNodeJoinRequest, reader: jspb.BinaryReader): WaitForConnectMyComputerNodeJoinRequest;
+}
+
+export namespace WaitForConnectMyComputerNodeJoinRequest {
+    export type AsObject = {
+        rootClusterUri: string,
+    }
+}
+
+export class WaitForConnectMyComputerNodeJoinResponse extends jspb.Message { 
+
+    hasServer(): boolean;
+    clearServer(): void;
+    getServer(): teleport_lib_teleterm_v1_server_pb.Server | undefined;
+    setServer(value?: teleport_lib_teleterm_v1_server_pb.Server): WaitForConnectMyComputerNodeJoinResponse;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): WaitForConnectMyComputerNodeJoinResponse.AsObject;
+    static toObject(includeInstance: boolean, msg: WaitForConnectMyComputerNodeJoinResponse): WaitForConnectMyComputerNodeJoinResponse.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: WaitForConnectMyComputerNodeJoinResponse, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): WaitForConnectMyComputerNodeJoinResponse;
+    static deserializeBinaryFromReader(message: WaitForConnectMyComputerNodeJoinResponse, reader: jspb.BinaryReader): WaitForConnectMyComputerNodeJoinResponse;
+}
+
+export namespace WaitForConnectMyComputerNodeJoinResponse {
+    export type AsObject = {
+        server?: teleport_lib_teleterm_v1_server_pb.Server.AsObject,
+    }
+}
+
+export class DeleteConnectMyComputerNodeRequest extends jspb.Message { 
+    getRootClusterUri(): string;
+    setRootClusterUri(value: string): DeleteConnectMyComputerNodeRequest;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): DeleteConnectMyComputerNodeRequest.AsObject;
+    static toObject(includeInstance: boolean, msg: DeleteConnectMyComputerNodeRequest): DeleteConnectMyComputerNodeRequest.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: DeleteConnectMyComputerNodeRequest, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): DeleteConnectMyComputerNodeRequest;
+    static deserializeBinaryFromReader(message: DeleteConnectMyComputerNodeRequest, reader: jspb.BinaryReader): DeleteConnectMyComputerNodeRequest;
+}
+
+export namespace DeleteConnectMyComputerNodeRequest {
+    export type AsObject = {
+        rootClusterUri: string,
+    }
+}
+
+export class DeleteConnectMyComputerNodeResponse extends jspb.Message { 
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): DeleteConnectMyComputerNodeResponse.AsObject;
+    static toObject(includeInstance: boolean, msg: DeleteConnectMyComputerNodeResponse): DeleteConnectMyComputerNodeResponse.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: DeleteConnectMyComputerNodeResponse, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): DeleteConnectMyComputerNodeResponse;
+    static deserializeBinaryFromReader(message: DeleteConnectMyComputerNodeResponse, reader: jspb.BinaryReader): DeleteConnectMyComputerNodeResponse;
+}
+
+export namespace DeleteConnectMyComputerNodeResponse {
+    export type AsObject = {
+    }
+}
+
+export class GetConnectMyComputerNodeNameRequest extends jspb.Message { 
+    getRootClusterUri(): string;
+    setRootClusterUri(value: string): GetConnectMyComputerNodeNameRequest;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): GetConnectMyComputerNodeNameRequest.AsObject;
+    static toObject(includeInstance: boolean, msg: GetConnectMyComputerNodeNameRequest): GetConnectMyComputerNodeNameRequest.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: GetConnectMyComputerNodeNameRequest, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): GetConnectMyComputerNodeNameRequest;
+    static deserializeBinaryFromReader(message: GetConnectMyComputerNodeNameRequest, reader: jspb.BinaryReader): GetConnectMyComputerNodeNameRequest;
+}
+
+export namespace GetConnectMyComputerNodeNameRequest {
+    export type AsObject = {
+        rootClusterUri: string,
+    }
+}
+
+export class GetConnectMyComputerNodeNameResponse extends jspb.Message { 
+    getName(): string;
+    setName(value: string): GetConnectMyComputerNodeNameResponse;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): GetConnectMyComputerNodeNameResponse.AsObject;
+    static toObject(includeInstance: boolean, msg: GetConnectMyComputerNodeNameResponse): GetConnectMyComputerNodeNameResponse.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: GetConnectMyComputerNodeNameResponse, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): GetConnectMyComputerNodeNameResponse;
+    static deserializeBinaryFromReader(message: GetConnectMyComputerNodeNameResponse, reader: jspb.BinaryReader): GetConnectMyComputerNodeNameResponse;
+}
+
+export namespace GetConnectMyComputerNodeNameResponse {
+    export type AsObject = {
+        name: string,
+    }
+}
+
+export class ListUnifiedResourcesRequest extends jspb.Message { 
+    getClusterUri(): string;
+    setClusterUri(value: string): ListUnifiedResourcesRequest;
+
+    clearKindsList(): void;
+    getKindsList(): Array<string>;
+    setKindsList(value: Array<string>): ListUnifiedResourcesRequest;
+    addKinds(value: string, index?: number): string;
+
+    getLimit(): number;
+    setLimit(value: number): ListUnifiedResourcesRequest;
+
+    getStartKey(): string;
+    setStartKey(value: string): ListUnifiedResourcesRequest;
+
+    getQuery(): string;
+    setQuery(value: string): ListUnifiedResourcesRequest;
+
+    getSearch(): string;
+    setSearch(value: string): ListUnifiedResourcesRequest;
+
+
+    hasSortBy(): boolean;
+    clearSortBy(): void;
+    getSortBy(): SortBy | undefined;
+    setSortBy(value?: SortBy): ListUnifiedResourcesRequest;
+
+    getSearchAsRoles(): boolean;
+    setSearchAsRoles(value: boolean): ListUnifiedResourcesRequest;
+
+    getPinnedOnly(): boolean;
+    setPinnedOnly(value: boolean): ListUnifiedResourcesRequest;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): ListUnifiedResourcesRequest.AsObject;
+    static toObject(includeInstance: boolean, msg: ListUnifiedResourcesRequest): ListUnifiedResourcesRequest.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: ListUnifiedResourcesRequest, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): ListUnifiedResourcesRequest;
+    static deserializeBinaryFromReader(message: ListUnifiedResourcesRequest, reader: jspb.BinaryReader): ListUnifiedResourcesRequest;
+}
+
+export namespace ListUnifiedResourcesRequest {
+    export type AsObject = {
+        clusterUri: string,
+        kindsList: Array<string>,
+        limit: number,
+        startKey: string,
+        query: string,
+        search: string,
+        sortBy?: SortBy.AsObject,
+        searchAsRoles: boolean,
+        pinnedOnly: boolean,
+    }
+}
+
+export class SortBy extends jspb.Message { 
+    getIsDesc(): boolean;
+    setIsDesc(value: boolean): SortBy;
+
+    getField(): string;
+    setField(value: string): SortBy;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): SortBy.AsObject;
+    static toObject(includeInstance: boolean, msg: SortBy): SortBy.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: SortBy, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): SortBy;
+    static deserializeBinaryFromReader(message: SortBy, reader: jspb.BinaryReader): SortBy;
+}
+
+export namespace SortBy {
+    export type AsObject = {
+        isDesc: boolean,
+        field: string,
+    }
+}
+
+export class ListUnifiedResourcesResponse extends jspb.Message { 
+    clearResourcesList(): void;
+    getResourcesList(): Array<PaginatedResource>;
+    setResourcesList(value: Array<PaginatedResource>): ListUnifiedResourcesResponse;
+    addResources(value?: PaginatedResource, index?: number): PaginatedResource;
+
+    getNextKey(): string;
+    setNextKey(value: string): ListUnifiedResourcesResponse;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): ListUnifiedResourcesResponse.AsObject;
+    static toObject(includeInstance: boolean, msg: ListUnifiedResourcesResponse): ListUnifiedResourcesResponse.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: ListUnifiedResourcesResponse, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): ListUnifiedResourcesResponse;
+    static deserializeBinaryFromReader(message: ListUnifiedResourcesResponse, reader: jspb.BinaryReader): ListUnifiedResourcesResponse;
+}
+
+export namespace ListUnifiedResourcesResponse {
+    export type AsObject = {
+        resourcesList: Array<PaginatedResource.AsObject>,
+        nextKey: string,
+    }
+}
+
+export class PaginatedResource extends jspb.Message { 
+
+    hasDatabase(): boolean;
+    clearDatabase(): void;
+    getDatabase(): teleport_lib_teleterm_v1_database_pb.Database | undefined;
+    setDatabase(value?: teleport_lib_teleterm_v1_database_pb.Database): PaginatedResource;
+
+
+    hasServer(): boolean;
+    clearServer(): void;
+    getServer(): teleport_lib_teleterm_v1_server_pb.Server | undefined;
+    setServer(value?: teleport_lib_teleterm_v1_server_pb.Server): PaginatedResource;
+
+
+    hasKube(): boolean;
+    clearKube(): void;
+    getKube(): teleport_lib_teleterm_v1_kube_pb.Kube | undefined;
+    setKube(value?: teleport_lib_teleterm_v1_kube_pb.Kube): PaginatedResource;
+
+
+    getResourceCase(): PaginatedResource.ResourceCase;
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): PaginatedResource.AsObject;
+    static toObject(includeInstance: boolean, msg: PaginatedResource): PaginatedResource.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: PaginatedResource, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): PaginatedResource;
+    static deserializeBinaryFromReader(message: PaginatedResource, reader: jspb.BinaryReader): PaginatedResource;
+}
+
+export namespace PaginatedResource {
+    export type AsObject = {
+        database?: teleport_lib_teleterm_v1_database_pb.Database.AsObject,
+        server?: teleport_lib_teleterm_v1_server_pb.Server.AsObject,
+        kube?: teleport_lib_teleterm_v1_kube_pb.Kube.AsObject,
+    }
+
+    export enum ResourceCase {
+        RESOURCE_NOT_SET = 0,
+    
+    DATABASE = 1,
+
+    SERVER = 2,
+
+    KUBE = 3,
+
+    }
+
+}
+
 export enum PasswordlessPrompt {
     PASSWORDLESS_PROMPT_UNSPECIFIED = 0,
     PASSWORDLESS_PROMPT_PIN = 1,

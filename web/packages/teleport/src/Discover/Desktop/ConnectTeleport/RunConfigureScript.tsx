@@ -43,7 +43,7 @@ interface RunConfigureScriptProps {
 export function RunConfigureScript(
   props: React.PropsWithChildren<RunConfigureScriptProps>
 ) {
-  const { joinToken } = useJoinTokenSuspender(ResourceKind.Desktop);
+  const { joinToken } = useJoinTokenSuspender([ResourceKind.Desktop]);
 
   const command = generateCommand(cfg.getConfigureADUrl(joinToken.id));
 

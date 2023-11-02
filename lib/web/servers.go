@@ -339,12 +339,12 @@ type desktopIsActive struct {
 
 // createNodeRequest contains the required information to create a Node.
 type createNodeRequest struct {
-	Name     string         `json:"name,omitempty"`
-	SubKind  string         `json:"subKind,omitempty"`
-	Hostname string         `json:"hostname,omitempty"`
-	Addr     string         `json:"addr,omitempty"`
-	Labels   []ui.Label     `json:"labels,omitempty"`
-	AWSInfo  *types.AWSInfo `json:"aws,omitempty"`
+	Name     string          `json:"name,omitempty"`
+	SubKind  string          `json:"subKind,omitempty"`
+	Hostname string          `json:"hostname,omitempty"`
+	Addr     string          `json:"addr,omitempty"`
+	Labels   []ui.Label      `json:"labels,omitempty"`
+	AWSInfo  *ui.AWSMetadata `json:"aws,omitempty"`
 }
 
 func (r *createNodeRequest) checkAndSetDefaults() error {
@@ -402,7 +402,14 @@ func (h *Handler) handleNodeCreate(w http.ResponseWriter, r *http.Request, p htt
 			Hostname: req.Hostname,
 			Addr:     req.Addr,
 			CloudMetadata: &types.CloudMetadata{
-				AWS: req.AWSInfo,
+				AWS: &types.AWSInfo{
+					AccountID:   req.AWSInfo.AccountID,
+					InstanceID:  req.AWSInfo.InstanceID,
+					Region:      req.AWSInfo.Region,
+					VPCID:       req.AWSInfo.VPCID,
+					Integration: req.AWSInfo.Integration,
+					SubnetID:    req.AWSInfo.SubnetID,
+				},
 			},
 		},
 		labels,
@@ -415,5 +422,15 @@ func (h *Handler) handleNodeCreate(w http.ResponseWriter, r *http.Request, p htt
 		return nil, trace.Wrap(err)
 	}
 
-	return server, nil
+	accessChecker, err := sctx.GetUserAccessChecker()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	uiServer, err := ui.MakeServer(site.GetName(), server, accessChecker)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return uiServer, nil
 }

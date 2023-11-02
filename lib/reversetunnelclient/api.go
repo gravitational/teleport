@@ -44,6 +44,10 @@ type DialParams struct {
 	// forwarding proxy.
 	GetUserAgent teleagent.Getter
 
+	// IsAgentlessNode indicates whether the Node is an OpenSSH Node.
+	// This includes Nodes whose sub kind is OpenSSH and OpenSSHEICE.
+	IsAgentlessNode bool
+
 	// AgentlessSigner is used for authenticating to the remote host when it is an
 	// agentless node.
 	AgentlessSigner ssh.Signer
@@ -154,6 +158,10 @@ type Server interface {
 	Wait(ctx context.Context)
 	// GetProxyPeerClient returns the proxy peer client
 	GetProxyPeerClient() *peer.Client
+	// TrackUserConnection tracks a user connection that should prevent
+	// the server from being terminated if active. The returned function
+	// should be called when the connection is terminated.
+	TrackUserConnection() (release func())
 }
 
 const (

@@ -1,5 +1,7 @@
+ARG BASE_IMAGE=gcr.io/distroless/cc-debian12
+
 # BUILDPLATFORM is provided by Docker/buildx
-FROM --platform=$BUILDPLATFORM docker.io/debian:11 as builder
+FROM --platform=$BUILDPLATFORM docker.io/debian:12 as builder
 ARG BUILDARCH
 
 ## Install dependencies.
@@ -7,11 +9,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     ca-certificates \
     unzip \
+    # x86_64 dependencies and build tools
     build-essential \
-    gcc-arm-linux-gnueabi \
-    binutils-arm-linux-gnueabi \
+    # ARM dependencies
+    libc6-dev-armhf-cross \
+    gcc-arm-linux-gnueabihf \
+    # ARM64 dependencies
+    libc6-dev-arm64-cross \
     gcc-aarch64-linux-gnu \
-    binutils-aarch64-linux-gnu
+    # i386 dependencies
+    libc6-dev-i386-cross \
+    gcc-i686-linux-gnu
 
 # Install Go.
 ARG GOLANG_VERSION
@@ -23,8 +31,8 @@ ENV GOPATH="/go" \
     PATH="$PATH:/opt/go/bin:/go/bin"
 
 # Install protoc.
-ARG PROTOC_VER # eg, "3.20.2"
-RUN VERSION="$PROTOC_VER" && \
+ARG PROTOC_VERSION # eg, "3.20.2"
+RUN VERSION="$PROTOC_VERSION" && \
   PB_REL='https://github.com/protocolbuffers/protobuf/releases' && \
   PB_FILE="$(mktemp protoc-XXXXXX.zip)" && \
   curl -fsSL -o "$PB_FILE" "$PB_REL/download/v$VERSION/protoc-$VERSION-linux-$(if [ "$BUILDARCH" = "amd64" ]; then echo "x86_64"; else echo "aarch_64"; fi).zip"  && \
@@ -71,7 +79,7 @@ RUN echo "Targeting $TARGETOS/$TARGETARCH with CC=$COMPILER_NAME" && \
 
 # Create the image with the build operator on the $TARGETPLATFORM
 # TARGETPLATFORM is provided by Docker/buildx
-FROM --platform=$TARGETPLATFORM gcr.io/distroless/cc
+FROM --platform=$TARGETPLATFORM $BASE_IMAGE
 WORKDIR /
 COPY --from=builder /go/bin/teleport-operator .
 

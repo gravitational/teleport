@@ -25,7 +25,7 @@ import {
   useJoinTokenSuspender,
 } from 'teleport/Discover/Shared/useJoinTokenSuspender';
 import { usePingTeleport } from 'teleport/Discover/Shared/PingTeleportContext';
-import { AgentLabel } from 'teleport/services/agents';
+import { ResourceLabel } from 'teleport/services/agents';
 import cfg from 'teleport/config';
 import { Database } from 'teleport/services/databases';
 
@@ -82,7 +82,7 @@ export default function Container({ toggleDeployMethod }: DeployServiceProp) {
     <Validation>
       {({ validator }) => (
         <CatchError
-          onRetry={() => clearCachedJoinTokenResult(ResourceKind.Database)}
+          onRetry={() => clearCachedJoinTokenResult([ResourceKind.Database])}
           fallbackFn={fbProps => (
             <Box>
               {heading}
@@ -133,9 +133,9 @@ export default function Container({ toggleDeployMethod }: DeployServiceProp) {
 }
 
 export function ManualDeploy(props: {
-  labels: AgentLabel[];
-  setLabels(l: AgentLabel[]): void;
-  dbLabels: AgentLabel[];
+  labels: ResourceLabel[];
+  setLabels(l: ResourceLabel[]): void;
+  dbLabels: ResourceLabel[];
   validator: Validator;
   toggleDeployMethod(): void;
 }) {
@@ -143,7 +143,7 @@ export function ManualDeploy(props: {
 
   // Fetches join token.
   const { joinToken } = useJoinTokenSuspender(
-    ResourceKind.Database,
+    [ResourceKind.Database],
     props.labels
   );
 

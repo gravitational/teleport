@@ -20,7 +20,7 @@ import { fireEvent, render, screen } from 'design/utils/testing';
 import { UploadForm } from './UploadForm';
 
 function getUploadDestinationInput(): HTMLElement {
-  return screen.getByLabelText('Upload destination');
+  return screen.getByLabelText('Upload Destination');
 }
 
 function getFileInput(): HTMLElement {

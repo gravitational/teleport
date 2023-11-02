@@ -39,12 +39,12 @@ import (
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils/prompt"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/prompt"
 )
 
 // Format describes possible file formats how a user identity can be stored.
@@ -58,7 +58,7 @@ const (
 	// two different files (in the same directory)
 	FormatOpenSSH Format = "openssh"
 
-	// FormatTLS is a standard TLS format used by common TLS clients (e.g. GRPC) where
+	// FormatTLS is a standard TLS format used by common TLS clients (e.g. gRPC) where
 	// certificate and key are stored in separate files.
 	FormatTLS Format = "tls"
 
@@ -483,7 +483,7 @@ func writeOracleFormat(cfg WriteConfig, writer ConfigWriter) ([]string, error) {
 		}
 	}
 
-	pf, err := pkcs12.Encode(rand.Reader, keyK, certBlock, caCerts, cfg.Password)
+	pf, err := pkcs12.LegacyRC2.WithRand(rand.Reader).Encode(keyK, certBlock, caCerts, cfg.Password)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -768,7 +768,7 @@ func NewClientStoreFromIdentityFile(identityFile, proxyAddr, clusterName string)
 		WebProxyAddr:     proxyAddr,
 		SiteName:         key.ClusterName,
 		Username:         key.Username,
-		PrivateKeyPolicy: keys.GetPrivateKeyPolicy(key.PrivateKey),
+		PrivateKeyPolicy: key.PrivateKey.GetPrivateKeyPolicy(),
 	}
 	if err := clientStore.SaveProfile(profile, true); err != nil {
 		return nil, trace.Wrap(err)

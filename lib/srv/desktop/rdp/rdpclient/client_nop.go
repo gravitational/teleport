@@ -44,6 +44,10 @@ func (c *Client) Run(ctx context.Context) error {
 	return errors.New("the real rdpclient.Client implementation was not included in this build")
 }
 
+func (c *Client) GetClientUsername() string {
+	return ""
+}
+
 // GetClientLastActive returns the time of the last recorded activity.
 func (c *Client) GetClientLastActive() time.Time {
 	return time.Now().UTC()

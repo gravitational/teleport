@@ -7,7 +7,7 @@ description: Comprehensive reference of subcommands, flags, and arguments for th
 in a cluster, including nodes, users, tokens, certificates, and devices.
 
 `tctl` can also be used to modify the dynamic configuration of the cluster, such as
-creating new user roles or connecting Trusted Clusters.
+creating new user roles or connecting to trusted clusters.
 
 ## Authentication
 
@@ -1058,7 +1058,8 @@ These flags are available for all commands `--debug, --config` . Run
 
 ### Examples
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
 ```code
 $ tctl get users
@@ -1072,8 +1073,8 @@ $ tctl get clusters,users
 $ tctl get all > state.yaml
 ```
 
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
 ```code
 $ tctl get users
@@ -1085,7 +1086,9 @@ $ tctl get cluster/east
 $ tctl get clusters,users
 ```
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 ## tctl edit
 
@@ -1363,6 +1366,46 @@ $ tctl devices rm --asset-tag=(=devicetrust.asset_tag=)
 Device "(=devicetrust.asset_tag=)" removed
 ```
 
+### tctl acl ls
+
+Lists Access Lists on the cluster.
+
+```code
+$ tctl acl ls
+```
+
+### tctl acl get
+
+Gets and displays information about a particular access list.
+
+```code
+$ tctl acl get <id>
+```
+
+### tctl acl users add
+
+Adds a user to an access list.
+
+```code
+$ tctl acl users add <access-list-name> <user> [<expires>] [<reason>]
+```
+
+### tctl acl users rm
+
+Removes a user from an access list.
+
+```code
+$ tctl acl users rm <access-list-name> <user>
+```
+
+### tctl acl users ls
+
+Lists the users in an access list.
+
+```code
+$ tctl acl users ls <access-list-name>
+```
+
 ## tctl top
 
 Reports diagnostic information.
@@ -1393,4 +1436,5 @@ Print the version of your `tctl` binary:
 ```code
 tctl version
 ```
+
 

@@ -24,6 +24,7 @@ import {
   CtaEvent,
   CaptureEvent,
   IntegrationEnrollEventRequest,
+  FeatureRecommendationEvent,
 } from './types';
 
 export const userEventService = {
@@ -70,6 +71,18 @@ export const userEventService = {
       method: 'POST',
       body: JSON.stringify({
         event: CaptureEvent.UiCallToActionClickEvent,
+        eventData: event,
+      }),
+    });
+  },
+
+  captureFeatureRecommendationEvent(event: FeatureRecommendationEvent) {
+    // using api.fetch instead of api.fetchJSON
+    // because we are not expecting a JSON response
+    void api.fetch(cfg.api.captureUserEventPath, {
+      method: 'POST',
+      body: JSON.stringify({
+        event: CaptureEvent.FeatureRecommendationEvent,
         eventData: event,
       }),
     });

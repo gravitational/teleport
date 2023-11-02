@@ -1,13 +1,19 @@
 ---
-title: Access Requests with Mattermost
+title: Run the Mattermost Access Request plugin
 description: How to set up Teleport's Mattermost plugin for privilege elevation approvals.
 ---
 
-This guide will explain how to set up Teleport with Mattermost, an open source
-messaging platform. Teleport's Mattermost notifies individuals of
-Access Requests. Users can then approve and deny Access Requests by following the
+This guide explains how to integrate Teleport access requests with Mattermost, an open 
+source messaging platform. The Teleport Mattermost plugin notifies individuals of
+access requests. Users can then approve and deny access requests by following the
 message link, making it easier to implement security best practices without
 compromising productivity.
+
+<Details title="This integration is hosted on Teleport Cloud" open={false}>
+
+(!docs/pages/includes/plugins/enroll.mdx name="the Mattermost integration"!)
+
+</Details>
 
 (!docs/pages/includes/plugins/diagram.mdx api="Mattermost" action="Listen for Access Requests" messages="Mattermost messages" !)
 
@@ -17,38 +23,43 @@ compromising productivity.
 
 - A Mattermost account with admin privileges. This plugin has been tested with
   Mattermost v7.0.1.
-- Either a Linux host or Kubernetes cluster where you will run the Mattermost plugin.
+- Either a Linux host or Kubernetes cluster where you will run the Teleport Mattermost plugin.
 - (!docs/pages/includes/tctl.mdx!)
 
 ## Step 1/8. Define RBAC resources
 
-Before you set up the Mattermost plugin, you will need to enable Role Access
-Requests in the Proxy or Auth Service.
+Before you set up the Teleport Mattermost plugin, you need to enable Role Access
+Requests in the Teleport Proxy Service or Teleport Auth Service.
 
 (!/docs/pages/includes/plugins/editor-request-rbac.mdx!)
 
 ## Step 2/8. Install the Teleport Mattermost plugin
 
-<ScopedBlock scope={["enterprise", "oss"]}>
+<Tabs>
+<TabItem scope={["enterprise", "oss"]} label="Self-Hosted">
 
 We recommend installing Teleport plugins on the same host as the Teleport Proxy
 Service. This is an ideal location as plugins have a low memory footprint, and
-will require both public internet access and Teleport Auth Service access.
+require both public internet access and Teleport Auth Service access.
 
-</ScopedBlock>
+</TabItem>
 
-<ScopedBlock scope="cloud">
+<TabItem scope="cloud" label="Teleport Enterprise Cloud">
 
 Install the Teleport Mattermost plugin on a host that can access both your
 Teleport Proxy Service and your Mattermost deployment.
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 (!docs/pages/includes/plugins/install-access-request.mdx name="mattermost"!)
 
 ## Step 3/8. Create a user and role for the plugin
 
 (!docs/pages/includes/plugins/rbac.mdx!)
+
+(!/docs/pages/includes/plugins/rbac-impersonate.mdx!)
 
 ## Step 4/8. Export the access plugin identity
 
@@ -118,9 +129,9 @@ plugin to use these credentials and post messages in the right channels for your
 workspace.
 
 <Tabs>
-<TabItem label="Executable">
-The Mattermost plugin uses a config file in TOML format. On the host where you
-will run the Mattermost plugin, generate a boilerplate config by running the
+<TabItem label="Executable or Docker">
+The Mattermost plugin uses a configuration file in TOML format. On the host where you
+will run the Mattermost plugin, generate a boilerplate configuration by running the
 following commands:
 
 ```code
@@ -169,7 +180,7 @@ For example, this configuration will notify `first.last@example.com` and
 the `Town Square` channel in the `myteam` team of any Access Request events:
 
 <Tabs>
-<TabItem label="Executable">
+<TabItem label="Executable or Docker">
 
 ```toml
 recipients = [
@@ -219,7 +230,7 @@ Mattermost.
 The final configuration should look similar to this:
 
 <Tabs>
-<TabItem label="Executable" >
+<TabItem label="Executable or Docker" >
 ```yaml
 # example mattermost configuration TOML file
 [teleport]
@@ -269,6 +280,14 @@ DEBU   Watcher connected mattermost/main.go:260
 DEBU   Mattermost API health check finished ok mattermost/main.go:19
 ```
 </TabItem>
+<TabItem label="Docker">
+
+Run the plugin:
+
+```bash
+$ docker run -v <path-to-config>:/etc/teleport-mattermost.toml public.ecr.aws/gravitational/teleport-plugin-mattermost:(=teleport.version=) start
+```
+</TabItem>
 <TabItem label="Helm Chart">
 After modifying your configuration, run the bot with the following command:
 
@@ -314,9 +333,7 @@ Requests, you should still check the Teleport audit log to ensure that the right
 users are reviewing the right requests.
 
 When auditing Access Request reviews, check for events with the type `Access
-Request Reviewed` in the Teleport Web UI <ScopedBlock scope={["oss",
-"enterprise"]}>and `access_request.review` if reviewing the audit log on the
-Auth Service host</ScopedBlock>.
+Request Reviewed` in the Teleport Web UI.
 
 </Admonition>
 

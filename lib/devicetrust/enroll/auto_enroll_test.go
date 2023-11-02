@@ -26,7 +26,9 @@ import (
 )
 
 func TestAutoEnrollCeremony_Run(t *testing.T) {
-	env := testenv.MustNew()
+	env := testenv.MustNew(
+		testenv.WithAutoCreateDevice(true),
+	)
 	defer env.Close()
 
 	devices := env.DevicesClient

@@ -35,12 +35,12 @@ import { CommonListProps, LockResourceKind } from '../../common';
 import { Nodes } from './Nodes';
 import { Desktops } from './Desktops';
 
-import type { AgentLabel, AgentFilter } from 'teleport/services/agents';
+import type { ResourceLabel, ResourceFilter } from 'teleport/services/agents';
 
 export function ServerSideSupportedList(props: CommonListProps) {
   const ctx = useTeleport();
 
-  const [resourceFilter, setResourceFilter] = useState<AgentFilter>({});
+  const [resourceFilter, setResourceFilter] = useState<ResourceFilter>({});
 
   const {
     fetchStatus,
@@ -89,7 +89,7 @@ export function ServerSideSupportedList(props: CommonListProps) {
     setResourceFilter({ ...resourceFilter, search: '', query });
   }
 
-  function onResourceLabelClick(label: AgentLabel) {
+  function onResourceLabelClick(label: ResourceLabel) {
     const query = addResourceLabelToQuery(resourceFilter, label);
     setResourceFilter({ ...resourceFilter, search: '', query });
   }
@@ -190,7 +190,7 @@ function getFetchFuncForServerSidePaginating(
   }
 }
 
-function addResourceLabelToQuery(filter: AgentFilter, label: AgentLabel) {
+function addResourceLabelToQuery(filter: ResourceFilter, label: ResourceLabel) {
   const queryParts = [];
 
   // Add existing query

@@ -138,6 +138,7 @@ func NewPresetEditorRole() types.Role {
 					types.NewRule(types.KindClusterName, RW()),
 					types.NewRule(types.KindClusterNetworkingConfig, RW()),
 					types.NewRule(types.KindSessionRecordingConfig, RW()),
+					types.NewRule(types.KindExternalCloudAudit, RW()),
 					types.NewRule(types.KindUIConfig, RW()),
 					types.NewRule(types.KindTrustedCluster, RW()),
 					types.NewRule(types.KindRemoteCluster, RW()),
@@ -162,7 +163,9 @@ func NewPresetEditorRole() types.Role {
 					types.NewRule(types.KindClusterAlert, RW()),
 					types.NewRule(types.KindAccessList, RW()),
 					types.NewRule(types.KindNode, RW()),
-					// Please see defaultAllowRules when adding a new rule.
+					types.NewRule(types.KindDiscoveryConfig, RW()),
+					types.NewRule(types.KindSecurityReport, append(RW(), types.VerbUse)),
+					types.NewRule(types.KindAuditQuery, append(RW(), types.VerbUse)),
 				},
 			},
 		},
@@ -221,7 +224,6 @@ func NewPresetAccessRole() types.Role {
 					},
 					types.NewRule(types.KindInstance, RO()),
 					types.NewRule(types.KindAssistant, append(RW(), types.VerbUse)),
-					// Please see defaultAllowRules when adding a new rule.
 				},
 			},
 		},
@@ -267,7 +269,8 @@ func NewPresetAuditorRole() types.Role {
 					types.NewRule(types.KindSessionTracker, RO()),
 					types.NewRule(types.KindClusterAlert, RO()),
 					types.NewRule(types.KindInstance, RO()),
-					// Please see defaultAllowRules when adding a new rule.
+					types.NewRule(types.KindSecurityReport, append(RO(), types.VerbUse)),
+					types.NewRule(types.KindAuditQuery, append(RO(), types.VerbUse)),
 				},
 			},
 		},
@@ -356,12 +359,123 @@ func NewPresetGroupAccessRole() types.Role {
 				},
 				Rules: []types.Rule{
 					types.NewRule(types.KindUserGroup, RO()),
-					// Please see defaultAllowRules when adding a new rule.
 				},
 			},
 		},
 	}
 	return role
+}
+
+// NewPresetDeviceAdminRole returns the preset "device-admin" role, or nil for
+// non-Enterprise builds.
+// The role is used to administer trusted devices.
+func NewPresetDeviceAdminRole() types.Role {
+	if modules.GetModules().BuildType() != modules.BuildEnterprise {
+		return nil
+	}
+
+	return &types.RoleV6{
+		Kind:    types.KindRole,
+		Version: types.V6,
+		Metadata: types.Metadata{
+			Name:        teleport.PresetDeviceAdminRoleName,
+			Namespace:   apidefaults.Namespace,
+			Description: "Administer trusted devices",
+			Labels: map[string]string{
+				types.TeleportInternalResourceType: types.PresetResource,
+			},
+		},
+		Spec: types.RoleSpecV6{
+			Allow: types.RoleConditions{
+				Rules: []types.Rule{
+					types.NewRule(types.KindDevice, append(RW(), types.VerbCreateEnrollToken, types.VerbEnroll)),
+				},
+			},
+		},
+	}
+}
+
+// NewPresetDeviceEnrollRole returns the preset "device-enroll" role, or nil for
+// non-Enterprise builds.
+// The role is used to grant device enrollment powers to users.
+func NewPresetDeviceEnrollRole() types.Role {
+	if modules.GetModules().BuildType() != modules.BuildEnterprise {
+		return nil
+	}
+
+	return &types.RoleV6{
+		Kind:    types.KindRole,
+		Version: types.V6,
+		Metadata: types.Metadata{
+			Name:        teleport.PresetDeviceEnrollRoleName,
+			Namespace:   apidefaults.Namespace,
+			Description: "Grant permission to enroll trusted devices",
+			Labels: map[string]string{
+				types.TeleportInternalResourceType: types.PresetResource,
+			},
+		},
+		Spec: types.RoleSpecV6{
+			Allow: types.RoleConditions{
+				Rules: []types.Rule{
+					types.NewRule(types.KindDevice, []string{types.VerbEnroll}),
+				},
+			},
+		},
+	}
+}
+
+// NewPresetRequireTrustedDeviceRole returns the preset "require-trusted-device"
+// role, or nil for non-Enterprise builds.
+// The role is used as a basis for requiring trusted device access to
+// resources.
+func NewPresetRequireTrustedDeviceRole() types.Role {
+	if modules.GetModules().BuildType() != modules.BuildEnterprise {
+		return nil
+	}
+
+	return &types.RoleV6{
+		Kind:    types.KindRole,
+		Version: types.V6,
+		Metadata: types.Metadata{
+			Name:        teleport.PresetRequireTrustedDeviceRoleName,
+			Namespace:   apidefaults.Namespace,
+			Description: "Require trusted device to access resources",
+			Labels: map[string]string{
+				types.TeleportInternalResourceType: types.PresetResource,
+			},
+		},
+		Spec: types.RoleSpecV6{
+			Options: types.RoleOptions{
+				DeviceTrustMode: constants.DeviceTrustModeRequired,
+			},
+			Allow: types.RoleConditions{
+				// All SSH nodes.
+				Logins: []string{"{{internal.logins}}"},
+				NodeLabels: types.Labels{
+					types.Wildcard: []string{types.Wildcard},
+				},
+
+				// All k8s nodes.
+				KubeGroups: []string{
+					"{{internal.kubernetes_groups}}",
+					// Common/example groups.
+					"system:masters",
+					"developers",
+					"viewers",
+				},
+				KubernetesLabels: types.Labels{
+					types.Wildcard: []string{types.Wildcard},
+				},
+
+				// All DB nodes.
+				DatabaseLabels: types.Labels{
+					types.Wildcard: []string{types.Wildcard},
+				},
+				DatabaseNames: []string{types.Wildcard},
+				DatabaseUsers: []string{types.Wildcard},
+			},
+		},
+	}
 }
 
 // bootstrapRoleMetadataLabels are metadata labels that will be applied to each role.
@@ -382,41 +496,19 @@ func bootstrapRoleMetadataLabels() map[string]map[string]string {
 	}
 }
 
+var defaultAllowRulesMap = map[string][]types.Rule{
+	teleport.PresetAuditorRoleName: NewPresetAuditorRole().GetRules(types.Allow),
+	teleport.PresetEditorRoleName:  NewPresetEditorRole().GetRules(types.Allow),
+	teleport.PresetAccessRoleName:  NewPresetAccessRole().GetRules(types.Allow),
+}
+
 // defaultAllowRules has the Allow rules that should be set as default when
 // they were not explicitly defined. This is used to update the current cluster
 // roles when deploying a new resource. It will also update all existing roles
 // on auth server restart. Rules defined in preset template should be
 // exactly the same rule when added here.
 func defaultAllowRules() map[string][]types.Rule {
-	return map[string][]types.Rule{
-		teleport.PresetAuditorRoleName: {
-			types.NewRule(types.KindSessionTracker, RO()),
-			types.NewRule(types.KindInstance, RO()),
-		},
-		teleport.PresetEditorRoleName: {
-			types.NewRule(types.KindConnectionDiagnostic, RW()),
-			types.NewRule(types.KindDatabase, RW()),
-			types.NewRule(types.KindDatabaseService, RO()),
-			types.NewRule(types.KindLoginRule, RW()),
-			types.NewRule(types.KindPlugin, RW()),
-			types.NewRule(types.KindSAMLIdPServiceProvider, RW()),
-			types.NewRule(types.KindOktaImportRule, RW()),
-			types.NewRule(types.KindOktaAssignment, RW()),
-			types.NewRule(types.KindDevice, append(RW(), types.VerbCreateEnrollToken, types.VerbEnroll)),
-			types.NewRule(types.KindLock, RW()),
-			types.NewRule(types.KindIntegration, append(RW(), types.VerbUse)),
-			types.NewRule(types.KindBilling, RW()),
-			types.NewRule(types.KindInstance, RO()),
-			types.NewRule(types.KindAssistant, append(RW(), types.VerbUse)),
-			types.NewRule(types.KindNode, RW()),
-		},
-		teleport.PresetAccessRoleName: {
-			types.NewRule(types.KindInstance, RO()),
-			// Allow assist access to access role. This role only allow access
-			// to the assist console, not any other cluster resources.
-			types.NewRule(types.KindAssistant, append(RW(), types.VerbUse)),
-		},
-	}
+	return defaultAllowRulesMap
 }
 
 // defaultAllowLabels has the Allow labels that should be set as default when they were not explicitly defined.

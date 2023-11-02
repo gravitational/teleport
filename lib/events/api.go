@@ -78,7 +78,7 @@ const (
 	// session when the terminal IO event happened
 	SessionEventTimestamp = "ms"
 
-	// SessionEvent indicates that session has been initiated
+	// SessionStartEvent indicates that session has been initiated
 	// or updated by a joining party on the server
 	SessionStartEvent = "session.start"
 
@@ -167,6 +167,8 @@ const (
 	LoginMethodSAML = "saml"
 	// LoginMethodGithub represents login with Github
 	LoginMethodGithub = "github"
+	// LoginMethodHeadless represents headless login request
+	LoginMethodHeadless = "headless"
 
 	// UserUpdatedEvent is emitted when the user is updated.
 	UserUpdatedEvent = "user.update"
@@ -230,8 +232,6 @@ const (
 	RecoveryTokenCreateEvent = "recovery_token.create"
 	// ResetPasswordTokenCreateEvent is emitted when a new reset password token is created.
 	ResetPasswordTokenCreateEvent = "reset_password_token.create"
-	// BotTokenCreateEvent is emitted when a new bot join user token is created
-	BotTokenCreateEvent = "bot_token.create"
 	// ResetPasswordTokenTTL is TTL of reset password token.
 	ResetPasswordTokenTTL = "ttl"
 	// PrivilegeTokenCreateEvent is emitted when a new user privilege token is created.
@@ -342,8 +342,10 @@ const (
 	// TCPVersion is the version of TCP (4 or 6).
 	TCPVersion = "version"
 
-	// RoleCreatedEvent fires when role is created/updated.
+	// RoleCreatedEvent fires when role is created or upserted.
 	RoleCreatedEvent = "role.created"
+	// RoleUpdatedEvent fires when role is updated.
+	RoleUpdatedEvent = "role.updated"
 	// RoleDeletedEvent fires when role is deleted.
 	RoleDeletedEvent = "role.deleted"
 
@@ -360,24 +362,30 @@ const (
 	// also known as Join Token. See [types.ProvisionToken].
 	ProvisionTokenCreateEvent = "join_token.create"
 
-	// GithubConnectorCreatedEvent fires when a Github connector is created/updated.
+	// GithubConnectorCreatedEvent fires when a Github connector is created.
 	GithubConnectorCreatedEvent = "github.created"
+	// GithubConnectorUpdatedEvent fires when a Github connector is updated.
+	GithubConnectorUpdatedEvent = "github.updated"
 	// GithubConnectorDeletedEvent fires when a Github connector is deleted.
 	GithubConnectorDeletedEvent = "github.deleted"
-	// OIDCConnectorCreatedEvent fires when OIDC connector is created/updated.
+	// OIDCConnectorCreatedEvent fires when OIDC connector is created.
 	OIDCConnectorCreatedEvent = "oidc.created"
+	// OIDCConnectorUpdatedEvent fires when OIDC connector is updated.
+	OIDCConnectorUpdatedEvent = "oidc.updated"
 	// OIDCConnectorDeletedEvent fires when OIDC connector is deleted.
 	OIDCConnectorDeletedEvent = "oidc.deleted"
-	// SAMLConnectorCreatedEvent fires when SAML connector is created/updated.
+	// SAMLConnectorCreatedEvent fires when SAML connector is created.
 	SAMLConnectorCreatedEvent = "saml.created"
+	// SAMLConnectorUpdatedEvent fires when SAML connector is updated.
+	SAMLConnectorUpdatedEvent = "saml.updated"
 	// SAMLConnectorDeletedEvent fires when SAML connector is deleted.
 	SAMLConnectorDeletedEvent = "saml.deleted"
 
-	// SessionRejected fires when a user's attempt to create an authenticated
+	// SessionRejectedEvent fires when a user's attempt to create an authenticated
 	// session has been rejected due to exceeding a session control limit.
 	SessionRejectedEvent = "session.rejected"
 
-	// SessionConnect is emitted when any ssh connection is made
+	// SessionConnectEvent is emitted when any ssh connection is made
 	SessionConnectEvent = "session.connect"
 
 	// AppCreateEvent is emitted when an application resource is created.
@@ -660,8 +668,38 @@ const (
 	// OktaAssignmentCleanupEvent is emitted when an assignment is cleaned up.
 	OktaAssignmentCleanupEvent = "okta.assignment.cleanup"
 
+	// AccessListCreateEvent is emitted when an access list is created.
+	AccessListCreateEvent = "access_list.create"
+
+	// AccessListUpdateEvent is emitted when an access list is updated.
+	AccessListUpdateEvent = "access_list.update"
+
+	// AccessListDeleteEvent is emitted when an access list is deleted.
+	AccessListDeleteEvent = "access_list.delete"
+
+	// AccessListReviewEvent is emitted when an access list is reviewed.
+	AccessListReviewEvent = "access_list.review"
+
+	// AccessListMemberCreateEvent is emitted when a member is added to an access list.
+	AccessListMemberCreateEvent = "access_list.member.create"
+
+	// AccessListMemberUpdateEvent is emitted when a member is updated in an access list.
+	AccessListMemberUpdateEvent = "access_list.member.update"
+
+	// AccessListMemberDeleteEvent is emitted when a member is deleted from an access list.
+	AccessListMemberDeleteEvent = "access_list.member.delete"
+
+	// AccessListMemberDeleteAllForAccessListEvent is emitted when all members are deleted from an access list.
+	AccessListMemberDeleteAllForAccessListEvent = "access_list.member.delete_all_for_access_list"
+
 	// UnknownEvent is any event received that isn't recognized as any other event type.
 	UnknownEvent = apievents.UnknownEvent
+
+	// SecReportsAuditQueryRunEvent is emitted when a security report query is run.
+	SecReportsAuditQueryRunEvent = "secreports.audit.query.run"
+
+	// SecReportsReportRunEvent is emitted when a security report is run.
+	SecReportsReportRunEvent = "secreports.report.run"
 )
 
 const (

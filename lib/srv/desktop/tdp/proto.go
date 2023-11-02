@@ -623,6 +623,8 @@ func DecodeMFA(in byteReader) (*MFA, error) {
 	if length > maxMFADataLength {
 		_, _ = io.CopyN(io.Discard, in, int64(length))
 		return nil, mfaDataMaxLenErr
+	} else if length == 0 {
+		return nil, trace.BadParameter("mfa data missing")
 	}
 
 	b := make([]byte, int(length))
@@ -663,6 +665,8 @@ func DecodeMFAChallenge(in byteReader) (*MFA, error) {
 
 	if length > maxMFADataLength {
 		return nil, trace.BadParameter("mfa challenge data exceeds maximum length")
+	} else if length == 0 {
+		return nil, trace.BadParameter("mfa challenge data missing")
 	}
 
 	b := make([]byte, int(length))
@@ -670,17 +674,14 @@ func DecodeMFAChallenge(in byteReader) (*MFA, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	var req *client.MFAAuthenticateChallenge
+	var req client.MFAAuthenticateChallenge
 	if err := json.Unmarshal(b, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return &MFA{
 		Type:                     mt,
-		MFAAuthenticateChallenge: req,
+		MFAAuthenticateChallenge: &req,
 	}, nil
 }
 

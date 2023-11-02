@@ -118,6 +118,83 @@ func TestMatchSearch(t *testing.T) {
 	}
 }
 
+func TestUnifiedNameCompare(t *testing.T) {
+	t.Parallel()
+	testCases := []struct {
+		name      string
+		resourceA func(*testing.T) ResourceWithLabels
+		resourceB func(*testing.T) ResourceWithLabels
+		isDesc    bool
+		expect    bool
+	}{
+		{
+			name: "sort by same kind",
+			resourceA: func(t *testing.T) ResourceWithLabels {
+				server, err := NewServer("node-cloud", KindNode, ServerSpecV2{
+					Hostname: "node-cloud",
+				})
+				require.NoError(t, err)
+				return server
+			},
+			resourceB: func(t *testing.T) ResourceWithLabels {
+				server, err := NewServer("node-strawberry", KindNode, ServerSpecV2{
+					Hostname: "node-strawberry",
+				})
+				require.NoError(t, err)
+				return server
+			},
+			isDesc: true,
+			expect: false,
+		},
+		{
+			name: "sort by different kind",
+			resourceA: func(t *testing.T) ResourceWithLabels {
+				server := newAppServer(t, "app-cloud")
+				return server
+			},
+			resourceB: func(t *testing.T) ResourceWithLabels {
+				server, err := NewServer("node-strawberry", KindNode, ServerSpecV2{
+					Hostname: "node-strawberry",
+				})
+				require.NoError(t, err)
+				return server
+			},
+			isDesc: true,
+			expect: false,
+		},
+		{
+			name: "sort with different cases",
+			resourceA: func(t *testing.T) ResourceWithLabels {
+				server := newAppServer(t, "app-cloud")
+				return server
+			},
+			resourceB: func(t *testing.T) ResourceWithLabels {
+				server, err := NewServer("Node-strawberry", KindNode, ServerSpecV2{
+					Hostname: "node-strawberry",
+				})
+				require.NoError(t, err)
+				return server
+			},
+			isDesc: true,
+			expect: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		resourceA := tc.resourceA(t)
+		resourceB := tc.resourceB(t)
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			actual := unifiedNameCompare(resourceA, resourceB, tc.isDesc)
+			if actual != tc.expect {
+				t.Errorf("Expected %v, but got %v for %+v and %+v with isDesc=%v", tc.expect, actual, resourceA, resourceB, tc.isDesc)
+			}
+		})
+	}
+}
+
 func TestMatchSearch_ResourceSpecific(t *testing.T) {
 	t.Parallel()
 
@@ -422,5 +499,61 @@ func TestValidLabelKey(t *testing.T) {
 	} {
 		isValid := IsValidLabelKey(tc.label)
 		require.Equal(t, tc.valid, isValid)
+	}
+}
+
+func TestFriendlyName(t *testing.T) {
+	appNoFriendly, err := NewAppV3(Metadata{
+		Name: "no friendly",
+	}, AppSpecV3{
+		URI: "https://some-uri.com",
+	},
+	)
+	require.NoError(t, err)
+
+	appFriendly, err := NewAppV3(Metadata{
+		Name:        "no friendly",
+		Description: "friendly name",
+		Labels: map[string]string{
+			OriginLabel: OriginOkta,
+		},
+	}, AppSpecV3{
+		URI: "https://some-uri.com",
+	},
+	)
+	require.NoError(t, err)
+
+	node, err := NewServer("node", KindNode, ServerSpecV2{
+		Hostname: "friendly hostname",
+	})
+	require.NoError(t, err)
+
+	tests := []struct {
+		name     string
+		resource ResourceWithLabels
+		expected string
+	}{
+		{
+			name:     "no friendly name",
+			resource: appNoFriendly,
+			expected: "",
+		},
+		{
+			name:     "friendly app name",
+			resource: appFriendly,
+			expected: "friendly name",
+		},
+		{
+			name:     "friendly node name",
+			resource: node,
+			expected: "friendly hostname",
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			require.Equal(t, test.expected, FriendlyName(test.resource))
+		})
 	}
 }

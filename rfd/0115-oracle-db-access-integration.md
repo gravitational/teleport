@@ -110,7 +110,7 @@ Teleport will integrate with Oracle in the same way as other databases.
     SQLNET.AUTHENTICATION_SERVICES = (TCPS)
 
 
-    To enable mutual TLS on your Oracle server, add the following TCPS entreis to its listener.ora configuration file:
+    To enable mutual TLS on your Oracle server, add the following TCPS entries to its listener.ora configuration file:
 
     LISTENER =
       (DESCRIPTION_LIST =
@@ -139,7 +139,7 @@ Teleport will integrate with Oracle in the same way as other databases.
     SQLNET.AUTHENTICATION_SERVICES = (TCPS)
 
 
-    To enable mutual TLS on your Oracle server, add the following TCPS entreis to its listener.ora configuration file:
+    To enable mutual TLS on your Oracle server, add the following TCPS entries to its listener.ora configuration file:
 
     LISTENER =
       (DESCRIPTION_LIST =

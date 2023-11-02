@@ -29,29 +29,38 @@ type HardwareSigner interface {
 	crypto.Signer
 
 	// GetAttestationStatement returns an AttestationStatement for this private key.
-	GetAttestationStatement() (*AttestationStatement, error)
+	GetAttestationStatement() *AttestationStatement
 
 	// GetPrivateKeyPolicy returns the PrivateKeyPolicy supported by this private key.
 	GetPrivateKeyPolicy() PrivateKeyPolicy
 }
 
-// GetAttestationStatement returns an AttestationStatement for the given private key.
-// If the given private key does not have a HardwareSigner, then a nil statement
-// and error will be returned.
-func GetAttestationStatement(priv *PrivateKey) (*AttestationStatement, error) {
-	if attestedPriv, ok := priv.Signer.(HardwareSigner); ok {
+// GetAttestationStatement returns this key's AttestationStatement. If the key is
+// not a hardware-backed key, this method returns nil.
+func (k *PrivateKey) GetAttestationStatement() *AttestationStatement {
+	if attestedPriv, ok := k.Signer.(HardwareSigner); ok {
 		return attestedPriv.GetAttestationStatement()
 	}
 	// Just return a nil attestation statement and let this key fail any attestation checks.
-	return nil, nil
+	return nil
 }
 
-// GetPrivateKeyPolicy returns the PrivateKeyPolicy that applies to the given private key.
-func GetPrivateKeyPolicy(priv *PrivateKey) PrivateKeyPolicy {
-	if attestedPriv, ok := priv.Signer.(HardwareSigner); ok {
+// TODO(Joerger): Delete in favor of method above once references in /e are replaced.
+func GetAttestationStatement(priv *PrivateKey) (*AttestationStatement, error) {
+	return priv.GetAttestationStatement(), nil
+}
+
+// GetPrivateKeyPolicy returns this key's PrivateKeyPolicy.
+func (k *PrivateKey) GetPrivateKeyPolicy() PrivateKeyPolicy {
+	if attestedPriv, ok := k.Signer.(HardwareSigner); ok {
 		return attestedPriv.GetPrivateKeyPolicy()
 	}
 	return PrivateKeyPolicyNone
+}
+
+// TODO(Joerger): Delete in favor of method above once references in /e are replaced.
+func GetPrivateKeyPolicy(priv *PrivateKey) PrivateKeyPolicy {
+	return priv.GetPrivateKeyPolicy()
 }
 
 // AttestationStatement is an attestation statement for a hardware private key

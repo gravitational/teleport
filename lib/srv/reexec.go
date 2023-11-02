@@ -29,6 +29,7 @@ import (
 	"os/signal"
 	"os/user"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"syscall"
 	"time"
@@ -94,7 +95,8 @@ func fdName(f FileFD) string {
 // construct and execute a shell.
 type ExecCommand struct {
 	// Command is the command to execute. If an interactive session is being
-	// requested, will be empty.
+	// requested, will be empty. If a subsystem is requested, it will contain
+	// the subsystem name.
 	Command string `json:"command"`
 
 	// DestinationAddress is the target address to dial to.
@@ -127,7 +129,7 @@ type ExecCommand struct {
 
 	// RequestType is the type of request: either "exec" or "shell". This will
 	// be used to control where to connect std{out,err} based on the request
-	// type: "exec" or "shell".
+	// type: "exec", "shell" or "subsystem".
 	RequestType string `json:"request_type"`
 
 	// PAMConfig is the configuration data that needs to be passed to the child and then to PAM modules.
@@ -192,6 +194,9 @@ type UaccMetadata struct {
 
 	// WtmpPath is the path of the system wtmp log.
 	WtmpPath string `json:"wtmp_path,omitempty"`
+
+	// BtmpPath is the path of the system btmp log.
+	BtmpPath string `json:"btmp_path,omitempty"`
 }
 
 // RunCommand reads in the command to run from the parent process (over a
@@ -284,13 +289,6 @@ func RunCommand() (errw io.Writer, code int, err error) {
 			return errorWriter, teleport.RemoteCommandFailure, trace.BadParameter("pty and tty not found")
 		}
 		errorWriter = tty
-		err = uacc.Open(c.UaccMetadata.UtmpPath, c.UaccMetadata.WtmpPath, c.Login, c.UaccMetadata.Hostname, c.UaccMetadata.RemoteAddr, tty)
-		// uacc support is best-effort, only enable it if Open is successful.
-		// Currently, there is no way to log this error out-of-band with the
-		// command output, so for now we essentially ignore it.
-		if err == nil {
-			uaccEnabled = true
-		}
 	}
 
 	// If PAM is enabled, open a PAM context. This has to be done before anything
@@ -346,7 +344,22 @@ func RunCommand() (errw io.Writer, code int, err error) {
 
 	localUser, err := user.Lookup(c.Login)
 	if err != nil {
+		if uaccErr := uacc.LogFailedLogin(c.UaccMetadata.BtmpPath, c.Login, c.UaccMetadata.Hostname, c.UaccMetadata.RemoteAddr); uaccErr != nil {
+			log.WithError(uaccErr).Debug("uacc unsupported.")
+		}
 		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
+	}
+
+	if c.Terminal {
+		err = uacc.Open(c.UaccMetadata.UtmpPath, c.UaccMetadata.WtmpPath, c.Login, c.UaccMetadata.Hostname, c.UaccMetadata.RemoteAddr, tty)
+		// uacc support is best-effort, only enable it if Open is successful.
+		// Currently, there is no way to log this error out-of-band with the
+		// command output, so for now we essentially ignore it.
+		if err == nil {
+			uaccEnabled = true
+		} else {
+			log.WithError(err).Debug("uacc unsupported.")
+		}
 	}
 
 	// Build the actual command that will launch the shell.
@@ -391,7 +404,7 @@ func RunCommand() (errw io.Writer, code int, err error) {
 		if err != nil {
 			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 		}
-		if err := os.Chown(c.X11Config.XServerUnixSocket, uid, gid); err != nil {
+		if err := os.Lchown(c.X11Config.XServerUnixSocket, uid, gid); err != nil {
 			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 		}
 
@@ -731,6 +744,7 @@ func IsReexec() bool {
 // function is run by Teleport while it's re-executing.
 func buildCommand(c *ExecCommand, localUser *user.User, tty *os.File, pty *os.File, pamEnvironment []string) (*exec.Cmd, error) {
 	var cmd exec.Cmd
+	isReexec := false
 
 	// Get the login shell for the user (or fallback to the default).
 	shellPath, err := shell.GetLoginShell(c.Login)
@@ -742,9 +756,24 @@ func buildCommand(c *ExecCommand, localUser *user.User, tty *os.File, pty *os.Fi
 		shellPath = "/bin/sh"
 	}
 
-	// If no command was given, configure a shell to run in 'login' mode.
-	// Otherwise, execute a command through the shell.
-	if c.Command == "" {
+	// If a subsystem was requested, handle the known subsystems or error out;
+	// if it's a normal command execution, and if no command was given,
+	// configure a shell to run in 'login' mode. Otherwise, execute a command
+	// through the shell.
+	if c.RequestType == sshutils.SubsystemRequest {
+		switch c.Command {
+		case teleport.SFTPSubsystem:
+			executable, err := os.Executable()
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			cmd.Path = executable
+			cmd.Args = []string{executable, teleport.SFTPSubCommand}
+			isReexec = true
+		default:
+			return nil, trace.BadParameter("unsupported subsystem execution request %q", c.Command)
+		}
+	} else if c.Command == "" {
 		// Set the path to the path of the shell.
 		cmd.Path = shellPath
 
@@ -869,7 +898,11 @@ func buildCommand(c *ExecCommand, localUser *user.User, tty *os.File, pty *os.Fi
 	}
 
 	// Perform OS-specific tweaks to the command.
-	userCommandOSTweaks(&cmd)
+	if isReexec {
+		reexecCommandOSTweaks(&cmd)
+	} else {
+		userCommandOSTweaks(&cmd)
+	}
 
 	return &cmd, nil
 }
@@ -1037,13 +1070,24 @@ func (o *osWrapper) newParker(ctx context.Context, credential syscall.Credential
 // getCmdCredentials parses the uid, gid, and groups of the
 // given user into a credential object for a command to use.
 func getCmdCredential(localUser *user.User) (*syscall.Credential, error) {
-	uid, err := strconv.Atoi(localUser.Uid)
+	uid, err := strconv.ParseUint(localUser.Uid, 10, 32)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	gid, err := strconv.Atoi(localUser.Gid)
+	gid, err := strconv.ParseUint(localUser.Gid, 10, 32)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	if runtime.GOOS == "darwin" {
+		// on macOS we should rely on the list of groups managed by the system
+		// (the use of setgroups is "highly discouraged", as per the setgroups
+		// man page in macOS 13.5)
+		return &syscall.Credential{
+			Uid:         uint32(uid),
+			Gid:         uint32(gid),
+			NoSetGroups: true,
+		}, nil
 	}
 
 	// Lookup supplementary groups for the user.
@@ -1053,7 +1097,7 @@ func getCmdCredential(localUser *user.User) (*syscall.Credential, error) {
 	}
 	groups := make([]uint32, 0)
 	for _, sgid := range userGroups {
-		igid, err := strconv.Atoi(sgid)
+		igid, err := strconv.ParseUint(sgid, 10, 32)
 		if err != nil {
 			log.Warnf("Cannot interpret user group: '%v'", sgid)
 		} else {

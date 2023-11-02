@@ -30,7 +30,7 @@ func init() { Gitref = \"$(GITREF)\" }\n"
 # setver updates version.go and gitref.go with VERSION and GITREF vars
 #
 .PHONY:setver
-setver: helm-version tsh-version
+setver: validate-semver helm-version tsh-version
 	@printf $(VERSION_GO) | gofmt > version.go
 	@printf $(API_VERSION_GO) | gofmt > ./api/version.go
 	@printf $(UPDATER_VERSION_GO) | gofmt > ./integrations/kube-agent-updater/version.go
@@ -56,3 +56,7 @@ PLIST_FILES := $(abspath $(TSH_APP_PLISTS))
 .PHONY:tsh-version
 tsh-version:
 	cd build.assets/tooling && go run ./cmd/update-plist-version $(VERSION) $(PLIST_FILES)
+
+.PHONY:validate-semver
+validate-semver:
+	cd build.assets/tooling && CGO_ENABLED=0 go run ./cmd/check -check valid -tag v$(VERSION)

@@ -78,7 +78,7 @@ func NewCollector(cfg CollectorConfig) (*Collector, error) {
 	c := &Collector{
 		grpcLn:     grpcLn,
 		httpLn:     httpLn,
-		grpcServer: grpc.NewServer(grpc.Creds(creds)),
+		grpcServer: grpc.NewServer(grpc.Creds(creds), grpc.MaxConcurrentStreams(defaults.GRPCMaxConcurrentStreams)),
 		tlsConfing: tlsConfig,
 		exportedC:  make(chan struct{}, 1),
 	}

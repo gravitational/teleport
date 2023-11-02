@@ -149,6 +149,10 @@ In those cases, they can set up separate listeners in the config file.
 | 3023 | All clients | SSH port clients connect to. The Proxy Service will forward this connection to port `3022` on the destination service. |
 | 3024 | Auth Service | SSH port used to create reverse SSH tunnels from behind-firewall environments into a trusted Proxy Service instance. |
 | 3080 or 443 | Proxy Service | HTTPS connection to authenticate `tsh` users into the cluster. The same connection is used to serve a Web UI. |
+| 3036 | Database Service | Traffic to MySQL databases.|
+| 5432 | Database Service | Traffic to Postgres databases.|
+| 27017 | Database Service | Traffic to MongoDB instances.|
+| 6379 | Database Service | Traffic to Redis instances.|
 
 ### Auth Service ports
 
@@ -223,7 +227,16 @@ agents to the public internet.
 Some Teleport services listen for traffic to one of their proxied resources,
 meaning that you can expose ports on that service's host directly to clients.
 This is useful when you need to connect to resources directly if the Proxy
-Service becomes unavailable.
+Service becomes unavailable. 
+
+<Admonition
+  type="tip"
+  title="Note"
+>
+  In Teleport Cloud, the Auth and Proxy Services run in Teleport-owned infrastructure.
+For this reason, Teleport Cloud customers must connect their resources via reverse tunnels.
+Exposing ports for direct dial is only supported in self-hosted deployments.
+</Admonition>
 
 The table below describes the ports that each Teleport Service opens for proxied
 traffic:
@@ -232,12 +245,8 @@ traffic:
 | - | - | - |
 | 3022 | SSH Service | Incoming SSH connections.|
 | 3026 | Kubernetes Service | HTTPS traffic to a Kubernetes API server.| 
-| 3036 | Database Service | Traffic to MySQL databases.|
-| 5432 | Database Service | Traffic to Postgres databases.|
-| 27017 | Database Service | Traffic to MongoDB instances.|
-| 6379 | Database Service | Traffic to Redis instances.|
 | 3028 | Windows Desktop Service | Teleport Desktop Protocol traffic from Teleport clients.|
 
-Applications registered with the Teleport Application Service can only be
-accessed via the Teleport Proxy Service, not directly via the Application
-Service.
+You can only access enrolled applications and databases through the Teleport Proxy Service.
+The Teleport Application Service and Teleport Database Service use reverse tunnel
+connections through the Teleport Proxy Service and cannot expose ports directly.

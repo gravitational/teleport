@@ -89,36 +89,36 @@ write_database_section() {
     if [[ "${USE_ACM}" == "true" && "${TELEPORT_PROXY_SERVER_LB}" != "" ]]; then
         # if an alias for the ACM NLB is configured, use that for proxy's database public_addrs
         if [[ "${TELEPORT_PROXY_SERVER_NLB_ALIAS}" != "" ]]; then
-            MYSQL_PUBLIC_ADDR="'${TELEPORT_PROXY_SERVER_NLB_ALIAS}:3036'"
-            POSTGRES_PUBLIC_ADDR="'${TELEPORT_PROXY_SERVER_NLB_ALIAS}:5432'"
-            MONGO_PUBLIC_ADDR="'${TELEPORT_PROXY_SERVER_NLB_ALIAS}:27017'"
+            MYSQL_PUBLIC_ADDR="${TELEPORT_PROXY_SERVER_NLB_ALIAS}:3036"
+            POSTGRES_PUBLIC_ADDR="${TELEPORT_PROXY_SERVER_NLB_ALIAS}:5432"
+            MONGO_PUBLIC_ADDR="${TELEPORT_PROXY_SERVER_NLB_ALIAS}:27017"
         else
-            MYSQL_PUBLIC_ADDR="'${TELEPORT_PROXY_SERVER_LB}:3036'"
-            POSTGRES_PUBLIC_ADDR="'${TELEPORT_PROXY_SERVER_LB}:5432'"
-            MONGO_PUBLIC_ADDR="'${TELEPORT_PROXY_SERVER_LB}:27017'"
+            MYSQL_PUBLIC_ADDR="${TELEPORT_PROXY_SERVER_LB}:3036"
+            POSTGRES_PUBLIC_ADDR="${TELEPORT_PROXY_SERVER_LB}:5432"
+            MONGO_PUBLIC_ADDR="${TELEPORT_PROXY_SERVER_LB}:27017"
         fi
     else
-        MYSQL_PUBLIC_ADDR="'${EXTERNAL_HOSTNAME:-$PUBLIC_IP}:3036'"
-        POSTGRES_PUBLIC_ADDR="'${EXTERNAL_HOSTNAME:-$PUBLIC_IP}:5432'"
-        MONGO_PUBLIC_ADDR="'${EXTERNAL_HOSTNAME:-$PUBLIC_IP}:27017'"
+        MYSQL_PUBLIC_ADDR="${EXTERNAL_HOSTNAME:-$PUBLIC_IP}:3036"
+        POSTGRES_PUBLIC_ADDR="${EXTERNAL_HOSTNAME:-$PUBLIC_IP}:5432"
+        MONGO_PUBLIC_ADDR="${EXTERNAL_HOSTNAME:-$PUBLIC_IP}:27017"
     fi
    # set up the database listeners and public addresses
     if [[ "${TELEPORT_ENABLE_MYSQL}" == "true" ]]; then
     cat << EOS >> ${USE_CONFIG_PATH}
-  mysql_listen_addr: "0.0.0.0:3036"
+  mysql_listen_addr: 0.0.0.0:3036
   mysql_public_addr: ${MYSQL_PUBLIC_ADDR}
 EOS
    fi
    # Add the postgres listener only if the POSTGRES_HOST is blank
    if [[ "${TELEPORT_ENABLE_POSTGRES}" == "true" && "${POSTGRES_HOSTNAME}" == "" ]]; then
     cat << EOS >> ${USE_CONFIG_PATH}
-  postgres_listen_addr: "0.0.0.0:5432"
+  postgres_listen_addr: 0.0.0.0:5432
   postgres_public_addr: ${POSTGRES_PUBLIC_ADDR}
 EOS
    fi
    if [[ "${TELEPORT_ENABLE_MONGODB}" == "true" ]]; then
     cat << EOS >> ${USE_CONFIG_PATH}
-  mongo_listen_addr: "0.0.0.0:27017"
+  mongo_listen_addr: 0.0.0.0:27017
   mongo_public_addr: ${MONGO_PUBLIC_ADDR}
 EOS
    fi
@@ -132,55 +132,52 @@ write_kubernetes_section() {
     if [[ "${USE_ACM}" == "true" && "${TELEPORT_PROXY_SERVER_LB}" != "" ]]; then
         # if an alias for the ACM NLB is configured, use that for proxy's kubernetes public_addr
         if [[ "${TELEPORT_PROXY_SERVER_NLB_ALIAS}" != "" ]]; then
-            KUBERNETES_PUBLIC_ADDR="'${TELEPORT_PROXY_SERVER_NLB_ALIAS}:3026'"
+            KUBERNETES_PUBLIC_ADDR="${TELEPORT_PROXY_SERVER_NLB_ALIAS}:3026"
         else
-            KUBERNETES_PUBLIC_ADDR="'${TELEPORT_PROXY_SERVER_LB}:3026'"
+            KUBERNETES_PUBLIC_ADDR="${TELEPORT_PROXY_SERVER_LB}:3026"
         fi
     else
-        KUBERNETES_PUBLIC_ADDR="'${EXTERNAL_HOSTNAME:-$PUBLIC_IP}:3026'"
+        KUBERNETES_PUBLIC_ADDR="${EXTERNAL_HOSTNAME:-$PUBLIC_IP}:3026"
     fi
     # set up the kubernetes listener
     cat << EOS >> ${USE_CONFIG_PATH}
-  kubernetes:
-    enabled: yes
-    listen_addr: 0.0.0.0:3026
-    public_addr: [${KUBERNETES_PUBLIC_ADDR}]
+  kube_listen_addr: 0.0.0.0:3026
+  kube_public_addr: ${KUBERNETES_PUBLIC_ADDR}
 EOS
 }
 
 write_ssh_and_tunnel_section() {
-    PASSED_EXTERNAL_TUNNEL_PORT="$1"
+    TUNNEL_PORT=3024
     SSH_PORT=3023
     POSTGRES_PORT=443
     if [[ "${TELEPORT_PROXY_SERVER_LB}" != "" ]]; then
         # ACM
         if [[ "${USE_ACM}" == "true" ]]; then
-            TUNNEL_PORT="${TUNNEL_LISTEN_PORT}"
             SSH_HOSTNAME="${TELEPORT_PROXY_SERVER_LB}"
             TUNNEL_HOSTNAME="${TELEPORT_PROXY_SERVER_LB}"
 
             if [[ "${TELEPORT_PROXY_SERVER_NLB_ALIAS}" != "" ]]; then
                 # if an alias for the ACM NLB is configured, use that for the proxy's ssh_public_addr
                 SSH_HOSTNAME="${TELEPORT_PROXY_SERVER_NLB_ALIAS}"
-                # when using ACM, we have to set up a dedicated listener and target group as
-                # SSL termination is handled by the ACM ALB and it can't multiplex the tunnel connections
+                # if an alias for the ACM NLB is configured, use that for the proxy's tunnel_public_addr
                 TUNNEL_HOSTNAME="${TELEPORT_PROXY_SERVER_NLB_ALIAS}"
-                # when using ACM, we have to add a specific public addr for postgres which lives on the NLB
-                # (rather than the ACM ALB) so that Teleport's multiplexer can be used to route connections
+                # when using ACM and not using TLS routing, we have to add a specific public addr for postgres
+                # which lives on the NLB (rather than the ACM ALB) so that Teleport's multiplexer can be used to
+                # route connections
+                # if an alias for the ACM NLB is configured, use that for the proxy's postgres_public_addr
                 POSTGRES_HOSTNAME="${TELEPORT_PROXY_SERVER_NLB_ALIAS}"
             fi
         # non-ACM
         else
-            TUNNEL_PORT="${PASSED_EXTERNAL_TUNNEL_PORT}"
             TUNNEL_HOSTNAME="${TELEPORT_EXTERNAL_HOSTNAME:-$PUBLIC_IP}"
             SSH_HOSTNAME="${TELEPORT_EXTERNAL_HOSTNAME:-$PUBLIC_IP}"
             if [[ "${TELEPORT_DOMAIN_NAME}" != "" ]]; then
                 # check whether an external domain name is configured (HA mode)
                 # if not (starter mode), use an external hostname if configured, and fall back to public IP
                 SSH_HOSTNAME="${TELEPORT_DOMAIN_NAME}"
-                # when ACM is not being used, Teleport handles SSL termination itself and so tunnel connections
-                # can be multiplexed over the same connection as regular web proxy traffic
-                # this is automatically enabled when Teleport's web and tunnel listeners are configured to use the same port
+                # Teleport used to only support multiplexing the web and tunnel listeners on the same port
+                # With the advent of TLS routing, this is no longer a thing so we always use port 3024
+                # when TLS routing is disabled
                 TUNNEL_HOSTNAME="${TELEPORT_DOMAIN_NAME}"
             fi
         fi
@@ -226,10 +223,13 @@ fi
 
 # Determine whether this is a FIPS AMI or not
 # With FIPS: auth_service.authentication.local_auth must be 'false' or Teleport will not start
-# Without FIPS: auth.service.authentication.second_factor should be set to 'otp'
-AUTHENTICATION_STANZA="second_factor: otp"
+# Be careful with the indentation here
+AUTHENTICATION_STANZA="second_factor: on
+    webauthn:
+      rp_id: $TELEPORT_DOMAIN_NAME"
 if is_fips; then
-    AUTHENTICATION_STANZA="local_auth: false"
+    AUTHENTICATION_STANZA="local_auth: false
+    ${AUTHENTICATION_STANZA}"
 fi
 # If auth type is set in the Terraform variables, add this to the config on the auth servers.
 if [[ "${TELEPORT_AUTH_TYPE}" != "" ]]; then
@@ -281,7 +281,10 @@ EOF
     fi
 
     # configure proxy_listener_mode
-    if [[ -n "${PROXY_MULTIPLEXING}" ]]; then
+    if [[ "${USE_TLS_ROUTING}" == "true" ]]; then
+        echo "  proxy_listener_mode: multiplex" >> ${USE_CONFIG_PATH}
+    # support legacy untested method introduced in https://github.com/gravitational/teleport/pull/23576
+    elif [[ -n "${PROXY_MULTIPLEXING}" ]]; then
         echo "  proxy_listener_mode: ${PROXY_MULTIPLEXING}" >> ${USE_CONFIG_PATH}
     fi
 
@@ -301,13 +304,11 @@ EOF
     systemctl_wrap start --no-block teleport-auth.service
 
 elif [[ "${TELEPORT_ROLE}" == "proxy" ]]; then
+    TUNNEL_LISTEN_PORT=3024
     if [[ "${USE_ACM}" == "true" ]]; then
         echo "proxy-acm" > ${USE_CONFD_DIR}/role.proxy-acm
-        # tunnel_listen_addr needs to be changed if we're using ACM as the listener cannot understand HTTP, only HTTPS
-        TUNNEL_LISTEN_PORT=3024
     else
         echo "proxy" > ${USE_CONFD_DIR}/role.proxy
-        TUNNEL_LISTEN_PORT=3080
     fi
     # Teleport proxy proxies and optionally records
     # SSH sessions
@@ -340,25 +341,41 @@ ssh_service:
 
 proxy_service:
   enabled: yes
-  listen_addr: 0.0.0.0:3023
-  tunnel_listen_addr: 0.0.0.0:${TUNNEL_LISTEN_PORT}
   web_listen_addr: 0.0.0.0:3080
   public_addr: ${TELEPORT_DOMAIN_NAME}:443
 EOF
 
-    # write ssh/tunnel config
-    write_ssh_and_tunnel_section 443
+    # don't configure separate listen addresses when TLS routing is enabled
+    if [[ "${USE_TLS_ROUTING}" == "true" ]]; then
+        # do nothing here
+        true
+    else
+cat >>${USE_CONFIG_PATH} <<EOF
+  listen_addr: 0.0.0.0:3023
+  tunnel_listen_addr: 0.0.0.0:${TUNNEL_LISTEN_PORT}
+EOF
+        # write ssh/tunnel config
+        write_ssh_and_tunnel_section 443
+    fi
 
     # if we are using letsencrypt (i.e. not ACM) then append config lines
     if [[ "${USE_ACM}" != "true" ]]; then
         write_https_keypairs_section
+    else
+        # trust X-Forwarded-For headers sent by ALB
+        cat >>${USE_CONFIG_PATH} <<EOF
+  trust_x_forwarded_for: true
+EOF
     fi
 
-    # set up the database listeners
-    write_database_section TELEPORT_DOMAIN_NAME
+    # if we are not using TLS routing, then append database/kubernetes sections
+    if [[ "${USE_TLS_ROUTING}" != "true" ]]; then
+        # set up the database listeners
+        write_database_section TELEPORT_DOMAIN_NAME
 
-    # set up the kubernetes listener
-    write_kubernetes_section TELEPORT_DOMAIN_NAME
+        # set up the kubernetes listener
+        write_kubernetes_section TELEPORT_DOMAIN_NAME
+    fi
 
     # enable/start cert services and timers
     systemctl_wrap enable teleport-check-cert.service teleport-check-cert.timer
@@ -419,23 +436,29 @@ elif [[ "${TELEPORT_ROLE}" == "monitor" ]]; then
     # run monitor setup as an independent service
     systemctl_wrap start --no-block teleport-monitor-setup.service
 
+# starter cluster configuration
 elif [[ "${TELEPORT_ROLE}" == "auth,node,proxy" ]]; then
     echo "Teleport all-in-one configuration selected."
 
-    # tunnel_listen_addr needs to be changed if we're using ACM as the listener cannot understand HTTP, only HTTPS
+    TUNNEL_LISTEN_PORT=3024
     if [[ "${USE_ACM}" == "true" ]]; then
+        # always enable TLS routing when ACM is enabled
+        USE_TLS_ROUTING=true
+        sed -i 's/USE_TLS_ROUTING=false/USE_TLS_ROUTING=true/g' ${USE_CONFD_DIR}/conf
+        # remove letsencrypt config
         rm -f ${USE_CONFD_DIR}/use-letsencrypt
+        sed -i 's/USE_LETSENCRYPT=true/USE_LETSENCRYPT=false/g' ${USE_CONFD_DIR}/conf
+        # enable ACM role to use alternative unit file
         rm -f ${USE_CONFD_DIR}/role.all
         echo "all-acm" > ${USE_CONFD_DIR}/role.all-acm
-        TUNNEL_LISTEN_PORT=3024
     else
         rm -f ${USE_CONFD_DIR}/role.all-acm
         echo "all" > ${USE_CONFD_DIR}/role.all
-        TUNNEL_LISTEN_PORT=3080
     fi
 
     cat >${USE_CONFIG_PATH} <<EOF
 # Auto-generated by /usr/local/bin/teleport-generate-config from values in ${USE_CONFD_DIR}/conf
+version: v3
 teleport:
   nodename: ${LOCAL_HOSTNAME}
   advertise_ip: ${LOCAL_IP}
@@ -485,7 +508,10 @@ EOF
     fi
 
     # configure proxy_listener_mode
-    if [[ -n "${PROXY_MULTIPLEXING}" ]]; then
+    if [[ "${USE_TLS_ROUTING}" == "true" ]]; then
+        echo "  proxy_listener_mode: multiplex" >> ${USE_CONFIG_PATH}
+    # support legacy untested method introduced in https://github.com/gravitational/teleport/pull/23576
+    elif [[ -n "${PROXY_MULTIPLEXING}" ]]; then
         echo "  proxy_listener_mode: ${PROXY_MULTIPLEXING}" >> ${USE_CONFIG_PATH}
     fi
 
@@ -497,28 +523,65 @@ ssh_service:
 
 proxy_service:
   enabled: yes
-  listen_addr: 0.0.0.0:3023
-  tunnel_listen_addr: 0.0.0.0:${TUNNEL_LISTEN_PORT}
-  web_listen_addr: 0.0.0.0:3080
-  public_addr: ${TELEPORT_EXTERNAL_HOSTNAME:-$PUBLIC_IP}:${TELEPORT_EXTERNAL_PORT:-3080}
+  web_listen_addr: 0.0.0.0:443
+  public_addr: ${TELEPORT_EXTERNAL_HOSTNAME:-$PUBLIC_IP}:${TELEPORT_EXTERNAL_PORT:-443}
 EOF
 
-    # write ssh/tunnel config
-    write_ssh_and_tunnel_section 3080
+    # don't configure separate listen addresses when TLS routing is enabled
+    if [[ "${USE_TLS_ROUTING}" == "true" ]]; then
+        # do nothing here
+        true
+    else
+cat >>${USE_CONFIG_PATH} <<EOF
+  listen_addr: 0.0.0.0:3023
+  tunnel_listen_addr: 0.0.0.0:${TUNNEL_LISTEN_PORT}
+EOF
+        # write ssh/tunnel config
+        write_ssh_and_tunnel_section 3024
+    fi
 
-    # if we are using letsencrypt, append config lines
-    if [[ "${USE_LETSENCRYPT}" == "true" ]]; then
+    # if we are using ACM, enable ACM unit
+    if [[ "${USE_ACM}" == "true" ]]; then
+        echo "ACM support enabled"
+
+        # don't write database/kubernetes sections if TLS routing is enabled
+        if [[ "${USE_TLS_ROUTING}" == "true" ]]; then
+            # trust X-Forwarded-For headers sent by ALB
+            cat >>${USE_CONFIG_PATH} <<EOF
+  trust_x_forwarded_for: true
+EOF
+        else
+            # set up the database listeners
+            write_database_section TELEPORT_EXTERNAL_HOSTNAME
+
+            # set up the kubernetes listener
+            write_kubernetes_section TELEPORT_EXTERNAL_HOSTNAME
+        fi
+
+        systemctl_wrap disable teleport.service
+        systemctl_wrap stop --no-block teleport.service
+
+        systemctl_wrap enable teleport-acm.service
+        systemctl_wrap start --no-block teleport-acm.service
+    # alternatively, if we are using letsencrypt, append config lines
+    elif [[ "${USE_LETSENCRYPT}" == "true" ]] && [[ "${USE_ACM}" == "false" ]]; then
         echo "Letsencrypt support enabled"
         # these variables must all be set for letsencrypt to work
         # it also needs the running instance to have permissions to read from/write to the S3 bucket
         if [[ "${TELEPORT_DOMAIN_ADMIN_EMAIL}" != "" && "${TELEPORT_DOMAIN_NAME}" != "" && "${TELEPORT_S3_BUCKET}" != "" ]]; then
             write_https_keypairs_section
 
-            # set up the database listeners
-            write_database_section TELEPORT_EXTERNAL_HOSTNAME
+            # don't write database/kubernetes sections if TLS routing is enabled
+            if [[ "${USE_TLS_ROUTING}" == "true" ]]; then
+                # do nothing here
+                true
+            else
+                # set up the database listeners
+                write_database_section TELEPORT_EXTERNAL_HOSTNAME
 
-            # set up the kubernetes listener
-            write_kubernetes_section TELEPORT_EXTERNAL_HOSTNAME
+                # set up the kubernetes listener
+                write_kubernetes_section TELEPORT_EXTERNAL_HOSTNAME
+            fi
 
             # enable/start cert services and timers
             systemctl_wrap enable teleport-get-cert.service teleport-get-cert.timer
@@ -531,39 +594,24 @@ EOF
             systemctl_wrap start --no-block teleport-check-cert.timer
 
             systemctl_wrap start --no-block teleport-get-cert.service
-      fi
-    elif [[ "${USE_ACM}" == "true" ]]; then
-        echo "ACM support enabled"
-
-        # set up the database listeners
-        write_database_section TELEPORT_EXTERNAL_HOSTNAME
-
-        # set up the kubernetes listener
-        write_kubernetes_section TELEPORT_EXTERNAL_HOSTNAME
-
-        systemctl_wrap disable teleport.service
-        systemctl_wrap stop --no-block teleport.service
-
-        systemctl_wrap enable teleport-acm.service
-        systemctl_wrap start --no-block teleport-acm.service
+        fi
     fi
 
 else
     echo "No Teleport role provided via TELEPORT_ROLE; using generic all-in-one config"
+    TUNNEL_LISTEN_PORT=3024
 
-    # tunnel_listen_addr needs to be changed if we're using ACM as the listener cannot understand HTTP, only HTTPS
     if [[ "${USE_ACM}" == "true" ]]; then
         rm -f ${USE_CONFD_DIR}/use-letsencrypt
         rm -f ${USE_CONFD_DIR}/role.all
         echo "all-acm" > ${USE_CONFD_DIR}/role.all-acm
-        TUNNEL_LISTEN_PORT=3024
     else
         rm -f ${USE_CONFD_DIR}/role.all-acm
         echo "all" > ${USE_CONFD_DIR}/role.all
-        TUNNEL_LISTEN_PORT=3080
     fi
 
     cat >${USE_CONFIG_PATH} <<EOF
+version: v3
 teleport:
   nodename: ${LOCAL_HOSTNAME}
   advertise_ip: ${LOCAL_IP}
@@ -590,20 +638,29 @@ ssh_service:
 
 proxy_service:
   enabled: yes
-  listen_addr: 0.0.0.0:3023
-  tunnel_listen_addr: 0.0.0.0:${TUNNEL_LISTEN_PORT}
-  web_listen_addr: 0.0.0.0:3080
-  public_addr: ${TELEPORT_EXTERNAL_HOSTNAME:-$PUBLIC_IP}:${TELEPORT_EXTERNAL_PORT:-3080}
+  web_listen_addr: 0.0.0.0:443
+  public_addr: ${TELEPORT_EXTERNAL_HOSTNAME:-$PUBLIC_IP}:${TELEPORT_EXTERNAL_PORT:-443}
 EOF
 
-    # write ssh/tunnel config
-    write_ssh_and_tunnel_section 3080
+    # don't configure separate listen addresses when TLS routing is enabled
+    if [[ "${USE_TLS_ROUTING}" == "true" ]]; then
+        # do nothing here
+        true
+    else
+        cat >${USE_CONFIG_PATH} <<EOF
+  listen_addr: 0.0.0.0:3023
+  tunnel_listen_addr: 0.0.0.0:${TUNNEL_LISTEN_PORT}
+EOF
 
-    # set up the database listeners
-    write_database_section TELEPORT_EXTERNAL_HOSTNAME
+        # write ssh/tunnel config
+        write_ssh_and_tunnel_section 3024
 
-    # set up the kubernetes listener
-    write_kubernetes_section TELEPORT_EXTERNAL_HOSTNAME
+        # set up the database listeners
+        write_database_section TELEPORT_EXTERNAL_HOSTNAME
+
+        # set up the kubernetes listener
+        write_kubernetes_section TELEPORT_EXTERNAL_HOSTNAME
+    fi
 
     # if we are using letsencrypt, append config lines
     if [[ "${USE_LETSENCRYPT}" == "true" ]]; then

@@ -28,22 +28,9 @@ import (
 func TestPROXYEnabledListener_Accept(t *testing.T) {
 	t.Parallel()
 
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
-	require.NoError(t, err)
-
-	ctx := context.Background()
 	clusterName := "teleport-test"
 	tlsProxyCert, casGetter, jwtSigner := getTestCertCAsGetterAndSigner(t, clusterName)
 	_, _ = tlsProxyCert, jwtSigner
-	proxyListener, err := NewPROXYEnabledListener(Config{
-		Listener:                    listener,
-		Context:                     ctx,
-		EnableExternalProxyProtocol: true,
-		ID:                          "test",
-		CertAuthorityGetter:         casGetter,
-		LocalClusterName:            clusterName,
-	})
-	require.NoError(t, err, "Could not create new PROXY enabled listener")
 
 	addr1 := net.TCPAddr{IP: net.ParseIP("1.2.3.4"), Port: 444}
 	addr2 := net.TCPAddr{IP: net.ParseIP("5.4.3.2"), Port: 555}
@@ -56,29 +43,54 @@ func TestPROXYEnabledListener_Accept(t *testing.T) {
 		proxyLine          []byte
 		expectedRemoteAddr string
 		expectedLocalAddr  string
+		PROXYProtocolMode  PROXYProtocolMode
 	}{
 		{
 			name:               "PROXY v1 header",
 			proxyLine:          []byte(sampleProxyV1Line),
 			expectedLocalAddr:  "127.0.0.2:42",
 			expectedRemoteAddr: "127.0.0.1:12345",
+			PROXYProtocolMode:  PROXYProtocolOn,
+		},
+		{
+			name:               "PROXY v1 header, unspecified mode",
+			proxyLine:          []byte(sampleProxyV1Line),
+			expectedLocalAddr:  "127.0.0.2:42",
+			expectedRemoteAddr: "127.0.0.1:0",
+			PROXYProtocolMode:  PROXYProtocolUnspecified,
 		},
 		{
 			name:               "unsigned PROXY v2 header",
 			proxyLine:          sampleProxyV2Line,
 			expectedLocalAddr:  "127.0.0.2:42",
 			expectedRemoteAddr: "127.0.0.1:12345",
+			PROXYProtocolMode:  PROXYProtocolOn,
 		},
 		{
 			name:               "signed PROXY v2 header",
 			proxyLine:          signedHeader,
 			expectedLocalAddr:  addr2.String(),
 			expectedRemoteAddr: addr1.String(),
+			PROXYProtocolMode:  PROXYProtocolOff,
 		},
 	}
 
 	for _, tt := range testCases {
 		t.Run(tt.name, func(t *testing.T) {
+			listener, err := net.Listen("tcp", "127.0.0.1:0")
+			require.NoError(t, err)
+			t.Cleanup(func() { listener.Close() })
+
+			proxyListener, err := NewPROXYEnabledListener(Config{
+				Listener:            listener,
+				Context:             context.Background(),
+				ID:                  "test",
+				PROXYProtocolMode:   tt.PROXYProtocolMode,
+				CertAuthorityGetter: casGetter,
+				LocalClusterName:    clusterName,
+			})
+			require.NoError(t, err, "Could not create new PROXY enabled listener")
+
 			connChan := make(chan net.Conn)
 			errChan := make(chan error)
 			go func() {

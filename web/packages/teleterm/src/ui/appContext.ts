@@ -24,6 +24,7 @@ import {
   SendNotificationRequest,
   SendPendingHeadlessAuthenticationRequest,
 } from 'teleterm/services/tshdEvents';
+import Logger from 'teleterm/logger';
 import { ClustersService } from 'teleterm/ui/services/clusters';
 import { ModalsService } from 'teleterm/ui/services/modals';
 import { TerminalsService } from 'teleterm/ui/services/terminals';
@@ -41,10 +42,13 @@ import { ResourcesService } from 'teleterm/ui/services/resources';
 import { ConnectMyComputerService } from 'teleterm/ui/services/connectMyComputer';
 import { ConfigService } from 'teleterm/services/config';
 import { IAppContext } from 'teleterm/ui/types';
+import { DeepLinksService } from 'teleterm/ui/services/deepLinks';
+import { parseDeepLink } from 'teleterm/deepLinks';
 
 import { CommandLauncher } from './commandLauncher';
 
 export default class AppContext implements IAppContext {
+  private logger: Logger;
   clustersService: ClustersService;
   modalsService: ModalsService;
   notificationsService: NotificationsService;
@@ -77,9 +81,11 @@ export default class AppContext implements IAppContext {
   usageService: UsageService;
   configService: ConfigService;
   connectMyComputerService: ConnectMyComputerService;
+  deepLinksService: DeepLinksService;
 
   constructor(config: ElectronGlobals) {
     const { tshClient, ptyServiceClient, mainProcessClient } = config;
+    this.logger = new Logger('AppContext');
     this.subscribeToTshdEvent = config.subscribeToTshdEvent;
     this.mainProcessClient = mainProcessClient;
     this.notificationsService = new NotificationsService();
@@ -146,10 +152,18 @@ export default class AppContext implements IAppContext {
       tshClient,
       this.configService
     );
+    this.deepLinksService = new DeepLinksService(
+      this.mainProcessClient.getRuntimeSettings(),
+      this.clustersService,
+      this.workspacesService,
+      this.modalsService,
+      this.notificationsService
+    );
   }
 
-  async init(): Promise<void> {
+  async pullInitialState(): Promise<void> {
     this.setUpTshdEventSubscriptions();
+    this.subscribeToDeepLinkLaunch();
     this.clustersService.syncGatewaysAndCatchErrors();
     await this.clustersService.syncRootClustersAndCatchErrors();
   }
@@ -178,5 +192,22 @@ export default class AppContext implements IAppContext {
         );
       }
     );
+  }
+
+  private subscribeToDeepLinkLaunch() {
+    this.mainProcessClient.subscribeToDeepLinkLaunch(result => {
+      this.deepLinksService.launchDeepLink(result).catch(error => {
+        this.logger.error('Error when launching a deep link', error);
+      });
+    });
+
+    if (process.env.NODE_ENV === 'development') {
+      window['deepLinkLaunch'] = (url: string) => {
+        const result = parseDeepLink(url);
+        this.deepLinksService.launchDeepLink(result).catch(error => {
+          this.logger.error('Error when launching a deep link', error);
+        });
+      };
+    }
   }
 }

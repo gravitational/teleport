@@ -23,6 +23,11 @@ export enum ThemePreference {
   Dark = 2,
 }
 
+export enum UnifiedTabPreference {
+  All = 1,
+  Pinned = 2,
+}
+
 export enum ClusterResource {
   RESOURCE_UNSPECIFIED = 0,
   RESOURCE_WINDOWS_DESKTOPS = 1,
@@ -32,17 +37,40 @@ export enum ClusterResource {
   RESOURCE_WEB_APPLICATIONS = 5,
 }
 
+export type MarketingParams = {
+  campaign: string;
+  source: string;
+  medium: string;
+  intent: string;
+};
+
 export type OnboardUserPreferences = {
   preferredResources: ClusterResource[];
+  marketingParams: MarketingParams;
 };
 
 export interface UserPreferences {
   theme: ThemePreference;
   assist: AssistUserPreferences;
   onboard: OnboardUserPreferences;
+  clusterPreferences: UserClusterPreferences;
+  unifiedResourcePreferences: UnifiedResourcePreferences;
 }
 
-export type UserPreferencesSubset = Subset<UserPreferences>;
+// UserClusterPreferences are user preferences that are
+// different per cluster.
+export interface UserClusterPreferences {
+  // pinnedResources is an array of resource IDs.
+  pinnedResources: string[];
+}
+
+// UnifiedResourcePreferences are preferences related to the Unified Resource view
+export interface UnifiedResourcePreferences {
+  // defaultTab is the default tab selected in the unified resource view
+  defaultTab: UnifiedTabPreference;
+}
+
+export type GetUserClusterPreferencesResponse = UserClusterPreferences;
 export type GetUserPreferencesResponse = UserPreferences;
 
 export function deprecatedThemeToThemePreference(

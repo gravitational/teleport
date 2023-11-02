@@ -14,17 +14,17 @@ jobs:
         id: version
         run: |
           echo "version=${GITHUB_REF_NAME#v}" >> $GITHUB_OUTPUT
-      - uses: actions/checkout@v3
-      - uses: docker/setup-buildx-action@v2
-      - uses: aws-actions/configure-aws-credentials@v1
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: aws-actions/configure-aws-credentials@010d0da01d0b5a38af31e9c3470dbfdabdecca3a # v4.0.1
         with:
           role-to-assume: ${{ secrets.TELEPORT_USAGE_IAM_ROLE_ARN }}
           aws-region: us-east-1
-      - uses: aws-actions/amazon-ecr-login@v1
+      - uses: aws-actions/amazon-ecr-login@v2
         with:
           registry-type: public
       # Build and publish container image on ECR.
-      - uses: docker/build-push-action@v3
+      - uses: docker/build-push-action@v5
         with:
           context: "examples/teleport-usage"
           tags: public.ecr.aws/gravitational/teleport-usage:${{ steps.version.outputs.version }}

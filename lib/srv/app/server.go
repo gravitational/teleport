@@ -269,7 +269,9 @@ func New(ctx context.Context, c *Config) (*Server, error) {
 		}
 	}()
 
-	awsSigner, err := awsutils.NewSigningService(awsutils.SigningServiceConfig{})
+	awsSigner, err := awsutils.NewSigningService(awsutils.SigningServiceConfig{
+		Clock: c.Clock,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -700,7 +702,7 @@ func (s *Server) HandleConnection(conn net.Conn) {
 }
 
 func (s *Server) handleConnection(conn net.Conn) (func(), error) {
-	ctx, cancel := context.WithCancel(s.closeContext)
+	ctx, cancel := context.WithCancelCause(s.closeContext)
 	tc, err := srv.NewTrackingReadConn(srv.TrackingReadConnConfig{
 		Conn:    conn,
 		Clock:   s.c.Clock,
@@ -719,7 +721,7 @@ func (s *Server) handleConnection(conn net.Conn) (func(), error) {
 	}
 
 	ctx = authz.ContextWithUser(s.closeContext, user)
-	ctx = authz.ContextWithClientAddr(ctx, conn.RemoteAddr())
+	ctx = authz.ContextWithClientSrcAddr(ctx, conn.RemoteAddr())
 	authCtx, _, err := s.authorizeContext(ctx)
 
 	// The behavior here is a little hard to track. To be clear here, if authorization fails

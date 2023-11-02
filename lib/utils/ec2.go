@@ -18,12 +18,12 @@ package utils
 
 import (
 	"context"
-	"io"
-	"regexp"
 
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/feature/ec2/imds"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport"
 )
 
 // GetRawEC2IdentityDocument fetches the PKCS7 RSA2048 InstanceIdentityDocument
@@ -40,7 +40,7 @@ func GetRawEC2IdentityDocument(ctx context.Context) ([]byte, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	iidBytes, err := io.ReadAll(output.Content)
+	iidBytes, err := ReadAtMost(output.Content, teleport.MaxHTTPResponseSize)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -73,28 +73,6 @@ func GetEC2NodeID(ctx context.Context) (string, error) {
 		return "", trace.Wrap(err)
 	}
 	return NodeIDFromIID(iid), nil
-}
-
-// EC2 Node IDs are {AWS account ID}-{EC2 resource ID} eg:
-//
-//	123456789012-i-1234567890abcdef0
-//
-// AWS account ID is always a 12 digit number, see
-//
-//	https://docs.aws.amazon.com/general/latest/gr/acct-identifiers.html
-//
-// EC2 resource ID is i-{8 or 17 hex digits}, see
-//
-//	https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/resource-ids.html
-var ec2NodeIDRE = regexp.MustCompile("^[0-9]{12}-i-[0-9a-f]{8,}$")
-
-// IsEC2NodeID returns true if the given ID looks like an EC2 node ID. Uses a
-// simple regex to check. Node IDs are almost always UUIDs when set
-// automatically, but can be manually overridden by admins. If someone manually
-// sets a host ID that looks like one of our generated EC2 node IDs, they may be
-// able to trick this function, so don't use it for any critical purpose.
-func IsEC2NodeID(id string) bool {
-	return ec2NodeIDRE.MatchString(id)
 }
 
 // NodeIDFromIID returns the node ID that must be used for nodes joining with

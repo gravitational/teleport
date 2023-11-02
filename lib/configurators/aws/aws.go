@@ -174,7 +174,7 @@ var (
 	stsActions = []string{
 		"sts:AssumeRole",
 	}
-	// rdsActions contains IAM actions for services.AWSMatcherRDS (RDS
+	// rdsActions contains IAM actions for types.AWSMatcherRDS (RDS
 	// instances and Aurora clusters).
 	rdsActions = databaseActions{
 		discovery:      []string{"rds:DescribeDBInstances", "rds:DescribeDBClusters"},
@@ -183,7 +183,7 @@ var (
 		authBoundary:   []string{"rds-db:connect"},
 		requireIAMEdit: true,
 	}
-	// rdsProxyActions contains IAM actions for services.AWSMatcherRDSProxy.
+	// rdsProxyActions contains IAM actions for types.AWSMatcherRDSProxy.
 	rdsProxyActions = databaseActions{
 		discovery: []string{
 			"rds:DescribeDBProxies",
@@ -198,14 +198,14 @@ var (
 		authBoundary:   []string{"rds-db:connect"},
 		requireIAMEdit: true,
 	}
-	// redshiftActions contains IAM actions for services.AWSMatcherRedshift.
+	// redshiftActions contains IAM actions for types.AWSMatcherRedshift.
 	redshiftActions = databaseActions{
 		discovery:      []string{"redshift:DescribeClusters"},
 		metadata:       []string{"redshift:DescribeClusters"},
 		authBoundary:   []string{"redshift:GetClusterCredentials"},
 		requireIAMEdit: true,
 	}
-	// redshiftServerlessActions contains IAM actions for services.AWSMatcherRedshiftServerless.
+	// redshiftServerlessActions contains IAM actions for types.AWSMatcherRedshiftServerless.
 	redshiftServerlessActions = databaseActions{
 		discovery: []string{
 			"redshift-serverless:ListWorkgroups",
@@ -218,7 +218,7 @@ var (
 		},
 		authBoundary: stsActions,
 	}
-	// elastiCacheActions contains IAM actions for services.AWSMatcherElastiCache.
+	// elastiCacheActions contains IAM actions for types.AWSMatcherElastiCache.
 	elastiCacheActions = databaseActions{
 		discovery: []string{
 			"elasticache:ListTagsForResource",
@@ -237,7 +237,7 @@ var (
 		authBoundary:          []string{"elasticache:Connect"},
 		requireIAMEdit:        true,
 	}
-	// memoryDBActions contains IAM actions for services.AWSMatcherMemoryDB.
+	// memoryDBActions contains IAM actions for types.AWSMatcherMemoryDB.
 	memoryDBActions = databaseActions{
 		discovery: []string{
 			"memorydb:ListTags",
@@ -261,7 +261,7 @@ var (
 	dynamodbActions = databaseActions{
 		authBoundary: stsActions,
 	}
-	// opensearchActions contains IAM actions for services.AWSMatcherOpenSearch
+	// opensearchActions contains IAM actions for types.AWSMatcherOpenSearch
 	opensearchActions = databaseActions{
 		discovery: []string{
 			"es:ListDomainNames",
@@ -296,8 +296,8 @@ type ConfiguratorConfig struct {
 	AWSSTSClient stsiface.STSAPI
 	// AWSIAMClient AWS IAM client.
 	AWSIAMClient iamiface.IAMAPI
-	// AWSSSMClient AWS SSM Client
-	AWSSSMClient ssmiface.SSMAPI
+	// AWSSSMClient is a mapping of region -> ssm client
+	AWSSSMClients map[string]ssmiface.SSMAPI
 	// Policies instance of the `Policies` that the actions use.
 	Policies awslib.Policies
 	// Identity is the current AWS credentials chain identity.
@@ -338,8 +338,29 @@ func (c *ConfiguratorConfig) CheckAndSetDefaults() error {
 				return trace.Wrap(err)
 			}
 		}
-		if c.AWSSSMClient == nil {
-			c.AWSSSMClient = ssm.New(c.AWSSession)
+		if c.AWSSSMClients == nil {
+			c.AWSSSMClients = make(map[string]ssmiface.SSMAPI)
+			for _, matcher := range c.ServiceConfig.Discovery.AWSMatchers {
+				if !slices.Contains(matcher.Types, types.AWSMatcherEC2) {
+					continue
+				}
+				for _, region := range matcher.Regions {
+					if _, ok := c.AWSSSMClients[region]; ok {
+						continue
+					}
+					session, err := awssession.NewSessionWithOptions(awssession.Options{
+						Config: aws.Config{
+							Region: &region,
+						},
+						SharedConfigState: awssession.SharedConfigEnable,
+					})
+					if err != nil {
+						return trace.Wrap(err)
+					}
+					c.AWSSSMClients[region] = ssm.New(session)
+				}
+			}
+
 		}
 
 		if c.Policies == nil {
@@ -487,7 +508,7 @@ func buildDiscoveryActions(config ConfiguratorConfig, targetCfg targetConfig) ([
 		return nil, err
 	}
 
-	actions = append(actions, buildSSMDocumentCreators(config.AWSSSMClient, targetCfg, proxyAddr)...)
+	actions = append(actions, buildSSMDocumentCreators(config.AWSSSMClients, targetCfg, proxyAddr)...)
 	return actions, nil
 }
 
@@ -749,18 +770,20 @@ func getProxyAddrFromConfig(cfg *servicecfg.Config, flags configurators.Bootstra
 	return "", trace.NotFound("proxy address not found, please provide --proxy, or set either teleport.proxy_server or proxy_service.public_addr in the teleport config")
 }
 
-func buildSSMDocumentCreators(ssm ssmiface.SSMAPI, targetCfg targetConfig, proxyAddr string) []configurators.ConfiguratorAction {
+func buildSSMDocumentCreators(ssm map[string]ssmiface.SSMAPI, targetCfg targetConfig, proxyAddr string) []configurators.ConfiguratorAction {
 	var creators []configurators.ConfiguratorAction
 	for _, matcher := range targetCfg.awsMatchers {
-		if !slices.Contains(matcher.Types, services.AWSMatcherEC2) {
+		if !slices.Contains(matcher.Types, types.AWSMatcherEC2) {
 			continue
 		}
-		ssmCreator := awsSSMDocumentCreator{
-			ssm:      ssm,
-			Name:     matcher.SSM.DocumentName,
-			Contents: EC2DiscoverySSMDocument(proxyAddr),
+		for _, region := range matcher.Regions {
+			ssmCreator := awsSSMDocumentCreator{
+				ssm:      ssm[region],
+				Name:     matcher.SSM.DocumentName,
+				Contents: EC2DiscoverySSMDocument(proxyAddr),
+			}
+			creators = append(creators, &ssmCreator)
 		}
-		creators = append(creators, &ssmCreator)
 	}
 	return creators
 }
@@ -769,7 +792,7 @@ func isEC2AutoDiscoveryEnabled(flags configurators.BootstrapFlags, matchers []ty
 	if flags.ForceEC2Permissions {
 		return true
 	}
-	return isAutoDiscoveryEnabledForMatcher(services.AWSMatcherEC2, matchers)
+	return isAutoDiscoveryEnabledForMatcher(types.AWSMatcherEC2, matchers)
 }
 
 // hasRDSDatabases checks if the agent needs permission for
@@ -778,7 +801,7 @@ func hasRDSDatabases(flags configurators.BootstrapFlags, targetCfg targetConfig)
 	if flags.ForceRDSPermissions {
 		return true
 	}
-	return isAutoDiscoveryEnabledForMatcher(services.AWSMatcherRDS, targetCfg.awsMatchers) ||
+	return isAutoDiscoveryEnabledForMatcher(types.AWSMatcherRDS, targetCfg.awsMatchers) ||
 		findEndpointIs(targetCfg.databases, isRDSEndpoint)
 }
 
@@ -788,7 +811,7 @@ func hasRDSProxyDatabases(flags configurators.BootstrapFlags, targetCfg targetCo
 	if flags.ForceRDSProxyPermissions {
 		return true
 	}
-	return isAutoDiscoveryEnabledForMatcher(services.AWSMatcherRDSProxy, targetCfg.awsMatchers) ||
+	return isAutoDiscoveryEnabledForMatcher(types.AWSMatcherRDSProxy, targetCfg.awsMatchers) ||
 		findEndpointIs(targetCfg.databases, isRDSProxyEndpoint)
 }
 
@@ -798,7 +821,7 @@ func hasRedshiftDatabases(flags configurators.BootstrapFlags, targetCfg targetCo
 	if flags.ForceRedshiftPermissions {
 		return true
 	}
-	return isAutoDiscoveryEnabledForMatcher(services.AWSMatcherRedshift, targetCfg.awsMatchers) ||
+	return isAutoDiscoveryEnabledForMatcher(types.AWSMatcherRedshift, targetCfg.awsMatchers) ||
 		findEndpointIs(targetCfg.databases, apiawsutils.IsRedshiftEndpoint)
 }
 
@@ -808,7 +831,7 @@ func hasRedshiftServerlessDatabases(flags configurators.BootstrapFlags, targetCf
 	if flags.ForceRedshiftServerlessPermissions {
 		return true
 	}
-	return isAutoDiscoveryEnabledForMatcher(services.AWSMatcherRedshiftServerless, targetCfg.awsMatchers) ||
+	return isAutoDiscoveryEnabledForMatcher(types.AWSMatcherRedshiftServerless, targetCfg.awsMatchers) ||
 		findEndpointIs(targetCfg.databases, apiawsutils.IsRedshiftServerlessEndpoint)
 }
 
@@ -818,7 +841,7 @@ func hasElastiCacheDatabases(flags configurators.BootstrapFlags, targetCfg targe
 	if flags.ForceElastiCachePermissions {
 		return true
 	}
-	return isAutoDiscoveryEnabledForMatcher(services.AWSMatcherElastiCache, targetCfg.awsMatchers) ||
+	return isAutoDiscoveryEnabledForMatcher(types.AWSMatcherElastiCache, targetCfg.awsMatchers) ||
 		findEndpointIs(targetCfg.databases, apiawsutils.IsElastiCacheEndpoint)
 }
 
@@ -828,7 +851,7 @@ func hasMemoryDBDatabases(flags configurators.BootstrapFlags, targetCfg targetCo
 	if flags.ForceMemoryDBPermissions {
 		return true
 	}
-	return isAutoDiscoveryEnabledForMatcher(services.AWSMatcherMemoryDB, targetCfg.awsMatchers) ||
+	return isAutoDiscoveryEnabledForMatcher(types.AWSMatcherMemoryDB, targetCfg.awsMatchers) ||
 		findEndpointIs(targetCfg.databases, apiawsutils.IsMemoryDBEndpoint)
 }
 
@@ -838,7 +861,7 @@ func hasOpenSearchDatabases(flags configurators.BootstrapFlags, targetCfg target
 	if flags.ForceOpenSearchPermissions {
 		return true
 	}
-	return isAutoDiscoveryEnabledForMatcher(services.AWSMatcherOpenSearch, targetCfg.awsMatchers) ||
+	return isAutoDiscoveryEnabledForMatcher(types.AWSMatcherOpenSearch, targetCfg.awsMatchers) ||
 		findDatabaseIs(targetCfg.databases, func(db *servicecfg.Database) bool {
 			return db.Protocol == defaults.ProtocolOpenSearch
 		})
@@ -919,7 +942,7 @@ func findAWSMatcherIs(matchers []types.AWSMatcher, is func(*types.AWSMatcher) bo
 // AWS roles. Currently limited to just the AWS database matchers.
 func supportsAWSAssumeRole(matcher types.AWSMatcher) bool {
 	for _, matcherType := range matcher.Types {
-		if slices.Contains(services.SupportedAWSDatabaseMatchers, matcherType) {
+		if slices.Contains(types.SupportedAWSDatabaseMatchers, matcherType) {
 			return true
 		}
 	}

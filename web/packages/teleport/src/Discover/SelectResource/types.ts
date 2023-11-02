@@ -14,6 +14,10 @@
  * limitations under the License.
  */
 
+import { Platform } from 'design/theme/utils';
+
+import { ClusterResource } from 'teleport/services/userPreferences/types';
+
 import { ResourceKind } from '../Shared/ResourceKind';
 
 import type { DiscoverEventResource } from 'teleport/services/userEvent';
@@ -49,8 +53,13 @@ export enum DatabaseEngine {
   Doc,
 }
 
+export enum ServerLocation {
+  Aws,
+}
+
 export interface ResourceSpec {
   dbMeta?: { location: DatabaseLocation; engine: DatabaseEngine };
+  nodeMeta?: { location: ServerLocation };
   name: string;
   popular?: boolean;
   kind: ResourceKind;
@@ -72,6 +81,9 @@ export interface ResourceSpec {
   // the type of this resource (e.g. server v. kubernetes),
   // used for usage reporting.
   event: DiscoverEventResource;
+  // platform indicates a particular platform the resource is associated with.
+  // Set this value if the resource should be prioritized based on the platform.
+  platform?: Platform;
 }
 
 export enum SearchResource {
@@ -81,4 +93,10 @@ export enum SearchResource {
   DESKTOP = 'desktop',
   KUBERNETES = 'kubernetes',
   SERVER = 'server',
+  UNIFIED_RESOURCE = 'unified_resource',
 }
+
+export type PrioritizedResources = {
+  preferredResources: ClusterResource[];
+  hasPreferredResources: boolean;
+};

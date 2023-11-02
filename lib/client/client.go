@@ -21,17 +21,17 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/gravitational/trace/trail"
 	"github.com/moby/term"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/propagation"
@@ -49,9 +49,9 @@ import (
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/client/mfa"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -97,6 +97,13 @@ type NodeClient struct {
 	// addr set in TC.WebProxyAddr. This is needed to report the correct address
 	// to SSH_TELEPORT_WEBPROXY_ADDR used by some features like "teleport status".
 	ProxyPublicAddr string
+
+	// hostname is the node's hostname, for more user-friendly logging.
+	hostname string
+
+	// sshLogDir is the directory to log the output of multiple SSH commands to.
+	// If not set, no logs will be created.
+	sshLogDir string
 }
 
 // AddCloser adds an [io.Closer] that will be closed when the
@@ -436,7 +443,7 @@ func WithMFARequired(mfaRequired *bool) IssueUserCertsOpt {
 }
 
 // IssueUserCertsWithMFA generates a single-use certificate for the user.
-func (proxy *ProxyClient) IssueUserCertsWithMFA(ctx context.Context, params ReissueParams, promptMFAChallenge PromptMFAChallengeHandler, applyOpts ...IssueUserCertsOpt) (*Key, error) {
+func (proxy *ProxyClient) IssueUserCertsWithMFA(ctx context.Context, params ReissueParams, promptMFA PromptMFAFunc, applyOpts ...IssueUserCertsOpt) (*Key, error) {
 	ctx, span := proxy.Tracer.Start(
 		ctx,
 		"proxyClient/IssueUserCertsWithMFA",
@@ -543,97 +550,24 @@ func (proxy *ProxyClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 		defer clt.Close()
 	}
 
-	log.Debug("Attempting to issue a single-use user certificate with an MFA check.")
-	stream, err := clt.GenerateUserSingleUseCerts(ctx)
-	if err != nil {
-		if trace.IsNotImplemented(err) {
-			// Probably talking to an older server, use the old non-MFA endpoint.
-			log.WithError(err).Debug("Auth server does not implement GenerateUserSingleUseCerts.")
-			// SSH certs can be used without reissuing.
-			if params.usage() == proto.UserCertsRequest_SSH && key.Cert != nil {
-				return key, nil
-			}
-			return proxy.reissueUserCerts(ctx, CertCacheKeep, params)
-		}
-		return nil, trace.Wrap(err)
-	}
-	defer func() {
-		// CloseSend closes the client side of the stream
-		stream.CloseSend()
-		// Recv to wait for the server side of the stream to end, this needs to
-		// be called to ensure the spans are finished properly
-		stream.Recv()
-	}()
-
-	initReq, err := proxy.prepareUserCertsRequest(params, key)
+	certsReq, err := proxy.prepareUserCertsRequest(params, key)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	err = stream.Send(&proto.UserSingleUseCertsRequest{Request: &proto.UserSingleUseCertsRequest_Init{
-		Init: initReq,
-	}})
-	if err != nil {
-		return nil, trace.Wrap(trail.FromGRPC(err))
-	}
 
-	resp, err := stream.Recv()
+	key, _, err = PerformMFACeremony(ctx, PerformMFACeremonyParams{
+		CurrentAuthClient: proxy.currentCluster,
+		RootAuthClient:    clt,
+		PromptMFA:         promptMFA,
+		MFAAgainstRoot:    params.RouteToCluster == rootClusterName,
+		MFARequiredReq:    nil, // No need to check if we got this far.
+		CertsReq:          certsReq,
+		Key:               key,
+	})
 	if err != nil {
-		err = trail.FromGRPC(err)
-		// Older versions will NOT reply with a MFARequired response in the
-		// challenge and will terminate the stream with an auth.ErrNoMFADevices error.
-		// In this case for all protocols other than SSH fall back to reissuing
-		// certs without MFA.
-		if errors.Is(err, auth.ErrNoMFADevices) {
-			if params.usage() != proto.UserCertsRequest_SSH {
-				return proxy.reissueUserCerts(ctx, CertCacheKeep, params)
-			}
-		}
-
 		return nil, trace.Wrap(err)
 	}
-	mfaChal := resp.GetMFAChallenge()
-	if mfaChal == nil {
-		return nil, trace.BadParameter("server sent a %T on GenerateUserSingleUseCerts, expected MFAChallenge", resp.Response)
-	}
-	mfaResp, err := promptMFAChallenge(ctx, proxy.teleportClient.WebProxyAddr, mfaChal)
-	if err != nil {
-		return nil, trace.Wrap(trail.FromGRPC(err))
-	}
-	err = stream.Send(&proto.UserSingleUseCertsRequest{Request: &proto.UserSingleUseCertsRequest_MFAResponse{MFAResponse: mfaResp}})
-	if err != nil {
-		return nil, trace.Wrap(trail.FromGRPC(err))
-	}
 
-	resp, err = stream.Recv()
-	if err != nil {
-		return nil, trace.Wrap(trail.FromGRPC(err))
-	}
-	certResp := resp.GetCert()
-	if certResp == nil {
-		return nil, trace.BadParameter("server sent a %T on GenerateUserSingleUseCerts, expected SingleUseUserCert", resp.Response)
-	}
-	switch crt := certResp.Cert.(type) {
-	case *proto.SingleUseUserCert_SSH:
-		key.Cert = crt.SSH
-	case *proto.SingleUseUserCert_TLS:
-		switch initReq.Usage {
-		case proto.UserCertsRequest_Kubernetes:
-			key.KubeTLSCerts[initReq.KubernetesCluster] = crt.TLS
-		case proto.UserCertsRequest_Database:
-			dbCert, err := makeDatabaseClientPEM(params.RouteToDatabase.Protocol, crt.TLS, key)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			key.DBTLSCerts[params.RouteToDatabase.ServiceName] = dbCert
-		case proto.UserCertsRequest_WindowsDesktop:
-			key.WindowsDesktopCerts[params.RouteToWindowsDesktop.WindowsDesktop] = crt.TLS
-		default:
-			return nil, trace.BadParameter("server returned a TLS certificate but cert request usage was %s", initReq.Usage)
-		}
-	default:
-		return nil, trace.BadParameter("server sent a %T SingleUseUserCert in response", certResp.Cert)
-	}
-	key.ClusterName = params.RouteToCluster
 	log.Debug("Issued single-use user certificate after an MFA check.")
 	return key, nil
 }
@@ -656,11 +590,6 @@ func (proxy *ProxyClient) prepareUserCertsRequest(params ReissueParams, key *Key
 		params.AccessRequests = activeRequests.AccessRequests
 	}
 
-	attestationStatement, err := keys.GetAttestationStatement(key.PrivateKey)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	return &proto.UserCertsRequest{
 		PublicKey:             key.MarshalSSHPublicKey(),
 		Username:              tlsCert.Subject.CommonName,
@@ -676,7 +605,7 @@ func (proxy *ProxyClient) prepareUserCertsRequest(params ReissueParams, key *Key
 		Usage:                 params.usage(),
 		Format:                proxy.teleportClient.CertificateFormat,
 		RequesterName:         params.RequesterName,
-		AttestationStatement:  attestationStatement.ToProto(),
+		AttestationStatement:  key.PrivateKey.GetAttestationStatement().ToProto(),
 	}, nil
 }
 
@@ -692,11 +621,11 @@ func (proxy *ProxyClient) RootClusterName(ctx context.Context) (string, error) {
 	return proxy.teleportClient.RootClusterName(ctx)
 }
 
-// CreateAccessRequest registers a new access request with the auth server.
-func (proxy *ProxyClient) CreateAccessRequest(ctx context.Context, req types.AccessRequest) error {
+// CreateAccessRequestV2 registers a new access request with the auth server.
+func (proxy *ProxyClient) CreateAccessRequestV2(ctx context.Context, req types.AccessRequest) (types.AccessRequest, error) {
 	ctx, span := proxy.Tracer.Start(
 		ctx,
-		"proxyClient/CreateAccessRequest",
+		"proxyClient/CreateAccessRequestV2",
 		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
 		oteltrace.WithAttributes(attribute.String("request", req.GetName())),
 	)
@@ -704,7 +633,7 @@ func (proxy *ProxyClient) CreateAccessRequest(ctx context.Context, req types.Acc
 
 	site := proxy.CurrentCluster()
 
-	return site.CreateAccessRequest(ctx, req)
+	return site.CreateAccessRequestV2(ctx, req)
 }
 
 // GetAccessRequests loads all access requests matching the supplied filter.
@@ -1147,6 +1076,7 @@ func (proxy *ProxyClient) ConnectToAuthServiceThroughALPNSNIProxy(ctx context.Co
 		ALPNConnUpgradeRequired:    proxy.teleportClient.IsALPNConnUpgradeRequiredForWebProxy(ctx, proxyAddr),
 		PROXYHeaderGetter:          CreatePROXYHeaderGetter(ctx, proxy.teleportClient.PROXYSigner),
 		InsecureAddressDiscovery:   proxy.teleportClient.InsecureSkipVerify,
+		PromptAdminRequestMFA:      proxy.teleportClient.NewMFAPrompt(mfa.WithHintBeforePrompt(mfa.AdminMFAHintBeforePrompt)),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1224,7 +1154,8 @@ func (proxy *ProxyClient) ConnectToCluster(ctx context.Context, clusterName stri
 		Credentials: []client.Credentials{
 			client.LoadTLS(tlsConfig),
 		},
-		CircuitBreakerConfig: breaker.NoopBreakerConfig(),
+		CircuitBreakerConfig:  breaker.NoopBreakerConfig(),
+		PromptAdminRequestMFA: proxy.teleportClient.NewMFAPrompt(mfa.WithHintBeforePrompt(mfa.AdminMFAHintBeforePrompt)),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1264,10 +1195,13 @@ func (proxy *ProxyClient) NewTracingClient(ctx context.Context, clusterName stri
 }
 
 // nodeName removes the port number from the hostname, if present
-func nodeName(node string) string {
-	n, _, err := net.SplitHostPort(node)
+func nodeName(node targetNode) string {
+	if node.hostname != "" {
+		return node.hostname
+	}
+	n, _, err := net.SplitHostPort(node.addr)
 	if err != nil {
-		return node
+		return node.addr
 	}
 	return n
 }
@@ -1321,7 +1255,7 @@ func (proxy *ProxyClient) dialAuthServer(ctx context.Context, clusterName string
 		// it to the end of our own message:
 		serverErrorMsg, _ := io.ReadAll(proxyErr)
 		return nil, trace.ConnectionProblem(err, "failed connecting to node %v. %s",
-			nodeName(strings.Split(address, "@")[0]), serverErrorMsg)
+			nodeName(targetNode{addr: strings.Split(address, "@")[0]}), serverErrorMsg)
 	}
 	return utils.NewPipeNetConn(
 		proxyReader,
@@ -1344,11 +1278,14 @@ type NodeDetails struct {
 	// MFACheck is optional parameter passed if MFA check was already done.
 	// It can be nil.
 	MFACheck *proto.IsMFARequiredResponse
+
+	// hostname is the node's hostname, for more user-friendly logging.
+	hostname string
 }
 
 // String returns a user-friendly name
 func (n NodeDetails) String() string {
-	parts := []string{nodeName(n.Addr)}
+	parts := []string{nodeName(targetNode{addr: n.Addr})}
 	if n.Cluster != "" {
 		parts = append(parts, "on cluster", n.Cluster)
 	}
@@ -1468,7 +1405,7 @@ func (proxy *ProxyClient) ConnectToNode(ctx context.Context, nodeAddress NodeDet
 		// it to the end of our own message:
 		serverErrorMsg, _ := io.ReadAll(proxyErr)
 		return nil, trace.ConnectionProblem(err, "failed connecting to node %v. %s",
-			nodeName(nodeAddress.Addr), serverErrorMsg)
+			nodeName(targetNode{addr: nodeAddress.Addr}), serverErrorMsg)
 	}
 
 	pipeNetConn := utils.NewPipeNetConn(
@@ -1537,9 +1474,27 @@ func (proxy *ProxyClient) PortForwardToNode(ctx context.Context, nodeAddress Nod
 	return nc, trace.Wrap(err)
 }
 
+// NodeClientOption is a functional argument for NewNodeClient.
+type NodeClientOption func(nc *NodeClient)
+
+// WithNodeHostname sets the hostname to display for the connected node.
+func WithNodeHostname(hostname string) NodeClientOption {
+	return func(nc *NodeClient) {
+		nc.hostname = hostname
+	}
+}
+
+// WithSSHLogDir sets the directory to write command output to when running
+// commands on multiple nodes.
+func WithSSHLogDir(logDir string) NodeClientOption {
+	return func(nc *NodeClient) {
+		nc.sshLogDir = logDir
+	}
+}
+
 // NewNodeClient constructs a NodeClient that is connected to the node at nodeAddress.
 // The nodeName field is optional and is used only to present better error messages.
-func NewNodeClient(ctx context.Context, sshConfig *ssh.ClientConfig, conn net.Conn, nodeAddress, nodeName string, tc *TeleportClient, fipsEnabled bool) (*NodeClient, error) {
+func NewNodeClient(ctx context.Context, sshConfig *ssh.ClientConfig, conn net.Conn, nodeAddress, nodeName string, tc *TeleportClient, fipsEnabled bool, opts ...NodeClientOption) (*NodeClient, error) {
 	ctx, span := tc.Tracer.Start(
 		ctx,
 		"NewNodeClient",
@@ -1550,13 +1505,14 @@ func NewNodeClient(ctx context.Context, sshConfig *ssh.ClientConfig, conn net.Co
 	)
 	defer span.End()
 
+	if nodeName == "" {
+		nodeName = nodeAddress
+	}
+
 	sshconn, chans, reqs, err := newClientConn(ctx, conn, nodeAddress, sshConfig)
 	if err != nil {
 		if utils.IsHandshakeFailedError(err) {
 			conn.Close()
-			if nodeName == "" {
-				nodeName = nodeAddress
-			}
 			// TODO(codingllama): Improve error message below for device trust.
 			//  An alternative we have here is querying the cluster to check if device
 			//  trust is required, a check similar to `IsMFARequired`.
@@ -1578,6 +1534,11 @@ func NewNodeClient(ctx context.Context, sshConfig *ssh.ClientConfig, conn net.Co
 		Tracer:          tc.Tracer,
 		FIPSEnabled:     fipsEnabled,
 		ProxyPublicAddr: tc.WebProxyAddr,
+		hostname:        nodeName,
+	}
+
+	for _, opt := range opts {
+		opt(nc)
 	}
 
 	// Start a goroutine that will run for the duration of the client to process
@@ -1640,8 +1601,85 @@ func (c *NodeClient) RunInteractiveShell(ctx context.Context, mode types.Session
 	return nil
 }
 
+// lineLabeledWriter is an io.Writer that prepends a label to each line it writes.
+type lineLabeledWriter struct {
+	linePrefix        []byte
+	w                 io.Writer
+	shouldWritePrefix bool
+}
+
+func newLineLabeledWriter(w io.Writer, label string) io.Writer {
+	return &lineLabeledWriter{
+		linePrefix:        []byte(fmt.Sprintf("[%v] ", label)),
+		w:                 w,
+		shouldWritePrefix: true,
+	}
+}
+
+func (lw *lineLabeledWriter) writeChunk(b []byte, bytesWritten int, newline bool) (int, error) {
+	n, err := lw.w.Write(b)
+	bytesWritten += n
+	if err != nil {
+		return bytesWritten, trace.Wrap(err)
+	}
+	if newline {
+		n, err = lw.w.Write([]byte("\n"))
+		bytesWritten += n
+	}
+	return bytesWritten, trace.Wrap(err)
+}
+
+func (lw *lineLabeledWriter) Write(input []byte) (int, error) {
+	bytesWritten := 0
+	var line []byte
+	rest := input
+	var found bool
+	for {
+		line, rest, found = bytes.Cut(rest, []byte("\n"))
+		// Write the prefix unless we're either continuing a line from the last
+		// write or we're at the end.
+		if lw.shouldWritePrefix && (len(line) > 0 || found) {
+			// Write the prefix on its own to not mess with the eventual returned
+			// number of bytes written.
+			if _, err := lw.w.Write(lw.linePrefix); err != nil {
+				return bytesWritten, trace.Wrap(err)
+			}
+		}
+		var err error
+		if bytesWritten, err = lw.writeChunk(line, bytesWritten, found); err != nil {
+			return bytesWritten, trace.Wrap(err)
+		}
+		lw.shouldWritePrefix = true
+
+		if !found {
+			// If there were leftovers, the line will continue on the next write, so
+			// skip the first prefix next time.
+			lw.shouldWritePrefix = len(line) == 0
+			break
+		}
+	}
+
+	return bytesWritten, nil
+}
+
+// RunCommandOptions is a set of options for NodeClient.RunCommand.
+type RunCommandOptions struct {
+	labelLines bool
+}
+
+// RunCommandOption is a functional argument for NodeClient.RunCommand.
+type RunCommandOption func(opts *RunCommandOptions)
+
+// WithLabeledOutput labels each line of output from a command with the node's
+// hostname.
+func WithLabeledOutput() RunCommandOption {
+	return func(opts *RunCommandOptions) {
+		opts.labelLines = true
+	}
+}
+
 // RunCommand executes a given bash command on the node.
-func (c *NodeClient) RunCommand(ctx context.Context, command []string) error {
+func (c *NodeClient) RunCommand(ctx context.Context, command []string, opts ...RunCommandOption) error {
 	ctx, span := c.Tracer.Start(
 		ctx,
 		"nodeClient/RunCommand",
@@ -1649,7 +1687,38 @@ func (c *NodeClient) RunCommand(ctx context.Context, command []string) error {
 	)
 	defer span.End()
 
-	nodeSession, err := newSession(ctx, c, nil, c.TC.newSessionEnv(), c.TC.Stdin, c.TC.Stdout, c.TC.Stderr, c.TC.EnableEscapeSequences)
+	var options RunCommandOptions
+	for _, opt := range opts {
+		opt(&options)
+	}
+
+	// Set up output streams
+	stdout := c.TC.Stdout
+	stderr := c.TC.Stderr
+	if c.hostname != "" {
+		if options.labelLines {
+			stdout = newLineLabeledWriter(c.TC.Stdout, c.hostname)
+			stderr = newLineLabeledWriter(c.TC.Stderr, c.hostname)
+		}
+
+		if c.sshLogDir != "" {
+			stdoutFile, err := os.Create(filepath.Join(c.sshLogDir, c.hostname+".stdout"))
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			defer stdoutFile.Close()
+			stderrFile, err := os.Create(filepath.Join(c.sshLogDir, c.hostname+".stderr"))
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			defer stderrFile.Close()
+
+			stdout = io.MultiWriter(stdout, stdoutFile)
+			stderr = io.MultiWriter(stderr, stderrFile)
+		}
+	}
+
+	nodeSession, err := newSession(ctx, c, nil, c.TC.newSessionEnv(), c.TC.Stdin, stdout, stderr, c.TC.EnableEscapeSequences)
 	if err != nil {
 		return trace.Wrap(err)
 	}

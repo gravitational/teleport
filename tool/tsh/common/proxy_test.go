@@ -21,6 +21,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -208,18 +209,18 @@ func TestSSHLoadAllCAs(t *testing.T) {
 				}),
 			},
 		},
-		{
-			name: "TLS routing disabled",
-			opts: []testSuiteOptionFunc{
-				withRootConfigFunc(func(cfg *servicecfg.Config) {
-					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Separate)
-					cfg.Auth.LoadAllCAs = true
-				}),
-				withLeafConfigFunc(func(cfg *servicecfg.Config) {
-					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Separate)
-				}),
-			},
-		},
+		// { // todo(lxea): unskip this test once flakiness is resolved
+		// 	name: "TLS routing disabled",
+		// 	opts: []testSuiteOptionFunc{
+		// 		withRootConfigFunc(func(cfg *servicecfg.Config) {
+		// 			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Separate)
+		// 			cfg.Auth.LoadAllCAs = true
+		// 		}),
+		// 		withLeafConfigFunc(func(cfg *servicecfg.Config) {
+		// 			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Separate)
+		// 		}),
+		// 	},
+		// },
 	}
 
 	for _, tc := range tests {
@@ -235,15 +236,21 @@ func TestSSHLoadAllCAs(t *testing.T) {
 			// Login to root
 			tshHome, _ := mustLogin(t, s)
 
+			require.Eventually(t, func() bool {
+				lnodes, _ := s.leaf.GetAuthServer().GetNodes(context.Background(), "default")
+				rnodes, _ := s.root.GetAuthServer().GetNodes(context.Background(), "default")
+				return len(lnodes) != 0 && len(rnodes) != 0
+			}, time.Second*30, time.Millisecond*100)
+
 			// Connect to leaf node
 			err = Run(context.Background(), []string{
 				"ssh", "-d",
 				"-p", strconv.Itoa(s.leaf.Config.SSH.Addr.Port(0)),
+				"--cluster", s.leaf.Config.Auth.ClusterName.GetClusterName(),
 				s.leaf.Config.SSH.Addr.Host(),
 				"echo", "hello",
 			}, setHomePath(tshHome))
 			require.NoError(t, err)
-
 			// Connect to leaf node with Jump host
 			err = Run(context.Background(), []string{
 				"ssh", "-d",
@@ -258,6 +265,8 @@ func TestSSHLoadAllCAs(t *testing.T) {
 
 // TestWithRsync tests that Teleport works with rsync.
 func TestWithRsync(t *testing.T) {
+	disableAgent(t)
+
 	_, err := exec.LookPath("rsync")
 	require.NoError(t, err)
 
@@ -323,11 +332,14 @@ func TestWithRsync(t *testing.T) {
 				})
 				require.NoError(t, err)
 
-				require.Eventually(t, func() bool {
+				require.EventuallyWithT(t, func(t *assert.CollectT) {
 					pref, err := asrv.GetAuthPreference(ctx)
-					require.NoError(t, err)
+					if !assert.NoError(t, err) {
+						return
+					}
 					w, err := pref.GetWebauthn()
-					return err == nil && w != nil
+					assert.NoError(t, err)
+					assert.NotNil(t, w)
 				}, 5*time.Second, 100*time.Millisecond)
 
 				token, err := asrv.CreateResetPasswordToken(ctx, auth.CreateUserTokenRequest{
@@ -465,13 +477,18 @@ func TestWithRsync(t *testing.T) {
 			require.NoError(t, err)
 			dstPath := filepath.Join(testDir, "dst")
 
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 			t.Cleanup(cancel)
+
 			cmd := tt.createCmd(ctx, testDir, srcPath, dstPath)
-			cmd.Stdout = os.Stdout
-			cmd.Stderr = os.Stderr
-			err = cmd.Run()
-			require.NoError(t, err)
+			err := cmd.Run()
+			var msg string
+			var exitErr *exec.ExitError
+			if errors.As(err, &exitErr) {
+				msg = fmt.Sprintf("exit code: %d", exitErr.ExitCode())
+				msg += fmt.Sprintf("stderr: %s", exitErr.Stderr)
+			}
+			require.NoError(t, err, msg)
 
 			// verify that dst exists and that its contents match src
 			dstContents, err := os.ReadFile(dstPath)
@@ -533,23 +550,25 @@ func TestProxySSH(t *testing.T) {
 			// login to Teleport
 			homePath, kubeConfigPath := mustLogin(t, s)
 
+			require.Eventually(t, func() bool {
+				rnodes, _ := s.root.GetAuthServer().GetNodes(context.Background(), "default")
+				return len(rnodes) != 0
+			}, time.Second*30, time.Millisecond*100)
+
 			t.Run("logged in", func(t *testing.T) {
 				t.Parallel()
-
 				err := runProxySSH(proxyRequest, setHomePath(homePath), setKubeConfigPath(kubeConfigPath))
 				require.NoError(t, err)
 			})
 
 			t.Run("re-login", func(t *testing.T) {
 				t.Parallel()
-
 				err := runProxySSH(proxyRequest, setHomePath(t.TempDir()), setKubeConfigPath(filepath.Join(t.TempDir(), teleport.KubeConfigFile)), setMockSSOLogin(t, s))
 				require.NoError(t, err)
 			})
 
 			t.Run("identity file", func(t *testing.T) {
 				t.Parallel()
-
 				err := runProxySSH(proxyRequest, setIdentity(mustLoginIdentity(t, s)))
 				require.NoError(t, err)
 			})
@@ -720,7 +739,7 @@ func TestTSHConfigConnectWithOpenSSHClient(t *testing.T) {
 			name: "node recording mode with TLS routing enabled",
 			opts: []testSuiteOptionFunc{
 				withRootConfigFunc(func(cfg *servicecfg.Config) {
-					cfg.Auth.SessionRecordingConfig.SetMode(types.RecordAtNode)
+					cfg.Auth.SessionRecordingConfig.SetMode(types.RecordAtNodeSync)
 					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 				}),
 			},
@@ -729,7 +748,7 @@ func TestTSHConfigConnectWithOpenSSHClient(t *testing.T) {
 			name: "proxy recording mode with TLS routing enabled",
 			opts: []testSuiteOptionFunc{
 				withRootConfigFunc(func(cfg *servicecfg.Config) {
-					cfg.Auth.SessionRecordingConfig.SetMode(types.RecordAtProxy)
+					cfg.Auth.SessionRecordingConfig.SetMode(types.RecordAtProxySync)
 					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 				}),
 			},
@@ -738,7 +757,7 @@ func TestTSHConfigConnectWithOpenSSHClient(t *testing.T) {
 			name: "node recording mode with TLS routing disabled",
 			opts: []testSuiteOptionFunc{
 				withRootConfigFunc(func(cfg *servicecfg.Config) {
-					cfg.Auth.SessionRecordingConfig.SetMode(types.RecordAtNode)
+					cfg.Auth.SessionRecordingConfig.SetMode(types.RecordAtNodeSync)
 					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Separate)
 				}),
 			},
@@ -747,7 +766,7 @@ func TestTSHConfigConnectWithOpenSSHClient(t *testing.T) {
 			name: "proxy recording mode with TLS routing disabled",
 			opts: []testSuiteOptionFunc{
 				withRootConfigFunc(func(cfg *servicecfg.Config) {
-					cfg.Auth.SessionRecordingConfig.SetMode(types.RecordAtProxy)
+					cfg.Auth.SessionRecordingConfig.SetMode(types.RecordAtProxySync)
 					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Separate)
 				}),
 			},

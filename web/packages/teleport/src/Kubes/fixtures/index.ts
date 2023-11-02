@@ -18,6 +18,7 @@ import { Kube } from 'teleport/services/kube';
 
 export const kubes: Kube[] = [
   {
+    kind: 'kube_cluster',
     name: 'tele.logicoma.dev-prod',
     labels: [
       { name: 'kernel', value: '4.15.0-51-generic' },
@@ -25,10 +26,12 @@ export const kubes: Kube[] = [
     ],
   },
   {
+    kind: 'kube_cluster',
     name: 'tele.logicoma.dev-staging',
     labels: [{ name: 'env', value: 'staging' }],
   },
   {
+    kind: 'kube_cluster',
     name: 'cookie',
     labels: [
       { name: 'cluster-name', value: 'some-cluster-name' },

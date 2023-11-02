@@ -16,28 +16,28 @@ There are two ways to configure a Teleport cluster:
   configuration file from the local filesystem (the default path is
   `/etc/teleport.yaml`). Static configuration settings control aspects of a
   cluster that are not expected to change frequently, like the ports that
-  services listen on. 
+  services listen on.
 - **Dynamic resources:** Dynamic resources control aspects of your cluster that
   are likely to change over time, such as roles, local users, and registered
   infrastructure resources.
 
 This approach makes it possible to incrementally adjust your Teleport
-configuration without restarting Teleport instances. 
+configuration without restarting Teleport instances.
 
 ```mermaid
 flowchart LR
 subgraph backend["Cluster state backend"]
   direction LR
   resources["Dynamic resources"]
-end 
+end
 
 subgraph cluster[Teleport cluster]
   subgraph auth[Auth Service]
     conf1["Static config"]
-  end 
+  end
   subgraph proxy[Proxy Service]
     conf2["Static config"]
-  end 
+  end
 end
 
 auth-->backend
@@ -83,6 +83,10 @@ to manipulate cluster resources stored on the Auth Service backend. The design
 of Teleport's configuration interface makes it well suited for
 infrastructure-as-code and GitOps approaches.
 
+For more information on Teleport roles, including the `internal.logins`
+trait we use in these example roles, see the [Teleport Access
+Controls Reference](../access-controls/reference.mdx).
+
 ### YAML documents with `tctl`
 
 You can define resources as YAML documents and apply them using the `tctl`
@@ -91,7 +95,7 @@ servers with the label `env:test`:
 
 ```yaml
 kind: role
-version: v6
+version: v7
 metadata:
   name: developer
 spec:
@@ -130,7 +134,10 @@ resource "teleport_role" "developer" {
 }
 ```
 
-[Get started with the Terraform provider](./dynamic-resources/terraform-provider.mdx).
+- [Get started with the Terraform
+  provider](./dynamic-resources/terraform-provider.mdx).
+- [Use Teleport's Terraform provider with
+  Spacelift](./dynamic-resources/spacelift.mdx).
 
 ### Teleport Kubernetes Operator
 
@@ -151,7 +158,7 @@ spec:
       'env': 'test'
 ```
 
-[Get started with the Kubernetes Operator](dynamic-resources/teleport-operator.mdx). 
+[Get started with the Kubernetes Operator](dynamic-resources/teleport-operator.mdx).
 
 ## Reconciling the configuration file with dynamic resources
 
@@ -210,6 +217,7 @@ static configuration file:
 |`spec.routing_strategy`|`auth_service.routing_strategy`|
 |`spec.tunnel_strategy`|`auth_service.tunnel_strategy`|
 |`spec.proxy_ping_interval`|`auth_service.proxy_ping_interval`|
+|`spec.case_insensitive_routing`|`auth_service.case_insensitive_routing`|
 
 #### `ui_config`
 
@@ -232,7 +240,7 @@ Here are possible values of the `teleport.dev/origin` label:
 When the Auth Service starts up, it looks up the values of static configuration
 fields that correspond to fields in dynamic configuration resources. If any of
 these have values, it creates the corresponding dynamic configuration resources
-and stores them in its backend. 
+and stores them in its backend.
 
 For any static configuration fields without a value, the Auth Service checks
 whether the backend contains the corresponding dynamic configuration resource.

@@ -45,12 +45,13 @@ export default class AwsLaunchButton extends React.Component<Props> {
     return (
       <>
         <ButtonBorder
-          width="88px"
+          textTransform="none"
+          width="90px"
           size="small"
           setRef={e => (this.anchorEl = e)}
           onClick={this.onOpen}
         >
-          LAUNCH
+          Launch
           <ChevronDown ml={1} size="small" color="text.slightlyMuted" />
         </ButtonBorder>
         <Menu

@@ -15,12 +15,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout OSS Teleport
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
-      - name: Setup Node Toolchain
-        uses: actions/setup-node@v3
-        with:
-          node-version: 16
+      - name: Print Node version
+        run: |
+          node --version
 
       - name: Install Yarn dependencies
         run: yarn --frozen-lockfile

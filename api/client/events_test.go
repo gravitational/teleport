@@ -16,8 +16,8 @@ package client
 
 import (
 	"testing"
-	"time"
 
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 
@@ -32,6 +32,7 @@ import (
 // primarily to catch potential issues with using our "mixed" gogo + regular protobuf
 // strategy.
 func TestEventEqual(t *testing.T) {
+	clock := clockwork.NewFakeClock()
 	app1, err := types.NewAppV3(types.Metadata{
 		Name: "app1",
 	}, types.AppSpecV3{
@@ -56,8 +57,8 @@ func TestEventEqual(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	accessList1 := newAccessList(t, "1")
-	accessList2 := newAccessList(t, "2")
+	accessList1 := newAccessList(t, "1", clock)
+	accessList2 := newAccessList(t, "2", clock)
 
 	tests := []struct {
 		name     string
@@ -158,7 +159,7 @@ func TestEventEqual(t *testing.T) {
 	}
 }
 
-func newAccessList(t *testing.T, name string) *accesslist.AccessList {
+func newAccessList(t *testing.T, name string, clock clockwork.Clock) *accesslist.AccessList {
 	t.Helper()
 
 	accessList, err := accesslist.NewAccessList(
@@ -166,6 +167,7 @@ func newAccessList(t *testing.T, name string) *accesslist.AccessList {
 			Name: name,
 		},
 		accesslist.Spec{
+			Title:       "title",
 			Description: "test access list",
 			Owners: []accesslist.Owner{
 				{
@@ -178,7 +180,7 @@ func newAccessList(t *testing.T, name string) *accesslist.AccessList {
 				},
 			},
 			Audit: accesslist.Audit{
-				Frequency: time.Hour,
+				NextAuditDate: clock.Now(),
 			},
 			MembershipRequires: accesslist.Requires{
 				Roles: []string{"mrole1", "mrole2"},
@@ -199,22 +201,6 @@ func newAccessList(t *testing.T, name string) *accesslist.AccessList {
 				Traits: map[string][]string{
 					"gtrait1": {"gvalue1", "gvalue2"},
 					"gtrait2": {"gvalue3", "gvalue4"},
-				},
-			},
-			Members: []accesslist.Member{
-				{
-					Name:    "member1",
-					Joined:  time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
-					Expires: time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
-					Reason:  "because",
-					AddedBy: "test-user1",
-				},
-				{
-					Name:    "member2",
-					Joined:  time.Date(2022, 1, 1, 0, 0, 0, 0, time.UTC),
-					Expires: time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
-					Reason:  "because again",
-					AddedBy: "test-user2",
 				},
 			},
 		},

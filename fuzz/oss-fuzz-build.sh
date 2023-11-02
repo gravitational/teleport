@@ -26,9 +26,6 @@ build_teleport_fuzzers() {
   compile_native_go_fuzzer $TELEPORT_PREFIX/lib/srv/desktop/tdp \
     FuzzDecode fuzz_decode
 
-  compile_native_go_fuzzer $TELEPORT_PREFIX/lib/services \
-    FuzzParserEvalBoolPredicate fuzz_parser_eval_bool_predicate
-
   compile_native_go_fuzzer $TELEPORT_PREFIX/lib/restrictedsession \
     FuzzParseIPSpec fuzz_parse_ip_spec
 
@@ -69,13 +66,22 @@ build_teleport_fuzzers() {
     FuzzParseProxyJump fuzz_parse_proxy_jump
 
   compile_native_go_fuzzer $TELEPORT_PREFIX/lib/utils \
-    FuzzParseWebLinks fuzz_parse_web_links
-
-  compile_native_go_fuzzer $TELEPORT_PREFIX/lib/utils \
     FuzzReadYAML fuzz_read_yaml
 
   compile_native_go_fuzzer $TELEPORT_PREFIX/lib/client \
     FuzzParseProxyHost fuzz_parse_proxy_host
+
+  compile_native_go_fuzzer $TELEPORT_PREFIX/lib/client \
+    FuzzParseLabelSpec fuzz_parse_label_spec
+
+  compile_native_go_fuzzer $TELEPORT_PREFIX/lib/client \
+    FuzzParseSearchKeywords fuzz_parse_search_keywords
+
+  compile_native_go_fuzzer $TELEPORT_PREFIX/lib/client \
+    FuzzParsePortForwardSpec fuzz_parse_port_forward_spec
+
+  compile_native_go_fuzzer $TELEPORT_PREFIX/lib/client \
+    FuzzParseDynamicPortForwardSpec fuzz_parse_dynamic_port_forward_spec
 
   compile_native_go_fuzzer $TELEPORT_PREFIX/lib/srv/regular \
     FuzzParseProxySubsys fuzz_parse_proxy_subsys
@@ -92,9 +98,6 @@ build_teleport_fuzzers() {
 # compile_native_go_fuzzer $TELEPORT_PREFIX/lib/auth \
 #   FuzzParseAndVerifyIID fuzz_parse_and_verify_iid
 
-  compile_native_go_fuzzer $TELEPORT_PREFIX/lib/client \
-    FuzzParseLabelSpec fuzz_parse_label_spec
-
   compile_native_go_fuzzer $TELEPORT_PREFIX/lib/srv/db/sqlserver/protocol \
     FuzzMSSQLLogin fuzz_mssql_login
 
@@ -110,8 +113,20 @@ build_teleport_fuzzers() {
   compile_native_go_fuzzer $TELEPORT_PREFIX/lib/auth/webauthn \
     FuzzParseCredentialRequestResponseBody fuzz_parse_credential_request_response_body
 
+  compile_native_go_fuzzer $TELEPORT_PREFIX/lib/auth/webauthncli \
+    FuzzParseU2FRegistrationResponse fuzz_parse_u2f_registration_response
+
   compile_native_go_fuzzer $TELEPORT_PREFIX/lib/web \
-    FuzzTdpMFACodecDecode fuzz_tdp_mfa_codec_decode
+    FuzzTdpMFACodecDecodeChallenge fuzz_tdp_mfa_codec_decode_challenge
+
+  compile_native_go_fuzzer $TELEPORT_PREFIX/lib/web \
+    FuzzTdpMFACodecDecodeResponse fuzz_tdp_mfa_codec_decode_response
+
+  compile_native_go_fuzzer $TELEPORT_PREFIX/lib/multiplexer \
+    FuzzReadProxyLineV1 fuzz_read_proxy_linec_v1
+
+  compile_native_go_fuzzer $TELEPORT_PREFIX/lib/multiplexer \
+    FuzzReadProxyLineV2 fuzz_read_proxy_linec_v2
 
 }
 

@@ -542,27 +542,34 @@ func TestCheckIPPinning(t *testing.T) {
 			clientAddr: "127.0.0.1:444",
 			pinnedIP:   "",
 			pinIP:      true,
-			wantErr:    "pinned IP is required for the user, but is not present on identity",
+			wantErr:    ErrIPPinningMissing.Error(),
 		},
 		{
 			desc:       "Pinned IP doesn't match",
 			clientAddr: "127.0.0.1:444",
 			pinnedIP:   "127.0.0.2",
 			pinIP:      true,
-			wantErr:    "pinned IP doesn't match observed client IP",
+			wantErr:    ErrIPPinningMismatch.Error(),
 		},
 		{
 			desc:       "Role doesn't require IP pinning now, but old certificate still pinned",
 			clientAddr: "127.0.0.1:444",
 			pinnedIP:   "127.0.0.2",
 			pinIP:      false,
-			wantErr:    "pinned IP doesn't match observed client IP",
+			wantErr:    ErrIPPinningMismatch.Error(),
 		},
 		{
 			desc:     "IP pinning enabled, missing client IP",
 			pinnedIP: "127.0.0.1",
 			pinIP:    true,
-			wantErr:  "expected type net.Addr, got <nil>",
+			wantErr:  "client source address was not found in the context",
+		},
+		{
+			desc:       "IP pinning enabled, port=0 (marked by proxyProtocolMode unspecified)",
+			clientAddr: "127.0.0.1:0",
+			pinnedIP:   "127.0.0.1",
+			pinIP:      true,
+			wantErr:    ErrIPPinningMismatch.Error(),
 		},
 		{
 			desc:       "correct IP pinning",
@@ -575,7 +582,7 @@ func TestCheckIPPinning(t *testing.T) {
 	for _, tt := range testCases {
 		ctx := context.Background()
 		if tt.clientAddr != "" {
-			ctx = ContextWithClientAddr(ctx, utils.MustParseAddr(tt.clientAddr))
+			ctx = ContextWithClientSrcAddr(ctx, utils.MustParseAddr(tt.clientAddr))
 		}
 		identity := tlsca.Identity{PinnedIP: tt.pinnedIP}
 
@@ -606,7 +613,7 @@ func TestAuthorizeWithVerbs(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	err = accessService.CreateRole(context.Background(), role)
+	_, err = accessService.CreateRole(context.Background(), role)
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -718,6 +725,94 @@ func TestRoleSetForBuiltinRoles(t *testing.T) {
 	}
 }
 
+func TestIsUserFunctions(t *testing.T) {
+	localIdentity := Context{
+		Identity:         LocalUser{},
+		UnmappedIdentity: LocalUser{},
+	}
+	remoteIdentity := Context{
+		Identity:         RemoteUser{},
+		UnmappedIdentity: RemoteUser{},
+	}
+	systemIdentity := Context{
+		Identity:         BuiltinRole{Role: types.RoleProxy},
+		UnmappedIdentity: BuiltinRole{Role: types.RoleProxy},
+	}
+
+	tests := []struct {
+		funcName, scenario string
+		isUserFunc         func(Context) bool
+		authCtx            Context
+		want               bool
+	}{
+		{
+			funcName:   "IsLocalUser",
+			scenario:   "local user",
+			isUserFunc: IsLocalUser,
+			authCtx:    localIdentity,
+			want:       true,
+		},
+		{
+			funcName:   "IsLocalUser",
+			scenario:   "remote user",
+			isUserFunc: IsLocalUser,
+			authCtx:    remoteIdentity,
+		},
+		{
+			funcName:   "IsLocalUser",
+			scenario:   "system user",
+			isUserFunc: IsLocalUser,
+			authCtx:    systemIdentity,
+		},
+		{
+			funcName:   "IsRemoteUser",
+			scenario:   "local user",
+			isUserFunc: IsRemoteUser,
+			authCtx:    localIdentity,
+		},
+		{
+			funcName:   "IsRemoteUser",
+			scenario:   "remote user",
+			isUserFunc: IsRemoteUser,
+			authCtx:    remoteIdentity,
+			want:       true,
+		},
+		{
+			funcName:   "IsRemoteUser",
+			scenario:   "system user",
+			isUserFunc: IsRemoteUser,
+			authCtx:    systemIdentity,
+		},
+
+		{
+			funcName:   "IsLocalOrRemoteUser",
+			scenario:   "local user",
+			isUserFunc: IsLocalOrRemoteUser,
+			authCtx:    localIdentity,
+			want:       true,
+		},
+		{
+			funcName:   "IsLocalOrRemoteUser",
+			scenario:   "remote user",
+			isUserFunc: IsLocalOrRemoteUser,
+			authCtx:    remoteIdentity,
+			want:       true,
+		},
+		{
+			funcName:   "IsLocalOrRemoteUser",
+			scenario:   "system user",
+			isUserFunc: IsLocalOrRemoteUser,
+			authCtx:    systemIdentity,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.funcName+"/"+test.scenario, func(t *testing.T) {
+			got := test.isUserFunc(test.authCtx)
+			assert.Equal(t, test.want, got, "%s mismatch", test.funcName)
+		})
+	}
+}
+
 // fakeCtxUser is used for auth.Context tests.
 type fakeCtxUser struct {
 	types.User
@@ -805,13 +900,13 @@ func createUserAndRole(client *testClient, username string, allowedLogins []stri
 		role.SetRules(types.Allow, allowRules)
 	}
 
-	err = client.UpsertRole(ctx, role)
+	role, err = client.UpsertRole(ctx, role)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 
 	user.AddRole(role.GetName())
-	err = client.UpsertUser(user)
+	user, err = client.UpsertUser(ctx, user)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -820,6 +915,6 @@ func createUserAndRole(client *testClient, username string, allowedLogins []stri
 
 func resourceDiff(res1, res2 types.Resource) string {
 	return cmp.Diff(res1, res2,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Namespace"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision", "Namespace"),
 		cmpopts.EquateEmpty())
 }

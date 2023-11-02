@@ -15,24 +15,27 @@
 package proxy
 
 import (
+	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"net"
+	"os"
 	"strconv"
 	"sync"
 
-	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel/attribute"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/lib/agentless"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -74,24 +77,24 @@ func init() {
 	metrics.RegisterPrometheusCollectors(proxiedSessions, failedConnectingToNode, connectingToNode)
 }
 
-// proxiedMetricConn wraps [net.Conn] opened by
+// ProxiedMetricConn wraps [net.Conn] opened by
 // the [Router] so that the proxiedSessions counter
 // can be decremented when it is closed.
-type proxiedMetricConn struct {
+type ProxiedMetricConn struct {
 	// once ensures that proxiedSessions is only decremented
 	// a single time per [net.Conn]
 	once sync.Once
 	net.Conn
 }
 
-// newProxiedMetricConn increments proxiedSessions and creates
-// a proxiedMetricConn that defers to the provided [net.Conn].
-func newProxiedMetricConn(conn net.Conn) *proxiedMetricConn {
+// NewProxiedMetricConn increments proxiedSessions and creates
+// a ProxiedMetricConn that defers to the provided [net.Conn].
+func NewProxiedMetricConn(conn net.Conn) *ProxiedMetricConn {
 	proxiedSessions.Inc()
-	return &proxiedMetricConn{Conn: conn}
+	return &ProxiedMetricConn{Conn: conn}
 }
 
-func (c *proxiedMetricConn) Close() error {
+func (c *ProxiedMetricConn) Close() error {
 	c.once.Do(proxiedSessions.Dec)
 	return trace.Wrap(c.Conn.Close())
 }
@@ -167,6 +170,8 @@ type Router struct {
 	siteGetter     SiteGetter
 	tracer         oteltrace.Tracer
 	serverResolver serverResolverFn
+	// DELETE IN 15.0.0: necessary for smoothing over v13 to v14 transition only.
+	permitUnlistedDialing bool
 }
 
 // NewRouter creates and returns a Router that is populated
@@ -182,13 +187,14 @@ func NewRouter(cfg RouterConfig) (*Router, error) {
 	}
 
 	return &Router{
-		clusterName:    cfg.ClusterName,
-		log:            cfg.Log,
-		clusterGetter:  cfg.RemoteClusterGetter,
-		localSite:      localSite,
-		siteGetter:     cfg.SiteGetter,
-		tracer:         cfg.TracerProvider.Tracer("Router"),
-		serverResolver: cfg.serverResolver,
+		clusterName:           cfg.ClusterName,
+		log:                   cfg.Log,
+		clusterGetter:         cfg.RemoteClusterGetter,
+		localSite:             localSite,
+		siteGetter:            cfg.SiteGetter,
+		tracer:                cfg.TracerProvider.Tracer("Router"),
+		serverResolver:        cfg.serverResolver,
+		permitUnlistedDialing: os.Getenv("TELEPORT_UNSTABLE_UNLISTED_AGENT_DIALING") == "yes",
 	}, nil
 }
 
@@ -235,10 +241,10 @@ func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.
 		serverID        string
 		serverAddr      string
 		proxyIDs        []string
+		sshSigner       ssh.Signer
 	)
 
 	if target != nil {
-		isAgentlessNode = target.GetSubKind() == types.SubKindOpenSSHNode
 		proxyIDs = target.GetProxyIDs()
 		serverID = fmt.Sprintf("%v.%v", target.GetName(), clusterName)
 
@@ -259,7 +265,29 @@ func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.
 		case serverAddr == "" && target.GetUseTunnel():
 			serverAddr = reversetunnelclient.LocalNode
 		}
+		// If the node is a registered openssh node don't set agentGetter
+		// so a SSH user agent will not be created when connecting to the remote node.
+		if target.IsOpenSSHNode() {
+			agentGetter = nil
+			isAgentlessNode = true
+
+			if target.GetSubKind() == types.SubKindOpenSSHNode {
+				// If the node is of SubKindOpenSSHNode, create the signer.
+				client, err := r.GetSiteClient(ctx, clusterName)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+				sshSigner, err = signer(ctx, client)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+			}
+		}
+
 	} else {
+		if !r.permitUnlistedDialing {
+			return nil, trace.ConnectionProblem(errors.New("connection problem"), "direct dialing to nodes not found in inventory is not supported")
+		}
 		if port == "" || port == "0" {
 			port = strconv.Itoa(defaults.SSHServerListenPort)
 		}
@@ -268,27 +296,12 @@ func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.
 		r.log.Warnf("server lookup failed: using default=%v", serverAddr)
 	}
 
-	// if the node is a registered openssh node, create a signer for auth
-	// and don't set agentGetter so a SSH user agent will not be created
-	// when connecting to the remote node
-	var sshSigner ssh.Signer
-	if isAgentlessNode {
-		client, err := r.GetSiteClient(ctx, clusterName)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		sshSigner, err = signer(ctx, client)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		agentGetter = nil
-	}
-
 	conn, err := site.Dial(reversetunnelclient.DialParams{
 		From:                  clientSrcAddr,
 		To:                    &utils.NetAddr{AddrNetwork: "tcp", Addr: serverAddr},
 		OriginalClientDstAddr: clientDstAddr,
 		GetUserAgent:          agentGetter,
+		IsAgentlessNode:       isAgentlessNode,
 		AgentlessSigner:       sshSigner,
 		Address:               host,
 		Principals:            principals,
@@ -301,7 +314,47 @@ func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.
 		return nil, trace.Wrap(err)
 	}
 
-	return newProxiedMetricConn(conn), trace.Wrap(err)
+	// SSH connection MUST start with "SSH-2.0" bytes according to https://datatracker.ietf.org/doc/html/rfc4253#section-4.2
+	conn = newCheckedPrefixWriter(conn, []byte("SSH-2.0"))
+	return NewProxiedMetricConn(conn), trace.Wrap(err)
+}
+
+// checkedPrefixWriter checks that first data written into it has the specified prefix.
+type checkedPrefixWriter struct {
+	net.Conn
+
+	requiredPrefix  []byte
+	requiredPointer int
+}
+
+func newCheckedPrefixWriter(conn net.Conn, requiredPrefix []byte) *checkedPrefixWriter {
+	return &checkedPrefixWriter{
+		Conn:           conn,
+		requiredPrefix: requiredPrefix,
+	}
+}
+
+// Write writes data into connection, checking if it has required prefix. Not safe for concurrent calls.
+func (c *checkedPrefixWriter) Write(p []byte) (int, error) {
+	// If pointer reached end of required prefix the check is done
+	if len(c.requiredPrefix) == c.requiredPointer {
+		n, err := c.Conn.Write(p)
+		return n, trace.Wrap(err)
+	}
+
+	// Decide which is smaller, provided data or remaining portion of the required prefix
+	small, big := c.requiredPrefix[c.requiredPointer:], p
+	if len(small) > len(big) {
+		big, small = small, big
+	}
+
+	if !bytes.HasPrefix(big, small) {
+		return 0, trace.AccessDenied("required prefix %q was not found", c.requiredPrefix)
+	}
+	n, err := c.Conn.Write(p)
+	// Advance pointer by confirmed portion of the prefix.
+	c.requiredPointer += min(n, len(small))
+	return n, trace.Wrap(err)
 }
 
 // getRemoteCluster looks up the provided clusterName to determine if a remote site exists with
@@ -375,48 +428,31 @@ func getServer(ctx context.Context, host, port string, site site) (types.Server,
 	}
 
 	strategy := types.RoutingStrategy_UNAMBIGUOUS_MATCH
+	var caseInsensitiveRouting bool
 	if cfg, err := site.GetClusterNetworkingConfig(ctx); err == nil {
 		strategy = cfg.GetRoutingStrategy()
+		caseInsensitiveRouting = cfg.GetCaseInsensitiveRouting()
 	}
 
-	_, err := uuid.Parse(host)
-	dialByID := err == nil || utils.IsEC2NodeID(host)
+	routeMatcher := apiutils.NewSSHRouteMatcher(host, port, caseInsensitiveRouting)
 
-	ips, _ := net.LookupHost(host)
-
-	var unambiguousIDMatch bool
 	matches, err := site.GetNodes(ctx, func(server services.Node) bool {
-		if unambiguousIDMatch {
-			return false
-		}
-
-		// if host is a UUID or EC2 ID match only
-		// by server name and treat matches as unambiguous
-		if dialByID && server.GetName() == host {
-			unambiguousIDMatch = true
-			return true
-		}
-
-		// if the server has connected over a reverse tunnel
-		// then match only by hostname
-		if server.GetUseTunnel() {
-			return host == server.GetHostname()
-		}
-
-		ip, nodePort, err := net.SplitHostPort(server.GetAddr())
-		if err != nil {
-			return false
-		}
-
-		if (host == ip || host == server.GetHostname() || slices.Contains(ips, ip)) &&
-			(port == "" || port == "0" || port == nodePort) {
-			return true
-		}
-
-		return false
+		return routeMatcher.RouteToServer(server)
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	if routeMatcher.MatchesServerIDs() && len(matches) > 1 {
+		// if a dial request for an id-like target creates multiple matches,
+		// give precedence to the exact match if one exists. If not, handle
+		// multiple matchers per-usual below.
+		for _, m := range matches {
+			if m.GetName() == host {
+				matches = []types.Server{m}
+				break
+			}
+		}
 	}
 
 	var server types.Server
@@ -433,9 +469,9 @@ func getServer(ctx context.Context, host, port string, site site) (types.Server,
 		server = matches[0]
 	}
 
-	if dialByID && server == nil {
+	if routeMatcher.MatchesServerIDs() && server == nil {
 		idType := "UUID"
-		if utils.IsEC2NodeID(host) {
+		if aws.IsEC2NodeID(host) {
 			idType = "EC2"
 		}
 
@@ -480,7 +516,7 @@ func (r *Router) DialSite(ctx context.Context, clusterName string, clientSrcAddr
 		return nil, trace.Wrap(err)
 	}
 
-	return newProxiedMetricConn(conn), trace.Wrap(err)
+	return NewProxiedMetricConn(conn), trace.Wrap(err)
 }
 
 // GetSiteClient returns an auth client for the provided cluster.

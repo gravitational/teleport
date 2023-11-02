@@ -21,7 +21,7 @@ jobs:
       packages: read
 
     container:
-      image: ghcr.io/gravitational/teleport-buildbox:teleport14
+      image: ghcr.io/gravitational/teleport-buildbox:teleport15
       env:
         TELEPORT_ETCD_TEST: yes
         TELEPORT_ETCD_TEST_ENDPOINT: https://etcd0:2379
@@ -45,7 +45,7 @@ jobs:
 
     steps:
       - name: Checkout Teleport
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
@@ -60,13 +60,13 @@ jobs:
 
       - name: Generate GitHub Token
         id: generate_token
-        uses: tibdex/github-app-token@v1
+        uses: actions/create-github-app-token@v1
         with:
-          app_id: ${{ secrets.REVIEWERS_APP_ID }}
-          private_key: ${{ secrets.REVIEWERS_PRIVATE_KEY }}
+          app-id: ${{ secrets.REVIEWERS_APP_ID }}
+          private-key: ${{ secrets.REVIEWERS_PRIVATE_KEY }}
 
       - name: Checkout shared-workflows
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           repository: gravitational/shared-workflows
           path: .github/shared-workflows
@@ -79,14 +79,8 @@ jobs:
       - name: Run base difftest
         uses: ./.github/actions/difftest
         with:
-          flags: --skip="${{ steps.find_excluded.outputs.FLAKE_SKIP }}" -e "integrations/operator/**/*" -e "tool/tsh/**/*" -e "integration/**/*" -e "build.assets/**/*" -e "lib/auth/webauthncli/**/*" -e "lib/auth/touchid/**/*" -e "api/**/*" -e "integrations/kube-agent-updater/**/*" -e "examples/teleport-usage/**/*" -e "integrations/access/**" -e "integrations/lib/**" -e "integrations/lib/backoff/backoff_test.go"
+          flags: --skip="${{ steps.find_excluded.outputs.FLAKE_SKIP }}" -e "integrations/operator/**/*" -e "tool/tsh/**/*" -e "integration/**/*" -e "build.assets/**/*" -e "lib/auth/webauthncli/**/*" -e "lib/auth/touchid/**/*" -e "api/**/*" -e "integrations/kube-agent-updater/**/*" -e "examples/teleport-usage/**/*" -e "integrations/access/**" -e "integrations/lib/**" -e "integrations/lib/backoff/backoff_test.go" -e "e2e/**/*"
           target: test-go-unit
-
-      - name: Run libfido2 difftest
-        uses: ./.github/actions/difftest
-        with:
-          flags: --skip="${{ steps.find_excluded.outputs.FLAKE_SKIP }}" --include "lib/auth/webauthncli/**/*"
-          target: test-go-libfido2
 
       - name: Run touch-id difftest
         uses: ./.github/actions/difftest

@@ -51,6 +51,7 @@ exports[`empty state 1`] = `
   font-size: 12px;
   padding: 0px 24px;
   width: 224px;
+  text-transform: none;
 }
 
 .c11:hover,
@@ -95,6 +96,7 @@ exports[`empty state 1`] = `
   padding: 0px 24px;
   margin-left: 24px;
   width: 224px;
+  text-transform: none;
 }
 
 .c12:hover,
@@ -249,8 +251,7 @@ exports[`empty state 1`] = `
               kind="primary"
               width="224px"
             >
-              Add 
-              server
+              Add Resource
             </button>
           </a>
           <a
@@ -995,7 +996,7 @@ exports[`failed 1`] = `
               height="24px"
               kind="border"
             >
-              CONNECT
+              Connect
               <span
                 class="c27 icon icon-chevrondown"
                 color="text.slightlyMuted"
@@ -1049,7 +1050,7 @@ exports[`failed 1`] = `
               height="24px"
               kind="border"
             >
-              CONNECT
+              Connect
               <span
                 class="c27 icon icon-chevrondown"
                 color="text.slightlyMuted"
@@ -1103,7 +1104,7 @@ exports[`failed 1`] = `
               height="24px"
               kind="border"
             >
-              CONNECT
+              Connect
               <span
                 class="c27 icon icon-chevrondown"
                 color="text.slightlyMuted"
@@ -1157,7 +1158,7 @@ exports[`failed 1`] = `
               height="24px"
               kind="border"
             >
-              CONNECT
+              Connect
               <span
                 class="c27 icon icon-chevrondown"
                 color="text.slightlyMuted"
@@ -1211,7 +1212,7 @@ exports[`failed 1`] = `
               height="24px"
               kind="border"
             >
-              CONNECT
+              Connect
               <span
                 class="c27 icon icon-chevrondown"
                 color="text.slightlyMuted"
@@ -1270,7 +1271,7 @@ exports[`failed 1`] = `
               height="24px"
               kind="border"
             >
-              CONNECT
+              Connect
               <span
                 class="c27 icon icon-chevrondown"
                 color="text.slightlyMuted"
@@ -1329,7 +1330,7 @@ exports[`failed 1`] = `
               height="24px"
               kind="border"
             >
-              CONNECT
+              Connect
               <span
                 class="c27 icon icon-chevrondown"
                 color="text.slightlyMuted"
@@ -1415,13 +1416,13 @@ exports[`failed 1`] = `
 `;
 
 exports[`loaded 1`] = `
-.c11 {
+.c8 {
   box-sizing: border-box;
   margin-right: 16px;
   width: 100%;
 }
 
-.c7 {
+.c3 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -1446,24 +1447,25 @@ exports[`loaded 1`] = `
   font-size: 12px;
   padding: 0px 24px;
   width: 240px;
+  text-transform: none;
 }
 
-.c7:hover,
-.c7:focus {
+.c3:hover,
+.c3:focus {
   background: #B29DFF;
 }
 
-.c7:active {
+.c3:active {
   background: #C5B6FF;
 }
 
-.c7:disabled {
+.c3:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
 }
 
-.c29 {
+.c26 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -1491,22 +1493,22 @@ exports[`loaded 1`] = `
   height: 24px;
 }
 
-.c29:hover,
-.c29:focus {
+.c26:hover,
+.c26:focus {
   background: rgba(255,255,255,0.07);
 }
 
-.c29:active {
+.c26:active {
   background: rgba(255,255,255,0.13);
 }
 
-.c29:disabled {
+.c26:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
 }
 
-.c33 {
+.c30 {
   align-items: center;
   border: none;
   cursor: pointer;
@@ -1528,25 +1530,25 @@ exports[`loaded 1`] = `
   margin-right: 0px;
 }
 
-.c33:disabled {
+.c30:disabled {
   color: rgba(255,255,255,0.36);
 }
 
-.c33:disabled {
+.c30:disabled {
   color: rgba(255,255,255,0.36);
   cursor: default;
 }
 
-.c33:hover:enabled,
-.c33:focus:enabled {
+.c30:hover:enabled,
+.c30:focus:enabled {
   background: rgba(255,255,255,0.13);
 }
 
-.c33:active:enabled {
+.c30:active:enabled {
   background: rgba(255,255,255,0.18);
 }
 
-.c35 {
+.c32 {
   align-items: center;
   border: none;
   cursor: pointer;
@@ -1567,25 +1569,25 @@ exports[`loaded 1`] = `
   margin-left: 0px;
 }
 
-.c35:disabled {
+.c32:disabled {
   color: rgba(255,255,255,0.36);
 }
 
-.c35:disabled {
+.c32:disabled {
   color: rgba(255,255,255,0.36);
   cursor: default;
 }
 
-.c35:hover:enabled,
-.c35:focus:enabled {
+.c32:hover:enabled,
+.c32:focus:enabled {
   background: rgba(255,255,255,0.13);
 }
 
-.c35:active:enabled {
+.c32:active:enabled {
   background: rgba(255,255,255,0.18);
 }
 
-.c22 {
+.c19 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 300;
@@ -1594,7 +1596,7 @@ exports[`loaded 1`] = `
   margin: 0px;
 }
 
-.c25 {
+.c22 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 400;
@@ -1605,13 +1607,13 @@ exports[`loaded 1`] = `
   color: #FFFFFF;
 }
 
-.c23 {
+.c20 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
 }
 
-.c30 {
+.c27 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1620,13 +1622,7 @@ exports[`loaded 1`] = `
   margin-right: -8px;
 }
 
-.c3 {
-  box-sizing: border-box;
-  display: flex;
-  align-items: center;
-}
-
-.c10 {
+.c6 {
   box-sizing: border-box;
   width: 100%;
   display: flex;
@@ -1634,18 +1630,24 @@ exports[`loaded 1`] = `
   justify-content: space-between;
 }
 
-.c24 {
+.c7 {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+}
+
+.c21 {
   box-sizing: border-box;
   display: flex;
 }
 
-.c27 {
+.c24 {
   box-sizing: border-box;
   display: flex;
   flex-wrap: wrap;
 }
 
-.c32 {
+.c29 {
   box-sizing: border-box;
   width: 100%;
   display: flex;
@@ -1692,66 +1694,7 @@ exports[`loaded 1`] = `
   padding-bottom: 24px;
 }
 
-.c4 {
-  box-sizing: border-box;
-  margin-right: 16px;
-  width: 280px;
-  display: flex;
-  align-items: center;
-  height: 32px;
-  border: 1px solid;
-  border-radius: 4px;
-  background-color: rgba(255,255,255,0.07);
-  border-color: rgba(255,255,255,0.13);
-}
-
-.c5 {
-  opacity: 0.75;
-  font-size: 11px;
-  font-weight: 500;
-  padding: 0 8px;
-  border-bottom-left-radius: 4px;
-  border-top-left-radius: 4px;
-}
-
-.c6 {
-  appearance: none;
-  border: none;
-  border-radius: 4px;
-  box-sizing: border-box;
-  border-bottom-left-radius: unset;
-  border-top-left-radius: unset;
-  display: block;
-  outline: none;
-  width: 100%;
-  height: 100%;
-  box-shadow: none;
-  padding-left: 8px;
-  font-size: 12px;
-  color: #FFFFFF;
-  background-color: #222C59;
-}
-
-.c6::-ms-clear {
-  display: none;
-}
-
-.c6:read-only {
-  cursor: not-allowed;
-}
-
-.c6::placeholder {
-  opacity: 1;
-  color: rgba(255,255,255,0.54);
-  font-size: 12px;
-}
-
-.c6:hover,
-.c6:focus {
-  background: #344179;
-}
-
-.c26 {
+.c23 {
   background: #222C59;
   border-collapse: collapse;
   border-spacing: 0;
@@ -1760,39 +1703,39 @@ exports[`loaded 1`] = `
   width: 100%;
 }
 
-.c26 > thead > tr > th,
-.c26 > tbody > tr > th,
-.c26 > tfoot > tr > th,
-.c26 > thead > tr > td,
-.c26 > tbody > tr > td,
-.c26 > tfoot > tr > td {
+.c23 > thead > tr > th,
+.c23 > tbody > tr > th,
+.c23 > tfoot > tr > th,
+.c23 > thead > tr > td,
+.c23 > tbody > tr > td,
+.c23 > tfoot > tr > td {
   padding: 8px 8px;
   vertical-align: middle;
 }
 
-.c26 > thead > tr > th:first-child,
-.c26 > tbody > tr > th:first-child,
-.c26 > tfoot > tr > th:first-child,
-.c26 > thead > tr > td:first-child,
-.c26 > tbody > tr > td:first-child,
-.c26 > tfoot > tr > td:first-child {
+.c23 > thead > tr > th:first-child,
+.c23 > tbody > tr > th:first-child,
+.c23 > tfoot > tr > th:first-child,
+.c23 > thead > tr > td:first-child,
+.c23 > tbody > tr > td:first-child,
+.c23 > tfoot > tr > td:first-child {
   padding-left: 24px;
 }
 
-.c26 > thead > tr > th:last-child,
-.c26 > tbody > tr > th:last-child,
-.c26 > tfoot > tr > th:last-child,
-.c26 > thead > tr > td:last-child,
-.c26 > tbody > tr > td:last-child,
-.c26 > tfoot > tr > td:last-child {
+.c23 > thead > tr > th:last-child,
+.c23 > tbody > tr > th:last-child,
+.c23 > tfoot > tr > th:last-child,
+.c23 > thead > tr > td:last-child,
+.c23 > tbody > tr > td:last-child,
+.c23 > tfoot > tr > td:last-child {
   padding-right: 24px;
 }
 
-.c26 > tbody > tr > td {
+.c23 > tbody > tr > td {
   vertical-align: middle;
 }
 
-.c26 > thead > tr > th {
+.c23 > thead > tr > th {
   background: rgba(255,255,255,0.07);
   color: #FFFFFF;
   cursor: pointer;
@@ -1806,24 +1749,24 @@ exports[`loaded 1`] = `
   white-space: nowrap;
 }
 
-.c26 > thead > tr > th svg {
+.c23 > thead > tr > th svg {
   height: 12px;
 }
 
-.c26 > tbody > tr > td {
+.c23 > tbody > tr > td {
   color: #FFFFFF;
   line-height: 16px;
 }
 
-.c26 tbody tr {
+.c23 tbody tr {
   border-bottom: 1px solid rgb(49,58,100);
 }
 
-.c26 tbody tr:hover {
+.c23 tbody tr:hover {
   background-color: rgba(255,255,255,0.07);
 }
 
-.c9 {
+.c5 {
   padding: 16px 24px;
   display: flex;
   height: 24px;
@@ -1835,7 +1778,7 @@ exports[`loaded 1`] = `
   border-top-right-radius: 8px;
 }
 
-.c31 {
+.c28 {
   padding: 16px 24px;
   display: flex;
   height: 24px;
@@ -1846,13 +1789,13 @@ exports[`loaded 1`] = `
   border-top: 1px solid rgba(255,255,255,0.07);
 }
 
-.c8 {
+.c4 {
   box-shadow: 0px 2px 1px -1px rgba(0,0,0,0.2),0px 1px 1px rgba(0,0,0,0.14),0px 1px 3px rgba(0,0,0,0.12);
   overflow: hidden;
   border-radius: 8px;
 }
 
-.c28 {
+.c25 {
   box-sizing: border-box;
   border-radius: 10px;
   display: inline-block;
@@ -1868,19 +1811,19 @@ exports[`loaded 1`] = `
   cursor: pointer;
 }
 
-.c28:hover {
+.c25:hover {
   background-color: rgba(255,255,255,0.13);
 }
 
-.c34 svg {
+.c31 svg {
   font-size: 20px;
 }
 
-.c34 svg:before {
+.c31 svg:before {
   padding-left: 1px;
 }
 
-.c16 {
+.c13 {
   position: relative;
   height: 100%;
   right: 0;
@@ -1891,7 +1834,7 @@ exports[`loaded 1`] = `
   border-radius: 200px;
 }
 
-.c15 {
+.c12 {
   position: absolute;
   height: 100%;
   right: 0;
@@ -1902,7 +1845,7 @@ exports[`loaded 1`] = `
   border-radius: 200px;
 }
 
-.c13 {
+.c10 {
   position: relative;
   display: flex;
   overflow: hidden;
@@ -1912,14 +1855,14 @@ exports[`loaded 1`] = `
   background: transparent;
 }
 
-.c12 {
+.c9 {
   background: #0C143D;
   border-radius: 200px;
   width: 100%;
   height: 32px;
 }
 
-.c14 {
+.c11 {
   border: none;
   outline: none;
   box-sizing: border-box;
@@ -1934,30 +1877,30 @@ exports[`loaded 1`] = `
   padding-right: 184px;
 }
 
-.c14:hover,
-.c14:focus,
-.c14:active {
+.c11:hover,
+.c11:focus,
+.c11:active {
   color: #FFFFFF;
   background: rgba(255,255,255,0.07);
 }
 
-.c14::placeholder {
+.c11::placeholder {
   color: rgba(255,255,255,0.54);
   font-size: 12px;
 }
 
-.c18 {
+.c15 {
   position: relative;
   display: flex;
   align-items: center;
   cursor: pointer;
 }
 
-.c18[disabled] {
+.c15[disabled] {
   cursor: default;
 }
 
-.c21 {
+.c18 {
   width: 32px;
   height: 12px;
   border-radius: 12px;
@@ -1966,7 +1909,7 @@ exports[`loaded 1`] = `
   flex-shrink: 0;
 }
 
-.c21:before {
+.c18:before {
   content: '';
   position: absolute;
   top: 50%;
@@ -1977,29 +1920,29 @@ exports[`loaded 1`] = `
   background: #9F85FF;
 }
 
-.c19 {
+.c16 {
   opacity: 0;
   position: absolute;
   cursor: inherit;
 }
 
-.c19:checked + .c20 {
+.c16:checked + .c17 {
   background: rgba(255,255,255,0.13);
 }
 
-.c19:checked + .c20:before {
+.c16:checked + .c17:before {
   transform: translate(16px,-50%);
 }
 
-.c19:disabled + .c20 {
+.c16:disabled + .c17 {
   background: #222C59;
 }
 
-.c19:disabled + .c20:before {
+.c16:disabled + .c17:before {
   background: #455a64;
 }
 
-.c17 {
+.c14 {
   display: flex;
   align-items: center;
   justify-content: space-around;
@@ -2019,91 +1962,71 @@ exports[`loaded 1`] = `
     >
       Servers
     </div>
-    <div
-      class="c3"
+    <a
+      href="/web/discover"
+      style="text-decoration: none;"
     >
-      <div
-        class="c4"
-        width="280px"
+      <button
+        class="c3"
+        kind="primary"
+        title=""
+        width="240px"
       >
-        <div
-          class="c5"
-        >
-          SSH:
-        </div>
-        <input
-          class="c6"
-          color="text.main"
-          placeholder="login@host:port"
-        />
-      </div>
-      <a
-        href="/web/discover"
-        style="text-decoration: none;"
-      >
-        <button
-          class="c7"
-          kind="primary"
-          title=""
-          width="240px"
-        >
-          Add 
-          server
-        </button>
-      </a>
-    </div>
+        Add server
+      </button>
+    </a>
   </div>
   <div
-    class="c8"
+    class="c4"
   >
     <form
-      class="c9"
+      class="c5"
     >
       <div
-        class="c10"
+        class="c6"
         width="100%"
       >
         <div
-          class="c3"
+          class="c7"
           style="width: 70%;"
         >
           <div
-            class="c11"
+            class="c8"
             width="100%"
           >
             <div
-              class="c12"
+              class="c9"
             >
               <div
-                class="c13"
+                class="c10"
               >
                 <input
-                  class="c14"
+                  class="c11"
                   placeholder="SEARCH..."
                   value=""
                 />
                 <div
-                  class="c15"
+                  class="c12"
                 >
                   <div
-                    class="c16"
+                    class="c13"
                   >
                     <div
-                      class="c17"
+                      class="c14"
                     >
                       <label
-                        class="c18"
+                        class="c15"
                       >
                         <input
-                          class="c19"
+                          class="c16"
                           type="checkbox"
                         />
                         <div
-                          class="c20 c21"
+                          class="c17 c18"
                         />
                       </label>
                       <div
-                        class="c22"
+                        class="c19"
                       >
                         Advanced
                       </div>
@@ -2117,7 +2040,7 @@ exports[`loaded 1`] = `
             style="line-height: 0px;"
           >
             <span
-              class="c23 icon icon-info"
+              class="c20 icon icon-info"
               style="cursor: pointer; font-size: 20px;"
             >
               <svg
@@ -2142,10 +2065,10 @@ exports[`loaded 1`] = `
           </div>
         </div>
         <div
-          class="c24"
+          class="c21"
         >
           <div
-            class="c25"
+            class="c22"
             color="text.main"
             style="text-transform: uppercase;"
           >
@@ -2167,7 +2090,7 @@ exports[`loaded 1`] = `
       </div>
     </form>
     <table
-      class="c26"
+      class="c23"
     >
       <thead>
         <tr>
@@ -2177,7 +2100,7 @@ exports[`loaded 1`] = `
             >
               Hostname
               <span
-                class="c23 icon icon-chevronup"
+                class="c20 icon icon-chevronup"
                 title="sort items asc"
               >
                 <svg
@@ -2220,16 +2143,16 @@ exports[`loaded 1`] = `
           </td>
           <td>
             <div
-              class="c27"
+              class="c24"
             >
               <div
-                class="c28"
+                class="c25"
                 kind="secondary"
               >
                 cluster: one
               </div>
               <div
-                class="c28"
+                class="c25"
                 kind="secondary"
               >
                 kernel: 4.15.0-51-generic
@@ -2240,13 +2163,13 @@ exports[`loaded 1`] = `
             align="right"
           >
             <button
-              class="c29"
+              class="c26"
               height="24px"
               kind="border"
             >
-              CONNECT
+              Connect
               <span
-                class="c30 icon icon-chevrondown"
+                class="c27 icon icon-chevrondown"
                 color="text.slightlyMuted"
               >
                 <svg
@@ -2274,16 +2197,16 @@ exports[`loaded 1`] = `
           </td>
           <td>
             <div
-              class="c27"
+              class="c24"
             >
               <div
-                class="c28"
+                class="c25"
                 kind="secondary"
               >
                 cluster: one
               </div>
               <div
-                class="c28"
+                class="c25"
                 kind="secondary"
               >
                 kernel: 4.15.0-51-generic
@@ -2294,13 +2217,13 @@ exports[`loaded 1`] = `
             align="right"
           >
             <button
-              class="c29"
+              class="c26"
               height="24px"
               kind="border"
             >
-              CONNECT
+              Connect
               <span
-                class="c30 icon icon-chevrondown"
+                class="c27 icon icon-chevrondown"
                 color="text.slightlyMuted"
               >
                 <svg
@@ -2328,16 +2251,16 @@ exports[`loaded 1`] = `
           </td>
           <td>
             <div
-              class="c27"
+              class="c24"
             >
               <div
-                class="c28"
+                class="c25"
                 kind="secondary"
               >
                 cluster: one
               </div>
               <div
-                class="c28"
+                class="c25"
                 kind="secondary"
               >
                 kernel: 4.15.0-51-generic
@@ -2348,13 +2271,13 @@ exports[`loaded 1`] = `
             align="right"
           >
             <button
-              class="c29"
+              class="c26"
               height="24px"
               kind="border"
             >
-              CONNECT
+              Connect
               <span
-                class="c30 icon icon-chevrondown"
+                class="c27 icon icon-chevrondown"
                 color="text.slightlyMuted"
               >
                 <svg
@@ -2382,16 +2305,16 @@ exports[`loaded 1`] = `
           </td>
           <td>
             <div
-              class="c27"
+              class="c24"
             >
               <div
-                class="c28"
+                class="c25"
                 kind="secondary"
               >
                 cluster: one
               </div>
               <div
-                class="c28"
+                class="c25"
                 kind="secondary"
               >
                 kernel: 4.15.0-51-generic
@@ -2402,13 +2325,13 @@ exports[`loaded 1`] = `
             align="right"
           >
             <button
-              class="c29"
+              class="c26"
               height="24px"
               kind="border"
             >
-              CONNECT
+              Connect
               <span
-                class="c30 icon icon-chevrondown"
+                class="c27 icon icon-chevrondown"
                 color="text.slightlyMuted"
               >
                 <svg
@@ -2436,16 +2359,16 @@ exports[`loaded 1`] = `
           </td>
           <td>
             <div
-              class="c27"
+              class="c24"
             >
               <div
-                class="c28"
+                class="c25"
                 kind="secondary"
               >
                 cluster: one
               </div>
               <div
-                class="c28"
+                class="c25"
                 kind="secondary"
               >
                 kernel: 4.15.0-51-generic
@@ -2456,13 +2379,13 @@ exports[`loaded 1`] = `
             align="right"
           >
             <button
-              class="c29"
+              class="c26"
               height="24px"
               kind="border"
             >
-              CONNECT
+              Connect
               <span
-                class="c30 icon icon-chevrondown"
+                class="c27 icon icon-chevrondown"
                 color="text.slightlyMuted"
               >
                 <svg
@@ -2495,16 +2418,16 @@ exports[`loaded 1`] = `
           </td>
           <td>
             <div
-              class="c27"
+              class="c24"
             >
               <div
-                class="c28"
+                class="c25"
                 kind="secondary"
               >
                 cluster: one
               </div>
               <div
-                class="c28"
+                class="c25"
                 kind="secondary"
               >
                 kernel: 4.15.0-51-generic
@@ -2515,13 +2438,13 @@ exports[`loaded 1`] = `
             align="right"
           >
             <button
-              class="c29"
+              class="c26"
               height="24px"
               kind="border"
             >
-              CONNECT
+              Connect
               <span
-                class="c30 icon icon-chevrondown"
+                class="c27 icon icon-chevrondown"
                 color="text.slightlyMuted"
               >
                 <svg
@@ -2554,16 +2477,16 @@ exports[`loaded 1`] = `
           </td>
           <td>
             <div
-              class="c27"
+              class="c24"
             >
               <div
-                class="c28"
+                class="c25"
                 kind="secondary"
               >
                 cluster: one
               </div>
               <div
-                class="c28"
+                class="c25"
                 kind="secondary"
               >
                 kernel: 4.15.0-51-generic
@@ -2574,13 +2497,13 @@ exports[`loaded 1`] = `
             align="right"
           >
             <button
-              class="c29"
+              class="c26"
               height="24px"
               kind="border"
             >
-              CONNECT
+              Connect
               <span
-                class="c30 icon icon-chevrondown"
+                class="c27 icon icon-chevrondown"
                 color="text.slightlyMuted"
               >
                 <svg
@@ -2602,21 +2525,21 @@ exports[`loaded 1`] = `
       </tbody>
     </table>
     <nav
-      class="c31"
+      class="c28"
     >
       <div
-        class="c32"
+        class="c29"
         width="100%"
       >
         <div
-          class="c24"
+          class="c21"
         >
           <button
-            class="c33 c34"
+            class="c30 c31"
             title="Previous page"
           >
             <span
-              class="c23 icon icon-circlearrowleft"
+              class="c20 icon icon-circlearrowleft"
             >
               <svg
                 fill="currentColor"
@@ -2636,11 +2559,11 @@ exports[`loaded 1`] = `
             </span>
           </button>
           <button
-            class="c35 c34"
+            class="c32 c31"
             title="Next page"
           >
             <span
-              class="c23 icon icon-circlearrowright"
+              class="c20 icon icon-circlearrowright"
             >
               <svg
                 fill="currentColor"

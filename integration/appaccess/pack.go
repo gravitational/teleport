@@ -31,6 +31,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
@@ -183,12 +184,12 @@ func (p *Pack) CreateUser(t *testing.T) (types.User, string) {
 
 	role := services.RoleForUser(user)
 	role.SetLogins(types.Allow, []string{username, "root", "ubuntu"})
-	err = p.rootCluster.Process.GetAuthServer().UpsertRole(context.Background(), role)
+	role, err = p.rootCluster.Process.GetAuthServer().UpsertRole(context.Background(), role)
 	require.NoError(t, err)
 
 	user.AddRole(role.GetName())
 	user.SetTraits(map[string][]string{"env": {"production"}, "empty": {}, "nil": nil})
-	err = p.rootCluster.Process.GetAuthServer().CreateUser(context.Background(), user)
+	user, err = p.rootCluster.Process.GetAuthServer().CreateUser(context.Background(), user)
 	require.NoError(t, err)
 
 	err = p.rootCluster.Process.GetAuthServer().UpsertPassword(user.GetName(), []byte(password))
@@ -694,10 +695,6 @@ func (p *Pack) startRootAppServers(t *testing.T, count int, opts AppTestOptions)
 							Value: "rewritten-app-jwt-header",
 						},
 						{
-							Name:  teleport.AppCFHeader,
-							Value: "rewritten-app-cf-header",
-						},
-						{
 							Name:  common.TeleportAPIErrorHeader,
 							Value: "rewritten-x-teleport-api-error",
 						},
@@ -837,10 +834,6 @@ func (p *Pack) startLeafAppServers(t *testing.T, count int, opts AppTestOptions)
 							Value: "rewritten-app-jwt-header",
 						},
 						{
-							Name:  teleport.AppCFHeader,
-							Value: "rewritten-app-cf-header",
-						},
-						{
 							Name:  common.TeleportAPIErrorHeader,
 							Value: "rewritten-x-teleport-api-error",
 						},
@@ -892,13 +885,15 @@ func (p *Pack) startLeafAppServers(t *testing.T, count int, opts AppTestOptions)
 }
 
 func waitForAppRegInRemoteSiteCache(t *testing.T, tunnel reversetunnelclient.Server, clusterName string, cfgApps []servicecfg.App, hostUUID string) {
-	require.Eventually(t, func() bool {
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		site, err := tunnel.GetSite(clusterName)
-		require.NoError(t, err)
+		assert.NoError(t, err)
+
 		ap, err := site.CachingAccessPoint()
-		require.NoError(t, err)
+		assert.NoError(t, err)
+
 		apps, err := ap.GetApplicationServers(context.Background(), apidefaults.Namespace)
-		require.NoError(t, err)
+		assert.NoError(t, err)
 
 		counter := 0
 		for _, v := range apps {
@@ -906,6 +901,6 @@ func waitForAppRegInRemoteSiteCache(t *testing.T, tunnel reversetunnelclient.Ser
 				counter++
 			}
 		}
-		return len(cfgApps) == counter
+		assert.Len(t, cfgApps, counter)
 	}, time.Minute*2, time.Millisecond*200)
 }

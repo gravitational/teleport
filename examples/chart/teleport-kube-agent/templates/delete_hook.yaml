@@ -40,7 +40,7 @@ roleRef:
   name: {{ .Release.Name }}-delete-hook
 subjects:
 - kind: ServiceAccount
-  name: {{ .Release.Name }}-delete-hook
+  name: {{ template "teleport-kube-agent.deleteHookServiceAccountName" . }}
   namespace: {{ .Release.Namespace }}
 ---
 {{- end }}

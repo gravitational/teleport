@@ -3,16 +3,18 @@ title: Setting up the Okta Service
 description: How to set up the Okta Service with some basic configurations
 ---
 
-<Admonition type="warning" title="Preview">
-Okta application access is currently in Preview mode.
-</Admonition>
-
 Teleport can import and grant access to Okta applications and user groups. Okta applications
 can be accessed through Teleport's application access UI, and access to these applications along
 with user groups can be managed by Teleport's RBAC along with access requests.
 
 This guide will help you set up the Okta Service and provide some basic
 configurations to enable it.
+
+<Details title="This integration is hosted on Teleport Cloud" open={false}>
+
+(!docs/pages/includes/plugins/enroll.mdx name="the Okta integration"!)
+
+</Details>
 
 ## Prerequisites
 
@@ -169,6 +171,10 @@ $ echo <Var name="join-token" /> | sudo tee /tmp/token
 First, on the host where you will run the Okta Service , create a file at
 <Var name="okta-api-token-path" /> with the contents of the API token.
 
+Install Teleport on the host:
+
+(!docs/pages/includes/install-linux-enterprise.mdx!)
+
 Next, on the same host, create a file at `/etc/teleport.yaml` with the
 following content:
 
@@ -178,7 +184,7 @@ teleport:
   join_params:
     token_name: "/tmp/token"
     method: token
-  proxy_server: "teleport.example.com:443"
+  proxy_server: "<Var name="teleport.example.com" />:443"
 auth_service:
   enabled: no
 proxy_service:
@@ -187,8 +193,8 @@ ssh_service:
   enabled: no
 okta_service:
   enabled: yes
-  api_endpoint: <replace-with-okta-endpoint-url>
-  api_token_path: <replace-with-okta-api-token-path>
+  api_endpoint: <Var name="okta-endpoint-url" />
+  api_token_path: <Var name="okta-api-token-path" />
 ```
 
 Edit `/etc/teleport.yaml` to replace `teleport.example.com:443` with the host

@@ -58,7 +58,7 @@ func (w *WriterLog) Close() error {
 // The only mandatory requirement is a date range (UTC). Results must always
 // show up sorted by date (newest first)
 func (w *WriterLog) SearchEvents(ctx context.Context, req SearchEventsRequest) (events []apievents.AuditEvent, lastKey string, err error) {
-	return nil, "", trace.NotImplemented("not implemented")
+	return nil, "", trace.NotImplemented(writerCannotRead)
 }
 
 // SearchSessionEvents is a flexible way to find session events.
@@ -68,5 +68,7 @@ func (w *WriterLog) SearchEvents(ctx context.Context, req SearchEventsRequest) (
 // Event types to filter can be specified and pagination is handled by an iterator key that allows
 // a query to be resumed.
 func (w *WriterLog) SearchSessionEvents(ctx context.Context, req SearchSessionEventsRequest) (events []apievents.AuditEvent, lastKey string, err error) {
-	return nil, "", trace.NotImplemented("not implemented")
+	return nil, "", trace.NotImplemented(writerCannotRead)
 }
+
+const writerCannotRead = "the primary audit log does not support reading; please check the Auth Server's audit_events_uri configuration"

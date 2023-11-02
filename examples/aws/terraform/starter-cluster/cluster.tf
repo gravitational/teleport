@@ -12,6 +12,7 @@ resource "aws_instance" "cluster" {
     "data.tpl",
     {
       region                   = var.region
+      teleport_auth_type       = var.teleport_auth_type
       cluster_name             = var.cluster_name
       email                    = var.email
       domain_name              = var.route53_domain
@@ -25,6 +26,7 @@ resource "aws_instance" "cluster" {
       enable_postgres_listener = var.enable_postgres_listener
       use_acm                  = var.use_acm
       use_letsencrypt          = var.use_letsencrypt
+      use_tls_routing          = var.use_tls_routing
     }
   )
 

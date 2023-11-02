@@ -71,6 +71,14 @@ const (
 	UserSSOTestFlowLoginCode = "T1010I"
 	// UserSSOTestFlowLoginFailureCode is the unsuccessful SSO test flow user login event code.
 	UserSSOTestFlowLoginFailureCode = "T1011W"
+	// UserHeadlessLoginRequestedCode is an event code for when headless login attempt was requested.
+	UserHeadlessLoginRequestedCode = "T1012I"
+	// UserHeadlessLoginApprovedCode is an event code for when headless login attempt was successfully approved.
+	UserHeadlessLoginApprovedCode = "T1013I"
+	// UserHeadlessLoginApprovedFailureCode is an event code for when headless login was approved with an error.
+	UserHeadlessLoginApprovedFailureCode = "T1013W"
+	// UserHeadlessLoginRejectedCode is an event code for when headless login attempt was rejected.
+	UserHeadlessLoginRejectedCode = "T1014W"
 
 	// BillingCardCreateCode is an event code for when a user creates a new credit card.
 	BillingCardCreateCode = "TBL00I"
@@ -363,21 +371,29 @@ const (
 	GithubConnectorCreatedCode = "T8000I"
 	// GithubConnectorDeletedCode is the Github connector deleted event code.
 	GithubConnectorDeletedCode = "T8001I"
+	// GithubConnectorUpdatedCode is the Github connector updated event code.
+	GithubConnectorUpdatedCode = "T80002I"
 
 	// OIDCConnectorCreatedCode is the OIDC connector created event code.
 	OIDCConnectorCreatedCode = "T8100I"
 	// OIDCConnectorDeletedCode is the OIDC connector deleted event code.
 	OIDCConnectorDeletedCode = "T8101I"
+	// OIDCConnectorUpdatedCode is the OIDC connector updated event code.
+	OIDCConnectorUpdatedCode = "T8102I"
 
 	// SAMLConnectorCreatedCode is the SAML connector created event code.
 	SAMLConnectorCreatedCode = "T8200I"
 	// SAMLConnectorDeletedCode is the SAML connector deleted event code.
 	SAMLConnectorDeletedCode = "T8201I"
+	// SAMLConnectorUpdatedCode is the SAML connector updated event code.
+	SAMLConnectorUpdatedCode = "T8202I"
 
 	// RoleCreatedCode is the role created event code.
 	RoleCreatedCode = "T9000I"
 	// RoleDeletedCode is the role deleted event code.
 	RoleDeletedCode = "T9001I"
+	// RoleUpdatedCode is the role created event code.
+	RoleUpdatedCode = "T9002I"
 
 	// BotJoinCode is the 'bot.join' event code.
 	BotJoinCode = "TJ001I"
@@ -471,6 +487,60 @@ const (
 
 	// OktaAssignmentCleanupFailureCode is the Okta assignment cleanup failure code.
 	OktaAssignmentCleanupFailureCode = "TOK005E"
+
+	// AccessListCreateSuccessCode is the access list create success code.
+	AccessListCreateSuccessCode = "TAL001I"
+
+	// AccessListCreateFailureCode is the access list create failure code.
+	AccessListCreateFailureCode = "TAL001E"
+
+	// AccessListUpdateSuccessCode is the access list update success code.
+	AccessListUpdateSuccessCode = "TAL002I"
+
+	// AccessListUpdateFailureCode is the access list update failure code.
+	AccessListUpdateFailureCode = "TAL002E"
+
+	// AccessListDeleteSuccessCode is the access list delete success code.
+	AccessListDeleteSuccessCode = "TAL003I"
+
+	// AccessListDeleteFailureCode is the access list delete failure code.
+	AccessListDeleteFailureCode = "TAL003E"
+
+	// AccessListReviewSuccessCode is the access list review success code.
+	AccessListReviewSuccessCode = "TAL004I"
+
+	// AccessListReviewFailureCode is the access list review failure code.
+	AccessListReviewFailureCode = "TAL004E"
+
+	// AccessListMemberCreateSuccessCode is the access list member create success code.
+	AccessListMemberCreateSuccessCode = "TAL005I"
+
+	// AccessListMemberCreateFailureCode is the access list member create failure code.
+	AccessListMemberCreateFailureCode = "TAL005E"
+
+	// AccessListMemberUpdateSuccessCode is the access list member update success code.
+	AccessListMemberUpdateSuccessCode = "TAL006I"
+
+	// AccessListMemberUpdateFailureCode is the access list member update failure code.
+	AccessListMemberUpdateFailureCode = "TAL006E"
+
+	// AccessListMemberDeleteSuccessCode is the access list member delete success code.
+	AccessListMemberDeleteSuccessCode = "TAL007I"
+
+	// AccessListMemberDeleteFailureCode is the access list member delete failure code.
+	AccessListMemberDeleteFailureCode = "TAL007E"
+
+	// AccessListMemberDeleteAllForAccessListSuccessCode is the access list all member delete success code.
+	AccessListMemberDeleteAllForAccessListSuccessCode = "TAL008I"
+
+	// AccessListMemberDeleteAllForAccessListFailureCode is the access list member delete failure code.
+	AccessListMemberDeleteAllForAccessListFailureCode = "TAL008E"
+
+	// SecReportsAuditQueryRunCode is used when a custom Security Reports Query is run.
+	SecReportsAuditQueryRunCode = "SRE001I"
+
+	// SecReportsReportRunCode is used when a report in run.
+	SecReportsReportRunCode = "SRE002I"
 
 	// UnknownCode is used when an event of unknown type is encountered.
 	UnknownCode = apievents.UnknownCode

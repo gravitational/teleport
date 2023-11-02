@@ -14,4 +14,4 @@
  * limitations under the License.
  */
 
-export { ToolTipNoPermBadge } from './ToolTipNoPermBadge';
+export { ToolTipNoPermBadge, BadgeTitle } from './ToolTipNoPermBadge';

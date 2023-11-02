@@ -33,6 +33,18 @@ export class MockMainProcessClient implements MainProcessClient {
     });
   }
 
+  subscribeToNativeThemeUpdate() {
+    return { cleanup: () => undefined };
+  }
+
+  subscribeToAgentUpdate() {
+    return { cleanup: () => undefined };
+  }
+
+  subscribeToDeepLinkLaunch() {
+    return { cleanup: () => undefined };
+  }
+
   getRuntimeSettings(): RuntimeSettings {
     return makeRuntimeSettings(this.runtimeSettings);
   }
@@ -80,15 +92,23 @@ export class MockMainProcessClient implements MainProcessClient {
     return true;
   }
 
-  subscribeToNativeThemeUpdate() {
-    return { cleanup: () => undefined };
-  }
-
   downloadAgent() {
     return Promise.resolve();
   }
 
   createAgentConfigFile() {
+    return Promise.resolve();
+  }
+
+  isAgentConfigFileCreated() {
+    return Promise.resolve(false);
+  }
+
+  openAgentLogsDirectory() {
+    return Promise.resolve();
+  }
+
+  killAgent(): Promise<void> {
     return Promise.resolve();
   }
 
@@ -100,9 +120,15 @@ export class MockMainProcessClient implements MainProcessClient {
     return { status: 'not-started' };
   }
 
-  subscribeToAgentUpdate() {
-    return { cleanup: () => undefined };
+  getAgentLogs(): string {
+    return '';
   }
+
+  removeAgentDirectory() {
+    return Promise.resolve();
+  }
+
+  signalUserInterfaceReadiness() {}
 }
 
 export const makeRuntimeSettings = (
@@ -110,6 +136,8 @@ export const makeRuntimeSettings = (
 ): RuntimeSettings => ({
   platform: 'darwin' as const,
   dev: true,
+  debug: true,
+  insecure: true,
   userDataDir: '',
   sessionDataDir: '',
   tempDataDir: '',
@@ -117,9 +145,9 @@ export const makeRuntimeSettings = (
   binDir: '',
   certsDir: '',
   kubeConfigsDir: '',
+  logsDir: '',
   defaultShell: '',
   tshd: {
-    insecure: true,
     requestedNetworkAddress: '',
     binaryPath: '',
     homeDir: '',
@@ -134,6 +162,7 @@ export const makeRuntimeSettings = (
   installationId: '123e4567-e89b-12d3-a456-426614174000',
   arch: 'arm64',
   osVersion: '22.2.0',
+  // Should be kept in sync with the default proxyVersion of makeRootCluster.
   appVersion: '11.1.0',
   isLocalBuild: runtimeSettings?.appVersion === '1.0.0-dev',
   username: 'alice',

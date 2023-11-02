@@ -18,6 +18,8 @@ import { MainProcessClient } from 'teleterm/mainProcess/types';
 import {
   Cluster,
   CreateConnectMyComputerRoleResponse,
+  Server,
+  TshAbortSignal,
   TshClient,
 } from 'teleterm/services/tshd/types';
 
@@ -61,10 +63,55 @@ export class ConnectMyComputerService {
     });
   }
 
+  killAgent(rootClusterUri: uri.RootClusterUri): Promise<void> {
+    return this.mainProcessClient.killAgent({ rootClusterUri });
+  }
+
+  isAgentConfigFileCreated(
+    rootClusterUri: uri.RootClusterUri
+  ): Promise<boolean> {
+    return this.mainProcessClient.isAgentConfigFileCreated({ rootClusterUri });
+  }
+
   deleteToken(
     rootClusterUri: uri.RootClusterUri,
     token: string
   ): Promise<void> {
     return this.tshClient.deleteConnectMyComputerToken(rootClusterUri, token);
+  }
+
+  removeConnectMyComputerNode(
+    rootClusterUri: uri.RootClusterUri
+  ): Promise<void> {
+    return this.tshClient.deleteConnectMyComputerNode(rootClusterUri);
+  }
+
+  removeAgentDirectory(rootClusterUri: uri.RootClusterUri): Promise<void> {
+    return this.mainProcessClient.removeAgentDirectory({ rootClusterUri });
+  }
+
+  getConnectMyComputerNodeName(
+    rootClusterUri: uri.RootClusterUri
+  ): Promise<string> {
+    return this.tshClient.getConnectMyComputerNodeName(rootClusterUri);
+  }
+
+  async killAgentAndRemoveData(
+    rootClusterUri: uri.RootClusterUri
+  ): Promise<void> {
+    await this.killAgent(rootClusterUri);
+    await this.mainProcessClient.removeAgentDirectory({ rootClusterUri });
+  }
+
+  async waitForNodeToJoin(
+    rootClusterUri: uri.RootClusterUri,
+    abortSignal: TshAbortSignal
+  ): Promise<Server> {
+    const response = await this.tshClient.waitForConnectMyComputerNodeJoin(
+      rootClusterUri,
+      abortSignal
+    );
+
+    return response.server;
   }
 }

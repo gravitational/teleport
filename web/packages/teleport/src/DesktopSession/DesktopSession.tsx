@@ -292,7 +292,6 @@ function Session({
       <TdpClientCanvas
         style={{
           display: displayCanvas ? 'flex' : 'none',
-          flex: 1, // ensures the canvas fills available screen space
         }}
         tdpCli={tdpClient}
         tdpCliInit={initTdpCli}

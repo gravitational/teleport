@@ -18,8 +18,8 @@ import { useState, useEffect, useMemo } from 'react';
 import { SortType } from 'design/DataTable/types';
 import { useAsync } from 'shared/hooks/useAsync';
 import {
-  AgentFilter as WeakAgentFilter,
-  AgentLabel,
+  ResourceFilter as WeakAgentFilter,
+  ResourceLabel,
 } from 'teleport/services/agents';
 
 import { GetResourcesParams } from 'teleterm/services/tshd/types';
@@ -27,10 +27,11 @@ import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { retryWithRelogin } from 'teleterm/ui/utils';
 
 import { useClusterContext } from '../clusterContext';
+import { useResourcesContext } from '../resourcesContext';
 
 type AgentFilter = WeakAgentFilter & { sort: SortType };
 
-function addAgentLabelToQuery(filter: AgentFilter, label: AgentLabel) {
+function addAgentLabelToQuery(filter: AgentFilter, label: ResourceLabel) {
   const queryParts = [];
 
   // Add existing query
@@ -58,6 +59,7 @@ export function useServerSideResources<Agent>(
 ) {
   const ctx = useAppContext();
   const { clusterUri } = useClusterContext();
+  const { onResourcesRefreshRequest } = useResourcesContext();
   const [pageIndex, setPageIndex] = useState(0);
   const [keys, setKeys] = useState<string[]>([]);
   const [agentFilter, setAgentFilter] = useState<AgentFilter>({
@@ -118,7 +120,11 @@ export function useServerSideResources<Agent>(
       newKeys[pageIndex] = response.startKey;
       setKeys(newKeys);
     };
+
     fetchAndUpdateKeys();
+
+    const { cleanup } = onResourcesRefreshRequest(fetchAndUpdateKeys);
+    return cleanup;
   }, [agentFilter, pageIndex]);
 
   function updateAgentFilter(filter: AgentFilter) {
@@ -138,7 +144,7 @@ export function useServerSideResources<Agent>(
     updateAgentFilter({ ...agentFilter, search: '', query });
   }
 
-  function onAgentLabelClick(label: AgentLabel) {
+  function onAgentLabelClick(label: ResourceLabel) {
     const query = addAgentLabelToQuery(agentFilter, label);
     updateAgentFilter({ ...agentFilter, search: '', query });
   }
@@ -172,7 +178,6 @@ export function useServerSideResources<Agent>(
 
   return {
     fetchAttempt,
-    fetch,
     updateSearch,
     updateSort,
     updateQuery,

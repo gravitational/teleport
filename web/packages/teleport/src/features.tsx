@@ -17,28 +17,31 @@ limitations under the License.
 import React, { lazy } from 'react';
 
 import {
-  Server,
-  Application,
-  Desktop,
-  Kubernetes,
-  Database,
-  Terminal,
-  Users as UsersIcon,
-  ClipboardUser,
-  ShieldCheck,
-  Laptop,
-  Lock,
   AddCircle,
+  Application,
   CirclePlay,
-  ListThin,
-  SlidersVertical,
-  UserCircleGear,
-  Question,
+  ClipboardUser,
   Cluster,
+  Database,
+  Desktop,
+  EqualizersVertical,
   Integrations as IntegrationsIcon,
+  Kubernetes,
+  Laptop,
+  ListThin,
+  Lock,
+  Question,
+  Server,
+  ShieldCheck,
+  SlidersVertical,
+  Terminal,
+  UserCircleGear,
+  Users as UsersIcon,
 } from 'design/Icon';
 
 import cfg from 'teleport/config';
+
+import localStorage from 'teleport/services/localStorage';
 
 import {
   ManagementSection,
@@ -47,11 +50,12 @@ import {
 
 import { NavTitle } from './types';
 
-import type { TeleportFeature, FeatureFlags } from './types';
+import type { FeatureFlags, TeleportFeature } from './types';
 
 const Audit = lazy(() => import('./Audit'));
 const Nodes = lazy(() => import('./Nodes'));
 const Sessions = lazy(() => import('./Sessions'));
+const UnifiedResources = lazy(() => import('./UnifiedResources'));
 const Account = lazy(() => import('./Account'));
 const Applications = lazy(() => import('./Apps'));
 const Kubes = lazy(() => import('./Kubes'));
@@ -68,6 +72,7 @@ const NewLock = lazy(() => import('./LocksV2/NewLock'));
 const Databases = lazy(() => import('./Databases'));
 const Desktops = lazy(() => import('./Desktops'));
 const Discover = lazy(() => import('./Discover'));
+const LockedAccessRequests = lazy(() => import('./AccessRequests'));
 const Integrations = lazy(() => import('./Integrations'));
 const IntegrationEnroll = lazy(
   () => import('@gravitational/teleport/src/Integrations/Enroll')
@@ -76,6 +81,30 @@ const IntegrationEnroll = lazy(
 // ****************************
 // Resource Features
 // ****************************
+
+class AccessRequests implements TeleportFeature {
+  category = NavigationCategory.Resources;
+
+  route = {
+    title: 'Access Requests',
+    path: cfg.routes.accessRequest,
+    exact: true,
+    component: LockedAccessRequests,
+  };
+
+  hasAccess() {
+    return true;
+  }
+
+  navigationItem = {
+    title: NavTitle.AccessRequests,
+    icon: <EqualizersVertical />,
+    exact: true,
+    getLink() {
+      return cfg.routes.accessRequest;
+    },
+  };
+}
 
 export class FeatureNodes implements TeleportFeature {
   route = {
@@ -94,10 +123,38 @@ export class FeatureNodes implements TeleportFeature {
     },
   };
 
+  hideFromNavigation = localStorage.areUnifiedResourcesEnabled();
+
   category = NavigationCategory.Resources;
 
   hasAccess(flags: FeatureFlags) {
     return flags.nodes;
+  }
+}
+
+export class FeatureUnifiedResources implements TeleportFeature {
+  route = {
+    title: 'Resources',
+    path: cfg.routes.unifiedResources,
+    exact: true,
+    component: UnifiedResources,
+  };
+
+  navigationItem = {
+    title: NavTitle.Resources,
+    icon: <Server />,
+    exact: true,
+    getLink(clusterId: string) {
+      return cfg.getUnifiedResourcesRoute(clusterId);
+    },
+  };
+
+  hideFromNavigation = !localStorage.areUnifiedResourcesEnabled();
+
+  category = NavigationCategory.Resources;
+
+  hasAccess() {
+    return true;
   }
 }
 
@@ -110,6 +167,8 @@ export class FeatureApps implements TeleportFeature {
     exact: true,
     component: Applications,
   };
+
+  hideFromNavigation = localStorage.areUnifiedResourcesEnabled();
 
   hasAccess(flags: FeatureFlags) {
     return flags.applications;
@@ -135,6 +194,8 @@ export class FeatureKubes implements TeleportFeature {
     component: Kubes,
   };
 
+  hideFromNavigation = localStorage.areUnifiedResourcesEnabled();
+
   hasAccess(flags: FeatureFlags) {
     return flags.kubernetes;
   }
@@ -159,6 +220,8 @@ export class FeatureDatabases implements TeleportFeature {
     component: Databases,
   };
 
+  hideFromNavigation = localStorage.areUnifiedResourcesEnabled();
+
   hasAccess(flags: FeatureFlags) {
     return flags.databases;
   }
@@ -182,6 +245,8 @@ export class FeatureDesktops implements TeleportFeature {
     exact: true,
     component: Desktops,
   };
+
+  hideFromNavigation = localStorage.areUnifiedResourcesEnabled();
 
   hasAccess(flags: FeatureFlags) {
     return flags.desktops;
@@ -235,7 +300,7 @@ export class FeatureUsers implements TeleportFeature {
     title: 'Manage Users',
     path: cfg.routes.users,
     exact: true,
-    component: Users,
+    component: () => <Users />,
   };
 
   hasAccess(flags: FeatureFlags): boolean {
@@ -250,6 +315,10 @@ export class FeatureUsers implements TeleportFeature {
       return cfg.getUsersRoute();
     },
   };
+
+  getRoute() {
+    return this.route;
+  }
 }
 
 export class FeatureRoles implements TeleportFeature {
@@ -257,7 +326,7 @@ export class FeatureRoles implements TeleportFeature {
   section = ManagementSection.Access;
 
   route = {
-    title: 'Manage Roles',
+    title: 'Manage User Roles',
     path: cfg.routes.roles,
     exact: true,
     component: Roles,
@@ -304,7 +373,7 @@ export class FeatureAuthConnectors implements TeleportFeature {
 
 export class FeatureLocks implements TeleportFeature {
   category = NavigationCategory.Management;
-  section = ManagementSection.Access;
+  section = ManagementSection.Identity;
 
   route = {
     title: 'Manage Session & Identity Locks',
@@ -536,7 +605,7 @@ export class FeatureTrust implements TeleportFeature {
 
 class FeatureDeviceTrust implements TeleportFeature {
   category = NavigationCategory.Management;
-  section = ManagementSection.Access;
+  section = ManagementSection.Identity;
   route = {
     title: 'Manage Trusted Devices',
     path: cfg.routes.deviceTrust,
@@ -607,11 +676,13 @@ export class FeatureHelpAndSupport implements TeleportFeature {
 export function getOSSFeatures(): TeleportFeature[] {
   return [
     // Resources
+    new FeatureUnifiedResources(),
     new FeatureNodes(),
     new FeatureApps(),
     new FeatureKubes(),
     new FeatureDatabases(),
     new FeatureDesktops(),
+    new AccessRequests(),
     new FeatureSessions(),
 
     // Management
@@ -619,13 +690,15 @@ export function getOSSFeatures(): TeleportFeature[] {
     // - Access
     new FeatureUsers(),
     new FeatureRoles(),
-    new FeatureDeviceTrust(),
     new FeatureAuthConnectors(),
-    new FeatureLocks(),
-    new FeatureNewLock(),
     new FeatureIntegrations(),
     new FeatureDiscover(),
     new FeatureIntegrationEnroll(),
+
+    // - Identity
+    new FeatureLocks(),
+    new FeatureNewLock(),
+    new FeatureDeviceTrust(),
 
     // - Activity
     new FeatureRecordings(),

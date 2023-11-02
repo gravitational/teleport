@@ -38,6 +38,8 @@ type Config struct {
 	// KubeconfigsDir is the directory containing kubeconfigs for Kubernetes
 	// Acesss.
 	KubeconfigsDir string
+	// AgentsDir contains agent config files and data directories for Connect My Computer.
+	AgentsDir string
 }
 
 // CheckAndSetDefaults checks and sets default config values.
@@ -65,6 +67,10 @@ func (c *Config) CheckAndSetDefaults() error {
 
 	if c.KubeconfigsDir == "" {
 		return trace.BadParameter("missing kubeconfigs directory")
+	}
+
+	if c.AgentsDir == "" {
+		return trace.BadParameter("missing agents directory")
 	}
 
 	return nil

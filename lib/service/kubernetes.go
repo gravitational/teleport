@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	kubeproxy "github.com/gravitational/teleport/lib/kube/proxy"
 	"github.com/gravitational/teleport/lib/labels"
+	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
@@ -236,6 +237,7 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 		DynamicLabels:        dynLabels,
 		CloudLabels:          process.cloudLabels,
 		Log:                  log,
+		PROXYProtocolMode:    multiplexer.PROXYProtocolOff, // Kube service doesn't need to process unsigned PROXY headers.
 	})
 	if err != nil {
 		return trace.Wrap(err)

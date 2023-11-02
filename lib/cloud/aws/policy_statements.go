@@ -16,6 +16,13 @@ limitations under the License.
 
 package aws
 
+import (
+	"fmt"
+
+	"github.com/aws/aws-sdk-go/aws/arn"
+	"github.com/gravitational/trace"
+)
+
 var (
 	allResources = []string{"*"}
 )
@@ -48,7 +55,10 @@ func StatementForECSManageService() *Statement {
 		Actions: []string{
 			"ecs:DescribeClusters", "ecs:CreateCluster", "ecs:PutClusterCapacityProviders",
 			"ecs:DescribeServices", "ecs:CreateService", "ecs:UpdateService",
-			"ecs:RegisterTaskDefinition",
+			"ecs:RegisterTaskDefinition", "ecs:DescribeTaskDefinition", "ecs:DeregisterTaskDefinition",
+
+			// EC2 DescribeSecurityGroups is required so that the user can list the SG and then pick which ones they want to apply to the ECS Service.
+			"ec2:DescribeSecurityGroups",
 		},
 		Resources: allResources,
 	}
@@ -97,4 +107,198 @@ func StatementForRDSDBConnect() *Statement {
 		Actions:   SliceOrString{"rds-db:connect"},
 		Resources: allResources,
 	}
+}
+
+// StatementForEC2InstanceConnectEndpoint returns the statement that allows the flow for accessing
+// an EC2 instance using its private IP, using EC2 Instance Connect Endpoint.
+func StatementForEC2InstanceConnectEndpoint() *Statement {
+	return &Statement{
+		Effect: EffectAllow,
+		Actions: []string{
+			"ec2:DescribeInstances",
+			"ec2:DescribeInstanceConnectEndpoints",
+			"ec2:DescribeSecurityGroups",
+
+			// Create ICE requires the following actions:
+			// https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/permissions-for-ec2-instance-connect-endpoint.html
+			"ec2:CreateInstanceConnectEndpoint",
+			"ec2:CreateTags",
+			"ec2:CreateNetworkInterface",
+			"iam:CreateServiceLinkedRole",
+
+			"ec2-instance-connect:SendSSHPublicKey",
+			"ec2-instance-connect:OpenTunnel",
+		},
+		Resources: allResources,
+	}
+}
+
+// StatementForAWSOIDCRoleTrustRelationship returns the Trust Relationship to allow the OpenID Connect Provider
+// set up during the AWS OIDC Onboarding to assume this Role.
+func StatementForAWSOIDCRoleTrustRelationship(accountID, providerURL string, audiences []string) *Statement {
+	federatedARN := fmt.Sprintf("arn:aws:iam::%s:oidc-provider/%s", accountID, providerURL)
+	federatedAudience := fmt.Sprintf("%s:aud", providerURL)
+
+	return &Statement{
+		Effect:  EffectAllow,
+		Actions: SliceOrString{"sts:AssumeRoleWithWebIdentity"},
+		Principals: map[string]SliceOrString{
+			"Federated": []string{federatedARN},
+		},
+		Conditions: map[string]map[string]SliceOrString{
+			"StringEquals": {
+				federatedAudience: audiences,
+			},
+		},
+	}
+}
+
+// StatementForListRDSDatabases returns the statement that allows listing RDS DB Clusters and Instances.
+func StatementForListRDSDatabases() *Statement {
+	return &Statement{
+		Effect: EffectAllow,
+		Actions: []string{
+			"rds:DescribeDBInstances",
+			"rds:DescribeDBClusters",
+			"ec2:DescribeSecurityGroups",
+		},
+		Resources: allResources,
+	}
+}
+
+// ExternalCloudAuditPolicyConfig holds options for the external cloud audit
+// IAM policy.
+type ExternalCloudAuditPolicyConfig struct {
+	// Partition is the AWS partition to use.
+	Partition string
+	// Region is the AWS region to use.
+	Region string
+	// Account is the AWS account ID to use.
+	Account string
+	// AuditEventsARN is the S3 resource ARN where audit events are stored,
+	// including the bucket name, (optional) prefix, and a trailing wildcard
+	AuditEventsARN string
+	// SessionRecordingsARN is the S3 resource ARN where session recordings are stored,
+	// including the bucket name, (optional) prefix, and a trailing wildcard
+	SessionRecordingsARN string
+	// AthenaResultsARN is the S3 resource ARN where athena results are stored,
+	// including the bucket name, (optional) prefix, and a trailing wildcard
+	AthenaResultsARN string
+	// AthenaWorkgroupName is the name of the Athena workgroup used for queries.
+	AthenaWorkgroupName string
+	// GlueDatabaseName is the name of the AWS Glue database.
+	GlueDatabaseName string
+	// GlueTabelName is the name of the AWS Glue table.
+	GlueTableName string
+}
+
+func (c *ExternalCloudAuditPolicyConfig) CheckAndSetDefaults() error {
+	if len(c.Partition) == 0 {
+		c.Partition = "aws"
+	}
+	if len(c.Region) == 0 {
+		return trace.BadParameter("region is required")
+	}
+	if len(c.Account) == 0 {
+		return trace.BadParameter("account is required")
+	}
+	if len(c.AuditEventsARN) == 0 {
+		return trace.BadParameter("audit events ARN is required")
+	}
+	if len(c.SessionRecordingsARN) == 0 {
+		return trace.BadParameter("session recordings ARN is required")
+	}
+	if len(c.AthenaResultsARN) == 0 {
+		return trace.BadParameter("athena results ARN is required")
+	}
+	if len(c.AthenaWorkgroupName) == 0 {
+		return trace.BadParameter("athena workgroup name is required")
+	}
+	if len(c.GlueDatabaseName) == 0 {
+		return trace.BadParameter("glue database name is required")
+	}
+	if len(c.GlueTableName) == 0 {
+		return trace.BadParameter("glue table name is required")
+	}
+	return nil
+}
+
+// PolicyDocumentForExternalCloudAudit returns a PolicyDocument with the
+// necessary IAM permissions for the External Cloud Audit feature.
+func PolicyDocumentForExternalCloudAudit(cfg *ExternalCloudAuditPolicyConfig) (*PolicyDocument, error) {
+	if err := cfg.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &PolicyDocument{
+		Version: PolicyVersion,
+		Statements: []*Statement{
+			&Statement{
+				StatementID: "ReadWriteSessionsAndEvents",
+				Effect:      EffectAllow,
+				Actions: []string{
+					"s3:PutObject",
+					"s3:GetObject",
+					"s3:GetObjectVersion",
+					"s3:ListMultipartUploadParts",
+					"s3:AbortMultipartUpload",
+				},
+				Resources: []string{
+					cfg.AuditEventsARN,
+					cfg.SessionRecordingsARN,
+					cfg.AthenaResultsARN,
+				},
+			},
+			&Statement{
+				StatementID: "AllowAthenaQuery",
+				Effect:      EffectAllow,
+				Actions: []string{
+					"athena:StartQueryExecution",
+					"athena:GetQueryResults",
+					"athena:GetQueryExecution",
+				},
+				Resources: []string{
+					arn.ARN{
+						Partition: cfg.Partition,
+						Service:   "athena",
+						Region:    cfg.Region,
+						AccountID: cfg.Account,
+						Resource:  "workgroup/" + cfg.AthenaWorkgroupName,
+					}.String(),
+				},
+			},
+			&Statement{
+				StatementID: "FullAccessOnGlueTable",
+				Effect:      EffectAllow,
+				Actions: []string{
+					"glue:GetTable",
+					"glue:GetTableVersion",
+					"glue:GetTableVersions",
+					"glue:UpdateTable",
+				},
+				Resources: []string{
+					arn.ARN{
+						Partition: cfg.Partition,
+						Service:   "glue",
+						Region:    cfg.Region,
+						AccountID: cfg.Account,
+						Resource:  "catalog",
+					}.String(),
+					arn.ARN{
+						Partition: cfg.Partition,
+						Service:   "glue",
+						Region:    cfg.Region,
+						AccountID: cfg.Account,
+						Resource:  "database/" + cfg.GlueDatabaseName,
+					}.String(),
+					arn.ARN{
+						Partition: cfg.Partition,
+						Service:   "glue",
+						Region:    cfg.Region,
+						AccountID: cfg.Account,
+						Resource:  "table/" + cfg.GlueDatabaseName + "/" + cfg.GlueTableName,
+					}.String(),
+				},
+			},
+		},
+	}, nil
 }

@@ -25,17 +25,13 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"google.golang.org/grpc"
-	grpcbackoff "google.golang.org/grpc/backoff"
 
 	tp "github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integrations/access/common/teleport"
 	"github.com/gravitational/teleport/integrations/lib"
 	"github.com/gravitational/teleport/integrations/lib/backoff"
-	"github.com/gravitational/teleport/integrations/lib/credentials"
 	"github.com/gravitational/teleport/integrations/lib/logger"
 	"github.com/gravitational/teleport/integrations/lib/watcherjob"
 )
@@ -45,8 +41,6 @@ const (
 	pluginName = "opsgenie"
 	// minServerVersion is the minimal teleport version the plugin supports.
 	minServerVersion = "6.1.0"
-	// grpcBackoffMaxDelay is a maximum time GRPC client waits before reconnection attempt.
-	grpcBackoffMaxDelay = time.Second * 2
 	// initTimeout is used to bound execution time of health check and teleport version check.
 	initTimeout = time.Second * 10
 	// handlerTimeout is used to bound the execution time of watcher event handler.
@@ -73,13 +67,8 @@ type App struct {
 
 // NewOpsgenieApp initializes a new teleport-opsgenie app and returns it.
 func NewOpsgenieApp(ctx context.Context, conf *Config) (*App, error) {
-	teleportClient, err := conf.GetTeleportClient(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 	opsgenieApp := &App{
 		PluginName: pluginName,
-		teleport:   teleportClient,
 		conf:       *conf,
 	}
 	opsgenieApp.mainJob = lib.NewServiceJob(opsgenieApp.run)
@@ -147,31 +136,10 @@ func (a *App) run(ctx context.Context) error {
 func (a *App) init(ctx context.Context) error {
 	ctx, cancel := context.WithTimeout(ctx, initTimeout)
 	defer cancel()
-	log := logger.Get(ctx)
-
-	if validCred, err := credentials.CheckIfExpired(a.conf.Teleport.Credentials()); err != nil {
-		log.Warnf("Invalid Teleport credentials: %v", err)
-		if !validCred {
-			return trace.BadParameter(
-				"No valid credentials found, this likely means credentials are expired. In this case, please sign new credentials and increase their TTL if needed.",
-			)
-		}
-		log.Info("At least one non-expired credential has been found, continuing startup")
-	}
 
 	var err error
-
 	if a.teleport == nil {
-		bk := grpcbackoff.DefaultConfig
-		bk.MaxDelay = grpcBackoffMaxDelay
-		if a.teleport, err = client.New(ctx, client.Config{
-			Addrs:       a.conf.Teleport.GetAddrs(),
-			Credentials: a.conf.Teleport.Credentials(),
-			DialOpts: []grpc.DialOption{
-				grpc.WithConnectParams(grpc.ConnectParams{Backoff: bk, MinConnectTimeout: initTimeout}),
-				grpc.WithReturnConnectionError(),
-			},
-		}); err != nil {
+		if a.teleport, err = a.conf.Teleport.NewClient(ctx); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -224,9 +192,7 @@ func (a *App) onWatcherEvent(ctx context.Context, event types.Event) error {
 		switch {
 		case req.GetState().IsPending():
 			err = a.onPendingRequest(ctx, req)
-		case req.GetState().IsApproved():
-			err = a.onResolvedRequest(ctx, req)
-		case req.GetState().IsDenied():
+		case req.GetState().IsResolved():
 			err = a.onResolvedRequest(ctx, req)
 		default:
 			log.WithField("event", event).Warn("Unknown request state")
@@ -288,6 +254,8 @@ func (a *App) onResolvedRequest(ctx context.Context, req types.AccessRequest) er
 		resolution.Tag = ResolvedApproved
 	case types.RequestState_DENIED:
 		resolution.Tag = ResolvedDenied
+	case types.RequestState_PROMOTED:
+		resolution.Tag = ResolvedPromoted
 	}
 	err := trace.Wrap(a.resolveAlert(ctx, req.GetName(), resolution))
 	return trace.NewAggregate(notifyErr, err)

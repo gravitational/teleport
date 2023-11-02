@@ -6,6 +6,9 @@
 #include "./common.h"
 #include "../helpers.h"
 
+#define IPV4 4
+#define IPV6 6
+
 char LICENSE[] SEC("license") = "Dual BSD/GPL";
 
 // Maximum number of in-flight connect syscalls supported
@@ -87,7 +90,7 @@ static int trace_connect_return(int ret, short ipver)
     struct sock *skp = *skpp;
     u16 dport = BPF_CORE_READ(skp, __sk_common.skc_dport);
 
-    if (ipver == 4) {
+    if (ipver == IPV4) {
         struct ipv4_data_t data4 = {.pid = pid_tgid >> 32, .ip = ipver};
         data4.saddr = BPF_CORE_READ(skp, __sk_common.skc_rcv_saddr);
         data4.daddr = BPF_CORE_READ(skp, __sk_common.skc_daddr);
@@ -97,7 +100,7 @@ static int trace_connect_return(int ret, short ipver)
         if (bpf_ringbuf_output(&ipv4_events, &data4, sizeof(data4), 0) != 0)
             INCR_COUNTER(lost);
 
-    } else /* 6 */ {
+    } else /* IPV6 */ {
         struct ipv6_data_t data6 = {.pid = pid_tgid >> 32, .ip = ipver};
 
         BPF_CORE_READ_INTO(&data6.saddr, skp, __sk_common.skc_v6_rcv_saddr);
@@ -124,7 +127,7 @@ int BPF_KPROBE(kprobe__tcp_v4_connect, struct sock *sk)
 SEC("kretprobe/tcp_v4_connect")
 int kretprobe__tcp_v4_connect(struct pt_regs *ctx)
 {
-    return trace_connect_return(PT_REGS_RC(ctx), 4);
+    return trace_connect_return(PT_REGS_RC(ctx), IPV4);
 }
 
 SEC("kprobe/tcp_v6_connect")
@@ -136,5 +139,5 @@ int BPF_KPROBE(kprobe__tcp_v6_connect, struct sock *sk)
 SEC("kretprobe/tcp_v6_connect")
 int kretprobe__tcp_v6_connect(struct pt_regs *ctx)
 {
-    return trace_connect_return(PT_REGS_RC(ctx), 6);
+    return trace_connect_return(PT_REGS_RC(ctx), IPV6);
 }

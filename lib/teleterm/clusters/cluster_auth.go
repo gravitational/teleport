@@ -71,7 +71,7 @@ func (c *Cluster) Logout(ctx context.Context) error {
 	}
 
 	// Remove keys for this user from disk and running agent.
-	if err := c.clusterClient.Logout(); !trace.IsNotFound(err) {
+	if err := c.clusterClient.Logout(); err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)
 	}
 
@@ -224,8 +224,9 @@ func (c *Cluster) localMFALogin(user, password string) client.SSHLoginFunc {
 				RouteToCluster:    c.clusterClient.SiteName,
 				KubernetesCluster: c.clusterClient.KubernetesCluster,
 			},
-			User:     user,
-			Password: password,
+			User:      user,
+			Password:  password,
+			PromptMFA: c.clusterClient.PromptMFA,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -293,6 +294,7 @@ func (c *Cluster) passwordlessLogin(stream api.TerminalService_LoginPasswordless
 			},
 			AuthenticatorAttachment: c.clusterClient.AuthenticatorAttachment,
 			CustomPrompt:            newPwdlessLoginPrompt(ctx, c.Log, stream),
+			WebauthnLogin:           c.clusterClient.WebauthnLogin,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)

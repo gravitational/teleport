@@ -66,7 +66,7 @@ interface ResourceIconProps extends ComponentProps<typeof Image> {
  */
 export const ResourceIcon = ({ name, ...props }: ResourceIconProps) => {
   const theme = useTheme();
-  const icon = iconSpecs[name]?.[theme.name];
+  const icon = iconSpecs[name]?.[theme.type];
   if (!icon) {
     return null;
   }

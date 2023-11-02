@@ -161,12 +161,17 @@ export interface DocumentPtySession extends DocumentBase {
   leafClusterId?: string;
 }
 
-export interface DocumentConnectMyComputerSetup extends DocumentBase {
-  kind: 'doc.connect_my_computer_setup';
-  // `DocumentConnectMyComputerSetup` always operates on the root cluster, so in theory `rootClusterUri` is not needed.
+export interface DocumentConnectMyComputer extends DocumentBase {
+  kind: 'doc.connect_my_computer';
+  // `DocumentConnectMyComputer` always operates on the root cluster, so in theory `rootClusterUri` is not needed.
   // However, there are a few components in the system, such as `getResourceUri`, which need to determine the relation
   // between a document and a cluster just by looking at the document fields.
   rootClusterUri: uri.RootClusterUri;
+  /**
+   * The status of 'connecting' is used to indicate that Connect My Computer permissions cannot be
+   * established yet and the document is waiting for the app to receive full cluster details.
+   */
+  status: '' | 'connecting' | 'connected' | 'error';
 }
 
 export type DocumentTerminal =
@@ -182,7 +187,7 @@ export type Document =
   | DocumentGateway
   | DocumentCluster
   | DocumentTerminal
-  | DocumentConnectMyComputerSetup;
+  | DocumentConnectMyComputer;
 
 export function isDocumentTshNodeWithLoginHost(
   doc: Document

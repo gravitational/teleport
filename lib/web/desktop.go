@@ -45,10 +45,10 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
-	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 	"github.com/gravitational/teleport/lib/utils"
@@ -168,7 +168,13 @@ func (h *Handler) createDesktopConnection(
 		validServiceIDs[i], validServiceIDs[j] = validServiceIDs[j], validServiceIDs[i]
 	})
 
-	clientSrcAddr, clientDstAddr := utils.ClientAddrFromContext(r.Context())
+	// Issue certificate for TLS config and pass MFA check if required.
+	tlsConfig, err := h.desktopTLSConfig(r.Context(), ws, clt, sctx, desktopName, username, site.GetName())
+	if err != nil {
+		return sendTDPError(err)
+	}
+
+	clientSrcAddr, clientDstAddr := authz.ClientAddrsFromContext(r.Context())
 
 	c := &connector{
 		log:           log,
@@ -183,16 +189,6 @@ func (h *Handler) createDesktopConnection(
 	}
 	defer serviceConn.Close()
 
-	pc, err := proxyClient(r.Context(), sctx, h.ProxyHostPort(), username, h.cfg.PROXYSigner)
-	if err != nil {
-		return sendTDPError(trace.Wrap(err))
-	}
-	defer pc.Close()
-
-	tlsConfig, err := desktopTLSConfig(r.Context(), ws, pc, sctx, desktopName, username, site.GetName())
-	if err != nil {
-		return sendTDPError(err)
-	}
 	serviceConnTLS := tls.Client(serviceConn, tlsConfig)
 
 	if err := serviceConnTLS.HandshakeContext(r.Context()); err != nil {
@@ -217,33 +213,6 @@ func (h *Handler) createDesktopConnection(
 	return nil
 }
 
-func proxyClient(ctx context.Context, sessCtx *SessionContext, addr, windowsUser string, proxySigner multiplexer.PROXYHeaderSigner) (*client.ProxyClient, error) {
-	cfg, err := makeTeleportClientConfig(ctx, sessCtx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Set HostLogin to avoid the default behavior of looking up the
-	// Unix user Teleport is running as (which doesn't work in containerized
-	// environments where we're running as an arbitrary UID)
-	cfg.HostLogin = windowsUser
-
-	cfg.PROXYSigner = proxySigner
-
-	if err := cfg.ParseProxyHost(addr); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	tc, err := client.NewClient(cfg)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	pc, err := tc.ConnectToProxy(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return pc, nil
-}
-
 const (
 	// SNISuffix is the server name suffix used during SNI to specify the
 	// target desktop to connect to. The client (proxy_service) will use SNI
@@ -254,33 +223,104 @@ const (
 	SNISuffix = ".desktop." + constants.APIDomain
 )
 
-func desktopTLSConfig(ctx context.Context, ws *websocket.Conn, pc *client.ProxyClient, sessCtx *SessionContext, desktopName, username, siteName string) (*tls.Config, error) {
+func (h *Handler) desktopTLSConfig(ctx context.Context, ws *websocket.Conn, clusterClient auth.ClientI, sessCtx *SessionContext, desktopName, username, siteName string) (_ *tls.Config, err error) {
+	ctx, span := h.tracer.Start(ctx, "desktop/TLSConfig")
+	defer func() {
+		span.RecordError(err)
+		span.End()
+	}()
+
 	pk, err := keys.ParsePrivateKey(sessCtx.cfg.Session.GetPriv())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	codec := tdpMFACodec{}
+	mfaRequiredResp, err := clusterClient.IsMFARequired(ctx, &proto.IsMFARequiredRequest{
+		Target: &proto.IsMFARequiredRequest_WindowsDesktop{
+			WindowsDesktop: &proto.RouteToWindowsDesktop{
+				WindowsDesktop: desktopName,
+				Login:          username,
+			},
+		},
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
-	key, err := pc.IssueUserCertsWithMFA(ctx, client.ReissueParams{
+	key := &client.Key{
+		PrivateKey: pk,
+		Cert:       sessCtx.cfg.Session.GetPub(),
+		TLSCert:    sessCtx.cfg.Session.GetTLSCert(),
+	}
+
+	tlsCert, err := key.TeleportTLSCertificate()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	certsReq := proto.UserCertsRequest{
+		PublicKey:      key.MarshalSSHPublicKey(),
+		Username:       tlsCert.Subject.CommonName,
+		Expires:        tlsCert.NotAfter,
+		RouteToCluster: siteName,
+		Usage:          proto.UserCertsRequest_WindowsDesktop,
 		RouteToWindowsDesktop: proto.RouteToWindowsDesktop{
 			WindowsDesktop: desktopName,
 			Login:          username,
 		},
-		RouteToCluster: siteName,
-		ExistingCreds: &client.Key{
-			PrivateKey:          pk,
-			Cert:                sessCtx.cfg.Session.GetPub(),
-			TLSCert:             sessCtx.cfg.Session.GetTLSCert(),
-			WindowsDesktopCerts: make(map[string][]byte),
-		},
-	}, func(ctx context.Context, proxyAddr string, c *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
-		challenge := &client.MFAAuthenticateChallenge{
-			WebauthnChallenge: wantypes.CredentialAssertionFromProto(c.WebauthnChallenge),
+	}
+
+	var certPEMBlock []byte
+	if mfaRequiredResp.Required {
+		certPEMBlock, err = h.performMFACeremony(ctx, sessCtx.cfg.RootClient, ws, &certsReq)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		certs, err := sessCtx.cfg.RootClient.GenerateUserCerts(ctx, certsReq)
+		if err != nil {
+			return nil, trace.Wrap(err)
 		}
 
+		certPEMBlock = certs.TLS
+	}
+
+	certConf, err := pk.TLSCertificate(certPEMBlock)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	tlsConfig, err := sessCtx.ClientTLSConfig(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	tlsConfig.Certificates = []tls.Certificate{certConf}
+	// Pass target desktop name via SNI.
+	tlsConfig.ServerName = desktopName + SNISuffix
+	return tlsConfig, nil
+}
+
+// performMFACeremony completes the mfa ceremony and returns the raw TLS certificate
+// on success. The user will be prompted to tap their security key by the UI
+// in order to perform the assertion.
+func (h *Handler) performMFACeremony(ctx context.Context, authClient auth.ClientI, ws *websocket.Conn, certsReq *proto.UserCertsRequest) (_ []byte, err error) {
+	ctx, span := h.tracer.Start(ctx, "desktop/performMFACeremony")
+	defer func() {
+		span.RecordError(err)
+		span.End()
+	}()
+
+	promptMFA := func(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
+		codec := tdpMFACodec{}
+
 		// Send the challenge over the socket.
-		msg, err := codec.encode(challenge, defaults.WebsocketWebauthnChallenge)
+		msg, err := codec.encode(
+			&client.MFAAuthenticateChallenge{
+				WebauthnChallenge: wantypes.CredentialAssertionFromProto(chal.WebauthnChallenge),
+			},
+			defaults.WebsocketWebauthnChallenge,
+		)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -289,6 +329,7 @@ func desktopTLSConfig(ctx context.Context, ws *websocket.Conn, pc *client.ProxyC
 			return nil, trace.Wrap(err)
 		}
 
+		span.AddEvent("waiting for user to complete mfa ceremony")
 		ty, buf, err := ws.ReadMessage()
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -298,28 +339,29 @@ func desktopTLSConfig(ctx context.Context, ws *websocket.Conn, pc *client.ProxyC
 			return nil, trace.BadParameter("received unexpected web socket message type %d", ty)
 		}
 
-		resp, err := codec.decodeResponse(buf, defaults.WebsocketWebauthnChallenge)
-		return resp, trace.Wrap(err)
+		assertion, err := codec.decodeResponse(buf, defaults.WebsocketWebauthnChallenge)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		span.AddEvent("mfa ceremony completed")
+
+		return assertion, nil
+	}
+
+	_, newCerts, err := client.PerformMFACeremony(ctx, client.PerformMFACeremonyParams{
+		CurrentAuthClient: nil, // Only RootAuthClient is used.
+		RootAuthClient:    authClient,
+		PromptMFA:         promptMFA,
+		MFAAgainstRoot:    true,
+		MFARequiredReq:    nil, // No need to verify.
+		CertsReq:          certsReq,
+		Key:               nil, // We just want the certs.
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	windowsDesktopCerts, ok := key.WindowsDesktopCerts[desktopName]
-	if !ok {
-		return nil, trace.NotFound("failed to find windows desktop certificates for %q", desktopName)
-	}
-	certConf, err := pk.TLSCertificate(windowsDesktopCerts)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	tlsConfig, err := sessCtx.ClientTLSConfig(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	tlsConfig.Certificates = []tls.Certificate{certConf}
-	// Pass target desktop name via SNI.
-	tlsConfig.ServerName = desktopName + SNISuffix
-	return tlsConfig, nil
+
+	return newCerts.TLS, nil
 }
 
 type connector struct {

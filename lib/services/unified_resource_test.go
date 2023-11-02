@@ -29,7 +29,9 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/defaults"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -144,7 +146,8 @@ func TestUnifiedResourceWatcher(t *testing.T) {
 		expectedRes,
 		res,
 		cmpopts.EquateEmpty(),
-		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+		cmpopts.IgnoreFields(header.Metadata{}, "ID", "Revision"),
 		// Ignore order.
 		cmpopts.SortSlices(func(a, b types.ResourceWithLabels) bool { return a.GetName() < b.GetName() }),
 	))
@@ -171,10 +174,153 @@ func TestUnifiedResourceWatcher(t *testing.T) {
 		expectedRes,
 		res,
 		cmpopts.EquateEmpty(),
-		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+		cmpopts.IgnoreFields(header.Metadata{}, "ID", "Revision"),
 		// Ignore order.
 		cmpopts.SortSlices(func(a, b types.ResourceWithLabels) bool { return a.GetName() < b.GetName() }),
 	))
+}
+
+func TestUnifiedResourceWatcher_DeleteEvent(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+
+	bk, err := memory.New(memory.Config{})
+	require.NoError(t, err)
+
+	type client struct {
+		services.Presence
+		services.WindowsDesktops
+		services.SAMLIdPServiceProviders
+		types.Events
+	}
+
+	samlService, err := local.NewSAMLIdPServiceProviderService(bk)
+	require.NoError(t, err)
+
+	clt := &client{
+		Presence:                local.NewPresenceService(bk),
+		WindowsDesktops:         local.NewWindowsDesktopService(bk),
+		SAMLIdPServiceProviders: samlService,
+		Events:                  local.NewEventsService(bk),
+	}
+	w, err := services.NewUnifiedResourceCache(ctx, services.UnifiedResourceCacheConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: teleport.ComponentUnifiedResource,
+			Client:    clt,
+		},
+		ResourceGetter: clt,
+	})
+	require.NoError(t, err)
+
+	// add a node
+	node := newNodeServer(t, "node1", "127.0.0.1:22", false /*tunnel*/)
+	_, err = clt.UpsertNode(ctx, node)
+	require.NoError(t, err)
+
+	// add a database server
+	db, err := types.NewDatabaseV3(types.Metadata{
+		Name: "db1",
+	}, types.DatabaseSpecV3{
+		Protocol: "test-protocol",
+		URI:      "test-uri",
+	})
+	require.NoError(t, err)
+	dbServer, err := types.NewDatabaseServerV3(types.Metadata{
+		Name: "db1-server",
+	}, types.DatabaseServerSpecV3{
+		Hostname: "db-hostname",
+		HostID:   uuid.NewString(),
+		Database: db,
+	})
+	require.NoError(t, err)
+	_, err = clt.UpsertDatabaseServer(ctx, dbServer)
+	require.NoError(t, err)
+
+	// add a saml app
+	samlapp, err := types.NewSAMLIdPServiceProvider(
+		types.Metadata{
+			Name: "sp1",
+		},
+		types.SAMLIdPServiceProviderSpecV1{
+			EntityDescriptor: newTestEntityDescriptor("sp1"),
+			EntityID:         "sp1",
+		},
+	)
+	require.NoError(t, err)
+	err = clt.CreateSAMLIdPServiceProvider(ctx, samlapp)
+	require.NoError(t, err)
+
+	// Add an app server
+	app, err := types.NewAppServerV3(
+		types.Metadata{Name: "app1"},
+		types.AppServerSpecV3{
+			HostID: "app1-host-id",
+			App:    newApp(t, "app1"),
+		},
+	)
+	require.NoError(t, err)
+	_, err = clt.UpsertApplicationServer(ctx, app)
+	require.NoError(t, err)
+
+	// add desktop
+	desktop, err := types.NewWindowsDesktopV3(
+		"desktop",
+		map[string]string{"label": string(make([]byte, 0))},
+		types.WindowsDesktopSpecV3{
+			Addr:   "addr",
+			HostID: "HostID",
+		})
+	require.NoError(t, err)
+	err = clt.UpsertWindowsDesktop(ctx, desktop)
+	require.NoError(t, err)
+
+	// add kube
+	kube, err := types.NewKubernetesClusterV3(
+		types.Metadata{
+			Name:      "kube",
+			Namespace: apidefaults.Namespace,
+		},
+		types.KubernetesClusterSpecV3{},
+	)
+	require.NoError(t, err)
+	kubeServer, err := types.NewKubernetesServerV3(
+		types.Metadata{
+			Name:      "kube_server",
+			Namespace: apidefaults.Namespace,
+		},
+		types.KubernetesServerSpecV3{
+			Cluster: kube,
+			HostID:  "hostID",
+		},
+	)
+	require.NoError(t, err)
+	_, err = clt.UpsertKubernetesServer(ctx, kubeServer)
+	require.NoError(t, err)
+	assert.Eventually(t, func() bool {
+		res, _ := w.GetUnifiedResources(ctx)
+		return len(res) == 6
+	}, 5*time.Second, 10*time.Millisecond, "Timed out waiting for unified resources to be added")
+
+	// delete everything
+	err = clt.DeleteNode(ctx, "default", node.GetName())
+	require.NoError(t, err)
+	err = clt.DeleteDatabaseServer(ctx, "default", dbServer.Spec.HostID, dbServer.GetName())
+	require.NoError(t, err)
+	err = clt.DeleteSAMLIdPServiceProvider(ctx, samlapp.GetName())
+	require.NoError(t, err)
+	err = clt.DeleteApplicationServer(ctx, "default", app.Spec.HostID, app.GetName())
+	require.NoError(t, err)
+	err = clt.DeleteWindowsDesktop(ctx, desktop.Spec.HostID, desktop.GetName())
+	require.NoError(t, err)
+	err = clt.DeleteKubernetesServer(ctx, kubeServer.Spec.HostID, kubeServer.GetName())
+	require.NoError(t, err)
+
+	assert.Eventually(t, func() bool {
+		res, _ := w.GetUnifiedResources(ctx)
+		return len(res) == 0
+	}, 5*time.Second, 10*time.Millisecond, "Timed out waiting for unified resources to be deleted")
 }
 
 func newTestEntityDescriptor(entityID string) string {

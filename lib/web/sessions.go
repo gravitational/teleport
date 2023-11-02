@@ -47,6 +47,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
@@ -162,11 +163,10 @@ func NewSessionContext(cfg SessionContextConfig) (*SessionContext, error) {
 
 // String returns the text representation of this context
 func (c *SessionContext) String() string {
-	return fmt.Sprintf("WebSession(user=%v,id=%v,expires=%v,bearer=%v,bearer_expires=%v)",
+	return fmt.Sprintf("WebSession(user=%v,id=%v,expires=%v,bearer_expires=%v)",
 		c.cfg.User,
-		c.cfg.Session.GetName(),
+		c.cfg.Session.GetShortName(),
 		c.cfg.Session.GetExpiryTime(),
-		c.cfg.Session.GetBearerToken(),
 		c.cfg.Session.GetBearerTokenExpiryTime(),
 	)
 }
@@ -298,7 +298,7 @@ func clusterDialer(remoteCluster reversetunnelclient.RemoteSite, src, dst net.Ad
 			OriginalClientDstAddr: dst,
 		}
 
-		clientSrcAddr, clientDstAddr := utils.ClientAddrFromContext(in)
+		clientSrcAddr, clientDstAddr := authz.ClientAddrsFromContext(in)
 		if dialParams.From == nil && clientSrcAddr != nil {
 			dialParams.From = clientSrcAddr
 		}
@@ -392,7 +392,7 @@ func (c *SessionContext) newRemoteTLSClient(ctx context.Context, cluster reverse
 		return nil, trace.Wrap(err)
 	}
 
-	clientSrcAddr, clientDstAddr := utils.ClientAddrFromContext(ctx)
+	clientSrcAddr, clientDstAddr := authz.ClientAddrsFromContext(ctx)
 
 	return auth.NewClient(apiclient.Config{
 		Context: ctx,

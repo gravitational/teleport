@@ -18,37 +18,44 @@ import { App } from 'teleport/services/apps';
 import { Database } from 'teleport/services/databases';
 import { Node } from 'teleport/services/nodes';
 import { Kube } from 'teleport/services/kube';
-import { Desktop, WindowsDesktopService } from 'teleport/services/desktops';
+import { Desktop } from 'teleport/services/desktops';
+
+import { UserGroup } from '../userGroups';
 
 import type { MfaAuthnResponse } from '../mfa';
 
-export type AgentKind =
+export type UnifiedResource =
   | App
   | Database
   | Node
   | Kube
   | Desktop
-  | WindowsDesktopService;
+  | UserGroup;
 
-export type AgentResponse<T extends AgentKind> = {
+export type UnifiedResourceKind = UnifiedResource['kind'];
+
+export type ResourcesResponse<T> = {
   agents: T[];
   startKey?: string;
   totalCount?: number;
 };
 
-export type AgentLabel = {
+export type ResourceLabel = {
   name: string;
   value: string;
 };
 
-export type AgentFilter = {
-  // query is query expression using the predicate language.
+export type ResourceFilter = {
+  /** query is query expression using the predicate language. */
   query?: string;
-  // search contains search words/phrases separated by space.
+  /** search contains search words/phrases separated by space. */
   search?: string;
   sort?: SortType;
   limit?: number;
   startKey?: string;
+  pinnedOnly?: boolean;
+  // TODO(bl-nero): Remove this once filters are expressed as advanced search.
+  kinds?: string[];
 };
 
 export type SortType = {
@@ -58,13 +65,13 @@ export type SortType = {
 
 export type SortDir = 'ASC' | 'DESC';
 
-// AgentIdKind are the same id constants used to mark the type of
+// ResourceIdKind are the same id constants used to mark the type of
 // resource in the backend.
 //
 // These consts are expected for various resource requests:
 //   - search based access requests
 //   - diagnose connection requests
-export type AgentIdKind =
+export type ResourceIdKind =
   | 'node'
   | 'app'
   | 'db'
@@ -97,7 +104,7 @@ export type ConnectionDiagnosticTrace = {
 // - additional paramenters which depend on the actual kind of resource to test
 // As an example, for SSH Node it also includes the User/Principal that will be used to login
 export type ConnectionDiagnosticRequest = {
-  resourceKind: AgentIdKind; //`json:"resource_kind"`
+  resourceKind: ResourceIdKind; //`json:"resource_kind"`
   resourceName: string; //`json:"resource_name"`
   sshPrincipal?: string; //`json:"ssh_principal"`
   kubeImpersonation?: KubeImpersonation; // `json:"kubernetes_impersonation`

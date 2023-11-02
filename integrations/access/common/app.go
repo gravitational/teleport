@@ -18,10 +18,12 @@ package common
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/accessrequest"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integrations/access/common/teleport"
@@ -34,8 +36,6 @@ import (
 const (
 	// minServerVersion is the minimal teleport version the plugin supports.
 	minServerVersion = "6.1.0-beta.1"
-	// grpcBackoffMaxDelay is a maximum time GRPC client waits before reconnection attempt.
-	grpcBackoffMaxDelay = time.Second * 2
 	// InitTimeout is used to bound execution time of health check and teleport version check.
 	initTimeout = time.Second * 10
 	// handlerTimeout is used to bound the execution time of watcher event handler.
@@ -144,7 +144,7 @@ func (a *BaseApp) onWatcherEvent(ctx context.Context, event types.Event) error {
 		switch {
 		case req.GetState().IsPending():
 			err = a.onPendingRequest(ctx, req)
-		case req.GetState().IsApproved(), req.GetState().IsDenied():
+		case req.GetState().IsResolved():
 			err = a.onResolvedRequest(ctx, req)
 		default:
 			log.WithField("event", event).Warn("Unknown request state")
@@ -242,14 +242,22 @@ func (a *BaseApp) onPendingRequest(ctx context.Context, req types.AccessRequest)
 	log := logger.Get(ctx)
 
 	reqID := req.GetName()
-	reqData := pd.AccessRequestData{
-		User:              req.GetUser(),
-		Roles:             req.GetRoles(),
-		RequestReason:     req.GetRequestReason(),
-		SystemAnnotations: req.GetSystemAnnotations(),
+
+	resourceNames, err := a.getResourceNames(ctx, req)
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
-	_, err := a.pluginData.Create(ctx, reqID, GenericPluginData{AccessRequestData: reqData})
+	reqData := pd.AccessRequestData{
+		User:               req.GetUser(),
+		Roles:              req.GetRoles(),
+		RequestReason:      req.GetRequestReason(),
+		SystemAnnotations:  req.GetSystemAnnotations(),
+		Resources:          resourceNames,
+		SuggestedReviewers: req.GetSuggestedReviewers(),
+	}
+
+	_, err = a.pluginData.Create(ctx, reqID, GenericPluginData{AccessRequestData: reqData})
 	switch {
 	case err == nil:
 		// This is a new access-request, we have to broadcast it first.
@@ -296,6 +304,8 @@ func (a *BaseApp) onResolvedRequest(ctx context.Context, req types.AccessRequest
 		tag = pd.ResolvedApproved
 	case types.RequestState_DENIED:
 		tag = pd.ResolvedDenied
+	case types.RequestState_PROMOTED:
+		tag = pd.ResolvedPromoted
 	default:
 		logger.Get(ctx).Warningf("Unknown state %v (%s)", state, state.String())
 		return replyErr
@@ -390,6 +400,11 @@ func (a *BaseApp) getMessageRecipients(ctx context.Context, req types.AccessRequ
 	recipientSet := NewRecipientSet()
 
 	switch a.Conf.GetPluginType() {
+	case types.PluginTypeServiceNow:
+		// The ServiceNow plugin does not use recipients currently and create incidents in the incident table directly.
+		// Recipients just needs to be non empty.
+		recipientSet.Add(Recipient{})
+		return recipientSet.ToSlice()
 	case types.PluginTypeOpsgenie:
 		if recipients, ok := req.GetSystemAnnotations()[types.TeleportNamespace+types.ReqAnnotationSchedulesLabel]; ok {
 			for _, recipient := range recipients {
@@ -471,4 +486,25 @@ func (a *BaseApp) updateMessages(ctx context.Context, reqID string, tag pd.Resol
 	log.Infof("Successfully marked request as %s in all messages", tag)
 
 	return nil
+}
+
+func (a *BaseApp) getResourceNames(ctx context.Context, req types.AccessRequest) ([]string, error) {
+	resourceNames := make([]string, 0, len(req.GetRequestedResourceIDs()))
+	resourcesByCluster := accessrequest.GetResourceIDsByCluster(req)
+
+	for cluster, resources := range resourcesByCluster {
+		resourceDetails, err := accessrequest.GetResourceDetails(ctx, cluster, a.apiClient, resources)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		for _, resource := range resources {
+			resourceName := types.ResourceIDToString(resource)
+			if details, ok := resourceDetails[resourceName]; ok && details.FriendlyName != "" {
+				resourceName = fmt.Sprintf("%s/%s", resource.Kind, details.FriendlyName)
+			}
+			resourceNames = append(resourceNames, resourceName)
+		}
+	}
+	return resourceNames, nil
 }

@@ -18,6 +18,7 @@ package lite
 
 import (
 	"database/sql"
+	"errors"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -66,12 +67,6 @@ func (l *Backend) runPeriodicOperations() {
 }
 
 func (l *Backend) removeExpiredKeys() error {
-	// In mirror mode, don't expire any elements. This allows the cache to setup
-	// a watch and expire elements as the events roll in.
-	if l.Mirror {
-		return nil
-	}
-
 	now := l.clock.Now().UTC()
 	return l.inTransaction(l.ctx, func(tx *sql.Tx) error {
 		q, err := tx.PrepareContext(l.ctx,
@@ -136,7 +131,7 @@ func (l *Backend) pollEvents(rowid int64) (int64, error) {
 			row := q.QueryRow()
 			prevRowID := rowid
 			if err := row.Scan(&rowid); err != nil {
-				if err != sql.ErrNoRows {
+				if !errors.Is(err, sql.ErrNoRows) {
 					// Scan does not explicitly promise not to modify its inputs if it returns an error (though this is likely
 					// how it behaves).  Just in case, make sure that rowid is preserved so that we don't accidentally skip
 					// some init logic on retry.
@@ -160,7 +155,7 @@ func (l *Backend) pollEvents(rowid int64) (int64, error) {
 	var lastID int64
 	err := l.inTransaction(l.ctx, func(tx *sql.Tx) error {
 		q, err := tx.PrepareContext(l.ctx,
-			"SELECT id, type, kv_key, kv_value, kv_modified, kv_expires FROM events WHERE id > ? ORDER BY id LIMIT ?")
+			"SELECT id, type, kv_key, kv_value, kv_modified, kv_expires, kv_revision FROM events WHERE id > ? ORDER BY id LIMIT ?")
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -176,8 +171,8 @@ func (l *Backend) pollEvents(rowid int64) (int64, error) {
 		defer rows.Close()
 		for rows.Next() {
 			var event backend.Event
-			var expires NullTime
-			if err := rows.Scan(&lastID, &event.Type, &event.Item.Key, &event.Item.Value, &event.Item.ID, &expires); err != nil {
+			var expires sql.NullTime
+			if err := rows.Scan(&lastID, &event.Type, &event.Item.Key, &event.Item.Value, &event.Item.ID, &expires, &event.Item.Revision); err != nil {
 				return trace.Wrap(err)
 			}
 			if expires.Valid {

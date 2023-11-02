@@ -124,6 +124,12 @@ type License interface {
 
 	// GetFeatureSource returns where the features should be loaded from.
 	GetFeatureSource() FeatureSource
+
+	// GetCustomTheme returns the name of the WebUI custom theme
+	GetCustomTheme() string
+
+	// SetCustomTheme sets the name of the WebUI custom theme
+	SetCustomTheme(themeName string)
 }
 
 // FeatureSource defines where the list of features enabled
@@ -197,6 +203,16 @@ func (c *LicenseV3) GetResourceID() int64 {
 // SetResourceID sets resource ID
 func (c *LicenseV3) SetResourceID(id int64) {
 	c.Metadata.ID = id
+}
+
+// GetRevision returns the revision
+func (c *LicenseV3) GetRevision() string {
+	return c.Metadata.GetRevision()
+}
+
+// SetRevision sets the revision
+func (c *LicenseV3) SetRevision(rev string) {
+	c.Metadata.SetRevision(rev)
 }
 
 // GetName returns the name of the resource
@@ -397,6 +413,16 @@ func (c *LicenseV3) SetSupportsFeatureHiding(value Bool) {
 	c.Spec.SupportsFeatureHiding = value
 }
 
+// GetCustomTheme returns the name of the WebUI custom theme
+func (c *LicenseV3) GetCustomTheme() string {
+	return c.Spec.CustomTheme
+}
+
+// SetCustomTheme sets the name of the WebUI custom theme
+func (c *LicenseV3) SetCustomTheme(themeName string) {
+	c.Spec.CustomTheme = themeName
+}
+
 // GetTrial returns the trial flag
 func (c *LicenseV3) GetTrial() Bool {
 	return c.Spec.Trial
@@ -497,4 +523,6 @@ type LicenseSpecV3 struct {
 	Trial Bool `json:"trial,omitempty"`
 	// FeatureSource is the source of the set of enabled feature
 	FeatureSource FeatureSource `json:"feature_source"`
+	// CustomTheme is the name of the WebUI custom theme
+	CustomTheme string `json:"custom_theme,omitempty"`
 }

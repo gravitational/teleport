@@ -43,8 +43,10 @@ type DiscoveryConfig struct {
 	PollInterval time.Duration
 }
 
-// IsEmpty validates if the Discovery Service config has no cloud matchers.
+// IsEmpty validates if the Discovery Service config has no matchers and no discovery group.
+// DiscoveryGroup is used to dynamically load Matchers when changing DiscoveryConfig resources.
 func (d DiscoveryConfig) IsEmpty() bool {
 	return len(d.AWSMatchers) == 0 && len(d.AzureMatchers) == 0 &&
-		len(d.GCPMatchers) == 0 && len(d.KubernetesMatchers) == 0
+		len(d.GCPMatchers) == 0 && len(d.KubernetesMatchers) == 0 &&
+		d.DiscoveryGroup == ""
 }
