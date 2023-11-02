@@ -51,17 +51,19 @@ on:
         type: boolean
         default: false
 
-      build-deb:
-        description: "Should a Debian package of the release be built"
+      build-os-packages:
+        description: "Should Debian and RPM packages of the release be built"
         required: false
         type: boolean
         default: false
 
-      build-rpm:
-        description: "Should a RPM package of the release be built"
+      environment:
+        description: |
+          GitHub Actions environment in which to run the build. Can be either
+          `build` or `build-stage`.
         required: false
-        type: boolean
-        default: false
+        type: string
+        default: build
 
       workflow-tag:
         description: |
@@ -138,15 +140,16 @@ jobs:
       save-artifacts: ${{ inputs.release-artifacts }}
       builder: ${{ needs.select.outputs.builder }}
       build-connect: ${{ inputs.build-connect }}
-      build-deb: ${{ inputs.build-deb }}
-      build-rpm: ${{ inputs.build-rpm }}
+      build-deb: ${{ inputs.build-os-packages }}
+      build-rpm: ${{ inputs.build-os-packages }}
       arch: ${{ needs.select.outputs.arch }}
+      environment: ${{ inputs.environment }}
 
   upload-artifacts-to-artifact-storage:
     name: Upload Artifacts to Artifact Storage Bucket
     if: inputs.release-artifacts
     needs: [ select, build-artifacts ]
-    environment: staging
+    environment: ${{ inputs.environment }}
     runs-on: ubuntu-latest
     permissions:
       id-token: write # required for aws-actions/configure-aws-credentials
@@ -160,20 +163,18 @@ jobs:
           path: artifacts
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@010d0da01d0b5a38af31e9c3470dbfdabdecca3a # v4.0.1
         with:
           role-skip-session-tagging: true
           aws-region: us-west-2
-          aws-access-key-id: ${{ secrets.STAGING_AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.STAGING_AWS_SECRET_ACCESS_KEY }}
-          role-to-assume: ${{ secrets.STAGING_DEPLOYMENT_AWS_ROLE }}
+          role-to-assume: ${{ vars.ARTIFACT_UPLOAD_AWS_ROLE }}
           role-session-name: upload-artifacts-${{ github.run_number }}
           role-duration-seconds: 3600
 
       - name: Copy artifacts to S3 bucket
         working-directory: ${{ steps.download.outputs.download-path }}
         env:
-          BUCKET_URL: "s3://${{ secrets.STAGING_AWS_S3_BUCKET }}/teleport/tag/${{ needs.select.outputs.teleport-version }}"
+          BUCKET_URL: "s3://${{ vars.ARTIFACT_SOURCE_BUCKET }}/teleport/tag/${{ needs.select.outputs.teleport-version }}"
         run: |
           aws s3 sync . "${BUCKET_URL}"
 
@@ -182,7 +183,7 @@ jobs:
     if: inputs.release-artifacts
     needs: [ select, build-artifacts ]
     runs-on: ubuntu-latest
-    environment: staging
+    environment: ${{ inputs.environment }}
     steps:
       - name: Download artifacts
         id: download
@@ -193,9 +194,9 @@ jobs:
 
       - name: Register artifacts
         env:
-          RELEASES_HOST: https://releases-prod.platform.teleport.sh
-          RELEASES_KEY: ${{ secrets.RELEASES_API_KEY }}
-          RELEASES_CERT: ${{ secrets.RELEASES_API_CERT }}
+          RELEASES_HOST: ${{ vars.RELEASES_HOST }}
+          RELEASES_KEY: ${{ secrets.RELEASES_KEY }}
+          RELEASES_CERT: ${{ vars.RELEASES_CERT }}
           TELEPORT_VERSION: ${{ needs.select.outputs.teleport-version }}
         shell: bash
         working-directory: ${{ steps.download.outputs.download-path }}
@@ -264,8 +265,8 @@ jobs:
             rs_curl() {
               status_code=$(
                 curl \
-                  --cert <(printenv RELEASES_CERT | base64 -d) \
-                  --key <(printenv RELEASES_KEY | base64 -d) \
+                  --cert <(printenv RELEASES_CERT) \
+                  --key <(printenv RELEASES_KEY) \
                   -o "./curl_out.txt" -w "%{http_code}" "$@"
               )
               if (( status_code != 200 && status_code != 409 )); then
