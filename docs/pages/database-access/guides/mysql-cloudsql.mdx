@@ -143,6 +143,7 @@ teleport:
   # because the Database Service always connects to the cluster over a reverse
   # tunnel.
   proxy_server: teleport.example.com:3080
+  auth_token: "/tmp/token"
 db_service:
   enabled: "yes"
   # This section contains definitions of all databases proxied by this
@@ -185,6 +186,7 @@ teleport:
   nodename: test
   # Proxy address to connect to. Use your Teleport Cloud tenant address.
   proxy_server: mytenant.teleport.sh:443
+  auth_token: "/tmp/token"
 db_service:
   enabled: "yes"
   # This section contains definitions of all databases proxied by this

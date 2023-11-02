@@ -57,9 +57,14 @@ interface SelectResourceProps {
   onSelect: (resource: ResourceSpec) => void;
 }
 
+type UrlLocationState = {
+  entity: SearchResource; // entity takes precedence over search keywords
+  searchKeywords: string;
+};
+
 export function SelectResource({ onSelect }: SelectResourceProps) {
   const ctx = useTeleport();
-  const location = useLocation<{ entity: SearchResource }>();
+  const location = useLocation<UrlLocationState>();
   const history = useHistory();
   const { preferences } = useUser();
 
@@ -115,6 +120,12 @@ export function SelectResource({ onSelect }: SelectResourceProps) {
         sortedResources
       );
       onSearch(resourceKindSpecifiedByUrlLoc, sortedResourcesByKind);
+      return;
+    }
+
+    const searchKeywordSpecifiedByUrlLoc = location.state?.searchKeywords;
+    if (searchKeywordSpecifiedByUrlLoc) {
+      onSearch(searchKeywordSpecifiedByUrlLoc, sortedResources);
       return;
     }
 
