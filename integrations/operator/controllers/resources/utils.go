@@ -21,6 +21,7 @@ import (
 	"fmt"
 
 	"github.com/gravitational/trace"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
 	ctrllog "sigs.k8s.io/controller-runtime/pkg/log"
@@ -145,12 +146,31 @@ func getTeleportClientConditionFromError(err error) metav1.Condition {
 	}
 }
 
-// silentUpdateStatus updates the resource status but swallows the error if the update fails.
-// This should be used when an error already happened, and we're going to re-run the reconciliation loop anyway.
-func silentUpdateStatus(ctx context.Context, client kclient.Client, k8sResource kclient.Object) {
-	log := ctrllog.FromContext(ctx)
-	statusErr := client.Status().Update(ctx, k8sResource)
+// updateStatusConfig is a configuration struct for silentUpdateStatus.
+type updateStatusConfig struct {
+	ctx         context.Context
+	client      kclient.Client
+	k8sResource interface {
+		kclient.Object
+		StatusConditions() *[]metav1.Condition
+	}
+	condition metav1.Condition
+}
+
+// updateStatus updates the resource status but swallows the error if the update fails.
+func updateStatus(config updateStatusConfig) error {
+	// If the condition is empty, we don't want to update the status.
+	if config.condition == (metav1.Condition{}) {
+		return nil
+	}
+	log := ctrllog.FromContext(config.ctx)
+	meta.SetStatusCondition(
+		config.k8sResource.StatusConditions(),
+		config.condition,
+	)
+	statusErr := config.client.Status().Update(config.ctx, config.k8sResource)
 	if statusErr != nil {
 		log.Error(statusErr, "failed to report error in status conditions")
 	}
+	return trace.Wrap(statusErr)
 }
