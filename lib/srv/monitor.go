@@ -71,6 +71,8 @@ type ConnectionMonitorConfig struct {
 	ServerID string
 	// Emitter allows events to be emitted.
 	Emitter apievents.Emitter
+	// EmitterContext is long-lived context suitable to be used with Emitter
+	EmitterContext context.Context
 	// Logger is a logging entry.
 	Logger log.FieldLogger
 	// MonitorCloseChannel will be signaled when the monitor closes a connection.
@@ -91,6 +93,9 @@ func (c *ConnectionMonitorConfig) CheckAndSetDefaults() error {
 	}
 	if c.Emitter == nil {
 		return trace.BadParameter("missing parameter Emitter")
+	}
+	if c.EmitterContext == nil {
+		return trace.BadParameter("missing parameter EmitterContext")
 	}
 	if c.ServerID == "" {
 		return trace.BadParameter("missing parameter ServerID")
@@ -183,6 +188,7 @@ func (c *ConnectionMonitor) MonitorConn(ctx context.Context, authzCtx *authz.Con
 		ServerID:              c.cfg.ServerID,
 		TeleportUser:          identity.Username,
 		Emitter:               c.cfg.Emitter,
+		EmitterContext:        c.cfg.EmitterContext,
 		Entry:                 c.cfg.Logger,
 		IdleTimeoutMessage:    netConfig.GetClientIdleTimeoutMessage(),
 		MonitorCloseChannel:   c.cfg.MonitorCloseChannel,
@@ -224,6 +230,8 @@ type MonitorConfig struct {
 	ServerID string
 	// Emitter is events emitter
 	Emitter apievents.Emitter
+	// EmitterContext is long-lived context suitable to be used with Emitter.
+	EmitterContext context.Context
 	// Entry is a logging entry
 	Entry log.FieldLogger
 	// IdleTimeoutMessage is sent to the client when the idle timeout expires.
@@ -258,6 +266,9 @@ func (m *MonitorConfig) CheckAndSetDefaults() error {
 	}
 	if m.Emitter == nil {
 		return trace.BadParameter("missing parameter Emitter")
+	}
+	if m.EmitterContext == nil {
+		return trace.BadParameter("missing parameter EmitterContext")
 	}
 	if m.Clock == nil {
 		m.Clock = clockwork.NewRealClock()
@@ -447,11 +458,7 @@ func (w *Monitor) emitDisconnectEvent(reason string) error {
 		},
 		Reason: reason,
 	}
-	// We cannot use w.Context here, because it may have already been cancelled,
-	// since it is scoped to the connection itself.
-	ctx, cancel := context.WithTimeout(context.TODO(), time.Second)
-	defer cancel()
-	return trace.Wrap(w.Emitter.EmitAuditEvent(ctx, event))
+	return trace.Wrap(w.Emitter.EmitAuditEvent(w.EmitterContext, event))
 }
 
 func (w *Monitor) handleLockInForce(lockErr error) {
