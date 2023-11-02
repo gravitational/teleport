@@ -32,7 +32,7 @@ var (
 		prometheus.CounterOpts{
 			Namespace: teleport.MetricNamespace,
 			Subsystem: auditSubsystem,
-			Name:      "rate_limited_events",
+			Name:      "rate_limited_events_total",
 			Help:      "Number of times SearchEvents was rate limited.",
 		},
 	)
@@ -41,7 +41,7 @@ var (
 		prometheus.CounterOpts{
 			Namespace: teleport.MetricNamespace,
 			Subsystem: auditSubsystem,
-			Name:      "rate_limited_sessions",
+			Name:      "rate_limited_sessions_total",
 			Help:      "Number of times SearchSessionEvents was rate limited.",
 		},
 	)
