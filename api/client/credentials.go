@@ -576,16 +576,19 @@ func (d *DynamicIdentityFileCreds) SSHClientConfig() (*ssh.ClientConfig, error) 
 			return hostKeyCallback(hostname, remote, key)
 		},
 		Timeout: defaults.DefaultIOTimeout,
-		User:    userFromSSHCert(d.sshCert),
+		// We use this because we can't always guarantee that a user will have
+		// a principal other than this (they may not have access to SSH nodes)
+		// and the actual user here doesn't matter for auth server API
+		// authentication. All that matters is that the principal specified here
+		// is stable across all certificates issued to the user, since this
+		// value cannot be changed in a following rotation -
+		// SSHSessionJoinPrincipal is included on all user ssh certs.
+		//
+		// This is a bit of a hack - the ideal solution is a refactor of the
+		// API client in order to support the SSH config being generated at
+		// time of use, rather than a single SSH config being made dynamic.
+		// ~ noah
+		User: "-teleport-internal-join",
 	}
 	return cfg, nil
-}
-
-func userFromSSHCert(c *ssh.Certificate) string {
-	// The KeyId is not always a valid principal, so we prefer the first valid
-	// principal.
-	if len(c.ValidPrincipals) > 0 {
-		return c.ValidPrincipals[0]
-	}
-	return c.KeyId
 }

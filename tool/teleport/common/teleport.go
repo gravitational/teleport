@@ -30,18 +30,23 @@ import (
 
 	"github.com/alecthomas/kingpin/v2"
 	awsConfig "github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/athena"
+	"github.com/aws/aws-sdk-go-v2/service/glue"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	ecatypes "github.com/gravitational/teleport/api/types/externalcloudaudit"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/configurators"
 	awsconfigurators "github.com/gravitational/teleport/lib/configurators/aws"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
+	"github.com/gravitational/teleport/lib/integrations/externalcloudaudit"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/openssh"
 	"github.com/gravitational/teleport/lib/service"
@@ -1011,6 +1016,26 @@ func onIntegrationConfExternalAuditCmd(params config.IntegrationConfExternalClou
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	if params.Bootstrap {
+		err = externalcloudaudit.BootstrapInfra(ctx, externalcloudaudit.BootstrapInfraParams{
+			Athena: athena.NewFromConfig(cfg),
+			Glue:   glue.NewFromConfig(cfg),
+			S3:     s3.NewFromConfig(cfg),
+			Spec: &ecatypes.ExternalCloudAuditSpec{
+				SessionsRecordingsURI:  params.SessionRecordingsURI,
+				AuditEventsLongTermURI: params.AuditEventsURI,
+				AthenaResultsURI:       params.AthenaResultsURI,
+				GlueDatabase:           params.GlueDatabase,
+				GlueTable:              params.GlueTable,
+				AthenaWorkgroup:        params.AthenaWorkgroup,
+			},
+			Region: params.Region,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
 	clt := &awsoidc.DefaultConfigureExternalCloudAuditClient{
 		Iam: iam.NewFromConfig(cfg),
 		Sts: sts.NewFromConfig(cfg),
