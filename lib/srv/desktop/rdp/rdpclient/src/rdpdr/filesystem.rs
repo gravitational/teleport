@@ -295,8 +295,8 @@ impl FilesystemBackend {
     /// Sends a [`tdp::SharedDirectoryInfoRequest`] to the browser.
     fn send_tdp_sd_info_request(&self, req: tdp::SharedDirectoryInfoRequest) -> PduResult<()> {
         debug!("sending tdp: {:?}", req);
-        let (mut req, _path) = req.into_cgo()?;
-        let err = unsafe { tdp_sd_info_request(self.cgo_handle, &mut req) };
+        let mut req = req.into_cgo()?;
+        let err = unsafe { tdp_sd_info_request(self.cgo_handle, req.cgo()) };
         if err != CGOErrCode::ErrCodeSuccess {
             FilesystemBackendError(format!(
                 "failed to send TDP Shared Directory Info Request: {:?}",
@@ -309,8 +309,8 @@ impl FilesystemBackend {
     /// Sends a [`tdp::SharedDirectoryCreateRequest`] to the browser.
     fn send_tdp_sd_create_request(&self, req: tdp::SharedDirectoryCreateRequest) -> PduResult<()> {
         debug!("sending tdp: {:?}", req);
-        let (mut req, _path) = req.into_cgo()?;
-        let err = unsafe { tdp_sd_create_request(self.cgo_handle, &mut req) };
+        let mut req = req.into_cgo()?;
+        let err = unsafe { tdp_sd_create_request(self.cgo_handle, req.cgo()) };
         if err != CGOErrCode::ErrCodeSuccess {
             return Err(other_err!(
                 "FilesystemBackend::send_tdp_sd_create",
