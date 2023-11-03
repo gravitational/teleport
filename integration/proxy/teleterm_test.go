@@ -373,5 +373,5 @@ func checkKubeconfigPathInCommandEnv(t *testing.T, daemonService *daemon.Service
 
 	cmd, err := daemonService.GetGatewayCLICommand(gw)
 	require.NoError(t, err)
-	require.Equal(t, cmd.Env, []string{"KUBECONFIG=" + wantKubeconfigPath})
+	require.Equal(t, []string{"KUBECONFIG=" + wantKubeconfigPath}, cmd.Env)
 }

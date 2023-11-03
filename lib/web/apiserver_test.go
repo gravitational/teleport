@@ -1228,7 +1228,7 @@ func TestUnifiedResourcesGet(t *testing.T) {
 	require.NoError(t, err)
 	res = clusterNodesGetResponse{}
 	require.NoError(t, json.Unmarshal(re.Bytes(), &res))
-	require.Len(t, res.Items, 0)
+	require.Empty(t, res.Items)
 
 	// should return first page and have a second page
 	query = url.Values{"sort": []string{"name"}, "limit": []string{"15"}}
@@ -1551,7 +1551,7 @@ func TestNewTerminalHandler(t *testing.T) {
 
 	for _, testCase := range invalidCases {
 		_, err := NewTerminal(ctx, testCase.cfg)
-		require.Equal(t, err.Error(), testCase.expectedErr)
+		require.Equal(t, testCase.expectedErr, err.Error())
 	}
 
 	validNode := types.ServerV2{}
@@ -2094,23 +2094,23 @@ func TestTerminalRequireSessionMFA(t *testing.T) {
 
 			// Wait for websocket authn challenge event.
 			ty, raw, err := ws.ReadMessage()
-			require.Nil(t, err)
+			require.NoError(t, err)
 			require.Equal(t, websocket.BinaryMessage, ty)
 			var env Envelope
-			require.Nil(t, proto.Unmarshal(raw, &env))
+			require.NoError(t, proto.Unmarshal(raw, &env))
 
 			chal := &client.MFAAuthenticateChallenge{}
-			require.Nil(t, json.Unmarshal([]byte(env.Payload), &chal))
+			require.NoError(t, json.Unmarshal([]byte(env.Payload), &chal))
 
 			// Send response over ws.
 			stream := NewTerminalStream(ctx, ws, utils.NewLoggerForTests())
 			err = stream.ws.WriteMessage(websocket.BinaryMessage, tc.getChallengeResponseBytes(t, chal, dev))
-			require.Nil(t, err)
+			require.NoError(t, err)
 
 			// Test we can write.
 			_, err = io.WriteString(stream, "echo txlxport | sed 's/x/e/g'\r\n")
-			require.Nil(t, err)
-			require.Nil(t, waitForOutput(stream, "teleport"))
+			require.NoError(t, err)
+			require.NoError(t, waitForOutput(stream, "teleport"))
 		})
 	}
 }
@@ -2548,7 +2548,7 @@ func TestLogin(t *testing.T) {
 	})
 	require.NoError(t, err)
 	event := events[0].(*apievents.UserLogin)
-	require.Equal(t, true, event.Success)
+	require.True(t, event.Success)
 	require.Equal(t, ua, event.UserAgent)
 	require.True(t, strings.HasPrefix(event.RemoteAddr, "127.0.0.1:"))
 
@@ -3621,7 +3621,7 @@ func TestCheckAccessToRegisteredResource(t *testing.T) {
 	require.NoError(t, env.server.Auth().DeleteNode(ctx, env.node.GetNamespace(), env.node.ID()))
 	n, err := env.server.Auth().GetNodes(ctx, env.node.GetNamespace())
 	require.NoError(t, err)
-	require.Len(t, n, 0)
+	require.Empty(t, n)
 
 	// Double check we start of with no resources.
 	endpoint := pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "resources", "check")
@@ -3652,7 +3652,7 @@ func TestCheckAccessToRegisteredResource(t *testing.T) {
 				require.NoError(t, env.server.Auth().DeleteWindowsDesktop(ctx, "hostid", "test-desktop"))
 				wds, err := env.server.Auth().GetWindowsDesktops(ctx, types.WindowsDesktopFilter{})
 				require.NoError(t, err)
-				require.Len(t, wds, 0)
+				require.Empty(t, wds)
 			},
 		},
 		{
@@ -3667,7 +3667,7 @@ func TestCheckAccessToRegisteredResource(t *testing.T) {
 				require.NoError(t, env.server.Auth().DeleteNode(ctx, apidefaults.Namespace, "test-node"))
 				nodes, err := env.server.Auth().GetNodes(ctx, apidefaults.Namespace)
 				require.NoError(t, err)
-				require.Len(t, nodes, 0)
+				require.Empty(t, nodes)
 			},
 		},
 		{
@@ -3696,7 +3696,7 @@ func TestCheckAccessToRegisteredResource(t *testing.T) {
 				require.NoError(t, env.server.Auth().DeleteApplicationServer(ctx, apidefaults.Namespace, "hostid", "test-app"))
 				apps, err := env.server.Auth().GetApplicationServers(ctx, apidefaults.Namespace)
 				require.NoError(t, err)
-				require.Len(t, apps, 0)
+				require.Empty(t, apps)
 			},
 		},
 		{
@@ -3717,7 +3717,7 @@ func TestCheckAccessToRegisteredResource(t *testing.T) {
 				require.NoError(t, env.server.Auth().DeleteDatabaseServer(ctx, apidefaults.Namespace, "test-hostID", "test-db"))
 				dbs, err := env.server.Auth().GetDatabaseServers(ctx, apidefaults.Namespace)
 				require.NoError(t, err)
-				require.Len(t, dbs, 0)
+				require.Empty(t, dbs)
 			},
 		},
 		{
@@ -3734,7 +3734,7 @@ func TestCheckAccessToRegisteredResource(t *testing.T) {
 				require.NoError(t, env.server.Auth().DeleteKubernetesServer(ctx, "test-kube", "test-kube-name"))
 				kubes, err := env.server.Auth().GetKubernetesServers(ctx)
 				require.NoError(t, err)
-				require.Len(t, kubes, 0)
+				require.Empty(t, kubes)
 			},
 		},
 	}
@@ -4450,7 +4450,7 @@ func TestApplicationWebSessionsDeletedAfterLogout(t *testing.T) {
 	require.NoError(t, err)
 
 	// Check sessions after logout, should be empty.
-	require.Len(t, collectAppSessions(context.Background()), 0)
+	require.Empty(t, collectAppSessions(context.Background()))
 }
 
 func TestGetWebConfig(t *testing.T) {
@@ -4541,7 +4541,7 @@ func TestGetWebConfig(t *testing.T) {
 	env.proxies[0].handler.handler.cfg.ProxySettings = mockProxySetting
 
 	httpTestServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, r.URL.Path, "/v1/stable/cloud/version")
+		assert.Equal(t, "/v1/stable/cloud/version", r.URL.Path)
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("v99.0.1"))
 	}))
@@ -4832,7 +4832,7 @@ func TestGetAndDeleteMFADevices_WithRecoveryApprovedToken(t *testing.T) {
 
 	err = json.Unmarshal(res.Bytes(), &devices)
 	require.NoError(t, err)
-	require.Len(t, devices, 0)
+	require.Empty(t, devices)
 }
 
 func TestCreateAuthenticateChallenge(t *testing.T) {
@@ -5647,7 +5647,7 @@ func TestChangeUserAuthentication_settingDefaultClusterAuthPreference(t *testing
 		})
 
 		require.NoError(t, err)
-		require.Equal(t, re.Code(), http.StatusOK)
+		require.Equal(t, http.StatusOK, re.Code())
 
 		// check if auth preference connectorName is set
 		authPreference, err := s.server.Auth().GetAuthPreference(s.ctx)
@@ -5859,7 +5859,7 @@ func TestGetUserOrResetToken(t *testing.T) {
 
 	resp, err = pack.clt.Get(ctx, pack.clt.Endpoint("webapi", "users", "password", "token", resetToken.GetName()), url.Values{})
 	require.NoError(t, err)
-	require.Equal(t, resp.Code(), http.StatusOK)
+	require.Equal(t, http.StatusOK, resp.Code())
 
 	_, err = pack.clt.Get(ctx, pack.clt.Endpoint("webapi", "users", "password", "notToken", resetToken.GetName()), url.Values{})
 	require.True(t, trace.IsNotFound(err))
@@ -5906,8 +5906,8 @@ func TestListConnectionsDiagnostic(t *testing.T) {
 	require.NoError(t, json.Unmarshal(resp.Bytes(), &receivedConnectionDiagnostic))
 
 	require.True(t, receivedConnectionDiagnostic.Success)
-	require.Equal(t, receivedConnectionDiagnostic.ID, diagName)
-	require.Equal(t, receivedConnectionDiagnostic.Message, "success for cd0")
+	require.Equal(t, diagName, receivedConnectionDiagnostic.ID)
+	require.Equal(t, "success for cd0", receivedConnectionDiagnostic.Message)
 
 	diag, err := env.server.Auth().GetConnectionDiagnostic(ctx, diagName)
 	require.NoError(t, err)
@@ -5928,11 +5928,11 @@ func TestListConnectionsDiagnostic(t *testing.T) {
 	require.NoError(t, json.Unmarshal(resp.Bytes(), &receivedConnectionDiagnostic))
 
 	require.True(t, receivedConnectionDiagnostic.Success)
-	require.Equal(t, receivedConnectionDiagnostic.ID, diagName)
-	require.Equal(t, receivedConnectionDiagnostic.Message, "after update")
+	require.Equal(t, diagName, receivedConnectionDiagnostic.ID)
+	require.Equal(t, "after update", receivedConnectionDiagnostic.Message)
 	require.Len(t, receivedConnectionDiagnostic.Traces, 1)
 	require.NotNil(t, receivedConnectionDiagnostic.Traces[0])
-	require.Equal(t, receivedConnectionDiagnostic.Traces[0].Details, "some details")
+	require.Equal(t, "some details", receivedConnectionDiagnostic.Traces[0].Details)
 }
 
 func TestDiagnoseSSHConnection(t *testing.T) {
@@ -6862,7 +6862,7 @@ func TestCreateDatabase(t *testing.T) {
 		resp, err := pack.clt.PostJSON(ctx, createDatabaseEndpoint, tt.req)
 		tt.errAssert(t, err)
 
-		require.Equal(t, resp.Code(), tt.expectedStatus, "invalid status code received")
+		require.Equal(t, tt.expectedStatus, resp.Code(), "invalid status code received")
 
 		if err != nil {
 			continue
@@ -6872,9 +6872,9 @@ func TestCreateDatabase(t *testing.T) {
 		database, err := env.proxies[0].client.GetDatabase(ctx, tt.req.Name)
 		require.NoError(t, err)
 
-		require.Equal(t, database.GetName(), tt.req.Name)
-		require.Equal(t, database.GetProtocol(), tt.req.Protocol)
-		require.Equal(t, database.GetURI(), tt.req.URI)
+		require.Equal(t, tt.req.Name, database.GetName())
+		require.Equal(t, tt.req.Protocol, database.GetProtocol())
+		require.Equal(t, tt.req.URI, database.GetURI())
 
 		// At least the provided labels exist in the database resource
 		databaseLabels := database.GetAllLabels()
@@ -6887,7 +6887,7 @@ func TestCreateDatabase(t *testing.T) {
 		if tt.expectedStatus == http.StatusOK {
 			result := ui.Database{}
 			require.NoError(t, json.Unmarshal(resp.Bytes(), &result))
-			require.Equal(t, result, ui.Database{
+			expected := ui.Database{
 				Kind:          types.KindDatabase,
 				Name:          tt.req.Name,
 				Protocol:      tt.req.Protocol,
@@ -6897,7 +6897,8 @@ func TestCreateDatabase(t *testing.T) {
 				DatabaseUsers: []string{"user1"},
 				DatabaseNames: []string{"name1"},
 				URI:           "someuri:3306",
-			})
+			}
+			require.Equal(t, expected, result)
 		}
 	}
 }
@@ -7000,7 +7001,7 @@ func TestUpdateDatabase_Errors(t *testing.T) {
 			resp, err := pack.clt.PutJSON(ctx, updateDatabaseEndpoint, tt.req)
 			tt.errAssert(t, err)
 
-			require.Equal(t, resp.Code(), tt.expectedStatus, "invalid status code received")
+			require.Equal(t, tt.expectedStatus, resp.Code(), "invalid status code received")
 		})
 	}
 }

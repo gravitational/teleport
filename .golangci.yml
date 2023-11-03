@@ -28,6 +28,7 @@ linters:
     - nolintlint
     - revive
     - staticcheck
+    - testifylint
     - unconvert
     - unused
 
@@ -71,6 +72,18 @@ linters-settings:
     rules:
     - name: unused-parameter
       disabled: true
+  testifylint:
+    enable:
+      - bool-compare
+      - compares
+      - empty
+      - error-is-as
+      - error-nil
+      - expected-actual
+      - float-compare
+      - len
+      - suite-extra-assert-call
+      - suite-thelper
 
 output:
   uniq-by-line: false

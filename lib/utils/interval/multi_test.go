@@ -108,7 +108,7 @@ func TestMultiIntervalBasics(t *testing.T) {
 	var prevT time.Time
 	for i := 0; i < 60; i++ {
 		tick := <-interval.Next()
-		require.True(t, !tick.Time.IsZero())
+		require.False(t, tick.Time.IsZero())
 		require.True(t, tick.Time.After(prevT) || tick.Time == prevT)
 		prevT = tick.Time
 		switch tick.Key {

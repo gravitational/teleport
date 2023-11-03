@@ -119,7 +119,7 @@ func TestLoadTokenFromFile(t *testing.T) {
 
 	token, err := cfg.Onboarding.Token()
 	require.NoError(t, err)
-	require.Equal(t, token, "xxxyyy")
+	require.Equal(t, "xxxyyy", token)
 }
 
 const exampleConfigFile = `

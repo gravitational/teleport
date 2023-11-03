@@ -2316,7 +2316,7 @@ func TestNewDatabaseFromAzureSQLServer(t *testing.T) {
 				db, ok := i.(types.Database)
 				require.True(t, ok, "expected types.Database, got %T", i)
 
-				require.Equal(t, db.GetProtocol(), defaults.ProtocolSQLServer)
+				require.Equal(t, defaults.ProtocolSQLServer, db.GetProtocol())
 				require.Equal(t, "sqlserver", db.GetName())
 				require.Equal(t, "sqlserver.database.windows.net:1433", db.GetURI())
 				require.Equal(t, "sqlserver", db.GetAzure().Name)
@@ -2371,7 +2371,7 @@ func TestNewDatabaseFromAzureManagedSQLServer(t *testing.T) {
 				db, ok := i.(types.Database)
 				require.True(t, ok, "expected types.Database, got %T", i)
 
-				require.Equal(t, db.GetProtocol(), defaults.ProtocolSQLServer)
+				require.Equal(t, defaults.ProtocolSQLServer, db.GetProtocol())
 				require.Equal(t, "sqlserver", db.GetName())
 				require.Equal(t, "sqlserver.database.windows.net:1433", db.GetURI())
 				require.Equal(t, "sqlserver", db.GetAzure().Name)

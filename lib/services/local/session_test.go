@@ -76,7 +76,7 @@ func TestDeleteUserAppSessions(t *testing.T) {
 
 	sessions, nextKey, err = identity.ListAppSessions(ctx, 10, "", "")
 	require.NoError(t, err)
-	require.Len(t, sessions, 0)
+	require.Empty(t, sessions)
 	require.Empty(t, nextKey)
 }
 
@@ -215,7 +215,7 @@ func TestDeleteUserSAMLIdPSessions(t *testing.T) {
 
 	sessions, nextKey, err = identity.ListSAMLIdPSessions(ctx, 10, "", "")
 	require.NoError(t, err)
-	require.Len(t, sessions, 0)
+	require.Empty(t, sessions)
 	require.Empty(t, nextKey)
 }
 

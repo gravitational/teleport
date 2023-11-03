@@ -75,7 +75,7 @@ func TestGRPCErrorWrapping(t *testing.T) {
 		resp, err := client.Ping(context.Background(), &proto.PingRequest{})
 		require.Nil(t, resp)
 		require.True(t, trace.IsNotFound(err))
-		require.Equal(t, err.Error(), "not found")
+		require.Equal(t, "not found", err.Error())
 		_, ok := err.(*trace.TraceErr)
 		require.False(t, ok, "client error should not include traces originating in the middleware")
 	})
@@ -98,7 +98,7 @@ func TestGRPCErrorWrapping(t *testing.T) {
 
 		_, err = stream.Recv()
 		require.True(t, trace.IsAlreadyExists(err))
-		require.Equal(t, err.Error(), "already exists")
+		require.Equal(t, "already exists", err.Error())
 		_, ok := err.(*trace.TraceErr)
 		require.False(t, ok, "client error should not include traces originating in the middleware")
 	})
