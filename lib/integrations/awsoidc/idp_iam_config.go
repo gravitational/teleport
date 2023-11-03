@@ -49,10 +49,6 @@ type IdPIAMConfigureRequest struct {
 	// Used for tagging the created Roles/IdP.
 	IntegrationName string
 
-	// Region is the AWS Region.
-	// Used to set up the AWS SDK Client.
-	Region string
-
 	// ProxyPublicAddress is the URL to use as provider URL.
 	// This must be a valid URL (ie, url.Parse'able)
 	// Eg, https://<tenant>.teleport.sh, https://proxy.example.org:443, https://teleport.ec2.aws:3080
@@ -74,10 +70,6 @@ func (r *IdPIAMConfigureRequest) CheckAndSetDefaults() error {
 
 	if r.IntegrationName == "" {
 		return trace.BadParameter("integration name is required")
-	}
-
-	if r.Region == "" {
-		return trace.BadParameter("region is required")
 	}
 
 	if r.IntegrationRole == "" {
@@ -123,14 +115,14 @@ func (d defaultIdPIAMConfigureClient) GetCallerIdentity(ctx context.Context, par
 }
 
 // NewIdPIAMConfigureClient creates a new IdPIAMConfigureClient.
-func NewIdPIAMConfigureClient(ctx context.Context, region string) (IdPIAMConfigureClient, error) {
-	if region == "" {
-		return nil, trace.BadParameter("region is required")
-	}
-
-	cfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(region))
+func NewIdPIAMConfigureClient(ctx context.Context) (IdPIAMConfigureClient, error) {
+	cfg, err := config.LoadDefaultConfig(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	if cfg.Region == "" {
+		return nil, trace.BadParameter("failed to resolve local AWS region from environment, please set the AWS_REGION environment variable")
 	}
 
 	return &defaultIdPIAMConfigureClient{
@@ -180,23 +172,24 @@ func ConfigureIdPIAM(ctx context.Context, clt IdPIAMConfigureClient, req IdPIAMC
 	}
 	log.Printf("IAM OpenID Connect Provider created: url=%q arn=%q.", req.ProxyPublicAddress, aws.ToString(createOIDCResp.OpenIDConnectProviderArn))
 
-	if err := createIdPIAMRole(ctx, clt, req); err != nil {
+	createdIdpIAMRoleArn, err := createIdPIAMRole(ctx, clt, req)
+	if err != nil {
 		return trace.Wrap(err)
 	}
-	log.Printf("IAM Role %q created.", req.IntegrationRole)
+	log.Printf("IAM Role created: name=%q arn=%q", req.IntegrationRole, aws.ToString(createdIdpIAMRoleArn))
 
 	return nil
 }
 
-func createIdPIAMRole(ctx context.Context, clt IdPIAMConfigureClient, req IdPIAMConfigureRequest) error {
+func createIdPIAMRole(ctx context.Context, clt IdPIAMConfigureClient, req IdPIAMConfigureRequest) (*string, error) {
 	integrationRoleAssumeRoleDocument, err := awslib.NewPolicyDocument(
 		awslib.StatementForAWSOIDCRoleTrustRelationship(req.AccountID, req.issuer, []string{types.IntegrationAWSOIDCAudience}),
 	).Marshal()
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
-	_, err = clt.CreateRole(ctx, &iam.CreateRoleInput{
+	createRoleOutput, err := clt.CreateRole(ctx, &iam.CreateRoleInput{
 		RoleName:                 &req.IntegrationRole,
 		Description:              aws.String(descriptionOIDCIdPRole),
 		AssumeRolePolicyDocument: &integrationRoleAssumeRoleDocument,
@@ -205,10 +198,10 @@ func createIdPIAMRole(ctx context.Context, clt IdPIAMConfigureClient, req IdPIAM
 	if err != nil {
 		convertedErr := awslib.ConvertIAMv2Error(err)
 		if trace.IsAlreadyExists(convertedErr) {
-			return trace.AlreadyExists("Role %q already exists, please remove it and try again.", req.IntegrationRole)
+			return nil, trace.AlreadyExists("Role %q already exists, please remove it and try again.", req.IntegrationRole)
 		}
-		return trace.Wrap(convertedErr)
+		return nil, trace.Wrap(convertedErr)
 	}
 
-	return nil
+	return createRoleOutput.Role.Arn, nil
 }

@@ -28,7 +28,7 @@ This should be removed when the following feature is implemented
 https://kubernetes.io/docs/tasks/extend-kubernetes/custom-resources/custom-resource-definitions/#transition-rules
 */
 var ignoredFields = map[string]stringSet{
-	"UserSpecV2": stringSet{
+	"UserSpecV2": {
 		"LocalAuth": struct{}{}, // struct{}{} is used to signify "no value".
 		"Expires":   struct{}{},
 		"CreatedBy": struct{}{},

@@ -31,8 +31,6 @@ import (
 const (
 	// minServerVersion is the minimal teleport version the plugin supports.
 	minServerVersion = "6.1.0-beta.1"
-	// grpcBackoffMaxDelay is a maximum time gRPC client waits before reconnection attempt.
-	grpcBackoffMaxDelay = time.Second * 2
 	// InitTimeout is used to bound execution time of health check and teleport version check.
 	initTimeout = time.Second * 10
 )

@@ -261,9 +261,12 @@ const (
 	// refer to all addresses on the machine.
 	AnyAddress = "0.0.0.0"
 
-	// CallbackTimeout is how long to wait for a response from SSO provider
+	// SSOCallbackTimeout is how long to wait for a response from SSO provider
 	// before timeout.
-	CallbackTimeout = 180 * time.Second
+	SSOCallbackTimeout = 180 * time.Second
+
+	// HeadlessLoginTimeout is how long to wait for user to approve/reject headless login request.
+	HeadlessLoginTimeout = SSOCallbackTimeout
 
 	// NodeJoinTokenTTL is when a token for nodes expires.
 	NodeJoinTokenTTL = 4 * time.Hour

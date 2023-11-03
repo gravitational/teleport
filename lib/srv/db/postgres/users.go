@@ -90,12 +90,6 @@ func (e *Engine) DeactivateUser(ctx context.Context, sessionCtx *common.Session)
 
 // DeleteUser deletes the database user.
 func (e *Engine) DeleteUser(ctx context.Context, sessionCtx *common.Session) error {
-	// TODO support DeleteUser for Redshift
-	if sessionCtx.Database.IsRedshift() {
-		e.Log.Debug("DeleteUser is not supported for Redshift yet, it was disabled instead.")
-		return trace.Wrap(e.DeactivateUser(ctx, sessionCtx))
-	}
-
 	if sessionCtx.Database.GetAdminUser().Name == "" {
 		return trace.BadParameter("Teleport does not have admin user configured for this database")
 	}
@@ -109,14 +103,19 @@ func (e *Engine) DeleteUser(ctx context.Context, sessionCtx *common.Session) err
 	e.Log.Infof("Deleting PostgreSQL user %q.", sessionCtx.DatabaseUser)
 
 	var state string
-	err = conn.QueryRow(ctx, deleteQuery, sessionCtx.DatabaseUser).Scan(&state)
+	switch {
+	case sessionCtx.Database.IsRedshift():
+		err = e.deleteUserRedshift(ctx, sessionCtx, conn, &state)
+	default:
+		err = conn.QueryRow(ctx, deleteQuery, sessionCtx.DatabaseUser).Scan(&state)
+	}
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	switch state {
 	case common.SQLStateUserDropped:
-		e.Log.Debug("User %q deleted successfully.", sessionCtx.DatabaseUser)
+		e.Log.Debugf("User %q deleted successfully.", sessionCtx.DatabaseUser)
 	case common.SQLStateUserDeactivated:
 		e.Log.Infof("Unable to delete user %q, it was disabled instead.", sessionCtx.DatabaseUser)
 	default:
@@ -124,6 +123,30 @@ func (e *Engine) DeleteUser(ctx context.Context, sessionCtx *common.Session) err
 	}
 
 	return nil
+}
+
+// deleteUserRedshift deletes the Redshift database user.
+//
+// Failures inside Redshift default procedures are always rethrown exceptions if
+// the exception handler completes successfully. Given this, we need to assert
+// into the returned error instead of doing this on state returned (like regular
+// PostgreSQL).
+func (e *Engine) deleteUserRedshift(ctx context.Context, sessionCtx *common.Session, conn *pgx.Conn, state *string) error {
+	_, err := conn.Exec(ctx, deleteQuery, sessionCtx.DatabaseUser)
+	if err == nil {
+		*state = common.SQLStateUserDropped
+		return nil
+	}
+
+	// Redshift returns SQLSTATE 55006 (object_in_use) when DROP USER fails due
+	// to user owning resources.
+	// https://docs.aws.amazon.com/redshift/latest/dg/r_DROP_USER.html#r_DROP_USER-notes
+	if strings.Contains(err.Error(), "55006") {
+		*state = common.SQLStateUserDeactivated
+		return nil
+	}
+
+	return trace.Wrap(err)
 }
 
 // initAutoUsers installs procedures for activating and deactivating users and
@@ -240,6 +263,8 @@ var (
 	redshiftActivateProc string
 	//go:embed sql/redshift-deactivate-user.sql
 	redshiftDeactivateProc string
+	//go:embed sql/redshift-delete-user.sql
+	redshiftDeleteProc string
 
 	procs = map[string]string{
 		activateProcName:   activateProc,
@@ -249,5 +274,6 @@ var (
 	redshiftProcs = map[string]string{
 		activateProcName:   redshiftActivateProc,
 		deactivateProcName: redshiftDeactivateProc,
+		deleteProcName:     redshiftDeleteProc,
 	}
 )

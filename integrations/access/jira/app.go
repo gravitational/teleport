@@ -34,7 +34,6 @@ import (
 	"github.com/gravitational/teleport/integrations/access/common/teleport"
 	"github.com/gravitational/teleport/integrations/lib"
 	"github.com/gravitational/teleport/integrations/lib/backoff"
-	"github.com/gravitational/teleport/integrations/lib/credentials"
 	"github.com/gravitational/teleport/integrations/lib/logger"
 	"github.com/gravitational/teleport/integrations/lib/watcherjob"
 )
@@ -164,34 +163,14 @@ func (a *App) run(ctx context.Context) error {
 	return trace.NewAggregate(httpErr, watcherJob.Err())
 }
 
-func (a *App) createTeleportClient(ctx context.Context) error {
-	log := logger.Get(ctx)
-
-	if validCred, err := credentials.CheckIfExpired(a.conf.Teleport.Credentials()); err != nil {
-		log.Warn(err)
-		if !validCred {
-			return trace.BadParameter(
-				"No valid credentials found, this likely means credentials are expired. In this case, please sign new credentials and increase their TTL if needed.",
-			)
-		}
-		log.Info("At least one non-expired credential has been found, continuing startup")
-	}
-
-	var err error
-	if a.teleport, err = common.GetTeleportClient(ctx, a.conf.Teleport); err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
-}
-
 func (a *App) init(ctx context.Context) error {
 	ctx, cancel := context.WithTimeout(ctx, initTimeout)
 	defer cancel()
 	log := logger.Get(ctx)
 
+	var err error
 	if a.teleport == nil {
-		if err := a.createTeleportClient(ctx); err != nil {
+		if a.teleport, err = common.GetTeleportClient(ctx, a.conf.Teleport); err != nil {
 			return trace.Wrap(err)
 		}
 	}

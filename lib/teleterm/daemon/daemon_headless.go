@@ -177,7 +177,7 @@ func (s *Service) startHeadlessWatcher(cluster *clusters.Cluster, waitInit bool)
 
 				// headless authentication requests will timeout after 3 minutes, so we can close the
 				// Electron modal once this time is up.
-				sendCtx, cancelSend := context.WithTimeout(s.closeContext, defaults.CallbackTimeout)
+				sendCtx, cancelSend := context.WithTimeout(s.closeContext, defaults.HeadlessLoginTimeout)
 
 				// Add the pending request to the map so it is canceled early upon resolution.
 				addPendingRequest(ha.GetName(), cancelSend)

@@ -46,9 +46,9 @@ RUN git clone --depth=1 https://github.com/PJK/libcbor.git -b v0.10.2 && \
 
 # Install openssl.
 # install_sw install only binaries, skips docs.
-RUN git clone --depth=1 https://github.com/openssl/openssl.git -b openssl-3.0.11 && \
+RUN git clone --depth=1 https://github.com/openssl/openssl.git -b openssl-3.0.12 && \
     cd openssl && \
-    [ "$(git rev-parse HEAD)" = '6ba3884c3235e1bb474b379026087f8216afacf4' ] && \
+    [ "$(git rev-parse HEAD)" = 'c3cc0f1386b0544383a61244a4beeb762b67498f' ] && \
     ./config --release --libdir=/usr/local/lib && \
     make -j"$(nproc)" && \
     make install_sw
@@ -313,7 +313,7 @@ RUN go install github.com/daixiang0/gci@v0.11.0
 RUN go install gotest.tools/gotestsum@v1.10.1
 
 # Install golangci-lint.
-RUN VERSION='v1.54.2'; \
+RUN VERSION='v1.55.1'; \
     curl -fsSL "https://raw.githubusercontent.com/golangci/golangci-lint/$VERSION/install.sh" | \
     sh -s -- -b "$(go env GOPATH)/bin" "$VERSION"
 

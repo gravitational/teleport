@@ -82,7 +82,7 @@ func (c *Config) GetTeleportClient(ctx context.Context) (teleport.Client, error)
 	if c.Client != nil {
 		return c.Client, nil
 	}
-	return common.GetTeleportClient(ctx, c.Teleport)
+	return c.BaseConfig.GetTeleportClient(ctx)
 }
 
 // NewBot initializes the new Discord message generator (DiscordBot)

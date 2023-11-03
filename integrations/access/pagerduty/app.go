@@ -32,7 +32,6 @@ import (
 	"github.com/gravitational/teleport/integrations/access/common/teleport"
 	"github.com/gravitational/teleport/integrations/lib"
 	"github.com/gravitational/teleport/integrations/lib/backoff"
-	"github.com/gravitational/teleport/integrations/lib/credentials"
 	"github.com/gravitational/teleport/integrations/lib/logger"
 	"github.com/gravitational/teleport/integrations/lib/watcherjob"
 )
@@ -42,8 +41,6 @@ const (
 	minServerVersion = "6.1.0"
 	// pluginName is used to tag PluginData and as a Delegator in Audit log.
 	pluginName = "pagerduty"
-	// grpcBackoffMaxDelay is a maximum time gRPC client waits before reconnection attempt.
-	grpcBackoffMaxDelay = time.Second * 2
 	// initTimeout is used to bound execution time of health check and teleport version check.
 	initTimeout = time.Second * 10
 	// handlerTimeout is used to bound the execution time of watcher event handler.
@@ -143,16 +140,6 @@ func (a *App) init(ctx context.Context) error {
 	ctx, cancel := context.WithTimeout(ctx, initTimeout)
 	defer cancel()
 	log := logger.Get(ctx)
-
-	if validCred, err := credentials.CheckIfExpired(a.conf.Teleport.Credentials()); err != nil {
-		log.Warn(err)
-		if !validCred {
-			return trace.BadParameter(
-				"No valid credentials found, this likely means credentials are expired. In this case, please sign new credentials and increase their TTL if needed.",
-			)
-		}
-		log.Info("At least one non-expired credential has been found, continuing startup")
-	}
 
 	var (
 		err  error

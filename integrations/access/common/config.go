@@ -20,16 +20,12 @@ import (
 	"context"
 
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
-	"google.golang.org/grpc"
-	grpcbackoff "google.golang.org/grpc/backoff"
 
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integrations/access/common/recipient"
 	"github.com/gravitational/teleport/integrations/access/common/teleport"
 	"github.com/gravitational/teleport/integrations/lib"
-	"github.com/gravitational/teleport/integrations/lib/credentials"
 	"github.com/gravitational/teleport/integrations/lib/logger"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -69,27 +65,7 @@ func wrapAPIClient(clt *client.Client) teleport.Client {
 
 // GetTeleportClient will return a Teleport plugin client given a config.
 func GetTeleportClient(ctx context.Context, conf lib.TeleportConfig) (teleport.Client, error) {
-	if validCred, err := credentials.CheckIfExpired(conf.Credentials()); err != nil {
-		log.Warn(err)
-		if !validCred {
-			return nil, trace.BadParameter(
-				"No valid credentials found, this likely means credentials are expired. In this case, please sign new credentials and increase their TTL if needed.",
-			)
-		}
-		log.Info("At least one non-expired credential has been found, continuing startup")
-	}
-
-	bk := grpcbackoff.DefaultConfig
-	bk.MaxDelay = grpcBackoffMaxDelay
-
-	clt, err := client.New(ctx, client.Config{
-		Addrs:       conf.GetAddrs(),
-		Credentials: conf.Credentials(),
-		DialOpts: []grpc.DialOption{
-			grpc.WithConnectParams(grpc.ConnectParams{Backoff: bk, MinConnectTimeout: initTimeout}),
-			grpc.WithReturnConnectionError(),
-		},
-	})
+	clt, err := conf.NewClient(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
