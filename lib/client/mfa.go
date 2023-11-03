@@ -43,6 +43,11 @@ func (tc *TeleportClient) NewMFAPrompt(opts ...mfa.PromptOpt) mfa.Prompt {
 	return prompt
 }
 
+// PromptMFA runs a standard MFA prompt from client settings.
+func (tc *TeleportClient) PromptMFA(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
+	return tc.NewMFAPrompt().Run(ctx, chal)
+}
+
 func (tc *TeleportClient) defaultMFAPromptConfig() *mfa.PromptConfig {
 	cfg := mfa.DefaultPromptConfig(tc.WebProxyAddr)
 	cfg.AuthenticatorAttachment = tc.AuthenticatorAttachment

@@ -5278,7 +5278,7 @@ func (tc *TeleportClient) HeadlessApprove(ctx context.Context, headlessAuthentic
 		return trace.Wrap(err)
 	}
 
-	resp, err := tc.NewMFAPrompt().Run(ctx, chal)
+	resp, err := tc.PromptMFA(ctx, chal)
 	if err != nil {
 		return trace.Wrap(err)
 	}

@@ -599,7 +599,7 @@ func (c *mfaRemoveCommand) run(cf *CLIConf) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		authnSolved, err := tc.NewMFAPrompt().Run(ctx, authnChal)
+		authnSolved, err := tc.PromptMFA(ctx, authnChal)
 		if err != nil {
 			return trace.Wrap(err)
 		}
