@@ -14,21 +14,30 @@
  * limitations under the License.
  */
 
-import styled from 'styled-components';
+import React from 'react';
 
-import { AwsOidc } from '../AwsOidc';
+import { ConfigureIamPerms } from './ConfigureIamPerms';
 
-export interface CommonInstructionsProps extends PreviousStepProps {
-  onNext: (updatedAwsOidc?: AwsOidc) => void;
-  clusterPublicUri: string;
-}
+export default {
+  title: 'Teleport/Discover/Shared/ConfigureIamPerms',
+};
 
-export interface PreviousStepProps {
-  onPrev: (updatedAwsOidc?: AwsOidc) => void;
-  awsOidc?: AwsOidc;
-}
+export const Ec2 = () => {
+  return (
+    <ConfigureIamPerms
+      kind="ec2"
+      region="us-east-1"
+      integrationRoleArn="arn:aws:iam::123456789012:role/some-iam-role-name"
+    />
+  );
+};
 
-export const InstructionsContainer = styled.div`
-  flex: 0 0 600px;
-  padding-right: 100px;
-`;
+export const Rds = () => {
+  return (
+    <ConfigureIamPerms
+      kind="rds"
+      region="us-east-1"
+      integrationRoleArn="arn:aws:iam::123456789012:role/some-iam-role-name"
+    />
+  );
+};
