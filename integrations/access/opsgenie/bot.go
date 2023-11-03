@@ -26,7 +26,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/integrations/access/accessrequest"
-	"github.com/gravitational/teleport/integrations/access/common/recipient"
+	"github.com/gravitational/teleport/integrations/access/common"
 	pd "github.com/gravitational/teleport/integrations/lib/plugindata"
 )
 
@@ -46,12 +46,12 @@ func (b *Bot) CheckHealth(ctx context.Context) error {
 }
 
 // SendReviewReminders will send a review reminder that an access list needs to be reviewed.
-func (b Bot) SendReviewReminders(ctx context.Context, recipients []recipient.Recipient, accessList *accesslist.AccessList) error {
+func (b Bot) SendReviewReminders(ctx context.Context, recipients []common.Recipient, accessList *accesslist.AccessList) error {
 	return trace.NotImplemented("access list review reminder is not yet implemented")
 }
 
 // BroadcastAccessRequestMessage creates an alert for the provided recipients (schedules)
-func (b *Bot) BroadcastAccessRequestMessage(ctx context.Context, recipients []recipient.Recipient, reqID string, reqData pd.AccessRequestData) (data accessrequest.SentMessages, err error) {
+func (b *Bot) BroadcastAccessRequestMessage(ctx context.Context, recipients []common.Recipient, reqID string, reqData pd.AccessRequestData) (data accessrequest.SentMessages, err error) {
 	schedules := []string{}
 	for _, recipient := range recipients {
 		schedules = append(schedules, recipient.Name)
@@ -109,10 +109,10 @@ func (b *Bot) UpdateMessages(ctx context.Context, reqID string, data pd.AccessRe
 }
 
 // FetchRecipient returns the recipient for the given raw recipient.
-func (b *Bot) FetchRecipient(ctx context.Context, name string) (*recipient.Recipient, error) {
-	return &recipient.Recipient{
+func (b *Bot) FetchRecipient(ctx context.Context, name string) (*common.Recipient, error) {
+	return &common.Recipient{
 		Name: name,
 		ID:   name,
-		Kind: recipient.RecipientKindSchedule,
+		Kind: common.RecipientKindSchedule,
 	}, nil
 }

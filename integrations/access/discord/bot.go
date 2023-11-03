@@ -30,7 +30,6 @@ import (
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/integrations/access/accessrequest"
 	"github.com/gravitational/teleport/integrations/access/common"
-	"github.com/gravitational/teleport/integrations/access/common/recipient"
 	"github.com/gravitational/teleport/integrations/lib"
 	"github.com/gravitational/teleport/integrations/lib/logger"
 	pd "github.com/gravitational/teleport/integrations/lib/plugindata"
@@ -110,12 +109,12 @@ func (b DiscordBot) CheckHealth(ctx context.Context) error {
 }
 
 // SendReviewReminders will send a review reminder that an access list needs to be reviewed.
-func (b DiscordBot) SendReviewReminders(ctx context.Context, recipients []recipient.Recipient, accessList *accesslist.AccessList) error {
+func (b DiscordBot) SendReviewReminders(ctx context.Context, recipients []common.Recipient, accessList *accesslist.AccessList) error {
 	return trace.NotImplemented("access list review reminder is not yet implemented")
 }
 
 // BroadcastAccessRequestMessage posts request info to Discord.
-func (b DiscordBot) BroadcastAccessRequestMessage(ctx context.Context, recipients []recipient.Recipient, reqID string, reqData pd.AccessRequestData) (accessrequest.SentMessages, error) {
+func (b DiscordBot) BroadcastAccessRequestMessage(ctx context.Context, recipients []common.Recipient, reqID string, reqData pd.AccessRequestData) (accessrequest.SentMessages, error) {
 	var data accessrequest.SentMessages
 	var errors []error
 
@@ -206,12 +205,12 @@ func (b DiscordBot) discordMsgText(reqID string, reqData pd.AccessRequestData) s
 		accessrequest.MsgStatusText(reqData.ResolutionTag, reqData.ResolutionReason)
 }
 
-func (b DiscordBot) FetchRecipient(ctx context.Context, name string) (*recipient.Recipient, error) {
+func (b DiscordBot) FetchRecipient(ctx context.Context, name string) (*common.Recipient, error) {
 	// Discord does not support resolving email addresses with bot permissions
 	// This bot does not implement channel name resolving yet, this is doable but will require caching
 	// as the endpoint returns all channels at the same time and is rate-limited.
 	// FetchRecipient currently only supports creating recipients from ChannelIDs.
-	return &recipient.Recipient{
+	return &common.Recipient{
 		Name: name,
 		ID:   name,
 		Kind: "Channel",

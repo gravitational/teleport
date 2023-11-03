@@ -26,7 +26,6 @@ import (
 	"github.com/gravitational/teleport/api/accessrequest"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integrations/access/common"
-	"github.com/gravitational/teleport/integrations/access/common/recipient"
 	"github.com/gravitational/teleport/integrations/access/common/teleport"
 	"github.com/gravitational/teleport/integrations/lib"
 	"github.com/gravitational/teleport/integrations/lib/logger"
@@ -43,7 +42,7 @@ type App struct {
 	pluginName string
 	pluginType string
 	apiClient  teleport.Client
-	recipients recipient.RawRecipientsMap
+	recipients common.RawRecipientsMap
 	pluginData *pd.CompareAndSwap[PluginData]
 	bot        MessagingBot
 	job        lib.ServiceJob
@@ -258,7 +257,7 @@ func (a *App) onDeletedRequest(ctx context.Context, reqID string) error {
 
 // broadcastAccessRequestMessages sends nessages to each recipient for an access-request.
 // This method is only called when for new access-requests.
-func (a *App) broadcastAccessRequestMessages(ctx context.Context, recipients []recipient.Recipient, reqID string, reqData pd.AccessRequestData) error {
+func (a *App) broadcastAccessRequestMessages(ctx context.Context, recipients []common.Recipient, reqID string, reqData pd.AccessRequestData) error {
 	sentMessages, err := a.bot.BroadcastAccessRequestMessage(ctx, recipients, reqID, reqData)
 	if len(sentMessages) == 0 && err != nil {
 		return trace.Wrap(err)
@@ -330,18 +329,18 @@ func (a *App) postReviewReplies(ctx context.Context, reqID string, reqReviews []
 // getMessageRecipients takes an access request and returns a list of channelIDs that should be messaged.
 // channelIDs can represent any communication channel depending on the MessagingBot implementation:
 // a public channel, a private one, or a user direct message channel.
-func (a *App) getMessageRecipients(ctx context.Context, req types.AccessRequest) []recipient.Recipient {
+func (a *App) getMessageRecipients(ctx context.Context, req types.AccessRequest) []common.Recipient {
 	log := logger.Get(ctx)
 
 	// We receive a set from GetRawRecipientsFor but we still might end up with duplicate channel names.
 	// This can happen if this set contains the channel `C` and the email for channel `C`.
-	recipientSet := recipient.NewRecipientSet()
+	recipientSet := common.NewRecipientSet()
 
 	switch a.pluginType {
 	case types.PluginTypeServiceNow:
 		// The ServiceNow plugin does not use recipients currently and create incidents in the incident table directly.
 		// Recipients just needs to be non empty.
-		recipientSet.Add(recipient.Recipient{})
+		recipientSet.Add(common.Recipient{})
 		return recipientSet.ToSlice()
 	case types.PluginTypeOpsgenie:
 		if recipients, ok := req.GetSystemAnnotations()[types.TeleportNamespace+types.ReqAnnotationSchedulesLabel]; ok {

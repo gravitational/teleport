@@ -35,7 +35,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integrations/access/accessrequest"
-	"github.com/gravitational/teleport/integrations/access/common/recipient"
+	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/integrations/lib"
 	"github.com/gravitational/teleport/integrations/lib/logger"
 	"github.com/gravitational/teleport/integrations/lib/testing/integration"
@@ -259,7 +259,7 @@ func (s *DiscordSuite) checkPluginData(reqID string, cond func(accessrequest.Plu
 func (s *DiscordSuite) TestMessagePosting() {
 	t := s.T()
 
-	s.appConfig.Recipients = recipient.RawRecipientsMap{
+	s.appConfig.Recipients = common.RawRecipientsMap{
 		"editor": []string{
 			"1001", // reviewer 1
 			"1002", // reviewer 2
@@ -312,7 +312,7 @@ func (s *DiscordSuite) TestMessagePosting() {
 func (s *DiscordSuite) TestApproval() {
 	t := s.T()
 
-	s.appConfig.Recipients = recipient.RawRecipientsMap{
+	s.appConfig.Recipients = common.RawRecipientsMap{
 		"editor": []string{
 			"1001", // reviewer 1
 		},
@@ -342,7 +342,7 @@ func (s *DiscordSuite) TestApproval() {
 func (s *DiscordSuite) TestDenial() {
 	t := s.T()
 
-	s.appConfig.Recipients = recipient.RawRecipientsMap{
+	s.appConfig.Recipients = common.RawRecipientsMap{
 		"editor": []string{
 			"1001", // reviewer 1
 		},
@@ -377,7 +377,7 @@ func (s *DiscordSuite) TestReviewUpdates() {
 		t.Skip("Doesn't work in OSS version")
 	}
 
-	s.appConfig.Recipients = recipient.RawRecipientsMap{
+	s.appConfig.Recipients = common.RawRecipientsMap{
 		"editor": []string{
 			"1001", // reviewer 1
 		},
@@ -436,7 +436,7 @@ func (s *DiscordSuite) TestApprovalByReview() {
 		t.Skip("Doesn't work in OSS version")
 	}
 
-	s.appConfig.Recipients = recipient.RawRecipientsMap{
+	s.appConfig.Recipients = common.RawRecipientsMap{
 		"editor": []string{
 			"1001", // reviewer 1
 		},
@@ -494,7 +494,7 @@ func (s *DiscordSuite) TestDenialByReview() {
 		t.Skip("Doesn't work in OSS version")
 	}
 
-	s.appConfig.Recipients = recipient.RawRecipientsMap{
+	s.appConfig.Recipients = common.RawRecipientsMap{
 		"editor": []string{
 			"1001", // reviewer 1
 		},
@@ -548,7 +548,7 @@ func (s *DiscordSuite) TestDenialByReview() {
 func (s *DiscordSuite) TestExpiration() {
 	t := s.T()
 
-	s.appConfig.Recipients = recipient.RawRecipientsMap{
+	s.appConfig.Recipients = common.RawRecipientsMap{
 		"editor": []string{
 			"1001", // reviewer 1
 		},
@@ -594,7 +594,7 @@ func (s *DiscordSuite) TestRace() {
 	err := logger.Setup(logger.Config{Severity: "info"}) // Turn off noisy debug logging
 	require.NoError(t, err)
 
-	s.appConfig.Recipients = recipient.RawRecipientsMap{
+	s.appConfig.Recipients = common.RawRecipientsMap{
 		"editor": []string{
 			"1001", // reviewer 1
 			"1002", // reviewer 2

@@ -30,7 +30,6 @@ import (
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/integrations/access/accessrequest"
 	"github.com/gravitational/teleport/integrations/access/common"
-	"github.com/gravitational/teleport/integrations/access/common/recipient"
 	"github.com/gravitational/teleport/integrations/lib"
 	pd "github.com/gravitational/teleport/integrations/lib/plugindata"
 )
@@ -98,12 +97,12 @@ func (b Bot) CheckHealth(ctx context.Context) error {
 }
 
 // SendReviewReminders will send a review reminder that an access list needs to be reviewed.
-func (b Bot) SendReviewReminders(ctx context.Context, recipients []recipient.Recipient, accessList *accesslist.AccessList) error {
+func (b Bot) SendReviewReminders(ctx context.Context, recipients []common.Recipient, accessList *accesslist.AccessList) error {
 	return trace.NotImplemented("access list review reminder is not yet implemented")
 }
 
 // BroadcastAccessRequestMessage posts request info to Slack with action buttons.
-func (b Bot) BroadcastAccessRequestMessage(ctx context.Context, recipients []recipient.Recipient, reqID string, reqData pd.AccessRequestData) (accessrequest.SentMessages, error) {
+func (b Bot) BroadcastAccessRequestMessage(ctx context.Context, recipients []common.Recipient, reqID string, reqData pd.AccessRequestData) (accessrequest.SentMessages, error) {
 	var data accessrequest.SentMessages
 	var errors []error
 
@@ -184,7 +183,7 @@ func (b Bot) UpdateMessages(ctx context.Context, reqID string, reqData pd.Access
 	return nil
 }
 
-func (b Bot) FetchRecipient(ctx context.Context, name string) (*recipient.Recipient, error) {
+func (b Bot) FetchRecipient(ctx context.Context, name string) (*common.Recipient, error) {
 	if lib.IsEmail(name) {
 		channel, err := b.lookupDirectChannelByEmail(ctx, name)
 		if err != nil {
@@ -193,7 +192,7 @@ func (b Bot) FetchRecipient(ctx context.Context, name string) (*recipient.Recipi
 			}
 			return nil, trace.Errorf("error resolving email recipient %s: %s", name, err)
 		}
-		return &recipient.Recipient{
+		return &common.Recipient{
 			Name: name,
 			ID:   channel,
 			Kind: "Email",
@@ -201,7 +200,7 @@ func (b Bot) FetchRecipient(ctx context.Context, name string) (*recipient.Recipi
 		}, nil
 	}
 	// TODO: check if channel exists ?
-	return &recipient.Recipient{
+	return &common.Recipient{
 		Name: name,
 		ID:   name,
 		Kind: "Channel",

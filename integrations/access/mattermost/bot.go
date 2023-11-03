@@ -32,7 +32,6 @@ import (
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/integrations/access/accessrequest"
 	"github.com/gravitational/teleport/integrations/access/common"
-	"github.com/gravitational/teleport/integrations/access/common/recipient"
 	"github.com/gravitational/teleport/integrations/lib"
 	"github.com/gravitational/teleport/integrations/lib/logger"
 	pd "github.com/gravitational/teleport/integrations/lib/plugindata"
@@ -232,12 +231,12 @@ func (b Bot) GetMe(ctx context.Context) (User, error) {
 }
 
 // SendReviewReminders will send a review reminder that an access list needs to be reviewed.
-func (b Bot) SendReviewReminders(ctx context.Context, recipients []recipient.Recipient, accessList *accesslist.AccessList) error {
+func (b Bot) SendReviewReminders(ctx context.Context, recipients []common.Recipient, accessList *accesslist.AccessList) error {
 	return trace.NotImplemented("access list review reminder is not yet implemented")
 }
 
 // BroadcastAccessRequestMessage posts request info to Mattermost.
-func (b Bot) BroadcastAccessRequestMessage(ctx context.Context, recipients []recipient.Recipient, reqID string, reqData pd.AccessRequestData) (accessrequest.SentMessages, error) {
+func (b Bot) BroadcastAccessRequestMessage(ctx context.Context, recipients []common.Recipient, reqID string, reqData pd.AccessRequestData) (accessrequest.SentMessages, error) {
 	text, err := b.buildPostText(reqID, reqData)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -477,7 +476,7 @@ func (b Bot) tryLookupChannel(ctx context.Context, team, name string) string {
 }
 
 // FetchRecipient returns the recipient for the given raw recipient.
-func (b Bot) FetchRecipient(ctx context.Context, name string) (*recipient.Recipient, error) {
+func (b Bot) FetchRecipient(ctx context.Context, name string) (*common.Recipient, error) {
 	var channel string
 	kind := "Channel"
 
@@ -495,7 +494,7 @@ func (b Bot) FetchRecipient(ctx context.Context, name string) (*recipient.Recipi
 		}
 	}
 
-	return &recipient.Recipient{
+	return &common.Recipient{
 		Name: name,
 		ID:   channel,
 		Kind: kind,

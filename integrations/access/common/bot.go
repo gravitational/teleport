@@ -17,9 +17,7 @@ limitations under the License.
 package common
 
 import (
-	"golang.org/x/net/context"
-
-	"github.com/gravitational/teleport/integrations/access/common/recipient"
+	"context"
 )
 
 // MessagingBot is a generic interface with all methods required to send notifications through a messaging service.
@@ -31,5 +29,5 @@ type MessagingBot interface {
 	// FetchRecipient fetches recipient data from the messaging service API. It can also be used to check and initialize
 	// a communication channel (e.g. MsTeams needs to install the app for the user before being able to send
 	// notifications)
-	FetchRecipient(ctx context.Context, recipient string) (*recipient.Recipient, error)
+	FetchRecipient(ctx context.Context, recipient string) (*Recipient, error)
 }

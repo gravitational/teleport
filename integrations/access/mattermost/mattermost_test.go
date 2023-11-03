@@ -37,7 +37,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integrations/access/accessrequest"
-	"github.com/gravitational/teleport/integrations/access/common/recipient"
+	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/integrations/lib"
 	"github.com/gravitational/teleport/integrations/lib/logger"
 	"github.com/gravitational/teleport/integrations/lib/testing/integration"
@@ -792,7 +792,7 @@ func (s *MattermostSuite) TestRecipientsConfig() {
 	channel2 := s.fakeMattermost.StoreChannel(Channel{Name: "channel-llama", TeamID: team.ID})
 
 	// Test an email and a team/channel
-	s.appConfig.Recipients = recipient.RawRecipientsMap{
+	s.appConfig.Recipients = common.RawRecipientsMap{
 		types.Wildcard: []string{"team-llama/channel-llama", reviewer1.Email},
 	}
 

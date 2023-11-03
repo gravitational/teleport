@@ -21,7 +21,6 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integrations/access/common"
-	"github.com/gravitational/teleport/integrations/access/common/recipient"
 	pd "github.com/gravitational/teleport/integrations/lib/plugindata"
 )
 
@@ -29,7 +28,7 @@ type MessagingBot interface {
 	common.MessagingBot
 
 	// BroadcastAccessRequestMessage sends an access request message to a list of Recipient
-	BroadcastAccessRequestMessage(ctx context.Context, recipients []recipient.Recipient, reqID string, reqData pd.AccessRequestData) (data SentMessages, err error)
+	BroadcastAccessRequestMessage(ctx context.Context, recipients []common.Recipient, reqID string, reqData pd.AccessRequestData) (data SentMessages, err error)
 	// PostReviewReply posts in thread an access request review. This does nothing if the messaging service
 	// does not support threaded replies.
 	PostReviewReply(ctx context.Context, channelID string, threadID string, review types.AccessReview) error

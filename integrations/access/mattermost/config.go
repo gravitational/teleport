@@ -24,7 +24,6 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integrations/access/common"
-	"github.com/gravitational/teleport/integrations/access/common/recipient"
 	"github.com/gravitational/teleport/integrations/lib"
 )
 
@@ -74,7 +73,7 @@ func (c *Config) CheckAndSetDefaults() error {
 
 	// Optional field.
 	if len(c.Mattermost.Recipients) > 0 {
-		c.Recipients = recipient.RawRecipientsMap{
+		c.Recipients = common.RawRecipientsMap{
 			"*": c.Mattermost.Recipients,
 		}
 	}
