@@ -9,7 +9,9 @@ that can become a vector for attacks.
 
 Teleport's ServiceNow integration allows you to treat Teleport Access
 Requests as ServiceNow incidents, notify the appropriate on-call team, and
-approve or deny the requests via Teleport.
+approve or deny the requests via Teleport. You can also configure the plugin to
+approve Access Requests automatically if the user making the request is in
+a specific on-call rotation
 
 This guide will explain how to set up Teleport's Access Request plugin for
 ServiceNow.
@@ -35,6 +37,27 @@ API.
 Before making the access request ensure the user making the request has
 the `requester` role.
 
+For the plugin to know which serviceno rotations to check for the
+auto approval flow, the rota you wish users to be checked against
+must be included in a role the requesting user has. e.g.
+
+```
+kind: role
+version: v5
+metadata:
+  name: YOUR_ROLE_NAME_HERE
+spec:
+  allow:
+    request:
+      roles: ['editor']
+      thresholds:
+        - approve: 1
+          deny: 1
+      annotations:
+        teleport.dev/schedules:
+        - YOUR_SERVICENOW_ROTA_ID_HERE
+```
+
 ## Step 3/4. Configure the ServiceNow plugin
 
 At this point, you have a ServiceNow user that the ServiceNow plugin will use
@@ -55,6 +78,10 @@ As the Teleport user `myuser`, create an Access Request for the `editor` role:
 
 In ServiceNow, you will see a new incident containing information about the
 Access Request.
+
+If the a ServiceNow rotation was specified in the requesters role annotations,
+then the ServiceNow plugin will check that the requesters username matches the
+ServiceNow user currently on-call in that rotation and approve the access request.
 
 ### Resolve the request
 
