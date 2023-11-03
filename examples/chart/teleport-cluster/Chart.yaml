@@ -1,4 +1,4 @@
-.version: &version "14.1.1-dev.isaiah.1"
+.version: &version "14.1.1-dev.isaiah.2"
 
 name: teleport-cluster
 apiVersion: v2
