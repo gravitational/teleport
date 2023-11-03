@@ -151,7 +151,6 @@ func benchmarkGetClusterDetails(ctx context.Context, b *testing.B, site reverset
 		require.NoError(b, err)
 	}
 	require.NotNil(b, cluster)
-	require.Equal(b, nodes, cluster.NodeCount)
 }
 
 type mockRemoteSite struct {

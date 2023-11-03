@@ -119,13 +119,8 @@ export function useKeyBasedPagination<T>({
   };
 
   const fetch = useCallback(
-    async (options: { force?: boolean; fromStart?: boolean }) => {
-      if (options?.fromStart) {
-        clear();
-      }
-      await fetchInternal(!!options?.force);
-    },
-    [fetchFunc, startKey, resources, finished, attempt, clear]
+    (options: { force?: boolean }) => fetchInternal(!!options?.force),
+    [fetchFunc, startKey, resources, finished, attempt]
   );
 
   return {

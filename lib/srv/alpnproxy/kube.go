@@ -52,7 +52,7 @@ const certReissueClientWait = time.Second * 3
 
 // certReissueClientWaitHeadless is used when proxy works in headless mode - since user works in reexeced shell,
 // we give them longer time to perform the headless login flow.
-const certReissueClientWaitHeadless = defaults.CallbackTimeout
+const certReissueClientWaitHeadless = defaults.HeadlessLoginTimeout
 
 // KubeClientCerts is a map of Kubernetes client certs.
 type KubeClientCerts map[string]tls.Certificate

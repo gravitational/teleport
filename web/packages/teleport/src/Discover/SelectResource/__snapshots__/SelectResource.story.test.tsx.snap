@@ -299,12 +299,12 @@ exports[`render with URL loc state set to "server" 1`] = `
             color="text.slightlyMuted"
             font-size="12px"
           >
-            Amazon Web Services (AWS)
+            Server
           </div>
           <div
             class="c18"
           >
-            EC2 Instance
+            macOS
           </div>
         </div>
       </div>
@@ -422,12 +422,12 @@ exports[`render with URL loc state set to "server" 1`] = `
             color="text.slightlyMuted"
             font-size="12px"
           >
-            Server
+            Amazon Web Services (AWS)
           </div>
           <div
             class="c18"
           >
-            macOS
+            EC2 Instance
           </div>
         </div>
       </div>
@@ -692,16 +692,16 @@ exports[`render with all access 1`] = `
 .c13 {
   overflow: hidden;
   text-overflow: ellipsis;
-  font-weight: 600;
+  font-size: 12px;
   margin: 0px;
+  color: rgba(255,255,255,0.72);
 }
 
 .c14 {
   overflow: hidden;
   text-overflow: ellipsis;
-  font-size: 12px;
+  font-weight: 600;
   margin: 0px;
-  color: rgba(255,255,255,0.72);
 }
 
 .c16 {
@@ -859,6 +859,129 @@ exports[`render with all access 1`] = `
   >
     <div
       class="c7"
+      data-testid="4"
+    >
+      <div
+        class="c8"
+      >
+        Guided
+      </div>
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c11"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c13"
+            color="text.slightlyMuted"
+            font-size="12px"
+          >
+            Server
+          </div>
+          <div
+            class="c14"
+          >
+            macOS
+          </div>
+        </div>
+      </div>
+    </div>
+    <div
+      class="c7"
+      data-testid="2"
+    >
+      <div
+        class="c8"
+      >
+        Guided
+      </div>
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c11"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c13"
+            color="text.slightlyMuted"
+            font-size="12px"
+          >
+            Windows Desktop
+          </div>
+          <div
+            class="c14"
+          >
+            Active Directory
+          </div>
+        </div>
+      </div>
+    </div>
+    <div
+      class="c7"
+      data-testid="4"
+    >
+      <div
+        class="c8"
+      >
+        Guided
+      </div>
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c11"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c13"
+            color="text.slightlyMuted"
+            font-size="12px"
+          >
+            Server
+          </div>
+          <div
+            class="c14"
+          >
+            Amazon Linux 2/2023
+          </div>
+        </div>
+      </div>
+    </div>
+    <div
+      class="c7"
       data-testid="0"
     >
       <div
@@ -885,7 +1008,7 @@ exports[`render with all access 1`] = `
         >
           
           <div
-            class="c13"
+            class="c14"
           >
             Application
           </div>
@@ -919,14 +1042,14 @@ exports[`render with all access 1`] = `
           class="c12"
         >
           <div
-            class="c14"
+            class="c13"
             color="text.slightlyMuted"
             font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
           <div
-            class="c13"
+            class="c14"
           >
             Aurora MySQL/MariaDB
           </div>
@@ -960,14 +1083,14 @@ exports[`render with all access 1`] = `
           class="c12"
         >
           <div
-            class="c14"
+            class="c13"
             color="text.slightlyMuted"
             font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
           <div
-            class="c13"
+            class="c14"
           >
             Aurora PostgreSQL
           </div>
@@ -1001,14 +1124,55 @@ exports[`render with all access 1`] = `
           class="c12"
         >
           <div
+            class="c13"
+            color="text.slightlyMuted"
+            font-size="12px"
+          >
+            Server
+          </div>
+          <div
             class="c14"
+          >
+            Debian 8+
+          </div>
+        </div>
+      </div>
+    </div>
+    <div
+      class="c7"
+      data-testid="4"
+    >
+      <div
+        class="c8"
+      >
+        Guided
+      </div>
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c11"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c13"
             color="text.slightlyMuted"
             font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
           <div
-            class="c13"
+            class="c14"
           >
             EC2 Instance
           </div>
@@ -1043,7 +1207,7 @@ exports[`render with all access 1`] = `
         >
           
           <div
-            class="c13"
+            class="c14"
           >
             Kubernetes
           </div>
@@ -1077,14 +1241,14 @@ exports[`render with all access 1`] = `
           class="c12"
         >
           <div
-            class="c14"
+            class="c13"
             color="text.slightlyMuted"
             font-size="12px"
           >
             Self-Hosted
           </div>
           <div
-            class="c13"
+            class="c14"
           >
             MySQL/MariaDB
           </div>
@@ -1118,14 +1282,14 @@ exports[`render with all access 1`] = `
           class="c12"
         >
           <div
-            class="c14"
+            class="c13"
             color="text.slightlyMuted"
             font-size="12px"
           >
             Self-Hosted
           </div>
           <div
-            class="c13"
+            class="c14"
           >
             PostgreSQL
           </div>
@@ -1159,14 +1323,14 @@ exports[`render with all access 1`] = `
           class="c12"
         >
           <div
-            class="c14"
+            class="c13"
             color="text.slightlyMuted"
             font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
           <div
-            class="c13"
+            class="c14"
           >
             RDS MySQL/MariaDB
           </div>
@@ -1200,16 +1364,98 @@ exports[`render with all access 1`] = `
           class="c12"
         >
           <div
-            class="c14"
+            class="c13"
             color="text.slightlyMuted"
             font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
           <div
-            class="c13"
+            class="c14"
           >
             RDS PostgreSQL
+          </div>
+        </div>
+      </div>
+    </div>
+    <div
+      class="c7"
+      data-testid="4"
+    >
+      <div
+        class="c8"
+      >
+        Guided
+      </div>
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c11"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c13"
+            color="text.slightlyMuted"
+            font-size="12px"
+          >
+            Server
+          </div>
+          <div
+            class="c14"
+          >
+            RHEL/CentOS 7+
+          </div>
+        </div>
+      </div>
+    </div>
+    <div
+      class="c7"
+      data-testid="4"
+    >
+      <div
+        class="c8"
+      >
+        Guided
+      </div>
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c11"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c13"
+            color="text.slightlyMuted"
+            font-size="12px"
+          >
+            Server
+          </div>
+          <div
+            class="c14"
+          >
+            Ubuntu 14.04+
           </div>
         </div>
       </div>
@@ -1240,7 +1486,7 @@ exports[`render with all access 1`] = `
           class="c12"
         >
           <div
-            class="c14"
+            class="c13"
             color="text.slightlyMuted"
             font-size="12px"
           >
@@ -1281,7 +1527,7 @@ exports[`render with all access 1`] = `
           class="c12"
         >
           <div
-            class="c14"
+            class="c13"
             color="text.slightlyMuted"
             font-size="12px"
           >
@@ -1322,7 +1568,7 @@ exports[`render with all access 1`] = `
           class="c12"
         >
           <div
-            class="c14"
+            class="c13"
             color="text.slightlyMuted"
             font-size="12px"
           >
@@ -1363,7 +1609,7 @@ exports[`render with all access 1`] = `
           class="c12"
         >
           <div
-            class="c14"
+            class="c13"
             color="text.slightlyMuted"
             font-size="12px"
           >
@@ -1404,7 +1650,7 @@ exports[`render with all access 1`] = `
           class="c12"
         >
           <div
-            class="c14"
+            class="c13"
             color="text.slightlyMuted"
             font-size="12px"
           >
@@ -1445,7 +1691,7 @@ exports[`render with all access 1`] = `
           class="c12"
         >
           <div
-            class="c14"
+            class="c13"
             color="text.slightlyMuted"
             font-size="12px"
           >
@@ -1486,7 +1732,7 @@ exports[`render with all access 1`] = `
           class="c12"
         >
           <div
-            class="c14"
+            class="c13"
             color="text.slightlyMuted"
             font-size="12px"
           >
@@ -1527,7 +1773,7 @@ exports[`render with all access 1`] = `
           class="c12"
         >
           <div
-            class="c14"
+            class="c13"
             color="text.slightlyMuted"
             font-size="12px"
           >
@@ -1568,7 +1814,7 @@ exports[`render with all access 1`] = `
           class="c12"
         >
           <div
-            class="c14"
+            class="c13"
             color="text.slightlyMuted"
             font-size="12px"
           >
@@ -1609,7 +1855,7 @@ exports[`render with all access 1`] = `
           class="c12"
         >
           <div
-            class="c14"
+            class="c13"
             color="text.slightlyMuted"
             font-size="12px"
           >
@@ -1650,7 +1896,7 @@ exports[`render with all access 1`] = `
           class="c12"
         >
           <div
-            class="c14"
+            class="c13"
             color="text.slightlyMuted"
             font-size="12px"
           >
@@ -1732,7 +1978,7 @@ exports[`render with all access 1`] = `
           class="c12"
         >
           <div
-            class="c14"
+            class="c13"
             color="text.slightlyMuted"
             font-size="12px"
           >
@@ -1808,7 +2054,7 @@ exports[`render with all access 1`] = `
           class="c12"
         >
           <div
-            class="c14"
+            class="c13"
             color="text.slightlyMuted"
             font-size="12px"
           >
@@ -1849,7 +2095,7 @@ exports[`render with all access 1`] = `
           class="c12"
         >
           <div
-            class="c14"
+            class="c13"
             color="text.slightlyMuted"
             font-size="12px"
           >
@@ -1890,7 +2136,7 @@ exports[`render with all access 1`] = `
           class="c12"
         >
           <div
-            class="c14"
+            class="c13"
             color="text.slightlyMuted"
             font-size="12px"
           >
@@ -1931,7 +2177,7 @@ exports[`render with all access 1`] = `
           class="c12"
         >
           <div
-            class="c14"
+            class="c13"
             color="text.slightlyMuted"
             font-size="12px"
           >
@@ -1972,7 +2218,7 @@ exports[`render with all access 1`] = `
           class="c12"
         >
           <div
-            class="c14"
+            class="c13"
             color="text.slightlyMuted"
             font-size="12px"
           >
@@ -2013,7 +2259,7 @@ exports[`render with all access 1`] = `
           class="c12"
         >
           <div
-            class="c14"
+            class="c13"
             color="text.slightlyMuted"
             font-size="12px"
           >
@@ -2054,7 +2300,7 @@ exports[`render with all access 1`] = `
           class="c12"
         >
           <div
-            class="c14"
+            class="c13"
             color="text.slightlyMuted"
             font-size="12px"
           >
@@ -2104,252 +2350,6 @@ exports[`render with all access 1`] = `
         </div>
       </div>
     </a>
-    <div
-      class="c7"
-      data-testid="2"
-    >
-      <div
-        class="c8"
-      >
-        Guided
-      </div>
-      <div
-        class="c9"
-      >
-        <div
-          class="c10"
-          width="24px"
-        >
-          <img
-            class="c11"
-            height="24px"
-            src="file_stub"
-            width="23.9px"
-          />
-        </div>
-        <div
-          class="c12"
-        >
-          <div
-            class="c14"
-            color="text.slightlyMuted"
-            font-size="12px"
-          >
-            Windows Desktop
-          </div>
-          <div
-            class="c13"
-          >
-            Active Directory
-          </div>
-        </div>
-      </div>
-    </div>
-    <div
-      class="c7"
-      data-testid="4"
-    >
-      <div
-        class="c8"
-      >
-        Guided
-      </div>
-      <div
-        class="c9"
-      >
-        <div
-          class="c10"
-          width="24px"
-        >
-          <img
-            class="c11"
-            height="24px"
-            src="file_stub"
-            width="23.9px"
-          />
-        </div>
-        <div
-          class="c12"
-        >
-          <div
-            class="c14"
-            color="text.slightlyMuted"
-            font-size="12px"
-          >
-            Server
-          </div>
-          <div
-            class="c13"
-          >
-            Amazon Linux 2/2023
-          </div>
-        </div>
-      </div>
-    </div>
-    <div
-      class="c7"
-      data-testid="4"
-    >
-      <div
-        class="c8"
-      >
-        Guided
-      </div>
-      <div
-        class="c9"
-      >
-        <div
-          class="c10"
-          width="24px"
-        >
-          <img
-            class="c11"
-            height="24px"
-            src="file_stub"
-            width="23.9px"
-          />
-        </div>
-        <div
-          class="c12"
-        >
-          <div
-            class="c14"
-            color="text.slightlyMuted"
-            font-size="12px"
-          >
-            Server
-          </div>
-          <div
-            class="c13"
-          >
-            Debian 8+
-          </div>
-        </div>
-      </div>
-    </div>
-    <div
-      class="c7"
-      data-testid="4"
-    >
-      <div
-        class="c8"
-      >
-        Guided
-      </div>
-      <div
-        class="c9"
-      >
-        <div
-          class="c10"
-          width="24px"
-        >
-          <img
-            class="c11"
-            height="24px"
-            src="file_stub"
-            width="23.9px"
-          />
-        </div>
-        <div
-          class="c12"
-        >
-          <div
-            class="c14"
-            color="text.slightlyMuted"
-            font-size="12px"
-          >
-            Server
-          </div>
-          <div
-            class="c13"
-          >
-            macOS
-          </div>
-        </div>
-      </div>
-    </div>
-    <div
-      class="c7"
-      data-testid="4"
-    >
-      <div
-        class="c8"
-      >
-        Guided
-      </div>
-      <div
-        class="c9"
-      >
-        <div
-          class="c10"
-          width="24px"
-        >
-          <img
-            class="c11"
-            height="24px"
-            src="file_stub"
-            width="23.9px"
-          />
-        </div>
-        <div
-          class="c12"
-        >
-          <div
-            class="c14"
-            color="text.slightlyMuted"
-            font-size="12px"
-          >
-            Server
-          </div>
-          <div
-            class="c13"
-          >
-            RHEL/CentOS 7+
-          </div>
-        </div>
-      </div>
-    </div>
-    <div
-      class="c7"
-      data-testid="4"
-    >
-      <div
-        class="c8"
-      >
-        Guided
-      </div>
-      <div
-        class="c9"
-      >
-        <div
-          class="c10"
-          width="24px"
-        >
-          <img
-            class="c11"
-            height="24px"
-            src="file_stub"
-            width="23.9px"
-          />
-        </div>
-        <div
-          class="c12"
-        >
-          <div
-            class="c14"
-            color="text.slightlyMuted"
-            font-size="12px"
-          >
-            Server
-          </div>
-          <div
-            class="c13"
-          >
-            Ubuntu 14.04+
-          </div>
-        </div>
-      </div>
-    </div>
     <a
       class="c15 c7"
       data-testid="1"
@@ -2376,7 +2376,7 @@ exports[`render with all access 1`] = `
           class="c12"
         >
           <div
-            class="c14"
+            class="c13"
             color="text.slightlyMuted"
             font-size="12px"
           >
@@ -2417,7 +2417,7 @@ exports[`render with all access 1`] = `
           class="c12"
         >
           <div
-            class="c14"
+            class="c13"
             color="text.slightlyMuted"
             font-size="12px"
           >
@@ -4417,16 +4417,16 @@ exports[`render with partial access 1`] = `
 .c13 {
   overflow: hidden;
   text-overflow: ellipsis;
-  font-weight: 600;
+  font-size: 12px;
   margin: 0px;
+  color: rgba(255,255,255,0.72);
 }
 
 .c14 {
   overflow: hidden;
   text-overflow: ellipsis;
-  font-size: 12px;
+  font-weight: 600;
   margin: 0px;
-  color: rgba(255,255,255,0.72);
 }
 
 .c16 {
@@ -4614,6 +4614,129 @@ exports[`render with partial access 1`] = `
   >
     <div
       class="c7"
+      data-testid="4"
+    >
+      <div
+        class="c8"
+      >
+        Guided
+      </div>
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c11"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c13"
+            color="text.slightlyMuted"
+            font-size="12px"
+          >
+            Server
+          </div>
+          <div
+            class="c14"
+          >
+            macOS
+          </div>
+        </div>
+      </div>
+    </div>
+    <div
+      class="c7"
+      data-testid="2"
+    >
+      <div
+        class="c8"
+      >
+        Guided
+      </div>
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c11"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c13"
+            color="text.slightlyMuted"
+            font-size="12px"
+          >
+            Windows Desktop
+          </div>
+          <div
+            class="c14"
+          >
+            Active Directory
+          </div>
+        </div>
+      </div>
+    </div>
+    <div
+      class="c7"
+      data-testid="4"
+    >
+      <div
+        class="c8"
+      >
+        Guided
+      </div>
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c11"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c13"
+            color="text.slightlyMuted"
+            font-size="12px"
+          >
+            Server
+          </div>
+          <div
+            class="c14"
+          >
+            Amazon Linux 2/2023
+          </div>
+        </div>
+      </div>
+    </div>
+    <div
+      class="c7"
       data-testid="0"
     >
       <div
@@ -4640,7 +4763,7 @@ exports[`render with partial access 1`] = `
         >
           
           <div
-            class="c13"
+            class="c14"
           >
             Application
           </div>
@@ -4674,14 +4797,55 @@ exports[`render with partial access 1`] = `
           class="c12"
         >
           <div
+            class="c13"
+            color="text.slightlyMuted"
+            font-size="12px"
+          >
+            Server
+          </div>
+          <div
             class="c14"
+          >
+            Debian 8+
+          </div>
+        </div>
+      </div>
+    </div>
+    <div
+      class="c7"
+      data-testid="4"
+    >
+      <div
+        class="c8"
+      >
+        Guided
+      </div>
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c11"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c13"
             color="text.slightlyMuted"
             font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
           <div
-            class="c13"
+            class="c14"
           >
             EC2 Instance
           </div>
@@ -4716,7 +4880,7 @@ exports[`render with partial access 1`] = `
         >
           
           <div
-            class="c13"
+            class="c14"
           >
             Kubernetes
           </div>
@@ -4766,47 +4930,6 @@ exports[`render with partial access 1`] = `
     </a>
     <div
       class="c7"
-      data-testid="2"
-    >
-      <div
-        class="c8"
-      >
-        Guided
-      </div>
-      <div
-        class="c9"
-      >
-        <div
-          class="c10"
-          width="24px"
-        >
-          <img
-            class="c11"
-            height="24px"
-            src="file_stub"
-            width="23.9px"
-          />
-        </div>
-        <div
-          class="c12"
-        >
-          <div
-            class="c14"
-            color="text.slightlyMuted"
-            font-size="12px"
-          >
-            Windows Desktop
-          </div>
-          <div
-            class="c13"
-          >
-            Active Directory
-          </div>
-        </div>
-      </div>
-    </div>
-    <div
-      class="c7"
       data-testid="4"
     >
       <div
@@ -4832,137 +4955,14 @@ exports[`render with partial access 1`] = `
           class="c12"
         >
           <div
-            class="c14"
+            class="c13"
             color="text.slightlyMuted"
             font-size="12px"
           >
             Server
           </div>
           <div
-            class="c13"
-          >
-            Amazon Linux 2/2023
-          </div>
-        </div>
-      </div>
-    </div>
-    <div
-      class="c7"
-      data-testid="4"
-    >
-      <div
-        class="c8"
-      >
-        Guided
-      </div>
-      <div
-        class="c9"
-      >
-        <div
-          class="c10"
-          width="24px"
-        >
-          <img
-            class="c11"
-            height="24px"
-            src="file_stub"
-            width="23.9px"
-          />
-        </div>
-        <div
-          class="c12"
-        >
-          <div
             class="c14"
-            color="text.slightlyMuted"
-            font-size="12px"
-          >
-            Server
-          </div>
-          <div
-            class="c13"
-          >
-            Debian 8+
-          </div>
-        </div>
-      </div>
-    </div>
-    <div
-      class="c7"
-      data-testid="4"
-    >
-      <div
-        class="c8"
-      >
-        Guided
-      </div>
-      <div
-        class="c9"
-      >
-        <div
-          class="c10"
-          width="24px"
-        >
-          <img
-            class="c11"
-            height="24px"
-            src="file_stub"
-            width="23.9px"
-          />
-        </div>
-        <div
-          class="c12"
-        >
-          <div
-            class="c14"
-            color="text.slightlyMuted"
-            font-size="12px"
-          >
-            Server
-          </div>
-          <div
-            class="c13"
-          >
-            macOS
-          </div>
-        </div>
-      </div>
-    </div>
-    <div
-      class="c7"
-      data-testid="4"
-    >
-      <div
-        class="c8"
-      >
-        Guided
-      </div>
-      <div
-        class="c9"
-      >
-        <div
-          class="c10"
-          width="24px"
-        >
-          <img
-            class="c11"
-            height="24px"
-            src="file_stub"
-            width="23.9px"
-          />
-        </div>
-        <div
-          class="c12"
-        >
-          <div
-            class="c14"
-            color="text.slightlyMuted"
-            font-size="12px"
-          >
-            Server
-          </div>
-          <div
-            class="c13"
           >
             RHEL/CentOS 7+
           </div>
@@ -4996,14 +4996,14 @@ exports[`render with partial access 1`] = `
           class="c12"
         >
           <div
-            class="c14"
+            class="c13"
             color="text.slightlyMuted"
             font-size="12px"
           >
             Server
           </div>
           <div
-            class="c13"
+            class="c14"
           >
             Ubuntu 14.04+
           </div>
@@ -5038,14 +5038,14 @@ exports[`render with partial access 1`] = `
           class="c12"
         >
           <div
-            class="c14"
+            class="c13"
             color="text.slightlyMuted"
             font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
           <div
-            class="c13"
+            class="c14"
           >
             Aurora MySQL/MariaDB
           </div>
@@ -5080,14 +5080,14 @@ exports[`render with partial access 1`] = `
           class="c12"
         >
           <div
-            class="c14"
+            class="c13"
             color="text.slightlyMuted"
             font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
           <div
-            class="c13"
+            class="c14"
           >
             Aurora PostgreSQL
           </div>
@@ -5125,7 +5125,7 @@ exports[`render with partial access 1`] = `
           class="c12"
         >
           <div
-            class="c14"
+            class="c13"
             color="text.slightlyMuted"
             font-size="12px"
           >
@@ -5171,7 +5171,7 @@ exports[`render with partial access 1`] = `
           class="c12"
         >
           <div
-            class="c14"
+            class="c13"
             color="text.slightlyMuted"
             font-size="12px"
           >
@@ -5217,7 +5217,7 @@ exports[`render with partial access 1`] = `
           class="c12"
         >
           <div
-            class="c14"
+            class="c13"
             color="text.slightlyMuted"
             font-size="12px"
           >
@@ -5263,7 +5263,7 @@ exports[`render with partial access 1`] = `
           class="c12"
         >
           <div
-            class="c14"
+            class="c13"
             color="text.slightlyMuted"
             font-size="12px"
           >
@@ -5309,7 +5309,7 @@ exports[`render with partial access 1`] = `
           class="c12"
         >
           <div
-            class="c14"
+            class="c13"
             color="text.slightlyMuted"
             font-size="12px"
           >
@@ -5355,7 +5355,7 @@ exports[`render with partial access 1`] = `
           class="c12"
         >
           <div
-            class="c14"
+            class="c13"
             color="text.slightlyMuted"
             font-size="12px"
           >
@@ -5401,7 +5401,7 @@ exports[`render with partial access 1`] = `
           class="c12"
         >
           <div
-            class="c14"
+            class="c13"
             color="text.slightlyMuted"
             font-size="12px"
           >
@@ -5447,7 +5447,7 @@ exports[`render with partial access 1`] = `
           class="c12"
         >
           <div
-            class="c14"
+            class="c13"
             color="text.slightlyMuted"
             font-size="12px"
           >
@@ -5493,7 +5493,7 @@ exports[`render with partial access 1`] = `
           class="c12"
         >
           <div
-            class="c14"
+            class="c13"
             color="text.slightlyMuted"
             font-size="12px"
           >
@@ -5539,7 +5539,7 @@ exports[`render with partial access 1`] = `
           class="c12"
         >
           <div
-            class="c14"
+            class="c13"
             color="text.slightlyMuted"
             font-size="12px"
           >
@@ -5585,7 +5585,7 @@ exports[`render with partial access 1`] = `
           class="c12"
         >
           <div
-            class="c14"
+            class="c13"
             color="text.slightlyMuted"
             font-size="12px"
           >
@@ -5631,7 +5631,7 @@ exports[`render with partial access 1`] = `
           class="c12"
         >
           <div
-            class="c14"
+            class="c13"
             color="text.slightlyMuted"
             font-size="12px"
           >
@@ -5717,7 +5717,7 @@ exports[`render with partial access 1`] = `
           class="c12"
         >
           <div
-            class="c14"
+            class="c13"
             color="text.slightlyMuted"
             font-size="12px"
           >
@@ -5760,14 +5760,14 @@ exports[`render with partial access 1`] = `
           class="c12"
         >
           <div
-            class="c14"
+            class="c13"
             color="text.slightlyMuted"
             font-size="12px"
           >
             Self-Hosted
           </div>
           <div
-            class="c13"
+            class="c14"
           >
             MySQL/MariaDB
           </div>
@@ -5802,14 +5802,14 @@ exports[`render with partial access 1`] = `
           class="c12"
         >
           <div
-            class="c14"
+            class="c13"
             color="text.slightlyMuted"
             font-size="12px"
           >
             Self-Hosted
           </div>
           <div
-            class="c13"
+            class="c14"
           >
             PostgreSQL
           </div>
@@ -5847,7 +5847,7 @@ exports[`render with partial access 1`] = `
           class="c12"
         >
           <div
-            class="c14"
+            class="c13"
             color="text.slightlyMuted"
             font-size="12px"
           >
@@ -5890,14 +5890,14 @@ exports[`render with partial access 1`] = `
           class="c12"
         >
           <div
-            class="c14"
+            class="c13"
             color="text.slightlyMuted"
             font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
           <div
-            class="c13"
+            class="c14"
           >
             RDS MySQL/MariaDB
           </div>
@@ -5932,14 +5932,14 @@ exports[`render with partial access 1`] = `
           class="c12"
         >
           <div
-            class="c14"
+            class="c13"
             color="text.slightlyMuted"
             font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
           <div
-            class="c13"
+            class="c14"
           >
             RDS PostgreSQL
           </div>
@@ -5977,7 +5977,7 @@ exports[`render with partial access 1`] = `
           class="c12"
         >
           <div
-            class="c14"
+            class="c13"
             color="text.slightlyMuted"
             font-size="12px"
           >
@@ -6023,7 +6023,7 @@ exports[`render with partial access 1`] = `
           class="c12"
         >
           <div
-            class="c14"
+            class="c13"
             color="text.slightlyMuted"
             font-size="12px"
           >
@@ -6069,7 +6069,7 @@ exports[`render with partial access 1`] = `
           class="c12"
         >
           <div
-            class="c14"
+            class="c13"
             color="text.slightlyMuted"
             font-size="12px"
           >
@@ -6115,7 +6115,7 @@ exports[`render with partial access 1`] = `
           class="c12"
         >
           <div
-            class="c14"
+            class="c13"
             color="text.slightlyMuted"
             font-size="12px"
           >
@@ -6161,7 +6161,7 @@ exports[`render with partial access 1`] = `
           class="c12"
         >
           <div
-            class="c14"
+            class="c13"
             color="text.slightlyMuted"
             font-size="12px"
           >
@@ -6247,7 +6247,7 @@ exports[`render with partial access 1`] = `
           class="c12"
         >
           <div
-            class="c14"
+            class="c13"
             color="text.slightlyMuted"
             font-size="12px"
           >
@@ -6293,7 +6293,7 @@ exports[`render with partial access 1`] = `
           class="c12"
         >
           <div
-            class="c14"
+            class="c13"
             color="text.slightlyMuted"
             font-size="12px"
           >
