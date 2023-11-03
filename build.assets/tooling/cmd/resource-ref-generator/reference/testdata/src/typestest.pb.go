@@ -181,6 +181,9 @@ type Metadata struct {
 	Labels map[string]string `protobuf:"bytes,5,rep,name=Labels,proto3" json:"labels,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
 	// Expires is a global expiry time header can be set on any resource in the
 	// system.
+        // Example YAML:
+        // ---
+        // "2023-01-31T00:00:00-00:00"
 	Expires *time.Time `protobuf:"bytes,6,opt,name=Expires,proto3,stdtime" json:"expires,omitempty"`
 	// ID is a record ID.
 	// Deprecated: Use revision instead.
@@ -1744,11 +1747,17 @@ type Rotation struct {
 	CurrentID string `protobuf:"bytes,4,opt,name=CurrentID,proto3" json:"current_id"`
 	// Started is set to the time when rotation has been started
 	// in case if the state of the rotation is "in_progress".
+        // Example YAML:
+        // ---
+        // "2023-01-31T00:00:00-00:00"
 	Started time.Time `protobuf:"bytes,5,opt,name=Started,proto3,stdtime" json:"started,omitempty"`
 	// GracePeriod is a period during which old and new CA
 	// are valid for checking purposes, but only new CA is issuing certificates.
 	GracePeriod Duration `protobuf:"varint,6,opt,name=GracePeriod,proto3,casttype=Duration" json:"grace_period,omitempty"`
 	// LastRotated specifies the last time of the completed rotation.
+        // Example YAML:
+        // ---
+        // "2023-01-31T00:00:00-00:00"
 	LastRotated time.Time `protobuf:"bytes,7,opt,name=LastRotated,proto3,stdtime" json:"last_rotated,omitempty"`
 	// Schedule is a rotation schedule - used in
 	// automatic mode to switch between phases.
@@ -1794,10 +1803,19 @@ var xxx_messageInfo_Rotation proto.InternalMessageInfo
 // for different phases.
 type RotationSchedule struct {
 	// UpdateClients specifies time to switch to the "Update clients" phase
+        // Example YAML:
+        // ---
+        // "2023-01-31T00:00:00-00:00"
 	UpdateClients time.Time `protobuf:"bytes,1,opt,name=UpdateClients,proto3,stdtime" json:"update_clients,omitempty"`
 	// UpdateServers specifies time to switch to the "Update servers" phase.
+        // Example YAML:
+        // ---
+        // "2023-01-31T00:00:00-00:00"
 	UpdateServers time.Time `protobuf:"bytes,2,opt,name=UpdateServers,proto3,stdtime" json:"update_servers,omitempty"`
 	// Standby specifies time to switch to the "Standby" phase.
+        // Example YAML:
+        // ---
+        // "2023-01-31T00:00:00-00:00"
 	Standby              time.Time `protobuf:"bytes,3,opt,name=Standby,proto3,stdtime" json:"standby,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}  `json:"-"`
 	XXX_unrecognized     []byte    `json:"-"`
