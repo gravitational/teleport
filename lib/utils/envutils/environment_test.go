@@ -78,6 +78,12 @@ func TestSafeEnvAdd(t *testing.T) {
 			expected: []string{"one=v1", "two=v2"},
 		},
 		{
+			name:     "duplicate allow",
+			keys:     []string{"one", "one"},
+			values:   []string{"v1", "v2"},
+			expected: []string{"one=v1", "one=v2"},
+		},
+		{
 			name:     "skip dangerous exact",
 			keys:     []string{"foo", "LD_PRELOAD"},
 			values:   []string{"bar", "ignored"},
@@ -114,40 +120,58 @@ func TestSafeEnvAddFull(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		name       string
-		fullValues []string
-		expected   []string
+		name              string
+		excludeDuplicates bool
+		fullValues        []string
+		expected          []string
 	}{
 		{
-			name:       "normal add",
-			fullValues: []string{"foo=bar"},
-			expected:   []string{"foo=bar"},
+			name:              "normal add",
+			excludeDuplicates: true,
+			fullValues:        []string{"foo=bar"},
+			expected:          []string{"foo=bar"},
 		},
 		{
-			name:       "double add",
-			fullValues: []string{"one=v1", "two=v2"},
-			expected:   []string{"one=v1", "two=v2"},
+			name:              "double add",
+			excludeDuplicates: true,
+			fullValues:        []string{"one=v1", "two=v2"},
+			expected:          []string{"one=v1", "two=v2"},
 		},
 		{
-			name:       "skip dangerous exact",
-			fullValues: []string{"foo=bar", "LD_PRELOAD=ignored"},
-			expected:   []string{"foo=bar"},
+			name:              "duplicate allow",
+			excludeDuplicates: false,
+			fullValues:        []string{"one=v1", "one=v2"},
+			expected:          []string{"one=v1", "one=v2"},
 		},
 		{
-			name:       "skip dangerous lowercase",
-			fullValues: []string{"foo=bar", "ld_preload=ignored"},
-			expected:   []string{"foo=bar"},
+			name:              "duplicate ignore",
+			excludeDuplicates: true,
+			fullValues:        []string{"one=v1", "one=v2"},
+			expected:          []string{"one=v1"},
 		},
 		{
-			name:       "skip dangerous with whitespace",
-			fullValues: []string{"foo=bar", "  LD_PRELOAD=ignored"},
-			expected:   []string{"foo=bar"},
+			name:              "skip dangerous exact",
+			excludeDuplicates: true,
+			fullValues:        []string{"foo=bar", "LD_PRELOAD=ignored"},
+			expected:          []string{"foo=bar"},
+		},
+		{
+			name:              "skip dangerous lowercase",
+			excludeDuplicates: true,
+			fullValues:        []string{"foo=bar", "ld_preload=ignored"},
+			expected:          []string{"foo=bar"},
+		},
+		{
+			name:              "skip dangerous with whitespace",
+			excludeDuplicates: true,
+			fullValues:        []string{"foo=bar", "  LD_PRELOAD=ignored"},
+			expected:          []string{"foo=bar"},
 		},
 	}
 
 	for _, tc := range testCases {
 		env := &SafeEnv{}
-		env.AddFull(tc.fullValues...)
+		env.AddFull(tc.excludeDuplicates, tc.fullValues...)
 		result := []string(*env)
 
 		require.Equal(t, tc.expected, result)
