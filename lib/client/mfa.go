@@ -30,16 +30,7 @@ type WebauthnLoginFunc func(ctx context.Context, origin string, assertion *wanty
 
 // NewMFAPrompt creates a new MFA prompt from client settings.
 func (tc *TeleportClient) NewMFAPrompt(opts ...mfa.PromptOpt) mfa.Prompt {
-	cfg := mfa.DefaultPromptConfig(tc.WebProxyAddr)
-	cfg.AuthenticatorAttachment = tc.AuthenticatorAttachment
-	cfg.PreferOTP = tc.PreferOTP
-	cfg.AllowStdinHijack = tc.AllowStdinHijack
-
-	if tc.WebauthnLogin != nil {
-		cfg.WebauthnLoginFunc = tc.WebauthnLogin
-		cfg.WebauthnSupported = true
-	}
-
+	cfg := tc.defaultMFAPromptConfig()
 	for _, opt := range opts {
 		opt(cfg)
 	}
@@ -50,4 +41,17 @@ func (tc *TeleportClient) NewMFAPrompt(opts ...mfa.PromptOpt) mfa.Prompt {
 	}
 
 	return prompt
+}
+
+func (tc *TeleportClient) defaultMFAPromptConfig() *mfa.PromptConfig {
+	cfg := mfa.DefaultPromptConfig(tc.WebProxyAddr)
+	cfg.AuthenticatorAttachment = tc.AuthenticatorAttachment
+	cfg.PreferOTP = tc.PreferOTP
+	cfg.AllowStdinHijack = tc.AllowStdinHijack
+
+	if tc.WebauthnLogin != nil {
+		cfg.WebauthnLoginFunc = tc.WebauthnLogin
+		cfg.WebauthnSupported = true
+	}
+	return cfg
 }

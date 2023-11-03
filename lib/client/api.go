@@ -474,7 +474,6 @@ type Config struct {
 	SSHLogDir string
 
 	// MFAPrompt is a custom MFA prompt constructor to use when prompting for MFA.
-	// Defaults to [mfa.NewCLIPrompt].
 	MFAPromptConstructor func(cfg *mfa.PromptConfig) mfa.Prompt
 }
 

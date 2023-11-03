@@ -53,16 +53,20 @@ func (c *CLIPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChalleng
 		return nil, trace.Wrap(err)
 	}
 
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-	var wg sync.WaitGroup
-
 	type response struct {
 		kind string
 		resp *proto.MFAAuthenticateResponse
 		err  error
 	}
 	respC := make(chan response, 2)
+	var wg sync.WaitGroup
+
+	ctx, cancel := context.WithCancel(ctx)
+	defer func() {
+		cancel()
+		// wait for all goroutines to complete to ensure there are no leaks.
+		wg.Wait()
+	}()
 
 	// Use variables below to cancel OTP reads and make sure the goroutine exited.
 	otpCtx, otpCancel := context.WithCancel(ctx)
@@ -103,27 +107,33 @@ func (c *CLIPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChalleng
 		}()
 	}
 
+	// Wait for the 1-2 authn goroutines above to complete, then close respC.
 	go func() {
 		wg.Wait()
 		close(respC)
 	}()
 
+	// Wait for a successful response, or terminating error, from the 1-2 authn goroutines.
+	// The goroutine above will ensure the response channel is closed once all goroutines are done.
 	for resp := range respC {
 		switch err := resp.err; {
 		case errors.Is(err, wancli.ErrUsingNonRegisteredDevice):
 			// Surface error immediately.
+			return nil, trace.Wrap(resp.err)
 		case err != nil:
 			c.cfg.Log.WithError(err).Debugf("%s authentication failed", resp.kind)
+			// Continue to give the other authn goroutine a chance to succeed.
+			// If both have failed, this will exit the loop.
 			continue
 		}
 
-		// Cancel and wait for the other prompt.
-		cancel()
-		wg.Wait()
-
-		return resp.resp, trace.Wrap(resp.err)
+		// Return successful response.
+		return resp.resp, nil
 	}
 
+	// If no successful response is returned, this means the authn goroutines were unsuccessful.
+	// This usually occurs when the prompt times out or no devices are available to prompt.
+	// Return a user readable error message.
 	return nil, trace.BadParameter("failed to authenticate using available MFA devices, rerun the command with '-d' to see error details for each device")
 }
 
