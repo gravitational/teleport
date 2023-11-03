@@ -21,7 +21,6 @@ import (
 	"fmt"
 
 	"github.com/gravitational/trace"
-	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
@@ -61,6 +60,7 @@ func (r *UserReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 func (r *UserReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&resourcesv2.TeleportUser{}).
+		WithEventFilter(buildPredicate()).
 		Complete(r)
 }
 
@@ -78,29 +78,56 @@ func (r *UserReconciler) Upsert(ctx context.Context, obj kclient.Object) error {
 		return fmt.Errorf("failed to convert Object into resource object: %T", obj)
 	}
 	teleportResource := k8sResource.ToTeleport()
-
 	teleportClient, err := r.TeleportClientAccessor(ctx)
+	updateErr := updateStatus(updateStatusConfig{
+		ctx:         ctx,
+		client:      r.Client,
+		k8sResource: k8sResource,
+		condition:   getTeleportClientConditionFromError(err),
+	})
+	if err != nil || updateErr != nil {
+		return trace.NewAggregate(err, updateErr)
+	}
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	existingResource, err := teleportClient.GetUser(teleportResource.GetName(), false)
-	if err != nil && !trace.IsNotFound(err) {
-		return trace.Wrap(err)
+	updateErr = updateStatus(updateStatusConfig{
+		ctx:         ctx,
+		client:      r.Client,
+		k8sResource: k8sResource,
+		condition:   getReconciliationConditionFromError(err, true /* ignoreNotFound */),
+	})
+	if err != nil && !trace.IsNotFound(err) || updateErr != nil {
+		return trace.NewAggregate(err, updateErr)
 	}
 
 	exists := !trace.IsNotFound(err)
 
 	if exists {
 		newOwnershipCondition, isOwned := checkOwnership(existingResource)
-		meta.SetStatusCondition(&k8sResource.Status.Conditions, newOwnershipCondition)
+		if updateErr = updateStatus(updateStatusConfig{
+			ctx:         ctx,
+			client:      r.Client,
+			k8sResource: k8sResource,
+			condition:   newOwnershipCondition,
+		}); updateErr != nil {
+			return trace.Wrap(updateErr)
+		}
 		if !isOwned {
-			silentUpdateStatus(ctx, r.Client, k8sResource)
 			return trace.AlreadyExists("unowned resource '%s' already exists", existingResource.GetName())
 		}
 	} else {
 		// The resource does not yet exist
-		meta.SetStatusCondition(&k8sResource.Status.Conditions, newResourceCondition)
+		if updateErr = updateStatus(updateStatusConfig{
+			ctx:         ctx,
+			client:      r.Client,
+			k8sResource: k8sResource,
+			condition:   newResourceCondition,
+		}); updateErr != nil {
+			return trace.Wrap(updateErr)
+		}
 	}
 
 	r.AddTeleportResourceOrigin(teleportResource)
@@ -112,16 +139,13 @@ func (r *UserReconciler) Upsert(ctx context.Context, obj kclient.Object) error {
 		teleportResource.SetCreatedBy(existingResource.GetCreatedBy())
 		err = teleportClient.UpdateUser(ctx, teleportResource)
 	}
-	// If an error happens we want to put it in status.conditions before returning.
-	newReconciliationCondition := getReconciliationConditionFromError(err)
-	meta.SetStatusCondition(&k8sResource.Status.Conditions, newReconciliationCondition)
-	if err != nil {
-		silentUpdateStatus(ctx, r.Client, k8sResource)
-		return trace.Wrap(err)
-	}
-
-	// We update the status conditions on exit
-	return trace.Wrap(r.Status().Update(ctx, k8sResource))
+	updateErr = updateStatus(updateStatusConfig{
+		ctx:         ctx,
+		client:      r.Client,
+		k8sResource: k8sResource,
+		condition:   getReconciliationConditionFromError(err, false /* ignoreNotFound */),
+	})
+	return trace.NewAggregate(err, updateErr)
 }
 
 func (r *UserReconciler) AddTeleportResourceOrigin(resource types.User) {
