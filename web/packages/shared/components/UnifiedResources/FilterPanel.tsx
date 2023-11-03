@@ -21,7 +21,13 @@ import { SortDir } from 'design/DataTable/types';
 import { Text, Flex, Box } from 'design';
 import Menu, { MenuItem } from 'design/Menu';
 import { StyledCheckbox } from 'design/Checkbox';
-import { ArrowUp, ArrowDown, ChevronDown } from 'design/Icon';
+import {
+  ArrowUp,
+  ArrowDown,
+  ChevronDown,
+  SquaresFour,
+  Rows,
+} from 'design/Icon';
 
 import { HoverTooltip } from './UnifiedResources';
 import { SharedUnifiedResource, UnifiedResourcesQueryParams } from './types';
@@ -47,6 +53,8 @@ interface FilterPanelProps {
   selectVisible: () => void;
   selected: boolean;
   BulkActions?: React.ReactElement;
+  currentViewMode: ViewMode;
+  onSelectViewMode: (viewMode: ViewMode) => void;
 }
 
 export function FilterPanel({
@@ -56,6 +64,8 @@ export function FilterPanel({
   selectVisible,
   selected,
   BulkActions,
+  currentViewMode,
+  onSelectViewMode,
 }: FilterPanelProps) {
   const { sort, kinds } = params;
 
@@ -85,7 +95,7 @@ export function FilterPanel({
     >
       <Flex gap={2}>
         <HoverTooltip
-          tipContent={<>{selected ? 'Deselect all' : 'Select all'}</>}
+          tipContent={<>{selected ? 'Select all' : 'Deselect all'}</>}
         >
           <StyledCheckbox
             checked={selected}
@@ -99,8 +109,12 @@ export function FilterPanel({
           kindsFromParams={kinds || []}
         />
       </Flex>
-      <Flex alignItems="center">
+      <Flex gap={2} alignItems="center">
         <Box mr={4}>{BulkActions}</Box>
+        <ViewModeSwitch
+          currentViewMode={currentViewMode}
+          onSelectViewMode={onSelectViewMode}
+        />
         <SortMenu
           onDirChange={onSortOrderButtonClicked}
           onChange={onSortFieldChange}
@@ -316,7 +330,7 @@ const SortMenu: React.FC<SortMenuProps> = props => {
             border-right: none;
             border-top-right-radius: 0;
             border-bottom-right-radius: 0;
-            border-color: ${props => props.theme.colors.spotBackground[0]};
+            border-color: ${props => props.theme.colors.spotBackground[2]};
           `}
           textTransform="none"
           size="small"
@@ -351,7 +365,7 @@ const SortMenu: React.FC<SortMenuProps> = props => {
             width: 0px; // remove extra width around the button icon
             border-top-left-radius: 0;
             border-bottom-left-radius: 0;
-            border-color: ${props => props.theme.colors.spotBackground[0]};
+            border-color: ${props => props.theme.colors.spotBackground[2]};
           `}
           size="small"
         >
@@ -378,6 +392,83 @@ function kindArraysEqual(arr1: string[], arr2: string[]) {
 
   return true;
 }
+
+function ViewModeSwitch({
+  currentViewMode,
+  onSelectViewMode,
+}: {
+  currentViewMode: ViewMode;
+  onSelectViewMode: (viewMode: ViewMode) => void;
+}) {
+  function handleClick(mode: ViewMode) {
+    if (mode === currentViewMode) {
+      return;
+    }
+    onSelectViewMode(mode);
+  }
+
+  return (
+    <ViewModeSwitchContainer>
+      <ViewModeSwitchButton
+        className={currentViewMode === 'card' ? 'selected' : ''}
+        onClick={() => handleClick('card')}
+        css={`
+          border-right: 1px solid
+            ${props => props.theme.colors.spotBackground[2]};
+          border-top-left-radius: 4px;
+          border-bottom-left-radius: 4px;
+        `}
+      >
+        <SquaresFour size={21} />
+      </ViewModeSwitchButton>
+      <ViewModeSwitchButton
+        className={currentViewMode === 'list' ? 'selected' : ''}
+        onClick={() => handleClick('list')}
+        css={`
+          border-top-right-radius: 4px;
+          border-bottom-right-radius: 4px;
+        `}
+      >
+        <Rows size={21} />
+      </ViewModeSwitchButton>
+    </ViewModeSwitchContainer>
+  );
+}
+
+export type ViewMode = 'card' | 'list';
+
+const ViewModeSwitchContainer = styled.div`
+  height: 22px;
+  width: 48px;
+  border: 1px solid ${props => props.theme.colors.spotBackground[2]};
+  border-radius: 4px;
+  display: flex;
+
+  .selected {
+    background-color: ${props => props.theme.colors.spotBackground[1]};
+
+    :hover {
+      background-color: ${props => props.theme.colors.spotBackground[1]};
+    }
+  }
+`;
+
+const ViewModeSwitchButton = styled.button`
+  height: 100%;
+  width: 50%;
+  overflow: hidden;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+
+  background-color: transparent;
+
+  :hover {
+    background-color: ${props => props.theme.colors.spotBackground[0]};
+  }
+`;
 
 const FiltersExistIndicator = styled.div`
   position: absolute;

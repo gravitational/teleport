@@ -14,32 +14,7 @@
  * limitations under the License.
  */
 
-/* 
-    the styled-components@5 doesn't support container queries so
-    we have to create and set the classes manually
-    TODO (avatus): DELETE if we ever upgrade to v6
-*/
-.ContainerContext {
-  container-type: inline-size;
-}
+export * from './utils';
 
-.CardsContainer {
-  @container (min-width: 1600px) {
-    grid-template-columns: repeat(4, minmax(400px, 1fr));
-  }
-}
-
-.ListContainer {
-  display: flex;
-  flex-direction: column;
-  @container (min-width: 1600px) {
-    grid-template-columns: repeat(4, minmax(400px, 1fr));
-  }
-}
-
-.SearchPanel {
-  width: 100%;
-  @container (min-width: 800px) {
-    width: 70%;
-  }
-}
+export { CopyButton } from './CopyButton';
+export { PinButton } from './PinButton';

@@ -27,12 +27,8 @@ import { nodes } from 'teleport/Nodes/fixtures';
 import { UrlResourcesParams } from 'teleport/config';
 import { ResourcesResponse } from 'teleport/services/agents';
 
-import {
-  UnifiedResources,
-  UnifiedResourcesPinning,
-  useUnifiedResourcesFetch,
-} from './UnifiedResources';
-import { SharedUnifiedResource } from './types';
+import { UnifiedResources, useUnifiedResourcesFetch } from './UnifiedResources';
+import { SharedUnifiedResource, UnifiedResourcesPinning } from './types';
 
 export default {
   title: 'Shared/UnifiedResources',

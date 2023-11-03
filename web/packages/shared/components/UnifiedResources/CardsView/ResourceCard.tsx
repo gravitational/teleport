@@ -14,35 +14,25 @@
  * limitations under the License.
  */
 
-import React, {
-  useCallback,
-  useState,
-  useEffect,
-  useLayoutEffect,
-  useRef,
-} from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import styled, { css } from 'styled-components';
 
-import { Box, ButtonIcon, ButtonLink, Flex, Label, Text } from 'design';
-import copyToClipboard from 'design/utils/copyToClipboard';
+import { Box, ButtonLink, Flex, Label, Text } from 'design';
 import { StyledCheckbox } from 'design/Checkbox';
 
 import { ShimmerBox } from 'design/ShimmerBox';
-import { ResourceIcon, ResourceIconName } from 'design/ResourceIcon';
-import { Icon, Copy, Check, PushPinFilled, PushPin } from 'design/Icon';
+import { ResourceIcon } from 'design/ResourceIcon';
 
-import {
-  HoverTooltip,
-  PINNING_NOT_SUPPORTED_MESSAGE,
-} from './UnifiedResources';
+import { HoverTooltip } from '../UnifiedResources';
 
-import type { ResourceLabel } from 'teleport/services/agents'; // Since we do a lot of manual resizing and some absolute positioning, we have
+import { ResourceItemProps } from '../types';
+import { PinButton, CopyButton } from '../shared';
 
 // Since we do a lot of manual resizing and some absolute positioning, we have
 // to put some layout constants in place here.
-const labelRowHeight = 20; // px
+const labelHeight = 20; // px
 const labelVerticalMargin = 1; // px
-const labelHeight = labelRowHeight * labelVerticalMargin;
+const labelRowHeight = labelHeight + labelVerticalMargin * 2;
 
 /**
  * This box serves twofold purpose: first, it prevents the underlying icon from
@@ -54,40 +44,13 @@ const ResTypeIconBox = styled(Box)`
   line-height: 0;
 `;
 
-export enum PinningSupport {
-  Supported = 'Supported',
-  /**
-   * Disables pinning functionality if a leaf cluster hasn't been upgraded yet.
-   * Shows an appropriate message on hover.
-   * */
-  NotSupported = 'NotSupported',
-  /** Disables the pinning button. */
-  Disabled = 'Disabled',
-  /** Hides the pinning button completely. */
-  Hidden = 'Hidden',
-}
-
-type Props = {
-  name: string;
-  primaryIconName: ResourceIconName;
-  SecondaryIcon: typeof Icon;
-  description: { primary?: string; secondary?: string };
-  labels: ResourceLabel[];
-  ActionButton: React.ReactElement;
-  onLabelClick?: (label: ResourceLabel) => void;
-  pinResource: () => void;
-  selectResource: () => void;
-  selected: boolean;
-  pinned: boolean;
-  pinningSupport: PinningSupport;
-};
-
 export function ResourceCard({
   name,
   primaryIconName,
   SecondaryIcon,
   onLabelClick,
-  description,
+  addr,
+  type,
   ActionButton,
   labels,
   pinningSupport,
@@ -95,7 +58,7 @@ export function ResourceCard({
   pinResource,
   selectResource,
   selected,
-}: Props) {
+}: ResourceItemProps) {
   const [showMoreLabelsButton, setShowMoreLabelsButton] = useState(false);
   const [showAllLabels, setShowAllLabels] = useState(false);
   const [numMoreLabels, setNumMoreLabels] = useState(0);
@@ -215,12 +178,22 @@ export function ResourceCard({
               onChange={selectResource}
             />
           </HoverTooltip>
-          <PinButton
-            setPinned={pinResource}
-            pinned={pinned}
-            pinningSupport={pinningSupport}
-            hovered={hovered}
-          />
+          <Box
+            css={`
+              position: absolute;
+              // we position far from the top so the layout of the pin doesn't change if we expand the card
+              top: ${props => props.theme.space[9]}px;
+              transition: none;
+              left: 16px;
+            `}
+          >
+            <PinButton
+              setPinned={pinResource}
+              pinned={pinned}
+              pinningSupport={pinningSupport}
+              hovered={hovered}
+            />
+          </Box>
           <ResourceIcon
             name={primaryIconName}
             width="45px"
@@ -250,17 +223,17 @@ export function ResourceCard({
               <ResTypeIconBox>
                 <SecondaryIcon size={18} />
               </ResTypeIconBox>
-              {description.primary && (
-                <SingleLineBox ml={1} title={description.primary}>
+              {type && (
+                <SingleLineBox ml={1} title={type}>
                   <Text typography="body2" color="text.slightlyMuted">
-                    {description.primary}
+                    {type}
                   </Text>
                 </SingleLineBox>
               )}
-              {description.secondary && (
-                <SingleLineBox ml={2} title={description.secondary}>
+              {addr && (
+                <SingleLineBox ml={2} title={addr}>
                   <Text typography="body2" color="text.muted">
-                    {description.secondary}
+                    {addr}
                   </Text>
                 </SingleLineBox>
               )}
@@ -362,34 +335,6 @@ export function LoadingCard({ delay = 'none' }: LoadingCardProps) {
   );
 }
 
-function CopyButton({ name }: { name: string }) {
-  const copySuccess = 'Copied!';
-  const copyDefault = 'Click to copy';
-  const copyAnchorEl = useRef(null);
-  const [copiedText, setCopiedText] = useState(copyDefault);
-
-  const handleCopy = useCallback(() => {
-    setCopiedText(copySuccess);
-    copyToClipboard(name);
-    // Change to default text after 1 second
-    setTimeout(() => {
-      setCopiedText(copyDefault);
-    }, 1000);
-  }, [name]);
-
-  return (
-    <HoverTooltip tipContent={<>{copiedText}</>}>
-      <ButtonIcon setRef={copyAnchorEl} size={0} mr={2} onClick={handleCopy}>
-        {copiedText === copySuccess ? (
-          <Check size="small" />
-        ) : (
-          <Copy size="small" />
-        )}
-      </ButtonIcon>
-    </HoverTooltip>
-  );
-}
-
 /**
  * The outer container's purpose is to reserve horizontal space on the resource
  * grid. It holds the inner container that normally holds a regular layout of
@@ -420,6 +365,7 @@ const CardOuterContainer = styled(Box)`
 
   ${CardContainer}:hover & {
     background-color: ${props => props.theme.colors.levels.surface};
+    box-shadow: ${props => props.theme.boxShadow[3]};
   }
 `;
 
@@ -437,6 +383,11 @@ const CardInnerContainer = styled(Flex)`
     ${props => props.theme.colors.spotBackground[0]};
   border-radius: ${props => props.theme.radii[3]}px;
   background-color: ${props => getBackgroundColor(props)};
+
+  :hover {
+    // Make the border invisible instead of removing it, this is to prevent things from shifting due to the size change.
+    border: ${props => props.theme.borders[2]} rgba(0, 0, 0, 0);
+  }
 `;
 
 const getBackgroundColor = props => {
@@ -472,6 +423,7 @@ const StyledLabel = styled(Label)`
   text-overflow: ellipsis;
   white-space: nowrap;
   cursor: pointer;
+  line-height: ${labelHeight - labelVerticalMargin}px;
 `;
 
 /**
@@ -513,69 +465,3 @@ const LoadingCardWrapper = styled(Box)`
     ${props => props.theme.colors.spotBackground[0]};
   border-radius: ${props => props.theme.radii[3]}px;
 `;
-
-function PinButton({
-  pinned,
-  pinningSupport,
-  hovered,
-  setPinned,
-}: {
-  pinned: boolean;
-  pinningSupport: PinningSupport;
-  hovered: boolean;
-  setPinned: (id: string) => void;
-}) {
-  const copyAnchorEl = useRef(null);
-  const tipContent = getTipContent(pinningSupport, pinned);
-
-  const shouldShowButton =
-    pinningSupport !== PinningSupport.Hidden && (pinned || hovered);
-  const shouldDisableButton =
-    pinningSupport === PinningSupport.Disabled ||
-    pinningSupport === PinningSupport.NotSupported;
-
-  const $content = pinned ? (
-    <PushPinFilled color="brand" size="small" />
-  ) : (
-    <PushPin size="small" />
-  );
-
-  return (
-    <ButtonIcon
-      css={`
-        // dont display but keep the layout
-        visibility: ${shouldShowButton ? 'visible' : 'hidden'};
-        position: absolute;
-        // we position far from the top so the layout of the pin doesn't change if we expand the card
-        top: ${props => props.theme.space[9]}px;
-        transition: none;
-        left: 16px;
-      `}
-      disabled={shouldDisableButton}
-      setRef={copyAnchorEl}
-      size={0}
-      onClick={setPinned}
-    >
-      {tipContent ? (
-        <HoverTooltip tipContent={<>{tipContent}</>}>{$content}</HoverTooltip>
-      ) : (
-        $content
-      )}
-      <HoverTooltip tipContent={<>{tipContent}</>}></HoverTooltip>
-    </ButtonIcon>
-  );
-}
-
-function getTipContent(
-  pinningSupport: PinningSupport,
-  pinned: boolean
-): string {
-  switch (pinningSupport) {
-    case PinningSupport.NotSupported:
-      return PINNING_NOT_SUPPORTED_MESSAGE;
-    case PinningSupport.Supported:
-      return pinned ? 'Unpin' : 'Pin';
-    default:
-      return '';
-  }
-}

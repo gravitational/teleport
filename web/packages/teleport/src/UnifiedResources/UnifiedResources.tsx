@@ -20,9 +20,9 @@ import { Flex } from 'design';
 
 import {
   UnifiedResources as SharedUnifiedResources,
-  UnifiedResourcesPinning,
   useUnifiedResourcesFetch,
 } from 'shared/components/UnifiedResources';
+import { UnifiedResourcesPinning } from 'shared/components/UnifiedResources/types';
 
 import useStickyClusterId from 'teleport/useStickyClusterId';
 import localStorage from 'teleport/services/localStorage';

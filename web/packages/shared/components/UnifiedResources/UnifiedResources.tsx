@@ -51,26 +51,24 @@ import {
 } from 'shared/hooks/useInfiniteScroll';
 import { Attempt } from 'shared/hooks/useAttemptNext';
 
-import { SharedUnifiedResource, UnifiedResourcesQueryParams } from './types';
 import {
-  makeUnifiedResourceCardNode,
-  makeUnifiedResourceCardDatabase,
-  makeUnifiedResourceCardKube,
-  makeUnifiedResourceCardApp,
-  makeUnifiedResourceCardDesktop,
-  makeUnifiedResourceCardUserGroup,
-} from './cards';
+  SharedUnifiedResource,
+  PinningSupport,
+  UnifiedResourcesPinning,
+  UnifiedResourcesQueryParams,
+} from './types';
 
 import { ResourceTab } from './ResourceTab';
-import { ResourceCard, LoadingCard, PinningSupport } from './ResourceCard';
-import { FilterPanel } from './FilterPanel';
+import { FilterPanel, ViewMode } from './FilterPanel';
+import { CardsView } from './CardsView/CardsView';
+import { ListView } from './ListView/ListView';
 
 // get 48 resources to start
 const INITIAL_FETCH_SIZE = 48;
 // increment by 24 every fetch
 const FETCH_MORE_SIZE = 24;
 
-const loadingCardArray = new Array(FETCH_MORE_SIZE).fill(undefined);
+const loadingItemArray = new Array(FETCH_MORE_SIZE).fill(undefined);
 
 export const PINNING_NOT_SUPPORTED_MESSAGE =
   'This cluster does not support pinning resources. To enable, upgrade to 14.1 or newer.';
@@ -85,20 +83,6 @@ const tabs: { label: string; value: UnifiedTabPreference }[] = [
     value: UnifiedTabPreference.Pinned,
   },
 ];
-
-export type UnifiedResourcesPinning =
-  | {
-      kind: 'supported';
-      /** `getClusterPinnedResources` has to be stable, it is used in `useEffect`. */
-      getClusterPinnedResources(): Promise<string[]>;
-      updateClusterPinnedResources(pinned: string[]): Promise<void>;
-    }
-  | {
-      kind: 'not-supported';
-    }
-  | {
-      kind: 'hidden';
-    };
 
 /*
  * BulkAction describes a component that allows you to perform an action
@@ -186,6 +170,9 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
         return [];
       }, [pinnedResourcesGetter])
     );
+
+  // TODO(rudream): Store this from user preferences.
+  const [viewMode, setViewMode] = useState<ViewMode>('card');
 
   useEffect(() => {
     getPinnedResources();
@@ -375,6 +362,8 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
         availableKinds={availableKinds}
         selectVisible={toggleSelectVisible}
         selected={allSelected}
+        currentViewMode={viewMode}
+        onSelectViewMode={setViewMode}
         BulkActions={
           <>
             {selectedResources.length > 0 && (
@@ -435,39 +424,41 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
       {pinning.kind === 'not-supported' && params.pinnedOnly ? (
         <PinningNotSupported />
       ) : (
-        <ResourcesContainer gap={2}>
-          {resources
-            .map(unifiedResource => ({
-              card: mapResourceToCard(unifiedResource),
-              key: generateUnifiedResourceKey(unifiedResource.resource),
-            }))
-            .map(({ card, key }) => (
-              <ResourceCard
-                key={key}
-                name={card.name}
-                ActionButton={card.ActionButton}
-                primaryIconName={card.primaryIconName}
-                onLabelClick={onLabelClick}
-                SecondaryIcon={card.SecondaryIcon}
-                description={card.description}
-                labels={card.labels}
-                pinned={pinnedResources.includes(key)}
-                pinningSupport={getResourcePinningSupport(
-                  pinning.kind,
-                  updatePinnedResourcesAttempt
-                )}
-                selected={selectedResources.includes(key)}
-                selectResource={() => handleSelectResources(key)}
-                pinResource={() => handlePinResource(key)}
-              />
-            ))}
-          {/* Using index as key here is ok because these elements never change order */}
-          {(resourcesFetchAttempt.status === 'processing' ||
-            getPinnedResourcesAttempt.status === 'processing') &&
-            loadingCardArray.map((_, i) => (
-              <LoadingCard delay="short" key={i} />
-            ))}
-        </ResourcesContainer>
+        <>
+          {viewMode === 'list' ? (
+            <ListView
+              resources={resources}
+              onLabelClick={onLabelClick}
+              pinnedResources={pinnedResources}
+              pinning={pinning}
+              selectedResources={selectedResources}
+              handleSelectResources={handleSelectResources}
+              handlePinResource={handlePinResource}
+              updatePinnedResourcesAttempt={updatePinnedResourcesAttempt}
+              isProcessing={
+                resourcesFetchAttempt.status === 'processing' ||
+                getPinnedResourcesAttempt.status === 'processing'
+              }
+              loadingItemArray={loadingItemArray}
+            />
+          ) : (
+            <CardsView
+              resources={resources}
+              onLabelClick={onLabelClick}
+              pinnedResources={pinnedResources}
+              pinning={pinning}
+              selectedResources={selectedResources}
+              handleSelectResources={handleSelectResources}
+              handlePinResource={handlePinResource}
+              updatePinnedResourcesAttempt={updatePinnedResourcesAttempt}
+              isProcessing={
+                resourcesFetchAttempt.status === 'processing' ||
+                getPinnedResourcesAttempt.status === 'processing'
+              }
+              loadingItemArray={loadingItemArray}
+            />
+          )}
+        </>
       )}
       <div ref={setTrigger} />
       <ListFooter>
@@ -500,7 +491,7 @@ export function useUnifiedResourcesFetch<T>(props: {
   });
 }
 
-function getResourcePinningSupport(
+export function getResourcePinningSupport(
   pinning: UnifiedResourcesPinning['kind'],
   updatePinnedResourcesAttempt: AsyncAttempt<void>
 ): PinningSupport {
@@ -576,11 +567,6 @@ function NoResults({
   return null;
 }
 
-const ResourcesContainer = styled(Flex)`
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
-`;
-
 const ErrorBox = styled(Box)`
   position: sticky;
   top: 0;
@@ -645,7 +631,14 @@ export const HoverTooltip: React.FC<{
           horizontal: 'center',
         }}
       >
-        <StyledOnHover px={2} py={1} fontSize={`${fontSize}px`}>
+        <StyledOnHover
+          px={2}
+          py={1}
+          fontSize={`${fontSize}px`}
+          css={`
+            word-wrap: break-word;
+          `}
+        >
           {tipContent}
         </StyledOnHover>
       </Popover>
@@ -662,20 +655,3 @@ const StyledOnHover = styled(Text)`
   background-color: ${props => props.theme.colors.tooltip.background};
   max-width: 350px;
 `;
-
-function mapResourceToCard({ resource, ui }: SharedUnifiedResource) {
-  switch (resource.kind) {
-    case 'node':
-      return makeUnifiedResourceCardNode(resource, ui);
-    case 'db':
-      return makeUnifiedResourceCardDatabase(resource, ui);
-    case 'kube_cluster':
-      return makeUnifiedResourceCardKube(resource, ui);
-    case 'app':
-      return makeUnifiedResourceCardApp(resource, ui);
-    case 'windows_desktop':
-      return makeUnifiedResourceCardDesktop(resource, ui);
-    case 'user_group':
-      return makeUnifiedResourceCardUserGroup(resource, ui);
-  }
-}

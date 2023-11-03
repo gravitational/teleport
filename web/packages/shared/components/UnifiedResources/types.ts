@@ -18,8 +18,12 @@ import React from 'react';
 
 import { ResourceLabel } from 'teleport/services/agents';
 
+import { ResourceIconName } from 'design/ResourceIcon';
+import { Icon } from 'design/Icon';
+
 import { DbProtocol } from 'shared/services/databases';
 import { NodeSubKind } from 'shared/services';
+import { Attempt } from 'shared/hooks/useAsync';
 
 export type UnifiedResourceApp = {
   kind: 'app';
@@ -30,6 +34,7 @@ export type UnifiedResourceApp = {
   awsConsole: boolean;
   addrWithProtocol?: string;
   friendlyName?: string;
+  samlApp?: boolean;
 };
 
 export interface UnifiedResourceDatabase {
@@ -99,4 +104,74 @@ export type UnifiedResourcesQueryParams = {
   pinnedOnly?: boolean;
   // TODO(bl-nero): Remove this once filters are expressed as advanced search.
   kinds?: string[];
+};
+export interface UnifiedResourceItem {
+  name: string;
+  description?: string;
+  addr?: string;
+  type: string;
+  labels: {
+    name: string;
+    value: string;
+  }[];
+  primaryIconName: ResourceIconName;
+  SecondaryIcon: typeof Icon;
+  ActionButton: React.ReactElement;
+}
+
+export enum PinningSupport {
+  Supported = 'Supported',
+  /**
+   * Disables pinning functionality if a leaf cluster hasn't been upgraded yet.
+   * Shows an appropriate message on hover.
+   * */
+  NotSupported = 'NotSupported',
+  /** Disables the pinning button. */
+  Disabled = 'Disabled',
+  /** Hides the pinning button completely. */
+  Hidden = 'Hidden',
+}
+
+export type ResourceItemProps = {
+  name: string;
+  primaryIconName: ResourceIconName;
+  SecondaryIcon: typeof Icon;
+  type: string;
+  addr?: string;
+  description?: string;
+  labels: ResourceLabel[];
+  ActionButton: React.ReactElement;
+  onLabelClick?: (label: ResourceLabel) => void;
+  pinResource: () => void;
+  selectResource: () => void;
+  selected: boolean;
+  pinned: boolean;
+  pinningSupport: PinningSupport;
+};
+
+export type UnifiedResourcesPinning =
+  | {
+      kind: 'supported';
+      /** `getClusterPinnedResources` has to be stable, it is used in `useEffect`. */
+      getClusterPinnedResources(): Promise<string[]>;
+      updateClusterPinnedResources(pinned: string[]): Promise<void>;
+    }
+  | {
+      kind: 'not-supported';
+    }
+  | {
+      kind: 'hidden';
+    };
+
+export type ResourceViewProps = {
+  resources: SharedUnifiedResource[];
+  onLabelClick: (label: ResourceLabel) => void;
+  pinnedResources: string[];
+  pinning: UnifiedResourcesPinning;
+  updatePinnedResourcesAttempt: Attempt<void>;
+  selectedResources: string[];
+  handleSelectResources: (resourceId: string) => void;
+  handlePinResource: (resourceId: string) => void;
+  isProcessing: boolean;
+  loadingItemArray: any[];
 };

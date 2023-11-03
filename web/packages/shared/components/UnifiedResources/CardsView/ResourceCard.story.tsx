@@ -31,15 +31,17 @@ import { nodes } from 'teleport/Nodes/fixtures';
 
 import makeApp from 'teleport/services/apps/makeApps';
 
-import { ResourceCard, PinningSupport } from './ResourceCard';
-
 import {
-  makeUnifiedResourceCardApp,
-  makeUnifiedResourceCardDatabase,
-  makeUnifiedResourceCardKube,
-  makeUnifiedResourceCardNode,
-  makeUnifiedResourceCardDesktop,
-} from './cards';
+  makeUnifiedResourceItemApp,
+  makeUnifiedResourceItemDatabase,
+  makeUnifiedResourceItemKube,
+  makeUnifiedResourceItemNode,
+  makeUnifiedResourceItemDesktop,
+} from '../shared';
+
+import { PinningSupport } from '../types';
+
+import { ResourceCard } from './ResourceCard';
 
 const additionalResources = [
   makeApp({
@@ -80,7 +82,7 @@ const additionalResources = [
 
 const meta: Meta<typeof ResourceCard> = {
   component: ResourceCard,
-  title: 'Shared/UnifiedResources/ResourceCard',
+  title: 'Shared/UnifiedResources/Items',
 };
 
 const Grid = styled.div`
@@ -100,24 +102,24 @@ export const Cards: Story = {
       <Grid gap={2}>
         {[
           ...apps.map(resource =>
-            makeUnifiedResourceCardApp(resource, { ActionButton })
+            makeUnifiedResourceItemApp(resource, { ActionButton })
           ),
           ...databases.map(resource =>
-            makeUnifiedResourceCardDatabase(resource, {
+            makeUnifiedResourceItemDatabase(resource, {
               ActionButton,
             })
           ),
           ...kubes.map(resource =>
-            makeUnifiedResourceCardKube(resource, { ActionButton })
+            makeUnifiedResourceItemKube(resource, { ActionButton })
           ),
           ...nodes.map(resource =>
-            makeUnifiedResourceCardNode(resource, { ActionButton })
+            makeUnifiedResourceItemNode(resource, { ActionButton })
           ),
           ...additionalResources.map(resource =>
-            makeUnifiedResourceCardApp(resource, { ActionButton })
+            makeUnifiedResourceItemApp(resource, { ActionButton })
           ),
           ...desktops.map(resource =>
-            makeUnifiedResourceCardDesktop(resource, { ActionButton })
+            makeUnifiedResourceItemDesktop(resource, { ActionButton })
           ),
         ].map((res, i) => (
           <ResourceCard
@@ -131,6 +133,8 @@ export const Cards: Story = {
             primaryIconName={res.primaryIconName}
             SecondaryIcon={res.SecondaryIcon}
             description={res.description}
+            type={res.type}
+            addr={res.addr}
             labels={res.labels}
             ActionButton={res.ActionButton}
           />

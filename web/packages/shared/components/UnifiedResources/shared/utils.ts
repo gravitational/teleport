@@ -14,133 +14,116 @@
  * limitations under the License.
  */
 
-import React from 'react';
-import { ResourceIconName } from 'design/ResourceIcon';
-
 import {
-  Icon,
   Application as ApplicationIcon,
   Database as DatabaseIcon,
   Kubernetes as KubernetesIcon,
   Server as ServerIcon,
   Desktop as DesktopIcon,
 } from 'design/Icon';
+import { ResourceIconName } from 'design/ResourceIcon';
 
 import { DbProtocol } from 'shared/services/databases';
 import { NodeSubKind } from 'shared/services';
 
 import {
-  UnifiedResourceKube,
-  UnifiedResourceNode,
+  UnifiedResourceItem,
   UnifiedResourceUi,
-  UnifiedResourceDatabase,
+  UnifiedResourceNode,
   UnifiedResourceApp,
-  UnifiedResourceUserGroup,
+  UnifiedResourceDatabase,
   UnifiedResourceDesktop,
-} from './types';
+  UnifiedResourceKube,
+  UnifiedResourceUserGroup,
+  SharedUnifiedResource,
+} from '../types';
 
-export interface UnifiedResourceCard {
-  name: string;
-  description: {
-    primary?: string;
-    secondary?: string;
-  };
-  labels: {
-    name: string;
-    value: string;
-  }[];
-  primaryIconName: ResourceIconName;
-  SecondaryIcon: typeof Icon;
-  ActionButton: React.ReactElement;
-}
-
-export function makeUnifiedResourceCardNode(
+export function makeUnifiedResourceItemNode(
   resource: UnifiedResourceNode,
   ui: UnifiedResourceUi
-): UnifiedResourceCard {
+): UnifiedResourceItem {
   return {
     name: resource.hostname,
     SecondaryIcon: ServerIcon,
     primaryIconName: 'Server',
     ActionButton: ui.ActionButton,
     labels: resource.labels,
-    description: {
-      primary: formatNodeSubKind(resource.subKind),
-      secondary: resource.tunnel ? '' : resource.addr,
-    },
+    type: formatNodeSubKind(resource.subKind),
+    addr: resource.tunnel ? '' : resource.addr,
   };
 }
 
-export function makeUnifiedResourceCardDatabase(
+export function makeUnifiedResourceItemDatabase(
   resource: UnifiedResourceDatabase,
   ui: UnifiedResourceUi
-): UnifiedResourceCard {
+): UnifiedResourceItem {
   return {
     name: resource.name,
     SecondaryIcon: DatabaseIcon,
     primaryIconName: getDatabaseIconName(resource.protocol),
     ActionButton: ui.ActionButton,
     labels: resource.labels,
-    description: { primary: resource.type, secondary: resource.description },
+    description: resource.description,
+    type: resource.type,
   };
 }
 
-export function makeUnifiedResourceCardKube(
+export function makeUnifiedResourceItemKube(
   resource: UnifiedResourceKube,
   ui: UnifiedResourceUi
-): UnifiedResourceCard {
+): UnifiedResourceItem {
   return {
     name: resource.name,
     SecondaryIcon: KubernetesIcon,
     primaryIconName: 'Kube',
     ActionButton: ui.ActionButton,
     labels: resource.labels,
-    description: { primary: 'Kubernetes' },
+    type: 'Kubernetes',
   };
 }
 
-export function makeUnifiedResourceCardApp(
+export function makeUnifiedResourceItemApp(
   resource: UnifiedResourceApp,
   ui: UnifiedResourceUi
-): UnifiedResourceCard {
+): UnifiedResourceItem {
   return {
     name: resource.name,
     SecondaryIcon: ApplicationIcon,
     primaryIconName: guessAppIcon(resource),
     ActionButton: ui.ActionButton,
     labels: resource.labels,
-    description: {
-      primary: resource.description,
-      secondary: resource.addrWithProtocol,
-    },
+    type: resource.samlApp ? 'SAML Application' : 'Application',
+    description: resource.samlApp ? '' : resource.description,
+    addr: resource.addrWithProtocol,
   };
 }
 
-export function makeUnifiedResourceCardDesktop(
+export function makeUnifiedResourceItemDesktop(
   resource: UnifiedResourceDesktop,
   ui: UnifiedResourceUi
-): UnifiedResourceCard {
+): UnifiedResourceItem {
   return {
     name: resource.name,
     SecondaryIcon: DesktopIcon,
     primaryIconName: 'Windows',
     ActionButton: ui.ActionButton,
     labels: resource.labels,
-    description: { primary: 'Windows', secondary: resource.addr },
+    type: 'Windows',
+    addr: resource.addr,
   };
 }
 
-export function makeUnifiedResourceCardUserGroup(
+export function makeUnifiedResourceItemUserGroup(
   resource: UnifiedResourceUserGroup,
   ui: UnifiedResourceUi
-): UnifiedResourceCard {
+): UnifiedResourceItem {
   return {
     name: resource.name,
     SecondaryIcon: ServerIcon,
     primaryIconName: 'Server',
     ActionButton: ui.ActionButton,
     labels: resource.labels,
-    description: {},
+    type: 'User Group',
   };
 }
 
@@ -207,5 +190,22 @@ function getDatabaseIconName(protocol: DbProtocol): ResourceIconName {
       return 'Dynamo';
     default:
       return 'Database';
+  }
+}
+
+export function mapResourceToItem({ resource, ui }: SharedUnifiedResource) {
+  switch (resource.kind) {
+    case 'node':
+      return makeUnifiedResourceItemNode(resource, ui);
+    case 'db':
+      return makeUnifiedResourceItemDatabase(resource, ui);
+    case 'kube_cluster':
+      return makeUnifiedResourceItemKube(resource, ui);
+    case 'app':
+      return makeUnifiedResourceItemApp(resource, ui);
+    case 'windows_desktop':
+      return makeUnifiedResourceItemDesktop(resource, ui);
+    case 'user_group':
+      return makeUnifiedResourceItemUserGroup(resource, ui);
   }
 }
