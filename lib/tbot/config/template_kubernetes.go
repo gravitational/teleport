@@ -28,7 +28,6 @@ import (
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 
 	"github.com/gravitational/teleport/api/client/webclient"
-	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
@@ -199,13 +198,7 @@ func selectKubeConnectionMethod(proxyPong *webclient.PingResponse) (clusterAddr 
 			return "", "", trace.Wrap(err, "parsing proxy public_addr")
 		}
 
-		sni = fmt.Sprintf("%s%s", constants.KubeTeleportProxyALPNPrefix, host)
-		hostIsIP := net.ParseIP(host) != nil
-		if host == "" || hostIsIP {
-			sni = fmt.Sprintf("%s%s", constants.KubeTeleportProxyALPNPrefix, constants.APIDomain)
-		}
-
-		return fmt.Sprintf("https://%s", addr), sni, nil
+		return fmt.Sprintf("https://%s", addr), client.GetKubeTLSServerName(host), nil
 	}
 
 	// Next, we try to use the KubePublicAddr.
