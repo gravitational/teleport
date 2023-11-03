@@ -18,6 +18,7 @@ package common
 
 import (
 	"fmt"
+	"io"
 	"path"
 	"sort"
 	"strings"
@@ -433,6 +434,18 @@ func onRequestSearch(cf *CLIConf) error {
 		defer proxyClient.Close()
 
 		authClient := proxyClient.CurrentCluster()
+		if cf.ResourceKind == types.KindRole {
+			caps, err := authClient.GetAccessCapabilities(cf.Context,
+				types.AccessCapabilitiesRequest{
+					User:             cf.Username,
+					RequestableRoles: true,
+				})
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
+			return trace.Wrap(showRequestableRoles(cf.Stdout(), caps.RequestableRoles))
+		}
 
 		req := proto.ListResourcesRequest{
 			Labels:              tc.Labels,
@@ -517,6 +530,30 @@ To request access to these resources, run
 `, resourcesStr)
 	}
 
+	return nil
+}
+
+func showRequestableRoles(w io.Writer, requestableRoles []string) error {
+	tableColumns := []string{"Requestable Roles"}
+	rows := make([][]string, 0, len(requestableRoles))
+	for _, r := range requestableRoles {
+		rows = append(rows, []string{r})
+	}
+	var table asciitable.Table
+	table = asciitable.MakeTable(tableColumns, rows...)
+	table.SortRowsBy([]int{0}, true)
+	if _, err := table.AsBuffer().WriteTo(w); err != nil {
+		return trace.Wrap(err)
+	}
+
+	hint := "<role>"
+	if len(requestableRoles) == 1 {
+		hint = requestableRoles[0]
+	}
+	fmt.Fprintf(w, `
+To request access, run
+> tsh request create --roles=%s
+`, hint)
 	return nil
 }
 

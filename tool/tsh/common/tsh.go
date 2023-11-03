@@ -1024,7 +1024,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	// will be kept around for users that built automation around it, but all
 	// public facing documentation should now refer to "tsh request create".
 	reqCreate := req.Command("create", "Create a new access request.").Alias("new")
-	reqCreate.Flag("roles", "Roles to be requested").StringVar(&cf.DesiredRoles)
+	reqCreate.Flag("roles", "List of comma-separated roles to request").StringVar(&cf.DesiredRoles)
 	reqCreate.Flag("reason", "Reason for requesting").StringVar(&cf.RequestReason)
 	reqCreate.Flag("reviewers", "Suggested reviewers").StringVar(&cf.SuggestedReviewers)
 	reqCreate.Flag("nowait", "Finish without waiting for request resolution").BoolVar(&cf.NoWait)
@@ -2549,6 +2549,12 @@ func executeAccessRequest(cf *CLIConf, tc *client.TeleportClient) error {
 		// always create access request against the root cluster
 		if err := tc.WithRootClusterClient(cf.Context, func(clt auth.ClientI) error {
 			req, err = clt.CreateAccessRequestV2(cf.Context, req)
+			if trace.IsBadParameter(err) && len(cf.RequestedResourceIDs) == 0 && len(cf.DesiredRoles) > 0 {
+				return trace.BadParameter(`%v
+
+To see requestable roles, run
+> tsh request search --kind=role`, err)
+			}
 			return trace.Wrap(err)
 		}); err != nil {
 			return trace.Wrap(err)
