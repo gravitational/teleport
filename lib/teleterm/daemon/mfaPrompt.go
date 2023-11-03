@@ -33,9 +33,9 @@ import (
 // mfaPrompt is a tshd implementation of mfa.Prompt that uses the
 // tshdEventsClient to propagate mfa prompts to the Electron App.
 type mfaPrompt struct {
-	cfg              libmfa.PromptConfig
-	clusterURI       string
-	tshdEventsClient api.TshdEventsServiceClient
+	cfg          libmfa.PromptConfig
+	clusterURI   string
+	promptAppMFA func(ctx context.Context, in *api.PromptMFARequest) (*api.PromptMFAResponse, error)
 }
 
 // NewMFAPromptConstructor returns a new MFA prompt constructor
@@ -49,10 +49,19 @@ func (s *Service) NewMFAPromptConstructor(clusterURI string) func(cfg *libmfa.Pr
 // NewMFAPrompt returns a new MFA prompt for this service and the given cluster.
 func (s *Service) NewMFAPrompt(clusterURI string, cfg *libmfa.PromptConfig) *mfaPrompt {
 	return &mfaPrompt{
-		cfg:              *cfg,
-		clusterURI:       clusterURI,
-		tshdEventsClient: s.tshdEventsClient,
+		cfg:          *cfg,
+		clusterURI:   clusterURI,
+		promptAppMFA: s.promptAppMFA,
 	}
+}
+
+func (s *Service) promptAppMFA(ctx context.Context, in *api.PromptMFARequest) (*api.PromptMFAResponse, error) {
+	if err := s.importantModalSemaphore.Acquire(ctx); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer s.importantModalSemaphore.Release()
+
+	return s.tshdEventsClient.PromptMFA(ctx, in)
 }
 
 // Run prompts the user to complete an MFA authentication challenge.
@@ -69,7 +78,7 @@ func (p *mfaPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChalleng
 		go func() {
 			defer wg.Done()
 
-			resp, err := p.promptApp(ctx, chal, runOpts)
+			resp, err := p.promptMFA(ctx, chal, runOpts)
 			respC <- libmfa.MFAGoroutineResponse{Resp: resp, Err: err}
 		}()
 
@@ -99,8 +108,8 @@ func (p *mfaPrompt) promptWebauthn(ctx context.Context, chal *proto.MFAAuthentic
 	return resp, nil
 }
 
-func (p *mfaPrompt) promptApp(ctx context.Context, chal *proto.MFAAuthenticateChallenge, runOpts libmfa.RunOpts) (*proto.MFAAuthenticateResponse, error) {
-	resp, err := p.tshdEventsClient.PromptMFA(ctx, &api.PromptMFARequest{
+func (p *mfaPrompt) promptMFA(ctx context.Context, chal *proto.MFAAuthenticateChallenge, runOpts libmfa.RunOpts) (*proto.MFAAuthenticateResponse, error) {
+	resp, err := p.promptAppMFA(ctx, &api.PromptMFARequest{
 		RootClusterUri: p.clusterURI,
 		Reason:         p.cfg.PromptReason,
 		Totp:           runOpts.PromptTOTP,
