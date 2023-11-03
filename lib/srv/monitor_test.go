@@ -174,7 +174,8 @@ func TestMonitorLockInForce(t *testing.T) {
 
 	select {
 	case disconnectEvent := <-emitter.C():
-		require.Equal(t, services.LockInForceAccessDenied(lock).Error(), (disconnectEvent).(*apievents.ClientDisconnect).Reason)
+		reason := (disconnectEvent).(*apievents.ClientDisconnect).Reason
+		require.Equal(t, services.LockInForceAccessDenied(lock).Error(), reason, "expected error matching client disconnect")
 	case <-time.After(2 * time.Second):
 		t.Fatal("Timeout waiting for connection close event.")
 	}

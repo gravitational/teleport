@@ -237,8 +237,16 @@ func TestDatabaseServerAutoDisconnect(t *testing.T) {
 	require.NoError(t, pgConn.Close(ctx))
 }
 
+// advanceInSteps makes the clockwork.FakeClock behave closer to the real clock, smoothing the transition for large advances in time.
+// This works around a class of issues in the production code which expects that clock is smooth, not choppy.
+// Most testing code should NOT need to use this function.
+//
+// In technical terms, it divides the clock advancement into 100 smaller steps, with a short sleep after each one.
 func advanceInSteps(clock clockwork.FakeClock, total time.Duration) {
 	step := total / 100
+	if step <= 0 {
+		step = 1
+	}
 
 	end := clock.Now().Add(total)
 	for clock.Now().Before(end) {

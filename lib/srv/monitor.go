@@ -230,7 +230,7 @@ type MonitorConfig struct {
 	ServerID string
 	// Emitter is events emitter
 	Emitter apievents.Emitter
-	// EmitterContext is long-lived context suitable to be used with Emitter.
+	// EmitterContext is long-lived context suitable to be used with Emitter. Typically, a server exit context will be used here.
 	EmitterContext context.Context
 	// Entry is a logging entry
 	Entry log.FieldLogger
