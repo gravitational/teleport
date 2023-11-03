@@ -22,11 +22,14 @@ import React, {
   createContext,
   useRef,
   MutableRefObject,
+  useEffect,
 } from 'react';
 
 import { SearchFilter } from 'teleterm/ui/Search/searchResult';
 
 import { actionPicker, SearchPicker } from './pickers/pickers';
+import { useAppContext } from 'teleterm/ui/appContextProvider';
+import { SearchConnector } from 'teleterm/ui/services/resourceSearch/resourceSearchService';
 
 export interface SearchContext {
   inputRef: MutableRefObject<HTMLInputElement>;
@@ -43,6 +46,8 @@ export interface SearchContext {
   setFilter(filter: SearchFilter): void;
   removeFilter(filter: SearchFilter): void;
   pauseUserInteraction(action: () => Promise<any>): Promise<void>;
+  advancedSearchEnabled: boolean;
+  toggleAdvancedSearch(): void;
   addWindowEventListener: AddWindowEventListener;
   makeEventListener: <EventListener>(
     eventListener: EventListener
@@ -59,6 +64,7 @@ const SearchContext = createContext<SearchContext>(null);
 
 export const SearchContextProvider: FC = props => {
   // The type of the ref is Element to adhere to the type of document.activeElement.
+  const appContext = useAppContext();
   const previouslyActive = useRef<Element>();
   const inputRef = useRef<HTMLInputElement>();
   const [isOpen, setIsOpen] = useState(false);
@@ -72,11 +78,78 @@ export const SearchContextProvider: FC = props => {
   // the filters while code that uses the search filters, such as ResourcesService.searchResources,
   // could operate on the object instead.
   const [filters, setFilters] = useState<SearchFilter[]>([]);
+  const [advancedSearchEnabled, setAdvancedSearchEnabled] = useState(false);
+
+  function toggleAdvancedSearch() {
+    setAdvancedSearchEnabled(prevState => !prevState);
+  }
 
   function changeActivePicker(picker: SearchPicker): void {
     setActivePicker(picker);
     setInputValue('');
   }
+
+  const updateStateFromConnector = useCallback(
+    (connector: SearchConnector | undefined) => {
+      if (connector) {
+        setFilters([{ filter: 'cluster', clusterUri: connector.clusterUri }]);
+        setActivePicker(actionPicker);
+        setInputValue(connector.state.search || '');
+        setAdvancedSearchEnabled(connector.state.isAdvancedSearchEnabled);
+        if (connector.getState().kinds)
+          console.warn(
+            connector.state.kinds.map(kind => {
+              switch (kind) {
+                case 'node':
+                  return 'servers';
+                case 'db':
+                  return 'databases';
+                case 'kube_cluster':
+                  return 'kubes';
+              }
+            })
+          );
+
+        const resourceType = connector.state.kinds
+          .map(kind => {
+            switch (kind) {
+              case 'node':
+                return 'servers' as const;
+              case 'db':
+                return 'databases' as const;
+              case 'kube_cluster':
+                return 'kubes' as const;
+            }
+          })
+          ?.at(0);
+
+        setFilters(
+          [
+            {
+              filter: 'cluster' as const,
+              clusterUri: connector.clusterUri as any,
+            },
+            resourceType && {
+              filter: 'resource-type' as const,
+              resourceType,
+            },
+          ].filter(Boolean)
+        );
+      } else {
+        setFilters([
+          {
+            filter: 'cluster',
+            clusterUri:
+              appContext.workspacesService.getActiveWorkspace().localClusterUri,
+          },
+        ]);
+        setActivePicker(actionPicker);
+        setInputValue('');
+        setAdvancedSearchEnabled(false);
+      }
+    },
+    []
+  );
 
   const close = useCallback(() => {
     setIsOpen(false);
@@ -99,6 +172,25 @@ export const SearchContextProvider: FC = props => {
   const resetInput = useCallback(() => {
     setInputValue('');
   }, []);
+  const { connector } = appContext.resourceSearchService.useState();
+  console.warn(connector);
+
+  useEffect(() => {
+    const callbak = () => {
+      console.error(' re draw!');
+      updateStateFromConnector(connector);
+    };
+
+    if (connector) {
+      updateStateFromConnector(connector);
+      connector.subscribe(callbak);
+      return () => {
+        console.warn('unsub!!');
+        updateStateFromConnector(undefined);
+        connector.unsubscribe(callbak);
+      };
+    }
+  }, [connector, updateStateFromConnector]);
 
   function open(fromElement?: HTMLElement): void {
     if (isOpen) {
@@ -112,7 +204,6 @@ export const SearchContextProvider: FC = props => {
       inputRef.current?.focus();
       return;
     }
-
     previouslyActive.current = fromElement || document.activeElement;
     setIsOpen(true);
   }
@@ -227,6 +318,8 @@ export const SearchContextProvider: FC = props => {
         pauseUserInteraction,
         addWindowEventListener,
         makeEventListener,
+        advancedSearchEnabled,
+        toggleAdvancedSearch,
       }}
       children={props.children}
     />

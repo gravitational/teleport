@@ -35,6 +35,6 @@ export const PickerContainer = styled.div`
   overflow: hidden;
 
   // Account for border.
-  width: calc(100% + 2px);
+  width: calc(118% + 2px);
   margin-top: -1px;
 `;

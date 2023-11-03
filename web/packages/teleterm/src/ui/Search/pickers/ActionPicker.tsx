@@ -16,15 +16,9 @@
 
 import React, { ReactElement, useCallback, useMemo } from 'react';
 import styled from 'styled-components';
-import {
-  Box,
-  ButtonBorder,
-  ButtonPrimary,
-  Flex,
-  Label as DesignLabel,
-  Text,
-} from 'design';
+import { Box, ButtonBorder, Flex, Label as DesignLabel, Text } from 'design';
 import * as icons from 'design/Icon';
+import { Cross as CloseIcon } from 'design/Icon';
 import { Highlight } from 'shared/components/Highlight';
 import { Attempt, hasFinished } from 'shared/hooks/useAsync';
 
@@ -40,6 +34,8 @@ import {
   SearchResultCluster,
   SearchResultResourceType,
   SearchFilter,
+  UnifiedResourceSearchResultType,
+  ResourceTypeSearchFilter,
 } from 'teleterm/ui/Search/searchResult';
 import * as tsh from 'teleterm/services/tshd/types';
 import * as uri from 'teleterm/ui/uri';
@@ -55,6 +51,9 @@ import { useActionAttempts } from './useActionAttempts';
 import { getParameterPicker } from './pickers';
 import { ResultList, NonInteractiveItem, IconAndContent } from './ResultList';
 import { PickerContainer } from './PickerContainer';
+import Toggle from 'teleport/components/Toggle';
+import Tooltip from 'teleport/components/ServersideSearchPanel/Tooltip';
+import { PredicateDoc } from 'shared/components/Search';
 
 export function ActionPicker(props: { input: ReactElement }) {
   const ctx = useAppContext();
@@ -72,6 +71,7 @@ export function ActionPicker(props: { input: ReactElement }) {
     addWindowEventListener,
   } = useSearchContext();
   const {
+    unifiedResourceActionAttempt,
     filterActionsAttempt,
     resourceActionsAttempt,
     resourceSearchAttempt,
@@ -79,8 +79,12 @@ export function ActionPicker(props: { input: ReactElement }) {
   const totalCountOfClusters = clustersService.getClusters().length;
   // The order of attempts is important. Filter actions should be displayed before resource actions.
   const actionAttempts = useMemo(
-    () => [filterActionsAttempt, resourceActionsAttempt],
-    [filterActionsAttempt, resourceActionsAttempt]
+    () => [
+      unifiedResourceActionAttempt,
+      filterActionsAttempt,
+      resourceActionsAttempt,
+    ],
+    [unifiedResourceActionAttempt, filterActionsAttempt, resourceActionsAttempt]
   );
 
   const getClusterName = useCallback(
@@ -109,7 +113,9 @@ export function ActionPicker(props: { input: ReactElement }) {
         // Overall, the context should probably encapsulate more logic so that the components don't
         // have to worry about low-level stuff such as input state. Input state already lives in the
         // search context so it should be managed from there, if possible.
-        resetInput();
+        if (!action.preventAutoClear) {
+          resetInput();
+        }
         if (!action.preventAutoClose) {
           close();
         }
@@ -199,10 +205,7 @@ export function ActionPicker(props: { input: ReactElement }) {
         render={item => {
           const Component = ComponentMap[item.searchResult.kind];
           return {
-            key:
-              item.searchResult.kind !== 'resource-type-filter'
-                ? item.searchResult.resource.uri
-                : item.searchResult.resource,
+            key: getKey(item.searchResult),
             Component: (
               <Component
                 searchResult={item.searchResult}
@@ -221,6 +224,17 @@ export function ActionPicker(props: { input: ReactElement }) {
       />
     </PickerContainer>
   );
+}
+
+function getKey(searchResult: SearchResult): string {
+  switch (searchResult.kind) {
+    case 'resource-type-filter':
+      return searchResult.resource;
+    case 'unified-resource-filter':
+      return searchResult.value;
+    default:
+      return searchResult.resource.uri;
+  }
 }
 
 export const InputWrapper = styled(Flex).attrs({ px: 2 })`
@@ -466,6 +480,7 @@ export const ComponentMap: Record<
   database: DatabaseItem,
   'cluster-filter': ClusterFilterItem,
   'resource-type-filter': ResourceTypeFilterItem,
+  'unified-resource-filter': UnifiedResourceSearch,
 };
 
 type SearchResultItem<T> = {
@@ -484,6 +499,30 @@ function ClusterFilterItem(props: SearchResultItem<SearchResultCluster>) {
             keywords={[props.searchResult.nameMatch]}
           />
         </strong>
+      </Text>
+    </IconAndContent>
+  );
+}
+
+function UnifiedResourceSearch(
+  props: SearchResultItem<UnifiedResourceSearchResultType>
+) {
+  const ctx = useSearchContext();
+  const fr = ctx.filters.find(
+    f => f.filter === 'resource-type'
+  ) as ResourceTypeSearchFilter;
+  return (
+    <IconAndContent Icon={icons.Magnifier} iconColor="text.slightlyMuted">
+      <Text typography="body1">
+        {' '}
+        {props.searchResult.value ? (
+          <>
+            Display search results for "
+            <strong>{props.searchResult.value}</strong>"
+          </>
+        ) : (
+          <>Display all {fr ? <strong>{fr.resourceType}</strong> : 'results'}</>
+        )}
       </Text>
     </IconAndContent>
   );
@@ -704,13 +743,20 @@ export function TypeToSearchItem({
 }: {
   hasNoRemainingFilterActions: boolean;
 }) {
+  const searchContext = useSearchContext();
   return (
     <NonInteractiveItem>
-      <Text typography="body2">
-        Enter space-separated search terms.
-        {hasNoRemainingFilterActions ||
-          ' Select a filter to narrow down the search.'}
-      </Text>
+      <Flex justifyContent="space-between" alignItems="center">
+        <Text typography="body2">
+          Enter space-separated search terms.
+          {hasNoRemainingFilterActions ||
+            ' Select a filter to narrow down the search.'}
+        </Text>
+        <MyToggle
+          isToggled={searchContext.advancedSearchEnabled}
+          onToggle={searchContext.toggleAdvancedSearch}
+        />
+      </Flex>
     </NonInteractiveItem>
   );
 }
@@ -873,12 +919,38 @@ function HighlightField(props: {
 
 function FilterButton(props: { text: string; onClick(): void }) {
   return (
-    <ButtonPrimary
-      px={2}
+    <Flex
+      justifyContent="center"
+      alignItems="center"
+      css={`
+        color: ${props => props.theme.colors.buttons.text};
+        background: ${props => props.theme.colors.spotBackground[0]};
+        border-radius: ${props => props.theme.radii[2]}px;
+      `}
+      px="6px"
       size="small"
       title={props.text}
-      onClick={props.onClick}
     >
+      <CloseIcon
+        color="dark"
+        size="small"
+        mr="3px"
+        mt="2px"
+        onClick={props.onClick}
+        css={`
+          cursor: pointer;
+          border-radius: ${props => props.theme.radii[1]}px;
+
+          :hover {
+            background: ${props => props.theme.colors.spotBackground[1]};
+          }
+
+          > svg {
+            height: 13px;
+            width: 13px;
+          }
+        `}
+      />
       <span
         css={`
           max-width: calc(${props => props.theme.space[9]}px * 2);
@@ -889,6 +961,36 @@ function FilterButton(props: { text: string; onClick(): void }) {
       >
         {props.text}
       </span>
-    </ButtonPrimary>
+    </Flex>
   );
 }
+
+export function MyToggle({
+  isToggled,
+  onToggle,
+}: {
+  isToggled: boolean;
+  onToggle(): void;
+}) {
+  return (
+    <ToggleWrapper onClick={e => e.stopPropagation()}>
+      <Toggle isToggled={isToggled} onToggle={onToggle} />
+      <Text typography="paragraph2">Advanced</Text>
+      <Tooltip>
+        <PredicateDoc />
+      </Tooltip>
+    </ToggleWrapper>
+  );
+}
+
+const ToggleWrapper = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: ${props => props.theme.space[1]}px;
+  margin-left: ${props => props.theme.space[3]}px;
+
+  label > div {
+    border: 1px solid ${props => props.theme.colors.spotBackground[1]};
+  }
+`;

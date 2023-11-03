@@ -20,7 +20,10 @@ import Store from './store';
 
 // This is the primary method to subscribe to store updates
 // using React hooks mechanism.
-export default function useStore<T extends Store<any>>(store: T): T {
+export default function useStore<T extends Store<any>>(
+  store: T,
+  onChange?: () => void
+): T {
   const [, rerender] = React.useState<any>();
   const memoizedState = React.useMemo(() => store.state, [store.state]);
 
@@ -28,11 +31,12 @@ export default function useStore<T extends Store<any>>(store: T): T {
     function syncState() {
       // do not re-render if state has not changed since last call
       if (memoizedState !== store.state) {
+        onChange?.();
         rerender({});
       }
     }
 
-    function onChange() {
+    function handleChange() {
       syncState();
     }
 
@@ -40,11 +44,11 @@ export default function useStore<T extends Store<any>>(store: T): T {
     // during Component mount cycle
     syncState();
     // Subscribe to store changes
-    store.subscribe(onChange);
+    store.subscribe(handleChange);
 
     // Unsubscribe from store
     function cleanup() {
-      store.unsubscribe(onChange);
+      store.unsubscribe(handleChange);
     }
 
     return cleanup;

@@ -48,6 +48,7 @@ it('does not display empty results copy after selecting two filters', () => {
   });
 
   const mockActionAttempts = {
+    unifiedResourceActionAttempt: makeSuccessAttempt([]),
     filterActionsAttempt: makeSuccessAttempt([]),
     resourceActionsAttempt: makeSuccessAttempt([]),
     resourceSearchAttempt: makeSuccessAttempt({
@@ -85,6 +86,7 @@ it('displays empty results copy after providing search query for which there is 
   });
 
   const mockActionAttempts = {
+    unifiedResourceActionAttempt: makeSuccessAttempt([]),
     filterActionsAttempt: makeSuccessAttempt([]),
     resourceActionsAttempt: makeSuccessAttempt([]),
     resourceSearchAttempt: makeSuccessAttempt({
@@ -121,6 +123,7 @@ it('includes offline cluster names in the empty results copy', () => {
   });
 
   const mockActionAttempts = {
+    unifiedResourceActionAttempt: makeSuccessAttempt([]),
     filterActionsAttempt: makeSuccessAttempt([]),
     resourceActionsAttempt: makeSuccessAttempt([]),
     resourceSearchAttempt: makeSuccessAttempt({
@@ -162,6 +165,7 @@ it('notifies about resource search errors and allows to display details', () => 
   );
 
   const mockActionAttempts = {
+    unifiedResourceActionAttempt: makeSuccessAttempt([]),
     filterActionsAttempt: makeSuccessAttempt([]),
     resourceActionsAttempt: makeSuccessAttempt([]),
     resourceSearchAttempt: makeSuccessAttempt({
@@ -221,6 +225,7 @@ it('maintains focus on the search input after closing a resource search error mo
   );
 
   const mockActionAttempts = {
+    unifiedResourceActionAttempt: makeSuccessAttempt([]),
     filterActionsAttempt: makeSuccessAttempt([]),
     resourceActionsAttempt: makeSuccessAttempt([]),
     resourceSearchAttempt: makeSuccessAttempt({
@@ -373,4 +378,6 @@ const getMockedSearchContext = (): SearchContext.SearchContext => ({
     cleanup: () => {},
   }),
   makeEventListener: cb => cb,
+  advancedSearchEnabled: false,
+  toggleAdvancedSearch: () => {},
 });

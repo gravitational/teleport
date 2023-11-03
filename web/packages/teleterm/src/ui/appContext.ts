@@ -46,6 +46,7 @@ import { DeepLinksService } from 'teleterm/ui/services/deepLinks';
 import { parseDeepLink } from 'teleterm/deepLinks';
 
 import { CommandLauncher } from './commandLauncher';
+import { ResourceSearchService } from 'teleterm/ui/services/resourceSearch/resourceSearchService';
 
 export default class AppContext implements IAppContext {
   private logger: Logger;
@@ -82,6 +83,7 @@ export default class AppContext implements IAppContext {
   configService: ConfigService;
   connectMyComputerService: ConnectMyComputerService;
   deepLinksService: DeepLinksService;
+  resourceSearchService: ResourceSearchService;
 
   constructor(config: ElectronGlobals) {
     const { tshClient, ptyServiceClient, mainProcessClient } = config;
@@ -159,6 +161,7 @@ export default class AppContext implements IAppContext {
       this.modalsService,
       this.notificationsService
     );
+    this.resourceSearchService = new ResourceSearchService();
   }
 
   async pullInitialState(): Promise<void> {

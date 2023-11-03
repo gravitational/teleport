@@ -45,6 +45,10 @@ export type SearchResultResourceType = {
   nameMatch: string;
   score: number;
 };
+export type UnifiedResourceSearchResultType = {
+  kind: 'unified-resource-filter';
+  value: string;
+};
 
 // TODO(gzdunek): find a better name.
 // `ResourcesService` exports `SearchResult` which is then usually imported as `ResourceSearchResult`.
@@ -56,7 +60,10 @@ export type ResourceSearchResult =
 
 export type FilterSearchResult = SearchResultResourceType | SearchResultCluster;
 
-export type SearchResult = ResourceSearchResult | FilterSearchResult;
+export type SearchResult =
+  | ResourceSearchResult
+  | FilterSearchResult
+  | UnifiedResourceSearchResultType;
 
 export type LabelMatch = {
   kind: 'label-name' | 'label-value';

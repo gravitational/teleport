@@ -15,7 +15,11 @@
  */
 
 import { IAppContext } from 'teleterm/ui/types';
-import { SearchResult } from 'teleterm/ui/Search/searchResult';
+import {
+  SearchResult,
+  ClusterSearchFilter,
+  ResourceTypeSearchFilter,
+} from 'teleterm/ui/Search/searchResult';
 import { SearchContext } from 'teleterm/ui/Search/SearchContext';
 import {
   connectToDatabase,
@@ -23,10 +27,12 @@ import {
   connectToServer,
 } from 'teleterm/ui/services/workspacesService';
 import { retryWithRelogin } from 'teleterm/ui/utils';
+import { routing } from 'teleterm/ui/uri';
 
 export interface SimpleAction {
   type: 'simple-action';
   searchResult: SearchResult;
+  preventAutoClear?: boolean; // TODO(gzdunek): consider other options (callback preventClose() in perform?)
   preventAutoClose?: boolean; // TODO(gzdunek): consider other options (callback preventClose() in perform?)
 
   perform(): void;
@@ -144,5 +150,112 @@ export function mapToActions(
         },
       };
     }
+    if (result.kind === 'unified-resource-filter') {
+      return {
+        type: 'simple-action',
+        searchResult: result,
+        preventAutoClear: true,
+        perform: async () => {
+          console.warn(searchContext.filters);
+          const f = searchContext.filters.find(
+            f => f.filter === 'cluster'
+          ) as ClusterSearchFilter;
+          const r = searchContext.filters.find(
+            f => f.filter === 'resource-type'
+          ) as ResourceTypeSearchFilter;
+          if (!f) {
+            if (
+              ctx.resourceSearchService.getConnector()?.clusterUri ===
+              ctx.workspacesService.getActiveWorkspace().localClusterUri
+            ) {
+              ctx.resourceSearchService.getConnector().setState(d => {
+                d.search = result.value;
+                d.kinds = mapResourceFilter(r);
+                d.isAdvancedSearchEnabled = searchContext.advancedSearchEnabled;
+              });
+            } else {
+              const { isAtDesiredWorkspace } =
+                await ctx.workspacesService.setActiveWorkspace(
+                  routing.ensureRootClusterUri(
+                    ctx.workspacesService.getActiveWorkspace().localClusterUri
+                  )
+                );
+              if (isAtDesiredWorkspace) {
+                const docService =
+                  ctx.workspacesService.getWorkspaceDocumentService(
+                    routing.ensureRootClusterUri(
+                      ctx.workspacesService.getActiveWorkspace().localClusterUri
+                    )
+                  );
+                const doc = docService.createClusterDocument({
+                  clusterUri:
+                    ctx.workspacesService.getActiveWorkspace().localClusterUri,
+                  initialQueryParams: {
+                    search: result.value,
+                    isAdvancedSearchEnabled: false,
+                    kinds: mapResourceFilter(r),
+                  },
+                });
+                docService.add(doc);
+                docService.open(doc.uri);
+              }
+              return;
+            }
+            return;
+          }
+
+          if (
+            ctx.resourceSearchService.getConnector()?.clusterUri ===
+            f.clusterUri
+          ) {
+            ctx.resourceSearchService.getConnector().setState(d => {
+              d.search = result.value;
+              d.kinds = mapResourceFilter(r);
+              d.isAdvancedSearchEnabled = searchContext.advancedSearchEnabled;
+            });
+          } else {
+            const { isAtDesiredWorkspace } =
+              await ctx.workspacesService.setActiveWorkspace(
+                routing.ensureRootClusterUri(f.clusterUri)
+              );
+            if (isAtDesiredWorkspace) {
+              const docService =
+                ctx.workspacesService.getWorkspaceDocumentService(
+                  routing.ensureRootClusterUri(f.clusterUri)
+                );
+              const doc = docService.createClusterDocument({
+                clusterUri: f.clusterUri,
+                initialQueryParams: {
+                  search: result.value,
+                  isAdvancedSearchEnabled: false,
+                  kinds: mapResourceFilter(r),
+                },
+              });
+              docService.add(doc);
+              docService.open(doc.uri);
+            }
+            return;
+          }
+        },
+      };
+    }
   });
+}
+
+function mapResourceFilter(r: ResourceTypeSearchFilter) {
+  if (r) {
+    let kind;
+    if (r.resourceType === 'servers') {
+      kind = 'node';
+    }
+    if (r.resourceType === 'kubes') {
+      kind = 'kube_cluster';
+    }
+    if (r.resourceType === 'databases') {
+      kind = 'db';
+    }
+    return [kind];
+  } else {
+    return [];
+  }
 }

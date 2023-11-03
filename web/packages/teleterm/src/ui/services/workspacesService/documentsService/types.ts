@@ -145,6 +145,13 @@ export interface DocumentGatewayKube extends DocumentBase {
 export interface DocumentCluster extends DocumentBase {
   kind: 'doc.cluster';
   clusterUri: uri.ClusterUri;
+  initialQueryParams?: DocumentClusterQueryParams;
+}
+
+export interface DocumentClusterQueryParams {
+  search: string;
+  isAdvancedSearchEnabled: boolean;
+  kinds: ('db' | 'kube_cluster' | 'node')[];
 }
 
 export interface DocumentAccessRequests extends DocumentBase {
@@ -214,10 +221,6 @@ export type CreateGatewayDocumentOpts = {
   title?: string;
   port?: string;
   origin: DocumentOrigin;
-};
-
-export type CreateClusterDocumentOpts = {
-  clusterUri: uri.ClusterUri;
 };
 
 export type CreateTshKubeDocumentOptions = {

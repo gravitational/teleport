@@ -32,6 +32,7 @@ import { UsageService } from 'teleterm/ui/services/usage';
 import { ConfigService } from 'teleterm/services/config';
 import { ConnectMyComputerService } from 'teleterm/ui/services/connectMyComputer';
 import { HeadlessAuthenticationService } from 'teleterm/ui/services/headlessAuthn/headlessAuthnService';
+import { ResourceSearchService } from 'teleterm/ui/services/resourceSearch/resourceSearchService';
 
 export interface IAppContext {
   clustersService: ClustersService;
@@ -53,6 +54,7 @@ export interface IAppContext {
   configService: ConfigService;
   connectMyComputerService: ConnectMyComputerService;
   headlessAuthenticationService: HeadlessAuthenticationService;
+  resourceSearchService: ResourceSearchService;
 
   pullInitialState(): Promise<void>;
 }

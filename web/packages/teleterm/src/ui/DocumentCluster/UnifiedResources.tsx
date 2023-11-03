@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 
 import {
   UnifiedResources as SharedUnifiedResources,
@@ -34,7 +34,7 @@ import * as icons from 'design/Icon';
 import Image from 'design/Image';
 import stack from 'design/assets/resources/stack.png';
 
-import SearchPanel from 'teleport/UnifiedResources/SearchPanel';
+import { useStore } from 'shared/libs/stores';
 
 import { UnifiedResourceResponse } from 'teleterm/services/tshd/types';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
@@ -44,6 +44,8 @@ import { useWorkspaceLoggedInUser } from 'teleterm/ui/hooks/useLoggedInUser';
 import { useConnectMyComputerContext } from 'teleterm/ui/ConnectMyComputer';
 
 import { retryWithRelogin } from 'teleterm/ui/utils';
+import { SearchConnector } from 'teleterm/ui/services/resourceSearch/resourceSearchService';
+import { DocumentClusterQueryParams } from 'teleterm/ui/services/workspacesService';
 
 import {
   ConnectServerActionButton,
@@ -54,15 +56,59 @@ import { useResourcesContext } from './resourcesContext';
 
 interface UnifiedResourcesProps {
   clusterUri: uri.ClusterUri;
+  visible: boolean;
+  initialQueryParams?: DocumentClusterQueryParams;
 }
 
 export function UnifiedResources(props: UnifiedResourcesProps) {
   const appContext = useAppContext();
   const { onResourcesRefreshRequest } = useResourcesContext();
 
-  const [params, setParams] = useState<UnifiedResourcesQueryParams>({
+  const cont = useRef<SearchConnector>();
+  if (!cont.current) {
+    cont.current = new SearchConnector(
+      props.clusterUri,
+      props.initialQueryParams || {
+        search: '',
+        kinds: [],
+        isAdvancedSearchEnabled: false,
+      }
+    );
+  }
+
+  const {
+    state: { search, isAdvancedSearchEnabled, kinds },
+  } = useStore(cont.current, () => clear());
+
+  const [params, setParams] = useState<{
+    sort?: {
+      fieldName: string;
+      dir: 'ASC' | 'DESC';
+    };
+    pinnedOnly?: boolean;
+  }>(() => ({
     sort: { fieldName: 'name', dir: 'ASC' },
-  });
+  }));
+
+  const mergedParams: UnifiedResourcesQueryParams = {
+    kinds,
+    sort: params.sort,
+    pinnedOnly: params.pinnedOnly,
+    search: isAdvancedSearchEnabled ? '' : search,
+    query: isAdvancedSearchEnabled ? search : '',
+  };
+
+  useEffect(() => {
+    if (props.visible) {
+      appContext.resourceSearchService.setConnector(cont.current);
+
+      return () => {
+        if (appContext.resourceSearchService.getConnector() === cont.current) {
+          appContext.resourceSearchService.setConnector(undefined);
+        }
+      };
+    }
+  }, [appContext.resourceSearchService, props.visible]);
 
   const { documentsService, rootClusterUri } = useWorkspaceContext();
   const loggedInUser = useWorkspaceLoggedInUser();
@@ -89,13 +135,13 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
                 clusterUri: props.clusterUri,
                 searchAsRoles: false,
                 sortBy: {
-                  isDesc: params.sort.dir === 'DESC',
-                  field: params.sort.fieldName,
+                  isDesc: mergedParams.sort.dir === 'DESC',
+                  field: mergedParams.sort.fieldName,
                 },
-                search: params.search,
-                kindsList: params.kinds,
-                query: params.query,
-                pinnedOnly: params.pinnedOnly,
+                search: mergedParams.search,
+                kindsList: mergedParams.kinds,
+                query: mergedParams.query,
+                pinnedOnly: mergedParams.pinnedOnly,
                 startKey: paginationParams.startKey,
                 limit: paginationParams.limit,
               },
@@ -109,7 +155,16 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
           totalCount: response.resources.length,
         };
       },
-      [appContext, params, props.clusterUri]
+      [
+        appContext,
+        mergedParams.kinds,
+        mergedParams.pinnedOnly,
+        mergedParams.query,
+        mergedParams.search,
+        mergedParams.sort.dir,
+        mergedParams.sort.fieldName,
+        props.clusterUri,
+      ]
     ),
   });
 
@@ -122,13 +177,21 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
   }, [onResourcesRefreshRequest, fetch, clear]);
 
   function onParamsChange(newParams: UnifiedResourcesQueryParams): void {
+    cont.current.update({
+      search: newParams.search,
+      kinds: newParams.kinds as any,
+    });
     clear();
-    setParams(newParams);
+    setParams(prevState => ({
+      ...prevState,
+      sort: newParams.sort,
+      pinnedOnly: newParams.pinnedOnly,
+    }));
   }
 
   return (
     <SharedUnifiedResources
-      params={params}
+      params={mergedParams}
       setParams={onParamsChange}
       updateUnifiedResourcesPreferences={() => alert('Not implemented')}
       onLabelClick={() => alert('Not implemented')}
@@ -137,16 +200,16 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
       resourcesFetchAttempt={attempt}
       fetchResources={fetch}
       availableKinds={['db', 'kube_cluster', 'node']}
-      Header={pinAllButton => (
+      Header={() => (
         <Flex alignItems="center" justifyContent="space-between">
-          {/*temporary search panel*/}
-          <SearchPanel
-            params={params}
-            pathname={''}
-            replaceHistory={() => undefined}
-            setParams={onParamsChange}
-          />
-          {pinAllButton}
+          {/*/!*temporary search panel*!/*/}
+          {/*<SearchPanel*/}
+          {/*  params={params}*/}
+          {/*  pathname={''}*/}
+          {/*  replaceHistory={() => undefined}*/}
+          {/*  setParams={onParamsChange}*/}
+          {/*/>*/}
+          {/*{pinAllButton}*/}
         </Flex>
       )}
       NoResources={

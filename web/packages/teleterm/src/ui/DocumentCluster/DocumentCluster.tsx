@@ -19,6 +19,7 @@ import styled from 'styled-components';
 import { Box, ButtonPrimary, Flex, Text } from 'design';
 
 import * as types from 'teleterm/ui/services/workspacesService';
+import { DocumentClusterQueryParams } from 'teleterm/ui/services/workspacesService';
 import Document from 'teleterm/ui/Document';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 
@@ -54,13 +55,19 @@ export default function Container(props: DocumentProps) {
   return (
     <ClusterContextProvider value={clusterCtx}>
       <Document visible={props.visible}>
-        <Cluster />
+        <Cluster
+          visible={props.visible}
+          initialQueryParams={props.doc.initialQueryParams}
+        />
       </Document>
     </ClusterContextProvider>
   );
 }
 
-export function Cluster() {
+export function Cluster(props: {
+  visible: boolean;
+  initialQueryParams: DocumentClusterQueryParams;
+}) {
   const clusterCtx = useClusterContext();
   const state = clusterCtx.useState();
 
@@ -83,7 +90,11 @@ export function Cluster() {
 
   return (
     <Layout>
-      <UnifiedResources clusterUri={clusterCtx.clusterUri} />
+      <UnifiedResources
+        clusterUri={clusterCtx.clusterUri}
+        visible={props.visible}
+        initialQueryParams={props.initialQueryParams}
+      />
     </Layout>
   );
 }

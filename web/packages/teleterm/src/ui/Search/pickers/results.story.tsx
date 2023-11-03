@@ -19,6 +19,7 @@ import { makeSuccessAttempt } from 'shared/hooks/useAsync';
 
 import { Flex } from 'design';
 
+import type * as uri from 'teleterm/ui/uri';
 import { routing } from 'teleterm/ui/uri';
 import {
   makeDatabase,
@@ -40,8 +41,6 @@ import {
 } from './ActionPicker';
 import { SuggestionsError } from './ParameterPicker';
 import { ResultList } from './ResultList';
-
-import type * as uri from 'teleterm/ui/uri';
 
 export default {
   title: 'Teleterm/Search',
@@ -322,14 +321,17 @@ const SearchResultItems = () => {
       attempts={[attempt]}
       onPick={() => {}}
       onBack={() => {}}
-      addWindowEventListener={() => ({ cleanup: () => {} })}
+      addWindowEventListener={() => ({
+        cleanup: () => {},
+      })}
       render={searchResult => {
         const Component = ComponentMap[searchResult.kind];
 
         return {
           key:
             searchResult.kind !== 'resource-type-filter'
-              ? searchResult.resource.uri
+              ? // @ts-ignore
+                searchResult.resource.uri
               : searchResult.resource,
           Component: (
             <Component
@@ -349,7 +351,9 @@ const AuxiliaryItems = () => (
     onBack={() => {}}
     render={() => null}
     attempts={[]}
-    addWindowEventListener={() => ({ cleanup: () => {} })}
+    addWindowEventListener={() => ({
+      cleanup: () => {},
+    })}
     ExtraTopComponent={
       <>
         <NoResultsItem

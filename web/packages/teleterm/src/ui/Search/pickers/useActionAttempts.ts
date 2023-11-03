@@ -26,6 +26,7 @@ import {
   makeSuccessAttempt,
   mapAttempt,
   useAsync,
+  Attempt,
 } from 'shared/hooks/useAsync';
 import { debounce } from 'shared/utils/highbar';
 
@@ -34,7 +35,7 @@ import {
   useFilterSearch,
   useResourceSearch,
 } from 'teleterm/ui/Search/useSearch';
-import { mapToActions } from 'teleterm/ui/Search/actions';
+import { mapToActions, SearchAction } from 'teleterm/ui/Search/actions';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { useSearchContext } from 'teleterm/ui/Search/SearchContext';
 import { SearchFilter } from 'teleterm/ui/Search/searchResult';
@@ -129,6 +130,14 @@ export function useActionAttempts() {
     return makeSuccessAttempt(filterActions);
   }, [runFilterSearch, inputValue, filters, ctx, searchContext]);
 
+  const unifiedResourceActionAttempt: Attempt<SearchAction[]> = useMemo(() => {
+    const filterActions = mapToActions(ctx, searchContext, [
+      { kind: 'unified-resource-filter', value: inputValue },
+    ]);
+
+    return makeSuccessAttempt(filterActions);
+  }, [inputValue, ctx, searchContext]);
+
   useEffect(() => {
     // Reset the resource search attempt as soon as the input changes. If we didn't do that, then
     // the attempt would only get updated on debounce. This could lead to the following scenario:
@@ -148,6 +157,7 @@ export function useActionAttempts() {
   ]);
 
   return {
+    unifiedResourceActionAttempt,
     filterActionsAttempt,
     resourceActionsAttempt,
     // resourceSearchAttempt is the raw version of useResourceSearch attempt that has not been
