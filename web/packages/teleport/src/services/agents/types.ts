@@ -54,6 +54,7 @@ export type ResourceFilter = {
   limit?: number;
   startKey?: string;
   pinnedOnly?: boolean;
+  searchAsRoles?: '' | 'yes';
   // TODO(bl-nero): Remove this once filters are expressed as advanced search.
   kinds?: string[];
 };
