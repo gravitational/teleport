@@ -501,8 +501,9 @@ func isKubectlConfigCommand(kubectlCommand *cobra.Command, args []string) bool {
 
 func kubeClusterAddrFromProfile(profile *profile.Profile) string {
 	partialClientConfig := client.Config{
-		WebProxyAddr:  profile.WebProxyAddr,
-		KubeProxyAddr: profile.KubeProxyAddr,
+		WebProxyAddr:      profile.WebProxyAddr,
+		KubeProxyAddr:     profile.KubeProxyAddr,
+		TLSRoutingEnabled: profile.TLSRoutingEnabled,
 	}
 	return partialClientConfig.KubeClusterAddr()
 }
