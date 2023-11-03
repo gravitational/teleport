@@ -14,17 +14,18 @@
  * limitations under the License.
  */
 import * as whatwg from 'whatwg-url';
-
-export const CUSTOM_PROTOCOL = 'teleport' as const;
+import { CUSTOM_PROTOCOL, Path } from 'shared/deepLinks';
 
 export type DeepLinkParseResult =
   // Just having a field like `ok: true` for success and `status: 'error'` for errors would be much more
   // ergonomic. Unfortunately, `if (!result.ok)` doesn't narrow down the type properly with
   // strictNullChecks off. https://github.com/microsoft/TypeScript/issues/10564
-  | { status: 'success'; url: DeepURL }
+  | DeepLinkParseResultSuccess
   | ParseError<'malformed-url', { error: TypeError }>
   | ParseError<'unknown-protocol', { protocol: string }>
   | ParseError<'unsupported-uri'>;
+
+export type DeepLinkParseResultSuccess = { status: 'success'; url: DeepURL };
 
 type ParseError<Reason, AdditionalData = void> = AdditionalData extends void
   ? {
@@ -38,13 +39,14 @@ type ParseError<Reason, AdditionalData = void> = AdditionalData extends void
 
 /**
  *
- * DeepURL is an object representation of whatwg.URL.
+ * DeepURL is a parsed version of an URL.
  *
- * Since DeepLinkParseResult goes through IPC, anything included in it is subject to Structured
- * Clone Algorithm [1]. As such, getters and setters are dropped which means were not able to pass
- * whatwg.URL without casting it to an object.
+ * Since DeepLinkParseResult goes through IPC in Electron [1], anything included in it is subject to
+ * Structured Clone Algorithm [2]. As such, getters and setters are dropped which means were not
+ * able to pass whatwg.URL without casting it to an object.
  *
- * [1] https://developer.mozilla.org/en-US/docs/Web/API/Web_Workers_API/Structured_clone_algorithm
+ * [1] https://www.electronjs.org/docs/latest/tutorial/ipc
+ * [2] https://developer.mozilla.org/en-US/docs/Web/API/Web_Workers_API/Structured_clone_algorithm
  */
 export type DeepURL = {
   /**
@@ -68,11 +70,6 @@ export type DeepURL = {
    */
   pathname: `/${Path}`;
 };
-
-// We're able to get away with defining the path like this only because we don't use matchPath from
-// React Router v5 like uri.ts does. Once we get to more complex use cases that will use matchPath,
-// we'll likely have to sacrifice some type safety.
-export type Path = 'connect_my_computer';
 
 /**
  * parseDeepLink receives a full URL of a deep link passed to Connect, e.g.
@@ -115,12 +112,6 @@ export function parseDeepLink(rawUrl: string): DeepLinkParseResult {
     port,
     // whatwg-url percent-encodes usernames. We decode them here so that the rest of the app doesn't
     // have to do this. https://url.spec.whatwg.org/#set-the-username
-    //
-    // What's more, Chrome, unlike Firefox and Safari, won't even trigger a custom protocol prompt
-    // when clicking on a link that includes a username with an @ symbol that is not
-    // percent-encoded, e.g. teleport://alice@example.com@example.com/connect_my_computer.
-    // TODO(ravicious): Move this comment to the place that will actually generate deep links in the
-    // Web UI.
     username: decodeURIComponent(username),
     pathname,
   };
