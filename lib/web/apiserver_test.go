@@ -630,7 +630,7 @@ type authPack struct {
 
 // authPack returns new authenticated package consisting of created valid
 // user, otp token, created web session and authenticated client.
-func (s *WebSuite) authPack(t *testing.T, user string) *authPack {
+func (s *WebSuite) authPack(t *testing.T, user string, roles ...string) *authPack {
 	login := s.user
 	pass := "abc123"
 	rawSecret := "def456"
@@ -644,7 +644,7 @@ func (s *WebSuite) authPack(t *testing.T, user string) *authPack {
 	err = s.server.Auth().SetAuthPreference(s.ctx, ap)
 	require.NoError(t, err)
 
-	s.createUser(t, user, login, pass, otpSecret)
+	s.createUser(t, user, login, pass, otpSecret, roles...)
 
 	// create a valid otp token
 	validToken, err := totp.GenerateCode(otpSecret, s.clock.Now())
@@ -683,7 +683,7 @@ func (s *WebSuite) authPack(t *testing.T, user string) *authPack {
 	}
 }
 
-func (s *WebSuite) createUser(t *testing.T, user string, login string, pass string, otpSecret string) {
+func (s *WebSuite) createUser(t *testing.T, user string, login string, pass string, otpSecret string, roles ...string) {
 	teleUser, err := types.NewUser(user)
 	require.NoError(t, err)
 	role := services.RoleForUser(teleUser)
@@ -694,6 +694,10 @@ func (s *WebSuite) createUser(t *testing.T, user string, login string, pass stri
 	err = s.server.Auth().UpsertRole(s.ctx, role)
 	require.NoError(t, err)
 	teleUser.AddRole(role.GetName())
+
+	for _, r := range roles {
+		teleUser.AddRole(r)
+	}
 
 	teleUser.SetCreatedBy(types.CreatedBy{
 		User: types.UserRef{Name: "some-auth-user"},

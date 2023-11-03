@@ -60,7 +60,7 @@ func TestExecuteCommand(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, s.server.Auth().UpsertRole(s.ctx, assistRole))
 
-	ws, _, err := s.makeCommand(t, s.authPack(t, testUser), uuid.New())
+	ws, _, err := s.makeCommand(t, s.authPack(t, testUser, assistRole.GetName()), uuid.New())
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, ws.Close()) })
 
