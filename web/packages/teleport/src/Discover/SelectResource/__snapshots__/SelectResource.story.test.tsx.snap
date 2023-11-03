@@ -1701,7 +1701,7 @@ exports[`render with all access 1`] = `
             class="c16"
             color="text.main"
           >
-            Local Windows
+            Local Windows Users
           </div>
         </div>
       </div>
@@ -3523,7 +3523,7 @@ exports[`render with no access 1`] = `
             class="c16"
             color="text.main"
           >
-            Local Windows
+            Local Windows Users
           </div>
         </div>
       </div>
@@ -4759,7 +4759,7 @@ exports[`render with partial access 1`] = `
             class="c16"
             color="text.main"
           >
-            Local Windows
+            Local Windows Users
           </div>
         </div>
       </div>
