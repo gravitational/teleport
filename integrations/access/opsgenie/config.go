@@ -74,7 +74,7 @@ func (c *Config) CheckAndSetDefaults() error {
 }
 
 // NewBot initializes the new Opsgenie message generator (OpsgenieBot)
-func (c *Config) NewBot(clusterName, webProxyAddr string) (*Bot, error) {
+func (c *Config) NewBot(clusterName, webProxyAddr string) (common.MessagingBot, error) {
 	webProxyURL, err := url.Parse(webProxyAddr)
 	if err != nil {
 		return nil, trace.Wrap(err)

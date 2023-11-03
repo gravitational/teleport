@@ -82,11 +82,11 @@ func (c *Config) GetTeleportClient(ctx context.Context) (teleport.Client, error)
 	if c.Client != nil {
 		return c.Client, nil
 	}
-	return c.BaseConfig.GetTeleportClient(ctx)
+	return common.GetTeleportClient(ctx, c.Teleport)
 }
 
 // NewBot initializes the new Discord message generator (DiscordBot)
-func (c *Config) NewBot(clusterName, webProxyAddr string) (DiscordBot, error) {
+func (c *Config) NewBot(clusterName, webProxyAddr string) (common.MessagingBot, error) {
 	var (
 		webProxyURL *url.URL
 		err         error

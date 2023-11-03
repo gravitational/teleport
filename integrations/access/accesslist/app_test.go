@@ -72,7 +72,7 @@ func (m *mockPluginConfig) GetRecipients() recipient.RawRecipientsMap {
 	return nil
 }
 
-func (m *mockPluginConfig) NewBot(clusterName string, webProxyAddr string) (*mockMessagingBot, error) {
+func (m *mockPluginConfig) NewBot(clusterName string, webProxyAddr string) (common.MessagingBot, error) {
 	return m.bot, nil
 }
 
@@ -100,7 +100,7 @@ func TestAccessListReminders(t *testing.T) {
 			"owner2": {Name: "owner2"},
 		},
 	}
-	app := NewApp[*mockMessagingBot]()
+	app := NewApp()
 	app.clock = clock
 	baseApp := common.NewApp(&mockPluginConfig{as: as, bot: bot}, "test-plugin").
 		AddApp(app)
@@ -197,7 +197,7 @@ func advanceAndLookForRecipients(t *testing.T,
 	}
 	clock.Advance(advance)
 
-	require.EventuallyWithT(t, func(collect *assert.CollectT) {
-		require.ElementsMatch(collect, expectedRecipients, bot.lastReminderRecipients)
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		assert.ElementsMatch(t, expectedRecipients, bot.lastReminderRecipients)
 	}, 5*time.Second, 250*time.Millisecond)
 }

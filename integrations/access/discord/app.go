@@ -27,7 +27,7 @@ const (
 )
 
 // NewApp initializes a new teleport-discord app and returns it.
-func NewApp(conf *Config) *common.BaseApp[DiscordBot] {
+func NewApp(conf *Config) *common.BaseApp {
 	return common.NewApp(conf, discordPluginName).
-		AddApp(accessrequest.NewApp[DiscordBot]())
+		AddApp(accessrequest.NewApp())
 }

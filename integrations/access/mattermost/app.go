@@ -26,7 +26,7 @@ const (
 	mattermostPluginName = "mattermost"
 )
 
-func NewMattermostApp(conf *Config) *common.BaseApp[Bot] {
-	return common.NewApp[Bot](conf, mattermostPluginName).
-		AddApp(accessrequest.NewApp[Bot]())
+func NewMattermostApp(conf *Config) *common.BaseApp {
+	return common.NewApp(conf, mattermostPluginName).
+		AddApp(accessrequest.NewApp())
 }

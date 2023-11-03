@@ -27,7 +27,7 @@ const (
 )
 
 // NewSlackApp initializes a new teleport-slack app and returns it.
-func NewSlackApp(conf *Config) *common.BaseApp[Bot] {
+func NewSlackApp(conf *Config) *common.BaseApp {
 	return common.NewApp(conf, slackPluginName).
-		AddApp(accessrequest.NewApp[Bot]())
+		AddApp(accessrequest.NewApp())
 }

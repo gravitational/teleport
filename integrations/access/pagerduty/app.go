@@ -25,10 +25,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"google.golang.org/grpc"
-	grpcbackoff "google.golang.org/grpc/backoff"
 
-	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integrations/access/common"
@@ -116,7 +113,7 @@ func (a *App) run(ctx context.Context) error {
 	watcherJob, err := watcherjob.NewJob(
 		a.teleport,
 		watcherjob.Config{
-			Watch:            types.Watch{Kinds: []types.WatchKind{types.WatchKind{Kind: types.KindAccessRequest}}},
+			Watch:            types.Watch{Kinds: []types.WatchKind{{Kind: types.KindAccessRequest}}},
 			EventFuncTimeout: handlerTimeout,
 		},
 		a.onWatcherEvent,
@@ -163,16 +160,7 @@ func (a *App) init(ctx context.Context) error {
 	)
 
 	if a.teleport == nil {
-		bk := grpcbackoff.DefaultConfig
-		bk.MaxDelay = grpcBackoffMaxDelay
-		if a.teleport, err = client.New(ctx, client.Config{
-			Addrs:       a.conf.Teleport.GetAddrs(),
-			Credentials: a.conf.Teleport.Credentials(),
-			DialOpts: []grpc.DialOption{
-				grpc.WithConnectParams(grpc.ConnectParams{Backoff: bk, MinConnectTimeout: initTimeout}),
-				grpc.WithReturnConnectionError(),
-			},
-		}); err != nil {
+		if a.teleport, err = common.GetTeleportClient(ctx, a.conf.Teleport); err != nil {
 			return trace.Wrap(err)
 		}
 	}

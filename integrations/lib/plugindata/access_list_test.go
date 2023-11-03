@@ -15,10 +15,12 @@
 package plugindata
 
 import (
+	"encoding/json"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 var sampleAccessListNotificationData = AccessListNotificationData{
@@ -31,17 +33,20 @@ var sampleAccessListNotificationData = AccessListNotificationData{
 func TestEncodeAccessListNotificationData(t *testing.T) {
 	dataMap, err := EncodeAccessListNotificationData(sampleAccessListNotificationData)
 	assert.NoError(t, err)
-	assert.Len(t, dataMap, 2)
+	assert.Len(t, dataMap, 1)
+
+	userNotificationsData, err := json.Marshal(sampleAccessListNotificationData.UserNotifications)
+	require.NoError(t, err)
 	assert.Equal(t, map[string]string{
-		"un_user-foo":   sampleAccessListNotificationData.UserNotifications["user-foo"].Format(time.RFC3339Nano),
-		"un_user-foo-2": sampleAccessListNotificationData.UserNotifications["user-foo-2"].Format(time.RFC3339Nano),
+		"user_notifications": string(userNotificationsData),
 	}, dataMap)
 }
 
 func TestDecodeAccessListNotificationData(t *testing.T) {
+	userNotificationsData, err := json.Marshal(sampleAccessListNotificationData.UserNotifications)
+	require.NoError(t, err)
 	pluginData, err := DecodeAccessListNotificationData(map[string]string{
-		"un_user-foo":   sampleAccessListNotificationData.UserNotifications["user-foo"].Format(time.RFC3339Nano),
-		"un_user-foo-2": sampleAccessListNotificationData.UserNotifications["user-foo-2"].Format(time.RFC3339Nano),
+		"user_notifications": string(userNotificationsData),
 	})
 	assert.NoError(t, err)
 	assert.Equal(t, sampleAccessListNotificationData, pluginData)
@@ -50,7 +55,8 @@ func TestDecodeAccessListNotificationData(t *testing.T) {
 func TestEncodeEmptyAccessListNotificationtData(t *testing.T) {
 	dataMap, err := EncodeAccessListNotificationData(AccessListNotificationData{})
 	assert.NoError(t, err)
-	assert.Empty(t, dataMap)
+	assert.Len(t, dataMap, 1)
+	assert.Empty(t, dataMap["userNotifications"])
 }
 
 func TestDecodeEmptyAccessListNotificationtData(t *testing.T) {

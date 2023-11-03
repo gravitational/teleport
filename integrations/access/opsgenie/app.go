@@ -25,13 +25,11 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"google.golang.org/grpc"
-	grpcbackoff "google.golang.org/grpc/backoff"
 
 	tp "github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/integrations/access/common/teleport"
 	"github.com/gravitational/teleport/integrations/lib"
 	"github.com/gravitational/teleport/integrations/lib/backoff"
@@ -45,8 +43,6 @@ const (
 	pluginName = "opsgenie"
 	// minServerVersion is the minimal teleport version the plugin supports.
 	minServerVersion = "6.1.0"
-	// grpcBackoffMaxDelay is a maximum time gRPC client waits before reconnection attempt.
-	grpcBackoffMaxDelay = time.Second * 2
 	// initTimeout is used to bound execution time of health check and teleport version check.
 	initTimeout = time.Second * 10
 	// handlerTimeout is used to bound the execution time of watcher event handler.
@@ -160,18 +156,8 @@ func (a *App) init(ctx context.Context) error {
 	}
 
 	var err error
-
 	if a.teleport == nil {
-		bk := grpcbackoff.DefaultConfig
-		bk.MaxDelay = grpcBackoffMaxDelay
-		if a.teleport, err = client.New(ctx, client.Config{
-			Addrs:       a.conf.Teleport.GetAddrs(),
-			Credentials: a.conf.Teleport.Credentials(),
-			DialOpts: []grpc.DialOption{
-				grpc.WithConnectParams(grpc.ConnectParams{Backoff: bk, MinConnectTimeout: initTimeout}),
-				grpc.WithReturnConnectionError(),
-			},
-		}); err != nil {
+		if a.teleport, err = common.GetTeleportClient(ctx, a.conf.Teleport); err != nil {
 			return trace.Wrap(err)
 		}
 	}

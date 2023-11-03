@@ -15,8 +15,10 @@
 package plugindata
 
 import (
-	"strings"
+	"encoding/json"
 	"time"
+
+	"github.com/gravitational/trace"
 )
 
 // AccessListNotificationData represents generic plugin data required for access list notifications
@@ -26,16 +28,10 @@ type AccessListNotificationData struct {
 
 // DecodeAccessListNotificationData deserializes a string map to PluginData struct.
 func DecodeAccessListNotificationData(dataMap map[string]string) (data AccessListNotificationData, err error) {
-	for user, notification := range dataMap {
-		if strings.HasPrefix(user, "un_") {
-			if data.UserNotifications == nil {
-				data.UserNotifications = map[string]time.Time{}
-			}
-			notificationTime, err := time.Parse(time.RFC3339Nano, notification)
-			if err != nil {
-				return data, err
-			}
-			data.UserNotifications[strings.TrimPrefix(user, "un_")] = notificationTime
+	userNotificationsData := dataMap["user_notifications"]
+	if userNotificationsData != "" {
+		if err := json.Unmarshal([]byte(userNotificationsData), &data.UserNotifications); err != nil {
+			return data, trace.Wrap(err)
 		}
 	}
 
@@ -45,8 +41,16 @@ func DecodeAccessListNotificationData(dataMap map[string]string) (data AccessLis
 // EncodeAccessListNotificationData deserializes a string map to PluginData struct.
 func EncodeAccessListNotificationData(data AccessListNotificationData) (map[string]string, error) {
 	result := make(map[string]string)
-	for user, notificationTime := range data.UserNotifications {
-		result["un_"+user] = notificationTime.Format(time.RFC3339Nano)
+
+	result["user_notifications"] = ""
+
+	if len(data.UserNotifications) > 0 {
+		userNotificationsData, err := json.Marshal(data.UserNotifications)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		result["user_notifications"] = string(userNotificationsData)
 	}
+
 	return result, nil
 }

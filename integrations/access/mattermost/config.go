@@ -90,7 +90,7 @@ func (c *Config) CheckAndSetDefaults() error {
 	return nil
 }
 
-func (c *Config) NewBot(clusterName, webProxyAddr string) (Bot, error) {
+func (c *Config) NewBot(clusterName, webProxyAddr string) (common.MessagingBot, error) {
 	bot, err := NewBot(*c, clusterName, webProxyAddr)
 	if err != nil {
 		return Bot{}, trace.Wrap(err)

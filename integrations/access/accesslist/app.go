@@ -23,7 +23,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
-	alclient "github.com/gravitational/teleport/api/client/accesslist"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/utils/retryutils"
@@ -33,7 +32,6 @@ import (
 	"github.com/gravitational/teleport/integrations/lib"
 	"github.com/gravitational/teleport/integrations/lib/logger"
 	pd "github.com/gravitational/teleport/integrations/lib/plugindata"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
 )
@@ -43,29 +41,27 @@ const (
 	oneWeek = 24 * time.Hour * 7
 )
 
-type App[M MessagingBot] struct {
-	pluginName  string
-	apiClient   teleport.Client
-	accessLists services.AccessListsGetter
-	pluginData  *pd.CompareAndSwap[pd.AccessListNotificationData]
-	bot         M
-	job         lib.ServiceJob
-	clock       clockwork.Clock
+// App is the access list application for plugins. This will notify access list owners via
+// Slack when they need to review an access list.
+type App struct {
+	pluginName string
+	apiClient  teleport.Client
+	pluginData *pd.CompareAndSwap[pd.AccessListNotificationData]
+	bot        MessagingBot
+	job        lib.ServiceJob
+	clock      clockwork.Clock
 }
 
-func NewApp[M MessagingBot]() *App[M] {
-	app := &App[M]{}
+// NewApp will create a new access list application.
+func NewApp() *App {
+	app := &App{}
 	app.job = lib.NewServiceJob(app.run)
 	return app
 }
 
-func (a *App[M]) Init(baseApp *common.BaseApp[M]) error {
+func (a *App) Init(baseApp *common.BaseApp) error {
 	a.pluginName = baseApp.PluginName
 	a.apiClient = baseApp.APIClient
-	a.accessLists = accessListClient(a.apiClient)
-	if a.accessLists == nil {
-		return trace.BadParameter("api client does not contain an access list client")
-	}
 	a.pluginData = pd.NewCAS(
 		a.apiClient,
 		a.pluginName,
@@ -73,7 +69,12 @@ func (a *App[M]) Init(baseApp *common.BaseApp[M]) error {
 		pd.EncodeAccessListNotificationData,
 		pd.DecodeAccessListNotificationData,
 	)
-	a.bot = baseApp.Bot
+
+	var ok bool
+	a.bot, ok = baseApp.Bot.(MessagingBot)
+	if !ok {
+		return trace.BadParameter("bot does not implement access list bot methods")
+	}
 
 	if a.clock == nil {
 		a.clock = clockwork.NewRealClock()
@@ -82,26 +83,24 @@ func (a *App[M]) Init(baseApp *common.BaseApp[M]) error {
 	return nil
 }
 
-func (a *App[_]) Start(ctx context.Context, process *lib.Process) (err error) {
+func (a *App) Start(process *lib.Process) {
 	process.SpawnCriticalJob(a.job)
-
-	return nil
 }
 
-func (a *App[_]) WaitReady(ctx context.Context) (bool, error) {
+func (a *App) WaitReady(ctx context.Context) (bool, error) {
 	return a.job.WaitReady(ctx)
 }
 
-func (a *App[_]) WaitForDone() {
+func (a *App) WaitForDone() {
 	<-a.job.Done()
 }
 
-func (a *App[_]) Err() error {
-	return nil
+func (a *App) Err() error {
+	return a.job.Err()
 }
 
 // run will monitor access lists and post review reminders.
-func (a *App[_]) run(ctx context.Context) error {
+func (a *App) run(ctx context.Context) error {
 	process := lib.MustGetProcess(ctx)
 	ctx, cancel := context.WithCancel(ctx)
 
@@ -132,7 +131,7 @@ func (a *App[_]) run(ctx context.Context) error {
 			var err error
 			for {
 				var accessLists []*accesslist.AccessList
-				accessLists, nextToken, err = a.accessLists.ListAccessLists(ctx, 0 /* default page size */, nextToken)
+				accessLists, nextToken, err = a.apiClient.AccessListClient().ListAccessLists(ctx, 0 /* default page size */, nextToken)
 				if err != nil {
 					log.Errorf("error listing access lists: %v", err)
 					continue
@@ -157,7 +156,7 @@ func (a *App[_]) run(ctx context.Context) error {
 
 // notifyForAccessListReviews will notify if access list review dates are getting close. At the moment, this
 // only supports notifying owners.
-func (a *App[_]) notifyForAccessListReviews(ctx context.Context, accessList *accesslist.AccessList) error {
+func (a *App) notifyForAccessListReviews(ctx context.Context, accessList *accesslist.AccessList) error {
 	log := logger.Get(ctx)
 	allRecipients := make(map[string]recipient.Recipient, len(accessList.Spec.Owners))
 
@@ -167,7 +166,7 @@ func (a *App[_]) notifyForAccessListReviews(ctx context.Context, accessList *acc
 
 	// If the current time before the notification start time, skip notifications.
 	if now.Before(notificationStart) {
-		log.Infof("Access list %s is not ready for notifications, notifications start at %s", accessList.GetName(), notificationStart.Format(time.RFC3339))
+		log.Debugf("Access list %s is not ready for notifications, notifications start at %s", accessList.GetName(), notificationStart.Format(time.RFC3339))
 		return nil
 	}
 
@@ -212,7 +211,7 @@ func (a *App[_]) notifyForAccessListReviews(ctx context.Context, accessList *acc
 
 			// If the notification window is before the last notification date, then this user doesn't need a notification.
 			if !windowStart.After(lastNotification) {
-				log.Infof("User %s has already been notified", recipient.Name)
+				log.Debugf("User %s has already been notified", recipient.Name)
 				userNotifications[recipient.Name] = lastNotification
 				continue
 			}
@@ -232,20 +231,4 @@ func (a *App[_]) notifyForAccessListReviews(ctx context.Context, accessList *acc
 	}
 
 	return trace.Wrap(a.bot.SendReviewReminders(ctx, recipients, accessList))
-}
-
-// accessListClient will return an access list client for the plugin manager.
-func accessListClient(client teleport.Client) services.AccessListsGetter {
-	type accessListClient[T services.AccessListsGetter] interface {
-		AccessListClient() T
-	}
-
-	switch client := client.(type) {
-	case accessListClient[services.AccessLists]:
-		return client.AccessListClient()
-	case accessListClient[*alclient.Client]:
-		return client.AccessListClient()
-	}
-
-	return nil
 }

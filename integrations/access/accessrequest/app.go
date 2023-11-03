@@ -39,23 +39,23 @@ const (
 	handlerTimeout = time.Second * 5
 )
 
-type App[T MessagingBot] struct {
+type App struct {
 	pluginName string
 	pluginType string
 	apiClient  teleport.Client
 	recipients recipient.RawRecipientsMap
 	pluginData *pd.CompareAndSwap[PluginData]
-	bot        T
+	bot        MessagingBot
 	job        lib.ServiceJob
 }
 
-func NewApp[M MessagingBot]() *App[M] {
-	app := &App[M]{}
+func NewApp() *App {
+	app := &App{}
 	app.job = lib.NewServiceJob(app.run)
 	return app
 }
 
-func (a *App[T]) Init(baseApp *common.BaseApp[T]) error {
+func (a *App) Init(baseApp *common.BaseApp) error {
 	a.pluginName = baseApp.PluginName
 	a.pluginType = string(baseApp.Conf.GetPluginType())
 	a.apiClient = baseApp.APIClient
@@ -67,25 +67,29 @@ func (a *App[T]) Init(baseApp *common.BaseApp[T]) error {
 		EncodePluginData,
 		DecodePluginData,
 	)
-	a.bot = baseApp.Bot
+
+	var ok bool
+	a.bot, ok = baseApp.Bot.(MessagingBot)
+	if !ok {
+		return trace.BadParameter("bot does not implement access request bot methods")
+	}
 
 	return nil
 }
 
-func (a *App[_]) Start(ctx context.Context, process *lib.Process) (err error) {
+func (a *App) Start(process *lib.Process) {
 	process.SpawnCriticalJob(a.job)
-	return nil
 }
 
-func (a *App[_]) WaitReady(ctx context.Context) (bool, error) {
+func (a *App) WaitReady(ctx context.Context) (bool, error) {
 	return a.job.WaitReady(ctx)
 }
 
-func (a *App[_]) WaitForDone() {
+func (a *App) WaitForDone() {
 	<-a.job.Done()
 }
 
-func (a *App[_]) Err() error {
+func (a *App) Err() error {
 	if a.job != nil {
 		return a.job.Err()
 	}
@@ -93,7 +97,7 @@ func (a *App[_]) Err() error {
 	return nil
 }
 
-func (a *App[_]) run(ctx context.Context) error {
+func (a *App) run(ctx context.Context) error {
 	process := lib.MustGetProcess(ctx)
 
 	job, err := watcherjob.NewJob(
@@ -126,7 +130,7 @@ func (a *App[_]) run(ctx context.Context) error {
 
 // onWatcherEvent is called for every cluster Event. It will filter out non-access-request events and
 // call onPendingRequest, onResolvedRequest and on DeletedRequest depending on the event.
-func (a *App[_]) onWatcherEvent(ctx context.Context, event types.Event) error {
+func (a *App) onWatcherEvent(ctx context.Context, event types.Event) error {
 	if kind := event.Resource.GetKind(); kind != types.KindAccessRequest {
 		return trace.Errorf("unexpected kind %s", kind)
 	}
@@ -173,7 +177,7 @@ func (a *App[_]) onWatcherEvent(ctx context.Context, event types.Event) error {
 	}
 }
 
-func (a *App[_]) onPendingRequest(ctx context.Context, req types.AccessRequest) error {
+func (a *App) onPendingRequest(ctx context.Context, req types.AccessRequest) error {
 	log := logger.Get(ctx)
 
 	reqID := req.GetName()
@@ -224,7 +228,7 @@ func (a *App[_]) onPendingRequest(ctx context.Context, req types.AccessRequest) 
 	return nil
 }
 
-func (a *App[_]) onResolvedRequest(ctx context.Context, req types.AccessRequest) error {
+func (a *App) onResolvedRequest(ctx context.Context, req types.AccessRequest) error {
 	// We always post review replies in thread. If the messaging service does not support
 	// threading this will do nothing
 	replyErr := a.postReviewReplies(ctx, req.GetName(), req.GetReviews())
@@ -248,13 +252,13 @@ func (a *App[_]) onResolvedRequest(ctx context.Context, req types.AccessRequest)
 	return trace.NewAggregate(replyErr, err)
 }
 
-func (a *App[_]) onDeletedRequest(ctx context.Context, reqID string) error {
+func (a *App) onDeletedRequest(ctx context.Context, reqID string) error {
 	return a.updateMessages(ctx, reqID, pd.ResolvedExpired, "", nil)
 }
 
 // broadcastAccessRequestMessages sends nessages to each recipient for an access-request.
 // This method is only called when for new access-requests.
-func (a *App[_]) broadcastAccessRequestMessages(ctx context.Context, recipients []recipient.Recipient, reqID string, reqData pd.AccessRequestData) error {
+func (a *App) broadcastAccessRequestMessages(ctx context.Context, recipients []recipient.Recipient, reqID string, reqData pd.AccessRequestData) error {
 	sentMessages, err := a.bot.BroadcastAccessRequestMessage(ctx, recipients, reqID, reqData)
 	if len(sentMessages) == 0 && err != nil {
 		return trace.Wrap(err)
@@ -279,7 +283,7 @@ func (a *App[_]) broadcastAccessRequestMessages(ctx context.Context, recipients 
 
 // postReviewReplies lists and updates existing messages belonging to an access request.
 // Posting reviews is done both by updating the original message and by replying in thread if possible.
-func (a *App[_]) postReviewReplies(ctx context.Context, reqID string, reqReviews []types.AccessReview) error {
+func (a *App) postReviewReplies(ctx context.Context, reqID string, reqReviews []types.AccessReview) error {
 	var oldCount int
 
 	pd, err := a.pluginData.Update(ctx, reqID, func(existing PluginData) (PluginData, error) {
@@ -326,7 +330,7 @@ func (a *App[_]) postReviewReplies(ctx context.Context, reqID string, reqReviews
 // getMessageRecipients takes an access request and returns a list of channelIDs that should be messaged.
 // channelIDs can represent any communication channel depending on the MessagingBot implementation:
 // a public channel, a private one, or a user direct message channel.
-func (a *App[_]) getMessageRecipients(ctx context.Context, req types.AccessRequest) []recipient.Recipient {
+func (a *App) getMessageRecipients(ctx context.Context, req types.AccessRequest) []recipient.Recipient {
 	log := logger.Get(ctx)
 
 	// We receive a set from GetRawRecipientsFor but we still might end up with duplicate channel names.
@@ -376,7 +380,7 @@ func (a *App[_]) getMessageRecipients(ctx context.Context, req types.AccessReque
 }
 
 // updateMessages updates the messages status and adds the resolve reason.
-func (a *App[_]) updateMessages(ctx context.Context, reqID string, tag pd.ResolutionTag, reason string, reviews []types.AccessReview) error {
+func (a *App) updateMessages(ctx context.Context, reqID string, tag pd.ResolutionTag, reason string, reviews []types.AccessReview) error {
 	log := logger.Get(ctx)
 
 	pluginData, err := a.pluginData.Update(ctx, reqID, func(existing PluginData) (PluginData, error) {
@@ -422,7 +426,7 @@ func (a *App[_]) updateMessages(ctx context.Context, reqID string, tag pd.Resolu
 	return nil
 }
 
-func (a *App[_]) getResourceNames(ctx context.Context, req types.AccessRequest) ([]string, error) {
+func (a *App) getResourceNames(ctx context.Context, req types.AccessRequest) ([]string, error) {
 	resourceNames := make([]string, 0, len(req.GetRequestedResourceIDs()))
 	resourcesByCluster := accessrequest.GetResourceIDsByCluster(req)
 

@@ -37,27 +37,27 @@ const (
 	initTimeout = time.Second * 10
 )
 
-type AppCreator[M MessagingBot] func() *App[M]
+type AppCreator func() *App
 
 // BaseApp is responsible for handling the common features for a plugin.
 // It will start a Teleport client, listen for events and treat them.
 // It also handles signals and watches its thread.
 // To instantiate a new BaseApp, use NewApp()
-type BaseApp[M MessagingBot] struct {
+type BaseApp struct {
 	PluginName string
 	APIClient  teleport.Client
-	Conf       PluginConfiguration[M]
-	Bot        M
+	Conf       PluginConfiguration
+	Bot        MessagingBot
 
-	apps    []App[M]
+	apps    []App
 	mainJob lib.ServiceJob
 
 	*lib.Process
 }
 
 // NewApp creates a new BaseApp and initialize its main job
-func NewApp[M MessagingBot](conf PluginConfiguration[M], pluginName string) *BaseApp[M] {
-	baseApp := BaseApp[M]{
+func NewApp(conf PluginConfiguration, pluginName string) *BaseApp {
+	baseApp := BaseApp{
 		PluginName: pluginName,
 		Conf:       conf,
 	}
@@ -65,13 +65,13 @@ func NewApp[M MessagingBot](conf PluginConfiguration[M], pluginName string) *Bas
 	return &baseApp
 }
 
-func (a *BaseApp[M]) AddApp(app App[M]) *BaseApp[M] {
+func (a *BaseApp) AddApp(app App) *BaseApp {
 	a.apps = append(a.apps, app)
 	return a
 }
 
 // Run initializes and runs a watcher and a callback server
-func (a *BaseApp[_]) Run(ctx context.Context) error {
+func (a *BaseApp) Run(ctx context.Context) error {
 	// Initialize the process.
 	a.Process = lib.NewProcess(ctx)
 	a.SpawnCriticalJob(a.mainJob)
@@ -80,16 +80,16 @@ func (a *BaseApp[_]) Run(ctx context.Context) error {
 }
 
 // Err returns the error app finished with.
-func (a *BaseApp[_]) Err() error {
+func (a *BaseApp) Err() error {
 	return trace.Wrap(a.mainJob.Err())
 }
 
 // WaitReady waits for http and watcher service to start up.
-func (a *BaseApp[_]) WaitReady(ctx context.Context) (bool, error) {
+func (a *BaseApp) WaitReady(ctx context.Context) (bool, error) {
 	return a.mainJob.WaitReady(ctx)
 }
 
-func (a *BaseApp[_]) checkTeleportVersion(ctx context.Context) (proto.PingResponse, error) {
+func (a *BaseApp) checkTeleportVersion(ctx context.Context) (proto.PingResponse, error) {
 	log := logger.Get(ctx)
 	log.Debug("Checking Teleport server version")
 
@@ -105,7 +105,7 @@ func (a *BaseApp[_]) checkTeleportVersion(ctx context.Context) (proto.PingRespon
 }
 
 // initTeleport creates a Teleport client and validates Teleport connectivity.
-func (a *BaseApp[M]) initTeleport(ctx context.Context, conf PluginConfiguration[M]) (clusterName, webProxyAddr string, err error) {
+func (a *BaseApp) initTeleport(ctx context.Context, conf PluginConfiguration) (clusterName, webProxyAddr string, err error) {
 	clt, err := conf.GetTeleportClient(ctx)
 	if err != nil {
 		return "", "", trace.Wrap(err)
@@ -124,16 +124,16 @@ func (a *BaseApp[M]) initTeleport(ctx context.Context, conf PluginConfiguration[
 	return pong.ClusterName, webProxyAddr, nil
 }
 
-type App[M MessagingBot] interface {
-	Init(baseApp *BaseApp[M]) error
-	Start(ctx context.Context, process *lib.Process) error
+type App interface {
+	Init(baseApp *BaseApp) error
+	Start(process *lib.Process)
 	WaitReady(ctx context.Context) (bool, error)
 	WaitForDone()
 	Err() error
 }
 
 // run starts the event watcher job and blocks utils it stops
-func (a *BaseApp[_]) run(ctx context.Context) error {
+func (a *BaseApp) run(ctx context.Context) error {
 	log := logger.Get(ctx)
 
 	if err := a.init(ctx); err != nil {
@@ -141,9 +141,7 @@ func (a *BaseApp[_]) run(ctx context.Context) error {
 	}
 
 	for _, app := range a.apps {
-		if err := app.Start(ctx, a.Process); err != nil {
-			return trace.Wrap(err)
-		}
+		app.Start(a.Process)
 	}
 
 	allOK := true
@@ -177,7 +175,7 @@ func (a *BaseApp[_]) run(ctx context.Context) error {
 	return trace.NewAggregate(allErrs...)
 }
 
-func (a *BaseApp[_]) init(ctx context.Context) error {
+func (a *BaseApp) init(ctx context.Context) error {
 	ctx, cancel := context.WithTimeout(ctx, initTimeout)
 	defer cancel()
 	log := logger.Get(ctx)

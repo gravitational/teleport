@@ -101,7 +101,7 @@ func (c *Config) CheckAndSetDefaults() error {
 
 // NewBot initializes the new Slack message generator (SlackBot)
 // takes GenericAPIConfig as an argument.
-func (c *Config) NewBot(clusterName, webProxyAddr string) (Bot, error) {
+func (c *Config) NewBot(clusterName, webProxyAddr string) (common.MessagingBot, error) {
 	var (
 		webProxyURL *url.URL
 		err         error

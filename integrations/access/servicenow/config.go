@@ -59,7 +59,7 @@ func (c *Config) CheckAndSetDefaults() error {
 
 // NewBot initializes the new Servicenow message generator (ServicenowBot)
 // takes GenericAPIConfig as an argument.
-func (c *Config) NewBot(clusterName, webProxyAddr string) (*Bot, error) {
+func (c *Config) NewBot(clusterName, webProxyAddr string) (common.MessagingBot, error) {
 	var (
 		webProxyURL *url.URL
 		err         error
