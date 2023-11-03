@@ -1937,7 +1937,7 @@ exports[`render with all access 1`] = `
           class="c12"
         >
           <div
-            class="c14"
+            class="c13"
             color="text.slightlyMuted"
             font-size="12px"
           >
@@ -4887,47 +4887,6 @@ exports[`render with partial access 1`] = `
         </div>
       </div>
     </div>
-    <a
-      class="c15 c7"
-      data-testid="2"
-      href="https://goteleport.com/docs/desktop-access/getting-started/"
-      rel="noreferrer"
-      style="text-decoration: none;"
-      target="_blank"
-    >
-      <div
-        class="c9"
-      >
-        <div
-          class="c10"
-          width="24px"
-        >
-          <img
-            class="c11"
-            height="24px"
-            src="file_stub"
-            width="23.9px"
-          />
-        </div>
-        <div
-          class="c12"
-        >
-          <div
-            class="c14"
-            color="text.slightlyMuted"
-            font-size="12px"
-          >
-            Windows Desktop
-          </div>
-          <div
-            class="c16"
-            color="text.main"
-          >
-            Local Windows Users
-          </div>
-        </div>
-      </div>
-    </a>
     <div
       class="c7"
       data-testid="4"
@@ -5010,6 +4969,47 @@ exports[`render with partial access 1`] = `
         </div>
       </div>
     </div>
+    <a
+      class="c15 c7"
+      data-testid="2"
+      href="https://goteleport.com/docs/desktop-access/getting-started/"
+      rel="noreferrer"
+      style="text-decoration: none;"
+      target="_blank"
+    >
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c11"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c13"
+            color="text.slightlyMuted"
+            font-size="12px"
+          >
+            Windows Desktop
+          </div>
+          <div
+            class="c16"
+            color="text.main"
+          >
+            Local Windows Users
+          </div>
+        </div>
+      </div>
+    </a>
     <div
       class="c17"
       data-testid="1"
