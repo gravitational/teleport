@@ -16,7 +16,7 @@
 
 import React from 'react';
 
-import { getPlatform } from 'design/theme/utils';
+import { getPlatformType } from 'design/platform';
 
 import ConsoleContext from './consoleContext';
 
@@ -37,7 +37,7 @@ export function getMappedAction(event) {
     event.key
   );
 
-  const { isMac } = getPlatform();
+  const { isMac } = getPlatformType();
   const isModifierKey = (isMac && event.ctrlKey) || event.altKey;
 
   let tabSwitch = undefined;
