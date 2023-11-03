@@ -280,7 +280,7 @@ func testYAML[T any](t *testing.T, tests []testYAMLCase[T]) {
 			b := bytes.NewBuffer(nil)
 			encoder := yaml.NewEncoder(b)
 			encoder.SetIndent(2)
-			require.NoError(t, encoder.Encode(tt.in))
+			require.NoError(t, encoder.Encode(&tt.in))
 
 			if golden.ShouldSet() {
 				golden.Set(t, b.Bytes())
