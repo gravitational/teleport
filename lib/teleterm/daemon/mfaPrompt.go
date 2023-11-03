@@ -16,13 +16,11 @@ package daemon
 
 import (
 	"context"
-	"errors"
 	"io"
 	"sync"
 
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/mfa"
@@ -38,7 +36,6 @@ type mfaPrompt struct {
 	cfg              libmfa.PromptConfig
 	clusterURI       string
 	tshdEventsClient api.TshdEventsServiceClient
-	logger           *logrus.Logger
 }
 
 // NewMFAPromptConstructor returns a new MFA prompt constructor
@@ -55,7 +52,6 @@ func (s *Service) NewMFAPrompt(clusterURI string, cfg *libmfa.PromptConfig) *mfa
 		cfg:              *cfg,
 		clusterURI:       clusterURI,
 		tshdEventsClient: s.tshdEventsClient,
-		logger:           s.cfg.Log.Logger,
 	}
 }
 
@@ -66,65 +62,30 @@ func (p *mfaPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChalleng
 		return nil, trace.Wrap(err)
 	}
 
-	type response struct {
-		kind string
-		resp *proto.MFAAuthenticateResponse
-		err  error
-	}
-	respC := make(chan response, 2)
-	var wg sync.WaitGroup
-
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
-	// Fire Electron notification goroutine.
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-
-		resp, err := p.promptApp(ctx, chal, runOpts)
-		respC <- response{kind: "APP", resp: resp, err: err}
-	}()
-
-	// Fire Webauthn goroutine.
-	if runOpts.PromptWebauthn {
+	// Depending on the run opts, we may spawn a TOTP goroutine, webauth goroutine, or both.
+	spawnGoroutines := func(ctx context.Context, wg *sync.WaitGroup, respC chan<- libmfa.MFAGoroutineResponse) {
+		// Fire App goroutine (TOTP).
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 
-			resp, err := p.promptWebauthn(ctx, chal)
-			respC <- response{kind: "WEBAUTHN", resp: resp, err: err}
+			resp, err := p.promptApp(ctx, chal, runOpts)
+			respC <- libmfa.MFAGoroutineResponse{Resp: resp, Err: err}
 		}()
-	}
 
-	// Wait for the 1-2 authn goroutines above to complete, then close respC.
-	go func() {
-		wg.Wait()
-		close(respC)
-	}()
+		// Fire Webauthn goroutine.
+		if runOpts.PromptWebauthn {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
 
-	// Wait for a successful response, or terminating error, from the 1-2 authn goroutines.
-	// The goroutine above will ensure the response channel is closed once all goroutines are done.
-	for resp := range respC {
-		switch err := resp.err; {
-		case errors.Is(err, wancli.ErrUsingNonRegisteredDevice):
-			// Surface error immediately.
-			return nil, trace.Wrap(resp.err)
-		case err != nil:
-			p.logger.WithError(err).Debugf("%s authentication failed", resp.kind)
-			// Continue to give the other authn goroutine a chance to succeed.
-			// If both have failed, this will exit the loop.
-			continue
+				resp, err := p.promptWebauthn(ctx, chal)
+				respC <- libmfa.MFAGoroutineResponse{Resp: resp, Err: trace.Wrap(err, "Webauthn authentication failed")}
+			}()
 		}
-
-		// Return successful response.
-		return resp.resp, nil
 	}
 
-	// If no successful response is returned, this means the authn goroutines were unsuccessful.
-	// This usually occurs when the prompt times out or no devices are available to prompt.
-	// Return a user readable error message.
-	return nil, trace.BadParameter("failed to authenticate using available MFA devices, rerun the command with '-d' to see error details for each device")
+	return libmfa.HandleMFAPromptGoroutines(ctx, spawnGoroutines)
 }
 
 func (p *mfaPrompt) promptWebauthn(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
