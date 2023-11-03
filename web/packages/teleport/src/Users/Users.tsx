@@ -53,6 +53,8 @@ export function Users(props: State) {
     onInviteCollaboratorsClose,
     inviteCollaboratorsOpen,
     InviteCollaborators,
+    EmailPasswordReset,
+    onEmailPasswordResetClose,
   } = props;
   return (
     <FeatureBox>
@@ -108,10 +110,16 @@ export function Users(props: State) {
           username={operation.user.name}
         />
       )}
-      {operation.type === 'reset' && (
+      {operation.type === 'reset' && !EmailPasswordReset && (
         <UserReset
           onClose={onClose}
           onReset={onReset}
+          username={operation.user.name}
+        />
+      )}
+      {operation.type === 'reset' && EmailPasswordReset && (
+        <EmailPasswordReset
+          onClose={onEmailPasswordResetClose}
           username={operation.user.name}
         />
       )}

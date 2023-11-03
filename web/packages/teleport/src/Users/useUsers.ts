@@ -20,7 +20,10 @@ import { useAttempt } from 'shared/hooks';
 import { User } from 'teleport/services/user';
 import useTeleport from 'teleport/useTeleport';
 
-export default function useUsers({ InviteCollaborators }: UsersContainerProps) {
+export default function useUsers({
+  InviteCollaborators,
+  EmailPasswordReset,
+}: UsersContainerProps) {
   const ctx = useTeleport();
   const [attempt, attemptActions] = useAttempt({ isProcessing: true });
   const [users, setUsers] = useState([] as User[]);
@@ -93,6 +96,10 @@ export default function useUsers({ InviteCollaborators }: UsersContainerProps) {
     setOperation({ type: 'none' });
   }
 
+  function onEmailPasswordResetClose() {
+    setOperation({ type: 'none' });
+  }
+
   useEffect(() => {
     function fetchRoles() {
       if (ctx.getFeatureFlags().roles) {
@@ -130,6 +137,8 @@ export default function useUsers({ InviteCollaborators }: UsersContainerProps) {
     onInviteCollaboratorsClose,
     InviteCollaborators,
     inviteCollaboratorsOpen,
+    onEmailPasswordResetClose,
+    EmailPasswordReset,
   };
 }
 
@@ -149,8 +158,14 @@ export interface InviteCollaboratorsDialogProps {
   open: boolean;
 }
 
+export interface EmailPasswordResetDialogProps {
+  username: string;
+  onClose: () => void;
+}
+
 export type UsersContainerProps = {
   InviteCollaborators?: (props: InviteCollaboratorsDialogProps) => ReactElement;
+  EmailPasswordReset?: (props: EmailPasswordResetDialogProps) => ReactElement;
 };
 
 export type State = ReturnType<typeof useUsers>;
