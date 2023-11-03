@@ -34,8 +34,10 @@ export const formatters: Formatters = {
   [eventCodes.ACCESS_REQUEST_REVIEWED]: {
     type: 'access_request.review',
     desc: 'Access Request Reviewed',
-    format: ({ id, reviewer, state }) =>
-      `User [${reviewer}] reviewed access request [${id}] and is ${state}`,
+    format: ({ id, reviewer, state }) => {
+      const stateLowerCase = state.toLowerCase();
+      return `User [${reviewer}] ${stateLowerCase} access request [${id}]`;
+    },
   },
   [eventCodes.ACCESS_REQUEST_DELETED]: {
     type: 'access_request.delete',
