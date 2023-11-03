@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::errors::{invalid_data_error, not_implemented_error};
+use crate::errors::invalid_data_error;
 use crate::rdpdr::consts::NTSTATUS;
 use crate::{piv, Message};
 use crate::{Encode, Payload};
@@ -242,10 +242,15 @@ impl Client {
         let mut resp = GetStatusChange_Return::new(ReturnCode::SCARD_S_SUCCESS, req);
         if resp.no_change() {
             if timeout != TIMEOUT_INFINITE {
-                return Err(not_implemented_error(&format!(
-                    "no change for non-infinite timeout [{}] is not implemented",
-                    timeout
-                )));
+                // Received an GetStatusChange_Call with a finite timeout, but there's no change.
+                // Rather than implement timeout semantics, just return an SCARD_E_TIMEOUT immediately
+                // and let the server handle it.
+                resp.set_return_code(ReturnCode::SCARD_E_TIMEOUT);
+                return Ok(vec![DeviceControlResponse::new(
+                    ioctl,
+                    NTSTATUS::STATUS_SUCCESS,
+                    Box::new(resp),
+                )]);
             }
 
             // Received a GetStatusChange_Call with an infinite timeout, so we're adding
