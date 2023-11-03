@@ -174,15 +174,11 @@ type ExternalCloudAuditPolicyConfig struct {
 	Region string
 	// Account is the AWS account ID to use.
 	Account string
-	// AuditEventsARN is the S3 resource ARN where audit events are stored,
-	// including the bucket name, (optional) prefix, and a trailing wildcard
-	AuditEventsARN string
-	// SessionRecordingsARN is the S3 resource ARN where session recordings are stored,
-	// including the bucket name, (optional) prefix, and a trailing wildcard
-	SessionRecordingsARN string
-	// AthenaResultsARN is the S3 resource ARN where athena results are stored,
-	// including the bucket name, (optional) prefix, and a trailing wildcard
-	AthenaResultsARN string
+	// S3ARNs is a list of all S3 resource ARNs used for audit events, session
+	// recordings, and Athena query results. For each location, it should include an ARN for the
+	// base bucket and another wildcard ARN for all objects within the bucket
+	// and an optional path/prefix.
+	S3ARNs []string
 	// AthenaWorkgroupName is the name of the Athena workgroup used for queries.
 	AthenaWorkgroupName string
 	// GlueDatabaseName is the name of the AWS Glue database.
@@ -201,14 +197,8 @@ func (c *ExternalCloudAuditPolicyConfig) CheckAndSetDefaults() error {
 	if len(c.Account) == 0 {
 		return trace.BadParameter("account is required")
 	}
-	if len(c.AuditEventsARN) == 0 {
-		return trace.BadParameter("audit events ARN is required")
-	}
-	if len(c.SessionRecordingsARN) == 0 {
-		return trace.BadParameter("session recordings ARN is required")
-	}
-	if len(c.AthenaResultsARN) == 0 {
-		return trace.BadParameter("athena results ARN is required")
+	if len(c.S3ARNs) < 2 {
+		return trace.BadParameter("at least two distinct S3 ARNs are required")
 	}
 	if len(c.AthenaWorkgroupName) == 0 {
 		return trace.BadParameter("athena workgroup name is required")
@@ -240,12 +230,16 @@ func PolicyDocumentForExternalCloudAudit(cfg *ExternalCloudAuditPolicyConfig) (*
 					"s3:GetObjectVersion",
 					"s3:ListMultipartUploadParts",
 					"s3:AbortMultipartUpload",
+					"s3:ListBucket",
+					"s3:ListBucketVersions",
+					"s3:ListBucketMultipartUploads",
+					"s3:GetBucketOwnershipControls",
+					"s3:GetBucketPublicAccessBlock",
+					"s3:GetBucketObjectLockConfiguration",
+					"s3:GetBucketVersioning",
+					"s3:GetBucketLocation",
 				},
-				Resources: []string{
-					cfg.AuditEventsARN,
-					cfg.SessionRecordingsARN,
-					cfg.AthenaResultsARN,
-				},
+				Resources: cfg.S3ARNs,
 			},
 			&Statement{
 				StatementID: "AllowAthenaQuery",

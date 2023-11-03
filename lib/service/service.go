@@ -1536,7 +1536,7 @@ func initAuthExternalAuditLog(ctx context.Context, auditConfig types.ClusterAudi
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			if externalCloudAudit != nil {
+			if externalCloudAudit.IsUsed() {
 				if err := cfg.UpdateBasedOnExternalAuditConfig(ctx, externalCloudAudit.GetSpec(), externalCloudAudit.CredentialsSDKV2()); err != nil {
 					return nil, trace.Wrap(err)
 				}

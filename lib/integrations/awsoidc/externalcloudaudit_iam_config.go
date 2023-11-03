@@ -25,6 +25,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/utils"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/config"
 )
@@ -72,18 +73,22 @@ func ConfigureExternalCloudAudit(
 	}
 
 	var err error
-	policyCfg.AuditEventsARN, err = s3URIToObjectWildcardARN(params.Partition, params.AuditEventsURI)
+	bucketARN, wildcardARN, err := s3URIToResourceARNs(params.Partition, params.AuditEventsURI)
 	if err != nil {
 		return trace.Wrap(err, "parsing audit events URI")
 	}
-	policyCfg.SessionRecordingsARN, err = s3URIToObjectWildcardARN(params.Partition, params.SessionRecordingsURI)
+	policyCfg.S3ARNs = append(policyCfg.S3ARNs, bucketARN, wildcardARN)
+	bucketARN, wildcardARN, err = s3URIToResourceARNs(params.Partition, params.SessionRecordingsURI)
 	if err != nil {
 		return trace.Wrap(err, "parsing session recordings URI")
 	}
-	policyCfg.AthenaResultsARN, err = s3URIToObjectWildcardARN(params.Partition, params.AthenaResultsURI)
+	policyCfg.S3ARNs = append(policyCfg.S3ARNs, bucketARN, wildcardARN)
+	bucketARN, wildcardARN, err = s3URIToResourceARNs(params.Partition, params.AthenaResultsURI)
 	if err != nil {
 		return trace.Wrap(err, "parsing athena results URI")
 	}
+	policyCfg.S3ARNs = append(policyCfg.S3ARNs, bucketARN, wildcardARN)
+	policyCfg.S3ARNs = utils.Deduplicate(policyCfg.S3ARNs)
 
 	stsResp, err := clt.GetCallerIdentity(ctx, nil)
 	if err != nil {
@@ -116,31 +121,38 @@ func ConfigureExternalCloudAudit(
 	return nil
 }
 
-// s3URIToObjectWildcardARN takes a URI for an s3 bucket with an optional path
-// prefix (folder) and returns a wildcard ARN to match all objects in that
-// bucket (within the prefix).
-// E.g. s3://bucketname/folder -> arn:aws:s3:::bucketname/folder/*
-func s3URIToObjectWildcardARN(partition, uri string) (string, error) {
+// s3URIToResourceARNs takes a URI for an s3 bucket with an optional path
+// prefix, and returns two AWS s3 resource ARNS. The first is the ARN of the
+// bucket, the second is a wildcard ARN matching all objects within the bucket
+// and prefix.
+// E.g. s3://bucketname/folder -> arn:aws:s3:::bucketname, arn:aws:s3:::bucketname/folder/*
+func s3URIToResourceARNs(partition, uri string) (string, string, error) {
 	u, err := url.Parse(uri)
 	if err != nil {
-		return "", trace.BadParameter("parsing S3 URI: %v", err)
+		return "", "", trace.BadParameter("parsing S3 URI: %v", err)
 	}
 
 	if u.Scheme != "s3" {
-		return "", trace.BadParameter("URI scheme must be s3")
+		return "", "", trace.BadParameter("URI scheme must be s3")
 	}
 
 	bucket := u.Host
+	bucketARN := arn.ARN{
+		Partition: partition,
+		Service:   "s3",
+		Resource:  bucket,
+	}
 
 	resourcePath := bucket
 	if folder := strings.Trim(u.Path, "/"); len(folder) > 0 {
 		resourcePath += "/" + folder
 	}
 	resourcePath += "/*"
-	arn := arn.ARN{
+	wildcardARN := arn.ARN{
 		Partition: partition,
 		Service:   "s3",
 		Resource:  resourcePath,
 	}
-	return arn.String(), nil
+
+	return bucketARN.String(), wildcardARN.String(), nil
 }
