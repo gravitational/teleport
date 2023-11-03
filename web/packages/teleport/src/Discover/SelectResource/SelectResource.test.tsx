@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { Platform } from 'design/theme/utils';
+import { Platform, UserAgent } from 'design/platform';
 
 import { makeDefaultUserPreferences } from 'teleport/services/userPreferences/userPreferences';
 
@@ -29,7 +29,9 @@ import { sortResources } from './SelectResource';
 import { ResourceSpec } from './types';
 
 const setUp = () => {
-  jest.spyOn(window.navigator, 'userAgent', 'get').mockReturnValue('Macintosh');
+  jest
+    .spyOn(window.navigator, 'userAgent', 'get')
+    .mockReturnValue(UserAgent.macOS);
 };
 
 const makeResourceSpec = (
@@ -521,18 +523,18 @@ const osBasedList: ResourceSpec[] = [
   makeResourceSpec({ name: 'Aaaa' }),
   makeResourceSpec({
     name: 'no-linux-1',
-    platform: Platform.PLATFORM_LINUX,
+    platform: Platform.Linux,
     hasAccess: false,
   }),
-  makeResourceSpec({ name: 'win', platform: Platform.PLATFORM_WINDOWS }),
-  makeResourceSpec({ name: 'linux-2', platform: Platform.PLATFORM_LINUX }),
+  makeResourceSpec({ name: 'win', platform: Platform.Windows }),
+  makeResourceSpec({ name: 'linux-2', platform: Platform.Linux }),
   makeResourceSpec({
     name: 'no-mac',
-    platform: Platform.PLATFORM_MACINTOSH,
+    platform: Platform.macOS,
     hasAccess: false,
   }),
-  makeResourceSpec({ name: 'mac', platform: Platform.PLATFORM_MACINTOSH }),
-  makeResourceSpec({ name: 'linux-1', platform: Platform.PLATFORM_LINUX }),
+  makeResourceSpec({ name: 'mac', platform: Platform.macOS }),
+  makeResourceSpec({ name: 'linux-1', platform: Platform.Linux }),
 ];
 
 describe('os sorted resources', () => {
@@ -544,104 +546,104 @@ describe('os sorted resources', () => {
 
   const testCases: {
     name: string;
-    platform: Platform;
+    userAgent: UserAgent;
     expected: ResourceSpec[];
   }[] = [
     {
       name: 'running mac',
-      platform: Platform.PLATFORM_MACINTOSH,
+      userAgent: UserAgent.macOS,
       expected: [
         // preferred first
         makeResourceSpec({
           name: 'mac',
-          platform: Platform.PLATFORM_MACINTOSH,
+          platform: Platform.macOS,
         }),
         // alpha
         makeResourceSpec({ name: 'Aaaa' }),
         makeResourceSpec({
           name: 'linux-1',
-          platform: Platform.PLATFORM_LINUX,
+          platform: Platform.Linux,
         }),
         makeResourceSpec({
           name: 'linux-2',
-          platform: Platform.PLATFORM_LINUX,
+          platform: Platform.Linux,
         }),
-        makeResourceSpec({ name: 'win', platform: Platform.PLATFORM_WINDOWS }),
+        makeResourceSpec({ name: 'win', platform: Platform.Windows }),
         // no access, alpha
         makeResourceSpec({
           name: 'no-linux-1',
-          platform: Platform.PLATFORM_LINUX,
+          platform: Platform.Linux,
           hasAccess: false,
         }),
         makeResourceSpec({
           name: 'no-mac',
-          platform: Platform.PLATFORM_MACINTOSH,
+          platform: Platform.macOS,
           hasAccess: false,
         }),
       ],
     },
     {
       name: 'running linux',
-      platform: Platform.PLATFORM_LINUX,
+      userAgent: UserAgent.Linux,
       expected: [
         // preferred first
         makeResourceSpec({
           name: 'linux-1',
-          platform: Platform.PLATFORM_LINUX,
+          platform: Platform.Linux,
         }),
         makeResourceSpec({
           name: 'linux-2',
-          platform: Platform.PLATFORM_LINUX,
+          platform: Platform.Linux,
         }),
         // alpha
         makeResourceSpec({ name: 'Aaaa' }),
         makeResourceSpec({
           name: 'mac',
-          platform: Platform.PLATFORM_MACINTOSH,
+          platform: Platform.macOS,
         }),
-        makeResourceSpec({ name: 'win', platform: Platform.PLATFORM_WINDOWS }),
+        makeResourceSpec({ name: 'win', platform: Platform.Windows }),
         // no access, alpha
         makeResourceSpec({
           name: 'no-linux-1',
-          platform: Platform.PLATFORM_LINUX,
+          platform: Platform.Linux,
           hasAccess: false,
         }),
         makeResourceSpec({
           name: 'no-mac',
-          platform: Platform.PLATFORM_MACINTOSH,
+          platform: Platform.macOS,
           hasAccess: false,
         }),
       ],
     },
     {
       name: 'running windows',
-      platform: Platform.PLATFORM_WINDOWS,
+      userAgent: UserAgent.Windows,
       expected: [
         // preferred first
-        makeResourceSpec({ name: 'win', platform: Platform.PLATFORM_WINDOWS }),
+        makeResourceSpec({ name: 'win', platform: Platform.Windows }),
         // alpha
         makeResourceSpec({ name: 'Aaaa' }),
         makeResourceSpec({
           name: 'linux-1',
-          platform: Platform.PLATFORM_LINUX,
+          platform: Platform.Linux,
         }),
         makeResourceSpec({
           name: 'linux-2',
-          platform: Platform.PLATFORM_LINUX,
+          platform: Platform.Linux,
         }),
         makeResourceSpec({
           name: 'mac',
-          platform: Platform.PLATFORM_MACINTOSH,
+          platform: Platform.macOS,
         }),
         // no access, alpha
         makeResourceSpec({
           name: 'no-linux-1',
-          platform: Platform.PLATFORM_LINUX,
+          platform: Platform.Linux,
           hasAccess: false,
         }),
         makeResourceSpec({
           name: 'no-mac',
-          platform: Platform.PLATFORM_MACINTOSH,
+          platform: Platform.macOS,
           hasAccess: false,
         }),
       ],
@@ -649,7 +651,7 @@ describe('os sorted resources', () => {
   ];
 
   test.each(testCases)('$name', testCase => {
-    OS.mockReturnValue(testCase.platform);
+    OS.mockReturnValue(testCase.userAgent);
 
     const actual = sortResources(osBasedList, makeDefaultUserPreferences());
     expect(actual).toMatchObject(testCase.expected);
@@ -659,19 +661,19 @@ describe('os sorted resources', () => {
     const mockIn: ResourceSpec[] = [
       makeResourceSpec({
         name: 'macOs',
-        platform: Platform.PLATFORM_MACINTOSH,
+        platform: Platform.macOS,
         hasAccess: false,
       }),
       makeResourceSpec({ name: 'Aaaa' }),
     ];
-    OS.mockReturnValue(Platform.PLATFORM_MACINTOSH);
+    OS.mockReturnValue(UserAgent.macOS);
 
     const actual = sortResources(mockIn, makeDefaultUserPreferences());
     expect(actual).toMatchObject([
       makeResourceSpec({ name: 'Aaaa' }),
       makeResourceSpec({
         name: 'macOs',
-        platform: Platform.PLATFORM_MACINTOSH,
+        platform: Platform.macOS,
         hasAccess: false,
       }),
     ]);
@@ -681,7 +683,7 @@ describe('os sorted resources', () => {
     makeResourceSpec({
       name: 'no access but super matches',
       hasAccess: false,
-      platform: Platform.PLATFORM_MACINTOSH,
+      platform: Platform.macOS,
       kind: ResourceKind.Server,
     }),
     makeResourceSpec({ name: 'guided' }),
@@ -689,13 +691,13 @@ describe('os sorted resources', () => {
     makeResourceSpec({ name: 'unguidedB', unguidedLink: 'test.com' }),
     makeResourceSpec({
       name: 'platform match',
-      platform: Platform.PLATFORM_MACINTOSH,
+      platform: Platform.macOS,
     }),
     makeResourceSpec({ name: 'preferred', kind: ResourceKind.Server }),
   ];
 
   test('all logic together', () => {
-    OS.mockReturnValue(Platform.PLATFORM_MACINTOSH);
+    OS.mockReturnValue(UserAgent.macOS);
     const preferences = makeDefaultUserPreferences();
     preferences.onboard = {
       preferredResources: [2],
@@ -712,7 +714,7 @@ describe('os sorted resources', () => {
       // 1. OS
       makeResourceSpec({
         name: 'platform match',
-        platform: Platform.PLATFORM_MACINTOSH,
+        platform: Platform.macOS,
       }),
       // 2. preferred
       makeResourceSpec({ name: 'preferred', kind: ResourceKind.Server }),
@@ -725,7 +727,7 @@ describe('os sorted resources', () => {
       makeResourceSpec({
         name: 'no access but super matches',
         hasAccess: false,
-        platform: Platform.PLATFORM_MACINTOSH,
+        platform: Platform.macOS,
         kind: ResourceKind.Server,
       }),
     ]);

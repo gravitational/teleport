@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { Platform } from 'design/theme/utils';
+import { Platform } from 'design/platform';
 
 import { ClusterResource } from 'teleport/services/userPreferences/types';
 
