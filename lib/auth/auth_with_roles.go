@@ -3398,6 +3398,7 @@ func (a *ServerWithRoles) ChangeUserAuthentication(ctx context.Context, req *pro
 // CreateUser inserts a new user entry in a backend.
 func (a *ServerWithRoles) CreateUser(ctx context.Context, user types.User) (types.User, error) {
 	if err := a.action(apidefaults.Namespace, types.KindUser, types.VerbCreate); err != nil {
+		return nil, trace.Wrap(err)
 	}
 	created, err := a.authServer.CreateUser(ctx, user)
 	return created, trace.Wrap(err)

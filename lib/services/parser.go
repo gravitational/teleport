@@ -332,16 +332,13 @@ func (ctx *Context) GetIdentifier(fields []string) (interface{}, error) {
 		}
 		return predicate.GetFieldByTag(user, teleport.JSON, fields[1:])
 	case ResourceIdentifier:
-		ß
 		var resource types.Resource
 		if ctx.Resource == nil {
 			resource = emptyResource
 		} else {
 			resource = ctx.Resource
 		}
-		v, err := predicate.GetFieldByTag(resource, teleport.JSON, fields[1:])
-		return v, err
-
+		return predicate.GetFieldByTag(resource, teleport.JSON, fields[1:])
 	case SessionIdentifier:
 		var session events.AuditEvent = &events.SessionEnd{}
 		switch ctx.Session.(type) {
