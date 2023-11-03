@@ -1,0 +1,113 @@
+// Copyright 2023 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package teleport.accessgraph.v1alpha;
+
+import "teleport/legacy/client/proto/event.proto";
+import "teleport/legacy/types/types.proto";
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessgraph/v1alpha;accessgraphv1alpha";
+
+// AccessGraphService is a service for interacting the access graph service.
+service AccessGraphService {
+  // Query queries the access graph.
+  // Currently only used by WebUI.
+  rpc Query(QueryRequest) returns (QueryResponse);
+  // GetFile gets a static UI file from the access graph container.
+  rpc GetFile(GetFileRequest) returns (GetFileResponse);
+
+  // SendEvent sends an event to the access graph service.
+  rpc SendEvent(SendEventRequest) returns (SendEventResponse);
+
+  // SendResource sends a resource to the access graph service.
+  rpc SendResource(SendResourceRequest) returns (SendResourceResponse);
+}
+
+// Node is a node in the access graph.
+message Node {
+  string id = 1;
+  string kind = 2;
+  string sub_kind = 3;
+  string name = 4;
+  map<string, string> labels = 5;
+  string hostname = 6;
+  map<string, string> properties = 7;
+}
+
+// Edge is an edge in the access graph.
+message Edge {
+  string from = 1;
+  string to = 2;
+  string type = 3;
+}
+
+// QueryRequest is a request to query the access graph.
+message QueryRequest {
+  // query is a SQL query.
+  string query = 1;
+}
+
+// QueryResponse is a response to a query.
+message QueryResponse {
+  repeated Node nodes = 1;
+  repeated Edge edges = 2;
+}
+
+// GetFileRequest is a request to get a file.
+message GetFileRequest {
+  string filepath = 1;
+}
+
+// GetFileResponse is a response to a file request.
+message GetFileResponse {
+  bytes data = 1;
+}
+
+// SendEventRequest is a request to send an event to the access graph.
+message SendEventRequest {
+  proto.Event event = 1;
+}
+
+// SendEventResponse is a response to sending an event.
+message SendEventResponse {
+  bool cache_initialized = 1;
+}
+
+// SendResourceRequest is a request to send a resource to the access graph.
+message SendResourceRequest {
+  // resource contains the updated resource
+  oneof resource {
+    SendResourceEnd end = 1;
+    // ResourceHeader is specified in delete events,
+    // the full object is not available, so resource
+    // header is used to provide information about object type
+    types.ResourceHeader resource_header = 2;
+    // User is a user resource
+    types.UserV2 user = 3;
+    // Role is a role resource
+    types.RoleV6 role = 4;
+    // Server is a node or proxy resource
+    types.ServerV2 server = 5;
+    // AccessRequest is a resource for access requests
+    types.AccessRequestV3 access_request = 6;
+  }
+}
+
+// SendResourceEnd is a marker for the end of a resource stream.
+message SendResourceEnd {}
+
+// SendResourceResponse is a response to sending a resource.
+message SendResourceResponse {}
