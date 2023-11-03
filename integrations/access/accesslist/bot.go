@@ -21,12 +21,11 @@ import (
 
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/integrations/access/common"
-	"github.com/gravitational/teleport/integrations/access/common/recipient"
 )
 
 type MessagingBot interface {
 	common.MessagingBot
 
 	// SendReviewReminders will send a review reminder that an access list needs to be reviewed.
-	SendReviewReminders(ctx context.Context, recipients []recipient.Recipient, accessList *accesslist.AccessList) error
+	SendReviewReminders(ctx context.Context, recipients []common.Recipient, accessList *accesslist.AccessList) error
 }

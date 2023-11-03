@@ -30,27 +30,26 @@ import (
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/integrations/access/common"
-	"github.com/gravitational/teleport/integrations/access/common/recipient"
 	"github.com/gravitational/teleport/integrations/access/common/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/services"
 )
 
 type mockMessagingBot struct {
-	lastReminderRecipients []recipient.Recipient
-	recipients             map[string]*recipient.Recipient
+	lastReminderRecipients []common.Recipient
+	recipients             map[string]*common.Recipient
 }
 
 func (m *mockMessagingBot) CheckHealth(ctx context.Context) error {
 	return nil
 }
 
-func (m *mockMessagingBot) SendReviewReminders(ctx context.Context, recipients []recipient.Recipient, accessList *accesslist.AccessList) error {
+func (m *mockMessagingBot) SendReviewReminders(ctx context.Context, recipients []common.Recipient, accessList *accesslist.AccessList) error {
 	m.lastReminderRecipients = recipients
 	return nil
 }
 
-func (m *mockMessagingBot) FetchRecipient(ctx context.Context, recipient string) (*recipient.Recipient, error) {
+func (m *mockMessagingBot) FetchRecipient(ctx context.Context, recipient string) (*common.Recipient, error) {
 	fetchedRecipient, ok := m.recipients[recipient]
 	if !ok {
 		return nil, trace.NotFound("recipient %s not found", recipient)
@@ -68,7 +67,7 @@ func (m *mockPluginConfig) GetTeleportClient(ctx context.Context) (teleport.Clie
 	return m.as, nil
 }
 
-func (m *mockPluginConfig) GetRecipients() recipient.RawRecipientsMap {
+func (m *mockPluginConfig) GetRecipients() common.RawRecipientsMap {
 	return nil
 }
 
@@ -95,7 +94,7 @@ func TestAccessListReminders(t *testing.T) {
 	as := server.Auth()
 
 	bot := &mockMessagingBot{
-		recipients: map[string]*recipient.Recipient{
+		recipients: map[string]*common.Recipient{
 			"owner1": {Name: "owner1"},
 			"owner2": {Name: "owner2"},
 		},
@@ -188,11 +187,11 @@ func advanceAndLookForRecipients(t *testing.T,
 
 	bot.lastReminderRecipients = nil
 
-	var expectedRecipients []recipient.Recipient
+	var expectedRecipients []common.Recipient
 	if len(recipients) > 0 {
-		expectedRecipients = make([]recipient.Recipient, len(recipients))
+		expectedRecipients = make([]common.Recipient, len(recipients))
 		for i, r := range recipients {
-			expectedRecipients[i] = recipient.Recipient{Name: r}
+			expectedRecipients[i] = common.Recipient{Name: r}
 		}
 	}
 	clock.Advance(advance)

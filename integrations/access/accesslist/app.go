@@ -27,7 +27,6 @@ import (
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/integrations/access/common"
-	"github.com/gravitational/teleport/integrations/access/common/recipient"
 	"github.com/gravitational/teleport/integrations/access/common/teleport"
 	"github.com/gravitational/teleport/integrations/lib"
 	"github.com/gravitational/teleport/integrations/lib/logger"
@@ -158,7 +157,7 @@ func (a *App) run(ctx context.Context) error {
 // only supports notifying owners.
 func (a *App) notifyForAccessListReviews(ctx context.Context, accessList *accesslist.AccessList) error {
 	log := logger.Get(ctx)
-	allRecipients := make(map[string]recipient.Recipient, len(accessList.Spec.Owners))
+	allRecipients := make(map[string]common.Recipient, len(accessList.Spec.Owners))
 
 	now := a.clock.Now()
 	// Find the current notification window.
@@ -203,7 +202,7 @@ func (a *App) notifyForAccessListReviews(ctx context.Context, accessList *access
 	weeksFromStart := now.Sub(notificationStart) / oneWeek
 	windowStart := notificationStart.Add(weeksFromStart * oneWeek)
 
-	recipients := []recipient.Recipient{}
+	recipients := []common.Recipient{}
 	_, err = a.pluginData.Update(ctx, accessList.GetName(), func(data pd.AccessListNotificationData) (pd.AccessListNotificationData, error) {
 		userNotifications := map[string]time.Time{}
 		for _, recipient := range allRecipients {
