@@ -17,6 +17,7 @@ package envutils
 import (
 	"bufio"
 	"fmt"
+	"os"
 	"strings"
 
 	log "github.com/sirupsen/logrus"
@@ -98,9 +99,12 @@ type SafeEnv []string
 
 // Add will add the key and value to the environment if it's a safe value to forward on for fork / exec.
 func (e *SafeEnv) Add(k, v string) {
-	for _, unsafeKey := range unsafeEnvironmentVars {
-		k = strings.TrimSpace(k)
+	k = strings.TrimSpace(k)
+	if k == "" || k == "=" {
+		return
+	}
 
+	for _, unsafeKey := range unsafeEnvironmentVars {
 		if strings.EqualFold(k, unsafeKey) {
 			return
 		}
@@ -111,20 +115,35 @@ func (e *SafeEnv) Add(k, v string) {
 
 // AddFull adds an exact value, typically in KEY=VALUE format.  This should only be used if they values are already
 // combined.
-func (e *SafeEnv) AddFull(fullValues ...string) {
+func (e *SafeEnv) AddFull(excludeDuplicates bool, fullValues ...string) {
+valueLoop:
 	for _, kv := range fullValues {
 		kv = strings.TrimSpace(kv)
 
-		safe := true
-		for _, unsafeKey := range unsafeEnvironmentVars {
-			if strings.HasPrefix(strings.ToUpper(kv), unsafeKey) {
-				safe = false
-				break
+		if excludeDuplicates {
+			key := strings.SplitN(kv, "=", 2)[0]
+			if key == "" { // weird case if the string is empty or '='
+				continue valueLoop
+			}
+
+			for _, kv := range *e {
+				if strings.HasPrefix(kv, key) {
+					continue valueLoop
+				}
 			}
 		}
 
-		if safe {
-			*e = append(*e, kv)
+		for _, unsafeKey := range unsafeEnvironmentVars {
+			if strings.HasPrefix(strings.ToUpper(kv), unsafeKey) {
+				continue valueLoop
+			}
 		}
+
+		*e = append(*e, kv)
 	}
+}
+
+// AddExecEnvironment will add safe values from os.Environ, ignoring any duplicates that may have already been added.
+func (e *SafeEnv) AddExecEnvironment() {
+	e.AddFull(true, os.Environ()...)
 }
