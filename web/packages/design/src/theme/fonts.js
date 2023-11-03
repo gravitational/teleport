@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { getPlatform } from './utils';
+import { getPlatformType } from '../platform';
 
 const fontMonoLinux = `"Droid Sans Mono", "monospace", monospace, "Droid Sans Fallback"`;
 const fontMonoWin = `Consolas, "Courier New", monospace`;
@@ -28,7 +28,7 @@ export const fonts = {
 };
 
 function getMonoFont() {
-  const platform = getPlatform();
+  const platform = getPlatformType();
 
   if (platform.isLinux) {
     return fontMonoLinux;

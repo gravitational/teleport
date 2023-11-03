@@ -24,7 +24,7 @@ import React, {
 import { Flex } from 'design';
 import { ITheme } from 'xterm';
 
-import { getPlatform } from 'design/theme/utils';
+import { getPlatformType } from 'design/platform';
 
 import Tty from 'teleport/lib/term/tty';
 import XTermCtrl from 'teleport/lib/term/terminal';
@@ -74,7 +74,7 @@ export const Terminal = forwardRef<TerminalRef, TerminalProps>((props, ref) => {
   );
 
   useEffect(() => {
-    const platform = getPlatform();
+    const platform = getPlatformType();
     const fontSize = platform.isMac ? 12 : 14;
 
     const termCtrl = new XTermCtrl(props.tty, {
