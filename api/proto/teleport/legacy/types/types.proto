@@ -34,6 +34,9 @@ message KeepAlive {
   // LeaseID is ID of the lease.
   int64 LeaseID = 3 [(gogoproto.jsontag) = "lease_id"];
   // Expires is set to update expiry time of the resource.
+  // Example YAML:
+  // ---
+  // "2023-01-31T00:00:00-00:00"
   google.protobuf.Timestamp Expires = 4 [
     (gogoproto.stdtime) = true,
     (gogoproto.nullable) = false,
@@ -80,6 +83,9 @@ message Metadata {
   map<string, string> Labels = 5 [(gogoproto.jsontag) = "labels,omitempty"];
   // Expires is a global expiry time header can be set on any resource in the
   // system.
+  // Example YAML:
+  // ---
+  // "2023-01-31T00:00:00-00:00"
   google.protobuf.Timestamp Expires = 6 [
     (gogoproto.stdtime) = true,
     (gogoproto.nullable) = true,
@@ -113,6 +119,9 @@ message Rotation {
   string CurrentID = 4 [(gogoproto.jsontag) = "current_id"];
   // Started is set to the time when rotation has been started
   // in case if the state of the rotation is "in_progress".
+  // Example YAML:
+  // ---
+  // "2023-01-31T00:00:00-00:00"
   google.protobuf.Timestamp Started = 5 [
     (gogoproto.nullable) = false,
     (gogoproto.stdtime) = true,
@@ -125,6 +134,9 @@ message Rotation {
     (gogoproto.casttype) = "Duration"
   ];
   // LastRotated specifies the last time of the completed rotation.
+  // Example YAML:
+  // ---
+  // "2023-01-31T00:00:00-00:00"
   google.protobuf.Timestamp LastRotated = 7 [
     (gogoproto.nullable) = false,
     (gogoproto.stdtime) = true,
@@ -142,18 +154,27 @@ message Rotation {
 // for different phases.
 message RotationSchedule {
   // UpdateClients specifies time to switch to the "Update clients" phase
+  // Example YAML:
+  // ---
+  // "2023-01-31T00:00:00-00:00"
   google.protobuf.Timestamp UpdateClients = 1 [
     (gogoproto.nullable) = false,
     (gogoproto.stdtime) = true,
     (gogoproto.jsontag) = "update_clients,omitempty"
   ];
   // UpdateServers specifies time to switch to the "Update servers" phase.
+  // Example YAML:
+  // ---
+  // "2023-01-31T00:00:00-00:00"
   google.protobuf.Timestamp UpdateServers = 2 [
     (gogoproto.nullable) = false,
     (gogoproto.stdtime) = true,
     (gogoproto.jsontag) = "update_servers,omitempty"
   ];
   // Standby specifies time to switch to the "Standby" phase.
+  // Example YAML:
+  // ---
+  // "2023-01-31T00:00:00-00:00"
   google.protobuf.Timestamp Standby = 3 [
     (gogoproto.nullable) = false,
     (gogoproto.stdtime) = true,
@@ -668,6 +689,9 @@ message InstanceSpecV1 {
   string AuthID = 4 [(gogoproto.jsontag) = "auth_id,omitempty"];
 
   // LastSeen is the last time an auth server reported observing this instance.
+  // Example YAML:
+  // ---
+  // "2023-01-31T00:00:00-00:00"
   google.protobuf.Timestamp LastSeen = 5 [
     (gogoproto.stdtime) = true,
     (gogoproto.nullable) = false,
@@ -711,6 +735,9 @@ message InstanceControlLogEntry {
 
   // Time is the time at which the event represented by this entry occurred (used in determining
   // ordering and expiry).
+  // Example YAML:
+  // ---
+  // "2023-01-31T00:00:00-00:00"
   google.protobuf.Timestamp Time = 3 [
     (gogoproto.stdtime) = true,
     (gogoproto.nullable) = false,
@@ -1153,6 +1180,9 @@ message ProvisionTokenV1 {
   ];
   // Expires is a global expiry time header can be set on any resource in the
   // system.
+  // Example YAML:
+  // ---
+  // "2023-01-31T00:00:00-00:00"
   google.protobuf.Timestamp Expires = 2 [
     (gogoproto.stdtime) = true,
     (gogoproto.nullable) = false,
@@ -2097,6 +2127,9 @@ message UserTokenSpecV3 {
   // Usage is an optional field that provides more information about how this token will be used.
   UserTokenUsage Usage = 3 [(gogoproto.jsontag) = "usage,omitempty"];
   // Created holds information about when the token was created
+  // Example YAML:
+  // ---
+  // "2023-01-31T00:00:00-00:00"
   google.protobuf.Timestamp Created = 4 [
     (gogoproto.stdtime) = true,
     (gogoproto.nullable) = false,
@@ -2132,6 +2165,9 @@ message UserTokenSecretsSpecV3 {
   // OTPKey is is a secret value of one time password secret generator
   string QRCode = 2 [(gogoproto.jsontag) = "qr_code,omitempty"];
   // Created holds information about when the token was created
+  // Example YAML:
+  // ---
+  // "2023-01-31T00:00:00-00:00"
   google.protobuf.Timestamp Created = 3 [
     (gogoproto.stdtime) = true,
     (gogoproto.nullable) = false,
@@ -2199,6 +2235,9 @@ message AccessReview {
   // is being proposed.
   string Reason = 4 [(gogoproto.jsontag) = "reason,omitempty"];
   // Created is the time at which the review was created.
+  // Example YAML:
+  // ---
+  // "2023-01-31T00:00:00-00:00"
   google.protobuf.Timestamp Created = 5 [
     (gogoproto.stdtime) = true,
     (gogoproto.nullable) = false,
@@ -2291,6 +2330,9 @@ message AccessRequestSpecV3 {
   RequestState State = 3 [(gogoproto.jsontag) = "state,omitempty"];
   // Created encodes the time at which the request was registered with the auth
   // server.
+  // Example YAML:
+  // ---
+  // "2023-01-31T00:00:00-00:00"
   google.protobuf.Timestamp Created = 4 [
     (gogoproto.stdtime) = true,
     (gogoproto.nullable) = false,
@@ -2298,6 +2340,9 @@ message AccessRequestSpecV3 {
   ];
   // Expires constrains the maximum lifetime of any login session for which this
   // request is active.
+  // Example YAML:
+  // ---
+  // "2023-01-31T00:00:00-00:00"
   google.protobuf.Timestamp Expires = 5 [
     (gogoproto.stdtime) = true,
     (gogoproto.nullable) = false,
@@ -2377,6 +2422,9 @@ message AccessRequestSpecV3 {
   bool DryRun = 16 [(gogoproto.jsontag) = "dry_run,omitempty"];
 
   // MaxDuration indicates how long the access should be granted for.
+  // Example YAML:
+  // ---
+  // "2023-01-31T00:00:00-00:00"
   google.protobuf.Timestamp MaxDuration = 17 [
     (gogoproto.stdtime) = true,
     (gogoproto.nullable) = false,
@@ -2384,6 +2432,9 @@ message AccessRequestSpecV3 {
   ];
 
   // SessionTLL indicated how long a certificate for a session should be valid for.
+  // Example YAML:
+  // ---
+  // "2023-01-31T00:00:00-00:00"
   google.protobuf.Timestamp SessionTTL = 18 [
     (gogoproto.stdtime) = true,
     (gogoproto.nullable) = false,
@@ -3251,6 +3302,9 @@ message UserSpecV2 {
   ];
 
   // Expires if set sets TTL on the user
+  // Example YAML:
+  // ---
+  // "2023-01-31T00:00:00-00:00"
   google.protobuf.Timestamp Expires = 7 [
     (gogoproto.stdtime) = true,
     (gogoproto.nullable) = false,
@@ -3293,12 +3347,18 @@ message LoginStatus {
   // LockedMessage contains the message in case if user is locked
   string LockedMessage = 2 [(gogoproto.jsontag) = "locked_message,omitempty"];
   // LockedTime contains time when user was locked
+  // Example YAML:
+  // ---
+  // "2023-01-31T00:00:00-00:00"
   google.protobuf.Timestamp LockedTime = 3 [
     (gogoproto.stdtime) = true,
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "locked_time,omitempty"
   ];
   // LockExpires contains time when this lock will expire
+  // Example YAML:
+  // ---
+  // "2023-01-31T00:00:00-00:00"
   google.protobuf.Timestamp LockExpires = 4 [
     (gogoproto.stdtime) = true,
     (gogoproto.nullable) = false,
@@ -3307,6 +3367,9 @@ message LoginStatus {
   // RecoveryAttemptLockExpires contains the time when this lock will expire
   // from reaching MaxAccountRecoveryAttempts. This field is used to determine
   // if a user got locked from recovery attempts.
+  // Example YAML:
+  // ---
+  // "2023-01-31T00:00:00-00:00"
   google.protobuf.Timestamp RecoveryAttemptLockExpires = 5 [
     (gogoproto.stdtime) = true,
     (gogoproto.nullable) = false,
@@ -3325,6 +3388,9 @@ message CreatedBy {
     (gogoproto.jsontag) = "connector,omitempty"
   ];
   // Time specifies when user was created
+  // Example YAML:
+  // ---
+  // "2023-01-31T00:00:00-00:00"
   google.protobuf.Timestamp Time = 2 [
     (gogoproto.stdtime) = true,
     (gogoproto.nullable) = false,
@@ -3529,6 +3595,9 @@ message TunnelConnectionSpecV2 {
   // ProxyName is the name of the proxy server
   string ProxyName = 2 [(gogoproto.jsontag) = "proxy_name"];
   // LastHeartbeat is a time of the last heartbeat
+  // Example YAML:
+  // ---
+  // "2023-01-31T00:00:00-00:00"
   google.protobuf.Timestamp LastHeartbeat = 3 [
     (gogoproto.stdtime) = true,
     (gogoproto.nullable) = false,
@@ -3563,6 +3632,9 @@ message AcquireSemaphoreRequest {
   // would cause more than MaxLeases to exist, acquisition must fail.
   int64 MaxLeases = 3 [(gogoproto.jsontag) = "max_resources"];
   // Expires is the time at which this lease expires.
+  // Example YAML:
+  // ---
+  // "2023-01-31T00:00:00-00:00"
   google.protobuf.Timestamp Expires = 4 [
     (gogoproto.stdtime) = true,
     (gogoproto.nullable) = false,
@@ -3581,6 +3653,9 @@ message SemaphoreLease {
   // LeaseID uniquely identifies this lease.
   string LeaseID = 3 [(gogoproto.jsontag) = "lease_id"];
   // Expires is the time at which this lease expires.
+  // Example YAML:
+  // ---
+  // "2023-01-31T00:00:00-00:00"
   google.protobuf.Timestamp Expires = 5 [
     (gogoproto.stdtime) = true,
     (gogoproto.nullable) = false,
@@ -3593,6 +3668,9 @@ message SemaphoreLeaseRef {
   // LeaseID is the unique ID of the lease.
   string LeaseID = 1 [(gogoproto.jsontag) = "lease_id"];
   // Expires is the time at which the lease expires.
+  // Example YAML:
+  // ---
+  // "2023-01-31T00:00:00-00:00"
   google.protobuf.Timestamp Expires = 2 [
     (gogoproto.stdtime) = true,
     (gogoproto.nullable) = false,
@@ -3674,18 +3752,27 @@ message WebSessionSpecV2 {
   // mitigation.
   string BearerToken = 5 [(gogoproto.jsontag) = "bearer_token"];
   // BearerTokenExpires is the absolute time when the token expires.
+  // Example YAML:
+  // ---
+  // "2023-01-31T00:00:00-00:00"
   google.protobuf.Timestamp BearerTokenExpires = 6 [
     (gogoproto.stdtime) = true,
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "bearer_token_expires"
   ];
   // Expires is the absolute time when the session expires.
+  // Example YAML:
+  // ---
+  // "2023-01-31T00:00:00-00:00"
   google.protobuf.Timestamp Expires = 7 [
     (gogoproto.stdtime) = true,
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "expires"
   ];
   // LoginTime is the time this user recently logged in.
+  // Example YAML:
+  // ---
+  // "2023-01-31T00:00:00-00:00"
   google.protobuf.Timestamp LoginTime = 8 [
     (gogoproto.stdtime) = true,
     (gogoproto.nullable) = false,
@@ -3715,12 +3802,18 @@ message SAMLSessionData {
   // ID is the identifier for the SAML session.
   string ID = 1 [(gogoproto.jsontag) = "id"];
   // CreateTime is the time that the session was created.
+  // Example YAML:
+  // ---
+  // "2023-01-31T00:00:00-00:00"
   google.protobuf.Timestamp CreateTime = 2 [
     (gogoproto.stdtime) = true,
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "create_time"
   ];
   // ExpireTime is the time that the session will expire.
+  // Example YAML:
+  // ---
+  // "2023-01-31T00:00:00-00:00"
   google.protobuf.Timestamp ExpireTime = 3 [
     (gogoproto.stdtime) = true,
     (gogoproto.nullable) = false,
@@ -3824,6 +3917,9 @@ message RemoteClusterStatusV3 {
   string Connection = 1 [(gogoproto.jsontag) = "connection"];
 
   // LastHeartbeat records last heartbeat of the cluster
+  // Example YAML:
+  // ---
+  // "2023-01-31T00:00:00-00:00"
   google.protobuf.Timestamp LastHeartbeat = 2 [
     (gogoproto.stdtime) = true,
     (gogoproto.nullable) = false,
@@ -4481,6 +4577,9 @@ message GithubAuthRequest {
   // Compatibility specifies OpenSSH compatibility flags.
   string Compatibility = 10 [(gogoproto.jsontag) = "compatibility,omitempty"];
   // Expires is a global expiry time header can be set on any resource in the system.
+  // Example YAML:
+  // ---
+  // "2023-01-31T00:00:00-00:00"
   google.protobuf.Timestamp Expires = 11 [
     (gogoproto.stdtime) = true,
     (gogoproto.nullable) = true,
@@ -4779,12 +4878,18 @@ message LockSpecV2 {
   // Message is the message displayed to locked-out users.
   string Message = 2 [(gogoproto.jsontag) = "message,omitempty"];
   // Expires if set specifies when the lock ceases to be in force.
+  // Example YAML:
+  // ---
+  // "2023-01-31T00:00:00-00:00"
   google.protobuf.Timestamp Expires = 3 [
     (gogoproto.stdtime) = true,
     (gogoproto.nullable) = true,
     (gogoproto.jsontag) = "expires,omitempty"
   ];
   // CreatedAt is the date time that the lock was created.
+  // Example YAML:
+  // ---
+  // "2023-01-31T00:00:00-00:00"
   google.protobuf.Timestamp CreatedAt = 4 [
     (gogoproto.stdtime) = true,
     (gogoproto.nullable) = false,
@@ -4978,6 +5083,9 @@ message RegisterUsingTokenRequest {
   // Expires is a desired time of the expiry of user certificates returned by
   // registration. This only applies to bot joining, and will be ignored by
   // node joining.
+  // Example YAML:
+  // ---
+  // "2023-01-31T00:00:00-00:00"
   google.protobuf.Timestamp Expires = 12 [
     (gogoproto.stdtime) = true,
     (gogoproto.jsontag) = "expires,omitempty"
@@ -5017,6 +5125,9 @@ message RecoveryCodesSpecV1 {
   ];
   // Created is when the set of recovery codes were generated. Updated when a new set of recovery
   // codes are inserted.
+  // Example YAML:
+  // ---
+  // "2023-01-31T00:00:00-00:00"
   google.protobuf.Timestamp Created = 2 [
     (gogoproto.stdtime) = true,
     (gogoproto.nullable) = false,
@@ -5084,6 +5195,9 @@ message SessionTrackerSpecV1 {
   //
   // This should match the timestamp in the corresponding `session.create` event.
   // It's thus up to the tracker creator to set the correct timestamp.
+  // Example YAML:
+  // ---
+  // "2023-01-31T00:00:00-00:00"
   google.protobuf.Timestamp Created = 4 [
     (gogoproto.stdtime) = true,
     (gogoproto.nullable) = false,
@@ -5091,6 +5205,9 @@ message SessionTrackerSpecV1 {
   ];
 
   // Expires encodes the time at which this session expires and becomes invalid.
+  // Example YAML:
+  // ---
+  // "2023-01-31T00:00:00-00:00"
   google.protobuf.Timestamp Expires = 5 [
     (gogoproto.stdtime) = true,
     (gogoproto.nullable) = false,
@@ -5188,6 +5305,9 @@ message Participant {
   string Mode = 3 [(gogoproto.jsontag) = "mode,omitempty"];
 
   // LastActive is the last time this party was active in the session.
+  // Example YAML:
+  // ---
+  // "2023-01-31T00:00:00-00:00"
   google.protobuf.Timestamp LastActive = 4 [
     (gogoproto.stdtime) = true,
     (gogoproto.nullable) = false,
@@ -5414,6 +5534,9 @@ message ClusterAlertSpec {
   // Message is the user-facing message associated with the alert.
   string Message = 2 [(gogoproto.jsontag) = "message"];
   // Created is the time at which the alert was generated.
+  // Example YAML:
+  // ---
+  // "2023-01-31T00:00:00-00:00"
   google.protobuf.Timestamp Created = 3 [
     (gogoproto.jsontag) = "created,omitempty",
     (gogoproto.stdtime) = true,
@@ -5454,6 +5577,9 @@ message AlertAcknowledgement {
   reserved "Severity";
 
   // Expires is the time after which the acknowledgement expires.
+  // Example YAML:
+  // ---
+  // "2023-01-31T00:00:00-00:00"
   google.protobuf.Timestamp Expires = 4 [
     (gogoproto.jsontag) = "expires,omitempty",
     (gogoproto.stdtime) = true,
@@ -5747,6 +5873,9 @@ message PluginCredentialsV1 {
 message PluginOAuth2AccessTokenCredentials {
   string access_token = 1;
   string refresh_token = 2;
+  // Example YAML:
+  // ---
+  // "2023-01-31T00:00:00-00:00"
   google.protobuf.Timestamp expires = 3 [
     (gogoproto.stdtime) = true,
     (gogoproto.nullable) = false
@@ -5940,6 +6069,9 @@ message AgentUpgradeWindow {
 // scheduled windows.
 message ScheduledAgentUpgradeWindow {
   // Start is the start time of the upgrade window.
+  // Example YAML:
+  // ---
+  // "2023-01-31T00:00:00-00:00"
   google.protobuf.Timestamp Start = 1 [
     (gogoproto.stdtime) = true,
     (gogoproto.nullable) = false,
@@ -5947,6 +6079,9 @@ message ScheduledAgentUpgradeWindow {
   ];
 
   // Stop is the stop time of the upgrade window.
+  // Example YAML:
+  // ---
+  // "2023-01-31T00:00:00-00:00"
   google.protobuf.Timestamp Stop = 2 [
     (gogoproto.stdtime) = true,
     (gogoproto.nullable) = false,
@@ -6063,6 +6198,9 @@ message OktaAssignmentSpecV1 {
   repeated OktaAssignmentTargetV1 Targets = 2 [(gogoproto.jsontag) = "targets"];
   // CleanupTime is an optional field that notes when the assignment should be cleaned up.
   // If absent, the assignment will never be cleaned up.
+  // Example YAML:
+  // ---
+  // "2023-01-31T00:00:00-00:00"
   google.protobuf.Timestamp CleanupTime = 3 [
     (gogoproto.jsontag) = "cleanup_time",
     (gogoproto.stdtime) = true,
@@ -6088,6 +6226,9 @@ message OktaAssignmentSpecV1 {
 
   // LastTransition is an optional field that notes when the last state transition
   // occurred for this action. If absent, this object has never transitioned.
+  // Example YAML:
+  // ---
+  // "2023-01-31T00:00:00-00:00"
   google.protobuf.Timestamp LastTransition = 5 [
     (gogoproto.jsontag) = "last_transition",
     (gogoproto.stdtime) = true,
