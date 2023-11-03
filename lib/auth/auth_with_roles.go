@@ -6972,7 +6972,7 @@ func (a *ServerWithRoles) MaintainHeadlessAuthenticationStub(ctx context.Context
 		return trace.Wrap(err)
 	}
 
-	ticker := time.NewTicker(defaults.CallbackTimeout)
+	ticker := time.NewTicker(defaults.HeadlessLoginTimeout)
 	defer ticker.Stop()
 
 	for {
