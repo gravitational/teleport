@@ -948,7 +948,7 @@ impl From<ClientError> for PduError {
     }
 }
 
-type ClientResult<T> = Result<T, ClientError>;
+pub type ClientResult<T> = Result<T, ClientError>;
 
 impl From<CGOErrCode> for ClientResult<()> {
     fn from(value: CGOErrCode) -> Self {
