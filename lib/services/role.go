@@ -758,7 +758,6 @@ func matchesWhere(r *types.Rule, parser predicate.Parser) (bool, error) {
 	if r.Where == "" {
 		return true, nil
 	}
-	log.Errorf("Checking rule: %s", r.Where)
 
 	ifn, err := parser.Parse(r.Where)
 	if err != nil {

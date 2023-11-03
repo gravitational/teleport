@@ -3390,11 +3390,6 @@ func (a *ServerWithRoles) ChangeUserAuthentication(ctx context.Context, req *pro
 	return a.authServer.ChangeUserAuthentication(ctx, req)
 }
 
-func (a *ServerWithRoles) hasOktaRoleAndOperatingOnOktaUser(user types.User) bool {
-
-	src, ok := user.GetLabel()
-}
-
 // CreateUser inserts a new user entry in a backend.
 func (a *ServerWithRoles) CreateUser(ctx context.Context, user types.User) (types.User, error) {
 	if err := a.action(apidefaults.Namespace, types.KindUser, types.VerbCreate); err != nil {
