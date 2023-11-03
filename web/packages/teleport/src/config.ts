@@ -39,6 +39,8 @@ const cfg = {
   assistEnabled: false,
   automaticUpgrades: false,
   automaticUpgradesTargetVersion: '',
+  // isDashboard is used generally when we want to hide features that can't be hidden by RBAC in
+  // the case of a self-hosted license tenant dashboard.
   isDashboard: false,
   tunnelPublicAddress: '',
   recoveryCodesEnabled: false,

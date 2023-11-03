@@ -35,7 +35,9 @@ const fromTheme = props => {
     fontWeight: values.theme.regular,
 
     '&:hover, &:focus': {
-      color: values.theme.colors.text.main,
+      color: props.disabled
+        ? values.theme.colors.text.disabled
+        : values.theme.colors.text.main,
       background: values.theme.colors.spotBackground[0],
     },
     '&:active': {
@@ -47,7 +49,7 @@ const fromTheme = props => {
 const MenuItem = styled.div`
   min-height: 40px;
   box-sizing: border-box;
-  cursor: pointer;
+  cursor: ${props => (props.disabled ? 'not-allowed' : 'pointer')};
   display: flex;
   justify-content: flex-start;
   align-items: center;
@@ -55,12 +57,10 @@ const MenuItem = styled.div`
   overflow: hidden;
   text-decoration: none;
   white-space: nowrap;
-  color: ${props => props.theme.colors.text.main};
-
-  &:hover,
-  &:focus {
-    text-decoration: none;
-  }
+  color: ${props =>
+    props.disabled
+      ? props.theme.colors.text.disabled
+      : props.theme.colors.text.main};
 
   ${fromTheme}
 `;

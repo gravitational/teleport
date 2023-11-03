@@ -126,6 +126,11 @@ type BulkAction = {
   ) => void;
 };
 
+export type FilterKind = {
+  kind: SharedUnifiedResource['resource']['kind'];
+  disabled: boolean;
+};
+
 interface UnifiedResourcesProps {
   params: UnifiedResourcesQueryParams;
   resourcesFetchAttempt: Attempt;
@@ -143,7 +148,7 @@ interface UnifiedResourcesProps {
    * can be passed here.
    */
   pinning: UnifiedResourcesPinning;
-  availableKinds: SharedUnifiedResource['resource']['kind'][];
+  availableKinds: FilterKind[];
   setParams(params: UnifiedResourcesQueryParams): void;
   onLabelClick(label: ResourceLabel): void;
   /** A list of actions that can be performed on the selected items. */
@@ -349,11 +354,12 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
             <Danger>
               {resourcesFetchAttempt.statusText}
               {/* we don't want them to try another request with BAD REQUEST, it will just fail again. */}
-              {resourcesFetchAttempt.statusCode !== 400 && (
-                <Box flex="0 0 auto" ml={2}>
-                  <ButtonLink onClick={onRetryClicked}>Retry</ButtonLink>
-                </Box>
-              )}
+              {resourcesFetchAttempt.statusCode !== 400 &&
+                resourcesFetchAttempt.statusCode !== 403 && (
+                  <Box flex="0 0 auto" ml={2}>
+                    <ButtonLink onClick={onRetryClicked}>Retry</ButtonLink>
+                  </Box>
+                )}
             </Danger>
           </ErrorBoxInternal>
         </ErrorBox>

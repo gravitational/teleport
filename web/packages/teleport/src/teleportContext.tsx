@@ -150,11 +150,19 @@ class TeleportContext implements types.Context {
       roles: userContext.getRoleAccess().list,
       trustedClusters: userContext.getTrustedClusterAccess().list,
       users: userContext.getUserAccess().list,
-      applications: userContext.getAppServerAccess().list,
-      kubernetes: userContext.getKubeServerAccess().list,
+      applications:
+        userContext.getAppServerAccess().list &&
+        userContext.getAppServerAccess().read,
+      kubernetes:
+        userContext.getKubeServerAccess().list &&
+        userContext.getKubeServerAccess().read,
       billing: userContext.getBillingAccess().list,
-      databases: userContext.getDatabaseServerAccess().list,
-      desktops: userContext.getDesktopAccess().list,
+      databases:
+        userContext.getDatabaseServerAccess().list &&
+        userContext.getDatabaseServerAccess().read,
+      desktops:
+        userContext.getDesktopAccess().list &&
+        userContext.getDesktopAccess().read,
       nodes: userContext.getNodeAccess().list,
       activeSessions: userContext.getActiveSessionsAccess().list,
       accessRequests: hasAccessRequestsAccess(),

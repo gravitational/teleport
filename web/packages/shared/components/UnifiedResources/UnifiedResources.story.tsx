@@ -82,11 +82,26 @@ const story = ({
     return (
       <UnifiedResources
         availableKinds={[
-          'app',
-          'db',
-          'node',
-          'kube_cluster',
-          'windows_desktop',
+          {
+            kind: 'app',
+            disabled: false,
+          },
+          {
+            kind: 'db',
+            disabled: false,
+          },
+          {
+            kind: 'node',
+            disabled: false,
+          },
+          {
+            kind: 'kube_cluster',
+            disabled: false,
+          },
+          {
+            kind: 'windows_desktop',
+            disabled: false,
+          },
         ]}
         params={params}
         setParams={() => undefined}
