@@ -16,7 +16,6 @@
 
 import api from 'teleport/services/api';
 import cfg, { UrlResourcesParams } from 'teleport/config';
-import history from 'teleport/services/history';
 
 import { UnifiedResource, ResourcesResponse } from '../agents';
 import { KeysEnum } from '../localStorage';
@@ -60,7 +59,6 @@ class ResourceService {
             KeysEnum.UNIFIED_RESOURCES_NOT_SUPPORTED,
             'true'
           );
-          history.replace(cfg.getNodesRoute(clusterId));
         }
         throw res;
       });
