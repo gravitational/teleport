@@ -220,11 +220,11 @@ func (process *TeleportProcess) closeImportedDescriptors(prefix string) error {
 	defer process.Unlock()
 
 	var errors []error
-	openDescriptors := make([]servicecfg.FileDescriptor, 0, len(process.importedDescriptors))
+	openDescriptors := make([]*servicecfg.FileDescriptor, 0, len(process.importedDescriptors))
 	for _, d := range process.importedDescriptors {
 		if strings.HasPrefix(d.Type, prefix) {
 			process.log.Infof("Closing imported but unused descriptor %v %v.", d.Type, d.Address)
-			errors = append(errors, d.File.Close())
+			errors = append(errors, d.Close())
 		} else {
 			openDescriptors = append(openDescriptors, d)
 		}
@@ -353,8 +353,8 @@ func (process *TeleportProcess) stopListeners() error {
 }
 
 // ExportFileDescriptors exports file descriptors to be passed to child process
-func (process *TeleportProcess) ExportFileDescriptors() ([]servicecfg.FileDescriptor, error) {
-	var out []servicecfg.FileDescriptor
+func (process *TeleportProcess) ExportFileDescriptors() ([]*servicecfg.FileDescriptor, error) {
+	var out []*servicecfg.FileDescriptor
 	process.Lock()
 	defer process.Unlock()
 	for _, r := range process.registeredListeners {
@@ -362,7 +362,7 @@ func (process *TeleportProcess) ExportFileDescriptors() ([]servicecfg.FileDescri
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		out = append(out, servicecfg.FileDescriptor{
+		out = append(out, &servicecfg.FileDescriptor{
 			File:    file,
 			Type:    string(r.typ),
 			Address: r.address,
@@ -372,7 +372,7 @@ func (process *TeleportProcess) ExportFileDescriptors() ([]servicecfg.FileDescri
 }
 
 // importFileDescriptors imports file descriptors from environment if there are any
-func importFileDescriptors(log logrus.FieldLogger) ([]servicecfg.FileDescriptor, error) {
+func importFileDescriptors(log logrus.FieldLogger) ([]*servicecfg.FileDescriptor, error) {
 	// These files may be passed in by the parent process
 	filesString := os.Getenv(teleportFilesEnvVar)
 	os.Unsetenv(teleportFilesEnvVar)
@@ -432,7 +432,7 @@ type fileDescriptor struct {
 }
 
 // filesToString serializes file descriptors as well as accompanying information (like socket host and port)
-func filesToString(files []servicecfg.FileDescriptor) (string, error) {
+func filesToString(files []*servicecfg.FileDescriptor) (string, error) {
 	out := make([]fileDescriptor, len(files))
 	for i, f := range files {
 		out[i] = fileDescriptor{
@@ -453,14 +453,14 @@ func filesToString(files []servicecfg.FileDescriptor) (string, error) {
 }
 
 // filesFromString de-serializes the file descriptors and turns them in the os.Files
-func filesFromString(in string) ([]servicecfg.FileDescriptor, error) {
+func filesFromString(in string) ([]*servicecfg.FileDescriptor, error) {
 	var out []fileDescriptor
 	if err := json.Unmarshal([]byte(in), &out); err != nil {
 		return nil, err
 	}
-	files := make([]servicecfg.FileDescriptor, len(out))
+	files := make([]*servicecfg.FileDescriptor, len(out))
 	for i, o := range out {
-		files[i] = servicecfg.FileDescriptor{
+		files[i] = &servicecfg.FileDescriptor{
 			File:    os.NewFile(uintptr(o.FileFD), o.FileName),
 			Address: o.Address,
 			Type:    o.Type,
@@ -496,7 +496,7 @@ func (process *TeleportProcess) forkChild() error {
 		return trace.Wrap(err)
 	}
 
-	listenerFiles = append(listenerFiles, servicecfg.FileDescriptor{
+	listenerFiles = append(listenerFiles, &servicecfg.FileDescriptor{
 		File:    writePipe,
 		Type:    signalPipeName,
 		Address: "127.0.0.1:0",
