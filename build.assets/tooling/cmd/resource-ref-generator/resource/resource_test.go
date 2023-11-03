@@ -928,6 +928,7 @@ type Server struct {
     // LabelMaps includes a map of strings to labels.
     // Example YAML:
     // ---
+    //
     // - label1: ["my_value0", "my_value1", "my_value2"]
     //   label2: ["my_value0", "my_value1", "my_value2"]
     // - label3: ["my_value0", "my_value1", "my_value2"]
@@ -965,7 +966,7 @@ label_maps:
 						Field{
 							Name:        "label_maps",
 							Description: "Includes a map of strings to labels.",
-							Type:        "See YAML example.",
+							Type:        "See example YAML.",
 						},
 					},
 				},
@@ -983,6 +984,7 @@ type Server struct {
     // LabelMaps includes a map of strings to labels.
     // Example YAML:
     // ---
+    //
     // - label1: ["my_value0", "my_value1", "my_value2"]
     //   label2: ["my_value0", "my_value1", "my_value2"]
     // - label3: ["my_value0", "my_value1", "my_value2"]
@@ -1028,7 +1030,7 @@ label_maps:
 						Field{
 							Name:        "label_maps",
 							Description: "Includes a map of strings to labels.",
-							Type:        "See YAML example.",
+							Type:        "See example YAML.",
 						},
 					},
 				},
@@ -1086,8 +1088,8 @@ func (stream *streamFunc[T]) Next() bool {
 type Resource struct {
   // The name of the resource.
   Name string
-  // When the resource expires.
-  Expiry time.Time
+  // How much time must elapse before the resource expires.
+  Expiry time.Duration
 }
 `,
 			expected:       nil,
@@ -1102,7 +1104,7 @@ type Resource struct {
 type Resource struct {
   // The name of the resource.
   Name string BACKTICKjson:"name"BACKTICK
-  // When the resource expires.
+  // How much time must elapse before the resource expires.
   // Example YAML:
   // ---
   // 5h
@@ -1128,8 +1130,8 @@ expiry: 5h
 						},
 						Field{
 							Name:        "expiry",
-							Description: "When the resource expires.",
-							Type:        "See Example YAML.",
+							Description: "How much time must elapse before the resource expires.",
+							Type:        "See example YAML.",
 						},
 					},
 				},
@@ -1556,6 +1558,25 @@ my_string: "string"
   "string": # [...]
   "string": # [...]
 `,
+		},
+		{
+			description: "overidden field",
+			input: []rawField{
+				{
+					name:     "duration",
+					jsonName: "duration",
+					doc:      "Example YAML:\n---\n5h",
+					tags:     `json:"duration"`,
+					kind: yamlCustomType{
+						name: "duration",
+						declarationInfo: PackageInfo{
+							DeclName:    "Duration",
+							PackageName: "time",
+						},
+					},
+				},
+			},
+			expected: `duration: 5h`,
 		},
 	}
 
