@@ -30,18 +30,23 @@ import (
 
 	"github.com/alecthomas/kingpin/v2"
 	awsConfig "github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/athena"
+	"github.com/aws/aws-sdk-go-v2/service/glue"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	ecatypes "github.com/gravitational/teleport/api/types/externalcloudaudit"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/configurators"
 	awsconfigurators "github.com/gravitational/teleport/lib/configurators/aws"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
+	"github.com/gravitational/teleport/lib/integrations/externalcloudaudit"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/openssh"
 	"github.com/gravitational/teleport/lib/service"
@@ -96,7 +101,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	join := app.Command("join", "Join a Teleport cluster without running the Teleport daemon.")
 	joinOpenSSH := join.Command("openssh", "Join an SSH server to a Teleport cluster.")
 	scpc := app.Command("scp", "Server-side implementation of SCP.").Hidden()
-	sftp := app.Command("sftp", "Server-side implementation of SFTP.").Hidden()
+	sftp := app.Command(teleport.SFTPSubCommand, "Server-side implementation of SFTP.").Hidden()
 	exec := app.Command(teleport.ExecSubCommand, "Used internally by Teleport to re-exec itself to run a command.").Hidden()
 	forward := app.Command(teleport.ForwardSubCommand, "Used internally by Teleport to re-exec itself to port forward.").Hidden()
 	checkHomeDir := app.Command(teleport.CheckHomeDirSubCommand, "Used internally by Teleport to re-exec itself to check access to a directory.").Hidden()
@@ -463,8 +468,6 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 		IntegrationConfAWSOIDCIdPArguments.Cluster)
 	integrationConfAWSOIDCIdPCmd.Flag("name", "Integration name.").Required().StringVar(&ccf.
 		IntegrationConfAWSOIDCIdPArguments.Name)
-	integrationConfAWSOIDCIdPCmd.Flag("aws-region", "AWS Region.").Required().StringVar(&ccf.
-		IntegrationConfAWSOIDCIdPArguments.Region)
 	integrationConfAWSOIDCIdPCmd.Flag("role", "The AWS Role used by the AWS OIDC Integration.").Required().StringVar(&ccf.
 		IntegrationConfAWSOIDCIdPArguments.Role)
 	integrationConfAWSOIDCIdPCmd.Flag("proxy-public-url", "Proxy Public URL (eg https://mytenant.teleport.sh).").Required().StringVar(&ccf.
@@ -960,7 +963,7 @@ func onIntegrationConfEICEIAM(params config.IntegrationConfEICEIAM) error {
 func onIntegrationConfAWSOIDCIdP(params config.IntegrationConfAWSOIDCIdP) error {
 	ctx := context.Background()
 
-	iamClient, err := awsoidc.NewIdPIAMConfigureClient(ctx, params.Region)
+	iamClient, err := awsoidc.NewIdPIAMConfigureClient(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -968,7 +971,6 @@ func onIntegrationConfAWSOIDCIdP(params config.IntegrationConfAWSOIDCIdP) error 
 	err = awsoidc.ConfigureIdPIAM(ctx, iamClient, awsoidc.IdPIAMConfigureRequest{
 		Cluster:            params.Cluster,
 		IntegrationName:    params.Name,
-		Region:             params.Region,
 		IntegrationRole:    params.Role,
 		ProxyPublicAddress: params.ProxyPublicURL,
 	})
@@ -1014,6 +1016,26 @@ func onIntegrationConfExternalAuditCmd(params config.IntegrationConfExternalClou
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	if params.Bootstrap {
+		err = externalcloudaudit.BootstrapInfra(ctx, externalcloudaudit.BootstrapInfraParams{
+			Athena: athena.NewFromConfig(cfg),
+			Glue:   glue.NewFromConfig(cfg),
+			S3:     s3.NewFromConfig(cfg),
+			Spec: &ecatypes.ExternalCloudAuditSpec{
+				SessionsRecordingsURI:  params.SessionRecordingsURI,
+				AuditEventsLongTermURI: params.AuditEventsURI,
+				AthenaResultsURI:       params.AthenaResultsURI,
+				GlueDatabase:           params.GlueDatabase,
+				GlueTable:              params.GlueTable,
+				AthenaWorkgroup:        params.AthenaWorkgroup,
+			},
+			Region: params.Region,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
 	clt := &awsoidc.DefaultConfigureExternalCloudAuditClient{
 		Iam: iam.NewFromConfig(cfg),
 		Sts: sts.NewFromConfig(cfg),

@@ -68,6 +68,7 @@ import (
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
+	"github.com/gravitational/teleport/lib/automaticupgrades"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	dtconfig "github.com/gravitational/teleport/lib/devicetrust/config"
@@ -279,6 +280,12 @@ type Config struct {
 	// PresenceChecker periodically runs the mfa ceremony for moderated
 	// sessions.
 	PresenceChecker PresenceChecker
+
+	// AutomaticUpgradesVersionURL is the URL which returns the target agent version.
+	// This URL must returns a valid version string.
+	// Eg, v13.4.3
+	// Optional: uses cloud/stable channel when omitted.
+	AutomaticUpgradesVersionURL string
 }
 
 // SetDefaults ensures proper default values are set if
@@ -1532,19 +1539,29 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		canJoinSessions = !services.IsRecordAtProxy(recCfg.GetMode())
 	}
 
+	automaticUpgradesEnabled := clusterFeatures.GetAutomaticUpgrades()
+	var automaticUpgradesTargetVersion string
+	if automaticUpgradesEnabled {
+		automaticUpgradesTargetVersion, err = automaticupgrades.Version(r.Context(), h.cfg.AutomaticUpgradesVersionURL)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	webCfg := webclient.WebConfig{
-		Auth:                     authSettings,
-		CanJoinSessions:          canJoinSessions,
-		IsCloud:                  clusterFeatures.GetCloud(),
-		TunnelPublicAddress:      tunnelPublicAddr,
-		RecoveryCodesEnabled:     clusterFeatures.GetRecoveryCodes(),
-		UI:                       h.getUIConfig(r.Context()),
-		IsDashboard:              isDashboard(clusterFeatures),
-		IsUsageBasedBilling:      clusterFeatures.GetIsUsageBased(),
-		AutomaticUpgrades:        clusterFeatures.GetAutomaticUpgrades(),
-		AssistEnabled:            assistEnabled,
-		HideInaccessibleFeatures: clusterFeatures.GetFeatureHiding(),
-		CustomTheme:              clusterFeatures.GetCustomTheme(),
+		Auth:                           authSettings,
+		CanJoinSessions:                canJoinSessions,
+		IsCloud:                        clusterFeatures.GetCloud(),
+		TunnelPublicAddress:            tunnelPublicAddr,
+		RecoveryCodesEnabled:           clusterFeatures.GetRecoveryCodes(),
+		UI:                             h.getUIConfig(r.Context()),
+		IsDashboard:                    isDashboard(clusterFeatures),
+		IsUsageBasedBilling:            clusterFeatures.GetIsUsageBased(),
+		AutomaticUpgrades:              automaticUpgradesEnabled,
+		AutomaticUpgradesTargetVersion: automaticUpgradesTargetVersion,
+		AssistEnabled:                  assistEnabled,
+		HideInaccessibleFeatures:       clusterFeatures.GetFeatureHiding(),
+		CustomTheme:                    clusterFeatures.GetCustomTheme(),
 	}
 
 	resource, err := h.cfg.ProxyClient.GetClusterName()
@@ -4253,12 +4270,11 @@ func SSOSetWebSessionAndRedirectURL(w http.ResponseWriter, r *http.Request, resp
 		return trace.Wrap(err)
 	}
 
-	parsedURL, err := url.Parse(response.ClientRedirectURL)
+	parsedRedirectURL, err := httplib.OriginLocalRedirectURI(response.ClientRedirectURL)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	response.ClientRedirectURL = parsedURL.RequestURI()
+	response.ClientRedirectURL = parsedRedirectURL
 
 	return nil
 }

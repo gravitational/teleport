@@ -352,7 +352,7 @@ func CheckIPPinning(ctx context.Context, identity tlsca.Identity, pinSourceIP bo
 		return nil
 	}
 
-	clientSrcAddr, err := ClientAddrFromContext(ctx)
+	clientSrcAddr, err := ClientSrcAddrFromContext(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1042,8 +1042,11 @@ const (
 	// contextUser is a user set in the context of the request
 	contextUser contextKey = "teleport-user"
 
-	// contextClientAddr is a client address set in the context of the request
-	contextClientAddr contextKey = "client-addr"
+	// contextClientSrcAddr is a client source address set in the context of the request
+	contextClientSrcAddr contextKey = "teleport-client-src-addr"
+
+	// contextClientDstAddr is a client destination address set in the context of the request
+	contextClientDstAddr contextKey = "teleport-client-dst-addr"
 )
 
 // WithDelegator alias for backwards compatibility
@@ -1355,25 +1358,53 @@ func ContextWithUserCertificate(ctx context.Context, cert *x509.Certificate) con
 
 // UserCertificateFromContext returns the user certificate from the context.
 func UserCertificateFromContext(ctx context.Context) (*x509.Certificate, error) {
+	if ctx == nil {
+		return nil, trace.BadParameter("context is nil")
+	}
 	cert, ok := ctx.Value(contextUserCertificate).(*x509.Certificate)
 	if !ok {
-		return nil, trace.BadParameter("expected type *x509.Certificate, got %T", cert)
+		return nil, trace.BadParameter("user certificate was not found in the context")
 	}
 	return cert, nil
 }
 
-// ContextWithClientAddr returns the context with the address embedded.
-func ContextWithClientAddr(ctx context.Context, addr net.Addr) context.Context {
-	return context.WithValue(ctx, contextClientAddr, addr)
+// ContextWithClientSrcAddr returns the context with the address embedded.
+func ContextWithClientSrcAddr(ctx context.Context, addr net.Addr) context.Context {
+	if ctx == nil {
+		return nil
+	}
+	return context.WithValue(ctx, contextClientSrcAddr, addr)
 }
 
-// ClientAddrFromContext returns the client address from the context.
-func ClientAddrFromContext(ctx context.Context) (net.Addr, error) {
-	addr, ok := ctx.Value(contextClientAddr).(net.Addr)
+// ClientSrcAddrFromContext returns the client address from the context.
+func ClientSrcAddrFromContext(ctx context.Context) (net.Addr, error) {
+	if ctx == nil {
+		return nil, trace.BadParameter("context is nil")
+	}
+	addr, ok := ctx.Value(contextClientSrcAddr).(net.Addr)
 	if !ok {
-		return nil, trace.BadParameter("expected type net.Addr, got %T", addr)
+		return nil, trace.BadParameter("client source address was not found in the context")
 	}
 	return addr, nil
+}
+
+// ContextWithClientAddrs returns the context with the client source and destination addresses embedded.
+func ContextWithClientAddrs(ctx context.Context, src, dst net.Addr) context.Context {
+	if ctx == nil {
+		return nil
+	}
+	ctx = context.WithValue(ctx, contextClientSrcAddr, src)
+	return context.WithValue(ctx, contextClientDstAddr, dst)
+}
+
+// ClientAddrsFromContext returns the client address from the context.
+func ClientAddrsFromContext(ctx context.Context) (src net.Addr, dst net.Addr) {
+	if ctx == nil {
+		return nil, nil
+	}
+	src, _ = ctx.Value(contextClientSrcAddr).(net.Addr)
+	dst, _ = ctx.Value(contextClientDstAddr).(net.Addr)
+	return
 }
 
 // ContextWithUser returns the context with the user embedded.
@@ -1383,9 +1414,12 @@ func ContextWithUser(ctx context.Context, user IdentityGetter) context.Context {
 
 // UserFromContext returns the user from the context.
 func UserFromContext(ctx context.Context) (IdentityGetter, error) {
+	if ctx == nil {
+		return nil, trace.BadParameter("context is nil")
+	}
 	user, ok := ctx.Value(contextUser).(IdentityGetter)
 	if !ok {
-		return nil, trace.BadParameter("expected type IdentityGetter, got %T", user)
+		return nil, trace.BadParameter("user identity was not found in the context")
 	}
 	return user, nil
 }

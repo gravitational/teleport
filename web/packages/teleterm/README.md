@@ -64,6 +64,19 @@ CONNECT_TSH_BIN_PATH=$PWD/build/tsh yarn start-term
 
 For a quick restart which restarts the Electron app and the `tsh` daemon, press `F6`.
 
+### Development-only tools
+
+#### Browser console tools
+
+The `teleterm` object defined on `window` contains the entirety of `AppContext`. This is useful for
+debugging state of different `AppContext` services.
+
+The `deepLinkLaunch` function defined on `window` allows you to launch a deep link from the browser
+console. Normally this feature is reserved only for the packaged app since the OS has to recognize
+Connect as the handler for the custom protocol and send the deep link event to the main process.
+This function completely bypasses the interaction with the main process and sends the URL straight
+to the frontend app.
+
 ### Generating tshd gRPC protobuf files
 
 Rebuilding them is needed only if you change any of the files in `proto/teleport/lib/teleterm` dir.

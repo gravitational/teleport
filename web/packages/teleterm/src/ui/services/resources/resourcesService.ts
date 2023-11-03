@@ -125,6 +125,29 @@ export class ResourcesService {
 
     return Promise.allSettled(promises);
   }
+
+  listUnifiedResources(
+    params: types.ListUnifiedResourcesRequest,
+    abortSignal: AbortSignal
+  ) {
+    const tshAbortSignal = {
+      aborted: false,
+      addEventListener: (cb: (...args: any[]) => void) => {
+        abortSignal.addEventListener('abort', cb);
+      },
+      removeEventListener: (cb: (...args: any[]) => void) => {
+        abortSignal.removeEventListener('abort', cb);
+      },
+    };
+    abortSignal.addEventListener(
+      'abort',
+      () => {
+        tshAbortSignal.aborted = true;
+      },
+      { once: true }
+    );
+    return this.tshClient.listUnifiedResources(params, tshAbortSignal);
+  }
 }
 
 export class AmbiguousHostnameError extends Error {

@@ -14,32 +14,26 @@
  * limitations under the License.
  */
 
-import { useLayoutEffect, useRef } from 'react';
-
-import { Attempt } from 'shared/hooks/useAttemptNext';
-
-import {
-  useKeyBasedPagination,
-  Props as PaginationProps,
-} from './useKeyBasedPagination';
+import { useLayoutEffect, useRef, useCallback } from 'react';
 
 /**
- * Fetches a part of resource list whenever the `trigger` element intersects the
- * viewport until the list is exhausted or an error happens.
+ * Calls fetch function whenever the `trigger` element intersects the
+ * viewport.
+ * It also triggers the initial request when the `trigger` element
+ * is rendered for the first time.
  *
  * Callers must set the `trigger` element by passing the [`State.setTrigger`] function
  * as the `ref` prop of the element they want to use as the trigger.
- *
- * Use the [`State.forceFetch`] to continue after an error.
  */
-export function useInfiniteScroll<T>(props: PaginationProps<T>): State<T> {
+export function useInfiniteScroll({
+  fetch,
+}: {
+  fetch: () => Promise<void>;
+}): InfiniteScroll {
   const observer = useRef<IntersectionObserver | null>(null);
   const trigger = useRef<Element | null>(null);
 
-  const { fetch, forceFetch, attempt, resources } =
-    useKeyBasedPagination(props);
-
-  const recreateObserver = () => {
+  const recreateObserver = useCallback(() => {
     observer.current?.disconnect();
     if (trigger.current) {
       observer.current = new IntersectionObserver(entries => {
@@ -49,7 +43,7 @@ export function useInfiniteScroll<T>(props: PaginationProps<T>): State<T> {
       });
       observer.current.observe(trigger.current);
     }
-  };
+  }, [fetch]);
 
   const setTrigger = (el: Element | null) => {
     trigger.current = el;
@@ -64,29 +58,21 @@ export function useInfiniteScroll<T>(props: PaginationProps<T>): State<T> {
   // switching this to `useEffect` and rapidly changing filtering data on the
   // resources list page).
   useLayoutEffect(() => {
+    // triggers the initial request
     recreateObserver();
     return () => {
       observer.current?.disconnect();
     };
-  }, [fetch]);
+  }, [recreateObserver]);
 
-  return { setTrigger, forceFetch, attempt, resources };
+  return { setTrigger };
 }
 
-export type State<T> = {
-  /**
-   * Fetches a new batch of data. Cancels a pending request, if there is one.
-   * Disregards whether error has previously occurred.
-   */
-  forceFetch: () => Promise<void>;
-
+type InfiniteScroll = {
   /**
    * Sets an element that will be observed and will trigger a fetch once it
    * becomes visible. The element doesn't need to become fully visible; a single
    * pixel will be enough to trigger.
    */
   setTrigger: (el: Element | null) => void;
-
-  attempt: Attempt;
-  resources: T[];
 };
