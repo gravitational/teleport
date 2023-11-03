@@ -369,7 +369,7 @@ func makeYAMLExample(fields []rawField) (string, error) {
 			if len(sides) != 2 {
 				return "", errors.New("malformed example YAML in description: " + field.doc)
 			}
-			example = "\n" + sides[1]
+			example = sides[1]
 		} else {
 			example = field.kind.formatForExampleYAML(0) + "\n"
 		}
@@ -542,7 +542,7 @@ func makeFieldTableInfo(fields []rawField) ([]Field, error) {
 				return nil, errors.New("malformed example YAML in description: " + field.doc)
 			}
 			desc = sides[0]
-			typ = "See YAML example."
+			typ = "See example YAML."
 		} else {
 			desc = field.doc
 			typ = field.kind.formatForTable()
