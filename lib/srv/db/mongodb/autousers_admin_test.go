@@ -45,6 +45,14 @@ func newFakeRawAdminClient() *fakeRawAdminClient {
 	}
 }
 
+func (c *fakeRawAdminClient) waitC() <-chan struct{} {
+	return c.waitForDisconnect.Done()
+}
+
+func (c *fakeRawAdminClient) isDisconnected() bool {
+	return c.waitForDisconnect.Err() != nil
+}
+
 func (c *fakeRawAdminClient) Disconnect(_ context.Context) error {
 	c.waitForDisconnectCancel()
 	return nil
@@ -86,9 +94,9 @@ func Test_getSharedAdminClient(t *testing.T) {
 		require.Same(t, db1WithAdmin1SharedClient, sharedClient)
 	})
 
-	db1WithAdmin1SharedClient.Disconnect(ctx)
-	db1WithAdmin2SharedClient.Disconnect(ctx)
-	db2WithAdminSharedClient.Disconnect(ctx)
+	require.NoError(t, db1WithAdmin1SharedClient.Disconnect(ctx))
+	require.NoError(t, db1WithAdmin2SharedClient.Disconnect(ctx))
+	require.NoError(t, db2WithAdminSharedClient.Disconnect(ctx))
 
 	fakeClock.Advance(adminClientCleanupTTL * 2)
 
@@ -102,17 +110,17 @@ func Test_getSharedAdminClient(t *testing.T) {
 		require.True(t, ok)
 
 		// db1WithAdmin1SharedClient was acquired twice so it should be waiting.
-		require.Nil(t, fakeRawClient.waitForDisconnect.Err())
+		require.False(t, fakeRawClient.isDisconnected())
 
 		// Now release it.
-		db1WithAdmin1SharedClient.Disconnect(ctx)
+		require.NoError(t, db1WithAdmin1SharedClient.Disconnect(ctx))
 		requireFakeRawAdminClientDisconnected(t, db1WithAdmin1SharedClient)
 	})
 
 	t.Run("new client after FnCache TTL", func(t *testing.T) {
 		sharedClient := mustGetSharedAdminClient(t, cache, fakeClock, db1WithAdmin1)
 		t.Cleanup(func() {
-			sharedClient.Disconnect(ctx)
+			require.NoError(t, sharedClient.Disconnect(ctx))
 		})
 		require.NotSame(t, db1WithAdmin1SharedClient, sharedClient)
 	})
@@ -162,7 +170,7 @@ func requireFakeRawAdminClientDisconnected(t *testing.T, sharedClient *sharedAdm
 	require.True(t, ok)
 
 	select {
-	case <-fakeRawClient.waitForDisconnect.Done():
+	case <-fakeRawClient.waitC():
 		return
 	case <-time.After(time.Second):
 		require.Fail(t, "Timed out waiting for fakeRawAdminClient to Disconnect")

@@ -30,13 +30,27 @@ import (
 )
 
 type user struct {
-	Username   string         `bson:"user"`
-	Roles      userRoles      `bson:"roles"`
-	CustomData userCustomData `bson:"customData"`
+	Username         string                `bson:"user"`
+	Roles            userRoles             `bson:"roles"`
+	CustomData       userCustomData        `bson:"customData"`
+	AuthRestrictions []userAuthRestriction `bson:"authenticationRestrictions"`
+}
+
+func (u *user) isLocked() bool {
+	for _, authRestriction := range u.AuthRestrictions {
+		if slices.Contains(authRestriction.ClientSource, lockedClientSource) {
+			return true
+		}
+	}
+	return false
 }
 
 type userCustomData struct {
 	TeleportAutoUser bool `bson:"teleport-auto-user"`
+}
+
+type userAuthRestriction struct {
+	ClientSource []string `bson:"clientSource"`
 }
 
 type userRole struct {
@@ -93,7 +107,7 @@ func (e *Engine) ActivateUser(ctx context.Context, sessionCtx *common.Session) e
 		return nil
 
 	default:
-		return trace.Wrap(e.updateUser(ctx, sessionCtx, client, userRoles, unlockedAuthRestrictions))
+		return trace.Wrap(e.updateUser(ctx, sessionCtx, client, userRoles, []userAuthRestriction{}))
 	}
 }
 
@@ -117,7 +131,10 @@ func (e *Engine) DeactivateUser(ctx context.Context, sessionCtx *common.Session)
 		return nil
 
 	default:
-		return trace.Wrap(e.updateUser(ctx, sessionCtx, client, []userRole{}, lockedAuthRestrictions))
+		authRestrictions := []userAuthRestriction{{
+			ClientSource: []string{lockedClientSource},
+		}}
+		return trace.Wrap(e.updateUser(ctx, sessionCtx, client, []userRole{}, authRestrictions))
 	}
 }
 
@@ -203,13 +220,13 @@ func (e *Engine) createUser(ctx context.Context, sessionCtx *common.Session, cli
 		{Key: "createUser", Value: x509Username(sessionCtx)},
 		{Key: "roles", Value: userRoles},
 		{Key: "customData", Value: userCustomData{TeleportAutoUser: true}},
-		{Key: "authenticationRestrictions", Value: unlockedAuthRestrictions},
+		{Key: "authenticationRestrictions", Value: []userAuthRestriction{}},
 		{Key: "comment", Value: runCommandComment},
 	}).Err())
 }
 
-func (e *Engine) updateUser(ctx context.Context, sessionCtx *common.Session, client adminClient, userRoles []userRole, authRestrictions authRestrictions) error {
-	logrus.Debugf("Updating roles for user %q.", sessionCtx.DatabaseUser)
+func (e *Engine) updateUser(ctx context.Context, sessionCtx *common.Session, client adminClient, userRoles []userRole, authRestrictions []userAuthRestriction) error {
+	logrus.Debugf("Updating user %q.", sessionCtx.DatabaseUser)
 	return trace.Wrap(client.Database(externalDatabaseName).RunCommand(ctx, bson.D{
 		{Key: "updateUser", Value: x509Username(sessionCtx)},
 		{Key: "roles", Value: userRoles},
@@ -254,16 +271,7 @@ const (
 	// runCommandComment is a comment used in "runCommand" calls to identify
 	// the commands are run by Teleport.
 	runCommandComment = "by Teleport Database Service"
-)
-
-type authRestrictions bson.A
-
-var (
-	unlockedAuthRestrictions authRestrictions = authRestrictions{bson.M{
-		"clientSource": bson.A{"0.0.0.0/0"},
-	}}
-
-	lockedAuthRestrictions authRestrictions = authRestrictions{bson.M{
-		"clientSource": bson.A{"0.0.0.0"},
-	}}
+	// lockedClientSource is the client source used for authentication
+	// restrictions to ensure users cannot login when deactivated.
+	lockedClientSource = "0.0.0.0"
 )

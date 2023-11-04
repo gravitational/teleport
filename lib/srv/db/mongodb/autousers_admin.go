@@ -143,7 +143,7 @@ func (c *sharedAdminClient) waitAndCleanup() {
 	// Wait until TTL.
 	<-c.timer.Chan()
 
-	// Wailt until all shared sessions are released.
+	// Wait until all shared sessions are released.
 	c.wg.Wait()
 
 	// Disconnect.
@@ -211,7 +211,7 @@ func init() {
 		TTL: adminClientFnCacheTTL,
 	})
 	// This should never fail. There is also an unit test to verify it's always
-	// created. Logging just in case.
+	// created. Logging error just in case.
 	if err != nil {
 		logrus.Warnf("Failed to create MongoDB admin connection cache: %v.", err)
 	}
