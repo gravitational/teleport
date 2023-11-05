@@ -24,7 +24,6 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
-	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
@@ -38,8 +37,6 @@ type Cluster struct {
 	LastConnected time.Time `json:"lastConnected"`
 	// Status is the cluster status
 	Status string `json:"status"`
-	// NodeCount is this cluster number of registered servers
-	NodeCount int `json:"nodeCount"`
 	// PublicURL is this cluster public URL (its first available proxy URL),
 	// or possibly empty if no proxies could be loaded.
 	PublicURL string `json:"publicURL"`
@@ -94,11 +91,6 @@ func GetClusterDetails(ctx context.Context, site reversetunnelclient.RemoteSite,
 		return nil, trace.Wrap(err)
 	}
 
-	nodes, err := clt.GetNodes(ctx, apidefaults.Namespace)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	proxies, err := clt.GetProxies()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -126,7 +118,6 @@ func GetClusterDetails(ctx context.Context, site reversetunnelclient.RemoteSite,
 		Name:          site.GetName(),
 		LastConnected: site.GetLastConnected(),
 		Status:        site.GetStatus(),
-		NodeCount:     len(nodes),
 		PublicURL:     proxyHost,
 		AuthVersion:   authVersion,
 

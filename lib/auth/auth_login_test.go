@@ -1120,7 +1120,7 @@ func TestServer_Authenticate_headless(t *testing.T) {
 						RemoteAddr: "0.0.0.0",
 					},
 				},
-				TTL: defaults.CallbackTimeout,
+				TTL: defaults.HeadlessLoginTimeout,
 			})
 
 			// Use assert so that we also output any test failures below.
