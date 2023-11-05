@@ -41,9 +41,9 @@ pub struct FilesystemBackend {
     ///
     /// See the documentation for [`FileCacheObject`].
     file_cache: FileCache,
-    pending_tdp_sd_info_resp_handlers: ResponseCache<SharedDirectoryInfoResponseHandler>,
-    pending_sd_create_resp_handlers: ResponseCache<SharedDirectoryCreateResponseHandler>,
-    pending_sd_delete_resp_handlers: ResponseCache<SharedDirectoryDeleteResponseHandler>,
+    pending_tdp_sd_info_resp_handlers: ResponseCache<tdp::SharedDirectoryInfoResponse>,
+    pending_sd_create_resp_handlers: ResponseCache<tdp::SharedDirectoryCreateResponse>,
+    pending_sd_delete_resp_handlers: ResponseCache<tdp::SharedDirectoryDeleteResponse>,
 }
 
 impl FilesystemBackend {
@@ -753,93 +753,34 @@ impl std::fmt::Display for FilesystemBackendError {
 
 impl std::error::Error for FilesystemBackendError {}
 
+type Handler<T> = Box<dyn FnOnce(&mut FilesystemBackend, T) -> PduResult<()> + Send>;
+
 /// When we send a TDP Shared Directory Request to the browser, we expect a response
-/// which we will need to call a function on. A [`ResponseHandler`] is a trait that
-/// represents this function (or, more technically, this closure).
-///
-/// # Example
-///
-/// ```
-/// // Create a new ResponseHandler type by calling the
-/// // response_handler! macro with the name of the new type
-/// // and the type of the response that it will handle.
-/// response_handler!(
-///     SharedDirectoryInfoResponseHandler,
-///     tdp::SharedDirectoryInfoResponse
-/// );
-///
-/// // send a tdp request
-/// send_tdp_sd_info_request(tdp::SharedDirectoryInfoRequest::from(&rdp_req))?;
-///
-/// // Create a handler for handling the response
-/// let handler = SharedDirectoryInfoResponseHandler::new(
-///    move |this: &mut FilesystemBackend,
-///         tdp_resp: tdp::SharedDirectoryInfoResponse|
-///        -> PduResult<()> {
-///         // do something with tdp_resp
-///         Ok(())
-///     },
-///
-/// // Add that handler to a cache of handlers indexed by completion id ([`ResponseCache`]).
-/// ```
-trait ResponseHandler: std::fmt::Debug {
-    type ResponseType;
+/// which we will need to call a function on. A [`ResponseHandler`] is a wrapper around
+/// the function that will be called when the response is received.
+struct ResponseHandler<T>(Handler<T>);
 
+impl<T> ResponseHandler<T> {
     fn new(
-        handler: impl FnOnce(&mut FilesystemBackend, Self::ResponseType) -> PduResult<()>
-            + Send
-            + 'static,
-    ) -> Self;
+        handler: impl FnOnce(&mut FilesystemBackend, T) -> PduResult<()> + Send + 'static,
+    ) -> Self {
+        Self(Box::new(handler))
+    }
 
-    fn call(self, this: &mut FilesystemBackend, res: Self::ResponseType) -> PduResult<()>;
+    fn call(self, this: &mut FilesystemBackend, res: T) -> PduResult<()> {
+        (self.0)(this, res)
+    }
 }
 
-/// See the example in [`ResponseHandler`].
-macro_rules! response_handler {
-    ($name:ident, $response_type:ty) => {
-        struct $name {
-            handler:
-                Box<dyn FnOnce(&mut FilesystemBackend, $response_type) -> PduResult<()> + Send>,
-        }
-
-        impl std::fmt::Debug for $name {
-            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                write!(f, stringify!($name))
-            }
-        }
-
-        impl ResponseHandler for $name {
-            type ResponseType = $response_type;
-
-            fn new(
-                handler: impl FnOnce(&mut FilesystemBackend, Self::ResponseType) -> PduResult<()>
-                    + Send
-                    + 'static,
-            ) -> Self {
-                Self {
-                    handler: Box::new(handler),
-                }
-            }
-
-            fn call(self, this: &mut FilesystemBackend, res: Self::ResponseType) -> PduResult<()> {
-                (self.handler)(this, res)
-            }
-        }
-    };
+impl<T> std::fmt::Debug for ResponseHandler<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "<{}>", std::any::type_name::<T>())
+    }
 }
 
-response_handler!(
-    SharedDirectoryInfoResponseHandler,
-    tdp::SharedDirectoryInfoResponse
-);
-response_handler!(
-    SharedDirectoryCreateResponseHandler,
-    tdp::SharedDirectoryCreateResponse
-);
-response_handler!(
-    SharedDirectoryDeleteResponseHandler,
-    tdp::SharedDirectoryDeleteResponse
-);
+type SharedDirectoryInfoResponseHandler = ResponseHandler<tdp::SharedDirectoryInfoResponse>;
+type SharedDirectoryCreateResponseHandler = ResponseHandler<tdp::SharedDirectoryCreateResponse>;
+type SharedDirectoryDeleteResponseHandler = ResponseHandler<tdp::SharedDirectoryDeleteResponse>;
 
 type CompletionId = u32;
 
@@ -847,22 +788,22 @@ type CompletionId = u32;
 ///
 /// See the example in [`ResponseHandler`].
 #[derive(Debug)]
-struct ResponseCache<T: ResponseHandler> {
-    cache: HashMap<CompletionId, T>,
+struct ResponseCache<T> {
+    cache: HashMap<CompletionId, ResponseHandler<T>>,
 }
 
-impl<T: ResponseHandler> ResponseCache<T> {
+impl<T> ResponseCache<T> {
     fn new() -> Self {
         Self {
             cache: HashMap::new(),
         }
     }
 
-    fn insert(&mut self, completion_id: CompletionId, handler: T) {
+    fn insert(&mut self, completion_id: CompletionId, handler: ResponseHandler<T>) {
         self.cache.insert(completion_id, handler);
     }
 
-    fn remove(&mut self, completion_id: &CompletionId) -> Option<T> {
+    fn remove(&mut self, completion_id: &CompletionId) -> Option<ResponseHandler<T>> {
         self.cache.remove(completion_id)
     }
 }
