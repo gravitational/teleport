@@ -18,11 +18,14 @@ import (
 	"context"
 	"testing"
 
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/authz"
 )
+
+type simplAuthorizer struct{}
 
 func newOktaUser(t *testing.T) types.User {
 	t.Helper()
@@ -36,6 +39,7 @@ func newOktaUser(t *testing.T) types.User {
 	return user
 }
 
+// TODO(tcsc): DELETE IN 16.0.0
 func TestOktaServiceUserCRUD(t *testing.T) {
 	// Given an RBAC-checking `ServerWithRoles` configured with the built-in
 	// Okta Role...
@@ -65,6 +69,24 @@ func TestOktaServiceUserCRUD(t *testing.T) {
 			require.NoError(t, err)
 
 			_, err = authWithOktaRole.CreateUser(ctx, user)
+			require.Error(t, err)
+			require.Truef(t, trace.IsBadParameter(err), "Expected bad parameter, got %T: %s", err, err.Error())
+		})
+
+		t.Run("non-okta service creating an okta user is an error", func(t *testing.T) {
+			authContext, err := srv.Authorizer.Authorize(authz.ContextWithUser(ctx, TestBuiltin(types.RoleAdmin).I))
+			require.NoError(t, err)
+
+			authWithBotRole := &ServerWithRoles{
+				authServer: srv.AuthServer,
+				alog:       srv.AuditLog,
+				context:    *authContext,
+			}
+			defer authWithBotRole.Close()
+
+			user := newOktaUser(t)
+
+			_, err = authWithBotRole.CreateUser(ctx, user)
 			require.Error(t, err)
 			require.Truef(t, trace.IsBadParameter(err), "Expected bad parameter, got %T: %s", err, err.Error())
 		})
@@ -112,6 +134,16 @@ func TestOktaServiceUserCRUD(t *testing.T) {
 			_, err = authWithOktaRole.UpdateUser(ctx, user)
 			require.Error(t, err)
 			require.Truef(t, trace.IsBadParameter(err), "Expected bad parameter, got %T: %s", err, err.Error())
+		})
+
+		t.Run("updating a non-existent user is an error", func(t *testing.T) {
+			// Given an okta user not present in the user DB
+			user := newOktaUser(t)
+
+			// when I try to update that user, an error is returned rather than
+			// having the whole system crash
+			_, err = authWithOktaRole.UpdateUser(ctx, user)
+			require.Error(t, err)
 		})
 	})
 
@@ -223,6 +255,16 @@ func TestOktaServiceUserCRUD(t *testing.T) {
 			err = authWithOktaRole.CompareAndSwapUser(ctx, modified, existing)
 			require.Error(t, err)
 			require.Truef(t, trace.IsBadParameter(err), "Expected bad parameter, got %T: %s", err, err.Error())
+		})
+
+		t.Run("updating a non-existent user is an error", func(t *testing.T) {
+			// Given an okta user not present in the user DB
+			user := newOktaUser(t)
+
+			// when I try to update that user, an error is returned rather than
+			// having the whole system crash
+			err := authWithOktaRole.CompareAndSwapUser(ctx, user, user)
+			require.Error(t, err)
 		})
 	})
 

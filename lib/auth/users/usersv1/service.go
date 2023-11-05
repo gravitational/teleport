@@ -206,10 +206,20 @@ func (s *Service) GetUser(ctx context.Context, req *userspb.GetUserRequest) (*us
 }
 
 func (s *Service) CreateUser(ctx context.Context, req *userspb.CreateUserRequest) (*userspb.CreateUserResponse, error) {
-	if _, err := authz.AuthorizeWithVerbs(ctx, s.logger, s.authorizer, true, types.KindUser, types.VerbCreate); err != nil {
+	authCtx, err := authz.AuthorizeWithVerbs(ctx, s.logger, s.authorizer, true, types.KindUser, types.VerbCreate)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	if authz.HasBuiltinRole(*authCtx, string(types.RoleOkta)) {
+		if !hasOriginOkta(req.User) {
+			return nil, trace.BadParameter("Okta service must supply okta origin")
+		}
+	} else {
+		if hasOriginOkta(req.User) {
+			return nil, trace.BadParameter("Must be Okta service to set Okta origin")
+		}
+	}
 	if req.User.GetCreatedBy().IsEmpty() {
 		req.User.SetCreatedBy(types.CreatedBy{
 			User: types.UserRef{Name: authz.ClientUsername(ctx)},
@@ -255,7 +265,12 @@ func (s *Service) CreateUser(ctx context.Context, req *userspb.CreateUserRequest
 }
 
 func (s *Service) UpdateUser(ctx context.Context, req *userspb.UpdateUserRequest) (*userspb.UpdateUserResponse, error) {
-	if _, err := authz.AuthorizeWithVerbs(ctx, s.logger, s.authorizer, true, types.KindUser, types.VerbUpdate); err != nil {
+	authCtx, err := authz.AuthorizeWithVerbs(ctx, s.logger, s.authorizer, true, types.KindUser, types.VerbUpdate)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := s.checkOktaUpdateAccess(ctx, authCtx, req.User, req.User.GetName()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -309,6 +324,10 @@ func (s *Service) UpdateUser(ctx context.Context, req *userspb.UpdateUserRequest
 func (s *Service) UpsertUser(ctx context.Context, req *userspb.UpsertUserRequest) (*userspb.UpsertUserResponse, error) {
 	authzCtx, err := authz.AuthorizeWithVerbs(ctx, s.logger, s.authorizer, true, types.KindUser, types.VerbCreate, types.VerbUpdate)
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := s.checkOktaUpdateAccess(ctx, authzCtx, req.User, req.User.GetName()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -366,8 +385,15 @@ func (s *Service) UpsertUser(ctx context.Context, req *userspb.UpsertUserRequest
 }
 
 func (s *Service) DeleteUser(ctx context.Context, req *userspb.DeleteUserRequest) (*emptypb.Empty, error) {
-	if _, err := authz.AuthorizeWithVerbs(ctx, s.logger, s.authorizer, true, types.KindUser, types.VerbDelete); err != nil {
+	authzCtx, err := authz.AuthorizeWithVerbs(ctx, s.logger, s.authorizer, true, types.KindUser, types.VerbDelete)
+	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	if authz.HasBuiltinRole(*authzCtx, string(types.RoleOkta)) {
+		if err := isOktaWriteableUserResource(ctx, s.cache, req.Name); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	prevUser, err := s.cache.GetUser(ctx, req.Name, false)
