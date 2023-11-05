@@ -5252,8 +5252,8 @@ func (a *Server) Ping(ctx context.Context) (proto.PingResponse, error) {
 	}
 	features := modules.GetModules().Features().ToProto()
 
-	if a.accessMonitoringEnabled {
-		features.IdentityGovernance = a.accessMonitoringEnabled
+	if features.IdentityGovernance {
+		features.AccessMonitoring = a.accessMonitoringEnabled
 	}
 
 	return proto.PingResponse{

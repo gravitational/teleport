@@ -78,6 +78,8 @@ type Features struct {
 	AccessRequests AccessRequestsFeature
 	// CustomTheme holds the name of WebUI custom theme.
 	CustomTheme string
+	// IdentityGovernance enables identity governance product.
+	IdentityGovernance bool
 
 	// IsTrialProduct is true if the cluster is in trial mode.
 	IsTrialProduct bool
@@ -127,6 +129,7 @@ func (f Features) ToProto() *proto.Features {
 		Assist:                  f.Assist,
 		FeatureHiding:           f.FeatureHiding,
 		CustomTheme:             f.CustomTheme,
+		IdentityGovernance:      f.IdentityGovernance,
 		DeviceTrust: &proto.DeviceTrustFeature{
 			Enabled:           f.DeviceTrust.Enabled,
 			DevicesUsageLimit: int32(f.DeviceTrust.DevicesUsageLimit),
