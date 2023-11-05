@@ -151,7 +151,7 @@ where
 #[no_mangle]
 pub unsafe extern "C" fn client_stop(cgo_handle: CgoHandle) -> CGOErrCode {
     trace!("client_stop");
-    handle_operation(cgo_handle, "client_stop", |client_handle| {
+    handle_operation(cgo_handle, "client_stop", move |client_handle| {
         client_handle.stop()
     })
 }
@@ -174,9 +174,11 @@ pub unsafe extern "C" fn client_update_clipboard(
 ) -> CGOErrCode {
     let data = from_go_array(data, len);
     match String::from_utf8(data) {
-        Ok(s) => handle_operation(cgo_handle, "client_update_clipboard", |client_handle| {
-            client_handle.update_clipboard(s)
-        }),
+        Ok(s) => handle_operation(
+            cgo_handle,
+            "client_update_clipboard",
+            move |client_handle| client_handle.update_clipboard(s),
+        ),
         Err(e) => {
             error!("can't convert clipboard data: {}", e);
             CGOErrCode::ErrCodeFailure
@@ -203,7 +205,7 @@ pub unsafe extern "C" fn client_handle_tdp_sd_announce(
     handle_operation(
         cgo_handle,
         "client_handle_tdp_sd_announce",
-        |client_handle| client_handle.handle_tdp_sd_announce(sd_announce),
+        move |client_handle| client_handle.handle_tdp_sd_announce(sd_announce),
     )
 }
 
@@ -225,7 +227,7 @@ pub unsafe extern "C" fn client_handle_tdp_sd_info_response(
     handle_operation(
         cgo_handle,
         "client_handle_tdp_sd_info_response",
-        |client_handle| client_handle.handle_tdp_sd_info_response(res),
+        move |client_handle| client_handle.handle_tdp_sd_info_response(res),
     )
 }
 
@@ -245,7 +247,7 @@ pub unsafe extern "C" fn client_handle_tdp_sd_create_response(
     handle_operation(
         cgo_handle,
         "client_handle_tdp_sd_create_response",
-        |client_handle| client_handle.handle_tdp_sd_create_response(res),
+        move |client_handle| client_handle.handle_tdp_sd_create_response(res),
     )
 }
 
@@ -264,7 +266,7 @@ pub unsafe extern "C" fn client_handle_tdp_sd_delete_response(
     handle_operation(
         cgo_handle,
         "client_handle_tdp_sd_delete_response",
-        |client_handle| client_handle.handle_tdp_sd_delete_response(res),
+        move |client_handle| client_handle.handle_tdp_sd_delete_response(res),
     )
 }
 
@@ -354,7 +356,7 @@ pub unsafe extern "C" fn client_handle_tdp_rdp_response_pdu(
     handle_operation(
         cgo_handle,
         "client_handle_tdp_rdp_response_pdu",
-        |client_handle| client_handle.write_raw_pdu(res),
+        move |client_handle| client_handle.write_raw_pdu(res),
     )
 }
 
@@ -367,9 +369,11 @@ pub unsafe extern "C" fn client_write_rdp_pointer(
     cgo_handle: CgoHandle,
     pointer: CGOMousePointerEvent,
 ) -> CGOErrCode {
-    handle_operation(cgo_handle, "client_write_rdp_pointer", |client_handle| {
-        client_handle.write_rdp_pointer(pointer)
-    })
+    handle_operation(
+        cgo_handle,
+        "client_write_rdp_pointer",
+        move |client_handle| client_handle.write_rdp_pointer(pointer),
+    )
 }
 
 /// # Safety
@@ -381,9 +385,11 @@ pub unsafe extern "C" fn client_write_rdp_keyboard(
     cgo_handle: CgoHandle,
     key: CGOKeyboardEvent,
 ) -> CGOErrCode {
-    handle_operation(cgo_handle, "client_write_rdp_keyboard", |client_handle| {
-        client_handle.write_rdp_key(key)
-    })
+    handle_operation(
+        cgo_handle,
+        "client_write_rdp_keyboard",
+        move |client_handle| client_handle.write_rdp_key(key),
+    )
 }
 
 /// # Safety
