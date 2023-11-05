@@ -242,8 +242,9 @@ func (c *Client) AccessRequestPromote(ctx context.Context, req *accesslistv1.Acc
 // ListAccessListReviews will list access list reviews for a particular access list.
 func (c *Client) ListAccessListReviews(ctx context.Context, accessList string, pageSize int, pageToken string) (reviews []*accesslist.Review, nextToken string, err error) {
 	resp, err := c.grpcClient.ListAccessListReviews(ctx, &accesslistv1.ListAccessListReviewsRequest{
-		PageSize:  int32(pageSize),
-		NextToken: nextToken,
+		PageSize:   int32(pageSize),
+		NextToken:  nextToken,
+		AccessList: accessList,
 	})
 	if err != nil {
 		return nil, "", trace.Wrap(err)
