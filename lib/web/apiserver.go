@@ -1563,6 +1563,7 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		AssistEnabled:                  assistEnabled,
 		HideInaccessibleFeatures:       clusterFeatures.GetFeatureHiding(),
 		CustomTheme:                    clusterFeatures.GetCustomTheme(),
+		IdentityGovernanceEnabled:      clusterFeatures.GetIdentityGovernance(),
 	}
 
 	resource, err := h.cfg.ProxyClient.GetClusterName()

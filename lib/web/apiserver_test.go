@@ -4530,6 +4530,7 @@ func TestGetWebConfig(t *testing.T) {
 			Cloud:               true,
 			IsUsageBasedBilling: true,
 			AutomaticUpgrades:   true,
+			IdentityGovernance:  true,
 		},
 	})
 
@@ -4555,6 +4556,7 @@ func TestGetWebConfig(t *testing.T) {
 	expectedCfg.AutomaticUpgrades = true
 	expectedCfg.AutomaticUpgradesTargetVersion = "v99.0.1"
 	expectedCfg.AssistEnabled = true
+	expectedCfg.IdentityGovernanceEnabled = true
 
 	// request and verify enabled features are enabled.
 	re, err = clt.Get(ctx, endpoint, nil)
@@ -4574,6 +4576,7 @@ func TestGetWebConfig(t *testing.T) {
 	}
 	env.proxies[0].client = mockClient
 	expectedCfg.AutomaticUpgrades = false
+	expectedCfg.IdentityGovernanceEnabled = false
 
 	// update modules but NOT the expected config
 	modules.SetTestModules(t, &modules.TestModules{
