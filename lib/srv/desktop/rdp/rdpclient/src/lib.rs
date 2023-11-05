@@ -121,14 +121,9 @@ pub unsafe extern "C" fn client_run(cgo_handle: CgoHandle, params: CGOConnectPar
     }
 }
 
-fn handle_operation<Fn, Args>(
-    cgo_handle: CgoHandle,
-    ctx: &'static str,
-    args: Args,
-    f: Fn,
-) -> CGOErrCode
+fn handle_operation<T>(cgo_handle: CgoHandle, ctx: &'static str, f: T) -> CGOErrCode
 where
-    Fn: FnOnce(&ClientHandle, Args) -> ClientResult<()>,
+    T: FnOnce(ClientHandle) -> ClientResult<()>,
 {
     let client_handle = match get_client_handle(cgo_handle) {
         Some(it) => it,
@@ -137,8 +132,7 @@ where
             return CGOErrCode::ErrCodeFailure;
         }
     };
-
-    match f(&client_handle, args) {
+    match f(client_handle) {
         Ok(_) => CGOErrCode::ErrCodeSuccess,
         Err(e) => {
             error!("{} failed: {:?}", ctx, e);
@@ -157,7 +151,7 @@ where
 #[no_mangle]
 pub unsafe extern "C" fn client_stop(cgo_handle: CgoHandle) -> CGOErrCode {
     trace!("client_stop");
-    handle_operation(cgo_handle, "client_stop", (), |client_handle, _| {
+    handle_operation(cgo_handle, "client_stop", |client_handle| {
         client_handle.stop()
     })
 }
@@ -180,12 +174,9 @@ pub unsafe extern "C" fn client_update_clipboard(
 ) -> CGOErrCode {
     let data = from_go_array(data, len);
     match String::from_utf8(data) {
-        Ok(s) => handle_operation(
-            cgo_handle,
-            "client_update_clipboard",
-            s,
-            |client_handle, s| client_handle.update_clipboard(s),
-        ),
+        Ok(s) => handle_operation(cgo_handle, "client_update_clipboard", |client_handle| {
+            client_handle.update_clipboard(s)
+        }),
         Err(e) => {
             error!("can't convert clipboard data: {}", e);
             CGOErrCode::ErrCodeFailure
@@ -212,8 +203,7 @@ pub unsafe extern "C" fn client_handle_tdp_sd_announce(
     handle_operation(
         cgo_handle,
         "client_handle_tdp_sd_announce",
-        sd_announce,
-        |client_handle, sd_announce| client_handle.handle_tdp_sd_announce(sd_announce),
+        |client_handle| client_handle.handle_tdp_sd_announce(sd_announce),
     )
 }
 
@@ -235,8 +225,7 @@ pub unsafe extern "C" fn client_handle_tdp_sd_info_response(
     handle_operation(
         cgo_handle,
         "client_handle_tdp_sd_info_response",
-        res,
-        |client_handle, res| client_handle.handle_tdp_sd_info_response(res),
+        |client_handle| client_handle.handle_tdp_sd_info_response(res),
     )
 }
 
@@ -256,8 +245,7 @@ pub unsafe extern "C" fn client_handle_tdp_sd_create_response(
     handle_operation(
         cgo_handle,
         "client_handle_tdp_sd_create_response",
-        res,
-        |client_handle, res| client_handle.handle_tdp_sd_create_response(res),
+        |client_handle| client_handle.handle_tdp_sd_create_response(res),
     )
 }
 
@@ -276,8 +264,7 @@ pub unsafe extern "C" fn client_handle_tdp_sd_delete_response(
     handle_operation(
         cgo_handle,
         "client_handle_tdp_sd_delete_response",
-        res,
-        |client_handle, res| client_handle.handle_tdp_sd_delete_response(res),
+        |client_handle| client_handle.handle_tdp_sd_delete_response(res),
     )
 }
 
@@ -367,8 +354,7 @@ pub unsafe extern "C" fn client_handle_tdp_rdp_response_pdu(
     handle_operation(
         cgo_handle,
         "client_handle_tdp_rdp_response_pdu",
-        res,
-        |client_handle, res| client_handle.write_raw_pdu(res),
+        |client_handle| client_handle.write_raw_pdu(res),
     )
 }
 
@@ -381,12 +367,9 @@ pub unsafe extern "C" fn client_write_rdp_pointer(
     cgo_handle: CgoHandle,
     pointer: CGOMousePointerEvent,
 ) -> CGOErrCode {
-    handle_operation(
-        cgo_handle,
-        "client_write_rdp_pointer",
-        pointer,
-        |client_handle, pointer| client_handle.write_rdp_pointer(pointer),
-    )
+    handle_operation(cgo_handle, "client_write_rdp_pointer", |client_handle| {
+        client_handle.write_rdp_pointer(pointer)
+    })
 }
 
 /// # Safety
@@ -398,12 +381,9 @@ pub unsafe extern "C" fn client_write_rdp_keyboard(
     cgo_handle: CgoHandle,
     key: CGOKeyboardEvent,
 ) -> CGOErrCode {
-    handle_operation(
-        cgo_handle,
-        "client_write_rdp_keyboard",
-        key,
-        |client_handle, key| client_handle.write_rdp_key(key),
-    )
+    handle_operation(cgo_handle, "client_write_rdp_keyboard", |client_handle| {
+        client_handle.write_rdp_key(key)
+    })
 }
 
 /// # Safety
