@@ -25,8 +25,6 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 )
 
-type simplAuthorizer struct{}
-
 func newOktaUser(t *testing.T) types.User {
 	t.Helper()
 	user, err := types.NewUser(t.Name())
