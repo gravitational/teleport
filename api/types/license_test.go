@@ -38,6 +38,7 @@ func TestLicenseSettersAndGetters(t *testing.T) {
 		License.GetSupportsMachineID,
 		License.GetSupportsResourceAccessRequests,
 		License.GetSupportsFeatureHiding,
+		License.GetSupportsIdentityGovernanceAccess,
 		License.GetTrial,
 	}
 
@@ -102,6 +103,12 @@ func TestLicenseSettersAndGetters(t *testing.T) {
 			unsetFields: unsetFields(License.GetSupportsDesktopAccess),
 		},
 		{
+			name:        "Set Identity Governance Access Support",
+			setter:      License.SetSupportsIdentityGovernanceAccess,
+			getter:      License.GetSupportsIdentityGovernanceAccess,
+			unsetFields: unsetFields(License.GetSupportsIdentityGovernanceAccess),
+		},
+		{
 			name:        "Set Moderated Sessions Support",
 			setter:      License.SetSupportsModeratedSessions,
 			getter:      License.GetSupportsModeratedSessions,
@@ -163,6 +170,7 @@ func TestLicenseSettersAndGetters(t *testing.T) {
 	require.False(t, bool(license.GetSupportsResourceAccessRequests()))
 	require.False(t, bool(license.GetSupportsFeatureHiding()))
 	require.False(t, bool(license.GetTrial()))
+	require.False(t, bool(license.GetSupportsIdentityGovernanceAccess()))
 }
 
 func fnName(i interface{}) string {

@@ -115,6 +115,11 @@ type License interface {
 	//  Note: This is not applicable to Cloud licenses
 	SetTrial(Bool)
 
+	// GetSupportsIdentityGovernanceAccess returns identity governance support flag
+	GetSupportsIdentityGovernanceAccess() Bool
+	// SetSupportsIdentityGovernanceAccess sets identity governance support flag
+	SetSupportsIdentityGovernanceAccess(Bool)
+
 	// SetLabels sets metadata labels
 	SetLabels(labels map[string]string)
 
@@ -413,6 +418,16 @@ func (c *LicenseV3) SetSupportsFeatureHiding(value Bool) {
 	c.Spec.SupportsFeatureHiding = value
 }
 
+// GetSupportsIdentityGovernanceAccess returns identity governance support flag
+func (c *LicenseV3) GetSupportsIdentityGovernanceAccess() Bool {
+	return c.Spec.SupportsIdentityGovernance
+}
+
+// SetSupportsIdentityGovernanceAccess sets identity governance support flag
+func (c *LicenseV3) SetSupportsIdentityGovernanceAccess(value Bool) {
+	c.Spec.SupportsIdentityGovernance = value
+}
+
 // GetCustomTheme returns the name of the WebUI custom theme
 func (c *LicenseV3) GetCustomTheme() string {
 	return c.Spec.CustomTheme
@@ -525,4 +540,6 @@ type LicenseSpecV3 struct {
 	FeatureSource FeatureSource `json:"feature_source"`
 	// CustomTheme is the name of the WebUI custom theme
 	CustomTheme string `json:"custom_theme,omitempty"`
+	// SupportsIdentityGovernance turns identity governance access on or off
+	SupportsIdentityGovernance Bool `json:"identity_governance,omitempty"`
 }
