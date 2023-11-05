@@ -40,31 +40,14 @@ use crate::cliprdr::{ClipboardFn, TeleportCliprdrBackend};
 use crate::rdpdr::scard::SCARD_DEVICE_ID;
 use crate::rdpdr::TeleportRdpdrBackend;
 
-#[macro_use]
-mod macros {
-    macro_rules! get_svc_processor {
-        ($x224_processor:expr, $svc_processor:ty) => {
-            $x224_processor
-                .get_svc_processor::<$svc_processor>()
-                .ok_or(ClientError::InternalError)?
-        };
-    }
-
-    macro_rules! get_svc_processor_mut {
-        ($x224_processor:expr, $svc_processor:ty) => {
-            $x224_processor
-                .get_svc_processor_mut::<$svc_processor>()
-                .ok_or(ClientError::InternalError)?
-        };
-    }
-
-    macro_rules! get_backend_mut {
-        ($x224_processor:expr, $svc_processor:ty, $backend:ty) => {
-            get_svc_processor_mut!($x224_processor, $svc_processor)
-                .downcast_backend_mut::<$backend>()
-                .ok_or(ClientError::InternalError)?
-        };
-    }
+macro_rules! get_backend_mut {
+    ($x224_processor:expr, $svc_processor:ty, $backend:ty) => {
+        Self::get_svc_processor_mut::<$svc_processor>($x224_processor)?
+            .downcast_backend_mut::<$backend>()
+            .ok_or(ClientError::InternalError(
+                "downcast_backend_mut::<$backend>() returned None".to_string(),
+            ))
+    };
 }
 
 /// The RDP client on the Rust side of things. Each `Client`
@@ -226,17 +209,17 @@ impl Client {
         let read_stream = self
             .read_stream
             .take()
-            .ok_or_else(|| ClientError::InternalError)?;
+            .ok_or_else(|| ClientError::InternalError("read_stream failed".to_string()))?;
 
         let write_stream = self
             .write_stream
             .take()
-            .ok_or_else(|| ClientError::InternalError)?;
+            .ok_or_else(|| ClientError::InternalError("write_stream failed".to_string()))?;
 
         let function_receiver = self
             .function_receiver
             .take()
-            .ok_or_else(|| ClientError::InternalError)?;
+            .ok_or_else(|| ClientError::InternalError("function_receiver failed".to_string()))?;
 
         let mut read_loop_handle = Client::run_read_loop(
             self.cgo_handle,
@@ -371,7 +354,8 @@ impl Client {
         global::TOKIO_RT
             .spawn_blocking(move || {
                 let mut x224_processor = Self::x224_lock(&x224_processor)?;
-                let cliprdr = get_backend_mut!(x224_processor, Cliprdr, TeleportCliprdrBackend);
+                let cliprdr =
+                    get_backend_mut!(&mut x224_processor, Cliprdr, TeleportCliprdrBackend)?;
                 cliprdr.set_clipboard_data(data.clone());
                 Ok(())
             })
@@ -396,7 +380,7 @@ impl Client {
         let messages: ClientResult<CliprdrSvcMessages> = global::TOKIO_RT
             .spawn_blocking(move || {
                 let mut x224_processor = Self::x224_lock(&processor)?;
-                let cliprdr = get_svc_processor!(x224_processor, Cliprdr);
+                let cliprdr = Self::get_svc_processor::<Cliprdr>(&mut x224_processor)?;
                 Ok(fun.call(cliprdr)?)
             })
             .await?;
@@ -520,7 +504,7 @@ impl Client {
             .spawn_blocking(move || {
                 debug!("received tdp: {:?}", res);
                 let mut x224_processor = Self::x224_lock(&x224_processor)?;
-                let rdpdr = get_backend_mut!(x224_processor, Rdpdr, TeleportRdpdrBackend);
+                let rdpdr = get_backend_mut!(&mut x224_processor, Rdpdr, TeleportRdpdrBackend)?;
                 rdpdr.handle_tdp_sd_info_response(res)?;
                 Ok(())
             })
@@ -535,7 +519,7 @@ impl Client {
             .spawn_blocking(move || {
                 debug!("received tdp: {:?}", res);
                 let mut x224_processor = Self::x224_lock(&x224_processor)?;
-                let rdpdr = get_backend_mut!(x224_processor, Rdpdr, TeleportRdpdrBackend);
+                let rdpdr = get_backend_mut!(&mut x224_processor, Rdpdr, TeleportRdpdrBackend)?;
                 rdpdr.handle_tdp_sd_create_response(res)?;
                 Ok(())
             })
@@ -549,9 +533,11 @@ impl Client {
         global::TOKIO_RT
             .spawn_blocking(move || {
                 let mut x224_processor = Self::x224_lock(&x224_processor)?;
-                let rdpdr = x224_processor
-                    .get_svc_processor_mut::<Rdpdr>()
-                    .ok_or(ClientError::InternalError)?;
+                let rdpdr = x224_processor.get_svc_processor_mut::<Rdpdr>().ok_or(
+                    ClientError::InternalError(
+                        "get_svc_processor_mut::<Rdpdr>() returned None".to_string(),
+                    ),
+                )?;
                 let pdu = rdpdr.add_drive(sda.directory_id, sda.name);
                 Ok(pdu)
             })
@@ -598,6 +584,52 @@ impl Client {
         x224_processor
             .lock()
             .map_err(|err| reason_err!("x224_processor.lock()", "PoisonError: {:?}", err))
+    }
+
+    /// Returns a reference to the [`StaticVirtualChannelProcessor`] of type `S`.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// let mut x224_processor = Self::x224_lock(&x224_processor)?;
+    /// let cliprdr = Self::get_svc_processor::<Cliprdr>(&mut x224_processor)?;
+    /// // Now we can call methods on the Cliprdr processor.
+    /// ```
+    fn get_svc_processor<'a, S>(
+        x224_processor: &'a mut MutexGuard<'_, X224Processor>,
+    ) -> Result<&'a S, ClientError>
+    where
+        S: StaticVirtualChannelProcessor + 'static,
+    {
+        x224_processor
+            .get_svc_processor::<S>()
+            .ok_or(ClientError::InternalError(format!(
+                "get_svc_processor::<{}>() returned None",
+                std::any::type_name::<S>(),
+            )))
+    }
+
+    /// Returns a mutable reference to the [`StaticVirtualChannelProcessor`] of type `S`.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// let mut x224_processor = Self::x224_lock(&x224_processor)?;
+    /// let cliprdr = Self::get_svc_processor_mut::<Cliprdr>(&mut x224_processor)?;
+    /// // Now we can call mutable methods on the Cliprdr processor.
+    /// ```
+    fn get_svc_processor_mut<'a, S>(
+        x224_processor: &'a mut MutexGuard<'_, X224Processor>,
+    ) -> Result<&'a mut S, ClientError>
+    where
+        S: StaticVirtualChannelProcessor + 'static,
+    {
+        x224_processor
+            .get_svc_processor_mut::<S>()
+            .ok_or(ClientError::InternalError(format!(
+                "get_svc_processor_mut::<{}>() returned None",
+                std::any::type_name::<S>()
+            )))
     }
 }
 
@@ -698,7 +730,7 @@ pub enum ClientError {
     CGOErrCode(CGOErrCode),
     SendError,
     JoinError(JoinError),
-    InternalError,
+    InternalError(String),
     UnknownAddress,
     InputEventError(InputEventError),
 }
@@ -717,7 +749,7 @@ impl Display for ClientError {
             ClientError::JoinError(e) => Display::fmt(e, f),
             ClientError::CGOErrCode(e) => Debug::fmt(e, f),
             ClientError::SendError => Display::fmt("Couldn't send message to channel", f),
-            ClientError::InternalError => Display::fmt("Internal error", f),
+            ClientError::InternalError(msg) => Display::fmt(msg, f),
             ClientError::UnknownAddress => Display::fmt("Unknown address", f),
             ClientError::PduError(e) => Display::fmt(e, f),
         }
