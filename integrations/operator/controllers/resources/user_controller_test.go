@@ -18,11 +18,11 @@ package resources_test
 
 import (
 	"context"
-	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
 	"github.com/mitchellh/mapstructure"
 	"github.com/stretchr/testify/require"
