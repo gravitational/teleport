@@ -144,6 +144,9 @@ func newWebSuite(t *testing.T, opts ...webSuiteOption) *webSuite {
 		Auth: auth.TestAuthServerConfig{
 			Dir:   t.TempDir(),
 			Clock: s.clock,
+			AuthPreferenceSpec: &types.AuthPreferenceSpecV2{
+				SecondFactor: "otp",
+			},
 		},
 		TLS: &auth.TestTLSServerConfig{
 			APIConfig: &auth.APIConfig{PluginRegistry: pluginRegistry},
@@ -303,7 +306,10 @@ func (s *webSuite) newAuthWebPack(t *testing.T, user string, options ...webSuite
 	if !opts.skipUserCreation {
 		s.createUser(t, user, login, pass, otpSecret)
 	}
-
+	dev, err := services.NewTOTPDevice("otp", otpSecret, s.clock.Now())
+	require.NoError(t, err)
+	err = s.testAuthServer.Auth().UpsertMFADevice(context.Background(), user, dev)
+	require.NoError(t, err)
 	validToken, err := totp.GenerateCode(otpSecret, s.clock.Now())
 	require.NoError(t, err)
 
@@ -416,13 +422,6 @@ func (s *webSuite) createUser(t *testing.T, user string, login string, pass stri
 
 	err = s.testAuthServer.Auth().UpsertPassword(user, []byte(pass))
 	require.NoError(t, err)
-
-	if otpSecret != "" {
-		dev, err := services.NewTOTPDevice("otp", otpSecret, s.clock.Now())
-		require.NoError(t, err)
-		err = s.testAuthServer.Auth().UpsertMFADevice(context.Background(), user, dev)
-		require.NoError(t, err)
-	}
 }
 
 func (s *webSuite) client(t *testing.T, opts ...roundtrip.ClientParam) *TestWebClient {

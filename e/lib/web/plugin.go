@@ -220,6 +220,9 @@ func (p *Plugin) RegisterProxyWebHandlers(handler interface{}) error {
 	h.GET("/webapi/sites/:site/audit/reports/:name/result/days/:days", h.WithClusterAuth(p.getSecurityReportResult))
 	h.GET("/webapi/sites/:site/audit/reports/:name/state/days/:days", h.WithClusterAuth(p.getSecurityReportState))
 
+	h.POST("/webapi/sites/:site/integrations/externalcloudaudit/generate", h.WithClusterAuth(externalCloudAuditGenerate))
+	h.GET("/webapi/scripts/integrations/externalcloudaudit-bootstrap.sh", h.WithLimiter(getExternalCloudAuditBootstrapScript))
+
 	if p.h.ClusterFeatures.GetCloud() {
 		h.DELETE("/enterprise/cloud/card", p.withCloudAuth(p.removeCardHandle))
 		h.POST("/enterprise/cloud/card", p.withCloudAuth(p.addCardHandle))
