@@ -1213,9 +1213,6 @@ func (id *IdentityContext) GetUserMetadata() apievents.UserMetadata {
 func buildEnvironment(ctx *ServerContext) []string {
 	env := &envutils.SafeEnv{}
 
-	// gather all dynamically defined environment variables
-	ctx.VisitEnv(env.Add)
-
 	// Parse the local and remote addresses to build SSH_CLIENT and
 	// SSH_CONNECTION environment variables.
 	remoteHost, remotePort, err := net.SplitHostPort(ctx.ServerConn.RemoteAddr().String())
@@ -1248,6 +1245,9 @@ func buildEnvironment(ctx *ServerContext) []string {
 	env.Add(teleport.SSHTeleportHostUUID, ctx.srv.ID())
 	env.Add(teleport.SSHTeleportClusterName, ctx.ClusterName)
 	env.Add(teleport.SSHTeleportUser, ctx.Identity.TeleportUser)
+
+	// At the end gather all dynamically defined environment variables
+	ctx.VisitEnv(env.Add)
 
 	return *env
 }
