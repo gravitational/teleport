@@ -19,12 +19,14 @@ package postgres
 import (
 	"context"
 	_ "embed"
+	"encoding/json"
 	"fmt"
 	"strings"
 
 	"github.com/gravitational/trace"
 	"github.com/jackc/pgx/v4"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 )
 
@@ -43,27 +45,25 @@ func (e *Engine) ActivateUser(ctx context.Context, sessionCtx *common.Session) e
 	// We could call this once when the database is being initialized but
 	// doing it here has a nice "self-healing" property in case the Teleport
 	// bookkeeping group or stored procedures get deleted or changed offband.
-	err = e.initAutoUsers(ctx, conn)
+	err = e.initAutoUsers(ctx, sessionCtx, conn)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	roles := sessionCtx.DatabaseRoles
-	if sessionCtx.Database.IsRDS() {
-		roles = append(roles, "rds_iam")
+	roles, err := prepareRoles(sessionCtx)
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
 	e.Log.Infof("Activating PostgreSQL user %q with roles %v.", sessionCtx.DatabaseUser, roles)
 
 	_, err = conn.Exec(ctx, activateQuery, sessionCtx.DatabaseUser, roles)
 	if err != nil {
-		if strings.Contains(err.Error(), "already exists") {
-			return trace.AlreadyExists("user %q already exists in this PostgreSQL database and is not managed by Teleport", sessionCtx.DatabaseUser)
-		}
-		return trace.Wrap(err)
+		e.Log.Debugf("Call teleport_activate_user failed: %v", err)
+		return trace.Wrap(convertActivateError(sessionCtx, err))
 	}
-
 	return nil
+
 }
 
 // DeactivateUser disables the database user.
@@ -103,16 +103,21 @@ func (e *Engine) DeleteUser(ctx context.Context, sessionCtx *common.Session) err
 	e.Log.Infof("Deleting PostgreSQL user %q.", sessionCtx.DatabaseUser)
 
 	var state string
-	err = conn.QueryRow(ctx, deleteQuery, sessionCtx.DatabaseUser).Scan(&state)
+	switch {
+	case sessionCtx.Database.IsRedshift():
+		err = e.deleteUserRedshift(ctx, sessionCtx, conn, &state)
+	default:
+		err = conn.QueryRow(ctx, deleteQuery, sessionCtx.DatabaseUser).Scan(&state)
+	}
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	switch state {
 	case common.SQLStateUserDropped:
-		e.Log.Debug("User %q deleted successfully.", sessionCtx.DatabaseUser)
+		e.Log.Debugf("User %q deleted successfully.", sessionCtx.DatabaseUser)
 	case common.SQLStateUserDeactivated:
-		e.Log.Infof("Unable to delete user %q, it was disabled instead", sessionCtx.DatabaseUser)
+		e.Log.Infof("Unable to delete user %q, it was disabled instead.", sessionCtx.DatabaseUser)
 	default:
 		e.Log.Warnf("Unable to determine user %q deletion state.", sessionCtx.DatabaseUser)
 	}
@@ -120,9 +125,33 @@ func (e *Engine) DeleteUser(ctx context.Context, sessionCtx *common.Session) err
 	return nil
 }
 
+// deleteUserRedshift deletes the Redshift database user.
+//
+// Failures inside Redshift default procedures are always rethrown exceptions if
+// the exception handler completes successfully. Given this, we need to assert
+// into the returned error instead of doing this on state returned (like regular
+// PostgreSQL).
+func (e *Engine) deleteUserRedshift(ctx context.Context, sessionCtx *common.Session, conn *pgx.Conn, state *string) error {
+	_, err := conn.Exec(ctx, deleteQuery, sessionCtx.DatabaseUser)
+	if err == nil {
+		*state = common.SQLStateUserDropped
+		return nil
+	}
+
+	// Redshift returns SQLSTATE 55006 (object_in_use) when DROP USER fails due
+	// to user owning resources.
+	// https://docs.aws.amazon.com/redshift/latest/dg/r_DROP_USER.html#r_DROP_USER-notes
+	if strings.Contains(err.Error(), "55006") {
+		*state = common.SQLStateUserDeactivated
+		return nil
+	}
+
+	return trace.Wrap(err)
+}
+
 // initAutoUsers installs procedures for activating and deactivating users and
 // creates the bookkeeping role for auto-provisioned users.
-func (e *Engine) initAutoUsers(ctx context.Context, conn *pgx.Conn) error {
+func (e *Engine) initAutoUsers(ctx context.Context, sessionCtx *common.Session, conn *pgx.Conn) error {
 	// Create a role/group which all auto-created users will be a part of.
 	_, err := conn.Exec(ctx, fmt.Sprintf("create role %q", teleportAutoUserRole))
 	if err != nil {
@@ -133,8 +162,9 @@ func (e *Engine) initAutoUsers(ctx context.Context, conn *pgx.Conn) error {
 	} else {
 		e.Log.Debugf("Created PostgreSQL role %q.", teleportAutoUserRole)
 	}
+
 	// Install stored procedures for creating and disabling database users.
-	for name, sql := range procs {
+	for name, sql := range pickProcedures(sessionCtx) {
 		_, err := conn.Exec(ctx, sql)
 		if err != nil {
 			return trace.Wrap(err)
@@ -159,6 +189,44 @@ func (e *Engine) pgxConnect(ctx context.Context, sessionCtx *common.Session) (*p
 	return pgx.ConnectConfig(ctx, pgxConf)
 }
 
+func prepareRoles(sessionCtx *common.Session) (any, error) {
+	switch sessionCtx.Database.GetType() {
+	case types.DatabaseTypeRDS:
+		return append(sessionCtx.DatabaseRoles, "rds_iam"), nil
+
+	case types.DatabaseTypeRedshift:
+		// Redshift does not support array. Encode roles in JSON (type text).
+		rolesJSON, err := json.Marshal(sessionCtx.DatabaseRoles)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return string(rolesJSON), nil
+
+	default:
+		return sessionCtx.DatabaseRoles, nil
+	}
+}
+
+func convertActivateError(sessionCtx *common.Session, err error) error {
+	switch {
+	case strings.Contains(err.Error(), "already exists"):
+		return trace.AlreadyExists("user %q already exists in this PostgreSQL database and is not managed by Teleport", sessionCtx.DatabaseUser)
+
+	case strings.Contains(err.Error(), "TP002: User has active connections and roles have changed"):
+		return trace.CompareFailed("roles for user %q has changed. Please quit all active connections and try again.", sessionCtx.DatabaseUser)
+
+	default:
+		return trace.Wrap(err)
+	}
+}
+
+func pickProcedures(sessionCtx *common.Session) map[string]string {
+	if sessionCtx.Database.IsRedshift() {
+		return redshiftProcs
+	}
+	return procs
+}
+
 const (
 	// activateProcName is the name of the stored procedure Teleport will use
 	// to automatically provision/activate database users.
@@ -176,24 +244,36 @@ const (
 )
 
 var (
-	//go:embed activate-user.sql
+	//go:embed sql/activate-user.sql
 	activateProc string
 	// activateQuery is the query for calling user activation procedure.
 	activateQuery = fmt.Sprintf(`call %v($1, $2)`, activateProcName)
 
-	//go:embed deactivate-user.sql
+	//go:embed sql/deactivate-user.sql
 	deactivateProc string
 	// deactivateQuery is the query for calling user deactivation procedure.
 	deactivateQuery = fmt.Sprintf(`call %v($1)`, deactivateProcName)
 
-	//go:embed delete-user.sql
+	//go:embed sql/delete-user.sql
 	deleteProc string
 	// deleteQuery is the query for calling user deletion procedure.
 	deleteQuery = fmt.Sprintf(`call %v($1)`, deleteProcName)
+
+	//go:embed sql/redshift-activate-user.sql
+	redshiftActivateProc string
+	//go:embed sql/redshift-deactivate-user.sql
+	redshiftDeactivateProc string
+	//go:embed sql/redshift-delete-user.sql
+	redshiftDeleteProc string
 
 	procs = map[string]string{
 		activateProcName:   activateProc,
 		deactivateProcName: deactivateProc,
 		deleteProcName:     deleteProc,
+	}
+	redshiftProcs = map[string]string{
+		activateProcName:   redshiftActivateProc,
+		deactivateProcName: redshiftDeactivateProc,
+		deleteProcName:     redshiftDeleteProc,
 	}
 )
