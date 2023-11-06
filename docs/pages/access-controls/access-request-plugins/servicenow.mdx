@@ -37,9 +37,9 @@ API.
 Before making the access request ensure the user making the request has
 the `requester` role.
 
-For the plugin to know which serviceno rotations to check for the
-auto approval flow, the rota you wish users to be checked against
-must be included in a role the requesting user has. e.g.
+For the plugin to know which ServiceNow rotations to check for the
+auto approval flow, the rotation you wish users to be checked against
+must be included in one of the requesting user's roles. To do so, add the `teleport.dev/schedules` annotation as shown in the following example: 
 
 ```
 kind: role
