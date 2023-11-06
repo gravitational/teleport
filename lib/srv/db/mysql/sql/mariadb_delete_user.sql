@@ -1,4 +1,4 @@
-CREATE PROCEDURE teleport_delete_user(IN username VARCHAR(32))
+CREATE PROCEDURE teleport_delete_user(IN username VARCHAR(80))
 BEGIN
     -- Defaults to dropping user.
     DECLARE state VARCHAR(5);
