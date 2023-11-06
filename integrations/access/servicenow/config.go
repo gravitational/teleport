@@ -34,7 +34,7 @@ type Config struct {
 	ServiceNow common.GenericAPIConfig
 
 	// Teleport is a handle to the client to use when communicating with
-	// the Teleport auth server. The Jira app will create a gRPC-based
+	// the Teleport auth server. The ServiceNow app will create a gRPC-based
 	// client on startup if this is not set.
 	Client teleport.Client
 
