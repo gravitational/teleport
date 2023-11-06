@@ -19,6 +19,7 @@ import React from 'react';
 import { ResourceLabel } from 'teleport/services/agents';
 
 import { DbProtocol } from 'shared/services/databases';
+import { NodeSubKind } from 'shared/services';
 
 export type UnifiedResourceApp = {
   kind: 'app';
@@ -47,7 +48,7 @@ export interface UnifiedResourceNode {
   labels: ResourceLabel[];
   addr: string;
   tunnel: boolean;
-  subKind: string;
+  subKind: NodeSubKind;
 }
 
 export interface UnifiedResourceKube {

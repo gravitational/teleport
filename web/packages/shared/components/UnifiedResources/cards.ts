@@ -27,6 +27,7 @@ import {
 } from 'design/Icon';
 
 import { DbProtocol } from 'shared/services/databases';
+import { NodeSubKind } from 'shared/services';
 
 import {
   UnifiedResourceKube,
@@ -143,7 +144,7 @@ export function makeUnifiedResourceCardUserGroup(
   };
 }
 
-function formatNodeSubKind(subKind: string): string {
+function formatNodeSubKind(subKind: NodeSubKind): string {
   switch (subKind) {
     case 'openssh-ec2-ice':
     case 'openssh':
