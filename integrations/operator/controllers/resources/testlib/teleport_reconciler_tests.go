@@ -56,32 +56,22 @@ func ResourceCreationTest[T resources.TeleportResource, K resources.TeleportKube
 	err = test.CreateKubernetesResource(ctx, resourceName)
 	require.NoError(t, err)
 
+	var tResource T
 	FastEventually(t, func() bool {
-		tResource, err := test.GetTeleportResource(ctx, resourceName)
-		if trace.IsNotFound(err) {
-			return false
-		}
-		require.NoError(t, err)
-
-		require.Equal(t, tResource.GetName(), resourceName)
-
-		require.Contains(t, tResource.GetMetadata().Labels, types.OriginLabel)
-		require.Equal(t, types.OriginKubernetes, tResource.GetMetadata().Labels[types.OriginLabel])
-
-		return true
+		tResource, err = test.GetTeleportResource(ctx, resourceName)
+		return !trace.IsNotFound(err)
 	})
+	require.NoError(t, err)
+	require.Equal(t, resourceName, tResource.GetName())
+	require.Contains(t, tResource.GetMetadata().Labels, types.OriginLabel)
+	require.Equal(t, types.OriginKubernetes, tResource.GetMetadata().Labels[types.OriginLabel])
 
 	err = test.DeleteKubernetesResource(ctx, resourceName)
 	require.NoError(t, err)
 
 	FastEventually(t, func() bool {
 		_, err = test.GetTeleportResource(ctx, resourceName)
-		if trace.IsNotFound(err) {
-			return true
-		}
-		require.NoError(t, err)
-
-		return false
+		return trace.IsNotFound(err)
 	})
 }
 
@@ -97,20 +87,18 @@ func ResourceDeletionDriftTest[T resources.TeleportResource, K resources.Telepor
 	err = test.CreateKubernetesResource(ctx, resourceName)
 	require.NoError(t, err)
 
+	var tResource T
 	FastEventually(t, func() bool {
-		tResource, err := test.GetTeleportResource(ctx, resourceName)
-		if trace.IsNotFound(err) {
-			return false
-		}
-		require.NoError(t, err)
-
-		require.Equal(t, tResource.GetName(), resourceName)
-
-		require.Contains(t, tResource.GetMetadata().Labels, types.OriginLabel)
-		require.Equal(t, types.OriginKubernetes, tResource.GetMetadata().Labels[types.OriginLabel])
-
-		return true
+		tResource, err = test.GetTeleportResource(ctx, resourceName)
+		return !trace.IsNotFound(err)
 	})
+	require.NoError(t, err)
+
+	require.Equal(t, resourceName, tResource.GetName())
+
+	require.Contains(t, tResource.GetMetadata().Labels, types.OriginLabel)
+	require.Equal(t, types.OriginKubernetes, tResource.GetMetadata().Labels[types.OriginLabel])
+
 	// We cause a drift by altering the Teleport resource.
 	// To make sure the operator does not reconcile while we're finished we suspend the operator
 	setup.StopKubernetesOperator()
