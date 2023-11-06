@@ -62,7 +62,7 @@ func Test_ensure_adminClientFnCache(t *testing.T) {
 	require.NotNil(t, adminClientFnCache)
 }
 
-func Test_getSharedAdminClient(t *testing.T) {
+func Test_getShareableAdminClient(t *testing.T) {
 	ctx := context.Background()
 	fakeClock := clockwork.NewFakeClock()
 	require.NotNil(t, fakeClock)
@@ -77,59 +77,59 @@ func Test_getSharedAdminClient(t *testing.T) {
 	db1WithAdmin2 := mustMakeMongoDatabase(t, "db1", "admin2")
 	db2WithAdmin := mustMakeMongoDatabase(t, "db2", "admin")
 
-	db1WithAdmin1SharedClient := mustGetSharedAdminClient(t, cache, fakeClock, db1WithAdmin1)
-	db1WithAdmin2SharedClient := mustGetSharedAdminClient(t, cache, fakeClock, db1WithAdmin2)
-	db2WithAdminSharedClient := mustGetSharedAdminClient(t, cache, fakeClock, db2WithAdmin)
+	db1WithAdmin1ShareableClient := mustGetShareableAdminClient(t, cache, fakeClock, db1WithAdmin1)
+	db1WithAdmin2ShareableClient := mustGetShareableAdminClient(t, cache, fakeClock, db1WithAdmin2)
+	db2WithAdminShareableClient := mustGetShareableAdminClient(t, cache, fakeClock, db2WithAdmin)
 
 	t.Run("new client for different admin user", func(t *testing.T) {
-		require.NotSame(t, db1WithAdmin1SharedClient, db1WithAdmin2SharedClient)
+		require.NotSame(t, db1WithAdmin1ShareableClient, db1WithAdmin2ShareableClient)
 	})
 
 	t.Run("new client for different database", func(t *testing.T) {
-		require.NotSame(t, db1WithAdmin1SharedClient, db2WithAdminSharedClient)
+		require.NotSame(t, db1WithAdmin1ShareableClient, db2WithAdminShareableClient)
 	})
 
 	t.Run("same client for same database and admin user", func(t *testing.T) {
-		sharedClient := mustGetSharedAdminClient(t, cache, fakeClock, db1WithAdmin1)
-		require.Same(t, db1WithAdmin1SharedClient, sharedClient)
+		client := mustGetShareableAdminClient(t, cache, fakeClock, db1WithAdmin1)
+		require.Same(t, db1WithAdmin1ShareableClient, client)
 	})
 
-	require.NoError(t, db1WithAdmin1SharedClient.Disconnect(ctx))
-	require.NoError(t, db1WithAdmin2SharedClient.Disconnect(ctx))
-	require.NoError(t, db2WithAdminSharedClient.Disconnect(ctx))
+	require.NoError(t, db1WithAdmin1ShareableClient.Disconnect(ctx))
+	require.NoError(t, db1WithAdmin2ShareableClient.Disconnect(ctx))
+	require.NoError(t, db2WithAdminShareableClient.Disconnect(ctx))
 
 	fakeClock.Advance(adminClientCleanupTTL * 2)
 
 	t.Run("verify client cleanup after TTL", func(t *testing.T) {
-		requireFakeRawAdminClientDisconnected(t, db1WithAdmin2SharedClient)
-		requireFakeRawAdminClientDisconnected(t, db2WithAdminSharedClient)
+		requireFakeRawAdminClientDisconnected(t, db1WithAdmin2ShareableClient)
+		requireFakeRawAdminClientDisconnected(t, db2WithAdminShareableClient)
 	})
 
 	t.Run("verify client cleanup after Disconnect", func(t *testing.T) {
-		fakeRawClient, ok := db1WithAdmin1SharedClient.adminClient.(*fakeRawAdminClient)
+		fakeRawClient, ok := db1WithAdmin1ShareableClient.adminClient.(*fakeRawAdminClient)
 		require.True(t, ok)
 
-		// db1WithAdmin1SharedClient was acquired twice so it should be waiting.
+		// db1WithAdmin1ShareableClient was acquired twice so it should be waiting.
 		require.False(t, fakeRawClient.isDisconnected())
 
 		// Now release it.
-		require.NoError(t, db1WithAdmin1SharedClient.Disconnect(ctx))
-		requireFakeRawAdminClientDisconnected(t, db1WithAdmin1SharedClient)
+		require.NoError(t, db1WithAdmin1ShareableClient.Disconnect(ctx))
+		requireFakeRawAdminClientDisconnected(t, db1WithAdmin1ShareableClient)
 	})
 
 	t.Run("new client after FnCache TTL", func(t *testing.T) {
-		sharedClient := mustGetSharedAdminClient(t, cache, fakeClock, db1WithAdmin1)
+		client := mustGetShareableAdminClient(t, cache, fakeClock, db1WithAdmin1)
 		t.Cleanup(func() {
-			require.NoError(t, sharedClient.Disconnect(ctx))
+			require.NoError(t, client.Disconnect(ctx))
 		})
-		require.NotSame(t, db1WithAdmin1SharedClient, sharedClient)
+		require.NotSame(t, db1WithAdmin1ShareableClient, client)
 	})
 }
 
-func mustGetSharedAdminClient(t *testing.T, cache *utils.FnCache, clock clockwork.Clock, db types.Database) *sharedAdminClient {
+func mustGetShareableAdminClient(t *testing.T, cache *utils.FnCache, clock clockwork.Clock, db types.Database) *shareableAdminClient {
 	t.Helper()
 
-	sharedClient, err := getSharedAdminClient(
+	client, err := getShareableAdminClient(
 		context.Background(),
 		cache,
 		&common.Session{
@@ -145,7 +145,7 @@ func mustGetSharedAdminClient(t *testing.T, cache *utils.FnCache, clock clockwor
 		},
 	)
 	require.NoError(t, err)
-	return sharedClient
+	return client
 }
 
 func mustMakeMongoDatabase(t *testing.T, name, adminUser string) types.Database {
@@ -163,10 +163,10 @@ func mustMakeMongoDatabase(t *testing.T, name, adminUser string) types.Database 
 	return db
 }
 
-func requireFakeRawAdminClientDisconnected(t *testing.T, sharedClient *sharedAdminClient) {
+func requireFakeRawAdminClientDisconnected(t *testing.T, client *shareableAdminClient) {
 	t.Helper()
 
-	fakeRawClient, ok := sharedClient.adminClient.(*fakeRawAdminClient)
+	fakeRawClient, ok := client.adminClient.(*fakeRawAdminClient)
 	require.True(t, ok)
 
 	select {

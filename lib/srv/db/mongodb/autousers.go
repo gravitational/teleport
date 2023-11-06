@@ -22,6 +22,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"go.mongodb.org/mongo-driver/bson"
@@ -187,17 +188,42 @@ func (e *Engine) isUserActive(ctx context.Context, sessionCtx *common.Session, c
 	return len(resp.Inprog) > 0, nil
 }
 
+// isShowCustomDataSupported returns true if "showCustomData" option is supported
+// for "usersInfo" command.
+//
+// "showCustomData" is introduced in 5.2. Prior to 5.2, "customData" is always shown.
+//
+// https://www.mongodb.com/docs/manual/reference/command/usersInfo/
+func (e *Engine) isShowCustomDataSupported(ctx context.Context, client adminClient) bool {
+	serverVersion, err := client.ServerVersion(ctx)
+	if err != nil {
+		e.Log.Debugf("Failed to get server version: %v. Assuming showCustomData is supported.", err)
+		return false
+	}
+	return serverVersion.Compare(*semver.New("5.2.0")) >= 0
+}
+
 func (e *Engine) getUser(ctx context.Context, sessionCtx *common.Session, client adminClient) (*user, bool, error) {
 	logrus.Debugf("Getting user info for %q.", sessionCtx.DatabaseUser)
 	var resp struct {
 		Users []user `bson:"users"`
 	}
 
-	err := client.Database(externalDatabaseName).RunCommand(ctx, bson.D{
-		{Key: "usersInfo", Value: x509Username(sessionCtx)},
-		{Key: "showCustomData", Value: true},
-		{Key: "comment", Value: runCommandComment},
-	}).Decode(&resp)
+	var cmd bson.D
+	if e.isShowCustomDataSupported(ctx, client) {
+		cmd = bson.D{
+			{Key: "usersInfo", Value: x509Username(sessionCtx)},
+			{Key: "showCustomData", Value: true},
+			{Key: "comment", Value: runCommandComment},
+		}
+	} else {
+		cmd = bson.D{
+			{Key: "usersInfo", Value: x509Username(sessionCtx)},
+			{Key: "comment", Value: runCommandComment},
+		}
+	}
+
+	err := client.Database(externalDatabaseName).RunCommand(ctx, cmd).Decode(&resp)
 	if err != nil {
 		return nil, false, trace.Wrap(err)
 	}

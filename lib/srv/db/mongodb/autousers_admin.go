@@ -22,9 +22,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
+	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	mongooptions "go.mongodb.org/mongo-driver/mongo/options"
@@ -34,23 +36,28 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// adminClient defines a subset of functions provided by *mongo.Client.
+// adminClient defines a subset of functions provided by *mongo.Client plus some
+// helper functions.
 type adminClient interface {
+	// Database returns a database handle based on database name.
 	Database(name string, opts ...*options.DatabaseOptions) *mongo.Database
+	// Disconnect disconnects the client.
 	Disconnect(ctx context.Context) error
+	// ServerVersion returns the server version.
+	ServerVersion(ctx context.Context) (*semver.Version, error)
 }
 
 func (e *Engine) connectAsAdmin(ctx context.Context, sessionCtx *common.Session) (adminClient, error) {
 	if adminClientFnCache == nil {
-		client, err := makeRawAdminClient(ctx, sessionCtx, e)
+		client, err := makeBasicAdminClient(ctx, sessionCtx, e)
 		return client, trace.Wrap(err)
 	}
 
-	sharedClient, err := getSharedAdminClient(ctx, adminClientFnCache, sessionCtx, e, makeRawAdminClient)
-	return sharedClient, trace.Wrap(err)
+	shareableClient, err := getShareableAdminClient(ctx, adminClientFnCache, sessionCtx, e, makeBasicAdminClient)
+	return shareableClient, trace.Wrap(err)
 }
 
-func getSharedAdminClient(ctx context.Context, cache *utils.FnCache, sessionCtx *common.Session, e *Engine, makeRaw makeRawAdminClientFunc) (*sharedAdminClient, error) {
+func getShareableAdminClient(ctx context.Context, cache *utils.FnCache, sessionCtx *common.Session, e *Engine, makeBasicClient makeBasicAdminClientFunc) (*shareableAdminClient, error) {
 	key := struct {
 		databaseName string
 		databaseURI  string
@@ -62,28 +69,28 @@ func getSharedAdminClient(ctx context.Context, cache *utils.FnCache, sessionCtx 
 		databaseURI: sessionCtx.Database.GetURI(),
 	}
 
-	sharedClient, err := utils.FnCacheGet(ctx, cache, key, func(ctx context.Context) (*sharedAdminClient, error) {
-		rawClient, err := makeRaw(ctx, sessionCtx, e)
+	shareableClient, err := utils.FnCacheGet(ctx, cache, key, func(ctx context.Context) (*shareableAdminClient, error) {
+		rawClient, err := makeBasicClient(ctx, sessionCtx, e)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		sharedClient, err := newSharedAdminClient(sharedAdminClientConfig{
+		shareableClient, err := newShareableAdminClient(shareableAdminClientConfig{
 			rawClient:    rawClient,
 			adminUser:    sessionCtx.Database.GetAdminUser().Name,
 			databaseName: sessionCtx.Database.GetName(),
 			log:          e.Log,
 			clock:        e.Clock,
 		})
-		return sharedClient, trace.Wrap(err)
+		return shareableClient, trace.Wrap(err)
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return sharedClient.acquire(), nil
+	return shareableClient.acquire(), nil
 }
 
-type sharedAdminClientConfig struct {
+type shareableAdminClientConfig struct {
 	rawClient    adminClient
 	adminUser    string
 	databaseName string
@@ -93,7 +100,7 @@ type sharedAdminClientConfig struct {
 }
 
 // checkAndSetDefaults validates config and sets defaults.
-func (c *sharedAdminClientConfig) checkAndSetDefaults() error {
+func (c *shareableAdminClientConfig) checkAndSetDefaults() error {
 	if c.rawClient == nil {
 		return trace.BadParameter("missing mongo.Client")
 	}
@@ -115,29 +122,29 @@ func (c *sharedAdminClientConfig) checkAndSetDefaults() error {
 	return nil
 }
 
-type sharedAdminClient struct {
+type shareableAdminClient struct {
 	adminClient
-	sharedAdminClientConfig
+	shareableAdminClientConfig
 	wg    sync.WaitGroup
 	timer clockwork.Timer
 }
 
-func newSharedAdminClient(cfg sharedAdminClientConfig) (*sharedAdminClient, error) {
+func newShareableAdminClient(cfg shareableAdminClientConfig) (*shareableAdminClient, error) {
 	if err := cfg.checkAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	c := &sharedAdminClient{
-		adminClient:             cfg.rawClient,
-		sharedAdminClientConfig: cfg,
-		timer:                   cfg.clock.NewTimer(cfg.cleanupTTL),
+	c := &shareableAdminClient{
+		adminClient:                cfg.rawClient,
+		shareableAdminClientConfig: cfg,
+		timer:                      cfg.clock.NewTimer(cfg.cleanupTTL),
 	}
 
 	go c.waitAndCleanup()
 	return c, nil
 }
 
-func (c *sharedAdminClient) waitAndCleanup() {
+func (c *shareableAdminClient) waitAndCleanup() {
 	c.log.Debugf("Created new MongoDB connection as admin user %q on %q.", c.adminUser, c.databaseName)
 
 	// Wait until TTL.
@@ -154,19 +161,19 @@ func (c *sharedAdminClient) waitAndCleanup() {
 	}
 }
 
-func (c *sharedAdminClient) acquire() *sharedAdminClient {
+func (c *shareableAdminClient) acquire() *shareableAdminClient {
 	c.wg.Add(1)
 	return c
 }
 
-func (c *sharedAdminClient) Disconnect(_ context.Context) error {
+func (c *shareableAdminClient) Disconnect(_ context.Context) error {
 	c.wg.Done()
 	return nil
 }
 
-type makeRawAdminClientFunc func(context.Context, *common.Session, *Engine) (adminClient, error)
+type makeBasicAdminClientFunc func(context.Context, *common.Session, *Engine) (adminClient, error)
 
-func makeRawAdminClient(ctx context.Context, sessionCtx *common.Session, e *Engine) (adminClient, error) {
+func makeBasicAdminClient(ctx context.Context, sessionCtx *common.Session, e *Engine) (adminClient, error) {
 	sessionCtx = sessionCtx.WithUser(sessionCtx.Database.GetAdminUser().Name)
 
 	tlsConfig, err := e.Auth.GetTLSConfig(ctx, sessionCtx)
@@ -185,16 +192,52 @@ func makeRawAdminClient(ctx context.Context, sessionCtx *common.Session, e *Engi
 	})
 
 	client, err := mongo.Connect(ctx, clientCfg)
-	return client, trace.Wrap(err)
+	return newBasicAdminClient(client), trace.Wrap(err)
+}
+
+// basicAdminClient is a simple wrapper of mongo.Client with some helper
+// functions.
+type basicAdminClient struct {
+	*mongo.Client
+
+	serverVersion      *semver.Version
+	serverVersionError error
+	serverVersionOnce  sync.Once
+}
+
+func newBasicAdminClient(client *mongo.Client) *basicAdminClient {
+	return &basicAdminClient{
+		Client: client,
+	}
+}
+
+func (c *basicAdminClient) ServerVersion(ctx context.Context) (*semver.Version, error) {
+	c.serverVersionOnce.Do(func() {
+		// Doesn't really matter which database to run "buildInfo" command on, and
+		// "buildInfo" doesn't require extra permissions.
+		resp := struct {
+			Version string `bson:"version"`
+		}{}
+		c.serverVersionError = c.Database(externalDatabaseName).RunCommand(ctx, bson.D{
+			{Key: "buildInfo", Value: true},
+			{Key: "comment", Value: runCommandComment},
+		}).Decode(&resp)
+		if c.serverVersionError != nil {
+			return
+		}
+
+		c.serverVersion, c.serverVersionError = semver.NewVersion(resp.Version)
+	})
+	return c.serverVersion, trace.Wrap(c.serverVersionError)
 }
 
 const (
-	// adminClientFnCacheTTL specifies how long the sharedAdminClient will be
+	// adminClientFnCacheTTL specifies how long the shareableAdminClient will be
 	// cached in FnCache.
 	adminClientFnCacheTTL = time.Minute
 	// adminClientCleanupTTL specifies how long to wait to terminate the
-	// sharedAdminClient. Use a longer TTL than adminClientFnCacheTTL to make
-	// sure the sharedAdminClient will be not returned by the FnCache while
+	// shareableAdminClient. Use a longer TTL than adminClientFnCacheTTL to make
+	// sure the shareableAdminClient will be not returned by the FnCache while
 	// getting terminated.
 	adminClientCleanupTTL = adminClientFnCacheTTL + time.Second*10
 )

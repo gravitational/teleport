@@ -81,6 +81,7 @@ type TestServer struct {
 	port     string
 	log      logrus.FieldLogger
 
+	serverVersion    string
 	wireVersion      int
 	activeConnection int32
 	maxMessageSize   uint32
@@ -134,9 +135,10 @@ func NewTestServer(config common.TestServerConfig, opts ...TestServerOption) (sv
 	server := &TestServer{
 		cfg: config,
 		// MongoDB uses regular TLS handshake so standard TLS listener will work.
-		listener: tls.NewListener(config.Listener, tlsConfig),
-		port:     port,
-		log:      log,
+		listener:      tls.NewListener(config.Listener, tlsConfig),
+		port:          port,
+		log:           log,
+		serverVersion: "7.0.0",
 		usersTracker: usersTracker{
 			userEventsCh: make(chan UserEvent, 100),
 			users:        make(map[string]userWithTracking),
@@ -225,6 +227,8 @@ func (s *TestServer) handleMessage(message protocol.Message) (protocol.Message, 
 		return s.handleSaslContinue(message)
 	case commandEndSessions:
 		return sendOKReply()
+	case commandBuildInfo:
+		return s.handleBuildInfo(message)
 
 	// Auto-user provisioning related commands.
 	case commandCurrentOp:
@@ -406,6 +410,10 @@ func (s *TestServer) handleAWSIAMSaslContinue(conversationID int32, opmsg *proto
 	}
 
 	return protocol.MakeOpMsg(authReply), nil
+}
+
+func (s *TestServer) handleBuildInfo(msg protocol.Message) (protocol.Message, error) {
+	return sendOKReply(withReplyKeyValue("version", s.serverVersion))
 }
 
 func (s *TestServer) handleCurrentOp(msg protocol.Message) (protocol.Message, error) {
@@ -713,6 +721,7 @@ const (
 	commandSaslStart    = "saslStart"
 	commandSaslContinue = "saslContinue"
 	commandEndSessions  = "endSessions"
+	commandBuildInfo    = "buildInfo"
 
 	commandCurrentOp  = "currentOp"
 	commandCreateUser = "createUser"
