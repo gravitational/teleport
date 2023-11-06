@@ -472,6 +472,9 @@ func (c *LicenseV3) String() string {
 	if c.GetSupportsDesktopAccess() {
 		features = append(features, "supports desktop access")
 	}
+	if c.GetSupportsIdentityGovernanceAccess() {
+		features = append(features, "supports identity governance access")
+	}
 	if c.GetSupportsFeatureHiding() {
 		features = append(features, "supports feature hiding")
 	}
