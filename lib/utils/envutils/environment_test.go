@@ -40,7 +40,7 @@ LD_PRELOAD=attack
 `)
 
 	// create a temp file with an environment in it
-	f, err := os.CreateTemp("", "teleport-environment-")
+	f, err := os.CreateTemp(t.TempDir(), "teleport-environment-")
 	require.NoError(t, err)
 	defer os.Remove(f.Name())
 	_, err = f.Write(rawenv)
@@ -78,12 +78,6 @@ func TestSafeEnvAdd(t *testing.T) {
 			expected: []string{"one=v1", "two=v2"},
 		},
 		{
-			name:     "duplicate allow",
-			keys:     []string{"one", "one"},
-			values:   []string{"v1", "v2"},
-			expected: []string{"one=v1", "one=v2"},
-		},
-		{
 			name:     "skip dangerous exact",
 			keys:     []string{"foo", "LD_PRELOAD"},
 			values:   []string{"bar", "ignored"},
@@ -104,76 +98,64 @@ func TestSafeEnvAdd(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		require.Equal(t, len(tc.keys), len(tc.values))
+		tc := tc // capture range variable
+		t.Run(tc.name, func(t *testing.T) {
+			require.Len(t, tc.keys, len(tc.values))
 
-		env := &SafeEnv{}
-		for i := range tc.keys {
-			env.Add(tc.keys[i], tc.values[i])
-		}
-		result := []string(*env)
+			env := &SafeEnv{}
+			for i := range tc.keys {
+				env.Add(tc.keys[i], tc.values[i])
+			}
+			result := []string(*env)
 
-		require.Equal(t, tc.expected, result)
+			require.Equal(t, tc.expected, result)
+		})
 	}
 }
 
 func TestSafeEnvAddFull(t *testing.T) {
-	t.Parallel()
-
 	testCases := []struct {
-		name              string
-		excludeDuplicates bool
-		fullValues        []string
-		expected          []string
+		name       string
+		fullValues []string
+		expected   []string
 	}{
 		{
-			name:              "normal add",
-			excludeDuplicates: true,
-			fullValues:        []string{"foo=bar"},
-			expected:          []string{"foo=bar"},
+			name:       "normal add",
+			fullValues: []string{"foo=bar"},
+			expected:   []string{"foo=bar"},
 		},
 		{
-			name:              "double add",
-			excludeDuplicates: true,
-			fullValues:        []string{"one=v1", "two=v2"},
-			expected:          []string{"one=v1", "two=v2"},
+			name:       "double add",
+			fullValues: []string{"one=v1", "two=v2"},
+			expected:   []string{"one=v1", "two=v2"},
 		},
 		{
-			name:              "duplicate allow",
-			excludeDuplicates: false,
-			fullValues:        []string{"one=v1", "one=v2"},
-			expected:          []string{"one=v1", "one=v2"},
+			name:       "skip dangerous exact",
+			fullValues: []string{"foo=bar", "LD_PRELOAD=ignored"},
+			expected:   []string{"foo=bar"},
 		},
 		{
-			name:              "duplicate ignore",
-			excludeDuplicates: true,
-			fullValues:        []string{"one=v1", "one=v2"},
-			expected:          []string{"one=v1"},
+			name:       "skip dangerous lowercase",
+			fullValues: []string{"foo=bar", "ld_preload=ignored"},
+			expected:   []string{"foo=bar"},
 		},
 		{
-			name:              "skip dangerous exact",
-			excludeDuplicates: true,
-			fullValues:        []string{"foo=bar", "LD_PRELOAD=ignored"},
-			expected:          []string{"foo=bar"},
-		},
-		{
-			name:              "skip dangerous lowercase",
-			excludeDuplicates: true,
-			fullValues:        []string{"foo=bar", "ld_preload=ignored"},
-			expected:          []string{"foo=bar"},
-		},
-		{
-			name:              "skip dangerous with whitespace",
-			excludeDuplicates: true,
-			fullValues:        []string{"foo=bar", "  LD_PRELOAD=ignored"},
-			expected:          []string{"foo=bar"},
+			name:       "skip dangerous with whitespace",
+			fullValues: []string{"foo=bar", "  LD_PRELOAD=ignored"},
+			expected:   []string{"foo=bar"},
 		},
 	}
 
 	for _, tc := range testCases {
-		env := &SafeEnv{}
-		env.AddFull(tc.excludeDuplicates, tc.fullValues...)
-		result := []string(*env)
+		tc := tc // capture range variable
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-		require.Equal(t, tc.expected, result)
+			env := &SafeEnv{}
+			env.AddFull(tc.fullValues...)
+			result := []string(*env)
+
+			require.Equal(t, tc.expected, result)
+		})
 	}
 }
