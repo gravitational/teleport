@@ -34,12 +34,11 @@ type userClient struct {
 
 // Get gets the Teleport user of a given name
 func (r userClient) Get(ctx context.Context, name string) (types.User, error) {
-	teleportClient, err := r.TeleportClientAccessor(ctx)
+	teleportClient, release, err := r.TeleportClientAccessor(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	teleportClient.RLock()
-	defer teleportClient.RUnlock()
+	defer release()
 
 	user, err := teleportClient.GetUser(ctx, name, false /* with secrets*/)
 	return user, trace.Wrap(err)
@@ -47,12 +46,11 @@ func (r userClient) Get(ctx context.Context, name string) (types.User, error) {
 
 // Create creates a Teleport user
 func (r userClient) Create(ctx context.Context, user types.User) error {
-	teleportClient, err := r.TeleportClientAccessor(ctx)
+	teleportClient, release, err := r.TeleportClientAccessor(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	teleportClient.RLock()
-	defer teleportClient.RUnlock()
+	defer release()
 
 	_, err = teleportClient.CreateUser(ctx, user)
 	return trace.Wrap(err)
@@ -60,12 +58,11 @@ func (r userClient) Create(ctx context.Context, user types.User) error {
 
 // Update updates a Teleport user
 func (r userClient) Update(ctx context.Context, user types.User) error {
-	teleportClient, err := r.TeleportClientAccessor(ctx)
+	teleportClient, release, err := r.TeleportClientAccessor(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	teleportClient.RLock()
-	defer teleportClient.RUnlock()
+	defer release()
 
 	_, err = teleportClient.UpdateUser(ctx, user)
 	return trace.Wrap(err)
@@ -73,12 +70,11 @@ func (r userClient) Update(ctx context.Context, user types.User) error {
 
 // Delete deletes a Teleport user
 func (r userClient) Delete(ctx context.Context, name string) error {
-	teleportClient, err := r.TeleportClientAccessor(ctx)
+	teleportClient, release, err := r.TeleportClientAccessor(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	teleportClient.RLock()
-	defer teleportClient.RUnlock()
+	defer release()
 
 	return trace.Wrap(teleportClient.DeleteUser(ctx, name))
 }

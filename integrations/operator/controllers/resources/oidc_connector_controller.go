@@ -34,12 +34,11 @@ type oidcConnectorClient struct {
 
 // Get gets the Teleport oidc_connector of a given name
 func (r oidcConnectorClient) Get(ctx context.Context, name string) (types.OIDCConnector, error) {
-	teleportClient, err := r.TeleportClientAccessor(ctx)
+	teleportClient, release, err := r.TeleportClientAccessor(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	teleportClient.RLock()
-	defer teleportClient.RUnlock()
+	defer release()
 
 	oidc, err := teleportClient.GetOIDCConnector(ctx, name, false /* with secrets*/)
 	return oidc, trace.Wrap(err)
@@ -47,36 +46,33 @@ func (r oidcConnectorClient) Get(ctx context.Context, name string) (types.OIDCCo
 
 // Create creates a Teleport oidc_connector
 func (r oidcConnectorClient) Create(ctx context.Context, oidc types.OIDCConnector) error {
-	teleportClient, err := r.TeleportClientAccessor(ctx)
+	teleportClient, release, err := r.TeleportClientAccessor(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	teleportClient.RLock()
-	defer teleportClient.RUnlock()
+	defer release()
 
 	return trace.Wrap(teleportClient.UpsertOIDCConnector(ctx, oidc))
 }
 
 // Update updates a Teleport oidc_connector
 func (r oidcConnectorClient) Update(ctx context.Context, oidc types.OIDCConnector) error {
-	teleportClient, err := r.TeleportClientAccessor(ctx)
+	teleportClient, release, err := r.TeleportClientAccessor(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	teleportClient.RLock()
-	defer teleportClient.RUnlock()
+	defer release()
 
 	return trace.Wrap(teleportClient.UpsertOIDCConnector(ctx, oidc))
 }
 
 // Delete deletes a Teleport oidc_connector
 func (r oidcConnectorClient) Delete(ctx context.Context, name string) error {
-	teleportClient, err := r.TeleportClientAccessor(ctx)
+	teleportClient, release, err := r.TeleportClientAccessor(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	teleportClient.RLock()
-	defer teleportClient.RUnlock()
+	defer release()
 
 	return trace.Wrap(teleportClient.DeleteOIDCConnector(ctx, name))
 }

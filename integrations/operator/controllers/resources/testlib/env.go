@@ -174,8 +174,8 @@ func (s *TestSetup) StartKubernetesOperator(t *testing.T) {
 	}
 
 	// We have to create a new Manager on each start because the Manager does not support to be restarted
-	clientAccessor := func(ctx context.Context) (*sidecar.SyncClient, error) {
-		return sidecar.NewSyncClient(s.TeleportClient), nil
+	clientAccessor := func(ctx context.Context) (*sidecar.SyncClient, func(), error) {
+		return sidecar.NewSyncClient(s.TeleportClient), func() {}, nil
 	}
 
 	k8sManager, err := ctrl.NewManager(s.K8sRestConfig, ctrl.Options{

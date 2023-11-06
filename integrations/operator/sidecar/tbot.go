@@ -60,7 +60,7 @@ type Bot struct {
 	cachedClient *SyncClient
 
 	// clientBuilder is used for testing purposes. Outside of tests, its value should always be buildClient.
-	clientBuilder ClientAccessor
+	clientBuilder func(ctx context.Context) (*SyncClient, error)
 }
 
 func (b *Bot) initializeConfig(ctx context.Context) {
@@ -139,23 +139,23 @@ func (b *Bot) buildClient(ctx context.Context) (*SyncClient, error) {
 // GetSyncClient gets a client authenticated as the bot. To avoid rebuilding a
 // client for each call, this function caches the client and creates a new one
 // only when the client certs changed (tbot renewed them).
-func (b *Bot) GetSyncClient(ctx context.Context) (*SyncClient, error) {
+func (b *Bot) GetSyncClient(ctx context.Context) (*SyncClient, func(), error) {
 	b.mutex.Lock()
 	defer b.mutex.Unlock()
 
 	if !b.running {
-		return nil, trace.Errorf("bot not started yet")
+		return nil, nil, trace.Errorf("bot not started yet")
 	}
 	// If the bot has not joined the cluster yet or not generated client certs we bail out
 	// This is either temporary or the bot is dead and the manager will shut down everything.
 	storageDestination := b.cfg.Storage.Destination
 	if botCert, err := storageDestination.Read(ctx, identity.TLSCertKey); err != nil || len(botCert) == 0 {
-		return nil, trace.Retry(err, "bot cert not yet present")
+		return nil, nil, trace.Retry(err, "bot cert not yet present")
 	}
 
 	cert, err := b.cfg.Outputs[0].GetDestination().Read(ctx, identity.TLSCertKey)
 	if err != nil || len(cert) == 0 {
-		return nil, trace.Retry(err, "cert not yet present")
+		return nil, nil, trace.Retry(err, "cert not yet present")
 	}
 
 	// This is where caching happens. We don't know when tbot renews the certificates, so we need to check
@@ -163,20 +163,24 @@ func (b *Bot) GetSyncClient(ctx context.Context) (*SyncClient, error) {
 	// working client, then we hit the cache. Else we build a new client, replace the cached client with the new one,
 	// and fire a separate goroutine to close the previous client.
 	if b.cachedClient != nil && bytes.Equal(cert, b.cachedCert) {
-		return b.cachedClient, nil
+		return b.cachedClient, b.cachedClient.LockClient(), nil
 	}
 
 	oldClient := b.cachedClient
 	freshClient, err := b.clientBuilder(ctx)
-	if err == nil {
-		b.cachedCert = cert
-		b.cachedClient = freshClient
+
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
 	}
+
+	b.cachedCert = cert
+	b.cachedClient = freshClient
 
 	if oldClient != nil {
 		go oldClient.RetireClient()
 	}
-	return b.cachedClient, trace.Wrap(err)
+
+	return b.cachedClient, b.cachedClient.LockClient(), nil
 }
 
 type clientCredentials struct {
