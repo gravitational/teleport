@@ -55,9 +55,6 @@ const (
 	modifyPluginDataBackoffMax = time.Second
 )
 
-// errMissingAnnotation is used for cases where request annotations are not set
-var errMissingAnnotation = errors.New("access request is missing annotations")
-
 // App is a wrapper around the base app to allow for extra functionality.
 type App struct {
 	*lib.Process
