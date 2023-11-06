@@ -86,16 +86,30 @@ func ReadEnvironmentFile(filename string) ([]string, error) {
 	return *env, nil
 }
 
-var unsafeEnvironmentVars = []string{
+var unsafeEnvironmentVars = map[string]bool{
 	// Linux
-	"LD_ASSUME_KERNEL", "LD_AUDIT", "LD_BIND_NOW", "LD_BIND_NOT",
-	"LD_DYNAMIC_WEAK", "LD_LIBRARY_PATH", "LD_ORIGIN_PATH", "LD_POINTER_GUARD", "LD_PREFER_MAP_32BIT_EXEC",
-	"LD_PRELOAD", "LD_PROFILE", "LD_RUNPATH", "LD_RPATH", "LD_USE_LOAD_BIAS",
+	"LD_ASSUME_KERNEL":         true,
+	"LD_AUDIT":                 true,
+	"LD_BIND_NOW":              true,
+	"LD_BIND_NOT":              true,
+	"LD_DYNAMIC_WEAK":          true,
+	"LD_LIBRARY_PATH":          true,
+	"LD_ORIGIN_PATH":           true,
+	"LD_POINTER_GUARD":         true,
+	"LD_PREFER_MAP_32BIT_EXEC": true,
+	"LD_PRELOAD":               true,
+	"LD_PROFILE":               true,
+	"LD_RUNPATH":               true,
+	"LD_RPATH":                 true,
+	"LD_USE_LOAD_BIAS":         true,
 	// macOS
-	"DYLD_INSERT_LIBRARIES", "DYLD_LIBRARY_PATH",
+	"DYLD_INSERT_LIBRARIES": true,
+	"DYLD_LIBRARY_PATH":     true,
 }
 
-// SafeEnv allows you to build a system environment while avoiding potentially dangerous environment conditions.
+// SafeEnv allows you to build a system environment while avoiding potentially dangerous environment conditions.  In
+// addition, SafeEnv will ignore any values added if the key already exists.  This allows earlier inserts to take
+// priority and ensure there is no conflicting values.
 type SafeEnv []string
 
 // Add will add the key and value to the environment if it's a safe value to forward on for fork / exec.
@@ -104,35 +118,48 @@ func (e *SafeEnv) Add(k, v string) {
 	v = strings.TrimSpace(v)
 	if k == "" || k == "=" {
 		return
-	}
-
-	for _, unsafeKey := range unsafeEnvironmentVars {
-		if strings.EqualFold(k, unsafeKey) {
-			return
-		}
+	} else if e.unsafeKey(k) {
+		return
 	}
 
 	*e = append(*e, fmt.Sprintf("%s=%s", k, v))
 }
 
-// AddFull adds an exact value, typically in KEY=VALUE format.  This should only be used if they values are already
-// combined.
+// AddFull adds an exact value, in the KEY=VALUE format. This should only be used if they values are already
+// combined.  When the values are separate the [Add] function is generally preferred.
 func (e *SafeEnv) AddFull(fullValues ...string) {
 valueLoop:
 	for _, kv := range fullValues {
 		kv = strings.TrimSpace(kv)
 
-		for _, unsafeKey := range unsafeEnvironmentVars {
-			if strings.HasPrefix(strings.ToUpper(kv), unsafeKey) {
-				continue valueLoop
-			}
+		key := strings.SplitN(kv, "=", 2)[0]
+		if key == "" { // weird case if the string is empty or '='
+			continue valueLoop
+		} else if e.unsafeKey(key) {
+			continue valueLoop
 		}
 
 		*e = append(*e, kv)
 	}
 }
 
-// AddExecEnvironment will add safe values from [os.Environ].
+func (e *SafeEnv) unsafeKey(key string) bool {
+	upperKey := strings.ToUpper(key)
+	if _, unsafe := unsafeEnvironmentVars[upperKey]; unsafe {
+		return true
+	}
+
+	prefix := upperKey + "="
+	for _, kv := range *e {
+		if strings.HasPrefix(strings.ToUpper(kv), prefix) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// AddExecEnvironment will add safe values from [os.Environ], ignoring any duplicates that may have already been added.
 func (e *SafeEnv) AddExecEnvironment() {
 	e.AddFull(os.Environ()...)
 }
