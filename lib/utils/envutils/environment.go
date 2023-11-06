@@ -91,7 +91,7 @@ var unsafeEnvironmentVars = []string{
 	"LD_ASSUME_KERNEL", "LD_AUDIT", "LD_BIND_NOW", "LD_BIND_NOT",
 	"LD_DYNAMIC_WEAK", "LD_LIBRARY_PATH", "LD_ORIGIN_PATH", "LD_POINTER_GUARD", "LD_PREFER_MAP_32BIT_EXEC",
 	"LD_PRELOAD", "LD_PROFILE", "LD_RUNPATH", "LD_RPATH", "LD_USE_LOAD_BIAS",
-	// OSX
+	// macOS
 	"DYLD_INSERT_LIBRARIES", "DYLD_LIBRARY_PATH",
 }
 
@@ -115,23 +115,10 @@ func (e *SafeEnv) Add(k, v string) {
 
 // AddFull adds an exact value, typically in KEY=VALUE format.  This should only be used if they values are already
 // combined.
-func (e *SafeEnv) AddFull(excludeDuplicates bool, fullValues ...string) {
+func (e *SafeEnv) AddFull(fullValues ...string) {
 valueLoop:
 	for _, kv := range fullValues {
 		kv = strings.TrimSpace(kv)
-
-		if excludeDuplicates {
-			key := strings.SplitN(kv, "=", 2)[0]
-			if key == "" { // weird case if the string is empty or '='
-				continue valueLoop
-			}
-
-			for _, kv := range *e {
-				if strings.HasPrefix(kv, key) {
-					continue valueLoop
-				}
-			}
-		}
 
 		for _, unsafeKey := range unsafeEnvironmentVars {
 			if strings.HasPrefix(strings.ToUpper(kv), unsafeKey) {
@@ -145,5 +132,5 @@ valueLoop:
 
 // AddExecEnvironment will add safe values from os.Environ, ignoring any duplicates that may have already been added.
 func (e *SafeEnv) AddExecEnvironment() {
-	e.AddFull(true, os.Environ()...)
+	e.AddFull(os.Environ()...)
 }
