@@ -443,7 +443,7 @@ func (t *commandHandler) streamOutput(ctx context.Context, tc *client.TeleportCl
 		return nil, trace.NotImplemented("MFA is not supported for command execution")
 	}
 
-	//TODO(jakule): Implement MFA support
+	// TODO(jakule): Implement MFA support
 	nc, err := t.connectToHost(ctx, t.ws, tc, mfaAuth)
 	if err != nil {
 		t.log.WithError(err).Warn("Unable to stream terminal - failure connecting to host")
