@@ -18,7 +18,6 @@ package servicenow
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/url"
 	"strings"
