@@ -5252,7 +5252,7 @@ func (a *Server) Ping(ctx context.Context) (proto.PingResponse, error) {
 	}
 	features := modules.GetModules().Features().ToProto()
 
-	if features.IdentityGovernance {
+	if a.accessMonitoringEnabled {
 		features.AccessMonitoring = a.accessMonitoringEnabled
 	}
 
