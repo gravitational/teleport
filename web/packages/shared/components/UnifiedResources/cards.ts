@@ -64,7 +64,7 @@ export function makeUnifiedResourceCardNode(
     ActionButton: ui.ActionButton,
     labels: resource.labels,
     description: {
-      primary: resource.subKind || 'SSH Server',
+      primary: formatNodeSubKind(resource.subKind),
       secondary: resource.tunnel ? '' : resource.addr,
     },
   };
@@ -141,6 +141,17 @@ export function makeUnifiedResourceCardUserGroup(
     labels: resource.labels,
     description: {},
   };
+}
+
+function formatNodeSubKind(subKind: string): string {
+  switch (subKind) {
+    case 'openssh-ec2-ice':
+    case 'openssh':
+      return 'OpenSSH Server';
+
+    default:
+      return 'SSH Server';
+  }
 }
 
 type GuessedAppType = 'Grafana' | 'Slack' | 'Jenkins' | 'Application' | 'Aws';
