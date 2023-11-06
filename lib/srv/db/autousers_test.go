@@ -165,6 +165,14 @@ func TestAutoUsersMySQL(t *testing.T) {
 			expectConnectionErr: false,
 			expectDatabaseUser:  "user1",
 		},
+		"MariaDB activate/delete users": {
+			mode:                types.CreateDatabaseUserMode_DB_USER_MODE_BEST_EFFORT_DROP,
+			databaseRoles:       []string{"reader", "writer"},
+			serverVersion:       "5.5.5-10.11.0-MariaDB",
+			teleportUser:        "user1",
+			expectConnectionErr: false,
+			expectDatabaseUser:  "user1",
+		},
 		"MariaDB long name": {
 			mode:                types.CreateDatabaseUserMode_DB_USER_MODE_KEEP,
 			databaseRoles:       []string{"reader", "writer"},
