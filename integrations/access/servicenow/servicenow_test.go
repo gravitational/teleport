@@ -61,7 +61,6 @@ type ServiceNowSuite struct {
 	raceNumber     int
 	fakeServiceNow *FakeServiceNow
 
-	snNotifyResponder string
 	snResponder1      string
 	snResponder2      string
 	snResponder3      string
