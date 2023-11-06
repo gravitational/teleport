@@ -59,7 +59,7 @@ func TestAppsCRUD(t *testing.T) {
 	// Initially we expect no apps.
 	out, err := service.GetApps(ctx)
 	require.NoError(t, err)
-	require.Equal(t, 0, len(out))
+	require.Empty(t, out)
 
 	// Create both apps.
 	err = service.CreateApp(ctx, app1)
@@ -117,5 +117,5 @@ func TestAppsCRUD(t *testing.T) {
 	require.NoError(t, err)
 	out, err = service.GetApps(ctx)
 	require.NoError(t, err)
-	require.Len(t, out, 0)
+	require.Empty(t, out)
 }

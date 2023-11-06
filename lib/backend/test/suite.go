@@ -643,7 +643,7 @@ func testFetchLimit(t *testing.T, newBackend Constructor) {
 
 	result, err := uut.GetRange(ctx, prefix("/db"), backend.RangeEnd(prefix("/db")), backend.NoLimit)
 	require.NoError(t, err)
-	require.Equal(t, itemsCount, len(result.Items))
+	require.Len(t, result.Items, itemsCount)
 }
 
 // testLimit tests limit.
@@ -684,7 +684,7 @@ func testLimit(t *testing.T, newBackend Constructor) {
 
 	result, err := uut.GetRange(ctx, prefix("/db"), backend.RangeEnd(prefix("/db")), 2)
 	require.NoError(t, err)
-	require.Equal(t, 2, len(result.Items))
+	require.Len(t, result.Items, 2)
 }
 
 // requireEvent asserts that a given event type with the given key is emitted

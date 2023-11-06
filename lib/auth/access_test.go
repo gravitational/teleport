@@ -47,14 +47,14 @@ func TestUpsertDeleteRoleEventsEmitted(t *testing.T) {
 	// Creating a role should emit a RoleCreatedEvent.
 	role, err = p.a.CreateRole(ctx, role)
 	require.NoError(t, err)
-	require.Equal(t, p.mockEmitter.LastEvent().GetType(), events.RoleCreatedEvent)
+	require.Equal(t, events.RoleCreatedEvent, p.mockEmitter.LastEvent().GetType())
 	require.Equal(t, p.mockEmitter.LastEvent().(*apievents.RoleCreate).Name, role.GetName())
 	p.mockEmitter.Reset()
 
 	// Upserting a role should emit a RoleCreatedEvent.
 	role, err = p.a.UpsertRole(ctx, role)
 	require.NoError(t, err)
-	require.Equal(t, p.mockEmitter.LastEvent().GetType(), events.RoleCreatedEvent)
+	require.Equal(t, events.RoleCreatedEvent, p.mockEmitter.LastEvent().GetType())
 	require.Equal(t, p.mockEmitter.LastEvent().(*apievents.RoleCreate).Name, role.GetName())
 	p.mockEmitter.Reset()
 
@@ -62,14 +62,14 @@ func TestUpsertDeleteRoleEventsEmitted(t *testing.T) {
 	role.SetLogins(types.Allow, []string{"llama"})
 	role, err = p.a.UpdateRole(ctx, role)
 	require.NoError(t, err)
-	require.Equal(t, p.mockEmitter.LastEvent().GetType(), events.RoleUpdatedEvent)
+	require.Equal(t, events.RoleUpdatedEvent, p.mockEmitter.LastEvent().GetType())
 	require.Equal(t, p.mockEmitter.LastEvent().(*apievents.RoleUpdate).Name, role.GetName())
 	p.mockEmitter.Reset()
 
 	// Deleting a role should emit a RoleDeletedEvent.
 	err = p.a.DeleteRole(ctx, role.GetName())
 	require.NoError(t, err)
-	require.Equal(t, p.mockEmitter.LastEvent().GetType(), events.RoleDeletedEvent)
+	require.Equal(t, events.RoleDeletedEvent, p.mockEmitter.LastEvent().GetType())
 	require.Equal(t, p.mockEmitter.LastEvent().(*apievents.RoleDelete).Name, role.GetName())
 	p.mockEmitter.Reset()
 

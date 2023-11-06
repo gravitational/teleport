@@ -78,25 +78,25 @@ func TestDefaultConfig(t *testing.T) {
 
 	// auth section
 	auth := config.Auth
-	require.Equal(t, auth.ListenAddr, localAuthAddr)
-	require.Equal(t, auth.Limiter.MaxConnections, int64(defaults.LimiterMaxConnections))
-	require.Equal(t, auth.Limiter.MaxNumberOfUsers, defaults.LimiterMaxConcurrentUsers)
-	require.Equal(t, config.Auth.StorageConfig.Type, lite.GetName())
-	require.Equal(t, auth.StorageConfig.Params[defaults.BackendPath], filepath.Join(config.DataDir, defaults.BackendDir))
+	require.Equal(t, localAuthAddr, auth.ListenAddr)
+	require.Equal(t, int64(defaults.LimiterMaxConnections), auth.Limiter.MaxConnections)
+	require.Equal(t, defaults.LimiterMaxConcurrentUsers, auth.Limiter.MaxNumberOfUsers)
+	require.Equal(t, lite.GetName(), config.Auth.StorageConfig.Type)
+	require.Equal(t, filepath.Join(config.DataDir, defaults.BackendDir), auth.StorageConfig.Params[defaults.BackendPath])
 
 	// SSH section
 	ssh := config.SSH
-	require.Equal(t, ssh.Limiter.MaxConnections, int64(defaults.LimiterMaxConnections))
-	require.Equal(t, ssh.Limiter.MaxNumberOfUsers, defaults.LimiterMaxConcurrentUsers)
-	require.Equal(t, ssh.AllowTCPForwarding, true)
+	require.Equal(t, int64(defaults.LimiterMaxConnections), ssh.Limiter.MaxConnections)
+	require.Equal(t, defaults.LimiterMaxConcurrentUsers, ssh.Limiter.MaxNumberOfUsers)
+	require.True(t, ssh.AllowTCPForwarding)
 
 	// proxy section
 	proxy := config.Proxy
-	require.Equal(t, proxy.Limiter.MaxConnections, int64(defaults.LimiterMaxConnections))
-	require.Equal(t, proxy.Limiter.MaxNumberOfUsers, defaults.LimiterMaxConcurrentUsers)
+	require.Equal(t, int64(defaults.LimiterMaxConnections), proxy.Limiter.MaxConnections)
+	require.Equal(t, defaults.LimiterMaxConcurrentUsers, proxy.Limiter.MaxNumberOfUsers)
 
 	// Misc levers and dials
-	require.Equal(t, config.RotationConnectionInterval, defaults.HighResPollingPeriod)
+	require.Equal(t, defaults.HighResPollingPeriod, config.RotationConnectionInterval)
 }
 
 // TestCheckApp validates application configuration.

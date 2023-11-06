@@ -749,7 +749,7 @@ func mustGetKubePod(t *testing.T, client *kubernetes.Clientset) {
 
 	resp, err := client.CoreV1().Pods(metav1.NamespaceDefault).List(context.Background(), metav1.ListOptions{})
 	require.NoError(t, err)
-	require.Equal(t, len(resp.Items), 3)
+	require.Len(t, resp.Items, 3)
 }
 
 func mustGetProfileName(t *testing.T, webProxyAddr string) string {

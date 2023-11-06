@@ -47,7 +47,7 @@ func FuzzRPCClientPartialLength(f *testing.F) {
 	f.Fuzz(func(t *testing.T, length uint64, chunks uint64) {
 		packet, err := ReadPacket(bytes.NewReader(fixtures.RPCClientPartiallyLength("foo3", length, chunks)))
 		require.NoError(t, err)
-		require.Equal(t, packet.Type(), PacketTypeRPCRequest)
+		require.Equal(t, PacketTypeRPCRequest, packet.Type())
 
 		// Given that `ToSQLPacket` recovers from panics when reading the packet,
 		// we just need to ensure the function doesn't return error.

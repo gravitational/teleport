@@ -104,7 +104,7 @@ func TestChatComplete(t *testing.T) {
 				return nil
 			}
 			require.Equal(t, MessageKindCommand, kind)
-			require.Equal(t, string(payload), `{"command":"df -h","nodes":["localhost"]}`)
+			require.Equal(t, `{"command":"df -h","nodes":["localhost"]}`, string(payload))
 			called = true
 			return nil
 		}, "Show free disk space on localhost")
@@ -150,19 +150,19 @@ func TestClassifyMessage(t *testing.T) {
 	t.Run("Valid class", func(t *testing.T) {
 		class, err := client.ClassifyMessage(ctx, "whatever", MessageClasses)
 		require.NoError(t, err)
-		require.Equal(t, class, "troubleshooting")
+		require.Equal(t, "troubleshooting", class)
 	})
 
 	t.Run("Valid class starting with upper-case", func(t *testing.T) {
 		class, err := client.ClassifyMessage(ctx, "whatever", MessageClasses)
 		require.NoError(t, err)
-		require.Equal(t, class, "troubleshooting")
+		require.Equal(t, "troubleshooting", class)
 	})
 
 	t.Run("Valid class starting with upper-case and ending with dot", func(t *testing.T) {
 		class, err := client.ClassifyMessage(ctx, "whatever", MessageClasses)
 		require.NoError(t, err)
-		require.Equal(t, class, "troubleshooting")
+		require.Equal(t, "troubleshooting", class)
 	})
 
 	t.Run("Model hallucinates", func(t *testing.T) {

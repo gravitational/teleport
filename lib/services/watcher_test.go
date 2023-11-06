@@ -564,7 +564,7 @@ func TestDatabaseWatcher(t *testing.T) {
 	// Initially there are no databases so watcher should send an empty list.
 	select {
 	case changeset := <-w.DatabasesC:
-		require.Len(t, changeset, 0)
+		require.Empty(t, changeset)
 	case <-w.Done():
 		t.Fatal("Watcher has unexpectedly exited.")
 	case <-time.After(2 * time.Second):
@@ -663,7 +663,7 @@ func TestAppWatcher(t *testing.T) {
 	// Initially there are no apps so watcher should send an empty list.
 	select {
 	case changeset := <-w.AppsC:
-		require.Len(t, changeset, 0)
+		require.Empty(t, changeset)
 	case <-w.Done():
 		t.Fatal("Watcher has unexpectedly exited.")
 	case <-time.After(2 * time.Second):
@@ -922,9 +922,9 @@ func TestNodeWatcherFallback(t *testing.T) {
 	got := w.GetNodes(ctx, func(n services.Node) bool {
 		return true
 	})
-	require.Equal(t, len(nodes), len(got))
+	require.Len(t, nodes, len(got))
 
-	require.Equal(t, len(nodes), w.NodeCount())
+	require.Len(t, nodes, w.NodeCount())
 	require.False(t, w.IsInitialized())
 }
 
@@ -1139,7 +1139,7 @@ func TestAccessRequestWatcher(t *testing.T) {
 	// Initially there are no access requests so watcher should send an empty list.
 	select {
 	case changeset := <-w.AccessRequestsC:
-		require.Len(t, changeset, 0)
+		require.Empty(t, changeset)
 	case <-w.Done():
 		t.Fatal("Watcher has unexpectedly exited.")
 	case <-time.After(2 * time.Second):
@@ -1253,7 +1253,7 @@ func TestOktaAssignmentWatcher(t *testing.T) {
 	// Initially there are no assignments so watcher should send an empty list.
 	select {
 	case changeset := <-w.CollectorChan():
-		require.Len(t, changeset, 0, "initial assignment list should be empty")
+		require.Empty(t, changeset, "initial assignment list should be empty")
 	case <-w.Done():
 		t.Fatal("Watcher has unexpectedly exited.")
 	case <-time.After(2 * time.Second):
