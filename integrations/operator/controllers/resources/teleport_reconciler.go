@@ -35,6 +35,8 @@ type TeleportResource interface {
 	GetName() string
 	SetOrigin(string)
 	GetMetadata() types.Metadata
+	GetRevision() string
+	SetRevision(string)
 }
 
 // TeleportKubernetesResource is a Kubernetes resource representing a Teleport resource
@@ -132,6 +134,11 @@ func (r TeleportResourceReconciler[T, K]) Upsert(ctx context.Context, obj kclien
 	}
 
 	teleportResource.SetOrigin(types.OriginKubernetes)
+
+	// Propagate revision as required by opportunistic locking
+	if exists {
+		teleportResource.SetRevision(existingResource.GetRevision())
+	}
 
 	// We apply resource-specific mutations.
 	if mutator, ok := r.resourceClient.(TeleportResourceMutator[T]); ok {
