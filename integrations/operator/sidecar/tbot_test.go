@@ -125,7 +125,7 @@ func TestBot_GetClient(t *testing.T) {
 				cachedClient:  tt.cachedClient,
 				clientBuilder: mock.buildClient,
 			}
-			_, err := b.GetSyncClient(ctx)
+			_, _, err := b.GetSyncClient(ctx)
 			tt.assertError(t, err)
 			tt.expectNewClientBuild(t, mock.countClientBuild() != 0)
 		})

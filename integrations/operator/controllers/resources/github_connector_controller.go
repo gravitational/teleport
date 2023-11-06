@@ -34,12 +34,11 @@ type githubConnectorClient struct {
 
 // Get gets the Teleport github_connector of a given name
 func (r githubConnectorClient) Get(ctx context.Context, name string) (types.GithubConnector, error) {
-	teleportClient, err := r.TeleportClientAccessor(ctx)
+	teleportClient, release, err := r.TeleportClientAccessor(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	teleportClient.RLock()
-	defer teleportClient.RUnlock()
+	defer release()
 
 	github, err := teleportClient.GetGithubConnector(ctx, name, false /* with secrets*/)
 	return github, trace.Wrap(err)
@@ -47,36 +46,33 @@ func (r githubConnectorClient) Get(ctx context.Context, name string) (types.Gith
 
 // Create creates a Teleport github_connector
 func (r githubConnectorClient) Create(ctx context.Context, github types.GithubConnector) error {
-	teleportClient, err := r.TeleportClientAccessor(ctx)
+	teleportClient, release, err := r.TeleportClientAccessor(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	teleportClient.RLock()
-	defer teleportClient.RUnlock()
+	defer release()
 
 	return trace.Wrap(teleportClient.UpsertGithubConnector(ctx, github))
 }
 
 // Update updates a Teleport github_connector
 func (r githubConnectorClient) Update(ctx context.Context, github types.GithubConnector) error {
-	teleportClient, err := r.TeleportClientAccessor(ctx)
+	teleportClient, release, err := r.TeleportClientAccessor(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	teleportClient.RLock()
-	defer teleportClient.RUnlock()
+	defer release()
 
 	return trace.Wrap(teleportClient.UpsertGithubConnector(ctx, github))
 }
 
 // Delete deletes a Teleport github_connector
 func (r githubConnectorClient) Delete(ctx context.Context, name string) error {
-	teleportClient, err := r.TeleportClientAccessor(ctx)
+	teleportClient, release, err := r.TeleportClientAccessor(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	teleportClient.RLock()
-	defer teleportClient.RUnlock()
+	defer release()
 
 	return trace.Wrap(teleportClient.DeleteGithubConnector(ctx, name))
 }

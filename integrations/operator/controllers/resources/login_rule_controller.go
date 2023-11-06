@@ -33,12 +33,11 @@ type loginRuleClient struct {
 
 // Get gets the Teleport login_rule of a given name
 func (l loginRuleClient) Get(ctx context.Context, name string) (*resourcesv1.LoginRuleResource, error) {
-	teleportClient, err := l.TeleportClientAccessor(ctx)
+	teleportClient, release, err := l.TeleportClientAccessor(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	teleportClient.RLock()
-	defer teleportClient.RUnlock()
+	defer release()
 
 	loginRule, err := teleportClient.GetLoginRule(ctx, name)
 	if err != nil {
@@ -50,12 +49,11 @@ func (l loginRuleClient) Get(ctx context.Context, name string) (*resourcesv1.Log
 
 // Create creates a Teleport login_rule
 func (l loginRuleClient) Create(ctx context.Context, resource *resourcesv1.LoginRuleResource) error {
-	teleportClient, err := l.TeleportClientAccessor(ctx)
+	teleportClient, release, err := l.TeleportClientAccessor(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	teleportClient.RLock()
-	defer teleportClient.RUnlock()
+	defer release()
 
 	_, err = teleportClient.CreateLoginRule(ctx, resource.LoginRule)
 	return trace.Wrap(err)
@@ -63,12 +61,11 @@ func (l loginRuleClient) Create(ctx context.Context, resource *resourcesv1.Login
 
 // Update updates a Teleport login_rule
 func (l loginRuleClient) Update(ctx context.Context, resource *resourcesv1.LoginRuleResource) error {
-	teleportClient, err := l.TeleportClientAccessor(ctx)
+	teleportClient, release, err := l.TeleportClientAccessor(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	teleportClient.RLock()
-	defer teleportClient.RUnlock()
+	defer release()
 
 	_, err = teleportClient.UpsertLoginRule(ctx, resource.LoginRule)
 	return trace.Wrap(err)
@@ -76,12 +73,11 @@ func (l loginRuleClient) Update(ctx context.Context, resource *resourcesv1.Login
 
 // Delete deletes a Teleport login_rule
 func (l loginRuleClient) Delete(ctx context.Context, name string) error {
-	teleportClient, err := l.TeleportClientAccessor(ctx)
+	teleportClient, release, err := l.TeleportClientAccessor(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	teleportClient.RLock()
-	defer teleportClient.RUnlock()
+	defer release()
 
 	return trace.Wrap(teleportClient.DeleteLoginRule(ctx, name))
 }

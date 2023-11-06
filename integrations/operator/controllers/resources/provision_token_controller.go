@@ -31,12 +31,11 @@ type provisionTokenClient struct {
 
 // Get gets the Teleport provision token of a given name
 func (r provisionTokenClient) Get(ctx context.Context, name string) (types.ProvisionToken, error) {
-	teleportClient, err := r.TeleportClientAccessor(ctx)
+	teleportClient, release, err := r.TeleportClientAccessor(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	teleportClient.RLock()
-	defer teleportClient.RUnlock()
+	defer release()
 
 	token, err := teleportClient.GetToken(ctx, name)
 	return token, trace.Wrap(err)
@@ -44,36 +43,33 @@ func (r provisionTokenClient) Get(ctx context.Context, name string) (types.Provi
 
 // Create creates a Teleport provision token
 func (r provisionTokenClient) Create(ctx context.Context, token types.ProvisionToken) error {
-	teleportClient, err := r.TeleportClientAccessor(ctx)
+	teleportClient, release, err := r.TeleportClientAccessor(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	teleportClient.RLock()
-	defer teleportClient.RUnlock()
+	defer release()
 
 	return trace.Wrap(teleportClient.UpsertToken(ctx, token))
 }
 
 // Update updates a Teleport provision token
 func (r provisionTokenClient) Update(ctx context.Context, token types.ProvisionToken) error {
-	teleportClient, err := r.TeleportClientAccessor(ctx)
+	teleportClient, release, err := r.TeleportClientAccessor(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	teleportClient.RLock()
-	defer teleportClient.RUnlock()
+	defer release()
 
 	return trace.Wrap(teleportClient.UpsertToken(ctx, token))
 }
 
 // Delete deletes a Teleport provision token
 func (r provisionTokenClient) Delete(ctx context.Context, name string) error {
-	teleportClient, err := r.TeleportClientAccessor(ctx)
+	teleportClient, release, err := r.TeleportClientAccessor(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	teleportClient.RLock()
-	defer teleportClient.RUnlock()
+	defer release()
 
 	return trace.Wrap(teleportClient.DeleteToken(ctx, name))
 }
