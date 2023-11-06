@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
@@ -353,6 +354,87 @@ func TestConfig_SetFromURL(t *testing.T) {
 			require.NoError(t, tt.cfg.SetFromURL(uri))
 
 			tt.cfgAssertion(t, tt.cfg)
+		})
+	}
+}
+
+func TestConfig_CheckAndSetDefaults(t *testing.T) {
+	zero := types.NewDuration(0)
+	hour := types.NewDuration(time.Hour)
+
+	tests := []struct {
+		name        string
+		config      *Config
+		assertionFn func(t *testing.T, cfg *Config, err error)
+	}{
+		{
+			name:   "table name required",
+			config: &Config{},
+			assertionFn: func(t *testing.T, cfg *Config, err error) {
+				require.True(t, trace.IsBadParameter(err), "expected a bad parameter error, got %T", err)
+			},
+		},
+		{
+			name: "nil retention period uses default",
+			config: &Config{
+				Tablename:       "test",
+				RetentionPeriod: nil,
+			},
+			assertionFn: func(t *testing.T, cfg *Config, err error) {
+				require.NoError(t, err)
+				require.Equal(t, DefaultRetentionPeriod.Duration(), cfg.RetentionPeriod.Duration())
+			},
+		},
+		{
+			name: "zero retention period uses default",
+			config: &Config{
+				Tablename:       "test",
+				RetentionPeriod: &zero,
+			},
+			assertionFn: func(t *testing.T, cfg *Config, err error) {
+				require.NoError(t, err)
+				require.Equal(t, DefaultRetentionPeriod.Duration(), cfg.RetentionPeriod.Duration())
+			},
+		},
+		{
+			name: "supplied retention period is used",
+			config: &Config{
+				Tablename:       "test",
+				RetentionPeriod: &hour,
+			},
+			assertionFn: func(t *testing.T, cfg *Config, err error) {
+				require.NoError(t, err)
+				require.Equal(t, hour.Duration(), cfg.RetentionPeriod.Duration())
+			},
+		},
+		{
+			name:   "zero capacity uses defaults",
+			config: &Config{Tablename: "test"},
+			assertionFn: func(t *testing.T, cfg *Config, err error) {
+				require.NoError(t, err)
+				require.Equal(t, int64(DefaultReadCapacityUnits), cfg.ReadCapacityUnits)
+				require.Equal(t, int64(DefaultWriteCapacityUnits), cfg.WriteCapacityUnits)
+			},
+		},
+		{
+			name: "supplied capacity is used",
+			config: &Config{
+				Tablename:          "test",
+				ReadCapacityUnits:  1,
+				WriteCapacityUnits: 7,
+			},
+			assertionFn: func(t *testing.T, cfg *Config, err error) {
+				require.NoError(t, err)
+				require.Equal(t, int64(1), cfg.ReadCapacityUnits)
+				require.Equal(t, int64(7), cfg.WriteCapacityUnits)
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			err := test.config.CheckAndSetDefaults()
+			test.assertionFn(t, test.config, err)
 		})
 	}
 }
