@@ -30,6 +30,7 @@ import useTeleport from 'teleport/useTeleport';
 import RecordingsList from './RecordingsList';
 
 import useRecordings, { State } from './useRecordings';
+import { ByobCta } from 'teleport/components/ByobCta';
 
 export default function Container() {
   const ctx = useTeleport();
@@ -46,6 +47,7 @@ export function Recordings({
   rangeOptions,
   attempt,
   clusterId,
+  showByobCta,
 }: State) {
   return (
     <FeatureBox>
@@ -58,6 +60,7 @@ export function Recordings({
           onChangeRange={setRange}
         />
       </FeatureHeader>
+      {showByobCta && <ByobCta />}
       {attempt.status === 'failed' && <Danger> {attempt.statusText} </Danger>}
       {attempt.status === 'processing' && (
         <Box textAlign="center" m={10}>

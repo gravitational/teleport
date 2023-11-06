@@ -17,7 +17,7 @@ limitations under the License.
 import React from 'react';
 
 import { Danger } from 'design/Alert';
-import { Indicator, Box } from 'design';
+import { Indicator, Box, Text, Flex, ButtonPrimary, ButtonSecondary } from 'design';
 
 import RangePicker from 'teleport/components/EventRangePicker';
 import {
@@ -31,6 +31,8 @@ import useStickyClusterId from 'teleport/useStickyClusterId';
 import EventList from './EventList';
 
 import useAuditEvents, { State } from './useAuditEvents';
+import { ByobCta } from 'teleport/components/ByobCta';
+
 
 export default function Container() {
   const teleCtx = useTeleport();
@@ -49,6 +51,7 @@ export function Audit(props: State) {
     clusterId,
     fetchMore,
     fetchStatus,
+    showByobCta
   } = props;
 
   return (
@@ -62,6 +65,7 @@ export function Audit(props: State) {
           onChangeRange={setRange}
         />
       </FeatureHeader>
+      {showByobCta && <ByobCta />}
       {attempt.status === 'failed' && <Danger> {attempt.statusText} </Danger>}
       {attempt.status === 'processing' && (
         <Box textAlign="center" m={10}>

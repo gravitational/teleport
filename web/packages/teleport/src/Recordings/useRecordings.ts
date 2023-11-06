@@ -35,6 +35,7 @@ export default function useRecordings(ctx: Ctx) {
     fetchStartKey: '',
     fetchStatus: '',
   });
+  const showByobCta = ctx.isEnterprise; // TODO: and not byob user yet
 
   function fetchMore() {
     setResults({
@@ -86,6 +87,7 @@ export default function useRecordings(ctx: Ctx) {
     setRange,
     clusterId,
     fetchMore,
+    showByobCta,
   };
 }
 

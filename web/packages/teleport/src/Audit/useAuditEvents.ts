@@ -27,7 +27,7 @@ import { Event, EventCode, formatters } from 'teleport/services/audit';
 export default function useAuditEvents(
   ctx: Ctx,
   clusterId: string,
-  eventCode?: EventCode
+  eventCode?: EventCode,
 ) {
   const rangeOptions = useMemo(() => getRangeOptions(), []);
   const [range, setRange] = useState<EventRange>(rangeOptions[0]);
@@ -37,6 +37,7 @@ export default function useAuditEvents(
     fetchStartKey: '',
     fetchStatus: '',
   });
+  const showByobCta = ctx.isEnterprise; // TODO: and not byob user yet
 
   const filterBy = eventCode ? formatters[eventCode].type : '';
 
@@ -97,6 +98,7 @@ export default function useAuditEvents(
     range,
     setRange,
     rangeOptions,
+    showByobCta
   };
 }
 
