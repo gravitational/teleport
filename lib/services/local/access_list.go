@@ -522,7 +522,10 @@ func lockName(accessListName string) string {
 	return strings.Join([]string{"access_list", accessListName}, string(backend.Separator))
 }
 
-// VerifyAccessListCreateLimit ensures
+// VerifyAccessListCreateLimit ensures creating access list is limited to no more than 1 (updating is allowed).
+// It differentiates request for `creating` and `updating` by checking to see if the request
+// access list name matches the ones we retrieved.
+// Returns error if limit has been reached.
 func (a *AccessListService) VerifyAccessListCreateLimit(ctx context.Context, targetAccessListName string) error {
 	feature := modules.GetModules().Features()
 	if feature.IdentityGovernance {
@@ -539,7 +542,7 @@ func (a *AccessListService) VerifyAccessListCreateLimit(ctx context.Context, tar
 	}
 
 	// Iterate through fetched lists, to check if the request was
-	// an update. It's an update if target is within these lists.
+	// an update.
 	for _, list := range lists {
 		if list.GetName() == targetAccessListName {
 			return nil
