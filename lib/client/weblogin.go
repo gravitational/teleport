@@ -433,8 +433,8 @@ func SSHAgentSSOLogin(ctx context.Context, login SSHLoginSSO, config *Redirector
 	case response := <-rd.ResponseC():
 		log.Debugf("Got response from browser.")
 		return response, nil
-	case <-time.After(defaults.CallbackTimeout):
-		log.Debugf("Timed out waiting for callback after %v.", defaults.CallbackTimeout)
+	case <-time.After(defaults.SSOCallbackTimeout):
+		log.Debugf("Timed out waiting for callback after %v.", defaults.SSOCallbackTimeout)
 		return nil, trace.Wrap(trace.Errorf("timed out waiting for callback"))
 	case <-rd.Done():
 		log.Debugf("Canceled by user.")
@@ -481,7 +481,7 @@ func SSHAgentHeadlessLogin(ctx context.Context, login SSHLoginHeadless) (*auth.S
 	}
 
 	// This request will block until the headless login is approved.
-	clt.Client.HTTPClient().Timeout = defaults.CallbackTimeout
+	clt.Client.HTTPClient().Timeout = defaults.HeadlessLoginTimeout
 
 	re, err := clt.PostJSON(ctx, clt.Endpoint("webapi", "ssh", "certs"), CreateSSHCertReq{
 		User:                     login.User,
