@@ -387,7 +387,7 @@ func (a *authorizer) authorizeAdminAction(ctx context.Context, authContext *Cont
 		return nil
 	}
 
-	// Skip mfa if the identity is being impersonated by the Bot or Admin built in role.
+	// Skip MFA if the identity is being impersonated by the Bot or Admin built in role.
 	if impersonator := authContext.Identity.GetIdentity().Impersonator; impersonator != "" {
 		impersonatorUser, err := a.accessPoint.GetUser(ctx, impersonator, false)
 		if err == nil && impersonatorUser.IsBot() {
@@ -413,7 +413,7 @@ func (a *authorizer) authorizeAdminAction(ctx context.Context, authContext *Cont
 		return nil
 	}
 
-	// mfa is required to be passed through the request context.
+	// MFA is required to be passed through the request context.
 	mfaResp, err := mfa.CredentialsFromContext(ctx)
 	if err != nil {
 		return trace.Wrap(err)

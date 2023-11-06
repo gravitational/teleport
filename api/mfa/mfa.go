@@ -30,7 +30,8 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 )
 
-const MFAResponseToken = "mfa_challenge_response"
+// ResponseMetadataKey is the context metadata key for an MFA response in a gRPC request.
+const ResponseMetadataKey = "mfa_challenge_response"
 
 // ErrAdminActionMFARequired is an error indicating that an admin-level
 // API request failed due to missing MFA verification.
@@ -57,7 +58,7 @@ func CredentialsFromContext(ctx context.Context) (*proto.MFAAuthenticateResponse
 }
 
 func getMFACredentialsFromContext(ctx context.Context) (*proto.MFAAuthenticateResponse, error) {
-	values := metadata.ValueFromIncomingContext(ctx, MFAResponseToken)
+	values := metadata.ValueFromIncomingContext(ctx, ResponseMetadataKey)
 	if len(values) == 0 {
 		return nil, trace.NotFound("request metadata missing MFA credentials")
 	}
@@ -94,7 +95,7 @@ func (mc *perRPCCredentials) GetRequestMetadata(ctx context.Context, _ ...string
 	}
 
 	return map[string]string{
-		MFAResponseToken: enc,
+		ResponseMetadataKey: enc,
 	}, nil
 }
 

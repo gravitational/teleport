@@ -590,8 +590,9 @@ func TestAuthorizer_AuthorizeAdminAction(t *testing.T) {
 				}
 				encodedMFAResp, err := mfa.EncodeMFAChallengeResponseCredentials(mfaResp)
 				require.NoError(t, err)
-				md := metadata.MD{}
-				md.Append(mfa.MFAResponseToken, encodedMFAResp)
+				md := metadata.MD(map[string][]string{
+					mfa.ResponseMetadataKey: {encodedMFAResp},
+				})
 				ctx = metadata.NewIncomingContext(ctx, md)
 			}
 			userCtx := context.WithValue(ctx, contextUser, tt.user)
