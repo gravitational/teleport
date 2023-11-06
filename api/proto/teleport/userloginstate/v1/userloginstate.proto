@@ -40,4 +40,7 @@ message Spec {
 
   // user_type is the type of user this state represents.
   string user_type = 3;
+
+  // original_roles are the user roles that the user originally had prior to the user login state being generated.
+  repeated string original_roles = 4;
 }

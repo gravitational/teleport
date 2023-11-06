@@ -68,8 +68,8 @@ func TestGetUserLoginStates(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, getResp.UserLoginStates)
 
-	uls1 := newUserLoginState(t, "1", stRoles, stTraits)
-	uls2 := newUserLoginState(t, "2", stRoles, stTraits)
+	uls1 := newUserLoginState(t, "1", stRoles, stRoles, stTraits)
+	uls2 := newUserLoginState(t, "2", stRoles, stRoles, stTraits)
 
 	_, err = svc.UpsertUserLoginState(ctx, &userloginstatev1.UpsertUserLoginStateRequest{UserLoginState: conv.ToProto(uls1)})
 	require.NoError(t, err)
@@ -94,8 +94,8 @@ func TestUpsertUserLoginStates(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, getResp.UserLoginStates)
 
-	uls1 := newUserLoginState(t, "1", stRoles, stTraits)
-	uls2 := newUserLoginState(t, "2", stRoles, stTraits)
+	uls1 := newUserLoginState(t, "1", stRoles, stRoles, stTraits)
+	uls2 := newUserLoginState(t, "2", stRoles, stRoles, stTraits)
 
 	_, err = svc.UpsertUserLoginState(ctx, &userloginstatev1.UpsertUserLoginStateRequest{UserLoginState: conv.ToProto(uls1)})
 	require.NoError(t, err)
@@ -117,7 +117,7 @@ func TestGetUserLoginState(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, getResp.UserLoginStates)
 
-	uls1 := newUserLoginState(t, "1", stRoles, stTraits)
+	uls1 := newUserLoginState(t, "1", stRoles, stRoles, stTraits)
 
 	_, err = svc.UpsertUserLoginState(ctx, &userloginstatev1.UpsertUserLoginStateRequest{UserLoginState: conv.ToProto(uls1)})
 	require.NoError(t, err)
@@ -143,7 +143,7 @@ func TestDeleteUserLoginState(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, getResp.UserLoginStates)
 
-	uls1 := newUserLoginState(t, "1", stRoles, stTraits)
+	uls1 := newUserLoginState(t, "1", stRoles, stRoles, stTraits)
 
 	_, err = svc.UpsertUserLoginState(ctx, &userloginstatev1.UpsertUserLoginStateRequest{UserLoginState: conv.ToProto(uls1)})
 	require.NoError(t, err)
@@ -170,8 +170,8 @@ func TestDeleteAllAccessLists(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, getResp.UserLoginStates)
 
-	uls1 := newUserLoginState(t, "1", stRoles, stTraits)
-	uls2 := newUserLoginState(t, "2", stRoles, stTraits)
+	uls1 := newUserLoginState(t, "1", stRoles, stRoles, stTraits)
+	uls2 := newUserLoginState(t, "2", stRoles, stRoles, stTraits)
 
 	_, err = svc.UpsertUserLoginState(ctx, &userloginstatev1.UpsertUserLoginStateRequest{UserLoginState: conv.ToProto(uls1)})
 	require.NoError(t, err)
