@@ -19,6 +19,7 @@ export const ByobCta = () => {
           </Box>
         </Flex>
         <Flex alignItems="center">
+          {/* TODO: onclick */}
           <ButtonPrimary width="200px" mr="2">Manage Data Storage</ButtonPrimary>
           <ButtonSecondary width="170px">Learn More</ButtonSecondary>
         </Flex>
