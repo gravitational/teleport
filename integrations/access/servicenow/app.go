@@ -270,7 +270,7 @@ func (a *App) onPendingRequest(ctx context.Context, req types.AccessRequest) err
 		return nil
 	}
 
-	log.Infof("Creating servicenow incident for: %v", reqID)
+	log.Infof("Creating servicenow incident")
 	if err = a.createIncident(ctx, reqID, reqData); err != nil {
 		return trace.Wrap(err, "creating ServiceNow incident")
 	}
