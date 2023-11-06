@@ -3217,10 +3217,6 @@ func TestGetClusterDetails(t *testing.T) {
 	require.Equal(t, teleport.RemoteClusterStatusOnline, cluster.Status)
 	require.NotNil(t, cluster.LastConnected)
 	require.Equal(t, teleport.Version, cluster.AuthVersion)
-
-	nodes, err := s.proxyClient.GetNodes(s.ctx, apidefaults.Namespace)
-	require.NoError(t, err)
-	require.Len(t, nodes, cluster.NodeCount)
 }
 
 func TestTokenGeneration(t *testing.T) {

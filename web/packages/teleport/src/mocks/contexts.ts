@@ -89,7 +89,6 @@ export const baseContext = {
     name: 'aws',
     lastConnected: '2020-09-26T17:30:23.512876876Z',
     status: 'online',
-    nodeCount: 1,
     publicURL:
       'some-long-cluster-public-url-name.cloud.teleport.gravitational.io:1234',
     authVersion: '4.4.0-dev',
