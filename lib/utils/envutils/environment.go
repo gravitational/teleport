@@ -95,11 +95,13 @@ var unsafeEnvironmentVars = []string{
 	"DYLD_INSERT_LIBRARIES", "DYLD_LIBRARY_PATH",
 }
 
+// SafeEnv allows you to build a system environment while avoiding potentially dangerous environment conditions.
 type SafeEnv []string
 
 // Add will add the key and value to the environment if it's a safe value to forward on for fork / exec.
 func (e *SafeEnv) Add(k, v string) {
 	k = strings.TrimSpace(k)
+	v = strings.TrimSpace(v)
 	if k == "" || k == "=" {
 		return
 	}
@@ -130,7 +132,7 @@ valueLoop:
 	}
 }
 
-// AddExecEnvironment will add safe values from os.Environ, ignoring any duplicates that may have already been added.
+// AddExecEnvironment will add safe values from [os.Environ].
 func (e *SafeEnv) AddExecEnvironment() {
 	e.AddFull(os.Environ()...)
 }

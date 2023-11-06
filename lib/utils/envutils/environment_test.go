@@ -78,6 +78,12 @@ func TestSafeEnvAdd(t *testing.T) {
 			expected: []string{"one=v1", "two=v2"},
 		},
 		{
+			name:     "whitespace trim",
+			keys:     []string{" foo "},
+			values:   []string{" bar "},
+			expected: []string{"foo=bar"},
+		},
+		{
 			name:     "skip dangerous exact",
 			keys:     []string{"foo", "LD_PRELOAD"},
 			values:   []string{"bar", "ignored"},
@@ -128,6 +134,11 @@ func TestSafeEnvAddFull(t *testing.T) {
 			name:       "double add",
 			fullValues: []string{"one=v1", "two=v2"},
 			expected:   []string{"one=v1", "two=v2"},
+		},
+		{
+			name:       "whitespace trim",
+			fullValues: []string{" foo=bar "},
+			expected:   []string{"foo=bar"},
 		},
 		{
 			name:       "skip dangerous exact",
