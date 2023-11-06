@@ -229,7 +229,7 @@ exports[`support Cloud 1`] = `
         </div>
         <a
           class="c7"
-          href="https://goteleport.com/docs/getting-started?product=teleport&version=oss_4.4.0-dev"
+          href="https://goteleport.com/docs/ver/13.x/getting-started?product=teleport&version=oss_13.4.0-dev"
           rel="noreferrer"
           target="_blank"
         >
@@ -237,7 +237,7 @@ exports[`support Cloud 1`] = `
         </a>
         <a
           class="c7"
-          href="https://goteleport.com/docs/server-access/guides/tsh?product=teleport&version=oss_4.4.0-dev"
+          href="https://goteleport.com/docs/ver/13.x/server-access/guides/tsh?product=teleport&version=oss_13.4.0-dev"
           rel="noreferrer"
           target="_blank"
         >
@@ -245,7 +245,7 @@ exports[`support Cloud 1`] = `
         </a>
         <a
           class="c7"
-          href="https://goteleport.com/docs/setup/admin?product=teleport&version=oss_4.4.0-dev"
+          href="https://goteleport.com/docs/ver/13.x/setup/admin?product=teleport&version=oss_13.4.0-dev"
           rel="noreferrer"
           target="_blank"
         >
@@ -261,7 +261,7 @@ exports[`support Cloud 1`] = `
         </a>
         <a
           class="c7"
-          href="https://goteleport.com/docs/faq?product=teleport&version=oss_4.4.0-dev"
+          href="https://goteleport.com/ver/13.x/docs/faq?product=teleport&version=oss_13.4.0-dev"
           rel="noreferrer"
           target="_blank"
         >
@@ -297,7 +297,7 @@ exports[`support Cloud 1`] = `
         </div>
         <a
           class="c7"
-          href="https://goteleport.com/docs/setup/admin/troubleshooting?product=teleport&version=oss_4.4.0-dev"
+          href="https://goteleport.com/docs/ver/13.x/setup/admin/troubleshooting?product=teleport&version=oss_13.4.0-dev"
           rel="noreferrer"
           target="_blank"
         >
@@ -341,7 +341,7 @@ exports[`support Cloud 1`] = `
         </div>
         <a
           class="c7"
-          href="https://goteleport.com/docs/changelog?product=teleport&version=oss_4.4.0-dev"
+          href="https://goteleport.com/docs/changelog?product=teleport&version=oss_13.4.0-dev"
           rel="noreferrer"
           target="_blank"
         >
@@ -396,7 +396,7 @@ exports[`support Cloud 1`] = `
       <div
         class="c12"
       >
-        4.4.0-dev
+        13.4.0-dev
       </div>
     </div>
     <div
@@ -656,7 +656,7 @@ exports[`support Enterprise 1`] = `
         </div>
         <a
           class="c7"
-          href="https://goteleport.com/docs/getting-started?product=teleport&version=e_4.4.0-dev"
+          href="https://goteleport.com/docs/ver/13.x/getting-started?product=teleport&version=e_13.4.0-dev"
           rel="noreferrer"
           target="_blank"
         >
@@ -664,7 +664,7 @@ exports[`support Enterprise 1`] = `
         </a>
         <a
           class="c7"
-          href="https://goteleport.com/docs/server-access/guides/tsh?product=teleport&version=e_4.4.0-dev"
+          href="https://goteleport.com/docs/ver/13.x/server-access/guides/tsh?product=teleport&version=e_13.4.0-dev"
           rel="noreferrer"
           target="_blank"
         >
@@ -672,7 +672,7 @@ exports[`support Enterprise 1`] = `
         </a>
         <a
           class="c7"
-          href="https://goteleport.com/docs/setup/admin?product=teleport&version=e_4.4.0-dev"
+          href="https://goteleport.com/docs/ver/13.x/setup/admin?product=teleport&version=e_13.4.0-dev"
           rel="noreferrer"
           target="_blank"
         >
@@ -688,7 +688,7 @@ exports[`support Enterprise 1`] = `
         </a>
         <a
           class="c7"
-          href="https://goteleport.com/docs/faq?product=teleport&version=e_4.4.0-dev"
+          href="https://goteleport.com/ver/13.x/docs/faq?product=teleport&version=e_13.4.0-dev"
           rel="noreferrer"
           target="_blank"
         >
@@ -724,7 +724,7 @@ exports[`support Enterprise 1`] = `
         </div>
         <a
           class="c7"
-          href="https://goteleport.com/docs/setup/admin/troubleshooting?product=teleport&version=e_4.4.0-dev"
+          href="https://goteleport.com/docs/ver/13.x/setup/admin/troubleshooting?product=teleport&version=e_13.4.0-dev"
           rel="noreferrer"
           target="_blank"
         >
@@ -768,7 +768,7 @@ exports[`support Enterprise 1`] = `
         </div>
         <a
           class="c7"
-          href="https://goteleport.com/docs/changelog?product=teleport&version=e_4.4.0-dev"
+          href="https://goteleport.com/docs/changelog?product=teleport&version=e_13.4.0-dev"
           rel="noreferrer"
           target="_blank"
         >
@@ -823,7 +823,7 @@ exports[`support Enterprise 1`] = `
       <div
         class="c12"
       >
-        4.4.0-dev
+        13.4.0-dev
       </div>
     </div>
     <div
@@ -1164,7 +1164,7 @@ exports[`support Enterprise with CTA 1`] = `
         </div>
         <a
           class="c7"
-          href="https://goteleport.com/docs/getting-started?product=teleport&version=e_4.4.0-dev"
+          href="https://goteleport.com/docs/ver/13.x/getting-started?product=teleport&version=e_13.4.0-dev"
           rel="noreferrer"
           target="_blank"
         >
@@ -1172,7 +1172,7 @@ exports[`support Enterprise with CTA 1`] = `
         </a>
         <a
           class="c7"
-          href="https://goteleport.com/docs/server-access/guides/tsh?product=teleport&version=e_4.4.0-dev"
+          href="https://goteleport.com/docs/ver/13.x/server-access/guides/tsh?product=teleport&version=e_13.4.0-dev"
           rel="noreferrer"
           target="_blank"
         >
@@ -1180,7 +1180,7 @@ exports[`support Enterprise with CTA 1`] = `
         </a>
         <a
           class="c7"
-          href="https://goteleport.com/docs/setup/admin?product=teleport&version=e_4.4.0-dev"
+          href="https://goteleport.com/docs/ver/13.x/setup/admin?product=teleport&version=e_13.4.0-dev"
           rel="noreferrer"
           target="_blank"
         >
@@ -1196,7 +1196,7 @@ exports[`support Enterprise with CTA 1`] = `
         </a>
         <a
           class="c7"
-          href="https://goteleport.com/docs/faq?product=teleport&version=e_4.4.0-dev"
+          href="https://goteleport.com/ver/13.x/docs/faq?product=teleport&version=e_13.4.0-dev"
           rel="noreferrer"
           target="_blank"
         >
@@ -1232,7 +1232,7 @@ exports[`support Enterprise with CTA 1`] = `
         </div>
         <a
           class="c7"
-          href="https://goteleport.com/docs/setup/admin/troubleshooting?product=teleport&version=e_4.4.0-dev"
+          href="https://goteleport.com/docs/ver/13.x/setup/admin/troubleshooting?product=teleport&version=e_13.4.0-dev"
           rel="noreferrer"
           target="_blank"
         >
@@ -1276,7 +1276,7 @@ exports[`support Enterprise with CTA 1`] = `
         </div>
         <a
           class="c7"
-          href="https://goteleport.com/docs/changelog?product=teleport&version=e_4.4.0-dev"
+          href="https://goteleport.com/docs/changelog?product=teleport&version=e_13.4.0-dev"
           rel="noreferrer"
           target="_blank"
         >
@@ -1331,7 +1331,7 @@ exports[`support Enterprise with CTA 1`] = `
       <div
         class="c15"
       >
-        4.4.0-dev
+        13.4.0-dev
       </div>
     </div>
     <div
@@ -1583,7 +1583,7 @@ exports[`support OSS 1`] = `
         </div>
         <a
           class="c7"
-          href="https://goteleport.com/docs/getting-started?product=teleport&version=oss_4.4.0-dev"
+          href="https://goteleport.com/docs/ver/13.x/getting-started?product=teleport&version=oss_13.4.0-dev"
           rel="noreferrer"
           target="_blank"
         >
@@ -1591,7 +1591,7 @@ exports[`support OSS 1`] = `
         </a>
         <a
           class="c7"
-          href="https://goteleport.com/docs/server-access/guides/tsh?product=teleport&version=oss_4.4.0-dev"
+          href="https://goteleport.com/docs/ver/13.x/server-access/guides/tsh?product=teleport&version=oss_13.4.0-dev"
           rel="noreferrer"
           target="_blank"
         >
@@ -1599,7 +1599,7 @@ exports[`support OSS 1`] = `
         </a>
         <a
           class="c7"
-          href="https://goteleport.com/docs/setup/admin?product=teleport&version=oss_4.4.0-dev"
+          href="https://goteleport.com/docs/ver/13.x/setup/admin?product=teleport&version=oss_13.4.0-dev"
           rel="noreferrer"
           target="_blank"
         >
@@ -1615,7 +1615,7 @@ exports[`support OSS 1`] = `
         </a>
         <a
           class="c7"
-          href="https://goteleport.com/docs/faq?product=teleport&version=oss_4.4.0-dev"
+          href="https://goteleport.com/ver/13.x/docs/faq?product=teleport&version=oss_13.4.0-dev"
           rel="noreferrer"
           target="_blank"
         >
@@ -1651,7 +1651,7 @@ exports[`support OSS 1`] = `
         </div>
         <a
           class="c7"
-          href="https://goteleport.com/docs/setup/admin/troubleshooting?product=teleport&version=oss_4.4.0-dev"
+          href="https://goteleport.com/docs/ver/13.x/setup/admin/troubleshooting?product=teleport&version=oss_13.4.0-dev"
           rel="noreferrer"
           target="_blank"
         >
@@ -1695,7 +1695,7 @@ exports[`support OSS 1`] = `
         </div>
         <a
           class="c7"
-          href="https://goteleport.com/docs/changelog?product=teleport&version=oss_4.4.0-dev"
+          href="https://goteleport.com/docs/changelog?product=teleport&version=oss_13.4.0-dev"
           rel="noreferrer"
           target="_blank"
         >
@@ -1750,7 +1750,7 @@ exports[`support OSS 1`] = `
       <div
         class="c12"
       >
-        4.4.0-dev
+        13.4.0-dev
       </div>
     </div>
     <div
@@ -2091,7 +2091,7 @@ exports[`support OSSWithCTA 1`] = `
         </div>
         <a
           class="c7"
-          href="https://goteleport.com/docs/getting-started?product=teleport&version=oss_4.4.0-dev"
+          href="https://goteleport.com/docs/ver/13.x/getting-started?product=teleport&version=oss_13.4.0-dev"
           rel="noreferrer"
           target="_blank"
         >
@@ -2099,7 +2099,7 @@ exports[`support OSSWithCTA 1`] = `
         </a>
         <a
           class="c7"
-          href="https://goteleport.com/docs/server-access/guides/tsh?product=teleport&version=oss_4.4.0-dev"
+          href="https://goteleport.com/docs/ver/13.x/server-access/guides/tsh?product=teleport&version=oss_13.4.0-dev"
           rel="noreferrer"
           target="_blank"
         >
@@ -2107,7 +2107,7 @@ exports[`support OSSWithCTA 1`] = `
         </a>
         <a
           class="c7"
-          href="https://goteleport.com/docs/setup/admin?product=teleport&version=oss_4.4.0-dev"
+          href="https://goteleport.com/docs/ver/13.x/setup/admin?product=teleport&version=oss_13.4.0-dev"
           rel="noreferrer"
           target="_blank"
         >
@@ -2123,7 +2123,7 @@ exports[`support OSSWithCTA 1`] = `
         </a>
         <a
           class="c7"
-          href="https://goteleport.com/docs/faq?product=teleport&version=oss_4.4.0-dev"
+          href="https://goteleport.com/ver/13.x/docs/faq?product=teleport&version=oss_13.4.0-dev"
           rel="noreferrer"
           target="_blank"
         >
@@ -2159,7 +2159,7 @@ exports[`support OSSWithCTA 1`] = `
         </div>
         <a
           class="c7"
-          href="https://goteleport.com/docs/setup/admin/troubleshooting?product=teleport&version=oss_4.4.0-dev"
+          href="https://goteleport.com/docs/ver/13.x/setup/admin/troubleshooting?product=teleport&version=oss_13.4.0-dev"
           rel="noreferrer"
           target="_blank"
         >
@@ -2203,7 +2203,7 @@ exports[`support OSSWithCTA 1`] = `
         </div>
         <a
           class="c7"
-          href="https://goteleport.com/docs/changelog?product=teleport&version=oss_4.4.0-dev"
+          href="https://goteleport.com/docs/changelog?product=teleport&version=oss_13.4.0-dev"
           rel="noreferrer"
           target="_blank"
         >
@@ -2258,7 +2258,7 @@ exports[`support OSSWithCTA 1`] = `
       <div
         class="c15"
       >
-        4.4.0-dev
+        13.4.0-dev
       </div>
     </div>
     <div

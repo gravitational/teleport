@@ -168,15 +168,23 @@ const getDocUrls = (version = '', isEnterprise: boolean) => {
   const withUTM = (url = '', anchorHash = '') =>
     `${url}?product=teleport&version=${verPrefix}_${version}${anchorHash}`;
 
+  let docVer = ''
+  if (version && version.length > 0) {
+    const major = version.split('.')[0];
+    docVer = `/ver/${major}.x`
+  }
+
   return {
-    quickstart: withUTM('https://goteleport.com/docs/getting-started'),
-    userManual: withUTM('https://goteleport.com/docs/server-access/guides/tsh'),
-    adminGuide: withUTM('https://goteleport.com/docs/setup/admin'),
-    changeLog: withUTM('https://goteleport.com/docs/changelog'),
+    quickstart: withUTM(`https://goteleport.com/docs${docVer}/getting-started`),
+    userManual: withUTM(`https://goteleport.com/docs${docVer}/server-access/guides/tsh`),
+    adminGuide: withUTM(`https://goteleport.com/docs${docVer}/setup/admin`),
+    faq: withUTM(`https://goteleport.com${docVer}/docs/faq`),
     troubleshooting: withUTM(
-      'https://goteleport.com/docs/setup/admin/troubleshooting'
+      `https://goteleport.com/docs${docVer}/setup/admin/troubleshooting`
     ),
-    faq: withUTM('https://goteleport.com/docs/faq'),
+
+    // there isn't a version-specific changelog page
+    changeLog: withUTM('https://goteleport.com/docs/changelog'),
   };
 };
 
