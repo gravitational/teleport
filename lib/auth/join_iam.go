@@ -354,7 +354,7 @@ func (a *Server) RegisterUsingIAMMethod(ctx context.Context, challengeResponse c
 		opt(cfg)
 	}
 
-	clientAddr, err := authz.ClientAddrFromContext(ctx)
+	clientAddr, err := authz.ClientSrcAddrFromContext(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -109,26 +109,34 @@ function ClusterResources({
   const { fetch, resources, attempt, clear } = useUnifiedResourcesFetch({
     fetchFunc: useCallback(
       async (paginationParams, signal) => {
-        const response = await teleCtx.resourceService.fetchUnifiedResources(
-          clusterId,
-          {
-            search: params.search,
-            query: params.query,
-            pinnedOnly: params.pinnedOnly,
-            sort: params.sort,
-            kinds: params.kinds,
-            searchAsRoles: '',
-            limit: paginationParams.limit,
-            startKey: paginationParams.startKey,
-          },
-          signal
-        );
+        try {
+          const response = await teleCtx.resourceService.fetchUnifiedResources(
+            clusterId,
+            {
+              search: params.search,
+              query: params.query,
+              pinnedOnly: params.pinnedOnly,
+              sort: params.sort,
+              kinds: params.kinds,
+              searchAsRoles: '',
+              limit: paginationParams.limit,
+              startKey: paginationParams.startKey,
+            },
+            signal
+          );
 
-        return {
-          startKey: response.startKey,
-          agents: response.agents,
-          totalCount: response.agents.length,
-        };
+          return {
+            startKey: response.startKey,
+            agents: response.agents,
+            totalCount: response.agents.length,
+          };
+        } catch (err) {
+          if (!localStorage.areUnifiedResourcesEnabled()) {
+            history.replace(cfg.getNodesRoute(clusterId));
+          } else {
+            throw err;
+          }
+        }
       },
       [
         clusterId,
@@ -178,7 +186,35 @@ function ClusterResources({
           'kube_cluster',
           'node',
         ]}
-        Header={pinAllButton => (
+        pinning={pinning}
+        onLabelClick={onLabelClick}
+        NoResources={
+          <Empty
+            clusterId={clusterId}
+            canCreate={canCreate && !isLeafCluster}
+            emptyStateInfo={emptyStateInfo}
+          />
+        }
+        resources={resources.map(resource => ({
+          resource,
+          ui: {
+            ActionButton: <ResourceActionButton resource={resource} />,
+          },
+        }))}
+        setParams={newParams => {
+          setParams(newParams);
+          replaceHistory(
+            encodeUrlQueryParams(
+              pathname,
+              newParams.search,
+              newParams.sort,
+              newParams.kinds,
+              !!newParams.query /* isAdvancedSearch */,
+              newParams.pinnedOnly
+            )
+          );
+        }}
+        Header={
           <>
             <FeatureHeader
               css={`
@@ -205,38 +241,9 @@ function ClusterResources({
                 replaceHistory={replaceHistory}
                 setParams={setParams}
               />
-              {pinAllButton}
             </Flex>
           </>
-        )}
-        setParams={newParams => {
-          setParams(newParams);
-          replaceHistory(
-            encodeUrlQueryParams(
-              pathname,
-              newParams.search,
-              newParams.sort,
-              newParams.kinds,
-              !!newParams.query /* isAdvancedSearch */,
-              newParams.pinnedOnly
-            )
-          );
-        }}
-        pinning={pinning}
-        onLabelClick={onLabelClick}
-        NoResources={
-          <Empty
-            clusterId={clusterId}
-            canCreate={canCreate && !isLeafCluster}
-            emptyStateInfo={emptyStateInfo}
-          />
         }
-        resources={resources.map(resource => ({
-          resource,
-          ui: {
-            ActionButton: <ResourceActionButton resource={resource} />,
-          },
-        }))}
       />
     </FeatureBox>
   );

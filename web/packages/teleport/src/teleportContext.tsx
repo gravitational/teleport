@@ -60,6 +60,7 @@ class TeleportContext implements types.Context {
   isEnterprise = cfg.isEnterprise;
   isCloud = cfg.isCloud;
   automaticUpgradesEnabled = cfg.automaticUpgrades;
+  automaticUpgradesTargetVersion = cfg.automaticUpgradesTargetVersion;
   assistEnabled = cfg.assistEnabled;
   agentService = agentService;
 
