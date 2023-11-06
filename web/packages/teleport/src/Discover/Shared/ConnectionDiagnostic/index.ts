@@ -14,5 +14,5 @@
  * limitations under the License.
  */
 
-export { ConnectionDiagnosticResult } from './ConnectionDiagnosticResult';
+export { ConnectionDiagnosticResult, ErrorWithDetails } from './ConnectionDiagnosticResult';
 export { useConnectionDiagnostic } from './useConnectionDiagnostic';
