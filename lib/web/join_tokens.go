@@ -435,7 +435,7 @@ func getJoinScript(ctx context.Context, settings scriptSettings, m nodeAPIGetter
 func validateJoinToken(token string) error {
 	decodedToken, err := hex.DecodeString(token)
 	if err != nil {
-		return trace.Wrap(err)
+		return trace.BadParameter("invalid token %q", token)
 	}
 	if len(decodedToken) != auth.TokenLenBytes {
 		return trace.BadParameter("invalid token %q", decodedToken)
