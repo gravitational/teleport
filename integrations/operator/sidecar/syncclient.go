@@ -37,10 +37,10 @@ import (
 // RLock() / RUnlock() on the SyncClient.
 type ClientAccessor func(ctx context.Context) (*SyncClient, func(), error)
 
-// SyncClient is a wrapper around client.Client that embeds an RWMutex to
+// SyncClient is a wrapper around client.Client that embeds a WaitGroup to
 // keep track of client usage and know when/if we can call client.Close().
 type SyncClient struct {
-	lock *sync.RWMutex
+	useCounter *sync.WaitGroup
 	*client.Client
 }
 
@@ -52,8 +52,7 @@ func (tc *SyncClient) RetireClient() {
 		return
 	}
 	log.Debug("Waiting for client users to exit")
-	tc.lock.Lock()
-	defer tc.lock.Unlock()
+	tc.useCounter.Wait()
 
 	log.Debug("Closing teleport client")
 	err := tc.Close()
@@ -62,17 +61,20 @@ func (tc *SyncClient) RetireClient() {
 	}
 }
 
+// LockClient registers that the caller is using the client and
+// prevents client deletion. It returns a function that must be called to
+// release the client once the reconciliation is done.
 func (tc *SyncClient) LockClient() func() {
-	tc.lock.RLock()
+	tc.useCounter.Add(1)
 	return func() {
-		tc.lock.RUnlock()
+		tc.useCounter.Done()
 	}
 }
 
 // NewSyncClient wraps an existing client.Client into a SyncClient.
 func NewSyncClient(teleportClient *client.Client) *SyncClient {
 	return &SyncClient{
-		lock:   &sync.RWMutex{},
-		Client: teleportClient,
+		useCounter: &sync.WaitGroup{},
+		Client:     teleportClient,
 	}
 }
