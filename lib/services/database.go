@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/netip"
 	"net/url"
 	"strings"
 
@@ -176,6 +177,10 @@ func ValidateDatabase(db types.Database) error {
 		if err := validateClickhouseURI(db); err != nil {
 			return trace.Wrap(err)
 		}
+	} else if db.GetProtocol() == defaults.ProtocolSQLServer {
+		if err := ValidateSQLServerURI(db.GetURI()); err != nil {
+			return trace.BadParameter("invalid SQL Server address: %v", err)
+		}
 	} else if needsURIValidation(db) {
 		if _, _, err := net.SplitHostPort(db.GetURI()); err != nil {
 			return trace.BadParameter("invalid database %q address %q: %v", db.GetName(), db.GetURI(), err)
@@ -307,6 +312,51 @@ func validateMongoDB(db types.Database) error {
 			return trace.BadParameter("invalid MongoDB database %q read preference %q", db.GetName(), connString.ReadPreference)
 		}
 	}
+	return nil
+}
+
+// ValidateSQLServerURI validates SQL Server URI and returns host and
+// port.
+//
+// Since Teleport only supports SQL Server authentcation using AD (self-hosted
+// or Azure) the database URI must include: computer name, domain and port.
+//
+// A few examples of valid URIs:
+// - computer.ad.example.com:1433
+// - computer.domain.com:1433
+func ValidateSQLServerURI(uri string) error {
+	// Add a temporary schema to make a valid URL for url.Parse if schema is
+	// not found.
+	if !strings.Contains(uri, "://") {
+		uri = sqlServerSchema + "://" + uri
+	}
+
+	parsedURI, err := url.Parse(uri)
+	if err != nil {
+		return trace.BadParameter("unabled to parse database address: %s", err)
+	}
+
+	if parsedURI.Scheme != sqlServerSchema {
+		return trace.BadParameter("only %q is supported as database address schema", sqlServerSchema)
+	}
+
+	if parsedURI.Port() == "" {
+		return trace.BadParameter("database address must include port")
+	}
+
+	if parsedURI.Path != "" {
+		return trace.BadParameter("database address with database name is not supported")
+	}
+
+	if _, err := netip.ParseAddr(parsedURI.Hostname()); err == nil {
+		return trace.BadParameter("database address as IP is not supported, use URI with domain and computer name instead")
+	}
+
+	parts := strings.Split(parsedURI.Hostname(), ".")
+	if len(parts) < 3 {
+		return trace.BadParameter("database address must include domain and computer name")
+	}
+
 	return nil
 }
 
@@ -2009,4 +2059,6 @@ const (
 const (
 	// azureSQLServerDefaultPort is the default port for Azure SQL Server.
 	azureSQLServerDefaultPort = 1433
+	// sqlServerSchema is the SQL Server schema.
+	sqlServerSchema = "mssql"
 )

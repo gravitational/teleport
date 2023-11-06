@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/url"
 
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
@@ -35,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/services"
 	dbiam "github.com/gravitational/teleport/lib/srv/db/common/iam"
 	"github.com/gravitational/teleport/lib/web/scripts"
 	"github.com/gravitational/teleport/lib/web/ui"
@@ -300,13 +302,12 @@ func (h *Handler) sqlServerConfigureADScriptHandle(w http.ResponseWriter, r *htt
 	}
 
 	dbAddress := r.URL.Query().Get("uri")
-	if _, _, err := net.SplitHostPort(dbAddress); err != nil {
+	if err := services.ValidateSQLServerURI(dbAddress); err != nil {
 		return "", trace.BadParameter("invalid database address: %v", err)
 	}
 
 	// verify that the token exists
-	_, err := h.GetProxyClient().GetToken(r.Context(), tokenStr)
-	if err != nil {
+	if _, err := h.GetProxyClient().GetToken(r.Context(), tokenStr); err != nil {
 		return "", trace.BadParameter("invalid token")
 	}
 
@@ -348,6 +349,12 @@ func (h *Handler) sqlServerConfigureADScriptHandle(w http.ResponseWriter, r *htt
 		return nil, trace.BadParameter("no PEM data in CA data")
 	}
 
+	// Split host and port so we can escape domain characters.
+	dbHost, dbPort, err := net.SplitHostPort(dbAddress)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	httplib.SetScriptHeaders(w.Header())
 	w.WriteHeader(http.StatusOK)
 	err = scripts.DatabaseAccessSQLServerConfigureScript.Execute(w, scripts.DatabaseAccessSQLServerConfigureParams{
@@ -357,7 +364,7 @@ func (h *Handler) sqlServerConfigureADScriptHandle(w http.ResponseWriter, r *htt
 		CRLPEM:          string(encodeCRLPEM(caCRL)),
 		ProxyPublicAddr: proxyServers[0].GetPublicAddr(),
 		ProvisionToken:  tokenStr,
-		DBAddress:       dbAddress,
+		DBAddress:       net.JoinHostPort(url.QueryEscape(dbHost), dbPort),
 	})
 
 	return nil, trace.Wrap(err)

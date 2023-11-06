@@ -483,6 +483,28 @@ func TestValidateDatabase(t *testing.T) {
 	}
 }
 
+func TestValidateSQLServerDatabaseURI(t *testing.T) {
+	for _, test := range []struct {
+		uri       string
+		assertErr require.ErrorAssertionFunc
+	}{
+		{"mssql://computer.domain.com:1433", require.NoError},
+		{"computer.domain.com:1433", require.NoError},
+		{"computer.ad.domain.com:1433", require.NoError},
+		{"computer.ad.domain.com:1433/hello", require.Error},
+		{"mssql://computer.domain.com:1433/hello", require.Error},
+		{"computer.domain.com", require.Error},
+		{"computer.com:1433", require.Error},
+		{"0.0.0.0:1433", require.Error},
+		{"mssql://", require.Error},
+		{"http://computer.domain.com:1433", require.Error},
+	} {
+		t.Run(test.uri, func(t *testing.T) {
+			test.assertErr(t, ValidateSQLServerURI(test.uri))
+		})
+	}
+}
+
 // indent returns the string where each line is indented by the specified
 // number of spaces.
 func indent(s string, spaces int) string {

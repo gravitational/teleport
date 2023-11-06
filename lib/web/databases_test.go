@@ -19,8 +19,10 @@ package web
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/url"
+	"regexp"
 	"testing"
 	"time"
 
@@ -443,6 +445,36 @@ func TestHandleSQLServerConfigureScript(t *testing.T) {
 			assertError: require.Error,
 		},
 		{
+			desc: "invalid line break character token and invalid uri",
+			uri:  "computer.domain\n.com:1433",
+			tokenFunc: func(t *testing.T) string {
+				pt, token := generateProvisionToken(t, types.RoleDatabase, env.clock.Now().Add(time.Hour))
+				require.NoError(t, env.server.Auth().CreateToken(ctx, pt))
+				return token
+			},
+			assertError: require.Error,
+		},
+		{
+			desc: "invalid character ` token and invalid uri",
+			uri:  "computer.domain`.com:1433",
+			tokenFunc: func(t *testing.T) string {
+				pt, token := generateProvisionToken(t, types.RoleDatabase, env.clock.Now().Add(time.Hour))
+				require.NoError(t, env.server.Auth().CreateToken(ctx, pt))
+				return token
+			},
+			assertError: require.Error,
+		},
+		{
+			desc: "invalid character | token and invalid uri",
+			uri:  "computer.domain|.com:1433",
+			tokenFunc: func(t *testing.T) string {
+				pt, token := generateProvisionToken(t, types.RoleDatabase, env.clock.Now().Add(time.Hour))
+				require.NoError(t, env.server.Auth().CreateToken(ctx, pt))
+				return token
+			},
+			assertError: require.Error,
+		},
+		{
 			desc:        "invalid token",
 			uri:         "instance.example.teleport.dev:1433",
 			tokenFunc:   func(_ *testing.T) string { return "random-token" },
@@ -456,6 +488,35 @@ func TestHandleSQLServerConfigureScript(t *testing.T) {
 				url.Values{"uri": []string{tc.uri}},
 			)
 			tc.assertError(t, err)
+		})
+	}
+
+}
+
+// TestHandleSQLServerConfigureScriptDatabaseURIEscaped given a SQL Server
+// database URI, ensures that special characters are escaped when placed on the
+// PowerShell script.
+func TestHandleSQLServerConfigureScriptDatabaseURIEscaped(t *testing.T) {
+	ctx := context.Background()
+	env := newWebPack(t, 1)
+	proxy := env.proxies[0]
+	pack := proxy.authPack(t, "user", nil /* roles */)
+	pt, token := generateProvisionToken(t, types.RoleDatabase, env.clock.Now().Add(time.Hour))
+	require.NoError(t, env.server.Auth().CreateToken(ctx, pt))
+	re := regexp.MustCompile(`\$DB_ADDRESS\s*=\s*'([^']+)'`)
+
+	for _, c := range []string{";", "\"", "'", "&", "$", "(", ")"} {
+		t.Run(c, func(t *testing.T) {
+			uri := fmt.Sprintf("database.ad%s.com:1433", c)
+			resp, err := pack.clt.Get(
+				ctx,
+				pack.clt.Endpoint("webapi/scripts/databases/configure/sqlserver", token, "configure-ad.ps1"),
+				url.Values{"uri": []string{uri}},
+			)
+			require.NoError(t, err)
+			escapedURIResult := re.FindStringSubmatch(string(resp.Bytes()))
+			require.Len(t, escapedURIResult, 2)
+			require.NotEqual(t, uri, escapedURIResult[1])
 		})
 	}
 }
