@@ -24,6 +24,11 @@
           "title": "FAQ",
           "slug": "/faq/"
         },
+	{
+	  "title": "Usage Reporting and Billing",
+	  "slug": "/usage-billing/",
+	  "forScopes": ["cloud", "team", "enterprise"]
+	},
         {
           "title": "Changelog",
           "slug": "/changelog/"
