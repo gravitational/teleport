@@ -171,6 +171,9 @@ func (r *RoleReconciler) Upsert(ctx context.Context, obj kclient.Object) error {
 		}
 	}
 
+	if existingResource != nil {
+		teleportResource.SetRevision(existingResource.GetRevision())
+	}
 	r.AddTeleportResourceOrigin(teleportResource)
 
 	// If an error happens we want to put it in status.conditions before returning.
