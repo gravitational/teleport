@@ -16,6 +16,7 @@
 
 import React from 'react';
 import { render } from 'design/utils/testing';
+import { UserAgent } from 'design/platform';
 
 import { mockUserContextProviderWith } from 'teleport/User/testHelpers/mockUserContextWith';
 import { makeTestUserContext } from 'teleport/User/testHelpers/makeTestUserContext';
@@ -26,6 +27,13 @@ import {
   PartialAccess,
   InitRouteEntryServer,
 } from './SelectResource.story';
+
+beforeEach(() => {
+  jest.restoreAllMocks();
+  jest
+    .spyOn(window.navigator, 'userAgent', 'get')
+    .mockReturnValue(UserAgent.macOS);
+});
 
 test('render with all access', async () => {
   mockUserContextProviderWith(makeTestUserContext());

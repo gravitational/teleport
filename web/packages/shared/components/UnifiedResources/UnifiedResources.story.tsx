@@ -16,7 +16,7 @@
 
 import React from 'react';
 
-import { ButtonBorder, Flex } from 'design';
+import { ButtonBorder } from 'design';
 
 import { apps } from 'teleport/Apps/fixtures';
 import { databases } from 'teleport/Databases/fixtures';
@@ -88,11 +88,6 @@ const story = ({
           'kube_cluster',
           'windows_desktop',
         ]}
-        Header={pinAllButton => (
-          <Flex justifyContent="end" height="50px">
-            {pinAllButton}
-          </Flex>
-        )}
         params={params}
         setParams={() => undefined}
         pinning={pinning}

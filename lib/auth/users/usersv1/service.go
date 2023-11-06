@@ -147,7 +147,7 @@ func (s *Service) getCurrentUser(ctx context.Context, authCtx *authz.Context) (*
 	return v2, nil
 }
 
-func (s *Service) GetUser(ctx context.Context, req *userspb.GetUserRequest) (*types.UserV2, error) {
+func (s *Service) GetUser(ctx context.Context, req *userspb.GetUserRequest) (*userspb.GetUserResponse, error) {
 	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -155,7 +155,7 @@ func (s *Service) GetUser(ctx context.Context, req *userspb.GetUserRequest) (*ty
 
 	if req.Name == "" && req.CurrentUser {
 		user, err := s.getCurrentUser(ctx, authCtx)
-		return user, trace.Wrap(err)
+		return &userspb.GetUserResponse{User: user}, trace.Wrap(err)
 	}
 
 	if req.WithSecrets {
@@ -202,10 +202,10 @@ func (s *Service) GetUser(ctx context.Context, req *userspb.GetUserRequest) (*ty
 		return nil, trace.BadParameter("encountered unexpected user type")
 	}
 
-	return v2, nil
+	return &userspb.GetUserResponse{User: v2}, nil
 }
 
-func (s *Service) CreateUser(ctx context.Context, req *userspb.CreateUserRequest) (*types.UserV2, error) {
+func (s *Service) CreateUser(ctx context.Context, req *userspb.CreateUserRequest) (*userspb.CreateUserResponse, error) {
 	if _, err := authz.AuthorizeWithVerbs(ctx, s.logger, s.authorizer, true, types.KindUser, types.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -251,10 +251,10 @@ func (s *Service) CreateUser(ctx context.Context, req *userspb.CreateUserRequest
 		return nil, trace.BadParameter("encountered unexpected user type")
 	}
 
-	return v2, nil
+	return &userspb.CreateUserResponse{User: v2}, nil
 }
 
-func (s *Service) UpdateUser(ctx context.Context, req *userspb.UpdateUserRequest) (*types.UserV2, error) {
+func (s *Service) UpdateUser(ctx context.Context, req *userspb.UpdateUserRequest) (*userspb.UpdateUserResponse, error) {
 	if _, err := authz.AuthorizeWithVerbs(ctx, s.logger, s.authorizer, true, types.KindUser, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -303,10 +303,10 @@ func (s *Service) UpdateUser(ctx context.Context, req *userspb.UpdateUserRequest
 		return nil, trace.BadParameter("encountered unexpected user type")
 	}
 
-	return v2, nil
+	return &userspb.UpdateUserResponse{User: v2}, nil
 }
 
-func (s *Service) UpsertUser(ctx context.Context, req *userspb.UpsertUserRequest) (*types.UserV2, error) {
+func (s *Service) UpsertUser(ctx context.Context, req *userspb.UpsertUserRequest) (*userspb.UpsertUserResponse, error) {
 	authzCtx, err := authz.AuthorizeWithVerbs(ctx, s.logger, s.authorizer, true, types.KindUser, types.VerbCreate, types.VerbUpdate)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -362,7 +362,7 @@ func (s *Service) UpsertUser(ctx context.Context, req *userspb.UpsertUserRequest
 		return nil, trace.BadParameter("encountered unexpected user type")
 	}
 
-	return v2, nil
+	return &userspb.UpsertUserResponse{User: v2}, nil
 }
 
 func (s *Service) DeleteUser(ctx context.Context, req *userspb.DeleteUserRequest) (*emptypb.Empty, error) {
