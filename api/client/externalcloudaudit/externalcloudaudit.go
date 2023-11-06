@@ -30,10 +30,29 @@ type Client struct {
 	grpcClient externalcloudauditv1.ExternalCloudAuditServiceClient
 }
 
+// NewClient creates a new ExternalCloudAudit client.
 func NewClient(grpcClient externalcloudauditv1.ExternalCloudAuditServiceClient) *Client {
 	return &Client{
 		grpcClient: grpcClient,
 	}
+}
+
+// TestDraftExternalCloudAuditBuckets tests the connection to the current draft buckets.
+func (c *Client) TestDraftExternalCloudAuditBuckets(ctx context.Context) error {
+	_, err := c.grpcClient.TestDraftExternalCloudAuditBuckets(ctx, &externalcloudauditv1.TestDraftExternalCloudAuditBucketsRequest{})
+	return trace.Wrap(err)
+}
+
+// TestDraftExternalCloudAuditGlue tests the configuration to the current draft glue table and database.
+func (c *Client) TestDraftExternalCloudAuditGlue(ctx context.Context) error {
+	_, err := c.grpcClient.TestDraftExternalCloudAuditGlue(ctx, &externalcloudauditv1.TestDraftExternalCloudAuditGlueRequest{})
+	return trace.Wrap(err)
+}
+
+// TestDraftExternalCloudAuditAthena tests the configuration to the current draft athena.
+func (c *Client) TestDraftExternalCloudAuditAthena(ctx context.Context) error {
+	_, err := c.grpcClient.TestDraftExternalCloudAuditAthena(ctx, &externalcloudauditv1.TestDraftExternalCloudAuditAthenaRequest{})
+	return trace.Wrap(err)
 }
 
 // GetDraftExternalCloudAudit returns the draft external cloud audit configuration resource.
