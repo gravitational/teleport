@@ -25,7 +25,7 @@ export interface Node {
   labels: ResourceLabel[];
   addr: string;
   tunnel: boolean;
-  subKind?: string;
+  subKind: string;
   sshLogins: string[];
   awsMetadata?: AwsMetadata;
 }
