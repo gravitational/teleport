@@ -119,14 +119,17 @@ func (g *Generator) Generate(ctx context.Context, user types.User) (*userloginst
 			traits[k] = utils.CopyStrings(v)
 		}
 	}
+
 	// Create a new empty user login state.
 	uls, err := userloginstate.New(
 		header.Metadata{
 			Name: user.GetName(),
 		}, userloginstate.Spec{
-			Roles:    utils.CopyStrings(user.GetRoles()),
-			Traits:   traits,
-			UserType: user.GetUserType(),
+			// Original roles should be non-nil so that we can detect if it exists or not.
+			OriginalRoles: append([]string{}, user.GetRoles()...),
+			Roles:         utils.CopyStrings(user.GetRoles()),
+			Traits:        traits,
+			UserType:      user.GetUserType(),
 		})
 	if err != nil {
 		return nil, trace.Wrap(err)
