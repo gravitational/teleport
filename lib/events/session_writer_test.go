@@ -61,7 +61,7 @@ func TestSessionWriter(t *testing.T) {
 		select {
 		case event := <-test.eventsCh:
 			require.Equal(t, string(test.sid), event.SessionID)
-			require.Nil(t, event.Error)
+			require.NoError(t, event.Error)
 		case <-test.ctx.Done():
 			t.Fatalf("Timeout waiting for async upload, try `go test -v` to get more logs for details")
 		}
@@ -75,7 +75,7 @@ func TestSessionWriter(t *testing.T) {
 		for _, part := range parts {
 			reader := events.NewProtoReader(bytes.NewReader(part))
 			out, err := reader.ReadAll(test.ctx)
-			require.Nil(t, err, "part crash %#v", part)
+			require.NoError(t, err, "part crash %#v", part)
 			outEvents = append(outEvents, out...)
 		}
 
@@ -256,7 +256,7 @@ func TestSessionWriter(t *testing.T) {
 		}
 		elapsedTime := time.Since(start)
 		log.Debugf("Emitted all events in %v.", elapsedTime)
-		require.True(t, elapsedTime < time.Second)
+		require.Less(t, elapsedTime, time.Second)
 		hangCancel()
 		err := test.writer.Complete(test.ctx)
 		require.NoError(t, err)
@@ -292,7 +292,7 @@ func TestSessionWriter(t *testing.T) {
 		test.Close(context.Background())
 		require.Equal(t, len(inEvents), len(emittedEvents))
 		for _, event := range emittedEvents {
-			require.Equal(t, event.GetClusterName(), "cluster")
+			require.Equal(t, "cluster", event.GetClusterName())
 		}
 	})
 
@@ -406,7 +406,7 @@ func (a *sessionWriterTest) collectEvents(t *testing.T) []apievents.AuditEvent {
 	case event := <-a.eventsCh:
 		log.Debugf("Got status update, upload %v in %v.", event.UploadID, time.Since(start))
 		require.Equal(t, string(a.sid), event.SessionID)
-		require.Nil(t, event.Error)
+		require.NoError(t, event.Error)
 		uploadID = event.UploadID
 	case <-a.ctx.Done():
 		t.Fatalf("Timeout waiting for async upload, try `go test -v` to get more logs for details")
@@ -421,7 +421,7 @@ func (a *sessionWriterTest) collectEvents(t *testing.T) []apievents.AuditEvent {
 	}
 	reader := events.NewProtoReader(io.MultiReader(readers...))
 	outEvents, err := reader.ReadAll(a.ctx)
-	require.Nil(t, err, "failed to read")
+	require.NoError(t, err, "failed to read")
 	log.WithFields(reader.GetStats().ToFields()).Debugf("Reader stats.")
 
 	return outEvents

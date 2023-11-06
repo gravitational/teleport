@@ -44,7 +44,7 @@ func TestStreams(t *testing.T) {
 		Path:   "/test/",
 		Bucket: fmt.Sprintf("teleport-unit-tests"),
 	})
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	defer handler.Close()
 
@@ -73,7 +73,7 @@ func TestACL(t *testing.T) {
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
 			url, err := url.Parse(fmt.Sprintf("%s?acl=%s", baseUrl, tc.acl))
-			require.Nil(t, err)
+			require.NoError(t, err)
 			conf := Config{}
 			err = conf.SetFromURL(url, "")
 			if tc.isError {

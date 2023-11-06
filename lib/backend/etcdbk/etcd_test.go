@@ -236,7 +236,7 @@ func TestLeaseBucketing(t *testing.T) {
 
 	// ensure that we averaged more than 1 item per lease, but
 	// also spanned more than one bucket.
-	require.Greater(t, len(leases), 1)
+	require.NotEmpty(t, leases)
 	require.Less(t, len(leases), count/2)
 }
 

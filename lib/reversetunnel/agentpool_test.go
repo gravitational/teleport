@@ -140,7 +140,7 @@ func TestAgentPoolConnectionCount(t *testing.T) {
 	}, time.Second*5, time.Millisecond*10, "wait for agent pool")
 
 	require.Nil(t, pool.tracker.TryAcquire())
-	require.Equal(t, pool.Count(), 1)
+	require.Equal(t, 1, pool.Count())
 
 	pool, client = setupTestAgentPool(t)
 	client.mockGetClusterNetworkingConfig = func(ctx context.Context) (types.ClusterNetworkingConfig, error) {
@@ -161,5 +161,5 @@ func TestAgentPoolConnectionCount(t *testing.T) {
 	}, time.Second*5, time.Millisecond*10)
 
 	require.Nil(t, pool.tracker.TryAcquire())
-	require.Equal(t, pool.Count(), 3)
+	require.Equal(t, 3, pool.Count())
 }

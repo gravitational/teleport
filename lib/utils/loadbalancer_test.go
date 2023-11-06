@@ -48,7 +48,7 @@ func TestSingleBackendLB(t *testing.T) {
 
 	out, err := Roundtrip(lb.Addr().String())
 	require.NoError(t, err)
-	require.Equal(t, out, "backend 1")
+	require.Equal(t, "backend 1", out)
 }
 
 func TestTwoBackendsLB(t *testing.T) {
@@ -76,17 +76,17 @@ func TestTwoBackendsLB(t *testing.T) {
 
 	// no endpoints
 	_, err = Roundtrip(lb.Addr().String())
-	require.NotNil(t, err)
+	require.Error(t, err)
 
 	lb.AddBackend(backend1Addr)
 	out, err := Roundtrip(lb.Addr().String())
 	require.NoError(t, err)
-	require.Equal(t, out, "backend 1")
+	require.Equal(t, "backend 1", out)
 
 	lb.AddBackend(backend2Addr)
 	out, err = Roundtrip(lb.Addr().String())
 	require.NoError(t, err)
-	require.Equal(t, out, "backend 2")
+	require.Equal(t, "backend 2", out)
 }
 
 func TestOneFailingBackend(t *testing.T) {
@@ -117,14 +117,14 @@ func TestOneFailingBackend(t *testing.T) {
 
 	out, err := Roundtrip(lb.Addr().String())
 	require.NoError(t, err)
-	require.Equal(t, out, "backend 1")
+	require.Equal(t, "backend 1", out)
 
 	_, err = Roundtrip(lb.Addr().String())
-	require.NotNil(t, err)
+	require.Error(t, err)
 
 	out, err = Roundtrip(lb.Addr().String())
 	require.NoError(t, err)
-	require.Equal(t, out, "backend 1")
+	require.Equal(t, "backend 1", out)
 }
 
 func TestClose(t *testing.T) {
@@ -145,7 +145,7 @@ func TestClose(t *testing.T) {
 
 	out, err := Roundtrip(lb.Addr().String())
 	require.NoError(t, err)
-	require.Equal(t, out, "backend 1")
+	require.Equal(t, "backend 1", out)
 
 	lb.Close()
 	// second close works
@@ -155,7 +155,7 @@ func TestClose(t *testing.T) {
 
 	// requests are failing
 	out, err = Roundtrip(lb.Addr().String())
-	require.NotNilf(t, err, fmt.Sprintf("output: %s, err: %v", out, err))
+	require.Error(t, err, "output: %s, err: %v", out, err)
 }
 
 func TestDropConnections(t *testing.T) {
@@ -181,18 +181,18 @@ func TestDropConnections(t *testing.T) {
 
 	out, err := RoundtripWithConn(conn)
 	require.NoError(t, err)
-	require.Equal(t, out, "backend 1")
+	require.Equal(t, "backend 1", out)
 
 	// to make sure multiple requests work on the same wire
 	out, err = RoundtripWithConn(conn)
 	require.NoError(t, err)
-	require.Equal(t, out, "backend 1")
+	require.Equal(t, "backend 1", out)
 
 	// removing backend results in dropped connection to this backend
 	err = lb.RemoveBackend(backendAddr)
 	require.NoError(t, err)
 	_, err = RoundtripWithConn(conn)
-	require.NotNil(t, err)
+	require.Error(t, err)
 }
 
 func urlToNetAddr(u string) NetAddr {

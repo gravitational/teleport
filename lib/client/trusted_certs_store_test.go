@@ -178,24 +178,24 @@ func TestAddTrustedHostKeys(t *testing.T) {
 		err = clientStore.AddTrustedHostKeys("leaf.example.com", "leaf", pub2)
 		require.NoError(t, err)
 		after, _ := clientStore.GetTrustedHostKeys()
-		require.Equal(t, len(before), len(after))
+		require.Len(t, before, len(after))
 
 		// check by hostname:
 		keys, _ = clientStore.GetTrustedHostKeys("nocluster")
-		require.Equal(t, len(keys), 0)
+		require.Empty(t, keys)
 		keys, _ = clientStore.GetTrustedHostKeys("leaf")
-		require.Equal(t, len(keys), 1)
+		require.Len(t, keys, 1)
 		require.True(t, apisshutils.KeysEqual(keys[0], pub2))
 
 		// check for proxy and wildcard as well:
 		keys, _ = clientStore.GetTrustedHostKeys("leaf.example.com")
-		require.Equal(t, 1, len(keys))
+		require.Len(t, keys, 1)
 		require.True(t, apisshutils.KeysEqual(keys[0], pub2))
 		keys, _ = clientStore.GetTrustedHostKeys("*.leaf")
-		require.Equal(t, 1, len(keys))
+		require.Len(t, keys, 1)
 		require.True(t, apisshutils.KeysEqual(keys[0], pub2))
 		keys, _ = clientStore.GetTrustedHostKeys("prefix.leaf")
-		require.Equal(t, 1, len(keys))
+		require.Len(t, keys, 1)
 		require.True(t, apisshutils.KeysEqual(keys[0], pub2))
 	})
 }

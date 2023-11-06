@@ -233,8 +233,8 @@ func mustReadConnData(t *testing.T, conn net.Conn, wantText string) {
 	data := make([]byte, len(wantText)*2)
 	n, err := conn.Read(data)
 	require.NoError(t, err)
-	require.Equal(t, len(wantText), n)
-	require.Equal(t, string(data[:n]), wantText)
+	require.Len(t, wantText, n)
+	require.Equal(t, wantText, string(data[:n]))
 }
 
 type mockALPNServer struct {

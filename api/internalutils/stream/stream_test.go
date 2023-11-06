@@ -43,7 +43,7 @@ func TestSlice(t *testing.T) {
 	// nil slice
 	s, err = Collect(Slice[int](nil))
 	require.NoError(t, err)
-	require.Len(t, s, 0)
+	require.Empty(t, s)
 }
 
 // TestFilterMap tests the FilterMap combinator.
@@ -75,12 +75,12 @@ func TestFilterMap(t *testing.T) {
 		return "", false
 	}))
 	require.NoError(t, err)
-	require.Len(t, s, 0)
+	require.Empty(t, s)
 
 	// empty stream
 	s, err = Collect(FilterMap(Empty[int](), func(_ int) (string, bool) { panic("unreachable") }))
 	require.NoError(t, err)
-	require.Len(t, s, 0)
+	require.Empty(t, s)
 
 	// failure
 	err = Drain(FilterMap(Fail[int](fmt.Errorf("unexpected error")), func(_ int) (string, bool) { panic("unreachable") }))
@@ -116,12 +116,12 @@ func TestMapWhile(t *testing.T) {
 		return "", false
 	}))
 	require.NoError(t, err)
-	require.Len(t, s, 0)
+	require.Empty(t, s)
 
 	// empty stream
 	s, err = Collect(MapWhile(Empty[int](), func(_ int) (string, bool) { panic("unreachable") }))
 	require.NoError(t, err)
-	require.Len(t, s, 0)
+	require.Empty(t, s)
 
 	// failure
 	err = Drain(MapWhile(Fail[int](fmt.Errorf("unexpected error")), func(_ int) (string, bool) { panic("unreachable") }))
@@ -161,7 +161,7 @@ func TestFunc(t *testing.T) {
 		return 0, io.EOF
 	}))
 	require.NoError(t, err)
-	require.Len(t, s, 0)
+	require.Empty(t, s)
 
 	// immediate error
 	err = Drain(Func(func() (int, error) {
@@ -229,7 +229,7 @@ func TestPageFunc(t *testing.T) {
 		return nil, io.EOF
 	}))
 	require.NoError(t, err)
-	require.Len(t, s, 0)
+	require.Empty(t, s)
 
 	// lots of empty pages
 	n = 0
@@ -262,7 +262,7 @@ func TestPageFunc(t *testing.T) {
 		return nil, nil
 	}))
 	require.NoError(t, err)
-	require.Len(t, s, 0)
+	require.Empty(t, s)
 
 	// eventual failure
 	n = 0
@@ -290,17 +290,17 @@ func TestEmpty(t *testing.T) {
 	// empty case
 	s, err := Collect(Empty[int]())
 	require.NoError(t, err)
-	require.Len(t, s, 0)
+	require.Empty(t, s)
 
 	// normal error case
 	s, err = Collect(Fail[int](fmt.Errorf("unexpected error")))
 	require.Error(t, err)
-	require.Len(t, s, 0)
+	require.Empty(t, s)
 
 	// nil error case
 	s, err = Collect(Fail[int](nil))
 	require.NoError(t, err)
-	require.Len(t, s, 0)
+	require.Empty(t, s)
 }
 
 func TestCollectPages(t *testing.T) {
@@ -357,7 +357,7 @@ func TestCollectPages(t *testing.T) {
 				require.Error(t, err)
 			}
 			if len(tt.expect) == 0 {
-				require.Len(t, collected, 0)
+				require.Empty(t, collected)
 			} else {
 				require.Equal(t, tt.expect, collected)
 			}

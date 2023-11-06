@@ -289,7 +289,7 @@ func TestMFADeviceManagement(t *testing.T) {
 		deviceIDs[dev.GetName()] = dev.Id
 	}
 	sort.Strings(deviceNames)
-	require.Equal(t, deviceNames, []string{pwdlessDevName, devs.TOTPName, devs.WebName, webDev2Name})
+	require.Equal(t, []string{pwdlessDevName, devs.TOTPName, devs.WebName, webDev2Name}, deviceNames)
 
 	// Delete several of the MFA devices.
 	deleteTests := []struct {
@@ -1191,7 +1191,7 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 					require.Equal(t, userCertExpires, identity.PreviousIdentityExpires)
 					require.True(t, net.ParseIP(identity.LoginIP).IsLoopback())
 					require.Equal(t, []string{teleport.UsageDatabaseOnly}, identity.Usage)
-					require.Equal(t, identity.RouteToDatabase.ServiceName, "db-a")
+					require.Equal(t, "db-a", identity.RouteToDatabase.ServiceName)
 				},
 			},
 		},
@@ -1230,7 +1230,7 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 					require.Equal(t, userCertExpires, identity.PreviousIdentityExpires)
 					require.True(t, net.ParseIP(identity.LoginIP).IsLoopback())
 					require.Equal(t, []string{teleport.UsageDatabaseOnly}, identity.Usage)
-					require.Equal(t, identity.RouteToDatabase.ServiceName, "db-a")
+					require.Equal(t, "db-a", identity.RouteToDatabase.ServiceName)
 				},
 			},
 		},
@@ -1267,7 +1267,7 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 					require.Equal(t, userCertExpires, identity.PreviousIdentityExpires)
 					require.True(t, net.ParseIP(identity.LoginIP).IsLoopback())
 					require.Equal(t, []string{teleport.UsageKubeOnly}, identity.Usage)
-					require.Equal(t, identity.KubernetesCluster, "kube-a")
+					require.Equal(t, "kube-a", identity.KubernetesCluster)
 				},
 			},
 		},
@@ -1558,7 +1558,7 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 					require.Equal(t, userCertExpires, identity.PreviousIdentityExpires)
 					require.True(t, net.ParseIP(identity.LoginIP).IsLoopback())
 					require.Equal(t, []string{teleport.UsageDatabaseOnly}, identity.Usage)
-					require.Equal(t, identity.RouteToDatabase.ServiceName, "db-b")
+					require.Equal(t, "db-b", identity.RouteToDatabase.ServiceName)
 				},
 			},
 		},
@@ -2031,7 +2031,7 @@ func testOriginDynamicStored(t *testing.T, setWithOrigin func(*Client, string) e
 
 			stored, err := getStored(srv.Auth())
 			require.NoError(t, err)
-			require.Equal(t, stored.Origin(), types.OriginDynamic)
+			require.Equal(t, types.OriginDynamic, stored.Origin())
 		})
 	}
 }
@@ -2227,7 +2227,7 @@ func TestGetSSHTargets(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Len(t, rsp.Servers, 1)
-	require.Equal(t, rsp.Servers[0].GetHostname(), "foo")
+	require.Equal(t, "foo", rsp.Servers[0].GetHostname())
 
 	cnc := types.DefaultClusterNetworkingConfig()
 	cnc.SetCaseInsensitiveRouting(true)
@@ -2487,7 +2487,7 @@ func TestApplicationServersCRUD(t *testing.T) {
 	// Initially we expect no app servers.
 	out, err := clt.GetApplicationServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
-	require.Equal(t, 0, len(out))
+	require.Empty(t, out)
 
 	// Register all app servers.
 	_, err = clt.UpsertApplicationServer(ctx, server1)
@@ -2528,7 +2528,7 @@ func TestApplicationServersCRUD(t *testing.T) {
 	require.NoError(t, err)
 	out, err = clt.GetApplicationServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
-	require.Equal(t, 0, len(out))
+	require.Empty(t, out)
 }
 
 // TestAppsCRUD tests application resource operations.
@@ -2559,7 +2559,7 @@ func TestAppsCRUD(t *testing.T) {
 	// Initially we expect no apps.
 	out, err := clt.GetApps(ctx)
 	require.NoError(t, err)
-	require.Equal(t, 0, len(out))
+	require.Empty(t, out)
 
 	// Create both apps.
 	err = clt.CreateApp(ctx, app1)
@@ -2617,7 +2617,7 @@ func TestAppsCRUD(t *testing.T) {
 	require.NoError(t, err)
 	out, err = clt.GetApps(ctx)
 	require.NoError(t, err)
-	require.Len(t, out, 0)
+	require.Empty(t, out)
 }
 
 // TestAppServersCRUD tests application server resource operations.
@@ -2748,7 +2748,7 @@ func TestDatabasesCRUD(t *testing.T) {
 	// Initially we expect no databases.
 	out, err := clt.GetDatabases(ctx)
 	require.NoError(t, err)
-	require.Equal(t, 0, len(out))
+	require.Empty(t, out)
 
 	// Create both databases.
 	err = clt.CreateDatabase(ctx, db1)
@@ -2806,7 +2806,7 @@ func TestDatabasesCRUD(t *testing.T) {
 	require.NoError(t, err)
 	out, err = clt.GetDatabases(ctx)
 	require.NoError(t, err)
-	require.Len(t, out, 0)
+	require.Empty(t, out)
 }
 
 // TestDatabaseServicesCRUD tests DatabaseService resource operations.
@@ -3234,7 +3234,7 @@ func TestListResources(t *testing.T) {
 				Limit:        100,
 			})
 			require.NoError(t, err)
-			require.Len(t, resp.Resources, 0)
+			require.Empty(t, resp.Resources)
 			require.Empty(t, resp.NextKey)
 
 			// create two resources

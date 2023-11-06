@@ -202,7 +202,7 @@ func TestBuildAppURI(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		require.Equal(t, buildAppURI(tt.protocol, tt.serviceFQDN, tt.port), tt.expected)
+		require.Equal(t, tt.expected, buildAppURI(tt.protocol, tt.serviceFQDN, tt.port))
 	}
 }
 
