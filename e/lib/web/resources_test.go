@@ -52,7 +52,7 @@ version: v3
 	require.NoError(t, err)
 
 	item, err := ui.NewResourceItem(oidcConn)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.Equal(t, &ui.ResourceItem{
 		ID:      "oidc:oidcName",
 		Kind:    types.KindOIDCConnector,
@@ -84,7 +84,7 @@ version: v2
 	})
 	require.NoError(t, err)
 	item, err := ui.NewResourceItem(samlConn)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.Equal(t, &ui.ResourceItem{
 		ID:      "saml:samlName",
 		Kind:    types.KindSAMLConnector,
@@ -135,11 +135,11 @@ func TestGetAuthConnectors(t *testing.T) {
 
 	// Test response is converted to ui objects.
 	conns, err := getAuthConnectors(ctx, m)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.Len(t, conns, 3)
-	require.Equal(t, conns[0].Kind, types.KindGithub)
-	require.Equal(t, conns[1].Kind, types.KindSAML)
-	require.Equal(t, conns[2].Kind, types.KindOIDC)
+	require.Equal(t, types.KindGithub, conns[0].Kind)
+	require.Equal(t, types.KindSAML, conns[1].Kind)
+	require.Equal(t, types.KindOIDC, conns[2].Kind)
 }
 
 func TestSAMLConnector(t *testing.T) {

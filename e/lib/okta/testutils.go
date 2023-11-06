@@ -613,7 +613,7 @@ func expectAuditEvent[T any](t *testing.T, emitter *eventstest.ChannelEmitter, f
 	select {
 	case event := <-emitter.C():
 		auditEvent, ok := event.(T)
-		require.Equal(t, true, ok)
+		require.True(t, ok)
 		fn(auditEvent)
 	case <-time.After(5 * time.Second):
 		require.Fail(t, "timed out waiting for event")

@@ -840,7 +840,7 @@ func TestService_UpsertAccessListMember(t *testing.T) {
 
 	a1m1 := newAccessListMember(t, a1.GetName(), member1, clock)
 
-	require.Equal(t, a1m1.Spec.AddedBy, testUser)
+	require.Equal(t, testUser, a1m1.Spec.AddedBy)
 
 	got, err := svc.UpsertAccessListMember(ownerCtx, &accesslistv1.UpsertAccessListMemberRequest{Member: conv.ToMemberProto(a1m1)})
 	require.NoError(t, err)
@@ -1087,7 +1087,7 @@ func TestService_UpsertAccessListWithMembers(t *testing.T) {
 
 		// All members should have been deleted
 		membersA2 = listAllAccessListMembers(ctx, t, svc, a2.GetName(), 2)
-		require.Len(t, membersA2, 0)
+		require.Empty(t, membersA2)
 	})
 }
 
@@ -1597,7 +1597,7 @@ func expectEvent[T apievents.AuditEvent](t *testing.T, code string, emitter *eve
 func expectUsageEvent[T any](t *testing.T, usageEvents *usageEventsClient, fn func(T)) {
 	t.Helper()
 
-	require.Greater(t, len(usageEvents.events), 0)
+	require.NotEmpty(t, usageEvents.events)
 
 	event := usageEvents.events[0].Event
 	unwrapped, ok := event.(T)

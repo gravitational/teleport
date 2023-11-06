@@ -31,9 +31,9 @@ func TestCreateAccessRequest_RoleBased(t *testing.T) {
 
 	m.mockCreateAccessRequest = func(ctx context.Context, req types.AccessRequest) error {
 		createdReq = req
-		require.Equal(t, req.GetUser(), "userFoo")
-		require.Equal(t, req.GetRoles(), []string{"*"})
-		require.Equal(t, req.GetRequestReason(), "some reason")
+		require.Equal(t, "userFoo", req.GetUser())
+		require.Equal(t, []string{"*"}, req.GetRoles())
+		require.Equal(t, "some reason", req.GetRequestReason())
 		return nil
 	}
 
@@ -43,9 +43,9 @@ func TestCreateAccessRequest_RoleBased(t *testing.T) {
 
 	// Test with empty role requests, wild card is used.
 	req, err := createAccessRequest(context.Background(), m, request, "userFoo")
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.NotEmpty(t, req.ID)
-	require.Equal(t, req.State, types.RequestState_PENDING.String())
+	require.Equal(t, types.RequestState_PENDING.String(), req.State)
 
 	// Test with specific roles requested.
 	request.Roles = []string{"role1", "role2"}
@@ -55,7 +55,7 @@ func TestCreateAccessRequest_RoleBased(t *testing.T) {
 	}
 
 	_, err = createAccessRequest(context.Background(), m, request, "userFoo")
-	require.Nil(t, err)
+	require.NoError(t, err)
 }
 
 func TestCreateAccessRequest_SearchBased(t *testing.T) {
@@ -67,10 +67,10 @@ func TestCreateAccessRequest_SearchBased(t *testing.T) {
 
 	m.mockCreateAccessRequest = func(ctx context.Context, req types.AccessRequest) error {
 		createdReq = req
-		require.Equal(t, req.GetUser(), "userFoo")
+		require.Equal(t, "userFoo", req.GetUser())
 		require.Empty(t, req.GetRoles())
-		require.Equal(t, req.GetRequestReason(), "some reason")
-		require.Equal(t, req.GetRequestedResourceIDs(), []types.ResourceID{{ClusterName: "test-cluster", Name: "test-name", Kind: "test-kind"}})
+		require.Equal(t, "some reason", req.GetRequestReason())
+		require.Equal(t, []types.ResourceID{{ClusterName: "test-cluster", Name: "test-name", Kind: "test-kind"}}, req.GetRequestedResourceIDs())
 		return nil
 	}
 
@@ -80,9 +80,9 @@ func TestCreateAccessRequest_SearchBased(t *testing.T) {
 	}
 
 	req, err := createAccessRequest(context.Background(), m, request, "userFoo")
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.NotEmpty(t, req.ID)
-	require.Equal(t, req.State, types.RequestState_PENDING.String())
+	require.Equal(t, types.RequestState_PENDING.String(), req.State)
 }
 
 type mockAuthClient struct {
@@ -407,45 +407,45 @@ func TestGetAccessRequests(t *testing.T) {
 
 	m.mockGetAccessRequests = func(ctx context.Context, filter types.AccessRequestFilter) ([]types.AccessRequest, error) {
 		roleBasedReq1, err := services.NewAccessRequest("baz", []string{"bar"}...)
-		require.Nil(t, err)
+		require.NoError(t, err)
 		roleBasedReq1.SetState(types.RequestState_NONE)
 
 		roleBasedReq2, err := services.NewAccessRequest("foz", []string{"foo"}...)
-		require.Nil(t, err)
+		require.NoError(t, err)
 		roleBasedReq2.SetState(types.RequestState_APPROVED)
 
 		searchBasedReq, err := services.NewAccessRequestWithResources("bar", nil, []types.ResourceID{{ClusterName: "test-cluster", Name: "test-name", Kind: "test-kind"}})
-		require.Nil(t, err)
+		require.NoError(t, err)
 
 		return []types.AccessRequest{roleBasedReq1, roleBasedReq2, searchBasedReq}, nil
 	}
 
 	plugin, err := NewPlugin(Config{})
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	// Test request state set to NONE, is not returned.
 	reqs, err := plugin.getAccessRequests(context.Background(), m, types.AccessRequestFilter{})
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.Len(t, reqs, 2)
-	require.Equal(t, reqs[0].State, types.RequestState_APPROVED.String())
-	require.Equal(t, reqs[1].State, types.RequestState_PENDING.String())
-	require.Equal(t, reqs[1].Resources, []ui.Resource{{ID: ui.ResourceID{ClusterName: "test-cluster", Name: "test-name", Kind: "test-kind"}}})
+	require.Equal(t, types.RequestState_APPROVED.String(), reqs[0].State)
+	require.Equal(t, types.RequestState_PENDING.String(), reqs[1].State)
+	require.Equal(t, []ui.Resource{{ID: ui.ResourceID{ClusterName: "test-cluster", Name: "test-name", Kind: "test-kind"}}}, reqs[1].Resources)
 }
 
 func TestReviewAccessRequest(t *testing.T) {
 	m := &mockedAccessRequestAPIGetter{}
 
 	fakeReq, err := services.NewAccessRequest("foo", []string{"bar"}...)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	m.mockGetAccessRequests = func(ctx context.Context, filter types.AccessRequestFilter) ([]types.AccessRequest, error) {
 		return []types.AccessRequest{fakeReq}, nil
 	}
 
 	m.mockSubmitAccessReview = func(ctx context.Context, params types.AccessReviewSubmission) (types.AccessRequest, error) {
-		require.Equal(t, params.RequestID, fakeReq.GetMetadata().Name)
-		require.Equal(t, params.Review.ProposedState, types.RequestState_DENIED)
-		require.Equal(t, params.Review.Reason, "Not today")
-		require.Len(t, params.Review.Roles, 0)
+		require.Equal(t, fakeReq.GetMetadata().Name, params.RequestID)
+		require.Equal(t, types.RequestState_DENIED, params.Review.ProposedState)
+		require.Equal(t, "Not today", params.Review.Reason)
+		require.Empty(t, params.Review.Roles)
 		return fakeReq, nil
 	}
 
@@ -456,7 +456,7 @@ func TestReviewAccessRequest(t *testing.T) {
 	}
 
 	_, err = reviewAccessRequest(context.Background(), m, reviewSubmission)
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	// Test error paths.
 	reviewSubmission.State = "NONE"

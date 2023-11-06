@@ -57,9 +57,9 @@ func TestConn(t *testing.T) {
 				func(t *testing.T, err error, packet Packet) {
 					connPacket, ok := packet.(*ConnectPacket)
 					require.True(t, ok)
-					wantConnString := `(DESCRIPTION=(ADDRESS=(PROTOCOL=tcps)(HOST=127.0.0.1)(PORT=54557))(CONNECT_DATA=(CID=(PROGRAM=SQLcl)(HOST=__jdbc__)(USER=marek))(SERVICE_NAME=XE)(CONNECTION_ID=MAVsTlvrTyqsibsnisguzw==)))`
-					require.Equal(t, connPacket.ConnectionString, wantConnString)
-					require.Equal(t, connPacket.ServerName, "XE")
+					const wantConnString = `(DESCRIPTION=(ADDRESS=(PROTOCOL=tcps)(HOST=127.0.0.1)(PORT=54557))(CONNECT_DATA=(CID=(PROGRAM=SQLcl)(HOST=__jdbc__)(USER=marek))(SERVICE_NAME=XE)(CONNECTION_ID=MAVsTlvrTyqsibsnisguzw==)))`
+					require.Equal(t, wantConnString, connPacket.ConnectionString)
+					require.Equal(t, "XE", connPacket.ServerName)
 				},
 			},
 		},
@@ -89,8 +89,8 @@ func TestConn(t *testing.T) {
 				func(t *testing.T, err error, packet Packet) {
 					accept, ok := packet.(*AcceptPacket)
 					require.True(t, ok)
-					wantProtocolVersion := uint16(0x13e)
-					require.Equal(t, accept.ProtocolVersion, wantProtocolVersion)
+					const wantProtocolVersion = uint16(0x13e)
+					require.Equal(t, wantProtocolVersion, accept.ProtocolVersion)
 				},
 			},
 		},

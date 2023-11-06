@@ -66,7 +66,7 @@ func Test_attributesToRolesParser_Set(t *testing.T) {
 				require.Error(t, err)
 			} else {
 				require.NoError(t, err)
-				require.Equal(t, tt.parser, tt.wantParser)
+				require.Equal(t, tt.wantParser, tt.parser)
 			}
 		})
 	}

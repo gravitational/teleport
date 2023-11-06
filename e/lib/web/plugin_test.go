@@ -99,5 +99,5 @@ func TestRegisterProxyWebHandlers(t *testing.T) {
 // handlerHasPath asserts that the handler has the given path with the given method.
 func handlerHasPath(t *testing.T, h *web.Handler, method, path string) {
 	handle, _, _ := h.Lookup(method, path)
-	require.True(t, handle != nil, "method: %s, path: %s not found", method, path)
+	require.NotNil(t, handle, "method: %s, path: %s not found", method, path)
 }

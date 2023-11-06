@@ -17,7 +17,7 @@ import (
 
 func TestUsageReport(t *testing.T) {
 	m, err := createReporterMocks()
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	m.apiGetters.MockedGetNodes = func() ([]types.Server, error) {
 		return []types.Server{&types.ServerV2{}}, nil
@@ -95,7 +95,7 @@ func TestUsageReport(t *testing.T) {
 
 func TestErrors(t *testing.T) {
 	m, err := createReporterMocks()
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	m.apiGetters.MockedGetNodes = func() ([]types.Server, error) {
 		return nil, trace.BadParameter("unable to return servers")

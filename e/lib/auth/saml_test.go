@@ -617,7 +617,7 @@ func TestServer_ValidateSAMLResponse(t *testing.T) {
 	require.Equal(t, "ops@gravitational.io", auth.Identity.Username)
 	require.Equal(t, "saml-test-conn", auth.Identity.ConnectorID)
 	require.Equal(t, "_4f256462-6c2d-466d-afc0-6ee36602b6f2", auth.Req.ID)
-	require.Equal(t, 0, len(auth.HostSigners))
+	require.Empty(t, auth.HostSigners)
 
 	authnInstant := time.Date(2022, 4, 25, 8, 3, 11, 779000000, time.UTC)
 
@@ -712,7 +712,7 @@ func TestServer_ValidateSAMLResponse(t *testing.T) {
 	// make sure no users have been created.
 	users, err := a.GetUsers(ctx, false)
 	require.NoError(t, err)
-	require.Equal(t, 0, len(users))
+	require.Empty(t, users)
 }
 
 const largeCompressedBody = "7cExAQAAAMKgbOtfyhC+QAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" +

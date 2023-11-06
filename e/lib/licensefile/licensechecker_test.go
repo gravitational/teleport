@@ -118,7 +118,7 @@ func TestCheckLicense(t *testing.T) {
 			}
 			alerts, err := msi.GetClusterAlerts(context.Background(), query)
 			require.NoError(t, err)
-			require.Equal(t, 1, len(alerts))
+			require.Len(t, alerts, 1)
 			require.Equal(t, test.wantSeverity, alerts[0].Spec.Severity)
 			require.Equal(t, test.wantMessage, alerts[0].Spec.Message)
 		})

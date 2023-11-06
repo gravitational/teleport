@@ -266,7 +266,7 @@ func expectAuthAttemptEvent(t *testing.T, emitter *eventstest.ChannelEmitter, fn
 	select {
 	case event := <-emitter.C():
 		authAttemptEvent, ok := event.(*apievents.SAMLIdPAuthAttempt)
-		require.Equal(t, true, ok, "expected SAMLIdPAuthAttempt event, got %T", event)
+		require.True(t, ok, "expected SAMLIdPAuthAttempt event, got %T", event)
 		require.Equal(t, events.SAMLIdPAuthAttemptCode, authAttemptEvent.GetCode())
 		fn(authAttemptEvent)
 	case <-time.After(5 * time.Second):

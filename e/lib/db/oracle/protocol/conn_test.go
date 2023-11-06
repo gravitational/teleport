@@ -59,7 +59,7 @@ func TestClientServerConnReg(t *testing.T) {
 		require.NoError(t, err)
 
 		// Check if protocolVersion was negotiation.
-		require.NotEqual(t, oracleClient.protocolVersion, uint16(0))
+		require.NotEqual(t, uint16(0), oracleClient.protocolVersion)
 	}()
 
 	serverConn, err := NewServerConn(l.Addr().String(), &tls.Config{
@@ -77,5 +77,5 @@ func TestClientServerConnReg(t *testing.T) {
 	require.NoError(t, err)
 
 	// Check if protocolVersion was negotiation.
-	require.NotEqual(t, serverConn.protocolVersion, uint16(0))
+	require.NotEqual(t, uint16(0), serverConn.protocolVersion)
 }

@@ -80,7 +80,7 @@ func TestMissingLicenseError(t *testing.T) {
 	authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type: "local",
 	})
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	config := &servicecfg.Config{
 		DataDir: t.TempDir(),

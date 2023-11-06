@@ -389,7 +389,7 @@ func TestSSODiagnostic(t *testing.T) {
 				return
 			}
 
-			require.Equal(t, len(tc.loginHooks), int(loginHookCounter.Load()))
+			require.Len(t, tc.loginHooks, int(loginHookCounter.Load()))
 
 			require.NoError(t, err)
 			require.NotNil(t, resp)
@@ -619,52 +619,62 @@ func TestOIDCClientCache(t *testing.T) {
 	// The next call should return the same client (compare memory address)
 	cachedClient, err := s.oas.getCachedOIDCClient(ctx, connector, "proxy.example.com")
 	require.NoError(t, err)
-	require.True(t, client == cachedClient)
+	require.Equal(t, client, cachedClient)
 
 	// Canceling provider sync on a cached client should cause it to be replaced
 	client.syncCancel()
 	cachedClient, err = s.oas.getCachedOIDCClient(ctx, connector, "proxy.example.com")
 	require.NoError(t, err)
-	require.False(t, client == cachedClient)
+	require.NotEqual(t, client, cachedClient)
 
 	// Certain changes to the connector should cause the cached client to be refreshed
 	originalClient := cachedClient
 	for _, tc := range []struct {
 		desc            string
 		mutateConnector func(types.OIDCConnector)
-		expectNoRefresh bool
+		clientAssertion require.ComparisonAssertionFunc
 	}{
 		{
 			desc: "IssuerURL",
 			mutateConnector: func(conn types.OIDCConnector) {
 				conn.SetIssuerURL(newFakeIDP(t, false /* tls */).s.URL)
 			},
-		}, {
+			clientAssertion: require.NotEqual,
+		},
+		{
 			desc: "ClientID",
 			mutateConnector: func(conn types.OIDCConnector) {
 				conn.SetClientID("11111111111111111111111111111111")
 			},
-		}, {
+			clientAssertion: require.NotEqual,
+		},
+		{
 			desc: "ClientSecret",
 			mutateConnector: func(conn types.OIDCConnector) {
 				conn.SetClientSecret("1111111111111111111111111111111111111111111111111111111111111111")
 			},
-		}, {
+			clientAssertion: require.NotEqual,
+		},
+		{
 			desc: "RedirectURLs",
 			mutateConnector: func(conn types.OIDCConnector) {
 				conn.SetRedirectURLs([]string{"https://other.example.com/v1/webapi/oidc/callback"})
 			},
-		}, {
+			clientAssertion: require.NotEqual,
+		},
+		{
 			desc: "Scope",
 			mutateConnector: func(conn types.OIDCConnector) {
 				conn.SetScope([]string{"groups"})
 			},
-		}, {
+			clientAssertion: require.NotEqual,
+		},
+		{
 			desc: "Prompt - no refresh",
 			mutateConnector: func(conn types.OIDCConnector) {
 				conn.SetPrompt("none")
 			},
-			expectNoRefresh: true,
+			clientAssertion: require.Equal,
 		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
@@ -674,7 +684,7 @@ func TestOIDCClientCache(t *testing.T) {
 
 			client, err = s.oas.getCachedOIDCClient(ctx, newConnector, "proxy.example.com")
 			require.NoError(t, err)
-			require.True(t, (client == originalClient) == tc.expectNoRefresh)
+			tc.clientAssertion(t, client, originalClient)
 
 			// reset cached client to the original client for remaining tests
 			originalClient, err = s.oas.getCachedOIDCClient(ctx, connector, "proxy.example.com")

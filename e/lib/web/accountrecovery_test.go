@@ -21,7 +21,7 @@ func TestGetAccountRecoveryCodes(t *testing.T) {
 		return nil, trace.NotFound("")
 	}
 	res, err := getAccountRecoveryCodesMetadata(ctx, m)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.Empty(t, res)
 
 	// Test other errors than NotFound returns error as is.
@@ -36,7 +36,7 @@ func TestGetAccountRecoveryCodes(t *testing.T) {
 		return &proto.RecoveryCodes{Created: time.Unix(int64(1605139200), 0)}, nil
 	}
 	res, err = getAccountRecoveryCodesMetadata(ctx, m)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.NotEmpty(t, res.Created)
 }
 
