@@ -36,6 +36,7 @@ foo=bar=baz
 foo=
 
 =bar
+bar=foo
 LD_PRELOAD=attack
 `)
 
@@ -53,7 +54,7 @@ LD_PRELOAD=attack
 	require.NoError(t, err)
 
 	// check we parsed it correctly
-	require.Empty(t, cmp.Diff(env, []string{"foo=bar", "foo=bar=baz", "foo="}))
+	require.Empty(t, cmp.Diff(env, []string{"foo=bar", "bar=foo"}))
 }
 
 func TestSafeEnvAdd(t *testing.T) {
@@ -82,6 +83,18 @@ func TestSafeEnvAdd(t *testing.T) {
 			keys:     []string{" foo "},
 			values:   []string{" bar "},
 			expected: []string{"foo=bar"},
+		},
+		{
+			name:     "duplicate ignore",
+			keys:     []string{"one", "one"},
+			values:   []string{"v1", "v2"},
+			expected: []string{"one=v1"},
+		},
+		{
+			name:     "duplicate ignore different case",
+			keys:     []string{"one", "ONE"},
+			values:   []string{"v1", "v2"},
+			expected: []string{"one=v1"},
 		},
 		{
 			name:     "skip dangerous exact",
@@ -139,6 +152,16 @@ func TestSafeEnvAddFull(t *testing.T) {
 			name:       "whitespace trim",
 			fullValues: []string{" foo=bar "},
 			expected:   []string{"foo=bar"},
+		},
+		{
+			name:       "duplicate ignore",
+			fullValues: []string{"one=v1", "one=v2"},
+			expected:   []string{"one=v1"},
+		},
+		{
+			name:       "duplicate ignore different case",
+			fullValues: []string{"one=v1", "ONE=v2"},
+			expected:   []string{"one=v1"},
 		},
 		{
 			name:       "skip dangerous exact",
