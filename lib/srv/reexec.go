@@ -46,6 +46,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/envutils"
 )
 
 // FileFD is a file descriptor passed down from a parent process when
@@ -788,7 +789,7 @@ func buildCommand(c *ExecCommand, localUser *user.User, tty *os.File, pty *os.Fi
 	}
 
 	// Create default environment for user.
-	cmd.Env = []string{
+	env := &envutils.SafeEnv{
 		"LANG=en_US.UTF-8",
 		getDefaultEnvPath(localUser.Uid, defaultLoginDefsPath),
 		"HOME=" + localUser.HomeDir,
@@ -797,21 +798,24 @@ func buildCommand(c *ExecCommand, localUser *user.User, tty *os.File, pty *os.Fi
 	}
 
 	// Add in Teleport specific environment variables.
-	cmd.Env = append(cmd.Env, c.Environment...)
+	env.AddFull(c.Environment...)
 
 	// If the server allows reading in of ~/.tsh/environment read it in
 	// and pass environment variables along to new session.
 	if c.PermitUserEnvironment {
 		filename := filepath.Join(localUser.HomeDir, ".tsh", "environment")
-		userEnvs, err := utils.ReadEnvironmentFile(filename)
+		userEnvs, err := envutils.ReadEnvironmentFile(filename)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		cmd.Env = append(cmd.Env, userEnvs...)
+		env.AddFull(userEnvs...)
 	}
 
 	// If any additional environment variables come from PAM, apply them as well.
-	cmd.Env = append(cmd.Env, pamEnvironment...)
+	env.AddFull(pamEnvironment...)
+
+	// after environment is fully built, set it to cmd
+	cmd.Env = *env
 
 	// If a terminal was requested, connect std{in,out,err} to the TTY and set
 	// the controlling TTY. Otherwise, connect std{in,out,err} to
@@ -949,11 +953,17 @@ func ConfigureCommand(ctx *ServerContext, extraFiles ...*os.File) (*exec.Cmd, er
 	// is appended if Teleport is running in debug mode.
 	args := []string{executable, subCommand}
 
+	// build env for `teleport exec`
+	env := &envutils.SafeEnv{}
+	env.AddFull(cmdmsg.Environment...)
+	env.AddExecEnvironment()
+
 	// Build the "teleport exec" command.
 	cmd := &exec.Cmd{
 		Path: executable,
 		Args: args,
 		Dir:  executableDir,
+		Env:  *env,
 		ExtraFiles: []*os.File{
 			ctx.cmdr,
 			ctx.contr,
