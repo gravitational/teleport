@@ -86,25 +86,25 @@ func ReadEnvironmentFile(filename string) ([]string, error) {
 	return *env, nil
 }
 
-var unsafeEnvironmentVars = map[string]bool{
+var unsafeEnvironmentVars = map[string]struct{}{
 	// Linux
-	"LD_ASSUME_KERNEL":         true,
-	"LD_AUDIT":                 true,
-	"LD_BIND_NOW":              true,
-	"LD_BIND_NOT":              true,
-	"LD_DYNAMIC_WEAK":          true,
-	"LD_LIBRARY_PATH":          true,
-	"LD_ORIGIN_PATH":           true,
-	"LD_POINTER_GUARD":         true,
-	"LD_PREFER_MAP_32BIT_EXEC": true,
-	"LD_PRELOAD":               true,
-	"LD_PROFILE":               true,
-	"LD_RUNPATH":               true,
-	"LD_RPATH":                 true,
-	"LD_USE_LOAD_BIAS":         true,
+	"LD_ASSUME_KERNEL":         {},
+	"LD_AUDIT":                 {},
+	"LD_BIND_NOW":              {},
+	"LD_BIND_NOT":              {},
+	"LD_DYNAMIC_WEAK":          {},
+	"LD_LIBRARY_PATH":          {},
+	"LD_ORIGIN_PATH":           {},
+	"LD_POINTER_GUARD":         {},
+	"LD_PREFER_MAP_32BIT_EXEC": {},
+	"LD_PRELOAD":               {},
+	"LD_PROFILE":               {},
+	"LD_RUNPATH":               {},
+	"LD_RPATH":                 {},
+	"LD_USE_LOAD_BIAS":         {},
 	// macOS
-	"DYLD_INSERT_LIBRARIES": true,
-	"DYLD_LIBRARY_PATH":     true,
+	"DYLD_INSERT_LIBRARIES": {},
+	"DYLD_LIBRARY_PATH":     {},
 }
 
 // SafeEnv allows you to build a system environment while avoiding potentially dangerous environment conditions.  In
@@ -116,9 +116,7 @@ type SafeEnv []string
 func (e *SafeEnv) Add(k, v string) {
 	k = strings.TrimSpace(k)
 	v = strings.TrimSpace(v)
-	if k == "" || k == "=" {
-		return
-	} else if e.unsafeKey(k) {
+	if e.unsafeKey(k) {
 		return
 	}
 
@@ -133,9 +131,7 @@ valueLoop:
 		kv = strings.TrimSpace(kv)
 
 		key := strings.SplitN(kv, "=", 2)[0]
-		if key == "" { // weird case if the string is empty or '='
-			continue valueLoop
-		} else if e.unsafeKey(key) {
+		if e.unsafeKey(key) {
 			continue valueLoop
 		}
 
@@ -144,6 +140,10 @@ valueLoop:
 }
 
 func (e *SafeEnv) unsafeKey(key string) bool {
+	if key == "" || key == "=" {
+		return false
+	}
+
 	upperKey := strings.ToUpper(key)
 	if _, unsafe := unsafeEnvironmentVars[upperKey]; unsafe {
 		return true

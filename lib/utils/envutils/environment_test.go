@@ -164,6 +164,11 @@ func TestSafeEnvAddFull(t *testing.T) {
 			expected:   []string{"one=v1"},
 		},
 		{
+			name:       "double equal value",
+			fullValues: []string{"foo=bar=badvalue"},
+			expected:   []string{"foo=bar=badvalue"},
+		},
+		{
 			name:       "skip dangerous exact",
 			fullValues: []string{"foo=bar", "LD_PRELOAD=ignored"},
 			expected:   []string{"foo=bar"},
