@@ -324,7 +324,7 @@ outputs:
   - type: identity
     destination:
       type: kubernetes_secret
-      secret_name: identity-output
+      name: identity-output
 ```
 
 The output can then be consumed by mounting this secret within another pod:
