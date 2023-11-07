@@ -1,4 +1,7 @@
 version: v1
+deps:
+    # gogo/protobuf v1.3.2, keep in sync with build.assets/Makefile.
+    - buf.build/gogo/protobuf:b03c65ea87cdc3521ede29f62fe3ce239267c1bc
 lint:
   use:
     - DEFAULT
