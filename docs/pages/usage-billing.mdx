@@ -3,19 +3,23 @@ title: Usage Reporting and Billing
 description: Provides a detaield breakdown of Teleport usage reporting and billing.
 ---
 
-Teleport Team, Teleport Enterprise Cloud, and Teleport Enterprise send
-anonymized usage data to Teleport so we can calculate billing metrics. This
-guide describes the anonymized usage data and the billing metrics we calculate.
+Commercial editions of Teleport send anonymized usage data to Teleport so we can
+calculate billing metrics. This guide describes the anonymized usage data and
+the billing metrics we calculate.
 
 ## Anonymized usage data
 
 The commercial editions of Teleport send anonymized information to Teleport's
 cloud infrastructure. This information contains the following:
 
--   Teleport license identifier
--   Anonymized cluster name and Teleport Auth Service host ID
--   For each Teleport user, the anonymized user name and a count of interactions
-    with infrastructure resources enrolled in your Teleport cluster.
+- Teleport license identifier.
+- Anonymized cluster name and Teleport Auth Service host ID.
+- For each Teleport user, the anonymized user name and a count of interactions
+  with infrastructure resources enrolled in your Teleport cluster. 
+
+Self-hosted Teleport deployments aggregate interaction data before it reaches
+Teleport Cloud. Teleport Cloud accounts provide this information as an
+anonymized log, which Teleport aggregates over the billing period.  
 
 The count of interactions includes the following:
 
