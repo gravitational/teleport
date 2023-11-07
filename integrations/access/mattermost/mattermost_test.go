@@ -320,8 +320,8 @@ func (s *MattermostSuite) TestMattermostMessagePosting() {
 	assert.Equal(t, s.userNames.requestor, username)
 
 	matches := requestReasonRegexp.FindAllStringSubmatch(post.Message, -1)
-	require.Equal(t, 1, len(matches))
-	require.Equal(t, 3, len(matches[0]))
+	require.Len(t, matches, 1)
+	require.Len(t, matches[0], 3)
 	assert.Equal(t, "because of "+strings.Repeat("A", 489), matches[0][1])
 	assert.Equal(t, " (truncated)", matches[0][2])
 
@@ -357,8 +357,8 @@ func (s *MattermostSuite) TestApproval() {
 	assert.Equal(t, "✅ APPROVED", statusLine)
 
 	matches := resolutionReasonRegexp.FindAllStringSubmatch(postUpdate.Message, -1)
-	require.Equal(t, 1, len(matches))
-	require.Equal(t, 3, len(matches[0]))
+	require.Len(t, matches, 1)
+	require.Len(t, matches[0], 3)
 	assert.Equal(t, "okay", matches[0][1])
 	assert.Equal(t, "", matches[0][2])
 }
@@ -390,8 +390,8 @@ func (s *MattermostSuite) TestDenial() {
 	assert.Equal(t, "❌ DENIED", statusLine)
 
 	matches := resolutionReasonRegexp.FindAllStringSubmatch(postUpdate.Message, -1)
-	require.Equal(t, 1, len(matches))
-	require.Equal(t, 3, len(matches[0]))
+	require.Len(t, matches, 1)
+	require.Len(t, matches[0], 3)
 	assert.Equal(t, "not okay "+strings.Repeat("A", 491), matches[0][1])
 	assert.Equal(t, " (truncated)", matches[0][2])
 }
@@ -509,8 +509,8 @@ func (s *MattermostSuite) TestApprovalByReview() {
 	assert.Equal(t, "✅ APPROVED", statusLine)
 
 	matches := resolutionReasonRegexp.FindAllStringSubmatch(postUpdate.Message, -1)
-	require.Equal(t, 1, len(matches))
-	require.Equal(t, 3, len(matches[0]))
+	require.Len(t, matches, 1)
+	require.Len(t, matches[0], 3)
 	assert.Equal(t, "finally okay", matches[0][1])
 	assert.Equal(t, "", matches[0][2])
 }
@@ -574,8 +574,8 @@ func (s *MattermostSuite) TestDenialByReview() {
 	assert.Equal(t, "❌ DENIED", statusLine)
 
 	matches := resolutionReasonRegexp.FindAllStringSubmatch(postUpdate.Message, -1)
-	require.Equal(t, 1, len(matches))
-	require.Equal(t, 3, len(matches[0]))
+	require.Len(t, matches, 1)
+	require.Len(t, matches[0], 3)
 	assert.Equal(t, "finally not okay", matches[0][1])
 	assert.Equal(t, "", matches[0][2])
 }

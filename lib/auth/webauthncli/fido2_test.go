@@ -1699,7 +1699,7 @@ func TestFIDO2Register(t *testing.T) {
 			case test.wantErr != nil && err == nil:
 				t.Fatalf("FIDO2Register returned err = nil, wantErr %q", test.wantErr)
 			case test.wantErr != nil:
-				require.True(t, errors.Is(err, test.wantErr), "FIDO2Register returned err = %q, wantErr %q", err, test.wantErr)
+				require.ErrorIs(t, err, test.wantErr, "FIDO2Register returned err = %q, wantErr %q", err, test.wantErr)
 				return
 			default:
 				require.NoError(t, err, "FIDO2Register failed")

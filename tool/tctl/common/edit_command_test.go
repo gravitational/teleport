@@ -188,8 +188,10 @@ func testEditUser(t *testing.T, fc *config.FileConfig, clt auth.ClientI) {
 	// Try editing the user a second time. This time the revisions will not match
 	// since the created revision is stale.
 	_, err = runEditCommand(t, fc, []string{"edit", "user/llama"}, withEditor(editor))
-	assert.Error(t, err, "stale user was allowed to be updated")
-	require.ErrorIs(t, err, backend.ErrIncorrectRevision, "expected an incorrect revision error, got %T", err)
+	// TODO(tross) remove and uncomment lines below once conditional update support for users lands
+	require.NoError(t, err)
+	//assert.Error(t, err, "stale user was allowed to be updated")
+	//require.ErrorIs(t, err, backend.ErrIncorrectRevision, "expected an incorrect revision error, got %T", err)
 }
 
 // TestEditEnterpriseResources asserts that tctl edit

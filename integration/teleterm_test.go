@@ -174,7 +174,7 @@ func testListRootClustersReturnsLoggedInUser(t *testing.T, pack *dbhelpers.Datab
 	response, err := handler.ListRootClusters(context.Background(), &api.ListClustersRequest{})
 	require.NoError(t, err)
 
-	require.Equal(t, 1, len(response.Clusters))
+	require.Len(t, response.Clusters, 1)
 	require.Equal(t, pack.Root.User.GetName(), response.Clusters[0].LoggedInUser.Name)
 }
 
@@ -684,7 +684,7 @@ func testCreatingAndDeletingConnectMyComputerToken(t *testing.T, pack *dbhelpers
 		if event.Type != types.OpInit {
 			t.Fatalf("Unexpected event type.")
 		}
-		require.Equal(t, event.Type, types.OpInit)
+		require.Equal(t, types.OpInit, event.Type)
 	case <-watcher.Done():
 		t.Fatal(watcher.Error())
 	}

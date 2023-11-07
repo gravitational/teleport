@@ -54,7 +54,7 @@ func TestDatabaseResourceMatchersToString(t *testing.T) {
 			},
 		},
 	}
-	require.Equal(t, databaseResourceMatchersToString(resMatch), "(Labels: x=[y])")
+	require.Equal(t, "(Labels: x=[y])", databaseResourceMatchersToString(resMatch))
 }
 
 type writeTextTest struct {

@@ -58,7 +58,7 @@ func TestHostUUIDBadLocation(t *testing.T) {
 
 	// call with a read-only dir, make sure to get an error
 	id, err := ReadOrMakeHostUUID("/bad-location")
-	require.Equal(t, id, "")
+	require.Empty(t, id)
 	require.Error(t, err)
 	require.Regexp(t, "^.*no such file or directory.*$", err.Error())
 }
@@ -105,8 +105,8 @@ func TestRandomDuration(t *testing.T) {
 	expectedMax := time.Second * 10
 	for i := 0; i < 50; i++ {
 		dur := RandomDuration(expectedMax)
-		require.True(t, dur >= expectedMin)
-		require.True(t, dur < expectedMax)
+		require.GreaterOrEqual(t, dur, expectedMin)
+		require.Less(t, dur, expectedMax)
 	}
 }
 
@@ -555,7 +555,7 @@ func TestStringsSet(t *testing.T) {
 	t.Parallel()
 
 	out := StringsSet(nil)
-	require.Len(t, out, 0)
+	require.Empty(t, out)
 	require.NotNil(t, out)
 }
 
@@ -667,7 +667,7 @@ func TestByteCount(t *testing.T) {
 
 	for _, tc := range tt {
 		t.Run(tc.name, func(t *testing.T) {
-			assert.Equal(t, ByteCount(tc.size), tc.expected)
+			assert.Equal(t, tc.expected, ByteCount(tc.size))
 		})
 	}
 }

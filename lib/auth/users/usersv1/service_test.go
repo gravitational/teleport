@@ -22,6 +22,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -211,6 +212,13 @@ func TestCreateUser(t *testing.T) {
 	event := <-env.emitter.C()
 	assert.Equal(t, events.UserCreateEvent, event.GetType(), "unexpected event type")
 	assert.Equal(t, events.UserCreateCode, event.GetCode(), "unexpected event code")
+
+	user, err := types.NewUser("alpaca")
+	require.NoError(t, err, "creating user alpaca")
+	user.SetRoles([]string{uuid.NewString()})
+	_, err = env.CreateUser(ctx, &userspb.CreateUserRequest{User: user.(*types.UserV2)})
+	assert.True(t, trace.IsNotFound(err), "expected a not found error, got %T", err)
+	require.Error(t, err, "user allowed to be created with a role that does not exist")
 }
 
 func TestDeleteUser(t *testing.T) {
@@ -328,7 +336,7 @@ func TestUpdateUser(t *testing.T) {
 	updated, err := env.UpdateUser(ctx, &userspb.UpdateUserRequest{User: llama.(*types.UserV2)})
 	assert.Error(t, err, "duplicate user was created successfully")
 	assert.Nil(t, updated, "received unexpected user")
-	require.True(t, trace.IsCompareFailed(err), "updated nonexistent user")
+	require.True(t, trace.IsNotFound(err), "updated nonexistent user")
 
 	// Create a new user.
 	created, err := env.CreateUser(ctx, &userspb.CreateUserRequest{User: llama.(*types.UserV2)})

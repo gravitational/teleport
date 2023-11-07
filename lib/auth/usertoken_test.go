@@ -64,9 +64,9 @@ func TestCreateResetPasswordToken(t *testing.T) {
 	require.Equal(t, token.GetURL(), "https://<proxyhost>:3080/web/reset/"+token.GetName())
 
 	event := mockEmitter.LastEvent()
-	require.Equal(t, event.GetType(), events.ResetPasswordTokenCreateEvent)
-	require.Equal(t, event.(*apievents.UserTokenCreate).Name, username)
-	require.Equal(t, event.(*apievents.UserTokenCreate).User, teleport.UserSystem)
+	require.Equal(t, events.ResetPasswordTokenCreateEvent, event.GetType())
+	require.Equal(t, username, event.(*apievents.UserTokenCreate).Name)
+	require.Equal(t, teleport.UserSystem, event.(*apievents.UserTokenCreate).User)
 
 	// verify that user has no MFA devices
 	devs, err := srv.Auth().Services.GetMFADevices(ctx, username, false)
@@ -351,10 +351,10 @@ func TestCreatePrivilegeToken(t *testing.T) {
 
 			// Test events emitted.
 			event := mockEmitter.LastEvent()
-			require.Equal(t, event.GetType(), events.PrivilegeTokenCreateEvent)
-			require.Equal(t, event.GetCode(), events.PrivilegeTokenCreateCode)
-			require.Equal(t, event.(*apievents.UserTokenCreate).Name, username)
-			require.Equal(t, event.(*apievents.UserTokenCreate).User, username)
+			require.Equal(t, events.PrivilegeTokenCreateEvent, event.GetType())
+			require.Equal(t, events.PrivilegeTokenCreateCode, event.GetCode())
+			require.Equal(t, username, event.(*apievents.UserTokenCreate).Name)
+			require.Equal(t, username, event.(*apievents.UserTokenCreate).User)
 
 			// Test token expires after designated time.
 			fakeClock.Advance(defaults.PrivilegeTokenTTL)
@@ -426,9 +426,9 @@ func TestCreatePrivilegeToken_WithLock(t *testing.T) {
 
 				// Test last attempt returns locked error.
 				if i == defaults.MaxLoginAttempts {
-					require.Equal(t, err.Error(), MaxFailedAttemptsErrMsg)
+					require.Equal(t, MaxFailedAttemptsErrMsg, err.Error())
 				} else {
-					require.NotEqual(t, err.Error(), MaxFailedAttemptsErrMsg)
+					require.NotEqual(t, MaxFailedAttemptsErrMsg, err.Error())
 				}
 			}
 

@@ -332,7 +332,7 @@ func TestProxySSHConfig(t *testing.T) {
 		// rejected and fail.
 		_, err = clt.NewSession()
 		require.Error(t, err)
-		require.Equal(t, int(called.Load()), 1)
+		require.Equal(t, 1, int(called.Load()))
 
 		_, spub, err := testauthority.New().GenerateKeyPair()
 		require.NoError(t, err)

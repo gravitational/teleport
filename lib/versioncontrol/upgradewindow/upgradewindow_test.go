@@ -122,7 +122,7 @@ func TestSystemdUnitDriver(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	require.Equal(t, driver.Kind(), "unit")
+	require.Equal(t, "unit", driver.Kind())
 
 	// verify basic schedule creation
 	err = driver.Sync(ctx, proto.ExportUpgradeWindowsResponse{

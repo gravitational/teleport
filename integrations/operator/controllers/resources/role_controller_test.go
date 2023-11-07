@@ -56,9 +56,9 @@ func TestRoleCreation(t *testing.T) {
 		require.NoError(t, err)
 
 		// Role should have the same name, and have the Kubernetes origin label
-		require.Equal(t, tRole.GetName(), roleName)
+		require.Equal(t, roleName, tRole.GetName())
 		require.Contains(t, tRole.GetMetadata().Labels, types.OriginLabel)
-		require.Equal(t, tRole.GetMetadata().Labels[types.OriginLabel], types.OriginKubernetes)
+		require.Equal(t, types.OriginKubernetes, tRole.GetMetadata().Labels[types.OriginLabel])
 
 		return true
 	})
@@ -225,9 +225,9 @@ allow:
 					}
 					require.NoError(t, err)
 
-					require.Equal(t, tRole.GetName(), roleName)
+					require.Equal(t, roleName, tRole.GetName())
 					require.Contains(t, tRole.GetMetadata().Labels, types.OriginLabel)
-					require.Equal(t, tRole.GetMetadata().Labels[types.OriginLabel], types.OriginKubernetes)
+					require.Equal(t, types.OriginKubernetes, tRole.GetMetadata().Labels[types.OriginLabel])
 					expectedRole, _ := types.NewRole(roleName, *tc.expectedSpec)
 					compareRoleSpecs(t, expectedRole, tRole)
 
@@ -275,10 +275,10 @@ func TestRoleDeletionDrift(t *testing.T) {
 		}
 		require.NoError(t, err)
 
-		require.Equal(t, tRole.GetName(), roleName)
+		require.Equal(t, roleName, tRole.GetName())
 
 		require.Contains(t, tRole.GetMetadata().Labels, types.OriginLabel)
-		require.Equal(t, tRole.GetMetadata().Labels[types.OriginLabel], types.OriginKubernetes)
+		require.Equal(t, types.OriginKubernetes, tRole.GetMetadata().Labels[types.OriginLabel])
 
 		return true
 	})
@@ -457,7 +457,7 @@ func TestAddTeleportResourceOriginRole(t *testing.T) {
 			r.AddTeleportResourceOrigin(tc.resource)
 			metadata := tc.resource.GetMetadata()
 			require.Contains(t, metadata.Labels, types.OriginLabel)
-			require.Equal(t, metadata.Labels[types.OriginLabel], types.OriginKubernetes)
+			require.Equal(t, types.OriginKubernetes, metadata.Labels[types.OriginLabel])
 		})
 	}
 }

@@ -39,9 +39,9 @@ import (
 )
 
 func TestHelperFunctions(t *testing.T) {
-	assert.Equal(t, nodeName(targetNode{addr: "one"}), "one")
-	assert.Equal(t, nodeName(targetNode{addr: "one:22"}), "one")
-	assert.Equal(t, nodeName(targetNode{addr: "one", hostname: "example.com"}), "example.com")
+	assert.Equal(t, "one", nodeName(targetNode{addr: "one"}))
+	assert.Equal(t, "one", nodeName(targetNode{addr: "one:22"}))
+	assert.Equal(t, "example.com", nodeName(targetNode{addr: "one", hostname: "example.com"}))
 }
 
 func TestNewSession(t *testing.T) {
@@ -55,12 +55,12 @@ func TestNewSession(t *testing.T) {
 	ses, err := newSession(ctx, nc, nil, nil, nil, nil, nil, true)
 	require.NoError(t, err)
 	require.NotNil(t, ses)
-	require.Equal(t, ses.NodeClient(), nc)
-	require.Equal(t, ses.namespace, nc.Namespace)
+	require.Equal(t, nc, ses.NodeClient())
+	require.Equal(t, nc.Namespace, ses.namespace)
 	require.NotNil(t, ses.env)
-	require.Equal(t, ses.terminal.Stderr(), os.Stderr)
-	require.Equal(t, ses.terminal.Stdout(), os.Stdout)
-	require.Equal(t, ses.terminal.Stdin(), os.Stdin)
+	require.Equal(t, os.Stderr, ses.terminal.Stderr())
+	require.Equal(t, os.Stdout, ses.terminal.Stdout())
+	require.Equal(t, os.Stdin, ses.terminal.Stdin())
 
 	// pass environ map
 	env := map[string]string{
@@ -71,7 +71,7 @@ func TestNewSession(t *testing.T) {
 	require.NotNil(t, ses)
 	require.Empty(t, cmp.Diff(ses.env, env))
 	// the session ID must be taken from tne environ map, if passed:
-	require.Equal(t, string(ses.id), "session-id")
+	require.Equal(t, "session-id", string(ses.id))
 }
 
 // TestProxyConnection verifies that client or server-side disconnect

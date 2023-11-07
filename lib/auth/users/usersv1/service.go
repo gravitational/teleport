@@ -210,6 +210,14 @@ func (s *Service) CreateUser(ctx context.Context, req *userspb.CreateUserRequest
 		return nil, trace.Wrap(err)
 	}
 
+	if err := services.ValidateUser(req.User); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := services.ValidateUserRoles(ctx, req.User, s.cache); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	if req.User.GetCreatedBy().IsEmpty() {
 		req.User.SetCreatedBy(types.CreatedBy{
 			User: types.UserRef{Name: authz.ClientUsername(ctx)},

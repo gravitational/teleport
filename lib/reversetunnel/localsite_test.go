@@ -284,7 +284,7 @@ func TestProxyResync(t *testing.T) {
 	discoveryCh := make(chan *discoveryRequest)
 
 	reqHandler := func(name string, wantReply bool, payload []byte) (bool, error) {
-		assert.Equal(t, name, chanDiscoveryReq)
+		assert.Equal(t, chanDiscoveryReq, name)
 
 		var req discoveryRequest
 		assert.NoError(t, json.Unmarshal(payload, &req))
@@ -292,7 +292,7 @@ func TestProxyResync(t *testing.T) {
 		return true, nil
 	}
 	channelCreator := func(name string) ssh.Channel {
-		assert.Equal(t, name, chanDiscovery)
+		assert.Equal(t, chanDiscovery, name)
 		return &mockedSSHChannel{reqHandler: reqHandler}
 	}
 

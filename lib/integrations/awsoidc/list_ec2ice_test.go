@@ -105,7 +105,7 @@ func TestListEC2ICE(t *testing.T) {
 		require.NotEmpty(t, resp.NextToken)
 		require.Len(t, resp.EC2ICEs, pageSize)
 		nextPageToken := resp.NextToken
-		require.Equal(t, resp.EC2ICEs[0].SubnetID, "subnet-0")
+		require.Equal(t, "subnet-0", resp.EC2ICEs[0].SubnetID)
 
 		// Second page must return pageSize number of Endpoints
 		resp, err = ListEC2ICE(ctx, mockListClient, ListEC2ICERequest{
@@ -117,7 +117,7 @@ func TestListEC2ICE(t *testing.T) {
 		require.NotEmpty(t, resp.NextToken)
 		require.Len(t, resp.EC2ICEs, pageSize)
 		nextPageToken = resp.NextToken
-		require.Equal(t, resp.EC2ICEs[0].SubnetID, "subnet-100")
+		require.Equal(t, "subnet-100", resp.EC2ICEs[0].SubnetID)
 
 		// Third page must return only the remaining Endpoints and an empty nextToken
 		resp, err = ListEC2ICE(ctx, mockListClient, ListEC2ICERequest{
@@ -128,7 +128,7 @@ func TestListEC2ICE(t *testing.T) {
 		require.NoError(t, err)
 		require.Empty(t, resp.NextToken)
 		require.Len(t, resp.EC2ICEs, 3)
-		require.Equal(t, resp.EC2ICEs[0].SubnetID, "subnet-200")
+		require.Equal(t, "subnet-200", resp.EC2ICEs[0].SubnetID)
 	})
 
 	for _, tt := range []struct {
