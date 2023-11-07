@@ -1358,16 +1358,40 @@ func migrateRemoteClusters(ctx context.Context, asrv *Server) error {
 	return nil
 }
 
+var ResourceApplyPriority = map[string]int{
+	types.KindRole:  1,
+	types.KindUser:  2,
+	types.KindToken: 3,
+}
+
 // Unlike when resources are loaded via --bootstrap, we're inserting elements via their service.
-// This means consistency is checked. This function does not currently support applying resources
-// with dependencies (like a user referring to a role) as it won't necessarily apply them in the
-// right order.
+// This means consistency is checked. This function support applying resources
+// with dependencies (like a user referring to a role).
 func applyResources(ctx context.Context, service *Services, resources []types.Resource) error {
 	var err error
+	slices.SortFunc(resources, func(a, b types.Resource) int {
+		priorityA, ok := ResourceApplyPriority[a.GetKind()]
+		if !ok {
+			priorityA = 0
+		}
+		priorityB, ok := ResourceApplyPriority[b.GetKind()]
+		if !ok {
+			priorityB = 0
+		}
+		return priorityA - priorityB
+	})
 	for _, resource := range resources {
 		switch r := resource.(type) {
 		case types.ProvisionToken:
 			err = service.Provisioner.UpsertToken(ctx, r)
+		case types.User:
+			err = services.ValidateUserRoles(ctx, r, service.Access)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			_, err = service.Identity.UpsertUser(ctx, r)
+		case types.Role:
+			_, err = service.Access.UpsertRole(ctx, r)
 		default:
 			return trace.NotImplemented("cannot apply resource of type %T", resource)
 		}
