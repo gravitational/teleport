@@ -85,6 +85,15 @@ export const SERVERS: ResourceSpec[] = [
     event: DiscoverEventResource.Ec2Instance,
     nodeMeta: { location: ServerLocation.Aws },
   },
+  {
+    name: 'Connect My Computer',
+    kind: ResourceKind.ConnectMyComputer,
+    keywords: baseServerKeywords + 'connect my computer',
+    icon: 'Laptop',
+    event: DiscoverEventResource.Server,
+    supportedPlatforms: [Platform.macOS, Platform.Linux],
+    supportedAuthTypes: ['local', 'passwordless'],
+  },
 ];
 
 export const APPLICATIONS: ResourceSpec[] = [
