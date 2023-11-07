@@ -60,6 +60,9 @@ func (e *Engine) ActivateUser(ctx context.Context, sessionCtx *common.Session) e
 		if strings.Contains(err.Error(), "already exists") {
 			return trace.AlreadyExists("user %q already exists in this PostgreSQL database and is not managed by Teleport", sessionCtx.DatabaseUser)
 		}
+		if strings.Contains(err.Error(), "TP002: User has active connections and roles have changed") {
+			return trace.CompareFailed("roles for user %q has changed. Please quit all active connections and try again.", sessionCtx.DatabaseUser)
+		}
 		return trace.Wrap(err)
 	}
 
