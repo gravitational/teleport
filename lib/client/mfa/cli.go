@@ -84,8 +84,10 @@ func (c *CLIPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChalleng
 			defer wg.Done()
 			defer close(otpDone)
 
-			// Let Webauthn take the prompt below.
-			resp, err := c.promptTOTP(otpCtx, chal, true /*quiet*/)
+			// Let Webauthn take the prompt below if applicable.
+			quiet := c.cfg.Quiet || runOpts.promptWebauthn
+
+			resp, err := c.promptTOTP(otpCtx, chal, quiet)
 			respC <- response{kind: "TOTP", resp: resp, err: err}
 		}()
 	}
