@@ -141,7 +141,7 @@ function LeafDisconnected(props: {
       clusterState="Trusted cluster is offline."
       action={{
         attempt: props.clusterSyncAttempt,
-        label: 'Reconnect',
+        label: 'Refresh cluster status',
         run: props.syncCluster,
       }}
     />
@@ -152,7 +152,7 @@ function NotFound(props: { clusterName: string }) {
   return (
     <PrintState
       clusterName={props.clusterName}
-      clusterState="Cluster is not found."
+      clusterState="Cluster not found."
     />
   );
 }
