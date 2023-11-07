@@ -56,17 +56,18 @@ const makeResourceSpec = (
  * If the user has resources, Connect My Computer is not prioritized when sorting resources.
  */
 const onboardDiscoverWithResources: OnboardDiscover = {
-  notified: true,
   hasResource: true,
+  notified: true,
   hasVisited: true,
 };
 /**
- * If the user does not have resources, Connect My Computer is prioritized as long as its resource
- * spec is in the array and the user either has no preferences or prefers servers.
+ * If the user does not have resources, Connect My Computer is prioritized as long as it was not
+ * filtered out based on supported platforms and auth types and the user either has no preferences
+ * or prefers servers.
  */
 const onboardDiscoverNoResources: OnboardDiscover = {
-  notified: true,
   hasResource: false,
+  notified: true,
   hasVisited: false,
 };
 
