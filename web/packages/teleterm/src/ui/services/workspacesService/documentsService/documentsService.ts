@@ -232,6 +232,7 @@ export class DocumentsService {
       kind: 'doc.connect_my_computer' as const,
       title: 'Connect My Computer',
       rootClusterUri: opts.rootClusterUri,
+      status: '',
     };
     this.add(doc);
     this.open(doc.uri);

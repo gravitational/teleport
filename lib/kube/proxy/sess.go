@@ -610,10 +610,22 @@ func (s *session) launch() error {
 
 	s.io.On()
 	if err = executor.StreamWithContext(s.streamContext, options); err != nil {
+		s.reportErrorToSessionRecorder(err)
 		s.log.WithError(err).Warning("Executor failed while streaming.")
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+// reportErrorToSessionRecorder reports the error to the session recorder
+// if it is set.
+func (s *session) reportErrorToSessionRecorder(err error) {
+	if err == nil {
+		return
+	}
+	if s.recorder != nil {
+		fmt.Fprintf(s.recorder, "\n---\nSession exited with error: %v\n", err)
+	}
 }
 
 func (s *session) lockedSetupLaunch(request *remoteCommandRequest, q url.Values, eventPodMeta apievents.KubernetesPodMetadata) (func(error), error) {
@@ -773,7 +785,7 @@ func (s *session) lockedSetupLaunch(request *remoteCommandRequest, q url.Values,
 
 		if errExec != nil {
 			execEvent.Code = events.ExecFailureCode
-			execEvent.Error, execEvent.ExitCode = exitCode(err)
+			execEvent.Error, execEvent.ExitCode = exitCode(errExec)
 		}
 
 		if err := s.emitter.EmitAuditEvent(s.forwarder.ctx, execEvent); err != nil {
@@ -833,7 +845,7 @@ func (s *session) lockedSetupLaunch(request *remoteCommandRequest, q url.Values,
 }
 
 // join attempts to connect a party to the session.
-func (s *session) join(p *party) error {
+func (s *session) join(p *party, emitJoinEvent bool) error {
 	if p.Ctx.User.GetName() != s.ctx.User.GetName() {
 		roles := p.Ctx.Checker.Roles()
 
@@ -863,27 +875,11 @@ func (s *session) join(p *party) error {
 		return trace.Wrap(err)
 	}
 
-	sessionJoinEvent := &apievents.SessionJoin{
-		Metadata: apievents.Metadata{
-			Type:        events.SessionJoinEvent,
-			Code:        events.SessionJoinCode,
-			ClusterName: s.ctx.teleportCluster.name,
-		},
-		KubernetesClusterMetadata: apievents.KubernetesClusterMetadata{
-			KubernetesCluster: s.ctx.kubeClusterName,
-			KubernetesUsers:   []string{},
-			KubernetesGroups:  []string{},
-			KubernetesLabels:  s.ctx.kubeClusterLabels,
-		},
-		SessionMetadata: s.getSessionMetadata(),
-		UserMetadata:    p.Ctx.eventUserMetaWithLogin("root"),
-		ConnectionMetadata: apievents.ConnectionMetadata{
-			RemoteAddr: s.params.ByName("podName"),
-		},
-	}
-
-	if err := s.emitter.EmitAuditEvent(s.forwarder.ctx, sessionJoinEvent); err != nil {
-		s.forwarder.log.WithError(err).Warn("Failed to emit event.")
+	// we only want to emit the session.join when someone tries to join a session via
+	// tsh kube join and not when the original session owner terminal streams are
+	// connected to the Kubernetes session.
+	if emitJoinEvent {
+		s.emitSessionJoinEvent(p)
 	}
 
 	recentWrites := s.io.GetRecentHistory()
@@ -972,6 +968,37 @@ func (s *session) BroadcastMessage(format string, args ...any) {
 	}
 }
 
+// emitSessionJoinEvent emits a session.join audit event when a user joins
+// the session.
+// This function requires that the session must be active, otherwise audit logger
+// will discard the event.
+func (s *session) emitSessionJoinEvent(p *party) {
+	sessionJoinEvent := &apievents.SessionJoin{
+		Metadata: apievents.Metadata{
+			Type:        events.SessionJoinEvent,
+			Code:        events.SessionJoinCode,
+			ClusterName: s.ctx.teleportCluster.name,
+		},
+		KubernetesClusterMetadata: apievents.KubernetesClusterMetadata{
+			KubernetesCluster: s.ctx.kubeClusterName,
+			// joining moderators, obervers and peers don't have any
+			// kubernetes metadata configured.
+			KubernetesUsers:  []string{},
+			KubernetesGroups: []string{},
+			KubernetesLabels: s.ctx.kubeClusterLabels,
+		},
+		SessionMetadata: s.getSessionMetadata(),
+		UserMetadata:    p.Ctx.eventUserMetaWithLogin("root"),
+		ConnectionMetadata: apievents.ConnectionMetadata{
+			RemoteAddr: s.params.ByName("podName"),
+		},
+	}
+
+	if err := s.emitter.EmitAuditEvent(s.forwarder.ctx, sessionJoinEvent); err != nil {
+		s.forwarder.log.WithError(err).Warn("Failed to emit event.")
+	}
+}
+
 // leave removes a party from the session and returns if the party was still active
 // in the session. If the party wasn't found, it returns false, nil.
 func (s *session) leave(id uuid.UUID) (bool, error) {
@@ -1005,8 +1032,8 @@ func (s *session) unlockedLeave(id uuid.UUID) (bool, error) {
 
 	sessionLeaveEvent := &apievents.SessionLeave{
 		Metadata: apievents.Metadata{
-			Type:        events.SessionJoinEvent,
-			Code:        events.SessionJoinCode,
+			Type:        events.SessionLeaveEvent,
+			Code:        events.SessionLeaveCode,
 			ClusterName: s.ctx.teleportCluster.name,
 		},
 		SessionMetadata: s.getSessionMetadata(),

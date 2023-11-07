@@ -91,7 +91,7 @@ func (dm *DestinationMemory) TryLock() (func() error, error) {
 	}, nil
 }
 
-func (dm DestinationMemory) MarshalYAML() (interface{}, error) {
+func (dm *DestinationMemory) MarshalYAML() (interface{}, error) {
 	type raw DestinationMemory
-	return withTypeHeader(raw(dm), DestinationMemoryType)
+	return withTypeHeader((*raw)(dm), DestinationMemoryType)
 }

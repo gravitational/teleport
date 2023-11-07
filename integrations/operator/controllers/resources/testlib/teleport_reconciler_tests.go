@@ -65,7 +65,7 @@ func ResourceCreationTest[T resources.TeleportResource, K resources.TeleportKube
 		require.Equal(t, tResource.GetName(), resourceName)
 
 		require.Contains(t, tResource.GetMetadata().Labels, types.OriginLabel)
-		require.Equal(t, tResource.GetMetadata().Labels[types.OriginLabel], types.OriginKubernetes)
+		require.Equal(t, types.OriginKubernetes, tResource.GetMetadata().Labels[types.OriginLabel])
 
 		return true
 	})
@@ -106,7 +106,7 @@ func ResourceDeletionDriftTest[T resources.TeleportResource, K resources.Telepor
 		require.Equal(t, tResource.GetName(), resourceName)
 
 		require.Contains(t, tResource.GetMetadata().Labels, types.OriginLabel)
-		require.Equal(t, tResource.GetMetadata().Labels[types.OriginLabel], types.OriginKubernetes)
+		require.Equal(t, types.OriginKubernetes, tResource.GetMetadata().Labels[types.OriginLabel])
 
 		return true
 	})

@@ -16,12 +16,14 @@ package local
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types/externalcloudaudit"
@@ -31,6 +33,7 @@ import (
 )
 
 func TestExternalCloudAuditService(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	clock := clockwork.NewFakeClock()
 
@@ -64,7 +67,7 @@ func TestExternalCloudAuditService(t *testing.T) {
 		// When
 		err := service.PromoteToClusterExternalCloudAudit(ctx)
 		// Then
-		require.ErrorContains(t, err, "can't promote to cluster when draft does not exists")
+		require.ErrorContains(t, err, "can't promote to cluster when draft does not exist")
 	})
 
 	t.Run("create draft", func(t *testing.T) {
@@ -102,15 +105,15 @@ func TestExternalCloudAuditService(t *testing.T) {
 	})
 
 	t.Run("updating draft does not change to cluster", func(t *testing.T) {
-		// Given existing draft
+		// Given existing cluster external_cloud_audit
 		// When UpsertDraftExternalCloudAudit
-		// Then draft is updated
+		// Then draft is written
 		// And cluster external audit remains unchanged.
 
 		// Given
-		draftWithNewSessRec, err := service.GetDraftExternalCloudAudit(ctx)
+		specWithNewSessRec := newSpecWithSessRec(t, sessRecURL2)
+		draftWithNewSessRec, err := externalcloudaudit.NewDraftExternalCloudAudit(header.Metadata{}, specWithNewSessRec)
 		require.NoError(t, err)
-		draftWithNewSessRec.Spec.SessionsRecordingsURI = sessRecURL2
 
 		// When
 		_, err = service.UpsertDraftExternalCloudAudit(ctx, draftWithNewSessRec)
@@ -140,10 +143,12 @@ func TestExternalCloudAuditService(t *testing.T) {
 		require.Error(t, err)
 		require.True(t, trace.IsNotFound(err))
 	})
+
 	t.Run("delete draft", func(t *testing.T) {
 		// Given existing draft
 		// When DeleteDraftExternalAudit
 		// Then not found error is returner on GetDraft.
+		// And deleting again fails
 
 		// When
 		err := service.DeleteDraftExternalCloudAudit(ctx)
@@ -153,17 +158,59 @@ func TestExternalCloudAuditService(t *testing.T) {
 		_, err = service.GetDraftExternalCloudAudit(ctx)
 		require.Error(t, err)
 		require.True(t, trace.IsNotFound(err))
+
+		// And
+		err = service.DeleteDraftExternalCloudAudit(ctx)
+		require.Error(t, err)
+		require.True(t, trace.IsNotFound(err), "expected NotFound error, got %v", err)
+	})
+
+	t.Run("generate", func(t *testing.T) {
+		// Given no draft
+
+		// When GenerateDraftExternalCloudAudit
+		generateResp, err := service.GenerateDraftExternalCloudAudit(ctx, "test-integration", "us-west-2")
+		require.NoError(t, err)
+
+		// Then draft is returned with generated values
+		spec := generateResp.Spec
+		nonce := strings.TrimPrefix(spec.PolicyName, "ExternalCloudAuditPolicy-")
+		underscoreNonce := strings.ReplaceAll(nonce, "-", "_")
+		expectedSpec := externalcloudaudit.ExternalCloudAuditSpec{
+			IntegrationName:        "test-integration",
+			PolicyName:             "ExternalCloudAuditPolicy-" + nonce,
+			Region:                 "us-west-2",
+			SessionsRecordingsURI:  "s3://teleport-longterm-" + nonce + "/sessions",
+			AuditEventsLongTermURI: "s3://teleport-longterm-" + nonce + "/events",
+			AthenaResultsURI:       "s3://teleport-transient-" + nonce + "/query_results",
+			AthenaWorkgroup:        "teleport_events_" + underscoreNonce,
+			GlueDatabase:           "teleport_events_" + underscoreNonce,
+			GlueTable:              "teleport_events",
+		}
+		assert.Equal(t, expectedSpec, spec)
+
+		// And GetDraftExternalCloudAudit returns the same draft
+		getResp, err := service.GetDraftExternalCloudAudit(ctx)
+		require.NoError(t, err)
+		assert.Empty(t, cmp.Diff(generateResp, getResp, cmpOpts...))
+
+		// And can't generate when there is an existing draft
+		_, err = service.GenerateDraftExternalCloudAudit(ctx, "test-integration", "us-west-2")
+		require.Error(t, err)
+		assert.True(t, trace.IsAlreadyExists(err), "expected AlreadyExists error, got %v", err)
 	})
 }
 
 func newSpecWithSessRec(t *testing.T, sessionsRecordingsURI string) externalcloudaudit.ExternalCloudAuditSpec {
 	return externalcloudaudit.ExternalCloudAuditSpec{
 		IntegrationName:        "aws-integration-1",
+		PolicyName:             "test-policy",
+		Region:                 "us-west-2",
 		SessionsRecordingsURI:  sessionsRecordingsURI,
 		AthenaWorkgroup:        "primary",
 		GlueDatabase:           "teleport_db",
 		GlueTable:              "teleport_table",
 		AuditEventsLongTermURI: "s3://bucket/events",
-		AthenaResultsURI:       "s3://bucket/results",
+		AthenaResultsURI:       "s3://bucket/query_results",
 	}
 }

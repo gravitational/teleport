@@ -171,7 +171,7 @@ func TestAlertAcknowledgement_Check(t *testing.T) {
 			err := tc.ack.Check()
 
 			if tc.expectedErr == nil {
-				require.Equal(t, err, nil)
+				require.NoError(t, err)
 				return
 			}
 

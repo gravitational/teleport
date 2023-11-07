@@ -27,6 +27,7 @@ export enum ResourceKind {
   SamlApplication,
   Discovery,
   ExternalCloudAudit,
+  ConnectMyComputer,
 }
 
 export function resourceKindToJoinRole(kind: ResourceKind): JoinRole {
@@ -43,6 +44,8 @@ export function resourceKindToJoinRole(kind: ResourceKind): JoinRole {
       return 'Node';
     case ResourceKind.Discovery:
       return 'Discovery';
+    case ResourceKind.ConnectMyComputer:
+      return 'Node';
   }
 }
 
@@ -62,5 +65,7 @@ export function resourceKindToPreferredResource(
       return ClusterResource.RESOURCE_SERVER_SSH;
     case ResourceKind.Discovery:
       return ClusterResource.RESOURCE_UNSPECIFIED;
+    case ResourceKind.ConnectMyComputer:
+      return ClusterResource.RESOURCE_SERVER_SSH;
   }
 }

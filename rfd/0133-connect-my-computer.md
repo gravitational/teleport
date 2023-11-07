@@ -1,6 +1,6 @@
 ---
 authors: Grzegorz Zdunek (grzegorz.zdunek@goteleport.com), Rafał Cieślak (rafal.cieslak@goteleport.com)
-state: draft
+state: implemented (14.1)
 ---
 
 # RFD 133 - Connect My Computer

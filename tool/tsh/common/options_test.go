@@ -47,7 +47,7 @@ func TestOptions(t *testing.T) {
 			inOptions:   []string{"AddKeysToAgent yes"},
 			assertError: require.NoError,
 			assertOptions: func(t *testing.T, opts Options) {
-				require.Equal(t, true, opts.AddKeysToAgent)
+				require.True(t, opts.AddKeysToAgent)
 			},
 		},
 		{
@@ -55,7 +55,7 @@ func TestOptions(t *testing.T) {
 			inOptions:   []string{"AddKeysToAgent=yes"},
 			assertError: require.NoError,
 			assertOptions: func(t *testing.T, opts Options) {
-				require.Equal(t, true, opts.AddKeysToAgent)
+				require.True(t, opts.AddKeysToAgent)
 			},
 		},
 		{
@@ -114,8 +114,8 @@ func TestOptions(t *testing.T) {
 			inOptions:   []string{"ForwardX11 yes"},
 			assertError: require.NoError,
 			assertOptions: func(t *testing.T, opts Options) {
-				require.Equal(t, true, opts.ForwardX11)
-				require.Equal(t, true, *opts.ForwardX11Trusted)
+				require.True(t, opts.ForwardX11)
+				require.True(t, *opts.ForwardX11Trusted)
 			},
 		},
 		{
@@ -129,7 +129,7 @@ func TestOptions(t *testing.T) {
 			inOptions:   []string{"ForwardX11Trusted yes"},
 			assertError: require.NoError,
 			assertOptions: func(t *testing.T, opts Options) {
-				require.Equal(t, true, *opts.ForwardX11Trusted)
+				require.True(t, *opts.ForwardX11Trusted)
 			},
 		},
 		{
@@ -137,7 +137,7 @@ func TestOptions(t *testing.T) {
 			inOptions:   []string{"ForwardX11Trusted no"},
 			assertError: require.NoError,
 			assertOptions: func(t *testing.T, opts Options) {
-				require.Equal(t, false, *opts.ForwardX11Trusted)
+				require.False(t, *opts.ForwardX11Trusted)
 			},
 		},
 		{
@@ -145,8 +145,8 @@ func TestOptions(t *testing.T) {
 			inOptions:   []string{"ForwardX11 yes", "ForwardX11Trusted no"},
 			assertError: require.NoError,
 			assertOptions: func(t *testing.T, opts Options) {
-				require.Equal(t, true, opts.ForwardX11)
-				require.Equal(t, false, *opts.ForwardX11Trusted)
+				require.True(t, opts.ForwardX11)
+				require.False(t, *opts.ForwardX11Trusted)
 			},
 		},
 		{

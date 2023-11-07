@@ -64,7 +64,7 @@ func TestPluginsCRUD(t *testing.T) {
 	// Initially we expect no items.
 	out, err := service.GetPlugins(ctx, false)
 	require.NoError(t, err)
-	require.Equal(t, 0, len(out))
+	require.Empty(t, out)
 
 	// Create both plugins.
 	err = service.CreatePlugin(ctx, plugin1)
@@ -136,7 +136,7 @@ func TestPluginsCRUD(t *testing.T) {
 	require.NoError(t, err)
 	out, err = service.GetPlugins(ctx, true)
 	require.NoError(t, err)
-	require.Len(t, out, 0)
+	require.Empty(t, out)
 }
 
 func TestListPlugins(t *testing.T) {

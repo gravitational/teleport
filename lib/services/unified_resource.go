@@ -154,7 +154,10 @@ func (c *UnifiedResourceCache) delete(ctx context.Context, res types.Resource) e
 
 	// delete generally only sends the id, so we will fetch the actual resource from our resources
 	// map and generate our sort keys. Then we can delete from the map and all the trees at once
-	resource := c.resources[key]
+	resource, exists := c.resources[key]
+	if !exists {
+		return trace.NotFound("cannot delete resource: key %s not found in unified resource cache", key)
+	}
 
 	sortKey := makeResourceSortKey(resource)
 
@@ -207,6 +210,7 @@ func (c *UnifiedResourceCache) getRange(ctx context.Context, startKey []byte, ma
 			iterateRange = tree.AscendRange
 			endKey = backend.RangeEnd(backend.Key(prefix))
 		}
+		var iteratorErr error
 		iterateRange(&item{Key: startKey}, &item{Key: endKey}, func(item *item) bool {
 			// get resource from resource map
 			resourceFromMap, ok := cache.resources[item.Value]
@@ -218,8 +222,9 @@ func (c *UnifiedResourceCache) getRange(ctx context.Context, startKey []byte, ma
 			// check if the resource matches our filter
 			match, err := matchFn(resourceFromMap)
 			if err != nil {
-				// do something with this error eventually but continue for now
-				return true
+				iteratorErr = err
+				// stop the iterator so we can return the error
+				return false
 			}
 
 			if !match {
@@ -235,7 +240,7 @@ func (c *UnifiedResourceCache) getRange(ctx context.Context, startKey []byte, ma
 			res = append(res, resourceFromMap)
 			return true
 		})
-		return nil
+		return iteratorErr
 	})
 	if err != nil {
 		return nil, "", trace.Wrap(err)
@@ -266,7 +271,7 @@ func (c *UnifiedResourceCache) IterateUnifiedResources(ctx context.Context, matc
 	startKey := getStartKey(req)
 	result, nextKey, err := c.getRange(ctx, startKey, matchFn, req)
 	if err != nil {
-		return nil, "", trace.Wrap(err, "getting unified resource range")
+		return nil, "", trace.Wrap(err)
 	}
 
 	resources := make([]types.ResourceWithLabels, 0, len(result))
@@ -282,7 +287,7 @@ func (c *UnifiedResourceCache) GetUnifiedResources(ctx context.Context) ([]types
 	req := &proto.ListUnifiedResourcesRequest{Limit: backend.NoLimit, SortBy: types.SortBy{IsDesc: false, Field: sortByName}}
 	result, _, err := c.getRange(ctx, backend.Key(prefix), func(rwl types.ResourceWithLabels) (bool, error) { return true, nil }, req)
 	if err != nil {
-		return nil, trace.Wrap(err, "getting unified resource range")
+		return nil, trace.Wrap(err)
 	}
 
 	resources := make([]types.ResourceWithLabels, 0, len(result))
@@ -294,7 +299,7 @@ func (c *UnifiedResourceCache) GetUnifiedResources(ctx context.Context) ([]types
 }
 
 // GetUnifiedResourcesByIDs will take a list of ids and return any items found in the unifiedResourceCache tree by id and that return true from matchFn
-func (c *UnifiedResourceCache) GetUnifiedResourcesByIDs(ctx context.Context, ids []string, matchFn func(types.ResourceWithLabels) bool) ([]types.ResourceWithLabels, error) {
+func (c *UnifiedResourceCache) GetUnifiedResourcesByIDs(ctx context.Context, ids []string, matchFn func(types.ResourceWithLabels) (bool, error)) ([]types.ResourceWithLabels, error) {
 	var resources []types.ResourceWithLabels
 
 	err := c.read(ctx, func(cache *UnifiedResourceCache) error {
@@ -305,14 +310,18 @@ func (c *UnifiedResourceCache) GetUnifiedResourcesByIDs(ctx context.Context, ids
 				continue
 			}
 			resource := cache.resources[res.Value]
-			if matched := matchFn(resource); matched {
+			match, err := matchFn(resource)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			if match {
 				resources = append(resources, resource.CloneResource())
 			}
 		}
 		return nil
 	})
 	if err != nil {
-		return nil, trace.Wrap(err, "getting unified resources by id")
+		return nil, trace.Wrap(err)
 	}
 
 	return resources, nil
@@ -558,9 +567,9 @@ func (c *UnifiedResourceCache) read(ctx context.Context, fn func(cache *UnifiedR
 	c.mu.Lock()
 
 	if !c.stale {
-		fn(c)
+		err := fn(c)
 		c.mu.Unlock()
-		return nil
+		return err
 	}
 
 	c.mu.Unlock()
@@ -586,9 +595,9 @@ func (c *UnifiedResourceCache) read(ctx context.Context, fn func(cache *UnifiedR
 
 	if !c.stale {
 		// primary became healthy while we were waiting
-		fn(c)
+		err := fn(c)
 		c.mu.Unlock()
-		return nil
+		return err
 	}
 	c.mu.Unlock()
 
@@ -597,8 +606,8 @@ func (c *UnifiedResourceCache) read(ctx context.Context, fn func(cache *UnifiedR
 		return trace.Wrap(err)
 	}
 
-	fn(ttlCache)
-	return nil
+	err = fn(ttlCache)
+	return err
 }
 
 func (c *UnifiedResourceCache) notifyStale() {

@@ -27,6 +27,7 @@ import (
 	"sort"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/google/go-cmp/cmp"
@@ -37,6 +38,8 @@ import (
 	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/crypto/ssh"
 
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	wanpb "github.com/gravitational/teleport/api/types/webauthn"
 	"github.com/gravitational/teleport/api/utils/keys"
@@ -71,6 +74,145 @@ func NewIdentityService(backend backend.Backend) *IdentityService {
 func (s *IdentityService) DeleteAllUsers(ctx context.Context) error {
 	startKey := backend.ExactKey(webPrefix, usersPrefix)
 	return trace.Wrap(s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey)))
+}
+
+func (s *IdentityService) listUsersWithSecrets(ctx context.Context, pageSize int, pageToken string) ([]types.User, string, error) {
+	rangeStart := backend.Key(webPrefix, usersPrefix, pageToken)
+	rangeEnd := backend.RangeEnd(backend.ExactKey(webPrefix, usersPrefix))
+
+	// Adjust page size, so it can't be too large.
+	if pageSize <= 0 || pageSize > apidefaults.DefaultChunkSize {
+		pageSize = apidefaults.DefaultChunkSize
+	}
+
+	// Artificially inflate the limit to account for user secrets
+	// which have the same prefix.
+	limit := pageSize * 4
+
+	rangeStream := backend.StreamRange(ctx, s.Backend, rangeStart, rangeEnd, limit)
+
+	var (
+		out      []types.User
+		prevUser string
+		items    userItems
+	)
+	for rangeStream.Next() {
+		item := rangeStream.Item()
+
+		name, suffix, err := splitUsernameAndSuffix(string(item.Key))
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+
+		if prevUser == "" {
+			prevUser = name
+		}
+
+		if name != prevUser {
+			user, err := userFromUserItems(prevUser, items)
+			if err != nil {
+				return nil, "", trace.Wrap(err)
+			}
+
+			out = append(out, user)
+
+			prevUser = name
+			items = userItems{}
+
+			if len(out) == pageSize {
+				break
+			}
+		}
+
+		items.Set(suffix, item)
+	}
+
+	next := rangeStream.Next()
+
+	if len(out) == 0 {
+		// When there is only a single user the transition logic to detect when a user
+		// is complete will never be hit. If the stream is exhausted and the items have
+		// processed a user resource then return it.
+		if !next && items.complete() {
+			user, err := userFromUserItems(prevUser, items)
+			if err != nil {
+				return nil, "", trace.Wrap(err)
+			}
+
+			out = append(out, user)
+		}
+	} else {
+		// If there are no more users it is possible that the previous user being processed
+		// was never added to out because there was no additional user to transition to.
+		// Add the user from the collected items and return the full output.
+		if len(out) != pageSize && out[len(out)-1].GetName() != prevUser {
+			user, err := userFromUserItems(prevUser, items)
+			if err != nil {
+				return nil, "", trace.Wrap(err)
+			}
+
+			out = append(out, user)
+		}
+	}
+
+	var nextToken string
+	// If the stream has more data or while processing the stream the last user
+	// caused a transition but was not added to out we want to send a token so
+	// that the final user may be returned in the next page.
+	if next || len(out) > 0 && out[len(out)-1].GetName() != prevUser {
+		nextToken = nextUserToken(out[len(out)-1])
+	}
+
+	return out, nextToken, trace.Wrap(rangeStream.Done())
+}
+
+// nextUserToken returns the last token for the given user. This
+// allows the listing operation to provide a token which doesn't divulge
+// the next user in the list while still allowing listing to operate
+// without missing any users.
+func nextUserToken(user types.User) string {
+	return string(backend.RangeEnd(backend.ExactKey(user.GetName())))[utf8.RuneLen(backend.Separator):]
+}
+
+// ListUsers returns a page of users.
+func (s *IdentityService) ListUsers(ctx context.Context, pageSize int, pageToken string, withSecrets bool) ([]types.User, string, error) {
+	if withSecrets {
+		users, next, err := s.listUsersWithSecrets(ctx, pageSize, pageToken)
+		return users, next, trace.Wrap(err)
+	}
+
+	rangeStart := backend.Key(webPrefix, usersPrefix, pageToken)
+	rangeEnd := backend.RangeEnd(backend.ExactKey(webPrefix, usersPrefix))
+
+	// Adjust page size, so it can't be too large.
+	if pageSize <= 0 || pageSize > apidefaults.DefaultChunkSize {
+		pageSize = apidefaults.DefaultChunkSize
+	}
+
+	// Artificially inflate the limit to account for user secrets
+	// which have the same prefix.
+	limit := pageSize * 4
+
+	rangeStream := stream.FilterMap(
+		backend.StreamRange(ctx, s.Backend, rangeStart, rangeEnd, limit),
+		func(item backend.Item) (backend.Item, bool) {
+			return item, bytes.HasSuffix(item.Key, []byte(paramsPrefix))
+		})
+
+	var err error
+	userStream := stream.MapWhile(rangeStream, func(item backend.Item) (types.User, bool) {
+		var user types.User
+		user, err = services.UnmarshalUser(item.Value, services.WithRevision(item.Revision))
+		return user, err == nil
+	})
+
+	users, more := stream.Take(userStream, pageSize)
+	var nextToken string
+	if more && userStream.Next() {
+		nextToken = nextUserToken(users[len(users)-1])
+	}
+
+	return users, nextToken, trace.NewAggregate(err, userStream.Done())
 }
 
 // GetUsers returns a list of users registered with the local auth server
@@ -162,8 +304,9 @@ func (s *IdentityService) CreateUser(ctx context.Context, user types.User) (type
 	return user, nil
 }
 
-// UpdateUser updates an existing user.
-func (s *IdentityService) UpdateUser(ctx context.Context, user types.User) (types.User, error) {
+// LegacyUpdateUser blindly updates an existing user. [IdentityService.UpdateUser] should be
+// used instead so that optimistic locking prevents concurrent resource updates.
+func (s *IdentityService) LegacyUpdateUser(ctx context.Context, user types.User) (types.User, error) {
 	if err := services.ValidateUser(user); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -186,6 +329,38 @@ func (s *IdentityService) UpdateUser(ctx context.Context, user types.User) (type
 		Revision: rev,
 	}
 	lease, err := s.Update(ctx, item)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if auth := user.GetLocalAuth(); auth != nil {
+		if err = s.upsertLocalAuthSecrets(ctx, user.GetName(), *auth); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	user.SetRevision(lease.Revision)
+	user.SetResourceID(lease.ID)
+	return user, nil
+}
+
+// UpdateUser updates an existing user if the revisions match.
+func (s *IdentityService) UpdateUser(ctx context.Context, user types.User) (types.User, error) {
+	if err := services.ValidateUser(user); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	rev := user.GetRevision()
+	value, err := services.MarshalUser(user.WithoutSecrets().(types.User))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	item := backend.Item{
+		Key:      backend.Key(webPrefix, usersPrefix, user.GetName(), paramsPrefix),
+		Value:    value,
+		Expires:  user.Expiry(),
+		ID:       user.GetResourceID(),
+		Revision: rev,
+	}
+	lease, err := s.Backend.Update(ctx, item)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -48,7 +48,7 @@ func TestUploadOK(t *testing.T) {
 	p.clock.BlockUntil(1)
 
 	fileStreamer, err := NewStreamer(p.scanDir)
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	inEvents := eventstest.GenerateTestSession(eventstest.SessionParams{PrintEvents: 1024})
 	sid := inEvents[0].(events.SessionMetadataGetter).GetSessionID()
@@ -63,7 +63,7 @@ func TestUploadOK(t *testing.T) {
 	select {
 	case event = <-p.memEventsC:
 		require.Equal(t, event.SessionID, sid)
-		require.Nil(t, event.Error)
+		require.NoError(t, event.Error)
 	case <-p.ctx.Done():
 		t.Fatalf("Timeout waiting for async upload, try `go test -v` to get more logs for details")
 	}
@@ -86,7 +86,7 @@ func TestUploadParallel(t *testing.T) {
 
 	for i := 0; i < 5; i++ {
 		fileStreamer, err := NewStreamer(p.scanDir)
-		require.Nil(t, err)
+		require.NoError(t, err)
 
 		sessionEvents := eventstest.GenerateTestSession(eventstest.SessionParams{PrintEvents: 1024})
 		sid := sessionEvents[0].(events.SessionMetadataGetter).GetSessionID()
@@ -105,10 +105,9 @@ func TestUploadParallel(t *testing.T) {
 		var found bool
 		select {
 		case event = <-p.memEventsC:
-			require.Nil(t, event.Error)
+			require.NoError(t, event.Error)
 			sessionEvents, found = sessions[event.SessionID]
-			require.Equal(t, found, true,
-				"session %q is not expected, possible duplicate event", event.SessionID)
+			require.True(t, found, "session %q is not expected, possible duplicate event", event.SessionID)
 		case <-p.ctx.Done():
 			t.Fatalf("Timeout waiting for async upload, try `go test -v` to get more logs for details")
 		}
@@ -202,12 +201,12 @@ func TestUploadResume(t *testing.T) {
 					},
 					OnResumeAuditStream: func(ctx context.Context, sid session.ID, uploadID string, streamer events.Streamer) (apievents.Stream, error) {
 						stream, err := streamer.ResumeAuditStream(ctx, sid, uploadID)
-						require.Nil(t, err)
+						require.NoError(t, err)
 						streamResumed.Add(1)
 						return stream, nil
 					},
 				})
-				require.Nil(t, err)
+				require.NoError(t, err)
 				return resumeTestTuple{
 					streamer: callbackStreamer,
 					verify: func(t *testing.T, tc resumeTestCase) {
@@ -234,12 +233,12 @@ func TestUploadResume(t *testing.T) {
 					},
 					OnResumeAuditStream: func(ctx context.Context, sid session.ID, uploadID string, streamer events.Streamer) (apievents.Stream, error) {
 						stream, err := streamer.ResumeAuditStream(ctx, sid, uploadID)
-						require.Nil(t, err)
+						require.NoError(t, err)
 						streamResumed.Add(1)
 						return stream, nil
 					},
 				})
-				require.Nil(t, err)
+				require.NoError(t, err)
 				return resumeTestTuple{
 					streamer: callbackStreamer,
 					verify: func(t *testing.T, tc resumeTestCase) {
@@ -267,7 +266,7 @@ func TestUploadResume(t *testing.T) {
 					},
 					OnCreateAuditStream: func(ctx context.Context, sid session.ID, streamer events.Streamer) (apievents.Stream, error) {
 						stream, err := streamer.CreateAuditStream(ctx, sid)
-						require.Nil(t, err)
+						require.NoError(t, err)
 						streamCreated.Add(1)
 						return stream, nil
 					},
@@ -275,7 +274,7 @@ func TestUploadResume(t *testing.T) {
 						return nil, trace.NotFound("stream not found")
 					},
 				})
-				require.Nil(t, err)
+				require.NoError(t, err)
 				return resumeTestTuple{
 					streamer: callbackStreamer,
 					verify: func(t *testing.T, tc resumeTestCase) {
@@ -289,7 +288,7 @@ func TestUploadResume(t *testing.T) {
 			retries: 1,
 			onRetry: func(t *testing.T, attempt int, uploader *Uploader) {
 				files, err := os.ReadDir(uploader.cfg.ScanDir)
-				require.Nil(t, err)
+				require.NoError(t, err)
 				checkpointsDeleted := 0
 				for i := range files {
 					fi := files[i]
@@ -298,7 +297,7 @@ func TestUploadResume(t *testing.T) {
 					}
 					if filepath.Ext(fi.Name()) == checkpointExt {
 						err := os.Remove(filepath.Join(uploader.cfg.ScanDir, fi.Name()))
-						require.Nil(t, err)
+						require.NoError(t, err)
 						log.Debugf("Deleted checkpoint file: %v.", fi.Name())
 						checkpointsDeleted++
 					}
@@ -321,18 +320,18 @@ func TestUploadResume(t *testing.T) {
 					},
 					OnCreateAuditStream: func(ctx context.Context, sid session.ID, streamer events.Streamer) (apievents.Stream, error) {
 						stream, err := streamer.CreateAuditStream(ctx, sid)
-						require.Nil(t, err)
+						require.NoError(t, err)
 						streamCreated.Add(1)
 						return stream, nil
 					},
 					OnResumeAuditStream: func(ctx context.Context, sid session.ID, uploadID string, streamer events.Streamer) (apievents.Stream, error) {
 						stream, err := streamer.ResumeAuditStream(ctx, sid, uploadID)
-						require.Nil(t, err)
+						require.NoError(t, err)
 						streamResumed.Add(1)
 						return stream, nil
 					},
 				})
-				require.Nil(t, err)
+				require.NoError(t, err)
 				return resumeTestTuple{
 					streamer: callbackStreamer,
 					verify: func(t *testing.T, tc resumeTestCase) {
@@ -425,7 +424,7 @@ func TestUploadBackoff(t *testing.T) {
 	// Make sure that durations between retries are increasing
 	for i, diff := range diffs {
 		if i > 0 {
-			require.True(t, diff > diffs[i-1], "Expected next retry to take longer, got %v vs %v", diffs[i-1], diff)
+			require.Greater(t, diff, diffs[i-1], "Expected next retry to take longer, got %v vs %v", diffs[i-1], diff)
 		}
 	}
 
@@ -555,7 +554,7 @@ func runResume(t *testing.T, testCase resumeTestCase) {
 		Uploader:       memUploader,
 		MinUploadBytes: 1024,
 	})
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	test := testCase.newTest(streamer)
 
@@ -571,7 +570,7 @@ func runResume(t *testing.T, testCase resumeTestCase) {
 		Streamer:     test.streamer,
 		Clock:        clock,
 	})
-	require.Nil(t, err)
+	require.NoError(t, err)
 	go uploader.Serve(ctx)
 	// wait until uploader blocks on the clock
 	clock.BlockUntil(1)
@@ -579,7 +578,7 @@ func runResume(t *testing.T, testCase resumeTestCase) {
 	defer uploader.Close()
 
 	fileStreamer, err := NewStreamer(scanDir)
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	inEvents := eventstest.GenerateTestSession(eventstest.SessionParams{PrintEvents: 1024})
 	sid := inEvents[0].(events.SessionMetadataGetter).GetSessionID()
@@ -615,7 +614,7 @@ func runResume(t *testing.T, testCase resumeTestCase) {
 		case event = <-eventsC:
 			require.Equal(t, event.SessionID, sid)
 			if i == testCase.retries-1 {
-				require.Nil(t, event.Error)
+				require.NoError(t, event.Error)
 			} else {
 				require.IsType(t, trace.ConnectionProblem(nil, "connection problem"), event.Error)
 			}
@@ -638,13 +637,13 @@ func emitStream(ctx context.Context, t *testing.T, streamer events.Streamer, inE
 	sid := inEvents[0].(events.SessionMetadataGetter).GetSessionID()
 
 	stream, err := streamer.CreateAuditStream(ctx, session.ID(sid))
-	require.Nil(t, err)
+	require.NoError(t, err)
 	for _, event := range inEvents {
 		err := stream.RecordEvent(ctx, eventstest.PrepareEvent(event))
-		require.Nil(t, err)
+		require.NoError(t, err)
 	}
 	err = stream.Complete(ctx)
-	require.Nil(t, err)
+	require.NoError(t, err)
 }
 
 // readStream reads and decodes the audit stream from uploadID

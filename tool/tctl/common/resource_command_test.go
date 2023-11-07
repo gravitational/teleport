@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tbot/testhelpers"
 	"github.com/gravitational/teleport/lib/utils"
@@ -1028,7 +1029,7 @@ func (test *dynamicResourceTest[T]) run(t *testing.T) {
 	buf, err := runResourceCommand(t, fileConfig, []string{"get", test.kind, "--format=json"})
 	require.NoError(t, err)
 	resources := mustDecodeJSON[[]T](t, buf)
-	require.Len(t, resources, 0)
+	require.Empty(t, resources)
 
 	// Create the resources.
 	yamlPath := filepath.Join(t.TempDir(), "resources.yaml")
@@ -1339,12 +1340,44 @@ func requireGotDatabaseServers(t *testing.T, buf *bytes.Buffer, want ...types.Da
 	))
 }
 
-func TestCreateGithubConnector(t *testing.T) {
+// TestCreateResources asserts that tctl create and tctl create -f
+// operate as expected when a resource does and does not already exist.
+func TestCreateResources(t *testing.T) {
 	t.Parallel()
 
 	fc, fds := testhelpers.DefaultConfig(t)
 	_ = testhelpers.MakeAndRunTestAuthServer(t, utils.NewLoggerForTests(), fc, fds)
 
+	tests := []struct {
+		kind   string
+		create func(t *testing.T, fc *config.FileConfig)
+	}{
+		{
+			kind:   types.KindGithubConnector,
+			create: testCreateGithubConnector,
+		},
+		{
+			kind:   types.KindRole,
+			create: testCreateRole,
+		},
+		{
+			kind:   types.KindServerInfo,
+			create: testCreateServerInfo,
+		},
+		{
+			kind:   types.KindUser,
+			create: testCreateUser,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.kind, func(t *testing.T) {
+			test.create(t, fc)
+		})
+	}
+}
+
+func testCreateGithubConnector(t *testing.T, fc *config.FileConfig) {
 	// Ensure there are no connectors to start
 	buf, err := runResourceCommand(t, fc, []string{"get", types.KindGithubConnector, "--format=json"})
 	require.NoError(t, err)
@@ -1394,6 +1427,365 @@ version: v3`
 	// the force flag.
 	expected.SetRevision(uuid.NewString())
 	connectorBytes, err := services.MarshalGithubConnector(&expected, services.PreserveResourceID())
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(connectorYAMLPath, connectorBytes, 0644))
+
+	_, err = runResourceCommand(t, fc, []string{"create", connectorYAMLPath})
+	require.True(t, trace.IsAlreadyExists(err))
+
+	_, err = runResourceCommand(t, fc, []string{"create", "-f", connectorYAMLPath})
+	require.NoError(t, err)
+}
+
+func testCreateRole(t *testing.T, fc *config.FileConfig) {
+	// Ensure that our test role does not exist
+	_, err := runResourceCommand(t, fc, []string{"get", types.KindRole + "/test-role", "--format=json"})
+	require.True(t, trace.IsNotFound(err), "expected test-role to not exist prior to being created")
+
+	const roleYAML = `kind: role
+metadata:
+  name: test-role
+spec:
+  allow:
+    app_labels:
+      '*': '*'
+    db_labels:
+      '*': '*'
+    kubernetes_labels:
+      '*': '*'
+    kubernetes_resources:
+    - kind: pod
+      name: '*'
+      namespace: '*'
+    logins:
+    - test
+    node_labels:
+      '*': '*'
+  deny: {}
+  options:
+    cert_format: standard
+    create_db_user: false
+    create_desktop_user: false
+    desktop_clipboard: true
+    desktop_directory_sharing: true
+    enhanced_recording:
+    - command
+    - network
+    forward_agent: false
+    idp:
+      saml:
+        enabled: true
+    max_session_ttl: 30h0m0s
+    pin_source_ip: false
+    port_forwarding: true
+    record_session:
+      default: best_effort
+      desktop: true
+    ssh_file_copy: true
+version: v7
+`
+
+	// Create the role
+	roleYAMLPath := filepath.Join(t.TempDir(), "role.yaml")
+	require.NoError(t, os.WriteFile(roleYAMLPath, []byte(roleYAML), 0644))
+	_, err = runResourceCommand(t, fc, []string{"create", roleYAMLPath})
+	require.NoError(t, err)
+
+	// Fetch the role
+	buf, err := runResourceCommand(t, fc, []string{"get", types.KindRole + "/test-role", "--format=json"})
+	require.NoError(t, err)
+	roles := mustDecodeJSON[[]*types.RoleV6](t, buf)
+	require.Len(t, roles, 1)
+
+	var expected types.RoleV6
+	require.NoError(t, yaml.Unmarshal([]byte(roleYAML), &expected))
+
+	require.Empty(t, cmp.Diff(
+		[]*types.RoleV6{&expected},
+		roles,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+	))
+
+	// Explicitly change the revision and try creating the role with and without
+	// the force flag.
+	expected.SetRevision(uuid.NewString())
+	connectorBytes, err := services.MarshalRole(&expected, services.PreserveResourceID())
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(roleYAMLPath, connectorBytes, 0644))
+
+	_, err = runResourceCommand(t, fc, []string{"create", roleYAMLPath})
+	require.True(t, trace.IsAlreadyExists(err))
+
+	_, err = runResourceCommand(t, fc, []string{"create", "-f", roleYAMLPath})
+	require.NoError(t, err)
+}
+
+func testCreateServerInfo(t *testing.T, fc *config.FileConfig) {
+	// Ensure that our test server info does not exist
+	_, err := runResourceCommand(t, fc, []string{"get", types.KindServerInfo + "/test-server-info", "--format=json"})
+	require.True(t, trace.IsNotFound(err), "expected test-role to not exist prior to being created")
+
+	const serverInfoYAML = `---
+kind: server_info
+sub_kind: cloud_info
+version: v1
+metadata:
+  name: test-server-info
+spec:
+  new_labels:
+    'a': '1'
+    'b': '2'
+`
+
+	// Create the server info
+	serverInfoYAMLPath := filepath.Join(t.TempDir(), "server-info.yaml")
+	err = os.WriteFile(serverInfoYAMLPath, []byte(serverInfoYAML), 0644)
+	require.NoError(t, err)
+	_, err = runResourceCommand(t, fc, []string{"create", serverInfoYAMLPath})
+	require.NoError(t, err)
+
+	// Fetch the server info
+	buf, err := runResourceCommand(t, fc, []string{"get", types.KindServerInfo + "/test-server-info", "--format=json"})
+	require.NoError(t, err)
+	serverInfos := mustDecodeJSON[[]*types.ServerInfoV1](t, buf)
+	require.Len(t, serverInfos, 1)
+
+	var expected types.ServerInfoV1
+	err = yaml.Unmarshal([]byte(serverInfoYAML), &expected)
+	require.NoError(t, err)
+
+	require.Empty(t, cmp.Diff(
+		[]*types.ServerInfoV1{&expected},
+		serverInfos,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+	))
+
+	// Explicitly change the revision and try creating the resource with and without
+	// the force flag.
+	expected.SetRevision(uuid.NewString())
+	newRevisionServerInfo, err := services.MarshalServerInfo(&expected, services.PreserveResourceID())
+	require.NoError(t, err)
+	err = os.WriteFile(serverInfoYAMLPath, newRevisionServerInfo, 0644)
+	require.NoError(t, err)
+
+	_, err = runResourceCommand(t, fc, []string{"create", serverInfoYAMLPath})
+	require.True(t, trace.IsAlreadyExists(err))
+
+	_, err = runResourceCommand(t, fc, []string{"create", "-f", serverInfoYAMLPath})
+	require.NoError(t, err)
+}
+
+func testCreateUser(t *testing.T, fc *config.FileConfig) {
+	// Ensure that our test user does not exist
+	_, err := runResourceCommand(t, fc, []string{"get", types.KindUser + "/llama", "--format=json"})
+	require.True(t, trace.IsNotFound(err), "expected llama user to not exist prior to being created")
+
+	const userYAML = `kind: user
+version: v2
+metadata:
+  name: llama
+spec:
+  roles: ["access"]
+`
+
+	// Create the user
+	userYAMLPath := filepath.Join(t.TempDir(), "user.yaml")
+	require.NoError(t, os.WriteFile(userYAMLPath, []byte(userYAML), 0644))
+	_, err = runResourceCommand(t, fc, []string{"create", userYAMLPath})
+	require.NoError(t, err)
+
+	// Fetch the user
+	buf, err := runResourceCommand(t, fc, []string{"get", types.KindUser + "/llama", "--format=json"})
+	require.NoError(t, err)
+	users := mustDecodeJSON[[]*types.UserV2](t, buf)
+	require.Len(t, users, 1)
+
+	var expected types.UserV2
+	require.NoError(t, yaml.Unmarshal([]byte(userYAML), &expected))
+
+	require.Empty(t, cmp.Diff(
+		[]*types.UserV2{&expected},
+		users,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+		cmpopts.IgnoreFields(types.UserSpecV2{}, "CreatedBy"),
+	))
+
+	// Explicitly change the revision and try creating the user with and without
+	// the force flag.
+	expected.SetRevision(uuid.NewString())
+	connectorBytes, err := services.MarshalUser(&expected, services.PreserveResourceID())
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(userYAMLPath, connectorBytes, 0644))
+
+	_, err = runResourceCommand(t, fc, []string{"create", userYAMLPath})
+	require.True(t, trace.IsAlreadyExists(err))
+
+	_, err = runResourceCommand(t, fc, []string{"create", "-f", userYAMLPath})
+	require.NoError(t, err)
+}
+
+// TestCreateEnterpriseResources asserts that tctl create
+// behaves as expected for enterprise resources. These resources cannot
+// be tested in parallel because they alter the modules to enable features.
+// The tests are grouped to amortize the cost of creating and auth server since
+// that is the most expensive part of testing editing the resource.
+func TestCreateEnterpriseResources(t *testing.T) {
+	modules.SetTestModules(t, &modules.TestModules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures: modules.Features{
+			OIDC: true,
+			SAML: true,
+		},
+	})
+
+	fc, fds := testhelpers.DefaultConfig(t)
+	makeAndRunTestAuthServer(t, withFileConfig(fc), withFileDescriptors(fds), withFakeClock(clockwork.NewFakeClock()))
+
+	tests := []struct {
+		kind   string
+		create func(t *testing.T, fc *config.FileConfig)
+	}{
+		{
+			kind:   types.KindOIDCConnector,
+			create: testCreateOIDCConnector,
+		},
+		{
+			kind:   types.KindSAMLConnector,
+			create: testCreateSAMLConnector,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.kind, func(t *testing.T) {
+			test.create(t, fc)
+		})
+	}
+
+}
+
+func testCreateOIDCConnector(t *testing.T, fc *config.FileConfig) {
+	// Ensure there are no connectors to start
+	buf, err := runResourceCommand(t, fc, []string{"get", types.KindOIDCConnector, "--format=json"})
+	require.NoError(t, err)
+	connectors := mustDecodeJSON[[]*types.OIDCConnectorV3](t, buf)
+	require.Empty(t, connectors)
+
+	const connectorYAML = `kind: oidc
+version: v3
+metadata:
+  name: oidc
+spec:
+  redirect_url: "https://proxy.example.com/v1/webapi/oidc/callback"
+  client_id: "12345"
+  client_secret: "678910"
+  display: OIDC
+  scope: [roles]
+  claims_to_roles:
+    - {claim: "test", value: "test", roles: ["access", "editor", "auditor"]}`
+
+	// Create the connector
+	connectorYAMLPath := filepath.Join(t.TempDir(), "connector.yaml")
+	require.NoError(t, os.WriteFile(connectorYAMLPath, []byte(connectorYAML), 0644))
+	_, err = runResourceCommand(t, fc, []string{"create", connectorYAMLPath})
+	require.NoError(t, err)
+
+	// Fetch the connector
+	buf, err = runResourceCommand(t, fc, []string{"get", types.KindOIDCConnector, "--format=json"})
+	require.NoError(t, err)
+	connectors = mustDecodeJSON[[]*types.OIDCConnectorV3](t, buf)
+	require.Len(t, connectors, 1)
+
+	var expected types.OIDCConnectorV3
+	require.NoError(t, yaml.Unmarshal([]byte(connectorYAML), &expected))
+
+	require.Empty(t, cmp.Diff(
+		[]*types.OIDCConnectorV3{&expected},
+		connectors,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision", "Namespace"),
+		cmpopts.IgnoreFields(types.OIDCConnectorSpecV3{}, "ClientSecret"), // get retrieves the connector without secrets
+	))
+
+	// Explicitly change the revision and try creating the user with and without
+	// the force flag.
+	expected.SetRevision(uuid.NewString())
+	connectorBytes, err := services.MarshalOIDCConnector(&expected, services.PreserveResourceID())
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(connectorYAMLPath, connectorBytes, 0644))
+
+	_, err = runResourceCommand(t, fc, []string{"create", connectorYAMLPath})
+	require.True(t, trace.IsAlreadyExists(err))
+
+	_, err = runResourceCommand(t, fc, []string{"create", "-f", connectorYAMLPath})
+	require.NoError(t, err)
+}
+
+func testCreateSAMLConnector(t *testing.T, fc *config.FileConfig) {
+	// Ensure there are no connectors to start
+	buf, err := runResourceCommand(t, fc, []string{"get", types.KindSAMLConnector, "--format=json"})
+	require.NoError(t, err)
+	connectors := mustDecodeJSON[[]*types.SAMLConnectorV2](t, buf)
+	require.Empty(t, connectors)
+
+	const connectorYAML = `kind: saml
+version: v2
+metadata:
+  name: saml
+spec:
+  acs: test
+  audience: test
+  issuer: test
+  sso: test
+  service_provider_issuer: test
+  display: SAML
+  attributes_to_roles:
+  - name: test
+    roles:
+    - access
+    value: test
+  entity_descriptor: |
+    <?xml version="1.0" encoding="UTF-8"?>
+    <md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" entityID="test">
+      <md:IDPSSODescriptor WantAuthnRequestsSigned="false" protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
+        <md:KeyDescriptor use="signing">
+          <ds:KeyInfo xmlns:ds="http://www.w3.org/2000/09/xmldsig#">
+            <ds:X509Data>
+              <ds:X509Certificate></ds:X509Certificate>
+            </ds:X509Data>
+          </ds:KeyInfo>
+        </md:KeyDescriptor>
+        <md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress</md:NameIDFormat>
+        <md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified</md:NameIDFormat>
+        <md:SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="test" />
+        <md:SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect" Location="test" />
+      </md:IDPSSODescriptor>
+    </md:EntityDescriptor>` + "\n"
+
+	// Create the connector
+	connectorYAMLPath := filepath.Join(t.TempDir(), "connector.yaml")
+	require.NoError(t, os.WriteFile(connectorYAMLPath, []byte(connectorYAML), 0644))
+	_, err = runResourceCommand(t, fc, []string{"create", connectorYAMLPath})
+	require.NoError(t, err)
+
+	// Fetch the connector
+	buf, err = runResourceCommand(t, fc, []string{"get", types.KindSAMLConnector, "--format=json"})
+	require.NoError(t, err)
+	connectors = mustDecodeJSON[[]*types.SAMLConnectorV2](t, buf)
+	require.Len(t, connectors, 1)
+
+	var expected types.SAMLConnectorV2
+	require.NoError(t, yaml.Unmarshal([]byte(connectorYAML), &expected))
+
+	require.Empty(t, cmp.Diff(
+		[]*types.SAMLConnectorV2{&expected},
+		connectors,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision", "Namespace"),
+		cmpopts.IgnoreFields(types.SAMLConnectorSpecV2{}, "SigningKeyPair"), // get retrieves the connector without secrets
+	))
+
+	// Explicitly change the revision and try creating the user with and without
+	// the force flag.
+	expected.SetRevision(uuid.NewString())
+	connectorBytes, err := services.MarshalSAMLConnector(&expected, services.PreserveResourceID())
 	require.NoError(t, err)
 	require.NoError(t, os.WriteFile(connectorYAMLPath, connectorBytes, 0644))
 

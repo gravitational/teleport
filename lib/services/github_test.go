@@ -22,7 +22,9 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/modules"
 )
 
 func TestUnmarshal(t *testing.T) {
@@ -61,6 +63,40 @@ func TestUnmarshal(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(expected, connector))
+}
+
+func TestMarshal(t *testing.T) {
+	connector, err := types.NewGithubConnector("github", types.GithubConnectorSpecV3{
+		ClientID:     "aaa",
+		ClientSecret: "bbb",
+		RedirectURL:  "https://localhost:3080/v1/webapi/github/callback",
+		Display:      "GitHub",
+		EndpointURL:  "https://github.com",
+		TeamsToRoles: []types.TeamRolesMapping{
+			{
+				Organization: "gravitational",
+				Team:         "admins",
+				Roles:        []string{teleport.PresetAccessRoleName},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	t.Run("oss", func(t *testing.T) {
+		_, err = MarshalGithubConnector(connector)
+		require.ErrorIs(t, err, ErrRequiresEnterprise, "expected ErrRequiresEnterprise, got %T", err)
+	})
+
+	t.Run("enterprise", func(t *testing.T) {
+		modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
+
+		marshaled, err := MarshalGithubConnector(connector)
+		require.NoError(t, err)
+
+		unmarshaled, err := UnmarshalGithubConnector(marshaled)
+		require.NoError(t, err)
+		require.Empty(t, cmp.Diff(connector, unmarshaled))
+	})
 }
 
 func TestMapClaims(t *testing.T) {

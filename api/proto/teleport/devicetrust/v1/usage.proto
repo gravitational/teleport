@@ -27,7 +27,12 @@ enum AccountUsageType {
 
 // Superseded by ResourceUsageService.GetUsage.
 message DevicesUsage {
-  AccountUsageType account_usage_type = 1;
-  int32 devices_usage_limit = 2;
-  int32 devices_in_use = 3;
+  reserved 1; // AccountUsageType account_usage_type
+  reserved "account_usage_type";
+
+  reserved 2; // int32 devices_usage_limit
+  reserved "devices_usage_limit";
+
+  reserved 3; // int32 devices_in_use
+  reserved "devices_in_use";
 }
