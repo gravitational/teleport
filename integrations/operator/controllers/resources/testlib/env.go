@@ -140,6 +140,10 @@ func FastEventually(t *testing.T, condition func() bool) {
 	require.Eventually(t, condition, time.Second, 100*time.Millisecond)
 }
 
+func FastEventuallyWithT(t *testing.T, condition func(collectT *assert.CollectT)) {
+	require.EventuallyWithT(t, condition, time.Second, 100*time.Millisecond)
+}
+
 func clientForTeleport(t *testing.T, teleportServer *helpers.TeleInstance, userName string) *client.Client {
 	identityFilePath := helpers.MustCreateUserIdentityFile(t, teleportServer, userName, time.Hour)
 	creds := client.LoadIdentityFile(identityFilePath)

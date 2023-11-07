@@ -19,7 +19,6 @@ package resources
 import (
 	"context"
 	"reflect"
-	"slices"
 
 	"github.com/gravitational/trace"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -27,6 +26,7 @@ import (
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
+	"slices"
 
 	"github.com/gravitational/teleport/api/types"
 )

@@ -19,6 +19,7 @@ import (
 	"testing"
 
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/client-go/util/retry"
@@ -153,19 +154,19 @@ func ResourceUpdateTest[T resources.TeleportResource, K resources.TeleportKubern
 	require.NoError(t, err)
 
 	// Check the resource was updated in Teleport
-	FastEventually(t, func() bool {
+	FastEventuallyWithT(t, func(c *assert.CollectT) {
 		tResource, err := test.GetTeleportResource(ctx, resourceName)
-		require.NoError(t, err)
+		require.NoError(c, err)
 
 		kubeResource, err := test.GetKubernetesResource(ctx, resourceName)
-		require.NoError(t, err)
+		require.NoError(c, err)
 
 		// Kubernetes and Teleport resources are in-sync
 		equal, diff := test.CompareTeleportAndKubernetesResource(tResource, kubeResource)
 		if !equal {
 			t.Logf("Kubernetes and Teleport resources not sync-ed yet: %s", diff)
 		}
-		return equal
+		require.True(c, equal)
 	})
 
 	// Updating the resource in Kubernetes
@@ -176,19 +177,19 @@ func ResourceUpdateTest[T resources.TeleportResource, K resources.TeleportKubern
 	require.NoError(t, err)
 
 	// Check the resource was updated in Teleport
-	FastEventually(t, func() bool {
+	FastEventuallyWithT(t, func(c *assert.CollectT) {
 		kubeResource, err := test.GetKubernetesResource(ctx, resourceName)
-		require.NoError(t, err)
+		require.NoError(c, err)
 
 		tResource, err := test.GetTeleportResource(ctx, resourceName)
-		require.NoError(t, err)
+		require.NoError(c, err)
 
 		// Kubernetes and Teleport resources are in-sync
 		equal, diff := test.CompareTeleportAndKubernetesResource(tResource, kubeResource)
 		if !equal {
 			t.Logf("Kubernetes and Teleport resources not sync-ed yet: %s", diff)
 		}
-		return equal
+		require.True(c, equal)
 	})
 
 	// Delete the resource to avoid leftover state.

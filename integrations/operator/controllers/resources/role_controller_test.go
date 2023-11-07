@@ -18,12 +18,12 @@ package resources_test
 
 import (
 	"context"
-	"reflect"
 	"sort"
 	"testing"
 
 	"github.com/gravitational/trace"
 	"github.com/mitchellh/mapstructure"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -340,14 +340,14 @@ func TestRoleUpdate(t *testing.T) {
 	k8sCreateRole(ctx, t, setup.K8sClient, &k8sRole)
 
 	// The role is updated in Teleport
-	fastEventually(t, func() bool {
+	fastEventuallyWithT(t, func(c *assert.CollectT) {
 		tRole, err := setup.TeleportClient.GetRole(ctx, roleName)
-		require.NoError(t, err)
+		require.NoError(c, err)
 
 		// TeleportRole updated with new logins
 		logins := tRole.GetLogins(types.Allow)
 		sort.Strings(logins)
-		return reflect.DeepEqual(logins, []string{"x", "z"})
+		require.ElementsMatch(c, logins, []string{"x", "z"})
 	})
 
 	// Updating the role in K8S
@@ -368,14 +368,14 @@ func TestRoleUpdate(t *testing.T) {
 	require.NoError(t, err)
 
 	// Updates the role in Teleport
-	fastEventually(t, func() bool {
+	fastEventuallyWithT(t, func(c *assert.CollectT) {
 		tRole, err := setup.TeleportClient.GetRole(ctx, roleName)
-		require.NoError(t, err)
+		require.NoError(c, err)
 
 		// TeleportRole updated with new logins
 		logins := tRole.GetLogins(types.Allow)
 		sort.Strings(logins)
-		return reflect.DeepEqual(logins, []string{"admin", "root", "x", "z"})
+		require.ElementsMatch(c, logins, []string{"admin", "root", "x", "z"})
 	})
 }
 

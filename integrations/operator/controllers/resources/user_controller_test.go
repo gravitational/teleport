@@ -25,6 +25,7 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
 	"github.com/mitchellh/mapstructure"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -369,12 +370,12 @@ func TestUserUpdate(t *testing.T) {
 	require.NoError(t, err)
 
 	// Updates the user in Teleport
-	fastEventually(t, func() bool {
+	fastEventuallyWithT(t, func(c *assert.CollectT) {
 		tUser, err := setup.TeleportClient.GetUser(ctx, userName, false)
-		require.NoError(t, err)
+		require.NoError(c, err)
 
 		// TeleportUser updated with new roles
-		return compareRoles([]string{"x", "y", "z"}, tUser.GetRoles())
+		require.ElementsMatch(c, tUser.GetRoles(), []string{"x", "z", "y"})
 	})
 	require.Equal(t, setup.OperatorName, tUser.GetCreatedBy().User.Name, "createdBy has not been erased")
 }
