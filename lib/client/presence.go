@@ -26,7 +26,7 @@ import (
 	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/lib/client/mfa"
+	"github.com/gravitational/teleport/api/mfa"
 )
 
 // PresenceMaintainer allows maintaining presence with the Auth service.

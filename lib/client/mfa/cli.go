@@ -32,7 +32,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/webauthnwin"
 )
 
-// CLIPrompt is the default CLI mfa prompt.
+// CLIPrompt is the default CLI mfa prompt implementation.
 type CLIPrompt struct {
 	cfg    PromptConfig
 	writer io.Writer

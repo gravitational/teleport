@@ -71,6 +71,7 @@ import (
 	userpreferencespb "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/metadata"
+	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
@@ -630,11 +631,9 @@ type Config struct {
 	// PROXYHeaderGetter returns signed PROXY header that is sent to allow Proxy to propagate client's real IP to the
 	// auth server from the Proxy's web server, when we create user's client for the web session.
 	PROXYHeaderGetter PROXYHeaderGetter
-	// AdminRequestMFAPrompt is used to prompt the user for MFA on admin requests when needed.
+	// MFAPromptConstructor is used to create MFA prompts when needed.
 	// If nil, the client will not prompt for MFA.
-	AdminRequestMFAPrompt interface {
-		Run(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error)
-	}
+	MFAPromptConstructor mfa.PromptConstructor
 }
 
 // CheckAndSetDefaults checks and sets default config values.

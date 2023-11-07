@@ -45,13 +45,13 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/client/mfa"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -1076,7 +1076,7 @@ func (proxy *ProxyClient) ConnectToAuthServiceThroughALPNSNIProxy(ctx context.Co
 		ALPNConnUpgradeRequired:    proxy.teleportClient.IsALPNConnUpgradeRequiredForWebProxy(ctx, proxyAddr),
 		PROXYHeaderGetter:          CreatePROXYHeaderGetter(ctx, proxy.teleportClient.PROXYSigner),
 		InsecureAddressDiscovery:   proxy.teleportClient.InsecureSkipVerify,
-		AdminRequestMFAPrompt:      proxy.teleportClient.NewMFAPrompt(mfa.WithPromptReasonAdminAction()),
+		MFAPromptConstructor:       proxy.teleportClient.NewMFAPrompt,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1154,8 +1154,8 @@ func (proxy *ProxyClient) ConnectToCluster(ctx context.Context, clusterName stri
 		Credentials: []client.Credentials{
 			client.LoadTLS(tlsConfig),
 		},
-		CircuitBreakerConfig:  breaker.NoopBreakerConfig(),
-		AdminRequestMFAPrompt: proxy.teleportClient.NewMFAPrompt(mfa.WithPromptReasonAdminAction()),
+		CircuitBreakerConfig: breaker.NoopBreakerConfig(),
+		MFAPromptConstructor: proxy.teleportClient.NewMFAPrompt,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

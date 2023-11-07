@@ -55,6 +55,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
+	"github.com/gravitational/teleport/api/mfa"
 	apitracing "github.com/gravitational/teleport/api/observability/tracing"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/profile"
@@ -69,7 +70,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth/touchid"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	"github.com/gravitational/teleport/lib/authz"
-	"github.com/gravitational/teleport/lib/client/mfa"
 	"github.com/gravitational/teleport/lib/client/terminal"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/devicetrust"
@@ -2962,7 +2962,7 @@ func (tc *TeleportClient) ConnectToCluster(ctx context.Context) (*ClusterClient,
 	}
 
 	authClientCfg := pclt.ClientConfig(ctx, cluster)
-	authClientCfg.AdminRequestMFAPrompt = tc.NewMFAPrompt(mfa.WithPromptReasonAdminAction())
+	authClientCfg.MFAPromptConstructor = tc.NewMFAPrompt
 	authClient, err := auth.NewClient(authClientCfg)
 	if err != nil {
 		return nil, trace.NewAggregate(err, pclt.Close())
@@ -5173,7 +5173,7 @@ func (tc *TeleportClient) NewKubernetesServiceClient(ctx context.Context, cluste
 		},
 		ALPNConnUpgradeRequired:  tc.TLSRoutingConnUpgradeRequired,
 		InsecureAddressDiscovery: tc.InsecureSkipVerify,
-		AdminRequestMFAPrompt:    tc.NewMFAPrompt(mfa.WithPromptReasonAdminAction()),
+		MFAPromptConstructor:     tc.NewMFAPrompt,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

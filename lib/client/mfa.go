@@ -20,9 +20,10 @@ import (
 	"context"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/mfa"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
-	"github.com/gravitational/teleport/lib/client/mfa"
+	libmfa "github.com/gravitational/teleport/lib/client/mfa"
 )
 
 // WebauthnLoginFunc matches the signature of [wancli.Login].
@@ -32,12 +33,12 @@ type WebauthnLoginFunc func(ctx context.Context, origin string, assertion *wanty
 func (tc *TeleportClient) NewMFAPrompt(opts ...mfa.PromptOpt) mfa.Prompt {
 	cfg := tc.defaultMFAPromptConfig()
 	for _, opt := range opts {
-		opt(cfg)
+		opt(&cfg.PromptConfig)
 	}
 
-	var prompt mfa.Prompt = mfa.NewCLIPrompt(cfg, tc.Stderr)
+	var prompt mfa.Prompt = libmfa.NewCLIPrompt(cfg, tc.Stderr)
 	if tc.MFAPromptConstructor != nil {
-		prompt = tc.MFAPromptConstructor(cfg)
+		prompt = tc.MFAPromptConstructor(&cfg.PromptConfig)
 	}
 
 	return prompt
@@ -48,8 +49,8 @@ func (tc *TeleportClient) PromptMFA(ctx context.Context, chal *proto.MFAAuthenti
 	return tc.NewMFAPrompt().Run(ctx, chal)
 }
 
-func (tc *TeleportClient) defaultMFAPromptConfig() *mfa.PromptConfig {
-	cfg := mfa.DefaultPromptConfig(tc.WebProxyAddr)
+func (tc *TeleportClient) defaultMFAPromptConfig() *libmfa.PromptConfig {
+	cfg := libmfa.DefaultPromptConfig(tc.WebProxyAddr)
 	cfg.AuthenticatorAttachment = tc.AuthenticatorAttachment
 	cfg.PreferOTP = tc.PreferOTP
 	cfg.AllowStdinHijack = tc.AllowStdinHijack

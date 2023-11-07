@@ -24,6 +24,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/mfa"
 )
 
 const (
@@ -62,7 +63,9 @@ func TestPerformMFACeremony(t *testing.T) {
 	}
 
 	cfg := server.clientCfg()
-	cfg.AdminRequestMFAPrompt = &fakeMFAPrompt{mfaTestResp}
+	cfg.MFAPromptConstructor = func(opts ...mfa.PromptOpt) mfa.Prompt {
+		return &fakeMFAPrompt{mfaTestResp}
+	}
 
 	clt, err := New(ctx, cfg)
 	require.NoError(t, err)

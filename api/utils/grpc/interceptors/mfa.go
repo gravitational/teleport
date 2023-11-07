@@ -28,14 +28,14 @@ import (
 
 // RetryWithMFAUnaryInterceptor intercepts a GRPC client unary call to check if the
 // error indicates that the client should retry with MFA verification.
-func RetryWithMFAUnaryInterceptor(mfaCeremony func(ctx context.Context) (*proto.MFAAuthenticateResponse, error)) grpc.UnaryClientInterceptor {
+func RetryWithMFAUnaryInterceptor(mfaCeremony func(ctx context.Context, opts ...mfa.PromptOpt) (*proto.MFAAuthenticateResponse, error)) grpc.UnaryClientInterceptor {
 	return func(ctx context.Context, method string, req, reply interface{}, cc *grpc.ClientConn, invoker grpc.UnaryInvoker, opts ...grpc.CallOption) error {
 		err := invoker(ctx, method, req, reply, cc, opts...)
 		if !errors.Is(trail.FromGRPC(err), &mfa.ErrAdminActionMFARequired) {
 			return err
 		}
 
-		mfaResp, ceremonyErr := mfaCeremony(ctx)
+		mfaResp, ceremonyErr := mfaCeremony(ctx, mfa.WithPromptReasonAdminAction(method))
 		if ceremonyErr != nil {
 			return trace.NewAggregate(trail.FromGRPC(err), ceremonyErr)
 		}

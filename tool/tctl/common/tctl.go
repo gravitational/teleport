@@ -33,12 +33,13 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/identityfile"
-	"github.com/gravitational/teleport/lib/client/mfa"
+	libmfa "github.com/gravitational/teleport/lib/client/mfa"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/modules"
@@ -196,10 +197,10 @@ func TryRun(commands []CLICommand, args []string) error {
 
 	ctx := context.Background()
 
-	promptCfg := mfa.DefaultPromptConfig("")
-	mfa.WithPromptReasonAdminAction()(promptCfg)
-	prompt := mfa.NewCLIPrompt(promptCfg, os.Stderr)
-	clientConfig.AdminRequestMFAPrompt = prompt
+	promptCfg := libmfa.DefaultPromptConfig("")
+	clientConfig.MFAPromptConstructor = func(...mfa.PromptOpt) mfa.Prompt {
+		return libmfa.NewCLIPrompt(promptCfg, os.Stderr)
+	}
 
 	client, err := authclient.Connect(ctx, clientConfig)
 	if err != nil {
