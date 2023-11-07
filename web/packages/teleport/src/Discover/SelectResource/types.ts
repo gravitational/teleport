@@ -108,7 +108,7 @@ export interface ResourceSpec {
    * supportedAuthTypes indicate particular auth types that the resource is available for. The
    * resource won't be displayed if the user logged in using an unsupported auth type.
    *
-   * An empty array or undefined means that the resource is supports all auth types.
+   * An empty array or undefined means that the resource supports all auth types.
    */
   supportedAuthTypes?: AuthType[];
 }
