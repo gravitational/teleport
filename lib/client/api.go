@@ -472,9 +472,6 @@ type Config struct {
 	// SSHLogDir is the directory to log the output of multiple SSH commands to.
 	// If not set, no logs will be created.
 	SSHLogDir string
-
-	// MFAPrompt is a custom MFA prompt constructor to use when prompting for MFA.
-	MFAPromptConstructor func(cfg *mfa.PromptConfig) mfa.Prompt
 }
 
 // CachePolicy defines cache policy for local clients

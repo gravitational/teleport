@@ -32,12 +32,7 @@ type WebauthnLoginFunc func(ctx context.Context, origin string, assertion *wanty
 // NewMFAPrompt creates a new MFA prompt from client settings.
 func (tc *TeleportClient) NewMFAPrompt(opts ...mfa.PromptOpt) mfa.Prompt {
 	cfg := tc.newPromptConfig(opts...)
-
 	var prompt mfa.Prompt = libmfa.NewCLIPrompt(cfg, tc.Stderr)
-	if tc.MFAPromptConstructor != nil {
-		prompt = tc.MFAPromptConstructor(&cfg.PromptConfig)
-	}
-
 	return prompt
 }
 
