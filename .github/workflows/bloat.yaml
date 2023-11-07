@@ -43,13 +43,21 @@ jobs:
           path: .github/shared-workflows
           ref: main
 
+      # The cache action was not evaluating ${{ github.event.push.before }} when used directly in the
+      # key. Output the correct base sha in an output so that the cache action can consume that instead.
+      - name: Compute base sha
+        id: base_sha
+        run: |
+          echo "Base SHA = ${{ github.event.push.before || github.event.pull_request.base.sha }}"
+          echo "sha=${{ github.event.push.before || github.event.pull_request.base.sha }}" >> $GITHUB_OUTPUT
+
       - name: Setup base cache
         uses: actions/cache/restore@v3
         id: cache-build-restore
         with:
           path: |
             ~/teleport_base_build_stats
-          key: ${{ runner.os }}-${{ github.event.push.before }}
+          key: ${{ github.job }}-${{ runner.os }}-${{ steps.base_sha.outputs.sha }}
 
       - name: Generate GitHub Token
         id: generate_token
@@ -66,6 +74,7 @@ jobs:
           cd .github/shared-workflows/bot && go run main.go -workflow=binary-sizes --artifacts="tbot,tctl,teleport,tsh" --builddir="../../../base_build" -token="${{ steps.generate_token.outputs.token }}" -reviewers="${{ secrets.reviewers }}"  >> ~/teleport_base_build_stats
           echo "base_stats_file=~/teleport_base_build_stats" >> $GITHUB_OUTPUT
           echo "base_stats=$(cat ~/teleport_base_build_stats)" >> $GITHUB_ENV
+
       - if: ${{ steps.cache-build-restore.outputs.cache-hit != 'true' }}
         name: Save base build
         id: base-build-save
@@ -73,7 +82,7 @@ jobs:
         with:
           path: |
             ${{ steps.build_base.outputs.base_stats_file }}
-          key: ${{ runner.os }}-${{ github.event.push.before }}
+          key: ${{ github.job }}-${{ runner.os }}-${{ steps.base_sha.outputs.sha }}
 
       - if: ${{ steps.cache-build-restore.outputs.cache-hit == 'true' }}
         name: Restore base stats
@@ -98,6 +107,7 @@ jobs:
         id: build_branch
         run: |
           BUILD_SECRET=FAKE_SECRET make WEBASSETS_SKIP_BUILD=1 binaries
+
       - name: Check for Environment Leak
         id: check_branch_env_leak
         run: |
@@ -107,6 +117,7 @@ jobs:
               exit 1; \
             fi; \
           done
+          
       - name: Check for bloat
         id: check_branch_bloat
         run: |
