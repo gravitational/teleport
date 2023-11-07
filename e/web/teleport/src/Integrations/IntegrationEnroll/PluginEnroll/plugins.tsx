@@ -663,7 +663,7 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
     icon: jiraIcon,
     url: 'https://goteleport.com/docs/access-controls/access-request-plugins/ssh-approval-jira',
     cloudHostable: true,
-    selfHostable: false,
+    selfHostable: true,
     permissions: [
       {
         category: 'Read/Write on Jira Issues',
