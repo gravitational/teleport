@@ -44,14 +44,15 @@ export class ConnectMyComputerService {
   async createAgentConfigFile(rootCluster: Cluster): Promise<{
     token: string;
   }> {
-    const { token, labelsList } =
-      await this.tshClient.createConnectMyComputerNodeToken(rootCluster.uri);
+    const { token } = await this.tshClient.createConnectMyComputerNodeToken(
+      rootCluster.uri
+    );
 
     await this.mainProcessClient.createAgentConfigFile({
       rootClusterUri: rootCluster.uri,
       proxy: rootCluster.proxyHost,
       token: token,
-      labels: labelsList,
+      username: rootCluster.loggedInUser.name,
     });
 
     return { token };

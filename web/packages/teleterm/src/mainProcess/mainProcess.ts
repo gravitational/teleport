@@ -318,7 +318,7 @@ export default class MainProcess {
           proxy: args.proxy,
           token: args.token,
           rootClusterUri: args.rootClusterUri,
-          labels: args.labels,
+          username: args.username,
         })
     );
 
