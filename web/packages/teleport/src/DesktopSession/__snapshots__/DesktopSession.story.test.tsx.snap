@@ -2407,7 +2407,7 @@ exports[`unintended disconnect 1`] = `
   overflow: auto;
   word-break: break-word;
   line-height: 1.5;
-  background: #039be5;
+  background: #FF6257;
   color: #000000;
 }
 
@@ -2518,7 +2518,7 @@ exports[`unintended disconnect 1`] = `
           class="c5"
           color="text.main"
         >
-          Disconnected
+          Error
         </div>
       </div>
       <div
@@ -2526,7 +2526,7 @@ exports[`unintended disconnect 1`] = `
       >
         <div
           class="c7"
-          kind="info"
+          kind="danger"
         >
           Session disconnected for an unknown reason.
         </div>
