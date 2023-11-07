@@ -51,6 +51,7 @@ CREATE USER 'teleport-admin' IDENTIFIED WITH AWSAuthenticationPlugin AS 'RDS';
 GRANT PROCESS, CREATE USER ON *.* TO 'teleport-admin';
 GRANT SELECT ON mysql.roles_mapping TO 'teleport-admin';
 GRANT UPDATE ON mysql.* TO 'teleport-admin'; -- For SET DEFAULT ROLE FOR
+GRANT SELECT ON *.* TO 'teleport-admin'; -- For checking if users own resources before dropping them.
 
 CREATE DATABASE IF NOT EXISTS `teleport`;
 GRANT ALL ON `teleport`.* TO 'teleport-admin' WITH GRANT OPTION;
