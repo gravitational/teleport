@@ -38,6 +38,7 @@ const cfg = {
   isCloud: false,
   assistEnabled: false,
   automaticUpgrades: false,
+  automaticUpgradesTargetVersion: '',
   isDashboard: false,
   tunnelPublicAddress: '',
   recoveryCodesEnabled: false,
@@ -195,9 +196,6 @@ const cfg = {
     nodeScriptPath: '/scripts/:token/install-node.sh',
     appNodeScriptPath: '/scripts/:token/install-app.sh?name=:name&uri=:uri',
 
-    deployServiceIamConfigureScriptPath:
-      '/webapi/scripts/integrations/configure/deployservice-iam.sh?integrationName=:integrationName&awsRegion=:region&role=:awsOidcRoleArn&taskRole=:taskRoleArn',
-
     mfaRequired: '/v1/webapi/sites/:clusterId/mfa/required',
     mfaLoginBegin: '/v1/webapi/mfa/login/begin', // creates authnenticate challenge with user and password
     mfaLoginFinish: '/v1/webapi/mfa/login/finishsession', // creates a web session
@@ -236,6 +234,16 @@ const cfg = {
 
     integrationsPath: '/v1/webapi/sites/:clusterId/integrations/:name?',
     thumbprintPath: '/v1/webapi/thumbprint',
+
+    awsConfigureIamScriptOidcIdpPath:
+      '/webapi/scripts/integrations/configure/awsoidc-idp.sh?integrationName=:integrationName&role=:roleName',
+    awsConfigureIamScriptDeployServicePath:
+      '/webapi/scripts/integrations/configure/deployservice-iam.sh?integrationName=:integrationName&awsRegion=:region&role=:awsOidcRoleArn&taskRole=:taskRoleArn',
+    awsConfigureIamScriptListDatabasesPath:
+      '/webapi/scripts/integrations/configure/listdatabases-iam.sh?awsRegion=:region&role=:iamRoleName',
+    awsConfigureIamScriptEc2InstanceConnectPath:
+      '/v1/webapi/scripts/integrations/configure/eice-iam.sh?awsRegion=:region&role=:iamRoleName',
+
     awsRdsDbListPath:
       '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/databases',
     awsDeployTeleportServicePath:
@@ -248,8 +256,6 @@ const cfg = {
     ec2InstanceConnectEndpointsListPath:
       '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/ec2ice',
     // Returns a script that configures the required IAM permissions to enable the usage of EC2 Instance Connect Endpoint to access EC2 instances.
-    ec2InstanceConnectIAMConfigureScriptPath:
-      '/v1/webapi/scripts/integrations/configure/eice-iam.sh?awsRegion=:region&role=:awsOidcRoleArn',
     ec2InstanceConnectDeployPath:
       '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/deployec2ice',
 
@@ -385,7 +391,14 @@ const cfg = {
   ) {
     return (
       cfg.baseUrl +
-      generatePath(cfg.api.deployServiceIamConfigureScriptPath, { ...p })
+      generatePath(cfg.api.awsConfigureIamScriptDeployServicePath, { ...p })
+    );
+  },
+
+  getAwsOidcConfigureIdpScriptUrl(p: UrlAwsOidcConfigureIdp) {
+    return (
+      cfg.baseUrl +
+      generatePath(cfg.api.awsConfigureIamScriptOidcIdpPath, { ...p })
     );
   },
 
@@ -869,11 +882,22 @@ const cfg = {
   },
 
   getEc2InstanceConnectIAMConfigureScriptUrl(
-    params: UrlEc2InstanceIamConfigureScriptParams
+    params: UrlAwsConfigureIamScriptParams
   ) {
     return (
       cfg.baseUrl +
-      generatePath(cfg.api.ec2InstanceConnectIAMConfigureScriptPath, {
+      generatePath(cfg.api.awsConfigureIamScriptEc2InstanceConnectPath, {
+        ...params,
+      })
+    );
+  },
+
+  getAwsConfigureIamScriptListDatabasesUrl(
+    params: UrlAwsConfigureIamScriptParams
+  ) {
+    return (
+      cfg.baseUrl +
+      generatePath(cfg.api.awsConfigureIamScriptListDatabasesPath, {
         ...params,
       })
     );
@@ -983,9 +1007,14 @@ export interface UrlDeployServiceIamConfigureScriptParams {
   taskRoleArn: string;
 }
 
-export interface UrlEc2InstanceIamConfigureScriptParams {
+export interface UrlAwsOidcConfigureIdp {
+  integrationName: string;
+  roleName: string;
+}
+
+export interface UrlAwsConfigureIamScriptParams {
   region: Regions;
-  awsOidcRoleArn: string;
+  iamRoleName: string;
 }
 
 export default cfg;

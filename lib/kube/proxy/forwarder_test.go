@@ -781,7 +781,7 @@ func TestAuthenticate(t *testing.T) {
 			gotCtx, err := f.authenticate(req)
 			if tt.wantErr {
 				require.Error(t, err)
-				require.Equal(t, trace.IsAccessDenied(err), tt.wantAuthErr)
+				require.Equal(t, tt.wantAuthErr, trace.IsAccessDenied(err))
 				return
 			}
 			require.NoError(t, err)
@@ -1759,9 +1759,9 @@ func TestKubernetesLicenseEnforcement(t *testing.T) {
 				require.Error(tt, err)
 				var kubeErr *kubeerrors.StatusError
 				require.ErrorAs(tt, err, &kubeErr)
-				require.Equal(tt, kubeErr.ErrStatus.Code, int32(http.StatusForbidden))
-				require.Equal(tt, kubeErr.ErrStatus.Reason, metav1.StatusReasonForbidden)
-				require.Equal(tt, kubeErr.ErrStatus.Message, "Teleport cluster is not licensed for Kubernetes")
+				require.Equal(tt, int32(http.StatusForbidden), kubeErr.ErrStatus.Code)
+				require.Equal(tt, metav1.StatusReasonForbidden, kubeErr.ErrStatus.Reason)
+				require.Equal(tt, "Teleport cluster is not licensed for Kubernetes", kubeErr.ErrStatus.Message)
 			},
 		},
 	}

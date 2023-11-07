@@ -3,6 +3,7 @@ cat >/etc/teleport.d/conf <<EOF
 TELEPORT_ROLE=auth,node,proxy
 EC2_REGION=${region}
 TELEPORT_AUTH_SERVER_LB=localhost
+TELEPORT_AUTH_TYPE=${teleport_auth_type}
 TELEPORT_CLUSTER_NAME=${cluster_name}
 TELEPORT_DOMAIN_ADMIN_EMAIL=${email}
 TELEPORT_DOMAIN_NAME=${domain_name}

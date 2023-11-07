@@ -165,7 +165,7 @@ func TestAuthSignKubeconfig(t *testing.T) {
 			},
 			assertErr: func(t require.TestingT, err error, _ ...interface{}) {
 				require.Error(t, err)
-				require.Equal(t, err.Error(), "expected --proxy URL with http or https scheme")
+				require.Equal(t, "expected --proxy URL with http or https scheme", err.Error())
 			},
 		},
 		{
@@ -279,7 +279,7 @@ func TestAuthSignKubeconfig(t *testing.T) {
 			},
 			assertErr: func(t require.TestingT, err error, _ ...interface{}) {
 				require.Error(t, err)
-				require.Equal(t, err.Error(), "couldn't find leaf cluster named \"doesnotexist.example.com\"")
+				require.Equal(t, `couldn't find leaf cluster named "doesnotexist.example.com"`, err.Error())
 			},
 		},
 		{

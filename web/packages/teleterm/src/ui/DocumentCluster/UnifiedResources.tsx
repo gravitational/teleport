@@ -137,7 +137,7 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
       resourcesFetchAttempt={attempt}
       fetchResources={fetch}
       availableKinds={['db', 'kube_cluster', 'node']}
-      Header={pinAllButton => (
+      Header={
         <Flex alignItems="center" justifyContent="space-between">
           {/*temporary search panel*/}
           <SearchPanel
@@ -146,9 +146,8 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
             replaceHistory={() => undefined}
             setParams={onParamsChange}
           />
-          {pinAllButton}
         </Flex>
-      )}
+      }
       NoResources={
         <NoResources
           canCreate={canAddResources}
@@ -176,6 +175,7 @@ const mapToSharedResource = (
           hostname: server.hostname,
           addr: server.addr,
           tunnel: server.tunnel,
+          subKind: server.subKind,
         },
         ui: {
           ActionButton: <ConnectServerActionButton server={server} />,

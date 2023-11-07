@@ -36,6 +36,6 @@ func TestHMACAnonymizer(t *testing.T) {
 
 	data := "secret"
 	result := a.Anonymize([]byte(data))
-	require.NotEqual(t, result, "")
+	require.NotEmpty(t, result)
 	require.NotEqual(t, result, data)
 }

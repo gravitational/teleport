@@ -42,21 +42,21 @@ func UploadDownload(t *testing.T, handler events.MultipartHandler) {
 	val := "hello, how is it going? this is the uploaded file"
 	id := session.NewID()
 	_, err := handler.Upload(context.TODO(), id, bytes.NewBuffer([]byte(val)))
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	f, err := os.CreateTemp("", string(id))
-	require.Nil(t, err)
+	require.NoError(t, err)
 	defer os.Remove(f.Name())
 	defer f.Close()
 
 	err = handler.Download(context.TODO(), id, f)
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	_, err = f.Seek(0, 0)
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	data, err := io.ReadAll(f)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.Equal(t, string(data), val)
 }
 
@@ -65,7 +65,7 @@ func DownloadNotFound(t *testing.T, handler events.MultipartHandler) {
 	id := session.NewID()
 
 	f, err := os.CreateTemp("", string(id))
-	require.Nil(t, err)
+	require.NoError(t, err)
 	defer os.Remove(f.Name())
 	defer f.Close()
 
@@ -123,7 +123,7 @@ func (s *EventsSuite) EventPagination(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Len(t, arr, 4)
-	require.Equal(t, checkpoint, "")
+	require.Empty(t, checkpoint)
 
 	for _, name := range names {
 		arr, checkpoint, err = s.Log.SearchEvents(ctx, events.SearchEventsRequest{
@@ -148,9 +148,9 @@ func (s *EventsSuite) EventPagination(t *testing.T) {
 			StartKey: checkpoint,
 		})
 		require.NoError(t, err)
-		require.Len(t, arr, 0)
+		require.Empty(t, arr)
 	}
-	require.Equal(t, checkpoint, "")
+	require.Empty(t, checkpoint)
 
 	for _, i := range []int{0, 2} {
 		nameA := names[i]
@@ -180,9 +180,9 @@ func (s *EventsSuite) EventPagination(t *testing.T) {
 			StartKey: checkpoint,
 		})
 		require.NoError(t, err)
-		require.Len(t, arr, 0)
+		require.Empty(t, arr)
 	}
-	require.Equal(t, checkpoint, "")
+	require.Empty(t, checkpoint)
 
 	for i := len(names) - 1; i >= 0; i-- {
 		arr, checkpoint, err = s.Log.SearchEvents(ctx, events.SearchEventsRequest{
@@ -207,9 +207,9 @@ func (s *EventsSuite) EventPagination(t *testing.T) {
 			StartKey: checkpoint,
 		})
 		require.NoError(t, err)
-		require.Len(t, arr, 0)
+		require.Empty(t, arr)
 	}
-	require.Equal(t, checkpoint, "")
+	require.Empty(t, checkpoint)
 
 	// This serves no special purpose except to make querying easier.
 	baseTime2 := time.Now().UTC().AddDate(0, 0, -2)
@@ -351,8 +351,8 @@ func (s *EventsSuite) SessionEventsCRUD(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, history, 3)
 
-	require.Equal(t, history[1].GetType(), events.SessionStartEvent)
-	require.Equal(t, history[2].GetType(), events.SessionEndEvent)
+	require.Equal(t, events.SessionStartEvent, history[1].GetType())
+	require.Equal(t, events.SessionEndEvent, history[2].GetType())
 
 	history, _, err = s.Log.SearchSessionEvents(ctx, events.SearchSessionEventsRequest{
 		From:  s.Clock.Now().UTC().Add(-1 * time.Hour),
@@ -388,7 +388,7 @@ func (s *EventsSuite) SessionEventsCRUD(t *testing.T) {
 		Cond:  withParticipant("cecile"),
 	})
 	require.NoError(t, err)
-	require.Len(t, history, 0)
+	require.Empty(t, history)
 
 	history, _, err = s.Log.SearchSessionEvents(ctx, events.SearchSessionEventsRequest{
 		From:  s.Clock.Now().UTC().Add(-1 * time.Hour),
@@ -397,7 +397,7 @@ func (s *EventsSuite) SessionEventsCRUD(t *testing.T) {
 		Order: types.EventOrderAscending,
 	})
 	require.NoError(t, err)
-	require.Len(t, history, 0)
+	require.Empty(t, history)
 }
 
 func (s *EventsSuite) SearchSessionEventsBySessionID(t *testing.T) {

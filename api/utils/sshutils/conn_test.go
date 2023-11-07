@@ -133,7 +133,7 @@ func TestTransportError(t *testing.T) {
 	t.Cleanup(func() { require.Error(t, sconn1.Close()) })
 
 	channel := <-nc
-	require.Equal(t, channel.ChannelType(), constants.ChanTransport)
+	require.Equal(t, constants.ChanTransport, channel.ChannelType())
 
 	sconn1.Close()
 	err := timeoutErrC(t, handlerErrC, time.Second*5)
@@ -143,7 +143,7 @@ func TestTransportError(t *testing.T) {
 	t.Cleanup(func() { require.NoError(t, sconn2.Close()) })
 
 	channel = <-nc
-	require.Equal(t, channel.ChannelType(), constants.ChanTransport)
+	require.Equal(t, constants.ChanTransport, channel.ChannelType())
 
 	err = channel.Reject(ssh.ConnectionFailed, "test reject")
 	require.NoError(t, err)

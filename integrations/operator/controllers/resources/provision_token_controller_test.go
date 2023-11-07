@@ -224,9 +224,9 @@ github:
 		}
 		require.NoError(t, err)
 
-		require.Equal(t, tToken.GetName(), tokenName)
+		require.Equal(t, tokenName, tToken.GetName())
 		require.Contains(t, tToken.GetMetadata().Labels, types.OriginLabel)
-		require.Equal(t, tToken.GetMetadata().Labels[types.OriginLabel], types.OriginKubernetes)
+		require.Equal(t, types.OriginKubernetes, tToken.GetMetadata().Labels[types.OriginLabel])
 		expectedToken := &types.ProvisionTokenV2{
 			Metadata: types.Metadata{},
 			Spec:     *expectedSpec,

@@ -42,8 +42,8 @@ type Server struct {
 	Kind string `json:"kind"`
 	// Tunnel indicates of this server is connected over a reverse tunnel.
 	Tunnel bool `json:"tunnel"`
-	// SubKind is an optional subkind such as OpenSSH
-	SubKind string `json:"subKind,omitempty"`
+	// SubKind is a node subkind such as OpenSSH
+	SubKind string `json:"subKind"`
 	// Name is this server name
 	Name string `json:"id"`
 	// ClusterName is this server cluster name

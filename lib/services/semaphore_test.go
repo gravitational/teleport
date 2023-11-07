@@ -33,23 +33,23 @@ func TestAcquireSemaphoreRequest(t *testing.T) {
 		Expires:       time.Now(),
 	}
 	ok2 := ok
-	require.Nil(t, ok.Check())
-	require.Nil(t, ok2.Check())
+	require.NoError(t, ok.Check())
+	require.NoError(t, ok2.Check())
 
 	// Check that all the required fields have their
 	// zero values rejected.
 	bad := ok
 	bad.SemaphoreKind = ""
-	require.NotNil(t, bad.Check())
+	require.Error(t, bad.Check())
 	bad = ok
 	bad.SemaphoreName = ""
-	require.NotNil(t, bad.Check())
+	require.Error(t, bad.Check())
 	bad = ok
 	bad.MaxLeases = 0
-	require.NotNil(t, bad.Check())
+	require.Error(t, bad.Check())
 	bad = ok
 	bad.Expires = time.Time{}
-	require.NotNil(t, bad.Check())
+	require.Error(t, bad.Check())
 
 	// ensure that well formed acquire params can configure
 	// a well formed semaphore.
@@ -66,9 +66,9 @@ func TestAcquireSemaphoreRequest(t *testing.T) {
 	// semaphore expiry.
 	newLease := *lease
 	newLease.Expires = sem.Expiry().Add(time.Second)
-	require.Nil(t, sem.KeepAlive(newLease))
+	require.NoError(t, sem.KeepAlive(newLease))
 	require.Equal(t, newLease.Expires, sem.Expiry())
 
-	require.Nil(t, sem.Cancel(newLease))
+	require.NoError(t, sem.Cancel(newLease))
 	require.False(t, sem.Contains(newLease))
 }

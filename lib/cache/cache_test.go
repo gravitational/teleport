@@ -2340,7 +2340,7 @@ func TestRelativeExpiry(t *testing.T) {
 
 	// make sure the event buffer is much larger than node count
 	// so that we can batch create nodes without waiting on each event
-	require.True(t, int(nodeCount*3) < eventBufferSize)
+	require.Less(t, int(nodeCount*3), eventBufferSize)
 
 	ctx := context.Background()
 
@@ -2404,7 +2404,7 @@ func TestRelativeExpiry(t *testing.T) {
 	// verify that sliding window has preserved most recent nodes
 	nodes, err = p.cache.GetNodes(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
-	require.True(t, len(nodes) > 0, "node_count=%d", len(nodes))
+	require.NotEmpty(t, nodes, "node_count=%d", len(nodes))
 }
 
 func TestRelativeExpiryLimit(t *testing.T) {
@@ -2416,7 +2416,7 @@ func TestRelativeExpiryLimit(t *testing.T) {
 
 	// make sure the event buffer is much larger than node count
 	// so that we can batch create nodes without waiting on each event
-	require.True(t, int(nodeCount*3) < eventBufferSize)
+	require.Less(t, int(nodeCount*3), eventBufferSize)
 
 	ctx := context.Background()
 

@@ -44,10 +44,10 @@ func runCase(t *testing.T, tc readerTestCase) {
 	})
 
 	_, err := io.Copy(out, r)
-	require.Equal(t, err, tc.wantReadErr)
-	require.Equal(t, disconnectErr, tc.wantDisconnectErr)
-	require.Equal(t, out.String(), tc.wantOut)
-	require.Equal(t, helpOut.String(), tc.wantHelp)
+	require.Equal(t, tc.wantReadErr, err)
+	require.Equal(t, tc.wantDisconnectErr, disconnectErr)
+	require.Equal(t, tc.wantOut, out.String())
+	require.Equal(t, tc.wantHelp, helpOut.String())
 }
 
 func TestNormalReads(t *testing.T) {

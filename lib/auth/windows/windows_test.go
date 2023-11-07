@@ -118,15 +118,15 @@ func TestGenerateCredentials(t *testing.T) {
 					var san SubjectAltName[upn]
 					_, err = asn1.Unmarshal(extension.Value, &san)
 					require.NoError(t, err)
-					require.Equal(t, san.OtherName.OID, UPNOtherNameOID)
-					require.Equal(t, san.OtherName.Value.Value, user+"@"+domain)
+					require.Equal(t, UPNOtherNameOID, san.OtherName.OID)
+					require.Equal(t, user+"@"+domain, san.OtherName.Value.Value)
 				case extension.Id.Equal(ADUserMappingExtensionOID):
 					foundAdUserMapping = true
 					var adUserMapping SubjectAltName[adSid]
 					_, err = asn1.Unmarshal(extension.Value, &adUserMapping)
 					require.NoError(t, err)
-					require.Equal(t, adUserMapping.OtherName.OID, ADUserMappingInternalOID)
-					require.Equal(t, adUserMapping.OtherName.Value.Value, []byte(testSid))
+					require.Equal(t, ADUserMappingInternalOID, adUserMapping.OtherName.OID)
+					require.Equal(t, []byte(testSid), adUserMapping.OtherName.Value.Value)
 
 				}
 			}

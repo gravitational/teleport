@@ -36,7 +36,7 @@ func TestFanoutWatcherClose(t *testing.T) {
 	w, err := f.NewWatcher(ctx,
 		types.Watch{Name: "test", Kinds: []types.WatchKind{{Name: "test"}}})
 	require.NoError(t, err)
-	require.Equal(t, f.Len(), 1)
+	require.Equal(t, 1, f.Len())
 
 	err = w.Close()
 	select {
@@ -45,7 +45,7 @@ func TestFanoutWatcherClose(t *testing.T) {
 		t.Fatalf("Timeout waiting for event")
 	}
 	require.NoError(t, err)
-	require.Equal(t, f.Len(), 0)
+	require.Equal(t, 0, f.Len())
 }
 
 // TestFanoutInit verifies that Init event is sent exactly once.

@@ -75,10 +75,10 @@ func TestReadIdentity(t *testing.T) {
 
 	id, err := ReadSSHIdentityFromKeyPair(priv, cert)
 	require.NoError(t, err)
-	require.Equal(t, id.ClusterName, "example.com")
-	require.Equal(t, id.ID, IdentityID{HostUUID: "id1.example.com", Role: types.RoleNode})
-	require.Equal(t, id.CertBytes, cert)
-	require.Equal(t, id.KeyBytes, priv)
+	require.Equal(t, "example.com", id.ClusterName)
+	require.Equal(t, IdentityID{HostUUID: "id1.example.com", Role: types.RoleNode}, id.ID)
+	require.Equal(t, cert, id.CertBytes)
+	require.Equal(t, priv, id.KeyBytes)
 
 	// test TTL by converting the generated cert to text -> back and making sure ExpireAfter is valid
 	ttl := 10 * time.Second
@@ -409,7 +409,7 @@ func TestClusterID(t *testing.T) {
 	cc, err := authServer.GetClusterName()
 	require.NoError(t, err)
 	clusterID := cc.GetClusterID()
-	require.NotEqual(t, clusterID, "")
+	require.NotEmpty(t, clusterID)
 
 	// do it again and make sure cluster ID hasn't changed
 	authServer, err = Init(context.Background(), conf)
@@ -418,7 +418,7 @@ func TestClusterID(t *testing.T) {
 
 	cc, err = authServer.GetClusterName()
 	require.NoError(t, err)
-	require.Equal(t, cc.GetClusterID(), clusterID)
+	require.Equal(t, clusterID, cc.GetClusterID())
 }
 
 // TestClusterName ensures that a cluster can not be renamed.

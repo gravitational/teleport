@@ -19,12 +19,14 @@ package resources
 import (
 	"context"
 	"reflect"
+	"slices"
 
 	"github.com/gravitational/trace"
-	"k8s.io/apimachinery/pkg/api/meta"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/event"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	"github.com/gravitational/teleport/api/types"
 )
@@ -70,8 +72,8 @@ type TeleportResourceMutator[T TeleportResource] interface {
 // NewTeleportResourceReconciler instanciates a TeleportResourceReconciler from a TeleportResourceClient.
 func NewTeleportResourceReconciler[T TeleportResource, K TeleportKubernetesResource[T]](
 	client kclient.Client,
-	resourceClient TeleportResourceClient[T]) *TeleportResourceReconciler[T, K] {
-
+	resourceClient TeleportResourceClient[T],
+) *TeleportResourceReconciler[T, K] {
 	reconciler := &TeleportResourceReconciler[T, K]{
 		ResourceBaseReconciler: ResourceBaseReconciler{Client: client},
 		resourceClient:         resourceClient,
@@ -92,23 +94,41 @@ func (r TeleportResourceReconciler[T, K]) Upsert(ctx context.Context, obj kclien
 	teleportResource := k8sResource.ToTeleport()
 
 	existingResource, err := r.resourceClient.Get(ctx, teleportResource.GetName())
-	if err != nil && !trace.IsNotFound(err) {
-		return trace.Wrap(err)
+	updateErr := updateStatus(updateStatusConfig{
+		ctx:         ctx,
+		client:      r.Client,
+		k8sResource: k8sResource,
+		condition:   getReconciliationConditionFromError(err, true /* ignoreNotFound */),
+	})
+
+	if err != nil && !trace.IsNotFound(err) || updateErr != nil {
+		return trace.NewAggregate(err, updateErr)
 	}
 	// If err is nil, we found the resource. If err != nil (and we did return), then the error was `NotFound`
 	exists := err == nil
 
 	if exists {
 		newOwnershipCondition, isOwned := checkOwnership(existingResource)
-		meta.SetStatusCondition(k8sResource.StatusConditions(), newOwnershipCondition)
+		if updateErr = updateStatus(updateStatusConfig{
+			ctx:         ctx,
+			client:      r.Client,
+			k8sResource: k8sResource,
+			condition:   newOwnershipCondition,
+		}); updateErr != nil {
+			return trace.Wrap(updateErr)
+		}
 		if !isOwned {
-			return trace.NewAggregate(
-				trace.AlreadyExists("unowned resource '%s' already exists", existingResource.GetName()),
-				r.Status().Update(ctx, k8sResource),
-			)
+			return trace.AlreadyExists("unowned resource '%s' already exists", existingResource.GetName())
 		}
 	} else {
-		meta.SetStatusCondition(k8sResource.StatusConditions(), newResourceCondition)
+		if updateErr = updateStatus(updateStatusConfig{
+			ctx:         ctx,
+			client:      r.Client,
+			k8sResource: k8sResource,
+			condition:   newResourceCondition,
+		}); updateErr != nil {
+			return trace.Wrap(updateErr)
+		}
 	}
 
 	teleportResource.SetOrigin(types.OriginKubernetes)
@@ -124,14 +144,14 @@ func (r TeleportResourceReconciler[T, K]) Upsert(ctx context.Context, obj kclien
 		err = r.resourceClient.Update(ctx, teleportResource)
 	}
 	// If an error happens we want to put it in status.conditions before returning.
-	newReconciliationCondition := getReconciliationConditionFromError(err)
-	meta.SetStatusCondition(k8sResource.StatusConditions(), newReconciliationCondition)
-	if err != nil {
-		return trace.NewAggregate(err, r.Status().Update(ctx, k8sResource))
-	}
+	updateErr = updateStatus(updateStatusConfig{
+		ctx:         ctx,
+		client:      r.Client,
+		k8sResource: k8sResource,
+		condition:   getReconciliationConditionFromError(err, false /* ignoreNotFound */),
+	})
 
-	// We update the status conditions on exit
-	return trace.Wrap(r.Status().Update(ctx, k8sResource))
+	return trace.NewAggregate(err, updateErr)
 }
 
 // Delete is the TeleportResourceReconciler of the ResourceBaseReconciler DeleteExertal
@@ -148,7 +168,13 @@ func (r TeleportResourceReconciler[T, K]) Reconcile(ctx context.Context, req ctr
 // SetupWithManager have a controllerruntime.Manager run the TeleportResourceReconciler
 func (r TeleportResourceReconciler[T, K]) SetupWithManager(mgr ctrl.Manager) error {
 	kubeResource := newKubeResource[T, K]()
-	return ctrl.NewControllerManagedBy(mgr).For(kubeResource).Complete(r)
+	return ctrl.
+		NewControllerManagedBy(mgr).
+		For(kubeResource).
+		WithEventFilter(
+			buildPredicate(),
+		).
+		Complete(r)
 }
 
 // newKubeResource creates a new TeleportKubernetesResource
@@ -167,4 +193,30 @@ func newKubeResource[T TeleportResource, K TeleportKubernetesResource[T]]() K {
 		resource = initializedResource.Interface().(K)
 	}
 	return resource
+}
+
+// buildPredicate returns a predicate that triggers the reconciliation when:
+// - the resource generation changes
+// - the resource finalizers change
+// - the resource annotations change
+// - the resource labels change
+// - the resource is created
+// - the resource is deleted
+// It does not trigger the reconciliation when:
+// - the resource status changes
+func buildPredicate() predicate.Predicate {
+	return predicate.Or(
+		predicate.GenerationChangedPredicate{},
+		predicate.AnnotationChangedPredicate{},
+		predicate.LabelChangedPredicate{},
+		predicate.Funcs{
+			UpdateFunc: func(e event.UpdateEvent) bool {
+				if e.ObjectOld == nil || e.ObjectNew == nil {
+					return false
+				}
+
+				return !slices.Equal(e.ObjectNew.GetFinalizers(), e.ObjectOld.GetFinalizers())
+			},
+		},
+	)
 }

@@ -238,7 +238,7 @@ func TestEC2Watcher(t *testing.T) {
 func TestConvertEC2InstancesToServerInfos(t *testing.T) {
 	t.Parallel()
 	expected, err := types.NewServerInfo(types.Metadata{
-		Name: "myaccount-myinstance",
+		Name: "aws-myaccount-myinstance",
 	}, types.ServerInfoSpecV1{
 		NewLabels: map[string]string{"aws/foo": "bar"},
 	})

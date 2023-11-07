@@ -127,5 +127,5 @@ func benchmarkGetNodes(ctx context.Context, b *testing.B, svc services.Presence,
 	// do *something* with the loop result.  probably unnecessary since the loop
 	// contains I/O, but I don't know enough about the optimizer to be 100% certain
 	// about that.
-	require.Equal(b, nodeCount, len(nodes))
+	require.Len(b, nodes, nodeCount)
 }

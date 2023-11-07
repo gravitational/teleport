@@ -182,7 +182,7 @@ func TestExternalCloudAuditService(t *testing.T) {
 			Region:                 "us-west-2",
 			SessionsRecordingsURI:  "s3://teleport-longterm-" + nonce + "/sessions",
 			AuditEventsLongTermURI: "s3://teleport-longterm-" + nonce + "/events",
-			AthenaResultsURI:       "s3://teleport-transient-" + nonce + "/results",
+			AthenaResultsURI:       "s3://teleport-transient-" + nonce + "/query_results",
 			AthenaWorkgroup:        "teleport_events_" + underscoreNonce,
 			GlueDatabase:           "teleport_events_" + underscoreNonce,
 			GlueTable:              "teleport_events",
@@ -211,6 +211,6 @@ func newSpecWithSessRec(t *testing.T, sessionsRecordingsURI string) externalclou
 		GlueDatabase:           "teleport_db",
 		GlueTable:              "teleport_table",
 		AuditEventsLongTermURI: "s3://bucket/events",
-		AthenaResultsURI:       "s3://bucket/results",
+		AthenaResultsURI:       "s3://bucket/query_results",
 	}
 }

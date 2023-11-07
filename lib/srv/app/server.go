@@ -722,7 +722,7 @@ func (s *Server) handleConnection(conn net.Conn) (func(), error) {
 	}
 
 	ctx = authz.ContextWithUser(s.closeContext, user)
-	ctx = authz.ContextWithClientAddr(ctx, conn.RemoteAddr())
+	ctx = authz.ContextWithClientSrcAddr(ctx, conn.RemoteAddr())
 	authCtx, _, err := s.authorizeContext(ctx)
 
 	// The behavior here is a little hard to track. To be clear here, if authorization fails
