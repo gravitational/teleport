@@ -25,6 +25,7 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
 	"github.com/mitchellh/mapstructure"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -58,20 +59,16 @@ func TestUserCreation(t *testing.T) {
 	// The user is created in K8S
 	k8sCreateDummyUser(ctx, t, setup.K8sClient, setup.Namespace.Name, userName)
 
+	var tUser types.User
+	var err error
 	fastEventually(t, func() bool {
-		tUser, err := setup.TeleportClient.GetUser(ctx, userName, false)
-		if trace.IsNotFound(err) {
-			return false
-		}
-		require.NoError(t, err)
-
-		require.Equal(t, userName, tUser.GetName())
-
-		require.Contains(t, tUser.GetMetadata().Labels, types.OriginLabel)
-		require.Equal(t, types.OriginKubernetes, tUser.GetMetadata().Labels[types.OriginLabel])
-
-		return true
+		tUser, err = setup.TeleportClient.GetUser(ctx, userName, false)
+		return !trace.IsNotFound(err)
 	})
+	require.NoError(t, err)
+	require.Equal(t, userName, tUser.GetName())
+	require.Contains(t, tUser.GetMetadata().Labels, types.OriginLabel)
+	require.Equal(t, types.OriginKubernetes, tUser.GetMetadata().Labels[types.OriginLabel])
 
 	// The user is deleted in K8S
 	k8sDeleteUser(ctx, t, setup.K8sClient, userName, setup.Namespace.Name)
@@ -176,37 +173,29 @@ traits:
 					}, obj)
 					errorConditions := getUserStatusConditionError(obj.Object)
 					// If there's no error condition, reconciliation has not happened yet
-					if len(errorConditions) == 0 {
-						return false
-					}
-
-					_, err := setup.TeleportClient.GetUser(ctx, userName, false /* withSecrets */)
-					require.True(t, trace.IsNotFound(err), "The user should not be created in Teleport")
-					return true
+					return len(errorConditions) != 0
 				})
+				_, err = setup.TeleportClient.GetUser(ctx, userName, false /* withSecrets */)
+				require.True(t, trace.IsNotFound(err), "The user should not be created in Teleport")
 			} else {
 				// We wait for Teleport resource creation
+				var tUser types.User
 				fastEventually(t, func() bool {
-					tUser, err := setup.TeleportClient.GetUser(ctx, userName, false /* withSecrets */)
+					tUser, err = setup.TeleportClient.GetUser(ctx, userName, false /* withSecrets */)
 					// If the resource creation should succeed we check the resource was found and validate ownership labels
-					if trace.IsNotFound(err) {
-						return false
-					}
-					require.NoError(t, err)
-
-					require.Equal(t, userName, tUser.GetName())
-					require.Contains(t, tUser.GetMetadata().Labels, types.OriginLabel)
-					require.Equal(t, types.OriginKubernetes, tUser.GetMetadata().Labels[types.OriginLabel])
-					require.Equal(t, setup.OperatorName, tUser.GetCreatedBy().User.Name)
-					expectedUser := &types.UserV2{
-						Metadata: types.Metadata{},
-						Spec:     *tc.expectedSpec,
-					}
-					_ = expectedUser.CheckAndSetDefaults()
-					compareUserSpecs(t, expectedUser, tUser)
-
-					return true
+					return !trace.IsNotFound(err)
 				})
+				require.NoError(t, err)
+				require.Equal(t, userName, tUser.GetName())
+				require.Contains(t, tUser.GetMetadata().Labels, types.OriginLabel)
+				require.Equal(t, types.OriginKubernetes, tUser.GetMetadata().Labels[types.OriginLabel])
+				require.Equal(t, setup.OperatorName, tUser.GetCreatedBy().User.Name)
+				expectedUser := &types.UserV2{
+					Metadata: types.Metadata{},
+					Spec:     *tc.expectedSpec,
+				}
+				_ = expectedUser.CheckAndSetDefaults()
+				compareUserSpecs(t, expectedUser, tUser)
 			}
 			// Teardown
 
@@ -250,25 +239,22 @@ func TestUserDeletionDrift(t *testing.T) {
 	// The user is created in K8S
 	k8sCreateDummyUser(ctx, t, setup.K8sClient, setup.Namespace.Name, userName)
 
+	var tUser types.User
+	var err error
 	fastEventually(t, func() bool {
-		tUser, err := setup.TeleportClient.GetUser(ctx, userName, false)
-		if trace.IsNotFound(err) {
-			return false
-		}
-		require.NoError(t, err)
-
-		require.Equal(t, userName, tUser.GetName())
-
-		require.Contains(t, tUser.GetMetadata().Labels, types.OriginLabel)
-		require.Equal(t, types.OriginKubernetes, tUser.GetMetadata().Labels[types.OriginLabel])
-
-		return true
+		tUser, err = setup.TeleportClient.GetUser(ctx, userName, false)
+		return !trace.IsNotFound(err)
 	})
+	require.NoError(t, err)
+	require.Equal(t, userName, tUser.GetName())
+	require.Contains(t, tUser.GetMetadata().Labels, types.OriginLabel)
+	require.Equal(t, types.OriginKubernetes, tUser.GetMetadata().Labels[types.OriginLabel])
+
 	// We cause a drift by altering the Teleport resource.
 	// To make sure the operator does not reconcile while we're finished we suspend the operator
 	setup.StopKubernetesOperator()
 
-	err := setup.TeleportClient.DeleteUser(ctx, userName)
+	err = setup.TeleportClient.DeleteUser(ctx, userName)
 	require.NoError(t, err)
 	fastEventually(t, func() bool {
 		_, err := setup.TeleportClient.GetUser(ctx, userName, false)
@@ -345,7 +331,7 @@ func TestUserUpdate(t *testing.T) {
 	// The user is updated in Teleport
 	fastEventually(t, func() bool {
 		tUser, err := setup.TeleportClient.GetUser(ctx, userName, false)
-		require.NoError(t, err)
+		assert.NoError(t, err)
 
 		// TeleportUser was updated with new roles
 		return compareRoles([]string{"x", "z"}, tUser.GetRoles())
@@ -369,12 +355,12 @@ func TestUserUpdate(t *testing.T) {
 	require.NoError(t, err)
 
 	// Updates the user in Teleport
-	fastEventually(t, func() bool {
+	fastEventuallyWithT(t, func(c *assert.CollectT) {
 		tUser, err := setup.TeleportClient.GetUser(ctx, userName, false)
-		require.NoError(t, err)
+		require.NoError(c, err)
 
 		// TeleportUser updated with new roles
-		return compareRoles([]string{"x", "y", "z"}, tUser.GetRoles())
+		assert.ElementsMatch(c, tUser.GetRoles(), []string{"x", "z", "y"})
 	})
 	require.Equal(t, setup.OperatorName, tUser.GetCreatedBy().User.Name, "createdBy has not been erased")
 }
