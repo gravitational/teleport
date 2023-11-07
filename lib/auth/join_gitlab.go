@@ -62,6 +62,15 @@ func (a *Server) checkGitLabJoinRequest(ctx context.Context, req *types.Register
 }
 
 func checkGitLabAllowRules(token *types.ProvisionTokenV2, claims *gitlab.IDTokenClaims) error {
+	// Helper for comparing a BoolOption with GitLabs string bools.
+	// Returns true if OK - returns false if not OK
+	boolEqual := func(want *types.BoolOption, got string) bool {
+		if want == nil {
+			return true
+		}
+		return (want.Value && got == "true") || (!want.Value && got == "false")
+	}
+
 	// If a single rule passes, accept the IDToken
 	for _, rule := range token.Spec.GitLab.Allow {
 		// Please consider keeping these field validators in the same order they
@@ -85,6 +94,33 @@ func checkGitLabAllowRules(token *types.ProvisionTokenV2, claims *gitlab.IDToken
 			continue
 		}
 		if rule.Environment != "" && claims.Environment != rule.Environment {
+			continue
+		}
+		if rule.UserLogin != "" && claims.UserLogin != rule.UserLogin {
+			continue
+		}
+		if rule.UserID != "" && claims.UserID != rule.UserID {
+			continue
+		}
+		if rule.UserEmail != "" && claims.UserEmail != rule.UserEmail {
+			continue
+		}
+		if !boolEqual(rule.RefProtected, claims.RefProtected) {
+			continue
+		}
+		if !boolEqual(rule.EnvironmentProtected, claims.EnvironmentProtected) {
+			continue
+		}
+		if rule.CIConfigSHA != "" && claims.CIConfigSHA != rule.CIConfigSHA {
+			continue
+		}
+		if rule.CIConfigRefURI != "" && claims.CIConfigRefURI != rule.CIConfigRefURI {
+			continue
+		}
+		if rule.DeploymentTier != "" && claims.DeploymentTier != rule.DeploymentTier {
+			continue
+		}
+		if rule.ProjectVisibility != "" && claims.ProjectVisibility != rule.ProjectVisibility {
 			continue
 		}
 		// All provided rules met.
