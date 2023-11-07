@@ -334,7 +334,7 @@ func TestRoleUpdate(t *testing.T) {
 		// TeleportRole updated with new logins
 		logins := tRole.GetLogins(types.Allow)
 		sort.Strings(logins)
-		require.ElementsMatch(c, logins, []string{"x", "z"})
+		assert.ElementsMatch(c, logins, []string{"x", "z"})
 	})
 
 	// Updating the role in K8S
@@ -362,7 +362,7 @@ func TestRoleUpdate(t *testing.T) {
 		// TeleportRole updated with new logins
 		logins := tRole.GetLogins(types.Allow)
 		sort.Strings(logins)
-		require.ElementsMatch(c, logins, []string{"admin", "root", "x", "z"})
+		assert.ElementsMatch(c, logins, []string{"admin", "root", "x", "z"})
 	})
 }
 

@@ -360,7 +360,7 @@ func TestUserUpdate(t *testing.T) {
 		require.NoError(c, err)
 
 		// TeleportUser updated with new roles
-		require.ElementsMatch(c, tUser.GetRoles(), []string{"x", "z", "y"})
+		assert.ElementsMatch(c, tUser.GetRoles(), []string{"x", "z", "y"})
 	})
 	require.Equal(t, setup.OperatorName, tUser.GetCreatedBy().User.Name, "createdBy has not been erased")
 }

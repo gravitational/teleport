@@ -154,7 +154,7 @@ func ResourceUpdateTest[T resources.TeleportResource, K resources.TeleportKubern
 		if !equal {
 			t.Logf("Kubernetes and Teleport resources not sync-ed yet: %s", diff)
 		}
-		require.True(c, equal)
+		assert.True(c, equal)
 	})
 
 	// Updating the resource in Kubernetes
@@ -177,7 +177,7 @@ func ResourceUpdateTest[T resources.TeleportResource, K resources.TeleportKubern
 		if !equal {
 			t.Logf("Kubernetes and Teleport resources not sync-ed yet: %s", diff)
 		}
-		require.True(c, equal)
+		assert.True(c, equal)
 	})
 
 	// Delete the resource to avoid leftover state.
