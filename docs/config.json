@@ -1467,6 +1467,10 @@
               "slug": "/machine-id/reference/github-actions/"
             },
             {
+              "title": "GitLab",
+              "slug": "/machine-id/reference/gitlab/"
+            },
+            {
               "title": "Telemetry",
               "slug": "/machine-id/reference/telemetry/"
             },
