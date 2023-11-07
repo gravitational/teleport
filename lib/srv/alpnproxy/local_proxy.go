@@ -19,14 +19,20 @@ package alpnproxy
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
+	"crypto/rsa"
 	"crypto/tls"
 	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/pem"
 	"io"
+	"math/big"
 	"net"
 	"net/http"
 	"net/http/httputil"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jackc/pgproto3/v2"
@@ -315,7 +321,41 @@ func (l *LocalProxy) StartHTTPAccessProxy(ctx context.Context) error {
 	defer l.cfg.Log.Info("HTTP access proxy stopped")
 	defaultProxy := l.makeHTTPReverseProxy(l.getCerts())
 
+	// Generate a self-signed certificate to use in the proxy
+	privateKey, err := rsa.GenerateKey(rand.Reader, 4096)
+
+	template := x509.Certificate{
+		SerialNumber: big.NewInt(0),
+		Subject: pkix.Name{
+			CommonName: "localhost",
+		},
+		NotBefore: time.Now(),
+		NotAfter:  time.Now().Add(time.Hour * 24),
+
+		KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature | x509.KeyUsageKeyAgreement | x509.KeyUsageDataEncipherment,
+		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		BasicConstraintsValid: true,
+		DNSNames:              []string{"localhost"},
+	}
+
+	certificate, err := x509.CreateCertificate(rand.Reader, &template, &template, &privateKey.PublicKey, privateKey)
+	if err != nil {
+		return err
+	}
+
+	privateKeyPem := pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(privateKey)})
+
+	keyPEM, err := tls.X509KeyPair(certificate, privateKeyPem)
+	if err != nil {
+		return err
+	}
+
+	tlsConfig := &tls.Config{
+		Certificates: []tls.Certificate{keyPEM},
+	}
+
 	server := &http.Server{
+		TLSConfig:         tlsConfig,
 		ReadHeaderTimeout: defaults.ReadHeadersTimeout,
 		Handler: http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 			if l.cfg.HTTPMiddleware.HandleRequest(rw, req) {
