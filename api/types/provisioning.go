@@ -670,9 +670,9 @@ func (a *ProvisionTokenSpecV2GitLab) checkAndSetDefaults() error {
 		)
 	}
 	for _, allowRule := range a.Allow {
-		if allowRule.Sub == "" && allowRule.NamespacePath == "" && allowRule.ProjectPath == "" {
+		if allowRule.Sub == "" && allowRule.NamespacePath == "" && allowRule.ProjectPath == "" && allowRule.CIConfigRefURI == "" {
 			return trace.BadParameter(
-				"the %q join method requires allow rules with at least 'sub', 'project_path' or 'namespace_path' to ensure security.",
+				"the %q join method requires allow rules with at least one of ['sub', 'project_path', 'namespace_path', `ci_config_ref_uri`] to ensure security.",
 				JoinMethodGitLab,
 			)
 		}
