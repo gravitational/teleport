@@ -31,7 +31,7 @@ jobs:
       - name: Checkout base
         uses: actions/checkout@v3 # Cannot upgrade to v4 while this runs in centos:7 due to nodejs GLIBC incompatibility
         with:
-          ref: ${{ github.event.push.before }}
+          ref: ${{ github.event.before }}
 
       - name: Prepare workspace
         uses: ./.github/actions/prepare-workspace
@@ -43,21 +43,13 @@ jobs:
           path: .github/shared-workflows
           ref: main
 
-      # The cache action was not evaluating ${{ github.event.push.before }} when used directly in the
-      # key. Output the correct base sha in an output so that the cache action can consume that instead.
-      - name: Compute base sha
-        id: base_sha
-        run: |
-          echo "Base SHA = ${{ github.event.push.before || github.event.pull_request.base.sha }}"
-          echo "sha=${{ github.event.push.before || github.event.pull_request.base.sha }}" >> $GITHUB_OUTPUT
-
       - name: Setup base cache
         uses: actions/cache/restore@v3
         id: cache-build-restore
         with:
           path: |
             ~/teleport_base_build_stats
-          key: ${{ github.job }}-${{ runner.os }}-${{ steps.base_sha.outputs.sha }}
+          key: ${{ github.job }}-${{ runner.os }}-${{ github.event.before }}
 
       - name: Generate GitHub Token
         id: generate_token
@@ -94,7 +86,7 @@ jobs:
         uses: actions/checkout@v3 # Cannot upgrade to v4 while this runs in centos:7 due to nodejs GLIBC incompatibility
         with:
           clean: false
-          ref: ${{ github.event.push.after }}
+          ref: ${{ github.event.after }}
 
       - name: Checkout shared-workflow
         uses: actions/checkout@v3 # Cannot upgrade to v4 while this runs in centos:7 due to nodejs GLIBC incompatibility
