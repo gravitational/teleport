@@ -323,7 +323,7 @@ export class FeatureUsers implements TeleportFeature {
 
 export class FeatureRoles implements TeleportFeature {
   category = NavigationCategory.Management;
-  section = ManagementSection.Privilege;
+  section = ManagementSection.Permissions;
 
   route = {
     title: 'Manage User Roles',
@@ -694,7 +694,7 @@ export function getOSSFeatures(): TeleportFeature[] {
     new FeatureDiscover(),
     new FeatureIntegrationEnroll(),
 
-    // - Privilege
+    // - Permissions
     new FeatureRoles(),
 
     // - Identity
