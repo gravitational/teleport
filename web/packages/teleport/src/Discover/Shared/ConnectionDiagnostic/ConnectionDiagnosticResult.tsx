@@ -132,7 +132,7 @@ export function ConnectionDiagnosticResult({
   );
 }
 
-const ErrorWithDetails = ({
+export const ErrorWithDetails = ({
   details,
   error,
 }: {
