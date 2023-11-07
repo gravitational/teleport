@@ -539,8 +539,7 @@ func showRequestableRoles(w io.Writer, requestableRoles []string) error {
 	for _, r := range requestableRoles {
 		rows = append(rows, []string{r})
 	}
-	var table asciitable.Table
-	table = asciitable.MakeTable(tableColumns, rows...)
+	table := asciitable.MakeTable(tableColumns, rows...)
 	table.SortRowsBy([]int{0}, true)
 	if _, err := table.AsBuffer().WriteTo(w); err != nil {
 		return trace.Wrap(err)
