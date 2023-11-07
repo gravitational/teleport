@@ -63,16 +63,14 @@ export default function DocumentCluster(props: {
 
   return (
     <Document visible={props.visible}>
-      <Layout>
-        <ClusterState
-          clusterName={clusterName}
-          clusterUri={clusterUri}
-          rootCluster={rootCluster}
-          cluster={cluster}
-          syncCluster={syncCluster}
-          clusterSyncAttempt={clusterSyncAttempt}
-        />
-      </Layout>
+      <ClusterState
+        clusterName={clusterName}
+        clusterUri={clusterUri}
+        rootCluster={rootCluster}
+        cluster={cluster}
+        syncCluster={syncCluster}
+        clusterSyncAttempt={clusterSyncAttempt}
+      />
     </Document>
   );
 }
@@ -109,7 +107,11 @@ function ClusterState(props: {
     );
   }
 
-  return <UnifiedResources clusterUri={props.clusterUri} />;
+  return (
+    <Layout>
+      <UnifiedResources clusterUri={props.clusterUri} />
+    </Layout>
+  );
 }
 
 function RequiresLogin(props: {
@@ -179,9 +181,7 @@ function PrintState(props: {
       <Text typography="h4" bold>
         {props.clusterName}
       </Text>
-      <Text as="span" typography="h5">
-        {props.clusterState}
-      </Text>
+      <Text>{props.clusterState}</Text>
       {props.action && (
         <ButtonPrimary
           mt={4}
