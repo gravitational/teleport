@@ -48,7 +48,8 @@ func NewCLIPrompt(cfg *PromptConfig, writer io.Writer) *CLIPrompt {
 
 // Run prompts the user to complete an MFA authentication challenge.
 func (c *CLIPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
-	runOpts, err := c.cfg.GetRunOptions(ctx, chal)
+	var wg sync.WaitGroup
+	runOpts, err := c.cfg.getRunOptions(ctx, chal)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -59,12 +60,11 @@ func (c *CLIPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChalleng
 		err  error
 	}
 	respC := make(chan response, 2)
-	var wg sync.WaitGroup
 
 	ctx, cancel := context.WithCancel(ctx)
 	defer func() {
 		cancel()
-		// wait for all goroutines to complete to ensure there are no leaks.
+		// Wait for all goroutines to complete to ensure there are no leaks.
 		wg.Wait()
 	}()
 

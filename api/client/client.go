@@ -695,6 +695,11 @@ func (c *Client) GetConnection() *grpc.ClientConn {
 	return c.conn
 }
 
+// SetMFAPromptConstructor sets the MFA prompt constructor for this client.
+func (c *Client) SetMFAPromptConstructor(pc mfa.PromptConstructor) {
+	c.c.MFAPromptConstructor = pc
+}
+
 // Close closes the Client connection to the auth server.
 func (c *Client) Close() error {
 	if c.setClosed() && c.conn != nil {

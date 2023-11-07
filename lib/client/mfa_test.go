@@ -99,7 +99,7 @@ func TestPromptMFAChallenge_usingNonRegisteredDevice(t *testing.T) {
 				return "", ctx.Err()
 			}))
 
-			promptConfig := mfa.DefaultPromptConfig(proxyAddr)
+			promptConfig := mfa.NewPromptConfig(proxyAddr)
 			promptConfig.WebauthnSupported = true
 			promptConfig.WebauthnLoginFunc = func(ctx context.Context, origin string, assertion *wantypes.CredentialAssertion, prompt wancli.LoginPrompt, opts *wancli.LoginOpts) (*proto.MFAAuthenticateResponse, string, error) {
 				return nil, "", wancli.ErrUsingNonRegisteredDevice

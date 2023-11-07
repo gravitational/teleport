@@ -196,12 +196,6 @@ func TryRun(commands []CLICommand, args []string) error {
 	}
 
 	ctx := context.Background()
-
-	promptCfg := libmfa.DefaultPromptConfig("")
-	clientConfig.MFAPromptConstructor = func(...mfa.PromptOpt) mfa.Prompt {
-		return libmfa.NewCLIPrompt(promptCfg, os.Stderr)
-	}
-
 	client, err := authclient.Connect(ctx, clientConfig)
 	if err != nil {
 		if utils.IsUntrustedCertErr(err) {
@@ -213,12 +207,17 @@ func TryRun(commands []CLICommand, args []string) error {
 		return trace.NewAggregate(&common.ExitCodeError{Code: 1}, err)
 	}
 
-	// Set proxy address for the MFA prompt from the ping response.
+	// Get the proxy address and set the MFA prompt constructor.
 	resp, err := client.Ping(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	promptCfg.ProxyAddress = resp.ProxyPublicAddr
+
+	proxyAddr := resp.ProxyPublicAddr
+	client.SetMFAPromptConstructor(func(opts ...mfa.PromptOpt) mfa.Prompt {
+		promptCfg := libmfa.NewPromptConfig(proxyAddr, opts...)
+		return libmfa.NewCLIPrompt(promptCfg, os.Stderr)
+	})
 
 	// execute whatever is selected:
 	var match bool

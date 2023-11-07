@@ -54,9 +54,9 @@ type PromptConfig struct {
 	Log *logrus.Entry
 }
 
-// DefaultPromptConfig returns a prompt config that will induce default behavior.
-func DefaultPromptConfig(proxyAddr string) *PromptConfig {
-	return &PromptConfig{
+// NewPromptConfig returns a prompt config that will induce default behavior.
+func NewPromptConfig(proxyAddr string, opts ...mfa.PromptOpt) *PromptConfig {
+	cfg := &PromptConfig{
 		ProxyAddress:      proxyAddr,
 		WebauthnLoginFunc: wancli.Login,
 		WebauthnSupported: wancli.HasPlatformSupport(),
@@ -64,27 +64,33 @@ func DefaultPromptConfig(proxyAddr string) *PromptConfig {
 			trace.Component: teleport.ComponentClient,
 		}),
 	}
+
+	for _, opt := range opts {
+		opt(&cfg.PromptConfig)
+	}
+
+	return cfg
 }
 
-// RunOpts are mfa prompt run options.
-type RunOpts struct {
+// runOpts are mfa prompt run options.
+type runOpts struct {
 	promptTOTP     bool
 	promptWebauthn bool
 }
 
-// GetRunOptions gets mfa prompt run options by cross referencing the mfa challenge with prompt configuration.
-func (c PromptConfig) GetRunOptions(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (RunOpts, error) {
+// getRunOptions gets mfa prompt run options by cross referencing the mfa challenge with prompt configuration.
+func (c PromptConfig) getRunOptions(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (runOpts, error) {
 	promptTOTP := chal.TOTP != nil
 	promptWebauthn := chal.WebauthnChallenge != nil
 
 	if !promptTOTP && !promptWebauthn {
-		return RunOpts{}, trace.BadParameter("mfa challenge is empty")
+		return runOpts{}, trace.BadParameter("mfa challenge is empty")
 	}
 
 	// Does the current platform support hardware MFA? Adjust accordingly.
 	switch {
 	case !promptTOTP && !c.WebauthnSupported:
-		return RunOpts{}, trace.BadParameter("hardware device MFA not supported by your platform, please register an OTP device")
+		return runOpts{}, trace.BadParameter("hardware device MFA not supported by your platform, please register an OTP device")
 	case !c.WebauthnSupported:
 		// Do not prompt for hardware devices, it won't work.
 		promptWebauthn = false
@@ -102,7 +108,7 @@ func (c PromptConfig) GetRunOptions(ctx context.Context, chal *proto.MFAAuthenti
 		promptTOTP = false
 	}
 
-	return RunOpts{promptTOTP, promptWebauthn}, nil
+	return runOpts{promptTOTP, promptWebauthn}, nil
 }
 
 func (c PromptConfig) getWebauthnOrigin() string {
