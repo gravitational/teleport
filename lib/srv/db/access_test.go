@@ -1084,7 +1084,7 @@ func TestRedisGetSet(t *testing.T) {
 
 	getResult := redisClient.Get(ctx, "key1")
 	require.NoError(t, getResult.Err())
-	require.Equal(t, getResult.Val(), "123")
+	require.Equal(t, "123", getResult.Val())
 
 	// Disconnect.
 	err = redisClient.Close()

@@ -64,6 +64,7 @@ func DefaultConfig(t *testing.T) (*config.FileConfig, []servicecfg.FileDescripto
 			},
 			WebAddr:    testenv.NewTCPListener(t, service.ListenerProxyWeb, &fds),
 			TunAddr:    testenv.NewTCPListener(t, service.ListenerProxyTunnel, &fds),
+			KubeAddr:   testenv.NewTCPListener(t, service.ListenerProxyKube, &fds),
 			PublicAddr: []string{"localhost"}, // ListenerProxyWeb port will be appended
 		},
 		Auth: config.Auth{

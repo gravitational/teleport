@@ -126,11 +126,11 @@ func TestSessionRecording(t *testing.T) {
 	// default is to record at the node
 	recConfig, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{})
 	require.NoError(t, err)
-	require.Equal(t, recConfig.GetMode(), types.RecordAtNode)
+	require.Equal(t, types.RecordAtNode, recConfig.GetMode())
 
 	// update sessions to be recorded at the proxy and check again
 	recConfig.SetMode(types.RecordAtProxy)
-	require.Equal(t, recConfig.GetMode(), types.RecordAtProxy)
+	require.Equal(t, types.RecordAtProxy, recConfig.GetMode())
 }
 
 func TestAuditConfig(t *testing.T) {

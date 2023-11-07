@@ -244,6 +244,6 @@ func TestUserCertCompatibility(t *testing.T) {
 
 		// Check if users custom extension was added.
 		extVal := userCertificate.Extensions["login@github.com"]
-		require.Equal(t, extVal, "hello")
+		require.Equal(t, "hello", extVal)
 	}
 }

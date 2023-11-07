@@ -37,6 +37,8 @@ import (
 )
 
 // CreateUser inserts a new user entry in a backend.
+// TODO(tross): DELETE IN 16.0.0
+// Deprecated: use [usersv1.Service.CreateUser] instead.
 func (a *Server) CreateUser(ctx context.Context, user types.User) (types.User, error) {
 	if user.GetCreatedBy().IsEmpty() {
 		user.SetCreatedBy(types.CreatedBy{
@@ -79,6 +81,8 @@ func (a *Server) CreateUser(ctx context.Context, user types.User) (types.User, e
 }
 
 // UpdateUser updates an existing user in a backend.
+// TODO(tross): DELETE IN 16.0.0
+// Deprecated: use [usersv1.Service.UpdateUser] instead.
 func (a *Server) UpdateUser(ctx context.Context, user types.User) (types.User, error) {
 	prevUser, err := a.GetUser(ctx, user.GetName(), false)
 	var omitEditorEvent bool
@@ -88,7 +92,21 @@ func (a *Server) UpdateUser(ctx context.Context, user types.User) (types.User, e
 		omitEditorEvent = true
 	}
 
-	updated, err := a.Services.UpdateUser(ctx, user)
+	// The use of legacyUserUpdater allows the legacy update method to be used without
+	// exposing it in auth.ClientI. It really only needs to exist in the services.User interface
+	// but if it's added there then it needs to be added everywhere. To reduce confusion and
+	// prevent adding a throw away method to the interface the type assertion is leveraged here instead.
+	type legacyUserUpdater interface {
+		LegacyUpdateUser(ctx context.Context, user types.User) (types.User, error)
+	}
+
+	updater, ok := a.Services.Identity.(legacyUserUpdater)
+	if !ok {
+		log.Warn("Failed to update user via legacy update method. This is a bug!")
+		return nil, trace.NotImplemented("legacy user updating is not implemented")
+	}
+
+	updated, err := updater.LegacyUpdateUser(ctx, user)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -124,6 +142,8 @@ func (a *Server) UpdateUser(ctx context.Context, user types.User) (types.User, e
 }
 
 // UpsertUser updates a user.
+// TODO(tross): DELETE IN 16.0.0
+// Deprecated: use [usersv1.Service.UpsertUser] instead.
 func (a *Server) UpsertUser(ctx context.Context, user types.User) (types.User, error) {
 	prevUser, err := a.GetUser(ctx, user.GetName(), false)
 	var omitEditorEvent bool
@@ -215,6 +235,8 @@ func (a *Server) CompareAndSwapUser(ctx context.Context, new, existing types.Use
 }
 
 // DeleteUser deletes an existing user in a backend by username.
+// TODO(tross): DELETE IN 16.0.0
+// Deprecated: use [usersv1.Service.DeleteUser] instead.
 func (a *Server) DeleteUser(ctx context.Context, user string) error {
 	prevUser, err := a.GetUser(ctx, user, false)
 	var omitEditorEvent bool

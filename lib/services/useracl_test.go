@@ -94,8 +94,8 @@ func TestNewUserACL(t *testing.T) {
 	require.Empty(t, cmp.Diff(userContext.Desktops, allowedRW))
 
 	require.Empty(t, cmp.Diff(userContext.Billing, denied))
-	require.Equal(t, userContext.Clipboard, true)
-	require.Equal(t, userContext.DesktopSessionRecording, true)
+	require.True(t, userContext.Clipboard)
+	require.True(t, userContext.DesktopSessionRecording)
 	require.Empty(t, cmp.Diff(userContext.License, denied))
 	require.Empty(t, cmp.Diff(userContext.Download, denied))
 
@@ -107,7 +107,7 @@ func TestNewUserACL(t *testing.T) {
 
 	// test that desktopRecordingEnabled being false overrides the roleSet.RecordDesktopSession() returning true
 	userContext = NewUserACL(user, roleSet, proto.Features{}, false, false)
-	require.Equal(t, userContext.DesktopSessionRecording, false)
+	require.False(t, userContext.DesktopSessionRecording)
 }
 
 func TestNewUserACLCloud(t *testing.T) {
@@ -149,8 +149,8 @@ func TestNewUserACLCloud(t *testing.T) {
 	require.Empty(t, cmp.Diff(userContext.AccessRequests, allowedRW))
 	require.Empty(t, cmp.Diff(userContext.DiscoveryConfig, allowedRW))
 
-	require.Equal(t, userContext.Clipboard, true)
-	require.Equal(t, userContext.DesktopSessionRecording, true)
+	require.True(t, userContext.Clipboard)
+	require.True(t, userContext.DesktopSessionRecording)
 
 	// cloud-specific asserts
 	require.Empty(t, cmp.Diff(userContext.Billing, allowedRW))

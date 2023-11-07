@@ -36,6 +36,7 @@ import gcp from './assets/gcp.svg';
 import grafana from './assets/grafana.svg';
 import jenkins from './assets/jenkins.svg';
 import kube from './assets/kube.svg';
+import laptop from './assets/laptop.svg';
 import linuxDark from './assets/linux-dark.svg';
 import linuxLight from './assets/linux-light.svg';
 import mongoDark from './assets/mongo-dark.svg';
@@ -91,6 +92,7 @@ const iconSpecs = {
   Grafana: forAllThemes(grafana),
   Jenkins: forAllThemes(jenkins),
   Kube: forAllThemes(kube),
+  Laptop: forAllThemes(laptop),
   Linux: { dark: linuxDark, light: linuxLight },
   Mongo: { dark: mongoDark, light: mongoLight },
   MysqlLarge: { dark: mysqlLargeDark, light: mysqlLargeLight },

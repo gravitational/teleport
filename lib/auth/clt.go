@@ -453,7 +453,17 @@ func (c *Client) UserLoginStateClient() services.UserLoginStates {
 }
 
 // UpsertUser user updates user entry.
+// TODO(tross): DELETE IN 16.0.0
 func (c *Client) UpsertUser(ctx context.Context, user types.User) (types.User, error) {
+	upserted, err := c.APIClient.UpsertUser(ctx, user)
+	if err == nil {
+		return upserted, nil
+	}
+
+	if !trace.IsNotImplemented(err) {
+		return nil, trace.Wrap(err)
+	}
+
 	data, err := services.MarshalUser(user)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -467,7 +477,7 @@ func (c *Client) UpsertUser(ctx context.Context, user types.User) (types.User, e
 		return nil, trace.Wrap(err)
 	}
 
-	upserted, err := c.GetUser(ctx, user.GetName(), false)
+	upserted, err = c.GetUser(ctx, user.GetName(), false)
 	return upserted, trace.Wrap(err)
 }
 

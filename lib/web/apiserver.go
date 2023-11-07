@@ -68,6 +68,8 @@ import (
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
+	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/automaticupgrades"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	dtconfig "github.com/gravitational/teleport/lib/devicetrust/config"
@@ -279,6 +281,12 @@ type Config struct {
 	// PresenceChecker periodically runs the mfa ceremony for moderated
 	// sessions.
 	PresenceChecker PresenceChecker
+
+	// AutomaticUpgradesVersionURL is the URL which returns the target agent version.
+	// This URL must returns a valid version string.
+	// Eg, v13.4.3
+	// Optional: uses cloud/stable channel when omitted.
+	AutomaticUpgradesVersionURL string
 }
 
 // SetDefaults ensures proper default values are set if
@@ -1532,19 +1540,29 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		canJoinSessions = !services.IsRecordAtProxy(recCfg.GetMode())
 	}
 
+	automaticUpgradesEnabled := clusterFeatures.GetAutomaticUpgrades()
+	var automaticUpgradesTargetVersion string
+	if automaticUpgradesEnabled {
+		automaticUpgradesTargetVersion, err = automaticupgrades.Version(r.Context(), h.cfg.AutomaticUpgradesVersionURL)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	webCfg := webclient.WebConfig{
-		Auth:                     authSettings,
-		CanJoinSessions:          canJoinSessions,
-		IsCloud:                  clusterFeatures.GetCloud(),
-		TunnelPublicAddress:      tunnelPublicAddr,
-		RecoveryCodesEnabled:     clusterFeatures.GetRecoveryCodes(),
-		UI:                       h.getUIConfig(r.Context()),
-		IsDashboard:              isDashboard(clusterFeatures),
-		IsUsageBasedBilling:      clusterFeatures.GetIsUsageBased(),
-		AutomaticUpgrades:        clusterFeatures.GetAutomaticUpgrades(),
-		AssistEnabled:            assistEnabled,
-		HideInaccessibleFeatures: clusterFeatures.GetFeatureHiding(),
-		CustomTheme:              clusterFeatures.GetCustomTheme(),
+		Auth:                           authSettings,
+		CanJoinSessions:                canJoinSessions,
+		IsCloud:                        clusterFeatures.GetCloud(),
+		TunnelPublicAddress:            tunnelPublicAddr,
+		RecoveryCodesEnabled:           clusterFeatures.GetRecoveryCodes(),
+		UI:                             h.getUIConfig(r.Context()),
+		IsDashboard:                    isDashboard(clusterFeatures),
+		IsUsageBasedBilling:            clusterFeatures.GetIsUsageBased(),
+		AutomaticUpgrades:              automaticUpgradesEnabled,
+		AutomaticUpgradesTargetVersion: automaticUpgradesTargetVersion,
+		AssistEnabled:                  assistEnabled,
+		HideInaccessibleFeatures:       clusterFeatures.GetFeatureHiding(),
+		CustomTheme:                    clusterFeatures.GetCustomTheme(),
 	}
 
 	resource, err := h.cfg.ProxyClient.GetClusterName()
@@ -3603,11 +3621,18 @@ func (h *Handler) createSSHCert(w http.ResponseWriter, r *http.Request, p httpro
 		// a new client to avoid applying the callback timeout to other concurrent requests. To
 		// this end, we create a clone of the HTTP Client with the desired timeout instead.
 		httpClient, err := authClient.CloneHTTPClient(
-			auth.ClientParamTimeout(defaults.CallbackTimeout),
-			auth.ClientParamResponseHeaderTimeout(defaults.CallbackTimeout),
+			auth.ClientParamTimeout(defaults.HeadlessLoginTimeout),
+			auth.ClientParamResponseHeaderTimeout(defaults.HeadlessLoginTimeout),
 		)
 		if err != nil {
 			return nil, trace.Wrap(err)
+		}
+
+		// HTTP server has shorter WriteTimeout than is needed, so we override WriteDeadline of the connection.
+		if conn, err := authz.ConnFromContext(r.Context()); err == nil {
+			if err := conn.SetWriteDeadline(h.clock.Now().Add(defaults.HeadlessLoginTimeout)); err != nil {
+				return nil, trace.Wrap(err)
+			}
 		}
 
 		authSSHUserReq.AuthenticateUserRequest.HeadlessAuthenticationID = req.HeadlessAuthenticationID

@@ -42,7 +42,7 @@ func TestLookupMap(t *testing.T) {
 		lookup.setDatabaseUsers(db3, []User{user3})
 
 		require.Equal(t, []string{"user1", "user2"}, db1.GetManagedUsers())
-		require.Len(t, db2.GetManagedUsers(), 0)
+		require.Empty(t, db2.GetManagedUsers())
 		require.Equal(t, []string{"user3"}, db3.GetManagedUsers())
 	})
 

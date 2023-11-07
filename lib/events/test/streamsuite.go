@@ -85,10 +85,10 @@ func StreamWithParameters(t *testing.T, handler events.MultipartHandler, params 
 		MinUploadBytes:    params.MinUploadBytes,
 		ConcurrentUploads: params.ConcurrentUploads,
 	})
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	stream, err := streamer.CreateAuditStream(ctx, sid)
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	select {
 	case status := <-stream.Status():
@@ -99,31 +99,31 @@ func StreamWithParameters(t *testing.T, handler events.MultipartHandler, params 
 
 	for _, event := range inEvents {
 		err := stream.RecordEvent(ctx, eventstest.PrepareEvent(event))
-		require.Nil(t, err)
+		require.NoError(t, err)
 	}
 
 	err = stream.Complete(ctx)
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	f, err := os.CreateTemp("", string(sid))
-	require.Nil(t, err)
+	require.NoError(t, err)
 	defer os.Remove(f.Name())
 	defer f.Close()
 
 	err = handler.Download(ctx, sid, f)
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	_, err = f.Seek(0, 0)
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	reader := events.NewProtoReader(f)
 	out, err := reader.ReadAll(ctx)
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	stats := reader.GetStats()
-	require.Equal(t, stats.SkippedEvents, int64(0))
-	require.Equal(t, stats.OutOfOrderEvents, int64(0))
-	require.Equal(t, stats.TotalEvents, int64(len(inEvents)))
+	require.Equal(t, int64(0), stats.SkippedEvents)
+	require.Equal(t, int64(0), stats.OutOfOrderEvents)
+	require.Equal(t, int64(len(inEvents)), stats.TotalEvents)
 
 	require.Equal(t, inEvents, out)
 }
@@ -141,24 +141,24 @@ func StreamResumeWithParameters(t *testing.T, handler events.MultipartHandler, p
 		MinUploadBytes:    params.MinUploadBytes,
 		ConcurrentUploads: params.ConcurrentUploads,
 	})
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	upload, err := handler.CreateUpload(ctx, sid)
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	stream, err := streamer.CreateAuditStreamForUpload(ctx, sid, *upload)
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	for _, event := range inEvents {
 		err := stream.RecordEvent(ctx, eventstest.PrepareEvent(event))
-		require.Nil(t, err)
+		require.NoError(t, err)
 	}
 
 	err = stream.Complete(ctx)
-	require.NotNil(t, err, "First complete attempt should fail here.")
+	require.Error(t, err, "First complete attempt should fail here.")
 
 	stream, err = streamer.ResumeAuditStream(ctx, sid, upload.ID)
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	// First update always starts with -1 and indicates
 	// that resume has been started successfully
@@ -170,27 +170,27 @@ func StreamResumeWithParameters(t *testing.T, handler events.MultipartHandler, p
 	}
 
 	err = stream.Complete(ctx)
-	require.Nil(t, err, "Complete after resume should succeed")
+	require.NoError(t, err, "Complete after resume should succeed")
 
 	f, err := os.CreateTemp("", string(sid))
-	require.Nil(t, err)
+	require.NoError(t, err)
 	defer os.Remove(f.Name())
 	defer f.Close()
 
 	err = handler.Download(ctx, sid, f)
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	_, err = f.Seek(0, 0)
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	reader := events.NewProtoReader(f)
 	out, err := reader.ReadAll(ctx)
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	stats := reader.GetStats()
-	require.Equal(t, stats.SkippedEvents, int64(0))
-	require.Equal(t, stats.OutOfOrderEvents, int64(0))
-	require.Equal(t, stats.TotalEvents, int64(len(inEvents)))
+	require.Equal(t, int64(0), stats.SkippedEvents)
+	require.Equal(t, int64(0), stats.OutOfOrderEvents)
+	require.Equal(t, int64(len(inEvents)), stats.TotalEvents)
 
 	require.Equal(t, inEvents, out)
 }

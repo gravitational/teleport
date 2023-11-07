@@ -55,7 +55,7 @@ func TestAgentSocketPermissions(t *testing.T) {
 			// Update uid to nonroot
 			_, _, serr := syscall.Syscall(syscall.SYS_SETUID, 1000, 0, 0)
 			require.Zero(t, serr)
-			require.True(t, !isRoot())
+			require.False(t, isRoot())
 
 			err := unix.Unlink(agentServer.Path)
 			require.Error(t, err)
