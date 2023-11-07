@@ -89,6 +89,7 @@ const nodes: Node[] = [
   {
     tunnel: false,
     kind: 'node',
+    subKind: 'teleport',
     sshLogins: ['dev', 'root'],
     id: '104',
     clusterId: 'one',

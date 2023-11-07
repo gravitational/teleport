@@ -363,6 +363,7 @@ const userContext = makeUserContext({
 const nodes: Node[] = [
   {
     tunnel: false,
+    subKind: 'teleport',
     sshLogins: ['dev', 'root'],
     id: '1',
     kind: 'node',
@@ -378,6 +379,7 @@ const nodes: Node[] = [
   },
   {
     tunnel: true,
+    subKind: 'teleport',
     sshLogins: ['dev', 'root'],
     id: '2',
     kind: 'node',
