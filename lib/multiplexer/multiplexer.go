@@ -563,14 +563,8 @@ func (m *Mux) detect(conn net.Conn) (*Conn, error) {
 			proxyLine = newPROXYLine
 			// repeat the cycle to detect the protocol
 		case ProtoTLS, ProtoSSH, ProtoHTTP, ProtoPostgres:
-			// Proxy and other services might call itself directly, avoiding
-			// load balancer, so we shouldn't fail connections without PROXY headers for such cases.
-			selfConnection, err := m.isSelfConnection(conn)
-			if err != nil {
+			if err := m.checkPROXYProtocolRequirement(conn, unsignedPROXYLineReceived); err != nil {
 				return nil, trace.Wrap(err)
-			}
-			if !selfConnection && m.PROXYProtocolMode == PROXYProtocolOn && !unsignedPROXYLineReceived {
-				return nil, trace.BadParameter(missingProxyLineError, conn.RemoteAddr().String(), conn.LocalAddr().String())
 			}
 
 			return &Conn{
@@ -583,6 +577,50 @@ func (m *Mux) detect(conn net.Conn) (*Conn, error) {
 	}
 	// if code ended here after three attempts, something is wrong
 	return nil, trace.BadParameter(unknownProtocolError)
+}
+
+// checkPROXYProtocolRequirement checks that if multiplexer is required to receive unsigned PROXY line
+// that requirement is fulfilled, or exceptions apply - self connections and connections that are passed
+// from upstream multiplexed listener (as it happens for alpn proxy).
+func (m *Mux) checkPROXYProtocolRequirement(conn net.Conn, unsignedPROXYLineReceived bool) error {
+	if m.PROXYProtocolMode != PROXYProtocolOn {
+		return nil
+	}
+
+	// Proxy and other services might call itself directly, avoiding
+	// load balancer, so we shouldn't fail connections without PROXY headers for such cases.
+	selfConnection, err := m.isSelfConnection(conn)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// We try to get inner multiplexer connection, if we succeed and there is on, it means conn was passed
+	// to us from another multiplexer listener and unsigned PROXY protocol requirement was handled there.
+	innerConn := unwrapMuxConn(conn)
+
+	if !selfConnection && innerConn == nil && !unsignedPROXYLineReceived {
+		return trace.BadParameter(missingProxyLineError, conn.RemoteAddr().String(), conn.LocalAddr().String())
+	}
+
+	return nil
+}
+
+func unwrapMuxConn(conn net.Conn) *Conn {
+	type netConn interface {
+		NetConn() net.Conn
+	}
+
+	for {
+		if muxConn, ok := conn.(*Conn); ok {
+			return muxConn
+		}
+
+		connGetter, ok := conn.(netConn)
+		if !ok {
+			return nil
+		}
+		conn = connGetter.NetConn()
+	}
 }
 
 func (m *Mux) isSelfConnection(conn net.Conn) (bool, error) {
