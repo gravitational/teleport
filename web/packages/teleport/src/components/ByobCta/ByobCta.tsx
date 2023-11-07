@@ -1,10 +1,13 @@
 import React from 'react'
+import { Link } from 'react-router-dom';
 import styled from 'styled-components'
 import Box from "design/Box"
 import * as Icons from 'design/Icon';
 import { ButtonPrimary, ButtonSecondary } from "design/Button"
 import Flex from "design/Flex"
 import Text from 'design/Text';
+import cfg from 'teleport/config';
+import { ByobDiscoverInitialState } from 'teleport/Discover/useDiscover';
 
 export const ByobCta = () => {
   return (
@@ -19,8 +22,10 @@ export const ByobCta = () => {
           </Box>
         </Flex>
         <Flex alignItems="center">
-          {/* TODO: onclick */}
-          <ButtonPrimary width="200px" mr="2">Manage Data Storage</ButtonPrimary>
+          <ButtonPrimary as={Link} to={{
+            pathname: cfg.routes.discover,
+            state: ByobDiscoverInitialState,
+          }} width="200px" mr="2">Manage Data Storage</ButtonPrimary>
           <ButtonSecondary width="170px">Learn More</ButtonSecondary>
         </Flex>
       </Flex>
