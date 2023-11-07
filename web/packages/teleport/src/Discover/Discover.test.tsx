@@ -90,9 +90,9 @@ test('displays all resources by default', () => {
   create({});
 
   expect(
-    screen
-      .getAllByTestId(ResourceKind.Server)
-      .concat(screen.getAllByTestId(ResourceKind.ConnectMyComputer))
+    screen.getAllByTestId(ResourceKind.Server)
+    // TODO(ravicious): Uncomment for v14.2.
+    // .concat(screen.getAllByTestId(ResourceKind.ConnectMyComputer))
   ).toHaveLength(SERVERS.length);
   expect(screen.getAllByTestId(ResourceKind.Desktop)).toHaveLength(
     WINDOWS_DESKTOPS.length
@@ -131,9 +131,9 @@ describe('location state', () => {
     create({ initialEntry: 'server' });
 
     expect(
-      screen
-        .getAllByTestId(ResourceKind.Server)
-        .concat(screen.getAllByTestId(ResourceKind.ConnectMyComputer))
+      screen.getAllByTestId(ResourceKind.Server)
+      // TODO(ravicious): Uncomment for v14.2.
+      // .concat(screen.getAllByTestId(ResourceKind.ConnectMyComputer))
     ).toHaveLength(SERVERS.length);
 
     // we assert three databases for servers because the naming convention includes "server"
