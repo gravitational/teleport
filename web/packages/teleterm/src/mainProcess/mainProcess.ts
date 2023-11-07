@@ -61,7 +61,7 @@ import {
 import { AgentRunner } from './agentRunner';
 import { terminateWithTimeout } from './terminateWithTimeout';
 
-import type { AgentConfigFileClusterProperties } from './createAgentConfigFile';
+import type { CreateAgentConfigFileArgs } from './createAgentConfigFile';
 
 type Options = {
   settings: RuntimeSettings;
@@ -313,7 +313,7 @@ export default class MainProcess {
 
     ipcMain.handle(
       'main-process-connect-my-computer-create-agent-config-file',
-      (_, args: AgentConfigFileClusterProperties) =>
+      (_, args: CreateAgentConfigFileArgs) =>
         createAgentConfigFile(this.settings, {
           proxy: args.proxy,
           token: args.token,

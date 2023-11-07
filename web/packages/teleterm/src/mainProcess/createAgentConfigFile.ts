@@ -24,7 +24,7 @@ import { RuntimeSettings } from 'teleterm/mainProcess/types';
 
 import type * as tsh from 'teleterm/services/tshd/types';
 
-export interface AgentConfigFileClusterProperties {
+export interface CreateAgentConfigFileArgs {
   rootClusterUri: RootClusterUri;
   proxy: string;
   token: string;
@@ -33,12 +33,12 @@ export interface AgentConfigFileClusterProperties {
 
 export async function createAgentConfigFile(
   runtimeSettings: RuntimeSettings,
-  clusterProperties: AgentConfigFileClusterProperties
+  args: CreateAgentConfigFileArgs
 ): Promise<void> {
   const asyncExecFile = promisify(execFile);
   const { configFile, dataDirectory } = generateAgentConfigPaths(
     runtimeSettings,
-    clusterProperties.rootClusterUri
+    args.rootClusterUri
   );
 
   // remove the config file if exists
@@ -57,9 +57,9 @@ export async function createAgentConfigFile(
       'configure',
       `--output=${configFile}`,
       `--data-dir=${dataDirectory}`,
-      `--proxy=${clusterProperties.proxy}`,
-      `--token=${clusterProperties.token}`,
-      `--labels=${clusterProperties.labels.map(toNameAndValue).join(',')}`,
+      `--proxy=${args.proxy}`,
+      `--token=${args.token}`,
+      `--labels=${args.labels.map(toNameAndValue).join(',')}`,
     ],
     {
       timeout: 10_000, // 10 seconds
