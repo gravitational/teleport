@@ -689,11 +689,13 @@ export function getOSSFeatures(): TeleportFeature[] {
 
     // - Access
     new FeatureUsers(),
-    new FeatureRoles(),
     new FeatureAuthConnectors(),
     new FeatureIntegrations(),
     new FeatureDiscover(),
     new FeatureIntegrationEnroll(),
+
+    // - Privilege
+    new FeatureRoles(),
 
     // - Identity
     new FeatureLocks(),
