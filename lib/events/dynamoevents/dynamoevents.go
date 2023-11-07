@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"math"
 	"net/url"
 	"sort"
@@ -1111,9 +1112,7 @@ dateLoop:
 		for i, eventType := range l.filter.eventTypes {
 			attributes[fmt.Sprintf(":eventType%d", i)] = eventType
 		}
-		for k, v := range l.filter.condParams.attrValues {
-			attributes[k] = v
-		}
+		maps.Copy(attributes, l.filter.condParams.attrValues)
 		attributeValues, err := dynamodbattribute.MarshalMap(attributes)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -1174,9 +1173,8 @@ func (l *eventsFetcher) QueryBySessionIDIndex(ctx context.Context, sessionID str
 	for i, eventType := range l.filter.eventTypes {
 		attributes[fmt.Sprintf(":eventType%d", i)] = eventType
 	}
-	for k, v := range l.filter.condParams.attrValues {
-		attributes[k] = v
-	}
+	maps.Copy(attributes, l.filter.condParams.attrValues)
+
 	attributeValues, err := dynamodbattribute.MarshalMap(attributes)
 	if err != nil {
 		return nil, trace.Wrap(err)
