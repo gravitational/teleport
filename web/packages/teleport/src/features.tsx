@@ -319,7 +319,7 @@ export class FeatureUsers implements TeleportFeature {
 
 export class FeatureRoles implements TeleportFeature {
   category = NavigationCategory.Management;
-  section = ManagementSection.Access;
+  section = ManagementSection.Privilege;
 
   route = {
     title: 'Manage User Roles',
