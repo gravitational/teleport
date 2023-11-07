@@ -1296,9 +1296,17 @@ message ProvisionTokenSpecV2GitLab {
     // Sub roughly uniquely identifies the workload. Example:
     // `project_path:mygroup/my-project:ref_type:branch:ref:main`
     // project_path:{group}/{project}:ref_type:{type}:ref:{branch_name}
+    //
+    // This field supports simple "glob-style" matching:
+    // - Use '*' to match zero or more characters.
+    // - Use '?' to match any single character.
     string Sub = 1 [(gogoproto.jsontag) = "sub,omitempty"];
     // Ref allows access to be limited to jobs triggered by a specific git ref.
     // Ensure this is used in combination with ref_type.
+    //
+    // This field supports simple "glob-style" matching:
+    // - Use '*' to match zero or more characters.
+    // - Use '?' to match any single character.
     string Ref = 2 [(gogoproto.jsontag) = "ref,omitempty"];
     // RefType allows access to be limited to jobs triggered by a specific git
     // ref type. Example:
@@ -1308,10 +1316,18 @@ message ProvisionTokenSpecV2GitLab {
     // projects.
     // Example:
     // `mygroup`
+    //
+    // This field supports simple "glob-style" matching:
+    // - Use '*' to match zero or more characters.
+    // - Use '?' to match any single character.
     string NamespacePath = 4 [(gogoproto.jsontag) = "namespace_path,omitempty"];
     // ProjectPath is used to limit access to jobs belonging to an individual
     // project. Example:
     // `mygroup/myproject`
+    //
+    // This field supports simple "glob-style" matching:
+    // - Use '*' to match zero or more characters.
+    // - Use '?' to match any single character.
     string ProjectPath = 5 [(gogoproto.jsontag) = "project_path,omitempty"];
     // PipelineSource limits access by the job pipeline source type.
     // https://docs.gitlab.com/ee/ci/jobs/job_control.html#common-if-clauses-for-rules

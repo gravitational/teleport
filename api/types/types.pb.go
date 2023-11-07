@@ -4054,9 +4054,17 @@ type ProvisionTokenSpecV2GitLab_Rule struct {
 	// Sub roughly uniquely identifies the workload. Example:
 	// `project_path:mygroup/my-project:ref_type:branch:ref:main`
 	// project_path:{group}/{project}:ref_type:{type}:ref:{branch_name}
+	//
+	// This field supports simple "glob-style" matching:
+	// - Use '*' to match zero or more characters.
+	// - Use '?' to match any single character.
 	Sub string `protobuf:"bytes,1,opt,name=Sub,proto3" json:"sub,omitempty"`
 	// Ref allows access to be limited to jobs triggered by a specific git ref.
 	// Ensure this is used in combination with ref_type.
+	//
+	// This field supports simple "glob-style" matching:
+	// - Use '*' to match zero or more characters.
+	// - Use '?' to match any single character.
 	Ref string `protobuf:"bytes,2,opt,name=Ref,proto3" json:"ref,omitempty"`
 	// RefType allows access to be limited to jobs triggered by a specific git
 	// ref type. Example:
@@ -4066,10 +4074,18 @@ type ProvisionTokenSpecV2GitLab_Rule struct {
 	// projects.
 	// Example:
 	// `mygroup`
+	//
+	// This field supports simple "glob-style" matching:
+	// - Use '*' to match zero or more characters.
+	// - Use '?' to match any single character.
 	NamespacePath string `protobuf:"bytes,4,opt,name=NamespacePath,proto3" json:"namespace_path,omitempty"`
 	// ProjectPath is used to limit access to jobs belonging to an individual
 	// project. Example:
 	// `mygroup/myproject`
+	//
+	// This field supports simple "glob-style" matching:
+	// - Use '*' to match zero or more characters.
+	// - Use '?' to match any single character.
 	ProjectPath string `protobuf:"bytes,5,opt,name=ProjectPath,proto3" json:"project_path,omitempty"`
 	// PipelineSource limits access by the job pipeline source type.
 	// https://docs.gitlab.com/ee/ci/jobs/job_control.html#common-if-clauses-for-rules
