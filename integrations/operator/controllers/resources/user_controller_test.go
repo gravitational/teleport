@@ -64,10 +64,10 @@ func TestUserCreation(t *testing.T) {
 		}
 		require.NoError(t, err)
 
-		require.Equal(t, tUser.GetName(), userName)
+		require.Equal(t, userName, tUser.GetName())
 
 		require.Contains(t, tUser.GetMetadata().Labels, types.OriginLabel)
-		require.Equal(t, tUser.GetMetadata().Labels[types.OriginLabel], types.OriginKubernetes)
+		require.Equal(t, types.OriginKubernetes, tUser.GetMetadata().Labels[types.OriginLabel])
 
 		return true
 	})
@@ -193,9 +193,9 @@ traits:
 					}
 					require.NoError(t, err)
 
-					require.Equal(t, tUser.GetName(), userName)
+					require.Equal(t, userName, tUser.GetName())
 					require.Contains(t, tUser.GetMetadata().Labels, types.OriginLabel)
-					require.Equal(t, tUser.GetMetadata().Labels[types.OriginLabel], types.OriginKubernetes)
+					require.Equal(t, types.OriginKubernetes, tUser.GetMetadata().Labels[types.OriginLabel])
 					require.Equal(t, setup.OperatorName, tUser.GetCreatedBy().User.Name)
 					expectedUser := &types.UserV2{
 						Metadata: types.Metadata{},
@@ -256,10 +256,10 @@ func TestUserDeletionDrift(t *testing.T) {
 		}
 		require.NoError(t, err)
 
-		require.Equal(t, tUser.GetName(), userName)
+		require.Equal(t, userName, tUser.GetName())
 
 		require.Contains(t, tUser.GetMetadata().Labels, types.OriginLabel)
-		require.Equal(t, tUser.GetMetadata().Labels[types.OriginLabel], types.OriginKubernetes)
+		require.Equal(t, types.OriginKubernetes, tUser.GetMetadata().Labels[types.OriginLabel])
 
 		return true
 	})
@@ -274,7 +274,7 @@ func TestUserDeletionDrift(t *testing.T) {
 		return trace.IsNotFound(err)
 	})
 
-	// We flag the role for deletion in Kubernetes (it won't be fully remopved until the operator has processed it and removed the finalizer)
+	// We flag the role for deletion in Kubernetes (it won't be fully removed until the operator has processed it and removed the finalizer)
 	k8sDeleteUser(ctx, t, setup.K8sClient, userName, setup.Namespace.Name)
 
 	// Test section: We resume the operator, it should reconcile and recover from the drift

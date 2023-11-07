@@ -12,15 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package utils
+package envutils
 
 import (
 	"bufio"
+	"fmt"
+	"os"
 	"strings"
 
 	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // ReadEnvironmentFile will read environment variables from a passed in location.
@@ -29,7 +32,7 @@ import (
 func ReadEnvironmentFile(filename string) ([]string, error) {
 	// open the users environment file. if we don't find a file, move on as
 	// having this file for the user is optional.
-	file, err := OpenFileNoUnsafeLinks(filename)
+	file, err := utils.OpenFileNoUnsafeLinks(filename)
 	if err != nil {
 		log.Warnf("Unable to open environment file %v: %v, skipping", filename, err)
 		return []string{}, nil
@@ -37,7 +40,7 @@ func ReadEnvironmentFile(filename string) ([]string, error) {
 	defer file.Close()
 
 	var lineno int
-	var envs []string
+	env := &SafeEnv{}
 
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
@@ -48,7 +51,7 @@ func ReadEnvironmentFile(filename string) ([]string, error) {
 		lineno = lineno + 1
 		if lineno > teleport.MaxEnvironmentFileLines {
 			log.Warnf("Too many lines in environment file %v, returning first %v lines", filename, teleport.MaxEnvironmentFileLines)
-			return envs, nil
+			return *env, nil
 		}
 
 		// empty lines or lines that start with # are ignored
@@ -71,7 +74,7 @@ func ReadEnvironmentFile(filename string) ([]string, error) {
 			continue
 		}
 
-		envs = append(envs, key+"="+value)
+		env.Add(key, value)
 	}
 
 	err = scanner.Err()
@@ -80,5 +83,56 @@ func ReadEnvironmentFile(filename string) ([]string, error) {
 		return []string{}, nil
 	}
 
-	return envs, nil
+	return *env, nil
+}
+
+var unsafeEnvironmentVars = []string{
+	// Linux
+	"LD_ASSUME_KERNEL", "LD_AUDIT", "LD_BIND_NOW", "LD_BIND_NOT",
+	"LD_DYNAMIC_WEAK", "LD_LIBRARY_PATH", "LD_ORIGIN_PATH", "LD_POINTER_GUARD", "LD_PREFER_MAP_32BIT_EXEC",
+	"LD_PRELOAD", "LD_PROFILE", "LD_RUNPATH", "LD_RPATH", "LD_USE_LOAD_BIAS",
+	// macOS
+	"DYLD_INSERT_LIBRARIES", "DYLD_LIBRARY_PATH",
+}
+
+// SafeEnv allows you to build a system environment while avoiding potentially dangerous environment conditions.
+type SafeEnv []string
+
+// Add will add the key and value to the environment if it's a safe value to forward on for fork / exec.
+func (e *SafeEnv) Add(k, v string) {
+	k = strings.TrimSpace(k)
+	v = strings.TrimSpace(v)
+	if k == "" || k == "=" {
+		return
+	}
+
+	for _, unsafeKey := range unsafeEnvironmentVars {
+		if strings.EqualFold(k, unsafeKey) {
+			return
+		}
+	}
+
+	*e = append(*e, fmt.Sprintf("%s=%s", k, v))
+}
+
+// AddFull adds an exact value, typically in KEY=VALUE format.  This should only be used if they values are already
+// combined.
+func (e *SafeEnv) AddFull(fullValues ...string) {
+valueLoop:
+	for _, kv := range fullValues {
+		kv = strings.TrimSpace(kv)
+
+		for _, unsafeKey := range unsafeEnvironmentVars {
+			if strings.HasPrefix(strings.ToUpper(kv), unsafeKey) {
+				continue valueLoop
+			}
+		}
+
+		*e = append(*e, kv)
+	}
+}
+
+// AddExecEnvironment will add safe values from [os.Environ].
+func (e *SafeEnv) AddExecEnvironment() {
+	e.AddFull(os.Environ()...)
 }

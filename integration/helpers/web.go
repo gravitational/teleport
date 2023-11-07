@@ -96,7 +96,7 @@ func LoginWebClient(t *testing.T, host, username, password string) *WebClientPac
 	// Extract session cookie and bearer token.
 	require.Len(t, resp.Cookies(), 1)
 	cookie := resp.Cookies()[0]
-	require.Equal(t, cookie.Name, websession.CookieName)
+	require.Equal(t, websession.CookieName, cookie.Name)
 
 	webClient := &WebClientPack{
 		clt:         client,

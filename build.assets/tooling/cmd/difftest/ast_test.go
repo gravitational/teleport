@@ -64,10 +64,11 @@ func TestFindAllSuiteRunners(t *testing.T) {
 	runners, err := findAllSuiteRunners(".", []string{filepath.Join("testdata", "ast", "head", "testify_single_suite_b_test.go")})
 	require.NoError(t, err)
 
-	require.Equal(t, runners[filepath.Join("testdata", "ast", "head")], map[string]string{
+	expected := map[string]string{
 		"JiraSuite":   "TestJira",
 		"SingleSuite": "TestSingleSuite",
-	})
+	}
+	require.Equal(t, expected, runners[filepath.Join("testdata", "ast", "head")])
 }
 
 func TestParseASTTestifySuiteMulti(t *testing.T) {

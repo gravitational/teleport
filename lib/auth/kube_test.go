@@ -92,7 +92,7 @@ func TestProcessKubeCSR(t *testing.T) {
 	wantUserID := userID
 	// Auth server should overwrite the Usage field and enforce UsageKubeOnly.
 	wantUserID.Usage = []string{teleport.UsageKubeOnly}
-	require.Equal(t, *gotUserID, wantUserID)
+	require.Equal(t, wantUserID, *gotUserID)
 }
 
 // newTestCSR creates and PEM-encodes an x509 CSR with given subject.

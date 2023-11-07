@@ -60,7 +60,7 @@ func TestGetVirtualMachine(t *testing.T) {
 				vm, ok := val.(*VirtualMachine)
 				require.Truef(t, ok, "expected *VirtualMachine, got %T", val)
 				require.Equal(t, vm.ID, validResourceID)
-				require.Equal(t, vm.Name, "name")
+				require.Equal(t, "name", vm.Name)
 				require.ElementsMatch(t, []Identity{
 					{ResourceID: "system assigned"},
 					{ResourceID: "identity1"},
@@ -83,7 +83,7 @@ func TestGetVirtualMachine(t *testing.T) {
 				vm, ok := val.(*VirtualMachine)
 				require.Truef(t, ok, "expected *VirtualMachine, got %T", val)
 				require.Equal(t, vm.ID, validResourceID)
-				require.Equal(t, vm.Name, "name")
+				require.Equal(t, "name", vm.Name)
 				require.Empty(t, vm.Identities)
 			},
 		},
@@ -108,7 +108,7 @@ func TestGetVirtualMachine(t *testing.T) {
 				vm, ok := val.(*VirtualMachine)
 				require.Truef(t, ok, "expected *VirtualMachine, got %T", val)
 				require.Equal(t, vm.ID, validResourceID)
-				require.Equal(t, vm.Name, "name")
+				require.Equal(t, "name", vm.Name)
 				require.ElementsMatch(t, []Identity{
 					{ResourceID: "identity1"},
 					{ResourceID: "identity2"},

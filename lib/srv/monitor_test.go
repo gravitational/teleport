@@ -105,7 +105,7 @@ func TestConnectionMonitorLockInForce(t *testing.T) {
 		tconn := &mockTrackingConn{closedC: make(chan struct{})}
 		monitorCtx, _, err := monitor.MonitorConn(ctx, authzCtx, tconn)
 		require.NoError(t, err)
-		require.Nil(t, monitorCtx.Err())
+		require.NoError(t, monitorCtx.Err())
 
 		// Create a lock targeting the user that was connected above.
 		require.NoError(t, asrv.AuthServer.UpsertLock(ctx, lock))

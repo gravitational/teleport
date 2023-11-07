@@ -40,5 +40,5 @@ func TestServerAuthenticateUserUserAgentTrim(t *testing.T) {
 	event := emitter.LastEvent()
 	loginEvent, ok := event.(*apievents.UserLogin)
 	require.True(t, ok)
-	require.True(t, len(loginEvent.UserAgent) <= maxUserAgentLen)
+	require.LessOrEqual(t, len(loginEvent.UserAgent), maxUserAgentLen)
 }

@@ -40,8 +40,8 @@ func TestParsing(t *testing.T) {
 	require.NoError(t, roles[1].Check())
 	require.NoError(t, roles[2].Check())
 	require.NoError(t, roles.Check())
-	require.Equal(t, roles.String(), "Auth,Proxy,Node")
-	require.Equal(t, roles[0].String(), "Auth")
+	require.Equal(t, "Auth,Proxy,Node", roles.String())
+	require.Equal(t, "Auth", roles[0].String())
 }
 
 func TestBadRoles(t *testing.T) {
@@ -68,10 +68,8 @@ func TestEquivalence(t *testing.T) {
 		types.RoleAuth,
 	}
 
-	require.Equal(t, authRole.Include(types.RoleAdmin), true)
-	require.Equal(t, authRole.Include(types.RoleProxy), false)
-	require.Equal(t, authRole.Equals(nodeProxyRole), false)
-	require.Equal(t, authRole.Equals(types.SystemRoles{types.RoleAuth, types.RoleAdmin}),
-		true)
-
+	require.True(t, authRole.Include(types.RoleAdmin))
+	require.False(t, authRole.Include(types.RoleProxy))
+	require.False(t, authRole.Equals(nodeProxyRole))
+	require.True(t, authRole.Equals(types.SystemRoles{types.RoleAuth, types.RoleAdmin}))
 }

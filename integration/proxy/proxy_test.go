@@ -386,7 +386,7 @@ func TestALPNSNIProxyKube(t *testing.T) {
 
 	resp, err := k8Client.CoreV1().Pods("default").List(context.Background(), metav1.ListOptions{})
 	require.NoError(t, err)
-	require.Equal(t, 3, len(resp.Items), "pods item length mismatch")
+	require.Len(t, resp.Items, 3, "pods item length mismatch")
 
 	// Simulate how tsh uses a kube local proxy to send kube requests to
 	// Teleport Proxy with a L7 LB in front.
@@ -658,7 +658,7 @@ func TestKubePROXYProtocol(t *testing.T) {
 
 			resp, err := k8Client.CoreV1().Pods("default").List(context.Background(), metav1.ListOptions{})
 			require.NoError(t, err)
-			require.Equal(t, 3, len(resp.Items), "pods item length mismatch")
+			require.Len(t, resp.Items, 3, "pods item length mismatch")
 		})
 	}
 }
@@ -783,7 +783,7 @@ func TestKubeIPPinning(t *testing.T) {
 				return
 			}
 			require.NoError(t, err)
-			require.Equal(t, 3, len(resp.Items), "pods item length mismatch")
+			require.Len(t, resp.Items, 3, "pods item length mismatch")
 		})
 	}
 }
@@ -1201,7 +1201,7 @@ func TestALPNSNIProxyDatabaseAccess(t *testing.T) {
 		require.Error(t, err)
 		var x509Err x509.CertificateInvalidError
 		require.ErrorAs(t, err, &x509Err)
-		require.Equal(t, x509Err.Reason, x509.Expired)
+		require.Equal(t, x509.Expired, x509Err.Reason)
 		require.Contains(t, x509Err.Detail, "is after")
 
 		// Open a new connection
