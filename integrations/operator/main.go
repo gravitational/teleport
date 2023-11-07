@@ -140,26 +140,26 @@ func main() {
 	if err = (&resources.RoleReconciler{
 		Client:                 mgr.GetClient(),
 		Scheme:                 mgr.GetScheme(),
-		TeleportClientAccessor: bot.GetClient,
+		TeleportClientAccessor: bot.GetSyncClient,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "TeleportRole")
 		os.Exit(1)
 	}
 
-	if err = resources.NewUserReconciler(mgr.GetClient(), bot.GetClient).
+	if err = resources.NewUserReconciler(mgr.GetClient(), bot.GetSyncClient).
 		SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "TeleportUser")
 		os.Exit(1)
 	}
 
-	if err = resources.NewGithubConnectorReconciler(mgr.GetClient(), bot.GetClient).
+	if err = resources.NewGithubConnectorReconciler(mgr.GetClient(), bot.GetSyncClient).
 		SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "TeleportGithubConnector")
 		os.Exit(1)
 	}
 
 	if features.OIDC {
-		if err = resources.NewOIDCConnectorReconciler(mgr.GetClient(), bot.GetClient).
+		if err = resources.NewOIDCConnectorReconciler(mgr.GetClient(), bot.GetSyncClient).
 			SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "unable to create controller", "controller", "TeleportOIDCConnector")
 			os.Exit(1)
@@ -169,7 +169,7 @@ func main() {
 	}
 
 	if features.SAML {
-		if err = resources.NewSAMLConnectorReconciler(mgr.GetClient(), bot.GetClient).
+		if err = resources.NewSAMLConnectorReconciler(mgr.GetClient(), bot.GetSyncClient).
 			SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "unable to create controller", "controller", "TeleportSAMLConnector")
 			os.Exit(1)
@@ -180,7 +180,7 @@ func main() {
 
 	// Login Rules are enterprise-only but there is no specific feature flag for them.
 	if features.OIDC || features.SAML {
-		if err := resources.NewLoginRuleReconciler(mgr.GetClient(), bot.GetClient).SetupWithManager(mgr); err != nil {
+		if err := resources.NewLoginRuleReconciler(mgr.GetClient(), bot.GetSyncClient).SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "unable to create controller", "controller", "TeleportLoginRule")
 			os.Exit(1)
 		}
@@ -188,13 +188,13 @@ func main() {
 		setupLog.Info("Login Rules are only available in Teleport Enterprise edition. TeleportLoginRule resources won't be reconciled")
 	}
 
-	if err = resources.NewProvisionTokenReconciler(mgr.GetClient(), bot.GetClient).
+	if err = resources.NewProvisionTokenReconciler(mgr.GetClient(), bot.GetSyncClient).
 		SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "TeleportProvisionToken")
 		os.Exit(1)
 	}
 
-	if err = resources.NewOktaImportRuleReconciler(mgr.GetClient(), bot.GetClient).
+	if err = resources.NewOktaImportRuleReconciler(mgr.GetClient(), bot.GetSyncClient).
 		SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "TeleportOktaImportRule")
 		os.Exit(1)
