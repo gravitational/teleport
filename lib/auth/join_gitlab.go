@@ -18,6 +18,8 @@ package auth
 
 import (
 	"context"
+	"regexp"
+	"strings"
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
@@ -61,8 +63,26 @@ func (a *Server) checkGitLabJoinRequest(ctx context.Context, req *types.Register
 	return claims, trace.Wrap(checkGitLabAllowRules(token, claims))
 }
 
+// joinRuleGlobMatch is used when comparing some rule fields from a
+// ProvisionToken  against a claim from a token. It allows simple pattern
+// matching:
+// - '*' matches zero or more characters.
+// - '?' matches any single character.
+// It returns true if a match is detected.
+func joinRuleGlobMatch(want string, got string) (bool, error) {
+	if want == "" {
+		return true, nil
+	}
+	pattern := regexp.QuoteMeta(want)
+	pattern = strings.ReplaceAll(pattern, `\*`, ".*")
+	pattern = strings.ReplaceAll(pattern, `\?`, ".")
+	pattern = "^" + pattern + "$"
+	matched, err := regexp.MatchString(pattern, got)
+	return matched, trace.Wrap(err)
+}
+
 func checkGitLabAllowRules(token *types.ProvisionTokenV2, claims *gitlab.IDTokenClaims) error {
-	// Helper for comparing a BoolOption with GitLabs string bools.
+	// Helper for comparing a BoolOption with GitLabs string bool.
 	// Returns true if OK - returns false if not OK
 	boolEqual := func(want *types.BoolOption, got string) bool {
 		if want == nil {
@@ -72,22 +92,38 @@ func checkGitLabAllowRules(token *types.ProvisionTokenV2, claims *gitlab.IDToken
 	}
 
 	// If a single rule passes, accept the IDToken
-	for _, rule := range token.Spec.GitLab.Allow {
+	for i, rule := range token.Spec.GitLab.Allow {
 		// Please consider keeping these field validators in the same order they
 		// are defined within the ProvisionTokenSpecV2GitLab proto spec.
-		if rule.Sub != "" && claims.Sub != rule.Sub {
+		subMatches, err := joinRuleGlobMatch(rule.Sub, claims.Sub)
+		if err != nil {
+			return trace.Wrap(err, "evaluating rule (%d) sub match", i)
+		}
+		if !subMatches {
 			continue
 		}
-		if rule.Ref != "" && claims.Ref != rule.Ref {
+		refMatches, err := joinRuleGlobMatch(rule.Ref, claims.Ref)
+		if err != nil {
+			return trace.Wrap(err, "evaluating rule (%d) ref match", i)
+		}
+		if !refMatches {
 			continue
 		}
 		if rule.RefType != "" && claims.RefType != rule.RefType {
 			continue
 		}
-		if rule.NamespacePath != "" && claims.NamespacePath != rule.NamespacePath {
+		namespacePathMatches, err := joinRuleGlobMatch(rule.NamespacePath, claims.NamespacePath)
+		if err != nil {
+			return trace.Wrap(err, "evaluating rule (%d) namespace_path match", i)
+		}
+		if !namespacePathMatches {
 			continue
 		}
-		if rule.ProjectPath != "" && claims.ProjectPath != rule.ProjectPath {
+		projectPathMatches, err := joinRuleGlobMatch(rule.ProjectPath, claims.ProjectPath)
+		if err != nil {
+			return trace.Wrap(err, "evaluating rule (%d) project_path match", i)
+		}
+		if !projectPathMatches {
 			continue
 		}
 		if rule.PipelineSource != "" && claims.PipelineSource != rule.PipelineSource {
