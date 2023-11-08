@@ -180,7 +180,7 @@ proxyListenerMode: "separate"
 # Refer to documentation for utilizing proxy_peering: https://goteleport.com/docs/deploy-a-cluster/deployments/aws-gslb-proxy-peering-ha-deployment/
 # Agent connection count will be set to same as proxy HA replica count.
 # Assumes cluster names being used as the Public Addr.
-enableProxyPeering: "false"
+enableProxyPeering: false
 
 
 # Optional setting for configuring session recording.
