@@ -1,5 +1,41 @@
 # Changelog
 
+## 12.4.24 (11/8/23)
+
+### Security Fixes
+
+#### [Medium] Arbitrary code execution with `LD_PRELOAD` and `SFTP`
+
+Teleport implements SFTP using a subcommand. Prior to this release it was 
+possible to inject environment variables into the execution of this 
+subcommand, via shell init scripts or via the SSH environment request.
+
+This is addressed by preventing `LD_PRELOAD` and other dangerous environment
+variables from being forwarded during re-exec.
+
+[#34276](https://github.com/gravitational/teleport/pull/34276)
+
+#### [Medium] Outbound SSH from Proxy can lead to IP spoofing
+
+If the Teleport auth or proxy services are configured to accept `PROXY`
+protocol headers, a malicious actor can use this to spoof their IP address.
+
+This is addressed by requiring that the first bytes of any SSH connection are
+the SSH protocol prefix, denying a malicious actor the opportunity to send their
+own proxy headers.
+
+[#33731](https://github.com/gravitational/teleport/pull/33731)
+
+### Other Fixes & Improvements 
+
+* Added post-review state of Access Request in audit log description [#34215](https://github.com/gravitational/teleport/pull/34215)
+* Updated Operator Reconciliation to skip Teleport Operator on status updates [#34197](https://github.com/gravitational/teleport/pull/34197)
+* Updated Server Auto-Discovery installer script to use `bash` instead of `sh` [#34150](https://github.com/gravitational/teleport/pull/34150)
+* Fixed Azure Identity federated Application ID [#33958](https://github.com/gravitational/teleport/pull/33958)
+* Fixed issue where Kubernetes Audit Events reported incorrect information in the exec audit [#33950](https://github.com/gravitational/teleport/pull/33950)
+* Fixed issue where `tsh aws ecs execute-command` would always fail [#33831](https://github.com/gravitational/teleport/pull/33831)
+* Fixed formatting errors on empty result sets in `tsh` [#33725](https://github.com/gravitational/teleport/pull/33725)
+
 ## 12.4.23 (10/18/23)
 
 ### Security fixes
