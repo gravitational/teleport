@@ -1,5 +1,45 @@
 # Changelog
 
+## 13.4.6 (11/8/23)
+
+### Security Fixes
+
+#### [Medium] Arbitrary code execution with `LD_PRELOAD` and `SFTP`
+
+Teleport implements SFTP using a subcommand. Prior to this release it was 
+possible to inject environment variables into the execution of this 
+subcommand, via shell init scripts or via the SSH environment request.
+
+This is addressed by preventing `LD_PRELOAD` and other dangerous environment
+variables from being forwarded during re-exec.
+
+[#34275](https://github.com/gravitational/teleport/pull/34275)
+
+#### [Medium] Outbound SSH from Proxy can lead to IP spoofing
+
+If the Teleport auth or proxy services are configured to accept `PROXY`
+protocol headers, a malicious actor can use this to spoof their IP address.
+
+This is addressed by requiring that the first bytes of any SSH connection are
+the SSH protocol prefix, denying a malicious actor the opportunity to send their
+own proxy headers.
+
+[#33730](https://github.com/gravitational/teleport/pull/33730)
+
+### Other Fixes & Improvements
+
+* Updated Operator Reconciliation to skip Teleport Operator on status updates [#34196](https://github.com/gravitational/teleport/pull/34196)
+* Updated Kube Agent Auto-Discovery to install the Teleport version provided by Automatic Upgrades [#34158](https://github.com/gravitational/teleport/pull/34158)
+* Updated Server Auto-Discovery installer script to use `bash` instead of `sh` [#34143](https://github.com/gravitational/teleport/pull/34143)
+* When a promotable Access Request targets a resource that belongs to an Access List, owners of that list will now automatically be added as reviewers.  [#34130](https://github.com/gravitational/teleport/pull/34130)
+* Fixed issue where an auto-provisioned PostgreSQL user may keep old roles indefinitely [#34120](https://github.com/gravitational/teleport/pull/34120)
+* Fixed incorrectly set file mode for Windows TPM files [#34114](https://github.com/gravitational/teleport/pull/34114)
+* Fixed Azure Identity federated Application ID [#33959](https://github.com/gravitational/teleport/pull/33959)
+* Fixed issue where Kubernetes Audit Events reported incorrect information in the exec audit [#33951](https://github.com/gravitational/teleport/pull/33951)
+* Added support for formatting hostname as `host:port` to `tsh puttyconfig` [#33884](https://github.com/gravitational/teleport/pull/33884)*
+* Fixed various Access List bookkeeping issues [#33835](https://github.com/gravitational/teleport/pull/33835)
+* Fixed issue where `tsh aws ecs execute-command` would always fail [#33832](https://github.com/gravitational/teleport/pull/33832)
+
 ## 13.4.5 (10/24/23)
 
 * Fixed the top bar breaking layout when the window is narrow in Connect [#33822](https://github.com/gravitational/teleport/pull/33822)
