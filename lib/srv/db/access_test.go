@@ -2808,7 +2808,7 @@ func withElastiCacheRedis(name string, token, engineVersion string) withDatabase
 }
 
 func withMemoryDBRedis(name string, token, engineVersion string) withDatabaseOption {
-	return func(t testing.TB, ctx context.Context, testCtx *testContext) types.Database {
+	return func(t *testing.T, ctx context.Context, testCtx *testContext) types.Database {
 		redisServer, err := redis.NewTestServer(t, common.TestServerConfig{
 			Name:       name,
 			AuthClient: testCtx.authClient,
