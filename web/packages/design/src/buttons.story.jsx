@@ -62,6 +62,15 @@ export const Buttons = () => (
     </Flex>
 
     <Flex gap={3}>
+      <Button as="a" href="https://example.com" target="_blank">
+        Link as button
+      </Button>
+      <ButtonSecondary as="a" href="https://example.com" target="_blank">
+        Link as button
+      </ButtonSecondary>
+    </Flex>
+
+    <Flex gap={3}>
       <ButtonLink href="">Button Link</ButtonLink>
       <ButtonText>Button Text</ButtonText>
     </Flex>

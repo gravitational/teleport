@@ -34,6 +34,17 @@ DNS zone, and access to an AKS cluster with cert-manager
 certificates for said Azure DNS
 zone](https://cert-manager.io/docs/configuration/acme/dns01/azuredns/).
 
+In this guide we'll use [workload
+identity](https://learn.microsoft.com/en-us/azure/aks/workload-identity-overview)
+to authenticate Teleport to PostgreSQL and Blob Storage, so you'll need to
+[enable workload identity and the OIDC issuer in your AKS
+cluster](https://learn.microsoft.com/en-us/azure/aks/workload-identity-deploy-cluster#update-an-existing-aks-cluster)
+if they're not enabled already:
+
+```code
+$ az aks update --resource-group <Var name="aks-rg" /> --name <Var name="aks-name" /> --enable-oidc-issuer --enable-workload-identity
+```
+
 ## Step 1/5. Add the Teleport Helm chart repository
 
 (!docs/pages/kubernetes-access/helm/includes/helm-repo-add.mdx!)

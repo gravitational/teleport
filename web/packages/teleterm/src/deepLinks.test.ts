@@ -14,7 +14,14 @@
  * limitations under the License.
  */
 
-import { DeepLinkParseResult, DeepURL, parseDeepLink } from './deepLinks';
+import { Path, makeDeepLinkWithSafeInput } from 'shared/deepLinks';
+
+import {
+  DeepLinkParseResult,
+  DeepLinkParseResultSuccess,
+  parseDeepLink,
+  DeepURL,
+} from './deepLinks';
 
 describe('parseDeepLink', () => {
   describe('valid input', () => {
@@ -122,5 +129,58 @@ describe('parseDeepLink', () => {
       const result = parseDeepLink(input);
       expect(result).toEqual(output);
     });
+  });
+});
+
+describe('makeDeepLinkWithSafeInput followed by parseDeepLink gives the same result', () => {
+  const inputs: Array<Parameters<typeof makeDeepLinkWithSafeInput>[0]> = [
+    {
+      proxyHost: 'cluster.example.com',
+      path: Path.ConnectMyComputer,
+      username: undefined,
+    },
+    {
+      proxyHost: 'cluster.example.com',
+      path: Path.ConnectMyComputer,
+      username: 'alice',
+    },
+    {
+      proxyHost: 'cluster.example.com:1337',
+      path: Path.ConnectMyComputer,
+      username: 'alice.bobson@example.com',
+    },
+  ];
+
+  test.each(inputs)('%j', input => {
+    const deepLink = makeDeepLinkWithSafeInput(input);
+    const parseResult = parseDeepLink(deepLink);
+    expect(parseResult).toMatchObject({
+      status: 'success',
+      url: {
+        host: input.proxyHost,
+        pathname: '/' + input.path,
+        username: input.username === undefined ? '' : input.username,
+      },
+    });
+  });
+});
+
+describe('parseDeepLink followed by makeDeepLinkWithSafeInput gives the same result', () => {
+  const inputs: string[] = [
+    'teleport://cluster.example.com/connect_my_computer',
+    'teleport://alice@cluster.example.com/connect_my_computer',
+    'teleport://alice.bobson%40example.com@cluster.example.com:1337/connect_my_computer',
+  ];
+
+  test.each(inputs)('%s', input => {
+    const parseResult = parseDeepLink(input);
+    expect(parseResult).toMatchObject({ status: 'success' });
+    const { url } = parseResult as DeepLinkParseResultSuccess;
+    const deepLink = makeDeepLinkWithSafeInput({
+      proxyHost: url.host,
+      path: url.pathname.substring(1) as Path, // Remove the leading slash.
+      username: url.username,
+    });
+    expect(deepLink).toEqual(input);
   });
 });

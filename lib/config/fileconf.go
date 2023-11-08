@@ -1695,6 +1695,12 @@ type Database struct {
 type DatabaseAdminUser struct {
 	// Name is the database admin username (e.g. "postgres").
 	Name string `yaml:"name"`
+	// DefaultDatabase is the database that the admin user logs into by
+	// default.
+	//
+	// Depending on the database type, this database may be used to store
+	// procedures or data for managing database users.
+	DefaultDatabase string `yaml:"default_database"`
 }
 
 // DatabaseAD contains database Active Directory configuration.

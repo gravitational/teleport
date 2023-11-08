@@ -68,6 +68,7 @@ func newAPIServer(server clusters.Server) *api.Server {
 		Name:     server.GetName(),
 		Hostname: server.GetHostname(),
 		Addr:     server.GetAddr(),
+		SubKind:  server.GetSubKind(),
 		Labels:   apiLabels,
 	}
 }
