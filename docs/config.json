@@ -834,7 +834,8 @@
               "slug": "/management/operations/enroll-agent-into-automatic-updates/",
               "forScopes": [
                 "enterprise",
-                "cloud"
+                "cloud", 
+                "team"
               ]
             }
           ]
