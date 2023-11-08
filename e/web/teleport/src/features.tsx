@@ -309,10 +309,9 @@ class FeatureAccessListManagement implements TeleportFeature {
     component: AccessListManagement,
   };
 
-  // We will always render this feature regardless of
-  // access rules.
+  // Hide if this is a self-hosted dashboard tenant
   hasAccess() {
-    return true;
+    return !cfg.oss.isDashboard;
   }
 
   navigationItem = {
