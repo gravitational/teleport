@@ -23,12 +23,12 @@ import (
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	resourcesv1 "github.com/gravitational/teleport/integrations/operator/apis/resources/v1"
-	"github.com/gravitational/teleport/integrations/operator/sidecar"
+	"github.com/gravitational/teleport/integrations/operator/embeddedtbot/protectedclient"
 )
 
 // loginRuleClient implements TeleportResourceClient and offers CRUD methods needed to reconcile login_rules
 type loginRuleClient struct {
-	TeleportClientAccessor sidecar.ClientAccessor
+	TeleportClientAccessor protectedclient.Accessor
 }
 
 // Get gets the Teleport login_rule of a given name
@@ -83,7 +83,7 @@ func (l loginRuleClient) Delete(ctx context.Context, name string) error {
 }
 
 // NewLoginRuleReconciler instantiates a new Kubernetes controller reconciling login_rule resources
-func NewLoginRuleReconciler(client kclient.Client, accessor sidecar.ClientAccessor) *TeleportResourceReconciler[*resourcesv1.LoginRuleResource, *resourcesv1.TeleportLoginRule] {
+func NewLoginRuleReconciler(client kclient.Client, accessor protectedclient.Accessor) *TeleportResourceReconciler[*resourcesv1.LoginRuleResource, *resourcesv1.TeleportLoginRule] {
 	loginRuleClient := &loginRuleClient{
 		TeleportClientAccessor: accessor,
 	}

@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package sidecar
+package protectedclient
 
 import (
 	"context"
@@ -30,24 +30,24 @@ import (
 // refreshed certificates. We will be able to remove this whole section and
 // pass a plain client to the controllers.
 
-// ClientAccessor is a function that returns a SyncClient to be used in a
+// Accessor is a function that returns a ProtectedClient to be used in a
 // reconciliation loop. As we need a new client each time tbot renews
 // certificate, we cannot pass the client directly to the controllers.
-// Controllers are given a ClientAccessor and are responsible for calling
-// RLock() / RUnlock() on the SyncClient.
-type ClientAccessor func(ctx context.Context) (*SyncClient, func(), error)
+// Controllers are given a Accessor and are responsible for calling
+// the release() function when they are done with the client.
+type Accessor func(ctx context.Context) (client *ProtectedClient, release func(), err error)
 
-// SyncClient is a wrapper around client.Client that embeds a WaitGroup to
+// ProtectedClient is a wrapper around client.Client that embeds a WaitGroup to
 // keep track of client usage and know when/if we can call client.Close().
-type SyncClient struct {
+type ProtectedClient struct {
 	useCounter *sync.WaitGroup
 	*client.Client
 }
 
-// RetireClient waits for all SyncClient users to RUnlock(), then it closes the
-// client. This function can be run asynchronously. If we can't close the
-// client we're leaking goroutines and memory anyway.
-func (tc *SyncClient) RetireClient() {
+// RetireClient waits for all ProtectedClient users to release the client
+// before closing it. This function can be run asynchronously. If we
+// can't close the client we're leaking goroutines and memory anyway.
+func (tc *ProtectedClient) RetireClient() {
 	if tc.Client == nil {
 		return
 	}
@@ -61,19 +61,19 @@ func (tc *SyncClient) RetireClient() {
 	}
 }
 
-// LockClient registers that the caller is using the client and
+// lockClient registers that the caller is using the client and
 // prevents client deletion. It returns a function that must be called to
 // release the client once the reconciliation is done.
-func (tc *SyncClient) LockClient() func() {
+func (tc *ProtectedClient) lockClient() func() {
 	tc.useCounter.Add(1)
 	return func() {
 		tc.useCounter.Done()
 	}
 }
 
-// NewSyncClient wraps an existing client.Client into a SyncClient.
-func NewSyncClient(teleportClient *client.Client) *SyncClient {
-	return &SyncClient{
+// NewClient wraps an existing client.Client into a ProtectedClient.
+func NewClient(teleportClient *client.Client) *ProtectedClient {
+	return &ProtectedClient{
 		useCounter: &sync.WaitGroup{},
 		Client:     teleportClient,
 	}

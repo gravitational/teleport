@@ -1,20 +1,4 @@
-/*
-Copyright 2023 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
-package sidecar
+package protectedclient
 
 import (
 	"context"
@@ -27,13 +11,15 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/identity"
 )
 
+// mockClientBuilder allows us to count how many times the Cache tried to build
+// a new client. This allows us to see if an invocation hits or misses the cache.
 type mockClientBuilder struct {
 	counter atomic.Int32
 }
 
-func (m *mockClientBuilder) buildClient(_ context.Context) (*SyncClient, error) {
+func (m *mockClientBuilder) buildClient(_ context.Context) (*ProtectedClient, error) {
 	m.counter.Add(1)
-	return NewSyncClient(nil), nil
+	return NewClient(nil), nil
 }
 
 func (m *mockClientBuilder) countClientBuild() int {
@@ -50,25 +36,14 @@ func TestBot_GetClient(t *testing.T) {
 
 	tests := []struct {
 		name                 string
-		running              bool
 		currentCert          []byte
 		cachedCert           []byte
-		cachedClient         *SyncClient
+		cachedClient         *ProtectedClient
 		expectNewClientBuild require.BoolAssertionFunc
 		assertError          require.ErrorAssertionFunc
 	}{
 		{
-			name:                 "not started",
-			running:              false,
-			currentCert:          nil,
-			cachedCert:           nil,
-			cachedClient:         nil,
-			expectNewClientBuild: require.False,
-			assertError:          require.Error,
-		},
-		{
 			name:                 "no cert yet",
-			running:              true,
 			currentCert:          nil,
 			cachedCert:           nil,
 			cachedClient:         nil,
@@ -77,7 +52,6 @@ func TestBot_GetClient(t *testing.T) {
 		},
 		{
 			name:                 "cert but no cache",
-			running:              true,
 			currentCert:          cert1,
 			cachedCert:           nil,
 			cachedClient:         nil,
@@ -86,19 +60,17 @@ func TestBot_GetClient(t *testing.T) {
 		},
 		{
 			name:                 "cert and fresh cache",
-			running:              true,
 			currentCert:          cert1,
 			cachedCert:           cert1,
-			cachedClient:         NewSyncClient(nil),
+			cachedClient:         NewClient(nil),
 			expectNewClientBuild: require.False,
 			assertError:          require.NoError,
 		},
 		{
 			name:                 "cert and stale cache",
-			running:              true,
 			currentCert:          cert2,
 			cachedCert:           cert1,
-			cachedClient:         NewSyncClient(nil),
+			cachedClient:         NewClient(nil),
 			expectNewClientBuild: require.True,
 			assertError:          require.NoError,
 		},
@@ -109,23 +81,15 @@ func TestBot_GetClient(t *testing.T) {
 			destination := &config.DestinationMemory{}
 			require.NoError(t, destination.CheckAndSetDefaults())
 			require.NoError(t, destination.Write(ctx, identity.TLSCertKey, tt.currentCert))
-			b := &Bot{
-				cfg: &config.BotConfig{
-					Storage: &config.StorageConfig{
-						Destination: destination,
-					},
-					Outputs: []config.Output{
-						&config.IdentityOutput{
-							Destination: destination,
-						},
-					},
-				},
-				running:       tt.running,
+			c := Cache{
 				cachedCert:    tt.cachedCert,
 				cachedClient:  tt.cachedClient,
 				clientBuilder: mock.buildClient,
+				certGetter: func() ([]byte, error) {
+					return tt.currentCert, nil
+				},
 			}
-			_, _, err := b.GetSyncClient(ctx)
+			_, _, err := c.Get(ctx)
 			tt.assertError(t, err)
 			tt.expectNewClientBuild(t, mock.countClientBuild() != 0)
 		})

@@ -24,12 +24,12 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	resourcesv2 "github.com/gravitational/teleport/integrations/operator/apis/resources/v2"
-	"github.com/gravitational/teleport/integrations/operator/sidecar"
+	"github.com/gravitational/teleport/integrations/operator/embeddedtbot/protectedclient"
 )
 
 // userClient implements TeleportResourceClient and offers CRUD methods needed to reconcile users
 type userClient struct {
-	TeleportClientAccessor sidecar.ClientAccessor
+	TeleportClientAccessor protectedclient.Accessor
 }
 
 // Get gets the Teleport user of a given name
@@ -87,7 +87,7 @@ func (r userClient) Mutate(newUser, existingUser types.User) {
 }
 
 // NewUserReconciler instantiates a new Kubernetes controller reconciling user resources
-func NewUserReconciler(client kclient.Client, accessor sidecar.ClientAccessor) *TeleportResourceReconciler[types.User, *resourcesv2.TeleportUser] {
+func NewUserReconciler(client kclient.Client, accessor protectedclient.Accessor) *TeleportResourceReconciler[types.User, *resourcesv2.TeleportUser] {
 	userClient := &userClient{
 		TeleportClientAccessor: accessor,
 	}

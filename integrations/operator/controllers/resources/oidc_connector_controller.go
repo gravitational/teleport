@@ -24,12 +24,12 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	resourcesv3 "github.com/gravitational/teleport/integrations/operator/apis/resources/v3"
-	"github.com/gravitational/teleport/integrations/operator/sidecar"
+	"github.com/gravitational/teleport/integrations/operator/embeddedtbot/protectedclient"
 )
 
 // oidcConnectorClient implements TeleportResourceClient and offers CRUD methods needed to reconcile oidc_connectors
 type oidcConnectorClient struct {
-	TeleportClientAccessor sidecar.ClientAccessor
+	TeleportClientAccessor protectedclient.Accessor
 }
 
 // Get gets the Teleport oidc_connector of a given name
@@ -78,7 +78,7 @@ func (r oidcConnectorClient) Delete(ctx context.Context, name string) error {
 }
 
 // NewOIDCConnectorReconciler instantiates a new Kubernetes controller reconciling oidc_connector resources
-func NewOIDCConnectorReconciler(client kclient.Client, accessor sidecar.ClientAccessor) *TeleportResourceReconciler[types.OIDCConnector, *resourcesv3.TeleportOIDCConnector] {
+func NewOIDCConnectorReconciler(client kclient.Client, accessor protectedclient.Accessor) *TeleportResourceReconciler[types.OIDCConnector, *resourcesv3.TeleportOIDCConnector] {
 	oidcClient := &oidcConnectorClient{
 		TeleportClientAccessor: accessor,
 	}

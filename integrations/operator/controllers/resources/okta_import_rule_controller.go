@@ -24,12 +24,12 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	resourcesv1 "github.com/gravitational/teleport/integrations/operator/apis/resources/v1"
-	"github.com/gravitational/teleport/integrations/operator/sidecar"
+	"github.com/gravitational/teleport/integrations/operator/embeddedtbot/protectedclient"
 )
 
 // oktaImportRuleClient implements TeleportResourceClient and offers CRUD methods needed to reconcile okta_import_rules
 type oktaImportRuleClient struct {
-	TeleportClientAccessor sidecar.ClientAccessor
+	TeleportClientAccessor protectedclient.Accessor
 }
 
 // Get gets the Teleport okta_import_rule of a given name
@@ -80,7 +80,7 @@ func (r oktaImportRuleClient) Delete(ctx context.Context, name string) error {
 }
 
 // NewOktaImportRuleReconciler instantiates a new Kubernetes controller reconciling okta_import_rule resources
-func NewOktaImportRuleReconciler(client kclient.Client, accessor sidecar.ClientAccessor) *TeleportResourceReconciler[types.OktaImportRule, *resourcesv1.TeleportOktaImportRule] {
+func NewOktaImportRuleReconciler(client kclient.Client, accessor protectedclient.Accessor) *TeleportResourceReconciler[types.OktaImportRule, *resourcesv1.TeleportOktaImportRule] {
 	oktaImportRuleClient := &oktaImportRuleClient{
 		TeleportClientAccessor: accessor,
 	}

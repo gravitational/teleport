@@ -21,12 +21,12 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	resourcesv2 "github.com/gravitational/teleport/integrations/operator/apis/resources/v2"
-	"github.com/gravitational/teleport/integrations/operator/sidecar"
+	"github.com/gravitational/teleport/integrations/operator/embeddedtbot/protectedclient"
 )
 
 // provisionTokenClient implements TeleportResourceClient and offers CRUD methods needed to reconcile provision tokens
 type provisionTokenClient struct {
-	TeleportClientAccessor sidecar.ClientAccessor
+	TeleportClientAccessor protectedclient.Accessor
 }
 
 // Get gets the Teleport provision token of a given name
@@ -75,7 +75,7 @@ func (r provisionTokenClient) Delete(ctx context.Context, name string) error {
 }
 
 // NewProvisionTokenReconciler instantiates a new Kubernetes controller reconciling provision token resources
-func NewProvisionTokenReconciler(client kclient.Client, accessor sidecar.ClientAccessor) *TeleportResourceReconciler[types.ProvisionToken, *resourcesv2.TeleportProvisionToken] {
+func NewProvisionTokenReconciler(client kclient.Client, accessor protectedclient.Accessor) *TeleportResourceReconciler[types.ProvisionToken, *resourcesv2.TeleportProvisionToken] {
 	tokenClient := &provisionTokenClient{
 		TeleportClientAccessor: accessor,
 	}
