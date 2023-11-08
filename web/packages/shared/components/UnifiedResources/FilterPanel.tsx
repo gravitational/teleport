@@ -87,7 +87,11 @@ export function FilterPanel({
         <HoverTooltip
           tipContent={<>{selected ? 'Deselect all' : 'Select all'}</>}
         >
-          <StyledCheckbox checked={selected} onChange={selectVisible} />
+          <StyledCheckbox
+            checked={selected}
+            onChange={selectVisible}
+            data-testid="select_all"
+          />
         </HoverTooltip>
         <FilterTypesMenu
           onChange={onKindsChanged}
