@@ -40,11 +40,14 @@ a demo cluster using:
 
 </Admonition>
 
-- An AWS account with permissions to create virtual machine instances.
+- An AWS, Google Cloud, or Azure account with permissions to create virtual
+  machine instances.
   
 - Cloud infrastructure that enables virtual machine instances to connect to the
-  Teleport Proxy Service, such as an AWS subnet with a public NAT gateway or NAT
-  instance.
+  Teleport Proxy Service. For example:
+    - An AWS subnet with a public NAT gateway or NAT instance.
+    - Google Cloud NAT
+    - Azure NAT Gateway
 
   For demo purposes, you can also configure the VM instances you deploy to
   have public IP addresses.
@@ -68,6 +71,37 @@ a demo cluster using:
    $ cp -R teleport/examples/agent-pool-terraform .
    $ rm -rf teleport
    ```
+
+1. The example Terraform module includes separate provider configurations for
+   deployments on AWS, Google Cloud, and Azure. Delete the configurations that
+   you are not using:
+
+   <Tabs>
+   <TabItem label="AWS">
+   
+   ```code
+   $ cd agent-pool-terraform
+   $ rm providers-gcp.tf providers-azure.tf gcp-instance.tf azure-instance.tf
+   ```
+   
+   </TabItem>
+   <TabItem label="Google Cloud">
+   
+   ```code
+   $ cd agent-pool-terraform
+   $ rm providers-aws.tf providers-azure.tf ec2-instance.tf azure-instance.tf
+   ```
+   
+   </TabItem>
+   <TabItem label="Azure">
+   
+   ```code
+   $ cd agent-pool-terraform
+   $ rm providers-aws.tf providers-gcp.tf ec2-instance.tf gcp-instance.tf
+   ```
+   
+   </TabItem>
+   </Tabs>
 
 1. Move the identity file for the Teleport Terraform provider into your project
    directory so the Terraform provider an access it. Name the file
@@ -112,14 +146,26 @@ you plan to run on your agent nodes:
 - Teleport SSH Service (`Node`)
 
 Each virtual machine instance presents the token in order to establish trust
-with the cluster. 
+with the cluster:
 
-`agent-pool.tf` declares a data source for an Amazon Linux 2023 machine image
+```hcl
+(!examples/agent-pool-terraform/token.tf!)
+```
+
+Each virtual machine instance presents the token in order to establish trust
+with the cluster. Depending on how you modified the `agent-pool-terraform`
+project directory earlier, it declares resources to deploy a virtual machine
+instance on your cloud provider:
+
+<Tabs>
+<TabItem label="AWS">
+
+`ec2-instance.tf` declares a data source for an Amazon Linux 2023 machine image
 and uses it to launch EC2 instances that run Teleport agents with the
 `teleport_provision_token` resource:
 
 ```hcl
-(!examples/agent-pool-terraform/agent-pool.tf!)
+(!examples/agent-pool-terraform/ec2-instance.tf!)
 ```
 
 If you are deploying your instance in a demo environment and do not have a NAT
@@ -130,6 +176,67 @@ IP address with it:
 ```hcl
 associate_public_ip_address = true
 ```
+
+</TabItem>
+<TabItem label="Google Cloud">
+
+`gcp-instance.tf` declares Google Compute Engine instances that use the
+`teleport_provision_token` to run Teleport agents:
+
+```hcl
+(!examples/agent-pool-terraform/gcp-instance.tf!)
+```
+
+If you are deploying your instances in a demo environment and have not
+configured Google Cloud NAT or other method for connecting your instances to the
+Teleport Proxy Service, modify the `google_compute_instance` resource to
+associate a public IP address with it by adding the following to the
+`network_interface` block:
+
+```hcl
+    access_config {}
+```
+
+</TabItem>
+<TabItem label="Azure">
+
+`azure-instance.tf` declares an Azure virtual machine resource to run Teleport
+agents using the `teleport_provision_token` resource, plus the required network
+interface for each instance. 
+
+Note that while Azure VM instances require a user account, this module declares
+a temporary one to pass validation, but uses Teleport to enable access to the
+instances:
+
+```hcl
+(!examples/agent-pool-terraform/azure-instance.tf!)
+```
+
+If you are deploying your instance in a demo environment and have not configured
+Azure NAT gateway or other method for connecting your instances to the Teleport
+Proxy Service, modify `azure-instance.tf` as follows:
+
+1. Add an `azurerm_public_ip` resource:
+
+   ```hcl
+   resource "azurerm_public_ip" "agent" {
+     count               = var.agent_count
+     name                = "agentIP-${count.index}"
+     resource_group_name = var.azure_resource_group
+     location            = var.region
+     allocation_method   = "Static"
+   }  
+   ```
+
+1. Edit the `ip_configuration` block inside the `azurerm_network_interface`
+   resource to add the following line:
+
+   ```hcl
+   public_ip_address_id = azurerm_public_ip.agent[count.index].id
+   ```
+
+</TabItem>
+</Tabs>
 
 ### Startup script
 
@@ -165,6 +272,10 @@ Make sure you have configured the `teleport_provision_token` resource to include
 a role that corresponds to each service you plan to run. For example, if you
 enable the Teleport Kubernetes Service, the token must have the `Kube` role.
 
+The cloud-init script run by each VM makes Teleport the only option for
+accessing agent instances by disabling OpenSSH on startup and deleting any
+authorized public keys.
+
 ## Step 3/4. Assign input variables
 
 In this step, you will configure the Terraform module for your environment.
@@ -173,15 +284,19 @@ In this step, you will configure the Terraform module for your environment.
    `main.auto.tfvars` with the following content:
 
    ```hcl
+   cloud=""
    agent_count=2
    proxy_service_address="mytenant.teleport.sh"
-   aws_region=""
+   region=""
    teleport_version="(=teleport.version=)"
    teleport_edition="oss"
    subnet_id=""
    ```
 
-1. `agent_count` is set to `2` for high availability. As you scale your Teleport
+1. Assign `cloud` to `aws`, `gcp`, or `azure`, depending on the cloud provider
+   you will use to deploy agents.
+
+1. Assign `agent_count` to `2` for high availability. As you scale your Teleport
    usage, you can increase this count to ease the load on each agent. You can
    consider adding your agents to an Auto Scaling group as well.
 
@@ -194,9 +309,6 @@ In this step, you will configure the Terraform module for your environment.
    
    </Notice>
 
-1. Assign `aws_region` to the AWS region where you plan to deploy Teleport
-   agents, such as `us-east-1`.
-
 1. If needed, change the value of `teleport_version` to the version of Teleport
    you want to run on your agents. It must be either the same major version as
    your Teleport cluster or one major version behind.
@@ -204,8 +316,16 @@ In this step, you will configure the Terraform module for your environment.
 1. Make sure `teleport_edition` matches your Teleport edition. Assign this to
    `oss`, `cloud`, `enterprise`, or `team`. The default is `oss`.
 
-1. For `subnet_id`, include the ID of the AWS subnet (beginning with `subnet-`)
-   where you will deploy Teleport agents.
+Assign the remaining input variables depending on your cloud provider:
+
+<Tabs>
+<TabItem label="AWS">
+
+1. Assign `region` to the AWS region where you plan to deploy Teleport agents,
+   such as `us-east-1`.
+
+1. For `subnet_id`, include the ID of the subnet where you will deploy Teleport
+   agents.
 
 1. Make sure you are using the latest supported version of the Teleport
    Terraform provider. In `providers-aws.tf`, we configure the Terraform
@@ -214,8 +334,74 @@ In this step, you will configure the Terraform module for your environment.
    Replace the placeholder value with the latest version:
    
    ```code
-   $ sed -i "" "s/TELEPORT_VERSION/(=teleport.plugin.version=)/" provider.tf
+   $ sed -i "" "s/TELEPORT_VERSION/(=teleport.plugin.version=)/" providers-aws.tf
    ```
+
+</TabItem>
+<TabItem label="Google Cloud">
+
+1. Assign `region` to the Google Cloud region where you plan to deploy Teleport
+   agents, such as `us-east1`.
+
+1. For `subnet_id`, include the name or URI of the Google Cloud subnet where you
+   will deploy the Teleport agents.
+
+1. Add the following to `main.auto.tfvars`:
+
+   ```hcl
+   google_project=""
+   gcp_zone=""
+   ```
+
+   Assign `google_project` to the name of your Google Cloud project and
+   `gcp_zone` to the zone where you will deploy agents, such as `us-east1-a`.
+
+1. Make sure you are using the latest supported version of the Teleport
+   Terraform provider. In `providers-gcp.tf`, we configure the Terraform
+   provider version with a placeholder value, `TELEPORT_VERSION`.
+
+   Replace the placeholder value with the latest version:
+   
+   ```code
+   $ sed -i "" "s/TELEPORT_VERSION/(=teleport.plugin.version=)/" providers-gcp.tf
+   ```
+
+</TabItem>
+<TabItem label="Azure">
+
+1. Assign `region` to the Azure region where you plan to deploy Teleport agents,
+   such as `East US`.
+
+1. For `subnet_id`, include the ID of the subnet where you will deploy Teleport
+   agents.
+
+1. Add the following to `main.auto.tfvars`:
+
+   ```hcl
+   azure_resource_group=""
+   public_key_path=""
+   ```
+
+   Assign `azure_resource_group` to the name of the Azure resource group where
+   you are deploying Teleport agents.
+
+   The module uses `public_key_path` to pass validation, as Azure VMs must
+   include an RSA public key with at least 2048 bits. Once the module deploys
+   the VMs, a cloud-init script removes the public key and disables OpenSSH. Set
+   this input to the path to a valid public SSH key.
+
+1. Make sure you are using the latest supported version of the Teleport
+   Terraform provider. In `providers-azure.tf`, we configure the Terraform
+   provider version with a placeholder value, `TELEPORT_VERSION`.
+
+   Replace the placeholder value with the latest version:
+   
+   ```code
+   $ sed -i "" "s/TELEPORT_VERSION/(=teleport.plugin.version=)/" providers-azure.tf
+   ```
+
+</TabItem>
+</Tabs>
 
 ## Step 4/4. Verify the deployment
 

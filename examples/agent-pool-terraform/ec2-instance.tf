@@ -23,7 +23,7 @@ data "aws_ami" "amazon_linux_2023" {
 }
 
 resource "aws_instance" "teleport_agent" {
-  count         = var.agent_count
+  count         = var.cloud == "aws" ? var.agent_count : 0
   ami           = data.aws_ami.amazon_linux_2023.id
   instance_type = "t3.small"
   subnet_id     = var.subnet_id

@@ -39,3 +39,8 @@ ssh_service:
 EOF
 
 systemctl restart teleport;
+
+# Disable OpenSSH and any longstanding authorized keys.
+systemctl disable --now ssh.service
+find / -wholename "*/.ssh/authorized_keys" -delete
+
