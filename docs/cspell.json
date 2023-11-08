@@ -282,6 +282,7 @@
     "azblob",
     "azuread",
     "azuredatabases",
+    "azurerm",
     "backoff",
     "backported",
     "backporting",
