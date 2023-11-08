@@ -339,7 +339,13 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
     >
       {resourcesFetchAttempt.status === 'failed' && (
         <ErrorBox>
-          <ErrorBoxInternal>
+          {/* If pinning is hidden, we hide the different tabs to select a view (All resources, pinning).
+              This causes this error box to cover the search bar. If pinning isn't supported, we push down the
+              error by 60px to not hide the search bar.
+          */}
+          <ErrorBoxInternal
+            topPadding={pinning.kind === 'hidden' ? '60px' : '0px'}
+          >
             <Danger>
               {resourcesFetchAttempt.statusText}
               {/* we don't want them to try another request with BAD REQUEST, it will just fail again. */}
@@ -585,6 +591,7 @@ const ErrorBoxInternal = styled(Box)`
   position: absolute;
   left: 0;
   right: 0;
+  top: ${props => props.topPadding};
   margin: ${props => props.theme.space[1]}px 10% 0 10%;
 `;
 
