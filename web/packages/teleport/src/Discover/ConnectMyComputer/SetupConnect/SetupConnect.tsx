@@ -104,7 +104,7 @@ const DownloadConnect = (props: { downloadLinks: Array<DownloadLink> }) => {
   return (
     <MenuButton buttonText="Download Teleport Connect">
       {props.downloadLinks.map(link => (
-        <MenuItem as="a" href={link.url}>
+        <MenuItem key={link.url} as="a" href={link.url}>
           {link.text}
         </MenuItem>
       ))}
