@@ -27,8 +27,11 @@ pub type TlsStream<S> = tokio_boring::SslStream<S>;
 #[cfg(feature = "fips")]
 #[dynamic(0)]
 static mut FIPS_CHECK: () = unsafe {
+    // Make sure that we really have FIPS enabled.
+    // This assert will run at the start of the program and panic if we
+    // build for FIPS but it's somehow disabled
     use boring;
-    assert!(boring::fips::enabled());
+    assert!(boring::fips::enabled(), "FIPS mode not enabled");
 };
 
 #[cfg(not(feature = "fips"))]
