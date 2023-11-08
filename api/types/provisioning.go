@@ -62,18 +62,23 @@ const (
 	// JoinMethodGCP indicates that the node will join with the GCP join method.
 	// Documentation regarding implementation of this can be found in lib/gcp.
 	JoinMethodGCP JoinMethod = "gcp"
+	// JoinMethodSpacelift indicates the node will join with the SpaceLift join
+	// method. Documentation regarding implementation of this can be found in
+	// lib/spacelift.
+	JoinMethodSpacelift JoinMethod = "spacelift"
 )
 
 var JoinMethods = []JoinMethod{
-	JoinMethodToken,
-	JoinMethodEC2,
-	JoinMethodIAM,
-	JoinMethodGitHub,
-	JoinMethodCircleCI,
-	JoinMethodKubernetes,
 	JoinMethodAzure,
-	JoinMethodGitLab,
+	JoinMethodCircleCI,
+	JoinMethodEC2,
 	JoinMethodGCP,
+	JoinMethodGitHub,
+	JoinMethodGitLab,
+	JoinMethodIAM,
+	JoinMethodKubernetes,
+	JoinMethodSpacelift,
+	JoinMethodToken,
 }
 
 func ValidateJoinMethod(method JoinMethod) error {

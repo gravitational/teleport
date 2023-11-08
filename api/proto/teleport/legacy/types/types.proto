@@ -1245,6 +1245,8 @@ message ProvisionTokenSpecV2 {
   ProvisionTokenSpecV2GitLab GitLab = 12 [(gogoproto.jsontag) = "gitlab,omitempty"];
   // GCP allows the configuration of options specific to the "gcp" join method.
   ProvisionTokenSpecV2GCP GCP = 13 [(gogoproto.jsontag) = "gcp,omitempty"];
+  // Spacelift allows the configuration of options specific to the "spacelift" join method.
+  ProvisionTokenSpecV2Spacelift Spacelift = 14 [(gogoproto.jsontag) = "spacelift,omitempty"];
 }
 
 // ProvisionTokenSpecV2Github contains the GitHub-specific part of the
@@ -1341,6 +1343,28 @@ message ProvisionTokenSpecV2CircleCI {
   // allow rule to use this token.
   repeated Rule Allow = 1 [(gogoproto.jsontag) = "allow,omitempty"];
   string OrganizationID = 2 [(gogoproto.jsontag) = "organization_id,omitempty"];
+}
+
+// ProvisionTokenSpecV2Spacelift contains the Spacelift-specific part of the
+// ProvisionTokenSpecV2
+message ProvisionTokenSpecV2Spacelift {
+  message Rule {
+    // SpaceID is the ID of the space in which the run that owns the token was
+    // executed.
+    string SpaceID = 1 [(gogoproto.jsontag) = "space_id,omitempty"];
+    // CallerID is the ID of the caller, ie. the stack or module that generated
+    // the run.
+    string CallerID = 2 [(gogoproto.jsontag) = "caller_id,omitempty"];
+    // CallerType is the type of the caller, ie. the entity that owns the run -
+    // either `stack` or `module`.
+    string CallerType = 3 [(gogoproto.jsontag) = "caller_type,omitempty"];
+  }
+  // Allow is a list of Rules, nodes using this token must match one
+  // allow rule to use this token.
+  repeated Rule Allow = 1 [(gogoproto.jsontag) = "allow,omitempty"];
+  // Hostname is the hostname of the Spacelift tenant that tokens
+  // will originate from. E.g `example.app.spacelift.io`
+  string Hostname = 2 [(gogoproto.jsontag) = "hostname,omitempty"];
 }
 
 // ProvisionTokenSpecV2Kubernetes contains the Kubernetes-specific part of the
