@@ -378,6 +378,7 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
                     const $button = (
                       <ButtonBorder
                         key={key}
+                        data-testid={key}
                         textTransform="none"
                         onClick={() => action(getSelectedResources())}
                         disabled={disabled}
