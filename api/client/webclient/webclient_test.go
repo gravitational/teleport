@@ -31,6 +31,7 @@ import (
 	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/defaults"
+	apihelpers "github.com/gravitational/teleport/api/testhelpers"
 )
 
 func newPingHandler(path string) http.Handler {
@@ -324,36 +325,62 @@ func TestParse(t *testing.T) {
 	}
 }
 
-func TestNewWebClientRespectHTTPProxy(t *testing.T) {
-	t.Setenv("HTTPS_PROXY", "fakeproxy.example.com:9999")
-	client, err := newWebClient(&Config{
-		Context:   context.Background(),
-		ProxyAddr: "localhost:3080",
-	})
-	require.NoError(t, err)
-	//nolint:bodyclose // resp should be nil, so there will be no body to close.
-	resp, err := client.Get("https://fakedomain.example.com")
-	// Client should try to proxy through nonexistent server at localhost.
-	require.Error(t, err, "GET unexpectedly succeeded: %+v", resp)
-	require.Contains(t, err.Error(), "proxyconnect")
-	require.Contains(t, err.Error(), "lookup fakeproxy.example.com")
-	require.Contains(t, err.Error(), "no such host")
-}
+func TestNewWebClientHTTPProxy(t *testing.T) {
+	proxyHandler := &apihelpers.ProxyHandler{}
+	proxyServer := httptest.NewServer(proxyHandler)
+	t.Cleanup(proxyServer.Close)
 
-func TestNewWebClientNoProxy(t *testing.T) {
-	t.Setenv("HTTPS_PROXY", "fakeproxy.example.com:9999")
-	t.Setenv("NO_PROXY", "fakedomain.example.com")
-	client, err := newWebClient(&Config{
-		Context:   context.Background(),
-		ProxyAddr: "localhost:3080",
-	})
+	localIP, err := apihelpers.GetLocalIP()
 	require.NoError(t, err)
-	//nolint:bodyclose // resp should be nil, so there will be no body to close.
-	resp, err := client.Get("https://fakedomain.example.com")
-	require.Error(t, err, "GET unexpectedly succeeded: %+v", resp)
-	require.NotContains(t, err.Error(), "proxyconnect")
-	require.Contains(t, err.Error(), "lookup fakedomain.example.com")
-	require.Contains(t, err.Error(), "no such host")
+	server := apihelpers.MakeTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("hello"))
+	}), apihelpers.WithTestServerAddress(localIP))
+	_, serverPort, err := net.SplitHostPort(server.Listener.Addr().String())
+	require.NoError(t, err)
+	serverAddr := net.JoinHostPort(localIP, serverPort)
+	tests := []struct {
+		name               string
+		env                map[string]string
+		expectedProxyCount int
+	}{
+		{
+			name: "use http proxy",
+			env: map[string]string{
+				"HTTPS_PROXY": proxyServer.URL,
+			},
+			expectedProxyCount: 1,
+		},
+		{
+			name: "ignore proxy when no_proxy is set",
+			env: map[string]string{
+				"HTTPS_PROXY": proxyServer.URL,
+				"NO_PROXY":    "*",
+			},
+			expectedProxyCount: 0,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Cleanup(proxyHandler.Reset)
+			for k, v := range tc.env {
+				t.Setenv(k, v)
+			}
+			ctx, cancel := context.WithCancel(context.Background())
+			t.Cleanup(cancel)
+			client, err := newWebClient(&Config{
+				Context:   ctx,
+				ProxyAddr: "localhost:3080", // addr doesn't matter, it won't be used
+				Insecure:  true,
+			})
+			require.NoError(t, err)
+
+			resp, err := client.Get("https://" + serverAddr)
+			require.NoError(t, err)
+			require.NoError(t, resp.Body.Close())
+			require.Equal(t, tc.expectedProxyCount, proxyHandler.Count())
+		})
+	}
 }
 
 func TestSSHProxyHostPort(t *testing.T) {
