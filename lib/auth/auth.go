@@ -31,6 +31,7 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
+	"github.com/gravitational/teleport/lib/spacelift"
 	"io"
 	"math"
 	"math/big"
@@ -393,6 +394,13 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	if as.ghaIDTokenValidator == nil {
 		as.ghaIDTokenValidator = githubactions.NewIDTokenValidator(
 			githubactions.IDTokenValidatorConfig{
+				Clock: as.clock,
+			},
+		)
+	}
+	if as.spaceliftIDTokenValidator == nil {
+		as.spaceliftIDTokenValidator = spacelift.NewIDTokenValidator(
+			spacelift.IDTokenValidatorConfig{
 				Clock: as.clock,
 			},
 		)

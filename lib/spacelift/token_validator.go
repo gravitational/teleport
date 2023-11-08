@@ -41,14 +41,14 @@ type IDTokenValidator struct {
 
 func NewIDTokenValidator(
 	cfg IDTokenValidatorConfig,
-) (*IDTokenValidator, error) {
+) *IDTokenValidator {
 	if cfg.Clock == nil {
 		cfg.Clock = clockwork.NewRealClock()
 	}
 
 	return &IDTokenValidator{
 		IDTokenValidatorConfig: cfg,
-	}, nil
+	}
 }
 
 func (id *IDTokenValidator) issuerURL(hostname string) string {
