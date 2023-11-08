@@ -17,14 +17,8 @@ limitations under the License.
 package spacelift
 
 import (
-	"context"
-	"fmt"
-	"github.com/coreos/go-oidc"
-	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 	"github.com/mitchellh/mapstructure"
-	"time"
 )
 
 // IDTokenClaims
@@ -69,101 +63,4 @@ func (c *IDTokenClaims) JoinAuditAttributes() (map[string]interface{}, error) {
 		return nil, trace.Wrap(err)
 	}
 	return res, nil
-}
-
-type envGetter func(key string) string
-
-// IDTokenSource allows a SpaceLift ID token to be fetched whilst within a
-// SpaceLift execution.
-type IDTokenSource struct {
-	getEnv envGetter
-}
-
-func (its *IDTokenSource) GetIDToken() (string, error) {
-	tok := its.getEnv("SPACELIFT_OIDC_TOKEN")
-	if tok == "" {
-		return "", trace.BadParameter(
-			"SPACELIFT_OIDC_TOKEN environment variable missing",
-		)
-	}
-
-	return tok, nil
-}
-
-func NewIDTokenSource(getEnv envGetter) *IDTokenSource {
-	return &IDTokenSource{
-		getEnv,
-	}
-}
-
-type IDTokenValidatorConfig struct {
-	// Clock is used by the validator when checking expiry and issuer times of
-	// tokens. If omitted, a real clock will be used.
-	Clock clockwork.Clock
-	// insecure configures the validator to use HTTP rather than HTTPS. This
-	// is not exported as this is only used in the test for now.
-	insecure bool
-}
-
-type IDTokenValidator struct {
-	IDTokenValidatorConfig
-}
-
-func NewIDTokenValidator(
-	cfg IDTokenValidatorConfig,
-) (*IDTokenValidator, error) {
-	if cfg.Clock == nil {
-		cfg.Clock = clockwork.NewRealClock()
-	}
-
-	return &IDTokenValidator{
-		IDTokenValidatorConfig: cfg,
-	}, nil
-}
-
-func (id *IDTokenValidator) issuerURL(domain string) string {
-	scheme := "https"
-	if id.insecure {
-		scheme = "http"
-	}
-
-	return fmt.Sprintf("%s://%s", scheme, domain)
-}
-
-func (id *IDTokenValidator) Validate(
-	ctx context.Context, domain string, token string,
-) (*IDTokenClaims, error) {
-	p, err := oidc.NewProvider(
-		ctx,
-		id.issuerURL(domain),
-	)
-	if err != nil {
-		return nil, trace.Wrap(err, "creating oidc provider")
-	}
-
-	verifier := p.Verifier(&oidc.Config{
-		// Spacelift uses an audience of your Spacelift tenant hostname
-		// This is weird - but we just have to work with this.
-		ClientID: domain,
-		Now:      id.Clock.Now,
-	})
-
-	idToken, err := verifier.Verify(ctx, token)
-	if err != nil {
-		return nil, trace.Wrap(err, "verifying token")
-	}
-
-	// `go-oidc` does not implement not before check, so we need to manually
-	// perform this
-	if err := jwt.CheckNotBefore(
-		id.Clock.Now(), time.Minute*2, idToken,
-	); err != nil {
-		return nil, trace.Wrap(err, "enforcing nbf")
-	}
-
-	claims := IDTokenClaims{}
-	if err := idToken.Claims(&claims); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &claims, nil
 }
