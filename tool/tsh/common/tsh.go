@@ -22,6 +22,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"net"
 	"net/url"
 	"os"
@@ -3654,9 +3655,7 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 			return nil, trace.Wrap(err, "invalid proxy glob %q in tsh configuration file", proxyGlob)
 		}
 		if proxyRegexp.MatchString(c.WebProxyAddr) {
-			for k, v := range proxyHeaders.Headers {
-				c.ExtraProxyHeaders[k] = v
-			}
+			maps.Copy(c.ExtraProxyHeaders, proxyHeaders.Headers)
 		}
 	}
 
