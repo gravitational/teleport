@@ -211,20 +211,22 @@ export function ResourceListItem({
         </Box>
 
         {/* show labels button */}
-        <HoverTooltip
-          tipContent={<>{showLabels ? 'Hide Labels' : 'Show Labels'}</>}
-          css={`
-            grid-area: labels-btn;
-          `}
-        >
-          <ShowLabelsButton
-            size={1}
-            onClick={() => setShowLabels(!showLabels)}
-            className={showLabels ? 'active' : ''}
+        {labels.length > 0 && (
+          <HoverTooltip
+            tipContent={<>{showLabels ? 'Hide Labels' : 'Show Labels'}</>}
+            css={`
+              grid-area: labels-btn;
+            `}
           >
-            <Tags size={18} color={showLabels ? 'text.main' : 'text.muted'} />
-          </ShowLabelsButton>
-        </HoverTooltip>
+            <ShowLabelsButton
+              size={1}
+              onClick={() => setShowLabels(!showLabels)}
+              className={showLabels ? 'active' : ''}
+            >
+              <Tags size={18} color={showLabels ? 'text.main' : 'text.muted'} />
+            </ShowLabelsButton>
+          </HoverTooltip>
+        )}
 
         {/* action button */}
         <Box
