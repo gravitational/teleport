@@ -20,6 +20,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"github.com/gravitational/teleport/lib/spacelift"
 	"os"
 	"time"
 
@@ -240,6 +241,11 @@ func Register(params RegisterParams) (*proto.Certs, error) {
 		}
 	case types.JoinMethodGCP:
 		params.IDToken, err = gcp.GetIDToken(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	case types.JoinMethodSpacelift:
+		params.IDToken, err = spacelift.NewIDTokenSource(os.Getenv).GetIDToken()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
