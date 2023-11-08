@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiawsutils "github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/lib/cloud"
+	libaws "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/db/common"
@@ -245,7 +246,10 @@ func (e *Engine) getNewClientFn(ctx context.Context, sessionCtx *common.Session)
 	}
 
 	return func(username, password string) (redis.UniversalClient, error) {
-		onConnect := e.createOnClientConnectFunc(ctx, sessionCtx, username, password)
+		onConnect, err := e.createOnClientConnectFunc(ctx, sessionCtx, username, password)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 
 		redisClient, err := newClient(ctx, connectionOptions, tlsConfig, onConnect)
 		if err != nil {
@@ -258,16 +262,16 @@ func (e *Engine) getNewClientFn(ctx context.Context, sessionCtx *common.Session)
 
 // createOnClientConnectFunc creates a callback function that is called after a
 // successful client connection with the Redis server.
-func (e *Engine) createOnClientConnectFunc(ctx context.Context, sessionCtx *common.Session, username, password string) onClientConnectFunc {
+func (e *Engine) createOnClientConnectFunc(ctx context.Context, sessionCtx *common.Session, username, password string) (onClientConnectFunc, error) {
 	switch {
 	// If password is provided by client.
 	case password != "":
-		return authWithPasswordOnConnect(username, password)
+		return authWithPasswordOnConnect(username, password), nil
 
 	// Azure databases authenticate via access keys.
 	case sessionCtx.Database.IsAzure():
 		credFetchFn := azureAccessKeyFetchFunc(sessionCtx, e.Auth)
-		return fetchCredentialsOnConnect(e.Context, sessionCtx, e.Audit, credFetchFn)
+		return fetchCredentialsOnConnect(e.Context, sessionCtx, e.Audit, credFetchFn), nil
 
 	// If database user is one of managed users (AWS only).
 	//
@@ -277,7 +281,7 @@ func (e *Engine) createOnClientConnectFunc(ctx context.Context, sessionCtx *comm
 	// Redis is in cluster mode.
 	case slices.Contains(sessionCtx.Database.GetManagedUsers(), sessionCtx.DatabaseUser):
 		credFetchFn := managedUserCredFetchFunc(sessionCtx, e.Auth, e.Users)
-		return fetchCredentialsOnConnect(e.Context, sessionCtx, e.Audit, credFetchFn)
+		return fetchCredentialsOnConnect(e.Context, sessionCtx, e.Audit, credFetchFn), nil
 
 	// AWS ElastiCache has limited support for IAM authentication.
 	// See: https://docs.aws.amazon.com/AmazonElastiCache/latest/red-ug/auth-iam.html#auth-iam-limits
@@ -285,11 +289,14 @@ func (e *Engine) createOnClientConnectFunc(ctx context.Context, sessionCtx *comm
 	// ElastiCache user has IAM auth enabled.
 	// Same applies for AWS MemoryDB.
 	case e.isAWSIAMAuthSupported(ctx, sessionCtx):
-		credFetchFn := awsIAMTokenFetchFunc(sessionCtx, e.Auth)
-		return fetchCredentialsOnConnect(e.Context, sessionCtx, e.Audit, credFetchFn)
+		credFetchFn, err := awsIAMTokenFetchFunc(sessionCtx, e.Auth)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return fetchCredentialsOnConnect(e.Context, sessionCtx, e.Audit, credFetchFn), nil
 
 	default:
-		return nil
+		return noopOnConnect, nil
 	}
 }
 
@@ -303,7 +310,7 @@ func (e *Engine) isAWSIAMAuthSupported(ctx context.Context, sessionCtx *common.S
 		// cache result to avoid API calls on each new instance connection.
 		e.awsIAMAuthSupported = &res
 		if res {
-			logrus.Debugf("IAM Auth is enabled for user %q in database %q.", sessionCtx.DatabaseUser, sessionCtx.Database.GetName())
+			e.Log.Debugf("IAM Auth is enabled for user %q in database %q.", sessionCtx.DatabaseUser, sessionCtx.Database.GetName())
 		}
 	}()
 	// check if the db supports IAM auth. If we get an error, assume the db does
@@ -363,7 +370,7 @@ func checkElastiCacheUserIAMAuthIsEnabled(ctx context.Context, clients cloud.Cli
 	input := elasticache.DescribeUsersInput{UserId: aws.String(username)}
 	out, err := client.DescribeUsersWithContext(ctx, &input)
 	if err != nil {
-		return false, trace.Wrap(err)
+		return false, trace.Wrap(libaws.ConvertRequestFailureError(err))
 	}
 	if len(out.Users) < 1 || out.Users[0].Authentication == nil {
 		return false, nil
@@ -381,7 +388,7 @@ func checkMemoryDBUserIAMAuthIsEnabled(ctx context.Context, clients cloud.Client
 	input := memorydb.DescribeUsersInput{UserName: aws.String(username)}
 	out, err := client.DescribeUsersWithContext(ctx, &input)
 	if err != nil {
-		return false, trace.Wrap(err)
+		return false, trace.Wrap(libaws.ConvertRequestFailureError(err))
 	}
 	if len(out.Users) < 1 || out.Users[0].Authentication == nil {
 		return false, nil
