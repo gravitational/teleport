@@ -46,7 +46,6 @@ own proxy headers.
  * Fixes various Access List bookkeeping issues [#33834](https://github.com/gravitational/teleport/pull/33834)
  * Fixes issue where `tsh aws ecs execute-command` would always fail [#33833](https://github.com/gravitational/teleport/pull/33833)
  * Updated UI to automatically redirect to login page on missing session cookie [#33806](https://github.com/gravitational/teleport/pull/33806)
- * Added deep-link parsing support to Teleport Connect [#33740](https://github.com/gravitational/teleport/pull/33740)
  * Added Dynamic Discovery matching for Databases [#33693](https://github.com/gravitational/teleport/pull/33693)
  * Fixes formatting errors on empty result sets in `tsh` [#33633](https://github.com/gravitational/teleport/pull/33633)
 
