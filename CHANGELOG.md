@@ -43,11 +43,13 @@ own proxy headers.
 * Fixed issue where Kubernetes Audit Events reported incorrect information in the exec audit [#33950](https://github.com/gravitational/teleport/pull/33950)
 * Added support for formatting hostname as `host:port` to `tsh puttyconfig` [#33883](https://github.com/gravitational/teleport/pull/33883)
 * Added support for `--set-context-name` to `tsh proxy kube`
-* Fixes various Access List bookkeeping issues [#33834](https://github.com/gravitational/teleport/pull/33834)
-* Fixes issue where `tsh aws ecs execute-command` would always fail [#33833](https://github.com/gravitational/teleport/pull/33833)
+* Fixed various Access List bookkeeping issues [#33834](https://github.com/gravitational/teleport/pull/33834)
+* Fixed issue where `tsh aws ecs execute-command` would always fail [#33833](https://github.com/gravitational/teleport/pull/33833)
 * Updated UI to automatically redirect to login page on missing session cookie [#33806](https://github.com/gravitational/teleport/pull/33806)
 * Added Dynamic Discovery matching for Databases [#33693](https://github.com/gravitational/teleport/pull/33693)
-* Fixes formatting errors on empty result sets in `tsh` [#33633](https://github.com/gravitational/teleport/pull/33633)
+* Fixed formatting errors on empty result sets in `tsh` [#33633](https://github.com/gravitational/teleport/pull/33633)
+* Added Database Automatic User Provisioning support for MariaDB [#34256](https://github.com/gravitational/teleport/pull/34256)
+* Fixed issue where MySQL auto-user deletion fails on usernames with quotes [#34304](https://github.com/gravitational/teleport/pull/34304)
 
 ## 14.1.1 (10/23/23)
 
