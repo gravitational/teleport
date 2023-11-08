@@ -84,7 +84,8 @@ proto.teleport.lib.teleterm.v1.Server.toObject = function(includeInstance, msg) 
     hostname: jspb.Message.getFieldWithDefault(msg, 4, ""),
     addr: jspb.Message.getFieldWithDefault(msg, 5, ""),
     labelsList: jspb.Message.toObjectList(msg.getLabelsList(),
-    teleport_lib_teleterm_v1_label_pb.Label.toObject, includeInstance)
+    teleport_lib_teleterm_v1_label_pb.Label.toObject, includeInstance),
+    subKind: jspb.Message.getFieldWithDefault(msg, 7, "")
   };
 
   if (includeInstance) {
@@ -145,6 +146,10 @@ proto.teleport.lib.teleterm.v1.Server.deserializeBinaryFromReader = function(msg
       var value = new teleport_lib_teleterm_v1_label_pb.Label;
       reader.readMessage(value,teleport_lib_teleterm_v1_label_pb.Label.deserializeBinaryFromReader);
       msg.addLabels(value);
+      break;
+    case 7:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setSubKind(value);
       break;
     default:
       reader.skipField();
@@ -216,6 +221,13 @@ proto.teleport.lib.teleterm.v1.Server.serializeBinaryToWriter = function(message
       6,
       f,
       teleport_lib_teleterm_v1_label_pb.Label.serializeBinaryToWriter
+    );
+  }
+  f = message.getSubKind();
+  if (f.length > 0) {
+    writer.writeString(
+      7,
+      f
     );
   }
 };
@@ -346,6 +358,24 @@ proto.teleport.lib.teleterm.v1.Server.prototype.addLabels = function(opt_value, 
  */
 proto.teleport.lib.teleterm.v1.Server.prototype.clearLabelsList = function() {
   return this.setLabelsList([]);
+};
+
+
+/**
+ * optional string sub_kind = 7;
+ * @return {string}
+ */
+proto.teleport.lib.teleterm.v1.Server.prototype.getSubKind = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 7, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.teleport.lib.teleterm.v1.Server} returns this
+ */
+proto.teleport.lib.teleterm.v1.Server.prototype.setSubKind = function(value) {
+  return jspb.Message.setProto3StringField(this, 7, value);
 };
 
 
