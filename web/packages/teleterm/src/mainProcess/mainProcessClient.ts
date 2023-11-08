@@ -17,7 +17,7 @@
 import { ipcRenderer } from 'electron';
 
 import { createFileStorageClient } from 'teleterm/services/fileStorage';
-import { AgentConfigFileClusterProperties } from 'teleterm/mainProcess/createAgentConfigFile';
+import { CreateAgentConfigFileArgs } from 'teleterm/mainProcess/createAgentConfigFile';
 import { RootClusterUri } from 'teleterm/ui/uri';
 
 import { createConfigServiceClient } from '../services/config';
@@ -128,58 +128,49 @@ export default function createMainProcessClient(): MainProcessClient {
         'main-process-connect-my-computer-download-agent'
       );
     },
-    createAgentConfigFile(clusterProperties: AgentConfigFileClusterProperties) {
+    createAgentConfigFile(args: CreateAgentConfigFileArgs) {
       return ipcRenderer.invoke(
         'main-process-connect-my-computer-create-agent-config-file',
-        clusterProperties
+        args
       );
     },
-    isAgentConfigFileCreated(clusterProperties: {
-      rootClusterUri: RootClusterUri;
-    }) {
+    isAgentConfigFileCreated(args: { rootClusterUri: RootClusterUri }) {
       return ipcRenderer.invoke(
         'main-process-connect-my-computer-is-agent-config-file-created',
-        clusterProperties
+        args
       );
     },
-    removeAgentDirectory(clusterProperties: {
-      rootClusterUri: RootClusterUri;
-    }) {
+    removeAgentDirectory(args: { rootClusterUri: RootClusterUri }) {
       return ipcRenderer.invoke(
         'main-process-connect-my-computer-remove-agent-directory',
-        clusterProperties
+        args
       );
     },
-    openAgentLogsDirectory(clusterProperties: {
-      rootClusterUri: RootClusterUri;
-    }) {
-      return ipcRenderer.invoke(
-        'main-process-open-agent-logs-directory',
-        clusterProperties
-      );
+    openAgentLogsDirectory(args: { rootClusterUri: RootClusterUri }) {
+      return ipcRenderer.invoke('main-process-open-agent-logs-directory', args);
     },
-    killAgent(clusterProperties: { rootClusterUri: RootClusterUri }) {
+    killAgent(args: { rootClusterUri: RootClusterUri }) {
       return ipcRenderer.invoke(
         'main-process-connect-my-computer-kill-agent',
-        clusterProperties
+        args
       );
     },
-    runAgent(clusterProperties: { rootClusterUri: RootClusterUri }) {
+    runAgent(args: { rootClusterUri: RootClusterUri }) {
       return ipcRenderer.invoke(
         'main-process-connect-my-computer-run-agent',
-        clusterProperties
+        args
       );
     },
-    getAgentState(clusterProperties: { rootClusterUri: RootClusterUri }) {
+    getAgentState(args: { rootClusterUri: RootClusterUri }) {
       return ipcRenderer.sendSync(
         'main-process-connect-my-computer-get-agent-state',
-        clusterProperties
+        args
       );
     },
-    getAgentLogs(clusterProperties: { rootClusterUri: RootClusterUri }) {
+    getAgentLogs(args: { rootClusterUri: RootClusterUri }) {
       return ipcRenderer.sendSync(
         'main-process-connect-my-computer-get-agent-logs',
-        clusterProperties
+        args
       );
     },
     /**
