@@ -23,21 +23,15 @@ import {
   ButtonLink,
   ButtonSecondary,
   Text,
-  ButtonBorder,
   Popover,
+  ButtonBorder,
 } from 'design';
-import { Magnifier, PushPin } from 'design/Icon';
+import { Icon, Magnifier, PushPin } from 'design/Icon';
 import { Danger } from 'design/Alert';
 
 import './unifiedStyles.css';
 
-import {
-  ResourcesResponse,
-  ResourceLabel,
-  ResourceFilter,
-} from 'teleport/services/agents';
-import { UrlResourcesParams } from 'teleport/config';
-import { FeatureBox } from 'teleport/components/Layout';
+import { ResourcesResponse, ResourceLabel } from 'teleport/services/agents';
 import { TextIcon } from 'teleport/Discover/Shared';
 import {
   UnifiedTabPreference,
@@ -48,12 +42,16 @@ import {
   makeEmptyAttempt,
   makeSuccessAttempt,
   useAsync,
-  Attempt,
+  Attempt as AsyncAttempt,
 } from 'shared/hooks/useAsync';
 
-import { useInfiniteScroll } from '../../hooks';
+import {
+  useKeyBasedPagination,
+  useInfiniteScroll,
+} from 'shared/hooks/useInfiniteScroll';
+import { Attempt } from 'shared/hooks/useAttemptNext';
 
-import { SharedUnifiedResource } from './types';
+import { SharedUnifiedResource, UnifiedResourcesQueryParams } from './types';
 import {
   makeUnifiedResourceCardNode,
   makeUnifiedResourceCardDatabase,
@@ -67,7 +65,6 @@ import { ResourceTab } from './ResourceTab';
 import { ResourceCard, LoadingCard, PinningSupport } from './ResourceCard';
 import { FilterPanel } from './FilterPanel';
 
-const RESOURCES_MAX_WIDTH = '1800px';
 // get 48 resources to start
 const INITIAL_FETCH_SIZE = 48;
 // increment by 24 every fetch
@@ -103,58 +100,76 @@ export type UnifiedResourcesPinning =
       kind: 'hidden';
     };
 
-interface UnifiedResourcesProps<T> {
-  params: ResourceFilter;
-  //TODO(gzdunek): the pin button should be moved to some other place
-  //according to the new designs
-  Header(pinAllButton: React.ReactElement): React.ReactElement;
-  EmptySearchResults: React.ReactElement;
+/*
+ * BulkAction describes a component that allows you to perform an action
+ * on multiple selected resources
+ */
+type BulkAction = {
+  /*
+   * key is an arbitrary name of what the bulk action is, as well
+   * as the key used when mapping our action components
+   */
+  key: string;
+  Icon: typeof Icon;
+  text: string;
+  disabled?: boolean;
+  /*
+   * a tooltip will be rendered when the action is hovered
+   * over if this prop is supplied
+   */
+  tooltip?: string;
+  action: (
+    selectedResources: {
+      unifiedResourceId: string;
+      resource: SharedUnifiedResource['resource'];
+    }[]
+  ) => void;
+};
+
+interface UnifiedResourcesProps {
+  params: UnifiedResourcesQueryParams;
+  resourcesFetchAttempt: Attempt;
+  fetchResources(options?: { force?: boolean }): Promise<void>;
+  resources: SharedUnifiedResource[];
+  Header?: React.ReactElement;
+  /**
+   * Typically used to inform the user that there are no matching resources when
+   * they want to list resources without filtering the list with a search query.
+   * Rendered only when the resource list is empty and there's no search query.
+   * */
+  NoResources: React.ReactElement;
   /**
    * If pinning is supported, the functions to get and update pinned resources
    * can be passed here.
    */
   pinning: UnifiedResourcesPinning;
   availableKinds: SharedUnifiedResource['resource']['kind'][];
-  /**
-   * Fetches the resources.
-   * The type of particular resource is not specified; the fetched resource
-   * should be mapped to `SharedUnifiedResource` via the `mapToResource` prop.
-   * */
-  fetchFunc(
-    params: UrlResourcesParams,
-    signal: AbortSignal
-  ): Promise<ResourcesResponse<T>>;
-  /** Maps fetched data to `SharedUnifiedResource`. */
-  mapToResource(response: T): SharedUnifiedResource;
-  setParams(params: ResourceFilter): void;
+  setParams(params: UnifiedResourcesQueryParams): void;
   onLabelClick(label: ResourceLabel): void;
+  /** A list of actions that can be performed on the selected items. */
+  bulkActions?: BulkAction[];
   updateUnifiedResourcesPreferences(
     preferences: UnifiedResourcePreferences
   ): void;
 }
 
-export function UnifiedResources<T>(props: UnifiedResourcesProps<T>) {
+export function UnifiedResources(props: UnifiedResourcesProps) {
   const {
     params,
     setParams,
+    resourcesFetchAttempt,
+    resources,
+    fetchResources,
     onLabelClick,
     availableKinds,
     pinning,
     updateUnifiedResourcesPreferences,
+    bulkActions = [],
   } = props;
-  const {
-    setTrigger: setScrollDetector,
-    forceFetch,
-    resources: rawResources,
-    attempt,
-  } = useInfiniteScroll({
-    fetchFunc: props.fetchFunc,
-    filter: params,
-    initialFetchSize: INITIAL_FETCH_SIZE,
-    fetchMoreSize: FETCH_MORE_SIZE,
-  });
 
-  const resources = rawResources.map(props.mapToResource);
+  const { setTrigger } = useInfiniteScroll({
+    fetch: fetchResources,
+  });
 
   const [selectedResources, setSelectedResources] = useState<string[]>([]);
 
@@ -237,7 +252,8 @@ export function UnifiedResources<T>(props: UnifiedResourcesProps<T>) {
     updatePinnedResources(newPinned);
   };
 
-  const noResults = attempt.status === 'success' && resources.length === 0;
+  const noResults =
+    resourcesFetchAttempt.status === 'success' && resources.length === 0;
 
   const [isSearchEmpty, setIsSearchEmpty] = useState(true);
 
@@ -248,13 +264,13 @@ export function UnifiedResources<T>(props: UnifiedResourcesProps<T>) {
   }, [params.query, params.search]);
 
   const onRetryClicked = () => {
-    forceFetch();
+    fetchResources({ force: true });
   };
 
   const allSelected =
     resources.length > 0 &&
-    resources.every(resource =>
-      selectedResources.includes(generateResourceKey(resource))
+    resources.every(({ resource }) =>
+      selectedResources.includes(generateUnifiedResourceKey(resource))
     );
 
   const toggleSelectVisible = () => {
@@ -263,7 +279,7 @@ export function UnifiedResources<T>(props: UnifiedResourcesProps<T>) {
       return;
     }
     setSelectedResources(
-      resources.map(resource => generateResourceKey(resource))
+      resources.map(({ resource }) => generateUnifiedResourceKey(resource))
     );
   };
 
@@ -278,38 +294,56 @@ export function UnifiedResources<T>(props: UnifiedResourcesProps<T>) {
     updateUnifiedResourcesPreferences({ defaultTab: value });
   };
 
-  const $pinAllButton = (
-    <ButtonBorder
-      onClick={() => handlePinSelected(shouldUnpin)}
-      textTransform="none"
-      disabled={pinning.kind === 'not-supported'}
-      css={`
-        border: none;
-        color: ${props => props.theme.colors.brand};
-      `}
-    >
-      <PushPin color="brand" size={16} mr={2} />
-      {shouldUnpin ? 'Unpin ' : 'Pin '}
-      Selected
-    </ButtonBorder>
-  );
+  const getSelectedResources = () => {
+    return resources
+      .filter(({ resource }) =>
+        selectedResources.includes(generateUnifiedResourceKey(resource))
+      )
+      .map(({ resource }) => ({
+        resource: resource,
+        unifiedResourceId: generateUnifiedResourceKey(resource),
+      }));
+  };
+
+  const bulkActionsAndPinning = (): BulkAction[] => {
+    if (pinning.kind === 'hidden') {
+      return bulkActions;
+    }
+
+    return [
+      ...bulkActions,
+      {
+        key: 'pin_resource',
+        text: shouldUnpin ? 'Unpin Selected' : 'Pin Selected',
+        Icon: PushPin,
+        tooltip:
+          pinning.kind !== 'not-supported'
+            ? PINNING_NOT_SUPPORTED_MESSAGE
+            : null,
+        disabled:
+          pinning.kind === 'not-supported' ||
+          updatePinnedResourcesAttempt.status === 'processing',
+        action: () => handlePinSelected(shouldUnpin),
+      },
+    ];
+  };
 
   return (
-    <FeatureBox
+    <div
       className="ContainerContext"
-      px={4}
       css={`
-        max-width: ${RESOURCES_MAX_WIDTH};
-        margin: auto;
+        width: 100%;
+        max-width: 1800px;
+        margin: 0 auto;
       `}
     >
-      {attempt.status === 'failed' && (
+      {resourcesFetchAttempt.status === 'failed' && (
         <ErrorBox>
           <ErrorBoxInternal>
             <Danger>
-              {attempt.statusText}
+              {resourcesFetchAttempt.statusText}
               {/* we don't want them to try another request with BAD REQUEST, it will just fail again. */}
-              {attempt.statusCode !== 400 && (
+              {resourcesFetchAttempt.statusCode !== 400 && (
                 <Box flex="0 0 auto" ml={2}>
                   <ButtonLink onClick={onRetryClicked}>Retry</ButtonLink>
                 </Box>
@@ -328,26 +362,48 @@ export function UnifiedResources<T>(props: UnifiedResourcesProps<T>) {
           <Danger>{updatePinnedResourcesAttempt.statusText}</Danger>
         </ErrorBox>
       )}
-      {props.Header(
-        <>
-          {selectedResources.length > 0 &&
-            pinning.kind !== 'hidden' &&
-            (pinning.kind === 'not-supported' ? (
-              <HoverTooltip tipContent={<>{PINNING_NOT_SUPPORTED_MESSAGE}</>}>
-                {$pinAllButton}
-              </HoverTooltip>
-            ) : (
-              $pinAllButton
-            ))}
-        </>
-      )}
+      {props.Header}
       <FilterPanel
         params={params}
         setParams={setParams}
         availableKinds={availableKinds}
         selectVisible={toggleSelectVisible}
         selected={allSelected}
-        shouldUnpin={shouldUnpin}
+        BulkActions={
+          <>
+            {selectedResources.length > 0 && (
+              <>
+                {bulkActionsAndPinning().map(
+                  ({ key, Icon, text, action, tooltip, disabled = false }) => {
+                    const $button = (
+                      <ButtonBorder
+                        key={key}
+                        textTransform="none"
+                        onClick={() => action(getSelectedResources())}
+                        disabled={disabled}
+                        css={`
+                          border: none;
+                          color: ${props => props.theme.colors.brand};
+                        `}
+                      >
+                        <Icon size="small" color="brand" mr={2} />
+                        {text}
+                      </ButtonBorder>
+                    );
+                    if (tooltip) {
+                      return (
+                        <HoverTooltip tipContent={<>{tooltip}</>}>
+                          {$button}
+                        </HoverTooltip>
+                      );
+                    }
+                    return $button;
+                  }
+                )}
+              </>
+            )}
+          </>
+        }
       />
       {pinning.kind !== 'hidden' && (
         <Flex gap={4} mb={3}>
@@ -372,11 +428,11 @@ export function UnifiedResources<T>(props: UnifiedResourcesProps<T>) {
       {pinning.kind === 'not-supported' && params.pinnedOnly ? (
         <PinningNotSupported />
       ) : (
-        <ResourcesContainer className="ResourcesContainer" gap={2}>
+        <ResourcesContainer gap={2}>
           {resources
             .map(unifiedResource => ({
               card: mapResourceToCard(unifiedResource),
-              key: generateResourceKey(unifiedResource),
+              key: generateUnifiedResourceKey(unifiedResource.resource),
             }))
             .map(({ card, key }) => (
               <ResourceCard
@@ -399,22 +455,19 @@ export function UnifiedResources<T>(props: UnifiedResourcesProps<T>) {
               />
             ))}
           {/* Using index as key here is ok because these elements never change order */}
-          {(attempt.status === 'processing' ||
+          {(resourcesFetchAttempt.status === 'processing' ||
             getPinnedResourcesAttempt.status === 'processing') &&
             loadingCardArray.map((_, i) => (
               <LoadingCard delay="short" key={i} />
             ))}
         </ResourcesContainer>
       )}
-      <div ref={setScrollDetector} />
+      <div ref={setTrigger} />
       <ListFooter>
-        {attempt.status === 'failed' && resources.length > 0 && (
+        {resourcesFetchAttempt.status === 'failed' && resources.length > 0 && (
           <ButtonSecondary onClick={onRetryClicked}>Load more</ButtonSecondary>
         )}
-        {noResults &&
-          isSearchEmpty &&
-          !params.pinnedOnly &&
-          props.EmptySearchResults}
+        {noResults && isSearchEmpty && !params.pinnedOnly && props.NoResources}
         {noResults && params.pinnedOnly && isSearchEmpty && <NoPinned />}
         {noResults && !isSearchEmpty && (
           <NoResults
@@ -423,13 +476,26 @@ export function UnifiedResources<T>(props: UnifiedResourcesProps<T>) {
           />
         )}
       </ListFooter>
-    </FeatureBox>
+    </div>
   );
+}
+
+export function useUnifiedResourcesFetch<T>(props: {
+  fetchFunc(
+    paginationParams: { limit: number; startKey: string },
+    signal: AbortSignal
+  ): Promise<ResourcesResponse<T>>;
+}) {
+  return useKeyBasedPagination({
+    fetchFunc: props.fetchFunc,
+    initialFetchSize: INITIAL_FETCH_SIZE,
+    fetchMoreSize: FETCH_MORE_SIZE,
+  });
 }
 
 function getResourcePinningSupport(
   pinning: UnifiedResourcesPinning['kind'],
-  updatePinnedResourcesAttempt: Attempt<void>
+  updatePinnedResourcesAttempt: AsyncAttempt<void>
 ): PinningSupport {
   if (pinning === 'not-supported') {
     return PinningSupport.NotSupported;
@@ -446,7 +512,9 @@ function getResourcePinningSupport(
   return PinningSupport.Supported;
 }
 
-function generateResourceKey({ resource }: SharedUnifiedResource): string {
+export function generateUnifiedResourceKey(
+  resource: SharedUnifiedResource['resource']
+): string {
   if (resource.kind === 'node') {
     return `${resource.hostname}/${resource.id}/node`.toLowerCase();
   }

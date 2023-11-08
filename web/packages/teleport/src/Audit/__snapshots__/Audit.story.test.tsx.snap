@@ -437,12 +437,12 @@ exports[`list of all events 1`] = `
             </strong>
              - 
             <strong>
-              218
+              224
             </strong>
              of
              
             <strong>
-              218
+              224
             </strong>
           </div>
           <button
@@ -8457,6 +8457,276 @@ exports[`list of all events 1`] = `
                   />
                 </svg>
               </span>
+              SAML Connector Updated
+            </div>
+          </td>
+          <td
+            style="word-break: break-word;"
+          >
+            User [unimplemented] updated SAML connector [new_saml_connector]
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2020-06-05T19:29:14Z
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c19"
+              kind="border"
+              width="87px"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td
+            style="vertical-align: inherit;"
+          >
+            <div
+              class="c17"
+            >
+              <span
+                class="c18 icon icon-info"
+              >
+                <svg
+                  fill="currentColor"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  width="20"
+                >
+                  <path
+                    d="M11.625 8.8125C12.1428 8.8125 12.5625 8.39277 12.5625 7.875C12.5625 7.35723 12.1428 6.9375 11.625 6.9375C11.1072 6.9375 10.6875 7.35723 10.6875 7.875C10.6875 8.39277 11.1072 8.8125 11.625 8.8125Z"
+                  />
+                  <path
+                    d="M10.5 11.25C10.5 10.8358 10.8358 10.5 11.25 10.5C11.6478 10.5 12.0294 10.658 12.3107 10.9393C12.592 11.2206 12.75 11.6022 12.75 12V15.75C13.1642 15.75 13.5 16.0858 13.5 16.5C13.5 16.9142 13.1642 17.25 12.75 17.25C12.3522 17.25 11.9706 17.092 11.6893 16.8107C11.408 16.5294 11.25 16.1478 11.25 15.75V12C10.8358 12 10.5 11.6642 10.5 11.25Z"
+                  />
+                  <path
+                    clip-rule="evenodd"
+                    d="M12 2.25C6.61522 2.25 2.25 6.61522 2.25 12C2.25 17.3848 6.61522 21.75 12 21.75C17.3848 21.75 21.75 17.3848 21.75 12C21.75 6.61522 17.3848 2.25 12 2.25ZM3.75 12C3.75 7.44365 7.44365 3.75 12 3.75C16.5563 3.75 20.25 7.44365 20.25 12C20.25 16.5563 16.5563 20.25 12 20.25C7.44365 20.25 3.75 16.5563 3.75 12Z"
+                    fill-rule="evenodd"
+                  />
+                </svg>
+              </span>
+              SAML Connector Deleted
+            </div>
+          </td>
+          <td
+            style="word-break: break-word;"
+          >
+            User [unimplemented] deleted SAML connector [new_saml_connector]
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2020-06-05T19:29:14Z
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c19"
+              kind="border"
+              width="87px"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td
+            style="vertical-align: inherit;"
+          >
+            <div
+              class="c17"
+            >
+              <span
+                class="c18 icon icon-info"
+              >
+                <svg
+                  fill="currentColor"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  width="20"
+                >
+                  <path
+                    d="M11.625 8.8125C12.1428 8.8125 12.5625 8.39277 12.5625 7.875C12.5625 7.35723 12.1428 6.9375 11.625 6.9375C11.1072 6.9375 10.6875 7.35723 10.6875 7.875C10.6875 8.39277 11.1072 8.8125 11.625 8.8125Z"
+                  />
+                  <path
+                    d="M10.5 11.25C10.5 10.8358 10.8358 10.5 11.25 10.5C11.6478 10.5 12.0294 10.658 12.3107 10.9393C12.592 11.2206 12.75 11.6022 12.75 12V15.75C13.1642 15.75 13.5 16.0858 13.5 16.5C13.5 16.9142 13.1642 17.25 12.75 17.25C12.3522 17.25 11.9706 17.092 11.6893 16.8107C11.408 16.5294 11.25 16.1478 11.25 15.75V12C10.8358 12 10.5 11.6642 10.5 11.25Z"
+                  />
+                  <path
+                    clip-rule="evenodd"
+                    d="M12 2.25C6.61522 2.25 2.25 6.61522 2.25 12C2.25 17.3848 6.61522 21.75 12 21.75C17.3848 21.75 21.75 17.3848 21.75 12C21.75 6.61522 17.3848 2.25 12 2.25ZM3.75 12C3.75 7.44365 7.44365 3.75 12 3.75C16.5563 3.75 20.25 7.44365 20.25 12C20.25 16.5563 16.5563 20.25 12 20.25C7.44365 20.25 3.75 16.5563 3.75 12Z"
+                    fill-rule="evenodd"
+                  />
+                </svg>
+              </span>
+              SAML Connector Created
+            </div>
+          </td>
+          <td
+            style="word-break: break-word;"
+          >
+            User [unimplemented] created SAML connector [new_saml_connector]
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2020-06-05T19:29:14Z
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c19"
+              kind="border"
+              width="87px"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td
+            style="vertical-align: inherit;"
+          >
+            <div
+              class="c17"
+            >
+              <span
+                class="c18 icon icon-info"
+              >
+                <svg
+                  fill="currentColor"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  width="20"
+                >
+                  <path
+                    d="M11.625 8.8125C12.1428 8.8125 12.5625 8.39277 12.5625 7.875C12.5625 7.35723 12.1428 6.9375 11.625 6.9375C11.1072 6.9375 10.6875 7.35723 10.6875 7.875C10.6875 8.39277 11.1072 8.8125 11.625 8.8125Z"
+                  />
+                  <path
+                    d="M10.5 11.25C10.5 10.8358 10.8358 10.5 11.25 10.5C11.6478 10.5 12.0294 10.658 12.3107 10.9393C12.592 11.2206 12.75 11.6022 12.75 12V15.75C13.1642 15.75 13.5 16.0858 13.5 16.5C13.5 16.9142 13.1642 17.25 12.75 17.25C12.3522 17.25 11.9706 17.092 11.6893 16.8107C11.408 16.5294 11.25 16.1478 11.25 15.75V12C10.8358 12 10.5 11.6642 10.5 11.25Z"
+                  />
+                  <path
+                    clip-rule="evenodd"
+                    d="M12 2.25C6.61522 2.25 2.25 6.61522 2.25 12C2.25 17.3848 6.61522 21.75 12 21.75C17.3848 21.75 21.75 17.3848 21.75 12C21.75 6.61522 17.3848 2.25 12 2.25ZM3.75 12C3.75 7.44365 7.44365 3.75 12 3.75C16.5563 3.75 20.25 7.44365 20.25 12C20.25 16.5563 16.5563 20.25 12 20.25C7.44365 20.25 3.75 16.5563 3.75 12Z"
+                    fill-rule="evenodd"
+                  />
+                </svg>
+              </span>
+              OIDC Auth Connector Updated
+            </div>
+          </td>
+          <td
+            style="word-break: break-word;"
+          >
+            User [unimplemented] updated OIDC connector [new_oidc_connector]
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2020-06-05T19:29:14Z
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c19"
+              kind="border"
+              width="87px"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td
+            style="vertical-align: inherit;"
+          >
+            <div
+              class="c17"
+            >
+              <span
+                class="c18 icon icon-info"
+              >
+                <svg
+                  fill="currentColor"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  width="20"
+                >
+                  <path
+                    d="M11.625 8.8125C12.1428 8.8125 12.5625 8.39277 12.5625 7.875C12.5625 7.35723 12.1428 6.9375 11.625 6.9375C11.1072 6.9375 10.6875 7.35723 10.6875 7.875C10.6875 8.39277 11.1072 8.8125 11.625 8.8125Z"
+                  />
+                  <path
+                    d="M10.5 11.25C10.5 10.8358 10.8358 10.5 11.25 10.5C11.6478 10.5 12.0294 10.658 12.3107 10.9393C12.592 11.2206 12.75 11.6022 12.75 12V15.75C13.1642 15.75 13.5 16.0858 13.5 16.5C13.5 16.9142 13.1642 17.25 12.75 17.25C12.3522 17.25 11.9706 17.092 11.6893 16.8107C11.408 16.5294 11.25 16.1478 11.25 15.75V12C10.8358 12 10.5 11.6642 10.5 11.25Z"
+                  />
+                  <path
+                    clip-rule="evenodd"
+                    d="M12 2.25C6.61522 2.25 2.25 6.61522 2.25 12C2.25 17.3848 6.61522 21.75 12 21.75C17.3848 21.75 21.75 17.3848 21.75 12C21.75 6.61522 17.3848 2.25 12 2.25ZM3.75 12C3.75 7.44365 7.44365 3.75 12 3.75C16.5563 3.75 20.25 7.44365 20.25 12C20.25 16.5563 16.5563 20.25 12 20.25C7.44365 20.25 3.75 16.5563 3.75 12Z"
+                    fill-rule="evenodd"
+                  />
+                </svg>
+              </span>
+              OIDC Auth Connector Deleted
+            </div>
+          </td>
+          <td
+            style="word-break: break-word;"
+          >
+            User [unimplemented] deleted OIDC connector [new_oidc_connector]
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2020-06-05T19:29:14Z
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c19"
+              kind="border"
+              width="87px"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td
+            style="vertical-align: inherit;"
+          >
+            <div
+              class="c17"
+            >
+              <span
+                class="c18 icon icon-info"
+              >
+                <svg
+                  fill="currentColor"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  width="20"
+                >
+                  <path
+                    d="M11.625 8.8125C12.1428 8.8125 12.5625 8.39277 12.5625 7.875C12.5625 7.35723 12.1428 6.9375 11.625 6.9375C11.1072 6.9375 10.6875 7.35723 10.6875 7.875C10.6875 8.39277 11.1072 8.8125 11.625 8.8125Z"
+                  />
+                  <path
+                    d="M10.5 11.25C10.5 10.8358 10.8358 10.5 11.25 10.5C11.6478 10.5 12.0294 10.658 12.3107 10.9393C12.592 11.2206 12.75 11.6022 12.75 12V15.75C13.1642 15.75 13.5 16.0858 13.5 16.5C13.5 16.9142 13.1642 17.25 12.75 17.25C12.3522 17.25 11.9706 17.092 11.6893 16.8107C11.408 16.5294 11.25 16.1478 11.25 15.75V12C10.8358 12 10.5 11.6642 10.5 11.25Z"
+                  />
+                  <path
+                    clip-rule="evenodd"
+                    d="M12 2.25C6.61522 2.25 2.25 6.61522 2.25 12C2.25 17.3848 6.61522 21.75 12 21.75C17.3848 21.75 21.75 17.3848 21.75 12C21.75 6.61522 17.3848 2.25 12 2.25ZM3.75 12C3.75 7.44365 7.44365 3.75 12 3.75C16.5563 3.75 20.25 7.44365 20.25 12C20.25 16.5563 16.5563 20.25 12 20.25C7.44365 20.25 3.75 16.5563 3.75 12Z"
+                    fill-rule="evenodd"
+                  />
+                </svg>
+              </span>
               OIDC Auth Connector Created
             </div>
           </td>
@@ -8469,6 +8739,60 @@ exports[`list of all events 1`] = `
             style="min-width: 120px;"
           >
             2020-06-05T19:29:14Z
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c19"
+              kind="border"
+              width="87px"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td
+            style="vertical-align: inherit;"
+          >
+            <div
+              class="c17"
+            >
+              <span
+                class="c18 icon icon-info"
+              >
+                <svg
+                  fill="currentColor"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  width="20"
+                >
+                  <path
+                    d="M11.625 8.8125C12.1428 8.8125 12.5625 8.39277 12.5625 7.875C12.5625 7.35723 12.1428 6.9375 11.625 6.9375C11.1072 6.9375 10.6875 7.35723 10.6875 7.875C10.6875 8.39277 11.1072 8.8125 11.625 8.8125Z"
+                  />
+                  <path
+                    d="M10.5 11.25C10.5 10.8358 10.8358 10.5 11.25 10.5C11.6478 10.5 12.0294 10.658 12.3107 10.9393C12.592 11.2206 12.75 11.6022 12.75 12V15.75C13.1642 15.75 13.5 16.0858 13.5 16.5C13.5 16.9142 13.1642 17.25 12.75 17.25C12.3522 17.25 11.9706 17.092 11.6893 16.8107C11.408 16.5294 11.25 16.1478 11.25 15.75V12C10.8358 12 10.5 11.6642 10.5 11.25Z"
+                  />
+                  <path
+                    clip-rule="evenodd"
+                    d="M12 2.25C6.61522 2.25 2.25 6.61522 2.25 12C2.25 17.3848 6.61522 21.75 12 21.75C17.3848 21.75 21.75 17.3848 21.75 12C21.75 6.61522 17.3848 2.25 12 2.25ZM3.75 12C3.75 7.44365 7.44365 3.75 12 3.75C16.5563 3.75 20.25 7.44365 20.25 12C20.25 16.5563 16.5563 20.25 12 20.25C7.44365 20.25 3.75 16.5563 3.75 12Z"
+                    fill-rule="evenodd"
+                  />
+                </svg>
+              </span>
+              GITHUB Auth Connector Updated
+            </div>
+          </td>
+          <td
+            style="word-break: break-word;"
+          >
+            User [unimplemented] updated GitHub connector [new_github_connector]
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2020-06-05T19:28:28Z
           </td>
           <td
             align="right"
@@ -8571,7 +8895,7 @@ exports[`list of all events 1`] = `
           <td
             style="word-break: break-word;"
           >
-            User [unimplemented] created GitHub connector [new_github_connector] has been created
+            User [unimplemented] created GitHub connector [new_github_connector]
           </td>
           <td
             style="min-width: 120px;"
@@ -12440,12 +12764,12 @@ exports[`loaded audit log screen 1`] = `
             </strong>
              - 
             <strong>
-              5
+              8
             </strong>
              of
              
             <strong>
-              5
+              8
             </strong>
           </div>
         </div>
@@ -12567,6 +12891,168 @@ exports[`loaded audit log screen 1`] = `
         </tr>
       </thead>
       <tbody>
+        <tr>
+          <td
+            style="vertical-align: inherit;"
+          >
+            <div
+              class="c21"
+            >
+              <span
+                class="c22 icon icon-info"
+              >
+                <svg
+                  fill="currentColor"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  width="20"
+                >
+                  <path
+                    d="M11.625 8.8125C12.1428 8.8125 12.5625 8.39277 12.5625 7.875C12.5625 7.35723 12.1428 6.9375 11.625 6.9375C11.1072 6.9375 10.6875 7.35723 10.6875 7.875C10.6875 8.39277 11.1072 8.8125 11.625 8.8125Z"
+                  />
+                  <path
+                    d="M10.5 11.25C10.5 10.8358 10.8358 10.5 11.25 10.5C11.6478 10.5 12.0294 10.658 12.3107 10.9393C12.592 11.2206 12.75 11.6022 12.75 12V15.75C13.1642 15.75 13.5 16.0858 13.5 16.5C13.5 16.9142 13.1642 17.25 12.75 17.25C12.3522 17.25 11.9706 17.092 11.6893 16.8107C11.408 16.5294 11.25 16.1478 11.25 15.75V12C10.8358 12 10.5 11.6642 10.5 11.25Z"
+                  />
+                  <path
+                    clip-rule="evenodd"
+                    d="M12 2.25C6.61522 2.25 2.25 6.61522 2.25 12C2.25 17.3848 6.61522 21.75 12 21.75C17.3848 21.75 21.75 17.3848 21.75 12C21.75 6.61522 17.3848 2.25 12 2.25ZM3.75 12C3.75 7.44365 7.44365 3.75 12 3.75C16.5563 3.75 20.25 7.44365 20.25 12C20.25 16.5563 16.5563 20.25 12 20.25C7.44365 20.25 3.75 16.5563 3.75 12Z"
+                    fill-rule="evenodd"
+                  />
+                </svg>
+              </span>
+              User Role Deleted
+            </div>
+          </td>
+          <td
+            style="word-break: break-word;"
+          >
+            User [moe] deleted a role [editor]
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2023-10-26T22:10:50.076Z
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c23"
+              kind="border"
+              width="87px"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td
+            style="vertical-align: inherit;"
+          >
+            <div
+              class="c21"
+            >
+              <span
+                class="c22 icon icon-info"
+              >
+                <svg
+                  fill="currentColor"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  width="20"
+                >
+                  <path
+                    d="M11.625 8.8125C12.1428 8.8125 12.5625 8.39277 12.5625 7.875C12.5625 7.35723 12.1428 6.9375 11.625 6.9375C11.1072 6.9375 10.6875 7.35723 10.6875 7.875C10.6875 8.39277 11.1072 8.8125 11.625 8.8125Z"
+                  />
+                  <path
+                    d="M10.5 11.25C10.5 10.8358 10.8358 10.5 11.25 10.5C11.6478 10.5 12.0294 10.658 12.3107 10.9393C12.592 11.2206 12.75 11.6022 12.75 12V15.75C13.1642 15.75 13.5 16.0858 13.5 16.5C13.5 16.9142 13.1642 17.25 12.75 17.25C12.3522 17.25 11.9706 17.092 11.6893 16.8107C11.408 16.5294 11.25 16.1478 11.25 15.75V12C10.8358 12 10.5 11.6642 10.5 11.25Z"
+                  />
+                  <path
+                    clip-rule="evenodd"
+                    d="M12 2.25C6.61522 2.25 2.25 6.61522 2.25 12C2.25 17.3848 6.61522 21.75 12 21.75C17.3848 21.75 21.75 17.3848 21.75 12C21.75 6.61522 17.3848 2.25 12 2.25ZM3.75 12C3.75 7.44365 7.44365 3.75 12 3.75C16.5563 3.75 20.25 7.44365 20.25 12C20.25 16.5563 16.5563 20.25 12 20.25C7.44365 20.25 3.75 16.5563 3.75 12Z"
+                    fill-rule="evenodd"
+                  />
+                </svg>
+              </span>
+              User Role Updated
+            </div>
+          </td>
+          <td
+            style="word-break: break-word;"
+          >
+            User [larry] updated a role [editor]
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2023-10-26T22:09:23.29Z
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c23"
+              kind="border"
+              width="87px"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td
+            style="vertical-align: inherit;"
+          >
+            <div
+              class="c21"
+            >
+              <span
+                class="c22 icon icon-info"
+              >
+                <svg
+                  fill="currentColor"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  width="20"
+                >
+                  <path
+                    d="M11.625 8.8125C12.1428 8.8125 12.5625 8.39277 12.5625 7.875C12.5625 7.35723 12.1428 6.9375 11.625 6.9375C11.1072 6.9375 10.6875 7.35723 10.6875 7.875C10.6875 8.39277 11.1072 8.8125 11.625 8.8125Z"
+                  />
+                  <path
+                    d="M10.5 11.25C10.5 10.8358 10.8358 10.5 11.25 10.5C11.6478 10.5 12.0294 10.658 12.3107 10.9393C12.592 11.2206 12.75 11.6022 12.75 12V15.75C13.1642 15.75 13.5 16.0858 13.5 16.5C13.5 16.9142 13.1642 17.25 12.75 17.25C12.3522 17.25 11.9706 17.092 11.6893 16.8107C11.408 16.5294 11.25 16.1478 11.25 15.75V12C10.8358 12 10.5 11.6642 10.5 11.25Z"
+                  />
+                  <path
+                    clip-rule="evenodd"
+                    d="M12 2.25C6.61522 2.25 2.25 6.61522 2.25 12C2.25 17.3848 6.61522 21.75 12 21.75C17.3848 21.75 21.75 17.3848 21.75 12C21.75 6.61522 17.3848 2.25 12 2.25ZM3.75 12C3.75 7.44365 7.44365 3.75 12 3.75C16.5563 3.75 20.25 7.44365 20.25 12C20.25 16.5563 16.5563 20.25 12 20.25C7.44365 20.25 3.75 16.5563 3.75 12Z"
+                    fill-rule="evenodd"
+                  />
+                </svg>
+              </span>
+              User Role Created
+            </div>
+          </td>
+          <td
+            style="word-break: break-word;"
+          >
+            User [system] created a role [editor]
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2023-10-26T16:08:43.426Z
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c23"
+              kind="border"
+              width="87px"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
         <tr>
           <td
             style="vertical-align: inherit;"

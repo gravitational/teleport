@@ -1,3 +1,5 @@
+# syntax=docker/dockerfile:1
+
 ###################################################################################
 #                                                                                 #
 #      DO NOT USE FOR PRODUCTION BUILD OR ANYTHING OTHER THAN CI TESTING!         #
@@ -44,9 +46,9 @@ RUN git clone --depth=1 https://github.com/PJK/libcbor.git -b v0.10.2 && \
 
 # Install openssl.
 # install_sw install only binaries, skips docs.
-RUN git clone --depth=1 https://github.com/openssl/openssl.git -b openssl-3.0.11 && \
+RUN git clone --depth=1 https://github.com/openssl/openssl.git -b openssl-3.0.12 && \
     cd openssl && \
-    [ "$(git rev-parse HEAD)" = '6ba3884c3235e1bb474b379026087f8216afacf4' ] && \
+    [ "$(git rev-parse HEAD)" = 'c3cc0f1386b0544383a61244a4beeb762b67498f' ] && \
     ./config --release --libdir=/usr/local/lib && \
     make -j"$(nproc)" && \
     make install_sw
@@ -82,7 +84,7 @@ RUN mkdir -p /opt && cd /opt &&  \
     curl -fsSL https://github.com/libbpf/libbpf/archive/refs/tags/v${LIBBPF_VERSION}.tar.gz | tar xz && \
     cd /opt/libbpf-${LIBBPF_VERSION}/src && \
     make &&  \
-    BUILD_STATIC_ONLY=y DESTDIR=/opt/libbpf make install
+    BUILD_STATIC_ONLY=y DESTDIR=/opt/libbpf make install install_uapi_headers
 
 ## BUILDBOX ###################################################################
 #
@@ -251,9 +253,11 @@ RUN make -C /opt/pam_teleport install
 ENV SOFTHSM2_PATH "/usr/lib/softhsm/libsofthsm2.so"
 
 # Install bats.
-RUN curl -fsSL https://github.com/bats-core/bats-core/archive/v1.2.1.tar.gz | tar -xz && \
-    cd bats-core-1.2.1 && ./install.sh /usr/local && cd .. && \
-    rm -r bats-core-1.2.1
+RUN git clone --depth=1 https://github.com/bats-core/bats-core.git -b v1.2.1 && \
+    cd bats-core && \
+    [ "$(git rev-parse HEAD)" = 'dcaec03e32e0b152f8ef9cf14b75296cf5caeaff' ] && \
+    ./install.sh /usr/local && cd .. && \
+    rm -r bats-core
 
 # Install shellcheck.
 RUN scversion='v0.9.0' && \
@@ -309,7 +313,7 @@ RUN go install github.com/daixiang0/gci@v0.11.0
 RUN go install gotest.tools/gotestsum@v1.10.1
 
 # Install golangci-lint.
-RUN VERSION='v1.54.2'; \
+RUN VERSION='v1.55.2'; \
     curl -fsSL "https://raw.githubusercontent.com/golangci/golangci-lint/$VERSION/install.sh" | \
     sh -s -- -b "$(go env GOPATH)/bin" "$VERSION"
 

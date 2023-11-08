@@ -67,6 +67,7 @@ import (
 	"github.com/gravitational/teleport/api/metadata"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/profile"
+	apihelpers "github.com/gravitational/teleport/api/testhelpers"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -2184,7 +2185,7 @@ func testDisconnectScenarios(t *testing.T, suite *integrationTestSuite) {
 				ss, err := waitForSessionToBeEstablished(timeoutCtx, defaults.Namespace, site)
 				require.NoError(t, err)
 				require.Len(t, ss, 1)
-				require.Nil(t, teleport.StopAuth(false))
+				require.NoError(t, teleport.StopAuth(false))
 			},
 		},
 	}
@@ -2671,7 +2672,7 @@ func testTwoClustersProxy(t *testing.T, suite *integrationTestSuite) {
 
 	// httpproxy doesn't allow proxying when the target is localhost, so use
 	// this address instead.
-	addr, err := helpers.GetLocalIP()
+	addr, err := apihelpers.GetLocalIP()
 	require.NoError(t, err)
 	a := suite.newNamedTeleportInstance(t, "site-A",
 		WithNodeName(addr),
@@ -3796,35 +3797,7 @@ func testTrustedClusterAgentless(t *testing.T, suite *integrationTestSuite) {
 	}
 	mainCfg.Listeners = standardPortsOrMuxSetup(t, false, &mainCfg.Fds)
 	main := helpers.NewInstance(t, mainCfg)
-	aux := suite.newNamedTeleportInstance(t, clusterAux)
-
-	// main cluster has a local user and belongs to role "main-devs" and "main-admins"
-	mainDevs := "main-devs"
-	devsRole, err := types.NewRole(mainDevs, types.RoleSpecV6{
-		Options: types.RoleOptions{
-			ForwardAgent: types.NewBool(true),
-		},
-		Allow: types.RoleConditions{
-			Logins:     []string{username},
-			NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
-		},
-	})
-	// If the test is using labels, the cluster will be labeled
-	// and user will be granted access if labels match.
-	// Otherwise, to preserve backwards-compatibility
-	// roles with no labels will grant access to clusters with no labels.
-	devsRole.SetClusterLabels(types.Allow, types.Labels{"access": []string{"prod"}})
-	require.NoError(t, err)
-
-	mainAdmins := "main-admins"
-	adminsRole, err := types.NewRole(mainAdmins, types.RoleSpecV6{
-		Allow: types.RoleConditions{
-			Logins: []string{"superuser"},
-		},
-	})
-	require.NoError(t, err)
-
-	main.AddUserWithRole(username, devsRole, adminsRole)
+	leaf := suite.newNamedTeleportInstance(t, clusterAux)
 
 	// for role mapping test we turn on Web API on the main cluster
 	// as it's used
@@ -3839,23 +3812,57 @@ func testTrustedClusterAgentless(t *testing.T, suite *integrationTestSuite) {
 	defer lib.SetInsecureDevMode(false)
 
 	require.NoError(t, main.CreateEx(makeConfig(false)))
-	require.NoError(t, aux.CreateEx(makeConfig(false)))
+	require.NoError(t, leaf.CreateEx(makeConfig(false)))
 
-	// auxiliary cluster has only a role aux-devs
-	// connect aux cluster to main cluster
-	// using trusted clusters, so remote user will be allowed to assume
-	// role specified by mapping remote role "devs" to local role "local-devs"
-	auxDevs := "aux-devs"
-	auxRole, err := types.NewRole(auxDevs, types.RoleSpecV6{
+	// Root and leaf clusters will both have a "devsRoleName" role with different permissions granted.
+	// If the role mapping works as expected, local devsRoleName should be authorized using the remote devsRoleName role.
+	// Previously, here was a bug that caused agentless authorization to bypass role mappings.
+	devsRoleName := "devs"
+
+	// Create local role that gives no privilidges.
+	mainRole, err := types.NewRole(devsRoleName, types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Logins: []string{username},
+			// If the test is using labels, the cluster will be labeled
+			// and user will be granted access if labels match.
+			// Otherwise, to preserve backwards-compatibility
+			// roles with no labels will grant access to clusters with no labels.
+			ClusterLabels: types.Labels{"access": []string{"prod"}},
+		},
+	})
+	require.NoError(t, err)
+	// main.AddUserWithRole(username, devsRole)
+
+	// Create remote role that gives access to leaf nodes and agent forwarding.
+	// local users with the local role should be mapped onto this role, granting access.
+	leafRole, err := types.NewRole(devsRoleName, types.RoleSpecV6{
+		Options: types.RoleOptions{
+			ForwardAgent: types.NewBool(true),
+		},
 		Allow: types.RoleConditions{
 			Logins:     []string{username},
 			NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 		},
 	})
 	require.NoError(t, err)
-	_, err = aux.Process.GetAuthServer().UpsertRole(ctx, auxRole)
+
+	// create roles and local user in backend
+	_, err = main.Process.GetAuthServer().UpsertRole(ctx, mainRole)
+	require.NoError(t, err)
+	_, err = leaf.Process.GetAuthServer().UpsertRole(ctx, leafRole)
+	require.NoError(t, err)
+	_, err = main.Process.GetAuthServer().UpsertUser(ctx, &types.UserV2{
+		Kind: types.KindUser,
+		Metadata: types.Metadata{
+			Name: username,
+		},
+		Spec: types.UserSpecV2{
+			Roles: []string{devsRoleName},
+		},
+	})
 	require.NoError(t, err)
 
+	// Create trusted cluster.
 	trustedClusterToken := "trusted-cluster-token"
 	tokenResource, err := types.NewProvisionToken(trustedClusterToken, []types.SystemRole{types.RoleTrustedCluster}, time.Time{})
 	require.NoError(t, err)
@@ -3864,10 +3871,8 @@ func testTrustedClusterAgentless(t *testing.T, suite *integrationTestSuite) {
 	tokenResource.SetMetadata(meta)
 	err = main.Process.GetAuthServer().UpsertToken(ctx, tokenResource)
 	require.NoError(t, err)
-	// Note that the mapping omits admins role, this is to cover the scenario
-	// when root cluster and leaf clusters have different role sets
 	trustedCluster := main.AsTrustedCluster(trustedClusterToken, types.RoleMap{
-		{Remote: mainDevs, Local: []string{auxDevs}},
+		{Remote: devsRoleName, Local: []string{devsRoleName}},
 	})
 
 	// modify trusted cluster resource name, so it would not
@@ -3875,39 +3880,23 @@ func testTrustedClusterAgentless(t *testing.T, suite *integrationTestSuite) {
 	trustedCluster.SetName(main.Secrets.SiteName + "-cluster")
 
 	require.NoError(t, main.Start())
-	require.NoError(t, aux.Start())
-
-	// create user in backend
-	_, err = main.Process.GetAuthServer().UpsertRole(ctx, devsRole)
-	require.NoError(t, err)
-	_, err = main.Process.GetAuthServer().UpsertRole(ctx, adminsRole)
-	require.NoError(t, err)
-	_, err = main.Process.GetAuthServer().UpsertUser(ctx, &types.UserV2{
-		Kind: types.KindUser,
-		Metadata: types.Metadata{
-			Name: username,
-		},
-		Spec: types.UserSpecV2{
-			Roles: []string{mainDevs, mainAdmins},
-		},
-	})
-	require.NoError(t, err)
+	require.NoError(t, leaf.Start())
 
 	err = trustedCluster.CheckAndSetDefaults()
 	require.NoError(t, err)
 
 	// try and upsert a trusted cluster
-	helpers.TryCreateTrustedCluster(t, aux.Process.GetAuthServer(), trustedCluster)
+	helpers.TryCreateTrustedCluster(t, leaf.Process.GetAuthServer(), trustedCluster)
 	helpers.WaitForTunnelConnections(t, main.Process.GetAuthServer(), clusterAux, 1)
 
 	// Wait for both cluster to see each other via reverse tunnels.
 	require.Eventually(t, helpers.WaitForClusters(main.Tunnel, 1), 10*time.Second, 1*time.Second,
 		"Two clusters do not see each other: tunnels are not working.")
-	require.Eventually(t, helpers.WaitForClusters(aux.Tunnel, 1), 10*time.Second, 1*time.Second,
+	require.Eventually(t, helpers.WaitForClusters(leaf.Tunnel, 1), 10*time.Second, 1*time.Second,
 		"Two clusters do not see each other: tunnels are not working.")
 
 	// create agentless node in leaf cluster
-	node := createAgentlessNode(t, aux.Process.GetAuthServer(), clusterAux, "leaf-agentless-node")
+	node := createAgentlessNode(t, leaf.Process.GetAuthServer(), clusterAux, "leaf-agentless-node")
 
 	// connect to leaf agentless node
 	creds, err := helpers.GenerateUserCreds(helpers.UserCredsRequest{
@@ -3919,17 +3908,19 @@ func testTrustedClusterAgentless(t *testing.T, suite *integrationTestSuite) {
 
 	// create client for leaf cluster through root cluster
 	leafTC, err := main.NewClientWithCreds(helpers.ClientConfig{
-		Login:   username,
-		Cluster: clusterAux,
-		Host:    aux.InstanceListeners.ReverseTunnel,
+		TeleportUser: username,
+		Login:        username,
+		Cluster:      clusterAux,
+		Host:         leaf.InstanceListeners.ReverseTunnel,
 	}, *creds)
 	require.NoError(t, err)
 
 	// create client for root cluster
 	tc, err := main.NewClient(helpers.ClientConfig{
-		Login:   suite.Me.Username,
-		Cluster: clusterMain,
-		Host:    main.InstanceListeners.ReverseTunnel,
+		TeleportUser: username,
+		Login:        username,
+		Cluster:      clusterMain,
+		Host:         main.InstanceListeners.ReverseTunnel,
 	})
 	require.NoError(t, err)
 
@@ -3937,7 +3928,7 @@ func testTrustedClusterAgentless(t *testing.T, suite *integrationTestSuite) {
 
 	// Stop clusters and remaining nodes.
 	require.NoError(t, main.StopAll())
-	require.NoError(t, aux.StopAll())
+	require.NoError(t, leaf.StopAll())
 }
 
 // TestDiscoveryRecovers ensures that discovery protocol recovers from a bad discovery
@@ -4867,7 +4858,7 @@ func testAuditOff(t *testing.T, suite *integrationTestSuite) {
 
 	// should have no sessions in it to start with
 	sessions, _ := site.GetActiveSessionTrackers(ctx)
-	require.Len(t, sessions, 0)
+	require.Empty(t, sessions)
 
 	beforeSession := time.Now()
 
@@ -6117,28 +6108,28 @@ func testCmdLabels(t *testing.T, suite *integrationTestSuite) {
 	// test label patterns that match both nodes, and each
 	// node individually.
 	tts := []struct {
-		desc    string
-		command []string
-		labels  map[string]string
-		expect  string
+		desc        string
+		command     []string
+		labels      map[string]string
+		expectLines []string
 	}{
 		{
-			desc:    "Both",
-			command: []string{"echo", "two"},
-			labels:  map[string]string{"spam": "eggs"},
-			expect:  "two\ntwo\n",
+			desc:        "Both",
+			command:     []string{"echo", "two"},
+			labels:      map[string]string{"spam": "eggs"},
+			expectLines: []string{"[server-01] two", "[server-02] two"},
 		},
 		{
-			desc:    "Worker only",
-			command: []string{"echo", "worker"},
-			labels:  map[string]string{"role": "worker"},
-			expect:  "worker\n",
+			desc:        "Worker only",
+			command:     []string{"echo", "worker"},
+			labels:      map[string]string{"role": "worker"},
+			expectLines: []string{"worker"},
 		},
 		{
-			desc:    "Database only",
-			command: []string{"echo", "database"},
-			labels:  map[string]string{"role": "database"},
-			expect:  "database\n",
+			desc:        "Database only",
+			command:     []string{"echo", "database"},
+			labels:      map[string]string{"role": "database"},
+			expectLines: []string{"database"},
 		},
 	}
 
@@ -6152,7 +6143,11 @@ func testCmdLabels(t *testing.T, suite *integrationTestSuite) {
 
 			output, err := runCommand(t, teleport, tt.command, cfg, 1)
 			require.NoError(t, err)
-			require.Equal(t, tt.expect, output)
+			outputLines := strings.Split(strings.TrimSpace(output), "\n")
+			require.Len(t, outputLines, len(tt.expectLines))
+			for _, line := range tt.expectLines {
+				require.Contains(t, outputLines, line)
+			}
 		})
 	}
 }
@@ -6896,7 +6891,7 @@ func testSessionStartContainsAccessRequest(t *testing.T, suite *integrationTestS
 		if event.Type != types.OpInit {
 			t.Fatalf("Unexpected event type.")
 		}
-		require.Equal(t, event.Type, types.OpInit)
+		require.Equal(t, types.OpInit, event.Type)
 	case <-watcher.Done():
 		t.Fatal(watcher.Error())
 	}
@@ -6939,14 +6934,14 @@ func testSessionStartContainsAccessRequest(t *testing.T, suite *integrationTestS
 	// Get session start event
 	sessionStart, err := findEventInLog(main, events.SessionStartEvent)
 	require.NoError(t, err)
-	require.Equal(t, sessionStart.GetCode(), events.SessionStartCode)
-	require.Equal(t, sessionStart.HasField(accessRequestsKey), true)
+	require.Equal(t, events.SessionStartCode, sessionStart.GetCode())
+	require.True(t, sessionStart.HasField(accessRequestsKey))
 
 	val, found := sessionStart[accessRequestsKey]
-	require.Equal(t, found, true)
+	require.True(t, found)
 
 	result := strings.Contains(fmt.Sprintf("%v", val), accessRequestID)
-	require.Equal(t, result, true)
+	require.True(t, result)
 }
 
 func WaitForResource(t *testing.T, watcher types.Watcher, kind, name string) {
@@ -7390,7 +7385,7 @@ func testSessionStreaming(t *testing.T, suite *integrationTestSuite) {
 
 	api := teleport.GetSiteAPI(helpers.Site)
 	uploadStream, err := api.CreateAuditStream(ctx, sessionID)
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	generatedSession := eventstest.GenerateTestSession(eventstest.SessionParams{
 		PrintEvents: 100,
@@ -7404,7 +7399,7 @@ func testSessionStreaming(t *testing.T, suite *integrationTestSuite) {
 	}
 
 	err = uploadStream.Complete(ctx)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	start := time.Now()
 
 	// retry in case of error
@@ -7425,9 +7420,9 @@ outer:
 
 				receivedSession = append(receivedSession, event)
 			case <-ctx.Done():
-				require.Nil(t, ctx.Err())
+				require.NoError(t, ctx.Err())
 			case err := <-e:
-				require.Nil(t, err)
+				require.NoError(t, err)
 			case <-time.After(time.Minute * 5):
 				t.FailNow()
 			}

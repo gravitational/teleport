@@ -59,14 +59,10 @@ func (a *Server) UpdateRole(ctx context.Context, role types.Role) (types.Role, e
 		return nil, trace.Wrap(err)
 	}
 
-	// TODO(tross): add a RoleUpdate type, RoleUpdatedEvent/Code for metadata
-	// and convert this to use them instead of a create event. As is this matches
-	// existing behavior since all updates to a role were done vie upsert which
-	// only ever emits a create event.
-	if err := a.emitter.EmitAuditEvent(a.closeCtx, &apievents.RoleCreate{
+	if err := a.emitter.EmitAuditEvent(a.closeCtx, &apievents.RoleUpdate{
 		Metadata: apievents.Metadata{
-			Type: events.RoleCreatedEvent,
-			Code: events.RoleCreatedCode,
+			Type: events.RoleUpdatedEvent,
+			Code: events.RoleUpdatedCode,
 		},
 		UserMetadata: authz.ClientUserMetadata(ctx),
 		ResourceMetadata: apievents.ResourceMetadata{

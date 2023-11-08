@@ -19,6 +19,7 @@ import (
 	"testing"
 
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/client-go/util/retry"
@@ -55,32 +56,22 @@ func ResourceCreationTest[T resources.TeleportResource, K resources.TeleportKube
 	err = test.CreateKubernetesResource(ctx, resourceName)
 	require.NoError(t, err)
 
+	var tResource T
 	FastEventually(t, func() bool {
-		tResource, err := test.GetTeleportResource(ctx, resourceName)
-		if trace.IsNotFound(err) {
-			return false
-		}
-		require.NoError(t, err)
-
-		require.Equal(t, tResource.GetName(), resourceName)
-
-		require.Contains(t, tResource.GetMetadata().Labels, types.OriginLabel)
-		require.Equal(t, tResource.GetMetadata().Labels[types.OriginLabel], types.OriginKubernetes)
-
-		return true
+		tResource, err = test.GetTeleportResource(ctx, resourceName)
+		return !trace.IsNotFound(err)
 	})
+	require.NoError(t, err)
+	require.Equal(t, resourceName, tResource.GetName())
+	require.Contains(t, tResource.GetMetadata().Labels, types.OriginLabel)
+	require.Equal(t, types.OriginKubernetes, tResource.GetMetadata().Labels[types.OriginLabel])
 
 	err = test.DeleteKubernetesResource(ctx, resourceName)
 	require.NoError(t, err)
 
 	FastEventually(t, func() bool {
 		_, err = test.GetTeleportResource(ctx, resourceName)
-		if trace.IsNotFound(err) {
-			return true
-		}
-		require.NoError(t, err)
-
-		return false
+		return trace.IsNotFound(err)
 	})
 }
 
@@ -96,20 +87,18 @@ func ResourceDeletionDriftTest[T resources.TeleportResource, K resources.Telepor
 	err = test.CreateKubernetesResource(ctx, resourceName)
 	require.NoError(t, err)
 
+	var tResource T
 	FastEventually(t, func() bool {
-		tResource, err := test.GetTeleportResource(ctx, resourceName)
-		if trace.IsNotFound(err) {
-			return false
-		}
-		require.NoError(t, err)
-
-		require.Equal(t, tResource.GetName(), resourceName)
-
-		require.Contains(t, tResource.GetMetadata().Labels, types.OriginLabel)
-		require.Equal(t, tResource.GetMetadata().Labels[types.OriginLabel], types.OriginKubernetes)
-
-		return true
+		tResource, err = test.GetTeleportResource(ctx, resourceName)
+		return !trace.IsNotFound(err)
 	})
+	require.NoError(t, err)
+
+	require.Equal(t, resourceName, tResource.GetName())
+
+	require.Contains(t, tResource.GetMetadata().Labels, types.OriginLabel)
+	require.Equal(t, types.OriginKubernetes, tResource.GetMetadata().Labels[types.OriginLabel])
+
 	// We cause a drift by altering the Teleport resource.
 	// To make sure the operator does not reconcile while we're finished we suspend the operator
 	setup.StopKubernetesOperator()
@@ -153,19 +142,19 @@ func ResourceUpdateTest[T resources.TeleportResource, K resources.TeleportKubern
 	require.NoError(t, err)
 
 	// Check the resource was updated in Teleport
-	FastEventually(t, func() bool {
+	FastEventuallyWithT(t, func(c *assert.CollectT) {
 		tResource, err := test.GetTeleportResource(ctx, resourceName)
-		require.NoError(t, err)
+		require.NoError(c, err)
 
 		kubeResource, err := test.GetKubernetesResource(ctx, resourceName)
-		require.NoError(t, err)
+		require.NoError(c, err)
 
 		// Kubernetes and Teleport resources are in-sync
 		equal, diff := test.CompareTeleportAndKubernetesResource(tResource, kubeResource)
 		if !equal {
 			t.Logf("Kubernetes and Teleport resources not sync-ed yet: %s", diff)
 		}
-		return equal
+		assert.True(c, equal)
 	})
 
 	// Updating the resource in Kubernetes
@@ -176,19 +165,19 @@ func ResourceUpdateTest[T resources.TeleportResource, K resources.TeleportKubern
 	require.NoError(t, err)
 
 	// Check the resource was updated in Teleport
-	FastEventually(t, func() bool {
+	FastEventuallyWithT(t, func(c *assert.CollectT) {
 		kubeResource, err := test.GetKubernetesResource(ctx, resourceName)
-		require.NoError(t, err)
+		require.NoError(c, err)
 
 		tResource, err := test.GetTeleportResource(ctx, resourceName)
-		require.NoError(t, err)
+		require.NoError(c, err)
 
 		// Kubernetes and Teleport resources are in-sync
 		equal, diff := test.CompareTeleportAndKubernetesResource(tResource, kubeResource)
 		if !equal {
 			t.Logf("Kubernetes and Teleport resources not sync-ed yet: %s", diff)
 		}
-		return equal
+		assert.True(c, equal)
 	})
 
 	// Delete the resource to avoid leftover state.

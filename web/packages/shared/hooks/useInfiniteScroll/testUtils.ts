@@ -17,9 +17,6 @@
 import 'whatwg-fetch';
 import { RenderResult } from '@testing-library/react-hooks';
 
-import { UrlResourcesParams } from 'teleport/config';
-import { ApiError } from 'teleport/services/api/parseError';
-
 import { Node } from 'teleport/services/nodes';
 
 /**
@@ -35,6 +32,7 @@ function makeTestResources(
     .fill(0)
     .map((_, i) => ({
       kind: 'node',
+      subKind: 'teleport',
       id: i.toString(),
       clusterId: clusterId,
       hostname: `${namePrefix}${i}`,
@@ -49,26 +47,32 @@ export function newDOMAbortError() {
   return new DOMException('Aborted', 'AbortError');
 }
 
-export function newApiAbortError() {
-  return new ApiError('The user aborted a request', new Response(), {
-    cause: newDOMAbortError(),
-  });
-}
-
 /**
  * Creates a mock fetch function that pretends to query a pool of given number
  * of resources. To simulate a search, `params.search` is used as a resource
  * name prefix.
  */
-export function newFetchFunc(
-  clusterId: string,
-  numResources: number,
-  newAbortError: () => Error = newDOMAbortError
-) {
-  return async (params: UrlResourcesParams, signal?: AbortSignal) => {
+export function newFetchFunc({
+  clusterId = 'test-cluster',
+  search,
+  numResources,
+  newAbortError = newDOMAbortError,
+}: {
+  clusterId?: string;
+  search?: string;
+  numResources: number;
+  newAbortError?: () => Error;
+}) {
+  return async (
+    params: {
+      limit: number;
+      startKey: string;
+    },
+    signal?: AbortSignal
+  ) => {
     const { startKey, limit } = params;
     const startIndex = parseInt(startKey || '0');
-    const namePrefix = params.search ?? 'r';
+    const namePrefix = search ?? 'r';
     const endIndex = startIndex + limit;
     const nextStartKey =
       endIndex < numResources ? endIndex.toString() : undefined;

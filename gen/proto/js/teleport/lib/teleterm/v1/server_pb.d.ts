@@ -28,6 +28,9 @@ export class Server extends jspb.Message {
     setLabelsList(value: Array<teleport_lib_teleterm_v1_label_pb.Label>): Server;
     addLabels(value?: teleport_lib_teleterm_v1_label_pb.Label, index?: number): teleport_lib_teleterm_v1_label_pb.Label;
 
+    getSubKind(): string;
+    setSubKind(value: string): Server;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): Server.AsObject;
@@ -47,5 +50,6 @@ export namespace Server {
         hostname: string,
         addr: string,
         labelsList: Array<teleport_lib_teleterm_v1_label_pb.Label.AsObject>,
+        subKind: string,
     }
 }

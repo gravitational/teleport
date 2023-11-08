@@ -245,7 +245,7 @@ func (p *Pack) initWebSession(t *testing.T) {
 	// Extract session cookie and bearer token.
 	require.Len(t, resp.Cookies(), 1)
 	cookie := resp.Cookies()[0]
-	require.Equal(t, cookie.Name, websession.CookieName)
+	require.Equal(t, websession.CookieName, cookie.Name)
 
 	p.webCookie = cookie.Value
 	p.webToken = csResp.Token

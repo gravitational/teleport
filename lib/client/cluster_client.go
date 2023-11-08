@@ -133,7 +133,7 @@ func (c *ClusterClient) SessionSSHConfig(ctx context.Context, user string, targe
 	log.Debug("Attempting to issue a single-use user certificate with an MFA check.")
 	key, err = c.performMFACeremony(ctx, mfaClt,
 		ReissueParams{
-			NodeName:       nodeName(target.Addr),
+			NodeName:       nodeName(targetNode{addr: target.Addr}),
 			RouteToCluster: target.Cluster,
 			MFACheck:       target.MFACheck,
 		},

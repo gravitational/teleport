@@ -66,7 +66,7 @@ func TestSQLBatch(t *testing.T) {
 	require.NoError(t, err)
 	r, err := ToSQLPacket(packet)
 	require.NoError(t, err)
-	require.Equal(t, r.Type(), PacketTypeSQLBatch)
+	require.Equal(t, PacketTypeSQLBatch, r.Type())
 	p, ok := r.(*SQLBatch)
 	require.True(t, ok)
 	require.Equal(t, "\nselect 'foo' as 'bar'\n        ", p.SQLText)
@@ -76,7 +76,7 @@ func TestSQLBatch(t *testing.T) {
 func TestRPCClientRequestParam(t *testing.T) {
 	packet, err := ReadPacket(bytes.NewReader(fixtures.GenerateExecuteSQLRPCPacket("select @@version")))
 	require.NoError(t, err)
-	require.Equal(t, packet.Type(), PacketTypeRPCRequest)
+	require.Equal(t, PacketTypeRPCRequest, packet.Type())
 	r, err := ToSQLPacket(packet)
 	require.NoError(t, err)
 	p, ok := r.(*RPCRequest)
@@ -88,7 +88,7 @@ func TestRPCClientRequestParam(t *testing.T) {
 func TestRPCClientRequest(t *testing.T) {
 	packet, err := ReadPacket(bytes.NewReader(fixtures.GenerateCustomRPCCallPacket("foo3")))
 	require.NoError(t, err)
-	require.Equal(t, packet.Type(), PacketTypeRPCRequest)
+	require.Equal(t, PacketTypeRPCRequest, packet.Type())
 	r, err := ToSQLPacket(packet)
 	require.NoError(t, err)
 	p, ok := r.(*RPCRequest)
@@ -99,7 +99,7 @@ func TestRPCClientRequest(t *testing.T) {
 func TestRPCClientRequestPartialLength(t *testing.T) {
 	packet, err := ReadPacket(bytes.NewReader(fixtures.RPCClientPartiallyLength("foo3", 32, 4)))
 	require.NoError(t, err)
-	require.Equal(t, packet.Type(), PacketTypeRPCRequest)
+	require.Equal(t, PacketTypeRPCRequest, packet.Type())
 
 	r, err := ToSQLPacket(packet)
 	require.NoError(t, err)
@@ -120,7 +120,7 @@ func TestRPCClientRequestParamNTEXT(t *testing.T) {
 
 	packet, err := ReadPacket(bytes.NewReader(fixtures.GenerateExecuteSQLRPCPacketNTEXT("select @@version")))
 	require.NoError(t, err)
-	require.Equal(t, packet.Type(), PacketTypeRPCRequest)
+	require.Equal(t, PacketTypeRPCRequest, packet.Type())
 	r, err := ToSQLPacket(packet)
 	require.NoError(t, err)
 	p, ok := r.(*RPCRequest)

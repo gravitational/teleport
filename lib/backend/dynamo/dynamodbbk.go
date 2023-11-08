@@ -926,8 +926,15 @@ func (b *Backend) create(ctx context.Context, item backend.Item, mode int) (stri
 		input.SetConditionExpression("attribute_exists(FullPath)")
 	case modePut:
 	case modeConditionalUpdate:
-		input.SetExpressionAttributeValues(map[string]*dynamodb.AttributeValue{":rev": {S: aws.String(item.Revision)}})
-		input.SetConditionExpression("Revision = :rev AND attribute_exists(FullPath)")
+		// If the revision is empty, then the resource existed prior to revision support. Instead of validating that
+		// the revisions match, validate that the revision attribute does not exist. Otherwise, validate that the revision
+		// attribute matches the item revision.
+		if item.Revision == "" {
+			input.SetConditionExpression("attribute_not_exists(Revision) AND attribute_exists(FullPath)")
+		} else {
+			input.SetExpressionAttributeValues(map[string]*dynamodb.AttributeValue{":rev": {S: aws.String(item.Revision)}})
+			input.SetConditionExpression("Revision = :rev AND attribute_exists(FullPath)")
+		}
 	default:
 		return "", trace.BadParameter("unrecognized mode")
 	}

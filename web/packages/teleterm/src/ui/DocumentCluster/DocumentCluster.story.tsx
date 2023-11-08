@@ -28,6 +28,8 @@ import {
   makeLoggedInUser,
   makeRootCluster,
   makeServer,
+  makeDatabase,
+  makeKube,
 } from 'teleterm/services/tshd/testHelpers';
 
 import { ResourcesService } from 'teleterm/ui/services/resources';
@@ -83,11 +85,12 @@ export const OnlineEmptyResourcesAndCanAddResourcesAndConnectComputer = () => {
     state,
     doc: rootClusterDoc,
     platform: 'darwin',
-    fetchServersPromise: Promise.resolve({
-      agentsList: [],
-      totalCount: 0,
-      startKey: '',
-    }),
+    listUnifiedResources: () =>
+      Promise.resolve({
+        resources: [],
+        totalCount: 0,
+        nextKey: '',
+      }),
   });
 };
 
@@ -118,11 +121,12 @@ export const OnlineEmptyResourcesAndCanAddResourcesButCannotConnectComputer =
       state,
       doc: rootClusterDoc,
       platform: 'win32',
-      fetchServersPromise: Promise.resolve({
-        agentsList: [],
-        totalCount: 0,
-        startKey: '',
-      }),
+      listUnifiedResources: () =>
+        Promise.resolve({
+          resources: [],
+          totalCount: 0,
+          nextKey: '',
+        }),
     });
   };
 
@@ -150,11 +154,12 @@ export const OnlineEmptyResourcesAndCannotAddResources = () => {
   return renderState({
     state,
     doc: rootClusterDoc,
-    fetchServersPromise: Promise.resolve({
-      agentsList: [],
-      totalCount: 0,
-      startKey: '',
-    }),
+    listUnifiedResources: () =>
+      Promise.resolve({
+        resources: [],
+        totalCount: 0,
+        nextKey: '',
+      }),
   });
 };
 
@@ -167,21 +172,21 @@ export const OnlineLoadingResources = () => {
     })
   );
 
-  let rejectPromise: () => void;
+  let rejectPromise: (error: Error) => void;
   const promiseRejectedOnUnmount = new Promise<any>((resolve, reject) => {
     rejectPromise = reject;
   });
 
   useEffect(() => {
     return () => {
-      rejectPromise();
+      rejectPromise(new Error('Aborted'));
     };
   }, [rejectPromise]);
 
   return renderState({
     state,
     doc: rootClusterDoc,
-    fetchServersPromise: promiseRejectedOnUnmount,
+    listUnifiedResources: () => promiseRejectedOnUnmount,
   });
 };
 
@@ -197,18 +202,27 @@ export const OnlineLoadedResources = () => {
   return renderState({
     state,
     doc: rootClusterDoc,
-    fetchServersPromise: Promise.resolve({
-      agentsList: [
-        makeServer(),
-        makeServer({
-          uri: '/clusters/foo/servers/1234',
-          hostname: 'bar',
-          tunnel: true,
-        }),
-      ],
-      totalCount: 2,
-      startKey: '',
-    }),
+    listUnifiedResources: () =>
+      Promise.resolve({
+        resources: [
+          {
+            kind: 'server',
+            resource: makeServer(),
+          },
+          {
+            kind: 'server',
+            resource: makeServer({
+              uri: '/clusters/foo/servers/1234',
+              hostname: 'bar',
+              tunnel: true,
+            }),
+          },
+          { kind: 'database', resource: makeDatabase() },
+          { kind: 'kube', resource: makeKube() },
+        ],
+        totalCount: 4,
+        nextKey: '',
+      }),
   });
 };
 
@@ -224,9 +238,8 @@ export const OnlineErrorLoadingResources = () => {
   return renderState({
     state,
     doc: rootClusterDoc,
-    fetchServersPromise: Promise.reject(
-      new Error('Whoops, something went wrong, sorry!')
-    ),
+    listUnifiedResources: () =>
+      Promise.reject(new Error('Whoops, something went wrong, sorry!')),
   });
 };
 
@@ -257,12 +270,12 @@ export const Notfound = () => {
 function renderState({
   state,
   doc,
-  fetchServersPromise,
+  listUnifiedResources,
   platform = 'darwin',
 }: {
   state: ClustersServiceState;
   doc: docTypes.DocumentCluster;
-  fetchServersPromise?: ReturnType<ResourcesService['fetchServers']>;
+  listUnifiedResources?: ResourcesService['listUnifiedResources'];
   platform?: NodeJS.Platform;
   userType?: tsh.UserType;
 }) {
@@ -280,8 +293,10 @@ function renderState({
     };
   });
 
-  appContext.resourcesService.fetchServers = () =>
-    fetchServersPromise || Promise.reject('No fetchServersPromise passed');
+  appContext.resourcesService.listUnifiedResources = (params, abortSignal) =>
+    listUnifiedResources
+      ? listUnifiedResources(params, abortSignal)
+      : Promise.reject('No fetchServersPromise passed');
 
   return (
     <AppContextProvider value={appContext}>

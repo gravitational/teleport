@@ -465,14 +465,14 @@ func (h *Handler) awsOIDCConfigureIdP(w http.ResponseWriter, r *http.Request, p 
 		return nil, trace.Wrap(err)
 	}
 
-	awsRegion := queryParams.Get("awsRegion")
-	if err := aws.IsValidRegion(awsRegion); err != nil {
-		return nil, trace.BadParameter("invalid awsRegion")
-	}
-
 	role := queryParams.Get("role")
 	if err := aws.IsValidIAMRoleName(role); err != nil {
 		return nil, trace.BadParameter("invalid role %q", role)
+	}
+
+	proxyAddr, err := awsoidc.IssuerFromPublicAddress(h.cfg.PublicProxyAddr)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	// The script must execute the following command:
@@ -481,9 +481,8 @@ func (h *Handler) awsOIDCConfigureIdP(w http.ResponseWriter, r *http.Request, p 
 		"integration", "configure", "awsoidc-idp",
 		fmt.Sprintf("--cluster=%s", clusterName),
 		fmt.Sprintf("--name=%s", integrationName),
-		fmt.Sprintf("--aws-region=%s", awsRegion),
 		fmt.Sprintf("--role=%s", role),
-		fmt.Sprintf("--proxy-public-url=%s", h.PublicProxyAddr()),
+		fmt.Sprintf("--proxy-public-url=%s", proxyAddr),
 	}
 	script, err := oneoff.BuildScript(oneoff.OneOffScriptParams{
 		TeleportArgs:   strings.Join(argsList, " "),

@@ -62,8 +62,8 @@ func TestSignAndVerify(t *testing.T) {
 		URI:      "http://127.0.0.1:8080",
 	})
 	require.NoError(t, err)
-	require.Equal(t, claims.Username, "foo@example.com")
-	require.Equal(t, claims.Roles, []string{"foo", "bar"})
+	require.Equal(t, "foo@example.com", claims.Username)
+	require.Equal(t, []string{"foo", "bar"}, claims.Roles)
 }
 
 // TestPublicOnlyVerifyAzure checks that a non-signing key used to validate a JWT
@@ -157,8 +157,8 @@ func TestPublicOnlyVerify(t *testing.T) {
 		RawToken: token,
 	})
 	require.NoError(t, err)
-	require.Equal(t, claims.Username, "foo@example.com")
-	require.Equal(t, claims.Roles, []string{"foo", "bar"})
+	require.Equal(t, "foo@example.com", claims.Username)
+	require.Equal(t, []string{"foo", "bar"}, claims.Roles)
 
 	// Make sure this key returns an error when trying to sign.
 	_, err = key.Sign(SignParams{
@@ -345,9 +345,9 @@ func TestExpiry(t *testing.T) {
 		RawToken: token,
 	})
 	require.NoError(t, err)
-	require.Equal(t, claims.Username, "foo@example.com")
-	require.Equal(t, claims.Roles, []string{"foo", "bar"})
-	require.Equal(t, claims.IssuedAt, josejwt.NewNumericDate(clock.Now()))
+	require.Equal(t, "foo@example.com", claims.Username)
+	require.Equal(t, []string{"foo", "bar"}, claims.Roles)
+	require.Equal(t, josejwt.NewNumericDate(clock.Now()), claims.IssuedAt)
 
 	// Advance time by two minutes and verify the token is no longer valid.
 	clock.Advance(2 * time.Minute)

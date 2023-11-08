@@ -20,7 +20,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -31,6 +30,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
+	apihelpers "github.com/gravitational/teleport/api/testhelpers"
 	"github.com/gravitational/teleport/integration/helpers"
 )
 
@@ -77,18 +77,6 @@ func mustGetCandidatePorts(servers []*httptest.Server) []int {
 	return result
 }
 
-type testServerOption func(*httptest.Server)
-
-func makeTestServer(t *testing.T, h http.Handler, opts ...testServerOption) *httptest.Server {
-	svr := httptest.NewUnstartedServer(h)
-	for _, opt := range opts {
-		opt(svr)
-	}
-	svr.StartTLS()
-	t.Cleanup(func() { svr.Close() })
-	return svr
-}
-
 func TestResolveDefaultAddr(t *testing.T) {
 	t.Parallel()
 
@@ -105,13 +93,13 @@ func TestResolveDefaultAddr(t *testing.T) {
 		if i == magicServerIndex {
 			handler = respondingHandler
 		}
-		servers[i] = makeTestServer(t, handler)
+		servers[i] = apihelpers.MakeTestServer(t, handler)
 	}
 
 	// NB: We need to defer this channel close  such that it happens *before*
 	// the httpstest server shutdowns, or the blocking requests will never
 	// finish and we will deadlock.
-	defer close(doneCh)
+	t.Cleanup(func() { close(doneCh) })
 
 	ports := mustGetCandidatePorts(servers)
 	expectedAddr := fmt.Sprintf("127.0.0.1:%d", ports[magicServerIndex])
@@ -140,7 +128,7 @@ func TestResolveDefaultAddrSingleCandidate(t *testing.T) {
 
 	servers := make([]*httptest.Server, 1)
 	for i := 0; i < len(servers); i++ {
-		servers[i] = makeTestServer(t, respondingHandler)
+		servers[i] = apihelpers.MakeTestServer(t, respondingHandler)
 	}
 
 	ports := mustGetCandidatePorts(servers)
@@ -162,13 +150,13 @@ func TestResolveDefaultAddrTimeout(t *testing.T) {
 
 	servers := make([]*httptest.Server, 5)
 	for i := 0; i < 5; i++ {
-		servers[i] = makeTestServer(t, blockingHandler)
+		servers[i] = apihelpers.MakeTestServer(t, blockingHandler)
 	}
 
 	// NB: We need to defer this channel close  such that it happens *before*
 	// the httpstest server shutdowns, or the blocking requests will never
 	// finish and we will deadlock.
-	defer close(doneCh)
+	t.Cleanup(func() { close(doneCh) })
 
 	ports := mustGetCandidatePorts(servers)
 
@@ -188,7 +176,7 @@ func TestResolveNonOKResponseIsAnError(t *testing.T) {
 	// Given a single candidate server configured to respond with a non-OK status
 	// code
 	servers := []*httptest.Server{
-		makeTestServer(t, newRespondingHandlerWithStatus(http.StatusTeapot)),
+		apihelpers.MakeTestServer(t, newRespondingHandlerWithStatus(http.StatusTeapot)),
 	}
 	ports := mustGetCandidatePorts(servers)
 
@@ -229,7 +217,7 @@ func TestResolveUndeliveredBodyDoesNotBlockForever(t *testing.T) {
 		testLog.Debug("Exiting handler")
 	})
 
-	servers := []*httptest.Server{makeTestServer(t, handler)}
+	servers := []*httptest.Server{apihelpers.MakeTestServer(t, handler)}
 	ports := mustGetCandidatePorts(servers)
 
 	// When I attempt to resolve a default address
@@ -246,15 +234,15 @@ func TestResolveDefaultAddrTimeoutBeforeAllRacersLaunched(t *testing.T) {
 
 	blockingHandler, doneCh := newWaitForeverHandler()
 
-	servers := make([]*httptest.Server, 1000)
+	servers := make([]*httptest.Server, 100)
 	for i := 0; i < len(servers); i++ {
-		servers[i] = makeTestServer(t, blockingHandler)
+		servers[i] = apihelpers.MakeTestServer(t, blockingHandler)
 	}
 
 	// NB: We need to defer this channel close  such that it happens *before*
 	// the httpstest server shutdowns, or the blocking requests will never
 	// finish and we will deadlock.
-	defer close(doneCh)
+	t.Cleanup(func() { close(doneCh) })
 
 	ports := mustGetCandidatePorts(servers)
 
@@ -275,19 +263,12 @@ func TestResolveDefaultAddrHTTPProxy(t *testing.T) {
 	t.Cleanup(proxyServer.Close)
 
 	// Go won't proxy to localhost, so use this address instead.
-	localIP, err := helpers.GetLocalIP()
+	localIP, err := apihelpers.GetLocalIP()
 	require.NoError(t, err)
 
-	var serverAddr net.Addr
 	respondingHandler := newRespondingHandler()
-	server := makeTestServer(t, respondingHandler, func(srv *httptest.Server) {
-		// Replace the test server's address.
-		l, err := net.Listen("tcp", localIP+":0")
-		require.NoError(t, err)
-		require.NoError(t, srv.Listener.Close())
-		srv.Listener = l
-		serverAddr = l.Addr()
-	})
+	server := apihelpers.MakeTestServer(t, respondingHandler, apihelpers.WithTestServerAddress(localIP))
+	serverAddr := server.Listener.Addr()
 
 	ports := mustGetCandidatePorts([]*httptest.Server{server})
 

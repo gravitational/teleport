@@ -21,6 +21,7 @@ import {
   requiredField,
   requiredRoleArn,
   requiredEmailLike,
+  requiredIamRoleName,
 } from './rules';
 
 describe('requiredField', () => {
@@ -65,17 +66,36 @@ describe('requiredPassword', () => {
 
 describe('requiredRoleArn', () => {
   test.each`
-    roleArn                                      | valid
-    ${'arn:aws:iam::123456:role/some-role-name'} | ${true}
-    ${'arn:aws:iam::123456:role:some-role-name'} | ${true}
-    ${'arn:aws:iam:123456:role:some-role-name'}  | ${true}
-    ${'arn:iam:123456:role:some-role-name'}      | ${false}
-    ${'arn:aws:iam:123456:some-role-name'}       | ${false}
-    ${'arn:aws:123456:role:some-role-name'}      | ${false}
-    ${''}                                        | ${false}
-    ${null}                                      | ${false}
-  `('valid role arn: $roleArn', ({ roleArn, valid }) => {
+    roleArn                                                           | valid
+    ${'arn:aws:iam::123456789012:role/some-role-name'}                | ${true}
+    ${'arn:aws-otherpartition:iam::123456789012:role/some-role-name'} | ${true}
+    ${'arn:aws:iam::123456789012:role/some/role/name'}                | ${false}
+    ${'arn:aws:iam:123456789012:role/some-role-name'}                 | ${false}
+    ${'arn:aws:iam::12345:role/some-role-name'}                       | ${false}
+    ${'arn:iam:123456:role:some-role-name'}                           | ${false}
+    ${'arn:aws:iam::123456789012:some-role-name'}                     | ${false}
+    ${'arn:aws:iam::123456789012:role/'}                              | ${false}
+    ${'arn:aws:iam::123456789012:role'}                               | ${false}
+    ${''}                                                             | ${false}
+    ${null}                                                           | ${false}
+  `('test role arn valid ($valid): $roleArn', ({ roleArn, valid }) => {
     const result = requiredRoleArn(roleArn)();
+    expect(result.valid).toEqual(valid);
+  });
+});
+
+describe('requiredIamRoleName', () => {
+  test.each`
+    roleArn                                | valid
+    ${'some-role-name'}                    | ${true}
+    ${'alphanum1234andspecialchars=.+-,'}  | ${true}
+    ${'1'}                                 | ${true}
+    ${Array.from('x'.repeat(64)).join('')} | ${true}
+    ${Array.from('x'.repeat(65)).join('')} | ${false}
+    ${null}                                | ${false}
+    ${''}                                  | ${false}
+  `('test IAM role name valid ($valid): $roleArn', ({ roleArn, valid }) => {
+    const result = requiredIamRoleName(roleArn)();
     expect(result.valid).toEqual(valid);
   });
 });

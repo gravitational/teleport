@@ -87,9 +87,9 @@ func TestCheckOwnership(t *testing.T) {
 			condition, isOwned := checkOwnership(tc.existingResource)
 
 			require.Equal(t, tc.isOwned, isOwned)
-			require.Equal(t, condition.Type, ConditionTypeTeleportResourceOwned)
-			require.Equal(t, condition.Status, tc.expectedConditionStatus)
-			require.Equal(t, condition.Reason, tc.expectedConditionReason)
+			require.Equal(t, ConditionTypeTeleportResourceOwned, condition.Type)
+			require.Equal(t, tc.expectedConditionStatus, condition.Status)
+			require.Equal(t, tc.expectedConditionReason, condition.Reason)
 		})
 	}
 }

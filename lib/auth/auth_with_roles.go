@@ -2704,6 +2704,9 @@ func (a *ServerWithRoles) DeleteAccessRequest(ctx context.Context, name string) 
 	return a.authServer.DeleteAccessRequest(ctx, name)
 }
 
+// GetUsers returns all existing users
+// TODO(tross): DELETE IN 16.0.0
+// Deprecated: use [usersv1.Service.ListUsers] instead.
 func (a *ServerWithRoles) GetUsers(ctx context.Context, withSecrets bool) ([]types.User, error) {
 	if withSecrets {
 		// TODO(fspmarshall): replace admin requirement with VerbReadWithSecrets once we've
@@ -2737,6 +2740,14 @@ func (a *ServerWithRoles) GetUsers(ctx context.Context, withSecrets bool) ([]typ
 	return users, trace.Wrap(err)
 }
 
+// ListUsers returns a page of users.
+func (a *ServerWithRoles) ListUsers(ctx context.Context, pageSize int, nextToken string, withSecrets bool) ([]types.User, string, error) {
+	return nil, "", trace.NotImplemented("ListUsers is not implemented yet")
+}
+
+// GetUser returns a single user matching the request.
+// TODO(tross): DELETE IN 16.0.0
+// Deprecated: use [usersv1.Service.GetUser] instead.
 func (a *ServerWithRoles) GetUser(ctx context.Context, name string, withSecrets bool) (types.User, error) {
 	if withSecrets {
 		// TODO(fspmarshall): replace admin requirement with VerbReadWithSecrets once we've
@@ -2777,6 +2788,8 @@ func (a *ServerWithRoles) GetUser(ctx context.Context, name string, withSecrets 
 
 // GetCurrentUser returns current user as seen by the server.
 // Useful especially in the context of remote clusters which perform role and trait mapping.
+// TODO(tross): DELETE IN 16.0.0
+// Deprecated: use [usersv1.Service.GetUser] instead.
 func (a *ServerWithRoles) GetCurrentUser(ctx context.Context) (types.User, error) {
 	// check access to roles
 	for _, role := range a.context.User.GetRoles() {
@@ -3391,6 +3404,8 @@ func (a *ServerWithRoles) ChangeUserAuthentication(ctx context.Context, req *pro
 }
 
 // CreateUser inserts a new user entry in a backend.
+// TODO(tross): DELETE IN 16.0.0
+// Deprecated: use [usersv1.Service.CreateUser] instead.
 func (a *ServerWithRoles) CreateUser(ctx context.Context, user types.User) (types.User, error) {
 	if err := a.action(apidefaults.Namespace, types.KindUser, types.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
@@ -3401,15 +3416,20 @@ func (a *ServerWithRoles) CreateUser(ctx context.Context, user types.User) (type
 
 // UpdateUser updates an existing user in a backend.
 // Captures the auth user who modified the user record.
+// TODO(tross): DELETE IN 16.0.0
+// Deprecated: use [usersv1.Service.UpdateUser] instead.
 func (a *ServerWithRoles) UpdateUser(ctx context.Context, user types.User) (types.User, error) {
 	if err := a.action(apidefaults.Namespace, types.KindUser, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	updated, err := a.authServer.UpdateUserWithContext(ctx, user)
+	updated, err := a.authServer.UpdateUser(ctx, user)
 	return updated, trace.Wrap(err)
 }
 
+// UpsertUser create or updates an existing user.
+// TODO(tross): DELETE IN 16.0.0
+// Deprecated: use [usersv1.Service.UpdateUser] instead.
 func (a *ServerWithRoles) UpsertUser(ctx context.Context, u types.User) (types.User, error) {
 	if err := a.action(apidefaults.Namespace, types.KindUser, types.VerbCreate, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
@@ -6952,7 +6972,7 @@ func (a *ServerWithRoles) MaintainHeadlessAuthenticationStub(ctx context.Context
 		return trace.Wrap(err)
 	}
 
-	ticker := time.NewTicker(defaults.CallbackTimeout)
+	ticker := time.NewTicker(defaults.HeadlessLoginTimeout)
 	defer ticker.Stop()
 
 	for {
@@ -7106,7 +7126,7 @@ func emitHeadlessLoginEvent(ctx context.Context, code string, emitter apievents.
 	clientAddr := ""
 	if code == events.UserHeadlessLoginRequestedCode {
 		clientAddr = headlessAuthn.ClientIpAddress
-	} else if c, err := authz.ClientAddrFromContext(ctx); err == nil {
+	} else if c, err := authz.ClientSrcAddrFromContext(ctx); err == nil {
 		clientAddr = c.String()
 	}
 

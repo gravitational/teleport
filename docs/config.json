@@ -536,7 +536,11 @@
             {
               "title": "Terraform Provider",
               "slug": "/management/dynamic-resources/terraform-provider/"
-            }
+            },
+	    {
+              "title": "Spacelift",
+              "slug": "/management/dynamic-resources/spacelift/"
+	    }
 	  ]
 	},
         {
@@ -617,7 +621,7 @@
             {
               "title": "Enroll Agents in Automatic Updates",
               "slug": "/management/operations/enroll-agent-into-automatic-updates/",
-              "forScopes": ["enterprise", "cloud"]
+              "forScopes": ["enterprise", "cloud", "team"]
             }
           ]
         },
@@ -1008,7 +1012,7 @@
           "slug": "/kubernetes-access/introduction/"
         },
         {
-          "title": "Getting Started",
+          "title": "Enroll a Kubernetes Cluster",
           "slug": "/kubernetes-access/getting-started/"
         },
         {
@@ -2954,6 +2958,21 @@
     {
       "source": "/database-access/rbac/configuring-auto-user-provisioning/",
       "destination": "/database-access/auto-user-provisioning/",
+      "permanent": true
+    },
+    {	
+      "source": "/database-access/guides/rds-proxy/",
+      "destination": "/database-access/guides/",
+      "permanent": true
+    },
+    {
+      "source": "/deploy-a-cluster/deployments/aws-terraform/",
+      "destination": "/deploy-a-cluster/deployments/aws-ha-autoscale-cluster-terraform/",
+      "permanent": true
+    },
+    {
+      "source": "/machine-id/guides/github-actions/",
+      "destination": "/machine-id/deployment/github-actions/",
       "permanent": true
     }
   ]

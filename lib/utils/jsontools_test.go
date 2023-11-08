@@ -108,7 +108,7 @@ func TestStreamJSONArray(t *testing.T) {
 		require.NoError(t, err)
 
 		if len(iterative) == 0 {
-			require.Len(t, iterOut, 0)
+			require.Empty(t, iterOut)
 		} else {
 			require.Equal(t, iterative, iterOut)
 		}

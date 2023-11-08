@@ -91,8 +91,8 @@ func TestKernelVersion(t *testing.T) {
 			require.NoError(t, err)
 			max, err := semver.NewVersion(tt.inMax)
 			require.NoError(t, err)
-			require.Equal(t, version.LessThan(*max), true)
-			require.Equal(t, version.LessThan(*min), false)
+			require.True(t, version.LessThan(*max))
+			require.False(t, version.LessThan(*min))
 		})
 	}
 

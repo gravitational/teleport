@@ -51,6 +51,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 	"golang.org/x/time/rate"
 	"google.golang.org/protobuf/types/known/durationpb"
@@ -1217,11 +1218,11 @@ func (a *Server) handleUpgradeEnrollPrompt(ctx context.Context, msg string, shou
 		types.WithAlertExpires(a.clock.Now().Add(alertTTL)),
 	)
 	if err != nil {
-		log.Warnf("Failed to build %s alert: %v (this is a bug)", releaseAlertID, err)
+		log.Warnf("Failed to build %s alert: %v (this is a bug)", upgradeEnrollAlertID, err)
 		return
 	}
 	if err := a.UpsertClusterAlert(ctx, alert); err != nil {
-		log.Warnf("Failed to set %s alert: %v", releaseAlertID, err)
+		log.Warnf("Failed to set %s alert: %v", upgradeEnrollAlertID, err)
 		return
 	}
 }
@@ -4324,6 +4325,9 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 	}
 
 	if req.GetDryRun() {
+		_, promotions := a.generateAccessRequestPromotions(ctx, req)
+		// update the request with additional reviewers if possible.
+		updateAccessRequestWithAdditionalReviewers(ctx, req, a.AccessListClient(), promotions)
 		// Made it this far with no errors, return before creating the request
 		// if this is a dry run.
 		return req, nil
@@ -4357,14 +4361,10 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 	if err != nil {
 		log.WithError(err).Warn("Failed to emit access request create event.")
 	}
+
 	// calculate the promotions
-	reqCopy := req.Copy()
-	promotions, err := modules.GetModules().GenerateAccessRequestPromotions(ctx, a.Services, reqCopy)
-	if err != nil {
-		// Do not fail the request if the promotions failed to generate.
-		// The request promotion will be blocked, but the request can still be approved.
-		log.WithError(err).Warn("Failed to generate access list promotions.")
-	} else if promotions != nil {
+	reqCopy, promotions := a.generateAccessRequestPromotions(ctx, req)
+	if promotions != nil {
 		// Create the promotion entry even if the allowed promotion is empty. Otherwise, we won't
 		// be able to distinguish between an allowed empty set and generation failure.
 		if err := a.Services.CreateAccessRequestAllowedPromotions(ctx, reqCopy, promotions); err != nil {
@@ -4376,6 +4376,48 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 		strconv.Itoa(len(req.GetRoles())),
 		strconv.Itoa(len(req.GetRequestedResourceIDs()))).Inc()
 	return req, nil
+}
+
+// generateAccessRequestPromotions will return potential access list promotions for an access request. On error, this function will log
+// the error and return whatever it has. The caller is expected to deal with the possibility of a nil promotions object.
+func (a *Server) generateAccessRequestPromotions(ctx context.Context, req types.AccessRequest) (types.AccessRequest, *types.AccessRequestAllowedPromotions) {
+	reqCopy := req.Copy()
+	promotions, err := modules.GetModules().GenerateAccessRequestPromotions(ctx, a.Services, reqCopy)
+	if err != nil {
+		// Do not fail the request if the promotions failed to generate.
+		// The request promotion will be blocked, but the request can still be approved.
+		log.WithError(err).Warn("Failed to generate access list promotions.")
+	}
+	return reqCopy, promotions
+}
+
+// updateAccessRequestWithAdditionalReviewers will update the given access request with additional reviewers given the promotions
+// created for the access request.
+func updateAccessRequestWithAdditionalReviewers(ctx context.Context, req types.AccessRequest, accessLists services.AccessListsGetter, promotions *types.AccessRequestAllowedPromotions) {
+	if promotions == nil {
+		return
+	}
+
+	// For promotions, add in access list owners as additional suggested reviewers
+	additionalReviewers := map[string]struct{}{}
+
+	// Iterate through the promotions, adding the owners of the corresponding access lists as reviewers.
+	for _, promotion := range promotions.Promotions {
+		accessList, err := accessLists.GetAccessList(ctx, promotion.AccessListName)
+		if err != nil {
+			log.WithError(err).Warn("Failed to get access list, skipping additional reviewers")
+			break
+		}
+
+		for _, owner := range accessList.GetOwners() {
+			additionalReviewers[owner.Name] = struct{}{}
+		}
+	}
+
+	// Only modify the original request if additional reviewers were found.
+	if len(additionalReviewers) > 0 {
+		req.SetSuggestedReviewers(append(req.GetSuggestedReviewers(), maps.Keys(additionalReviewers)...))
+	}
 }
 
 func (a *Server) DeleteAccessRequest(ctx context.Context, name string) error {
@@ -5906,7 +5948,7 @@ func (a *Server) GetHeadlessAuthenticationFromWatcher(ctx context.Context, usern
 // that will expire after the standard callback timeout.
 func (a *Server) UpsertHeadlessAuthenticationStub(ctx context.Context, username string) error {
 	// Create the stub. If it already exists, update its expiration.
-	expires := a.clock.Now().Add(defaults.CallbackTimeout)
+	expires := a.clock.Now().Add(defaults.HeadlessLoginTimeout)
 	stub, err := types.NewHeadlessAuthentication(username, services.HeadlessAuthenticationUserStubID, expires)
 	if err != nil {
 		return trace.Wrap(err)

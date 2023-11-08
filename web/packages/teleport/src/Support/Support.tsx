@@ -93,9 +93,9 @@ export const Support = ({
           </Box>
           <Box>
             <Header title="Resources" icon={<Icons.BookOpenText />} />
-            <SupportLink title="Quickstart Guide" url={docs.quickstart} />
-            <SupportLink title="tsh User Guide" url={docs.userManual} />
-            <SupportLink title="Admin Guide" url={docs.adminGuide} />
+            <SupportLink title="Get Started" url={docs.getStarted} />
+            <SupportLink title="tsh User Guide" url={docs.tshGuide} />
+            <SupportLink title="Admin Guides" url={docs.adminGuide} />
             <SupportLink
               title="Download Page"
               url={getDownloadLink(isCloud, isEnterprise)}
@@ -168,15 +168,27 @@ const getDocUrls = (version = '', isEnterprise: boolean) => {
   const withUTM = (url = '', anchorHash = '') =>
     `${url}?product=teleport&version=${verPrefix}_${version}${anchorHash}`;
 
+  let docVer = '';
+  if (version && version.length > 0) {
+    const major = version.split('.')[0];
+    docVer = `/ver/${major}.x`;
+  }
+
   return {
-    quickstart: withUTM('https://goteleport.com/docs/getting-started'),
-    userManual: withUTM('https://goteleport.com/docs/server-access/guides/tsh'),
-    adminGuide: withUTM('https://goteleport.com/docs/setup/admin'),
-    changeLog: withUTM('https://goteleport.com/docs/changelog'),
-    troubleshooting: withUTM(
-      'https://goteleport.com/docs/setup/admin/troubleshooting'
+    getStarted: withUTM(`https://goteleport.com/docs${docVer}/getting-started`),
+    tshGuide: withUTM(
+      `https://goteleport.com/docs${docVer}/server-access/guides/tsh`
     ),
-    faq: withUTM('https://goteleport.com/docs/faq'),
+    adminGuide: withUTM(
+      `https://goteleport.com/docs${docVer}/management/admin/`
+    ),
+    faq: withUTM(`https://goteleport.com${docVer}/docs/faq`),
+    troubleshooting: withUTM(
+      `https://goteleport.com/docs${docVer}/management/admin/troubleshooting/`
+    ),
+
+    // there isn't a version-specific changelog page
+    changeLog: withUTM('https://goteleport.com/docs/changelog'),
   };
 };
 

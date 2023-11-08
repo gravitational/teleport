@@ -86,16 +86,16 @@ func runUserResourceTest(
 	s := NewIdentityService(tt.bk)
 	b, err := s.GetUser(ctx, "bob", withSecrets)
 	require.NoError(t, err)
-	require.Equal(t, services.UsersEquals(bob, b), true, "dynamically inserted user does not match")
+	require.True(t, services.UsersEquals(bob, b), "dynamically inserted user does not match")
 	allUsers, err := s.GetUsers(ctx, withSecrets)
 	require.NoError(t, err)
-	require.Equal(t, len(allUsers), 2, "expected exactly two users")
+	require.Len(t, allUsers, 2, "expected exactly two users")
 	for _, user := range allUsers {
 		switch user.GetName() {
 		case "alice":
-			require.Equal(t, services.UsersEquals(alice, user), true, "alice does not match")
+			require.True(t, services.UsersEquals(alice, user), "alice does not match")
 		case "bob":
-			require.Equal(t, services.UsersEquals(bob, user), true, "bob does not match")
+			require.True(t, services.UsersEquals(bob, user), "bob does not match")
 		default:
 			t.Errorf("Unexpected user %q", user.GetName())
 		}
@@ -105,7 +105,7 @@ func runUserResourceTest(
 	tt.bk.Clock().(clockwork.FakeClock).Advance(2 * time.Minute)
 	allUsers, err = s.GetUsers(ctx, withSecrets)
 	require.NoError(t, err)
-	require.Equal(t, len(allUsers), 0, "expected all users to expire")
+	require.Empty(t, allUsers, "expected all users to expire")
 }
 
 func TestCertAuthorityResource(t *testing.T) {

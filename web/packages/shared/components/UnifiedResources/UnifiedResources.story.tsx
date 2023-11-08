@@ -16,7 +16,7 @@
 
 import React from 'react';
 
-import { ButtonBorder, Flex } from 'design';
+import { ButtonBorder } from 'design';
 
 import { apps } from 'teleport/Apps/fixtures';
 import { databases } from 'teleport/Databases/fixtures';
@@ -27,7 +27,11 @@ import { nodes } from 'teleport/Nodes/fixtures';
 import { UrlResourcesParams } from 'teleport/config';
 import { ResourcesResponse } from 'teleport/services/agents';
 
-import { UnifiedResources, UnifiedResourcesPinning } from './UnifiedResources';
+import {
+  UnifiedResources,
+  UnifiedResourcesPinning,
+  useUnifiedResourcesFetch,
+} from './UnifiedResources';
 import { SharedUnifiedResource } from './types';
 
 export default {
@@ -70,29 +74,37 @@ const story = ({
   ) => Promise<ResourcesResponse<SharedUnifiedResource['resource']>>;
   pinning?: UnifiedResourcesPinning;
 }) => {
-  return () => (
-    <UnifiedResources
-      availableKinds={['app', 'db', 'node', 'kube_cluster', 'windows_desktop']}
-      Header={pinAllButton => (
-        <Flex justifyContent="end" height="50px">
-          {pinAllButton}
-        </Flex>
-      )}
-      params={{ sort: { dir: 'ASC', fieldName: 'name' } }}
-      setParams={() => undefined}
-      pinning={pinning}
-      updateUnifiedResourcesPreferences={() => undefined}
-      onLabelClick={() => undefined}
-      EmptySearchResults={undefined}
-      fetchFunc={fetchFunc}
-      mapToResource={resource => ({
-        resource,
-        ui: {
-          ActionButton: <ButtonBorder size="small">Connect</ButtonBorder>,
-        },
-      })}
-    />
-  );
+  const params = { sort: { dir: 'ASC', fieldName: 'name' } } as const;
+  return () => {
+    const { fetch, attempt, resources } = useUnifiedResourcesFetch({
+      fetchFunc,
+    });
+    return (
+      <UnifiedResources
+        availableKinds={[
+          'app',
+          'db',
+          'node',
+          'kube_cluster',
+          'windows_desktop',
+        ]}
+        params={params}
+        setParams={() => undefined}
+        pinning={pinning}
+        updateUnifiedResourcesPreferences={() => undefined}
+        onLabelClick={() => undefined}
+        NoResources={undefined}
+        fetchResources={fetch}
+        resourcesFetchAttempt={attempt}
+        resources={resources.map(resource => ({
+          resource,
+          ui: {
+            ActionButton: <ButtonBorder size="small">Connect</ButtonBorder>,
+          },
+        }))}
+      />
+    );
+  };
 };
 
 export const Empty = story({
