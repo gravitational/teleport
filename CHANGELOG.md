@@ -1,5 +1,55 @@
 # Changelog
 
+## 14.1.2 (11/8/23)
+
+### Security Fixes
+
+#### [Medium] Arbitrary code execution with `LD_PRELOAD` and `SFTP`
+
+Teleport implements SFTP using a subcommand. Prior to this release it was 
+possible to inject environment variables into the execution of this 
+subcommand, via shell init scripts or via the SSH environment request.
+
+This is addressed by preventing `LD_PRELOAD` and other dangerous environment
+variables from being forwarded during re-exec.
+
+[#3274](https://github.com/gravitational/teleport/pull/34274)
+
+#### [Medium] Outbound SSH from Proxy can lead to IP spoofing
+
+If the Teleport auth or proxy services are configured to accept `PROXY`
+protocol headers, a malicious actor can use this to spoof their IP address.
+
+This is addressed by requiring that the first bytes of any SSH connection are
+the SSH protocol prefix, denying a malicious actor the opportuity to send their
+own proxy headers.
+
+[#33729](https://github.com/gravitational/teleport/pull/33729)
+
+### Other Fixes & Improvements 
+
+ * Fixed issue where tbot would select the wrong address for Kubernetes Access when in ports separate mode [#34283](https://github.com/gravitational/teleport/pull/34283)
+ * Added post-review state of Access Request in audit log description [#34213](https://github.com/gravitational/teleport/pull/34213)
+ * Updated Operator Reconciliation to skip Teleport Operator on status updates [#34194](https://github.com/gravitational/teleport/pull/34194)
+ * Updated Kube Agent Auto-Discovery to install the Teleport version provided by Automatic Upgrades [#34157](https://github.com/gravitational/teleport/pull/34157)
+ * Updated Server Auto-Discovery installer script to use `bash` instead of `sh` [#34144](https://github.com/gravitational/teleport/pull/34144)
+ * When a promotable Access Request targets a resource that belongs to an Access List, owners of that list will now automatically be added as reviewers.  [#34131](https://github.com/gravitational/teleport/pull/34131)
+ * Added Database Automatic User Provisioning support for Redshift [#34126](https://github.com/gravitational/teleport/pull/34126)
+ * Added `teleport_auth_type` config parameter to the AWS Terraform examples [#34124](https://github.com/gravitational/teleport/pull/34124)
+ * Fixed issue where an auto-provisioned PostgreSQL user may keep old roles indefinitely  [#34121](https://github.com/gravitational/teleport/pull/34121)
+ * Fixed incorrectly set filemode for Windows TPM files [#34113](https://github.com/gravitational/teleport/pull/34113)
+ * Added dynamic credential reloading for access plugins [#34079](https://github.com/gravitational/teleport/pull/34079)
+ * Fixed Azure Identity federated Application ID [#33960](https://github.com/gravitational/teleport/pull/33960)
+ * Fixed issue where Kubernetes Audit Events reported incorrect information in the exec audit [#33950](https://github.com/gravitational/teleport/pull/33950)
+ * Added support for formatting hostame as `host:port` to `tsh puttyconfig` [#33883](https://github.com/gravitational/teleport/pull/33883)
+ * Added support for `--set-context-name` to `tsh proxy kube`
+ * Fixes various Access List bookkeeping issues [#33834](https://github.com/gravitational/teleport/pull/33834)
+ * Fixes issue where `tsh aws ecs execute-command` would always fail [#33833](https://github.com/gravitational/teleport/pull/33833)
+ * Updated UI to automatically redirect to login page on missing session cookie [#33806](https://github.com/gravitational/teleport/pull/33806)
+ * Added deep-link parsing support to Teleport Connect [#33740](https://github.com/gravitational/teleport/pull/33740)
+ * Added Dynamic Discovery matching for Databases [#33693](https://github.com/gravitational/teleport/pull/33693)
+ * Fixes formatting errors on empty result sets in `tsh` [#33633](https://github.com/gravitational/teleport/pull/33633)
+
 ## 14.1.1 (10/23/23)
 
 * Fixed the top bar breaking layout when the window is narrow in Connect [#33821](https://github.com/gravitational/teleport/pull/33821)
