@@ -47,7 +47,7 @@ func (h *Handler) clusterKubesGet(w http.ResponseWriter, r *http.Request, p http
 		return nil, trace.Wrap(err)
 	}
 
-	accessChecker, err := sctx.GetUserAccessChecker()
+	accessChecker, err := sctx.GetUserAccessChecker(r.Context(), site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -102,7 +102,7 @@ func (h *Handler) clusterDatabasesGet(w http.ResponseWriter, r *http.Request, p 
 		databases = append(databases, server.GetDatabase())
 	}
 
-	accessChecker, err := sctx.GetUserAccessChecker()
+	accessChecker, err := sctx.GetUserAccessChecker(r.Context(), site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -136,7 +136,7 @@ func (h *Handler) clusterDatabaseGet(w http.ResponseWriter, r *http.Request, p h
 		return nil, trace.Wrap(err)
 	}
 
-	accessChecker, err := sctx.GetUserAccessChecker()
+	accessChecker, err := sctx.GetUserAccessChecker(r.Context(), site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -190,7 +190,7 @@ func (h *Handler) clusterDesktopsGet(w http.ResponseWriter, r *http.Request, p h
 		return nil, trace.Wrap(err)
 	}
 
-	accessChecker, err := sctx.GetUserAccessChecker()
+	accessChecker, err := sctx.GetUserAccessChecker(r.Context(), site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -251,7 +251,7 @@ func (h *Handler) getDesktopHandle(w http.ResponseWriter, r *http.Request, p htt
 		return nil, trace.NotFound("expected at least 1 desktop, got 0")
 	}
 
-	accessChecker, err := sctx.GetUserAccessChecker()
+	accessChecker, err := sctx.GetUserAccessChecker(r.Context(), site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -422,7 +422,7 @@ func (h *Handler) handleNodeCreate(w http.ResponseWriter, r *http.Request, p htt
 		return nil, trace.Wrap(err)
 	}
 
-	accessChecker, err := sctx.GetUserAccessChecker()
+	accessChecker, err := sctx.GetUserAccessChecker(r.Context(), site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

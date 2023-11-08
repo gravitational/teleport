@@ -115,7 +115,7 @@ func (h *Handler) handleDatabaseCreate(w http.ResponseWriter, r *http.Request, p
 		return nil, trace.Wrap(err)
 	}
 
-	accessChecker, err := sctx.GetUserAccessChecker()
+	accessChecker, err := sctx.GetUserAccessChecker(r.Context(), site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

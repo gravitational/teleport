@@ -594,7 +594,7 @@ func (t *sshBaseHandler) connectToHost(ctx context.Context, ws WSConn, tc *clien
 	ctx, span := t.tracer.Start(ctx, "terminal/connectToHost")
 	defer span.End()
 
-	accessChecker, err := t.ctx.GetUserAccessChecker()
+	accessChecker, err := t.ctx.GetAccessChecker()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

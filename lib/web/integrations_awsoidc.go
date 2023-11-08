@@ -293,7 +293,7 @@ func (h *Handler) awsOIDCListEC2(w http.ResponseWriter, r *http.Request, p httpr
 		return nil, trace.Wrap(err)
 	}
 
-	accessChecker, err := sctx.GetUserAccessChecker()
+	accessChecker, err := sctx.GetUserAccessChecker(r.Context(), site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -613,7 +613,7 @@ func (h *Handler) assistGenSSHCommandLoop(ctx context.Context, assistClient *ass
 func (h *Handler) assistChatLoop(ctx context.Context, assistClient *assist.Assist, authClient auth.ClientI,
 	conversationID string, sctx *SessionContext, ws *websocket.Conn,
 ) error {
-	ac, err := sctx.GetUserAccessChecker()
+	ac, err := sctx.GetAccessChecker()
 	if err != nil {
 		return trace.Wrap(err)
 	}

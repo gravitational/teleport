@@ -958,7 +958,7 @@ func (h *Handler) getUserContext(w http.ResponseWriter, r *http.Request, p httpr
 	if cn.GetClusterName() != site.GetName() {
 		return nil, trace.BadParameter("endpoint only implemented for root cluster")
 	}
-	accessChecker, err := c.GetUserAccessChecker()
+	accessChecker, err := c.GetAccessChecker()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1982,7 +1982,7 @@ type CreateSessionResponse struct {
 }
 
 func newSessionResponse(sctx *SessionContext) (*CreateSessionResponse, error) {
-	accessChecker, err := sctx.GetUserAccessChecker()
+	accessChecker, err := sctx.GetAccessChecker()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2601,7 +2601,7 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 		return nil, trace.Wrap(err)
 	}
 
-	accessChecker, err := sctx.GetUserAccessChecker()
+	accessChecker, err := sctx.GetUserAccessChecker(request.Context(), site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2733,7 +2733,7 @@ func (h *Handler) clusterNodesGet(w http.ResponseWriter, r *http.Request, p http
 		return nil, trace.Wrap(err)
 	}
 
-	accessChecker, err := sctx.GetUserAccessChecker()
+	accessChecker, err := sctx.GetUserAccessChecker(r.Context(), site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2941,7 +2941,7 @@ func (h *Handler) siteNodeConnect(
 	clusterName := site.GetName()
 	if req.SessionID.IsZero() {
 		// An existing session ID was not provided so we need to create a new one.
-		sessionData, err = h.generateSession(ctx, clt, &req, clusterName, sessionCtx)
+		sessionData, err = h.generateSession(ctx, clt, &req, site, sessionCtx)
 		if err != nil {
 			h.log.WithError(err).Debug("Unable to generate new ssh session.")
 			return nil, trace.Wrap(err)
@@ -3021,8 +3021,9 @@ func (h *Handler) siteNodeConnect(
 	return nil, nil
 }
 
-func (h *Handler) generateSession(ctx context.Context, clt auth.ClientI, req *TerminalRequest, clusterName string, scx *SessionContext) (session.Session, error) {
+func (h *Handler) generateSession(ctx context.Context, clt auth.ClientI, req *TerminalRequest, site reversetunnelclient.RemoteSite, scx *SessionContext) (session.Session, error) {
 	owner := scx.cfg.User
+	clusterName := site.GetName()
 	h.log.Infof("Generating new session for %s\n", clusterName)
 
 	host, err := findByHost(ctx, clt, req.Server)
@@ -3030,7 +3031,7 @@ func (h *Handler) generateSession(ctx context.Context, clt auth.ClientI, req *Te
 		return session.Session{}, trace.Wrap(err)
 	}
 
-	accessChecker, err := scx.GetUserAccessChecker()
+	accessChecker, err := scx.GetUserAccessChecker(ctx, site)
 	if err != nil {
 		return session.Session{}, trace.Wrap(err)
 	}
@@ -4092,7 +4093,7 @@ func (h *Handler) AuthenticateRequest(w http.ResponseWriter, r *http.Request, ch
 // ProxyWithRoles returns a reverse tunnel proxy verifying the permissions
 // of the given user.
 func (h *Handler) ProxyWithRoles(ctx *SessionContext) (reversetunnelclient.Tunnel, error) {
-	accessChecker, err := ctx.GetUserAccessChecker()
+	accessChecker, err := ctx.GetAccessChecker()
 	if err != nil {
 		h.log.WithError(err).Warn("Failed to get client roles.")
 		return nil, trace.Wrap(err)

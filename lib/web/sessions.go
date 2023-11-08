@@ -486,9 +486,9 @@ func (c *SessionContext) GetX509Certificate() (*x509.Certificate, error) {
 	return tlsCert, nil
 }
 
-// GetUserAccessChecker returns AccessChecker derived from the SSH certificate
-// associated with this session.
-func (c *SessionContext) GetUserAccessChecker() (services.AccessChecker, error) {
+// GetAccessChecker returns a [services.AccessChecker] derived from the SSH certificate
+// associated with this session for the root cluster.
+func (c *SessionContext) GetAccessChecker() (services.AccessChecker, error) {
 	cert, err := c.GetSSHCertificate()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -500,6 +500,47 @@ func (c *SessionContext) GetUserAccessChecker() (services.AccessChecker, error) 
 	}
 
 	accessChecker, err := services.NewAccessChecker(accessInfo, c.cfg.RootClusterName, c.cfg.UnsafeCachedAuthClient)
+	return accessChecker, trace.Wrap(err)
+}
+
+// GetUserAccessChecker returns a [services.AccessChecker] derived from the SSH certificate
+// associated with this session for the provided cluster.
+func (c *SessionContext) GetUserAccessChecker(ctx context.Context, site reversetunnelclient.RemoteSite) (services.AccessChecker, error) {
+	if c.cfg.RootClusterName == site.GetName() {
+		checker, err := c.GetAccessChecker()
+		return checker, trace.Wrap(err)
+	}
+
+	clt, err := site.CachingAccessPoint()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Get the UserCA of the root cluster from the leaf cluster. This ensures
+	// the role mappings are populated according to the trusted cluster in the
+	// leaf cluster.
+	ca, err := clt.GetCertAuthority(ctx, types.CertAuthID{
+		Type:       types.UserCA,
+		DomainName: c.cfg.RootClusterName,
+	}, false)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	cert, err := c.GetSSHCertificate()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	info, err := services.AccessInfoFromRemoteCertificate(cert, ca.CombinedMapping())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// The leaf cluster client is provided to the access checker so that roles
+	// are retrieved from the leaf and not the root. This allows the access checker
+	// to know about any logins defined in the leaf cluster.
+	accessChecker, err := services.NewAccessChecker(info, site.GetName(), clt)
 	return accessChecker, trace.Wrap(err)
 }
 

@@ -44,6 +44,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
@@ -51,6 +53,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 	"golang.org/x/exp/slices"
@@ -132,8 +135,10 @@ func TestIntegrations(t *testing.T) {
 	//       suite to complete
 	suite := newSuite(t)
 
+	t.Run("AgentlessConnection", suite.bind(testAgentlessConnection))
 	t.Run("AuditOff", suite.bind(testAuditOff))
 	t.Run("AuditOn", suite.bind(testAuditOn))
+	t.Run("AuthLocalNodeControlStream", suite.bind(testAuthLocalNodeControlStream))
 	t.Run("BPFExec", suite.bind(testBPFExec))
 	t.Run("BPFInteractive", suite.bind(testBPFInteractive))
 	t.Run("BPFSessionDifferentiation", suite.bind(testBPFSessionDifferentiation))
@@ -142,11 +147,13 @@ func TestIntegrations(t *testing.T) {
 	t.Run("ControlMaster", suite.bind(testControlMaster))
 	t.Run("CustomReverseTunnel", suite.bind(testCustomReverseTunnel))
 	t.Run("DataTransfer", suite.bind(testDataTransfer))
+	t.Run("DifferentPinnedIP", suite.bind(testDifferentPinnedIP))
 	t.Run("Disconnection", suite.bind(testDisconnectScenarios))
 	t.Run("Discovery", suite.bind(testDiscovery))
 	t.Run("DiscoveryNode", suite.bind(testDiscoveryNode))
 	t.Run("DiscoveryRecovers", suite.bind(testDiscoveryRecovers))
 	t.Run("EnvironmentVars", suite.bind(testEnvironmentVariables))
+	t.Run("EscapeSequenceTriggers", suite.bind(testEscapeSequenceTriggers))
 	t.Run("ExecEvents", suite.bind(testExecEvents))
 	t.Run("ExternalClient", suite.bind(testExternalClient))
 	t.Run("HA", suite.bind(testHA))
@@ -155,9 +162,12 @@ func TestIntegrations(t *testing.T) {
 	t.Run("Interoperability", suite.bind(testInteroperability))
 	t.Run("InvalidLogin", suite.bind(testInvalidLogins))
 	t.Run("IP Propagation", suite.bind(testIPPropagation))
+	t.Run("JoinOverReverseTunnelOnly", suite.bind(testJoinOverReverseTunnelOnly))
 	t.Run("JumpTrustedClusters", suite.bind(testJumpTrustedClusters))
 	t.Run("JumpTrustedClustersWithLabels", suite.bind(testJumpTrustedClustersWithLabels))
+	t.Run("LeafAgentlessConnection", suite.bind(testTrustedClusterAgentless))
 	t.Run("LeafSessionRecording", suite.bind(testLeafProxySessionRecording))
+	t.Run("ListResourcesAcrossClusters", suite.bind(testListResourcesAcrossClusters))
 	t.Run("List", suite.bind(testList))
 	t.Run("MapRoles", suite.bind(testMapRoles))
 	t.Run("ModeratedSessions", suite.bind(testModeratedSessions))
@@ -165,13 +175,17 @@ func TestIntegrations(t *testing.T) {
 	t.Run("PAM", suite.bind(testPAM))
 	t.Run("PortForwarding", suite.bind(testPortForwarding))
 	t.Run("ProxyHostKeyCheck", suite.bind(testProxyHostKeyCheck))
+	t.Run("ResourceLogins", suite.bind(testResourceLogins))
 	t.Run("ReverseTunnelCollapse", suite.bind(testReverseTunnelCollapse))
 	t.Run("RotateRollback", suite.bind(testRotateRollback))
 	t.Run("RotateSuccess", suite.bind(testRotateSuccess))
 	t.Run("RotateTrustedClusters", suite.bind(testRotateTrustedClusters))
+	t.Run("SessionRecordingModes", suite.bind(testSessionRecordingModes))
 	t.Run("SessionStartContainsAccessRequest", suite.bind(testSessionStartContainsAccessRequest))
 	t.Run("SessionStreaming", suite.bind(testSessionStreaming))
+	t.Run("SFTP", suite.bind(testSFTP))
 	t.Run("SSHExitCode", suite.bind(testSSHExitCode))
+	t.Run("SSHTracker", suite.bind(testSSHTracker))
 	t.Run("Shutdown", suite.bind(testShutdown))
 	t.Run("TrustedClusters", suite.bind(testTrustedClusters))
 	t.Run("TrustedDisabledClusters", suite.bind(testDisabledTrustedClusters))
@@ -182,16 +196,6 @@ func TestIntegrations(t *testing.T) {
 	t.Run("TwoClustersTunnel", suite.bind(testTwoClustersTunnel))
 	t.Run("UUIDBasedProxy", suite.bind(testUUIDBasedProxy))
 	t.Run("WindowChange", suite.bind(testWindowChange))
-	t.Run("SSHTracker", suite.bind(testSSHTracker))
-	t.Run("ListResourcesAcrossClusters", suite.bind(testListResourcesAcrossClusters))
-	t.Run("SessionRecordingModes", suite.bind(testSessionRecordingModes))
-	t.Run("DifferentPinnedIP", suite.bind(testDifferentPinnedIP))
-	t.Run("JoinOverReverseTunnelOnly", suite.bind(testJoinOverReverseTunnelOnly))
-	t.Run("SFTP", suite.bind(testSFTP))
-	t.Run("EscapeSequenceTriggers", suite.bind(testEscapeSequenceTriggers))
-	t.Run("AuthLocalNodeControlStream", suite.bind(testAuthLocalNodeControlStream))
-	t.Run("AgentlessConnection", suite.bind(testAgentlessConnection))
-	t.Run("LeafAgentlessConnection", suite.bind(testTrustedClusterAgentless))
 }
 
 // testDifferentPinnedIP tests connection is rejected when source IP doesn't match the pinned one
@@ -9015,4 +9019,217 @@ func testModeratedSessions(t *testing.T, suite *integrationTestSuite) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("Timeout waiting for session to be terminated.")
 	}
+}
+
+// testResourceLogins validates that the logins provided by the web api
+// for various resources in a leaf cluster, when accessed via the root cluster,
+// contain the logins from the mapped roles in the leaf cluster.
+func testResourceLogins(t *testing.T, suite *integrationTestSuite) {
+	ctx := context.Background()
+
+	mainCfg := helpers.InstanceConfig{
+		ClusterName: "root",
+		HostID:      helpers.HostID,
+		NodeName:    Host,
+		Priv:        suite.Priv,
+		Pub:         suite.Pub,
+		Log:         suite.Log,
+	}
+	mainCfg.Listeners = standardPortsOrMuxSetup(t, false, &mainCfg.Fds)
+	main := helpers.NewInstance(t, mainCfg)
+	leaf := suite.newNamedTeleportInstance(t, "leaf")
+
+	authPref := types.DefaultAuthPreference()
+	authPref.SetSecondFactor(constants.SecondFactorOff)
+
+	makeConfig := func(enableSSH bool) (*testing.T, []*helpers.InstanceSecrets, *servicecfg.Config) {
+		tconf := suite.defaultServiceConfig()
+		tconf.Proxy.DisableWebService = false
+		tconf.Proxy.DisableWebInterface = true
+		tconf.SSH.Enabled = enableSSH
+		tconf.Auth.Preference = authPref
+		return t, nil, tconf
+	}
+	lib.SetInsecureDevMode(true)
+	defer lib.SetInsecureDevMode(false)
+
+	require.NoError(t, main.CreateEx(makeConfig(false)))
+	require.NoError(t, leaf.CreateEx(makeConfig(false)))
+
+	// Create a role in the leaf cluster that allows for various additional logins.
+	rootRole, err := types.NewRole("root-role", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Logins:               []string{"moe"},
+			DatabaseUsers:        []string{"larry"},
+			WindowsDesktopLogins: []string{"curly"},
+		},
+	})
+	require.NoError(t, err)
+
+	// Create a role in the leaf cluster that allows for various additional logins.
+	leafRole, err := types.NewRole("leaf-role", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Logins:               []string{"llama", "alpaca"},
+			NodeLabels:           types.Labels{types.Wildcard: []string{types.Wildcard}},
+			DatabaseUsers:        []string{"fish", "fox"},
+			DatabaseLabels:       types.Labels{types.Wildcard: []string{types.Wildcard}},
+			WindowsDesktopLogins: []string{"bird", "camel"},
+			WindowsDesktopLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+			ClusterLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
+		},
+	})
+	require.NoError(t, err)
+
+	// Persist the roles and user.
+	rootRole, err = main.Process.GetAuthServer().CreateRole(ctx, rootRole)
+	require.NoError(t, err)
+	_, err = leaf.Process.GetAuthServer().CreateRole(ctx, leafRole)
+	require.NoError(t, err)
+
+	hash, err := utils.BcryptFromPassword([]byte("password"), bcrypt.DefaultCost)
+	require.NoError(t, err)
+
+	_, err = main.Process.GetAuthServer().CreateUser(ctx, &types.UserV2{
+		Kind: types.KindUser,
+		Metadata: types.Metadata{
+			Name: "alice",
+		},
+		Spec: types.UserSpecV2{
+			Roles:     []string{rootRole.GetName(), teleport.PresetAccessRoleName},
+			LocalAuth: &types.LocalAuthSecrets{PasswordHash: hash},
+		},
+	})
+	require.NoError(t, err)
+
+	// Create fake resources in the leaf cluster.
+	expiry := leaf.Process.GetAuthServer().GetClock().Now().Add(24 * time.Hour)
+	_, err = leaf.Process.GetAuthServer().UpsertNode(ctx, &types.ServerV2{
+		Kind:    types.KindNode,
+		Version: types.V2,
+		Metadata: types.Metadata{
+			Name:    "fake-node",
+			Expires: &expiry,
+		},
+		Spec: types.ServerSpecV2{
+			Addr:       "127.0.0.1:3022",
+			PublicAddr: "fake-node.example.com",
+			Hostname:   "fake-node",
+		},
+	})
+	require.NoError(t, err)
+
+	err = leaf.Process.GetAuthServer().UpsertWindowsDesktop(ctx, &types.WindowsDesktopV3{
+		ResourceHeader: types.ResourceHeader{
+			Kind:    types.KindWindowsDesktop,
+			Version: types.V3,
+			Metadata: types.Metadata{
+				Name:    "fake-desktop",
+				Expires: &expiry,
+			},
+		},
+		Spec: types.WindowsDesktopSpecV3{
+			Addr:   "127.0.0.1:8090",
+			Domain: "test",
+			HostID: "fake-desktop",
+		},
+	})
+	require.NoError(t, err)
+
+	_, err = leaf.Process.GetAuthServer().UpsertDatabaseServer(ctx, &types.DatabaseServerV3{
+		Kind:    types.KindDatabaseServer,
+		Version: types.V3,
+		Metadata: types.Metadata{
+			Name:    "fake-db",
+			Expires: &expiry,
+		},
+		Spec: types.DatabaseServerSpecV3{
+			Hostname: "db",
+			HostID:   "fake-db",
+			Database: &types.DatabaseV3{
+				Kind:    types.KindDatabase,
+				Version: types.V3,
+				Metadata: types.Metadata{
+					Name: "dbdb",
+					Labels: map[string]string{
+						"env": "prod",
+					},
+				},
+				Spec: types.DatabaseSpecV3{
+					Protocol: "test-protocol",
+					URI:      "test-uri",
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	// Create the trusted cluster.
+	trustedClusterToken := "trusted-cluster-token"
+	tokenResource, err := types.NewProvisionToken(trustedClusterToken, []types.SystemRole{types.RoleTrustedCluster}, time.Time{})
+	require.NoError(t, err)
+	err = main.Process.GetAuthServer().UpsertToken(ctx, tokenResource)
+	require.NoError(t, err)
+	trustedCluster := main.AsTrustedCluster(trustedClusterToken, types.RoleMap{
+		{Remote: teleport.PresetAccessRoleName, Local: []string{teleport.PresetAccessRoleName, leafRole.GetName()}},
+	})
+
+	require.NoError(t, main.Start())
+	require.NoError(t, leaf.Start())
+	require.NoError(t, trustedCluster.CheckAndSetDefaults())
+
+	// Persist the trusted cluster resource.
+	helpers.TryCreateTrustedCluster(t, leaf.Process.GetAuthServer(), trustedCluster)
+	helpers.WaitForTunnelConnections(t, main.Process.GetAuthServer(), "leaf", 1)
+
+	// Wait for both clusters to see each other via reverse tunnels.
+	require.Eventually(t, helpers.WaitForClusters(main.Tunnel, 1), 10*time.Second, 1*time.Second,
+		"Two clusters do not see each other: tunnels are not working.")
+	require.Eventually(t, helpers.WaitForClusters(leaf.Tunnel, 1), 10*time.Second, 1*time.Second,
+		"Two clusters do not see each other: tunnels are not working.")
+
+	// Get the resources from the web api and validate the logins appear as expected.
+	clt, err := main.NewWebClient(helpers.ClientConfig{
+		Login:    "alice",
+		Password: "password",
+		Cluster:  helpers.Site,
+		Host:     Loopback,
+		Port:     helpers.Port(t, main.SSH),
+	})
+	require.NoError(t, err)
+
+	resources, err := clt.GetResources("leaf")
+	require.NoError(t, err)
+	require.Len(t, resources, 3)
+
+	for _, resource := range resources {
+		switch resource["kind"] {
+		case types.KindNode:
+			// Note: the ssh logins include "moe" from the root-role because it gets added
+			// as a valid principal to the user SSH certificate, and all valid principals get
+			// added to the user's login traits.
+			assert.Empty(t,
+				cmp.Diff(
+					[]any{"moe", "llama", "alpaca"},
+					resource["sshLogins"],
+					cmpopts.SortSlices(func(a, b any) bool { return a.(string) < b.(string) }),
+				))
+		case types.KindWindowsDesktop:
+			assert.Empty(t, cmp.Diff(
+				[]any{"bird", "camel"},
+				resource["logins"],
+				cmpopts.SortSlices(func(a, b any) bool { return a.(string) < b.(string) }),
+			))
+		case types.KindDatabase:
+			assert.Empty(t, cmp.Diff(
+				[]any{"fish", "fox"},
+				resource["database_users"],
+				cmpopts.SortSlices(func(a, b any) bool { return a.(string) < b.(string) }),
+			))
+		}
+	}
+
+	// Stop clusters and remaining nodes.
+	require.NoError(t, main.StopAll())
+	require.NoError(t, leaf.StopAll())
+
 }

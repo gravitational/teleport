@@ -25,6 +25,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/http/cookiejar"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -1408,15 +1409,29 @@ func (i *TeleInstance) CreateWebUser(t *testing.T, username, password string) {
 // WebClient allows web sessions to be created as
 // if they were from the UI.
 type WebClient struct {
-	tc      *client.TeleportClient
-	i       *TeleInstance
-	token   string
-	cookies []*http.Cookie
+	tc         *client.TeleportClient
+	i          *TeleInstance
+	httpClient *http.Client
+	token      string
+	cookies    []*http.Cookie
 }
 
 // NewWebClient returns a fully configured and authenticated client
 func (i *TeleInstance) NewWebClient(cfg ClientConfig) (*WebClient, error) {
-	resp, cookies, err := CreateWebSession(i.Web, cfg.Login, cfg.Password)
+	jar, err := cookiejar.New(nil)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	httpClient := &http.Client{
+		Jar: jar,
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: true,
+			},
+		},
+	}
+
+	resp, cookies, err := CreateWebSession(httpClient, i.Web, cfg.Login, cfg.Password)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1440,10 +1455,11 @@ func (i *TeleInstance) NewWebClient(cfg ClientConfig) (*WebClient, error) {
 	}
 
 	return &WebClient{
-		tc:      tc,
-		i:       i,
-		token:   resp.Token,
-		cookies: cookies,
+		tc:         tc,
+		i:          i,
+		token:      resp.Token,
+		cookies:    cookies,
+		httpClient: httpClient,
 	}, nil
 }
 
@@ -1451,7 +1467,7 @@ func (i *TeleInstance) NewWebClient(cfg ClientConfig) (*WebClient, error) {
 // does. There is no MFA performed, the session will only successfully be created
 // if second factor configuration is `off`. The [web.CreateSessionResponse.Token] and
 // cookies can be used to interact with any authenticated web api endpoints.
-func CreateWebSession(proxyHost, user, password string) (*web.CreateSessionResponse, []*http.Cookie, error) {
+func CreateWebSession(httpClient *http.Client, proxyHost, user, password string) (*web.CreateSessionResponse, []*http.Cookie, error) {
 	csReq, err := json.Marshal(web.CreateSessionReq{
 		User: user,
 		Pass: password,
@@ -1485,13 +1501,6 @@ func CreateWebSession(proxyHost, user, password string) (*web.CreateSessionRespo
 	req.Header.Set(csrf.HeaderName, csrfToken)
 
 	// Issue request.
-	httpClient := &http.Client{
-		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{
-				InsecureSkipVerify: true,
-			},
-		},
-	}
 	resp, err := httpClient.Do(req)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -1575,6 +1584,53 @@ func (w *WebClient) SSH(termReq web.TerminalRequest) (*web.TerminalStream, error
 
 	stream := web.NewTerminalStream(context.Background(), ws, utils.NewLoggerForTests())
 	return stream, nil
+}
+
+func (w *WebClient) GetResources(cluster string) ([]map[string]any, error) {
+	// Create POST request to create session.
+	u := url.URL{
+		Scheme: "https",
+		Host:   w.i.Web,
+		Path:   fmt.Sprintf("/v1/webapi/sites/%s/resources", cluster),
+	}
+
+	q := u.Query()
+	q.Set(roundtrip.AccessTokenQueryParam, w.token)
+	q.Set("site", cluster)
+	q.Set("limit", "1000")
+	q.Set("sort", "name:desc")
+	u.RawQuery = q.Encode()
+
+	req, err := http.NewRequest(http.MethodGet, u.String(), nil)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	req.Header.Add("Origin", "http://localhost")
+	for _, cookie := range w.cookies {
+		req.Header.Add("Cookie", cookie.String())
+	}
+
+	resp, err := w.httpClient.Do(req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	defer resp.Body.Close()
+	if http.StatusOK != resp.StatusCode {
+		return nil, trace.ConnectionProblem(nil, "received unexpected status code: %d", resp.StatusCode)
+	}
+
+	type response struct {
+		Items []map[string]any `json:"items"`
+	}
+
+	var apiResponse response
+	if err := json.NewDecoder(resp.Body).Decode(&apiResponse); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return apiResponse.Items, nil
 }
 
 // AddClientCredentials adds authenticated credentials to a client.

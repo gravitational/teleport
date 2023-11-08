@@ -142,7 +142,7 @@ func NewSessionController(cfg SessionControllerConfig) (*SessionController, erro
 // WebSessionContext contains information associated with a session
 // established via the web ui.
 type WebSessionContext interface {
-	GetUserAccessChecker() (services.AccessChecker, error)
+	GetAccessChecker() (services.AccessChecker, error)
 	GetSSHCertificate() (*ssh.Certificate, error)
 	GetUser() string
 }
@@ -152,7 +152,7 @@ type WebSessionContext interface {
 // This allows `lib/web` to not depend on `lib/srv`.
 func WebSessionController(controller *SessionController) func(ctx context.Context, sctx WebSessionContext, login, localAddr, remoteAddr string) (context.Context, error) {
 	return func(ctx context.Context, sctx WebSessionContext, login, localAddr, remoteAddr string) (context.Context, error) {
-		accessChecker, err := sctx.GetUserAccessChecker()
+		accessChecker, err := sctx.GetAccessChecker()
 		if err != nil {
 			return ctx, trace.Wrap(err)
 		}
