@@ -79,7 +79,7 @@ func (f *fakeIDP) issuer() string {
 func (f *fakeIDP) audience() string {
 	// Spacelift issues IDTokens with the audience set to the same as the
 	// issuer (e.g the spacelift tenant hostname) but without the scheme.
-	return strings.TrimLeft(f.server.URL, "http://")
+	return strings.TrimPrefix(f.server.URL, "http://")
 }
 
 func (f *fakeIDP) handleOpenIDConfig(w http.ResponseWriter, r *http.Request) {

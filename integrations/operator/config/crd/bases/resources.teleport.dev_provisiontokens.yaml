@@ -257,6 +257,32 @@ spec:
                   type: string
                 nullable: true
                 type: array
+              spacelift:
+                description: Spacelift allows the configuration of options specific
+                  to the "spacelift" join method.
+                nullable: true
+                properties:
+                  allow:
+                    description: Allow is a list of Rules, nodes using this token
+                      must match one allow rule to use this token.
+                    items:
+                      properties:
+                        caller_id:
+                          type: string
+                        caller_type:
+                          type: string
+                        scope:
+                          type: string
+                        space_id:
+                          type: string
+                      type: object
+                    nullable: true
+                    type: array
+                  hostname:
+                    description: Hostname is the hostname of the Spacelift tenant
+                      that tokens will originate from. E.g `example.app.spacelift.io`
+                    type: string
+                type: object
               suggested_agent_matcher_labels:
                 additionalProperties:
                   x-kubernetes-preserve-unknown-fields: true
