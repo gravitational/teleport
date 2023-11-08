@@ -22,7 +22,6 @@ import "teleport/lib/teleterm/v1/cluster.proto";
 import "teleport/lib/teleterm/v1/database.proto";
 import "teleport/lib/teleterm/v1/gateway.proto";
 import "teleport/lib/teleterm/v1/kube.proto";
-import "teleport/lib/teleterm/v1/label.proto";
 import "teleport/lib/teleterm/v1/server.proto";
 import "teleport/lib/teleterm/v1/usage_events.proto";
 
@@ -475,7 +474,8 @@ message CreateConnectMyComputerNodeTokenRequest {
 }
 message CreateConnectMyComputerNodeTokenResponse {
   string token = 1;
-  repeated Label labels = 2;
+  reserved 2;
+  reserved "labels";
 }
 
 message DeleteConnectMyComputerTokenRequest {
