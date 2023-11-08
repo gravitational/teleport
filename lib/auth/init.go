@@ -1373,8 +1373,8 @@ var ResourceApplyPriority = map[string]int{
 func applyResources(ctx context.Context, service *Services, resources []types.Resource) error {
 	var err error
 	slices.SortFunc(resources, func(a, b types.Resource) int {
-		priorityA, _ := ResourceApplyPriority[a.GetKind()]
-		priorityB, _ := ResourceApplyPriority[b.GetKind()]
+		priorityA := ResourceApplyPriority[a.GetKind()]
+		priorityB := ResourceApplyPriority[b.GetKind()]
 		return priorityA - priorityB
 	})
 	for _, resource := range resources {
