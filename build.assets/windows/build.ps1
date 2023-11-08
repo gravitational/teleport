@@ -183,25 +183,6 @@ function Format-FileHashes {
     }
 }
 
-function Convert-Base64Data {
-    <#
-    .SYNOPSIS
-        Decodes the provided base64-encoded `$Data` and writes it to the provided
-        `$FilePath`
-    #>
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory)]
-        [string] $FilePath,
-        [Parameter(Mandatory)]
-        [string] $Data
-    )
-    begin {
-        $bytes = [Convert]::FromBase64String($Data)
-        Set-Content -AsByteStream -Path $FilePath -Value $bytes
-    }
-}
-
 function Get-Relcli {
     <#
     .SYNOPSIS
@@ -244,7 +225,7 @@ function Register-Artifacts {
         $certPath = "$Workspace\releases.crt"
         Out-File -FilePath $certPath -Encoding ascii -InputObject "$env:RELEASES_CERT"
         $keyPath = "$Workspace\releases.key"
-        Convert-Base64Data -Data $Env:RELEASES_KEY -FilePath $keyPath
+        Out-File -FilePath $keyPath -Encoding ascii -InputObject "$env:RELEASES_KEY"
 
         # These must be set for the `auto_upload` command
         $env:DRONE_REPO = "$ReleaseRepo"
