@@ -1615,7 +1615,8 @@ func applyDatabasesConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 				Mode:       servicecfg.TLSMode(database.TLS.Mode),
 			},
 			AdminUser: servicecfg.DatabaseAdminUser{
-				Name: database.AdminUser.Name,
+				Name:            database.AdminUser.Name,
+				DefaultDatabase: database.AdminUser.DefaultDatabase,
 			},
 			Oracle: convOracleOptions(database.Oracle),
 			AWS: servicecfg.DatabaseAWS{
