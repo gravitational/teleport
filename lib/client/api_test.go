@@ -544,6 +544,51 @@ func TestApplyProxySettings(t *testing.T) {
 	}
 }
 
+func TestApplyAuthSettings(t *testing.T) {
+	tests := []struct {
+		desc        string
+		settingsIn  webclient.AuthenticationSettings
+		tcConfigIn  Config
+		tcConfigOut Config
+	}{
+		{
+			desc: "PIV slot set by server",
+			settingsIn: webclient.AuthenticationSettings{
+				PIVSlot: "9c",
+			},
+			tcConfigOut: Config{
+				PIVSlot: "9c",
+			},
+		}, {
+			desc: "PIV slot set by client",
+			tcConfigIn: Config{
+				PIVSlot: "9a",
+			},
+			tcConfigOut: Config{
+				PIVSlot: "9a",
+			},
+		}, {
+			desc: "PIV slot set on server and client, client takes precedence",
+			settingsIn: webclient.AuthenticationSettings{
+				PIVSlot: "9c",
+			},
+			tcConfigIn: Config{
+				PIVSlot: "9a",
+			},
+			tcConfigOut: Config{
+				PIVSlot: "9a",
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			tc := &TeleportClient{Config: test.tcConfigIn}
+			tc.applyAuthSettings(test.settingsIn)
+			require.EqualValues(t, test.tcConfigOut, tc.Config)
+		})
+	}
+}
+
 type mockAgent struct {
 	// Agent is embedded to avoid redeclaring all interface methods.
 	// Only the Signers method is implemented by testAgent.
