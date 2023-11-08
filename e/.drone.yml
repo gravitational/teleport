@@ -4,7 +4,7 @@ type: kubernetes
 name: push-build-linux-amd64
 
 environment:
-  RUNTIME: go1.21.3
+  RUNTIME: go1.21.4
   UID: 1000
   GID: 1000
 
@@ -103,7 +103,7 @@ type: kubernetes
 name: push-build-linux-i386
 
 environment:
-  RUNTIME: go1.21.3
+  RUNTIME: go1.21.4
   UID: 1000
   GID: 1000
 
@@ -202,7 +202,7 @@ type: kubernetes
 name: push-build-linux-amd64-fips
 
 environment:
-  RUNTIME: go1.21.3
+  RUNTIME: go1.21.4
   UID: 1000
   GID: 1000
 
@@ -305,7 +305,7 @@ type: kubernetes
 name: push-build-windows-amd64
 
 environment:
-  RUNTIME: go1.21.3
+  RUNTIME: go1.21.4
   UID: 1000
   GID: 1000
 
@@ -404,7 +404,7 @@ type: kubernetes
 name: push-build-linux-arm
 
 environment:
-  RUNTIME: go1.21.3
+  RUNTIME: go1.21.4
   UID: 1000
   GID: 1000
 
@@ -503,7 +503,7 @@ type: kubernetes
 name: push-build-linux-arm64
 
 environment:
-  RUNTIME: go1.21.3
+  RUNTIME: go1.21.4
   UID: 1000
   GID: 1000
 
@@ -598,6 +598,6 @@ volumes:
 
 ---
 kind: signature
-hmac: 4b7dc175cf209fbbebac849b5201b34b338f19205ff3d3a3d527b46eab27dd01
+hmac: 2ff572307735ae0dbbc1f997705eab5e8a1c1691cca7565e58f1b3a912a29883
 
 ...
