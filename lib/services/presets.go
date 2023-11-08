@@ -166,7 +166,7 @@ func NewPresetEditorRole() types.Role {
 					types.NewRule(types.KindDiscoveryConfig, RW()),
 					types.NewRule(types.KindSecurityReport, append(RW(), types.VerbUse)),
 					types.NewRule(types.KindAuditQuery, append(RW(), types.VerbUse)),
-					types.NewRule(types.KindAccessGraph, append(RW(), types.VerbUse)),
+					types.NewRule(types.KindAccessGraph, RW()),
 				},
 			},
 		},
