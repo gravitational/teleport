@@ -43,6 +43,12 @@ export const OverrideUserAgent: React.FC<{ userAgent: UserAgent }> = ({
   }
 
   useEffect(() => {
+    if (!process.env.STORYBOOK) {
+      throw new Error(
+        'OverrideUserAgent is meant to be run only from within stories'
+      );
+    }
+
     return () => {
       Object.defineProperty(window.navigator, 'userAgent', {
         get: () => originalUserAgentRef.current,
