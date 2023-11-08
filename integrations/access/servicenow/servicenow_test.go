@@ -61,9 +61,9 @@ type ServiceNowSuite struct {
 	raceNumber     int
 	fakeServiceNow *FakeServiceNow
 
-	snResponder1      string
-	snResponder2      string
-	snResponder3      string
+	snResponder1 string
+	snResponder2 string
+	snResponder3 string
 
 	clients          map[string]*integration.Client
 	teleportFeatures *proto.Features
