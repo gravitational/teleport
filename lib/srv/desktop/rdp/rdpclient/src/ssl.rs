@@ -16,12 +16,20 @@
  * /
  */
 
+use static_init::dynamic;
 use tokio::net::TcpStream;
 
 use crate::client::{ClientError, ClientResult};
 
 #[cfg(feature = "fips")]
 pub type TlsStream<S> = tokio_boring::SslStream<S>;
+
+#[cfg(feature = "fips")]
+#[dynamic(0)]
+static mut FIPS_CHECK: () = unsafe {
+    use boring;
+    assert!(boring::fips::enabled());
+};
 
 #[cfg(not(feature = "fips"))]
 pub type TlsStream<S> = ironrdp_tls::TlsStream<S>;
