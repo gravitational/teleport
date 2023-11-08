@@ -98,6 +98,8 @@ type UserACL struct {
 	AuditQuery ResourceAccess `json:"auditQuery"`
 	// SecurityReport defines access to security reports.
 	SecurityReport ResourceAccess `json:"securityReport"`
+	// AccessGraph defines access to access graph.
+	AccessGraph ResourceAccess `json:"accessGraph"`
 }
 
 func hasAccess(roleSet RoleSet, ctx *Context, kind string, verbs ...string) bool {
@@ -142,6 +144,7 @@ func NewUserACL(user types.User, userRoles RoleSet, features proto.Features, des
 	desktopAccess := newAccess(userRoles, ctx, types.KindWindowsDesktop)
 	cnDiagnosticAccess := newAccess(userRoles, ctx, types.KindConnectionDiagnostic)
 	samlIdpServiceProviderAccess := newAccess(userRoles, ctx, types.KindSAMLIdPServiceProvider)
+	accessGraphAccess := newAccess(userRoles, ctx, types.KindAccessGraph)
 
 	var assistAccess ResourceAccess
 	if features.Assist {
@@ -209,5 +212,6 @@ func NewUserACL(user types.User, userRoles RoleSet, features proto.Features, des
 		AccessList:              accessListAccess,
 		AuditQuery:              auditQuery,
 		SecurityReport:          securityReports,
+		AccessGraph:             accessGraphAccess,
 	}
 }
