@@ -14,12 +14,12 @@
 
 syntax = "proto3";
 
-package teleport.accessgraph.v1alpha;
+package accessgraph.v1alpha;
 
 import "teleport/legacy/client/proto/event.proto";
 import "teleport/legacy/types/types.proto";
 
-option go_package = "github.com/gravitational/teleport/api/gen/proto/go/accessgraph/v1alpha;accessgraphv1alpha";
+option go_package = "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha;accessgraphv1alpha";
 
 // AccessGraphService is a service for interacting the access graph service.
 service AccessGraphService {

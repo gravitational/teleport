@@ -16,7 +16,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.3.0
 // - protoc             (unknown)
-// source: teleport/accessgraph/v1alpha/query.proto
+// source: accessgraph/v1alpha/query.proto
 
 package accessgraphv1alpha
 
@@ -33,10 +33,10 @@ import (
 const _ = grpc.SupportPackageIsVersion7
 
 const (
-	AccessGraphService_Query_FullMethodName        = "/teleport.accessgraph.v1alpha.AccessGraphService/Query"
-	AccessGraphService_GetFile_FullMethodName      = "/teleport.accessgraph.v1alpha.AccessGraphService/GetFile"
-	AccessGraphService_SendEvent_FullMethodName    = "/teleport.accessgraph.v1alpha.AccessGraphService/SendEvent"
-	AccessGraphService_SendResource_FullMethodName = "/teleport.accessgraph.v1alpha.AccessGraphService/SendResource"
+	AccessGraphService_Query_FullMethodName        = "/accessgraph.v1alpha.AccessGraphService/Query"
+	AccessGraphService_GetFile_FullMethodName      = "/accessgraph.v1alpha.AccessGraphService/GetFile"
+	AccessGraphService_SendEvent_FullMethodName    = "/accessgraph.v1alpha.AccessGraphService/SendEvent"
+	AccessGraphService_SendResource_FullMethodName = "/accessgraph.v1alpha.AccessGraphService/SendResource"
 )
 
 // AccessGraphServiceClient is the client API for AccessGraphService service.
@@ -219,7 +219,7 @@ func _AccessGraphService_SendResource_Handler(srv interface{}, ctx context.Conte
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
 var AccessGraphService_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "teleport.accessgraph.v1alpha.AccessGraphService",
+	ServiceName: "accessgraph.v1alpha.AccessGraphService",
 	HandlerType: (*AccessGraphServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
@@ -240,5 +240,5 @@ var AccessGraphService_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "teleport/accessgraph/v1alpha/query.proto",
+	Metadata: "accessgraph/v1alpha/query.proto",
 }
