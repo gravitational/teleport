@@ -68,7 +68,7 @@ const INITIAL_FETCH_SIZE = 48;
 // increment by 24 every fetch
 const FETCH_MORE_SIZE = 24;
 
-const loadingItemArray = new Array(FETCH_MORE_SIZE).fill(undefined);
+export const loadingItemArray = new Array(FETCH_MORE_SIZE).fill(undefined);
 
 export const PINNING_NOT_SUPPORTED_MESSAGE =
   'This cluster does not support pinning resources. To enable, upgrade to 14.1 or newer.';
@@ -218,7 +218,7 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
     pinnedResources.includes(resource)
   );
 
-  const handleSelectResources = (resourceId: string) => {
+  const handleSelectResource = (resourceId: string) => {
     setSelectedResources(prevResources => {
       if (selectedResources.includes(resourceId)) {
         return prevResources.filter(i => i !== resourceId);
@@ -314,6 +314,8 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
       },
     ];
   };
+
+  const ViewComponent = viewMode === 'list' ? ListView : CardsView;
 
   return (
     <div
@@ -424,41 +426,22 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
       {pinning.kind === 'not-supported' && params.pinnedOnly ? (
         <PinningNotSupported />
       ) : (
-        <>
-          {viewMode === 'list' ? (
-            <ListView
-              resources={resources}
-              onLabelClick={onLabelClick}
-              pinnedResources={pinnedResources}
-              pinning={pinning}
-              selectedResources={selectedResources}
-              handleSelectResources={handleSelectResources}
-              handlePinResource={handlePinResource}
-              updatePinnedResourcesAttempt={updatePinnedResourcesAttempt}
-              isProcessing={
-                resourcesFetchAttempt.status === 'processing' ||
-                getPinnedResourcesAttempt.status === 'processing'
-              }
-              loadingItemArray={loadingItemArray}
-            />
-          ) : (
-            <CardsView
-              resources={resources}
-              onLabelClick={onLabelClick}
-              pinnedResources={pinnedResources}
-              pinning={pinning}
-              selectedResources={selectedResources}
-              handleSelectResources={handleSelectResources}
-              handlePinResource={handlePinResource}
-              updatePinnedResourcesAttempt={updatePinnedResourcesAttempt}
-              isProcessing={
-                resourcesFetchAttempt.status === 'processing' ||
-                getPinnedResourcesAttempt.status === 'processing'
-              }
-              loadingItemArray={loadingItemArray}
-            />
+        <ViewComponent
+          resources={resources}
+          onLabelClick={onLabelClick}
+          pinnedResources={pinnedResources}
+          selectedResources={selectedResources}
+          onSelectResource={handleSelectResource}
+          onPinResource={handlePinResource}
+          pinningSupport={getResourcePinningSupport(
+            pinning.kind,
+            updatePinnedResourcesAttempt
           )}
-        </>
+          isProcessing={
+            resourcesFetchAttempt.status === 'processing' ||
+            getPinnedResourcesAttempt.status === 'processing'
+          }
+        />
       )}
       <div ref={setTrigger} />
       <ListFooter>
@@ -491,7 +474,7 @@ export function useUnifiedResourcesFetch<T>(props: {
   });
 }
 
-export function getResourcePinningSupport(
+function getResourcePinningSupport(
   pinning: UnifiedResourcesPinning['kind'],
   updatePinnedResourcesAttempt: AsyncAttempt<void>
 ): PinningSupport {

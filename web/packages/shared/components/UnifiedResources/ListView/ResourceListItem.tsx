@@ -94,22 +94,21 @@ export function ResourceListItem({
         selected={selected}
       >
         {/* checkbox */}
-        <Box
+        <HoverTooltip
           css={`
             grid-area: checkbox;
-            place-self: center;
           `}
+          tipContent={<>{selected ? 'Deselect' : 'Select'}</>}
         >
-          <HoverTooltip tipContent={<>{selected ? 'Deselect' : 'Select'}</>}>
-            <StyledCheckbox checked={selected} onChange={selectResource} />
-          </HoverTooltip>
-        </Box>
+          <StyledCheckbox checked={selected} onChange={selectResource} />
+        </HoverTooltip>
 
         {/* pin button */}
+        {/* We wrap it in a box in order to center it properly in its grid. */}
         <Box
           css={`
             grid-area: pin;
-            place-self: center;
+            place-self: center center;
           `}
         >
           <PinButton
@@ -117,9 +116,6 @@ export function ResourceListItem({
             pinned={pinned}
             pinningSupport={pinningSupport}
             hovered={hovered}
-            css={`
-              display: flex;
-            `}
           />
         </Box>
 
@@ -130,94 +126,69 @@ export function ResourceListItem({
           height="36px"
           css={`
             grid-area: icon;
-            place-self: center;
+            place-self: center center;
           `}
         />
 
-        {/* name */}
-        <Box
+        {/* name and description */}
+        <Flex
           css={`
             grid-area: name;
-            display: flex;
+            justify-content: left;
+            align-items: center;
+            overflow: hidden;
           `}
         >
-          <Flex flexDirection="column">
-            <Flex>
-              {isNameOverflowed ? (
-                <HoverTooltip tipContent={<>{name}</>}>
-                  <Text
-                    ref={nameText}
-                    typography="h5"
-                    fontWeight={300}
-                    css={`
-                      max-width: 13vw;
-                      text-overflow: ellipsis;
-                      white-space: nowrap;
-                    `}
-                  >
-                    {name}
-                  </Text>
-                </HoverTooltip>
-              ) : (
-                <Text
-                  ref={nameText}
-                  typography="h5"
-                  fontWeight={300}
-                  css={`
-                    max-width: 13vw;
-                    text-overflow: ellipsis;
-                    white-space: nowrap;
-                  `}
-                >
-                  {name}
-                </Text>
-              )}
-              {hovered && <CopyButton name={name} />}
-            </Flex>
+          <Flex
+            flexDirection="column"
+            css={`
+              overflow: hidden;
+            `}
+          >
+            {isNameOverflowed ? (
+              <HoverTooltip tipContent={<>{name}</>}>
+                <Name ref={nameText}>{name}</Name>
+              </HoverTooltip>
+            ) : (
+              <Name ref={nameText}>{name}</Name>
+            )}
             {description && (
               <>
                 {isDescOverflowed ? (
                   <HoverTooltip tipContent={<>{description}</>}>
-                    <Text
-                      ref={descText}
-                      typography="subtitle1"
-                      color="text.muted"
-                      css={`
-                        max-width: 15vw;
-                        text-overflow: ellipsis;
-                        white-space: nowrap;
-                      `}
-                    >
-                      {description}
-                    </Text>
+                    <Description ref={descText}>{description}</Description>
                   </HoverTooltip>
                 ) : (
-                  <Text
-                    ref={descText}
-                    typography="subtitle1"
-                    color="text.muted"
-                    css={`
-                      max-width: 15vw;
-                      text-overflow: ellipsis;
-                      white-space: nowrap;
-                    `}
-                  >
-                    {description}
-                  </Text>
+                  <Description ref={descText}>{description}</Description>
                 )}
               </>
             )}
           </Flex>
-        </Box>
+          <Box
+            css={`
+              align-self: start;
+            `}
+          >
+            {hovered && <CopyButton name={name} />}
+          </Box>
+        </Flex>
 
         {/* type */}
-        <Flex flexDirection="row" alignItems="center">
+        <Flex
+          flexDirection="row"
+          alignItems="center"
+          css={`
+            grid-area: type;
+            overflow: hidden;
+            text-overflow: ellipsis;
+          `}
+        >
           <ResTypeIconBox>
             <SecondaryIcon size={18} />
           </ResTypeIconBox>
           {type && (
             <Box ml={1} title={type}>
-              <Text typography="h2" fontSize={16} color="text.slightlyMuted">
+              <Text fontSize="14px" fontWeight={300} color="text.slightlyMuted">
                 {type}
               </Text>
             </Box>
@@ -231,26 +202,29 @@ export function ResourceListItem({
             overflow: hidden;
             text-overflow: ellipsis;
           `}
+          ml={2}
+          title={addr}
         >
-          {addr && (
-            <Box ml={2} title={addr}>
-              <Text typography="body1" color="text.muted">
-                {addr}
-              </Text>
-            </Box>
-          )}
+          <Text fontSize="14px" fontWeight={300} color="text.muted">
+            {addr}
+          </Text>
         </Box>
 
         {/* show labels button */}
-        <ShowLabelsBtnContainer>
-          <ButtonIcon
+        <HoverTooltip
+          tipContent={<>{showLabels ? 'Hide Labels' : 'Show Labels'}</>}
+          css={`
+            grid-area: labels-btn;
+          `}
+        >
+          <ShowLabelsButton
             size={1}
             onClick={() => setShowLabels(!showLabels)}
             className={showLabels ? 'active' : ''}
           >
             <Tags size={18} color={showLabels ? 'text.main' : 'text.muted'} />
-          </ButtonIcon>
-        </ShowLabelsBtnContainer>
+          </ShowLabelsButton>
+        </HoverTooltip>
 
         {/* action button */}
         <Box
@@ -267,14 +241,16 @@ export function ResourceListItem({
             css={`
               grid-area: labels;
             `}
-            ml={2}
+            ml={1}
+            mb={2}
           >
             {labels.map((label, i) => {
               const { name, value } = label;
               const labelText = `${name}: ${value}`;
+              // We can use the index i as the key since it will always be unique to this label.
               return (
                 <Label
-                  key={JSON.stringify([name, value, i])}
+                  key={i}
                   title={labelText}
                   onClick={() => onLabelClick?.(label)}
                   kind="secondary"
@@ -302,18 +278,31 @@ const ResTypeIconBox = styled(Box)`
 `;
 
 const RowContainer = styled(Box)`
-  width: 100%;
   transition: all 150ms;
+  position: relative;
 
   :hover {
     background-color: ${props => props.theme.colors.levels.surface};
-    box-shadow: ${props => props.theme.boxShadow[3]};
+
+    // We use a pseudo element for the shadow with position: absolute in order to prevent
+    // the shadow from increasing the size of the layout and causing scrollbar flicker.
+    :after {
+      box-shadow: ${props => props.theme.boxShadow[3]};
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      z-index: -1;
+      width: 100%;
+      height: 100%;
+    }
   }
 `;
 
 const RowInnerContainer = styled(Flex)`
   display: grid;
-  grid-template-columns: 42px 36px 56px 16vw 16vw auto 64px 90px;
+  grid-template-columns: 22px 24px 36px 2fr 1fr 1fr 32px 90px;
+  column-gap: ${props => props.theme.space[3]}px;
   grid-template-rows: 56px min-content;
   grid-template-areas:
     'checkbox pin icon name type address labels-btn button'
@@ -321,9 +310,8 @@ const RowInnerContainer = styled(Flex)`
   align-items: center;
   height: 100%;
   min-width: 100%;
-  padding-right: 16px;
-  padding-top: 8px;
-  padding-bottom: 8px;
+  padding-right: ${props => props.theme.space[3]}px;
+  padding-left: ${props => props.theme.space[3]}px;
 
   background-color: ${props => getBackgroundColor(props)};
 
@@ -346,11 +334,23 @@ const getBackgroundColor = props => {
   return 'transparent';
 };
 
-const ShowLabelsBtnContainer = styled(Box)`
-  grid-area: labels-btn;
-  place-self: center end;
-  margin-right: 32px;
+const Name = styled(Text)`
+  height: 20px;
+  white-space: nowrap;
+  line-height: 20px;
+  max-width: 100%;
+  font-size: 14px;
+  font-weight: 300;
+`;
 
+const Description = styled(Text)`
+  height: 20px;
+  white-space: nowrap;
+  font-size: 12px;
+  color: ${props => props.theme.colors.text.muted};
+`;
+
+const ShowLabelsButton = styled(ButtonIcon)`
   .active {
     background: ${props => props.theme.colors.buttons.secondary.default};
 

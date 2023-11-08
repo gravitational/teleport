@@ -365,7 +365,20 @@ const CardOuterContainer = styled(Box)`
 
   ${CardContainer}:hover & {
     background-color: ${props => props.theme.colors.levels.surface};
-    box-shadow: ${props => props.theme.boxShadow[3]};
+
+    // We use a pseudo element for the shadow with position: absolute in order to prevent
+    // the shadow from increasing the size of the layout and causing scrollbar flicker.
+    :after {
+      box-shadow: ${props => props.theme.boxShadow[3]};
+      border-radius: ${props => props.theme.radii[3]}px;
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      z-index: -1;
+      width: 100%;
+      height: 100%;
+    }
   }
 `;
 

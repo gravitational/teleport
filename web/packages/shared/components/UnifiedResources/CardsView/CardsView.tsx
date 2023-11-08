@@ -21,7 +21,7 @@ import { Flex } from 'design';
 
 import {
   generateUnifiedResourceKey,
-  getResourcePinningSupport,
+  loadingItemArray,
 } from '../UnifiedResources';
 
 import { ResourceViewProps } from '../types';
@@ -34,13 +34,11 @@ export function CardsView({
   resources,
   onLabelClick,
   pinnedResources,
-  pinning,
-  updatePinnedResourcesAttempt,
   selectedResources,
-  handleSelectResources,
-  handlePinResource,
+  onSelectResource,
+  onPinResource,
   isProcessing,
-  loadingItemArray,
+  pinningSupport,
 }: ResourceViewProps) {
   return (
     <CardsContainer className="CardsContainer" gap={2}>
@@ -61,13 +59,10 @@ export function CardsView({
             type={item.type}
             labels={item.labels}
             pinned={pinnedResources.includes(key)}
-            pinningSupport={getResourcePinningSupport(
-              pinning.kind,
-              updatePinnedResourcesAttempt
-            )}
+            pinningSupport={pinningSupport}
             selected={selectedResources.includes(key)}
-            selectResource={() => handleSelectResources(key)}
-            pinResource={() => handlePinResource(key)}
+            selectResource={() => onSelectResource(key)}
+            pinResource={() => onPinResource(key)}
           />
         ))}
       {/* Using index as key here is ok because these elements never change order */}

@@ -95,7 +95,7 @@ export function FilterPanel({
     >
       <Flex gap={2}>
         <HoverTooltip
-          tipContent={<>{selected ? 'Select all' : 'Deselect all'}</>}
+          tipContent={<>{selected ? 'Deselect all' : 'Select all'}</>}
         >
           <StyledCheckbox
             checked={selected}
@@ -400,18 +400,11 @@ function ViewModeSwitch({
   currentViewMode: ViewMode;
   onSelectViewMode: (viewMode: ViewMode) => void;
 }) {
-  function handleClick(mode: ViewMode) {
-    if (mode === currentViewMode) {
-      return;
-    }
-    onSelectViewMode(mode);
-  }
-
   return (
     <ViewModeSwitchContainer>
       <ViewModeSwitchButton
         className={currentViewMode === 'card' ? 'selected' : ''}
-        onClick={() => handleClick('card')}
+        onClick={() => onSelectViewMode('card')}
         css={`
           border-right: 1px solid
             ${props => props.theme.colors.spotBackground[2]};
@@ -419,17 +412,17 @@ function ViewModeSwitch({
           border-bottom-left-radius: 4px;
         `}
       >
-        <SquaresFour size={21} />
+        <SquaresFour size="small" />
       </ViewModeSwitchButton>
       <ViewModeSwitchButton
         className={currentViewMode === 'list' ? 'selected' : ''}
-        onClick={() => handleClick('list')}
+        onClick={() => onSelectViewMode('list')}
         css={`
           border-top-right-radius: 4px;
           border-bottom-right-radius: 4px;
         `}
       >
-        <Rows size={21} />
+        <Rows size="small" />
       </ViewModeSwitchButton>
     </ViewModeSwitchContainer>
   );

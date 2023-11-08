@@ -23,7 +23,6 @@ import { Icon } from 'design/Icon';
 
 import { DbProtocol } from 'shared/services/databases';
 import { NodeSubKind } from 'shared/services';
-import { Attempt } from 'shared/hooks/useAsync';
 
 export type UnifiedResourceApp = {
   kind: 'app';
@@ -34,7 +33,7 @@ export type UnifiedResourceApp = {
   awsConsole: boolean;
   addrWithProtocol?: string;
   friendlyName?: string;
-  samlApp?: boolean;
+  samlApp: boolean;
 };
 
 export interface UnifiedResourceDatabase {
@@ -167,11 +166,9 @@ export type ResourceViewProps = {
   resources: SharedUnifiedResource[];
   onLabelClick: (label: ResourceLabel) => void;
   pinnedResources: string[];
-  pinning: UnifiedResourcesPinning;
-  updatePinnedResourcesAttempt: Attempt<void>;
   selectedResources: string[];
-  handleSelectResources: (resourceId: string) => void;
-  handlePinResource: (resourceId: string) => void;
+  onSelectResource: (resourceId: string) => void;
+  onPinResource: (resourceId: string) => void;
+  pinningSupport: PinningSupport;
   isProcessing: boolean;
-  loadingItemArray: any[];
 };

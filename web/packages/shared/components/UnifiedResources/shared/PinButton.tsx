@@ -16,6 +16,7 @@
 
 import React, { useRef } from 'react';
 
+import { Box } from 'design';
 import { PushPinFilled, PushPin } from 'design/Icon';
 import ButtonIcon from 'design/ButtonIcon';
 
@@ -35,8 +36,7 @@ export function PinButton({
   pinned: boolean;
   pinningSupport: PinningSupport;
   hovered: boolean;
-  setPinned: (id: string) => void;
-  position?: string;
+  setPinned: () => void;
 }) {
   const copyAnchorEl = useRef(null);
   const tipContent = getTipContent(pinningSupport, pinned);
@@ -54,23 +54,29 @@ export function PinButton({
   );
 
   return (
-    <ButtonIcon
+    // This is wrapped in a Box so that we can disable the transition for showing/hiding the button while not
+    // interfering with the ButtonIcon's transitions.
+    <Box
       css={`
         // dont display but keep the layout
-        visibility: ${shouldShowButton ? 'visible' : 'hidden'};
+        opacity: ${shouldShowButton ? '1' : '0'};
+        transition: opacity 0ms;
       `}
-      disabled={shouldDisableButton}
-      setRef={copyAnchorEl}
-      size={0}
-      onClick={setPinned}
     >
-      {tipContent ? (
-        <HoverTooltip tipContent={<>{tipContent}</>}>{$content}</HoverTooltip>
-      ) : (
-        $content
-      )}
-      <HoverTooltip tipContent={<>{tipContent}</>}></HoverTooltip>
-    </ButtonIcon>
+      <ButtonIcon
+        disabled={shouldDisableButton}
+        setRef={copyAnchorEl}
+        size={0}
+        onClick={setPinned}
+      >
+        {tipContent ? (
+          <HoverTooltip tipContent={<>{tipContent}</>}>{$content}</HoverTooltip>
+        ) : (
+          $content
+        )}
+        <HoverTooltip tipContent={<>{tipContent}</>}></HoverTooltip>
+      </ButtonIcon>
+    </Box>
   );
 }
 

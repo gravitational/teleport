@@ -18,10 +18,7 @@ import React from 'react';
 
 import { Flex, Box, Indicator } from 'design';
 
-import {
-  generateUnifiedResourceKey,
-  getResourcePinningSupport,
-} from '../UnifiedResources';
+import { generateUnifiedResourceKey } from '../UnifiedResources';
 
 import { ResourceViewProps } from '../types';
 
@@ -33,11 +30,10 @@ export function ListView({
   resources,
   onLabelClick,
   pinnedResources,
-  pinning,
-  updatePinnedResourcesAttempt,
   selectedResources,
-  handleSelectResources,
-  handlePinResource,
+  onSelectResource,
+  onPinResource,
+  pinningSupport,
   isProcessing,
 }: ResourceViewProps) {
   return (
@@ -60,13 +56,10 @@ export function ListView({
             type={item.type}
             labels={item.labels}
             pinned={pinnedResources.includes(key)}
-            pinningSupport={getResourcePinningSupport(
-              pinning.kind,
-              updatePinnedResourcesAttempt
-            )}
+            pinningSupport={pinningSupport}
             selected={selectedResources.includes(key)}
-            selectResource={() => handleSelectResources(key)}
-            pinResource={() => handlePinResource(key)}
+            selectResource={() => onSelectResource(key)}
+            pinResource={() => onPinResource(key)}
           />
         ))}
       {/* TODO (rudream): Add skeleton loader */}
