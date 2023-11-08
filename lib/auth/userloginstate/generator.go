@@ -125,8 +125,7 @@ func (g *Generator) Generate(ctx context.Context, user types.User) (*userloginst
 		header.Metadata{
 			Name: user.GetName(),
 		}, userloginstate.Spec{
-			// Original roles should be non-nil so that we can detect if it exists or not.
-			OriginalRoles: append([]string{}, user.GetRoles()...),
+			OriginalRoles: utils.CopyStrings(user.GetRoles()),
 			Roles:         utils.CopyStrings(user.GetRoles()),
 			Traits:        traits,
 			UserType:      user.GetUserType(),
