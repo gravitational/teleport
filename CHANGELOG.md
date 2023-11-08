@@ -21,7 +21,7 @@ If the Teleport auth or proxy services are configured to accept `PROXY`
 protocol headers, a malicious actor can use this to spoof their IP address.
 
 This is addressed by requiring that the first bytes of any SSH connection are
-the SSH protocol prefix, denying a malicious actor the opportuity to send their
+the SSH protocol prefix, denying a malicious actor the opportunity to send their
 own proxy headers.
 
 [#33729](https://github.com/gravitational/teleport/pull/33729)
