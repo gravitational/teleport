@@ -106,7 +106,8 @@ type Spec struct {
 	Traits []*v11.Trait `protobuf:"bytes,2,rep,name=traits,proto3" json:"traits,omitempty"`
 	// user_type is the type of user this state represents.
 	UserType string `protobuf:"bytes,3,opt,name=user_type,json=userType,proto3" json:"user_type,omitempty"`
-	// original_roles are the user roles that the user originally had prior to the user login state being generated.
+	// original_roles are the user roles that are part of the user's static definition. These roles are
+	// not affected by access granted by access lists and are obtained prior to granting access list access.
 	OriginalRoles []string `protobuf:"bytes,4,rep,name=original_roles,json=originalRoles,proto3" json:"original_roles,omitempty"`
 }
 
