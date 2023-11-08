@@ -315,6 +315,17 @@ func (p *ProvisionTokenV2) CheckAndSetDefaults() error {
 		if err := providerCfg.checkAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
 		}
+	case JoinMethodSpacelift:
+		providerCfg := p.Spec.Spacelift
+		if providerCfg == nil {
+			return trace.BadParameter(
+				`spec.spacelift: must be configured for the join method %q`,
+				JoinMethodSpacelift,
+			)
+		}
+		if err := providerCfg.checkAndSetDefaults(); err != nil {
+			return trace.Wrap(err, "spec.spacelift: failed validation")
+		}
 	default:
 		return trace.BadParameter("unknown join method %q", p.Spec.JoinMethod)
 	}
@@ -704,6 +715,31 @@ func (a *ProvisionTokenSpecV2GCP) checkAndSetDefaults() error {
 			return trace.BadParameter(
 				"the %q join method requires gcp allow rules with at least one project ID",
 				JoinMethodGCP,
+			)
+		}
+	}
+	return nil
+}
+
+func (a *ProvisionTokenSpecV2Spacelift) checkAndSetDefaults() error {
+	if a.Hostname == "" {
+		return trace.BadParameter(
+			"hostname: should be set to the hostname of the spacelift tenant",
+		)
+	}
+	if strings.Contains(a.Hostname, "/") {
+		return trace.BadParameter(
+			"hostname: should not contain the scheme or path",
+		)
+	}
+	if len(a.Allow) == 0 {
+		return trace.BadParameter("allow: at least one rule must be set")
+	}
+	for i, allowRule := range a.Allow {
+		if allowRule.SpaceID == "" && allowRule.CallerID == "" {
+			return trace.BadParameter(
+				"allow[%d]: at least one of ['space_id', 'caller_id'] must be set",
+				i,
 			)
 		}
 	}
