@@ -19,11 +19,13 @@ package spacelift
 import (
 	"context"
 	"fmt"
+	"time"
+
 	"github.com/coreos/go-oidc"
-	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"time"
+
+	"github.com/gravitational/teleport/lib/jwt"
 )
 
 type IDTokenValidatorConfig struct {

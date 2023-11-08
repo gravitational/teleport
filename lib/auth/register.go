@@ -20,7 +20,6 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
-	"github.com/gravitational/teleport/lib/spacelift"
 	"os"
 	"time"
 
@@ -48,6 +47,7 @@ import (
 	"github.com/gravitational/teleport/lib/githubactions"
 	"github.com/gravitational/teleport/lib/gitlab"
 	"github.com/gravitational/teleport/lib/kubernetestoken"
+	"github.com/gravitational/teleport/lib/spacelift"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
