@@ -144,6 +144,10 @@ type onClientConnectFunc func(context.Context, *redis.Conn) error
 // fetchCredentialsFunc fetches credentials for a new connection.
 type fetchCredentialsFunc func(ctx context.Context) (username, password string, err error)
 
+func noopOnConnect(context.Context, *redis.Conn) error {
+	return nil
+}
+
 // authWithPasswordOnConnect returns an onClientConnectFunc that sends "auth"
 // with provided username and password.
 func authWithPasswordOnConnect(username, password string) onClientConnectFunc {
@@ -240,14 +244,15 @@ func memorydbIAMTokenFetchFunc(sessionCtx *common.Session, auth common.Auth) fet
 	}
 }
 
-func awsIAMTokenFetchFunc(sessionCtx *common.Session, auth common.Auth) fetchCredentialsFunc {
+func awsIAMTokenFetchFunc(sessionCtx *common.Session, auth common.Auth) (fetchCredentialsFunc, error) {
 	switch sessionCtx.Database.GetType() {
 	case types.DatabaseTypeElastiCache:
-		return elasticacheIAMTokenFetchFunc(sessionCtx, auth)
+		return elasticacheIAMTokenFetchFunc(sessionCtx, auth), nil
 	case types.DatabaseTypeMemoryDB:
-		return memorydbIAMTokenFetchFunc(sessionCtx, auth)
+		return memorydbIAMTokenFetchFunc(sessionCtx, auth), nil
 	default:
-		return nil
+		// If this happens it means something wrong with our implementation.
+		return nil, trace.BadParameter("database type %q not supported for AWS IAM Auth", sessionCtx.Database.GetType())
 	}
 }
 

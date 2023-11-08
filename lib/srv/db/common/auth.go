@@ -994,7 +994,7 @@ type awsRedisIAMTokenRequest struct {
 	credentials *credentials.Credentials
 	// clock is the clock implementation.
 	clock clockwork.Clock
-	// serviceName is the AWS service name used for signinig.
+	// serviceName is the AWS service name used for signing.
 	serviceName string
 }
 
