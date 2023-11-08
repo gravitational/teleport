@@ -37,11 +37,11 @@ own proxy headers.
 * Added Database Automatic User Provisioning support for Redshift [#34126](https://github.com/gravitational/teleport/pull/34126)
 * Added `teleport_auth_type` config parameter to the AWS Terraform examples [#34124](https://github.com/gravitational/teleport/pull/34124)
 * Fixed issue where an auto-provisioned PostgreSQL user may keep old roles indefinitely  [#34121](https://github.com/gravitational/teleport/pull/34121)
-* Fixed incorrectly set filemode for Windows TPM files [#34113](https://github.com/gravitational/teleport/pull/34113)
+* Fixed incorrectly set file mode for Windows TPM files [#34113](https://github.com/gravitational/teleport/pull/34113)
 * Added dynamic credential reloading for access plugins [#34079](https://github.com/gravitational/teleport/pull/34079)
 * Fixed Azure Identity federated Application ID [#33960](https://github.com/gravitational/teleport/pull/33960)
 * Fixed issue where Kubernetes Audit Events reported incorrect information in the exec audit [#33950](https://github.com/gravitational/teleport/pull/33950)
-* Added support for formatting hostame as `host:port` to `tsh puttyconfig` [#33883](https://github.com/gravitational/teleport/pull/33883)
+* Added support for formatting hostname as `host:port` to `tsh puttyconfig` [#33883](https://github.com/gravitational/teleport/pull/33883)
 * Added support for `--set-context-name` to `tsh proxy kube`
 * Fixes various Access List bookkeeping issues [#33834](https://github.com/gravitational/teleport/pull/33834)
 * Fixes issue where `tsh aws ecs execute-command` would always fail [#33833](https://github.com/gravitational/teleport/pull/33833)
