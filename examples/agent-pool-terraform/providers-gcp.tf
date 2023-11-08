@@ -1,3 +1,5 @@
+// Delete this file if not using Google Cloud
+
 terraform {
   required_providers {
     teleport = {
@@ -5,15 +7,17 @@ terraform {
       version = "TELEPORT_VERSION"
     }
 
-    aws = {
-      source  = "hashicorp/aws"
-      version = "~> 4.0"
+    google = {
+      source  = "hashicorp/google"
+      version = "~> 5.5.0"
     }
+
   }
 }
 
-provider "aws" {
-  region = var.aws_region
+provider "google" {
+  project = var.google_project
+  region  = var.region
 }
 
 provider "teleport" {
