@@ -20,12 +20,13 @@ import { Box } from 'design';
 import { PushPinFilled, PushPin } from 'design/Icon';
 import ButtonIcon from 'design/ButtonIcon';
 
+import { HoverTooltip } from 'shared/components/ToolTip';
+
 import { PinningSupport } from '../types';
 
-import {
-  HoverTooltip,
-  PINNING_NOT_SUPPORTED_MESSAGE,
-} from '../UnifiedResources';
+import { PINNING_NOT_SUPPORTED_MESSAGE } from '../UnifiedResources';
+
+HoverTooltip;
 
 export function PinButton({
   pinned,

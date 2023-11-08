@@ -29,7 +29,8 @@ import {
   Rows,
 } from 'design/Icon';
 
-import { HoverTooltip } from './UnifiedResources';
+import { HoverTooltip } from 'shared/components/ToolTip';
+
 import { SharedUnifiedResource, UnifiedResourcesQueryParams } from './types';
 
 const kindToLabel: Record<SharedUnifiedResource['resource']['kind'], string> = {

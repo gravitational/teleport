@@ -23,7 +23,6 @@ import {
   ButtonLink,
   ButtonSecondary,
   Text,
-  Popover,
   ButtonBorder,
 } from 'design';
 import { Icon, Magnifier, PushPin } from 'design/Icon';
@@ -38,6 +37,7 @@ import {
   UnifiedResourcePreferences,
 } from 'teleport/services/userPreferences/types';
 
+import { HoverTooltip } from 'shared/components/ToolTip';
 import {
   makeEmptyAttempt,
   makeSuccessAttempt,
@@ -575,66 +575,4 @@ const ListFooter = styled.div`
   margin-top: ${props => props.theme.space[2]}px;
   min-height: ${INDICATOR_SIZE};
   text-align: center;
-`;
-
-// TODO (avatus) extract to the shared package in ToolTip
-export const HoverTooltip: React.FC<{
-  tipContent: React.ReactElement;
-  fontSize?: number;
-}> = ({ tipContent, fontSize = 10, children }) => {
-  const [anchorEl, setAnchorEl] = useState();
-  const open = Boolean(anchorEl);
-
-  function handlePopoverOpen(event) {
-    setAnchorEl(event.currentTarget);
-  }
-
-  function handlePopoverClose() {
-    setAnchorEl(null);
-  }
-
-  return (
-    <Flex
-      aria-owns={open ? 'mouse-over-popover' : undefined}
-      onMouseEnter={handlePopoverOpen}
-      onMouseLeave={handlePopoverClose}
-    >
-      {children}
-      <Popover
-        modalCss={modalCss}
-        onClose={handlePopoverClose}
-        open={open}
-        anchorEl={anchorEl}
-        anchorOrigin={{
-          vertical: 'top',
-          horizontal: 'center',
-        }}
-        transformOrigin={{
-          vertical: 'bottom',
-          horizontal: 'center',
-        }}
-      >
-        <StyledOnHover
-          px={2}
-          py={1}
-          fontSize={`${fontSize}px`}
-          css={`
-            word-wrap: break-word;
-          `}
-        >
-          {tipContent}
-        </StyledOnHover>
-      </Popover>
-    </Flex>
-  );
-};
-
-const modalCss = () => `
-  pointer-events: none;
-`;
-
-const StyledOnHover = styled(Text)`
-  color: ${props => props.theme.colors.text.main};
-  background-color: ${props => props.theme.colors.tooltip.background};
-  max-width: 350px;
 `;

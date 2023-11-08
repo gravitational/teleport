@@ -23,7 +23,7 @@ import { Tags } from 'design/Icon';
 
 import { ResourceIcon } from 'design/ResourceIcon';
 
-import { HoverTooltip } from '../UnifiedResources';
+import { HoverTooltip } from 'shared/components/ToolTip';
 
 import { ResourceItemProps } from '../types';
 import { PinButton, CopyButton } from '../shared';

@@ -18,10 +18,9 @@ import React from 'react';
 import styled from 'styled-components';
 import { Box, Text } from 'design';
 
-import {
-  HoverTooltip,
-  PINNING_NOT_SUPPORTED_MESSAGE,
-} from './UnifiedResources';
+import { HoverTooltip } from 'shared/components/ToolTip';
+
+import { PINNING_NOT_SUPPORTED_MESSAGE } from './UnifiedResources';
 
 export const ResourceTab = ({
   title,

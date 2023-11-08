@@ -20,7 +20,7 @@ import ButtonIcon from 'design/ButtonIcon';
 import { Check, Copy } from 'design/Icon';
 import copyToClipboard from 'design/utils/copyToClipboard';
 
-import { HoverTooltip } from '../UnifiedResources';
+import { HoverTooltip } from 'shared/components/ToolTip';
 
 export function CopyButton({ name }: { name: string }) {
   const copySuccess = 'Copied!';
