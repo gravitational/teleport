@@ -42,7 +42,7 @@ export const ResourceTab = ({
 
   if (disabled) {
     return (
-      <HoverTooltip tipContent={<>{PINNING_NOT_SUPPORTED_MESSAGE}</>}>
+      <HoverTooltip tipContent={PINNING_NOT_SUPPORTED_MESSAGE}>
         {$tab}
       </HoverTooltip>
     );

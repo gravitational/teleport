@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import React, { useState, useLayoutEffect, useRef } from 'react';
+import React, { useState } from 'react';
 import styled from 'styled-components';
 
 import { Box, ButtonIcon, Flex, Label, Text } from 'design';
@@ -44,61 +44,21 @@ export function ResourceListItem({
   selectResource,
   selected,
 }: ResourceItemProps) {
-  const [isNameOverflowed, setIsNameOverflowed] = useState(false);
-  const [isDescOverflowed, setIsDescOverflowed] = useState(false);
   const [showLabels, setShowLabels] = useState(false);
-
   const [hovered, setHovered] = useState(false);
-
-  const innerContainer = useRef<Element | null>(null);
-  const nameText = useRef<HTMLDivElement | null>(null);
-  const descText = useRef<HTMLDivElement | null>(null);
-
-  useLayoutEffect(() => {
-    const observer = new ResizeObserver(() => {
-      // This check will let us know if the name or description text has overflowed. We do this
-      // to conditionally render a tooltip for only overflowed names and descriptions.
-      if (
-        nameText.current?.scrollWidth >
-        nameText.current?.parentElement.offsetWidth
-      ) {
-        setIsNameOverflowed(true);
-      } else {
-        setIsNameOverflowed(false);
-      }
-      if (
-        descText.current?.scrollWidth >
-        descText.current?.parentElement.offsetWidth
-      ) {
-        setIsDescOverflowed(true);
-      } else {
-        setIsDescOverflowed(false);
-      }
-    });
-
-    observer.observe(innerContainer.current);
-    return () => {
-      observer.disconnect();
-    };
-  });
 
   return (
     <RowContainer
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
-      <RowInnerContainer
-        ref={innerContainer}
-        alignItems="start"
-        pinned={pinned}
-        selected={selected}
-      >
+      <RowInnerContainer alignItems="start" pinned={pinned} selected={selected}>
         {/* checkbox */}
         <HoverTooltip
           css={`
             grid-area: checkbox;
           `}
-          tipContent={<>{selected ? 'Deselect' : 'Select'}</>}
+          tipContent={selected ? 'Deselect' : 'Select'}
         >
           <StyledCheckbox checked={selected} onChange={selectResource} />
         </HoverTooltip>
@@ -145,24 +105,12 @@ export function ResourceListItem({
               overflow: hidden;
             `}
           >
-            {isNameOverflowed ? (
-              <HoverTooltip tipContent={<>{name}</>}>
-                <Name ref={nameText}>{name}</Name>
-              </HoverTooltip>
-            ) : (
-              <Name ref={nameText}>{name}</Name>
-            )}
-            {description && (
-              <>
-                {isDescOverflowed ? (
-                  <HoverTooltip tipContent={<>{description}</>}>
-                    <Description ref={descText}>{description}</Description>
-                  </HoverTooltip>
-                ) : (
-                  <Description ref={descText}>{description}</Description>
-                )}
-              </>
-            )}
+            <HoverTooltip tipContent={name} showOnlyOnOverflow>
+              <Name>{name}</Name>
+            </HoverTooltip>
+            <HoverTooltip tipContent={description} showOnlyOnOverflow>
+              <Description>{description}</Description>
+            </HoverTooltip>
           </Flex>
           <Box
             css={`
@@ -213,7 +161,7 @@ export function ResourceListItem({
         {/* show labels button */}
         {labels.length > 0 && (
           <HoverTooltip
-            tipContent={<>{showLabels ? 'Hide Labels' : 'Show Labels'}</>}
+            tipContent={showLabels ? 'Hide Labels' : 'Show Labels'}
             css={`
               grid-area: labels-btn;
             `}
@@ -346,7 +294,7 @@ const Name = styled(Text)`
 `;
 
 const Description = styled(Text)`
-  height: 20px;
+  max-height: 20px;
   white-space: nowrap;
   font-size: 12px;
   color: ${props => props.theme.colors.text.muted};

@@ -19,18 +19,38 @@ import styled from 'styled-components';
 import { Popover, Flex, Text } from 'design';
 
 export const HoverTooltip: React.FC<{
-  tipContent: React.ReactElement;
+  tipContent: string | undefined;
   fontSize?: number;
-}> = ({ tipContent, fontSize = 10, children }) => {
-  const [anchorEl, setAnchorEl] = useState();
+  showOnlyOnOverflow?: boolean;
+}> = ({ tipContent, fontSize = 10, children, showOnlyOnOverflow = false }) => {
+  const [anchorEl, setAnchorEl] = useState<Element | undefined>();
   const open = Boolean(anchorEl);
 
-  function handlePopoverOpen(event) {
+  function handlePopoverOpen(event: React.MouseEvent<Element>) {
+    const { target } = event;
+
+    if (showOnlyOnOverflow) {
+      // Calculate whether the content is overflowing the parent in order to determine
+      // whether we want to show the tooltip.
+      if (
+        target instanceof Element &&
+        target.scrollWidth > target.parentElement.offsetWidth
+      ) {
+        setAnchorEl(event.currentTarget);
+      }
+      return;
+    }
+
     setAnchorEl(event.currentTarget);
   }
 
   function handlePopoverClose() {
     setAnchorEl(null);
+  }
+
+  // Don't render the tooltip if the content is undefined.
+  if (!tipContent) {
+    return <>{children}</>;
   }
 
   return (

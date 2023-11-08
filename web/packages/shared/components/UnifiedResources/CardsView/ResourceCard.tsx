@@ -62,13 +62,11 @@ export function ResourceCard({
   const [showMoreLabelsButton, setShowMoreLabelsButton] = useState(false);
   const [showAllLabels, setShowAllLabels] = useState(false);
   const [numMoreLabels, setNumMoreLabels] = useState(0);
-  const [isNameOverflowed, setIsNameOverflowed] = useState(false);
 
   const [hovered, setHovered] = useState(false);
 
   const innerContainer = useRef<Element | null>(null);
   const labelsInnerContainer = useRef(null);
-  const nameText = useRef<HTMLDivElement | null>(null);
   const collapseTimeout = useRef<ReturnType<typeof setTimeout>>(null);
 
   // This effect installs a resize observer whose purpose is to detect the size
@@ -78,16 +76,6 @@ export function ResourceCard({
     if (!labelsInnerContainer.current) return;
 
     const observer = new ResizeObserver(entries => {
-      // This check will let us know if the name text has overflowed. We do this
-      // to conditionally render a tooltip for only overflowed names
-      if (
-        nameText.current?.scrollWidth >
-        nameText.current?.parentElement.offsetWidth
-      ) {
-        setIsNameOverflowed(true);
-      } else {
-        setIsNameOverflowed(false);
-      }
       const container = entries[0];
 
       // We're taking labelRowHeight * 1.5 just in case some glitch adds or
@@ -167,7 +155,7 @@ export function ResourceCard({
           pinned={pinned}
           selected={selected}
         >
-          <HoverTooltip tipContent={<>{selected ? 'Deselect' : 'Select'}</>}>
+          <HoverTooltip tipContent={selected ? 'Deselect' : 'Select'}>
             <StyledCheckbox
               css={`
                 position: absolute;
@@ -204,17 +192,11 @@ export function ResourceCard({
           <Flex flexDirection="column" flex="1" minWidth="0" ml={3} gap={1}>
             <Flex flexDirection="row" alignItems="center">
               <SingleLineBox flex="1">
-                {isNameOverflowed ? (
-                  <HoverTooltip tipContent={<>{name}</>}>
-                    <Text ref={nameText} typography="h5" fontWeight={300}>
-                      {name}
-                    </Text>
-                  </HoverTooltip>
-                ) : (
-                  <Text ref={nameText} typography="h5" fontWeight={300}>
+                <HoverTooltip tipContent={name} showOnlyOnOverflow>
+                  <Text typography="h5" fontWeight={300}>
                     {name}
                   </Text>
-                )}
+                </HoverTooltip>
               </SingleLineBox>
               {hovered && <CopyButton name={name} />}
               {ActionButton}

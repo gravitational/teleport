@@ -390,7 +390,7 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
                     );
                     if (tooltip) {
                       return (
-                        <HoverTooltip tipContent={<>{tooltip}</>}>
+                        <HoverTooltip tipContent={tooltip}>
                           {$button}
                         </HoverTooltip>
                       );

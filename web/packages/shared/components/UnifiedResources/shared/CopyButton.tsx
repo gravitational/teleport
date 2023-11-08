@@ -38,7 +38,7 @@ export function CopyButton({ name }: { name: string }) {
   }, [name]);
 
   return (
-    <HoverTooltip tipContent={<>{copiedText}</>}>
+    <HoverTooltip tipContent={copiedText}>
       <ButtonIcon setRef={copyAnchorEl} size={0} ml={1} onClick={handleCopy}>
         {copiedText === copySuccess ? (
           <Check size="small" />

@@ -71,11 +71,11 @@ export function PinButton({
         onClick={setPinned}
       >
         {tipContent ? (
-          <HoverTooltip tipContent={<>{tipContent}</>}>{$content}</HoverTooltip>
+          <HoverTooltip tipContent={tipContent}>{$content}</HoverTooltip>
         ) : (
           $content
         )}
-        <HoverTooltip tipContent={<>{tipContent}</>}></HoverTooltip>
+        <HoverTooltip tipContent={tipContent}></HoverTooltip>
       </ButtonIcon>
     </Box>
   );

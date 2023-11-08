@@ -95,9 +95,7 @@ export function FilterPanel({
       alignItems="center"
     >
       <Flex gap={2}>
-        <HoverTooltip
-          tipContent={<>{selected ? 'Deselect all' : 'Select all'}</>}
-        >
+        <HoverTooltip tipContent={selected ? 'Deselect all' : 'Select all'}>
           <StyledCheckbox
             checked={selected}
             onChange={selectVisible}
@@ -199,7 +197,7 @@ const FilterTypesMenu = ({
 
   return (
     <Flex textAlign="center" alignItems="center">
-      <HoverTooltip tipContent={<>Filter types</>}>
+      <HoverTooltip tipContent={'Filter types'}>
         <ButtonSecondary
           px={2}
           css={`
@@ -325,7 +323,7 @@ const SortMenu: React.FC<SortMenuProps> = props => {
 
   return (
     <Flex textAlign="center">
-      <HoverTooltip tipContent={<>Sort by</>}>
+      <HoverTooltip tipContent={'Sort by'}>
         <ButtonBorder
           css={`
             border-right: none;
@@ -358,7 +356,7 @@ const SortMenu: React.FC<SortMenuProps> = props => {
         <MenuItem onClick={() => handleSelect('name')}>Name</MenuItem>
         <MenuItem onClick={() => handleSelect('kind')}>Type</MenuItem>
       </Menu>
-      <HoverTooltip tipContent={<>Sort direction</>}>
+      <HoverTooltip tipContent={'Sort direction'}>
         <ButtonBorder
           onClick={onDirChange}
           textTransform="none"
