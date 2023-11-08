@@ -1120,6 +1120,82 @@ export namespace UIDiscoverCreateNodeEvent {
     }
 }
 
+export class UIDiscoverExternalCloudAuditBootstrapEvent extends jspb.Message { 
+
+    hasMetadata(): boolean;
+    clearMetadata(): void;
+    getMetadata(): DiscoverMetadata | undefined;
+    setMetadata(value?: DiscoverMetadata): UIDiscoverExternalCloudAuditBootstrapEvent;
+
+
+    hasResource(): boolean;
+    clearResource(): void;
+    getResource(): DiscoverResourceMetadata | undefined;
+    setResource(value?: DiscoverResourceMetadata): UIDiscoverExternalCloudAuditBootstrapEvent;
+
+
+    hasStatus(): boolean;
+    clearStatus(): void;
+    getStatus(): DiscoverStepStatus | undefined;
+    setStatus(value?: DiscoverStepStatus): UIDiscoverExternalCloudAuditBootstrapEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): UIDiscoverExternalCloudAuditBootstrapEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: UIDiscoverExternalCloudAuditBootstrapEvent): UIDiscoverExternalCloudAuditBootstrapEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: UIDiscoverExternalCloudAuditBootstrapEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): UIDiscoverExternalCloudAuditBootstrapEvent;
+    static deserializeBinaryFromReader(message: UIDiscoverExternalCloudAuditBootstrapEvent, reader: jspb.BinaryReader): UIDiscoverExternalCloudAuditBootstrapEvent;
+}
+
+export namespace UIDiscoverExternalCloudAuditBootstrapEvent {
+    export type AsObject = {
+        metadata?: DiscoverMetadata.AsObject,
+        resource?: DiscoverResourceMetadata.AsObject,
+        status?: DiscoverStepStatus.AsObject,
+    }
+}
+
+export class UIDiscoverExternalCloudAuditActivateEvent extends jspb.Message { 
+
+    hasMetadata(): boolean;
+    clearMetadata(): void;
+    getMetadata(): DiscoverMetadata | undefined;
+    setMetadata(value?: DiscoverMetadata): UIDiscoverExternalCloudAuditActivateEvent;
+
+
+    hasResource(): boolean;
+    clearResource(): void;
+    getResource(): DiscoverResourceMetadata | undefined;
+    setResource(value?: DiscoverResourceMetadata): UIDiscoverExternalCloudAuditActivateEvent;
+
+
+    hasStatus(): boolean;
+    clearStatus(): void;
+    getStatus(): DiscoverStepStatus | undefined;
+    setStatus(value?: DiscoverStepStatus): UIDiscoverExternalCloudAuditActivateEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): UIDiscoverExternalCloudAuditActivateEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: UIDiscoverExternalCloudAuditActivateEvent): UIDiscoverExternalCloudAuditActivateEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: UIDiscoverExternalCloudAuditActivateEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): UIDiscoverExternalCloudAuditActivateEvent;
+    static deserializeBinaryFromReader(message: UIDiscoverExternalCloudAuditActivateEvent, reader: jspb.BinaryReader): UIDiscoverExternalCloudAuditActivateEvent;
+}
+
+export namespace UIDiscoverExternalCloudAuditActivateEvent {
+    export type AsObject = {
+        metadata?: DiscoverMetadata.AsObject,
+        resource?: DiscoverResourceMetadata.AsObject,
+        status?: DiscoverStepStatus.AsObject,
+    }
+}
+
 export class UIDiscoverDatabaseConfigureIAMPolicyEvent extends jspb.Message { 
 
     hasMetadata(): boolean;
@@ -2661,6 +2737,18 @@ export class SubmitEventRequest extends jspb.Message {
     setDesktopClipboardTransfer(value?: DesktopClipboardEvent): SubmitEventRequest;
 
 
+    hasUiDiscoverExternalCloudAuditBootstrapEvent(): boolean;
+    clearUiDiscoverExternalCloudAuditBootstrapEvent(): void;
+    getUiDiscoverExternalCloudAuditBootstrapEvent(): UIDiscoverExternalCloudAuditBootstrapEvent | undefined;
+    setUiDiscoverExternalCloudAuditBootstrapEvent(value?: UIDiscoverExternalCloudAuditBootstrapEvent): SubmitEventRequest;
+
+
+    hasUiDiscoverExternalCloudAuditActivateEvent(): boolean;
+    clearUiDiscoverExternalCloudAuditActivateEvent(): void;
+    getUiDiscoverExternalCloudAuditActivateEvent(): UIDiscoverExternalCloudAuditActivateEvent | undefined;
+    setUiDiscoverExternalCloudAuditActivateEvent(value?: UIDiscoverExternalCloudAuditActivateEvent): SubmitEventRequest;
+
+
     getEventCase(): SubmitEventRequest.EventCase;
 
     serializeBinary(): Uint8Array;
@@ -2743,6 +2831,8 @@ export namespace SubmitEventRequest {
         uiDiscoverCreateNode?: UIDiscoverCreateNodeEvent.AsObject,
         desktopDirectoryShare?: DesktopDirectoryShareEvent.AsObject,
         desktopClipboardTransfer?: DesktopClipboardEvent.AsObject,
+        uiDiscoverExternalCloudAuditBootstrapEvent?: UIDiscoverExternalCloudAuditBootstrapEvent.AsObject,
+        uiDiscoverExternalCloudAuditActivateEvent?: UIDiscoverExternalCloudAuditActivateEvent.AsObject,
     }
 
     export enum EventCase {
@@ -2879,6 +2969,10 @@ export namespace SubmitEventRequest {
     DESKTOP_DIRECTORY_SHARE = 68,
 
     DESKTOP_CLIPBOARD_TRANSFER = 69,
+
+    UI_DISCOVER_EXTERNAL_CLOUD_AUDIT_BOOTSTRAP_EVENT = 70,
+
+    UI_DISCOVER_EXTERNAL_CLOUD_AUDIT_ACTIVATE_EVENT = 71,
 
     }
 
@@ -3026,6 +3120,7 @@ export enum DiscoverResource {
     DISCOVER_RESOURCE_DOC_DATABASE_DYNAMIC_REGISTRATION = 36,
     DISCOVER_RESOURCE_SAML_APPLICATION = 37,
     DISCOVER_RESOURCE_EC2_INSTANCE = 38,
+    DISCOVER_RESOURCE_EXTERNAL_CLOUD_AUDIT = 39,
 }
 
 export enum DiscoverStatus {

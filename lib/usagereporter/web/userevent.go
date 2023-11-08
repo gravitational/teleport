@@ -61,6 +61,8 @@ const (
 	uiDiscoverPrincipalsConfigureEvent                = "tp.ui.discover.principals.configure"
 	uiDiscoverTestConnectionEvent                     = "tp.ui.discover.testConnection"
 	uiDiscoverCompletedEvent                          = "tp.ui.discover.completed"
+	uiDiscoverExternalCloudAuditBootstrap             = "tp.ui.discover.externalCloudAudit.bootstrap"
+	uiDiscoverExternalCloudAuditActivate              = "tp.ui.discover.externalCloudAudit.activate"
 
 	uiIntegrationEnrollStartEvent    = "tp.ui.integrationEnroll.start"
 	uiIntegrationEnrollCompleteEvent = "tp.ui.integrationEnroll.complete"
@@ -294,7 +296,9 @@ func ConvertUserEventRequestToUsageEvent(req CreateUserEventRequest) (*usageeven
 		uiDiscoverEC2InstanceSelectionEvent,
 		uiDiscoverDeployEICEEvent,
 		uiDiscoverCreateNodeEvent,
-		uiDiscoverCompletedEvent:
+		uiDiscoverCompletedEvent,
+		uiDiscoverExternalCloudAuditBootstrap,
+		uiDiscoverExternalCloudAuditActivate:
 
 		var discoverEvent DiscoverEventData
 		if err := json.Unmarshal([]byte(*req.EventData), &discoverEvent); err != nil {

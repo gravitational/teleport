@@ -1158,6 +1158,28 @@ func ConvertUsageEvent(event *usageeventsv1.UsageEventOneOf, userMD UserMetadata
 		}
 
 		return ret, nil
+	case *usageeventsv1.UsageEventOneOf_UiDiscoverExternalCloudAuditBootstrapEvent:
+		ret := &UIDiscoverCompletedEvent{
+			Metadata: discoverMetadataToPrehog(e.UiDiscoverExternalCloudAuditBootstrapEvent.Metadata, userMD),
+			Resource: discoverResourceToPrehog(e.UiDiscoverExternalCloudAuditBootstrapEvent.Resource),
+			Status:   discoverStatusToPrehog(e.UiDiscoverExternalCloudAuditBootstrapEvent.Status),
+		}
+		if err := ret.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return ret, nil
+	case *usageeventsv1.UsageEventOneOf_UiDiscoverExternalCloudAuditActivateEvent:
+		ret := &UIDiscoverCompletedEvent{
+			Metadata: discoverMetadataToPrehog(e.UiDiscoverExternalCloudAuditActivateEvent.Metadata, userMD),
+			Resource: discoverResourceToPrehog(e.UiDiscoverExternalCloudAuditActivateEvent.Resource),
+			Status:   discoverStatusToPrehog(e.UiDiscoverExternalCloudAuditActivateEvent.Status),
+		}
+		if err := ret.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return ret, nil
 	case *usageeventsv1.UsageEventOneOf_AssistCompletion:
 		ret := &AssistCompletionEvent{
 			UserName:         userMD.Username,

@@ -365,6 +365,8 @@ enum DiscoverResource {
   DISCOVER_RESOURCE_SAML_APPLICATION = 37;
 
   DISCOVER_RESOURCE_EC2_INSTANCE = 38;
+
+  DISCOVER_RESOURCE_EXTERNAL_CLOUD_AUDIT = 39;
 }
 
 // DiscoverResourceMetadata contains common metadata identifying resource type being added.
@@ -525,6 +527,20 @@ message UIDiscoverDeployEICEEvent {
 
 // UIDiscoverCreateNodeEvent is emitted when the node is created in Teleport.
 message UIDiscoverCreateNodeEvent {
+  DiscoverMetadata metadata = 1;
+  DiscoverResourceMetadata resource = 2;
+  DiscoverStepStatus status = 3;
+}
+
+// UIDiscoverExternalCloudAuditBootstrapEvent is emitted when the user is finished with the step that asks users to run the bootstrap script in BYOB integration.
+message UIDiscoverExternalCloudAuditBootstrapEvent {
+  DiscoverMetadata metadata = 1;
+  DiscoverResourceMetadata resource = 2;
+  DiscoverStepStatus status = 3;
+}
+
+// UIDiscoverExternalCloudAuditActivateEvent is emitted when the user is finished with the step that asks users to activate the BYOB integration.
+message UIDiscoverExternalCloudAuditActivateEvent {
   DiscoverMetadata metadata = 1;
   DiscoverResourceMetadata resource = 2;
   DiscoverStepStatus status = 3;
@@ -1121,6 +1137,9 @@ message SubmitEventRequest {
 
     DesktopDirectoryShareEvent desktop_directory_share = 68;
     DesktopClipboardEvent desktop_clipboard_transfer = 69;
+
+    UIDiscoverExternalCloudAuditBootstrapEvent ui_discover_external_cloud_audit_bootstrap_event = 70;
+    UIDiscoverExternalCloudAuditActivateEvent ui_discover_external_cloud_audit_activate_event = 71;
   }
 
   reserved 8; // UIOnboardGetStartedClickEvent

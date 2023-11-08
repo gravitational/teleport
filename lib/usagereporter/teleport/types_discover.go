@@ -508,3 +508,47 @@ func (u *UIDiscoverCompletedEvent) Anonymize(a utils.Anonymizer) prehogv1a.Submi
 		},
 	}
 }
+
+// UIDiscoverCompletedEvent is emitted when the user is finished with the step that asks users to run the bootstrap script in BYOB integration.
+type UIDiscoverExternalCloudAuditBootstrapEvent prehogv1a.UIDiscoverExternalCloudAuditBootstrapEvent
+
+func (u *UIDiscoverExternalCloudAuditBootstrapEvent) CheckAndSetDefaults() error {
+	return trace.Wrap(validateDiscoverBaseEventFields(u.Metadata, u.Resource, u.Status))
+}
+
+func (u *UIDiscoverExternalCloudAuditBootstrapEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_UiDiscoverExternalCloudAuditBootstrapEvent{
+			UiDiscoverExternalCloudAuditBootstrapEvent: &prehogv1a.UIDiscoverExternalCloudAuditBootstrapEvent{
+				Metadata: &prehogv1a.DiscoverMetadata{
+					Id:       u.Metadata.Id,
+					UserName: a.AnonymizeString(u.Metadata.UserName),
+				},
+				Resource: u.Resource,
+				Status:   u.Status,
+			},
+		},
+	}
+}
+
+// UIDiscoverCompletedEvent is emitted when the user is finished with the step that asks users to activate the BYOB integration.
+type UIDiscoverExternalCloudAuditActivateEvent prehogv1a.UIDiscoverExternalCloudAuditActivateEvent
+
+func (u *UIDiscoverExternalCloudAuditActivateEvent) CheckAndSetDefaults() error {
+	return trace.Wrap(validateDiscoverBaseEventFields(u.Metadata, u.Resource, u.Status))
+}
+
+func (u *UIDiscoverExternalCloudAuditActivateEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_UiDiscoverExternalCloudAuditActivateEvent{
+			UiDiscoverExternalCloudAuditActivateEvent: &prehogv1a.UIDiscoverExternalCloudAuditActivateEvent{
+				Metadata: &prehogv1a.DiscoverMetadata{
+					Id:       u.Metadata.Id,
+					UserName: a.AnonymizeString(u.Metadata.UserName),
+				},
+				Resource: u.Resource,
+				Status:   u.Status,
+			},
+		},
+	}
+}

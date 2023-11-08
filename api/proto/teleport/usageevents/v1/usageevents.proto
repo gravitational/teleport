@@ -139,6 +139,8 @@ enum DiscoverResource {
   DISCOVER_RESOURCE_SAML_APPLICATION = 37;
 
   DISCOVER_RESOURCE_EC2_INSTANCE = 38;
+
+  DISCOVER_RESOURCE_EXTERNAL_CLOUD_AUDIT = 39;
 }
 
 // DiscoverResourceMetadata contains common metadata identifying resource type being added.
@@ -289,6 +291,20 @@ message UIDiscoverDesktopActiveDirectoryToolsInstallEvent {
 
 // UIDiscoverDesktopActiveDirectoryConfigureEvent is emitted when the user is finished with the step that asks user to run the Configure Active Directory script for the Desktop flow.
 message UIDiscoverDesktopActiveDirectoryConfigureEvent {
+  DiscoverMetadata metadata = 1;
+  DiscoverResourceMetadata resource = 2;
+  DiscoverStepStatus status = 3;
+}
+
+// UIDiscoverExternalCloudAuditBootstrapEvent is emitted when the user is finished with the step that asks users to run the bootstrap script in BYOB integration.
+message UIDiscoverExternalCloudAuditBootstrapEvent {
+  DiscoverMetadata metadata = 1;
+  DiscoverResourceMetadata resource = 2;
+  DiscoverStepStatus status = 3;
+}
+
+// UIDiscoverExternalCloudAuditActivateEvent is emitted when the user is finished with the step that asks users to activate the BYOB integration.
+message UIDiscoverExternalCloudAuditActivateEvent {
   DiscoverMetadata metadata = 1;
   DiscoverResourceMetadata resource = 2;
   DiscoverStepStatus status = 3;
@@ -628,6 +644,8 @@ message UsageEventOneOf {
     UIDiscoverEC2InstanceSelectionEvent ui_discover_ec2_instance_selection = 47;
     UIDiscoverDeployEICEEvent ui_discover_deploy_eice = 48;
     UIDiscoverCreateNodeEvent ui_discover_create_node = 49;
+    UIDiscoverExternalCloudAuditBootstrapEvent ui_discover_external_cloud_audit_bootstrap_event = 50;
+    UIDiscoverExternalCloudAuditActivateEvent ui_discover_external_cloud_audit_activate_event = 51;
   }
   reserved 2; //UIOnboardGetStartedClickEvent
   reserved "ui_onboard_get_started_click";
