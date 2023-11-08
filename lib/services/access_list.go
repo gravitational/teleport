@@ -25,6 +25,7 @@ import (
 
 	accesslistclient "github.com/gravitational/teleport/api/client/accesslist"
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -210,11 +211,28 @@ func IsAccessListOwner(identity tlsca.Identity, accessList *accesslist.AccessLis
 	return nil
 }
 
+// AccessListMemberAndLocker is an interface that allows getting access list members and detecting if they're locked.
+type AccessListMemberAndLockGetter interface {
+	AccessListMembersGetter
+	LockGetter
+}
+
 // IsAccessListMember will return true if the user is a member for the current list.
-func IsAccessListMember(ctx context.Context, identity tlsca.Identity, clock clockwork.Clock, accessList *accesslist.AccessList, memberGetter AccessListMembersGetter) error {
+func IsAccessListMember(ctx context.Context, identity tlsca.Identity, clock clockwork.Clock, accessList *accesslist.AccessList, getter AccessListMemberAndLockGetter) error {
 	username := identity.Username
 
-	member, err := memberGetter.GetAccessListMember(ctx, accessList.GetName(), username)
+	locks, err := getter.GetLocks(ctx, true, types.LockTarget{
+		User: username,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if len(locks) > 0 {
+		return trace.AccessDenied("user %s is currently locked", username)
+	}
+
+	member, err := getter.GetAccessListMember(ctx, accessList.GetName(), username)
 	if trace.IsNotFound(err) {
 		// The member has not been found, so we know they're not a member of this list.
 		return trace.NotFound("user %s is not a member of the access list", username)

@@ -24,7 +24,9 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/maps"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/types/trait"
@@ -265,13 +267,14 @@ func TestIsAccessListOwner(t *testing.T) {
 	}
 }
 
-// testMembersGetter implements AccessListMembersGetter for testing.
-type testMembersGetter struct {
+// testMembersAndLockGetter implements AccessListMembersGetter and LockGetter for testing.
+type testMembersAndLockGetter struct {
 	members map[string]map[string]*accesslist.AccessListMember
+	locks   map[string]types.Lock
 }
 
 // ListAccessListMembers returns a paginated list of all access list members.
-func (t *testMembersGetter) ListAccessListMembers(ctx context.Context, accessList string, _ int, _ string) (members []*accesslist.AccessListMember, nextToken string, err error) {
+func (t *testMembersAndLockGetter) ListAccessListMembers(ctx context.Context, accessList string, _ int, _ string) (members []*accesslist.AccessListMember, nextToken string, err error) {
 	for _, member := range t.members[accessList] {
 		members = append(members, member)
 	}
@@ -279,7 +282,7 @@ func (t *testMembersGetter) ListAccessListMembers(ctx context.Context, accessLis
 }
 
 // GetAccessListMember returns the specified access list member resource.
-func (t *testMembersGetter) GetAccessListMember(ctx context.Context, accessList string, memberName string) (*accesslist.AccessListMember, error) {
+func (t *testMembersAndLockGetter) GetAccessListMember(ctx context.Context, accessList string, memberName string) (*accesslist.AccessListMember, error) {
 	members, ok := t.members[accessList]
 	if !ok {
 		return nil, trace.NotFound("not found")
@@ -293,12 +296,32 @@ func (t *testMembersGetter) GetAccessListMember(ctx context.Context, accessList 
 	return member, nil
 }
 
+// GetLock gets a lock by name.
+func (t *testMembersAndLockGetter) GetLock(_ context.Context, name string) (types.Lock, error) {
+	if t.locks == nil {
+		return nil, trace.NotFound("not found")
+	}
+
+	lock, ok := t.locks[name]
+	if !ok {
+		return nil, trace.NotFound("not found")
+	}
+
+	return lock, nil
+}
+
+// GetLocks gets all/in-force locks that match at least one of the targets when specified.
+func (t *testMembersAndLockGetter) GetLocks(ctx context.Context, inForceOnly bool, targets ...types.LockTarget) ([]types.Lock, error) {
+	return maps.Values(t.locks), nil
+}
+
 func TestIsAccessListMember(t *testing.T) {
 	tests := []struct {
 		name             string
 		identity         tlsca.Identity
 		memberCtx        context.Context
 		currentTime      time.Time
+		locks            map[string]types.Lock
 		errAssertionFunc require.ErrorAssertionFunc
 	}{
 		{
@@ -313,6 +336,24 @@ func TestIsAccessListMember(t *testing.T) {
 			},
 			currentTime:      time.Date(2023, 2, 1, 0, 0, 0, 0, time.UTC),
 			errAssertionFunc: require.NoError,
+		},
+		{
+			name: "is locked member",
+			identity: tlsca.Identity{
+				Username: member1,
+				Groups:   []string{"mrole1", "mrole2"},
+				Traits: map[string][]string{
+					"mtrait1": {"mvalue1", "mvalue2"},
+					"mtrait2": {"mvalue3", "mvalue4"},
+				},
+			},
+			locks: map[string]types.Lock{
+				"test-lock": newUserLock(t, "test-lock", member1),
+			},
+			currentTime: time.Date(2023, 2, 1, 0, 0, 0, 0, time.UTC),
+			errAssertionFunc: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorIs(t, err, trace.AccessDenied("user %s is currently locked", member1))
+			},
 		},
 		{
 			name: "is not a member",
@@ -407,7 +448,7 @@ func TestIsAccessListMember(t *testing.T) {
 				}
 				memberMap[accessListName][member.Spec.Name] = member
 			}
-			getter := &testMembersGetter{members: memberMap}
+			getter := &testMembersAndLockGetter{members: memberMap, locks: test.locks}
 
 			test.errAssertionFunc(t, IsAccessListMember(ctx, test.identity, clockwork.NewFakeClockAt(test.currentTime), accessList, getter))
 		})
@@ -761,3 +802,16 @@ spec:
     review_frequency_changed: 3 months
     review_day_of_month_changed: "15"
 `
+
+func newUserLock(t *testing.T, name, user string) types.Lock {
+	t.Helper()
+
+	lock, err := types.NewLock(name, types.LockSpecV2{
+		Target: types.LockTarget{
+			User: user,
+		},
+	})
+	require.NoError(t, err)
+
+	return lock
+}

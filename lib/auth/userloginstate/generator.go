@@ -34,13 +34,19 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
+// AccessListsAndLockGetter is an interface for retrieving access lists and locks.
+type AccessListsAndLockGetter interface {
+	services.AccessListsGetter
+	services.LockGetter
+}
+
 // GeneratorConfig is the configuration for the user login state generator.
 type GeneratorConfig struct {
 	// Log is a logger to use for the generator.
 	Log *logrus.Entry
 
-	// AccessLists is a service for retrieving access lists from the backend.
-	AccessLists services.AccessListsGetter
+	// AccessLists is a service for retrieving access lists and locks from the backend.
+	AccessLists AccessListsAndLockGetter
 
 	// Access is a service that will be used for retrieving roles from the backend.
 	Access services.Access
@@ -89,7 +95,7 @@ func (g *GeneratorConfig) CheckAndSetDefaults() error {
 // Generator will generate a user login state from a user.
 type Generator struct {
 	log         *logrus.Entry
-	accessLists services.AccessListsGetter
+	accessLists AccessListsAndLockGetter
 	access      services.Access
 	usageEvents UsageEventsClient
 	clock       clockwork.Clock
