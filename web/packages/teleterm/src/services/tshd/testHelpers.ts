@@ -23,6 +23,7 @@ export const makeServer = (props: Partial<tsh.Server> = {}): tsh.Server => ({
   hostname: 'foo',
   addr: '127.0.0.1:3022',
   labelsList: [],
+  subKind: 'teleport',
   ...props,
 });
 
