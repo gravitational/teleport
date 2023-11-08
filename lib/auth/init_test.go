@@ -1346,6 +1346,9 @@ func TestInit_ApplyOnStartup(t *testing.T) {
 			name: "Apply unsupported resource",
 			modifyConfig: func(cfg *InitConfig) {
 				cfg.ApplyOnStartupResources = append(cfg.ApplyOnStartupResources, lock)
+				cfg.ApplyOnStartupResources = append(cfg.ApplyOnStartupResources, user)
+				cfg.ApplyOnStartupResources = append(cfg.ApplyOnStartupResources, role)
+				cfg.ApplyOnStartupResources = append(cfg.ApplyOnStartupResources, token)
 			},
 			assertError: require.Error,
 		},

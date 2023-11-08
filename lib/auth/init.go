@@ -1358,9 +1358,12 @@ func migrateRemoteClusters(ctx context.Context, asrv *Server) error {
 	return nil
 }
 
+// ResourceApplyPriority specifies in which order the resources must be applied
+// to avoid consistency issues. A lower priority means the resource is applied
+// before.
 var ResourceApplyPriority = map[string]int{
 	types.KindRole:  1,
-	types.KindUser:  2,
+	types.KindUser:  2, // Users must be applied after Roles
 	types.KindToken: 3,
 }
 
@@ -1370,14 +1373,8 @@ var ResourceApplyPriority = map[string]int{
 func applyResources(ctx context.Context, service *Services, resources []types.Resource) error {
 	var err error
 	slices.SortFunc(resources, func(a, b types.Resource) int {
-		priorityA, ok := ResourceApplyPriority[a.GetKind()]
-		if !ok {
-			priorityA = 0
-		}
-		priorityB, ok := ResourceApplyPriority[b.GetKind()]
-		if !ok {
-			priorityB = 0
-		}
+		priorityA, _ := ResourceApplyPriority[a.GetKind()]
+		priorityB, _ := ResourceApplyPriority[b.GetKind()]
 		return priorityA - priorityB
 	})
 	for _, resource := range resources {
