@@ -19,3 +19,6 @@ spec:
     targetPort: 3026
     protocol: TCP
   selector: {{- include "teleport-cluster.auth.selectorLabels" . | nindent 4 }}
+{{- if.Values.enableProxyPeering}}
+  type: {{ default "LoadBalancer" $auth.service.type }}
+{{- end }}
