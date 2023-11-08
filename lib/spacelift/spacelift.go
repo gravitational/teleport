@@ -16,7 +16,10 @@ limitations under the License.
 
 package spacelift
 
-import "github.com/gravitational/trace"
+import (
+	"github.com/gravitational/trace"
+	"github.com/mitchellh/mapstructure"
+)
 
 // IDTokenClaims
 // See the following for the structure:
@@ -42,6 +45,24 @@ type IDTokenClaims struct {
 	RunID string `json:"runId"`
 	// Scope is the scope of the token - either read or write.
 	Scope string `json:"scope"`
+}
+
+// JoinAuditAttributes returns a series of attributes that can be inserted into
+// audit events related to a specific join.
+func (c *IDTokenClaims) JoinAuditAttributes() (map[string]interface{}, error) {
+	res := map[string]interface{}{}
+	d, err := mapstructure.NewDecoder(&mapstructure.DecoderConfig{
+		TagName: "json",
+		Result:  &res,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := d.Decode(c); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return res, nil
 }
 
 type envGetter func(key string) string
