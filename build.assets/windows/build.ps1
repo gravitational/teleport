@@ -356,7 +356,7 @@ function Build-Tsh {
         Copy-Item -Path "$TeleportSourceDirectory\CHANGELOG.md" -Destination "$PackageDirectory"
         Copy-Item -Path "$TeleportSourceDirectory\README.md" -Destination "$PackageDirectory"
         Out-File -FilePath "$PackageDirectory\VERSION" -InputObject "v$TeleportVersion"
-        Compress-Archive -Path "$PackageDirectory*" -DestinationPath "$ArtifactDirectory\teleport-v$TeleportVersion-windows-amd64-bin.zip"
+        Compress-Archive -Path "$PackageDirectory\*" -DestinationPath "$ArtifactDirectory\teleport-v$TeleportVersion-windows-amd64-bin.zip"
     }
     Write-Host $("Built TSH in {0:g}" -f $CommandDuration)
 
