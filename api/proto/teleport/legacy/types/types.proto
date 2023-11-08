@@ -1358,6 +1358,9 @@ message ProvisionTokenSpecV2Spacelift {
     // CallerType is the type of the caller, ie. the entity that owns the run -
     // either `stack` or `module`.
     string CallerType = 3 [(gogoproto.jsontag) = "caller_type,omitempty"];
+    // Scope is the scope of the token - either `read` or `write`.
+    // See https://docs.spacelift.io/integrations/cloud-providers/oidc/#about-scopes
+    string Scope = 4 [(gogoproto.jsontag) = "scope,omitempty"];
   }
   // Allow is a list of Rules, nodes using this token must match one
   // allow rule to use this token.

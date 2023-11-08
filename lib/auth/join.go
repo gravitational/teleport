@@ -150,6 +150,12 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 			return nil, trace.Wrap(err)
 		}
 		joinAttributeSrc = claims
+	case types.JoinMethodSpacelift:
+		claims, err := a.checkSpaceliftJoinRequest(ctx, req)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		joinAttributeSrc = claims
 	case types.JoinMethodToken:
 		// carry on to common token checking logic
 	default:
