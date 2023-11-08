@@ -259,7 +259,7 @@ func TestCheckDatabase(t *testing.T) {
 			inDatabase: Database{
 				Name:     "sqlserver",
 				Protocol: defaults.ProtocolSQLServer,
-				URI:      "localhost:1433",
+				URI:      "sqlserver.example.com:1433",
 				AD: DatabaseAD{
 					KeytabFile: "/etc/keytab",
 					Domain:     "test-domain",
