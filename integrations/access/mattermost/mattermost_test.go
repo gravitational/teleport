@@ -36,6 +36,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/integrations/access/accessrequest"
 	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/integrations/lib"
 	"github.com/gravitational/teleport/integrations/lib/logger"
@@ -261,14 +262,14 @@ func (s *MattermostSuite) createAccessRequest(reviewers []User) types.AccessRequ
 	return out
 }
 
-func (s *MattermostSuite) checkPluginData(reqID string, cond func(common.GenericPluginData) bool) common.GenericPluginData {
+func (s *MattermostSuite) checkPluginData(reqID string, cond func(accessrequest.PluginData) bool) accessrequest.PluginData {
 	t := s.T()
 	t.Helper()
 
 	for {
 		rawData, err := s.ruler().PollAccessRequestPluginData(s.Context(), "mattermost", reqID)
 		require.NoError(t, err)
-		data, err := common.DecodePluginData(rawData)
+		data, err := accessrequest.DecodePluginData(rawData)
 		require.NoError(t, err)
 		if cond(data) {
 			return data
@@ -287,7 +288,7 @@ func (s *MattermostSuite) TestMattermostMessagePosting() {
 	s.startApp()
 	request := s.createAccessRequest([]User{reviewer2, reviewer1})
 
-	pluginData := s.checkPluginData(request.GetName(), func(data common.GenericPluginData) bool {
+	pluginData := s.checkPluginData(request.GetName(), func(data accessrequest.PluginData) bool {
 		return len(data.SentMessages) > 0
 	})
 	assert.Len(t, pluginData.SentMessages, 2)
@@ -297,7 +298,7 @@ func (s *MattermostSuite) TestMattermostMessagePosting() {
 	for i := 0; i < 2; i++ {
 		post, err := s.fakeMattermost.CheckNewPost(s.Context())
 		require.NoError(t, err, "no new messages posted")
-		postSet.Add(common.MessageData{ChannelID: post.ChannelID, MessageID: post.ID})
+		postSet.Add(accessrequest.MessageData{ChannelID: post.ChannelID, MessageID: post.ID})
 		posts = append(posts, post)
 	}
 
@@ -409,7 +410,7 @@ func (s *MattermostSuite) TestReviewComments() {
 	s.startApp()
 
 	req := s.createAccessRequest([]User{reviewer})
-	s.checkPluginData(req.GetName(), func(data common.GenericPluginData) bool {
+	s.checkPluginData(req.GetName(), func(data accessrequest.PluginData) bool {
 		return len(data.SentMessages) > 0
 	})
 
@@ -593,7 +594,7 @@ func (s *MattermostSuite) TestExpiration() {
 	directChannelID := s.fakeMattermost.GetDirectChannelFor(s.fakeMattermost.GetBotUser(), reviewer).ID
 	assert.Equal(t, directChannelID, post.ChannelID)
 
-	s.checkPluginData(request.GetName(), func(data common.GenericPluginData) bool {
+	s.checkPluginData(request.GetName(), func(data accessrequest.PluginData) bool {
 		return len(data.SentMessages) > 0
 	})
 
@@ -673,7 +674,7 @@ func (s *MattermostSuite) TestRace() {
 			if post.RootID == "" {
 				// Handle "root" notifications.
 
-				postKey := common.MessageData{ChannelID: post.ChannelID, MessageID: post.ID}
+				postKey := accessrequest.MessageData{ChannelID: post.ChannelID, MessageID: post.ID}
 				if _, loaded := postIDs.LoadOrStore(postKey, struct{}{}); loaded {
 					return setRaceErr(trace.Errorf("post %v already stored", postKey))
 				}
@@ -711,7 +712,7 @@ func (s *MattermostSuite) TestRace() {
 			} else {
 				// Handle review comments.
 
-				postKey := common.MessageData{ChannelID: post.ChannelID, MessageID: post.RootID}
+				postKey := accessrequest.MessageData{ChannelID: post.ChannelID, MessageID: post.RootID}
 				var newCounter int32
 				val, _ := reviewCommentCounters.LoadOrStore(postKey, &newCounter)
 				counterPtr := val.(*int32)
@@ -730,7 +731,7 @@ func (s *MattermostSuite) TestRace() {
 				return setRaceErr(trace.Wrap(err))
 			}
 
-			postKey := common.MessageData{ChannelID: post.ChannelID, MessageID: post.ID}
+			postKey := accessrequest.MessageData{ChannelID: post.ChannelID, MessageID: post.ID}
 			var newCounter int32
 			val, _ := postUpdateCounters.LoadOrStore(postKey, &newCounter)
 			counterPtr := val.(*int32)
@@ -798,7 +799,7 @@ func (s *MattermostSuite) TestRecipientsConfig() {
 	s.startApp()
 
 	request := s.createAccessRequest(nil)
-	pluginData := s.checkPluginData(request.GetName(), func(data common.GenericPluginData) bool {
+	pluginData := s.checkPluginData(request.GetName(), func(data accessrequest.PluginData) bool {
 		return len(data.SentMessages) > 0
 	})
 	assert.Len(t, pluginData.SentMessages, 2)
@@ -812,12 +813,12 @@ func (s *MattermostSuite) TestRecipientsConfig() {
 
 	msg, err := s.fakeMattermost.CheckNewPost(s.Context())
 	require.NoError(t, err)
-	messageSet.Add(common.MessageData{ChannelID: msg.ChannelID, MessageID: msg.ID})
+	messageSet.Add(accessrequest.MessageData{ChannelID: msg.ChannelID, MessageID: msg.ID})
 	messages = append(messages, msg)
 
 	msg, err = s.fakeMattermost.CheckNewPost(s.Context())
 	require.NoError(t, err)
-	messageSet.Add(common.MessageData{ChannelID: msg.ChannelID, MessageID: msg.ID})
+	messageSet.Add(accessrequest.MessageData{ChannelID: msg.ChannelID, MessageID: msg.ID})
 	messages = append(messages, msg)
 
 	assert.Len(t, messageSet, 2)

@@ -29,6 +29,8 @@ import (
 	"github.com/mailgun/holster/v3/collections"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/accesslist"
+	"github.com/gravitational/teleport/integrations/access/accessrequest"
 	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/integrations/lib"
 	"github.com/gravitational/teleport/integrations/lib/logger"
@@ -228,14 +230,19 @@ func (b Bot) GetMe(ctx context.Context) (User, error) {
 	return userResult(resp)
 }
 
-// Broadcast posts request info to Mattermost.
-func (b Bot) Broadcast(ctx context.Context, recipients []common.Recipient, reqID string, reqData pd.AccessRequestData) (common.SentMessages, error) {
+// SendReviewReminders will send a review reminder that an access list needs to be reviewed.
+func (b Bot) SendReviewReminders(ctx context.Context, recipients []common.Recipient, accessList *accesslist.AccessList) error {
+	return trace.NotImplemented("access list review reminder is not yet implemented")
+}
+
+// BroadcastAccessRequestMessage posts request info to Mattermost.
+func (b Bot) BroadcastAccessRequestMessage(ctx context.Context, recipients []common.Recipient, reqID string, reqData pd.AccessRequestData) (accessrequest.SentMessages, error) {
 	text, err := b.buildPostText(reqID, reqData)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	var data common.SentMessages
+	var data accessrequest.SentMessages
 	var errors []error
 
 	for _, recipient := range recipients {
@@ -253,7 +260,7 @@ func (b Bot) Broadcast(ctx context.Context, recipients []common.Recipient, reqID
 			continue
 		}
 
-		data = append(data, common.MessageData{ChannelID: post.ChannelID, MessageID: post.ID})
+		data = append(data, accessrequest.MessageData{ChannelID: post.ChannelID, MessageID: post.ID})
 	}
 
 	return data, trace.NewAggregate(errors...)
@@ -355,7 +362,7 @@ func (b Bot) LookupDirectChannel(ctx context.Context, email string) (string, err
 	return channel.ID, nil
 }
 
-func (b Bot) UpdateMessages(ctx context.Context, reqID string, reqData pd.AccessRequestData, mmData common.SentMessages, reviews []types.AccessReview) error {
+func (b Bot) UpdateMessages(ctx context.Context, reqID string, reqData pd.AccessRequestData, mmData accessrequest.SentMessages, reviews []types.AccessReview) error {
 	text, err := b.buildPostText(reqID, reqData)
 	if err != nil {
 		return trace.Wrap(err)
@@ -469,26 +476,26 @@ func (b Bot) tryLookupChannel(ctx context.Context, team, name string) string {
 }
 
 // FetchRecipient returns the recipient for the given raw recipient.
-func (b Bot) FetchRecipient(ctx context.Context, recipient string) (*common.Recipient, error) {
+func (b Bot) FetchRecipient(ctx context.Context, name string) (*common.Recipient, error) {
 	var channel string
 	kind := "Channel"
 
 	// Recipients from config file could contain either email or team and
 	// channel names separated by '/' symbol. It's up to user what format to use.
-	if lib.IsEmail(recipient) {
-		channel = b.tryLookupDirectChannel(ctx, recipient)
+	if lib.IsEmail(name) {
+		channel = b.tryLookupDirectChannel(ctx, name)
 		kind = "Email"
 	} else {
-		parts := strings.Split(recipient, "/")
+		parts := strings.Split(name, "/")
 		if len(parts) == 2 {
 			channel = b.tryLookupChannel(ctx, parts[0], parts[1])
 		} else {
-			return nil, trace.BadParameter("Recipient must be either a user email or a channel in the format \"team/channel\" but got %q", recipient)
+			return nil, trace.BadParameter("Recipient must be either a user email or a channel in the format \"team/channel\" but got %q", name)
 		}
 	}
 
 	return &common.Recipient{
-		Name: recipient,
+		Name: name,
 		ID:   channel,
 		Kind: kind,
 		Data: nil,

@@ -2773,15 +2773,15 @@ func (a *ServerWithRoles) GetAccessCapabilities(ctx context.Context, req types.A
 // GetPluginData loads all plugin data matching the supplied filter.
 func (a *ServerWithRoles) GetPluginData(ctx context.Context, filter types.PluginDataFilter) ([]types.PluginData, error) {
 	switch filter.Kind {
-	case types.KindAccessRequest:
-		// for backwards compatibility, we allow list/read against access requests to also grant list/read for
+	case types.KindAccessRequest, types.KindAccessList:
+		// for backwards compatibility, we allow list/read against kinds to also grant list/read for
 		// access request related plugin data.
-		if a.withOptions(quietAction(true)).action(apidefaults.Namespace, types.KindAccessRequest, types.VerbList) != nil {
+		if a.withOptions(quietAction(true)).action(apidefaults.Namespace, filter.Kind, types.VerbList) != nil {
 			if err := a.action(apidefaults.Namespace, types.KindAccessPluginData, types.VerbList); err != nil {
 				return nil, trace.Wrap(err)
 			}
 		}
-		if a.withOptions(quietAction(true)).action(apidefaults.Namespace, types.KindAccessRequest, types.VerbRead) != nil {
+		if a.withOptions(quietAction(true)).action(apidefaults.Namespace, filter.Kind, types.VerbRead) != nil {
 			if err := a.action(apidefaults.Namespace, types.KindAccessPluginData, types.VerbRead); err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -2795,10 +2795,10 @@ func (a *ServerWithRoles) GetPluginData(ctx context.Context, filter types.Plugin
 // UpdatePluginData updates a per-resource PluginData entry.
 func (a *ServerWithRoles) UpdatePluginData(ctx context.Context, params types.PluginDataUpdateParams) error {
 	switch params.Kind {
-	case types.KindAccessRequest:
+	case types.KindAccessRequest, types.KindAccessList:
 		// for backwards compatibility, we allow update against access requests to also grant update for
 		// access request related plugin data.
-		if a.withOptions(quietAction(true)).action(apidefaults.Namespace, types.KindAccessRequest, types.VerbUpdate) != nil {
+		if a.withOptions(quietAction(true)).action(apidefaults.Namespace, params.Kind, types.VerbUpdate) != nil {
 			if err := a.action(apidefaults.Namespace, types.KindAccessPluginData, types.VerbUpdate); err != nil {
 				return trace.Wrap(err)
 			}
