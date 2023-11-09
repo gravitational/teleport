@@ -284,6 +284,9 @@ func New(ctx context.Context, cfg Config) (*Log, error) {
 	// Explicitly enable or disable FIPS endpoints for DynamoDB
 	b.session.Config.UseFIPSEndpoint = events.FIPSProtoStateToAWSState(cfg.UseFIPSEndpoint)
 
+	// Explicitly disable IMDSv1 fallback
+	b.session.Config.EC2MetadataEnableFallback = aws.Bool(false)
+
 	// create DynamoDB service:
 	svc, err := dynamometrics.NewAPIMetrics(dynamometrics.Events, dynamodb.New(b.session))
 	if err != nil {
