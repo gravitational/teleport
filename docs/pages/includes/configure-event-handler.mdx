@@ -29,7 +29,7 @@ Service or Proxy Service:
 
 ```code
 $ TELEPORT_CLUSTER_ADDRESS=mytenant.teleport.sh:443
-$ docker run -v `pwd`:/opt/teleport-plugin -w /opt/teleport-plugin public.ecr.aws/gravitational/teleport-plugin-event-handler:(=teleport.plugin.version=) configure . ${TELEPORT_CLUSTER_ADDRESS?}
+$ docker run -v `pwd`:/opt/teleport-plugin -w /opt/teleport-plugin public.ecr.aws/gravitational/teleport-plugin-event-handler:13.3.8 configure . ${TELEPORT_CLUSTER_ADDRESS?}
 ```
 
 In order to export audit events, you'll need to have the root certificate and the

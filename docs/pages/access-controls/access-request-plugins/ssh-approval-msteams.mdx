@@ -413,7 +413,7 @@ $ teleport-msteams validate <email of your teams account>
 If everything works fine, the log output should look like this:
 
 ```text
-teleport-msteams v(=teleport.plugin.version=) go(=teleport.golang=)
+teleport-msteams v13.3.8 go(=teleport.golang=)
 
  - Checking application xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx status...
  - Application found in the team app store (internal ID: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx)
@@ -446,7 +446,7 @@ and your Teleport cluster:
 ```code
 $ teleport-msteams start -d
 DEBU   DEBUG logging enabled msteams/main.go:120
-INFO   Starting Teleport MS Teams Plugin (=teleport.plugin.version=): msteams/app.go:74
+INFO   Starting Teleport MS Teams Plugin 13.3.8: msteams/app.go:74
 DEBU   Attempting GET teleport.example.com:443/webapi/find webclient/webclient.go:129
 DEBU   Checking Teleport server version msteams/app.go:242
 INFO   MS Teams app found in org app store id:292e2881-38ab-7777-8aa7-cefed1404a63 name:TeleBot msteams/app.go:179
