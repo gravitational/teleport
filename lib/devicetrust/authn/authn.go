@@ -29,7 +29,7 @@ import (
 // [devicepb.DeviceTrustServiceClient.AuthenticateDevice]
 type Ceremony struct {
 	GetDeviceCredential          func() (*devicepb.DeviceCredential, error)
-	CollectDeviceData            func() (*devicepb.DeviceCollectedData, error)
+	CollectDeviceData            func(mode native.CollectDataMode) (*devicepb.DeviceCollectedData, error)
 	SignChallenge                func(chal []byte) (sig []byte, err error)
 	SolveTPMAuthnDeviceChallenge func(challenge *devicepb.TPMAuthenticateDeviceChallenge) (*devicepb.TPMAuthenticateDeviceChallengeResponse, error)
 	GetDeviceOSType              func() devicepb.OSType
@@ -70,7 +70,7 @@ func (c *Ceremony) Run(ctx context.Context, devicesClient devicepb.DeviceTrustSe
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	cd, err := c.CollectDeviceData()
+	cd, err := c.CollectDeviceData(native.CollectedDataMaybeEscalate)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

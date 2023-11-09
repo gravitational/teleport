@@ -18,6 +18,7 @@ import (
 	"github.com/gravitational/trace"
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
+	"github.com/gravitational/teleport/lib/devicetrust/native"
 )
 
 // FakeLinuxDevice only implements GetDeviceOSType so we can be sure
@@ -32,7 +33,7 @@ func (d *FakeLinuxDevice) GetDeviceOSType() devicepb.OSType {
 	return devicepb.OSType_OS_TYPE_LINUX
 }
 
-func (d *FakeLinuxDevice) CollectDeviceData() (*devicepb.DeviceCollectedData, error) {
+func (d *FakeLinuxDevice) CollectDeviceData(mode native.CollectDataMode) (*devicepb.DeviceCollectedData, error) {
 	return nil, trace.NotImplemented("linux device fake unimplemented")
 }
 
