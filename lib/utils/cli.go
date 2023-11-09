@@ -178,19 +178,13 @@ func UserMessageFromError(err error) string {
 // The error message is escaped if necessary. A newline is added if the error text
 // does not end with a newline.
 func FormatErrorWithNewline(err error) string {
-	message := formatError(err)
+	var buf bytes.Buffer
+	formatErrorWriter(err, &buf)
+	message := buf.String()
 	if !strings.HasSuffix(message, "\n") {
 		message = message + "\n"
 	}
 	return message
-}
-
-// formatError returns user friendly error message from error.
-// The error message is escaped if necessary
-func formatError(err error) string {
-	var buf bytes.Buffer
-	formatErrorWriter(err, &buf)
-	return buf.String()
 }
 
 // formatErrorWriter formats the specified error into the provided writer.
@@ -211,7 +205,7 @@ func formatErrorWriter(err error, w io.Writer) {
 		return
 	}
 
-	fmt.Fprintln(w, AllowWhitespace(err.Error()))
+	fmt.Fprintln(w, AllowWhitespace(msg))
 }
 
 func formatCertError(err error) string {
