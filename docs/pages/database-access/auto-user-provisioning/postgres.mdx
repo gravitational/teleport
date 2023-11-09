@@ -69,7 +69,11 @@ to ensure that your configuration is correct.
 Users created by Teleport will be placed in the `teleport-auto-user` group in
 the database, which will be created automatically if it doesn't exist.
 
-(!docs/pages/includes/database-access/auto-user-provisioning/db-definition.mdx protocol="postgres" uri="localhost:5432" !)
+(!docs/pages/includes/database-access/auto-user-provisioning/db-definition-default-dbname.mdx protocol="postgres" uri="localhost:5432" default="the same database that the user is accessing" !)
+
+<Admonition type="warning" title="Procedure Privileges in PostgreSQL 15+">
+(!docs/pages/includes/database-access/auto-user-provisioning/postgres15-grant-create.mdx!)
+</Admonition>
 
 ## Step 2/3. Configure Teleport role
 
@@ -89,6 +93,12 @@ Users created within the database will:
 ## Step 3/3. Connect to the database
 
 (!docs/pages/includes/database-access/auto-user-provisioning/connect.mdx gui="pgAdmin"!)
+
+## Troubleshooting
+
+### Permission denied for schema public error
+
+(!docs/pages/includes/database-access/auto-user-provisioning/postgres15-grant-create.mdx!)
 
 ## Next steps
 

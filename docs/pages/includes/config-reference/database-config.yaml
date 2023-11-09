@@ -96,6 +96,14 @@ db_service:
       # When this option is set the Database Agent doesn't try to check the MySQL server version.
       server_version: 8.0.28
 
+    # Optional admin user configuration for Automatic User Provisioning.
+    admin_user:
+      # Name of the admin user.
+      name: "teleport-admin"
+      #  Optional default database the admin user logs into. See individual
+      #  guides for default value.
+      default_database: "teleport"
+
     # Optional AWS configuration for AWS hosted databases. AWS region- and
     # service-specific configurations can usually be auto-detected from the
     # endpoint.
