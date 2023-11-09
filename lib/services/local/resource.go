@@ -103,6 +103,10 @@ func itemsFromResource(resource types.Resource) ([]backend.Item, error) {
 		item, err = itemFromProvisionToken(r)
 	case types.Lock:
 		item, err = itemFromLock(r)
+	case types.ClusterNetworkingConfig:
+		item, err = itemFromClusterNetworkingConfig(r)
+	case types.AuthPreference:
+		item, err = itemFromAuthPreference(r)
 	default:
 		return nil, trace.NotImplemented("cannot itemFrom resource of type %T", resource)
 	}
@@ -113,6 +117,47 @@ func itemsFromResource(resource types.Resource) ([]backend.Item, error) {
 	items = append(items, *item)
 	items = append(items, extItems...)
 	return items, nil
+}
+
+// itemFromClusterNetworkingConfig attempts to encode the supplied cluster_networking_config as an
+// instance of `backend.Item` suitable for storage.
+func itemFromClusterNetworkingConfig(cnc types.ClusterNetworkingConfig) (*backend.Item, error) {
+	if err := cnc.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	value, err := services.MarshalClusterNetworkingConfig(cnc)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	item := &backend.Item{
+		Key:      backend.Key(clusterConfigPrefix, networkingPrefix),
+		Value:    value,
+		ID:       cnc.GetResourceID(),
+		Revision: cnc.GetRevision(),
+	}
+	return item, nil
+}
+
+// itemFromAuthPreference attempts to encode the supplied cluster_auth_preference as an
+// instance of `backend.Item` suitable for storage.
+func itemFromAuthPreference(ap types.AuthPreference) (*backend.Item, error) {
+	if err := ap.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	value, err := services.MarshalAuthPreference(ap)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	item := &backend.Item{
+		Key:      backend.Key(authPrefix, preferencePrefix, generalPrefix),
+		Value:    value,
+		ID:       ap.GetResourceID(),
+		Revision: ap.GetRevision(),
+	}
+
+	return item, nil
 }
 
 // itemFromUser attempts to encode the supplied user as an
