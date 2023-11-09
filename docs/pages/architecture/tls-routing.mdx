@@ -3,17 +3,6 @@ title: TLS Routing
 description: How Teleport implements a single-port setup with TLS routing
 ---
 
-<Details
-  title="Version warning"
-  opened={true}
-  scope={["oss", "enterprise"]}
-  scopeOnly={true}
-  min="13.0"
->
-  Support for TLS Routing behind layer 7 (HTTP/HTTPS) load balancers and reverse
-  proxies is available starting from Teleport `13.0`.
-</Details>
-
 In TLS routing mode [Teleport proxy](./proxy.mdx) multiplexes all client
 connections on a single TLS port.
 
@@ -25,6 +14,9 @@ network such as SSH.
 To implement TLS routing, Teleport uses SNI ([Server Name Indication](https://en.wikipedia.org/wiki/Server_Name_Indication))
 and ALPN ([Application-Level Protocol Negotiation](https://en.wikipedia.org/wiki/Application-Layer_Protocol_Negotiation))
 TLS extensions.
+
+Support for TLS Routing behind layer 7 (HTTP/HTTPS) load balancers and reverse
+proxies is available starting from Teleport `13.0`.
 
 ## How it works
 
