@@ -24,7 +24,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/maps"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
@@ -312,10 +311,14 @@ func (t *testMembersAndLockGetter) GetLock(_ context.Context, name string) (type
 
 // GetLocks gets all/in-force locks that match at least one of the targets when specified.
 func (t *testMembersAndLockGetter) GetLocks(ctx context.Context, inForceOnly bool, targets ...types.LockTarget) ([]types.Lock, error) {
-	return maps.Values(t.locks), nil
+	locks := make([]types.Lock, 0, len(t.locks))
+	for _, lock := range t.locks {
+		locks = append(locks, lock)
+	}
+	return locks, nil
 }
 
-func TestIsAccessListMember(t *testing.T) {
+func TestIsAccessListMemberChecker(t *testing.T) {
 	tests := []struct {
 		name             string
 		identity         tlsca.Identity
@@ -450,7 +453,8 @@ func TestIsAccessListMember(t *testing.T) {
 			}
 			getter := &testMembersAndLockGetter{members: memberMap, locks: test.locks}
 
-			test.errAssertionFunc(t, IsAccessListMember(ctx, test.identity, clockwork.NewFakeClockAt(test.currentTime), accessList, getter))
+			checker := NewAccessListMembershipChecker(clockwork.NewFakeClockAt(test.currentTime), getter, getter)
+			test.errAssertionFunc(t, checker.IsAccessListMember(ctx, test.identity, accessList))
 		})
 	}
 }

@@ -94,11 +94,12 @@ func (g *GeneratorConfig) CheckAndSetDefaults() error {
 
 // Generator will generate a user login state from a user.
 type Generator struct {
-	log         *logrus.Entry
-	accessLists AccessListsAndLockGetter
-	access      services.Access
-	usageEvents UsageEventsClient
-	clock       clockwork.Clock
+	log           *logrus.Entry
+	accessLists   AccessListsAndLockGetter
+	access        services.Access
+	usageEvents   UsageEventsClient
+	memberChecker *services.AccessListMembershipChecker
+	clock         clockwork.Clock
 }
 
 // NewGenerator creates a new user login state generator.
@@ -108,11 +109,12 @@ func NewGenerator(config GeneratorConfig) (*Generator, error) {
 	}
 
 	return &Generator{
-		log:         config.Log,
-		accessLists: config.AccessLists,
-		access:      config.Access,
-		usageEvents: config.UsageEvents,
-		clock:       config.Clock,
+		log:           config.Log,
+		accessLists:   config.AccessLists,
+		access:        config.Access,
+		usageEvents:   config.UsageEvents,
+		memberChecker: services.NewAccessListMembershipChecker(config.Clock, config.AccessLists, config.Access),
+		clock:         config.Clock,
 	}, nil
 }
 
@@ -177,7 +179,7 @@ func (g *Generator) addAccessListsToState(ctx context.Context, user types.User, 
 
 	for _, accessList := range accessLists {
 		// Check that the user meets the access list requirements.
-		if err := services.IsAccessListMember(ctx, identity, g.clock, accessList, g.accessLists); err != nil {
+		if err := g.memberChecker.IsAccessListMember(ctx, identity, accessList); err != nil {
 			continue
 		}
 
