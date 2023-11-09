@@ -19,7 +19,6 @@ package client
 import (
 	"context"
 	"crypto/tls"
-	"fmt"
 	"net"
 	"time"
 
@@ -27,8 +26,8 @@ import (
 	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/utils/keys"
-	"github.com/gravitational/teleport/lib/client/mfa"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -89,7 +88,6 @@ func (c *DBCertChecker) renewCerts(ctx context.Context, lp *alpnproxy.LocalProxy
 		accessRequests = profile.ActiveRequests.AccessRequests
 	}
 
-	hint := fmt.Sprintf("MFA is required to access database %q", c.dbRoute.ServiceName)
 	var key *Key
 	if err := RetryWithRelogin(ctx, c.tc, func() error {
 		newKey, err := c.tc.IssueUserCertsWithMFA(ctx, ReissueParams{
@@ -102,7 +100,7 @@ func (c *DBCertChecker) renewCerts(ctx context.Context, lp *alpnproxy.LocalProxy
 			},
 			AccessRequests: accessRequests,
 			RequesterName:  proto.UserCertsRequest_TSH_DB_LOCAL_PROXY_TUNNEL,
-		}, mfa.WithHintBeforePrompt(hint))
+		}, mfa.WithPromptReasonSessionMFA("database", c.dbRoute.ServiceName))
 		key = newKey
 		return trace.Wrap(err)
 	}); err != nil {

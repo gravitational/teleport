@@ -24,6 +24,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/mfa"
 )
 
 const (
@@ -62,11 +63,8 @@ func TestPerformMFACeremony(t *testing.T) {
 	}
 
 	cfg := server.clientCfg()
-	cfg.PromptAdminRequestMFA = func(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
-		if chal.TOTP != nil {
-			return mfaTestResp, nil
-		}
-		return nil, trace.BadParameter("expected TOTP challenge")
+	cfg.MFAPromptConstructor = func(opts ...mfa.PromptOpt) mfa.Prompt {
+		return &fakeMFAPrompt{mfaTestResp}
 	}
 
 	clt, err := New(ctx, cfg)
@@ -75,4 +73,15 @@ func TestPerformMFACeremony(t *testing.T) {
 	resp, err := clt.performMFACeremony(ctx)
 	require.NoError(t, err)
 	require.Equal(t, mfaTestResp.Response, resp.Response)
+}
+
+type fakeMFAPrompt struct {
+	totpResp *proto.MFAAuthenticateResponse
+}
+
+func (p *fakeMFAPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
+	if chal.TOTP != nil {
+		return p.totpResp, nil
+	}
+	return nil, trace.BadParameter("expected TOTP challenge")
 }
