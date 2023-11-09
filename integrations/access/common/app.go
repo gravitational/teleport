@@ -18,9 +18,12 @@ package common
 
 import (
 	"context"
+	"fmt"
+	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/integrations/access/common/teleport"
@@ -35,7 +38,25 @@ const (
 	initTimeout = time.Second * 10
 )
 
-type AppCreator func() *App
+var (
+	appCreatorRegistry   = map[string]AppCreator{}
+	appCreatorRegistryMu sync.Mutex
+)
+
+// AppCreator will create an application for use by the plugin.
+type AppCreator func(bot MessagingBot) (App, error)
+
+// RegisterApp will register the app creator function.
+func RegisterAppCreator(name string, fn AppCreator) {
+	appCreatorRegistryMu.Lock()
+	defer appCreatorRegistryMu.Unlock()
+
+	if _, ok := appCreatorRegistry[name]; ok {
+		panic(fmt.Sprintf("duplicate plugin application %s", name))
+	}
+
+	appCreatorRegistry[name] = fn
+}
 
 // BaseApp is responsible for handling the common features for a plugin.
 // It will start a Teleport client, listen for events and treat them.
@@ -46,6 +67,7 @@ type BaseApp struct {
 	APIClient  teleport.Client
 	Conf       PluginConfiguration
 	Bot        MessagingBot
+	Clock      clockwork.Clock
 
 	apps    []App
 	mainJob lib.ServiceJob
@@ -60,12 +82,8 @@ func NewApp(conf PluginConfiguration, pluginName string) *BaseApp {
 		Conf:       conf,
 	}
 	baseApp.mainJob = lib.NewServiceJob(baseApp.run)
-	return &baseApp
-}
 
-func (a *BaseApp) AddApp(app App) *BaseApp {
-	a.apps = append(a.apps, app)
-	return a
+	return &baseApp
 }
 
 // Run initializes and runs a watcher and a callback server
@@ -186,6 +204,22 @@ func (a *BaseApp) init(ctx context.Context) error {
 	a.Bot, err = a.Conf.NewBot(clusterName, webProxyAddr)
 	if err != nil {
 		return trace.Wrap(err)
+	}
+
+	appCreatorRegistryMu.Lock()
+	for appName, appCreatorFn := range appCreatorRegistry {
+		app, err := appCreatorFn(a.Bot)
+		if err != nil {
+			log.Debugf("Plugin %s does not support app %s", a.PluginName, appName)
+			continue
+		}
+
+		a.apps = append(a.apps, app)
+	}
+	appCreatorRegistryMu.Unlock()
+
+	if len(a.apps) == 0 {
+		return trace.BadParameter("no apps supported for this plugin")
 	}
 
 	for _, app := range a.apps {

@@ -99,23 +99,21 @@ func TestAccessListReminders(t *testing.T) {
 			"owner2": {Name: "owner2"},
 		},
 	}
-	app := NewApp()
-	app.clock = clock
-	baseApp := common.NewApp(&mockPluginConfig{as: as, bot: bot}, "test-plugin").
-		AddApp(app)
+	app := common.NewApp(&mockPluginConfig{as: as, bot: bot}, "test-plugin")
+	app.Clock = clock
 	ctx := context.Background()
 	go func() {
-		require.NoError(t, baseApp.Run(ctx))
+		require.NoError(t, app.Run(ctx))
 	}()
 
-	ready, err := app.job.WaitReady(ctx)
+	ready, err := app.WaitReady(ctx)
 	require.NoError(t, err)
 	require.True(t, ready)
 
 	t.Cleanup(func() {
-		baseApp.Terminate()
-		<-app.job.Done()
-		require.NoError(t, app.job.Err())
+		app.Terminate()
+		<-app.Done()
+		require.NoError(t, app.Err())
 	})
 
 	accessList, err := accesslist.NewAccessList(header.Metadata{

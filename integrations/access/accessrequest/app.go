@@ -33,11 +33,17 @@ import (
 	"github.com/gravitational/teleport/integrations/lib/watcherjob"
 )
 
+func init() {
+	common.RegisterAppCreator("accessrequest", NewApp)
+}
+
 const (
 	// handlerTimeout is used to bound the execution time of watcher event handler.
 	handlerTimeout = time.Second * 5
 )
 
+// App is the access request application for plugins. This will notify when access requests
+// are created and reviewed.
 type App struct {
 	pluginName string
 	pluginType string
@@ -48,10 +54,14 @@ type App struct {
 	job        lib.ServiceJob
 }
 
-func NewApp() *App {
+// NewApp will create a new access request application.
+func NewApp(bot common.MessagingBot) (common.App, error) {
+	if _, ok := bot.(MessagingBot); !ok {
+		return nil, trace.BadParameter("bot does not support this app")
+	}
 	app := &App{}
 	app.job = lib.NewServiceJob(app.run)
-	return app
+	return app, nil
 }
 
 func (a *App) Init(baseApp *common.BaseApp) error {
@@ -76,18 +86,22 @@ func (a *App) Init(baseApp *common.BaseApp) error {
 	return nil
 }
 
+// Start will start the application.
 func (a *App) Start(process *lib.Process) {
 	process.SpawnCriticalJob(a.job)
 }
 
+// WaitReady will block until the job is ready.
 func (a *App) WaitReady(ctx context.Context) (bool, error) {
 	return a.job.WaitReady(ctx)
 }
 
+// WaitForDone will wait until the job has completed.
 func (a *App) WaitForDone() {
 	<-a.job.Done()
 }
 
+// Err will return the error associated with the underlying job.
 func (a *App) Err() error {
 	if a.job != nil {
 		return a.job.Err()
@@ -368,8 +382,7 @@ func (a *App) getMessageRecipients(ctx context.Context, req types.AccessRequest)
 	for _, rawRecipient := range rawRecipients {
 		recipient, err := a.bot.FetchRecipient(ctx, rawRecipient)
 		if err != nil {
-			// Something wrong happened, we log the error and continue to treat valid rawRecipients
-			log.Warning(err)
+			log.WithError(err).Warn("Failure when fetching recipient, continuing anyway")
 		} else {
 			recipientSet.Add(*recipient)
 		}

@@ -17,7 +17,6 @@ limitations under the License.
 package discord
 
 import (
-	"github.com/gravitational/teleport/integrations/access/accessrequest"
 	"github.com/gravitational/teleport/integrations/access/common"
 )
 
@@ -28,6 +27,5 @@ const (
 
 // NewApp initializes a new teleport-discord app and returns it.
 func NewApp(conf *Config) *common.BaseApp {
-	return common.NewApp(conf, discordPluginName).
-		AddApp(accessrequest.NewApp())
+	return common.NewApp(conf, discordPluginName)
 }

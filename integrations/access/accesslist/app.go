@@ -35,13 +35,17 @@ import (
 	"github.com/gravitational/teleport/lib/utils/interval"
 )
 
+func init() {
+	common.RegisterAppCreator("accesslist", NewApp)
+}
+
 const (
 	// oneWeek is the number of hours in a week.
 	oneWeek = 24 * time.Hour * 7
 )
 
-// App is the access list application for plugins. This will notify access list owners via
-// Slack when they need to review an access list.
+// App is the access list application for plugins. This will notify access list owners
+// when they need to review an access list.
 type App struct {
 	pluginName string
 	apiClient  teleport.Client
@@ -52,12 +56,16 @@ type App struct {
 }
 
 // NewApp will create a new access list application.
-func NewApp() *App {
+func NewApp(bot common.MessagingBot) (common.App, error) {
+	if _, ok := bot.(MessagingBot); !ok {
+		return nil, trace.BadParameter("bot does not support this app")
+	}
 	app := &App{}
 	app.job = lib.NewServiceJob(app.run)
-	return app
+	return app, nil
 }
 
+// Init will initialize the application.
 func (a *App) Init(baseApp *common.BaseApp) error {
 	a.pluginName = baseApp.PluginName
 	a.apiClient = baseApp.APIClient
@@ -75,25 +83,27 @@ func (a *App) Init(baseApp *common.BaseApp) error {
 		return trace.BadParameter("bot does not implement access list bot methods")
 	}
 
-	if a.clock == nil {
-		a.clock = clockwork.NewRealClock()
-	}
+	a.clock = baseApp.Clock
 
 	return nil
 }
 
+// Start will start the application.
 func (a *App) Start(process *lib.Process) {
 	process.SpawnCriticalJob(a.job)
 }
 
+// WaitReady will block until the job is ready.
 func (a *App) WaitReady(ctx context.Context) (bool, error) {
 	return a.job.WaitReady(ctx)
 }
 
+// WaitForDone will wait until the job has completed.
 func (a *App) WaitForDone() {
 	<-a.job.Done()
 }
 
+// Err will return the error associated with the underlying job.
 func (a *App) Err() error {
 	return a.job.Err()
 }
@@ -156,29 +166,11 @@ func (a *App) run(ctx context.Context) error {
 // notifyForAccessListReviews will notify if access list review dates are getting close. At the moment, this
 // only supports notifying owners.
 func (a *App) notifyForAccessListReviews(ctx context.Context, accessList *accesslist.AccessList) error {
-	log := logger.Get(ctx)
-	allRecipients := make(map[string]common.Recipient, len(accessList.Spec.Owners))
-
-	now := a.clock.Now()
 	// Find the current notification window.
+	now := a.clock.Now()
 	notificationStart := accessList.Spec.Audit.NextAuditDate.Add(-accessList.Spec.Audit.Notifications.Start)
 
-	// If the current time before the notification start time, skip notifications.
-	if now.Before(notificationStart) {
-		log.Debugf("Access list %s is not ready for notifications, notifications start at %s", accessList.GetName(), notificationStart.Format(time.RFC3339))
-		return nil
-	}
-
-	// Get the owners from the bot as recipients.
-	for _, owner := range accessList.Spec.Owners {
-		recipient, err := a.bot.FetchRecipient(ctx, owner.Name)
-		if err != nil {
-			log.Debugf("error getting recipient %s", owner.Name)
-			continue
-		}
-		allRecipients[owner.Name] = *recipient
-	}
-
+	allRecipients := a.fetchRecipients(ctx, accessList, now, notificationStart)
 	if len(allRecipients) == 0 {
 		return trace.NotFound("no recipients could be fetched for access list %s", accessList.GetName())
 	}
@@ -198,12 +190,44 @@ func (a *App) notifyForAccessListReviews(ctx context.Context, accessList *access
 		return trace.Wrap(err, "during create")
 	}
 
+	return trace.Wrap(a.sendMessages(ctx, accessList, allRecipients, now, notificationStart))
+}
+
+// fetchRecipients will return all recipients.
+func (a *App) fetchRecipients(ctx context.Context, accessList *accesslist.AccessList, now, notificationStart time.Time) map[string]common.Recipient {
+	log := logger.Get(ctx)
+
+	allRecipients := make(map[string]common.Recipient, len(accessList.Spec.Owners))
+
+	// If the current time before the notification start time, skip notifications.
+	if now.Before(notificationStart) {
+		log.Debugf("Access list %s is not ready for notifications, notifications start at %s", accessList.GetName(), notificationStart.Format(time.RFC3339))
+		return nil
+	}
+
+	// Get the owners from the bot as recipients.
+	for _, owner := range accessList.Spec.Owners {
+		recipient, err := a.bot.FetchRecipient(ctx, owner.Name)
+		if err != nil {
+			log.Debugf("error getting recipient %s", owner.Name)
+			continue
+		}
+		allRecipients[owner.Name] = *recipient
+	}
+
+	return allRecipients
+}
+
+// sendMessages will send review notifications to owners and update the plugin data.
+func (a *App) sendMessages(ctx context.Context, accessList *accesslist.AccessList, allRecipients map[string]common.Recipient, now, notificationStart time.Time) error {
+	log := logger.Get(ctx)
+
 	// Calculate weeks from start.
 	weeksFromStart := now.Sub(notificationStart) / oneWeek
 	windowStart := notificationStart.Add(weeksFromStart * oneWeek)
 
 	recipients := []common.Recipient{}
-	_, err = a.pluginData.Update(ctx, accessList.GetName(), func(data pd.AccessListNotificationData) (pd.AccessListNotificationData, error) {
+	_, err := a.pluginData.Update(ctx, accessList.GetName(), func(data pd.AccessListNotificationData) (pd.AccessListNotificationData, error) {
 		userNotifications := map[string]time.Time{}
 		for _, recipient := range allRecipients {
 			lastNotification := data.UserNotifications[recipient.Name]
@@ -218,16 +242,15 @@ func (a *App) notifyForAccessListReviews(ctx context.Context, accessList *access
 			recipients = append(recipients, recipient)
 			userNotifications[recipient.Name] = now
 		}
+		if len(recipients) == 0 {
+			return pd.AccessListNotificationData{}, trace.NotFound("nobody to notify for access list %s", accessList.GetName())
+		}
+
+		if err := a.bot.SendReviewReminders(ctx, recipients, accessList); err != nil {
+			return pd.AccessListNotificationData{}, trace.Wrap(err)
+		}
+
 		return pd.AccessListNotificationData{UserNotifications: userNotifications}, nil
 	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if len(recipients) == 0 {
-		log.Infof("Nobody to notify for access list %s", accessList.GetName())
-		return nil
-	}
-
-	return trace.Wrap(a.bot.SendReviewReminders(ctx, recipients, accessList))
+	return trace.Wrap(err)
 }
