@@ -1,5 +1,4 @@
 /*
-
  Copyright 2022 Gravitational, Inc.
 
  Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,27 +12,25 @@
  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  See the License for the specific language governing permissions and
  limitations under the License.
-
-
 */
 
-package utils
+package log
 
 import (
-	"bytes"
 	"fmt"
-	"reflect"
 	"regexp"
 	"runtime"
-	"sort"
+	"strconv"
 	"strings"
-	"time"
+	"unicode"
 
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
 )
 
+// TextFormatter is a [logrus.Formatter] that outputs messages in
+// a textual format.
 type TextFormatter struct {
 	// ComponentPadding is a padding to pick when displaying
 	// and formatting component field, defaults to DefaultComponentPadding
@@ -52,7 +49,31 @@ type TextFormatter struct {
 }
 
 type writer struct {
-	bytes.Buffer
+	b *buffer
+}
+
+func newWriter() *writer {
+	return &writer{b: newBuffer()}
+}
+
+func (w *writer) Free() {
+	w.b.Free()
+}
+
+func (w *writer) Len() int {
+	return len(*w.b)
+}
+
+func (w *writer) WriteString(s string) (int, error) {
+	return w.b.WriteString(s)
+}
+
+func (w *writer) WriteByte(c byte) error {
+	return w.b.WriteByte(c)
+}
+
+func (w *writer) Bytes() []byte {
+	return *w.b
 }
 
 const (
@@ -68,18 +89,20 @@ const (
 	messageField   = "message"
 )
 
+// NewDefaultTextFormatter creates a TextFormatter with
+// the default options set.
 func NewDefaultTextFormatter(enableColors bool) *TextFormatter {
 	return &TextFormatter{
 		ComponentPadding: trace.DefaultComponentPadding,
 		FormatCaller:     formatCallerWithPathAndLine,
-		ExtraFields:      KnownFormatFields.names(),
+		ExtraFields:      knownFormatFieldNames,
 		EnableColors:     enableColors,
 		callerEnabled:    true,
 		timestampEnabled: false,
 	}
 }
 
-// CheckAndSetDefaults checks and sets log format configuration
+// CheckAndSetDefaults checks and sets log format configuration.
 func (tf *TextFormatter) CheckAndSetDefaults() error {
 	// set padding
 	if tf.ComponentPadding == 0 {
@@ -92,7 +115,7 @@ func (tf *TextFormatter) CheckAndSetDefaults() error {
 	if tf.ExtraFields == nil {
 		tf.timestampEnabled = true
 		tf.callerEnabled = true
-		tf.ExtraFields = KnownFormatFields.names()
+		tf.ExtraFields = knownFormatFieldNames
 		return nil
 	}
 	// parse input
@@ -113,34 +136,51 @@ func (tf *TextFormatter) CheckAndSetDefaults() error {
 	return nil
 }
 
-// Format formats each log line as configured in teleport config file
-func (tf *TextFormatter) Format(e *log.Entry) ([]byte, error) {
-	var data []byte
+// Format formats each log line as configured in teleport config file.
+func (tf *TextFormatter) Format(e *logrus.Entry) ([]byte, error) {
 	caller := tf.FormatCaller()
-	w := &writer{}
+	w := newWriter()
+	defer w.Free()
 
 	// write timestamp first if enabled
 	if tf.timestampEnabled {
-		w.writeField(e.Time.Format(time.RFC3339), noColor)
+		writeTimeRFC3339(w.b, e.Time)
 	}
 
-	for _, match := range tf.ExtraFields {
-		switch match {
+	for _, field := range tf.ExtraFields {
+		switch field {
 		case "level":
-			color := noColor
-			if tf.EnableColors {
-				switch e.Level {
-				case log.DebugLevel, log.TraceLevel:
-					color = gray
-				case log.WarnLevel:
-					color = yellow
-				case log.ErrorLevel, log.FatalLevel, log.PanicLevel:
-					color = red
-				default:
-					color = blue
-				}
+			var color int
+			var level string
+			switch e.Level {
+			case logrus.TraceLevel:
+				level = "TRACE"
+				color = gray
+			case logrus.DebugLevel:
+				level = "DEBUG"
+				color = gray
+			case logrus.InfoLevel:
+				level = "INFO"
+				color = blue
+			case logrus.WarnLevel:
+				level = "WARN"
+				color = yellow
+			case logrus.ErrorLevel:
+				level = "ERROR"
+				color = red
+			case logrus.FatalLevel:
+				level = "FATAL"
+				color = red
+			default:
+				color = blue
+				level = strings.ToUpper(e.Level.String())
 			}
-			w.writeField(strings.ToUpper(padMax(e.Level.String(), trace.DefaultLevelPadding)), color)
+
+			if !tf.EnableColors {
+				color = noColor
+			}
+
+			w.writeField(padMax(level, trace.DefaultLevelPadding), color)
 		case "component":
 			padding := trace.DefaultComponentPadding
 			if tf.ComponentPadding != 0 {
@@ -149,19 +189,19 @@ func (tf *TextFormatter) Format(e *log.Entry) ([]byte, error) {
 			if w.Len() > 0 {
 				w.WriteByte(' ')
 			}
-			value := e.Data[trace.Component]
-			var component string
-			if reflect.ValueOf(value).IsValid() {
-				component = fmt.Sprintf("[%v]", value)
+			component, ok := e.Data[trace.Component].(string)
+			if ok && component != "" {
+				component = fmt.Sprintf("[%v]", component)
 			}
 			component = strings.ToUpper(padMax(component, padding))
 			if component[len(component)-1] != ' ' {
 				component = component[:len(component)-1] + "]"
 			}
+
 			w.WriteString(component)
 		default:
-			if !KnownFormatFields.has(match) {
-				return nil, trace.BadParameter("invalid log format key: %v", match)
+			if _, ok := knownFormatFields[field]; !ok {
+				return nil, trace.BadParameter("invalid log format key: %v", field)
 			}
 		}
 	}
@@ -181,14 +221,13 @@ func (tf *TextFormatter) Format(e *log.Entry) ([]byte, error) {
 	}
 
 	w.WriteByte('\n')
-	data = w.Bytes()
-	return data, nil
+	return w.Bytes(), nil
 }
 
-// JSONFormatter implements the logrus.Formatter interface and adds extra
-// fields to log entries
+// JSONFormatter implements the [logrus.Formatter] interface and adds extra
+// fields to log entries.
 type JSONFormatter struct {
-	log.JSONFormatter
+	logrus.JSONFormatter
 
 	ExtraFields []string
 
@@ -196,11 +235,11 @@ type JSONFormatter struct {
 	componentEnabled bool
 }
 
-// CheckAndSetDefaults checks and sets log format configuration
+// CheckAndSetDefaults checks and sets log format configuration.
 func (j *JSONFormatter) CheckAndSetDefaults() error {
 	// set log formatting
 	if j.ExtraFields == nil {
-		j.ExtraFields = KnownFormatFields.names()
+		j.ExtraFields = knownFormatFieldNames
 	}
 
 	// parse input
@@ -222,19 +261,19 @@ func (j *JSONFormatter) CheckAndSetDefaults() error {
 	}
 
 	// rename default fields
-	j.JSONFormatter = log.JSONFormatter{
-		FieldMap: log.FieldMap{
-			log.FieldKeyTime:  timestampField,
-			log.FieldKeyLevel: levelField,
-			log.FieldKeyMsg:   messageField,
+	j.JSONFormatter = logrus.JSONFormatter{
+		FieldMap: logrus.FieldMap{
+			logrus.FieldKeyTime:  timestampField,
+			logrus.FieldKeyLevel: levelField,
+			logrus.FieldKeyMsg:   messageField,
 		},
 	}
 
 	return nil
 }
 
-// Format implements logrus.Formatter interface
-func (j *JSONFormatter) Format(e *log.Entry) ([]byte, error) {
+// Format formats each log line as configured in teleport config file.
+func (j *JSONFormatter) Format(e *logrus.Entry) ([]byte, error) {
 	if j.callerEnabled {
 		path := formatCallerWithPathAndLine()
 		e.Data[callerField] = path
@@ -249,6 +288,8 @@ func (j *JSONFormatter) Format(e *log.Entry) ([]byte, error) {
 	return j.JSONFormatter.Format(e)
 }
 
+// NewTestJSONFormatter creates a JSONFormatter that is
+// configured for output in tests.
 func NewTestJSONFormatter() *JSONFormatter {
 	formatter := &JSONFormatter{}
 	if err := formatter.CheckAndSetDefaults(); err != nil {
@@ -260,9 +301,9 @@ func NewTestJSONFormatter() *JSONFormatter {
 func (w *writer) writeError(value interface{}) {
 	switch err := value.(type) {
 	case trace.Error:
-		w.WriteString(fmt.Sprintf("[%v]", err.DebugReport()))
+		*w.b = fmt.Appendf(*w.b, "[%v]", err.DebugReport())
 	default:
-		w.WriteString(fmt.Sprintf("[%v]", value))
+		*w.b = fmt.Appendf(*w.b, "[%v]", value)
 	}
 }
 
@@ -288,7 +329,7 @@ func (w *writer) writeKeyValue(key string, value interface{}) {
 	}
 	w.WriteString(key)
 	w.WriteByte(':')
-	if key == log.ErrorKey {
+	if key == logrus.ErrorKey {
 		w.writeError(value)
 		return
 	}
@@ -296,20 +337,29 @@ func (w *writer) writeKeyValue(key string, value interface{}) {
 }
 
 func (w *writer) writeValue(value interface{}, color int) {
-	var s string
-	switch v := value.(type) {
-	case string:
-		s = v
-		if needsQuoting(s) {
-			s = fmt.Sprintf("%q", v)
+	if s, ok := value.(string); ok {
+		if color != noColor {
+			*w.b = fmt.Appendf(*w.b, "\u001B[%dm", color)
 		}
-	default:
-		s = fmt.Sprintf("%v", v)
+
+		if needsQuoting(s) {
+			*w.b = strconv.AppendQuote(*w.b, s)
+		} else {
+			*w.b = fmt.Append(*w.b, s)
+		}
+
+		if color != noColor {
+			*w.b = fmt.Append(*w.b, "\u001B[0m")
+		}
+		return
 	}
+
 	if color != noColor {
-		s = fmt.Sprintf("\x1b[%dm%s\x1b[0m", color, s)
+		*w.b = fmt.Appendf(*w.b, "\x1b[%dm%v\x1b[0m", color, value)
+		return
 	}
-	w.WriteString(s)
+
+	*w.b = fmt.Appendf(*w.b, "%v", value)
 }
 
 func (w *writer) writeMap(m map[string]any) {
@@ -320,7 +370,7 @@ func (w *writer) writeMap(m map[string]any) {
 	for key := range m {
 		keys = append(keys, key)
 	}
-	sort.Strings(keys)
+	slices.Sort(keys)
 	for _, key := range keys {
 		if key == trace.Component {
 			continue
@@ -328,7 +378,7 @@ func (w *writer) writeMap(m map[string]any) {
 		switch value := m[key].(type) {
 		case map[string]any:
 			w.writeMap(value)
-		case log.Fields:
+		case logrus.Fields:
 			w.writeMap(value)
 		default:
 			w.writeKeyValue(key, value)
@@ -410,22 +460,9 @@ func frameToTrace(frame runtime.Frame) trace.Trace {
 	}
 }
 
-func (r knownFormatFieldsMap) has(name string) bool {
-	_, ok := r[name]
-	return ok
-}
+var knownFormatFieldNames = []string{levelField, componentField, callerField, timestampField}
 
-func (r knownFormatFieldsMap) names() (result []string) {
-	for k := range r {
-		result = append(result, k)
-	}
-	return result
-}
-
-type knownFormatFieldsMap map[string]struct{}
-
-// KnownFormatFields are the known fields for log entries
-var KnownFormatFields = knownFormatFieldsMap{
+var knownFormatFields = map[string]struct{}{
 	levelField:     {},
 	componentField: {},
 	callerField:    {},
@@ -435,10 +472,20 @@ var KnownFormatFields = knownFormatFieldsMap{
 func parseInputFormat(formatInput []string) (result []string, err error) {
 	for _, component := range formatInput {
 		component = strings.TrimSpace(component)
-		if !KnownFormatFields.has(component) {
+		if _, ok := knownFormatFields[component]; !ok {
 			return nil, trace.BadParameter("invalid log format key: %q", component)
 		}
 		result = append(result, component)
 	}
 	return result, nil
+}
+
+// needsQuoting returns true if any non-printable characters are found.
+func needsQuoting(text string) bool {
+	for _, r := range text {
+		if !unicode.IsPrint(r) {
+			return true
+		}
+	}
+	return false
 }
