@@ -25,7 +25,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
-	"github.com/gravitational/teleport/lib/utils"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 // SSOConfigureCommand implements common.CLICommand interface
@@ -60,7 +60,7 @@ func (cmd *SSOConfigureCommand) TryRun(ctx context.Context, selectedCommand stri
 			// the default tctl logging behavior is to ignore all logs, unless --debug is present.
 			// we want different behavior: log messages as normal, but with compact format (no time, no caller info).
 			if !cmd.Config.Debug {
-				formatter := utils.NewDefaultTextFormatter(trace.IsTerminal(os.Stderr))
+				formatter := logutils.NewDefaultTextFormatter(trace.IsTerminal(os.Stderr))
 				formatter.FormatCaller = func() (caller string) { return "" }
 				cmd.Logger.Logger.SetFormatter(formatter)
 				cmd.Logger.Logger.SetOutput(os.Stderr)

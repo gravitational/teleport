@@ -63,6 +63,7 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 // CommandLineFlags stores command line flag values, it's a much simplified subset
@@ -696,7 +697,7 @@ func applyLogConfig(loggerConfig Log, cfg *servicecfg.Config) error {
 	case "":
 		fallthrough // not set. defaults to 'text'
 	case "text":
-		formatter := &utils.TextFormatter{
+		formatter := &logutils.TextFormatter{
 			ExtraFields:  loggerConfig.Format.ExtraFields,
 			EnableColors: trace.IsTerminal(os.Stderr),
 		}
@@ -707,7 +708,7 @@ func applyLogConfig(loggerConfig Log, cfg *servicecfg.Config) error {
 
 		logger.SetFormatter(formatter)
 	case "json":
-		formatter := &utils.JSONFormatter{
+		formatter := &logutils.JSONFormatter{
 			ExtraFields: loggerConfig.Format.ExtraFields,
 		}
 
