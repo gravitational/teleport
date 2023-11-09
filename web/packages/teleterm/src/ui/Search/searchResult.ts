@@ -27,7 +27,7 @@ type ResourceSearchResultBase<
   score: number;
 };
 
-export type SupportedResourceType = 'kubes' | 'servers' | 'databases';
+export type SupportedResourceType = 'kube_cluster' | 'node' | 'db';
 
 export type SearchResultServer =
   ResourceSearchResultBase<resourcesServiceTypes.SearchResultServer>;

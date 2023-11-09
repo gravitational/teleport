@@ -203,7 +203,7 @@ describe('getActionPickerStatus', () => {
       ];
       const status = getActionPickerStatus({
         inputValue: '',
-        filters: [{ filter: 'resource-type', resourceType: 'servers' }],
+        filters: [{ filter: 'resource-type', resourceType: 'node' }],
         filterActionsAttempt: makeSuccessAttempt([]),
         allClusters: [],
         actionAttempts: [makeSuccessAttempt([])],

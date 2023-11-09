@@ -30,6 +30,7 @@ import {
   searchableFields,
   ResourceSearchResult,
   FilterSearchResult,
+  SupportedResourceType,
 } from './searchResult';
 
 import type * as resourcesServiceTypes from 'teleterm/ui/services/resources';
@@ -178,10 +179,10 @@ export function useFilterSearch() {
         });
       };
       const getResourceType = () => {
-        let resourceTypes = [
-          'servers' as const,
-          'databases' as const,
-          'kubes' as const,
+        let resourceTypes: SupportedResourceType[] = [
+          'node' as const,
+          'db' as const,
+          'kube_cluster' as const,
         ].filter(resourceType => {
           const isFilterForResourceTypeAdded = filters.some(searchFilter => {
             return (

@@ -157,7 +157,7 @@ describe('searchResources', () => {
     const searchResults = await service.searchResources({
       clusterUri: '/clusters/foo',
       search: '',
-      filters: ['servers'],
+      filters: ['node'],
       limit: 10,
     });
     expect(searchResults).toHaveLength(1);

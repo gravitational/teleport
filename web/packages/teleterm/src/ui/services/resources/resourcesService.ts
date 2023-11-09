@@ -115,9 +115,9 @@ export class ResourcesService {
 
     const promises = filters?.length
       ? [
-          filters.includes('servers') && getServers(),
-          filters.includes('databases') && getDatabases(),
-          filters.includes('kubes') && getKubes(),
+          filters.includes('node') && getServers(),
+          filters.includes('db') && getDatabases(),
+          filters.includes('kube_cluster') && getKubes(),
         ].filter(Boolean)
       : [getServers(), getDatabases(), getKubes()];
 

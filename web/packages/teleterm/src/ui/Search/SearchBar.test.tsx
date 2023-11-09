@@ -63,7 +63,7 @@ it('does not display empty results copy after selecting two filters', () => {
     ...getMockedSearchContext(),
     filters: [
       { filter: 'cluster', clusterUri: '/clusters/foo' },
-      { filter: 'resource-type', resourceType: 'servers' },
+      { filter: 'resource-type', resourceType: 'node' },
     ],
     inputValue: '',
   }));

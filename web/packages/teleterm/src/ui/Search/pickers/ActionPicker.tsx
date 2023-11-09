@@ -34,6 +34,7 @@ import {
   SearchResultCluster,
   SearchResultResourceType,
   SearchFilter,
+  SupportedResourceType,
 } from 'teleterm/ui/Search/searchResult';
 import * as tsh from 'teleterm/services/tshd/types';
 import * as uri from 'teleterm/ui/uri';
@@ -120,7 +121,7 @@ export function ActionPicker(props: { input: ReactElement }) {
       return (
         <FilterButton
           key="resource-type"
-          text={s.resourceType}
+          text={resourceTypeToPrettyName[s.resourceType]}
           onClick={() => removeFilter(s)}
         />
       );
@@ -491,9 +492,9 @@ const resourceIcons: Record<
     lineHeight: string;
   }>
 > = {
-  kubes: icons.Kubernetes,
-  servers: icons.Server,
-  databases: icons.Database,
+  kube_cluster: icons.Kubernetes,
+  node: icons.Server,
+  db: icons.Database,
 };
 
 function ResourceTypeFilterItem(
@@ -508,7 +509,7 @@ function ResourceTypeFilterItem(
         Search for{' '}
         <strong>
           <Highlight
-            text={props.searchResult.resource}
+            text={resourceTypeToPrettyName[props.searchResult.resource]}
             keywords={[props.searchResult.nameMatch]}
           />
         </strong>
@@ -913,3 +914,9 @@ function FilterButton(props: { text: string; onClick(): void }) {
     </Flex>
   );
 }
+
+const resourceTypeToPrettyName: Record<SupportedResourceType, string> = {
+  db: 'databases',
+  node: 'servers',
+  kube_cluster: 'kubes',
+};
