@@ -4,6 +4,19 @@ description: How to install and configure Teleport in Kubernetes using Helm
 layout: tocless-doc
 ---
 
+The `teleport-cluster` Helm chart enables you deploy and manage a self-hosted,
+high-availability Teleport cluster. This chart launches the Teleport Auth
+Service, Teleport Proxy Service, and the Kubernetes infrastructure required to
+support these services. The guides in this section show you how to use the
+`teleport-cluster` Helm chart in your environment.
+
+You do not need to deploy the Auth Service and Proxy Service on Kubernetes in
+order to protect a Kubernetes cluster with Teleport, and it is possible to
+enroll a Kubernetes cluster on Teleport Cloud or by running the Teleport
+Kubernetes Service on a Linux server. For instructions on enrolling a Kubernetes
+cluster with Teleport, read the [Kubernetes
+Access](../kubernetes-access/introduction.mdx) documentation.
+
 ## Helm deployment guides
 
 These guides show you how to set up a full self-hosted Teleport deployment using
