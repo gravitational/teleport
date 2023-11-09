@@ -388,8 +388,11 @@ func checkMemoryDBUserIAMAuthIsEnabled(ctx context.Context, clients cloud.Client
 	if len(out.Users) < 1 || out.Users[0].Authentication == nil {
 		return false, nil
 	}
+
+	// memorydb.AuthenticationTypeIam is not available in this version of the
+	// SDK yet. Using "iam" instead.
 	authType := aws.StringValue(out.Users[0].Authentication.Type)
-	return elasticache.AuthenticationTypeIam == authType, nil
+	return "iam" == authType, nil
 }
 
 // reconnect closes the current Redis server connection and creates a new one pre-authenticated
