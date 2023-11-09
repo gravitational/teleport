@@ -25,6 +25,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
@@ -985,7 +986,9 @@ func (l *AuditLog) StreamSessionEvents(ctx context.Context, sessionID session.ID
 		if rmErr := os.Remove(tarballPath); rmErr != nil {
 			l.log.WithError(rmErr).Warningf("Failed to remove file %v.", tarballPath)
 		}
-
+		if errors.Is(err, fs.ErrNotExist) {
+			err = trace.NotFound("a recording for session %v was not found", sessionID)
+		}
 		e <- trace.Wrap(err)
 		return c, e
 	}
@@ -1003,7 +1006,7 @@ func (l *AuditLog) StreamSessionEvents(ctx context.Context, sessionID session.ID
 		for {
 			if ctx.Err() != nil {
 				e <- trace.Wrap(ctx.Err())
-				break
+				return
 			}
 
 			event, err := protoReader.Read(ctx)
@@ -1013,12 +1016,16 @@ func (l *AuditLog) StreamSessionEvents(ctx context.Context, sessionID session.ID
 				} else {
 					close(c)
 				}
-
-				break
+				return
 			}
 
 			if event.GetIndex() >= startIndex {
-				c <- event
+				select {
+				case c <- event:
+				case <-ctx.Done():
+					e <- trace.Wrap(ctx.Err())
+					return
+				}
 			}
 		}
 	}()
