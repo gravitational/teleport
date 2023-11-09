@@ -29,15 +29,15 @@ jobs:
 
     steps:
       - name: Checkout base
-        uses: actions/checkout@v3
+        uses: actions/checkout@v3 # Cannot upgrade to v4 while this runs in centos:7 due to nodejs GLIBC incompatibility
         with:
-          ref: ${{ github.event.push.before }}
+          ref: ${{ github.event.before }}
 
       - name: Prepare workspace
         uses: ./.github/actions/prepare-workspace
 
       - name: Checkout shared-workflow
-        uses: actions/checkout@v3
+        uses: actions/checkout@v3 # Cannot upgrade to v4 while this runs in centos:7 due to nodejs GLIBC incompatibility
         with:
           repository: gravitational/shared-workflows
           path: .github/shared-workflows
@@ -49,11 +49,11 @@ jobs:
         with:
           path: |
             ~/teleport_base_build_stats
-          key: ${{ runner.os }}-${{ github.event.push.before }}
+          key: ${{ github.job }}-${{ runner.os }}-${{ github.event.before }}
 
       - name: Generate GitHub Token
         id: generate_token
-        uses: tibdex/github-app-token@b62528385c34dbc9f38e5f4225ac829252d1ea92 # v1.8.0
+        uses: actions/create-github-app-token@v1.0.5 # Cannot upgrade past v1.1 while this runs in centos:7 due to nodejs GLIBC incompatibility
         with:
           app_id: ${{ secrets.REVIEWERS_APP_ID }}
           private_key: ${{ secrets.REVIEWERS_PRIVATE_KEY }}
@@ -66,6 +66,7 @@ jobs:
           cd .github/shared-workflows/bot && go run main.go -workflow=binary-sizes --artifacts="tbot,tctl,teleport,tsh" --builddir="../../../base_build" -token="${{ steps.generate_token.outputs.token }}" -reviewers="${{ secrets.reviewers }}"  >> ~/teleport_base_build_stats
           echo "base_stats_file=~/teleport_base_build_stats" >> $GITHUB_OUTPUT
           echo "base_stats=$(cat ~/teleport_base_build_stats)" >> $GITHUB_ENV
+
       - if: ${{ steps.cache-build-restore.outputs.cache-hit != 'true' }}
         name: Save base build
         id: base-build-save
@@ -73,7 +74,7 @@ jobs:
         with:
           path: |
             ${{ steps.build_base.outputs.base_stats_file }}
-          key: ${{ runner.os }}-${{ github.event.push.before }}
+          key: ${{ github.job }}-${{ runner.os }}-${{ github.event.before }}
 
       - if: ${{ steps.cache-build-restore.outputs.cache-hit == 'true' }}
         name: Restore base stats
@@ -82,21 +83,35 @@ jobs:
           echo "base_stats=$(cat ~/teleport_base_build_stats)" >> $GITHUB_ENV
 
       - name: Checkout branch
-        uses: actions/checkout@v3
+        uses: actions/checkout@v3 # Cannot upgrade to v4 while this runs in centos:7 due to nodejs GLIBC incompatibility
         with:
           clean: false
-          ref: ${{ github.event.push.after }}
+          ref: ${{ github.event.after }}
 
       - name: Checkout shared-workflow
-        uses: actions/checkout@v3
+        uses: actions/checkout@v3 # Cannot upgrade to v4 while this runs in centos:7 due to nodejs GLIBC incompatibility
         with:
           repository: gravitational/shared-workflows
           path: .github/shared-workflows
-          ref: tross/skip_items_on_pr
+          ref: main
 
-      - name: Check branch for bloat
+      - name: Build Binaries
         id: build_branch
         run: |
-          make WEBASSETS_SKIP_BUILD=1 binaries
+          BUILD_SECRET=FAKE_SECRET make WEBASSETS_SKIP_BUILD=1 binaries
+
+      - name: Check for Environment Leak
+        id: check_branch_env_leak
+        run: |
+          for binary in $(pwd)/build/*; do \
+            if strings $binary | grep -q 'FAKE_SECRET'; then \
+              echo "Error: $binary contains FAKE_SECRET"; \
+              exit 1; \
+            fi; \
+          done
+
+      - name: Check for bloat
+        id: check_branch_bloat
+        run: |
           current=$(pwd)/build
           cd .github/shared-workflows/bot && go run main.go -workflow=bloat --artifacts="tbot,tctl,teleport,tsh" --base="${base_stats}" --builddir="${current}" -token="${{ steps.generate_token.outputs.token }}" -reviewers="${{ secrets.reviewers }}" > $GITHUB_STEP_SUMMARY
