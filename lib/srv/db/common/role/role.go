@@ -40,8 +40,8 @@ type RoleMatchersConfig struct {
 func GetDatabaseRoleMatchers(conf RoleMatchersConfig) (matchers services.RoleMatchers) {
 	// For automatic user provisioning, don't check against database users as
 	// users will be connecting as their own Teleport username.
-	disableDatabaseNameMatcher := conf.Database.SupportsAutoUsers() && conf.AutoCreateUser
-	if !disableDatabaseNameMatcher {
+	disableDatabaseUserMatcher := conf.Database.SupportsAutoUsers() && conf.AutoCreateUser
+	if !disableDatabaseUserMatcher {
 		matchers = append(matchers, services.NewDatabaseUserMatcher(conf.Database, conf.DatabaseUser))
 	}
 
