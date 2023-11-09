@@ -60,6 +60,7 @@ func TestService_GetUserPreferences(t *testing.T) {
 					Theme: userpreferencesv1.Theme_THEME_LIGHT,
 					UnifiedResourcePreferences: &userpreferencesv1.UnifiedResourcePreferences{
 						DefaultTab: userpreferencesv1.DefaultTab_DEFAULT_TAB_ALL,
+						ViewMode:   userpreferencesv1.ViewMode_VIEW_MODE_CARD,
 					},
 					Onboard: &userpreferencesv1.OnboardUserPreferences{
 						PreferredResources: []userpreferencesv1.Resource{},

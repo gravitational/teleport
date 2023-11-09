@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 
 import { ButtonBorder } from 'design';
 
@@ -26,6 +26,12 @@ import { nodes } from 'teleport/Nodes/fixtures';
 
 import { UrlResourcesParams } from 'teleport/config';
 import { ResourcesResponse } from 'teleport/services/agents';
+
+import {
+  UnifiedResourcePreferences,
+  UnifiedTabPreference,
+  UnifiedViewModePreference,
+} from 'teleport/services/userPreferences/types';
 
 import { UnifiedResources, useUnifiedResourcesFetch } from './UnifiedResources';
 import { SharedUnifiedResource, UnifiedResourcesPinning } from './types';
@@ -72,6 +78,10 @@ const story = ({
 }) => {
   const params = { sort: { dir: 'ASC', fieldName: 'name' } } as const;
   return () => {
+    const [userPrefs, setUserPrefs] = useState<UnifiedResourcePreferences>({
+      defaultTab: UnifiedTabPreference.All,
+      viewMode: UnifiedViewModePreference.Card,
+    });
     const { fetch, attempt, resources } = useUnifiedResourcesFetch({
       fetchFunc,
     });
@@ -87,7 +97,8 @@ const story = ({
         params={params}
         setParams={() => undefined}
         pinning={pinning}
-        updateUnifiedResourcesPreferences={() => undefined}
+        unifiedResourcePreferences={userPrefs}
+        updateUnifiedResourcesPreferences={setUserPrefs}
         onLabelClick={() => undefined}
         NoResources={undefined}
         fetchResources={fetch}

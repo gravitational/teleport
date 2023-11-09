@@ -29,6 +29,8 @@ import {
   Rows,
 } from 'design/Icon';
 
+import { UnifiedViewModePreference } from 'teleport/services/userPreferences/types';
+
 import { HoverTooltip } from 'shared/components/ToolTip';
 
 import { SharedUnifiedResource, UnifiedResourcesQueryParams } from './types';
@@ -54,8 +56,8 @@ interface FilterPanelProps {
   selectVisible: () => void;
   selected: boolean;
   BulkActions?: React.ReactElement;
-  currentViewMode: ViewMode;
-  onSelectViewMode: (viewMode: ViewMode) => void;
+  currentViewMode: UnifiedViewModePreference;
+  onSelectViewMode: (viewMode: UnifiedViewModePreference) => void;
 }
 
 export function FilterPanel({
@@ -396,14 +398,16 @@ function ViewModeSwitch({
   currentViewMode,
   onSelectViewMode,
 }: {
-  currentViewMode: ViewMode;
-  onSelectViewMode: (viewMode: ViewMode) => void;
+  currentViewMode: UnifiedViewModePreference;
+  onSelectViewMode: (viewMode: UnifiedViewModePreference) => void;
 }) {
   return (
     <ViewModeSwitchContainer>
       <ViewModeSwitchButton
-        className={currentViewMode === 'card' ? 'selected' : ''}
-        onClick={() => onSelectViewMode('card')}
+        className={
+          currentViewMode === UnifiedViewModePreference.Card ? 'selected' : ''
+        }
+        onClick={() => onSelectViewMode(UnifiedViewModePreference.Card)}
         css={`
           border-right: 1px solid
             ${props => props.theme.colors.spotBackground[2]};
@@ -411,23 +415,23 @@ function ViewModeSwitch({
           border-bottom-left-radius: 4px;
         `}
       >
-        <SquaresFour size="small" />
+        <SquaresFour size="small" color="text.main" />
       </ViewModeSwitchButton>
       <ViewModeSwitchButton
-        className={currentViewMode === 'list' ? 'selected' : ''}
-        onClick={() => onSelectViewMode('list')}
+        className={
+          currentViewMode === UnifiedViewModePreference.List ? 'selected' : ''
+        }
+        onClick={() => onSelectViewMode(UnifiedViewModePreference.List)}
         css={`
           border-top-right-radius: 4px;
           border-bottom-right-radius: 4px;
         `}
       >
-        <Rows size="small" />
+        <Rows size="small" color="text.main" />
       </ViewModeSwitchButton>
     </ViewModeSwitchContainer>
   );
 }
-
-export type ViewMode = 'card' | 'list';
 
 const ViewModeSwitchContainer = styled.div`
   height: 22px;

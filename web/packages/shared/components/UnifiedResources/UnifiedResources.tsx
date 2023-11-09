@@ -34,6 +34,7 @@ import { ResourcesResponse, ResourceLabel } from 'teleport/services/agents';
 import { TextIcon } from 'teleport/Discover/Shared';
 import {
   UnifiedTabPreference,
+  UnifiedViewModePreference,
   UnifiedResourcePreferences,
 } from 'teleport/services/userPreferences/types';
 
@@ -59,7 +60,7 @@ import {
 } from './types';
 
 import { ResourceTab } from './ResourceTab';
-import { FilterPanel, ViewMode } from './FilterPanel';
+import { FilterPanel } from './FilterPanel';
 import { CardsView } from './CardsView/CardsView';
 import { ListView } from './ListView/ListView';
 import { mapResourceToItem } from './shared/viewItemsFactory';
@@ -133,6 +134,7 @@ interface UnifiedResourcesProps {
   onLabelClick(label: ResourceLabel): void;
   /** A list of actions that can be performed on the selected items. */
   bulkActions?: BulkAction[];
+  unifiedResourcePreferences: UnifiedResourcePreferences;
   updateUnifiedResourcesPreferences(
     preferences: UnifiedResourcePreferences
   ): void;
@@ -148,6 +150,7 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
     onLabelClick,
     availableKinds,
     pinning,
+    unifiedResourcePreferences,
     updateUnifiedResourcesPreferences,
     bulkActions = [],
   } = props;
@@ -171,9 +174,6 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
         return [];
       }, [pinnedResourcesGetter])
     );
-
-  // TODO(rudream): Store this from user preferences.
-  const [viewMode, setViewMode] = useState<ViewMode>('card');
 
   useEffect(() => {
     getPinnedResources();
@@ -279,7 +279,17 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
     });
     setSelectedResources([]);
     setUpdatePinnedResources(makeEmptyAttempt());
-    updateUnifiedResourcesPreferences({ defaultTab: value });
+    updateUnifiedResourcesPreferences({
+      ...unifiedResourcePreferences,
+      defaultTab: value,
+    });
+  };
+
+  const selectViewMode = (viewMode: UnifiedViewModePreference) => {
+    updateUnifiedResourcesPreferences({
+      ...unifiedResourcePreferences,
+      viewMode,
+    });
   };
 
   const getSelectedResources = () => {
@@ -316,7 +326,10 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
     ];
   };
 
-  const ViewComponent = viewMode === 'list' ? ListView : CardsView;
+  const ViewComponent =
+    unifiedResourcePreferences.viewMode === UnifiedViewModePreference.List
+      ? ListView
+      : CardsView;
 
   return (
     <div
@@ -365,8 +378,8 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
         availableKinds={availableKinds}
         selectVisible={toggleSelectVisible}
         selected={allSelected}
-        currentViewMode={viewMode}
-        onSelectViewMode={setViewMode}
+        currentViewMode={unifiedResourcePreferences.viewMode}
+        onSelectViewMode={selectViewMode}
         BulkActions={
           <>
             {selectedResources.length > 0 && (

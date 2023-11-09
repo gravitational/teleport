@@ -28,6 +28,11 @@ export enum UnifiedTabPreference {
   Pinned = 2,
 }
 
+export enum UnifiedViewModePreference {
+  Card = 1,
+  List = 2,
+}
+
 export enum ClusterResource {
   RESOURCE_UNSPECIFIED = 0,
   RESOURCE_WINDOWS_DESKTOPS = 1,
@@ -68,6 +73,8 @@ export interface UserClusterPreferences {
 export interface UnifiedResourcePreferences {
   // defaultTab is the default tab selected in the unified resource view
   defaultTab: UnifiedTabPreference;
+  // viewMode is the view mode selected in the unified resource view (Card/List).
+  viewMode: UnifiedViewModePreference;
 }
 
 export type GetUserClusterPreferencesResponse = UserClusterPreferences;

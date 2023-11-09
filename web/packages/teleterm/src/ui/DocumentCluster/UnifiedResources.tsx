@@ -35,6 +35,11 @@ import Image from 'design/Image';
 import stack from 'design/assets/resources/stack.png';
 
 import SearchPanel from 'teleport/UnifiedResources/SearchPanel';
+import {
+  UnifiedResourcePreferences,
+  UnifiedTabPreference,
+  UnifiedViewModePreference,
+} from 'teleport/services/userPreferences/types';
 
 import { UnifiedResourceResponse } from 'teleterm/services/tshd/types';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
@@ -59,6 +64,13 @@ interface UnifiedResourcesProps {
 export function UnifiedResources(props: UnifiedResourcesProps) {
   const appContext = useAppContext();
   const { onResourcesRefreshRequest } = useResourcesContext();
+
+  // TODO: Add user preferences to Connect.
+  // Until we add stored user preferences to Connect, store it in the state.
+  const [userPrefs, setUserPrefs] = useState<UnifiedResourcePreferences>({
+    defaultTab: UnifiedTabPreference.All,
+    viewMode: UnifiedViewModePreference.Card,
+  });
 
   const [params, setParams] = useState<UnifiedResourcesQueryParams>({
     sort: { fieldName: 'name', dir: 'ASC' },
@@ -130,7 +142,8 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
     <SharedUnifiedResources
       params={params}
       setParams={onParamsChange}
-      updateUnifiedResourcesPreferences={() => alert('Not implemented')}
+      unifiedResourcePreferences={userPrefs}
+      updateUnifiedResourcesPreferences={setUserPrefs}
       onLabelClick={() => alert('Not implemented')}
       pinning={{ kind: 'hidden' }}
       resources={resources.map(mapToSharedResource)}
