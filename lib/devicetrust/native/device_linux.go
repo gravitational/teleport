@@ -15,7 +15,17 @@
 package native
 
 import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io/fs"
+	"os"
+	"os/exec"
 	"os/user"
+	"strings"
+	"time"
 
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
@@ -65,6 +75,26 @@ func collectDeviceData(mode CollectDataMode) (*devicepb.DeviceCollectedData, err
 	if err != nil {
 		log.WithError(err).Warn("TPM: Failed to read device model and/or serial numbers")
 	}
+	if errors.Is(err, fs.ErrPermission) {
+		switch mode {
+		case CollectedDataNeverEscalate, CollectedDataMaybeEscalate:
+			// TODO(codingllama): Attempt to read cached DMI file.
+
+			if mode == CollectedDataNeverEscalate {
+				break // from switch
+			}
+
+			fallthrough
+
+		case CollectedDataAlwaysEscalate:
+			log.Debug("TPM: Running escalated `tsh device dmi-info`")
+
+			dmiInfo, err = readDMIInfoEscalated()
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+		}
+	}
 
 	// dmiInfo is expected to never be nil, but code defensively just in case.
 	var modelIdentifier, reportedAssetTag, systemSerialNumber, baseBoardSerialNumber string
@@ -93,4 +123,50 @@ func collectDeviceData(mode CollectDataMode) (*devicepb.DeviceCollectedData, err
 		SystemSerialNumber:    systemSerialNumber,
 		BaseBoardSerialNumber: baseBoardSerialNumber,
 	}, nil
+}
+
+func readDMIInfoEscalated() (*linux.DMIInfo, error) {
+	tshPath, err := os.Executable()
+	if err != nil {
+		return nil, trace.Wrap(err, "reading current executable")
+	}
+
+	// Run `sudo -v` first to re-authenticate, then run the actual tsh command
+	// using `sudo --non-interactive`, so we don't risk getting sudo output
+	// mixed with our desired output.
+	sudoCmd := exec.Command("/usr/bin/sudo", "-v")
+	sudoCmd.Stdout = os.Stdout
+	sudoCmd.Stderr = os.Stderr
+	sudoCmd.Stdin = os.Stdin
+	fmt.Println("Determining machine model and serial number, if prompted please type the sudo password")
+	if err := sudoCmd.Run(); err != nil {
+		return nil, trace.Wrap(err, "running `sudo -v`")
+	}
+
+	// Use a context for the cached sudo invocation. Unlike the previous command,
+	// this shouldn't require any user input, thus it's expected to run fast.
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	dmiOut := &bytes.Buffer{}
+	dmiCmd := exec.CommandContext(ctx, "/usr/bin/sudo", "-n", tshPath, "device", "dmi-read")
+	dmiCmd.Stdout = dmiOut
+	if err := dmiCmd.Run(); err != nil {
+		return nil, trace.Wrap(err, "running `sudo tsh device dmi-read`")
+	}
+
+	// Strip any leading output before the first `{`, just in case.
+	val := dmiOut.String()
+	if n := strings.Index(val, "{"); n > 0 {
+		val = val[n-1:]
+	}
+
+	var dmiInfo linux.DMIInfo
+	if err := json.Unmarshal([]byte(val), &dmiInfo); err != nil {
+		return nil, trace.Wrap(err, "parsing dmi-read output")
+	}
+
+	// TODO(codingllama): Save DMI info to cache.
+
+	return &dmiInfo, nil
 }
