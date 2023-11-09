@@ -976,29 +976,63 @@ func (c *Client) GetCurrentUserRoles(ctx context.Context) ([]types.Role, error) 
 	return roles, nil
 }
 
-// GetUsers returns a list of users.
+// GetUsers returns all currently registered users.
 // withSecrets controls whether authentication details are returned.
 func (c *Client) GetUsers(ctx context.Context, withSecrets bool) ([]types.User, error) {
-	//nolint:staticcheck // SA1019. Kept for backward compatibility.
-	stream, err := c.grpc.GetUsers(ctx, &proto.GetUsersRequest{
-		WithSecrets: withSecrets,
-	})
+	users, next, err := c.ListUsers(ctx, defaults.DefaultChunkSize, "", withSecrets)
 	if err != nil {
+		// TODO(tross): DELETE IN 16.0.0
+		if trace.IsNotImplemented(err) {
+			//nolint:staticcheck // SA1019. Kept for backward compatibility.
+			stream, err := c.grpc.GetUsers(ctx, &proto.GetUsersRequest{
+				WithSecrets: withSecrets,
+			})
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			var users []types.User
+			for user, err := stream.Recv(); err != io.EOF; user, err = stream.Recv() {
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+				users = append(users, user)
+			}
+			return users, nil
+		}
+
 		return nil, trace.Wrap(err)
 	}
-	var users []types.User
-	for user, err := stream.Recv(); err != io.EOF; user, err = stream.Recv() {
+
+	out := users
+	for next != "" {
+		users, next, err = c.ListUsers(ctx, defaults.DefaultChunkSize, next, withSecrets)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		users = append(users, user)
+
+		out = append(out, users...)
 	}
-	return users, nil
+
+	return out, nil
 }
 
 // ListUsers returns a page of users.
 func (c *Client) ListUsers(ctx context.Context, pageSize int, nextToken string, withSecrets bool) ([]types.User, string, error) {
-	return nil, "", trace.NotImplemented("ListUsers is not implemented yet")
+	resp, err := userspb.NewUsersServiceClient(c.conn).ListUsers(ctx, &userspb.ListUsersRequest{
+		PageSize:    int32(pageSize),
+		PageToken:   nextToken,
+		WithSecrets: withSecrets,
+	})
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	out := make([]types.User, 0, len(resp.Users))
+	for _, u := range resp.Users {
+		out = append(out, u)
+	}
+
+	return out, resp.NextPageToken, nil
 }
 
 // DeleteUser deletes a user by name.
