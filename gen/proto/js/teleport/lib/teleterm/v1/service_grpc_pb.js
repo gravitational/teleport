@@ -24,7 +24,6 @@ var teleport_lib_teleterm_v1_cluster_pb = require('../../../../teleport/lib/tele
 var teleport_lib_teleterm_v1_database_pb = require('../../../../teleport/lib/teleterm/v1/database_pb.js');
 var teleport_lib_teleterm_v1_gateway_pb = require('../../../../teleport/lib/teleterm/v1/gateway_pb.js');
 var teleport_lib_teleterm_v1_kube_pb = require('../../../../teleport/lib/teleterm/v1/kube_pb.js');
-var teleport_lib_teleterm_v1_label_pb = require('../../../../teleport/lib/teleterm/v1/label_pb.js');
 var teleport_lib_teleterm_v1_server_pb = require('../../../../teleport/lib/teleterm/v1/server_pb.js');
 var teleport_lib_teleterm_v1_usage_events_pb = require('../../../../teleport/lib/teleterm/v1/usage_events_pb.js');
 

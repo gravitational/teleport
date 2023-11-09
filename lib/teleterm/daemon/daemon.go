@@ -30,7 +30,6 @@ import (
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
-	"github.com/gravitational/teleport/lib/teleterm/services/connectmycomputer"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/daemon"
 )
 
@@ -754,12 +753,12 @@ func (s *Service) CreateConnectMyComputerRole(ctx context.Context, req *api.Crea
 }
 
 // CreateConnectMyComputerNodeToken creates a node join token that is valid for 5 minutes.
-func (s *Service) CreateConnectMyComputerNodeToken(ctx context.Context, rootClusterUri string) (*connectmycomputer.NodeToken, error) {
+func (s *Service) CreateConnectMyComputerNodeToken(ctx context.Context, rootClusterUri string) (string, error) {
 	cluster, clusterClient, err := s.ResolveCluster(rootClusterUri)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return "", trace.Wrap(err)
 	}
-	var nodeToken *connectmycomputer.NodeToken
+	var nodeToken string
 	err = clusters.AddMetadataToRetryableError(ctx, func() error {
 		proxyClient, err := clusterClient.ConnectToProxy(ctx)
 		if err != nil {
