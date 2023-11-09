@@ -14,22 +14,45 @@
  * limitations under the License.
  */
 
-import React from 'react';
+import React, { useEffect, useCallback, useState, useRef } from 'react';
 
 import { ButtonSecondary } from 'design/Button';
 import { Platform, getPlatform } from 'design/platform';
 import { Text, Flex } from 'design';
+import * as Icons from 'design/Icon';
 import { MenuButton, MenuItem } from 'shared/components/MenuAction';
 import { Path, makeDeepLinkWithSafeInput } from 'shared/deepLinks';
+import * as constants from 'shared/constants';
 
 import useTeleport from 'teleport/useTeleport';
+import { Node } from 'teleport/services/nodes';
 
-import { ActionButtons, Header, StyledBox } from 'teleport/Discover/Shared';
+import {
+  ActionButtons,
+  Header,
+  StyledBox,
+  TextIcon,
+} from 'teleport/Discover/Shared';
+import { usePoll } from 'teleport/Discover/Shared/usePoll';
+
+import {
+  HintBox,
+  SuccessBox,
+  WaitingInfo,
+} from 'teleport/Discover/Shared/HintBox';
 
 import type { AgentStepProps } from '../../types';
 
-export function SetupConnect(props: AgentStepProps) {
+export function SetupConnect(
+  props: AgentStepProps & {
+    pingInterval?: number;
+    showHintTimeout?: number;
+  }
+) {
+  const pingInterval = props.pingInterval || 1000 * 3; // 3 seconds
+  const showHintTimeout = props.showHintTimeout || 1000 * 60 * 5; // 5 minutes
   const ctx = useTeleport();
+  const clusterId = ctx.storeUser.getClusterId();
   const { cluster, username } = ctx.storeUser.state;
   const platform = getPlatform();
   const downloadLinks = getConnectDownloadLinks(platform, cluster.proxyVersion);
@@ -38,6 +61,89 @@ export function SetupConnect(props: AgentStepProps) {
     username,
     path: Path.ConnectMyComputer,
   });
+
+  const { node, isPolling } = usePollForConnectMyComputerNode({
+    username,
+    clusterId,
+    pingInterval,
+  });
+
+  const [showHint, setShowHint] = useState(false);
+  useEffect(() => {
+    if (isPolling) {
+      const id = window.setTimeout(() => setShowHint(true), showHintTimeout);
+
+      return () => window.clearTimeout(id);
+    }
+  }, [isPolling, showHintTimeout]);
+
+  let hint: JSX.Element;
+  if (showHint && !node) {
+    hint = (
+      // Override max-width to match StyledBox's max-width.
+      <HintBox header="We're still looking for your computer" maxWidth="800px">
+        <Flex flexDirection="column" gap={3}>
+          <Text>
+            There are a couple of possible reasons for why we haven't been able
+            to detect your computer.
+          </Text>
+
+          <ul
+            css={`
+              margin: 0;
+              padding-left: ${p => p.theme.space[3]}px;
+            `}
+          >
+            <li>
+              <Text>
+                You did not start Connect My Computer in Teleport Connect yet.
+              </Text>
+            </li>
+            <li>
+              <Text>
+                The Teleport agent started by Teleport Connect could not join
+                this Teleport cluster. Check if the Connect My Computer tab in
+                Teleport Connect shows any error messages.
+              </Text>
+            </li>
+            <li>
+              <Text>
+                The computer you are trying to add has already joined the
+                Teleport cluster before you entered this page.
+              </Text>
+            </li>
+          </ul>
+
+          <Text>
+            We'll continue to look for the computer whilst you diagnose the
+            issue.
+          </Text>
+        </Flex>
+      </HintBox>
+    );
+  } else if (node) {
+    hint = (
+      <SuccessBox>
+        <Text>
+          Your computer, <strong>{node.hostname}</strong>, has been detected!
+        </Text>
+      </SuccessBox>
+    );
+  } else {
+    hint = (
+      <WaitingInfo>
+        <TextIcon
+          css={`
+            white-space: pre;
+          `}
+        >
+          <Icons.Restore size="medium" mr={2} />
+        </TextIcon>
+        After your computer is connected to the cluster, we’ll automatically
+        detect it.
+      </WaitingInfo>
+    );
+  }
 
   return (
     <Flex flexDirection="column" alignItems="flex-start" mb={2} gap={4}>
@@ -50,7 +156,7 @@ export function SetupConnect(props: AgentStepProps) {
           Teleport Connect is a native desktop application for browsing and
           accessing your resources. It can also connect your computer as an SSH
           resource and scope access to a unique role so it is not automatically
-          shared with anyone else in the cluster.
+          shared with all users in the&nbsp;cluster.
           <br />
           <br />
           Once you’ve downloaded Teleport Connect, run the installer to add it
@@ -80,14 +186,86 @@ export function SetupConnect(props: AgentStepProps) {
         </ButtonSecondary>
       </StyledBox>
 
+      {hint}
+
       <ActionButtons
-        onProceed={() => {}}
-        disableProceed={true}
+        onProceed={props.nextStep}
+        disableProceed={!node}
         onPrev={props.prevStep}
       />
     </Flex>
   );
 }
+
+/**
+ * usePollForConnectMyComputerNode polls for a Connect My Computer node that joined the cluster
+ * after starting opening the SetupConnect step.
+ *
+ * The first polling request fills out a set of node IDs (initialNodeIdsRef). Subsequent requests
+ * check the returned nodes against this set. The hook stops polling as soon as a node that is not
+ * in the set was found.
+ *
+ * Unlike the DownloadScript step responsible for adding a server, we don't have a unique ID that
+ * identifies the node that the user added after following the steps from the guided flow. In
+ * theory, we could make the deep link button pass such ID to Connect, but the user would still be
+ * able to just launch the app directly and not use the link.
+ *
+ * Because of that, we must depend on comparing the list of nodes against the initial set of IDs.
+ */
+export const usePollForConnectMyComputerNode = (args: {
+  username: string;
+  clusterId: string;
+  pingInterval: number;
+}): {
+  node: Node | undefined;
+  isPolling: boolean;
+} => {
+  const ctx = useTeleport();
+  const [isPolling, setIsPolling] = useState(true);
+  const initialNodeIdsRef = useRef<Set<string>>(null);
+
+  const node = usePoll(
+    useCallback(
+      async signal => {
+        const request = {
+          query: `labels["${constants.ConnectMyComputerNodeOwnerLabel}"] == "${args.username}"`,
+          // An arbitrary limit where we bank on the fact that no one is going to have 50 Connect My Computer
+          // nodes assigned to them running at the same time.
+          limit: 50,
+        };
+
+        const response = await ctx.nodeService.fetchNodes(
+          args.clusterId,
+          request,
+          signal
+        );
+
+        // Fill out the set with node IDs if it's empty.
+        if (initialNodeIdsRef.current === null) {
+          initialNodeIdsRef.current = new Set(
+            response.agents.map(agent => agent.id)
+          );
+          return null;
+        }
+
+        // On subsequent requests, compare the nodes from the response against the set.
+        const node = response.agents.find(
+          agent => !initialNodeIdsRef.current.has(agent.id)
+        );
+
+        if (node) {
+          setIsPolling(false);
+          return node;
+        }
+      },
+      [ctx.nodeService, args.clusterId, args.username]
+    ),
+    isPolling,
+    args.pingInterval
+  );
+
+  return { node, isPolling };
+};
 
 type DownloadLink = { text: string; url: string };
 
