@@ -61,8 +61,9 @@ import {
 } from './cards';
 
 import { ResourceTab } from './ResourceTab';
-import { ResourceCard, LoadingCard, PinningSupport } from './ResourceCard';
+import { ResourceCard, PinningSupport } from './ResourceCard';
 import { FilterPanel } from './FilterPanel';
+import { LoadingCard } from './CardsLoadingSkeleton';
 
 // get 48 resources to start
 const INITIAL_FETCH_SIZE = 48;
