@@ -19,6 +19,8 @@ import { execFile } from 'node:child_process';
 import { access, rm } from 'node:fs/promises';
 import path from 'node:path';
 
+import * as constants from 'shared/constants';
+
 import { RootClusterUri, routing } from 'teleterm/ui/uri';
 import { RuntimeSettings } from 'teleterm/mainProcess/types';
 
@@ -49,8 +51,7 @@ export async function createAgentConfigFile(
   }
 
   const labels = Object.entries({
-    // TODO(ravicious): Move this to a JavaScript version of constants.go.
-    'teleport.dev/connect-my-computer/owner': args.username,
+    [constants.ConnectMyComputerNodeOwnerLabel]: args.username,
   })
     .map(keyAndValue => keyAndValue.join('='))
     .join(',');
