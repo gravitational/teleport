@@ -27,7 +27,6 @@ import { Box, ButtonIcon, ButtonLink, Flex, Label, Text } from 'design';
 import copyToClipboard from 'design/utils/copyToClipboard';
 import { StyledCheckbox } from 'design/Checkbox';
 
-import { ShimmerBox } from 'design/ShimmerBox';
 import { ResourceIcon, ResourceIconName } from 'design/ResourceIcon';
 import { Icon, Copy, Check, PushPinFilled, PushPin } from 'design/Icon';
 
@@ -299,67 +298,6 @@ export function ResourceCard({
         </CardInnerContainer>
       </CardOuterContainer>
     </CardContainer>
-  );
-}
-
-type LoadingCardProps = {
-  delay?: 'none' | 'short' | 'long';
-};
-
-const DelayValueMap = {
-  none: 0,
-  short: 400, // 0.4s;
-  long: 600, // 0.6s;
-};
-
-function randomNum(min: number, max: number) {
-  return Math.floor(Math.random() * (max - min + 1)) + min;
-}
-
-export function LoadingCard({ delay = 'none' }: LoadingCardProps) {
-  const [canDisplay, setCanDisplay] = useState(false);
-
-  useEffect(() => {
-    const displayTimeout = setTimeout(() => {
-      setCanDisplay(true);
-    }, DelayValueMap[delay]);
-    return () => {
-      clearTimeout(displayTimeout);
-    };
-  }, []);
-
-  if (!canDisplay) {
-    return null;
-  }
-
-  return (
-    <Flex gap={2} alignItems="start" height="106px" p={3}>
-      {/* Checkbox */}
-      <ShimmerBox height="16px" width="16px" />
-      {/* Image */}
-      <ShimmerBox height="45px" width="45px" />
-      <Box flex={1}>
-        <Flex gap={2} mb={2} justifyContent="space-between">
-          {/* Name */}
-          <ShimmerBox
-            height="24px"
-            css={`
-              flex-basis: ${randomNum(100, 30)}%;
-            `}
-          />
-          {/* Action button */}
-          <ShimmerBox height="24px" width="90px" />
-        </Flex>
-        {/* Description */}
-        <ShimmerBox height="16px" width={`${randomNum(90, 40)}%`} mb={2} />
-        {/* Labels */}
-        <Flex gap={2}>
-          {new Array(randomNum(4, 0)).fill(null).map((_, i) => (
-            <ShimmerBox key={i} height="16px" width="60px" />
-          ))}
-        </Flex>
-      </Box>
-    </Flex>
   );
 }
 
