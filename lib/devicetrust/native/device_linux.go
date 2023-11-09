@@ -55,7 +55,7 @@ func handleTPMActivateCredential(_, _ string) error {
 	return devicetrust.ErrPlatformNotSupported
 }
 
-func collectDeviceData() (*devicepb.DeviceCollectedData, error) {
+func collectDeviceData(mode CollectDataMode) (*devicepb.DeviceCollectedData, error) {
 	osRelease, err := linux.ParseOSRelease()
 	if err != nil {
 		return nil, trace.Wrap(err)

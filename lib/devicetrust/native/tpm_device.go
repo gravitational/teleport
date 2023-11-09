@@ -151,7 +151,7 @@ func (d *tpmDevice) enrollDeviceInit() (*devicepb.EnrollDeviceInit, error) {
 	}
 	defer ak.Close(tpm)
 
-	deviceData, err := collectDeviceData()
+	deviceData, err := collectDeviceData(CollectedDataAlwaysEscalate)
 	if err != nil {
 		return nil, trace.Wrap(err, "collecting device data")
 	}

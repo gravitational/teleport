@@ -51,7 +51,7 @@ const (
 // CollectDeviceData collects OS-specific device data for device enrollment or
 // device authentication ceremonies.
 func CollectDeviceData(mode CollectDataMode) (*devicepb.DeviceCollectedData, error) {
-	return collectDeviceData()
+	return collectDeviceData(mode)
 }
 
 // SignChallenge signs a device challenge for device enrollment or device
