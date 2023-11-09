@@ -166,7 +166,32 @@ func readDMIInfoEscalated() (*linux.DMIInfo, error) {
 		return nil, trace.Wrap(err, "parsing dmi-read output")
 	}
 
-	// TODO(codingllama): Save DMI info to cache.
+	if err := saveDMIInfoToCache(&dmiInfo); err != nil {
+		log.WithError(err).Warn("TPM: Failed to write DMI cache")
+		// err swallowed on purpose.
+	}
 
 	return &dmiInfo, nil
+}
+
+func saveDMIInfoToCache(dmiInfo *linux.DMIInfo) error {
+	stateDir, err := setupDeviceStateDir(userDirFunc)
+	if err != nil {
+		return trace.Wrap(err, "setting up state dir")
+	}
+
+	f, err := os.OpenFile(stateDir.dmiJSONPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0600)
+	if err != nil {
+		return trace.Wrap(err, "opening dmi.json for write")
+	}
+	defer f.Close()
+	if err := json.NewEncoder(f).Encode(dmiInfo); err != nil {
+		return trace.Wrap(err, "writing dmi.json")
+	}
+	if err := f.Close(); err != nil {
+		return trace.Wrap(err, "closing dmi.json after write")
+	}
+	log.Debug("TPM: Saved DMI information to local cache")
+
+	return nil
 }

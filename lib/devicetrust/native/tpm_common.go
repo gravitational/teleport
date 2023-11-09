@@ -28,11 +28,13 @@ const (
 	deviceStateFolderName        = ".teleport-device"
 	attestationKeyFileName       = "attestation.key"
 	credentialActivationFileName = "credential-activation"
+	dmiJsonFileName              = "dmi.json"
 )
 
 type deviceState struct {
 	attestationKeyPath       string
 	credentialActivationPath string
+	dmiJSONPath              string
 }
 
 // userDirFunc is used to determine where to save/lookup the device's
@@ -54,6 +56,7 @@ func setupDeviceStateDir(getBaseDir func() (string, error)) (*deviceState, error
 	ds := &deviceState{
 		attestationKeyPath:       filepath.Join(deviceStateDirPath, attestationKeyFileName),
 		credentialActivationPath: filepath.Join(deviceStateDirPath, credentialActivationFileName),
+		dmiJSONPath:              filepath.Join(deviceStateDirPath, dmiJsonFileName),
 	}
 
 	switch _, err := os.Stat(deviceStateDirPath); {
