@@ -45,7 +45,7 @@ func (c *Cache) Get(ctx context.Context) (*ProtectedClient, func(), error) {
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	if cert == nil || len(cert) == 0 {
+	if len(cert) == 0 {
 		return nil, nil, trace.CompareFailed("no certificate in tbot's memory, cannot compare")
 	}
 
