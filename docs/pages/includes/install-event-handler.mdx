@@ -2,8 +2,8 @@
 <TabItem label="Linux">
 
 ```code
-$ curl -L -O https://get.gravitational.com/teleport-event-handler-v(=teleport.plugin.version=)-linux-amd64-bin.tar.gz
-$ tar -zxvf teleport-event-handler-v(=teleport.plugin.version=)-linux-amd64-bin.tar.gz
+$ curl -L -O https://get.gravitational.com/teleport-event-handler-v13.3.8-linux-amd64-bin.tar.gz
+$ tar -zxvf teleport-event-handler-v13.3.8-linux-amd64-bin.tar.gz
 ```
 
 We currently only build the Event Handler plugin for amd64 machines. For ARM
@@ -14,8 +14,8 @@ architecture, you can build from source.
 <TabItem label="macOS">
 
 ```code
-$ curl -L -O https://get.gravitational.com/teleport-event-handler-v(=teleport.plugin.version=)-darwin-amd64-bin.tar.gz
-$ tar -zxvf teleport-event-handler-v(=teleport.plugin.version=)-darwin-amd64-bin.tar.gz
+$ curl -L -O https://get.gravitational.com/teleport-event-handler-v13.3.8-darwin-amd64-bin.tar.gz
+$ tar -zxvf teleport-event-handler-v13.3.8-darwin-amd64-bin.tar.gz
 ```
 
 We currently only build the event handler plugin for amd64 machines. If your
@@ -29,7 +29,7 @@ event handler plugin. You can also build from source.
 Ensure that you have Docker installed and running.
 
 ```code
-$ docker pull public.ecr.aws/gravitational/teleport-plugin-event-handler:(=teleport.plugin.version=)
+$ docker pull public.ecr.aws/gravitational/teleport-plugin-event-handler:13.3.8
 ```
 
 </TabItem>
