@@ -505,7 +505,7 @@ function ResourceTypeFilterItem(
       iconColor="text.slightlyMuted"
     >
       <Text typography="body1">
-        Search only for{' '}
+        Search for{' '}
         <strong>
           <Highlight
             text={props.searchResult.resource}
