@@ -1405,69 +1405,78 @@ func (s *Server) handleDirectTCPIPRequest(ctx context.Context, ccx *sshutils.Con
 	scx.Debugf("Opening direct-tcpip channel from %v to %v.", scx.SrcAddr, scx.DstAddr)
 	defer scx.Debugf("Closing direct-tcpip channel from %v to %v.", scx.SrcAddr, scx.DstAddr)
 
-	// Create command to re-exec Teleport which will perform a net.Dial. The
-	// reason it's not done directly because the PAM stack needs to be called
-	// from the child process.
-	cmd, err := srv.ConfigureCommand(scx)
-	if err != nil {
-		writeStderr(channel, err.Error())
-		return
-	}
-	// Propagate stderr from the spawned Teleport process to log any errors.
-	cmd.Stderr = os.Stderr
-
-	// Create a pipe for std{in,out} that will be used to transfer data between
-	// parent and child.
-	pr, err := cmd.StdoutPipe()
-	if err != nil {
-		s.Logger.Errorf("Failed to setup stdout pipe: %v", err)
-		writeStderr(channel, err.Error())
-		return
-	}
-	pw, err := cmd.StdinPipe()
-	if err != nil {
-		s.Logger.Errorf("Failed to setup stdin pipe: %v", err)
-		writeStderr(channel, err.Error())
-		return
-	}
-
-	// Start the child process that will be used to make the actual connection
-	// to the target host.
-	err = cmd.Start()
-	if err != nil {
-		writeStderr(channel, err.Error())
-		return
-	}
-
-	if err := utils.ProxyConn(ctx, utils.CombineReadWriteCloser(pr, pw), channel); err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, os.ErrClosed) {
-		s.Logger.Warnf("Connection problem in direct-tcpip channel: %v %T.", trace.DebugReport(err), err)
-	}
-
-	// Emit a port forwarding event if the command exited successfully.
-	if err := cmd.Wait(); err == nil {
-		if err := s.EmitAuditEvent(s.ctx, &apievents.PortForward{
-			Metadata: apievents.Metadata{
-				Type: events.PortForwardEvent,
-				Code: events.PortForwardCode,
-			},
-			UserMetadata: scx.Identity.GetUserMetadata(),
-			ConnectionMetadata: apievents.ConnectionMetadata{
-				LocalAddr:  scx.ServerConn.LocalAddr().String(),
-				RemoteAddr: scx.ServerConn.RemoteAddr().String(),
-			},
-			Addr: scx.DstAddr,
-			Status: apievents.Status{
-				Success: true,
-			},
-		}); err != nil {
-			s.Logger.WithError(err).Warn("Failed to emit port forward event.")
+	/*
+		// Create command to re-exec Teleport which will perform a net.Dial. The
+		// reason it's not done directly because the PAM stack needs to be called
+		// from the child process.
+		cmd, err := srv.ConfigureCommand(scx)
+		if err != nil {
+			writeStderr(channel, err.Error())
+			return
 		}
+		// Propagate stderr from the spawned Teleport process to log any errors.
+		cmd.Stderr = os.Stderr
+
+		// Create a pipe for std{in,out} that will be used to transfer data between
+		// parent and child.
+		pr, err := cmd.StdoutPipe()
+		if err != nil {
+			s.Logger.Errorf("Failed to setup stdout pipe: %v", err)
+			writeStderr(channel, err.Error())
+			return
+		}
+		pw, err := cmd.StdinPipe()
+		if err != nil {
+			s.Logger.Errorf("Failed to setup stdin pipe: %v", err)
+			writeStderr(channel, err.Error())
+			return
+		}
+
+		// Start the child process that will be used to make the actual connection
+		// to the target host.
+		err = cmd.Start()
+		if err != nil {
+			writeStderr(channel, err.Error())
+			return
+		}
+
+		if err := utils.ProxyConn(ctx, utils.CombineReadWriteCloser(pr, pw), channel); err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, os.ErrClosed) {
+			s.Logger.Warnf("Connection problem in direct-tcpip channel: %v %T.", trace.DebugReport(err), err)
+		}
+
+		// Emit a port forwarding event if the command exited successfully.
+		if err := cmd.Wait(); err == nil {
+			if err := s.EmitAuditEvent(s.ctx, &apievents.PortForward{
+				Metadata: apievents.Metadata{
+					Type: events.PortForwardEvent,
+					Code: events.PortForwardCode,
+				},
+				UserMetadata: scx.Identity.GetUserMetadata(),
+				ConnectionMetadata: apievents.ConnectionMetadata{
+					LocalAddr:  scx.ServerConn.LocalAddr().String(),
+					RemoteAddr: scx.ServerConn.RemoteAddr().String(),
+				},
+				Addr: scx.DstAddr,
+				Status: apievents.Status{
+					Success: true,
+				},
+			}); err != nil {
+				s.Logger.WithError(err).Warn("Failed to emit port forward event.")
+			}
+			return
+		}*/
+
+	// --- DEBUG
+
+	// Connect to the target host.
+	conn, err := net.Dial("tcp", scx.DstAddr)
+	if err != nil {
+		writeStderr(channel, err.Error())
 		return
 	}
+	defer conn.Close()
 
-	// Get the error to see why the child process failed and
-	// determine the correct course of action.
-	err = scx.GetChildError()
+	err = utils.ProxyConn(ctx, channel, conn)
 	switch {
 	case err == nil:
 		s.Logger.Warn("Forwarding data via direct-tcpip channel failed for unknown reason")
