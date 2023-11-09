@@ -33,9 +33,6 @@
   display: flex;
   flex-direction: column;
   width: 100%;
-  @container (min-width: 1600px) {
-    grid-template-columns: repeat(4, minmax(400px, 1fr));
-  }
 }
 
 .SearchPanel {

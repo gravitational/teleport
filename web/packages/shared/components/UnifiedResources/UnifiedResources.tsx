@@ -402,14 +402,11 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
                         {text}
                       </ButtonBorder>
                     );
-                    if (tooltip) {
-                      return (
-                        <HoverTooltip tipContent={tooltip}>
-                          {$button}
-                        </HoverTooltip>
-                      );
-                    }
-                    return $button;
+                    return (
+                      <HoverTooltip tipContent={tooltip} key={key}>
+                        {$button}
+                      </HoverTooltip>
+                    );
                   }
                 )}
               </>
