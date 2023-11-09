@@ -101,7 +101,7 @@ type IDTokenClaims struct {
 	// 	The commit SHA for the job.
 	SHA string `json:"sha"`
 	// ID of the runner executing the job.
-	RunnerID string `json:"runner_id"`
+	RunnerID int `json:"runner_id"`
 	// The type of runner used by the job. Can be either gitlab-hosted or self-hosted
 	RunnerEnvironment string `json:"runner_environment"`
 	// Deployment tier of the environment the job specifies
