@@ -78,8 +78,15 @@ func collectDeviceData(mode CollectDataMode) (*devicepb.DeviceCollectedData, err
 	if errors.Is(err, fs.ErrPermission) {
 		switch mode {
 		case CollectedDataNeverEscalate, CollectedDataMaybeEscalate:
-			// TODO(codingllama): Attempt to read cached DMI file.
+			log.Debug("TPM: Reading cached DMI info")
 
+			dmiCached, err := readDMIInfoCached()
+			if err == nil {
+				dmiInfo = dmiCached
+				break // from switch
+			}
+
+			log.WithError(err).Debug("TPM: Failed to read cached DMI info")
 			if mode == CollectedDataNeverEscalate {
 				break // from switch
 			}
@@ -123,6 +130,23 @@ func collectDeviceData(mode CollectDataMode) (*devicepb.DeviceCollectedData, err
 		SystemSerialNumber:    systemSerialNumber,
 		BaseBoardSerialNumber: baseBoardSerialNumber,
 	}, nil
+}
+
+func readDMIInfoCached() (*linux.DMIInfo, error) {
+	stateDir, err := setupDeviceStateDir(userDirFunc)
+	if err != nil {
+		return nil, trace.Wrap(err, "setting up state dir")
+	}
+
+	f, err := os.Open(stateDir.dmiJSONPath)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer f.Close()
+
+	var dmiInfo linux.DMIInfo
+	err = json.NewDecoder(f).Decode(&dmiInfo)
+	return &dmiInfo, trace.Wrap(err)
 }
 
 func readDMIInfoEscalated() (*linux.DMIInfo, error) {
