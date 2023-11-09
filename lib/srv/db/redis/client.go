@@ -166,11 +166,11 @@ func fetchCredentialsOnConnect(closeCtx context.Context, sessionCtx *common.Sess
 	return func(ctx context.Context, conn *redis.Conn) error {
 		err := sessionCtx.Checker.CheckAccess(sessionCtx.Database,
 			services.AccessState{MFAVerified: true},
-			role.DatabaseRoleMatchers(
-				sessionCtx.Database,
-				sessionCtx.DatabaseUser,
-				sessionCtx.DatabaseName,
-			)...)
+			role.GetDatabaseRoleMatchers(role.RoleMatchersConfig{
+				Database:     sessionCtx.Database,
+				DatabaseUser: sessionCtx.DatabaseUser,
+				DatabaseName: sessionCtx.DatabaseName,
+			})...)
 		if err != nil {
 			return trace.Wrap(err)
 		}

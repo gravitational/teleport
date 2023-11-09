@@ -192,19 +192,37 @@ spec:
                       must match one allow rule to use this token.
                     items:
                       properties:
+                        ci_config_ref_uri:
+                          type: string
+                        ci_config_sha:
+                          type: string
+                        deployment_tier:
+                          type: string
                         environment:
                           type: string
+                        environment_protected:
+                          type: boolean
                         namespace_path:
                           type: string
                         pipeline_source:
                           type: string
                         project_path:
                           type: string
+                        project_visibility:
+                          type: string
                         ref:
                           type: string
+                        ref_protected:
+                          type: boolean
                         ref_type:
                           type: string
                         sub:
+                          type: string
+                        user_email:
+                          type: string
+                        user_id:
+                          type: string
+                        user_login:
                           type: string
                       type: object
                     nullable: true
