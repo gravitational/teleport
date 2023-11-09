@@ -4094,23 +4094,25 @@ type ProvisionTokenSpecV2GitLab_Rule struct {
 	// Environment limits access by the environment the job deploys to
 	// (if one is associated)
 	Environment string `protobuf:"bytes,7,opt,name=Environment,proto3" json:"environment,omitempty"`
-	// Username of the user executing the job
+	// UserLogin is the username of the user executing the job
 	UserLogin string `protobuf:"bytes,8,opt,name=UserLogin,proto3" json:"user_login,omitempty"`
-	// ID of the user executing the job
+	// UserID is the ID of the user executing the job
 	UserID string `protobuf:"bytes,9,opt,name=UserID,proto3" json:"user_id,omitempty"`
-	// Email of the user executing the job
+	// UserEmail is the email of the user executing the job
 	UserEmail string `protobuf:"bytes,10,opt,name=UserEmail,proto3" json:"user_email,omitempty"`
-	// true if the Git ref is protected, false otherwise.
+	// RefProtected is true if the Git ref is protected, false otherwise.
 	RefProtected *BoolOption `protobuf:"bytes,11,opt,name=RefProtected,proto3,customtype=BoolOption" json:"ref_protected,omitempty"`
-	// true if the Git ref is protected, false otherwise.
+	// EnvironmentProtected is true if the Git ref is protected, false otherwise.
 	EnvironmentProtected *BoolOption `protobuf:"bytes,12,opt,name=EnvironmentProtected,proto3,customtype=BoolOption" json:"environment_protected,omitempty"`
-	// Git commit SHA for the ci_config_ref_uri.
+	// CIConfigSHA is the git commit SHA for the ci_config_ref_uri.
 	CIConfigSHA string `protobuf:"bytes,13,opt,name=CIConfigSHA,proto3" json:"ci_config_sha,omitempty"`
-	// The ref path to the top-level pipeline definition, for example, gitlab.example.com/my-group/my-project//.gitlab-ci.yml@refs/heads/main.
+	// CIConfigRefURI is the ref path to the top-level pipeline definition, for example,
+	// gitlab.example.com/my-group/my-project//.gitlab-ci.yml@refs/heads/main.
 	CIConfigRefURI string `protobuf:"bytes,14,opt,name=CIConfigRefURI,proto3" json:"ci_config_ref_uri,omitempty"`
-	// Deployment tier of the environment the job specifies
+	// DeploymentTier is the deployment tier of the environment the job specifies
 	DeploymentTier string `protobuf:"bytes,15,opt,name=DeploymentTier,proto3" json:"deployment_tier,omitempty"`
-	// The visibility of the project where the pipeline is running. Can be internal, private, or public.
+	// ProjectVisibility is the visibility of the project where the pipeline is running.
+	// Can be internal, private, or public.
 	ProjectVisibility    string   `protobuf:"bytes,16,opt,name=ProjectVisibility,proto3" json:"project_visibility,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`

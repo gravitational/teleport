@@ -1336,31 +1336,33 @@ message ProvisionTokenSpecV2GitLab {
     // Environment limits access by the environment the job deploys to
     // (if one is associated)
     string Environment = 7 [(gogoproto.jsontag) = "environment,omitempty"];
-    // Username of the user executing the job
+    // UserLogin is the username of the user executing the job
     string UserLogin = 8 [(gogoproto.jsontag) = "user_login,omitempty"];
-    // ID of the user executing the job
+    // UserID is the ID of the user executing the job
     string UserID = 9 [(gogoproto.jsontag) = "user_id,omitempty"];
-    // Email of the user executing the job
+    // UserEmail is the email of the user executing the job
     string UserEmail = 10 [(gogoproto.jsontag) = "user_email,omitempty"];
-    // true if the Git ref is protected, false otherwise.
+    // RefProtected is true if the Git ref is protected, false otherwise.
     BoolValue RefProtected = 11 [
       (gogoproto.nullable) = true,
       (gogoproto.jsontag) = "ref_protected,omitempty",
       (gogoproto.customtype) = "BoolOption"
     ];
-    // true if the Git ref is protected, false otherwise.
+    // EnvironmentProtected is true if the Git ref is protected, false otherwise.
     BoolValue EnvironmentProtected = 12 [
       (gogoproto.nullable) = true,
       (gogoproto.jsontag) = "environment_protected,omitempty",
       (gogoproto.customtype) = "BoolOption"
     ];
-    // Git commit SHA for the ci_config_ref_uri.
+    // CIConfigSHA is the git commit SHA for the ci_config_ref_uri.
     string CIConfigSHA = 13 [(gogoproto.jsontag) = "ci_config_sha,omitempty"];
-    // The ref path to the top-level pipeline definition, for example, gitlab.example.com/my-group/my-project//.gitlab-ci.yml@refs/heads/main.
+    // CIConfigRefURI is the ref path to the top-level pipeline definition, for example,
+    // gitlab.example.com/my-group/my-project//.gitlab-ci.yml@refs/heads/main.
     string CIConfigRefURI = 14 [(gogoproto.jsontag) = "ci_config_ref_uri,omitempty"];
-    // Deployment tier of the environment the job specifies
+    // DeploymentTier is the deployment tier of the environment the job specifies
     string DeploymentTier = 15 [(gogoproto.jsontag) = "deployment_tier,omitempty"];
-    // The visibility of the project where the pipeline is running. Can be internal, private, or public.
+    // ProjectVisibility is the visibility of the project where the pipeline is running.
+    // Can be internal, private, or public.
     string ProjectVisibility = 16 [(gogoproto.jsontag) = "project_visibility,omitempty"];
   }
   // Allow is a list of TokenRules, nodes using this token must match one
