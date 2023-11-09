@@ -19,19 +19,14 @@ import styled from 'styled-components';
 
 import { Flex } from 'design';
 
-import {
-  generateUnifiedResourceKey,
-  loadingItemArray,
-} from '../UnifiedResources';
+import { loadingItemArray } from '../UnifiedResources';
 
 import { ResourceViewProps } from '../types';
-
-import { mapResourceToItem } from '../shared';
 
 import { LoadingCard, ResourceCard } from './ResourceCard';
 
 export function CardsView({
-  resources,
+  mappedResources,
   onLabelClick,
   pinnedResources,
   selectedResources,
@@ -42,29 +37,24 @@ export function CardsView({
 }: ResourceViewProps) {
   return (
     <CardsContainer className="CardsContainer" gap={2}>
-      {resources
-        .map(unifiedResource => ({
-          item: mapResourceToItem(unifiedResource),
-          key: generateUnifiedResourceKey(unifiedResource.resource),
-        }))
-        .map(({ item, key }) => (
-          <ResourceCard
-            key={key}
-            name={item.name}
-            ActionButton={item.ActionButton}
-            primaryIconName={item.primaryIconName}
-            onLabelClick={onLabelClick}
-            SecondaryIcon={item.SecondaryIcon}
-            addr={item.addr}
-            type={item.type}
-            labels={item.labels}
-            pinned={pinnedResources.includes(key)}
-            pinningSupport={pinningSupport}
-            selected={selectedResources.includes(key)}
-            selectResource={() => onSelectResource(key)}
-            pinResource={() => onPinResource(key)}
-          />
-        ))}
+      {mappedResources.map(({ item, key }) => (
+        <ResourceCard
+          key={key}
+          name={item.name}
+          ActionButton={item.ActionButton}
+          primaryIconName={item.primaryIconName}
+          onLabelClick={onLabelClick}
+          SecondaryIcon={item.SecondaryIcon}
+          addr={item.addr}
+          type={item.type}
+          labels={item.labels}
+          pinned={pinnedResources.includes(key)}
+          pinningSupport={pinningSupport}
+          selected={selectedResources.includes(key)}
+          selectResource={() => onSelectResource(key)}
+          pinResource={() => onPinResource(key)}
+        />
+      ))}
       {/* Using index as key here is ok because these elements never change order */}
       {isProcessing &&
         loadingItemArray.map((_, i) => <LoadingCard delay="short" key={i} />)}

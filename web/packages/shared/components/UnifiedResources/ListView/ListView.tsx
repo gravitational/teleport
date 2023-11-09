@@ -18,16 +18,12 @@ import React from 'react';
 
 import { Flex, Box, Indicator } from 'design';
 
-import { generateUnifiedResourceKey } from '../UnifiedResources';
-
 import { ResourceViewProps } from '../types';
-
-import { mapResourceToItem } from '../shared';
 
 import { ResourceListItem } from './ResourceListItem';
 
 export function ListView({
-  resources,
+  mappedResources,
   onLabelClick,
   pinnedResources,
   selectedResources,
@@ -38,30 +34,25 @@ export function ListView({
 }: ResourceViewProps) {
   return (
     <Flex className="ListContainer">
-      {resources
-        .map(unifiedResource => ({
-          item: mapResourceToItem(unifiedResource),
-          key: generateUnifiedResourceKey(unifiedResource.resource),
-        }))
-        .map(({ item, key }) => (
-          <ResourceListItem
-            key={key}
-            name={item.name}
-            ActionButton={item.ActionButton}
-            primaryIconName={item.primaryIconName}
-            onLabelClick={onLabelClick}
-            SecondaryIcon={item.SecondaryIcon}
-            description={item.description}
-            addr={item.addr}
-            type={item.type}
-            labels={item.labels}
-            pinned={pinnedResources.includes(key)}
-            pinningSupport={pinningSupport}
-            selected={selectedResources.includes(key)}
-            selectResource={() => onSelectResource(key)}
-            pinResource={() => onPinResource(key)}
-          />
-        ))}
+      {mappedResources.map(({ item, key }) => (
+        <ResourceListItem
+          key={key}
+          name={item.name}
+          ActionButton={item.ActionButton}
+          primaryIconName={item.primaryIconName}
+          onLabelClick={onLabelClick}
+          SecondaryIcon={item.SecondaryIcon}
+          description={item.description}
+          addr={item.addr}
+          type={item.type}
+          labels={item.labels}
+          pinned={pinnedResources.includes(key)}
+          pinningSupport={pinningSupport}
+          selected={selectedResources.includes(key)}
+          selectResource={() => onSelectResource(key)}
+          pinResource={() => onPinResource(key)}
+        />
+      ))}
       {/* TODO (rudream): Add skeleton loader */}
       {isProcessing && (
         <Box textAlign="center" m={10}>

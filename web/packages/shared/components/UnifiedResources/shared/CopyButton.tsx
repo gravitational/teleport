@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef } from 'react';
 
 import ButtonIcon from 'design/ButtonIcon';
 import { Check, Copy } from 'design/Icon';
@@ -28,14 +28,14 @@ export function CopyButton({ name }: { name: string }) {
   const copyAnchorEl = useRef(null);
   const [copiedText, setCopiedText] = useState(copyDefault);
 
-  const handleCopy = useCallback(() => {
+  const handleCopy = () => {
     setCopiedText(copySuccess);
     copyToClipboard(name);
     // Change to default text after 1 second
     setTimeout(() => {
       setCopiedText(copyDefault);
     }, 1000);
-  }, [name]);
+  };
 
   return (
     <HoverTooltip tipContent={copiedText}>

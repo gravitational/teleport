@@ -29,12 +29,12 @@ import { nodes } from 'teleport/Nodes/fixtures';
 import makeApp from 'teleport/services/apps/makeApps';
 
 import {
-  makeUnifiedResourceItemApp,
-  makeUnifiedResourceItemDatabase,
-  makeUnifiedResourceItemKube,
-  makeUnifiedResourceItemNode,
-  makeUnifiedResourceItemDesktop,
-} from '../shared';
+  makeUnifiedResourceViewItemApp,
+  makeUnifiedResourceViewItemDatabase,
+  makeUnifiedResourceViewItemKube,
+  makeUnifiedResourceViewItemNode,
+  makeUnifiedResourceViewItemDesktop,
+} from '../shared/viewItemsFactory';
 
 import { PinningSupport } from '../types';
 
@@ -93,24 +93,24 @@ export const ListItems: Story = {
       <Flex flexDirection="column">
         {[
           ...apps.map(resource =>
-            makeUnifiedResourceItemApp(resource, { ActionButton })
+            makeUnifiedResourceViewItemApp(resource, { ActionButton })
           ),
           ...databases.map(resource =>
-            makeUnifiedResourceItemDatabase(resource, {
+            makeUnifiedResourceViewItemDatabase(resource, {
               ActionButton,
             })
           ),
           ...kubes.map(resource =>
-            makeUnifiedResourceItemKube(resource, { ActionButton })
+            makeUnifiedResourceViewItemKube(resource, { ActionButton })
           ),
           ...nodes.map(resource =>
-            makeUnifiedResourceItemNode(resource, { ActionButton })
+            makeUnifiedResourceViewItemNode(resource, { ActionButton })
           ),
           ...additionalResources.map(resource =>
-            makeUnifiedResourceItemApp(resource, { ActionButton })
+            makeUnifiedResourceViewItemApp(resource, { ActionButton })
           ),
           ...desktops.map(resource =>
-            makeUnifiedResourceItemDesktop(resource, { ActionButton })
+            makeUnifiedResourceViewItemDesktop(resource, { ActionButton })
           ),
         ].map((res, i) => (
           <ResourceListItem

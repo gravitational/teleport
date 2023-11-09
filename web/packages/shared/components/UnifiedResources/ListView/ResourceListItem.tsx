@@ -20,13 +20,15 @@ import styled from 'styled-components';
 import { Box, ButtonIcon, Flex, Label, Text } from 'design';
 import { StyledCheckbox } from 'design/Checkbox';
 import { Tags } from 'design/Icon';
-
 import { ResourceIcon } from 'design/ResourceIcon';
+
+import { makeLabelTag } from 'teleport/components/formatters';
 
 import { HoverTooltip } from 'shared/components/ToolTip';
 
 import { ResourceItemProps } from '../types';
-import { PinButton, CopyButton } from '../shared';
+import { PinButton } from '../shared/PinButton';
+import { CopyButton } from '../shared/CopyButton';
 
 export function ResourceListItem({
   name,
@@ -129,18 +131,25 @@ export function ResourceListItem({
             grid-area: type;
             overflow: hidden;
             text-overflow: ellipsis;
+            white-space: nowrap;
           `}
         >
-          <ResTypeIconBox>
+          <ResTypeIconBox mr={1}>
             <SecondaryIcon size={18} />
           </ResTypeIconBox>
-          {type && (
-            <Box ml={1} title={type}>
+          {/* Required for `text-overflow: ellipsis` to work. This is because a flex child won't shrink unless
+          its min-width is explicitly set. */}
+          <Box
+            css={`
+              min-width: 0;
+            `}
+          >
+            <HoverTooltip tipContent={type} showOnlyOnOverflow>
               <Text fontSize="14px" fontWeight={300} color="text.slightlyMuted">
                 {type}
               </Text>
-            </Box>
-          )}
+            </HoverTooltip>
+          </Box>
         </Flex>
 
         {/* address */}
@@ -149,13 +158,16 @@ export function ResourceListItem({
             grid-area: address;
             overflow: hidden;
             text-overflow: ellipsis;
+            white-space: nowrap;
           `}
           ml={2}
           title={addr}
         >
-          <Text fontSize="14px" fontWeight={300} color="text.muted">
-            {addr}
-          </Text>
+          <HoverTooltip tipContent={addr} showOnlyOnOverflow>
+            <Text fontSize="14px" fontWeight={300} color="text.muted">
+              {addr}
+            </Text>
+          </HoverTooltip>
         </Box>
 
         {/* show labels button */}
@@ -195,8 +207,7 @@ export function ResourceListItem({
             mb={2}
           >
             {labels.map((label, i) => {
-              const { name, value } = label;
-              const labelText = `${name}: ${value}`;
+              const labelText = makeLabelTag(label);
               // We can use the index i as the key since it will always be unique to this label.
               return (
                 <Label
@@ -204,7 +215,6 @@ export function ResourceListItem({
                   title={labelText}
                   onClick={() => onLabelClick?.(label)}
                   kind="secondary"
-                  data-is-label=""
                   mr={2}
                   css={`
                     cursor: pointer;
@@ -285,16 +295,12 @@ const getBackgroundColor = props => {
 };
 
 const Name = styled(Text)`
-  height: 20px;
   white-space: nowrap;
   line-height: 20px;
-  max-width: 100%;
-  font-size: 14px;
   font-weight: 300;
 `;
 
 const Description = styled(Text)`
-  max-height: 20px;
   white-space: nowrap;
   font-size: 12px;
   color: ${props => props.theme.colors.text.muted};

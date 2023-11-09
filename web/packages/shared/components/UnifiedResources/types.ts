@@ -104,7 +104,7 @@ export type UnifiedResourcesQueryParams = {
   // TODO(bl-nero): Remove this once filters are expressed as advanced search.
   kinds?: string[];
 };
-export interface UnifiedResourceItem {
+export interface UnifiedResourceViewItem {
   name: string;
   description?: string;
   addr?: string;
@@ -163,7 +163,6 @@ export type UnifiedResourcesPinning =
     };
 
 export type ResourceViewProps = {
-  resources: SharedUnifiedResource[];
   onLabelClick: (label: ResourceLabel) => void;
   pinnedResources: string[];
   selectedResources: string[];
@@ -171,4 +170,5 @@ export type ResourceViewProps = {
   onPinResource: (resourceId: string) => void;
   pinningSupport: PinningSupport;
   isProcessing: boolean;
+  mappedResources: { item: UnifiedResourceViewItem; key: string }[];
 };

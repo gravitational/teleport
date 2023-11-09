@@ -62,6 +62,7 @@ import { ResourceTab } from './ResourceTab';
 import { FilterPanel, ViewMode } from './FilterPanel';
 import { CardsView } from './CardsView/CardsView';
 import { ListView } from './ListView/ListView';
+import { mapResourceToItem } from './shared/viewItemsFactory';
 
 // get 48 resources to start
 const INITIAL_FETCH_SIZE = 48;
@@ -427,7 +428,6 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
         <PinningNotSupported />
       ) : (
         <ViewComponent
-          resources={resources}
           onLabelClick={onLabelClick}
           pinnedResources={pinnedResources}
           selectedResources={selectedResources}
@@ -441,6 +441,10 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
             resourcesFetchAttempt.status === 'processing' ||
             getPinnedResourcesAttempt.status === 'processing'
           }
+          mappedResources={resources.map(unifiedResource => ({
+            item: mapResourceToItem(unifiedResource),
+            key: generateUnifiedResourceKey(unifiedResource.resource),
+          }))}
         />
       )}
       <div ref={setTrigger} />
@@ -493,7 +497,7 @@ function getResourcePinningSupport(
   return PinningSupport.Supported;
 }
 
-export function generateUnifiedResourceKey(
+function generateUnifiedResourceKey(
   resource: SharedUnifiedResource['resource']
 ): string {
   if (resource.kind === 'node') {

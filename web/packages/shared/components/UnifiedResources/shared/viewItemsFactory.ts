@@ -27,7 +27,7 @@ import { DbProtocol } from 'shared/services/databases';
 import { NodeSubKind } from 'shared/services';
 
 import {
-  UnifiedResourceItem,
+  UnifiedResourceViewItem,
   UnifiedResourceUi,
   UnifiedResourceNode,
   UnifiedResourceApp,
@@ -38,10 +38,10 @@ import {
   SharedUnifiedResource,
 } from '../types';
 
-export function makeUnifiedResourceItemNode(
+export function makeUnifiedResourceViewItemNode(
   resource: UnifiedResourceNode,
   ui: UnifiedResourceUi
-): UnifiedResourceItem {
+): UnifiedResourceViewItem {
   return {
     name: resource.hostname,
     SecondaryIcon: ServerIcon,
@@ -53,10 +53,10 @@ export function makeUnifiedResourceItemNode(
   };
 }
 
-export function makeUnifiedResourceItemDatabase(
+export function makeUnifiedResourceViewItemDatabase(
   resource: UnifiedResourceDatabase,
   ui: UnifiedResourceUi
-): UnifiedResourceItem {
+): UnifiedResourceViewItem {
   return {
     name: resource.name,
     SecondaryIcon: DatabaseIcon,
@@ -68,10 +68,10 @@ export function makeUnifiedResourceItemDatabase(
   };
 }
 
-export function makeUnifiedResourceItemKube(
+export function makeUnifiedResourceViewItemKube(
   resource: UnifiedResourceKube,
   ui: UnifiedResourceUi
-): UnifiedResourceItem {
+): UnifiedResourceViewItem {
   return {
     name: resource.name,
     SecondaryIcon: KubernetesIcon,
@@ -82,10 +82,10 @@ export function makeUnifiedResourceItemKube(
   };
 }
 
-export function makeUnifiedResourceItemApp(
+export function makeUnifiedResourceViewItemApp(
   resource: UnifiedResourceApp,
   ui: UnifiedResourceUi
-): UnifiedResourceItem {
+): UnifiedResourceViewItem {
   return {
     name: resource.name,
     SecondaryIcon: ApplicationIcon,
@@ -98,10 +98,10 @@ export function makeUnifiedResourceItemApp(
   };
 }
 
-export function makeUnifiedResourceItemDesktop(
+export function makeUnifiedResourceViewItemDesktop(
   resource: UnifiedResourceDesktop,
   ui: UnifiedResourceUi
-): UnifiedResourceItem {
+): UnifiedResourceViewItem {
   return {
     name: resource.name,
     SecondaryIcon: DesktopIcon,
@@ -113,10 +113,10 @@ export function makeUnifiedResourceItemDesktop(
   };
 }
 
-export function makeUnifiedResourceItemUserGroup(
+export function makeUnifiedResourceViewItemUserGroup(
   resource: UnifiedResourceUserGroup,
   ui: UnifiedResourceUi
-): UnifiedResourceItem {
+): UnifiedResourceViewItem {
   return {
     name: resource.name,
     SecondaryIcon: ServerIcon,
@@ -196,16 +196,16 @@ function getDatabaseIconName(protocol: DbProtocol): ResourceIconName {
 export function mapResourceToItem({ resource, ui }: SharedUnifiedResource) {
   switch (resource.kind) {
     case 'node':
-      return makeUnifiedResourceItemNode(resource, ui);
+      return makeUnifiedResourceViewItemNode(resource, ui);
     case 'db':
-      return makeUnifiedResourceItemDatabase(resource, ui);
+      return makeUnifiedResourceViewItemDatabase(resource, ui);
     case 'kube_cluster':
-      return makeUnifiedResourceItemKube(resource, ui);
+      return makeUnifiedResourceViewItemKube(resource, ui);
     case 'app':
-      return makeUnifiedResourceItemApp(resource, ui);
+      return makeUnifiedResourceViewItemApp(resource, ui);
     case 'windows_desktop':
-      return makeUnifiedResourceItemDesktop(resource, ui);
+      return makeUnifiedResourceViewItemDesktop(resource, ui);
     case 'user_group':
-      return makeUnifiedResourceItemUserGroup(resource, ui);
+      return makeUnifiedResourceViewItemUserGroup(resource, ui);
   }
 }

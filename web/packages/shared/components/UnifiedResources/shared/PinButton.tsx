@@ -26,8 +26,6 @@ import { PinningSupport } from '../types';
 
 import { PINNING_NOT_SUPPORTED_MESSAGE } from '../UnifiedResources';
 
-HoverTooltip;
-
 export function PinButton({
   pinned,
   pinningSupport,

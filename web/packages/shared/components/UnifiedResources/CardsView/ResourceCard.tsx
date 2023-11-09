@@ -23,10 +23,13 @@ import { StyledCheckbox } from 'design/Checkbox';
 import { ShimmerBox } from 'design/ShimmerBox';
 import { ResourceIcon } from 'design/ResourceIcon';
 
+import { makeLabelTag } from 'teleport/components/formatters';
+
 import { HoverTooltip } from 'shared/components/ToolTip';
 
 import { ResourceItemProps } from '../types';
-import { PinButton, CopyButton } from '../shared';
+import { PinButton } from '../shared/PinButton';
+import { CopyButton } from '../shared/CopyButton';
 
 // Since we do a lot of manual resizing and some absolute positioning, we have
 // to put some layout constants in place here.
@@ -234,11 +237,10 @@ export function ResourceCard({
                   + {numMoreLabels} more
                 </MoreLabelsButton>
                 {labels.map((label, i) => {
-                  const { name, value } = label;
-                  const labelText = `${name}: ${value}`;
+                  const labelText = makeLabelTag(label);
                   return (
                     <StyledLabel
-                      key={JSON.stringify([name, value, i])}
+                      key={i}
                       title={labelText}
                       onClick={() => onLabelClick?.(label)}
                       kind="secondary"
