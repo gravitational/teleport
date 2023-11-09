@@ -19,7 +19,11 @@ import styled from 'styled-components';
 export const PickerContainer = styled.div`
   display: flex;
   flex-direction: column;
-  position: absolute;
+  position: fixed;
+  left: 0;
+  right: 0;
+  margin-left: auto;
+  margin-right: auto;
   box-sizing: border-box;
   z-index: 1000;
   font-size: 12px;
@@ -27,14 +31,15 @@ export const PickerContainer = styled.div`
   background: ${props => props.theme.colors.levels.elevated};
   box-shadow: ${props => props.theme.boxShadow[1]};
   border-radius: ${props => props.theme.radii[2]}px;
-  // we have to use a border of the same width as in SearchBar when it is closed to keep
-  // the layout from shifting when switching between open and closed state
-  border: 1px solid ${props => props.theme.colors.levels.elevated};
   text-shadow: none;
   // Prevents inner items from covering the border on rounded corners.
   overflow: hidden;
 
   // Account for border.
-  width: calc(100% + 2px);
   margin-top: -1px;
+
+  // These values are adjusted so that the cluster selector and search input
+  // are minimally covered by the picker.
+  max-width: 660px;
+  width: 76%;
 `;
