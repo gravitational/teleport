@@ -210,8 +210,8 @@ $ tsh clusters
 By default, Teleport clients use the following PIV slots for each option:
   - `hardware_key`: slot `9a`
   - `hardware_key_touch`: slot `9c`
-  - `hardware_key_pin`: slot `9d`
-  - `hardware_key_and_pin`: slot `9e`
+  - `hardware_key_touch_and_pin`: slot `9d`
+  - `hardware_key_pin`: slot `9e`
 
 If you are using any other PIV applications, you might need to specify a different slot.
 For example, `yubikey-agent` uses slot `9a`. To avoid overwriting the `yubikey-agent` key and certificate,

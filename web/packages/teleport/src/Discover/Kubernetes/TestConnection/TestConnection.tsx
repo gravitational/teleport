@@ -15,7 +15,6 @@
  */
 
 import React, { useState } from 'react';
-import styled from 'styled-components';
 import { Text, Box } from 'design';
 import Validation, { Validator } from 'shared/components/Validation';
 import FieldInput from 'shared/components/FieldInput';
@@ -32,6 +31,7 @@ import {
   HeaderSubtitle,
   Header,
   ConnectionDiagnosticResult,
+  StyledBox,
 } from '../../Shared';
 
 import { useTestConnection, State } from './useTestConnection';
@@ -204,10 +204,3 @@ export function TestConnection({
     </Validation>
   );
 }
-
-const StyledBox = styled(Box)`
-  max-width: 800px;
-  background-color: ${props => props.theme.colors.spotBackground[0]};
-  border-radius: 8px;
-  padding: 20px;
-`;

@@ -16,6 +16,7 @@ package servicecfg
 
 import (
 	"crypto/x509"
+	"maps"
 	"regexp"
 
 	"github.com/gravitational/teleport/lib/limiter"
@@ -104,9 +105,7 @@ func (h HostLabelRules) LabelsForHost(host string) map[string]string {
 	result := make(map[string]string)
 	for _, rule := range h.rules {
 		if rule.Regexp.MatchString(host) {
-			for k, v := range rule.Labels {
-				result[k] = v
-			}
+			maps.Copy(result, rule.Labels)
 		}
 	}
 
