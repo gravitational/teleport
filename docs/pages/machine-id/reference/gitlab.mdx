@@ -59,7 +59,7 @@ spec:
         # project_path restricts joins to jobs that originate within the
         # specified project.
         #
-        # This field supports simple "glob-style" matching:
+        # This field supports glob-style matching:
         # - Use '*' to match zero or more characters.
         # - Use '?' to match any single character.
       - project_path: my-user/my-project
@@ -67,7 +67,7 @@ spec:
         # within the specified namespace. A namespace will either be a username
         # or the name of a group.
         #
-        # This field supports simple "glob-style" matching:
+        # This field supports glob-style matching:
         # - Use '*' to match zero or more characters.
         # - Use '?' to match any single character.
         namespace_path: my-user
@@ -84,7 +84,7 @@ spec:
         # reference. Combine this with `ref_type` to create allow rules that
         # can only be triggered by a specific branch or tag.
         #
-        # This field supports simple "glob-style" matching:
+        # This field supports glob-style matching:
         # - Use '*' to match zero or more characters.
         # - Use '?' to match any single character.
         ref: main
@@ -95,7 +95,7 @@ spec:
         # It is better to use the individual fields, as it is easy to mis-format
         # the sub string.
         #
-        # This field supports simple "glob-style" matching:
+        # This field supports glob-style matching:
         # - Use '*' to match zero or more characters.
         # - Use '?' to match any single character.
         sub: project_path:my-user/my-project:ref_type:branch:ref:main
@@ -115,7 +115,7 @@ spec:
         environment_protected: true
         # ci_config_sha restricts joins to jobs that are using a specific
         # commit of CI configuration.
-        ci_config_sha: ff4713bc047d87bf7eac9674765ae793478c50ff
+        ci_config_sha: ffffffffffffffffffffffffffffffffffffffff
         # ci_config_ref_uri restricts joins to jobs that are using a specific
         # CI configuration source.
         ci_config_ref_uri: gitlab.example.com/my-group/my-project//.gitlab-ci.yml@refs/heads/main
