@@ -22,34 +22,105 @@ import {
 } from 'shared/components/OverrideUserAgent';
 
 import { ContextProvider } from 'teleport';
+import cfg from 'teleport/config';
 import { UserContext } from 'teleport/User/UserContext';
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import { makeDefaultUserPreferences } from 'teleport/services/userPreferences/userPreferences';
 
 import { SetupConnect } from './SetupConnect';
 
-export default {
-  title: 'Teleport/Discover/ConnectMyComputer/SetupConnect',
+const { worker, rest } = window.msw;
+
+const oneDay = 1000 * 60 * 60 * 24;
+
+const setupConnectProps = {
+  prevStep: () => {},
+  nextStep: () => {},
+  // Set high default intervals and timeouts so that stories don't poll for no reason.
+  pingInterval: oneDay,
+  showHintTimeout: oneDay,
 };
 
-export const macOS = () => (
-  <OverrideUserAgent userAgent={UserAgent.macOS}>
-    <Provider>
-      <SetupConnect prevStep={() => {}} />
-    </Provider>
-  </OverrideUserAgent>
-);
+export default {
+  title: 'Teleport/Discover/ConnectMyComputer/SetupConnect',
+  decorators: [
+    Story => {
+      worker.resetHandlers();
+      return <Story />;
+    },
+  ],
+};
 
-export const Linux = () => (
-  <OverrideUserAgent userAgent={UserAgent.Linux}>
+const workerNoNodes = () => {
+  worker.use(
+    rest.get(cfg.api.nodesPath, (req, res, ctx) => res(ctx.json({ items: [] })))
+  );
+};
+
+export const macOS = () => {
+  workerNoNodes();
+  return (
+    <OverrideUserAgent userAgent={UserAgent.macOS}>
+      <Provider>
+        <SetupConnect {...setupConnectProps} />
+      </Provider>
+    </OverrideUserAgent>
+  );
+};
+
+export const Linux = () => {
+  workerNoNodes();
+  return (
+    <OverrideUserAgent userAgent={UserAgent.Linux}>
+      <Provider>
+        <SetupConnect {...setupConnectProps} />
+      </Provider>
+    </OverrideUserAgent>
+  );
+};
+
+export const Polling = () => {
+  workerNoNodes();
+
+  return (
     <Provider>
-      <SetupConnect prevStep={() => {}} />
+      <SetupConnect {...setupConnectProps} />
     </Provider>
-  </OverrideUserAgent>
-);
+  );
+};
+
+export const PollingSuccess = () => {
+  worker.use(
+    rest.get(cfg.api.nodesPath, (req, res, ctx) => {
+      return res(ctx.json({ items: [{ id: '1234', hostname: 'foo' }] }));
+    })
+  );
+  worker.use(
+    rest.get(cfg.api.nodesPath, (req, res, ctx) => {
+      return res.once(ctx.json({ items: [] }));
+    })
+  );
+
+  return (
+    <Provider>
+      <SetupConnect {...setupConnectProps} pingInterval={5} />
+    </Provider>
+  );
+};
+
+export const HintTimeout = () => {
+  workerNoNodes();
+
+  return (
+    <Provider>
+      <SetupConnect {...setupConnectProps} showHintTimeout={1} />
+    </Provider>
+  );
+};
 
 const Provider = ({ children }) => {
   const ctx = createTeleportContext();
+  // The proxy version is set mostly so that the download links point to actual artifacts.
   ctx.storeUser.state.cluster.proxyVersion = '14.1.0';
 
   const preferences = makeDefaultUserPreferences();
