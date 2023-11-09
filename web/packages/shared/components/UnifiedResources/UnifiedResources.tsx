@@ -63,14 +63,12 @@ import {
 import { ResourceTab } from './ResourceTab';
 import { ResourceCard, PinningSupport } from './ResourceCard';
 import { FilterPanel } from './FilterPanel';
-import { LoadingCard } from './CardsLoadingSkeleton';
+import { CardsLoadingSkeleton } from './CardsLoadingSkeleton';
 
 // get 48 resources to start
 const INITIAL_FETCH_SIZE = 48;
 // increment by 24 every fetch
 const FETCH_MORE_SIZE = 24;
-
-const loadingCardArray = new Array(FETCH_MORE_SIZE).fill(undefined);
 
 export const PINNING_NOT_SUPPORTED_MESSAGE =
   'This cluster does not support pinning resources. To enable, upgrade to 14.1 or newer.';
@@ -463,10 +461,9 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
             ))}
           {/* Using index as key here is ok because these elements never change order */}
           {(resourcesFetchAttempt.status === 'processing' ||
-            getPinnedResourcesAttempt.status === 'processing') &&
-            loadingCardArray.map((_, i) => (
-              <LoadingCard delay="short" key={i} />
-            ))}
+            getPinnedResourcesAttempt.status === 'processing') && (
+            <CardsLoadingSkeleton count={FETCH_MORE_SIZE} />
+          )}
         </ResourcesContainer>
       )}
       <div ref={setTrigger} />

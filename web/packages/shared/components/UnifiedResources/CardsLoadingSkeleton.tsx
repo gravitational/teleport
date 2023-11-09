@@ -18,17 +18,15 @@ import React, { useState, useEffect } from 'react';
 import { Flex, Box } from 'design';
 import { ShimmerBox } from 'design/ShimmerBox';
 
-type LoadingCardProps = {
-  delay?: 'none' | 'short' | 'long';
-};
+const DISPLAY_SKELETON_AFTER = 400; // 400 ms
 
-export function LoadingCard({ delay = 'none' }: LoadingCardProps) {
+export function CardsLoadingSkeleton(props: { count: number }) {
   const [canDisplay, setCanDisplay] = useState(false);
 
   useEffect(() => {
     const displayTimeout = setTimeout(() => {
       setCanDisplay(true);
-    }, DelayValueMap[delay]);
+    }, DISPLAY_SKELETON_AFTER);
     return () => {
       clearTimeout(displayTimeout);
     };
@@ -38,6 +36,17 @@ export function LoadingCard({ delay = 'none' }: LoadingCardProps) {
     return null;
   }
 
+  return (
+    <>
+      {new Array(props.count).fill(undefined).map((_, i) => (
+        // Using index as key here is ok because these elements never change order
+        <LoadingCard key={i} />
+      ))}
+    </>
+  );
+}
+
+function LoadingCard() {
   return (
     <Flex gap={2} alignItems="start" height="106px" p={3}>
       {/* Checkbox */}
@@ -68,12 +77,6 @@ export function LoadingCard({ delay = 'none' }: LoadingCardProps) {
     </Flex>
   );
 }
-
-const DelayValueMap = {
-  none: 0,
-  short: 400, // 0.4s;
-  long: 600, // 0.6s;
-};
 
 function randomNum(min: number, max: number) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
