@@ -25,10 +25,12 @@ export enum ManagementSection {
   Activity = 'Activity',
   Billing = 'Billing',
   Clusters = 'Clusters',
+  Permissions = 'Permissions Management',
 }
 
 export const MANAGEMENT_NAVIGATION_SECTIONS = [
   ManagementSection.Access,
+  ManagementSection.Permissions,
   ManagementSection.Identity,
   ManagementSection.Activity,
   ManagementSection.Billing,
