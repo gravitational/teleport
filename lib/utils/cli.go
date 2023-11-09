@@ -203,22 +203,15 @@ func formatErrorWriter(err error, w io.Writer) {
 		fmt.Fprintln(w, certErr)
 		return
 	}
-	// If the error is a trace error, check if it has a user message embedded in
-	// it, if it does, print it, otherwise escape and print the original error.
-	if traceErr, ok := err.(*trace.TraceErr); ok {
-		for _, message := range traceErr.Messages {
-			fmt.Fprintln(w, AllowWhitespace(message))
-		}
-		fmt.Fprintln(w, AllowWhitespace(trace.Unwrap(traceErr).Error()))
+
+	msg := trace.UserMessage(err)
+	// Error can be of type trace.proxyError where error message didn't get captured.
+	if msg == "" {
+		fmt.Fprintln(w, "please check Teleport's log for more details")
 		return
 	}
-	strErr := err.Error()
-	// Error can be of type trace.proxyError where error message didn't get captured.
-	if strErr == "" {
-		fmt.Fprintln(w, "please check Teleport's log for more details")
-	} else {
-		fmt.Fprintln(w, AllowWhitespace(err.Error()))
-	}
+
+	fmt.Fprintln(w, AllowWhitespace(err.Error()))
 }
 
 func formatCertError(err error) string {
