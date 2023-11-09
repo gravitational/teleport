@@ -16,15 +16,9 @@
 
 import React, { ReactElement, useCallback, useMemo } from 'react';
 import styled from 'styled-components';
-import {
-  Box,
-  ButtonBorder,
-  ButtonPrimary,
-  Flex,
-  Label as DesignLabel,
-  Text,
-} from 'design';
+import { Box, ButtonBorder, Flex, Label as DesignLabel, Text } from 'design';
 import * as icons from 'design/Icon';
+import { Cross as CloseIcon } from 'design/Icon';
 import { Highlight } from 'shared/components/Highlight';
 import { Attempt, hasFinished } from 'shared/hooks/useAsync';
 
@@ -873,22 +867,49 @@ function HighlightField(props: {
 
 function FilterButton(props: { text: string; onClick(): void }) {
   return (
-    <ButtonPrimary
-      px={2}
+    <Flex
+      justifyContent="center"
+      alignItems="center"
+      css={`
+        color: ${props => props.theme.colors.buttons.text};
+        background: ${props => props.theme.colors.spotBackground[1]};
+        border-radius: ${props => props.theme.radii[2]}px;
+      `}
+      px="6px"
       size="small"
-      title={props.text}
-      onClick={props.onClick}
     >
+      <CloseIcon
+        color="buttons.text"
+        mr={1}
+        mt="1px"
+        title="Remove filter"
+        onClick={props.onClick}
+        css={`
+          cursor: pointer;
+          border-radius: ${props => props.theme.radii[1]}px;
+
+          :hover {
+            background: ${props => props.theme.colors.spotBackground[1]};
+          }
+
+          > svg {
+            height: 13px;
+            width: 13px;
+          }
+        `}
+      />
       <span
+        title={props.text}
         css={`
           max-width: calc(${props => props.theme.space[9]}px * 2);
           text-overflow: ellipsis;
           white-space: nowrap;
           overflow: hidden;
+          cursor: default;
         `}
       >
         {props.text}
       </span>
-    </ButtonPrimary>
+    </Flex>
   );
 }
