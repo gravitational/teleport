@@ -156,7 +156,7 @@ describe('useResourceSearch', () => {
     expect(appContext.resourcesService.searchResources).toHaveBeenCalledWith({
       clusterUri: cluster.uri,
       search: 'foo',
-      filter: undefined,
+      filters: [],
       limit: 100,
     });
     expect(appContext.resourcesService.searchResources).toHaveBeenCalledTimes(
@@ -187,7 +187,7 @@ describe('useResourceSearch', () => {
     expect(appContext.resourcesService.searchResources).toHaveBeenCalledWith({
       clusterUri: cluster.uri,
       search: '',
-      filter: undefined,
+      filters: [],
       limit: 5,
     });
     expect(appContext.resourcesService.searchResources).toHaveBeenCalledTimes(

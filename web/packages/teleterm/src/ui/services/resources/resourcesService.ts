@@ -16,9 +16,9 @@
 
 import { pluralize } from 'shared/utils/text';
 
-import type { ResourceTypeSearchFilter } from 'teleterm/ui/Search/searchResult';
 import type * as types from 'teleterm/services/tshd/types';
 import type * as uri from 'teleterm/ui/uri';
+import type { SupportedResourceType } from 'teleterm/ui/Search/searchResult';
 
 export class ResourcesService {
   constructor(private tshClient: types.TshClient) {}
@@ -73,14 +73,12 @@ export class ResourcesService {
   async searchResources({
     clusterUri,
     search,
-    filter,
+    filters,
     limit,
   }: {
     clusterUri: uri.ClusterUri;
     search: string;
-    // TODO(ravicious): Accept just `server | database | kube` as searchFilter here, wrap it in a
-    // variant of a discriminated union in searchResult.ts.
-    filter: ResourceTypeSearchFilter | undefined;
+    filters: SupportedResourceType[] | undefined;
     limit: number;
   }): Promise<PromiseSettledResult<SearchResult[]>[]> {
     const params = { search, clusterUri, sort: null, limit };
@@ -115,11 +113,11 @@ export class ResourcesService {
         err => Promise.reject(new ResourceSearchError(clusterUri, 'kube', err))
       );
 
-    const promises = filter
+    const promises = filters?.length
       ? [
-          filter.resourceType === 'servers' && getServers(),
-          filter.resourceType === 'databases' && getDatabases(),
-          filter.resourceType === 'kubes' && getKubes(),
+          filters.includes('servers') && getServers(),
+          filters.includes('databases') && getDatabases(),
+          filters.includes('kubes') && getKubes(),
         ].filter(Boolean)
       : [getServers(), getDatabases(), getKubes()];
 

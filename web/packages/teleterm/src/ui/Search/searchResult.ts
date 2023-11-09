@@ -27,6 +27,8 @@ type ResourceSearchResultBase<
   score: number;
 };
 
+export type SupportedResourceType = 'kubes' | 'servers' | 'databases';
+
 export type SearchResultServer =
   ResourceSearchResultBase<resourcesServiceTypes.SearchResultServer>;
 export type SearchResultDatabase =
@@ -41,7 +43,7 @@ export type SearchResultCluster = {
 };
 export type SearchResultResourceType = {
   kind: 'resource-type-filter';
-  resource: 'kubes' | 'servers' | 'databases';
+  resource: SupportedResourceType;
   nameMatch: string;
   score: number;
 };
@@ -103,7 +105,7 @@ export const searchableFields: {
 
 export interface ResourceTypeSearchFilter {
   filter: 'resource-type';
-  resourceType: 'kubes' | 'servers' | 'databases';
+  resourceType: SupportedResourceType;
 }
 
 export interface ClusterSearchFilter {
@@ -112,3 +114,15 @@ export interface ClusterSearchFilter {
 }
 
 export type SearchFilter = ResourceTypeSearchFilter | ClusterSearchFilter;
+
+export function isResourceTypeSearchFilter(
+  searchFilter: SearchFilter
+): searchFilter is ResourceTypeSearchFilter {
+  return searchFilter.filter === 'resource-type';
+}
+
+export function isClusterSearchFilter(
+  searchFilter: SearchFilter
+): searchFilter is ClusterSearchFilter {
+  return searchFilter.filter === 'cluster';
+}

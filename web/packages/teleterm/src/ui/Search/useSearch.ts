@@ -20,8 +20,8 @@ import { assertUnreachable } from 'teleterm/ui/utils';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 
 import {
-  ClusterSearchFilter,
-  ResourceTypeSearchFilter,
+  isResourceTypeSearchFilter,
+  isClusterSearchFilter,
   SearchFilter,
   LabelMatch,
   mainResourceField,
@@ -87,12 +87,10 @@ export function useResourceSearch() {
         }
       }
 
-      const clusterSearchFilter = filters.find(
-        s => s.filter === 'cluster'
-      ) as ClusterSearchFilter;
-      const resourceTypeSearchFilter = filters.find(
-        s => s.filter === 'resource-type'
-      ) as ResourceTypeSearchFilter;
+      const clusterSearchFilter = filters.find(isClusterSearchFilter);
+      const resourceTypeSearchFilters = filters.filter(
+        isResourceTypeSearchFilter
+      );
 
       const connectedClusters = clustersService
         .getClusters()
@@ -111,7 +109,7 @@ export function useResourceSearch() {
             resourcesService.searchResources({
               clusterUri: cluster.uri,
               search,
-              filter: resourceTypeSearchFilter,
+              filters: resourceTypeSearchFilters.map(f => f.resourceType),
               limit,
             })
           )
@@ -184,7 +182,15 @@ export function useFilterSearch() {
           'servers' as const,
           'databases' as const,
           'kubes' as const,
-        ];
+        ].filter(resourceType => {
+          const isFilterForResourceTypeAdded = filters.some(searchFilter => {
+            return (
+              searchFilter.filter === 'resource-type' &&
+              searchFilter.resourceType === resourceType
+            );
+          });
+          return !isFilterForResourceTypeAdded;
+        });
         if (search) {
           resourceTypes = resourceTypes.filter(resourceType =>
             resourceType.toLowerCase().includes(search.toLowerCase())
@@ -199,22 +205,14 @@ export function useFilterSearch() {
       };
 
       const shouldReturnClusters = !filters.some(r => r.filter === 'cluster');
-      const shouldReturnResourceTypes = !filters.some(
-        r => r.filter === 'resource-type'
-      );
 
-      const results = [
-        shouldReturnResourceTypes && getResourceType(),
-        shouldReturnClusters && getClusters(),
-      ]
+      return [getResourceType(), shouldReturnClusters && getClusters()]
         .filter(Boolean)
         .flat()
         .sort((a, b) => {
           // Highest score first.
           return b.score - a.score;
         });
-
-      return results;
     },
     [clustersService, workspacesService]
   );
