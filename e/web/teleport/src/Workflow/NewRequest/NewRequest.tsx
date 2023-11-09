@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Prompt } from 'react-router';
 import { Transition } from 'react-transition-group';
 import styled from 'styled-components';
@@ -19,11 +19,17 @@ import {
   Info as InfoIcon,
   CircleArrowLeft,
   CircleArrowRight,
+  Magnifier,
+  ListAddCheck,
 } from 'design/Icon';
 import Select from 'shared/components/Select';
 import Link from 'design/Link';
 import { SearchPanel } from 'shared/components/Search';
+import localStorage from 'teleport/services/localStorage';
 import { Attempt } from 'shared/hooks/useAttemptNext';
+import UnifiedSearchPanel from 'teleport/UnifiedResources/SearchPanel';
+import { UnifiedResources } from 'shared/components/UnifiedResources';
+import { TextIcon } from 'teleport/Discover/Shared';
 import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
 import {
   FeatureBox,
@@ -41,11 +47,31 @@ import useTeleportE from 'e-teleport/useTeleportE';
 
 import { ResourceList } from './ResourceList';
 import { RequestCheckout } from './RequestCheckout';
-import { useNewRequest, State, ResourceKind } from './useNewRequest';
+import {
+  useNewRequest,
+  State,
+  getResourceId,
+  ResourceKind,
+} from './useNewRequest';
+import { RequestButton } from './RequestButton';
 
 import type { TransitionStatus } from 'react-transition-group';
 
 const agentOptions: ResourceOption[] = [
+  {
+    value: 'user_group',
+    label: 'user groups',
+  },
+  // Order matters. On initial render
+  // the last element in the options array
+  // will be used. Which can either be 'resource' or 'role'.
+  {
+    value: 'resource',
+    label: 'resources',
+  },
+];
+
+const legacyAgentOptions: ResourceOption[] = [
   {
     value: 'app',
     label: 'applications',
@@ -93,9 +119,15 @@ export default function Container() {
 export function NewRequest(props: State) {
   const {
     isLeafCluster,
+    clusterId,
     attempt,
     agents,
     agentFilter,
+    setAgentFilter,
+    unifiedFetch,
+    unifiedFetchAttempt,
+    resources,
+    addSelectedResources,
     updateQuery,
     updateSearch,
     fetchStatus,
@@ -119,18 +151,23 @@ export function NewRequest(props: State) {
     usage,
     fetchUsage,
   } = props;
+  const unifiedResourcesEnabled = localStorage.areUnifiedResourcesEnabled();
 
   const [showCheckout, setShowCheckout] = useState(false);
-
   // warningConfirm holds the next resource option that will be applied
   // after user agrees to the warning dialogue.
   const [warningConfirm, setWarningConfirm] = useState<ResourceOption>();
 
   // Role based access requests are only allowed in root cluster.
-  const resourceOptions = [...agentOptions];
-  if (!isLeafCluster) {
-    resourceOptions.push(roleOption);
-  }
+  const resourceOptions = useMemo(() => {
+    let options = unifiedResourcesEnabled
+      ? [...agentOptions]
+      : [...legacyAgentOptions];
+    if (!isLeafCluster) {
+      options.push(roleOption);
+    }
+    return options;
+  }, [unifiedResourcesEnabled, isLeafCluster]);
 
   // Load the last option which is either:
   //  - option role if at a root cluster
@@ -138,6 +175,14 @@ export function NewRequest(props: State) {
   const [currResourceOpt, setCurrResourceOpt] = useState(
     resourceOptions[resourceOptions.length - 1]
   );
+
+  useEffect(() => {
+    const newOption = resourceOptions[resourceOptions.length - 1];
+    // if resourceOptions have changed, then unified support has changed.
+    // We need to reset the selected resource
+    setCurrResourceOpt(newOption);
+    updateResourceKind(newOption.value);
+  }, [resourceOptions, updateResourceKind]);
 
   // numAddedResources is the number of resources added to the Access Request without counting roles.
   // Having any of these resources added to the Access Request makes it a Resource Access Request
@@ -205,34 +250,121 @@ export function NewRequest(props: State) {
           )}
         </Flex>
       </FeatureHeader>
-      <Box>
-        {attempt.status === 'failed' && (
-          <ErrorMessage message={attempt.statusText} />
-        )}
-        {addAllFetchAttempt.status === 'failed' && (
-          <ErrorMessage message={addAllFetchAttempt.statusText} />
-        )}
-        {usage && <UsageInfo {...usage} />}
-        {attempt.status !== 'processing' && (
-          <Box width="150px" mb={4} data-testid="resource-selector">
-            <Select
-              value={currResourceOpt}
-              options={resourceOptions}
-              onChange={o => handleOnChangeResourceOption(o as ResourceOption)}
-              isDisabled={fetchStatus === 'loading'}
-              css={`
-                text-transform: capitalize;
-              `}
-            />
+      {attempt.status === 'failed' && (
+        <ErrorMessage message={attempt.statusText} />
+      )}
+      {addAllFetchAttempt.status === 'failed' && (
+        <ErrorMessage message={addAllFetchAttempt.statusText} />
+      )}
+      {usage && <UsageInfo {...usage} />}
+      <Flex justifyContent="space-between" alignItems="center" mb={4}>
+        <Box width="150px" data-testid="resource-selector">
+          <Select
+            value={currResourceOpt}
+            options={resourceOptions}
+            onChange={o => handleOnChangeResourceOption(o as ResourceOption)}
+            isDisabled={false}
+            css={`
+              text-transform: capitalize;
+            `}
+          />
+        </Box>
+        <Flex
+          data-testid="checkout-footer"
+          alignItems="center"
+          justifyContent="space-between"
+        >
+          <Text mr={4} bold>
+            Resources Added ({numTotalSelections})
+          </Text>
+          <Box>
+            {numTotalSelections > 0 && (
+              <ButtonSecondary
+                mr={3}
+                width="165px"
+                onClick={clearAddedResources}
+              >
+                Clear Selections
+              </ButtonSecondary>
+            )}
+            <ButtonPrimary
+              width="182px"
+              onClick={() => setShowCheckout(true)}
+              disabled={numTotalSelections === 0}
+            >
+              Proceed to Request
+            </ButtonPrimary>
           </Box>
-        )}
-        {attempt.status === 'processing' && (
-          <Box textAlign="center" m={10}>
-            <Indicator />
-          </Box>
-        )}
-        {attempt.status !== 'processing' && (
-          <>
+        </Flex>
+      </Flex>
+      {selectedResource === 'resource' ? (
+        <UnifiedResources
+          bulkActions={[
+            {
+              key: 'add_to_resource',
+              action: addSelectedResources,
+              Icon: ListAddCheck,
+              text: 'Add/remove from request',
+            },
+          ]}
+          resources={resources.map(resource => ({
+            resource,
+            ui: {
+              ActionButton: (
+                <RequestButton
+                  isAgentAdded={Boolean(
+                    addedResources[resource.kind][getResourceId(resource)]
+                  )}
+                  toggleAgent={() =>
+                    addOrRemoveResource(resource.kind, getResourceId(resource))
+                  }
+                />
+              ),
+            },
+          }))}
+          fetchResources={unifiedFetch}
+          resourcesFetchAttempt={unifiedFetchAttempt}
+          params={agentFilter}
+          setParams={setAgentFilter}
+          // we don't need to update preferences here because
+          // no resource tabs are rendered
+          updateUnifiedResourcesPreferences={() => {}}
+          pinning={{ kind: 'hidden' }}
+          availableKinds={[
+            'app',
+            'db',
+            'windows_desktop',
+            'kube_cluster',
+            'node',
+          ]}
+          // we only use the SearchPanel in the header because we will need a separate
+          // header that includes the request type dropdown and Proceed to Request button
+          Header={
+            <Flex justifyContent="space-between" alignItems="center">
+              <UnifiedSearchPanel
+                params={agentFilter}
+                setParams={setAgentFilter}
+                // the following two parameters aren't needed as we don't need url
+                // filtering to work inside access requests so we can no-op them
+                pathname={''}
+                replaceHistory={() => {}}
+              />
+            </Flex>
+          }
+          key={clusterId}
+          onLabelClick={onAgentLabelClick}
+          NoResources={
+            <NoResults query={agentFilter?.query || agentFilter?.search} />
+          }
+        />
+      ) : (
+        <Box>
+          {attempt.status === 'processing' && (
+            <Box textAlign="center" m={10}>
+              <Indicator />
+            </Box>
+          )}
+          {attempt.status !== 'processing' && (
             <StyledWrapper>
               {/*roles use client-side search */}
               {!isRoleList && (
@@ -322,71 +454,38 @@ export function NewRequest(props: State) {
                 </StyledPanel>
               )}
             </StyledWrapper>
-            <Flex
-              data-testid="checkout-footer"
-              alignItems="center"
-              justifyContent="space-between"
-              borderRadius={3}
-              p={3}
-              mt={5}
-              css={`
-                background: ${({ theme }) => theme.colors.spotBackground[0]};
-              `}
-            >
-              <Text bold>Resources Added ({numTotalSelections})</Text>
-              <Box>
-                {numTotalSelections > 0 && (
-                  <ButtonSecondary
-                    mr={3}
-                    width="165px"
-                    onClick={() => clearAddedResources()}
-                  >
-                    Clear Selections
-                  </ButtonSecondary>
-                )}
-                <ButtonPrimary
-                  width="182px"
-                  onClick={() => setShowCheckout(true)}
-                  disabled={
-                    numTotalSelections === 0 || fetchStatus === 'loading'
-                  }
-                >
-                  Proceed to Request
-                </ButtonPrimary>
-              </Box>
-            </Flex>
-          </>
-        )}
-        <Transition in={showCheckout} timeout={300} mountOnEnter unmountOnExit>
-          {transitionState => (
-            <RequestCheckout
-              addedResources={addedResources}
-              onClose={() => {
-                setShowCheckout(false);
-                fetchUsage();
-              }}
-              toggleResource={addOrRemoveResource}
-              transitionState={transitionState}
-              reset={clearAddedResources}
-              selectedResource={selectedResource}
-              isResourceRequest={isResourceRequest}
-            />
           )}
-        </Transition>
-        {/* This is a react-router provided prompt when it detects route change.
-         * Used when user navigates away or changes cluster (which changes the route).
-         */}
-        <Prompt
-          when={numTotalSelections > 0}
-          message={location => {
-            if (location.pathname.endsWith('/requests/new')) {
-              return `Resources from different clusters cannot be combined in an access request. Current items selected will be cleared. Are you sure you want to continue?`;
-            } else {
-              return `${numTotalSelections} item(s) selected for a new access request will be cleared if you leave this page. Are you sure you want to continue?`;
-            }
-          }}
-        />
-      </Box>
+        </Box>
+      )}
+      <Transition in={showCheckout} timeout={300} mountOnEnter unmountOnExit>
+        {transitionState => (
+          <RequestCheckout
+            addedResources={addedResources}
+            onClose={() => {
+              setShowCheckout(false);
+              fetchUsage();
+            }}
+            toggleResource={addOrRemoveResource}
+            transitionState={transitionState}
+            reset={clearAddedResources}
+            selectedResource={selectedResource}
+            isResourceRequest={isResourceRequest}
+          />
+        )}
+      </Transition>
+      {/* This is a react-router provided prompt when it detects route change.
+       * Used when user navigates away or changes cluster (which changes the route).
+       */}
+      <Prompt
+        when={numTotalSelections > 0}
+        message={location => {
+          if (location.pathname.endsWith('/requests/new')) {
+            return `Resources from different clusters cannot be combined in an access request. Current items selected will be cleared. Are you sure you want to continue?`;
+          } else {
+            return `${numTotalSelections} item(s) selected for a new access request will be cleared if you leave this page. Are you sure you want to continue?`;
+          }
+        }}
+      />
     </FeatureBox>
   );
 }
@@ -512,14 +611,13 @@ function AddAllPagesPanel({
 }
 
 function UsageInfo(usage: { limit: number; used: number }) {
+  const ctx = useTeleportE();
   // limit will be 0 if not using usage-based billing
   if (!usage.limit) {
     return null;
   }
 
   const limitReached = usageLimitReached(usage);
-
-  const ctx = useTeleportE();
 
   const getSalesLink = () => {
     const version = ctx.storeUser.state.cluster.authVersion;
@@ -641,3 +739,33 @@ type ResourceOption = {
   value: ResourceKind;
   label: string;
 };
+
+function NoResults({ query }: { query: string }) {
+  // Prevent `No resources were found for ""` flicker.
+  if (query) {
+    return (
+      <Box p={8} mt={3} mx="auto" maxWidth="720px" textAlign="center">
+        <TextIcon typography="h3">
+          <Magnifier />
+          No resources were found for&nbsp;
+          <Text
+            as="span"
+            bold
+            css={`
+              max-width: 270px;
+              overflow: hidden;
+              text-overflow: ellipsis;
+            `}
+          >
+            {query}
+          </Text>
+        </TextIcon>
+      </Box>
+    );
+  }
+  return (
+    <Box p={8} mt={3} mx="auto" maxWidth="720px" textAlign="center">
+      <Text typography="h3">No requestable resources were found.</Text>
+    </Box>
+  );
+}

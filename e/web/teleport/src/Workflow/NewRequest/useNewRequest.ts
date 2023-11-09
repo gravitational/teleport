@@ -1,6 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { FetchStatus, SortType, Page } from 'design/DataTable/types';
 import useAttempt from 'shared/hooks/useAttemptNext';
+import { SharedUnifiedResource } from 'shared/components/UnifiedResources/types';
+import { useUnifiedResourcesFetch } from 'shared/components/UnifiedResources';
 import useStickyClusterId from 'teleport/useStickyClusterId';
 
 import { App } from 'teleport/services/apps';
@@ -9,6 +11,7 @@ import { Kube } from 'teleport/services/kube';
 import { Database } from 'teleport/services/databases';
 import { Node } from 'teleport/services/nodes';
 import { UserGroup } from 'teleport/services/userGroups';
+import { KeysEnum } from 'teleport/services/localStorage';
 
 import cfg from 'teleport/config';
 
@@ -42,6 +45,7 @@ export function useNewRequest(ctx: Ctx) {
 
   const [page, setPage] = useState<Page>({ keys: [], index: 0 });
   const [agentFilter, setAgentFilter] = useState<ResourceFilter>({
+    searchAsRoles: 'yes',
     sort: getDefaultSort(selectedResource),
   });
 
@@ -75,12 +79,71 @@ export function useNewRequest(ctx: Ctx) {
 
   useEffect(fetchUsage, []);
 
+  // TODO (avatus) DELETE IN 15
+  // Beacuse we need to rerender our options/view for access requests based on this key, we need to remove
+  // this key and let the component fetch/re-set the value based on the response. Generally, this would be handled
+  // when the cluster selector is updated but if we select a leaf cluster and then click "New Request" in the navigation
+  // menu again, the cluster ID changes without interacting with the cluster selector in the TopBar. This catches that behavior
   useEffect(() => {
+    window.localStorage.removeItem(KeysEnum.UNIFIED_RESOURCES_NOT_SUPPORTED);
+  }, [clusterId]);
+
+  const {
+    fetch: unifiedFetch,
+    resources,
+    attempt: unifiedFetchAttempt,
+    clear,
+  } = useUnifiedResourcesFetch({
+    fetchFunc: useCallback(
+      async (paginationParams, signal) => {
+        try {
+          const response = await ctx.resourceService.fetchUnifiedResources(
+            clusterId,
+            {
+              search: agentFilter.search,
+              query: agentFilter.query,
+              sort: agentFilter.sort,
+              kinds: agentFilter.kinds,
+              searchAsRoles: 'yes',
+              limit: paginationParams.limit,
+              startKey: paginationParams.startKey,
+            },
+            signal
+          );
+
+          return {
+            startKey: response.startKey,
+            agents: response.agents,
+            totalCount: response.agents.length,
+          };
+        } catch (err) {
+          // unified resources are not implemented on the cluster. We ignore
+          // the error because the view is going to change anyway. Throw everything else
+          if (err?.response?.status === 404 || err?.response?.status === 501) {
+            return {
+              startKey: '',
+              agents: [],
+              totalCount: 0,
+            };
+          }
+          throw err;
+        }
+      },
+      [clusterId, agentFilter, ctx.resourceService]
+    ),
+  });
+
+  useEffect(() => {
+    clear();
     // No need to fetch anything for roles, it
     // already comes in a list from user context fetch.
+    // Also, we skip fetching resources for "resource" (unified resources)
+    // because we fetch it separately using the infinite scroll
     if (selectedResource === 'role') return;
-    fetch();
-  }, [agentFilter, clusterId]);
+    if (selectedResource !== 'resource') {
+      fetch();
+    }
+  }, [selectedResource, clear, clusterId, agentFilter]);
 
   useEffect(() => {
     // We cannot mix root and leaf cluster resources.
@@ -88,6 +151,7 @@ export function useNewRequest(ctx: Ctx) {
     setFetchedData(getEmptyFetchedDataState());
     clearAddedResources();
     setAgentFilter({
+      searchAsRoles: 'yes',
       sort: getDefaultSort(selectedResource),
     });
   }, [clusterId]);
@@ -139,26 +203,29 @@ export function useNewRequest(ctx: Ctx) {
     setAddedResources(getEmptyResourceState());
   }
 
-  function updateResourceKind(kind: ResourceKind) {
-    setSelectedResource(kind);
-
-    if (kind !== 'role') {
-      // When switching to a new agent kind, reset agent filters.
+  const updateResourceKind = useCallback(
+    (kind: ResourceKind) => {
+      setSelectedResource(kind);
       setAgentFilter({
+        searchAsRoles: 'yes',
         sort: getDefaultSort(kind),
         search: '',
         query: '',
       });
 
-      // useEffect is used to use the latest changes
-      // and re-fetch. We set the attempt here
-      // to prevent a brief re-rendering of the table
-      // with stale data before useEffect kicks in.
-      setAttempt({ status: 'processing' });
-
-      return;
-    }
-  }
+      // because the role table is client side, we don't need to render
+      // a loading indicator
+      if (kind === 'role') {
+        setAttempt({ status: 'success' });
+      } else {
+        // We set the attempt here to prevent a brief re-rendering of
+        // the user_group table with state data before useEffect kicks in.
+        // The unified resources table fetches on it's own with infinite scroll.
+        setAttempt({ status: 'processing' });
+      }
+    },
+    [setAttempt]
+  );
 
   // addOrRemoveResource adds the resource if it doesn't exist already in the map.
   // Else removes it. "resourceName" is optional, if not provided, it is assumed that
@@ -188,6 +255,32 @@ export function useNewRequest(ctx: Ctx) {
       windows_desktop: { ...addedResources.windows_desktop },
       role: { ...addedResources.role },
     });
+  }
+
+  function getAgentsFetchCallback(ctx: Ctx, resourceType: ResourceKind) {
+    if (resourceType === 'app') {
+      return ctx.appService.fetchApps;
+    }
+
+    if (resourceType === 'db') {
+      return ctx.databaseService.fetchDatabases;
+    }
+
+    if (resourceType === 'node') {
+      return ctx.nodeService.fetchNodes;
+    }
+
+    if (resourceType === 'kube_cluster') {
+      return ctx.kubeService.fetchKubernetes;
+    }
+
+    if (resourceType === 'windows_desktop') {
+      return ctx.desktopService.fetchDesktops;
+    }
+
+    if (resourceType === 'user_group') {
+      return ctx.userGroupService.fetchUserGroups;
+    }
   }
 
   function fetch() {
@@ -512,17 +605,52 @@ export function useNewRequest(ctx: Ctx) {
     totalCount = requestableRoles.length;
   }
 
+  const addSelectedResources = (
+    resources: {
+      unifiedResourceId: string;
+      resource: SharedUnifiedResource['resource'];
+    }[]
+  ) => {
+    const allAdded = resources.every(
+      ({ resource }) => addedResources[resource.kind]?.[getResourceId(resource)]
+    );
+
+    let newMap = { ...addedResources };
+    if (allAdded) {
+      resources.forEach(({ resource }) => {
+        const key = getResourceId(resource);
+        const kind = resource.kind;
+        delete newMap[kind][key];
+      });
+      setAddedResources(newMap);
+      return;
+    }
+
+    resources.forEach(({ resource }) => {
+      const key = getResourceId(resource);
+      const kind = resource.kind;
+      newMap[kind][key] = key;
+    });
+    setAddedResources(newMap);
+  };
+
   return {
     isLeafCluster,
     attempt,
     agents: fetchedData.agents,
     agentFilter,
+    setAgentFilter,
+    clusterId,
+    addSelectedResources,
     updateSort,
     updateQuery,
     updateSearch,
     fetchStatus,
     onAgentLabelClick,
     selectedResource,
+    resources,
+    unifiedFetch,
+    unifiedFetchAttempt,
     updateResourceKind,
     addedResources,
     addOrRemoveResource,
@@ -572,32 +700,6 @@ function getEmptyFetchedDataState() {
   };
 }
 
-function getAgentsFetchCallback(ctx: Ctx, resourceType: ResourceKind) {
-  if (resourceType === 'app') {
-    return ctx.appService.fetchApps;
-  }
-
-  if (resourceType === 'db') {
-    return ctx.databaseService.fetchDatabases;
-  }
-
-  if (resourceType === 'node') {
-    return ctx.nodeService.fetchNodes;
-  }
-
-  if (resourceType === 'kube_cluster') {
-    return ctx.kubeService.fetchKubernetes;
-  }
-
-  if (resourceType === 'windows_desktop') {
-    return ctx.desktopService.fetchDesktops;
-  }
-
-  if (resourceType === 'user_group') {
-    return ctx.userGroupService.fetchUserGroups;
-  }
-}
-
 function addAgentLabelToQuery(filter: ResourceFilter, label: ResourceLabel) {
   const queryParts = [];
 
@@ -642,10 +744,17 @@ type AddedAll = {
 
 // ResourceKind describes resource kind's for both a search based access
 // request and "role" based access request.
-export type ResourceKind = ResourceIdKind | 'role';
+export type ResourceKind = ResourceIdKind | 'role' | 'resource';
 
 export type ResourceMap = {
-  [K in ResourceKind]: Record<string, string>;
+  [K in ResourceIdKind | 'role']: Record<string, string>;
 };
 
 export type State = ReturnType<typeof useNewRequest>;
+
+export function getResourceId(resource: SharedUnifiedResource['resource']) {
+  if (resource.kind === 'node') {
+    return resource.id;
+  }
+  return resource.name;
+}
