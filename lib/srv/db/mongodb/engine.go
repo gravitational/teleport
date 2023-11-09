@@ -212,13 +212,18 @@ func (e *Engine) authorizeConnection(ctx context.Context, sessionCtx *common.Ses
 	}
 
 	state := sessionCtx.GetAccessState(authPref)
-	// Only the username is checked upon initial connection. MongoDB sends
-	// database name with each protocol message (for query, update, etc.)
-	// so it is checked when we receive a message from client.
+	dbRoleMatchers := role.GetDatabaseRoleMatchers(role.RoleMatchersConfig{
+		Database:     sessionCtx.Database,
+		DatabaseUser: sessionCtx.DatabaseUser,
+		// Only the username is checked upon initial connection. MongoDB sends
+		// database name with each protocol message (for query, update, etc.) so it
+		// is checked when we receive a message from client.
+		DisableDatabaseNameMatcher: true,
+	})
 	err = sessionCtx.Checker.CheckAccess(
 		sessionCtx.Database,
 		state,
-		services.NewDatabaseUserMatcher(sessionCtx.Database, sessionCtx.DatabaseUser),
+		dbRoleMatchers...,
 	)
 	if err != nil {
 		e.Audit.OnSessionStart(e.Context, sessionCtx, err)
@@ -263,13 +268,17 @@ func (e *Engine) checkClientMessage(sessionCtx *common.Session, message protocol
 	case "authenticate", "saslStart", "saslContinue", "logout":
 		return trace.AccessDenied("access denied")
 	}
+
 	// Otherwise authorize the command against allowed databases.
-	return sessionCtx.Checker.CheckAccess(sessionCtx.Database,
+	return sessionCtx.Checker.CheckAccess(
+		sessionCtx.Database,
 		services.AccessState{MFAVerified: true},
-		role.DatabaseRoleMatchers(
-			sessionCtx.Database,
-			sessionCtx.DatabaseUser,
-			database)...)
+		role.GetDatabaseRoleMatchers(role.RoleMatchersConfig{
+			Database:     sessionCtx.Database,
+			DatabaseUser: sessionCtx.DatabaseUser,
+			DatabaseName: database,
+		})...,
+	)
 }
 
 func (e *Engine) waitForAnyClientMessage(clientConn net.Conn) protocol.Message {
