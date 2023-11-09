@@ -63,11 +63,9 @@ func pushPipelines() []pipeline {
 		},
 	}))
 
-	// Only amd64 Windows is supported for now.
-	ps = append(ps, ghaLinuxPushPipeline(buildType{os: "windows", arch: "amd64", windowsUnsigned: true}))
+	ps = append(ps, ghaWindowsPushPipeline())
 
 	ps = append(ps, darwinPushPipelineGHA())
-	ps = append(ps, windowsPushPipeline())
 	return ps
 }
 
