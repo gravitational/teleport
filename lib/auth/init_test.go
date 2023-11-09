@@ -1283,7 +1283,7 @@ const (
 	userYAML = `kind: user
 version: v2
 metadata:
-  name: joe
+  name: myuser
 spec:
   roles: ["admin"]`
 	tokenYAML = `kind: token
@@ -1298,6 +1298,35 @@ spec:
   github:
     allow:
       - repository: gravitational/example`
+	roleYAML = `kind: role
+version: v7
+metadata:
+  name: admin
+  expires: "3000-01-01T00:00:00Z"
+spec:
+  allow:
+    logins: ['admin']
+    kubernetes_groups: ['edit']
+    node_labels:
+      '*': '*'
+    kubernetes_labels:
+      '*': '*'
+    kubernetes_resources:
+      - kind: '*'
+        namespace: '*'
+        name: '*'
+        verbs: ['*']`
+	lockYAML = `
+kind: lock
+version: v2
+metadata:
+  name: b1c785d8-8165-41fc-8dd6-252d534334d3
+spec:
+  created_at: "2023-11-07T18:44:35.361806Z"
+  created_by: Admin
+  target:
+    user: myuser
+`
 )
 
 func TestInit_ApplyOnStartup(t *testing.T) {
@@ -1305,6 +1334,8 @@ func TestInit_ApplyOnStartup(t *testing.T) {
 
 	user := resourceFromYAML(t, userYAML).(types.User)
 	token := resourceFromYAML(t, tokenYAML).(types.ProvisionToken)
+	role := resourceFromYAML(t, roleYAML).(types.Role)
+	lock := resourceFromYAML(t, lockYAML).(types.Lock)
 
 	tests := []struct {
 		name         string
@@ -1314,7 +1345,10 @@ func TestInit_ApplyOnStartup(t *testing.T) {
 		{
 			name: "Apply unsupported resource",
 			modifyConfig: func(cfg *InitConfig) {
+				cfg.ApplyOnStartupResources = append(cfg.ApplyOnStartupResources, lock)
 				cfg.ApplyOnStartupResources = append(cfg.ApplyOnStartupResources, user)
+				cfg.ApplyOnStartupResources = append(cfg.ApplyOnStartupResources, role)
+				cfg.ApplyOnStartupResources = append(cfg.ApplyOnStartupResources, token)
 			},
 			assertError: require.Error,
 		},
@@ -1322,6 +1356,37 @@ func TestInit_ApplyOnStartup(t *testing.T) {
 			name: "Apply ProvisionToken",
 			modifyConfig: func(cfg *InitConfig) {
 				cfg.ApplyOnStartupResources = append(cfg.ApplyOnStartupResources, token)
+			},
+			assertError: require.NoError,
+		},
+		{
+			name: "Apply User (invalid, missing role)",
+			modifyConfig: func(cfg *InitConfig) {
+				cfg.ApplyOnStartupResources = append(cfg.ApplyOnStartupResources, user)
+			},
+			assertError: require.Error,
+		},
+		// We test both user+role and role+user to validate that ordering doesn't matter
+		{
+			name: "Apply User+Role",
+			modifyConfig: func(cfg *InitConfig) {
+				cfg.ApplyOnStartupResources = append(cfg.ApplyOnStartupResources, user)
+				cfg.ApplyOnStartupResources = append(cfg.ApplyOnStartupResources, role)
+			},
+			assertError: require.NoError,
+		},
+		{
+			name: "Apply Role+User",
+			modifyConfig: func(cfg *InitConfig) {
+				cfg.ApplyOnStartupResources = append(cfg.ApplyOnStartupResources, user)
+				cfg.ApplyOnStartupResources = append(cfg.ApplyOnStartupResources, role)
+			},
+			assertError: require.NoError,
+		},
+		{
+			name: "Apply Role",
+			modifyConfig: func(cfg *InitConfig) {
+				cfg.ApplyOnStartupResources = append(cfg.ApplyOnStartupResources, role)
 			},
 			assertError: require.NoError,
 		},

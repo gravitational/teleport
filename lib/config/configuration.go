@@ -25,6 +25,7 @@ import (
 	"errors"
 	"io"
 	stdlog "log"
+	"maps"
 	"net"
 	"net/url"
 	"os"
@@ -1301,10 +1302,7 @@ func applySSHConfig(fc *FileConfig, cfg *servicecfg.Config) (err error) {
 		cfg.SSH.Addr = *addr
 	}
 	if fc.SSH.Labels != nil {
-		cfg.SSH.Labels = make(map[string]string)
-		for k, v := range fc.SSH.Labels {
-			cfg.SSH.Labels[k] = v
-		}
+		cfg.SSH.Labels = maps.Clone(fc.SSH.Labels)
 	}
 	if fc.SSH.Commands != nil {
 		cfg.SSH.CmdLabels = make(services.CommandLabels)
@@ -1567,10 +1565,7 @@ func applyKubeConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		cfg.Kube.KubeClusterName = fc.Kube.KubeClusterName
 	}
 	if fc.Kube.StaticLabels != nil {
-		cfg.Kube.StaticLabels = make(map[string]string)
-		for k, v := range fc.Kube.StaticLabels {
-			cfg.Kube.StaticLabels[k] = v
-		}
+		cfg.Kube.StaticLabels = maps.Clone(fc.Kube.StaticLabels)
 	}
 	if fc.Kube.DynamicLabels != nil {
 		cfg.Kube.DynamicLabels = make(services.CommandLabels)
@@ -2009,10 +2004,7 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	cfg.WindowsDesktop.HostLabels = servicecfg.NewHostLabelRules(hlrs...)
 
 	if fc.WindowsDesktop.Labels != nil {
-		cfg.WindowsDesktop.Labels = make(map[string]string)
-		for k, v := range fc.WindowsDesktop.Labels {
-			cfg.WindowsDesktop.Labels[k] = v
-		}
+		cfg.WindowsDesktop.Labels = maps.Clone(fc.WindowsDesktop.Labels)
 	}
 
 	return nil

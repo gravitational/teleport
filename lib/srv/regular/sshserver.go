@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"net"
 	"os"
 	"os/user"
@@ -1035,21 +1036,16 @@ func (s *Server) getRole() types.SystemRole {
 func (s *Server) getStaticLabels() map[string]string {
 	labels := make(map[string]string, len(s.labels))
 	if s.cloudLabels != nil {
-		for k, v := range s.cloudLabels.Get() {
-			labels[k] = v
-		}
+		maps.Copy(labels, s.cloudLabels.Get())
 	}
 	// Let labels sent over ics override labels from instance metadata.
 	if s.inventoryHandle != nil {
-		for k, v := range s.inventoryHandle.GetUpstreamLabels(proto.LabelUpdateKind_SSHServerCloudLabels) {
-			labels[k] = v
-		}
+		maps.Copy(labels, s.inventoryHandle.GetUpstreamLabels(proto.LabelUpdateKind_SSHServerCloudLabels))
 	}
 
 	// Let static labels override any other labels.
-	for k, v := range s.labels {
-		labels[k] = v
-	}
+	maps.Copy(labels, s.labels)
+
 	return labels
 }
 

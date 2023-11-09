@@ -22,23 +22,21 @@ import path from 'node:path';
 import { RootClusterUri, routing } from 'teleterm/ui/uri';
 import { RuntimeSettings } from 'teleterm/mainProcess/types';
 
-import type * as tsh from 'teleterm/services/tshd/types';
-
-export interface AgentConfigFileClusterProperties {
+export interface CreateAgentConfigFileArgs {
   rootClusterUri: RootClusterUri;
   proxy: string;
   token: string;
-  labels: tsh.Label[];
+  username: string;
 }
 
 export async function createAgentConfigFile(
   runtimeSettings: RuntimeSettings,
-  clusterProperties: AgentConfigFileClusterProperties
+  args: CreateAgentConfigFileArgs
 ): Promise<void> {
   const asyncExecFile = promisify(execFile);
   const { configFile, dataDirectory } = generateAgentConfigPaths(
     runtimeSettings,
-    clusterProperties.rootClusterUri
+    args.rootClusterUri
   );
 
   // remove the config file if exists
@@ -50,6 +48,13 @@ export async function createAgentConfigFile(
     }
   }
 
+  const labels = Object.entries({
+    // TODO(ravicious): Move this to a JavaScript version of constants.go.
+    'teleport.dev/connect-my-computer/owner': args.username,
+  })
+    .map(keyAndValue => keyAndValue.join('='))
+    .join(',');
+
   await asyncExecFile(
     runtimeSettings.agentBinaryPath,
     [
@@ -57,9 +62,9 @@ export async function createAgentConfigFile(
       'configure',
       `--output=${configFile}`,
       `--data-dir=${dataDirectory}`,
-      `--proxy=${clusterProperties.proxy}`,
-      `--token=${clusterProperties.token}`,
-      `--labels=${clusterProperties.labels.map(toNameAndValue).join(',')}`,
+      `--proxy=${args.proxy}`,
+      `--token=${args.token}`,
+      `--labels=${labels}`,
     ],
     {
       timeout: 10_000, // 10 seconds
@@ -160,8 +165,4 @@ function getAgentDirectoryOrThrow(
     throw new Error(`The agent config path is incorrect: ${resolved}`);
   }
   return resolved;
-}
-
-function toNameAndValue(label: tsh.Label): string {
-  return `${label.name}=${label.value}`;
 }

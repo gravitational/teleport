@@ -336,7 +336,7 @@ func TestUpdateUser(t *testing.T) {
 	updated, err := env.UpdateUser(ctx, &userspb.UpdateUserRequest{User: llama.(*types.UserV2)})
 	assert.Error(t, err, "duplicate user was created successfully")
 	assert.Nil(t, updated, "received unexpected user")
-	require.True(t, trace.IsNotFound(err), "updated nonexistent user")
+	require.True(t, trace.IsCompareFailed(err), "updated nonexistent user")
 
 	// Create a new user.
 	created, err := env.CreateUser(ctx, &userspb.CreateUserRequest{User: llama.(*types.UserV2)})
