@@ -179,7 +179,6 @@ func (e *Engine) isUserActive(ctx context.Context, sessionCtx *common.Session, c
 				"db":   externalDatabaseName,
 			},
 		}},
-		{Key: "comment", Value: runCommandComment},
 	}).Decode(&resp)
 	if err != nil {
 		return false, trace.Wrap(err)
@@ -209,18 +208,11 @@ func (e *Engine) getUser(ctx context.Context, sessionCtx *common.Session, client
 		Users []user `bson:"users"`
 	}
 
-	var cmd bson.D
+	cmd := bson.D{
+		{Key: "usersInfo", Value: x509Username(sessionCtx)},
+	}
 	if e.isShowCustomDataSupported(ctx, client) {
-		cmd = bson.D{
-			{Key: "usersInfo", Value: x509Username(sessionCtx)},
-			{Key: "showCustomData", Value: true},
-			{Key: "comment", Value: runCommandComment},
-		}
-	} else {
-		cmd = bson.D{
-			{Key: "usersInfo", Value: x509Username(sessionCtx)},
-			{Key: "comment", Value: runCommandComment},
-		}
+		cmd = append(cmd, bson.E{Key: "showCustomData", Value: true})
 	}
 
 	err := client.Database(externalDatabaseName).RunCommand(ctx, cmd).Decode(&resp)
@@ -247,7 +239,6 @@ func (e *Engine) createUser(ctx context.Context, sessionCtx *common.Session, cli
 		{Key: "roles", Value: userRoles},
 		{Key: "customData", Value: userCustomData{TeleportAutoUser: true}},
 		{Key: "authenticationRestrictions", Value: []userAuthRestriction{}},
-		{Key: "comment", Value: runCommandComment},
 	}).Err())
 }
 
@@ -257,7 +248,6 @@ func (e *Engine) updateUser(ctx context.Context, sessionCtx *common.Session, cli
 		{Key: "updateUser", Value: x509Username(sessionCtx)},
 		{Key: "roles", Value: userRoles},
 		{Key: "authenticationRestrictions", Value: authRestrictions},
-		{Key: "comment", Value: runCommandComment},
 	}).Err())
 }
 
@@ -265,7 +255,6 @@ func (e *Engine) dropUser(ctx context.Context, sessionCtx *common.Session, clien
 	logrus.Debugf("Dropping user %q.", sessionCtx.DatabaseUser)
 	return trace.Wrap(client.Database(externalDatabaseName).RunCommand(ctx, bson.D{
 		{Key: "dropUser", Value: x509Username(sessionCtx)},
-		{Key: "comment", Value: runCommandComment},
 	}).Err())
 }
 
@@ -294,9 +283,6 @@ const (
 	// adminDatabaseName is the name of the "admin" database that "currentOp"
 	// command runs at.
 	adminDatabaseName = "admin"
-	// runCommandComment is a comment used in "runCommand" calls to identify
-	// the commands are run by Teleport.
-	runCommandComment = "by Teleport Database Service"
 	// lockedClientSource is the client source used for authentication
 	// restrictions to ensure users cannot login when deactivated.
 	lockedClientSource = "0.0.0.0"

@@ -220,7 +220,6 @@ func (c *basicAdminClient) ServerVersion(ctx context.Context) (*semver.Version, 
 		}{}
 		c.serverVersionError = c.Database(externalDatabaseName).RunCommand(ctx, bson.D{
 			{Key: "buildInfo", Value: true},
-			{Key: "comment", Value: runCommandComment},
 		}).Decode(&resp)
 		if c.serverVersionError != nil {
 			return
