@@ -30,13 +30,24 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/common"
 )
 
+func (e *Engine) connectAsAdmin(ctx context.Context, sessionCtx *common.Session) (*pgx.Conn, error) {
+	// Log into GetAdminUser().DefaultDatabase if specified, otherwise use
+	// database name from db route.
+	loginDatabase := sessionCtx.DatabaseName
+	if sessionCtx.Database.GetAdminUser().DefaultDatabase != "" {
+		loginDatabase = sessionCtx.Database.GetAdminUser().DefaultDatabase
+	}
+	conn, err := e.pgxConnect(ctx, sessionCtx.WithUserAndDatabase(sessionCtx.Database.GetAdminUser().Name, loginDatabase))
+	return conn, trace.Wrap(err)
+}
+
 // ActivateUser creates or enables the database user.
 func (e *Engine) ActivateUser(ctx context.Context, sessionCtx *common.Session) error {
 	if sessionCtx.Database.GetAdminUser().Name == "" {
 		return trace.BadParameter("Teleport does not have admin user configured for this database")
 	}
 
-	conn, err := e.pgxConnect(ctx, sessionCtx.WithUser(sessionCtx.Database.GetAdminUser().Name))
+	conn, err := e.connectAsAdmin(ctx, sessionCtx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -72,7 +83,7 @@ func (e *Engine) DeactivateUser(ctx context.Context, sessionCtx *common.Session)
 		return trace.BadParameter("Teleport does not have admin user configured for this database")
 	}
 
-	conn, err := e.pgxConnect(ctx, sessionCtx.WithUser(sessionCtx.Database.GetAdminUser().Name))
+	conn, err := e.connectAsAdmin(ctx, sessionCtx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -94,7 +105,7 @@ func (e *Engine) DeleteUser(ctx context.Context, sessionCtx *common.Session) err
 		return trace.BadParameter("Teleport does not have admin user configured for this database")
 	}
 
-	conn, err := e.pgxConnect(ctx, sessionCtx.WithUser(sessionCtx.Database.GetAdminUser().Name))
+	conn, err := e.connectAsAdmin(ctx, sessionCtx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
