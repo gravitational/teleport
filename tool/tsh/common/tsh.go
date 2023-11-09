@@ -1425,6 +1425,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = deviceCmd.keyget.run(&cf)
 	case deviceCmd.activateCredential.FullCommand():
 		err = deviceCmd.activateCredential.run(&cf)
+	case deviceCmd.dmiRead.FullCommand():
+		err = deviceCmd.dmiRead.run(&cf)
 	case kubectl.FullCommand():
 		idx := slices.Index(args, kubectl.FullCommand())
 		err = onKubectlCommand(&cf, args, args[idx:])

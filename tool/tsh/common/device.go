@@ -15,7 +15,9 @@
 package common
 
 import (
+	"encoding/json"
 	"fmt"
+	"os"
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
@@ -26,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/lib/devicetrust"
 	"github.com/gravitational/teleport/lib/devicetrust/enroll"
 	dtnative "github.com/gravitational/teleport/lib/devicetrust/native"
+	"github.com/gravitational/teleport/lib/linux"
 )
 
 type deviceCommand struct {
@@ -39,6 +42,10 @@ type deviceCommand struct {
 	// activateCredential is a hidden command invoked on an elevated child
 	// process
 	activateCredential *deviceActivateCredentialCommand
+
+	// dmiRead is a hidden command invoked on an elevated child to read the
+	// device's DMI information.
+	dmiRead *deviceDMIReadCommand
 }
 
 func newDeviceCommand(app *kingpin.Application) *deviceCommand {
@@ -48,6 +55,7 @@ func newDeviceCommand(app *kingpin.Application) *deviceCommand {
 		assetTag:           &deviceAssetTagCommand{},
 		keyget:             &deviceKeygetCommand{},
 		activateCredential: &deviceActivateCredentialCommand{},
+		dmiRead:            &deviceDMIReadCommand{},
 	}
 
 	// "tsh device" command.
@@ -67,6 +75,8 @@ func newDeviceCommand(app *kingpin.Application) *deviceCommand {
 	root.collect.CmdClause = parentCmd.Command("collect", "Simulate enroll/authn device data collection").Hidden()
 	root.assetTag.CmdClause = parentCmd.Command("asset-tag", "Print the detected device asset tag").Hidden()
 	root.keyget.CmdClause = parentCmd.Command("keyget", "Get information about the device key").Hidden()
+
+	// Windows TPM hidden support commands.
 	root.activateCredential.CmdClause = parentCmd.Command("tpm-activate-credential", "").Hidden()
 	root.activateCredential.Flag("encrypted-credential", "").
 		Required().
@@ -74,6 +84,10 @@ func newDeviceCommand(app *kingpin.Application) *deviceCommand {
 	root.activateCredential.Flag("encrypted-credential-secret", "").
 		Required().
 		StringVar(&root.activateCredential.encryptedCredentialSecret)
+
+	// Linux TPM hidden support commands.
+	root.dmiRead.CmdClause = parentCmd.Command("dmi-read", "Read device DMI information").Hidden()
+
 	return root
 }
 
@@ -232,4 +246,20 @@ func (c *deviceActivateCredentialCommand) run(cf *CLIConf) error {
 		_, _ = fmt.Scanln()
 	}
 	return trace.Wrap(err)
+}
+
+type deviceDMIReadCommand struct {
+	*kingpin.CmdClause
+}
+
+func (c *deviceDMIReadCommand) run(cf *CLIConf) error {
+	dmiInfo, err := linux.DMIInfoFromSysfs()
+	if err != nil {
+		log.WithError(err).Warn("Device Trust: Failed to read DMI information")
+		// err swallowed on purpose.
+	}
+	if dmiInfo != nil {
+		_ = json.NewEncoder(os.Stdout).Encode(dmiInfo)
+	}
+	return nil
 }
