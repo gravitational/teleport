@@ -1,10 +1,27 @@
+// Copyright 2023 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 pub mod global;
 
 use crate::rdpdr::tdp;
 use crate::{
-    handle_fastpath_pdu, handle_rdp_channel_ids, handle_remote_copy, CGOErrCode, CGOKeyboardEvent,
-    CGOMousePointerEvent, CGOPointerButton, CGOPointerWheel, CgoHandle,
+    handle_fastpath_pdu, handle_rdp_channel_ids, handle_remote_copy, ssl, CGOErrCode,
+    CGOKeyboardEvent, CGOMousePointerEvent, CGOPointerButton, CGOPointerWheel, CgoHandle,
 };
+use bitflags::Flags;
+#[cfg(feature = "fips")]
+use boring::error::ErrorStack;
 use bytes::BytesMut;
 pub(crate) use global::call_function_on_handle;
 use ironrdp_cliprdr::{Cliprdr, CliprdrSvcMessages};
@@ -24,7 +41,6 @@ use ironrdp_session::x224::{Processor as X224Processor, Processor};
 use ironrdp_session::SessionErrorKind::Reason;
 use ironrdp_session::{reason_err, SessionError, SessionResult};
 use ironrdp_svc::{StaticVirtualChannelProcessor, SvcMessage, SvcProcessorMessages};
-use ironrdp_tls::TlsStream;
 use ironrdp_tokio::{Framed, TokioStream};
 use rand::{Rng, SeedableRng};
 use std::fmt::{Debug, Display, Formatter};
@@ -39,6 +55,9 @@ use tokio::task::JoinError;
 use crate::cliprdr::{ClipboardFn, TeleportCliprdrBackend};
 use crate::rdpdr::scard::SCARD_DEVICE_ID;
 use crate::rdpdr::TeleportRdpdrBackend;
+use crate::ssl::TlsStream;
+#[cfg(feature = "fips")]
+use tokio_boring::{HandshakeError, SslStream};
 
 /// The RDP client on the Rust side of things. Each `Client`
 /// corresponds with a Go `Client` specified by `cgo_handle`.
@@ -130,7 +149,7 @@ impl Client {
         // Take the stream back out of the framed object for upgrading
         let initial_stream = framed.into_inner_no_leftover();
         let (upgraded_stream, server_public_key) =
-            ironrdp_tls::upgrade(initial_stream, &server_socket_addr.ip().to_string()).await?;
+            ssl::upgrade(initial_stream, &server_socket_addr.ip().to_string()).await?;
 
         // Upgrade the stream
         let upgraded =
@@ -648,6 +667,10 @@ pub enum ClientError {
     InternalError,
     UnknownAddress,
     InputEventError(InputEventError),
+    #[cfg(feature = "fips")]
+    ErrorStack(ErrorStack),
+    #[cfg(feature = "fips")]
+    HandshakeError(HandshakeError<TokioTcpStream>),
 }
 
 impl Display for ClientError {
@@ -667,6 +690,10 @@ impl Display for ClientError {
             ClientError::InternalError => Display::fmt("Internal error", f),
             ClientError::UnknownAddress => Display::fmt("Unknown address", f),
             ClientError::PduError(e) => Display::fmt(e, f),
+            #[cfg(feature = "fips")]
+            ClientError::ErrorStack(e) => Display::fmt(e, f),
+            #[cfg(feature = "fips")]
+            ClientError::HandshakeError(e) => Display::fmt(e, f),
         }
     }
 }
@@ -719,7 +746,21 @@ impl From<PduError> for ClientError {
     }
 }
 
-type ClientResult<T> = Result<T, ClientError>;
+#[cfg(feature = "fips")]
+impl From<ErrorStack> for ClientError {
+    fn from(e: ErrorStack) -> Self {
+        ClientError::ErrorStack(e)
+    }
+}
+
+#[cfg(feature = "fips")]
+impl From<HandshakeError<TokioTcpStream>> for ClientError {
+    fn from(e: HandshakeError<TokioTcpStream>) -> Self {
+        ClientError::HandshakeError(e)
+    }
+}
+
+pub type ClientResult<T> = Result<T, ClientError>;
 
 impl From<CGOErrCode> for ClientResult<()> {
     fn from(value: CGOErrCode) -> Self {
