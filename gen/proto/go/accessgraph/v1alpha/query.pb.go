@@ -42,12 +42,19 @@ type Node struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Id         string            `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	Kind       string            `protobuf:"bytes,2,opt,name=kind,proto3" json:"kind,omitempty"`
-	SubKind    string            `protobuf:"bytes,3,opt,name=sub_kind,json=subKind,proto3" json:"sub_kind,omitempty"`
-	Name       string            `protobuf:"bytes,4,opt,name=name,proto3" json:"name,omitempty"`
-	Labels     map[string]string `protobuf:"bytes,5,rep,name=labels,proto3" json:"labels,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
-	Hostname   string            `protobuf:"bytes,6,opt,name=hostname,proto3" json:"hostname,omitempty"`
+	// ID is the unique ID of the node.
+	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	// Kind is the kind of the node, ex: "user", "user_group", "resource", etc.
+	Kind string `protobuf:"bytes,2,opt,name=kind,proto3" json:"kind,omitempty"`
+	// SubKind is the subkind of the node.
+	SubKind string `protobuf:"bytes,3,opt,name=sub_kind,json=subKind,proto3" json:"sub_kind,omitempty"`
+	// Name is the name of the node.
+	Name string `protobuf:"bytes,4,opt,name=name,proto3" json:"name,omitempty"`
+	// Labels is a set of labels for the resource.
+	Labels map[string]string `protobuf:"bytes,5,rep,name=labels,proto3" json:"labels,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+	// Hostname is the hostname of the node.
+	Hostname string `protobuf:"bytes,6,opt,name=hostname,proto3" json:"hostname,omitempty"`
+	// Properties is a set of properties for the resource.
 	Properties map[string]string `protobuf:"bytes,7,rep,name=properties,proto3" json:"properties,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
 }
 
@@ -138,8 +145,11 @@ type Edge struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
+	// from is the ID of the node the edge is from.
 	From string `protobuf:"bytes,1,opt,name=from,proto3" json:"from,omitempty"`
-	To   string `protobuf:"bytes,2,opt,name=to,proto3" json:"to,omitempty"`
+	// to is the ID of the node the edge is to.
+	To string `protobuf:"bytes,2,opt,name=to,proto3" json:"to,omitempty"`
+	// type is the type of the edge, e.g. "member_of", "belongs_to", etc.
 	Type string `protobuf:"bytes,3,opt,name=type,proto3" json:"type,omitempty"`
 }
 
@@ -451,6 +461,8 @@ type SendEventResponse struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
+	// cache_initialized is true if the cache has been initialized.
+	// When false, the sender should send all resources to the access graph using SendResource.
 	CacheInitialized bool `protobuf:"varint,1,opt,name=cache_initialized,json=cacheInitialized,proto3" json:"cache_initialized,omitempty"`
 }
 
