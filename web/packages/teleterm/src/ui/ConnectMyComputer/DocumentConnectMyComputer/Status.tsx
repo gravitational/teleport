@@ -533,7 +533,7 @@ const StyledIndicator = styled(Indicator).attrs({ delay: 'none' })`
   display: inline-flex;
 `;
 
-const LabelsContainer = styled(Flex)`
+const LabelsContainer = styled(Flex).attrs({ flexWrap: 'wrap' })`
   &.entering {
     animation-duration: 1.8s;
     animation-name: lineInserted;
