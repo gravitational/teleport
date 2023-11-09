@@ -1,5 +1,3 @@
-//go:build !darwin && !linux && !windows
-
 // Copyright 2022 Gravitational, Inc
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,15 +15,18 @@
 package native
 
 import (
+	"os/user"
+
+	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
+	"google.golang.org/protobuf/types/known/timestamppb"
+
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/lib/devicetrust"
+	"github.com/gravitational/teleport/lib/linux"
 )
 
 func enrollDeviceInit() (*devicepb.EnrollDeviceInit, error) {
-	return nil, devicetrust.ErrPlatformNotSupported
-}
-
-func collectDeviceData() (*devicepb.DeviceCollectedData, error) {
 	return nil, devicetrust.ErrPlatformNotSupported
 }
 
@@ -52,4 +53,44 @@ func solveTPMAuthnDeviceChallenge(
 
 func handleTPMActivateCredential(_, _ string) error {
 	return devicetrust.ErrPlatformNotSupported
+}
+
+func collectDeviceData() (*devicepb.DeviceCollectedData, error) {
+	osRelease, err := linux.ParseOSRelease()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	dmiInfo, err := linux.DMIInfoFromSysfs()
+	if err != nil {
+		log.WithError(err).Warn("TPM: Failed to read device model and/or serial numbers")
+	}
+
+	// dmiInfo is expected to never be nil, but code defensively just in case.
+	var modelIdentifier, reportedAssetTag, systemSerialNumber, baseBoardSerialNumber string
+	if dmiInfo != nil {
+		modelIdentifier = dmiInfo.ProductName
+		reportedAssetTag = dmiInfo.ChassisAssetTag
+		systemSerialNumber = dmiInfo.ProductSerial
+		baseBoardSerialNumber = dmiInfo.BoardSerial
+	}
+
+	u, err := user.Current()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &devicepb.DeviceCollectedData{
+		CollectTime:     timestamppb.Now(),
+		OsType:          devicepb.OSType_OS_TYPE_LINUX,
+		SerialNumber:    firstValidAssetTag(reportedAssetTag, systemSerialNumber, baseBoardSerialNumber),
+		ModelIdentifier: modelIdentifier,
+		// TODO(codingllama): Write os_id for Linux devices.
+		OsVersion:             osRelease.VersionID,
+		OsBuild:               osRelease.Version,
+		OsUsername:            u.Name,
+		ReportedAssetTag:      reportedAssetTag,
+		SystemSerialNumber:    systemSerialNumber,
+		BaseBoardSerialNumber: baseBoardSerialNumber,
+	}, nil
 }
