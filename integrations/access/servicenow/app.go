@@ -260,6 +260,12 @@ func (a *App) onPendingRequest(ctx context.Context, req types.AccessRequest) err
 		return trace.Wrap(err, "updating plugin data")
 	}
 
+	if reqReviews := req.GetReviews(); len(reqReviews) > 0 {
+		if err = a.postReviewNotes(ctx, reqID, reqReviews); err != nil {
+			return trace.Wrap(err, "posting review notes")
+		}
+	}
+
 	// To minimize the count of auto-approval tries, let's only attempt it only when we have just created an incident.
 	// But if there's an error, we can't really know if the incident is new or not so lets just try.
 	if !isNew {
@@ -269,12 +275,6 @@ func (a *App) onPendingRequest(ctx context.Context, req types.AccessRequest) err
 	log.Infof("Creating servicenow incident")
 	if err = a.createIncident(ctx, reqID, reqData); err != nil {
 		return trace.Wrap(err, "creating ServiceNow incident")
-	}
-
-	if reqReviews := req.GetReviews(); len(reqReviews) > 0 {
-		if err = a.postReviewNotes(ctx, reqID, reqReviews); err != nil {
-			return trace.Wrap(err, "posting review notes")
-		}
 	}
 
 	// Then, try to approve the request if user is currently on-call.
