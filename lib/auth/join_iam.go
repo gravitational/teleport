@@ -24,7 +24,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/url"
-	"regexp"
 	"strings"
 
 	awssdk "github.com/aws/aws-sdk-go/aws"
@@ -236,12 +235,7 @@ func executeSTSIdentityRequest(ctx context.Context, client utils.HTTPDoClient, r
 // of zero or more characters and "?" to match any single character.
 // See https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_resource.html
 func arnMatches(pattern, arn string) (bool, error) {
-	pattern = regexp.QuoteMeta(pattern)
-	pattern = strings.ReplaceAll(pattern, `\*`, ".*")
-	pattern = strings.ReplaceAll(pattern, `\?`, ".")
-	pattern = "^" + pattern + "$"
-	matched, err := regexp.MatchString(pattern, arn)
-	return matched, trace.Wrap(err)
+	return globMatch(pattern, arn)
 }
 
 // checkIAMAllowRules checks if the given identity matches any of the given
