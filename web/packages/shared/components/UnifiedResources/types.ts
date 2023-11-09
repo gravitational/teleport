@@ -91,6 +91,26 @@ export type SharedUnifiedResource = {
   ui: UnifiedResourceUi;
 };
 
+/**
+ * User preferences are persisted in the backend.
+ * If this interface is modified, the proto message should also be changed.
+ * https://github.com/gravitational/teleport/blob/4111979f3b55ec2e9fca985114e1a025a44a841b/api/proto/teleport/userpreferences/v1/unified_resource_preferences.proto
+ */
+export interface UnifiedResourcesViewPreferences {
+  defaultTab: UnifiedResourcesTab;
+  viewMode: UnifiedResourcesViewMode;
+}
+
+export enum UnifiedResourcesTab {
+  All = 1,
+  Pinned = 2,
+}
+
+export enum UnifiedResourcesViewMode {
+  Card = 1,
+  List = 2,
+}
+
 export type UnifiedResourcesQueryParams = {
   /** query is query expression using the predicate language. */
   query?: string;
@@ -100,10 +120,10 @@ export type UnifiedResourcesQueryParams = {
     fieldName: string;
     dir: 'ASC' | 'DESC';
   };
-  pinnedOnly?: boolean;
   // TODO(bl-nero): Remove this once filters are expressed as advanced search.
   kinds?: string[];
 };
+
 export interface UnifiedResourceViewItem {
   name: string;
   labels: {

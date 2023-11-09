@@ -29,11 +29,13 @@ import {
   Rows,
 } from 'design/Icon';
 
-import { UnifiedViewModePreference } from 'teleport/services/userPreferences/types';
-
 import { HoverTooltip } from 'shared/components/ToolTip';
 
-import { SharedUnifiedResource, UnifiedResourcesQueryParams } from './types';
+import {
+  SharedUnifiedResource,
+  UnifiedResourcesQueryParams,
+  UnifiedResourcesViewMode,
+} from './types';
 
 const kindToLabel: Record<SharedUnifiedResource['resource']['kind'], string> = {
   app: 'Application',
@@ -56,8 +58,8 @@ interface FilterPanelProps {
   selectVisible: () => void;
   selected: boolean;
   BulkActions?: React.ReactElement;
-  currentViewMode: UnifiedViewModePreference;
-  onSelectViewMode: (viewMode: UnifiedViewModePreference) => void;
+  currentViewMode: UnifiedResourcesViewMode;
+  onSelectViewMode: (viewMode: UnifiedResourcesViewMode) => void;
 }
 
 export function FilterPanel({
@@ -398,16 +400,19 @@ function ViewModeSwitch({
   currentViewMode,
   onSelectViewMode,
 }: {
-  currentViewMode: UnifiedViewModePreference;
-  onSelectViewMode: (viewMode: UnifiedViewModePreference) => void;
+  currentViewMode: UnifiedResourcesViewMode;
+  onSelectViewMode: (viewMode: UnifiedResourcesViewMode) => void;
 }) {
+  const isListView =
+    currentViewMode === UnifiedResourcesViewMode.List;
+
   return (
     <ViewModeSwitchContainer>
       <ViewModeSwitchButton
-        className={
-          currentViewMode === UnifiedViewModePreference.Card ? 'selected' : ''
+        className={!isListView ? 'selected' : ''}
+        onClick={() =>
+          onSelectViewMode(UnifiedResourcesViewMode.Card)
         }
-        onClick={() => onSelectViewMode(UnifiedViewModePreference.Card)}
         css={`
           border-right: 1px solid
             ${props => props.theme.colors.spotBackground[2]};
@@ -418,10 +423,10 @@ function ViewModeSwitch({
         <SquaresFour size="small" color="text.main" />
       </ViewModeSwitchButton>
       <ViewModeSwitchButton
-        className={
-          currentViewMode === UnifiedViewModePreference.List ? 'selected' : ''
+        className={isListView ? 'selected' : ''}
+        onClick={() =>
+          onSelectViewMode(UnifiedResourcesViewMode.List)
         }
-        onClick={() => onSelectViewMode(UnifiedViewModePreference.List)}
         css={`
           border-top-right-radius: 4px;
           border-bottom-right-radius: 4px;

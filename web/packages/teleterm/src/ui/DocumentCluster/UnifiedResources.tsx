@@ -21,6 +21,9 @@ import {
   useUnifiedResourcesFetch,
   UnifiedResourcesQueryParams,
   SharedUnifiedResource,
+  UnifiedResourcesViewPreferences,
+  UnifiedResourcesTab,
+  UnifiedResourcesViewMode,
 } from 'shared/components/UnifiedResources';
 import {
   DbProtocol,
@@ -35,11 +38,6 @@ import Image from 'design/Image';
 import stack from 'design/assets/resources/stack.png';
 
 import SearchPanel from 'teleport/UnifiedResources/SearchPanel';
-import {
-  UnifiedResourcePreferences,
-  UnifiedTabPreference,
-  UnifiedViewModePreference,
-} from 'teleport/services/userPreferences/types';
 
 import { UnifiedResourceResponse } from 'teleterm/services/tshd/types';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
@@ -67,10 +65,11 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
 
   // TODO: Add user preferences to Connect.
   // Until we add stored user preferences to Connect, store it in the state.
-  const [userPrefs, setUserPrefs] = useState<UnifiedResourcePreferences>({
-    defaultTab: UnifiedTabPreference.All,
-    viewMode: UnifiedViewModePreference.Card,
-  });
+  const [viewPreferences, setViewPreferences] =
+    useState<UnifiedResourcesViewPreferences>({
+      defaultTab: UnifiedResourcesTab.All,
+      viewMode: UnifiedResourcesViewMode.Card,
+    });
 
   const [params, setParams] = useState<UnifiedResourcesQueryParams>({
     sort: { fieldName: 'name', dir: 'ASC' },
@@ -107,7 +106,8 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
                 search: params.search,
                 kindsList: params.kinds,
                 query: params.query,
-                pinnedOnly: params.pinnedOnly,
+                pinnedOnly:
+                  viewPreferences.defaultTab === UnifiedResourcesTab.Pinned,
                 startKey: paginationParams.startKey,
                 limit: paginationParams.limit,
               },
@@ -121,7 +121,7 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
           totalCount: response.resources.length,
         };
       },
-      [appContext, params, props.clusterUri]
+      [appContext, params, props.clusterUri, viewPreferences.defaultTab]
     ),
   });
 
@@ -142,8 +142,8 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
     <SharedUnifiedResources
       params={params}
       setParams={onParamsChange}
-      unifiedResourcePreferences={userPrefs}
-      updateUnifiedResourcesPreferences={setUserPrefs}
+      viewPreferences={viewPreferences}
+      updateViewPreferences={setViewPreferences}
       onLabelClick={() => alert('Not implemented')}
       pinning={{ kind: 'hidden' }}
       resources={resources.map(mapToSharedResource)}

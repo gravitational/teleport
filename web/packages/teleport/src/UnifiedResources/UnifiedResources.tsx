@@ -22,6 +22,8 @@ import {
   UnifiedResources as SharedUnifiedResources,
   useUnifiedResourcesFetch,
   UnifiedResourcesPinning,
+  UnifiedResourcesQueryParams,
+  UnifiedResourcesTab,
 } from 'shared/components/UnifiedResources';
 
 import useStickyClusterId from 'teleport/useStickyClusterId';
@@ -29,7 +31,6 @@ import localStorage from 'teleport/services/localStorage';
 import { useUser } from 'teleport/User/UserContext';
 import { useTeleport } from 'teleport';
 import { useUrlFiltering } from 'teleport/components/hooks';
-import { UnifiedTabPreference } from 'teleport/services/userPreferences/types';
 import history from 'teleport/services/history';
 import cfg from 'teleport/config';
 import {
@@ -88,7 +89,7 @@ function ClusterResources({
       },
       pinnedOnly:
         preferences.unifiedResourcePreferences.defaultTab ===
-        UnifiedTabPreference.Pinned,
+        UnifiedResourcesTab.Pinned,
     });
 
   const getCurrentClusterPinnedResources = useCallback(
@@ -170,15 +171,42 @@ function ClusterResources({
     clear();
   }
 
+  // TODO(gzdunek): this should be refactored, we should able to only call `setParams`,
+  // replacing the history should be a task of `useUrlFiltering`
+  const setParamsAndUpdateHistory = (
+    newParams: UnifiedResourcesQueryParams,
+    pinnedOnly: boolean
+  ) => {
+    setParams({ ...newParams, pinnedOnly });
+    replaceHistory(
+      encodeUrlQueryParams(
+        pathname,
+        newParams.search,
+        newParams.sort,
+        newParams.kinds,
+        !!newParams.query /* isAdvancedSearch */,
+        pinnedOnly
+      )
+    );
+  };
+
   return (
     <FeatureBox px={4}>
       <SharedUnifiedResources
         params={params}
         fetchResources={fetch}
         resourcesFetchAttempt={attempt}
-        unifiedResourcePreferences={preferences.unifiedResourcePreferences}
-        updateUnifiedResourcesPreferences={preferences => {
-          updatePreferences({ unifiedResourcePreferences: preferences });
+        viewPreferences={{
+          viewMode: preferences.unifiedResourcePreferences.viewMode,
+          defaultTab: params.pinnedOnly
+            ? UnifiedResourcesTab.Pinned
+            : UnifiedResourcesTab.All,
+        }}
+        updateViewPreferences={newPreferences => {
+          updatePreferences({ unifiedResourcePreferences: newPreferences });
+          const pinnedOnly =
+            newPreferences.defaultTab === UnifiedResourcesTab.Pinned;
+          setParamsAndUpdateHistory(params, pinnedOnly);
         }}
         availableKinds={[
           'app',
@@ -203,17 +231,10 @@ function ClusterResources({
           },
         }))}
         setParams={newParams => {
-          setParams(newParams);
-          replaceHistory(
-            encodeUrlQueryParams(
-              pathname,
-              newParams.search,
-              newParams.sort,
-              newParams.kinds,
-              !!newParams.query /* isAdvancedSearch */,
-              newParams.pinnedOnly
-            )
-          );
+          const pinnedOnly =
+            preferences.unifiedResourcePreferences.defaultTab ===
+            UnifiedResourcesTab.Pinned;
+          setParamsAndUpdateHistory(newParams, pinnedOnly);
         }}
         Header={
           <>

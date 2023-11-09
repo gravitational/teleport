@@ -27,14 +27,14 @@ import { nodes } from 'teleport/Nodes/fixtures';
 import { UrlResourcesParams } from 'teleport/config';
 import { ResourcesResponse } from 'teleport/services/agents';
 
-import {
-  UnifiedResourcePreferences,
-  UnifiedTabPreference,
-  UnifiedViewModePreference,
-} from 'teleport/services/userPreferences/types';
-
 import { UnifiedResources, useUnifiedResourcesFetch } from './UnifiedResources';
-import { SharedUnifiedResource, UnifiedResourcesPinning } from './types';
+import {
+  SharedUnifiedResource,
+  UnifiedResourcesPinning,
+  UnifiedResourcesViewPreferences,
+  UnifiedResourcesTab,
+  UnifiedResourcesViewMode,
+} from './types';
 
 export default {
   title: 'Shared/UnifiedResources',
@@ -78,10 +78,12 @@ const story = ({
 }) => {
   const params = { sort: { dir: 'ASC', fieldName: 'name' } } as const;
   return () => {
-    const [userPrefs, setUserPrefs] = useState<UnifiedResourcePreferences>({
-      defaultTab: UnifiedTabPreference.All,
-      viewMode: UnifiedViewModePreference.Card,
-    });
+    const [userPrefs, setUserPrefs] = useState<UnifiedResourcesViewPreferences>(
+      {
+        defaultTab: UnifiedResourcesTab.All,
+        viewMode: UnifiedResourcesViewMode.Card,
+      }
+    );
     const { fetch, attempt, resources } = useUnifiedResourcesFetch({
       fetchFunc,
     });
@@ -97,8 +99,8 @@ const story = ({
         params={params}
         setParams={() => undefined}
         pinning={pinning}
-        unifiedResourcePreferences={userPrefs}
-        updateUnifiedResourcesPreferences={setUserPrefs}
+        viewPreferences={userPrefs}
+        updateViewPreferences={setUserPrefs}
         onLabelClick={() => undefined}
         NoResources={undefined}
         fetchResources={fetch}

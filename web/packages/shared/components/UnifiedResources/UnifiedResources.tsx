@@ -32,11 +32,6 @@ import './unifiedStyles.css';
 
 import { ResourcesResponse, ResourceLabel } from 'teleport/services/agents';
 import { TextIcon } from 'teleport/Discover/Shared';
-import {
-  UnifiedTabPreference,
-  UnifiedViewModePreference,
-  UnifiedResourcePreferences,
-} from 'teleport/services/userPreferences/types';
 
 import { HoverTooltip } from 'shared/components/ToolTip';
 import {
@@ -64,6 +59,11 @@ import { FilterPanel } from './FilterPanel';
 import { CardsView } from './CardsView/CardsView';
 import { ListView } from './ListView/ListView';
 import { mapResourceToItem } from './shared/viewItemsFactory';
+import {
+  UnifiedResourcesTab,
+  UnifiedResourcesViewMode,
+  UnifiedResourcesViewPreferences,
+} from './types';
 
 // get 48 resources to start
 const INITIAL_FETCH_SIZE = 48;
@@ -75,14 +75,14 @@ export const loadingItemArray = new Array(FETCH_MORE_SIZE).fill(undefined);
 export const PINNING_NOT_SUPPORTED_MESSAGE =
   'This cluster does not support pinning resources. To enable, upgrade to 14.1 or newer.';
 
-const tabs: { label: string; value: UnifiedTabPreference }[] = [
+const tabs: { label: string; value: UnifiedResourcesTab }[] = [
   {
     label: 'All Resources',
-    value: UnifiedTabPreference.All,
+    value: UnifiedResourcesTab.All,
   },
   {
     label: 'Pinned Resources',
-    value: UnifiedTabPreference.Pinned,
+    value: UnifiedResourcesTab.Pinned,
   },
 ];
 
@@ -134,10 +134,8 @@ interface UnifiedResourcesProps {
   onLabelClick(label: ResourceLabel): void;
   /** A list of actions that can be performed on the selected items. */
   bulkActions?: BulkAction[];
-  unifiedResourcePreferences: UnifiedResourcePreferences;
-  updateUnifiedResourcesPreferences(
-    preferences: UnifiedResourcePreferences
-  ): void;
+  viewPreferences: UnifiedResourcesViewPreferences;
+  updateViewPreferences(preferences: UnifiedResourcesViewPreferences): void;
 }
 
 export function UnifiedResources(props: UnifiedResourcesProps) {
@@ -150,14 +148,16 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
     onLabelClick,
     availableKinds,
     pinning,
-    unifiedResourcePreferences,
-    updateUnifiedResourcesPreferences,
+    viewPreferences,
+    updateViewPreferences,
     bulkActions = [],
   } = props;
 
   const { setTrigger } = useInfiniteScroll({
     fetch: fetchResources,
   });
+  const isPinnedTab =
+    viewPreferences.defaultTab === UnifiedResourcesTab.Pinned;
 
   const [selectedResources, setSelectedResources] = useState<string[]>([]);
 
@@ -271,23 +271,20 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
     );
   };
 
-  const selectTab = (value: UnifiedTabPreference) => {
-    const pinnedOnly = value === UnifiedTabPreference.Pinned;
-    setParams({
-      ...params,
-      pinnedOnly,
-    });
+  const selectTab = (value: UnifiedResourcesTab) => {
     setSelectedResources([]);
     setUpdatePinnedResources(makeEmptyAttempt());
-    updateUnifiedResourcesPreferences({
-      ...unifiedResourcePreferences,
+    //TODO(gzdunek): send only updated value, not the entire object
+    updateViewPreferences({
+      ...viewPreferences,
       defaultTab: value,
     });
   };
 
-  const selectViewMode = (viewMode: UnifiedViewModePreference) => {
-    updateUnifiedResourcesPreferences({
-      ...unifiedResourcePreferences,
+  const selectViewMode = (viewMode: UnifiedResourcesViewMode) => {
+    //TODO(gzdunek): send only updated value, not the entire object
+    updateViewPreferences({
+      ...viewPreferences,
       viewMode,
     });
   };
@@ -327,7 +324,7 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
   };
 
   const ViewComponent =
-    unifiedResourcePreferences.viewMode === UnifiedViewModePreference.List
+    viewPreferences.viewMode === UnifiedResourcesViewMode.List
       ? ListView
       : CardsView;
 
@@ -378,7 +375,7 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
         availableKinds={availableKinds}
         selectVisible={toggleSelectVisible}
         selected={allSelected}
-        currentViewMode={unifiedResourcePreferences.viewMode}
+        currentViewMode={viewPreferences.viewMode}
         onSelectViewMode={selectViewMode}
         BulkActions={
           <>
@@ -421,20 +418,20 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
               key={tab.value}
               onClick={() => selectTab(tab.value)}
               disabled={
-                tab.value === UnifiedTabPreference.Pinned &&
+                tab.value === UnifiedResourcesTab.Pinned &&
                 pinning.kind === 'not-supported'
               }
               title={tab.label}
               isSelected={
-                params.pinnedOnly
-                  ? tab.value === UnifiedTabPreference.Pinned
-                  : tab.value === UnifiedTabPreference.All
+                isPinnedTab
+                  ? tab.value === UnifiedResourcesTab.Pinned
+                  : tab.value === UnifiedResourcesTab.All
               }
             />
           ))}
         </Flex>
       )}
-      {pinning.kind === 'not-supported' && params.pinnedOnly ? (
+      {pinning.kind === 'not-supported' && isPinnedTab ? (
         <PinningNotSupported />
       ) : (
         <ViewComponent
@@ -462,11 +459,11 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
         {resourcesFetchAttempt.status === 'failed' && resources.length > 0 && (
           <ButtonSecondary onClick={onRetryClicked}>Load more</ButtonSecondary>
         )}
-        {noResults && isSearchEmpty && !params.pinnedOnly && props.NoResources}
-        {noResults && params.pinnedOnly && isSearchEmpty && <NoPinned />}
+        {noResults && isSearchEmpty && !isPinnedTab && props.NoResources}
+        {noResults && isPinnedTab && isSearchEmpty && <NoPinned />}
         {noResults && !isSearchEmpty && (
           <NoResults
-            isPinnedTab={params.pinnedOnly}
+            isPinnedTab={isPinnedTab}
             query={params?.query || params?.search}
           />
         )}
