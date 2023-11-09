@@ -3,6 +3,8 @@
 # as teleport-private), or it can also checkout the teleport.e
 # Enterprise repo too.
 
+# Maintainers: this must be compatible with Linux, MacOS, and Windows.
+
 name: Checkout Teleport
 description: Checkout a Teleport or Teleport+Enterprise repository
 
@@ -10,21 +12,15 @@ inputs:
   oss-teleport-repo:
     description: "The name of the OSS teleport repo to checkout"
     required: false
-    type: string
     default: "gravitational/teleport"
 
   oss-teleport-ref:
     description: "Git SHA, tag or branch of the revision of OSS Teleport to build"
     required: true
-    type: string
 
   edition:
     description: "Edition of Teleport to check out. Either 'oss' or 'enterprise'"
     required: true
-    type: choice
-    options:
-      - oss
-      - enterprise
 
   ent-teleport-ref:
     description: |
@@ -32,7 +28,6 @@ inputs:
       If no value is supplied, the submodule reference in the OSS Teleport
       repository checked-out will be used.
     required: false
-    type: string
     default: ""
 
   repo-access-app-id:
@@ -50,22 +45,45 @@ inputs:
 runs:
   using: "composite"
   steps:
-      # Attempt to fetch a token from the GitHub App we use to broker
-      # access to private repositories. If this fails, we are in one of two
-      # situations:
-      #
-      # 1. The App is not installed on the target repo (e.g. public Teleport), or
-      # 2. Something is wrong with GitHub
-      #
-      # In either case, the workflow will carry on and attempt to use the
-      # default workflow token to check out the target repo, which will be
-      # fine if that repo is public.
-      #
-      # If the oss repo is "gravitational/teleport", don't try to get a token
-      # as we know it is not needed. This is the common case and by eliding this
-      # step, we stop outselves emitting a spurious but ignored error on each
-      # workflow run. Let's not train people to ignore errors.
-      #
+    # Unfortunately composite actions do not verify required input variables are set by default
+    # See https://github.com/actions/runner/issues/1070 for details
+    # despite the misleading `required` field
+    # This will fail if a required input variable is not set. Input variables will be available as
+    # environment variables for the rest of the action as well.
+    # TODO this was pulled from https://github.com/gravitational/cloud-terraform/blob/57453/.github/actions/setup-flux-cli/action.yaml#L18,
+    # extract to share-workflows repository once https://github.com/gravitational/shared-workflows/pull/157 is merged
+    - name: Ensure that the required variables are set
+      env:
+        # The `core` module requires input variables to start with `INPUT_`
+        INPUT_OSS-TELEPORT-REPO: ${{ inputs.oss-teleport-ref }}
+        INPUT_EDITION: ${{ inputs.edition }}
+      uses: actions/github-script@v6
+      with:
+        script: |
+          ["INPUT_OSS-TELEPORT-REPO", "INPUT_EDITION"].forEach(
+            environmentVariableName => {
+              const inputVariableName = environmentVariableName.replace(/^INPUT_/, "")
+              const actionVariableName = inputVariableName.replace(/-/g, "_").toUpperCase();
+              core.exportVariable(actionVariableName, core.getInput(inputVariableName, { required: true }));
+            }
+          )
+
+    # Attempt to fetch a token from the GitHub App we use to broker
+    # access to private repositories. If this fails, we are in one of two
+    # situations:
+    #
+    # 1. The App is not installed on the target repo (e.g. public Teleport), or
+    # 2. Something is wrong with GitHub
+    #
+    # In either case, the workflow will carry on and attempt to use the
+    # default workflow token to check out the target repo, which will be
+    # fine if that repo is public.
+    #
+    # If the oss repo is "gravitational/teleport", don't try to get a token
+    # as we know it is not needed. This is the common case and by eliding this
+    # step, we stop outselves emitting a spurious but ignored error on each
+    # workflow run. Let's not train people to ignore errors.
+    #
     - id: fetch-token
       if: inputs.repo-access-app-id && inputs.repo-access-app-key && inputs.oss-teleport-repo != 'gravitational/teleport'
       name: Fetch installation token

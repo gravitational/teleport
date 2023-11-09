@@ -1,0 +1,119 @@
+---
+name: Build Windows (native) release artifacts
+
+on:
+  workflow_dispatch:
+    inputs:
+      oss-teleport-repo:
+        description: "The name of the OSS teleport repo to build"
+        required: false
+        default: "gravitational/teleport"
+        type: string
+      oss-teleport-ref:
+        description: 'Tag, branch or reference to OSS teleport to build'
+        type: string
+        required: true
+      ent-teleport-ref:
+        description: |
+          Tag, branch or reference to Enterprise teleport to include in the
+          build. If no value is supplied this workflow will use whatever
+          reference is specified in the OSS teleport submodule record.
+        type: string
+        required: false
+        default: ""
+      workflow-tag:
+        description: |
+          Tag used to identify workflow runs spawned by this event
+        type: string
+        default: ""
+
+jobs:
+  # Set event-related variables
+  setup:
+    name: Determine variables for the build environment
+    runs-on: ubuntu-latest
+    outputs:
+      # Note: the 'environment' output value is not currently used. Once the build-stage environment
+      # is setup, the build.with.environment value should be set to 'needs.setup.outputs.environment'.
+      environment: ${{ steps.set-variables.outputs.environment }}
+      artifact-version: ${{ steps.set-variables.outputs.artifact-version }}
+    steps:
+      # This is required so that `git describe --tags` can be used to get the nearest tag
+      - name: Checkout Teleport
+        uses: gravitational/teleport.e/.github/actions/checkout-teleport@master
+        with:
+          oss-teleport-repo: ${{ inputs.oss-teleport-repo }}
+          oss-teleport-ref: ${{ inputs.oss-teleport-ref }}
+          edition: oss
+          repo-access-app-id: ${{ secrets.deploy-access-app-id }}
+          repo-access-app-key: ${{ secrets.deploy-access-app-key }}
+      # Note: the artifact-version value for tag events is NOT based on the makefile VERSION variable,
+      # rather, it is the name of the tag. This prevents a pre-release or dev build from accidentally 
+      # overwriting a release asset in the event that the makefile variable is not updated. This does 
+      # not provide protection against overwriting a release tag and force pushing.
+      - name: Set environment output values
+        id: set-variables
+        env:
+          OSS_TELEPORT_REF: ${{ inputs.oss-teleport-ref }}
+        run: |
+          # If the ref is a tag
+          # TODO consider moving this to a GH API call so that the entire repo does not need to
+          # be pulled
+          if git show-ref --tags "$OSS_TELEPORT_REF"; then
+            echo "OSS ref $OSS_TELEPORT_REF is a tag, checking to see if it is a pre-release tag"
+            # If the tag is not a pre-release
+            if [ "${OSS_TELEPORT_REF#*-}" = "$OSS_TELEPORT_REF" ]; then
+              echo "Release tag detected"
+              echo "environment=build-prod" >> "$GITHUB_OUTPUT"
+            else
+              echo "Pre-release tag detected"
+              echo "environment=build-stage" >> "$GITHUB_OUTPUT"
+            fi
+
+            # Note: OSS_TELEPORT_REF can be a fully qualified tag ref
+            # (starting with 'refs/tags/'), but it does not have to be.
+            TAG=${OSS_TELEPORT_REF#refs/tags/}
+            echo "artifact-version=${TAG#v}" >> "$GITHUB_OUTPUT"
+          else
+            echo "OSS ref $OSS_TELEPORT_REF is not a tag, generating unique version number"
+            if COMMIT_HASH=$(git show-ref --hash "$OSS_TELEPORT_REF"); then
+              # Multiple lines will typically be returned: one for the local ref, and one for
+              # the remote ref. These will always be the same as there have been no fetches
+              # after the repo was pulled.
+              COMMIT_HASH=$(echo "$COMMIT_HASH" | head -n 1)
+            else
+              # Assume the ref is a commit hash if git show-ref cannot resolve it at all
+              echo "Unable to resolve OSS ref value to any ref, assuming it is a commit hash"
+              COMMIT_HASH="$OSS_TELEPORT_REF"
+            fi
+
+            echo "environment=build-stage" >> "$GITHUB_OUTPUT"
+            BUILD_METADATA="$(echo "${COMMIT_HASH:0:8}" | tr '[:upper:]' '[:lower:]')"
+            echo "artifact-version=$(make print-version)+$BUILD_METADATA" >> "$GITHUB_OUTPUT"
+          fi
+
+          # Set job summary
+          echo "Built config:" | tee -a "$GITHUB_STEP_SUMMARY"
+          cat "$GITHUB_OUTPUT" | while read line; do
+            echo "* $line" | tee -a "$GITHUB_STEP_SUMMARY"
+          done
+      - name: ${{ inputs.workflow-tag }}
+        if: inputs.workflow-tag != ''
+        run: |
+          # Do nothing
+  # Do the build
+  build:
+    name: Build Windows (native) release artifacts
+    needs:
+      - setup
+    permissions:
+      id-token: write
+      contents: read
+    secrets: inherit
+    uses: ./.github/workflows/build-windows.yaml
+    with:
+      artifact-version: ${{ needs.setup.outputs.artifact-version }}
+      environment: "build-prod"
+      ent-teleport-ref: ${{ inputs.ent-teleport-ref }}
+      oss-teleport-ref: ${{ inputs.oss-teleport-ref }}
+      oss-teleport-repo: ${{ inputs.oss-teleport-repo }}
