@@ -1296,9 +1296,17 @@ message ProvisionTokenSpecV2GitLab {
     // Sub roughly uniquely identifies the workload. Example:
     // `project_path:mygroup/my-project:ref_type:branch:ref:main`
     // project_path:{group}/{project}:ref_type:{type}:ref:{branch_name}
+    //
+    // This field supports simple "glob-style" matching:
+    // - Use '*' to match zero or more characters.
+    // - Use '?' to match any single character.
     string Sub = 1 [(gogoproto.jsontag) = "sub,omitempty"];
     // Ref allows access to be limited to jobs triggered by a specific git ref.
     // Ensure this is used in combination with ref_type.
+    //
+    // This field supports simple "glob-style" matching:
+    // - Use '*' to match zero or more characters.
+    // - Use '?' to match any single character.
     string Ref = 2 [(gogoproto.jsontag) = "ref,omitempty"];
     // RefType allows access to be limited to jobs triggered by a specific git
     // ref type. Example:
@@ -1308,10 +1316,18 @@ message ProvisionTokenSpecV2GitLab {
     // projects.
     // Example:
     // `mygroup`
+    //
+    // This field supports simple "glob-style" matching:
+    // - Use '*' to match zero or more characters.
+    // - Use '?' to match any single character.
     string NamespacePath = 4 [(gogoproto.jsontag) = "namespace_path,omitempty"];
     // ProjectPath is used to limit access to jobs belonging to an individual
     // project. Example:
     // `mygroup/myproject`
+    //
+    // This field supports simple "glob-style" matching:
+    // - Use '*' to match zero or more characters.
+    // - Use '?' to match any single character.
     string ProjectPath = 5 [(gogoproto.jsontag) = "project_path,omitempty"];
     // PipelineSource limits access by the job pipeline source type.
     // https://docs.gitlab.com/ee/ci/jobs/job_control.html#common-if-clauses-for-rules
@@ -1320,6 +1336,34 @@ message ProvisionTokenSpecV2GitLab {
     // Environment limits access by the environment the job deploys to
     // (if one is associated)
     string Environment = 7 [(gogoproto.jsontag) = "environment,omitempty"];
+    // UserLogin is the username of the user executing the job
+    string UserLogin = 8 [(gogoproto.jsontag) = "user_login,omitempty"];
+    // UserID is the ID of the user executing the job
+    string UserID = 9 [(gogoproto.jsontag) = "user_id,omitempty"];
+    // UserEmail is the email of the user executing the job
+    string UserEmail = 10 [(gogoproto.jsontag) = "user_email,omitempty"];
+    // RefProtected is true if the Git ref is protected, false otherwise.
+    BoolValue RefProtected = 11 [
+      (gogoproto.nullable) = true,
+      (gogoproto.jsontag) = "ref_protected,omitempty",
+      (gogoproto.customtype) = "BoolOption"
+    ];
+    // EnvironmentProtected is true if the Git ref is protected, false otherwise.
+    BoolValue EnvironmentProtected = 12 [
+      (gogoproto.nullable) = true,
+      (gogoproto.jsontag) = "environment_protected,omitempty",
+      (gogoproto.customtype) = "BoolOption"
+    ];
+    // CIConfigSHA is the git commit SHA for the ci_config_ref_uri.
+    string CIConfigSHA = 13 [(gogoproto.jsontag) = "ci_config_sha,omitempty"];
+    // CIConfigRefURI is the ref path to the top-level pipeline definition, for example,
+    // gitlab.example.com/my-group/my-project//.gitlab-ci.yml@refs/heads/main.
+    string CIConfigRefURI = 14 [(gogoproto.jsontag) = "ci_config_ref_uri,omitempty"];
+    // DeploymentTier is the deployment tier of the environment the job specifies
+    string DeploymentTier = 15 [(gogoproto.jsontag) = "deployment_tier,omitempty"];
+    // ProjectVisibility is the visibility of the project where the pipeline is running.
+    // Can be internal, private, or public.
+    string ProjectVisibility = 16 [(gogoproto.jsontag) = "project_visibility,omitempty"];
   }
   // Allow is a list of TokenRules, nodes using this token must match one
   // allow rule to use this token.
