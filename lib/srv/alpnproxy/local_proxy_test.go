@@ -553,7 +553,11 @@ func TestKubeMiddleware(t *testing.T) {
 					ServerName: tt.reqClusterName,
 				},
 			}
-			km := NewKubeMiddleware(tt.startCerts, certReissuer, tt.clock, nil)
+			km := NewKubeMiddleware(KubeMiddlewareConfig{
+				Certs:        tt.startCerts,
+				CertReissuer: certReissuer,
+				Clock:        tt.clock,
+			})
 
 			// HandleRequest will reissue certificate if needed
 			km.HandleRequest(responsewriters.NewMemoryResponseWriter(), &req)
@@ -564,7 +568,7 @@ func TestKubeMiddleware(t *testing.T) {
 				require.ErrorContains(t, err, tt.wantErr)
 			} else {
 				require.NoError(t, err)
-				require.Equal(t, 1, len(certs))
+				require.Len(t, certs, 1)
 				require.Equal(t, tt.overwrittenCert, certs[0])
 			}
 		})
@@ -602,7 +606,7 @@ func requireExpiredCertErr(t require.TestingT, err error, _ ...interface{}) {
 	require.Error(t, err)
 	var certErr x509.CertificateInvalidError
 	require.ErrorAs(t, err, &certErr)
-	require.Equal(t, certErr.Reason, x509.Expired)
+	require.Equal(t, x509.Expired, certErr.Reason)
 }
 
 func requireCertSubjectUserErr(t require.TestingT, err error, _ ...interface{}) {

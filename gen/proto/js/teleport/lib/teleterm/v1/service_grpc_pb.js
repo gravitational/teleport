@@ -24,7 +24,6 @@ var teleport_lib_teleterm_v1_cluster_pb = require('../../../../teleport/lib/tele
 var teleport_lib_teleterm_v1_database_pb = require('../../../../teleport/lib/teleterm/v1/database_pb.js');
 var teleport_lib_teleterm_v1_gateway_pb = require('../../../../teleport/lib/teleterm/v1/gateway_pb.js');
 var teleport_lib_teleterm_v1_kube_pb = require('../../../../teleport/lib/teleterm/v1/kube_pb.js');
-var teleport_lib_teleterm_v1_label_pb = require('../../../../teleport/lib/teleterm/v1/label_pb.js');
 var teleport_lib_teleterm_v1_server_pb = require('../../../../teleport/lib/teleterm/v1/server_pb.js');
 var teleport_lib_teleterm_v1_usage_events_pb = require('../../../../teleport/lib/teleterm/v1/usage_events_pb.js');
 
@@ -499,6 +498,28 @@ function serialize_teleport_lib_teleterm_v1_ListLeafClustersRequest(arg) {
 
 function deserialize_teleport_lib_teleterm_v1_ListLeafClustersRequest(buffer_arg) {
   return teleport_lib_teleterm_v1_service_pb.ListLeafClustersRequest.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
+function serialize_teleport_lib_teleterm_v1_ListUnifiedResourcesRequest(arg) {
+  if (!(arg instanceof teleport_lib_teleterm_v1_service_pb.ListUnifiedResourcesRequest)) {
+    throw new Error('Expected argument of type teleport.lib.teleterm.v1.ListUnifiedResourcesRequest');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_teleport_lib_teleterm_v1_ListUnifiedResourcesRequest(buffer_arg) {
+  return teleport_lib_teleterm_v1_service_pb.ListUnifiedResourcesRequest.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
+function serialize_teleport_lib_teleterm_v1_ListUnifiedResourcesResponse(arg) {
+  if (!(arg instanceof teleport_lib_teleterm_v1_service_pb.ListUnifiedResourcesResponse)) {
+    throw new Error('Expected argument of type teleport.lib.teleterm.v1.ListUnifiedResourcesResponse');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_teleport_lib_teleterm_v1_ListUnifiedResourcesResponse(buffer_arg) {
+  return teleport_lib_teleterm_v1_service_pb.ListUnifiedResourcesResponse.deserializeBinary(new Uint8Array(buffer_arg));
 }
 
 function serialize_teleport_lib_teleterm_v1_LoginPasswordlessRequest(arg) {
@@ -1149,6 +1170,18 @@ getConnectMyComputerNodeName: {
     requestDeserialize: deserialize_teleport_lib_teleterm_v1_GetConnectMyComputerNodeNameRequest,
     responseSerialize: serialize_teleport_lib_teleterm_v1_GetConnectMyComputerNodeNameResponse,
     responseDeserialize: deserialize_teleport_lib_teleterm_v1_GetConnectMyComputerNodeNameResponse,
+  },
+  // ListUnifiedResources retrieves a paginated list of all resource types displayable in the UI.
+listUnifiedResources: {
+    path: '/teleport.lib.teleterm.v1.TerminalService/ListUnifiedResources',
+    requestStream: false,
+    responseStream: false,
+    requestType: teleport_lib_teleterm_v1_service_pb.ListUnifiedResourcesRequest,
+    responseType: teleport_lib_teleterm_v1_service_pb.ListUnifiedResourcesResponse,
+    requestSerialize: serialize_teleport_lib_teleterm_v1_ListUnifiedResourcesRequest,
+    requestDeserialize: deserialize_teleport_lib_teleterm_v1_ListUnifiedResourcesRequest,
+    responseSerialize: serialize_teleport_lib_teleterm_v1_ListUnifiedResourcesResponse,
+    responseDeserialize: deserialize_teleport_lib_teleterm_v1_ListUnifiedResourcesResponse,
   },
 };
 

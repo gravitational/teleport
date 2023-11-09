@@ -21,7 +21,6 @@ import (
 	"fmt"
 
 	"github.com/gravitational/trace"
-	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -87,14 +86,17 @@ func (r *RoleReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	obj := GetUnstructuredObjectFromGVK(TeleportRoleGVKV5)
 	return ctrl.NewControllerManagedBy(mgr).
 		For(obj).
+		WithEventFilter(buildPredicate()).
 		Complete(r)
 }
 
 func (r *RoleReconciler) Delete(ctx context.Context, obj kclient.Object) error {
-	teleportClient, err := r.TeleportClientAccessor(ctx)
+	teleportClient, release, err := r.TeleportClientAccessor(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	defer release()
+
 	return teleportClient.DeleteRole(ctx, obj.GetName())
 }
 
@@ -111,53 +113,84 @@ func (r *RoleReconciler) Upsert(ctx context.Context, obj kclient.Object) error {
 		u.Object,
 		k8sResource, true, /* returnUnknownFields */
 	)
-	newStructureCondition := getStructureConditionFromError(err)
-	meta.SetStatusCondition(k8sResource.StatusConditions(), newStructureCondition)
-	if err != nil {
-		silentUpdateStatus(ctx, r.Client, k8sResource)
-		return trace.Wrap(err)
+	updateErr := updateStatus(updateStatusConfig{
+		ctx:         ctx,
+		client:      r.Client,
+		k8sResource: k8sResource,
+		condition:   getStructureConditionFromError(err),
+	})
+	if err != nil || updateErr != nil {
+		return trace.NewAggregate(err, updateErr)
 	}
 
 	// Converting the Kubernetes resource into a Teleport one, checking potential ownership issues.
 	teleportResource := k8sResource.ToTeleport()
-	teleportClient, err := r.TeleportClientAccessor(ctx)
-	if err != nil {
-		silentUpdateStatus(ctx, r.Client, k8sResource)
-		return trace.Wrap(err)
+	teleportClient, release, err := r.TeleportClientAccessor(ctx)
+	if err == nil {
+		defer release()
+	}
+	updateErr = updateStatus(updateStatusConfig{
+		ctx:         ctx,
+		client:      r.Client,
+		k8sResource: k8sResource,
+		condition:   getTeleportClientConditionFromError(err),
+	})
+	if err != nil || updateErr != nil {
+		return trace.NewAggregate(err, updateErr)
 	}
 
 	existingResource, err := teleportClient.GetRole(ctx, teleportResource.GetName())
-	if err != nil && !trace.IsNotFound(err) {
-		silentUpdateStatus(ctx, r.Client, k8sResource)
-		return trace.Wrap(err)
+	updateErr = updateStatus(updateStatusConfig{
+		ctx:         ctx,
+		client:      r.Client,
+		k8sResource: k8sResource,
+		condition:   getReconciliationConditionFromError(err, true /* ignoreNotFound */),
+	})
+	if err != nil && !trace.IsNotFound(err) || updateErr != nil {
+		return trace.NewAggregate(err, updateErr)
 	}
 
 	if err == nil {
 		// The resource already exists
 		newOwnershipCondition, isOwned := checkOwnership(existingResource)
-		meta.SetStatusCondition(k8sResource.StatusConditions(), newOwnershipCondition)
+		if updateErr = updateStatus(updateStatusConfig{
+			ctx:         ctx,
+			client:      r.Client,
+			k8sResource: k8sResource,
+			condition:   newOwnershipCondition,
+		}); updateErr != nil {
+			return trace.Wrap(updateErr)
+		}
 		if !isOwned {
-			silentUpdateStatus(ctx, r.Client, k8sResource)
 			return trace.AlreadyExists("unowned resource '%s' already exists", existingResource.GetName())
 		}
 	} else {
 		// The resource does not yet exist
-		meta.SetStatusCondition(k8sResource.StatusConditions(), newResourceCondition)
+		if updateErr = updateStatus(updateStatusConfig{
+			ctx:         ctx,
+			client:      r.Client,
+			k8sResource: k8sResource,
+			condition:   newResourceCondition,
+		}); updateErr != nil {
+			return trace.Wrap(updateErr)
+		}
 	}
 
+	if existingResource != nil {
+		teleportResource.SetRevision(existingResource.GetRevision())
+	}
 	r.AddTeleportResourceOrigin(teleportResource)
 
 	// If an error happens we want to put it in status.conditions before returning.
-	err = teleportClient.UpsertRole(ctx, teleportResource)
-	newReconciliationCondition := getReconciliationConditionFromError(err)
-	meta.SetStatusCondition(k8sResource.StatusConditions(), newReconciliationCondition)
-	if err != nil {
-		silentUpdateStatus(ctx, r.Client, k8sResource)
-		return trace.Wrap(err)
-	}
-
+	_, err = teleportClient.UpsertRole(ctx, teleportResource)
+	updateErr = updateStatus(updateStatusConfig{
+		ctx:         ctx,
+		client:      r.Client,
+		k8sResource: k8sResource,
+		condition:   getReconciliationConditionFromError(err, false /* ignoreNotFound */),
+	})
 	// We update the status conditions on exit
-	return trace.Wrap(r.Status().Update(ctx, k8sResource))
+	return trace.NewAggregate(err, updateErr)
 }
 
 func (r *RoleReconciler) AddTeleportResourceOrigin(resource types.Role) {

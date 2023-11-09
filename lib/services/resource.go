@@ -162,6 +162,8 @@ func ParseShortcut(in string) (string, error) {
 		return types.KindClusterNetworkingConfig, nil
 	case types.KindSessionRecordingConfig, "recording_config", "session_recording", "rec_config", "recconfig":
 		return types.KindSessionRecordingConfig, nil
+	case types.KindExternalCloudAudit:
+		return types.KindExternalCloudAudit, nil
 	case types.KindRemoteCluster, "remote_clusters", "rc", "rcs":
 		return types.KindRemoteCluster, nil
 	case types.KindSemaphore, "semaphores", "sem", "sems":
@@ -212,6 +214,12 @@ func ParseShortcut(in string) (string, error) {
 		return types.KindAccessList, nil
 	case types.KindDiscoveryConfig, types.KindDiscoveryConfig + "s", "discoveryconfig", "discoveryconfigs":
 		return types.KindDiscoveryConfig, nil
+	case types.KindAuditQuery:
+		return types.KindAuditQuery, nil
+	case types.KindSecurityReport:
+		return types.KindSecurityReport, nil
+	case types.KindServerInfo:
+		return types.KindServerInfo, nil
 	}
 	return "", trace.BadParameter("unsupported resource: %q - resources should be expressed as 'type/name', for example 'connector/github'", in)
 }

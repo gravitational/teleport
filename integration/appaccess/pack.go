@@ -184,7 +184,7 @@ func (p *Pack) CreateUser(t *testing.T) (types.User, string) {
 
 	role := services.RoleForUser(user)
 	role.SetLogins(types.Allow, []string{username, "root", "ubuntu"})
-	err = p.rootCluster.Process.GetAuthServer().UpsertRole(context.Background(), role)
+	role, err = p.rootCluster.Process.GetAuthServer().UpsertRole(context.Background(), role)
 	require.NoError(t, err)
 
 	user.AddRole(role.GetName())
@@ -245,7 +245,7 @@ func (p *Pack) initWebSession(t *testing.T) {
 	// Extract session cookie and bearer token.
 	require.Len(t, resp.Cookies(), 1)
 	cookie := resp.Cookies()[0]
-	require.Equal(t, cookie.Name, websession.CookieName)
+	require.Equal(t, websession.CookieName, cookie.Name)
 
 	p.webCookie = cookie.Value
 	p.webToken = csResp.Token

@@ -87,7 +87,7 @@ func Test_aKSClient_ClusterCredentials(t *testing.T) {
 				},
 			},
 			validateRestConfig: func(t *testing.T, c *rest.Config) {
-				require.Equal(t, c.Username, "exp")
+				require.Equal(t, "exp", c.Username)
 			},
 		},
 		{

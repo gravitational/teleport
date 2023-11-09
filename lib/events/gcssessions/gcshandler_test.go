@@ -46,7 +46,7 @@ func TestFakeStreams(t *testing.T) {
 		Endpoint: server.URL(),
 		Bucket:   fmt.Sprintf("teleport-test-%v", uuid.New().String()),
 	}, server.Client())
-	require.Nil(t, err)
+	require.NoError(t, err)
 	defer handler.Close()
 
 	t.Run("UploadDownload", func(t *testing.T) {

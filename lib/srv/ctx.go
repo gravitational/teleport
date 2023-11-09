@@ -52,6 +52,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/envutils"
 	"github.com/gravitational/teleport/lib/utils/parse"
 )
 
@@ -977,15 +978,9 @@ func (c *ServerContext) reportStats(conn utils.Stater) {
 			Type:  events.SessionDataEvent,
 			Code:  events.SessionDataCode,
 		},
-		ServerMetadata: apievents.ServerMetadata{
-			ServerID:        c.GetServer().HostUUID(),
-			ServerNamespace: c.GetServer().GetNamespace(),
-		},
-		SessionMetadata: apievents.SessionMetadata{
-			SessionID: string(c.SessionID()),
-			WithMFA:   c.Identity.Certificate.Extensions[teleport.CertExtensionMFAVerified],
-		},
-		UserMetadata: c.Identity.GetUserMetadata(),
+		ServerMetadata:  c.GetServerMetadata(),
+		SessionMetadata: c.GetSessionMetadata(),
+		UserMetadata:    c.Identity.GetUserMetadata(),
 		ConnectionMetadata: apievents.ConnectionMetadata{
 			RemoteAddr: c.ServerConn.RemoteAddr().String(),
 		},
@@ -1210,12 +1205,10 @@ func (id *IdentityContext) GetUserMetadata() apievents.UserMetadata {
 // buildEnvironment constructs a list of environment variables from
 // cluster information.
 func buildEnvironment(ctx *ServerContext) []string {
-	var env []string
+	env := &envutils.SafeEnv{}
 
 	// gather all dynamically defined environment variables
-	ctx.VisitEnv(func(key, val string) {
-		env = append(env, fmt.Sprintf("%s=%s", key, val))
-	})
+	ctx.VisitEnv(env.Add)
 
 	// Parse the local and remote addresses to build SSH_CLIENT and
 	// SSH_CONNECTION environment variables.
@@ -1227,9 +1220,8 @@ func buildEnvironment(ctx *ServerContext) []string {
 		if err != nil {
 			ctx.Logger.Debugf("Failed to split local address: %v.", err)
 		} else {
-			env = append(env,
-				fmt.Sprintf("SSH_CLIENT=%s %s %s", remoteHost, remotePort, localPort),
-				fmt.Sprintf("SSH_CONNECTION=%s %s %s %s", remoteHost, remotePort, localHost, localPort))
+			env.Add("SSH_CLIENT", fmt.Sprintf("%s %s %s", remoteHost, remotePort, localPort))
+			env.Add("SSH_CONNECTION", fmt.Sprintf("%s %s %s %s", remoteHost, remotePort, localHost, localPort))
 		}
 	}
 
@@ -1237,21 +1229,21 @@ func buildEnvironment(ctx *ServerContext) []string {
 	session := ctx.getSession()
 	if session != nil {
 		if session.term != nil {
-			env = append(env, fmt.Sprintf("TERM=%v", session.term.GetTermType()))
-			env = append(env, fmt.Sprintf("SSH_TTY=%s", session.term.TTY().Name()))
+			env.Add("TERM", session.term.GetTermType())
+			env.Add("SSH_TTY", session.term.TTY().Name())
 		}
 		if session.id != "" {
-			env = append(env, fmt.Sprintf("%s=%s", teleport.SSHSessionID, session.id))
+			env.Add(teleport.SSHSessionID, string(session.id))
 		}
 	}
 
 	// Set some Teleport specific environment variables: SSH_TELEPORT_USER,
 	// SSH_TELEPORT_HOST_UUID, and SSH_TELEPORT_CLUSTER_NAME.
-	env = append(env, teleport.SSHTeleportHostUUID+"="+ctx.srv.ID())
-	env = append(env, teleport.SSHTeleportClusterName+"="+ctx.ClusterName)
-	env = append(env, teleport.SSHTeleportUser+"="+ctx.Identity.TeleportUser)
+	env.Add(teleport.SSHTeleportHostUUID, ctx.srv.ID())
+	env.Add(teleport.SSHTeleportClusterName, ctx.ClusterName)
+	env.Add(teleport.SSHTeleportUser, ctx.Identity.TeleportUser)
 
-	return env
+	return *env
 }
 
 func closeAll(closers ...io.Closer) error {
@@ -1362,4 +1354,20 @@ func (c *ServerContext) GetExecRequest() (Exec, error) {
 		return nil, trace.NotFound("execRequest has not been set")
 	}
 	return c.execRequest, nil
+}
+
+func (c *ServerContext) GetServerMetadata() apievents.ServerMetadata {
+	return apievents.ServerMetadata{
+		ServerID:        c.srv.HostUUID(),
+		ServerHostname:  c.srv.GetInfo().GetHostname(),
+		ServerNamespace: c.srv.GetNamespace(),
+	}
+}
+
+func (c *ServerContext) GetSessionMetadata() apievents.SessionMetadata {
+	return apievents.SessionMetadata{
+		SessionID:        string(c.SessionID()),
+		WithMFA:          c.Identity.Certificate.Extensions[teleport.CertExtensionMFAVerified],
+		PrivateKeyPolicy: c.Identity.Certificate.Extensions[teleport.CertExtensionPrivateKeyPolicy],
+	}
 }

@@ -106,7 +106,7 @@ func TestListDatabases(t *testing.T) {
 				Engine:               stringPointer("postgres"),
 				Endpoint: &rdsTypes.Endpoint{
 					Address: stringPointer("endpoint.amazonaws.com"),
-					Port:    5432,
+					Port:    aws.Int32(5432),
 				},
 			})
 		}
@@ -176,7 +176,7 @@ func TestListDatabases(t *testing.T) {
 				DBInstanceArn:        stringPointer("arn:aws:iam::123456789012:role/MyARN"),
 				Endpoint: &rdsTypes.Endpoint{
 					Address: stringPointer("endpoint.amazonaws.com"),
-					Port:    5432,
+					Port:    aws.Int32(5432),
 				},
 			},
 			},
@@ -232,7 +232,7 @@ func TestListDatabases(t *testing.T) {
 					DBInstanceArn:        stringPointer("arn:aws:iam::123456789012:role/MyARN"),
 					Endpoint: &rdsTypes.Endpoint{
 						Address: stringPointer("endpoint.amazonaws.com"),
-						Port:    5432,
+						Port:    aws.Int32(5432),
 					},
 				},
 				{

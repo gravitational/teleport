@@ -52,6 +52,20 @@ func (m *mockListEC2Client) GetCallerIdentity(ctx context.Context, params *sts.G
 func (m mockListEC2Client) DescribeInstances(ctx context.Context, params *ec2.DescribeInstancesInput, optFns ...func(*ec2.Options)) (*ec2.DescribeInstancesOutput, error) {
 	requestedPage := 1
 
+	stateFilter := false
+	platformFilter := false
+	for _, filter := range params.Filters {
+		if aws.ToString(filter.Name) == "instance-state-name" && len(filter.Values) == 1 && filter.Values[0] == "running" {
+			stateFilter = true
+		}
+		if aws.ToString(filter.Name) == "platform-details" && len(filter.Values) == 1 && filter.Values[0] == "Linux/UNIX" {
+			platformFilter = true
+		}
+	}
+	if !stateFilter || !platformFilter {
+		return nil, trace.BadParameter("instance-state-name and platform-details filters were not included")
+	}
+
 	totalInstances := len(m.ec2Instances)
 
 	if params.NextToken != nil {
@@ -120,7 +134,7 @@ func TestListEC2(t *testing.T) {
 		require.NotEmpty(t, resp.NextToken)
 		require.Len(t, resp.Servers, pageSize)
 		nextPageToken := resp.NextToken
-		require.Equal(t, resp.Servers[0].GetCloudMetadata().AWS.InstanceID, "i-0")
+		require.Equal(t, "i-0", resp.Servers[0].GetCloudMetadata().AWS.InstanceID)
 
 		// Second page must return pageSize number of Servers
 		resp, err = ListEC2(ctx, mockListClient, ListEC2Request{
@@ -132,7 +146,7 @@ func TestListEC2(t *testing.T) {
 		require.NotEmpty(t, resp.NextToken)
 		require.Len(t, resp.Servers, pageSize)
 		nextPageToken = resp.NextToken
-		require.Equal(t, resp.Servers[0].GetCloudMetadata().AWS.InstanceID, "i-100")
+		require.Equal(t, "i-100", resp.Servers[0].GetCloudMetadata().AWS.InstanceID)
 
 		// Third page must return only the remaining Servers and an empty nextToken
 		resp, err = ListEC2(ctx, mockListClient, ListEC2Request{
@@ -143,7 +157,7 @@ func TestListEC2(t *testing.T) {
 		require.NoError(t, err)
 		require.Empty(t, resp.NextToken)
 		require.Len(t, resp.Servers, 3)
-		require.Equal(t, resp.Servers[0].GetCloudMetadata().AWS.InstanceID, "i-200")
+		require.Equal(t, "i-200", resp.Servers[0].GetCloudMetadata().AWS.InstanceID)
 	})
 
 	for _, tt := range []struct {

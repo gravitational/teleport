@@ -245,6 +245,9 @@ type InitConfig struct {
 	// UserLoginStates is a service that manages user login states.
 	UserLoginState services.UserLoginStates
 
+	// SecReports is a service that manages security reports.
+	SecReports services.SecReports
+
 	// Clock is the clock instance auth uses. Typically you'd only want to set
 	// this during testing.
 	Clock clockwork.Clock
@@ -261,6 +264,9 @@ type InitConfig struct {
 
 	// Tracer used to create spans.
 	Tracer oteltrace.Tracer
+
+	// AccessMonitoringEnabled is true if access monitoring is enabled.
+	AccessMonitoringEnabled bool
 }
 
 // Init instantiates and configures an instance of AuthServer
@@ -341,7 +347,7 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 	// same pattern as the rest of the configuration (they are not configuration
 	// singletons). However, we need to keep them around while Telekube uses them.
 	for _, role := range cfg.Roles {
-		if err := asrv.UpsertRole(ctx, role); err != nil {
+		if _, err := asrv.UpsertRole(ctx, role); err != nil {
 			return trace.Wrap(err)
 		}
 		log.Infof("Created role: %v.", role)
@@ -736,14 +742,15 @@ type PresetRoleManager interface {
 	// GetRole returns role by name.
 	GetRole(ctx context.Context, name string) (types.Role, error)
 	// CreateRole creates a role.
-	CreateRole(ctx context.Context, role types.Role) error
+	CreateRole(ctx context.Context, role types.Role) (types.Role, error)
 	// UpsertRole creates or updates a role and emits a related audit event.
-	UpsertRole(ctx context.Context, role types.Role) error
+	UpsertRole(ctx context.Context, role types.Role) (types.Role, error)
 }
 
-// createPresetRoles creates preset role resources
-func createPresetRoles(ctx context.Context, rm PresetRoleManager) error {
-	roles := []types.Role{
+// GetPresetRoles returns a list of all preset roles expected to be available on
+// this cluster.
+func GetPresetRoles() []types.Role {
+	return []types.Role{
 		services.NewPresetGroupAccessRole(),
 		services.NewPresetEditorRole(),
 		services.NewPresetAccessRole(),
@@ -755,6 +762,11 @@ func createPresetRoles(ctx context.Context, rm PresetRoleManager) error {
 		services.NewPresetDeviceEnrollRole(),
 		services.NewPresetRequireTrustedDeviceRole(),
 	}
+}
+
+// createPresetRoles creates preset role resources
+func createPresetRoles(ctx context.Context, rm PresetRoleManager) error {
+	roles := GetPresetRoles()
 
 	g, gctx := errgroup.WithContext(ctx)
 	for _, role := range roles {
@@ -767,14 +779,14 @@ func createPresetRoles(ctx context.Context, rm PresetRoleManager) error {
 		g.Go(func() error {
 			if types.IsSystemResource(role) {
 				// System resources *always* get reset on every auth startup
-				if err := rm.UpsertRole(gctx, role); err != nil {
+				if _, err := rm.UpsertRole(gctx, role); err != nil {
 					return trace.Wrap(err, "failed upserting system role %s", role.GetName())
 				}
 
 				return nil
 			}
 
-			if err := rm.CreateRole(gctx, role); err != nil {
+			if _, err := rm.CreateRole(gctx, role); err != nil {
 				if !trace.IsAlreadyExists(err) {
 					return trace.WrapWithMessage(err, "failed to create preset role %v", role.GetName())
 				}
@@ -792,7 +804,7 @@ func createPresetRoles(ctx context.Context, rm PresetRoleManager) error {
 					return trace.Wrap(err)
 				}
 
-				if err := rm.UpsertRole(gctx, role); err != nil {
+				if _, err := rm.UpsertRole(gctx, role); err != nil {
 					return trace.WrapWithMessage(err, "failed to update preset role %v", role.GetName())
 				}
 			}
@@ -1346,16 +1358,37 @@ func migrateRemoteClusters(ctx context.Context, asrv *Server) error {
 	return nil
 }
 
+// ResourceApplyPriority specifies in which order the resources must be applied
+// to avoid consistency issues. A lower priority means the resource is applied
+// before.
+var ResourceApplyPriority = map[string]int{
+	types.KindRole:  1,
+	types.KindUser:  2, // Users must be applied after Roles
+	types.KindToken: 3,
+}
+
 // Unlike when resources are loaded via --bootstrap, we're inserting elements via their service.
-// This means consistency is checked. This function does not currently support applying resources
-// with dependencies (like a user referring to a role) as it won't necessarily apply them in the
-// right order.
+// This means consistency is checked. This function support applying resources
+// with dependencies (like a user referring to a role).
 func applyResources(ctx context.Context, service *Services, resources []types.Resource) error {
 	var err error
+	slices.SortFunc(resources, func(a, b types.Resource) int {
+		priorityA := ResourceApplyPriority[a.GetKind()]
+		priorityB := ResourceApplyPriority[b.GetKind()]
+		return priorityA - priorityB
+	})
 	for _, resource := range resources {
 		switch r := resource.(type) {
 		case types.ProvisionToken:
 			err = service.Provisioner.UpsertToken(ctx, r)
+		case types.User:
+			err = services.ValidateUserRoles(ctx, r, service.Access)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			_, err = service.Identity.UpsertUser(ctx, r)
+		case types.Role:
+			_, err = service.Access.UpsertRole(ctx, r)
 		default:
 			return trace.NotImplemented("cannot apply resource of type %T", resource)
 		}

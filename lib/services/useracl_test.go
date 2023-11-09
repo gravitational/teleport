@@ -72,7 +72,7 @@ func TestNewUserACL(t *testing.T) {
 	})
 
 	roleSet := []types.Role{role1, role2}
-	userContext := NewUserACL(user, roleSet, proto.Features{}, true)
+	userContext := NewUserACL(user, roleSet, proto.Features{}, true, false)
 
 	allowedRW := ResourceAccess{true, true, true, true, true, false}
 	denied := ResourceAccess{false, false, false, false, false, false}
@@ -94,20 +94,20 @@ func TestNewUserACL(t *testing.T) {
 	require.Empty(t, cmp.Diff(userContext.Desktops, allowedRW))
 
 	require.Empty(t, cmp.Diff(userContext.Billing, denied))
-	require.Equal(t, userContext.Clipboard, true)
-	require.Equal(t, userContext.DesktopSessionRecording, true)
+	require.True(t, userContext.Clipboard)
+	require.True(t, userContext.DesktopSessionRecording)
 	require.Empty(t, cmp.Diff(userContext.License, denied))
 	require.Empty(t, cmp.Diff(userContext.Download, denied))
 
 	// test enabling of the 'Use' verb
 	require.Empty(t, cmp.Diff(userContext.Integrations, ResourceAccess{true, true, true, true, true, true}))
 
-	userContext = NewUserACL(user, roleSet, proto.Features{Cloud: true}, true)
+	userContext = NewUserACL(user, roleSet, proto.Features{Cloud: true}, true, false)
 	require.Empty(t, cmp.Diff(userContext.Billing, ResourceAccess{true, true, false, false, false, false}))
 
 	// test that desktopRecordingEnabled being false overrides the roleSet.RecordDesktopSession() returning true
-	userContext = NewUserACL(user, roleSet, proto.Features{}, false)
-	require.Equal(t, userContext.DesktopSessionRecording, false)
+	userContext = NewUserACL(user, roleSet, proto.Features{}, false, false)
+	require.False(t, userContext.DesktopSessionRecording)
 }
 
 func TestNewUserACLCloud(t *testing.T) {
@@ -133,7 +133,7 @@ func TestNewUserACLCloud(t *testing.T) {
 
 	allowedRW := ResourceAccess{true, true, true, true, true, false}
 
-	userContext := NewUserACL(user, roleSet, proto.Features{Cloud: true}, true)
+	userContext := NewUserACL(user, roleSet, proto.Features{Cloud: true}, true, false)
 
 	require.Empty(t, cmp.Diff(userContext.AuthConnectors, allowedRW))
 	require.Empty(t, cmp.Diff(userContext.TrustedClusters, allowedRW))
@@ -149,10 +149,40 @@ func TestNewUserACLCloud(t *testing.T) {
 	require.Empty(t, cmp.Diff(userContext.AccessRequests, allowedRW))
 	require.Empty(t, cmp.Diff(userContext.DiscoveryConfig, allowedRW))
 
-	require.Equal(t, userContext.Clipboard, true)
-	require.Equal(t, userContext.DesktopSessionRecording, true)
+	require.True(t, userContext.Clipboard)
+	require.True(t, userContext.DesktopSessionRecording)
 
 	// cloud-specific asserts
 	require.Empty(t, cmp.Diff(userContext.Billing, allowedRW))
 	require.Empty(t, cmp.Diff(userContext.Desktops, allowedRW))
+}
+
+func TestNewAccessMonitoring(t *testing.T) {
+	t.Parallel()
+	user := &types.UserV2{
+		Metadata: types.Metadata{},
+	}
+	role := &types.RoleV6{}
+	role.SetNamespaces(types.Allow, []string{"*"})
+	role.SetRules(types.Allow, []types.Rule{
+		{
+			Resources: []string{"*"},
+			Verbs:     append(RW(), types.VerbUse),
+		},
+	})
+
+	roleSet := []types.Role{role}
+
+	t.Run("access monitoring enabled", func(t *testing.T) {
+		allowed := ResourceAccess{true, true, true, true, true, true}
+		userContext := NewUserACL(user, roleSet, proto.Features{}, false, true)
+		require.Empty(t, cmp.Diff(userContext.AuditQuery, allowed))
+		require.Empty(t, cmp.Diff(userContext.SecurityReport, allowed))
+	})
+	t.Run("access monitoring disabled", func(t *testing.T) {
+		allowed := ResourceAccess{false, false, false, false, false, false}
+		userContext := NewUserACL(user, roleSet, proto.Features{}, false, false)
+		require.Empty(t, cmp.Diff(userContext.AuditQuery, allowed))
+		require.Empty(t, cmp.Diff(userContext.SecurityReport, allowed))
+	})
 }

@@ -23,6 +23,7 @@ import (
 	"testing"
 
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
@@ -40,6 +41,9 @@ func setupTestEnv(t *testing.T, opts ...testlib.TestOption) *testlib.TestSetup {
 }
 func validRandomResourceName(prefix string) string       { return testlib.ValidRandomResourceName(prefix) }
 func fastEventually(t *testing.T, condition func() bool) { testlib.FastEventually(t, condition) }
+func fastEventuallyWithT(t *testing.T, condition func(*assert.CollectT)) {
+	testlib.FastEventuallyWithT(t, condition)
+}
 
 func teleportCreateDummyRole(ctx context.Context, roleName string, tClient *client.Client) error {
 	// The role is created in Teleport
@@ -55,7 +59,8 @@ func teleportCreateDummyRole(ctx context.Context, roleName string, tClient *clie
 	metadata.Labels = map[string]string{types.OriginLabel: types.OriginKubernetes}
 	tRole.SetMetadata(metadata)
 
-	return trace.Wrap(tClient.UpsertRole(ctx, tRole))
+	_, err = tClient.UpsertRole(ctx, tRole)
+	return trace.Wrap(err)
 }
 
 func teleportResourceToMap[T types.Resource](resource T) (map[string]interface{}, error) {

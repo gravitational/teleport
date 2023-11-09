@@ -16,7 +16,7 @@ limitations under the License.
 
 import cfg from 'teleport/config';
 
-import { StoreNav, StoreUserContext } from './stores';
+import { StoreNav, StoreUserContext, StoreNotifications } from './stores';
 import * as types from './types';
 import AuditService from './services/audit';
 import RecordingsService from './services/recordings';
@@ -39,6 +39,7 @@ class TeleportContext implements types.Context {
   // stores
   storeNav = new StoreNav();
   storeUser = new StoreUserContext();
+  storeNotifications = new StoreNotifications();
 
   // services
   auditService = new AuditService();
@@ -59,6 +60,7 @@ class TeleportContext implements types.Context {
   isEnterprise = cfg.isEnterprise;
   isCloud = cfg.isCloud;
   automaticUpgradesEnabled = cfg.automaticUpgrades;
+  automaticUpgradesTargetVersion = cfg.automaticUpgradesTargetVersion;
   assistEnabled = cfg.assistEnabled;
   agentService = agentService;
 
@@ -134,6 +136,13 @@ class TeleportContext implements types.Context {
       return !cfg.isDashboard;
     }
 
+    function hasAccessMonitoringAccess() {
+      return (
+        userContext.getAuditQueryAccess().list ||
+        userContext.getSecurityReportAccess().list
+      );
+    }
+
     return {
       audit: userContext.getEventAccess().list,
       recordings: userContext.getSessionsAccess().list,
@@ -163,6 +172,7 @@ class TeleportContext implements types.Context {
       newLocks:
         userContext.getLockAccess().create && userContext.getLockAccess().edit,
       assist: userContext.getAssistantAccess().list && this.assistEnabled,
+      accessMonitoring: hasAccessMonitoringAccess(),
       managementSection: hasManagementSectionAccess(),
     };
   }
@@ -195,6 +205,7 @@ export const disabledFeatureFlags: types.FeatureFlags = {
   newLocks: false,
   assist: false,
   managementSection: false,
+  accessMonitoring: false,
 };
 
 export default TeleportContext;

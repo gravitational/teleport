@@ -138,7 +138,7 @@ func (c *Cluster) GetWithDetails(ctx context.Context) (*ClusterWithDetails, erro
 		}
 
 		roleSet := services.NewRoleSet(roles...)
-		userACL := services.NewUserACL(user, roleSet, *authPingResponse.ServerFeatures, false)
+		userACL := services.NewUserACL(user, roleSet, *authPingResponse.ServerFeatures, false, false)
 
 		acl = &api.ACL{
 			RecordedSessions: convertToAPIResourceAccess(userACL.RecordedSessions),

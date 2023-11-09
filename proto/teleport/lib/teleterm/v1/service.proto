@@ -22,7 +22,6 @@ import "teleport/lib/teleterm/v1/cluster.proto";
 import "teleport/lib/teleterm/v1/database.proto";
 import "teleport/lib/teleterm/v1/gateway.proto";
 import "teleport/lib/teleterm/v1/kube.proto";
-import "teleport/lib/teleterm/v1/label.proto";
 import "teleport/lib/teleterm/v1/server.proto";
 import "teleport/lib/teleterm/v1/usage_events.proto";
 
@@ -144,6 +143,8 @@ service TerminalService {
   rpc DeleteConnectMyComputerNode(DeleteConnectMyComputerNodeRequest) returns (DeleteConnectMyComputerNodeResponse);
   // GetConnectMyComputerNodeName reads the Connect My Computer node name (UUID) from a disk.
   rpc GetConnectMyComputerNodeName(GetConnectMyComputerNodeNameRequest) returns (GetConnectMyComputerNodeNameResponse);
+  // ListUnifiedResources retrieves a paginated list of all resource types displayable in the UI.
+  rpc ListUnifiedResources(ListUnifiedResourcesRequest) returns (ListUnifiedResourcesResponse);
 }
 
 message EmptyResponse {}
@@ -475,7 +476,8 @@ message CreateConnectMyComputerNodeTokenRequest {
 }
 message CreateConnectMyComputerNodeTokenResponse {
   string token = 1;
-  repeated Label labels = 2;
+  reserved 2;
+  reserved "labels";
 }
 
 message DeleteConnectMyComputerTokenRequest {
@@ -503,4 +505,49 @@ message GetConnectMyComputerNodeNameRequest {
 
 message GetConnectMyComputerNodeNameResponse {
   string name = 1;
+}
+
+message ListUnifiedResourcesRequest {
+  string cluster_uri = 1;
+  // A list of kinds to match against a resource's kind. This can be used in a
+  // unified resource request that can include multiple types.
+  repeated string kinds = 2;
+  // The maximum number of resources to retrieve.
+  int32 limit = 3;
+  // Starts listing resources from a specific spot.
+  // It should be set to the next_key from ListUnifiedResourcesResponse if
+  // using pagination, or left empty.
+  string start_key = 4;
+  // If defined, the advanced search is used. The search field should be left empty.
+  string query = 5;
+  // If defined, the regular search is used. The query field should be left empty.
+  string search = 6;
+  // SortBy describes which resource field and which direction to sort by.
+  SortBy sort_by = 7;
+  // When true, all resources that the user can request access to are returned.
+  bool search_as_roles = 8;
+  // Only the pinned resources will be returned for the requesting user.
+  bool pinned_only = 9;
+}
+
+message SortBy {
+  // A sort direction flag where if true the direction is descending, else ascending.
+  bool is_desc = 1;
+  // Name of an object's field to sort by. Resources can be sorted by name and kind.
+  string field = 2;
+}
+
+message ListUnifiedResourcesResponse {
+  repeated PaginatedResource resources = 1;
+  // A key to use as start_key in a ListResourcesRequest to continue retrieving
+  // the next pages. If it is empty, there are no more pages.
+  string next_key = 2;
+}
+
+message PaginatedResource {
+  oneof resource {
+    Database database = 1;
+    Server server = 2;
+    Kube kube = 3;
+  }
 }

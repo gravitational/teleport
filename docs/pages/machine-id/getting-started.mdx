@@ -11,7 +11,11 @@ Here's an overview of what you will do:
 - Download and install `tbot` on the host that will run Machine ID.
 - Create a bot user.
 - Start Machine ID.
-- Use certificates issued by Machine ID to connect to a remote machine.
+- Use certificates issued by Machine ID to connect to a remote machine with SSH.
+
+This guide covers configuring Machine ID for development and learning purposes.
+For a production-ready configuration of Machine ID, visit the [Deploying Machine
+ID](./deployment.mdx) guides.
 
 ## Prerequisites
 
@@ -72,6 +76,11 @@ access  {{internal.logins}}                           <all nodes> event:list,rea
 auditor no-login-6566121f-b602-47f1-a118-c9c618ee5aec             session:list,read,event:list,read
 editor                                                            user:list,create,read,update,delete,...
 ```
+
+The `internal.logins` trait is replaced with values from the Teleport local user
+database. For full details on how traits work in Teleport roles, see the
+[Teleport Access Controls
+Reference](../access-controls/reference.mdx).
 
 Machine ID can join with a token or the [IAM Method](../agents/join-services-to-your-cluster/aws-iam.mdx) on AWS.
 
@@ -289,13 +298,13 @@ and controlled with all the familiar Teleport access controls.
 
 ## Next Steps
 
-Now that you know how to create a bot user to access resources in your
-infrastructure, dive deeper into the topics relevant to your Machine ID
-use-case, for example:
-
-- [Machine ID with Ansible](./guides/ansible.mdx)
-- [Machine ID with Jenkins](./guides/jenkins.mdx)
-- [Machine ID with Databases](./guides/databases.mdx)
-
-[More information about `TELEPORT_ANONYMOUS_TELEMETRY`.](./reference/telemetry.mdx)
+- Read the [architecture overview](./architecture.mdx) to learn about how
+  Machine ID works in more detail.
+- Check out the [deployment guides](./deployment.mdx) to learn about
+  configuring `tbot` in a production-ready way for your platform.
+- Check out the [access guides](./access-guides.mdx) to learn about configuring
+  `tbot` for different use cases than SSH.
+- Read the [configuration reference](./reference/configuration.mdx) to explore
+  all the available configuration options.
+- [More information about `TELEPORT_ANONYMOUS_TELEMETRY`.](./reference/telemetry.mdx)
 

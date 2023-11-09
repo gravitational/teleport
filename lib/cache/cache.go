@@ -35,8 +35,10 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
+	"github.com/gravitational/teleport/api/types/secreports"
 	"github.com/gravitational/teleport/api/types/userloginstate"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/backend"
@@ -69,6 +71,26 @@ var (
 
 	cacheCollectors = []prometheus.Collector{cacheEventsReceived, cacheStaleEventsReceived}
 )
+
+// highVolumeResources is the set of cached resources that tend to produce high
+// event volumes (e.g. heartbeat resources). high volume events, and the watchers that
+// care about them, are separated into a dedicated event fanout system in order to
+// reduce the amount of load on watchers that only care about cluster state resources.
+// peripheral agents that scale linearly with cluster resources (e.g. nodes) should never
+// watch events of this kind.
+var highVolumeResources = map[string]struct{}{
+	types.KindNode:                  {},
+	types.KindAppServer:             {},
+	types.KindDatabaseServer:        {},
+	types.KindDatabaseService:       {},
+	types.KindWindowsDesktopService: {},
+	types.KindKubeServer:            {},
+}
+
+func isHighVolumeResource(kind string) bool {
+	_, ok := highVolumeResources[kind]
+	return ok
+}
 
 // ForAuth sets up watch configuration for the auth server
 func ForAuth(cfg Config) Config {
@@ -118,11 +140,16 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindHeadlessAuthentication},
 		{Kind: types.KindUserLoginState},
 		{Kind: types.KindDiscoveryConfig},
+		{Kind: types.KindAuditQuery},
+		{Kind: types.KindSecurityReport},
+		{Kind: types.KindSecurityReportState},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
 	// We don't want to enable partial health for auth cache because auth uses an event stream
 	// from the local backend which must support all resource kinds. We want to catch it early if it doesn't.
 	cfg.DisablePartialHealth = true
+	// auth server shards its event fanout system in order to reduce lock contention in very large clusters.
+	cfg.FanoutShards = 64
 	return cfg
 }
 
@@ -164,6 +191,9 @@ func ForProxy(cfg Config) Config {
 		{Kind: types.KindSAMLIdPServiceProvider},
 		{Kind: types.KindUserGroup},
 		{Kind: types.KindIntegration},
+		{Kind: types.KindAuditQuery},
+		{Kind: types.KindSecurityReport},
+		{Kind: types.KindSecurityReportState},
 	}
 	cfg.QueueSize = defaults.ProxyQueueSize
 	return cfg
@@ -476,8 +506,10 @@ type Cache struct {
 	integrationsCache            services.Integrations
 	discoveryConfigsCache        services.DiscoveryConfigs
 	headlessAuthenticationsCache services.HeadlessAuthenticationService
+	secReportsCache              services.SecReports
 	userLoginStateCache          services.UserLoginStates
-	eventsFanout                 *services.FanoutSet
+	eventsFanout                 *services.FanoutV2
+	lowVolumeEventsFanout        *utils.RoundRobin[*services.FanoutV2]
 
 	// closed indicates that the cache has been closed
 	closed atomic.Bool
@@ -583,6 +615,8 @@ type Config struct {
 	// Watches provides a list of resources
 	// for the cache to watch
 	Watches []types.WatchKind
+	// FanoutShards is the number of event fanout shards to allocate
+	FanoutShards int
 	// Events provides events watchers
 	Events types.Events
 	// Trust is a service providing information about certificate
@@ -634,6 +668,8 @@ type Config struct {
 	DiscoveryConfigs services.DiscoveryConfigs
 	// UserLoginStates is the user login state service.
 	UserLoginStates services.UserLoginStates
+	// SecEvents is the security report service.
+	SecReports services.SecReports
 	// Backend is a backend for local cache
 	Backend backend.Backend
 	// MaxRetryPeriod is the maximum period between cache retries on failures
@@ -726,6 +762,9 @@ func (c *Config) CheckAndSetDefaults() error {
 	if c.Tracer == nil {
 		c.Tracer = tracing.NoopTracer(c.Component)
 	}
+	if c.FanoutShards == 0 {
+		c.FanoutShards = 1
+	}
 	return nil
 }
 
@@ -809,10 +848,22 @@ func New(config Config) (*Cache, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	secReprotsCache, err := local.NewSecReportsService(config.Backend, config.Clock)
+	if err != nil {
+		cancel()
+		return nil, trace.Wrap(err)
+	}
+
 	userLoginStatesCache, err := local.NewUserLoginStateService(config.Backend)
 	if err != nil {
 		cancel()
 		return nil, trace.Wrap(err)
+	}
+
+	fanout := services.NewFanoutV2(services.FanoutV2Config{})
+	lowVolumeFanouts := make([]*services.FanoutV2, 0, config.FanoutShards)
+	for i := 0; i < config.FanoutShards; i++ {
+		lowVolumeFanouts = append(lowVolumeFanouts, services.NewFanoutV2(services.FanoutV2Config{}))
 	}
 
 	cs := &Cache{
@@ -845,8 +896,10 @@ func New(config Config) (*Cache, error) {
 		integrationsCache:            integrationsCache,
 		discoveryConfigsCache:        discoveryConfigsCache,
 		headlessAuthenticationsCache: local.NewIdentityService(config.Backend),
+		secReportsCache:              secReprotsCache,
 		userLoginStateCache:          userLoginStatesCache,
-		eventsFanout:                 services.NewFanoutSet(),
+		eventsFanout:                 fanout,
+		lowVolumeEventsFanout:        utils.NewRoundRobin(lowVolumeFanouts),
 		Logger: log.WithFields(log.Fields{
 			trace.Component: config.Component,
 		}),
@@ -903,6 +956,30 @@ func (c *Cache) Start() error {
 	return nil
 }
 
+// NewStream is equivalent to NewWatcher except that it represents the event
+// stream as a stream.Stream rather than a channel. Watcher style event handling
+// is generally more common, but this API may be preferable for usecases where
+// *many* event streams need to be allocated as it is slightly more resource-efficient.
+func (c *Cache) NewStream(ctx context.Context, watch types.Watch) (stream.Stream[types.Event], error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/NewStream")
+	defer span.End()
+
+	validKinds, highVolume, err := c.validateWatchRequest(watch)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	watch.Kinds = validKinds
+	if highVolume {
+		// watch request includes high volume resources, register with the
+		// full fanout instance.
+		return c.eventsFanout.NewStream(ctx, watch), nil
+	}
+	// watch request does not contain high volume resources, register with
+	// the low volume fanout instance (improves performance at scale).
+	return c.lowVolumeEventsFanout.Next().NewStream(ctx, watch), nil
+}
+
 // NewWatcher returns a new event watcher. In case of a cache
 // this watcher will return events as seen by the cache,
 // not the backend. This feature allows auth server
@@ -912,14 +989,35 @@ func (c *Cache) NewWatcher(ctx context.Context, watch types.Watch) (types.Watche
 	ctx, span := c.Tracer.Start(ctx, "cache/NewWatcher")
 	defer span.End()
 
+	validKinds, highVolume, err := c.validateWatchRequest(watch)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	watch.Kinds = validKinds
+	if highVolume {
+		// watch request includes high volume resources, register with the
+		// full fanout instance.
+		return c.eventsFanout.NewWatcher(ctx, watch)
+	}
+	// watch request does not contain high volume resources, register with
+	// the low volume fanout instance (improves performance at scale).
+	return c.lowVolumeEventsFanout.Next().NewWatcher(ctx, watch)
+}
+
+func (c *Cache) validateWatchRequest(watch types.Watch) (kinds []types.WatchKind, highVolume bool, err error) {
 	c.rw.RLock()
 	cacheOK := c.ok
 	confirmedKinds := c.confirmedKinds
 	c.rw.RUnlock()
 
 	validKinds := make([]types.WatchKind, 0, len(watch.Kinds))
+	var containsHighVolumeResource bool
 Outer:
 	for _, requested := range watch.Kinds {
+		if isHighVolumeResource(requested.Kind) {
+			containsHighVolumeResource = true
+		}
 		if cacheOK {
 			// if cache has been initialized, we already know which kinds are confirmed by the event source
 			// and can validate the kinds requested for fanout against that.
@@ -928,7 +1026,7 @@ Outer:
 				if watch.AllowPartialSuccess {
 					continue
 				}
-				return nil, trace.BadParameter("cache %q does not support watching resource %q", c.Config.target, requested.Kind)
+				return nil, false, trace.BadParameter("cache %q does not support watching resource %q", c.Config.target, requested.Kind)
 			}
 			validKinds = append(validKinds, requested)
 		} else {
@@ -943,16 +1041,15 @@ Outer:
 			if watch.AllowPartialSuccess {
 				continue
 			}
-			return nil, trace.BadParameter("cache %q does not support watching resource %q", c.Config.target, requested.Kind)
+			return nil, false, trace.BadParameter("cache %q does not support watching resource %q", c.Config.target, requested.Kind)
 		}
 	}
 
 	if len(validKinds) == 0 {
-		return nil, trace.BadParameter("cache %q does not support any of the requested resources", c.Config.target)
+		return nil, false, trace.BadParameter("cache %q does not support any of the requested resources", c.Config.target)
 	}
 
-	watch.Kinds = validKinds
-	return c.eventsFanout.NewWatcher(ctx, watch)
+	return validKinds, containsHighVolumeResource, nil
 }
 
 func (c *Cache) update(ctx context.Context, retry retryutils.Retry) {
@@ -1139,7 +1236,13 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry retryutils.Retry, timer
 	// that any derivative caches do not perform their fetch operations
 	// until this cache has finished its apply operations.
 	c.eventsFanout.SetInit(confirmedKinds)
+	c.lowVolumeEventsFanout.ForEach(func(f *services.FanoutV2) {
+		f.SetInit(confirmedKinds)
+	})
 	defer c.eventsFanout.Reset()
+	defer c.lowVolumeEventsFanout.ForEach(func(f *services.FanoutV2) {
+		f.Reset()
+	})
 
 	retry.Reset()
 
@@ -1350,6 +1453,9 @@ func (c *Cache) Close() error {
 	c.closed.Store(true)
 	c.cancel()
 	c.eventsFanout.Close()
+	c.lowVolumeEventsFanout.ForEach(func(f *services.FanoutV2) {
+		f.Close()
+	})
 	return nil
 }
 
@@ -1479,6 +1585,11 @@ func (c *Cache) processEvent(ctx context.Context, event types.Event, emit bool) 
 	}
 	if emit {
 		c.eventsFanout.Emit(event)
+		if !isHighVolumeResource(resourceKind.kind) {
+			c.lowVolumeEventsFanout.ForEach(func(f *services.FanoutV2) {
+				f.Emit(event)
+			})
+		}
 	}
 	return nil
 }
@@ -1998,6 +2109,24 @@ func (c *Cache) GetUsers(ctx context.Context, withSecrets bool) ([]types.User, e
 	return rg.reader.GetUsers(ctx, withSecrets)
 }
 
+// ListUsers returns a page of users.
+func (c *Cache) ListUsers(ctx context.Context, pageSize int, nextToken string, withSecrets bool) ([]types.User, string, error) {
+	_, span := c.Tracer.Start(ctx, "cache/ListUsers")
+	defer span.End()
+
+	if withSecrets { // cache never tracks user secrets
+		users, token, err := c.Users.ListUsers(ctx, pageSize, nextToken, withSecrets)
+		return users, token, trace.Wrap(err)
+	}
+	rg, err := readCollectionCache(c, c.collections.users)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	defer rg.Release()
+	users, token, err := rg.reader.ListUsers(ctx, pageSize, nextToken, withSecrets)
+	return users, token, trace.Wrap(err)
+}
+
 // GetTunnelConnections is a part of auth.Cache implementation
 func (c *Cache) GetTunnelConnections(clusterName string, opts ...services.MarshalOption) ([]types.TunnelConnection, error) {
 	_, span := c.Tracer.Start(context.TODO(), "cache/GetTunnelConnections")
@@ -2503,6 +2632,123 @@ func (c *Cache) GetDiscoveryConfig(ctx context.Context, name string) (*discovery
 	}
 	defer rg.Release()
 	return rg.reader.GetDiscoveryConfig(ctx, name)
+}
+
+// GetSecurityAuditQuery  returns the specified audit query resource.
+func (c *Cache) GetSecurityAuditQuery(ctx context.Context, name string) (*secreports.AuditQuery, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetSecurityAuditQuery")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.auditQueries)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.reader.GetSecurityAuditQuery(ctx, name)
+}
+
+// GetSecurityAuditQueries returns a list of all audit query resources.
+func (c *Cache) GetSecurityAuditQueries(ctx context.Context) ([]*secreports.AuditQuery, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetSecurityAuditQueries")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.auditQueries)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.reader.GetSecurityAuditQueries(ctx)
+}
+
+// ListSecurityAuditQueries returns a paginated list of all audit query resources.
+func (c *Cache) ListSecurityAuditQueries(ctx context.Context, pageSize int, nextKey string) ([]*secreports.AuditQuery, string, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListSecurityAuditQueries")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.auditQueries)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.reader.ListSecurityAuditQueries(ctx, pageSize, nextKey)
+}
+
+// GetSecurityReport returns the specified security report resource.
+func (c *Cache) GetSecurityReport(ctx context.Context, name string) (*secreports.Report, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetSecurityReport")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.secReports)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.reader.GetSecurityReport(ctx, name)
+}
+
+// GetSecurityReports returns a list of all security report resources.
+func (c *Cache) GetSecurityReports(ctx context.Context) ([]*secreports.Report, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetSecurityReports")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.secReports)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.reader.GetSecurityReports(ctx)
+}
+
+// ListSecurityReports returns a paginated list of all security report resources.
+func (c *Cache) ListSecurityReports(ctx context.Context, pageSize int, nextKey string) ([]*secreports.Report, string, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListSecurityReports")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.secReports)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.reader.ListSecurityReports(ctx, pageSize, nextKey)
+}
+
+// GetSecurityReportState returns the specified security report state resource.
+func (c *Cache) GetSecurityReportState(ctx context.Context, name string) (*secreports.ReportState, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetSecurityReportState")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.secReportsStates)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.reader.GetSecurityReportState(ctx, name)
+}
+
+// GetSecurityReportsStates returns a list of all security report resources.
+func (c *Cache) GetSecurityReportsStates(ctx context.Context) ([]*secreports.ReportState, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetSecurityReportsStates")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.secReportsStates)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.reader.GetSecurityReportsStates(ctx)
+}
+
+// ListSecurityReportsStates returns a paginated list of all security report resources.
+func (c *Cache) ListSecurityReportsStates(ctx context.Context, pageSize int, nextKey string) ([]*secreports.ReportState, string, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListSecurityReportsStates")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.secReportsStates)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.reader.ListSecurityReportsStates(ctx, pageSize, nextKey)
 }
 
 // GetUserLoginStates returns the all user login state resources.

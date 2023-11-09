@@ -25,6 +25,7 @@ import (
 	"errors"
 	"io"
 	stdlog "log"
+	"maps"
 	"net"
 	"net/url"
 	"os"
@@ -212,6 +213,10 @@ type CommandLineFlags struct {
 	// IntegrationConfListDatabasesIAMArguments contains the arguments of
 	// `teleport integration configure listdatabases-iam` command
 	IntegrationConfListDatabasesIAMArguments IntegrationConfListDatabasesIAM
+
+	// IntegrationConfExternalCloudAuditArguments contains the arguments of the
+	// `teleport integration configure externalcloudaudit` command
+	IntegrationConfExternalCloudAuditArguments IntegrationConfExternalCloudAudit
 }
 
 // IntegrationConfDeployServiceIAM contains the arguments of
@@ -245,8 +250,6 @@ type IntegrationConfAWSOIDCIdP struct {
 	Cluster string
 	// Name is the integration name.
 	Name string
-	// Region is the AWS Region used to set up the client.
-	Region string
 	// Role is the AWS Role to associate with the Integration
 	Role string
 	// ProxyPublicURL is the IdP Issuer URL (Teleport Proxy Public Address).
@@ -261,6 +264,33 @@ type IntegrationConfListDatabasesIAM struct {
 	Region string
 	// Role is the AWS Role associated with the Integration
 	Role string
+}
+
+// IntegrationConfExternalCloudAudit contains the arguments of the
+// `teleport integration configure externalcloudaudit-iam` command
+type IntegrationConfExternalCloudAudit struct {
+	// Bootstrap is whether to bootstrap infrastructure (default: false).
+	Bootstrap bool
+	// Region is the AWS Region used.
+	Region string
+	// Role is the AWS IAM Role associated with the OIDC integration.
+	Role string
+	// Policy is the name to use for the IAM policy.
+	Policy string
+	// SessionRecordingsURI is the S3 URI where session recordings are stored.
+	SessionRecordingsURI string
+	// AuditEventsURI is the S3 URI where audit events are stored.
+	AuditEventsURI string
+	// AthenaResultsURI is the S3 URI where temporary Athena results are stored.
+	AthenaResultsURI string
+	// AthenaWorkgroup is the name of the Athena workgroup used.
+	AthenaWorkgroup string
+	// GlueDatabase is the name of the Glue database used.
+	GlueDatabase string
+	// GlueTable is the name of the Glue table used.
+	GlueTable string
+	// Partition is the AWS partition to use (default: aws).
+	Partition string
 }
 
 // ReadConfigFile reads /etc/teleport.yaml (or whatever is passed via --config flag)
@@ -858,6 +888,13 @@ func applyAuthConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		return trace.Wrap(err)
 	}
 
+	if fc.Auth.AccessMonitoring != nil {
+		if fc.Auth.AccessMonitoring.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err, "failed to validate access monitoring config")
+		}
+		cfg.Auth.AccessMonitoring = fc.Auth.AccessMonitoring
+	}
+
 	return nil
 }
 
@@ -1253,10 +1290,7 @@ func applySSHConfig(fc *FileConfig, cfg *servicecfg.Config) (err error) {
 		cfg.SSH.Addr = *addr
 	}
 	if fc.SSH.Labels != nil {
-		cfg.SSH.Labels = make(map[string]string)
-		for k, v := range fc.SSH.Labels {
-			cfg.SSH.Labels[k] = v
-		}
+		cfg.SSH.Labels = maps.Clone(fc.SSH.Labels)
 	}
 	if fc.SSH.Commands != nil {
 		cfg.SSH.CmdLabels = make(services.CommandLabels)
@@ -1519,10 +1553,7 @@ func applyKubeConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		cfg.Kube.KubeClusterName = fc.Kube.KubeClusterName
 	}
 	if fc.Kube.StaticLabels != nil {
-		cfg.Kube.StaticLabels = make(map[string]string)
-		for k, v := range fc.Kube.StaticLabels {
-			cfg.Kube.StaticLabels[k] = v
-		}
+		cfg.Kube.StaticLabels = maps.Clone(fc.Kube.StaticLabels)
 	}
 	if fc.Kube.DynamicLabels != nil {
 		cfg.Kube.DynamicLabels = make(services.CommandLabels)
@@ -1610,7 +1641,8 @@ func applyDatabasesConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 				Mode:       servicecfg.TLSMode(database.TLS.Mode),
 			},
 			AdminUser: servicecfg.DatabaseAdminUser{
-				Name: database.AdminUser.Name,
+				Name:            database.AdminUser.Name,
+				DefaultDatabase: database.AdminUser.DefaultDatabase,
 			},
 			Oracle: convOracleOptions(database.Oracle),
 			AWS: servicecfg.DatabaseAWS{
@@ -1960,10 +1992,7 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	cfg.WindowsDesktop.HostLabels = servicecfg.NewHostLabelRules(hlrs...)
 
 	if fc.WindowsDesktop.Labels != nil {
-		cfg.WindowsDesktop.Labels = make(map[string]string)
-		for k, v := range fc.WindowsDesktop.Labels {
-			cfg.WindowsDesktop.Labels[k] = v
-		}
+		cfg.WindowsDesktop.Labels = maps.Clone(fc.WindowsDesktop.Labels)
 	}
 
 	return nil

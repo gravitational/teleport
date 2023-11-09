@@ -32,7 +32,6 @@ import (
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -113,7 +112,7 @@ func (s *RoleSetup) Run(ctx context.Context, accessAndIdentity AccessAndIdentity
 		if err != nil {
 			return noCertsReloaded, trace.Wrap(err)
 		}
-		if err = accessAndIdentity.UpsertRole(ctx, role); err != nil {
+		if role, err = accessAndIdentity.UpsertRole(ctx, role); err != nil {
 			return noCertsReloaded, trace.Wrap(err, "creating role %v", role.GetName())
 		}
 	} else {
@@ -154,8 +153,8 @@ func (s *RoleSetup) Run(ctx context.Context, accessAndIdentity AccessAndIdentity
 			timeoutCtx, cancel := context.WithTimeout(ctx, resourceUpdateTimeout)
 			defer cancel()
 			err = s.syncResourceUpdate(timeoutCtx, accessAndIdentity, existingRole, func(ctx context.Context) error {
-				return trace.Wrap(accessAndIdentity.UpsertRole(ctx, existingRole),
-					"updating role %v", existingRole.GetName())
+				existingRole, err := accessAndIdentity.UpsertRole(ctx, existingRole)
+				return trace.Wrap(err, "updating role %v", existingRole.GetName())
 			})
 			if err != nil {
 				return noCertsReloaded, trace.Wrap(err)
@@ -231,7 +230,7 @@ type AccessAndIdentity interface {
 	// See services.Access.GetRole.
 	GetRole(ctx context.Context, name string) (types.Role, error)
 	// See services.Access.UpsertRole.
-	UpsertRole(context.Context, types.Role) error
+	UpsertRole(context.Context, types.Role) (types.Role, error)
 	// See auth.Cache.NewWatcher.
 	NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error)
 
@@ -274,10 +273,10 @@ func NewTokenProvisioner(cfg *TokenProvisionerConfig) *TokenProvisioner {
 }
 
 // CreateNodeToken creates a node join token that is valid for 5 minutes.
-func (t *TokenProvisioner) CreateNodeToken(ctx context.Context, provisioner Provisioner, cluster *clusters.Cluster) (*NodeToken, error) {
+func (t *TokenProvisioner) CreateNodeToken(ctx context.Context, provisioner Provisioner, cluster *clusters.Cluster) (string, error) {
 	tokenName, err := utils.CryptoRandomHex(auth.TokenLenBytes)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return "", trace.Wrap(err)
 	}
 
 	var req types.ProvisionTokenSpecV2
@@ -286,20 +285,15 @@ func (t *TokenProvisioner) CreateNodeToken(ctx context.Context, provisioner Prov
 
 	provisionToken, err := types.NewProvisionTokenFromSpec(tokenName, expires, req)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return "", trace.Wrap(err)
 	}
 
 	err = provisioner.CreateToken(ctx, provisionToken)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return "", trace.Wrap(err)
 	}
 
-	return &NodeToken{
-		Token: tokenName,
-		Labels: types.Labels{
-			types.ConnectMyComputerNodeOwnerLabel: apiutils.Strings{cluster.GetLoggedInUser().Name},
-		},
-	}, nil
+	return tokenName, nil
 }
 
 // DeleteToken deletes a join token
@@ -310,11 +304,6 @@ func (t *TokenProvisioner) DeleteToken(ctx context.Context, provisioner Provisio
 
 type TokenProvisionerConfig struct {
 	Clock clockwork.Clock
-}
-
-type NodeToken struct {
-	Token  string
-	Labels types.Labels
 }
 
 func (c *TokenProvisionerConfig) checkAndSetDefaults() {

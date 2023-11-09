@@ -30,30 +30,14 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/integrations/lib"
+	"github.com/gravitational/teleport/integrations/lib/logger"
 )
 
 const (
 	// DateTimeFormat is the time format used by servicenow
 	DateTimeFormat = "2006-01-02 15:04:05"
-)
-
-var (
-	incidentBodyTemplate = template.Must(template.New("incident body").Parse(
-		`{{.User}} requested permissions for roles {{range $index, $element := .Roles}}{{if $index}}, {{end}}{{ . }}{{end}} on Teleport at {{.Created.Format .TimeFormat}}.
-{{if .RequestReason}}Reason: {{.RequestReason}}{{end}}
-{{if .RequestLink}}To approve or deny the request, proceed to {{.RequestLink}}{{end}}
-`,
-	))
-	reviewNoteTemplate = template.Must(template.New("review note").Parse(
-		`{{.Author}} reviewed the request at {{.Created.Format .TimeFormat}}.
-Resolution: {{.ProposedState}}.
-{{if .Reason}}Reason: {{.Reason}}.{{end}}`,
-	))
-	resolutionNoteTemplate = template.Must(template.New("resolution note").Parse(
-		`Access request has been {{.Resolution}}
-{{if .ResolveReason}}Reason: {{.ResolveReason}}{{end}}`,
-	))
 )
 
 // Client is a wrapper around resty.Client.
@@ -73,12 +57,19 @@ type ClientConfig struct {
 	// allowing links to the access requests to be built
 	WebProxyURL *url.URL
 
+	// ClusterName is the name of the Teleport cluster.
+	ClusterName string
+
 	// Username is the username used by the client for basic auth.
 	Username string
 	// APIToken is the token used for basic auth.
 	APIToken string
 	// CloseCode is the ServiceNow close code that incidents will be closed with.
 	CloseCode string
+
+	// StatusSink receives any status updates from the plugin for
+	// further processing. Status updates will be ignored if not set.
+	StatusSink common.StatusSink
 }
 
 // NewClient creates a new Servicenow client for managing incidents.
@@ -134,8 +125,14 @@ func (snc *Client) CreateIncident(ctx context.Context, reqID string, reqData Req
 	}
 
 	body := Incident{
-		ShortDescription: fmt.Sprintf("Access request from %s", reqData.User),
+		ShortDescription: fmt.Sprintf("Teleport access request from user %s", reqData.User),
 		Description:      bodyDetails,
+		Caller:           reqData.User,
+	}
+
+	if len(reqData.SuggestedReviewers) != 0 {
+		// Only one assignee per incident allowed so just grab the first.
+		body.AssignedTo = reqData.SuggestedReviewers[0]
 	}
 
 	var result incidentResult
@@ -152,7 +149,7 @@ func (snc *Client) CreateIncident(ctx context.Context, reqID string, reqData Req
 		return Incident{}, errWrapper(resp.StatusCode(), string(resp.Body()))
 	}
 
-	return result.Result, nil
+	return Incident{IncidentID: result.Result.IncidentID}, nil
 }
 
 // PostReviewNote posts a note once a new request review appears.
@@ -250,6 +247,23 @@ func (snc *Client) CheckHealth(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 	defer resp.RawResponse.Body.Close()
+
+	if snc.StatusSink != nil {
+		var code types.PluginStatusCode
+		switch {
+		case resp.StatusCode() == http.StatusUnauthorized:
+			code = types.PluginStatusCode_UNAUTHORIZED
+		case resp.StatusCode() >= 200 && resp.StatusCode() < 400:
+			code = types.PluginStatusCode_RUNNING
+		default:
+			code = types.PluginStatusCode_OTHER_ERROR
+		}
+		if err := snc.StatusSink.Emit(ctx, &types.PluginStatusV1{Code: code}); err != nil {
+			log := logger.Get(resp.Request.Context())
+			log.WithError(err).WithField("code", resp.StatusCode()).Errorf("Error while emitting servicenow plugin status: %v", err)
+		}
+	}
+
 	if resp.IsError() {
 		return errWrapper(resp.StatusCode(), string(resp.Body()))
 	}
@@ -283,6 +297,30 @@ func (snc *Client) GetUserEmail(ctx context.Context, userID string) (string, err
 	return result.Result[0].Email, nil
 }
 
+var (
+	incidentWithRolesBodyTemplate = template.Must(template.New("incident body").Parse(
+		`Teleport user {{.User}} submitted access request for roles {{range $index, $element := .Roles}}{{if $index}}, {{end}}{{ . }}{{end}} on Teleport cluster {{.ClusterName}}.
+{{if .RequestReason}}Reason: {{.RequestReason}}{{end}}
+{{if .RequestLink}}Click this link to review the request in Teleport: {{.RequestLink}}{{end}}
+`,
+	))
+	incidentBodyTemplate = template.Must(template.New("incident body").Parse(
+		`Teleport user {{.User}} submitted access request on Teleport cluster {{.ClusterName}}.
+{{if .RequestReason}}Reason: {{.RequestReason}}{{end}}
+{{if .RequestLink}}Click this link to review the request in Teleport: {{.RequestLink}}{{end}}
+`,
+	))
+	reviewNoteTemplate = template.Must(template.New("review note").Parse(
+		`{{.Author}} reviewed the request at {{.Created.Format .TimeFormat}}.
+Resolution: {{.ProposedState}}.
+{{if .Reason}}Reason: {{.Reason}}.{{end}}`,
+	))
+	resolutionNoteTemplate = template.Must(template.New("resolution note").Parse(
+		`Access request has been {{.Resolution}}
+{{if .ResolveReason}}Reason: {{.ResolveReason}}{{end}}`,
+	))
+)
+
 func (snc *Client) buildIncidentBody(webProxyURL *url.URL, reqID string, reqData RequestData) (string, error) {
 	var requestLink string
 	if webProxyURL != nil {
@@ -292,15 +330,21 @@ func (snc *Client) buildIncidentBody(webProxyURL *url.URL, reqID string, reqData
 	}
 
 	var builder strings.Builder
-	err := incidentBodyTemplate.Execute(&builder, struct {
+	template := incidentBodyTemplate
+	if reqData.Resources == nil {
+		template = incidentWithRolesBodyTemplate
+	}
+	err := template.Execute(&builder, struct {
 		ID          string
 		TimeFormat  string
 		RequestLink string
+		ClusterName string
 		RequestData
 	}{
 		ID:          reqID,
 		TimeFormat:  time.RFC822,
 		RequestLink: requestLink,
+		ClusterName: snc.ClusterName,
 		RequestData: reqData,
 	})
 	if err != nil {

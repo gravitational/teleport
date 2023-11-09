@@ -1,3 +1,5 @@
+# syntax=docker/dockerfile:1
+
 # This Dockerfile makes the "build box connect" the container used
 # to build the Teleport Connect.
 #

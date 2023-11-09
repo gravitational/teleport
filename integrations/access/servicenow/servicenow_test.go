@@ -372,10 +372,10 @@ func (s *ServiceNowSuite) TestApproval() {
 
 	incident, err := s.fakeServiceNow.CheckIncidentUpdate(s.Context())
 	require.NoError(t, err)
-	require.Contains(t, incident.Description, "requested permissions")
+	require.Contains(t, incident.Description, "submitted access request")
 	assert.Contains(t, incident.CloseNotes, "Access request has been resolved")
 	assert.Contains(t, incident.CloseNotes, "Reason: okay")
-	assert.Equal(t, incident.CloseCode, "resolved")
+	assert.Equal(t, "resolved", incident.CloseCode)
 }
 
 func (s *ServiceNowSuite) TestDenial() {
@@ -387,7 +387,7 @@ func (s *ServiceNowSuite) TestDenial() {
 
 	incident, err := s.fakeServiceNow.CheckNewIncident(s.Context())
 	require.NoError(t, err, "no new incidents stored")
-	require.Contains(t, incident.Description, "requested permissions")
+	require.Contains(t, incident.Description, "submitted access request")
 
 	err = s.ruler().DenyAccessRequest(s.Context(), req.GetName(), "not okay")
 	require.NoError(t, err)
@@ -457,7 +457,7 @@ func (s *ServiceNowSuite) TestApprovalByReview() {
 
 	incident, err := s.fakeServiceNow.CheckNewIncident(s.Context())
 	require.NoError(t, err, "no new incidents stored")
-	require.Contains(t, incident.Description, "requested permissions")
+	require.Contains(t, incident.Description, "submitted access request")
 
 	err = s.reviewer1().SubmitAccessRequestReview(s.Context(), req.GetName(), types.AccessReview{
 		Author:        s.userNames.reviewer1,
@@ -508,7 +508,7 @@ func (s *ServiceNowSuite) TestDenialByReview() {
 
 	incident, err := s.fakeServiceNow.CheckNewIncident(s.Context())
 	require.NoError(t, err, "no new incidents stored")
-	require.Contains(t, incident.Description, "requested permissions")
+	require.Contains(t, incident.Description, "submitted access request")
 
 	err = s.reviewer1().SubmitAccessRequestReview(s.Context(), req.GetName(), types.AccessReview{
 		Author:        s.userNames.reviewer1,

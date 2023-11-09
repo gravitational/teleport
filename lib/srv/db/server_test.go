@@ -337,7 +337,7 @@ func TestShutdown(t *testing.T) {
 			})
 
 			// Validate that the server is proxying db0 after start.
-			require.Equal(t, server.getProxiedDatabases(), types.Databases{db0})
+			require.Equal(t, types.Databases{db0}, server.getProxiedDatabases())
 
 			// Validate heartbeat is present after start.
 			server.ForceHeartbeat()

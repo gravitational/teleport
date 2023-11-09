@@ -29,7 +29,7 @@ func TestGetShell(t *testing.T) {
 
 	shell, err = GetLoginShell("non-existent-user")
 	require.NoError(t, err)
-	require.Equal(t, shell, DefaultShell)
+	require.Equal(t, DefaultShell, shell)
 
 	shell, err = GetLoginShell("nobody")
 	require.NoError(t, err)

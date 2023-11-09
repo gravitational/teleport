@@ -221,7 +221,7 @@ func TestProxyProtocolPostgresStartup(t *testing.T) {
 					payload := task.sendMsg.Encode(nil)
 					nWritten, err := conn.Write(payload)
 					require.NoError(t, err)
-					require.Equal(t, len(payload), nWritten, "failed to fully write payload")
+					require.Len(t, payload, nWritten, "failed to fully write payload")
 
 					var checkResponse responseChecker
 					var needsTLSUpgrade bool

@@ -96,8 +96,8 @@ func (m mockAccessChecker) MaxConnections() int64 {
 	return m.maxConnections
 }
 
-func (m mockAccessChecker) PrivateKeyPolicy(defaultPolicy keys.PrivateKeyPolicy) keys.PrivateKeyPolicy {
-	return m.keyPolicy
+func (m mockAccessChecker) PrivateKeyPolicy(defaultPolicy keys.PrivateKeyPolicy) (keys.PrivateKeyPolicy, error) {
+	return m.keyPolicy, nil
 }
 
 func (m mockAccessChecker) RoleNames() []string {

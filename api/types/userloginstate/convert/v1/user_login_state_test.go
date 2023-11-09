@@ -66,7 +66,7 @@ func TestFromProtoNils(t *testing.T) {
 
 	fromProto, err := FromProto(uls)
 	require.NoError(t, err)
-	require.Equal(t, fromProto.GetUserType(), types.UserTypeLocal)
+	require.Equal(t, types.UserTypeLocal, fromProto.GetUserType())
 }
 
 func newUserLoginState(t *testing.T, name string) *userloginstate.UserLoginState {
@@ -77,7 +77,8 @@ func newUserLoginState(t *testing.T, name string) *userloginstate.UserLoginState
 			Name: name,
 		},
 		userloginstate.Spec{
-			Roles: []string{"role1", "role2"},
+			OriginalRoles: []string{"role1"},
+			Roles:         []string{"role1", "role2"},
 			Traits: trait.Traits{
 				"key1": []string{"value1"},
 				"key2": []string{"value2"},

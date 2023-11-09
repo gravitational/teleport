@@ -23,6 +23,7 @@ export const makeServer = (props: Partial<tsh.Server> = {}): tsh.Server => ({
   hostname: 'foo',
   addr: '127.0.0.1:3022',
   labelsList: [],
+  subKind: 'teleport',
   ...props,
 });
 
@@ -63,7 +64,7 @@ export const makeRootCluster = (
   proxyHost: 'teleport-local:3080',
   authClusterId: 'fefe3434-fefe-3434-fefe-3434fefe3434',
   loggedInUser: makeLoggedInUser(),
-  proxyVersion: '1.0.0',
+  proxyVersion: '11.1.0',
   ...props,
 });
 

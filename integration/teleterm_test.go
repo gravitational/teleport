@@ -174,7 +174,7 @@ func testListRootClustersReturnsLoggedInUser(t *testing.T, pack *dbhelpers.Datab
 	response, err := handler.ListRootClusters(context.Background(), &api.ListClustersRequest{})
 	require.NoError(t, err)
 
-	require.Equal(t, 1, len(response.Clusters))
+	require.Len(t, response.Clusters, 1)
 	require.Equal(t, pack.Root.User.GetName(), response.Clusters[0].LoggedInUser.Name)
 }
 
@@ -208,11 +208,11 @@ func testGetClusterReturnsPropertiesFromAuthServer(t *testing.T, pack *dbhelpers
 	require.NoError(t, err)
 
 	// add role that user can request
-	err = authServer.UpsertRole(context.Background(), requestableRole)
+	_, err = authServer.UpsertRole(context.Background(), requestableRole)
 	require.NoError(t, err)
 
 	// add role that allows to request "requestableRole"
-	err = authServer.UpsertRole(context.Background(), userRole)
+	_, err = authServer.UpsertRole(context.Background(), userRole)
 	require.NoError(t, err)
 
 	user, err := types.NewUser(userName)
@@ -473,7 +473,7 @@ func testCreateConnectMyComputerRole(t *testing.T, pack *dbhelpers.DatabasePack)
 					Name: roleName,
 				})
 				existingRole = &role
-				err := authServer.UpsertRole(ctx, &role)
+				_, err := authServer.UpsertRole(ctx, &role)
 				require.NoError(t, err)
 			}
 
@@ -654,10 +654,6 @@ func testCreatingAndDeletingConnectMyComputerToken(t *testing.T, pack *dbhelpers
 		RootClusterUri: rootClusterURI,
 	})
 	require.NoError(t, err)
-	require.Equal(t, &api.Label{
-		Name:  types.ConnectMyComputerNodeOwnerLabel,
-		Value: userName,
-	}, createdTokenResponse.GetLabels()[0])
 
 	// Verify that token exists
 	tokenFromAuthServer, err := authServer.GetToken(ctx, createdTokenResponse.GetToken())
@@ -684,7 +680,7 @@ func testCreatingAndDeletingConnectMyComputerToken(t *testing.T, pack *dbhelpers
 		if event.Type != types.OpInit {
 			t.Fatalf("Unexpected event type.")
 		}
-		require.Equal(t, event.Type, types.OpInit)
+		require.Equal(t, types.OpInit, event.Type)
 	case <-watcher.Done():
 		t.Fatal(watcher.Error())
 	}

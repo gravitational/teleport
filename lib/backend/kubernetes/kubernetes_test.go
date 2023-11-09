@@ -248,7 +248,7 @@ func TestBackend_Get(t *testing.T) {
 			} else if (err != nil) && trace.IsNotFound(err) && tt.wantNotFound {
 				return
 			}
-			require.Equal(t, got.Value, tt.want)
+			require.Equal(t, tt.want, got.Value)
 		})
 	}
 }
@@ -390,7 +390,7 @@ func TestBackend_Put(t *testing.T) {
 			// get secret loads the kubernetes secret to compare.
 			got, err := b.getSecret(context.TODO())
 			require.NoError(t, err)
-			require.Equal(t, got, tt.want)
+			require.Equal(t, tt.want, got)
 		})
 	}
 }

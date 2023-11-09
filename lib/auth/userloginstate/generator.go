@@ -119,14 +119,16 @@ func (g *Generator) Generate(ctx context.Context, user types.User) (*userloginst
 			traits[k] = utils.CopyStrings(v)
 		}
 	}
+
 	// Create a new empty user login state.
 	uls, err := userloginstate.New(
 		header.Metadata{
 			Name: user.GetName(),
 		}, userloginstate.Spec{
-			Roles:    utils.CopyStrings(user.GetRoles()),
-			Traits:   traits,
-			UserType: user.GetUserType(),
+			OriginalRoles: utils.CopyStrings(user.GetRoles()),
+			Roles:         utils.CopyStrings(user.GetRoles()),
+			Traits:        traits,
+			UserType:      user.GetUserType(),
 		})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -266,15 +268,21 @@ func (g *Generator) emitUsageEvent(ctx context.Context, user types.User, state *
 	return nil
 }
 
+// Refresh will take the user and update the user login state in the backend.
+func (g *Generator) Refresh(ctx context.Context, user types.User, ulsService services.UserLoginStates) (*userloginstate.UserLoginState, error) {
+	uls, err := g.Generate(ctx, user)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	uls, err = ulsService.UpsertUserLoginState(ctx, uls)
+	return uls, trace.Wrap(err)
+}
+
 // LoginHook creates a login hook from the Generator and the user login state service.
 func (g *Generator) LoginHook(ulsService services.UserLoginStates) func(context.Context, types.User) error {
 	return func(ctx context.Context, user types.User) error {
-		uls, err := g.Generate(ctx, user)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		_, err = ulsService.UpsertUserLoginState(ctx, uls)
+		_, err := g.Refresh(ctx, user, ulsService)
 		return trace.Wrap(err)
 	}
 }

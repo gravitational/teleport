@@ -38,6 +38,7 @@ const cfg = {
   isCloud: false,
   assistEnabled: false,
   automaticUpgrades: false,
+  automaticUpgradesTargetVersion: '',
   isDashboard: false,
   tunnelPublicAddress: '',
   recoveryCodesEnabled: false,
@@ -66,7 +67,7 @@ const cfg = {
     second_factor: 'off' as Auth2faType,
     authType: 'local' as AuthType,
     preferredLocalMfa: '' as PreferredMfaType,
-    // motd is message of the day, displayed to users before login.
+    // motd is the message of the day, displayed to users before login.
     motd: '',
   },
 
@@ -156,7 +157,7 @@ const cfg = {
     passwordTokenPath: '/v1/webapi/users/password/token/:tokenId?',
     changeUserPasswordPath: '/v1/webapi/users/password',
     unifiedResourcesPath:
-      '/v1/webapi/sites/:clusterId/resources?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&kinds=:kinds?&query=:query?&search=:search?&sort=:sort?',
+      '/v1/webapi/sites/:clusterId/resources?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&kinds=:kinds?&query=:query?&search=:search?&sort=:sort?&pinnedOnly=:pinnedOnly?',
     nodesPath:
       '/v1/webapi/sites/:clusterId/nodes?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?',
     nodesPathNoParams: '/v1/webapi/sites/:clusterId/nodes',
@@ -186,6 +187,7 @@ const cfg = {
     createPrivilegeTokenPath: '/v1/webapi/users/privilege/token',
 
     rolesPath: '/v1/webapi/roles/:name?',
+    presetRolesPath: '/v1/webapi/presetroles',
     githubConnectorsPath: '/v1/webapi/github/:name?',
     trustedClustersPath: '/v1/webapi/trustedcluster/:name?',
 
@@ -193,9 +195,6 @@ const cfg = {
     dbScriptPath: '/scripts/:token/install-database.sh',
     nodeScriptPath: '/scripts/:token/install-node.sh',
     appNodeScriptPath: '/scripts/:token/install-app.sh?name=:name&uri=:uri',
-
-    deployServiceIamConfigureScriptPath:
-      '/webapi/scripts/integrations/configure/deployservice-iam.sh?integrationName=:integrationName&awsRegion=:region&role=:awsOidcRoleArn&taskRole=:taskRoleArn',
 
     mfaRequired: '/v1/webapi/sites/:clusterId/mfa/required',
     mfaLoginBegin: '/v1/webapi/mfa/login/begin', // creates authnenticate challenge with user and password
@@ -235,6 +234,16 @@ const cfg = {
 
     integrationsPath: '/v1/webapi/sites/:clusterId/integrations/:name?',
     thumbprintPath: '/v1/webapi/thumbprint',
+
+    awsConfigureIamScriptOidcIdpPath:
+      '/webapi/scripts/integrations/configure/awsoidc-idp.sh?integrationName=:integrationName&role=:roleName',
+    awsConfigureIamScriptDeployServicePath:
+      '/webapi/scripts/integrations/configure/deployservice-iam.sh?integrationName=:integrationName&awsRegion=:region&role=:awsOidcRoleArn&taskRole=:taskRoleArn',
+    awsConfigureIamScriptListDatabasesPath:
+      '/webapi/scripts/integrations/configure/listdatabases-iam.sh?awsRegion=:region&role=:iamRoleName',
+    awsConfigureIamScriptEc2InstanceConnectPath:
+      '/v1/webapi/scripts/integrations/configure/eice-iam.sh?awsRegion=:region&role=:iamRoleName',
+
     awsRdsDbListPath:
       '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/databases',
     awsDeployTeleportServicePath:
@@ -247,8 +256,6 @@ const cfg = {
     ec2InstanceConnectEndpointsListPath:
       '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/ec2ice',
     // Returns a script that configures the required IAM permissions to enable the usage of EC2 Instance Connect Endpoint to access EC2 instances.
-    ec2InstanceConnectIAMConfigureScriptPath:
-      '/v1/webapi/scripts/integrations/configure/eice-iam.sh?awsRegion=:region&role=:awsOidcRoleArn',
     ec2InstanceConnectDeployPath:
       '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/deployec2ice',
 
@@ -384,7 +391,14 @@ const cfg = {
   ) {
     return (
       cfg.baseUrl +
-      generatePath(cfg.api.deployServiceIamConfigureScriptPath, { ...p })
+      generatePath(cfg.api.awsConfigureIamScriptDeployServicePath, { ...p })
+    );
+  },
+
+  getAwsOidcConfigureIdpScriptUrl(p: UrlAwsOidcConfigureIdp) {
+    return (
+      cfg.baseUrl +
+      generatePath(cfg.api.awsConfigureIamScriptOidcIdpPath, { ...p })
     );
   },
 
@@ -681,6 +695,10 @@ const cfg = {
     return generatePath(cfg.api.rolesPath, { name });
   },
 
+  getPresetRolesUrl() {
+    return cfg.api.presetRolesPath;
+  },
+
   getKubernetesUrl(clusterId: string, params: UrlResourcesParams) {
     return generateResourcePath(cfg.api.kubernetesPath, {
       clusterId,
@@ -864,11 +882,22 @@ const cfg = {
   },
 
   getEc2InstanceConnectIAMConfigureScriptUrl(
-    params: UrlEc2InstanceIamConfigureScriptParams
+    params: UrlAwsConfigureIamScriptParams
   ) {
     return (
       cfg.baseUrl +
-      generatePath(cfg.api.ec2InstanceConnectIAMConfigureScriptPath, {
+      generatePath(cfg.api.awsConfigureIamScriptEc2InstanceConnectPath, {
+        ...params,
+      })
+    );
+  },
+
+  getAwsConfigureIamScriptListDatabasesUrl(
+    params: UrlAwsConfigureIamScriptParams
+  ) {
+    return (
+      cfg.baseUrl +
+      generatePath(cfg.api.awsConfigureIamScriptListDatabasesPath, {
         ...params,
       })
     );
@@ -958,6 +987,7 @@ export interface UrlResourcesParams {
   limit?: number;
   startKey?: string;
   searchAsRoles?: 'yes' | '';
+  pinnedOnly?: boolean;
   // TODO(bl-nero): Remove this once filters are expressed as advanced search.
   kinds?: string[];
 }
@@ -977,9 +1007,14 @@ export interface UrlDeployServiceIamConfigureScriptParams {
   taskRoleArn: string;
 }
 
-export interface UrlEc2InstanceIamConfigureScriptParams {
+export interface UrlAwsOidcConfigureIdp {
+  integrationName: string;
+  roleName: string;
+}
+
+export interface UrlAwsConfigureIamScriptParams {
   region: Regions;
-  awsOidcRoleArn: string;
+  iamRoleName: string;
 }
 
 export default cfg;

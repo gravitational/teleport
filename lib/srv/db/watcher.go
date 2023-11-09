@@ -114,16 +114,18 @@ func (s *Server) startCloudWatcher(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
+	allFetchers := append(awsFetchers, azureFetchers...)
+	if len(allFetchers) == 0 {
+		s.log.Debugf("Not starting cloud database watcher: %v.", err)
+		return nil
+	}
+
 	watcher, err := discovery.NewWatcher(ctx, discovery.WatcherConfig{
-		Fetchers: append(awsFetchers, azureFetchers...),
-		Log:      logrus.WithField(trace.Component, "watcher:cloud"),
-		Origin:   types.OriginCloud,
+		FetchersFn: discovery.StaticFetchers(allFetchers),
+		Log:        logrus.WithField(trace.Component, "watcher:cloud"),
+		Origin:     types.OriginCloud,
 	})
 	if err != nil {
-		if trace.IsNotFound(err) {
-			s.log.Debugf("Not starting cloud database watcher: %v.", err)
-			return nil
-		}
 		return trace.Wrap(err)
 	}
 	go watcher.Start()

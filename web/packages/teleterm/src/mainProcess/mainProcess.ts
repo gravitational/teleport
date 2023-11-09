@@ -33,7 +33,11 @@ import {
 import { FileStorage, RuntimeSettings } from 'teleterm/types';
 import { subscribeToFileStorageEvents } from 'teleterm/services/fileStorage';
 import { LoggerColor, createFileLoggerService } from 'teleterm/services/logger';
-import { ChildProcessAddresses } from 'teleterm/mainProcess/types';
+import {
+  ChildProcessAddresses,
+  MainProcessIpc,
+  RendererIpc,
+} from 'teleterm/mainProcess/types';
 import { getAssetPath } from 'teleterm/mainProcess/runtimeSettings';
 import { RootClusterUri } from 'teleterm/ui/uri';
 import Logger from 'teleterm/logger';
@@ -57,7 +61,7 @@ import {
 import { AgentRunner } from './agentRunner';
 import { terminateWithTimeout } from './terminateWithTimeout';
 
-import type { AgentConfigFileClusterProperties } from './createAgentConfigFile';
+import type { CreateAgentConfigFileArgs } from './createAgentConfigFile';
 
 type Options = {
   settings: RuntimeSettings;
@@ -104,7 +108,7 @@ export default class MainProcess {
           return;
         }
         window.webContents.send(
-          'main-process-connect-my-computer-agent-update',
+          RendererIpc.ConnectMyComputerAgentUpdate,
           rootClusterUri,
           state
         );
@@ -119,6 +123,7 @@ export default class MainProcess {
   }
 
   async dispose(): Promise<void> {
+    this.windowsManager.dispose();
     await Promise.all([
       // sending usage events on tshd shutdown has 10-seconds timeout
       terminateWithTimeout(this.tshdProcess, 10_000, () => {
@@ -201,7 +206,7 @@ export default class MainProcess {
   }
 
   private _initIpc() {
-    ipcMain.on('main-process-get-runtime-settings', event => {
+    ipcMain.on(MainProcessIpc.GetRuntimeSettings, event => {
       event.returnValue = this.settings;
     });
 
@@ -308,12 +313,12 @@ export default class MainProcess {
 
     ipcMain.handle(
       'main-process-connect-my-computer-create-agent-config-file',
-      (_, args: AgentConfigFileClusterProperties) =>
+      (_, args: CreateAgentConfigFileArgs) =>
         createAgentConfigFile(this.settings, {
           proxy: args.proxy,
           token: args.token,
           rootClusterUri: args.rootClusterUri,
-          labels: args.labels,
+          username: args.username,
         })
     );
 

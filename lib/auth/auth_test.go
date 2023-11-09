@@ -282,7 +282,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	role.SetKubeUsers(types.Allow, []string{user})
 	role.SetKubeGroups(types.Allow, []string{"system:masters"})
 
-	err = s.a.UpsertRole(ctx, role)
+	role, err = s.a.UpsertRole(ctx, role)
 	require.NoError(t, err)
 
 	kg := testauthority.New()
@@ -300,14 +300,14 @@ func TestAuthenticateSSHUser(t *testing.T) {
 		RouteToCluster: s.clusterName.GetClusterName(),
 	})
 	require.NoError(t, err)
-	require.Equal(t, resp.Username, user)
+	require.Equal(t, user, resp.Username)
 	// Verify the public key and principals in SSH cert.
 	inSSHPub, _, _, _, err := ssh.ParseAuthorizedKey(pub)
 	require.NoError(t, err)
 	gotSSHCert, err := sshutils.ParseCertificate(resp.Cert)
 	require.NoError(t, err)
-	require.Equal(t, gotSSHCert.Key, inSSHPub)
-	require.Equal(t, gotSSHCert.ValidPrincipals, []string{user, teleport.SSHSessionJoinPrincipal})
+	require.Equal(t, inSSHPub, gotSSHCert.Key)
+	require.Equal(t, []string{user, teleport.SSHSessionJoinPrincipal}, gotSSHCert.ValidPrincipals)
 	// Verify the public key and Subject in TLS cert.
 	inCryptoPub := inSSHPub.(ssh.CryptoPublicKey).CryptoPublicKey()
 	gotTLSCert, err := tlsca.ParseCertificatePEM(resp.TLSCert)
@@ -359,7 +359,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	}
 	gotID, err = tlsca.FromSubject(gotTLSCert.Subject, gotTLSCert.NotAfter)
 	require.NoError(t, err)
-	require.Equal(t, *gotID, wantID)
+	require.Equal(t, wantID, *gotID)
 
 	// Register a kubernetes cluster to verify the defaulting logic in TLS cert
 	// generation.
@@ -405,7 +405,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	}
 	gotID, err = tlsca.FromSubject(gotTLSCert.Subject, gotTLSCert.NotAfter)
 	require.NoError(t, err)
-	require.Equal(t, *gotID, wantID)
+	require.Equal(t, wantID, *gotID)
 
 	// Login without specifying kube cluster. A registered one should be picked
 	// automatically.
@@ -422,7 +422,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 		KubernetesCluster: "",
 	})
 	require.NoError(t, err)
-	require.Equal(t, resp.Username, user)
+	require.Equal(t, user, resp.Username)
 	gotTLSCert, err = tlsca.ParseCertificatePEM(resp.TLSCert)
 	require.NoError(t, err)
 	wantID = tlsca.Identity{
@@ -439,7 +439,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	}
 	gotID, err = tlsca.FromSubject(gotTLSCert.Subject, gotTLSCert.NotAfter)
 	require.NoError(t, err)
-	require.Equal(t, *gotID, wantID)
+	require.Equal(t, wantID, *gotID)
 
 	// Login specifying a valid kube cluster. It should appear in the TLS cert.
 	resp, err = s.a.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
@@ -453,7 +453,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 		KubernetesCluster: "root-kube-cluster",
 	})
 	require.NoError(t, err)
-	require.Equal(t, resp.Username, user)
+	require.Equal(t, user, resp.Username)
 	gotTLSCert, err = tlsca.ParseCertificatePEM(resp.TLSCert)
 	require.NoError(t, err)
 	wantID = tlsca.Identity{
@@ -470,7 +470,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	}
 	gotID, err = tlsca.FromSubject(gotTLSCert.Subject, gotTLSCert.NotAfter)
 	require.NoError(t, err)
-	require.Equal(t, *gotID, wantID)
+	require.Equal(t, wantID, *gotID)
 
 	// Login without specifying kube cluster. A registered one should be picked
 	// automatically.
@@ -487,7 +487,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 		KubernetesCluster: "",
 	})
 	require.NoError(t, err)
-	require.Equal(t, resp.Username, user)
+	require.Equal(t, user, resp.Username)
 	gotTLSCert, err = tlsca.ParseCertificatePEM(resp.TLSCert)
 	require.NoError(t, err)
 	wantID = tlsca.Identity{
@@ -504,7 +504,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	}
 	gotID, err = tlsca.FromSubject(gotTLSCert.Subject, gotTLSCert.NotAfter)
 	require.NoError(t, err)
-	require.Equal(t, *gotID, wantID)
+	require.Equal(t, wantID, *gotID)
 
 	// Login specifying an invalid kube cluster. This should fail.
 	_, err = s.a.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
@@ -703,7 +703,7 @@ func TestUpdateConfig(t *testing.T) {
 	require.Equal(t, cn.GetClusterName(), s.clusterName.GetClusterName())
 	st, err := s.a.GetStaticTokens()
 	require.NoError(t, err)
-	require.Equal(t, st.GetStaticTokens(), []types.ProvisionToken{})
+	require.Empty(t, st.GetStaticTokens())
 
 	// try and set cluster name, this should fail because you can only set the
 	// cluster name once
@@ -777,8 +777,8 @@ func TestCreateAndUpdateUserEventsEmitted(t *testing.T) {
 	})
 	user, err = s.a.CreateUser(ctx, user)
 	require.NoError(t, err)
-	require.Equal(t, s.mockEmitter.LastEvent().GetType(), events.UserCreateEvent)
-	require.Equal(t, s.mockEmitter.LastEvent().(*apievents.UserCreate).User, "some-auth-user")
+	require.Equal(t, events.UserCreateEvent, s.mockEmitter.LastEvent().GetType())
+	require.Equal(t, "some-auth-user", s.mockEmitter.LastEvent().(*apievents.UserCreate).User)
 	s.mockEmitter.Reset()
 
 	// test create user with existing user
@@ -791,7 +791,7 @@ func TestCreateAndUpdateUserEventsEmitted(t *testing.T) {
 	require.NoError(t, err)
 	_, err = s.a.CreateUser(ctx, user2)
 	require.NoError(t, err)
-	require.Equal(t, s.mockEmitter.LastEvent().(*apievents.UserCreate).User, teleport.UserSystem)
+	require.Equal(t, teleport.UserSystem, s.mockEmitter.LastEvent().(*apievents.UserCreate).User)
 	s.mockEmitter.Reset()
 
 	// test update on non-existent user
@@ -804,8 +804,8 @@ func TestCreateAndUpdateUserEventsEmitted(t *testing.T) {
 	// test update user
 	_, err = s.a.UpdateUser(ctx, user)
 	require.NoError(t, err)
-	require.Equal(t, s.mockEmitter.LastEvent().GetType(), events.UserUpdatedEvent)
-	require.Equal(t, s.mockEmitter.LastEvent().(*apievents.UserCreate).User, teleport.UserSystem)
+	require.Equal(t, events.UserUpdatedEvent, s.mockEmitter.LastEvent().GetType())
+	require.Equal(t, teleport.UserSystem, s.mockEmitter.LastEvent().(*apievents.UserUpdate).User)
 }
 
 func TestTrustedClusterCRUDEventEmitted(t *testing.T) {
@@ -839,7 +839,7 @@ func TestTrustedClusterCRUDEventEmitted(t *testing.T) {
 
 	_, err = s.a.UpsertTrustedCluster(ctx, tc)
 	require.NoError(t, err)
-	require.Equal(t, s.mockEmitter.LastEvent().GetType(), events.TrustedClusterCreateEvent)
+	require.Equal(t, events.TrustedClusterCreateEvent, s.mockEmitter.LastEvent().GetType())
 	s.mockEmitter.Reset()
 
 	// test create event for switch case: when tc exists but enabled is true
@@ -847,13 +847,13 @@ func TestTrustedClusterCRUDEventEmitted(t *testing.T) {
 
 	_, err = s.a.UpsertTrustedCluster(ctx, tc)
 	require.NoError(t, err)
-	require.Equal(t, s.mockEmitter.LastEvent().GetType(), events.TrustedClusterCreateEvent)
+	require.Equal(t, events.TrustedClusterCreateEvent, s.mockEmitter.LastEvent().GetType())
 	s.mockEmitter.Reset()
 
 	// test delete event
 	err = s.a.DeleteTrustedCluster(ctx, "test")
 	require.NoError(t, err)
-	require.Equal(t, s.mockEmitter.LastEvent().GetType(), events.TrustedClusterDeleteEvent)
+	require.Equal(t, events.TrustedClusterDeleteEvent, s.mockEmitter.LastEvent().GetType())
 }
 
 func TestGithubConnectorCRUDEventsEmitted(t *testing.T) {
@@ -861,35 +861,44 @@ func TestGithubConnectorCRUDEventsEmitted(t *testing.T) {
 	s := newAuthSuite(t)
 
 	ctx := context.Background()
-	// test github create event
 	github, err := types.NewGithubConnector("test", types.GithubConnectorSpecV3{
-		TeamsToLogins: []types.TeamMapping{
+		TeamsToRoles: []types.TeamRolesMapping{
 			{
 				Organization: "octocats",
 				Team:         "dummy",
-				Logins:       []string{"dummy"},
+				Roles:        []string{"dummy"},
 			},
 		},
 	})
+	// test github create event
 	require.NoError(t, err)
-	err = s.a.upsertGithubConnector(ctx, github)
+	github, err = s.a.createGithubConnector(ctx, github)
 	require.NoError(t, err)
 	require.IsType(t, &apievents.GithubConnectorCreate{}, s.mockEmitter.LastEvent())
-	require.Equal(t, s.mockEmitter.LastEvent().GetType(), events.GithubConnectorCreatedEvent)
+	require.Equal(t, events.GithubConnectorCreatedEvent, s.mockEmitter.LastEvent().GetType())
 	s.mockEmitter.Reset()
 
 	// test github update event
+	github.SetDisplay("llama")
+	github, err = s.a.updateGithubConnector(ctx, github)
+	require.NoError(t, err)
+	require.IsType(t, &apievents.GithubConnectorUpdate{}, s.mockEmitter.LastEvent())
+	require.Equal(t, events.GithubConnectorUpdatedEvent, s.mockEmitter.LastEvent().GetType())
+	s.mockEmitter.Reset()
+
+	// test github upsert event
+	github.SetDisplay("alpaca")
 	err = s.a.upsertGithubConnector(ctx, github)
 	require.NoError(t, err)
 	require.IsType(t, &apievents.GithubConnectorCreate{}, s.mockEmitter.LastEvent())
-	require.Equal(t, s.mockEmitter.LastEvent().GetType(), events.GithubConnectorCreatedEvent)
+	require.Equal(t, events.GithubConnectorCreatedEvent, s.mockEmitter.LastEvent().GetType())
 	s.mockEmitter.Reset()
 
 	// test github delete event
 	err = s.a.deleteGithubConnector(ctx, "test")
 	require.NoError(t, err)
 	require.IsType(t, &apievents.GithubConnectorDelete{}, s.mockEmitter.LastEvent())
-	require.Equal(t, s.mockEmitter.LastEvent().GetType(), events.GithubConnectorDeletedEvent)
+	require.Equal(t, events.GithubConnectorDeletedEvent, s.mockEmitter.LastEvent().GetType())
 }
 
 func TestOIDCConnectorCRUDEventsEmitted(t *testing.T) {
@@ -897,7 +906,6 @@ func TestOIDCConnectorCRUDEventsEmitted(t *testing.T) {
 	s := newAuthSuite(t)
 
 	ctx := context.Background()
-	// test oidc create event
 	oidc, err := types.NewOIDCConnector("test", types.OIDCConnectorSpecV3{
 		ClientID: "a",
 		ClaimsToRoles: []types.ClaimMapping{
@@ -910,24 +918,35 @@ func TestOIDCConnectorCRUDEventsEmitted(t *testing.T) {
 		RedirectURLs: []string{"https://proxy.example.com/v1/webapi/oidc/callback"},
 	})
 	require.NoError(t, err)
-	err = s.a.UpsertOIDCConnector(ctx, oidc)
+
+	// test oidc create event
+	oidc, err = s.a.CreateOIDCConnector(ctx, oidc)
 	require.NoError(t, err)
 	require.IsType(t, &apievents.OIDCConnectorCreate{}, s.mockEmitter.LastEvent())
-	require.Equal(t, s.mockEmitter.LastEvent().GetType(), events.OIDCConnectorCreatedEvent)
+	require.Equal(t, events.OIDCConnectorCreatedEvent, s.mockEmitter.LastEvent().GetType())
 	s.mockEmitter.Reset()
 
 	// test oidc update event
+	oidc.SetDisplay("llama")
+	oidc, err = s.a.UpdateOIDCConnector(ctx, oidc)
+	require.NoError(t, err)
+	require.IsType(t, &apievents.OIDCConnectorUpdate{}, s.mockEmitter.LastEvent())
+	require.Equal(t, events.OIDCConnectorUpdatedEvent, s.mockEmitter.LastEvent().GetType())
+	s.mockEmitter.Reset()
+
+	// test oidc upsert event
+	oidc.SetDisplay("alpaca")
 	err = s.a.UpsertOIDCConnector(ctx, oidc)
 	require.NoError(t, err)
 	require.IsType(t, &apievents.OIDCConnectorCreate{}, s.mockEmitter.LastEvent())
-	require.Equal(t, s.mockEmitter.LastEvent().GetType(), events.OIDCConnectorCreatedEvent)
+	require.Equal(t, events.OIDCConnectorCreatedEvent, s.mockEmitter.LastEvent().GetType())
 	s.mockEmitter.Reset()
 
 	// test oidc delete event
 	err = s.a.DeleteOIDCConnector(ctx, "test")
 	require.NoError(t, err)
 	require.IsType(t, &apievents.OIDCConnectorDelete{}, s.mockEmitter.LastEvent())
-	require.Equal(t, s.mockEmitter.LastEvent().GetType(), events.OIDCConnectorDeletedEvent)
+	require.Equal(t, events.OIDCConnectorDeletedEvent, s.mockEmitter.LastEvent().GetType())
 }
 
 func TestSAMLConnectorCRUDEventsEmitted(t *testing.T) {
@@ -954,10 +973,9 @@ func TestSAMLConnectorCRUDEventsEmitted(t *testing.T) {
 	// SAML connector validation requires the roles in mappings exist.
 	role, err := types.NewRole("dummy", types.RoleSpecV6{})
 	require.NoError(t, err)
-	err = s.a.CreateRole(ctx, role)
+	role, err = s.a.CreateRole(ctx, role)
 	require.NoError(t, err)
 
-	// test saml create
 	saml, err := types.NewSAMLConnector("test", types.SAMLConnectorSpecV2{
 		AssertionConsumerService: "a",
 		Issuer:                   "b",
@@ -973,24 +991,34 @@ func TestSAMLConnectorCRUDEventsEmitted(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	err = s.a.UpsertSAMLConnector(ctx, saml)
+	// test saml create
+	saml, err = s.a.CreateSAMLConnector(ctx, saml)
 	require.NoError(t, err)
 	require.IsType(t, &apievents.SAMLConnectorCreate{}, s.mockEmitter.LastEvent())
-	require.Equal(t, s.mockEmitter.LastEvent().GetType(), events.SAMLConnectorCreatedEvent)
+	require.Equal(t, events.SAMLConnectorCreatedEvent, s.mockEmitter.LastEvent().GetType())
 	s.mockEmitter.Reset()
 
 	// test saml update event
+	saml.SetDisplay("llama")
+	saml, err = s.a.UpdateSAMLConnector(ctx, saml)
+	require.NoError(t, err)
+	require.IsType(t, &apievents.SAMLConnectorUpdate{}, s.mockEmitter.LastEvent())
+	require.Equal(t, events.SAMLConnectorUpdatedEvent, s.mockEmitter.LastEvent().GetType())
+	s.mockEmitter.Reset()
+
+	// test saml upsert event
+	saml.SetDisplay("alapaca")
 	err = s.a.UpsertSAMLConnector(ctx, saml)
 	require.NoError(t, err)
 	require.IsType(t, &apievents.SAMLConnectorCreate{}, s.mockEmitter.LastEvent())
-	require.Equal(t, s.mockEmitter.LastEvent().GetType(), events.SAMLConnectorCreatedEvent)
+	require.Equal(t, events.SAMLConnectorCreatedEvent, s.mockEmitter.LastEvent().GetType())
 	s.mockEmitter.Reset()
 
 	// test saml delete event
 	err = s.a.DeleteSAMLConnector(ctx, "test")
 	require.NoError(t, err)
 	require.IsType(t, &apievents.SAMLConnectorDelete{}, s.mockEmitter.LastEvent())
-	require.Equal(t, s.mockEmitter.LastEvent().GetType(), events.SAMLConnectorDeletedEvent)
+	require.Equal(t, events.SAMLConnectorDeletedEvent, s.mockEmitter.LastEvent().GetType())
 }
 
 func TestEmitSSOLoginFailureEvent(t *testing.T) {
@@ -998,7 +1026,7 @@ func TestEmitSSOLoginFailureEvent(t *testing.T) {
 
 	emitSSOLoginFailureEvent(context.Background(), mockE, "test", trace.BadParameter("some error"), false)
 
-	require.Equal(t, mockE.LastEvent(), &apievents.UserLogin{
+	expectedLoginFailure := &apievents.UserLogin{
 		Metadata: apievents.Metadata{
 			Type: events.UserLoginEvent,
 			Code: events.UserSSOLoginFailureCode,
@@ -1009,11 +1037,12 @@ func TestEmitSSOLoginFailureEvent(t *testing.T) {
 			Error:       "some error",
 			UserMessage: "some error",
 		},
-	})
+	}
+	require.Equal(t, expectedLoginFailure, mockE.LastEvent())
 
 	emitSSOLoginFailureEvent(context.Background(), mockE, "test", trace.BadParameter("some error"), true)
 
-	require.Equal(t, mockE.LastEvent(), &apievents.UserLogin{
+	expectedTestFailure := &apievents.UserLogin{
 		Metadata: apievents.Metadata{
 			Type: events.UserLoginEvent,
 			Code: events.UserSSOTestFlowLoginFailureCode,
@@ -1024,7 +1053,8 @@ func TestEmitSSOLoginFailureEvent(t *testing.T) {
 			Error:       "some error",
 			UserMessage: "some error",
 		},
-	})
+	}
+	require.Equal(t, expectedTestFailure, mockE.LastEvent())
 }
 
 func TestServer_AugmentContextUserCertificates(t *testing.T) {
@@ -1162,8 +1192,7 @@ func TestServer_AugmentContextUserCertificates(t *testing.T) {
 			newSSHCert, err := sshutils.ParseCertificate(certs.SSH)
 			require.NoError(t, err, "ParseCertificate failed")
 			test.assertSSHCert(t, newSSHCert)
-			assert.True(t,
-				uint64(validAfter.Unix()) < newSSHCert.ValidAfter,
+			assert.Less(t, uint64(validAfter.Unix()), newSSHCert.ValidAfter,
 				"got newSSHCert.ValidAfter = %v, want > %v", newSSHCert.ValidAfter, validAfter.Unix())
 			assert.Equal(t, uint64(xCert.NotAfter.Unix()), newSSHCert.ValidBefore, "newSSHCert.ValidBefore mismatch")
 		})
@@ -1647,7 +1676,7 @@ func TestGenerateUserCertIPPinning(t *testing.T) {
 	_, pub, err := keygen.GetNewKeyPairFromPool()
 	require.NoError(t, err)
 
-	err = s.a.UpsertRole(ctx, pinnedRole)
+	_, err = s.a.UpsertRole(ctx, pinnedRole)
 	require.NoError(t, err)
 
 	findTLSLoginIP := func(names []pkix.AttributeTypeAndValue) any {
@@ -1775,7 +1804,7 @@ func TestGenerateUserCertWithCertExtension(t *testing.T) {
 	options := role.GetOptions()
 	options.CertExtensions = []*types.CertExtension{&extension}
 	role.SetOptions(options)
-	err = p.a.UpsertRole(ctx, role)
+	_, err = p.a.UpsertRole(ctx, role)
 	require.NoError(t, err)
 
 	accessInfo := services.AccessInfoFromUserState(user)
@@ -2026,8 +2055,10 @@ func TestGenerateUserCertWithUserLoginState(t *testing.T) {
 	ulsRole2, err := types.NewRole("uls-role2", types.RoleSpecV6{})
 	require.NoError(t, err)
 
-	require.NoError(t, p.a.UpsertRole(ctx, ulsRole1))
-	require.NoError(t, p.a.UpsertRole(ctx, ulsRole2))
+	_, err = p.a.UpsertRole(ctx, ulsRole1)
+	require.NoError(t, err)
+	_, err = p.a.UpsertRole(ctx, ulsRole2)
+	require.NoError(t, err)
 
 	userState, err = p.a.GetUserOrLoginState(ctx, user.GetName())
 	require.NoError(t, err)
@@ -3245,7 +3276,7 @@ func TestGetLicense(t *testing.T) {
 
 	// GetLicense should return error if license is not set
 	_, err := s.a.GetLicense(context.Background())
-	assert.NotNil(t, err)
+	assert.Error(t, err)
 
 	// GetLicense should return cert and key pem concatenated, when license is set
 	l := license.License{
@@ -3255,7 +3286,7 @@ func TestGetLicense(t *testing.T) {
 	s.a.SetLicense(&l)
 
 	actual, err := s.a.GetLicense(context.Background())
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, fmt.Sprintf("%s%s", l.CertPEM, l.KeyPEM), actual)
 }
 

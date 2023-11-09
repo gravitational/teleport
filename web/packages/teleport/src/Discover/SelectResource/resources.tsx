@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { Platform } from 'design/theme/utils';
+import { Platform } from 'design/platform';
 
 import { DiscoverEventResource } from 'teleport/services/userEvent';
 import cfg from 'teleport/config';
@@ -42,7 +42,7 @@ export const SERVERS: ResourceSpec[] = [
     keywords: baseServerKeywords + 'ubuntu',
     icon: 'Linux',
     event: DiscoverEventResource.Server,
-    platform: Platform.PLATFORM_LINUX,
+    platform: Platform.Linux,
   },
   {
     name: 'Debian 8+',
@@ -50,7 +50,7 @@ export const SERVERS: ResourceSpec[] = [
     keywords: baseServerKeywords + 'debian',
     icon: 'Linux',
     event: DiscoverEventResource.Server,
-    platform: Platform.PLATFORM_LINUX,
+    platform: Platform.Linux,
   },
   {
     name: 'RHEL/CentOS 7+',
@@ -58,7 +58,7 @@ export const SERVERS: ResourceSpec[] = [
     keywords: baseServerKeywords + 'rhel centos',
     icon: 'Linux',
     event: DiscoverEventResource.Server,
-    platform: Platform.PLATFORM_LINUX,
+    platform: Platform.Linux,
   },
   {
     name: 'Amazon Linux 2/2023',
@@ -66,7 +66,7 @@ export const SERVERS: ResourceSpec[] = [
     keywords: baseServerKeywords + 'amazon linux',
     icon: 'Aws',
     event: DiscoverEventResource.Server,
-    platform: Platform.PLATFORM_LINUX,
+    platform: Platform.Linux,
   },
   {
     name: 'macOS',
@@ -74,7 +74,7 @@ export const SERVERS: ResourceSpec[] = [
     keywords: baseServerKeywords + 'mac macos intel silicone apple',
     icon: 'Apple',
     event: DiscoverEventResource.Server,
-    platform: Platform.PLATFORM_MACINTOSH,
+    platform: Platform.macOS,
   },
   {
     name: 'EC2 Instance',
@@ -84,6 +84,15 @@ export const SERVERS: ResourceSpec[] = [
     icon: 'Aws',
     event: DiscoverEventResource.Ec2Instance,
     nodeMeta: { location: ServerLocation.Aws },
+  },
+  {
+    name: 'Connect My Computer',
+    kind: ResourceKind.ConnectMyComputer,
+    keywords: baseServerKeywords + 'connect my computer',
+    icon: 'Laptop',
+    event: DiscoverEventResource.Server,
+    supportedPlatforms: [Platform.macOS, Platform.Linux],
+    supportedAuthTypes: ['local', 'passwordless'],
   },
 ];
 
@@ -105,7 +114,7 @@ export const WINDOWS_DESKTOPS: ResourceSpec[] = [
     keywords: 'windows desktop active directory ad',
     icon: 'Windows',
     event: DiscoverEventResource.WindowsDesktop,
-    platform: Platform.PLATFORM_WINDOWS,
+    platform: Platform.Windows,
   },
   // {
   //   name: 'Non Active Directory',

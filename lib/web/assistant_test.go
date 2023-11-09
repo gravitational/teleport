@@ -77,7 +77,7 @@ func Test_runAssistant(t *testing.T) {
 		require.NoError(t, err)
 
 		require.Equal(t, assist.MessageKindError, msg.Type)
-		require.Equal(t, msg.Payload, "You have reached the rate limit. Please try again later.")
+		require.Equal(t, "You have reached the rate limit. Please try again later.", msg.Payload)
 	}
 
 	testCases := []struct {
@@ -113,7 +113,7 @@ func Test_runAssistant(t *testing.T) {
 			setup: func(t *testing.T, s *WebSuite) {
 				// Assert that rate limiter is set up when Cloud feature is active,
 				// before replacing with a lower capacity rate-limiter for test purposes
-				require.Equal(t, assistantLimiterRate, s.webHandler.handler.assistantLimiter.Limit())
+				require.InEpsilon(t, float64(assistantLimiterRate), float64(s.webHandler.handler.assistantLimiter.Limit()), 0.0)
 
 				// 101 token capacity (lookaheadTokens+1) and a slow replenish rate
 				// to let the first completion request succeed, but not the second one
@@ -372,7 +372,8 @@ func Test_generateAssistantTitle(t *testing.T) {
 	})
 
 	assistRole := allowAssistAccess(t, s)
-	require.NoError(t, s.server.Auth().UpsertRole(s.ctx, assistRole))
+	assistRole, err := s.server.Auth().UpsertRole(s.ctx, assistRole)
+	require.NoError(t, err)
 
 	pack := s.authPack(t, "foo", assistRole.GetName())
 
@@ -401,7 +402,8 @@ func allowAssistAccess(t *testing.T, s *WebSuite) types.Role {
 		},
 	})
 	require.NoError(t, err)
-	require.NoError(t, s.server.Auth().UpsertRole(s.ctx, assistRole))
+	assistRole, err = s.server.Auth().UpsertRole(s.ctx, assistRole)
+	require.NoError(t, err)
 
 	return assistRole
 }

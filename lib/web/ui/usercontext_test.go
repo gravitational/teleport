@@ -44,24 +44,24 @@ func TestNewUserContext(t *testing.T) {
 	role2.SetNamespaces(types.Allow, []string{apidefaults.Namespace})
 
 	roleSet := []types.Role{role1, role2}
-	userContext, err := NewUserContext(user, roleSet, proto.Features{}, true)
+	userContext, err := NewUserContext(user, roleSet, proto.Features{}, true, false)
 	require.NoError(t, err)
 
 	// test user name
-	require.Equal(t, userContext.Name, "root")
+	require.Equal(t, "root", userContext.Name)
 	require.Empty(t, cmp.Diff(userContext.AccessStrategy, accessStrategy{
 		Type:   types.RequestStrategyOptional,
 		Prompt: "",
 	}))
 
 	// test local auth type
-	require.Equal(t, userContext.AuthType, authLocal)
+	require.Equal(t, authLocal, userContext.AuthType)
 
 	// test sso auth type
 	user.Spec.GithubIdentities = []types.ExternalIdentity{{ConnectorID: "foo", Username: "bar"}}
-	userContext, err = NewUserContext(user, roleSet, proto.Features{}, true)
+	userContext, err = NewUserContext(user, roleSet, proto.Features{}, true, false)
 	require.NoError(t, err)
-	require.Equal(t, userContext.AuthType, authSSO)
+	require.Equal(t, authSSO, userContext.AuthType)
 }
 
 func TestNewUserContextCloud(t *testing.T) {
@@ -78,10 +78,10 @@ func TestNewUserContextCloud(t *testing.T) {
 
 	roleSet := []types.Role{role}
 
-	userContext, err := NewUserContext(user, roleSet, proto.Features{Cloud: true}, true)
+	userContext, err := NewUserContext(user, roleSet, proto.Features{Cloud: true}, true, false)
 	require.NoError(t, err)
 
-	require.Equal(t, userContext.Name, "root")
+	require.Equal(t, "root", userContext.Name)
 	require.Empty(t, cmp.Diff(userContext.AccessStrategy, accessStrategy{
 		Type:   types.RequestStrategyOptional,
 		Prompt: "",

@@ -42,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/constants"
+	apihelpers "github.com/gravitational/teleport/api/testhelpers"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integration/appaccess"
 	dbhelpers "github.com/gravitational/teleport/integration/db"
@@ -72,7 +73,6 @@ func TestALPNSNIProxyMultiCluster(t *testing.T) {
 		secondClusterPortSetup    helpers.InstanceListenerSetupFunc
 		disableALPNListenerOnRoot bool
 		disableALPNListenerOnLeaf bool
-		testALPNConnUpgrade       bool
 	}{
 		{
 			name:                      "StandardAndOnePortSetupMasterALPNDisabled",
@@ -89,20 +89,17 @@ func TestALPNSNIProxyMultiCluster(t *testing.T) {
 			name:                   "TwoClusterOnePortSetup",
 			mainClusterPortSetup:   helpers.SingleProxyPortSetup,
 			secondClusterPortSetup: helpers.SingleProxyPortSetup,
-			testALPNConnUpgrade:    true,
 		},
 		{
 			name:                      "OnePortAndStandardListenerSetupLeafALPNDisabled",
 			mainClusterPortSetup:      helpers.SingleProxyPortSetup,
 			secondClusterPortSetup:    helpers.StandardListenerSetup,
 			disableALPNListenerOnLeaf: true,
-			testALPNConnUpgrade:       true,
 		},
 		{
 			name:                   "OnePortAndStandardListenerSetup",
 			mainClusterPortSetup:   helpers.SingleProxyPortSetup,
 			secondClusterPortSetup: helpers.StandardListenerSetup,
-			testALPNConnUpgrade:    true,
 		},
 	}
 
@@ -140,30 +137,28 @@ func TestALPNSNIProxyMultiCluster(t *testing.T) {
 				Port:    helpers.Port(t, suite.leaf.SSH),
 			})
 
-			if tc.testALPNConnUpgrade {
-				t.Run("ALPN conn upgrade", func(t *testing.T) {
-					// Make a mock ALB which points to the Teleport Proxy Service.
-					albProxy := helpers.MustStartMockALBProxy(t, suite.root.Config.Proxy.WebAddr.Addr)
+			t.Run("WebProxyAddr behind ALB", func(t *testing.T) {
+				// Make a mock ALB which points to the Teleport Proxy Service.
+				albProxy := helpers.MustStartMockALBProxy(t, suite.root.Config.Proxy.WebAddr.Addr)
 
-					// Run command in root through ALB address.
-					suite.mustConnectToClusterAndRunSSHCommand(t, helpers.ClientConfig{
-						Login:   username,
-						Cluster: suite.root.Secrets.SiteName,
-						Host:    helpers.Loopback,
-						Port:    helpers.Port(t, suite.root.SSH),
-						ALBAddr: albProxy.Addr().String(),
-					})
-
-					// Run command in leaf through ALB address.
-					suite.mustConnectToClusterAndRunSSHCommand(t, helpers.ClientConfig{
-						Login:   username,
-						Cluster: suite.leaf.Secrets.SiteName,
-						Host:    helpers.Loopback,
-						Port:    helpers.Port(t, suite.leaf.SSH),
-						ALBAddr: albProxy.Addr().String(),
-					})
+				// Run command in root through ALB address.
+				suite.mustConnectToClusterAndRunSSHCommand(t, helpers.ClientConfig{
+					Login:   username,
+					Cluster: suite.root.Secrets.SiteName,
+					Host:    helpers.Loopback,
+					Port:    helpers.Port(t, suite.root.SSH),
+					ALBAddr: albProxy.Addr().String(),
 				})
-			}
+
+				// Run command in leaf through ALB address.
+				suite.mustConnectToClusterAndRunSSHCommand(t, helpers.ClientConfig{
+					Login:   username,
+					Cluster: suite.leaf.Secrets.SiteName,
+					Host:    helpers.Loopback,
+					Port:    helpers.Port(t, suite.leaf.SSH),
+					ALBAddr: albProxy.Addr().String(),
+				})
+			})
 		})
 	}
 }
@@ -272,7 +267,7 @@ func TestALPNSNIHTTPSProxy(t *testing.T) {
 	// We need to use the non-loopback address for our Teleport cluster, as the
 	// Go HTTP library will recognize requests to the loopback address and
 	// refuse to use the HTTP proxy, which will invalidate the test.
-	addr, err := helpers.GetLocalIP()
+	addr, err := apihelpers.GetLocalIP()
 	require.NoError(t, err)
 
 	suite := newSuite(t,
@@ -313,7 +308,7 @@ func TestMultiPortHTTPSProxy(t *testing.T) {
 	// We need to use the non-loopback address for our Teleport cluster, as the
 	// Go HTTP library will recognize requests to the loopback address and
 	// refuse to use the HTTP proxy, which will invalidate the test.
-	addr, err := helpers.GetLocalIP()
+	addr, err := apihelpers.GetLocalIP()
 	require.NoError(t, err)
 
 	suite := newSuite(t,
@@ -392,7 +387,7 @@ func TestALPNSNIProxyKube(t *testing.T) {
 
 	resp, err := k8Client.CoreV1().Pods("default").List(context.Background(), metav1.ListOptions{})
 	require.NoError(t, err)
-	require.Equal(t, 3, len(resp.Items), "pods item length mismatch")
+	require.Len(t, resp.Items, 3, "pods item length mismatch")
 
 	// Simulate how tsh uses a kube local proxy to send kube requests to
 	// Teleport Proxy with a L7 LB in front.
@@ -664,7 +659,7 @@ func TestKubePROXYProtocol(t *testing.T) {
 
 			resp, err := k8Client.CoreV1().Pods("default").List(context.Background(), metav1.ListOptions{})
 			require.NoError(t, err)
-			require.Equal(t, 3, len(resp.Items), "pods item length mismatch")
+			require.Len(t, resp.Items, 3, "pods item length mismatch")
 		})
 	}
 }
@@ -789,7 +784,7 @@ func TestKubeIPPinning(t *testing.T) {
 				return
 			}
 			require.NoError(t, err)
-			require.Equal(t, 3, len(resp.Items), "pods item length mismatch")
+			require.Len(t, resp.Items, 3, "pods item length mismatch")
 		})
 	}
 }
@@ -1207,7 +1202,7 @@ func TestALPNSNIProxyDatabaseAccess(t *testing.T) {
 		require.Error(t, err)
 		var x509Err x509.CertificateInvalidError
 		require.ErrorAs(t, err, &x509Err)
-		require.Equal(t, x509Err.Reason, x509.Expired)
+		require.Equal(t, x509.Expired, x509Err.Reason)
 		require.Contains(t, x509Err.Detail, "is after")
 
 		// Open a new connection
@@ -1506,7 +1501,7 @@ func TestALPNProxyHTTPProxyNoProxyDial(t *testing.T) {
 	// We need to use the non-loopback address for our Teleport cluster, as the
 	// Go HTTP library will recognize requests to the loopback address and
 	// refuse to use the HTTP proxy, which will invalidate the test.
-	addr, err := helpers.GetLocalIP()
+	addr, err := apihelpers.GetLocalIP()
 	require.NoError(t, err)
 
 	instanceCfg := helpers.InstanceConfig{
@@ -1585,7 +1580,7 @@ func TestALPNProxyHTTPProxyBasicAuthDial(t *testing.T) {
 	// We need to use the non-loopback address for our Teleport cluster, as the
 	// Go HTTP library will recognize requests to the loopback address and
 	// refuse to use the HTTP proxy, which will invalidate the test.
-	rcAddr, err := helpers.GetLocalIP()
+	rcAddr, err := apihelpers.GetLocalIP()
 	require.NoError(t, err)
 
 	log.Info("Creating Teleport instance...")

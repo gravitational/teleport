@@ -15,7 +15,6 @@
  */
 
 import React, { useState } from 'react';
-import styled from 'styled-components';
 import { ButtonSecondary, Text, Box, LabelInput } from 'design';
 import Select from 'shared/components/Select';
 
@@ -26,6 +25,7 @@ import {
   ActionButtons,
   HeaderSubtitle,
   ConnectionDiagnosticResult,
+  StyledBox,
 } from '../../Shared';
 
 import { useTestConnection, State } from './useTestConnection';
@@ -110,10 +110,3 @@ export function TestConnection({
     </Box>
   );
 }
-
-const StyledBox = styled(Box)`
-  max-width: 800px;
-  background-color: ${props => props.theme.colors.spotBackground[0]};
-  border-radius: 8px;
-  padding: 20px;
-`;

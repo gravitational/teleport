@@ -289,7 +289,7 @@ func TestMFADeviceManagement(t *testing.T) {
 		deviceIDs[dev.GetName()] = dev.Id
 	}
 	sort.Strings(deviceNames)
-	require.Equal(t, deviceNames, []string{pwdlessDevName, devs.TOTPName, devs.WebName, webDev2Name})
+	require.Equal(t, []string{pwdlessDevName, devs.TOTPName, devs.WebName, webDev2Name}, deviceNames)
 
 	// Delete several of the MFA devices.
 	deleteTests := []struct {
@@ -710,7 +710,7 @@ func TestGenerateUserCerts_deviceAuthz(t *testing.T) {
 	roleOpt.RequireMFAType = types.RequireMFAType_SESSION
 	role.SetOptions(roleOpt)
 
-	err = authServer.UpsertRole(ctx, role)
+	_, err = authServer.UpsertRole(ctx, role)
 	require.NoError(t, err)
 
 	// Register an SSH node.
@@ -1021,7 +1021,7 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 	role.SetWindowsLogins(types.Allow, []string{"role"})
 	role.SetWindowsDesktopLabels(types.Allow, types.Labels{types.Wildcard: {types.Wildcard}})
 	role.SetOptions(roleOpt)
-	err = srv.Auth().UpsertRole(ctx, role)
+	_, err = srv.Auth().UpsertRole(ctx, role)
 	require.NoError(t, err)
 	testUser := TestUser(user.GetName())
 	testUser.TTL = userCertTTL
@@ -1191,7 +1191,7 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 					require.Equal(t, userCertExpires, identity.PreviousIdentityExpires)
 					require.True(t, net.ParseIP(identity.LoginIP).IsLoopback())
 					require.Equal(t, []string{teleport.UsageDatabaseOnly}, identity.Usage)
-					require.Equal(t, identity.RouteToDatabase.ServiceName, "db-a")
+					require.Equal(t, "db-a", identity.RouteToDatabase.ServiceName)
 				},
 			},
 		},
@@ -1230,7 +1230,7 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 					require.Equal(t, userCertExpires, identity.PreviousIdentityExpires)
 					require.True(t, net.ParseIP(identity.LoginIP).IsLoopback())
 					require.Equal(t, []string{teleport.UsageDatabaseOnly}, identity.Usage)
-					require.Equal(t, identity.RouteToDatabase.ServiceName, "db-a")
+					require.Equal(t, "db-a", identity.RouteToDatabase.ServiceName)
 				},
 			},
 		},
@@ -1267,7 +1267,7 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 					require.Equal(t, userCertExpires, identity.PreviousIdentityExpires)
 					require.True(t, net.ParseIP(identity.LoginIP).IsLoopback())
 					require.Equal(t, []string{teleport.UsageKubeOnly}, identity.Usage)
-					require.Equal(t, identity.KubernetesCluster, "kube-a")
+					require.Equal(t, "kube-a", identity.KubernetesCluster)
 				},
 			},
 		},
@@ -1558,7 +1558,7 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 					require.Equal(t, userCertExpires, identity.PreviousIdentityExpires)
 					require.True(t, net.ParseIP(identity.LoginIP).IsLoopback())
 					require.Equal(t, []string{teleport.UsageDatabaseOnly}, identity.Usage)
-					require.Equal(t, identity.RouteToDatabase.ServiceName, "db-b")
+					require.Equal(t, "db-b", identity.RouteToDatabase.ServiceName)
 				},
 			},
 		},
@@ -1643,10 +1643,12 @@ type generateUserSingleUseCertsTestOpts struct {
 
 func testGenerateUserSingleUseCertsStream(ctx context.Context, t *testing.T, cl *Client, opts generateUserSingleUseCertsTestOpts) {
 	runStream := func() (*proto.SingleUseUserCert, error) {
+		//nolint:staticcheck // SA1019. Kept for backwards compatibility.
 		stream, err := cl.GenerateUserSingleUseCerts(ctx)
 		require.NoError(t, err, "GenerateUserSingleUseCerts stream creation failed")
 
 		// Init.
+		//nolint:staticcheck // SA1019. Kept for backwards compatibility.
 		if err := stream.Send(&proto.UserSingleUseCertsRequest{
 			Request: &proto.UserSingleUseCertsRequest_Init{
 				Init: opts.initReq,
@@ -1664,6 +1666,7 @@ func testGenerateUserSingleUseCertsStream(ctx context.Context, t *testing.T, cl 
 		opts.mfaRequiredHandler(t, authnChal.MFARequired)
 		authnSolved := opts.authnHandler(t, authnChal)
 
+		//nolint:staticcheck // SA1019. Kept for backwards compatibility.
 		switch err := stream.Send(&proto.UserSingleUseCertsRequest{
 			Request: &proto.UserSingleUseCertsRequest_MFAResponse{
 				MFAResponse: authnSolved,
@@ -1733,6 +1736,8 @@ var requireMFATypes = []types.RequireMFAType{
 	types.RequireMFAType_SESSION,
 	types.RequireMFAType_SESSION_AND_HARDWARE_KEY,
 	types.RequireMFAType_HARDWARE_KEY_TOUCH,
+	types.RequireMFAType_HARDWARE_KEY_PIN,
+	types.RequireMFAType_HARDWARE_KEY_TOUCH_AND_PIN,
 }
 
 func TestIsMFARequired(t *testing.T) {
@@ -1783,7 +1788,7 @@ func TestIsMFARequired(t *testing.T) {
 					role.SetOptions(roleOpt)
 					role.SetLogins(types.Allow, []string{user.GetName()})
 
-					err = srv.Auth().UpsertRole(ctx, role)
+					role, err = srv.Auth().UpsertRole(ctx, role)
 					require.NoError(t, err)
 
 					user.AddRole(role.GetName())
@@ -1879,7 +1884,7 @@ func TestIsMFARequired_unauthorized(t *testing.T) {
 	roleOpt.RequireMFAType = types.RequireMFAType_SESSION
 	role.SetOptions(roleOpt)
 	role.SetNodeLabels(types.Allow, map[string]utils.Strings{"a": []string{"c"}})
-	err = srv.Auth().UpsertRole(ctx, role)
+	_, err = srv.Auth().UpsertRole(ctx, role)
 	require.NoError(t, err)
 
 	cl, err := srv.NewClient(TestUser(user.GetName()))
@@ -2026,7 +2031,7 @@ func testOriginDynamicStored(t *testing.T, setWithOrigin func(*Client, string) e
 
 			stored, err := getStored(srv.Auth())
 			require.NoError(t, err)
-			require.Equal(t, stored.Origin(), types.OriginDynamic)
+			require.Equal(t, types.OriginDynamic, stored.Origin())
 		})
 	}
 }
@@ -2222,7 +2227,7 @@ func TestGetSSHTargets(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Len(t, rsp.Servers, 1)
-	require.Equal(t, rsp.Servers[0].GetHostname(), "foo")
+	require.Equal(t, "foo", rsp.Servers[0].GetHostname())
 
 	cnc := types.DefaultClusterNetworkingConfig()
 	cnc.SetCaseInsensitiveRouting(true)
@@ -2482,7 +2487,7 @@ func TestApplicationServersCRUD(t *testing.T) {
 	// Initially we expect no app servers.
 	out, err := clt.GetApplicationServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
-	require.Equal(t, 0, len(out))
+	require.Empty(t, out)
 
 	// Register all app servers.
 	_, err = clt.UpsertApplicationServer(ctx, server1)
@@ -2523,7 +2528,7 @@ func TestApplicationServersCRUD(t *testing.T) {
 	require.NoError(t, err)
 	out, err = clt.GetApplicationServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
-	require.Equal(t, 0, len(out))
+	require.Empty(t, out)
 }
 
 // TestAppsCRUD tests application resource operations.
@@ -2554,7 +2559,7 @@ func TestAppsCRUD(t *testing.T) {
 	// Initially we expect no apps.
 	out, err := clt.GetApps(ctx)
 	require.NoError(t, err)
-	require.Equal(t, 0, len(out))
+	require.Empty(t, out)
 
 	// Create both apps.
 	err = clt.CreateApp(ctx, app1)
@@ -2612,7 +2617,7 @@ func TestAppsCRUD(t *testing.T) {
 	require.NoError(t, err)
 	out, err = clt.GetApps(ctx)
 	require.NoError(t, err)
-	require.Len(t, out, 0)
+	require.Empty(t, out)
 }
 
 // TestAppServersCRUD tests application server resource operations.
@@ -2743,7 +2748,7 @@ func TestDatabasesCRUD(t *testing.T) {
 	// Initially we expect no databases.
 	out, err := clt.GetDatabases(ctx)
 	require.NoError(t, err)
-	require.Equal(t, 0, len(out))
+	require.Empty(t, out)
 
 	// Create both databases.
 	err = clt.CreateDatabase(ctx, db1)
@@ -2801,7 +2806,7 @@ func TestDatabasesCRUD(t *testing.T) {
 	require.NoError(t, err)
 	out, err = clt.GetDatabases(ctx)
 	require.NoError(t, err)
-	require.Len(t, out, 0)
+	require.Empty(t, out)
 }
 
 // TestDatabaseServicesCRUD tests DatabaseService resource operations.
@@ -3229,7 +3234,7 @@ func TestListResources(t *testing.T) {
 				Limit:        100,
 			})
 			require.NoError(t, err)
-			require.Len(t, resp.Resources, 0)
+			require.Empty(t, resp.Resources)
 			require.Empty(t, resp.NextKey)
 
 			// create two resources
@@ -4048,7 +4053,8 @@ func TestRoleVersions(t *testing.T) {
 					// Re-upsert the role so that the watcher sees it, do this
 					// on the auth server directly to avoid the
 					// TeleportDowngradedLabel check in ServerWithRoles
-					require.NoError(t, srv.Auth().UpsertRole(ctx, role))
+					role, err = srv.Auth().UpsertRole(ctx, role)
+					require.NoError(t, err)
 
 					gotRole, err = func() (types.Role, error) {
 						for {
@@ -4069,7 +4075,7 @@ func TestRoleVersions(t *testing.T) {
 						// Try to re-upsert the role we got. If it was
 						// downgraded, it should be rejected due to the
 						// TeleportDowngradedLabel
-						err = client.UpsertRole(ctx, gotRole)
+						_, err = client.UpsertRole(ctx, gotRole)
 						if tc.expectDowngraded {
 							require.Error(t, err)
 						} else {

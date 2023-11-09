@@ -55,7 +55,9 @@ func newSFTPSubsys() (*sftpSubsys, error) {
 	}, nil
 }
 
-func (s *sftpSubsys) Start(ctx context.Context, serverConn *ssh.ServerConn, ch ssh.Channel, _ *ssh.Request,
+func (s *sftpSubsys) Start(ctx context.Context,
+	serverConn *ssh.ServerConn,
+	ch ssh.Channel, req *ssh.Request,
 	serverCtx *srv.ServerContext,
 ) error {
 	// Check that file copying is allowed Node-wide again here in case
@@ -88,15 +90,14 @@ func (s *sftpSubsys) Start(ctx context.Context, serverConn *ssh.ServerConn, ch s
 	defer auditPipeIn.Close()
 
 	// Create child process to handle SFTP connection
-	executable, err := os.Executable()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	execRequest, err := srv.NewExecRequest(serverCtx, executable+" sftp")
+	execRequest, err := srv.NewExecRequest(serverCtx, teleport.SFTPSubsystem)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	if err := serverCtx.SetExecRequest(execRequest); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := serverCtx.SetSSHRequest(req); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -135,15 +136,8 @@ func (s *sftpSubsys) Start(ctx context.Context, serverConn *ssh.ServerConn, ch s
 		defer auditPipeOut.Close()
 
 		// Create common fields for events
-		serverMeta := apievents.ServerMetadata{
-			ServerID:        serverCtx.GetServer().HostUUID(),
-			ServerHostname:  serverCtx.GetServer().GetInfo().GetHostname(),
-			ServerNamespace: serverCtx.GetServer().GetNamespace(),
-		}
-		sessionMeta := apievents.SessionMetadata{
-			SessionID: string(serverCtx.SessionID()),
-			WithMFA:   serverCtx.Identity.Certificate.Extensions[teleport.CertExtensionMFAVerified],
-		}
+		serverMeta := serverCtx.GetServerMetadata()
+		sessionMeta := serverCtx.GetSessionMetadata()
 		userMeta := serverCtx.Identity.GetUserMetadata()
 		connectionMeta := apievents.ConnectionMetadata{
 			RemoteAddr: serverConn.RemoteAddr().String(),

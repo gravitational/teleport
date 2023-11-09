@@ -12,7 +12,6 @@ import * as teleport_lib_teleterm_v1_cluster_pb from "../../../../teleport/lib/t
 import * as teleport_lib_teleterm_v1_database_pb from "../../../../teleport/lib/teleterm/v1/database_pb";
 import * as teleport_lib_teleterm_v1_gateway_pb from "../../../../teleport/lib/teleterm/v1/gateway_pb";
 import * as teleport_lib_teleterm_v1_kube_pb from "../../../../teleport/lib/teleterm/v1/kube_pb";
-import * as teleport_lib_teleterm_v1_label_pb from "../../../../teleport/lib/teleterm/v1/label_pb";
 import * as teleport_lib_teleterm_v1_server_pb from "../../../../teleport/lib/teleterm/v1/server_pb";
 import * as teleport_lib_teleterm_v1_usage_events_pb from "../../../../teleport/lib/teleterm/v1/usage_events_pb";
 
@@ -52,6 +51,7 @@ interface ITerminalServiceService extends grpc.ServiceDefinition<grpc.UntypedSer
     waitForConnectMyComputerNodeJoin: ITerminalServiceService_IWaitForConnectMyComputerNodeJoin;
     deleteConnectMyComputerNode: ITerminalServiceService_IDeleteConnectMyComputerNode;
     getConnectMyComputerNodeName: ITerminalServiceService_IGetConnectMyComputerNodeName;
+    listUnifiedResources: ITerminalServiceService_IListUnifiedResources;
 }
 
 interface ITerminalServiceService_IUpdateTshdEventsServerAddress extends grpc.MethodDefinition<teleport_lib_teleterm_v1_service_pb.UpdateTshdEventsServerAddressRequest, teleport_lib_teleterm_v1_service_pb.UpdateTshdEventsServerAddressResponse> {
@@ -369,6 +369,15 @@ interface ITerminalServiceService_IGetConnectMyComputerNodeName extends grpc.Met
     responseSerialize: grpc.serialize<teleport_lib_teleterm_v1_service_pb.GetConnectMyComputerNodeNameResponse>;
     responseDeserialize: grpc.deserialize<teleport_lib_teleterm_v1_service_pb.GetConnectMyComputerNodeNameResponse>;
 }
+interface ITerminalServiceService_IListUnifiedResources extends grpc.MethodDefinition<teleport_lib_teleterm_v1_service_pb.ListUnifiedResourcesRequest, teleport_lib_teleterm_v1_service_pb.ListUnifiedResourcesResponse> {
+    path: "/teleport.lib.teleterm.v1.TerminalService/ListUnifiedResources";
+    requestStream: false;
+    responseStream: false;
+    requestSerialize: grpc.serialize<teleport_lib_teleterm_v1_service_pb.ListUnifiedResourcesRequest>;
+    requestDeserialize: grpc.deserialize<teleport_lib_teleterm_v1_service_pb.ListUnifiedResourcesRequest>;
+    responseSerialize: grpc.serialize<teleport_lib_teleterm_v1_service_pb.ListUnifiedResourcesResponse>;
+    responseDeserialize: grpc.deserialize<teleport_lib_teleterm_v1_service_pb.ListUnifiedResourcesResponse>;
+}
 
 export const TerminalServiceService: ITerminalServiceService;
 
@@ -408,6 +417,7 @@ export interface ITerminalServiceServer {
     waitForConnectMyComputerNodeJoin: grpc.handleUnaryCall<teleport_lib_teleterm_v1_service_pb.WaitForConnectMyComputerNodeJoinRequest, teleport_lib_teleterm_v1_service_pb.WaitForConnectMyComputerNodeJoinResponse>;
     deleteConnectMyComputerNode: grpc.handleUnaryCall<teleport_lib_teleterm_v1_service_pb.DeleteConnectMyComputerNodeRequest, teleport_lib_teleterm_v1_service_pb.DeleteConnectMyComputerNodeResponse>;
     getConnectMyComputerNodeName: grpc.handleUnaryCall<teleport_lib_teleterm_v1_service_pb.GetConnectMyComputerNodeNameRequest, teleport_lib_teleterm_v1_service_pb.GetConnectMyComputerNodeNameResponse>;
+    listUnifiedResources: grpc.handleUnaryCall<teleport_lib_teleterm_v1_service_pb.ListUnifiedResourcesRequest, teleport_lib_teleterm_v1_service_pb.ListUnifiedResourcesResponse>;
 }
 
 export interface ITerminalServiceClient {
@@ -515,6 +525,9 @@ export interface ITerminalServiceClient {
     getConnectMyComputerNodeName(request: teleport_lib_teleterm_v1_service_pb.GetConnectMyComputerNodeNameRequest, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.GetConnectMyComputerNodeNameResponse) => void): grpc.ClientUnaryCall;
     getConnectMyComputerNodeName(request: teleport_lib_teleterm_v1_service_pb.GetConnectMyComputerNodeNameRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.GetConnectMyComputerNodeNameResponse) => void): grpc.ClientUnaryCall;
     getConnectMyComputerNodeName(request: teleport_lib_teleterm_v1_service_pb.GetConnectMyComputerNodeNameRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.GetConnectMyComputerNodeNameResponse) => void): grpc.ClientUnaryCall;
+    listUnifiedResources(request: teleport_lib_teleterm_v1_service_pb.ListUnifiedResourcesRequest, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.ListUnifiedResourcesResponse) => void): grpc.ClientUnaryCall;
+    listUnifiedResources(request: teleport_lib_teleterm_v1_service_pb.ListUnifiedResourcesRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.ListUnifiedResourcesResponse) => void): grpc.ClientUnaryCall;
+    listUnifiedResources(request: teleport_lib_teleterm_v1_service_pb.ListUnifiedResourcesRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.ListUnifiedResourcesResponse) => void): grpc.ClientUnaryCall;
 }
 
 export class TerminalServiceClient extends grpc.Client implements ITerminalServiceClient {
@@ -622,4 +635,7 @@ export class TerminalServiceClient extends grpc.Client implements ITerminalServi
     public getConnectMyComputerNodeName(request: teleport_lib_teleterm_v1_service_pb.GetConnectMyComputerNodeNameRequest, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.GetConnectMyComputerNodeNameResponse) => void): grpc.ClientUnaryCall;
     public getConnectMyComputerNodeName(request: teleport_lib_teleterm_v1_service_pb.GetConnectMyComputerNodeNameRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.GetConnectMyComputerNodeNameResponse) => void): grpc.ClientUnaryCall;
     public getConnectMyComputerNodeName(request: teleport_lib_teleterm_v1_service_pb.GetConnectMyComputerNodeNameRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.GetConnectMyComputerNodeNameResponse) => void): grpc.ClientUnaryCall;
+    public listUnifiedResources(request: teleport_lib_teleterm_v1_service_pb.ListUnifiedResourcesRequest, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.ListUnifiedResourcesResponse) => void): grpc.ClientUnaryCall;
+    public listUnifiedResources(request: teleport_lib_teleterm_v1_service_pb.ListUnifiedResourcesRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.ListUnifiedResourcesResponse) => void): grpc.ClientUnaryCall;
+    public listUnifiedResources(request: teleport_lib_teleterm_v1_service_pb.ListUnifiedResourcesRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.ListUnifiedResourcesResponse) => void): grpc.ClientUnaryCall;
 }

@@ -211,7 +211,7 @@ func TestRemoteRotation(t *testing.T) {
 	// remote cluster starts rotation
 	gracePeriod := time.Hour
 	remoteServer.AuthServer.privateKey, ok = fixtures.PEMBytes["rsa"]
-	require.Equal(t, ok, true)
+	require.True(t, ok)
 	err = remoteServer.AuthServer.RotateCertAuthority(ctx, RotateRequest{
 		Type:        types.HostCA,
 		GracePeriod: &gracePeriod,
@@ -345,7 +345,7 @@ func TestAutoRotation(t *testing.T) {
 
 	// starts rotation
 	testSrv.Auth().privateKey, ok = fixtures.PEMBytes["rsa"]
-	require.Equal(t, ok, true)
+	require.True(t, ok)
 	gracePeriod := time.Hour
 	err = testSrv.Auth().RotateCertAuthority(ctx, RotateRequest{
 		Type:        types.HostCA,
@@ -364,7 +364,7 @@ func TestAutoRotation(t *testing.T) {
 		Type:       types.HostCA,
 	}, false)
 	require.NoError(t, err)
-	require.Equal(t, ca.GetRotation().Phase, types.RotationPhaseUpdateClients)
+	require.Equal(t, types.RotationPhaseUpdateClients, ca.GetRotation().Phase)
 
 	// old clients should work
 	_, err = testSrv.CloneClient(t, proxy).GetNodes(ctx, apidefaults.Namespace)
@@ -384,7 +384,7 @@ func TestAutoRotation(t *testing.T) {
 		Type:       types.HostCA,
 	}, false)
 	require.NoError(t, err)
-	require.Equal(t, ca.GetRotation().Phase, types.RotationPhaseUpdateServers)
+	require.Equal(t, types.RotationPhaseUpdateServers, ca.GetRotation().Phase)
 
 	// old clients should work
 	_, err = testSrv.CloneClient(t, proxy).GetNodes(ctx, apidefaults.Namespace)
@@ -406,7 +406,7 @@ func TestAutoRotation(t *testing.T) {
 		Type:       types.HostCA,
 	}, false)
 	require.NoError(t, err)
-	require.Equal(t, ca.GetRotation().Phase, types.RotationPhaseStandby)
+	require.Equal(t, types.RotationPhaseStandby, ca.GetRotation().Phase)
 	require.NoError(t, err)
 
 	// old clients should no longer work
@@ -446,7 +446,7 @@ func TestAutoFallback(t *testing.T) {
 
 	// starts rotation
 	testSrv.Auth().privateKey, ok = fixtures.PEMBytes["rsa"]
-	require.Equal(t, ok, true)
+	require.True(t, ok)
 	gracePeriod := time.Hour
 	err = testSrv.Auth().RotateCertAuthority(ctx, RotateRequest{
 		Type:        types.HostCA,
@@ -465,8 +465,8 @@ func TestAutoFallback(t *testing.T) {
 		Type:       types.HostCA,
 	}, false)
 	require.NoError(t, err)
-	require.Equal(t, ca.GetRotation().Phase, types.RotationPhaseUpdateClients)
-	require.Equal(t, ca.GetRotation().Mode, types.RotationModeAuto)
+	require.Equal(t, types.RotationPhaseUpdateClients, ca.GetRotation().Phase)
+	require.Equal(t, types.RotationModeAuto, ca.GetRotation().Mode)
 
 	// rollback rotation
 	err = testSrv.Auth().RotateCertAuthority(ctx, RotateRequest{
@@ -482,8 +482,8 @@ func TestAutoFallback(t *testing.T) {
 		Type:       types.HostCA,
 	}, false)
 	require.NoError(t, err)
-	require.Equal(t, ca.GetRotation().Phase, types.RotationPhaseRollback)
-	require.Equal(t, ca.GetRotation().Mode, types.RotationModeManual)
+	require.Equal(t, types.RotationPhaseRollback, ca.GetRotation().Phase)
+	require.Equal(t, types.RotationModeManual, ca.GetRotation().Mode)
 }
 
 // TestManualRotation tests local manual rotation
@@ -507,7 +507,7 @@ func TestManualRotation(t *testing.T) {
 	// can't jump to mid-phase
 	gracePeriod := time.Hour
 	testSrv.Auth().privateKey, ok = fixtures.PEMBytes["rsa"]
-	require.Equal(t, ok, true)
+	require.True(t, ok)
 	err = testSrv.Auth().RotateCertAuthority(ctx, RotateRequest{
 		Type:        types.HostCA,
 		GracePeriod: &gracePeriod,
@@ -617,7 +617,7 @@ func TestRollback(t *testing.T) {
 	// starts rotation
 	gracePeriod := time.Hour
 	testSrv.Auth().privateKey, ok = fixtures.PEMBytes["rsa"]
-	require.Equal(t, ok, true)
+	require.True(t, ok)
 	err = testSrv.Auth().RotateCertAuthority(ctx, RotateRequest{
 		Type:        types.HostCA,
 		GracePeriod: &gracePeriod,
@@ -753,7 +753,7 @@ func TestAppTokenRotation(t *testing.T) {
 		Type:       types.JWTSigner,
 	}, true)
 	require.NoError(t, err)
-	require.Equal(t, oldCA.GetRotation().Phase, types.RotationPhaseInit)
+	require.Equal(t, types.RotationPhaseInit, oldCA.GetRotation().Phase)
 	require.Len(t, oldCA.GetTrustedJWTKeyPairs(), 2)
 
 	// Verify that the JWT token validates with the JWT authority.
@@ -791,7 +791,7 @@ func TestAppTokenRotation(t *testing.T) {
 		Type:       types.JWTSigner,
 	}, true)
 	require.NoError(t, err)
-	require.Equal(t, newCA.GetRotation().Phase, types.RotationPhaseUpdateClients)
+	require.Equal(t, types.RotationPhaseUpdateClients, newCA.GetRotation().Phase)
 	require.Len(t, newCA.GetTrustedJWTKeyPairs(), 2)
 
 	// Both JWT should now validate.
@@ -815,7 +815,7 @@ func TestAppTokenRotation(t *testing.T) {
 		Type:       types.JWTSigner,
 	}, true)
 	require.NoError(t, err)
-	require.Equal(t, newCA.GetRotation().Phase, types.RotationPhaseUpdateServers)
+	require.Equal(t, types.RotationPhaseUpdateServers, newCA.GetRotation().Phase)
 	require.Len(t, newCA.GetTrustedJWTKeyPairs(), 2)
 
 	// Both JWT should continue to validate.
@@ -839,7 +839,7 @@ func TestAppTokenRotation(t *testing.T) {
 		Type:       types.JWTSigner,
 	}, true)
 	require.NoError(t, err)
-	require.Equal(t, newCA.GetRotation().Phase, types.RotationPhaseStandby)
+	require.Equal(t, types.RotationPhaseStandby, newCA.GetRotation().Phase)
 	require.Len(t, newCA.GetTrustedJWTKeyPairs(), 1)
 
 	// Old token should no longer validate.
@@ -907,7 +907,7 @@ func TestOIDCIdPTokenRotation(t *testing.T) {
 		Type:       types.OIDCIdPCA,
 	}, true)
 	require.NoError(t, err)
-	require.Equal(t, oldCA.GetRotation().Phase, types.RotationPhaseInit)
+	require.Equal(t, types.RotationPhaseInit, oldCA.GetRotation().Phase)
 	require.Len(t, oldCA.GetTrustedJWTKeyPairs(), 2)
 
 	// Verify that the JWT token validates with the JWT authority.
@@ -938,7 +938,7 @@ func TestOIDCIdPTokenRotation(t *testing.T) {
 		Type:       types.OIDCIdPCA,
 	}, true)
 	require.NoError(t, err)
-	require.Equal(t, newCA.GetRotation().Phase, types.RotationPhaseUpdateClients)
+	require.Equal(t, types.RotationPhaseUpdateClients, newCA.GetRotation().Phase)
 	require.Len(t, newCA.GetTrustedJWTKeyPairs(), 2)
 
 	// Both JWT should now validate.
@@ -962,7 +962,7 @@ func TestOIDCIdPTokenRotation(t *testing.T) {
 		Type:       types.OIDCIdPCA,
 	}, true)
 	require.NoError(t, err)
-	require.Equal(t, newCA.GetRotation().Phase, types.RotationPhaseUpdateServers)
+	require.Equal(t, types.RotationPhaseUpdateServers, newCA.GetRotation().Phase)
 	require.Len(t, newCA.GetTrustedJWTKeyPairs(), 2)
 
 	// Both JWT should continue to validate.
@@ -986,7 +986,7 @@ func TestOIDCIdPTokenRotation(t *testing.T) {
 		Type:       types.OIDCIdPCA,
 	}, true)
 	require.NoError(t, err)
-	require.Equal(t, newCA.GetRotation().Phase, types.RotationPhaseStandby)
+	require.Equal(t, types.RotationPhaseStandby, newCA.GetRotation().Phase)
 	require.Len(t, newCA.GetTrustedJWTKeyPairs(), 1)
 
 	// Old token should no longer validate.
@@ -1252,14 +1252,14 @@ func TestUsersCRUD(t *testing.T) {
 
 	users, err := clt.GetUsers(ctx, false)
 	require.NoError(t, err)
-	require.Equal(t, len(users), 1)
-	require.Equal(t, users[0].GetName(), "user1")
+	require.Len(t, users, 1)
+	require.Equal(t, "user1", users[0].GetName())
 
 	require.NoError(t, clt.DeleteUser(ctx, "user1"))
 
 	users, err = clt.GetUsers(ctx, false)
 	require.NoError(t, err)
-	require.Equal(t, len(users), 0)
+	require.Empty(t, users)
 }
 
 func TestPasswordGarbage(t *testing.T) {
@@ -1394,7 +1394,7 @@ func TestWebSessionWithoutAccessRequest(t *testing.T) {
 	// success with password set up
 	ws, err := proxy.AuthenticateWebUser(ctx, req)
 	require.NoError(t, err)
-	require.NotEqual(t, ws, "")
+	require.NotEmpty(t, ws)
 
 	web, err := testSrv.NewClientFromWebSession(ws)
 	require.NoError(t, err)
@@ -1473,12 +1473,12 @@ func TestWebSessionMultiAccessRequests(t *testing.T) {
 	resourceRequestRoleName := "resource-requestable"
 	resourceRequestRole := services.RoleForUser(user)
 	resourceRequestRole.SetName(resourceRequestRoleName)
-	err = clt.UpsertRole(ctx, resourceRequestRole)
+	_, err = clt.UpsertRole(ctx, resourceRequestRole)
 	require.NoError(t, err)
 	baseRole, err := clt.GetRole(ctx, baseRoleName)
 	require.NoError(t, err)
 	baseRole.SetSearchAsRoles(types.Allow, []string{resourceRequestRoleName})
-	err = clt.UpsertRole(ctx, baseRole)
+	_, err = clt.UpsertRole(ctx, baseRole)
 	require.NoError(t, err)
 
 	// Create approved role request
@@ -1720,10 +1720,10 @@ func TestWebSessionWithApprovedAccessRequestAndSwitchback(t *testing.T) {
 	}
 
 	_, hasRole := mappedRole[initialRole]
-	require.Equal(t, hasRole, true)
+	require.True(t, hasRole)
 
 	_, hasRole = mappedRole["test-request-role"]
-	require.Equal(t, hasRole, true)
+	require.True(t, hasRole)
 
 	// certRequests extracts the active requests from a PEM encoded TLS cert.
 	certRequests := func(tlsCert []byte) []string {
@@ -1755,7 +1755,7 @@ func TestWebSessionWithApprovedAccessRequestAndSwitchback(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(roles, []string{initialRole}))
 
-	require.Len(t, certRequests(sess2.GetTLSCert()), 0)
+	require.Empty(t, certRequests(sess2.GetTLSCert()))
 }
 
 func TestExtendWebSessionWithReloadUser(t *testing.T) {
@@ -1816,8 +1816,8 @@ func TestExtendWebSessionWithReloadUser(t *testing.T) {
 	require.NoError(t, err)
 	roles, err := services.ExtractRolesFromCert(sshcert)
 	require.NoError(t, err)
-	require.Equal(t, traits[constants.TraitLogins], []string{"apple", "banana"})
-	require.Equal(t, traits[constants.TraitDBUsers], []string{"llama", "alpaca"})
+	require.Equal(t, []string{"apple", "banana"}, traits[constants.TraitLogins])
+	require.Equal(t, []string{"llama", "alpaca"}, traits[constants.TraitDBUsers])
 	require.Contains(t, roles, newRoleName)
 }
 
@@ -1894,7 +1894,7 @@ func TestExtendWebSessionWithMaxDuration(t *testing.T) {
 				Roles:       []string{testRequestRole},
 				MaxDuration: types.Duration(tc.maxDurationRole),
 			})
-			err = adminClient.UpsertRole(ctx, requestableRole)
+			_, err = adminClient.UpsertRole(ctx, requestableRole)
 			require.NoError(t, err)
 
 			// Create an approved access request.
@@ -1993,7 +1993,7 @@ func TestGetCertAuthority(t *testing.T) {
 
 	role := services.RoleForUser(user)
 	role.SetLogins(types.Allow, []string{user.GetName()})
-	err = testSrv.Auth().UpsertRole(ctx, role)
+	role, err = testSrv.Auth().UpsertRole(ctx, role)
 	require.NoError(t, err)
 
 	user.AddRole(role.GetName())
@@ -2081,10 +2081,10 @@ func TestPluginData(t *testing.T) {
 		Resource: req.GetName(),
 	})
 	require.NoError(t, err)
-	require.Equal(t, len(data), 1)
+	require.Len(t, data, 1)
 
 	entry, ok := data[0].Entries()[plugin]
-	require.Equal(t, ok, true)
+	require.True(t, ok)
 	require.Empty(t, cmp.Diff(entry.Data, map[string]string{"foo": "bar"}))
 
 	err = pluginClient.UpdatePluginData(ctx, types.PluginDataUpdateParams{
@@ -2106,10 +2106,10 @@ func TestPluginData(t *testing.T) {
 		Resource: req.GetName(),
 	})
 	require.NoError(t, err)
-	require.Equal(t, len(data), 1)
+	require.Len(t, data, 1)
 
 	entry, ok = data[0].Entries()[plugin]
-	require.Equal(t, ok, true)
+	require.True(t, ok)
 	require.Empty(t, cmp.Diff(entry.Data, map[string]string{"spam": "eggs"}))
 }
 
@@ -2426,7 +2426,7 @@ func TestGenerateCerts(t *testing.T) {
 		roleOptions.ForwardAgent = types.NewBool(true)
 		roleOptions.PermitX11Forwarding = types.NewBool(true)
 		userRole.SetOptions(roleOptions)
-		err = srv.Auth().UpsertRole(ctx, userRole)
+		userRole, err = srv.Auth().UpsertRole(ctx, userRole)
 		require.NoError(t, err)
 
 		userCerts, err = adminClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
@@ -2488,7 +2488,7 @@ func TestGenerateCerts(t *testing.T) {
 		require.Error(t, err)
 
 		userRole2.SetClusterLabels(types.Allow, types.Labels{"env": apiutils.Strings{"prod"}})
-		err = srv.Auth().UpsertRole(ctx, userRole2)
+		userRole2, err = srv.Auth().UpsertRole(ctx, userRole2)
 		require.NoError(t, err)
 
 		// User can generate certificates for leaf cluster they do have access to.
@@ -2576,7 +2576,7 @@ func TestGenerateAppToken(t *testing.T) {
 				URI:      "http://localhost:8080",
 			})
 			require.NoError(t, err, ts.inComment)
-			require.Equal(t, claims.Username, "foo@example.com", ts.inComment)
+			require.Equal(t, "foo@example.com", claims.Username, ts.inComment)
 			require.Empty(t, cmp.Diff(claims.Roles, []string{"bar", "baz"}), ts.inComment)
 			require.Empty(t, cmp.Diff(claims.Traits, wrappers.Traits{
 				"trait1": {"value1", "value2"},
@@ -2632,7 +2632,7 @@ func TestCertificateFormat(t *testing.T) {
 		roleOptions := userRole.GetOptions()
 		roleOptions.CertificateFormat = ts.inRoleCertificateFormat
 		userRole.SetOptions(roleOptions)
-		err := testSrv.Auth().UpsertRole(ctx, userRole)
+		userRole, err = testSrv.Auth().UpsertRole(ctx, userRole)
 		require.NoError(t, err)
 
 		proxyClient, err := testSrv.NewClient(TestBuiltin(types.RoleProxy))
@@ -2829,7 +2829,7 @@ func TestLoginAttempts(t *testing.T) {
 	// clears all failed attempts after success
 	loginAttempts, err = testSrv.Auth().GetUserLoginAttempts(user)
 	require.NoError(t, err)
-	require.Len(t, loginAttempts, 0)
+	require.Empty(t, loginAttempts)
 }
 
 func TestChangeUserAuthenticationSettings(t *testing.T) {
@@ -3262,7 +3262,7 @@ func TestClusterAlertAck(t *testing.T) {
 
 	require.Len(t, acks, 1)
 
-	require.Equal(t, acks[0].AlertID, "alert-1")
+	require.Equal(t, "alert-1", acks[0].AlertID)
 
 	clear := proto.ClearAlertAcksRequest{
 		AlertID: "alert-1",
@@ -3274,7 +3274,7 @@ func TestClusterAlertAck(t *testing.T) {
 	acks, err = adminClt.GetAlertAcks(ctx)
 	require.NoError(t, err)
 
-	require.Len(t, acks, 0)
+	require.Empty(t, acks)
 }
 
 func TestClusterAlertClearAckWildcard(t *testing.T) {
@@ -3318,8 +3318,8 @@ func TestClusterAlertClearAckWildcard(t *testing.T) {
 
 	require.Len(t, acks, 2)
 
-	require.Equal(t, acks[0].AlertID, "alert-1")
-	require.Equal(t, acks[1].AlertID, "alert-2")
+	require.Equal(t, "alert-1", acks[0].AlertID)
+	require.Equal(t, "alert-2", acks[1].AlertID)
 
 	clear := proto.ClearAlertAcksRequest{
 		AlertID: "*",
@@ -3331,7 +3331,7 @@ func TestClusterAlertClearAckWildcard(t *testing.T) {
 	acks, err = adminClt.GetAlertAcks(ctx)
 	require.NoError(t, err)
 
-	require.Len(t, acks, 0)
+	require.Empty(t, acks)
 }
 
 // TestClusterAlertAccessControls verifies expected behaviors of cluster alert
@@ -3558,7 +3558,7 @@ func TestEventsPermissions(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fatalf("Timeout waiting for init event")
 	case event := <-w.Events():
-		require.Equal(t, event.Type, types.OpInit)
+		require.Equal(t, types.OpInit, event.Type)
 	}
 
 	// start rotation
@@ -3709,7 +3709,8 @@ func TestEventsPermissionsPartialSuccess(t *testing.T) {
 		types.NewRule(types.KindStaticTokens, services.RO()),
 	})
 	require.NoError(t, err)
-	require.NoError(t, testSrv.Auth().UpsertRole(ctx, testRole))
+	_, err = testSrv.Auth().UpsertRole(ctx, testRole)
+	require.NoError(t, err)
 	testIdentity := TestUser(testUser.GetName())
 
 	for _, tc := range testCases {
@@ -3725,7 +3726,7 @@ func TestEventsPermissionsPartialSuccess(t *testing.T) {
 			select {
 			case event := <-w.Events():
 				if len(tc.expectedConfirmedKinds) > 0 {
-					require.Equal(t, event.Type, types.OpInit)
+					require.Equal(t, types.OpInit, event.Type)
 					watchStatus, ok := event.Resource.(types.WatchStatus)
 					require.True(t, ok)
 					require.Equal(t, tc.expectedConfirmedKinds, watchStatus.GetKinds())
@@ -3790,7 +3791,7 @@ func TestEventsClusterConfig(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fatalf("Timeout waiting for init event")
 	case event := <-w.Events():
-		require.Equal(t, event.Type, types.OpInit)
+		require.Equal(t, types.OpInit, event.Type)
 	}
 
 	// start rotation

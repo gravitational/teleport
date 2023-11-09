@@ -33,7 +33,7 @@ var (
 	cacheMutex   sync.Mutex
 )
 
-// SetupSoftHSMToken is for use in tests only and creates a test SOFTHSM2
+// SetupSoftHSMTest is for use in tests only and creates a test SOFTHSM2
 // token.  This should be used for all tests which need to use SoftHSM because
 // the library can only be initialized once and SOFTHSM2_PATH and SOFTHSM2_CONF
 // cannot be changed. New tokens added after the library has been initialized
@@ -49,7 +49,7 @@ var (
 // many keys for a given token.
 func SetupSoftHSMTest(t *testing.T) Config {
 	path := os.Getenv("SOFTHSM2_PATH")
-	require.NotEqual(t, path, "")
+	require.NotEmpty(t, path, "SOFTHSM2_PATH must be provided to run soft hsm tests")
 
 	cacheMutex.Lock()
 	defer cacheMutex.Unlock()

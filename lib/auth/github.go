@@ -103,7 +103,29 @@ func (g *GithubConverter) UpsertGithubConnector(ctx context.Context, connector t
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	return g.ClientI.UpsertGithubConnector(ctx, convertedConnector)
+
+	err = g.ClientI.UpsertGithubConnector(ctx, convertedConnector)
+	return trace.Wrap(err)
+}
+
+func (g *GithubConverter) CreateGithubConnector(ctx context.Context, connector types.GithubConnector) (types.GithubConnector, error) {
+	convertedConnector, err := services.ConvertGithubConnector(connector)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	created, err := g.ClientI.CreateGithubConnector(ctx, convertedConnector)
+	return created, trace.Wrap(err)
+}
+
+func (g *GithubConverter) UpdateGithubConnector(ctx context.Context, connector types.GithubConnector) (types.GithubConnector, error) {
+	convertedConnector, err := services.ConvertGithubConnector(connector)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	updated, err := g.ClientI.UpdateGithubConnector(ctx, convertedConnector)
+	return updated, trace.Wrap(err)
 }
 
 // CreateGithubAuthRequest creates a new request for Github OAuth2 flow
@@ -135,7 +157,7 @@ func (a *Server) upsertGithubConnector(ctx context.Context, connector types.Gith
 	if err := a.UpsertGithubConnector(ctx, connector); err != nil {
 		return trace.Wrap(err)
 	}
-	if err := a.emitter.EmitAuditEvent(a.closeCtx, &apievents.GithubConnectorCreate{
+	if err := a.emitter.EmitAuditEvent(ctx, &apievents.GithubConnectorCreate{
 		Metadata: apievents.Metadata{
 			Type: events.GithubConnectorCreatedEvent,
 			Code: events.GithubConnectorCreatedCode,
@@ -149,6 +171,58 @@ func (a *Server) upsertGithubConnector(ctx context.Context, connector types.Gith
 	}
 
 	return nil
+}
+
+// createGithubConnector creates a new Github connector.
+func (a *Server) createGithubConnector(ctx context.Context, connector types.GithubConnector) (types.GithubConnector, error) {
+	if err := checkGithubOrgSSOSupport(ctx, connector, nil, a.githubOrgSSOCache, nil); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	created, err := a.CreateGithubConnector(ctx, connector)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := a.emitter.EmitAuditEvent(ctx, &apievents.GithubConnectorCreate{
+		Metadata: apievents.Metadata{
+			Type: events.GithubConnectorCreatedEvent,
+			Code: events.GithubConnectorCreatedCode,
+		},
+		UserMetadata: authz.ClientUserMetadata(ctx),
+		ResourceMetadata: apievents.ResourceMetadata{
+			Name: connector.GetName(),
+		},
+	}); err != nil {
+		log.WithError(err).Warn("Failed to emit GitHub connector create event.")
+	}
+
+	return created, nil
+}
+
+// updateGithubConnector updates an existing Github connector.
+func (a *Server) updateGithubConnector(ctx context.Context, connector types.GithubConnector) (types.GithubConnector, error) {
+	if err := checkGithubOrgSSOSupport(ctx, connector, nil, a.githubOrgSSOCache, nil); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	updated, err := a.UpdateGithubConnector(ctx, connector)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := a.emitter.EmitAuditEvent(ctx, &apievents.GithubConnectorUpdate{
+		Metadata: apievents.Metadata{
+			Type: events.GithubConnectorUpdatedEvent,
+			Code: events.GithubConnectorUpdatedCode,
+		},
+		UserMetadata: authz.ClientUserMetadata(ctx),
+		ResourceMetadata: apievents.ResourceMetadata{
+			Name: connector.GetName(),
+		},
+	}); err != nil {
+		log.WithError(err).Warn("Failed to emit GitHub connector create event.")
+	}
+
+	return updated, nil
 }
 
 // httpRequester allows a net/http.Client to be mocked for tests.
@@ -646,12 +720,13 @@ func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *SSODia
 	// If the request is coming from a browser, create a web session.
 	if req.CreateWebSession {
 		session, err := a.CreateWebSessionFromReq(ctx, types.NewWebSessionRequest{
-			User:       userState.GetName(),
-			Roles:      userState.GetRoles(),
-			Traits:     userState.GetTraits(),
-			SessionTTL: params.SessionTTL,
-			LoginTime:  a.clock.Now().UTC(),
-			LoginIP:    req.ClientLoginIP,
+			User:             userState.GetName(),
+			Roles:            userState.GetRoles(),
+			Traits:           userState.GetTraits(),
+			SessionTTL:       params.SessionTTL,
+			LoginTime:        a.clock.Now().UTC(),
+			LoginIP:          req.ClientLoginIP,
+			AttestWebSession: true,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err, "Failed to create web session.")

@@ -803,6 +803,9 @@ type Auth struct {
 
 	// Assist is a set of options related to the Teleport Assist feature.
 	Assist *AuthAssistOptions `yaml:"assist,omitempty"`
+
+	// AccessMonitoring is a set of options related to the Access Monitoring feature.
+	AccessMonitoring *servicecfg.AccessMonitoringOptions `yaml:"access_monitoring,omitempty"`
 }
 
 // PluginService represents the configuration for the plugin service.
@@ -1692,6 +1695,12 @@ type Database struct {
 type DatabaseAdminUser struct {
 	// Name is the database admin username (e.g. "postgres").
 	Name string `yaml:"name"`
+	// DefaultDatabase is the database that the admin user logs into by
+	// default.
+	//
+	// Depending on the database type, this database may be used to store
+	// procedures or data for managing database users.
+	DefaultDatabase string `yaml:"default_database"`
 }
 
 // DatabaseAD contains database Active Directory configuration.
