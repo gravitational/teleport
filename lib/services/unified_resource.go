@@ -137,14 +137,7 @@ func (c *UnifiedResourceCache) put(ctx context.Context, resource resource) error
 		// when a node's hostname changes
 		oldSortKey := makeResourceSortKey(oldResource)
 		if string(oldSortKey.byName) != string(sortKey.byName) {
-			if _, ok := c.nameTree.Delete(&item{Key: oldSortKey.byName}); !ok {
-				return trace.NotFound("key %q is not found in unified cache name sort tree", string(sortKey.byName))
-			}
-		}
-		if string(oldSortKey.byType) != string(sortKey.byType) {
-			if _, ok := c.typeTree.Delete(&item{Key: oldSortKey.byType}); !ok {
-				return trace.NotFound("key %q is not found in unified cache type sort tree", string(sortKey.byType))
-			}
+			c.deleteSortKey(oldSortKey)
 		}
 	}
 	c.resources[key] = resource
@@ -165,6 +158,16 @@ func putResources[T resource](cache *UnifiedResourceCache, resources []T) {
 	}
 }
 
+func (c *UnifiedResourceCache) deleteSortKey(sortKey resourceSortKey) error {
+	if _, ok := c.nameTree.Delete(&item{Key: sortKey.byName}); !ok {
+		return trace.NotFound("key %q is not found in unified cache name sort tree", string(sortKey.byName))
+	}
+	if _, ok := c.typeTree.Delete(&item{Key: sortKey.byType}); !ok {
+		return trace.NotFound("key %q is not found in unified cache type sort tree", string(sortKey.byType))
+	}
+	return nil
+}
+
 // delete removes the item by key, returns NotFound error
 // if item does not exist
 func (c *UnifiedResourceCache) delete(ctx context.Context, res types.Resource) error {
@@ -180,12 +183,7 @@ func (c *UnifiedResourceCache) delete(ctx context.Context, res types.Resource) e
 	sortKey := makeResourceSortKey(resource)
 
 	return c.read(ctx, func(cache *UnifiedResourceCache) error {
-		if _, ok := cache.nameTree.Delete(&item{Key: sortKey.byName}); !ok {
-			return trace.NotFound("key %q is not found in unified cache name sort tree", string(sortKey.byName))
-		}
-		if _, ok := cache.typeTree.Delete(&item{Key: sortKey.byType}); !ok {
-			return trace.NotFound("key %q is not found in unified cache type sort tree", string(sortKey.byType))
-		}
+		cache.deleteSortKey(sortKey)
 		// delete from resource map
 		delete(c.resources, key)
 		return nil
