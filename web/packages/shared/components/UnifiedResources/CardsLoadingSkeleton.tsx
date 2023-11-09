@@ -18,7 +18,7 @@ import React, { useState, useEffect } from 'react';
 import { Flex, Box } from 'design';
 import { ShimmerBox } from 'design/ShimmerBox';
 
-const DISPLAY_SKELETON_AFTER = 400; // 400 ms
+const DISPLAY_SKELETON_AFTER_MS = 150;
 
 export function CardsLoadingSkeleton(props: { count: number }) {
   const [canDisplay, setCanDisplay] = useState(false);
@@ -26,7 +26,7 @@ export function CardsLoadingSkeleton(props: { count: number }) {
   useEffect(() => {
     const displayTimeout = setTimeout(() => {
       setCanDisplay(true);
-    }, DISPLAY_SKELETON_AFTER);
+    }, DISPLAY_SKELETON_AFTER_MS);
     return () => {
       clearTimeout(displayTimeout);
     };
