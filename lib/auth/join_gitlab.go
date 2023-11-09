@@ -73,11 +73,19 @@ func joinRuleGlobMatch(want string, got string) (bool, error) {
 	if want == "" {
 		return true, nil
 	}
-	pattern := regexp.QuoteMeta(want)
+	return globMatch(want, got)
+}
+
+// globMatch performs simple a simple glob-style match test on a string.
+// - '*' matches zero or more characters.
+// - '?' matches any single character.
+// It returns true if a match is detected.
+func globMatch(pattern, str string) (bool, error) {
+	pattern = regexp.QuoteMeta(pattern)
 	pattern = strings.ReplaceAll(pattern, `\*`, ".*")
 	pattern = strings.ReplaceAll(pattern, `\?`, ".")
 	pattern = "^" + pattern + "$"
-	matched, err := regexp.MatchString(pattern, got)
+	matched, err := regexp.MatchString(pattern, str)
 	return matched, trace.Wrap(err)
 }
 
