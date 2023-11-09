@@ -42,9 +42,7 @@ export function ListView({
           primaryIconName={item.primaryIconName}
           onLabelClick={onLabelClick}
           SecondaryIcon={item.SecondaryIcon}
-          description={item.description}
-          addr={item.addr}
-          type={item.type}
+          listViewProps={item.listViewProps}
           labels={item.labels}
           pinned={pinnedResources.includes(key)}
           pinningSupport={pinningSupport}

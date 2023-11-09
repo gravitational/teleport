@@ -35,9 +35,7 @@ export function ResourceListItem({
   primaryIconName,
   SecondaryIcon,
   onLabelClick,
-  description,
-  addr,
-  type,
+  listViewProps,
   ActionButton,
   labels,
   pinningSupport,
@@ -46,6 +44,8 @@ export function ResourceListItem({
   selectResource,
   selected,
 }: ResourceItemProps) {
+  const { description, type, addr } = listViewProps;
+
   const [showLabels, setShowLabels] = useState(false);
   const [hovered, setHovered] = useState(false);
 
@@ -119,7 +119,7 @@ export function ResourceListItem({
               align-self: start;
             `}
           >
-            {hovered && <CopyButton name={name} />}
+            {hovered && <CopyButton name={name} ml={1} />}
           </Box>
         </Flex>
 

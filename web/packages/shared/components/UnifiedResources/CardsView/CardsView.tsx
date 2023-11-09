@@ -45,8 +45,7 @@ export function CardsView({
           primaryIconName={item.primaryIconName}
           onLabelClick={onLabelClick}
           SecondaryIcon={item.SecondaryIcon}
-          addr={item.addr}
-          type={item.type}
+          cardViewProps={item.cardViewProps}
           labels={item.labels}
           pinned={pinnedResources.includes(key)}
           pinningSupport={pinningSupport}

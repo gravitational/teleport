@@ -132,9 +132,7 @@ export const Cards: Story = {
             name={res.name}
             primaryIconName={res.primaryIconName}
             SecondaryIcon={res.SecondaryIcon}
-            description={res.description}
-            type={res.type}
-            addr={res.addr}
+            cardViewProps={res.cardViewProps}
             labels={res.labels}
             ActionButton={res.ActionButton}
           />

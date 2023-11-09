@@ -22,7 +22,15 @@ import copyToClipboard from 'design/utils/copyToClipboard';
 
 import { HoverTooltip } from 'shared/components/ToolTip';
 
-export function CopyButton({ name }: { name: string }) {
+export function CopyButton({
+  name,
+  mr,
+  ml,
+}: {
+  name: string;
+  mr?: number;
+  ml?: number;
+}) {
   const copySuccess = 'Copied!';
   const copyDefault = 'Click to copy';
   const copyAnchorEl = useRef(null);
@@ -39,7 +47,13 @@ export function CopyButton({ name }: { name: string }) {
 
   return (
     <HoverTooltip tipContent={copiedText}>
-      <ButtonIcon setRef={copyAnchorEl} size={0} ml={1} onClick={handleCopy}>
+      <ButtonIcon
+        setRef={copyAnchorEl}
+        size={0}
+        mr={mr}
+        ml={ml}
+        onClick={handleCopy}
+      >
         {copiedText === copySuccess ? (
           <Check size="small" />
         ) : (

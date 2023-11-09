@@ -48,8 +48,14 @@ export function makeUnifiedResourceViewItemNode(
     primaryIconName: 'Server',
     ActionButton: ui.ActionButton,
     labels: resource.labels,
-    type: formatNodeSubKind(resource.subKind),
-    addr: resource.tunnel ? '' : resource.addr,
+    cardViewProps: {
+      primaryDesc: formatNodeSubKind(resource.subKind),
+      secondaryDesc: resource.tunnel ? '' : resource.addr,
+    },
+    listViewProps: {
+      type: formatNodeSubKind(resource.subKind),
+      addr: resource.tunnel ? '' : resource.addr,
+    },
   };
 }
 
@@ -63,8 +69,14 @@ export function makeUnifiedResourceViewItemDatabase(
     primaryIconName: getDatabaseIconName(resource.protocol),
     ActionButton: ui.ActionButton,
     labels: resource.labels,
-    description: resource.description,
-    type: resource.type,
+    listViewProps: {
+      description: resource.description,
+      type: resource.type,
+    },
+    cardViewProps: {
+      primaryDesc: resource.type,
+      secondaryDesc: resource.description,
+    },
   };
 }
 
@@ -78,7 +90,12 @@ export function makeUnifiedResourceViewItemKube(
     primaryIconName: 'Kube',
     ActionButton: ui.ActionButton,
     labels: resource.labels,
-    type: 'Kubernetes',
+    cardViewProps: {
+      primaryDesc: 'Kubernetes',
+    },
+    listViewProps: {
+      type: 'Kubernetes',
+    },
   };
 }
 
@@ -92,9 +109,15 @@ export function makeUnifiedResourceViewItemApp(
     primaryIconName: guessAppIcon(resource),
     ActionButton: ui.ActionButton,
     labels: resource.labels,
-    type: resource.samlApp ? 'SAML Application' : 'Application',
-    description: resource.samlApp ? '' : resource.description,
-    addr: resource.addrWithProtocol,
+    cardViewProps: {
+      primaryDesc: resource.description,
+      secondaryDesc: resource.addrWithProtocol,
+    },
+    listViewProps: {
+      type: resource.samlApp ? 'SAML Application' : 'Application',
+      description: resource.samlApp ? '' : resource.description,
+      addr: resource.addrWithProtocol,
+    },
   };
 }
 
@@ -108,8 +131,14 @@ export function makeUnifiedResourceViewItemDesktop(
     primaryIconName: 'Windows',
     ActionButton: ui.ActionButton,
     labels: resource.labels,
-    type: 'Windows',
-    addr: resource.addr,
+    cardViewProps: {
+      primaryDesc: 'Windows',
+      secondaryDesc: resource.addr,
+    },
+    listViewProps: {
+      type: 'Windows',
+      addr: resource.addr,
+    },
   };
 }
 
@@ -123,7 +152,10 @@ export function makeUnifiedResourceViewItemUserGroup(
     primaryIconName: 'Server',
     ActionButton: ui.ActionButton,
     labels: resource.labels,
-    type: 'User Group',
+    cardViewProps: {},
+    listViewProps: {
+      type: 'User Group',
+    },
   };
 }
 

@@ -123,9 +123,7 @@ export const ListItems: Story = {
             name={res.name}
             primaryIconName={res.primaryIconName}
             SecondaryIcon={res.SecondaryIcon}
-            description={res.description}
-            type={res.type}
-            addr={res.addr}
+            listViewProps={res.listViewProps}
             labels={res.labels}
             ActionButton={res.ActionButton}
           />

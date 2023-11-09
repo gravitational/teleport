@@ -52,8 +52,7 @@ export function ResourceCard({
   primaryIconName,
   SecondaryIcon,
   onLabelClick,
-  addr,
-  type,
+  cardViewProps,
   ActionButton,
   labels,
   pinningSupport,
@@ -62,6 +61,8 @@ export function ResourceCard({
   selectResource,
   selected,
 }: ResourceItemProps) {
+  const { primaryDesc, secondaryDesc } = cardViewProps;
+
   const [showMoreLabelsButton, setShowMoreLabelsButton] = useState(false);
   const [showAllLabels, setShowAllLabels] = useState(false);
   const [numMoreLabels, setNumMoreLabels] = useState(0);
@@ -201,24 +202,24 @@ export function ResourceCard({
                   </Text>
                 </HoverTooltip>
               </SingleLineBox>
-              {hovered && <CopyButton name={name} />}
+              {hovered && <CopyButton name={name} mr={2} />}
               {ActionButton}
             </Flex>
             <Flex flexDirection="row" alignItems="center">
               <ResTypeIconBox>
                 <SecondaryIcon size={18} />
               </ResTypeIconBox>
-              {type && (
-                <SingleLineBox ml={1} title={type}>
+              {primaryDesc && (
+                <SingleLineBox ml={1} title={primaryDesc}>
                   <Text typography="body2" color="text.slightlyMuted">
-                    {type}
+                    {primaryDesc}
                   </Text>
                 </SingleLineBox>
               )}
-              {addr && (
-                <SingleLineBox ml={2} title={addr}>
+              {secondaryDesc && (
+                <SingleLineBox ml={2} title={secondaryDesc}>
                   <Text typography="body2" color="text.muted">
-                    {addr}
+                    {secondaryDesc}
                   </Text>
                 </SingleLineBox>
               )}

@@ -106,9 +106,6 @@ export type UnifiedResourcesQueryParams = {
 };
 export interface UnifiedResourceViewItem {
   name: string;
-  description?: string;
-  addr?: string;
-  type: string;
   labels: {
     name: string;
     value: string;
@@ -116,6 +113,8 @@ export interface UnifiedResourceViewItem {
   primaryIconName: ResourceIconName;
   SecondaryIcon: typeof Icon;
   ActionButton: React.ReactElement;
+  cardViewProps: CardViewSpecificProps;
+  listViewProps: ListViewSpecificProps;
 }
 
 export enum PinningSupport {
@@ -135,9 +134,8 @@ export type ResourceItemProps = {
   name: string;
   primaryIconName: ResourceIconName;
   SecondaryIcon: typeof Icon;
-  type: string;
-  addr?: string;
-  description?: string;
+  cardViewProps?: CardViewSpecificProps;
+  listViewProps?: ListViewSpecificProps;
   labels: ResourceLabel[];
   ActionButton: React.ReactElement;
   onLabelClick?: (label: ResourceLabel) => void;
@@ -146,6 +144,21 @@ export type ResourceItemProps = {
   selected: boolean;
   pinned: boolean;
   pinningSupport: PinningSupport;
+};
+
+// Props that are needed for the Card view.
+// The reason we need this separately defined is because unlike with the list view, what we display in the
+// description sections of a card varies based on the type of its resource. For example, for applications,
+// instead of showing the `Application` type under the name like we would for other resources, we show the description.
+type CardViewSpecificProps = {
+  primaryDesc?: string;
+  secondaryDesc?: string;
+};
+
+type ListViewSpecificProps = {
+  description?: string;
+  addr?: string;
+  type: string;
 };
 
 export type UnifiedResourcesPinning =
