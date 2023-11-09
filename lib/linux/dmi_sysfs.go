@@ -74,6 +74,7 @@ func DMIInfoFromFS(dmifs fs.FS) (*DMIInfo, error) {
 			errs = append(errs, err)
 			continue
 		}
+		defer f.Close() // defer is OK, the loop should end soon enough.
 
 		val, err := io.ReadAll(f)
 		if err != nil {
