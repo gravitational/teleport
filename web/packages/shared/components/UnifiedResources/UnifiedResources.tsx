@@ -32,7 +32,6 @@ import { Danger } from 'design/Alert';
 import './unifiedStyles.css';
 
 import { ResourcesResponse, ResourceLabel } from 'teleport/services/agents';
-import { TextIcon } from 'teleport/Discover/Shared';
 import {
   UnifiedTabPreference,
   UnifiedResourcePreferences,
@@ -551,28 +550,37 @@ function NoResults({
   query: string;
   isPinnedTab: boolean;
 }) {
-  // Prevent `No resources were found for ""` flicker.
   if (query) {
     return (
-      <Box p={8} mt={3} mx="auto" maxWidth="720px" textAlign="center">
-        <TextIcon typography="h3">
-          <Magnifier />
-          No {isPinnedTab ? 'pinned ' : ''}resources were found for&nbsp;
-          <Text
-            as="span"
-            bold
-            css={`
-              max-width: 270px;
-              overflow: hidden;
-              text-overflow: ellipsis;
-            `}
-          >
-            {query}
-          </Text>
-        </TextIcon>
-      </Box>
+      <Text
+        typography="h3"
+        mt={9}
+        mx="auto"
+        justifyContent="center"
+        alignItems="center"
+        css={`
+          white-space: nowrap;
+        `}
+        as={Flex}
+      >
+        <Magnifier mr={2} />
+        No {isPinnedTab ? 'pinned ' : ''}resources were found for&nbsp;
+        <Text
+          as="span"
+          bold
+          css={`
+            max-width: 270px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+          `}
+        >
+          {query}
+        </Text>
+      </Text>
     );
   }
+
   return null;
 }
 
