@@ -39,6 +39,7 @@ import {
 
 import ErrorMessage from 'teleport/components/AgentErrorMessage';
 import { CtaEvent } from 'teleport/services/userEvent';
+import { useUser } from 'teleport/User/UserContext';
 
 import cfg from 'teleport/config';
 import { getSalesURL } from 'teleport/services/sales';
@@ -152,6 +153,7 @@ export function NewRequest(props: State) {
     fetchUsage,
   } = props;
   const unifiedResourcesEnabled = localStorage.areUnifiedResourcesEnabled();
+  const { preferences, updatePreferences } = useUser();
 
   const [showCheckout, setShowCheckout] = useState(false);
   // warningConfirm holds the next resource option that will be applied
@@ -326,9 +328,10 @@ export function NewRequest(props: State) {
           resourcesFetchAttempt={unifiedFetchAttempt}
           params={agentFilter}
           setParams={setAgentFilter}
-          // we don't need to update preferences here because
-          // no resource tabs are rendered
-          updateUnifiedResourcesPreferences={() => {}}
+          unifiedResourcePreferences={preferences.unifiedResourcePreferences}
+          updateUnifiedResourcesPreferences={preferences => {
+            updatePreferences({ unifiedResourcePreferences: preferences });
+          }}
           pinning={{ kind: 'hidden' }}
           availableKinds={[
             'app',

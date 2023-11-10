@@ -5,7 +5,10 @@ import { ContextProvider } from 'teleport';
 import { within, cleanup, waitFor } from '@testing-library/react';
 
 import makeUserContext from 'teleport/services/user/makeUserContext';
+import * as userUserContext from 'teleport/User/UserContext';
+
 import { makeUnifiedResource } from 'teleport/services/resources/makeUnifiedResource';
+import { makeDefaultUserPreferences } from 'teleport/services/userPreferences/userPreferences';
 
 import cfg from 'e-teleport/config';
 import TeleportContextE from 'e-teleport/teleportContextE';
@@ -20,6 +23,13 @@ describe('new request behavior', () => {
 
   beforeEach(() => {
     ctx.storeUser.setState({ ...userContext });
+    jest.spyOn(userUserContext, 'useUser').mockReturnValue({
+      preferences: makeDefaultUserPreferences(),
+      updatePreferences: () => null,
+      updateClusterPinnedResources: () => null,
+      getClusterPinnedResources: () => null,
+    });
+
     jest.spyOn(ctx.resourceService, 'fetchUnifiedResources').mockResolvedValue({
       agents: nodesResponse.map(makeUnifiedResource),
       startKey: '',
