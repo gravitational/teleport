@@ -101,17 +101,47 @@ type ExecValues struct {
 	Env map[string]string
 }
 
+// ConfigFS is a simple filesystem abstraction to allow alternative file
+// writing options when generating kube config files.
+type ConfigFS interface {
+	// WriteFile writes the given data to path `name`, using the specified
+	// permissions if the file is new.
+	WriteFile(name string, data []byte, perm os.FileMode) error
+
+	ReadFile(name string) ([]byte, error)
+}
+
+// defaultConfigFS is a ConfigFS that is backed by the system filesystem
+type defaultConfigFS struct{}
+
+func (defaultConfigFS) WriteFile(name string, data []byte, perm os.FileMode) error {
+	return os.WriteFile(name, data, perm)
+}
+
+func (defaultConfigFS) ReadFile(name string) ([]byte, error) {
+	return os.ReadFile(name)
+}
+
 // Update adds Teleport configuration to kubeconfig.
 //
 // If `path` is empty, Update will try to guess it based on the environment or
 // known defaults.
 func Update(path string, v Values, storeAllCAs bool) error {
+	return UpdateConfig(path, v, storeAllCAs, defaultConfigFS{})
+}
+
+// UpdateConfig adds Teleport configuration to kubeconfig, reading and writing
+// from the supplied ConfigFS
+//
+// If `path` is empty, Update will try to guess it based on the environment or
+// known defaults.
+func UpdateConfig(path string, v Values, storeAllCAs bool, fs ConfigFS) error {
 	contextTmpl, err := parseContextOverrideTemplate(v.OverrideContext)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	config, err := Load(path)
+	config, err := LoadConfig(path, fs)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -237,7 +267,7 @@ func Update(path string, v Values, storeAllCAs bool) error {
 		log.WithError(err).Warn("Kubernetes integration is not supported when logging in with a non-rsa private key.")
 	}
 
-	return Save(path, *config)
+	return SaveConfig(path, *config, fs)
 }
 
 func setContext(contexts map[string]*clientcmdapi.Context, name, cluster, auth, kubeName, namespace string) {
@@ -337,12 +367,29 @@ func removeByServerAddr(config *clientcmdapi.Config, wantServer string) {
 // Load tries to read a kubeconfig file and if it can't, returns an error.
 // One exception, missing files result in empty configs, not an error.
 func Load(path string) (*clientcmdapi.Config, error) {
+	return LoadConfig(path, defaultConfigFS{})
+}
+
+// LoadConfig tries to read a kubeconfig file and if it can't, returns an error.
+// One exception, missing files result in empty configs, not an error.
+func LoadConfig(path string, fs ConfigFS) (*clientcmdapi.Config, error) {
 	filename, err := finalPath(path)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	config, err := clientcmd.LoadFromFile(filename)
-	if err != nil && !os.IsNotExist(err) {
+
+	configBytes, err := fs.ReadFile(filename)
+	switch {
+	case os.IsNotExist(err):
+		return clientcmdapi.NewConfig(), nil
+
+	case err != nil:
+		err = trace.ConvertSystemError(err)
+		return nil, trace.WrapWithMessage(err, "failed to load existing kubeconfig %q: %v", filename, err)
+	}
+
+	config, err := clientcmd.Load(configBytes)
+	if err != nil {
 		err = trace.ConvertSystemError(err)
 		return nil, trace.WrapWithMessage(err, "failed to parse existing kubeconfig %q: %v", filename, err)
 	}
@@ -356,18 +403,30 @@ func Load(path string) (*clientcmdapi.Config, error) {
 // Save saves updated config to location specified by environment variable or
 // default location
 func Save(path string, config clientcmdapi.Config) error {
+	return SaveConfig(path, config, defaultConfigFS{})
+}
+
+// Save saves updated config to location specified by environment variable or
+// default location. 
+func SaveConfig(path string, config clientcmdapi.Config, fs ConfigFS) error {
 	filename, err := finalPath(path)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	if err := clientcmd.WriteToFile(config, filename); err != nil {
+	configBytes, err := clientcmd.Write(config)
+	if err != nil {
+		return trace.ConvertSystemError(err)
+	}
+
+	if err := fs.WriteFile(filename, configBytes, 0600); err != nil {
 		return trace.ConvertSystemError(err)
 	}
 	return nil
+
 }
 
-// finalPath returns the final path to kubeceonfig using, in order of
+// finalPath returns the final path to kubeconfig using, in order of
 // precedence:
 // - `customPath`, if not empty
 // - ${KUBECONFIG} environment variable

@@ -255,8 +255,8 @@ func (a *AuthCommand) GenerateKeys(ctx context.Context) error {
 // GenerateAndSignKeys generates a new keypair and signs it for role
 func (a *AuthCommand) GenerateAndSignKeys(ctx context.Context, clusterAPI auth.ClientI) error {
 	if a.streamTarfile {
-		tarWriter := newTarWriter(os.Stdout, clockwork.NewRealClock())
-		defer tarWriter.Close()
+		tarWriter := newTarWriter(clockwork.NewRealClock())
+		defer tarWriter.Archive(os.Stdout)
 		a.identityWriter = tarWriter
 	}
 

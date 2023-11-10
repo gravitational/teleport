@@ -137,6 +137,9 @@ type ConfigWriter interface {
 	// permissions if the file is new.
 	WriteFile(name string, data []byte, perm os.FileMode) error
 
+	// ReadFile reads the file at tpath `name`
+	ReadFile(name string) ([]byte, error)
+
 	// Remove removes a file.
 	Remove(name string) error
 
@@ -150,6 +153,11 @@ type StandardConfigWriter struct{}
 // WriteFile writes data to the named file, creating it if necessary.
 func (s *StandardConfigWriter) WriteFile(name string, data []byte, perm os.FileMode) error {
 	return os.WriteFile(name, data, perm)
+}
+
+// ReadFile reads the file at tpath `name`, returning 
+func (s *StandardConfigWriter) ReadFile(name string) ([]byte, error) {
+	return os.ReadFile(name)
 }
 
 // Remove removes the named file or (empty) directory.
@@ -389,7 +397,7 @@ func Write(ctx context.Context, cfg WriteConfig) (filesWritten []string, err err
 
 	case FormatKubernetes:
 		filesWritten = append(filesWritten, cfg.OutputPath)
-		// If the user does not want to override,  it will merge the previous kubeconfig
+		// If the user does not want to override, it will merge the previous kubeconfig
 		// with the new entry.
 		if err := checkOverwrite(ctx, writer, cfg.OverwriteDestination, filesWritten...); err != nil && !trace.IsAlreadyExists(err) {
 			return nil, trace.Wrap(err)
@@ -408,13 +416,13 @@ func Write(ctx context.Context, cfg WriteConfig) (filesWritten []string, err err
 			kubeCluster = []string{cfg.KubeClusterName}
 		}
 
-		if err := kubeconfig.Update(cfg.OutputPath, kubeconfig.Values{
+		if err := kubeconfig.UpdateConfig(cfg.OutputPath, kubeconfig.Values{
 			TeleportClusterName: cfg.Key.ClusterName,
 			ClusterAddr:         cfg.KubeProxyAddr,
 			Credentials:         cfg.Key,
 			TLSServerName:       cfg.KubeTLSServerName,
 			KubeClusters:        kubeCluster,
-		}, cfg.KubeStoreAllCAs); err != nil {
+		}, cfg.KubeStoreAllCAs, writer); err != nil {
 			return nil, trace.Wrap(err)
 		}
 
