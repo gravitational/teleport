@@ -16,6 +16,8 @@ syntax = "proto3";
 
 package accessgraph.v1alpha;
 
+import "accessgraph/v1alpha/graph.proto";
+import "accessgraph/v1alpha/resources.proto";
 import "google/protobuf/empty.proto";
 import "teleport/legacy/types/types.proto";
 
@@ -38,34 +40,6 @@ service AccessGraphService {
   rpc EventsStream(stream EventsStreamRequest) returns (EventsStreamResponse);
 }
 
-// Node is a node in the access graph.
-message Node {
-  // ID is the unique ID of the node.
-  string id = 1;
-  // Kind is the kind of the node, ex: "user", "user_group", "resource", etc.
-  string kind = 2;
-  // SubKind is the subkind of the node.
-  string sub_kind = 3;
-  // Name is the name of the node.
-  string name = 4;
-  // Labels is a set of labels for the resource.
-  map<string, string> labels = 5;
-  // Hostname is the hostname of the node.
-  string hostname = 6;
-  // Properties is a set of properties for the resource.
-  map<string, string> properties = 7;
-}
-
-// Edge is an edge in the access graph.
-message Edge {
-  // from is the ID of the node the edge is from.
-  string from = 1;
-  // to is the ID of the node the edge is to.
-  string to = 2;
-  // type is the type of the edge, e.g. "member_of", "belongs_to", etc.
-  string type = 3;
-}
-
 // QueryRequest is a request to query the access graph.
 message QueryRequest {
   // query is a SQL query.
@@ -74,37 +48,22 @@ message QueryRequest {
 
 // QueryResponse is a response to a query.
 message QueryResponse {
-  repeated Node nodes = 1;
-  repeated Edge edges = 2;
+  // nodes is a list of nodes returned by the query. The response may contain only nodes.
+  repeated accessgraph.v1alpha.Node nodes = 1;
+  // edges is a list of edges returned by the query.
+  repeated accessgraph.v1alpha.Edge edges = 2;
 }
 
 // GetFileRequest is a request to get a file.
 message GetFileRequest {
+  // filepath is a path to the file.
   string filepath = 1;
 }
 
 // GetFileResponse is a response to a file request.
 message GetFileResponse {
+  // data is a raw file content.
   bytes data = 1;
-}
-
-// ResourceList is a list of resources to send to the access graph.
-message ResourceList {
-  repeated ResourceEntry resources = 1;
-}
-
-// ResourceEntry is a wrapper for the supported resource types.
-message ResourceEntry {
-  oneof resource {
-    // User is a user resource
-    types.UserV2 user = 1;
-    // Role is a role resource
-    types.RoleV6 role = 2;
-    // Server is a node or proxy resource
-    types.ServerV2 server = 3;
-    // AccessRequest is a resource for access requests
-    types.AccessRequestV3 access_request = 4;
-  }
 }
 
 // EventsStreamRequest is a request to send commands to the access graph.

@@ -16,7 +16,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.3.0
 // - protoc             (unknown)
-// source: accessgraph/v1alpha/query.proto
+// source: accessgraph/v1alpha/access_graph_service.proto
 
 package accessgraphv1alpha
 
@@ -246,5 +246,5 @@ var AccessGraphService_ServiceDesc = grpc.ServiceDesc{
 			ClientStreams: true,
 		},
 	},
-	Metadata: "accessgraph/v1alpha/query.proto",
+	Metadata: "accessgraph/v1alpha/access_graph_service.proto",
 }
