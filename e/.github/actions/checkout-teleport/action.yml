@@ -105,7 +105,7 @@ runs:
 
     - id: checkout-oss
       name: Checkout OSS Teleport
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         repository: ${{ inputs.oss-teleport-repo }}
         ref: ${{ inputs.oss-teleport-ref }}
@@ -123,7 +123,7 @@ runs:
     - id: checkout-enterprise
       if: inputs.edition == 'enterprise'
       name: Checkout Enterprise Teleport
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         repository: gravitational/teleport.e
         ref: ${{ steps.determine-enterprise-ref.outputs.ref }}
