@@ -20,8 +20,8 @@ import { Flex } from 'design';
 
 import {
   UnifiedResources as SharedUnifiedResources,
-  UnifiedResourcesPinning,
   useUnifiedResourcesFetch,
+  UnifiedResourcesPinning,
 } from 'shared/components/UnifiedResources';
 
 import useStickyClusterId from 'teleport/useStickyClusterId';
@@ -176,6 +176,7 @@ function ClusterResources({
         params={params}
         fetchResources={fetch}
         resourcesFetchAttempt={attempt}
+        unifiedResourcePreferences={preferences.unifiedResourcePreferences}
         updateUnifiedResourcesPreferences={preferences => {
           updatePreferences({ unifiedResourcePreferences: preferences });
         }}
