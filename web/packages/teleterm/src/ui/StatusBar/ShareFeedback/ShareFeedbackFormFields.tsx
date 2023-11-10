@@ -20,7 +20,7 @@ import FieldInput from 'shared/components/FieldInput';
 import { requiredField } from 'shared/components/Validation/rules';
 import { FieldTextArea } from 'shared/components/FieldTextArea';
 import { Text } from 'design';
-import Toggle from 'teleport/components/Toggle';
+import Toggle from 'design/Toggle';
 
 import { ShareFeedbackFormValues } from './types';
 

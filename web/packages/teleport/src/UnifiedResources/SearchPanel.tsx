@@ -19,7 +19,7 @@ import styled from 'styled-components';
 import { Text, Flex } from 'design';
 import { PredicateDoc } from 'shared/components/Search/PredicateDoc';
 
-import Toggle from 'teleport/components/Toggle';
+import Toggle from 'design/Toggle';
 
 import useServersideSearchPanel, {
   SearchPanelState,
