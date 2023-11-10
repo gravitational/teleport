@@ -74,7 +74,8 @@ func ReadEnvironmentFile(filename string) ([]string, error) {
 			continue
 		}
 
-		env.Add(key, value)
+		// key is added trusted within this context, but should be "AddFullUnique" when combined with any other values
+		env.AddTrusted(key, value)
 	}
 
 	err = scanner.Err()
@@ -112,34 +113,56 @@ var unsafeEnvironmentVars = map[string]struct{}{
 // priority and ensure there is no conflicting values.
 type SafeEnv []string
 
-// Add will add the key and value to the environment if it's a safe value to forward on for fork / exec.
-func (e *SafeEnv) Add(k, v string) {
+// AddTrusted will add the key and value to the environment if it's a safe value to forward on for fork / exec.  This
+// will not check for duplicates.
+func (e *SafeEnv) AddTrusted(k, v string) {
+	e.add(false, k, v)
+}
+
+// AddUnique will add the key and value to the environment if it's a safe value to forward on for fork / exec.  If the
+// key already exists (case-insensitive) it will be ignored.
+func (e *SafeEnv) AddUnique(k, v string) {
+	e.add(true, k, v)
+}
+
+func (e *SafeEnv) add(preventDuplicates bool, k, v string) {
 	k = strings.TrimSpace(k)
 	v = strings.TrimSpace(v)
-	if e.unsafeKey(k) {
+	if e.unsafeKey(preventDuplicates, k) {
 		return
 	}
 
 	*e = append(*e, fmt.Sprintf("%s=%s", k, v))
 }
 
-// AddFull adds an exact value, in the KEY=VALUE format. This should only be used if they values are already
-// combined.  When the values are separate the [Add] function is generally preferred.
-func (e *SafeEnv) AddFull(fullValues ...string) {
-valueLoop:
+// AddFullTrusted adds an exact value, in the KEY=VALUE format. This should only be used if they values are already
+// combined.  When the values are separate the [Add] function is generally preferred.  This will not check for
+// duplicates.
+func (e *SafeEnv) AddFullTrusted(fullValues ...string) {
+	e.addFull(false, fullValues)
+}
+
+// AddFullUnique adds an exact value, in the KEY=VALUE format. This should only be used if they values are already
+// combined.  When the values are separate the [Add] function is generally preferred.  If any keys already exists
+// (case-insensitive) they will be ignored.
+func (e *SafeEnv) AddFullUnique(fullValues ...string) {
+	e.addFull(true, fullValues)
+}
+
+func (e *SafeEnv) addFull(preventDuplicates bool, fullValues []string) {
 	for _, kv := range fullValues {
 		kv = strings.TrimSpace(kv)
 
 		key := strings.SplitN(kv, "=", 2)[0]
-		if e.unsafeKey(key) {
-			continue valueLoop
+		if e.unsafeKey(preventDuplicates, key) {
+			continue
 		}
 
 		*e = append(*e, kv)
 	}
 }
 
-func (e *SafeEnv) unsafeKey(key string) bool {
+func (e *SafeEnv) unsafeKey(preventDuplicates bool, key string) bool {
 	if key == "" || key == "=" {
 		return false
 	}
@@ -149,10 +172,12 @@ func (e *SafeEnv) unsafeKey(key string) bool {
 		return true
 	}
 
-	prefix := upperKey + "="
-	for _, kv := range *e {
-		if strings.HasPrefix(strings.ToUpper(kv), prefix) {
-			return true
+	if preventDuplicates {
+		prefix := upperKey + "="
+		for _, kv := range *e {
+			if strings.HasPrefix(strings.ToUpper(kv), prefix) {
+				return true
+			}
 		}
 	}
 
@@ -161,5 +186,5 @@ func (e *SafeEnv) unsafeKey(key string) bool {
 
 // AddExecEnvironment will add safe values from [os.Environ], ignoring any duplicates that may have already been added.
 func (e *SafeEnv) AddExecEnvironment() {
-	e.AddFull(os.Environ()...)
+	e.addFull(true, os.Environ())
 }
