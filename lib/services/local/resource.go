@@ -131,10 +131,9 @@ func itemFromClusterNetworkingConfig(cnc types.ClusterNetworkingConfig) (*backen
 	}
 
 	item := &backend.Item{
-		Key:      backend.Key(clusterConfigPrefix, networkingPrefix),
-		Value:    value,
-		ID:       cnc.GetResourceID(),
-		Revision: cnc.GetRevision(),
+		Key:   backend.Key(clusterConfigPrefix, networkingPrefix),
+		Value: value,
+		ID:    cnc.GetResourceID(),
 	}
 	return item, nil
 }
@@ -151,10 +150,9 @@ func itemFromAuthPreference(ap types.AuthPreference) (*backend.Item, error) {
 	}
 
 	item := &backend.Item{
-		Key:      backend.Key(authPrefix, preferencePrefix, generalPrefix),
-		Value:    value,
-		ID:       ap.GetResourceID(),
-		Revision: ap.GetRevision(),
+		Key:   backend.Key(authPrefix, preferencePrefix, generalPrefix),
+		Value: value,
+		ID:    ap.GetResourceID(),
 	}
 
 	return item, nil
