@@ -108,16 +108,12 @@ func TestBot_GetClient(t *testing.T) {
 			mock := mockClientBuilder{}
 			destination := &config.DestinationMemory{}
 			require.NoError(t, destination.CheckAndSetDefaults())
-			require.NoError(t, destination.Write(ctx, identity.TLSCertKey, tt.currentCert))
+			require.NoError(t, destination.Write(identity.TLSCertKey, tt.currentCert))
 			b := &Bot{
 				cfg: &config.BotConfig{
-					Storage: &config.StorageConfig{
-						Destination: destination,
-					},
-					Outputs: []config.Output{
-						&config.IdentityOutput{
-							Destination: destination,
-						},
+					Storage: &config.StorageConfig{DestinationMixin: config.DestinationMixin{Memory: destination}},
+					Destinations: []*config.DestinationConfig{
+						{DestinationMixin: config.DestinationMixin{Memory: destination}},
 					},
 				},
 				running:       tt.running,
