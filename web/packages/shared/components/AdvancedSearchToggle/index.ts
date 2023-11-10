@@ -14,5 +14,4 @@
  * limitations under the License.
  */
 
-export * from './SearchPanel';
-export * from './SearchPagination';
+export * from './AdvancedSearchToggle';
