@@ -435,8 +435,8 @@ func (b *Bot) AuthenticatedUserClientFromIdentity(ctx context.Context, id *ident
 		return nil, trace.BadParameter("auth client requires a fully formed identity")
 	}
 
-	// TODO: Eventually we'll want to reuse this facade globally rather than
-	// recreating it. Right now the blocker to that is handling the
+	// TODO(noah): Eventually we'll want to reuse this facade across the bot
+	// rather than recreating it. Right now the blocker to that is handling the
 	// generation field on the certificate.
 	facade := identity.NewFacade(
 		b.cfg.FIPS,
@@ -462,6 +462,7 @@ func (b *Bot) AuthenticatedUserClientFromIdentity(ctx context.Context, id *ident
 		SSH:         sshConfig,
 		AuthServers: []utils.NetAddr{*authAddr},
 		Log:         b.log,
+		Insecure:    b.cfg.Insecure,
 	}
 
 	c, err := authclient.Connect(ctx, authClientConfig)

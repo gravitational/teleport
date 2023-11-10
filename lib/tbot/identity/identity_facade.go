@@ -27,22 +27,24 @@ type Facade struct {
 
 	// These don't need locking as they are configuration values that are
 	// only set on construction
-	fips               bool
-	cipherSuites       []uint16
-	insecureSkipVerify bool
-	clusterName        string
+	fips         bool
+	cipherSuites []uint16
+	insecure     bool
+	// initialIdentity is used in some special circumstances where the value
+	// must remain stable.
+	initialIdentity *Identity
 }
 
 func NewFacade(
 	fips bool,
-	insecureSkipVerify bool,
+	insecure bool,
 	initialIdentity *Identity,
 ) *Facade {
 	f := &Facade{
-		fips:               fips,
-		identity:           initialIdentity,
-		insecureSkipVerify: insecureSkipVerify,
-		clusterName:        initialIdentity.ClusterName,
+		fips:            fips,
+		identity:        initialIdentity,
+		insecure:        insecure,
+		initialIdentity: initialIdentity,
 	}
 
 	return f
@@ -92,8 +94,11 @@ func (f *Facade) TLSConfig() (*tls.Config, error) {
 			return f.identity.TLSCert, nil
 		},
 
-		// VerifyConnection is used instead of the static RootCAs field.
-		RootCAs: nil,
+		// VerifyConnection is actually used instead of the static RootCAs
+		// field - however, we also populate the RootCAs field to work around
+		// a lot of Teleport code which relies on this field. This means we
+		// may not handle CA rotations when using certain connection
+		RootCAs: f.initialIdentity.TLSCAPool,
 		// InsecureSkipVerify is forced true to ensure that only our
 		// VerifyConnection callback is used to verify the server's presented
 		// certificate.
@@ -103,7 +108,7 @@ func (f *Facade) TLSConfig() (*tls.Config, error) {
 			// implementation of verifyServerCertificate in the `tls` package.
 			// We provide our own implementation so we can dynamically handle
 			// a changing CA Roots pool.
-			if f.insecureSkipVerify {
+			if f.insecure {
 				return nil
 			}
 			f.mu.RLock()
@@ -122,7 +127,7 @@ func (f *Facade) TLSConfig() (*tls.Config, error) {
 			_, err := state.PeerCertificates[0].Verify(opts)
 			return err
 		},
-		ServerName: apiutils.EncodeClusterName(f.clusterName),
+		ServerName: apiutils.EncodeClusterName(f.initialIdentity.ClusterName),
 	}
 
 	return cfg, nil

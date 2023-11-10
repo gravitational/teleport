@@ -53,6 +53,8 @@ type Config struct {
 	// MFAPromptConstructor is used to create MFA prompts when needed.
 	// If nil, the client will not prompt for MFA.
 	MFAPromptConstructor mfa.PromptConstructor
+	// Insecure turns off TLS certificate verification when enabled.
+	Insecure bool
 }
 
 // Connect creates a valid client connection to the auth service.  It may
@@ -91,7 +93,7 @@ func connectViaAuthDirect(ctx context.Context, cfg *Config) (*auth.Client, error
 			apiclient.LoadTLS(cfg.TLS),
 		},
 		CircuitBreakerConfig:     cfg.CircuitBreakerConfig,
-		InsecureAddressDiscovery: cfg.TLS.InsecureSkipVerify,
+		InsecureAddressDiscovery: cfg.Insecure,
 		DialTimeout:              cfg.DialTimeout,
 		MFAPromptConstructor:     cfg.MFAPromptConstructor,
 	})
@@ -119,9 +121,8 @@ func connectViaProxyTunnel(ctx context.Context, cfg *Config) (*auth.Client, erro
 	resolver := reversetunnelclient.WebClientResolver(&webclient.Config{
 		Context:   ctx,
 		ProxyAddr: cfg.AuthServers[0].String(),
-		// TODO -\/- PROBLEM
-		Insecure: cfg.TLS.InsecureSkipVerify,
-		Timeout:  cfg.DialTimeout,
+		Insecure:  cfg.Insecure,
+		Timeout:   cfg.DialTimeout,
 	})
 
 	resolver, err := reversetunnelclient.CachingResolver(ctx, resolver, nil /* clock */)
@@ -132,13 +133,11 @@ func connectViaProxyTunnel(ctx context.Context, cfg *Config) (*auth.Client, erro
 	// reversetunnel.TunnelAuthDialer will take care of creating a net.Conn
 	// within an SSH tunnel.
 	dialer, err := reversetunnelclient.NewTunnelAuthDialer(reversetunnelclient.TunnelAuthDialerConfig{
-		Resolver:     resolver,
-		ClientConfig: cfg.SSH,
-		Log:          cfg.Log,
-		// TODO -\/- PROBLEM
-		InsecureSkipTLSVerify: cfg.TLS.InsecureSkipVerify,
-		// TODO -\/- PROBLEM
-		ClusterCAs: cfg.TLS.RootCAs,
+		Resolver:              resolver,
+		ClientConfig:          cfg.SSH,
+		Log:                   cfg.Log,
+		InsecureSkipTLSVerify: cfg.Insecure,
+		ClusterCAs:            cfg.TLS.RootCAs,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
