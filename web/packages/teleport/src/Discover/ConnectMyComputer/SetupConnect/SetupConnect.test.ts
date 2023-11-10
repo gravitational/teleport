@@ -17,12 +17,11 @@
 import { renderHook } from '@testing-library/react-hooks';
 
 import * as useTeleport from 'teleport/useTeleport';
-import NodeService from 'teleport/services/nodes/nodes';
+import NodeService, { Node } from 'teleport/services/nodes';
+import UserService from 'teleport/services/user';
 import TeleportContext from 'teleport/teleportContext';
 
 import { nodes } from 'teleport/Nodes/fixtures';
-
-import { Node } from 'teleport/services/nodes';
 
 import { usePollForConnectMyComputerNode } from './SetupConnect';
 
@@ -66,6 +65,7 @@ describe('usePollForConnectMyComputerNode', () => {
         username: 'alice',
         clusterId: 'foo',
         pingInterval: 1,
+        reloadUser: false,
       })
     );
 
@@ -74,6 +74,65 @@ describe('usePollForConnectMyComputerNode', () => {
     expect(result.current.isPolling).toBe(true);
 
     await waitForValueToChange(() => result.current.node, { interval: 3 });
+
+    expect(result.current.node).toEqual(expectedNode);
+    expect(result.current.isPolling).toBe(false);
+  });
+
+  it('reloads user before each poll if reloadUser is true', async () => {
+    const expectedNode = nodes[0];
+    let hasReloadedUser = false;
+
+    const nodeService = {
+      fetchNodes: jest.fn(),
+    } as Partial<NodeService> as NodeService;
+
+    jest.mocked(nodeService).fetchNodes.mockImplementation(async () => {
+      if (hasReloadedUser) {
+        return { agents: [expectedNode] };
+      } else {
+        return { agents: [] };
+      }
+    });
+
+    const userService = {
+      reloadUser: jest.fn(),
+    } as Partial<typeof UserService> as typeof UserService;
+
+    jest.mocked(userService).reloadUser.mockImplementation(async () => {
+      hasReloadedUser = true;
+    });
+
+    jest
+      .spyOn(useTeleport, 'default')
+      .mockReturnValue({ nodeService, userService } as TeleportContext);
+
+    const { result, rerender, waitFor, waitForValueToChange } = renderHook(
+      usePollForConnectMyComputerNode,
+      {
+        initialProps: {
+          reloadUser: false,
+          username: 'alice',
+          clusterId: 'foo',
+          pingInterval: 1,
+        },
+      }
+    );
+    expect(result.error).toBeUndefined();
+    await waitFor(() => {
+      expect(nodeService.fetchNodes).toHaveBeenCalled();
+    });
+
+    rerender({
+      reloadUser: true,
+      username: 'alice',
+      clusterId: 'foo',
+      pingInterval: 1,
+    });
+    expect(result.error).toBeUndefined();
+
+    await waitForValueToChange(() => result.current.node, { interval: 3 });
+    expect(userService.reloadUser).toHaveBeenCalled();
 
     expect(result.current.node).toEqual(expectedNode);
     expect(result.current.isPolling).toBe(false);

@@ -120,7 +120,12 @@ export const HintTimeout = () => (
 
 HintTimeout.parameters = {
   msw: {
-    handlers: [noNodesHandler],
+    handlers: [
+      noNodesHandler,
+      rest.post(cfg.api.webRenewTokenPath, (req, res, ctx) =>
+        res(ctx.json({}))
+      ),
+    ],
   },
 };
 
