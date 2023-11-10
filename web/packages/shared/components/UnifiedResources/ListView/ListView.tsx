@@ -16,11 +16,15 @@
 
 import React from 'react';
 
-import { Flex, Box, Indicator } from 'design';
+import { Flex } from 'design';
 
 import { ResourceViewProps } from '../types';
+import { FETCH_MORE_SIZE } from '../UnifiedResources';
+
+import { LoadingSkeleton } from '../shared/LoadingSkeleton';
 
 import { ResourceListItem } from './ResourceListItem';
+import { LoadingListItem } from './LoadingListItem';
 
 export function ListView({
   mappedResources,
@@ -51,11 +55,11 @@ export function ListView({
           pinResource={() => onPinResource(key)}
         />
       ))}
-      {/* TODO (rudream): Add skeleton loader */}
       {isProcessing && (
-        <Box textAlign="center" m={10}>
-          <Indicator />
-        </Box>
+        <LoadingSkeleton
+          count={FETCH_MORE_SIZE}
+          Element={<LoadingListItem />}
+        />
       )}
     </Flex>
   );
