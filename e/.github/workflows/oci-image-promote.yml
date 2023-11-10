@@ -139,5 +139,6 @@ jobs:
           SIGNING_KEY_URL: ${{ inputs.production-signing-key-url }}
           DST_IMAGE: "${{ inputs.production-registry }}/${{ inputs.production-repository }}@${{ env.TELEPORT_IMAGE_LIST_HASH }}"
         run: |
-          cosign sign --yes --key ${SIGNING_KEY_URL} --recursive ${DST_IMAGE}
-          cosign sign --yes --upload=false --recursive ${DST_IMAGE}
+          # TODO(reed): TLog uploads temporarily disabled due to https://github.com/sigstore/cosign/issues/3356.
+          cosign sign --yes --tlog-upload=false --key ${SIGNING_KEY_URL} --recursive ${DST_IMAGE}
+          cosign sign --yes --upload=false --tlog-upload=false --recursive ${DST_IMAGE}
