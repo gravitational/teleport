@@ -126,7 +126,9 @@ func TestService(t *testing.T) {
 
 	t.Run("run security report with error", func(t *testing.T) {
 		clock.Advance(time.Hour)
+		var runQueryCount atomic.Int64
 		mockAthena.runQueryFunc = func(ctx context.Context, queryText string, days int) (*query.RunQueryResponse, error) {
+			runQueryCount.Add(1)
 			return nil, trace.BadParameter("failed to run query")
 		}
 		_, err := svc.RunReport(ctx, &pb.RunReportRequest{
@@ -134,6 +136,11 @@ func TestService(t *testing.T) {
 			Days: 7,
 		})
 		require.NoError(t, err)
+
+		// Ensure that all reports queries were executed.
+		require.EventuallyWithT(t, func(t *assert.CollectT) {
+			assert.Len(t, reports.PrivilegeAccessReport.Queries, int(runQueryCount.Load()))
+		}, time.Second*3, time.Millisecond*100)
 
 		require.EventuallyWithT(t, func(t *assert.CollectT) {
 			statusResp, err := svc.GetReportState(ctx, &pb.GetReportStateRequest{

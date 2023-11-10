@@ -17,6 +17,7 @@ package secreports
 import (
 	"context"
 	"encoding/json"
+	"sync"
 	"testing"
 
 	"github.com/gravitational/trace"
@@ -92,15 +93,20 @@ func (a *athenaMock) GetQueryResult(ctx context.Context, queryID, nextToken stri
 }
 
 type mockReportStore struct {
-	m map[string]*pb.ReportResult
+	m   map[string]*pb.ReportResult
+	mtx sync.Mutex
 }
 
-func (m mockReportStore) SaveReportResult(ctx context.Context, name string, result *pb.ReportResult) error {
+func (m *mockReportStore) SaveReportResult(ctx context.Context, name string, result *pb.ReportResult) error {
+	m.mtx.Lock()
+	defer m.mtx.Unlock()
 	m.m[name] = result
 	return nil
 }
 
-func (m mockReportStore) LoadReportResult(ctx context.Context, name string) (*pb.ReportResult, error) {
+func (m *mockReportStore) LoadReportResult(ctx context.Context, name string) (*pb.ReportResult, error) {
+	m.mtx.Lock()
+	defer m.mtx.Unlock()
 	if v, ok := m.m[name]; ok {
 		return v, nil
 	}
