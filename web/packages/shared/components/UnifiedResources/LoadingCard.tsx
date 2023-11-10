@@ -14,39 +14,11 @@
  * limitations under the License.
  */
 
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { Flex, Box } from 'design';
 import { ShimmerBox } from 'design/ShimmerBox';
 
-const DISPLAY_SKELETON_AFTER_MS = 150;
-
-export function CardsLoadingSkeleton(props: { count: number }) {
-  const [canDisplay, setCanDisplay] = useState(false);
-
-  useEffect(() => {
-    const displayTimeout = setTimeout(() => {
-      setCanDisplay(true);
-    }, DISPLAY_SKELETON_AFTER_MS);
-    return () => {
-      clearTimeout(displayTimeout);
-    };
-  }, []);
-
-  if (!canDisplay) {
-    return null;
-  }
-
-  return (
-    <>
-      {new Array(props.count).fill(undefined).map((_, i) => (
-        // Using index as key here is ok because these elements never change order
-        <LoadingCard key={i} />
-      ))}
-    </>
-  );
-}
-
-function LoadingCard() {
+export function LoadingCard() {
   return (
     <Flex gap={2} alignItems="start" height="106px" p={3}>
       {/* Checkbox */}

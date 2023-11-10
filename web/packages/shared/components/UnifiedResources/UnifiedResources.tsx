@@ -63,7 +63,8 @@ import {
 import { ResourceTab } from './ResourceTab';
 import { ResourceCard, PinningSupport } from './ResourceCard';
 import { FilterPanel } from './FilterPanel';
-import { CardsLoadingSkeleton } from './CardsLoadingSkeleton';
+import { LoadingSkeleton } from './LoadingSkeleton';
+import { LoadingCard } from './LoadingCard';
 
 // get 48 resources to start
 const INITIAL_FETCH_SIZE = 48;
@@ -462,7 +463,10 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
           {/* Using index as key here is ok because these elements never change order */}
           {(resourcesFetchAttempt.status === 'processing' ||
             getPinnedResourcesAttempt.status === 'processing') && (
-            <CardsLoadingSkeleton count={FETCH_MORE_SIZE} />
+            <LoadingSkeleton
+              count={FETCH_MORE_SIZE}
+              Element={<LoadingCard />}
+            />
           )}
         </ResourcesContainer>
       )}
