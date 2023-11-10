@@ -19,28 +19,22 @@ package sidecar
 import (
 	"bytes"
 	"context"
-	"crypto/tls"
 	"fmt"
 	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
-	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
-	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	apiutils "github.com/gravitational/teleport/api/utils"
-	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/tbot"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 const (
@@ -133,7 +127,7 @@ func (b *Bot) buildClient(ctx context.Context) (*SyncClient, error) {
 
 	c, err := client.New(ctx, client.Config{
 		Addrs:       []string{b.cfg.AuthServer},
-		Credentials: []client.Credentials{clientCredentials{id}},
+		Credentials: []client.Credentials{identity.NewFacade(false, false, id)},
 	})
 	return NewSyncClient(c), trace.Wrap(err)
 }
@@ -183,46 +177,6 @@ func (b *Bot) GetSyncClient(ctx context.Context) (*SyncClient, func(), error) {
 	}
 
 	return b.cachedClient, b.cachedClient.LockClient(), nil
-}
-
-type clientCredentials struct {
-	id *identity.Identity
-}
-
-func (c clientCredentials) Dialer(client.Config) (client.ContextDialer, error) {
-	return nil, trace.NotImplemented("no dialer")
-}
-
-func (c clientCredentials) TLSConfig() (*tls.Config, error) {
-	tlsConfig := utils.TLSConfig(utils.DefaultCipherSuites())
-	tlsConfig.Certificates = []tls.Certificate{*c.id.TLSCert}
-	tlsConfig.RootCAs = c.id.TLSCAPool
-	tlsConfig.ClientCAs = c.id.TLSCAPool
-	tlsConfig.ServerName = apiutils.EncodeClusterName(c.id.ClusterName)
-	return tlsConfig, nil
-}
-
-func (c clientCredentials) SSHClientConfig() (*ssh.ClientConfig, error) {
-	callback, err := apisshutils.NewHostKeyCallback(
-		apisshutils.HostKeyCallbackConfig{
-			GetHostCheckers: func() ([]ssh.PublicKey, error) {
-				return c.id.SSHHostCheckers, nil
-			},
-			FIPS: false,
-		})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if len(c.id.SSHCert.ValidPrincipals) < 1 {
-		return nil, trace.BadParameter("user cert has no valid principals")
-	}
-	sshConfig := &ssh.ClientConfig{
-		User:            c.id.SSHCert.ValidPrincipals[0],
-		Auth:            []ssh.AuthMethod{ssh.PublicKeys(c.id.KeySigner)},
-		HostKeyCallback: callback,
-		Timeout:         apidefaults.DefaultIOTimeout,
-	}
-	return sshConfig, nil
 }
 
 func (b *Bot) NeedLeaderElection() bool {
