@@ -272,7 +272,10 @@ func (a *App) onPendingRequest(ctx context.Context, req types.AccessRequest) err
 	}
 	if reqReviews := req.GetReviews(); len(reqReviews) > 0 {
 		if err = a.postReviewNotes(ctx, reqID, reqReviews); err != nil {
-			return trace.Wrap(err, "posting review notes")
+			return trace.NewAggregate(
+				trace.WrapWithMessage(err, "posting review notes"),
+				trace.Wrap(a.tryApproveRequest(ctx, req)),
+			)
 		}
 	}
 	// To minimize the count of auto-approval tries, let's only attempt it only when we have just created an incident.
