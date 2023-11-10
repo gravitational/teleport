@@ -86,6 +86,23 @@ export function SetupConnect(
     reloadUser: showHint,
   });
 
+  const { agentMeta, updateAgentMeta, nextStep } = props;
+  const handleNextStep = useCallback(() => {
+    if (!node) {
+      return;
+    }
+
+    updateAgentMeta({
+      ...agentMeta,
+      // Node is an oddity in that the hostname is the more
+      // user identifiable resource name and what user expects
+      // as the resource name.
+      resourceName: node.hostname,
+      node,
+    });
+    nextStep();
+  }, [node, updateAgentMeta, agentMeta, nextStep]);
+
   useEffect(() => {
     if (isPolling) {
       const id = window.setTimeout(() => setShowHint(true), showHintTimeout);
@@ -211,7 +228,7 @@ export function SetupConnect(
       {pollingStatus}
 
       <ActionButtons
-        onProceed={props.nextStep}
+        onProceed={handleNextStep}
         disableProceed={!node}
         onPrev={props.prevStep}
       />
