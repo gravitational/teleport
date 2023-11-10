@@ -19,7 +19,6 @@ package config
 import (
 	"context"
 	"crypto/tls"
-	"fmt"
 	"sync"
 
 	"github.com/gravitational/trace"
@@ -123,5 +122,5 @@ func (o *UnstableClientCredentialOutput) MarshalYAML() (interface{}, error) {
 }
 
 func (o *UnstableClientCredentialOutput) String() string {
-	return fmt.Sprintf("%s", UnstableClientCredentialOutputType)
+	return UnstableClientCredentialOutputType
 }
