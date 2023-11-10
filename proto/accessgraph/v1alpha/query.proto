@@ -35,7 +35,7 @@ service AccessGraphService {
   // This stream is used to sync the access graph with the Teleport database state.
   // Once Teleport finishes syncing the current state, it sends a sync command
   // to the access graph service and resumes sending events.
-  rpc EventsStream(stream EventsStreamRequest) returns (google.protobuf.Empty);
+  rpc EventsStream(stream EventsStreamRequest) returns (EventsStreamResponse);
 }
 
 // Node is a node in the access graph.
@@ -111,3 +111,6 @@ message EventsStreamRequest {
     types.ResourceHeader delete = 3;
   }
 }
+
+// EventsStreamResponse is an empty response from EventsStream endpoint.
+message EventsStreamResponse {}

@@ -25,7 +25,6 @@ import (
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
-	emptypb "google.golang.org/protobuf/types/known/emptypb"
 )
 
 // This is a compile-time assertion to ensure that this generated file
@@ -94,7 +93,7 @@ func (c *accessGraphServiceClient) EventsStream(ctx context.Context, opts ...grp
 
 type AccessGraphService_EventsStreamClient interface {
 	Send(*EventsStreamRequest) error
-	CloseAndRecv() (*emptypb.Empty, error)
+	CloseAndRecv() (*EventsStreamResponse, error)
 	grpc.ClientStream
 }
 
@@ -106,11 +105,11 @@ func (x *accessGraphServiceEventsStreamClient) Send(m *EventsStreamRequest) erro
 	return x.ClientStream.SendMsg(m)
 }
 
-func (x *accessGraphServiceEventsStreamClient) CloseAndRecv() (*emptypb.Empty, error) {
+func (x *accessGraphServiceEventsStreamClient) CloseAndRecv() (*EventsStreamResponse, error) {
 	if err := x.ClientStream.CloseSend(); err != nil {
 		return nil, err
 	}
-	m := new(emptypb.Empty)
+	m := new(EventsStreamResponse)
 	if err := x.ClientStream.RecvMsg(m); err != nil {
 		return nil, err
 	}
@@ -203,7 +202,7 @@ func _AccessGraphService_EventsStream_Handler(srv interface{}, stream grpc.Serve
 }
 
 type AccessGraphService_EventsStreamServer interface {
-	SendAndClose(*emptypb.Empty) error
+	SendAndClose(*EventsStreamResponse) error
 	Recv() (*EventsStreamRequest, error)
 	grpc.ServerStream
 }
@@ -212,7 +211,7 @@ type accessGraphServiceEventsStreamServer struct {
 	grpc.ServerStream
 }
 
-func (x *accessGraphServiceEventsStreamServer) SendAndClose(m *emptypb.Empty) error {
+func (x *accessGraphServiceEventsStreamServer) SendAndClose(m *EventsStreamResponse) error {
 	return x.ServerStream.SendMsg(m)
 }
 
