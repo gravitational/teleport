@@ -35,6 +35,9 @@ own proxy headers.
 * Fixed issue where Kubernetes Audit Events reported incorrect information in the exec audit [#33950](https://github.com/gravitational/teleport/pull/33950)
 * Fixed issue where `tsh aws ecs execute-command` would always fail [#33831](https://github.com/gravitational/teleport/pull/33831)
 * Fixed formatting errors on empty result sets in `tsh` [#33725](https://github.com/gravitational/teleport/pull/33725)
+* Teleport Operator now caches and re-uses Teleport connections where possible [34451](https://github.com/gravitational/teleport/pull/34451)
+* Improved PostgreSQL Statement Bind audit log events by encoding binary params in base64 [#34451](https://github.com/gravitational/teleport/pull/34451)
+* Fixed cleanup of unused GCP KMS keys [#34470](https://github.com/gravitational/teleport/pull/34470)
 
 ## 12.4.23 (10/18/23)
 
