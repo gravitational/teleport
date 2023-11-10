@@ -14,15 +14,14 @@
  * limitations under the License.
  */
 
-import React from 'react';
-
 import { ResourceViewConfig } from 'teleport/Discover/flow';
-import { ResourceKind } from 'teleport/Discover/Shared';
+import { Finished, ResourceKind } from 'teleport/Discover/Shared';
 import { DiscoverEvent } from 'teleport/services/userEvent';
 
 import { ResourceSpec } from '../SelectResource';
 
 import { SetupConnect } from './SetupConnect';
+import { TestConnection } from './TestConnection';
 
 export const ConnectMyComputerResource: ResourceViewConfig<ResourceSpec> = {
   kind: ResourceKind.ConnectMyComputer,
@@ -33,11 +32,18 @@ export const ConnectMyComputerResource: ResourceViewConfig<ResourceSpec> = {
       eventName: DiscoverEvent.DeployService,
     },
     {
-      title: 'Test Connection',
-      component: () => <div>WIP</div>,
+      // TODO(ravicious): Rename this to "Test Connection" after implementing the connection test.
+      title: 'Start a Session',
+      component: TestConnection,
       eventName: DiscoverEvent.TestConnection,
       // TODO(ravicious): Manually emit success event on test connection success.
-      // manuallyEmitSuccessEvent: true,
+      manuallyEmitSuccessEvent: true,
+    },
+    {
+      title: 'Finished',
+      component: Finished,
+      hide: true,
+      eventName: DiscoverEvent.Completed,
     },
   ],
 };
