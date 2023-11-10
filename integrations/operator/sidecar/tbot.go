@@ -19,21 +19,28 @@ package sidecar
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"fmt"
 	"sync"
 	"time"
 
+	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
+	"golang.org/x/crypto/ssh"
+
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
+	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/tbot"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 const (
@@ -49,7 +56,6 @@ type Bot struct {
 	running    bool
 	rootClient auth.ClientI
 	opts       Options
-	output     *config.UnstableClientCredentialOutput
 
 	// mutex protects cachedCert and cachedClient
 	mutex        sync.Mutex
@@ -64,7 +70,7 @@ func (b *Bot) initializeConfig(ctx context.Context) {
 	// Initialize the memory stores. They contain identities renewed by the bot
 	// We're reading certs directly from them
 	rootMemoryStore := &config.DestinationMemory{}
-	b.output = &config.UnstableClientCredentialOutput{}
+	destMemoryStore := &config.DestinationMemory{}
 
 	// Initialize tbot config
 	b.cfg = &config.BotConfig{
@@ -77,7 +83,9 @@ func (b *Bot) initializeConfig(ctx context.Context) {
 			Destination: rootMemoryStore,
 		},
 		Outputs: []config.Output{
-			b.output,
+			&config.IdentityOutput{
+				Destination: destMemoryStore,
+			},
 		},
 
 		Debug:           false,
@@ -86,15 +94,46 @@ func (b *Bot) initializeConfig(ctx context.Context) {
 		RenewalInterval: DefaultRenewalInterval,
 		Oneshot:         false,
 	}
+	// We do our own init because config's "CheckAndSetDefaults" is too linked with tbot logic and invokes
+	// `addRequiredConfigs` on each Storage Destination
+	rootMemoryStore.CheckAndSetDefaults()
+	destMemoryStore.CheckAndSetDefaults()
+
+	for _, artifact := range identity.GetArtifacts() {
+		_ = destMemoryStore.Write(ctx, artifact.Key, []byte{})
+		_ = rootMemoryStore.Write(ctx, artifact.Key, []byte{})
+	}
 }
 
 // buildClient reads tbot's memory disttination, retrieves the certificates
 // and builds a new Teleport client using those certs.
 func (b *Bot) buildClient(ctx context.Context) (*SyncClient, error) {
 	log.Infof("Building a new client to connect to %s", b.cfg.AuthServer)
+	storageDestination := b.cfg.Storage.Destination
+	// Hack to be able to reuse LoadIdentity functions from tbot
+	// LoadIdentity expects to have all the artifacts required for a bot
+	// We loop over missing artifacts and are loading them from the bot storage to the destination
+	for _, artifact := range identity.GetArtifacts() {
+		if artifact.Kind == identity.KindBotInternal {
+			value, err := storageDestination.Read(ctx, artifact.Key)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			if err := b.cfg.Outputs[0].GetDestination().Write(ctx, artifact.Key, value); err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+		}
+	}
+
+	id, err := identity.LoadIdentity(ctx, b.cfg.Outputs[0].GetDestination(), identity.BotKinds()...)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	c, err := client.New(ctx, client.Config{
 		Addrs:       []string{b.cfg.AuthServer},
-		Credentials: []client.Credentials{b.output},
+		Credentials: []client.Credentials{clientCredentials{id}},
 	})
 	return NewSyncClient(c), trace.Wrap(err)
 }
@@ -144,6 +183,46 @@ func (b *Bot) GetSyncClient(ctx context.Context) (*SyncClient, func(), error) {
 	}
 
 	return b.cachedClient, b.cachedClient.LockClient(), nil
+}
+
+type clientCredentials struct {
+	id *identity.Identity
+}
+
+func (c clientCredentials) Dialer(client.Config) (client.ContextDialer, error) {
+	return nil, trace.NotImplemented("no dialer")
+}
+
+func (c clientCredentials) TLSConfig() (*tls.Config, error) {
+	tlsConfig := utils.TLSConfig(utils.DefaultCipherSuites())
+	tlsConfig.Certificates = []tls.Certificate{*c.id.TLSCert}
+	tlsConfig.RootCAs = c.id.TLSCAPool
+	tlsConfig.ClientCAs = c.id.TLSCAPool
+	tlsConfig.ServerName = apiutils.EncodeClusterName(c.id.ClusterName)
+	return tlsConfig, nil
+}
+
+func (c clientCredentials) SSHClientConfig() (*ssh.ClientConfig, error) {
+	callback, err := apisshutils.NewHostKeyCallback(
+		apisshutils.HostKeyCallbackConfig{
+			GetHostCheckers: func() ([]ssh.PublicKey, error) {
+				return c.id.SSHHostCheckers, nil
+			},
+			FIPS: false,
+		})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if len(c.id.SSHCert.ValidPrincipals) < 1 {
+		return nil, trace.BadParameter("user cert has no valid principals")
+	}
+	sshConfig := &ssh.ClientConfig{
+		User:            c.id.SSHCert.ValidPrincipals[0],
+		Auth:            []ssh.AuthMethod{ssh.PublicKeys(c.id.KeySigner)},
+		HostKeyCallback: callback,
+		Timeout:         apidefaults.DefaultIOTimeout,
+	}
+	return sshConfig, nil
 }
 
 func (b *Bot) NeedLeaderElection() bool {
