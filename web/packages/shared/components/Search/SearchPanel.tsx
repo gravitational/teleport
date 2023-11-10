@@ -16,11 +16,10 @@
 
 import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
-import { Text, Flex } from 'design';
+import { Text, Flex, Toggle } from 'design';
 import { StyledPanel } from 'design/DataTable';
 import InputSearch from 'design/DataTable/InputSearch';
 import { ResourceFilter } from 'teleport/services/agents';
-import Toggle from 'design/Toggle';
 import Tooltip from 'teleport/components/ServersideSearchPanel/Tooltip';
 
 import { PredicateDoc } from './PredicateDoc';

@@ -17,12 +17,10 @@ limitations under the License.
 import React from 'react';
 import styled from 'styled-components';
 import { PageIndicatorText } from 'shared/components/Search';
-import { Text, Box, Flex } from 'design';
+import { Text, Box, Flex, Toggle } from 'design';
 import { StyledPanel } from 'design/DataTable';
 import InputSearch from 'design/DataTable/InputSearch';
 import { PredicateDoc } from 'shared/components/Search/PredicateDoc';
-
-import Toggle from 'design/Toggle';
 
 import { PageIndicators } from 'teleport/components/hooks/useServersidePagination';
 
