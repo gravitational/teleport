@@ -44,7 +44,7 @@ type Node struct {
 	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	// Kind is the kind of the node, ex: "user", "user_group", "resource", etc.
 	Kind string `protobuf:"bytes,2,opt,name=kind,proto3" json:"kind,omitempty"`
-	// SubKind is the subkind of the node.
+	// SubKind is the subkind of the node, ex: "ssh", "db", "k8s", etc.
 	SubKind string `protobuf:"bytes,3,opt,name=sub_kind,json=subKind,proto3" json:"sub_kind,omitempty"`
 	// Name is the name of the node.
 	Name string `protobuf:"bytes,4,opt,name=name,proto3" json:"name,omitempty"`
