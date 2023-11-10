@@ -87,13 +87,21 @@ To set up the operator:
 - Open a proxy to the Kube API authenticating requests as yourself by following
   [the kube-agent-updater DEBUG guide](./../kube-agent-updater/DEBUG.md)
 - Create the Teleport operator role
-- Create the Teleport bot role
-- Create the Teleport bot user
+  ```shell
+  tctl create -f ./hack/fixture-operator-role.yaml
+  ```
+- Create the Teleport bot role and user
+  ```yaml
+  tctl create -f ./hack/fixture-operator-bot.yaml
+  ```
 - Create the Teleport bot token
+  ```yaml
+  tctl create -f ./hack/fixture-operator-token.yaml
+  ```
 
-WARNING: the static token gets consumed on first use, restarting the operator
+**WARNING**: the static token gets consumed on first use, restarting the operator
 requires create a new token AND deleting the certificate generation label on
-the bot user.
+the bot user. DO NOT USE this join method in production.
 
 Finally, run the operator. For example:
 

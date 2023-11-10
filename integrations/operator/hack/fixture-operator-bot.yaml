@@ -1,0 +1,28 @@
+kind: role
+metadata:
+  description: Automatically generated role for bot operator
+  labels:
+    teleport.internal/bot: operator
+  name: bot-operator
+spec:
+  allow:
+    impersonate:
+      roles:
+        - operator
+    rules:
+      - resources:
+          - cert_authority
+        verbs:
+          - readnosecrets
+  deny: {}
+version: v7
+---
+kind: user
+metadata:
+  labels:
+    teleport.internal/bot: operator
+  name: bot-operator
+spec:
+  roles:
+    - bot-operator
+version: v2
