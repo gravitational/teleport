@@ -146,6 +146,7 @@ const FilterTypesMenu = ({
   // we have a separate state in the filter so we can select a few different things and then click "apply"
   const [kinds, setKinds] = useState<string[]>(kindsFromParams || []);
   const handleOpen = event => {
+    setKinds(kindsFromParams);
     setAnchorEl(event.currentTarget);
   };
 

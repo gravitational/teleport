@@ -32,7 +32,7 @@ const ShimmerWrapper = styled.div`
   width: 100%;
   height: 100%;
   background-color: ${props => props.theme.colors.levels.surface};
-  border-radius: ${props => props.theme.radii[3]}px;
+  border-radius: ${props => props.theme.radii[2]}px;
   overflow: hidden;
   position: relative;
 `;

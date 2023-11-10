@@ -32,7 +32,6 @@ import { Danger } from 'design/Alert';
 import './unifiedStyles.css';
 
 import { ResourcesResponse, ResourceLabel } from 'teleport/services/agents';
-import { TextIcon } from 'teleport/Discover/Shared';
 import {
   UnifiedTabPreference,
   UnifiedResourcePreferences,
@@ -62,15 +61,15 @@ import {
 } from './cards';
 
 import { ResourceTab } from './ResourceTab';
-import { ResourceCard, LoadingCard, PinningSupport } from './ResourceCard';
+import { ResourceCard, PinningSupport } from './ResourceCard';
 import { FilterPanel } from './FilterPanel';
+import { LoadingSkeleton } from './LoadingSkeleton';
+import { LoadingCard } from './LoadingCard';
 
 // get 48 resources to start
 const INITIAL_FETCH_SIZE = 48;
 // increment by 24 every fetch
 const FETCH_MORE_SIZE = 24;
-
-const loadingCardArray = new Array(FETCH_MORE_SIZE).fill(undefined);
 
 export const PINNING_NOT_SUPPORTED_MESSAGE =
   'This cluster does not support pinning resources. To enable, upgrade to 14.1 or newer.';
@@ -463,10 +462,12 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
             ))}
           {/* Using index as key here is ok because these elements never change order */}
           {(resourcesFetchAttempt.status === 'processing' ||
-            getPinnedResourcesAttempt.status === 'processing') &&
-            loadingCardArray.map((_, i) => (
-              <LoadingCard delay="short" key={i} />
-            ))}
+            getPinnedResourcesAttempt.status === 'processing') && (
+            <LoadingSkeleton
+              count={FETCH_MORE_SIZE}
+              Element={<LoadingCard />}
+            />
+          )}
         </ResourcesContainer>
       )}
       <div ref={setTrigger} />
@@ -551,28 +552,37 @@ function NoResults({
   query: string;
   isPinnedTab: boolean;
 }) {
-  // Prevent `No resources were found for ""` flicker.
   if (query) {
     return (
-      <Box p={8} mt={3} mx="auto" maxWidth="720px" textAlign="center">
-        <TextIcon typography="h3">
-          <Magnifier />
-          No {isPinnedTab ? 'pinned ' : ''}resources were found for&nbsp;
-          <Text
-            as="span"
-            bold
-            css={`
-              max-width: 270px;
-              overflow: hidden;
-              text-overflow: ellipsis;
-            `}
-          >
-            {query}
-          </Text>
-        </TextIcon>
-      </Box>
+      <Text
+        typography="h3"
+        mt={9}
+        mx="auto"
+        justifyContent="center"
+        alignItems="center"
+        css={`
+          white-space: nowrap;
+        `}
+        as={Flex}
+      >
+        <Magnifier mr={2} />
+        No {isPinnedTab ? 'pinned ' : ''}resources were found for&nbsp;
+        <Text
+          as="span"
+          bold
+          css={`
+            max-width: 270px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+          `}
+        >
+          {query}
+        </Text>
+      </Text>
     );
   }
+
   return null;
 }
 
