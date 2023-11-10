@@ -68,13 +68,28 @@ func handleTPMActivateCredential(_, _ string) error {
 	return devicetrust.ErrPlatformNotSupported
 }
 
+// cddFuncs is used to mock various data collection functions for testing.
+var cddFuncs = struct {
+	parseOSRelease       func() (*linux.OSRelease, error)
+	dmiInfoFromSysfs     func() (*linux.DMIInfo, error)
+	readDMIInfoCached    func() (*linux.DMIInfo, error)
+	readDMIInfoEscalated func() (*linux.DMIInfo, error)
+	saveDMIInfoToCache   func(*linux.DMIInfo) error
+}{
+	parseOSRelease:       linux.ParseOSRelease,
+	dmiInfoFromSysfs:     linux.DMIInfoFromSysfs,
+	readDMIInfoCached:    readDMIInfoCached,
+	readDMIInfoEscalated: readDMIInfoEscalated,
+	saveDMIInfoToCache:   saveDMIInfoToCache,
+}
+
 func collectDeviceData(mode CollectDataMode) (*devicepb.DeviceCollectedData, error) {
-	osRelease, err := linux.ParseOSRelease()
+	osRelease, err := cddFuncs.parseOSRelease()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	dmiInfo, err := linux.DMIInfoFromSysfs()
+	dmiInfo, err := cddFuncs.dmiInfoFromSysfs()
 	if err != nil {
 		log.WithError(err).Warn("TPM: Failed to read device model and/or serial numbers")
 	}
@@ -83,7 +98,7 @@ func collectDeviceData(mode CollectDataMode) (*devicepb.DeviceCollectedData, err
 		case CollectedDataNeverEscalate, CollectedDataMaybeEscalate:
 			log.Debug("TPM: Reading cached DMI info")
 
-			dmiCached, err := readDMIInfoCached()
+			dmiCached, err := cddFuncs.readDMIInfoCached()
 			if err == nil {
 				dmiInfo = dmiCached
 				break // from switch
@@ -99,9 +114,14 @@ func collectDeviceData(mode CollectDataMode) (*devicepb.DeviceCollectedData, err
 		case CollectedDataAlwaysEscalate:
 			log.Debug("TPM: Running escalated `tsh device dmi-info`")
 
-			dmiInfo, err = readDMIInfoEscalated()
+			dmiInfo, err = cddFuncs.readDMIInfoEscalated()
 			if err != nil {
 				return nil, trace.Wrap(err)
+			}
+
+			if err := cddFuncs.saveDMIInfoToCache(dmiInfo); err != nil {
+				log.WithError(err).Warn("TPM: Failed to write DMI cache")
+				// err swallowed on purpose.
 			}
 		}
 	}
@@ -191,11 +211,6 @@ func readDMIInfoEscalated() (*linux.DMIInfo, error) {
 	var dmiInfo linux.DMIInfo
 	if err := json.Unmarshal([]byte(val), &dmiInfo); err != nil {
 		return nil, trace.Wrap(err, "parsing dmi-read output")
-	}
-
-	if err := saveDMIInfoToCache(&dmiInfo); err != nil {
-		log.WithError(err).Warn("TPM: Failed to write DMI cache")
-		// err swallowed on purpose.
 	}
 
 	return &dmiInfo, nil
