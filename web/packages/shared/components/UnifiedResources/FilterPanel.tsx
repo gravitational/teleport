@@ -284,9 +284,7 @@ const FilterTypesMenu = ({
             >
               {kind.disabled ? (
                 <HoverTooltip
-                  tipContent={
-                    <>{`You do not have access to ${kind.label} resources.`}</>
-                  }
+                  tipContent={`You do not have access to ${kind.label} resources.`}
                 >
                   {$checkbox}
                 </HoverTooltip>
