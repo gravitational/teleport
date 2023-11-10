@@ -47,7 +47,7 @@ func TestWriteUpgradeResponse(t *testing.T) {
 	io.Copy(io.Discard, resp.Body)
 	_ = resp.Body.Close()
 
-	require.Equal(t, resp.StatusCode, http.StatusSwitchingProtocols)
+	require.Equal(t, http.StatusSwitchingProtocols, resp.StatusCode)
 	require.Equal(t, "custom", resp.Header.Get("Upgrade"))
 }
 
@@ -68,7 +68,7 @@ func TestHandlerConnectionUpgrade(t *testing.T) {
 
 			n, err := conn.Write([]byte(expectedPayload))
 			require.NoError(t, err)
-			require.Equal(t, len(expectedPayload), n)
+			require.Len(t, expectedPayload, n)
 		}()
 		return nil
 	}

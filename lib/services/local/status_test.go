@@ -115,7 +115,7 @@ func TestClusterAlerts(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	require.Len(t, alerts, 0)
+	require.Empty(t, alerts)
 
 	// empty query returns all alerts
 	alerts, err = status.GetClusterAlerts(ctx, types.GetClusterAlertsRequest{})
@@ -126,5 +126,5 @@ func TestClusterAlerts(t *testing.T) {
 	clock.Advance(time.Hour * 24)
 	alerts, err = status.GetClusterAlerts(ctx, types.GetClusterAlertsRequest{})
 	require.NoError(t, err)
-	require.Len(t, alerts, 0)
+	require.Empty(t, alerts)
 }

@@ -110,7 +110,7 @@ func (a *App) run(ctx context.Context) error {
 	watcherJob, err := watcherjob.NewJob(
 		a.teleport,
 		watcherjob.Config{
-			Watch:            types.Watch{Kinds: []types.WatchKind{types.WatchKind{Kind: types.KindAccessRequest}}},
+			Watch:            types.Watch{Kinds: []types.WatchKind{{Kind: types.KindAccessRequest}}},
 			EventFuncTimeout: handlerTimeout,
 		},
 		a.onWatcherEvent,
@@ -147,7 +147,7 @@ func (a *App) init(ctx context.Context) error {
 	)
 
 	if a.teleport == nil {
-		if a.teleport, err = a.conf.Teleport.NewClient(ctx); err != nil {
+		if a.teleport, err = common.GetTeleportClient(ctx, a.conf.Teleport); err != nil {
 			return trace.Wrap(err)
 		}
 	}

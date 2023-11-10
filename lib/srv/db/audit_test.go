@@ -75,6 +75,68 @@ func TestAuditPostgres(t *testing.T) {
 	requireEvent(t, testCtx, libevents.PostgresBindCode)
 	requireEvent(t, testCtx, libevents.PostgresExecuteCode)
 
+	bindTests := []struct {
+		desc        string
+		sql         string
+		params      [][]byte
+		formatCodes []int16
+		wantParams  []string
+	}{
+		{
+			desc:       "zero format codes applies text format to all params",
+			sql:        "select $1, $2",
+			params:     [][]byte{[]byte("fish"), []byte("cat")},
+			wantParams: []string{"fish", "cat"},
+		},
+		{
+			desc:        "one text format codes applies text format to all params",
+			sql:         "select $1, $2",
+			params:      [][]byte{[]byte("fish"), []byte("cat")},
+			formatCodes: []int16{0}, // text format.
+			wantParams:  []string{"fish", "cat"},
+		},
+		{
+			desc:        "one binary format codes applies binary format to all params",
+			sql:         "select $1, $2",
+			params:      [][]byte{[]byte("fish"), []byte("cat")},
+			formatCodes: []int16{1}, // binary format.
+			// event should encode binary as base64 strings.
+			wantParams: []string{"ZmlzaA==", "Y2F0"},
+		},
+		{
+			desc:        "apply corresponding format code to each param",
+			sql:         "select $1, $2, $3",
+			params:      [][]byte{[]byte("fish"), []byte("cat"), []byte("dog")},
+			formatCodes: []int16{1, 0, 0}, // binary, text, text format.
+			wantParams:  []string{"ZmlzaA==", "cat", "dog"},
+		},
+		{
+			desc:        "more than one format codes but fewer than params is invalid bind",
+			sql:         "select $1, $2, $3",
+			params:      [][]byte{[]byte("fish"), []byte("cat"), []byte("dog")},
+			formatCodes: []int16{1, 0}, // binary, text.
+			wantParams:  nil,           // don't log params for invalid bind.
+		},
+		{
+			desc:        "more format codes than params is invalid bind",
+			sql:         "select $1, $2",
+			params:      [][]byte{[]byte("fish"), []byte("cat")},
+			formatCodes: []int16{1, 0, 0}, // binary, text, text(missing)
+			wantParams:  nil,              // don't log params for invalid bind.
+		},
+	}
+	for _, test := range bindTests {
+		t.Run(test.desc, func(t *testing.T) {
+			resultUnnamed := psql.ExecParams(ctx, test.sql, test.params, nil, test.formatCodes, nil).Read()
+			require.NotNil(t, resultUnnamed)
+			require.NoError(t, resultUnnamed.Err)
+			requireEvent(t, testCtx, libevents.PostgresParseCode)
+			event := requireBindEvent(t, testCtx)
+			require.Equal(t, test.wantParams, event.Parameters)
+			requireEvent(t, testCtx, libevents.PostgresExecuteCode)
+		})
+	}
+
 	// Closing connection should trigger session end event.
 	err = psql.Close(ctx)
 	require.NoError(t, err)
@@ -280,23 +342,37 @@ func TestAuditClickHouseHTTP(t *testing.T) {
 }
 
 func assertDatabaseQueryFromAuditEvent(t *testing.T, event events.AuditEvent, wantQuery string) {
+	t.Helper()
 	query, ok := event.(*events.DatabaseSessionQuery)
 	require.True(t, ok)
 	require.Equal(t, wantQuery, query.DatabaseQuery)
 }
 
-func requireEvent(t *testing.T, testCtx *testContext, code string) {
+func requireBindEvent(t *testing.T, testCtx *testContext) *events.PostgresBind {
+	t.Helper()
+	event := requireEvent(t, testCtx, libevents.PostgresBindCode)
+	bindEvent, ok := event.(*events.PostgresBind)
+	require.True(t, ok)
+	require.NotNil(t, bindEvent)
+	return bindEvent
+}
+
+func requireEvent(t *testing.T, testCtx *testContext, code string) events.AuditEvent {
+	t.Helper()
 	event := waitForAnyEvent(t, testCtx)
 	require.Equal(t, code, event.GetCode())
+	return event
 }
 
 func requireQueryEvent(t *testing.T, testCtx *testContext, code, query string) {
+	t.Helper()
 	event := waitForAnyEvent(t, testCtx)
 	require.Equal(t, code, event.GetCode())
 	require.Equal(t, query, event.(*events.DatabaseSessionQuery).DatabaseQuery)
 }
 
 func waitForAnyEvent(t *testing.T, testCtx *testContext) events.AuditEvent {
+	t.Helper()
 	select {
 	case event := <-testCtx.emitter.C():
 		return event
@@ -308,6 +384,7 @@ func waitForAnyEvent(t *testing.T, testCtx *testContext) events.AuditEvent {
 
 // waitForEvent waits for particular event code ignoring other events.
 func waitForEvent(t *testing.T, testCtx *testContext, code string) events.AuditEvent {
+	t.Helper()
 	for {
 		select {
 		case event := <-testCtx.emitter.C():

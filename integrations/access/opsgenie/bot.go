@@ -24,6 +24,8 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/accesslist"
+	"github.com/gravitational/teleport/integrations/access/accessrequest"
 	"github.com/gravitational/teleport/integrations/access/common"
 	pd "github.com/gravitational/teleport/integrations/lib/plugindata"
 )
@@ -43,8 +45,13 @@ func (b *Bot) CheckHealth(ctx context.Context) error {
 	return trace.Wrap(b.client.CheckHealth(ctx))
 }
 
-// Broadcast creates an alert for the provided recipients (schedules)
-func (b *Bot) Broadcast(ctx context.Context, recipients []common.Recipient, reqID string, reqData pd.AccessRequestData) (data common.SentMessages, err error) {
+// SendReviewReminders will send a review reminder that an access list needs to be reviewed.
+func (b Bot) SendReviewReminders(ctx context.Context, recipients []common.Recipient, accessList *accesslist.AccessList) error {
+	return trace.NotImplemented("access list review reminder is not yet implemented")
+}
+
+// BroadcastAccessRequestMessage creates an alert for the provided recipients (schedules)
+func (b *Bot) BroadcastAccessRequestMessage(ctx context.Context, recipients []common.Recipient, reqID string, reqData pd.AccessRequestData) (data accessrequest.SentMessages, err error) {
 	schedules := []string{}
 	for _, recipient := range recipients {
 		schedules = append(schedules, recipient.Name)
@@ -70,7 +77,7 @@ func (b *Bot) Broadcast(ctx context.Context, recipients []common.Recipient, reqI
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	data = common.SentMessages{{
+	data = accessrequest.SentMessages{{
 		ChannelID: opsgenieData.ServiceID,
 		MessageID: opsgenieData.AlertID,
 	}}
@@ -86,7 +93,7 @@ func (b *Bot) PostReviewReply(ctx context.Context, _ string, alertID string, rev
 
 // UpdateMessages add notes to the alert containing updates to status.
 // This will also resolve alerts based on the resolution tag.
-func (b *Bot) UpdateMessages(ctx context.Context, reqID string, data pd.AccessRequestData, alertData common.SentMessages, reviews []types.AccessReview) error {
+func (b *Bot) UpdateMessages(ctx context.Context, reqID string, data pd.AccessRequestData, alertData accessrequest.SentMessages, reviews []types.AccessReview) error {
 	var errs []error
 	for _, alert := range alertData {
 		resolution := Resolution{
@@ -102,10 +109,10 @@ func (b *Bot) UpdateMessages(ctx context.Context, reqID string, data pd.AccessRe
 }
 
 // FetchRecipient returns the recipient for the given raw recipient.
-func (b *Bot) FetchRecipient(ctx context.Context, recipient string) (*common.Recipient, error) {
+func (b *Bot) FetchRecipient(ctx context.Context, name string) (*common.Recipient, error) {
 	return &common.Recipient{
-		Name: recipient,
-		ID:   recipient,
+		Name: name,
+		ID:   name,
 		Kind: common.RecipientKindSchedule,
 	}, nil
 }

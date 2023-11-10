@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"math"
 	"net/url"
 	"sort"
@@ -282,6 +283,9 @@ func New(ctx context.Context, cfg Config) (*Log, error) {
 
 	// Explicitly enable or disable FIPS endpoints for DynamoDB
 	b.session.Config.UseFIPSEndpoint = events.FIPSProtoStateToAWSState(cfg.UseFIPSEndpoint)
+
+	// Explicitly disable IMDSv1 fallback
+	b.session.Config.EC2MetadataEnableFallback = aws.Bool(false)
 
 	// create DynamoDB service:
 	svc, err := dynamometrics.NewAPIMetrics(dynamometrics.Events, dynamodb.New(b.session))
@@ -1111,9 +1115,7 @@ dateLoop:
 		for i, eventType := range l.filter.eventTypes {
 			attributes[fmt.Sprintf(":eventType%d", i)] = eventType
 		}
-		for k, v := range l.filter.condParams.attrValues {
-			attributes[k] = v
-		}
+		maps.Copy(attributes, l.filter.condParams.attrValues)
 		attributeValues, err := dynamodbattribute.MarshalMap(attributes)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -1174,9 +1176,8 @@ func (l *eventsFetcher) QueryBySessionIDIndex(ctx context.Context, sessionID str
 	for i, eventType := range l.filter.eventTypes {
 		attributes[fmt.Sprintf(":eventType%d", i)] = eventType
 	}
-	for k, v := range l.filter.condParams.attrValues {
-		attributes[k] = v
-	}
+	maps.Copy(attributes, l.filter.condParams.attrValues)
+
 	attributeValues, err := dynamodbattribute.MarshalMap(attributes)
 	if err != nil {
 		return nil, trace.Wrap(err)

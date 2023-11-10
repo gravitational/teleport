@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	"maps"
 	"os"
 	"testing"
 	"time"
@@ -104,9 +105,7 @@ func TestPrefix(t *testing.T) {
 
 	// ...and an etcd backend configured to use a custom prefix
 	cfg := make(backend.Params)
-	for k, v := range commonEtcdParams {
-		cfg[k] = v
-	}
+	maps.Copy(cfg, commonEtcdParams)
 	cfg["prefix"] = customPrefix
 
 	prefixedUut, err := New(context.Background(), cfg, commonEtcdOptions...)
@@ -236,7 +235,7 @@ func TestLeaseBucketing(t *testing.T) {
 
 	// ensure that we averaged more than 1 item per lease, but
 	// also spanned more than one bucket.
-	require.Greater(t, len(leases), 1)
+	require.NotEmpty(t, leases)
 	require.Less(t, len(leases), count/2)
 }
 

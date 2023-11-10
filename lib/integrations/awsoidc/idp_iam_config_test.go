@@ -189,7 +189,11 @@ func (m *mockIdPIAMConfigClient) CreateRole(ctx context.Context, params *iam.Cre
 	}
 	m.existingRoles = append(m.existingRoles, *params.RoleName)
 
-	return nil, nil
+	return &iam.CreateRoleOutput{
+		Role: &iamTypes.Role{
+			Arn: aws.String("arn:something"),
+		},
+	}, nil
 }
 
 // CreateOpenIDConnectProvider creates an IAM OpenID Connect Provider.

@@ -36,6 +36,6 @@ func TestChangedMethods(t *testing.T) {
 	assert.True(t, r.HasNew())
 	assert.True(t, r.HasChanged())
 
-	assert.Equal(t, r.New, []Method{{Name: "TestFourth", SHA1: "035a07a1e38e5387cd682b2c6b37114d187fa3d2", RefName: "TestFourth"}})
-	assert.Equal(t, r.Changed, []Method{{Name: "TestFirst", SHA1: "f045d205e581369b1c7c4148086c838c710f97c8", RefName: "TestFirst"}})
+	assert.Equal(t, []Method{{Name: "TestFourth", SHA1: "035a07a1e38e5387cd682b2c6b37114d187fa3d2", RefName: "TestFourth"}}, r.New)
+	assert.Equal(t, []Method{{Name: "TestFirst", SHA1: "f045d205e581369b1c7c4148086c838c710f97c8", RefName: "TestFirst"}}, r.Changed)
 }

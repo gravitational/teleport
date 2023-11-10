@@ -2,16 +2,16 @@ module github.com/gravitational/teleport
 
 go 1.21
 
-toolchain go1.21.3
+toolchain go1.21.4
 
 require (
-	cloud.google.com/go/compute v1.23.2
+	cloud.google.com/go/compute v1.23.3
 	cloud.google.com/go/compute/metadata v0.2.3
-	cloud.google.com/go/container v1.27.0
+	cloud.google.com/go/container v1.27.1
 	cloud.google.com/go/firestore v1.14.0
-	cloud.google.com/go/iam v1.1.4
-	cloud.google.com/go/kms v1.15.4
-	cloud.google.com/go/storage v1.34.0
+	cloud.google.com/go/iam v1.1.5
+	cloud.google.com/go/kms v1.15.5
+	cloud.google.com/go/storage v1.34.1
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.8.0
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.4.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v3 v3.0.1
@@ -36,25 +36,25 @@ require (
 	github.com/andybalholm/brotli v1.0.6
 	github.com/aquasecurity/libbpfgo v0.5.1-libbpf-1.2
 	github.com/armon/go-radix v1.0.0
-	github.com/aws/aws-sdk-go v1.47.0
-	github.com/aws/aws-sdk-go-v2 v1.22.0
-	github.com/aws/aws-sdk-go-v2/config v1.20.0
-	github.com/aws/aws-sdk-go-v2/credentials v1.14.0
-	github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue v1.11.0
-	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.14.0
-	github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.12.0
-	github.com/aws/aws-sdk-go-v2/service/athena v1.33.0
-	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.24.0
-	github.com/aws/aws-sdk-go-v2/service/ec2 v1.129.0
-	github.com/aws/aws-sdk-go-v2/service/ec2instanceconnect v1.18.0
-	github.com/aws/aws-sdk-go-v2/service/ecs v1.31.0
-	github.com/aws/aws-sdk-go-v2/service/glue v1.65.0
-	github.com/aws/aws-sdk-go-v2/service/iam v1.25.0
-	github.com/aws/aws-sdk-go-v2/service/rds v1.60.0
-	github.com/aws/aws-sdk-go-v2/service/s3 v1.41.0
-	github.com/aws/aws-sdk-go-v2/service/sns v1.24.0
-	github.com/aws/aws-sdk-go-v2/service/sqs v1.25.0
-	github.com/aws/aws-sdk-go-v2/service/sts v1.24.0
+	github.com/aws/aws-sdk-go v1.47.3
+	github.com/aws/aws-sdk-go-v2 v1.22.1
+	github.com/aws/aws-sdk-go-v2/config v1.22.0
+	github.com/aws/aws-sdk-go-v2/credentials v1.15.1
+	github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue v1.12.0
+	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.14.2
+	github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.13.1
+	github.com/aws/aws-sdk-go-v2/service/athena v1.34.0
+	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.25.0
+	github.com/aws/aws-sdk-go-v2/service/ec2 v1.130.0
+	github.com/aws/aws-sdk-go-v2/service/ec2instanceconnect v1.19.0
+	github.com/aws/aws-sdk-go-v2/service/ecs v1.32.0
+	github.com/aws/aws-sdk-go-v2/service/glue v1.67.0
+	github.com/aws/aws-sdk-go-v2/service/iam v1.26.0
+	github.com/aws/aws-sdk-go-v2/service/rds v1.61.0
+	github.com/aws/aws-sdk-go-v2/service/s3 v1.42.0
+	github.com/aws/aws-sdk-go-v2/service/sns v1.25.0
+	github.com/aws/aws-sdk-go-v2/service/sqs v1.26.0
+	github.com/aws/aws-sdk-go-v2/service/sts v1.25.0
 	github.com/aws/aws-sigv4-auth-cassandra-gocql-driver-plugin v0.0.0-20220331165046-e4d000c0d6a6
 	github.com/aws/smithy-go v1.16.0
 	github.com/beevik/etree v1.2.0
@@ -92,7 +92,7 @@ require (
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510
 	github.com/google/uuid v1.4.0
 	github.com/googleapis/gax-go/v2 v2.12.0
-	github.com/gorilla/websocket v1.5.0
+	github.com/gorilla/websocket v1.5.1
 	github.com/gravitational/form v0.0.0-20151109031454-c4048f792f70
 	github.com/gravitational/license v0.0.0-20210218173955-6d8fb49b117a
 	github.com/gravitational/oxy v0.0.0-20221029012416-9fbf4c444680
@@ -109,7 +109,7 @@ require (
 	github.com/jackc/pgproto3/v2 v2.3.2
 	github.com/jackc/pgtype v1.14.0
 	github.com/jackc/pgx/v4 v4.18.1
-	github.com/jackc/pgx/v5 v5.4.3
+	github.com/jackc/pgx/v5 v5.5.0
 	github.com/jcmturner/gokrb5/v8 v8.4.4
 	github.com/johannesboyne/gofakes3 v0.0.0-20210217223559-02ffa763be97
 	github.com/jonboulle/clockwork v0.4.0
@@ -121,7 +121,7 @@ require (
 	github.com/mailgun/lemma v0.0.0-20170619173223-4214099fb348
 	github.com/mailgun/timetools v0.0.0-20170619190023-f3a7b8ffff47
 	github.com/mailgun/ttlmap v0.0.0-20170619185759-c1c17f74874f
-	github.com/mattn/go-sqlite3 v1.14.17
+	github.com/mattn/go-sqlite3 v1.14.18
 	github.com/mdlayher/netlink v1.7.2
 	github.com/microsoft/go-mssqldb v0.0.0-00010101000000-000000000000 // replaced
 	github.com/miekg/pkcs11 v1.1.1
@@ -146,7 +146,7 @@ require (
 	github.com/sijms/go-ora/v2 v2.7.9
 	github.com/sirupsen/logrus v1.9.3
 	github.com/snowflakedb/gosnowflake v1.6.25
-	github.com/spf13/cobra v1.7.0
+	github.com/spf13/cobra v1.8.0
 	github.com/stretchr/testify v1.8.4
 	github.com/tiktoken-go/tokenizer v0.1.0
 	github.com/ucarion/urlpath v0.0.0-20200424170820-7ccc79b76bbb
@@ -166,14 +166,14 @@ require (
 	go.opentelemetry.io/proto/otlp v1.0.0
 	golang.org/x/crypto v0.14.0
 	golang.org/x/exp v0.0.0-20230811145659-89c5cff77bcb
-	golang.org/x/mod v0.13.0
+	golang.org/x/mod v0.14.0
 	golang.org/x/net v0.17.0
 	golang.org/x/oauth2 v0.13.0
-	golang.org/x/sync v0.4.0
-	golang.org/x/sys v0.13.0
+	golang.org/x/sync v0.5.0
+	golang.org/x/sys v0.14.0
 	golang.org/x/term v0.13.0
-	golang.org/x/text v0.13.0
-	golang.org/x/time v0.3.0
+	golang.org/x/text v0.14.0
+	golang.org/x/time v0.4.0
 	google.golang.org/api v0.149.0
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20231016165738-49dd2c1f3d0b
 	google.golang.org/grpc v1.59.0
@@ -225,18 +225,18 @@ require (
 	github.com/apache/arrow/go/v12 v12.0.1 // indirect
 	github.com/apache/thrift v0.16.0 // indirect
 	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.5.0 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/configsources v1.2.0 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.5.0 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/ini v1.4.0 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/v4a v1.2.0 // indirect
-	github.com/aws/aws-sdk-go-v2/service/dynamodbstreams v1.16.0 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/configsources v1.2.1 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.5.1 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/ini v1.5.0 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/v4a v1.2.1 // indirect
+	github.com/aws/aws-sdk-go-v2/service/dynamodbstreams v1.17.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.10.0 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.2.0 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/endpoint-discovery v1.8.0 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.10.0 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.16.0 // indirect
-	github.com/aws/aws-sdk-go-v2/service/sso v1.16.0 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.18.0 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.2.1 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/endpoint-discovery v1.8.1 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.10.1 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.16.1 // indirect
+	github.com/aws/aws-sdk-go-v2/service/sso v1.17.0 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.19.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/blang/semver/v4 v4.0.0 // indirect
 	github.com/boombuler/barcode v1.0.1 // indirect

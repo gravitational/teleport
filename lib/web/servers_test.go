@@ -144,7 +144,7 @@ func TestCreateNode(t *testing.T) {
 			resp, err := pack.clt.PostJSON(ctx, createNodeEndpoint, tt.req)
 			tt.errAssert(t, err)
 
-			require.Equal(t, resp.Code(), tt.expectedStatus, "invalid status code received")
+			require.Equal(t, tt.expectedStatus, resp.Code(), "invalid status code received")
 
 			if err != nil {
 				continue

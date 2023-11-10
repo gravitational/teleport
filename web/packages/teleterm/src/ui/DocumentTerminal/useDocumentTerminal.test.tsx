@@ -37,6 +37,7 @@ import { IPtyProcess } from 'teleterm/sharedProcess/ptyHost';
 import {
   makeRootCluster,
   makeLeafCluster,
+  makeServer,
 } from 'teleterm/services/tshd/testHelpers';
 
 import { WorkspaceContextProvider } from '../Documents';
@@ -58,18 +59,14 @@ beforeEach(() => {
 const rootClusterUri = '/clusters/test' as const;
 const leafClusterUri = `${rootClusterUri}/leaves/leaf` as const;
 const serverUUID = 'bed30649-3af5-40f1-a832-54ff4adcca41';
-const server: tsh.Server = {
+const server: tsh.Server = makeServer({
   uri: `${rootClusterUri}/servers/${serverUUID}`,
-  tunnel: false,
   name: serverUUID,
-  hostname: 'foo',
-  addr: 'foo.localhost',
-  labelsList: [],
-};
-const leafServer: tsh.Server = {
+});
+const leafServer = makeServer({
   ...server,
   uri: `${leafClusterUri}/servers/${serverUUID}`,
-};
+});
 
 const getDocTshNodeWithServerId: () => DocumentTshNodeWithServerId = () => ({
   kind: 'doc.terminal_tsh_node',

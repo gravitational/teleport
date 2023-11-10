@@ -91,17 +91,17 @@ func TestAppliesLDAPLabels(t *testing.T) {
 	s.applyLabelsFromLDAP(entry, l)
 
 	// check default labels
-	require.Equal(t, l[types.OriginLabel], types.OriginDynamic)
-	require.Equal(t, l[types.DiscoveryLabelWindowsDNSHostName], "foo.example.com")
-	require.Equal(t, l[types.DiscoveryLabelWindowsComputerName], "foo")
-	require.Equal(t, l[types.DiscoveryLabelWindowsOS], "Windows Server")
-	require.Equal(t, l[types.DiscoveryLabelWindowsOSVersion], "6.1")
+	require.Equal(t, types.OriginDynamic, l[types.OriginLabel])
+	require.Equal(t, "foo.example.com", l[types.DiscoveryLabelWindowsDNSHostName])
+	require.Equal(t, "foo", l[types.DiscoveryLabelWindowsComputerName])
+	require.Equal(t, "Windows Server", l[types.DiscoveryLabelWindowsOS])
+	require.Equal(t, "6.1", l[types.DiscoveryLabelWindowsOSVersion])
 
 	// check OU label
-	require.Equal(t, l[types.DiscoveryLabelWindowsOU], "OU=IT,DC=goteleport,DC=com")
+	require.Equal(t, "OU=IT,DC=goteleport,DC=com", l[types.DiscoveryLabelWindowsOU])
 
 	// check custom labels
-	require.Equal(t, l["ldap/bar"], "baz")
+	require.Equal(t, "baz", l["ldap/bar"])
 	require.Empty(t, l["ldap/quux"])
 }
 

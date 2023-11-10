@@ -911,8 +911,8 @@ type Cache interface {
 	// GetUser returns a services.User for this cluster.
 	GetUser(ctx context.Context, name string, withSecrets bool) (types.User, error)
 
-	// GetUsers returns a list of local users registered with this domain
-	GetUsers(ctx context.Context, withSecrets bool) ([]types.User, error)
+	// ListUsers returns a page of users.
+	ListUsers(ctx context.Context, pageSize int, nextToken string, withSecrets bool) ([]types.User, string, error)
 
 	// GetRole returns role by name
 	GetRole(ctx context.Context, name string) (types.Role, error)

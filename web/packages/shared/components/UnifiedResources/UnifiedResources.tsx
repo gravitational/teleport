@@ -23,10 +23,10 @@ import {
   ButtonLink,
   ButtonSecondary,
   Text,
-  ButtonBorder,
   Popover,
+  ButtonBorder,
 } from 'design';
-import { Magnifier, PushPin } from 'design/Icon';
+import { Icon, Magnifier, PushPin } from 'design/Icon';
 import { Danger } from 'design/Alert';
 
 import './unifiedStyles.css';
@@ -100,14 +100,38 @@ export type UnifiedResourcesPinning =
       kind: 'hidden';
     };
 
+/*
+ * BulkAction describes a component that allows you to perform an action
+ * on multiple selected resources
+ */
+type BulkAction = {
+  /*
+   * key is an arbitrary name of what the bulk action is, as well
+   * as the key used when mapping our action components
+   */
+  key: string;
+  Icon: typeof Icon;
+  text: string;
+  disabled?: boolean;
+  /*
+   * a tooltip will be rendered when the action is hovered
+   * over if this prop is supplied
+   */
+  tooltip?: string;
+  action: (
+    selectedResources: {
+      unifiedResourceId: string;
+      resource: SharedUnifiedResource['resource'];
+    }[]
+  ) => void;
+};
+
 interface UnifiedResourcesProps {
   params: UnifiedResourcesQueryParams;
   resourcesFetchAttempt: Attempt;
   fetchResources(options?: { force?: boolean }): Promise<void>;
   resources: SharedUnifiedResource[];
-  //TODO(gzdunek): the pin button should be moved to some other place
-  //according to the new designs
-  Header(pinAllButton: React.ReactElement): React.ReactElement;
+  Header?: React.ReactElement;
   /**
    * Typically used to inform the user that there are no matching resources when
    * they want to list resources without filtering the list with a search query.
@@ -122,6 +146,8 @@ interface UnifiedResourcesProps {
   availableKinds: SharedUnifiedResource['resource']['kind'][];
   setParams(params: UnifiedResourcesQueryParams): void;
   onLabelClick(label: ResourceLabel): void;
+  /** A list of actions that can be performed on the selected items. */
+  bulkActions?: BulkAction[];
   updateUnifiedResourcesPreferences(
     preferences: UnifiedResourcePreferences
   ): void;
@@ -138,6 +164,7 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
     availableKinds,
     pinning,
     updateUnifiedResourcesPreferences,
+    bulkActions = [],
   } = props;
 
   const { setTrigger } = useInfiniteScroll({
@@ -242,8 +269,8 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
 
   const allSelected =
     resources.length > 0 &&
-    resources.every(resource =>
-      selectedResources.includes(generateResourceKey(resource))
+    resources.every(({ resource }) =>
+      selectedResources.includes(generateUnifiedResourceKey(resource))
     );
 
   const toggleSelectVisible = () => {
@@ -252,7 +279,7 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
       return;
     }
     setSelectedResources(
-      resources.map(resource => generateResourceKey(resource))
+      resources.map(({ resource }) => generateUnifiedResourceKey(resource))
     );
   };
 
@@ -267,21 +294,39 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
     updateUnifiedResourcesPreferences({ defaultTab: value });
   };
 
-  const $pinAllButton = (
-    <ButtonBorder
-      onClick={() => handlePinSelected(shouldUnpin)}
-      textTransform="none"
-      disabled={pinning.kind === 'not-supported'}
-      css={`
-        border: none;
-        color: ${props => props.theme.colors.brand};
-      `}
-    >
-      <PushPin color="brand" size={16} mr={2} />
-      {shouldUnpin ? 'Unpin ' : 'Pin '}
-      Selected
-    </ButtonBorder>
-  );
+  const getSelectedResources = () => {
+    return resources
+      .filter(({ resource }) =>
+        selectedResources.includes(generateUnifiedResourceKey(resource))
+      )
+      .map(({ resource }) => ({
+        resource: resource,
+        unifiedResourceId: generateUnifiedResourceKey(resource),
+      }));
+  };
+
+  const bulkActionsAndPinning = (): BulkAction[] => {
+    if (pinning.kind === 'hidden') {
+      return bulkActions;
+    }
+
+    return [
+      ...bulkActions,
+      {
+        key: 'pin_resource',
+        text: shouldUnpin ? 'Unpin Selected' : 'Pin Selected',
+        Icon: PushPin,
+        tooltip:
+          pinning.kind !== 'not-supported'
+            ? PINNING_NOT_SUPPORTED_MESSAGE
+            : null,
+        disabled:
+          pinning.kind === 'not-supported' ||
+          updatePinnedResourcesAttempt.status === 'processing',
+        action: () => handlePinSelected(shouldUnpin),
+      },
+    ];
+  };
 
   return (
     <div
@@ -294,7 +339,13 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
     >
       {resourcesFetchAttempt.status === 'failed' && (
         <ErrorBox>
-          <ErrorBoxInternal>
+          {/* If pinning is hidden, we hide the different tabs to select a view (All resources, pinning).
+              This causes this error box to cover the search bar. If pinning isn't supported, we push down the
+              error by 60px to not hide the search bar.
+          */}
+          <ErrorBoxInternal
+            topPadding={pinning.kind === 'hidden' ? '60px' : '0px'}
+          >
             <Danger>
               {resourcesFetchAttempt.statusText}
               {/* we don't want them to try another request with BAD REQUEST, it will just fail again. */}
@@ -317,26 +368,49 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
           <Danger>{updatePinnedResourcesAttempt.statusText}</Danger>
         </ErrorBox>
       )}
-      {props.Header(
-        <>
-          {selectedResources.length > 0 &&
-            pinning.kind !== 'hidden' &&
-            (pinning.kind === 'not-supported' ? (
-              <HoverTooltip tipContent={<>{PINNING_NOT_SUPPORTED_MESSAGE}</>}>
-                {$pinAllButton}
-              </HoverTooltip>
-            ) : (
-              $pinAllButton
-            ))}
-        </>
-      )}
+      {props.Header}
       <FilterPanel
         params={params}
         setParams={setParams}
         availableKinds={availableKinds}
         selectVisible={toggleSelectVisible}
         selected={allSelected}
-        shouldUnpin={shouldUnpin}
+        BulkActions={
+          <>
+            {selectedResources.length > 0 && (
+              <>
+                {bulkActionsAndPinning().map(
+                  ({ key, Icon, text, action, tooltip, disabled = false }) => {
+                    const $button = (
+                      <ButtonBorder
+                        key={key}
+                        data-testid={key}
+                        textTransform="none"
+                        onClick={() => action(getSelectedResources())}
+                        disabled={disabled}
+                        css={`
+                          border: none;
+                          color: ${props => props.theme.colors.brand};
+                        `}
+                      >
+                        <Icon size="small" color="brand" mr={2} />
+                        {text}
+                      </ButtonBorder>
+                    );
+                    if (tooltip) {
+                      return (
+                        <HoverTooltip tipContent={<>{tooltip}</>}>
+                          {$button}
+                        </HoverTooltip>
+                      );
+                    }
+                    return $button;
+                  }
+                )}
+              </>
+            )}
+          </>
+        }
       />
       {pinning.kind !== 'hidden' && (
         <Flex gap={4} mb={3}>
@@ -365,7 +439,7 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
           {resources
             .map(unifiedResource => ({
               card: mapResourceToCard(unifiedResource),
-              key: generateResourceKey(unifiedResource),
+              key: generateUnifiedResourceKey(unifiedResource.resource),
             }))
             .map(({ card, key }) => (
               <ResourceCard
@@ -445,7 +519,9 @@ function getResourcePinningSupport(
   return PinningSupport.Supported;
 }
 
-function generateResourceKey({ resource }: SharedUnifiedResource): string {
+export function generateUnifiedResourceKey(
+  resource: SharedUnifiedResource['resource']
+): string {
   if (resource.kind === 'node') {
     return `${resource.hostname}/${resource.id}/node`.toLowerCase();
   }
@@ -515,6 +591,7 @@ const ErrorBoxInternal = styled(Box)`
   position: absolute;
   left: 0;
   right: 0;
+  top: ${props => props.topPadding};
   margin: ${props => props.theme.space[1]}px 10% 0 10%;
 `;
 

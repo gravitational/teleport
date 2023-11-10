@@ -112,6 +112,8 @@ export function TopBar({ hidePopup = false }: TopBarProps) {
     // When we switch clusters (to leaf or root), we remove the item and perform the check again by pushing
     // to the resource (new default view).
     window.localStorage.removeItem(KeysEnum.UNIFIED_RESOURCES_NOT_SUPPORTED);
+    // we also need to reset the pinned resources flag when we switch clusters to try again
+    window.localStorage.removeItem(KeysEnum.PINNED_RESOURCES_NOT_SUPPORTED);
     const legacyResourceRoutes = [
       cfg.getNodesRoute(clusterId),
       cfg.getAppsRoute(clusterId),

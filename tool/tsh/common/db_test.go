@@ -261,8 +261,8 @@ func testDatabaseLogin(t *testing.T) {
 			// grab the certs using the actual database name to verify certs.
 			certs, keys, err := decodePEM(profile.DatabaseCertPathForCluster("", test.databaseName))
 			require.NoError(t, err)
-			require.Equal(t, test.expectCertsLen, len(certs)) // don't use require.Len, because it spams PEM bytes on fail.
-			require.Equal(t, test.expectKeysLen, len(keys))   // don't use require.Len, because it spams PEM bytes on fail.
+			require.Len(t, certs, test.expectCertsLen)
+			require.Len(t, keys, test.expectKeysLen)
 
 			t.Run("print info", func(t *testing.T) {
 				// organize these as parallel subtests in a group, so we can run

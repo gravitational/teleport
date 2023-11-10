@@ -18,7 +18,7 @@ import React, { useState } from 'react';
 import styled from 'styled-components';
 import { ButtonBorder, ButtonPrimary, ButtonSecondary } from 'design/Button';
 import { SortDir } from 'design/DataTable/types';
-import { Text, Flex } from 'design';
+import { Text, Flex, Box } from 'design';
 import Menu, { MenuItem } from 'design/Menu';
 import { StyledCheckbox } from 'design/Checkbox';
 import { ArrowUp, ArrowDown, ChevronDown } from 'design/Icon';
@@ -46,7 +46,7 @@ interface FilterPanelProps {
   setParams: (params: UnifiedResourcesQueryParams) => void;
   selectVisible: () => void;
   selected: boolean;
-  shouldUnpin: boolean;
+  BulkActions?: React.ReactElement;
 }
 
 export function FilterPanel({
@@ -55,7 +55,7 @@ export function FilterPanel({
   setParams,
   selectVisible,
   selected,
-  shouldUnpin,
+  BulkActions,
 }: FilterPanelProps) {
   const { sort, kinds } = params;
 
@@ -76,12 +76,22 @@ export function FilterPanel({
   };
 
   return (
-    <Flex mb={2} justifyContent="space-between">
+    // minHeight is set to 32px so there isn't layout shift when a bulk action button shows up
+    <Flex
+      mb={2}
+      justifyContent="space-between"
+      minHeight="32px"
+      alignItems="center"
+    >
       <Flex gap={2}>
         <HoverTooltip
-          tipContent={<>{shouldUnpin ? 'Deselect all' : 'Select all'}</>}
+          tipContent={<>{selected ? 'Deselect all' : 'Select all'}</>}
         >
-          <StyledCheckbox checked={selected} onChange={selectVisible} />
+          <StyledCheckbox
+            checked={selected}
+            onChange={selectVisible}
+            data-testid="select_all"
+          />
         </HoverTooltip>
         <FilterTypesMenu
           onChange={onKindsChanged}
@@ -89,12 +99,15 @@ export function FilterPanel({
           kindsFromParams={kinds || []}
         />
       </Flex>
-      <SortMenu
-        onDirChange={onSortOrderButtonClicked}
-        onChange={onSortFieldChange}
-        sortType={activeSortFieldOption.label}
-        sortDir={sort.dir}
-      />
+      <Flex alignItems="center">
+        <Box mr={4}>{BulkActions}</Box>
+        <SortMenu
+          onDirChange={onSortOrderButtonClicked}
+          onChange={onSortFieldChange}
+          sortType={activeSortFieldOption.label}
+          sortDir={sort.dir}
+        />
+      </Flex>
     </Flex>
   );
 }

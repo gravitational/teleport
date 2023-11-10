@@ -226,7 +226,7 @@ func (c *Cluster) localMFALogin(user, password string) client.SSHLoginFunc {
 			},
 			User:      user,
 			Password:  password,
-			PromptMFA: c.clusterClient.PromptMFA,
+			PromptMFA: c.clusterClient.NewMFAPrompt(),
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)

@@ -67,9 +67,11 @@ import (
 	secreportsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/secreports/v1"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	userloginstatev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/userloginstate/v1"
+	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	userpreferencespb "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/metadata"
+	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
@@ -629,9 +631,9 @@ type Config struct {
 	// PROXYHeaderGetter returns signed PROXY header that is sent to allow Proxy to propagate client's real IP to the
 	// auth server from the Proxy's web server, when we create user's client for the web session.
 	PROXYHeaderGetter PROXYHeaderGetter
-	// PromptAdminRequestMFA is used to prompt the user for MFA on admin requests when needed.
+	// MFAPromptConstructor is used to create MFA prompts when needed.
 	// If nil, the client will not prompt for MFA.
-	PromptAdminRequestMFA func(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error)
+	MFAPromptConstructor mfa.PromptConstructor
 }
 
 // CheckAndSetDefaults checks and sets default config values.
@@ -691,6 +693,11 @@ func (c *Client) Dialer() ContextDialer {
 // GetConnection returns gRPC connection.
 func (c *Client) GetConnection() *grpc.ClientConn {
 	return c.conn
+}
+
+// SetMFAPromptConstructor sets the MFA prompt constructor for this client.
+func (c *Client) SetMFAPromptConstructor(pc mfa.PromptConstructor) {
+	c.c.MFAPromptConstructor = pc
 }
 
 // Close closes the Client connection to the auth server.
@@ -852,13 +859,39 @@ func (c *Client) CreateUser(ctx context.Context, user types.User) (types.User, e
 		return nil, trace.BadParameter("unsupported user type %T", user)
 	}
 
-	//nolint:staticcheck // SA1019. Kept for backward compatibility.
-	if _, err := c.grpc.CreateUser(ctx, userV2); err != nil {
+	resp, err := userspb.NewUsersServiceClient(c.conn).CreateUser(ctx, &userspb.CreateUserRequest{User: userV2})
+	if err != nil {
+		// TODO(tross): DELETE IN 16.0.0
+		if trace.IsNotImplemented(err) {
+			//nolint:staticcheck // SA1019. Kept for backward compatibility.
+			if _, err := c.grpc.CreateUser(ctx, userV2); err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			//nolint:staticcheck // SA1019. Kept for backward compatibility.
+			created, err := c.grpc.GetUser(ctx, &proto.GetUserRequest{Name: user.GetName()})
+			return created, trace.Wrap(err)
+		}
+
 		return nil, trace.Wrap(err)
 	}
 
-	created, err := c.GetUser(ctx, user.GetName(), false)
-	return created, trace.Wrap(err)
+	return resp.User, trace.Wrap(err)
+}
+
+// UpsertUser creates a new user or updates an existing user.
+func (c *Client) UpsertUser(ctx context.Context, user types.User) (types.User, error) {
+	userV2, ok := user.(*types.UserV2)
+	if !ok {
+		return nil, trace.BadParameter("unsupported user type %T", user)
+	}
+
+	resp, err := userspb.NewUsersServiceClient(c.conn).UpsertUser(ctx, &userspb.UpsertUserRequest{User: userV2})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return resp.User, trace.Wrap(err)
 }
 
 // UpdateUser updates an existing user in a backend.
@@ -868,14 +901,24 @@ func (c *Client) UpdateUser(ctx context.Context, user types.User) (types.User, e
 		return nil, trace.BadParameter("unsupported user type %T", user)
 	}
 
-	//nolint:staticcheck // SA1019. Kept for backward compatibility.
-	_, err := c.grpc.UpdateUser(ctx, userV2)
+	resp, err := userspb.NewUsersServiceClient(c.conn).UpdateUser(ctx, &userspb.UpdateUserRequest{User: userV2})
 	if err != nil {
+		// TODO(tross): DELETE IN 16.0.0
+		if trace.IsNotImplemented(err) {
+			//nolint:staticcheck // SA1019. Kept for backward compatibility.
+			if _, err := c.grpc.UpdateUser(ctx, userV2); err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			//nolint:staticcheck // SA1019. Kept for backward compatibility.
+			updated, err := c.grpc.GetUser(ctx, &proto.GetUserRequest{Name: user.GetName()})
+			return updated, trace.Wrap(err)
+		}
+
 		return nil, trace.Wrap(err)
 	}
 
-	updated, err := c.GetUser(ctx, userV2.GetName(), false)
-	return updated, trace.Wrap(err)
+	return resp.User, trace.Wrap(err)
 }
 
 // GetUser returns a list of usernames registered in the system.
@@ -884,26 +927,37 @@ func (c *Client) GetUser(ctx context.Context, name string, withSecrets bool) (ty
 	if name == "" {
 		return nil, trace.BadParameter("missing username")
 	}
-	//nolint:staticcheck // SA1019. Kept for backward compatibility.
-	user, err := c.grpc.GetUser(ctx, &proto.GetUserRequest{
-		Name:        name,
-		WithSecrets: withSecrets,
-	})
+	resp, err := userspb.NewUsersServiceClient(c.conn).GetUser(ctx, &userspb.GetUserRequest{Name: name, WithSecrets: withSecrets})
 	if err != nil {
+		// TODO(tross): DELETE IN 16.0.0
+		if trace.IsNotImplemented(err) {
+			//nolint:staticcheck // SA1019. Kept for backward compatibility.
+			user, err := c.grpc.GetUser(ctx, &proto.GetUserRequest{
+				Name:        name,
+				WithSecrets: withSecrets,
+			})
+			return user, trace.Wrap(err)
+		}
+
 		return nil, trace.Wrap(err)
 	}
-	return user, nil
+	return resp.User, nil
 }
 
 // GetCurrentUser returns current user as seen by the server.
 // Useful especially in the context of remote clusters which perform role and trait mapping.
 func (c *Client) GetCurrentUser(ctx context.Context) (types.User, error) {
-	//nolint:staticcheck // SA1019. Kept for backward compatibility.
-	currentUser, err := c.grpc.GetCurrentUser(ctx, &emptypb.Empty{})
+	resp, err := userspb.NewUsersServiceClient(c.conn).GetUser(ctx, &userspb.GetUserRequest{CurrentUser: true})
 	if err != nil {
+		// TODO(tross): DELETE IN 16.0.0
+		if trace.IsNotImplemented(err) {
+			//nolint:staticcheck // SA1019. Kept for backward compatibility.
+			currentUser, err := c.grpc.GetCurrentUser(ctx, &emptypb.Empty{})
+			return currentUser, trace.Wrap(err)
+		}
 		return nil, trace.Wrap(err)
 	}
-	return currentUser, nil
+	return resp.User, nil
 }
 
 // GetCurrentUserRoles returns current user's roles.
@@ -922,35 +976,75 @@ func (c *Client) GetCurrentUserRoles(ctx context.Context) ([]types.Role, error) 
 	return roles, nil
 }
 
-// GetUsers returns a list of users.
+// GetUsers returns all currently registered users.
 // withSecrets controls whether authentication details are returned.
 func (c *Client) GetUsers(ctx context.Context, withSecrets bool) ([]types.User, error) {
-	//nolint:staticcheck // SA1019. Kept for backward compatibility.
-	stream, err := c.grpc.GetUsers(ctx, &proto.GetUsersRequest{
-		WithSecrets: withSecrets,
-	})
+	users, next, err := c.ListUsers(ctx, defaults.DefaultChunkSize, "", withSecrets)
 	if err != nil {
+		// TODO(tross): DELETE IN 16.0.0
+		if trace.IsNotImplemented(err) {
+			//nolint:staticcheck // SA1019. Kept for backward compatibility.
+			stream, err := c.grpc.GetUsers(ctx, &proto.GetUsersRequest{
+				WithSecrets: withSecrets,
+			})
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			var users []types.User
+			for user, err := stream.Recv(); err != io.EOF; user, err = stream.Recv() {
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+				users = append(users, user)
+			}
+			return users, nil
+		}
+
 		return nil, trace.Wrap(err)
 	}
-	var users []types.User
-	for user, err := stream.Recv(); err != io.EOF; user, err = stream.Recv() {
+
+	out := users
+	for next != "" {
+		users, next, err = c.ListUsers(ctx, defaults.DefaultChunkSize, next, withSecrets)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		users = append(users, user)
+
+		out = append(out, users...)
 	}
-	return users, nil
+
+	return out, nil
 }
 
 // ListUsers returns a page of users.
 func (c *Client) ListUsers(ctx context.Context, pageSize int, nextToken string, withSecrets bool) ([]types.User, string, error) {
-	return nil, "", trace.NotImplemented("ListUsers is not implemented yet")
+	resp, err := userspb.NewUsersServiceClient(c.conn).ListUsers(ctx, &userspb.ListUsersRequest{
+		PageSize:    int32(pageSize),
+		PageToken:   nextToken,
+		WithSecrets: withSecrets,
+	})
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	out := make([]types.User, 0, len(resp.Users))
+	for _, u := range resp.Users {
+		out = append(out, u)
+	}
+
+	return out, resp.NextPageToken, nil
 }
 
 // DeleteUser deletes a user by name.
 func (c *Client) DeleteUser(ctx context.Context, user string) error {
-	//nolint:staticcheck // SA1019. Kept for backward compatibility.
-	_, err := c.grpc.DeleteUser(ctx, &proto.DeleteUserRequest{Name: user})
+	_, err := userspb.NewUsersServiceClient(c.conn).DeleteUser(ctx, &userspb.DeleteUserRequest{Name: user})
+	// TODO(tross): DELETE IN 16.0.0
+	if trace.IsNotImplemented(err) {
+		//nolint:staticcheck // SA1019. Kept for backward compatibility.
+		_, err := c.grpc.DeleteUser(ctx, &proto.DeleteUserRequest{Name: user})
+		return trace.Wrap(err)
+	}
+
 	return trace.Wrap(err)
 }
 
