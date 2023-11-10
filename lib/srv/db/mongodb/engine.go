@@ -273,14 +273,12 @@ func (e *Engine) checkClientMessage(sessionCtx *common.Session, message protocol
 			database)...)
 }
 
-func (e *Engine) waitForAnyClientMessage(clientConn net.Conn, waitChan chan protocol.Message) {
+func (e *Engine) waitForAnyClientMessage(clientConn net.Conn) protocol.Message {
 	clientMessage, err := protocol.ReadMessage(clientConn, e.maxMessageSize)
 	if err != nil {
 		e.Log.Warnf("Failed to read a message for reply: %v.", err)
-		waitChan <- nil
-	} else {
-		waitChan <- clientMessage
 	}
+	return clientMessage
 }
 
 func (e *Engine) replyError(clientConn net.Conn, replyTo protocol.Message, err error) {
@@ -289,7 +287,9 @@ func (e *Engine) replyError(clientConn net.Conn, replyTo protocol.Message, err e
 	// The first message is usually the isMaster hello message.
 	if replyTo == nil && !e.serverConnected.Load() {
 		waitChan := make(chan protocol.Message, 1)
-		go e.waitForAnyClientMessage(clientConn, waitChan)
+		go func() {
+			waitChan <- e.waitForAnyClientMessage(clientConn)
+		}()
 
 		select {
 		case clientMessage := <-waitChan:
