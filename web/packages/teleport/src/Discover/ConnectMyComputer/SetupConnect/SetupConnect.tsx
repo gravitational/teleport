@@ -53,6 +53,7 @@ export function SetupConnect(
 ) {
   const pingInterval = props.pingInterval || 1000 * 3; // 3 seconds
   const showHintTimeout = props.showHintTimeout || 1000 * 60 * 5; // 5 minutes
+
   const ctx = useTeleport();
   const clusterId = ctx.storeUser.getClusterId();
   const { cluster, username } = ctx.storeUser.state;
@@ -63,14 +64,28 @@ export function SetupConnect(
     username,
     path: Path.ConnectMyComputer,
   });
+  const [showHint, setShowHint] = useState(false);
 
   const { node, isPolling } = usePollForConnectMyComputerNode({
     username,
     clusterId,
-    pingInterval,
+    // If reloadUser is set to true, the polling callback takes longer to finish so let's increase
+    // the polling interval as well.
+    pingInterval: showHint ? pingInterval * 2 : pingInterval,
+    // Completing the Connect My Computer setup in Connect causes the user to gain a new role. That
+    // role grants access to nodes labeled with `teleport.dev/connect-my-computer/owner:
+    // <current-username>`.
+    //
+    // In certain cases, that role might be the only role which grants the user the visibility of
+    // the Connect My Computer node. For example, if the user doesn't have a role like the built-in
+    // access which gives blanket access to all nodes, the user won't be able to see the node until
+    // they have the Connect My Computer role in their cert.
+    //
+    // As such, if we don't reload the cert during polling, it might never see the node. So let's
+    // flip it to true after a timeout.
+    reloadUser: showHint,
   });
 
-  const [showHint, setShowHint] = useState(false);
   useEffect(() => {
     if (isPolling) {
       const id = window.setTimeout(() => setShowHint(true), showHintTimeout);
@@ -225,6 +240,7 @@ export function SetupConnect(
 export const usePollForConnectMyComputerNode = (args: {
   username: string;
   clusterId: string;
+  reloadUser: boolean;
   pingInterval: number;
 }): {
   node: Node | undefined;
@@ -237,6 +253,10 @@ export const usePollForConnectMyComputerNode = (args: {
   const node = usePoll(
     useCallback(
       async signal => {
+        if (args.reloadUser) {
+          await ctx.userService.reloadUser(signal);
+        }
+
         const request = {
           query: `labels["${constants.ConnectMyComputerNodeOwnerLabel}"] == "${args.username}"`,
           // An arbitrary limit where we bank on the fact that no one is going to have 50 Connect My
@@ -268,7 +288,13 @@ export const usePollForConnectMyComputerNode = (args: {
           return node;
         }
       },
-      [ctx.nodeService, args.clusterId, args.username]
+      [
+        ctx.nodeService,
+        ctx.userService,
+        args.clusterId,
+        args.username,
+        args.reloadUser,
+      ]
     ),
     isPolling,
     args.pingInterval

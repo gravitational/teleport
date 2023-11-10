@@ -71,8 +71,8 @@ const session = {
 
   // renewSession renews session and returns the
   // absolute time the new session expires.
-  renewSession(req: RenewSessionRequest): Promise<Date> {
-    return this._renewToken(req).then(token => token.sessionExpires);
+  renewSession(req: RenewSessionRequest, signal?: AbortSignal): Promise<Date> {
+    return this._renewToken(req, signal).then(token => token.sessionExpires);
   },
 
   /**
@@ -133,10 +133,10 @@ const session = {
     return this._timeLeft() < RENEW_TOKEN_TIME;
   },
 
-  _renewToken(req: RenewSessionRequest = {}) {
+  _renewToken(req: RenewSessionRequest = {}, signal?: AbortSignal) {
     this._setAndBroadcastIsRenewing(true);
     return api
-      .post(cfg.getRenewTokenUrl(), req)
+      .post(cfg.getRenewTokenUrl(), req, signal)
       .then(json => {
         const token = makeBearerToken(json);
         localStorage.setBearerToken(token);
