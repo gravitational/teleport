@@ -558,6 +558,10 @@ func (s *ServiceNowSuite) TestDenialByReview() {
 func (s *ServiceNowSuite) TestAutoApproval() {
 	t := s.T()
 
+	if !s.teleportFeatures.AdvancedAccessWorkflows {
+		t.Skip("Doesn't work in OSS version")
+	}
+
 	s.startApp()
 
 	s.currentRequestor = s.userNames.requestorWithSchedules
