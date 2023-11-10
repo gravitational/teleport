@@ -17,7 +17,7 @@ package common
 import (
 	"encoding/json"
 	"fmt"
-	"os"
+	"io"
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
@@ -129,20 +129,20 @@ func (c *deviceEnrollCommand) run(cf *CLIConf) error {
 		// Admin fast-tracked enrollment.
 		if c.currentDevice {
 			dev, outcome, err := enrollCeremony.RunAdmin(ctx, devices, cf.Debug)
-			printEnrollOutcome(outcome, dev) // Report partial successes.
+			printEnrollOutcome(cf.Stdout(), outcome, dev) // Report partial successes.
 			return trace.Wrap(err)
 		}
 
 		// End-user enrollment.
 		dev, err := enrollCeremony.Run(ctx, devices, cf.Debug, c.token)
 		if err == nil {
-			printEnrollOutcome(enroll.DeviceEnrolled, dev)
+			printEnrollOutcome(cf.Stdout(), enroll.DeviceEnrolled, dev)
 		}
 		return trace.Wrap(err)
 	}))
 }
 
-func printEnrollOutcome(outcome enroll.RunAdminOutcome, dev *devicepb.Device) {
+func printEnrollOutcome(out io.Writer, outcome enroll.RunAdminOutcome, dev *devicepb.Device) {
 	var action string
 	switch outcome {
 	case enroll.DeviceRegisteredAndEnrolled:
@@ -157,11 +157,12 @@ func printEnrollOutcome(outcome enroll.RunAdminOutcome, dev *devicepb.Device) {
 
 	// This shouldn't happen, but let's play it safe and avoid a silly panic.
 	if dev == nil {
-		fmt.Printf("Device %v\n", action)
+		fmt.Fprintf(out, "Device %v\n", action)
 		return
 	}
 
-	fmt.Printf(
+	fmt.Fprintf(
+		out,
 		"Device %q/%v %v\n",
 		dev.AssetTag, devicetrust.FriendlyOSType(dev.OsType), action)
 }
@@ -185,7 +186,7 @@ func (c *deviceCollectCommand) run(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Printf("DeviceCollectedData %s\n", val)
+	fmt.Fprintf(cf.Stdout(), "DeviceCollectedData %s\n", val)
 	return nil
 }
 
@@ -199,7 +200,7 @@ func (c *deviceAssetTagCommand) run(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	fmt.Println(cdd.SerialNumber)
+	fmt.Fprintln(cf.Stdout(), cdd.SerialNumber)
 	return nil
 }
 
@@ -222,7 +223,7 @@ func (c *deviceKeygetCommand) run(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Printf("DeviceCredential %s\n", val)
+	fmt.Fprintf(cf.Stdout(), "DeviceCredential %s\n", val)
 	return nil
 }
 
@@ -259,7 +260,7 @@ func (c *deviceDMIReadCommand) run(cf *CLIConf) error {
 		// err swallowed on purpose.
 	}
 	if dmiInfo != nil {
-		_ = json.NewEncoder(os.Stdout).Encode(dmiInfo)
+		_ = json.NewEncoder(cf.Stdout()).Encode(dmiInfo)
 	}
 	return nil
 }
