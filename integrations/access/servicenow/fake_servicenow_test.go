@@ -76,7 +76,7 @@ func NewFakeServiceNow(concurrency int, onCallUser string) *FakeServiceNow {
 		newIncidentNotes: make(chan string, concurrency*3), // for any incident there could be 1-3 notes
 		srv:              httptest.NewServer(router),
 	}
-
+	router.GET("/api/now/table/incident", func(rw http.ResponseWriter, r *http.Request, ps httprouter.Params) {})
 	router.POST("/api/now/v1/table/incident", func(rw http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 		rw.Header().Add("Content-Type", "application/json")
 		rw.WriteHeader(http.StatusCreated)
