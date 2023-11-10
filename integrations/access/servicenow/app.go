@@ -31,6 +31,7 @@ import (
 	tp "github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/integrations/access/common/teleport"
 	"github.com/gravitational/teleport/integrations/lib"
 	"github.com/gravitational/teleport/integrations/lib/backoff"
@@ -139,7 +140,7 @@ func (a *App) init(ctx context.Context) error {
 
 	var err error
 	if a.teleport == nil {
-		if a.teleport, err = a.conf.Teleport.NewClient(ctx); err != nil {
+		if a.teleport, err = common.GetTeleportClient(ctx, a.conf.Teleport); err != nil {
 			return trace.Wrap(err)
 		}
 	}

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { AgentConfigFileClusterProperties } from 'teleterm/mainProcess/createAgentConfigFile';
+import { CreateAgentConfigFileArgs } from 'teleterm/mainProcess/createAgentConfigFile';
 import { DeepLinkParseResult } from 'teleterm/deepLinks';
 import { RootClusterUri } from 'teleterm/ui/uri';
 
@@ -134,9 +134,7 @@ export type MainProcessClient = {
   openConfigFile(): Promise<string>;
   shouldUseDarkColors(): boolean;
   downloadAgent(): Promise<void>;
-  createAgentConfigFile(
-    properties: AgentConfigFileClusterProperties
-  ): Promise<void>;
+  createAgentConfigFile(args: CreateAgentConfigFileArgs): Promise<void>;
   openAgentLogsDirectory(args: {
     rootClusterUri: RootClusterUri;
   }): Promise<void>;

@@ -3,19 +3,11 @@ title: AWS Cross-Account Database Access
 description: How to connect AWS databases in external AWS accounts to Teleport.
 ---
 
-<Details
-  title="Version warning"
-  opened={true}
-  scope={["oss", "enterprise"]}
-  scopeOnly={true}
-  min="13.0"
->
-  AWS cross-account database access is available starting from Teleport `13.0`.
-</Details>
-
 You can deploy the Teleport Database Service with AWS IAM credentials in one
 AWS account and use an AWS IAM role to grant Teleport access to databases in
 another AWS account.
+
+AWS cross-account database access is available starting from Teleport `13.0`.
 
 When the Teleport Database Service needs to discover, configure, or retrieve
 short-lived authentication tokens for AWS databases, it uses credentials for an

@@ -222,7 +222,7 @@ function AgentSetup() {
     agentProcessState,
   } = useConnectMyComputerContext();
   const { requestResourcesRefresh } = useResourcesContext();
-  const cluster = ctx.clustersService.findCluster(rootClusterUri);
+  const rootCluster = ctx.clustersService.findCluster(rootClusterUri);
   const nodeToken = useRef<string>();
 
   const [createRoleAttempt, runCreateRoleAttempt, setCreateRoleAttempt] =
@@ -262,10 +262,10 @@ function AgentSetup() {
   ] = useAsync(
     useCallback(async () => {
       const { token } = await retryWithRelogin(ctx, rootClusterUri, () =>
-        ctx.connectMyComputerService.createAgentConfigFile(cluster)
+        ctx.connectMyComputerService.createAgentConfigFile(rootCluster)
       );
       nodeToken.current = token;
-    }, [cluster, ctx, rootClusterUri])
+    }, [rootCluster, ctx, rootClusterUri])
   );
   const [joinClusterAttempt, runJoinClusterAttempt, setJoinClusterAttempt] =
     useAsync(
@@ -284,7 +284,7 @@ function AgentSetup() {
 
         try {
           await ctx.connectMyComputerService.deleteToken(
-            cluster.uri,
+            rootCluster.uri,
             nodeToken.current
           );
         } catch (error) {
@@ -298,7 +298,7 @@ function AgentSetup() {
       }, [
         startAgent,
         ctx.connectMyComputerService,
-        cluster.uri,
+        rootCluster.uri,
         requestResourcesRefresh,
         logger,
       ])
@@ -376,7 +376,7 @@ function AgentSetup() {
         const result = await fn();
         const [, error] = result;
         if (error) {
-          ctx.usageService.captureConnectMyComputerSetup(cluster.uri, {
+          ctx.usageService.captureConnectMyComputerSetup(rootCluster.uri, {
             success: false,
             failedStep,
           });
@@ -408,7 +408,7 @@ function AgentSetup() {
         return;
       }
     }
-    ctx.usageService.captureConnectMyComputerSetup(cluster.uri, {
+    ctx.usageService.captureConnectMyComputerSetup(rootCluster.uri, {
       success: true,
     });
     // Wait before navigating away from the document, so the user has time
@@ -426,7 +426,7 @@ function AgentSetup() {
     runJoinClusterAttempt,
     markAgentAsConfigured,
     ctx.usageService,
-    cluster.uri,
+    rootCluster.uri,
   ]);
 
   useEffect(() => {

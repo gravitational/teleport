@@ -175,6 +175,7 @@ const mapToSharedResource = (
           hostname: server.hostname,
           addr: server.addr,
           tunnel: server.tunnel,
+          subKind: server.subKind,
         },
         ui: {
           ActionButton: <ConnectServerActionButton server={server} />,

@@ -18,6 +18,7 @@ package services
 
 import (
 	"context"
+	"maps"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -218,9 +219,7 @@ func makeResource(name string, labels map[string]string, additionalLabels map[st
 	if labels == nil {
 		labels = make(map[string]string)
 	}
-	for k, v := range additionalLabels {
-		labels[k] = v
-	}
+	maps.Copy(labels, additionalLabels)
 	r := &testResource{
 		Metadata: types.Metadata{
 			Name:   name,
