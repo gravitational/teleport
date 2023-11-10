@@ -1202,8 +1202,8 @@ func buildEnvironment(ctx *ServerContext) []string {
 		if err != nil {
 			ctx.Logger.Debugf("Failed to split local address: %v.", err)
 		} else {
-			env.Add("SSH_CLIENT", fmt.Sprintf("%s %s %s", remoteHost, remotePort, localPort))
-			env.Add("SSH_CONNECTION", fmt.Sprintf("%s %s %s %s", remoteHost, remotePort, localHost, localPort))
+			env.AddTrusted("SSH_CLIENT", fmt.Sprintf("%s %s %s", remoteHost, remotePort, localPort))
+			env.AddTrusted("SSH_CONNECTION", fmt.Sprintf("%s %s %s %s", remoteHost, remotePort, localHost, localPort))
 		}
 	}
 
@@ -1211,22 +1211,22 @@ func buildEnvironment(ctx *ServerContext) []string {
 	session := ctx.getSession()
 	if session != nil {
 		if session.term != nil {
-			env.Add("TERM", session.term.GetTermType())
-			env.Add("SSH_TTY", session.term.TTY().Name())
+			env.AddTrusted("TERM", session.term.GetTermType())
+			env.AddTrusted("SSH_TTY", session.term.TTY().Name())
 		}
 		if session.id != "" {
-			env.Add(teleport.SSHSessionID, string(session.id))
+			env.AddTrusted(teleport.SSHSessionID, string(session.id))
 		}
 	}
 
 	// Set some Teleport specific environment variables: SSH_TELEPORT_USER,
 	// SSH_TELEPORT_HOST_UUID, and SSH_TELEPORT_CLUSTER_NAME.
-	env.Add(teleport.SSHTeleportHostUUID, ctx.srv.ID())
-	env.Add(teleport.SSHTeleportClusterName, ctx.ClusterName)
-	env.Add(teleport.SSHTeleportUser, ctx.Identity.TeleportUser)
+	env.AddTrusted(teleport.SSHTeleportHostUUID, ctx.srv.ID())
+	env.AddTrusted(teleport.SSHTeleportClusterName, ctx.ClusterName)
+	env.AddTrusted(teleport.SSHTeleportUser, ctx.Identity.TeleportUser)
 
 	// At the end gather all dynamically defined environment variables
-	ctx.VisitEnv(env.Add)
+	ctx.VisitEnv(env.AddUnique)
 
 	return *env
 }
