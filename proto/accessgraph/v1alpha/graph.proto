@@ -24,7 +24,7 @@ message Node {
   string id = 1;
   // Kind is the kind of the node, ex: "user", "user_group", "resource", etc.
   string kind = 2;
-  // SubKind is the subkind of the node.
+  // SubKind is the subkind of the node, ex: "ssh", "db", "k8s", etc.
   string sub_kind = 3;
   // Name is the name of the node.
   string name = 4;
