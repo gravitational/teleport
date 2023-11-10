@@ -34,10 +34,11 @@ type samlConnectorClient struct {
 
 // Get gets the Teleport saml_connector of a given name
 func (r samlConnectorClient) Get(ctx context.Context, name string) (types.SAMLConnector, error) {
-	teleportClient, err := r.TeleportClientAccessor(ctx)
+	teleportClient, release, err := r.TeleportClientAccessor(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	defer release()
 
 	saml, err := teleportClient.GetSAMLConnector(ctx, name, false /* with secrets*/)
 	return saml, trace.Wrap(err)
@@ -45,30 +46,33 @@ func (r samlConnectorClient) Get(ctx context.Context, name string) (types.SAMLCo
 
 // Create creates a Teleport saml_connector
 func (r samlConnectorClient) Create(ctx context.Context, saml types.SAMLConnector) error {
-	teleportClient, err := r.TeleportClientAccessor(ctx)
+	teleportClient, release, err := r.TeleportClientAccessor(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	defer release()
 
 	return trace.Wrap(teleportClient.UpsertSAMLConnector(ctx, saml))
 }
 
 // Update updates a Teleport saml_connector
 func (r samlConnectorClient) Update(ctx context.Context, saml types.SAMLConnector) error {
-	teleportClient, err := r.TeleportClientAccessor(ctx)
+	teleportClient, release, err := r.TeleportClientAccessor(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	defer release()
 
 	return trace.Wrap(teleportClient.UpsertSAMLConnector(ctx, saml))
 }
 
 // Delete deletes a Teleport saml_connector
 func (r samlConnectorClient) Delete(ctx context.Context, name string) error {
-	teleportClient, err := r.TeleportClientAccessor(ctx)
+	teleportClient, release, err := r.TeleportClientAccessor(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	defer release()
 
 	return trace.Wrap(teleportClient.DeleteSAMLConnector(ctx, name))
 }

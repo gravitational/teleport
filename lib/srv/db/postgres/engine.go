@@ -19,6 +19,7 @@ package postgres
 import (
 	"context"
 	"crypto/tls"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"io"
@@ -539,9 +540,12 @@ func formatParameters(parameters [][]byte, formatCodes []int16) (formatted []str
 	// by "parameter format codes" in the Bind message (0 - text, 1 - binary).
 	//
 	// Be a bit paranoid and make sure that number of format codes matches the
-	// number of parameters, or there are no format codes in which case all
-	// parameters will be text.
-	if len(formatCodes) != 0 && len(formatCodes) != len(parameters) {
+	// number of parameters, or there are zero or one format codes.
+	// zero format codes applies text format to all params.
+	// one format code applies the same format code to all params.
+	// https://www.postgresql.org/docs/current/protocol-message-formats.html#PROTOCOL-MESSAGE-FORMATS-BIND
+	// https://www.postgresql.org/docs/current/protocol-message-formats.html#PROTOCOL-MESSAGE-FORMATS-FUNCTIONCALL
+	if len(formatCodes) > 1 && len(formatCodes) != len(parameters) {
 		logrus.Warnf("Postgres parameter format codes and parameters don't match: %#v %#v.",
 			parameters, formatCodes)
 		return formatted
@@ -550,23 +554,30 @@ func formatParameters(parameters [][]byte, formatCodes []int16) (formatted []str
 		// According to Bind message documentation, if there are no parameter
 		// format codes, it may mean that either there are no parameters, or
 		// that all parameters use default text format.
-		if len(formatCodes) == 0 {
-			formatted = append(formatted, string(p))
-			continue
+		var formatCode int16
+		switch len(formatCodes) {
+		case 0:
+			// use default 0 (text) format for all params.
+		case 1:
+			// apply the same format code to all params.
+			formatCode = formatCodes[0]
+		default:
+			// apply format code corresponding to this param.
+			formatCode = formatCodes[i]
 		}
-		switch formatCodes[i] {
+
+		switch formatCode {
 		case parameterFormatCodeText:
 			// Text parameters can just be converted to their string
 			// representation.
 			formatted = append(formatted, string(p))
 		case parameterFormatCodeBinary:
-			// For binary parameters, just put a placeholder to avoid
-			// spamming the audit log with unreadable info.
-			formatted = append(formatted, "<binary>")
+			// For binary parameters, encode the parameter as a base64 string.
+			formatted = append(formatted, base64.StdEncoding.EncodeToString(p))
 		default:
 			// Should never happen but...
 			logrus.Warnf("Unknown Postgres parameter format code: %#v.",
-				formatCodes[i])
+				formatCode)
 			formatted = append(formatted, "<unknown>")
 		}
 	}
