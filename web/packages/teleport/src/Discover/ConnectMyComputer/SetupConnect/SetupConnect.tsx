@@ -77,9 +77,9 @@ export function SetupConnect(
     }
   }, [isPolling, showHintTimeout]);
 
-  let hint: JSX.Element;
+  let pollingStatus: JSX.Element;
   if (showHint && !node) {
-    hint = (
+    pollingStatus = (
       // Override max-width to match StyledBox's max-width.
       <HintBox header="We're still looking for your computer" maxWidth="800px">
         <Flex flexDirection="column" gap={3}>
@@ -122,7 +122,7 @@ export function SetupConnect(
       </HintBox>
     );
   } else if (node) {
-    hint = (
+    pollingStatus = (
       <SuccessBox>
         <Text>
           Your computer, <strong>{node.hostname}</strong>, has been detected!
@@ -130,7 +130,7 @@ export function SetupConnect(
       </SuccessBox>
     );
   } else {
-    hint = (
+    pollingStatus = (
       <WaitingInfo>
         <TextIcon
           css={`
@@ -186,7 +186,7 @@ export function SetupConnect(
         </ButtonSecondary>
       </StyledBox>
 
-      {hint}
+      {pollingStatus}
 
       <ActionButtons
         onProceed={props.nextStep}
