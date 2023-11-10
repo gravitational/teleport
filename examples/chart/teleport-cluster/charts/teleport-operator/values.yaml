@@ -1,0 +1,71 @@
+enabled: true
+
+authServer: ""
+caPins: []
+joinMethod: ""
+token: ""
+
+teleportVersionOverride: ""
+
+# Kubernetes Teleport Operator image
+image: public.ecr.aws/gravitational/teleport-operator
+
+annotations:
+  deployment: {}
+  pod: {}
+  serviceAccount: {}
+
+serviceAccount:
+  create: true
+  name: ""
+
+rbac:
+  create: true
+
+imagePullPolicy: IfNotPresent
+
+# Resources to request for the teleport container
+# https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+resources: {}
+#  requests:
+#    cpu: "1"
+#    memory: "2Gi"
+
+# Priority class name to add to the deployment
+priorityClassName: ""
+
+# Tolerations for pod assignment
+# https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/
+tolerations: []
+
+# nodeSelector to apply for pod assignment
+# https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#nodeselector
+nodeSelector: {}
+
+# Affinity for pod assignment
+# https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#affinity-and-anti-affinity
+# NOTE: If affinity is set here, highAvailability.requireAntiAffinity cannot also be used - you can only set one or the other.
+affinity: {}
+
+# Optional array of imagePullSecrets, to use when pulling from a private registry
+imagePullSecrets: []
+
+highAvailability:
+  replicaCount: 1
+
+tls:
+  existingCASecretName: ""
+
+podSecurityContext:
+  seccompProfile: RuntimeDefault
+  runAsUser: 65532
+  runAsGroup: 65532
+  fsGroup: 65532
+  runAsNonRoot: true
+
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  readOnlyRootFilesystem: true
