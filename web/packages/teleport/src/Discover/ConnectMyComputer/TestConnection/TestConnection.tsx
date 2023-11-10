@@ -14,11 +14,19 @@
  * limitations under the License.
  */
 
-import React from 'react';
+import React, { useEffect, useCallback, useRef } from 'react';
 
-import { Flex, Text } from 'design';
+import { ButtonPrimary, Flex, Indicator, Text } from 'design';
+import * as Icons from 'design/Icon';
+import { useAsync } from 'shared/hooks/useAsync';
 
-import { ActionButtons, StyledBox, Header } from 'teleport/Discover/Shared';
+import useTeleport from 'teleport/useTeleport';
+import {
+  ActionButtons,
+  StyledBox,
+  Header,
+  TextIcon,
+} from 'teleport/Discover/Shared';
 import { NodeConnect } from 'teleport/UnifiedResources/ResourceActionButton';
 
 import { NodeMeta } from '../../useDiscover';
@@ -26,6 +34,28 @@ import { NodeMeta } from '../../useDiscover';
 import type { AgentStepProps } from '../../types';
 
 export const TestConnection = (props: AgentStepProps) => {
+  const { userService } = useTeleport();
+  const abortController = useRef<AbortController>();
+  const [reloadUserAttempt, reloadUser] = useAsync(
+    useCallback(
+      (signal: AbortSignal) => userService.reloadUser(signal),
+      [userService]
+    )
+  );
+
+  // When the user sets up Connect My Computer in Teleport Connect, a new role gets added to the
+  // user. Because of that, we need to reload the current session so that the user is able to
+  // connect to the new node, without having to log in to the cluster again.
+  useEffect(() => {
+    abortController.current = new AbortController();
+
+    reloadUser(abortController.current.signal);
+
+    return () => {
+      abortController.current.abort();
+    };
+  }, []);
+
   const meta = props.agentMeta as NodeMeta;
 
   return (
@@ -37,14 +67,37 @@ export const TestConnection = (props: AgentStepProps) => {
       <StyledBox>
         <Text bold>Step 1: Connect to Your Computer</Text>
         <Text typography="subtitle1" mb={2}>
-          Optionally verify that you can connect to &ldquo;{meta.resourceName}
+          Optionally verify that you can connect to &ldquo;
+          {meta.resourceName}
           &rdquo; by starting a session.
         </Text>
-        <NodeConnect node={meta.node} textTransform="uppercase" />
+        {reloadUserAttempt.status === '' ||
+          (reloadUserAttempt.status === 'processing' && <Indicator />)}
+
+        {reloadUserAttempt.status === 'error' && (
+          <>
+            <TextIcon mt={2} mb={3}>
+              <Icons.Warning size="medium" ml={1} mr={2} color="error.main" />
+              Encountered Error: {reloadUserAttempt.statusText}
+            </TextIcon>
+
+            <ButtonPrimary
+              type="button"
+              onClick={() => reloadUser(abortController.current.signal)}
+            >
+              Retry
+            </ButtonPrimary>
+          </>
+        )}
+
+        {reloadUserAttempt.status === 'success' && (
+          <NodeConnect node={meta.node} textTransform="uppercase" />
+        )}
       </StyledBox>
 
       <ActionButtons
         onProceed={props.nextStep}
+        disableProceed={reloadUserAttempt.status !== 'success'}
         lastStep={true}
         onPrev={props.prevStep}
       />
