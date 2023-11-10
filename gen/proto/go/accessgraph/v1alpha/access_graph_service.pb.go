@@ -382,7 +382,7 @@ func (*SyncOperation) Descriptor() ([]byte, []int) {
 	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{5}
 }
 
-// EventsStreamResponse is an empty response from EventsStream endpoint.
+// EventsStreamResponse is the response from EventsStream.
 type EventsStreamResponse struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
