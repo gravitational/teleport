@@ -21,9 +21,18 @@ import { SortDir } from 'design/DataTable/types';
 import { Text, Flex, Box } from 'design';
 import Menu, { MenuItem } from 'design/Menu';
 import { StyledCheckbox } from 'design/Checkbox';
-import { ArrowUp, ArrowDown, ChevronDown } from 'design/Icon';
+import {
+  ArrowUp,
+  ArrowDown,
+  ChevronDown,
+  SquaresFour,
+  Rows,
+} from 'design/Icon';
 
-import { HoverTooltip } from './UnifiedResources';
+import { UnifiedViewModePreference } from 'teleport/services/userPreferences/types';
+
+import { HoverTooltip } from 'shared/components/ToolTip';
+
 import { SharedUnifiedResource, UnifiedResourcesQueryParams } from './types';
 
 const kindToLabel: Record<SharedUnifiedResource['resource']['kind'], string> = {
@@ -47,6 +56,8 @@ interface FilterPanelProps {
   selectVisible: () => void;
   selected: boolean;
   BulkActions?: React.ReactElement;
+  currentViewMode: UnifiedViewModePreference;
+  onSelectViewMode: (viewMode: UnifiedViewModePreference) => void;
 }
 
 export function FilterPanel({
@@ -56,6 +67,8 @@ export function FilterPanel({
   selectVisible,
   selected,
   BulkActions,
+  currentViewMode,
+  onSelectViewMode,
 }: FilterPanelProps) {
   const { sort, kinds } = params;
 
@@ -84,9 +97,7 @@ export function FilterPanel({
       alignItems="center"
     >
       <Flex gap={2}>
-        <HoverTooltip
-          tipContent={<>{selected ? 'Deselect all' : 'Select all'}</>}
-        >
+        <HoverTooltip tipContent={selected ? 'Deselect all' : 'Select all'}>
           <StyledCheckbox
             checked={selected}
             onChange={selectVisible}
@@ -99,8 +110,12 @@ export function FilterPanel({
           kindsFromParams={kinds || []}
         />
       </Flex>
-      <Flex alignItems="center">
+      <Flex gap={2} alignItems="center">
         <Box mr={4}>{BulkActions}</Box>
+        <ViewModeSwitch
+          currentViewMode={currentViewMode}
+          onSelectViewMode={onSelectViewMode}
+        />
         <SortMenu
           onDirChange={onSortOrderButtonClicked}
           onChange={onSortFieldChange}
@@ -185,7 +200,7 @@ const FilterTypesMenu = ({
 
   return (
     <Flex textAlign="center" alignItems="center">
-      <HoverTooltip tipContent={<>Filter types</>}>
+      <HoverTooltip tipContent={'Filter types'}>
         <ButtonSecondary
           px={2}
           css={`
@@ -311,13 +326,13 @@ const SortMenu: React.FC<SortMenuProps> = props => {
 
   return (
     <Flex textAlign="center">
-      <HoverTooltip tipContent={<>Sort by</>}>
+      <HoverTooltip tipContent={'Sort by'}>
         <ButtonBorder
           css={`
             border-right: none;
             border-top-right-radius: 0;
             border-bottom-right-radius: 0;
-            border-color: ${props => props.theme.colors.spotBackground[0]};
+            border-color: ${props => props.theme.colors.spotBackground[2]};
           `}
           textTransform="none"
           size="small"
@@ -344,7 +359,7 @@ const SortMenu: React.FC<SortMenuProps> = props => {
         <MenuItem onClick={() => handleSelect('name')}>Name</MenuItem>
         <MenuItem onClick={() => handleSelect('kind')}>Type</MenuItem>
       </Menu>
-      <HoverTooltip tipContent={<>Sort direction</>}>
+      <HoverTooltip tipContent={'Sort direction'}>
         <ButtonBorder
           onClick={onDirChange}
           textTransform="none"
@@ -352,7 +367,7 @@ const SortMenu: React.FC<SortMenuProps> = props => {
             width: 0px; // remove extra width around the button icon
             border-top-left-radius: 0;
             border-bottom-left-radius: 0;
-            border-color: ${props => props.theme.colors.spotBackground[0]};
+            border-color: ${props => props.theme.colors.spotBackground[2]};
           `}
           size="small"
         >
@@ -379,6 +394,78 @@ function kindArraysEqual(arr1: string[], arr2: string[]) {
 
   return true;
 }
+
+function ViewModeSwitch({
+  currentViewMode,
+  onSelectViewMode,
+}: {
+  currentViewMode: UnifiedViewModePreference;
+  onSelectViewMode: (viewMode: UnifiedViewModePreference) => void;
+}) {
+  return (
+    <ViewModeSwitchContainer>
+      <ViewModeSwitchButton
+        className={
+          currentViewMode === UnifiedViewModePreference.Card ? 'selected' : ''
+        }
+        onClick={() => onSelectViewMode(UnifiedViewModePreference.Card)}
+        css={`
+          border-right: 1px solid
+            ${props => props.theme.colors.spotBackground[2]};
+          border-top-left-radius: 4px;
+          border-bottom-left-radius: 4px;
+        `}
+      >
+        <SquaresFour size="small" color="text.main" />
+      </ViewModeSwitchButton>
+      <ViewModeSwitchButton
+        className={
+          currentViewMode === UnifiedViewModePreference.List ? 'selected' : ''
+        }
+        onClick={() => onSelectViewMode(UnifiedViewModePreference.List)}
+        css={`
+          border-top-right-radius: 4px;
+          border-bottom-right-radius: 4px;
+        `}
+      >
+        <Rows size="small" color="text.main" />
+      </ViewModeSwitchButton>
+    </ViewModeSwitchContainer>
+  );
+}
+
+const ViewModeSwitchContainer = styled.div`
+  height: 22px;
+  width: 48px;
+  border: 1px solid ${props => props.theme.colors.spotBackground[2]};
+  border-radius: 4px;
+  display: flex;
+
+  .selected {
+    background-color: ${props => props.theme.colors.spotBackground[1]};
+
+    :hover {
+      background-color: ${props => props.theme.colors.spotBackground[1]};
+    }
+  }
+`;
+
+const ViewModeSwitchButton = styled.button`
+  height: 100%;
+  width: 50%;
+  overflow: hidden;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+
+  background-color: transparent;
+
+  :hover {
+    background-color: ${props => props.theme.colors.spotBackground[0]};
+  }
+`;
 
 const FiltersExistIndicator = styled.div`
   position: absolute;
