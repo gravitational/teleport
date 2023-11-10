@@ -35,8 +35,7 @@ const _ = grpc.SupportPackageIsVersion7
 const (
 	AccessGraphService_Query_FullMethodName        = "/accessgraph.v1alpha.AccessGraphService/Query"
 	AccessGraphService_GetFile_FullMethodName      = "/accessgraph.v1alpha.AccessGraphService/GetFile"
-	AccessGraphService_SendEvent_FullMethodName    = "/accessgraph.v1alpha.AccessGraphService/SendEvent"
-	AccessGraphService_SendResource_FullMethodName = "/accessgraph.v1alpha.AccessGraphService/SendResource"
+	AccessGraphService_EventsStream_FullMethodName = "/accessgraph.v1alpha.AccessGraphService/EventsStream"
 )
 
 // AccessGraphServiceClient is the client API for AccessGraphService service.
@@ -48,10 +47,13 @@ type AccessGraphServiceClient interface {
 	Query(ctx context.Context, in *QueryRequest, opts ...grpc.CallOption) (*QueryResponse, error)
 	// GetFile gets a static UI file from the access graph container.
 	GetFile(ctx context.Context, in *GetFileRequest, opts ...grpc.CallOption) (*GetFileResponse, error)
-	// SendEvent sends an event to the access graph service.
-	SendEvent(ctx context.Context, in *SendEventRequest, opts ...grpc.CallOption) (*SendEventResponse, error)
-	// SendResource sends a resource to the access graph service.
-	SendResource(ctx context.Context, in *SendResourceRequest, opts ...grpc.CallOption) (*SendResourceResponse, error)
+	// EventsStream is a stream of commands to the access graph service.
+	// Teleport Auth server creates a stream to the access graph service
+	// and pushes all resources and following events to it.
+	// This stream is used to sync the access graph with the Teleport database state.
+	// Once Teleport finishes syncing the current state, it sends a sync command
+	// to the access graph service and resumes sending events.
+	EventsStream(ctx context.Context, opts ...grpc.CallOption) (AccessGraphService_EventsStreamClient, error)
 }
 
 type accessGraphServiceClient struct {
@@ -80,22 +82,38 @@ func (c *accessGraphServiceClient) GetFile(ctx context.Context, in *GetFileReque
 	return out, nil
 }
 
-func (c *accessGraphServiceClient) SendEvent(ctx context.Context, in *SendEventRequest, opts ...grpc.CallOption) (*SendEventResponse, error) {
-	out := new(SendEventResponse)
-	err := c.cc.Invoke(ctx, AccessGraphService_SendEvent_FullMethodName, in, out, opts...)
+func (c *accessGraphServiceClient) EventsStream(ctx context.Context, opts ...grpc.CallOption) (AccessGraphService_EventsStreamClient, error) {
+	stream, err := c.cc.NewStream(ctx, &AccessGraphService_ServiceDesc.Streams[0], AccessGraphService_EventsStream_FullMethodName, opts...)
 	if err != nil {
 		return nil, err
 	}
-	return out, nil
+	x := &accessGraphServiceEventsStreamClient{stream}
+	return x, nil
 }
 
-func (c *accessGraphServiceClient) SendResource(ctx context.Context, in *SendResourceRequest, opts ...grpc.CallOption) (*SendResourceResponse, error) {
-	out := new(SendResourceResponse)
-	err := c.cc.Invoke(ctx, AccessGraphService_SendResource_FullMethodName, in, out, opts...)
-	if err != nil {
+type AccessGraphService_EventsStreamClient interface {
+	Send(*EventsStreamRequest) error
+	CloseAndRecv() (*EventsStreamResponse, error)
+	grpc.ClientStream
+}
+
+type accessGraphServiceEventsStreamClient struct {
+	grpc.ClientStream
+}
+
+func (x *accessGraphServiceEventsStreamClient) Send(m *EventsStreamRequest) error {
+	return x.ClientStream.SendMsg(m)
+}
+
+func (x *accessGraphServiceEventsStreamClient) CloseAndRecv() (*EventsStreamResponse, error) {
+	if err := x.ClientStream.CloseSend(); err != nil {
 		return nil, err
 	}
-	return out, nil
+	m := new(EventsStreamResponse)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
 }
 
 // AccessGraphServiceServer is the server API for AccessGraphService service.
@@ -107,10 +125,13 @@ type AccessGraphServiceServer interface {
 	Query(context.Context, *QueryRequest) (*QueryResponse, error)
 	// GetFile gets a static UI file from the access graph container.
 	GetFile(context.Context, *GetFileRequest) (*GetFileResponse, error)
-	// SendEvent sends an event to the access graph service.
-	SendEvent(context.Context, *SendEventRequest) (*SendEventResponse, error)
-	// SendResource sends a resource to the access graph service.
-	SendResource(context.Context, *SendResourceRequest) (*SendResourceResponse, error)
+	// EventsStream is a stream of commands to the access graph service.
+	// Teleport Auth server creates a stream to the access graph service
+	// and pushes all resources and following events to it.
+	// This stream is used to sync the access graph with the Teleport database state.
+	// Once Teleport finishes syncing the current state, it sends a sync command
+	// to the access graph service and resumes sending events.
+	EventsStream(AccessGraphService_EventsStreamServer) error
 	mustEmbedUnimplementedAccessGraphServiceServer()
 }
 
@@ -124,11 +145,8 @@ func (UnimplementedAccessGraphServiceServer) Query(context.Context, *QueryReques
 func (UnimplementedAccessGraphServiceServer) GetFile(context.Context, *GetFileRequest) (*GetFileResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetFile not implemented")
 }
-func (UnimplementedAccessGraphServiceServer) SendEvent(context.Context, *SendEventRequest) (*SendEventResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method SendEvent not implemented")
-}
-func (UnimplementedAccessGraphServiceServer) SendResource(context.Context, *SendResourceRequest) (*SendResourceResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method SendResource not implemented")
+func (UnimplementedAccessGraphServiceServer) EventsStream(AccessGraphService_EventsStreamServer) error {
+	return status.Errorf(codes.Unimplemented, "method EventsStream not implemented")
 }
 func (UnimplementedAccessGraphServiceServer) mustEmbedUnimplementedAccessGraphServiceServer() {}
 
@@ -179,40 +197,30 @@ func _AccessGraphService_GetFile_Handler(srv interface{}, ctx context.Context, d
 	return interceptor(ctx, in, info, handler)
 }
 
-func _AccessGraphService_SendEvent_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(SendEventRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(AccessGraphServiceServer).SendEvent(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: AccessGraphService_SendEvent_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AccessGraphServiceServer).SendEvent(ctx, req.(*SendEventRequest))
-	}
-	return interceptor(ctx, in, info, handler)
+func _AccessGraphService_EventsStream_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(AccessGraphServiceServer).EventsStream(&accessGraphServiceEventsStreamServer{stream})
 }
 
-func _AccessGraphService_SendResource_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(SendResourceRequest)
-	if err := dec(in); err != nil {
+type AccessGraphService_EventsStreamServer interface {
+	SendAndClose(*EventsStreamResponse) error
+	Recv() (*EventsStreamRequest, error)
+	grpc.ServerStream
+}
+
+type accessGraphServiceEventsStreamServer struct {
+	grpc.ServerStream
+}
+
+func (x *accessGraphServiceEventsStreamServer) SendAndClose(m *EventsStreamResponse) error {
+	return x.ServerStream.SendMsg(m)
+}
+
+func (x *accessGraphServiceEventsStreamServer) Recv() (*EventsStreamRequest, error) {
+	m := new(EventsStreamRequest)
+	if err := x.ServerStream.RecvMsg(m); err != nil {
 		return nil, err
 	}
-	if interceptor == nil {
-		return srv.(AccessGraphServiceServer).SendResource(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: AccessGraphService_SendResource_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AccessGraphServiceServer).SendResource(ctx, req.(*SendResourceRequest))
-	}
-	return interceptor(ctx, in, info, handler)
+	return m, nil
 }
 
 // AccessGraphService_ServiceDesc is the grpc.ServiceDesc for AccessGraphService service.
@@ -230,15 +238,13 @@ var AccessGraphService_ServiceDesc = grpc.ServiceDesc{
 			MethodName: "GetFile",
 			Handler:    _AccessGraphService_GetFile_Handler,
 		},
+	},
+	Streams: []grpc.StreamDesc{
 		{
-			MethodName: "SendEvent",
-			Handler:    _AccessGraphService_SendEvent_Handler,
-		},
-		{
-			MethodName: "SendResource",
-			Handler:    _AccessGraphService_SendResource_Handler,
+			StreamName:    "EventsStream",
+			Handler:       _AccessGraphService_EventsStream_Handler,
+			ClientStreams: true,
 		},
 	},
-	Streams:  []grpc.StreamDesc{},
 	Metadata: "accessgraph/v1alpha/query.proto",
 }
