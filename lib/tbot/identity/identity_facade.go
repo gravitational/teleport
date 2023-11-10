@@ -6,10 +6,9 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/net/http2"
@@ -24,22 +23,35 @@ var _ client.Credentials = new(Facade)
 // something compatible with a client.Credentials
 type Facade struct {
 	mu       sync.RWMutex
-	readyCh  chan struct{}
 	identity *Identity
 
+	// These don't need locking as they are configuration values that are
+	// only set on construction
 	fips               bool
 	cipherSuites       []uint16
 	insecureSkipVerify bool
+	clusterName        string
 }
 
-func NewFacade(fips bool, cipherSuites []uint16, insecureSkipVerify bool) *Facade {
-	return &Facade{
-		readyCh:      make(chan struct{}),
-		fips:         fips,
-		cipherSuites: cipherSuites,
-		// TODO: Implement insecureSkipVerify
+func NewFacade(
+	fips bool,
+	insecureSkipVerify bool,
+	initialIdentity *Identity,
+) *Facade {
+	f := &Facade{
+		fips:               fips,
+		identity:           initialIdentity,
 		insecureSkipVerify: insecureSkipVerify,
+		clusterName:        initialIdentity.ClusterName,
 	}
+
+	return f
+}
+
+func (f *Facade) Get() *Identity {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+	return f.identity
 }
 
 func (f *Facade) Set(newIdentity *Identity) {
@@ -48,25 +60,24 @@ func (f *Facade) Set(newIdentity *Identity) {
 	f.identity = newIdentity
 }
 
-func (f *Facade) Ready() <-chan struct{} {
-	return f.readyCh
-}
-
 func (f *Facade) Dialer(_ client.Config) (client.ContextDialer, error) {
 	// Returning a dialer isn't necessary for this credential.
 	return nil, trace.NotImplemented("no dialer")
 }
 
 func (f *Facade) TLSConfig() (*tls.Config, error) {
+	cipherSuites := utils.DefaultCipherSuites()
+	if f.fips {
+		cipherSuites = defaults.FIPSCipherSuites
+	}
+
 	// Build a "dynamic" tls.Config which can support a changing cert and root
 	// CA pool.
 	cfg := &tls.Config{
 		// Set the default NextProto of "h2". Based on the value in
 		// configureTLS()
-		NextProtos: []string{http2.NextProtoTLS},
-
-		// TODO: Make this dynamic ? Forced ?
-		CipherSuites: f.cipherSuites,
+		NextProtos:   []string{http2.NextProtoTLS},
+		CipherSuites: cipherSuites,
 
 		// GetClientCertificate is used instead of the static Certificates
 		// field.
@@ -78,11 +89,7 @@ func (f *Facade) TLSConfig() (*tls.Config, error) {
 			// change the certificate when reloaded.
 			f.mu.RLock()
 			defer f.mu.RUnlock()
-			tlsCert, err := keys.X509KeyPair(f.identity.TLSCertBytes, f.identity.PrivateKeyBytes)
-			if err != nil {
-				return nil, trace.BadParameter("failed to parse private key: %v", err)
-			}
-			return &tlsCert, nil
+			return f.identity.TLSCert, nil
 		},
 
 		// VerifyConnection is used instead of the static RootCAs field.
@@ -96,20 +103,15 @@ func (f *Facade) TLSConfig() (*tls.Config, error) {
 			// implementation of verifyServerCertificate in the `tls` package.
 			// We provide our own implementation so we can dynamically handle
 			// a changing CA Roots pool.
+			if f.insecureSkipVerify {
+				return nil
+			}
 			f.mu.RLock()
 			defer f.mu.RUnlock()
-			certPool := x509.NewCertPool()
-			for j := range f.identity.TLSCACertsBytes {
-				parsedCert, err := tlsca.ParseCertificatePEM(f.identity.TLSCACertsBytes[j])
-				if err != nil {
-					return trace.Wrap(err, "failed to parse CA certificate")
-				}
-				certPool.AddCert(parsedCert)
-			}
 			opts := x509.VerifyOptions{
 				DNSName:       state.ServerName,
 				Intermediates: x509.NewCertPool(),
-				Roots:         certPool,
+				Roots:         f.identity.TLSCAPool,
 			}
 			for _, cert := range state.PeerCertificates[1:] {
 				// Whilst we don't currently use intermediate certs at
@@ -120,11 +122,7 @@ func (f *Facade) TLSConfig() (*tls.Config, error) {
 			_, err := state.PeerCertificates[0].Verify(opts)
 			return err
 		},
-		// Set ServerName for SNI & Certificate Validation to the sentinel
-		// teleport.cluster.local which is included on all Teleport Auth Server
-		// certificates. Based on the value in configureTLS()
-		// FIX THIS !!
-		ServerName: apiutils.EncodeClusterName(f.identity.ClusterName),
+		ServerName: apiutils.EncodeClusterName(f.clusterName),
 	}
 
 	return cfg, nil
@@ -135,11 +133,7 @@ func (f *Facade) SSHClientConfig() (*ssh.ClientConfig, error) {
 		GetHostCheckers: func() ([]ssh.PublicKey, error) {
 			f.mu.RLock()
 			defer f.mu.RUnlock()
-			checkers, err := sshutils.ParseAuthorizedKeys(f.identity.SSHCACertBytes)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			return checkers, nil
+			return f.identity.SSHHostCheckers, nil
 		},
 	})
 	if err != nil {

@@ -24,6 +24,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"golang.org/x/crypto/ssh"
+	"sync"
 )
 
 // Assert that this UnstableClientCredentialOutput can be used as client
@@ -33,11 +34,14 @@ var _ client.Credentials = new(UnstableClientCredentialOutput)
 const UnstableClientCredentialOutputType = "unstable_client_credential"
 
 type UnstableClientCredentialOutput struct {
-	facade identity.Facade
+	mu     sync.Mutex
+	facade *identity.Facade
+	ready  chan struct{}
 }
 
 func (o *UnstableClientCredentialOutput) Ready() <-chan struct{} {
-	return o.facade.Ready()
+
+	return nil // TODO: Implement
 }
 
 func (o *UnstableClientCredentialOutput) Dialer(c client.Config) (client.ContextDialer, error) {

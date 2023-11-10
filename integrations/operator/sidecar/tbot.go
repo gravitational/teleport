@@ -19,14 +19,9 @@ package sidecar
 import (
 	"bytes"
 	"context"
-	"crypto/tls"
 	"fmt"
 	"sync"
 	"time"
-
-	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
-	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -37,7 +32,8 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 )
 
 const (
@@ -53,6 +49,7 @@ type Bot struct {
 	running    bool
 	rootClient auth.ClientI
 	opts       Options
+	output     *config.UnstableClientCredentialOutput
 
 	// mutex protects cachedCert and cachedClient
 	mutex        sync.Mutex
@@ -67,7 +64,7 @@ func (b *Bot) initializeConfig(ctx context.Context) {
 	// Initialize the memory stores. They contain identities renewed by the bot
 	// We're reading certs directly from them
 	rootMemoryStore := &config.DestinationMemory{}
-	destMemoryStore := &config.DestinationMemory{}
+	b.output = &config.UnstableClientCredentialOutput{}
 
 	// Initialize tbot config
 	b.cfg = &config.BotConfig{
@@ -80,9 +77,7 @@ func (b *Bot) initializeConfig(ctx context.Context) {
 			Destination: rootMemoryStore,
 		},
 		Outputs: []config.Output{
-			&config.IdentityOutput{
-				Destination: destMemoryStore,
-			},
+			b.output,
 		},
 
 		Debug:           false,
@@ -91,47 +86,15 @@ func (b *Bot) initializeConfig(ctx context.Context) {
 		RenewalInterval: DefaultRenewalInterval,
 		Oneshot:         false,
 	}
-	// We do our own init because config's "CheckAndSetDefaults" is too linked with tbot logic and invokes
-	// `addRequiredConfigs` on each Storage Destination
-	rootMemoryStore.CheckAndSetDefaults()
-	destMemoryStore.CheckAndSetDefaults()
-
-	for _, artifact := range identity.GetArtifacts() {
-		_ = destMemoryStore.Write(ctx, artifact.Key, []byte{})
-		_ = rootMemoryStore.Write(ctx, artifact.Key, []byte{})
-	}
-
 }
 
 // buildClient reads tbot's memory disttination, retrieves the certificates
 // and builds a new Teleport client using those certs.
 func (b *Bot) buildClient(ctx context.Context) (*SyncClient, error) {
 	log.Infof("Building a new client to connect to %s", b.cfg.AuthServer)
-	storageDestination := b.cfg.Storage.Destination
-	// Hack to be able to reuse LoadIdentity functions from tbot
-	// LoadIdentity expects to have all the artifacts required for a bot
-	// We loop over missing artifacts and are loading them from the bot storage to the destination
-	for _, artifact := range identity.GetArtifacts() {
-		if artifact.Kind == identity.KindBotInternal {
-			value, err := storageDestination.Read(ctx, artifact.Key)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			if err := b.cfg.Outputs[0].GetDestination().Write(ctx, artifact.Key, value); err != nil {
-				return nil, trace.Wrap(err)
-			}
-
-		}
-	}
-
-	id, err := identity.LoadIdentity(ctx, b.cfg.Outputs[0].GetDestination(), identity.BotKinds()...)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	c, err := client.New(ctx, client.Config{
 		Addrs:       []string{b.cfg.AuthServer},
-		Credentials: []client.Credentials{clientCredentials{id}},
+		Credentials: []client.Credentials{b.output},
 	})
 	return NewSyncClient(c), trace.Wrap(err)
 }
@@ -181,22 +144,6 @@ func (b *Bot) GetSyncClient(ctx context.Context) (*SyncClient, func(), error) {
 	}
 
 	return b.cachedClient, b.cachedClient.LockClient(), nil
-}
-
-type clientCredentials struct {
-	id *identity.Identity
-}
-
-func (c clientCredentials) Dialer(client.Config) (client.ContextDialer, error) {
-	return nil, trace.NotImplemented("no dialer")
-}
-
-func (c clientCredentials) TLSConfig() (*tls.Config, error) {
-	return c.id.TLSConfig(utils.DefaultCipherSuites())
-}
-
-func (c clientCredentials) SSHClientConfig() (*ssh.ClientConfig, error) {
-	return c.id.SSHClientConfig(false)
 }
 
 func (b *Bot) NeedLeaderElection() bool {

@@ -435,9 +435,15 @@ func (b *Bot) AuthenticatedUserClientFromIdentity(ctx context.Context, id *ident
 		return nil, trace.BadParameter("auth client requires a fully formed identity")
 	}
 
-	facade := identity.NewFacade(b.cfg.FIPS, b.cfg.CipherSuites(), b.cfg.Insecure)
-	facade.Set(id)
-
+	// Right now we don't actually reuse the long-lived facade - the primary
+	// reason for this is that we actually have a hard dependency on the new
+	// certificate being used for `token` type certificate renewals - or the
+	// generation will be wrong.
+	facade := identity.NewFacade(
+		b.cfg.FIPS,
+		b.cfg.Insecure,
+		id,
+	)
 	tlsConfig, err := facade.TLSConfig()
 	if err != nil {
 		return nil, trace.Wrap(err)
