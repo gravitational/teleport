@@ -34,6 +34,9 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
+// UnifiedResourceKinds is a list of all kinds that are stored in the unified resource cache.
+var UnifiedResourceKinds []string = []string{types.KindNode, types.KindKubeServer, types.KindDatabaseServer, types.KindAppServer, types.KindSAMLIdPServiceProvider, types.KindWindowsDesktop}
+
 // UnifiedResourceCacheConfig is used to configure a UnifiedResourceCache
 type UnifiedResourceCacheConfig struct {
 	// BTreeDegree is a degree of B-Tree, 2 for example, will create a

@@ -4490,17 +4490,22 @@ func TestListUnifiedResources_MixedAccess(t *testing.T) {
 	// create user, role, and client
 	username := "user"
 	user, role, err := CreateUserAndRole(srv.Auth(), username, nil, nil)
-	// remove permission from nodes and desktops
 	require.NoError(t, err)
 
 	role.SetNodeLabels(types.Allow, types.Labels{"*": {"*"}})
 	role.SetDatabaseLabels(types.Allow, types.Labels{"*": {"*"}})
 	role.SetWindowsDesktopLabels(types.Allow, types.Labels{"*": {"*"}})
-	_, err = srv.Auth().UpsertRole(ctx, role)
+	err = srv.Auth().UpsertRole(ctx, role)
 	require.NoError(t, err)
 	// remove permission from nodes by labels
 	role.SetNodeLabels(types.Deny, types.Labels{"name": {"mylabel"}})
-	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
+	// remove permission from desktops by rule
+	denyRules := []types.Rule{{
+		Resources: []string{types.KindWindowsDesktop},
+		Verbs:     []string{types.VerbList, types.VerbRead},
+	}}
+	role.SetRules(types.Deny, denyRules)
+	err = srv.Auth().UpsertRole(ctx, role)
 	require.NoError(t, err)
 	// require.NoError(t, err)
 	identity := TestUser(user.GetName())
