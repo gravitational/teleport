@@ -41,7 +41,7 @@ but filter and limit access to the servers based on their AWS region.
 
 (!docs/pages/includes/tctl.mdx!)
 
-## Step 1/3. Install Teleport
+## Step 1/4. Install Teleport
 
 1. Select a host for running the Teleport agent.
 
@@ -74,7 +74,7 @@ as a resource:
    $ export INVITE_TOKEN=<token>
    ```
 
-## Step 2/3. Apply a static label
+## Step 2/4. Apply a static label
 
 You can configure static labels by editing the Teleport configuration file, then
 starting Teleport.
@@ -191,7 +191,7 @@ ssh_service:
     teleport.hidden/team-id: ai-lab-01
 ``` 
 
-## Step 3/3. Apply dynamic labels using commands
+## Step 3/4. Apply dynamic labels using commands
 
 As with static labels, you can apply dynamic labels by editing the
 Teleport configuration file, then restarting the Teleport service on your server.
@@ -279,6 +279,75 @@ computer. Your Teleport user must be authorized to access the server.
    ---------------- -------------- ------------------------------------------------------
    ip-192-168-13-57 ⟵ Tunnel       arch=x86_64,environment=dev,hostname=ip-192-168-13-57
    ```
+
+## Step 4/4. Apply labels to a running instance with `server_info`
+
+<Notice type="note">
+   Applying labels to a running instance is only supported for servers.
+</Notice>
+
+You can apply labels to a running Teleport instance without
+restarting it by creating a `server_info` resource for the instance.
+The `server_info` resource is matched to the resource it applies to by its name.
+Allowed matching schemes include:
+
+- `si-<name>`, where `<name>` is the name of the resource.
+- For instances that were created by EC2 VM discovery,
+`aws-<account-id>-<instance-id>`, where `<account-id>` and `<instance-id>` are the
+account ID and instance ID of the EC2 instance.
+
+To add labels to a running instance:
+
+1. Create the file `server_info.yaml` and paste the following into it:
+
+   ```yaml
+   # server_info.yaml
+   kind: server_info
+   metadata:
+      # Replace "example-node" with the name of the node to apply labels to
+      name: si-example-node
+   spec:
+      new_labels:
+         "foo": "bar"
+   ```
+
+   Run the following to create the `server_info` resource:
+
+   ```code
+   $ tctl create server_info.yaml
+   ```
+
+1. Verify that you have added the label by running the following command on your local
+computer. Your Teleport user must be authorized to access the server. Note that Teleport
+applies labels from `server_info` resources gradually to prevent strain on the Auth Service in
+larger clusters, so it may take several minutes for the new labels to appear.
+
+   ```code
+   $ tsh ls
+   ```
+
+   You should see output similar to the following with the `foo` label displayed:
+
+   ```code
+   Node Name        Address        Labels                                                                                                                   
+   ---------------- -------------- ------------------------------------------------------
+   ip-192-168-13-57 ⟵ Tunnel       foo=bar,hostname=ip-192-168-13-57
+   ```
+
+Labels set with the `server_info` resource do not persist across restarts, but
+as long as the `server_info` resource still exists the labels will eventually
+be set again. To remove labels set with a `server_info` resource, replace the
+old resource with one that has no labels:
+
+```yaml
+# server_info.yaml
+kind: server_info
+metadata:
+   # Replace "example-node" with the name of the node to apply labels to
+   name: si-example-node
+spec:
+   new_labels:
+```
 
 ## Next steps
 
