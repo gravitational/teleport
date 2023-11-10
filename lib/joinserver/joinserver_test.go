@@ -33,6 +33,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 )
 
@@ -171,16 +172,18 @@ func TestJoinServiceGRPCServer_RegisterUsingIAMMethod(t *testing.T) {
 		certs                *proto.Certs
 	}{
 		{
-			desc:              "pass case",
-			challenge:         "foo",
-			challengeResponse: &proto.RegisterUsingIAMMethodRequest{StsIdentityRequest: []byte("bar")},
-			certs:             &proto.Certs{SSH: []byte("baz")},
+			desc:      "pass case",
+			challenge: "foo",
+			challengeResponse: &proto.RegisterUsingIAMMethodRequest{StsIdentityRequest: []byte("bar"),
+				RegisterUsingTokenRequest: &types.RegisterUsingTokenRequest{}},
+			certs: &proto.Certs{SSH: []byte("baz")},
 		},
 		{
-			desc:              "auth error",
-			challenge:         "foo",
-			challengeResponse: &proto.RegisterUsingIAMMethodRequest{StsIdentityRequest: []byte("bar")},
-			authErr:           trace.AccessDenied("test auth error"),
+			desc:      "auth error",
+			challenge: "foo",
+			challengeResponse: &proto.RegisterUsingIAMMethodRequest{StsIdentityRequest: []byte("bar"),
+				RegisterUsingTokenRequest: &types.RegisterUsingTokenRequest{}},
+			authErr: trace.AccessDenied("test auth error"),
 		},
 		{
 			desc:                 "challenge response error",
@@ -221,8 +224,10 @@ func TestJoinServiceGRPCServer_RegisterUsingIAMMethod(t *testing.T) {
 					require.NoError(t, err)
 					// client should get the certs from auth
 					require.Equal(t, tc.certs, certs)
-					// auth should get the challenge response from client
-					require.Equal(t, tc.challengeResponse, testPack.mockAuthServer.gotIAMChallengeResponse)
+					// auth should get the challenge response from client with remote addry set to connection src addr
+					expectedResponse := tc.challengeResponse
+					expectedResponse.RegisterUsingTokenRequest.RemoteAddr = "bufconn"
+					require.Equal(t, expectedResponse, testPack.mockAuthServer.gotIAMChallengeResponse)
 				})
 			}
 		})
@@ -242,16 +247,18 @@ func TestJoinServiceGRPCServer_RegisterUsingAzureMethod(t *testing.T) {
 		certs                *proto.Certs
 	}{
 		{
-			desc:              "pass case",
-			challenge:         "foo",
-			challengeResponse: &proto.RegisterUsingAzureMethodRequest{AttestedData: []byte("bar"), AccessToken: "baz"},
-			certs:             &proto.Certs{SSH: []byte("qux")},
+			desc:      "pass case",
+			challenge: "foo",
+			challengeResponse: &proto.RegisterUsingAzureMethodRequest{AttestedData: []byte("bar"), AccessToken: "baz",
+				RegisterUsingTokenRequest: &types.RegisterUsingTokenRequest{}},
+			certs: &proto.Certs{SSH: []byte("qux")},
 		},
 		{
-			desc:              "auth error",
-			challenge:         "foo",
-			challengeResponse: &proto.RegisterUsingAzureMethodRequest{AttestedData: []byte("bar"), AccessToken: "baz"},
-			authErr:           trace.AccessDenied("test auth error"),
+			desc:      "auth error",
+			challenge: "foo",
+			challengeResponse: &proto.RegisterUsingAzureMethodRequest{AttestedData: []byte("bar"), AccessToken: "baz",
+				RegisterUsingTokenRequest: &types.RegisterUsingTokenRequest{}},
+			authErr: trace.AccessDenied("test auth error"),
 		},
 		{
 			desc:                 "challenge response error",
@@ -285,7 +292,9 @@ func TestJoinServiceGRPCServer_RegisterUsingAzureMethod(t *testing.T) {
 					}
 					require.NoError(t, err)
 					require.Equal(t, tc.certs, certs)
-					require.Equal(t, tc.challengeResponse, testPack.mockAuthServer.gotAzureChallengeResponse)
+					expectedResponse := tc.challengeResponse
+					expectedResponse.RegisterUsingTokenRequest.RemoteAddr = "bufconn"
+					require.Equal(t, expectedResponse, testPack.mockAuthServer.gotAzureChallengeResponse)
 				})
 			}
 		})
