@@ -22,7 +22,7 @@ import { StyledPanel } from 'design/DataTable';
 import InputSearch from 'design/DataTable/InputSearch';
 import { PredicateDoc } from 'shared/components/Search/PredicateDoc';
 
-import Toggle from 'teleport/components/Toggle';
+import Toggle from 'design/Toggle';
 
 import { PageIndicators } from 'teleport/components/hooks/useServersidePagination';
 

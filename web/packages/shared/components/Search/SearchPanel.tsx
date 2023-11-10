@@ -20,7 +20,7 @@ import { Text, Flex } from 'design';
 import { StyledPanel } from 'design/DataTable';
 import InputSearch from 'design/DataTable/InputSearch';
 import { ResourceFilter } from 'teleport/services/agents';
-import Toggle from 'teleport/components/Toggle';
+import Toggle from 'design/Toggle';
 import Tooltip from 'teleport/components/ServersideSearchPanel/Tooltip';
 
 import { PredicateDoc } from './PredicateDoc';
