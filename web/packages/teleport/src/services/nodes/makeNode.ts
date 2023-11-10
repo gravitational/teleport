@@ -24,7 +24,7 @@ export default function makeNode(json: any): Node {
   return {
     kind: 'node',
     id,
-    subKind: formatSubKindInfo(subKind),
+    subKind,
     clusterId: siteId,
     hostname,
     labels: tags ?? [],
@@ -47,15 +47,4 @@ function makeAwsMetadata(json: any): AwsMetadata {
     integration,
     subnetId,
   };
-}
-
-function formatSubKindInfo(subKind: string) {
-  switch (subKind) {
-    case 'openssh-ec2-ice':
-    case 'openssh':
-      return 'OpenSSH Server';
-
-    default:
-      return 'SSH Server';
-  }
 }

@@ -252,6 +252,8 @@ var (
 			"memorydb:UpdateUser",
 		},
 		requireSecretsManager: true,
+		authBoundary:          []string{"memorydb:Connect"},
+		requireIAMEdit:        true,
 	}
 	// awsKeyspacesActions contains IAM actions for static AWS Keyspaces databases.
 	awsKeyspacesActions = databaseActions{

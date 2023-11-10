@@ -1,19 +1,19 @@
-create or replace procedure teleport_deactivate_user(username varchar)
-language plpgsql
-as $$
-declare
+CREATE OR REPLACE PROCEDURE teleport_deactivate_user(username varchar)
+LANGUAGE plpgsql
+AS $$
+DECLARE
     role_ varchar;
-begin
+BEGIN
     -- Only deactivate if the user doesn't have other active sessions.
-    if exists (select usename from pg_stat_activity where usename = username) then
-        raise notice 'User has active connections';
-    else
+    IF EXISTS (SELECT usename FROM pg_stat_activity WHERE usename = username) THEN
+        RAISE NOTICE 'User has active connections';
+    ELSE
         -- Revoke all role memberships except teleport-auto-user group.
-        for role_ in select a.rolname from pg_roles a where pg_has_role(username, a.oid, 'member') and a.rolname not in (username, 'teleport-auto-user')
-        loop
-            execute format('revoke %I from %I', role_, username);
-        end loop;
+        FOR role_ IN SELECT a.rolname FROM pg_roles a WHERE pg_has_role(username, a.oid, 'member') AND a.rolname NOT IN (username, 'teleport-auto-user')
+        LOOP
+            EXECUTE FORMAT('REVOKE %I FROM %I', role_, username);
+        END LOOP;
         -- Disable ability to login for the user.
-        execute format('alter user %I with nologin', username);
-    end if;
-end;$$;
+        EXECUTE FORMAT('ALTER USER %I WITH NOLOGIN', username);
+    END IF;
+END;$$;

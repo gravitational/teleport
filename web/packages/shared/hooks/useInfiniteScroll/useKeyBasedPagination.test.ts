@@ -324,6 +324,7 @@ test('forceFetch spawns another request, even if there is one pending', async ()
       agents: [
         {
           kind: 'node',
+          subKind: 'teleport',
           id: 'sus',
           clusterId: 'test-cluster',
           hostname: `impostor`,

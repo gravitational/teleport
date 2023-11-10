@@ -336,6 +336,12 @@ message DatabaseSpecV3 {
 message DatabaseAdminUser {
   // Name is the username of the privileged database user.
   string Name = 1 [(gogoproto.jsontag) = "name"];
+  // DefaultDatabase is the database that the privileged database user logs
+  // into by default.
+  //
+  // Depending on the database type, this database may be used to store
+  // procedures or data for managing database users.
+  string DefaultDatabase = 2 [(gogoproto.jsontag) = "default_database"];
 }
 
 // OracleOptions contains information about privileged database user used

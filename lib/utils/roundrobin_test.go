@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package etcdbk
+package utils
 
 import (
 	"sync"
@@ -30,7 +30,7 @@ func TestRoundRobinConcurrent(t *testing.T) {
 	const workers = 100
 	const rounds = 100
 
-	rr := newRoundRobin([]bool{true, false})
+	rr := NewRoundRobin([]bool{true, false})
 
 	var tct atomic.Uint64
 	var fct atomic.Uint64
@@ -99,7 +99,7 @@ func TestRoundRobinSequential(t *testing.T) {
 	}
 	for _, tt := range tts {
 		t.Run(tt.desc, func(t *testing.T) {
-			rr := newRoundRobin(tt.items)
+			rr := NewRoundRobin(tt.items)
 			for _, exp := range tt.expect {
 				require.Equal(t, exp, rr.Next())
 			}

@@ -76,6 +76,22 @@ func TestGetAWSPolicyDocument(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	memorydb, err := types.NewDatabaseV3(types.Metadata{
+		Name: "aws-memorydb",
+	}, types.DatabaseSpecV3{
+		Protocol: "redis",
+		URI:      "clustercfg.my-memorydb.xxxxxx.memorydb.us-east-1.amazonaws.com:6379",
+		AWS: types.AWS{
+			AccountID: "123456789012",
+			MemoryDB: types.MemoryDB{
+				ClusterName:  "my-memorydb",
+				TLSEnabled:   true,
+				EndpointType: "cluster",
+			},
+		},
+	})
+	require.NoError(t, err)
+
 	tests := []struct {
 		inputDatabase        types.Database
 		expectPolicyDocument string
@@ -137,6 +153,22 @@ func TestGetAWSPolicyDocument(t *testing.T) {
             "Resource": [
                 "arn:aws:elasticache:ca-central-1:123456789012:replicationgroup:some-group",
                 "arn:aws:elasticache:ca-central-1:123456789012:user:*"
+            ]
+        }
+    ]
+}`,
+		},
+		{
+			inputDatabase: memorydb,
+			expectPolicyDocument: `{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": "memorydb:Connect",
+            "Resource": [
+                "arn:aws:memorydb:us-east-1:123456789012:cluster/my-memorydb",
+                "arn:aws:memorydb:us-east-1:123456789012:user/*"
             ]
         }
     ]

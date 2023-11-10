@@ -20,6 +20,11 @@
           "title": "FAQ",
           "slug": "/faq/"
         },
+	{
+	  "title": "Usage Reporting and Billing",
+	  "slug": "/usage-billing/",
+	  "forScopes": ["cloud", "team", "enterprise"]
+	},
         {
           "title": "Upcoming Releases",
           "slug": "/upcoming-releases/"
@@ -834,7 +839,8 @@
               "slug": "/management/operations/enroll-agent-into-automatic-updates/",
               "forScopes": [
                 "enterprise",
-                "cloud"
+                "cloud", 
+                "team"
               ]
             }
           ]

@@ -91,10 +91,12 @@ func (r *RoleReconciler) SetupWithManager(mgr ctrl.Manager) error {
 }
 
 func (r *RoleReconciler) Delete(ctx context.Context, obj kclient.Object) error {
-	teleportClient, err := r.TeleportClientAccessor(ctx)
+	teleportClient, release, err := r.TeleportClientAccessor(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	defer release()
+
 	return teleportClient.DeleteRole(ctx, obj.GetName())
 }
 
@@ -123,7 +125,10 @@ func (r *RoleReconciler) Upsert(ctx context.Context, obj kclient.Object) error {
 
 	// Converting the Kubernetes resource into a Teleport one, checking potential ownership issues.
 	teleportResource := k8sResource.ToTeleport()
-	teleportClient, err := r.TeleportClientAccessor(ctx)
+	teleportClient, release, err := r.TeleportClientAccessor(ctx)
+	if err == nil {
+		defer release()
+	}
 	updateErr = updateStatus(updateStatusConfig{
 		ctx:         ctx,
 		client:      r.Client,

@@ -60,6 +60,14 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
+// TestNodesDontCacheHighVolumeResources verifies that resources classified as "high volume" aren't
+// cached by nodes.
+func TestNodesDontCacheHighVolumeResources(t *testing.T) {
+	for _, kind := range ForNode(Config{}).Watches {
+		require.False(t, isHighVolumeResource(kind.Kind), "resource=%q", kind.Kind)
+	}
+}
+
 // testPack contains pack of
 // services used for test run
 type testPack struct {

@@ -24,7 +24,7 @@ jobs:
       image: ghcr.io/gravitational/teleport-buildbox:teleport14
 
     env:
-      GOLANGCI_LINT_VERSION: v1.55.1
+      GOLANGCI_LINT_VERSION: v1.55.2
 
     steps:
       - name: Checkout
