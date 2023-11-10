@@ -65,10 +65,11 @@ func (r *UserReconciler) SetupWithManager(mgr ctrl.Manager) error {
 }
 
 func (r *UserReconciler) Delete(ctx context.Context, obj kclient.Object) error {
-	teleportClient, err := r.TeleportClientAccessor(ctx)
+	teleportClient, release, err := r.TeleportClientAccessor(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	defer release()
 	return teleportClient.DeleteUser(ctx, obj.GetName())
 }
 
@@ -78,7 +79,10 @@ func (r *UserReconciler) Upsert(ctx context.Context, obj kclient.Object) error {
 		return fmt.Errorf("failed to convert Object into resource object: %T", obj)
 	}
 	teleportResource := k8sResource.ToTeleport()
-	teleportClient, err := r.TeleportClientAccessor(ctx)
+	teleportClient, release, err := r.TeleportClientAccessor(ctx)
+	if err == nil {
+		defer release()
+	}
 	updateErr := updateStatus(updateStatusConfig{
 		ctx:         ctx,
 		client:      r.Client,
@@ -87,9 +91,6 @@ func (r *UserReconciler) Upsert(ctx context.Context, obj kclient.Object) error {
 	})
 	if err != nil || updateErr != nil {
 		return trace.NewAggregate(err, updateErr)
-	}
-	if err != nil {
-		return trace.Wrap(err)
 	}
 
 	existingResource, err := teleportClient.GetUser(teleportResource.GetName(), false)
