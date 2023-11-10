@@ -360,7 +360,7 @@ func (s *IdentityService) UpdateUser(ctx context.Context, user types.User) (type
 		ID:       user.GetResourceID(),
 		Revision: rev,
 	}
-	lease, err := s.Backend.Update(ctx, item)
+	lease, err := s.Backend.ConditionalUpdate(ctx, item)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

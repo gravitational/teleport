@@ -167,7 +167,7 @@ func BenchmarkBufferedChannelPipe(b *testing.B) {
 			for n := 0; n < b.N; n++ {
 				written, err := buffer.Write(data)
 				require.NoError(b, err)
-				require.Equal(b, len(data), written)
+				require.Len(b, data, written)
 			}
 			require.NoError(b, <-errCh)
 			b.StopTimer()

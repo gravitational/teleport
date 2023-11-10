@@ -285,13 +285,13 @@ func TestAgentStart(t *testing.T) {
 		<-waitForVersion
 
 		atomic.AddInt32(openChannels, 1)
-		assert.Equal(t, name, chanHeartbeat, "Unexpected channel opened during startup.")
+		assert.Equal(t, chanHeartbeat, name, "Unexpected channel opened during startup.")
 		return tracessh.NewTraceChannel(
 				&mockSSHChannel{
 					MockSendRequest: func(name string, wantReply bool, payload []byte) (bool, error) {
 						atomic.AddInt32(sentPings, 1)
 
-						assert.Equal(t, name, "ping", "Unexpected request name.")
+						assert.Equal(t, "ping", name, "Unexpected request name.")
 						assert.False(t, wantReply, "Expected no reply wanted.")
 						return true, nil
 					},

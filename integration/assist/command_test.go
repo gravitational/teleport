@@ -369,7 +369,7 @@ func registerMockSSHNode(t *testing.T, ctx context.Context, sshAddr, testDir str
 	require.Eventually(t, helpers.FindNodeWithLabel(t, ctx, rc.Process.GetAuthServer(), "hello", "true"), time.Second*2, time.Millisecond*50)
 	nodes, err := rc.Process.GetAuthServer().GetNodes(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
-	require.Equal(t, 1, len(nodes))
+	require.Len(t, nodes, 1)
 	return nodes[0]
 }
 

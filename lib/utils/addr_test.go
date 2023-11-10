@@ -17,7 +17,6 @@ limitations under the License.
 package utils
 
 import (
-	"fmt"
 	"net"
 	"strings"
 	"testing"
@@ -33,20 +32,20 @@ func TestParseHostPort(t *testing.T) {
 	// success
 	addr, err := ParseHostPortAddr("localhost:22", -1)
 	require.NoError(t, err)
-	require.Equal(t, addr.AddrNetwork, "tcp")
-	require.Equal(t, addr.Addr, "localhost:22")
+	require.Equal(t, "tcp", addr.AddrNetwork)
+	require.Equal(t, "localhost:22", addr.Addr)
 
 	// scheme + existing port
 	addr, err = ParseHostPortAddr("https://localhost", 443)
 	require.NoError(t, err)
-	require.Equal(t, addr.AddrNetwork, "https")
-	require.Equal(t, addr.Addr, "localhost:443")
+	require.Equal(t, "https", addr.AddrNetwork)
+	require.Equal(t, "localhost:443", addr.Addr)
 
 	// success
 	addr, err = ParseHostPortAddr("localhost", 1111)
 	require.NoError(t, err)
-	require.Equal(t, addr.AddrNetwork, "tcp")
-	require.Equal(t, addr.Addr, "localhost:1111")
+	require.Equal(t, "tcp", addr.AddrNetwork)
+	require.Equal(t, "localhost:1111", addr.Addr)
 
 	// missing port
 	addr, err = ParseHostPortAddr("localhost", -1)
@@ -55,14 +54,14 @@ func TestParseHostPort(t *testing.T) {
 
 	// scheme + missing port
 	_, err = ParseHostPortAddr("https://localhost", -1)
-	require.NotNil(t, err)
+	require.Error(t, err)
 }
 
 func TestEmpty(t *testing.T) {
 	t.Parallel()
 
 	var a NetAddr
-	require.Equal(t, a.IsEmpty(), true)
+	require.True(t, a.IsEmpty())
 }
 
 func TestParse(t *testing.T) {
@@ -71,12 +70,12 @@ func TestParse(t *testing.T) {
 	addr, err := ParseAddr("tcp://one:25/path")
 	require.NoError(t, err)
 	require.NotNil(t, addr)
-	require.Equal(t, addr.Addr, "one:25")
-	require.Equal(t, addr.Path, "/path")
-	require.Equal(t, addr.FullAddress(), "tcp://one:25")
-	require.Equal(t, addr.IsEmpty(), false)
-	require.Equal(t, addr.Host(), "one")
-	require.Equal(t, addr.Port(0), 25)
+	require.Equal(t, "one:25", addr.Addr)
+	require.Equal(t, "/path", addr.Path)
+	require.Equal(t, "tcp://one:25", addr.FullAddress())
+	require.False(t, addr.IsEmpty())
+	require.Equal(t, "one", addr.Host())
+	require.Equal(t, 25, addr.Port(0))
 }
 
 func TestParseIPV6(t *testing.T) {
@@ -85,19 +84,19 @@ func TestParseIPV6(t *testing.T) {
 	addr, err := ParseAddr("[::1]:49870")
 	require.NoError(t, err)
 	require.NotNil(t, addr)
-	require.Equal(t, addr.Addr, "[::1]:49870")
-	require.Equal(t, addr.Path, "")
-	require.Equal(t, addr.FullAddress(), "tcp://[::1]:49870")
-	require.Equal(t, addr.IsEmpty(), false)
-	require.Equal(t, addr.Host(), "::1")
-	require.Equal(t, addr.Port(0), 49870)
+	require.Equal(t, "[::1]:49870", addr.Addr)
+	require.Empty(t, addr.Path)
+	require.Equal(t, "tcp://[::1]:49870", addr.FullAddress())
+	require.False(t, addr.IsEmpty())
+	require.Equal(t, "::1", addr.Host())
+	require.Equal(t, 49870, addr.Port(0))
 
 	// Just square brackets is also valid
 	addr, err = ParseAddr("[::1]")
 	require.NoError(t, err)
 	require.NotNil(t, addr)
-	require.Equal(t, addr.Addr, "[::1]")
-	require.Equal(t, addr.Host(), "::1")
+	require.Equal(t, "[::1]", addr.Addr)
+	require.Equal(t, "::1", addr.Host())
 }
 
 func TestParseEmptyPort(t *testing.T) {
@@ -106,12 +105,12 @@ func TestParseEmptyPort(t *testing.T) {
 	addr, err := ParseAddr("one")
 	require.NoError(t, err)
 	require.NotNil(t, addr)
-	require.Equal(t, addr.Addr, "one")
-	require.Equal(t, addr.Path, "")
-	require.Equal(t, addr.FullAddress(), "tcp://one")
-	require.Equal(t, addr.IsEmpty(), false)
-	require.Equal(t, addr.Host(), "one")
-	require.Equal(t, addr.Port(443), 443)
+	require.Equal(t, "one", addr.Addr)
+	require.Empty(t, addr.Path)
+	require.Equal(t, "tcp://one", addr.FullAddress())
+	require.False(t, addr.IsEmpty())
+	require.Equal(t, "one", addr.Host())
+	require.Equal(t, 443, addr.Port(443))
 }
 
 func TestParseHTTP(t *testing.T) {
@@ -120,10 +119,10 @@ func TestParseHTTP(t *testing.T) {
 	addr, err := ParseAddr("http://one:25/path")
 	require.NoError(t, err)
 	require.NotNil(t, addr)
-	require.Equal(t, addr.Addr, "one:25")
-	require.Equal(t, addr.Path, "/path")
-	require.Equal(t, addr.FullAddress(), "http://one:25")
-	require.Equal(t, addr.IsEmpty(), false)
+	require.Equal(t, "one:25", addr.Addr)
+	require.Equal(t, "/path", addr.Path)
+	require.Equal(t, "http://one:25", addr.FullAddress())
+	require.False(t, addr.IsEmpty())
 }
 
 func TestParseDefaults(t *testing.T) {
@@ -132,9 +131,9 @@ func TestParseDefaults(t *testing.T) {
 	addr, err := ParseAddr("host:25")
 	require.NoError(t, err)
 	require.NotNil(t, addr)
-	require.Equal(t, addr.Addr, "host:25")
-	require.Equal(t, addr.FullAddress(), "tcp://host:25")
-	require.Equal(t, addr.IsEmpty(), false)
+	require.Equal(t, "host:25", addr.Addr)
+	require.Equal(t, "tcp://host:25", addr.FullAddress())
+	require.False(t, addr.IsEmpty())
 }
 
 func TestReplaceLocalhost(t *testing.T) {
@@ -142,17 +141,17 @@ func TestReplaceLocalhost(t *testing.T) {
 
 	var result string
 	result = ReplaceLocalhost("10.10.1.1", "192.168.1.100:399")
-	require.Equal(t, result, "10.10.1.1")
+	require.Equal(t, "10.10.1.1", result)
 	result = ReplaceLocalhost("10.10.1.1:22", "192.168.1.100:399")
-	require.Equal(t, result, "10.10.1.1:22")
+	require.Equal(t, "10.10.1.1:22", result)
 	result = ReplaceLocalhost("127.0.0.1:22", "192.168.1.100:399")
-	require.Equal(t, result, "192.168.1.100:22")
+	require.Equal(t, "192.168.1.100:22", result)
 	result = ReplaceLocalhost("0.0.0.0:22", "192.168.1.100:399")
-	require.Equal(t, result, "192.168.1.100:22")
+	require.Equal(t, "192.168.1.100:22", result)
 	result = ReplaceLocalhost("[::]:22", "192.168.1.100:399")
-	require.Equal(t, result, "192.168.1.100:22")
+	require.Equal(t, "192.168.1.100:22", result)
 	result = ReplaceLocalhost("[::]:22", "[1::1]:399")
-	require.Equal(t, result, "[1::1]:22")
+	require.Equal(t, "[1::1]:22", result)
 }
 
 func TestLocalAddrs(t *testing.T) {
@@ -172,8 +171,7 @@ func TestLocalAddrs(t *testing.T) {
 	for i, testCase := range testCases {
 		addr, err := ParseAddr(testCase.in)
 		require.NoError(t, err)
-		require.Equalf(t, addr.IsLocal(), testCase.expected,
-			fmt.Sprintf("test case %v, %v should be local(%v)", i, testCase.in, testCase.expected))
+		require.Equal(t, testCase.expected, addr.IsLocal(), "test case %v, %v should be local(%v)", i, testCase.in, testCase.expected)
 	}
 }
 
@@ -250,8 +248,10 @@ func TestGuessesIPAddress(t *testing.T) {
 		},
 	}
 	for _, testCase := range testCases {
-		ip := guessHostIP(testCase.addrs)
-		require.Empty(t, cmp.Diff(ip, testCase.expected), fmt.Sprintf(testCase.comment))
+		t.Run(testCase.comment, func(t *testing.T) {
+			ip := guessHostIP(testCase.addrs)
+			require.Empty(t, cmp.Diff(ip, testCase.expected))
+		})
 	}
 }
 
@@ -271,8 +271,7 @@ func TestMarshal(t *testing.T) {
 	for i, testCase := range testCases {
 		bytes, err := yaml.Marshal(testCase.in)
 		require.NoError(t, err)
-		require.Equalf(t, strings.TrimSpace(string(bytes)), testCase.expected,
-			fmt.Sprintf("test case %v, %v should be marshaled to: %v", i, testCase.in, testCase.expected))
+		require.Equal(t, testCase.expected, strings.TrimSpace(string(bytes)), "test case %v, %v should be marshaled to: %v", i, testCase.in, testCase.expected)
 	}
 }
 
@@ -292,8 +291,7 @@ func TestUnmarshal(t *testing.T) {
 		addr := &NetAddr{}
 		err := yaml.Unmarshal([]byte(testCase.in), addr)
 		require.NoError(t, err)
-		require.Empty(t, cmp.Diff(addr, testCase.expected),
-			fmt.Sprintf("test case %v, %v should be unmarshalled to: %v", i, testCase.in, testCase.expected))
+		require.Empty(t, cmp.Diff(addr, testCase.expected), "test case %v, %v should be unmarshalled to: %v", i, testCase.in, testCase.expected)
 
 	}
 }

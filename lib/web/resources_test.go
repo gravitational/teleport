@@ -51,7 +51,7 @@ spec:
     - testing
 version: v3`
 	extractedResource, err := ExtractResourceAndValidate(goodContent)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.NotNil(t, extractedResource)
 
 	// Test missing name.
@@ -283,10 +283,10 @@ spec:
 version: v2
 `
 	cluster, err := types.NewTrustedCluster("tcName", types.TrustedClusterSpecV2{})
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	item, err := ui.NewResourceItem(cluster)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.Equal(t, item, &ui.ResourceItem{
 		ID:      "trusted_cluster:tcName",
 		Kind:    types.KindTrustedCluster,
@@ -304,14 +304,14 @@ func TestGetRoles(t *testing.T) {
 				Logins: []string{"test"},
 			},
 		})
-		require.Nil(t, err)
+		require.NoError(t, err)
 
 		return []types.Role{role}, nil
 	}
 
 	// Test response is converted to ui objects.
 	roles, err := getRoles(m)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.Len(t, roles, 1)
 	require.Contains(t, roles[0].Content, "name: test")
 }
@@ -433,7 +433,7 @@ func TestGetGithubConnectors(t *testing.T) {
 
 	// Test response is converted to ui objects.
 	connectors, err := getGithubConnectors(ctx, m)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.Len(t, connectors, 1)
 	require.Contains(t, connectors[0].Content, "name: test")
 }
@@ -444,14 +444,14 @@ func TestGetTrustedClusters(t *testing.T) {
 
 	m.mockGetTrustedClusters = func(ctx context.Context) ([]types.TrustedCluster, error) {
 		cluster, err := types.NewTrustedCluster("test", types.TrustedClusterSpecV2{})
-		require.Nil(t, err)
+		require.NoError(t, err)
 
 		return []types.TrustedCluster{cluster}, nil
 	}
 
 	// Test response is converted to ui objects.
 	tcs, err := getTrustedClusters(ctx, m)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.Len(t, tcs, 1)
 	require.Contains(t, tcs[0].Content, "name: test")
 }

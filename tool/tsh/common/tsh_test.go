@@ -439,7 +439,7 @@ func TestOIDCLogin(t *testing.T) {
 	// goroutine (ensures watcher init does not race with request creation).
 	select {
 	case event := <-watcher.Events():
-		require.Equal(t, event.Type, types.OpInit)
+		require.Equal(t, types.OpInit, event.Type)
 	case <-watcher.Done():
 		require.FailNow(t, "watcher closed unexpected", "err: %v", watcher.Error())
 	}
@@ -994,7 +994,7 @@ func TestMakeClient(t *testing.T) {
 	// forwarding is required for proxy recording mode.
 	agentKeys, err := tc.LocalAgent().ExtendedAgent.List()
 	require.NoError(t, err)
-	require.Greater(t, len(agentKeys), 0)
+	require.NotEmpty(t, agentKeys)
 	require.Equal(t, keys.PrivateKeyPolicyNone, tc.PrivateKeyPolicy,
 		"private key policy should be configured from the identity file temp profile")
 }

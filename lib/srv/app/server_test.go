@@ -663,10 +663,10 @@ func TestHandleConnection(t *testing.T) {
 		},
 	})
 	s.checkHTTPResponse(t, s.clientCertificate, func(resp *http.Response) {
-		require.Equal(t, resp.StatusCode, http.StatusOK)
+		require.Equal(t, http.StatusOK, resp.StatusCode)
 		buf, err := io.ReadAll(resp.Body)
 		require.NoError(t, err)
-		require.Equal(t, strings.TrimSpace(string(buf)), s.message)
+		require.Equal(t, s.message, strings.TrimSpace(string(buf)))
 	})
 }
 
@@ -711,10 +711,10 @@ func TestHandleConnectionHTTP2WS(t *testing.T) {
 
 	// First, make the request. This will be using HTTP2.
 	s.checkHTTPResponse(t, s.clientCertificate, func(resp *http.Response) {
-		require.Equal(t, resp.StatusCode, http.StatusOK)
+		require.Equal(t, http.StatusOK, resp.StatusCode)
 		buf, err := io.ReadAll(resp.Body)
 		require.NoError(t, err)
-		require.Equal(t, strings.TrimSpace(string(buf)), s.message)
+		require.Equal(t, s.message, strings.TrimSpace(string(buf)))
 	})
 
 	// Second, make the WebSocket connection. This will be using HTTP/1.1
@@ -793,10 +793,10 @@ func TestRewriteJWT(t *testing.T) {
 					Login: login,
 				})
 			s.checkHTTPResponse(t, s.clientCertificate, func(resp *http.Response) {
-				require.Equal(t, resp.StatusCode, http.StatusOK)
+				require.Equal(t, http.StatusOK, resp.StatusCode)
 				buf, err := io.ReadAll(resp.Body)
 				require.NoError(t, err)
-				require.Equal(t, strings.TrimSpace(string(buf)), s.message)
+				require.Equal(t, s.message, strings.TrimSpace(string(buf)))
 			})
 		})
 	}
@@ -888,10 +888,10 @@ func TestAuthorizeWithLocks(t *testing.T) {
 	}()
 
 	s.checkHTTPResponse(t, s.clientCertificate, func(resp *http.Response) {
-		require.Equal(t, resp.StatusCode, http.StatusForbidden)
+		require.Equal(t, http.StatusForbidden, resp.StatusCode)
 		buf, err := io.ReadAll(resp.Body)
 		require.NoError(t, err)
-		require.Equal(t, strings.TrimSpace(string(buf)), "Forbidden")
+		require.Equal(t, "Forbidden", strings.TrimSpace(string(buf)))
 	})
 }
 
@@ -926,7 +926,7 @@ func TestAWSConsoleRedirect(t *testing.T) {
 		require.Equal(t, http.StatusFound, resp.StatusCode)
 		location, err := resp.Location()
 		require.NoError(t, err)
-		require.Equal(t, location.String(), "https://signin.aws.amazon.com")
+		require.Equal(t, "https://signin.aws.amazon.com", location.String())
 	})
 }
 
@@ -1150,7 +1150,7 @@ func (s *Suite) checkWSResponse(t *testing.T, clientCert tls.Certificate, checkM
 	require.NoError(t, err)
 
 	// Check response.
-	require.Equal(t, resp.StatusCode, http.StatusSwitchingProtocols)
+	require.Equal(t, http.StatusSwitchingProtocols, resp.StatusCode)
 	require.NoError(t, resp.Body.Close())
 
 	// Read websocket message

@@ -81,11 +81,11 @@ func TestProtoStreamer(t *testing.T) {
 				Uploader:       uploader,
 				MinUploadBytes: tc.minUploadBytes,
 			})
-			require.Nil(t, err)
+			require.NoError(t, err)
 
 			sid := session.ID(fmt.Sprintf("test-%v", i))
 			stream, err := streamer.CreateAuditStream(ctx, sid)
-			require.Nil(t, err)
+			require.NoError(t, err)
 
 			evts := tc.events
 			for _, event := range evts {
@@ -94,21 +94,21 @@ func TestProtoStreamer(t *testing.T) {
 					require.IsType(t, tc.err, err)
 					return
 				}
-				require.Nil(t, err)
+				require.NoError(t, err)
 			}
 			err = stream.Complete(ctx)
-			require.Nil(t, err)
+			require.NoError(t, err)
 
 			var outEvents []apievents.AuditEvent
 			uploads, err := uploader.ListUploads(ctx)
-			require.Nil(t, err)
+			require.NoError(t, err)
 			parts, err := uploader.GetParts(uploads[0].ID)
-			require.Nil(t, err)
+			require.NoError(t, err)
 
 			for _, part := range parts {
 				reader := events.NewProtoReader(bytes.NewReader(part))
 				out, err := reader.ReadAll(ctx)
-				require.Nil(t, err, "part crash %#v", part)
+				require.NoError(t, err, "part crash %#v", part)
 				outEvents = append(outEvents, out...)
 			}
 
@@ -205,7 +205,7 @@ func TestAsyncEmitter(t *testing.T) {
 
 		// context will not wait until all events have been submitted
 		emitter.Close()
-		require.True(t, int(counter.Count()) <= len(evts))
+		require.LessOrEqual(t, int(counter.Count()), len(evts))
 
 		// make sure all emit calls returned after context is done
 		for range evts {
@@ -272,5 +272,5 @@ func TestExport(t *testing.T) {
 		count++
 	}
 	require.NoError(t, snl.Err())
-	require.Equal(t, len(outEvents), count)
+	require.Len(t, outEvents, count)
 }

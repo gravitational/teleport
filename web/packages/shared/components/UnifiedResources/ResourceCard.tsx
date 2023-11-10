@@ -27,7 +27,6 @@ import { Box, ButtonIcon, ButtonLink, Flex, Label, Text } from 'design';
 import copyToClipboard from 'design/utils/copyToClipboard';
 import { StyledCheckbox } from 'design/Checkbox';
 
-import { ShimmerBox } from 'design/ShimmerBox';
 import { ResourceIcon, ResourceIconName } from 'design/ResourceIcon';
 import { Icon, Copy, Check, PushPinFilled, PushPin } from 'design/Icon';
 
@@ -302,66 +301,6 @@ export function ResourceCard({
   );
 }
 
-type LoadingCardProps = {
-  delay?: 'none' | 'short' | 'long';
-};
-
-const DelayValueMap = {
-  none: 0,
-  short: 400, // 0.4s;
-  long: 600, // 0.6s;
-};
-
-function randomNum(min: number, max: number) {
-  return Math.floor(Math.random() * (max - min + 1)) + min;
-}
-
-export function LoadingCard({ delay = 'none' }: LoadingCardProps) {
-  const [canDisplay, setCanDisplay] = useState(false);
-
-  useEffect(() => {
-    const displayTimeout = setTimeout(() => {
-      setCanDisplay(true);
-    }, DelayValueMap[delay]);
-    return () => {
-      clearTimeout(displayTimeout);
-    };
-  }, []);
-
-  if (!canDisplay) {
-    return null;
-  }
-
-  return (
-    <LoadingCardWrapper p={3}>
-      <Flex gap={2} alignItems="start">
-        {/* Image */}
-        <ShimmerBox height="45px" width="45px" />
-        {/* Name and action button */}
-        <Box flex={1}>
-          <Flex gap={2} mb={2} justifyContent="space-between">
-            <ShimmerBox
-              height="24px"
-              css={`
-                flex-basis: ${randomNum(100, 30)}%;
-              `}
-            />
-            <ShimmerBox height="24px" width="90px" />
-          </Flex>
-          <ShimmerBox height="16px" width={`${randomNum(90, 40)}%`} mb={2} />
-          <Box>
-            <Flex gap={2}>
-              {new Array(randomNum(4, 0)).fill(null).map((_, i) => (
-                <ShimmerBox key={i} height="16px" width="60px" />
-              ))}
-            </Flex>
-          </Box>
-        </Box>
-      </Flex>
-    </LoadingCardWrapper>
-  );
-}
-
 function CopyButton({ name }: { name: string }) {
   const copySuccess = 'Copied!';
   const copyDefault = 'Click to copy';
@@ -505,13 +444,6 @@ const MoreLabelsButton = styled(ButtonLink)`
 
   transition: visibility 0s;
   transition: background 150ms;
-`;
-
-const LoadingCardWrapper = styled(Box)`
-  height: 100px;
-  border: ${props => props.theme.borders[2]}
-    ${props => props.theme.colors.spotBackground[0]};
-  border-radius: ${props => props.theme.radii[3]}px;
 `;
 
 function PinButton({

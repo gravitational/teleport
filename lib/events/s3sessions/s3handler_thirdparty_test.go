@@ -49,7 +49,7 @@ func TestThirdpartyStreams(t *testing.T) {
 		Endpoint:                    server.URL,
 		DisableServerSideEncryption: true,
 	})
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	defer func() {
 		if err := handler.deleteBucket(context.Background()); err != nil {

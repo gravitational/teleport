@@ -210,7 +210,7 @@ func TestDiscoveryConfig(t *testing.T) {
 			require.NotEmpty(t, listResponse.NextKey)
 			startKey = listResponse.NextKey
 		}
-		require.Equal(t, listTestCount, len(uniqDC))
+		require.Len(t, uniqDC, listTestCount)
 		require.Zero(t, iterationsCount, "invalid number of iterations")
 	})
 }

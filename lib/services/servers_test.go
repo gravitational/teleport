@@ -50,42 +50,42 @@ func TestServersCompare(t *testing.T) {
 		}
 		node.SetExpiry(time.Date(2018, 1, 2, 3, 4, 5, 6, time.UTC))
 		// Server is equal to itself
-		require.Equal(t, CompareServers(node, node), Equal)
+		require.Equal(t, Equal, CompareServers(node, node))
 
 		// Only timestamps are different
 		node2 := *node
 		node2.SetExpiry(time.Date(2018, 1, 2, 3, 4, 5, 8, time.UTC))
-		require.Equal(t, CompareServers(node, &node2), OnlyTimestampsDifferent)
+		require.Equal(t, OnlyTimestampsDifferent, CompareServers(node, &node2))
 
 		// Labels are different
 		node2 = *node
 		node2.Metadata.Labels = map[string]string{"a": "d"}
-		require.Equal(t, CompareServers(node, &node2), Different)
+		require.Equal(t, Different, CompareServers(node, &node2))
 
 		// Command labels are different
 		node2 = *node
 		node2.Spec.CmdLabels = map[string]types.CommandLabelV2{"a": {Period: types.Duration(time.Minute), Command: []string{"ls", "-lR"}}}
-		require.Equal(t, CompareServers(node, &node2), Different)
+		require.Equal(t, Different, CompareServers(node, &node2))
 
 		// Address has changed
 		node2 = *node
 		node2.Spec.Addr = "localhost:3033"
-		require.Equal(t, CompareServers(node, &node2), Different)
+		require.Equal(t, Different, CompareServers(node, &node2))
 
 		// Proxy addr has changed
 		node2 = *node
 		node2.Spec.PublicAddrs = []string{"localhost:3033"}
-		require.Equal(t, CompareServers(node, &node2), Different)
+		require.Equal(t, Different, CompareServers(node, &node2))
 
 		// Hostname has changed
 		node2 = *node
 		node2.Spec.Hostname = "luna2"
-		require.Equal(t, CompareServers(node, &node2), Different)
+		require.Equal(t, Different, CompareServers(node, &node2))
 
 		// TeleportVersion has changed
 		node2 = *node
 		node2.Spec.Version = "5.0.0"
-		require.Equal(t, CompareServers(node, &node2), Different)
+		require.Equal(t, Different, CompareServers(node, &node2))
 
 		// Rotation has changed
 		node2 = *node
@@ -102,7 +102,7 @@ func TestServersCompare(t *testing.T) {
 				Standby:       time.Date(2018, 3, 4, 5, 6, 13, 8, time.UTC),
 			},
 		}
-		require.Equal(t, CompareServers(node, &node2), Different)
+		require.Equal(t, Different, CompareServers(node, &node2))
 	})
 
 	t.Run("compare DatabaseServices", func(t *testing.T) {
@@ -122,19 +122,19 @@ func TestServersCompare(t *testing.T) {
 		service.SetExpiry(time.Date(2018, 1, 2, 3, 4, 5, 6, time.UTC))
 
 		// DatabaseService is equal to itself
-		require.Equal(t, CompareServers(service, service), Equal)
+		require.Equal(t, Equal, CompareServers(service, service))
 
 		// Only timestamps are different
 		service2 := *service
 		service2.SetExpiry(time.Date(2018, 1, 2, 3, 4, 5, 8, time.UTC))
-		require.Equal(t, CompareServers(service, &service2), OnlyTimestampsDifferent)
+		require.Equal(t, OnlyTimestampsDifferent, CompareServers(service, &service2))
 
 		// Resource Matcher has changed
 		service2 = *service
 		service2.Spec.ResourceMatchers = []*types.DatabaseResourceMatcher{
 			{Labels: &types.Labels{"env": []string{"stg", "qa"}}},
 		}
-		require.Equal(t, CompareServers(service, &service2), Different)
+		require.Equal(t, Different, CompareServers(service, &service2))
 	})
 }
 
@@ -145,8 +145,8 @@ func TestGuessProxyHostAndVersion(t *testing.T) {
 
 	// No proxies passed in.
 	host, version, err := GuessProxyHostAndVersion(nil)
-	require.Equal(t, host, "")
-	require.Equal(t, version, "")
+	require.Empty(t, host)
+	require.Empty(t, version)
 	require.True(t, trace.IsNotFound(err))
 
 	// No proxies have public address set.

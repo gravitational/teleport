@@ -119,7 +119,7 @@ func TestLoadTokenFromFile(t *testing.T) {
 
 	token, err := cfg.Onboarding.Token()
 	require.NoError(t, err)
-	require.Equal(t, token, "xxxyyy")
+	require.Equal(t, "xxxyyy", token)
 }
 
 const exampleConfigFile = `
@@ -280,7 +280,7 @@ func testYAML[T any](t *testing.T, tests []testYAMLCase[T]) {
 			b := bytes.NewBuffer(nil)
 			encoder := yaml.NewEncoder(b)
 			encoder.SetIndent(2)
-			require.NoError(t, encoder.Encode(tt.in))
+			require.NoError(t, encoder.Encode(&tt.in))
 
 			if golden.ShouldSet() {
 				golden.Set(t, b.Bytes())

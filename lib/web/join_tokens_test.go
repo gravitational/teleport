@@ -633,8 +633,8 @@ func TestGetAppJoinScript(t *testing.T) {
 		t.Run(tc.desc, func(t *testing.T) {
 			script, err = getJoinScript(context.Background(), tc.settings, m)
 			if tc.shouldError {
-				require.NotNil(t, err)
-				require.Equal(t, script, "")
+				require.Error(t, err)
+				require.Empty(t, script)
 			} else {
 				require.NoError(t, err)
 				for _, output := range tc.outputs {
@@ -937,7 +937,7 @@ func TestJoinScript(t *testing.T) {
 			currentStableCloudVersion := "v99.1.1"
 
 			httpTestServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				assert.Equal(t, r.URL.Path, "/v1/stable/cloud/version")
+				assert.Equal(t, "/v1/stable/cloud/version", r.URL.Path)
 				w.WriteHeader(http.StatusOK)
 				w.Write([]byte(currentStableCloudVersion))
 			}))

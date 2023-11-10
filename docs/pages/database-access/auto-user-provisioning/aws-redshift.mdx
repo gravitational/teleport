@@ -3,22 +3,12 @@ title: AWS Redshift Automatic User Provisioning
 description: Configure automatic user provisioning for AWS Redshift.
 ---
 
-<Details
-  title="Version warning"
-  opened={true}
-  scope={["oss", "enterprise"]}
-  scopeOnly={true}
-  min="14.2"
->
-  Automatic user provisioning for AWS Redshift is available starting from
-  Teleport 14.2.
-</Details>
-
 (!docs/pages/includes/database-access/auto-user-provisioning/intro.mdx!)
 
 ## Prerequisites
 
-- Teleport cluster with a configured [AWS Redshift](../guides/postgres-redshift.mdx) database.
+- Teleport cluster v14.2 or higher with a configured [AWS
+  Redshift](../guides/postgres-redshift.mdx) database.
 - Ability to connect to and create user accounts in the target database.
 
 <Admonition type="note" title="Supported services">

@@ -375,7 +375,7 @@ func (s *ServiceNowSuite) TestApproval() {
 	require.Contains(t, incident.Description, "submitted access request")
 	assert.Contains(t, incident.CloseNotes, "Access request has been resolved")
 	assert.Contains(t, incident.CloseNotes, "Reason: okay")
-	assert.Equal(t, incident.CloseCode, "resolved")
+	assert.Equal(t, "resolved", incident.CloseCode)
 }
 
 func (s *ServiceNowSuite) TestDenial() {

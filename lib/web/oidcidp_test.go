@@ -67,9 +67,9 @@ func TestOIDCIdPPublicEndpoints(t *testing.T) {
 
 	require.NotEmpty(t, jwksKeys.Keys)
 	key := jwksKeys.Keys[0]
-	require.Equal(t, key.Use, "sig")
-	require.Equal(t, key.KeyType, "RSA")
-	require.Equal(t, key.Alg, "RS256")
+	require.Equal(t, "sig", key.Use)
+	require.Equal(t, "RSA", key.KeyType)
+	require.Equal(t, "RS256", key.Alg)
 	require.NotNil(t, key.KeyID) // AWS requires this to be present (even if empty string).
 }
 
