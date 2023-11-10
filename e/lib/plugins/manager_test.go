@@ -14,11 +14,11 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/breaker"
-	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/lib/jamf/testenv"
 	"github.com/gravitational/teleport/e/lib/services"
 	storage "github.com/gravitational/teleport/integrations/access/common/auth/storage"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -192,7 +192,7 @@ func testPluginStartStop(t *testing.T, plugin *types.PluginV1, modifySpec func(t
 		Log: testLog,
 
 		// the following are not used in the test
-		TeleportClient: &client.Client{},
+		TeleportClient: &auth.Server{},
 		ParentProcess:  &service.TeleportProcess{},
 	}
 
