@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 
 import { ButtonBorder } from 'design';
 
@@ -28,11 +28,17 @@ import { UrlResourcesParams } from 'teleport/config';
 import { ResourcesResponse } from 'teleport/services/agents';
 
 import {
-  UnifiedResources,
+  UnifiedResourcePreferences,
+  UnifiedTabPreference,
+  UnifiedViewModePreference,
+} from 'teleport/services/userPreferences/types';
+
+import { UnifiedResources, useUnifiedResourcesFetch } from './UnifiedResources';
+import {
+  SharedUnifiedResource,
   UnifiedResourcesPinning,
-  useUnifiedResourcesFetch,
-} from './UnifiedResources';
-import { SharedUnifiedResource } from './types';
+  UnifiedResourcesQueryParams,
+} from './types';
 
 export default {
   title: 'Shared/UnifiedResources',
@@ -67,15 +73,29 @@ const story = ({
     getClusterPinnedResources: async () => [],
     updateClusterPinnedResources: async () => undefined,
   },
+  params,
 }: {
   fetchFunc: (
     params: UrlResourcesParams,
     signal: AbortSignal
   ) => Promise<ResourcesResponse<SharedUnifiedResource['resource']>>;
   pinning?: UnifiedResourcesPinning;
+  params?: Partial<UnifiedResourcesQueryParams>;
 }) => {
-  const params = { sort: { dir: 'ASC', fieldName: 'name' } } as const;
+  const mergedParams: UnifiedResourcesQueryParams = {
+    ...{
+      sort: {
+        dir: 'ASC',
+        fieldName: 'name',
+      },
+    },
+    ...params,
+  };
   return () => {
+    const [userPrefs, setUserPrefs] = useState<UnifiedResourcePreferences>({
+      defaultTab: UnifiedTabPreference.All,
+      viewMode: UnifiedViewModePreference.Card,
+    });
     const { fetch, attempt, resources } = useUnifiedResourcesFetch({
       fetchFunc,
     });
@@ -103,10 +123,11 @@ const story = ({
             disabled: false,
           },
         ]}
-        params={params}
+        params={mergedParams}
         setParams={() => undefined}
         pinning={pinning}
-        updateUnifiedResourcesPreferences={() => undefined}
+        unifiedResourcePreferences={userPrefs}
+        updateUnifiedResourcesPreferences={setUserPrefs}
         onLabelClick={() => undefined}
         NoResources={undefined}
         fetchResources={fetch}
@@ -130,6 +151,13 @@ export const List = story({
   fetchFunc: async () => ({
     agents: allResources,
   }),
+});
+
+export const NoResults = story({
+  fetchFunc: async () => ({
+    agents: [],
+  }),
+  params: { search: 'my super long search query' },
 });
 
 export const Loading = story({

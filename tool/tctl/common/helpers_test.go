@@ -93,9 +93,7 @@ func getAuthClient(ctx context.Context, t *testing.T, fc *config.FileConfig, opt
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		if closer, ok := client.(io.Closer); ok {
-			closer.Close()
-		}
+		client.Close()
 	})
 
 	return client
@@ -200,6 +198,7 @@ func mustDecodeYAML[T any](t *testing.T, r io.Reader) T {
 	require.NoError(t, err)
 	return out
 }
+
 func mustGetBase64EncFileConfig(t *testing.T, fc *config.FileConfig) string {
 	configYamlContent, err := yaml.Marshal(fc)
 	require.NoError(t, err)
@@ -210,7 +209,7 @@ func mustWriteFileConfig(t *testing.T, fc *config.FileConfig) string {
 	fileConfPath := filepath.Join(t.TempDir(), "teleport.yaml")
 	fileConfYAML, err := yaml.Marshal(fc)
 	require.NoError(t, err)
-	err = os.WriteFile(fileConfPath, fileConfYAML, 0600)
+	err = os.WriteFile(fileConfPath, fileConfYAML, 0o600)
 	require.NoError(t, err)
 	return fileConfPath
 }

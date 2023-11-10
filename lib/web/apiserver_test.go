@@ -89,6 +89,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	transportpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/transport/v1"
+	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -9355,8 +9356,8 @@ func TestModeratedSessionWithMFA(t *testing.T) {
 				RPID: RPID,
 			},
 		},
-		presenceChecker: func(ctx context.Context, term io.Writer, maintainer client.PresenceMaintainer, sessionID string, promptMFA client.PromptMFAFunc, opts ...client.PresenceOption) error {
-			return trace.Wrap(client.RunPresenceTask(ctx, term, maintainer, sessionID, promptMFA, client.WithPresenceClock(presenceClock)))
+		presenceChecker: func(ctx context.Context, term io.Writer, maintainer client.PresenceMaintainer, sessionID string, mfaPrompt mfa.Prompt, opts ...client.PresenceOption) error {
+			return trace.Wrap(client.RunPresenceTask(ctx, term, maintainer, sessionID, mfaPrompt, client.WithPresenceClock(presenceClock)))
 		},
 	})
 

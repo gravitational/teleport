@@ -14,35 +14,27 @@
  * limitations under the License.
  */
 
-import React, {
-  useCallback,
-  useState,
-  useEffect,
-  useLayoutEffect,
-  useRef,
-} from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import styled, { css } from 'styled-components';
 
-import { Box, ButtonIcon, ButtonLink, Flex, Label, Text } from 'design';
-import copyToClipboard from 'design/utils/copyToClipboard';
+import { Box, ButtonLink, Flex, Label, Text } from 'design';
 import { StyledCheckbox } from 'design/Checkbox';
 
-import { ShimmerBox } from 'design/ShimmerBox';
-import { ResourceIcon, ResourceIconName } from 'design/ResourceIcon';
-import { Icon, Copy, Check, PushPinFilled, PushPin } from 'design/Icon';
+import { ResourceIcon } from 'design/ResourceIcon';
 
-import {
-  HoverTooltip,
-  PINNING_NOT_SUPPORTED_MESSAGE,
-} from './UnifiedResources';
+import { makeLabelTag } from 'teleport/components/formatters';
 
-import type { ResourceLabel } from 'teleport/services/agents'; // Since we do a lot of manual resizing and some absolute positioning, we have
+import { HoverTooltip } from 'shared/components/ToolTip';
+
+import { ResourceItemProps } from '../types';
+import { PinButton } from '../shared/PinButton';
+import { CopyButton } from '../shared/CopyButton';
 
 // Since we do a lot of manual resizing and some absolute positioning, we have
 // to put some layout constants in place here.
-const labelRowHeight = 20; // px
+const labelHeight = 20; // px
 const labelVerticalMargin = 1; // px
-const labelHeight = labelRowHeight * labelVerticalMargin;
+const labelRowHeight = labelHeight + labelVerticalMargin * 2;
 
 /**
  * This box serves twofold purpose: first, it prevents the underlying icon from
@@ -54,40 +46,12 @@ const ResTypeIconBox = styled(Box)`
   line-height: 0;
 `;
 
-export enum PinningSupport {
-  Supported = 'Supported',
-  /**
-   * Disables pinning functionality if a leaf cluster hasn't been upgraded yet.
-   * Shows an appropriate message on hover.
-   * */
-  NotSupported = 'NotSupported',
-  /** Disables the pinning button. */
-  Disabled = 'Disabled',
-  /** Hides the pinning button completely. */
-  Hidden = 'Hidden',
-}
-
-type Props = {
-  name: string;
-  primaryIconName: ResourceIconName;
-  SecondaryIcon: typeof Icon;
-  description: { primary?: string; secondary?: string };
-  labels: ResourceLabel[];
-  ActionButton: React.ReactElement;
-  onLabelClick?: (label: ResourceLabel) => void;
-  pinResource: () => void;
-  selectResource: () => void;
-  selected: boolean;
-  pinned: boolean;
-  pinningSupport: PinningSupport;
-};
-
 export function ResourceCard({
   name,
   primaryIconName,
   SecondaryIcon,
   onLabelClick,
-  description,
+  cardViewProps,
   ActionButton,
   labels,
   pinningSupport,
@@ -95,17 +59,17 @@ export function ResourceCard({
   pinResource,
   selectResource,
   selected,
-}: Props) {
+}: Omit<ResourceItemProps, 'listViewProps'>) {
+  const { primaryDesc, secondaryDesc } = cardViewProps;
+
   const [showMoreLabelsButton, setShowMoreLabelsButton] = useState(false);
   const [showAllLabels, setShowAllLabels] = useState(false);
   const [numMoreLabels, setNumMoreLabels] = useState(0);
-  const [isNameOverflowed, setIsNameOverflowed] = useState(false);
 
   const [hovered, setHovered] = useState(false);
 
   const innerContainer = useRef<Element | null>(null);
   const labelsInnerContainer = useRef(null);
-  const nameText = useRef<HTMLDivElement | null>(null);
   const collapseTimeout = useRef<ReturnType<typeof setTimeout>>(null);
 
   // This effect installs a resize observer whose purpose is to detect the size
@@ -115,16 +79,6 @@ export function ResourceCard({
     if (!labelsInnerContainer.current) return;
 
     const observer = new ResizeObserver(entries => {
-      // This check will let us know if the name text has overflowed. We do this
-      // to conditionally render a tooltip for only overflowed names
-      if (
-        nameText.current?.scrollWidth >
-        nameText.current?.parentElement.offsetWidth
-      ) {
-        setIsNameOverflowed(true);
-      } else {
-        setIsNameOverflowed(false);
-      }
       const container = entries[0];
 
       // We're taking labelRowHeight * 1.5 just in case some glitch adds or
@@ -204,7 +158,7 @@ export function ResourceCard({
           pinned={pinned}
           selected={selected}
         >
-          <HoverTooltip tipContent={<>{selected ? 'Deselect' : 'Select'}</>}>
+          <HoverTooltip tipContent={selected ? 'Deselect' : 'Select'}>
             <StyledCheckbox
               css={`
                 position: absolute;
@@ -215,12 +169,22 @@ export function ResourceCard({
               onChange={selectResource}
             />
           </HoverTooltip>
-          <PinButton
-            setPinned={pinResource}
-            pinned={pinned}
-            pinningSupport={pinningSupport}
-            hovered={hovered}
-          />
+          <Box
+            css={`
+              position: absolute;
+              // we position far from the top so the layout of the pin doesn't change if we expand the card
+              top: ${props => props.theme.space[9]}px;
+              transition: none;
+              left: 16px;
+            `}
+          >
+            <PinButton
+              setPinned={pinResource}
+              pinned={pinned}
+              pinningSupport={pinningSupport}
+              hovered={hovered}
+            />
+          </Box>
           <ResourceIcon
             name={primaryIconName}
             width="45px"
@@ -231,36 +195,30 @@ export function ResourceCard({
           <Flex flexDirection="column" flex="1" minWidth="0" ml={3} gap={1}>
             <Flex flexDirection="row" alignItems="center">
               <SingleLineBox flex="1">
-                {isNameOverflowed ? (
-                  <HoverTooltip tipContent={<>{name}</>}>
-                    <Text ref={nameText} typography="h5" fontWeight={300}>
-                      {name}
-                    </Text>
-                  </HoverTooltip>
-                ) : (
-                  <Text ref={nameText} typography="h5" fontWeight={300}>
+                <HoverTooltip tipContent={name} showOnlyOnOverflow>
+                  <Text typography="h5" fontWeight={300}>
                     {name}
                   </Text>
-                )}
+                </HoverTooltip>
               </SingleLineBox>
-              {hovered && <CopyButton name={name} />}
+              {hovered && <CopyButton name={name} mr={2} />}
               {ActionButton}
             </Flex>
             <Flex flexDirection="row" alignItems="center">
               <ResTypeIconBox>
                 <SecondaryIcon size={18} />
               </ResTypeIconBox>
-              {description.primary && (
-                <SingleLineBox ml={1} title={description.primary}>
+              {primaryDesc && (
+                <SingleLineBox ml={1} title={primaryDesc}>
                   <Text typography="body2" color="text.slightlyMuted">
-                    {description.primary}
+                    {primaryDesc}
                   </Text>
                 </SingleLineBox>
               )}
-              {description.secondary && (
-                <SingleLineBox ml={2} title={description.secondary}>
+              {secondaryDesc && (
+                <SingleLineBox ml={2} title={secondaryDesc}>
                   <Text typography="body2" color="text.muted">
-                    {description.secondary}
+                    {secondaryDesc}
                   </Text>
                 </SingleLineBox>
               )}
@@ -279,11 +237,10 @@ export function ResourceCard({
                   + {numMoreLabels} more
                 </MoreLabelsButton>
                 {labels.map((label, i) => {
-                  const { name, value } = label;
-                  const labelText = `${name}: ${value}`;
+                  const labelText = makeLabelTag(label);
                   return (
                     <StyledLabel
-                      key={JSON.stringify([name, value, i])}
+                      key={i}
                       title={labelText}
                       onClick={() => onLabelClick?.(label)}
                       kind="secondary"
@@ -299,94 +256,6 @@ export function ResourceCard({
         </CardInnerContainer>
       </CardOuterContainer>
     </CardContainer>
-  );
-}
-
-type LoadingCardProps = {
-  delay?: 'none' | 'short' | 'long';
-};
-
-const DelayValueMap = {
-  none: 0,
-  short: 400, // 0.4s;
-  long: 600, // 0.6s;
-};
-
-function randomNum(min: number, max: number) {
-  return Math.floor(Math.random() * (max - min + 1)) + min;
-}
-
-export function LoadingCard({ delay = 'none' }: LoadingCardProps) {
-  const [canDisplay, setCanDisplay] = useState(false);
-
-  useEffect(() => {
-    const displayTimeout = setTimeout(() => {
-      setCanDisplay(true);
-    }, DelayValueMap[delay]);
-    return () => {
-      clearTimeout(displayTimeout);
-    };
-  }, []);
-
-  if (!canDisplay) {
-    return null;
-  }
-
-  return (
-    <LoadingCardWrapper p={3}>
-      <Flex gap={2} alignItems="start">
-        {/* Image */}
-        <ShimmerBox height="45px" width="45px" />
-        {/* Name and action button */}
-        <Box flex={1}>
-          <Flex gap={2} mb={2} justifyContent="space-between">
-            <ShimmerBox
-              height="24px"
-              css={`
-                flex-basis: ${randomNum(100, 30)}%;
-              `}
-            />
-            <ShimmerBox height="24px" width="90px" />
-          </Flex>
-          <ShimmerBox height="16px" width={`${randomNum(90, 40)}%`} mb={2} />
-          <Box>
-            <Flex gap={2}>
-              {new Array(randomNum(4, 0)).fill(null).map((_, i) => (
-                <ShimmerBox key={i} height="16px" width="60px" />
-              ))}
-            </Flex>
-          </Box>
-        </Box>
-      </Flex>
-    </LoadingCardWrapper>
-  );
-}
-
-function CopyButton({ name }: { name: string }) {
-  const copySuccess = 'Copied!';
-  const copyDefault = 'Click to copy';
-  const copyAnchorEl = useRef(null);
-  const [copiedText, setCopiedText] = useState(copyDefault);
-
-  const handleCopy = useCallback(() => {
-    setCopiedText(copySuccess);
-    copyToClipboard(name);
-    // Change to default text after 1 second
-    setTimeout(() => {
-      setCopiedText(copyDefault);
-    }, 1000);
-  }, [name]);
-
-  return (
-    <HoverTooltip tipContent={<>{copiedText}</>}>
-      <ButtonIcon setRef={copyAnchorEl} size={0} mr={2} onClick={handleCopy}>
-        {copiedText === copySuccess ? (
-          <Check size="small" />
-        ) : (
-          <Copy size="small" />
-        )}
-      </ButtonIcon>
-    </HoverTooltip>
   );
 }
 
@@ -420,6 +289,20 @@ const CardOuterContainer = styled(Box)`
 
   ${CardContainer}:hover & {
     background-color: ${props => props.theme.colors.levels.surface};
+
+    // We use a pseudo element for the shadow with position: absolute in order to prevent
+    // the shadow from increasing the size of the layout and causing scrollbar flicker.
+    :after {
+      box-shadow: ${props => props.theme.boxShadow[3]};
+      border-radius: ${props => props.theme.radii[3]}px;
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      z-index: -1;
+      width: 100%;
+      height: 100%;
+    }
   }
 `;
 
@@ -437,6 +320,11 @@ const CardInnerContainer = styled(Flex)`
     ${props => props.theme.colors.spotBackground[0]};
   border-radius: ${props => props.theme.radii[3]}px;
   background-color: ${props => getBackgroundColor(props)};
+
+  :hover {
+    // Make the border invisible instead of removing it, this is to prevent things from shifting due to the size change.
+    border: ${props => props.theme.borders[2]} rgba(0, 0, 0, 0);
+  }
 `;
 
 const getBackgroundColor = props => {
@@ -472,6 +360,7 @@ const StyledLabel = styled(Label)`
   text-overflow: ellipsis;
   white-space: nowrap;
   cursor: pointer;
+  line-height: ${labelHeight - labelVerticalMargin}px;
 `;
 
 /**
@@ -506,76 +395,3 @@ const MoreLabelsButton = styled(ButtonLink)`
   transition: visibility 0s;
   transition: background 150ms;
 `;
-
-const LoadingCardWrapper = styled(Box)`
-  height: 100px;
-  border: ${props => props.theme.borders[2]}
-    ${props => props.theme.colors.spotBackground[0]};
-  border-radius: ${props => props.theme.radii[3]}px;
-`;
-
-function PinButton({
-  pinned,
-  pinningSupport,
-  hovered,
-  setPinned,
-}: {
-  pinned: boolean;
-  pinningSupport: PinningSupport;
-  hovered: boolean;
-  setPinned: (id: string) => void;
-}) {
-  const copyAnchorEl = useRef(null);
-  const tipContent = getTipContent(pinningSupport, pinned);
-
-  const shouldShowButton =
-    pinningSupport !== PinningSupport.Hidden && (pinned || hovered);
-  const shouldDisableButton =
-    pinningSupport === PinningSupport.Disabled ||
-    pinningSupport === PinningSupport.NotSupported;
-
-  const $content = pinned ? (
-    <PushPinFilled color="brand" size="small" />
-  ) : (
-    <PushPin size="small" />
-  );
-
-  return (
-    <ButtonIcon
-      css={`
-        // dont display but keep the layout
-        visibility: ${shouldShowButton ? 'visible' : 'hidden'};
-        position: absolute;
-        // we position far from the top so the layout of the pin doesn't change if we expand the card
-        top: ${props => props.theme.space[9]}px;
-        transition: none;
-        left: 16px;
-      `}
-      disabled={shouldDisableButton}
-      setRef={copyAnchorEl}
-      size={0}
-      onClick={setPinned}
-    >
-      {tipContent ? (
-        <HoverTooltip tipContent={<>{tipContent}</>}>{$content}</HoverTooltip>
-      ) : (
-        $content
-      )}
-      <HoverTooltip tipContent={<>{tipContent}</>}></HoverTooltip>
-    </ButtonIcon>
-  );
-}
-
-function getTipContent(
-  pinningSupport: PinningSupport,
-  pinned: boolean
-): string {
-  switch (pinningSupport) {
-    case PinningSupport.NotSupported:
-      return PINNING_NOT_SUPPORTED_MESSAGE;
-    case PinningSupport.Supported:
-      return pinned ? 'Unpin' : 'Pin';
-    default:
-      return '';
-  }
-}

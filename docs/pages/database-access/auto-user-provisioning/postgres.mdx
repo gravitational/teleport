@@ -3,23 +3,13 @@ title: PostgreSQL Automatic User Provisioning
 description: Configure automatic user provisioning for PostgreSQL.
 ---
 
-<Details
-  title="Version warning"
-  opened={true}
-  scope={["oss", "enterprise"]}
-  scopeOnly={true}
-  min="13.1"
->
-  Automatic user provisioning for PostgreSQL is available starting from
-  Teleport 13.1.
-</Details>
-
 (!docs/pages/includes/database-access/auto-user-provisioning/intro.mdx!)
 
 ## Prerequisites
 
-- Teleport cluster with a configured [self-hosted PostgreSQL](../guides/postgres-self-hosted.mdx)
-  or [RDS PostgreSQL](../guides/rds.mdx) database.
+- Teleport cluster v13.1 or above with a configured [self-hosted
+  PostgreSQL](../guides/postgres-self-hosted.mdx) or [RDS
+  PostgreSQL](../guides/rds.mdx) database.
 - Ability to connect to and create user accounts in the target database.
 
 ## Step 1/3. Configure database admin
