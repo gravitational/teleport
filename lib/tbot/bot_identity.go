@@ -178,7 +178,6 @@ func botIdentityFromAuth(
 	newIdentity, err := identity.ReadIdentityFromStore(
 		ident.Params(),
 		certs,
-		identity.BotKinds()...,
 	)
 	if err != nil {
 		return nil, trace.Wrap(err, "reading renewed identity")
@@ -241,6 +240,6 @@ func botIdentityFromToken(log logrus.FieldLogger, cfg *config.BotConfig) (*ident
 		PrivateKeyBytes: tlsPrivateKey,
 		PublicKeyBytes:  sshPublicKey,
 		TokenHashBytes:  []byte(tokenHash),
-	}, certs, identity.BotKinds()...)
+	}, certs)
 	return ident, trace.Wrap(err)
 }

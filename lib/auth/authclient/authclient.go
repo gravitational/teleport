@@ -119,8 +119,9 @@ func connectViaProxyTunnel(ctx context.Context, cfg *Config) (*auth.Client, erro
 	resolver := reversetunnelclient.WebClientResolver(&webclient.Config{
 		Context:   ctx,
 		ProxyAddr: cfg.AuthServers[0].String(),
-		Insecure:  cfg.TLS.InsecureSkipVerify,
-		Timeout:   cfg.DialTimeout,
+		// TODO -\/- PROBLEM
+		Insecure: cfg.TLS.InsecureSkipVerify,
+		Timeout:  cfg.DialTimeout,
 	})
 
 	resolver, err := reversetunnelclient.CachingResolver(ctx, resolver, nil /* clock */)
@@ -131,11 +132,13 @@ func connectViaProxyTunnel(ctx context.Context, cfg *Config) (*auth.Client, erro
 	// reversetunnel.TunnelAuthDialer will take care of creating a net.Conn
 	// within an SSH tunnel.
 	dialer, err := reversetunnelclient.NewTunnelAuthDialer(reversetunnelclient.TunnelAuthDialerConfig{
-		Resolver:              resolver,
-		ClientConfig:          cfg.SSH,
-		Log:                   cfg.Log,
+		Resolver:     resolver,
+		ClientConfig: cfg.SSH,
+		Log:          cfg.Log,
+		// TODO -\/- PROBLEM
 		InsecureSkipTLSVerify: cfg.TLS.InsecureSkipVerify,
-		ClusterCAs:            cfg.TLS.RootCAs,
+		// TODO -\/- PROBLEM
+		ClusterCAs: cfg.TLS.RootCAs,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

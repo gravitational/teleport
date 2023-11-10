@@ -256,7 +256,7 @@ func (b *Bot) generateIdentity(
 	newIdentity, err := identity.ReadIdentityFromStore(&identity.LoadIdentityParams{
 		PrivateKeyBytes: privateKey,
 		PublicKeyBytes:  publicKey,
-	}, certs, identity.DestinationKinds()...)
+	}, certs)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

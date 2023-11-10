@@ -67,9 +67,8 @@ var log = logrus.WithFields(logrus.Fields{
 	trace.Component: teleport.ComponentTBot,
 })
 
-// Identity is collection of certificates and signers that represent server
-// identity. This is derived from Teleport's usual auth.Identity with small
-// modifications to work with user rather than host certificates.
+// Identity is collection of raw key and certificate data as well as the
+// parsed equivalents that make up a Teleport identity.
 type Identity struct {
 	// PrivateKeyBytes is a PEM encoded private key
 	PrivateKeyBytes []byte
@@ -87,7 +86,8 @@ type Identity struct {
 	// TokenHashBytes is the hash of the original join token
 	TokenHashBytes []byte
 
-	// Below fields are built from the above fields.
+	// Below fields are "computed" by ReadIdentityFromStore - this essentially
+	// validates the raw data and saves these being continually recomputed.
 	// KeySigner is an SSH host certificate signer
 	KeySigner ssh.Signer
 	// SSHCert is a parsed SSH certificate
@@ -141,7 +141,7 @@ func (i *Identity) String() string {
 }
 
 // ReadIdentityFromStore reads stored identity credentials
-func ReadIdentityFromStore(params *LoadIdentityParams, certs *proto.Certs, kinds ...ArtifactKind) (*Identity, error) {
+func ReadIdentityFromStore(params *LoadIdentityParams, certs *proto.Certs) (*Identity, error) {
 	// Note: in practice we should always expect certificates to have all
 	// fields set even though destinations do not contain sufficient data to
 	// load a stored identity. This works in practice because we never read
@@ -160,14 +160,14 @@ func ReadIdentityFromStore(params *LoadIdentityParams, certs *proto.Certs, kinds
 		params.PrivateKeyBytes, certs.SSH, certs.SSHCACerts,
 	)
 	if err != nil {
-		return nil, trace.Wrap(err, "initializing ssh")
+		return nil, trace.Wrap(err, "parsing ssh identity")
 	}
 
-	clusterName, x509Cert, tlsCert, tlsCAPool, err := parseTLSIdentity(
+	clusterName, x509Cert, tlsCert, tlsCAPool, err := ParseTLSIdentity(
 		params.PrivateKeyBytes, certs.TLS, certs.TLSCACerts,
 	)
 	if err != nil {
-		return nil, trace.Wrap(err, "initializing tls")
+		return nil, trace.Wrap(err, "parsing tls identity")
 	}
 
 	return &Identity{
@@ -190,8 +190,8 @@ func ReadIdentityFromStore(params *LoadIdentityParams, certs *proto.Certs, kinds
 	}, nil
 }
 
-// parseTLSIdentity reads TLS identity from key pair
-func parseTLSIdentity(
+// ParseTLSIdentity reads TLS identity from key pair
+func ParseTLSIdentity(
 	keyBytes []byte, certBytes []byte, caCertsBytes [][]byte,
 ) (clusterName string, x509Cert *x509.Certificate, tlsCert *tls.Certificate, certPool *x509.CertPool, err error) {
 	x509Cert, err = tlsca.ParseCertificatePEM(certBytes)
@@ -227,8 +227,8 @@ func parseTLSIdentity(
 // parseSSHIdentity reads identity from initialized keypair
 func parseSSHIdentity(
 	keyBytes, certBytes []byte, caBytes [][]byte,
-) (hostCheckers []ssh.PublicKey, certSigner ssh.Signer, sshCert *ssh.Certificate, err error) {
-	cert, err := apisshutils.ParseCertificate(certBytes)
+) (hostCheckers []ssh.PublicKey, certSigner ssh.Signer, cert *ssh.Certificate, err error) {
+	cert, err = apisshutils.ParseCertificate(certBytes)
 	if err != nil {
 		return nil, nil, nil, trace.Wrap(err, "parsing certificate")
 	}
@@ -259,7 +259,7 @@ func parseSSHIdentity(
 		return nil, nil, nil, trace.Wrap(err, "parsing ca bytes")
 	}
 
-	return hostCheckers, certSigner, sshCert, nil
+	return hostCheckers, certSigner, cert, nil
 }
 
 // VerifyWrite attempts to write to the .write-test artifact inside the given
@@ -353,5 +353,5 @@ func LoadIdentity(ctx context.Context, d bot.Destination, kinds ...ArtifactKind)
 
 	log.Debugf("Loaded %d SSH CA certs and %d TLS CA certs", len(certs.SSHCACerts), len(certs.TLSCACerts))
 
-	return ReadIdentityFromStore(&params, &certs, kinds...)
+	return ReadIdentityFromStore(&params, &certs)
 }
