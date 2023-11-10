@@ -16,7 +16,7 @@ syntax = "proto3";
 
 package accessgraph.v1alpha;
 
-import "teleport/legacy/client/proto/event.proto";
+import "google/protobuf/empty.proto";
 import "teleport/legacy/types/types.proto";
 
 option go_package = "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha;accessgraphv1alpha";
@@ -29,11 +29,13 @@ service AccessGraphService {
   // GetFile gets a static UI file from the access graph container.
   rpc GetFile(GetFileRequest) returns (GetFileResponse);
 
-  // SendEvent sends an event to the access graph service.
-  rpc SendEvent(SendEventRequest) returns (SendEventResponse);
-
-  // SendResource sends a resource to the access graph service.
-  rpc SendResource(SendResourceRequest) returns (SendResourceResponse);
+  // EventsStream is a stream of commands to the access graph service.
+  // Teleport Auth server creates a stream to the access graph service
+  // and pushes all resources and following events to it.
+  // This stream is used to sync the access graph with the Teleport database state.
+  // Once Teleport finishes syncing the current state, it sends a sync command
+  // to the access graph service and resumes sending events.
+  rpc EventsStream(stream EventsStreamRequest) returns (EventsStreamResponse);
 }
 
 // Node is a node in the access graph.
@@ -86,40 +88,39 @@ message GetFileResponse {
   bytes data = 1;
 }
 
-// SendEventRequest is a request to send an event to the access graph.
-message SendEventRequest {
-  proto.Event event = 1;
+// ResourceList is a list of resources to send to the access graph.
+message ResourceList {
+  repeated ResourceEntry resources = 1;
 }
 
-// SendEventResponse is a response to sending an event.
-message SendEventResponse {
-  // cache_initialized is true if the cache has been initialized.
-  // When false, the sender should send all resources to the access graph using SendResource.
-  bool cache_initialized = 1;
-}
-
-// SendResourceRequest is a request to send a resource to the access graph.
-message SendResourceRequest {
-  // resource contains the updated resource
+// ResourceEntry is a wrapper for the supported resource types.
+message ResourceEntry {
   oneof resource {
-    SendResourceEnd end = 1;
-    // ResourceHeader is specified in delete events,
-    // the full object is not available, so resource
-    // header is used to provide information about object type
-    types.ResourceHeader resource_header = 2;
     // User is a user resource
-    types.UserV2 user = 3;
+    types.UserV2 user = 1;
     // Role is a role resource
-    types.RoleV6 role = 4;
+    types.RoleV6 role = 2;
     // Server is a node or proxy resource
-    types.ServerV2 server = 5;
+    types.ServerV2 server = 3;
     // AccessRequest is a resource for access requests
-    types.AccessRequestV3 access_request = 6;
+    types.AccessRequestV3 access_request = 4;
   }
 }
 
-// SendResourceEnd is a marker for the end of a resource stream.
-message SendResourceEnd {}
+// EventsStreamRequest is a request to send commands to the access graph.
+// This command is used to sync the access graph with the Teleport database state.
+message EventsStreamRequest {
+  // operation contains the desired operation
+  oneof operation {
+    // sync is a command to sync the access graph with the Teleport database state.
+    // it's issued once Teleport finishes syncing all resources with the database.
+    google.protobuf.Empty sync = 1;
+    // upsert is a command to put a resource into the access graph or update it.
+    ResourceList upsert = 2;
+    // delete is a command to delete a resource from the access graph when it's deleted from Teleport.
+    types.ResourceHeader delete = 3;
+  }
+}
 
-// SendResourceResponse is a response to sending a resource.
-message SendResourceResponse {}
+// EventsStreamResponse is an empty response from EventsStream endpoint.
+message EventsStreamResponse {}
