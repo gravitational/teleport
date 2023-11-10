@@ -3,20 +3,21 @@ package identity
 import (
 	"crypto/tls"
 	"crypto/x509"
+	"sync"
+
+	"github.com/gravitational/trace"
+	"golang.org/x/crypto/ssh"
+	"golang.org/x/net/http2"
+
 	"github.com/gravitational/teleport/api/client"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
-	"golang.org/x/crypto/ssh"
-	"golang.org/x/net/http2"
-	"sync"
 )
 
-// Assert that this UnstableClientCredentialOutput can be used as client
-// credential.
+// Assert that this Facade can be used as client credential.
 var _ client.Credentials = new(Facade)
 
 // Facade manages storing a rotating identity, and presenting it as

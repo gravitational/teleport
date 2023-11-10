@@ -20,11 +20,14 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"sync"
+
+	"github.com/gravitational/trace"
+	"golang.org/x/crypto/ssh"
+
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/identity"
-	"golang.org/x/crypto/ssh"
-	"sync"
 )
 
 // Assert that this UnstableClientCredentialOutput can be used as client
@@ -40,25 +43,53 @@ type UnstableClientCredentialOutput struct {
 }
 
 func (o *UnstableClientCredentialOutput) Ready() <-chan struct{} {
-
-	return nil // TODO: Implement
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if o.ready == nil {
+		o.ready = make(chan struct{})
+		if o.facade != nil {
+			close(o.ready)
+		}
+	}
+	return o.ready
 }
 
 func (o *UnstableClientCredentialOutput) Dialer(c client.Config) (client.ContextDialer, error) {
-	return o.facade.Dialer(c)
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return nil, trace.NotImplemented("no dialer")
 }
 
 func (o *UnstableClientCredentialOutput) TLSConfig() (*tls.Config, error) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if o.facade == nil {
+		return nil, trace.BadParameter("credentials not yet ready")
+	}
 	return o.facade.TLSConfig()
 }
 
 func (o *UnstableClientCredentialOutput) SSHClientConfig() (*ssh.ClientConfig, error) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if o.facade == nil {
+		return nil, trace.BadParameter("credentials not yet ready")
+	}
 	return o.facade.SSHClientConfig()
 }
 
 func (o *UnstableClientCredentialOutput) Render(_ context.Context, _ provider, ident *identity.Identity) error {
 	// We're hijacking the Render method to receive a new identity in each
 	// renewal round.
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if o.facade == nil {
+		if o.ready != nil {
+			close(o.ready)
+		}
+		o.facade = identity.NewFacade(false, false, ident)
+		return nil
+	}
 	o.facade.Set(ident)
 	return nil
 }
