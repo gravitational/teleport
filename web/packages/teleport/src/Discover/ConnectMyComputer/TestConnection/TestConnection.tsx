@@ -16,9 +16,10 @@
 
 import React from 'react';
 
-import { ButtonSecondary, Flex, Text } from 'design';
+import { Flex, Text } from 'design';
 
 import { ActionButtons, StyledBox, Header } from 'teleport/Discover/Shared';
+import { NodeConnect } from 'teleport/UnifiedResources/ResourceActionButton';
 
 import { NodeMeta } from '../../useDiscover';
 
@@ -39,7 +40,7 @@ export const TestConnection = (props: AgentStepProps) => {
           Optionally verify that you can connect to &ldquo;{meta.resourceName}
           &rdquo; by starting a session.
         </Text>
-        <ButtonSecondary>Start a Session</ButtonSecondary>
+        <NodeConnect node={meta.node} textTransform="uppercase" />
       </StyledBox>
 
       <ActionButtons
