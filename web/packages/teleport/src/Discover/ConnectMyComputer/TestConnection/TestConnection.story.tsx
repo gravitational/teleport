@@ -57,6 +57,9 @@ Story.parameters = {
       rest.post(cfg.api.webRenewTokenPath, (req, res, ctx) =>
         res(ctx.json({}))
       ),
+      rest.get(cfg.api.nodesPath, (req, res, ctx) =>
+        res(ctx.json({ items: [node] }))
+      ),
     ],
   },
 };

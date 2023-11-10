@@ -34,29 +34,52 @@ import { NodeMeta } from '../../useDiscover';
 import type { AgentStepProps } from '../../types';
 
 export const TestConnection = (props: AgentStepProps) => {
-  const { userService } = useTeleport();
-  const abortController = useRef<AbortController>();
-  const [reloadUserAttempt, reloadUser] = useAsync(
-    useCallback(
-      (signal: AbortSignal) => userService.reloadUser(signal),
-      [userService]
-    )
-  );
+  const { userService, nodeService, storeUser } = useTeleport();
+  const clusterId = storeUser.getClusterId();
+  const meta = props.agentMeta as NodeMeta;
 
+  const abortController = useRef<AbortController>();
   // When the user sets up Connect My Computer in Teleport Connect, a new role gets added to the
   // user. Because of that, we need to reload the current session so that the user is able to
   // connect to the new node, without having to log in to the cluster again.
+  //
+  // We also need to refetch the node so that it includes any new logins.
+  const [refetchNodeAttempt, refetchNode] = useAsync(
+    useCallback(
+      async (signal: AbortSignal) => {
+        await userService.reloadUser(signal);
+
+        const response = await nodeService.fetchNodes(
+          clusterId,
+          { search: meta.node.id, limit: 1 },
+          signal
+        );
+
+        if (response.agents.length === 0) {
+          throw new Error('Could not find the Connect My Computer node');
+        }
+
+        if (response.agents.length > 1) {
+          throw new Error(
+            'Found multiple nodes matching the ID of the Connect My Computer node'
+          );
+        }
+
+        return response.agents[0];
+      },
+      [userService, nodeService, clusterId, meta.node.id]
+    )
+  );
+
   useEffect(() => {
     abortController.current = new AbortController();
 
-    reloadUser(abortController.current.signal);
+    refetchNode(abortController.current.signal);
 
     return () => {
       abortController.current.abort();
     };
   }, []);
-
-  const meta = props.agentMeta as NodeMeta;
 
   return (
     <Flex flexDirection="column" alignItems="flex-start" mb={2} gap={4}>
@@ -71,33 +94,36 @@ export const TestConnection = (props: AgentStepProps) => {
           {meta.resourceName}
           &rdquo; by starting a session.
         </Text>
-        {reloadUserAttempt.status === '' ||
-          (reloadUserAttempt.status === 'processing' && <Indicator />)}
+        {refetchNodeAttempt.status === '' ||
+          (refetchNodeAttempt.status === 'processing' && <Indicator />)}
 
-        {reloadUserAttempt.status === 'error' && (
+        {refetchNodeAttempt.status === 'error' && (
           <>
             <TextIcon mt={2} mb={3}>
               <Icons.Warning size="medium" ml={1} mr={2} color="error.main" />
-              Encountered Error: {reloadUserAttempt.statusText}
+              Encountered Error: {refetchNodeAttempt.statusText}
             </TextIcon>
 
             <ButtonPrimary
               type="button"
-              onClick={() => reloadUser(abortController.current.signal)}
+              onClick={() => refetchNode(abortController.current.signal)}
             >
               Retry
             </ButtonPrimary>
           </>
         )}
 
-        {reloadUserAttempt.status === 'success' && (
-          <NodeConnect node={meta.node} textTransform="uppercase" />
+        {refetchNodeAttempt.status === 'success' && (
+          <NodeConnect
+            node={refetchNodeAttempt.data}
+            textTransform="uppercase"
+          />
         )}
       </StyledBox>
 
       <ActionButtons
         onProceed={props.nextStep}
-        disableProceed={reloadUserAttempt.status !== 'success'}
+        disableProceed={refetchNodeAttempt.status !== 'success'}
         lastStep={true}
         onPrev={props.prevStep}
       />
