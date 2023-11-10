@@ -29,12 +29,14 @@ import (
 	"github.com/aws/aws-sdk-go/aws/credentials/ec2rolecreds"
 	"github.com/aws/aws-sdk-go/aws/credentials/ssocreds"
 	"github.com/aws/aws-sdk-go/aws/credentials/stscreds"
+	"github.com/aws/aws-sdk-go/aws/endpoints"
 	awssession "github.com/aws/aws-sdk-go/aws/session"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/tlsca"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 )
@@ -93,8 +95,16 @@ type CloudConfig struct {
 // CheckAndSetDefaults validates the config.
 func (c *CloudConfig) CheckAndSetDefaults() error {
 	if c.Session == nil {
+		useFIPSEndpoint := endpoints.FIPSEndpointStateUnset
+		if modules.GetModules().IsBoringBinary() {
+			useFIPSEndpoint = endpoints.FIPSEndpointStateEnabled
+		}
 		session, err := awssession.NewSessionWithOptions(awssession.Options{
 			SharedConfigState: awssession.SharedConfigEnable,
+			Config: aws.Config{
+				EC2MetadataEnableFallback: aws.Bool(false),
+				UseFIPSEndpoint:           useFIPSEndpoint,
+			},
 		})
 		if err != nil {
 			return trace.Wrap(err)

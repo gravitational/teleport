@@ -21,7 +21,7 @@ import * as Icons from 'design/Icon';
 
 import { YamlReader } from 'teleport/Discover/Shared/SetupAccess/AccessInfo';
 
-import { TextIcon, Mark } from '..';
+import { StyledBox, TextIcon, Mark } from '..';
 
 import type { Attempt } from 'shared/hooks/useAttemptNext';
 import type { ConnectionDiagnostic } from 'teleport/services/agents';
@@ -155,13 +155,6 @@ export const ErrorWithDetails = ({
     </TextIcon>
   );
 };
-
-const StyledBox = styled(Box)`
-  max-width: 800px;
-  background-color: ${props => props.theme.colors.spotBackground[0]};
-  border-radius: 8px;
-  padding: 20px;
-`;
 
 const ButtonShowMore = styled(ButtonText)`
   min-height: auto;

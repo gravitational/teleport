@@ -17,6 +17,7 @@ package client_test
 import (
 	"context"
 	"errors"
+	"os"
 	"testing"
 	"time"
 
@@ -68,7 +69,7 @@ func TestPromptMFAChallenge_usingNonRegisteredDevice(t *testing.T) {
 	tests := []struct {
 		name            string
 		challenge       *proto.MFAAuthenticateChallenge
-		customizePrompt func(p *mfa.Prompt)
+		customizePrompt func(p *mfa.PromptConfig)
 	}{
 		{
 			name:      "webauthn only",
@@ -77,7 +78,7 @@ func TestPromptMFAChallenge_usingNonRegisteredDevice(t *testing.T) {
 		{
 			name:      "webauthn and OTP",
 			challenge: challengeWebauthnOTP,
-			customizePrompt: func(p *mfa.Prompt) {
+			customizePrompt: func(p *mfa.PromptConfig) {
 				p.AllowStdinHijack = true // required for OTP+WebAuthn prompt.
 			},
 		},
@@ -98,19 +99,17 @@ func TestPromptMFAChallenge_usingNonRegisteredDevice(t *testing.T) {
 				return "", ctx.Err()
 			}))
 
-			promptMFA := &mfa.Prompt{
-				ProxyAddress:      proxyAddr,
-				WebauthnSupported: true,
-				WebauthnLogin: func(ctx context.Context, origin string, assertion *wantypes.CredentialAssertion, prompt wancli.LoginPrompt, opts *wancli.LoginOpts) (*proto.MFAAuthenticateResponse, string, error) {
-					return nil, "", wancli.ErrUsingNonRegisteredDevice
-				},
+			promptConfig := mfa.NewPromptConfig(proxyAddr)
+			promptConfig.WebauthnSupported = true
+			promptConfig.WebauthnLoginFunc = func(ctx context.Context, origin string, assertion *wantypes.CredentialAssertion, prompt wancli.LoginPrompt, opts *wancli.LoginOpts) (*proto.MFAAuthenticateResponse, string, error) {
+				return nil, "", wancli.ErrUsingNonRegisteredDevice
 			}
 
 			if test.customizePrompt != nil {
-				test.customizePrompt(promptMFA)
+				test.customizePrompt(promptConfig)
 			}
 
-			_, err := promptMFA.Run(ctx, test.challenge)
+			_, err := mfa.NewCLIPrompt(promptConfig, os.Stderr).Run(ctx, test.challenge)
 			if !errors.Is(err, wancli.ErrUsingNonRegisteredDevice) {
 				t.Errorf("PromptMFAChallenge returned err=%q, want %q", err, wancli.ErrUsingNonRegisteredDevice)
 			}

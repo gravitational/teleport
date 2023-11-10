@@ -98,7 +98,7 @@ func TestRetryWithMFA(t *testing.T) {
 
 	t.Run("with interceptor", func(t *testing.T) {
 		t.Run("ok mfa ceremony", func(t *testing.T) {
-			okMFACeremony := func(ctx context.Context) (*proto.MFAAuthenticateResponse, error) {
+			okMFACeremony := func(ctx context.Context, opts ...mfa.PromptOpt) (*proto.MFAAuthenticateResponse, error) {
 				return &proto.MFAAuthenticateResponse{
 					Response: &proto.MFAAuthenticateResponse_TOTP{
 						TOTP: &proto.TOTPResponse{
@@ -125,7 +125,7 @@ func TestRetryWithMFA(t *testing.T) {
 
 		t.Run("nok mfa ceremony", func(t *testing.T) {
 			mfaCeremonyErr := trace.BadParameter("client does not support mfa")
-			nokMFACeremony := func(ctx context.Context) (*proto.MFAAuthenticateResponse, error) {
+			nokMFACeremony := func(ctx context.Context, opts ...mfa.PromptOpt) (*proto.MFAAuthenticateResponse, error) {
 				return nil, mfaCeremonyErr
 			}
 			conn, err := grpc.Dial(

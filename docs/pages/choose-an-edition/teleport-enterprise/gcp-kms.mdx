@@ -8,18 +8,6 @@ This guide will show you how to set up your Teleport Cluster to use the Google
 Cloud Key Management Service (KMS) to store and handle the CA private key
 material used to sign all certificates issued by your Teleport cluster.
 
-<Details
-  title="Version warning"
-  opened={true}
-  scope={["enterprise"]}
-  scopeOnly={true}
-  min="11.1.0"
->
-
-The features documented on this page are available in Teleport `11.1.0` and higher.
-
-</Details>
-
 Teleport generates private key material for its internal Certificate Authorities
 (CAs) during the first Auth Server's initial startup.
 These CAs are used to sign all certificates issued to clients and hosts in the
@@ -41,6 +29,9 @@ learn more.
 (!docs/pages/includes/cloud/call-to-action.mdx!)
 
 ## Prerequisites
+
+The features documented on this page are available in Teleport `11.1.0` and
+higher.
 
 (!docs/pages/includes/commercial-prereqs-tabs.mdx!)
 

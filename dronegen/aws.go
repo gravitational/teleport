@@ -21,7 +21,7 @@ import (
 
 // awsRoleSettings contains the information necessary to assume an AWS Role
 //
-// This is intended to be imbedded, please use the kubernetes/mac/windows versions
+// This is intended to be embedded, please use the kubernetes/mac versions
 // with their corresponding pipelines.
 type awsRoleSettings struct {
 	awsAccessKeyID     value

@@ -14,10 +14,12 @@
 
 package discord
 
-import "github.com/gravitational/teleport/integrations/access/common"
+import (
+	"github.com/gravitational/teleport/integrations/access/accessrequest"
+)
 
 type MessageSlice []DiscordMsg
-type MessageSet map[common.MessageData]struct{}
+type MessageSet map[accessrequest.MessageData]struct{}
 
 func (slice MessageSlice) Len() int {
 	return len(slice)
@@ -34,11 +36,11 @@ func (slice MessageSlice) Swap(i, j int) {
 	slice[i], slice[j] = slice[j], slice[i]
 }
 
-func (set MessageSet) Add(msg common.MessageData) {
+func (set MessageSet) Add(msg accessrequest.MessageData) {
 	set[msg] = struct{}{}
 }
 
-func (set MessageSet) Contains(msg common.MessageData) bool {
+func (set MessageSet) Contains(msg accessrequest.MessageData) bool {
 	_, ok := set[msg]
 	return ok
 }

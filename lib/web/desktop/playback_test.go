@@ -23,11 +23,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/net/websocket"
 
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
+	"github.com/gravitational/teleport/lib/player"
+	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web/desktop"
 )
@@ -72,9 +76,19 @@ func newServer(t *testing.T, streamInterval time.Duration, events []apievents.Au
 	t.Helper()
 
 	fs := eventstest.NewFakeStreamer(events, streamInterval)
+	log := utils.NewLoggerForTests()
+
 	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		websocket.Handler(func(ws *websocket.Conn) {
-			desktop.NewPlayer("session-id", ws, fs, utils.NewLoggerForTests()).Play(r.Context())
+			player, err := player.New(&player.Config{
+				Clock:     clockwork.NewRealClock(),
+				Log:       log,
+				SessionID: session.ID("session-id"),
+				Streamer:  fs,
+			})
+			assert.NoError(t, err)
+			player.Play()
+			desktop.PlayRecording(r.Context(), log, ws, player)
 		}).ServeHTTP(w, r)
 	}))
 	t.Cleanup(s.Close)

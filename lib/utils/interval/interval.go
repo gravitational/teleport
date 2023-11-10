@@ -21,6 +21,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/jonboulle/clockwork"
+
 	"github.com/gravitational/teleport/api/utils/retryutils"
 )
 
@@ -56,6 +58,9 @@ type Config struct {
 	// for this parameter, since periodic operations are typically costly and the
 	// effect of the jitter is cumulative.
 	Jitter retryutils.Jitter
+
+	// Clock is the clock to use to control the interval.
+	Clock clockwork.Clock
 }
 
 // NewNoop creates a new interval that will never fire.
@@ -73,6 +78,11 @@ func New(cfg Config) *Interval {
 		panic(errors.New("non-positive interval for interval.New"))
 	}
 
+	clock := cfg.Clock
+	if clock == nil {
+		clock = clockwork.NewRealClock()
+	}
+
 	interval := &Interval{
 		ch:    make(chan time.Time, 1),
 		cfg:   cfg,
@@ -88,7 +98,7 @@ func New(cfg Config) *Interval {
 
 	// start the timer in this goroutine to improve
 	// consistency of first tick.
-	timer := time.NewTimer(firstDuration)
+	timer := clock.NewTimer(firstDuration)
 
 	go interval.run(timer)
 
@@ -137,7 +147,7 @@ func (i *Interval) duration() time.Duration {
 	return i.cfg.Jitter(i.cfg.Duration)
 }
 
-func (i *Interval) run(timer *time.Timer) {
+func (i *Interval) run(timer clockwork.Timer) {
 	defer timer.Stop()
 
 	// we take advantage of the fact that sends on nil channels never complete,
@@ -146,7 +156,7 @@ func (i *Interval) run(timer *time.Timer) {
 	var ch chan<- time.Time
 	for {
 		select {
-		case tick = <-timer.C:
+		case tick = <-timer.Chan():
 			// timer has fired, reset to next duration and ensure that
 			// output channel is set.
 			timer.Reset(i.duration())
@@ -154,7 +164,7 @@ func (i *Interval) run(timer *time.Timer) {
 		case <-i.reset:
 			// stop and drain timer
 			if !timer.Stop() {
-				<-timer.C
+				<-timer.Chan()
 			}
 			// re-set the timer
 			timer.Reset(i.duration())
@@ -163,7 +173,7 @@ func (i *Interval) run(timer *time.Timer) {
 		case <-i.fire:
 			// stop and drain timer
 			if !timer.Stop() {
-				<-timer.C
+				<-timer.Chan()
 			}
 			// re-set the timer
 			timer.Reset(i.duration())

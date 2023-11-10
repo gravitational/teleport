@@ -32,7 +32,7 @@ import {
   UnifiedResourcesPinning,
   useUnifiedResourcesFetch,
 } from './UnifiedResources';
-import { SharedUnifiedResource } from './types';
+import { SharedUnifiedResource, UnifiedResourcesQueryParams } from './types';
 
 export default {
   title: 'Shared/UnifiedResources',
@@ -67,14 +67,24 @@ const story = ({
     getClusterPinnedResources: async () => [],
     updateClusterPinnedResources: async () => undefined,
   },
+  params,
 }: {
   fetchFunc: (
     params: UrlResourcesParams,
     signal: AbortSignal
   ) => Promise<ResourcesResponse<SharedUnifiedResource['resource']>>;
   pinning?: UnifiedResourcesPinning;
+  params?: Partial<UnifiedResourcesQueryParams>;
 }) => {
-  const params = { sort: { dir: 'ASC', fieldName: 'name' } } as const;
+  const mergedParams: UnifiedResourcesQueryParams = {
+    ...{
+      sort: {
+        dir: 'ASC',
+        fieldName: 'name',
+      },
+    },
+    ...params,
+  };
   return () => {
     const { fetch, attempt, resources } = useUnifiedResourcesFetch({
       fetchFunc,
@@ -88,7 +98,7 @@ const story = ({
           'kube_cluster',
           'windows_desktop',
         ]}
-        params={params}
+        params={mergedParams}
         setParams={() => undefined}
         pinning={pinning}
         updateUnifiedResourcesPreferences={() => undefined}
@@ -115,6 +125,13 @@ export const List = story({
   fetchFunc: async () => ({
     agents: allResources,
   }),
+});
+
+export const NoResults = story({
+  fetchFunc: async () => ({
+    agents: [],
+  }),
+  params: { search: 'my super long search query' },
 });
 
 export const Loading = story({

@@ -23,7 +23,7 @@ import {
   ButtonSecondary,
   ButtonPrimary,
 } from 'design';
-import { Danger } from 'design/Alert';
+import { Danger, Info } from 'design/Alert';
 import Dialog, {
   DialogHeader,
   DialogTitle,
@@ -86,7 +86,7 @@ export function DesktopSession(props: State) {
 
   const computeErrorDialog = () => {
     // Websocket is closed but we haven't
-    // closed it on purpose or registered a fatal tdp error.
+    // closed it on purpose or registered a fatal TDP error.
     const unknownConnectionError =
       wsConnection === 'closed' &&
       !disconnected &&
@@ -96,7 +96,7 @@ export function DesktopSession(props: State) {
     if (fetchAttempt.status === 'failed') {
       errorText = fetchAttempt.statusText || 'fetch attempt failed';
     } else if (tdpConnection.status === 'failed') {
-      errorText = tdpConnection.statusText || 'tdp connection failed';
+      errorText = tdpConnection.statusText || 'TDP connection failed';
     } else if (tdpConnection.status === '') {
       errorText = tdpConnection.statusText || 'encountered a non-fatal error';
     } else if (unknownConnectionError) {
@@ -112,10 +112,15 @@ export function DesktopSession(props: State) {
     }
     const open = errorText !== '';
 
-    return { open, text: errorText };
+    return {
+      open,
+      text: errorText,
+      isError: unknownConnectionError || errorText === 'RDP connection failed',
+    };
   };
 
   const errorDialog = computeErrorDialog();
+  const Alert = errorDialog.isError ? Danger : Info;
 
   if (errorDialog.open) {
     return (
@@ -126,12 +131,14 @@ export function DesktopSession(props: State) {
           open={errorDialog.open}
         >
           <DialogHeader style={{ flexDirection: 'column' }}>
-            <DialogTitle>Error</DialogTitle>
+            <DialogTitle>
+              {errorDialog.isError ? 'Error' : 'Disconnected'}
+            </DialogTitle>
           </DialogHeader>
           <DialogContent>
             <>
-              <Danger children={<>{errorDialog.text}</>} />
-              Refresh the page to try again.
+              <Alert children={<>{errorDialog.text}</>} />
+              Refresh the page to reconnect.
             </>
           </DialogContent>
           <DialogFooter>

@@ -198,6 +198,14 @@ func (c *IAM) isSetupRequiredForDatabase(database types.Database) bool {
 			return true
 		}
 		return ok
+	case types.DatabaseTypeMemoryDB:
+		ok, err := iam.CheckMemoryDBSupportsIAMAuth(database)
+		if err != nil {
+			c.log.WithError(err).Debugf("Assuming database %s supports IAM auth.",
+				database.GetName())
+			return true
+		}
+		return ok
 	default:
 		return false
 	}

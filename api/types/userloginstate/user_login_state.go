@@ -41,6 +41,9 @@ type UserLoginState struct {
 
 // Spec is the specification for the user login state.
 type Spec struct {
+	// OriginalRoles is the list of the original roles from the user login state.
+	OriginalRoles []string `json:"original_roles" yaml:"original_roles"`
+
 	// Roles is the list of roles attached to the user login state.
 	Roles []string `json:"roles" yaml:"roles"`
 
@@ -79,6 +82,11 @@ func (u *UserLoginState) CheckAndSetDefaults() error {
 	}
 
 	return nil
+}
+
+// GetOriginalRoles returns the original roles that the user login state was derived from.
+func (u *UserLoginState) GetOriginalRoles() []string {
+	return u.Spec.OriginalRoles
 }
 
 // GetRoles returns the roles attached to the user login state.

@@ -22,12 +22,13 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/mfa"
 )
 
 // performMFACeremony retrieves an MFA challenge from the server, prompts the
 // user to answer the challenge, and returns the resulting MFA response.
-func (c *Client) performMFACeremony(ctx context.Context) (*proto.MFAAuthenticateResponse, error) {
-	if c.c.PromptAdminRequestMFA == nil {
+func (c *Client) performMFACeremony(ctx context.Context, promptOpts ...mfa.PromptOpt) (*proto.MFAAuthenticateResponse, error) {
+	if c.c.MFAPromptConstructor == nil {
 		return nil, trace.BadParameter("missing PromptAdminRequestMFA field, client cannot perform MFA ceremony")
 	}
 
@@ -38,7 +39,7 @@ func (c *Client) performMFACeremony(ctx context.Context) (*proto.MFAAuthenticate
 		return nil, trace.Wrap(err)
 	}
 
-	resp, err := c.c.PromptAdminRequestMFA(ctx, chal)
+	resp, err := c.c.MFAPromptConstructor(promptOpts...).Run(ctx, chal)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
