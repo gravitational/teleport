@@ -33,6 +33,7 @@ import { UnifiedViewModePreference } from 'teleport/services/userPreferences/typ
 
 import { HoverTooltip } from 'shared/components/ToolTip';
 
+import { FilterKind } from './UnifiedResources';
 import { SharedUnifiedResource, UnifiedResourcesQueryParams } from './types';
 
 const kindToLabel: Record<SharedUnifiedResource['resource']['kind'], string> = {
@@ -50,7 +51,7 @@ const sortFieldOptions = [
 ];
 
 interface FilterPanelProps {
-  availableKinds: SharedUnifiedResource['resource']['kind'][];
+  availableKinds: FilterKind[];
   params: UnifiedResourcesQueryParams;
   setParams: (params: UnifiedResourcesQueryParams) => void;
   selectVisible: () => void;
@@ -104,6 +105,7 @@ export function FilterPanel({
             data-testid="select_all"
           />
         </HoverTooltip>
+
         <FilterTypesMenu
           onChange={onKindsChanged}
           availableKinds={availableKinds}
@@ -142,7 +144,7 @@ function oppositeSort(
 }
 
 type FilterTypesMenuProps = {
-  availableKinds: SharedUnifiedResource['resource']['kind'][];
+  availableKinds: FilterKind[];
   kindsFromParams: string[];
   onChange: (kinds: string[]) => void;
 };
@@ -152,9 +154,10 @@ const FilterTypesMenu = ({
   availableKinds,
   kindsFromParams,
 }: FilterTypesMenuProps) => {
-  const kindOptions = availableKinds.map(kind => ({
+  const kindOptions = availableKinds.map(({ kind, disabled }) => ({
     value: kind,
     label: kindToLabel[kind],
+    disabled: disabled,
   }));
 
   const [anchorEl, setAnchorEl] = useState(null);
@@ -186,7 +189,7 @@ const FilterTypesMenu = ({
   };
 
   const handleSelectAll = () => {
-    setKinds(kindOptions.map(k => k.value));
+    setKinds(kindOptions.filter(k => !k.disabled).map(k => k.value));
   };
 
   const handleClearAll = () => {
@@ -254,27 +257,43 @@ const FilterTypesMenu = ({
             Clear All
           </ButtonSecondary>
         </Flex>
-        {kindOptions.map(kind => (
-          <MenuItem
-            px={2}
-            key={kind.value}
-            onClick={() => handleSelect(kind.value)}
-          >
-            <StyledCheckbox
-              type="checkbox"
-              name={kind.label}
-              onChange={() => {
-                handleSelect(kind.value);
-              }}
-              id={kind.value}
-              checked={kinds.includes(kind.value)}
-            />
-            <Text ml={2} fontWeight={300} fontSize={2}>
-              {kind.label}
-            </Text>
-          </MenuItem>
-        ))}
-
+        {kindOptions.map(kind => {
+          const $checkbox = (
+            <>
+              <StyledCheckbox
+                type="checkbox"
+                name={kind.label}
+                disabled={kind.disabled}
+                onChange={() => {
+                  handleSelect(kind.value);
+                }}
+                id={kind.value}
+                checked={kinds.includes(kind.value)}
+              />
+              <Text ml={2} fontWeight={300} fontSize={2}>
+                {kind.label}
+              </Text>
+            </>
+          );
+          return (
+            <MenuItem
+              disabled={kind.disabled}
+              px={2}
+              key={kind.value}
+              onClick={() => (!kind.disabled ? handleSelect(kind.value) : null)}
+            >
+              {kind.disabled ? (
+                <HoverTooltip
+                  tipContent={`You do not have access to ${kind.label} resources.`}
+                >
+                  {$checkbox}
+                </HoverTooltip>
+              ) : (
+                $checkbox
+              )}
+            </MenuItem>
+          );
+        })}
         <Flex justifyContent="space-between" p={2} gap={2}>
           <ButtonPrimary
             disabled={kindArraysEqual(kinds, kindsFromParams)}

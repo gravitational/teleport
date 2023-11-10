@@ -149,7 +149,20 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
       resources={resources.map(mapToSharedResource)}
       resourcesFetchAttempt={attempt}
       fetchResources={fetch}
-      availableKinds={['db', 'kube_cluster', 'node']}
+      availableKinds={[
+        {
+          kind: 'node',
+          disabled: false,
+        },
+        {
+          kind: 'db',
+          disabled: false,
+        },
+        {
+          kind: 'kube_cluster',
+          disabled: false,
+        },
+      ]}
       Header={
         <Flex alignItems="center" justifyContent="space-between">
           {/*temporary search panel*/}
