@@ -28,9 +28,8 @@ type Facade struct {
 
 	// These don't need locking as they are configuration values that are
 	// only set on construction
-	fips         bool
-	cipherSuites []uint16
-	insecure     bool
+	fips     bool
+	insecure bool
 	// initialIdentity is used in some special circumstances where the value
 	// must remain stable.
 	initialIdentity *Identity
