@@ -16,6 +16,9 @@
 
 import React from 'react';
 
+import { initialize, mswLoader } from 'msw-storybook-addon';
+import { rest } from 'msw';
+
 import {
   OverrideUserAgent,
   UserAgent,
@@ -29,8 +32,6 @@ import { makeDefaultUserPreferences } from 'teleport/services/userPreferences/us
 
 import { SetupConnect } from './SetupConnect';
 
-const { worker, rest } = window.msw;
-
 const oneDay = 1000 * 60 * 60 * 24;
 
 const setupConnectProps = {
@@ -41,81 +42,86 @@ const setupConnectProps = {
   showHintTimeout: oneDay,
 };
 
+initialize();
+
 export default {
   title: 'Teleport/Discover/ConnectMyComputer/SetupConnect',
-  decorators: [
-    Story => {
-      worker.resetHandlers();
-      return <Story />;
-    },
-  ],
+  loaders: [mswLoader],
 };
 
-const workerNoNodes = () => {
-  worker.use(
-    rest.get(cfg.api.nodesPath, (req, res, ctx) => res(ctx.json({ items: [] })))
-  );
-};
+const noNodesHandler = rest.get(cfg.api.nodesPath, (req, res, ctx) =>
+  res(ctx.json({ items: [] }))
+);
 
-export const macOS = () => {
-  workerNoNodes();
-  return (
-    <OverrideUserAgent userAgent={UserAgent.macOS}>
-      <Provider>
-        <SetupConnect {...setupConnectProps} />
-      </Provider>
-    </OverrideUserAgent>
-  );
-};
-
-export const Linux = () => {
-  workerNoNodes();
-  return (
-    <OverrideUserAgent userAgent={UserAgent.Linux}>
-      <Provider>
-        <SetupConnect {...setupConnectProps} />
-      </Provider>
-    </OverrideUserAgent>
-  );
-};
-
-export const Polling = () => {
-  workerNoNodes();
-
-  return (
+export const macOS = () => (
+  <OverrideUserAgent userAgent={UserAgent.macOS}>
     <Provider>
       <SetupConnect {...setupConnectProps} />
     </Provider>
-  );
+  </OverrideUserAgent>
+);
+
+macOS.parameters = {
+  msw: {
+    handlers: [noNodesHandler],
+  },
 };
 
-export const PollingSuccess = () => {
-  worker.use(
-    rest.get(cfg.api.nodesPath, (req, res, ctx) => {
-      return res(ctx.json({ items: [{ id: '1234', hostname: 'foo' }] }));
-    })
-  );
-  worker.use(
-    rest.get(cfg.api.nodesPath, (req, res, ctx) => {
-      return res.once(ctx.json({ items: [] }));
-    })
-  );
-
-  return (
+export const Linux = () => (
+  <OverrideUserAgent userAgent={UserAgent.Linux}>
     <Provider>
-      <SetupConnect {...setupConnectProps} pingInterval={5} />
+      <SetupConnect {...setupConnectProps} />
     </Provider>
-  );
+  </OverrideUserAgent>
+);
+
+Linux.parameters = {
+  msw: {
+    handlers: [noNodesHandler],
+  },
 };
 
-export const HintTimeout = () => {
-  workerNoNodes();
+export const Polling = () => (
+  <Provider>
+    <SetupConnect {...setupConnectProps} />
+  </Provider>
+);
 
-  return (
-    <Provider>
-      <SetupConnect {...setupConnectProps} showHintTimeout={1} />
-    </Provider>
-  );
+Polling.parameters = {
+  msw: {
+    handlers: [noNodesHandler],
+  },
+};
+
+export const PollingSuccess = () => (
+  <Provider>
+    <SetupConnect {...setupConnectProps} pingInterval={5} />
+  </Provider>
+);
+
+PollingSuccess.parameters = {
+  msw: {
+    handlers: [
+      rest.get(cfg.api.nodesPath, (req, res, ctx) => {
+        return res.once(ctx.json({ items: [] }));
+      }),
+      rest.get(cfg.api.nodesPath, (req, res, ctx) => {
+        return res(ctx.json({ items: [{ id: '1234', hostname: 'foo' }] }));
+      }),
+    ],
+  },
+};
+
+export const HintTimeout = () => (
+  <Provider>
+    <SetupConnect {...setupConnectProps} showHintTimeout={1} />
+  </Provider>
+);
+
+HintTimeout.parameters = {
+  msw: {
+    handlers: [noNodesHandler],
+  },
 };
 
 const Provider = ({ children }) => {
