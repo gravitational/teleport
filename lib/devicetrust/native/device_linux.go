@@ -36,6 +36,9 @@ import (
 	"github.com/gravitational/teleport/lib/linux"
 )
 
+// deviceStateFolderName starts without a "." on Linux systems.
+const deviceStateFolderName = "teleport-device"
+
 func enrollDeviceInit() (*devicepb.EnrollDeviceInit, error) {
 	return nil, devicetrust.ErrPlatformNotSupported
 }

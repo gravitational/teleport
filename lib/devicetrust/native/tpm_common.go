@@ -24,8 +24,9 @@ import (
 	"github.com/gravitational/trace"
 )
 
+// `const deviceStateFolderName string` declared separately for each platform.
+
 const (
-	deviceStateFolderName        = ".teleport-device"
 	attestationKeyFileName       = "attestation.key"
 	credentialActivationFileName = "credential-activation"
 	dmiJsonFileName              = "dmi.json"
