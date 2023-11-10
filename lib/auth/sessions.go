@@ -122,9 +122,14 @@ func (a *Server) CreateAppSession(ctx context.Context, req types.CreateAppSessio
 	return session, nil
 }
 
+type appSessionWatcher interface {
+	GetAppSession(context.Context, types.GetAppSessionRequest) (types.WebSession, error)
+	NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error)
+}
+
 // WaitForAppSession will block until the requested application session shows up in the
 // cache or a timeout occurs.
-func WaitForAppSession(ctx context.Context, sessionID, user string, ap ReadProxyAccessPoint) error {
+func WaitForAppSession(ctx context.Context, sessionID, user string, ap appSessionWatcher) error {
 	req := waitForWebSessionReq{
 		newWatcherFn: ap.NewWatcher,
 		getSessionFn: func(ctx context.Context, sessionID string) (types.WebSession, error) {
