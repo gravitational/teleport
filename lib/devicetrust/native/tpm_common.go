@@ -75,10 +75,12 @@ func setupDeviceStateDir(getBaseDir func() (string, error)) (*deviceState, error
 
 func firstValidAssetTag(assetTags ...string) string {
 	for _, assetTag := range assetTags {
-		// Skip empty serials and known bad values.
-		if assetTag == "" ||
-			strings.EqualFold(assetTag, "Default string") ||
-			strings.EqualFold(assetTag, "No Asset Information") {
+		// Skip empty serials and values with spaces on them.
+		//
+		// There are many variations of "no value set" used by manufacturers, but
+		// looking for a space in the string catches most of them. For example:
+		// "Default string", "No Asset Information", "Not Specified", etc.
+		if assetTag == "" || strings.Contains(assetTag, " ") {
 			continue
 		}
 		return assetTag
