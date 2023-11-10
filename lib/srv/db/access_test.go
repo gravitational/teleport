@@ -2167,6 +2167,8 @@ type agentParams struct {
 	GCPSQL *mocks.GCPSQLAdminClientMock
 	// ElastiCache defines the AWS ElastiCache mock to use for ElastiCache API calls.
 	ElastiCache *mocks.ElastiCacheMock
+	// MemoryDB defines the AWS MemoryDB mock to use for MemoryDB API calls.
+	MemoryDB *mocks.MemoryDBMock
 	// OnHeartbeat defines a heartbeat function that generates heartbeat events.
 	OnHeartbeat func(error)
 	// CADownloader defines the CA downloader.
@@ -2200,6 +2202,9 @@ func (p *agentParams) setDefaults(c *testContext) {
 	if p.ElastiCache == nil {
 		p.ElastiCache = &mocks.ElastiCacheMock{}
 	}
+	if p.MemoryDB == nil {
+		p.MemoryDB = &mocks.MemoryDBMock{}
+	}
 	if p.CADownloader == nil {
 		p.CADownloader = &fakeDownloader{
 			cert: []byte(fixtures.TLSCACertPEM),
@@ -2213,7 +2218,7 @@ func (p *agentParams) setDefaults(c *testContext) {
 			Redshift:           &mocks.RedshiftMock{},
 			RedshiftServerless: &mocks.RedshiftServerlessMock{},
 			ElastiCache:        p.ElastiCache,
-			MemoryDB:           &mocks.MemoryDBMock{},
+			MemoryDB:           p.MemoryDB,
 			SecretsManager:     secrets.NewMockSecretsManagerClient(secrets.MockSecretsManagerClientConfig{}),
 			IAM:                &mocks.IAMMock{},
 			GCPSQL:             p.GCPSQL,
@@ -2786,6 +2791,43 @@ func withElastiCacheRedis(name string, token, engineVersion string) withDatabase
 				Region: "us-west-1",
 				ElastiCache: types.ElastiCache{
 					ReplicationGroupID: "example-cluster",
+				},
+			},
+			// Set CA cert to pass cert validation.
+			TLS: types.DatabaseTLS{
+				CACert: string(testCtx.databaseCA.GetActiveKeys().TLS[0].Cert),
+			},
+		})
+		require.NoError(t, err)
+		testCtx.redis[name] = testRedis{
+			db:       redisServer,
+			resource: database,
+		}
+		return database
+	}
+}
+
+func withMemoryDBRedis(name string, token, engineVersion string) withDatabaseOption {
+	return func(t *testing.T, ctx context.Context, testCtx *testContext) types.Database {
+		redisServer, err := redis.NewTestServer(t, common.TestServerConfig{
+			Name:       name,
+			AuthClient: testCtx.authClient,
+		}, redis.TestServerPassword(token))
+		require.NoError(t, err)
+
+		database, err := types.NewDatabaseV3(types.Metadata{
+			Name: name,
+			Labels: map[string]string{
+				"engine-version": engineVersion,
+			},
+		}, types.DatabaseSpecV3{
+			Protocol:      defaults.ProtocolRedis,
+			URI:           fmt.Sprintf("rediss://%s", net.JoinHostPort("localhost", redisServer.Port())),
+			DynamicLabels: dynamicLabels,
+			AWS: types.AWS{
+				Region: "us-west-1",
+				MemoryDB: types.MemoryDB{
+					ClusterName: "example-cluster",
 				},
 			},
 			// Set CA cert to pass cert validation.
