@@ -35,7 +35,7 @@ beforeEach(() => {
       callback(undefined, '', '');
       return this;
     });
-  jest.spyOn(fs, 'rm').mockResolvedValue();
+  jest.spyOn(fs, 'rm').mockImplementation(() => Promise.resolve());
 });
 
 test('teleport configure is called with proper arguments', async () => {
@@ -45,16 +45,7 @@ test('teleport configure is called with proper arguments', async () => {
   const token = '8f50fd5d-38e8-4e96-baea-e9b882bb433b';
   const proxy = 'cluster.local:3080';
   const rootClusterUri: RootClusterUri = '/clusters/cluster.local';
-  const labels = [
-    {
-      name: 'teleport.dev/connect-my-computer/owner',
-      value: 'testuser@acme.com',
-    },
-    {
-      name: 'env',
-      value: 'dev',
-    },
-  ];
+  const username = 'testuser@acme.com';
 
   await expect(
     createAgentConfigFile(
@@ -66,7 +57,7 @@ test('teleport configure is called with proper arguments', async () => {
         token,
         proxy,
         rootClusterUri,
-        labels,
+        username,
       }
     )
   ).resolves.toBeUndefined();
@@ -80,7 +71,7 @@ test('teleport configure is called with proper arguments', async () => {
       `--data-dir=${userDataDir}/agents/cluster.local/data`,
       `--proxy=${proxy}`,
       `--token=${token}`,
-      `--labels=${labels[0].name}=${labels[0].value},${labels[1].name}=${labels[1].value}`,
+      `--labels=teleport.dev/connect-my-computer/owner=${username}`,
     ],
     {
       timeout: 10_000, // 10 seconds
@@ -102,7 +93,7 @@ test('previous config file is removed before calling teleport configure', async 
         token: '',
         proxy: '',
         rootClusterUri,
-        labels: [],
+        username: 'alice',
       }
     )
   ).resolves.toBeUndefined();

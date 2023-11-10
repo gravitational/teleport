@@ -13,6 +13,8 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+import { NodeSubKind } from 'shared/services';
+
 import { ResourceLabel } from 'teleport/services/agents';
 
 import { Regions } from '../integrations';
@@ -25,7 +27,7 @@ export interface Node {
   labels: ResourceLabel[];
   addr: string;
   tunnel: boolean;
-  subKind?: string;
+  subKind: NodeSubKind;
   sshLogins: string[];
   awsMetadata?: AwsMetadata;
 }

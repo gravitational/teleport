@@ -29,8 +29,8 @@ import (
 
 	"github.com/gravitational/teleport/api/breaker"
 	apiclient "github.com/gravitational/teleport/api/client"
-	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
+	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/utils"
@@ -50,14 +50,14 @@ type Config struct {
 	CircuitBreakerConfig breaker.Config
 	// DialTimeout determines how long to wait for dialing to succeed before aborting.
 	DialTimeout time.Duration
-	// PromptAdminRequestMFA is used to prompt the user for MFA on admin requests when needed.
+	// MFAPromptConstructor is used to create MFA prompts when needed.
 	// If nil, the client will not prompt for MFA.
-	PromptAdminRequestMFA func(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error)
+	MFAPromptConstructor mfa.PromptConstructor
 }
 
 // Connect creates a valid client connection to the auth service.  It may
 // connect directly to the auth server, or tunnel through the proxy.
-func Connect(ctx context.Context, cfg *Config) (auth.ClientI, error) {
+func Connect(ctx context.Context, cfg *Config) (*auth.Client, error) {
 	cfg.Log.Debugf("Connecting to: %v.", cfg.AuthServers)
 
 	directClient, err := connectViaAuthDirect(ctx, cfg)
@@ -83,7 +83,7 @@ func Connect(ctx context.Context, cfg *Config) (auth.ClientI, error) {
 	)
 }
 
-func connectViaAuthDirect(ctx context.Context, cfg *Config) (auth.ClientI, error) {
+func connectViaAuthDirect(ctx context.Context, cfg *Config) (*auth.Client, error) {
 	// Try connecting to the auth server directly over TLS.
 	directClient, err := auth.NewClient(apiclient.Config{
 		Addrs: utils.NetAddrsToStrings(cfg.AuthServers),
@@ -93,7 +93,7 @@ func connectViaAuthDirect(ctx context.Context, cfg *Config) (auth.ClientI, error
 		CircuitBreakerConfig:     cfg.CircuitBreakerConfig,
 		InsecureAddressDiscovery: cfg.TLS.InsecureSkipVerify,
 		DialTimeout:              cfg.DialTimeout,
-		PromptAdminRequestMFA:    cfg.PromptAdminRequestMFA,
+		MFAPromptConstructor:     cfg.MFAPromptConstructor,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -109,7 +109,7 @@ func connectViaAuthDirect(ctx context.Context, cfg *Config) (auth.ClientI, error
 	return directClient, nil
 }
 
-func connectViaProxyTunnel(ctx context.Context, cfg *Config) (auth.ClientI, error) {
+func connectViaProxyTunnel(ctx context.Context, cfg *Config) (*auth.Client, error) {
 	// If direct dial failed, we may have a proxy address in
 	// cfg.AuthServers. Try connecting to the reverse tunnel
 	// endpoint and make a client over that.
@@ -145,7 +145,7 @@ func connectViaProxyTunnel(ctx context.Context, cfg *Config) (auth.ClientI, erro
 		Credentials: []apiclient.Credentials{
 			apiclient.LoadTLS(cfg.TLS),
 		},
-		PromptAdminRequestMFA: cfg.PromptAdminRequestMFA,
+		MFAPromptConstructor: cfg.MFAPromptConstructor,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

@@ -29,6 +29,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/credentials"
+	"github.com/aws/aws-sdk-go/aws/endpoints"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/applicationautoscaling"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
@@ -43,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/modules"
 	dynamometrics "github.com/gravitational/teleport/lib/observability/metrics/dynamo"
 )
 
@@ -234,10 +236,19 @@ func New(ctx context.Context, params backend.Params) (*Backend, error) {
 		clock:  clockwork.NewRealClock(),
 		buf:    buf,
 	}
+	// determine if the FIPS endpoints should be used
+	useFIPSEndpoint := endpoints.FIPSEndpointStateUnset
+	if modules.GetModules().IsBoringBinary() {
+		useFIPSEndpoint = endpoints.FIPSEndpointStateEnabled
+	}
 	// create an AWS session using default SDK behavior, i.e. it will interpret
 	// the environment and ~/.aws directory just like an AWS CLI tool would:
 	b.session, err = session.NewSessionWithOptions(session.Options{
 		SharedConfigState: session.SharedConfigEnable,
+		Config: aws.Config{
+			EC2MetadataEnableFallback: aws.Bool(false),
+			UseFIPSEndpoint:           useFIPSEndpoint,
+		},
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -926,8 +937,15 @@ func (b *Backend) create(ctx context.Context, item backend.Item, mode int) (stri
 		input.SetConditionExpression("attribute_exists(FullPath)")
 	case modePut:
 	case modeConditionalUpdate:
-		input.SetExpressionAttributeValues(map[string]*dynamodb.AttributeValue{":rev": {S: aws.String(item.Revision)}})
-		input.SetConditionExpression("Revision = :rev AND attribute_exists(FullPath)")
+		// If the revision is empty, then the resource existed prior to revision support. Instead of validating that
+		// the revisions match, validate that the revision attribute does not exist. Otherwise, validate that the revision
+		// attribute matches the item revision.
+		if item.Revision == "" {
+			input.SetConditionExpression("attribute_not_exists(Revision) AND attribute_exists(FullPath)")
+		} else {
+			input.SetExpressionAttributeValues(map[string]*dynamodb.AttributeValue{":rev": {S: aws.String(item.Revision)}})
+			input.SetConditionExpression("Revision = :rev AND attribute_exists(FullPath)")
+		}
 	default:
 		return "", trace.BadParameter("unrecognized mode")
 	}

@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/utils"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 var log = logrus.WithFields(logrus.Fields{
@@ -384,7 +385,7 @@ func setupLogger(debug bool, format string) error {
 
 	switch format {
 	case config.LogFormatJSON:
-		formatter := &utils.JSONFormatter{}
+		formatter := &logutils.JSONFormatter{}
 		logrus.SetFormatter(formatter)
 	case config.LogFormatText, "":
 	// Nothing to do, this is the default set up by utils.InitLogger

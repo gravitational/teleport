@@ -35,6 +35,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	v4 "github.com/aws/aws-sdk-go/aws/signer/v4"
 	"github.com/aws/aws-sdk-go/service/elasticache"
+	"github.com/aws/aws-sdk-go/service/memorydb"
 	"github.com/aws/aws-sdk-go/service/rds/rdsutils"
 	"github.com/aws/aws-sdk-go/service/redshift"
 	"github.com/aws/aws-sdk-go/service/redshiftserverless"
@@ -74,6 +75,8 @@ type Auth interface {
 	GetRedshiftServerlessAuthToken(ctx context.Context, sessionCtx *Session) (string, string, error)
 	// GetElastiCacheRedisToken generates an ElastiCache Redis auth token.
 	GetElastiCacheRedisToken(ctx context.Context, sessionCtx *Session) (string, error)
+	// GetMemoryDBToken generates a MemoryDB auth token.
+	GetMemoryDBToken(ctx context.Context, sessionCtx *Session) (string, error)
 	// GetCloudSQLAuthToken generates Cloud SQL auth token.
 	GetCloudSQLAuthToken(ctx context.Context, sessionCtx *Session) (string, error)
 	// GetCloudSQLPassword generates password for a Cloud SQL database user.
@@ -415,14 +418,35 @@ func (a *dbAuth) GetElastiCacheRedisToken(ctx context.Context, sessionCtx *Sessi
 		return "", trace.Wrap(err)
 	}
 	a.cfg.Log.Debugf("Generating ElastiCache Redis auth token for %s.", sessionCtx)
-	tokenReq := &elastiCacheRedisIAMTokenRequest{
+	tokenReq := &awsRedisIAMTokenRequest{
 		// For IAM-enabled ElastiCache users, the username and user id properties must be identical.
 		// https://docs.aws.amazon.com/AmazonElastiCache/latest/red-ug/auth-iam.html#auth-iam-limits
-		userID:             sessionCtx.DatabaseUser,
-		replicationGroupId: meta.ElastiCache.ReplicationGroupID,
-		region:             meta.Region,
-		credentials:        awsSession.Config.Credentials,
-		clock:              a.cfg.Clock,
+		userID:      sessionCtx.DatabaseUser,
+		targetID:    meta.ElastiCache.ReplicationGroupID,
+		serviceName: elasticache.ServiceName,
+		region:      meta.Region,
+		credentials: awsSession.Config.Credentials,
+		clock:       a.cfg.Clock,
+	}
+	token, err := tokenReq.toSignedRequestURI()
+	return token, trace.Wrap(err)
+}
+
+// GetMemoryDBToken generates a MemoryDB auth token.
+func (a *dbAuth) GetMemoryDBToken(ctx context.Context, sessionCtx *Session) (string, error) {
+	meta := sessionCtx.Database.GetAWS()
+	awsSession, err := a.cfg.Clients.GetAWSSession(ctx, meta.Region, cloud.WithAssumeRoleFromAWSMeta(meta))
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	a.cfg.Log.Debugf("Generating MemoryDB auth token for %s.", sessionCtx)
+	tokenReq := &awsRedisIAMTokenRequest{
+		userID:      sessionCtx.DatabaseUser,
+		targetID:    meta.MemoryDB.ClusterName,
+		serviceName: strings.ToLower(memorydb.ServiceName),
+		region:      meta.Region,
+		credentials: awsSession.Config.Credentials,
+		clock:       a.cfg.Clock,
 	}
 	token, err := tokenReq.toSignedRequestURI()
 	return token, trace.Wrap(err)
@@ -954,36 +978,42 @@ func redshiftServerlessUsernameToRoleARN(aws types.AWS, username string) (string
 	return awsutils.BuildRoleARN(username, aws.Region, aws.AccountID)
 }
 
-// elastiCacheRedisIAMTokenRequest builds an AWS IAM auth token for ElastiCache
-// Redis.
-// Implemented following the AWS example:
+// awsRedisIAMTokenRequest builds an AWS IAM auth token for ElastiCache
+// Redis and MemoryDB.
+// Implemented following the AWS examples:
 // https://docs.aws.amazon.com/AmazonElastiCache/latest/red-ug/auth-iam.html#auth-iam-Connecting
-type elastiCacheRedisIAMTokenRequest struct {
+// https://docs.aws.amazon.com/memorydb/latest/devguide/auth-iam.html#auth-iam-Connecting
+type awsRedisIAMTokenRequest struct {
 	// userID is the ElastiCache user ID.
 	userID string
-	// replicationGroupId is the ElastiCache replication group ID.
-	replicationGroupId string
+	// targetID is the ElastiCache replication group ID or the MemoryDB cluster name.
+	targetID string
 	// region is the AWS region.
 	region string
 	// credentials are used to presign with AWS SigV4.
 	credentials *credentials.Credentials
 	// clock is the clock implementation.
 	clock clockwork.Clock
+	// serviceName is the AWS service name used for signing.
+	serviceName string
 }
 
 // checkAndSetDefaults validates config and sets defaults.
-func (r *elastiCacheRedisIAMTokenRequest) checkAndSetDefaults() error {
+func (r *awsRedisIAMTokenRequest) checkAndSetDefaults() error {
 	if r.userID == "" {
 		return trace.BadParameter("missing user ID")
 	}
-	if r.replicationGroupId == "" {
-		return trace.BadParameter("missing replication group ID")
+	if r.targetID == "" {
+		return trace.BadParameter("missing target ID for signing")
 	}
 	if r.region == "" {
 		return trace.BadParameter("missing region")
 	}
 	if r.credentials == nil {
 		return trace.BadParameter("missing credentials")
+	}
+	if r.serviceName == "" {
+		return trace.BadParameter("missing service name")
 	}
 	if r.clock == nil {
 		r.clock = clockwork.NewRealClock()
@@ -993,8 +1023,8 @@ func (r *elastiCacheRedisIAMTokenRequest) checkAndSetDefaults() error {
 
 // toSignedRequestURI creates a new AWS SigV4 pre-signed request URI.
 // This pre-signed request URI can then be used to authenticate as an
-// ElastiCache Redis user.
-func (r *elastiCacheRedisIAMTokenRequest) toSignedRequestURI() (string, error) {
+// ElastiCache Redis or MemoryDB user.
+func (r *awsRedisIAMTokenRequest) toSignedRequestURI() (string, error) {
 	if err := r.checkAndSetDefaults(); err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -1003,7 +1033,7 @@ func (r *elastiCacheRedisIAMTokenRequest) toSignedRequestURI() (string, error) {
 		return "", trace.Wrap(err)
 	}
 	s := v4.NewSigner(r.credentials)
-	_, err = s.Presign(req, nil, elasticache.ServiceName, r.region, time.Minute*15, r.clock.Now())
+	_, err = s.Presign(req, nil, r.serviceName, r.region, time.Minute*15, r.clock.Now())
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -1016,14 +1046,14 @@ func (r *elastiCacheRedisIAMTokenRequest) toSignedRequestURI() (string, error) {
 }
 
 // getSignableRequest creates a new request suitable for pre-signing with SigV4.
-func (r *elastiCacheRedisIAMTokenRequest) getSignableRequest() (*http.Request, error) {
+func (r *awsRedisIAMTokenRequest) getSignableRequest() (*http.Request, error) {
 	query := url.Values{
 		"Action": {"connect"},
 		"User":   {r.userID},
 	}
 	reqURI := url.URL{
 		Scheme:   "http",
-		Host:     r.replicationGroupId,
+		Host:     r.targetID,
 		Path:     "/",
 		RawQuery: query.Encode(),
 	}

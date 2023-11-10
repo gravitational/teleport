@@ -18,6 +18,7 @@ package proxy
 
 import (
 	"context"
+	"maps"
 	"sort"
 	"strings"
 	"testing"
@@ -203,9 +204,7 @@ func makeKubeCluster(t *testing.T, name string, url string, labels map[string]st
 	if labels == nil {
 		labels = make(map[string]string)
 	}
-	for k, v := range additionalLabels {
-		labels[k] = v
-	}
+	maps.Copy(labels, additionalLabels)
 	return types.NewKubernetesClusterV3(types.Metadata{
 		Name:   name,
 		Labels: labels,
