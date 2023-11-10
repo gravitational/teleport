@@ -7,7 +7,8 @@ import (
 
 const DestinationNopType = "nop"
 
-// DestinationNop on
+// DestinationNop does nothing! Useful for odd scenarios where a destination
+// has to be returned but there is none to return.
 type DestinationNop struct{}
 
 func (dm *DestinationNop) CheckAndSetDefaults() error {
@@ -46,7 +47,7 @@ func (dm *DestinationNop) TryLock() (func() error, error) {
 	}, nil
 }
 
-func (dm DestinationNop) MarshalYAML() (interface{}, error) {
+func (dm *DestinationNop) MarshalYAML() (interface{}, error) {
 	type raw DestinationNop
-	return withTypeHeader(raw(dm), DestinationNopType)
+	return withTypeHeader((*raw)(dm), DestinationNopType)
 }

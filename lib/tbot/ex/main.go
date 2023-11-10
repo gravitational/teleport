@@ -15,7 +15,7 @@ func run() error {
 	ctx := context.Background()
 	log := logrus.StandardLogger()
 
-	credential := &config.ClientCredentialOutput{}
+	credential := &config.UnstableClientCredentialOutput{}
 	bot := tbot.New(&config.BotConfig{
 		AuthServer: "root.tele.ottr.sh:443",
 		Onboarding: config.OnboardingConfig{

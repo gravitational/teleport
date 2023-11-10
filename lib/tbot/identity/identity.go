@@ -18,7 +18,6 @@ package identity
 
 import (
 	"context"
-	"crypto/tls"
 	"crypto/x509"
 	"fmt"
 	"strings"
@@ -29,12 +28,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
-	apidefaults "github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/api/types"
-	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/api/utils/keys"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -136,39 +130,6 @@ func (i *Identity) String() string {
 	return fmt.Sprintf("Identity(%v)", strings.Join(out, ","))
 }
 
-// CertInfo returns diagnostic information about certificate
-func CertInfo(cert *x509.Certificate) string {
-	return fmt.Sprintf("cert(%v issued by %v:%v)", cert.Subject.CommonName, cert.Issuer.CommonName, cert.Issuer.SerialNumber)
-}
-
-// TLSCertInfo returns diagnostic information about certificate
-func TLSCertInfo(cert *tls.Certificate) string {
-	x509cert, err := x509.ParseCertificate(cert.Certificate[0])
-	if err != nil {
-		return err.Error()
-	}
-	return CertInfo(x509cert)
-}
-
-// CertAuthorityInfo returns debugging information about certificate authority
-func CertAuthorityInfo(ca types.CertAuthority) string {
-	var out []string
-	for _, keyPair := range ca.GetTrustedTLSKeyPairs() {
-		cert, err := tlsca.ParseCertificatePEM(keyPair.Cert)
-		if err != nil {
-			out = append(out, err.Error())
-		} else {
-			out = append(out, fmt.Sprintf("trust root(%v:%v)", cert.Subject.CommonName, cert.Subject.SerialNumber))
-		}
-	}
-	return fmt.Sprintf("cert authority(state: %v, phase: %v, roots: %v)", ca.GetRotation().State, ca.GetRotation().Phase, strings.Join(out, ", "))
-}
-
-// HasTSLConfig returns true if this identity has TLS certificate and private key
-func (i *Identity) HasTLSConfig() bool {
-	return len(i.TLSCACertsBytes) != 0 && len(i.TLSCertBytes) != 0
-}
-
 // HasPrincipals returns whether identity has principals
 func (i *Identity) HasPrincipals(additionalPrincipals []string) bool {
 	set := utils.StringsSet(i.SSHCert.ValidPrincipals)
@@ -192,71 +153,6 @@ func (i *Identity) HasDNSNames(dnsNames []string) bool {
 		}
 	}
 	return true
-}
-
-// TLSConfig returns TLS config for mutual TLS authentication
-// can return NotFound error if there are no TLS credentials setup for identity
-func (i *Identity) TLSConfig(cipherSuites []uint16) (*tls.Config, error) {
-	tlsConfig := utils.TLSConfig(cipherSuites)
-	if !i.HasTLSConfig() {
-		return nil, trace.NotFound("no TLS credentials setup for this identity")
-	}
-	tlsCert, err := keys.X509KeyPair(i.TLSCertBytes, i.PrivateKeyBytes)
-	if err != nil {
-		return nil, trace.BadParameter("failed to parse private key: %v", err)
-	}
-	certPool := x509.NewCertPool()
-	for j := range i.TLSCACertsBytes {
-		parsedCert, err := tlsca.ParseCertificatePEM(i.TLSCACertsBytes[j])
-		if err != nil {
-			return nil, trace.Wrap(err, "failed to parse CA certificate")
-		}
-		certPool.AddCert(parsedCert)
-	}
-	tlsConfig.Certificates = []tls.Certificate{tlsCert}
-	tlsConfig.RootCAs = certPool
-	tlsConfig.ClientCAs = certPool
-	tlsConfig.ServerName = apiutils.EncodeClusterName(i.ClusterName)
-	return tlsConfig, nil
-}
-
-func (i *Identity) getSSHCheckers() ([]ssh.PublicKey, error) {
-	checkers, err := apisshutils.ParseAuthorizedKeys(i.SSHCACertBytes)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return checkers, nil
-}
-
-// SSHClientConfig returns a ssh.ClientConfig used by the bot to connect to
-// the reverse tunnel server.
-func (i *Identity) SSHClientConfig(fips bool) (*ssh.ClientConfig, error) {
-	callback, err := apisshutils.NewHostKeyCallback(
-		apisshutils.HostKeyCallbackConfig{
-			GetHostCheckers: i.getSSHCheckers,
-			FIPS:            fips,
-		})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if len(i.SSHCert.ValidPrincipals) < 1 {
-		return nil, trace.BadParameter("user cert has no valid principals")
-	}
-	config := &ssh.ClientConfig{
-		User:            i.SSHCert.ValidPrincipals[0],
-		Auth:            []ssh.AuthMethod{ssh.PublicKeys(i.KeySigner)},
-		HostKeyCallback: callback,
-		Timeout:         apidefaults.DefaultIOTimeout,
-	}
-	if fips {
-		config.Config = ssh.Config{
-			KeyExchanges: defaults.FIPSKEXAlgorithms,
-			MACs:         defaults.FIPSMACAlgorithms,
-			Ciphers:      defaults.FIPSCiphers,
-		}
-	}
-
-	return config, nil
 }
 
 // ReadIdentityFromStore reads stored identity credentials
@@ -328,12 +224,6 @@ func ReadTLSIdentityFromKeyPair(identity *Identity, keyBytes, certBytes []byte, 
 	identity.TLSCACertsBytes = caCertsBytes
 	identity.X509Cert = cert
 
-	// The passed in ciphersuites don't appear to matter here since the returned
-	// *tls.Config is never actually used?
-	_, err = identity.TLSConfig(utils.DefaultCipherSuites())
-	if err != nil {
-		return trace.Wrap(err)
-	}
 	return nil
 }
 

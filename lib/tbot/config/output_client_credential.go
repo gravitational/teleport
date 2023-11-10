@@ -23,69 +23,70 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/identity"
-	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 )
 
-const ClientCredentialOutputType = "client_credential"
+// Assert that this UnstableClientCredentialOutput can be used as client
+// credential.
+var _ client.Credentials = new(UnstableClientCredentialOutput)
 
-type ClientCredentialOutput struct {
+const UnstableClientCredentialOutputType = "unstable_client_credential"
+
+type UnstableClientCredentialOutput struct {
+	facade identity.Facade
 }
 
-func (o *ClientCredentialOutput) Wait(ctx context.Context) error {
-	//TODO implement me
-	panic("implement me")
+func (o *UnstableClientCredentialOutput) Ready() <-chan struct{} {
+	return o.facade.Ready()
 }
 
-func (o *ClientCredentialOutput) Dialer(cfg client.Config) (client.ContextDialer, error) {
-	//TODO implement me
-	panic("implement me")
+func (o *UnstableClientCredentialOutput) Dialer(c client.Config) (client.ContextDialer, error) {
+	return o.facade.Dialer(c)
 }
 
-func (o *ClientCredentialOutput) TLSConfig() (*tls.Config, error) {
-	//TODO implement me
-	panic("implement me")
+func (o *UnstableClientCredentialOutput) TLSConfig() (*tls.Config, error) {
+	return o.facade.TLSConfig()
 }
 
-func (o *ClientCredentialOutput) SSHClientConfig() (*ssh.ClientConfig, error) {
-	//TODO implement me
-	panic("implement me")
+func (o *UnstableClientCredentialOutput) SSHClientConfig() (*ssh.ClientConfig, error) {
+	return o.facade.SSHClientConfig()
 }
 
-func (o *ClientCredentialOutput) Render(ctx context.Context, p provider, ident *identity.Identity) error {
-	dest := o.GetDestination()
-	if err := identity.SaveIdentity(ctx, ident, dest, identity.DestinationKinds()...); err != nil {
-		return trace.Wrap(err, "persisting identity")
-	}
-
+func (o *UnstableClientCredentialOutput) Render(_ context.Context, _ provider, ident *identity.Identity) error {
+	// We're hijacking the Render method to receive a new identity in each
+	// renewal round.
+	o.facade.Set(ident)
 	return nil
 }
 
-func (o *ClientCredentialOutput) Init(ctx context.Context) error {
+func (o *UnstableClientCredentialOutput) Init(ctx context.Context) error {
+	// Nothing to do.
 	return nil
 }
 
-func (o *ClientCredentialOutput) GetDestination() bot.Destination {
+func (o *UnstableClientCredentialOutput) GetDestination() bot.Destination {
 	return &DestinationNop{}
 }
 
-func (o *ClientCredentialOutput) GetRoles() []string {
+func (o *UnstableClientCredentialOutput) GetRoles() []string {
 	return []string{}
 }
 
-func (o *ClientCredentialOutput) CheckAndSetDefaults() error {
+func (o *UnstableClientCredentialOutput) CheckAndSetDefaults() error {
+	// Nothing to check!
 	return nil
 }
 
-func (o *ClientCredentialOutput) Describe() []FileDescription {
+func (o *UnstableClientCredentialOutput) Describe() []FileDescription {
+	// Produces no files.
 	return []FileDescription{}
 }
 
-func (o ClientCredentialOutput) MarshalYAML() (interface{}, error) {
-	type raw ClientCredentialOutput
-	return withTypeHeader(raw(o), ClientCredentialOutputType)
+func (o *UnstableClientCredentialOutput) MarshalYAML() (interface{}, error) {
+	type raw UnstableClientCredentialOutput
+	return withTypeHeader((*raw)(o), UnstableClientCredentialOutputType)
 }
 
-func (o *ClientCredentialOutput) String() string {
-	return fmt.Sprintf("%s", ClientCredentialOutputType)
+func (o *UnstableClientCredentialOutput) String() string {
+	return fmt.Sprintf("%s", UnstableClientCredentialOutputType)
 }

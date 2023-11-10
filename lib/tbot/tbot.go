@@ -435,14 +435,14 @@ func (b *Bot) AuthenticatedUserClientFromIdentity(ctx context.Context, id *ident
 		return nil, trace.BadParameter("auth client requires a fully formed identity")
 	}
 
-	tlsConfig, err := id.TLSConfig(b.cfg.CipherSuites())
+	facade := identity.NewFacade(b.cfg.FIPS, b.cfg.CipherSuites(), b.cfg.Insecure)
+	facade.Set(id)
+
+	tlsConfig, err := facade.TLSConfig()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// Pass through the Insecure mode flag so that the webapi/find call works with a self-signed certificate as expected.
-	tlsConfig.InsecureSkipVerify = b.cfg.Insecure
-
-	sshConfig, err := id.SSHClientConfig(b.cfg.FIPS)
+	sshConfig, err := facade.SSHClientConfig()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

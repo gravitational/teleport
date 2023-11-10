@@ -53,7 +53,7 @@ func TestTemplateSSHClient_Render(t *testing.T) {
 			cfg, err := newTestConfig("example.com")
 			require.NoError(t, err)
 
-			// ident is passed in, but not used.
+			// identity is passed in, but not used.
 			var ident *identity.Identity
 			dest := &DestinationDirectory{
 				Path:     dir,
