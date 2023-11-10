@@ -571,7 +571,7 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 		// Key deletion is best-effort, log a warning if it fails and carry on.
 		// We don't want to prevent a CA rotation, which may be necessary in
 		// some cases where this would fail.
-		log.WithError(err).Warning("Failed attempt to delete unused HSM keys")
+		log.Warnf("An attempt to clean up unused HSM or KMS CA keys has failed unexpectedly: %v", err)
 	}
 
 	if lib.IsInsecureDevMode() {
