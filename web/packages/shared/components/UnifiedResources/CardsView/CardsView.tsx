@@ -23,8 +23,9 @@ import { FETCH_MORE_SIZE } from '../UnifiedResources';
 
 import { ResourceViewProps } from '../types';
 
-import { LoadingSkeleton } from '../LoadingSkeleton';
-import { LoadingCard } from '../LoadingCard';
+import { LoadingSkeleton } from '../shared/LoadingSkeleton';
+
+import { LoadingCard } from './LoadingCard';
 
 import { ResourceCard } from './ResourceCard';
 
@@ -57,7 +58,6 @@ export function CardsView({
           pinResource={() => onPinResource(key)}
         />
       ))}
-      {/* Using index as key here is ok because these elements never change order */}
       {isProcessing && (
         <LoadingSkeleton count={FETCH_MORE_SIZE} Element={<LoadingCard />} />
       )}
