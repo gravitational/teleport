@@ -15,6 +15,7 @@
  */
 
 import React from 'react';
+import { MemoryRouter } from 'react-router';
 
 import { nodes } from 'teleport/Nodes/fixtures';
 
@@ -28,10 +29,16 @@ const node = nodes[0];
 
 export const Story = () => {
   return (
-    <TestConnection
-      prevStep={() => {}}
-      nextStep={() => {}}
-      agentMeta={{ resourceName: node.hostname, node, agentMatcherLabels: [] }}
-    />
+    <MemoryRouter>
+      <TestConnection
+        prevStep={() => {}}
+        nextStep={() => {}}
+        agentMeta={{
+          resourceName: node.hostname,
+          node,
+          agentMatcherLabels: [],
+        }}
+      />
+    </MemoryRouter>
   );
 };
