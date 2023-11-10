@@ -19,7 +19,7 @@ package img
 import (
 	"context"
 
-	"github.com/docker/distribution/reference"
+	"github.com/distribution/reference"
 	"github.com/gravitational/trace"
 	"github.com/opencontainers/go-digest"
 )
