@@ -25,6 +25,11 @@ message ResourceList {
   repeated ResourceEntry resources = 1;
 }
 
+// ResourceHeaderList is a list of resource headers to send to the access graph.
+message ResourceHeaderList {
+  repeated types.ResourceHeader resources = 1;
+}
+
 // ResourceEntry is a wrapper for the supported resource types.
 message ResourceEntry {
   oneof resource {
