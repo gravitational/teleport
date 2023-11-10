@@ -19,8 +19,7 @@ import styled from 'styled-components';
 import FieldInput from 'shared/components/FieldInput';
 import { requiredField } from 'shared/components/Validation/rules';
 import { FieldTextArea } from 'shared/components/FieldTextArea';
-import { Text } from 'design';
-import Toggle from 'design/Toggle';
+import { Text, Toggle } from 'design';
 
 import { ShareFeedbackFormValues } from './types';
 

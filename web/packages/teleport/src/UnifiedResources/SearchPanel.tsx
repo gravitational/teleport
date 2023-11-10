@@ -16,10 +16,8 @@
 
 import React from 'react';
 import styled from 'styled-components';
-import { Text, Flex } from 'design';
+import { Text, Flex, Toggle } from 'design';
 import { PredicateDoc } from 'shared/components/Search/PredicateDoc';
-
-import Toggle from 'design/Toggle';
 
 import useServersideSearchPanel, {
   SearchPanelState,
