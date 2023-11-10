@@ -13,9 +13,9 @@ the following:
 This guide demonstrates how to add labels to enrolled server resources.
 However, you can follow similar steps to add labels to other types of resources.
 
-## Static and dynamic labels
+## Static, dynamic, and ephemeral labels
 
-The labels you assign to resources can be **static labels** or **dynamic labels**.
+The labels you assign to resources can be **static labels**, **dynamic labels**, or **ephemeral labels**.
 
 - Static labels are hardcoded in the Teleport configuration file and don't change 
 while the `teleport` process is running. For example, you might use a static label to identify 
@@ -23,8 +23,10 @@ the resources in a `staging` or `production` environment.
 - Dynamic labels—also known as **commands-based labels**—allow you to generate labels at runtime. 
 With a dynamic label, the `teleport` process executes an external command on its host at 
 a configurable frequency and the output of the command becomes the label value.
+- Ephemeral labels allow you to add labels to an instance without restarting the `teleport`
+process or editing the configuration file. They are not preserved between restarts.
 
-You can add multiple static and dynamic labels for the same resource.
+You can add multiple static, dynamic, and ephemeral labels for the same resource.
 However, you can't add static labels that use the same key with different values or use
 a static label to define multiple potential values.
 
@@ -280,23 +282,17 @@ computer. Your Teleport user must be authorized to access the server.
    ip-192-168-13-57 ⟵ Tunnel       arch=x86_64,environment=dev,hostname=ip-192-168-13-57
    ```
 
-## Step 4/4. Apply labels to a running instance with `server_info`
+## Step 4/4. Apply ephemeral labels using `server_info`
 
 <Notice type="note">
-   Applying labels to a running instance is only supported for servers.
+   Applying ephemeral labels is only supported for servers.
 </Notice>
 
-You can apply labels to a running Teleport instance without
-restarting it by creating a `server_info` resource for the instance.
-The `server_info` resource is matched to the resource it applies to by its name.
-Allowed matching schemes include:
+You can apply ephemeral labels to a Teleport instance by creating a `server_info`
+resource for the instance. For a server with name `<name>`, its matching `server_info`
+should be named `si-<name>`.
 
-- `si-<name>`, where `<name>` is the name of the resource.
-- For instances that were created by EC2 VM discovery,
-`aws-<account-id>-<instance-id>`, where `<account-id>` and `<instance-id>` are the
-account ID and instance ID of the EC2 instance.
-
-To add labels to a running instance:
+To add ephemeral labels:
 
 1. Create the file `server_info.yaml` and paste the following into it:
 
@@ -318,7 +314,7 @@ To add labels to a running instance:
    ```
 
 1. Verify that you have added the label by running the following command on your local
-computer. Your Teleport user must be authorized to access the server. Note that Teleport
+computer. Your Teleport user must be authorized to access the server. Teleport
 applies labels from `server_info` resources gradually to prevent strain on the Auth Service in
 larger clusters, so it may take several minutes for the new labels to appear.
 
@@ -334,20 +330,9 @@ larger clusters, so it may take several minutes for the new labels to appear.
    ip-192-168-13-57 ⟵ Tunnel       foo=bar,hostname=ip-192-168-13-57
    ```
 
-Labels set with the `server_info` resource do not persist across restarts, but
-as long as the `server_info` resource still exists the labels will eventually
-be set again. To remove labels set with a `server_info` resource, replace the
-old resource with one that has no labels:
-
-```yaml
-# server_info.yaml
-kind: server_info
-metadata:
-   # Replace "example-node" with the name of the node to apply labels to
-   name: si-example-node
-spec:
-   new_labels:
-```
+Although ephemeral labels do not persist across restarts, they will be set again
+as long as the `server_info` resource still exists. To update ephemeral labels,
+recreate the `server_info` resource with updated labels.
 
 ## Next steps
 
