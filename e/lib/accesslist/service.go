@@ -64,7 +64,7 @@ var ignoreFieldsDuringUpsert = []cmp.Option{
 }
 
 type UsersService interface {
-	GetUsers(ctx context.Context, withSecrets bool) ([]types.User, error)
+	ListUsers(ctx context.Context, pageSize int, nextToken string, withSecrets bool) ([]types.User, string, error)
 }
 
 type AuthServer interface {
@@ -164,6 +164,9 @@ type Service struct {
 	clock             clockwork.Clock
 	cachedUsers       UsersService
 	authServer        AuthServer
+
+	// When not set, this will use the default page size for ListUsers.
+	userPageSize int
 }
 
 // NewService creates a new Access List gRPC service.
@@ -331,7 +334,7 @@ func (s *Service) GetAccessList(ctx context.Context, req *accesslistv1.GetAccess
 	}
 
 	// Get a list of all users, to compute eligibility for owners.
-	users, err := s.cachedUsers.GetUsers(ctx, false /* without secrets */)
+	users, err := s.getAllUsers(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -354,6 +357,28 @@ func (s *Service) GetAccessList(ctx context.Context, req *accesslistv1.GetAccess
 	result.SetOwners(updatedOwners)
 
 	return conv.ToProto(result), nil
+}
+
+// getAllUsers returns all users known to Teleport.
+func (s *Service) getAllUsers(ctx context.Context) ([]types.User, error) {
+	var users []types.User
+	var nextToken string
+	for {
+		var page []types.User
+		var err error
+		page, nextToken, err = s.cachedUsers.ListUsers(ctx, s.userPageSize, nextToken, false /* without secrets */)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		users = append(users, page...)
+
+		if nextToken == "" {
+			break
+		}
+	}
+
+	return users, nil
 }
 
 // GetAccessListsToReview will return access lists that need to be reviewed by the current user.
@@ -648,7 +673,7 @@ func (s *Service) ListAccessListMembers(ctx context.Context, req *accesslistv1.L
 	}
 
 	// Get a list of all users, to compute eligibility for members.
-	users, err := s.cachedUsers.GetUsers(ctx, false /* without secrets */)
+	users, err := s.getAllUsers(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
