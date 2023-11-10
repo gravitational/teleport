@@ -27,7 +27,9 @@ Development for Automatic Updates of Teleport Agents has already been completed,
 
 ## Details
 
-Teleport client tools now supports an update command to update tsh/tctl to the latest cloud-stable version of Teleport. We'll push users to opt-in to automatic updates of client tools, but users can opt-out if desired.
+First off, Teleport client tools will now support an update command to update tsh/tctl to the latest cloud-stable version of Teleport. This will functionally be the same as updating the Teleport package via the system package manager.
+
+Users should be continually be encouraged to keep their Teleport client tools up to date with the latest version of Teleport. To do this, Teleport will now periodically prompt users to update Teleport client tools if a new version of Teleport is available.
 
 Cloud will host an endpoint for Teleport client tools version discovery. tsh/tctl will check this endpoint to identify the current cloud-stable version of Teleport. On update tsh/tctl will compare its version to the current cloud-stable version. If the installed version is behind or ahead of the current cloud-stable version, tsh/tctl will be updated to match the current cloud-stable version. This will ensure Teleport client tools are always executed using the latest compatible version of Teleport when communicating with a Teleport Cloud cluster.
 
@@ -49,78 +51,147 @@ The [deploy-auto-update-changes.yml](https://github.com/gravitational/cloud/blob
 
 Unlike the agent version discovery model, there will not be an endpoint to identify if a critical update is available. The reason for this is because updates are not executed in a scheduled update window. Teleport client tools will check this endpoint everytime `login` or `status` is executed, and update accordingly.
 
-We've considered querying the Teleport version information from the ping response, but we've decided against this approach. One reason is because we would not be able to update the client tools version independently of the cluster. Another reason is because we're considering removing the Teleport minor version information from the ping response. The minor version informatoin could be used by attackers to identify and attack unpatched customers.
+We've considered querying the Teleport version information from the ping response, but we've decided against this approach. One reason is because we would not be able to update the client tools version independently of the cluster. Another reason is because we're considering removing the Teleport minor version information from the ping response. The minor version information could be used by attackers to identify and attack unpatched customers.
 
 ### Package update
 
-The client tools will be updated using the package manager available on the system. Teleport supports multiple package repositories and installation methods so we'll need to handle the update differently on each system. This will probably require a decent amount of testing and maintenance work, but we think this is the simplest and most straight forward solution.
+The Teleport client tools will be updated using the package manager available on the system. Teleport supports multiple package repositories and installation methods, so each system will need to be handled differently. This will probably require a decent amount of testing and maintenance work, but this is looking like the simplest and most straight forward solution.
 
-Support for tsh/tctl update will probably roll out in stages and there will most likely be many edge cases that we'll need to handle along the way.
+Support for Teleport client tools update will roll out in stages and ther will most likely be many edge cases that we'll need to handle along the way.
 
-Another downside to this approach would be that upgrades will require sudo/admin privileges.
+Teleport client tools are supported on Linux, Mac, and Windows. Before performing an update, the OS/distro will need to be identified. Teleport will first look at runtime.GOOS to determine the OS.
 
-### Caching (alternative)
+#### Windows
 
-We've explored the idea of caching the client tools in the user's $HOME directory, but we're leaning towards a different appraoch.
+Teleport client tools installation via the package manager is not currently supported on Windows systems. Installation will require manual installation of the binary from the Teleport CDN.
 
-The benefits of this approach are:
-- It would not require sudo/admin privileges to install a new version of the client tools.
-- We would only need to handle a single method of installing the binary via direct tarball download.
+#### MacOS
 
-The downsides of this approach are:
-- Since we have multiple installation methods, it may be confusing to the users if there is a discrepancy between the version of client tools installed with the package manager and the cached version. This could potentially be a security concern if users are not able to correctly identify what versions of the client tools are installed on the system.
-- Installation without a package manager means that we now have the extra responsibility of validating downloads.
+Before performing an update on MacOS systems, Teleport needs to identify whether to install Teleport Enterprise vs Teleport OSS. The MacOS installer command doesn't provide a helpful command to distinguish between Teleport Enterprise and Teleport OSS package installation, so Teleport will instead attempt to identify this information by parsing the teleport version command.
 
-A single version of the Teleport client tools will be stored in the user's $HOME directory. Teleport already makes use of a .tsh directory for storing tsh config. Cached versions of tsh/tctl will also live within this directory under ` $HOME/.tsh/bin/{tsh,tctl}`. Whenever a new version of the client tools are available, the existing cached version will be replaced.
+Once the Teleport edition has been identified, the proper Teleport package will be downloaded from the CDN and installed using the installer command.
 
-The .tsh directory is only accessilbe to the user and we should make sure the new `bin` directory also only has user permissions.
+In order for software on MacOS to use TouchID, the software needs to be signed and notorized by Apple. So an additional step is required on MacOS. Teleport provides a separate tsh only package that is compatible with TouchID. This package needs to be installed after the initial teleport package installation.
 
-Everytime `login` or `status` command is executed, tsh will compare the currently cached version of the client tools with the current cloud-stable version of Teleport. If the cached version is behind or ahead of the current stable version, a new version of the client tools will be downloaded to replace the existing ones. When downloading the Teleport client tools, the binaries will be downloaded directly. We need to make sure to download a version that is compatible with the system.
+#### Linux
 
-Because only a single version of the client tools will be cached at a time, we do not need to worry about cleaning up the cache.
+The current list of supported Linux distributions include RHEL/CentOS 7+, Amazon Linux 2+, Amazon Linux 2023+, Ubuntu 16.04+, Debian 9+, SLES 12 SP 5+, and SLES 15 SP 5+.
 
-The client tools will need a way to execute the cached binaries. When tsh/tctl is executed, it will now need to decide whether to execute the command as usual, or fork a new process using the cached binary.
+For Linux systems Teleport will need to look at the /etc/os-release file to determine the distribution.
 
-One way to handle execution of cached binaries is to use the os.Executable function. os.Executable give us the path of the binary executable. The flow might look something like:
-- If executing `tsh login` execute as usual (cached tsh binary will not support TouchID on macOS)
-- If executable is in cache directory (.tsh/bin/tsh), then execute command as usual
-- Else try to execute tsh from cache if exists
+The supported Linux distributions then need to be separated by the package manager that is used. Teleport supports an APT, YUM, and Zypper repository. Here are the following distribution to package manager mappings:
 
-Another option could be to have users update their `PATH` env with `export PATH=$HOME/.tsh/bin:$PATH`. Adding the tsh bin directory to the `PATH` environment in the user's `.profile` can be handled by tsh. Users would then execute the cached binary directly. This seems like a simpler approach than the above methods. The problem is that the cached binary would not support TouchID for macOS users.
+- Debian 9+/Ubuntu 16.04+ -> apt
+- Amazon Linux 2/RHEL 7/CentOS 7 -> yum
+- Amazon Linux 2023/RHEL 8+ -> dnf
+- SLES 12 SP5+/SLES 15 SP5+ -> zypper
 
-I believe macOS software needs to be notarized as a requirement for TouchID. For this reason Teleport provides a separate signed tsh download at `https://cdn.teleport.dev/tsh-13.3.4.pkg`. We could change the download method for macOS users, but this might not be very straight forward to implement. The macOS `installer` would also require sudo/admin privileges to install the package. It sounds like this issue is being worked on currently, and we won't be shipping unsigned binaries after this quarter.
+#### Enterprise vs Open Source
 
-### Config
+Teleport supports multiple channels including stable/cloud and stable/rolling. The stable/cloud channel receives releases compatible with Cloud, and so it only supports Teleport Enterprise packages. The stable/rolling channel receives all published Teleport releases including Teleport OSS packages.
 
-Automatic updates for client tools can be configured through tsh configuration. If `DISABLE_AUTO_UPDATE=true`, then auto updates for client tools will be disabled. If `DISABLE_UPDATE_PROMPT=true`, then the user will not be prompted to confirm the update. Both values will default to false.
+Before performing an update, Teleport needs to verify whether Teleport Enterprise or Teleport OSS has been installed, and if the package repository has been properly configured with the correct release channel. This step will be different for each system. Here are the following distribution to command mappings:
 
-## Inspiration
+- Debian 9+/Ubuntu 16.04+ -> dpkg --status < package-name >
+- Amazon Linux 2/RHEL 7/CentOS 7 -> yum info --installed < package-name >
+- Amazon Linux 2023/RHEL 8+ -> dnf info --installed < package-name >
+- SLES 12 SP5+/SLES 15 SP5+ -> zypper info < package-name >
 
-Terraform uses a separate version manager tool called `tfenv` to install and switch between different versions of `terraform`. How it works is first you install a version using `tfenv install 1.3.9`. This will download the tarball and install terraform in `$HOME/.tfenv/versions/1.3.9/terraform`. Then you can select which version to use with `tfenv use 1.3.9`. The `1.3.9` binary is then symlinked to `$HOME/.tfenv/bin/terraform`.
+#### Root/Admin privileges
 
+Note that these methods of updating Teleport client tools will require sudo/admin privileges.
 
-Tailscale supports the `tailscale update` command on Windows and some Linux distros. The imlpementation looks like it checks the OS/distro and then uses the system specific package manager to update the tool. On macOS they support automatic updates using https://github.com/mas-cli/mas. This feature requires `tailscale` to be install via the app store.
+### Automatic update
 
+Once Teleport client tools support the update command, the next step will be to add support for automatic updates. On login, Teleport will check for available updates by pulling the Teleport version from the client cloud stable version endpoint. If the currently installed version of Teleport client tools does not match the available client cloud stable version, the user will be prompted to update the Teleport client tools.
+
+#### Config
+
+Automatic updates behavior can be configured through tsh configuration. Global configuration for tsh is set in the /etc/tsh.yaml file while user specific configuration is set in the ~/.tsh/config/config.yaml file.
+
+To disable automatic updates, the user can set the environment variable `DISABLE_AUTO_UPDATE=true`. The user will no longer be prompted to update their Teleport client tools. The user will need to run the update command themselves when they are ready to update the Teleport client tools. Automatic updates will be enabled by default.
+
+The automatic update prompt can be disabled. If the environment variable `DISABLE_UPDATE_PROMPT=true` is set, the Teleport client tools will update without prompting for confirmation from the user. This will be disabled by default.
+
+The following configuration would configure Teleport to automatically update Teleport client tools without prompting the user to confirm the update.
+```
+#/etc/tsh.yaml
+DISABLE_AUTO_UPDATE=false
+DISABLE_UPDATE_PROMPT=true
+```
 
 ## UX
 
-Ideally, we'd like this feature to be integrated seamlessly. Users of the Teleport client tools should not need to search for documentation and spend time figuring out how to enable auto updates for their cleint tools.
+The Teleport client tools update command will support a few configuration flags:
+- --yes confirms the update without an interactive prompt
+- --channel specifies a custom release channel
+- --version specifies a custom teleport version
 
-After client tools auto updates is deployed and the first time the client tools are executed, the user will be asked two questions: 1) if they would like to update to the latest version (default yes) and 2) if they would like to enroll in auto updates for client tools (default yes).
+#### Root/Admin privileges
 
-Users that would like to opt-in or opt-out of auto updates at a later time can edit their tsh configuration file and edit the `DISABLE_AUTO_UPDATE` value.
+If the user does not have root/admin privileges, the update will fail with the following message:
+```
+Teleport client tools update requires root/sudo privileges
+```
 
-If a user opts out of auto updates, the user will still be prompted with the first question every time an update is available, but not the second question.
+#### Teleport client tools update available is not required
 
-We should provide some observability into the download status. Whenever a new cloud-stable version is available for download, the progress of the update will be output to stdout. e.g. `New cloud-stable version of Teleport detected`, `Downloading latest version of tsh/tctl... `, `Updated tsh/tctl to version v13.2.3!`.
+If the Teleport client tools are already on the latest compatible version, the update will be canceled with the following message:
+```
+Teleport client tools is running v13.4.5; No update required
+```
 
-To avoid breaking existing scripts, a `--[no-]auto-update` flag will be included. Without the flag given, when a tty is detected and an update is available, the user will be prompted to update. If the flag is not provided and a tty is not detected, updates will be skipped to avoid breaking scripts.
+#### Teleport client tools not installed via package manager
+
+If the Teleport client tools were not installed via the package manager, the update will fail with the following message:
+```
+Unable to verify teleport package status; Please ensure teleport is installed via the package manager
+```
+
+#### Teleport client tools update not supported
+
+Support for Teleport client tools will be implemented separately for each system. If the update command is not yet supported on a system, the update will fail with the following message:
+```
+Update is not yet supported on Windows
+```
+
+#### Teleport client tools update available
+
+If an update is available, the user will be prompted to confirm the update:
+```
+Updating Teleport client tools from v13.4.3 to v13.4.5
+Do you want to continue? [Y/n]
+```
+
+The output from the execution of the package manager installation commands will be piped to stdout and stderr:
+```
+...
+Get:1 https://apt.releases.teleport.dev/ubuntu jammy InRelease [158 kB]
+Fetched 158 kB in 4s (43.0 kB/s)
+Reading package lists... Done
+Reading package lists... Done
+Building dependency tree... Done
+Reading state information... Done
+teleport-ent is already the newest version (13.4.3).
+0 upgraded, 0 newly installed, 0 to remove and 16 not upgraded.
+```
+
+#### Automatic updates
+
+If automatic updates is enabled, the user will be prompted to update Teleport client tools on login.
+```
+$ tsh login --proxy=example.teleport.sh
+...
+A new version of Teleport clients tools is available (v13.4.5). Would you like to update? [Y/n]
+```
+
+To avoid breaking existing scripts that use Teleport client tools, Teleport will only attempt automatic updates when a tty is detected.
 
 ## Documentation
 
-There should be minimal documentation changes required for this feature. Users will not need to opt-in or take any actions to take advantage of this feature.
+There should be minimal documentation changes required for this feature. Users will not need to opt-in or take any actions to take advantage of this feature. The tsh and tctl documentation will be updated to include the update commmand.
 
-The documentation should include a basic overview of how auto updates works for client tools. Documention should also be available describing how to use the configuration values `DISABLE_AUTO_UPDATE`, `DISABLE_UPDATE_PROMPT`, and the `--[no-]-auto-update` flag.
+The documentation should include a basic overview of how auto updates works for client tools. Documention will also include details describing how to use the configuration flags and configuration environment variables.
 
 ## Security Considerations
 
@@ -137,3 +208,34 @@ For added security, one option to consider is to sign the binaries and have tsh/
 Once the binary has been downloaded, it could be susceptible to bit rot or tampering.
 
 To protect against this, we could keep a hash on disk to verify integrity on every invocation. Someone with enough rights to tamper with the client tools binary will also have the rights to tamper with the hash, so we'd also need to store the signature as well.
+
+## Tasks
+
+- [ ] Create the required client version discovery endpoint and implement the necessary workflows required to update and maintain the endpoint
+- [ ] Add update support for each system will be implemented separately
+- [ ] Support for automatic updates will be implemented after support for the update command has been implemented
+- [ ] Write documenation with details describing how to use the update command and automatic updates
+
+## Inspiration
+
+### Terraform
+
+Terraform uses a separate version manager tool called `tfenv` to install and switch between different versions of `terraform`. How it works is first you install a version using `tfenv install 1.3.9`. This will download the tarball and install terraform in `$HOME/.tfenv/versions/1.3.9/terraform`. Then you can select which version to use with `tfenv use 1.3.9`. The `1.3.9` binary is then symlinked to `$HOME/.tfenv/bin/terraform`.
+
+### Tailscale
+
+Tailscale supports the `tailscale update` command on Windows and some Linux distros. The imlpementation looks like it checks the OS/distro and then uses the system specific package manager to update the tool. On macOS they support automatic updates using https://github.com/mas-cli/mas. This feature requires `tailscale` to be install via the app store.
+
+## Alternatives
+
+### Caching
+
+We've explored the idea of caching the client tools in the user's $HOME directory.
+
+The benefits of this approach are:
+- It would not require sudo/admin privileges to install a new version of the client tools.
+- We would only need to handle a single method of installing the binary via direct tarball download.
+
+The downsides of this approach are:
+- Since we have multiple installation methods, it may be confusing to the users if there is a discrepancy between the version of client tools installed with the package manager and the cached version. This could potentially be a security concern if users are not able to correctly identify what versions of the client tools are installed on the system.
+- Installation without a package manager means that we now have the extra responsibility of validating downloads.
