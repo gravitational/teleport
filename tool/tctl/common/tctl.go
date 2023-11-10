@@ -356,6 +356,7 @@ func ApplyConfig(ccf *GlobalCLIFlags, cfg *servicecfg.Config) (*authclient.Confi
 		return nil, trace.Wrap(err)
 	}
 	authConfig.TLS.InsecureSkipVerify = ccf.Insecure
+	authConfig.Insecure = ccf.Insecure
 	authConfig.AuthServers = cfg.AuthServerAddresses()
 	authConfig.Log = cfg.Log
 
