@@ -14,133 +14,151 @@
  * limitations under the License.
  */
 
-import React from 'react';
-import { ResourceIconName } from 'design/ResourceIcon';
-
 import {
-  Icon,
   Application as ApplicationIcon,
   Database as DatabaseIcon,
   Kubernetes as KubernetesIcon,
   Server as ServerIcon,
   Desktop as DesktopIcon,
 } from 'design/Icon';
+import { ResourceIconName } from 'design/ResourceIcon';
 
 import { DbProtocol } from 'shared/services/databases';
 import { NodeSubKind } from 'shared/services';
 
 import {
-  UnifiedResourceKube,
-  UnifiedResourceNode,
+  UnifiedResourceViewItem,
   UnifiedResourceUi,
-  UnifiedResourceDatabase,
+  UnifiedResourceNode,
   UnifiedResourceApp,
-  UnifiedResourceUserGroup,
+  UnifiedResourceDatabase,
   UnifiedResourceDesktop,
-} from './types';
+  UnifiedResourceKube,
+  UnifiedResourceUserGroup,
+  SharedUnifiedResource,
+} from '../types';
 
-export interface UnifiedResourceCard {
-  name: string;
-  description: {
-    primary?: string;
-    secondary?: string;
-  };
-  labels: {
-    name: string;
-    value: string;
-  }[];
-  primaryIconName: ResourceIconName;
-  SecondaryIcon: typeof Icon;
-  ActionButton: React.ReactElement;
-}
-
-export function makeUnifiedResourceCardNode(
+export function makeUnifiedResourceViewItemNode(
   resource: UnifiedResourceNode,
   ui: UnifiedResourceUi
-): UnifiedResourceCard {
+): UnifiedResourceViewItem {
+  const nodeSubKind = formatNodeSubKind(resource.subKind);
+  const addressIfNotTunnel = resource.tunnel ? '' : resource.addr;
+
   return {
     name: resource.hostname,
     SecondaryIcon: ServerIcon,
     primaryIconName: 'Server',
     ActionButton: ui.ActionButton,
     labels: resource.labels,
-    description: {
-      primary: formatNodeSubKind(resource.subKind),
-      secondary: resource.tunnel ? '' : resource.addr,
+    cardViewProps: {
+      primaryDesc: nodeSubKind,
+      secondaryDesc: addressIfNotTunnel,
+    },
+    listViewProps: {
+      resourceType: nodeSubKind,
+      addr: addressIfNotTunnel,
     },
   };
 }
 
-export function makeUnifiedResourceCardDatabase(
+export function makeUnifiedResourceViewItemDatabase(
   resource: UnifiedResourceDatabase,
   ui: UnifiedResourceUi
-): UnifiedResourceCard {
+): UnifiedResourceViewItem {
   return {
     name: resource.name,
     SecondaryIcon: DatabaseIcon,
     primaryIconName: getDatabaseIconName(resource.protocol),
     ActionButton: ui.ActionButton,
     labels: resource.labels,
-    description: { primary: resource.type, secondary: resource.description },
+    listViewProps: {
+      description: resource.description,
+      resourceType: resource.type,
+    },
+    cardViewProps: {
+      primaryDesc: resource.type,
+      secondaryDesc: resource.description,
+    },
   };
 }
 
-export function makeUnifiedResourceCardKube(
+export function makeUnifiedResourceViewItemKube(
   resource: UnifiedResourceKube,
   ui: UnifiedResourceUi
-): UnifiedResourceCard {
+): UnifiedResourceViewItem {
   return {
     name: resource.name,
     SecondaryIcon: KubernetesIcon,
     primaryIconName: 'Kube',
     ActionButton: ui.ActionButton,
     labels: resource.labels,
-    description: { primary: 'Kubernetes' },
+    cardViewProps: {
+      primaryDesc: 'Kubernetes',
+    },
+    listViewProps: {
+      resourceType: 'Kubernetes',
+    },
   };
 }
 
-export function makeUnifiedResourceCardApp(
+export function makeUnifiedResourceViewItemApp(
   resource: UnifiedResourceApp,
   ui: UnifiedResourceUi
-): UnifiedResourceCard {
+): UnifiedResourceViewItem {
   return {
     name: resource.name,
     SecondaryIcon: ApplicationIcon,
     primaryIconName: guessAppIcon(resource),
     ActionButton: ui.ActionButton,
     labels: resource.labels,
-    description: {
-      primary: resource.description,
-      secondary: resource.addrWithProtocol,
+    cardViewProps: {
+      primaryDesc: resource.description,
+      secondaryDesc: resource.addrWithProtocol,
+    },
+    listViewProps: {
+      resourceType: resource.samlApp ? 'SAML Application' : 'Application',
+      description: resource.samlApp ? '' : resource.description,
+      addr: resource.addrWithProtocol,
     },
   };
 }
 
-export function makeUnifiedResourceCardDesktop(
+export function makeUnifiedResourceViewItemDesktop(
   resource: UnifiedResourceDesktop,
   ui: UnifiedResourceUi
-): UnifiedResourceCard {
+): UnifiedResourceViewItem {
   return {
     name: resource.name,
     SecondaryIcon: DesktopIcon,
     primaryIconName: 'Windows',
     ActionButton: ui.ActionButton,
     labels: resource.labels,
-    description: { primary: 'Windows', secondary: resource.addr },
+    cardViewProps: {
+      primaryDesc: 'Windows',
+      secondaryDesc: resource.addr,
+    },
+    listViewProps: {
+      resourceType: 'Windows',
+      addr: resource.addr,
+    },
   };
 }
 
-export function makeUnifiedResourceCardUserGroup(
+export function makeUnifiedResourceViewItemUserGroup(
   resource: UnifiedResourceUserGroup,
   ui: UnifiedResourceUi
-): UnifiedResourceCard {
+): UnifiedResourceViewItem {
   return {
     name: resource.name,
     SecondaryIcon: ServerIcon,
     primaryIconName: 'Server',
     ActionButton: ui.ActionButton,
     labels: resource.labels,
-    description: {},
+    cardViewProps: {},
+    listViewProps: {
+      resourceType: 'User Group',
+    },
   };
 }
 
@@ -207,5 +225,22 @@ function getDatabaseIconName(protocol: DbProtocol): ResourceIconName {
       return 'Dynamo';
     default:
       return 'Database';
+  }
+}
+
+export function mapResourceToViewItem({ resource, ui }: SharedUnifiedResource) {
+  switch (resource.kind) {
+    case 'node':
+      return makeUnifiedResourceViewItemNode(resource, ui);
+    case 'db':
+      return makeUnifiedResourceViewItemDatabase(resource, ui);
+    case 'kube_cluster':
+      return makeUnifiedResourceViewItemKube(resource, ui);
+    case 'app':
+      return makeUnifiedResourceViewItemApp(resource, ui);
+    case 'windows_desktop':
+      return makeUnifiedResourceViewItemDesktop(resource, ui);
+    case 'user_group':
+      return makeUnifiedResourceViewItemUserGroup(resource, ui);
   }
 }
