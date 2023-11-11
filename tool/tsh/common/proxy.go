@@ -19,6 +19,7 @@ package common
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"crypto/x509/pkix"
 	"fmt"
 	"io"
@@ -50,6 +51,7 @@ import (
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/cert"
 )
 
 // onProxyCommandSSH creates a local ssh proxy.
@@ -567,9 +569,51 @@ func onProxyCommandApp(cf *CLIConf) error {
 		addr = fmt.Sprintf("127.0.0.1:%s", cf.LocalProxyPort)
 	}
 
-	listener, err := net.Listen("tcp", addr)
-	if err != nil {
-		return trace.Wrap(err)
+	// Declare the listener
+	var listener net.Listener
+
+	// Determine if we should use TLS for the local listener
+	if cf.LocalTLS {
+		var serverCert tls.Certificate
+
+		// Attempt to load the certificate from given certificate files.
+		if cf.LocalTLSCertificate != "" && cf.LocalTLSKey != "" {
+			serverCert, err = tls.LoadX509KeyPair(cf.LocalTLSCertificate, cf.LocalTLSCertificate)
+			if err != nil {
+				return err
+			}
+		} else {
+			fmt.Println("Generating self-signed certificate for local port.")
+
+			// Generate a self-signed certificate to use in the proxy.
+			signedCert, err := cert.GenerateSelfSignedCert([]string{"localhost"}, nil, x509.ExtKeyUsageAny)
+			if err != nil {
+				return err
+			}
+
+			// Combine the key and certificate into a usable object for the Listener.
+			serverCert, err = tls.X509KeyPair(signedCert.Cert, signedCert.PrivateKey)
+			if err != nil {
+				return err
+			}
+		}
+
+		// Generate a TLS Config that uses the generated or loaded certificate, which is usable by the Listener.
+		serverTLSConf := &tls.Config{
+			Certificates: []tls.Certificate{serverCert},
+		}
+
+		// Start a TLS Listener.
+		listener, err = tls.Listen("tcp", addr, serverTLSConf)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	} else {
+		// Start a regular Net Listener.
+		listener, err = net.Listen("tcp", addr)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	lp, err := alpnproxy.NewLocalProxy(

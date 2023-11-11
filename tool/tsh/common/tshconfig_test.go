@@ -476,3 +476,43 @@ func TestProxyTemplatesMakeClient(t *testing.T) {
 		})
 	}
 }
+
+func TestLocalProxyTLSConfig(t *testing.T) {
+	t.Parallel()
+
+	tshConfig := TSHConfig{}
+
+	conf := &CLIConf{
+		Proxy:     "proxy:3080",
+		UserHost:  "localhost",
+		HomePath:  t.TempDir(),
+		TSHConfig: tshConfig,
+
+		// TLS
+		LocalTLS: true,
+	}
+
+	_, err := loadAllConfigs(*conf)
+	require.NoError(t, err)
+}
+
+func TestLocalProxyTLSConfigProvidedFiles(t *testing.T) {
+	t.Parallel()
+
+	tshConfig := TSHConfig{}
+
+	conf := &CLIConf{
+		Proxy:     "proxy:3080",
+		UserHost:  "localhost",
+		HomePath:  t.TempDir(),
+		TSHConfig: tshConfig,
+
+		// TLS
+		LocalTLS:            true,
+		LocalTLSCertificate: "/tmp/cert.pem",
+		LocalTLSKey:         "/tmp/cert.key",
+	}
+
+	_, err := loadAllConfigs(*conf)
+	require.NoError(t, err)
+}

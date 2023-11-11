@@ -369,7 +369,12 @@ type CLIConf struct {
 	LocalProxyPort string
 	// LocalProxyTunnel specifies whether local proxy will open auth'd tunnel.
 	LocalProxyTunnel bool
-
+	//LocalTLS enables TLS on the local port.
+	LocalTLS bool
+	// Local TLS Certificate contains the path to the local TLS Certificate File.
+	LocalTLSCertificate string
+	// Local TLS Certificate contains the path to the TLS Key File.
+	LocalTLSKey string
 	// Exec is the command to run via tsh aws.
 	Exec string
 	// AWSRole is Amazon Role ARN or role name that will be used for AWS CLI access.
@@ -818,6 +823,11 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	proxyApp := proxy.Command("app", "Start local TLS proxy for app connection when using Teleport in single-port mode.")
 	proxyApp.Arg("app", "The name of the application to start local proxy for").Required().StringVar(&cf.AppName)
 	proxyApp.Flag("port", "Specifies the source port used by by the proxy app listener").Short('p').StringVar(&cf.LocalProxyPort)
+
+	// Local TLS
+	proxyApp.Flag("tls", "Specifies to use TLS Encryption on the local port, uses self-signed if no certificate and key are provided.").BoolVar(&cf.LocalTLS)
+	proxyApp.Flag("local-cert", "Specifies the certificate file for the local TLS Port").Default("").StringVar(&cf.LocalTLSCertificate)
+	proxyApp.Flag("local-key", "Specifies the key file for the local TLS Port").Default("").StringVar(&cf.LocalTLSKey)
 
 	proxyAWS := proxy.Command("aws", "Start local proxy for AWS access.")
 	proxyAWS.Flag("app", "Optional Name of the AWS application to use if logged into multiple.").StringVar(&cf.AppName)

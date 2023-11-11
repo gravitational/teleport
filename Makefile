@@ -752,6 +752,14 @@ test-go-unit-tbot:
 		| tee $(TEST_LOG_DIR)/unit.json \
 		| gotestsum --raw-command -- cat
 
+# Runs tsh unit tests
+.PHONY: test-go-unit-tsh
+test-go-unit-tsh: FLAGS ?= -race -shuffle on
+test-go-unit-tsh:
+	$(CGOFLAG) go test -cover -json $(FLAGS) $(ADDFLAGS) ./tool/tsh/... \
+		| tee $(TEST_LOG_DIR)/unit.json \
+		| gotestsum --raw-command -- cat
+
 # Make sure untagged touchid code build/tests.
 .PHONY: test-go-touch-id
 test-go-touch-id: FLAGS ?= -race -shuffle on
