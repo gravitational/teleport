@@ -369,7 +369,7 @@ type CLIConf struct {
 	LocalProxyPort string
 	// LocalProxyTunnel specifies whether local proxy will open auth'd tunnel.
 	LocalProxyTunnel bool
-	//LocalTLS enables TLS on the local port.
+	// LocalTLS enables TLS on the local port.
 	LocalTLS bool
 	// Local TLS Certificate contains the path to the local TLS Certificate File.
 	LocalTLSCertificate string
