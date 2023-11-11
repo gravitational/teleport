@@ -63,7 +63,7 @@ export const StyledCheckbox = styled.input.attrs({ type: 'checkbox' })`
   }
 
   &:hover {
-    cursor: pointer;
+    cursor: ${props => (props.disabled ? 'not-allowed' : 'pointer')};
   }
 
   &::before {

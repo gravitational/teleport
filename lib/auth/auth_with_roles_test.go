@@ -4470,7 +4470,7 @@ func TestListUnifiedResources_MixedAccess(t *testing.T) {
 		require.NoError(t, err)
 
 		// add desktops
-		desktop, err := types.NewWindowsDesktopV3(name, map[string]string{"name": "mylabel"},
+		desktop, err := types.NewWindowsDesktopV3(name, nil,
 			types.WindowsDesktopSpecV3{Addr: "_", HostID: "_"})
 		require.NoError(t, err)
 		require.NoError(t, srv.Auth().UpsertWindowsDesktop(ctx, desktop))
@@ -4490,24 +4490,38 @@ func TestListUnifiedResources_MixedAccess(t *testing.T) {
 	// create user, role, and client
 	username := "user"
 	user, role, err := CreateUserAndRole(srv.Auth(), username, nil, nil)
-	// remove permission from nodes and desktops
-	role.SetNodeLabels(types.Deny, types.Labels{"name": {"mylabel"}})
-	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
 	require.NoError(t, err)
+
+	role.SetNodeLabels(types.Allow, types.Labels{"*": {"*"}})
+	role.SetDatabaseLabels(types.Allow, types.Labels{"*": {"*"}})
+	role.SetWindowsDesktopLabels(types.Allow, types.Labels{"*": {"*"}})
+	err = srv.Auth().UpsertRole(ctx, role)
+	require.NoError(t, err)
+	// remove permission from nodes by labels
+	role.SetNodeLabels(types.Deny, types.Labels{"name": {"mylabel"}})
+	// remove permission from desktops by rule
+	denyRules := []types.Rule{{
+		Resources: []string{types.KindWindowsDesktop},
+		Verbs:     []string{types.VerbList, types.VerbRead},
+	}}
+	role.SetRules(types.Deny, denyRules)
+	err = srv.Auth().UpsertRole(ctx, role)
+	require.NoError(t, err)
+	// require.NoError(t, err)
 	identity := TestUser(user.GetName())
 	clt, err := srv.NewClient(identity)
 	require.NoError(t, err)
 
 	require.NoError(t, err)
 	resp, err := clt.ListUnifiedResources(ctx, &proto.ListUnifiedResourcesRequest{
-		Limit:  10,
+		Limit:  20,
 		SortBy: types.SortBy{IsDesc: true, Field: types.ResourceMetadataName},
 	})
 	require.NoError(t, err)
 	require.Len(t, resp.Resources, 6)
 	require.Empty(t, resp.NextKey)
 
-	// only receive databases
+	// only receive databases because nodes are denied with labels and desktops are denied with a verb rule
 	for _, resource := range resp.Resources {
 		r := resource.GetDatabaseServer()
 		require.Equal(t, types.KindDatabaseServer, r.GetKind())
