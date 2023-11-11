@@ -23,6 +23,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integrations/access/common"
+	"github.com/gravitational/teleport/integrations/access/common/teleport"
 	"github.com/gravitational/teleport/integrations/lib"
 )
 
@@ -31,6 +32,15 @@ type Config struct {
 	common.BaseConfig
 	ClientConfig
 	ServiceNow common.GenericAPIConfig
+
+	// Teleport is a handle to the client to use when communicating with
+	// the Teleport auth server. The ServiceNow app will create a gRPC-based
+	// client on startup if this is not set.
+	Client teleport.Client
+
+	// TeleportUser is the name of the Teleport user that will act
+	// as the access request approver
+	TeleportUser string
 }
 
 // CheckAndSetDefaults checks the config struct for any logical errors, and sets default values
