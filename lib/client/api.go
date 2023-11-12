@@ -83,6 +83,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/observability/tracing"
+	"github.com/gravitational/teleport/lib/player"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/shell"
@@ -1989,8 +1990,8 @@ func (tc *TeleportClient) Join(ctx context.Context, mode types.SessionParticipan
 	return trace.Wrap(err)
 }
 
-// Play replays the recorded session
-func (tc *TeleportClient) Play(ctx context.Context, namespace, sessionID string) (err error) {
+// Play replays the recorded session.
+func (tc *TeleportClient) Play(ctx context.Context, sessionID string, speed float64) error {
 	ctx, span := tc.Tracer.Start(
 		ctx,
 		"teleportClient/Play",
@@ -2001,65 +2002,138 @@ func (tc *TeleportClient) Play(ctx context.Context, namespace, sessionID string)
 	)
 	defer span.End()
 
-	var sessionEvents []events.EventFields
-	var stream []byte
-	if namespace == "" {
-		return trace.BadParameter(auth.MissingNamespaceError)
-	}
-	sid, err := session.ParseID(sessionID)
-	if err != nil {
-		return fmt.Errorf("'%v' is not a valid session ID (must be GUID)", sid)
-	}
-	// connect to the auth server (site) who made the recording
 	proxyClient, err := tc.ConnectToProxy(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	defer proxyClient.Close()
 
-	site := proxyClient.CurrentCluster()
+	return playSession(ctx, sessionID, speed, proxyClient.CurrentCluster())
+}
 
-	// request events for that session (to get timing data)
-	sessionEvents, err = site.GetSessionEvents(namespace, *sid, 0)
+const (
+	keyCtrlC = 3
+	keyCtrlD = 4
+	keySpace = 32
+	keyLeft  = 68
+	keyRight = 67
+	keyUp    = 65
+	keyDown  = 66
+)
+
+func playSession(ctx context.Context, sessionID string, speed float64, streamer player.Streamer) error {
+	sid, err := session.ParseID(sessionID)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	// Return an error if it is a desktop session and check to see if this is not a Kube or SSH session
-	if len(sessionEvents) > 0 {
-		switch typ := sessionEvents[0].GetType(); typ {
-		case events.WindowsDesktopSessionStartEvent:
-			url := getDesktopEventWebURL(tc.localAgent.proxyHost, proxyClient.siteName, sid, sessionEvents)
-			message := "Desktop sessions cannot be viewed with tsh." +
-				" Please use the browser to play this session." +
-				" Click on the URL to view the session in the browser:"
-			return trace.BadParameter("%s\n%s", message, url)
-		case events.AppSessionStartEvent, events.DatabaseSessionStartEvent, events.AppSessionChunkEvent:
-			return trace.BadParameter("Interactive session replay with tsh is supported for SSH and Kubernetes sessions."+
-				" To play entries for Application and Database you must use the json or yaml format."+
-				" \nEx: tsh play -f json %s", sid)
-		case events.SessionStartEvent:
-			// proceed without error
-		default:
-			return trace.BadParameter("unknown session type %q", typ)
-		}
+	term, err := terminal.New(os.Stdin, os.Stdout, os.Stderr)
+	if err != nil {
+		return trace.Wrap(err)
 	}
+	defer term.Close()
 
-	// read the stream into a buffer:
-	for {
-		tmp, err := site.GetSessionChunk(namespace, *sid, len(stream), events.MaxChunkBytes)
+	// configure terminal for direct unbuffered echo-less input
+	if term.IsAttached() {
+		err := term.InitRaw(true)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		if len(tmp) == 0 {
-			break
-		}
-		stream = append(stream, tmp...)
 	}
 
-	return playSession(sessionEvents, stream)
+	// clear screen between runs:
+	term.Stdout().Write([]byte("\x1bc"))
+
+	player, err := player.New(&player.Config{
+		SessionID: *sid,
+		Streamer:  streamer,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	player.SetSpeed(speed)
+	if err := player.Play(); err != nil {
+		return trace.Wrap(err)
+	}
+	playing := true
+
+	// playback control goroutine
+	const skipDuration = 10 * time.Second
+	go func() {
+		var key [1]byte
+		for {
+			_, err := term.Stdin().Read(key[:])
+			if err != nil {
+				return
+			}
+			switch key[0] {
+			case keyCtrlC, keyCtrlD:
+				player.Close()
+				return
+			case keySpace:
+				if playing {
+					player.Pause()
+				} else {
+					player.Play()
+				}
+				playing = !playing
+			case keyLeft, keyDown:
+				current := time.Duration(player.LastPlayed() * int64(time.Millisecond))
+				term.Stdout().Write([]byte("\x1bc"))
+				player.SetPos(max(current-skipDuration, 0)) // rewind
+			case keyRight, keyUp:
+				current := time.Duration(player.LastPlayed() * int64(time.Millisecond))
+				player.SetPos(current + skipDuration) // advance forward
+			}
+		}
+	}()
+
+	var lastTime time.Time
+	for evt := range player.C() {
+		switch evt := evt.(type) {
+		case *apievents.WindowsDesktopSessionStart:
+			// TODO(zmb3): restore the playback URL
+			message := "Desktop sessions cannot be played with tsh play." +
+				" Export the recording to video with tsh recordings export" +
+				" or view the recording in your web browser."
+			return trace.BadParameter(message)
+		case *apievents.AppSessionStart, *apievents.DatabaseSessionStart, *apievents.AppSessionChunk:
+			return trace.BadParameter("Interactive session replay is only supported for SSH and Kubernetes sessions." +
+				" To play app or database sessions, specify --format=json or --format=yaml.")
+		case *apievents.Resize:
+			if err := setTermSize(term.Stdout(), evt.TerminalSize); err != nil {
+				continue
+			}
+		case *apievents.SessionStart:
+			if err := setTermSize(term.Stdout(), evt.TerminalSize); err != nil {
+				continue
+			}
+		case *apievents.SessionPrint:
+			term.Stdout().Write(evt.Data)
+			if evt.Time != lastTime {
+				timestampFrame(term, evt.Time.Format(time.DateTime))
+			}
+			lastTime = evt.Time
+		default:
+			continue
+		}
+	}
+
+	return nil
 }
 
+func setTermSize(w io.Writer, size string) error {
+	width, height, ok := strings.Cut(size, ":")
+	if !ok {
+		return trace.Errorf("invalid terminal size %q", size)
+	}
+	// resize terminal window by sending control sequence:
+	_, err := fmt.Fprintf(w, "\x1b[8;%s;%st", height, width)
+	return err
+}
+
+// TODO(zmb3) remove this?
 func (tc *TeleportClient) GetSessionEvents(ctx context.Context, namespace, sessionID string) ([]events.EventFields, error) {
 	ctx, span := tc.Tracer.Start(
 		ctx,
@@ -2094,47 +2168,10 @@ func (tc *TeleportClient) GetSessionEvents(ctx context.Context, namespace, sessi
 	return events, nil
 }
 
-// PlayFile plays the recorded session from a tar file
-func PlayFile(ctx context.Context, tarFile io.Reader, sid string) error {
-	var sessionEvents []events.EventFields
-	var stream []byte
-	protoReader := events.NewProtoReader(tarFile)
-	playbackDir, err := os.MkdirTemp("", "playback")
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer os.RemoveAll(playbackDir)
-	w, err := events.WriteForSSHPlayback(ctx, session.ID(sid), protoReader, playbackDir)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	sessionEvents, err = w.SessionEvents()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	// Return errors if this is desktop, app, db or unknown session.
-	if len(sessionEvents) > 0 {
-		switch typ := sessionEvents[0].GetType(); typ {
-		case events.WindowsDesktopSessionStartEvent:
-			message := "Desktop sessions cannot be viewed with tsh." +
-				" Please use the browser to play this session or use tsh recordings export to get a video download."
-			return trace.BadParameter("%s", message)
-		case events.AppSessionStartEvent, events.DatabaseSessionStartEvent, events.AppSessionChunkEvent:
-			return trace.BadParameter("Interactive session replay with tsh is supported for SSH and Kubernetes sessions."+
-				" To play entries for Application and Database you must use the json or yaml format."+
-				"\nEx: tsh play -f json %s", sid)
-		case events.SessionStartEvent:
-			// proceed without error
-		default:
-			return trace.BadParameter("unknown session type %q", typ)
-		}
-	}
-	stream, err = w.SessionChunks()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return playSession(sessionEvents, stream)
+// PlayFile plays the recorded session from a file.
+func PlayFile(ctx context.Context, filename, sid string, speed float64) error {
+	streamer := &playFromFileStreamer{filename: filename}
+	return playSession(ctx, sid, speed, streamer)
 }
 
 // SFTP securely copies files between Nodes or SSH servers using SFTP
@@ -5011,73 +5048,6 @@ func InsecureSkipHostKeyChecking(host string, remote net.Addr, key ssh.PublicKey
 // FedRAMP/FIPS 140-2 mode for tsh.
 func isFIPS() bool {
 	return modules.GetModules().IsBoringBinary()
-}
-
-// playSession plays session in the terminal
-func playSession(sessionEvents []events.EventFields, stream []byte) error {
-	term, err := terminal.New(nil, nil, nil)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	defer term.Close()
-
-	// configure terminal for direct unbuffered echo-less input:
-	if term.IsAttached() {
-		err := term.InitRaw(true)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-	}
-
-	player := newSessionPlayer(sessionEvents, stream, term)
-	errorCh := make(chan error)
-	// keys:
-	const (
-		keyCtrlC = 3
-		keyCtrlD = 4
-		keySpace = 32
-		keyLeft  = 68
-		keyRight = 67
-		keyUp    = 65
-		keyDown  = 66
-	)
-	// playback control goroutine
-	go func() {
-		defer player.EndPlayback()
-		var key [1]byte
-		for {
-			_, err := term.Stdin().Read(key[:])
-			if err != nil {
-				errorCh <- err
-				return
-			}
-			switch key[0] {
-			// Ctrl+C or Ctrl+D
-			case keyCtrlC, keyCtrlD:
-				return
-			// Space key
-			case keySpace:
-				player.TogglePause()
-			// <- arrow
-			case keyLeft, keyDown:
-				player.Rewind()
-			// -> arrow
-			case keyRight, keyUp:
-				player.Forward()
-			}
-		}
-	}()
-	// player starts playing in its own goroutine
-	player.Play()
-	// wait for keypresses loop to end
-	select {
-	case <-player.stopC:
-		fmt.Println("\n\nend of session playback")
-		return nil
-	case err := <-errorCh:
-		return trace.Wrap(err)
-	}
 }
 
 func findActiveDatabases(key *Key) ([]tlsca.RouteToDatabase, error) {

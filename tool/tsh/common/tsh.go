@@ -278,6 +278,9 @@ type CLIConf struct {
 	Format  string
 	OutFile string
 
+	// PlaySpeed controls the playback speed for tsh play.
+	PlaySpeed string
+
 	// SearchKeywords is a list of search keywords to match against resource field values.
 	SearchKeywords string
 
@@ -899,6 +902,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	// play
 	play := app.Command("play", "Replay the recorded session (SSH, Kubernetes, App, DB).")
 	play.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
+	play.Flag("speed", "Playback speed, applicable when streaming SSH or Kubernetes sessions.").Default("1x").EnumVar(&cf.PlaySpeed, "0.5x", "1x", "2x", "4x", "8x")
 	play.Flag("format", defaults.FormatFlagDescription(
 		teleport.PTY, teleport.JSON, teleport.YAML,
 	)).Short('f').Default(teleport.PTY).EnumVar(&cf.Format, teleport.PTY, teleport.JSON, teleport.YAML)
@@ -1700,16 +1704,17 @@ func serializeVersion(format string, proxyVersion string, proxyPublicAddress str
 //     binary protobuf format into YAML or JSON.
 //
 // Each of these modes has two subcases:
-// a) --session-id ends with ".tar" - tsh operates on a local file
+// i) --session-id ends with ".tar" - tsh operates on a local
+// file containing a previously downloaded session
 //
-//	containing a previously downloaded session
-//
-// b) --session-id is the ID of a session - tsh operates on the session
-//
-//	recording by connecting to the Teleport cluster
+// b) --session-id is the ID of a session - tsh operates on the
+// session recording by connecting to the Teleport cluster
 func onPlay(cf *CLIConf) error {
 	if format := strings.ToLower(cf.Format); format == teleport.PTY {
 		return playSession(cf)
+	}
+	if cf.PlaySpeed != "1x" {
+		log.Warn("--speed is not applicable for formats other than pty")
 	}
 	return exportSession(cf)
 }
@@ -1751,25 +1756,35 @@ func exportSession(cf *CLIConf) error {
 	return nil
 }
 
+var playbackSpeeds = map[string]float64{
+	"0.5x": 0.5,
+	"1x":   1.0,
+	"2x":   2.0,
+	"4x":   4.0,
+	"8x":   8.0,
+}
+
 func playSession(cf *CLIConf) error {
+	speed, ok := playbackSpeeds[cf.PlaySpeed]
+	if !ok {
+		speed = 1.0
+	}
+
 	isLocalFile := path.Ext(cf.SessionID) == ".tar"
 	if isLocalFile {
 		sid := sessionIDFromPath(cf.SessionID)
-		tarFile, err := os.Open(cf.SessionID)
-		if err != nil {
-			return trace.ConvertSystemError(err)
-		}
-		defer tarFile.Close()
-		if err := client.PlayFile(cf.Context, tarFile, sid); err != nil {
+		if err := client.PlayFile(cf.Context, cf.SessionID, sid, speed); err != nil {
 			return trace.Wrap(err)
 		}
 		return nil
 	}
+
 	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err := tc.Play(cf.Context, cf.Namespace, cf.SessionID); err != nil {
+
+	if err := tc.Play(cf.Context, cf.SessionID, speed); err != nil {
 		if trace.IsNotFound(err) {
 			log.WithError(err).Debug("error playing session")
 			return trace.NotFound("Recording for session %s not found.", cf.SessionID)
