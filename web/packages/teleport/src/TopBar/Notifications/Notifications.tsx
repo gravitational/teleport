@@ -60,6 +60,7 @@ export function Notifications() {
         open={open}
         $transitionDelay={currentTransitionDelay}
         key={notice.id}
+        data-testid="note-item"
       >
         <NotificationItem notice={notice} close={() => setOpen(false)} />
       </DropdownItem>
@@ -100,6 +101,15 @@ function NotificationItem({
   notice: Notification;
   close(): void;
 }) {
+  const today = new Date();
+  const numDays = formatDistanceToNow(notice.date);
+
+  let dueText;
+  if (notice.date <= today) {
+    dueText = `is overdue for a review ${numDays} ago`;
+  } else {
+    dueText = `needs your review within ${numDays}`;
+  }
   switch (notice.item.kind) {
     case NotificationKind.AccessList:
       return (
@@ -109,8 +119,7 @@ function NotificationItem({
               <UserList mt="1px" />
             </DropdownItemIcon>
             <Text>
-              Access list <b>{notice.item.resourceName}</b> needs your review
-              within {formatDistanceToNow(notice.date)}.
+              Access list <b>{notice.item.resourceName}</b> {dueText}.
             </Text>
           </NotificationItemButton>
         </NotificationLink>
