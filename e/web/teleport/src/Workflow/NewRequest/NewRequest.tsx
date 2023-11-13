@@ -28,7 +28,10 @@ import { SearchPanel } from 'shared/components/Search';
 import localStorage from 'teleport/services/localStorage';
 import { Attempt } from 'shared/hooks/useAttemptNext';
 import UnifiedSearchPanel from 'teleport/UnifiedResources/SearchPanel';
-import { UnifiedResources } from 'shared/components/UnifiedResources';
+import {
+  FilterKind,
+  UnifiedResources,
+} from 'shared/components/UnifiedResources';
 import { TextIcon } from 'teleport/Discover/Shared';
 import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
 import {
@@ -116,6 +119,32 @@ export default function Container() {
 
   return <NewRequest {...state} />;
 }
+
+// we don't want to disable any kinds in the filter
+// for access requests because we don't know what
+// kinds the user might have the ability to request
+const availableKinds: FilterKind[] = [
+  {
+    kind: 'node',
+    disabled: false,
+  },
+  {
+    kind: 'app',
+    disabled: false,
+  },
+  {
+    kind: 'db',
+    disabled: false,
+  },
+  {
+    kind: 'kube_cluster',
+    disabled: false,
+  },
+  {
+    kind: 'windows_desktop',
+    disabled: false,
+  },
+];
 
 export function NewRequest(props: State) {
   const {
@@ -333,13 +362,7 @@ export function NewRequest(props: State) {
             updatePreferences({ unifiedResourcePreferences: preferences });
           }}
           pinning={{ kind: 'hidden' }}
-          availableKinds={[
-            'app',
-            'db',
-            'windows_desktop',
-            'kube_cluster',
-            'node',
-          ]}
+          availableKinds={availableKinds}
           // we only use the SearchPanel in the header because we will need a separate
           // header that includes the request type dropdown and Proceed to Request button
           Header={
