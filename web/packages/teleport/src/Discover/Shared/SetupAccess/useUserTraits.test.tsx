@@ -40,7 +40,7 @@ describe('onProceed correctly deduplicates, removes static traits, updates meta,
   const ctx = createTeleportContext();
   jest.spyOn(ctx.userService, 'fetchUser').mockResolvedValue(getMockUser());
   jest.spyOn(ctx.userService, 'updateUser').mockResolvedValue(null);
-  jest.spyOn(ctx.userService, 'applyUserTraits').mockResolvedValue(null);
+  jest.spyOn(ctx.userService, 'reloadUser').mockResolvedValue(null);
   jest
     .spyOn(userEventService, 'captureDiscoverEvent')
     .mockResolvedValue(null as never); // return value does not matter but required by ts
@@ -120,7 +120,7 @@ describe('onProceed correctly deduplicates, removes static traits, updates meta,
     });
 
     await waitFor(() => {
-      expect(ctx.userService.applyUserTraits).toHaveBeenCalledTimes(1);
+      expect(ctx.userService.reloadUser).toHaveBeenCalledTimes(1);
     });
 
     // Test that we are updating the user with the correct traits.
@@ -199,7 +199,7 @@ describe('onProceed correctly deduplicates, removes static traits, updates meta,
     });
 
     await waitFor(() => {
-      expect(ctx.userService.applyUserTraits).toHaveBeenCalledTimes(1);
+      expect(ctx.userService.reloadUser).toHaveBeenCalledTimes(1);
     });
 
     // Test that we are updating the user with the correct traits.
@@ -270,7 +270,7 @@ describe('onProceed correctly deduplicates, removes static traits, updates meta,
     });
 
     await waitFor(() => {
-      expect(ctx.userService.applyUserTraits).toHaveBeenCalledTimes(1);
+      expect(ctx.userService.reloadUser).toHaveBeenCalledTimes(1);
     });
 
     // Test that we are updating the user with the correct traits.
