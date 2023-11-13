@@ -42,12 +42,17 @@ func TestWithOwnersIneligibleStatusField(t *testing.T) {
 			Name:             "dne",
 			IneligibleStatus: accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_USER_NOT_EXIST,
 		},
+		{
+			Name:             "unspecified",
+			IneligibleStatus: accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_UNSPECIFIED,
+		},
 	}
 
 	owners := []accesslist.Owner{
 		{Name: "expired"},
 		{Name: "missing"},
 		{Name: "dne"},
+		{Name: "unspecified"},
 	}
 	al := &accesslist.AccessList{
 		Spec: accesslist.Spec{
@@ -71,6 +76,10 @@ func TestWithOwnersIneligibleStatusField(t *testing.T) {
 		{
 			Name:             "dne",
 			IneligibleStatus: accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_USER_NOT_EXIST.String(),
+		},
+		{
+			Name:             "unspecified",
+			IneligibleStatus: "",
 		},
 	}))
 }
