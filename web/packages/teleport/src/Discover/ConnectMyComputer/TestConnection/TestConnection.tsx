@@ -125,7 +125,9 @@ export const TestConnection = (props: AgentStepProps) => {
         onProceed={props.nextStep}
         disableProceed={refetchNodeAttempt.status !== 'success'}
         lastStep={true}
-        onPrev={props.prevStep}
+        // onPrev is not passed on purpose to disable the back button. The flow would go back to
+        // polling which wouldn't make sense as the user has already connected their computer so the
+        // step would poll forever, unless the user removed the agent and configured it again.
       />
     </Flex>
   );
