@@ -7575,6 +7575,10 @@ func (u mockCurrentUser) GetTraits() map[string][]string {
 	return u.traits
 }
 
+func (u mockCurrentUser) GetName() string {
+	return "mockCurrentUser"
+}
+
 func TestNewAccessCheckerForRemoteCluster(t *testing.T) {
 	user := mockCurrentUser{
 		roles: []string{"dev", "admin"},
