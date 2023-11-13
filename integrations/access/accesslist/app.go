@@ -230,8 +230,6 @@ func (a *App) sendMessages(ctx context.Context, accessList *accesslist.AccessLis
 				log.Debugf("User %s has already been notified for access list %s", recipient.Name, accessList.GetName())
 				userNotifications[recipient.Name] = lastNotification
 				continue
-			} else {
-				log.Debugf("User %s should be notified for access list %s", recipient.Name, accessList.GetName())
 			}
 
 			recipients = append(recipients, recipient)
@@ -247,11 +245,12 @@ func (a *App) sendMessages(ctx context.Context, accessList *accesslist.AccessLis
 		return trace.Wrap(err)
 	}
 
+	var errs []error
 	for _, recipient := range recipients {
 		if err := a.bot.SendReviewReminders(ctx, recipient, accessList); err != nil {
-			log.WithError(err).Errorf("Error sending access review reminders for access list %s", accessList.GetName())
+			errs = append(errs, err)
 		}
 	}
 
-	return nil
+	return trace.NewAggregate(errs...)
 }
