@@ -40,16 +40,6 @@ use crate::cliprdr::{ClipboardFn, TeleportCliprdrBackend};
 use crate::rdpdr::scard::SCARD_DEVICE_ID;
 use crate::rdpdr::TeleportRdpdrBackend;
 
-macro_rules! get_backend_mut {
-    ($x224_processor:expr, $svc_processor:ty, $backend:ty) => {
-        Self::get_svc_processor_mut::<$svc_processor>($x224_processor)?
-            .downcast_backend_mut::<$backend>()
-            .ok_or(ClientError::InternalError(
-                "downcast_backend_mut::<$backend>() returned None".to_string(),
-            ))
-    };
-}
-
 /// The RDP client on the Rust side of things. Each `Client`
 /// corresponds with a Go `Client` specified by `cgo_handle`.
 pub struct Client {
@@ -354,8 +344,7 @@ impl Client {
         global::TOKIO_RT
             .spawn_blocking(move || {
                 let mut x224_processor = Self::x224_lock(&x224_processor)?;
-                let cliprdr =
-                    get_backend_mut!(&mut x224_processor, Cliprdr, TeleportCliprdrBackend)?;
+                let cliprdr = Self::cliprdr_backend(&mut x224_processor)?;
                 cliprdr.set_clipboard_data(data.clone());
                 Ok(())
             })
@@ -504,7 +493,7 @@ impl Client {
             .spawn_blocking(move || {
                 debug!("received tdp: {:?}", res);
                 let mut x224_processor = Self::x224_lock(&x224_processor)?;
-                let rdpdr = get_backend_mut!(&mut x224_processor, Rdpdr, TeleportRdpdrBackend)?;
+                let rdpdr = Self::rdpdr_backend(&mut x224_processor)?;
                 rdpdr.handle_tdp_sd_info_response(res)?;
                 Ok(())
             })
@@ -519,7 +508,7 @@ impl Client {
             .spawn_blocking(move || {
                 debug!("received tdp: {:?}", res);
                 let mut x224_processor = Self::x224_lock(&x224_processor)?;
-                let rdpdr = get_backend_mut!(&mut x224_processor, Rdpdr, TeleportRdpdrBackend)?;
+                let rdpdr = Self::rdpdr_backend(&mut x224_processor)?;
                 rdpdr.handle_tdp_sd_create_response(res)?;
                 Ok(())
             })
@@ -586,7 +575,7 @@ impl Client {
             .map_err(|err| reason_err!("x224_processor.lock()", "PoisonError: {:?}", err))
     }
 
-    /// Returns a reference to the [`StaticVirtualChannelProcessor`] of type `S`.
+    /// Returns an immutable reference to the [`StaticVirtualChannelProcessor`] of type `S`.
     ///
     /// # Example
     ///
@@ -609,27 +598,28 @@ impl Client {
             )))
     }
 
-    /// Returns a mutable reference to the [`StaticVirtualChannelProcessor`] of type `S`.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// let mut x224_processor = Self::x224_lock(&x224_processor)?;
-    /// let cliprdr = Self::get_svc_processor_mut::<Cliprdr>(&mut x224_processor)?;
-    /// // Now we can call mutable methods on the Cliprdr processor.
-    /// ```
-    fn get_svc_processor_mut<'a, S>(
-        x224_processor: &'a mut MutexGuard<'_, X224Processor>,
-    ) -> Result<&'a mut S, ClientError>
-    where
-        S: StaticVirtualChannelProcessor + 'static,
-    {
+    /// Returns a mutable reference to the [`TeleportCliprdrBackend`] of the [`Cliprdr`] processor.
+    fn cliprdr_backend(
+        x224_processor: &mut X224Processor,
+    ) -> ClientResult<&mut TeleportCliprdrBackend> {
         x224_processor
-            .get_svc_processor_mut::<S>()
-            .ok_or(ClientError::InternalError(format!(
-                "get_svc_processor_mut::<{}>() returned None",
-                std::any::type_name::<S>()
-            )))
+            .get_svc_processor_mut::<Cliprdr>()
+            .and_then(|c| c.downcast_backend_mut::<TeleportCliprdrBackend>())
+            .ok_or(ClientError::InternalError(
+                "cliprdr_backend returned None".to_string(),
+            ))
+    }
+
+    /// Returns a mutable reference to the [`TeleportRdpdrBackend`] of the [`Rdpdr`] processor.
+    fn rdpdr_backend(
+        x224_processor: &mut X224Processor,
+    ) -> ClientResult<&mut TeleportRdpdrBackend> {
+        x224_processor
+            .get_svc_processor_mut::<Rdpdr>()
+            .and_then(|c| c.downcast_backend_mut::<TeleportRdpdrBackend>())
+            .ok_or(ClientError::InternalError(
+                "rdpdr_backend returned None".to_string(),
+            ))
     }
 }
 
