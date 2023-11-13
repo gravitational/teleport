@@ -169,9 +169,9 @@ func TestAccessListReminders(t *testing.T) {
 	// Advance by five more days, to the next week, expect two notifications
 	advanceAndLookForRecipients(t, bot, as, clock, 24*5*time.Hour, accessList, "owner1", "owner2")
 
-	// Advance by one year a week at a time, expect two notifications each time.
-	for i := 0; i < 52; i++ {
-		advanceAndLookForRecipients(t, bot, as, clock, 24*7*time.Hour, accessList, "owner1", "owner2")
+	// Advance 60 days a day at a time, expect two notifications each time.
+	for i := 0; i < 60; i++ {
+		advanceAndLookForRecipients(t, bot, as, clock, oneDay, accessList, "owner1", "owner2")
 	}
 }
 

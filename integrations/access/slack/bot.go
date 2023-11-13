@@ -230,7 +230,7 @@ func (b Bot) FetchRecipient(ctx context.Context, name string) (*common.Recipient
 func (b Bot) slackAccessListReminderMsgSection(accessList *accesslist.AccessList) []BlockItem {
 	nextAuditDate := accessList.Spec.Audit.NextAuditDate
 
-	name := fmt.Sprintf("*%s* (name: %s)", accessList.Spec.Title, accessList.GetName())
+	name := fmt.Sprintf("*%s*", accessList.Spec.Title)
 	var msg string
 	if b.clock.Now().After(nextAuditDate) {
 		daysSinceDue := int(b.clock.Since(nextAuditDate).Hours() / 24)

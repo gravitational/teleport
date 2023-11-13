@@ -36,8 +36,10 @@ import (
 )
 
 const (
-	// oneWeek is the number of hours in a week.
-	oneWeek = 24 * time.Hour * 7
+	// oneDay is the number of hours in a day.
+	oneDay = 24 * time.Hour
+	// oneWeek is the number of days in a week.
+	oneWeek = oneDay * 7
 )
 
 // App is the access list application for plugins. This will notify access list owners
@@ -215,9 +217,16 @@ func (a *App) fetchRecipients(ctx context.Context, accessList *accesslist.Access
 func (a *App) sendMessages(ctx context.Context, accessList *accesslist.AccessList, allRecipients map[string]common.Recipient, now, notificationStart time.Time) error {
 	log := logger.Get(ctx)
 
-	// Calculate weeks from start.
-	weeksFromStart := now.Sub(notificationStart) / oneWeek
-	windowStart := notificationStart.Add(weeksFromStart * oneWeek)
+	var windowStart time.Time
+	if !now.After(accessList.Spec.Audit.NextAuditDate) {
+		// Calculate weeks from start.
+		weeksFromStart := now.Sub(notificationStart) / oneWeek
+		windowStart = notificationStart.Add(weeksFromStart * oneWeek)
+	} else {
+		// Calculate days from start.
+		daysFromStart := now.Sub(notificationStart) / oneDay
+		windowStart = notificationStart.Add(daysFromStart * oneWeek)
+	}
 
 	recipients := []common.Recipient{}
 	_, err := a.pluginData.Update(ctx, accessList.GetName(), func(data pd.AccessListNotificationData) (pd.AccessListNotificationData, error) {
