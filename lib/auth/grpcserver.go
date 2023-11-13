@@ -382,6 +382,7 @@ func (g *GRPCServer) WatchEvents(watch *authpb.Watch, stream authpb.AuthService_
 	return trace.Wrap(WatchEvents(watch, stream, auth.User.GetName(), auth))
 }
 
+// WatchEvent is a stream interface for sending events.
 type WatchEvent interface {
 	Context() context.Context
 	Send(*authpb.Event) error
@@ -391,6 +392,7 @@ type Watcher interface {
 	NewStream(ctx context.Context, watch types.Watch) (stream.Stream[types.Event], error)
 }
 
+// WatchEvents watches for events and streams them to the provided stream.
 func WatchEvents(watch *authpb.Watch, stream WatchEvent, componentName string, auth Watcher) error {
 	servicesWatch := types.Watch{
 		Name:                componentName,
@@ -433,7 +435,7 @@ func WatchEvents(watch *authpb.Watch, stream WatchEvent, componentName string, a
 		}
 	}
 
-	// defferred cleanup func will inject stream error if needed
+	// deferred cleanup func will inject stream error if needed
 	return nil
 }
 
