@@ -1,0 +1,67 @@
+---
+name: Publish releases via the Release service
+on:
+  workflow_dispatch:
+    inputs:
+      oss-teleport-repo:
+        description: "The name of the OSS teleport repo to publish the release for"
+        required: false
+        default: "gravitational/teleport"
+        type: string
+      version:
+        description: "The version should be published"
+        type: string
+        required: true
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    outputs:
+      ecr-username: "AWS"
+      ecr-password: ${{ steps.ecr-credentials.outputs.ecr-password }}
+    steps:
+      - name: Assume AWS ECR pull role
+        uses: aws-actions/configure-aws-credentials@010d0da01d0b5a38af31e9c3470dbfdabdecca3a # v4.0.1
+        with:
+          role-skip-session-tagging: true
+          aws-region: ${{ vars.ECR_PRIVATE_REPOS_REGION }}
+          role-to-assume: ${{ vars.ECR_PROD_PULL_ROLE_ARN }}
+          role-session-name: "publish-release-server-${{ github.run_number }}"
+          role-duration-seconds: 900
+      - name: Get credentials for pulling the rlzcli container image
+        id: ecr-credentials
+        run:
+          ECR_PASSWORD=$(aws ecr get-login-password)
+          if [ -z "$ECR_PASSWORD" ]; then
+            echo "Failed to get ECR password" >&2
+            exit 1
+          fi
+
+          echo "ecr-password=$ECR_PASSWORD" >> "$GITHUB_OUTPUT"
+  publish:
+    runs-on: ubuntu-latest
+    environment: "publish-prod" # TODO make this variable when staging env is introduced
+    needs:
+      - setup
+    container:
+      image: 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/relcli:master-57a5d42-20230412T1204687
+      credentials:
+        username: ${{ needs.setup.outputs.ecr-username }}
+        password: ${{ needs.setup.outputs.ecr-password }}
+    env:
+      RELCLI_CERT: /tmp/releases.crt
+      RELCLI_KEY: /tmp/releases.key
+    steps:
+      - name: Write the cert and key to disk
+        env:
+          RELEASES_CERT: ${{ secrets.RELEASES_CERT }}
+          RELEASES_KEY: ${{ secrets.RELEASES_KEY }}
+        run: |
+          printenv RELEASES_CERT > "$RELCLI_CERT"
+          printenv RELEASES_KEY > "$RELCLI_KEY"
+      - name: Publish the release
+        env:
+          DRONE_REPO: ${{ inputs.oss-teleport-repo }}
+          DRONE_TAG: ${{ inputs.version }}
+          RELCLI_BASE_URL: ${{ vars.RELEASES_HOST }}
+        run: relcli auto_publish -f -v 6
