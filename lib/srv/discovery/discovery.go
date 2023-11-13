@@ -90,6 +90,9 @@ type gcpInstaller interface {
 type Config struct {
 	// CloudClients is an interface for retrieving cloud clients.
 	CloudClients cloud.Clients
+	// IntegrationOnlyCredentials discards any Matcher that don't have an Integration.
+	// When true, ambient credentials (used by the Cloud SDKs) are not used.
+	IntegrationOnlyCredentials bool
 	// KubernetesClient is the Kubernetes client interface
 	KubernetesClient kubernetes.Interface
 	// Matchers stores all types of matchers to discover resources
@@ -267,6 +270,7 @@ func New(ctx context.Context, cfg *Config) (*Server, error) {
 		dynamicServerAzureFetchers: make(map[string][]server.Fetcher),
 		dynamicServerGCPFetchers:   make(map[string][]server.Fetcher),
 	}
+	s.discardUnsupportedMatchers(&s.Matchers)
 
 	if err := s.startDynamicMatchersWatcher(ctx); err != nil {
 		return nil, trace.Wrap(err)
@@ -1200,6 +1204,7 @@ func (s *Server) upsertDynamicMatchers(dc *discoveryconfig.DiscoveryConfig) erro
 		GCP:        dc.Spec.GCP,
 		Kubernetes: dc.Spec.Kube,
 	}
+	s.discardUnsupportedMatchers(&matchers)
 
 	awsServerFetchers, err := s.awsServerFetchersFromMatchers(s.ctx, matchers.AWS)
 	if err != nil {
@@ -1233,6 +1238,41 @@ func (s *Server) upsertDynamicMatchers(dc *discoveryconfig.DiscoveryConfig) erro
 
 	// TODO(marco): add other fetchers: Kube Clusters and Kube Resources (Apps)
 	return nil
+}
+
+// discardUnsupportedMatchers drops any matcher that is not supported in the current DiscoveryService.
+// Discarded Matchers:
+// - when running in IntegrationOnlyCredentials mode, any Matcher that doesn't have an Integration is discarded.
+func (s *Server) discardUnsupportedMatchers(m *Matchers) {
+	if !s.IntegrationOnlyCredentials {
+		return
+	}
+
+	// Discard all matchers that don't have an Integration
+	validAWSMatchers := make([]types.AWSMatcher, 0, len(m.AWS))
+	for i, m := range m.AWS {
+		if m.Integration == "" {
+			s.Log.Warnf("discarding AWS matcher [%d] - missing integration", i)
+			continue
+		}
+		validAWSMatchers = append(validAWSMatchers, m)
+	}
+	m.AWS = validAWSMatchers
+
+	if len(m.GCP) > 0 {
+		s.Log.Warnf("discarding GCP matchers - missing integration")
+		m.GCP = []types.GCPMatcher{}
+	}
+
+	if len(m.Azure) > 0 {
+		s.Log.Warnf("discarding Azure matchers - missing integration")
+		m.Azure = []types.AzureMatcher{}
+	}
+
+	if len(m.Kubernetes) > 0 {
+		s.Log.Warnf("discarding Kubernetes matchers - missing integration")
+		m.Kubernetes = []types.KubernetesMatcher{}
+	}
 }
 
 // Stop stops the discovery service.
