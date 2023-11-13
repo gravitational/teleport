@@ -31,6 +31,7 @@ import (
 	om "github.com/grpc-ecosystem/go-grpc-middleware/providers/openmetrics/v2"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"golang.org/x/exp/slices"
 	"golang.org/x/net/http2"
 	"google.golang.org/grpc"
@@ -472,7 +473,11 @@ func (a *Middleware) withAuthenticatedUserStreamInterceptor(srv interface{}, ser
 
 // UnaryInterceptors returns the gRPC unary interceptor chain.
 func (a *Middleware) UnaryInterceptors() []grpc.UnaryServerInterceptor {
-	var is []grpc.UnaryServerInterceptor
+	is := []grpc.UnaryServerInterceptor{
+		//nolint:staticcheck // SA1019. There is a data race in the stats.Handler that is replacing
+		// the interceptor. See https://github.com/open-telemetry/opentelemetry-go-contrib/issues/4576.
+		otelgrpc.UnaryServerInterceptor(),
+	}
 
 	if a.GRPCMetrics != nil {
 		is = append(is, om.UnaryServerInterceptor(a.GRPCMetrics))
@@ -487,7 +492,11 @@ func (a *Middleware) UnaryInterceptors() []grpc.UnaryServerInterceptor {
 
 // StreamInterceptors returns the gRPC stream interceptor chain.
 func (a *Middleware) StreamInterceptors() []grpc.StreamServerInterceptor {
-	var is []grpc.StreamServerInterceptor
+	is := []grpc.StreamServerInterceptor{
+		//nolint:staticcheck // SA1019. There is a data race in the stats.Handler that is replacing
+		// the interceptor. See https://github.com/open-telemetry/opentelemetry-go-contrib/issues/4576.
+		otelgrpc.StreamServerInterceptor(),
+	}
 
 	if a.GRPCMetrics != nil {
 		is = append(is, om.StreamServerInterceptor(a.GRPCMetrics))
