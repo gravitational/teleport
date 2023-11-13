@@ -414,42 +414,72 @@ fn select_groups(name: &str, should_create_user: UserCreation) -> Result<Vec<Str
             groups = requested_groups;
         }
     }
-    if !groups.contains(&"Remote Desktop Users".to_string()) {
-        groups.push("Remote Desktop Users".to_string());
-    }
     Ok(groups)
 }
+
+/// REMOTE_DESKTOP_USERS_SID is [well-known SID] for users that can connect through RDP.
+/// 
+/// [well-known SID]: https://learn.microsoft.com/en-us/windows/win32/secauthz/well-known-sids
+const REMOTE_DESKTOP_USERS_SID: &str = "S-1-5-32-555";
 
 unsafe fn copy_groups_to_token(
     token: &mut LSA_TOKEN_INFORMATION_V1,
     groups: Vec<String>,
 ) -> Result<()> {
     debug!("Groups added to token: {}", groups.join(", "));
-    let size =
-        mem::size_of::<TOKEN_GROUPS>() + (groups.len() - 1) * mem::size_of::<SID_AND_ATTRIBUTES>();
-    let token_groups = allocate_private_heap(size)?;
+
+    // Space for the TOKEN_GROUPS struct, which includes space for 1 SID_AND_ATTRIBUTES.
+    // We fill this 1 "free" SID_AND_ATTRIBUTES with REMOTE_DESKTOP_USERS group.
+    let token_groups_and_remote_desktop_users_sid_size = mem::size_of::<TOKEN_GROUPS>();
+    // Addtional space for an SID_AND_ATTRIBUTES for each group in groups
+    let rest_sid_size = mem::size_of::<SID_AND_ATTRIBUTES>() * groups.len();
+    // Total size of the TOKEN_GROUPS struct
+    let size = token_groups_and_remote_desktop_users_sid_size + rest_sid_size;
+    token.Groups = allocate_private_heap(size)?;
     ptr::write(
-        token_groups,
+        token.Groups,
         TOKEN_GROUPS {
             GroupCount: groups.len() as u32,
             Groups: Default::default(),
         },
     );
-    token.Groups = token_groups;
-    let token_groups = unsafe { (*token_groups).Groups.as_mut_ptr() };
+    let token_groups = unsafe { (*token.Groups).Groups.as_mut_ptr() };
+
+    // put REMOTE_DESKTOP_USERS_SID as first element in array
+    let remote_desktop_users_sid = LocalSID::from(REMOTE_DESKTOP_USERS_SID)?;
+    copy_sid(
+        token_groups,
+        0,
+        remote_desktop_users_sid.length,
+        remote_desktop_users_sid.psid,
+    )?;
+
+    // put all requested groups' SIDs in array starting at index 1
     for (i, group) in groups.iter().enumerate() {
         let group = lookup_name(group).context(format!("Can't lookup SID for group {}", group))?;
-        let psid = PSID(allocate_private_heap(group.sid_length()?.try_into()?)?);
-        ptr::write(
-            token_groups.add(i),
-            SID_AND_ATTRIBUTES {
-                Sid: psid,
-                Attributes: (SE_GROUP_MANDATORY | SE_GROUP_ENABLED | SE_GROUP_ENABLED_BY_DEFAULT)
-                    as u32,
-            },
-        );
-        CopySid(group.sid_length()?, psid, group.psid())?;
+        copy_sid(token_groups, i + 1, group.sid_length()?, group.psid())?;
     }
+
+    Ok(())
+}
+
+/// copy_sid will put requested SID in array at specified index. Each SID is copied to private heap.
+unsafe fn copy_sid(
+    token_groups: *mut SID_AND_ATTRIBUTES,
+    index: usize,
+    sid_length: u32,
+    source_sid: PSID,
+) -> Result<()> {
+    let psid = PSID(allocate_private_heap(sid_length as usize)?);
+    ptr::write(
+        token_groups.add(index),
+        SID_AND_ATTRIBUTES {
+            Sid: psid,
+            Attributes: (SE_GROUP_MANDATORY | SE_GROUP_ENABLED | SE_GROUP_ENABLED_BY_DEFAULT)
+                as u32,
+        },
+    );
+    CopySid(sid_length, psid, source_sid)?;
     Ok(())
 }
 
@@ -564,7 +594,7 @@ unsafe fn lookup_primary_group(name: &str, domain: &str) -> Result<Account> {
         domain_rid = format!("{}-{}", domain_rid, user_info.usri4_primary_group_id);
         NetApiBufferFree(Some(info as _));
     }
-    let sid = to_sid(&domain_rid)?;
+    let sid = LocalSID::from(&domain_rid)?;
     let psid = sid.into();
     let len = GetLengthSid(psid);
     let mut buf = vec![0u8; len as _];
@@ -689,25 +719,33 @@ unsafe fn to_string(psid: PSID) -> Result<String> {
     converted
 }
 
-unsafe fn to_sid(s: &str) -> Result<LocalSID> {
-    let mut sid = PSID::default();
-    let s = s.to_owned() + "\0";
-    ConvertStringSidToSidA(PCSTR::from_raw(s.as_ptr()), &mut sid)
-        .context(format!("Can't convert {} to SID", s))?;
-    Ok(LocalSID(sid))
+struct LocalSID {
+    psid: PSID,
+    length: u32,
 }
 
-struct LocalSID(PSID);
+impl LocalSID {
+    unsafe fn from(s: &str) -> Result<LocalSID> {
+        let mut sid = PSID::default();
+        let s = s.to_owned() + "\0";
+        ConvertStringSidToSidA(PCSTR::from_raw(s.as_ptr()), &mut sid)
+            .context(format!("Can't convert {} to SID", s))?;
+        Ok(LocalSID {
+            psid: sid,
+            length: GetLengthSid(sid),
+        })
+    }
+}
 
 impl From<LocalSID> for PSID {
     fn from(val: LocalSID) -> Self {
-        val.0
+        val.psid
     }
 }
 
 impl Drop for LocalSID {
     fn drop(&mut self) {
-        if let Err(e) = unsafe { LocalFree(HLOCAL(self.0 .0 as _)) } {
+        if let Err(e) = unsafe { LocalFree(HLOCAL(self.psid.0 as _)) } {
             if e.code() != S_OK {
                 error!("Can't free SID memory {}", e);
             }
