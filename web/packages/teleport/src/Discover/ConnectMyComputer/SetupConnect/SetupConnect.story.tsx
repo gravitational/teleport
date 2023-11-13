@@ -37,6 +37,7 @@ const oneDay = 1000 * 60 * 60 * 24;
 const setupConnectProps = {
   prevStep: () => {},
   nextStep: () => {},
+  updateAgentMeta: () => {},
   // Set high default intervals and timeouts so that stories don't poll for no reason.
   pingInterval: oneDay,
   showHintTimeout: oneDay,
@@ -120,7 +121,12 @@ export const HintTimeout = () => (
 
 HintTimeout.parameters = {
   msw: {
-    handlers: [noNodesHandler],
+    handlers: [
+      noNodesHandler,
+      rest.post(cfg.api.webRenewTokenPath, (req, res, ctx) =>
+        res(ctx.json({}))
+      ),
+    ],
   },
 };
 
