@@ -18,7 +18,7 @@ import { pluralize } from 'shared/utils/text';
 
 import type * as types from 'teleterm/services/tshd/types';
 import type * as uri from 'teleterm/ui/uri';
-import type { SupportedResourceType } from 'teleterm/ui/Search/searchResult';
+import type { ResourceTypeFilter } from 'teleterm/ui/Search/searchResult';
 
 export class ResourcesService {
   constructor(private tshClient: types.TshClient) {}
@@ -78,7 +78,7 @@ export class ResourcesService {
   }: {
     clusterUri: uri.ClusterUri;
     search: string;
-    filters: SupportedResourceType[];
+    filters: ResourceTypeFilter[];
     limit: number;
   }): Promise<PromiseSettledResult<SearchResult[]>[]> {
     const params = { search, clusterUri, sort: null, limit };

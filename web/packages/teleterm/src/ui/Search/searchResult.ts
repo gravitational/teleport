@@ -28,7 +28,7 @@ type ResourceSearchResultBase<
   score: number;
 };
 
-export type SupportedResourceType = Extract<
+export type ResourceTypeFilter = Extract<
   SharedUnifiedResource['resource']['kind'],
   'node' | 'kube_cluster' | 'db'
 >;
@@ -47,7 +47,7 @@ export type SearchResultCluster = {
 };
 export type SearchResultResourceType = {
   kind: 'resource-type-filter';
-  resource: SupportedResourceType;
+  resource: ResourceTypeFilter;
   nameMatch: string;
   score: number;
 };
@@ -109,7 +109,7 @@ export const searchableFields: {
 
 export interface ResourceTypeSearchFilter {
   filter: 'resource-type';
-  resourceType: SupportedResourceType;
+  resourceType: ResourceTypeFilter;
 }
 
 export interface ClusterSearchFilter {
