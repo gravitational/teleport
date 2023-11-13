@@ -291,14 +291,9 @@ func (d *tpmDevice) solveTPMEnrollChallenge(
 	defer ak.Close(tpm)
 
 	// Next perform a platform attestation using the AK.
-	log.Debug("TPM: Performing platform attestation.")
-	platformsParams, err := tpm.AttestPlatform(
-		ak,
-		challenge.AttestationNonce,
-		&attest.PlatformAttestConfig{},
-	)
+	platformsParams, err := attestPlatform(tpm, ak, challenge.AttestationNonce)
 	if err != nil {
-		return nil, trace.Wrap(err, "attesting platform")
+		return nil, trace.Wrap(err)
 	}
 
 	// First perform the credential activation challenge provided by the
@@ -433,14 +428,9 @@ func (d *tpmDevice) solveTPMAuthnDeviceChallenge(
 	defer ak.Close(tpm)
 
 	// Next perform a platform attestation using the AK.
-	log.Debug("TPM: Performing platform attestation.")
-	platformsParams, err := tpm.AttestPlatform(
-		ak,
-		challenge.AttestationNonce,
-		&attest.PlatformAttestConfig{},
-	)
+	platformsParams, err := attestPlatform(tpm, ak, challenge.AttestationNonce)
 	if err != nil {
-		return nil, trace.Wrap(err, "attesting platform")
+		return nil, trace.Wrap(err)
 	}
 
 	log.Debug("TPM: Authenticate device challenge completed.")
@@ -457,4 +447,25 @@ func (d *tpmDevice) signChallenge(_ []byte) (sig []byte, err error) {
 	// NotImplemented may be interpreted as lack of server-side support, so
 	// BadParameter is used instead.
 	return nil, trace.BadParameter("signChallenge not implemented for TPM devices")
+}
+
+func attestPlatform(tpm *attest.TPM, ak *attest.AK, nonce []byte) (*attest.PlatformParameters, error) {
+	config := &attest.PlatformAttestConfig{}
+
+	log.Debug("TPM: Performing platform attestation.")
+	platformsParams, err := tpm.AttestPlatform(ak, nonce, config)
+	if err == nil {
+		return platformsParams, nil
+	}
+
+	// Retry attest errors with an empty event log. Ideally we'd check for
+	// errors.Is(err, fs.ErrPermission), but the go-attestation version at time of
+	// writing (v0.5.0) doesn't wrap the underlying error.
+	// This is a common occurrence for Linux devices.
+	log.
+		WithError(err).
+		Debug("TPM: Platform attestation failed with permission error, attempting without event log")
+	config.EventLog = []byte{}
+	platformsParams, err = tpm.AttestPlatform(ak, nonce, config)
+	return platformsParams, trace.Wrap(err, "attesting platform")
 }
