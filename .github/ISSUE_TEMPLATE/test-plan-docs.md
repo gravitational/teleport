@@ -1,7 +1,7 @@
 ---
-name: Documentation Release Plan
-about: Docs-related steps to complete with each major release
-title: "Teleport X Docs Release Plan"
+name: Documentation Test Plan
+about: Manual test plan for Teleport major releases
+title: "Teleport X Docs Test Plan"
 labels: testplan
 ---
 
@@ -64,3 +64,29 @@ new major version of Teleport.
   ```bash
   $ git checkout origin/branch/v<last_version> -- docs/pages/upcoming-releases.mdx
   ```
+
+## Verify the accuracy of critical docs pages
+
+Follow the docs guides below and verify their accuracy. To do so, open the
+version of the docs site that corresponds to the major release we're testing
+for. For example, for Teleport 12 release use `branch/v12` branch and make sure
+to select "Version 12.0" in the documentation version switcher.
+
+### Installation
+
+- [ ] General [installation page](../../docs/pages/installation.mdx): ensure that
+  installation methods support the new release candidate. 
+- [ ] Enterprise Cloud [downloads
+  page](../../docs/pages/choose-an-edition/teleport-cloud/downloads.mdx): ensure that
+  the release cnadidate is available at the repositories we link to.
+
+### Getting started
+
+- [ ] [Community Edition](../../docs/pages/index.mdx)
+- [ ] [Teleport Team](../../docs/pages/choose-an-edition/teleport-team.mdx)
+  (this also serves as the getting started guide for Teleport Enterprise Cloud).
+- [ ] [Teleport Enterprise with
+  Helm](../../docs/pages/deploy-a-cluster/helm-deployments/kubernetes-cluster.mdx)
+- [ ] [Teleport Enterprise with
+  Terraform](../../docs/pages/deploy-a-cluster/deployments/aws-terraform.mdx)
+
