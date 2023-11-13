@@ -106,7 +106,7 @@ function NotificationItem({
 
   let dueText;
   if (notice.date <= today) {
-    dueText = `is overdue for a review ${numDays} ago`;
+    dueText = `was overdue for a review ${numDays} ago`;
   } else {
     dueText = `needs your review within ${numDays}`;
   }

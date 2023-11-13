@@ -89,11 +89,11 @@ test('due dates and overdue dates', async () => {
   expect(screen.queryAllByTestId('note-item')).toHaveLength(3);
 
   expect(
-    screen.getByText(/is overdue for a review 10 days ago/i)
+    screen.getByText(/overdue for a review 10 days ago/i)
   ).toBeInTheDocument();
 
   expect(
-    screen.getByText(/is overdue for a review about 1 month ago/i)
+    screen.getByText(/overdue for a review about 1 month ago/i)
   ).toBeInTheDocument();
 
   expect(
