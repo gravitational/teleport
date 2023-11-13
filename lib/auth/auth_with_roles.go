@@ -7273,10 +7273,10 @@ func verbsToReplaceResourceWithOrigin(stored types.ResourceWithOrigin) []string 
 	return verbs
 }
 
-// checkOktaAccess tests that, if the identity provided in authzCtx has the
-// built-in Okta role, that the named user either does not exist, or if they do
-// that they have their origin set to "Okta". In either case, the Okta servce
-// is allowed to Create/Update/Delete the named user.
+// checkOktaUserAccess gates access to update operations on user records based
+// on the origin labels of the existing and new user records.
+//
+// See checkOktaUserAccess() for the actual access rules
 func checkOktaAccess(ctx context.Context, authzCtx *authz.Context, users services.UsersService, newUser types.User, existingUsername string, verb string) error {
 	existingUser, err := users.GetUser(ctx, existingUsername, false)
 	if err != nil && !trace.IsNotFound(err) {
@@ -7286,6 +7286,16 @@ func checkOktaAccess(ctx context.Context, authzCtx *authz.Context, users service
 	return checkOktaUserAccess(authzCtx, newUser, existingUser, verb)
 }
 
+// checkOktaUserAccess gates access to update operations on user records based
+// on the origin labels of the existing and new user records.
+//
+//   - a nil `existingUser` is interpreted as there being no matching existing
+//     user in the cluster; if there is no user then ther is no user to overwrite,
+//     so access is grated
+//   - when `authzCtx` represents a non-okta caller, then the only disallowed
+//     operation is removing an "Origin: okta" label
+//   - when `authzCtx` represents the okta service, then access is granted if and
+//     only if the existing user has an "Origin: okta" label
 func checkOktaUserAccess(authzCtx *authz.Context, newUser, existingUser types.User, verb string) error {
 	// We base or decision to allow write access to a resource on the Origin
 	// label. If there is no existing user, then there can be no label to block

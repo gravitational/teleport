@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package usersv1
+package usersv1_test
 
 import (
 	"context"
@@ -342,7 +342,13 @@ func TestOktaCRUD(t *testing.T) {
 			require.NoError(t, err)
 
 			// Expect that the user has been removed from the cache/backend
-			_, err = env.cache.GetUser(context.Background(), user.GetName(), false)
+			_, err = env.Service.GetUser(
+				oktaCtx,
+				&userspb.GetUserRequest{
+					Name:        user.GetName(),
+					WithSecrets: false,
+				})
+			require.Error(t, err)
 			require.True(t, trace.IsNotFound(err), "Expected not found, got %s", err.Error())
 		})
 
@@ -364,7 +370,12 @@ func TestOktaCRUD(t *testing.T) {
 			require.Contains(t, err.Error(), "delete")
 
 			// Expect that the user still exists in the cache/backend
-			_, err = env.cache.GetUser(context.Background(), user.GetName(), false)
+			_, err = env.Service.GetUser(
+				oktaCtx,
+				&userspb.GetUserRequest{
+					Name:        user.GetName(),
+					WithSecrets: false,
+				})
 			require.NoError(t, err)
 		})
 	})
