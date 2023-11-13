@@ -23,7 +23,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/docker/distribution/reference"
+	"github.com/distribution/reference"
 	"github.com/gravitational/trace"
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
@@ -32,8 +32,10 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
+	kclient "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
 	"github.com/gravitational/teleport/integrations/kube-agent-updater/pkg/controller"
 	"github.com/gravitational/teleport/integrations/kube-agent-updater/pkg/img"
@@ -94,23 +96,21 @@ func main() {
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:                 scheme,
-		MetricsBindAddress:     metricsAddr,
-		Port:                   9443,
+		Metrics:                metricsserver.Options{BindAddress: metricsAddr},
 		HealthProbeBindAddress: probeAddr,
 		LeaderElection:         !disableLeaderElection,
 		LeaderElectionID:       agentName,
-		Namespace:              agentNamespace,
-		SyncPeriod:             &syncPeriod,
-		NewCache: cache.BuilderWithOptions(cache.Options{
-			SelectorsByObject: cache.SelectorsByObject{
-				&appsv1.Deployment{}: {
-					Field: fields.SelectorFromSet(fields.Set{"metadata.name": agentName}),
-				},
-				&appsv1.StatefulSet{}: {
-					Field: fields.SelectorFromSet(fields.Set{"metadata.name": agentName}),
-				},
+		Cache: cache.Options{
+			// Create a cache scoped to the agentNamespace
+			DefaultNamespaces: map[string]cache.Config{
+				agentNamespace: {},
 			},
-		}),
+			SyncPeriod: &syncPeriod,
+			ByObject: map[kclient.Object]cache.ByObject{
+				&appsv1.Deployment{}:  {Field: fields.SelectorFromSet(fields.Set{"metadata.name": agentName})},
+				&appsv1.StatefulSet{}: {Field: fields.SelectorFromSet(fields.Set{"metadata.name": agentName})},
+			},
+		},
 	})
 	if err != nil {
 		ctrl.Log.Error(err, "failed to create new manager, exiting")
