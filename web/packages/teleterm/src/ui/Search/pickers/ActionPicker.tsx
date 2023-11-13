@@ -902,10 +902,7 @@ function FilterButton(props: { text: string; onClick(): void }) {
       <span
         title={props.text}
         css={`
-          max-width: calc(${props => props.theme.space[9]}px * 2);
-          text-overflow: ellipsis;
           white-space: nowrap;
-          overflow: hidden;
           cursor: default;
         `}
       >
