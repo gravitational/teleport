@@ -20,10 +20,8 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
 	log "github.com/sirupsen/logrus"
-	"golang.org/x/exp/slices"
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/devicetrust"
 	"github.com/gravitational/teleport/lib/devicetrust/native"
 )
@@ -163,19 +161,6 @@ func (c *Ceremony) RunAdmin(
 
 // Run performs the client-side device enrollment ceremony.
 func (c *Ceremony) Run(ctx context.Context, devicesClient devicepb.DeviceTrustServiceClient, debug bool, enrollToken string) (*devicepb.Device, error) {
-	// Start by checking the OSType, this lets us exit early with a nicer message
-	// for unsupported OSes.
-	osType := c.GetDeviceOSType()
-	if !slices.Contains([]devicepb.OSType{
-		devicepb.OSType_OS_TYPE_MACOS,
-		devicepb.OSType_OS_TYPE_WINDOWS,
-	}, osType) {
-		return nil, trace.BadParameter(
-			"device enrollment not supported for current OS (%s)",
-			types.ResourceOSTypeToString(osType),
-		)
-	}
-
 	init, err := c.EnrollDeviceInit()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -203,15 +188,15 @@ func (c *Ceremony) Run(ctx context.Context, devicesClient devicepb.DeviceTrustSe
 	// Unimplemented errors are not expected to happen after this point.
 
 	// 2. Challenge.
-	switch osType {
+	switch c.GetDeviceOSType() {
 	case devicepb.OSType_OS_TYPE_MACOS:
 		err = c.enrollDeviceMacOS(stream, resp)
 		// err handled below
-	case devicepb.OSType_OS_TYPE_WINDOWS:
+	case devicepb.OSType_OS_TYPE_LINUX, devicepb.OSType_OS_TYPE_WINDOWS:
 		err = c.enrollDeviceTPM(ctx, stream, resp, debug)
 		// err handled below
 	default:
-		// This should be caught by the OSType guard at start of function.
+		// Safety check.
 		panic("no enrollment function provided for os")
 	}
 	if err != nil {
