@@ -1365,9 +1365,11 @@ func migrateRemoteClusters(ctx context.Context, asrv *Server) error {
 // to avoid consistency issues. A lower priority means the resource is applied
 // before.
 var ResourceApplyPriority = map[string]int{
-	types.KindRole:  1,
-	types.KindUser:  2, // Users must be applied after Roles
-	types.KindToken: 3,
+	types.KindRole:                    1,
+	types.KindUser:                    2, // Users must be applied after Roles
+	types.KindToken:                   3,
+	types.KindClusterNetworkingConfig: 3,
+	types.KindClusterAuthPreference:   3,
 }
 
 // Unlike when resources are loaded via --bootstrap, we're inserting elements via their service.
