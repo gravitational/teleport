@@ -652,19 +652,19 @@ func (s *SlackSuite) TestAccessListReminder() {
 
 	// 2 weeks before date, should trigger reminder.
 	clock.Advance(45 * 24 * time.Hour)
-	s.requireReminderMsgEqual(reviewer.ID, "Access List *simple title* (name: access-list) is due for a review by 2023-03-01. Please review it soon!")
+	s.requireReminderMsgEqual(reviewer.ID, "Access List *simple title* is due for a review by 2023-03-01. Please review it soon!")
 
 	// 1 weeks before date, should trigger reminder.
 	clock.Advance(7 * 24 * time.Hour)
-	s.requireReminderMsgEqual(reviewer.ID, "Access List *simple title* (name: access-list) is due for a review by 2023-03-01. Please review it soon!")
+	s.requireReminderMsgEqual(reviewer.ID, "Access List *simple title* is due for a review by 2023-03-01. Please review it soon!")
 
 	// On the date, should trigger reminder.
 	clock.Advance(7 * 24 * time.Hour)
-	s.requireReminderMsgEqual(reviewer.ID, "Access List *simple title* (name: access-list) is due for a review by 2023-03-01. Please review it soon!")
+	s.requireReminderMsgEqual(reviewer.ID, "Access List *simple title* is due for a review by 2023-03-01. Please review it soon!")
 
 	// Past the date, should trigger reminder.
 	clock.Advance(7 * 24 * time.Hour)
-	s.requireReminderMsgEqual(reviewer.ID, "Access List *simple title* (name: access-list) is 7 day(s) past due for a review! Please review it.")
+	s.requireReminderMsgEqual(reviewer.ID, "Access List *simple title* is 7 day(s) past due for a review! Please review it.")
 }
 
 func (s *SlackSuite) requireReminderMsgEqual(id, text string) {
