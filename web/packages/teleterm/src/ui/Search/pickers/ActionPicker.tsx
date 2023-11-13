@@ -120,7 +120,7 @@ export function ActionPicker(props: { input: ReactElement }) {
     if (s.filter === 'resource-type') {
       return (
         <FilterButton
-          key="resource-type"
+          key={`resource-type-${s.resourceType}`}
           text={resourceTypeToPrettyName[s.resourceType]}
           onClick={() => removeFilter(s)}
         />
