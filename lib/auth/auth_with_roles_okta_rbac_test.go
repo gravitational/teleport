@@ -18,6 +18,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
@@ -30,9 +31,7 @@ func newOktaUser(t *testing.T) types.User {
 	user, err := types.NewUser(t.Name())
 	require.NoError(t, err)
 
-	m := user.GetMetadata()
-	m.Labels = map[string]string{types.OriginLabel: types.OriginOkta}
-	user.SetMetadata(m)
+	user.SetOrigin(types.OriginOkta)
 
 	return user
 }
@@ -46,14 +45,25 @@ func TestOktaServiceUserCRUD(t *testing.T) {
 	srv, err := NewTestAuthServer(TestAuthServerConfig{Dir: t.TempDir()})
 	require.NoError(t, err)
 
-	authContext, err := srv.Authorizer.Authorize(authz.ContextWithUser(ctx, TestBuiltin(types.RoleOkta).I))
+	oktaAuthContext, err := srv.Authorizer.Authorize(authz.ContextWithUser(ctx, TestBuiltin(types.RoleOkta).I))
 	require.NoError(t, err)
 
 	authWithOktaRole := &ServerWithRoles{
 		authServer: srv.AuthServer,
 		alog:       srv.AuditLog,
-		context:    *authContext,
+		context:    *oktaAuthContext,
 	}
+	t.Cleanup(func() { authWithOktaRole.Close() })
+
+	botAuthContext, err := srv.Authorizer.Authorize(authz.ContextWithUser(ctx, TestBuiltin(types.RoleAdmin).I))
+	require.NoError(t, err)
+
+	authWithBotRole := &ServerWithRoles{
+		authServer: srv.AuthServer,
+		alog:       srv.AuditLog,
+		context:    *botAuthContext,
+	}
+	t.Cleanup(func() { authWithBotRole.Close() })
 
 	t.Run("create", func(t *testing.T) {
 		t.Run("creating Okta users is allowed", func(t *testing.T) {
@@ -72,16 +82,6 @@ func TestOktaServiceUserCRUD(t *testing.T) {
 		})
 
 		t.Run("non-okta service creating an okta user is an error", func(t *testing.T) {
-			authContext, err := srv.Authorizer.Authorize(authz.ContextWithUser(ctx, TestBuiltin(types.RoleAdmin).I))
-			require.NoError(t, err)
-
-			authWithBotRole := &ServerWithRoles{
-				authServer: srv.AuthServer,
-				alog:       srv.AuditLog,
-				context:    *authContext,
-			}
-			defer authWithBotRole.Close()
-
 			user := newOktaUser(t)
 
 			_, err = authWithBotRole.CreateUser(ctx, user)
@@ -110,10 +110,7 @@ func TestOktaServiceUserCRUD(t *testing.T) {
 			user, err = srv.AuthServer.CreateUser(ctx, user)
 			require.NoError(t, err)
 
-			m := user.GetMetadata()
-			m.Labels = map[string]string{types.OriginLabel: types.OriginOkta}
-			user.SetMetadata(m)
-
+			user.SetOrigin(types.OriginOkta)
 			_, err = authWithOktaRole.UpdateUser(ctx, user)
 			require.Error(t, err)
 			require.Truef(t, trace.IsAccessDenied(err), "Expected access denied, got %T: %s", err, err.Error())
@@ -125,9 +122,7 @@ func TestOktaServiceUserCRUD(t *testing.T) {
 			user, err = srv.AuthServer.CreateUser(ctx, user)
 			require.NoError(t, err)
 
-			m := user.GetMetadata()
-			m.Labels[types.OriginLabel] = types.OriginDynamic
-			user.SetMetadata(m)
+			user.SetOrigin(types.OriginDynamic)
 
 			_, err = authWithOktaRole.UpdateUser(ctx, user)
 			require.Error(t, err)
@@ -143,6 +138,32 @@ func TestOktaServiceUserCRUD(t *testing.T) {
 			_, err = authWithOktaRole.UpdateUser(ctx, user)
 			require.Error(t, err)
 		})
+
+		t.Run("non-okta service removing okta origin is an error", func(t *testing.T) {
+			// Given an existing okta user
+			user := newOktaUser(t)
+			user, err = srv.AuthServer.CreateUser(ctx, user)
+			require.NoError(t, err)
+
+			user.SetOrigin(types.OriginDynamic)
+
+			_, err = authWithBotRole.UpdateUser(ctx, user)
+			require.Error(t, err)
+			require.Truef(t, trace.IsBadParameter(err), "Expected access denied, got %T: %s", err, err.Error())
+		})
+
+		t.Run("non-okta service updating an okta user is not an error", func(t *testing.T) {
+			// Given an existing okta user
+			user := newOktaUser(t)
+			user, err = srv.AuthServer.CreateUser(ctx, user)
+			require.NoError(t, err)
+
+			user.AddRole(teleport.PresetAccessRoleName)
+
+			_, err = authWithBotRole.UpdateUser(ctx, user)
+			require.NoError(t, err)
+		})
+
 	})
 
 	t.Run("upsert", func(t *testing.T) {
@@ -180,28 +201,56 @@ func TestOktaServiceUserCRUD(t *testing.T) {
 			user, err = srv.AuthServer.CreateUser(ctx, user)
 			require.NoError(t, err)
 
-			m := user.GetMetadata()
-			m.Labels = map[string]string{types.OriginLabel: types.OriginOkta}
-			user.SetMetadata(m)
+			user.SetOrigin(types.OriginOkta)
 
 			_, err = authWithOktaRole.UpsertUser(ctx, user)
 			require.Error(t, err)
 			require.Truef(t, trace.IsAccessDenied(err), "Expected access denied, got %T: %s", err, err.Error())
 		})
 
-		t.Run("removing Okta origin is an error", func(t *testing.T) {
+		t.Run("okta service removing the Okta origin is an error", func(t *testing.T) {
 			// Given an existing okta user
 			user := newOktaUser(t)
 			user, err = srv.AuthServer.CreateUser(ctx, user)
 			require.NoError(t, err)
 
-			m := user.GetMetadata()
-			m.Labels[types.OriginLabel] = types.OriginDynamic
-			user.SetMetadata(m)
+			user.SetOrigin(types.OriginDynamic)
 
 			_, err = authWithOktaRole.UpsertUser(ctx, user)
 			require.Error(t, err)
 			require.Truef(t, trace.IsBadParameter(err), "Expected bad parameter, got %T: %s", err, err.Error())
+		})
+
+		t.Run("non-okta service creating okta user is an error", func(t *testing.T) {
+			user := newOktaUser(t)
+			_, err = authWithBotRole.UpsertUser(ctx, user)
+			require.Error(t, err)
+			require.Truef(t, trace.IsBadParameter(err), "Expected bad parameter, got %T: %s", err, err.Error())
+		})
+
+		t.Run("non-okta service removing okta origin is an error", func(t *testing.T) {
+			// Given an existing okta user
+			user := newOktaUser(t)
+			user, err = srv.AuthServer.CreateUser(ctx, user)
+			require.NoError(t, err)
+
+			user.SetOrigin(types.OriginDynamic)
+
+			_, err = authWithBotRole.UpsertUser(ctx, user)
+			require.Error(t, err)
+			require.Truef(t, trace.IsBadParameter(err), "Expected access denied, got %T: %s", err, err.Error())
+		})
+
+		t.Run("non-okta service updating an okta user is not an error", func(t *testing.T) {
+			// Given an existing okta user
+			user := newOktaUser(t)
+			user, err = srv.AuthServer.CreateUser(ctx, user)
+			require.NoError(t, err)
+
+			user.AddRole(teleport.PresetAccessRoleName)
+
+			_, err = authWithBotRole.UpsertUser(ctx, user)
+			require.NoError(t, err)
 		})
 	})
 
@@ -229,9 +278,7 @@ func TestOktaServiceUserCRUD(t *testing.T) {
 
 			modified, err := srv.AuthServer.GetUser(ctx, existing.GetName(), false)
 			require.NoError(t, err)
-			metadata := modified.GetMetadata()
-			metadata.Labels = map[string]string{types.OriginLabel: types.OriginOkta}
-			modified.SetMetadata(metadata)
+			modified.SetOrigin(types.OriginOkta)
 
 			err = authWithOktaRole.CompareAndSwapUser(ctx, modified, existing)
 			require.Error(t, err)
@@ -246,9 +293,7 @@ func TestOktaServiceUserCRUD(t *testing.T) {
 
 			modified, err := srv.AuthServer.GetUser(ctx, existing.GetName(), false)
 			require.NoError(t, err)
-			metadata := modified.GetMetadata()
-			metadata.Labels = map[string]string{types.OriginLabel: types.OriginDynamic}
-			modified.SetMetadata(metadata)
+			modified.SetOrigin(types.OriginDynamic)
 
 			err = authWithOktaRole.CompareAndSwapUser(ctx, modified, existing)
 			require.Error(t, err)
@@ -263,6 +308,41 @@ func TestOktaServiceUserCRUD(t *testing.T) {
 			// having the whole system crash
 			err := authWithOktaRole.CompareAndSwapUser(ctx, user, user)
 			require.Error(t, err)
+		})
+
+		t.Run("non-okta service removing okta origin is an error", func(t *testing.T) {
+			// Given an existing okta user
+			user := newOktaUser(t)
+			user, err = srv.AuthServer.CreateUser(ctx, user)
+			require.NoError(t, err)
+
+			original, err := srv.AuthServer.GetUser(ctx, user.GetName(), false)
+			require.NoError(t, err)
+
+			modified, err := srv.AuthServer.GetUser(ctx, user.GetName(), false)
+			require.NoError(t, err)
+			modified.SetOrigin(types.OriginDynamic)
+
+			err = authWithBotRole.CompareAndSwapUser(ctx, modified, original)
+			require.Error(t, err)
+			require.Truef(t, trace.IsBadParameter(err), "Expected access denied, got %T: %s", err, err.Error())
+		})
+
+		t.Run("non-okta service updating an okta user is not an error", func(t *testing.T) {
+			// Given an existing okta user
+			user := newOktaUser(t)
+			user, err = srv.AuthServer.CreateUser(ctx, user)
+			require.NoError(t, err)
+
+			original, err := srv.AuthServer.GetUser(ctx, user.GetName(), false)
+			require.NoError(t, err)
+
+			modified, err := srv.AuthServer.GetUser(ctx, user.GetName(), false)
+			require.NoError(t, err)
+			modified.AddRole(teleport.PresetAccessRoleName)
+
+			err = authWithBotRole.CompareAndSwapUser(ctx, modified, original)
+			require.NoError(t, err)
 		})
 	})
 

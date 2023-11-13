@@ -211,15 +211,10 @@ func (s *Service) CreateUser(ctx context.Context, req *userspb.CreateUserRequest
 		return nil, trace.Wrap(err)
 	}
 
-	if authz.HasBuiltinRole(*authCtx, string(types.RoleOkta)) {
-		if !hasOriginOkta(req.User) {
-			return nil, trace.BadParameter("Okta service must supply okta origin")
-		}
-	} else {
-		if hasOriginOkta(req.User) {
-			return nil, trace.BadParameter("Must be Okta service to set Okta origin")
-		}
+	if err = checkOktaOrigin(authCtx, req.User, types.VerbCreate); err != nil {
+		return nil, trace.Wrap(err)
 	}
+
 	if req.User.GetCreatedBy().IsEmpty() {
 		req.User.SetCreatedBy(types.CreatedBy{
 			User: types.UserRef{Name: authz.ClientUsername(ctx)},
@@ -265,12 +260,12 @@ func (s *Service) CreateUser(ctx context.Context, req *userspb.CreateUserRequest
 }
 
 func (s *Service) UpdateUser(ctx context.Context, req *userspb.UpdateUserRequest) (*userspb.UpdateUserResponse, error) {
-	authCtx, err := authz.AuthorizeWithVerbs(ctx, s.logger, s.authorizer, true, types.KindUser, types.VerbUpdate)
+	authzCtx, err := authz.AuthorizeWithVerbs(ctx, s.logger, s.authorizer, true, types.KindUser, types.VerbUpdate)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := s.checkOktaUpdateAccess(ctx, authCtx, req.User, req.User.GetName()); err != nil {
+	if err = checkOktaOrigin(authzCtx, req.User, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -280,6 +275,10 @@ func (s *Service) UpdateUser(ctx context.Context, req *userspb.UpdateUserRequest
 		// don't return error here since this call is for event emitting purposes only
 		s.logger.WithError(err).Warn("Failed getting previous user during update")
 		omitEditorEvent = true
+	}
+
+	if err = checkOktaAccess(authzCtx, req.User, prevUser, types.VerbUpdate); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	updated, err := s.backend.UpdateUser(ctx, req.User)
@@ -327,10 +326,6 @@ func (s *Service) UpsertUser(ctx context.Context, req *userspb.UpsertUserRequest
 		return nil, trace.Wrap(err)
 	}
 
-	if err := s.checkOktaUpdateAccess(ctx, authzCtx, req.User, req.User.GetName()); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	if createdBy := req.User.GetCreatedBy(); createdBy.IsEmpty() {
 		req.User.SetCreatedBy(types.CreatedBy{
 			User: types.UserRef{Name: authzCtx.User.GetName()},
@@ -343,6 +338,19 @@ func (s *Service) UpsertUser(ctx context.Context, req *userspb.UpsertUserRequest
 		// don't return error here since this call is for event emitting purposes only
 		s.logger.WithError(err).Warn("Failed getting previous user during update")
 		omitEditorEvent = true
+	}
+
+	verb := types.VerbUpdate
+	if prevUser == nil {
+		verb = types.VerbCreate
+	}
+
+	if err = checkOktaOrigin(authzCtx, req.User, verb); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err = checkOktaAccess(authzCtx, req.User, prevUser, verb); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	upserted, err := s.backend.UpsertUser(ctx, req.User)
@@ -390,12 +398,6 @@ func (s *Service) DeleteUser(ctx context.Context, req *userspb.DeleteUserRequest
 		return nil, trace.Wrap(err)
 	}
 
-	if authz.HasBuiltinRole(*authzCtx, string(types.RoleOkta)) {
-		if err := isOktaWriteableUserResource(ctx, s.cache, req.Name); err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-
 	prevUser, err := s.cache.GetUser(ctx, req.Name, false)
 	var omitEditorEvent bool
 	if err != nil && !trace.IsNotFound(err) {
@@ -403,6 +405,10 @@ func (s *Service) DeleteUser(ctx context.Context, req *userspb.DeleteUserRequest
 		s.logger.WithError(err).Warn("Failed getting previous user during delete operation")
 		prevUser = nil
 		omitEditorEvent = true
+	}
+
+	if err = checkOktaAccess(authzCtx, nil, prevUser, types.VerbDelete); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	role, err := s.cache.GetRole(ctx, services.RoleNameForUser(req.Name))

@@ -18,6 +18,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
@@ -44,9 +45,7 @@ func newOktaUser(t *testing.T) types.User {
 	user, err := types.NewUser(t.Name())
 	require.NoError(t, err)
 
-	m := user.GetMetadata()
-	m.Labels = map[string]string{types.OriginLabel: types.OriginOkta}
-	user.SetMetadata(m)
+	user.SetOrigin(types.OriginOkta)
 
 	return user
 }
@@ -76,7 +75,7 @@ func TestOktaCRUD(t *testing.T) {
 			require.NoError(t, err)
 		})
 
-		t.Run("creating non-Okta users in an error", func(t *testing.T) {
+		t.Run("creating a non-Okta user in an error", func(t *testing.T) {
 			user, err := types.NewUser(t.Name())
 			require.NoError(t, err)
 
@@ -121,15 +120,14 @@ func TestOktaCRUD(t *testing.T) {
 
 			// When I modify the local copy of the user record and attempt to
 			// update the backend...
-			m := user.GetMetadata()
-			m.Labels = map[string]string{types.OriginLabel: types.OriginOkta}
-			user.SetMetadata(m)
+			user.SetOrigin(types.OriginOkta)
 			_, err = env.UpdateUser(oktaCtx,
 				&userspb.UpdateUserRequest{User: user.(*types.UserV2)})
 
 			// Expect that the operation fails with "access denied"
 			require.Error(t, err)
 			require.Truef(t, trace.IsAccessDenied(err), "Expected access denied, got %T: %s", err, err.Error())
+			require.Contains(t, err.Error(), "update")
 		})
 
 		t.Run("removing Okta origin is an error", func(t *testing.T) {
@@ -140,9 +138,7 @@ func TestOktaCRUD(t *testing.T) {
 
 			// When I modify the local copy of the user record to remove the
 			// Origin label, and attempt to update the backend...
-			m := user.GetMetadata()
-			m.Labels[types.OriginLabel] = types.OriginDynamic
-			user.SetMetadata(m)
+			user.SetOrigin(types.OriginDynamic)
 			_, err = env.UpdateUser(oktaCtx,
 				&userspb.UpdateUserRequest{User: user.(*types.UserV2)})
 
@@ -163,9 +159,56 @@ func TestOktaCRUD(t *testing.T) {
 			// system crash
 			require.Error(t, err)
 		})
+
+		t.Run("non-okta service removing okta origin is an error", func(t *testing.T) {
+			// Given an existing okta user
+			user := newOktaUser(t)
+			user, err = env.backend.CreateUser(context.Background(), user)
+			require.NoError(t, err)
+
+			// When I modify the local copy of the user record to remove the
+			// Origin label, and attempt - as a non-okta service - to update the
+			// backend as the...
+			user.SetOrigin(types.OriginDynamic)
+			_, err = env.UpdateUser(adminCtx,
+				&userspb.UpdateUserRequest{User: user.(*types.UserV2)})
+
+			// Expect that the operation fails with "bad parameter"
+			require.Error(t, err)
+			require.Truef(t, trace.IsBadParameter(err), "Expected bad parameter, got %T: %s", err, err.Error())
+		})
+
+		t.Run("non-okta service updating an okta user is not an error", func(t *testing.T) {
+			// Given an existing okta user
+			user := newOktaUser(t)
+			user, err = env.backend.CreateUser(context.Background(), user)
+			require.NoError(t, err)
+
+			// When I modify the local copy of the user record and try - as a
+			// non-okta service - to update the backend record...
+			user.AddRole(teleport.PresetAccessRoleName)
+			_, err = env.UpdateUser(adminCtx,
+				&userspb.UpdateUserRequest{User: user.(*types.UserV2)})
+
+			// Expect that the operation succeeds
+			require.NoError(t, err)
+		})
 	})
 
 	t.Run("upsert", func(t *testing.T) {
+		t.Run("creating Okta user is allowed", func(t *testing.T) {
+			// Given an existing okta user NOT in the Teleport user DB...
+			user := newOktaUser(t)
+
+			// When I (as the Okta service) try to Upsert that user...
+			_, err = env.UpsertUser(
+				oktaCtx,
+				&userspb.UpsertUserRequest{User: user.(*types.UserV2)})
+
+			// Expect the operation to succeed
+			require.NoError(t, err)
+		})
+
 		t.Run("creating non-Okta user is an error", func(t *testing.T) {
 			// Given a non-okta user *not* already in the Teleport user backend...
 			user, err := types.NewUser(t.Name())
@@ -179,19 +222,6 @@ func TestOktaCRUD(t *testing.T) {
 			// Expect the operation to fail with Bad Parameter
 			require.Error(t, err)
 			require.Truef(t, trace.IsBadParameter(err), "Expected bad parameter, got %T: %s", err, err.Error())
-		})
-
-		t.Run("creating Okta user is allowed", func(t *testing.T) {
-			// Given an existing okta user NOT in the Teleport user DB...
-			user := newOktaUser(t)
-
-			// When I (as the Okta service) try to Upsert that user...
-			_, err = env.UpsertUser(
-				oktaCtx,
-				&userspb.UpsertUserRequest{User: user.(*types.UserV2)})
-
-			// Expect the operation to succeed
-			require.NoError(t, err)
 		})
 
 		t.Run("updating Okta user is allowed", func(t *testing.T) {
@@ -220,9 +250,7 @@ func TestOktaCRUD(t *testing.T) {
 
 			// When I modify the local copy of the user record and try, as the
 			// Okta service, to upsert the changes into the backend...
-			m := user.GetMetadata()
-			m.Labels = map[string]string{types.OriginLabel: types.OriginOkta}
-			user.SetMetadata(m)
+			user.SetOrigin(types.OriginOkta)
 			_, err = env.UpsertUser(
 				oktaCtx,
 				&userspb.UpsertUserRequest{User: user.(*types.UserV2)})
@@ -241,10 +269,7 @@ func TestOktaCRUD(t *testing.T) {
 			// When remove the Okta origin label from the local copy of the user
 			// record and then try, as the Okta service, to upsert the changes
 			// into the backend...
-			m := user.GetMetadata()
-			m.Labels[types.OriginLabel] = types.OriginDynamic
-			user.SetMetadata(m)
-			user.SetMetadata(m)
+			user.SetOrigin(types.OriginDynamic)
 			_, err = env.UpsertUser(
 				oktaCtx,
 				&userspb.UpsertUserRequest{User: user.(*types.UserV2)})
@@ -252,6 +277,52 @@ func TestOktaCRUD(t *testing.T) {
 			// Expect the operation to fail
 			require.Error(t, err)
 			require.Truef(t, trace.IsBadParameter(err), "Expected bad parameter, got %T: %s", err, err.Error())
+		})
+
+		t.Run("non-okta service creating okta user is an error", func(t *testing.T) {
+			user, err := types.NewUser(t.Name())
+			require.NoError(t, err)
+
+			_, err = env.UpsertUser(
+				oktaCtx,
+				&userspb.UpsertUserRequest{User: user.(*types.UserV2)})
+
+			require.Error(t, err)
+			require.Truef(t, trace.IsBadParameter(err), "Expected bad parameter, got %T: %s", err, err.Error())
+		})
+
+		t.Run("non-okta service removing okta origin is an error", func(t *testing.T) {
+			// Given an existing okta user
+			user := newOktaUser(t)
+			user, err = env.backend.CreateUser(context.Background(), user)
+			require.NoError(t, err)
+
+			// When I modify the local copy of the user record to remove the
+			// Origin label, and attempt - as a non-okta service - to update the
+			// backend as the...
+			user.SetOrigin(types.OriginDynamic)
+			_, err = env.UpsertUser(adminCtx,
+				&userspb.UpsertUserRequest{User: user.(*types.UserV2)})
+
+			// Expect that the operation fails with "bad parameter"
+			require.Error(t, err)
+			require.Truef(t, trace.IsBadParameter(err), "Expected bad parameter, got %T: %s", err, err.Error())
+		})
+
+		t.Run("non-okta service updating an okta user is not an error", func(t *testing.T) {
+			// Given an existing okta user
+			user := newOktaUser(t)
+			user, err = env.backend.CreateUser(context.Background(), user)
+			require.NoError(t, err)
+
+			// When I modify the local copy of the user record and try - as a
+			// non-okta service - to update the backend record...
+			user.AddRole(teleport.PresetAccessRoleName)
+			_, err = env.UpsertUser(adminCtx,
+				&userspb.UpsertUserRequest{User: user.(*types.UserV2)})
+
+			// Expect that the operation succeeds
+			require.NoError(t, err)
 		})
 	})
 
@@ -290,6 +361,7 @@ func TestOktaCRUD(t *testing.T) {
 			// Expect the operation to fail with "access denied"
 			require.Error(t, err)
 			require.Truef(t, trace.IsAccessDenied(err), "Expected access denied, got %T: %s", err, err.Error())
+			require.Contains(t, err.Error(), "delete")
 
 			// Expect that the user still exists in the cache/backend
 			_, err = env.cache.GetUser(context.Background(), user.GetName(), false)

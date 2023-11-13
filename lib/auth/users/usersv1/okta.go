@@ -15,63 +15,62 @@
 package usersv1
 
 import (
-	"context"
-
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
 )
 
-// checkOktaUpdateAccess tests that, if the identity provided in authzCtx has
-// the built-in Okta role, that the "origin: Okta" label is present on both the
-// existing user resource and the new value it will take after any update
-// completes. If either of these records is missing the label, this function
-// returns an error.
-func (s *Service) checkOktaUpdateAccess(ctx context.Context, authzCtx *authz.Context, new types.User, existingUsername string) error {
-	if authz.HasBuiltinRole(*authzCtx, string(types.RoleOkta)) {
-		// Check that the caller is not trying to erase the okta origin label
-		if !hasOriginOkta(new) {
-			return trace.BadParameter("Users updated by the Okta service must include an Okta origin label")
-		}
+// checkOktaOrigin checks that the supplied user has an appropriate origin label
+// set. In this case "appropriate" means having the Okta origin set if and only
+// if the supplied auth context has the build-in Okta role. Context without the
+// Okta role may supply any origin value *other than* okta (including nil).
+// Returns an error if the user origin value is "inappropriate".
+func checkOktaOrigin(authzCtx *authz.Context, user types.User, verb string) error {
+	isOktaService := authz.HasBuiltinRole(*authzCtx, string(types.RoleOkta))
+	hasOktaOrigin := user.Origin() == types.OriginOkta
 
-		// Check that the resource-to-be-updated is managed by Okta
-		if err := isOktaWriteableUserResource(ctx, s.cache, existingUsername); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-
-	return nil
-}
-
-// isOktaWriteableUserResource tests if the existing record for a user (if any)
-// is writable for the Okta service. Writability is conferred by having the
-// "Origin: Okta" label
-func isOktaWriteableUserResource(ctx context.Context, cache Cache, username string) error {
-	targetUser, err := cache.GetUser(ctx, username, false)
 	switch {
-	case trace.IsNotFound(err):
-		// If no such user exists, then we will treat it as writable. Otherwise
-		// we won't be able to create the user on an upsert.
+	case isOktaService && !hasOktaOrigin:
+		return trace.BadParameter(`Okta service must supply "okta" origin`)
+
+	case (verb == types.VerbCreate) && !isOktaService && hasOktaOrigin:
+		return trace.BadParameter("Must be Okta service to set Okta origin")
+
+	case !isOktaService && hasOktaOrigin:
 		return nil
 
-	case err != nil:
-		return trace.Wrap(err)
-	}
-
-	if hasOriginOkta(targetUser) {
+	default:
 		return nil
 	}
-
-	return trace.AccessDenied("Okta service may only update okta users")
 }
 
-// hasOriginOkta tests that a resource has the "Source: Okta" label, which
-// implies that it is under the control of the Okta service and may be
-// manipulated by it.
-func hasOriginOkta(r types.Resource) bool {
-	if resourceOrigin, present := r.GetMetadata().Labels[types.OriginLabel]; present {
-		return resourceOrigin == types.OriginOkta
+// checkOktaAccess tests that, if the identity provided in authzCtx has the
+// built-in Okta role, that the "origin: Okta" label is present on the supplied
+// user record. If `existingUser` is nil, Okta is deemed to have access
+func checkOktaAccess(authzCtx *authz.Context, newUser, existingUser types.User, verb string) error {
+	// We base or decision to allow write access to a resource on the Origin
+	// label. If there is no existing user, then there can be no label to block
+	// access, so anyone can do anything.
+	if existingUser == nil {
+		return nil
 	}
-	return false
+
+	if !authz.HasBuiltinRole(*authzCtx, string(types.RoleOkta)) {
+		// The only thing a non-okta service caller is prevented from doing is
+		// changing a user record's "Origin: Okta" label - everything else is
+		// fair game.
+		if existingUser.Origin() == types.OriginOkta {
+			if newUser.Origin() != types.OriginOkta {
+				return trace.BadParameter("Okta origin may not be changed")
+			}
+		}
+		return nil
+	}
+
+	if existingUser.Origin() == types.OriginOkta {
+		return nil
+	}
+
+	return trace.AccessDenied("Okta service may only %s Okta users", verb)
 }
