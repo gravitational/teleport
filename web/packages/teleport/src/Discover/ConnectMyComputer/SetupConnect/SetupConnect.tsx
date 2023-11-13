@@ -212,6 +212,9 @@ export function SetupConnect(
  * check the returned nodes against this set. The hook stops polling as soon as a node that is not
  * in the set was found.
  *
+ * There can be multiple nodes matching the search criteria and we want the one that was added only
+ * after the user has started the guided flow, hence why we need to keep track of the IDs in a set.
+ *
  * Unlike the DownloadScript step responsible for adding a server, we don't have a unique ID that
  * identifies the node that the user added after following the steps from the guided flow. In
  * theory, we could make the deep link button pass such ID to Connect, but the user would still be
@@ -236,8 +239,8 @@ export const usePollForConnectMyComputerNode = (args: {
       async signal => {
         const request = {
           query: `labels["${constants.ConnectMyComputerNodeOwnerLabel}"] == "${args.username}"`,
-          // An arbitrary limit where we bank on the fact that no one is going to have 50 Connect My Computer
-          // nodes assigned to them running at the same time.
+          // An arbitrary limit where we bank on the fact that no one is going to have 50 Connect My
+          // Computer nodes assigned to them running at the same time.
           limit: 50,
         };
 
