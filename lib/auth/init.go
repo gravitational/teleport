@@ -1392,6 +1392,10 @@ func applyResources(ctx context.Context, service *Services, resources []types.Re
 			_, err = service.Identity.UpsertUser(ctx, r)
 		case types.Role:
 			_, err = service.Access.UpsertRole(ctx, r)
+		case types.ClusterNetworkingConfig:
+			err = service.ClusterConfiguration.SetClusterNetworkingConfig(ctx, r)
+		case types.AuthPreference:
+			err = service.ClusterConfiguration.SetAuthPreference(ctx, r)
 		default:
 			return trace.NotImplemented("cannot apply resource of type %T", resource)
 		}
