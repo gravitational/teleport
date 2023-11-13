@@ -21,8 +21,8 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/integrations/access/servicenow"
 )
 
@@ -50,21 +50,22 @@ func serviceNowInstanceFactory(ctx context.Context, plugin *types.PluginV1, deps
 		return nil, trace.BadParameter("ServiceNow close code must be set")
 	}
 
-	pc := &pluginConfiguration{
-		client: deps.client,
-		pluginConfig: &servicenow.Config{
-			ClientConfig: servicenow.ClientConfig{
-				APIEndpoint: serviceNowSpec.ApiEndpoint,
-				Username:    username,
-				APIToken:    password,
-				CloseCode:   serviceNowSpec.CloseCode,
-				StatusSink:  deps.statusSink,
-			},
+	snc := &servicenow.Config{
+		ClientConfig: servicenow.ClientConfig{
+			APIEndpoint: serviceNowSpec.ApiEndpoint,
+			Username:    username,
+			APIToken:    password,
+			CloseCode:   serviceNowSpec.CloseCode,
+			StatusSink:  deps.statusSink,
 		},
-		pluginType: types.PluginTypeServiceNow,
+		TeleportUser: teleport.SystemAccessApproverUserName,
+		Client:       deps.client,
 	}
 
-	app := common.NewApp(pc, plugin.GetName())
+	app, err := servicenow.NewServiceNowApp(ctx, snc)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return func() error {
 		err := app.Run(deps.lifetime)
 		return trace.Wrap(err)
