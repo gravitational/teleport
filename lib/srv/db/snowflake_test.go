@@ -349,7 +349,7 @@ func TestTokenSession(t *testing.T) {
 	err = json.Unmarshal(respBody, &jsonMap)
 	require.NoError(t, err)
 
-	require.Equal(t, jsonMap.Data.Rowset[0][0], "42")
+	require.Equal(t, "42", jsonMap.Data.Rowset[0][0])
 }
 
 func withSnowflake(name string, opts ...snowflake.TestServerOption) withDatabaseOption {

@@ -2103,7 +2103,7 @@ func TestMaxDuration(t *testing.T) {
 
 	for _, tt := range tts {
 		t.Run(tt.desc, func(t *testing.T) {
-			require.GreaterOrEqual(t, len(tt.roles), 1, "at least one role must be specified")
+			require.NotEmpty(t, tt.roles, "at least one role must be specified")
 
 			// create a request for the specified author
 			req, err := types.NewAccessRequest("some-id", tt.requestor, tt.roles...)

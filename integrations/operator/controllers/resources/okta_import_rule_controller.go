@@ -34,10 +34,11 @@ type oktaImportRuleClient struct {
 
 // Get gets the Teleport okta_import_rule of a given name
 func (r oktaImportRuleClient) Get(ctx context.Context, name string) (types.OktaImportRule, error) {
-	teleportClient, err := r.TeleportClientAccessor(ctx)
+	teleportClient, release, err := r.TeleportClientAccessor(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	defer release()
 
 	importRule, err := teleportClient.OktaClient().GetOktaImportRule(ctx, name)
 	return importRule, trace.Wrap(err)
@@ -45,10 +46,11 @@ func (r oktaImportRuleClient) Get(ctx context.Context, name string) (types.OktaI
 
 // Create creates a Teleport okta_import_rule
 func (r oktaImportRuleClient) Create(ctx context.Context, importRule types.OktaImportRule) error {
-	teleportClient, err := r.TeleportClientAccessor(ctx)
+	teleportClient, release, err := r.TeleportClientAccessor(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	defer release()
 
 	_, err = teleportClient.OktaClient().CreateOktaImportRule(ctx, importRule)
 	return trace.Wrap(err)
@@ -56,10 +58,11 @@ func (r oktaImportRuleClient) Create(ctx context.Context, importRule types.OktaI
 
 // Update updates a Teleport okta_import_rule
 func (r oktaImportRuleClient) Update(ctx context.Context, importRule types.OktaImportRule) error {
-	teleportClient, err := r.TeleportClientAccessor(ctx)
+	teleportClient, release, err := r.TeleportClientAccessor(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	defer release()
 
 	_, err = teleportClient.OktaClient().UpdateOktaImportRule(ctx, importRule)
 	return trace.Wrap(err)
@@ -67,10 +70,11 @@ func (r oktaImportRuleClient) Update(ctx context.Context, importRule types.OktaI
 
 // Delete deletes a Teleport okta_import_rule
 func (r oktaImportRuleClient) Delete(ctx context.Context, name string) error {
-	teleportClient, err := r.TeleportClientAccessor(ctx)
+	teleportClient, release, err := r.TeleportClientAccessor(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	defer release()
 
 	return trace.Wrap(teleportClient.OktaClient().DeleteOktaImportRule(ctx, name))
 }

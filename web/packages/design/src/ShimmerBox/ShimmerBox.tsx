@@ -31,8 +31,8 @@ const loading = keyframes`
 const ShimmerWrapper = styled.div`
   width: 100%;
   height: 100%;
-  background-color: ${props => props.theme.colors.levels.surface};
-  border-radius: ${props => props.theme.radii[3]}px;
+  background-color: ${props => props.theme.colors.spotBackground[0]};
+  border-radius: ${props => props.theme.radii[2]}px;
   overflow: hidden;
   position: relative;
 `;
@@ -43,7 +43,7 @@ const Shimmer = styled.div`
   background: linear-gradient(
     90deg,
     transparent 25%,
-    ${props => props.theme.colors.levels.elevated} 50%,
+    ${props => props.theme.colors.spotBackground[0]} 50%,
     transparent 75%
   );
   background-size: 200% 100%;

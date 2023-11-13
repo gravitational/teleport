@@ -24,6 +24,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	proxyclient "github.com/gravitational/teleport/api/client/proxy"
+	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -204,7 +205,7 @@ func (c *ClusterClient) performMFACeremony(ctx context.Context, rootClient *Clus
 	key, _, err = PerformMFACeremony(ctx, PerformMFACeremonyParams{
 		CurrentAuthClient: c.AuthClient,
 		RootAuthClient:    rootClient.AuthClient,
-		PromptMFA:         c.tc.PromptMFA,
+		MFAPrompt:         c.tc.NewMFAPrompt(),
 		MFAAgainstRoot:    c.cluster == rootClient.cluster,
 		MFARequiredReq:    params.isMFARequiredRequest(c.tc.HostLogin),
 		CertsReq:          certsReq,
@@ -235,8 +236,8 @@ type PerformMFACeremonyParams struct {
 	// This is the client used to acquire the authn challenge and issue the user
 	// certificates.
 	RootAuthClient PerformMFARootClient
-	// PromptMFA is used to prompt the user for an MFA solution.
-	PromptMFA PromptMFAFunc
+	// MFAPrompt is used to prompt the user for an MFA solution.
+	MFAPrompt mfa.Prompt
 
 	// MFAAgainstRoot tells whether to run the MFA required check against root or
 	// current cluster.
@@ -304,7 +305,7 @@ func PerformMFACeremony(ctx context.Context, params PerformMFACeremonyParams) (*
 	}
 
 	// Prompt user for solution (eg, security key touch).
-	authnSolved, err := params.PromptMFA(ctx, authnChal)
+	authnSolved, err := params.MFAPrompt.Run(ctx, authnChal)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}

@@ -16,15 +16,9 @@
 
 import React, { ReactElement, useCallback, useMemo } from 'react';
 import styled from 'styled-components';
-import {
-  Box,
-  ButtonBorder,
-  ButtonPrimary,
-  Flex,
-  Label as DesignLabel,
-  Text,
-} from 'design';
+import { Box, ButtonBorder, Flex, Label as DesignLabel, Text } from 'design';
 import * as icons from 'design/Icon';
+import { Cross as CloseIcon } from 'design/Icon';
 import { Highlight } from 'shared/components/Highlight';
 import { Attempt, hasFinished } from 'shared/hooks/useAsync';
 
@@ -40,6 +34,7 @@ import {
   SearchResultCluster,
   SearchResultResourceType,
   SearchFilter,
+  ResourceTypeFilter,
 } from 'teleterm/ui/Search/searchResult';
 import * as tsh from 'teleterm/services/tshd/types';
 import * as uri from 'teleterm/ui/uri';
@@ -125,8 +120,8 @@ export function ActionPicker(props: { input: ReactElement }) {
     if (s.filter === 'resource-type') {
       return (
         <FilterButton
-          key="resource-type"
-          text={s.resourceType}
+          key={`resource-type-${s.resourceType}`}
+          text={resourceTypeToPrettyName[s.resourceType]}
           onClick={() => removeFilter(s)}
         />
       );
@@ -497,9 +492,9 @@ const resourceIcons: Record<
     lineHeight: string;
   }>
 > = {
-  kubes: icons.Kubernetes,
-  servers: icons.Server,
-  databases: icons.Database,
+  kube_cluster: icons.Kubernetes,
+  node: icons.Server,
+  db: icons.Database,
 };
 
 function ResourceTypeFilterItem(
@@ -511,10 +506,10 @@ function ResourceTypeFilterItem(
       iconColor="text.slightlyMuted"
     >
       <Text typography="body1">
-        Search only for{' '}
+        Search for{' '}
         <strong>
           <Highlight
-            text={props.searchResult.resource}
+            text={resourceTypeToPrettyName[props.searchResult.resource]}
             keywords={[props.searchResult.nameMatch]}
           />
         </strong>
@@ -873,22 +868,52 @@ function HighlightField(props: {
 
 function FilterButton(props: { text: string; onClick(): void }) {
   return (
-    <ButtonPrimary
-      px={2}
+    <Flex
+      justifyContent="center"
+      alignItems="center"
+      css={`
+        color: ${props => props.theme.colors.buttons.text};
+        background: ${props => props.theme.colors.spotBackground[1]};
+        border-radius: ${props => props.theme.radii[2]}px;
+      `}
+      px="6px"
       size="small"
-      title={props.text}
-      onClick={props.onClick}
     >
-      <span
+      <CloseIcon
+        color="buttons.text"
+        mr={1}
+        mt="1px"
+        title="Remove filter"
+        onClick={props.onClick}
         css={`
-          max-width: calc(${props => props.theme.space[9]}px * 2);
-          text-overflow: ellipsis;
+          cursor: pointer;
+          border-radius: ${props => props.theme.radii[1]}px;
+
+          :hover {
+            background: ${props => props.theme.colors.spotBackground[1]};
+          }
+
+          > svg {
+            height: 13px;
+            width: 13px;
+          }
+        `}
+      />
+      <span
+        title={props.text}
+        css={`
           white-space: nowrap;
-          overflow: hidden;
+          cursor: default;
         `}
       >
         {props.text}
       </span>
-    </ButtonPrimary>
+    </Flex>
   );
 }
+
+const resourceTypeToPrettyName: Record<ResourceTypeFilter, string> = {
+  db: 'databases',
+  node: 'servers',
+  kube_cluster: 'kubes',
+};

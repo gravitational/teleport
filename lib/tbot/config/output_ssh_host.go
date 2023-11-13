@@ -97,9 +97,9 @@ func (o *SSHHostOutput) Describe() []FileDescription {
 	return fds
 }
 
-func (o SSHHostOutput) MarshalYAML() (interface{}, error) {
+func (o *SSHHostOutput) MarshalYAML() (interface{}, error) {
 	type raw SSHHostOutput
-	return withTypeHeader(raw(o), SSHHostOutputType)
+	return withTypeHeader((*raw)(o), SSHHostOutputType)
 }
 
 func (o *SSHHostOutput) UnmarshalYAML(node *yaml.Node) error {

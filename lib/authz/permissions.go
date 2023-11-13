@@ -1035,6 +1035,9 @@ const (
 
 	// contextClientDstAddr is a client destination address set in the context of the request
 	contextClientDstAddr contextKey = "teleport-client-dst-addr"
+
+	// contextConn is a connection in the context associated with the request
+	contextConn contextKey = "teleport-connection"
 )
 
 // WithDelegator alias for backwards compatibility
@@ -1393,6 +1396,24 @@ func ClientAddrsFromContext(ctx context.Context) (src net.Addr, dst net.Addr) {
 	src, _ = ctx.Value(contextClientSrcAddr).(net.Addr)
 	dst, _ = ctx.Value(contextClientDstAddr).(net.Addr)
 	return
+}
+
+func ContextWithConn(ctx context.Context, conn net.Conn) context.Context {
+	if ctx == nil {
+		return nil
+	}
+	return context.WithValue(ctx, contextConn, conn)
+}
+
+func ConnFromContext(ctx context.Context) (net.Conn, error) {
+	if ctx == nil {
+		return nil, trace.BadParameter("context is nil")
+	}
+	conn, ok := ctx.Value(contextConn).(net.Conn)
+	if !ok {
+		return nil, trace.NotFound("connection was not found in the context")
+	}
+	return conn, nil
 }
 
 // ContextWithUser returns the context with the user embedded.

@@ -33,5 +33,5 @@ func TestNewBot(t *testing.T) {
 	}
 	_, err := conf.NewBot("someClusterName", "someWebProxyAddr")
 	require.NoError(t, err)
-	require.Equal(t, conf.WebProxyURL.Host, "someWebProxyAddr")
+	require.Equal(t, "someWebProxyAddr", conf.WebProxyURL.Host)
 }

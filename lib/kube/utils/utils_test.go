@@ -109,7 +109,7 @@ func TestCheckOrSetKubeCluster(t *testing.T) {
 		t.Run(tt.desc, func(t *testing.T) {
 			got, err := CheckOrSetKubeCluster(ctx, mockKubeServicesPresence(tt.services), tt.kubeCluster, tt.teleCluster)
 			tt.assertErr(t, err)
-			require.Equal(t, got, tt.want)
+			require.Equal(t, tt.want, got)
 		})
 	}
 }

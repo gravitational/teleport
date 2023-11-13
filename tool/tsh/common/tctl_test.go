@@ -18,7 +18,6 @@ package common
 
 import (
 	"context"
-	"errors"
 	"path/filepath"
 	"testing"
 
@@ -79,14 +78,14 @@ func TestLoadConfigFromProfile(t *testing.T) {
 			cfg: &servicecfg.Config{
 				TeleportHome: "some/dir/that/does/not/exist",
 			},
-			want: trace.NotFound("profile is not found"),
+			want: trace.NotFound("current-profile is not set"),
 		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			_, err := common.LoadConfigFromProfile(tc.ccf, tc.cfg)
 			if tc.want != nil {
-				require.Error(t, err, tc.want)
+				require.ErrorIs(t, err, tc.want)
 				return
 			}
 			require.NoError(t, err)
@@ -148,7 +147,7 @@ func TestRemoteTctlWithProfile(t *testing.T) {
 			err := common.TryRun(tt.commands, tt.args)
 			if tt.wantErrContains != "" {
 				var exitError *toolcommon.ExitCodeError
-				require.True(t, errors.As(err, &exitError))
+				require.ErrorAs(t, err, &exitError)
 				require.ErrorContains(t, err, tt.wantErrContains)
 				return
 			}

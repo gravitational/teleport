@@ -43,7 +43,7 @@ func TestStreams(t *testing.T) {
 	handler, err := NewHandler(Config{
 		Directory: dir,
 	})
-	require.Nil(t, err)
+	require.NoError(t, err)
 	defer handler.Close()
 
 	t.Run("Stream", func(t *testing.T) {
@@ -60,7 +60,7 @@ func TestStreams(t *testing.T) {
 				return nil
 			},
 		})
-		require.Nil(t, err)
+		require.NoError(t, err)
 		defer handler.Close()
 
 		test.StreamResumeManyParts(t, handler)

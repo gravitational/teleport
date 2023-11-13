@@ -82,7 +82,7 @@ func TestProcessStateGetState(t *testing.T) {
 		t.Run(tt.desc, func(t *testing.T) {
 			ps := &processState{states: tt.states}
 			got := ps.getState()
-			require.Equal(t, got, tt.want)
+			require.Equal(t, tt.want, got)
 		})
 	}
 }
