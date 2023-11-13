@@ -13,7 +13,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
-	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/types/trait"
@@ -177,9 +176,6 @@ func TestGetAccessList(t *testing.T) {
 			{
 				Name:        "llama",
 				Description: "llama desc",
-				// this owner does not exist in the backend, but that's okay, we are only
-				// testing for a "getter" for this test.
-				IneligibleStatus: accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_USER_NOT_EXIST.String(),
 			},
 		},
 		OwnershipRequires: accesslist.Requires{Roles: []string{"admin"}},
@@ -202,9 +198,6 @@ func TestGetAccessList(t *testing.T) {
 			Expires:    time.Now().Add(time.Hour),
 			Reason:     "reason",
 			AddedBy:    "admin",
-			// this member does not exist in the backend, but that's okay, we are only
-			// testing for a "getter" for this test.
-			IneligibleStatus: accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_USER_NOT_EXIST.String(),
 		},
 	)
 	require.NoError(t, err)

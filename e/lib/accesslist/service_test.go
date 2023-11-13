@@ -307,11 +307,6 @@ func TestService_GetAccessList(t *testing.T) {
 			Description:      "owner user",
 			IneligibleStatus: accesslistv1.IneligibleStatus_name[int32(accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_MISSING_REQUIREMENTS)],
 		},
-		{
-			Name:             "test-user2",
-			Description:      "test user 2",
-			IneligibleStatus: accesslistv1.IneligibleStatus_name[int32(accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_USER_NOT_EXIST)],
-		},
 	}
 
 	a1m1 := newAccessListMember(t, a1.GetName(), member1, clock)
@@ -319,9 +314,6 @@ func TestService_GetAccessList(t *testing.T) {
 	a2m1 := newAccessListMember(t, a2.GetName(), member1, clock)
 	a3m1 := newAccessListMember(t, a3.GetName(), member1, clock)
 	a3m2 := newAccessListMember(t, a3.GetName(), member2, clock)
-
-	// a3 will have different ownership requirements.
-	a3.Spec.OwnershipRequires.Roles = []string{"non-existent-role1"}
 
 	createAccessListsAndMembers(t, ctx, svc, emitter, nil,
 		[]*accesslist.AccessList{a1, a2, a3}, []*accesslist.AccessListMember{a1m1, a1m2, a2m1, a3m1, a3m2})
@@ -438,11 +430,6 @@ func TestService_UpsertAndGetAccessList_OwnersIneligibleReason(t *testing.T) {
 			IneligibleStatus: accesslistv1.IneligibleStatus_name[int32(accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_ELIGIBLE)],
 		},
 		{
-			Name:             "i-don-exist",
-			Description:      "NOK non-existing user",
-			IneligibleStatus: accesslistv1.IneligibleStatus_name[int32(accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_USER_NOT_EXIST)],
-		},
-		{
 			Name:             member1,
 			Description:      "NOK ownermemship_requires does not match",
 			IneligibleStatus: accesslistv1.IneligibleStatus_name[int32(accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_MISSING_REQUIREMENTS)],
@@ -456,11 +443,6 @@ func TestService_UpsertAndGetAccessList_OwnersIneligibleReason(t *testing.T) {
 		{
 			Name:             ownerUser,
 			Description:      "OK existing user",
-			IneligibleStatus: "",
-		},
-		{
-			Name:             "i-don-exist",
-			Description:      "NOK non-existing user",
 			IneligibleStatus: "",
 		},
 		{
@@ -508,8 +490,6 @@ func TestService_UpsertAndGetAccessList_MembersIneligibleReason(t *testing.T) {
 	require.NoError(t, err)
 
 	membersToCreate := []*accesslist.AccessListMember{
-		// NOK non-existing user
-		newAccessListMemberWithIneligibleReason(t, a1.GetName(), "i-don-exist", clock, accesslistv1.IneligibleStatus_name[int32(accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_USER_NOT_EXIST)]),
 		// NOK member is expired
 		member_expired,
 		// OK member

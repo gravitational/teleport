@@ -1520,7 +1520,17 @@ func checkUserIsStillEligible(f StillEligibleFields) accesslistv1.IneligibleStat
 	foundUser, exists := f.userLookup[f.username]
 	// Check if owner exists.
 	if !exists {
-		return accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_USER_NOT_EXIST
+		// We are skipping checks for user not found because a user
+		// may be an SSO user and may not exist in the backend yet
+		// from not having logged in for the day.
+		//
+		// SSO users are recorded dynamically. They get recorded upon login
+		// and set to be deleted to the length of their session.
+		//
+		// In the case of large SSO users being added to an access list,
+		// a lot of the users may appear to "not exist" and confuse
+		// the viewer.
+		return accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_UNSPECIFIED
 	}
 
 	// Check if expired.
