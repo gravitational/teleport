@@ -27,6 +27,10 @@ for current status).
 See also:
 * [RFD 0007e - Device Trust MDM integration](
   https://github.com/gravitational/teleport.e/blob/master/rfd/0007e-device-trust-mdm-integration.md)
+* [RFD 0008e - Device Trust TPM Support](
+  https://github.com/gravitational/teleport.e/blob/master/rfd/0008e-device-trust-tpm.md)
+* [RFD 0017e - Device Trust for Linux/TPM devices](
+  https://github.com/gravitational/teleport.e/blob/master/rfd/0017e-device-trust-linux-tpm.md)
 
 ## Why
 
