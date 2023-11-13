@@ -77,8 +77,15 @@ function SearchBar() {
       return;
     }
 
-    const onClickOutside = e => {
-      if (!e.composedPath().includes(containerRef.current)) {
+    const onClickOutside = (e: MouseEvent) => {
+      if (
+        !(
+          e.composedPath().includes(containerRef.current) ||
+          // TODO(gzdunek): Remove this ugly hack that prevents closing the
+          // the search bar when the predicate tooltip is clicked (or closed)
+          document.querySelector('#predicate-documentation')
+        )
+      ) {
         close();
       }
     };
