@@ -45,9 +45,16 @@ func checkOktaOrigin(authzCtx *authz.Context, user types.User, verb string) erro
 	}
 }
 
-// checkOktaAccess tests that, if the identity provided in authzCtx has the
-// built-in Okta role, that the "origin: Okta" label is present on the supplied
-// user record. If `existingUser` is nil, Okta is deemed to have access
+// checkOktaAccess gates access to update operations on user records based
+// on the origin labels of the existing and new user records.
+//
+//   - a nil `existingUser` is interpreted as there being no matching existing
+//     user in the cluster; if there is no user then there is no user to
+//     overwrite, so access is grated
+//   - when `authzCtx` represents a non-okta caller, then the only disallowed
+//     operation is removing an "Origin: okta" label
+//   - when `authzCtx` represents the okta service, then access is granted if and
+//     only if the existing user has an "Origin: okta" label
 func checkOktaAccess(authzCtx *authz.Context, newUser, existingUser types.User, verb string) error {
 	// We base or decision to allow write access to a resource on the Origin
 	// label. If there is no existing user, then there can be no label to block
@@ -68,9 +75,13 @@ func checkOktaAccess(authzCtx *authz.Context, newUser, existingUser types.User, 
 		return nil
 	}
 
+	// An okta-service caller only has rights over the user if they have an
+	// "Origin: Okta" label
 	if existingUser.Origin() == types.OriginOkta {
 		return nil
 	}
 
+	// If we get to here, we have exhausted all possible ways that the caller
+	// may be allowed to modify a user, so they get AccessDenied by default.
 	return trace.AccessDenied("Okta service may only %s Okta users", verb)
 }
