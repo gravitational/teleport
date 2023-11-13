@@ -19,6 +19,7 @@ use crate::{
     CGOSharedDirectoryListResponse, CGOSharedDirectoryReadResponse,
 };
 use ironrdp_pdu::{custom_err, PduResult};
+use ironrdp_rdpdr::pdu::efs::DeviceCreateRequest;
 
 /// SharedDirectoryAnnounce is sent by the TDP client to the server
 /// to announce a new directory to be shared over TDP.
@@ -60,6 +61,16 @@ pub struct SharedDirectoryInfoRequest {
     pub completion_id: u32,
     pub directory_id: u32,
     pub path: UnixPath,
+}
+
+impl From<&DeviceCreateRequest> for SharedDirectoryInfoRequest {
+    fn from(req: &DeviceCreateRequest) -> SharedDirectoryInfoRequest {
+        SharedDirectoryInfoRequest {
+            completion_id: req.device_io_request.completion_id,
+            directory_id: req.device_io_request.device_id,
+            path: UnixPath::from(&(*req.path)),
+        }
+    }
 }
 
 /// SharedDirectoryInfoResponse is sent by the TDP client to the server
@@ -316,6 +327,10 @@ pub enum FileType {
     File = 0,
     Directory = 1,
 }
+
+pub const FALSE: u8 = 0;
+#[allow(dead_code)]
+pub const TRUE: u8 = 1;
 
 /// A generic error type that can contain any arbitrary error message.
 ///
