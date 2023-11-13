@@ -122,6 +122,7 @@ describe('usePollForConnectMyComputerNode', () => {
     await waitFor(() => {
       expect(nodeService.fetchNodes).toHaveBeenCalled();
     });
+    expect(userService.reloadUser).not.toHaveBeenCalled();
 
     rerender({
       reloadUser: true,
