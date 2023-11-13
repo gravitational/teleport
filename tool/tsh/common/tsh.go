@@ -32,7 +32,6 @@ import (
 	"os/exec"
 	"os/signal"
 	"path"
-	"path/filepath"
 	"regexp"
 	"runtime"
 	"runtime/pprof"
@@ -76,7 +75,6 @@ import (
 	dbprofile "github.com/gravitational/teleport/lib/client/db"
 	"github.com/gravitational/teleport/lib/client/identityfile"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/observability/tracing"
@@ -1693,126 +1691,6 @@ func serializeVersion(format string, proxyVersion string, proxyPublicAddress str
 		out, err = yaml.Marshal(versionInfo)
 	}
 	return string(out), trace.Wrap(err)
-}
-
-// onPlay is used to interact with recorded sessions.
-// It has several modes:
-//
-//  1. If --format is "pty" (the default), then the recorded
-//     session is played back in the user's terminal.
-//  2. Otherwise, `tsh play` is used to export a session from the
-//     binary protobuf format into YAML or JSON.
-//
-// Each of these modes has two subcases:
-// i) --session-id ends with ".tar" - tsh operates on a local
-// file containing a previously downloaded session
-//
-// b) --session-id is the ID of a session - tsh operates on the
-// session recording by connecting to the Teleport cluster
-func onPlay(cf *CLIConf) error {
-	if format := strings.ToLower(cf.Format); format == teleport.PTY {
-		return playSession(cf)
-	}
-	if cf.PlaySpeed != "1x" {
-		log.Warn("--speed is not applicable for formats other than pty")
-	}
-	return exportSession(cf)
-}
-
-func exportSession(cf *CLIConf) error {
-	format := strings.ToLower(cf.Format)
-	isLocalFile := path.Ext(cf.SessionID) == ".tar"
-	if isLocalFile {
-		return trace.Wrap(exportFile(cf.Context, cf.SessionID, format))
-	}
-
-	tc, err := makeClient(cf)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	events, err := tc.GetSessionEvents(cf.Context, cf.Namespace, cf.SessionID)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	for _, event := range events {
-		// when playing from a file, id is not included, this
-		// makes the outputs otherwise identical
-		delete(event, "id")
-	}
-
-	switch format {
-	case teleport.JSON:
-		if err := utils.WriteJSONArray(os.Stdout, events); err != nil {
-			return trace.Wrap(err)
-		}
-	case teleport.YAML:
-		if err := utils.WriteYAML(os.Stdout, events); err != nil {
-			return trace.Wrap(err)
-		}
-	default:
-		return trace.Errorf("Invalid format %s, only pty, json and yaml are supported", format)
-	}
-
-	return nil
-}
-
-var playbackSpeeds = map[string]float64{
-	"0.5x": 0.5,
-	"1x":   1.0,
-	"2x":   2.0,
-	"4x":   4.0,
-	"8x":   8.0,
-}
-
-func playSession(cf *CLIConf) error {
-	speed, ok := playbackSpeeds[cf.PlaySpeed]
-	if !ok {
-		speed = 1.0
-	}
-
-	isLocalFile := path.Ext(cf.SessionID) == ".tar"
-	if isLocalFile {
-		sid := sessionIDFromPath(cf.SessionID)
-		if err := client.PlayFile(cf.Context, cf.SessionID, sid, speed); err != nil {
-			return trace.Wrap(err)
-		}
-		return nil
-	}
-
-	tc, err := makeClient(cf)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if err := tc.Play(cf.Context, cf.SessionID, speed); err != nil {
-		if trace.IsNotFound(err) {
-			log.WithError(err).Debug("error playing session")
-			return trace.NotFound("Recording for session %s not found.", cf.SessionID)
-		}
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
-func sessionIDFromPath(path string) string {
-	fileName := filepath.Base(path)
-	return strings.TrimSuffix(fileName, ".tar")
-}
-
-// exportFile converts the binary protobuf events from the file
-// identified by path to text (JSON/YAML) and writes the converted
-// events to standard out.
-func exportFile(ctx context.Context, path string, format string) error {
-	f, err := os.Open(path)
-	if err != nil {
-		return trace.ConvertSystemError(err)
-	}
-	defer f.Close()
-	err = events.Export(ctx, f, os.Stdout, format)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
 }
 
 // onLogin logs in with remote proxy and gets signed certificates

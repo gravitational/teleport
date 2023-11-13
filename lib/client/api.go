@@ -2133,41 +2133,6 @@ func setTermSize(w io.Writer, size string) error {
 	return err
 }
 
-// TODO(zmb3) remove this?
-func (tc *TeleportClient) GetSessionEvents(ctx context.Context, namespace, sessionID string) ([]events.EventFields, error) {
-	ctx, span := tc.Tracer.Start(
-		ctx,
-		"teleportClient/GetSessionEvents",
-		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
-		oteltrace.WithAttributes(
-			attribute.String("session", sessionID),
-		),
-	)
-	defer span.End()
-
-	if namespace == "" {
-		return nil, trace.BadParameter(auth.MissingNamespaceError)
-	}
-	sid, err := session.ParseID(sessionID)
-	if err != nil {
-		return nil, trace.BadParameter("%q is not a valid session ID (must be GUID)", sid)
-	}
-	// connect to the auth server (site) who made the recording
-	proxyClient, err := tc.ConnectToProxy(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer proxyClient.Close()
-
-	site := proxyClient.CurrentCluster()
-
-	events, err := site.GetSessionEvents(namespace, *sid, 0)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return events, nil
-}
-
 // PlayFile plays the recorded session from a file.
 func PlayFile(ctx context.Context, filename, sid string, speed float64) error {
 	streamer := &playFromFileStreamer{filename: filename}
