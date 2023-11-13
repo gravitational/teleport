@@ -18,6 +18,7 @@ INSTALLER=build/teleport-windows-auth-setup-$(VERSION_FULL)-amd64.exe
 DLL=target/x86_64-pc-windows-gnu/release/teleport_auth_package.dll
 
 # this transforms version to something FILEVERSION in *.rc files understands, e.g
+# v12.0.0+4afbc1 -> 12,0,0
 # v12.0.0-alpha1 -> 12,0,0
 # v12.1 -> 12,1
 # v12.0.0.0.0.0 -> 12,0,0
@@ -26,7 +27,7 @@ comma:= ,
 empty:=
 space:= $(empty) $(empty)
 VERSION_COMMA:=$(subst v,,$(firstword $(VERSION_FULL)))
-VERSION_COMMA:=$(firstword $(subst -, ,$(VERSION_COMMA)))
+VERSION_COMMA:=$(firstword $(subst -, ,$(subst +, ,$(VERSION_COMMA))))
 VERSION_COMMA:=$(subst $(space),$(comma),$(wordlist 1,3,$(subst $(dot), ,$(VERSION_COMMA))))
 
 .PHONY: all
