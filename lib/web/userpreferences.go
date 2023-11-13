@@ -52,6 +52,7 @@ type ClusterUserPreferencesResponse struct {
 
 type UnifiedResourcePreferencesResponse struct {
 	DefaultTab userpreferencesv1.DefaultTab `json:"defaultTab"`
+	ViewMode   userpreferencesv1.ViewMode   `json:"viewMode"`
 }
 
 // UserPreferencesResponse is the JSON response for the user preferences.
@@ -120,6 +121,7 @@ func makePreferenceRequest(req UserPreferencesResponse) *userpreferencesv1.Upser
 			Theme: req.Theme,
 			UnifiedResourcePreferences: &userpreferencesv1.UnifiedResourcePreferences{
 				DefaultTab: req.UnifiedResourcePreferences.DefaultTab,
+				ViewMode:   req.UnifiedResourcePreferences.ViewMode,
 			},
 			Assist: &userpreferencesv1.AssistUserPreferences{
 				PreferredLogins: req.Assist.PreferredLogins,
@@ -199,6 +201,7 @@ func assistUserPreferencesResponse(resp *userpreferencesv1.AssistUserPreferences
 func unifiedResourcePreferencesResponse(resp *userpreferencesv1.UnifiedResourcePreferences) UnifiedResourcePreferencesResponse {
 	return UnifiedResourcePreferencesResponse{
 		DefaultTab: resp.DefaultTab,
+		ViewMode:   resp.ViewMode,
 	}
 }
 
