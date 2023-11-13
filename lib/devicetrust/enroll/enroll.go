@@ -182,11 +182,13 @@ func (c *Ceremony) Run(ctx context.Context, devicesClient devicepb.DeviceTrustSe
 	}
 	init.Token = enrollToken
 
-	// 1. Init.
 	stream, err := devicesClient.EnrollDevice(ctx)
 	if err != nil {
 		return nil, trace.Wrap(devicetrust.HandleUnimplemented(err))
 	}
+	defer stream.CloseSend()
+
+	// 1. Init.
 	if err := stream.Send(&devicepb.EnrollDeviceRequest{
 		Payload: &devicepb.EnrollDeviceRequest_Init{
 			Init: init,

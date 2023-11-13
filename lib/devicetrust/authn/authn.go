@@ -79,6 +79,7 @@ func (c *Ceremony) Run(ctx context.Context, devicesClient devicepb.DeviceTrustSe
 	if err != nil {
 		return nil, trace.Wrap(devicetrust.HandleUnimplemented(err))
 	}
+	defer stream.CloseSend()
 
 	// 1. Init.
 	if err := stream.Send(&devicepb.AuthenticateDeviceRequest{

@@ -95,6 +95,7 @@ func enrollDevice(ctx context.Context, devices devicepb.DeviceTrustServiceClient
 	if err != nil {
 		return err
 	}
+	defer stream.CloseSend()
 
 	// 1. Init.
 	enrollDeviceInit, err := dev.EnrollDeviceInit()
