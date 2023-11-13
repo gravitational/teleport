@@ -102,7 +102,7 @@ impl Client {
                 pin,
                 cgo_handle,
             )),
-            "IronRDP".to_string(),
+            "Teleport".to_string(),
         )
         .with_smartcard(SCARD_DEVICE_ID);
 
