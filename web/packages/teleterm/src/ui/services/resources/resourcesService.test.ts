@@ -123,7 +123,7 @@ describe('searchResources', () => {
     const searchResults = await service.searchResources({
       clusterUri: '/clusters/foo',
       search: '',
-      filters: undefined,
+      filters: [],
       limit: 10,
     });
     expect(searchResults).toHaveLength(3);
@@ -181,7 +181,7 @@ describe('searchResources', () => {
     const searchResults = await service.searchResources({
       clusterUri: '/clusters/foo',
       search: '',
-      filters: undefined,
+      filters: [],
       limit: 10,
     });
     expect(searchResults).toHaveLength(3);

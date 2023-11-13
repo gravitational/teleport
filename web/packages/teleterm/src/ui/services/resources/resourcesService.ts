@@ -78,7 +78,7 @@ export class ResourcesService {
   }: {
     clusterUri: uri.ClusterUri;
     search: string;
-    filters: SupportedResourceType[] | undefined;
+    filters: SupportedResourceType[];
     limit: number;
   }): Promise<PromiseSettledResult<SearchResult[]>[]> {
     const params = { search, clusterUri, sort: null, limit };
