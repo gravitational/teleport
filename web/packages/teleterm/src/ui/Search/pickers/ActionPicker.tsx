@@ -277,9 +277,15 @@ const ExtraTopComponents = (props: {
       }
     }
     case 'some-input': {
+      const shouldShowResourceSearchErrorsItem =
+        status.nonRetryableResourceSearchErrors.length > 0;
+      const shouldShowNoResultsItem = status.hasNoResults;
+      const shouldShowTypeToSearchItem =
+        !shouldShowResourceSearchErrorsItem && !shouldShowNoResultsItem;
+
       return (
         <>
-          {status.nonRetryableResourceSearchErrors.length > 0 && (
+          {shouldShowResourceSearchErrorsItem && (
             <ResourceSearchErrorsItem
               errors={status.nonRetryableResourceSearchErrors}
               getClusterName={getClusterName}
@@ -288,11 +294,14 @@ const ExtraTopComponents = (props: {
               }}
             />
           )}
-          {status.hasNoResults && (
+          {shouldShowNoResultsItem && (
             <NoResultsItem
               clustersWithExpiredCerts={status.clustersWithExpiredCerts}
               getClusterName={getClusterName}
             />
+          )}
+          {shouldShowTypeToSearchItem && (
+            <TypeToSearchItem hasNoRemainingFilterActions={false} />
           )}
         </>
       );
