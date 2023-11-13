@@ -34,7 +34,7 @@ import {
   SearchResultCluster,
   SearchResultResourceType,
   SearchFilter,
-  SupportedResourceType,
+  ResourceTypeFilter,
 } from 'teleterm/ui/Search/searchResult';
 import * as tsh from 'teleterm/services/tshd/types';
 import * as uri from 'teleterm/ui/uri';
@@ -912,7 +912,7 @@ function FilterButton(props: { text: string; onClick(): void }) {
   );
 }
 
-const resourceTypeToPrettyName: Record<SupportedResourceType, string> = {
+const resourceTypeToPrettyName: Record<ResourceTypeFilter, string> = {
   db: 'databases',
   node: 'servers',
   kube_cluster: 'kubes',

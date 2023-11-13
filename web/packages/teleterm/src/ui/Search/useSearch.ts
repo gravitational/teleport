@@ -30,7 +30,7 @@ import {
   searchableFields,
   ResourceSearchResult,
   FilterSearchResult,
-  SupportedResourceType,
+  ResourceTypeFilter,
 } from './searchResult';
 
 import type * as resourcesServiceTypes from 'teleterm/ui/services/resources';
@@ -41,7 +41,7 @@ export type CrossClusterResourceSearchResult = {
   search: string;
 };
 
-const SUPPORTED_RESOURCE_TYPES: SupportedResourceType[] = [
+const SUPPORTED_RESOURCE_TYPES: ResourceTypeFilter[] = [
   'node',
   'db',
   'kube_cluster',
