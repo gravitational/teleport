@@ -154,7 +154,7 @@ export class FeatureUnifiedResources implements TeleportFeature {
   category = NavigationCategory.Resources;
 
   hasAccess() {
-    return true;
+    return !cfg.isDashboard;
   }
 }
 

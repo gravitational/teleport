@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package common
+package accessrequest
 
 import (
 	"testing"
@@ -22,7 +22,7 @@ import (
 	"github.com/gravitational/teleport/integrations/lib/plugindata"
 )
 
-var samplePluginData = GenericPluginData{
+var samplePluginData = PluginData{
 	AccessRequestData: plugindata.AccessRequestData{
 		User:             "user-foo",
 		Roles:            []string{"role-foo", "role-bar"},
@@ -68,7 +68,7 @@ func TestDecodePluginData(t *testing.T) {
 }
 
 func TestEncodeEmptyPluginData(t *testing.T) {
-	dataMap, err := EncodePluginData(GenericPluginData{})
+	dataMap, err := EncodePluginData(PluginData{})
 	assert.NoError(t, err)
 	assert.Len(t, dataMap, 8)
 	for key, value := range dataMap {

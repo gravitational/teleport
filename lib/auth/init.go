@@ -248,6 +248,9 @@ type InitConfig struct {
 	// SecReports is a service that manages security reports.
 	SecReports services.SecReports
 
+	// PluginData is a service that manages plugin data.
+	PluginData services.PluginData
+
 	// Clock is the clock instance auth uses. Typically you'd only want to set
 	// this during testing.
 	Clock clockwork.Clock
@@ -571,7 +574,7 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 		// Key deletion is best-effort, log a warning if it fails and carry on.
 		// We don't want to prevent a CA rotation, which may be necessary in
 		// some cases where this would fail.
-		log.WithError(err).Warning("Failed attempt to delete unused HSM keys")
+		log.Warnf("An attempt to clean up unused HSM or KMS CA keys has failed unexpectedly: %v", err)
 	}
 
 	if lib.IsInsecureDevMode() {

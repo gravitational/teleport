@@ -160,8 +160,6 @@ func (r *RequestIDs) IsEmpty() bool {
 type AccessRequestGetter interface {
 	// GetAccessRequests gets all currently active access requests.
 	GetAccessRequests(ctx context.Context, filter types.AccessRequestFilter) ([]types.AccessRequest, error)
-	// GetPluginData loads all plugin data matching the supplied filter.
-	GetPluginData(ctx context.Context, filter types.PluginDataFilter) ([]types.PluginData, error)
 }
 
 // DynamicAccessCore is the core functionality common to all DynamicAccess implementations.
@@ -171,8 +169,6 @@ type DynamicAccessCore interface {
 	CreateAccessRequestV2(ctx context.Context, req types.AccessRequest) (types.AccessRequest, error)
 	// DeleteAccessRequest deletes an access request.
 	DeleteAccessRequest(ctx context.Context, reqID string) error
-	// UpdatePluginData updates a per-resource PluginData entry.
-	UpdatePluginData(ctx context.Context, params types.PluginDataUpdateParams) error
 }
 
 // DynamicAccess is a service which manages dynamic RBAC.  Specifically, this is the
@@ -693,7 +689,7 @@ ProcessReviews:
 }
 
 // GetAccessRequest is a helper function assists with loading a specific request by ID.
-func GetAccessRequest(ctx context.Context, acc DynamicAccess, reqID string) (types.AccessRequest, error) {
+func GetAccessRequest(ctx context.Context, acc DynamicAccessCore, reqID string) (types.AccessRequest, error) {
 	reqs, err := acc.GetAccessRequests(ctx, types.AccessRequestFilter{
 		ID: reqID,
 	})

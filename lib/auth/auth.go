@@ -257,6 +257,9 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			return nil, trace.Wrap(err)
 		}
 	}
+	if cfg.PluginData == nil {
+		cfg.PluginData = local.NewPluginData(cfg.Backend, cfg.DynamicAccessExt)
+	}
 	if cfg.Integrations == nil {
 		cfg.Integrations, err = local.NewIntegrationsService(cfg.Backend)
 		if err != nil {
@@ -340,6 +343,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		UsageReporter:           cfg.UsageReporter,
 		Assistant:               cfg.Assist,
 		UserPreferences:         cfg.UserPreferences,
+		PluginData:              cfg.PluginData,
 	}
 
 	closeCtx, cancelFunc := context.WithCancel(context.TODO())
@@ -480,6 +484,7 @@ type Services struct {
 	services.Assistant
 	services.Embeddings
 	services.UserPreferences
+	services.PluginData
 	usagereporter.UsageReporter
 	types.Events
 	events.AuditLogSessionStreamer

@@ -74,7 +74,7 @@ jobs:
         with:
           path: |
             ${{ steps.build_base.outputs.base_stats_file }}
-          key: ${{ github.job }}-${{ runner.os }}-${{ steps.event.before }}
+          key: ${{ github.job }}-${{ runner.os }}-${{ github.event.before }}
 
       - if: ${{ steps.cache-build-restore.outputs.cache-hit == 'true' }}
         name: Restore base stats

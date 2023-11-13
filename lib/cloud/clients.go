@@ -34,6 +34,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/credentials/stscreds"
+	"github.com/aws/aws-sdk-go/aws/endpoints"
 	awssession "github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/aws/aws-sdk-go/service/ec2/ec2iface"
@@ -69,6 +70,7 @@ import (
 	libcloudaws "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/cloud/gcp"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -633,10 +635,16 @@ func (c *cloudClients) Close() (err error) {
 func (c *cloudClients) getAWSSessionForRegion(region string) (*awssession.Session, error) {
 	return utils.FnCacheGet(context.Background(), c.awsSessionsCache, region, func(ctx context.Context) (*awssession.Session, error) {
 		logrus.Debugf("Initializing AWS session for region %v.", region)
+		useFIPSEndpoint := endpoints.FIPSEndpointStateUnset
+		if modules.GetModules().IsBoringBinary() {
+			useFIPSEndpoint = endpoints.FIPSEndpointStateEnabled
+		}
 		session, err := awssession.NewSessionWithOptions(awssession.Options{
 			SharedConfigState: awssession.SharedConfigEnable,
 			Config: aws.Config{
-				Region: aws.String(region),
+				Region:                    aws.String(region),
+				EC2MetadataEnableFallback: aws.Bool(false),
+				UseFIPSEndpoint:           useFIPSEndpoint,
 			},
 		})
 		return session, trace.Wrap(err)
@@ -860,12 +868,19 @@ func (c *TestCloudClients) GetAWSSession(ctx context.Context, region string, opt
 
 // GetAWSSession returns AWS session for the specified region.
 func (c *TestCloudClients) getAWSSessionForRegion(region string) (*awssession.Session, error) {
+	useFIPSEndpoint := endpoints.FIPSEndpointStateUnset
+	if modules.GetModules().IsBoringBinary() {
+		useFIPSEndpoint = endpoints.FIPSEndpointStateEnabled
+	}
+
 	return awssession.NewSession(&aws.Config{
 		Credentials: credentials.NewCredentials(&credentials.StaticProvider{Value: credentials.Value{
 			AccessKeyID:     "fakeClientKeyID",
 			SecretAccessKey: "fakeClientSecret",
 		}}),
-		Region: aws.String(region),
+		Region:                    aws.String(region),
+		EC2MetadataEnableFallback: aws.Bool(false),
+		UseFIPSEndpoint:           useFIPSEndpoint,
 	})
 }
 
@@ -1102,12 +1117,19 @@ func newSessionWithRole(ctx context.Context, svc stscreds.AssumeRoler, region, r
 		return nil, trace.Wrap(libcloudaws.ConvertRequestFailureError(err))
 	}
 
+	useFIPSEndpoint := endpoints.FIPSEndpointStateUnset
+	if modules.GetModules().IsBoringBinary() {
+		useFIPSEndpoint = endpoints.FIPSEndpointStateEnabled
+	}
+
 	// Create a new session with the credentials.
 	roleSession, err := awssession.NewSessionWithOptions(awssession.Options{
 		SharedConfigState: awssession.SharedConfigEnable,
 		Config: aws.Config{
-			Region:      aws.String(region),
-			Credentials: cred,
+			Region:                    aws.String(region),
+			Credentials:               cred,
+			EC2MetadataEnableFallback: aws.Bool(false),
+			UseFIPSEndpoint:           useFIPSEndpoint,
 		},
 	})
 	return roleSession, trace.Wrap(err)

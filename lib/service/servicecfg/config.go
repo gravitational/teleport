@@ -21,6 +21,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/ghodss/yaml"
@@ -188,7 +189,7 @@ type Config struct {
 
 	// FileDescriptors is an optional list of file descriptors for the process
 	// to inherit and use for listeners, used for in-process updates.
-	FileDescriptors []FileDescriptor
+	FileDescriptors []*FileDescriptor
 
 	// PollingPeriod is set to override default internal polling periods
 	// of sync agents, used to speed up integration tests.
@@ -600,6 +601,8 @@ func ApplyDefaults(cfg *Config) {
 // FileDescriptor is a file descriptor associated
 // with a listener
 type FileDescriptor struct {
+	once sync.Once
+
 	// Type is a listener type, e.g. auth:ssh
 	Type string
 	// Address is an address of the listener, e.g. 127.0.0.1:3025
@@ -608,12 +611,22 @@ type FileDescriptor struct {
 	File *os.File
 }
 
+func (fd *FileDescriptor) Close() error {
+	var err error
+	fd.once.Do(func() {
+		err = fd.File.Close()
+	})
+	return trace.Wrap(err)
+}
+
 func (fd *FileDescriptor) ToListener() (net.Listener, error) {
 	listener, err := net.FileListener(fd.File)
 	if err != nil {
 		return nil, err
 	}
-	fd.File.Close()
+	if err := fd.Close(); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return listener, nil
 }
 

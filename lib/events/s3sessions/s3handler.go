@@ -178,6 +178,8 @@ func (s *Config) CheckAndSetDefaults() error {
 			sess.Config.Credentials = s.Credentials
 		}
 
+		sess.Config.EC2MetadataEnableFallback = aws.Bool(false)
+
 		sess.Config.UseFIPSEndpoint = events.FIPSProtoStateToAWSState(s.UseFIPSEndpoint)
 
 		s.Session = sess
