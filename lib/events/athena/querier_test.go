@@ -104,7 +104,7 @@ func TestSearchEvents(t *testing.T) {
 	}
 
 	wantCallsToAthena := func(t *testing.T, mock *mockAthenaExecutor, want int) {
-		require.Equal(t, want, len(mock.startQueryReqs))
+		require.Len(t, mock.startQueryReqs, want)
 	}
 	wantSingleCallToAthena := func(t *testing.T, mock *mockAthenaExecutor) {
 		wantCallsToAthena(t, mock, 1)

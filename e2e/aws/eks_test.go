@@ -100,7 +100,7 @@ func awsEKSDiscoveryMatchedCluster(t *testing.T) {
 			return false
 		}
 		// Fail fast if the discovery service creates more than one cluster.
-		assert.Equal(t, 1, len(clusters))
+		assert.Len(t, clusters, 1)
 		// Fail fast if the discovery service creates a cluster with a different name.
 		assert.Equal(t, os.Getenv(eksClusterNameEnv), clusters[0].GetName())
 		return true

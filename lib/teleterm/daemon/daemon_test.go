@@ -135,7 +135,7 @@ func TestGatewayCRUD(t *testing.T) {
 					gatewayURIs[gateway.URI()] = struct{}{}
 				}
 
-				require.Equal(t, 2, len(gateways))
+				require.Len(t, gateways, 2)
 				require.Contains(t, gatewayURIs, c.nameToGateway["gateway1"].URI())
 				require.Contains(t, gatewayURIs, c.nameToGateway["gateway2"].URI())
 			},

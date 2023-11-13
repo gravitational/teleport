@@ -53,7 +53,7 @@ import (
 // ID token.
 //
 // See the following for the structure:
-// https://docs.gitlab.com/ee/ci/cloud_services/#how-it-works
+// https://docs.gitlab.com/ee/ci/secrets/id_token_authentication.html#id-tokens
 type IDTokenClaims struct {
 	// Sub roughly uniquely identifies the workload. Example:
 	// `project_path:mygroup/my-project:ref_type:branch:ref:main`
@@ -64,20 +64,50 @@ type IDTokenClaims struct {
 	// Git ref type. Example:
 	// `branch` or `tag`
 	RefType string `json:"ref_type"`
+	// 	true if the Git ref is protected, false otherwise.
+	RefProtected string `json:"ref_protected"`
 	// Use this to scope to group or user level namespace by path. Example:
 	// `mygroup`
 	NamespacePath string `json:"namespace_path"`
+	// Use this to scope to group or user level namespace by ID.
+	NamespaceID string `json:"namespace_id"`
 	// Use this to scope to project by path. Example:
 	// `mygroup/myproject`
 	ProjectPath string `json:"project_path"`
+	// Use this to scope to project by ID.
+	ProjectID string `json:"project_id"`
+	// ID of the user executing the job
+	UserID string `json:"user_id"`
 	// Username of the user executing the job
 	UserLogin string `json:"user_login"`
+	// Email of the user executing the job
+	UserEmail string `json:"user_email"`
 	// Pipeline source.
 	// https://docs.gitlab.com/ee/ci/jobs/job_control.html#common-if-clauses-for-rules
 	// Example: `web`
 	PipelineSource string `json:"pipeline_source"`
+	// ID of the pipeline.
+	PipelineID string `json:"pipeline_id"`
 	// Environment this job deploys to (if one is associated)
 	Environment string `json:"environment"`
+	// 	true if deployed environment is protected, false otherwise
+	EnvironmentProtected string `json:"environment_protected"`
+	// 	Environment action (environment:action) specified in the job.
+	EnvironmentAction string `json:"environment_action"`
+	// The ref path to the top-level pipeline definition, for example, gitlab.example.com/my-group/my-project//.gitlab-ci.yml@refs/heads/main.
+	CIConfigRefURI string `json:"ci_config_ref_uri"`
+	// Git commit SHA for the ci_config_ref_uri.
+	CIConfigSHA string `json:"ci_config_sha"`
+	// 	The commit SHA for the job.
+	SHA string `json:"sha"`
+	// ID of the runner executing the job.
+	RunnerID int `json:"runner_id"`
+	// The type of runner used by the job. Can be either gitlab-hosted or self-hosted
+	RunnerEnvironment string `json:"runner_environment"`
+	// Deployment tier of the environment the job specifies
+	DeploymentTier string `json:"deployment_tier"`
+	// The visibility of the project where the pipeline is running. Can be internal, private, or public.
+	ProjectVisibility string `json:"project_visibility"`
 }
 
 // JoinAuditAttributes returns a series of attributes that can be inserted into

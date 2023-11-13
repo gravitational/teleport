@@ -59,5 +59,5 @@ func TestGetAccessRequestMonthlyUsage(t *testing.T) {
 
 	result, err := GetAccessRequestMonthlyUsage(context.Background(), al, now)
 	require.NoError(t, err)
-	require.Equal(t, len(mockEvents), result)
+	require.Len(t, mockEvents, result)
 }

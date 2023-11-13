@@ -514,7 +514,7 @@ func TestMakeDatabaseConfig(t *testing.T) {
 		t.Run("empty", func(t *testing.T) {
 			flags := DatabaseSampleFlags{}
 			databases := generateAndParseConfig(t, flags)
-			require.Len(t, databases.ResourceMatchers, 0)
+			require.Empty(t, databases.ResourceMatchers)
 		})
 
 		t.Run("multiple labels", func(t *testing.T) {

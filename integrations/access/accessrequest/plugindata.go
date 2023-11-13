@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package common
+package accessrequest
 
 import (
 	"fmt"
@@ -25,8 +25,8 @@ import (
 	"github.com/gravitational/teleport/integrations/lib/plugindata"
 )
 
-// GenericPluginData is a data associated with access request that we store in Teleport using UpdatePluginData API.
-type GenericPluginData struct {
+// PluginData is a data associated with access request that we store in Teleport using UpdatePluginData API.
+type PluginData struct {
 	plugindata.AccessRequestData
 	SentMessages
 }
@@ -42,14 +42,14 @@ type MessageData struct {
 
 type SentMessages []MessageData
 
-// DecodePluginData deserializes a string map to GenericPluginData struct.
-func DecodePluginData(dataMap map[string]string) (GenericPluginData, error) {
-	data := GenericPluginData{}
+// DecodePluginData deserializes a string map to PluginData struct.
+func DecodePluginData(dataMap map[string]string) (PluginData, error) {
+	data := PluginData{}
 
 	var err error
 	data.AccessRequestData, err = plugindata.DecodeAccessRequestData(dataMap)
 	if err != nil {
-		return GenericPluginData{}, trace.Wrap(err)
+		return PluginData{}, trace.Wrap(err)
 	}
 
 	if channelID, timestamp := dataMap["channel_id"], dataMap["timestamp"]; channelID != "" && timestamp != "" {
@@ -66,8 +66,8 @@ func DecodePluginData(dataMap map[string]string) (GenericPluginData, error) {
 	return data, nil
 }
 
-// EncodePluginData serializes a GenericPluginData struct into a string map.
-func EncodePluginData(data GenericPluginData) (map[string]string, error) {
+// EncodePluginData serializes a PluginData struct into a string map.
+func EncodePluginData(data PluginData) (map[string]string, error) {
 	result, err := plugindata.EncodeAccessRequestData(data.AccessRequestData)
 	if err != nil {
 		return nil, trace.Wrap(err)

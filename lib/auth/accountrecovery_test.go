@@ -192,9 +192,9 @@ func TestStartAccountRecovery(t *testing.T) {
 
 			// Test events emitted.
 			event := mockEmitter.LastEvent()
-			require.Equal(t, event.GetType(), events.RecoveryTokenCreateEvent)
-			require.Equal(t, event.GetCode(), events.RecoveryTokenCreateCode)
-			require.Equal(t, event.(*apievents.UserTokenCreate).Name, u.username)
+			require.Equal(t, events.RecoveryTokenCreateEvent, event.GetType())
+			require.Equal(t, events.RecoveryTokenCreateCode, event.GetCode())
+			require.Equal(t, u.username, event.(*apievents.UserTokenCreate).Name)
 		})
 	}
 }
@@ -424,9 +424,9 @@ func TestVerifyAccountRecovery_WithAuthnErrors(t *testing.T) {
 
 			// Test events emitted.
 			event := mockEmitter.LastEvent()
-			require.Equal(t, event.GetType(), events.RecoveryTokenCreateEvent)
-			require.Equal(t, event.GetCode(), events.RecoveryTokenCreateCode)
-			require.Equal(t, event.(*apievents.UserTokenCreate).Name, u.username)
+			require.Equal(t, events.RecoveryTokenCreateEvent, event.GetType())
+			require.Equal(t, events.RecoveryTokenCreateCode, event.GetCode())
+			require.Equal(t, u.username, event.(*apievents.UserTokenCreate).Name)
 
 			// Test start token got deleted.
 			_, err = srv.Auth().GetUserToken(ctx, startToken.GetName())
@@ -440,7 +440,7 @@ func TestVerifyAccountRecovery_WithAuthnErrors(t *testing.T) {
 			// Test recovery attempts are deleted.
 			attempts, err = srv.Auth().GetUserRecoveryAttempts(ctx, u.username)
 			require.NoError(t, err)
-			require.Len(t, attempts, 0)
+			require.Empty(t, attempts)
 		})
 	}
 }
@@ -511,7 +511,7 @@ func TestVerifyAccountRecovery_WithLock(t *testing.T) {
 	// Test recovery attempts got reset.
 	attempts, err := srv.Auth().GetUserRecoveryAttempts(ctx, u.username)
 	require.NoError(t, err)
-	require.Len(t, attempts, 0)
+	require.Empty(t, attempts)
 }
 
 func TestVerifyAccountRecovery_WithErrors(t *testing.T) {
@@ -651,7 +651,7 @@ func TestCompleteAccountRecovery(t *testing.T) {
 	// Test login attempts are removed.
 	attempts, err := srv.Auth().GetUserLoginAttempts(u.username)
 	require.NoError(t, err)
-	require.Len(t, attempts, 0)
+	require.Empty(t, attempts)
 
 	// Test adding MFA devices.
 	approvedToken, err = srv.Auth().createRecoveryToken(ctx, u.username, UserTokenTypeRecoveryApproved, types.UserTokenUsage_USER_TOKEN_RECOVER_MFA)
@@ -715,9 +715,9 @@ func TestCompleteAccountRecovery(t *testing.T) {
 
 			// Test events emitted.
 			event := mockEmitter.LastEvent()
-			require.Equal(t, event.GetType(), events.MFADeviceAddEvent)
-			require.Equal(t, event.GetCode(), events.MFADeviceAddEventCode)
-			require.Equal(t, event.(*apievents.MFADeviceAdd).UserMetadata.User, u.username)
+			require.Equal(t, events.MFADeviceAddEvent, event.GetType())
+			require.Equal(t, events.MFADeviceAddEventCode, event.GetCode())
+			require.Equal(t, u.username, event.(*apievents.MFADeviceAdd).UserMetadata.User)
 
 			// Test new device has been added.
 			mfas, err := srv.Auth().Services.GetMFADevices(ctx, u.username, false)
@@ -1323,9 +1323,9 @@ func triggerLoginLock(t *testing.T, srv *Server, username string) {
 
 		// Test last attempt returns locked error.
 		if i == defaults.MaxLoginAttempts {
-			require.Equal(t, err.Error(), MaxFailedAttemptsErrMsg)
+			require.Equal(t, MaxFailedAttemptsErrMsg, err.Error())
 		} else {
-			require.NotEqual(t, err.Error(), MaxFailedAttemptsErrMsg)
+			require.NotEqual(t, MaxFailedAttemptsErrMsg, err.Error())
 		}
 	}
 }

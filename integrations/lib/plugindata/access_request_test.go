@@ -33,7 +33,7 @@ var sampleAccessRequestData = AccessRequestData{
 
 func TestEncodeAccessRequestData(t *testing.T) {
 	dataMap, err := EncodeAccessRequestData(sampleAccessRequestData)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Len(t, dataMap, 8)
 	assert.Equal(t, "user-foo", dataMap["user"])
 	assert.Equal(t, "role-foo,role-bar", dataMap["roles"])
@@ -56,13 +56,13 @@ func TestDecodeAccessRequestData(t *testing.T) {
 		"resolve_reason":      "foo ok",
 		"suggested_reviewers": "[\"foouser\"]",
 	})
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, sampleAccessRequestData, pluginData)
 }
 
 func TestEncodeEmptyAccessRequestData(t *testing.T) {
 	dataMap, err := EncodeAccessRequestData(AccessRequestData{})
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Len(t, dataMap, 7)
 	for key, value := range dataMap {
 		assert.Emptyf(t, value, "value at key %q must be empty", key)
@@ -71,9 +71,9 @@ func TestEncodeEmptyAccessRequestData(t *testing.T) {
 
 func TestDecodeEmptyAccessRequestData(t *testing.T) {
 	decoded, err := DecodeAccessRequestData(nil)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Empty(t, decoded)
 	decoded, err = DecodeAccessRequestData(make(map[string]string))
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Empty(t, decoded)
 }

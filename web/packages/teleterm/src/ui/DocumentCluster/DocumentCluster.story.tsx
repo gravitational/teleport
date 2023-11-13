@@ -85,11 +85,12 @@ export const OnlineEmptyResourcesAndCanAddResourcesAndConnectComputer = () => {
     state,
     doc: rootClusterDoc,
     platform: 'darwin',
-    listUnifiedResourcesPromise: Promise.resolve({
-      resources: [],
-      totalCount: 0,
-      nextKey: '',
-    }),
+    listUnifiedResources: () =>
+      Promise.resolve({
+        resources: [],
+        totalCount: 0,
+        nextKey: '',
+      }),
   });
 };
 
@@ -120,11 +121,12 @@ export const OnlineEmptyResourcesAndCanAddResourcesButCannotConnectComputer =
       state,
       doc: rootClusterDoc,
       platform: 'win32',
-      listUnifiedResourcesPromise: Promise.resolve({
-        resources: [],
-        totalCount: 0,
-        nextKey: '',
-      }),
+      listUnifiedResources: () =>
+        Promise.resolve({
+          resources: [],
+          totalCount: 0,
+          nextKey: '',
+        }),
     });
   };
 
@@ -152,11 +154,12 @@ export const OnlineEmptyResourcesAndCannotAddResources = () => {
   return renderState({
     state,
     doc: rootClusterDoc,
-    listUnifiedResourcesPromise: Promise.resolve({
-      resources: [],
-      totalCount: 0,
-      nextKey: '',
-    }),
+    listUnifiedResources: () =>
+      Promise.resolve({
+        resources: [],
+        totalCount: 0,
+        nextKey: '',
+      }),
   });
 };
 
@@ -183,7 +186,7 @@ export const OnlineLoadingResources = () => {
   return renderState({
     state,
     doc: rootClusterDoc,
-    listUnifiedResourcesPromise: promiseRejectedOnUnmount,
+    listUnifiedResources: () => promiseRejectedOnUnmount,
   });
 };
 
@@ -199,26 +202,27 @@ export const OnlineLoadedResources = () => {
   return renderState({
     state,
     doc: rootClusterDoc,
-    listUnifiedResourcesPromise: Promise.resolve({
-      resources: [
-        {
-          kind: 'server',
-          resource: makeServer(),
-        },
-        {
-          kind: 'server',
-          resource: makeServer({
-            uri: '/clusters/foo/servers/1234',
-            hostname: 'bar',
-            tunnel: true,
-          }),
-        },
-        { kind: 'database', resource: makeDatabase() },
-        { kind: 'kube', resource: makeKube() },
-      ],
-      totalCount: 4,
-      nextKey: '',
-    }),
+    listUnifiedResources: () =>
+      Promise.resolve({
+        resources: [
+          {
+            kind: 'server',
+            resource: makeServer(),
+          },
+          {
+            kind: 'server',
+            resource: makeServer({
+              uri: '/clusters/foo/servers/1234',
+              hostname: 'bar',
+              tunnel: true,
+            }),
+          },
+          { kind: 'database', resource: makeDatabase() },
+          { kind: 'kube', resource: makeKube() },
+        ],
+        totalCount: 4,
+        nextKey: '',
+      }),
   });
 };
 
@@ -234,9 +238,8 @@ export const OnlineErrorLoadingResources = () => {
   return renderState({
     state,
     doc: rootClusterDoc,
-    listUnifiedResourcesPromise: Promise.reject(
-      new Error('Whoops, something went wrong, sorry!')
-    ),
+    listUnifiedResources: () =>
+      Promise.reject(new Error('Whoops, something went wrong, sorry!')),
   });
 };
 
@@ -267,14 +270,12 @@ export const Notfound = () => {
 function renderState({
   state,
   doc,
-  listUnifiedResourcesPromise,
+  listUnifiedResources,
   platform = 'darwin',
 }: {
   state: ClustersServiceState;
   doc: docTypes.DocumentCluster;
-  listUnifiedResourcesPromise?: ReturnType<
-    ResourcesService['listUnifiedResources']
-  >;
+  listUnifiedResources?: ResourcesService['listUnifiedResources'];
   platform?: NodeJS.Platform;
   userType?: tsh.UserType;
 }) {
@@ -292,9 +293,10 @@ function renderState({
     };
   });
 
-  appContext.resourcesService.listUnifiedResources = () =>
-    listUnifiedResourcesPromise ||
-    Promise.reject('No fetchServersPromise passed');
+  appContext.resourcesService.listUnifiedResources = (params, abortSignal) =>
+    listUnifiedResources
+      ? listUnifiedResources(params, abortSignal)
+      : Promise.reject('No fetchServersPromise passed');
 
   return (
     <AppContextProvider value={appContext}>

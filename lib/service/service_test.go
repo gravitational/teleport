@@ -1474,8 +1474,8 @@ func TestSingleProcessModeResolver(t *testing.T) {
 			}
 
 			require.NoError(t, err)
-			require.Equal(t, mode, test.mode)
-			require.Equal(t, addr.FullAddress(), test.wantAddr)
+			require.Equal(t, test.mode, mode)
+			require.Equal(t, test.wantAddr, addr.FullAddress())
 		})
 	}
 }

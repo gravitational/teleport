@@ -1029,7 +1029,7 @@ func (test *dynamicResourceTest[T]) run(t *testing.T) {
 	buf, err := runResourceCommand(t, fileConfig, []string{"get", test.kind, "--format=json"})
 	require.NoError(t, err)
 	resources := mustDecodeJSON[[]T](t, buf)
-	require.Len(t, resources, 0)
+	require.Empty(t, resources)
 
 	// Create the resources.
 	yamlPath := filepath.Join(t.TempDir(), "resources.yaml")

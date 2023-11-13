@@ -54,7 +54,7 @@ func TestTeleportOIDCConnectorSpec_MarshalJSON(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			result, err := json.Marshal(tc.spec)
 			require.NoError(t, err)
-			require.Equal(t, string(result), tc.expectedJSON)
+			require.Equal(t, tc.expectedJSON, string(result))
 		})
 	}
 }

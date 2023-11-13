@@ -19,10 +19,14 @@ package common
 import (
 	"context"
 
+	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integrations/access/common/teleport"
 	"github.com/gravitational/teleport/integrations/lib"
 	"github.com/gravitational/teleport/integrations/lib/logger"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 type PluginConfiguration interface {
@@ -43,8 +47,34 @@ func (c BaseConfig) GetRecipients() RawRecipientsMap {
 	return c.Recipients
 }
 
+type wrappedClient struct {
+	*client.Client
+}
+
+func (w *wrappedClient) AccessListClient() services.AccessLists {
+	return w.Client.AccessListClient()
+}
+
+// wrapAPIClient will wrap the API client such that it conforms to the Teleport plugin client interface.
+func wrapAPIClient(clt *client.Client) teleport.Client {
+	return &wrappedClient{
+		Client: clt,
+	}
+}
+
+// GetTeleportClient will return a Teleport plugin client given a config.
+func GetTeleportClient(ctx context.Context, conf lib.TeleportConfig) (teleport.Client, error) {
+	clt, err := conf.NewClient(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return wrapAPIClient(clt), nil
+}
+
+// GetTeleportClient returns a Teleport plugin client for the given config.
 func (c BaseConfig) GetTeleportClient(ctx context.Context) (teleport.Client, error) {
-	return c.Teleport.NewClient(ctx)
+	return GetTeleportClient(ctx, c.Teleport)
 }
 
 // GetPluginType returns the type of plugin this config is for.

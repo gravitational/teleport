@@ -65,7 +65,7 @@ func TestHistoryKept(t *testing.T) {
 	data := make([]byte, 10000)
 	n, err := rand.Read(data)
 	require.NoError(t, err)
-	require.Equal(t, len(data), n)
+	require.Len(t, data, n)
 
 	n, err = m.Write(data[:len(data)/2])
 	require.NoError(t, err)
@@ -87,11 +87,11 @@ func TestBufferedKept(t *testing.T) {
 	data := make([]byte, 20000)
 	n, err := rand.Read(data)
 	require.NoError(t, err)
-	require.Equal(t, len(data), n)
+	require.Len(t, data, n)
 
 	n, err = m.Write(data)
 	require.NoError(t, err)
-	require.Equal(t, len(data), n)
+	require.Len(t, data, n)
 
 	kept := data[len(data)-maxPausedHistoryBytes:]
 	require.Equal(t, m.buffer, kept)
@@ -174,7 +174,7 @@ func TestTermManagerRead(t *testing.T) {
 			},
 			readAssertion: func(n int, err error, d []byte) {
 				assert.NoError(t, err)
-				assert.Equal(t, n, len(data))
+				assert.Len(t, data, n)
 				assert.Equal(t, data, d)
 			},
 		},
@@ -270,7 +270,7 @@ func TestTermManagerRead(t *testing.T) {
 			},
 			readAssertion: func(n int, err error, d []byte) {
 				assert.NoError(t, err)
-				assert.Equal(t, n, len(data))
+				assert.Len(t, data, n)
 				assert.Equal(t, data, d)
 			},
 		},
@@ -317,7 +317,7 @@ func TestTermManagerRead(t *testing.T) {
 			},
 			readAssertion: func(n int, err error, d []byte) {
 				assert.NoError(t, err)
-				assert.Equal(t, n, len(data))
+				assert.Len(t, data, n)
 				assert.Equal(t, data, d)
 			},
 		},
