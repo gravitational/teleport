@@ -41,6 +41,12 @@ export type CrossClusterResourceSearchResult = {
   search: string;
 };
 
+const SUPPORTED_RESOURCE_TYPES: SupportedResourceType[] = [
+  'node',
+  'db',
+  'kube_cluster',
+];
+
 /**
  * useResourceSearch returns a function which searches for the given list of space-separated keywords across
  * all root and leaf clusters that the user is currently logged in to.
@@ -179,11 +185,7 @@ export function useFilterSearch() {
         });
       };
       const getResourceType = () => {
-        let resourceTypes: SupportedResourceType[] = [
-          'node' as const,
-          'db' as const,
-          'kube_cluster' as const,
-        ].filter(resourceType => {
+        let resourceTypes = SUPPORTED_RESOURCE_TYPES.filter(resourceType => {
           const isFilterForResourceTypeAdded = filters.some(searchFilter => {
             return (
               searchFilter.filter === 'resource-type' &&
