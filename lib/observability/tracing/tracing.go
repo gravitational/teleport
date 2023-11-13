@@ -31,6 +31,7 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.21.0"
 	oteltrace "go.opentelemetry.io/otel/trace"
+	"go.opentelemetry.io/otel/trace/embedded"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/observability/tracing"
@@ -140,6 +141,8 @@ func (c *Config) Endpoint() string {
 // Provider wraps the OpenTelemetry tracing provider to provide common tags for all tracers.
 type Provider struct {
 	provider *sdktrace.TracerProvider
+
+	embedded.TracerProvider
 }
 
 // Tracer returns a Tracer with the given name and options. If a Tracer for
