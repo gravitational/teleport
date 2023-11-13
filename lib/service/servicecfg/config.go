@@ -316,9 +316,6 @@ type AccessGraphConfig struct {
 	// Enabled Access Graph reporting enabled
 	Enabled bool
 
-	// When enabled, the TAG server will be used to evaluate access requests
-	UseAuth bool
-
 	// Addr of the Access Graph service addr
 	Addr string
 

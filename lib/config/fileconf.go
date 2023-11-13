@@ -820,11 +820,14 @@ type PluginService struct {
 
 // AccessGraph represents the configuration for the AccessGraph service.
 type AccessGraph struct {
-	Enabled  bool   `yaml:"enabled"`
-	UseAuth  bool   `yaml:"use_auth"`
+	// Enabled enables the AccessGraph service.
+	Enabled bool `yaml:"enabled"`
+	// Endpoint is the endpoint of the AccessGraph service.
 	Endpoint string `yaml:"endpoint"`
-	CA       string `yaml:"ca"`
-	Insecure bool   `yaml:"insecure"`
+	// CA is the path to the CA certificate for the AccessGraph service.
+	CA string `yaml:"ca"`
+	// Insecure is true if the AccessGraph service should not verify the CA.
+	Insecure bool `yaml:"insecure"`
 }
 
 // Opsgenie represents the configuration for the Opsgenie plugin.
