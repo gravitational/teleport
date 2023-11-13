@@ -47,7 +47,9 @@ func (f *elastiCachePlugin) ComponentShortName() string {
 // TODO(greedy52) support ElastiCache global datastore.
 func (f *elastiCachePlugin) GetDatabases(ctx context.Context, cfg *awsFetcherConfig) (types.Databases, error) {
 	ecClient, err := cfg.AWSClients.GetAWSElastiCacheClient(ctx, cfg.Region,
-		cloud.WithAssumeRole(cfg.AssumeRole.RoleARN, cfg.AssumeRole.ExternalID))
+		cloud.WithAssumeRole(cfg.AssumeRole.RoleARN, cfg.AssumeRole.ExternalID),
+		cloud.WithIntergration(cfg.Integration),
+	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

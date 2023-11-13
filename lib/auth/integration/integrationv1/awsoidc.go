@@ -70,7 +70,9 @@ func (s *Service) GenerateAWSOIDCToken(ctx context.Context, req *integrationpb.G
 		Audience: types.IntegrationAWSOIDCAudience,
 		Subject:  types.IntegrationAWSOIDCSubject,
 		Issuer:   req.Issuer,
-		Expires:  s.clock.Now().Add(time.Minute),
+		// Token expiration is not controlled by the Expires property.
+		// It is defined by assumed IAM Role's "Maximum session duration" (usually 1h).
+		Expires: s.clock.Now().Add(time.Minute),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
