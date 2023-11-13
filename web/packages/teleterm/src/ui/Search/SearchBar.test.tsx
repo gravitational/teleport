@@ -373,4 +373,6 @@ const getMockedSearchContext = (): SearchContext.SearchContext => ({
     cleanup: () => {},
   }),
   makeEventListener: cb => cb,
+  advancedSearchEnabled: false,
+  toggleAdvancedSearch: () => {},
 });

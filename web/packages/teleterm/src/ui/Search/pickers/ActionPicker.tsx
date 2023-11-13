@@ -21,6 +21,7 @@ import * as icons from 'design/Icon';
 import { Cross as CloseIcon } from 'design/Icon';
 import { Highlight } from 'shared/components/Highlight';
 import { Attempt, hasFinished } from 'shared/hooks/useAsync';
+import { AdvancedSearchToggle } from 'shared/components/AdvancedSearchToggle';
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import {
@@ -65,6 +66,8 @@ export function ActionPicker(props: { input: ReactElement }) {
     filters,
     removeFilter,
     addWindowEventListener,
+    advancedSearchEnabled,
+    toggleAdvancedSearch,
   } = useSearchContext();
   const {
     filterActionsAttempt,
@@ -211,6 +214,10 @@ export function ActionPicker(props: { input: ReactElement }) {
             status={actionPickerStatus}
             getClusterName={getClusterName}
             showErrorsInModal={showErrorsInModal}
+            advancedSearch={{
+              isToggled: advancedSearchEnabled,
+              onToggle: toggleAdvancedSearch,
+            }}
           />
         }
       />
@@ -239,6 +246,7 @@ const ExtraTopComponents = (props: {
   status: ActionPickerStatus;
   getClusterName: (resourceUri: uri.ClusterOrResourceUri) => string;
   showErrorsInModal: (errors: ResourceSearchError[]) => void;
+  advancedSearch: AdvancedSearch;
 }) => {
   const { status, getClusterName, showErrorsInModal } = props;
 
@@ -246,7 +254,12 @@ const ExtraTopComponents = (props: {
     case 'no-input': {
       switch (status.searchMode.kind) {
         case 'no-search': {
-          return <TypeToSearchItem hasNoRemainingFilterActions={false} />;
+          return (
+            <TypeToSearchItem
+              hasNoRemainingFilterActions={false}
+              advancedSearch={props.advancedSearch}
+            />
+          );
         }
         case 'preview': {
           const {
@@ -258,6 +271,7 @@ const ExtraTopComponents = (props: {
             <>
               <TypeToSearchItem
                 hasNoRemainingFilterActions={hasNoRemainingFilterActions}
+                advancedSearch={props.advancedSearch}
               />
               {nonRetryableResourceSearchErrors.length > 0 && (
                 <ResourceSearchErrorsItem
@@ -266,6 +280,7 @@ const ExtraTopComponents = (props: {
                   showErrorsInModal={() => {
                     showErrorsInModal(nonRetryableResourceSearchErrors);
                   }}
+                  advancedSearch={props.advancedSearch}
                 />
               )}
             </>
@@ -292,16 +307,21 @@ const ExtraTopComponents = (props: {
               showErrorsInModal={() => {
                 showErrorsInModal(status.nonRetryableResourceSearchErrors);
               }}
+              advancedSearch={props.advancedSearch}
             />
           )}
           {shouldShowNoResultsItem && (
             <NoResultsItem
               clustersWithExpiredCerts={status.clustersWithExpiredCerts}
               getClusterName={getClusterName}
+              advancedSearch={props.advancedSearch}
             />
           )}
           {shouldShowTypeToSearchItem && (
-            <TypeToSearchItem hasNoRemainingFilterActions={false} />
+            <TypeToSearchItem
+              hasNoRemainingFilterActions={false}
+              advancedSearch={props.advancedSearch}
+            />
           )}
         </>
       );
@@ -676,6 +696,7 @@ export function KubeItem(props: SearchResultItem<SearchResultKube>) {
 export function NoResultsItem(props: {
   clustersWithExpiredCerts: Set<uri.ClusterUri>;
   getClusterName: (resourceUri: uri.ClusterOrResourceUri) => string;
+  advancedSearch: AdvancedSearch;
 }) {
   const clustersWithExpiredCerts = Array.from(
     props.clustersWithExpiredCerts,
@@ -696,7 +717,10 @@ export function NoResultsItem(props: {
   return (
     <NonInteractiveItem>
       <IconAndContent Icon={icons.Info} iconColor="text.slightlyMuted">
-        <Text typography="body1">No matching results found.</Text>
+        <Flex gap={2} justifyContent="space-between">
+          <Text typography="body1">No matching results found.</Text>
+          <StyledAdvancedSearchToggle {...props.advancedSearch} />
+        </Flex>
         {expiredCertsCopy && <Text typography="body2">{expiredCertsCopy}</Text>}
       </IconAndContent>
     </NonInteractiveItem>
@@ -705,16 +729,21 @@ export function NoResultsItem(props: {
 
 export function TypeToSearchItem({
   hasNoRemainingFilterActions,
+  advancedSearch,
 }: {
   hasNoRemainingFilterActions: boolean;
+  advancedSearch: AdvancedSearch;
 }) {
   return (
     <NonInteractiveItem>
-      <Text typography="body2">
-        Enter space-separated search terms.
-        {hasNoRemainingFilterActions ||
-          ' Select a filter to narrow down the search.'}
-      </Text>
+      <Flex gap={2} justifyContent="space-between" alignItems="center">
+        <Text typography="body2">
+          Enter space-separated search terms.
+          {hasNoRemainingFilterActions ||
+            ' Select a filter to narrow down the search.'}
+        </Text>
+        <StyledAdvancedSearchToggle {...advancedSearch} />
+      </Flex>
     </NonInteractiveItem>
   );
 }
@@ -723,6 +752,7 @@ export function ResourceSearchErrorsItem(props: {
   errors: ResourceSearchError[];
   getClusterName: (resourceUri: uri.ClusterOrResourceUri) => string;
   showErrorsInModal: () => void;
+  advancedSearch: AdvancedSearch;
 }) {
   const { errors, getClusterName } = props;
 
@@ -743,9 +773,12 @@ export function ResourceSearchErrorsItem(props: {
   return (
     <NonInteractiveItem>
       <IconAndContent Icon={icons.Warning} iconColor="warning.main">
-        <Text typography="body1">
-          Some of the search results are incomplete.
-        </Text>
+        <Flex gap={2} justifyContent="space-between">
+          <Text typography="body1">
+            Some of the search results are incomplete.
+          </Text>
+          <StyledAdvancedSearchToggle {...props.advancedSearch} />
+        </Flex>
 
         <Flex gap={2} justifyContent="space-between" alignItems="baseline">
           <span
@@ -926,3 +959,16 @@ const resourceTypeToPrettyName: Record<ResourceTypeFilter, string> = {
   node: 'servers',
   kube_cluster: 'kubes',
 };
+
+interface AdvancedSearch {
+  isToggled: boolean;
+  onToggle(): void;
+}
+
+//TODO(gzdunek): Remove when we get a toggle that can be displayed
+// on a white background
+const StyledAdvancedSearchToggle = styled(AdvancedSearchToggle)`
+  label > div {
+    border: 1px solid ${props => props.theme.colors.spotBackground[1]};
+  }
+`;
