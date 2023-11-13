@@ -83,7 +83,7 @@ function SelectDark({ value, onChange, options }) {
   const [selected, setSelected] = React.useState([]);
 
   return (
-    <Flex flexDirection="column" width="330px">
+    <Flex flexDirection="column" width="330px" mr={5}>
       <DarkStyledSelect mb="206px">
         <Select
           value={value}

@@ -34,8 +34,8 @@ export type Rule<T = string, R = ValidationResult> = (value: T) => () => R;
  * @param value The value user entered.
  */
 const requiredField =
-  (message: string) =>
-  <T = string>(value: string | T[]) =>
+  <T = string>(message: string): Rule<string | T[]> =>
+  value =>
   () => {
     const valid = !(!value || value.length === 0);
     return {

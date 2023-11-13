@@ -25,7 +25,7 @@ import {
   UserPreferences,
 } from 'teleport/services/userPreferences/types';
 
-import { KeysEnum, LocalStorageSurvey } from './types';
+import { CloudUserInvites, KeysEnum, LocalStorageSurvey } from './types';
 
 import type { RecommendFeature } from 'teleport/types';
 
@@ -140,6 +140,24 @@ const storage = {
 
   clearOnboardSurvey() {
     window.localStorage.removeItem(KeysEnum.ONBOARD_SURVEY);
+  },
+
+  getCloudUserInvites(): CloudUserInvites {
+    const invites = window.localStorage.getItem(KeysEnum.CLOUD_USER_INVITES);
+    if (invites) {
+      return JSON.parse(invites);
+    }
+    return null;
+  },
+
+  setCloudUserInvites(invites: CloudUserInvites) {
+    const json = JSON.stringify(invites);
+
+    window.localStorage.setItem(KeysEnum.CLOUD_USER_INVITES, json);
+  },
+
+  clearCloudUserInvites() {
+    window.localStorage.removeItem(KeysEnum.CLOUD_USER_INVITES);
   },
 
   getThemePreference(): ThemePreference {

@@ -189,6 +189,7 @@ const cfg = {
     createPrivilegeTokenPath: '/v1/webapi/users/privilege/token',
 
     rolesPath: '/v1/webapi/roles/:name?',
+    presetRolesPath: '/v1/webapi/presetroles',
     githubConnectorsPath: '/v1/webapi/github/:name?',
     trustedClustersPath: '/v1/webapi/trustedcluster/:name?',
 
@@ -694,6 +695,10 @@ const cfg = {
 
   getRolesUrl(name?: string) {
     return generatePath(cfg.api.rolesPath, { name });
+  },
+
+  getPresetRolesUrl() {
+    return cfg.api.presetRolesPath;
   },
 
   getKubernetesUrl(clusterId: string, params: UrlResourcesParams) {
