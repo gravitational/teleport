@@ -324,7 +324,7 @@ func registerAndSetupMockSSHNode(t *testing.T, ctx context.Context, testDir stri
 	// right now because we need to get a valid certificate. The certificate
 	// needs proper principals, which implies knowing the node ID. This only
 	// happens after the node has joined.
-	var sshListenerFds []servicecfg.FileDescriptor
+	var sshListenerFds []*servicecfg.FileDescriptor
 	sshAddr := helpers.NewListenerOn(t, "localhost", service.ListenerNodeSSH, &sshListenerFds)
 
 	node := registerMockSSHNode(t, ctx, sshAddr, testDir, rc)

@@ -276,7 +276,7 @@ type TeleInstance struct {
 	// Log specifies the instance logger
 	Log utils.Logger
 	InstanceListeners
-	Fds []servicecfg.FileDescriptor
+	Fds []*servicecfg.FileDescriptor
 }
 
 // InstanceConfig is an instance configuration
@@ -298,7 +298,7 @@ type InstanceConfig struct {
 	// Ports is a collection of instance ports.
 	Listeners *InstanceListeners
 
-	Fds []servicecfg.FileDescriptor
+	Fds []*servicecfg.FileDescriptor
 }
 
 // NewInstance creates a new Teleport process instance.
@@ -1031,7 +1031,7 @@ type ProxyConfig struct {
 	// Disable ALPN routing
 	DisableALPNSNIListener bool
 	// FileDescriptors holds FDs to be injected into the Teleport process
-	FileDescriptors []servicecfg.FileDescriptor
+	FileDescriptors []*servicecfg.FileDescriptor
 }
 
 // StartProxy starts another Proxy Server and connects it to the cluster.

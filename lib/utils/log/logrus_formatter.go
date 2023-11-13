@@ -53,11 +53,7 @@ type writer struct {
 }
 
 func newWriter() *writer {
-	return &writer{b: newBuffer()}
-}
-
-func (w *writer) Free() {
-	w.b.Free()
+	return &writer{b: &buffer{}}
 }
 
 func (w *writer) Len() int {
@@ -140,7 +136,6 @@ func (tf *TextFormatter) CheckAndSetDefaults() error {
 func (tf *TextFormatter) Format(e *logrus.Entry) ([]byte, error) {
 	caller := tf.FormatCaller()
 	w := newWriter()
-	defer w.Free()
 
 	// write timestamp first if enabled
 	if tf.timestampEnabled {

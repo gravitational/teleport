@@ -17,10 +17,7 @@
 import React from 'react';
 import { Meta, StoryObj } from '@storybook/react';
 
-import styled from 'styled-components';
-
-import { ButtonBorder } from 'design';
-import { gap } from 'design/system';
+import { ButtonBorder, Flex } from 'design';
 
 import { apps } from 'teleport/Apps/fixtures';
 import { databases } from 'teleport/Databases/fixtures';
@@ -31,15 +28,17 @@ import { nodes } from 'teleport/Nodes/fixtures';
 
 import makeApp from 'teleport/services/apps/makeApps';
 
-import { ResourceCard, PinningSupport } from './ResourceCard';
-
 import {
-  makeUnifiedResourceCardApp,
-  makeUnifiedResourceCardDatabase,
-  makeUnifiedResourceCardKube,
-  makeUnifiedResourceCardNode,
-  makeUnifiedResourceCardDesktop,
-} from './cards';
+  makeUnifiedResourceViewItemApp,
+  makeUnifiedResourceViewItemDatabase,
+  makeUnifiedResourceViewItemKube,
+  makeUnifiedResourceViewItemNode,
+  makeUnifiedResourceViewItemDesktop,
+} from '../shared/viewItemsFactory';
+
+import { PinningSupport } from '../types';
+
+import { ResourceListItem } from './ResourceListItem';
 
 const additionalResources = [
   makeApp({
@@ -78,49 +77,43 @@ const additionalResources = [
   }),
 ];
 
-const meta: Meta<typeof ResourceCard> = {
-  component: ResourceCard,
-  title: 'Shared/UnifiedResources/ResourceCard',
+const meta: Meta<typeof ResourceListItem> = {
+  component: ResourceListItem,
+  title: 'Shared/UnifiedResources/Items',
 };
 
-const Grid = styled.div`
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
-  ${gap}
-`;
-
 export default meta;
-type Story = StoryObj<typeof ResourceCard>;
+type Story = StoryObj<typeof ResourceListItem>;
 
 const ActionButton = <ButtonBorder size="small">Action</ButtonBorder>;
 
-export const Cards: Story = {
+export const ListItems: Story = {
   render() {
     return (
-      <Grid gap={2}>
+      <Flex flexDirection="column">
         {[
           ...apps.map(resource =>
-            makeUnifiedResourceCardApp(resource, { ActionButton })
+            makeUnifiedResourceViewItemApp(resource, { ActionButton })
           ),
           ...databases.map(resource =>
-            makeUnifiedResourceCardDatabase(resource, {
+            makeUnifiedResourceViewItemDatabase(resource, {
               ActionButton,
             })
           ),
           ...kubes.map(resource =>
-            makeUnifiedResourceCardKube(resource, { ActionButton })
+            makeUnifiedResourceViewItemKube(resource, { ActionButton })
           ),
           ...nodes.map(resource =>
-            makeUnifiedResourceCardNode(resource, { ActionButton })
+            makeUnifiedResourceViewItemNode(resource, { ActionButton })
           ),
           ...additionalResources.map(resource =>
-            makeUnifiedResourceCardApp(resource, { ActionButton })
+            makeUnifiedResourceViewItemApp(resource, { ActionButton })
           ),
           ...desktops.map(resource =>
-            makeUnifiedResourceCardDesktop(resource, { ActionButton })
+            makeUnifiedResourceViewItemDesktop(resource, { ActionButton })
           ),
         ].map((res, i) => (
-          <ResourceCard
+          <ResourceListItem
             key={i}
             pinned={false}
             pinResource={() => {}}
@@ -130,12 +123,12 @@ export const Cards: Story = {
             name={res.name}
             primaryIconName={res.primaryIconName}
             SecondaryIcon={res.SecondaryIcon}
-            description={res.description}
+            listViewProps={res.listViewProps}
             labels={res.labels}
             ActionButton={res.ActionButton}
           />
         ))}
-      </Grid>
+      </Flex>
     );
   },
 };
