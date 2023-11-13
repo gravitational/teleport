@@ -267,6 +267,9 @@ type Config struct {
 	// Options provide a way to customize behavior of service initialization.
 	Options []Option
 
+	// AccessGraph represents AccessGraph server config
+	AccessGraph AccessGraphConfig
+
 	// token is either the token needed to join the auth server, or a path pointing to a file
 	// that contains the token
 	//
@@ -305,6 +308,24 @@ func (k KubeMultiplexerIgnoreSelfConnectionsOption) Apply(input any) error {
 
 func WithKubeMultiplexerIgnoreSelfConnectionsOption() KubeMultiplexerIgnoreSelfConnectionsOption {
 	return KubeMultiplexerIgnoreSelfConnectionsOption{}
+}
+
+// AccessGraphConfig represents TAG server config
+type AccessGraphConfig struct {
+	// Enabled Access Graph reporting enabled
+	Enabled bool
+
+	// When enabled, the TAG server will be used to evaluate access requests
+	UseAuth bool
+
+	// Addr of the Access Graph service addr
+	Addr string
+
+	// CA is the path to the CA certificate file
+	CA string
+
+	// Insecure is true if the connection to the Access Graph service should be insecure
+	Insecure bool
 }
 
 // RoleAndIdentityEvent is a role and its corresponding identity event.
