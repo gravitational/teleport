@@ -76,7 +76,7 @@ export const InvoiceList = ({ invoices, productName }: InvoiceListProps) => {
             {
               key: 'amountDue',
               headerText: 'Invoice Total',
-              render: ({ amountDue }) => <Cell>${amountDue}</Cell>,
+              render: ({ amountDue }) => <Cell>{getAmountDue(amountDue)}</Cell>,
             },
             {
               key: 'status',
@@ -94,4 +94,11 @@ export const InvoiceList = ({ invoices, productName }: InvoiceListProps) => {
       </Box>
     </>
   );
+};
+
+export const getAmountDue = (amountDue: number): string => {
+  return (amountDue / 100).toLocaleString('en-US', {
+    style: 'currency',
+    currency: 'USD',
+  });
 };
