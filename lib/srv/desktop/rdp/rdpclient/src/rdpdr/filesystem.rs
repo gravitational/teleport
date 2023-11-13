@@ -368,18 +368,18 @@ impl FileCache {
         }
     }
 
-    /// Retrieves a FileCacheObject from the file cache,
+    /// Retrieves a [`FileCacheObject`] from the file cache,
     /// without removing it from the cache.
     fn get(&self, file_id: u32) -> Option<&FileCacheObject> {
         self.cache.get(&file_id)
     }
-    /// Retrieves a mutable FileCacheObject from the file cache,
+    /// Retrieves a mutable [`FileCacheObject`] from the file cache,
     /// without removing it from the cache.
     fn get_mut(&mut self, file_id: u32) -> Option<&mut FileCacheObject> {
         self.cache.get_mut(&file_id)
     }
 
-    /// Retrieves a FileCacheObject from the file cache,
+    /// Retrieves a [`FileCacheObject`] from the file cache,
     /// removing it from the cache.
     fn remove(&mut self, file_id: u32) -> Option<FileCacheObject> {
         self.cache.remove(&file_id)
