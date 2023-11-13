@@ -1,4 +1,4 @@
-//go:build windows
+//go:build linux || windows
 
 // Copyright 2023 Gravitational, Inc
 //
@@ -311,6 +311,7 @@ func (d *tpmDevice) solveTPMEnrollChallenge(
 		return nil, trace.BadParameter("missing encrypted credential in challenge from server")
 	}
 
+	// Note: elevated flow only happens on Windows.
 	elevated, err := d.isElevatedProcess()
 	if err != nil {
 		return nil, trace.Wrap(err, "checking if process is elevated")
@@ -350,6 +351,7 @@ func (d *tpmDevice) solveTPMEnrollChallenge(
 	}, nil
 }
 
+//nolint:unused // Used by Windows builds.
 func (d *tpmDevice) handleTPMActivateCredential(encryptedCredential, encryptedCredentialSecret string) error {
 	log.Debug("Performing credential activation.")
 	// The two input parameters are base64 encoded, so decode them.
