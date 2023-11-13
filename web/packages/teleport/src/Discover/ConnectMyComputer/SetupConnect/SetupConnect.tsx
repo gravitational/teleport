@@ -86,8 +86,9 @@ export function SetupConnect(
     reloadUser: showHint,
   });
 
+  // TODO(ravicious): Take these from the context rather than from props.
   const { agentMeta, updateAgentMeta, nextStep } = props;
-  const handleNextStep = useCallback(() => {
+  const handleNextStep = () => {
     if (!node) {
       return;
     }
@@ -101,7 +102,7 @@ export function SetupConnect(
       node,
     });
     nextStep();
-  }, [node, updateAgentMeta, agentMeta, nextStep]);
+  };
 
   useEffect(() => {
     if (isPolling) {
