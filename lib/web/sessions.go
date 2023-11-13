@@ -329,14 +329,9 @@ func (c *SessionContext) NewKubernetesServiceClient(ctx context.Context, addr st
 		ctx,
 		addr,
 		grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)),
-		grpc.WithChainUnaryInterceptor(
-			otelgrpc.UnaryClientInterceptor(),
-			metadata.UnaryClientInterceptor,
-		),
-		grpc.WithChainStreamInterceptor(
-			otelgrpc.StreamClientInterceptor(),
-			metadata.StreamClientInterceptor,
-		),
+		grpc.WithChainUnaryInterceptor(metadata.UnaryClientInterceptor),
+		grpc.WithChainStreamInterceptor(metadata.StreamClientInterceptor),
+		grpc.WithStatsHandler(otelgrpc.NewClientHandler()),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)

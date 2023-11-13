@@ -4275,14 +4275,9 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	}
 
 	sshGRPCServer := grpc.NewServer(
-		grpc.ChainUnaryInterceptor(
-			interceptors.GRPCServerUnaryErrorInterceptor,
-			otelgrpc.UnaryServerInterceptor(),
-		),
-		grpc.ChainStreamInterceptor(
-			interceptors.GRPCServerStreamErrorInterceptor,
-			otelgrpc.StreamServerInterceptor(),
-		),
+		grpc.ChainUnaryInterceptor(interceptors.GRPCServerUnaryErrorInterceptor),
+		grpc.ChainStreamInterceptor(interceptors.GRPCServerStreamErrorInterceptor),
+		grpc.StatsHandler(otelgrpc.NewServerHandler()),
 		grpc.Creds(creds),
 		grpc.MaxConcurrentStreams(defaults.GRPCMaxConcurrentStreams),
 	)
@@ -6006,6 +6001,7 @@ func (process *TeleportProcess) initSecureGRPCServer(cfg initSecureGRPCServerCfg
 	server := grpc.NewServer(
 		grpc.ChainUnaryInterceptor(authMiddleware.UnaryInterceptors()...),
 		grpc.ChainStreamInterceptor(authMiddleware.StreamInterceptors()...),
+		grpc.StatsHandler(otelgrpc.NewServerHandler()),
 		grpc.Creds(creds),
 		grpc.MaxConcurrentStreams(defaults.GRPCMaxConcurrentStreams),
 	)

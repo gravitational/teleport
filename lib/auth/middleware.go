@@ -31,7 +31,6 @@ import (
 	om "github.com/grpc-ecosystem/go-grpc-middleware/providers/openmetrics/v2"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
-	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"golang.org/x/exp/slices"
 	"golang.org/x/net/http2"
 	"google.golang.org/grpc"
@@ -473,9 +472,7 @@ func (a *Middleware) withAuthenticatedUserStreamInterceptor(srv interface{}, ser
 
 // UnaryInterceptors returns the gRPC unary interceptor chain.
 func (a *Middleware) UnaryInterceptors() []grpc.UnaryServerInterceptor {
-	is := []grpc.UnaryServerInterceptor{
-		otelgrpc.UnaryServerInterceptor(),
-	}
+	var is []grpc.UnaryServerInterceptor
 
 	if a.GRPCMetrics != nil {
 		is = append(is, om.UnaryServerInterceptor(a.GRPCMetrics))
@@ -490,9 +487,7 @@ func (a *Middleware) UnaryInterceptors() []grpc.UnaryServerInterceptor {
 
 // StreamInterceptors returns the gRPC stream interceptor chain.
 func (a *Middleware) StreamInterceptors() []grpc.StreamServerInterceptor {
-	is := []grpc.StreamServerInterceptor{
-		otelgrpc.StreamServerInterceptor(),
-	}
+	var is []grpc.StreamServerInterceptor
 
 	if a.GRPCMetrics != nil {
 		is = append(is, om.StreamServerInterceptor(a.GRPCMetrics))
