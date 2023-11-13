@@ -18,6 +18,8 @@ package auth
 
 import (
 	"context"
+	"regexp"
+	"strings"
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
@@ -61,30 +63,108 @@ func (a *Server) checkGitLabJoinRequest(ctx context.Context, req *types.Register
 	return claims, trace.Wrap(checkGitLabAllowRules(token, claims))
 }
 
+// joinRuleGlobMatch is used when comparing some rule fields from a
+// ProvisionToken  against a claim from a token. It allows simple pattern
+// matching:
+// - '*' matches zero or more characters.
+// - '?' matches any single character.
+// It returns true if a match is detected.
+func joinRuleGlobMatch(want string, got string) (bool, error) {
+	if want == "" {
+		return true, nil
+	}
+	return globMatch(want, got)
+}
+
+// globMatch performs simple a simple glob-style match test on a string.
+// - '*' matches zero or more characters.
+// - '?' matches any single character.
+// It returns true if a match is detected.
+func globMatch(pattern, str string) (bool, error) {
+	pattern = regexp.QuoteMeta(pattern)
+	pattern = strings.ReplaceAll(pattern, `\*`, ".*")
+	pattern = strings.ReplaceAll(pattern, `\?`, ".")
+	pattern = "^" + pattern + "$"
+	matched, err := regexp.MatchString(pattern, str)
+	return matched, trace.Wrap(err)
+}
+
 func checkGitLabAllowRules(token *types.ProvisionTokenV2, claims *gitlab.IDTokenClaims) error {
+	// Helper for comparing a BoolOption with GitLabs string bool.
+	// Returns true if OK - returns false if not OK
+	boolEqual := func(want *types.BoolOption, got string) bool {
+		if want == nil {
+			return true
+		}
+		return (want.Value && got == "true") || (!want.Value && got == "false")
+	}
+
 	// If a single rule passes, accept the IDToken
-	for _, rule := range token.Spec.GitLab.Allow {
+	for i, rule := range token.Spec.GitLab.Allow {
 		// Please consider keeping these field validators in the same order they
 		// are defined within the ProvisionTokenSpecV2GitLab proto spec.
-		if rule.Sub != "" && claims.Sub != rule.Sub {
+		subMatches, err := joinRuleGlobMatch(rule.Sub, claims.Sub)
+		if err != nil {
+			return trace.Wrap(err, "evaluating rule (%d) sub match", i)
+		}
+		if !subMatches {
 			continue
 		}
-		if rule.Ref != "" && claims.Ref != rule.Ref {
+		refMatches, err := joinRuleGlobMatch(rule.Ref, claims.Ref)
+		if err != nil {
+			return trace.Wrap(err, "evaluating rule (%d) ref match", i)
+		}
+		if !refMatches {
 			continue
 		}
 		if rule.RefType != "" && claims.RefType != rule.RefType {
 			continue
 		}
-		if rule.NamespacePath != "" && claims.NamespacePath != rule.NamespacePath {
+		namespacePathMatches, err := joinRuleGlobMatch(rule.NamespacePath, claims.NamespacePath)
+		if err != nil {
+			return trace.Wrap(err, "evaluating rule (%d) namespace_path match", i)
+		}
+		if !namespacePathMatches {
 			continue
 		}
-		if rule.ProjectPath != "" && claims.ProjectPath != rule.ProjectPath {
+		projectPathMatches, err := joinRuleGlobMatch(rule.ProjectPath, claims.ProjectPath)
+		if err != nil {
+			return trace.Wrap(err, "evaluating rule (%d) project_path match", i)
+		}
+		if !projectPathMatches {
 			continue
 		}
 		if rule.PipelineSource != "" && claims.PipelineSource != rule.PipelineSource {
 			continue
 		}
 		if rule.Environment != "" && claims.Environment != rule.Environment {
+			continue
+		}
+		if rule.UserLogin != "" && claims.UserLogin != rule.UserLogin {
+			continue
+		}
+		if rule.UserID != "" && claims.UserID != rule.UserID {
+			continue
+		}
+		if rule.UserEmail != "" && claims.UserEmail != rule.UserEmail {
+			continue
+		}
+		if !boolEqual(rule.RefProtected, claims.RefProtected) {
+			continue
+		}
+		if !boolEqual(rule.EnvironmentProtected, claims.EnvironmentProtected) {
+			continue
+		}
+		if rule.CIConfigSHA != "" && claims.CIConfigSHA != rule.CIConfigSHA {
+			continue
+		}
+		if rule.CIConfigRefURI != "" && claims.CIConfigRefURI != rule.CIConfigRefURI {
+			continue
+		}
+		if rule.DeploymentTier != "" && claims.DeploymentTier != rule.DeploymentTier {
+			continue
+		}
+		if rule.ProjectVisibility != "" && claims.ProjectVisibility != rule.ProjectVisibility {
 			continue
 		}
 		// All provided rules met.
