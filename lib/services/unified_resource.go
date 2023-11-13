@@ -34,6 +34,9 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
+// UnifiedResourceKinds is a list of all kinds that are stored in the unified resource cache.
+var UnifiedResourceKinds []string = []string{types.KindNode, types.KindKubeServer, types.KindDatabaseServer, types.KindAppServer, types.KindSAMLIdPServiceProvider, types.KindWindowsDesktop}
+
 // UnifiedResourceCacheConfig is used to configure a UnifiedResourceCache
 type UnifiedResourceCacheConfig struct {
 	// BTreeDegree is a degree of B-Tree, 2 for example, will create a
@@ -125,8 +128,19 @@ func (c *UnifiedResourceCache) put(ctx context.Context, resource resource) error
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	key := resourceKey(resource)
-	c.resources[key] = resource
 	sortKey := makeResourceSortKey(resource)
+	oldResource, exists := c.resources[key]
+	if exists {
+		// If the resource has changed in such a way that the sort keys
+		// for the nameTree or typeTree change, remove the old entries
+		// from those trees before adding a new one. This can happen
+		// when a node's hostname changes
+		oldSortKey := makeResourceSortKey(oldResource)
+		if string(oldSortKey.byName) != string(sortKey.byName) {
+			c.deleteSortKey(oldSortKey)
+		}
+	}
+	c.resources[key] = resource
 	c.nameTree.ReplaceOrInsert(&item{Key: sortKey.byName, Value: key})
 	c.typeTree.ReplaceOrInsert(&item{Key: sortKey.byType, Value: key})
 	return nil
@@ -144,6 +158,16 @@ func putResources[T resource](cache *UnifiedResourceCache, resources []T) {
 	}
 }
 
+func (c *UnifiedResourceCache) deleteSortKey(sortKey resourceSortKey) error {
+	if _, ok := c.nameTree.Delete(&item{Key: sortKey.byName}); !ok {
+		return trace.NotFound("key %q is not found in unified cache name sort tree", string(sortKey.byName))
+	}
+	if _, ok := c.typeTree.Delete(&item{Key: sortKey.byType}); !ok {
+		return trace.NotFound("key %q is not found in unified cache type sort tree", string(sortKey.byType))
+	}
+	return nil
+}
+
 // delete removes the item by key, returns NotFound error
 // if item does not exist
 func (c *UnifiedResourceCache) delete(ctx context.Context, res types.Resource) error {
@@ -159,12 +183,7 @@ func (c *UnifiedResourceCache) delete(ctx context.Context, res types.Resource) e
 	sortKey := makeResourceSortKey(resource)
 
 	return c.read(ctx, func(cache *UnifiedResourceCache) error {
-		if _, ok := cache.nameTree.Delete(&item{Key: sortKey.byName}); !ok {
-			return trace.NotFound("key %q is not found in unified cache name sort tree", string(sortKey.byName))
-		}
-		if _, ok := cache.typeTree.Delete(&item{Key: sortKey.byType}); !ok {
-			return trace.NotFound("key %q is not found in unified cache type sort tree", string(sortKey.byType))
-		}
+		cache.deleteSortKey(sortKey)
 		// delete from resource map
 		delete(c.resources, key)
 		return nil

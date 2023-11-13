@@ -68,8 +68,8 @@ const service = {
     return api.delete(cfg.getUserWithUsernameUrl(name));
   },
 
-  applyUserTraits() {
-    return session.renewSession({ reloadUser: true });
+  async reloadUser(signal?: AbortSignal) {
+    await session.renewSession({ reloadUser: true }, signal);
   },
 
   checkUserHasAccessToRegisteredResource(): Promise<boolean> {
