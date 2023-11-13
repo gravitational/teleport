@@ -15,41 +15,50 @@
 package testenv
 
 import (
+	"errors"
+
 	"github.com/google/uuid"
-	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/lib/devicetrust/native"
 )
 
-// FakeWindowsDevice allows us to exercise EnrollCeremony. To avoid requiring
+// FakeTPMDevice allows us to exercise EnrollCeremony. To avoid requiring
 // dependencies to support a TPM simulator, we currently do not closely emulate
 // the behavior of a real windows device.
-// TODO(noah): When the underlying implementation in `native/` is refactored to
-// share code between Windows & Linux, it will be a good opportunity to refactor
-// this implementation to be more realistic.
-type FakeWindowsDevice struct {
+type FakeTPMDevice struct {
+	OSType       devicepb.OSType
 	CredentialID string
 	SerialNumber string
 }
 
-func NewFakeWindowsDevice() *FakeWindowsDevice {
-	return &FakeWindowsDevice{
+func NewFakeLinuxDevice() *FakeTPMDevice {
+	return &FakeTPMDevice{
+		OSType:       devicepb.OSType_OS_TYPE_LINUX,
 		CredentialID: uuid.NewString(),
 		SerialNumber: uuid.NewString(),
 	}
 }
 
-func (f *FakeWindowsDevice) GetDeviceOSType() devicepb.OSType {
-	return devicepb.OSType_OS_TYPE_WINDOWS
+func NewFakeWindowsDevice() *FakeTPMDevice {
+	return &FakeTPMDevice{
+		OSType:       devicepb.OSType_OS_TYPE_WINDOWS,
+		CredentialID: uuid.NewString(),
+		SerialNumber: uuid.NewString(),
+	}
 }
 
-func (f *FakeWindowsDevice) CollectDeviceData(mode native.CollectDataMode) (*devicepb.DeviceCollectedData, error) {
+func (f *FakeTPMDevice) GetDeviceOSType() devicepb.OSType {
+	return f.OSType
+}
+
+func (f *FakeTPMDevice) CollectDeviceData(mode native.CollectDataMode) (*devicepb.DeviceCollectedData, error) {
 	return &devicepb.DeviceCollectedData{
 		CollectTime:  timestamppb.Now(),
-		OsType:       devicepb.OSType_OS_TYPE_WINDOWS,
+		OsType:       f.OSType,
 		SerialNumber: f.SerialNumber,
+		// Note: other data points are nice to have, but not mandatory.
 	}, nil
 }
 
@@ -58,7 +67,7 @@ var validAttestationParameters = &devicepb.TPMAttestationParameters{
 	Public: []byte("FAKE_TPMT_PUBLIC_FOR_AK"),
 }
 
-func (f *FakeWindowsDevice) EnrollDeviceInit() (*devicepb.EnrollDeviceInit, error) {
+func (f *FakeTPMDevice) EnrollDeviceInit() (*devicepb.EnrollDeviceInit, error) {
 	cd, _ := f.CollectDeviceData(native.CollectedDataAlwaysEscalate)
 	return &devicepb.EnrollDeviceInit{
 		CredentialId: f.CredentialID,
@@ -72,7 +81,7 @@ func (f *FakeWindowsDevice) EnrollDeviceInit() (*devicepb.EnrollDeviceInit, erro
 	}, nil
 }
 
-func (f *FakeWindowsDevice) SolveTPMEnrollChallenge(
+func (f *FakeTPMDevice) SolveTPMEnrollChallenge(
 	challenge *devicepb.TPMEnrollChallenge,
 	_ bool,
 ) (*devicepb.TPMEnrollChallengeResponse, error) {
@@ -93,7 +102,7 @@ func (f *FakeWindowsDevice) SolveTPMEnrollChallenge(
 	}, nil
 }
 
-func (f *FakeWindowsDevice) SolveTPMAuthnDeviceChallenge(
+func (f *FakeTPMDevice) SolveTPMAuthnDeviceChallenge(
 	challenge *devicepb.TPMAuthenticateDeviceChallenge,
 ) (*devicepb.TPMAuthenticateDeviceChallengeResponse, error) {
 	// This fake is similar to the one used in SolveTPMEnrollChallenge except
@@ -106,11 +115,11 @@ func (f *FakeWindowsDevice) SolveTPMAuthnDeviceChallenge(
 	}, nil
 }
 
-func (f *FakeWindowsDevice) SignChallenge(_ []byte) (sig []byte, err error) {
-	return nil, trace.NotImplemented("windows does not implement SignChallenge")
+func (f *FakeTPMDevice) SignChallenge(_ []byte) (sig []byte, err error) {
+	return nil, errors.New("not implemented for TPM devices")
 }
 
-func (f *FakeWindowsDevice) GetDeviceCredential() *devicepb.DeviceCredential {
+func (f *FakeTPMDevice) GetDeviceCredential() *devicepb.DeviceCredential {
 	return &devicepb.DeviceCredential{
 		Id: f.CredentialID,
 	}
