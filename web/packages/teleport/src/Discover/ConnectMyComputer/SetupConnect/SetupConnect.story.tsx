@@ -15,7 +15,7 @@
  */
 
 import React from 'react';
-
+import { MemoryRouter } from 'react-router';
 import { initialize, mswLoader } from 'msw-storybook-addon';
 import { rest } from 'msw';
 
@@ -135,15 +135,17 @@ const Provider = ({ children }) => {
   const updateClusterPinnedResources = () => Promise.resolve();
 
   return (
-    <UserContext.Provider
-      value={{
-        preferences,
-        updatePreferences,
-        getClusterPinnedResources,
-        updateClusterPinnedResources,
-      }}
-    >
-      <ContextProvider ctx={ctx}>{children}</ContextProvider>
-    </UserContext.Provider>
+    <MemoryRouter>
+      <UserContext.Provider
+        value={{
+          preferences,
+          updatePreferences,
+          getClusterPinnedResources,
+          updateClusterPinnedResources,
+        }}
+      >
+        <ContextProvider ctx={ctx}>{children}</ContextProvider>
+      </UserContext.Provider>
+    </MemoryRouter>
   );
 };

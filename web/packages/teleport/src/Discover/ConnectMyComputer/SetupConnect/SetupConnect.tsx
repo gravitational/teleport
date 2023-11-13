@@ -15,6 +15,7 @@
  */
 
 import React, { useEffect, useCallback, useState, useRef } from 'react';
+import { Link } from 'react-router-dom';
 
 import { ButtonSecondary } from 'design/Button';
 import { Platform, getPlatform } from 'design/platform';
@@ -24,6 +25,7 @@ import { MenuButton, MenuItem } from 'shared/components/MenuAction';
 import { Path, makeDeepLinkWithSafeInput } from 'shared/deepLinks';
 import * as constants from 'shared/constants';
 
+import cfg from 'teleport/config';
 import useTeleport from 'teleport/useTeleport';
 import { Node } from 'teleport/services/nodes';
 
@@ -109,7 +111,12 @@ export function SetupConnect(
             <li>
               <Text>
                 The computer you are trying to add has already joined the
-                Teleport cluster before you entered this page.
+                Teleport cluster before you entered this page. If that's the
+                case, you can go back to{' '}
+                <Link to={cfg.getUnifiedResourcesRoute(clusterId)}>
+                  the resources
+                </Link>{' '}
+                and connect to it.
               </Text>
             </li>
           </ul>
