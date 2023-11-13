@@ -1372,13 +1372,14 @@ func TestDiscoveryDatabase(t *testing.T) {
 	}
 
 	tcs := []struct {
-		name              string
-		existingDatabases []types.Database
-		awsMatchers       []types.AWSMatcher
-		azureMatchers     []types.AzureMatcher
-		expectDatabases   []types.Database
-		discoveryConfigs  func(*testing.T) []*discoveryconfig.DiscoveryConfig
-		wantEvents        int
+		name                        string
+		existingDatabases           []types.Database
+		integrationsOnlyCredentials bool
+		awsMatchers                 []types.AWSMatcher
+		azureMatchers               []types.AzureMatcher
+		expectDatabases             []types.Database
+		discoveryConfigs            func(*testing.T) []*discoveryconfig.DiscoveryConfig
+		wantEvents                  int
 	}{
 		{
 			name: "discover AWS database",
@@ -1545,6 +1546,50 @@ func TestDiscoveryDatabase(t *testing.T) {
 			},
 			wantEvents: 1,
 		},
+		{
+			name:                        "running in integrations-only-mode with a matcher without an integration, must discard the dynamic matcher and find 0 databases",
+			integrationsOnlyCredentials: true,
+			expectDatabases:             []types.Database{},
+			discoveryConfigs: func(t *testing.T) []*discoveryconfig.DiscoveryConfig {
+				dc1 := matcherForDiscoveryConfigFn(t, mainDiscoveryGroup, Matchers{
+					AWS: []types.AWSMatcher{{
+						Types:   []string{types.AWSMatcherRedshift},
+						Tags:    map[string]utils.Strings{types.Wildcard: {types.Wildcard}},
+						Regions: []string{"us-east-1"},
+					}},
+				})
+				return []*discoveryconfig.DiscoveryConfig{dc1}
+			},
+			wantEvents: 0,
+		},
+		{
+			name:            "running in integrations-only-mode with a dynamic matcher with an integration, must find 1 database",
+			expectDatabases: []types.Database{awsRedshiftDB},
+			discoveryConfigs: func(t *testing.T) []*discoveryconfig.DiscoveryConfig {
+				dc1 := matcherForDiscoveryConfigFn(t, mainDiscoveryGroup, Matchers{
+					AWS: []types.AWSMatcher{{
+						Types:       []string{types.AWSMatcherRedshift},
+						Tags:        map[string]utils.Strings{types.Wildcard: {types.Wildcard}},
+						Regions:     []string{"us-east-1"},
+						Integration: "xyz",
+					}},
+				})
+				return []*discoveryconfig.DiscoveryConfig{dc1}
+			},
+			wantEvents: 1,
+		},
+		{
+			name:                        "running in integrations-only-mode with a matcher without an integration, must find 1 database",
+			integrationsOnlyCredentials: true,
+			awsMatchers: []types.AWSMatcher{{
+				Types:       []string{types.AWSMatcherRedshift},
+				Tags:        map[string]utils.Strings{types.Wildcard: {types.Wildcard}},
+				Regions:     []string{"us-east-1"},
+				Integration: "xyz",
+			}},
+			expectDatabases: []types.Database{awsRedshiftDB},
+			wantEvents:      1,
+		},
 	}
 
 	for _, tc := range tcs {
@@ -1577,15 +1622,17 @@ func TestDiscoveryDatabase(t *testing.T) {
 				require.NoError(t, err)
 			}
 
+			integrationOnlyCredential := tc.integrationsOnlyCredentials
 			waitForReconcile := make(chan struct{})
 			reporter := &mockUsageReporter{}
 			tlsServer.Auth().SetUsageReporter(reporter)
 			srv, err := New(
 				authz.ContextWithUser(ctx, identity.I),
 				&Config{
-					CloudClients:     testCloudClients,
-					KubernetesClient: fake.NewSimpleClientset(),
-					AccessPoint:      tlsServer.Auth(),
+					IntegrationOnlyCredentials: integrationOnlyCredential,
+					CloudClients:               testCloudClients,
+					KubernetesClient:           fake.NewSimpleClientset(),
+					AccessPoint:                tlsServer.Auth(),
 					Matchers: Matchers{
 						AWS:   tc.awsMatchers,
 						Azure: tc.azureMatchers,
