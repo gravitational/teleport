@@ -18,6 +18,7 @@ import type { ClusterUri } from 'teleterm/ui/uri';
 import type { Cluster } from 'teleterm/services/tshd/types';
 
 import type * as resourcesServiceTypes from 'teleterm/ui/services/resources';
+import type { SharedUnifiedResource } from 'shared/components/UnifiedResources';
 
 type ResourceSearchResultBase<
   Result extends resourcesServiceTypes.SearchResult
@@ -27,7 +28,10 @@ type ResourceSearchResultBase<
   score: number;
 };
 
-export type SupportedResourceType = 'kube_cluster' | 'node' | 'db';
+export type SupportedResourceType = Extract<
+  SharedUnifiedResource['resource']['kind'],
+  'node' | 'kube_cluster' | 'db'
+>;
 
 export type SearchResultServer =
   ResourceSearchResultBase<resourcesServiceTypes.SearchResultServer>;
