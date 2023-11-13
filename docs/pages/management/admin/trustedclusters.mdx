@@ -48,7 +48,7 @@ Proxy Service instances, you have multiple tunnels for high availability.
 
 The following diagram provides a simplified view of the architecture:
 
-![Trusted cluster](../../../img/trusted-clusters/simplified-trusted-cluster.png)
+![Trusted cluster](../../../img/trusted-clusters/simplified-trusted-cluster.svg)
 
 As this diagram suggests, users can sign in to the root cluster to receive certificates signed by the root
 cluster certificate authority. They can then connect to leaf clusters either directly
@@ -91,7 +91,7 @@ local cluster roles.
 The following diagram provides a simplified view of how role mapping works using the same trusted
 cluster with `msp-root.example.com` as the root cluster and `leaf-east.example.com` as the leaf cluster:
 
-![Role mapping in a trusted cluster](../../../img/trusted-clusters/simplified-trusted-cluster-role-mapping.png)
+![Role mapping in a trusted cluster](../../../img/trusted-clusters/simplified-trusted-cluster-role-mapping.svg)
 
 In this example, the user Alice signs in to the `msp-root.example.com` root cluster. The root cluster is
 configured with a single sign-on identity provider that authenticates her identity and her group membership.
