@@ -176,3 +176,18 @@ test('renders questionnaire', () => {
 
   expect(screen.getByText(/Passed Component!/i)).toBeInTheDocument();
 });
+
+test('renders invite collaborators', () => {
+  mockUserContextProviderWith(makeTestUserContext());
+
+  const props = makeProps();
+  props.fetchAttempt = { status: 'success' };
+  props.success = true;
+  props.recoveryCodes = undefined;
+  props.displayInviteCollaborators = true;
+  props.setDisplayInviteCollaborators = () => {};
+  props.InviteCollaborators = () => <div>Passed Component!</div>;
+  render(<NewCredentials {...props} />);
+
+  expect(screen.getByText(/Passed Component!/i)).toBeInTheDocument();
+});

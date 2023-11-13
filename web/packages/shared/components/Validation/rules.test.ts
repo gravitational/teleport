@@ -20,6 +20,7 @@ import {
   requiredConfirmedPassword,
   requiredField,
   requiredRoleArn,
+  requiredEmailLike,
 } from './rules';
 
 describe('requiredField', () => {
@@ -98,4 +99,20 @@ describe('requiredConfirmedPassword', () => {
       );
     }
   );
+});
+
+describe('requiredEmailLike', () => {
+  test.each`
+    email                  | expected
+    ${''}                  | ${{ valid: false, kind: 'empty' }}
+    ${'alice'}             | ${{ valid: false, kind: 'invalid' }}
+    ${'alice@'}            | ${{ valid: false, kind: 'invalid' }}
+    ${'@example.com'}      | ${{ valid: false, kind: 'invalid' }}
+    ${'alice@example'}     | ${{ valid: true }}
+    ${'alice@example.com'} | ${{ valid: true }}
+  `('test email: $email', ({ email, expected }) => {
+    expect(requiredEmailLike(email)()).toEqual(
+      expect.objectContaining(expected)
+    );
+  });
 });
