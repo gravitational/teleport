@@ -32,7 +32,7 @@ import {
   DatabaseEngine,
   ServerLocation,
 } from './types';
-import { EXTERNAL_CLOUD_AUDIT, SAML_APPLICATIONS } from './resourcesE';
+import { SAML_APPLICATIONS } from './resourcesE';
 
 const baseServerKeywords = 'server node';
 export const SERVERS: ResourceSpec[] = [
@@ -143,7 +143,6 @@ const BASE_RESOURCES: ResourceSpec[] = [
   ...DATABASES,
   ...DATABASES_UNGUIDED,
   ...DATABASES_UNGUIDED_DOC,
-  ...EXTERNAL_CLOUD_AUDIT,
 ];
 
 export const RESOURCES = !cfg.isEnterprise

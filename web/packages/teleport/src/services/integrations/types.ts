@@ -49,6 +49,7 @@ export type Integration<
 // resource's subKind field.
 export enum IntegrationKind {
   AwsOidc = 'aws-oidc',
+  Byob = "byob",
 }
 export type IntegrationSpecAwsOidc = {
   roleArn: string;

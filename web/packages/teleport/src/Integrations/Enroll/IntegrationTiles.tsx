@@ -25,43 +25,74 @@ import { IntegrationKind } from 'teleport/services/integrations';
 
 import { IntegrationTile } from './common';
 
-// IntegrationTiles is plural but at the moment we only
-// support aws-oidc. Expecting this to grow.
 export function IntegrationTiles({
   hasAccess = true,
 }: {
   hasAccess?: boolean;
 }) {
   return (
-    <IntegrationTile
-      disabled={!hasAccess}
-      as={hasAccess ? Link : null}
-      to={
-        hasAccess
-          ? cfg.getIntegrationEnrollRoute(IntegrationKind.AwsOidc)
-          : null
-      }
-      data-testid="tile-aws-oidc"
-    >
-      <Box mt={3} mb={2}>
-        <AWSIcon size={80} />
-      </Box>
-      <Text>
-        Amazon Web Services
-        <br />
-        OIDC
-      </Text>
-      {!hasAccess && (
-        <ToolTipNoPermBadge
-          children={
-            <div>
-              You don’t have sufficient permissions to create an integration.
-              Reach out to your Teleport administrator to request additional
-              permissions.
-            </div>
-          }
-        />
-      )}
-    </IntegrationTile>
+    <>
+      <IntegrationTile
+        disabled={!hasAccess}
+        as={hasAccess ? Link : null}
+        to={
+          hasAccess
+            ? cfg.getIntegrationEnrollRoute(IntegrationKind.AwsOidc)
+            : null
+        }
+        data-testid="tile-aws-oidc"
+      >
+        <Box mt={3} mb={2}>
+          <AWSIcon size={80} />
+        </Box>
+        <Text>
+          Amazon Web Services
+          <br />
+          OIDC
+        </Text>
+        {!hasAccess && (
+          <ToolTipNoPermBadge
+            children={
+              <div>
+                You don’t have sufficient permissions to create an integration.
+                Reach out to your Teleport administrator to request additional
+                permissions.
+              </div>
+            }
+          />
+        )}
+      </IntegrationTile>
+      {/*  TODO: show condition */}
+      <IntegrationTile
+        disabled={!hasAccess}
+        as={hasAccess ? Link : null}
+        to={
+          hasAccess
+            ? cfg.getIntegrationEnrollRoute(IntegrationKind.Byob)
+            : null
+        }
+        data-testid="tile-byob"
+      >
+        <Box mt={3} mb={2}>
+          <AWSIcon size={80} />
+        </Box>
+        <Text>
+          BYOB
+          <br />
+          External Cloud Audit
+        </Text>
+        {!hasAccess && (
+          <ToolTipNoPermBadge
+            children={
+              <div>
+                You don’t have sufficient permissions to create an integration.
+                Reach out to your Teleport administrator to request additional
+                permissions.
+              </div>
+            }
+          />
+        )}
+      </IntegrationTile>
+    </>
   );
 }
