@@ -28,7 +28,7 @@ parking_lot = "0.12.1"
 bytes = "1"
 tokio = { version = "1.32", features = ["full"] }
 x509-parser = "0.14"
-sspi = { version = "0.10.1", features = ["network_client", "dns_resolver"] }
+sspi = { git = "https://github.com/Devolutions/sspi-rs", rev="d54bdfcafa0e10d9d78224ebacc4f2a0992a6b79", features = ["network_client"] }
 static_init = "1.0.3"
 
 ironrdp-connector = { git = "https://github.com/Devolutions/IronRDP", rev = "2075833ff2d02e6cea256e8a24e4e6e5e805ce88" }
