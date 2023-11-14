@@ -1,4 +1,4 @@
-//go:build !darwin && !windows
+//go:build !darwin && !linux && !windows
 
 // Copyright 2022 Gravitational, Inc
 //
@@ -25,7 +25,7 @@ func enrollDeviceInit() (*devicepb.EnrollDeviceInit, error) {
 	return nil, devicetrust.ErrPlatformNotSupported
 }
 
-func collectDeviceData() (*devicepb.DeviceCollectedData, error) {
+func collectDeviceData(mode CollectDataMode) (*devicepb.DeviceCollectedData, error) {
 	return nil, devicetrust.ErrPlatformNotSupported
 }
 

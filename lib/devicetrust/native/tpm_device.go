@@ -1,4 +1,4 @@
-//go:build windows
+//go:build linux || windows
 
 // Copyright 2023 Gravitational, Inc
 //
@@ -24,8 +24,6 @@ import (
 	"fmt"
 	"math/big"
 	"os"
-	"path/filepath"
-	"strings"
 
 	"github.com/google/go-attestation/attest"
 	"github.com/gravitational/trace"
@@ -33,12 +31,6 @@ import (
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/lib/devicetrust"
-)
-
-const (
-	deviceStateFolderName        = ".teleport-device"
-	attestationKeyFileName       = "attestation.key"
-	credentialActivationFileName = "credential-activation"
 )
 
 // tpmDevice implements the generic device trust client-side operations for
@@ -53,46 +45,6 @@ type tpmDevice struct {
 		credActivationPath string,
 		debug bool,
 	) (solutionBytes []byte, err error)
-}
-
-type deviceState struct {
-	attestationKeyPath       string
-	credentialActivationPath string
-}
-
-// userDirFunc is used to determine where to save/lookup the device's
-// attestation key.
-// We use os.UserCacheDir instead of os.UserConfigDir because the latter is
-// roaming (which we don't want for device-specific keys).
-var userDirFunc = os.UserCacheDir
-
-// setupDeviceStateDir ensures that device state directory exists.
-// It returns a struct containing the path of each part of the device state,
-// or nil and an error if it was not possible to set up the directory.
-func setupDeviceStateDir(getBaseDir func() (string, error)) (*deviceState, error) {
-	base, err := getBaseDir()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	deviceStateDirPath := filepath.Join(base, deviceStateFolderName)
-	ds := &deviceState{
-		attestationKeyPath:       filepath.Join(deviceStateDirPath, attestationKeyFileName),
-		credentialActivationPath: filepath.Join(deviceStateDirPath, credentialActivationFileName),
-	}
-
-	switch _, err := os.Stat(deviceStateDirPath); {
-	case os.IsNotExist(err):
-		// If it doesn't exist, we can create it and return as we know
-		// the perms are correct as we created it.
-		if err := os.Mkdir(deviceStateDirPath, 0700); err != nil {
-			return nil, trace.Wrap(err)
-		}
-	case err != nil:
-		return nil, trace.Wrap(err)
-	}
-
-	return ds, nil
 }
 
 // getMarshaledEK returns the EK public key in PKIX, ASN.1 DER format.
@@ -199,7 +151,7 @@ func (d *tpmDevice) enrollDeviceInit() (*devicepb.EnrollDeviceInit, error) {
 	}
 	defer ak.Close(tpm)
 
-	deviceData, err := collectDeviceData()
+	deviceData, err := collectDeviceData(CollectedDataAlwaysEscalate)
 	if err != nil {
 		return nil, trace.Wrap(err, "collecting device data")
 	}
@@ -274,19 +226,6 @@ func credentialIDFromAK(ak *attest.AK) (string, error) {
 	}
 }
 
-func firstValidAssetTag(assetTags ...string) string {
-	for _, assetTag := range assetTags {
-		// Skip empty serials and known bad values.
-		if assetTag == "" ||
-			strings.EqualFold(assetTag, "Default string") ||
-			strings.EqualFold(assetTag, "No Asset Information") {
-			continue
-		}
-		return assetTag
-	}
-	return ""
-}
-
 // getDeviceCredential returns the credential ID for TPM devices.
 // Remaining information is determined server-side.
 func (d *tpmDevice) getDeviceCredential() (*devicepb.DeviceCredential, error) {
@@ -352,14 +291,9 @@ func (d *tpmDevice) solveTPMEnrollChallenge(
 	defer ak.Close(tpm)
 
 	// Next perform a platform attestation using the AK.
-	log.Debug("TPM: Performing platform attestation.")
-	platformsParams, err := tpm.AttestPlatform(
-		ak,
-		challenge.AttestationNonce,
-		&attest.PlatformAttestConfig{},
-	)
+	platformsParams, err := attestPlatform(tpm, ak, challenge.AttestationNonce)
 	if err != nil {
-		return nil, trace.Wrap(err, "attesting platform")
+		return nil, trace.Wrap(err)
 	}
 
 	// First perform the credential activation challenge provided by the
@@ -372,6 +306,7 @@ func (d *tpmDevice) solveTPMEnrollChallenge(
 		return nil, trace.BadParameter("missing encrypted credential in challenge from server")
 	}
 
+	// Note: elevated flow only happens on Windows.
 	elevated, err := d.isElevatedProcess()
 	if err != nil {
 		return nil, trace.Wrap(err, "checking if process is elevated")
@@ -411,6 +346,7 @@ func (d *tpmDevice) solveTPMEnrollChallenge(
 	}, nil
 }
 
+//nolint:unused // Used by Windows builds.
 func (d *tpmDevice) handleTPMActivateCredential(encryptedCredential, encryptedCredentialSecret string) error {
 	log.Debug("Performing credential activation.")
 	// The two input parameters are base64 encoded, so decode them.
@@ -492,14 +428,9 @@ func (d *tpmDevice) solveTPMAuthnDeviceChallenge(
 	defer ak.Close(tpm)
 
 	// Next perform a platform attestation using the AK.
-	log.Debug("TPM: Performing platform attestation.")
-	platformsParams, err := tpm.AttestPlatform(
-		ak,
-		challenge.AttestationNonce,
-		&attest.PlatformAttestConfig{},
-	)
+	platformsParams, err := attestPlatform(tpm, ak, challenge.AttestationNonce)
 	if err != nil {
-		return nil, trace.Wrap(err, "attesting platform")
+		return nil, trace.Wrap(err)
 	}
 
 	log.Debug("TPM: Authenticate device challenge completed.")
@@ -516,4 +447,25 @@ func (d *tpmDevice) signChallenge(_ []byte) (sig []byte, err error) {
 	// NotImplemented may be interpreted as lack of server-side support, so
 	// BadParameter is used instead.
 	return nil, trace.BadParameter("signChallenge not implemented for TPM devices")
+}
+
+func attestPlatform(tpm *attest.TPM, ak *attest.AK, nonce []byte) (*attest.PlatformParameters, error) {
+	config := &attest.PlatformAttestConfig{}
+
+	log.Debug("TPM: Performing platform attestation.")
+	platformsParams, err := tpm.AttestPlatform(ak, nonce, config)
+	if err == nil {
+		return platformsParams, nil
+	}
+
+	// Retry attest errors with an empty event log. Ideally we'd check for
+	// errors.Is(err, fs.ErrPermission), but the go-attestation version at time of
+	// writing (v0.5.0) doesn't wrap the underlying error.
+	// This is a common occurrence for Linux devices.
+	log.
+		WithError(err).
+		Debug("TPM: Platform attestation failed with permission error, attempting without event log")
+	config.EventLog = []byte{}
+	platformsParams, err = tpm.AttestPlatform(ak, nonce, config)
+	return platformsParams, trace.Wrap(err, "attesting platform")
 }

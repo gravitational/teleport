@@ -40,6 +40,8 @@ func TestRunCeremony(t *testing.T) {
 	// data to verify challenge signatures.
 	macOSDev1, err := testenv.NewFakeMacOSDevice()
 	require.NoError(t, err, "NewFakeMacOSDevice failed")
+
+	linuxDev1 := testenv.NewFakeLinuxDevice()
 	windowsDev1 := testenv.NewFakeWindowsDevice()
 
 	tests := []struct {
@@ -50,6 +52,14 @@ func TestRunCeremony(t *testing.T) {
 		{
 			name: "macOS ok",
 			dev:  macOSDev1,
+			certs: &devicepb.UserCertificates{
+				// SshAuthorizedKey is not parsed by the fake server.
+				SshAuthorizedKey: []byte("<a proper SSH certificate goes here>"),
+			},
+		},
+		{
+			name: "linux ok",
+			dev:  linuxDev1,
 			certs: &devicepb.UserCertificates{
 				// SshAuthorizedKey is not parsed by the fake server.
 				SshAuthorizedKey: []byte("<a proper SSH certificate goes here>"),
@@ -95,6 +105,7 @@ func enrollDevice(ctx context.Context, devices devicepb.DeviceTrustServiceClient
 	if err != nil {
 		return err
 	}
+	defer stream.CloseSend()
 
 	// 1. Init.
 	enrollDeviceInit, err := dev.EnrollDeviceInit()
@@ -130,7 +141,7 @@ func enrollDevice(ctx context.Context, devices devicepb.DeviceTrustServiceClient
 		}); err != nil {
 			return err
 		}
-	case devicepb.OSType_OS_TYPE_WINDOWS:
+	case devicepb.OSType_OS_TYPE_LINUX, devicepb.OSType_OS_TYPE_WINDOWS:
 		solution, err := dev.SolveTPMEnrollChallenge(resp.GetTpmChallenge(), false /* debug */)
 		if err != nil {
 			return err

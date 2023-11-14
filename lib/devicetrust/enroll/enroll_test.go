@@ -18,7 +18,6 @@ import (
 	"context"
 	"testing"
 
-	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -117,6 +116,8 @@ func TestCeremony_Run(t *testing.T) {
 
 	macOSDev1, err := testenv.NewFakeMacOSDevice()
 	require.NoError(t, err, "NewFakeMacOSDevice failed")
+
+	linuxDev1 := testenv.NewFakeLinuxDevice()
 	windowsDev1 := testenv.NewFakeWindowsDevice()
 
 	tests := []struct {
@@ -136,6 +137,18 @@ func TestCeremony_Run(t *testing.T) {
 			},
 		},
 		{
+			name: "linux device succeeds",
+			dev:  linuxDev1,
+			assertErr: func(t *testing.T, err error) {
+				assert.NoError(t, err, "RunCeremony returned an error")
+			},
+			assertGotDevice: func(t *testing.T, d *devicepb.Device) {
+				require.NotNil(t, d, "RunCeremony returned nil device")
+				require.NotNil(t, d.Credential, "device credential is nil")
+				assert.Equal(t, linuxDev1.CredentialID, d.Credential.Id, "device credential mismatch")
+			},
+		},
+		{
 			name: "windows device succeeds",
 			dev:  windowsDev1,
 			assertErr: func(t *testing.T, err error) {
@@ -145,20 +158,6 @@ func TestCeremony_Run(t *testing.T) {
 				require.NotNil(t, d, "RunCeremony returned nil device")
 				require.NotNil(t, d.Credential, "device credential is nil")
 				assert.Equal(t, windowsDev1.CredentialID, d.Credential.Id, "device credential mismatch")
-			},
-		},
-		{
-			name: "linux device fails",
-			dev:  testenv.NewFakeLinuxDevice(),
-			assertErr: func(t *testing.T, err error) {
-				require.Error(t, err)
-				assert.True(
-					t, trace.IsBadParameter(err), "RunCeremony did not return a BadParameter error",
-				)
-				assert.ErrorContains(t, err, "linux", "RunCeremony error mismatch")
-			},
-			assertGotDevice: func(t *testing.T, d *devicepb.Device) {
-				assert.Nil(t, d, "RunCeremony returned an unexpected, non-nil device")
 			},
 		},
 	}

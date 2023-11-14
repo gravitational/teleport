@@ -281,7 +281,7 @@ func (c *deviceRemoveCommand) Run(ctx context.Context, authClient auth.ClientI) 
 	devices := authClient.DevicesClient()
 
 	// Find the specified device, if necessary.
-	deviceID, name, err := findDeviceID(ctx, devices, c.deviceID, c.assetTag)
+	deviceID, name, err := findDeviceID(ctx, devices, c.deviceID, c.assetTag, c.osType)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -321,7 +321,7 @@ func (c *deviceEnrollCommand) Run(ctx context.Context, authClient auth.ClientI) 
 	devices := authClient.DevicesClient()
 
 	// Find the specified device, if necessary.
-	deviceID, name, err := findDeviceID(ctx, devices, c.deviceID, c.assetTag)
+	deviceID, name, err := findDeviceID(ctx, devices, c.deviceID, c.assetTag, c.osType)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -385,7 +385,7 @@ func (c *deviceLockCommand) Run(ctx context.Context, authClient auth.ClientI) er
 		expires = &t
 	}
 
-	deviceID, _, err := findDeviceID(ctx, authClient.DevicesClient(), c.deviceID, c.assetTag)
+	deviceID, _, err := findDeviceID(ctx, authClient.DevicesClient(), c.deviceID, c.assetTag, c.osType)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -412,10 +412,18 @@ func (c *deviceLockCommand) Run(ctx context.Context, authClient auth.ClientI) er
 // assetTag. If supplied with the former, no backend queries are made. It exists
 // to simplify the logic of commands that take either --device-id or --asset-tag
 // as an argument.
+//
+// The optional osType parameter is used to distinguish devices registered in
+// multiple platforms.
+//
 // Returns the device ID and a name that can be used for CLI messages, the
 // latter matching whatever was originally supplied - the device ID or the asset
 // tag.
-func findDeviceID(ctx context.Context, devices devicepb.DeviceTrustServiceClient, deviceID, assetTag string) (id, name string, err error) {
+func findDeviceID(
+	ctx context.Context,
+	devices devicepb.DeviceTrustServiceClient,
+	deviceID, assetTag string, osType devicepb.OSType,
+) (id, name string, err error) {
 	if deviceID != "" {
 		// No need to query.
 		return deviceID, deviceID, nil
@@ -428,8 +436,8 @@ func findDeviceID(ctx context.Context, devices devicepb.DeviceTrustServiceClient
 		return "", "", trace.Wrap(err)
 	}
 	for _, found := range resp.Devices {
-		// Skip ID matches.
-		if found.AssetTag != assetTag {
+		// Skip ID matches and unexpected osTypes.
+		if found.AssetTag != assetTag || (osType != devicepb.OSType_OS_TYPE_UNSPECIFIED && found.OsType != osType) {
 			continue
 		}
 
@@ -464,7 +472,7 @@ func (c *canOperateOnCurrentDevice) setCurrentDevice() (bool, error) {
 		return false, nil
 	}
 
-	cdd, err := dtnative.CollectDeviceData()
+	cdd, err := dtnative.CollectDeviceData(dtnative.CollectedDataMaybeEscalate)
 	if err != nil {
 		return false, trace.Wrap(err)
 	}

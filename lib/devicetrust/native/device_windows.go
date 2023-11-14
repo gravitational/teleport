@@ -32,6 +32,10 @@ import (
 	"github.com/gravitational/teleport/lib/windowsexec"
 )
 
+// deviceStateFolderName starts with a "." on Windows for backwards
+// compatibility, but in practice it does not need to.
+const deviceStateFolderName = ".teleport-device"
+
 var windowsDevice = &tpmDevice{
 	isElevatedProcess: func() (bool, error) {
 		return windows.GetCurrentProcessToken().IsElevated(), nil
@@ -170,7 +174,7 @@ func getOSBuildNumber() (string, error) {
 	return string(bytes.TrimSpace(out)), nil
 }
 
-func collectDeviceData() (*devicepb.DeviceCollectedData, error) {
+func collectDeviceData(_ CollectDataMode) (*devicepb.DeviceCollectedData, error) {
 	log.Debug("TPM: Collecting device data.")
 	systemSerial, err := getDeviceSerial()
 	if err != nil {
