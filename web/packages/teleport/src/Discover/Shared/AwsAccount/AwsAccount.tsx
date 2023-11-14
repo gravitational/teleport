@@ -116,15 +116,7 @@ export function AwsAccount() {
             };
           }
         });
-        setAwsIntegrations([{
-          value: {
-            kind: IntegrationKind.AwsOidc,
-            spec: { roleArn: "role-arn" },
-            name: 'my oidc aws int',
-            resourceType: 'integration',
-            statusCode: IntegrationStatusCode.Running,
-          }, label: 'my oidc aws int'
-        }]);
+        setAwsIntegrations(options);
       })
     );
   }
