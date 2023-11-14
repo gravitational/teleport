@@ -21,7 +21,6 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"os"
 	"os/exec"
@@ -31,6 +30,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -255,7 +255,7 @@ func (c *fetchConfig) fetchContainerOrchestrator(ctx context.Context) string {
 	}
 	defer resp.Body.Close()
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := utils.ReadAtMost(resp.Body, teleport.MaxHTTPResponseSize)
 	if err != nil {
 		return ""
 	}
@@ -328,7 +328,7 @@ func (c *fetchConfig) awsHTTPGetSuccess(ctx context.Context) bool {
 	}
 	defer resp.Body.Close()
 
-	imdsToken, err := io.ReadAll(resp.Body)
+	imdsToken, err := utils.ReadAtMost(resp.Body, teleport.MaxHTTPResponseSize)
 	if err != nil {
 		return false
 	}

@@ -23,6 +23,7 @@ import (
 	"google.golang.org/grpc"
 
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/teleterm/apiserver/handler"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -41,7 +42,9 @@ func New(cfg Config) (*APIServer, error) {
 	}
 
 	grpcServer := grpc.NewServer(cfg.TshdServerCreds,
-		grpc.ChainUnaryInterceptor(withErrorHandling(cfg.Log)))
+		grpc.ChainUnaryInterceptor(withErrorHandling(cfg.Log)),
+		grpc.MaxConcurrentStreams(defaults.GRPCMaxConcurrentStreams),
+	)
 
 	// Create Terminal service.
 

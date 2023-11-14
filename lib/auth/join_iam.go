@@ -22,7 +22,6 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
-	"io"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -207,7 +206,7 @@ func executeSTSIdentityRequest(ctx context.Context, client utils.HTTPDoClient, r
 	}
 	defer resp.Body.Close()
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := utils.ReadAtMost(resp.Body, teleport.MaxHTTPResponseSize)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -75,7 +75,7 @@ describe('restoring workspace', () => {
     return { workspacesService, clusterDocument };
   }
 
-  it('restores the workspace if there is a persisted state for given clusterUri', () => {
+  it('restores the workspace if there is a persisted state for given clusterUri', async () => {
     const testClusterUri = '/clusters/test-uri';
     const testWorkspace: Workspace = {
       accessRequests: {
@@ -98,7 +98,7 @@ describe('restoring workspace', () => {
       persistedWorkspaces: { [testClusterUri]: testWorkspace },
     });
 
-    workspacesService.restorePersistedState();
+    await workspacesService.restorePersistedState();
     expect(workspacesService.getWorkspaces()).toStrictEqual({
       [testClusterUri]: {
         accessRequests: {
@@ -125,14 +125,14 @@ describe('restoring workspace', () => {
     });
   });
 
-  it('creates empty workspace if there is no persisted state for given clusterUri', () => {
+  it('creates empty workspace if there is no persisted state for given clusterUri', async () => {
     const testClusterUri = '/clusters/test-uri';
     const { workspacesService, clusterDocument } = getTestSetup({
       clusterUri: testClusterUri,
       persistedWorkspaces: {},
     });
 
-    workspacesService.restorePersistedState();
+    await workspacesService.restorePersistedState();
     expect(workspacesService.getWorkspaces()).toStrictEqual({
       [testClusterUri]: {
         accessRequests: {

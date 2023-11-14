@@ -4,9 +4,9 @@ description: Learn how to enforce trusted devices with Teleport
 videoBanner: gBQyj_X1LVw
 ---
 
-<Admonition type="warning" title="Preview Note: Supported Resources">
-The device trust preview only supports SSH, Database and Kubernetes resources.
-Support for other resources is planned for upcoming Teleport versions.
+<Admonition type="warning" title="Supported Resources">
+Device trust only supports SSH, Database and Kubernetes resources. Support for
+other resources is planned for upcoming Teleport versions.
 </Admonition>
 
 Resources protected by the device mode "required" will enforce the use of a
@@ -75,9 +75,8 @@ Enterprise clusters run in `optional` mode by default. Changing the mode to
 accesses.
 
 <Admonition type="warning" title="Web UI">
-The Web UI is not capable of trusted device access during the device trust
-preview. Only `tsh` and Teleport Connect are able to fulfill device mode
-`required`.
+The Web UI is not capable of trusted device access. Only `tsh` and Teleport
+Connect are able to fulfill device mode `required`.
 </Admonition>
 
 To enable device mode `required` update your configuration as follows:

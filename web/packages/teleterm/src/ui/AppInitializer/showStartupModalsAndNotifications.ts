@@ -25,10 +25,10 @@ import { KeyboardShortcutsService } from 'teleterm/ui/services/keyboardShortcuts
 
 /**
  * Runs after the UI becomes visible.
- * If possible, put the initialization code here, instead of `appContext.init()`,
- * where it blocks the rendering of the app.
  */
-export async function initUi(ctx: IAppContext): Promise<void> {
+export async function showStartupModalsAndNotifications(
+  ctx: IAppContext
+): Promise<void> {
   const { configService } = ctx.mainProcessClient;
 
   await askAboutUserJobRoleIfNeeded(
@@ -42,7 +42,12 @@ export async function initUi(ctx: IAppContext): Promise<void> {
   // Instead, on the first launch only "usage reporting" dialog shows up.
   // "User job role" dialog is shown on the second launch (only if user agreed to reporting earlier).
   await setUpUsageReporting(configService, ctx.modalsService);
-  ctx.workspacesService.restorePersistedState();
+
+  // If there's a workspace that was active before the user closed the app, restorePersistedState
+  // will block until the user interacts with the login modal (if the cert is not valid anymore) and
+  // the modal for restoring documents.
+  await ctx.workspacesService.restorePersistedState();
+
   notifyAboutConfigErrors(configService, ctx.notificationsService);
   notifyAboutDuplicatedShortcutsCombinations(
     ctx.keyboardShortcutsService,
