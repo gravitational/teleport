@@ -1368,6 +1368,10 @@ func applyResources(ctx context.Context, service *Services, resources []types.Re
 		switch r := resource.(type) {
 		case types.ProvisionToken:
 			err = service.Provisioner.UpsertToken(ctx, r)
+		case types.ClusterNetworkingConfig:
+			err = service.ClusterConfiguration.SetClusterNetworkingConfig(ctx, r)
+		case types.AuthPreference:
+			err = service.ClusterConfiguration.SetAuthPreference(ctx, r)
 		default:
 			return trace.NotImplemented("cannot apply resource of type %T", resource)
 		}

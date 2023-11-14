@@ -1286,6 +1286,22 @@ spec:
   github:
     allow:
       - repository: gravitational/example`
+	clusterNetworkingConfYAML = `
+kind: cluster_networking_config
+metadata:
+  name: cluster-networking-config
+spec:
+  proxy_listener_mode: 1
+`
+	authPrefYAML = `
+kind: cluster_auth_preference
+metadata:
+  name: cluster-auth-preference
+spec:
+  second_factor: off
+  type: local
+version: v2
+`
 )
 
 func TestInit_ApplyOnStartup(t *testing.T) {
@@ -1293,6 +1309,8 @@ func TestInit_ApplyOnStartup(t *testing.T) {
 
 	user := resourceFromYAML(t, userYAML).(types.User)
 	token := resourceFromYAML(t, tokenYAML).(types.ProvisionToken)
+	clusterNetworkingConfig := resourceFromYAML(t, clusterNetworkingConfYAML).(types.ClusterNetworkingConfig)
+	authPref := resourceFromYAML(t, authPrefYAML).(types.AuthPreference)
 
 	tests := []struct {
 		name         string
@@ -1310,6 +1328,20 @@ func TestInit_ApplyOnStartup(t *testing.T) {
 			name: "Apply ProvisionToken",
 			modifyConfig: func(cfg *InitConfig) {
 				cfg.ApplyOnStartupResources = append(cfg.ApplyOnStartupResources, token)
+			},
+			assertError: require.NoError,
+		},
+		{
+			name: "Apply ClusterNetworkingConfig",
+			modifyConfig: func(cfg *InitConfig) {
+				cfg.ApplyOnStartupResources = append(cfg.ApplyOnStartupResources, clusterNetworkingConfig)
+			},
+			assertError: require.NoError,
+		},
+		{
+			name: "Apply AuthPreference",
+			modifyConfig: func(cfg *InitConfig) {
+				cfg.ApplyOnStartupResources = append(cfg.ApplyOnStartupResources, authPref)
 			},
 			assertError: require.NoError,
 		},
