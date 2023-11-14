@@ -248,6 +248,9 @@ type InitConfig struct {
 	// SecReports is a service that manages security reports.
 	SecReports services.SecReports
 
+	// PluginData is a service that manages plugin data.
+	PluginData services.PluginData
+
 	// Clock is the clock instance auth uses. Typically you'd only want to set
 	// this during testing.
 	Clock clockwork.Clock
