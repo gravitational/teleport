@@ -34,7 +34,7 @@ main() {
   # Clean gen/proto directories before regenerating them. Legacy protos are
   # generated all over the directory tree, so they won't get cleaned up
   # automatically if the proto is deleted.
-  [[ $skip_rm -eq 0 ]] && echoed rm -fr api/gen/proto gen/proto
+#  [[ $skip_rm -eq 0 ]] && echoed rm -fr api/gen/proto gen/proto
 
   # Generate Gogo protos. Generated protos are written to
   # gogogen/github.com/gravitational/teleport/..., so we copy them to the
@@ -82,6 +82,10 @@ main() {
     --path=api/proto/teleport/secreports/ \
     --path=api/proto/teleport/trait/ \
     --path=api/proto/teleport/usageevents/
+
+  # Generate Rust protos.
+  echoed buf generate --template=buf-rust.gen.yaml \
+    --path=api/proto/teleport/mobilenotifications/
 
   # Generate JS protos.
   [[ $skip_js -eq 0 ]] && echoed buf generate --template=buf-js.gen.yaml \

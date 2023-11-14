@@ -60,6 +60,11 @@ ARG BUF_VERSION
 RUN VERSION="$BUF_VERSION"; \
     go install "github.com/bufbuild/buf/cmd/buf@$VERSION"
 
+# Get Rust
+RUN curl https://sh.rustup.rs -sSf | bash -s -- -y
+
+ENV PATH="/root/.cargo/bin:${PATH}"
+
 COPY --from=mobile /usr/lib/swift/linux/* /usr/lib
 COPY --from=mobile /app/grpc-swift/protoc-gen-swift /app/grpc-swift/protoc-gen-grpc-swift /usr/local/bin/
 
@@ -71,3 +76,5 @@ RUN cd /teleport-module; \
   go install github.com/bufbuild/connect-go/cmd/protoc-gen-connect-go && \
   go install google.golang.org/grpc/cmd/protoc-gen-go-grpc && \
   go install google.golang.org/protobuf/cmd/protoc-gen-go
+
+RUN cargo install protoc-gen-prost-crate
