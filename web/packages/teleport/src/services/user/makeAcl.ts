@@ -64,6 +64,7 @@ export function makeAcl(json): Acl {
   const securityReport = json.securityReport || defaultAccess;
 
   const samlIdpServiceProvider = json.samlIdpServiceProvider || defaultAccess;
+  const accessGraph = json.accessGraph || defaultAccess;
 
   return {
     accessList,
@@ -97,6 +98,7 @@ export function makeAcl(json): Acl {
     samlIdpServiceProvider,
     auditQuery,
     securityReport,
+    accessGraph,
   };
 }
 
