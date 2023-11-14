@@ -96,7 +96,7 @@ func validateCollectedData(cd *devicepb.DeviceCollectedData, createAsResource bo
 		return trace.Wrap(err)
 	}
 
-	if err := validateCollectedDataTPMPlatformAttestation(cd.TpmPlatformAttestation); err != nil {
+	if err := validateCollectedDataTPMPlatformAttestation(cd.OsType, cd.TpmPlatformAttestation); err != nil {
 		return trace.Wrap(err, "validating tpm_platform_attestation")
 	}
 
@@ -113,7 +113,7 @@ func validateCollectedData(cd *devicepb.DeviceCollectedData, createAsResource bo
 	return nil
 }
 
-func validateCollectedDataTPMPlatformAttestation(pa *devicepb.TPMPlatformAttestation) error {
+func validateCollectedDataTPMPlatformAttestation(osType devicepb.OSType, pa *devicepb.TPMPlatformAttestation) error {
 	// The field as a whole is optional, so we can omit deeper validation if
 	// the field itself is nil.
 	if pa == nil {
@@ -128,8 +128,11 @@ func validateCollectedDataTPMPlatformAttestation(pa *devicepb.TPMPlatformAttesta
 		return trace.BadParameter("platform_parameters required")
 	}
 
-	// Validate PlatformParameters level
-	if len(pa.PlatformParameters.EventLog) == 0 {
+	// Validate PlatformParameters level.
+	// These are set into the collected data server-side, so there's no need to
+	// parse the EventLog here again.
+	// Linux systems get a pass on having to provide the EventLog.
+	if osType != devicepb.OSType_OS_TYPE_LINUX && len(pa.PlatformParameters.EventLog) == 0 {
 		return trace.BadParameter("platform_parameters.event_log required")
 	}
 	if len(pa.PlatformParameters.Quotes) == 0 {

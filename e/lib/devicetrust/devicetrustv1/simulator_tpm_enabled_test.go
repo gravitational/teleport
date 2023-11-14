@@ -320,17 +320,19 @@ func (e *tpmSimulator) wantCredential() *devicepb.DeviceCredential {
 }
 
 func (e *tpmSimulator) attest(chalNonce []byte, testBehavior bool) (*attest.PlatformParameters, error) {
-	var eventLog []byte
-	// By default, we just inject the event that signals to the verifier that
-	// the rest of the event log is in TPM2.0 format.
-	eventLog = append(eventLog, eventLogHeader...)
-	if testBehavior && e.behavior.incorrectAttestEvent {
-		// Simulate a bad actor injecting an event into the event log which
-		// has not been applied to the PCRs. This creates a mismatch between
-		// the event log and the PCRs.
-		// This should yield an error like:
-		// `verifying event log\n\tevent log failed to verify: the following registers failed to replay: [16]`
-		eventLog = append(eventLog, pcrAppendEvent...)
+	eventLog := []byte{} // Must be non-nil, even if empty.
+	if !e.behavior.emptyEventLog {
+		// By default, we just inject the event that signals to the verifier that
+		// the rest of the event log is in TPM2.0 format.
+		eventLog = append(eventLog, eventLogHeader...)
+		if testBehavior && e.behavior.incorrectAttestEvent {
+			// Simulate a bad actor injecting an event into the event log which
+			// has not been applied to the PCRs. This creates a mismatch between
+			// the event log and the PCRs.
+			// This should yield an error like:
+			// `verifying event log\n\tevent log failed to verify: the following registers failed to replay: [16]`
+			eventLog = append(eventLog, pcrAppendEvent...)
+		}
 	}
 
 	ak := e.ak

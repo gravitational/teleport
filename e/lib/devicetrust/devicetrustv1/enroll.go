@@ -110,7 +110,7 @@ func (c *enrollCeremony) enrollDevice(stream devicepb.DeviceTrustService_EnrollD
 	switch dev.OsType {
 	case devicepb.OSType_OS_TYPE_MACOS:
 		cred, err = c.enrollDeviceMacOS(initReq, dev, stream)
-	case devicepb.OSType_OS_TYPE_WINDOWS:
+	case devicepb.OSType_OS_TYPE_LINUX, devicepb.OSType_OS_TYPE_WINDOWS:
 		cred, err = c.enrollDeviceTPM(initReq, dev, stream)
 	default:
 		return dev, trace.BadParameter("unsupported OS type: %v", dtoss.FriendlyOSType(dev.OsType))

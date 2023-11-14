@@ -10,14 +10,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/testing/protocmp"
 	"google.golang.org/protobuf/types/known/fieldmaskpb"
-	"google.golang.org/protobuf/types/known/timestamppb"
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -26,30 +24,6 @@ import (
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/modules"
 )
-
-type unsupportedDeviceSimulator struct {
-	simulator
-}
-
-func (e *unsupportedDeviceSimulator) setup() (closer func(), err error) {
-	return func() {}, nil
-}
-
-func (e *unsupportedDeviceSimulator) enrollRequest(dev *devicepb.Device, enrollToken string) *devicepb.EnrollDeviceRequest {
-	return &devicepb.EnrollDeviceRequest{
-		Payload: &devicepb.EnrollDeviceRequest_Init{
-			Init: &devicepb.EnrollDeviceInit{
-				Token:        enrollToken,
-				CredentialId: dev.AssetTag + "-credential",
-				DeviceData: &devicepb.DeviceCollectedData{
-					CollectTime:  timestamppb.Now(),
-					OsType:       dev.OsType,
-					SerialNumber: dev.AssetTag,
-				},
-			},
-		},
-	}
-}
 
 func TestService_EnrollDevice(t *testing.T) {
 	deviceTrustConfig := &types.DeviceTrust{}
@@ -283,6 +257,21 @@ func TestService_EnrollDevice(t *testing.T) {
 			wantDCDTPMPlatformAttestation: true,
 			wantAttestationType:           devicepb.DeviceAttestationType_DEVICE_ATTESTATION_TYPE_TPM_EKCERT_TRUSTED,
 		},
+		// Linux
+		{
+			name:       "linux: success with EKPub",
+			shouldSkip: tpmSkip,
+			deviceTemplate: &devicepb.Device{
+				OsType:   devicepb.OSType_OS_TYPE_LINUX,
+				AssetTag: "linux-tpm-success",
+			},
+			simulator: newTPMSimulator(tpmBehavior{
+				emptyEventLog: true,
+			}),
+			wantAuditEvents:               wantEnrollSuccess,
+			wantAttestationType:           devicepb.DeviceAttestationType_DEVICE_ATTESTATION_TYPE_TPM_EKPUB,
+			wantDCDTPMPlatformAttestation: true,
+		},
 		// General TPM failure cases
 		{
 			name:       "tpm: missing TPM payload in init",
@@ -509,19 +498,6 @@ func TestService_EnrollDevice(t *testing.T) {
 				incorrectSigningKey: true,
 			}),
 			assertHandleErr: trace.IsBadParameter,
-			wantAuditEvents: wantEnrollFailure,
-		},
-		// Unsupported (for now) OsTypes.
-		{
-			name: "Linux not supported",
-			deviceTemplate: &devicepb.Device{
-				OsType:   devicepb.OSType_OS_TYPE_LINUX,
-				AssetTag: "linux1",
-			},
-			simulator: &unsupportedDeviceSimulator{},
-			assertInitErr: func(err error) bool {
-				return trace.IsBadParameter(err) && strings.Contains(err.Error(), "Linux")
-			},
 			wantAuditEvents: wantEnrollFailure,
 		},
 	}

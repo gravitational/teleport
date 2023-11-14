@@ -13,6 +13,7 @@ import (
 )
 
 func platformAttestationChallenge(
+	osType devicepb.OSType,
 	akPublic []byte,
 ) (
 	nonce []byte,
@@ -51,6 +52,11 @@ func platformAttestationChallenge(
 		}
 		// We know now that the PCRs provided are legitimate and signed by the AK
 		// and that our nonce was used in this process to prevent replay attacks.
+
+		// Linux systems get a pass on having to provide the EventLog.
+		if osType == devicepb.OSType_OS_TYPE_LINUX && len(platformParams.EventLog) == 0 {
+			return dtoss.PlatformAttestationToProto(platformParams, nonce), nil
+		}
 
 		// Now we parse the event log, and replay it to see if it results in the
 		// same state as currently presented by the PCRs. If this fails,

@@ -63,6 +63,18 @@ func TestService_AuthenticateDevice(t *testing.T) {
 			simulator:                     newTPMSimulator(tpmBehavior{}),
 			wantDCDTPMPlatformAttestation: true,
 		},
+		{
+			name:       "linux: success",
+			shouldSkip: tpmSkip,
+			deviceTemplate: &devicepb.Device{
+				OsType:   devicepb.OSType_OS_TYPE_LINUX,
+				AssetTag: "linux-success",
+			},
+			simulator: newTPMSimulator(tpmBehavior{
+				emptyEventLog: true,
+			}),
+			wantDCDTPMPlatformAttestation: true,
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

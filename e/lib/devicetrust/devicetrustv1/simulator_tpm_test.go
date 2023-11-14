@@ -85,6 +85,7 @@ type tpmBehavior struct {
 	incorrectAttestPCR            bool
 	incorrectAttestEvent          bool
 	incorrectCredActivateSolution bool
+	emptyEventLog                 bool
 
 	// If specified, the simulator uses this to fetch an EKCert to submit
 	// containing the EKPub, rather than submitting just the KEPub

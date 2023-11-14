@@ -73,6 +73,7 @@ func (c *enrollCeremony) enrollDeviceTPM(
 		return nil, trace.Wrap(err)
 	}
 	attestNonce, finishPlatformAttestation, err := platformAttestationChallenge(
+		dev.OsType,
 		attestationParameters.Public,
 	)
 	if err != nil {

@@ -150,7 +150,7 @@ func (c *authnCeremony) authenticate(stream devicepb.DeviceTrustService_Authenti
 	switch dev.OsType {
 	case devicepb.OSType_OS_TYPE_MACOS:
 		err = c.authenticateDeviceMacOS(dev, stream)
-	case devicepb.OSType_OS_TYPE_WINDOWS:
+	case devicepb.OSType_OS_TYPE_LINUX, devicepb.OSType_OS_TYPE_WINDOWS:
 		platformAttestation, err = c.authenticateDeviceTPM(dev, stream)
 		// Persist platform attestation record in collected data.
 		initReq.DeviceData.TpmPlatformAttestation = platformAttestation
@@ -254,6 +254,7 @@ func (c *authnCeremony) authenticateDeviceTPM(
 ) (*devicepb.TPMPlatformAttestation, error) {
 	// 2. Issue challenge
 	nonce, finishPlatformAttestation, err := platformAttestationChallenge(
+		dev.OsType,
 		dev.Credential.TpmAkPublic,
 	)
 	if err != nil {
