@@ -3362,10 +3362,18 @@ struct Types_ProvisionTokenSpecV2GitLab {
     /// Sub roughly uniquely identifies the workload. Example:
     /// `project_path:mygroup/my-project:ref_type:branch:ref:main`
     /// project_path:{group}/{project}:ref_type:{type}:ref:{branch_name}
+    ///
+    /// This field supports simple "glob-style" matching:
+    /// - Use '*' to match zero or more characters.
+    /// - Use '?' to match any single character.
     var sub: String = String()
 
     /// Ref allows access to be limited to jobs triggered by a specific git ref.
     /// Ensure this is used in combination with ref_type.
+    ///
+    /// This field supports simple "glob-style" matching:
+    /// - Use '*' to match zero or more characters.
+    /// - Use '?' to match any single character.
     var ref: String = String()
 
     /// RefType allows access to be limited to jobs triggered by a specific git
@@ -3377,11 +3385,19 @@ struct Types_ProvisionTokenSpecV2GitLab {
     /// projects.
     /// Example:
     /// `mygroup`
+    ///
+    /// This field supports simple "glob-style" matching:
+    /// - Use '*' to match zero or more characters.
+    /// - Use '?' to match any single character.
     var namespacePath: String = String()
 
     /// ProjectPath is used to limit access to jobs belonging to an individual
     /// project. Example:
     /// `mygroup/myproject`
+    ///
+    /// This field supports simple "glob-style" matching:
+    /// - Use '*' to match zero or more characters.
+    /// - Use '?' to match any single character.
     var projectPath: String = String()
 
     /// PipelineSource limits access by the job pipeline source type.
@@ -3393,9 +3409,55 @@ struct Types_ProvisionTokenSpecV2GitLab {
     /// (if one is associated)
     var environment: String = String()
 
+    /// UserLogin is the username of the user executing the job
+    var userLogin: String = String()
+
+    /// UserID is the ID of the user executing the job
+    var userID: String = String()
+
+    /// UserEmail is the email of the user executing the job
+    var userEmail: String = String()
+
+    /// RefProtected is true if the Git ref is protected, false otherwise.
+    var refProtected: Types_BoolValue {
+      get {return _refProtected ?? Types_BoolValue()}
+      set {_refProtected = newValue}
+    }
+    /// Returns true if `refProtected` has been explicitly set.
+    var hasRefProtected: Bool {return self._refProtected != nil}
+    /// Clears the value of `refProtected`. Subsequent reads from it will return its default value.
+    mutating func clearRefProtected() {self._refProtected = nil}
+
+    /// EnvironmentProtected is true if the Git ref is protected, false otherwise.
+    var environmentProtected: Types_BoolValue {
+      get {return _environmentProtected ?? Types_BoolValue()}
+      set {_environmentProtected = newValue}
+    }
+    /// Returns true if `environmentProtected` has been explicitly set.
+    var hasEnvironmentProtected: Bool {return self._environmentProtected != nil}
+    /// Clears the value of `environmentProtected`. Subsequent reads from it will return its default value.
+    mutating func clearEnvironmentProtected() {self._environmentProtected = nil}
+
+    /// CIConfigSHA is the git commit SHA for the ci_config_ref_uri.
+    var ciconfigSha: String = String()
+
+    /// CIConfigRefURI is the ref path to the top-level pipeline definition, for example,
+    /// gitlab.example.com/my-group/my-project//.gitlab-ci.yml@refs/heads/main.
+    var ciconfigRefUri: String = String()
+
+    /// DeploymentTier is the deployment tier of the environment the job specifies
+    var deploymentTier: String = String()
+
+    /// ProjectVisibility is the visibility of the project where the pipeline is running.
+    /// Can be internal, private, or public.
+    var projectVisibility: String = String()
+
     var unknownFields = SwiftProtobuf.UnknownStorage()
 
     init() {}
+
+    fileprivate var _refProtected: Types_BoolValue? = nil
+    fileprivate var _environmentProtected: Types_BoolValue? = nil
   }
 
   init() {}
@@ -17289,6 +17351,15 @@ extension Types_ProvisionTokenSpecV2GitLab.Rule: SwiftProtobuf.Message, SwiftPro
     5: .same(proto: "ProjectPath"),
     6: .same(proto: "PipelineSource"),
     7: .same(proto: "Environment"),
+    8: .same(proto: "UserLogin"),
+    9: .same(proto: "UserID"),
+    10: .same(proto: "UserEmail"),
+    11: .same(proto: "RefProtected"),
+    12: .same(proto: "EnvironmentProtected"),
+    13: .same(proto: "CIConfigSHA"),
+    14: .same(proto: "CIConfigRefURI"),
+    15: .same(proto: "DeploymentTier"),
+    16: .same(proto: "ProjectVisibility"),
   ]
 
   mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
@@ -17304,12 +17375,25 @@ extension Types_ProvisionTokenSpecV2GitLab.Rule: SwiftProtobuf.Message, SwiftPro
       case 5: try { try decoder.decodeSingularStringField(value: &self.projectPath) }()
       case 6: try { try decoder.decodeSingularStringField(value: &self.pipelineSource) }()
       case 7: try { try decoder.decodeSingularStringField(value: &self.environment) }()
+      case 8: try { try decoder.decodeSingularStringField(value: &self.userLogin) }()
+      case 9: try { try decoder.decodeSingularStringField(value: &self.userID) }()
+      case 10: try { try decoder.decodeSingularStringField(value: &self.userEmail) }()
+      case 11: try { try decoder.decodeSingularMessageField(value: &self._refProtected) }()
+      case 12: try { try decoder.decodeSingularMessageField(value: &self._environmentProtected) }()
+      case 13: try { try decoder.decodeSingularStringField(value: &self.ciconfigSha) }()
+      case 14: try { try decoder.decodeSingularStringField(value: &self.ciconfigRefUri) }()
+      case 15: try { try decoder.decodeSingularStringField(value: &self.deploymentTier) }()
+      case 16: try { try decoder.decodeSingularStringField(value: &self.projectVisibility) }()
       default: break
       }
     }
   }
 
   func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    // The use of inline closures is to circumvent an issue where the compiler
+    // allocates stack space for every if/case branch local when no optimizations
+    // are enabled. https://github.com/apple/swift-protobuf/issues/1034 and
+    // https://github.com/apple/swift-protobuf/issues/1182
     if !self.sub.isEmpty {
       try visitor.visitSingularStringField(value: self.sub, fieldNumber: 1)
     }
@@ -17331,6 +17415,33 @@ extension Types_ProvisionTokenSpecV2GitLab.Rule: SwiftProtobuf.Message, SwiftPro
     if !self.environment.isEmpty {
       try visitor.visitSingularStringField(value: self.environment, fieldNumber: 7)
     }
+    if !self.userLogin.isEmpty {
+      try visitor.visitSingularStringField(value: self.userLogin, fieldNumber: 8)
+    }
+    if !self.userID.isEmpty {
+      try visitor.visitSingularStringField(value: self.userID, fieldNumber: 9)
+    }
+    if !self.userEmail.isEmpty {
+      try visitor.visitSingularStringField(value: self.userEmail, fieldNumber: 10)
+    }
+    try { if let v = self._refProtected {
+      try visitor.visitSingularMessageField(value: v, fieldNumber: 11)
+    } }()
+    try { if let v = self._environmentProtected {
+      try visitor.visitSingularMessageField(value: v, fieldNumber: 12)
+    } }()
+    if !self.ciconfigSha.isEmpty {
+      try visitor.visitSingularStringField(value: self.ciconfigSha, fieldNumber: 13)
+    }
+    if !self.ciconfigRefUri.isEmpty {
+      try visitor.visitSingularStringField(value: self.ciconfigRefUri, fieldNumber: 14)
+    }
+    if !self.deploymentTier.isEmpty {
+      try visitor.visitSingularStringField(value: self.deploymentTier, fieldNumber: 15)
+    }
+    if !self.projectVisibility.isEmpty {
+      try visitor.visitSingularStringField(value: self.projectVisibility, fieldNumber: 16)
+    }
     try unknownFields.traverse(visitor: &visitor)
   }
 
@@ -17342,6 +17453,15 @@ extension Types_ProvisionTokenSpecV2GitLab.Rule: SwiftProtobuf.Message, SwiftPro
     if lhs.projectPath != rhs.projectPath {return false}
     if lhs.pipelineSource != rhs.pipelineSource {return false}
     if lhs.environment != rhs.environment {return false}
+    if lhs.userLogin != rhs.userLogin {return false}
+    if lhs.userID != rhs.userID {return false}
+    if lhs.userEmail != rhs.userEmail {return false}
+    if lhs._refProtected != rhs._refProtected {return false}
+    if lhs._environmentProtected != rhs._environmentProtected {return false}
+    if lhs.ciconfigSha != rhs.ciconfigSha {return false}
+    if lhs.ciconfigRefUri != rhs.ciconfigRefUri {return false}
+    if lhs.deploymentTier != rhs.deploymentTier {return false}
+    if lhs.projectVisibility != rhs.projectVisibility {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }

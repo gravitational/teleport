@@ -1,0 +1,47 @@
+// Copyright 2023 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package teleport.mobile.v1;
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/mobile/v1;mobilev1";
+
+// MobileService provides methods needed for mobile applications.
+service MobileService {
+  // CreateAuthToken
+  rpc CreateAuthToken(CreateAuthTokenRequest) returns (CreateAuthTokenResponse);
+  // RedeemAuthToken
+  rpc RedeemAuthToken(RedeemAuthTokenRequest) returns (RedeemAuthTokenResponse);
+}
+
+// Request for CreateAuthToken
+message CreateAuthTokenRequest {}
+
+// Response for CreateAuthToken
+message CreateAuthTokenResponse {
+  string token = 1;
+}
+
+// Request for RedeemAuthToken
+message RedeemAuthTokenRequest {
+  string token = 1;
+}
+
+// Response for RedeemAuthToken
+message RedeemAuthTokenResponse {
+  string username = 1;
+  bytes ssh_cert = 2;
+  bytes tls_cert = 3;
+}

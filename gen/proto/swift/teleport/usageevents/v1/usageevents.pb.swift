@@ -2066,6 +2066,29 @@ struct Teleport_Usageevents_V1_FeatureRecommendationEvent {
   init() {}
 }
 
+/// TAGExecuteQueryEvent is an event that is emitted
+/// when a single query is executed in the Teleport Access Graph.
+/// This event is emitted for both successful and failed queries and for
+/// successful queries, the total number of nodes and edges is reported.
+struct Teleport_Usageevents_V1_TAGExecuteQueryEvent {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  /// total_nodes is the total amount of nodes returned by the query.
+  var totalNodes: Int64 = 0
+
+  /// total_edges is the total amount of edges returned by the query.
+  var totalEdges: Int64 = 0
+
+  /// is_success is true if the query was successful and false it if failed.
+  var isSuccess: Bool = false
+
+  var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  init() {}
+}
+
 /// UsageEventOneOf is a message that can accept a oneof of any supported
 /// external usage event.
 struct Teleport_Usageevents_V1_UsageEventOneOf {
@@ -2459,6 +2482,14 @@ struct Teleport_Usageevents_V1_UsageEventOneOf {
     set {event = .uiDiscoverCreateNode(newValue)}
   }
 
+  var tagExecuteQuery: Teleport_Usageevents_V1_TAGExecuteQueryEvent {
+    get {
+      if case .tagExecuteQuery(let v)? = event {return v}
+      return Teleport_Usageevents_V1_TAGExecuteQueryEvent()
+    }
+    set {event = .tagExecuteQuery(newValue)}
+  }
+
   var unknownFields = SwiftProtobuf.UnknownStorage()
 
   enum OneOf_Event: Equatable {
@@ -2510,6 +2541,7 @@ struct Teleport_Usageevents_V1_UsageEventOneOf {
     case uiDiscoverEc2InstanceSelection(Teleport_Usageevents_V1_UIDiscoverEC2InstanceSelectionEvent)
     case uiDiscoverDeployEice(Teleport_Usageevents_V1_UIDiscoverDeployEICEEvent)
     case uiDiscoverCreateNode(Teleport_Usageevents_V1_UIDiscoverCreateNodeEvent)
+    case tagExecuteQuery(Teleport_Usageevents_V1_TAGExecuteQueryEvent)
 
   #if !swift(>=4.1)
     static func ==(lhs: Teleport_Usageevents_V1_UsageEventOneOf.OneOf_Event, rhs: Teleport_Usageevents_V1_UsageEventOneOf.OneOf_Event) -> Bool {
@@ -2709,6 +2741,10 @@ struct Teleport_Usageevents_V1_UsageEventOneOf {
         guard case .uiDiscoverCreateNode(let l) = lhs, case .uiDiscoverCreateNode(let r) = rhs else { preconditionFailure() }
         return l == r
       }()
+      case (.tagExecuteQuery, .tagExecuteQuery): return {
+        guard case .tagExecuteQuery(let l) = lhs, case .tagExecuteQuery(let r) = rhs else { preconditionFailure() }
+        return l == r
+      }()
       default: return false
       }
     }
@@ -2781,6 +2817,7 @@ extension Teleport_Usageevents_V1_UIIntegrationEnrollCompleteEvent: @unchecked S
 extension Teleport_Usageevents_V1_ResourceCreateEvent: @unchecked Sendable {}
 extension Teleport_Usageevents_V1_DiscoveredDatabaseMetadata: @unchecked Sendable {}
 extension Teleport_Usageevents_V1_FeatureRecommendationEvent: @unchecked Sendable {}
+extension Teleport_Usageevents_V1_TAGExecuteQueryEvent: @unchecked Sendable {}
 extension Teleport_Usageevents_V1_UsageEventOneOf: @unchecked Sendable {}
 extension Teleport_Usageevents_V1_UsageEventOneOf.OneOf_Event: @unchecked Sendable {}
 #endif  // swift(>=5.5) && canImport(_Concurrency)
@@ -5037,6 +5074,50 @@ extension Teleport_Usageevents_V1_FeatureRecommendationEvent: SwiftProtobuf.Mess
   }
 }
 
+extension Teleport_Usageevents_V1_TAGExecuteQueryEvent: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  static let protoMessageName: String = _protobuf_package + ".TAGExecuteQueryEvent"
+  static let _protobuf_nameMap: SwiftProtobuf._NameMap = [
+    1: .standard(proto: "total_nodes"),
+    2: .standard(proto: "total_edges"),
+    3: .standard(proto: "is_success"),
+  ]
+
+  mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeSingularInt64Field(value: &self.totalNodes) }()
+      case 2: try { try decoder.decodeSingularInt64Field(value: &self.totalEdges) }()
+      case 3: try { try decoder.decodeSingularBoolField(value: &self.isSuccess) }()
+      default: break
+      }
+    }
+  }
+
+  func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    if self.totalNodes != 0 {
+      try visitor.visitSingularInt64Field(value: self.totalNodes, fieldNumber: 1)
+    }
+    if self.totalEdges != 0 {
+      try visitor.visitSingularInt64Field(value: self.totalEdges, fieldNumber: 2)
+    }
+    if self.isSuccess != false {
+      try visitor.visitSingularBoolField(value: self.isSuccess, fieldNumber: 3)
+    }
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  static func ==(lhs: Teleport_Usageevents_V1_TAGExecuteQueryEvent, rhs: Teleport_Usageevents_V1_TAGExecuteQueryEvent) -> Bool {
+    if lhs.totalNodes != rhs.totalNodes {return false}
+    if lhs.totalEdges != rhs.totalEdges {return false}
+    if lhs.isSuccess != rhs.isSuccess {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
 extension Teleport_Usageevents_V1_UsageEventOneOf: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   static let protoMessageName: String = _protobuf_package + ".UsageEventOneOf"
   static let _protobuf_nameMap: SwiftProtobuf._NameMap = [
@@ -5088,6 +5169,7 @@ extension Teleport_Usageevents_V1_UsageEventOneOf: SwiftProtobuf.Message, SwiftP
     47: .standard(proto: "ui_discover_ec2_instance_selection"),
     48: .standard(proto: "ui_discover_deploy_eice"),
     49: .standard(proto: "ui_discover_create_node"),
+    50: .standard(proto: "tag_execute_query"),
   ]
 
   mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
@@ -5720,6 +5802,19 @@ extension Teleport_Usageevents_V1_UsageEventOneOf: SwiftProtobuf.Message, SwiftP
           self.event = .uiDiscoverCreateNode(v)
         }
       }()
+      case 50: try {
+        var v: Teleport_Usageevents_V1_TAGExecuteQueryEvent?
+        var hadOneofValue = false
+        if let current = self.event {
+          hadOneofValue = true
+          if case .tagExecuteQuery(let m) = current {v = m}
+        }
+        try decoder.decodeSingularMessageField(value: &v)
+        if let v = v {
+          if hadOneofValue {try decoder.handleConflictingOneOf()}
+          self.event = .tagExecuteQuery(v)
+        }
+      }()
       default: break
       }
     }
@@ -5922,6 +6017,10 @@ extension Teleport_Usageevents_V1_UsageEventOneOf: SwiftProtobuf.Message, SwiftP
     case .uiDiscoverCreateNode?: try {
       guard case .uiDiscoverCreateNode(let v)? = self.event else { preconditionFailure() }
       try visitor.visitSingularMessageField(value: v, fieldNumber: 49)
+    }()
+    case .tagExecuteQuery?: try {
+      guard case .tagExecuteQuery(let v)? = self.event else { preconditionFailure() }
+      try visitor.visitSingularMessageField(value: v, fieldNumber: 50)
     }()
     case nil: break
     }

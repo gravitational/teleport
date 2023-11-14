@@ -83,6 +83,10 @@ struct Teleport_Userloginstate_V1_Spec {
   /// user_type is the type of user this state represents.
   var userType: String = String()
 
+  /// original_roles are the user roles that are part of the user's static definition. These roles are
+  /// not affected by access granted by access lists and are obtained prior to granting access list access.
+  var originalRoles: [String] = []
+
   var unknownFields = SwiftProtobuf.UnknownStorage()
 
   init() {}
@@ -145,6 +149,7 @@ extension Teleport_Userloginstate_V1_Spec: SwiftProtobuf.Message, SwiftProtobuf.
     1: .same(proto: "roles"),
     2: .same(proto: "traits"),
     3: .standard(proto: "user_type"),
+    4: .standard(proto: "original_roles"),
   ]
 
   mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
@@ -156,6 +161,7 @@ extension Teleport_Userloginstate_V1_Spec: SwiftProtobuf.Message, SwiftProtobuf.
       case 1: try { try decoder.decodeRepeatedStringField(value: &self.roles) }()
       case 2: try { try decoder.decodeRepeatedMessageField(value: &self.traits) }()
       case 3: try { try decoder.decodeSingularStringField(value: &self.userType) }()
+      case 4: try { try decoder.decodeRepeatedStringField(value: &self.originalRoles) }()
       default: break
       }
     }
@@ -171,6 +177,9 @@ extension Teleport_Userloginstate_V1_Spec: SwiftProtobuf.Message, SwiftProtobuf.
     if !self.userType.isEmpty {
       try visitor.visitSingularStringField(value: self.userType, fieldNumber: 3)
     }
+    if !self.originalRoles.isEmpty {
+      try visitor.visitRepeatedStringField(value: self.originalRoles, fieldNumber: 4)
+    }
     try unknownFields.traverse(visitor: &visitor)
   }
 
@@ -178,6 +187,7 @@ extension Teleport_Userloginstate_V1_Spec: SwiftProtobuf.Message, SwiftProtobuf.
     if lhs.roles != rhs.roles {return false}
     if lhs.traits != rhs.traits {return false}
     if lhs.userType != rhs.userType {return false}
+    if lhs.originalRoles != rhs.originalRoles {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }
