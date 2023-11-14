@@ -77,6 +77,8 @@ type WebConfig struct {
 	HideInaccessibleFeatures bool `json:"hideInaccessibleFeatures"`
 	// CustomTheme is a string that represents the name of the custom theme that the WebUI should use.
 	CustomTheme string `json:"customTheme"`
+	// AccessGraphEnabled is true when the access graph feature is enabled.
+	AccessGraphEnabled bool `json:"accessGraphEnabled"`
 }
 
 // UIConfig provides config options for the web UI served by the proxy service.
