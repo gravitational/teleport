@@ -1,16 +1,64 @@
-# This is a placeholder workflow and will be replaced once the appropriate
-# functionality passes code review.
-#
-# Dispatching workflow calls to a GHA workflow on a branch requires that a
-# workflow file with the correct name exists in the default branch, even
-# if that workflow bears no resemblance to the target workflow
-
 name: Release Legacy AMIs
 on:
   workflow_dispatch:
+    inputs:
+      oss-teleport-repo:
+        description: |
+          The name of the OSS teleport repo to checkout.
+        required: false
+        type: string
+        default: "gravitational/teleport"
+
+      oss-teleport-ref:
+        description: |
+          Git SHA, tag or branch of the revision of OSS teleport to build.
+        required: true
+        type: string
+
+      release-version:
+        description: |
+          The semver version of Teleport that we're building for. If not set
+          will be inferred form the `oss-teleport-ref` by assuming that it's
+          a standard Teleport release tag in the form vX.Y.Z. Use this override
+          to specify the version when oss-teleport-ref is not a formal semver
+          release tag.
+        type: string
+
+      workflow-tag:
+        description: |
+          Tag used to identify workflow runs spawned by this event.
+        type: string
+
 jobs:
-  dummy:
+  setup:
     runs-on: ubuntu-latest
+    outputs:
+      teleport-version: ${{ steps.config.outputs.teleport-version }}
     steps:
-      - name: Greeting
-        run: echo "This is a dummy build to placate GitHub."
+      - name: ${{ inputs.workflow-tag }}
+        if: inputs.workflow-tag != ''
+        run: echo ${{ inputs.workflow-tag }}
+
+      - name: Configure vars
+        id: config
+        env:
+          ref: ${{ inputs.release-version || inputs.oss-teleport-ref }}
+        run: |
+          echo "teleport-version=${ref#v}" >> "$GITHUB_OUTPUT"
+
+  build-amis:
+    name: Build AMIs
+    needs: setup
+    strategy:
+      matrix:
+        edition: ['oss', 'enterprise']
+    secrets: inherit
+    permissions:
+      id-token: write  # required for aws-actions/configure-aws-credentials
+      contents: read
+    uses: ./.github/workflows/build-legacy-ami.yaml
+    with:
+      oss-teleport-repo: ${{ inputs.oss-teleport-repo }}
+      oss-teleport-ref: ${{ inputs.oss-teleport-ref }}
+      teleport-version: ${{ needs.setup.outputs.teleport-version }}
+      teleport-edition: ${{ matrix.edition }}

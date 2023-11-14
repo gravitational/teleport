@@ -1,0 +1,136 @@
+# Build Teleport AMI
+name: Build AMI
+run-name: Build AMI
+on:
+  workflow_call:
+    inputs:
+      oss-teleport-repo:
+        description: |
+          The name of the OSS teleport repo to checkout
+        type: string
+        default: "gravitational/teleport"
+
+      oss-teleport-ref:
+        description: |
+          Git SHA, tag or branch of the revision of OSS teleport to build
+        required: true
+        type: string
+
+      teleport-version:
+        description: |
+          The semver version of Teleport versionthat we're building for.
+        type: string
+
+      teleport-edition:
+        description: |
+          The edition of teleport to build the image for. Must be either `oss`,
+          or `enterprise`. A FIPS AMI is built in addition when building the
+          `enterprise` edition.
+        required: true
+        type: string
+
+      environment:
+        description: |
+          GitHub Actions environment in which to run the build. Can be either
+          `build` or `build-stage` (if `build-stage` is ready).
+        type: string
+        default: build
+
+jobs:
+  build-image:
+    name: Build AMI
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    steps:
+      - name: Checkout Teleport
+        uses: gravitational/teleport.e/.github/actions/checkout-teleport@master
+        with:
+          oss-teleport-repo: ${{ inputs.oss-teleport-repo }}
+          oss-teleport-ref: ${{ inputs.oss-teleport-ref }}
+          edition: oss
+          repo-access-app-id: ${{ secrets.DEPLOY_APP_ID }}
+          repo-access-app-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
+
+      - name: Parameterize build
+        id: params
+        env:
+          EDITION: ${{ inputs.teleport-edition }}
+          VERSION: ${{ inputs.teleport-version }}
+        run: |
+          case "${EDITION}" in
+            oss)
+              ami_type=oss
+              tarballs=(
+                "teleport-v${VERSION}-linux-amd64-bin.tar.gz"
+              )
+              ;;
+            enterprise)
+              ami_type=ent
+              tarballs=(
+                "teleport-ent-v${VERSION}-linux-amd64-bin.tar.gz"
+                "teleport-ent-v${VERSION}-linux-amd64-fips-bin.tar.gz"
+              )
+              ;;
+            *) echo "unknown teleport edition: $EDITION" >&2; exit 1 ;;
+          esac
+
+          {
+            echo "ami-type=${ami_type}"
+            echo "tarballs=${tarballs[*]}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Assume artifact download role
+        uses: aws-actions/configure-aws-credentials@010d0da01d0b5a38af31e9c3470dbfdabdecca3a # v4.0.1
+        with:
+          aws-region: us-west-2
+          role-to-assume: ${{ vars.ARTIFACT_DOWNLOAD_AWS_ROLE }}
+          role-session-name: "gha-ami-download-${{ inputs.teleport-edition }}-${{ inputs.teleport-version }}-${{ github.run_number }}"
+          role-duration-seconds: 3600
+
+      - name: Download Teleport tarball artifacts
+        env:
+          S3_PATH: s3://${{ vars.ARTIFACT_SOURCE_BUCKET }}/teleport/tag/${{ inputs.teleport-version }}
+          TARBALLS: ${{ steps.params.outputs.tarballs }}
+        run: |
+          for tarball in ${TARBALLS}; do
+            aws s3 cp "${S3_PATH}/${tarball}" ./assets/aws/files
+          done
+
+      - name: Assume AMI build role
+        uses: aws-actions/configure-aws-credentials@010d0da01d0b5a38af31e9c3470dbfdabdecca3a # v4.0.1
+        with:
+          aws-region: us-west-2
+          role-to-assume: ${{ vars.LEGACY_PACKER_AMI_AWS_ROLE }}
+          role-session-name: "gha-ami-build-${{ inputs.teleport-edition }}-${{ inputs.teleport-version }}-${{ github.run_number }}"
+          role-duration-seconds: 3600
+
+      - name: Setup packer
+        uses: hashicorp/setup-packer@main
+        with:
+          version: 1.9.4
+
+      - name: Build AMIs
+        env:
+          AMI_TYPE: ${{ steps.params.outputs.ami-type }}
+          TELEPORT_VERSION: ${{ inputs.teleport-version }}
+          PUBLIC_AMI_NAME: gravitational-teleport-ami-${{ steps.params.outputs.ami-type }}-${{ inputs.teleport-version }}
+          # FIPS_AMI_NAME is ignored when building the OSS AMI
+          FIPS_AMI_NAME: gravitational-teleport-ami-${{ steps.params.outputs.ami-type }}-${{ inputs.teleport-version }}-fips
+        run: |
+          packer plugins install github.com/hashicorp/amazon
+          make -C assets/aws "${AMI_TYPE}-ci-build"
+
+      - name: Assume timestamp upload (artifact) role
+        uses: aws-actions/configure-aws-credentials@010d0da01d0b5a38af31e9c3470dbfdabdecca3a # v4.0.1
+        with:
+          aws-region: us-west-2
+          role-to-assume: ${{ vars.ARTIFACT_UPLOAD_AWS_ROLE }}
+          role-session-name: "gha-ami-upload-${{ inputs.teleport-edition }}-${{ inputs.teleport-version }}-${{ github.run_number }}"
+          role-duration-seconds: 3600
+
+      - name: Sync AMI build timestamp to S3
+        env:
+          AMI_TYPE: ${{ steps.params.outputs.ami-type }}
+          S3_PATH: s3://${{ vars.ARTIFACT_SOURCE_BUCKET }}/teleport/ami/${{ inputs.teleport-version }}/
+        run: |
+          aws s3 cp "./assets/aws/files/build/${AMI_TYPE}_build_timestamp.txt" "${S3_PATH}"
