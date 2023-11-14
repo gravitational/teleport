@@ -210,8 +210,9 @@ func (s *Service) RedeemAuthToken(ctx context.Context, req *mobilev1pb.RedeemAut
 	}
 
 	return &mobilev1pb.RedeemAuthTokenResponse{
-		Username: username,
-		TlsCert:  certs.TLS,
-		SshCert:  certs.SSH,
+		Username:   username,
+		TlsCert:    certs.TLS,
+		SshCert:    certs.SSH,
+		TlsCaCerts: certs.TLSCACerts,
 	}, nil
 }
