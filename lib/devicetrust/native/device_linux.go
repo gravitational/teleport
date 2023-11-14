@@ -100,41 +100,10 @@ func collectDeviceData(mode CollectDataMode) (*devicepb.DeviceCollectedData, err
 		return nil, trace.Wrap(err)
 	}
 
-	dmiInfo, err := cddFuncs.dmiInfoFromSysfs()
+	dmiInfo, err := readDMIInfoAccordingToMode(mode)
 	if err != nil {
-		log.WithError(err).Warn("TPM: Failed to read device model and/or serial numbers")
-	}
-	if errors.Is(err, fs.ErrPermission) {
-		switch mode {
-		case CollectedDataNeverEscalate, CollectedDataMaybeEscalate:
-			log.Debug("TPM: Reading cached DMI info")
-
-			dmiCached, err := cddFuncs.readDMIInfoCached()
-			if err == nil {
-				dmiInfo = dmiCached
-				break // from switch
-			}
-
-			log.WithError(err).Debug("TPM: Failed to read cached DMI info")
-			if mode == CollectedDataNeverEscalate {
-				break // from switch
-			}
-
-			fallthrough
-
-		case CollectedDataAlwaysEscalate:
-			log.Debug("TPM: Running escalated `tsh device dmi-info`")
-
-			dmiInfo, err = cddFuncs.readDMIInfoEscalated()
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-
-			if err := cddFuncs.saveDMIInfoToCache(dmiInfo); err != nil {
-				log.WithError(err).Warn("TPM: Failed to write DMI cache")
-				// err swallowed on purpose.
-			}
-		}
+		// readDMIInfoAccordingToMode only errors if it fails completely.
+		return nil, trace.Wrap(err)
 	}
 
 	// dmiInfo is expected to never be nil, but code defensively just in case.
@@ -164,6 +133,50 @@ func collectDeviceData(mode CollectDataMode) (*devicepb.DeviceCollectedData, err
 		SystemSerialNumber:    systemSerialNumber,
 		BaseBoardSerialNumber: baseBoardSerialNumber,
 	}, nil
+}
+
+func readDMIInfoAccordingToMode(mode CollectDataMode) (*linux.DMIInfo, error) {
+	dmiInfo, err := cddFuncs.dmiInfoFromSysfs()
+	if err == nil {
+		return dmiInfo, nil
+	}
+
+	log.WithError(err).Warn("TPM: Failed to read device model and/or serial numbers")
+	if !errors.Is(err, fs.ErrPermission) {
+		return dmiInfo, nil // original info
+	}
+
+	switch mode {
+	case CollectedDataNeverEscalate, CollectedDataMaybeEscalate:
+		log.Debug("TPM: Reading cached DMI info")
+
+		dmiCached, err := cddFuncs.readDMIInfoCached()
+		if err == nil {
+			return dmiCached, nil // successful cache hit
+		}
+
+		log.WithError(err).Debug("TPM: Failed to read cached DMI info")
+		if mode == CollectedDataNeverEscalate {
+			return dmiInfo, nil // original info
+		}
+
+		fallthrough
+
+	case CollectedDataAlwaysEscalate:
+		log.Debug("TPM: Running escalated `tsh device dmi-info`")
+
+		dmiInfo, err = cddFuncs.readDMIInfoEscalated()
+		if err != nil {
+			return nil, trace.Wrap(err) // actual failure, abort
+		}
+
+		if err := cddFuncs.saveDMIInfoToCache(dmiInfo); err != nil {
+			log.WithError(err).Warn("TPM: Failed to write DMI cache")
+			// err swallowed on purpose.
+		}
+	}
+
+	return dmiInfo, nil // escalated info or unknown mode
 }
 
 func readDMIInfoCached() (*linux.DMIInfo, error) {
