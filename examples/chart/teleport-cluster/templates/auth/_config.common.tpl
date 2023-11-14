@@ -51,13 +51,12 @@ auth_service:
 {{- if .Values.enableProxyPeering }}
   tunnel_strategy:
   type: proxy_peering 
-    {{- $proxySpecificHA := default (dict) .Values.proxy.highAvailability }}
-    {{- if $proxySpecificHA.replicaCount }}
-      agent_connection_count: {{ $proxySpecificHA.replicaCount }}
-    {{- else }}
-      agent_connection_count: {{ max .Values.highAvailability.replicaCount 2 }}
+  {{- $proxySpecificHA := default (dict) .Values.proxy.highAvailability }}
+  {{- if $proxySpecificHA.replicaCount }}
+    agent_connection_count: {{ $proxySpecificHA.replicaCount }}
   {{- else }}
-  agent_connection_count: 1
+    agent_connection_count: {{ max .Values.highAvailability.replicaCount 2 }}
+  {{- end }}
 {{- end }}
 {{- if .Values.sessionRecording }}
   session_recording: {{ .Values.sessionRecording }}
