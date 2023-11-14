@@ -36,6 +36,8 @@ message SendNotificationRequest {
   string body = 2;
   // Device UUID is a unique identifier for a mobile device.
   string device_uuid = 3;
+  // Cluster ID is a unique identifier for a cluster.
+  string cluster_id = 4;
 }
 
 // SendNotificationResponse is a response to a SendNotificationRequest.
@@ -45,6 +47,8 @@ message SendNotificationResponse {}
 message RegisterDeviceRequest {
   // Device token is a unique identifier for a mobile device.
   string device_token = 1;
+  // Cluster ID is a unique identifier for a cluster.
+  string cluster_id = 2;
 }
 
 // RegisterDeviceResponse is a response to a RegisterDeviceRequest.
