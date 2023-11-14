@@ -25,7 +25,7 @@ func enrollDeviceInit() (*devicepb.EnrollDeviceInit, error) {
 	return nil, devicetrust.ErrPlatformNotSupported
 }
 
-func collectDeviceData(mode CollectedDataMode) (*devicepb.DeviceCollectedData, error) {
+func collectDeviceData(mode CollectDataMode) (*devicepb.DeviceCollectedData, error) {
 	return nil, devicetrust.ErrPlatformNotSupported
 }
 

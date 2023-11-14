@@ -98,7 +98,7 @@ func pubKeyToCredential(id string, pubKeyRaw []byte) (*devicepb.DeviceCredential
 	}, nil
 }
 
-func collectDeviceData(_ CollectedDataMode) (*devicepb.DeviceCollectedData, error) {
+func collectDeviceData(_ CollectDataMode) (*devicepb.DeviceCollectedData, error) {
 	var dd C.DeviceData
 	defer func() {
 		C.free(unsafe.Pointer(dd.serial_number))

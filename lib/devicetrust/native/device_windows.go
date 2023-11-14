@@ -174,7 +174,7 @@ func getOSBuildNumber() (string, error) {
 	return string(bytes.TrimSpace(out)), nil
 }
 
-func collectDeviceData(_ CollectedDataMode) (*devicepb.DeviceCollectedData, error) {
+func collectDeviceData(_ CollectDataMode) (*devicepb.DeviceCollectedData, error) {
 	log.Debug("TPM: Collecting device data.")
 	systemSerial, err := getDeviceSerial()
 	if err != nil {
