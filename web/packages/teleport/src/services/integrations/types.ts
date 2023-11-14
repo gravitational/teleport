@@ -358,3 +358,12 @@ export type Cidr = {
   // Description contains a small text describing the CIDR.
   description: string;
 };
+
+// IntegrationUrlLocationState define fields to preserve state between
+// react routes (eg. in BYOB flow, it is required of user
+// to create a AWS OIDC integration which requires changing route
+// and then coming back to resume the flow.)
+export type IntegrationUrlLocationState = {
+  kind: IntegrationKind,
+  redirectText: string,
+}
