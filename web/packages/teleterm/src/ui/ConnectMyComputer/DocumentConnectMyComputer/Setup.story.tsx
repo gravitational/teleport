@@ -70,8 +70,8 @@ export function Success() {
 export function Errored() {
   const cluster = makeRootCluster();
   const appContext = new MockAppContext({ appVersion: cluster.proxyVersion });
-  appContext.connectMyComputerService.createAgentConfigFile = () => {
-    throw new Error('Failed to write file, no permissions.');
+  appContext.connectMyComputerService.downloadAgent = () => {
+    throw new Error('Failed to download the agent.');
   };
   return <ShowState cluster={cluster} appContext={appContext} />;
 }

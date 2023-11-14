@@ -41,26 +41,18 @@ export class ConnectMyComputerService {
     return this.tshClient.createConnectMyComputerRole(rootClusterUri);
   }
 
-  async createAgentConfigFile(rootCluster: Cluster): Promise<{
+  async createToken(rootClusterUri: uri.RootClusterUri): Promise<{
     token: string;
   }> {
-    const { token } = await this.tshClient.createConnectMyComputerNodeToken(
-      rootCluster.uri
-    );
-
-    await this.mainProcessClient.createAgentConfigFile({
-      rootClusterUri: rootCluster.uri,
-      proxy: rootCluster.proxyHost,
-      token: token,
-      username: rootCluster.loggedInUser.name,
-    });
-
-    return { token };
+    return this.tshClient.createConnectMyComputerNodeToken(rootClusterUri);
   }
 
-  runAgent(rootClusterUri: uri.RootClusterUri): Promise<void> {
+  runAgent(rootCluster: Cluster, token: string): Promise<void> {
     return this.mainProcessClient.runAgent({
-      rootClusterUri,
+      rootClusterUri: rootCluster.uri,
+      proxy: rootCluster.proxyHost,
+      username: rootCluster.loggedInUser.name,
+      token,
     });
   }
 
@@ -74,6 +66,8 @@ export class ConnectMyComputerService {
     return this.mainProcessClient.isAgentConfigFileCreated({ rootClusterUri });
   }
 
+  // TODO(ravicious): Remove this.
+  // https://github.com/gravitational/teleport/issues/34531
   deleteToken(
     rootClusterUri: uri.RootClusterUri,
     token: string

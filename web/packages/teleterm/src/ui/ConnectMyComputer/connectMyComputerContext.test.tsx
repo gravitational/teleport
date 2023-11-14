@@ -132,7 +132,7 @@ test('startAgent re-throws errors that are thrown while spawning the process', a
 
   let error: Error;
   await act(async () => {
-    [, error] = await result.current.startAgent();
+    [, error] = await result.current.startAgent('');
   });
   expect(result.current.currentAction).toStrictEqual({
     kind: 'start',
@@ -158,7 +158,7 @@ test('starting the agent flips the workspace autoStart flag to true', async () =
   );
 
   await act(async () => {
-    const [, error] = await result.current.startAgent();
+    const [, error] = await result.current.startAgent('');
     expect(error).toBeFalsy();
   });
 

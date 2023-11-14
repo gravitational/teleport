@@ -97,7 +97,7 @@ export interface ConnectMyComputerContext {
   currentAction: CurrentAction;
   agentProcessState: AgentProcessState;
   agentNode: Server | undefined;
-  startAgent(): Promise<[Server, Error]>;
+  startAgent(token: string): Promise<[Server, Error]>;
   downloadAgent(): Promise<[void, Error]>;
   downloadAgentAttempt: Attempt<void>;
   setDownloadAgentAttempt(attempt: Attempt<void>): void;
@@ -189,49 +189,55 @@ export const ConnectMyComputerContextProvider: FC<{
     );
 
   const [startAgentAttempt, startAgent] = useAsync(
-    useCallback(async () => {
-      setCurrentActionKind('start');
+    useCallback(
+      // Token is needed only during the first start of the agent.
+      async (token: string) => {
+        setCurrentActionKind('start');
 
-      checkCompatibility();
+        checkCompatibility();
 
-      await connectMyComputerService.runAgent(rootClusterUri);
+        await connectMyComputerService.runAgent(rootCluster, token);
 
-      const abortController = createAbortController();
-      try {
-        const server = await Promise.race([
-          connectMyComputerService.waitForNodeToJoin(
-            rootClusterUri,
-            abortController.signal
-          ),
-          throwOnAgentProcessErrors(
-            mainProcessClient,
-            rootClusterUri,
-            abortController.signal
-          ),
-          wait(20_000, abortController.signal).then(() => {
-            const logs = mainProcessClient.getAgentLogs({ rootClusterUri });
-            throw new NodeWaitJoinTimeout(logs);
-          }),
-        ]);
-        setCurrentActionKind('observe-process');
-        workspacesService.setConnectMyComputerAutoStart(rootClusterUri, true);
-        usageService.captureConnectMyComputerAgentStart(rootClusterUri);
-        return server;
-      } catch (error) {
-        // in case of any error kill the agent
-        await connectMyComputerService.killAgent(rootClusterUri);
-        throw error;
-      } finally {
-        abortController.abort();
-      }
-    }, [
-      connectMyComputerService,
-      mainProcessClient,
-      rootClusterUri,
-      usageService,
-      workspacesService,
-      checkCompatibility,
-    ])
+        const abortController = createAbortController();
+        try {
+          const server = await Promise.race([
+            connectMyComputerService.waitForNodeToJoin(
+              rootClusterUri,
+              abortController.signal
+            ),
+            throwOnAgentProcessErrors(
+              mainProcessClient,
+              rootClusterUri,
+              abortController.signal
+            ),
+            wait(20_000, abortController.signal).then(() => {
+              const logs = mainProcessClient.getAgentLogs({ rootClusterUri });
+              throw new NodeWaitJoinTimeout(logs);
+            }),
+          ]);
+          // TODO: Create a file signifying a successful setup.
+          setCurrentActionKind('observe-process');
+          workspacesService.setConnectMyComputerAutoStart(rootClusterUri, true);
+          usageService.captureConnectMyComputerAgentStart(rootClusterUri);
+          return server;
+        } catch (error) {
+          // in case of any error kill the agent
+          await connectMyComputerService.killAgent(rootClusterUri);
+          throw error;
+        } finally {
+          abortController.abort();
+        }
+      },
+      [
+        connectMyComputerService,
+        mainProcessClient,
+        rootClusterUri,
+        usageService,
+        workspacesService,
+        checkCompatibility,
+        rootCluster,
+      ]
+    )
   );
 
   const downloadAndStartAgent = useCallback(async () => {
@@ -239,7 +245,7 @@ export const ConnectMyComputerContextProvider: FC<{
     if (error) {
       throw error;
     }
-    [, error] = await startAgent();
+    [, error] = await startAgent('');
     if (error) {
       throw error;
     }

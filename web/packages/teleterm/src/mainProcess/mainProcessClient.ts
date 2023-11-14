@@ -155,7 +155,8 @@ export default function createMainProcessClient(): MainProcessClient {
         args
       );
     },
-    runAgent(args: { rootClusterUri: RootClusterUri }) {
+    // TODO: Use a separate type for this IPC.
+    runAgent(args: CreateAgentConfigFileArgs) {
       return ipcRenderer.invoke(
         'main-process-connect-my-computer-run-agent',
         args

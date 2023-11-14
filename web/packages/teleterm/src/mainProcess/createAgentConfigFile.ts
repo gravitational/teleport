@@ -85,6 +85,7 @@ export async function removeAgentDirectory(
   await rm(agentDirectory, { recursive: true, force: true });
 }
 
+// TODO: Instead we need to look at a special file which indicates whether the setup was successful.
 export async function isAgentConfigFileCreated(
   runtimeSettings: RuntimeSettings,
   rootClusterUri: RootClusterUri
@@ -166,4 +167,64 @@ function getAgentDirectoryOrThrow(
     throw new Error(`The agent config path is incorrect: ${resolved}`);
   }
   return resolved;
+}
+
+type AgentConfig = object;
+
+export function generateAgentConfig(
+  runtimeSettings: RuntimeSettings,
+  args: CreateAgentConfigFileArgs
+): AgentConfig {
+  const { dataDirectory } = generateAgentConfigPaths(
+    runtimeSettings,
+    args.rootClusterUri
+  );
+  const labels = {
+    [constants.ConnectMyComputerNodeOwnerLabel]: args.username,
+  };
+
+  return generateConfig({
+    proxy: args.proxy,
+    token: args.token,
+    nodename: runtimeSettings.hostname,
+    dataDir: dataDirectory,
+    labels,
+  });
+}
+
+export function generateConfig(args: {
+  proxy: string;
+  token: string;
+  nodename: string;
+  dataDir: string;
+  labels: Record<string, string>;
+}): AgentConfig {
+  return {
+    version: 'v3',
+    teleport: {
+      nodename: args.nodename,
+      data_dir: args.dataDir,
+      join_params: {
+        token_name: args.token,
+        method: 'token',
+      },
+      proxy_server: args.proxy,
+      log: {
+        output: 'stderr',
+        severity: 'INFO',
+        format: {
+          output: 'text',
+        },
+      },
+    },
+    auth_service: {
+      enabled: 'no',
+    },
+    ssh_service: {
+      enabled: 'yes',
+    },
+    proxy_service: {
+      enabled: 'no',
+    },
+  };
 }

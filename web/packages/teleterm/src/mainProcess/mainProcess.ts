@@ -356,12 +356,7 @@ export default class MainProcess {
 
     ipcMain.handle(
       'main-process-connect-my-computer-run-agent',
-      async (
-        _,
-        args: {
-          rootClusterUri: RootClusterUri;
-        }
-      ) => {
+      async (_, args: CreateAgentConfigFileArgs) => {
         await this.agentRunner.start(args.rootClusterUri);
       }
     );

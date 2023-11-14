@@ -57,6 +57,7 @@ export class AgentRunner {
    * If an existing process exists for the given root cluster, the old one will be killed.
    */
   async start(rootClusterUri: RootClusterUri): Promise<ChildProcess> {
+    // TODO: Generate config here.
     if (this.agentProcesses.has(rootClusterUri)) {
       await this.kill(rootClusterUri);
     }

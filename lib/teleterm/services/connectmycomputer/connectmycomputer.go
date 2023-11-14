@@ -280,7 +280,8 @@ func (t *TokenProvisioner) CreateNodeToken(ctx context.Context, provisioner Prov
 	}
 
 	var req types.ProvisionTokenSpecV2
-	req.Roles = types.SystemRoles{types.RoleNode}
+	// TODO: How to migrate existing agents to a token that has app role?
+	req.Roles = types.SystemRoles{types.RoleNode, types.RoleApp}
 	expires := t.cfg.Clock.Now().UTC().Add(5 * time.Minute)
 
 	provisionToken, err := types.NewProvisionTokenFromSpec(tokenName, expires, req)

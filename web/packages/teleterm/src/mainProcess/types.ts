@@ -138,7 +138,8 @@ export type MainProcessClient = {
   openAgentLogsDirectory(args: {
     rootClusterUri: RootClusterUri;
   }): Promise<void>;
-  runAgent(args: { rootClusterUri: RootClusterUri }): Promise<void>;
+  // TODO: Use a separate type for this IPC.
+  runAgent(args: CreateAgentConfigFileArgs): Promise<void>;
   isAgentConfigFileCreated(args: {
     rootClusterUri: RootClusterUri;
   }): Promise<boolean>;

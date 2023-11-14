@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import styled from 'styled-components';
 import { Box, ButtonPrimary, Flex, Text, Alert } from 'design';
 import { makeEmptyAttempt, useAsync } from 'shared/hooks/useAsync';
@@ -32,7 +32,6 @@ import {
 import { codeOrSignal } from 'teleterm/ui/utils/process';
 import { isAccessDeniedError } from 'teleterm/services/tshd/errors';
 import { useResourcesContext } from 'teleterm/ui/DocumentCluster/resourcesContext';
-import { useLogger } from 'teleterm/ui/hooks/useLogger';
 import { DocumentConnectMyComputer } from 'teleterm/ui/services/workspacesService';
 
 import { useAgentProperties } from '../useAgentProperties';
@@ -210,7 +209,6 @@ function AccessError(props: { access: ConnectMyComputerAccessNoAccess }) {
 }
 
 function AgentSetup() {
-  const logger = useLogger('AgentSetup');
   const ctx = useAppContext();
   const { rootClusterUri } = useWorkspaceContext();
   const {
@@ -223,7 +221,6 @@ function AgentSetup() {
   } = useConnectMyComputerContext();
   const { requestResourcesRefresh } = useResourcesContext();
   const rootCluster = ctx.clustersService.findCluster(rootClusterUri);
-  const nodeToken = useRef<string>();
 
   const [createRoleAttempt, runCreateRoleAttempt, setCreateRoleAttempt] =
     useAsync(
@@ -255,25 +252,15 @@ function AgentSetup() {
         [ctx, rootClusterUri]
       )
     );
-  const [
-    generateConfigFileAttempt,
-    runGenerateConfigFileAttempt,
-    setGenerateConfigFileAttempt,
-  ] = useAsync(
-    useCallback(async () => {
-      const { token } = await retryWithRelogin(ctx, rootClusterUri, () =>
-        ctx.connectMyComputerService.createAgentConfigFile(rootCluster)
-      );
-      nodeToken.current = token;
-    }, [rootCluster, ctx, rootClusterUri])
-  );
+
   const [joinClusterAttempt, runJoinClusterAttempt, setJoinClusterAttempt] =
     useAsync(
       useCallback(async () => {
-        if (!nodeToken.current) {
-          throw new Error('Node token is empty');
-        }
-        const [, error] = await startAgent();
+        const { token } = await ctx.connectMyComputerService.createToken(
+          rootCluster.uri
+        );
+
+        const [, error] = await startAgent(token);
         if (error) {
           throw error;
         }
@@ -281,26 +268,11 @@ function AgentSetup() {
         // Now that the node has joined the server, let's refresh all open DocumentCluster instances
         // to show the new node.
         requestResourcesRefresh();
-
-        try {
-          await ctx.connectMyComputerService.deleteToken(
-            rootCluster.uri,
-            nodeToken.current
-          );
-        } catch (error) {
-          // the user may not have permissions to remove the token, but it will expire in a few minutes anyway
-          if (isAccessDeniedError(error)) {
-            logger.error('Access denied when deleting a token.', error);
-            return;
-          }
-          throw error;
-        }
       }, [
         startAgent,
         ctx.connectMyComputerService,
         rootCluster.uri,
         requestResourcesRefresh,
-        logger,
       ])
     );
 
@@ -312,10 +284,6 @@ function AgentSetup() {
     {
       name: 'Downloading the agent',
       attempt: downloadAgentAttempt,
-    },
-    {
-      name: 'Generating the config file',
-      attempt: generateConfigFileAttempt,
     },
     {
       name: 'Joining the cluster',
@@ -390,16 +358,11 @@ function AgentSetup() {
     // (the error would be cleared when the given step starts, but it would be too late)
     setCreateRoleAttempt(makeEmptyAttempt());
     setDownloadAgentAttempt(makeEmptyAttempt());
-    setGenerateConfigFileAttempt(makeEmptyAttempt());
     setJoinClusterAttempt(makeEmptyAttempt());
 
     const actions = [
       withEventOnFailure(runCreateRoleAttempt, 'setting_up_role'),
       withEventOnFailure(runDownloadAgentAttempt, 'downloading_agent'),
-      withEventOnFailure(
-        runGenerateConfigFileAttempt,
-        'generating_config_file'
-      ),
       withEventOnFailure(runJoinClusterAttempt, 'joining_cluster'),
     ];
     for (const action of actions) {
@@ -418,11 +381,9 @@ function AgentSetup() {
   }, [
     setCreateRoleAttempt,
     setDownloadAgentAttempt,
-    setGenerateConfigFileAttempt,
     setJoinClusterAttempt,
     runCreateRoleAttempt,
     runDownloadAgentAttempt,
-    runGenerateConfigFileAttempt,
     runJoinClusterAttempt,
     markAgentAsConfigured,
     ctx.usageService,
@@ -431,22 +392,13 @@ function AgentSetup() {
 
   useEffect(() => {
     if (
-      [
-        createRoleAttempt,
-        downloadAgentAttempt,
-        generateConfigFileAttempt,
-        joinClusterAttempt,
-      ].every(attempt => attempt.status === '')
+      [createRoleAttempt, downloadAgentAttempt, joinClusterAttempt].every(
+        attempt => attempt.status === ''
+      )
     ) {
       runSteps();
     }
-  }, [
-    downloadAgentAttempt,
-    generateConfigFileAttempt,
-    joinClusterAttempt,
-    createRoleAttempt,
-    runSteps,
-  ]);
+  }, [downloadAgentAttempt, joinClusterAttempt, createRoleAttempt, runSteps]);
 
   const hasSetupFailed = steps.some(s => s.attempt.status === 'error');
   const { clusterName, hostname } = useAgentProperties();
