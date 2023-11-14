@@ -54,7 +54,13 @@ export const ResourceActionButton = ({ resource }: Props) => {
   }
 };
 
-const NodeConnect = ({ node }: { node: Node }) => {
+export const NodeConnect = ({
+  node,
+  textTransform,
+}: {
+  node: Node;
+  textTransform?: string;
+}) => {
   const { clusterId } = useStickyClusterId();
   const startSshSession = (login: string, serverId: string) => {
     const url = cfg.getSshConnectRoute({
@@ -78,7 +84,7 @@ const NodeConnect = ({ node }: { node: Node }) => {
   return (
     <MenuLogin
       width="90px"
-      textTransform="none"
+      textTransform={textTransform || 'none'}
       alignButtonWidthToMenu
       getLoginItems={handleOnOpen}
       onSelect={handleOnSelect}

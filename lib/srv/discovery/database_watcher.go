@@ -31,7 +31,7 @@ import (
 const databaseEventPrefix = "db/"
 
 func (s *Server) startDatabaseWatchers() error {
-	if len(s.databaseFetchers) == 0 {
+	if len(s.databaseFetchers) == 0 && s.dynamicMatcherWatcher == nil {
 		return nil
 	}
 
@@ -60,11 +60,12 @@ func (s *Server) startDatabaseWatchers() error {
 	}
 
 	watcher, err := common.NewWatcher(s.ctx, common.WatcherConfig{
-		Fetchers:       s.databaseFetchers,
+		FetchersFn:     s.getAllDatabaseFetchers,
 		Log:            s.Log.WithField("kind", types.KindDatabase),
 		DiscoveryGroup: s.DiscoveryGroup,
 		Interval:       s.PollInterval,
 		Origin:         types.OriginCloud,
+		Clock:          s.clock,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -91,6 +92,18 @@ func (s *Server) startDatabaseWatchers() error {
 		}
 	}()
 	return nil
+}
+
+func (s *Server) getAllDatabaseFetchers() []common.Fetcher {
+	allFetchers := make([]common.Fetcher, 0, len(s.databaseFetchers))
+
+	s.muDynamicFetchers.RLock()
+	for _, fetcherSet := range s.dynamicDatabaseFetchers {
+		allFetchers = append(allFetchers, fetcherSet...)
+	}
+	s.muDynamicFetchers.RUnlock()
+
+	return append(allFetchers, s.databaseFetchers...)
 }
 
 func (s *Server) getCurrentDatabases() types.ResourcesWithLabelsMap {

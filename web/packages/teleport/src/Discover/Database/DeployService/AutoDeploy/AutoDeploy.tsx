@@ -21,6 +21,7 @@ import * as Icons from 'design/Icon';
 import FieldInput from 'shared/components/FieldInput';
 import Validation, { Validator } from 'shared/components/Validation';
 import useAttempt from 'shared/hooks/useAttemptNext';
+import { requiredIamRoleName } from 'shared/components/Validation/rules';
 
 import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
 import { usePingTeleport } from 'teleport/Discover/Shared/PingTeleportContext';
@@ -330,7 +331,7 @@ const CreateAccessRole = ({
       <FieldInput
         mb={4}
         disabled={disabled}
-        rule={roleArnMatcher}
+        rule={requiredIamRoleName}
         label="Name a Task Role ARN"
         autoFocus
         value={taskRoleArn}
@@ -452,21 +453,3 @@ const StyledBox = styled(Box)`
   padding: ${props => `${props.theme.space[3]}px`};
   border-radius: ${props => `${props.theme.space[2]}px`};
 `;
-
-// ROLE_ARN_REGEX uses the same regex matcher used in the backend:
-// https://github.com/gravitational/teleport/blob/2cba82cb332e769ebc8a658d32ff24ddda79daff/api/utils/aws/identifiers.go#L43
-//
-// Regex checks for alphanumerics and select few characters.
-export const ROLE_ARN_REGEX = /^[\w+=,.@-]+$/;
-const roleArnMatcher = value => () => {
-  const isValid = value.match(ROLE_ARN_REGEX);
-  if (!isValid) {
-    return {
-      valid: false,
-      message: 'name can only contain characters @ = , . + - and alphanumerics',
-    };
-  }
-  return {
-    valid: true,
-  };
-};

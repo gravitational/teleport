@@ -142,12 +142,12 @@ func GetDefaultKeySlot(policy PrivateKeyPolicy) (piv.Slot, error) {
 	case PrivateKeyPolicyHardwareKeyTouch:
 		// private_key_policy: hardware_key_touch -> 9c
 		return piv.SlotSignature, nil
-	case PrivateKeyPolicyHardwareKeyPIN:
-		// private_key_policy: hardware_key_pin -> 9d
-		return piv.SlotCardAuthentication, nil
 	case PrivateKeyPolicyHardwareKeyTouchAndPIN:
-		// private_key_policy: hardware_key_touch_and_pin -> 9e
+		// private_key_policy: hardware_key_touch_and_pin -> 9d
 		return piv.SlotKeyManagement, nil
+	case PrivateKeyPolicyHardwareKeyPIN:
+		// private_key_policy: hardware_key_pin -> 9e
+		return piv.SlotCardAuthentication, nil
 	default:
 		return piv.Slot{}, trace.BadParameter("unexpected private key policy %v", policy)
 	}
@@ -715,10 +715,10 @@ func parsePIVSlot(slotKey uint32) (piv.Slot, error) {
 		return piv.SlotAuthentication, nil
 	case piv.SlotSignature.Key:
 		return piv.SlotSignature, nil
-	case piv.SlotCardAuthentication.Key:
-		return piv.SlotCardAuthentication, nil
 	case piv.SlotKeyManagement.Key:
 		return piv.SlotKeyManagement, nil
+	case piv.SlotCardAuthentication.Key:
+		return piv.SlotCardAuthentication, nil
 	default:
 		retiredSlot, ok := piv.RetiredKeyManagementSlot(slotKey)
 		if !ok {

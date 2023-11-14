@@ -458,13 +458,14 @@ func (u *UserCertificateIssuedEvent) Anonymize(a utils.Anonymizer) prehogv1a.Sub
 	return prehogv1a.SubmitEventRequest{
 		Event: &prehogv1a.SubmitEventRequest_UserCertificateIssuedEvent{
 			UserCertificateIssuedEvent: &prehogv1a.UserCertificateIssuedEvent{
-				UserName:        a.AnonymizeString(u.UserName),
-				Ttl:             u.Ttl,
-				IsBot:           u.IsBot,
-				UsageDatabase:   u.UsageDatabase,
-				UsageApp:        u.UsageApp,
-				UsageKubernetes: u.UsageKubernetes,
-				UsageDesktop:    u.UsageDesktop,
+				UserName:         a.AnonymizeString(u.UserName),
+				Ttl:              u.Ttl,
+				IsBot:            u.IsBot,
+				UsageDatabase:    u.UsageDatabase,
+				UsageApp:         u.UsageApp,
+				UsageKubernetes:  u.UsageKubernetes,
+				UsageDesktop:     u.UsageDesktop,
+				PrivateKeyPolicy: u.PrivateKeyPolicy,
 			},
 		},
 	}

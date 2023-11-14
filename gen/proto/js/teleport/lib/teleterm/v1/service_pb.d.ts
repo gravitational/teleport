@@ -11,7 +11,6 @@ import * as teleport_lib_teleterm_v1_cluster_pb from "../../../../teleport/lib/t
 import * as teleport_lib_teleterm_v1_database_pb from "../../../../teleport/lib/teleterm/v1/database_pb";
 import * as teleport_lib_teleterm_v1_gateway_pb from "../../../../teleport/lib/teleterm/v1/gateway_pb";
 import * as teleport_lib_teleterm_v1_kube_pb from "../../../../teleport/lib/teleterm/v1/kube_pb";
-import * as teleport_lib_teleterm_v1_label_pb from "../../../../teleport/lib/teleterm/v1/label_pb";
 import * as teleport_lib_teleterm_v1_server_pb from "../../../../teleport/lib/teleterm/v1/server_pb";
 import * as teleport_lib_teleterm_v1_usage_events_pb from "../../../../teleport/lib/teleterm/v1/usage_events_pb";
 
@@ -1428,11 +1427,6 @@ export class CreateConnectMyComputerNodeTokenResponse extends jspb.Message {
     getToken(): string;
     setToken(value: string): CreateConnectMyComputerNodeTokenResponse;
 
-    clearLabelsList(): void;
-    getLabelsList(): Array<teleport_lib_teleterm_v1_label_pb.Label>;
-    setLabelsList(value: Array<teleport_lib_teleterm_v1_label_pb.Label>): CreateConnectMyComputerNodeTokenResponse;
-    addLabels(value?: teleport_lib_teleterm_v1_label_pb.Label, index?: number): teleport_lib_teleterm_v1_label_pb.Label;
-
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): CreateConnectMyComputerNodeTokenResponse.AsObject;
@@ -1447,7 +1441,6 @@ export class CreateConnectMyComputerNodeTokenResponse extends jspb.Message {
 export namespace CreateConnectMyComputerNodeTokenResponse {
     export type AsObject = {
         token: string,
-        labelsList: Array<teleport_lib_teleterm_v1_label_pb.Label.AsObject>,
     }
 }
 

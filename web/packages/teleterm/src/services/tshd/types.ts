@@ -21,6 +21,7 @@ import { ResourceKind } from 'e-teleterm/ui/DocumentAccessRequests/NewRequest/us
 import { RequestState } from 'e-teleport/services/workflow';
 import { SortType } from 'design/DataTable/types';
 import { FileTransferListeners } from 'shared/components/FileTransfer';
+import { NodeSubKind } from 'shared/services';
 import apiCluster from 'gen-proto-js/teleport/lib/teleterm/v1/cluster_pb';
 import apiDb from 'gen-proto-js/teleport/lib/teleterm/v1/database_pb';
 import apiGateway from 'gen-proto-js/teleport/lib/teleterm/v1/gateway_pb';
@@ -49,6 +50,7 @@ export interface Kube extends apiKube.Kube.AsObject {
 
 export interface Server extends apiServer.Server.AsObject {
   uri: uri.ServerUri;
+  subKind: NodeSubKind;
 }
 
 export interface Gateway extends apiGateway.Gateway.AsObject {

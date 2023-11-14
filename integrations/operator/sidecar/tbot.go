@@ -17,9 +17,11 @@ limitations under the License.
 package sidecar
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -43,10 +45,6 @@ const (
 	DefaultRenewalInterval = 30 * time.Minute
 )
 
-// ClientAccessor returns a working teleport api client when invoked.
-// Client users should always call this function on a regular basis to ensure certs are always valid.
-type ClientAccessor func(ctx context.Context) (*client.Client, error)
-
 // Bot is a wrapper around an embedded tbot.
 // It implements sigs.k8s.io/controller-runtime/manager.Runnable and
 // sigs.k8s.io/controller-runtime/manager.LeaderElectionRunnable so it can be added to a controllerruntime.Manager.
@@ -55,6 +53,14 @@ type Bot struct {
 	running    bool
 	rootClient auth.ClientI
 	opts       Options
+
+	// mutex protects cachedCert and cachedClient
+	mutex        sync.Mutex
+	cachedCert   []byte
+	cachedClient *SyncClient
+
+	// clientBuilder is used for testing purposes. Outside of tests, its value should always be buildClient.
+	clientBuilder func(ctx context.Context) (*SyncClient, error)
 }
 
 func (b *Bot) initializeConfig(ctx context.Context) {
@@ -97,20 +103,11 @@ func (b *Bot) initializeConfig(ctx context.Context) {
 
 }
 
-func (b *Bot) GetClient(ctx context.Context) (*client.Client, error) {
-	if !b.running {
-		return nil, trace.Errorf("bot not started yet")
-	}
-	// If the bot has not joined the cluster yet or not generated client certs we bail out
-	// This is either temporary or the bot is dead and the manager will shut down everything.
+// buildClient reads tbot's memory disttination, retrieves the certificates
+// and builds a new Teleport client using those certs.
+func (b *Bot) buildClient(ctx context.Context) (*SyncClient, error) {
+	log.Infof("Building a new client to connect to %s", b.cfg.AuthServer)
 	storageDestination := b.cfg.Storage.Destination
-	if botCert, err := storageDestination.Read(ctx, identity.TLSCertKey); err != nil || len(botCert) == 0 {
-		return nil, trace.Retry(err, "bot cert not yet present")
-	}
-	if cert, err := b.cfg.Outputs[0].GetDestination().Read(ctx, identity.TLSCertKey); err != nil || len(cert) == 0 {
-		return nil, trace.Retry(err, "cert not yet present")
-	}
-
 	// Hack to be able to reuse LoadIdentity functions from tbot
 	// LoadIdentity expects to have all the artifacts required for a bot
 	// We loop over missing artifacts and are loading them from the bot storage to the destination
@@ -136,7 +133,54 @@ func (b *Bot) GetClient(ctx context.Context) (*client.Client, error) {
 		Addrs:       []string{b.cfg.AuthServer},
 		Credentials: []client.Credentials{clientCredentials{id}},
 	})
-	return c, trace.Wrap(err)
+	return NewSyncClient(c), trace.Wrap(err)
+}
+
+// GetSyncClient gets a client authenticated as the bot. To avoid rebuilding a
+// client for each call, this function caches the client and creates a new one
+// only when the client certs changed (tbot renewed them).
+func (b *Bot) GetSyncClient(ctx context.Context) (*SyncClient, func(), error) {
+	b.mutex.Lock()
+	defer b.mutex.Unlock()
+
+	if !b.running {
+		return nil, nil, trace.Errorf("bot not started yet")
+	}
+	// If the bot has not joined the cluster yet or not generated client certs we bail out
+	// This is either temporary or the bot is dead and the manager will shut down everything.
+	storageDestination := b.cfg.Storage.Destination
+	if botCert, err := storageDestination.Read(ctx, identity.TLSCertKey); err != nil || len(botCert) == 0 {
+		return nil, nil, trace.Retry(err, "bot cert not yet present")
+	}
+
+	cert, err := b.cfg.Outputs[0].GetDestination().Read(ctx, identity.TLSCertKey)
+	if err != nil || len(cert) == 0 {
+		return nil, nil, trace.Retry(err, "cert not yet present")
+	}
+
+	// This is where caching happens. We don't know when tbot renews the certificates, so we need to check
+	// if the current certificate stored in memory changed since last time. If it did not and we already built a
+	// working client, then we hit the cache. Else we build a new client, replace the cached client with the new one,
+	// and fire a separate goroutine to close the previous client.
+	if b.cachedClient != nil && bytes.Equal(cert, b.cachedCert) {
+		return b.cachedClient, b.cachedClient.LockClient(), nil
+	}
+
+	oldClient := b.cachedClient
+	freshClient, err := b.clientBuilder(ctx)
+
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	b.cachedCert = cert
+	b.cachedClient = freshClient
+
+	if oldClient != nil {
+		go oldClient.RetireClient()
+	}
+
+	return b.cachedClient, b.cachedClient.LockClient(), nil
 }
 
 type clientCredentials struct {
@@ -228,7 +272,9 @@ func CreateAndBootstrapBot(ctx context.Context, opts Options) (*Bot, *proto.Feat
 		opts:       opts,
 	}
 
+	bot.clientBuilder = bot.buildClient
 	bot.initializeConfig(ctx)
+
 	return bot, ping.ServerFeatures, nil
 }
 

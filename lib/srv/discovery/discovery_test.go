@@ -47,6 +47,7 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/slices"
@@ -59,7 +60,9 @@ import (
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/authz"
@@ -1256,6 +1259,22 @@ func TestDiscoveryDatabase(t *testing.T) {
 	awsRDSDBWithRole.SetAWSAssumeRole("arn:aws:iam::123456789012:role/test-role")
 	awsRDSDBWithRole.SetAWSExternalID("test123")
 
+	matcherForDiscoveryConfigFn := func(t *testing.T, discoveryGroup string, m Matchers) *discoveryconfig.DiscoveryConfig {
+		dc, err := discoveryconfig.NewDiscoveryConfig(
+			header.Metadata{Name: uuid.NewString()},
+			discoveryconfig.Spec{
+				DiscoveryGroup: discoveryGroup,
+				AWS:            m.AWS,
+				Azure:          m.Azure,
+				GCP:            m.GCP,
+				Kube:           m.Kubernetes,
+			},
+		)
+
+		require.NoError(t, err)
+		return dc
+	}
+
 	testCloudClients := &cloud.TestCloudClients{
 		STS: &mocks.STSMock{},
 		RDS: &mocks.RDSMock{
@@ -1282,6 +1301,7 @@ func TestDiscoveryDatabase(t *testing.T) {
 		awsMatchers       []types.AWSMatcher
 		azureMatchers     []types.AzureMatcher
 		expectDatabases   []types.Database
+		discoveryConfigs  func(*testing.T) []*discoveryconfig.DiscoveryConfig
 		wantEvents        int
 	}{
 		{
@@ -1417,6 +1437,38 @@ func TestDiscoveryDatabase(t *testing.T) {
 				}),
 			},
 		},
+		{
+			name:            "discover Azure database using dynamic matchers",
+			expectDatabases: []types.Database{azRedisDB},
+			discoveryConfigs: func(t *testing.T) []*discoveryconfig.DiscoveryConfig {
+				dc1 := matcherForDiscoveryConfigFn(t, mainDiscoveryGroup, Matchers{
+					Azure: []types.AzureMatcher{{
+						Types:          []string{types.AzureMatcherRedis},
+						ResourceTags:   map[string]utils.Strings{types.Wildcard: {types.Wildcard}},
+						Regions:        []string{types.Wildcard},
+						ResourceGroups: []string{types.Wildcard},
+						Subscriptions:  []string{"sub1"},
+					}},
+				})
+				return []*discoveryconfig.DiscoveryConfig{dc1}
+			},
+			wantEvents: 1,
+		},
+		{
+			name:            "discover AWS database using dynamic matchers",
+			expectDatabases: []types.Database{awsRedshiftDB},
+			discoveryConfigs: func(t *testing.T) []*discoveryconfig.DiscoveryConfig {
+				dc1 := matcherForDiscoveryConfigFn(t, mainDiscoveryGroup, Matchers{
+					AWS: []types.AWSMatcher{{
+						Types:   []string{types.AWSMatcherRedshift},
+						Tags:    map[string]utils.Strings{types.Wildcard: {types.Wildcard}},
+						Regions: []string{"us-east-1"},
+					}},
+				})
+				return []*discoveryconfig.DiscoveryConfig{dc1}
+			},
+			wantEvents: 1,
+		},
 	}
 
 	for _, tc := range tcs {
@@ -1471,6 +1523,21 @@ func TestDiscoveryDatabase(t *testing.T) {
 
 			require.NoError(t, err)
 
+			// Add Dynamic Matchers and wait for reconcile again
+			if tc.discoveryConfigs != nil {
+				for _, dc := range tc.discoveryConfigs(t) {
+					_, err := tlsServer.Auth().DiscoveryConfigClient().CreateDiscoveryConfig(ctx, dc)
+					require.NoError(t, err)
+				}
+
+				// Wait for the DiscoveryConfig to be added to the dynamic matchers
+				require.Eventually(t, func() bool {
+					srv.muDynamicFetchers.RLock()
+					defer srv.muDynamicFetchers.RUnlock()
+					return len(srv.dynamicDatabaseFetchers) > 0
+				}, 1*time.Second, 100*time.Millisecond)
+			}
+
 			t.Cleanup(srv.Stop)
 			go srv.Start()
 
@@ -1501,6 +1568,180 @@ func TestDiscoveryDatabase(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestDiscoveryDatabaseRemovingDiscoveryConfigs(t *testing.T) {
+	const mainDiscoveryGroup = "main"
+
+	clock := clockwork.NewFakeClock()
+
+	awsRDSInstance, awsRDSDB := makeRDSInstance(t, "aws-rds", "us-west-1", mainDiscoveryGroup)
+
+	testCloudClients := &cloud.TestCloudClients{
+		STS: &mocks.STSMock{},
+		RDS: &mocks.RDSMock{
+			DBInstances: []*rds.DBInstance{awsRDSInstance},
+			DBEngineVersions: []*rds.DBEngineVersion{
+				{Engine: aws.String(services.RDSEnginePostgres)},
+			},
+		},
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	// Create and start test auth server.
+	testAuthServer, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
+		Dir: t.TempDir(),
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, testAuthServer.Close()) })
+
+	tlsServer, err := testAuthServer.NewTestTLSServer()
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, tlsServer.Close()) })
+
+	// Auth client for discovery service.
+	identity := auth.TestServerID(types.RoleDiscovery, "hostID")
+	authClient, err := tlsServer.NewClient(identity)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, authClient.Close()) })
+
+	waitForReconcile := make(chan struct{})
+	reporter := &mockUsageReporter{}
+	tlsServer.Auth().SetUsageReporter(reporter)
+	srv, err := New(
+		authz.ContextWithUser(ctx, identity.I),
+		&Config{
+			CloudClients:     testCloudClients,
+			KubernetesClient: fake.NewSimpleClientset(),
+			AccessPoint:      tlsServer.Auth(),
+			Matchers:         Matchers{},
+			Emitter:          authClient,
+			onDatabaseReconcile: func() {
+				waitForReconcile <- struct{}{}
+			},
+			DiscoveryGroup: mainDiscoveryGroup,
+			clock:          clock,
+		})
+
+	require.NoError(t, err)
+
+	t.Cleanup(srv.Stop)
+	go srv.Start()
+
+	// First Reconcile should not have any databases
+	select {
+	case <-waitForReconcile:
+		actualDatabases, err := tlsServer.Auth().GetDatabases(ctx)
+		require.NoError(t, err)
+		require.Empty(t, actualDatabases)
+	case <-time.After(time.Second):
+		t.Fatal("Didn't receive reconcile event after 1s")
+	}
+
+	// Adding a Dynamic Matcher for a different Discovery Group, should not bring any new resources.
+	t.Run("DiscoveryGroup does not match: matcher is not loaded", func(t *testing.T) {
+		// Create a Dynamic matcher
+		dc1, err := discoveryconfig.NewDiscoveryConfig(
+			header.Metadata{Name: uuid.NewString()},
+			discoveryconfig.Spec{
+				DiscoveryGroup: "another-discovery-group",
+				AWS: []types.AWSMatcher{{
+					Types:   []string{types.AWSMatcherRDS},
+					Tags:    map[string]utils.Strings{types.Wildcard: {types.Wildcard}},
+					Regions: []string{"us-west-1"},
+				}},
+			},
+		)
+		require.NoError(t, err)
+
+		_, err = tlsServer.Auth().DiscoveryConfigClient().CreateDiscoveryConfig(ctx, dc1)
+		require.NoError(t, err)
+		require.Eventually(t, func() bool {
+			srv.muDynamicFetchers.RLock()
+			defer srv.muDynamicFetchers.RUnlock()
+			return len(srv.dynamicDatabaseFetchers) == 0
+		}, 1*time.Second, 100*time.Millisecond)
+
+		// Advance clock to trigger a poll.
+		clock.Advance(5 * time.Minute)
+
+		// Reconcile should not have any databases
+		select {
+		case <-waitForReconcile:
+			actualDatabases, err := tlsServer.Auth().GetDatabases(ctx)
+			require.NoError(t, err)
+			require.Empty(t, actualDatabases)
+		case <-time.After(time.Second):
+			t.Fatal("Didn't receive reconcile event after 1s")
+		}
+	})
+
+	t.Run("New DiscoveryConfig with valid Group", func(t *testing.T) {
+		// Create a Dynamic matcher
+		dc1, err := discoveryconfig.NewDiscoveryConfig(
+			header.Metadata{Name: uuid.NewString()},
+			discoveryconfig.Spec{
+				DiscoveryGroup: mainDiscoveryGroup,
+				AWS: []types.AWSMatcher{{
+					Types:   []string{types.AWSMatcherRDS},
+					Tags:    map[string]utils.Strings{types.Wildcard: {types.Wildcard}},
+					Regions: []string{"us-west-1"},
+				}},
+			},
+		)
+		require.NoError(t, err)
+
+		_, err = tlsServer.Auth().DiscoveryConfigClient().CreateDiscoveryConfig(ctx, dc1)
+		require.NoError(t, err)
+		require.Eventually(t, func() bool {
+			srv.muDynamicFetchers.RLock()
+			defer srv.muDynamicFetchers.RUnlock()
+			return len(srv.dynamicDatabaseFetchers) > 0
+		}, 1*time.Second, 100*time.Millisecond)
+
+		// Advance clock to trigger a poll.
+		clock.Advance(5 * time.Minute)
+
+		// Check for new resource in reconciler
+		expectDatabases := []types.Database{awsRDSDB}
+		select {
+		case <-waitForReconcile:
+			actualDatabases, err := tlsServer.Auth().GetDatabases(ctx)
+			require.NoError(t, err)
+			require.Empty(t, cmp.Diff(expectDatabases, actualDatabases,
+				cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+				cmpopts.IgnoreFields(types.DatabaseStatusV3{}, "CACert"),
+			))
+		case <-time.After(time.Second):
+			t.Fatal("Didn't receive reconcile event after 1s")
+		}
+
+		t.Run("removing the DiscoveryConfig: fetcher is removed and database is removed", func(t *testing.T) {
+			// Remove DiscoveryConfig
+			err = tlsServer.Auth().DiscoveryConfigClient().DeleteDiscoveryConfig(ctx, dc1.GetName())
+			require.NoError(t, err)
+			require.Eventually(t, func() bool {
+				srv.muDynamicFetchers.RLock()
+				defer srv.muDynamicFetchers.RUnlock()
+				return len(srv.dynamicDatabaseFetchers) == 0
+			}, 1*time.Second, 100*time.Millisecond)
+
+			// Advance clock to trigger a poll.
+			clock.Advance(5 * time.Minute)
+
+			// Existing databases must be removed.
+			select {
+			case <-waitForReconcile:
+				actualDatabases, err := tlsServer.Auth().GetDatabases(ctx)
+				require.NoError(t, err)
+				require.Empty(t, actualDatabases)
+			case <-time.After(time.Second):
+				t.Fatal("Didn't receive reconcile event after 1s")
+			}
+		})
+	})
 }
 
 func makeRDSInstance(t *testing.T, name, region string, discoveryGroup string) (*rds.DBInstance, types.Database) {

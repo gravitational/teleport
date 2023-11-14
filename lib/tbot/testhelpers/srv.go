@@ -50,8 +50,8 @@ type DefaultBotConfigOpts struct {
 // slice, which should be passed as exported file descriptors to NewTeleport;
 // this is to ensure that we keep the listening socket open, to prevent other
 // processes from using the same port before we're done with it.
-func DefaultConfig(t *testing.T) (*config.FileConfig, []servicecfg.FileDescriptor) {
-	var fds []servicecfg.FileDescriptor
+func DefaultConfig(t *testing.T) (*config.FileConfig, []*servicecfg.FileDescriptor) {
+	var fds []*servicecfg.FileDescriptor
 
 	fc := &config.FileConfig{
 		Global: config.Global{
@@ -64,6 +64,7 @@ func DefaultConfig(t *testing.T) (*config.FileConfig, []servicecfg.FileDescripto
 			},
 			WebAddr:    testenv.NewTCPListener(t, service.ListenerProxyWeb, &fds),
 			TunAddr:    testenv.NewTCPListener(t, service.ListenerProxyTunnel, &fds),
+			KubeAddr:   testenv.NewTCPListener(t, service.ListenerProxyKube, &fds),
 			PublicAddr: []string{"localhost"}, // ListenerProxyWeb port will be appended
 		},
 		Auth: config.Auth{
@@ -79,7 +80,7 @@ func DefaultConfig(t *testing.T) (*config.FileConfig, []servicecfg.FileDescripto
 }
 
 // MakeAndRunTestAuthServer creates an auth server useful for testing purposes.
-func MakeAndRunTestAuthServer(t *testing.T, log utils.Logger, fc *config.FileConfig, fds []servicecfg.FileDescriptor) (auth *service.TeleportProcess) {
+func MakeAndRunTestAuthServer(t *testing.T, log utils.Logger, fc *config.FileConfig, fds []*servicecfg.FileDescriptor) (auth *service.TeleportProcess) {
 	t.Helper()
 
 	var err error

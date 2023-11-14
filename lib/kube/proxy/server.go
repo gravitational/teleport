@@ -33,6 +33,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -248,7 +249,7 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 			TLSConfig:   cfg.TLS,
 			ConnState:   ingress.HTTPConnStateReporter(ingress.Kube, cfg.IngressReporter),
 			ConnContext: func(ctx context.Context, c net.Conn) context.Context {
-				return utils.ClientAddrContext(ctx, c.RemoteAddr(), c.LocalAddr())
+				return authz.ContextWithClientAddrs(ctx, c.RemoteAddr(), c.LocalAddr())
 			},
 		},
 		heartbeats: make(map[string]*srv.Heartbeat),

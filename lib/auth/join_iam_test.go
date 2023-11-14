@@ -506,7 +506,7 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 			}()
 
 			requestContext := context.Background()
-			requestContext = authz.ContextWithClientAddr(requestContext, &net.IPAddr{})
+			requestContext = authz.ContextWithClientSrcAddr(requestContext, &net.IPAddr{})
 
 			_, err = a.RegisterUsingIAMMethod(requestContext, func(challenge string) (*proto.RegisterUsingIAMMethodRequest, error) {
 				templateInput := defaultIdentityRequestTemplateInput(challenge)

@@ -51,6 +51,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 	"golang.org/x/time/rate"
 	"google.golang.org/protobuf/types/known/durationpb"
@@ -79,6 +80,7 @@ import (
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/cache"
 	"github.com/gravitational/teleport/lib/circleci"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -255,6 +257,9 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			return nil, trace.Wrap(err)
 		}
 	}
+	if cfg.PluginData == nil {
+		cfg.PluginData = local.NewPluginData(cfg.Backend, cfg.DynamicAccessExt)
+	}
 	if cfg.Integrations == nil {
 		cfg.Integrations, err = local.NewIntegrationsService(cfg.Backend)
 		if err != nil {
@@ -338,6 +343,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		UsageReporter:           cfg.UsageReporter,
 		Assistant:               cfg.Assist,
 		UserPreferences:         cfg.UserPreferences,
+		PluginData:              cfg.PluginData,
 	}
 
 	closeCtx, cancelFunc := context.WithCancel(context.TODO())
@@ -444,6 +450,10 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 
 	as.RegisterLoginHook(as.ulsGenerator.LoginHook(services.UserLoginStates))
 
+	if _, ok := as.getCache(); !ok {
+		log.Warn("Auth server starting without cache (may have negative performance implications).")
+	}
+
 	return &as, nil
 }
 
@@ -474,6 +484,7 @@ type Services struct {
 	services.Assistant
 	services.Embeddings
 	services.UserPreferences
+	services.PluginData
 	usagereporter.UsageReporter
 	types.Events
 	events.AuditLogSessionStreamer
@@ -1212,11 +1223,11 @@ func (a *Server) handleUpgradeEnrollPrompt(ctx context.Context, msg string, shou
 		types.WithAlertExpires(a.clock.Now().Add(alertTTL)),
 	)
 	if err != nil {
-		log.Warnf("Failed to build %s alert: %v (this is a bug)", releaseAlertID, err)
+		log.Warnf("Failed to build %s alert: %v (this is a bug)", upgradeEnrollAlertID, err)
 		return
 	}
 	if err := a.UpsertClusterAlert(ctx, alert); err != nil {
-		log.Warnf("Failed to set %s alert: %v", releaseAlertID, err)
+		log.Warnf("Failed to set %s alert: %v", upgradeEnrollAlertID, err)
 		return
 	}
 }
@@ -4220,6 +4231,9 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 	}
 
 	if req.GetDryRun() {
+		_, promotions := a.generateAccessRequestPromotions(ctx, req)
+		// update the request with additional reviewers if possible.
+		updateAccessRequestWithAdditionalReviewers(ctx, req, a.AccessListClient(), promotions)
 		// Made it this far with no errors, return before creating the request
 		// if this is a dry run.
 		return req, nil
@@ -4253,14 +4267,10 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 	if err != nil {
 		log.WithError(err).Warn("Failed to emit access request create event.")
 	}
+
 	// calculate the promotions
-	reqCopy := req.Copy()
-	promotions, err := modules.GetModules().GenerateAccessRequestPromotions(ctx, a.Services, reqCopy)
-	if err != nil {
-		// Do not fail the request if the promotions failed to generate.
-		// The request promotion will be blocked, but the request can still be approved.
-		log.WithError(err).Warn("Failed to generate access list promotions.")
-	} else if promotions != nil {
+	reqCopy, promotions := a.generateAccessRequestPromotions(ctx, req)
+	if promotions != nil {
 		// Create the promotion entry even if the allowed promotion is empty. Otherwise, we won't
 		// be able to distinguish between an allowed empty set and generation failure.
 		if err := a.Services.CreateAccessRequestAllowedPromotions(ctx, reqCopy, promotions); err != nil {
@@ -4272,6 +4282,48 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 		strconv.Itoa(len(req.GetRoles())),
 		strconv.Itoa(len(req.GetRequestedResourceIDs()))).Inc()
 	return req, nil
+}
+
+// generateAccessRequestPromotions will return potential access list promotions for an access request. On error, this function will log
+// the error and return whatever it has. The caller is expected to deal with the possibility of a nil promotions object.
+func (a *Server) generateAccessRequestPromotions(ctx context.Context, req types.AccessRequest) (types.AccessRequest, *types.AccessRequestAllowedPromotions) {
+	reqCopy := req.Copy()
+	promotions, err := modules.GetModules().GenerateAccessRequestPromotions(ctx, a.Services, reqCopy)
+	if err != nil {
+		// Do not fail the request if the promotions failed to generate.
+		// The request promotion will be blocked, but the request can still be approved.
+		log.WithError(err).Warn("Failed to generate access list promotions.")
+	}
+	return reqCopy, promotions
+}
+
+// updateAccessRequestWithAdditionalReviewers will update the given access request with additional reviewers given the promotions
+// created for the access request.
+func updateAccessRequestWithAdditionalReviewers(ctx context.Context, req types.AccessRequest, accessLists services.AccessListsGetter, promotions *types.AccessRequestAllowedPromotions) {
+	if promotions == nil {
+		return
+	}
+
+	// For promotions, add in access list owners as additional suggested reviewers
+	additionalReviewers := map[string]struct{}{}
+
+	// Iterate through the promotions, adding the owners of the corresponding access lists as reviewers.
+	for _, promotion := range promotions.Promotions {
+		accessList, err := accessLists.GetAccessList(ctx, promotion.AccessListName)
+		if err != nil {
+			log.WithError(err).Warn("Failed to get access list, skipping additional reviewers")
+			break
+		}
+
+		for _, owner := range accessList.GetOwners() {
+			additionalReviewers[owner.Name] = struct{}{}
+		}
+	}
+
+	// Only modify the original request if additional reviewers were found.
+	if len(additionalReviewers) > 0 {
+		req.SetSuggestedReviewers(append(req.GetSuggestedReviewers(), maps.Keys(additionalReviewers)...))
+	}
 }
 
 func (a *Server) DeleteAccessRequest(ctx context.Context, name string) error {
@@ -4419,6 +4471,43 @@ func (a *Server) GetAccessCapabilities(ctx context.Context, req types.AccessCapa
 		return nil, trace.Wrap(err)
 	}
 	return caps, nil
+}
+
+func (a *Server) getCache() (c *cache.Cache, ok bool) {
+	c, ok = a.Cache.(*cache.Cache)
+	return
+}
+
+func (a *Server) NewStream(ctx context.Context, watch types.Watch) (stream.Stream[types.Event], error) {
+	if cache, ok := a.getCache(); ok {
+		// cache exposes a native stream implementation
+		return cache.NewStream(ctx, watch)
+	}
+
+	// fallback to wrapping a watcher in a stream.Stream adapter
+	watcher, err := a.Cache.NewWatcher(ctx, watch)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	closer := func() {
+		watcher.Close()
+	}
+
+	return stream.Func(func() (types.Event, error) {
+		select {
+		case event := <-watcher.Events():
+			return event, nil
+		case <-watcher.Done():
+			err := watcher.Error()
+			if err == nil {
+				// stream.Func needs an error to signal end of stream. io.EOF is
+				// the expected "happy" end of stream singnal.
+				err = io.EOF
+			}
+			return types.Event{}, trace.Wrap(err)
+		}
+	}, closer), nil
 }
 
 // NewKeepAliver returns a new instance of keep aliver

@@ -71,13 +71,6 @@ func tagBuildCommands(b buildType) []string {
 		)
 	}
 
-	// For Windows builds, configure code signing.
-	if b.os == "windows" {
-		commands = append(commands,
-			`echo -n "$WINDOWS_SIGNING_CERT" | base64 -d > windows-signing-cert.pfx`,
-		)
-	}
-
 	commands = append(commands,
 		fmt.Sprintf(
 			`make -C build.assets %s`, releaseMakefileTarget(b),
@@ -92,44 +85,21 @@ func tagBuildCommands(b buildType) []string {
 		}
 	}
 
-	if b.os == "windows" {
-		commands = append(commands,
-			`rm -f windows-signing-cert.pfx`,
-		)
-	}
-
 	return commands
 }
 
 // tagCopyArtifactCommands generates a set of commands to find and copy built tarball artifacts as part of a tag build
 func tagCopyArtifactCommands(b buildType) []string {
-	extension := ".tar.gz"
-	if b.os == "windows" {
-		extension = ".zip"
-	}
-
 	commands := []string{
 		`cd /go/src/github.com/gravitational/teleport`,
 	}
 
 	// don't copy OSS artifacts for any FIPS build
 	if !b.fips {
-		commands = append(commands,
-			fmt.Sprintf(`find . -maxdepth 1 -iname "teleport*%s" -print -exec cp {} /go/artifacts \;`, extension),
-		)
+		commands = append(commands, `find . -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts \;`)
 	}
 
-	// copy enterprise artifacts
-	if b.os == "windows" {
-		commands = append(commands,
-			`export VERSION=$(cat /go/.version.txt)`,
-			`cp /go/artifacts/teleport-v$${VERSION}-windows-amd64-bin.zip /go/artifacts/teleport-ent-v$${VERSION}-windows-amd64-bin.zip`,
-		)
-	} else {
-		commands = append(commands,
-			`find e/ -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts \;`,
-		)
-	}
+	commands = append(commands, `find e/ -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts \;`)
 
 	// we need to specifically rename artifacts which are created for CentOS
 	// these is the only special case where renaming is not handled inside the Makefile
@@ -155,7 +125,7 @@ func tagCopyArtifactCommands(b buildType) []string {
 	}
 
 	// generate checksums
-	commands = append(commands, fmt.Sprintf(`cd /go/artifacts && for FILE in teleport*%s; do sha256sum $FILE > $FILE.sha256; done && ls -l`, extension))
+	commands = append(commands, `cd /go/artifacts && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256; done && ls -l`)
 
 	if b.os == "linux" && b.hasTeleportConnect() {
 		commands = append(commands,
@@ -263,16 +233,13 @@ func tagPipelines() []pipeline {
 		},
 	}))
 
-	// Only amd64 Windows is supported for now.
-	ps = append(ps, tagPipeline(buildType{os: "windows", arch: "amd64"}))
-
 	// Also add CentOS artifacts
 	// CentOS 6 FIPS builds have been removed in Teleport 7.0. See https://github.com/gravitational/teleport/issues/7207
 	ps = append(ps, tagPipeline(buildType{os: "linux", arch: "amd64", centos7: true}))
 	ps = append(ps, tagPipeline(buildType{os: "linux", arch: "amd64", centos7: true, fips: true}))
 
 	ps = append(ps, darwinTagPipelineGHA())
-	ps = append(ps, windowsTagPipeline())
+	ps = append(ps, windowsTagPipelineGHA())
 
 	ps = append(ps, tagCleanupPipeline())
 	return ps
@@ -302,15 +269,6 @@ func tagPipeline(b buildType) pipeline {
 	if b.fips {
 		pipelineName += "-fips"
 		tagEnvironment["FIPS"] = value{raw: "yes"}
-	}
-
-	if b.os == "windows" {
-		tagEnvironment["WINDOWS_SIGNING_CERT"] = value{fromSecret: "WINDOWS_SIGNING_CERT"}
-	}
-
-	var extraQualifications []string
-	if b.os == "windows" {
-		extraQualifications = []string{"tsh client only"}
 	}
 
 	p := newKubePipeline(pipelineName)
@@ -368,7 +326,7 @@ func tagPipeline(b buildType) pipeline {
 			Name:     "Register artifacts",
 			Image:    "docker",
 			Pull:     "if-not-exists",
-			Commands: tagCreateReleaseAssetCommands(b, "", extraQualifications),
+			Commands: tagCreateReleaseAssetCommands(b, ""),
 			Environment: map[string]value{
 				"RELEASES_CERT": {fromSecret: "RELEASES_CERT"},
 				"RELEASES_KEY":  {fromSecret: "RELEASES_KEY"},
@@ -420,7 +378,7 @@ func tagCopyPackageArtifactCommands(b buildType, packageType string) []string {
 }
 
 // createReleaseAssetCommands generates a set of commands to create release & asset in release management service
-func tagCreateReleaseAssetCommands(b buildType, packageType string, extraQualifications []string) []string {
+func tagCreateReleaseAssetCommands(b buildType, packageType string) []string {
 	commands := []string{
 		`WORKSPACE_DIR=$${WORKSPACE_DIR:-/}`,
 		`VERSION=$(cat "$WORKSPACE_DIR/go/.version.txt")`,
@@ -462,7 +420,7 @@ find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*' | while read -r fi
 
   curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="%[2]s" -F arch="%[3]s" -F "file=@$file" -F "sha256=$shasum" $release_params "$RELEASES_HOST/assets";
 done`,
-			b.Description(packageType, extraQualifications...), b.os, b.arch),
+			b.Description(packageType), b.os, b.arch),
 	}
 	return commands
 }
@@ -629,7 +587,7 @@ func tagPackagePipeline(packageType string, b buildType) pipeline {
 		{
 			Name:     "Register artifacts",
 			Image:    "docker",
-			Commands: tagCreateReleaseAssetCommands(b, strings.ToUpper(packageType), nil),
+			Commands: tagCreateReleaseAssetCommands(b, strings.ToUpper(packageType)),
 			Environment: map[string]value{
 				"RELEASES_CERT": {fromSecret: "RELEASES_CERT"},
 				"RELEASES_KEY":  {fromSecret: "RELEASES_KEY"},

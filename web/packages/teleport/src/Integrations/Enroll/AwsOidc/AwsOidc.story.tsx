@@ -17,9 +17,6 @@
 import React from 'react';
 import { MemoryRouter } from 'react-router';
 
-import { createTeleportContext } from 'teleport/mocks/contexts';
-import { ContextProvider } from 'teleport';
-
 import { AwsOidc } from './AwsOidc';
 
 export default {
@@ -27,17 +24,7 @@ export default {
 };
 
 export const Flow = () => (
-  <Provider>
+  <MemoryRouter>
     <AwsOidc />
-  </Provider>
+  </MemoryRouter>
 );
-
-const Provider = props => {
-  const ctx = createTeleportContext({ customAcl: props.customAcl });
-
-  return (
-    <MemoryRouter>
-      <ContextProvider ctx={ctx}>{props.children}</ContextProvider>
-    </MemoryRouter>
-  );
-};

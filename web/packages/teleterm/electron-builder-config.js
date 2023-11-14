@@ -32,11 +32,15 @@ if (!isMac && env.CONNECT_TSH_BIN_PATH === undefined) {
 // Holds tsh.app Info.plist during build. Used in afterPack.
 let tshAppPlist;
 
+// appId must be a reverse DNS string since it's also used as CFBundleURLName on macOS, see
+// protocols.name below.
+const appId = 'gravitational.teleport.connect';
+
 /**
  * @type { import('electron-builder').Configuration }
  */
 module.exports = {
-  appId: 'gravitational.teleport.connect',
+  appId,
   asar: true,
   asarUnpack: '**\\*.{node,dll}',
   afterSign: 'notarize.js',
@@ -74,6 +78,26 @@ module.exports = {
     '!node_modules/node-pty/build/*/.forge-meta',
     '!node_modules/node-pty/build/Debug/.deps/**',
     '!node_modules/node-pty/bin',
+  ],
+  protocols: [
+    {
+      // name ultimately becomes CFBundleURLName which is the URL identifier. [1] Apple recommends
+      // to set it to a reverse DNS string. [2]
+      //
+      // [1] https://developer.apple.com/documentation/bundleresources/information_property_list/cfbundleurltypes/cfbundleurlname
+      // [2] https://developer.apple.com/documentation/xcode/defining-a-custom-url-scheme-for-your-app#Register-your-URL-scheme
+      name: appId,
+      schemes: ['teleport'],
+      // Not much documentation is available on the role attribute. It ultimately gets mapped to
+      // CFBundleTypeRole in Info.plist.
+      //
+      // It seems that this field is largely related to how macOS thinks of "documents". Since Connect
+      // doesn't let you really edit anything and we won't be passing any docs, let's just set it to
+      // 'Viewer'.
+      //
+      // https://cocoadev.github.io/CFBundleTypeRole/
+      role: 'Viewer',
+    },
   ],
   mac: {
     target: 'dmg',

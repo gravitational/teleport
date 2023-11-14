@@ -248,6 +248,9 @@ type InitConfig struct {
 	// SecReports is a service that manages security reports.
 	SecReports services.SecReports
 
+	// PluginData is a service that manages plugin data.
+	PluginData services.PluginData
+
 	// Clock is the clock instance auth uses. Typically you'd only want to set
 	// this during testing.
 	Clock clockwork.Clock
@@ -571,7 +574,7 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 		// Key deletion is best-effort, log a warning if it fails and carry on.
 		// We don't want to prevent a CA rotation, which may be necessary in
 		// some cases where this would fail.
-		log.WithError(err).Warning("Failed attempt to delete unused HSM keys")
+		log.Warnf("An attempt to clean up unused HSM or KMS CA keys has failed unexpectedly: %v", err)
 	}
 
 	if lib.IsInsecureDevMode() {
@@ -747,9 +750,10 @@ type PresetRoleManager interface {
 	UpsertRole(ctx context.Context, role types.Role) error
 }
 
-// createPresetRoles creates preset role resources
-func createPresetRoles(ctx context.Context, rm PresetRoleManager) error {
-	roles := []types.Role{
+// GetPresetRoles returns a list of all preset roles expected to be available on
+// this cluster.
+func GetPresetRoles() []types.Role {
+	return []types.Role{
 		services.NewPresetGroupAccessRole(),
 		services.NewPresetEditorRole(),
 		services.NewPresetAccessRole(),
@@ -761,6 +765,11 @@ func createPresetRoles(ctx context.Context, rm PresetRoleManager) error {
 		services.NewPresetDeviceEnrollRole(),
 		services.NewPresetRequireTrustedDeviceRole(),
 	}
+}
+
+// createPresetRoles creates preset role resources
+func createPresetRoles(ctx context.Context, rm PresetRoleManager) error {
+	roles := GetPresetRoles()
 
 	g, gctx := errgroup.WithContext(ctx)
 	for _, role := range roles {
@@ -1362,6 +1371,10 @@ func applyResources(ctx context.Context, service *Services, resources []types.Re
 		switch r := resource.(type) {
 		case types.ProvisionToken:
 			err = service.Provisioner.UpsertToken(ctx, r)
+		case types.ClusterNetworkingConfig:
+			err = service.ClusterConfiguration.SetClusterNetworkingConfig(ctx, r)
+		case types.AuthPreference:
+			err = service.ClusterConfiguration.SetAuthPreference(ctx, r)
 		default:
 			return trace.NotImplemented("cannot apply resource of type %T", resource)
 		}

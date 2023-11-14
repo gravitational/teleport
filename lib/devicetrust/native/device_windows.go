@@ -75,7 +75,7 @@ func setupDeviceStateDir(getBaseDir func() (string, error)) (*deviceState, error
 	case os.IsNotExist(err):
 		// If it doesn't exist, we can create it and return as we know
 		// the perms are correct as we created it.
-		if err := os.Mkdir(deviceStateDirPath, 700); err != nil {
+		if err := os.Mkdir(deviceStateDirPath, 0700); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	case err != nil:
@@ -146,7 +146,7 @@ func createAndSaveAK(
 	if err != nil {
 		return nil, trace.Wrap(err, "marshalling ak")
 	}
-	err = os.WriteFile(persistencePath, ref, 600)
+	err = os.WriteFile(persistencePath, ref, 0600)
 	if err != nil {
 		return nil, trace.Wrap(err, "writing ak to disk")
 	}

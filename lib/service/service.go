@@ -374,7 +374,7 @@ type TeleportProcess struct {
 	registeredListeners []registeredListener
 	// importedDescriptors is a list of imported file descriptors
 	// passed by the parent process
-	importedDescriptors []servicecfg.FileDescriptor
+	importedDescriptors []*servicecfg.FileDescriptor
 	// listenersClosed is a flag that indicates that the process should not open
 	// new listeners (for instance, because we're shutting down and we've already
 	// closed all the listeners)
@@ -653,7 +653,7 @@ type Process interface {
 	WaitForSignals(context.Context) error
 	// ExportFileDescriptors exports service listeners
 	// file descriptors used by the process.
-	ExportFileDescriptors() ([]servicecfg.FileDescriptor, error)
+	ExportFileDescriptors() ([]*servicecfg.FileDescriptor, error)
 	// Shutdown starts graceful shutdown of the process,
 	// blocks until all resources are freed and go-routines are
 	// shut down.
@@ -2282,17 +2282,28 @@ func (process *TeleportProcess) newLocalCacheForDatabase(clt auth.ClientI, cache
 	return auth.NewDatabaseWrapper(clt, cache), nil
 }
 
+// combinedDiscoveryClient is an auth.Client client with other, specific, services added to it.
+type combinedDiscoveryClient struct {
+	auth.ClientI
+	services.DiscoveryConfigsGetter
+}
+
 // newLocalCacheForDiscovery returns a new instance of access point for a discovery service.
 func (process *TeleportProcess) newLocalCacheForDiscovery(clt auth.ClientI, cacheName []string) (auth.DiscoveryAccessPoint, error) {
+	client := combinedDiscoveryClient{
+		ClientI:                clt,
+		DiscoveryConfigsGetter: clt.DiscoveryConfigClient(),
+	}
+
 	// if caching is disabled, return access point
 	if !process.Config.CachePolicy.Enabled {
-		return clt, nil
+		return client, nil
 	}
 	cache, err := process.NewLocalCache(clt, cache.ForDiscovery, cacheName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return auth.NewDiscoveryWrapper(clt, cache), nil
+	return auth.NewDiscoveryWrapper(client, cache), nil
 }
 
 // newLocalCacheForProxy returns new instance of access point configured for a local proxy.
@@ -4089,7 +4100,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				ErrorLog:          utils.NewStdlogger(log.Error, teleport.ComponentProxy),
 				ConnState:         ingress.HTTPConnStateReporter(ingress.Web, ingressReporter),
 				ConnContext: func(ctx context.Context, c net.Conn) context.Context {
-					return utils.ClientAddrContext(ctx, c.RemoteAddr(), c.LocalAddr())
+					return authz.ContextWithClientAddrs(ctx, c.RemoteAddr(), c.LocalAddr())
 				},
 			},
 			Handler: webHandler,

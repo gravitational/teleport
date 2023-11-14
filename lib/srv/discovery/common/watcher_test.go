@@ -60,10 +60,10 @@ func TestWatcher(t *testing.T) {
 
 	clock := clockwork.NewFakeClock()
 	watcher, err := NewWatcher(ctx, WatcherConfig{
-		Fetchers: []Fetcher{appFetcher, noAuthFetcher, dbFetcher},
-		Interval: time.Hour,
-		Clock:    clock,
-		Origin:   types.OriginCloud,
+		FetchersFn: StaticFetchers([]Fetcher{appFetcher, noAuthFetcher, dbFetcher}),
+		Interval:   time.Hour,
+		Clock:      clock,
+		Origin:     types.OriginCloud,
 	})
 	require.NoError(t, err)
 	go watcher.Start()
@@ -75,6 +75,63 @@ func TestWatcher(t *testing.T) {
 	// Watcher should fetch again after interval.
 	clock.Advance(time.Hour + time.Minute)
 	assertFetchResources(t, watcher, wantResources)
+}
+
+func TestWatcherWithDynamicFetchers(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	app1, err := types.NewAppV3(types.Metadata{Name: "app1"}, types.AppSpecV3{Cloud: types.CloudAWS})
+	require.NoError(t, err)
+	app2, err := types.NewAppV3(types.Metadata{Name: "app2"}, types.AppSpecV3{Cloud: types.CloudAWS})
+	require.NoError(t, err)
+
+	appFetcher := &mockFetcher{
+		resources:    types.ResourcesWithLabels{app1, app2},
+		resourceType: types.KindApp,
+		cloud:        types.CloudAWS,
+	}
+
+	noAuthFetcher := &mockFetcher{
+		noAuth:       true,
+		resourceType: types.KindKubeServer,
+		cloud:        types.CloudGCP,
+	}
+
+	// Start with two watchers.
+	fetchers := []Fetcher{appFetcher, noAuthFetcher}
+	fetchersFn := func() []Fetcher {
+		return fetchers
+	}
+
+	clock := clockwork.NewFakeClock()
+	watcher, err := NewWatcher(ctx, WatcherConfig{
+		FetchersFn: fetchersFn,
+		Interval:   time.Hour,
+		Clock:      clock,
+		Origin:     types.OriginCloud,
+	})
+	require.NoError(t, err)
+	go watcher.Start()
+
+	// Watcher should fetch once right away at watcher.Start.
+	assertFetchResources(t, watcher, types.ResourcesWithLabels{app1, app2})
+
+	// Add an extra fetcher during runtime.
+	db, err := types.NewDatabaseV3(types.Metadata{Name: "db"}, types.DatabaseSpecV3{Protocol: "mysql", URI: "db.mysql.database.azure.com:1234"})
+	require.NoError(t, err)
+	dbFetcher := &mockFetcher{
+		resources:    types.ResourcesWithLabels{db},
+		resourceType: types.KindDatabase,
+		cloud:        types.CloudAzure,
+	}
+	fetchers = append(fetchers, dbFetcher)
+
+	// During next iteration, the new fetcher must be used and a 3rd resource must appear.
+	clock.Advance(time.Hour + time.Minute)
+	assertFetchResources(t, watcher, types.ResourcesWithLabels{app1, app2, db})
 }
 
 func assertFetchResources(t *testing.T, watcher *Watcher, wantResources types.ResourcesWithLabels) {

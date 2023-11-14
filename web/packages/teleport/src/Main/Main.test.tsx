@@ -98,3 +98,47 @@ test('renders without questionnaire prop', () => {
 
   expect(screen.getByTestId('title')).toBeInTheDocument();
 });
+
+test('displays invite collaborators feedback if present', () => {
+  mockUserContextProviderWith(makeTestUserContext());
+  const ctx = setupContext();
+
+  const props: MainProps = {
+    features: getOSSFeatures(),
+    inviteCollaboratorsFeedback: <div>Passed Component!</div>,
+  };
+
+  render(
+    <MemoryRouter>
+      <LayoutContextProvider>
+        <ContextProvider ctx={ctx}>
+          <Main {...props} />
+        </ContextProvider>
+      </LayoutContextProvider>
+    </MemoryRouter>
+  );
+
+  expect(screen.getByText('Passed Component!')).toBeInTheDocument();
+});
+
+test('renders without invite collaborators feedback enabled', () => {
+  mockUserContextProviderWith(makeTestUserContext());
+  const ctx = setupContext();
+
+  const props: MainProps = {
+    features: getOSSFeatures(),
+  };
+  expect(props.inviteCollaboratorsFeedback).toBeUndefined();
+
+  render(
+    <MemoryRouter>
+      <LayoutContextProvider>
+        <ContextProvider ctx={ctx}>
+          <Main {...props} />
+        </ContextProvider>
+      </LayoutContextProvider>
+    </MemoryRouter>
+  );
+
+  expect(screen.getByTestId('title')).toBeInTheDocument();
+});
