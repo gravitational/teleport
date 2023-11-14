@@ -28,6 +28,9 @@ import (
 	"time"
 )
 
+// TODO(noah): Is this the right CA to use?
+const caType = types.JWTSigner
+
 type jwtSigner interface {
 	// GetDomainName returns local auth domain of the current auth server
 	GetDomainName() (string, error)
@@ -83,6 +86,40 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 	}, nil
 }
 
+func (s *Service) signJWT(ctx context.Context, username string) (string, error) {
+	clusterName, err := s.jwtSigner.GetDomainName()
+	if err != nil {
+		return "", trace.Wrap(err, "getting cluster name")
+	}
+
+	ca, err := s.jwtSigner.GetCertAuthority(ctx, types.CertAuthID{
+		Type:       caType,
+		DomainName: clusterName,
+	}, true)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	signingKey, err := s.jwtSigner.GetKeyStore().GetJWTSigner(ctx, ca)
+	if err != nil {
+		return "", trace.Wrap(err, "getting signing key")
+	}
+	signer, err := services.GetJWTSigner(signingKey, clusterName, s.clock)
+	if err != nil {
+		return "", trace.Wrap(err, "creating signer")
+	}
+	token, err := signer.Sign(jwt.SignParams{
+		Username: username,
+		Audience: clusterName,
+		URI:      clusterName,
+		Expires:  s.clock.Now().Add(time.Minute * 5),
+	})
+	if err != nil {
+		return "", trace.Wrap(err, "signing token")
+	}
+
+	return token, nil
+}
+
 func (s *Service) CreateAuthToken(ctx context.Context, req *mobilev1pb.CreateAuthTokenRequest) (*mobilev1pb.CreateAuthTokenResponse, error) {
 	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
@@ -99,35 +136,51 @@ func (s *Service) CreateAuthToken(ctx context.Context, req *mobilev1pb.CreateAut
 		return nil, trace.AccessDenied("not user or admin requesting")
 	}
 
-	clusterName, err := s.jwtSigner.GetDomainName()
-	if err != nil {
-		return nil, trace.Wrap(err, "getting cluster name")
-	}
-	ca, err := s.jwtSigner.GetCertAuthority(ctx, types.CertAuthID{
-		// TODO(noah): Is this the right CA to use?
-		Type:       types.JWTSigner,
-		DomainName: clusterName,
-	}, true)
+	token, err := s.signJWT(ctx, req.Username)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	signingKey, err := s.jwtSigner.GetKeyStore().GetJWTSigner(ctx, ca)
-	if err != nil {
-		return nil, trace.Wrap(err, "getting signing key")
-	}
-	signer, err := services.GetJWTSigner(signingKey, clusterName, s.clock)
-	if err != nil {
-		return nil, trace.Wrap(err, "creating signer")
-	}
-	token, err := signer.Sign(jwt.SignParams{
-		Username: req.Username,
-		Audience: clusterName,
-		URI:      clusterName,
-		Expires:  s.clock.Now().Add(time.Minute * 5),
-	})
-	if err != nil {
-		return nil, trace.Wrap(err, "signing token")
-	}
 
 	return &mobilev1pb.CreateAuthTokenResponse{Token: token}, nil
+}
+
+func (s *Service) verifyToken(ctx context.Context, token string) (username string, err error) {
+	clusterName, err := s.jwtSigner.GetDomainName()
+	if err != nil {
+		return "", trace.Wrap(err, "getting cluster name")
+	}
+	ca, err := s.jwtSigner.GetCertAuthority(ctx, types.CertAuthID{
+		Type:       caType,
+		DomainName: clusterName,
+	}, true)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	signingKey, err := s.jwtSigner.GetKeyStore().GetJWTSigner(ctx, ca)
+	if err != nil {
+		return "", trace.Wrap(err, "getting signing key")
+	}
+	verifier, err := services.GetJWTSigner(signingKey, clusterName, s.clock)
+	if err != nil {
+		return "", trace.Wrap(err, "creating verifier")
+	}
+	claims, err := verifier.Verify(jwt.VerifyParams{
+		RawToken: token,
+		Audience: clusterName,
+		URI:      clusterName,
+	})
+	if err != nil {
+		return "", trace.Wrap(err, "verifying token")
+	}
+	return claims.Username, nil
+}
+
+func (s *Service) RedeemAuthToken(ctx context.Context, req *mobilev1pb.RedeemAuthTokenRequest) (*mobilev1pb.RedeemAuthTokenResponse, error) {
+	username, err := s.verifyToken(ctx, req.Token)
+	if err != nil {
+		return nil, trace.Wrap(err, "verifying token")
+	}
+	return &mobilev1pb.RedeemAuthTokenResponse{
+		Username: username,
+	}, nil
 }

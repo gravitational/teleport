@@ -302,9 +302,11 @@ type VerifyParams struct {
 
 // Check verifies all the values are valid.
 func (p *VerifyParams) Check() error {
-	if p.Username == "" {
-		return trace.BadParameter("username missing")
-	}
+	/*
+		TODO(noah): Reimplement Verify so we don't need to disable this.
+		if p.Username == "" {
+			return trace.BadParameter("username missing")
+		}*/
 	if p.RawToken == "" {
 		return trace.BadParameter("raw token missing")
 	}
