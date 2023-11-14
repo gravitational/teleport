@@ -28,7 +28,6 @@
     "d3-hierarchy": "^3.1.2",
     "date-fns": "^2.28.0",
     "dompurify": "^3.0.1",
-    "elkjs": "^0.8.2",
     "highlight.js": "^11.7.0",
     "highlight-words-core": "^1.2.2",
     "marked": "^4.3.0",
