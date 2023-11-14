@@ -16,6 +16,7 @@ package mobilev1
 
 import (
 	"context"
+	"github.com/gravitational/teleport/api/client/proto"
 	mobilev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/mobile/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/keystore"
@@ -41,6 +42,8 @@ type jwtSigner interface {
 
 	// GetKeyStore returns the KeyStore used by the auth server
 	GetKeyStore() *keystore.Manager
+
+	GenerateMobileUserCert(ctx context.Context, username string, publicKey []byte) (*proto.Certs, error)
 }
 
 // ServiceConfig holds configuration options for
@@ -176,11 +179,26 @@ func (s *Service) verifyToken(ctx context.Context, token string) (username strin
 }
 
 func (s *Service) RedeemAuthToken(ctx context.Context, req *mobilev1pb.RedeemAuthTokenRequest) (*mobilev1pb.RedeemAuthTokenResponse, error) {
+	switch {
+	case req.Token == "":
+		return nil, trace.BadParameter("token must be provided")
+	case len(req.PublicKey) == 0:
+		return nil, trace.BadParameter("public_key must be provided")
+	}
+
 	username, err := s.verifyToken(ctx, req.Token)
 	if err != nil {
 		return nil, trace.Wrap(err, "verifying token")
 	}
+
+	certs, err := s.jwtSigner.GenerateMobileUserCert(ctx, username, req.PublicKey)
+	if err != nil {
+		return nil, trace.Wrap(err, "generating certs")
+	}
+
 	return &mobilev1pb.RedeemAuthTokenResponse{
 		Username: username,
+		TlsCert:  certs.TLS,
+		SshCert:  certs.SSH,
 	}, nil
 }

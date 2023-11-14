@@ -2316,6 +2316,34 @@ func (a *Server) submitCertificateIssuedEvent(req *certRequest, params services.
 	})
 }
 
+// GenerateMobileUserCert
+// TODO(noah): Find a solution to letting the mobile service generate certs
+// that isn't this weirdy exporty stub.
+func (a *Server) GenerateMobileUserCert(ctx context.Context, username string, publicKey []byte) (*proto.Certs, error) {
+	userState, err := a.GetUserOrLoginState(ctx, username)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	accessInfo := services.AccessInfoFromUserState(userState)
+	clusterName, err := a.GetClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	checker, err := services.NewAccessChecker(accessInfo, clusterName.GetClusterName(), a)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return generateCert(a, certRequest{
+		publicKey: publicKey,
+		// Temporary TTL whilst we hack on this
+		ttl:     time.Hour * 24,
+		user:    userState,
+		checker: checker,
+		traits:  userState.GetTraits(),
+	}, types.UserCA)
+}
+
 // generateUserCert generates certificates signed with User CA
 func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 	return generateCert(a, req, types.UserCA)
