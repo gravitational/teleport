@@ -32,9 +32,9 @@ use ironrdp_pdu::{other_err, PduError};
 use ironrdp_session::image::DecodedImage;
 use rdpdr::path::UnixPath;
 use rdpdr::tdp::{
-    FileSystemObject, FileType, SharedDirectoryAcknowledge, SharedDirectoryDeleteResponse,
-    SharedDirectoryInfoResponse, SharedDirectoryMoveResponse, SharedDirectoryWriteResponse,
-    TdpErrCode,
+    FileSystemObject, FileType, SharedDirectoryAcknowledge, SharedDirectoryCreateResponse,
+    SharedDirectoryDeleteResponse, SharedDirectoryInfoResponse, SharedDirectoryMoveResponse,
+    SharedDirectoryWriteResponse, TdpErrCode,
 };
 use std::convert::TryFrom;
 use std::ffi::CString;
@@ -209,8 +209,8 @@ pub unsafe extern "C" fn client_handle_tdp_sd_create_response(
     cgo_handle: CgoHandle,
     res: CGOSharedDirectoryCreateResponse,
 ) -> CGOErrCode {
-    warn!("unimplemented: client_handle_tdp_sd_create_response");
-    CGOErrCode::ErrCodeSuccess
+    let res = SharedDirectoryCreateResponse::from(res);
+    call_function_on_handle(cgo_handle, ClientFunction::HandleTdpSdCreateResponse(res))
 }
 
 /// client_handle_tdp_sd_delete_response handles a TDP Shared Directory Delete Response

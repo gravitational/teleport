@@ -15,11 +15,13 @@
 use super::path::UnixPath;
 use crate::{
     util::{self, from_c_string, from_go_array},
-    CGOSharedDirectoryAnnounce, CGOSharedDirectoryCreateResponse, CGOSharedDirectoryInfoResponse,
-    CGOSharedDirectoryListResponse, CGOSharedDirectoryReadResponse,
+    CGOSharedDirectoryAnnounce, CGOSharedDirectoryCreateRequest, CGOSharedDirectoryCreateResponse,
+    CGOSharedDirectoryInfoRequest, CGOSharedDirectoryInfoResponse, CGOSharedDirectoryListResponse,
+    CGOSharedDirectoryReadResponse,
 };
 use ironrdp_pdu::{custom_err, PduResult};
 use ironrdp_rdpdr::pdu::efs::DeviceCreateRequest;
+use std::ffi::CString;
 
 /// SharedDirectoryAnnounce is sent by the TDP client to the server
 /// to announce a new directory to be shared over TDP.
@@ -63,12 +65,27 @@ pub struct SharedDirectoryInfoRequest {
     pub path: UnixPath,
 }
 
+impl SharedDirectoryInfoRequest {
+    /// See [`CGOWithStrings`].
+    pub fn into_cgo(self) -> PduResult<CGOWithStrings<CGOSharedDirectoryInfoRequest>> {
+        let path = self.path.to_cstring()?;
+        Ok(CGOWithStrings {
+            cgo: CGOSharedDirectoryInfoRequest {
+                completion_id: self.completion_id,
+                directory_id: self.directory_id,
+                path: path.as_ptr(),
+            },
+            _strings: vec![path],
+        })
+    }
+}
+
 impl From<&DeviceCreateRequest> for SharedDirectoryInfoRequest {
     fn from(req: &DeviceCreateRequest) -> SharedDirectoryInfoRequest {
         SharedDirectoryInfoRequest {
             completion_id: req.device_io_request.completion_id,
             directory_id: req.device_io_request.device_id,
-            path: UnixPath::from(&(*req.path)),
+            path: UnixPath::from(&req.path),
         }
     }
 }
@@ -92,7 +109,7 @@ impl From<CGOSharedDirectoryInfoResponse> for SharedDirectoryInfoResponse {
         SharedDirectoryInfoResponse {
             completion_id: cgo_res.completion_id,
             err_code: cgo_res.err_code,
-            fso: FileSystemObject::from(cgo_res.fso),
+            fso: cgo_res.fso.into(),
         }
     }
 }
@@ -206,6 +223,31 @@ pub struct SharedDirectoryCreateRequest {
     pub path: UnixPath,
 }
 
+impl SharedDirectoryCreateRequest {
+    pub fn from(req: &DeviceCreateRequest, file_type: FileType) -> SharedDirectoryCreateRequest {
+        SharedDirectoryCreateRequest {
+            completion_id: req.device_io_request.completion_id,
+            directory_id: req.device_io_request.device_id,
+            file_type,
+            path: UnixPath::from(&req.path),
+        }
+    }
+
+    /// See [`CGOWithStrings`].
+    pub fn into_cgo(self) -> PduResult<CGOWithStrings<CGOSharedDirectoryCreateRequest>> {
+        let path = self.path.to_cstring()?;
+        Ok(CGOWithStrings {
+            cgo: CGOSharedDirectoryCreateRequest {
+                completion_id: self.completion_id,
+                directory_id: self.directory_id,
+                file_type: self.file_type,
+                path: path.as_ptr(),
+            },
+            _strings: vec![path],
+        })
+    }
+}
+
 /// SharedDirectoryListResponse is sent by the TDP client to the server
 /// in response to a SharedDirectoryInfoRequest.
 #[derive(Debug)]
@@ -226,7 +268,7 @@ impl From<CGOSharedDirectoryListResponse> for SharedDirectoryListResponse {
             let cgo_fso_list = from_go_array(cgo.fso_list, cgo.fso_list_length);
             let mut fso_list = vec![];
             for cgo_fso in cgo_fso_list.into_iter() {
-                fso_list.push(FileSystemObject::from(cgo_fso));
+                fso_list.push(cgo_fso.into());
             }
 
             SharedDirectoryListResponse {
@@ -267,7 +309,7 @@ impl From<CGOSharedDirectoryCreateResponse> for SharedDirectoryCreateResponse {
         SharedDirectoryCreateResponse {
             completion_id: cgo_res.completion_id,
             err_code: cgo_res.err_code,
-            fso: FileSystemObject::from(cgo_res.fso),
+            fso: cgo_res.fso.into(),
         }
     }
 }
@@ -326,6 +368,47 @@ pub enum TdpErrCode {
 pub enum FileType {
     File = 0,
     Directory = 1,
+}
+
+/// Some CGO* structs contain `*const c_char` fields that are backed by [`CString`]\(s\).
+/// We commonly need to pass these structs to Go, so we need to ensure that the
+/// CStrings live long enough for the structs to be copied into Go-owned memory.
+///
+/// This struct is a wrapper around a CGO* struct that contains [`CString`]\(s\),
+/// which can be used to ensure that the CStrings live long enough.
+///
+/// # Example
+///
+/// ```
+/// use std::ffi::CString;
+///
+/// let path = CString::new("/path/to/file").unwrap();
+/// let mut cgo_with_strings = CGOWithStrings {
+///     cgo: CGOSharedDirectoryCreateRequest {
+///         completion_id: 1,
+///         directory_id: 2,
+///         file_type: FileType::File,
+///         path: path,
+///     },
+///     _strings: vec![path],
+/// };
+///
+/// // Pass the CGO* struct to Go.
+/// //
+/// // Because `path` is owned by `cgo_with_strings`,
+/// // it will live long enough for `pass_to_go`
+/// // to copy it into Go-owned memory.
+/// pass_to_go(cgo_with_strings.cgo());
+/// ```
+pub struct CGOWithStrings<T> {
+    cgo: T,
+    _strings: Vec<CString>,
+}
+
+impl<T> CGOWithStrings<T> {
+    pub fn cgo(&mut self) -> *mut T {
+        &mut self.cgo
+    }
 }
 
 pub const FALSE: u8 = 0;
