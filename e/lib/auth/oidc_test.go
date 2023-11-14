@@ -619,13 +619,13 @@ func TestOIDCClientCache(t *testing.T) {
 	// The next call should return the same client (compare memory address)
 	cachedClient, err := s.oas.getCachedOIDCClient(ctx, connector, "proxy.example.com")
 	require.NoError(t, err)
-	require.Equal(t, client, cachedClient)
+	require.Same(t, client, cachedClient)
 
 	// Canceling provider sync on a cached client should cause it to be replaced
 	client.syncCancel()
 	cachedClient, err = s.oas.getCachedOIDCClient(ctx, connector, "proxy.example.com")
 	require.NoError(t, err)
-	require.NotEqual(t, client, cachedClient)
+	require.NotSame(t, client, cachedClient)
 
 	// Certain changes to the connector should cause the cached client to be refreshed
 	originalClient := cachedClient
@@ -639,42 +639,42 @@ func TestOIDCClientCache(t *testing.T) {
 			mutateConnector: func(conn types.OIDCConnector) {
 				conn.SetIssuerURL(newFakeIDP(t, false /* tls */).s.URL)
 			},
-			clientAssertion: require.NotEqual,
+			clientAssertion: require.NotSame,
 		},
 		{
 			desc: "ClientID",
 			mutateConnector: func(conn types.OIDCConnector) {
 				conn.SetClientID("11111111111111111111111111111111")
 			},
-			clientAssertion: require.NotEqual,
+			clientAssertion: require.NotSame,
 		},
 		{
 			desc: "ClientSecret",
 			mutateConnector: func(conn types.OIDCConnector) {
 				conn.SetClientSecret("1111111111111111111111111111111111111111111111111111111111111111")
 			},
-			clientAssertion: require.NotEqual,
+			clientAssertion: require.NotSame,
 		},
 		{
 			desc: "RedirectURLs",
 			mutateConnector: func(conn types.OIDCConnector) {
 				conn.SetRedirectURLs([]string{"https://other.example.com/v1/webapi/oidc/callback"})
 			},
-			clientAssertion: require.NotEqual,
+			clientAssertion: require.NotSame,
 		},
 		{
 			desc: "Scope",
 			mutateConnector: func(conn types.OIDCConnector) {
 				conn.SetScope([]string{"groups"})
 			},
-			clientAssertion: require.NotEqual,
+			clientAssertion: require.NotSame,
 		},
 		{
 			desc: "Prompt - no refresh",
 			mutateConnector: func(conn types.OIDCConnector) {
 				conn.SetPrompt("none")
 			},
-			clientAssertion: require.Equal,
+			clientAssertion: require.Same,
 		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
