@@ -21,6 +21,8 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	mobilev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/mobile/v1"
+	"github.com/gravitational/teleport/lib/auth/mobile/mobilev1"
 	"io"
 	"net"
 	"time"
@@ -5713,6 +5715,14 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	userloginstatev1.RegisterUserLoginStateServiceServer(server, userLoginStateServer)
 
 	userspb.RegisterUsersServiceServer(server, usersService)
+
+	mobileSvc, err := mobilev1.NewService(mobilev1.ServiceConfig{
+		Authorizer: cfg.Authorizer,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	mobilev1pb.RegisterMobileServiceServer(server, mobileSvc)
 
 	// Only register the service if this is an open source build. Enterprise builds
 	// register the actual service via an auth plugin, if we register here then all
