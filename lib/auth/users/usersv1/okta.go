@@ -21,12 +21,24 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 )
 
+// Okta-origin users have some special access rules that are implemented in this
+// file:
+//
+// 1. Only the Teleport Okta service may create an Okta-origin user.
+// 2. Only the Teleport Okta service may modify an Okta-origin user.
+// 3. Anyone with User RW can delete an Okta-origin user (otherwise there is no
+//    recourse for a Teleport admin to clean up obsolete users if an Okta
+//    integration is deleted.
+//
+// The implementation of these rules is spread through the functions below
+
 // checkOktaOrigin checks that the supplied user has an appropriate origin label
 // set. In this case "appropriate" means having the Okta origin set if and only
-// if the supplied auth context has the build-in Okta role. Context without the
-// Okta role may supply any origin value *other than* okta (including nil).
+// if the supplied auth context has the build-in Okta role. An auth context
+// without the Okta role may supply any origin value *other than* okta
+// (including nil).
 // Returns an error if the user origin value is "inappropriate".
-func checkOktaOrigin(authzCtx *authz.Context, user types.User, verb string) error {
+func checkOktaOrigin(authzCtx *authz.Context, user types.User) error {
 	isOktaService := authz.HasBuiltinRole(*authzCtx, string(types.RoleOkta))
 	hasOktaOrigin := user.Origin() == types.OriginOkta
 
@@ -34,11 +46,8 @@ func checkOktaOrigin(authzCtx *authz.Context, user types.User, verb string) erro
 	case isOktaService && !hasOktaOrigin:
 		return trace.BadParameter(`Okta service must supply "okta" origin`)
 
-	case (verb == types.VerbCreate) && !isOktaService && hasOktaOrigin:
-		return trace.BadParameter("Must be Okta service to set Okta origin")
-
 	case !isOktaService && hasOktaOrigin:
-		return nil
+		return trace.BadParameter(`Must be Okta service to set "okta" origin`)
 
 	default:
 		return nil
@@ -46,16 +55,12 @@ func checkOktaOrigin(authzCtx *authz.Context, user types.User, verb string) erro
 }
 
 // checkOktaAccess gates access to update operations on user records based
-// on the origin labels of the existing and new user records.
+// on the origin label on the supplied user record.
 //
-//   - a nil `existingUser` is interpreted as there being no matching existing
-//     user in the cluster; if there is no user then there is no user to
-//     overwrite, so access is grated
-//   - when `authzCtx` represents a non-okta caller, then the only disallowed
-//     operation is removing an "Origin: okta" label
-//   - when `authzCtx` represents the okta service, then access is granted if and
-//     only if the existing user has an "Origin: okta" label
-func checkOktaAccess(authzCtx *authz.Context, newUser, existingUser types.User, verb string) error {
+// A nil `existingUser` is interpreted as there being no matching existing
+// user in the cluster; if there is no user then there is no user to
+// overwrite, so access is granted
+func checkOktaAccess(authzCtx *authz.Context, existingUser types.User, verb string) error {
 	// We base or decision to allow write access to a resource on the Origin
 	// label. If there is no existing user, then there can be no label to block
 	// access, so anyone can do anything.
@@ -64,13 +69,10 @@ func checkOktaAccess(authzCtx *authz.Context, newUser, existingUser types.User, 
 	}
 
 	if !authz.HasBuiltinRole(*authzCtx, string(types.RoleOkta)) {
-		// The only thing a non-okta service caller is prevented from doing is
-		// changing a user record's "Origin: Okta" label - everything else is
-		// fair game.
-		if existingUser.Origin() == types.OriginOkta {
-			if newUser.Origin() != types.OriginOkta {
-				return trace.BadParameter("Okta origin may not be changed")
-			}
+		// The only thing a non-okta service caller is allowed to do to an
+		// Okta-origin user is delete it
+		if (existingUser.Origin() == types.OriginOkta) && (verb != types.VerbDelete) {
+			return trace.BadParameter("Okta origin may not be changed")
 		}
 		return nil
 	}

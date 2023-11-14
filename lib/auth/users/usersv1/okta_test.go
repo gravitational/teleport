@@ -50,6 +50,12 @@ func newOktaUser(t *testing.T) types.User {
 	return user
 }
 
+// TestOktaCRUD() asserts that user operations involving Okta-origin
+// users obey the following rules:
+//
+// 1. Only the Teleport Okta service may create an Okta-origin user.
+// 2. Only the Teleport Okta service may modify an Okta-origin user.
+// 3. Anyone with User RW can delete an Okta-origin user.
 func TestOktaCRUD(t *testing.T) {
 	env, err := newTestEnv(withAuthorizer(builtinRoleAuthorizer{}))
 	require.NoError(t, err)
@@ -69,13 +75,13 @@ func TestOktaCRUD(t *testing.T) {
 		})
 
 	t.Run("Create", func(t *testing.T) {
-		t.Run("creating Okta users is allowed", func(t *testing.T) {
+		t.Run("okta service creating okta users is allowed", func(t *testing.T) {
 			user := newOktaUser(t)
 			_, err := env.CreateUser(oktaCtx, &userspb.CreateUserRequest{User: user.(*types.UserV2)})
 			require.NoError(t, err)
 		})
 
-		t.Run("creating a non-Okta user in an error", func(t *testing.T) {
+		t.Run("okta service creating a non-okta user in an error", func(t *testing.T) {
 			user, err := types.NewUser(t.Name())
 			require.NoError(t, err)
 
@@ -95,7 +101,7 @@ func TestOktaCRUD(t *testing.T) {
 	})
 
 	t.Run("update", func(t *testing.T) {
-		t.Run("updating Okta user is allowed", func(t *testing.T) {
+		t.Run("okta service updating okta user is allowed", func(t *testing.T) {
 			// Given an existing okta user
 			user := newOktaUser(t)
 			user, err = env.backend.CreateUser(context.Background(), user)
@@ -111,7 +117,7 @@ func TestOktaCRUD(t *testing.T) {
 			require.NoError(t, err)
 		})
 
-		t.Run("updating non-Okta user is an error", func(t *testing.T) {
+		t.Run("okta service updating non-Okta user is an error", func(t *testing.T) {
 			// Given an existing non-okta user
 			user, err := types.NewUser(t.Name())
 			require.NoError(t, err)
@@ -130,7 +136,7 @@ func TestOktaCRUD(t *testing.T) {
 			require.Contains(t, err.Error(), "update")
 		})
 
-		t.Run("removing Okta origin is an error", func(t *testing.T) {
+		t.Run("okta service removing Okta origin is an error", func(t *testing.T) {
 			// Given an existing okta user
 			user := newOktaUser(t)
 			user, err = env.backend.CreateUser(context.Background(), user)
@@ -147,7 +153,7 @@ func TestOktaCRUD(t *testing.T) {
 			require.Truef(t, trace.IsBadParameter(err), "Expected bad parameter, got %T: %s", err, err.Error())
 		})
 
-		t.Run("updating a non-existent user is an error", func(t *testing.T) {
+		t.Run("okta service updating a non-existent user is an error", func(t *testing.T) {
 			// Given an okta user not present in the user DB
 			user := newOktaUser(t)
 
@@ -178,7 +184,7 @@ func TestOktaCRUD(t *testing.T) {
 			require.Truef(t, trace.IsBadParameter(err), "Expected bad parameter, got %T: %s", err, err.Error())
 		})
 
-		t.Run("non-okta service updating an okta user is not an error", func(t *testing.T) {
+		t.Run("non-okta service updating an okta user is an error", func(t *testing.T) {
 			// Given an existing okta user
 			user := newOktaUser(t)
 			user, err = env.backend.CreateUser(context.Background(), user)
@@ -190,13 +196,14 @@ func TestOktaCRUD(t *testing.T) {
 			_, err = env.UpdateUser(adminCtx,
 				&userspb.UpdateUserRequest{User: user.(*types.UserV2)})
 
-			// Expect that the operation succeeds
-			require.NoError(t, err)
+			// Expect that the operation fails with "bad parameter"
+			require.Error(t, err)
+			require.Truef(t, trace.IsBadParameter(err), "Expected bad parameter, got %T: %s", err, err.Error())
 		})
 	})
 
 	t.Run("upsert", func(t *testing.T) {
-		t.Run("creating Okta user is allowed", func(t *testing.T) {
+		t.Run("okta service creating okta user is allowed", func(t *testing.T) {
 			// Given an existing okta user NOT in the Teleport user DB...
 			user := newOktaUser(t)
 
@@ -209,7 +216,7 @@ func TestOktaCRUD(t *testing.T) {
 			require.NoError(t, err)
 		})
 
-		t.Run("creating non-Okta user is an error", func(t *testing.T) {
+		t.Run("okta service creating non-okta user is an error", func(t *testing.T) {
 			// Given a non-okta user *not* already in the Teleport user backend...
 			user, err := types.NewUser(t.Name())
 			require.NoError(t, err)
@@ -224,7 +231,7 @@ func TestOktaCRUD(t *testing.T) {
 			require.Truef(t, trace.IsBadParameter(err), "Expected bad parameter, got %T: %s", err, err.Error())
 		})
 
-		t.Run("updating Okta user is allowed", func(t *testing.T) {
+		t.Run("okta service updating okta user is allowed", func(t *testing.T) {
 			// Given an existing okta user already in the Teleport user DB...
 			user := newOktaUser(t)
 			user, err = env.backend.CreateUser(context.Background(), user)
@@ -241,7 +248,7 @@ func TestOktaCRUD(t *testing.T) {
 			require.NoError(t, err)
 		})
 
-		t.Run("updating non-Okta user is an error", func(t *testing.T) {
+		t.Run("okta service updating non-Okta user is an error", func(t *testing.T) {
 			// Given an existing non-okta user already in the Teleport user DB...
 			user, err := types.NewUser(t.Name())
 			require.NoError(t, err)
@@ -260,7 +267,7 @@ func TestOktaCRUD(t *testing.T) {
 			require.Truef(t, trace.IsAccessDenied(err), "Expected access denied, got %T: %s", err, err.Error())
 		})
 
-		t.Run("removing Okta origin is an error", func(t *testing.T) {
+		t.Run("okta service removing Okta origin is an error", func(t *testing.T) {
 			// Given an existing okta user already in the Teleport user DB...
 			user := newOktaUser(t)
 			user, err = env.backend.CreateUser(context.Background(), user)
@@ -309,7 +316,7 @@ func TestOktaCRUD(t *testing.T) {
 			require.Truef(t, trace.IsBadParameter(err), "Expected bad parameter, got %T: %s", err, err.Error())
 		})
 
-		t.Run("non-okta service updating an okta user is not an error", func(t *testing.T) {
+		t.Run("non-okta service updating an okta user is an error", func(t *testing.T) {
 			// Given an existing okta user
 			user := newOktaUser(t)
 			user, err = env.backend.CreateUser(context.Background(), user)
@@ -321,13 +328,14 @@ func TestOktaCRUD(t *testing.T) {
 			_, err = env.UpsertUser(adminCtx,
 				&userspb.UpsertUserRequest{User: user.(*types.UserV2)})
 
-			// Expect that the operation succeeds
-			require.NoError(t, err)
+			// Expect that the operation fails with "bad parameter"
+			require.Error(t, err)
+			require.Truef(t, trace.IsBadParameter(err), "Expected bad parameter, got %T: %s", err, err.Error())
 		})
 	})
 
 	t.Run("delete", func(t *testing.T) {
-		t.Run("deleting Okta user is allowed", func(t *testing.T) {
+		t.Run("okta service deleting Okta user is allowed", func(t *testing.T) {
 			// Given an existing okta user already in the Teleport user DB...
 			user := newOktaUser(t)
 			user, err = env.backend.CreateUser(context.Background(), user)
@@ -352,7 +360,7 @@ func TestOktaCRUD(t *testing.T) {
 			require.True(t, trace.IsNotFound(err), "Expected not found, got %s", err.Error())
 		})
 
-		t.Run("deleting non-Okta user is an error", func(t *testing.T) {
+		t.Run("okta service deleting non-Okta user is an error", func(t *testing.T) {
 			// Given an existing non-okta user already in the Teleport user DB...
 			user, err := types.NewUser(t.Name())
 			require.NoError(t, err)
@@ -377,6 +385,31 @@ func TestOktaCRUD(t *testing.T) {
 					WithSecrets: false,
 				})
 			require.NoError(t, err)
+		})
+
+		t.Run("non-okta service deleting okta user is allowed", func(t *testing.T) {
+			// Given an existing okta user already in the Teleport user DB...
+			user := newOktaUser(t)
+			user, err = env.backend.CreateUser(context.Background(), user)
+			require.NoError(t, err)
+
+			// When I (as the Okta service) try to delete the user...
+			_, err = env.DeleteUser(
+				adminCtx,
+				&userspb.DeleteUserRequest{Name: user.GetName()})
+
+			// Expect the operation to succeed
+			require.NoError(t, err)
+
+			// Expect that the user has been removed from the cache/backend
+			_, err = env.Service.GetUser(
+				oktaCtx,
+				&userspb.GetUserRequest{
+					Name:        user.GetName(),
+					WithSecrets: false,
+				})
+			require.Error(t, err)
+			require.True(t, trace.IsNotFound(err), "Expected not found, got %s", err.Error())
 		})
 	})
 }

@@ -81,11 +81,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-const (
-	msgMissingOktaOrigin           = "Okta service must supply okta origin"
-	msgOktaServiceUserAccessDenied = "Okta service may only update Okta users"
-)
-
 // ServerWithRoles is a wrapper around auth service
 // methods that focuses on authorizing every request
 type ServerWithRoles struct {
@@ -2846,7 +2841,7 @@ func (a *ServerWithRoles) DeleteUser(ctx context.Context, user string) error {
 		return trace.Wrap(err)
 	}
 
-	if err := checkOktaAccess(ctx, &a.context, a.authServer, nil, user, types.VerbDelete); err != nil {
+	if err := checkOktaAccess(ctx, &a.context, a.authServer, user, types.VerbDelete); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -3435,7 +3430,7 @@ func (a *ServerWithRoles) CreateUser(ctx context.Context, user types.User) (type
 		return nil, trace.Wrap(err)
 	}
 
-	if err := checkOktaOrigin(&a.context, user, types.VerbCreate); err != nil {
+	if err := checkOktaOrigin(&a.context, user); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -3452,11 +3447,11 @@ func (a *ServerWithRoles) UpdateUser(ctx context.Context, user types.User) (type
 		return nil, trace.Wrap(err)
 	}
 
-	if err := checkOktaOrigin(&a.context, user, types.VerbUpdate); err != nil {
+	if err := checkOktaOrigin(&a.context, user); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := checkOktaAccess(ctx, &a.context, a.authServer, user, user.GetName(), types.VerbUpdate); err != nil {
+	if err := checkOktaAccess(ctx, &a.context, a.authServer, user.GetName(), types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -3472,20 +3467,11 @@ func (a *ServerWithRoles) UpsertUser(ctx context.Context, u types.User) (types.U
 		return nil, trace.Wrap(err)
 	}
 
-	verb := types.VerbUpdate
-	_, err := a.GetUser(ctx, u.GetName(), false)
-	if err != nil {
-		if !trace.IsNotFound(err) {
-			return nil, trace.Wrap(err)
-		}
-		verb = types.VerbCreate
-	}
-
-	if err := checkOktaOrigin(&a.context, u, verb); err != nil {
+	if err := checkOktaOrigin(&a.context, u); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := checkOktaAccess(ctx, &a.context, a.authServer, u, u.GetName(), types.VerbUpdate); err != nil {
+	if err := checkOktaAccess(ctx, &a.context, a.authServer, u.GetName(), types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -3515,24 +3501,17 @@ func (a *ServerWithRoles) CompareAndSwapUser(ctx context.Context, new, existing 
 		return trace.Wrap(err)
 	}
 
-	if err := checkOktaOrigin(&a.context, new, types.VerbUpdate); err != nil {
+	if err := checkOktaOrigin(&a.context, new); err != nil {
 		return trace.Wrap(err)
 	}
 
-	if a.hasBuiltinRole(types.RoleOkta) {
-		// Checking the `existing` origin should be enough to assert that okta
-		// has write access to the user, because if the backend record says
-		// something different then the `CompareAndSwap()` will fail anyway, and
-		// this way we save ourselves a backend user lookup.
-		if existing.Origin() != types.OriginOkta {
-			return trace.AccessDenied(msgOktaServiceUserAccessDenied)
-		}
-	} else {
-		if existing.Origin() == types.OriginOkta {
-			if new.Origin() != types.OriginOkta {
-				return trace.BadParameter("May not remove Okta origin")
-			}
-		}
+	// Checking the `existing` origin should be enough to assert that okta has
+	// write access to the user, because if the backend record says something
+	// different then the `CompareAndSwap()` will fail anyway, and this way we
+	// save ourselves a backend user lookup.
+
+	if err := checkOktaUserAccess(&a.context, existing, types.VerbUpdate); err != nil {
+		return trace.Wrap(err)
 	}
 
 	return a.authServer.CompareAndSwapUser(ctx, new, existing)
@@ -7273,30 +7252,30 @@ func verbsToReplaceResourceWithOrigin(stored types.ResourceWithOrigin) []string 
 	return verbs
 }
 
-// checkOktaUserAccess gates access to update operations on user records based
-// on the origin labels of the existing and new user records.
+// checkOktaAccess gates access to update operations on user records based
+// on the origin label on the supplied user record.
 //
-// See checkOktaUserAccess() for the actual access rules
-func checkOktaAccess(ctx context.Context, authzCtx *authz.Context, users services.UsersService, newUser types.User, existingUsername string, verb string) error {
+// # See checkOktaUserAccess() for the actual access rules
+//
+// TODO(tcsc): Delete in 16.0.0 when user management is removed from `ServerWithRoles`
+func checkOktaAccess(ctx context.Context, authzCtx *authz.Context, users services.UsersService, existingUsername string, verb string) error {
 	existingUser, err := users.GetUser(ctx, existingUsername, false)
 	if err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)
 	}
 
-	return checkOktaUserAccess(authzCtx, newUser, existingUser, verb)
+	return checkOktaUserAccess(authzCtx, existingUser, verb)
 }
 
 // checkOktaUserAccess gates access to update operations on user records based
 // on the origin labels of the existing and new user records.
 //
-//   - a nil `existingUser` is interpreted as there being no matching existing
-//     user in the cluster; if there is no user then ther is no user to overwrite,
-//     so access is grated
-//   - when `authzCtx` represents a non-okta caller, then the only disallowed
-//     operation is removing an "Origin: okta" label
-//   - when `authzCtx` represents the okta service, then access is granted if and
-//     only if the existing user has an "Origin: okta" label
-func checkOktaUserAccess(authzCtx *authz.Context, newUser, existingUser types.User, verb string) error {
+// A nil `existingUser` is interpreted as there being no matching existing
+// user in the cluster; if there is no user then there is no user to
+// overwrite, so access is granted
+//
+// TODO(tcsc): Delete in 16.0.0 when user management is removed from `ServerWithRoles`
+func checkOktaUserAccess(authzCtx *authz.Context, existingUser types.User, verb string) error {
 	// We base or decision to allow write access to a resource on the Origin
 	// label. If there is no existing user, then there can be no label to block
 	// access, so anyone can do anything.
@@ -7305,13 +7284,10 @@ func checkOktaUserAccess(authzCtx *authz.Context, newUser, existingUser types.Us
 	}
 
 	if !authz.HasBuiltinRole(*authzCtx, string(types.RoleOkta)) {
-		// The only thing a non-okta service caller is prevented from doing is
-		// changing a user record's "Origin: Okta" label - everything else is
-		// fair game.
-		if existingUser.Origin() == types.OriginOkta {
-			if newUser.Origin() != types.OriginOkta {
-				return trace.BadParameter("Okta origin may not be changed")
-			}
+		// The only thing a non-okta service caller is allowed to do to an
+		// Okta-origin user is delete it
+		if (existingUser.Origin() == types.OriginOkta) && (verb != types.VerbDelete) {
+			return trace.AccessDenied("Only the okta service may update okta users")
 		}
 		return nil
 	}
@@ -7333,17 +7309,17 @@ func checkOktaUserAccess(authzCtx *authz.Context, newUser, existingUser types.Us
 // Okta role may supply any origin value *other than* okta (including nil).
 // Returns an error if the user origin value is "inappropriate".
 //
-// TODO(tcsc): Delete in 16.0.0 when user management is removed from `Server`
-func checkOktaOrigin(authzCtx *authz.Context, user types.User, verb string) error {
+// TODO(tcsc): Delete in 16.0.0 when user management is removed from `ServerWithRoles`
+func checkOktaOrigin(authzCtx *authz.Context, user types.User) error {
 	isOktaService := authz.HasBuiltinRole(*authzCtx, string(types.RoleOkta))
 	hasOktaOrigin := user.Origin() == types.OriginOkta
 
 	switch {
 	case isOktaService && !hasOktaOrigin:
-		return trace.BadParameter(msgMissingOktaOrigin)
+		return trace.BadParameter(`Okta service must supply "okta" origin`)
 
-	case (verb == types.VerbCreate) && !isOktaService && hasOktaOrigin:
-		return trace.BadParameter("Must be Okta service to set Okta origin")
+	case !isOktaService && hasOktaOrigin:
+		return trace.BadParameter(`Must be Okta service to set "okta" origin`)
 
 	default:
 		return nil
