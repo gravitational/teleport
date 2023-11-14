@@ -75,6 +75,7 @@ func New(cfg Config) (*Service, error) {
 		gateways:               make(map[string]gateway.Gateway),
 		usageReporter:          connectUsageReporter,
 		headlessWatcherClosers: make(map[string]context.CancelFunc),
+		fileServers:            make(map[string]struct{}),
 	}, nil
 }
 
@@ -216,6 +217,8 @@ func (s *Service) ResolveCluster(path string) (*clusters.Cluster, *client.Telepo
 // worry about parsing URIs and can assume they are correct.
 func (s *Service) ResolveClusterURI(uri uri.ResourceURI) (*clusters.Cluster, *client.TeleportClient, error) {
 	cluster, clusterClient, err := s.cfg.Storage.GetByResourceURI(uri)
+	// TODO: Set cluster.FileServerPort based on s.fileServers[uri].
+	// cluster.FileServerPort =
 	return cluster, clusterClient, trace.Wrap(err)
 }
 
@@ -249,6 +252,8 @@ func (s *Service) ClusterLogout(ctx context.Context, uri string) error {
 	if err := s.StopHeadlessWatcher(uri); err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)
 	}
+
+	// TODO: Stop the file server for uri.
 
 	return nil
 }
@@ -707,6 +712,9 @@ func (s *Service) UpdateAndDialTshdEventsServerAddress(serverAddress string) err
 		return trace.Wrap(err)
 	}
 
+	// TODO: Start file servers for connected clusters, see the definition of StartHeadlessWatchers
+	// above for an example.
+
 	return nil
 }
 
@@ -968,6 +976,8 @@ type Service struct {
 	// headlessWatcherClosers holds a map of root cluster URIs to headless watchers.
 	headlessWatcherClosers   map[string]context.CancelFunc
 	headlessWatcherClosersMu sync.Mutex
+	fileServersMu            sync.RWMutex
+	fileServers              map[string]struct{}
 }
 
 type CreateGatewayParams struct {

@@ -166,7 +166,8 @@ proto.teleport.lib.teleterm.v1.Cluster.toObject = function(includeInstance, msg)
     loggedInUser: (f = msg.getLoggedInUser()) && proto.teleport.lib.teleterm.v1.LoggedInUser.toObject(includeInstance, f),
     features: (f = msg.getFeatures()) && proto.teleport.lib.teleterm.v1.Features.toObject(includeInstance, f),
     authClusterId: jspb.Message.getFieldWithDefault(msg, 9, ""),
-    proxyVersion: jspb.Message.getFieldWithDefault(msg, 10, "")
+    proxyVersion: jspb.Message.getFieldWithDefault(msg, 10, ""),
+    fileServerPort: jspb.Message.getFieldWithDefault(msg, 11, "")
   };
 
   if (includeInstance) {
@@ -240,6 +241,10 @@ proto.teleport.lib.teleterm.v1.Cluster.deserializeBinaryFromReader = function(ms
     case 10:
       var value = /** @type {string} */ (reader.readString());
       msg.setProxyVersion(value);
+      break;
+    case 11:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setFileServerPort(value);
       break;
     default:
       reader.skipField();
@@ -332,6 +337,13 @@ proto.teleport.lib.teleterm.v1.Cluster.serializeBinaryToWriter = function(messag
   if (f.length > 0) {
     writer.writeString(
       10,
+      f
+    );
+  }
+  f = message.getFileServerPort();
+  if (f.length > 0) {
+    writer.writeString(
+      11,
       f
     );
   }
@@ -535,6 +547,24 @@ proto.teleport.lib.teleterm.v1.Cluster.prototype.getProxyVersion = function() {
  */
 proto.teleport.lib.teleterm.v1.Cluster.prototype.setProxyVersion = function(value) {
   return jspb.Message.setProto3StringField(this, 10, value);
+};
+
+
+/**
+ * optional string file_server_port = 11;
+ * @return {string}
+ */
+proto.teleport.lib.teleterm.v1.Cluster.prototype.getFileServerPort = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 11, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.teleport.lib.teleterm.v1.Cluster} returns this
+ */
+proto.teleport.lib.teleterm.v1.Cluster.prototype.setFileServerPort = function(value) {
+  return jspb.Message.setProto3StringField(this, 11, value);
 };
 
 

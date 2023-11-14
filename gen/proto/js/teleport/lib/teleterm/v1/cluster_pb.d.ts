@@ -40,6 +40,9 @@ export class Cluster extends jspb.Message {
     getProxyVersion(): string;
     setProxyVersion(value: string): Cluster;
 
+    getFileServerPort(): string;
+    setFileServerPort(value: string): Cluster;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): Cluster.AsObject;
@@ -62,6 +65,7 @@ export namespace Cluster {
         features?: Features.AsObject,
         authClusterId: string,
         proxyVersion: string,
+        fileServerPort: string,
     }
 }
 

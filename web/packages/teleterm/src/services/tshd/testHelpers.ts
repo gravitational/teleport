@@ -65,6 +65,7 @@ export const makeRootCluster = (
   authClusterId: 'fefe3434-fefe-3434-fefe-3434fefe3434',
   loggedInUser: makeLoggedInUser(),
   proxyVersion: '11.1.0',
+  fileServerPort: '',
   ...props,
 });
 
@@ -79,6 +80,7 @@ export const makeLeafCluster = (
   authClusterId: '',
   loggedInUser: makeLoggedInUser(),
   proxyVersion: '',
+  fileServerPort: '',
   ...props,
 });
 

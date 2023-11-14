@@ -51,7 +51,8 @@ type Cluster struct {
 	// client is the cluster Teleport client
 	clusterClient *client.TeleportClient
 	// clock is a clock for time-related operations
-	clock clockwork.Clock
+	clock          clockwork.Clock
+	FileServerPort string
 }
 
 type ClusterWithDetails struct {

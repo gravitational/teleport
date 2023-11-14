@@ -51,6 +51,8 @@ func (s *Handler) Login(ctx context.Context, req *api.LoginRequest) (*api.EmptyR
 		return nil, trace.Wrap(err)
 	}
 
+	// TODO: Add a file server for the cluster using req.ClusterURI as the key.
+
 	return &api.EmptyResponse{}, nil
 }
 
@@ -81,6 +83,8 @@ func (s *Handler) LoginPasswordless(stream api.TerminalService_LoginPasswordless
 	if err := s.DaemonService.StartHeadlessWatcher(initReq.GetClusterUri(), false /* waitInit */); err != nil {
 		return trace.Wrap(err)
 	}
+
+	// TODO: Add a file server for the cluster using req.ClusterURI as the key.
 
 	return nil
 }
