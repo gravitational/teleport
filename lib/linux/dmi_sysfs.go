@@ -20,6 +20,7 @@ import (
 	"io/fs"
 	"os"
 	"strings"
+	"sync"
 )
 
 // DMIInfo holds information acquired from the device's DMI.
@@ -60,36 +61,56 @@ func DMIInfoFromSysfs() (*DMIInfo, error) {
 // The method reads as much information as possible, so it always returns a
 // non-nil [DMIInfo], even if it errors.
 func DMIInfoFromFS(dmifs fs.FS) (*DMIInfo, error) {
-	var vals []string
+	var wg sync.WaitGroup
+
+	var mu sync.Mutex // guards errs
 	var errs []error
-	for _, name := range []string{
-		"product_name",
-		"product_serial",
-		"board_serial",
-		"chassis_asset_tag",
-	} {
-		f, err := dmifs.Open(name)
-		if err != nil {
-			vals = append(vals, "")
-			errs = append(errs, err)
-			continue
-		}
-		defer f.Close() // defer is OK, the loop should end soon enough.
-
-		val, err := io.ReadAll(f)
-		if err != nil {
-			vals = append(vals, "")
-			errs = append(errs, err)
-			continue
-		}
-
-		vals = append(vals, strings.TrimSpace(string(val)))
+	appendErr := func(err error) {
+		mu.Lock()
+		errs = append(errs, err)
+		mu.Unlock()
 	}
 
+	// Read the various files concurrently.
+	var productName, productSerial, boardSerial, chassisAssetTag string
+	for _, spec := range []struct {
+		filename string
+		out      *string
+	}{
+		{filename: "product_name", out: &productName},
+		{filename: "product_serial", out: &productSerial},
+		{filename: "board_serial", out: &boardSerial},
+		{filename: "chassis_asset_tag", out: &chassisAssetTag},
+	} {
+		spec := spec
+
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			f, err := dmifs.Open(spec.filename)
+			if err != nil {
+				appendErr(err)
+				return
+			}
+			defer f.Close()
+
+			val, err := io.ReadAll(f)
+			if err != nil {
+				appendErr(err)
+				return
+			}
+
+			*spec.out = strings.TrimSpace(string(val))
+		}()
+	}
+
+	wg.Wait()
+
 	return &DMIInfo{
-		ProductName:     vals[0],
-		ProductSerial:   vals[1],
-		BoardSerial:     vals[2],
-		ChassisAssetTag: vals[3],
+		ProductName:     productName,
+		ProductSerial:   productSerial,
+		BoardSerial:     boardSerial,
+		ChassisAssetTag: chassisAssetTag,
 	}, errors.Join(errs...)
 }
