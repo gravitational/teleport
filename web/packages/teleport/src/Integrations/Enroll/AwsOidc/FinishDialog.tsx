@@ -54,7 +54,13 @@ export function FinishDialog({ integration }: { integration: Integration }) {
   );
 }
 
-function FooterButton({ location, integration }: { location: Location<any>, integration: Integration }): React.ReactElement {
+function FooterButton({
+  location,
+  integration,
+}: {
+  location: Location<any>;
+  integration: Integration;
+}): React.ReactElement {
   if (location.state?.discover) {
     return (
       <ButtonPrimary
@@ -70,7 +76,7 @@ function FooterButton({ location, integration }: { location: Location<any>, inte
       >
         Begin AWS Resource Enrollment
       </ButtonPrimary>
-    )
+    );
   }
 
   if (location.state?.integration) {
@@ -81,8 +87,8 @@ function FooterButton({ location, integration }: { location: Location<any>, inte
         to={cfg.getIntegrationEnrollRoute(location.state.integration.kind)}
       >
         {location.state.integration?.redirectText || `Back to integration`}
-      </ButtonPrimary >
-    )
+      </ButtonPrimary>
+    );
   }
 
   return (
@@ -98,5 +104,5 @@ function FooterButton({ location, integration }: { location: Location<any>, inte
         Add Another Integration
       </ButtonSecondary>
     </Flex>
-  )
+  );
 }

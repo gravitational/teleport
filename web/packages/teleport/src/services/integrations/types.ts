@@ -49,7 +49,7 @@ export type Integration<
 // resource's subKind field.
 export enum IntegrationKind {
   AwsOidc = 'aws-oidc',
-  Byob = "byob",
+  Byob = 'byob',
 }
 export type IntegrationSpecAwsOidc = {
   roleArn: string;
@@ -364,6 +364,6 @@ export type Cidr = {
 // to create a AWS OIDC integration which requires changing route
 // and then coming back to resume the flow.)
 export type IntegrationUrlLocationState = {
-  kind: IntegrationKind,
-  redirectText: string,
-}
+  kind: IntegrationKind;
+  redirectText: string;
+};

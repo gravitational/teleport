@@ -67,9 +67,7 @@ export function IntegrationTiles({
         disabled={!hasAccess}
         as={hasAccess ? Link : null}
         to={
-          hasAccess
-            ? cfg.getIntegrationEnrollRoute(IntegrationKind.Byob)
-            : null
+          hasAccess ? cfg.getIntegrationEnrollRoute(IntegrationKind.Byob) : null
         }
         data-testid="tile-byob"
       >
