@@ -182,6 +182,7 @@ class TeleportContext implements types.Context {
       assist: userContext.getAssistantAccess().list && this.assistEnabled,
       accessMonitoring: hasAccessMonitoringAccess(),
       managementSection: hasManagementSectionAccess(),
+      accessGraph: userContext.getAccessGraphAccess().list,
     };
   }
 }
@@ -214,6 +215,7 @@ export const disabledFeatureFlags: types.FeatureFlags = {
   assist: false,
   managementSection: false,
   accessMonitoring: false,
+  accessGraph: false,
 };
 
 export default TeleportContext;
