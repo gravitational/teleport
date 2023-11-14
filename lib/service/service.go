@@ -4027,6 +4027,15 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			traceClt = clt
 		}
 
+		var accessGraphAddr utils.NetAddr
+		if cfg.AccessGraph.Enabled {
+			addr, err := utils.ParseAddr(cfg.AccessGraph.Addr)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			accessGraphAddr = *addr
+		}
+
 		webConfig := web.Config{
 			Proxy:            tsrv,
 			AuthServers:      cfg.AuthServerAddresses()[0],
@@ -4056,10 +4065,11 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				ctx, err := controller(ctx, sctx, login, localAddr, remoteAddr)
 				return ctx, trace.Wrap(err)
 			}),
-			PROXYSigner:    proxySigner,
-			OpenAIConfig:   cfg.OpenAIConfig,
-			NodeWatcher:    nodeWatcher,
-			TracerProvider: process.TracingProvider,
+			PROXYSigner:     proxySigner,
+			OpenAIConfig:    cfg.OpenAIConfig,
+			NodeWatcher:     nodeWatcher,
+			AccessGraphAddr: accessGraphAddr,
+			TracerProvider:  process.TracingProvider,
 		}
 		webHandler, err := web.NewHandler(webConfig)
 		if err != nil {
