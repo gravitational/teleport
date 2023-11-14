@@ -16,6 +16,7 @@ package mobilev1
 
 import (
 	"context"
+	"crypto/x509"
 	"github.com/gravitational/teleport/api/client/proto"
 	mobilev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/mobile/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -26,6 +27,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/crypto/ssh"
 	"time"
 )
 
@@ -191,6 +193,17 @@ func (s *Service) RedeemAuthToken(ctx context.Context, req *mobilev1pb.RedeemAut
 		return nil, trace.Wrap(err, "verifying token")
 	}
 
+	// Awkwardly convert a public key produced by SecKeyCopyExternalRepresentation
+	// to the SSH AuthorizedKey format expected by Teleport internals lol.
+	publicKey, err := x509.ParsePKCS1PublicKey(req.PublicKey)
+	if err != nil {
+		return nil, trace.Wrap(err, "parsing key")
+	}
+	sshPublicKey, err := ssh.NewPublicKey(publicKey)
+	if err != nil {
+		return nil, trace.Wrap(err, "converting key")
+	}
+	req.PublicKey = ssh.MarshalAuthorizedKey(sshPublicKey)
 	certs, err := s.jwtSigner.GenerateMobileUserCert(ctx, username, req.PublicKey)
 	if err != nil {
 		return nil, trace.Wrap(err, "generating certs")
