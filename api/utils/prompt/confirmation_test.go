@@ -41,14 +41,14 @@ func TestInput(t *testing.T) {
 		go write(t, "hi")
 		got, err := Input(ctx, io.Discard, r, "")
 		require.NoError(t, err)
-		require.Equal(t, got, "hi")
+		require.Equal(t, "hi", got)
 	})
 
 	t.Run("with whitespace", func(t *testing.T) {
 		go write(t, "hey\n")
 		got, err := Input(ctx, io.Discard, r, "")
 		require.NoError(t, err)
-		require.Equal(t, got, "hey")
+		require.Equal(t, "hey", got)
 	})
 
 	t.Run("closed input", func(t *testing.T) {

@@ -96,11 +96,10 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	srv.POST("/:version/ca/host/certs", srv.WithAuth(srv.generateHostCert))
 
 	// Operations on users
-	srv.GET("/:version/users", srv.WithAuth(srv.getUsers))
-	srv.GET("/:version/users/:user", srv.WithAuth(srv.getUser))
+	// TODO(tross): DELETE IN 16.0.0
+	srv.POST("/:version/users", srv.WithAuth(srv.upsertUser))
 
 	// Passwords and sessions
-	srv.POST("/:version/users", srv.WithAuth(srv.upsertUser))
 	srv.POST("/:version/users/:user/web/sessions", srv.WithAuth(srv.createWebSession))
 	srv.POST("/:version/users/:user/web/authenticate", srv.WithAuth(srv.authenticateWebUser))
 	srv.POST("/:version/users/:user/ssh/authenticate", srv.WithAuth(srv.authenticateSSHUser))
@@ -514,36 +513,12 @@ func (s *APIServer) upsertUser(auth ClientI, w http.ResponseWriter, r *http.Requ
 	return message(fmt.Sprintf("'%v' user upserted", user.GetName())), nil
 }
 
-func (s *APIServer) getUser(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	user, err := auth.GetUser(r.Context(), p.ByName("user"), false)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return rawMessage(services.MarshalUser(user, services.WithVersion(version), services.PreserveResourceID()))
-}
-
 func rawMessage(data []byte, err error) (interface{}, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	m := json.RawMessage(data)
 	return &m, nil
-}
-
-func (s *APIServer) getUsers(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	users, err := auth.GetUsers(r.Context(), false)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	out := make([]json.RawMessage, len(users))
-	for i, user := range users {
-		data, err := services.MarshalUser(user, services.WithVersion(version), services.PreserveResourceID())
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		out[i] = data
-	}
-	return out, nil
 }
 
 type generateHostCertReq struct {

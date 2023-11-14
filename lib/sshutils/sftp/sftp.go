@@ -37,6 +37,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/sshutils/scp"
 )
@@ -252,7 +253,7 @@ func (c *Config) TransferFiles(ctx context.Context, sshClient *ssh.Client) error
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err := s.RequestSubsystem("sftp"); err != nil {
+	if err := s.RequestSubsystem(teleport.SFTPSubsystem); err != nil {
 		// If the subsystem request failed and a generic error is
 		// returned, return the session's stderr as the error if it's
 		// non-empty, as the session's stderr may have a more useful

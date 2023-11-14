@@ -47,6 +47,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/envutils"
 )
 
 // FileFD is a file descriptor passed down from a parent process when
@@ -95,7 +96,8 @@ func fdName(f FileFD) string {
 // construct and execute a shell.
 type ExecCommand struct {
 	// Command is the command to execute. If an interactive session is being
-	// requested, will be empty.
+	// requested, will be empty. If a subsystem is requested, it will contain
+	// the subsystem name.
 	Command string `json:"command"`
 
 	// DestinationAddress is the target address to dial to.
@@ -128,7 +130,7 @@ type ExecCommand struct {
 
 	// RequestType is the type of request: either "exec" or "shell". This will
 	// be used to control where to connect std{out,err} based on the request
-	// type: "exec" or "shell".
+	// type: "exec", "shell" or "subsystem".
 	RequestType string `json:"request_type"`
 
 	// PAMConfig is the configuration data that needs to be passed to the child and then to PAM modules.
@@ -743,6 +745,7 @@ func IsReexec() bool {
 // function is run by Teleport while it's re-executing.
 func buildCommand(c *ExecCommand, localUser *user.User, tty *os.File, pty *os.File, pamEnvironment []string) (*exec.Cmd, error) {
 	var cmd exec.Cmd
+	isReexec := false
 
 	// Get the login shell for the user (or fallback to the default).
 	shellPath, err := shell.GetLoginShell(c.Login)
@@ -754,9 +757,24 @@ func buildCommand(c *ExecCommand, localUser *user.User, tty *os.File, pty *os.Fi
 		shellPath = "/bin/sh"
 	}
 
-	// If no command was given, configure a shell to run in 'login' mode.
-	// Otherwise, execute a command through the shell.
-	if c.Command == "" {
+	// If a subsystem was requested, handle the known subsystems or error out;
+	// if it's a normal command execution, and if no command was given,
+	// configure a shell to run in 'login' mode. Otherwise, execute a command
+	// through the shell.
+	if c.RequestType == sshutils.SubsystemRequest {
+		switch c.Command {
+		case teleport.SFTPSubsystem:
+			executable, err := os.Executable()
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			cmd.Path = executable
+			cmd.Args = []string{executable, teleport.SFTPSubCommand}
+			isReexec = true
+		default:
+			return nil, trace.BadParameter("unsupported subsystem execution request %q", c.Command)
+		}
+	} else if c.Command == "" {
 		// Set the path to the path of the shell.
 		cmd.Path = shellPath
 
@@ -774,7 +792,7 @@ func buildCommand(c *ExecCommand, localUser *user.User, tty *os.File, pty *os.Fi
 	}
 
 	// Create default environment for user.
-	cmd.Env = []string{
+	env := &envutils.SafeEnv{
 		"LANG=en_US.UTF-8",
 		getDefaultEnvPath(localUser.Uid, defaultLoginDefsPath),
 		"HOME=" + localUser.HomeDir,
@@ -783,21 +801,24 @@ func buildCommand(c *ExecCommand, localUser *user.User, tty *os.File, pty *os.Fi
 	}
 
 	// Add in Teleport specific environment variables.
-	cmd.Env = append(cmd.Env, c.Environment...)
+	env.AddFull(c.Environment...)
 
 	// If the server allows reading in of ~/.tsh/environment read it in
 	// and pass environment variables along to new session.
 	if c.PermitUserEnvironment {
 		filename := filepath.Join(localUser.HomeDir, ".tsh", "environment")
-		userEnvs, err := utils.ReadEnvironmentFile(filename)
+		userEnvs, err := envutils.ReadEnvironmentFile(filename)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		cmd.Env = append(cmd.Env, userEnvs...)
+		env.AddFull(userEnvs...)
 	}
 
 	// If any additional environment variables come from PAM, apply them as well.
-	cmd.Env = append(cmd.Env, pamEnvironment...)
+	env.AddFull(pamEnvironment...)
+
+	// after environment is fully built, set it to cmd
+	cmd.Env = *env
 
 	// If a terminal was requested, connect std{in,out,err} to the TTY and set
 	// the controlling TTY. Otherwise, connect std{in,out,err} to
@@ -881,7 +902,11 @@ func buildCommand(c *ExecCommand, localUser *user.User, tty *os.File, pty *os.Fi
 	}
 
 	// Perform OS-specific tweaks to the command.
-	userCommandOSTweaks(&cmd)
+	if isReexec {
+		reexecCommandOSTweaks(&cmd)
+	} else {
+		userCommandOSTweaks(&cmd)
+	}
 
 	return &cmd, nil
 }
@@ -931,11 +956,17 @@ func ConfigureCommand(ctx *ServerContext, extraFiles ...*os.File) (*exec.Cmd, er
 	// is appended if Teleport is running in debug mode.
 	args := []string{executable, subCommand}
 
+	// build env for `teleport exec`
+	env := &envutils.SafeEnv{}
+	env.AddFull(cmdmsg.Environment...)
+	env.AddExecEnvironment()
+
 	// Build the "teleport exec" command.
 	cmd := &exec.Cmd{
 		Path: executable,
 		Args: args,
 		Dir:  executableDir,
+		Env:  *env,
 		ExtraFiles: []*os.File{
 			ctx.cmdr,
 			ctx.contr,

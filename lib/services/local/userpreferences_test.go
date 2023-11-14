@@ -121,6 +121,7 @@ func TestUserPreferencesCRUD(t *testing.T) {
 				Theme:   defaultPref.Theme,
 				UnifiedResourcePreferences: &userpreferencesv1.UnifiedResourcePreferences{
 					DefaultTab: userpreferencesv1.DefaultTab_DEFAULT_TAB_PINNED,
+					ViewMode:   userpreferencesv1.ViewMode_VIEW_MODE_CARD,
 				},
 				ClusterPreferences: defaultPref.ClusterPreferences,
 			},
@@ -230,6 +231,7 @@ func TestUserPreferencesCRUD(t *testing.T) {
 					Theme: userpreferencesv1.Theme_THEME_LIGHT,
 					UnifiedResourcePreferences: &userpreferencesv1.UnifiedResourcePreferences{
 						DefaultTab: userpreferencesv1.DefaultTab_DEFAULT_TAB_PINNED,
+						ViewMode:   userpreferencesv1.ViewMode_VIEW_MODE_LIST,
 					},
 					Assist: &userpreferencesv1.AssistUserPreferences{
 						PreferredLogins: []string{"baz"},
@@ -255,6 +257,7 @@ func TestUserPreferencesCRUD(t *testing.T) {
 				Theme: userpreferencesv1.Theme_THEME_LIGHT,
 				UnifiedResourcePreferences: &userpreferencesv1.UnifiedResourcePreferences{
 					DefaultTab: userpreferencesv1.DefaultTab_DEFAULT_TAB_PINNED,
+					ViewMode:   userpreferencesv1.ViewMode_VIEW_MODE_LIST,
 				},
 				Assist: &userpreferencesv1.AssistUserPreferences{
 					PreferredLogins: []string{"baz"},

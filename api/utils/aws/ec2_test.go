@@ -58,7 +58,7 @@ func TestIsEC2NodeID(t *testing.T) {
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			assert.Equal(t, IsEC2NodeID(tc.id), tc.expected)
+			assert.Equal(t, tc.expected, IsEC2NodeID(tc.id))
 		})
 	}
 }

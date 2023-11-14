@@ -21,15 +21,8 @@ import cfg from 'teleport/config';
 import { Cluster } from './types';
 
 export function makeCluster(json): Cluster {
-  const {
-    name,
-    lastConnected,
-    status,
-    nodeCount,
-    publicURL,
-    authVersion,
-    proxyVersion,
-  } = json;
+  const { name, lastConnected, status, publicURL, authVersion, proxyVersion } =
+    json;
 
   const lastConnectedDate = new Date(lastConnected);
   const connectedText = displayDateTime(lastConnectedDate);
@@ -41,7 +34,6 @@ export function makeCluster(json): Cluster {
     status,
     url: cfg.getClusterRoute(name),
     authVersion,
-    nodeCount,
     publicURL,
     proxyVersion,
   };

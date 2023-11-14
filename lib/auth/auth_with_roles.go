@@ -1540,6 +1540,33 @@ func (a *ServerWithRoles) GetNode(ctx context.Context, namespace, name string) (
 	return node, nil
 }
 
+func (a *ServerWithRoles) checkUnifiedAccess(resource types.ResourceWithLabels, checker resourceAccessChecker, filter services.MatchResourceFilter, resourceAccessMap map[string]error) (bool, error) {
+	resourceKind := resource.GetKind()
+
+	if canAccessErr := resourceAccessMap[resourceKind]; canAccessErr != nil {
+		// skip access denied error. It is expected that resources won't be available
+		// to some users and we want to keep iterating until we've reached the request limit
+		// of resources they have access to
+		if trace.IsAccessDenied(canAccessErr) {
+			return false, nil
+		}
+		return false, trace.Wrap(canAccessErr)
+	}
+
+	if resourceKind != types.KindSAMLIdPServiceProvider {
+		if err := checker.CanAccess(resource); err != nil {
+
+			if trace.IsAccessDenied(err) {
+				return false, nil
+			}
+			return false, trace.Wrap(err)
+		}
+	}
+
+	match, err := services.MatchResourceByFilters(resource, filter, nil)
+	return match, trace.Wrap(err)
+}
+
 // ListUnifiedResources returns a paginated list of unified resources filtered by user access.
 func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.ListUnifiedResourcesRequest) (*proto.ListUnifiedResourcesResponse, error) {
 	// Fetch full list of resources in the backend.
@@ -1553,6 +1580,26 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 		SearchKeywords:      req.SearchKeywords,
 		PredicateExpression: req.PredicateExpression,
 		Kinds:               req.Kinds,
+	}
+
+	// resourceAccessMap is a map of resourceKind to error, that holds any errors returned when checking verbs
+	// for that resource (list/read)
+	resourceAccessMap := make(map[string]error)
+
+	// we want to populate the resourceAccessMap at the start of the request for all available kind in the
+	// unified resource cache
+	for _, kind := range services.UnifiedResourceKinds {
+		actionVerbs := []string{types.VerbList, types.VerbRead}
+		if kind == types.KindNode {
+			// We are checking list only for Nodes to keep backwards compatibility.
+			// The read verb got added to GetNodes initially in:
+			//   https://github.com/gravitational/teleport/pull/1209
+			// but got removed shortly afterwards in:
+			//   https://github.com/gravitational/teleport/pull/1224
+			actionVerbs = []string{types.VerbList}
+		}
+
+		resourceAccessMap[kind] = a.withOptions(quietAction(true)).action(apidefaults.Namespace, kind, actionVerbs...)
 	}
 
 	// Apply any requested additional search_as_roles and/or preview_as_roles
@@ -1577,10 +1624,11 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 		}()
 	}
 
-	resourceChecker, err := a.newResourceAccessChecker(types.KindUnifiedResource)
+	checker, err := a.newResourceAccessChecker(types.KindUnifiedResource)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	if req.PinnedOnly {
 		prefs, err := a.authServer.GetUserPreferences(ctx, a.context.User.GetName())
 		if err != nil {
@@ -1590,24 +1638,8 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 			return &proto.ListUnifiedResourcesResponse{}, nil
 		}
 		unifiedResources, err = a.authServer.UnifiedResourceCache.GetUnifiedResourcesByIDs(ctx, prefs.ClusterPreferences.PinnedResources.GetResourceIds(), func(resource types.ResourceWithLabels) (bool, error) {
-			var err error
-			switch r := resource.(type) {
-			// TODO (avatus) we should add this type into the `resourceChecker.CanAccess` method
-			case types.SAMLIdPServiceProvider:
-				err = a.action(apidefaults.Namespace, types.KindSAMLIdPServiceProvider, types.VerbList)
-			default:
-				err = resourceChecker.CanAccess(r)
-			}
-			if err != nil {
-				// skip access denied error. It is expected that resources won't be available
-				// to some users and we want to keep iterating until we've reached the request limit
-				// of resources they have access to
-				if trace.IsAccessDenied(err) {
-					return false, nil
-				}
-				return false, trace.Wrap(err)
-			}
-			return services.MatchResourceByFilters(resource, filter, nil)
+			match, err := a.checkUnifiedAccess(resource, checker, filter, resourceAccessMap)
+			return match, trace.Wrap(err)
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -1621,24 +1653,7 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 		}
 	} else {
 		unifiedResources, nextKey, err = a.authServer.UnifiedResourceCache.IterateUnifiedResources(ctx, func(resource types.ResourceWithLabels) (bool, error) {
-			var err error
-			switch r := resource.(type) {
-			case types.SAMLIdPServiceProvider:
-				err = a.action(apidefaults.Namespace, types.KindSAMLIdPServiceProvider, types.VerbList)
-			default:
-				err = resourceChecker.CanAccess(r)
-			}
-
-			if err != nil {
-				// skip access denied error. It is expected that resources won't be available
-				// to some users and we want to keep iterating until we've reached the request limit
-				// of resources they have access to
-				if trace.IsAccessDenied(err) {
-					return false, nil
-				}
-				return false, trace.Wrap(err)
-			}
-			match, err := services.MatchResourceByFilters(resource, filter, nil)
+			match, err := a.checkUnifiedAccess(resource, checker, filter, resourceAccessMap)
 			return match, trace.Wrap(err)
 		}, req)
 		if err != nil {
@@ -2653,15 +2668,15 @@ func (a *ServerWithRoles) GetAccessCapabilities(ctx context.Context, req types.A
 // GetPluginData loads all plugin data matching the supplied filter.
 func (a *ServerWithRoles) GetPluginData(ctx context.Context, filter types.PluginDataFilter) ([]types.PluginData, error) {
 	switch filter.Kind {
-	case types.KindAccessRequest:
-		// for backwards compatibility, we allow list/read against access requests to also grant list/read for
+	case types.KindAccessRequest, types.KindAccessList:
+		// for backwards compatibility, we allow list/read against kinds to also grant list/read for
 		// access request related plugin data.
-		if a.withOptions(quietAction(true)).action(apidefaults.Namespace, types.KindAccessRequest, types.VerbList) != nil {
+		if a.withOptions(quietAction(true)).action(apidefaults.Namespace, filter.Kind, types.VerbList) != nil {
 			if err := a.action(apidefaults.Namespace, types.KindAccessPluginData, types.VerbList); err != nil {
 				return nil, trace.Wrap(err)
 			}
 		}
-		if a.withOptions(quietAction(true)).action(apidefaults.Namespace, types.KindAccessRequest, types.VerbRead) != nil {
+		if a.withOptions(quietAction(true)).action(apidefaults.Namespace, filter.Kind, types.VerbRead) != nil {
 			if err := a.action(apidefaults.Namespace, types.KindAccessPluginData, types.VerbRead); err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -2675,10 +2690,10 @@ func (a *ServerWithRoles) GetPluginData(ctx context.Context, filter types.Plugin
 // UpdatePluginData updates a per-resource PluginData entry.
 func (a *ServerWithRoles) UpdatePluginData(ctx context.Context, params types.PluginDataUpdateParams) error {
 	switch params.Kind {
-	case types.KindAccessRequest:
+	case types.KindAccessRequest, types.KindAccessList:
 		// for backwards compatibility, we allow update against access requests to also grant update for
 		// access request related plugin data.
-		if a.withOptions(quietAction(true)).action(apidefaults.Namespace, types.KindAccessRequest, types.VerbUpdate) != nil {
+		if a.withOptions(quietAction(true)).action(apidefaults.Namespace, params.Kind, types.VerbUpdate) != nil {
 			if err := a.action(apidefaults.Namespace, types.KindAccessPluginData, types.VerbUpdate); err != nil {
 				return trace.Wrap(err)
 			}
@@ -2704,6 +2719,9 @@ func (a *ServerWithRoles) DeleteAccessRequest(ctx context.Context, name string) 
 	return a.authServer.DeleteAccessRequest(ctx, name)
 }
 
+// GetUsers returns all existing users
+// TODO(tross): DELETE IN 16.0.0
+// Deprecated: use [usersv1.Service.ListUsers] instead.
 func (a *ServerWithRoles) GetUsers(ctx context.Context, withSecrets bool) ([]types.User, error) {
 	if withSecrets {
 		// TODO(fspmarshall): replace admin requirement with VerbReadWithSecrets once we've
@@ -2742,6 +2760,9 @@ func (a *ServerWithRoles) ListUsers(ctx context.Context, pageSize int, nextToken
 	return nil, "", trace.NotImplemented("ListUsers is not implemented yet")
 }
 
+// GetUser returns a single user matching the request.
+// TODO(tross): DELETE IN 16.0.0
+// Deprecated: use [usersv1.Service.GetUser] instead.
 func (a *ServerWithRoles) GetUser(ctx context.Context, name string, withSecrets bool) (types.User, error) {
 	if withSecrets {
 		// TODO(fspmarshall): replace admin requirement with VerbReadWithSecrets once we've
@@ -2782,6 +2803,8 @@ func (a *ServerWithRoles) GetUser(ctx context.Context, name string, withSecrets 
 
 // GetCurrentUser returns current user as seen by the server.
 // Useful especially in the context of remote clusters which perform role and trait mapping.
+// TODO(tross): DELETE IN 16.0.0
+// Deprecated: use [usersv1.Service.GetUser] instead.
 func (a *ServerWithRoles) GetCurrentUser(ctx context.Context) (types.User, error) {
 	// check access to roles
 	for _, role := range a.context.User.GetRoles() {
@@ -3396,6 +3419,8 @@ func (a *ServerWithRoles) ChangeUserAuthentication(ctx context.Context, req *pro
 }
 
 // CreateUser inserts a new user entry in a backend.
+// TODO(tross): DELETE IN 16.0.0
+// Deprecated: use [usersv1.Service.CreateUser] instead.
 func (a *ServerWithRoles) CreateUser(ctx context.Context, user types.User) (types.User, error) {
 	if err := a.action(apidefaults.Namespace, types.KindUser, types.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
@@ -3406,6 +3431,8 @@ func (a *ServerWithRoles) CreateUser(ctx context.Context, user types.User) (type
 
 // UpdateUser updates an existing user in a backend.
 // Captures the auth user who modified the user record.
+// TODO(tross): DELETE IN 16.0.0
+// Deprecated: use [usersv1.Service.UpdateUser] instead.
 func (a *ServerWithRoles) UpdateUser(ctx context.Context, user types.User) (types.User, error) {
 	if err := a.action(apidefaults.Namespace, types.KindUser, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
@@ -3415,6 +3442,9 @@ func (a *ServerWithRoles) UpdateUser(ctx context.Context, user types.User) (type
 	return updated, trace.Wrap(err)
 }
 
+// UpsertUser create or updates an existing user.
+// TODO(tross): DELETE IN 16.0.0
+// Deprecated: use [usersv1.Service.UpdateUser] instead.
 func (a *ServerWithRoles) UpsertUser(ctx context.Context, u types.User) (types.User, error) {
 	if err := a.action(apidefaults.Namespace, types.KindUser, types.VerbCreate, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
@@ -6957,7 +6987,7 @@ func (a *ServerWithRoles) MaintainHeadlessAuthenticationStub(ctx context.Context
 		return trace.Wrap(err)
 	}
 
-	ticker := time.NewTicker(defaults.CallbackTimeout)
+	ticker := time.NewTicker(defaults.HeadlessLoginTimeout)
 	defer ticker.Stop()
 
 	for {
@@ -7111,7 +7141,7 @@ func emitHeadlessLoginEvent(ctx context.Context, code string, emitter apievents.
 	clientAddr := ""
 	if code == events.UserHeadlessLoginRequestedCode {
 		clientAddr = headlessAuthn.ClientIpAddress
-	} else if c, err := authz.ClientAddrFromContext(ctx); err == nil {
+	} else if c, err := authz.ClientSrcAddrFromContext(ctx); err == nil {
 		clientAddr = c.String()
 	}
 

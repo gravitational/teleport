@@ -30,5 +30,5 @@ func TestMarshalJWK(t *testing.T) {
 	require.NoError(t, err)
 
 	// Required for integrating with AWS OpenID Connect Identity Provider.
-	require.Equal(t, jwk.Use, "sig")
+	require.Equal(t, "sig", jwk.Use)
 }

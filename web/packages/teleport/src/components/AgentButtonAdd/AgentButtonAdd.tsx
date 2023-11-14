@@ -31,15 +31,23 @@ export default function AgentButtonAdd(props: Props) {
 
   let title = '';
   if (!canCreate) {
-    title = `You do not have access to add ${
-      beginsWithVowel ? 'an' : 'a'
-    } ${agent}`;
+    if (agent === SearchResource.UNIFIED_RESOURCE) {
+      title = `You do not have access to add resources.`;
+    } else {
+      title = `You do not have access to add ${
+        beginsWithVowel ? 'an' : 'a'
+      } ${agent}`;
+    }
   }
 
   if (isLeafCluster) {
-    title = `Adding ${
-      beginsWithVowel ? 'an' : 'a'
-    } ${agent} to a leaf cluster is not supported`;
+    if (agent === SearchResource.UNIFIED_RESOURCE) {
+      title = `Adding resources to a leaf cluster is not supported.`;
+    } else {
+      title = `Adding ${
+        beginsWithVowel ? 'an' : 'a'
+      } ${agent} to a leaf cluster is not supported`;
+    }
   }
 
   if (hidden) {

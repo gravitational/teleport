@@ -461,5 +461,5 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
 }
 
 export type PendingAccessRequest = {
-  [k in ResourceKind]: Record<string, string>;
+  [k in Exclude<ResourceKind, 'resource'>]: Record<string, string>;
 };

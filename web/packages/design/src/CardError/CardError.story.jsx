@@ -21,7 +21,7 @@ import * as CardError from './CardError';
 const message = 'some error message';
 
 export default {
-  title: 'Design/CardError',
+  title: 'Design/Card/CardError',
 };
 
 export const Cards = () => (

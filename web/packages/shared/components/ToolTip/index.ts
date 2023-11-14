@@ -15,3 +15,4 @@
  */
 
 export { ToolTipInfo } from './ToolTip';
+export { HoverTooltip } from './HoverTooltip';

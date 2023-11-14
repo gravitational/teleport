@@ -194,6 +194,9 @@ func NewTLSServer(ctx context.Context, cfg TLSServerConfig) (*TLSServer, error) 
 			ReadHeaderTimeout: defaults.ReadHeadersTimeout,
 			WriteTimeout:      apidefaults.DefaultIOTimeout,
 			IdleTimeout:       apidefaults.DefaultIdleTimeout,
+			ConnContext: func(ctx context.Context, c net.Conn) context.Context {
+				return authz.ContextWithConn(ctx, c)
+			},
 		},
 		log: logrus.WithFields(logrus.Fields{
 			trace.Component: cfg.Component,
@@ -433,7 +436,7 @@ func (a *Middleware) withAuthenticatedUser(ctx context.Context) (context.Context
 	}
 
 	ctx = authz.ContextWithUserCertificate(ctx, certFromConnState(connState))
-	ctx = authz.ContextWithClientAddr(ctx, peerInfo.Addr)
+	ctx = authz.ContextWithClientSrcAddr(ctx, peerInfo.Addr)
 	ctx = authz.ContextWithUser(ctx, identityGetter)
 
 	return ctx, nil
@@ -471,6 +474,8 @@ func (a *Middleware) withAuthenticatedUserStreamInterceptor(srv interface{}, ser
 // UnaryInterceptors returns the gRPC unary interceptor chain.
 func (a *Middleware) UnaryInterceptors() []grpc.UnaryServerInterceptor {
 	is := []grpc.UnaryServerInterceptor{
+		//nolint:staticcheck // SA1019. There is a data race in the stats.Handler that is replacing
+		// the interceptor. See https://github.com/open-telemetry/opentelemetry-go-contrib/issues/4576.
 		otelgrpc.UnaryServerInterceptor(),
 	}
 
@@ -488,6 +493,8 @@ func (a *Middleware) UnaryInterceptors() []grpc.UnaryServerInterceptor {
 // StreamInterceptors returns the gRPC stream interceptor chain.
 func (a *Middleware) StreamInterceptors() []grpc.StreamServerInterceptor {
 	is := []grpc.StreamServerInterceptor{
+		//nolint:staticcheck // SA1019. There is a data race in the stats.Handler that is replacing
+		// the interceptor. See https://github.com/open-telemetry/opentelemetry-go-contrib/issues/4576.
 		otelgrpc.StreamServerInterceptor(),
 	}
 
@@ -686,7 +693,7 @@ func (a *Middleware) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx = authz.ContextWithUserCertificate(ctx, certFromConnState(r.TLS))
 	clientSrcAddr, err := utils.ParseAddr(remoteAddr)
 	if err == nil {
-		ctx = authz.ContextWithClientAddr(ctx, clientSrcAddr)
+		ctx = authz.ContextWithClientSrcAddr(ctx, clientSrcAddr)
 	}
 	ctx = authz.ContextWithUser(ctx, user)
 	a.Handler.ServeHTTP(w, r.WithContext(ctx))
@@ -715,7 +722,7 @@ func (a *Middleware) WrapContextWithUserFromTLSConnState(ctx context.Context, tl
 	}
 
 	ctx = authz.ContextWithUserCertificate(ctx, certFromConnState(&tlsState))
-	ctx = authz.ContextWithClientAddr(ctx, remoteAddr)
+	ctx = authz.ContextWithClientSrcAddr(ctx, remoteAddr)
 	ctx = authz.ContextWithUser(ctx, user)
 	return ctx, nil
 }
@@ -869,7 +876,7 @@ func (r *ImpersonatorRoundTripper) RoundTrip(req *http.Request) (*http.Response,
 	req.Header.Set(TeleportImpersonateUserHeader, string(b))
 	defer req.Header.Del(TeleportImpersonateUserHeader)
 
-	clientSrcAddr, err := authz.ClientAddrFromContext(req.Context())
+	clientSrcAddr, err := authz.ClientSrcAddrFromContext(req.Context())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -909,7 +916,7 @@ func IdentityForwardingHeaders(ctx context.Context, originalHeaders http.Header)
 	headers := originalHeaders.Clone()
 	headers.Set(TeleportImpersonateUserHeader, string(b))
 
-	clientSrcAddr, err := authz.ClientAddrFromContext(ctx)
+	clientSrcAddr, err := authz.ClientSrcAddrFromContext(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

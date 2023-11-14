@@ -33,20 +33,20 @@ import (
 func TestNewClient(t *testing.T) {
 	// should err when no TLS config is passed in
 	_, err := NewClient(ClientConfig{})
-	assert.NotNil(t, err)
+	assert.Error(t, err)
 
 	// should err when no server addr is passed in
 	_, err = NewClient(ClientConfig{
 		TLSConfig: &tls.Config{},
 	})
-	assert.NotNil(t, err)
+	assert.Error(t, err)
 
 	// should not err when TLS config and server addr is passed in
 	_, err = NewClient(ClientConfig{
 		TLSConfig:         &tls.Config{},
 		ReleaseServerAddr: "server-addr",
 	})
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 }
 
 func TestListReleases(t *testing.T) {
@@ -54,7 +54,7 @@ func TestListReleases(t *testing.T) {
 
 	// ListReleases should err if client is not initialized
 	_, err := mockClient.ListReleases(context.Background())
-	assert.NotNil(t, err)
+	assert.Error(t, err)
 
 	tt := []struct {
 		name               string
@@ -224,13 +224,13 @@ func TestListReleases(t *testing.T) {
 			}))
 
 			mockClient.client, err = roundtrip.NewClient(server.URL, "")
-			assert.Nil(t, err)
+			assert.NoError(t, err)
 
 			releases, err := mockClient.ListReleases(context.Background())
 			if tc.shouldErr {
-				assert.NotNil(t, err)
+				assert.Error(t, err)
 			} else {
-				assert.Nil(t, err)
+				assert.NoError(t, err)
 				assert.Equal(t, tc.expected, releases)
 			}
 		})

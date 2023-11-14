@@ -32,6 +32,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/keys"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
@@ -418,12 +419,12 @@ func (a *Server) authenticateHeadless(ctx context.Context, req AuthenticateUserR
 	}()
 
 	// this authentication requires two client callbacks to create a headless authentication
-	// stub and approve/deny the headless authentication, so we use a standard callback timeout.
-	ctx, cancel := context.WithTimeout(ctx, defaults.CallbackTimeout)
+	// stub and approve/deny the headless authentication.
+	ctx, cancel := context.WithTimeout(ctx, defaults.HeadlessLoginTimeout)
 	defer cancel()
 
 	// Headless Authentication should expire when the callback expires.
-	expires := a.clock.Now().Add(defaults.CallbackTimeout)
+	expires := a.clock.Now().Add(defaults.HeadlessLoginTimeout)
 
 	// Create the headless authentication and validate request details.
 	ha, err := types.NewHeadlessAuthentication(req.Username, req.HeadlessAuthenticationID, expires)
@@ -439,6 +440,13 @@ func (a *Server) authenticateHeadless(ctx context.Context, req AuthenticateUserR
 	}
 
 	emitHeadlessLoginEvent(ctx, events.UserHeadlessLoginRequestedCode, a.emitter, ha, nil)
+
+	// HTTP server has shorter WriteTimeout than is needed, so we override WriteDeadline of the connection.
+	if conn, err := authz.ConnFromContext(ctx); err == nil {
+		if err := conn.SetWriteDeadline(a.GetClock().Now().Add(defaults.HeadlessLoginTimeout)); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
 
 	// Headless authentication requests are made without any prior authentication. To avoid DDos
 	// attacks on the Auth server's backend, we don't create the headless authentication in the

@@ -52,7 +52,7 @@ func TestIsEnabled(t *testing.T) {
 		t.Setenv(automaticUpgradesEnvar, "foo")
 		require.False(t, IsEnabled())
 
-		require.Equal(t, 1, len(hook.Entries))
+		require.Len(t, hook.Entries, 1)
 		require.Equal(t, logrus.WarnLevel, hook.LastEntry().Level)
 		require.Equal(t, `unexpected value for ENV:TELEPORT_AUTOMATIC_UPGRADES: strconv.ParseBool: parsing "foo": invalid syntax`, hook.LastEntry().Message)
 	})

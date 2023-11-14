@@ -56,16 +56,6 @@ func newKubePipeline(name string) pipeline {
 	}
 }
 
-func newExecPipeline(name string) pipeline {
-	return pipeline{
-		comment: generatedComment(),
-		Kind:    "pipeline",
-		Type:    "exec",
-		Name:    name,
-		Clone:   clone{Disable: true},
-	}
-}
-
 func generatedComment() string {
 	c := `################################################
 # Generated using dronegen, do not edit by hand!

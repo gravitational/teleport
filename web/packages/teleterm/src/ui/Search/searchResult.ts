@@ -18,6 +18,7 @@ import type { ClusterUri } from 'teleterm/ui/uri';
 import type { Cluster } from 'teleterm/services/tshd/types';
 
 import type * as resourcesServiceTypes from 'teleterm/ui/services/resources';
+import type { SharedUnifiedResource } from 'shared/components/UnifiedResources';
 
 type ResourceSearchResultBase<
   Result extends resourcesServiceTypes.SearchResult
@@ -26,6 +27,11 @@ type ResourceSearchResultBase<
   resourceMatches: ResourceMatch<Result['kind']>[];
   score: number;
 };
+
+export type ResourceTypeFilter = Extract<
+  SharedUnifiedResource['resource']['kind'],
+  'node' | 'kube_cluster' | 'db'
+>;
 
 export type SearchResultServer =
   ResourceSearchResultBase<resourcesServiceTypes.SearchResultServer>;
@@ -41,7 +47,7 @@ export type SearchResultCluster = {
 };
 export type SearchResultResourceType = {
   kind: 'resource-type-filter';
-  resource: 'kubes' | 'servers' | 'databases';
+  resource: ResourceTypeFilter;
   nameMatch: string;
   score: number;
 };
@@ -103,7 +109,7 @@ export const searchableFields: {
 
 export interface ResourceTypeSearchFilter {
   filter: 'resource-type';
-  resourceType: 'kubes' | 'servers' | 'databases';
+  resourceType: ResourceTypeFilter;
 }
 
 export interface ClusterSearchFilter {
@@ -112,3 +118,15 @@ export interface ClusterSearchFilter {
 }
 
 export type SearchFilter = ResourceTypeSearchFilter | ClusterSearchFilter;
+
+export function isResourceTypeSearchFilter(
+  searchFilter: SearchFilter
+): searchFilter is ResourceTypeSearchFilter {
+  return searchFilter.filter === 'resource-type';
+}
+
+export function isClusterSearchFilter(
+  searchFilter: SearchFilter
+): searchFilter is ClusterSearchFilter {
+  return searchFilter.filter === 'cluster';
+}

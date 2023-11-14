@@ -247,7 +247,7 @@ func TestRecoveryAttemptsCRUD(t *testing.T) {
 		require.NoError(t, err)
 		attempts, err = identity.GetUserRecoveryAttempts(ctx, username)
 		require.NoError(t, err)
-		require.Len(t, attempts, 0)
+		require.Empty(t, attempts)
 	})
 
 	t.Run("deleting user deletes recovery attempts", func(t *testing.T) {
@@ -269,7 +269,7 @@ func TestRecoveryAttemptsCRUD(t *testing.T) {
 		require.NoError(t, err)
 		attempts, err = identity.GetUserRecoveryAttempts(ctx, username)
 		require.NoError(t, err)
-		require.Len(t, attempts, 0)
+		require.Empty(t, attempts)
 	})
 }
 
@@ -469,7 +469,7 @@ func TestIdentityService_UpsertMFADevice_errors(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			err := identity.UpsertMFADevice(ctx, user, test.createDev())
-			require.NotNil(t, err)
+			require.Error(t, err)
 			require.Contains(t, err.Error(), test.wantErr)
 		})
 	}

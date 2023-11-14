@@ -15,7 +15,6 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import styled from 'styled-components';
 import { Box, Text, Flex, Link } from 'design';
 import { Info as InfoIcon } from 'design/Icon';
 
@@ -27,7 +26,7 @@ import {
   useUserTraits,
   SetupAccessWrapper,
 } from 'teleport/Discover/Shared/SetupAccess';
-import { Mark } from 'teleport/Discover/Shared';
+import { Mark, StyledBox } from 'teleport/Discover/Shared';
 import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
 import { DbMeta } from 'teleport/Discover/useDiscover';
 
@@ -381,10 +380,3 @@ function DbEngineInstructions({
 
   return null;
 }
-
-const StyledBox = styled(Box)`
-  max-width: 800px;
-  background-color: ${props => props.theme.colors.spotBackground[0]};
-  border-radius: 8px;
-  padding: 20px;
-`;

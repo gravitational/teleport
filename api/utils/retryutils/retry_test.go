@@ -47,17 +47,17 @@ func TestLinearV2(t *testing.T) {
 }
 
 func testLinear(t *testing.T, r Retry) {
-	require.Equal(t, r.Duration(), time.Duration(0))
+	require.Equal(t, time.Duration(0), r.Duration())
 	r.Inc()
-	require.Equal(t, r.Duration(), time.Second)
+	require.Equal(t, time.Second, r.Duration())
 	r.Inc()
-	require.Equal(t, r.Duration(), 2*time.Second)
+	require.Equal(t, 2*time.Second, r.Duration())
 	r.Inc()
-	require.Equal(t, r.Duration(), 3*time.Second)
+	require.Equal(t, 3*time.Second, r.Duration())
 	r.Inc()
-	require.Equal(t, r.Duration(), 3*time.Second)
+	require.Equal(t, 3*time.Second, r.Duration())
 	r.Reset()
-	require.Equal(t, r.Duration(), time.Duration(0))
+	require.Equal(t, time.Duration(0), r.Duration())
 }
 
 func TestExponential(t *testing.T) {
@@ -69,20 +69,20 @@ func TestExponential(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	require.Equal(t, r.Duration(), time.Duration(0))
+	require.Equal(t, time.Duration(0), r.Duration())
 	r.Inc()
-	require.Equal(t, r.Duration(), time.Second)
+	require.Equal(t, time.Second, r.Duration())
 	r.Inc()
-	require.Equal(t, r.Duration(), 2*time.Second)
+	require.Equal(t, 2*time.Second, r.Duration())
 	r.Inc()
-	require.Equal(t, r.Duration(), 4*time.Second)
+	require.Equal(t, 4*time.Second, r.Duration())
 	r.Inc()
-	require.Equal(t, r.Duration(), 8*time.Second)
+	require.Equal(t, 8*time.Second, r.Duration())
 	r.Inc()
 	// should hit configured maximum
-	require.Equal(t, r.Duration(), 12*time.Second)
+	require.Equal(t, 12*time.Second, r.Duration())
 	r.Reset()
-	require.Equal(t, r.Duration(), time.Duration(0))
+	require.Equal(t, time.Duration(0), r.Duration())
 
 	// verify that exponentiation is capped s.t. we don't wrap
 	for i := 0; i < 128; i++ {

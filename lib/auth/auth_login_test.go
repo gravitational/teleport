@@ -269,9 +269,9 @@ func TestCreateAuthenticateChallenge_WithUserCredentials_WithLock(t *testing.T) 
 
 		// Test last attempt returns locked error.
 		if i == defaults.MaxLoginAttempts {
-			require.Equal(t, err.Error(), MaxFailedAttemptsErrMsg)
+			require.Equal(t, MaxFailedAttemptsErrMsg, err.Error())
 		} else {
-			require.NotEqual(t, err.Error(), MaxFailedAttemptsErrMsg)
+			require.NotEqual(t, MaxFailedAttemptsErrMsg, err.Error())
 		}
 	}
 }
@@ -928,7 +928,7 @@ func TestServer_Authenticate_passwordless(t *testing.T) {
 			require.NoError(t, err)
 			require.Empty(t, attempts, "Login attempts not reset")
 
-			require.Equal(t, len(test.loginHooks), int(loginHookCounter.Load()))
+			require.Len(t, test.loginHooks, int(loginHookCounter.Load()))
 		})
 	}
 }
@@ -1120,7 +1120,7 @@ func TestServer_Authenticate_headless(t *testing.T) {
 						RemoteAddr: "0.0.0.0",
 					},
 				},
-				TTL: defaults.CallbackTimeout,
+				TTL: defaults.HeadlessLoginTimeout,
 			})
 
 			// Use assert so that we also output any test failures below.

@@ -25,6 +25,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -39,7 +40,7 @@ func TestNewXForwardedForMiddleware(t *testing.T) {
 
 	// Setup request with observeredAddr.
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
-	req = req.WithContext(utils.ClientSrcAddrContext(req.Context(), observeredAddr))
+	req = req.WithContext(authz.ContextWithClientSrcAddr(req.Context(), observeredAddr))
 	req.RemoteAddr = observeredAddr.String()
 
 	// Setup other requests for testing.
@@ -87,7 +88,8 @@ func TestNewXForwardedForMiddleware(t *testing.T) {
 				require.Equal(t, test.wantRemoteAddr, outputReq.RemoteAddr)
 
 				// Verify request context.
-				clientSrcAddr, _ := utils.ClientAddrFromContext(outputReq.Context())
+				clientSrcAddr, err := authz.ClientSrcAddrFromContext(outputReq.Context())
+				require.NoError(t, err)
 				require.Equal(t, test.wantRemoteAddr, clientSrcAddr.String())
 
 				outputRW.WriteHeader(http.StatusAccepted)

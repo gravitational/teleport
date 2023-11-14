@@ -521,7 +521,7 @@ func TestAuthenticationConfig_Parse_StaticToken(t *testing.T) {
 				Token:   tt.token,
 				Expires: provisionToken.Expires,
 			}
-			require.Equal(t, provisionToken, want)
+			require.Equal(t, want, provisionToken)
 		})
 	}
 }
