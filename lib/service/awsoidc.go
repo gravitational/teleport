@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
+	"github.com/gravitational/teleport/lib/utils/oidc"
 )
 
 const (
@@ -76,7 +77,7 @@ func (process *TeleportProcess) initDeployServiceUpdater() error {
 		}
 	}
 
-	issuer, err := awsoidc.IssuerFromPublicAddress(process.proxyPublicAddr().Addr)
+	issuer, err := oidc.IssuerFromPublicAddress(process.proxyPublicAddr().Addr)
 	if err != nil {
 		return trace.Wrap(err)
 	}

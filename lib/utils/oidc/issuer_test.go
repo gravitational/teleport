@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package awsoidc
+package oidc
 
 import (
 	"context"
@@ -106,7 +106,7 @@ func TestIssuerForCluster(t *testing.T) {
 		{
 			name:     "api returns not found",
 			mockErr:  &trace.NotFoundError{},
-			checkErr: notFounCheck,
+			checkErr: notFoundCheck,
 		},
 		{
 			name:        "api returns an empty list of proxies",
@@ -128,4 +128,12 @@ func TestIssuerForCluster(t *testing.T) {
 			}
 		})
 	}
+}
+
+func badParameterCheck(t require.TestingT, err error, msgAndArgs ...interface{}) {
+	require.True(t, trace.IsBadParameter(err), `expected "bad parameter", but got %v`, err)
+}
+
+func notFoundCheck(t require.TestingT, err error, msgAndArgs ...interface{}) {
+	require.True(t, trace.IsNotFound(err), `expected "not found", but got %v`, err)
 }
