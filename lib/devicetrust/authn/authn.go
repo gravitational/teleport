@@ -79,6 +79,7 @@ func (c *Ceremony) Run(ctx context.Context, devicesClient devicepb.DeviceTrustSe
 	if err != nil {
 		return nil, trace.Wrap(devicetrust.HandleUnimplemented(err))
 	}
+	defer stream.CloseSend()
 
 	// 1. Init.
 	if err := stream.Send(&devicepb.AuthenticateDeviceRequest{
@@ -107,8 +108,8 @@ func (c *Ceremony) Run(ctx context.Context, devicesClient devicepb.DeviceTrustSe
 	case devicepb.OSType_OS_TYPE_MACOS:
 		err = c.authenticateDeviceMacOS(stream, resp)
 		// err handled below
-	case devicepb.OSType_OS_TYPE_WINDOWS:
-		err = c.authenticateDeviceWindows(stream, resp)
+	case devicepb.OSType_OS_TYPE_LINUX, devicepb.OSType_OS_TYPE_WINDOWS:
+		err = c.authenticateDeviceTPM(stream, resp)
 		// err handled below
 	default:
 		// This should be caught by the c.GetDeviceCredential() and
@@ -154,7 +155,7 @@ func (c *Ceremony) authenticateDeviceMacOS(
 	return trace.Wrap(err)
 }
 
-func (c *Ceremony) authenticateDeviceWindows(
+func (c *Ceremony) authenticateDeviceTPM(
 	stream devicepb.DeviceTrustService_AuthenticateDeviceClient,
 	resp *devicepb.AuthenticateDeviceResponse,
 ) error {

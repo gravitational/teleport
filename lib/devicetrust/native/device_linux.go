@@ -27,45 +27,56 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/go-attestation/attest"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
-	"github.com/gravitational/teleport/lib/devicetrust"
 	"github.com/gravitational/teleport/lib/linux"
 )
 
 // deviceStateFolderName starts without a "." on Linux systems.
 const deviceStateFolderName = "teleport-device"
 
+var linuxDevice = &tpmDevice{
+	isElevatedProcess: func() (bool, error) {
+		// Always run TPM operations in-process.
+		// The Linux impl will selectively escalate, via sudo, if necessary.
+		return true, nil
+	},
+	activateCredentialInElevatedChild: func(encryptedCredential attest.EncryptedCredential, credActivationPath string, debug bool) ([]byte, error) {
+		return nil, errors.New("elevated credential activation not implemented for linux")
+	},
+}
+
 func enrollDeviceInit() (*devicepb.EnrollDeviceInit, error) {
-	return nil, devicetrust.ErrPlatformNotSupported
+	return linuxDevice.enrollDeviceInit()
 }
 
 func signChallenge(chal []byte) (sig []byte, err error) {
-	return nil, devicetrust.ErrPlatformNotSupported
+	return linuxDevice.signChallenge(chal)
 }
 
 func getDeviceCredential() (*devicepb.DeviceCredential, error) {
-	return nil, devicetrust.ErrPlatformNotSupported
+	return linuxDevice.getDeviceCredential()
 }
 
 func solveTPMEnrollChallenge(
-	_ *devicepb.TPMEnrollChallenge,
-	_ bool,
+	chal *devicepb.TPMEnrollChallenge,
+	debug bool,
 ) (*devicepb.TPMEnrollChallengeResponse, error) {
-	return nil, devicetrust.ErrPlatformNotSupported
+	return linuxDevice.solveTPMEnrollChallenge(chal, debug)
 }
 
 func solveTPMAuthnDeviceChallenge(
-	_ *devicepb.TPMAuthenticateDeviceChallenge,
+	chal *devicepb.TPMAuthenticateDeviceChallenge,
 ) (*devicepb.TPMAuthenticateDeviceChallengeResponse, error) {
-	return nil, devicetrust.ErrPlatformNotSupported
+	return linuxDevice.solveTPMAuthnDeviceChallenge(chal)
 }
 
-func handleTPMActivateCredential(_, _ string) error {
-	return devicetrust.ErrPlatformNotSupported
+func handleTPMActivateCredential(encryptedCredential, encryptedCredentialSecret string) error {
+	return errors.New("elevated credential activation not implemented for linux")
 }
 
 // cddFuncs is used to mock various data collection functions for testing.
