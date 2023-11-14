@@ -225,7 +225,8 @@ func (a *App) sendMessages(ctx context.Context, accessList *accesslist.AccessLis
 	} else {
 		// Calculate days from start.
 		daysFromStart := now.Sub(notificationStart) / oneDay
-		windowStart = notificationStart.Add(daysFromStart * oneWeek)
+		windowStart = notificationStart.Add(daysFromStart * oneDay)
+		log.Infof("windowStart: %s, now: %s", windowStart.String(), now.String())
 	}
 
 	recipients := []common.Recipient{}
