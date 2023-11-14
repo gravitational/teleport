@@ -95,10 +95,24 @@ var cddFuncs = struct {
 }
 
 func collectDeviceData(mode CollectDataMode) (*devicepb.DeviceCollectedData, error) {
-	osRelease, err := cddFuncs.parseOSRelease()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	// Read collected data concurrently.
+	//
+	// We only have parseOSRelease and readDMIInfoAccordingToMode to consider, the
+	// latter which is already concurrent internally, so a simple channel will do
+	// here.
+	//
+	// Note that user.Current() is likely cached at this point.
+	osReleaseC := make(chan *linux.OSRelease, 1 /* goroutine always completes */)
+	go func() {
+		osRelease, err := cddFuncs.parseOSRelease()
+		if err != nil {
+			log.WithError(err).Debug("TPM: Failed to parse /etc/os-release file")
+			// err swallowed on purpose.
+
+			osRelease = &linux.OSRelease{}
+		}
+		osReleaseC <- osRelease
+	}()
 
 	dmiInfo, err := readDMIInfoAccordingToMode(mode)
 	if err != nil {
@@ -119,6 +133,8 @@ func collectDeviceData(mode CollectDataMode) (*devicepb.DeviceCollectedData, err
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	osRelease := <-osReleaseC
 
 	return &devicepb.DeviceCollectedData{
 		CollectTime:           timestamppb.Now(),
