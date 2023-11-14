@@ -5718,6 +5718,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 
 	mobileSvc, err := mobilev1.NewService(mobilev1.ServiceConfig{
 		Authorizer: cfg.Authorizer,
+		JWTSigner:  cfg.AuthServer,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
