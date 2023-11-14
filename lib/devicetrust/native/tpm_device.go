@@ -24,8 +24,6 @@ import (
 	"fmt"
 	"math/big"
 	"os"
-	"path/filepath"
-	"strings"
 
 	"github.com/google/go-attestation/attest"
 	"github.com/gravitational/trace"
@@ -33,12 +31,6 @@ import (
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/lib/devicetrust"
-)
-
-const (
-	deviceStateFolderName        = ".teleport-device"
-	attestationKeyFileName       = "attestation.key"
-	credentialActivationFileName = "credential-activation"
 )
 
 // tpmDevice implements the generic device trust client-side operations for
@@ -53,46 +45,6 @@ type tpmDevice struct {
 		credActivationPath string,
 		debug bool,
 	) (solutionBytes []byte, err error)
-}
-
-type deviceState struct {
-	attestationKeyPath       string
-	credentialActivationPath string
-}
-
-// userDirFunc is used to determine where to save/lookup the device's
-// attestation key.
-// We use os.UserCacheDir instead of os.UserConfigDir because the latter is
-// roaming (which we don't want for device-specific keys).
-var userDirFunc = os.UserCacheDir
-
-// setupDeviceStateDir ensures that device state directory exists.
-// It returns a struct containing the path of each part of the device state,
-// or nil and an error if it was not possible to set up the directory.
-func setupDeviceStateDir(getBaseDir func() (string, error)) (*deviceState, error) {
-	base, err := getBaseDir()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	deviceStateDirPath := filepath.Join(base, deviceStateFolderName)
-	ds := &deviceState{
-		attestationKeyPath:       filepath.Join(deviceStateDirPath, attestationKeyFileName),
-		credentialActivationPath: filepath.Join(deviceStateDirPath, credentialActivationFileName),
-	}
-
-	switch _, err := os.Stat(deviceStateDirPath); {
-	case os.IsNotExist(err):
-		// If it doesn't exist, we can create it and return as we know
-		// the perms are correct as we created it.
-		if err := os.Mkdir(deviceStateDirPath, 0700); err != nil {
-			return nil, trace.Wrap(err)
-		}
-	case err != nil:
-		return nil, trace.Wrap(err)
-	}
-
-	return ds, nil
 }
 
 // getMarshaledEK returns the EK public key in PKIX, ASN.1 DER format.
@@ -199,7 +151,7 @@ func (d *tpmDevice) enrollDeviceInit() (*devicepb.EnrollDeviceInit, error) {
 	}
 	defer ak.Close(tpm)
 
-	deviceData, err := collectDeviceData()
+	deviceData, err := collectDeviceData(CollectedDataAlwaysEscalate)
 	if err != nil {
 		return nil, trace.Wrap(err, "collecting device data")
 	}
@@ -272,19 +224,6 @@ func credentialIDFromAK(ak *attest.AK) (string, error) {
 	default:
 		return "", trace.BadParameter("unsupported public key type: %T", publicKey)
 	}
-}
-
-func firstValidAssetTag(assetTags ...string) string {
-	for _, assetTag := range assetTags {
-		// Skip empty serials and known bad values.
-		if assetTag == "" ||
-			strings.EqualFold(assetTag, "Default string") ||
-			strings.EqualFold(assetTag, "No Asset Information") {
-			continue
-		}
-		return assetTag
-	}
-	return ""
 }
 
 // getDeviceCredential returns the credential ID for TPM devices.

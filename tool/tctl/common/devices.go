@@ -472,7 +472,7 @@ func (c *canOperateOnCurrentDevice) setCurrentDevice() (bool, error) {
 		return false, nil
 	}
 
-	cdd, err := dtnative.CollectDeviceData()
+	cdd, err := dtnative.CollectDeviceData(dtnative.CollectedDataMaybeEscalate)
 	if err != nil {
 		return false, trace.Wrap(err)
 	}

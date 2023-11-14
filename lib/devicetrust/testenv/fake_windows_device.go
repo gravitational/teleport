@@ -20,6 +20,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
+	"github.com/gravitational/teleport/lib/devicetrust/native"
 )
 
 // FakeWindowsDevice allows us to exercise EnrollCeremony. To avoid requiring
@@ -44,7 +45,7 @@ func (f *FakeWindowsDevice) GetDeviceOSType() devicepb.OSType {
 	return devicepb.OSType_OS_TYPE_WINDOWS
 }
 
-func (f *FakeWindowsDevice) CollectDeviceData() (*devicepb.DeviceCollectedData, error) {
+func (f *FakeWindowsDevice) CollectDeviceData(mode native.CollectDataMode) (*devicepb.DeviceCollectedData, error) {
 	return &devicepb.DeviceCollectedData{
 		CollectTime:  timestamppb.Now(),
 		OsType:       devicepb.OSType_OS_TYPE_WINDOWS,
@@ -58,7 +59,7 @@ var validAttestationParameters = &devicepb.TPMAttestationParameters{
 }
 
 func (f *FakeWindowsDevice) EnrollDeviceInit() (*devicepb.EnrollDeviceInit, error) {
-	cd, _ := f.CollectDeviceData()
+	cd, _ := f.CollectDeviceData(native.CollectedDataAlwaysEscalate)
 	return &devicepb.EnrollDeviceInit{
 		CredentialId: f.CredentialID,
 		DeviceData:   cd,
