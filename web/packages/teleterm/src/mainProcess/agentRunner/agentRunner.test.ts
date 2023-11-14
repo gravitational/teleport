@@ -20,7 +20,8 @@ import fs from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 
 import Logger, { NullService } from 'teleterm/logger';
-import { RootClusterUri } from 'teleterm/ui/uri';
+
+import { CreateAgentConfigFileArgs } from 'teleterm/mainProcess/createAgentConfigFile';
 
 import * as mocks from '../fixtures/mocks';
 import { AgentProcessState, RuntimeSettings } from '../types';
@@ -66,7 +67,12 @@ const agentCleanupDaemonPath = path.join(
   'agentCleanupDaemon',
   'agentCleanupDaemon.js'
 );
-const rootClusterUri: RootClusterUri = '/clusters/cluster.local';
+const clusterArgs: CreateAgentConfigFileArgs = {
+  rootClusterUri: '/clusters/cluster.local',
+  proxy: 'cluster.local:3080',
+  token: '',
+  username: 'adrian',
+};
 
 test('agent process and cleanup daemon start with correct arguments', async () => {
   const agentRunner = new AgentRunner(
@@ -76,7 +82,7 @@ test('agent process and cleanup daemon start with correct arguments', async () =
   );
 
   try {
-    const agentProcess = await agentRunner.start(rootClusterUri);
+    const agentProcess = await agentRunner.start(clusterArgs);
     await new Promise(resolve => agentProcess.once('spawn', resolve));
 
     expect(childProcess.fork).toHaveBeenCalled();
@@ -95,7 +101,7 @@ test('agent process and cleanup daemon start with correct arguments', async () =
       agentCleanupDaemonPath,
       agentProcess.pid.toString(),
       process.pid.toString(),
-      rootClusterUri,
+      clusterArgs.rootClusterUri,
       logsDir,
     ]);
   } finally {
@@ -111,8 +117,8 @@ test('previous agent process is killed when a new one is started', async () => {
   );
 
   try {
-    const firstProcess = await agentRunner.start(rootClusterUri);
-    await agentRunner.start(rootClusterUri);
+    const firstProcess = await agentRunner.start(clusterArgs);
+    await agentRunner.start(clusterArgs);
 
     expect(firstProcess.killed).toBeTruthy();
   } finally {
@@ -129,24 +135,29 @@ test('status updates are sent on a successful start', async () => {
   );
 
   try {
-    expect(agentRunner.getState(rootClusterUri)).toBeUndefined();
-    const agentProcess = await agentRunner.start(rootClusterUri);
-    expect(agentRunner.getState(rootClusterUri)).toStrictEqual({
+    expect(agentRunner.getState(clusterArgs.rootClusterUri)).toBeUndefined();
+    const agentProcess = await agentRunner.start(clusterArgs);
+    expect(agentRunner.getState(clusterArgs.rootClusterUri)).toStrictEqual({
       status: 'not-started',
     } as AgentProcessState);
 
     await new Promise(resolve => agentProcess.once('spawn', resolve));
 
     const runningState: AgentProcessState = { status: 'running' };
-    expect(agentRunner.getState(rootClusterUri)).toStrictEqual(runningState);
-    expect(updateSender).toHaveBeenCalledWith(rootClusterUri, runningState);
+    expect(agentRunner.getState(clusterArgs.rootClusterUri)).toStrictEqual(
+      runningState
+    );
+    expect(updateSender).toHaveBeenCalledWith(
+      clusterArgs.rootClusterUri,
+      runningState
+    );
 
-    await agentRunner.kill(rootClusterUri);
+    await agentRunner.kill(clusterArgs.rootClusterUri);
 
     // Since the agent changes status on the close event and not the exit event, we must wait for
     // this to occur.
     await expect(
-      () => agentRunner.getState(rootClusterUri).status === 'exited'
+      () => agentRunner.getState(clusterArgs.rootClusterUri).status === 'exited'
     ).toEventuallyBeTrue({
       waitFor: 2000,
       tick: 10,
@@ -159,8 +170,13 @@ test('status updates are sent on a successful start', async () => {
       exitedSuccessfully: true,
       signal: 'SIGTERM',
     };
-    expect(agentRunner.getState(rootClusterUri)).toStrictEqual(exitedState);
-    expect(updateSender).toHaveBeenCalledWith(rootClusterUri, exitedState);
+    expect(agentRunner.getState(clusterArgs.rootClusterUri)).toStrictEqual(
+      exitedState
+    );
+    expect(updateSender).toHaveBeenCalledWith(
+      clusterArgs.rootClusterUri,
+      exitedState
+    );
 
     expect(updateSender).toHaveBeenCalledTimes(2);
   } finally {
@@ -183,7 +199,7 @@ test('status updates are sent on a failed start', async () => {
   );
 
   try {
-    const agentProcess = await agentRunner.start(rootClusterUri);
+    const agentProcess = await agentRunner.start(clusterArgs);
     await new Promise(resolve => agentProcess.on('error', resolve));
 
     expect(updateSender).toHaveBeenCalledTimes(1);
@@ -191,8 +207,13 @@ test('status updates are sent on a failed start', async () => {
       status: 'error',
       message: expect.stringContaining('ENOENT'),
     };
-    expect(agentRunner.getState(rootClusterUri)).toStrictEqual(errorState);
-    expect(updateSender).toHaveBeenCalledWith(rootClusterUri, errorState);
+    expect(agentRunner.getState(clusterArgs.rootClusterUri)).toStrictEqual(
+      errorState
+    );
+    expect(updateSender).toHaveBeenCalledWith(
+      clusterArgs.rootClusterUri,
+      errorState
+    );
   } finally {
     await agentRunner.killAll();
   }
@@ -206,7 +227,7 @@ test('cleanup daemon stops together with agent process', async () => {
   );
 
   try {
-    const agent = await agentRunner.start(rootClusterUri);
+    const agent = await agentRunner.start(clusterArgs);
     await new Promise(resolve => agent.once('spawn', resolve));
 
     expect(childProcess.fork).toHaveBeenCalled();
@@ -214,7 +235,7 @@ test('cleanup daemon stops together with agent process', async () => {
       childProcess.fork as jest.MockedFunction<typeof childProcess.fork>
     ).mock.results[0].value;
 
-    await agentRunner.kill(rootClusterUri);
+    await agentRunner.kill(clusterArgs.rootClusterUri);
 
     expect(isRunning(agent)).toBe(false);
     // The cleanup daemon is killed from within an event listener, so it won't be killed
@@ -242,7 +263,7 @@ test('agent cleanup daemon is not spawned on failed agent start', async () => {
   );
 
   try {
-    const agent = await agentRunner.start(rootClusterUri);
+    const agent = await agentRunner.start(clusterArgs);
     await new Promise(resolve => agent.on('error', resolve));
 
     expect(isRunning(agent)).toBe(false);
@@ -262,7 +283,7 @@ test('agent is killed if cleanup daemon exits', async () => {
   );
 
   try {
-    const agentProcess = await agentRunner.start(rootClusterUri);
+    const agentProcess = await agentRunner.start(clusterArgs);
     await new Promise(resolve => agentProcess.once('spawn', resolve));
 
     expect(childProcess.fork).toHaveBeenCalled();

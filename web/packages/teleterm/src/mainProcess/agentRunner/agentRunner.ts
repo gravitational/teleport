@@ -23,7 +23,11 @@ import Logger from 'teleterm/logger';
 import { RootClusterUri } from 'teleterm/ui/uri';
 import { createFileLoggerService, LoggerColor } from 'teleterm/services/logger';
 
-import { generateAgentConfigPaths } from '../createAgentConfigFile';
+import {
+  generateAgentConfigPaths,
+  CreateAgentConfigFileArgs,
+  generateAgentConfig,
+} from '../createAgentConfigFile';
 import { AgentProcessState, RuntimeSettings } from '../types';
 import { terminateWithTimeout } from '../terminateWithTimeout';
 
@@ -56,27 +60,25 @@ export class AgentRunner {
    * Starts a new agent process.
    * If an existing process exists for the given root cluster, the old one will be killed.
    */
-  async start(rootClusterUri: RootClusterUri): Promise<ChildProcess> {
+  async start(clusterArgs: CreateAgentConfigFileArgs): Promise<ChildProcess> {
     // TODO: Generate config here.
-    if (this.agentProcesses.has(rootClusterUri)) {
-      await this.kill(rootClusterUri);
+    const config = generateAgentConfig(this.settings, clusterArgs);
+    const base64config = Buffer.from(JSON.stringify(config)).toString('base64');
+    if (this.agentProcesses.has(clusterArgs.rootClusterUri)) {
+      await this.kill(clusterArgs.rootClusterUri);
     }
 
     const { agentBinaryPath } = this.settings;
-    const { configFile } = generateAgentConfigPaths(
-      this.settings,
-      rootClusterUri
-    );
 
     const args = [
       'start',
-      `--config=${configFile}`,
+      `--config-string=${base64config}`,
       this.settings.isLocalBuild && '--skip-version-check',
       this.settings.insecure && '--insecure',
     ].filter(Boolean);
 
     this.logger.info(
-      `Starting agent for ${rootClusterUri} from ${agentBinaryPath} with arguments ${args.join(
+      `Starting agent for ${clusterArgs} from ${agentBinaryPath} with arguments ${args.join(
         ' '
       )}`
     );
@@ -85,13 +87,13 @@ export class AgentRunner {
       windowsHide: true,
     });
 
-    this.agentProcesses.set(rootClusterUri, {
+    this.agentProcesses.set(clusterArgs.rootClusterUri, {
       process: agentProcess,
       state: { status: 'not-started' },
       logs: '',
     });
-    this.addAgentListeners(rootClusterUri, agentProcess);
-    this.setupCleanupDaemon(rootClusterUri, agentProcess);
+    this.addAgentListeners(clusterArgs.rootClusterUri, agentProcess);
+    this.setupCleanupDaemon(clusterArgs.rootClusterUri, agentProcess);
 
     return agentProcess;
   }

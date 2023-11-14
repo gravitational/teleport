@@ -222,6 +222,7 @@ export function generateConfig(args: {
     },
     ssh_service: {
       enabled: 'yes',
+      labels: args.labels,
     },
     proxy_service: {
       enabled: 'no',
