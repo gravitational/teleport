@@ -213,7 +213,7 @@ func (s *Service) CreateUser(ctx context.Context, req *userspb.CreateUserRequest
 		return nil, trace.Wrap(err)
 	}
 
-	if err = checkOktaOrigin(authCtx, req.User); err != nil {
+	if err = CheckOktaOrigin(authCtx, req.User); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -275,7 +275,7 @@ func (s *Service) UpdateUser(ctx context.Context, req *userspb.UpdateUserRequest
 		return nil, trace.Wrap(err)
 	}
 
-	if err = checkOktaOrigin(authzCtx, req.User); err != nil {
+	if err = CheckOktaOrigin(authzCtx, req.User); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -287,7 +287,7 @@ func (s *Service) UpdateUser(ctx context.Context, req *userspb.UpdateUserRequest
 		omitEditorEvent = true
 	}
 
-	if err = checkOktaAccess(authzCtx, prevUser, types.VerbUpdate); err != nil {
+	if err = CheckOktaAccess(authzCtx, prevUser, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -355,11 +355,11 @@ func (s *Service) UpsertUser(ctx context.Context, req *userspb.UpsertUserRequest
 		verb = types.VerbCreate
 	}
 
-	if err = checkOktaOrigin(authzCtx, req.User); err != nil {
+	if err = CheckOktaOrigin(authzCtx, req.User); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err = checkOktaAccess(authzCtx, prevUser, verb); err != nil {
+	if err = CheckOktaAccess(authzCtx, prevUser, verb); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -417,7 +417,7 @@ func (s *Service) DeleteUser(ctx context.Context, req *userspb.DeleteUserRequest
 		omitEditorEvent = true
 	}
 
-	if err = checkOktaAccess(authzCtx, prevUser, types.VerbDelete); err != nil {
+	if err = CheckOktaAccess(authzCtx, prevUser, types.VerbDelete); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

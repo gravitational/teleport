@@ -38,7 +38,7 @@ import (
 // without the Okta role may supply any origin value *other than* okta
 // (including nil).
 // Returns an error if the user origin value is "inappropriate".
-func checkOktaOrigin(authzCtx *authz.Context, user types.User) error {
+func CheckOktaOrigin(authzCtx *authz.Context, user types.User) error {
 	isOktaService := authz.HasBuiltinRole(*authzCtx, string(types.RoleOkta))
 	hasOktaOrigin := user.Origin() == types.OriginOkta
 
@@ -54,13 +54,13 @@ func checkOktaOrigin(authzCtx *authz.Context, user types.User) error {
 	}
 }
 
-// checkOktaAccess gates access to update operations on user records based
+// CheckOktaAccess gates access to update operations on user records based
 // on the origin label on the supplied user record.
 //
 // A nil `existingUser` is interpreted as there being no matching existing
 // user in the cluster; if there is no user then there is no user to
 // overwrite, so access is granted
-func checkOktaAccess(authzCtx *authz.Context, existingUser types.User, verb string) error {
+func CheckOktaAccess(authzCtx *authz.Context, existingUser types.User, verb string) error {
 	// We base or decision to allow write access to a resource on the Origin
 	// label. If there is no existing user, then there can be no label to block
 	// access, so anyone can do anything.

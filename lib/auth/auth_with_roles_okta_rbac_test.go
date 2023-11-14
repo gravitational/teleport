@@ -156,7 +156,7 @@ func TestOktaServiceUserCRUD(t *testing.T) {
 
 			_, err = authWithBotRole.UpdateUser(ctx, user)
 			require.Error(t, err)
-			require.Truef(t, trace.IsAccessDenied(err), "Expected access denied, got %T: %s", err, err.Error())
+			require.Truef(t, trace.IsBadParameter(err), "Expected bad parameter, got %T: %s", err, err.Error())
 		})
 
 		t.Run("non-okta service updating okta user is an error", func(t *testing.T) {
@@ -245,7 +245,7 @@ func TestOktaServiceUserCRUD(t *testing.T) {
 
 			_, err = authWithBotRole.UpsertUser(ctx, user)
 			require.Error(t, err)
-			require.Truef(t, trace.IsAccessDenied(err), "Expected access denied, got %T: %s", err, err.Error())
+			require.Truef(t, trace.IsBadParameter(err), "Expected bad parameter, got %T: %s", err, err.Error())
 		})
 
 		t.Run("non-okta service updating an okta user is an error", func(t *testing.T) {
@@ -333,7 +333,7 @@ func TestOktaServiceUserCRUD(t *testing.T) {
 
 			err = authWithBotRole.CompareAndSwapUser(ctx, modified, original)
 			require.Error(t, err)
-			require.Truef(t, trace.IsAccessDenied(err), "Expected access denied, got %T: %s", err, err.Error())
+			require.Truef(t, trace.IsBadParameter(err), "Expected bad parameter, got %T: %s", err, err.Error())
 		})
 
 		t.Run("non-okta service updating an okta user is an error", func(t *testing.T) {
