@@ -109,6 +109,10 @@ export type MainProcessClient = {
   getResolvedChildProcessAddresses(): Promise<ChildProcessAddresses>;
   openTerminalContextMenu(): void;
   openTabContextMenu(options: TabContextMenuOptions): void;
+  showDirectorySelectDialog(): Promise<{
+    canceled: boolean;
+    filePaths: string[];
+  }>;
   showFileSaveDialog(
     filePath: string
   ): Promise<{ canceled: boolean; filePath: string | undefined }>;

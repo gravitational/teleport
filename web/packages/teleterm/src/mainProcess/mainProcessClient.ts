@@ -101,6 +101,9 @@ export default function createMainProcessClient(): MainProcessClient {
     showFileSaveDialog(filePath: string) {
       return ipcRenderer.invoke('main-process-show-file-save-dialog', filePath);
     },
+    showDirectorySelectDialog() {
+      return ipcRenderer.invoke('main-process-show-directory-select-dialog');
+    },
     openTerminalContextMenu,
     openTabContextMenu,
     configService: createConfigServiceClient(),

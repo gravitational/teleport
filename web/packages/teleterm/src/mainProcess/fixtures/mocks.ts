@@ -129,6 +129,13 @@ export class MockMainProcessClient implements MainProcessClient {
   }
 
   signalUserInterfaceReadiness() {}
+
+  async showDirectorySelectDialog() {
+    return {
+      canceled: false,
+      filePaths: [],
+    };
+  }
 }
 
 export const makeRuntimeSettings = (

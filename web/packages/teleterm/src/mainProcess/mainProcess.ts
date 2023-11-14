@@ -251,6 +251,13 @@ export default class MainProcess {
       })
     );
 
+    ipcMain.handle('main-process-show-directory-select-dialog', () =>
+      dialog.showOpenDialog({
+        title: 'Select a directory to share',
+        properties: ['openDirectory'],
+      })
+    );
+
     ipcMain.handle('main-process-force-focus-window', () => {
       this.windowsManager.forceFocusWindow();
     });
