@@ -27,10 +27,31 @@ func EnrollDeviceInit() (*devicepb.EnrollDeviceInit, error) {
 	return enrollDeviceInit()
 }
 
+// CollectDataMode is the mode of collection used by CollectDeviceData.
+type CollectDataMode int
+
+const (
+	// CollectedDataNeverEscalate will never escalate privileges, even in the
+	// absence of cached data.
+	CollectedDataNeverEscalate CollectDataMode = iota
+	// CollectedDataAlwaysEscalate avoids using cached DMI data and instead will
+	// always escalate privileges if necessary.
+	//
+	// Used by `tsh device enroll`, `tsh device collect` and
+	// `tsh device asset-tag`.
+	CollectedDataAlwaysEscalate
+	// CollectedDataMaybeEscalate will attempt to use cached DMI data before
+	// privilege escalation, but it may choose to escalate if no cached data is
+	// available.
+	//
+	// Used by `tsh login` and similar operations (ie, device authn).
+	CollectedDataMaybeEscalate
+)
+
 // CollectDeviceData collects OS-specific device data for device enrollment or
 // device authentication ceremonies.
-func CollectDeviceData() (*devicepb.DeviceCollectedData, error) {
-	return collectDeviceData()
+func CollectDeviceData(mode CollectDataMode) (*devicepb.DeviceCollectedData, error) {
+	return collectDeviceData(mode)
 }
 
 // SignChallenge signs a device challenge for device enrollment or device

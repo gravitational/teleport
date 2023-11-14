@@ -1365,9 +1365,11 @@ func migrateRemoteClusters(ctx context.Context, asrv *Server) error {
 // to avoid consistency issues. A lower priority means the resource is applied
 // before.
 var ResourceApplyPriority = map[string]int{
-	types.KindRole:  1,
-	types.KindUser:  2, // Users must be applied after Roles
-	types.KindToken: 3,
+	types.KindRole:                    1,
+	types.KindUser:                    2, // Users must be applied after Roles
+	types.KindToken:                   3,
+	types.KindClusterNetworkingConfig: 3,
+	types.KindClusterAuthPreference:   3,
 }
 
 // Unlike when resources are loaded via --bootstrap, we're inserting elements via their service.
@@ -1392,6 +1394,10 @@ func applyResources(ctx context.Context, service *Services, resources []types.Re
 			_, err = service.Identity.UpsertUser(ctx, r)
 		case types.Role:
 			_, err = service.Access.UpsertRole(ctx, r)
+		case types.ClusterNetworkingConfig:
+			err = service.ClusterConfiguration.SetClusterNetworkingConfig(ctx, r)
+		case types.AuthPreference:
+			err = service.ClusterConfiguration.SetAuthPreference(ctx, r)
 		default:
 			return trace.NotImplemented("cannot apply resource of type %T", resource)
 		}
