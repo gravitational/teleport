@@ -219,13 +219,10 @@ func (s *Service) ResolveClusterURI(uri uri.ResourceURI) (*clusters.Cluster, *cl
 
 	s.fileServersMu.Lock()
 	fileServer := s.fileServers[cluster.URI.String()]
-	s.fileServersMu.Unlock()
-
-	if fileServer == nil {
-		return nil, nil, trace.BadParameter("cluster file server not initialized")
+	if fileServer != nil {
+		cluster.FileServerPort = fileServer.port
 	}
-
-	cluster.FileServerPort = fileServer.port
+	s.fileServersMu.Unlock()
 
 	return cluster, clusterClient, trace.Wrap(err)
 }
