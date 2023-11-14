@@ -19,10 +19,11 @@ package userloginstate
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/types/trait"
-	"github.com/stretchr/testify/require"
 )
 
 func TestIsOriginalRolesAndTraitsSet(t *testing.T) {
