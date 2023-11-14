@@ -18,16 +18,36 @@ package teleport.mobilenotifications.v1;
 
 option go_package = "github.com/gravitational/teleport/gen/proto/go/mobilenotifications/v1;mobilenotificationsv1";
 
-// MobileService provides methods needed for mobile applications.
+// MobileNotificationsService is a service that sends push notifications to
+// mobile devices.
 service MobileNotificationsService {
-  // Test
-  rpc Test(TestRequest) returns (TestResponse);
+  // SendNotification sends a push notification to a mobile device.
+  rpc SendNotification(SendNotificationRequest) returns (SendNotificationResponse) {}
+  // RegisterDevice registers a device token with the server.
+  rpc RegisterDevice(RegisterDeviceRequest) returns (RegisterDeviceResponse) {}
 }
 
-// Request for Test
-message TestRequest {}
+// SendNotificationRequest is a request to send a push notification to a mobile
+// device.
+message SendNotificationRequest {
+  // Title is the title of the notification.
+  string title = 1;
+  // Body is the body of the notification.
+  string body = 2;
+  // Device UUID is a unique identifier for a mobile device.
+  string device_uuid = 3;
+}
 
-// Response for Test
-message TestResponse {
-  string token = 1;
+// SendNotificationResponse is a response to a SendNotificationRequest.
+message SendNotificationResponse {}
+
+// RegisterDeviceRequest is a request to register a device token with the server.
+message RegisterDeviceRequest {
+  // Device token is a unique identifier for a mobile device.
+  string device_token = 1;
+}
+
+// RegisterDeviceResponse is a response to a RegisterDeviceRequest.
+message RegisterDeviceResponse {
+  string device_uuid = 1;
 }
