@@ -277,6 +277,8 @@ const cfg = {
     userPreferencesPath: '/v1/webapi/user/preferences',
     userClusterPreferencesPath: '/v1/webapi/user/preferences/:clusterId',
 
+    mobileCreateAuthTokenPath: '/v1/webapi/mobile/auth',
+
     // Assist needs some access request info to exist in OSS
     accessRequestPath: '/v1/enterprise/accessrequest/:requestId?',
   },

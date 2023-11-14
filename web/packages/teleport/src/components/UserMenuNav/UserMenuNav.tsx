@@ -17,7 +17,13 @@
 import React, { useState } from 'react';
 import styled, { useTheme } from 'styled-components';
 
-import { Moon, Sun, ChevronDown, Logout as LogoutIcon } from 'design/Icon';
+import {
+  Moon,
+  Sun,
+  ChevronDown,
+  Logout as LogoutIcon,
+  Devices,
+} from 'design/Icon';
 import { Text } from 'design';
 import { useRefClickOutside } from 'shared/hooks/useRefClickOutside';
 
@@ -36,6 +42,8 @@ import {
   STARTING_TRANSITION_DELAY,
   INCREMENT_TRANSITION_DELAY,
 } from 'teleport/components/Dropdown';
+
+import { MobileLoginDialog } from './MobileLoginDialog';
 
 interface UserMenuNavProps {
   username: string;
@@ -99,6 +107,7 @@ const Arrow = styled.div`
 
 export function UserMenuNav({ username }: UserMenuNavProps) {
   const [open, setOpen] = useState(false);
+  const [isMobileDialogOpen, setIsMobileDialogOpen] = useState(false);
   const theme = useTheme();
 
   const { preferences, updatePreferences } = useUser();
@@ -144,49 +153,67 @@ export function UserMenuNav({ username }: UserMenuNavProps) {
   }
 
   return (
-    <Container ref={ref}>
-      <UserInfo onClick={() => setOpen(!open)} open={open}>
-        <StyledAvatar>{initial}</StyledAvatar>
+    <>
+      <Container ref={ref}>
+        <UserInfo onClick={() => setOpen(!open)} open={open}>
+          <StyledAvatar>{initial}</StyledAvatar>
 
-        <Username>{username}</Username>
+          <Username>{username}</Username>
 
-        <Arrow open={open}>
-          <ChevronDown size="medium" />
-        </Arrow>
-      </UserInfo>
+          <Arrow open={open}>
+            <ChevronDown size="medium" />
+          </Arrow>
+        </UserInfo>
 
-      <Dropdown open={open}>
-        {items}
+        <Dropdown open={open}>
+          {items}
 
-        <DropdownDivider />
-
-        {/* Hide ability to switch themes if the theme is a custom theme */}
-        {!theme.isCustomTheme && (
           <DropdownItem open={open} $transitionDelay={transitionDelay}>
-            <DropdownItemButton onClick={onThemeChange}>
-              <DropdownItemIcon>
-                {preferences.theme === ThemePreference.Dark ? (
-                  <Sun />
-                ) : (
-                  <Moon />
-                )}
+            <DropdownItemButton onClick={() => setIsMobileDialogOpen(true)}>
+              <DropdownItemIcon
+                css={`
+                  margin-top: 5px;
+                `}
+              >
+                <Devices />
               </DropdownItemIcon>
-              Switch to{' '}
-              {preferences.theme === ThemePreference.Dark ? 'Light' : 'Dark'}{' '}
-              Theme
+              Login on iOS app
             </DropdownItemButton>
           </DropdownItem>
-        )}
 
-        <DropdownItem open={open} $transitionDelay={transitionDelay}>
-          <DropdownItemButton onClick={() => session.logout()}>
-            <DropdownItemIcon>
-              <LogoutIcon />
-            </DropdownItemIcon>
-            Logout
-          </DropdownItemButton>
-        </DropdownItem>
-      </Dropdown>
-    </Container>
+          <DropdownDivider />
+
+          {/* Hide ability to switch themes if the theme is a custom theme */}
+          {!theme.isCustomTheme && (
+            <DropdownItem open={open} $transitionDelay={transitionDelay}>
+              <DropdownItemButton onClick={onThemeChange}>
+                <DropdownItemIcon>
+                  {preferences.theme === ThemePreference.Dark ? (
+                    <Sun />
+                  ) : (
+                    <Moon />
+                  )}
+                </DropdownItemIcon>
+                Switch to{' '}
+                {preferences.theme === ThemePreference.Dark ? 'Light' : 'Dark'}{' '}
+                Theme
+              </DropdownItemButton>
+            </DropdownItem>
+          )}
+
+          <DropdownItem open={open} $transitionDelay={transitionDelay}>
+            <DropdownItemButton onClick={() => session.logout()}>
+              <DropdownItemIcon>
+                <LogoutIcon />
+              </DropdownItemIcon>
+              Logout
+            </DropdownItemButton>
+          </DropdownItem>
+        </Dropdown>
+      </Container>
+      {isMobileDialogOpen && (
+        <MobileLoginDialog closeDialog={() => setIsMobileDialogOpen(false)} />
+      )}
+    </>
   );
 }

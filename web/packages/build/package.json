@@ -84,6 +84,7 @@
     "jsdom-testing-mocks": "^1.9.0",
     "msw": "^0.47.4",
     "optimist": "^0.6.1",
+    "react-qr-code": "^2.0.12",
     "react": "^16.8.4",
     "react-dom": "^16.8.4",
     "react-is": "^16.8.0",
