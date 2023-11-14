@@ -316,6 +316,8 @@ type ProxySettings struct {
 	TLSRoutingEnabled bool `json:"tls_routing_enabled"`
 	// AssistEnabled is true when Teleport Assist is enabled.
 	AssistEnabled bool `json:"assist_enabled"`
+	// AccessGraphEnabled is true when Access Graph is enabled.
+	AccessGraphEnabled bool `json:"access_graph_enabled"`
 }
 
 // KubeProxySettings is kubernetes proxy settings
