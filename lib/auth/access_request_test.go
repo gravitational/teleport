@@ -332,13 +332,13 @@ func testAccessRequestDenyRules(t *testing.T, testPack *accessRequestTestPack) {
 			for roleName, roleSpec := range tc.roles {
 				role, err := types.NewRole(roleName, roleSpec)
 				require.NoError(t, err)
-				_, err = testPack.tlsServer.Auth().UpsertRole(ctx, role)
+				err = testPack.tlsServer.Auth().UpsertRole(ctx, role)
 				require.NoError(t, err)
 			}
 			user, err := types.NewUser(userName)
 			require.NoError(t, err)
 			user.SetRoles(maps.Keys(tc.roles))
-			_, err = testPack.tlsServer.Auth().UpsertUser(ctx, user)
+			err = testPack.tlsServer.Auth().UpsertUser(user)
 			require.NoError(t, err)
 
 			client, err := testPack.tlsServer.NewClient(TestUser(userName))
