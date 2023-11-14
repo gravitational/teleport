@@ -61,23 +61,40 @@ export function NavigationMenu() {
     setIsMenuOpened(wasOpened => !wasOpened);
   }
 
-  function openDocument(): void {
+  function openConnectMyComputerDocument(): void {
     documentsService.openConnectMyComputerDocument({
       rootClusterUri,
     });
     setIsMenuOpened(false);
   }
 
-  const setupMenuItem = (
-    <MenuItem onClick={openDocument}>Connect My Computer</MenuItem>
-  );
-  const statusMenuItem = (
-    <MenuItem onClick={openDocument}>
-      {indicatorStatus === 'error' && (
-        <Warning size="small" color="error.main" mr={1} />
-      )}
-      Manage agent
+  function openFileShareDocument(): void {
+    documentsService.openDocumentFileSharing({
+      rootClusterUri,
+    });
+    setIsMenuOpened(false);
+  }
+
+  const agentNotConfiguredItem = (
+    <MenuItem onClick={openConnectMyComputerDocument}>
+      Connect My Computer
     </MenuItem>
+  );
+  const agentConfiguredItems = (
+    <>
+      <MenuItem onClick={openConnectMyComputerDocument}>
+        {indicatorStatus === 'error' && (
+          <Warning size="small" color="error.main" mr={1} />
+        )}
+        Manage agent
+      </MenuItem>
+      <MenuItem onClick={openFileShareDocument}>
+        {indicatorStatus === 'error' && (
+          <Warning size="small" color="error.main" mr={1} />
+        )}
+        File sharing
+      </MenuItem>
+    </>
   );
 
   return (
@@ -110,8 +127,10 @@ export function NavigationMenu() {
           />
         )}
         {isAgentConfiguredAttempt.status === 'success' &&
-          (!isAgentConfiguredAttempt.data ? setupMenuItem : statusMenuItem)}
-        {isAgentConfiguredAttempt.status === 'error' && statusMenuItem}
+          (!isAgentConfiguredAttempt.data
+            ? agentNotConfiguredItem
+            : agentConfiguredItems)}
+        {isAgentConfiguredAttempt.status === 'error' && agentConfiguredItems}
       </Menu>
     </>
   );

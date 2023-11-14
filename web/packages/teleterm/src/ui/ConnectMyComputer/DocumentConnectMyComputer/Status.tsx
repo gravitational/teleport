@@ -327,7 +327,7 @@ function renderLabels(labelsList: tsh.Label[]): JSX.Element[] {
   ));
 }
 
-function prettifyCurrentAction(currentAction: CurrentAction): {
+export function prettifyCurrentAction(currentAction: CurrentAction): {
   Icon: React.FC<IconProps>;
   title: string;
   error?: string;

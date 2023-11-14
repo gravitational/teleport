@@ -52,6 +52,8 @@ export function getResourceUri(
       });
     case 'doc.connect_my_computer':
       return document.rootClusterUri;
+    case 'doc.file_sharing':
+      return document.rootClusterUri;
     case 'doc.blank':
       return undefined;
     default:

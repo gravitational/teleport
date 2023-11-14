@@ -174,6 +174,19 @@ export interface DocumentConnectMyComputer extends DocumentBase {
   status: '' | 'connecting' | 'connected' | 'error';
 }
 
+export interface DocumentFileSharing extends DocumentBase {
+  kind: 'doc.file_sharing';
+  // `DocumentConnectMyComputer` always operates on the root cluster, so in theory `rootClusterUri` is not needed.
+  // However, there are a few components in the system, such as `getResourceUri`, which need to determine the relation
+  // between a document and a cluster just by looking at the document fields.
+  rootClusterUri: uri.RootClusterUri;
+  /**
+   * The status of 'connecting' is used to indicate that Connect My Computer permissions cannot be
+   * established yet and the document is waiting for the app to receive full cluster details.
+   */
+  status: '' | 'connecting' | 'connected' | 'error';
+}
+
 export type DocumentTerminal =
   | DocumentPtySession
   | DocumentGatewayCliClient
@@ -187,7 +200,8 @@ export type Document =
   | DocumentGateway
   | DocumentCluster
   | DocumentTerminal
-  | DocumentConnectMyComputer;
+  | DocumentConnectMyComputer
+  | DocumentFileSharing;
 
 export function isDocumentTshNodeWithLoginHost(
   doc: Document

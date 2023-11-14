@@ -40,6 +40,7 @@ import {
   DocumentTshKube,
   DocumentTshNode,
   DocumentTshNodeWithServerId,
+  DocumentFileSharing,
 } from './types';
 
 export class DocumentsService {
@@ -231,6 +232,29 @@ export class DocumentsService {
       uri: routing.getDocUri({ docId: unique() }),
       kind: 'doc.connect_my_computer' as const,
       title: 'Connect My Computer',
+      rootClusterUri: opts.rootClusterUri,
+      status: '',
+    };
+    this.add(doc);
+    this.open(doc.uri);
+  }
+
+  openDocumentFileSharing(opts: {
+    // URI of the root cluster could be passed to the `DocumentsService`
+    // constructor and then to the document, instead of being taken from the parameter.
+    // However, we decided not to do so because other documents are based only on the provided parameters.
+    rootClusterUri: RootClusterUri;
+  }): void {
+    const existingDoc = this.findFirstOfKind('doc.file_sharing');
+    if (existingDoc) {
+      this.open(existingDoc.uri);
+      return;
+    }
+
+    const doc: DocumentFileSharing = {
+      uri: routing.getDocUri({ docId: unique() }),
+      kind: 'doc.file_sharing' as const,
+      title: 'File Sharing',
       rootClusterUri: opts.rootClusterUri,
       status: '',
     };

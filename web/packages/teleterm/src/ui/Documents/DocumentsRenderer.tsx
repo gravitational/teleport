@@ -43,6 +43,8 @@ import { DocumentGatewayKube } from 'teleterm/ui/DocumentGatewayKube';
 import Document from 'teleterm/ui/Document';
 import { RootClusterUri } from 'teleterm/ui/uri';
 
+import { DocumentFileSharing } from 'teleterm/ui/ConnectMyComputer/DocumentFileSharing/DocumentFileSharing';
+
 import { ResourcesContextProvider } from '../DocumentCluster/resourcesContext';
 
 import { WorkspaceContextProvider } from './workspaceContext';
@@ -136,6 +138,8 @@ function MemoizedDocument(props: { doc: types.Document; visible: boolean }) {
         return <DocumentAccessRequests doc={doc} visible={visible} />;
       case 'doc.connect_my_computer':
         return <DocumentConnectMyComputer doc={doc} visible={visible} />;
+      case 'doc.file_sharing':
+        return <DocumentFileSharing doc={doc} visible={visible} />;
       default:
         return (
           <Document visible={visible}>
