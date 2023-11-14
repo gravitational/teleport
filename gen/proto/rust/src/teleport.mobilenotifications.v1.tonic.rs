@@ -86,10 +86,13 @@ pub mod mobile_notifications_service_client {
             self.inner = self.inner.max_encoding_message_size(limit);
             self
         }
-        pub async fn test(
+        pub async fn send_notification(
             &mut self,
-            request: impl tonic::IntoRequest<super::TestRequest>,
-        ) -> std::result::Result<tonic::Response<super::TestResponse>, tonic::Status> {
+            request: impl tonic::IntoRequest<super::SendNotificationRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::SendNotificationResponse>,
+            tonic::Status,
+        > {
             self.inner
                 .ready()
                 .await
@@ -101,14 +104,44 @@ pub mod mobile_notifications_service_client {
                 })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
-                "/teleport.mobilenotifications.v1.MobileNotificationsService/Test",
+                "/teleport.mobilenotifications.v1.MobileNotificationsService/SendNotification",
             );
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(
                     GrpcMethod::new(
                         "teleport.mobilenotifications.v1.MobileNotificationsService",
-                        "Test",
+                        "SendNotification",
+                    ),
+                );
+            self.inner.unary(req, path, codec).await
+        }
+        pub async fn register_device(
+            &mut self,
+            request: impl tonic::IntoRequest<super::RegisterDeviceRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::RegisterDeviceResponse>,
+            tonic::Status,
+        > {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::new(
+                        tonic::Code::Unknown,
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic::codec::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/teleport.mobilenotifications.v1.MobileNotificationsService/RegisterDevice",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(
+                    GrpcMethod::new(
+                        "teleport.mobilenotifications.v1.MobileNotificationsService",
+                        "RegisterDevice",
                     ),
                 );
             self.inner.unary(req, path, codec).await
@@ -122,10 +155,20 @@ pub mod mobile_notifications_service_server {
     /// Generated trait containing gRPC methods that should be implemented for use with MobileNotificationsServiceServer.
     #[async_trait]
     pub trait MobileNotificationsService: Send + Sync + 'static {
-        async fn test(
+        async fn send_notification(
             &self,
-            request: tonic::Request<super::TestRequest>,
-        ) -> std::result::Result<tonic::Response<super::TestResponse>, tonic::Status>;
+            request: tonic::Request<super::SendNotificationRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::SendNotificationResponse>,
+            tonic::Status,
+        >;
+        async fn register_device(
+            &self,
+            request: tonic::Request<super::RegisterDeviceRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::RegisterDeviceResponse>,
+            tonic::Status,
+        >;
     }
     #[derive(Debug)]
     pub struct MobileNotificationsServiceServer<T: MobileNotificationsService> {
@@ -207,23 +250,28 @@ pub mod mobile_notifications_service_server {
         fn call(&mut self, req: http::Request<B>) -> Self::Future {
             let inner = self.inner.clone();
             match req.uri().path() {
-                "/teleport.mobilenotifications.v1.MobileNotificationsService/Test" => {
+                "/teleport.mobilenotifications.v1.MobileNotificationsService/SendNotification" => {
                     #[allow(non_camel_case_types)]
-                    struct TestSvc<T: MobileNotificationsService>(pub Arc<T>);
+                    struct SendNotificationSvc<T: MobileNotificationsService>(
+                        pub Arc<T>,
+                    );
                     impl<
                         T: MobileNotificationsService,
-                    > tonic::server::UnaryService<super::TestRequest> for TestSvc<T> {
-                        type Response = super::TestResponse;
+                    > tonic::server::UnaryService<super::SendNotificationRequest>
+                    for SendNotificationSvc<T> {
+                        type Response = super::SendNotificationResponse;
                         type Future = BoxFuture<
                             tonic::Response<Self::Response>,
                             tonic::Status,
                         >;
                         fn call(
                             &mut self,
-                            request: tonic::Request<super::TestRequest>,
+                            request: tonic::Request<super::SendNotificationRequest>,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
-                            let fut = async move { (*inner).test(request).await };
+                            let fut = async move {
+                                (*inner).send_notification(request).await
+                            };
                             Box::pin(fut)
                         }
                     }
@@ -234,7 +282,53 @@ pub mod mobile_notifications_service_server {
                     let inner = self.inner.clone();
                     let fut = async move {
                         let inner = inner.0;
-                        let method = TestSvc(inner);
+                        let method = SendNotificationSvc(inner);
+                        let codec = tonic::codec::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/teleport.mobilenotifications.v1.MobileNotificationsService/RegisterDevice" => {
+                    #[allow(non_camel_case_types)]
+                    struct RegisterDeviceSvc<T: MobileNotificationsService>(pub Arc<T>);
+                    impl<
+                        T: MobileNotificationsService,
+                    > tonic::server::UnaryService<super::RegisterDeviceRequest>
+                    for RegisterDeviceSvc<T> {
+                        type Response = super::RegisterDeviceResponse;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<super::RegisterDeviceRequest>,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                (*inner).register_device(request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let inner = inner.0;
+                        let method = RegisterDeviceSvc(inner);
                         let codec = tonic::codec::ProstCodec::default();
                         let mut grpc = tonic::server::Grpc::new(codec)
                             .apply_compression_config(

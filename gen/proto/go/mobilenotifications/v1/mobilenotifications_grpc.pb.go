@@ -33,15 +33,18 @@ import (
 const _ = grpc.SupportPackageIsVersion7
 
 const (
-	MobileNotificationsService_Test_FullMethodName = "/teleport.mobilenotifications.v1.MobileNotificationsService/Test"
+	MobileNotificationsService_SendNotification_FullMethodName = "/teleport.mobilenotifications.v1.MobileNotificationsService/SendNotification"
+	MobileNotificationsService_RegisterDevice_FullMethodName   = "/teleport.mobilenotifications.v1.MobileNotificationsService/RegisterDevice"
 )
 
 // MobileNotificationsServiceClient is the client API for MobileNotificationsService service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type MobileNotificationsServiceClient interface {
-	// Test
-	Test(ctx context.Context, in *TestRequest, opts ...grpc.CallOption) (*TestResponse, error)
+	// SendNotification sends a push notification to a mobile device.
+	SendNotification(ctx context.Context, in *SendNotificationRequest, opts ...grpc.CallOption) (*SendNotificationResponse, error)
+	// RegisterDevice registers a device token with the server.
+	RegisterDevice(ctx context.Context, in *RegisterDeviceRequest, opts ...grpc.CallOption) (*RegisterDeviceResponse, error)
 }
 
 type mobileNotificationsServiceClient struct {
@@ -52,9 +55,18 @@ func NewMobileNotificationsServiceClient(cc grpc.ClientConnInterface) MobileNoti
 	return &mobileNotificationsServiceClient{cc}
 }
 
-func (c *mobileNotificationsServiceClient) Test(ctx context.Context, in *TestRequest, opts ...grpc.CallOption) (*TestResponse, error) {
-	out := new(TestResponse)
-	err := c.cc.Invoke(ctx, MobileNotificationsService_Test_FullMethodName, in, out, opts...)
+func (c *mobileNotificationsServiceClient) SendNotification(ctx context.Context, in *SendNotificationRequest, opts ...grpc.CallOption) (*SendNotificationResponse, error) {
+	out := new(SendNotificationResponse)
+	err := c.cc.Invoke(ctx, MobileNotificationsService_SendNotification_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *mobileNotificationsServiceClient) RegisterDevice(ctx context.Context, in *RegisterDeviceRequest, opts ...grpc.CallOption) (*RegisterDeviceResponse, error) {
+	out := new(RegisterDeviceResponse)
+	err := c.cc.Invoke(ctx, MobileNotificationsService_RegisterDevice_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -65,8 +77,10 @@ func (c *mobileNotificationsServiceClient) Test(ctx context.Context, in *TestReq
 // All implementations must embed UnimplementedMobileNotificationsServiceServer
 // for forward compatibility
 type MobileNotificationsServiceServer interface {
-	// Test
-	Test(context.Context, *TestRequest) (*TestResponse, error)
+	// SendNotification sends a push notification to a mobile device.
+	SendNotification(context.Context, *SendNotificationRequest) (*SendNotificationResponse, error)
+	// RegisterDevice registers a device token with the server.
+	RegisterDevice(context.Context, *RegisterDeviceRequest) (*RegisterDeviceResponse, error)
 	mustEmbedUnimplementedMobileNotificationsServiceServer()
 }
 
@@ -74,8 +88,11 @@ type MobileNotificationsServiceServer interface {
 type UnimplementedMobileNotificationsServiceServer struct {
 }
 
-func (UnimplementedMobileNotificationsServiceServer) Test(context.Context, *TestRequest) (*TestResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method Test not implemented")
+func (UnimplementedMobileNotificationsServiceServer) SendNotification(context.Context, *SendNotificationRequest) (*SendNotificationResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SendNotification not implemented")
+}
+func (UnimplementedMobileNotificationsServiceServer) RegisterDevice(context.Context, *RegisterDeviceRequest) (*RegisterDeviceResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RegisterDevice not implemented")
 }
 func (UnimplementedMobileNotificationsServiceServer) mustEmbedUnimplementedMobileNotificationsServiceServer() {
 }
@@ -91,20 +108,38 @@ func RegisterMobileNotificationsServiceServer(s grpc.ServiceRegistrar, srv Mobil
 	s.RegisterService(&MobileNotificationsService_ServiceDesc, srv)
 }
 
-func _MobileNotificationsService_Test_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(TestRequest)
+func _MobileNotificationsService_SendNotification_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SendNotificationRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(MobileNotificationsServiceServer).Test(ctx, in)
+		return srv.(MobileNotificationsServiceServer).SendNotification(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: MobileNotificationsService_Test_FullMethodName,
+		FullMethod: MobileNotificationsService_SendNotification_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(MobileNotificationsServiceServer).Test(ctx, req.(*TestRequest))
+		return srv.(MobileNotificationsServiceServer).SendNotification(ctx, req.(*SendNotificationRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _MobileNotificationsService_RegisterDevice_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RegisterDeviceRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MobileNotificationsServiceServer).RegisterDevice(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: MobileNotificationsService_RegisterDevice_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MobileNotificationsServiceServer).RegisterDevice(ctx, req.(*RegisterDeviceRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -117,8 +152,12 @@ var MobileNotificationsService_ServiceDesc = grpc.ServiceDesc{
 	HandlerType: (*MobileNotificationsServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
-			MethodName: "Test",
-			Handler:    _MobileNotificationsService_Test_Handler,
+			MethodName: "SendNotification",
+			Handler:    _MobileNotificationsService_SendNotification_Handler,
+		},
+		{
+			MethodName: "RegisterDevice",
+			Handler:    _MobileNotificationsService_RegisterDevice_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
