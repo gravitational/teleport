@@ -49,7 +49,7 @@ func enrollDeviceInit() (*devicepb.EnrollDeviceInit, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	cd, err := collectDeviceData()
+	cd, err := collectDeviceData(CollectedDataAlwaysEscalate)
 	if err != nil {
 		return nil, trace.Wrap(err, "collecting device data")
 	}
@@ -98,7 +98,7 @@ func pubKeyToCredential(id string, pubKeyRaw []byte) (*devicepb.DeviceCredential
 	}, nil
 }
 
-func collectDeviceData() (*devicepb.DeviceCollectedData, error) {
+func collectDeviceData(_ CollectDataMode) (*devicepb.DeviceCollectedData, error) {
 	var dd C.DeviceData
 	defer func() {
 		C.free(unsafe.Pointer(dd.serial_number))

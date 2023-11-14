@@ -26,6 +26,7 @@ import (
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
+	"github.com/gravitational/teleport/lib/devicetrust/native"
 )
 
 // Opt is a creation option for [E]
@@ -137,7 +138,7 @@ func New(opts ...Opt) (*E, error) {
 // FakeDevice is implemented by the platform-native fakes and is used in tests
 // for device authentication and enrollment.
 type FakeDevice interface {
-	CollectDeviceData() (*devicepb.DeviceCollectedData, error)
+	CollectDeviceData(mode native.CollectDataMode) (*devicepb.DeviceCollectedData, error)
 	EnrollDeviceInit() (*devicepb.EnrollDeviceInit, error)
 	GetDeviceOSType() devicepb.OSType
 	SignChallenge(chal []byte) (sig []byte, err error)
