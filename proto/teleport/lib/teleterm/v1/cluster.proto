@@ -43,7 +43,8 @@ message Cluster {
   // ProxyVersion is the cluster proxy's service version.
   // Only present when detailed information is queried from the proxy server.
   string proxy_version = 10;
-  string file_server_port = 11;
+  // port of the file server for the cluster
+  uint32 file_server_port = 11;
 }
 
 // LoggedInUser describes a logged-in user

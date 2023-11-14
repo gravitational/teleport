@@ -100,7 +100,7 @@ func newAPIRootCluster(cluster *clusters.Cluster) *api.Cluster {
 			Roles:          loggedInUser.Roles,
 			ActiveRequests: loggedInUser.ActiveRequests,
 		},
-		FileServerPort: cluster.FileServerPort,
+		FileServerPort: uint32(cluster.FileServerPort),
 	}
 
 	return apiCluster

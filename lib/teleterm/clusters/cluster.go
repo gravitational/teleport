@@ -51,8 +51,9 @@ type Cluster struct {
 	// client is the cluster Teleport client
 	clusterClient *client.TeleportClient
 	// clock is a clock for time-related operations
-	clock          clockwork.Clock
-	FileServerPort string
+	clock clockwork.Clock
+	// FileServerPort is the port of the file sharing server
+	FileServerPort int
 }
 
 type ClusterWithDetails struct {

@@ -167,7 +167,7 @@ proto.teleport.lib.teleterm.v1.Cluster.toObject = function(includeInstance, msg)
     features: (f = msg.getFeatures()) && proto.teleport.lib.teleterm.v1.Features.toObject(includeInstance, f),
     authClusterId: jspb.Message.getFieldWithDefault(msg, 9, ""),
     proxyVersion: jspb.Message.getFieldWithDefault(msg, 10, ""),
-    fileServerPort: jspb.Message.getFieldWithDefault(msg, 11, "")
+    fileServerPort: jspb.Message.getFieldWithDefault(msg, 11, 0)
   };
 
   if (includeInstance) {
@@ -243,7 +243,7 @@ proto.teleport.lib.teleterm.v1.Cluster.deserializeBinaryFromReader = function(ms
       msg.setProxyVersion(value);
       break;
     case 11:
-      var value = /** @type {string} */ (reader.readString());
+      var value = /** @type {number} */ (reader.readUint32());
       msg.setFileServerPort(value);
       break;
     default:
@@ -341,8 +341,8 @@ proto.teleport.lib.teleterm.v1.Cluster.serializeBinaryToWriter = function(messag
     );
   }
   f = message.getFileServerPort();
-  if (f.length > 0) {
-    writer.writeString(
+  if (f !== 0) {
+    writer.writeUint32(
       11,
       f
     );
@@ -551,20 +551,20 @@ proto.teleport.lib.teleterm.v1.Cluster.prototype.setProxyVersion = function(valu
 
 
 /**
- * optional string file_server_port = 11;
- * @return {string}
+ * optional uint32 file_server_port = 11;
+ * @return {number}
  */
 proto.teleport.lib.teleterm.v1.Cluster.prototype.getFileServerPort = function() {
-  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 11, ""));
+  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 11, 0));
 };
 
 
 /**
- * @param {string} value
+ * @param {number} value
  * @return {!proto.teleport.lib.teleterm.v1.Cluster} returns this
  */
 proto.teleport.lib.teleterm.v1.Cluster.prototype.setFileServerPort = function(value) {
-  return jspb.Message.setProto3StringField(this, 11, value);
+  return jspb.Message.setProto3IntField(this, 11, value);
 };
 
 

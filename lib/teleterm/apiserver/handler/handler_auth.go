@@ -51,7 +51,7 @@ func (s *Handler) Login(ctx context.Context, req *api.LoginRequest) (*api.EmptyR
 		return nil, trace.Wrap(err)
 	}
 
-	// TODO: Add a file server for the cluster using req.ClusterURI as the key.
+	s.DaemonService.StartFileServer(req.ClusterUri)
 
 	return &api.EmptyResponse{}, nil
 }
@@ -64,12 +64,12 @@ func (s *Handler) LoginPasswordless(stream api.TerminalService_LoginPasswordless
 		return trace.Wrap(err)
 	}
 
-	initReq := req.GetInit()
-	if initReq == nil || initReq.GetClusterUri() == "" {
+	clusterURI := req.GetInit().GetClusterUri()
+	if clusterURI == "" {
 		return trace.BadParameter("cluster URI is required")
 	}
 
-	cluster, _, err := s.DaemonService.ResolveCluster(initReq.GetClusterUri())
+	cluster, _, err := s.DaemonService.ResolveCluster(clusterURI)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -80,11 +80,11 @@ func (s *Handler) LoginPasswordless(stream api.TerminalService_LoginPasswordless
 	}
 
 	// Don't wait for the headless watcher to initialize as this could slow down logins.
-	if err := s.DaemonService.StartHeadlessWatcher(initReq.GetClusterUri(), false /* waitInit */); err != nil {
+	if err := s.DaemonService.StartHeadlessWatcher(clusterURI, false /* waitInit */); err != nil {
 		return trace.Wrap(err)
 	}
 
-	// TODO: Add a file server for the cluster using req.ClusterURI as the key.
+	s.DaemonService.StartFileServer(clusterURI)
 
 	return nil
 }
