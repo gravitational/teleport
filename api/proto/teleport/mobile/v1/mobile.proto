@@ -47,4 +47,5 @@ message RedeemAuthTokenResponse {
   string username = 1;
   bytes ssh_cert = 2;
   bytes tls_cert = 3;
+  repeated bytes tls_ca_certs = 4;
 }
