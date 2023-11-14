@@ -25,6 +25,7 @@ proxy_service:
 {{- end }}
 {{- if .Values.enableProxyPeering }}
   peer_public_addr: '{{ required "clusterName is required in chart values" .Values.clusterName }}:3021'
+  peer_listen_addr: 0.0.0.0:3021
 {{- end }}
 {{- if ne .Values.proxyListenerMode "multiplex" }}
   listen_addr: 0.0.0.0:3023
