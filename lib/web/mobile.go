@@ -17,6 +17,7 @@ limitations under the License.
 package web
 
 import (
+	mobilev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mobile/v1"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 	"net/http"
@@ -31,22 +32,14 @@ type MobileAuthCreateResponse struct {
 func (h *Handler) mobileAuthCreate(
 	_ http.ResponseWriter, r *http.Request, _ httprouter.Params, sctx *SessionContext,
 ) (any, error) {
-	_, err := sctx.GetClient()
+	c := mobilev1.NewMobileServiceClient(sctx.GetClientConnection())
+
+	res, err := c.CreateAuthToken(r.Context(), &mobilev1.CreateAuthTokenRequest{})
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "creating token")
 	}
-	// TODO - Start flow on Auth server side.
 
 	return MobileAuthCreateResponse{
-		Token: "xx.yy.zz",
+		Token: res.Token,
 	}, nil
-}
-
-type MobileAuthRedeemResponse struct {
-}
-
-// mobileAuthRedeem allows a mobile device to redeem a token created by
-// mobileAuthCreate for certificates, similar to logging in.
-func (h *Handler) mobileAuthRedeem(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
-	return MobileAuthRedeemResponse{}, trace.NotImplemented("unimplemented")
 }

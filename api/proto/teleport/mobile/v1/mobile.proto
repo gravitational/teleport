@@ -27,7 +27,9 @@ service MobileService {
 }
 
 // Request for CreateAuthToken
-message CreateAuthTokenRequest {}
+message CreateAuthTokenRequest {
+  string username = 1;
+}
 
 // Response for CreateAuthToken
 message CreateAuthTokenResponse {

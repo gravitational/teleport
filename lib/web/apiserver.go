@@ -890,7 +890,6 @@ func (h *Handler) bindDefaultEndpoints() {
 
 	// Mobile
 	h.POST("/webapi/mobile/auth", h.WithAuth(h.mobileAuthCreate))
-	h.POST("/webapi/mobile/auth/redeem", h.WithLimiter(h.mobileAuthRedeem))
 }
 
 // GetProxyClient returns authenticated auth server client
