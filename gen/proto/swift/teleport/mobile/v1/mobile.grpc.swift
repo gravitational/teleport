@@ -27,6 +27,11 @@ internal protocol Teleport_Mobile_V1_MobileServiceClientProtocol: GRPCClient {
     _ request: Teleport_Mobile_V1_RedeemAuthTokenRequest,
     callOptions: CallOptions?
   ) -> UnaryCall<Teleport_Mobile_V1_RedeemAuthTokenRequest, Teleport_Mobile_V1_RedeemAuthTokenResponse>
+
+  func registerDeviceNotifications(
+    _ request: Teleport_Mobile_V1_RegisterDeviceNotificationsRequest,
+    callOptions: CallOptions?
+  ) -> UnaryCall<Teleport_Mobile_V1_RegisterDeviceNotificationsRequest, Teleport_Mobile_V1_RegisterDeviceNotificationsResponse>
 }
 
 extension Teleport_Mobile_V1_MobileServiceClientProtocol {
@@ -67,6 +72,24 @@ extension Teleport_Mobile_V1_MobileServiceClientProtocol {
       request: request,
       callOptions: callOptions ?? self.defaultCallOptions,
       interceptors: self.interceptors?.makeRedeemAuthTokenInterceptors() ?? []
+    )
+  }
+
+  /// RegisterDeviceNotifications
+  ///
+  /// - Parameters:
+  ///   - request: Request to send to RegisterDeviceNotifications.
+  ///   - callOptions: Call options.
+  /// - Returns: A `UnaryCall` with futures for the metadata, status and response.
+  internal func registerDeviceNotifications(
+    _ request: Teleport_Mobile_V1_RegisterDeviceNotificationsRequest,
+    callOptions: CallOptions? = nil
+  ) -> UnaryCall<Teleport_Mobile_V1_RegisterDeviceNotificationsRequest, Teleport_Mobile_V1_RegisterDeviceNotificationsResponse> {
+    return self.makeUnaryCall(
+      path: Teleport_Mobile_V1_MobileServiceClientMetadata.Methods.registerDeviceNotifications.path,
+      request: request,
+      callOptions: callOptions ?? self.defaultCallOptions,
+      interceptors: self.interceptors?.makeRegisterDeviceNotificationsInterceptors() ?? []
     )
   }
 }
@@ -143,6 +166,11 @@ internal protocol Teleport_Mobile_V1_MobileServiceAsyncClientProtocol: GRPCClien
     _ request: Teleport_Mobile_V1_RedeemAuthTokenRequest,
     callOptions: CallOptions?
   ) -> GRPCAsyncUnaryCall<Teleport_Mobile_V1_RedeemAuthTokenRequest, Teleport_Mobile_V1_RedeemAuthTokenResponse>
+
+  func makeRegisterDeviceNotificationsCall(
+    _ request: Teleport_Mobile_V1_RegisterDeviceNotificationsRequest,
+    callOptions: CallOptions?
+  ) -> GRPCAsyncUnaryCall<Teleport_Mobile_V1_RegisterDeviceNotificationsRequest, Teleport_Mobile_V1_RegisterDeviceNotificationsResponse>
 }
 
 @available(macOS 10.15, iOS 13, tvOS 13, watchOS 6, *)
@@ -178,6 +206,18 @@ extension Teleport_Mobile_V1_MobileServiceAsyncClientProtocol {
       interceptors: self.interceptors?.makeRedeemAuthTokenInterceptors() ?? []
     )
   }
+
+  internal func makeRegisterDeviceNotificationsCall(
+    _ request: Teleport_Mobile_V1_RegisterDeviceNotificationsRequest,
+    callOptions: CallOptions? = nil
+  ) -> GRPCAsyncUnaryCall<Teleport_Mobile_V1_RegisterDeviceNotificationsRequest, Teleport_Mobile_V1_RegisterDeviceNotificationsResponse> {
+    return self.makeAsyncUnaryCall(
+      path: Teleport_Mobile_V1_MobileServiceClientMetadata.Methods.registerDeviceNotifications.path,
+      request: request,
+      callOptions: callOptions ?? self.defaultCallOptions,
+      interceptors: self.interceptors?.makeRegisterDeviceNotificationsInterceptors() ?? []
+    )
+  }
 }
 
 @available(macOS 10.15, iOS 13, tvOS 13, watchOS 6, *)
@@ -203,6 +243,18 @@ extension Teleport_Mobile_V1_MobileServiceAsyncClientProtocol {
       request: request,
       callOptions: callOptions ?? self.defaultCallOptions,
       interceptors: self.interceptors?.makeRedeemAuthTokenInterceptors() ?? []
+    )
+  }
+
+  internal func registerDeviceNotifications(
+    _ request: Teleport_Mobile_V1_RegisterDeviceNotificationsRequest,
+    callOptions: CallOptions? = nil
+  ) async throws -> Teleport_Mobile_V1_RegisterDeviceNotificationsResponse {
+    return try await self.performAsyncUnaryCall(
+      path: Teleport_Mobile_V1_MobileServiceClientMetadata.Methods.registerDeviceNotifications.path,
+      request: request,
+      callOptions: callOptions ?? self.defaultCallOptions,
+      interceptors: self.interceptors?.makeRegisterDeviceNotificationsInterceptors() ?? []
     )
   }
 }
@@ -231,6 +283,9 @@ internal protocol Teleport_Mobile_V1_MobileServiceClientInterceptorFactoryProtoc
 
   /// - Returns: Interceptors to use when invoking 'redeemAuthToken'.
   func makeRedeemAuthTokenInterceptors() -> [ClientInterceptor<Teleport_Mobile_V1_RedeemAuthTokenRequest, Teleport_Mobile_V1_RedeemAuthTokenResponse>]
+
+  /// - Returns: Interceptors to use when invoking 'registerDeviceNotifications'.
+  func makeRegisterDeviceNotificationsInterceptors() -> [ClientInterceptor<Teleport_Mobile_V1_RegisterDeviceNotificationsRequest, Teleport_Mobile_V1_RegisterDeviceNotificationsResponse>]
 }
 
 internal enum Teleport_Mobile_V1_MobileServiceClientMetadata {
@@ -240,6 +295,7 @@ internal enum Teleport_Mobile_V1_MobileServiceClientMetadata {
     methods: [
       Teleport_Mobile_V1_MobileServiceClientMetadata.Methods.createAuthToken,
       Teleport_Mobile_V1_MobileServiceClientMetadata.Methods.redeemAuthToken,
+      Teleport_Mobile_V1_MobileServiceClientMetadata.Methods.registerDeviceNotifications,
     ]
   )
 
@@ -253,6 +309,12 @@ internal enum Teleport_Mobile_V1_MobileServiceClientMetadata {
     internal static let redeemAuthToken = GRPCMethodDescriptor(
       name: "RedeemAuthToken",
       path: "/teleport.mobile.v1.MobileService/RedeemAuthToken",
+      type: GRPCCallType.unary
+    )
+
+    internal static let registerDeviceNotifications = GRPCMethodDescriptor(
+      name: "RegisterDeviceNotifications",
+      path: "/teleport.mobile.v1.MobileService/RegisterDeviceNotifications",
       type: GRPCCallType.unary
     )
   }
@@ -269,6 +331,9 @@ internal protocol Teleport_Mobile_V1_MobileServiceProvider: CallHandlerProvider 
 
   /// RedeemAuthToken
   func redeemAuthToken(request: Teleport_Mobile_V1_RedeemAuthTokenRequest, context: StatusOnlyCallContext) -> EventLoopFuture<Teleport_Mobile_V1_RedeemAuthTokenResponse>
+
+  /// RegisterDeviceNotifications
+  func registerDeviceNotifications(request: Teleport_Mobile_V1_RegisterDeviceNotificationsRequest, context: StatusOnlyCallContext) -> EventLoopFuture<Teleport_Mobile_V1_RegisterDeviceNotificationsResponse>
 }
 
 extension Teleport_Mobile_V1_MobileServiceProvider {
@@ -301,6 +366,15 @@ extension Teleport_Mobile_V1_MobileServiceProvider {
         userFunction: self.redeemAuthToken(request:context:)
       )
 
+    case "RegisterDeviceNotifications":
+      return UnaryServerHandler(
+        context: context,
+        requestDeserializer: ProtobufDeserializer<Teleport_Mobile_V1_RegisterDeviceNotificationsRequest>(),
+        responseSerializer: ProtobufSerializer<Teleport_Mobile_V1_RegisterDeviceNotificationsResponse>(),
+        interceptors: self.interceptors?.makeRegisterDeviceNotificationsInterceptors() ?? [],
+        userFunction: self.registerDeviceNotifications(request:context:)
+      )
+
     default:
       return nil
     }
@@ -326,6 +400,12 @@ internal protocol Teleport_Mobile_V1_MobileServiceAsyncProvider: CallHandlerProv
     request: Teleport_Mobile_V1_RedeemAuthTokenRequest,
     context: GRPCAsyncServerCallContext
   ) async throws -> Teleport_Mobile_V1_RedeemAuthTokenResponse
+
+  /// RegisterDeviceNotifications
+  func registerDeviceNotifications(
+    request: Teleport_Mobile_V1_RegisterDeviceNotificationsRequest,
+    context: GRPCAsyncServerCallContext
+  ) async throws -> Teleport_Mobile_V1_RegisterDeviceNotificationsResponse
 }
 
 @available(macOS 10.15, iOS 13, tvOS 13, watchOS 6, *)
@@ -365,6 +445,15 @@ extension Teleport_Mobile_V1_MobileServiceAsyncProvider {
         wrapping: { try await self.redeemAuthToken(request: $0, context: $1) }
       )
 
+    case "RegisterDeviceNotifications":
+      return GRPCAsyncServerHandler(
+        context: context,
+        requestDeserializer: ProtobufDeserializer<Teleport_Mobile_V1_RegisterDeviceNotificationsRequest>(),
+        responseSerializer: ProtobufSerializer<Teleport_Mobile_V1_RegisterDeviceNotificationsResponse>(),
+        interceptors: self.interceptors?.makeRegisterDeviceNotificationsInterceptors() ?? [],
+        wrapping: { try await self.registerDeviceNotifications(request: $0, context: $1) }
+      )
+
     default:
       return nil
     }
@@ -380,6 +469,10 @@ internal protocol Teleport_Mobile_V1_MobileServiceServerInterceptorFactoryProtoc
   /// - Returns: Interceptors to use when handling 'redeemAuthToken'.
   ///   Defaults to calling `self.makeInterceptors()`.
   func makeRedeemAuthTokenInterceptors() -> [ServerInterceptor<Teleport_Mobile_V1_RedeemAuthTokenRequest, Teleport_Mobile_V1_RedeemAuthTokenResponse>]
+
+  /// - Returns: Interceptors to use when handling 'registerDeviceNotifications'.
+  ///   Defaults to calling `self.makeInterceptors()`.
+  func makeRegisterDeviceNotificationsInterceptors() -> [ServerInterceptor<Teleport_Mobile_V1_RegisterDeviceNotificationsRequest, Teleport_Mobile_V1_RegisterDeviceNotificationsResponse>]
 }
 
 internal enum Teleport_Mobile_V1_MobileServiceServerMetadata {
@@ -389,6 +482,7 @@ internal enum Teleport_Mobile_V1_MobileServiceServerMetadata {
     methods: [
       Teleport_Mobile_V1_MobileServiceServerMetadata.Methods.createAuthToken,
       Teleport_Mobile_V1_MobileServiceServerMetadata.Methods.redeemAuthToken,
+      Teleport_Mobile_V1_MobileServiceServerMetadata.Methods.registerDeviceNotifications,
     ]
   )
 
@@ -402,6 +496,12 @@ internal enum Teleport_Mobile_V1_MobileServiceServerMetadata {
     internal static let redeemAuthToken = GRPCMethodDescriptor(
       name: "RedeemAuthToken",
       path: "/teleport.mobile.v1.MobileService/RedeemAuthToken",
+      type: GRPCCallType.unary
+    )
+
+    internal static let registerDeviceNotifications = GRPCMethodDescriptor(
+      name: "RegisterDeviceNotifications",
+      path: "/teleport.mobile.v1.MobileService/RegisterDeviceNotifications",
       type: GRPCCallType.unary
     )
   }

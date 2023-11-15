@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"net"
 	"time"
 
@@ -174,6 +175,20 @@ func (a *Server) AuthenticateUser(ctx context.Context, req AuthenticateUserReque
 	}); err != nil {
 		log.WithError(err).Warn("Failed to emit login event.")
 	}
+	go func() {
+		err := a.notificationSender(
+			context.Background(),
+			username,
+			"New Login Detected",
+			fmt.Sprintf(
+				"A new login to your account has been detected from: %s - %s",
+				req.ClientMetadata.RemoteAddr,
+				req.ClientMetadata.UserAgent),
+		)
+		if err != nil {
+			log.WithError(err).Error("failed to notify")
+		}
+	}()
 
 	return userState, checker, trace.Wrap(err)
 }

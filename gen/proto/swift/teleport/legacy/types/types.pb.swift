@@ -6418,6 +6418,13 @@ struct Types_UserSpecV2 {
     set {_uniqueStorage()._trustedDeviceIds = newValue}
   }
 
+  /// MobileDeviceIDs contains IDs that allow notifications to be pushed to a user mobile
+  /// device.
+  var mobileDeviceIds: [String] {
+    get {return _storage._mobileDeviceIds}
+    set {_uniqueStorage()._mobileDeviceIds = newValue}
+  }
+
   var unknownFields = SwiftProtobuf.UnknownStorage()
 
   init() {}
@@ -21782,6 +21789,7 @@ extension Types_UserSpecV2: SwiftProtobuf.Message, SwiftProtobuf._MessageImpleme
     8: .same(proto: "CreatedBy"),
     9: .same(proto: "LocalAuth"),
     10: .same(proto: "TrustedDeviceIDs"),
+    11: .same(proto: "MobileDeviceIDs"),
   ]
 
   fileprivate class _StorageClass {
@@ -21795,6 +21803,7 @@ extension Types_UserSpecV2: SwiftProtobuf.Message, SwiftProtobuf._MessageImpleme
     var _createdBy: Types_CreatedBy? = nil
     var _localAuth: Types_LocalAuthSecrets? = nil
     var _trustedDeviceIds: [String] = []
+    var _mobileDeviceIds: [String] = []
 
     static let defaultInstance = _StorageClass()
 
@@ -21811,6 +21820,7 @@ extension Types_UserSpecV2: SwiftProtobuf.Message, SwiftProtobuf._MessageImpleme
       _createdBy = source._createdBy
       _localAuth = source._localAuth
       _trustedDeviceIds = source._trustedDeviceIds
+      _mobileDeviceIds = source._mobileDeviceIds
     }
   }
 
@@ -21839,6 +21849,7 @@ extension Types_UserSpecV2: SwiftProtobuf.Message, SwiftProtobuf._MessageImpleme
         case 8: try { try decoder.decodeSingularMessageField(value: &_storage._createdBy) }()
         case 9: try { try decoder.decodeSingularMessageField(value: &_storage._localAuth) }()
         case 10: try { try decoder.decodeRepeatedStringField(value: &_storage._trustedDeviceIds) }()
+        case 11: try { try decoder.decodeRepeatedStringField(value: &_storage._mobileDeviceIds) }()
         default: break
         }
       }
@@ -21881,6 +21892,9 @@ extension Types_UserSpecV2: SwiftProtobuf.Message, SwiftProtobuf._MessageImpleme
       if !_storage._trustedDeviceIds.isEmpty {
         try visitor.visitRepeatedStringField(value: _storage._trustedDeviceIds, fieldNumber: 10)
       }
+      if !_storage._mobileDeviceIds.isEmpty {
+        try visitor.visitRepeatedStringField(value: _storage._mobileDeviceIds, fieldNumber: 11)
+      }
     }
     try unknownFields.traverse(visitor: &visitor)
   }
@@ -21900,6 +21914,7 @@ extension Types_UserSpecV2: SwiftProtobuf.Message, SwiftProtobuf._MessageImpleme
         if _storage._createdBy != rhs_storage._createdBy {return false}
         if _storage._localAuth != rhs_storage._localAuth {return false}
         if _storage._trustedDeviceIds != rhs_storage._trustedDeviceIds {return false}
+        if _storage._mobileDeviceIds != rhs_storage._mobileDeviceIds {return false}
         return true
       }
       if !storagesAreEqual {return false}

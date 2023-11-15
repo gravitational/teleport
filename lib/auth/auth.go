@@ -763,6 +763,8 @@ type Server struct {
 	// the auth server. It can be overridden for the purpose of tests.
 	circleCITokenValidate func(ctx context.Context, organizationID, token string) (*circleci.IDTokenClaims, error)
 
+	notificationSender func(ctx context.Context, username string, title string, body string) error
+
 	// k8sTokenReviewValidator allows tokens from Kubernetes to be validated
 	// by the auth server using k8s Token Review API. It can be overridden for
 	// the purpose of tests.
@@ -4394,6 +4396,20 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 	if err != nil {
 		log.WithError(err).Warn("Failed to emit access request create event.")
 	}
+	go func() {
+		err := a.notificationSender(
+			context.Background(),
+			req.GetUser(),
+			"New Access Request",
+			fmt.Sprintf(
+				"A new access request from %s is ready for review",
+				req.GetUser(),
+			),
+		)
+		if err != nil {
+			log.WithError(err).Error("failed to notify")
+		}
+	}()
 
 	// calculate the promotions
 	reqCopy, promotions := a.generateAccessRequestPromotions(ctx, req)

@@ -33,8 +33,9 @@ import (
 const _ = grpc.SupportPackageIsVersion7
 
 const (
-	MobileService_CreateAuthToken_FullMethodName = "/teleport.mobile.v1.MobileService/CreateAuthToken"
-	MobileService_RedeemAuthToken_FullMethodName = "/teleport.mobile.v1.MobileService/RedeemAuthToken"
+	MobileService_CreateAuthToken_FullMethodName             = "/teleport.mobile.v1.MobileService/CreateAuthToken"
+	MobileService_RedeemAuthToken_FullMethodName             = "/teleport.mobile.v1.MobileService/RedeemAuthToken"
+	MobileService_RegisterDeviceNotifications_FullMethodName = "/teleport.mobile.v1.MobileService/RegisterDeviceNotifications"
 )
 
 // MobileServiceClient is the client API for MobileService service.
@@ -45,6 +46,8 @@ type MobileServiceClient interface {
 	CreateAuthToken(ctx context.Context, in *CreateAuthTokenRequest, opts ...grpc.CallOption) (*CreateAuthTokenResponse, error)
 	// RedeemAuthToken
 	RedeemAuthToken(ctx context.Context, in *RedeemAuthTokenRequest, opts ...grpc.CallOption) (*RedeemAuthTokenResponse, error)
+	// RegisterDeviceNotifications
+	RegisterDeviceNotifications(ctx context.Context, in *RegisterDeviceNotificationsRequest, opts ...grpc.CallOption) (*RegisterDeviceNotificationsResponse, error)
 }
 
 type mobileServiceClient struct {
@@ -73,6 +76,15 @@ func (c *mobileServiceClient) RedeemAuthToken(ctx context.Context, in *RedeemAut
 	return out, nil
 }
 
+func (c *mobileServiceClient) RegisterDeviceNotifications(ctx context.Context, in *RegisterDeviceNotificationsRequest, opts ...grpc.CallOption) (*RegisterDeviceNotificationsResponse, error) {
+	out := new(RegisterDeviceNotificationsResponse)
+	err := c.cc.Invoke(ctx, MobileService_RegisterDeviceNotifications_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // MobileServiceServer is the server API for MobileService service.
 // All implementations must embed UnimplementedMobileServiceServer
 // for forward compatibility
@@ -81,6 +93,8 @@ type MobileServiceServer interface {
 	CreateAuthToken(context.Context, *CreateAuthTokenRequest) (*CreateAuthTokenResponse, error)
 	// RedeemAuthToken
 	RedeemAuthToken(context.Context, *RedeemAuthTokenRequest) (*RedeemAuthTokenResponse, error)
+	// RegisterDeviceNotifications
+	RegisterDeviceNotifications(context.Context, *RegisterDeviceNotificationsRequest) (*RegisterDeviceNotificationsResponse, error)
 	mustEmbedUnimplementedMobileServiceServer()
 }
 
@@ -93,6 +107,9 @@ func (UnimplementedMobileServiceServer) CreateAuthToken(context.Context, *Create
 }
 func (UnimplementedMobileServiceServer) RedeemAuthToken(context.Context, *RedeemAuthTokenRequest) (*RedeemAuthTokenResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method RedeemAuthToken not implemented")
+}
+func (UnimplementedMobileServiceServer) RegisterDeviceNotifications(context.Context, *RegisterDeviceNotificationsRequest) (*RegisterDeviceNotificationsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RegisterDeviceNotifications not implemented")
 }
 func (UnimplementedMobileServiceServer) mustEmbedUnimplementedMobileServiceServer() {}
 
@@ -143,6 +160,24 @@ func _MobileService_RedeemAuthToken_Handler(srv interface{}, ctx context.Context
 	return interceptor(ctx, in, info, handler)
 }
 
+func _MobileService_RegisterDeviceNotifications_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RegisterDeviceNotificationsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MobileServiceServer).RegisterDeviceNotifications(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: MobileService_RegisterDeviceNotifications_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MobileServiceServer).RegisterDeviceNotifications(ctx, req.(*RegisterDeviceNotificationsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // MobileService_ServiceDesc is the grpc.ServiceDesc for MobileService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -157,6 +192,10 @@ var MobileService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "RedeemAuthToken",
 			Handler:    _MobileService_RedeemAuthToken_Handler,
+		},
+		{
+			MethodName: "RegisterDeviceNotifications",
+			Handler:    _MobileService_RegisterDeviceNotifications_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

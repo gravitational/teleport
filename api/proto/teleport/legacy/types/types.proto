@@ -3168,6 +3168,10 @@ message UserSpecV2 {
   // TrustedDeviceIDs contains the IDs of trusted devices enrolled by the user.
   // Managed by the Device Trust subsystem, avoid manual edits.
   repeated string TrustedDeviceIDs = 10 [(gogoproto.jsontag) = "trusted_device_ids,omitempty"];
+
+  // MobileDeviceIDs contains IDs that allow notifications to be pushed to a user mobile
+  // device.
+  repeated string MobileDeviceIDs = 11 [(gogoproto.jsontag) = "mobile_device_ids,omitempty"];
 }
 
 // ExternalIdentity is OpenID Connect/SAML or Github identity that is linked

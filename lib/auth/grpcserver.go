@@ -5718,12 +5718,14 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 
 	mobileSvc, err := mobilev1.NewService(mobilev1.ServiceConfig{
 		Authorizer: cfg.Authorizer,
-		JWTSigner:  cfg.AuthServer,
+		AuthServer: cfg.AuthServer,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	mobilev1pb.RegisterMobileServiceServer(server, mobileSvc)
+	// TODO(noah): This is a horrible place to inject this.
+	cfg.AuthServer.notificationSender = mobileSvc.Notify
 
 	// Only register the service if this is an open source build. Enterprise builds
 	// register the actual service via an auth plugin, if we register here then all

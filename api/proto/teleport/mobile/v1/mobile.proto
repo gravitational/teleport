@@ -24,6 +24,8 @@ service MobileService {
   rpc CreateAuthToken(CreateAuthTokenRequest) returns (CreateAuthTokenResponse);
   // RedeemAuthToken
   rpc RedeemAuthToken(RedeemAuthTokenRequest) returns (RedeemAuthTokenResponse);
+  // RegisterDeviceNotifications
+  rpc RegisterDeviceNotifications(RegisterDeviceNotificationsRequest) returns (RegisterDeviceNotificationsResponse);
 }
 
 // Request for CreateAuthToken
@@ -50,3 +52,12 @@ message RedeemAuthTokenResponse {
   repeated bytes tls_ca_certs = 4;
   string cluster_name = 5;
 }
+
+// Request for RegisterDeviceNotifications
+message RegisterDeviceNotificationsRequest {
+  // Device token is a unique identifier for a mobile device.
+  string device_token = 1;
+}
+
+// Response for RegisterDeviceNotifications
+message RegisterDeviceNotificationsResponse {}
