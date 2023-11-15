@@ -28,6 +28,7 @@ import {
   MenuItemConstructorOptions,
   nativeTheme,
   shell,
+  clipboard,
 } from 'electron';
 
 import { FileStorage, RuntimeSettings } from 'teleterm/types';
@@ -408,6 +409,10 @@ export default class MainProcess {
           throw new Error(error);
         }
       }
+    );
+
+    ipcMain.handle(MainProcessIpc.ClipboardWriteText, (_, text: string) =>
+      clipboard.writeText(text)
     );
 
     subscribeToTerminalContextMenuEvent();

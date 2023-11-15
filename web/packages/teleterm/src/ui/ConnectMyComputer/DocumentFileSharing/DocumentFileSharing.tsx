@@ -82,11 +82,18 @@ export function DocumentFileSharing(props: {
         <Text typography="h3" mb="4">
           File Sharing
         </Text>
-        <Flex gap={4} justifyContent="space-between">
+        <Flex gap={4} justifyContent="space-between" flexWrap="wrap">
           <AgentStatus currentAction={currentAction} killAgent={killAgent} />
-          <ButtonSecondary as="a" target="_blank" href={appUrl}>
-            Open app
-          </ButtonSecondary>
+          <Flex gap={2} flexWrap="wrap">
+            <ButtonSecondary
+              onClick={() => mainProcessClient.clipboardWriteText(appUrl)}
+            >
+              Copy link
+            </ButtonSecondary>
+            <ButtonSecondary as="a" target="_blank" href={appUrl}>
+              Open app
+            </ButtonSecondary>
+          </Flex>
         </Flex>
         <Flex
           flexDirection="column"

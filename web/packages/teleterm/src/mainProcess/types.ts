@@ -154,6 +154,7 @@ export type MainProcessClient = {
   getAgentState(args: { rootClusterUri: RootClusterUri }): AgentProcessState;
   getAgentLogs(args: { rootClusterUri: RootClusterUri }): string;
   signalUserInterfaceReadiness(args: { success: boolean }): void;
+  clipboardWriteText(text: string): void;
 };
 
 export type ChildProcessAddresses = {
@@ -264,6 +265,7 @@ export enum RendererIpc {
 
 export enum MainProcessIpc {
   GetRuntimeSettings = 'main-process-get-runtime-settings',
+  ClipboardWriteText = 'main-process-clipboard-write-text',
 }
 
 export enum WindowsManagerIpc {

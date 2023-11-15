@@ -136,6 +136,8 @@ export class MockMainProcessClient implements MainProcessClient {
       filePaths: [],
     };
   }
+
+  clipboardWriteText() {}
 }
 
 export const makeRuntimeSettings = (
