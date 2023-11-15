@@ -397,7 +397,39 @@ func LoadConfig(path string, fs ConfigFS) (*clientcmdapi.Config, error) {
 		config = clientcmdapi.NewConfig()
 	}
 
+	// Now that we are using clientcmd.Load() we need to manually set all of the
+	// object origin values manually. We used to use clientcmd.LoadFile() that
+	// did it for us.
+	setConfigOriginsAndDefaults(config, filename)
+
 	return config, nil
+}
+
+// setConfigOriginsAndDefaults sets up the origin info for the config file.
+func setConfigOriginsAndDefaults(config *clientcmdapi.Config, filename string) {
+	// set LocationOfOrigin on every Cluster, User, and Context
+	for key, obj := range config.AuthInfos {
+		obj.LocationOfOrigin = filename
+		config.AuthInfos[key] = obj
+	}
+	for key, obj := range config.Clusters {
+		obj.LocationOfOrigin = filename
+		config.Clusters[key] = obj
+	}
+	for key, obj := range config.Contexts {
+		obj.LocationOfOrigin = filename
+		config.Contexts[key] = obj
+	}
+
+	if config.AuthInfos == nil {
+		config.AuthInfos = map[string]*clientcmdapi.AuthInfo{}
+	}
+	if config.Clusters == nil {
+		config.Clusters = map[string]*clientcmdapi.Cluster{}
+	}
+	if config.Contexts == nil {
+		config.Contexts = map[string]*clientcmdapi.Context{}
+	}
 }
 
 // Save saves updated config to location specified by environment variable or
