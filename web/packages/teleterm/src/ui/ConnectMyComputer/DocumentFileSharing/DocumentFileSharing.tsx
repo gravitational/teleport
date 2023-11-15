@@ -18,6 +18,14 @@ import React, { useState } from 'react';
 
 import { Flex, Box, Text, ButtonPrimary, Alert, ButtonSecondary } from 'design';
 
+import Toggle from 'teleport/components/Toggle';
+
+import { Cross } from 'design/Icon';
+
+import { Option } from 'shared/components/Select';
+
+import { SelectCreatable } from 'teleport/Discover/Shared/SelectCreatable';
+
 import * as types from 'teleterm/ui/services/workspacesService';
 import Document from 'teleterm/ui/Document';
 
@@ -51,34 +59,49 @@ export function DocumentFileSharing(props: {
     `https://${getFileSharingAppName(cluster.loggedInUser.name)}.${
       cluster.proxyHost
     }`;
+  const [allowedUsersInputValue, setAllowedUsersInputValue] = useState('');
+  const [allowedRolesInputValue, setAllowedRolesInputValue] = useState('');
+  const [allowAnyone, setAllowAnyone] = useState(true);
+  const [allowedUsers, setAllowedUsers] = useState<Option[]>([]);
+  const [allowedRoles, setAllowedRoles] = useState<Option[]>([]);
 
   if (selectedDirectory) {
     appUrl += '/file-sharing';
   }
 
-  async function updateSelectedDirectory(path: string) {
+  async function updateServerConfig(args: {
+    allowAnyone: boolean;
+    path: string;
+    allowedUsersList: Option[];
+    allowedRolesList: Option[];
+  }) {
     await connectMyComputerService.setFileServerConfig({
       clusterUri: rootClusterUri,
       config: {
-        sharesList: path
+        sharesList: args.path
           ? [
               {
                 name: 'file-sharing',
-                path,
-                allowAnyone: true,
-                allowedUsersList: [],
-                allowedRolesList: [],
+                path: args.path,
+                allowAnyone: args.allowAnyone,
+                allowedUsersList:
+                  args.allowedUsersList?.map(r => r.value) || [],
+                allowedRolesList:
+                  args.allowedRolesList?.map(r => r.value) || [],
               },
             ]
           : [],
       },
     });
-    setSelectedDirectory(path);
+    setSelectedDirectory(args.path);
+    setAllowedUsers(args.allowedUsersList);
+    setAllowedRoles(args.allowedRolesList);
+    setAllowAnyone(args.allowAnyone);
   }
 
   return (
     <Document visible={props.visible}>
-      <Box maxWidth="680px" mx="auto" mt="4" px="5" width="100%">
+      <Box maxWidth="850px" mx="auto" mt="4" px="5" width="100%">
         <Text typography="h3" mb="4">
           File Sharing
         </Text>
@@ -93,51 +116,135 @@ export function DocumentFileSharing(props: {
             <ButtonSecondary as="a" target="_blank" href={appUrl}>
               Open app
             </ButtonSecondary>
-          </Flex>
-        </Flex>
-        <Flex
-          flexDirection="column"
-          gap={3}
-          mt={2}
-          p={3}
-          borderRadius={2}
-          width="100%"
-          css={`
-            background: ${props => props.theme.colors.spotBackground[0]};
-          `}
-        >
-          {!selectedDirectory && (
-            <>
-              No directory selected
-              <ButtonPrimary
-                onClick={async () => {
-                  const { filePaths, canceled } =
-                    await mainProcessClient.showDirectorySelectDialog();
-                  if (!canceled) {
-                    updateSelectedDirectory(filePaths[0]);
-                    if (!isRunning) {
-                      startAgent('');
-                    }
-                  }
-                }}
-              >
-                Select & share
-              </ButtonPrimary>
-            </>
-          )}
-          {selectedDirectory && (
-            <>
-              {selectedDirectory}
+            {isRunning && (
               <ButtonPrimary
                 onClick={() => {
-                  updateSelectedDirectory(undefined);
                   killAgent();
                 }}
               >
-                Clear & stop sharing
+                Stop agent
               </ButtonPrimary>
-            </>
-          )}
+            )}
+            {!isRunning && selectedDirectory && (
+              <ButtonPrimary
+                onClick={() => {
+                  startAgent('');
+                }}
+              >
+                Start agent
+              </ButtonPrimary>
+            )}
+          </Flex>
+        </Flex>
+        <Flex gap={6} mt={2}>
+          <Box width={'100%'}>
+            <Flex
+              flexDirection="column"
+              gap={3}
+              mt={2}
+              p={3}
+              borderRadius={2}
+              width="100%"
+              css={`
+                background: ${props => props.theme.colors.spotBackground[0]};
+              `}
+            >
+              <>
+                <Flex justifyContent="space-between">
+                  {selectedDirectory || 'No directory selected'}
+                  {selectedDirectory && (
+                    <Cross
+                      css={`
+                        cursor: pointer;
+                      `}
+                      onClick={() => {
+                        updateServerConfig(undefined);
+                      }}
+                    />
+                  )}
+                </Flex>
+                <ButtonPrimary
+                  onClick={async () => {
+                    const { filePaths, canceled } =
+                      await mainProcessClient.showDirectorySelectDialog();
+                    if (!canceled) {
+                      updateServerConfig({
+                        allowAnyone,
+                        path: filePaths[0],
+                        allowedUsersList: allowedUsers,
+                        allowedRolesList: allowedRoles,
+                      });
+                      if (!isRunning) {
+                        startAgent('');
+                      }
+                    }
+                  }}
+                >
+                  {selectedDirectory ? 'Change directory' : 'Select & share'}
+                </ButtonPrimary>
+              </>
+            </Flex>
+          </Box>
+
+          <Flex
+            flexDirection="column"
+            gap={2}
+            width="260px"
+            css={`
+              flex-shrink: 0;
+            `}
+          >
+            <Text typography="h5">Access controls</Text>
+            <Flex gap={2}>
+              <Toggle
+                isToggled={allowAnyone}
+                onToggle={() => {
+                  const newValue = !allowAnyone;
+                  updateServerConfig({
+                    allowAnyone: newValue,
+                    allowedRolesList: allowedRoles,
+                    allowedUsersList: allowedUsers,
+                    path: selectedDirectory,
+                  });
+                }}
+              />
+              Allow anyone
+            </Flex>
+            {!allowAnyone && (
+              <>
+                <Text>Allow users</Text>
+                <SelectCreatable
+                  inputValue={allowedUsersInputValue}
+                  onInputChange={setAllowedUsersInputValue}
+                  options={[{ label: 'sadf', value: 'sadf' }]}
+                  onChange={users => {
+                    updateServerConfig({
+                      allowAnyone,
+                      path: selectedDirectory,
+                      allowedUsersList: users,
+                      allowedRolesList: allowedRoles,
+                    });
+                  }}
+                  value={allowedUsers}
+                />{' '}
+                <Text>Allow roles</Text>
+                <SelectCreatable
+                  options={[]}
+                  inputValue={allowedRolesInputValue}
+                  onInputChange={setAllowedRolesInputValue}
+                  onChange={roles => {
+                    updateServerConfig({
+                      allowAnyone,
+                      path: selectedDirectory,
+                      allowedUsersList: allowedUsers,
+                      allowedRolesList: roles,
+                    });
+                  }}
+                  value={allowedRoles}
+                />
+              </>
+            )}{' '}
+          </Flex>
         </Flex>
       </Box>
     </Document>
