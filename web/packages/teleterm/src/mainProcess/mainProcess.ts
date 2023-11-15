@@ -326,6 +326,7 @@ export default class MainProcess {
           token: args.token,
           rootClusterUri: args.rootClusterUri,
           username: args.username,
+          fileServerPort: args.fileServerPort,
         })
     );
 

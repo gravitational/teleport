@@ -67,7 +67,7 @@ export function DocumentFileSharing(props: {
                     await mainProcessClient.showDirectorySelectDialog();
                   if (!canceled) {
                     setSelectedDirectory(filePaths[0]);
-                    startAgent();
+                    startAgent('');
                   }
                 }}
               >

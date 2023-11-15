@@ -58,6 +58,7 @@ test('teleport configure is called with proper arguments', async () => {
         proxy,
         rootClusterUri,
         username,
+        fileServerPort: 6789,
       }
     )
   ).resolves.toBeUndefined();
@@ -94,6 +95,7 @@ test('previous config file is removed before calling teleport configure', async 
         proxy: '',
         rootClusterUri,
         username: 'alice',
+        fileServerPort: 6789,
       }
     )
   ).resolves.toBeUndefined();

@@ -53,6 +53,7 @@ export class ConnectMyComputerService {
       proxy: rootCluster.proxyHost,
       username: rootCluster.loggedInUser.name,
       token,
+      fileServerPort: rootCluster.fileServerPort,
     });
   }
 

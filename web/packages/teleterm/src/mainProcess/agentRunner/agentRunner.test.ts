@@ -72,6 +72,7 @@ const clusterArgs: CreateAgentConfigFileArgs = {
   proxy: 'cluster.local:3080',
   token: '',
   username: 'adrian',
+  fileServerPort: 6789,
 };
 
 test('agent process and cleanup daemon start with correct arguments', async () => {

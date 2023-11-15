@@ -29,6 +29,7 @@ export interface CreateAgentConfigFileArgs {
   proxy: string;
   token: string;
   username: string;
+  fileServerPort: number;
 }
 
 export async function createAgentConfigFile(
@@ -189,6 +190,7 @@ export function generateAgentConfig(
     nodename: runtimeSettings.hostname,
     dataDir: dataDirectory,
     labels,
+    fileServerPort: args.fileServerPort,
   });
 }
 
@@ -198,6 +200,7 @@ export function generateConfig(args: {
   nodename: string;
   dataDir: string;
   labels: Record<string, string>;
+  fileServerPort: number;
 }): AgentConfig {
   return {
     version: 'v3',
@@ -226,6 +229,20 @@ export function generateConfig(args: {
     },
     proxy_service: {
       enabled: 'no',
+    },
+    app_service: {
+      enabled: 'yes',
+      apps: [
+        {
+          //TODO: make it random
+          name: 'file-sharing',
+          uri: `http://127.0.0.1:${args.fileServerPort}`,
+          insecure_skip_verify: true,
+          labels: {
+            env: 'test',
+          },
+        },
+      ],
     },
   };
 }
