@@ -916,7 +916,7 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 						types.NewRule(types.KindEvent, services.RW()),
 						types.NewRule(types.KindAppServer, services.RW()),
 						types.NewRule(types.KindClusterNetworkingConfig, services.RO()),
-						types.NewRule(types.KindUser, services.RO()),
+						types.NewRule(types.KindUser, services.RW()),
 						types.NewRule(types.KindUserGroup, services.RW()),
 						types.NewRule(types.KindOktaImportRule, services.RO()),
 						types.NewRule(types.KindOktaAssignment, services.RW()),
@@ -1197,9 +1197,8 @@ func AuthorizeContextWithVerbs(ctx context.Context, log logrus.FieldLogger, auth
 		errs[i] = authCtx.Checker.CheckAccessToRule(ruleCtx, defaults.Namespace, kind, verb, quiet)
 	}
 
-	// Convert generic aggregate error to AccessDenied (auth_with_roles also does this).
 	if err := trace.NewAggregate(errs...); err != nil {
-		return nil, trace.AccessDenied(err.Error())
+		return nil, err
 	}
 	return authCtx, nil
 }

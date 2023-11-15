@@ -250,7 +250,7 @@ func (s *FakeDeviceService) EnrollDevice(stream devicepb.DeviceTrustService_Enro
 	case devicepb.OSType_OS_TYPE_MACOS:
 		cred, pub, err = enrollMacOS(stream, initReq)
 		// err handled below
-	case devicepb.OSType_OS_TYPE_WINDOWS:
+	case devicepb.OSType_OS_TYPE_LINUX, devicepb.OSType_OS_TYPE_WINDOWS:
 		cred, err = enrollTPM(stream, initReq)
 		// err handled below
 	default:
@@ -445,7 +445,7 @@ func (s *FakeDeviceService) AuthenticateDevice(stream devicepb.DeviceTrustServic
 	switch dev.pb.OsType {
 	case devicepb.OSType_OS_TYPE_MACOS:
 		err = authenticateDeviceMacOS(dev, stream)
-	case devicepb.OSType_OS_TYPE_WINDOWS:
+	case devicepb.OSType_OS_TYPE_LINUX, devicepb.OSType_OS_TYPE_WINDOWS:
 		err = authenticateDeviceTPM(stream)
 	default:
 		err = fmt.Errorf("unrecognized os type %q", dev.pb.OsType)

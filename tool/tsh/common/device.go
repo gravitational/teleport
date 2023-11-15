@@ -172,7 +172,7 @@ type deviceCollectCommand struct {
 }
 
 func (c *deviceCollectCommand) run(cf *CLIConf) error {
-	cdd, err := dtnative.CollectDeviceData()
+	cdd, err := dtnative.CollectDeviceData(dtnative.CollectedDataAlwaysEscalate)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -195,7 +195,7 @@ type deviceAssetTagCommand struct {
 }
 
 func (c *deviceAssetTagCommand) run(cf *CLIConf) error {
-	cdd, err := dtnative.CollectDeviceData()
+	cdd, err := dtnative.CollectDeviceData(dtnative.CollectedDataAlwaysEscalate)
 	if err != nil {
 		return trace.Wrap(err)
 	}

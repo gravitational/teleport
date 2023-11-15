@@ -23,6 +23,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/iam"
 	iamTypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
+	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
@@ -74,11 +75,22 @@ func TestConfigureExternalCloudAudit(t *testing.T) {
                 "s3:GetObject",
                 "s3:GetObjectVersion",
                 "s3:ListMultipartUploadParts",
-                "s3:AbortMultipartUpload"
+                "s3:AbortMultipartUpload",
+                "s3:ListBucket",
+                "s3:ListBucketVersions",
+                "s3:ListBucketMultipartUploads",
+                "s3:GetBucketOwnershipControls",
+                "s3:GetBucketPublicAccessBlock",
+                "s3:GetBucketObjectLockConfiguration",
+                "s3:GetBucketVersioning",
+                "s3:GetBucketLocation"
             ],
             "Resource": [
+                "arn:aws:s3:::testbucket_noprefix",
                 "arn:aws:s3:::testbucket_noprefix/*",
+                "arn:aws:s3:::testbucket",
                 "arn:aws:s3:::testbucket/prefix/*",
+                "arn:aws:s3:::transientbucket",
                 "arn:aws:s3:::transientbucket/results/*"
             ],
             "Sid": "ReadWriteSessionsAndEvents"
@@ -143,11 +155,22 @@ func TestConfigureExternalCloudAudit(t *testing.T) {
                 "s3:GetObject",
                 "s3:GetObjectVersion",
                 "s3:ListMultipartUploadParts",
-                "s3:AbortMultipartUpload"
+                "s3:AbortMultipartUpload",
+                "s3:ListBucket",
+                "s3:ListBucketVersions",
+                "s3:ListBucketMultipartUploads",
+                "s3:GetBucketOwnershipControls",
+                "s3:GetBucketPublicAccessBlock",
+                "s3:GetBucketObjectLockConfiguration",
+                "s3:GetBucketVersioning",
+                "s3:GetBucketLocation"
             ],
             "Resource": [
+                "arn:aws-cn:s3:::testbucket_noprefix",
                 "arn:aws-cn:s3:::testbucket_noprefix/*",
+                "arn:aws-cn:s3:::testbucket",
                 "arn:aws-cn:s3:::testbucket/prefix/*",
+                "arn:aws-cn:s3:::transientbucket",
                 "arn:aws-cn:s3:::transientbucket/results/*"
             ],
             "Sid": "ReadWriteSessionsAndEvents"
@@ -237,7 +260,7 @@ func TestConfigureExternalCloudAudit(t *testing.T) {
 				return
 			}
 			require.NoError(t, err, trace.DebugReport(err))
-			require.Equal(t, tc.expectedRolePolicies, currentRolePolicies)
+			require.Equal(t, tc.expectedRolePolicies, currentRolePolicies, cmp.Diff(tc.expectedRolePolicies["test-role"]["test-policy"], currentRolePolicies["test-role"]["test-policy"]))
 		})
 	}
 }
