@@ -6082,3 +6082,25 @@ func (process *TeleportProcess) newExternalAuditStorageConfigurator() (*external
 	statusService := local.NewStatusService(process.backend)
 	return externalauditstorage.NewConfigurator(process.ExitContext(), ecaSvc, integrationSvc, statusService)
 }
+
+func (process *TeleportProcess) reloadLogFile() error {
+	switch process.log.Output {
+	case "":
+		fallthrough
+	case "stderr", "error", "2":
+		fallthrough
+	case "stdout", "out", "1":
+		fallthrough
+	case teleport.Syslog:
+		return trace.BadParameter("log output method is not file: %v", process.log.Output)
+	default:
+		logFile, err := os.OpenFile(process.log.Output, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0640)
+		if err != nil {
+			return trace.Wrap(err, "failed to create the log file")
+		}
+		process.log.SetOutput(logFile)
+		process.Config.Log.SetOutput(logFile)
+	}
+
+	return nil
+}

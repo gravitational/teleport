@@ -61,7 +61,8 @@ func (process *TeleportProcess) WaitForSignals(ctx context.Context) error {
 		syscall.SIGQUIT, // graceful shutdown
 		syscall.SIGTERM, // fast shutdown
 		syscall.SIGINT,  // fast shutdown
-		syscall.SIGUSR1, // log process diagnostic info
+		syscall.SIGINFO, // log process diagnostic info
+		syscall.SIGUSR1, // reopen log files
 		syscall.SIGUSR2, // initiate process restart procedure
 		syscall.SIGHUP,  // graceful restart procedure
 		syscall.SIGCHLD, // collect child status
@@ -95,7 +96,7 @@ func (process *TeleportProcess) WaitForSignals(ctx context.Context) error {
 				<-cancelCtx.Done()
 				process.log.Infof("All services stopped or timeout passed, exiting immediately.")
 				return nil
-			case syscall.SIGUSR1:
+			case syscall.SIGINFO:
 				// All programs placed diagnostics on the standard output.
 				// This had always caused trouble when the output was redirected into a file, but became intolerable
 				// when the output was sent to an unsuspecting process.
@@ -107,6 +108,11 @@ func (process *TeleportProcess) WaitForSignals(ctx context.Context) error {
 				// - Doug McIllroy, "A Research UNIX Reader: Annotated Excerpts from the Programmer’s Manual, 1971-1986"
 				process.log.Infof("Got signal %q, logging diagnostic info to stderr.", signal)
 				writeDebugInfo(os.Stderr)
+			case syscall.SIGUSR1:
+				process.log.Infof("Got signal %q, reopening log file.", signal)
+				if err := process.reloadLogFile(); err != nil {
+					process.log.Warnf("Error reopening log file: %v", err)
+				}
 			case syscall.SIGUSR2:
 				process.log.Infof("Got signal %q, forking a new process.", signal)
 				if err := process.forkChild(); err != nil {
