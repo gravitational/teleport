@@ -27,7 +27,6 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-	"os/user"
 	"sync"
 	"time"
 
@@ -205,11 +204,6 @@ type fileServerConfig struct {
 }
 
 func newFileServer(fsc fileServerConfig) (*fileServer, error) {
-	u, err := user.Current()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	fs := new(fileServer)
 
 	lis, err := net.Listen("tcp", "127.0.0.1:0")
@@ -259,11 +253,10 @@ func newFileServer(fsc fileServerConfig) (*fileServer, error) {
 			return
 		}
 
+		var path string
 		fs.mu.Lock()
-		share, found := fs.shares[shareName]
-		if !found || !share.CanAccess(claims) {
-			http.NotFound(w, r)
-			return
+		if share, ok := fs.shares[shareName]; ok && share.CanAccess(claims) {
+			path = share.Path
 		}
 		fs.mu.Unlock()
 
@@ -277,7 +270,7 @@ func newFileServer(fsc fileServerConfig) (*fileServer, error) {
 
 		log.Infof("all good, serving path %q from share %q to user %q", share.Path, shareName, claims.Username)
 		// TODO(not espadolini): make the listing prettier
-		http.FileServer(http.Dir(share.Path)).ServeHTTP(w, r2)
+		http.FileServer(http.Dir(path)).ServeHTTP(w, r2)
 	})
 
 	fs.srv = http.Server{
