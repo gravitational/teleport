@@ -109,9 +109,9 @@ func (o *ApplicationOutput) Describe() []FileDescription {
 	return fds
 }
 
-func (o ApplicationOutput) MarshalYAML() (interface{}, error) {
+func (o *ApplicationOutput) MarshalYAML() (interface{}, error) {
 	type raw ApplicationOutput
-	return withTypeHeader(raw(o), ApplicationOutputType)
+	return withTypeHeader((*raw)(o), ApplicationOutputType)
 }
 
 func (o *ApplicationOutput) UnmarshalYAML(node *yaml.Node) error {

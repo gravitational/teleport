@@ -3,16 +3,6 @@ title: Setting up self-hosted automatic agent updates
 description: How to setup automatic agent update for self-hosted Teleport
 ---
 
-<Details
-  title="Version warning"
-  opened={true}
-  scope={["enterprise"]}
-  scopeOnly={true}
-  min="13.0"
->
-  Automatic agent update is available starting from Teleport `13.0`.
-</Details>
-
 Teleport supports automatic agent updates for
 systemd-based Linux distributions using `apt`, `yum`, and `zypper` package managers,
 and Kubernetes clusters. The [automatic updates architecture 
@@ -35,7 +25,7 @@ Teleport v13.3.2 forward, including future major releases.
 
 ## Requirements
 
-- Self-hosted Teleport cluster running.
+- Self-hosted Teleport cluster v13.0 or higher.
 - `tctl` execution on the auth machine or a role allowing verbs `create`, `read`,
   `update`, `delete` on the resource `cluster_maintenance_config`.
 - Either:

@@ -95,7 +95,7 @@ func TestTarWriterFileWrite(t *testing.T) {
 
 		require.Equal(t, testContent[i].filename, header.Name)
 		require.Equal(t, testContent[i].filemode, header.Mode)
-		require.Equal(t, len(testContent[i].content), int(header.Size))
+		require.Len(t, testContent[i].content, int(header.Size))
 		require.Equal(t, expectedTime, header.ModTime)
 
 		actualContent := make([]byte, header.Size)
@@ -109,5 +109,5 @@ func TestTarWriterFileWrite(t *testing.T) {
 		i++
 	}
 
-	require.Equal(t, i, len(testContent))
+	require.Len(t, testContent, i)
 }

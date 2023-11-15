@@ -146,8 +146,8 @@ func sendRequestToKubeLocalProxy(t *testing.T, config *clientcmdapi.Config, tele
 	require.NoError(t, err)
 
 	resp, err := client.CoreV1().Pods("default").List(context.Background(), metav1.ListOptions{})
-	require.Nil(t, err)
-	require.GreaterOrEqual(t, len(resp.Items), 1)
+	require.NoError(t, err)
+	require.NotEmpty(t, resp.Items)
 
 	runKubectlExec(t, restConfig)
 }

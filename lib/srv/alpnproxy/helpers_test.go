@@ -220,7 +220,7 @@ func mustReadFromConnection(t *testing.T, conn net.Conn, want string) {
 	buff, err := io.ReadAll(conn)
 	require.NoError(t, err)
 	require.NoError(t, conn.SetReadDeadline(time.Time{}))
-	require.Equal(t, string(buff), want)
+	require.Equal(t, want, string(buff))
 }
 
 func mustCloseConnection(t *testing.T, conn net.Conn) {

@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 type LoggingPurpose int
@@ -48,7 +49,7 @@ const (
 )
 
 // InitLogger configures the global logger for a given purpose / verbosity level
-func InitLogger(purpose LoggingPurpose, level logrus.Level, verbose ...bool) {
+func InitLogger(purpose LoggingPurpose, level logrus.Level) {
 	logrus.StandardLogger().ReplaceHooks(make(logrus.LevelHooks))
 	logrus.SetLevel(level)
 	switch purpose {
@@ -56,15 +57,15 @@ func InitLogger(purpose LoggingPurpose, level logrus.Level, verbose ...bool) {
 		// If debug logging was asked for on the CLI, then write logs to stderr.
 		// Otherwise, discard all logs.
 		if level == logrus.DebugLevel {
-			debugFormatter := NewDefaultTextFormatter(trace.IsTerminal(os.Stderr))
-			debugFormatter.timestampEnabled = true
+			debugFormatter := logutils.NewDefaultTextFormatter(trace.IsTerminal(os.Stderr))
+			_ = debugFormatter.CheckAndSetDefaults()
 			logrus.SetFormatter(debugFormatter)
 			logrus.SetOutput(os.Stderr)
 		} else {
 			logrus.SetOutput(io.Discard)
 		}
 	case LoggingForDaemon:
-		logrus.SetFormatter(NewDefaultTextFormatter(trace.IsTerminal(os.Stderr)))
+		logrus.SetFormatter(logutils.NewDefaultTextFormatter(trace.IsTerminal(os.Stderr)))
 		logrus.SetOutput(os.Stderr)
 	}
 }
@@ -76,7 +77,7 @@ func InitLoggerForTests() {
 
 	logger := logrus.StandardLogger()
 	logger.ReplaceHooks(make(logrus.LevelHooks))
-	logrus.SetFormatter(NewTestJSONFormatter())
+	logrus.SetFormatter(logutils.NewTestJSONFormatter())
 	logger.SetLevel(logrus.DebugLevel)
 	logger.SetOutput(os.Stderr)
 	if testing.Verbose() {
@@ -90,7 +91,7 @@ func InitLoggerForTests() {
 func NewLoggerForTests() *logrus.Logger {
 	logger := logrus.New()
 	logger.ReplaceHooks(make(logrus.LevelHooks))
-	logger.SetFormatter(NewTestJSONFormatter())
+	logger.SetFormatter(logutils.NewTestJSONFormatter())
 	logger.SetLevel(logrus.DebugLevel)
 	logger.SetOutput(os.Stderr)
 	return logger
@@ -105,7 +106,7 @@ func WrapLogger(logger *logrus.Entry) Logger {
 // NewLogger creates a new empty logger
 func NewLogger() *logrus.Logger {
 	logger := logrus.New()
-	logger.SetFormatter(NewDefaultTextFormatter(trace.IsTerminal(os.Stderr)))
+	logger.SetFormatter(logutils.NewDefaultTextFormatter(trace.IsTerminal(os.Stderr)))
 	return logger
 }
 

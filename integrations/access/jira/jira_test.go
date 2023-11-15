@@ -360,7 +360,7 @@ func (s *JiraSuite) TestIssueCreationWithLargeRequestReason() {
 		t.Error("reason not found in issue description")
 		return
 	}
-	require.Equal(t, jiraReasonLimit, len(match[1]))
+	require.Len(t, match[1], jiraReasonLimit)
 }
 
 func (s *JiraSuite) TestReviewComments() {

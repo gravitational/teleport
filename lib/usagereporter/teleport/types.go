@@ -458,13 +458,14 @@ func (u *UserCertificateIssuedEvent) Anonymize(a utils.Anonymizer) prehogv1a.Sub
 	return prehogv1a.SubmitEventRequest{
 		Event: &prehogv1a.SubmitEventRequest_UserCertificateIssuedEvent{
 			UserCertificateIssuedEvent: &prehogv1a.UserCertificateIssuedEvent{
-				UserName:        a.AnonymizeString(u.UserName),
-				Ttl:             u.Ttl,
-				IsBot:           u.IsBot,
-				UsageDatabase:   u.UsageDatabase,
-				UsageApp:        u.UsageApp,
-				UsageKubernetes: u.UsageKubernetes,
-				UsageDesktop:    u.UsageDesktop,
+				UserName:         a.AnonymizeString(u.UserName),
+				Ttl:              u.Ttl,
+				IsBot:            u.IsBot,
+				UsageDatabase:    u.UsageDatabase,
+				UsageApp:         u.UsageApp,
+				UsageKubernetes:  u.UsageKubernetes,
+				UsageDesktop:     u.UsageDesktop,
+				PrivateKeyPolicy: u.PrivateKeyPolicy,
 			},
 		},
 	}
@@ -874,6 +875,22 @@ func (e *DesktopClipboardEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEv
 	}
 }
 
+type TagExecuteQueryEvent prehogv1a.TAGExecuteQueryEvent
+
+// Anonymize anonymizes the event.
+func (e *TagExecuteQueryEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_TagExecuteQuery{
+			TagExecuteQuery: &prehogv1a.TAGExecuteQueryEvent{
+				UserName:   a.AnonymizeString(e.UserName),
+				TotalEdges: e.TotalEdges,
+				TotalNodes: e.TotalNodes,
+				IsSuccess:  e.IsSuccess,
+			},
+		},
+	}
+}
+
 // ConvertUsageEvent converts a usage event from an API object into an
 // anonymizable event. All events that can be submitted externally via the Auth
 // API need to be defined here.
@@ -1273,6 +1290,14 @@ func ConvertUsageEvent(event *usageeventsv1.UsageEventOneOf, userMD UserMetadata
 			UserName:           userMD.Username,
 			CountRolesGranted:  e.AccessListGrantsToUser.CountRolesGranted,
 			CountTraitsGranted: e.AccessListGrantsToUser.CountTraitsGranted,
+		}
+		return ret, nil
+	case *usageeventsv1.UsageEventOneOf_TagExecuteQuery:
+		ret := &TagExecuteQueryEvent{
+			UserName:   userMD.Username,
+			TotalEdges: e.TagExecuteQuery.TotalEdges,
+			TotalNodes: e.TagExecuteQuery.TotalNodes,
+			IsSuccess:  e.TagExecuteQuery.IsSuccess,
 		}
 		return ret, nil
 	default:

@@ -205,7 +205,7 @@ func TestNormalizeECSResourceName(t *testing.T) {
 			require.True(t, validClusterName.Match([]byte(tt.input)))
 			require.True(t, validECSName.Match([]byte(tt.expected)))
 
-			require.Equal(t, normalizeECSResourceName(tt.input), tt.expected)
+			require.Equal(t, tt.expected, normalizeECSResourceName(tt.input))
 		})
 	}
 }

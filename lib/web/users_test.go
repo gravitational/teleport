@@ -58,7 +58,7 @@ func TestRequestParameters(t *testing.T) {
 		Roles:  []string{"testrole"},
 		Traits: userTraits{},
 	}
-	require.Nil(t, r.checkAndSetDefaults())
+	require.NoError(t, r.checkAndSetDefaults())
 }
 
 func TestCRUDs(t *testing.T) {
@@ -92,7 +92,7 @@ func TestCRUDs(t *testing.T) {
 
 	// test create
 	user, err := createUser(newRequest(t, u), m, "")
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.Equal(t, "testname", user.Name)
 	require.Equal(t, "local", user.AuthType)
 	require.Contains(t, user.Roles, "testrole")
@@ -100,22 +100,22 @@ func TestCRUDs(t *testing.T) {
 	// test update
 	u.Roles = []string{"newrole"}
 	user, err = updateUser(newRequest(t, u), m, "")
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.Contains(t, user.Roles, "newrole")
 
 	// test list
 	users, err := getUsers(context.Background(), m)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.Len(t, users, 1)
 	require.Equal(t, "testname", users[0].Name)
 
 	// test delete
 	param := httprouter.Params{httprouter.Param{Key: "username", Value: "testname"}}
 	req, err := http.NewRequest("", "/:username", nil)
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	err = deleteUser(req, param, m, "self")
-	require.Nil(t, err)
+	require.NoError(t, err)
 }
 
 func TestUpdateUser_setTraits(t *testing.T) {
@@ -311,7 +311,7 @@ func TestCRUDErrors(t *testing.T) {
 	// delete errors
 	param := httprouter.Params{httprouter.Param{Key: "username", Value: "testname"}}
 	req, err := http.NewRequest("", "/:username", nil)
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	err = deleteUser(req, param, m, "self")
 	require.True(t, trace.IsNotFound(err))
@@ -319,7 +319,7 @@ func TestCRUDErrors(t *testing.T) {
 	// deleting self error
 	param = httprouter.Params{httprouter.Param{Key: "username", Value: "self"}}
 	req, err = http.NewRequest("", "/:username", nil)
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	err = deleteUser(req, param, m, "self")
 	require.True(t, trace.IsBadParameter(err))
@@ -328,10 +328,10 @@ func TestCRUDErrors(t *testing.T) {
 // newRequest creates http request with given body
 func newRequest(t *testing.T, body interface{}) *http.Request {
 	reqBody, err := json.Marshal(body)
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	req, err := http.NewRequest("", "", bytes.NewBuffer(reqBody))
-	require.Nil(t, err)
+	require.NoError(t, err)
 	req.Header.Add("Content-Type", "application/json")
 
 	return req

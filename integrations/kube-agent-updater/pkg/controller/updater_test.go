@@ -169,7 +169,7 @@ func Test_VersionUpdater_GetVersion(t *testing.T) {
 				require.Nil(t, image)
 			} else {
 				require.NotNil(t, image)
-				require.Equal(t, image.String(), tt.expectedImage)
+				require.Equal(t, tt.expectedImage, image.String())
 			}
 		})
 	}

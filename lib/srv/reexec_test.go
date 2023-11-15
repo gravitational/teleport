@@ -129,7 +129,7 @@ func TestStartNewParker(t *testing.T) {
 						CommandContext: func(ctx context.Context, name string, arg ...string) *exec.Cmd {
 							require.NotNil(t, ctx)
 							require.Len(t, arg, 1)
-							require.Equal(t, arg[0], teleport.ParkSubCommand)
+							require.Equal(t, teleport.ParkSubCommand, arg[0])
 							parkerStarted = true
 							return exec.CommandContext(ctx, name, arg...)
 						},

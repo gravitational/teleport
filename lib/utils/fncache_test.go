@@ -84,7 +84,7 @@ func TestFnCacheGet(t *testing.T) {
 		return value.(int), nil
 	})
 	require.NoError(t, err)
-	require.Equal(t, value2, 123)
+	require.Equal(t, 123, value2)
 
 	value3, err := FnCacheGet(context.Background(), cache, "test", func(ctx context.Context) (string, error) {
 		return "123", nil

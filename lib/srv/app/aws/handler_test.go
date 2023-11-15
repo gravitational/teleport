@@ -415,7 +415,7 @@ func TestAWSSignerHandler(t *testing.T) {
 					require.FailNow(t, "wrong event type", "unexpected event type: wanted %T but got %T", tc.wantEventType, appSessionEvent)
 				}
 			} else {
-				require.Len(t, suite.recorder.C(), 0)
+				require.Empty(t, suite.recorder.C())
 			}
 		})
 	}

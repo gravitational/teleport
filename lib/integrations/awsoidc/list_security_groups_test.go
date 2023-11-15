@@ -101,8 +101,8 @@ func TestListSecurityGroups(t *testing.T) {
 		require.NotEmpty(t, resp.NextToken)
 		require.Len(t, resp.SecurityGroups, pageSize)
 		nextPageToken := resp.NextToken
-		require.Equal(t, resp.SecurityGroups[0].ID, "sg-0")
-		require.Equal(t, resp.SecurityGroups[0].Name, "MySG-0")
+		require.Equal(t, "sg-0", resp.SecurityGroups[0].ID)
+		require.Equal(t, "MySG-0", resp.SecurityGroups[0].Name)
 
 		// Second page must return pageSize number of Endpoints
 		resp, err = ListSecurityGroups(ctx, mockListClient, ListSecurityGroupsRequest{
@@ -113,8 +113,8 @@ func TestListSecurityGroups(t *testing.T) {
 		require.NotEmpty(t, resp.NextToken)
 		require.Len(t, resp.SecurityGroups, pageSize)
 		nextPageToken = resp.NextToken
-		require.Equal(t, resp.SecurityGroups[0].ID, "sg-100")
-		require.Equal(t, resp.SecurityGroups[0].Name, "MySG-100")
+		require.Equal(t, "sg-100", resp.SecurityGroups[0].ID)
+		require.Equal(t, "MySG-100", resp.SecurityGroups[0].Name)
 
 		// Third page must return only the remaining Endpoints and an empty nextToken
 		resp, err = ListSecurityGroups(ctx, mockListClient, ListSecurityGroupsRequest{
@@ -124,8 +124,8 @@ func TestListSecurityGroups(t *testing.T) {
 		require.NoError(t, err)
 		require.Empty(t, resp.NextToken)
 		require.Len(t, resp.SecurityGroups, 3)
-		require.Equal(t, resp.SecurityGroups[0].ID, "sg-200")
-		require.Equal(t, resp.SecurityGroups[0].Name, "MySG-200")
+		require.Equal(t, "sg-200", resp.SecurityGroups[0].ID)
+		require.Equal(t, "MySG-200", resp.SecurityGroups[0].Name)
 	})
 
 	for _, tt := range []struct {
