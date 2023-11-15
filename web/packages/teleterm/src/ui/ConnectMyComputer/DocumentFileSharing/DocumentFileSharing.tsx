@@ -36,12 +36,16 @@ export function DocumentFileSharing(props: {
   visible: boolean;
   doc: types.DocumentFileSharing;
 }) {
-  const { mainProcessClient, connectMyComputerService, clustersService } = useAppContext();
+  const { mainProcessClient, connectMyComputerService, clustersService } =
+    useAppContext();
   const { rootClusterUri } = useWorkspaceContext();
   const { currentAction, killAgent, startAgent } =
     useConnectMyComputerContext();
   const cluster = clustersService.findCluster(rootClusterUri);
   const [selectedDirectory, setSelectedDirectory] = useState<string>();
+  const isRunning =
+    currentAction.kind === 'observe-process' &&
+    currentAction.agentProcessState.status === 'running';
   const appUrl =
     cluster?.loggedInUser &&
     `https://${getFileSharingAppName(cluster.loggedInUser.name)}.${
@@ -100,7 +104,9 @@ export function DocumentFileSharing(props: {
                     await mainProcessClient.showDirectorySelectDialog();
                   if (!canceled) {
                     updateSelectedDirectory(filePaths[0]);
-                    startAgent('');
+                    if (!isRunning) {
+                      startAgent('');
+                    }
                   }
                 }}
               >
