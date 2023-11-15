@@ -109,7 +109,7 @@ func newConsumer(cfg Config, cancelFn context.CancelFunc, metricConsumerBatchPro
 	collectCfg := sqsCollectConfig{
 		sqsReceiver: sqsClient,
 		queueURL:    cfg.QueueURL,
-		// TODO(tobiaszheller): use s3 manager from teleport observability.
+		// TODO(nklaassen): use s3 manager from teleport observability.
 		payloadDownloader:                     manager.NewDownloader(s3.NewFromConfig(*cfg.PublisherConsumerAWSConfig)),
 		payloadBucket:                         cfg.largeEventsBucket,
 		visibilityTimeout:                     int32(cfg.BatchMaxInterval.Seconds()),

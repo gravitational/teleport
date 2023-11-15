@@ -19,7 +19,6 @@ package local
 import (
 	"context"
 	"errors"
-	"sync"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -30,8 +29,6 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 )
-
-var ErrClusterExternalCloudAuditWatcherClosed = errors.New("cluster external cloud audit watcher closed")
 
 // ClusterExternalCloudAuditWatcherConfig contains configuration options for a ClusterExternalAuditWatcher.
 type ClusterExternalCloudAuditWatcherConfig struct {
@@ -65,11 +62,13 @@ func (cfg *ClusterExternalCloudAuditWatcherConfig) CheckAndSetDefaults() error {
 
 // ClusterExternalAuditWatcher is a light weight backend watcher for the cluster external audit resource.
 type ClusterExternalAuditWatcher struct {
-	ClusterExternalCloudAuditWatcherConfig
-	retry retryutils.Retry
-	sync.Mutex
-	closed  chan struct{}
-	running chan struct{}
+	backend     backend.Backend
+	log         logrus.FieldLogger
+	clock       clockwork.Clock
+	onChange    func()
+	retry       retryutils.Retry
+	initialized chan struct{}
+	done        chan struct{}
 }
 
 // NewClusterExternalAuditWatcher creates a new cluster external audit resource watcher.
@@ -80,8 +79,6 @@ func NewClusterExternalAuditWatcher(ctx context.Context, cfg ClusterExternalClou
 	}
 
 	retry, err := retryutils.NewRetryV2(retryutils.RetryV2Config{
-		// This needs to be started before the ExternalCloudAudit Configurator,
-		// which needs to be started before Auth.
 		First:  defaults.HighResPollingPeriod,
 		Driver: retryutils.NewExponentialDriver(defaults.HighResPollingPeriod),
 		Max:    defaults.LowResPollingPeriod,
@@ -93,10 +90,13 @@ func NewClusterExternalAuditWatcher(ctx context.Context, cfg ClusterExternalClou
 	}
 
 	w := &ClusterExternalAuditWatcher{
-		ClusterExternalCloudAuditWatcherConfig: cfg,
-		retry:                                  retry,
-		closed:                                 make(chan struct{}),
-		running:                                make(chan struct{}),
+		backend:     cfg.Backend,
+		log:         cfg.Log,
+		clock:       cfg.Clock,
+		onChange:    cfg.OnChange,
+		retry:       retry,
+		initialized: make(chan struct{}),
+		done:        make(chan struct{}),
 	}
 
 	go w.runWatchLoop(ctx)
@@ -107,37 +107,25 @@ func NewClusterExternalAuditWatcher(ctx context.Context, cfg ClusterExternalClou
 // WaitInit waits for the watch loop to initialize.
 func (w *ClusterExternalAuditWatcher) WaitInit(ctx context.Context) error {
 	select {
-	case <-w.running:
+	case <-w.initialized:
+	case <-w.done:
 	case <-ctx.Done():
+		return trace.Wrap(ctx.Err())
 	}
-	return trace.Wrap(ctx.Err())
-}
-
-// Done returns a channel that's closed when the watcher is closed.
-func (w *ClusterExternalAuditWatcher) Done() <-chan struct{} {
-	return w.closed
-}
-
-func (w *ClusterExternalAuditWatcher) close() {
-	w.Lock()
-	defer w.Unlock()
-	close(w.closed)
+	return nil
 }
 
 func (w *ClusterExternalAuditWatcher) runWatchLoop(ctx context.Context) {
-	defer w.close()
+	defer close(w.done)
 	for {
 		err := w.watch(ctx)
 
-		startedWaiting := w.Clock.Now()
+		startedWaiting := w.clock.Now()
 		select {
 		case t := <-w.retry.After():
-			w.Log.Warningf("Restarting watch on error after waiting %v. Error: %v.", t.Sub(startedWaiting), err)
+			w.log.Warningf("Restarting watch on error after waiting %v. Error: %v.", t.Sub(startedWaiting), err)
 			w.retry.Inc()
 		case <-ctx.Done():
-			return
-		case <-w.closed:
-			w.Log.Debug("Watcher closed. Returning from watch loop.")
 			return
 		}
 	}
@@ -152,19 +140,18 @@ func (w *ClusterExternalAuditWatcher) watch(ctx context.Context) error {
 	for {
 		select {
 		case <-watcher.Events():
-			w.Log.Infof("Detected change to cluster ExternalCloudAudit config")
-			w.OnChange()
+			w.log.Infof("Detected change to cluster ExternalCloudAudit config")
+			w.onChange()
 		case <-watcher.Done():
 			return errors.New("watcher closed")
 		case <-ctx.Done():
 			return ctx.Err()
-		case w.running <- struct{}{}:
 		}
 	}
 }
 
 func (w *ClusterExternalAuditWatcher) newWatcher(ctx context.Context) (backend.Watcher, error) {
-	watcher, err := w.Backend.NewWatcher(ctx, backend.Watch{
+	watcher, err := w.backend.NewWatcher(ctx, backend.Watch{
 		Name:     types.KindExternalCloudAudit,
 		Prefixes: [][]byte{clusterExternalCloudAuditBackendKey},
 	})
@@ -181,6 +168,7 @@ func (w *ClusterExternalAuditWatcher) newWatcher(ctx context.Context) (backend.W
 		if event.Type != types.OpInit {
 			return nil, trace.BadParameter("expected init event, got %v instead", event.Type)
 		}
+		close(w.initialized)
 	}
 
 	w.retry.Reset()

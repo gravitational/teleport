@@ -386,7 +386,7 @@ func (cfg *Config) SetFromURL(url *url.URL) error {
 	return nil
 }
 
-func (cfg *Config) UpdateForExternalCloudAudit(ctx context.Context, spec *externalcloudaudit.ExternalCloudAuditSpec, credentialsProvider aws.CredentialsProvider) error {
+func (cfg *Config) UpdateForExternalCloudAudit(spec *externalcloudaudit.ExternalCloudAuditSpec, credentialsProvider aws.CredentialsProvider) error {
 	cfg.LocationS3 = spec.AuditEventsLongTermURI
 	cfg.Workgroup = spec.AthenaWorkgroup
 	cfg.QueryResultsS3 = spec.AthenaResultsURI
