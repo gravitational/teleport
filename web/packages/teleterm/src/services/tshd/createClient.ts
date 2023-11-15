@@ -22,18 +22,24 @@ import {
   ResourceID,
 } from 'gen-proto-js/teleport/lib/teleterm/v1/access_request_pb';
 
+import {
+  FileServerConfig,
+  FileServerShare,
+  SetFileServerConfigRequest,
+} from 'gen-proto-js/teleport/lib/teleterm/v1/fileserver_pb';
+
 import Logger from 'teleterm/logger';
 import * as uri from 'teleterm/ui/uri';
 
 import { createFileTransferStream } from './createFileTransferStream';
 import middleware, { withLogging } from './middleware';
 import * as types from './types';
-import createAbortController from './createAbortController';
-import { mapUsageEvent } from './mapUsageEvent';
 import {
   ReportUsageEventRequest,
   UpdateHeadlessAuthenticationStateParams,
 } from './types';
+import createAbortController from './createAbortController';
+import { mapUsageEvent } from './mapUsageEvent';
 
 export default function createClient(
   addr: string,
@@ -854,6 +860,37 @@ export default function createClient(
             });
           }
         );
+      });
+    },
+
+    setFileServerConfig(
+      params: SetFileServerConfigRequest.AsObject,
+      abortSignal?: types.TshAbortSignal
+    ) {
+      return withAbort(abortSignal, callRef => {
+        const req = new SetFileServerConfigRequest()
+          .setClusterUri(params.clusterUri)
+          .setConfig(
+            new FileServerConfig().setSharesList(
+              params.config.sharesList.map(param =>
+                new FileServerShare()
+                  .setName(param.name)
+                  .setAllowAnyone(param.allowAnyone)
+                  .setPath(param.path)
+                  .setAllowedUsersList(param.allowedUsersList)
+                  .setAllowedRolesList(param.allowedRolesList)
+              )
+            )
+          );
+        return new Promise<void>((resolve, reject) => {
+          callRef.current = tshd.setFileServerConfig(req, err => {
+            if (err) {
+              reject(err);
+            } else {
+              resolve();
+            }
+          });
+        });
       });
     },
   };

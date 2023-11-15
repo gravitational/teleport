@@ -21,6 +21,7 @@ import {
   Server,
   TshAbortSignal,
   TshClient,
+  SetFileServerConfigRequest,
 } from 'teleterm/services/tshd/types';
 
 import type * as uri from 'teleterm/ui/uri';
@@ -97,6 +98,10 @@ export class ConnectMyComputerService {
   ): Promise<void> {
     await this.killAgent(rootClusterUri);
     await this.mainProcessClient.removeAgentDirectory({ rootClusterUri });
+  }
+
+  async setFileServerConfig(req: SetFileServerConfigRequest): Promise<void> {
+    await this.tshClient.setFileServerConfig(req);
   }
 
   async waitForNodeToJoin(

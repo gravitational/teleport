@@ -35,6 +35,7 @@ import apiService, {
 import apiAuthSettings from 'gen-proto-js/teleport/lib/teleterm/v1/auth_settings_pb';
 import apiAccessRequest from 'gen-proto-js/teleport/lib/teleterm/v1/access_request_pb';
 import apiUsageEvents from 'gen-proto-js/teleport/lib/teleterm/v1/usage_events_pb';
+import fileServer from 'gen-proto-js/teleport/lib/teleterm/v1/fileserver_pb';
 
 import * as uri from 'teleterm/ui/uri';
 
@@ -42,6 +43,7 @@ import * as uri from 'teleterm/ui/uri';
 // to alias it first to do the reexport.
 // https://www.typescriptlang.org/docs/handbook/namespaces.html#aliases
 import UserType = apiCluster.LoggedInUser.UserType;
+
 export { UserType };
 
 export interface Kube extends apiKube.Kube.AsObject {
@@ -182,6 +184,11 @@ export type WebauthnLoginCredentialPrompt = {
   data: { credentials: WebauthnCredentialInfo[] };
   onUserResponse(index: number): void;
 };
+
+export type SetFileServerConfigRequest =
+  fileServer.SetFileServerConfigRequest.AsObject;
+export type SetFileServerConfigResponse =
+  fileServer.SetFileServerConfigResponse.AsObject;
 export type LoginPasswordlessRequest =
   Partial<apiService.LoginPasswordlessRequest.AsObject>;
 
@@ -283,6 +290,7 @@ export type TshClient = {
     params: apiService.ListUnifiedResourcesRequest.AsObject,
     abortSignal?: TshAbortSignal
   ) => Promise<ListUnifiedResourcesResponse>;
+  setFileServerConfig: (req: SetFileServerConfigRequest) => Promise<void>;
 };
 
 export type TshAbortController = {

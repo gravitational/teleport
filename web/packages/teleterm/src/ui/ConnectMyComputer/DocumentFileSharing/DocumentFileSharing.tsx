@@ -36,7 +36,7 @@ export function DocumentFileSharing(props: {
   visible: boolean;
   doc: types.DocumentFileSharing;
 }) {
-  const { mainProcessClient, clustersService } = useAppContext();
+  const { mainProcessClient, connectMyComputerService, clustersService } = useAppContext();
   const { rootClusterUri } = useWorkspaceContext();
   const { currentAction, killAgent, startAgent } =
     useConnectMyComputerContext();
@@ -47,6 +47,26 @@ export function DocumentFileSharing(props: {
     `https://${getFileSharingAppName(cluster.loggedInUser.name)}.${
       cluster.proxyHost
     }`;
+
+  async function updateSelectedDirectory(path: string) {
+    await connectMyComputerService.setFileServerConfig({
+      clusterUri: rootClusterUri,
+      config: {
+        sharesList: path
+          ? [
+              {
+                name: 'file-sharing',
+                path,
+                allowAnyone: true,
+                allowedUsersList: [],
+                allowedRolesList: [],
+              },
+            ]
+          : [],
+      },
+    });
+    setSelectedDirectory(path);
+  }
 
   return (
     <Document visible={props.visible}>
@@ -79,7 +99,7 @@ export function DocumentFileSharing(props: {
                   const { filePaths, canceled } =
                     await mainProcessClient.showDirectorySelectDialog();
                   if (!canceled) {
-                    setSelectedDirectory(filePaths[0]);
+                    updateSelectedDirectory(filePaths[0]);
                     startAgent('');
                   }
                 }}
@@ -93,7 +113,7 @@ export function DocumentFileSharing(props: {
               {selectedDirectory}
               <ButtonPrimary
                 onClick={() => {
-                  setSelectedDirectory(undefined);
+                  updateSelectedDirectory(undefined);
                   killAgent();
                 }}
               >
