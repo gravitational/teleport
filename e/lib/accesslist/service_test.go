@@ -690,10 +690,13 @@ func initSvc(t *testing.T) (userContext context.Context, ownerContext context.Co
 	storage, err := local.NewAccessListService(backend, clock)
 	require.NoError(t, err)
 
+	locks := local.NewAccessService(backend)
+
 	usageEvents = &usageEventsClient{}
 	svc, err = NewService(ServiceConfig{
 		Authorizer:          authorizer,
 		AccessLists:         storage,
+		LockGetter:          locks,
 		AccessListReviews:   storage,
 		Emitter:             emitter,
 		UsageEvents:         usageEvents,

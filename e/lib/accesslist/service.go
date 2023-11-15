@@ -84,6 +84,9 @@ type ServiceConfig struct {
 	// AccessLists is the access list service to use.
 	AccessLists services.AccessLists
 
+	// LockGetter is a getter for locks.
+	LockGetter services.LockGetter
+
 	// AccessListReviews is the access list reviews service to use.
 	AccessListReviews services.AccessListReviews
 
@@ -115,6 +118,10 @@ func (c *ServiceConfig) checkAndSetDefaults() error {
 
 	if c.AccessLists == nil {
 		return trace.BadParameter("accesslists service is missing")
+	}
+
+	if c.LockGetter == nil {
+		return trace.BadParameter("lockgetter service is missing")
 	}
 
 	if c.AccessListReviews == nil {
@@ -158,6 +165,7 @@ type Service struct {
 	log               logrus.FieldLogger
 	authorizer        authz.Authorizer
 	accessLists       services.AccessLists
+	membershipChecker *services.AccessListMembershipChecker
 	accessListReviews services.AccessListReviews
 	usageEvents       UsageEventsClient
 	emitter           apievents.Emitter
@@ -176,9 +184,11 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 	}
 
 	return &Service{
-		log:               cfg.Logger,
-		authorizer:        cfg.Authorizer,
-		accessLists:       cfg.AccessLists,
+		log:         cfg.Logger,
+		authorizer:  cfg.Authorizer,
+		accessLists: cfg.AccessLists,
+		membershipChecker: services.NewAccessListMembershipChecker(
+			cfg.Clock, cfg.AccessLists, cfg.LockGetter),
 		accessListReviews: cfg.AccessListReviews,
 		usageEvents:       cfg.UsageEvents,
 		emitter:           cfg.Emitter,
@@ -280,7 +290,7 @@ func (s *Service) filterResults(ctx context.Context, results []*accesslist.Acces
 		for _, result := range results {
 			if err := services.IsAccessListOwner(identity, result); err == nil {
 				filteredResults = append(filteredResults, result)
-			} else if err := services.IsAccessListMember(ctx, identity, s.clock, result, s.accessLists); err == nil {
+			} else if err := s.membershipChecker.IsAccessListMember(ctx, identity, result); err == nil {
 				filteredResults = append(filteredResults, result)
 			}
 		}
@@ -321,7 +331,7 @@ func (s *Service) GetAccessList(ctx context.Context, req *accesslistv1.GetAccess
 		// Check if the user's an owner. If not, then we'll check if the user is a member. If neither are
 		// true, we'll return the original auth error.
 		if ownerErr := services.IsAccessListOwner(identity, result); ownerErr != nil {
-			if memberErr := services.IsAccessListMember(ctx, identity, s.clock, result, s.accessLists); memberErr != nil {
+			if memberErr := s.membershipChecker.IsAccessListMember(ctx, identity, result); memberErr != nil {
 				return nil, trace.Wrap(authErr)
 			}
 		}

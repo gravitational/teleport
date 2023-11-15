@@ -245,6 +245,7 @@ func (p *Plugin) RegisterAuthServices(ctx context.Context, server interface{}) e
 	accessListSvc, err := accesslist.NewService(accesslist.ServiceConfig{
 		Authorizer:          p.authServer.Authorizer,
 		AccessLists:         accessListStorage,
+		LockGetter:          p.authServer.AuthServer,
 		AccessListReviews:   accessListStorage,
 		Emitter:             p.authServer.Emitter,
 		UsageEvents:         p.authServer.AuthServer,
