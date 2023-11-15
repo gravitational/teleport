@@ -763,7 +763,7 @@ type Server struct {
 	// the auth server. It can be overridden for the purpose of tests.
 	circleCITokenValidate func(ctx context.Context, organizationID, token string) (*circleci.IDTokenClaims, error)
 
-	notificationSender func(ctx context.Context, username string, title string, body string) error
+	notificationSender func(ctx context.Context, username string, title string, body string, category string) error
 
 	// k8sTokenReviewValidator allows tokens from Kubernetes to be validated
 	// by the auth server using k8s Token Review API. It can be overridden for
@@ -4411,6 +4411,7 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 					"A new access request from %s is ready for review",
 					req.GetUser(),
 				),
+				"ACCESS_REQUEST",
 			)
 			if err != nil {
 				log.WithError(err).Error("failed to notify")
@@ -4630,6 +4631,7 @@ func (a *Server) submitAccessReview(
 				state,
 				params.Review.Author,
 			),
+			"",
 		)
 		if err != nil {
 			log.WithError(err).Error("failed to notify")

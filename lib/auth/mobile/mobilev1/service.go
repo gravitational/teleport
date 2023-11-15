@@ -290,7 +290,7 @@ func (s *Service) RegisterDeviceNotifications(ctx context.Context, req *mobilev1
 	return &mobilev1pb.RegisterDeviceNotificationsResponse{}, nil
 }
 
-func (s *Service) Notify(ctx context.Context, username string, title string, body string) error {
+func (s *Service) Notify(ctx context.Context, username string, title string, body string, category string) error {
 	cluster, err := s.authServer.GetClusterName()
 	if err != nil {
 		return trace.Wrap(err, "getting cluster name")
@@ -304,6 +304,7 @@ func (s *Service) Notify(ctx context.Context, username string, title string, bod
 
 	for _, deviceID := range u.GetMobileDeviceIDs() {
 		_, err = s.notificationsSvc.SendNotification(ctx, &mobilenotificationsv1pb.SendNotificationRequest{
+			Category:   category,
 			ClusterId:  clusterID,
 			DeviceUuid: deviceID,
 			Title:      title,

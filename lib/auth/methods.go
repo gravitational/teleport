@@ -184,6 +184,7 @@ func (a *Server) AuthenticateUser(ctx context.Context, req AuthenticateUserReque
 				"A new login to your account has been detected from: %s - %s",
 				req.ClientMetadata.RemoteAddr,
 				req.ClientMetadata.UserAgent),
+			"",
 		)
 		if err != nil {
 			log.WithError(err).Error("failed to notify")
