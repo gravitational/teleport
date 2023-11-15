@@ -419,7 +419,8 @@ func newAccessListMembers(t *testing.T, clock clockwork.Clock, accessList string
 	return alMembers
 }
 
-func newUserLoginState(t *testing.T, name string, originalRoles []string, originalTraits map[string][]string, roles []string, traits map[string][]string) *userloginstate.UserLoginState {
+func newUserLoginState(t *testing.T, name string, originalRoles []string, originalTraits map[string][]string,
+	roles []string, traits map[string][]string) *userloginstate.UserLoginState {
 	t.Helper()
 
 	uls, err := userloginstate.New(header.Metadata{
