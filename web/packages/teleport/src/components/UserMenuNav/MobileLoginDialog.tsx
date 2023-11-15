@@ -117,8 +117,8 @@ export function MobileLoginDialog({
             >
               <QRCode
                 css={`
-                  width: 240px;
-                  height: 240px;
+                  width: 420px;
+                  height: 420px;
                   border: 6px solid white;
                 `}
                 value={qrContent}
@@ -126,7 +126,7 @@ export function MobileLoginDialog({
               <span
                 css={`
                   position: absolute;
-                  font-size: 80px;
+                  font-size: 115px;
                   filter: drop-shadow(1px 0 0 #fff) drop-shadow(-1px 0 0 #fff)
                     drop-shadow(0 1px 0 #fff) drop-shadow(0 -1px 0 #fff)
                     drop-shadow(1px 1px 0 #fff) drop-shadow(-1px -1px 0 #fff)
