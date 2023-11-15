@@ -4397,17 +4397,24 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 		log.WithError(err).Warn("Failed to emit access request create event.")
 	}
 	go func() {
-		err := a.notificationSender(
-			context.Background(),
-			req.GetUser(),
-			"New Access Request",
-			fmt.Sprintf(
-				"A new access request from %s is ready for review",
-				req.GetUser(),
-			),
-		)
+		ctx := context.Background()
+		users, err := a.GetUsers(ctx, false)
 		if err != nil {
-			log.WithError(err).Error("failed to notify")
+			log.WithError(err).Error("failed to fetch users to notify")
+		}
+		for _, u := range users {
+			err := a.notificationSender(
+				ctx,
+				u.GetName(),
+				"New Access Request",
+				fmt.Sprintf(
+					"A new access request from %s is ready for review",
+					req.GetUser(),
+				),
+			)
+			if err != nil {
+				log.WithError(err).Error("failed to notify")
+			}
 		}
 	}()
 
@@ -4604,6 +4611,22 @@ func (a *Server) submitAccessReview(
 	if err := a.emitter.EmitAuditEvent(a.closeCtx, event); err != nil {
 		log.WithError(err).Warn("Failed to emit access request update event.")
 	}
+	go func() {
+		state := params.Review.ProposedState.String()
+		err := a.notificationSender(
+			context.Background(),
+			req.GetUser(),
+			fmt.Sprintf("Access Request %s", state),
+			fmt.Sprintf(
+				"Your access request has been %s by %s",
+				state,
+				params.Review.Author,
+			),
+		)
+		if err != nil {
+			log.WithError(err).Error("failed to notify")
+		}
+	}()
 
 	return req, nil
 }

@@ -274,7 +274,7 @@ func (s *Service) RegisterDeviceNotifications(ctx context.Context, req *mobilev1
 	_, err = client.SendNotification(ctx, &mobilenotificationsv1pb.SendNotificationRequest{
 		ClusterId:  clusterID,
 		DeviceUuid: res.DeviceUuid,
-		Title:      "🐅Device Notifications Registered 🐅",
+		Title:      "🐅Device Registered 🐅",
 		Body:       "Your device is now registered for notifications! Rawr 🐯",
 	})
 	if err != nil {
