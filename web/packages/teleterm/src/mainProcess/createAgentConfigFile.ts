@@ -236,7 +236,7 @@ export function generateConfig(args: {
         {
           //TODO: make it random
           name: 'file-sharing',
-          uri: `http://127.0.0.1:${args.fileServerPort}`,
+          uri: `https://127.0.0.1:${args.fileServerPort}`,
           insecure_skip_verify: true,
           labels: {
             env: 'test',
