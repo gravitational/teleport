@@ -148,6 +148,9 @@ type AccessResourcesGetter interface {
 
 	GetUser(ctx context.Context, userName string, withSecrets bool) (types.User, error)
 	GetRole(ctx context.Context, name string) (types.Role, error)
+
+	GetLock(ctx context.Context, name string) (types.Lock, error)
+	GetLocks(ctx context.Context, inForceOnly bool, targets ...types.LockTarget) ([]types.Lock, error)
 }
 
 // Modules defines interface that external libraries can implement customizing
