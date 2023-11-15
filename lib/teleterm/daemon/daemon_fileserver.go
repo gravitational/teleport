@@ -268,7 +268,7 @@ func newFileServer(fsc fileServerConfig) (*fileServer, error) {
 		r2.URL.Path = filePath
 		r2.URL.RawPath = ""
 
-		log.Infof("all good, serving path %q from share %q to user %q", share.Path, shareName, claims.Username)
+		log.Infof("all good, serving path %q from share %q to user %q", path, shareName, claims.Username)
 		// TODO(not espadolini): make the listing prettier
 		http.FileServer(http.Dir(path)).ServeHTTP(w, r2)
 	})
