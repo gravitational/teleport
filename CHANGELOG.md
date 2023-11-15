@@ -2,6 +2,8 @@
 
 ## 14.1.4 (11/15/2023)
 
+* Access lists now respect user locking. [#34620](https://github.com/gravitational/teleport/pull/34620)
+* Respect explicit deny rules for Access Requests. [#34600](https://github.com/gravitational/teleport/pull/34600)
 * Added Teleport Access Graph integration. [#34569](https://github.com/gravitational/teleport/pull/34569)
 * Fixed cleanup of unused GCP KMS keys. [#34468](https://github.com/gravitational/teleport/pull/34468)
 * Added list view option to the unified resources page. [#34466](https://github.com/gravitational/teleport/pull/34466)
