@@ -48,4 +48,5 @@ message RedeemAuthTokenResponse {
   bytes ssh_cert = 2;
   bytes tls_cert = 3;
   repeated bytes tls_ca_certs = 4;
+  string cluster_name = 5;
 }

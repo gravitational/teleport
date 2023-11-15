@@ -149,11 +149,7 @@ func (s *Service) CreateAuthToken(ctx context.Context, req *mobilev1pb.CreateAut
 	return &mobilev1pb.CreateAuthTokenResponse{Token: token}, nil
 }
 
-func (s *Service) verifyToken(ctx context.Context, token string) (username string, err error) {
-	clusterName, err := s.jwtSigner.GetDomainName()
-	if err != nil {
-		return "", trace.Wrap(err, "getting cluster name")
-	}
+func (s *Service) verifyToken(ctx context.Context, clusterName string, token string) (username string, err error) {
 	ca, err := s.jwtSigner.GetCertAuthority(ctx, types.CertAuthID{
 		Type:       caType,
 		DomainName: clusterName,
@@ -188,7 +184,12 @@ func (s *Service) RedeemAuthToken(ctx context.Context, req *mobilev1pb.RedeemAut
 		return nil, trace.BadParameter("public_key must be provided")
 	}
 
-	username, err := s.verifyToken(ctx, req.Token)
+	clusterName, err := s.jwtSigner.GetDomainName()
+	if err != nil {
+		return nil, trace.Wrap(err, "getting cluster name")
+	}
+
+	username, err := s.verifyToken(ctx, clusterName, req.Token)
 	if err != nil {
 		return nil, trace.Wrap(err, "verifying token")
 	}
@@ -210,9 +211,10 @@ func (s *Service) RedeemAuthToken(ctx context.Context, req *mobilev1pb.RedeemAut
 	}
 
 	return &mobilev1pb.RedeemAuthTokenResponse{
-		Username:   username,
-		TlsCert:    certs.TLS,
-		SshCert:    certs.SSH,
-		TlsCaCerts: certs.TLSCACerts,
+		Username:    username,
+		TlsCert:     certs.TLS,
+		SshCert:     certs.SSH,
+		TlsCaCerts:  certs.TLSCACerts,
+		ClusterName: clusterName,
 	}, nil
 }
