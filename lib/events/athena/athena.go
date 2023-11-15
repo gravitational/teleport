@@ -275,8 +275,7 @@ func (cfg *Config) CheckAndSetDefaults(ctx context.Context) error {
 	}
 
 	if cfg.StorerQuerierAWSConfig == nil {
-		cp := cfg.PublisherConsumerAWSConfig.Copy()
-		cfg.StorerQuerierAWSConfig = &cp
+		cfg.StorerQuerierAWSConfig = cfg.PublisherConsumerAWSConfig
 	}
 
 	if cfg.Backend == nil {
@@ -386,13 +385,23 @@ func (cfg *Config) SetFromURL(url *url.URL) error {
 	return nil
 }
 
-func (cfg *Config) UpdateForExternalCloudAudit(spec *externalcloudaudit.ExternalCloudAuditSpec, credentialsProvider aws.CredentialsProvider) error {
+func (cfg *Config) UpdateForExternalCloudAudit(ctx context.Context, spec *externalcloudaudit.ExternalCloudAuditSpec, credentialsProvider aws.CredentialsProvider) error {
 	cfg.LocationS3 = spec.AuditEventsLongTermURI
 	cfg.Workgroup = spec.AthenaWorkgroup
 	cfg.QueryResultsS3 = spec.AthenaResultsURI
 	cfg.Database = spec.GlueDatabase
 	cfg.TableName = spec.GlueTable
-	cfg.StorerQuerierAWSConfig.Credentials = credentialsProvider
+
+	awsCfg, err := awsconfig.LoadDefaultConfig(ctx,
+		awsconfig.WithRegion(cfg.Region),
+		awsconfig.WithCredentialsProvider(credentialsProvider),
+	)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	otelaws.AppendMiddlewares(&awsCfg.APIOptions)
+	cfg.StorerQuerierAWSConfig = &awsCfg
+
 	return nil
 }
 
