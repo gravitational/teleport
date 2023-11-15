@@ -8,12 +8,14 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/e/lib/accessgraph"
 	"github.com/gravitational/teleport/e/lib/auth"
 	"github.com/gravitational/teleport/e/lib/cloud/feature"
 	"github.com/gravitational/teleport/e/lib/db/oracle"
 	"github.com/gravitational/teleport/e/lib/licensefile"
 	"github.com/gravitational/teleport/e/lib/services"
 	"github.com/gravitational/teleport/e/lib/web"
+	accessgraphv1 "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/plugin"
@@ -103,7 +105,11 @@ func NewTeleport(cfg *servicecfg.Config) (service.Process, error) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-
+		if cfg.AccessGraph.Enabled {
+			if err := accessgraph.RegisterAccessGraphService(cfg, ossProcess, license); err != nil {
+				return nil, trace.Wrap(err)
+			}
+		}
 		return authProcess, nil
 	}
 
@@ -112,7 +118,22 @@ func NewTeleport(cfg *servicecfg.Config) (service.Process, error) {
 
 func addPlugins(cfg *servicecfg.Config, license *licensefile.LicenseFile) (webPlugin *web.Plugin, authPlugin *auth.Plugin, err error) {
 	pluginRegistry := plugin.NewRegistry()
-
+	var agClient accessgraphv1.AccessGraphServiceClient
+	if cfg.Auth.Enabled && cfg.AccessGraph.Enabled {
+		agConn, err := accessgraph.NewAccessGraphClient(
+			context.Background(),
+			accessgraph.ServiceClientConfig{
+				Addr:     cfg.AccessGraph.Addr,
+				CA:       cfg.AccessGraph.CA,
+				License:  license,
+				Insecure: cfg.AccessGraph.Insecure,
+			},
+		)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+		agClient = accessgraphv1.NewAccessGraphServiceClient(agConn)
+	}
 	if cfg.Proxy.Enabled {
 		var pluginShimURL *url.URL
 		if urlVal := os.Getenv(pluginShimURLEnvVar); urlVal != "" {
@@ -127,7 +148,8 @@ func addPlugins(cfg *servicecfg.Config, license *licensefile.LicenseFile) (webPl
 		}
 
 		webPlugin, err = web.NewPlugin(web.Config{
-			PluginShimURL: pluginShimURL,
+			PluginShimURL:     pluginShimURL,
+			AccessGraphClient: agClient,
 		})
 		if err != nil {
 			return nil, nil, trace.Wrap(err)

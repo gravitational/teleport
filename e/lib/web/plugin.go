@@ -15,6 +15,7 @@ import (
 
 	"github.com/gravitational/teleport/e/api/cloud"
 	"github.com/gravitational/teleport/e/lib/idp/saml"
+	accessgraphv1 "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/httplib/csrf"
@@ -38,6 +39,10 @@ type Config struct {
 	// the `redirect_uri` we submit to API providers will point
 	// directly to the cluster, and the OAuth app needs to be configured accordingly.
 	PluginShimURL *url.URL
+
+	// AccessGraphClient is the access graph client.
+	// Sets only when access graph is enabled.
+	AccessGraphClient accessgraphv1.AccessGraphServiceClient
 }
 
 // CheckAndSetDefaults checks and sets the defaults
@@ -265,6 +270,10 @@ func (p *Plugin) RegisterProxyWebHandlers(handler interface{}) error {
 		h.POST("/enterprise/cloud/recovery/codes", p.withCloud(p.createAccountRecoveryCodesHandle))
 		h.GET("/enterprise/cloud/recovery/codes", h.WithAuth(p.getAccountRecoveryCodesMetadataHandle))
 	}
+
+	// Access graph
+	h.GET("/enterprise/accessgraph/query", h.WithAuth(p.queryAccessGraph))
+	h.GET("/enterprise/accessgraph/static/*file", h.WithUnauthenticatedHighLimiter(p.getAccessGraphFile))
 
 	h.GET(fmt.Sprintf("%s/*unused", saml.IdPRoute), p.withSAMLAuth())
 	h.POST(fmt.Sprintf("%s/*unused", saml.IdPRoute), p.withSAMLAuth())
