@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/integrations/access/common/teleport"
 	"github.com/gravitational/teleport/integrations/lib"
@@ -51,6 +52,11 @@ const (
 	modifyPluginDataBackoffBase = time.Millisecond
 	// modifyPluginDataBackoffMax is a backoff threshold
 	modifyPluginDataBackoffMax = time.Second
+	// webhookIssueAPIRetryInterval is the time the plugin will wait before grabbing,
+	// the jira issue again if the webhook payload and jira API disagree on the issue status.
+	webhookIssueAPIRetryInterval = time.Second
+	// webhookIssueAPIRetryTimeout the timeout for retrying check that webhook payload matches issue API response.
+	webhookIssueAPIRetryTimeout = 5 * time.Second
 )
 
 var resolveReasonInlineRegex = regexp.MustCompile(`(?im)^ *(resolution|reason) *: *(.+)$`)
@@ -65,15 +71,21 @@ type App struct {
 	webhookSrv *WebhookServer
 	mainJob    lib.ServiceJob
 	statusSink common.StatusSink
+	retryConfig retryutils.LinearConfig
 
 	*lib.Process
 }
 
 func NewApp(conf Config) (*App, error) {
+	retryConfig := retryutils.LinearConfig{
+		Step: webhookIssueAPIRetryInterval,
+		Max:  webhookIssueAPIRetryTimeout,
+	}
 	app := &App{
 		conf:       conf,
 		teleport:   conf.Client,
 		statusSink: conf.StatusSink,
+		retryConfig: retryConfig,
 	}
 	app.mainJob = lib.NewServiceJob(app.run)
 	return app, nil
@@ -299,7 +311,32 @@ func (a *App) onJiraWebhook(ctx context.Context, webhook Webhook) error {
 		"jira_issue_key": issue.Key,
 	})
 
+	webHookStatusName := strings.ToLower(webhook.Issue.Fields.Status.Name)
 	statusName := strings.ToLower(issue.Fields.Status.Name)
+
+	// Retry until API syncs up with webhook payload.
+	if webHookStatusName != statusName {
+		retry, err := retryutils.NewLinear(a.retryConfig)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		err = retry.For(ctx, func() error {
+			issue, err = a.jira.GetIssue(ctx, webhook.Issue.ID)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			statusName = strings.ToLower(issue.Fields.Status.Name)
+			if webHookStatusName != statusName {
+				return trace.CompareFailed("mismatch of webhook payload and issue API response: %q and %q",
+					webHookStatusName, statusName)
+			}
+			return nil
+		})
+		if err != nil {
+			log.Warnf("Using most recent successful getIssue response: %v", err)
+		}
+	}
+
 	switch {
 	case statusName == "pending":
 		log.Debug("Issue has pending status, ignoring it")
