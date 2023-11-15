@@ -92,6 +92,7 @@ func TestNewUserACL(t *testing.T) {
 	require.Empty(t, cmp.Diff(userContext.AccessRequests, denied))
 	require.Empty(t, cmp.Diff(userContext.ConnectionDiagnostic, denied))
 	require.Empty(t, cmp.Diff(userContext.Desktops, allowedRW))
+	require.Empty(t, cmp.Diff(userContext.ExternalCloudAudit, denied))
 
 	require.Empty(t, cmp.Diff(userContext.Billing, denied))
 	require.Equal(t, userContext.Clipboard, true)
@@ -148,6 +149,7 @@ func TestNewUserACLCloud(t *testing.T) {
 	require.Empty(t, cmp.Diff(userContext.Nodes, allowedRW))
 	require.Empty(t, cmp.Diff(userContext.AccessRequests, allowedRW))
 	require.Empty(t, cmp.Diff(userContext.DiscoveryConfig, allowedRW))
+	require.Empty(t, cmp.Diff(userContext.ExternalCloudAudit, allowedRW))
 
 	require.Equal(t, userContext.Clipboard, true)
 	require.Equal(t, userContext.DesktopSessionRecording, true)
