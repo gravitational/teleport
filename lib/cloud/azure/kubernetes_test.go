@@ -27,6 +27,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v2"
 	"github.com/golang-jwt/jwt/v4"
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	authztypes "k8s.io/client-go/kubernetes/typed/authorization/v1"
 	"k8s.io/client-go/rest"
@@ -40,7 +41,7 @@ const (
 	subID       = "subid1"
 )
 
-func Test_aKSClient_ClusterCredentials(t *testing.T) {
+func Test_AKSClient_ClusterCredentials(t *testing.T) {
 	type fields struct {
 		api ARMAKS
 	}
@@ -51,8 +52,9 @@ func Test_aKSClient_ClusterCredentials(t *testing.T) {
 		name               string
 		fields             fields
 		args               args
+		groupID            string
 		validateRestConfig func(*testing.T, *rest.Config)
-		wantErr            bool
+		checkErr           require.ErrorAssertionFunc
 	}{
 		{
 			name: "local accounts",
@@ -86,6 +88,8 @@ func Test_aKSClient_ClusterCredentials(t *testing.T) {
 					},
 				},
 			},
+			groupID:  "groupID",
+			checkErr: require.NoError,
 			validateRestConfig: func(t *testing.T, c *rest.Config) {
 				require.Equal(t, c.Username, "exp")
 			},
@@ -123,6 +127,8 @@ func Test_aKSClient_ClusterCredentials(t *testing.T) {
 					},
 				},
 			},
+			groupID:  "groupID",
+			checkErr: require.NoError,
 			validateRestConfig: func(t *testing.T, c *rest.Config) {
 				require.NotEmpty(t, c.BearerToken)
 				require.Nil(t, c.ExecProvider)
@@ -131,7 +137,6 @@ func Test_aKSClient_ClusterCredentials(t *testing.T) {
 		{
 			name: "azure AD accounts",
 			fields: fields{
-
 				api: &ARMKubernetesMock{
 					KubeServers: []*armcontainerservice.ManagedCluster{
 						aksClusterToManagedCluster(
@@ -162,25 +167,62 @@ func Test_aKSClient_ClusterCredentials(t *testing.T) {
 					},
 				},
 			},
+			groupID:  "groupID",
+			checkErr: require.NoError,
 			validateRestConfig: func(t *testing.T, c *rest.Config) {
 				require.NotEmpty(t, c.BearerToken)
 				require.Nil(t, c.ExecProvider)
 			},
 		},
+		{
+			name: "azure AD accounts no claims",
+			fields: fields{
+				api: &ARMKubernetesMock{
+					KubeServers: []*armcontainerservice.ManagedCluster{
+						aksClusterToManagedCluster(
+							AKSCluster{
+								Name:           clusterName,
+								GroupName:      groupName,
+								TenantID:       tenantID,
+								Location:       region,
+								SubscriptionID: subID,
+								Properties: AKSClusterProperties{
+									AccessConfig:  AzureAD,
+									LocalAccounts: false,
+								},
+							},
+						),
+					},
+					ClusterUserCreds:  kubeConfigToBin(clusterName, true),
+					ClusterAdminCreds: kubeConfigToBin(clusterName, false),
+				},
+			},
+			args: args{
+				cfg: ClusterCredentialsConfig{
+					ResourceName:  clusterName,
+					ResourceGroup: groupName,
+					TenantID:      tenantID,
+					ImpersonationPermissionsChecker: func(ctx context.Context, clusterName string, sarClient authztypes.SelfSubjectAccessReviewInterface) error {
+						return trace.AccessDenied("access denied")
+					},
+				},
+			},
+			groupID:  "",
+			checkErr: require.Error,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			azIdentity := &azIdentityMock{t: t}
+			azIdentity := &azIdentityMock{t: t, groupID: tt.groupID}
 			c := NewAKSClustersClient(tt.fields.api, func(options *azidentity.DefaultAzureCredentialOptions) (GetToken, error) {
 				return azIdentity, nil
 			})
 			got, _, err := c.ClusterCredentials(context.TODO(), tt.args.cfg)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("aKSClient.ClusterCredentials() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-			tt.validateRestConfig(t, got)
+			tt.checkErr(t, err)
 
+			if tt.validateRestConfig != nil {
+				tt.validateRestConfig(t, got)
+			}
 		})
 	}
 }
@@ -279,21 +321,22 @@ users:
 }
 
 type azIdentityMock struct {
-	t *testing.T
+	t       *testing.T
+	groupID string
 }
 
 func (a *azIdentityMock) GetToken(ctx context.Context, opts policy.TokenRequestOptions) (azcore.AccessToken, error) {
 	return azcore.AccessToken{
-		Token: newToken(a.t),
+		Token: newToken(a.t, a.groupID),
 	}, nil
 }
 
-func newToken(t *testing.T) string {
-
-	str, err := jwt.NewWithClaims(jwt.SigningMethodHS256, &azureGroupClaims{
-		Groups: []string{"groupID"},
-	}).SignedString([]byte("test"))
-
+func newToken(t *testing.T, groupID string) string {
+	claims := &azureGroupClaims{}
+	if groupID != "" {
+		claims.Groups = []string{groupID}
+	}
+	str, err := jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString([]byte("test"))
 	require.NoError(t, err)
 	return str
 }

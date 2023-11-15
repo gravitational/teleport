@@ -552,7 +552,7 @@ func (c *aksClient) grantAccessWithCommand(ctx context.Context, resourceGroupNam
 	return trace.Wrap(ConvertResponseError(err))
 }
 
-// extractGroupFromAzure extracts the first group id in the Azure Bearer Token.
+// extractGroupFromAzure extracts the first group ID from the Azure Bearer Token.
 func extractGroupFromAzure(token string) (string, error) {
 	p := jwt.NewParser()
 	claims := &azureGroupClaims{}
@@ -562,7 +562,11 @@ func extractGroupFromAzure(token string) (string, error) {
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-	// ParseUnverified already validates that len(claims.Groups)>0
+
+	if len(claims.Groups) == 0 {
+		return "", trace.BadParameter("no groups found in Azure token")
+	}
+
 	return claims.Groups[0], nil
 }
 
