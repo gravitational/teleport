@@ -27,7 +27,6 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-	user2 "os/user"
 	"sync"
 	"time"
 
@@ -56,7 +55,6 @@ func (s *Service) StartFileServers() error {
 		}
 
 		err := s.StartFileServer(context.TODO(), c.URI.String())
-
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -151,33 +149,49 @@ func jwks(ctx context.Context, tc *client.TeleportClient) ([]*jwt.Key, error) {
 	return out, nil
 }
 
-func newFileServer(tc *client.TeleportClient, keys []*jwt.Key) (*fileServer, error) {
-	u, err := user2.Current()
-	if err != nil {
-		return nil, trace.Wrap(err)
+func (s *Service) GetFileServerConfig(ctx context.Context, clusterURI string) (map[string]FileServerShare, error) {
+	s.fileServersMu.Lock()
+	defer s.fileServersMu.Unlock()
+
+	fileServer, ok := s.fileServers[clusterURI]
+	if !ok {
+		return nil, trace.NotFound("cluster URI not found")
 	}
 
-	fs := new(fileServer)
-	fs.shares = map[string]fileServerShare{
-		"temp": {
-			path:             "/tmp",
-			AllowAnyone:      false,
-			AllowedUsersList: nil,
-			AllowedRolesList: []string{"access"},
-		},
-		"usr": {
-			path:             "/usr/bin",
-			AllowAnyone:      true,
-			AllowedUsersList: nil,
-			AllowedRolesList: nil,
-		},
-		"home": {
-			path:             u.HomeDir,
-			AllowAnyone:      false,
-			AllowedUsersList: []string{tc.Username},
-			AllowedRolesList: nil,
-		},
+	fileServer.mu.Lock()
+	defer fileServer.mu.Unlock()
+
+	r := make(map[string]FileServerShare, len(fileServer.shares))
+	for k, v := range fileServer.shares {
+		r[k] = FileServerShare{
+			Path:             v.Path,
+			AllowAnyone:      v.AllowAnyone,
+			AllowedUsersList: slices.Clone(v.AllowedUsersList),
+			AllowedRolesList: slices.Clone(v.AllowedRolesList),
+		}
 	}
+
+	return r, nil
+}
+
+func (s *Service) SetFileServerConfig(ctx context.Context, clusterURI string, shares map[string]FileServerShare) error {
+	s.fileServersMu.Lock()
+	defer s.fileServersMu.Unlock()
+
+	fileServer, ok := s.fileServers[clusterURI]
+	if !ok {
+		return trace.NotFound("cluster URI not found")
+	}
+
+	fileServer.mu.Lock()
+	defer fileServer.mu.Unlock()
+
+	fileServer.shares = shares
+	return nil
+}
+
+func newFileServer(tc *client.TeleportClient, keys []*jwt.Key) (*fileServer, error) {
+	fs := new(fileServer)
 
 	lis, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -248,10 +262,9 @@ func newFileServer(tc *client.TeleportClient, keys []*jwt.Key) (*fileServer, err
 		r2.URL.RawPath = ""
 
 		// TODO(not espadolini): make the listing prettier
-		http.FileServer(http.Dir(share.path)).ServeHTTP(w, r2)
+		http.FileServer(http.Dir(share.Path)).ServeHTTP(w, r2)
 	})
 
-	fs.srv.Handler = mux
 	fs.srv = http.Server{
 		Handler: mux,
 		TLSConfig: &tls.Config{
@@ -279,18 +292,18 @@ type fileServer struct {
 	port int
 
 	mu     sync.Mutex
-	shares map[string]fileServerShare
+	shares map[string]FileServerShare
 }
 
-type fileServerShare struct {
-	path string
+type FileServerShare struct {
+	Path string
 
 	AllowAnyone      bool
 	AllowedUsersList []string
 	AllowedRolesList []string
 }
 
-func (fss fileServerShare) CanAccess(claims *jwt.Claims) bool {
+func (fss FileServerShare) CanAccess(claims *jwt.Claims) bool {
 	if fss.AllowAnyone {
 		return true
 	}
