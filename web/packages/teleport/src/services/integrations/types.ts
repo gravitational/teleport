@@ -93,6 +93,20 @@ export function getStatusCodeDescription(
   }
 }
 
+export type ExternalCloudAudit = {
+  integrationName: string;
+  policyName: string;
+  region: string;
+  sessionsRecordingsURI: string;
+  athenaWorkgroup: string;
+  glueDatabase: string;
+  glueTable: string;
+  auditEventsLongTermURI: string;
+  athenaResultsURI: string;
+}
+
+export type ExternalCloudAuditIntegration = Integration<'byob', IntegrationKind.Byob, ExternalCloudAudit>
+
 export type Plugin = Integration<'plugin', PluginKind, PluginSpec>;
 export type PluginSpec = Record<string, never>; // currently no 'spec' fields exposed to the frontend
 // PluginKind represents the type of the plugin

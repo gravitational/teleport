@@ -35,6 +35,7 @@ import {
   IntegrationStatusCode,
   IntegrationKind,
   Plugin,
+  ExternalCloudAuditIntegration,
 } from 'teleport/services/integrations';
 
 type Props<IntegrationLike> = {
@@ -44,9 +45,13 @@ type Props<IntegrationLike> = {
     onDeleteIntegration(i: Integration): void;
     onEditIntegration(i: Integration): void;
   };
+  externalCloudAuditOps?: {
+    onDeleteExternalCloudAudit(i: ExternalCloudAuditIntegration): void;
+  }
 };
 
-type IntegrationLike = Integration | Plugin;
+
+type IntegrationLike = Integration | Plugin | ExternalCloudAuditIntegration;
 
 export function IntegrationList(props: Props<IntegrationLike>) {
   return (
@@ -90,24 +95,40 @@ export function IntegrationList(props: Props<IntegrationLike>) {
               );
             }
 
+            if (item.resourceType === 'integration') {
+              return (
+                <Cell align="right">
+                  <MenuButton>
+                    <MenuItem
+                      onClick={() => props.integrationOps.onEditIntegration(item)}
+                    >
+                      Edit...
+                    </MenuItem>
+                    <MenuItem
+                      onClick={() =>
+                        props.integrationOps.onDeleteIntegration(item)
+                      }
+                    >
+                      Delete...
+                    </MenuItem>
+                  </MenuButton>
+                </Cell>
+              );
+            }
+
             return (
               <Cell align="right">
                 <MenuButton>
                   <MenuItem
-                    onClick={() => props.integrationOps.onEditIntegration(item)}
-                  >
-                    Edit...
-                  </MenuItem>
-                  <MenuItem
                     onClick={() =>
-                      props.integrationOps.onDeleteIntegration(item)
+                      props.externalCloudAuditOps?.onDeleteExternalCloudAudit(item)
                     }
                   >
                     Delete...
                   </MenuItem>
                 </MenuButton>
               </Cell>
-            );
+            )
           },
         },
       ]}
