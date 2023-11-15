@@ -103,9 +103,13 @@ export type ExternalCloudAudit = {
   glueTable: string;
   auditEventsLongTermURI: string;
   athenaResultsURI: string;
-}
+};
 
-export type ExternalCloudAuditIntegration = Integration<'byob', IntegrationKind.Byob, ExternalCloudAudit>
+export type ExternalCloudAuditIntegration = Integration<
+  'byob',
+  IntegrationKind.Byob,
+  ExternalCloudAudit
+>;
 
 export type Plugin = Integration<'plugin', PluginKind, PluginSpec>;
 export type PluginSpec = Record<string, never>; // currently no 'spec' fields exposed to the frontend

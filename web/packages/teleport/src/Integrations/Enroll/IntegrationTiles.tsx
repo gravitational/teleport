@@ -71,13 +71,13 @@ export function IntegrationTiles({
         }
         data-testid="tile-byob"
       >
-        <Box mt={3} mb={2}>
-          <AWSIcon size={80} />
+        <Box mt={3} mb={0}>
+          <AWSIcon size={64} />
         </Box>
         <Text>
-          BYOB
+          S3 For Audit Data
           <br />
-          External Cloud Audit
+          Store data on your own Amazon S3 bucket
         </Text>
         {!hasAccess && (
           <ToolTipNoPermBadge
