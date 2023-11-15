@@ -16,6 +16,8 @@
 
 import fnv from 'fnv-plus';
 
+// TODO: Hash cluster name, username and installation ID.
+// Or find a way to get an app ID from the auth server that we can persist somehow.
 export function getFileSharingAppName(username: string) {
   const usernameHash = fnv.fast1a32hex(username);
   return `file-sharing-${usernameHash}`;
