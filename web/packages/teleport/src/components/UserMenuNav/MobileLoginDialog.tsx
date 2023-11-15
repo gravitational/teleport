@@ -64,7 +64,11 @@ export function MobileLoginDialog({
   function getToken() {
     run(() =>
       auth.createMobileAuthToken().then(res => {
-        setQrContent(`go.teleport.mobile://${cfg.baseUrl}?token=${res.token}`);
+        setQrContent(
+          `go.teleport.mobile://${encodeURIComponent(cfg.baseUrl)}?token=${
+            res.token
+          }`
+        );
         //   setQrContent(`
         //   {
         //   "url": "${cfg.baseUrl}",
