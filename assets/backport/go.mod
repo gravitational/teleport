@@ -4,7 +4,7 @@ go 1.18
 
 require (
 	github.com/google/go-github/v41 v41.0.0
-	github.com/gravitational/trace v1.3.0
+	github.com/gravitational/trace v1.3.1
 	github.com/stretchr/testify v1.7.0
 	golang.org/x/oauth2 v0.0.0-20211104180415-d3ed0bb246c8
 	gopkg.in/yaml.v2 v2.4.0
