@@ -179,7 +179,7 @@ func (a *Server) AuthenticateUser(ctx context.Context, req AuthenticateUserReque
 		err := a.notificationSender(
 			context.Background(),
 			username,
-			"New Login Detected",
+			"🔑 New Login",
 			fmt.Sprintf(
 				"A new login to your account has been detected from: %s - %s",
 				req.ClientMetadata.RemoteAddr,

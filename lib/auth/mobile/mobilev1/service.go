@@ -71,6 +71,9 @@ type Service struct {
 	logger     logrus.FieldLogger
 	clock      clockwork.Clock
 	authServer authServer
+
+	notificationsSvcConn *grpc.ClientConn
+	notificationsSvc     mobilenotificationsv1pb.MobileNotificationsServiceClient
 }
 
 // NewService returns a new users gRPC service.
@@ -89,12 +92,29 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		cfg.Clock = clockwork.NewRealClock()
 	}
 
+	notificationsSvcConn, err := grpc.DialContext(
+		context.Background(),
+		"notifications.teleport.lol:50051",
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	)
+	if err != nil {
+		return nil, trace.Wrap(err, "connecting to notifications svc")
+	}
+	notificationsSvc := mobilenotificationsv1pb.NewMobileNotificationsServiceClient(notificationsSvcConn)
+
 	return &Service{
 		logger:     cfg.Logger,
 		authorizer: cfg.Authorizer,
 		clock:      cfg.Clock,
 		authServer: cfg.AuthServer,
+
+		notificationsSvc:     notificationsSvc,
+		notificationsSvcConn: notificationsSvcConn,
 	}, nil
+}
+
+func (s *Service) Close() {
+	s.notificationsSvcConn.Close()
 }
 
 func (s *Service) signJWT(ctx context.Context, username string) (string, error) {
@@ -239,20 +259,7 @@ func (s *Service) RegisterDeviceNotifications(ctx context.Context, req *mobilev1
 	}
 	clusterID := cluster.GetClusterID()
 
-	// TODO(noah): Reuse conn rather than creating conn for each request to
-	// MobileNotificationsSvc
-	conn, err := grpc.DialContext(
-		ctx,
-		"notifications.teleport.lol:50051",
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
-	)
-	if err != nil {
-		return nil, trace.Wrap(err, "connecting to notifications svc")
-	}
-	defer conn.Close()
-	client := mobilenotificationsv1pb.NewMobileNotificationsServiceClient(conn)
-
-	res, err := client.RegisterDevice(ctx, &mobilenotificationsv1pb.RegisterDeviceRequest{
+	res, err := s.notificationsSvc.RegisterDevice(ctx, &mobilenotificationsv1pb.RegisterDeviceRequest{
 		DeviceToken: req.DeviceToken,
 		ClusterId:   clusterID,
 	})
@@ -271,10 +278,10 @@ func (s *Service) RegisterDeviceNotifications(ctx context.Context, req *mobilev1
 		return nil, trace.Wrap(err, "updating user")
 	}
 
-	_, err = client.SendNotification(ctx, &mobilenotificationsv1pb.SendNotificationRequest{
+	_, err = s.notificationsSvc.SendNotification(ctx, &mobilenotificationsv1pb.SendNotificationRequest{
 		ClusterId:  clusterID,
 		DeviceUuid: res.DeviceUuid,
-		Title:      "🐅Device Registered 🐅",
+		Title:      "🐅 Device Registered 🐅",
 		Body:       "Your device is now registered for notifications! Rawr 🐯",
 	})
 	if err != nil {
@@ -290,24 +297,13 @@ func (s *Service) Notify(ctx context.Context, username string, title string, bod
 	}
 	clusterID := cluster.GetClusterID()
 
-	conn, err := grpc.DialContext(
-		ctx,
-		"notifications.teleport.lol:50051",
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
-	)
-	if err != nil {
-		return trace.Wrap(err, "connecting to notifications svc")
-	}
-	defer conn.Close()
-	client := mobilenotificationsv1pb.NewMobileNotificationsServiceClient(conn)
-
 	u, err := s.authServer.GetUser(ctx, username, false)
 	if err != nil {
 		return trace.Wrap(err, "getting user")
 	}
 
 	for _, deviceID := range u.GetMobileDeviceIDs() {
-		_, err = client.SendNotification(ctx, &mobilenotificationsv1pb.SendNotificationRequest{
+		_, err = s.notificationsSvc.SendNotification(ctx, &mobilenotificationsv1pb.SendNotificationRequest{
 			ClusterId:  clusterID,
 			DeviceUuid: deviceID,
 			Title:      title,

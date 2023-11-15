@@ -4406,7 +4406,7 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 			err := a.notificationSender(
 				ctx,
 				u.GetName(),
-				"New Access Request",
+				"✉️ New Access Request",
 				fmt.Sprintf(
 					"A new access request from %s is ready for review",
 					req.GetUser(),
