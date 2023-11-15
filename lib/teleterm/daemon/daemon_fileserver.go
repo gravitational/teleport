@@ -83,6 +83,9 @@ func (s *Service) StartFileServer(ctx context.Context, clusterURI string) error 
 		return trace.Wrap(err)
 	}
 	keys, err := jwks(ctx, tc)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
 	s.fileServersMu.Lock()
 	defer s.fileServersMu.Unlock()
@@ -202,18 +205,24 @@ func newFileServer(tc *client.TeleportClient, keys []*jwt.Key) (*fileServer, err
 		}
 
 		var claims *jwt.Claims
-		var err error
 		for _, key := range keys {
-			claims, err = key.VerifyUnknownUser(jwt.VerifyParams{
+			c, err := key.VerifyUnknownUser(jwt.VerifyParams{
 				RawToken: token,
 				Audience: tc.SiteName,
 				URI:      fmt.Sprintf("https://127.0.0.1:%v/", fs.port),
 			})
 			if err != nil {
 				log.WithError(err).Warnf("fail: %v", r.URL.String())
-			} else {
-				log.Infof("verified token against key %v", key)
+				continue
 			}
+
+			log.Infof("verified token against key %v", key)
+			claims = c
+			break
+		}
+		if claims == nil {
+			http.NotFound(w, r)
+			return
 		}
 
 		fs.mu.Lock()
