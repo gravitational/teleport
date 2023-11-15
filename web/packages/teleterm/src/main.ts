@@ -195,6 +195,11 @@ function initializeApp(): void {
         ) {
           return true;
         }
+
+        // TODO(ravicious): Allow only actual cluster apps to be launched.
+        if (url.host.includes('file-sharing')) {
+          return true;
+        }
       }
 
       // Open links to documentation and GitHub issues in the external browser.

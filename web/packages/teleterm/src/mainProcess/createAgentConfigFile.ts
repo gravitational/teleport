@@ -17,12 +17,11 @@
 import { access, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
-import fnv from 'fnv-plus';
-
 import * as constants from 'shared/constants';
 
 import { RootClusterUri, routing } from 'teleterm/ui/uri';
 import { RuntimeSettings } from 'teleterm/mainProcess/types';
+import { getFileSharingAppName } from 'teleterm/fileSharing';
 
 export interface CreateAgentConfigFileArgs {
   rootClusterUri: RootClusterUri;
@@ -173,8 +172,6 @@ export function generateConfig(args: {
   labels: Record<string, string>;
   fileServerPort: number;
 }): AgentConfig {
-  const usernameHash = fnv.fast1a32hex(args.username);
-
   return {
     version: 'v3',
     teleport: {
@@ -207,7 +204,7 @@ export function generateConfig(args: {
       enabled: 'yes',
       apps: [
         {
-          name: `file-sharing-${usernameHash}`,
+          name: getFileSharingAppName(args.username),
           uri: `https://127.0.0.1:${args.fileServerPort}`,
           insecure_skip_verify: true,
           labels: {

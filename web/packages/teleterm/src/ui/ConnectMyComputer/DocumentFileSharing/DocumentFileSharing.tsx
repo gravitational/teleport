@@ -16,18 +16,19 @@
 
 import React, { useState } from 'react';
 
-import { Flex, Box, Text, ButtonPrimary, Alert } from 'design';
+import { Flex, Box, Text, ButtonPrimary, Alert, ButtonSecondary } from 'design';
 
 import * as types from 'teleterm/ui/services/workspacesService';
 import Document from 'teleterm/ui/Document';
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
-
 import {
   useConnectMyComputerContext,
   CurrentAction,
 } from 'teleterm/ui/ConnectMyComputer';
 import { Logs } from 'teleterm/ui/ConnectMyComputer/Logs';
+import { useWorkspaceContext } from 'teleterm/ui/Documents';
+import { getFileSharingAppName } from 'teleterm/fileSharing';
 
 import { prettifyCurrentAction } from '../DocumentConnectMyComputer/Status';
 
@@ -35,10 +36,17 @@ export function DocumentFileSharing(props: {
   visible: boolean;
   doc: types.DocumentFileSharing;
 }) {
-  const { mainProcessClient } = useAppContext();
+  const { mainProcessClient, clustersService } = useAppContext();
+  const { rootClusterUri } = useWorkspaceContext();
   const { currentAction, killAgent, startAgent } =
     useConnectMyComputerContext();
+  const cluster = clustersService.findCluster(rootClusterUri);
   const [selectedDirectory, setSelectedDirectory] = useState<string>();
+  const appUrl =
+    cluster?.loggedInUser &&
+    `https://${getFileSharingAppName(cluster.loggedInUser.name)}.${
+      cluster.proxyHost
+    }`;
 
   return (
     <Document visible={props.visible}>
@@ -46,7 +54,12 @@ export function DocumentFileSharing(props: {
         <Text typography="h3" mb="4">
           File Sharing
         </Text>
-        <AgentStatus currentAction={currentAction} killAgent={killAgent} />
+        <Flex gap={4} justifyContent="space-between">
+          <AgentStatus currentAction={currentAction} killAgent={killAgent} />
+          <ButtonSecondary as="a" target="_blank" href={appUrl}>
+            Open app
+          </ButtonSecondary>
+        </Flex>
         <Flex
           flexDirection="column"
           gap={3}
