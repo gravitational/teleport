@@ -67,6 +67,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/integration/integrationv1"
 	"github.com/gravitational/teleport/lib/auth/trust/trustv1"
+	"github.com/gravitational/teleport/lib/auth/users/usersv1"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -2848,6 +2849,10 @@ func (a *ServerWithRoles) DeleteUser(ctx context.Context, user string) error {
 		return trace.Wrap(err)
 	}
 
+	if err := checkOktaAccess(ctx, &a.context, a.authServer, user, types.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+
 	return a.authServer.DeleteUser(ctx, user)
 }
 
@@ -3432,6 +3437,11 @@ func (a *ServerWithRoles) CreateUser(ctx context.Context, user types.User) (type
 	if err := a.action(apidefaults.Namespace, types.KindUser, types.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	if err := usersv1.CheckOktaOrigin(&a.context, user); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	created, err := a.authServer.CreateUser(ctx, user)
 	return created, trace.Wrap(err)
 }
@@ -3445,6 +3455,14 @@ func (a *ServerWithRoles) UpdateUser(ctx context.Context, user types.User) (type
 		return nil, trace.Wrap(err)
 	}
 
+	if err := usersv1.CheckOktaOrigin(&a.context, user); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := checkOktaAccess(ctx, &a.context, a.authServer, user.GetName(), types.VerbUpdate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	updated, err := a.authServer.UpdateUser(ctx, user)
 	return updated, trace.Wrap(err)
 }
@@ -3454,6 +3472,14 @@ func (a *ServerWithRoles) UpdateUser(ctx context.Context, user types.User) (type
 // Deprecated: use [usersv1.Service.UpdateUser] instead.
 func (a *ServerWithRoles) UpsertUser(ctx context.Context, u types.User) (types.User, error) {
 	if err := a.action(apidefaults.Namespace, types.KindUser, types.VerbCreate, types.VerbUpdate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := usersv1.CheckOktaOrigin(&a.context, u); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := checkOktaAccess(ctx, &a.context, a.authServer, u.GetName(), types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -3480,6 +3506,19 @@ func (a *ServerWithRoles) UpdateAndSwapUser(ctx context.Context, user string, wi
 // Captures the auth user who modified the user record.
 func (a *ServerWithRoles) CompareAndSwapUser(ctx context.Context, new, existing types.User) error {
 	if err := a.action(apidefaults.Namespace, types.KindUser, types.VerbUpdate); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := usersv1.CheckOktaOrigin(&a.context, new); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Checking the `existing` origin should be enough to assert that okta has
+	// write access to the user, because if the backend record says something
+	// different then the `CompareAndSwap()` will fail anyway, and this way we
+	// save ourselves a backend user lookup.
+
+	if err := usersv1.CheckOktaAccess(&a.context, existing, types.VerbUpdate); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -7219,4 +7258,19 @@ func verbsToReplaceResourceWithOrigin(stored types.ResourceWithOrigin) []string 
 		verbs = append(verbs, types.VerbCreate)
 	}
 	return verbs
+}
+
+// checkOktaAccess gates access to update operations on user records based
+// on the origin label on the supplied user record.
+//
+// # See usersv1.CheckOktaAccess() for the actual access rules
+//
+// TODO(tcsc): Delete in 16.0.0 when user management is removed from `ServerWithRoles`
+func checkOktaAccess(ctx context.Context, authzCtx *authz.Context, users services.UsersService, existingUsername string, verb string) error {
+	existingUser, err := users.GetUser(ctx, existingUsername, false)
+	if err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	}
+
+	return usersv1.CheckOktaAccess(authzCtx, existingUser, verb)
 }
