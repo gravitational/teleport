@@ -212,30 +212,6 @@ func newFileServer(fsc fileServerConfig) (*fileServer, error) {
 
 	fs := new(fileServer)
 
-	// dummy default shares
-	if len(fs.shares) == 0 {
-		fs.shares = map[string]FileServerShare{
-			"temp": {
-				Path:             "/tmp",
-				AllowAnyone:      false,
-				AllowedUsersList: nil,
-				AllowedRolesList: []string{"access"},
-			},
-			"usr": {
-				Path:             "/usr/bin",
-				AllowAnyone:      true,
-				AllowedUsersList: nil,
-				AllowedRolesList: nil,
-			},
-			"home": {
-				Path:             u.HomeDir,
-				AllowAnyone:      false,
-				AllowedUsersList: []string{fsc.username},
-				AllowedRolesList: nil,
-			},
-		}
-	}
-
 	lis, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		return nil, trace.Wrap(err)
