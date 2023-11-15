@@ -67,6 +67,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/integration/integrationv1"
 	"github.com/gravitational/teleport/lib/auth/trust/trustv1"
+	"github.com/gravitational/teleport/lib/auth/users/usersv1"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -103,9 +104,8 @@ func (a *ServerWithRoles) actionWithContext(ctx *services.Context, namespace, re
 	for _, verb := range verbs {
 		errs = append(errs, a.context.Checker.CheckAccessToRule(ctx, namespace, resource, verb, false))
 	}
-	// Convert generic aggregate error to AccessDenied.
 	if err := trace.NewAggregate(errs...); err != nil {
-		return trace.AccessDenied(err.Error())
+		return err
 	}
 	return nil
 }
@@ -139,9 +139,8 @@ func (c actionConfig) action(namespace, resource string, verbs ...string) error 
 	for _, verb := range verbs {
 		errs = append(errs, c.context.Checker.CheckAccessToRule(&services.Context{User: c.context.User}, namespace, resource, verb, c.quiet))
 	}
-	// Convert generic aggregate error to AccessDenied.
 	if err := trace.NewAggregate(errs...); err != nil {
-		return trace.AccessDenied(err.Error())
+		return err
 	}
 	return nil
 }
@@ -2510,16 +2509,24 @@ type accessChecker interface {
 }
 
 func (a *ServerWithRoles) GetAccessRequests(ctx context.Context, filter types.AccessRequestFilter) ([]types.AccessRequest, error) {
-	// users can always view their own access requests
-	if filter.User != "" && a.currentUserAction(filter.User) == nil {
+	if err := a.withOptions(quietAction(true)).action(apidefaults.Namespace, types.KindAccessRequest, types.VerbList, types.VerbRead); err != nil {
+		// Users are allowed to read + list their own access requests and
+		// requests they are allowed to review, unless access was *explicitly*
+		// denied. This means deny rules block the action but allow rules are
+		// not required.
+		if services.IsAccessExplicitlyDenied(err) {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		// nil err means the user has explicit read + list permissions and can
+		// get all requests.
 		return a.authServer.GetAccessRequests(ctx, filter)
 	}
 
-	// users with read + list permissions can get all requests
-	if a.withOptions(quietAction(true)).action(apidefaults.Namespace, types.KindAccessRequest, types.VerbList) == nil {
-		if a.withOptions(quietAction(true)).action(apidefaults.Namespace, types.KindAccessRequest, types.VerbRead) == nil {
-			return a.authServer.GetAccessRequests(ctx, filter)
-		}
+	// users can always view their own access requests unless the read or list
+	// verbs are explicitly denied
+	if filter.User != "" && a.currentUserAction(filter.User) == nil {
+		return a.authServer.GetAccessRequests(ctx, filter)
 	}
 
 	// user does not have read/list permissions and is not specifically requesting only
@@ -2575,9 +2582,10 @@ func (a *ServerWithRoles) GetAccessRequests(ctx context.Context, filter types.Ac
 }
 
 func (a *ServerWithRoles) CreateAccessRequestV2(ctx context.Context, req types.AccessRequest) (types.AccessRequest, error) {
-	// An exception is made to allow users to create access *pending* requests for themselves.
-	if !req.GetState().IsPending() || a.currentUserAction(req.GetUser()) != nil {
-		if err := a.action(apidefaults.Namespace, types.KindAccessRequest, types.VerbCreate); err != nil {
+	if err := a.action(apidefaults.Namespace, types.KindAccessRequest, types.VerbCreate); err != nil {
+		// An exception is made to allow users to create *pending* access requests
+		// for themselves unless the create verb was explicitly denied.
+		if services.IsAccessExplicitlyDenied(err) || !req.GetState().IsPending() || a.currentUserAction(req.GetUser()) != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -2838,6 +2846,10 @@ func (a *ServerWithRoles) GetCurrentUserRoles(ctx context.Context) ([]types.Role
 // DeleteUser deletes an existng user in a backend by username.
 func (a *ServerWithRoles) DeleteUser(ctx context.Context, user string) error {
 	if err := a.action(apidefaults.Namespace, types.KindUser, types.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := checkOktaAccess(ctx, &a.context, a.authServer, user, types.VerbDelete); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -3425,6 +3437,11 @@ func (a *ServerWithRoles) CreateUser(ctx context.Context, user types.User) (type
 	if err := a.action(apidefaults.Namespace, types.KindUser, types.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	if err := usersv1.CheckOktaOrigin(&a.context, user); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	created, err := a.authServer.CreateUser(ctx, user)
 	return created, trace.Wrap(err)
 }
@@ -3438,6 +3455,14 @@ func (a *ServerWithRoles) UpdateUser(ctx context.Context, user types.User) (type
 		return nil, trace.Wrap(err)
 	}
 
+	if err := usersv1.CheckOktaOrigin(&a.context, user); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := checkOktaAccess(ctx, &a.context, a.authServer, user.GetName(), types.VerbUpdate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	updated, err := a.authServer.UpdateUser(ctx, user)
 	return updated, trace.Wrap(err)
 }
@@ -3447,6 +3472,14 @@ func (a *ServerWithRoles) UpdateUser(ctx context.Context, user types.User) (type
 // Deprecated: use [usersv1.Service.UpdateUser] instead.
 func (a *ServerWithRoles) UpsertUser(ctx context.Context, u types.User) (types.User, error) {
 	if err := a.action(apidefaults.Namespace, types.KindUser, types.VerbCreate, types.VerbUpdate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := usersv1.CheckOktaOrigin(&a.context, u); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := checkOktaAccess(ctx, &a.context, a.authServer, u.GetName(), types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -3473,6 +3506,19 @@ func (a *ServerWithRoles) UpdateAndSwapUser(ctx context.Context, user string, wi
 // Captures the auth user who modified the user record.
 func (a *ServerWithRoles) CompareAndSwapUser(ctx context.Context, new, existing types.User) error {
 	if err := a.action(apidefaults.Namespace, types.KindUser, types.VerbUpdate); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := usersv1.CheckOktaOrigin(&a.context, new); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Checking the `existing` origin should be enough to assert that okta has
+	// write access to the user, because if the backend record says something
+	// different then the `CompareAndSwap()` will fail anyway, and this way we
+	// save ourselves a backend user lookup.
+
+	if err := usersv1.CheckOktaAccess(&a.context, existing, types.VerbUpdate); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -7212,4 +7258,19 @@ func verbsToReplaceResourceWithOrigin(stored types.ResourceWithOrigin) []string 
 		verbs = append(verbs, types.VerbCreate)
 	}
 	return verbs
+}
+
+// checkOktaAccess gates access to update operations on user records based
+// on the origin label on the supplied user record.
+//
+// # See usersv1.CheckOktaAccess() for the actual access rules
+//
+// TODO(tcsc): Delete in 16.0.0 when user management is removed from `ServerWithRoles`
+func checkOktaAccess(ctx context.Context, authzCtx *authz.Context, users services.UsersService, existingUsername string, verb string) error {
+	existingUser, err := users.GetUser(ctx, existingUsername, false)
+	if err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	}
+
+	return usersv1.CheckOktaAccess(authzCtx, existingUser, verb)
 }
