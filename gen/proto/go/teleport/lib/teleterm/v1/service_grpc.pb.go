@@ -36,6 +36,8 @@ const (
 	TerminalService_UpdateTshdEventsServerAddress_FullMethodName     = "/teleport.lib.teleterm.v1.TerminalService/UpdateTshdEventsServerAddress"
 	TerminalService_ListRootClusters_FullMethodName                  = "/teleport.lib.teleterm.v1.TerminalService/ListRootClusters"
 	TerminalService_ListLeafClusters_FullMethodName                  = "/teleport.lib.teleterm.v1.TerminalService/ListLeafClusters"
+	TerminalService_ListRoles_FullMethodName                         = "/teleport.lib.teleterm.v1.TerminalService/ListRoles"
+	TerminalService_ListUsers_FullMethodName                         = "/teleport.lib.teleterm.v1.TerminalService/ListUsers"
 	TerminalService_GetDatabases_FullMethodName                      = "/teleport.lib.teleterm.v1.TerminalService/GetDatabases"
 	TerminalService_ListDatabaseUsers_FullMethodName                 = "/teleport.lib.teleterm.v1.TerminalService/ListDatabaseUsers"
 	TerminalService_GetServers_FullMethodName                        = "/teleport.lib.teleterm.v1.TerminalService/GetServers"
@@ -89,6 +91,10 @@ type TerminalServiceClient interface {
 	// ListLeafClusters lists leaf clusters
 	// Does not include detailed cluster information that would require a network request.
 	ListLeafClusters(ctx context.Context, in *ListLeafClustersRequest, opts ...grpc.CallOption) (*ListClustersResponse, error)
+	// ListRoles cluster roles.
+	ListRoles(ctx context.Context, in *ListRolesRequest, opts ...grpc.CallOption) (*ListRolesResponse, error)
+	// ListUsers lists cluster users.
+	ListUsers(ctx context.Context, in *ListUsersRequest, opts ...grpc.CallOption) (*ListUsersResponse, error)
 	// GetDatabases returns a filtered and paginated list of databases
 	GetDatabases(ctx context.Context, in *GetDatabasesRequest, opts ...grpc.CallOption) (*GetDatabasesResponse, error)
 	// ListDatabaseUsers lists allowed users for the given database based on the role set.
@@ -218,6 +224,24 @@ func (c *terminalServiceClient) ListRootClusters(ctx context.Context, in *ListCl
 func (c *terminalServiceClient) ListLeafClusters(ctx context.Context, in *ListLeafClustersRequest, opts ...grpc.CallOption) (*ListClustersResponse, error) {
 	out := new(ListClustersResponse)
 	err := c.cc.Invoke(ctx, TerminalService_ListLeafClusters_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *terminalServiceClient) ListRoles(ctx context.Context, in *ListRolesRequest, opts ...grpc.CallOption) (*ListRolesResponse, error) {
+	out := new(ListRolesResponse)
+	err := c.cc.Invoke(ctx, TerminalService_ListRoles_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *terminalServiceClient) ListUsers(ctx context.Context, in *ListUsersRequest, opts ...grpc.CallOption) (*ListUsersResponse, error) {
+	out := new(ListUsersResponse)
+	err := c.cc.Invoke(ctx, TerminalService_ListUsers_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -600,6 +624,10 @@ type TerminalServiceServer interface {
 	// ListLeafClusters lists leaf clusters
 	// Does not include detailed cluster information that would require a network request.
 	ListLeafClusters(context.Context, *ListLeafClustersRequest) (*ListClustersResponse, error)
+	// ListRoles cluster roles.
+	ListRoles(context.Context, *ListRolesRequest) (*ListRolesResponse, error)
+	// ListUsers lists cluster users.
+	ListUsers(context.Context, *ListUsersRequest) (*ListUsersResponse, error)
 	// GetDatabases returns a filtered and paginated list of databases
 	GetDatabases(context.Context, *GetDatabasesRequest) (*GetDatabasesResponse, error)
 	// ListDatabaseUsers lists allowed users for the given database based on the role set.
@@ -713,6 +741,12 @@ func (UnimplementedTerminalServiceServer) ListRootClusters(context.Context, *Lis
 }
 func (UnimplementedTerminalServiceServer) ListLeafClusters(context.Context, *ListLeafClustersRequest) (*ListClustersResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListLeafClusters not implemented")
+}
+func (UnimplementedTerminalServiceServer) ListRoles(context.Context, *ListRolesRequest) (*ListRolesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListRoles not implemented")
+}
+func (UnimplementedTerminalServiceServer) ListUsers(context.Context, *ListUsersRequest) (*ListUsersResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListUsers not implemented")
 }
 func (UnimplementedTerminalServiceServer) GetDatabases(context.Context, *GetDatabasesRequest) (*GetDatabasesResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetDatabases not implemented")
@@ -882,6 +916,42 @@ func _TerminalService_ListLeafClusters_Handler(srv interface{}, ctx context.Cont
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(TerminalServiceServer).ListLeafClusters(ctx, req.(*ListLeafClustersRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _TerminalService_ListRoles_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListRolesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TerminalServiceServer).ListRoles(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: TerminalService_ListRoles_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TerminalServiceServer).ListRoles(ctx, req.(*ListRolesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _TerminalService_ListUsers_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListUsersRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TerminalServiceServer).ListUsers(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: TerminalService_ListUsers_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TerminalServiceServer).ListUsers(ctx, req.(*ListUsersRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1545,6 +1615,14 @@ var TerminalService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListLeafClusters",
 			Handler:    _TerminalService_ListLeafClusters_Handler,
+		},
+		{
+			MethodName: "ListRoles",
+			Handler:    _TerminalService_ListRoles_Handler,
+		},
+		{
+			MethodName: "ListUsers",
+			Handler:    _TerminalService_ListUsers_Handler,
 		},
 		{
 			MethodName: "GetDatabases",

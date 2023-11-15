@@ -215,6 +215,50 @@ func (c *Cluster) GetRoles(ctx context.Context) ([]*types.Role, error) {
 	return roles, nil
 }
 
+// GetAllRoles returns all cluster roles
+func (c *Cluster) GetAllRoles(ctx context.Context) ([]types.Role, error) {
+	var roles []types.Role
+	err := AddMetadataToRetryableError(ctx, func() error {
+		proxyClient, err := c.clusterClient.ConnectToProxy(ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer proxyClient.Close()
+
+		roles, err = proxyClient.CurrentCluster().GetRoles(ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return roles, nil
+}
+
+// GetAllUsers returns all cluster users
+func (c *Cluster) GetAllUsers(ctx context.Context) ([]types.User, error) {
+	var users []types.User
+	err := AddMetadataToRetryableError(ctx, func() error {
+		proxyClient, err := c.clusterClient.ConnectToProxy(ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer proxyClient.Close()
+
+		users, err = proxyClient.CurrentCluster().GetUsers(ctx, false)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return users, nil
+}
+
 // GetRequestableRoles returns the requestable roles for the currently logged-in user
 func (c *Cluster) GetRequestableRoles(ctx context.Context, req *api.GetRequestableRolesRequest) (*types.AccessCapabilities, error) {
 	var (

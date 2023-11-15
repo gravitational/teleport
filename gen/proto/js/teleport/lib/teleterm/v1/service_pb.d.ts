@@ -929,6 +929,94 @@ export namespace ListDatabaseUsersResponse {
     }
 }
 
+export class ListUsersRequest extends jspb.Message { 
+    getClusterUri(): string;
+    setClusterUri(value: string): ListUsersRequest;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): ListUsersRequest.AsObject;
+    static toObject(includeInstance: boolean, msg: ListUsersRequest): ListUsersRequest.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: ListUsersRequest, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): ListUsersRequest;
+    static deserializeBinaryFromReader(message: ListUsersRequest, reader: jspb.BinaryReader): ListUsersRequest;
+}
+
+export namespace ListUsersRequest {
+    export type AsObject = {
+        clusterUri: string,
+    }
+}
+
+export class ListUsersResponse extends jspb.Message { 
+    clearUsersList(): void;
+    getUsersList(): Array<string>;
+    setUsersList(value: Array<string>): ListUsersResponse;
+    addUsers(value: string, index?: number): string;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): ListUsersResponse.AsObject;
+    static toObject(includeInstance: boolean, msg: ListUsersResponse): ListUsersResponse.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: ListUsersResponse, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): ListUsersResponse;
+    static deserializeBinaryFromReader(message: ListUsersResponse, reader: jspb.BinaryReader): ListUsersResponse;
+}
+
+export namespace ListUsersResponse {
+    export type AsObject = {
+        usersList: Array<string>,
+    }
+}
+
+export class ListRolesRequest extends jspb.Message { 
+    getClusterUri(): string;
+    setClusterUri(value: string): ListRolesRequest;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): ListRolesRequest.AsObject;
+    static toObject(includeInstance: boolean, msg: ListRolesRequest): ListRolesRequest.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: ListRolesRequest, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): ListRolesRequest;
+    static deserializeBinaryFromReader(message: ListRolesRequest, reader: jspb.BinaryReader): ListRolesRequest;
+}
+
+export namespace ListRolesRequest {
+    export type AsObject = {
+        clusterUri: string,
+    }
+}
+
+export class ListRolesResponse extends jspb.Message { 
+    clearRolesList(): void;
+    getRolesList(): Array<string>;
+    setRolesList(value: Array<string>): ListRolesResponse;
+    addRoles(value: string, index?: number): string;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): ListRolesResponse.AsObject;
+    static toObject(includeInstance: boolean, msg: ListRolesResponse): ListRolesResponse.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: ListRolesResponse, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): ListRolesResponse;
+    static deserializeBinaryFromReader(message: ListRolesResponse, reader: jspb.BinaryReader): ListRolesResponse;
+}
+
+export namespace ListRolesResponse {
+    export type AsObject = {
+        rolesList: Array<string>,
+    }
+}
+
 export class CreateGatewayRequest extends jspb.Message { 
     getTargetUri(): string;
     setTargetUri(value: string): CreateGatewayRequest;

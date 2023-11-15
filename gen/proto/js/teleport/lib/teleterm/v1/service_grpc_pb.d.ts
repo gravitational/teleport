@@ -20,6 +20,8 @@ interface ITerminalServiceService extends grpc.ServiceDefinition<grpc.UntypedSer
     updateTshdEventsServerAddress: ITerminalServiceService_IUpdateTshdEventsServerAddress;
     listRootClusters: ITerminalServiceService_IListRootClusters;
     listLeafClusters: ITerminalServiceService_IListLeafClusters;
+    listRoles: ITerminalServiceService_IListRoles;
+    listUsers: ITerminalServiceService_IListUsers;
     getDatabases: ITerminalServiceService_IGetDatabases;
     listDatabaseUsers: ITerminalServiceService_IListDatabaseUsers;
     getServers: ITerminalServiceService_IGetServers;
@@ -83,6 +85,24 @@ interface ITerminalServiceService_IListLeafClusters extends grpc.MethodDefinitio
     requestDeserialize: grpc.deserialize<teleport_lib_teleterm_v1_service_pb.ListLeafClustersRequest>;
     responseSerialize: grpc.serialize<teleport_lib_teleterm_v1_service_pb.ListClustersResponse>;
     responseDeserialize: grpc.deserialize<teleport_lib_teleterm_v1_service_pb.ListClustersResponse>;
+}
+interface ITerminalServiceService_IListRoles extends grpc.MethodDefinition<teleport_lib_teleterm_v1_service_pb.ListRolesRequest, teleport_lib_teleterm_v1_service_pb.ListRolesResponse> {
+    path: "/teleport.lib.teleterm.v1.TerminalService/ListRoles";
+    requestStream: false;
+    responseStream: false;
+    requestSerialize: grpc.serialize<teleport_lib_teleterm_v1_service_pb.ListRolesRequest>;
+    requestDeserialize: grpc.deserialize<teleport_lib_teleterm_v1_service_pb.ListRolesRequest>;
+    responseSerialize: grpc.serialize<teleport_lib_teleterm_v1_service_pb.ListRolesResponse>;
+    responseDeserialize: grpc.deserialize<teleport_lib_teleterm_v1_service_pb.ListRolesResponse>;
+}
+interface ITerminalServiceService_IListUsers extends grpc.MethodDefinition<teleport_lib_teleterm_v1_service_pb.ListUsersRequest, teleport_lib_teleterm_v1_service_pb.ListUsersResponse> {
+    path: "/teleport.lib.teleterm.v1.TerminalService/ListUsers";
+    requestStream: false;
+    responseStream: false;
+    requestSerialize: grpc.serialize<teleport_lib_teleterm_v1_service_pb.ListUsersRequest>;
+    requestDeserialize: grpc.deserialize<teleport_lib_teleterm_v1_service_pb.ListUsersRequest>;
+    responseSerialize: grpc.serialize<teleport_lib_teleterm_v1_service_pb.ListUsersResponse>;
+    responseDeserialize: grpc.deserialize<teleport_lib_teleterm_v1_service_pb.ListUsersResponse>;
 }
 interface ITerminalServiceService_IGetDatabases extends grpc.MethodDefinition<teleport_lib_teleterm_v1_service_pb.GetDatabasesRequest, teleport_lib_teleterm_v1_service_pb.GetDatabasesResponse> {
     path: "/teleport.lib.teleterm.v1.TerminalService/GetDatabases";
@@ -406,6 +426,8 @@ export interface ITerminalServiceServer {
     updateTshdEventsServerAddress: grpc.handleUnaryCall<teleport_lib_teleterm_v1_service_pb.UpdateTshdEventsServerAddressRequest, teleport_lib_teleterm_v1_service_pb.UpdateTshdEventsServerAddressResponse>;
     listRootClusters: grpc.handleUnaryCall<teleport_lib_teleterm_v1_service_pb.ListClustersRequest, teleport_lib_teleterm_v1_service_pb.ListClustersResponse>;
     listLeafClusters: grpc.handleUnaryCall<teleport_lib_teleterm_v1_service_pb.ListLeafClustersRequest, teleport_lib_teleterm_v1_service_pb.ListClustersResponse>;
+    listRoles: grpc.handleUnaryCall<teleport_lib_teleterm_v1_service_pb.ListRolesRequest, teleport_lib_teleterm_v1_service_pb.ListRolesResponse>;
+    listUsers: grpc.handleUnaryCall<teleport_lib_teleterm_v1_service_pb.ListUsersRequest, teleport_lib_teleterm_v1_service_pb.ListUsersResponse>;
     getDatabases: grpc.handleUnaryCall<teleport_lib_teleterm_v1_service_pb.GetDatabasesRequest, teleport_lib_teleterm_v1_service_pb.GetDatabasesResponse>;
     listDatabaseUsers: grpc.handleUnaryCall<teleport_lib_teleterm_v1_service_pb.ListDatabaseUsersRequest, teleport_lib_teleterm_v1_service_pb.ListDatabaseUsersResponse>;
     getServers: grpc.handleUnaryCall<teleport_lib_teleterm_v1_service_pb.GetServersRequest, teleport_lib_teleterm_v1_service_pb.GetServersResponse>;
@@ -453,6 +475,12 @@ export interface ITerminalServiceClient {
     listLeafClusters(request: teleport_lib_teleterm_v1_service_pb.ListLeafClustersRequest, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.ListClustersResponse) => void): grpc.ClientUnaryCall;
     listLeafClusters(request: teleport_lib_teleterm_v1_service_pb.ListLeafClustersRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.ListClustersResponse) => void): grpc.ClientUnaryCall;
     listLeafClusters(request: teleport_lib_teleterm_v1_service_pb.ListLeafClustersRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.ListClustersResponse) => void): grpc.ClientUnaryCall;
+    listRoles(request: teleport_lib_teleterm_v1_service_pb.ListRolesRequest, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.ListRolesResponse) => void): grpc.ClientUnaryCall;
+    listRoles(request: teleport_lib_teleterm_v1_service_pb.ListRolesRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.ListRolesResponse) => void): grpc.ClientUnaryCall;
+    listRoles(request: teleport_lib_teleterm_v1_service_pb.ListRolesRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.ListRolesResponse) => void): grpc.ClientUnaryCall;
+    listUsers(request: teleport_lib_teleterm_v1_service_pb.ListUsersRequest, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.ListUsersResponse) => void): grpc.ClientUnaryCall;
+    listUsers(request: teleport_lib_teleterm_v1_service_pb.ListUsersRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.ListUsersResponse) => void): grpc.ClientUnaryCall;
+    listUsers(request: teleport_lib_teleterm_v1_service_pb.ListUsersRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.ListUsersResponse) => void): grpc.ClientUnaryCall;
     getDatabases(request: teleport_lib_teleterm_v1_service_pb.GetDatabasesRequest, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.GetDatabasesResponse) => void): grpc.ClientUnaryCall;
     getDatabases(request: teleport_lib_teleterm_v1_service_pb.GetDatabasesRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.GetDatabasesResponse) => void): grpc.ClientUnaryCall;
     getDatabases(request: teleport_lib_teleterm_v1_service_pb.GetDatabasesRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.GetDatabasesResponse) => void): grpc.ClientUnaryCall;
@@ -570,6 +598,12 @@ export class TerminalServiceClient extends grpc.Client implements ITerminalServi
     public listLeafClusters(request: teleport_lib_teleterm_v1_service_pb.ListLeafClustersRequest, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.ListClustersResponse) => void): grpc.ClientUnaryCall;
     public listLeafClusters(request: teleport_lib_teleterm_v1_service_pb.ListLeafClustersRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.ListClustersResponse) => void): grpc.ClientUnaryCall;
     public listLeafClusters(request: teleport_lib_teleterm_v1_service_pb.ListLeafClustersRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.ListClustersResponse) => void): grpc.ClientUnaryCall;
+    public listRoles(request: teleport_lib_teleterm_v1_service_pb.ListRolesRequest, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.ListRolesResponse) => void): grpc.ClientUnaryCall;
+    public listRoles(request: teleport_lib_teleterm_v1_service_pb.ListRolesRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.ListRolesResponse) => void): grpc.ClientUnaryCall;
+    public listRoles(request: teleport_lib_teleterm_v1_service_pb.ListRolesRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.ListRolesResponse) => void): grpc.ClientUnaryCall;
+    public listUsers(request: teleport_lib_teleterm_v1_service_pb.ListUsersRequest, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.ListUsersResponse) => void): grpc.ClientUnaryCall;
+    public listUsers(request: teleport_lib_teleterm_v1_service_pb.ListUsersRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.ListUsersResponse) => void): grpc.ClientUnaryCall;
+    public listUsers(request: teleport_lib_teleterm_v1_service_pb.ListUsersRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.ListUsersResponse) => void): grpc.ClientUnaryCall;
     public getDatabases(request: teleport_lib_teleterm_v1_service_pb.GetDatabasesRequest, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.GetDatabasesResponse) => void): grpc.ClientUnaryCall;
     public getDatabases(request: teleport_lib_teleterm_v1_service_pb.GetDatabasesRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.GetDatabasesResponse) => void): grpc.ClientUnaryCall;
     public getDatabases(request: teleport_lib_teleterm_v1_service_pb.GetDatabasesRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.GetDatabasesResponse) => void): grpc.ClientUnaryCall;

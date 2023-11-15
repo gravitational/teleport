@@ -48,6 +48,10 @@ service TerminalService {
   // ListLeafClusters lists leaf clusters
   // Does not include detailed cluster information that would require a network request.
   rpc ListLeafClusters(ListLeafClustersRequest) returns (ListClustersResponse);
+  // ListRoles cluster roles.
+  rpc ListRoles(ListRolesRequest) returns (ListRolesResponse);
+  // ListUsers lists cluster users.
+  rpc ListUsers(ListUsersRequest) returns (ListUsersResponse);
   // GetDatabases returns a filtered and paginated list of databases
   rpc GetDatabases(GetDatabasesRequest) returns (GetDatabasesResponse);
   // ListDatabaseUsers lists allowed users for the given database based on the role set.
@@ -376,6 +380,22 @@ message ListDatabaseUsersRequest {
 
 message ListDatabaseUsersResponse {
   repeated string users = 1;
+}
+
+message ListUsersRequest {
+  string cluster_uri = 1;
+}
+
+message ListUsersResponse {
+  repeated string users = 1;
+}
+
+message ListRolesRequest {
+  string cluster_uri = 1;
+}
+
+message ListRolesResponse {
+  repeated string roles = 1;
 }
 
 message CreateGatewayRequest {

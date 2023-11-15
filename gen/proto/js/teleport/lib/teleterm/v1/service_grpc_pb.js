@@ -523,6 +523,28 @@ function deserialize_teleport_lib_teleterm_v1_ListLeafClustersRequest(buffer_arg
   return teleport_lib_teleterm_v1_service_pb.ListLeafClustersRequest.deserializeBinary(new Uint8Array(buffer_arg));
 }
 
+function serialize_teleport_lib_teleterm_v1_ListRolesRequest(arg) {
+  if (!(arg instanceof teleport_lib_teleterm_v1_service_pb.ListRolesRequest)) {
+    throw new Error('Expected argument of type teleport.lib.teleterm.v1.ListRolesRequest');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_teleport_lib_teleterm_v1_ListRolesRequest(buffer_arg) {
+  return teleport_lib_teleterm_v1_service_pb.ListRolesRequest.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
+function serialize_teleport_lib_teleterm_v1_ListRolesResponse(arg) {
+  if (!(arg instanceof teleport_lib_teleterm_v1_service_pb.ListRolesResponse)) {
+    throw new Error('Expected argument of type teleport.lib.teleterm.v1.ListRolesResponse');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_teleport_lib_teleterm_v1_ListRolesResponse(buffer_arg) {
+  return teleport_lib_teleterm_v1_service_pb.ListRolesResponse.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
 function serialize_teleport_lib_teleterm_v1_ListUnifiedResourcesRequest(arg) {
   if (!(arg instanceof teleport_lib_teleterm_v1_service_pb.ListUnifiedResourcesRequest)) {
     throw new Error('Expected argument of type teleport.lib.teleterm.v1.ListUnifiedResourcesRequest');
@@ -543,6 +565,28 @@ function serialize_teleport_lib_teleterm_v1_ListUnifiedResourcesResponse(arg) {
 
 function deserialize_teleport_lib_teleterm_v1_ListUnifiedResourcesResponse(buffer_arg) {
   return teleport_lib_teleterm_v1_service_pb.ListUnifiedResourcesResponse.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
+function serialize_teleport_lib_teleterm_v1_ListUsersRequest(arg) {
+  if (!(arg instanceof teleport_lib_teleterm_v1_service_pb.ListUsersRequest)) {
+    throw new Error('Expected argument of type teleport.lib.teleterm.v1.ListUsersRequest');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_teleport_lib_teleterm_v1_ListUsersRequest(buffer_arg) {
+  return teleport_lib_teleterm_v1_service_pb.ListUsersRequest.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
+function serialize_teleport_lib_teleterm_v1_ListUsersResponse(arg) {
+  if (!(arg instanceof teleport_lib_teleterm_v1_service_pb.ListUsersResponse)) {
+    throw new Error('Expected argument of type teleport.lib.teleterm.v1.ListUsersResponse');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_teleport_lib_teleterm_v1_ListUsersResponse(buffer_arg) {
+  return teleport_lib_teleterm_v1_service_pb.ListUsersResponse.deserializeBinary(new Uint8Array(buffer_arg));
 }
 
 function serialize_teleport_lib_teleterm_v1_LoginPasswordlessRequest(arg) {
@@ -803,6 +847,30 @@ listLeafClusters: {
     requestDeserialize: deserialize_teleport_lib_teleterm_v1_ListLeafClustersRequest,
     responseSerialize: serialize_teleport_lib_teleterm_v1_ListClustersResponse,
     responseDeserialize: deserialize_teleport_lib_teleterm_v1_ListClustersResponse,
+  },
+  // ListRoles cluster roles.
+listRoles: {
+    path: '/teleport.lib.teleterm.v1.TerminalService/ListRoles',
+    requestStream: false,
+    responseStream: false,
+    requestType: teleport_lib_teleterm_v1_service_pb.ListRolesRequest,
+    responseType: teleport_lib_teleterm_v1_service_pb.ListRolesResponse,
+    requestSerialize: serialize_teleport_lib_teleterm_v1_ListRolesRequest,
+    requestDeserialize: deserialize_teleport_lib_teleterm_v1_ListRolesRequest,
+    responseSerialize: serialize_teleport_lib_teleterm_v1_ListRolesResponse,
+    responseDeserialize: deserialize_teleport_lib_teleterm_v1_ListRolesResponse,
+  },
+  // ListUsers lists cluster users.
+listUsers: {
+    path: '/teleport.lib.teleterm.v1.TerminalService/ListUsers',
+    requestStream: false,
+    responseStream: false,
+    requestType: teleport_lib_teleterm_v1_service_pb.ListUsersRequest,
+    responseType: teleport_lib_teleterm_v1_service_pb.ListUsersResponse,
+    requestSerialize: serialize_teleport_lib_teleterm_v1_ListUsersRequest,
+    requestDeserialize: deserialize_teleport_lib_teleterm_v1_ListUsersRequest,
+    responseSerialize: serialize_teleport_lib_teleterm_v1_ListUsersResponse,
+    responseDeserialize: deserialize_teleport_lib_teleterm_v1_ListUsersResponse,
   },
   // GetDatabases returns a filtered and paginated list of databases
 getDatabases: {
