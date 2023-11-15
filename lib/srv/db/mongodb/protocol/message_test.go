@@ -431,7 +431,8 @@ func makeTestOpQuery(t *testing.T) *MessageOpQuery {
 		ReturnFieldsSelector: makeTestDocument(t),
 	}
 	msg.bytes = msg.ToWire(0)
-	msg.Header = makeTestHeader(msg.bytes, wiremessage.OpQuery)
+	// OpQuery is deprecated, we define the code directly to make sure that our mapping is correct
+	msg.Header = makeTestHeader(msg.bytes, wiremessage.OpCode(2004))
 	return msg
 }
 
