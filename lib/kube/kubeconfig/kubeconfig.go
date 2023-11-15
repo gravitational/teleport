@@ -407,7 +407,7 @@ func Save(path string, config clientcmdapi.Config) error {
 }
 
 // Save saves updated config to location specified by environment variable or
-// default location. 
+// default location.
 func SaveConfig(path string, config clientcmdapi.Config, fs ConfigFS) error {
 	filename, err := finalPath(path)
 	if err != nil {

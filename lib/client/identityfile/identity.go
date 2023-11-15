@@ -155,7 +155,7 @@ func (s *StandardConfigWriter) WriteFile(name string, data []byte, perm os.FileM
 	return os.WriteFile(name, data, perm)
 }
 
-// ReadFile reads the file at tpath `name`, returning 
+// ReadFile reads the file at tpath `name`, returning
 func (s *StandardConfigWriter) ReadFile(name string) ([]byte, error) {
 	return os.ReadFile(name)
 }
