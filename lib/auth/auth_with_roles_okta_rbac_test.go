@@ -104,8 +104,10 @@ func TestOktaServiceUserCRUD(t *testing.T) {
 			user, err = srv.AuthServer.CreateUser(ctx, user)
 			require.NoError(t, err)
 
+			// When I (as the Okta service) modify the user and attempt to update the backend record...
 			user.SetTraits(map[string][]string{"foo": {"bar", "baz"}})
 
+			// Expect the operation to succeed
 			_, err = authWithOktaRole.UpdateUser(ctx, user)
 			require.NoError(t, err)
 		})
@@ -117,8 +119,11 @@ func TestOktaServiceUserCRUD(t *testing.T) {
 			user, err = srv.AuthServer.CreateUser(ctx, user)
 			require.NoError(t, err)
 
+			// When I (as the Okta service) attempt modify that user
 			user.SetOrigin(types.OriginOkta)
 			_, err = authWithOktaRole.UpdateUser(ctx, user)
+
+			// Expect the attempt to fail
 			require.Error(t, err)
 			require.Truef(t, trace.IsAccessDenied(err), "Expected access denied, got %T: %s", err, err.Error())
 		})
@@ -129,8 +134,10 @@ func TestOktaServiceUserCRUD(t *testing.T) {
 			user, err = srv.AuthServer.CreateUser(ctx, user)
 			require.NoError(t, err)
 
+			// When I (as the Okta service) attempt reset the user origin
 			user.SetOrigin(types.OriginDynamic)
 
+			// Expect the attempt to fail
 			_, err = authWithOktaRole.UpdateUser(ctx, user)
 			require.Error(t, err)
 			require.Truef(t, trace.IsBadParameter(err), "Expected bad parameter, got %T: %s", err, err.Error())
@@ -152,8 +159,10 @@ func TestOktaServiceUserCRUD(t *testing.T) {
 			user, err = srv.AuthServer.CreateUser(ctx, user)
 			require.NoError(t, err)
 
+			// When I (as a non-Okta service) attempt reset the user origin
 			user.SetOrigin(types.OriginDynamic)
 
+			// Expect the attempt to fail
 			_, err = authWithBotRole.UpdateUser(ctx, user)
 			require.Error(t, err)
 			require.Truef(t, trace.IsBadParameter(err), "Expected bad parameter, got %T: %s", err, err.Error())
@@ -165,9 +174,11 @@ func TestOktaServiceUserCRUD(t *testing.T) {
 			user, err = srv.AuthServer.CreateUser(ctx, user)
 			require.NoError(t, err)
 
+			// When I (as a non-Okta service) attempt modify that user
 			user.SetTraits(map[string][]string{"foo": {"bar", "baz"}})
-
 			_, err = authWithBotRole.UpdateUser(ctx, user)
+
+			// Expect the attempt to fail
 			require.Error(t, err)
 			require.Truef(t, trace.IsBadParameter(err), "Expected bad parameter got %T: %s", err, err.Error())
 		})
@@ -264,7 +275,7 @@ func TestOktaServiceUserCRUD(t *testing.T) {
 
 	t.Run("compare and swap", func(t *testing.T) {
 		t.Run("okta service updating Okta user is allowed", func(t *testing.T) {
-			// Given an existing okta existing
+			// Given an existing okta user
 			existing := newOktaUser(t)
 			existing, err = srv.AuthServer.CreateUser(ctx, existing)
 			require.NoError(t, err)
