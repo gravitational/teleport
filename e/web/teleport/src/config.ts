@@ -10,6 +10,7 @@ const cfg = {
   oss: ossCfg,
 
   routes: {
+    accessGraph: '/web/accessgraph',
     accessLists: '/web/accesslists/:accessListId?',
     accessListNew: '/web/accesslists/new',
 
@@ -54,6 +55,8 @@ const cfg = {
     accessListReviewPath: '/v1/enterprise/accesslist/:accessListId/reviews',
     accessListSuggestionsPath:
       '/v1/enterprise/accessrequest/:requestId/suggestions/accesslist',
+
+    accessGraphQueryPath: '/v1/enterprise/accessgraph/query',
 
     accessRequestPromotePath: '/v1/enterprise/accessrequest/:requestId/promote',
     accessRequestPath: '/v1/enterprise/accessrequest/:requestId?',

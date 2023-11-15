@@ -6,15 +6,16 @@ import {
 } from 'teleport/Navigation/categories';
 
 import {
-  EqualizersVertical,
-  Download,
-  Headset,
-  Laptop,
   Add,
-  ListAddCheck,
   Chart,
-  Profile,
+  Download,
+  EqualizersVertical,
+  FlowArrow,
+  Headset,
   Invoices,
+  Laptop,
+  ListAddCheck,
+  Profile,
   UserList,
   Graph,
 } from 'design/Icon';
@@ -22,7 +23,7 @@ import {
 import { NavTitle } from 'teleport/types';
 
 import cfg from 'e-teleport/config';
-import { ReviewRequests, NewRequest } from 'e-teleport/Workflow';
+import { NewRequest, ReviewRequests } from 'e-teleport/Workflow';
 
 import { Downloads } from 'e-teleport/Downloads';
 
@@ -59,6 +60,7 @@ const AccessListManagement = lazy(
   () => import('e-teleport/AccessListManagement')
 );
 const AccessMonitoring = lazy(() => import('e-teleport/AccessMonitoring'));
+const AccessGraph = lazy(() => import('e-teleport/AccessGraph'));
 
 const Users = lazy(() => import('teleport/Users'));
 
@@ -138,6 +140,7 @@ class FeatureNewLock extends OSS.FeatureNewLock {
     component: NewLock,
   };
 }
+
 export class FeatureDiscoverE extends OSS.FeatureDiscover {
   route = {
     ...super.getRoute(),
@@ -406,6 +409,30 @@ class FeatureUsersE extends OSS.FeatureUsers {
   };
 }
 
+class FeatureAccessGraph implements TeleportFeature {
+  category = NavigationCategory.Management;
+  section = ManagementSection.Access;
+
+  route = {
+    title: 'Access Graph',
+    path: cfg.routes.accessGraph,
+    exact: true,
+    component: AccessGraph,
+  };
+
+  hasAccess() {
+    return true;
+  }
+
+  navigationItem = {
+    title: NavTitle.AccessGraph,
+    icon: <FlowArrow size={20} />,
+    getLink() {
+      return cfg.routes.accessGraph;
+    },
+  };
+}
+
 export function getEnterpriseFeatures(): TeleportFeature[] {
   return [
     // Resources
@@ -429,6 +456,7 @@ export function getEnterpriseFeatures(): TeleportFeature[] {
     // - Access
     new FeatureUsersE(),
     new OSS.FeatureRoles(),
+    new FeatureAccessGraph(),
     new FeatureAuthConnectors(),
     new FeatureIntegrations(),
     new FeatureDiscoverE(),
