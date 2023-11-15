@@ -211,7 +211,8 @@ export function generateConfig(args: {
           uri: `https://127.0.0.1:${args.fileServerPort}`,
           insecure_skip_verify: true,
           labels: {
-            env: 'test',
+            // TODO: Move this to constants.ts.
+            'teleport.dev/connect-file-sharing': args.username,
           },
         },
       ],
