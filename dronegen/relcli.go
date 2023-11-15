@@ -84,19 +84,10 @@ func executeRelcliStep(name string, command string) step {
 	// This is a workaround for a release server issue, and should be removed after the issue is fixed.
 	// The release server publish step does not fail on or after the third step, consistently.
 	if strings.HasPrefix(command, "auto_publish") {
-		retryCount := 3
-		for i := 1; i <= retryCount; i++ {
-			// Ignore errors on all but the last run of the command
-			commandSuffix := ""
-			if i != retryCount {
-				commandSuffix = " || true"
-			}
-
-			commands = append(commands, runReleaseServerCLICommand+commandSuffix)
-		}
-	} else {
-		commands = append(commands, runReleaseServerCLICommand)
+		// Retry the command up to 10 times until success, and fail if none succeed.
+		runReleaseServerCLICommand = `for i in $(seq 10); do ` + runReleaseServerCLICommand + ` && break; done || false`
 	}
+	commands = append(commands, runReleaseServerCLICommand)
 
 	return step{
 		Name:  name,
