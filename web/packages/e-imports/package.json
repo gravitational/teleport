@@ -10,8 +10,13 @@
     "@stripe/stripe-js": "^1.48.0",
     "@uiw/codemirror-themes": "^4.21.20",
     "@uiw/react-codemirror": "^4.21.20",
-    "d3-time-format": "^4.1.0",
     "d3-scale": "^4.0.2",
-    "react-highlight": "^0.15.0"
+    "d3-time-format": "^4.1.0",
+    "leaflet": "^1.9.4",
+    "react-highlight": "^0.15.0",
+    "react-leaflet": "^4.2.1"
+  },
+  "devDependencies": {
+    "@types/leaflet": "^1.9.8"
   }
 }
