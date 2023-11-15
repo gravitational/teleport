@@ -395,6 +395,24 @@ func (k *Key) Verify(p VerifyParams) (*Claims, error) {
 	return k.verify(p.RawToken, expectedClaims)
 }
 
+// VerifyUnknownUser will validate the passed in JWT token for any user.
+func (k *Key) VerifyUnknownUser(p VerifyParams) (*Claims, error) {
+	if p.RawToken == "" {
+		return nil, trace.BadParameter("raw token missing")
+	}
+	if p.URI == "" {
+		return nil, trace.BadParameter("uri missing")
+	}
+
+	expectedClaims := jwt.Expected{
+		Issuer:   k.config.ClusterName,
+		Audience: jwt.Audience{p.URI},
+		Time:     k.config.Clock.Now(),
+	}
+
+	return k.verify(p.RawToken, expectedClaims)
+}
+
 // AWSOIDCVerifyParams are the params required to verify an AWS OIDC Token.
 type AWSOIDCVerifyParams struct {
 	RawToken string
@@ -487,6 +505,25 @@ func (k *Key) VerifyAzureToken(rawToken string) (*AzureTokenClaims, error) {
 	// Validate the signature on the JWT token.
 	var out AzureTokenClaims
 	if err := tok.Claims(k.config.PublicKey, &out); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &out, nil
+}
+
+func VerifyAnyToken[T any](pk crypto.PublicKey, rawToken string) (*T, error) {
+	if pk == nil {
+		return nil, trace.BadParameter("can not verify token without public key")
+	}
+	// Parse the token.
+	tok, err := jwt.ParseSigned(rawToken)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Validate the signature on the JWT token.
+	var out T
+	if err := tok.Claims(pk, &out); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

@@ -51,7 +51,10 @@ func (s *Handler) Login(ctx context.Context, req *api.LoginRequest) (*api.EmptyR
 		return nil, trace.Wrap(err)
 	}
 
-	s.DaemonService.StartFileServer(req.ClusterUri)
+	err = s.DaemonService.StartFileServer(ctx, req.ClusterUri)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	return &api.EmptyResponse{}, nil
 }
@@ -84,7 +87,10 @@ func (s *Handler) LoginPasswordless(stream api.TerminalService_LoginPasswordless
 		return trace.Wrap(err)
 	}
 
-	s.DaemonService.StartFileServer(clusterURI)
+	err = s.DaemonService.StartFileServer(context.TODO(), clusterURI)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
 	return nil
 }
