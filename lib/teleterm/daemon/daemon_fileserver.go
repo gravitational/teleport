@@ -31,9 +31,6 @@ import (
 )
 
 func (s *Service) StartFileServers() error {
-	s.fileServersMu.Lock()
-	defer s.fileServersMu.Unlock()
-
 	clusters, err := s.cfg.Storage.ReadAll()
 	if err != nil {
 		return trace.Wrap(err)
@@ -44,13 +41,8 @@ func (s *Service) StartFileServers() error {
 			continue
 		}
 
-		_, tc, err := s.ResolveCluster(c.URI.String())
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		keys, err := jwks(context.TODO(), tc)
+		err := s.StartFileServer(context.TODO(), c.URI.String())
 
-		err = s.startFileServerLocked(c.URI.String(), tc, keys)
 		if err != nil {
 			return trace.Wrap(err)
 		}
