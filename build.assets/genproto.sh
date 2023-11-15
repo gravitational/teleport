@@ -81,7 +81,8 @@ main() {
     --path=api/proto/teleport/header/ \
     --path=api/proto/teleport/secreports/ \
     --path=api/proto/teleport/trait/ \
-    --path=api/proto/teleport/usageevents/
+    --path=api/proto/teleport/usageevents/ \
+    --path=api/proto/teleport/mobile/
 
   # Generate Rust protos.
   echoed buf generate --template=buf-rust.gen.yaml \
