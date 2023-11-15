@@ -4612,11 +4612,19 @@ func (a *Server) submitAccessReview(
 		log.WithError(err).Warn("Failed to emit access request update event.")
 	}
 	go func() {
-		state := params.Review.ProposedState.String()
+		state := strings.ToLower(params.Review.ProposedState.String())
+		emoji := "🦷"
+		switch params.Review.ProposedState {
+		case types.RequestState_APPROVED:
+			emoji = "✅"
+		case types.RequestState_DENIED:
+			emoji = "❌"
+		}
+
 		err := a.notificationSender(
 			context.Background(),
 			req.GetUser(),
-			fmt.Sprintf("Access Request %s", state),
+			fmt.Sprintf("%s Access Request %s", emoji, strings.Title(state)),
 			fmt.Sprintf(
 				"Your access request has been %s by %s",
 				state,
