@@ -17,47 +17,35 @@ limitations under the License.
 package protocol
 
 import (
-	"bytes"
-
 	"go.mongodb.org/mongo-driver/x/bsonx/bsoncore"
 	"go.mongodb.org/mongo-driver/x/mongo/driver/wiremessage"
 )
 
+// This file contains logic which has been deprecated from MongoDB's client library, but needs to be supported for
+// our backwards compatibility needs. This deprecation started in MongoDB 1.13.0.
+
+// OpmsgWireVersion is the minimum wire version needed to use OP_MSG
+const OpmsgWireVersion = 6
+
 // ReadQueryFlags reads OP_QUERY flags from src.
 func ReadQueryFlags(src []byte) (flags wiremessage.QueryFlag, rem []byte, ok bool) {
-	i32, rem, ok := readi32(src)
+	i32, rem, ok := readInt32(src)
 	return wiremessage.QueryFlag(i32), rem, ok
 }
 
 // ReadQueryFullCollectionName reads the full collection name from src.
 func ReadQueryFullCollectionName(src []byte) (collname string, rem []byte, ok bool) {
-	return readcstring(src)
+	return readCString(src)
 }
 
 // ReadQueryNumber is a replacement for ReadQueryNumberToSkip or ReadQueryNumberToSkip. This function reads a 32 bit
 // integer from src.
 func ReadQueryNumber(src []byte) (nts int32, rem []byte, ok bool) {
-	return readi32(src)
+	return readInt32(src)
 }
 
 // ReadDocument is a replacement for ReadQueryQuery or ReadQueryReturnFieldsSelector.  This function reads a bson
 // document from src.
 func ReadDocument(src []byte) (rfs bsoncore.Document, rem []byte, ok bool) {
 	return bsoncore.ReadDocument(src)
-}
-
-func readi32(src []byte) (int32, []byte, bool) {
-	if len(src) < 4 {
-		return 0, src, false
-	}
-
-	return int32(src[0]) | int32(src[1])<<8 | int32(src[2])<<16 | int32(src[3])<<24, src[4:], true
-}
-
-func readcstring(src []byte) (string, []byte, bool) {
-	idx := bytes.IndexByte(src, 0x00)
-	if idx < 0 {
-		return "", src, false
-	}
-	return string(src[:idx]), src[idx+1:], true
 }

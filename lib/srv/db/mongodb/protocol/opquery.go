@@ -130,6 +130,7 @@ func readOpQuery(header MessageHeader, payload []byte) (*MessageOpQuery, error) 
 // https://docs.mongodb.com/manual/reference/mongodb-wire-protocol/#op_query
 func (m *MessageOpQuery) ToWire(responseTo int32) (dst []byte) {
 	var idx int32
+	//nolint:staticcheck // ignore deprecation till OpQuery is removed, at which point this wire format should be updated
 	idx, dst = wiremessage.AppendHeaderStart(dst, m.Header.RequestID, responseTo, wiremessage.OpQuery)
 	dst = wiremessage.AppendQueryFlags(dst, m.Flags)
 	dst = wiremessage.AppendQueryFullCollectionName(dst, m.FullCollectionName)
