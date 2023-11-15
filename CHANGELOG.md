@@ -13,7 +13,7 @@
 * Updated the code signing certificate for Windows artifacts. [#34377](https://github.com/gravitational/teleport/pull/34377)
 * Added IAM Authentication support for Amazon MemoryDB Access. [#34348](https://github.com/gravitational/teleport/pull/34348)
 * Split large desktop recordings into multiple files during export. [#34319](https://github.com/gravitational/teleport/pull/34319)
-* Exposed ServerInfo resource in tctl. [#34137](https://github.com/gravitational/teleport/pull/34137)
+* Allow setting server labels from tctl. [#34137](https://github.com/gravitational/teleport/pull/34137)
 
 ## 14.1.3 (11/8/23)
 
