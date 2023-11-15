@@ -121,7 +121,7 @@ type AWSOIDCDeployServiceUpdaterConfig struct {
 	TeleportClusterName string
 	// TeleportClusterVersion specifies the teleport cluster version
 	TeleportClusterVersion string
-	// AWSOIDCProvderAddr specifies the aws oidc provider address used to generate AWS OIDC tokens
+	// AWSOIDCProvderAddr specifies the AWS OIDC provider address used to generate AWS OIDC tokens
 	AWSOIDCProviderAddr string
 	// CriticalEndpoint specifies the endpoint to check for critical updates
 	CriticalEndpoint string
@@ -144,7 +144,7 @@ func (cfg *AWSOIDCDeployServiceUpdaterConfig) CheckAndSetDefaults() error {
 	}
 
 	if cfg.AWSOIDCProviderAddr == "" {
-		return trace.BadParameter("aws oidc provider address required")
+		return trace.BadParameter("AWS OIDC provider address required")
 	}
 
 	if cfg.Log == nil {
@@ -158,7 +158,7 @@ func (cfg *AWSOIDCDeployServiceUpdaterConfig) CheckAndSetDefaults() error {
 	return nil
 }
 
-// AWSOIDCDeployServiceUpdater periodically updates aws oidc deploy service
+// AWSOIDCDeployServiceUpdater periodically updates AWS OIDC deploy service
 type AWSOIDCDeployServiceUpdater struct {
 	AWSOIDCDeployServiceUpdaterConfig
 }
@@ -174,7 +174,7 @@ func NewDeployServiceUpdater(config AWSOIDCDeployServiceUpdaterConfig) (*AWSOIDC
 	}, nil
 }
 
-// Run periodically updates the aws oidc deploy service
+// Run periodically updates the AWS OIDC deploy service
 func (updater *AWSOIDCDeployServiceUpdater) Run(ctx context.Context) error {
 	periodic := interval.New(interval.Config{
 		Duration: updateAWSOIDCDeployServiceInterval,
@@ -220,7 +220,7 @@ func (updater *AWSOIDCDeployServiceUpdater) updateAWSOIDCDeployServices(ctx cont
 	stableVersion = strings.TrimPrefix(stableVersion, "v")
 
 	// minServerVersion specifies the minimum version of the cluster required for
-	// updated aws oidc deploy service to remain compatible with the cluster.
+	// updated AWS OIDC deploy service to remain compatible with the cluster.
 	minServerVersion, err := utils.MajorSemver(stableVersion)
 	if err != nil {
 		return trace.Wrap(err)
@@ -237,7 +237,7 @@ func (updater *AWSOIDCDeployServiceUpdater) updateAWSOIDCDeployServices(ctx cont
 	}
 
 	// The updater needs to iterate over all integrations and aws regions to check
-	// for aws oidc deploy services to update. In order to reduce the number of api
+	// for AWS OIDC deploy services to update. In order to reduce the number of api
 	// calls, the aws regions are first reduced to only the regions containing
 	// an RDS database.
 	awsRegions := make(map[string]interface{})
@@ -273,7 +273,7 @@ func (updater *AWSOIDCDeployServiceUpdater) updateAWSOIDCDeployServices(ctx cont
 }
 
 func (updater *AWSOIDCDeployServiceUpdater) updateAWSOIDCDeployService(ctx context.Context, integration types.Integration, awsRegion, teleportVersion string) error {
-	// Do not attempt update if integration is not an aws oidc integration.
+	// Do not attempt update if integration is not an AWS OIDC integration.
 	if integration.GetAWSOIDCIntegrationSpec() == nil {
 		return nil
 	}
@@ -343,7 +343,7 @@ func (updater *AWSOIDCDeployServiceUpdater) updateAWSOIDCDeployService(ctx conte
 			updater.Log.Debugf("Integration %s does not manage any services within region %s.", integration.GetName(), awsRegion)
 			return nil
 		case trace.IsAccessDenied(awslib.ConvertIAMv2Error(trace.Unwrap(err))):
-			// The aws oidc role may lack permissions due to changes in teleport.
+			// The AWS OIDC role may lack permissions due to changes in teleport.
 			// In this situation users should be notified that they will need to
 			// re-run the deploy service iam configuration script and update the
 			// permissions.
