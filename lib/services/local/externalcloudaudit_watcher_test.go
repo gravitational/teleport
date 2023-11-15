@@ -97,7 +97,7 @@ func TestClusterExternalAuditWatcher(t *testing.T) {
 				err = svc.DisableClusterExternalCloudAudit(ctx)
 				require.NoError(t, err)
 			},
-			expectChange: false,
+			expectChange: true,
 		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
@@ -108,6 +108,7 @@ func TestClusterExternalAuditWatcher(t *testing.T) {
 				},
 			})
 			require.NoError(t, err)
+			defer watcher.close()
 
 			err = watcher.WaitInit(ctx)
 			require.NoError(t, err)

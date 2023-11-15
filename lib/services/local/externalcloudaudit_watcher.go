@@ -19,6 +19,7 @@ package local
 import (
 	"context"
 	"errors"
+	"sync"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -68,6 +69,8 @@ type ClusterExternalAuditWatcher struct {
 	onChange    func()
 	retry       retryutils.Retry
 	initialized chan struct{}
+	closed      chan struct{}
+	closeOnce   sync.Once
 	done        chan struct{}
 }
 
@@ -96,6 +99,7 @@ func NewClusterExternalAuditWatcher(ctx context.Context, cfg ClusterExternalClou
 		onChange:    cfg.OnChange,
 		retry:       retry,
 		initialized: make(chan struct{}),
+		closed:      make(chan struct{}),
 		done:        make(chan struct{}),
 	}
 
@@ -109,10 +113,17 @@ func (w *ClusterExternalAuditWatcher) WaitInit(ctx context.Context) error {
 	select {
 	case <-w.initialized:
 	case <-w.done:
+		return errors.New("watcher closed")
 	case <-ctx.Done():
 		return trace.Wrap(ctx.Err())
 	}
 	return nil
+}
+
+// close stops the watcher and waits for the watch loop to exit
+func (w *ClusterExternalAuditWatcher) close() {
+	w.closeOnce.Do(func() { close(w.closed) })
+	<-w.done
 }
 
 func (w *ClusterExternalAuditWatcher) runWatchLoop(ctx context.Context) {
@@ -126,6 +137,8 @@ func (w *ClusterExternalAuditWatcher) runWatchLoop(ctx context.Context) {
 			w.log.Warningf("Restarting watch on error after waiting %v. Error: %v.", t.Sub(startedWaiting), err)
 			w.retry.Inc()
 		case <-ctx.Done():
+			return
+		case <-w.closed:
 			return
 		}
 	}
@@ -146,6 +159,8 @@ func (w *ClusterExternalAuditWatcher) watch(ctx context.Context) error {
 			return errors.New("watcher closed")
 		case <-ctx.Done():
 			return ctx.Err()
+		case <-w.closed:
+			return nil
 		}
 	}
 }
@@ -161,6 +176,8 @@ func (w *ClusterExternalAuditWatcher) newWatcher(ctx context.Context) (backend.W
 
 	select {
 	case <-watcher.Done():
+		return nil, errors.New("watcher closed")
+	case <-w.closed:
 		return nil, errors.New("watcher closed")
 	case <-ctx.Done():
 		return nil, ctx.Err()
