@@ -72,11 +72,9 @@ export function IntegrationTiles({
         data-testid="tile-byob"
       >
         <Box mt={3} mb={0}>
-          <AWSIcon size={64} />
+          <AWSIcon size={80} />
         </Box>
         <Text>
-          S3 For Audit Data
-          <br />
           Store data on your own Amazon S3 bucket
         </Text>
         {!hasAccess && (
