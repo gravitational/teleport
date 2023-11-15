@@ -110,14 +110,35 @@ export function MobileLoginDialog({
         )}
         {attempt.status === 'success' && (
           <>
-            <QRCode
+            <Box
               css={`
-                width: 240px;
-                height: 240px;
-                border: 6px solid white;
+                position: relative;
               `}
-              value={qrContent}
-            />
+            >
+              <QRCode
+                css={`
+                  width: 240px;
+                  height: 240px;
+                  border: 6px solid white;
+                `}
+                value={qrContent}
+              />
+              <span
+                css={`
+                  position: absolute;
+                  font-size: 80px;
+                  filter: drop-shadow(1px 0 0 #fff) drop-shadow(-1px 0 0 #fff)
+                    drop-shadow(0 1px 0 #fff) drop-shadow(0 -1px 0 #fff)
+                    drop-shadow(1px 1px 0 #fff) drop-shadow(-1px -1px 0 #fff)
+                    drop-shadow(1px -1px 0 #fff) drop-shadow(-1px 1px 0 #fff);
+                  top: 46%;
+                  right: 50%;
+                  transform: translate(50%, -50%);
+                `}
+              >
+                🐅
+              </span>
+            </Box>
             <Text color="text.slightlyMuted" mt={2}>
               {timeLeft > 0 ? (
                 <>
