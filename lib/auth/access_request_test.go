@@ -197,9 +197,6 @@ func testAccessRequestDenyRules(t *testing.T, testPack *accessRequestTestPack) {
 
 	userName := "denied"
 
-	accessRequest, err := services.NewAccessRequest(userName, "admins")
-	require.NoError(t, err)
-
 	for _, tc := range []struct {
 		desc               string
 		roles              map[string]types.RoleSpecV6
@@ -331,13 +328,13 @@ func testAccessRequestDenyRules(t *testing.T, testPack *accessRequestTestPack) {
 			for roleName, roleSpec := range tc.roles {
 				role, err := types.NewRole(roleName, roleSpec)
 				require.NoError(t, err)
-				_, err = testPack.tlsServer.Auth().UpsertRole(ctx, role)
+				err = testPack.tlsServer.Auth().UpsertRole(ctx, role)
 				require.NoError(t, err)
 			}
 			user, err := types.NewUser(userName)
 			require.NoError(t, err)
 			user.SetRoles(maps.Keys(tc.roles))
-			_, err = testPack.tlsServer.Auth().UpsertUser(ctx, user)
+			err = testPack.tlsServer.Auth().UpsertUser(user)
 			require.NoError(t, err)
 
 			client, err := testPack.tlsServer.NewClient(TestUser(userName))
@@ -350,7 +347,10 @@ func testAccessRequestDenyRules(t *testing.T, testPack *accessRequestTestPack) {
 				assert.NoError(t, err)
 			}
 
-			_, err = client.CreateAccessRequestV2(ctx, accessRequest)
+			accessRequest, err := services.NewAccessRequest(userName, "admins")
+			require.NoError(t, err)
+
+			err = client.CreateAccessRequest(ctx, accessRequest)
 			if tc.expectCreateDenied {
 				assert.True(t, trace.IsAccessDenied(err), "want access denied, got %v", err)
 			} else {
