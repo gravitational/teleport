@@ -2989,7 +2989,8 @@ func newUserLoginState(t *testing.T, name string) *userloginstate.UserLoginState
 			Name: name,
 		},
 		userloginstate.Spec{
-			Roles: []string{"role1", "role2"},
+			Roles:          []string{"role1", "role2"},
+			OriginalTraits: trait.Traits{},
 			Traits: trait.Traits{
 				"key1": []string{"value1"},
 				"key2": []string{"value2"},
