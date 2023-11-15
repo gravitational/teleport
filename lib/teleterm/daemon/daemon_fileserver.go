@@ -28,6 +28,7 @@ import (
 	"net/http"
 	"net/url"
 	"sync"
+	"text/template"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -94,14 +95,10 @@ func (s *Service) StartFileServer(ctx context.Context, clusterURI string) error 
 	s.fileServersMu.Lock()
 	defer s.fileServersMu.Unlock()
 
-	return s.startFileServerLocked(clusterURI, fileServerConfig{
-		username:    tc.Username,
-		clusterName: proxyClient.ClusterName(),
-		keys:        keys,
-	})
+	return s.startFileServerLocked(clusterURI, keys)
 }
 
-func (s *Service) startFileServerLocked(clusterURI string, fsc fileServerConfig) error {
+func (s *Service) startFileServerLocked(clusterURI string, keys []*jwt.Key) error {
 	if fs, ok := s.fileServers[clusterURI]; ok {
 		fs.Stop()
 	}
@@ -109,7 +106,7 @@ func (s *Service) startFileServerLocked(clusterURI string, fsc fileServerConfig)
 	if s.fileServers == nil {
 		s.fileServers = make(map[string]*fileServer)
 	}
-	fs, err := newFileServer(fsc)
+	fs, err := newFileServer(keys)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -197,13 +194,30 @@ func (s *Service) SetFileServerConfig(ctx context.Context, clusterURI string, sh
 	return nil
 }
 
-type fileServerConfig struct {
-	username    string
-	clusterName string
-	keys        []*jwt.Key
+func getClaimsFromRequest(port int, keys []*jwt.Key, r *http.Request) (*jwt.Claims, error) {
+	token := r.Header.Get(teleport.AppJWTHeader)
+	if token == "" {
+		return nil, trace.BadParameter("missing header %q", teleport.AppJWTHeader)
+	}
+
+	for _, key := range keys {
+		claims, err := key.VerifyUnknownUser(jwt.VerifyParams{
+			RawToken: token,
+			URI:      fmt.Sprintf("https://127.0.0.1:%v", port),
+		})
+		if err != nil {
+			log.WithError(err).Infof("token validation failed: %v", r.URL.String())
+			continue
+		}
+
+		log.Infof("verified token for username %q", claims.Username)
+		return claims, err
+	}
+
+	return nil, trace.BadParameter("token failed to validate with any of keys")
 }
 
-func newFileServer(fsc fileServerConfig) (*fileServer, error) {
+func newFileServer(keys []*jwt.Key) (*fileServer, error) {
 	fs := new(fileServer)
 
 	lis, err := net.Listen("tcp", "127.0.0.1:0")
@@ -214,8 +228,48 @@ func newFileServer(fsc fileServerConfig) (*fileServer, error) {
 
 	mux := httprouter.New()
 	mux.GET("/", func(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
-		// TODO(not espadolini): prettier landing page
-		_, _ = w.Write([]byte("welcome to Teleport Connect file sharing"))
+		claims, err := getClaimsFromRequest(fs.port, keys, r)
+		if err != nil {
+			log.WithError(err).Infof("validation failed")
+			http.Error(w, "Authentication failed.", http.StatusForbidden)
+			return
+		}
+
+		var accessible []string
+		fs.mu.Lock()
+
+		for shareName, share := range fs.shares {
+			if share.CanAccess(claims) {
+				accessible = append(accessible, shareName)
+			}
+		}
+		fs.mu.Unlock()
+
+		tmpl := `
+		<!DOCTYPE html>
+		<html lang="en">
+		<body>
+			<h2>Welcome to Teleport Connect file sharing!</h2>
+			<ul>
+				{{range .}}
+					<li><a href="{{.}}">{{.}}</a></li>
+				{{end}}
+			</ul>
+		</body>
+		</html>
+`
+
+		t, err := template.New("index").Parse(tmpl)
+		if err != nil {
+			http.Error(w, "Internal server error.", http.StatusInternalServerError)
+			return
+		}
+
+		err = t.Execute(w, accessible)
+		if err != nil {
+			http.Error(w, "Internal server error.", http.StatusInternalServerError)
+			return
+		}
 	})
 	mux.GET("/:shareName", func(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 		http.Redirect(w, r, r.URL.EscapedPath()+"/", 302)
@@ -224,41 +278,30 @@ func newFileServer(fsc fileServerConfig) (*fileServer, error) {
 		shareName := p.ByName("shareName")
 		filePath := p.ByName("filePath")
 
-		token := r.Header.Get(teleport.AppJWTHeader)
-		if token == "" {
-			log.Warningf("missing header %q", teleport.AppJWTHeader)
-			http.NotFound(w, r)
-			return
-		}
-
-		var claims *jwt.Claims
-		for _, key := range fsc.keys {
-			c, err := key.VerifyUnknownUser(jwt.VerifyParams{
-				RawToken: token,
-				// Audience: fsc.clusterName,
-				URI: fmt.Sprintf("https://127.0.0.1:%v", fs.port),
-			})
-			if err != nil {
-				log.WithError(err).Warnf("fail: %v", r.URL.String())
-				continue
-			}
-
-			log.Infof("verified token against key %v", key)
-			claims = c
-			break
-		}
-
-		if claims == nil {
-			http.NotFound(w, r)
+		claims, err := getClaimsFromRequest(fs.port, keys, r)
+		if err != nil {
+			log.WithError(err).Infof("validation failed")
+			http.Error(w, "Authentication failed.", http.StatusForbidden)
 			return
 		}
 
 		var path string
 		fs.mu.Lock()
-		if share, ok := fs.shares[shareName]; ok && share.CanAccess(claims) {
-			path = share.Path
+		if share, ok := fs.shares[shareName]; ok {
+			if share.CanAccess(claims) {
+				path = share.Path
+			} else {
+				log.Infof("user %q attempted to access share %q, no access", claims.Username, shareName)
+			}
+		} else {
+			log.Infof("user %q attempted to access share %q, does not exist", claims.Username, shareName)
 		}
 		fs.mu.Unlock()
+
+		if path == "" {
+			http.NotFound(w, r)
+			return
+		}
 
 		r2 := new(http.Request)
 		*r2 = *r
@@ -279,12 +322,6 @@ func newFileServer(fsc fileServerConfig) (*fileServer, error) {
 			Certificates: []tls.Certificate{generateSelfSignedCert()},
 			MinVersion:   tls.VersionTLS13,
 		},
-
-		// ReadTimeout:       0,
-		// ReadHeaderTimeout: 0,
-		// WriteTimeout:      0,
-		// IdleTimeout:       0,
-		// MaxHeaderBytes:    0,
 	}
 
 	go func() {
