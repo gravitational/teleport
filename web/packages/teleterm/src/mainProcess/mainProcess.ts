@@ -53,8 +53,8 @@ import { resolveNetworkAddress } from './resolveNetworkAddress';
 import { WindowsManager } from './windowsManager';
 import { downloadAgent, FileDownloader } from './agentDownloader';
 import {
-  createAgentConfigFile,
-  isAgentConfigFileCreated,
+  createAgentJoinedFile,
+  isAgentJoinedFileCreated,
   removeAgentDirectory,
   generateAgentConfigPaths,
 } from './createAgentConfigFile';
@@ -319,25 +319,23 @@ export default class MainProcess {
     );
 
     ipcMain.handle(
-      'main-process-connect-my-computer-create-agent-config-file',
-      (_, args: CreateAgentConfigFileArgs) =>
-        createAgentConfigFile(this.settings, {
-          proxy: args.proxy,
-          token: args.token,
-          rootClusterUri: args.rootClusterUri,
-          username: args.username,
-          fileServerPort: args.fileServerPort,
-        })
+      'main-process-connect-my-computer-create-agent-joined-file',
+      (
+        _,
+        args: {
+          rootClusterUri: RootClusterUri;
+        }
+      ) => createAgentJoinedFile(this.settings, args.rootClusterUri)
     );
 
     ipcMain.handle(
-      'main-process-connect-my-computer-is-agent-config-file-created',
+      'main-process-connect-my-computer-is-agent-joined-file-created',
       async (
         _,
         args: {
           rootClusterUri: RootClusterUri;
         }
-      ) => isAgentConfigFileCreated(this.settings, args.rootClusterUri)
+      ) => isAgentJoinedFileCreated(this.settings, args.rootClusterUri)
     );
 
     ipcMain.handle(

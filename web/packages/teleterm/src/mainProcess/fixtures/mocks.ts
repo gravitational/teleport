@@ -96,11 +96,11 @@ export class MockMainProcessClient implements MainProcessClient {
     return Promise.resolve();
   }
 
-  createAgentConfigFile() {
+  createAgentJoinedFile() {
     return Promise.resolve();
   }
 
-  isAgentConfigFileCreated() {
+  isAgentJoinedFileCreated() {
     return Promise.resolve(false);
   }
 

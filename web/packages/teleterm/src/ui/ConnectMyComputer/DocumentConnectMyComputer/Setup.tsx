@@ -268,10 +268,14 @@ function AgentSetup() {
         // Now that the node has joined the server, let's refresh all open DocumentCluster instances
         // to show the new node.
         requestResourcesRefresh();
+        await ctx.mainProcessClient.createAgentJoinedFile({
+          rootClusterUri: rootCluster.uri,
+        });
       }, [
-        startAgent,
         ctx.connectMyComputerService,
+        ctx.mainProcessClient,
         rootCluster.uri,
+        startAgent,
         requestResourcesRefresh,
       ])
     );

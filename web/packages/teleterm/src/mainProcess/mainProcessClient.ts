@@ -131,15 +131,15 @@ export default function createMainProcessClient(): MainProcessClient {
         'main-process-connect-my-computer-download-agent'
       );
     },
-    createAgentConfigFile(args: CreateAgentConfigFileArgs) {
+    createAgentJoinedFile(args: { rootClusterUri: RootClusterUri }) {
       return ipcRenderer.invoke(
-        'main-process-connect-my-computer-create-agent-config-file',
+        'main-process-connect-my-computer-create-agent-joined-file',
         args
       );
     },
-    isAgentConfigFileCreated(args: { rootClusterUri: RootClusterUri }) {
+    isAgentJoinedFileCreated(args: { rootClusterUri: RootClusterUri }) {
       return ipcRenderer.invoke(
-        'main-process-connect-my-computer-is-agent-config-file-created',
+        'main-process-connect-my-computer-is-agent-joined-file-created',
         args
       );
     },

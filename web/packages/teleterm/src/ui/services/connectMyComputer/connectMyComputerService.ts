@@ -64,7 +64,7 @@ export class ConnectMyComputerService {
   isAgentConfigFileCreated(
     rootClusterUri: uri.RootClusterUri
   ): Promise<boolean> {
-    return this.mainProcessClient.isAgentConfigFileCreated({ rootClusterUri });
+    return this.mainProcessClient.isAgentJoinedFileCreated({ rootClusterUri });
   }
 
   // TODO(ravicious): Remove this.

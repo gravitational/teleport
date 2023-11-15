@@ -103,7 +103,7 @@ function setupAppContext(): {
   });
 
   jest
-    .spyOn(appContext.mainProcessClient, 'isAgentConfigFileCreated')
+    .spyOn(appContext.mainProcessClient, 'isAgentJoinedFileCreated')
     .mockResolvedValue(false);
   jest
     .spyOn(appContext.connectMyComputerService, 'createRole')

@@ -21,7 +21,7 @@ import { RootClusterUri } from 'teleterm/ui/uri';
 import { makeRuntimeSettings } from 'teleterm/mainProcess/fixtures/mocks';
 
 import {
-  createAgentConfigFile,
+  createAgentJoinedFile,
   generateAgentConfigPaths,
 } from './createAgentConfigFile';
 
@@ -36,73 +36,6 @@ beforeEach(() => {
       return this;
     });
   jest.spyOn(fs, 'rm').mockImplementation(() => Promise.resolve());
-});
-
-test('teleport configure is called with proper arguments', async () => {
-  const userDataDir = '/Users/test/Application Data/Teleport Connect';
-  const agentBinaryPath =
-    '/Users/test/Caches/Teleport Connect/teleport/teleport';
-  const token = '8f50fd5d-38e8-4e96-baea-e9b882bb433b';
-  const proxy = 'cluster.local:3080';
-  const rootClusterUri: RootClusterUri = '/clusters/cluster.local';
-  const username = 'testuser@acme.com';
-
-  await expect(
-    createAgentConfigFile(
-      makeRuntimeSettings({
-        agentBinaryPath,
-        userDataDir,
-      }),
-      {
-        token,
-        proxy,
-        rootClusterUri,
-        username,
-        fileServerPort: 6789,
-      }
-    )
-  ).resolves.toBeUndefined();
-
-  expect(childProcess.execFile).toHaveBeenCalledWith(
-    agentBinaryPath,
-    [
-      'node',
-      'configure',
-      `--output=${userDataDir}/agents/cluster.local/config.yaml`,
-      `--data-dir=${userDataDir}/agents/cluster.local/data`,
-      `--proxy=${proxy}`,
-      `--token=${token}`,
-      `--labels=teleport.dev/connect-my-computer/owner=${username}`,
-    ],
-    {
-      timeout: 10_000, // 10 seconds
-    },
-    expect.anything()
-  );
-});
-
-test('previous config file is removed before calling teleport configure', async () => {
-  const userDataDir = '/Users/test/Application Data/Teleport Connect';
-  const rootClusterUri: RootClusterUri = '/clusters/cluster.local';
-
-  await expect(
-    createAgentConfigFile(
-      makeRuntimeSettings({
-        userDataDir,
-      }),
-      {
-        token: '',
-        proxy: '',
-        rootClusterUri,
-        username: 'alice',
-        fileServerPort: 6789,
-      }
-    )
-  ).resolves.toBeUndefined();
-
-  expect(fs.rm).toHaveBeenCalledWith(
-    `${userDataDir}/agents/cluster.local/config.yaml`
-  );
 });
 
 test('throws when rootClusterUri does not contain a valid path segment', () => {

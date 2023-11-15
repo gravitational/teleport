@@ -138,13 +138,15 @@ export type MainProcessClient = {
   openConfigFile(): Promise<string>;
   shouldUseDarkColors(): boolean;
   downloadAgent(): Promise<void>;
-  createAgentConfigFile(args: CreateAgentConfigFileArgs): Promise<void>;
+  createAgentJoinedFile(args: {
+    rootClusterUri: RootClusterUri;
+  }): Promise<void>;
   openAgentLogsDirectory(args: {
     rootClusterUri: RootClusterUri;
   }): Promise<void>;
   // TODO: Use a separate type for this IPC.
   runAgent(args: CreateAgentConfigFileArgs): Promise<void>;
-  isAgentConfigFileCreated(args: {
+  isAgentJoinedFileCreated(args: {
     rootClusterUri: RootClusterUri;
   }): Promise<boolean>;
   killAgent(args: { rootClusterUri: RootClusterUri }): Promise<void>;

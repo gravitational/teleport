@@ -14,9 +14,7 @@
  * limitations under the License.
  */
 
-import { promisify } from 'node:util';
-import { execFile } from 'node:child_process';
-import { access, rm } from 'node:fs/promises';
+import { access, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import * as constants from 'shared/constants';
@@ -32,46 +30,16 @@ export interface CreateAgentConfigFileArgs {
   fileServerPort: number;
 }
 
-export async function createAgentConfigFile(
+export async function createAgentJoinedFile(
   runtimeSettings: RuntimeSettings,
-  args: CreateAgentConfigFileArgs
+  rootClusterUri: RootClusterUri
 ): Promise<void> {
-  const asyncExecFile = promisify(execFile);
-  const { configFile, dataDirectory } = generateAgentConfigPaths(
+  const { agentJoined } = generateAgentConfigPaths(
     runtimeSettings,
-    args.rootClusterUri
+    rootClusterUri
   );
 
-  // remove the config file if exists
-  try {
-    await rm(configFile);
-  } catch (e) {
-    if (e.code !== 'ENOENT') {
-      throw e;
-    }
-  }
-
-  const labels = Object.entries({
-    [constants.ConnectMyComputerNodeOwnerLabel]: args.username,
-  })
-    .map(keyAndValue => keyAndValue.join('='))
-    .join(',');
-
-  await asyncExecFile(
-    runtimeSettings.agentBinaryPath,
-    [
-      'node',
-      'configure',
-      `--output=${configFile}`,
-      `--data-dir=${dataDirectory}`,
-      `--proxy=${args.proxy}`,
-      `--token=${args.token}`,
-      `--labels=${labels}`,
-    ],
-    {
-      timeout: 10_000, // 10 seconds
-    }
-  );
+  await writeFile(agentJoined, '');
 }
 
 export async function removeAgentDirectory(
@@ -86,17 +54,16 @@ export async function removeAgentDirectory(
   await rm(agentDirectory, { recursive: true, force: true });
 }
 
-// TODO: Instead we need to look at a special file which indicates whether the setup was successful.
-export async function isAgentConfigFileCreated(
+export async function isAgentJoinedFileCreated(
   runtimeSettings: RuntimeSettings,
   rootClusterUri: RootClusterUri
 ): Promise<boolean> {
-  const { configFile } = generateAgentConfigPaths(
+  const { agentJoined } = generateAgentConfigPaths(
     runtimeSettings,
     rootClusterUri
   );
   try {
-    await access(configFile);
+    await access(agentJoined);
     return true;
   } catch (e) {
     if (e.code === 'ENOENT') {
@@ -117,7 +84,7 @@ export function generateAgentConfigPaths(
   rootClusterUri: RootClusterUri
 ): {
   agentDirectory: string;
-  configFile: string;
+  agentJoined: string;
   logsDirectory: string;
   dataDirectory: string;
 } {
@@ -130,13 +97,13 @@ export function generateAgentConfigPaths(
     runtimeSettings.userDataDir,
     parsed.params.rootClusterId
   );
-  const configFile = path.resolve(agentDirectory, 'config.yaml');
+  const agentJoined = path.resolve(agentDirectory, 'agent_joined');
   const dataDirectory = path.resolve(agentDirectory, 'data');
   const logsDirectory = path.resolve(agentDirectory, 'logs');
 
   return {
     agentDirectory,
-    configFile,
+    agentJoined,
     dataDirectory,
     logsDirectory,
   };
