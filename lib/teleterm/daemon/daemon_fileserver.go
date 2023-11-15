@@ -27,6 +27,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"os/user"
 	"sync"
 	"time"
 
@@ -80,17 +81,28 @@ func (s *Service) StartFileServer(ctx context.Context, clusterURI string) error 
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	keys, err := jwks(ctx, tc)
+	proxyClient, err := tc.ConnectToProxy(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer proxyClient.Close()
+
+	keys, err := jwks(ctx, proxyClient)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	s.fileServersMu.Lock()
 	defer s.fileServersMu.Unlock()
-	return s.startFileServerLocked(clusterURI, tc, keys)
+
+	return s.startFileServerLocked(clusterURI, fileServerConfig{
+		username:    tc.Username,
+		clusterName: proxyClient.ClusterName(),
+		keys:        keys,
+	})
 }
 
-func (s *Service) startFileServerLocked(clusterURI string, tc *client.TeleportClient, keys []*jwt.Key) error {
+func (s *Service) startFileServerLocked(clusterURI string, fsc fileServerConfig) error {
 	if fs, ok := s.fileServers[clusterURI]; ok {
 		fs.Stop()
 	}
@@ -98,7 +110,7 @@ func (s *Service) startFileServerLocked(clusterURI string, tc *client.TeleportCl
 	if s.fileServers == nil {
 		s.fileServers = make(map[string]*fileServer)
 	}
-	fs, err := newFileServer(tc, keys)
+	fs, err := newFileServer(fsc)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -107,11 +119,7 @@ func (s *Service) startFileServerLocked(clusterURI string, tc *client.TeleportCl
 	return nil
 }
 
-func jwks(ctx context.Context, tc *client.TeleportClient) ([]*jwt.Key, error) {
-	proxyClient, err := tc.ConnectToProxy(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+func jwks(ctx context.Context, proxyClient *client.ProxyClient) ([]*jwt.Key, error) {
 	cluster, err := proxyClient.ConnectToCluster(ctx, proxyClient.ClusterName())
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -190,8 +198,43 @@ func (s *Service) SetFileServerConfig(ctx context.Context, clusterURI string, sh
 	return nil
 }
 
-func newFileServer(tc *client.TeleportClient, keys []*jwt.Key) (*fileServer, error) {
+type fileServerConfig struct {
+	username    string
+	clusterName string
+	keys        []*jwt.Key
+}
+
+func newFileServer(fsc fileServerConfig) (*fileServer, error) {
+	u, err := user.Current()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	fs := new(fileServer)
+
+	// dummy default shares
+	if len(fs.shares) == 0 {
+		fs.shares = map[string]FileServerShare{
+			"temp": {
+				Path:             "/tmp",
+				AllowAnyone:      false,
+				AllowedUsersList: nil,
+				AllowedRolesList: []string{"access"},
+			},
+			"usr": {
+				Path:             "/usr/bin",
+				AllowAnyone:      true,
+				AllowedUsersList: nil,
+				AllowedRolesList: nil,
+			},
+			"home": {
+				Path:             u.HomeDir,
+				AllowAnyone:      false,
+				AllowedUsersList: []string{fsc.username},
+				AllowedRolesList: nil,
+			},
+		}
+	}
 
 	lis, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -219,11 +262,11 @@ func newFileServer(tc *client.TeleportClient, keys []*jwt.Key) (*fileServer, err
 		}
 
 		var claims *jwt.Claims
-		for _, key := range keys {
+		for _, key := range fsc.keys {
 			c, err := key.VerifyUnknownUser(jwt.VerifyParams{
 				RawToken: token,
-				Audience: tc.SiteName,
-				URI:      fmt.Sprintf("https://127.0.0.1:%v/", fs.port),
+				// Audience: fsc.clusterName,
+				URI: fmt.Sprintf("https://127.0.0.1:%v", fs.port),
 			})
 			if err != nil {
 				log.WithError(err).Warnf("fail: %v", r.URL.String())
@@ -234,6 +277,7 @@ func newFileServer(tc *client.TeleportClient, keys []*jwt.Key) (*fileServer, err
 			claims = c
 			break
 		}
+
 		if claims == nil {
 			http.NotFound(w, r)
 			return
@@ -241,17 +285,11 @@ func newFileServer(tc *client.TeleportClient, keys []*jwt.Key) (*fileServer, err
 
 		fs.mu.Lock()
 		share, found := fs.shares[shareName]
-		var path string
 		if !found || !share.CanAccess(claims) {
 			http.NotFound(w, r)
 			return
 		}
 		fs.mu.Unlock()
-
-		if path == "" {
-			http.NotFound(w, r)
-			return
-		}
 
 		r2 := new(http.Request)
 		*r2 = *r
@@ -261,6 +299,7 @@ func newFileServer(tc *client.TeleportClient, keys []*jwt.Key) (*fileServer, err
 		r2.URL.Path = filePath
 		r2.URL.RawPath = ""
 
+		log.Infof("all good, serving path %q from share %q to user %q", share.Path, shareName, claims.Username)
 		// TODO(not espadolini): make the listing prettier
 		http.FileServer(http.Dir(share.Path)).ServeHTTP(w, r2)
 	})
