@@ -38,6 +38,11 @@ message SendNotificationRequest {
   string device_uuid = 3;
   // Cluster ID is a unique identifier for a cluster.
   string cluster_id = 4;
+  // Data is a map of key-value pairs that can be used to pass additional
+  // information to the mobile device.
+  map<string, string> data = 5;
+  // Category is the category of the notification.
+  string category = 6;
 }
 
 // SendNotificationResponse is a response to a SendNotificationRequest.

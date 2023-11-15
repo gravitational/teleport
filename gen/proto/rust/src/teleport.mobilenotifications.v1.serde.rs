@@ -221,6 +221,12 @@ impl serde::Serialize for SendNotificationRequest {
         if !self.cluster_id.is_empty() {
             len += 1;
         }
+        if !self.data.is_empty() {
+            len += 1;
+        }
+        if !self.category.is_empty() {
+            len += 1;
+        }
         let mut struct_ser = serializer.serialize_struct("teleport.mobilenotifications.v1.SendNotificationRequest", len)?;
         if !self.title.is_empty() {
             struct_ser.serialize_field("title", &self.title)?;
@@ -233,6 +239,12 @@ impl serde::Serialize for SendNotificationRequest {
         }
         if !self.cluster_id.is_empty() {
             struct_ser.serialize_field("clusterId", &self.cluster_id)?;
+        }
+        if !self.data.is_empty() {
+            struct_ser.serialize_field("data", &self.data)?;
+        }
+        if !self.category.is_empty() {
+            struct_ser.serialize_field("category", &self.category)?;
         }
         struct_ser.end()
     }
@@ -250,6 +262,8 @@ impl<'de> serde::Deserialize<'de> for SendNotificationRequest {
             "deviceUuid",
             "cluster_id",
             "clusterId",
+            "data",
+            "category",
         ];
 
         #[allow(clippy::enum_variant_names)]
@@ -258,6 +272,8 @@ impl<'de> serde::Deserialize<'de> for SendNotificationRequest {
             Body,
             DeviceUuid,
             ClusterId,
+            Data,
+            Category,
         }
         impl<'de> serde::Deserialize<'de> for GeneratedField {
             fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
@@ -283,6 +299,8 @@ impl<'de> serde::Deserialize<'de> for SendNotificationRequest {
                             "body" => Ok(GeneratedField::Body),
                             "deviceUuid" | "device_uuid" => Ok(GeneratedField::DeviceUuid),
                             "clusterId" | "cluster_id" => Ok(GeneratedField::ClusterId),
+                            "data" => Ok(GeneratedField::Data),
+                            "category" => Ok(GeneratedField::Category),
                             _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
                         }
                     }
@@ -306,6 +324,8 @@ impl<'de> serde::Deserialize<'de> for SendNotificationRequest {
                 let mut body__ = None;
                 let mut device_uuid__ = None;
                 let mut cluster_id__ = None;
+                let mut data__ = None;
+                let mut category__ = None;
                 while let Some(k) = map.next_key()? {
                     match k {
                         GeneratedField::Title => {
@@ -332,6 +352,20 @@ impl<'de> serde::Deserialize<'de> for SendNotificationRequest {
                             }
                             cluster_id__ = Some(map.next_value()?);
                         }
+                        GeneratedField::Data => {
+                            if data__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("data"));
+                            }
+                            data__ = Some(
+                                map.next_value::<std::collections::HashMap<_, _>>()?
+                            );
+                        }
+                        GeneratedField::Category => {
+                            if category__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("category"));
+                            }
+                            category__ = Some(map.next_value()?);
+                        }
                     }
                 }
                 Ok(SendNotificationRequest {
@@ -339,6 +373,8 @@ impl<'de> serde::Deserialize<'de> for SendNotificationRequest {
                     body: body__.unwrap_or_default(),
                     device_uuid: device_uuid__.unwrap_or_default(),
                     cluster_id: cluster_id__.unwrap_or_default(),
+                    data: data__.unwrap_or_default(),
+                    category: category__.unwrap_or_default(),
                 })
             }
         }
