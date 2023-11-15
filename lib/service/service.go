@@ -42,6 +42,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	awscredentials "github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/google/uuid"
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
@@ -101,6 +102,7 @@ import (
 	"github.com/gravitational/teleport/lib/events/pgevents"
 	"github.com/gravitational/teleport/lib/events/s3sessions"
 	"github.com/gravitational/teleport/lib/httplib"
+	"github.com/gravitational/teleport/lib/integrations/externalcloudaudit"
 	"github.com/gravitational/teleport/lib/inventory"
 	"github.com/gravitational/teleport/lib/joinserver"
 	kubegrpc "github.com/gravitational/teleport/lib/kube/grpc"
@@ -1380,7 +1382,7 @@ func adminCreds() (*int, *int, error) {
 // When configured to store session recordings in external storage, this will be an API client for
 // cloud-provider storage. Otherwise a local file-based handler is used which stores the recordings
 // on disk.
-func initAuthUploadHandler(ctx context.Context, auditConfig types.ClusterAuditConfig, dataDir string) (events.MultipartHandler, error) {
+func initAuthUploadHandler(ctx context.Context, auditConfig types.ClusterAuditConfig, dataDir string, externalCloudAudit *externalcloudaudit.Configurator) (events.MultipartHandler, error) {
 	if !auditConfig.ShouldUploadSessions() {
 		recordsDir := filepath.Join(dataDir, events.RecordsDir)
 		if err := os.MkdirAll(recordsDir, teleport.SharedDirMode); err != nil {
@@ -1411,9 +1413,18 @@ func initAuthUploadHandler(ctx context.Context, auditConfig types.ClusterAuditCo
 		}
 		return handler, nil
 	case teleport.SchemeS3:
-		config := s3sessions.Config{UseFIPSEndpoint: auditConfig.GetUseFIPSEndpoint()}
-
-		if err := config.SetFromURL(uri, auditConfig.Region()); err != nil {
+		config := s3sessions.Config{
+			UseFIPSEndpoint: auditConfig.GetUseFIPSEndpoint(),
+		}
+		s3URI := uri
+		if externalCloudAudit.IsUsed() {
+			config.Credentials = awscredentials.NewCredentials(externalCloudAudit.CredentialsProviderSDKV1())
+			s3URI, err = apiutils.ParseSessionsURI(externalCloudAudit.GetSpec().SessionsRecordingsURI)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+		}
+		if err := config.SetFromURL(s3URI, auditConfig.Region()); err != nil {
 			return nil, trace.Wrap(err)
 		}
 
@@ -1453,7 +1464,7 @@ func initAuthUploadHandler(ctx context.Context, auditConfig types.ClusterAuditCo
 }
 
 // initAuthExternalAuditLog initializes the auth server's audit log.
-func initAuthExternalAuditLog(ctx context.Context, auditConfig types.ClusterAuditConfig, backend backend.Backend, tracingProvider *tracing.Provider) (events.AuditLogger, error) {
+func initAuthExternalAuditLog(ctx context.Context, auditConfig types.ClusterAuditConfig, backend backend.Backend, tracingProvider *tracing.Provider, externalCloudAudit *externalcloudaudit.Configurator) (events.AuditLogger, error) {
 	var hasNonFileLog bool
 	var loggers []events.AuditLogger
 	for _, eventsURI := range auditConfig.AuditEventsURIs() {
@@ -1525,6 +1536,11 @@ func initAuthExternalAuditLog(ctx context.Context, auditConfig types.ClusterAudi
 			err = cfg.SetFromURL(uri)
 			if err != nil {
 				return nil, trace.Wrap(err)
+			}
+			if externalCloudAudit.IsUsed() {
+				if err := cfg.UpdateForExternalCloudAudit(ctx, externalCloudAudit.GetSpec(), externalCloudAudit.CredentialsProvider()); err != nil {
+					return nil, trace.Wrap(err)
+				}
 			}
 			var logger events.AuditLogger
 			logger, err = athena.New(ctx, cfg)
@@ -1606,6 +1622,8 @@ func (process *TeleportProcess) initAuthService() error {
 	var emitter apievents.Emitter
 	var streamer events.Streamer
 	var uploadHandler events.MultipartHandler
+	var externalCloudAudit *externalcloudaudit.Configurator
+
 	// create the audit log, which will be consuming (and recording) all events
 	// and recording all sessions.
 	if cfg.Auth.NoAudit {
@@ -1630,8 +1648,13 @@ func (process *TeleportProcess) initAuthService() error {
 			cfg.Auth.AuditConfig.SetUseFIPSEndpoint(types.ClusterAuditConfigSpecV2_FIPS_ENABLED)
 		}
 
+		externalCloudAudit, err = process.newExternalCloudAuditConfigurator()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
 		uploadHandler, err = initAuthUploadHandler(
-			process.ExitContext(), cfg.Auth.AuditConfig, filepath.Join(cfg.DataDir, teleport.LogsDir))
+			process.ExitContext(), cfg.Auth.AuditConfig, filepath.Join(cfg.DataDir, teleport.LogsDir), externalCloudAudit)
 		if err != nil {
 			if !trace.IsNotFound(err) {
 				return trace.Wrap(err)
@@ -1643,9 +1666,10 @@ func (process *TeleportProcess) initAuthService() error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
+
 		// initialize external loggers.  may return (nil, nil) if no
 		// external loggers have been defined.
-		externalLog, err := initAuthExternalAuditLog(process.ExitContext(), cfg.Auth.AuditConfig, process.backend, process.TracingProvider)
+		externalLog, err := initAuthExternalAuditLog(process.ExitContext(), cfg.Auth.AuditConfig, process.backend, process.TracingProvider, externalCloudAudit)
 		if err != nil {
 			if !trace.IsNotFound(err) {
 				return trace.Wrap(err)
@@ -1813,6 +1837,10 @@ func (process *TeleportProcess) initAuthService() error {
 		return trace.Wrap(err)
 	}
 	authServer.SetLockWatcher(lockWatcher)
+
+	if externalCloudAudit.IsUsed() {
+		externalCloudAudit.SetGenerateOIDCTokenFn(authServer.GenerateExternalCloudAuditOIDCToken)
+	}
 
 	unifiedResourcesCache, err := services.NewUnifiedResourceCache(process.ExitContext(), services.UnifiedResourceCacheConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
@@ -6079,4 +6107,30 @@ func makeXForwardedForMiddleware(cfg *servicecfg.Config) utils.HTTPMiddleware {
 		return web.NewXForwardedForMiddleware
 	}
 	return utils.NoopHTTPMiddleware
+}
+
+func (process *TeleportProcess) newExternalCloudAuditConfigurator() (*externalcloudaudit.Configurator, error) {
+	watcher, err := local.NewClusterExternalAuditWatcher(process.GracefulExitContext(), local.ClusterExternalCloudAuditWatcherConfig{
+		Backend: process.backend,
+		OnChange: func() {
+			// On change of cluster external cloud audit, trigger teleport
+			// reload, because s3 uploader and athena components don't support
+			// live changes to their configuration.
+			process.BroadcastEvent(Event{Name: TeleportReloadEvent})
+		},
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// Wait for the watcher to init to avoid a race in case the external cloud
+	// audit config changes after the configurator loads it and before the
+	// watcher initialized.
+	watcher.WaitInit(process.GracefulExitContext())
+
+	ecaSvc := local.NewExternalCloudAuditService(process.backend)
+	integrationSvc, err := local.NewIntegrationsService(process.backend)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return externalcloudaudit.NewConfigurator(process.ExitContext(), ecaSvc, integrationSvc)
 }

@@ -104,14 +104,13 @@ type s3downloader interface {
 }
 
 func newConsumer(cfg Config, cancelFn context.CancelFunc, metricConsumerBatchProcessingDuration prometheus.Histogram) (*consumer, error) {
-	s3client := s3.NewFromConfig(*cfg.AWSConfig)
-	sqsClient := sqs.NewFromConfig(*cfg.AWSConfig)
+	sqsClient := sqs.NewFromConfig(*cfg.PublisherConsumerAWSConfig)
 
 	collectCfg := sqsCollectConfig{
 		sqsReceiver: sqsClient,
 		queueURL:    cfg.QueueURL,
 		// TODO(tobiaszheller): use s3 manager from teleport observability.
-		payloadDownloader:                     manager.NewDownloader(s3client),
+		payloadDownloader:                     manager.NewDownloader(s3.NewFromConfig(*cfg.PublisherConsumerAWSConfig)),
 		payloadBucket:                         cfg.largeEventsBucket,
 		visibilityTimeout:                     int32(cfg.BatchMaxInterval.Seconds()),
 		batchMaxItems:                         cfg.BatchMaxItems,
@@ -140,7 +139,7 @@ func newConsumer(cfg Config, cancelFn context.CancelFunc, metricConsumerBatchPro
 		queueURL:            cfg.QueueURL,
 		perDateFileParquetWriter: func(ctx context.Context, date string) (io.WriteCloser, error) {
 			key := fmt.Sprintf("%s/%s/%s.parquet", cfg.locationS3Prefix, date, uuid.NewString())
-			fw, err := awsutils.NewS3V2FileWriter(ctx, s3client, cfg.locationS3Bucket, key, nil /* uploader options */, func(poi *s3.PutObjectInput) {
+			fw, err := awsutils.NewS3V2FileWriter(ctx, s3.NewFromConfig(*cfg.StorerQuerierAWSConfig), cfg.locationS3Bucket, key, nil /* uploader options */, func(poi *s3.PutObjectInput) {
 				// ChecksumAlgorithm is required for putting objects when object lock is enabled.
 				poi.ChecksumAlgorithm = s3Types.ChecksumAlgorithmSha256
 			})

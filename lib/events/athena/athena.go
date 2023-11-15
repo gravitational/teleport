@@ -34,6 +34,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/types/externalcloudaudit"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/observability/metrics"
@@ -116,9 +117,22 @@ type Config struct {
 	UIDGenerator utils.UID
 	// LogEntry is a log entry.
 	LogEntry *log.Entry
-	// AWSConfig is AWS config which can be used to construct varius AWS Clients
-	// using aws-sdk-go-v2.
-	AWSConfig *aws.Config
+
+	// PublisherConsumerAWSConfig is an AWS config which can be used to
+	// construct AWS Clients using aws-sdk-go-v2, used by the publisher and
+	// consumer components which publish/consume events from SQS (and S3 for
+	// large events). These are always hosted on Teleport cloud infra even when
+	// External Cloud Audit is enabled, any events written here are only held
+	// temporarily while they are queued to write to s3 parquet files in
+	// batches.
+	PublisherConsumerAWSConfig *aws.Config
+
+	// StorerQuerierAWSConfig is an AWS config which can be used to construct AWS Clients
+	// using aws-sdk-go-v2, used by the consumer (store phase) and the querier.
+	// Often it is the same as PublisherConsumerAWSConfig unless External Cloud
+	// Audit is enabled, then this will authenticate and connect to
+	// external/customer AWS account.
+	StorerQuerierAWSConfig *aws.Config
 
 	Backend backend.Backend
 
@@ -246,7 +260,7 @@ func (cfg *Config) CheckAndSetDefaults(ctx context.Context) error {
 		})
 	}
 
-	if cfg.AWSConfig == nil {
+	if cfg.PublisherConsumerAWSConfig == nil {
 		awsCfg, err := awsconfig.LoadDefaultConfig(ctx)
 		if err != nil {
 			return trace.Wrap(err)
@@ -257,7 +271,12 @@ func (cfg *Config) CheckAndSetDefaults(ctx context.Context) error {
 			awsCfg.Region = cfg.Region
 		}
 		otelaws.AppendMiddlewares(&awsCfg.APIOptions)
-		cfg.AWSConfig = &awsCfg
+		cfg.PublisherConsumerAWSConfig = &awsCfg
+	}
+
+	if cfg.StorerQuerierAWSConfig == nil {
+		cp := cfg.PublisherConsumerAWSConfig.Copy()
+		cfg.StorerQuerierAWSConfig = &cp
 	}
 
 	if cfg.Backend == nil {
@@ -367,6 +386,16 @@ func (cfg *Config) SetFromURL(url *url.URL) error {
 	return nil
 }
 
+func (cfg *Config) UpdateForExternalCloudAudit(ctx context.Context, spec *externalcloudaudit.ExternalCloudAuditSpec, credentialsProvider aws.CredentialsProvider) error {
+	cfg.LocationS3 = spec.AuditEventsLongTermURI
+	cfg.Workgroup = spec.AthenaWorkgroup
+	cfg.QueryResultsS3 = spec.AthenaResultsURI
+	cfg.Database = spec.GlueDatabase
+	cfg.TableName = spec.GlueTable
+	cfg.StorerQuerierAWSConfig.Credentials = credentialsProvider
+	return nil
+}
+
 // Log is an events storage backend.
 //
 // It's using SNS for emitting events.
@@ -402,7 +431,7 @@ func New(ctx context.Context, cfg Config) (*Log, error) {
 		queryResultsS3:               cfg.QueryResultsS3,
 		getQueryResultsInterval:      cfg.GetQueryResultsInterval,
 		disableQueryCostOptimization: cfg.DisableSearchCostOptimization,
-		awsCfg:                       cfg.AWSConfig,
+		awsCfg:                       cfg.StorerQuerierAWSConfig,
 		logger:                       cfg.LogEntry,
 		clock:                        cfg.Clock,
 		tracer:                       cfg.Tracer,
