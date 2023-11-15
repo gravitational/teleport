@@ -23,6 +23,8 @@ var teleport_lib_teleterm_v1_cluster_pb = require('../../../../teleport/lib/tele
 goog.object.extend(proto, teleport_lib_teleterm_v1_cluster_pb);
 var teleport_lib_teleterm_v1_database_pb = require('../../../../teleport/lib/teleterm/v1/database_pb.js');
 goog.object.extend(proto, teleport_lib_teleterm_v1_database_pb);
+var teleport_lib_teleterm_v1_fileserver_pb = require('../../../../teleport/lib/teleterm/v1/fileserver_pb.js');
+goog.object.extend(proto, teleport_lib_teleterm_v1_fileserver_pb);
 var teleport_lib_teleterm_v1_gateway_pb = require('../../../../teleport/lib/teleterm/v1/gateway_pb.js');
 goog.object.extend(proto, teleport_lib_teleterm_v1_gateway_pb);
 var teleport_lib_teleterm_v1_kube_pb = require('../../../../teleport/lib/teleterm/v1/kube_pb.js');

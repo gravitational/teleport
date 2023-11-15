@@ -69,6 +69,8 @@ const (
 	TerminalService_DeleteConnectMyComputerNode_FullMethodName       = "/teleport.lib.teleterm.v1.TerminalService/DeleteConnectMyComputerNode"
 	TerminalService_GetConnectMyComputerNodeName_FullMethodName      = "/teleport.lib.teleterm.v1.TerminalService/GetConnectMyComputerNodeName"
 	TerminalService_ListUnifiedResources_FullMethodName              = "/teleport.lib.teleterm.v1.TerminalService/ListUnifiedResources"
+	TerminalService_GetFileServerConfig_FullMethodName               = "/teleport.lib.teleterm.v1.TerminalService/GetFileServerConfig"
+	TerminalService_SetFileServerConfig_FullMethodName               = "/teleport.lib.teleterm.v1.TerminalService/SetFileServerConfig"
 )
 
 // TerminalServiceClient is the client API for TerminalService service.
@@ -181,6 +183,10 @@ type TerminalServiceClient interface {
 	GetConnectMyComputerNodeName(ctx context.Context, in *GetConnectMyComputerNodeNameRequest, opts ...grpc.CallOption) (*GetConnectMyComputerNodeNameResponse, error)
 	// ListUnifiedResources retrieves a paginated list of all resource types displayable in the UI.
 	ListUnifiedResources(ctx context.Context, in *ListUnifiedResourcesRequest, opts ...grpc.CallOption) (*ListUnifiedResourcesResponse, error)
+	// TODO(espadolini): add comment
+	GetFileServerConfig(ctx context.Context, in *GetFileServerConfigRequest, opts ...grpc.CallOption) (*GetFileServerConfigResponse, error)
+	// TODO(espadolini): add comment
+	SetFileServerConfig(ctx context.Context, in *SetFileServerConfigRequest, opts ...grpc.CallOption) (*SetFileServerConfigResponse, error)
 }
 
 type terminalServiceClient struct {
@@ -560,6 +566,24 @@ func (c *terminalServiceClient) ListUnifiedResources(ctx context.Context, in *Li
 	return out, nil
 }
 
+func (c *terminalServiceClient) GetFileServerConfig(ctx context.Context, in *GetFileServerConfigRequest, opts ...grpc.CallOption) (*GetFileServerConfigResponse, error) {
+	out := new(GetFileServerConfigResponse)
+	err := c.cc.Invoke(ctx, TerminalService_GetFileServerConfig_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *terminalServiceClient) SetFileServerConfig(ctx context.Context, in *SetFileServerConfigRequest, opts ...grpc.CallOption) (*SetFileServerConfigResponse, error) {
+	out := new(SetFileServerConfigResponse)
+	err := c.cc.Invoke(ctx, TerminalService_SetFileServerConfig_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // TerminalServiceServer is the server API for TerminalService service.
 // All implementations must embed UnimplementedTerminalServiceServer
 // for forward compatibility
@@ -670,6 +694,10 @@ type TerminalServiceServer interface {
 	GetConnectMyComputerNodeName(context.Context, *GetConnectMyComputerNodeNameRequest) (*GetConnectMyComputerNodeNameResponse, error)
 	// ListUnifiedResources retrieves a paginated list of all resource types displayable in the UI.
 	ListUnifiedResources(context.Context, *ListUnifiedResourcesRequest) (*ListUnifiedResourcesResponse, error)
+	// TODO(espadolini): add comment
+	GetFileServerConfig(context.Context, *GetFileServerConfigRequest) (*GetFileServerConfigResponse, error)
+	// TODO(espadolini): add comment
+	SetFileServerConfig(context.Context, *SetFileServerConfigRequest) (*SetFileServerConfigResponse, error)
 	mustEmbedUnimplementedTerminalServiceServer()
 }
 
@@ -784,6 +812,12 @@ func (UnimplementedTerminalServiceServer) GetConnectMyComputerNodeName(context.C
 }
 func (UnimplementedTerminalServiceServer) ListUnifiedResources(context.Context, *ListUnifiedResourcesRequest) (*ListUnifiedResourcesResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListUnifiedResources not implemented")
+}
+func (UnimplementedTerminalServiceServer) GetFileServerConfig(context.Context, *GetFileServerConfigRequest) (*GetFileServerConfigResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetFileServerConfig not implemented")
+}
+func (UnimplementedTerminalServiceServer) SetFileServerConfig(context.Context, *SetFileServerConfigRequest) (*SetFileServerConfigResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SetFileServerConfig not implemented")
 }
 func (UnimplementedTerminalServiceServer) mustEmbedUnimplementedTerminalServiceServer() {}
 
@@ -1457,6 +1491,42 @@ func _TerminalService_ListUnifiedResources_Handler(srv interface{}, ctx context.
 	return interceptor(ctx, in, info, handler)
 }
 
+func _TerminalService_GetFileServerConfig_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetFileServerConfigRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TerminalServiceServer).GetFileServerConfig(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: TerminalService_GetFileServerConfig_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TerminalServiceServer).GetFileServerConfig(ctx, req.(*GetFileServerConfigRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _TerminalService_SetFileServerConfig_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SetFileServerConfigRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TerminalServiceServer).SetFileServerConfig(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: TerminalService_SetFileServerConfig_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TerminalServiceServer).SetFileServerConfig(ctx, req.(*SetFileServerConfigRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // TerminalService_ServiceDesc is the grpc.ServiceDesc for TerminalService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -1599,6 +1669,14 @@ var TerminalService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListUnifiedResources",
 			Handler:    _TerminalService_ListUnifiedResources_Handler,
+		},
+		{
+			MethodName: "GetFileServerConfig",
+			Handler:    _TerminalService_GetFileServerConfig_Handler,
+		},
+		{
+			MethodName: "SetFileServerConfig",
+			Handler:    _TerminalService_SetFileServerConfig_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

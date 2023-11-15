@@ -22,6 +22,7 @@ var teleport_lib_teleterm_v1_access_request_pb = require('../../../../teleport/l
 var teleport_lib_teleterm_v1_auth_settings_pb = require('../../../../teleport/lib/teleterm/v1/auth_settings_pb.js');
 var teleport_lib_teleterm_v1_cluster_pb = require('../../../../teleport/lib/teleterm/v1/cluster_pb.js');
 var teleport_lib_teleterm_v1_database_pb = require('../../../../teleport/lib/teleterm/v1/database_pb.js');
+var teleport_lib_teleterm_v1_fileserver_pb = require('../../../../teleport/lib/teleterm/v1/fileserver_pb.js');
 var teleport_lib_teleterm_v1_gateway_pb = require('../../../../teleport/lib/teleterm/v1/gateway_pb.js');
 var teleport_lib_teleterm_v1_kube_pb = require('../../../../teleport/lib/teleterm/v1/kube_pb.js');
 var teleport_lib_teleterm_v1_server_pb = require('../../../../teleport/lib/teleterm/v1/server_pb.js');
@@ -357,6 +358,28 @@ function deserialize_teleport_lib_teleterm_v1_GetDatabasesResponse(buffer_arg) {
   return teleport_lib_teleterm_v1_service_pb.GetDatabasesResponse.deserializeBinary(new Uint8Array(buffer_arg));
 }
 
+function serialize_teleport_lib_teleterm_v1_GetFileServerConfigRequest(arg) {
+  if (!(arg instanceof teleport_lib_teleterm_v1_fileserver_pb.GetFileServerConfigRequest)) {
+    throw new Error('Expected argument of type teleport.lib.teleterm.v1.GetFileServerConfigRequest');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_teleport_lib_teleterm_v1_GetFileServerConfigRequest(buffer_arg) {
+  return teleport_lib_teleterm_v1_fileserver_pb.GetFileServerConfigRequest.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
+function serialize_teleport_lib_teleterm_v1_GetFileServerConfigResponse(arg) {
+  if (!(arg instanceof teleport_lib_teleterm_v1_fileserver_pb.GetFileServerConfigResponse)) {
+    throw new Error('Expected argument of type teleport.lib.teleterm.v1.GetFileServerConfigResponse');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_teleport_lib_teleterm_v1_GetFileServerConfigResponse(buffer_arg) {
+  return teleport_lib_teleterm_v1_fileserver_pb.GetFileServerConfigResponse.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
 function serialize_teleport_lib_teleterm_v1_GetKubesRequest(arg) {
   if (!(arg instanceof teleport_lib_teleterm_v1_service_pb.GetKubesRequest)) {
     throw new Error('Expected argument of type teleport.lib.teleterm.v1.GetKubesRequest');
@@ -619,6 +642,28 @@ function serialize_teleport_lib_teleterm_v1_ReviewAccessRequestResponse(arg) {
 
 function deserialize_teleport_lib_teleterm_v1_ReviewAccessRequestResponse(buffer_arg) {
   return teleport_lib_teleterm_v1_service_pb.ReviewAccessRequestResponse.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
+function serialize_teleport_lib_teleterm_v1_SetFileServerConfigRequest(arg) {
+  if (!(arg instanceof teleport_lib_teleterm_v1_fileserver_pb.SetFileServerConfigRequest)) {
+    throw new Error('Expected argument of type teleport.lib.teleterm.v1.SetFileServerConfigRequest');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_teleport_lib_teleterm_v1_SetFileServerConfigRequest(buffer_arg) {
+  return teleport_lib_teleterm_v1_fileserver_pb.SetFileServerConfigRequest.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
+function serialize_teleport_lib_teleterm_v1_SetFileServerConfigResponse(arg) {
+  if (!(arg instanceof teleport_lib_teleterm_v1_fileserver_pb.SetFileServerConfigResponse)) {
+    throw new Error('Expected argument of type teleport.lib.teleterm.v1.SetFileServerConfigResponse');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_teleport_lib_teleterm_v1_SetFileServerConfigResponse(buffer_arg) {
+  return teleport_lib_teleterm_v1_fileserver_pb.SetFileServerConfigResponse.deserializeBinary(new Uint8Array(buffer_arg));
 }
 
 function serialize_teleport_lib_teleterm_v1_SetGatewayLocalPortRequest(arg) {
@@ -1182,6 +1227,30 @@ listUnifiedResources: {
     requestDeserialize: deserialize_teleport_lib_teleterm_v1_ListUnifiedResourcesRequest,
     responseSerialize: serialize_teleport_lib_teleterm_v1_ListUnifiedResourcesResponse,
     responseDeserialize: deserialize_teleport_lib_teleterm_v1_ListUnifiedResourcesResponse,
+  },
+  // TODO(espadolini): add comment
+getFileServerConfig: {
+    path: '/teleport.lib.teleterm.v1.TerminalService/GetFileServerConfig',
+    requestStream: false,
+    responseStream: false,
+    requestType: teleport_lib_teleterm_v1_fileserver_pb.GetFileServerConfigRequest,
+    responseType: teleport_lib_teleterm_v1_fileserver_pb.GetFileServerConfigResponse,
+    requestSerialize: serialize_teleport_lib_teleterm_v1_GetFileServerConfigRequest,
+    requestDeserialize: deserialize_teleport_lib_teleterm_v1_GetFileServerConfigRequest,
+    responseSerialize: serialize_teleport_lib_teleterm_v1_GetFileServerConfigResponse,
+    responseDeserialize: deserialize_teleport_lib_teleterm_v1_GetFileServerConfigResponse,
+  },
+  // TODO(espadolini): add comment
+setFileServerConfig: {
+    path: '/teleport.lib.teleterm.v1.TerminalService/SetFileServerConfig',
+    requestStream: false,
+    responseStream: false,
+    requestType: teleport_lib_teleterm_v1_fileserver_pb.SetFileServerConfigRequest,
+    responseType: teleport_lib_teleterm_v1_fileserver_pb.SetFileServerConfigResponse,
+    requestSerialize: serialize_teleport_lib_teleterm_v1_SetFileServerConfigRequest,
+    requestDeserialize: deserialize_teleport_lib_teleterm_v1_SetFileServerConfigRequest,
+    responseSerialize: serialize_teleport_lib_teleterm_v1_SetFileServerConfigResponse,
+    responseDeserialize: deserialize_teleport_lib_teleterm_v1_SetFileServerConfigResponse,
   },
 };
 

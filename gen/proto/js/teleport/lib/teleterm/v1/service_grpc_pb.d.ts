@@ -10,6 +10,7 @@ import * as teleport_lib_teleterm_v1_access_request_pb from "../../../../telepor
 import * as teleport_lib_teleterm_v1_auth_settings_pb from "../../../../teleport/lib/teleterm/v1/auth_settings_pb";
 import * as teleport_lib_teleterm_v1_cluster_pb from "../../../../teleport/lib/teleterm/v1/cluster_pb";
 import * as teleport_lib_teleterm_v1_database_pb from "../../../../teleport/lib/teleterm/v1/database_pb";
+import * as teleport_lib_teleterm_v1_fileserver_pb from "../../../../teleport/lib/teleterm/v1/fileserver_pb";
 import * as teleport_lib_teleterm_v1_gateway_pb from "../../../../teleport/lib/teleterm/v1/gateway_pb";
 import * as teleport_lib_teleterm_v1_kube_pb from "../../../../teleport/lib/teleterm/v1/kube_pb";
 import * as teleport_lib_teleterm_v1_server_pb from "../../../../teleport/lib/teleterm/v1/server_pb";
@@ -52,6 +53,8 @@ interface ITerminalServiceService extends grpc.ServiceDefinition<grpc.UntypedSer
     deleteConnectMyComputerNode: ITerminalServiceService_IDeleteConnectMyComputerNode;
     getConnectMyComputerNodeName: ITerminalServiceService_IGetConnectMyComputerNodeName;
     listUnifiedResources: ITerminalServiceService_IListUnifiedResources;
+    getFileServerConfig: ITerminalServiceService_IGetFileServerConfig;
+    setFileServerConfig: ITerminalServiceService_ISetFileServerConfig;
 }
 
 interface ITerminalServiceService_IUpdateTshdEventsServerAddress extends grpc.MethodDefinition<teleport_lib_teleterm_v1_service_pb.UpdateTshdEventsServerAddressRequest, teleport_lib_teleterm_v1_service_pb.UpdateTshdEventsServerAddressResponse> {
@@ -378,6 +381,24 @@ interface ITerminalServiceService_IListUnifiedResources extends grpc.MethodDefin
     responseSerialize: grpc.serialize<teleport_lib_teleterm_v1_service_pb.ListUnifiedResourcesResponse>;
     responseDeserialize: grpc.deserialize<teleport_lib_teleterm_v1_service_pb.ListUnifiedResourcesResponse>;
 }
+interface ITerminalServiceService_IGetFileServerConfig extends grpc.MethodDefinition<teleport_lib_teleterm_v1_fileserver_pb.GetFileServerConfigRequest, teleport_lib_teleterm_v1_fileserver_pb.GetFileServerConfigResponse> {
+    path: "/teleport.lib.teleterm.v1.TerminalService/GetFileServerConfig";
+    requestStream: false;
+    responseStream: false;
+    requestSerialize: grpc.serialize<teleport_lib_teleterm_v1_fileserver_pb.GetFileServerConfigRequest>;
+    requestDeserialize: grpc.deserialize<teleport_lib_teleterm_v1_fileserver_pb.GetFileServerConfigRequest>;
+    responseSerialize: grpc.serialize<teleport_lib_teleterm_v1_fileserver_pb.GetFileServerConfigResponse>;
+    responseDeserialize: grpc.deserialize<teleport_lib_teleterm_v1_fileserver_pb.GetFileServerConfigResponse>;
+}
+interface ITerminalServiceService_ISetFileServerConfig extends grpc.MethodDefinition<teleport_lib_teleterm_v1_fileserver_pb.SetFileServerConfigRequest, teleport_lib_teleterm_v1_fileserver_pb.SetFileServerConfigResponse> {
+    path: "/teleport.lib.teleterm.v1.TerminalService/SetFileServerConfig";
+    requestStream: false;
+    responseStream: false;
+    requestSerialize: grpc.serialize<teleport_lib_teleterm_v1_fileserver_pb.SetFileServerConfigRequest>;
+    requestDeserialize: grpc.deserialize<teleport_lib_teleterm_v1_fileserver_pb.SetFileServerConfigRequest>;
+    responseSerialize: grpc.serialize<teleport_lib_teleterm_v1_fileserver_pb.SetFileServerConfigResponse>;
+    responseDeserialize: grpc.deserialize<teleport_lib_teleterm_v1_fileserver_pb.SetFileServerConfigResponse>;
+}
 
 export const TerminalServiceService: ITerminalServiceService;
 
@@ -418,6 +439,8 @@ export interface ITerminalServiceServer {
     deleteConnectMyComputerNode: grpc.handleUnaryCall<teleport_lib_teleterm_v1_service_pb.DeleteConnectMyComputerNodeRequest, teleport_lib_teleterm_v1_service_pb.DeleteConnectMyComputerNodeResponse>;
     getConnectMyComputerNodeName: grpc.handleUnaryCall<teleport_lib_teleterm_v1_service_pb.GetConnectMyComputerNodeNameRequest, teleport_lib_teleterm_v1_service_pb.GetConnectMyComputerNodeNameResponse>;
     listUnifiedResources: grpc.handleUnaryCall<teleport_lib_teleterm_v1_service_pb.ListUnifiedResourcesRequest, teleport_lib_teleterm_v1_service_pb.ListUnifiedResourcesResponse>;
+    getFileServerConfig: grpc.handleUnaryCall<teleport_lib_teleterm_v1_fileserver_pb.GetFileServerConfigRequest, teleport_lib_teleterm_v1_fileserver_pb.GetFileServerConfigResponse>;
+    setFileServerConfig: grpc.handleUnaryCall<teleport_lib_teleterm_v1_fileserver_pb.SetFileServerConfigRequest, teleport_lib_teleterm_v1_fileserver_pb.SetFileServerConfigResponse>;
 }
 
 export interface ITerminalServiceClient {
@@ -528,6 +551,12 @@ export interface ITerminalServiceClient {
     listUnifiedResources(request: teleport_lib_teleterm_v1_service_pb.ListUnifiedResourcesRequest, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.ListUnifiedResourcesResponse) => void): grpc.ClientUnaryCall;
     listUnifiedResources(request: teleport_lib_teleterm_v1_service_pb.ListUnifiedResourcesRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.ListUnifiedResourcesResponse) => void): grpc.ClientUnaryCall;
     listUnifiedResources(request: teleport_lib_teleterm_v1_service_pb.ListUnifiedResourcesRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.ListUnifiedResourcesResponse) => void): grpc.ClientUnaryCall;
+    getFileServerConfig(request: teleport_lib_teleterm_v1_fileserver_pb.GetFileServerConfigRequest, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_fileserver_pb.GetFileServerConfigResponse) => void): grpc.ClientUnaryCall;
+    getFileServerConfig(request: teleport_lib_teleterm_v1_fileserver_pb.GetFileServerConfigRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_fileserver_pb.GetFileServerConfigResponse) => void): grpc.ClientUnaryCall;
+    getFileServerConfig(request: teleport_lib_teleterm_v1_fileserver_pb.GetFileServerConfigRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_fileserver_pb.GetFileServerConfigResponse) => void): grpc.ClientUnaryCall;
+    setFileServerConfig(request: teleport_lib_teleterm_v1_fileserver_pb.SetFileServerConfigRequest, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_fileserver_pb.SetFileServerConfigResponse) => void): grpc.ClientUnaryCall;
+    setFileServerConfig(request: teleport_lib_teleterm_v1_fileserver_pb.SetFileServerConfigRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_fileserver_pb.SetFileServerConfigResponse) => void): grpc.ClientUnaryCall;
+    setFileServerConfig(request: teleport_lib_teleterm_v1_fileserver_pb.SetFileServerConfigRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_fileserver_pb.SetFileServerConfigResponse) => void): grpc.ClientUnaryCall;
 }
 
 export class TerminalServiceClient extends grpc.Client implements ITerminalServiceClient {
@@ -638,4 +667,10 @@ export class TerminalServiceClient extends grpc.Client implements ITerminalServi
     public listUnifiedResources(request: teleport_lib_teleterm_v1_service_pb.ListUnifiedResourcesRequest, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.ListUnifiedResourcesResponse) => void): grpc.ClientUnaryCall;
     public listUnifiedResources(request: teleport_lib_teleterm_v1_service_pb.ListUnifiedResourcesRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.ListUnifiedResourcesResponse) => void): grpc.ClientUnaryCall;
     public listUnifiedResources(request: teleport_lib_teleterm_v1_service_pb.ListUnifiedResourcesRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.ListUnifiedResourcesResponse) => void): grpc.ClientUnaryCall;
+    public getFileServerConfig(request: teleport_lib_teleterm_v1_fileserver_pb.GetFileServerConfigRequest, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_fileserver_pb.GetFileServerConfigResponse) => void): grpc.ClientUnaryCall;
+    public getFileServerConfig(request: teleport_lib_teleterm_v1_fileserver_pb.GetFileServerConfigRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_fileserver_pb.GetFileServerConfigResponse) => void): grpc.ClientUnaryCall;
+    public getFileServerConfig(request: teleport_lib_teleterm_v1_fileserver_pb.GetFileServerConfigRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_fileserver_pb.GetFileServerConfigResponse) => void): grpc.ClientUnaryCall;
+    public setFileServerConfig(request: teleport_lib_teleterm_v1_fileserver_pb.SetFileServerConfigRequest, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_fileserver_pb.SetFileServerConfigResponse) => void): grpc.ClientUnaryCall;
+    public setFileServerConfig(request: teleport_lib_teleterm_v1_fileserver_pb.SetFileServerConfigRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_fileserver_pb.SetFileServerConfigResponse) => void): grpc.ClientUnaryCall;
+    public setFileServerConfig(request: teleport_lib_teleterm_v1_fileserver_pb.SetFileServerConfigRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_fileserver_pb.SetFileServerConfigResponse) => void): grpc.ClientUnaryCall;
 }

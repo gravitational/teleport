@@ -20,6 +20,7 @@ import "teleport/lib/teleterm/v1/access_request.proto";
 import "teleport/lib/teleterm/v1/auth_settings.proto";
 import "teleport/lib/teleterm/v1/cluster.proto";
 import "teleport/lib/teleterm/v1/database.proto";
+import "teleport/lib/teleterm/v1/fileserver.proto";
 import "teleport/lib/teleterm/v1/gateway.proto";
 import "teleport/lib/teleterm/v1/kube.proto";
 import "teleport/lib/teleterm/v1/server.proto";
@@ -145,6 +146,11 @@ service TerminalService {
   rpc GetConnectMyComputerNodeName(GetConnectMyComputerNodeNameRequest) returns (GetConnectMyComputerNodeNameResponse);
   // ListUnifiedResources retrieves a paginated list of all resource types displayable in the UI.
   rpc ListUnifiedResources(ListUnifiedResourcesRequest) returns (ListUnifiedResourcesResponse);
+
+  // TODO(espadolini): add comment
+  rpc GetFileServerConfig(GetFileServerConfigRequest) returns (GetFileServerConfigResponse);
+  // TODO(espadolini): add comment
+  rpc SetFileServerConfig(SetFileServerConfigRequest) returns (SetFileServerConfigResponse);
 }
 
 message EmptyResponse {}
