@@ -58,7 +58,7 @@ func (req *UpdateServiceRequest) CheckAndSetDefaults() error {
 	return nil
 }
 
-// UpdateDeployService updates the aws oidc deploy service with the specified teleportVersionTag.
+// UpdateDeployService updates the AWS OIDC deploy service with the specified version tag.
 func UpdateDeployService(ctx context.Context, clt DeployServiceClient, req UpdateServiceRequest) error {
 	if err := req.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
