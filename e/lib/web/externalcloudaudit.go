@@ -146,3 +146,97 @@ func getExternalCloudAuditBootstrapScript(w http.ResponseWriter, r *http.Request
 	_, err = io.WriteString(w, script)
 	return nil, trace.Wrap(err)
 }
+
+// enableExternalCloudAuditDraft promotes the current draft ExternalCloudAudit to active.
+func (h *Plugin) externalCloudAuditPromote(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *web.SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
+	ctx := r.Context()
+
+	userClient, err := sctx.GetUserClient(ctx, site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clt := userClient.ExternalCloudAuditClient()
+	err = clt.PromoteToClusterExternalCloudAudit(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to promote current draft external audit config to cluster")
+	}
+
+	return web.OK(), nil
+}
+
+// externalCloudAuditGetCluster returns the current active ExternalCloudAudit.
+func (h *Plugin) externalCloudAuditGetCluster(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *web.SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
+	ctx := r.Context()
+
+	userClient, err := sctx.GetUserClient(ctx, site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clt := userClient.ExternalCloudAuditClient()
+	clusterAudit, err := clt.GetClusterExternalCloudAudit(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to fetch cluster external cloud audit")
+	}
+
+	return ui.ExternalCloudAudit{
+		IntegrationName: clusterAudit.Spec.IntegrationName,
+	}, nil
+}
+
+// externalCloudAuditGetDraft returns the current draft ExternalCloudAudit.
+func (h *Plugin) externalCloudAuditGetDraft(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *web.SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
+	ctx := r.Context()
+
+	userClient, err := sctx.GetUserClient(ctx, site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clt := userClient.ExternalCloudAuditClient()
+	draftAudit, err := clt.GetDraftExternalCloudAudit(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to fetch draft external cloud audit")
+	}
+
+	return ui.ExternalCloudAudit{
+		IntegrationName: draftAudit.Spec.IntegrationName,
+	}, nil
+}
+
+// externalCloudAuditDeleteDraft deletes the current ExternalCloudAudit draft.
+func (h *Plugin) externalCloudAuditDeleteDraft(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *web.SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
+	ctx := r.Context()
+
+	userClient, err := sctx.GetUserClient(ctx, site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clt := userClient.ExternalCloudAuditClient()
+	err = clt.DeleteDraftExternalCloudAudit(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to delete draft external cloud audit")
+	}
+
+	return web.OK(), nil
+}
+
+// externalCloudAuditDeleteCluster deletes the current active ExternalCloudAudit.
+func (h *Plugin) externalCloudAuditDeleteCluster(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *web.SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
+	ctx := r.Context()
+
+	userClient, err := sctx.GetUserClient(ctx, site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clt := userClient.ExternalCloudAuditClient()
+	err = clt.DisableClusterExternalCloudAudit(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to delete cluster external cloud audit")
+	}
+
+	return web.OK(), nil
+}

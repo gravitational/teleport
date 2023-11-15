@@ -7,3 +7,10 @@ type GenerateDraftExternalCloudAuditRequest struct {
 	// authenticate to the customer AWS account.
 	IntegrationName string `json:"integration_name"`
 }
+
+// ExternalCloudAudit represents an external cloud audit instance
+type ExternalCloudAudit struct {
+	// IntegrationName is name of existing OIDC integration used to
+	// generate AWS credentials.
+	IntegrationName string `json:"integration_name" yaml:"integration_name"`
+}
