@@ -46,11 +46,15 @@ export function DocumentFileSharing(props: {
   const isRunning =
     currentAction.kind === 'observe-process' &&
     currentAction.agentProcessState.status === 'running';
-  const appUrl =
+  let appUrl =
     cluster?.loggedInUser &&
     `https://${getFileSharingAppName(cluster.loggedInUser.name)}.${
       cluster.proxyHost
     }`;
+
+  if (selectedDirectory) {
+    appUrl += '/file-sharing';
+  }
 
   async function updateSelectedDirectory(path: string) {
     await connectMyComputerService.setFileServerConfig({
