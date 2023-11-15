@@ -13,9 +13,9 @@ the following:
 This guide demonstrates how to add labels to enrolled server resources.
 However, you can follow similar steps to add labels to other types of resources.
 
-## Static, dynamic, and ephemeral labels
+## Static, dynamic, and resource-based labels
 
-The labels you assign to resources can be **static labels**, **dynamic labels**, or **ephemeral labels**.
+The labels you assign to resources can be **static labels**, **dynamic labels**, or **resource-based labels**.
 
 - Static labels are hardcoded in the Teleport configuration file and don't change 
 while the `teleport` process is running. For example, you might use a static label to identify 
@@ -23,10 +23,10 @@ the resources in a `staging` or `production` environment.
 - Dynamic labels—also known as **commands-based labels**—allow you to generate labels at runtime. 
 With a dynamic label, the `teleport` process executes an external command on its host at 
 a configurable frequency and the output of the command becomes the label value.
-- Ephemeral labels allow you to add labels to an instance without restarting the `teleport`
-process or editing the configuration file. They are not preserved between restarts.
+- Resource-based labels allow you to add labels to an instance without restarting the `teleport`
+process or editing the configuration file.
 
-You can add multiple static, dynamic, and ephemeral labels for the same resource.
+You can add multiple static, dynamic, and resource-based labels for the same resource.
 However, you can't add static labels that use the same key with different values or use
 a static label to define multiple potential values.
 
@@ -43,7 +43,7 @@ but filter and limit access to the servers based on their AWS region.
 
 (!docs/pages/includes/tctl.mdx!)
 
-## Step 1/4. Install Teleport
+### Install Teleport
 
 1. Select a host for running the Teleport agent.
 
@@ -76,7 +76,7 @@ as a resource:
    $ export INVITE_TOKEN=<token>
    ```
 
-## Step 2/4. Apply a static label
+### Apply a static label
 
 You can configure static labels by editing the Teleport configuration file, then
 starting Teleport.
@@ -193,7 +193,7 @@ ssh_service:
     teleport.hidden/team-id: ai-lab-01
 ``` 
 
-## Step 3/4. Apply dynamic labels using commands
+### Apply dynamic labels using commands
 
 As with static labels, you can apply dynamic labels by editing the
 Teleport configuration file, then restarting the Teleport service on your server.
@@ -282,17 +282,15 @@ computer. Your Teleport user must be authorized to access the server.
    ip-192-168-13-57 ⟵ Tunnel       arch=x86_64,environment=dev,hostname=ip-192-168-13-57
    ```
 
-## Step 4/4. Apply ephemeral labels using `server_info`
+### Apply resource-based labels
 
-<Notice type="note">
-   Applying ephemeral labels is only supported for servers.
-</Notice>
+Applying resource-based labels is only supported for servers.
 
-You can apply ephemeral labels to a Teleport instance by creating a `server_info`
+You can apply resource-based labels to a Teleport instance by creating a `server_info`
 resource for the instance. For a server with name `<name>`, its matching `server_info`
 should be named `si-<name>`.
 
-To add ephemeral labels:
+To add resource-based labels:
 
 1. Create the file `server_info.yaml` and paste the following into it:
 
@@ -330,8 +328,8 @@ larger clusters, so it may take several minutes for the new labels to appear.
    ip-192-168-13-57 ⟵ Tunnel       foo=bar,hostname=ip-192-168-13-57
    ```
 
-Although ephemeral labels do not persist across restarts, they will be set again
-as long as the `server_info` resource still exists. To update ephemeral labels,
+Resource-based labels are stored in memory on servers, so if a server restarts it may temporarily lose
+its resource-based labels until the Auth Service applies them again. To update resource-based labels,
 recreate the `server_info` resource with updated labels.
 
 ## Next steps
