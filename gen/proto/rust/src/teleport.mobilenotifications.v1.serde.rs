@@ -13,18 +13,12 @@ impl serde::Serialize for RegisterDeviceRequest {
         if !self.cluster_id.is_empty() {
             len += 1;
         }
-        if self.already_registered {
-            len += 1;
-        }
         let mut struct_ser = serializer.serialize_struct("teleport.mobilenotifications.v1.RegisterDeviceRequest", len)?;
         if !self.device_token.is_empty() {
             struct_ser.serialize_field("deviceToken", &self.device_token)?;
         }
         if !self.cluster_id.is_empty() {
             struct_ser.serialize_field("clusterId", &self.cluster_id)?;
-        }
-        if self.already_registered {
-            struct_ser.serialize_field("alreadyRegistered", &self.already_registered)?;
         }
         struct_ser.end()
     }
@@ -40,15 +34,12 @@ impl<'de> serde::Deserialize<'de> for RegisterDeviceRequest {
             "deviceToken",
             "cluster_id",
             "clusterId",
-            "already_registered",
-            "alreadyRegistered",
         ];
 
         #[allow(clippy::enum_variant_names)]
         enum GeneratedField {
             DeviceToken,
             ClusterId,
-            AlreadyRegistered,
         }
         impl<'de> serde::Deserialize<'de> for GeneratedField {
             fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
@@ -72,7 +63,6 @@ impl<'de> serde::Deserialize<'de> for RegisterDeviceRequest {
                         match value {
                             "deviceToken" | "device_token" => Ok(GeneratedField::DeviceToken),
                             "clusterId" | "cluster_id" => Ok(GeneratedField::ClusterId),
-                            "alreadyRegistered" | "already_registered" => Ok(GeneratedField::AlreadyRegistered),
                             _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
                         }
                     }
@@ -94,7 +84,6 @@ impl<'de> serde::Deserialize<'de> for RegisterDeviceRequest {
             {
                 let mut device_token__ = None;
                 let mut cluster_id__ = None;
-                let mut already_registered__ = None;
                 while let Some(k) = map.next_key()? {
                     match k {
                         GeneratedField::DeviceToken => {
@@ -109,18 +98,11 @@ impl<'de> serde::Deserialize<'de> for RegisterDeviceRequest {
                             }
                             cluster_id__ = Some(map.next_value()?);
                         }
-                        GeneratedField::AlreadyRegistered => {
-                            if already_registered__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("alreadyRegistered"));
-                            }
-                            already_registered__ = Some(map.next_value()?);
-                        }
                     }
                 }
                 Ok(RegisterDeviceRequest {
                     device_token: device_token__.unwrap_or_default(),
                     cluster_id: cluster_id__.unwrap_or_default(),
-                    already_registered: already_registered__.unwrap_or_default(),
                 })
             }
         }
@@ -138,9 +120,15 @@ impl serde::Serialize for RegisterDeviceResponse {
         if !self.device_uuid.is_empty() {
             len += 1;
         }
+        if self.already_registered {
+            len += 1;
+        }
         let mut struct_ser = serializer.serialize_struct("teleport.mobilenotifications.v1.RegisterDeviceResponse", len)?;
         if !self.device_uuid.is_empty() {
             struct_ser.serialize_field("deviceUuid", &self.device_uuid)?;
+        }
+        if self.already_registered {
+            struct_ser.serialize_field("alreadyRegistered", &self.already_registered)?;
         }
         struct_ser.end()
     }
@@ -154,11 +142,14 @@ impl<'de> serde::Deserialize<'de> for RegisterDeviceResponse {
         const FIELDS: &[&str] = &[
             "device_uuid",
             "deviceUuid",
+            "already_registered",
+            "alreadyRegistered",
         ];
 
         #[allow(clippy::enum_variant_names)]
         enum GeneratedField {
             DeviceUuid,
+            AlreadyRegistered,
         }
         impl<'de> serde::Deserialize<'de> for GeneratedField {
             fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
@@ -181,6 +172,7 @@ impl<'de> serde::Deserialize<'de> for RegisterDeviceResponse {
                     {
                         match value {
                             "deviceUuid" | "device_uuid" => Ok(GeneratedField::DeviceUuid),
+                            "alreadyRegistered" | "already_registered" => Ok(GeneratedField::AlreadyRegistered),
                             _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
                         }
                     }
@@ -201,6 +193,7 @@ impl<'de> serde::Deserialize<'de> for RegisterDeviceResponse {
                     V: serde::de::MapAccess<'de>,
             {
                 let mut device_uuid__ = None;
+                let mut already_registered__ = None;
                 while let Some(k) = map.next_key()? {
                     match k {
                         GeneratedField::DeviceUuid => {
@@ -209,10 +202,17 @@ impl<'de> serde::Deserialize<'de> for RegisterDeviceResponse {
                             }
                             device_uuid__ = Some(map.next_value()?);
                         }
+                        GeneratedField::AlreadyRegistered => {
+                            if already_registered__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("alreadyRegistered"));
+                            }
+                            already_registered__ = Some(map.next_value()?);
+                        }
                     }
                 }
                 Ok(RegisterDeviceResponse {
                     device_uuid: device_uuid__.unwrap_or_default(),
+                    already_registered: already_registered__.unwrap_or_default(),
                 })
             }
         }

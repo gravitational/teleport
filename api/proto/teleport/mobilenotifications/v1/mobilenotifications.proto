@@ -54,12 +54,12 @@ message RegisterDeviceRequest {
   string device_token = 1;
   // Cluster ID is a unique identifier for a cluster.
   string cluster_id = 2;
-  // Already registered indicates whether the device token is already registered
-  // with the server.
-  bool already_registered = 3;
 }
 
 // RegisterDeviceResponse is a response to a RegisterDeviceRequest.
 message RegisterDeviceResponse {
   string device_uuid = 1;
+  // Already registered indicates whether the device token is already registered
+  // with the server.
+  bool already_registered = 2;
 }
