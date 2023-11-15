@@ -19,6 +19,7 @@ package proxy
 import (
 	"context"
 	"crypto/tls"
+	"maps"
 	"net"
 	"net/http"
 	"sync"
@@ -26,7 +27,6 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
-	"golang.org/x/exp/maps"
 	"golang.org/x/net/http2"
 
 	"github.com/gravitational/teleport"
@@ -576,9 +576,7 @@ func (t *TLSServer) getServiceStaticLabels() map[string]string {
 	}
 	labels := maps.Clone(t.CloudLabels.Get())
 	// Let static labels override ec2 labels.
-	for k, v := range t.StaticLabels {
-		labels[k] = v
-	}
+	maps.Copy(labels, t.StaticLabels)
 	return labels
 }
 

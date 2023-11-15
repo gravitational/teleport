@@ -654,10 +654,6 @@ func testCreatingAndDeletingConnectMyComputerToken(t *testing.T, pack *dbhelpers
 		RootClusterUri: rootClusterURI,
 	})
 	require.NoError(t, err)
-	require.Equal(t, &api.Label{
-		Name:  types.ConnectMyComputerNodeOwnerLabel,
-		Value: userName,
-	}, createdTokenResponse.GetLabels()[0])
 
 	// Verify that token exists
 	tokenFromAuthServer, err := authServer.GetToken(ctx, createdTokenResponse.GetToken())

@@ -20,6 +20,11 @@
           "title": "FAQ",
           "slug": "/faq/"
         },
+	{
+	  "title": "Usage Reporting and Billing",
+	  "slug": "/usage-billing/",
+	  "forScopes": ["cloud", "team", "enterprise"]
+	},
         {
           "title": "Upcoming Releases",
           "slug": "/upcoming-releases/"
@@ -621,7 +626,7 @@
             {
               "title": "Enroll Agents in Automatic Updates",
               "slug": "/management/operations/enroll-agent-into-automatic-updates/",
-              "forScopes": ["enterprise", "cloud"]
+              "forScopes": ["enterprise", "cloud", "team"]
             }
           ]
         },
@@ -1465,6 +1470,10 @@
             {
               "title": "GitHub Actions",
               "slug": "/machine-id/reference/github-actions/"
+            },
+            {
+              "title": "GitLab",
+              "slug": "/machine-id/reference/gitlab/"
             },
             {
               "title": "Telemetry",
