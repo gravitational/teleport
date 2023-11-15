@@ -903,14 +903,14 @@ func TestAccessMongoDB(t *testing.T) {
 				testCtx := setupTestContext(ctx, t, withSelfHostedMongo("mongo", serverOpt.opts...))
 				go testCtx.startHandlingConnections()
 
+				// Create user/role with the requested permissions.
+				testCtx.createUserAndRole(ctx, t, test.user, test.role, test.allowDbUsers, test.allowDbNames)
+
 				for _, clientOpt := range clientOpts {
 					clientOpt := clientOpt
 
 					t.Run(fmt.Sprintf("%v/%v", serverOpt.name, clientOpt.name), func(t *testing.T) {
 						t.Parallel()
-
-						// Create user/role with the requested permissions.
-						testCtx.createUserAndRole(ctx, t, test.user, test.role, test.allowDbUsers, test.allowDbNames)
 
 						// Try to connect to the database as this user.
 						mongoClient, err := testCtx.mongoClient(ctx, test.user, "mongo", test.dbUser, clientOpt.opts)
