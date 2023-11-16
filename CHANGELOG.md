@@ -2,6 +2,8 @@
 
 ## 13.4.8 (11/15/23)
 
+* Prevented `.tsh/environment` values from overriding prior set values. [#34625](https://github.com/gravitational/teleport/pull/34625)
+* Fixed incorrect permissions when opening X11 listener. [#34616](https://github.com/gravitational/teleport/pull/34616)
 * Changed access lists to respect user locking. [#34619](https://github.com/gravitational/teleport/pull/34619)
 * Fixed access requests to respect explicit deny rules. [#34603](https://github.com/gravitational/teleport/pull/34603)
 * Improved the error message when attempting to enroll a hardware key that cannot support passwordless. [#34590](https://github.com/gravitational/teleport/pull/34590)
