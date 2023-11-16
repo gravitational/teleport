@@ -187,6 +187,10 @@ type Config struct {
 	// to inherit and use for listeners, used for in-process updates.
 	FileDescriptors []*FileDescriptor
 
+	// PollingPeriod is set to override default internal polling periods
+	// of sync agents, used to speed up integration tests.
+	PollingPeriod time.Duration
+
 	// CAPins are the SKPI hashes of the CAs used to verify the Auth Server.
 	CAPins []string
 
@@ -269,10 +273,6 @@ type ConfigTesting struct {
 
 	// UploadEventsC is a channel for upload events used in tests
 	UploadEventsC chan events.UploadEvent `json:"-"`
-
-	// PollingPeriod is set to override default internal polling periods
-	// of sync agents, used to speed up integration tests.
-	PollingPeriod time.Duration
 
 	// ClientTimeout is set to override default client timeouts
 	// used by internal clients, used to speed up integration tests.
@@ -664,8 +664,8 @@ func applyDefaults(cfg *Config) {
 		cfg.Log = logrus.StandardLogger()
 	}
 
-	if cfg.Testing.PollingPeriod == 0 {
-		cfg.Testing.PollingPeriod = defaults.LowResPollingPeriod
+	if cfg.PollingPeriod == 0 {
+		cfg.PollingPeriod = defaults.LowResPollingPeriod
 	}
 }
 
