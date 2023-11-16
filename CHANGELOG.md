@@ -1,6 +1,6 @@
 # Changelog
 
-## 12.4.25 (11/10/23)
+## 12.4.26 (11/15/23)
 
 ### Security Fixes
 
@@ -28,6 +28,10 @@ own proxy headers.
 
 ### Other Fixes & Improvements 
 
+* Prevented `.tsh/environment` values from overriding prior set values. [#34624](https://github.com/gravitational/teleport/pull/34624)
+* Fixed incorrect permissions when opening X11 listener. [#34615](https://github.com/gravitational/teleport/pull/34615)
+* Fixed access requests to respect explicit deny rules. [#34599](https://github.com/gravitational/teleport/pull/34599)
+* Improved the error message when attempting to enroll a hardware key that cannot support passwordless. [#34591](https://github.com/gravitational/teleport/pull/34591)
 * Added post-review state of Access Request in audit log description [#34215](https://github.com/gravitational/teleport/pull/34215)
 * Updated Operator Reconciliation to skip Teleport Operator on status updates [#34197](https://github.com/gravitational/teleport/pull/34197)
 * Updated Server Auto-Discovery installer script to use `bash` instead of `sh` [#34150](https://github.com/gravitational/teleport/pull/34150)
