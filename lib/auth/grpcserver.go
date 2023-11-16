@@ -342,13 +342,33 @@ func (g *GRPCServer) CreateAuditStream(stream authpb.AuthService_CreateAuditStre
 				switch {
 				case events.IsPermanentEmitError(err):
 					g.WithError(err).WithField("event", event).
-						Error("Failed to EmitAuditEvent due to a permanent error. Event wil be omitted.")
+						Error("Failed to RecordEvent due to a permanent error. Event wil be omitted.")
 					continue
 				default:
 					return trace.Wrap(err)
 				}
 			}
-			event.Size()
+
+			// Emit the event as well for v13 clients.
+			switch event.GetType() {
+			// Don't emit really verbose events.
+			case events.ResizeEvent, events.SessionDiskEvent, events.SessionPrintEvent, events.AppSessionRequestEvent, "":
+			default:
+				clientVersion, versionExists := metadata.ClientVersionFromContext(stream.Context())
+				if versionExists && semver.New(clientVersion).Major <= 13 {
+					if err := auth.EmitAuditEvent(stream.Context(), event); err != nil {
+						switch {
+						case events.IsPermanentEmitError(err):
+							g.WithError(err).WithField("event", event).
+								Error("Failed to EmitAuditEvent due to a permanent error. Event wil be omitted.")
+							continue
+						default:
+							return trace.Wrap(err)
+						}
+					}
+				}
+			}
+
 			processed += int64(event.Size())
 			seconds := time.Since(streamStart) / time.Second
 			counter++
