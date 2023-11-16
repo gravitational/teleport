@@ -441,14 +441,6 @@ func (d *tpmDevice) solveTPMAuthnDeviceChallenge(
 	}, nil
 }
 
-// signChallenge is not implemented for TPM devices, as platform attestation
-// is used instead.
-func (d *tpmDevice) signChallenge(_ []byte) (sig []byte, err error) {
-	// NotImplemented may be interpreted as lack of server-side support, so
-	// BadParameter is used instead.
-	return nil, trace.BadParameter("signChallenge not implemented for TPM devices")
-}
-
 func attestPlatform(tpm *attest.TPM, ak *attest.AK, nonce []byte) (*attest.PlatformParameters, error) {
 	config := &attest.PlatformAttestConfig{}
 

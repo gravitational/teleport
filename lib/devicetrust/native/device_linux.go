@@ -56,7 +56,7 @@ func enrollDeviceInit() (*devicepb.EnrollDeviceInit, error) {
 }
 
 func signChallenge(chal []byte) (sig []byte, err error) {
-	return linuxDevice.signChallenge(chal)
+	return nil, errors.New("signChallenge not implemented for TPM devices")
 }
 
 func getDeviceCredential() (*devicepb.DeviceCredential, error) {
