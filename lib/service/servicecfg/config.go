@@ -326,10 +326,6 @@ type AccessGraphConfig struct {
 	Insecure bool
 }
 
-func (a *AccessGraphConfig) IsEnabled() bool {
-	return a != nil && a.Enabled
-}
-
 // RoleAndIdentityEvent is a role and its corresponding identity event.
 type RoleAndIdentityEvent struct {
 	// Role is a system role.
