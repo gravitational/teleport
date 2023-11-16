@@ -3945,7 +3945,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				KEXAlgorithms:                 cfg.KEXAlgorithms,
 				MACAlgorithms:                 cfg.MACAlgorithms,
 				DataDir:                       process.Config.DataDir,
-				PollingPeriod:                 process.Config.Testing.PollingPeriod,
+				PollingPeriod:                 process.Config.PollingPeriod,
 				FIPS:                          cfg.FIPS,
 				Emitter:                       streamEmitter,
 				Log:                           process.log,
