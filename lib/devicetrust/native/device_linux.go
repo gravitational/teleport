@@ -51,7 +51,8 @@ var linuxDevice = &tpmDevice{
 }
 
 func enrollDeviceInit() (*devicepb.EnrollDeviceInit, error) {
-	return linuxDevice.enrollDeviceInit()
+	init, err := linuxDevice.enrollDeviceInit()
+	return init, rewriteTPMPermissionError(err)
 }
 
 func signChallenge(chal []byte) (sig []byte, err error) {
@@ -59,24 +60,53 @@ func signChallenge(chal []byte) (sig []byte, err error) {
 }
 
 func getDeviceCredential() (*devicepb.DeviceCredential, error) {
-	return linuxDevice.getDeviceCredential()
+	cred, err := linuxDevice.getDeviceCredential()
+	return cred, rewriteTPMPermissionError(err)
 }
 
 func solveTPMEnrollChallenge(
 	chal *devicepb.TPMEnrollChallenge,
 	debug bool,
 ) (*devicepb.TPMEnrollChallengeResponse, error) {
+	// No need to call rewriteTPMPermissionError here, enrollDeviceInit must pass
+	// first.
 	return linuxDevice.solveTPMEnrollChallenge(chal, debug)
 }
 
 func solveTPMAuthnDeviceChallenge(
 	chal *devicepb.TPMAuthenticateDeviceChallenge,
 ) (*devicepb.TPMAuthenticateDeviceChallengeResponse, error) {
-	return linuxDevice.solveTPMAuthnDeviceChallenge(chal)
+	resp, err := linuxDevice.solveTPMAuthnDeviceChallenge(chal)
+	return resp, rewriteTPMPermissionError(err)
 }
 
 func handleTPMActivateCredential(encryptedCredential, encryptedCredentialSecret string) error {
 	return errors.New("elevated credential activation not implemented for linux")
+}
+
+func rewriteTPMPermissionError(err error) error {
+	// We are looking for an error that looks roughly like this:
+	//
+	// 	err = &fs.PathError{
+	// 		Path: "/dev/tpmrm0",
+	// 		Err: fs.ErrPermission,
+	// 	}
+	if !errors.Is(err, fs.ErrPermission) {
+		return err
+	}
+
+	pathErr := &fs.PathError{}
+	if !errors.As(err, &pathErr) || pathErr.Path != "/dev/tpmrm0" {
+		return err
+	}
+	log.
+		WithError(err).
+		Debug("TPM: Replacing TPM permission error with a more friendly one")
+
+	return errors.New("" +
+		"Failed to open the TPM device. " +
+		"Consider assigning the user to the `tss` group or creating equivalent udev rules. " +
+		"See https://goteleport.com/docs/access-controls/device-trust/device-management/#troubleshooting.")
 }
 
 // cddFuncs is used to mock various data collection functions for testing.
