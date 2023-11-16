@@ -337,17 +337,8 @@ func (g *GRPCServer) CreateAuditStream(stream authpb.AuthService_CreateAuditStre
 			setter := &events.NoOpPreparer{}
 			start := time.Now()
 			preparedEvent, _ := setter.PrepareSessionEvent(event)
-			err = eventStream.RecordEvent(stream.Context(), preparedEvent)
-			if err != nil {
-				switch {
-				case events.IsPermanentEmitError(err):
-					g.WithError(err).WithField("event", event).
-						Error("Failed to RecordEvent due to a permanent error. Event wil be omitted.")
-					continue
-				default:
-					return trace.Wrap(err)
-				}
-			}
+			var errors []error
+			errors = append(errors, eventStream.RecordEvent(stream.Context(), preparedEvent))
 
 			// Emit the event as well for v13 clients.
 			switch event.GetType() {
@@ -356,16 +347,19 @@ func (g *GRPCServer) CreateAuditStream(stream authpb.AuthService_CreateAuditStre
 			default:
 				clientVersion, versionExists := metadata.ClientVersionFromContext(stream.Context())
 				if versionExists && semver.New(clientVersion).Major <= 13 {
-					if err := auth.EmitAuditEvent(stream.Context(), event); err != nil {
-						switch {
-						case events.IsPermanentEmitError(err):
-							g.WithError(err).WithField("event", event).
-								Error("Failed to EmitAuditEvent due to a permanent error. Event wil be omitted.")
-							continue
-						default:
-							return trace.Wrap(err)
-						}
-					}
+					errors = append(errors, auth.EmitAuditEvent(stream.Context(), event))
+				}
+			}
+
+			err = trace.NewAggregate(errors...)
+			if err != nil {
+				switch {
+				case events.IsPermanentEmitError(err):
+					g.WithError(err).WithField("event", event).
+						Error("Failed to EmitAuditEvent due to a permanent error. Event wil be omitted.")
+					continue
+				default:
+					return trace.Wrap(err)
 				}
 			}
 
