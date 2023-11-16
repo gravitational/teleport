@@ -25,6 +25,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/session"
@@ -68,7 +69,7 @@ const (
 
 	// SessionPrintEvent event happens every time a write occurs to
 	// terminal I/O during a session
-	SessionPrintEvent = "print"
+	SessionPrintEvent = constants.SessionPrintEvent
 
 	// SessionPrintEventBytes says how many bytes have been written into the session
 	// during "print" event
@@ -281,7 +282,7 @@ const (
 	SFTPPath  = "path"
 
 	// ResizeEvent means that some user resized PTY on the client
-	ResizeEvent  = "resize"
+	ResizeEvent  = constants.ResizeEvent
 	TerminalSize = "size" // expressed as 'W:H'
 
 	// SessionUploadIndex is a very large number of the event index
@@ -297,7 +298,7 @@ const (
 	SessionCommandEvent = "session.command"
 
 	// SessionDiskEvent is emitted when a file is opened within an session.
-	SessionDiskEvent = "session.disk"
+	SessionDiskEvent = constants.SessionDiskEvent
 
 	// SessionNetworkEvent is emitted when a network connection is initiated with a
 	// session.
@@ -396,7 +397,7 @@ const (
 	AppSessionChunkEvent = "app.session.chunk"
 
 	// AppSessionRequestEvent is an HTTP request and response.
-	AppSessionRequestEvent = "app.session.request"
+	AppSessionRequestEvent = constants.AppSessionRequestEvent
 
 	// AppSessionDynamoDBRequestEvent is emitted when DynamoDB client sends
 	// a request via app access session.

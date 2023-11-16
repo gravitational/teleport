@@ -452,3 +452,15 @@ const (
 	// Multiple decisions can be sent for the same request if the policy requires it.
 	FileTransferDecision string = "file-transfer-decision@goteleport.com"
 )
+
+const (
+	// ResizeEvent means that some user resized PTY on the client
+	ResizeEvent = "resize"
+	// SessionDiskEvent is emitted when a file is opened within an session.
+	SessionDiskEvent = "session.disk"
+	// SessionPrintEvent event happens every time a write occurs to
+	// terminal I/O during a session
+	SessionPrintEvent = "session.print"
+	// AppSessionRequestEvent is an HTTP request and response.
+	AppSessionRequestEvent = "app.session.request"
+)

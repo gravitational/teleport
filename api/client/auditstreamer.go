@@ -21,10 +21,13 @@ import (
 	"sync"
 
 	"github.com/gravitational/trace"
+	"golang.org/x/mod/semver"
 	"google.golang.org/grpc"
 	ggzip "google.golang.org/grpc/encoding/gzip"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types/events"
 )
 
@@ -37,10 +40,11 @@ func (c *Client) createOrResumeAuditStream(ctx context.Context, request proto.Au
 		return nil, trace.Wrap(err)
 	}
 	s := &auditStreamer{
-		stream:   stream,
-		statusCh: make(chan events.StreamStatus, 1),
-		closeCtx: closeCtx,
-		cancel:   cancel,
+		stream:     stream,
+		authClient: c,
+		statusCh:   make(chan events.StreamStatus, 1),
+		closeCtx:   closeCtx,
+		cancel:     cancel,
 	}
 	go s.recv()
 	err = s.stream.Send(&request)
@@ -70,12 +74,13 @@ func (c *Client) CreateAuditStream(ctx context.Context, sessionID string) (event
 }
 
 type auditStreamer struct {
-	statusCh chan events.StreamStatus
-	mu       sync.RWMutex
-	stream   proto.AuthService_CreateAuditStreamClient
-	err      error
-	closeCtx context.Context
-	cancel   context.CancelFunc
+	statusCh   chan events.StreamStatus
+	mu         sync.RWMutex
+	stream     proto.AuthService_CreateAuditStreamClient
+	authClient *Client
+	err        error
+	closeCtx   context.Context
+	cancel     context.CancelFunc
 }
 
 // Close flushes non-uploaded flight stream data without marking
@@ -117,6 +122,29 @@ func (s *auditStreamer) EmitAuditEvent(ctx context.Context, event events.AuditEv
 		s.closeWithError(err)
 		return trace.Wrap(err)
 	}
+
+	// These events are very verbose, so we will never need to worry about
+	// emitting them.
+	switch event.GetType() {
+	case constants.ResizeEvent, constants.SessionDiskEvent, constants.SessionPrintEvent, constants.AppSessionRequestEvent, "":
+		return nil
+	}
+
+	ping, err := s.authClient.Ping(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	major := semver.Major("v" + teleport.Version)
+	authMajor := semver.Major("v" + ping.ServerVersion)
+
+	// If auth server is v14+, the event request above will only record the event
+	// in the session, so we need to emit the event separately.
+	if semver.Compare(authMajor, major) > 0 {
+		if err := s.authClient.EmitAuditEvent(ctx, event); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
 	return nil
 }
 
