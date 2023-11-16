@@ -198,7 +198,7 @@ func newConfigurator(ctx context.Context, spec *externalcloudaudit.ExternalCloud
 // IsUsed returns a boolean indicating whether the ExternalCloudAudit feature is
 // currently in active use.
 func (c *Configurator) IsUsed() bool {
-	return c.isUsed
+	return c != nil && c.isUsed
 }
 
 // GetSpec returns the current active ExternalCloudAuditSpec.
