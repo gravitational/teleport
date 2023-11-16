@@ -20,11 +20,11 @@ import (
 )
 
 func ghaWindowsPushPipeline() pipeline {
-	return getWindowsPipeline(triggerPush, "push", "${DRONE_BRANCH}")
+	return getWindowsPipeline(triggerPush, "push", "DRONE_BRANCH")
 }
 
 func windowsTagPipelineGHA() pipeline {
-	return getWindowsPipeline(triggerTag, "tag", "${DRONE_TAG}")
+	return getWindowsPipeline(triggerTag, "tag", "DRONE_TAG")
 }
 
 func getWindowsPipeline(pipelineTrigger trigger, triggerName, reference string) pipeline {
@@ -37,8 +37,8 @@ func getWindowsPipeline(pipelineTrigger trigger, triggerName, reference string) 
 					name:              "release-windows.yaml",
 					timeout:           30 * time.Minute,
 					slackOnError:      true,
-					srcRefVar:         "DRONE_COMMIT",
-					ref:               reference,
+					srcRefVar:         reference,
+					ref:               fmt.Sprintf("${%s}", reference),
 					shouldTagWorkflow: true,
 				},
 			},
