@@ -35,13 +35,11 @@ import (
 	"github.com/gravitational/teleport/lib/utils/interval"
 )
 
-func init() {
-	common.RegisterAppCreator("accesslist", NewApp)
-}
-
 const (
-	// oneWeek is the number of hours in a week.
-	oneWeek = 24 * time.Hour * 7
+	// oneDay is the number of hours in a day.
+	oneDay = 24 * time.Hour
+	// oneWeek is the number of days in a week.
+	oneWeek = oneDay * 7
 )
 
 // App is the access list application for plugins. This will notify access list owners
@@ -56,13 +54,10 @@ type App struct {
 }
 
 // NewApp will create a new access list application.
-func NewApp(bot common.MessagingBot) (common.App, error) {
-	if _, ok := bot.(MessagingBot); !ok {
-		return nil, trace.BadParameter("bot does not support this app")
-	}
+func NewApp(bot MessagingBot) common.App {
 	app := &App{}
 	app.job = lib.NewServiceJob(app.run)
-	return app, nil
+	return app
 }
 
 // Init will initialize the application.
@@ -142,6 +137,10 @@ func (a *App) run(ctx context.Context) error {
 				var accessLists []*accesslist.AccessList
 				accessLists, nextToken, err = a.apiClient.AccessListClient().ListAccessLists(ctx, 0 /* default page size */, nextToken)
 				if err != nil {
+					if trace.IsNotImplemented(err) {
+						log.Errorf("access list endpoint is not implemented on this auth server, so the access list app is ceasing to run.")
+						return nil
+					}
 					log.Errorf("error listing access lists: %v", err)
 					continue
 				}
@@ -222,9 +221,17 @@ func (a *App) fetchRecipients(ctx context.Context, accessList *accesslist.Access
 func (a *App) sendMessages(ctx context.Context, accessList *accesslist.AccessList, allRecipients map[string]common.Recipient, now, notificationStart time.Time) error {
 	log := logger.Get(ctx)
 
-	// Calculate weeks from start.
-	weeksFromStart := now.Sub(notificationStart) / oneWeek
-	windowStart := notificationStart.Add(weeksFromStart * oneWeek)
+	var windowStart time.Time
+	if !now.After(accessList.Spec.Audit.NextAuditDate) {
+		// Calculate weeks from start.
+		weeksFromStart := now.Sub(notificationStart) / oneWeek
+		windowStart = notificationStart.Add(weeksFromStart * oneWeek)
+	} else {
+		// Calculate days from start.
+		daysFromStart := now.Sub(notificationStart) / oneDay
+		windowStart = notificationStart.Add(daysFromStart * oneDay)
+		log.Infof("windowStart: %s, now: %s", windowStart.String(), now.String())
+	}
 
 	recipients := []common.Recipient{}
 	_, err := a.pluginData.Update(ctx, accessList.GetName(), func(data pd.AccessListNotificationData) (pd.AccessListNotificationData, error) {
@@ -234,7 +241,7 @@ func (a *App) sendMessages(ctx context.Context, accessList *accesslist.AccessLis
 
 			// If the notification window is before the last notification date, then this user doesn't need a notification.
 			if !windowStart.After(lastNotification) {
-				log.Debugf("User %s has already been notified", recipient.Name)
+				log.Debugf("User %s has already been notified for access list %s", recipient.Name, accessList.GetName())
 				userNotifications[recipient.Name] = lastNotification
 				continue
 			}
@@ -246,11 +253,18 @@ func (a *App) sendMessages(ctx context.Context, accessList *accesslist.AccessLis
 			return pd.AccessListNotificationData{}, trace.NotFound("nobody to notify for access list %s", accessList.GetName())
 		}
 
-		if err := a.bot.SendReviewReminders(ctx, recipients, accessList); err != nil {
-			return pd.AccessListNotificationData{}, trace.Wrap(err)
-		}
-
 		return pd.AccessListNotificationData{UserNotifications: userNotifications}, nil
 	})
-	return trace.Wrap(err)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	var errs []error
+	for _, recipient := range recipients {
+		if err := a.bot.SendReviewReminders(ctx, recipient, accessList); err != nil {
+			errs = append(errs, err)
+		}
+	}
+
+	return trace.NewAggregate(errs...)
 }

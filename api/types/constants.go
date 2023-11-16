@@ -445,7 +445,7 @@ const (
 	// Teleport Assist resources.
 	KindAssistant = "assistant"
 
-	// KindAccessGraph is an access to access graph service.
+	// KindAccessGraph is the RBAC kind for access graph.
 	KindAccessGraph = "access_graph"
 
 	// KindIntegration is a connection to a 3rd party system API.

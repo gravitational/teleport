@@ -33,10 +33,6 @@ import (
 	"github.com/gravitational/teleport/integrations/lib/watcherjob"
 )
 
-func init() {
-	common.RegisterAppCreator("accessrequest", NewApp)
-}
-
 const (
 	// handlerTimeout is used to bound the execution time of watcher event handler.
 	handlerTimeout = time.Second * 5
@@ -55,13 +51,10 @@ type App struct {
 }
 
 // NewApp will create a new access request application.
-func NewApp(bot common.MessagingBot) (common.App, error) {
-	if _, ok := bot.(MessagingBot); !ok {
-		return nil, trace.BadParameter("bot does not support this app")
-	}
+func NewApp(bot MessagingBot) common.App {
 	app := &App{}
 	app.job = lib.NewServiceJob(app.run)
-	return app, nil
+	return app
 }
 
 func (a *App) Init(baseApp *common.BaseApp) error {
