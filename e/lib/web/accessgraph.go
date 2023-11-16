@@ -17,14 +17,18 @@
 package web
 
 import (
+	"context"
 	"mime"
 	"net/http"
 	"path/filepath"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	"github.com/gravitational/teleport/api/types"
 	accessgraphv1 "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 	"github.com/gravitational/teleport/lib/services"
@@ -69,6 +73,29 @@ func (p *Plugin) queryAccessGraph(_ http.ResponseWriter, r *http.Request, _ http
 	resp, err := agClt.Query(ctx, &accessgraphv1.QueryRequest{
 		Query: query,
 	})
+
+	usageReport := getTAGResponseReport(resp)
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+		defer cancel()
+
+		usageEventReq := &proto.SubmitUsageEventRequest{
+			Event: &usageeventsv1.UsageEventOneOf{
+				Event: &usageeventsv1.UsageEventOneOf_TagExecuteQuery{
+					TagExecuteQuery: usageReport,
+				},
+			},
+		}
+		authClient, err := webCtx.GetClient()
+		if err != nil {
+			p.Log.WithError(err).Warn("Failed to get auth client")
+			return
+		}
+		if err := authClient.SubmitUsageEvent(ctx, usageEventReq); err != nil {
+			p.Log.WithError(err).Warn("Failed to emit TAG usage event")
+		}
+	}()
+
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -103,4 +130,23 @@ func (p *Plugin) getAccessGraphFile(w http.ResponseWriter, r *http.Request, para
 
 	// Return nil to prevent the content type to be set to application/json
 	return nil, nil
+}
+
+// getTAGResponseReport returns a usage event report for the TAG query response.
+// If the response is nil, it returns a report for an empty response with
+// IsSuccess=false.
+// This function is used to report TAG usage events to the auth server.
+func getTAGResponseReport(rsp *accessgraphv1.QueryResponse) *usageeventsv1.TAGExecuteQueryEvent {
+	if rsp == nil {
+		return &usageeventsv1.TAGExecuteQueryEvent{
+			TotalNodes: 0,
+			TotalEdges: 0,
+			IsSuccess:  false,
+		}
+	}
+	return &usageeventsv1.TAGExecuteQueryEvent{
+		TotalNodes: int64(len(rsp.Nodes)),
+		TotalEdges: int64(len(rsp.Edges)),
+		IsSuccess:  true,
+	}
 }
