@@ -38,6 +38,7 @@ import (
 	userpreferencesv1 "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	accessgraphv1 "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
@@ -453,6 +454,10 @@ func (c *Client) UserLoginStateClient() services.UserLoginStates {
 	return c.APIClient.UserLoginStateClient()
 }
 
+func (c *Client) AccessGraphClient() accessgraphv1.AccessGraphServiceClient {
+	return accessgraphv1.NewAccessGraphServiceClient(c.APIClient.GetConnection())
+}
+
 // DiscoveryConfigClient returns a client for managing the DiscoveryConfig resource.
 func (c *Client) DiscoveryConfigClient() services.DiscoveryConfigs {
 	return c.APIClient.DiscoveryConfigClient()
@@ -727,6 +732,9 @@ type ClientI interface {
 
 	// EmbeddingClient returns a client to the Embedding gRPC service.
 	EmbeddingClient() assistpb.AssistEmbeddingServiceClient
+
+	// AccessGraphClient returns a client to the Access Graph gRPC service.
+	AccessGraphClient() accessgraphv1.AccessGraphServiceClient
 
 	// NewKeepAliver returns a new instance of keep aliver
 	NewKeepAliver(ctx context.Context) (types.KeepAliver, error)

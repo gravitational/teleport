@@ -186,3 +186,40 @@ func TestNewAccessMonitoring(t *testing.T) {
 		require.Empty(t, cmp.Diff(userContext.SecurityReport, allowed))
 	})
 }
+
+func TestNewAccessGraph(t *testing.T) {
+	t.Parallel()
+	user := &types.UserV2{
+		Metadata: types.Metadata{},
+	}
+	role := &types.RoleV6{}
+	role.SetNamespaces(types.Allow, []string{"*"})
+	role.SetRules(types.Allow, []types.Rule{
+		{
+			Resources: []string{"*"},
+			Verbs:     append(RW(), types.VerbUse),
+		},
+	})
+
+	roleSet := []types.Role{role}
+
+	t.Run("access graph enabled", func(t *testing.T) {
+		allowed := ResourceAccess{true, true, true, true, true, true}
+		userContext := NewUserACL(user, roleSet, proto.Features{AccessGraph: true}, false, true)
+		require.Empty(t, cmp.Diff(userContext.AccessGraph, allowed))
+	})
+	t.Run("access graph disabled", func(t *testing.T) {
+		allowed := ResourceAccess{false, false, false, false, false, false}
+		userContext := NewUserACL(user, roleSet, proto.Features{}, false, false)
+		require.Empty(t, cmp.Diff(userContext.AccessGraph, allowed))
+	})
+
+	user1 := &types.UserV2{
+		Metadata: types.Metadata{},
+	}
+	t.Run("access graph ACL is false when user doesn't have access even when enabled", func(t *testing.T) {
+		allowed := ResourceAccess{true, true, true, true, true, true}
+		userContext := NewUserACL(user1, roleSet, proto.Features{AccessGraph: true}, false, true)
+		require.Empty(t, cmp.Diff(userContext.AccessGraph, allowed))
+	})
+}

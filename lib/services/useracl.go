@@ -144,7 +144,6 @@ func NewUserACL(user types.User, userRoles RoleSet, features proto.Features, des
 	desktopAccess := newAccess(userRoles, ctx, types.KindWindowsDesktop)
 	cnDiagnosticAccess := newAccess(userRoles, ctx, types.KindConnectionDiagnostic)
 	samlIdpServiceProviderAccess := newAccess(userRoles, ctx, types.KindSAMLIdPServiceProvider)
-	accessGraphAccess := newAccess(userRoles, ctx, types.KindAccessGraph)
 
 	var assistAccess ResourceAccess
 	if features.Assist {
@@ -159,6 +158,11 @@ func NewUserACL(user types.User, userRoles RoleSet, features proto.Features, des
 	var pluginsAccess ResourceAccess
 	if features.Plugins {
 		pluginsAccess = newAccess(userRoles, ctx, types.KindPlugin)
+	}
+
+	var accessGraphAccess ResourceAccess
+	if features.AccessGraph {
+		accessGraphAccess = newAccess(userRoles, ctx, types.KindAccessGraph)
 	}
 
 	clipboard := userRoles.DesktopClipboard()
