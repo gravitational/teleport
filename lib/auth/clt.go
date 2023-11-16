@@ -778,6 +778,7 @@ type ClientI interface {
 	// EmbeddingClient returns a client to the Embedding gRPC service.
 	EmbeddingClient() assistpb.AssistEmbeddingServiceClient
 
+	// AccessGraphClient returns a client to the Access Graph gRPC service.
 	AccessGraphClient() accessgraphv1.AccessGraphServiceClient
 
 	// NewKeepAliver returns a new instance of keep aliver

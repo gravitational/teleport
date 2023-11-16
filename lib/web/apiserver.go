@@ -1539,7 +1539,6 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 			// disable if auth doesn't support assist
 			assistEnabled = enabled.Enabled
 		}
-		accessGraphEnabled = proxyConfig.AccessGraphEnabled
 	}
 
 	// disable joining sessions if proxy session recording is enabled

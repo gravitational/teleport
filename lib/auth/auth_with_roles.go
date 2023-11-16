@@ -385,6 +385,9 @@ func (a *ServerWithRoles) SecReportsClient() *secreport.Client {
 	))
 }
 
+// AccessGraphClient returns a client for the AccessGraph service.
+// It should not be called through ServerWithRoles,
+// as it returns a dummy client that will always respond with "not implemented".
 func (a *ServerWithRoles) AccessGraphClient() accessgraphv1.AccessGraphServiceClient {
 	return accessgraphv1.NewAccessGraphServiceClient(
 		utils.NewGRPCDummyClientConnection("AccessGraphClient() should not be called on ServerWithRoles"))
