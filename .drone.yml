@@ -481,10 +481,8 @@ steps:
   - echo "$RELEASES_CERT" | base64 -d > "$RELCLI_CERT"
   - echo "$RELEASES_KEY" | base64 -d > "$RELCLI_KEY"
   - trap "rm -rf /tmpfs/creds" EXIT
-  - |-
-    docker run -i -v /tmpfs/creds:/tmpfs/creds \
-      -e DRONE_REPO -e DRONE_TAG -e RELCLI_BASE_URL -e RELCLI_CERT -e RELCLI_KEY \
-      $RELCLI_IMAGE auto_destroy -f -v 6
+  - docker run -i -v /tmpfs/creds:/tmpfs/creds -e DRONE_REPO -e DRONE_TAG -e RELCLI_BASE_URL
+    -e RELCLI_CERT -e RELCLI_KEY $RELCLI_IMAGE auto_destroy -f -v 6
   environment:
     RELCLI_BASE_URL: https://releases-prod.platform.teleport.sh
     RELCLI_CERT: /tmpfs/creds/releases.crt
@@ -16631,10 +16629,9 @@ steps:
   - echo "$RELEASES_CERT" | base64 -d > "$RELCLI_CERT"
   - echo "$RELEASES_KEY" | base64 -d > "$RELCLI_KEY"
   - trap "rm -rf /tmpfs/creds" EXIT
-  - |-
-    docker run -i -v /tmpfs/creds:/tmpfs/creds \
-      -e DRONE_REPO -e DRONE_TAG -e RELCLI_BASE_URL -e RELCLI_CERT -e RELCLI_KEY \
-      $RELCLI_IMAGE auto_publish -f -v 6
+  - for i in $(seq 10); do docker run -i -v /tmpfs/creds:/tmpfs/creds -e DRONE_REPO
+    -e DRONE_TAG -e RELCLI_BASE_URL -e RELCLI_CERT -e RELCLI_KEY $RELCLI_IMAGE auto_publish
+    -f -v 6 && break; done || false
   environment:
     RELCLI_BASE_URL: https://releases-prod.platform.teleport.sh
     RELCLI_CERT: /tmpfs/creds/releases.crt
@@ -16673,6 +16670,6 @@ image_pull_secrets:
 - DOCKERHUB_CREDENTIALS
 ---
 kind: signature
-hmac: 3ae93f49668927466ce197115ec1cf43593c23668306bb3992d18a2dafbde389
+hmac: 808248ece6848a864380fa863907507286fe09335ea6bb9a526475eced572a37
 
 ...
