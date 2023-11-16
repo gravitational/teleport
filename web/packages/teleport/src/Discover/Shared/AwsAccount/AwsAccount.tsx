@@ -36,7 +36,6 @@ import cfg from 'teleport/config';
 import {
   Integration,
   IntegrationKind,
-  IntegrationStatusCode,
   integrationService,
 } from 'teleport/services/integrations';
 import {

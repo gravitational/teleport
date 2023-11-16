@@ -16,7 +16,11 @@
 
 import { IntegrationStatusCode } from 'teleport/services/integrations';
 
-import type { Plugin, Integration } from 'teleport/services/integrations';
+import type {
+  Plugin,
+  Integration,
+  ExternalCloudAudit,
+} from 'teleport/services/integrations';
 
 export const plugins: Plugin[] = [
   {
@@ -109,3 +113,15 @@ export const integrations: Integration[] = [
     spec: { roleArn: '' },
   },
 ];
+
+export const externalCloudAudit: ExternalCloudAudit = {
+  athenaResultsURI: 'athenaResultsURI',
+  athenaWorkgroup: 'athenaWorkgroup',
+  auditEventsLongTermURI: 'auditEventsLongTermURI',
+  glueDatabase: 'glueDatabase',
+  glueTable: 'glueTable',
+  integrationName: 'integrationName',
+  policyName: 'policyName',
+  region: 'us-west-2',
+  sessionsRecordingsURI: 'sessionsRecordingsURI',
+};

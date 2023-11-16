@@ -20,7 +20,10 @@ import { Text, Box } from 'design';
 import { AWSIcon } from 'design/SVGIcon';
 
 import cfg from 'teleport/config';
-import { BadgeTitle, ToolTipNoPermBadge } from 'teleport/components/ToolTipNoPermBadge';
+import {
+  BadgeTitle,
+  ToolTipNoPermBadge,
+} from 'teleport/components/ToolTipNoPermBadge';
 import { IntegrationKind } from 'teleport/services/integrations';
 
 import { IntegrationTile } from './common';
@@ -35,7 +38,7 @@ export function IntegrationTiles({
   // TODO(mcbattirola): isUsageBasedBilling is used here and in other
   // parts of the app as synonym with Team product, but this
   // will change in the future.
-  const isEnterprise = cfg.isEnterprise && !cfg.isUsageBasedBilling
+  const isEnterprise = cfg.isEnterprise && !cfg.isUsageBasedBilling;
 
   return (
     <>
@@ -73,43 +76,48 @@ export function IntegrationTiles({
         disabled={!hasExternalCloudAuditAccess || !isEnterprise}
         as={hasExternalCloudAuditAccess ? Link : null}
         to={
-          hasExternalCloudAuditAccess ? cfg.getIntegrationEnrollRoute(IntegrationKind.Byob) : null
+          hasExternalCloudAuditAccess
+            ? cfg.getIntegrationEnrollRoute(IntegrationKind.Byob)
+            : null
         }
         data-testid="tile-byob"
       >
         <Box mt={3} mb={0}>
           <AWSIcon size={80} />
         </Box>
-        <Text>
-          Store data on your own Amazon S3 bucket
-        </Text>
+        <Text>Store data on your own Amazon S3 bucket</Text>
         {renderNoPermBadge(hasExternalCloudAuditAccess, isEnterprise)}
       </IntegrationTile>
     </>
   );
 }
 
-function renderNoPermBadge(hasExternalCloudAuditAccess: boolean, isEnterprise: boolean) {
+function renderNoPermBadge(
+  hasExternalCloudAuditAccess: boolean,
+  isEnterprise: boolean
+) {
   if (!isEnterprise)
-    return (<ToolTipNoPermBadge
-      badgeTitle={BadgeTitle.LackingEnterpriseLicense}
-      children={
-        <div>
-          Unlock External Cloud Audit with Teleport Enterprise
-        </div>
-      }
-    />)
+    return (
+      <ToolTipNoPermBadge
+        badgeTitle={BadgeTitle.LackingEnterpriseLicense}
+        children={
+          <div>Unlock External Cloud Audit with Teleport Enterprise</div>
+        }
+      />
+    );
   if (!hasExternalCloudAuditAccess) {
-    return (<ToolTipNoPermBadge
-      children={
-        <div>
-          You don’t have sufficient permissions to create an External Cloud Audit.
-          Reach out to your Teleport administrator to request additional
-          permissions.
-        </div>
-      }
-    />)
+    return (
+      <ToolTipNoPermBadge
+        children={
+          <div>
+            You don’t have sufficient permissions to create an External Cloud
+            Audit. Reach out to your Teleport administrator to request
+            additional permissions.
+          </div>
+        }
+      />
+    );
   }
 
-  return ""
+  return '';
 }

@@ -47,9 +47,8 @@ type Props<IntegrationLike> = {
   };
   externalCloudAuditOps?: {
     onDeleteExternalCloudAudit(i: ExternalCloudAuditIntegration): void;
-  }
+  };
 };
-
 
 type IntegrationLike = Integration | Plugin | ExternalCloudAuditIntegration;
 
@@ -100,7 +99,9 @@ export function IntegrationList(props: Props<IntegrationLike>) {
                 <Cell align="right">
                   <MenuButton>
                     <MenuItem
-                      onClick={() => props.integrationOps.onEditIntegration(item)}
+                      onClick={() =>
+                        props.integrationOps.onEditIntegration(item)
+                      }
                     >
                       Edit...
                     </MenuItem>
@@ -121,14 +122,16 @@ export function IntegrationList(props: Props<IntegrationLike>) {
                 <MenuButton>
                   <MenuItem
                     onClick={() =>
-                      props.externalCloudAuditOps?.onDeleteExternalCloudAudit(item)
+                      props.externalCloudAuditOps?.onDeleteExternalCloudAudit(
+                        item
+                      )
                     }
                   >
                     Delete...
                   </MenuItem>
                 </MenuButton>
               </Cell>
-            )
+            );
           },
         },
       ]}

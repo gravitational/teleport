@@ -29,8 +29,8 @@ test('render', async () => {
 
   expect(screen.getByText(/amazon web services/i)).toBeInTheDocument();
   expect(screen.queryByText(/no permission/i)).not.toBeInTheDocument();
-  expect(screen.getByTestId('svg')).toBeInTheDocument();
-  expect(screen.getByRole('link')).toBeInTheDocument();
+  expect(screen.getAllByTestId('svg')).toHaveLength(2);
+  expect(screen.getAllByRole('link')).toHaveLength(2);
 
   const tile = screen.getByTestId('tile-aws-oidc');
   expect(tile).toBeEnabled();
@@ -40,7 +40,10 @@ test('render', async () => {
 test('render disabled', async () => {
   render(
     <MemoryRouter>
-      <IntegrationTiles hasAccess={false} />
+      <IntegrationTiles
+        hasIntegrationAccess={false}
+        hasExternalCloudAuditAccess={false}
+      />
     </MemoryRouter>
   );
 

@@ -171,7 +171,9 @@ class TeleportContext implements types.Context {
       discover: userContext.hasDiscoverAccess(),
       plugins: userContext.getPluginsAccess().list,
       integrations: userContext.getIntegrationsAccess().list,
-      enrollIntegrations: userContext.getIntegrationsAccess().create || userContext.getExternalCloudAuditAccess().create,
+      enrollIntegrations:
+        userContext.getIntegrationsAccess().create ||
+        userContext.getExternalCloudAuditAccess().create,
       enrollIntegrationsOrPlugins:
         userContext.getPluginsAccess().create ||
         userContext.getIntegrationsAccess().create ||
