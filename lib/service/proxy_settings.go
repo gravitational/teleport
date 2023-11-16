@@ -75,7 +75,7 @@ func (p *proxySettings) buildProxySettings(proxyListenerMode types.ProxyListener
 	proxySettings := webclient.ProxySettings{
 		TLSRoutingEnabled:  proxyListenerMode == types.ProxyListenerMode_Multiplex,
 		AssistEnabled:      p.cfg.Proxy.AssistAPIKey != "",
-		AccessGraphEnabled: p.cfg.AccessGraph.Enabled,
+		AccessGraphEnabled: p.cfg.AccessGraph.Enabled, // TODO
 		Kube: webclient.KubeProxySettings{
 			Enabled: p.cfg.Proxy.Kube.Enabled,
 		},

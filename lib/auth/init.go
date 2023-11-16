@@ -270,6 +270,9 @@ type InitConfig struct {
 
 	// AccessMonitoringEnabled is true if access monitoring is enabled.
 	AccessMonitoringEnabled bool
+
+	// AccessGraphEnabled is true if access graph is enabled.
+	AccessGraphEnabled bool
 }
 
 // Init instantiates and configures an instance of AuthServer
