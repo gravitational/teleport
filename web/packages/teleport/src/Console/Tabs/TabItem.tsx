@@ -77,7 +77,7 @@ function fromProps({ theme, active }) {
 }
 
 const StyledTabItem = styled(Flex)`
-  max-width: 200px;
+  max-width: 450px;
   height: 100%;
   ${fromProps}
 `;
