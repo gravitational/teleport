@@ -196,6 +196,7 @@ export function generateConfig(args: {
     ssh_service: {
       enabled: 'yes',
       labels: args.labels,
+      disable_create_host_user: true,
     },
     proxy_service: {
       enabled: 'no',
