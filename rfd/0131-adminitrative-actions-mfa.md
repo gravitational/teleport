@@ -60,7 +60,7 @@ actions which modify the following administrative resources.
   - Users
     - `CreateUser`, `UpdateUser`, `UpsertUser`, `DeleteUser`
   - Roles
-    - `UpsertRole`, `DeleteRole`
+    - `CreateRole`, `UpdateRole`, `UpsertRoleV2`, `UpsertRole`, `DeleteRole`
   - Trusted devices
     - `CreateDevice`, `UpdateDevice`, `UpsertDevice`, `DeleteDevice`, `BulkCreateDevices`, `CreateDeviceEnrollToken`, `SyncInventory`
   - User groups
