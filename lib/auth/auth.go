@@ -218,6 +218,10 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 							ClusterID: "_",
 						},
 					},
+					GCP: types.GCPCloudSQL{
+						InstanceID: "test-id",
+						ProjectID:  "test-project-id",
+					},
 				},
 				// type azure
 				{
