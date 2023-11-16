@@ -798,21 +798,22 @@ func buildCommand(c *ExecCommand, localUser *user.User, tty *os.File, pty *os.Fi
 	}
 
 	// Add in Teleport specific environment variables.
-	env.AddFull(c.Environment...)
+	env.AddFullTrusted(c.Environment...)
+
+	// If any additional environment variables come from PAM, apply them as well.
+	env.AddFullTrusted(pamEnvironment...)
 
 	// If the server allows reading in of ~/.tsh/environment read it in
 	// and pass environment variables along to new session.
+	// User controlled values are added last to ensure administrator controlled sources take priority (duplicates ignored)
 	if c.PermitUserEnvironment {
 		filename := filepath.Join(localUser.HomeDir, ".tsh", "environment")
 		userEnvs, err := envutils.ReadEnvironmentFile(filename)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		env.AddFull(userEnvs...)
+		env.AddFullUnique(userEnvs...)
 	}
-
-	// If any additional environment variables come from PAM, apply them as well.
-	env.AddFull(pamEnvironment...)
 
 	// after environment is fully built, set it to cmd
 	cmd.Env = *env
@@ -955,7 +956,7 @@ func ConfigureCommand(ctx *ServerContext, extraFiles ...*os.File) (*exec.Cmd, er
 
 	// build env for `teleport exec`
 	env := &envutils.SafeEnv{}
-	env.AddFull(cmdmsg.Environment...)
+	env.AddFullTrusted(cmdmsg.Environment...)
 	env.AddExecEnvironment()
 
 	// Build the "teleport exec" command.
