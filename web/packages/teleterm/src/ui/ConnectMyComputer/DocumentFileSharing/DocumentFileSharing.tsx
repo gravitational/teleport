@@ -18,11 +18,9 @@ import React, { useState } from 'react';
 
 import { Flex, Box, Text, ButtonPrimary, Alert, ButtonSecondary } from 'design';
 
-import Toggle from 'teleport/components/Toggle';
-
 import { Cross } from 'design/Icon';
 
-import Select, { Option } from 'shared/components/Select';
+import { Option } from 'shared/components/Select';
 
 import { SelectCreatable } from 'teleport/Discover/Shared/SelectCreatable';
 
