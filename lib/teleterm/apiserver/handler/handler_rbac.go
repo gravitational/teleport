@@ -19,6 +19,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/types"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 )
 
@@ -37,6 +38,10 @@ func (s *Handler) ListRoles(ctx context.Context, req *api.ListRolesRequest) (*ap
 	var roleList []string
 
 	for _, role := range roles {
+		// skip internal roles
+		if types.SystemResource == role.GetMetadata().Labels[types.TeleportInternalResourceType] {
+			continue
+		}
 		roleList = append(roleList, role.GetName())
 	}
 
@@ -59,8 +64,12 @@ func (s *Handler) ListUsers(ctx context.Context, req *api.ListUsersRequest) (*ap
 
 	var userList []string
 
-	for _, role := range users {
-		userList = append(userList, role.GetName())
+	for _, user := range users {
+		// skip internal roles
+		if types.SystemResource == user.GetMetadata().Labels[types.TeleportInternalResourceType] {
+			continue
+		}
+		userList = append(userList, user.GetName())
 	}
 
 	return &api.ListUsersResponse{
