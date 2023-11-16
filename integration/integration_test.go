@@ -1498,7 +1498,7 @@ func testIPPropagation(t *testing.T, suite *integrationTestSuite) {
 
 			conf.DataDir = t.TempDir()
 			conf.SetToken("token")
-			conf.UploadEventsC = i.UploadEventsC
+			conf.Testing.UploadEventsC = i.UploadEventsC
 			conf.SetAuthServerAddress(*utils.MustParseAddr(net.JoinHostPort(i.Hostname, helpers.PortStr(t, i.Web))))
 			conf.HostUUID = name
 			conf.Hostname = name
@@ -5775,9 +5775,9 @@ func (s *integrationTestSuite) rotationConfig(disableWebService bool) *servicecf
 	tconf.Proxy.DisableWebInterface = true
 	tconf.Proxy.DisableDatabaseProxy = true
 	tconf.Proxy.DisableALPNSNIListener = true
-	tconf.PollingPeriod = time.Second
-	tconf.ClientTimeout = time.Second
-	tconf.ShutdownTimeout = 2 * tconf.ClientTimeout
+	tconf.Testing.PollingPeriod = time.Second
+	tconf.Testing.ClientTimeout = time.Second
+	tconf.Testing.ShutdownTimeout = 2 * tconf.Testing.ClientTimeout
 	tconf.MaxRetryPeriod = time.Second
 	return tconf
 }
@@ -7680,7 +7680,7 @@ func testListResourcesAcrossClusters(t *testing.T, suite *integrationTestSuite) 
 
 			conf.DataDir = t.TempDir()
 			conf.SetToken("token")
-			conf.UploadEventsC = i.UploadEventsC
+			conf.Testing.UploadEventsC = i.UploadEventsC
 			conf.SetAuthServerAddress(*utils.MustParseAddr(net.JoinHostPort(i.Hostname, helpers.PortStr(t, i.Web))))
 			conf.HostUUID = name
 			conf.Hostname = name

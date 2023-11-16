@@ -742,7 +742,7 @@ func waitAndReload(ctx context.Context, cfg servicecfg.Config, srv Process, newT
 		return nil, trace.BadParameter("the new service has failed to start")
 	}
 	cfg.Log.Infof("New service has started successfully.")
-	shutdownTimeout := cfg.ShutdownTimeout
+	shutdownTimeout := cfg.Testing.ShutdownTimeout
 	if shutdownTimeout == 0 {
 		// The default shutdown timeout is very generous to avoid disrupting
 		// longer running connections.
@@ -1717,8 +1717,8 @@ func (process *TeleportProcess) initAuthService() error {
 		// cfg.OpenAIConfig is set in tests to change the OpenAI API endpoint
 		// Like for proxy, if a custom OpenAIConfig is passed, the token from
 		// cfg.Auth.AssistAPIKey is ignored and the one from the config is used.
-		if cfg.OpenAIConfig != nil {
-			embedderClient = ai.NewClientFromConfig(*cfg.OpenAIConfig)
+		if cfg.Testing.OpenAIConfig != nil {
+			embedderClient = ai.NewClientFromConfig(*cfg.Testing.OpenAIConfig)
 		} else {
 			embedderClient = ai.NewClient(cfg.Auth.AssistAPIKey)
 		}
@@ -1765,7 +1765,7 @@ func (process *TeleportProcess) initAuthService() error {
 			CipherSuites:            cfg.CipherSuites,
 			KeyStoreConfig:          cfg.Auth.KeyStore,
 			Emitter:                 checkingEmitter,
-			Streamer:                events.NewReportingStreamer(streamer, process.Config.UploadEventsC),
+			Streamer:                events.NewReportingStreamer(streamer, process.Config.Testing.UploadEventsC),
 			TraceClient:             traceClt,
 			FIPS:                    cfg.FIPS,
 			LoadAllCAs:              cfg.Auth.LoadAllCAs,
@@ -2905,7 +2905,7 @@ func (process *TeleportProcess) initUploaderService() error {
 		Streamer:     uploaderClient,
 		ScanDir:      uploadsDir,
 		CorruptedDir: corruptedDir,
-		EventsC:      process.Config.UploadEventsC,
+		EventsC:      process.Config.Testing.UploadEventsC,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -3913,7 +3913,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				KEXAlgorithms:                 cfg.KEXAlgorithms,
 				MACAlgorithms:                 cfg.MACAlgorithms,
 				DataDir:                       process.Config.DataDir,
-				PollingPeriod:                 process.Config.PollingPeriod,
+				PollingPeriod:                 process.Config.Testing.PollingPeriod,
 				FIPS:                          cfg.FIPS,
 				Emitter:                       streamEmitter,
 				Log:                           process.log,
@@ -4066,7 +4066,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				return ctx, trace.Wrap(err)
 			}),
 			PROXYSigner:     proxySigner,
-			OpenAIConfig:    cfg.OpenAIConfig,
+			OpenAIConfig:    cfg.Testing.OpenAIConfig,
 			NodeWatcher:     nodeWatcher,
 			AccessGraphAddr: accessGraphAddr,
 			TracerProvider:  process.TracingProvider,
@@ -4477,11 +4477,8 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			log.Infof("Starting Kube proxy on %v.", kubeListenAddr)
 
 			var mopts []kubeproxy.ServeOption
-			for _, opt := range cfg.Options {
-				if _, ok := opt.(servicecfg.KubeMultiplexerIgnoreSelfConnectionsOption); ok {
-					mopts = append(mopts, kubeproxy.WithMultiplexerIgnoreSelfConnections())
-					break
-				}
+			if cfg.Testing.KubeMultiplexerIgnoreSelfConnections {
+				mopts = append(mopts, kubeproxy.WithMultiplexerIgnoreSelfConnections())
 			}
 
 			err := kubeServer.Serve(listeners.kube, mopts...)

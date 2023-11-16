@@ -60,11 +60,11 @@ func TestDatabaseAccess(t *testing.T) {
 	pack := SetupDatabaseTest(t,
 		// set tighter rotation intervals
 		WithLeafConfig(func(config *servicecfg.Config) {
-			config.PollingPeriod = 5 * time.Second
+			config.Testing.PollingPeriod = 5 * time.Second
 			config.RotationConnectionInterval = 2 * time.Second
 		}),
 		WithRootConfig(func(config *servicecfg.Config) {
-			config.PollingPeriod = 5 * time.Second
+			config.Testing.PollingPeriod = 5 * time.Second
 			config.RotationConnectionInterval = 2 * time.Second
 			config.Proxy.MySQLServerVersion = "8.0.1"
 		}),
@@ -269,7 +269,7 @@ func (p *DatabasePack) testRotateTrustedCluster(t *testing.T) {
 
 	pw := phaseWatcher{
 		clusterRootName: clusterRootName,
-		pollingPeriod:   rootCluster.Process.Config.PollingPeriod,
+		pollingPeriod:   rootCluster.Process.Config.Testing.PollingPeriod,
 		clock:           p.clock,
 		siteAPI:         rootCluster.GetSiteAPI(clusterLeafName),
 		certType:        types.DatabaseCA,
