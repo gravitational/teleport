@@ -463,4 +463,6 @@ const (
 	SessionPrintEvent = "print"
 	// AppSessionRequestEvent is an HTTP request and response.
 	AppSessionRequestEvent = "app.session.request"
+	// DesktopRecordingEvent is emitted as a desktop access session is recorded.
+	DesktopRecordingEvent = "desktop.recording"
 )

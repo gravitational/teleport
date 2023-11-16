@@ -568,7 +568,7 @@ const (
 	CertificateTypeUser = "user"
 
 	// DesktopRecordingEvent is emitted as a desktop access session is recorded.
-	DesktopRecordingEvent = "desktop.recording"
+	DesktopRecordingEvent = constants.DesktopRecordingEvent
 	// DesktopClipboardReceiveEvent is emitted when Teleport receives
 	// clipboard data from a remote desktop.
 	DesktopClipboardReceiveEvent = "desktop.clipboard.receive"
