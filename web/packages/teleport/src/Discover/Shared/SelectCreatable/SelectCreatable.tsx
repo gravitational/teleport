@@ -95,6 +95,7 @@ export type SelectCreatableProps = {
   onInputChange?(i: string): void;
   onKeyDown?(e: React.KeyboardEvent): void;
   autoFocus?: boolean;
+  formatCreateLabel?: (inputValue: string) => string;
 };
 
 export const SelectCreatable = ({

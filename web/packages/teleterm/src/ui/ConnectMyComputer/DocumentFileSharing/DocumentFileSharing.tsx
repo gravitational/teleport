@@ -22,7 +22,7 @@ import Toggle from 'teleport/components/Toggle';
 
 import { Cross } from 'design/Icon';
 
-import { Option } from 'shared/components/Select';
+import Select, { Option } from 'shared/components/Select';
 
 import { SelectCreatable } from 'teleport/Discover/Shared/SelectCreatable';
 
@@ -61,7 +61,7 @@ export function DocumentFileSharing(props: {
     }`;
   const [allowedUsersInputValue, setAllowedUsersInputValue] = useState('');
   const [allowedRolesInputValue, setAllowedRolesInputValue] = useState('');
-  const [allowAnyone, setAllowAnyone] = useState(true);
+  const [allowAnyone, setAllowAnyone] = useState(false);
   const [allowedUsers, setAllowedUsers] = useState<Option[]>([]);
   const [allowedRoles, setAllowedRoles] = useState<Option[]>([]);
 
@@ -136,8 +136,8 @@ export function DocumentFileSharing(props: {
             )}
           </Flex>
         </Flex>
-        <Flex gap={6} mt={2}>
-          <Box width={'100%'}>
+        <Flex gap={3} mt={3}>
+          <Box flex="2">
             <Flex
               flexDirection="column"
               gap={3}
@@ -187,29 +187,36 @@ export function DocumentFileSharing(props: {
           </Box>
 
           <Flex
+            flex="1"
             flexDirection="column"
             gap={2}
-            width="260px"
+            maxWidth="260px"
             css={`
               flex-shrink: 0;
             `}
           >
-            <Text typography="h5">Access controls</Text>
-            <Flex gap={2}>
-              <Toggle
-                isToggled={allowAnyone}
-                onToggle={() => {
-                  const newValue = !allowAnyone;
+            <label>
+              Share with
+              <select
+                name="allowAnyone"
+                value={String(allowAnyone)}
+                onChange={event => {
+                  const updatedAllowAnyone = event.target.value === 'true';
                   updateServerConfig({
-                    allowAnyone: newValue,
+                    allowAnyone: updatedAllowAnyone,
                     allowedRolesList: allowedRoles,
                     allowedUsersList: allowedUsers,
                     path: selectedDirectory,
                   });
                 }}
-              />
-              Allow anyone
-            </Flex>
+                css={`
+                  margin-left: ${props => props.theme.space[1]}px;
+                `}
+              >
+                <option value="false">specific people</option>
+                <option value="true">anyone</option>
+              </select>
+            </label>
             {!allowAnyone && (
               <>
                 <Text>Allow users</Text>
@@ -226,6 +233,7 @@ export function DocumentFileSharing(props: {
                     });
                   }}
                   value={allowedUsers}
+                  formatCreateLabel={inputValue => `Add "${inputValue}"`}
                 />{' '}
                 <Text>Allow roles</Text>
                 <SelectCreatable
@@ -241,6 +249,7 @@ export function DocumentFileSharing(props: {
                     });
                   }}
                   value={allowedRoles}
+                  formatCreateLabel={inputValue => `Add "${inputValue}"`}
                 />
               </>
             )}{' '}
