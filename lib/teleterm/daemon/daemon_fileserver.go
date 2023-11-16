@@ -15,6 +15,7 @@
 package daemon
 
 import (
+	"bytes"
 	"context"
 	"crypto/ecdsa"
 	"crypto/elliptic"
@@ -23,10 +24,12 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"fmt"
+	"io/fs"
 	"math/big"
 	"net"
 	"net/http"
 	"net/url"
+	"path"
 	"sync"
 	"text/template"
 	"time"
@@ -218,17 +221,17 @@ func getClaimsFromRequest(port int, keys []*jwt.Key, r *http.Request) (*jwt.Clai
 }
 
 func newFileServer(keys []*jwt.Key) (*fileServer, error) {
-	fs := new(fileServer)
+	fSrv := new(fileServer)
 
 	lis, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	fs.port = lis.Addr().(*net.TCPAddr).Port
+	fSrv.port = lis.Addr().(*net.TCPAddr).Port
 
 	mux := httprouter.New()
 	mux.GET("/", func(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
-		claims, err := getClaimsFromRequest(fs.port, keys, r)
+		claims, err := getClaimsFromRequest(fSrv.port, keys, r)
 		if err != nil {
 			log.WithError(err).Infof("validation failed")
 			http.Error(w, "Authentication failed.", http.StatusForbidden)
@@ -236,14 +239,14 @@ func newFileServer(keys []*jwt.Key) (*fileServer, error) {
 		}
 
 		var accessible []string
-		fs.mu.Lock()
+		fSrv.mu.Lock()
 
-		for shareName, share := range fs.shares {
+		for shareName, share := range fSrv.shares {
 			if share.CanAccess(claims) {
 				accessible = append(accessible, shareName)
 			}
 		}
-		fs.mu.Unlock()
+		fSrv.mu.Unlock()
 
 		tmpl := `
 		<!DOCTYPE html>
@@ -278,7 +281,7 @@ func newFileServer(keys []*jwt.Key) (*fileServer, error) {
 		shareName := p.ByName("shareName")
 		filePath := p.ByName("filePath")
 
-		claims, err := getClaimsFromRequest(fs.port, keys, r)
+		claims, err := getClaimsFromRequest(fSrv.port, keys, r)
 		if err != nil {
 			log.WithError(err).Infof("validation failed")
 			http.Error(w, "Authentication failed.", http.StatusForbidden)
@@ -286,8 +289,8 @@ func newFileServer(keys []*jwt.Key) (*fileServer, error) {
 		}
 
 		var path string
-		fs.mu.Lock()
-		if share, ok := fs.shares[shareName]; ok {
+		fSrv.mu.Lock()
+		if share, ok := fSrv.shares[shareName]; ok {
 			if share.CanAccess(claims) {
 				path = share.Path
 			} else {
@@ -296,7 +299,7 @@ func newFileServer(keys []*jwt.Key) (*fileServer, error) {
 		} else {
 			log.Infof("user %q attempted to access share %q, does not exist", claims.Username, shareName)
 		}
-		fs.mu.Unlock()
+		fSrv.mu.Unlock()
 
 		if path == "" {
 			http.NotFound(w, r)
@@ -313,10 +316,10 @@ func newFileServer(keys []*jwt.Key) (*fileServer, error) {
 
 		log.Infof("all good, serving path %q from share %q to user %q", path, shareName, claims.Username)
 		// TODO(not espadolini): make the listing prettier
-		http.FileServer(http.Dir(path)).ServeHTTP(w, r2)
+		http.FileServer(customIndexFilesystem{http.Dir(path)}).ServeHTTP(w, r2)
 	})
 
-	fs.srv = http.Server{
+	fSrv.srv = http.Server{
 		Handler: mux,
 		TLSConfig: &tls.Config{
 			Certificates: []tls.Certificate{generateSelfSignedCert()},
@@ -326,11 +329,185 @@ func newFileServer(keys []*jwt.Key) (*fileServer, error) {
 
 	go func() {
 		defer lis.Close()
-		fs.srv.ServeTLS(lis, "", "")
+		fSrv.srv.ServeTLS(lis, "", "")
 	}()
 
-	return fs, nil
+	return fSrv, nil
 }
+
+type customIndexFilesystem struct {
+	fs http.FileSystem
+}
+
+// HTML template for index.html with entries in a table
+const indexTemplate = `
+<!DOCTYPE html>
+<html>
+<head>
+	<title>File List</title>
+	<style>
+		table {
+			border-collapse: collapse;
+			width: 100%;
+			margin-top: 10px;
+		}
+		th, td {
+			border: 1px solid #dddddd;
+			text-align: left;
+			padding: 8px;
+		}
+		th {
+			background-color: #9f85ff;
+		}
+		.fixed-width {
+			width: 200px;
+		}
+	</style>
+</head>
+<body>
+	<h1>Files in {{.DirName}}</h1>
+	<table>
+		<tr>
+			<th>Name</th>
+			<th class="fixed-width">Size (bytes)</th>
+			<th class="fixed-width">Modification Time</th>
+		</tr>
+		{{range .Entries}}
+			<tr>
+				<td><a href="{{.Name}}">{{if .IsDir}}📁{{else}}📄{{end}} {{.Name | html}}</a></td>
+				<td class="fixed-width">{{.Size}}</td>
+				<td class="fixed-width">{{.ModTime.Format "2006-01-02 15:04:05"}}</td>
+			</tr>
+		{{end}}
+	</table>
+	</body>
+</html>
+`
+
+func (cifs customIndexFilesystem) Open(filepath string) (outFile http.File, outErr error) {
+	// open existing files as usual
+	f, errOpen := cifs.fs.Open(filepath)
+	if errOpen == nil {
+		return f, nil
+	}
+
+	// generate custom index.html
+	fDir, fName := path.Split(filepath)
+	if fName != "index.html" {
+		return nil, trace.Wrap(errOpen)
+	}
+
+	dir, err := cifs.fs.Open(fDir)
+	if err != nil {
+		return nil, trace.Wrap(errOpen)
+	}
+
+	entries, err := dir.Readdir(-1)
+	if err != nil {
+		return nil, trace.Wrap(errOpen)
+	}
+
+	t, err := template.New("index.html").Parse(indexTemplate)
+	if err != nil {
+		return nil, trace.Wrap(errOpen)
+	}
+
+	slices.SortStableFunc(entries, func(a, b fs.FileInfo) int {
+		switch {
+		case a.Name() < b.Name():
+			return -1
+		case a.Name() > b.Name():
+			return 1
+		}
+		return 0
+	})
+
+	b2i := func(b bool) int {
+		if b {
+			return 1
+		}
+		return 0
+	}
+
+	slices.SortStableFunc(entries, func(a, b fs.FileInfo) int {
+		return b2i(b.IsDir()) - b2i(a.IsDir())
+	})
+
+	data := map[string]any{
+		"DirName": fDir,
+		"Entries": entries,
+	}
+
+	var b bytes.Buffer
+	err = t.Execute(&b, data)
+	if err != nil {
+		return nil, trace.Wrap(errOpen)
+	}
+
+	return &fixedFile{
+		reader: bytes.NewReader(b.Bytes()),
+		info: httpFileInfo{
+			name: "index.html",
+			size: int64(b.Len()),
+		},
+	}, nil
+}
+
+type httpFileInfo struct {
+	name string
+	size int64
+}
+
+func (h httpFileInfo) Name() string {
+	return h.name
+}
+
+func (h httpFileInfo) Size() int64 {
+	return h.size
+}
+
+func (h httpFileInfo) Mode() fs.FileMode {
+	return 0o644
+}
+
+func (h httpFileInfo) ModTime() time.Time {
+	return time.Time{}
+}
+
+func (h httpFileInfo) IsDir() bool {
+	return false
+}
+
+func (h httpFileInfo) Sys() any {
+	return nil
+}
+
+type fixedFile struct {
+	reader *bytes.Reader
+	info   fs.FileInfo
+}
+
+func (f *fixedFile) Close() error {
+	return nil
+}
+
+func (f *fixedFile) Read(p []byte) (n int, err error) {
+	return f.reader.Read(p)
+}
+
+func (f *fixedFile) Seek(offset int64, whence int) (int64, error) {
+	return f.reader.Seek(offset, whence)
+}
+
+func (f *fixedFile) Readdir(count int) ([]fs.FileInfo, error) {
+	return nil, trace.NotImplemented("Readdir not implemented")
+}
+
+func (f *fixedFile) Stat() (fs.FileInfo, error) {
+	return f.info, nil
+}
+
+var _ http.File = (*fixedFile)(nil)
 
 type fileServer struct {
 	srv  http.Server
