@@ -5265,8 +5265,6 @@ func (a *Server) Ping(ctx context.Context) (proto.PingResponse, error) {
 		features.IdentityGovernance = a.accessMonitoringEnabled
 	}
 
-	features.AccessGraph = a.accessGraphEnabled
-
 	return proto.PingResponse{
 		ClusterName:     cn.GetClusterName(),
 		ServerVersion:   teleport.Version,

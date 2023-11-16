@@ -2210,7 +2210,7 @@ type Features struct {
 	CustomTheme string `protobuf:"bytes,22,opt,name=CustomTheme,proto3" json:"custom_theme,omitempty"`
 	// IdentityGovernance holds the Identity Governance feature settings (Access Monitoring)
 	IdentityGovernance bool `protobuf:"varint,23,opt,name=IdentityGovernance,proto3" json:"identity_governance,omitempty"`
-	// AccessGraph holds the Access Graph feature settings.
+	// AccessGraph indicates whether Teleport Access Graph is enabled.
 	AccessGraph          bool     `protobuf:"varint,24,opt,name=AccessGraph,proto3" json:"access_graph,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
