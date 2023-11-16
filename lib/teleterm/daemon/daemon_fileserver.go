@@ -34,6 +34,7 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/dustin/go-humanize"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 	log "github.com/sirupsen/logrus"
@@ -248,18 +249,52 @@ func newFileServer(keys []*jwt.Key) (*fileServer, error) {
 		}
 		fSrv.mu.Unlock()
 
+		data := map[string]any{
+			"Shares": accessible,
+			"Claims": claims,
+		}
+
 		tmpl := `
 		<!DOCTYPE html>
-		<html lang="en">
-		<body>
-			<h2>Welcome to Teleport Connect file sharing!</h2>
-			<ul>
-				{{range .}}
-					<li><a href="{{.}}">{{.}}</a></li>
-				{{end}}
-			</ul>
-		</body>
-		</html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teleport Connect File Sharing</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        h2 {
+            color: #333;
+        }
+        ul {
+            list-style-type: "🗄  ";
+        }
+        li {
+            margin-bottom: 10px;
+        }
+        a {
+            color: #007bff;
+            text-decoration: none;
+        }
+        code {
+            font-family: 'Courier New', Courier, monospace;
+        }
+    </style>
+</head>
+<body>
+    <h2>Welcome to Teleport Connect file sharing, <code>{{.Claims.Username | html}}</code>!</h2>
+    <h3>Your roles: <code>{{.Claims.Roles}}</code></h3>
+    <h3>Available shares:</h3>
+    <ul>
+        {{range .Shares}}
+            <li><a href="{{.}}">{{. | html}}</a></li>
+        {{end}}
+    </ul>
+</body>
+</html>
 `
 
 		t, err := template.New("index").Parse(tmpl)
@@ -268,7 +303,7 @@ func newFileServer(keys []*jwt.Key) (*fileServer, error) {
 			return
 		}
 
-		err = t.Execute(w, accessible)
+		err = t.Execute(w, data)
 		if err != nil {
 			http.Error(w, "Internal server error.", http.StatusInternalServerError)
 			return
@@ -375,7 +410,7 @@ const indexTemplate = `
 		{{range .Entries}}
 			<tr>
 				<td><a href="{{.Name}}">{{if .IsDir}}📁{{else}}📄{{end}} {{.Name | html}}</a></td>
-				<td class="fixed-width">{{.Size}}</td>
+				<td class="fixed-width">{{.Size | humanizeBytes}}</td>
 				<td class="fixed-width">{{.ModTime.Format "2006-01-02 15:04:05"}}</td>
 			</tr>
 		{{end}}
@@ -407,7 +442,9 @@ func (cifs customIndexFilesystem) Open(filepath string) (outFile http.File, outE
 		return nil, trace.Wrap(errOpen)
 	}
 
-	t, err := template.New("index.html").Parse(indexTemplate)
+	t, err := template.New("index.html").
+		Funcs(template.FuncMap{"humanizeBytes": func(size int64) string { return humanize.Bytes(uint64(size)) }}).
+		Parse(indexTemplate)
 	if err != nil {
 		return nil, trace.Wrap(errOpen)
 	}
