@@ -370,7 +370,6 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		embeddingsRetriever:     cfg.EmbeddingRetriever,
 		embedder:                cfg.EmbeddingClient,
 		accessMonitoringEnabled: cfg.AccessMonitoringEnabled,
-		accessGraphEnabled:      cfg.AccessGraphEnabled,
 	}
 	as.inventory = inventory.NewController(&as, services, inventory.WithAuthServerID(cfg.HostUUID))
 	for _, o := range opts {
@@ -803,9 +802,6 @@ type Server struct {
 
 	// accessMonitoringEnabled is a flag that indicates whether access monitoring is enabled.
 	accessMonitoringEnabled bool
-
-	// accessGraphEnabled is a flag that indicates whether access graph is enabled.
-	accessGraphEnabled bool
 
 	// ulsGenerator is the user login state generator.
 	ulsGenerator *userloginstate.Generator
