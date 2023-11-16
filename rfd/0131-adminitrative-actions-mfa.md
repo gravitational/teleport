@@ -412,8 +412,9 @@ Here are a few key points to review:
 
 ### Backward Compatibility
 
-In order to maintain backwards compatibility with old clients, MFA will not be
-strictly required for admin actions until Teleport 15.
+In order to maintain backwards compatibility with old clients (`tsh`, `tctl`,
+`Teleport Connect`), MFA will not be strictly required for admin actions until
+Teleport 15.
 
 |        | Teleport 13 | Teleport 14 | Teleport 15 |
 |--------|-------------|-------------|-------------|
@@ -424,6 +425,24 @@ Additionally, Teleport 14+ clients will be able to provide MFA for admin actions
 whether or not the client has prior knowledge of the request requiring MFA. This
 means that additional endpoints can be changed into admin actions without any
 consequences.
+
+#### WebUI
+
+The WebUI will not support providing MFA for admin actions until Teleport 15.
+This means that administrators will need to upgrade their Proxy services to
+Teleport 15 alongside their Auth services to avoid getting admin actions
+denied. This must not cause any upgrading issues.
+
+#### HTTP endpoints
+
+Clients will not attempt to provide MFA for [HTTP endpoints](#http-endpoints).
+This means that http endpoints converted to gRPC admin action endpoints should
+not be made to require MFA until a full major version cycle has passed.
+
+#### TOTP support
+
+The WebUI and Teleport Connect will not support TOTP MFA for admin actions due
+to the lack of a universal TOTP MFA prompt for these applications.
 
 ### Audit Events
 
