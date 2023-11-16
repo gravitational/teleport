@@ -26,17 +26,19 @@ import { IntegrationKind } from 'teleport/services/integrations';
 import { IntegrationTile } from './common';
 
 export function IntegrationTiles({
-  hasAccess = true,
+  hasIntegrationAccess = true,
+  hasExternalCloudAuditAccess = true,
 }: {
-  hasAccess?: boolean;
+  hasIntegrationAccess?: boolean;
+  hasExternalCloudAuditAccess?: boolean;
 }) {
   return (
     <>
       <IntegrationTile
-        disabled={!hasAccess}
-        as={hasAccess ? Link : null}
+        disabled={!hasIntegrationAccess}
+        as={hasIntegrationAccess ? Link : null}
         to={
-          hasAccess
+          hasIntegrationAccess
             ? cfg.getIntegrationEnrollRoute(IntegrationKind.AwsOidc)
             : null
         }
@@ -50,7 +52,7 @@ export function IntegrationTiles({
           <br />
           OIDC
         </Text>
-        {!hasAccess && (
+        {!hasIntegrationAccess && (
           <ToolTipNoPermBadge
             children={
               <div>
@@ -62,12 +64,11 @@ export function IntegrationTiles({
           />
         )}
       </IntegrationTile>
-      {/*  TODO: show condition */}
       <IntegrationTile
-        disabled={!hasAccess}
-        as={hasAccess ? Link : null}
+        disabled={!hasExternalCloudAuditAccess}
+        as={hasExternalCloudAuditAccess ? Link : null}
         to={
-          hasAccess ? cfg.getIntegrationEnrollRoute(IntegrationKind.Byob) : null
+          hasExternalCloudAuditAccess ? cfg.getIntegrationEnrollRoute(IntegrationKind.Byob) : null
         }
         data-testid="tile-byob"
       >
@@ -77,11 +78,11 @@ export function IntegrationTiles({
         <Text>
           Store data on your own Amazon S3 bucket
         </Text>
-        {!hasAccess && (
+        {!hasExternalCloudAuditAccess && (
           <ToolTipNoPermBadge
             children={
               <div>
-                You don’t have sufficient permissions to create an integration.
+                You don’t have sufficient permissions to create an External Cloud Audit.
                 Reach out to your Teleport administrator to request additional
                 permissions.
               </div>

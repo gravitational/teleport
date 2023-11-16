@@ -228,6 +228,7 @@ const IconCell = ({ item }: { item: IntegrationLike }) => {
     // Default is integration.
     switch (item.kind) {
       case IntegrationKind.AwsOidc:
+      case IntegrationKind.Byob:
         formattedText = item.name;
         icon = (
           <SvgIconContainer>
