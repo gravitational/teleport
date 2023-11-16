@@ -2,6 +2,8 @@
 
 ## 14.1.4 (11/15/2023)
 
+* Fixed incorrect permissions when opening X11 listener. [#34617](https://github.com/gravitational/teleport/pull/34617)
+* Environment values can not be overridden from the .tsh/environment file, only unique keys will be inserted into the environment. [#34626](https://github.com/gravitational/teleport/pull/34626)
 * Access lists now respect user locking. [#34620](https://github.com/gravitational/teleport/pull/34620)
 * Respect explicit deny rules for Access Requests. [#34600](https://github.com/gravitational/teleport/pull/34600)
 * Added Teleport Access Graph integration. [#34569](https://github.com/gravitational/teleport/pull/34569)
