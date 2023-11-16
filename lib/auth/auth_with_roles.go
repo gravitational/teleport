@@ -65,6 +65,7 @@ import (
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
+	accessgraphv1 "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 	"github.com/gravitational/teleport/lib/auth/integration/integrationv1"
 	"github.com/gravitational/teleport/lib/auth/trust/trustv1"
 	"github.com/gravitational/teleport/lib/auth/users/usersv1"
@@ -382,6 +383,14 @@ func (a *ServerWithRoles) SecReportsClient() *secreport.Client {
 	return secreport.NewClient(secreportsv1.NewSecReportsServiceClient(
 		utils.NewGRPCDummyClientConnection("SecReportsClient() should not be called on ServerWithRoles"),
 	))
+}
+
+// AccessGraphClient returns a client for the AccessGraph service.
+// It should not be called through ServerWithRoles,
+// as it returns a dummy client that will always respond with "not implemented".
+func (a *ServerWithRoles) AccessGraphClient() accessgraphv1.AccessGraphServiceClient {
+	return accessgraphv1.NewAccessGraphServiceClient(
+		utils.NewGRPCDummyClientConnection("AccessGraphClient() should not be called on ServerWithRoles"))
 }
 
 // integrationsService returns an Integrations Service.

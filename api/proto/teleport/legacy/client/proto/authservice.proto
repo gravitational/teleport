@@ -524,6 +524,8 @@ message Features {
   string CustomTheme = 22 [(gogoproto.jsontag) = "custom_theme,omitempty"];
   // IdentityGovernance holds the Identity Governance feature settings (Access Monitoring)
   bool IdentityGovernance = 23 [(gogoproto.jsontag) = "identity_governance,omitempty"];
+  // AccessGraph indicates whether Teleport Access Graph is enabled.
+  bool AccessGraph = 24 [(gogoproto.jsontag) = "access_graph,omitempty"];
 }
 
 // DeviceTrustFeature holds the Device Trust feature general and usage-based
