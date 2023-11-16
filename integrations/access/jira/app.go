@@ -66,11 +66,11 @@ var resolveReasonSeparatorRegex = regexp.MustCompile(`(?im)^ *(resolution|reason
 type App struct {
 	conf Config
 
-	teleport   teleport.Client
-	jira       *Jira
-	webhookSrv *WebhookServer
-	mainJob    lib.ServiceJob
-	statusSink common.StatusSink
+	teleport    teleport.Client
+	jira        *Jira
+	webhookSrv  *WebhookServer
+	mainJob     lib.ServiceJob
+	statusSink  common.StatusSink
 	retryConfig retryutils.LinearConfig
 
 	*lib.Process
@@ -82,9 +82,9 @@ func NewApp(conf Config) (*App, error) {
 		Max:  webhookIssueAPIRetryTimeout,
 	}
 	app := &App{
-		conf:       conf,
-		teleport:   conf.Client,
-		statusSink: conf.StatusSink,
+		conf:        conf,
+		teleport:    conf.Client,
+		statusSink:  conf.StatusSink,
 		retryConfig: retryConfig,
 	}
 	app.mainJob = lib.NewServiceJob(app.run)
