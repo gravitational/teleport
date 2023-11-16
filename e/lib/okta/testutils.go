@@ -34,6 +34,7 @@ import (
 	"github.com/okta/okta-sdk-golang/v2/okta"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/tlsutils"
 	"github.com/gravitational/teleport/e/lib/teleport"
@@ -100,6 +101,10 @@ func (t *testAccessPoint) setServiceCounts(m map[types.SystemRole]uint64) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	t.serviceCounts = m
+}
+
+func (t *testAccessPoint) ValidateMFAAuthResponse(ctx context.Context, resp *proto.MFAAuthenticateResponse, user string, passwordless bool) (*types.MFADevice, string, error) {
+	return nil, "", nil
 }
 
 // newTestAccessPoint will create a memory backed test access point for the Okta service.
