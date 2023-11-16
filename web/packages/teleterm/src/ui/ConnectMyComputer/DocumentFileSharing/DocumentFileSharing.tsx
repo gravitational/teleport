@@ -156,7 +156,12 @@ export function DocumentFileSharing(props: {
                         cursor: pointer;
                       `}
                       onClick={() => {
-                        updateServerConfig(undefined);
+                        updateServerConfig({
+                          path: undefined,
+                          allowAnyone: false,
+                          allowedRolesList: [],
+                          allowedUsersList: [],
+                        });
                       }}
                     />
                   )}
