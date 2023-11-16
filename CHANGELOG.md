@@ -2,12 +2,12 @@
 
 ## 13.4.8 (11/15/23)
 
-* Access lists now respect user locking. [#34619](https://github.com/gravitational/teleport/pull/34619)
-* Respect explicit deny rules for Access Requests. [#34603](https://github.com/gravitational/teleport/pull/34603)
+* Changed access lists to respect user locking. [#34619](https://github.com/gravitational/teleport/pull/34619)
+* Fixed access requests to respect explicit deny rules. [#34603](https://github.com/gravitational/teleport/pull/34603)
 * Improved the error message when attempting to enroll a hardware key that cannot support passwordless. [#34590](https://github.com/gravitational/teleport/pull/34590)
 * Fixed cleanup of unused GCP KMS keys. [#34469](https://github.com/gravitational/teleport/pull/34469)
 * Added binary formatted parameters as base64 encoded strings to PostgreSQL Statement Bind audit log events. [#34434](https://github.com/gravitational/teleport/pull/34434)
-* The operator reuses its connection to Teleport. Reduces CPU usage, logs, and fixes a memory leak.. [#34431](https://github.com/gravitational/teleport/pull/34431)
+* Reduced CPU & memory usage, and logging in the operator, by reusing connections to Teleport. [#34431](https://github.com/gravitational/teleport/pull/34431)
 * Updated the code signing certificate for Windows artifacts. [#34378](https://github.com/gravitational/teleport/pull/34378)
 * Added IAM Authentication support for Amazon MemoryDB Access. [#34357](https://github.com/gravitational/teleport/pull/34357)
 * Split large desktop recordings into multiple files during export. [#34320](https://github.com/gravitational/teleport/pull/34320)
