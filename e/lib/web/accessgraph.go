@@ -27,11 +27,8 @@ import (
 	"github.com/julienschmidt/httprouter"
 
 	"github.com/gravitational/teleport/api/client/proto"
-	apidefaults "github.com/gravitational/teleport/api/defaults"
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
-	"github.com/gravitational/teleport/api/types"
 	accessgraphv1 "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/web"
 )
 
@@ -43,33 +40,18 @@ func (p *Plugin) queryAccessGraph(_ http.ResponseWriter, r *http.Request, _ http
 		return nil, trace.BadParameter("query parameter is required")
 	}
 
-	ac, err := webCtx.GetUserAccessChecker()
+	cl, err := webCtx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	clt, err := webCtx.GetClient()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	agClt := p.Config.AccessGraphClient
+	agClt := cl.AccessGraphClient()
 	if agClt == nil {
 		return nil, trace.NotFound("access graph client is not configured")
 	}
 
+	// Skip the RBAC check. Auth server will perform it.
 	ctx := r.Context()
-	user, err := clt.GetUser(ctx, webCtx.GetUser(), false)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Authorize the client
-	err = ac.CheckAccessToRule(&services.Context{User: user}, apidefaults.Namespace, types.KindAccessGraph, types.VerbRead, true)
-	if err != nil {
-		return nil, trace.AccessDenied("not allowed to read the access graph")
-	}
-
 	resp, err := agClt.Query(ctx, &accessgraphv1.QueryRequest{
 		Query: query,
 	})
@@ -108,7 +90,12 @@ func (p *Plugin) queryAccessGraph(_ http.ResponseWriter, r *http.Request, _ http
 func (p *Plugin) getAccessGraphFile(w http.ResponseWriter, r *http.Request, params httprouter.Params) (any, error) {
 	filePath := params.ByName("file")
 
-	agClt := p.Config.AccessGraphClient
+	acl, err := p.getAuthClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	agClt := acl.AccessGraphClient()
 	if agClt == nil {
 		return nil, trace.NotFound("access graph client is not configured")
 	}
@@ -117,6 +104,11 @@ func (p *Plugin) getAccessGraphFile(w http.ResponseWriter, r *http.Request, para
 		Filepath: filePath,
 	})
 	if err != nil {
+		// If access graph is not enabled in the Auth server, return 404 instead of 500.
+		if trace.IsNotImplemented(err) {
+			return nil, trace.NotFound("file %q is not found", filePath)
+		}
+
 		p.Log.Errorf("Failed to get file %q: %v", filePath, err)
 		return nil, trace.Wrap(err)
 	}

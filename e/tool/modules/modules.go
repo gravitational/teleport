@@ -119,6 +119,7 @@ func (p *enterpriseModules) SetFeatures(f modules.Features) {
 	f.RecoveryCodes = p.features.RecoveryCodes
 	f.Plugins = p.features.Plugins
 	f.IsTrialProduct = p.features.IsTrialProduct
+	f.AccessGraph = p.features.AccessGraph
 
 	p.features = f
 }
@@ -135,6 +136,13 @@ func (p *enterpriseModules) EnablePlugins() {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.features.Plugins = true
+}
+
+// EnableAccessGraph enables the usage of access graph.
+func (p *enterpriseModules) EnableAccessGraph() {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.features.AccessGraph = true
 }
 
 // BuildType returns build type (OSS or Enterprise)

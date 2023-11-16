@@ -15,7 +15,6 @@ import (
 
 	"github.com/gravitational/teleport/e/api/cloud"
 	"github.com/gravitational/teleport/e/lib/idp/saml"
-	accessgraphv1 "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/httplib/csrf"
@@ -39,10 +38,6 @@ type Config struct {
 	// the `redirect_uri` we submit to API providers will point
 	// directly to the cluster, and the OAuth app needs to be configured accordingly.
 	PluginShimURL *url.URL
-
-	// AccessGraphClient is the access graph client.
-	// Sets only when access graph is enabled.
-	AccessGraphClient accessgraphv1.AccessGraphServiceClient
 }
 
 // CheckAndSetDefaults checks and sets the defaults

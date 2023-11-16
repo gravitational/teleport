@@ -45,9 +45,14 @@ import (
 
 // ServiceClientConfig is the configuration for the access graph service client.
 type ServiceClientConfig struct {
-	Addr     string
-	CA       string
-	License  *licensefile.LicenseFile
+	// Addr is the address of the access graph service.
+	Addr string
+	// CA is the path to the CA certificate used to verify the access graph GRPC connection.
+	CA string
+	// License is the license file used to authenticate the access graph GRPC connection and share Tenant ID.
+	License *licensefile.LicenseFile
+	// Insecure is true if the access graph GRPC connection should be insecure.
+	// Do not use in production.
 	Insecure bool
 }
 
@@ -109,6 +114,7 @@ func initializeAndWatchAccessGraph(ctx context.Context, log logrus.FieldLogger, 
 				}
 
 				newCtx, cancel := context.WithCancel(ctx)
+				defer cancel()
 				// Start a goroutine to watch the access graph service connection state.
 				// If the connection is closed, cancel the context to stop the event watcher
 				// before it tries to send any events to the access graph service.
@@ -121,7 +127,7 @@ func initializeAndWatchAccessGraph(ctx context.Context, log logrus.FieldLogger, 
 
 				eventWatcher := newTagEventWatcher(newCtx, stream)
 
-				errc := make(chan error, 1)
+				errc := make(chan error)
 				go func() {
 					// Start watching the auth server for events.
 					// Subscribe for new events before sending all resources.
@@ -132,8 +138,7 @@ func initializeAndWatchAccessGraph(ctx context.Context, log logrus.FieldLogger, 
 				// Send all teleport resources to the access graph service.
 				if err := sendTeleportResources(ctx, stream, authServer); err != nil {
 					log.WithError(err).Error("Failed to send teleport resources to access graph service")
-					errc <- trace.Wrap(err)
-					return nil
+					return trace.Wrap(err)
 				}
 
 				// Marks as ready and send cached resources to TAG
@@ -315,7 +320,6 @@ func sendAccessRequests(ctx context.Context, authServer *auth.Server, stream acc
 		if err != nil {
 			return trace.Wrap(err)
 		}
-
 	}
 
 	return nil

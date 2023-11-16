@@ -21,11 +21,13 @@ import (
 	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
 	secreportsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/secreports/v1"
 	cloudapi "github.com/gravitational/teleport/e/api/cloud/v1"
+	"github.com/gravitational/teleport/e/lib/accessgraph"
 	"github.com/gravitational/teleport/e/lib/accesslist"
 	"github.com/gravitational/teleport/e/lib/devicetrust/devicetrustv1"
 	dtstorage "github.com/gravitational/teleport/e/lib/devicetrust/storage"
 	"github.com/gravitational/teleport/e/lib/externalcloudaudit/externalcloudauditv1"
 	"github.com/gravitational/teleport/e/lib/idp/saml"
+	"github.com/gravitational/teleport/e/lib/licensefile"
 	"github.com/gravitational/teleport/e/lib/loginrule"
 	"github.com/gravitational/teleport/e/lib/loginrule/loginrulev1"
 	lrstorage "github.com/gravitational/teleport/e/lib/loginrule/storage"
@@ -36,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/e/lib/secreports"
 	"github.com/gravitational/teleport/e/lib/secreports/limiter"
 	"github.com/gravitational/teleport/e/lib/secreports/query/athena"
+	accessgraphv1 "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/modules"
@@ -69,6 +72,9 @@ type Config struct {
 
 	// AccessMonitoring holds the configuration for the Access Monitoring feature.
 	AccessMonitoring *servicecfg.AccessMonitoringOptions
+
+	// AccessGraph holds the configuration for the Access Graph feature.
+	AccessGraph servicecfg.AccessGraphConfig
 }
 
 // CheckAndSetDefaults checks and sets the defaults
@@ -258,6 +264,10 @@ func (p *Plugin) RegisterAuthServices(ctx context.Context, server interface{}) e
 	}
 	accesslistv1.RegisterAccessListServiceServer(gRPCServer, accessListSvc)
 
+	if err := p.registerAccessGraphService(ctx, gRPCServer); err != nil {
+		return trace.Wrap(err)
+	}
+
 	if err := p.initAndRegisterSecurityReport(ctx, gRPCServer); err != nil {
 		return trace.Wrap(err)
 	}
@@ -269,6 +279,47 @@ func (p *Plugin) RegisterAuthServices(ctx context.Context, server interface{}) e
 	}); err != nil {
 		return trace.Wrap(err)
 	}
+
+	return nil
+}
+
+func (p *Plugin) registerAccessGraphService(ctx context.Context, service grpc.ServiceRegistrar) error {
+	if !p.Config.AccessGraph.Enabled {
+		return nil
+	}
+
+	log.Info("Access Graph Enabled.")
+
+	license, ok := p.Config.License.(*licensefile.LicenseFile)
+	if !ok {
+		return trace.BadParameter("invalid license type %T", p.Config.License)
+	}
+
+	agConn, err := accessgraph.NewAccessGraphClient(
+		ctx,
+		accessgraph.ServiceClientConfig{
+			Addr:     p.Config.AccessGraph.Addr,
+			CA:       p.Config.AccessGraph.CA,
+			License:  license,
+			Insecure: p.Config.AccessGraph.Insecure,
+		},
+	)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	agClient := accessgraphv1.NewAccessGraphServiceClient(agConn)
+
+	accessGraphService, err := accessgraph.NewService(accessgraph.ServiceConfig{
+		Client:     agClient,
+		Authorizer: p.authServer.Authorizer,
+		Logger:     log,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	accessgraphv1.RegisterAccessGraphServiceServer(service, accessGraphService)
+	modules.GetModules().EnableAccessGraph()
 
 	return nil
 }
