@@ -50,7 +50,6 @@ export function DocumentFileSharing(props: {
   const { currentAction, killAgent, startAgent } =
     useConnectMyComputerContext();
   const cluster = clustersService.findCluster(rootClusterUri);
-  const [selectedDirectory, setSelectedDirectory] = useState<string>();
   const isRunning =
     currentAction.kind === 'observe-process' &&
     currentAction.agentProcessState.status === 'running';
@@ -59,17 +58,28 @@ export function DocumentFileSharing(props: {
     `https://${getFileSharingAppName(cluster.loggedInUser.name)}.${
       cluster.proxyHost
     }`;
-  const [allowedUsersInputValue, setAllowedUsersInputValue] = useState('');
-  const [allowedRolesInputValue, setAllowedRolesInputValue] = useState('');
-  const [allowAnyone, setAllowAnyone] = useState(false);
-  const [allowedUsers, setAllowedUsers] = useState<Option[]>([]);
-  const [allowedRoles, setAllowedRoles] = useState<Option[]>([]);
+
   const [listSuggestedUsersAttempt, runListSuggestedUsers] = useAsync(
     tshd.listUsers
   );
   const [listSuggestedRolesAttempt, runListSuggestedRoles] = useAsync(
     tshd.listRoles
   );
+  const suggestedUsers =
+    (listSuggestedUsersAttempt.status === 'success' &&
+      listSuggestedUsersAttempt.data) ||
+    [];
+  const suggestedRoles =
+    (listSuggestedRolesAttempt.status === 'success' &&
+      listSuggestedRolesAttempt.data) ||
+    cluster.loggedInUser?.rolesList ||
+    [];
+  const [fileShare, setFileShare] = useState<FileShare>({
+    path: '',
+    sharingMode: 'specific-people',
+    allowedUsers: [],
+    allowedRoles: [],
+  });
 
   // TODO: handle errors, think how to fetch fresh data
   useEffect(() => {
@@ -77,38 +87,30 @@ export function DocumentFileSharing(props: {
     runListSuggestedRoles({ clusterUri: rootClusterUri });
   }, [rootClusterUri, runListSuggestedRoles, runListSuggestedUsers]);
 
-  if (selectedDirectory) {
+  if (fileShare.path) {
     appUrl += '/file-sharing';
   }
 
-  async function updateServerConfig(args: {
-    allowAnyone: boolean;
-    path: string;
-    allowedUsersList: Option[];
-    allowedRolesList: Option[];
-  }) {
+  async function updateServerConfig(updatedFileShare: FileShare) {
+    setFileShare(updatedFileShare);
+
+    // TODO: Handle errors.
     await connectMyComputerService.setFileServerConfig({
       clusterUri: rootClusterUri,
       config: {
-        sharesList: args.path
+        sharesList: updatedFileShare.path
           ? [
               {
                 name: 'file-sharing',
-                path: args.path,
-                allowAnyone: args.allowAnyone,
-                allowedUsersList:
-                  args.allowedUsersList?.map(r => r.value) || [],
-                allowedRolesList:
-                  args.allowedRolesList?.map(r => r.value) || [],
+                path: updatedFileShare.path,
+                allowAnyone: updatedFileShare.sharingMode === 'anyone',
+                allowedUsersList: updatedFileShare.allowedUsers,
+                allowedRolesList: updatedFileShare.allowedRoles,
               },
             ]
           : [],
       },
     });
-    setSelectedDirectory(args.path);
-    setAllowedUsers(args.allowedUsersList);
-    setAllowedRoles(args.allowedRolesList);
-    setAllowAnyone(args.allowAnyone);
   }
 
   return (
@@ -137,7 +139,7 @@ export function DocumentFileSharing(props: {
                 Stop agent
               </ButtonPrimary>
             )}
-            {!isRunning && selectedDirectory && (
+            {!isRunning && fileShare.path && (
               <ButtonPrimary
                 onClick={() => {
                   startAgent('');
@@ -148,7 +150,12 @@ export function DocumentFileSharing(props: {
             )}
           </Flex>
         </Flex>
-        <SingleShare />
+        <FileShareForm
+          fileShare={fileShare}
+          onChange={updateServerConfig}
+          suggestedUsers={suggestedUsers}
+          suggestedRoles={suggestedRoles}
+        />
       </Box>
     </Document>
   );
@@ -181,26 +188,25 @@ function AgentStatus(props: {
   );
 }
 
+type FileShare = {
+  path: string;
+  sharingMode: SharingMode;
+  allowedUsers: string[];
+  allowedRoles: string[];
+};
+
 type SharingMode = 'anyone' | 'specific-people';
 
-export function SingleShare(props: {
-  onDirectoryChange(path: string): void;
-  onSharingModeChange(mode: SharingMode): void;
-  onAllowedUsersChange(users: string[]): void;
-  onAllowedRolesChange(users: string[]): void;
+export function FileShareForm(props: {
+  fileShare: FileShare;
+  onChange: (fileShare: FileShare) => void;
   suggestedUsers: string[];
   suggestedRoles: string[];
-  initialState: {
-    directory: string;
-    sharingMode: SharingMode;
-    allowedUsers: string[];
-    allowedRoles: string[];
-  };
 }) {
+  const { fileShare } = props;
   const { mainProcessClient } = useAppContext();
   const [allowedUsersInputValue, setAllowedUsersInputValue] = useState('');
   const [allowedRolesInputValue, setAllowedRolesInputValue] = useState('');
-  const [selectedDirectory, setSelectedDirectory] = useState();
 
   return (
     <Flex
@@ -221,22 +227,21 @@ export function SingleShare(props: {
               const { filePaths, canceled } =
                 await mainProcessClient.showDirectorySelectDialog();
               if (!canceled) {
-                props.onDirectoryChange(filePaths[0]);
+                props.onChange({ ...fileShare, path: filePaths[0] });
               }
             }}
           >
-            {selectedDirectory ? 'Change directory' : 'Select & share'}
+            {fileShare.path ? 'Change directory' : 'Select & share'}
           </ButtonPrimary>
-          {selectedDirectory || 'No directory selected'}
+          {fileShare.path || 'No directory selected'}
         </Flex>
-        {selectedDirectory && (
+        {fileShare.path && (
           <Cross
             css={`
               cursor: pointer;
             `}
             onClick={() => {
-              setSelectedDirectory(undefined);
-              props.onDirectoryChange(undefined);
+              props.onChange({ ...fileShare, path: '' });
             }}
           />
         )}
@@ -246,73 +251,52 @@ export function SingleShare(props: {
           Share with
           <select
             name="allowAnyone"
-            value={String(allowAnyone)}
+            value={fileShare.sharingMode}
             onChange={event => {
-              const updatedAllowAnyone = event.target.value === 'true';
-              updateServerConfig({
-                allowAnyone: updatedAllowAnyone,
-                allowedRolesList: allowedRoles,
-                allowedUsersList: allowedUsers,
-                path: selectedDirectory,
+              props.onChange({
+                ...fileShare,
+                sharingMode: event.target.value as SharingMode,
               });
             }}
             css={`
               margin-left: ${props => props.theme.space[1]}px;
             `}
           >
-            <option value="">specific people</option>
-            <option value="true">anyone</option>
+            <option value="specific-people">specific people</option>
+            <option value="anyone">anyone</option>
           </select>
         </label>
-        {!allowAnyone && (
+        {fileShare.sharingMode === 'specific-people' && (
           <div>
             <label>
               <Text>Allow users</Text>
               <SelectCreatable
                 inputValue={allowedUsersInputValue}
                 onInputChange={setAllowedUsersInputValue}
-                options={
-                  listSuggestedUsersAttempt.status === 'success'
-                    ? listSuggestedUsersAttempt.data.map(d => ({
-                        value: d,
-                        label: d,
-                      }))
-                    : undefined
-                }
+                options={props.suggestedUsers.map(makeSelectOption)}
                 onChange={users => {
-                  updateServerConfig({
-                    allowAnyone,
-                    path: selectedDirectory,
-                    allowedUsersList: users,
-                    allowedRolesList: allowedRoles,
+                  props.onChange({
+                    ...fileShare,
+                    allowedUsers: (users || []).map(u => u.value),
                   });
                 }}
-                value={allowedUsers}
+                value={fileShare.allowedUsers.map(makeSelectOption)}
                 formatCreateLabel={inputValue => `Add "${inputValue}"`}
               />
             </label>
             <label>
               <Text>Allow roles</Text>
               <SelectCreatable
-                options={
-                  listSuggestedRolesAttempt.status === 'success'
-                    ? listSuggestedRolesAttempt.data.map(d => ({
-                        value: d,
-                        label: d,
-                      }))
-                    : undefined
-                }
                 inputValue={allowedRolesInputValue}
                 onInputChange={setAllowedRolesInputValue}
+                options={props.suggestedRoles.map(makeSelectOption)}
                 onChange={roles => {
-                  updateServerConfig({
-                    allowAnyone,
-                    path: selectedDirectory,
-                    allowedUsersList: allowedUsers,
-                    allowedRolesList: roles,
+                  props.onChange({
+                    ...fileShare,
+                    allowedRoles: (roles || []).map(r => r.value),
                   });
                 }}
-                value={allowedRoles}
+                value={fileShare.allowedRoles.map(makeSelectOption)}
                 formatCreateLabel={inputValue => `Add "${inputValue}"`}
               />
             </label>
@@ -322,3 +306,5 @@ export function SingleShare(props: {
     </Flex>
   );
 }
+
+const makeSelectOption = (value: string): Option => ({ label: value, value });
