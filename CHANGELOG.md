@@ -1,5 +1,19 @@
 # Changelog
 
+## 13.4.8 (11/15/23)
+
+* Prevented `.tsh/environment` values from overriding prior set values. [#34625](https://github.com/gravitational/teleport/pull/34625)
+* Fixed incorrect permissions when opening X11 listener. [#34616](https://github.com/gravitational/teleport/pull/34616)
+* Changed access lists to respect user locking. [#34619](https://github.com/gravitational/teleport/pull/34619)
+* Fixed access requests to respect explicit deny rules. [#34603](https://github.com/gravitational/teleport/pull/34603)
+* Improved the error message when attempting to enroll a hardware key that cannot support passwordless. [#34590](https://github.com/gravitational/teleport/pull/34590)
+* Fixed cleanup of unused GCP KMS keys. [#34469](https://github.com/gravitational/teleport/pull/34469)
+* Added binary formatted parameters as base64 encoded strings to PostgreSQL Statement Bind audit log events. [#34434](https://github.com/gravitational/teleport/pull/34434)
+* Reduced CPU & memory usage, and logging in the operator, by reusing connections to Teleport. [#34431](https://github.com/gravitational/teleport/pull/34431)
+* Updated the code signing certificate for Windows artifacts. [#34378](https://github.com/gravitational/teleport/pull/34378)
+* Added IAM Authentication support for Amazon MemoryDB Access. [#34357](https://github.com/gravitational/teleport/pull/34357)
+* Split large desktop recordings into multiple files during export. [#34320](https://github.com/gravitational/teleport/pull/34320)
+
 ## 13.4.7 (11/9/23)
 
 ### Security Fixes
