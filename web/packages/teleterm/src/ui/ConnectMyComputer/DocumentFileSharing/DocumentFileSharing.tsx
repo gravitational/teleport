@@ -148,135 +148,7 @@ export function DocumentFileSharing(props: {
             )}
           </Flex>
         </Flex>
-        <Flex
-          flexDirection="column"
-          gap={3}
-          mt={2}
-          p={3}
-          borderRadius={2}
-          width="100%"
-          css={`
-            background: ${props => props.theme.colors.spotBackground[0]};
-          `}
-        >
-          <Flex flexWrap="wrap" gap={2} justifyContent="space-between">
-            <Flex alignItems="baseline" gap={2}>
-              <ButtonPrimary
-                onClick={async () => {
-                  const { filePaths, canceled } =
-                    await mainProcessClient.showDirectorySelectDialog();
-                  if (!canceled) {
-                    updateServerConfig({
-                      allowAnyone,
-                      path: filePaths[0],
-                      allowedUsersList: allowedUsers,
-                      allowedRolesList: allowedRoles,
-                    });
-                    if (!isRunning) {
-                      startAgent('');
-                    }
-                  }
-                }}
-              >
-                {selectedDirectory ? 'Change directory' : 'Select & share'}
-              </ButtonPrimary>
-              {selectedDirectory || 'No directory selected'}
-            </Flex>
-            {selectedDirectory && (
-              <Cross
-                css={`
-                  cursor: pointer;
-                `}
-                onClick={() => {
-                  updateServerConfig({
-                    path: undefined,
-                    allowAnyone: false,
-                    allowedRolesList: [],
-                    allowedUsersList: [],
-                  });
-                }}
-              />
-            )}
-          </Flex>
-          <Flex flexDirection="column">
-            <label>
-              Share with
-              <select
-                name="allowAnyone"
-                value={String(allowAnyone)}
-                onChange={event => {
-                  const updatedAllowAnyone = event.target.value === 'true';
-                  updateServerConfig({
-                    allowAnyone: updatedAllowAnyone,
-                    allowedRolesList: allowedRoles,
-                    allowedUsersList: allowedUsers,
-                    path: selectedDirectory,
-                  });
-                }}
-                css={`
-                  margin-left: ${props => props.theme.space[1]}px;
-                `}
-              >
-                <option value="false">specific people</option>
-                <option value="true">anyone</option>
-              </select>
-            </label>
-            {!allowAnyone && (
-              <div>
-                <label>
-                  <Text>Allow users</Text>
-                  <SelectCreatable
-                    inputValue={allowedUsersInputValue}
-                    onInputChange={setAllowedUsersInputValue}
-                    options={
-                      listSuggestedUsersAttempt.status === 'success'
-                        ? listSuggestedUsersAttempt.data.map(d => ({
-                            value: d,
-                            label: d,
-                          }))
-                        : undefined
-                    }
-                    onChange={users => {
-                      updateServerConfig({
-                        allowAnyone,
-                        path: selectedDirectory,
-                        allowedUsersList: users,
-                        allowedRolesList: allowedRoles,
-                      });
-                    }}
-                    value={allowedUsers}
-                    formatCreateLabel={inputValue => `Add "${inputValue}"`}
-                  />
-                </label>
-                <label>
-                  <Text>Allow roles</Text>
-                  <SelectCreatable
-                    options={
-                      listSuggestedRolesAttempt.status === 'success'
-                        ? listSuggestedRolesAttempt.data.map(d => ({
-                            value: d,
-                            label: d,
-                          }))
-                        : undefined
-                    }
-                    inputValue={allowedRolesInputValue}
-                    onInputChange={setAllowedRolesInputValue}
-                    onChange={roles => {
-                      updateServerConfig({
-                        allowAnyone,
-                        path: selectedDirectory,
-                        allowedUsersList: allowedUsers,
-                        allowedRolesList: roles,
-                      });
-                    }}
-                    value={allowedRoles}
-                    formatCreateLabel={inputValue => `Add "${inputValue}"`}
-                  />
-                </label>
-              </div>
-            )}
-          </Flex>
-        </Flex>
+        <SingleShare />
       </Box>
     </Document>
   );
@@ -305,6 +177,148 @@ function AgentStatus(props: {
         </Alert>
       )}
       {prettyCurrentAction.logs && <Logs logs={prettyCurrentAction.logs} />}
+    </Flex>
+  );
+}
+
+type SharingMode = 'anyone' | 'specific-people';
+
+export function SingleShare(props: {
+  onDirectoryChange(path: string): void;
+  onSharingModeChange(mode: SharingMode): void;
+  onAllowedUsersChange(users: string[]): void;
+  onAllowedRolesChange(users: string[]): void;
+  suggestedUsers: string[];
+  suggestedRoles: string[];
+  initialState: {
+    directory: string;
+    sharingMode: SharingMode;
+    allowedUsers: string[];
+    allowedRoles: string[];
+  };
+}) {
+  const { mainProcessClient } = useAppContext();
+  const [allowedUsersInputValue, setAllowedUsersInputValue] = useState('');
+  const [allowedRolesInputValue, setAllowedRolesInputValue] = useState('');
+  const [selectedDirectory, setSelectedDirectory] = useState();
+
+  return (
+    <Flex
+      flexDirection="column"
+      gap={3}
+      mt={2}
+      p={3}
+      borderRadius={2}
+      width="100%"
+      css={`
+        background: ${props => props.theme.colors.spotBackground[0]};
+      `}
+    >
+      <Flex flexWrap="wrap" gap={2} justifyContent="space-between">
+        <Flex alignItems="baseline" gap={2}>
+          <ButtonPrimary
+            onClick={async () => {
+              const { filePaths, canceled } =
+                await mainProcessClient.showDirectorySelectDialog();
+              if (!canceled) {
+                props.onDirectoryChange(filePaths[0]);
+              }
+            }}
+          >
+            {selectedDirectory ? 'Change directory' : 'Select & share'}
+          </ButtonPrimary>
+          {selectedDirectory || 'No directory selected'}
+        </Flex>
+        {selectedDirectory && (
+          <Cross
+            css={`
+              cursor: pointer;
+            `}
+            onClick={() => {
+              setSelectedDirectory(undefined);
+              props.onDirectoryChange(undefined);
+            }}
+          />
+        )}
+      </Flex>
+      <Flex flexDirection="column">
+        <label>
+          Share with
+          <select
+            name="allowAnyone"
+            value={String(allowAnyone)}
+            onChange={event => {
+              const updatedAllowAnyone = event.target.value === 'true';
+              updateServerConfig({
+                allowAnyone: updatedAllowAnyone,
+                allowedRolesList: allowedRoles,
+                allowedUsersList: allowedUsers,
+                path: selectedDirectory,
+              });
+            }}
+            css={`
+              margin-left: ${props => props.theme.space[1]}px;
+            `}
+          >
+            <option value="">specific people</option>
+            <option value="true">anyone</option>
+          </select>
+        </label>
+        {!allowAnyone && (
+          <div>
+            <label>
+              <Text>Allow users</Text>
+              <SelectCreatable
+                inputValue={allowedUsersInputValue}
+                onInputChange={setAllowedUsersInputValue}
+                options={
+                  listSuggestedUsersAttempt.status === 'success'
+                    ? listSuggestedUsersAttempt.data.map(d => ({
+                        value: d,
+                        label: d,
+                      }))
+                    : undefined
+                }
+                onChange={users => {
+                  updateServerConfig({
+                    allowAnyone,
+                    path: selectedDirectory,
+                    allowedUsersList: users,
+                    allowedRolesList: allowedRoles,
+                  });
+                }}
+                value={allowedUsers}
+                formatCreateLabel={inputValue => `Add "${inputValue}"`}
+              />
+            </label>
+            <label>
+              <Text>Allow roles</Text>
+              <SelectCreatable
+                options={
+                  listSuggestedRolesAttempt.status === 'success'
+                    ? listSuggestedRolesAttempt.data.map(d => ({
+                        value: d,
+                        label: d,
+                      }))
+                    : undefined
+                }
+                inputValue={allowedRolesInputValue}
+                onInputChange={setAllowedRolesInputValue}
+                onChange={roles => {
+                  updateServerConfig({
+                    allowAnyone,
+                    path: selectedDirectory,
+                    allowedUsersList: allowedUsers,
+                    allowedRolesList: roles,
+                  });
+                }}
+                value={allowedRoles}
+                formatCreateLabel={inputValue => `Add "${inputValue}"`}
+              />
+            </label>
+          </div>
+        )}
+      </Flex>
     </Flex>
   );
 }
