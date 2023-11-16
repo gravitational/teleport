@@ -30,4 +30,6 @@ type MessagingBot interface {
 	// a communication channel (e.g. MsTeams needs to install the app for the user before being able to send
 	// notifications)
 	FetchRecipient(ctx context.Context, recipient string) (*Recipient, error)
+	// SupportedApps are the apps supported by this bot.
+	SupportedApps() []App
 }

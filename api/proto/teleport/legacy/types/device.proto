@@ -97,6 +97,7 @@ message DeviceCollectedData {
   string system_serial_number = 12 [(gogoproto.jsontag) = "system_serial_number,omitempty"];
   string base_board_serial_number = 13 [(gogoproto.jsontag) = "base_board_serial_number,omitempty"];
   TPMPlatformAttestation tpm_platform_attestation = 14 [(gogoproto.jsontag) = "tpm_platform_attestation,omitempty"];
+  string os_id = 15 [(gogoproto.jsontag) = "os_id,omitempty"];
 }
 
 // TPMPCR is the resource representation of teleport.devicetrust.v1.TPMPCR.
@@ -148,4 +149,5 @@ message DeviceProfile {
   string jamf_binary_version = 6 [(gogoproto.jsontag) = "jamf_binary_version,omitempty"];
   string external_id = 7 [(gogoproto.jsontag) = "external_id,omitempty"];
   string os_build_supplemental = 8 [(gogoproto.jsontag) = "os_build_supplemental,omitempty"];
+  string os_id = 9 [(gogoproto.jsontag) = "os_id,omitempty"];
 }

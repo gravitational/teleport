@@ -52,6 +52,7 @@ func TestCollectDeviceData_linux(t *testing.T) {
 		ReportedAssetTag:      "No Asset Information",
 		SystemSerialNumber:    "PF0A0AAA",
 		BaseBoardSerialNumber: "L1AA00A00A0",
+		OsId:                  "ubuntu",
 	}
 
 	dmiInfoSuccess := func() (*linux.DMIInfo, error) {
@@ -74,7 +75,7 @@ func TestCollectDeviceData_linux(t *testing.T) {
 		return &linux.OSRelease{
 			VersionID: wantCD.OsVersion,
 			Version:   wantCD.OsBuild,
-			ID:        "ubuntu",
+			ID:        wantCD.OsId,
 		}, nil
 	}
 	cddFuncs.dmiInfoFromSysfs = dmiInfoSuccess
