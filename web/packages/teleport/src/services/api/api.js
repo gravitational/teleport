@@ -17,6 +17,7 @@ import 'whatwg-fetch';
 import { storageService } from '../storageService';
 
 import parseError, { ApiError } from './parseError';
+import auth from 'teleport/services/auth/auth';
 
 const api = {
   get(url, abortSignal) {
@@ -64,7 +65,18 @@ const api = {
     });
   },
 
-  fetchJson(url, params) {
+  async fetchJson(url, params, withMFA) {
+    if (withMFA) {
+      // Get an MFA response and add it to the request headers.
+      const webauthn = auth.getWebauthnResponse();
+      params.headers = {
+        ...params.headers,
+        'Mfa-Response': JSON.stringify({
+          webauthnAssertionResponse: webauthn,
+        }),
+      };
+    }
+
     return new Promise((resolve, reject) => {
       this.fetch(url, params)
         .then(response => {
@@ -78,16 +90,27 @@ const api = {
           } else {
             return response
               .json()
-              .then(json => reject(new ApiError(parseError(json), response)))
-              .catch(err => {
+              .then(json => {
+                if (
+                  !withMFA &&
+                  isAdminActionRequiresMFAError(parseError(json))
+                ) {
+                  // Retry with MFA.
+                  return this.fetchJson(url, params, true)
+                    .then(resp => resolve(resp))
+                    .catch(err => reject(err));
+                }
+                reject(new ApiError(parseError(json), response));
+              })
+              .catch(err =>
                 reject(
                   new ApiError(
                     `${response.status} - ${response.url}`,
                     response,
                     { cause: err }
                   )
-                );
-              });
+                )
+              );
           }
         })
         .catch(err => {
@@ -104,6 +127,7 @@ const api = {
     };
 
     options.headers = {
+      ...requestOptions.headers,
       ...options.headers,
       ...getAuthHeaders(),
     };
@@ -152,6 +176,12 @@ export function getAccessToken() {
 
 export function getHostName() {
   return location.hostname + (location.port ? ':' + location.port : '');
+}
+
+function isAdminActionRequiresMFAError(errMessage) {
+  return errMessage.includes(
+    'admin-level API request requires MFA verification'
+  );
 }
 
 export default api;
