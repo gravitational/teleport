@@ -241,10 +241,7 @@
             {
               "title": "AWS Multi-Region Proxy Deployment",
               "slug": "/deploy-a-cluster/deployments/aws-gslb-proxy-peering-ha-deployment/",
-              "forScopes": [
-                "oss",
-                "enterprise"
-              ]
+              "forScopes": ["enterprise"]
             },
             {
               "title": "GCP",
@@ -843,7 +840,7 @@
               "slug": "/management/operations/enroll-agent-into-automatic-updates/",
               "forScopes": [
                 "enterprise",
-                "cloud", 
+                "cloud",
                 "team"
               ]
             }
@@ -3233,7 +3230,7 @@
       "destination": "/database-access/auto-user-provisioning/",
       "permanent": true
     },
-    {	
+    {
       "source": "/database-access/guides/rds-proxy/",
       "destination": "/database-access/guides/",
       "permanent": true
