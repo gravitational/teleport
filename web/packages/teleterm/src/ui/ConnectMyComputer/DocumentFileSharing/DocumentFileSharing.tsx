@@ -15,6 +15,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
+import { enableMapSet, produce } from 'immer';
 
 import { Flex, Box, Text, ButtonPrimary, Alert, ButtonSecondary } from 'design';
 
@@ -40,6 +41,8 @@ import { getFileSharingAppName } from 'teleterm/fileSharing';
 
 import { prettifyCurrentAction } from '../DocumentConnectMyComputer/Status';
 
+enableMapSet();
+
 export function DocumentFileSharing(props: {
   visible: boolean;
   doc: types.DocumentFileSharing;
@@ -53,7 +56,7 @@ export function DocumentFileSharing(props: {
   const isRunning =
     currentAction.kind === 'observe-process' &&
     currentAction.agentProcessState.status === 'running';
-  let appUrl =
+  const appUrl =
     cluster?.loggedInUser &&
     `https://${getFileSharingAppName(cluster.loggedInUser.name)}.${
       cluster.proxyHost
@@ -74,12 +77,9 @@ export function DocumentFileSharing(props: {
       listSuggestedRolesAttempt.data) ||
     cluster.loggedInUser?.rolesList ||
     [];
-  const [fileShare, setFileShare] = useState<FileShare>({
-    path: '',
-    sharingMode: 'specific-people',
-    allowedUsers: [],
-    allowedRoles: [],
-  });
+  const [fileShares, setFileShares] = useState<Map<string, FileShare>>(
+    new Map()
+  );
 
   // TODO: handle errors, think how to fetch fresh data
   useEffect(() => {
@@ -87,12 +87,14 @@ export function DocumentFileSharing(props: {
     runListSuggestedRoles({ clusterUri: rootClusterUri });
   }, [rootClusterUri, runListSuggestedRoles, runListSuggestedUsers]);
 
-  if (fileShare.path) {
-    appUrl += '/file-sharing';
-  }
-
   async function updateServerConfig(updatedFileShare: FileShare) {
-    setFileShare(updatedFileShare);
+    setFileShares(
+      produce(draft => {
+        draft.set(updatedFileShare.path, updatedFileShare);
+      })
+    );
+
+    // TODO: Pass updated set to the server.
 
     // TODO: Handle errors.
     await connectMyComputerService.setFileServerConfig({
