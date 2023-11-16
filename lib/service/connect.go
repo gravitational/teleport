@@ -809,7 +809,7 @@ func (process *TeleportProcess) periodicSyncRotationState() error {
 	if _, err := process.WaitForEvent(process.GracefulExitContext(), TeleportReadyEvent); err != nil {
 		return nil
 	}
-	process.log.Infof("The new service has started successfully. Starting syncing rotation status with period %v.", process.Config.Testing.PollingPeriod)
+	process.log.Infof("The new service has started successfully. Starting syncing rotation status with period %v.", process.Config.PollingPeriod)
 
 	periodic := interval.New(interval.Config{
 		Duration:      process.Config.RotationConnectionInterval,
@@ -872,8 +872,8 @@ func (process *TeleportProcess) syncRotationStateCycle() error {
 	defer watcher.Close()
 
 	periodic := interval.New(interval.Config{
-		Duration:      process.Config.Testing.PollingPeriod,
-		FirstDuration: utils.HalfJitter(process.Config.Testing.PollingPeriod),
+		Duration:      process.Config.PollingPeriod,
+		FirstDuration: utils.HalfJitter(process.Config.PollingPeriod),
 		Jitter:        retryutils.NewSeventhJitter(),
 	})
 	defer periodic.Stop()
