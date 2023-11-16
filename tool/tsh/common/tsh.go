@@ -2803,7 +2803,11 @@ type databaseWithUsers struct {
 }
 
 func getDBUsers(db types.Database, accessChecker services.AccessChecker) *dbUsers {
-	users := accessChecker.EnumerateDatabaseUsers(db)
+	users, err := accessChecker.EnumerateDatabaseUsers(db)
+	if err != nil {
+		log.Warnf("Failed to EnumerateDatabaseUsers for database %v: %v.", db.GetName(), err)
+		return &dbUsers{}
+	}
 	var denied []string
 	allowed := users.Allowed()
 	if users.WildcardAllowed() {
@@ -2858,17 +2862,6 @@ func serializeDatabasesAllClusters(dbListings []databaseListing, format string) 
 }
 
 func formatUsersForDB(database types.Database, accessChecker services.AccessChecker) (users string) {
-	// When auto-user provisioning is enabled, only username is allowed. `tsh
-	// db ls` will add a footnote for "(+)" to explain this.
-	if database.SupportsAutoUsers() && database.GetAdminUser().Name != "" {
-		autoUser, _, _ := accessChecker.CheckDatabaseRoles(database)
-		if autoUser.IsEnabled() {
-			defer func() {
-				users = users + " (Auto-provisioned)"
-			}()
-		}
-	}
-
 	// may happen if fetching the role set failed for any reason.
 	if accessChecker == nil {
 		return "(unknown)"
@@ -2877,6 +2870,16 @@ func formatUsersForDB(database types.Database, accessChecker services.AccessChec
 	dbUsers := getDBUsers(database, accessChecker)
 	if len(dbUsers.Allowed) == 0 {
 		return "(none)"
+	}
+
+	// Add a note for auto-provisioned user.
+	if database.SupportsAutoUsers() && database.GetAdminUser().Name != "" {
+		autoUser, _, _ := accessChecker.CheckDatabaseRoles(database)
+		if autoUser.IsEnabled() {
+			defer func() {
+				users = users + " (Auto-provisioned)"
+			}()
+		}
 	}
 
 	if len(dbUsers.Denied) == 0 {
@@ -2953,7 +2956,6 @@ func showDatabasesAsText(w io.Writer, clusterFlag string, databases []types.Data
 	} else {
 		t = asciitable.MakeTableWithTruncatedColumn([]string{"Name", "Description", "Allowed Users", "Labels", "Connect"}, rows, "Labels")
 	}
-
 	fmt.Fprintln(w, t.AsBuffer().String())
 }
 

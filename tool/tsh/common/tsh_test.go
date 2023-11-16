@@ -4443,7 +4443,8 @@ func TestListDatabasesWithUsers(t *testing.T) {
 	require.NoError(t, err)
 
 	dbWithAutoUser, err := types.NewDatabaseV3(types.Metadata{
-		Name: "auto-user",
+		Name:   "auto-user",
+		Labels: map[string]string{"env": "prod"},
 	}, types.DatabaseSpecV3{
 		Protocol: "postgres",
 		URI:      "localhost:5432",
@@ -4474,6 +4475,21 @@ func TestListDatabasesWithUsers(t *testing.T) {
 				Namespaces:     []string{apidefaults.Namespace},
 				DatabaseLabels: types.Labels{"env": []string{"prod"}},
 				DatabaseUsers:  []string{"dev"},
+			},
+		},
+	}
+	roleAutoUser := &types.RoleV6{
+		Metadata: types.Metadata{Name: "auto-user", Namespace: apidefaults.Namespace},
+		Spec: types.RoleSpecV6{
+			Options: types.RoleOptions{
+				CreateDatabaseUserMode: types.CreateDatabaseUserMode_DB_USER_MODE_KEEP,
+			},
+			Allow: types.RoleConditions{
+				Namespaces:     []string{apidefaults.Namespace},
+				DatabaseLabels: types.Labels{"env": []string{"prod"}},
+				DatabaseRoles:  []string{"dev"},
+				DatabaseNames:  []string{"*"},
+				DatabaseUsers:  []string{types.Wildcard},
 			},
 		},
 	}
@@ -4538,12 +4554,31 @@ func TestListDatabasesWithUsers(t *testing.T) {
 			wantText: "[dev]",
 		},
 		{
-			name:     "database with automatic user provisioning",
+			name:     "db with admin user and role with auto-user",
 			database: dbWithAutoUser,
+			roles:    services.RoleSet{roleAutoUser},
 			wantUsers: &dbUsers{
 				Allowed: []string{"alice"},
 			},
-			wantText: "[alice] (+)",
+			wantText: "[alice] (Auto-provisioned)",
+		},
+		{
+			name:     "db with admin user but role without auto-user",
+			database: dbWithAutoUser,
+			roles:    services.RoleSet{roleDevProd},
+			wantUsers: &dbUsers{
+				Allowed: []string{"dev"},
+			},
+			wantText: "[dev]",
+		},
+		{
+			name:     "db without admin user but role with auto-user",
+			database: dbProd,
+			roles:    services.RoleSet{roleAutoUser},
+			wantUsers: &dbUsers{
+				Allowed: []string{"*"},
+			},
+			wantText: "[*]",
 		},
 	}
 

@@ -22,6 +22,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/profile"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/wrappers"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 func newTestFSProfileStore(t *testing.T) *FSProfileStore {
@@ -109,4 +112,32 @@ func TestProfileNameFromProxyAddress(t *testing.T) {
 		_, err := ProfileNameFromProxyAddress(store, ":443")
 		require.Error(t, err)
 	})
+}
+
+func TestProfileStatusAccessInfo(t *testing.T) {
+	allowedResourceIDs := []types.ResourceID{{
+		ClusterName: "cluster",
+		Kind:        types.KindNode,
+		Name:        "uuid",
+	}}
+	traits := wrappers.Traits{
+		"trait1": {"value1", "value2"},
+		"trait2": {"value3", "value4"},
+	}
+
+	wantAccessInfo := &services.AccessInfo{
+		Username:           "alice",
+		Roles:              []string{"role1", "role2"},
+		Traits:             traits,
+		AllowedResourceIDs: allowedResourceIDs,
+	}
+
+	profileStatus := ProfileStatus{
+		Username:           "alice",
+		Roles:              []string{"role1", "role2"},
+		Traits:             traits,
+		AllowedResourceIDs: allowedResourceIDs,
+	}
+
+	require.Equal(t, wantAccessInfo, profileStatus.AccessInfo())
 }

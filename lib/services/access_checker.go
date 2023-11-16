@@ -236,7 +236,7 @@ type AccessChecker interface {
 	EnumerateEntities(resource AccessCheckable, listFn roleEntitiesListFn, newMatcher roleMatcherFactoryFn, extraEntities ...string) EnumerationResult
 
 	// EnumerateDatabaseUsers specializes EnumerateEntities to enumerate db_users.
-	EnumerateDatabaseUsers(database types.Database, extraUsers ...string) EnumerationResult
+	EnumerateDatabaseUsers(database types.Database, extraUsers ...string) (EnumerationResult, error)
 
 	// EnumerateDatabaseNames specializes EnumerateEntities to enumerate db_names.
 	EnumerateDatabaseNames(database types.Database, extraNames ...string) EnumerationResult
@@ -265,7 +265,7 @@ type AccessInfo struct {
 	// access restrictions should be applied. Used for search-based access
 	// requests.
 	AllowedResourceIDs []types.ResourceID
-	// Username is the Telepeort username
+	// Username is the Telepeort username.
 	Username string
 }
 
@@ -566,16 +566,16 @@ func (a *accessChecker) CheckDatabaseRoles(database types.Database) (mode types.
 }
 
 // EnumerateDatabaseUsers specializes EnumerateEntities to enumerate db_users.
-func (a *accessChecker) EnumerateDatabaseUsers(database types.Database, extraUsers ...string) EnumerationResult {
+func (a *accessChecker) EnumerateDatabaseUsers(database types.Database, extraUsers ...string) (EnumerationResult, error) {
 	// When auto-user provisioning is enabled, only Teleport username is allowed.
 	if database.SupportsAutoUsers() && database.GetAdminUser().Name != "" {
+		result := NewEnumerationResult()
 		autoUser, _, err := a.CheckDatabaseRoles(database)
 		if err != nil {
-			log.Debugf("Failed to CheckDatabaseRoles for EnumerateDatabaseUsers: %v. Assuming auto-user provisioning is not enabled.", err)
-		} else if autoUser.IsEnabled() && database.SupportsAutoUsers() && database.GetAdminUser().Name != "" {
-			result := NewEnumerationResult()
+			return result, trace.Wrap(err)
+		} else if autoUser.IsEnabled() {
 			result.allowedDeniedMap[a.info.Username] = true
-			return result
+			return result, nil
 		}
 	}
 
@@ -585,7 +585,7 @@ func (a *accessChecker) EnumerateDatabaseUsers(database types.Database, extraUse
 	newMatcher := func(user string) RoleMatcher {
 		return NewDatabaseUserMatcher(database, user)
 	}
-	return a.EnumerateEntities(database, listFn, newMatcher, extraUsers...)
+	return a.EnumerateEntities(database, listFn, newMatcher, extraUsers...), nil
 }
 
 // EnumerateDatabaseNames specializes EnumerateEntities to enumerate db_names.
