@@ -153,7 +153,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	}
 
 	names := []string{
-		"tiger-team-warrior-2", "tiger-team-warrior-3", "tiger-team-warrior-3", "tiger-team-warrior-4", "tiger-team-warrior-5",
+		"tiger-2", "tiger-3", "tiger-3", "tiger-4", "tiger-5", "tiger-6", "tiger-7", "tiger-8", "tiger-9", "tiger-10",
 	}
 	os := []string{"os", "linux", "windows"}
 
