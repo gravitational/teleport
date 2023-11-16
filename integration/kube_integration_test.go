@@ -1269,7 +1269,7 @@ func (s *KubeSuite) teleKubeConfig(hostname string) *service.Config {
 	tconf.Log = s.log
 	tconf.SSH.Enabled = true
 	tconf.Proxy.DisableWebInterface = true
-	tconf.Testing.PollingPeriod = 500 * time.Millisecond
+	tconf.PollingPeriod = 500 * time.Millisecond
 	tconf.Testing.ClientTimeout = time.Second
 	tconf.Testing.ShutdownTimeout = 2 * tconf.Testing.ClientTimeout
 
