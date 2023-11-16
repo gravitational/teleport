@@ -120,6 +120,7 @@ func TestAccessLists(t *testing.T) {
 			roles: []string{"orole1", "role1", "role2"},
 			expected: newUserLoginState(t, "user",
 				[]string{"orole1"},
+				trait.Traits{"otrait1": {"value1", "value2"}},
 				[]string{"orole1"},
 				trait.Traits{"otrait1": []string{"value1", "value2"}}),
 			expectedRoleCount:  0,
