@@ -175,6 +175,7 @@ describe('cloudService', () => {
       stripeSubscriptionStatus: 'some-stripeSubscriptionStatus',
       stripeSubscriptionCancelAt: 1684773766,
       stripeSubscriptionCanceledAt: 1684773766,
+      usageUpdatedAt: 0,
     };
     jest.spyOn(api, 'get').mockResolvedValue(expected);
 

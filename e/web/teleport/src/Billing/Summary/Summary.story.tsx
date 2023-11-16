@@ -40,6 +40,7 @@ export function SummaryPageView() {
       stripeCurrentUsage: defaultUsage,
       stripeSubscriptionCancelAt: 0,
       stripeSubscriptionCanceledAt: 0,
+      usageUpdatedAt: 1682900000,
     },
     nonBillableUsage: {
       trustedDeviceUsage: {

@@ -43,6 +43,7 @@ export interface CycleProps {
   productName: string;
   stripeMissingPaymentMethod: boolean;
   stripeTrialEnd: number;
+  usageUpdatedAt: number;
   nonBillableUsage: NonBillableSummaryInformation;
 }
 

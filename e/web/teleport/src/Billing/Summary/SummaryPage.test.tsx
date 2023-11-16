@@ -37,6 +37,7 @@ describe('summaryPage', () => {
         stripeCurrentUsage: defaultUsage,
         stripeSubscriptionCancelAt: 0,
         stripeSubscriptionCanceledAt: 0,
+        usageUpdatedAt: 0,
       },
       nonBillableUsage: {
         trustedDeviceUsage: {

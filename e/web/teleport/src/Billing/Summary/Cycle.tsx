@@ -2,7 +2,9 @@ import React from 'react';
 import { Box, Flex, Text } from 'design';
 import styled, { useTheme } from 'styled-components';
 
-import { displayUnixShortDate } from 'shared/services/loc/loc';
+import { format } from 'date-fns';
+
+import cfg from 'shared/config';
 
 import Link from 'design/Link';
 
@@ -13,8 +15,9 @@ import useTeleport from 'teleport/useTeleport';
 
 import { ToolTipInfo } from 'shared/components/ToolTip';
 
-import cfg from 'teleport/config';
 import { getSalesURL } from 'teleport/services/sales';
+
+import { displayUnixShortDate } from 'shared/services/loc/loc';
 
 import { CycleProps, CycleUsage } from 'e-teleport/Billing/types';
 
@@ -33,6 +36,7 @@ export const Cycle = ({
   productName,
   stripeMissingPaymentMethod,
   stripeTrialEnd,
+  usageUpdatedAt,
   nonBillableUsage: { trustedDeviceUsage, accessRequestUsage },
 }: CycleProps) => {
   const theme = useTheme();
@@ -111,9 +115,12 @@ export const Cycle = ({
   return (
     <Box>
       <UsageGroup>
-        <h2>
-          Current Cycle: {start} - {end}
-        </h2>
+        <Flex alignItems="center" justifyContent="space-between" mr={5}>
+          <h2>
+            Current Cycle: {start} - {end}
+          </h2>
+          <UpdatedAtDisplay theme={theme} usageUpdatedAt={usageUpdatedAt} />
+        </Flex>
         <Text color={theme.colors.text.secondary}>
           {stripeMissingPaymentMethod
             ? `Your trial will expire on ${displayUnixShortDate(
@@ -123,7 +130,7 @@ export const Cycle = ({
         </Text>
         <Flex flexWrap="wrap">
           {usage.map(u => (
-            <Usage usage={u} />
+            <Usage key={u.name} usage={u} />
           ))}
         </Flex>
         <Text color={theme.colors.text.slightlyMuted} mt="12px">
@@ -168,7 +175,7 @@ export const Cycle = ({
         </h2>
         <Flex flexWrap="wrap">
           {monthlyUsage.map(u => (
-            <Usage usage={u} />
+            <Usage key={u.name} usage={u} />
           ))}
         </Flex>
         <Text color={theme.colors.text.slightlyMuted} mt="12px">
@@ -250,3 +257,33 @@ const UsageGroup = styled(Box)`
   margin: 20px 0 0;
   padding: 20px 0 20px 40px;
 `;
+
+const UpdatedAtDisplay = ({
+  theme,
+  usageUpdatedAt,
+}: {
+  theme: any;
+  usageUpdatedAt: number;
+}) => {
+  return (
+    <Text
+      color={theme.colors.text.slightlyMuted}
+      style={{ fontStyle: 'italic' }}
+      data-testid="updated-at-display"
+    >
+      {usageUpdatedAt > 0 ? (
+        <Flex alignItems="center">
+          <Box mr="2">Last updated: {displayUnixDateTime(usageUpdatedAt)}</Box>
+          <ToolTipInfo children="Updated every 12 hours." />
+        </Flex>
+      ) : (
+        'Updated every 12 hours'
+      )}
+    </Text>
+  );
+};
+
+export function displayUnixDateTime(seconds: number) {
+  // Multiply by 1000 b/c date constructor expects milliseconds.
+  return format(new Date(seconds * 1000), cfg.dateTimeFormat);
+}

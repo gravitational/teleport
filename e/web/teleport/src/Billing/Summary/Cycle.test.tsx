@@ -36,6 +36,7 @@ describe('cycle', () => {
       productName: 'some-product',
       stripeMissingPaymentMethod: false,
       stripeTrialEnd: 0,
+      usageUpdatedAt: 0,
     };
   });
 
@@ -64,6 +65,7 @@ describe('cycle', () => {
   });
 
   test('info icon popovers', async () => {
+    props.usageUpdatedAt = 1699538455; // 2023-11-09 14:00:55
     renderWithElementsAndContext(<Cycle {...props} />);
 
     const mau = screen.getByTestId(/Active Users/i);
@@ -113,6 +115,14 @@ describe('cycle', () => {
       ).toBeVisible();
     });
     await userEvent.unhover;
+
+    const updated = screen.getByTestId('updated-at-display');
+    const updatedIcon = within(updated).getByRole(/icon/i);
+    await userEvent.hover(updatedIcon);
+    await waitFor(() => {
+      expect(screen.getByText('Updated every 12 hours.')).not.toBe(0);
+    });
+    await userEvent.unhover;
   });
 
   test('renders usage', () => {
@@ -121,6 +131,7 @@ describe('cycle', () => {
     props.currentUsage.usagePr = 200;
     props.nonBillableUsage.trustedDeviceUsage.devicesInUse = 1;
     props.nonBillableUsage.accessRequestUsage.monthlyUsed = 3;
+    props.usageUpdatedAt = 0;
 
     renderWithElementsAndContext(<Cycle {...props} />);
     const mau = screen.getByTestId(/Active Users/i);
@@ -144,5 +155,17 @@ describe('cycle', () => {
     const mar = screen.getByTestId(/Access Requests/i);
     expect(within(mar).getByText(/3 of 5/i)).toBeInTheDocument();
     expect(within(mar).getByText(/\(60%\)/i)).toBeInTheDocument();
+  });
+
+  test('renders usage updated at value', () => {
+    props.usageUpdatedAt = 0;
+    renderWithElementsAndContext(<Cycle {...props} />);
+    expect(screen.getByText('Updated every 12 hours')).toBeInTheDocument();
+
+    props.usageUpdatedAt = 1699538455; // 2023-11-09 14:00:55
+    renderWithElementsAndContext(<Cycle {...props} />);
+    expect(
+      screen.getByText('Last updated: 2023-11-09 14:00:55')
+    ).toBeInTheDocument();
   });
 });

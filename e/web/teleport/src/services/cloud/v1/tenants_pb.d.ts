@@ -771,6 +771,9 @@ export class GetBillingSummaryInformationResponse extends jspb.Message {
   getStripeSubscriptionCanceledAt(): number;
   setStripeSubscriptionCanceledAt(value: number): void;
 
+  getUsageUpdatedAt(): number;
+  setUsageUpdatedAt(value: number): void;
+
   serializeBinary(): Uint8Array;
   toObject(includeInstance?: boolean): GetBillingSummaryInformationResponse.AsObject;
   static toObject(includeInstance: boolean, msg: GetBillingSummaryInformationResponse): GetBillingSummaryInformationResponse.AsObject;
@@ -794,6 +797,7 @@ export namespace GetBillingSummaryInformationResponse {
     stripeSubscriptionStatus: string,
     stripeSubscriptionCancelAt: number,
     stripeSubscriptionCanceledAt: number,
+    usageUpdatedAt: number,
   }
 }
 

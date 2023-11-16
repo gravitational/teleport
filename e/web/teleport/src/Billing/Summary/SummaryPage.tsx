@@ -13,6 +13,7 @@ export const SummaryPage = ({
     stripeSubscriptionStatus,
     stripeTrialEnd,
     stripeSubscriptionCanceledAt,
+    usageUpdatedAt,
   },
   nonBillableUsage,
   reload,
@@ -32,6 +33,7 @@ export const SummaryPage = ({
         productName={productName}
         stripeMissingPaymentMethod={stripeMissingPaymentMethod}
         stripeTrialEnd={stripeTrialEnd}
+        usageUpdatedAt={usageUpdatedAt}
       />
     )}
     <StatusBanner
