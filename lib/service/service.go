@@ -1014,7 +1014,7 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 	}
 
 	if process.Config.Proxy.Enabled {
-		process.RegisterFunc("update.aws-oidc.deploy.agents", process.initDeployServiceUpdater)
+		process.RegisterFunc("update.aws-oidc.deploy.service", process.initAWSOIDCDeployServiceUpdater)
 	}
 
 	serviceStarted := false
