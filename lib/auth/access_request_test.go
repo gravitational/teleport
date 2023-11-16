@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/maps"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -179,6 +180,178 @@ func TestAccessRequest(t *testing.T) {
 	testPack := newAccessRequestTestPack(ctx, t)
 	t.Run("single", func(t *testing.T) { testSingleAccessRequests(t, testPack) })
 	t.Run("multi", func(t *testing.T) { testMultiAccessRequests(t, testPack) })
+	t.Run("deny", func(t *testing.T) { testAccessRequestDenyRules(t, testPack) })
+}
+
+func testAccessRequestDenyRules(t *testing.T, testPack *accessRequestTestPack) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	userName := "denied"
+
+	for _, tc := range []struct {
+		desc               string
+		roles              map[string]types.RoleSpecV6
+		expectGetDenied    bool
+		expectCreateDenied bool
+	}{
+		{
+			desc: "all allowed",
+			roles: map[string]types.RoleSpecV6{
+				"allow": types.RoleSpecV6{
+					Allow: types.RoleConditions{
+						Request: &types.AccessRequestConditions{
+							Roles: []string{"admins"},
+						},
+						ReviewRequests: &types.AccessReviewConditions{
+							Roles: []string{"admins"},
+						},
+					},
+				},
+			},
+		},
+		{
+			desc: "all denied",
+			roles: map[string]types.RoleSpecV6{
+				"allow": types.RoleSpecV6{
+					Allow: types.RoleConditions{
+						Request: &types.AccessRequestConditions{
+							Roles: []string{"admins"},
+						},
+						ReviewRequests: &types.AccessReviewConditions{
+							Roles: []string{"admins"},
+						},
+					},
+				},
+				"deny": types.RoleSpecV6{
+					Deny: types.RoleConditions{
+						Rules: []types.Rule{
+							{
+								Resources: []string{"access_request"},
+								Verbs:     []string{"read", "create", "list"},
+							},
+						},
+					},
+				},
+			},
+			expectGetDenied:    true,
+			expectCreateDenied: true,
+		},
+		{
+			desc: "create denied",
+			roles: map[string]types.RoleSpecV6{
+				"allow": types.RoleSpecV6{
+					Allow: types.RoleConditions{
+						Request: &types.AccessRequestConditions{
+							Roles: []string{"admins"},
+						},
+						ReviewRequests: &types.AccessReviewConditions{
+							Roles: []string{"admins"},
+						},
+					},
+				},
+				"deny": types.RoleSpecV6{
+					Deny: types.RoleConditions{
+						Rules: []types.Rule{
+							{
+								Resources: []string{"access_request"},
+								Verbs:     []string{"create"},
+							},
+						},
+					},
+				},
+			},
+			expectCreateDenied: true,
+		},
+		{
+			desc: "get denied",
+			roles: map[string]types.RoleSpecV6{
+				"allow": types.RoleSpecV6{
+					Allow: types.RoleConditions{
+						Request: &types.AccessRequestConditions{
+							Roles: []string{"admins"},
+						},
+						ReviewRequests: &types.AccessReviewConditions{
+							Roles: []string{"admins"},
+						},
+					},
+				},
+				"deny": types.RoleSpecV6{
+					Deny: types.RoleConditions{
+						Rules: []types.Rule{
+							{
+								Resources: []string{"access_request"},
+								Verbs:     []string{"read"},
+							},
+						},
+					},
+				},
+			},
+			expectGetDenied: true,
+		},
+		{
+			desc: "list denied",
+			roles: map[string]types.RoleSpecV6{
+				"allow": types.RoleSpecV6{
+					Allow: types.RoleConditions{
+						Request: &types.AccessRequestConditions{
+							Roles: []string{"admins"},
+						},
+						ReviewRequests: &types.AccessReviewConditions{
+							Roles: []string{"admins"},
+						},
+					},
+				},
+				"deny": types.RoleSpecV6{
+					Deny: types.RoleConditions{
+						Rules: []types.Rule{
+							{
+								Resources: []string{"access_request"},
+								Verbs:     []string{"list"},
+							},
+						},
+					},
+				},
+			},
+			expectGetDenied: true,
+		},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			for roleName, roleSpec := range tc.roles {
+				role, err := types.NewRole(roleName, roleSpec)
+				require.NoError(t, err)
+				err = testPack.tlsServer.Auth().UpsertRole(ctx, role)
+				require.NoError(t, err)
+			}
+			user, err := types.NewUser(userName)
+			require.NoError(t, err)
+			user.SetRoles(maps.Keys(tc.roles))
+			err = testPack.tlsServer.Auth().UpsertUser(user)
+			require.NoError(t, err)
+
+			client, err := testPack.tlsServer.NewClient(TestUser(userName))
+			require.NoError(t, err)
+
+			_, err = client.GetAccessRequests(ctx, types.AccessRequestFilter{})
+			if tc.expectGetDenied {
+				assert.True(t, trace.IsAccessDenied(err), "want access denied, got %v", err)
+			} else {
+				assert.NoError(t, err)
+			}
+
+			accessRequest, err := services.NewAccessRequest(userName, "admins")
+			require.NoError(t, err)
+
+			err = client.CreateAccessRequest(ctx, accessRequest)
+			if tc.expectCreateDenied {
+				assert.True(t, trace.IsAccessDenied(err), "want access denied, got %v", err)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
 }
 
 func testSingleAccessRequests(t *testing.T, testPack *accessRequestTestPack) {

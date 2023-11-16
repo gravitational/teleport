@@ -1114,9 +1114,8 @@ func authorizeContextWithVerbs(ctx context.Context, log logrus.FieldLogger, auth
 		errs[i] = authCtx.Checker.CheckAccessToRule(ruleCtx, defaults.Namespace, kind, verb, quiet)
 	}
 
-	// Convert generic aggregate error to AccessDenied (auth_with_roles also does this).
 	if err := trace.NewAggregate(errs...); err != nil {
-		return nil, trace.AccessDenied(err.Error())
+		return nil, err
 	}
 	return authCtx, nil
 }
