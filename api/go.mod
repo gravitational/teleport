@@ -23,6 +23,7 @@ require (
 	go.opentelemetry.io/proto/otlp v1.0.0
 	golang.org/x/crypto v0.14.0
 	golang.org/x/exp v0.0.0-20221126150942-6ab00d035af9
+	golang.org/x/mod v0.8.0
 	golang.org/x/net v0.17.0
 	golang.org/x/term v0.13.0
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20230711160842-782d3b101e98
