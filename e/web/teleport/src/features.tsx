@@ -411,7 +411,7 @@ class FeatureUsersE extends OSS.FeatureUsers {
 
 class FeatureAccessGraph implements TeleportFeature {
   category = NavigationCategory.Management;
-  section = ManagementSection.Access;
+  section = ManagementSection.Permissions;
 
   route = {
     title: 'Access Graph',
@@ -455,12 +455,14 @@ export function getEnterpriseFeatures(): TeleportFeature[] {
 
     // - Access
     new FeatureUsersE(),
-    new OSS.FeatureRoles(),
-    new FeatureAccessGraph(),
     new FeatureAuthConnectors(),
     new FeatureIntegrations(),
     new FeatureDiscoverE(),
     new FeatureIntegrationEnroll(),
+
+    // - Permissions
+    new OSS.FeatureRoles(),
+    new FeatureAccessGraph(),
 
     // - Identity
     new FeatureAccessListManagement(),
