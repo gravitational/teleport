@@ -3071,7 +3071,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 
 	var verifiedMFADeviceID string
 	if req.MFAResponse != nil {
-		dev, _, err := a.authServer.validateMFAAuthResponse(
+		dev, _, err := a.authServer.ValidateMFAAuthResponse(
 			ctx, req.GetMFAResponse(), req.Username, false /* passwordless */)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -7004,7 +7004,7 @@ func (a *ServerWithRoles) UpdateHeadlessAuthenticationState(ctx context.Context,
 			return err
 		}
 
-		mfaDevice, _, err := a.authServer.validateMFAAuthResponse(ctx, mfaResp, headlessAuthn.User, false /* passwordless */)
+		mfaDevice, _, err := a.authServer.ValidateMFAAuthResponse(ctx, mfaResp, headlessAuthn.User, false /* passwordless */)
 		if err != nil {
 			emitHeadlessLoginEvent(ctx, events.UserHeadlessLoginApprovedFailureCode, a.authServer.emitter, headlessAuthn, err)
 			return trace.Wrap(err)
@@ -7176,6 +7176,11 @@ func (a *ServerWithRoles) DeleteClusterMaintenanceConfig(ctx context.Context) er
 	}
 
 	return a.authServer.DeleteClusterMaintenanceConfig(ctx)
+}
+
+// ValidateMFAAuthResponse not implemented: can only be called locally.
+func (a *ServerWithRoles) ValidateMFAAuthResponse(ctx context.Context, resp *proto.MFAAuthenticateResponse, user string, passwordless bool) (*types.MFADevice, string, error) {
+	return nil, "", trace.NotImplemented(notImplementedMessage)
 }
 
 // NewAdminAuthServer returns auth server authorized as admin,
