@@ -152,11 +152,11 @@ func collectDeviceData(mode CollectDataMode) (*devicepb.DeviceCollectedData, err
 	}
 
 	return &devicepb.DeviceCollectedData{
-		CollectTime:     timestamppb.Now(),
-		OsType:          devicepb.OSType_OS_TYPE_LINUX,
-		SerialNumber:    firstValidAssetTag(reportedAssetTag, systemSerialNumber, baseBoardSerialNumber),
-		ModelIdentifier: modelIdentifier,
-		// TODO(codingllama): Write os_id for Linux devices.
+		CollectTime:           timestamppb.Now(),
+		OsType:                devicepb.OSType_OS_TYPE_LINUX,
+		SerialNumber:          firstValidAssetTag(reportedAssetTag, systemSerialNumber, baseBoardSerialNumber),
+		ModelIdentifier:       modelIdentifier,
+		OsId:                  osRelease.ID,
 		OsVersion:             osRelease.VersionID,
 		OsBuild:               osRelease.Version,
 		OsUsername:            u.Name,
