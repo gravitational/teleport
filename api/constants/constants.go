@@ -460,7 +460,7 @@ const (
 	SessionDiskEvent = "session.disk"
 	// SessionPrintEvent event happens every time a write occurs to
 	// terminal I/O during a session
-	SessionPrintEvent = "session.print"
+	SessionPrintEvent = "print"
 	// AppSessionRequestEvent is an HTTP request and response.
 	AppSessionRequestEvent = "app.session.request"
 )

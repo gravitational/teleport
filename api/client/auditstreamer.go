@@ -25,7 +25,6 @@ import (
 	"google.golang.org/grpc"
 	ggzip "google.golang.org/grpc/encoding/gzip"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types/events"
@@ -134,12 +133,11 @@ func (s *auditStreamer) EmitAuditEvent(ctx context.Context, event events.AuditEv
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	major := semver.Major("v" + teleport.Version)
 	authMajor := semver.Major("v" + ping.ServerVersion)
 
 	// If auth server is v14+, the event request above will only record the event
 	// in the session, so we need to emit the event separately.
-	if semver.Compare(authMajor, major) > 0 {
+	if semver.Compare(authMajor, "v13") > 0 {
 		if err := s.authClient.EmitAuditEvent(ctx, event); err != nil {
 			return trace.Wrap(err)
 		}
