@@ -821,8 +821,8 @@ func TestTeleportProcess_reconnectToAuth(t *testing.T) {
 	cfg.SSH.Enabled = true
 	cfg.MaxRetryPeriod = 5 * time.Millisecond
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
-	cfg.ConnectFailureC = make(chan time.Duration, 5)
-	cfg.ClientTimeout = time.Millisecond
+	cfg.Testing.ConnectFailureC = make(chan time.Duration, 5)
+	cfg.Testing.ClientTimeout = time.Millisecond
 	cfg.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
 	cfg.Log = utils.NewLoggerForTests()
 	process, err := NewTeleport(cfg)
@@ -842,7 +842,7 @@ func TestTeleportProcess_reconnectToAuth(t *testing.T) {
 	for i := 0; i < 5; i++ {
 		// wait for connection to fail
 		select {
-		case duration := <-process.Config.ConnectFailureC:
+		case duration := <-process.Config.Testing.ConnectFailureC:
 			stepMin := step * time.Duration(i) / 2
 			stepMax := step * time.Duration(i+1)
 
@@ -916,7 +916,7 @@ func TestTeleportProcessAuthVersionCheck(t *testing.T) {
 	currentVersion, err := semver.NewVersion(teleport.Version)
 	require.NoError(t, err)
 	currentVersion.Major++
-	nodeCfg.TeleportVersion = currentVersion.String()
+	nodeCfg.Testing.TeleportVersion = currentVersion.String()
 
 	t.Run("with version check", func(t *testing.T) {
 		testVersionCheck(t, nodeCfg, false)
