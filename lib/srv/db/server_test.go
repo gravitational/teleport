@@ -25,6 +25,7 @@ import (
 
 	"github.com/go-mysql-org/go-mysql/client"
 	"github.com/jackc/pgconn"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -220,13 +221,13 @@ func TestDatabaseServerAutoDisconnect(t *testing.T) {
 	// advance clock several times, perform query.
 	// the activity should update the idle activity timer.
 	for i := 0; i < 10; i++ {
-		testCtx.clock.Advance(clientIdleTimeout / 2)
+		advanceInSteps(testCtx.clock, clientIdleTimeout/2)
 		_, err = pgConn.Exec(ctx, "select 1").ReadAll()
 		require.NoErrorf(t, err, "failed on iteration %v", i+1)
 	}
 
-	// advance clock by full idle timeout, expect the client to be disconnected automatically.
-	testCtx.clock.Advance(clientIdleTimeout)
+	// advance clock by full idle timeout (plus a safety margin, to allow for reads in flight to be finished), expect the client to be disconnected automatically.
+	advanceInSteps(testCtx.clock, clientIdleTimeout+time.Second*5)
 	waitForEvent(t, testCtx, events.ClientDisconnectCode)
 
 	// expect failure after timeout.
@@ -234,6 +235,24 @@ func TestDatabaseServerAutoDisconnect(t *testing.T) {
 	require.Error(t, err)
 
 	require.NoError(t, pgConn.Close(ctx))
+}
+
+// advanceInSteps makes the clockwork.FakeClock behave closer to the real clock, smoothing the transition for large advances in time.
+// This works around a class of issues in the production code which expects that clock is smooth, not choppy.
+// Most testing code should NOT need to use this function.
+//
+// In technical terms, it divides the clock advancement into 100 smaller steps, with a short sleep after each one.
+func advanceInSteps(clock clockwork.FakeClock, total time.Duration) {
+	step := total / 100
+	if step <= 0 {
+		step = 1
+	}
+
+	end := clock.Now().Add(total)
+	for clock.Now().Before(end) {
+		clock.Advance(step)
+		time.Sleep(time.Millisecond * 1)
+	}
 }
 
 func TestHeartbeatEvents(t *testing.T) {

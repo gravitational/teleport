@@ -42,15 +42,16 @@ func newTestMonitor(ctx context.Context, t *testing.T, asrv *auth.TestAuthServer
 	conn := &mockTrackingConn{closedC: make(chan struct{})}
 	emitter := eventstest.NewChannelEmitter(1)
 	cfg := MonitorConfig{
-		Context:     ctx,
-		Conn:        conn,
-		Emitter:     emitter,
-		Clock:       asrv.Clock(),
-		Tracker:     &mockActivityTracker{asrv.Clock()},
-		Entry:       logrus.StandardLogger(),
-		LockWatcher: asrv.LockWatcher,
-		LockTargets: []types.LockTarget{{User: "test-user"}},
-		LockingMode: constants.LockingModeBestEffort,
+		Context:        ctx,
+		Conn:           conn,
+		Emitter:        emitter,
+		EmitterContext: context.Background(),
+		Clock:          asrv.Clock(),
+		Tracker:        &mockActivityTracker{asrv.Clock()},
+		Entry:          logrus.StandardLogger(),
+		LockWatcher:    asrv.LockWatcher,
+		LockTargets:    []types.LockTarget{{User: "test-user"}},
+		LockingMode:    constants.LockingModeBestEffort,
 	}
 	for _, f := range mut {
 		f(&cfg)
@@ -75,12 +76,13 @@ func TestConnectionMonitorLockInForce(t *testing.T) {
 	// Auth server.
 	emitter := eventstest.NewChannelEmitter(1)
 	monitor, err := NewConnectionMonitor(ConnectionMonitorConfig{
-		AccessPoint: asrv.AuthServer,
-		Emitter:     emitter,
-		Clock:       asrv.Clock(),
-		Logger:      logrus.StandardLogger(),
-		LockWatcher: asrv.LockWatcher,
-		ServerID:    "test",
+		AccessPoint:    asrv.AuthServer,
+		Emitter:        emitter,
+		EmitterContext: ctx,
+		Clock:          asrv.Clock(),
+		Logger:         logrus.StandardLogger(),
+		LockWatcher:    asrv.LockWatcher,
+		ServerID:       "test",
 	})
 	require.NoError(t, err)
 
@@ -169,12 +171,21 @@ func TestMonitorLockInForce(t *testing.T) {
 	lock, err := types.NewLock("test-lock", types.LockSpecV2{Target: cfg.LockTargets[0]})
 	require.NoError(t, err)
 	require.NoError(t, asrv.AuthServer.UpsertLock(ctx, lock))
+
+	select {
+	case disconnectEvent := <-emitter.C():
+		reason := (disconnectEvent).(*apievents.ClientDisconnect).Reason
+		require.Equal(t, services.LockInForceAccessDenied(lock).Error(), reason, "expected error matching client disconnect")
+	case <-time.After(2 * time.Second):
+		t.Fatal("Timeout waiting for connection close event.")
+	}
+
 	select {
 	case <-conn.closedC:
-	case <-time.After(2 * time.Second):
-		t.Fatal("Timeout waiting for connection close.")
+		// connection closed, continue
+	default:
+		t.Fatal("Connection not yet closed.")
 	}
-	require.Equal(t, services.LockInForceAccessDenied(lock).Error(), (<-emitter.C()).(*apievents.ClientDisconnect).Reason)
 
 	// Monitor should also detect preexistent locks.
 	conn, emitter, cfg = newTestMonitor(ctx, t, asrv)

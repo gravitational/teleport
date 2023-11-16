@@ -543,6 +543,7 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 		ServerID:              child.srv.ID(),
 		Entry:                 child.Entry,
 		Emitter:               child.srv,
+		EmitterContext:        ctx,
 	}
 	for _, opt := range monitorOpts {
 		opt(&monitorConfig)
