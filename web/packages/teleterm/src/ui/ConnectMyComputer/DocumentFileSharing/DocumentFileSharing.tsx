@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 
 import { Flex, Box, Text, ButtonPrimary, Alert, ButtonSecondary } from 'design';
 
@@ -23,6 +23,8 @@ import { Cross } from 'design/Icon';
 import { Option } from 'shared/components/Select';
 
 import { SelectCreatable } from 'teleport/Discover/Shared/SelectCreatable';
+
+import { useAsync } from 'shared/hooks/useAsync';
 
 import * as types from 'teleterm/ui/services/workspacesService';
 import Document from 'teleterm/ui/Document';
@@ -42,7 +44,7 @@ export function DocumentFileSharing(props: {
   visible: boolean;
   doc: types.DocumentFileSharing;
 }) {
-  const { mainProcessClient, connectMyComputerService, clustersService } =
+  const { mainProcessClient, connectMyComputerService, clustersService, tshd } =
     useAppContext();
   const { rootClusterUri } = useWorkspaceContext();
   const { currentAction, killAgent, startAgent } =
@@ -62,6 +64,18 @@ export function DocumentFileSharing(props: {
   const [allowAnyone, setAllowAnyone] = useState(false);
   const [allowedUsers, setAllowedUsers] = useState<Option[]>([]);
   const [allowedRoles, setAllowedRoles] = useState<Option[]>([]);
+  const [listSuggestedUsersAttempt, runListSuggestedUsers] = useAsync(
+    tshd.listUsers
+  );
+  const [listSuggestedRolesAttempt, runListSuggestedRoles] = useAsync(
+    tshd.listRoles
+  );
+
+  // TODO: handle errors, think how to fetch fresh data
+  useEffect(() => {
+    runListSuggestedUsers({ clusterUri: rootClusterUri });
+    runListSuggestedRoles({ clusterUri: rootClusterUri });
+  }, [rootClusterUri, runListSuggestedRoles, runListSuggestedUsers]);
 
   if (selectedDirectory) {
     appUrl += '/file-sharing';
@@ -226,7 +240,14 @@ export function DocumentFileSharing(props: {
                 <SelectCreatable
                   inputValue={allowedUsersInputValue}
                   onInputChange={setAllowedUsersInputValue}
-                  options={[{ label: 'sadf', value: 'sadf' }]}
+                  options={
+                    listSuggestedUsersAttempt.status === 'success'
+                      ? listSuggestedUsersAttempt.data.map(d => ({
+                          value: d,
+                          label: d,
+                        }))
+                      : undefined
+                  }
                   onChange={users => {
                     updateServerConfig({
                       allowAnyone,
@@ -240,7 +261,14 @@ export function DocumentFileSharing(props: {
                 />{' '}
                 <Text>Allow roles</Text>
                 <SelectCreatable
-                  options={[]}
+                  options={
+                    listSuggestedRolesAttempt.status === 'success'
+                      ? listSuggestedRolesAttempt.data.map(d => ({
+                          value: d,
+                          label: d,
+                        }))
+                      : undefined
+                  }
                   inputValue={allowedRolesInputValue}
                   onInputChange={setAllowedRolesInputValue}
                   onChange={roles => {

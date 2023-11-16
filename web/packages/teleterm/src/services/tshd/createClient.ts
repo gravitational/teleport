@@ -16,6 +16,10 @@
 
 import grpc from '@grpc/grpc-js';
 import * as api from 'gen-proto-js/teleport/lib/teleterm/v1/service_pb';
+import {
+  ListUsersRequest,
+  ListRolesRequest,
+} from 'gen-proto-js/teleport/lib/teleterm/v1/service_pb';
 import { TerminalServiceClient } from 'gen-proto-js/teleport/lib/teleterm/v1/service_grpc_pb';
 import {
   AccessRequest,
@@ -890,6 +894,32 @@ export default function createClient(
               resolve();
             }
           });
+        });
+      });
+    },
+
+    listUsers(params: ListUsersRequest.AsObject) {
+      const req = new ListUsersRequest().setClusterUri(params.clusterUri);
+      return new Promise<string[]>((resolve, reject) => {
+        tshd.listUsers(req, (err, res) => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve(res.toObject().usersList);
+          }
+        });
+      });
+    },
+
+    listRoles(params: ListRolesRequest.AsObject) {
+      const req = new ListRolesRequest().setClusterUri(params.clusterUri);
+      return new Promise<string[]>((resolve, reject) => {
+        tshd.listRoles(req, (err, res) => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve(res.toObject().rolesList);
+          }
         });
       });
     },

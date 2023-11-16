@@ -31,6 +31,8 @@ import apiLabel from 'gen-proto-js/teleport/lib/teleterm/v1/label_pb';
 import apiService, {
   FileTransferDirection,
   HeadlessAuthenticationState,
+  ListUsersRequest,
+  ListRolesRequest,
 } from 'gen-proto-js/teleport/lib/teleterm/v1/service_pb';
 import apiAuthSettings from 'gen-proto-js/teleport/lib/teleterm/v1/auth_settings_pb';
 import apiAccessRequest from 'gen-proto-js/teleport/lib/teleterm/v1/access_request_pb';
@@ -291,6 +293,8 @@ export type TshClient = {
     abortSignal?: TshAbortSignal
   ) => Promise<ListUnifiedResourcesResponse>;
   setFileServerConfig: (req: SetFileServerConfigRequest) => Promise<void>;
+  listUsers: (params: ListUsersRequest.AsObject) => Promise<string[]>;
+  listRoles: (params: ListRolesRequest.AsObject) => Promise<string[]>;
 };
 
 export type TshAbortController = {

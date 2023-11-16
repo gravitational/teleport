@@ -100,4 +100,6 @@ export class MockTshClient implements types.TshClient {
 
   listUnifiedResources = async () => ({ resources: [], nextKey: '' });
   setFileServerConfig = async () => {};
+  listUsers = async () => [];
+  listRoles = async () => [];
 }
