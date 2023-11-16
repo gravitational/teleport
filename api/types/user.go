@@ -223,7 +223,7 @@ func (u *UserV2) GetStaticLabels() map[string]string {
 	return u.Metadata.Labels
 }
 
-// SetStaticLabels sets teh entire label set for the user.
+// SetStaticLabels sets the entire label set for the user.
 func (u *UserV2) SetStaticLabels(sl map[string]string) {
 	u.Metadata.Labels = sl
 }
