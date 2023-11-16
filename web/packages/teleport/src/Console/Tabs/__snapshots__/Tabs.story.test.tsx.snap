@@ -66,7 +66,7 @@ exports[`render ConsoleTabs 1`] = `
   box-sizing: border-box;
   display: flex;
   align-items: center;
-  max-width: 200px;
+  max-width: 450px;
   height: 100%;
   border: none;
   border-right: 1px solid #0C143D;
@@ -86,7 +86,7 @@ exports[`render ConsoleTabs 1`] = `
   box-sizing: border-box;
   display: flex;
   align-items: center;
-  max-width: 200px;
+  max-width: 450px;
   height: 100%;
   border: none;
   border-right: 1px solid #0C143D;
@@ -175,7 +175,7 @@ exports[`render ConsoleTabs 1`] = `
   >
     <div
       class="c2"
-      style="flex: 1; flex-basis: 0px; flex-grow: 1;"
+      style="flex: 1; flex-basis: 0px; flex-grow: 0;"
     >
       <button
         class="c3"
@@ -209,7 +209,7 @@ exports[`render ConsoleTabs 1`] = `
     </div>
     <div
       class="c8"
-      style="flex: 1; flex-basis: 0px; flex-grow: 1;"
+      style="flex: 1; flex-basis: 0px; flex-grow: 0;"
     >
       <button
         class="c3"
@@ -243,7 +243,7 @@ exports[`render ConsoleTabs 1`] = `
     </div>
     <div
       class="c8"
-      style="flex: 1; flex-basis: 0px; flex-grow: 1;"
+      style="flex: 1; flex-basis: 0px; flex-grow: 0;"
     >
       <button
         class="c3"
