@@ -19,10 +19,11 @@ import (
 	"context"
 	"encoding/pem"
 
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth"
 )
 
 // NewCertificateStoreClient returns a new structure for modifying windows certificates in a windows CA

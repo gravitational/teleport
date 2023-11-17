@@ -20,10 +20,11 @@ import (
 	"context"
 	"io"
 
-	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+
+	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // NewWriterLog returns a new instance of writer log

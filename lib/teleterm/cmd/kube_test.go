@@ -19,8 +19,9 @@ package cmd
 import (
 	"testing"
 
-	"github.com/gravitational/teleport/lib/teleterm/gateway"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib/teleterm/gateway"
 )
 
 type fakeKubeGateway struct {

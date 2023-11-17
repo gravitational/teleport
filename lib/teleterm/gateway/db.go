@@ -20,10 +20,11 @@ import (
 	"context"
 	"crypto/tls"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/trace"
 )
 
 type db struct {

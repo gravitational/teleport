@@ -19,9 +19,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
-	"github.com/stretchr/testify/require"
 )
 
 func TestMarshalLabelsYAML(t *testing.T) {

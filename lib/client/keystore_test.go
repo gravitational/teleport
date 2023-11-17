@@ -22,10 +22,11 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/gravitational/teleport/lib/utils/cert"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
+
+	"github.com/gravitational/teleport/lib/utils/cert"
 )
 
 func newTestFSKeyStore(t *testing.T) *FSKeyStore {

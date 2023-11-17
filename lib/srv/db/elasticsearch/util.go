@@ -18,6 +18,7 @@ import (
 	"encoding/json"
 
 	"github.com/ghodss/yaml"
+
 	"github.com/gravitational/teleport/lib/srv/db/common"
 )
 

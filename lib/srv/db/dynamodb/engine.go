@@ -34,6 +34,9 @@ import (
 	"github.com/aws/aws-sdk-go/service/dax"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/dynamodbstreams"
+	"github.com/gravitational/trace"
+	"github.com/prometheus/client_golang/prometheus"
+
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiaws "github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/lib/cloud"
@@ -43,8 +46,6 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
 	"github.com/gravitational/teleport/lib/utils"
 	libaws "github.com/gravitational/teleport/lib/utils/aws"
-	"github.com/gravitational/trace"
-	"github.com/prometheus/client_golang/prometheus"
 )
 
 // NewEngine create new DynamoDB engine.

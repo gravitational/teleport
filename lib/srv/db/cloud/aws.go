@@ -24,12 +24,13 @@ import (
 	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/aws/aws-sdk-go/service/iam/iamiface"
 	"github.com/aws/aws-sdk-go/service/rds"
+	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
 	dbiam "github.com/gravitational/teleport/lib/srv/db/common/iam"
-	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 )
 
 // awsConfig is the config for the client that configures IAM for AWS databases.

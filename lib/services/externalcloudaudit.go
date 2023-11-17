@@ -19,10 +19,11 @@ package services
 import (
 	"context"
 
+	"github.com/gravitational/trace"
+
 	externalcloudauditclient "github.com/gravitational/teleport/api/client/externalcloudaudit"
 	"github.com/gravitational/teleport/api/types/externalcloudaudit"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
 )
 
 var _ ExternalCloudAudits = (*externalcloudauditclient.Client)(nil)

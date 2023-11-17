@@ -20,8 +20,9 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/gravitational/teleport/lib/srv/db/sqlserver/protocol/fixtures"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib/srv/db/sqlserver/protocol/fixtures"
 )
 
 func FuzzMSSQLLogin(f *testing.F) {

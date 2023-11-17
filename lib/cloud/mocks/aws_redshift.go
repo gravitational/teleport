@@ -24,9 +24,10 @@ import (
 	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/service/redshift"
 	"github.com/aws/aws-sdk-go/service/redshift/redshiftiface"
-	libcloudaws "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+
+	libcloudaws "github.com/gravitational/teleport/lib/cloud/aws"
 )
 
 // RedshiftMock mocks AWS Redshift API.

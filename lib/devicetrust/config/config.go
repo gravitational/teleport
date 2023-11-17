@@ -15,10 +15,11 @@
 package config
 
 import (
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/modules"
-	"github.com/gravitational/trace"
 )
 
 // GetEffectiveMode returns the effective device trust mode, considering both

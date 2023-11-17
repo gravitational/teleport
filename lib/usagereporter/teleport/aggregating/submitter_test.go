@@ -21,14 +21,15 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/gravitational/teleport/api/types"
-	prehogv1 "github.com/gravitational/teleport/gen/proto/go/prehog/v1"
-	"github.com/gravitational/teleport/lib/backend/memory"
-	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
+
+	"github.com/gravitational/teleport/api/types"
+	prehogv1 "github.com/gravitational/teleport/gen/proto/go/prehog/v1"
+	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/services/local"
 )
 
 // TestSubmitOnce tests the behavior of [submitOnce]; the [RunSubmitter]

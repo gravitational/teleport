@@ -21,13 +21,14 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
+
 	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
 	"github.com/gravitational/teleport/api/types"
 	embeddinglib "github.com/gravitational/teleport/lib/ai/embedding"
 	modeloutput "github.com/gravitational/teleport/lib/ai/model/output"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 )
 
 type EmbeddingRetrievalTool struct{}

@@ -31,11 +31,12 @@ import (
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
+	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
+
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
-	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 )
 
 // Client alias for easier use.

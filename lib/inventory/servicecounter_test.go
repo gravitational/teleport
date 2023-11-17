@@ -19,8 +19,9 @@ package inventory
 import (
 	"testing"
 
-	"github.com/gravitational/teleport/api/types"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 func TestServiceCounter(t *testing.T) {

@@ -26,8 +26,9 @@ import (
 	"github.com/aws/aws-sdk-go/service/secretsmanager"
 	"github.com/aws/aws-sdk-go/service/secretsmanager/secretsmanageriface"
 	"github.com/google/uuid"
-	libaws "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/trace"
+
+	libaws "github.com/gravitational/teleport/lib/cloud/aws"
 )
 
 // AWSSecretsManagerConfig is the config for AWSSecretsManager.

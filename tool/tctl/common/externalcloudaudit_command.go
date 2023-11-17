@@ -20,9 +20,10 @@ import (
 	"context"
 
 	"github.com/alecthomas/kingpin/v2"
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
-	"github.com/gravitational/trace"
 )
 
 // ExternalCloudAuditCommand implements "tctl externalcloudaudit" group of commands.

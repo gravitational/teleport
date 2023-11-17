@@ -23,8 +23,9 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/constants"
 )
 
 // IsUseOfClosedNetworkError returns true if the specified error

@@ -15,9 +15,10 @@
 package usersv1
 
 import (
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
-	"github.com/gravitational/trace"
 )
 
 // Okta-origin users have some special access rules that are implemented in this

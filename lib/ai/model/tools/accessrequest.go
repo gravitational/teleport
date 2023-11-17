@@ -25,12 +25,13 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/types"
-	modeloutput "github.com/gravitational/teleport/lib/ai/model/output"
 	"github.com/gravitational/trace"
 	"golang.org/x/sync/errgroup"
 	"gopkg.in/yaml.v3"
+
+	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/types"
+	modeloutput "github.com/gravitational/teleport/lib/ai/model/output"
 )
 
 type AccessRequestListRequestableRolesTool struct{}

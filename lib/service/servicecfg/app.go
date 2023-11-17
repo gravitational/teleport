@@ -21,12 +21,13 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/trace"
 	"golang.org/x/net/http/httpguts"
 	"k8s.io/apimachinery/pkg/util/validation"
+
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv/app/common"
 )
 
 // AppsConfig configures application proxy service.

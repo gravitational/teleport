@@ -24,6 +24,9 @@ import (
 	"time"
 
 	"github.com/ghodss/yaml"
+	"github.com/gravitational/trace"
+	"golang.org/x/exp/slices"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/accessrequest"
 	"github.com/gravitational/teleport/api/client"
@@ -36,8 +39,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/tool/common"
-	"github.com/gravitational/trace"
-	"golang.org/x/exp/slices"
 )
 
 var requestLoginHint = "use 'tsh login --request-id=<request-id>' to login with an approved request"

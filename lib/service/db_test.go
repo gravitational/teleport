@@ -18,8 +18,9 @@ package service
 import (
 	"testing"
 
-	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 )
 
 func TestTeleportProcess_shouldInitDatabases(t *testing.T) {

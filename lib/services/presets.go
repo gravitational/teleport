@@ -18,14 +18,15 @@ package services
 
 import (
 	"github.com/google/uuid"
+	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
+	"golang.org/x/exp/slices"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/modules"
-	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
-	"golang.org/x/exp/slices"
 )
 
 // NewSystemAutomaticAccessApproverRole creates a new Role that is allowed to

@@ -21,8 +21,9 @@ import (
 	_ "embed"
 	"testing"
 
-	"github.com/gravitational/teleport/integrations/lib"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/integrations/lib"
 )
 
 //go:embed download_sha.dsv_1204

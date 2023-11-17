@@ -25,8 +25,9 @@ import (
 	"github.com/aws/aws-sdk-go/service/rds"
 	"github.com/aws/aws-sdk-go/service/rds/rdsiface"
 	"github.com/google/uuid"
-	libcloudaws "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/trace"
+
+	libcloudaws "github.com/gravitational/teleport/lib/cloud/aws"
 )
 
 // RDSMock mocks AWS RDS API.

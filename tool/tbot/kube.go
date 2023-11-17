@@ -22,10 +22,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gravitational/teleport/api/identityfile"
-	"github.com/gravitational/teleport/lib/tbot/config"
-	"github.com/gravitational/teleport/lib/tbot/tshwrap"
-	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/trace"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -33,6 +29,11 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/client-go/pkg/apis/clientauthentication"
 	clientauthv1beta1 "k8s.io/client-go/pkg/apis/clientauthentication/v1beta1"
+
+	"github.com/gravitational/teleport/api/identityfile"
+	"github.com/gravitational/teleport/lib/tbot/config"
+	"github.com/gravitational/teleport/lib/tbot/tshwrap"
+	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 func getCredentialData(idFile *identityfile.IdentityFile, currentTime time.Time) ([]byte, error) {

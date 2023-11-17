@@ -24,10 +24,11 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 func TestCreateIncident(t *testing.T) {

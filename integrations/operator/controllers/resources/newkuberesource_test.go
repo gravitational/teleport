@@ -17,10 +17,11 @@ package resources
 import (
 	"testing"
 
-	"github.com/gravitational/teleport/api/types"
 	"github.com/stretchr/testify/require"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 type FakeResourceWithOrigin types.GithubConnector

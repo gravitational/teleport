@@ -23,14 +23,15 @@ import (
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/google/go-cmp/cmp"
-	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/types"
-	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 	"google.golang.org/protobuf/testing/protocmp"
+
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 // TestDecodeChildError ensures that child error message marshaling

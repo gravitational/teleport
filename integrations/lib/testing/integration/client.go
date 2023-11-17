@@ -20,10 +20,11 @@ import (
 	"context"
 	"time"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/trace"
 )
 
 // Client is a wrapper around *client.Client with some additional methods helpful for testing.

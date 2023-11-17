@@ -19,9 +19,10 @@ package common
 import (
 	"net/http"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
-	"github.com/gravitational/trace"
 )
 
 // SetTeleportAPIErrorHeader saves the provided error in X-Teleport-API-Error header of response.

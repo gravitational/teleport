@@ -28,11 +28,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/utils/keys"
-	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 )
 
 var log = logrus.WithFields(logrus.Fields{

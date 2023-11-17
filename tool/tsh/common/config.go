@@ -22,10 +22,11 @@ import (
 	"strings"
 
 	"github.com/coreos/go-semver/semver"
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/lib/config/openssh"
-	"github.com/gravitational/trace"
 )
 
 // writeSSHConfig generates an OpenSSH config block from the `sshConfigTemplate`

@@ -25,13 +25,14 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/util/httpstream"
 	spdystream "k8s.io/apimachinery/pkg/util/httpstream/spdy"
+
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // portForwardRequest is a request that specifies port forwarding

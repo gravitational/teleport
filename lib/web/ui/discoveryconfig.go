@@ -17,9 +17,10 @@ limitations under the License.
 package ui
 
 import (
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
-	"github.com/gravitational/trace"
 )
 
 // DiscoveryConfig describes DiscoveryConfig fields

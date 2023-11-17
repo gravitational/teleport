@@ -19,8 +19,9 @@ package dbutils
 import (
 	"crypto/tls"
 
-	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 // IsDatabaseConnection inspects the TLS connection state and returns true

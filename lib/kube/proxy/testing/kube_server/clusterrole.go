@@ -20,11 +20,12 @@ import (
 	"net/http"
 	"sort"
 
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 	authv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 var clusterRoleList = authv1.ClusterRoleList{

@@ -21,8 +21,9 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport"
 )
 
 // GetAndReplaceRequestBody returns the request body and replaces the drained

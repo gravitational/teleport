@@ -23,9 +23,10 @@ import (
 	"strconv"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/ai/embedding"
-	"github.com/stretchr/testify/require"
 )
 
 // Function to calculate L2 norm

@@ -17,9 +17,10 @@ package loginrule
 import (
 	"context"
 
+	"google.golang.org/protobuf/types/known/emptypb"
+
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	"github.com/gravitational/teleport/lib/services"
-	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 // NotImplementedService is a [loginrulepb.LoginRuleServiceServer] which

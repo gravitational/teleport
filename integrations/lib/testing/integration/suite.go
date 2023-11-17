@@ -23,10 +23,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport/integrations/lib/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
+
+	"github.com/gravitational/teleport/integrations/lib/logger"
 )
 
 // Suite is a basic testing suite enhanced with context management.

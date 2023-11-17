@@ -17,8 +17,9 @@ package touchid
 import (
 	"errors"
 
-	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/trace"
+
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 )
 
 // ErrAttemptFailed is returned by AttemptLogin and AttemptDeleteNonInteractive

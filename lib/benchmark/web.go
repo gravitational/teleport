@@ -29,13 +29,14 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/gravitational/roundtrip"
+	"github.com/gravitational/trace"
+
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web"
-	"github.com/gravitational/trace"
 )
 
 // WebSSHBenchmark is a benchmark suite that connects to the configured

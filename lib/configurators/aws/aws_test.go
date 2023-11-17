@@ -31,6 +31,9 @@ import (
 	"github.com/aws/aws-sdk-go/service/sts/stsiface"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
@@ -39,8 +42,6 @@ import (
 	"github.com/gravitational/teleport/lib/configurators"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/require"
 )
 
 var sortStringsTrans = cmp.Transformer("SortStrings", func(in []string) []string {

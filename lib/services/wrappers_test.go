@@ -21,8 +21,9 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types/wrappers"
 )
 
 func TestUnmarshalBackwards(t *testing.T) {

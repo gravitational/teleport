@@ -23,9 +23,10 @@ import (
 	"time"
 
 	"github.com/coreos/go-oidc"
-	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+
+	"github.com/gravitational/teleport/lib/jwt"
 )
 
 // IDTokenValidatorConfig is the config for IDTokenValidator.

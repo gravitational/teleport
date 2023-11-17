@@ -21,8 +21,9 @@ import (
 
 	"github.com/go-webauthn/webauthn/protocol"
 	wan "github.com/go-webauthn/webauthn/webauthn"
-	wanpb "github.com/gravitational/teleport/api/types/webauthn"
 	"github.com/gravitational/trace"
+
+	wanpb "github.com/gravitational/teleport/api/types/webauthn"
 )
 
 // scopeLogin identifies session data stored for login.

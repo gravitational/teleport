@@ -19,8 +19,9 @@ package sftp
 import (
 	"strings"
 
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // Destination is a remote SFTP destination to copy to or from.

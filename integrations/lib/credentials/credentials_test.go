@@ -24,10 +24,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
+
+	"github.com/gravitational/teleport/api/client"
 )
 
 // mockTLSCredentials mocks insecure Client credentials.

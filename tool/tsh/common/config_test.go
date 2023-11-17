@@ -21,8 +21,9 @@ import (
 	"testing"
 
 	"github.com/coreos/go-semver/semver"
-	"github.com/gravitational/teleport/lib/config/openssh"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib/config/openssh"
 )
 
 // TestWriteSSHConfig tests the writeSSHConfig template output.

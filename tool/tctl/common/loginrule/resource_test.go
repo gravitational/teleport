@@ -18,13 +18,14 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+	kyaml "k8s.io/apimachinery/pkg/util/yaml"
+
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/stretchr/testify/require"
-	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 )
 
 // TestUnmarshalLoginRule tests that login rules can be successfully

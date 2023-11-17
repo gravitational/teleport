@@ -27,12 +27,13 @@ import (
 	"image/png"
 	"strings"
 
+	"github.com/gravitational/trace"
+	"github.com/icza/mjpeg"
+
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
-	"github.com/gravitational/trace"
-	"github.com/icza/mjpeg"
 )
 
 const (

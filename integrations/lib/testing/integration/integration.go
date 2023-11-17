@@ -32,15 +32,16 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/hashicorp/go-version"
+	"google.golang.org/grpc"
+
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/integrations/lib/logger"
 	"github.com/gravitational/teleport/integrations/lib/tctl"
 	"github.com/gravitational/teleport/integrations/lib/tsh"
-	"github.com/gravitational/trace"
-	"github.com/hashicorp/go-version"
-	"google.golang.org/grpc"
 )
 
 const IntegrationAdminRole = "integration-admin"

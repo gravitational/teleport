@@ -24,11 +24,12 @@ import (
 	"github.com/datastax/go-cassandra-native-protocol/message"
 	"github.com/datastax/go-cassandra-native-protocol/primitive"
 	"github.com/gocql/gocql"
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/srv/db/cassandra/protocol"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
-	"github.com/gravitational/trace"
 )
 
 const (

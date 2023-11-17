@@ -20,11 +20,12 @@ import (
 	"context"
 	"strings"
 
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/gcp"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
+
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/gcp"
 )
 
 type gcpIDTokenValidator interface {

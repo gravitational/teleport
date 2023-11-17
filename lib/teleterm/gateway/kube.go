@@ -21,6 +21,9 @@ import (
 	"crypto/tls"
 	"encoding/pem"
 
+	"github.com/gravitational/trace"
+	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
+
 	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/native"
@@ -28,8 +31,6 @@ import (
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
-	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 )
 
 type kube struct {

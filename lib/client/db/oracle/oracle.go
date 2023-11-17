@@ -25,13 +25,14 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/pavlo-v-chernykh/keystore-go/v4"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
-	"github.com/pavlo-v-chernykh/keystore-go/v4"
 )
 
 // GenerateClientConfiguration function generates following Oracle Client configuration:

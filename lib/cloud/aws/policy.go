@@ -25,10 +25,11 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/aws/aws-sdk-go/service/iam/iamiface"
-	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
+
+	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 )
 
 // Policy represents an AWS IAM policy.

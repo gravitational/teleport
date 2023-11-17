@@ -18,6 +18,7 @@ package webauthn
 
 import (
 	wan "github.com/go-webauthn/webauthn/webauthn"
+
 	"github.com/gravitational/teleport/api/types"
 )
 

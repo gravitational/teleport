@@ -19,10 +19,11 @@ package client
 import (
 	"bytes"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
+
+	"github.com/gravitational/teleport"
 )
 
 // knownHostEntry is a parsed entry from a Teleport/OpenSSH known_hosts file,

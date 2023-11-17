@@ -19,11 +19,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gravitational/teleport/integrations/access/common/auth/oauth"
-	"github.com/gravitational/teleport/integrations/access/common/auth/storage"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport/integrations/access/common/auth/oauth"
+	"github.com/gravitational/teleport/integrations/access/common/auth/storage"
 )
 
 const defaultRefreshRetryInterval = 5 * time.Minute

@@ -17,11 +17,12 @@ package services
 import (
 	"strings"
 
+	"github.com/gravitational/trace"
+	"golang.org/x/exp/slices"
+
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/parse"
 	"github.com/gravitational/teleport/lib/utils/typical"
-	"github.com/gravitational/trace"
-	"golang.org/x/exp/slices"
 )
 
 type labelExpression typical.Expression[labelExpressionEnv, bool]

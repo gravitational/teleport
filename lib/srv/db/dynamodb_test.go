@@ -26,13 +26,14 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	awsdynamodb "github.com/aws/aws-sdk-go/service/dynamodb"
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/dynamodb"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
-	"github.com/stretchr/testify/require"
 )
 
 func registerTestDynamoDBEngine() {

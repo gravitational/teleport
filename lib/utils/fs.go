@@ -30,8 +30,9 @@ import (
 	"time"
 
 	"github.com/gofrs/flock"
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport"
 )
 
 // ErrUnsuccessfulLockTry designates an error when we temporarily couldn't acquire lock

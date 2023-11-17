@@ -23,12 +23,13 @@ import (
 	"github.com/aws/aws-sdk-go/service/opensearchservice"
 	"github.com/aws/aws-sdk-go/service/rds/rdsiface"
 	"github.com/aws/aws-sdk-go/service/redshiftserverless/redshiftserverlessiface"
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/types"
 	apiawsutils "github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/lib/cloud"
 	cloudaws "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/trace"
 )
 
 func (c *urlChecker) checkAWS(describeCheck, basicEndpointCheck checkDatabaseFunc) checkDatabaseFunc {

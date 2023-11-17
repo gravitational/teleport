@@ -24,6 +24,10 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
+	"golang.org/x/net/http/httpproxy"
+
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	awsapiutils "github.com/gravitational/teleport/api/utils/aws"
@@ -31,9 +35,6 @@ import (
 	"github.com/gravitational/teleport/api/utils/gcp"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
-	"golang.org/x/net/http/httpproxy"
 )
 
 // IsConnectRequest returns true if the request is a HTTP CONNECT tunnel

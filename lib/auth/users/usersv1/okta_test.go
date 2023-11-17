@@ -18,12 +18,13 @@ import (
 	"context"
 	"testing"
 
+	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
-	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/require"
 )
 
 type builtinRoleAuthorizer struct{}

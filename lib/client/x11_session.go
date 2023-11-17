@@ -21,11 +21,12 @@ import (
 	"os"
 	"time"
 
+	"github.com/gravitational/trace"
+	"golang.org/x/crypto/ssh"
+
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
-	"github.com/gravitational/trace"
-	"golang.org/x/crypto/ssh"
 )
 
 // handleX11Forwarding handles X11 channel requests for the given server session.

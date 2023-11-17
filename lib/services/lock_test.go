@@ -18,10 +18,11 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"google.golang.org/protobuf/testing/protocmp"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"google.golang.org/protobuf/testing/protocmp"
 )
 
 func TestLockTargetsFromTLSIdentity(t *testing.T) {

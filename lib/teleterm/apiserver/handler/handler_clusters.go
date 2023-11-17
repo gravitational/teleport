@@ -17,9 +17,10 @@ package handler
 import (
 	"context"
 
+	"github.com/gravitational/trace"
+
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
-	"github.com/gravitational/trace"
 )
 
 // ListRootClusters lists root clusters

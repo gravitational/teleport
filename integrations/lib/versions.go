@@ -15,9 +15,10 @@
 package lib
 
 import (
-	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/trace"
 	"github.com/hashicorp/go-version"
+
+	"github.com/gravitational/teleport/api/client/proto"
 )
 
 // AssertServerVersion returns an error if server version in ping response is

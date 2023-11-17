@@ -20,11 +20,12 @@ import (
 	"context"
 	"sync"
 
+	"github.com/gravitational/trace"
+
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
-	"github.com/gravitational/trace"
 )
 
 const databaseEventPrefix = "db/"

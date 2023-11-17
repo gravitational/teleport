@@ -20,12 +20,13 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
 	ctrllog "sigs.k8s.io/controller-runtime/pkg/log"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 const (

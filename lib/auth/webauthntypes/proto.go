@@ -19,6 +19,7 @@ import (
 
 	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/go-webauthn/webauthn/protocol/webauthncose"
+
 	wanpb "github.com/gravitational/teleport/api/types/webauthn"
 )
 

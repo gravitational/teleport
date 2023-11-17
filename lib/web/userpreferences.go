@@ -19,11 +19,12 @@ package web
 import (
 	"net/http"
 
+	"github.com/gravitational/trace"
+	"github.com/julienschmidt/httprouter"
+
 	userpreferencesv1 "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
-	"github.com/gravitational/trace"
-	"github.com/julienschmidt/httprouter"
 )
 
 // AssistUserPreferencesResponse is the JSON response for the assist user preferences.

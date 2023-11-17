@@ -25,11 +25,12 @@ import (
 	container "cloud.google.com/go/container/apiv1"
 	containerpb "cloud.google.com/go/container/apiv1/containerpb"
 	gax "github.com/googleapis/gax-go/v2"
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 	"k8s.io/client-go/rest"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 const (

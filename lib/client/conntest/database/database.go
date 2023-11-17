@@ -17,8 +17,9 @@ limitations under the License.
 package database
 
 import (
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/lib/defaults"
 )
 
 // PingParams contains the required fields necessary to test a Database Connection.

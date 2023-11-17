@@ -21,12 +21,13 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/service/sts"
+	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
+
 	awsapiutils "github.com/gravitational/teleport/api/utils/aws"
 	appcommon "github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/utils"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
-	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 )
 
 // AWSAccessMiddleware verifies the requests to AWS proxy are properly signed.

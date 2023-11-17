@@ -19,10 +19,11 @@ package config
 import (
 	"context"
 
-	"github.com/gravitational/teleport/lib/tbot/bot"
-	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/trace"
 	"gopkg.in/yaml.v3"
+
+	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/teleport/lib/tbot/identity"
 )
 
 // Output is an interface that represents configurable Outputs for a bot.

@@ -21,7 +21,6 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/trace"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -31,6 +30,8 @@ import (
 	"k8s.io/client-go/tools/remotecommand"
 	"k8s.io/client-go/util/flowcontrol"
 	"k8s.io/kubectl/pkg/scheme"
+
+	"github.com/gravitational/teleport/lib/client"
 )
 
 // KubeListBenchmark is a benchmark suite that runs successive kubectl get pods

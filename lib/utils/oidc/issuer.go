@@ -21,8 +21,9 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 // ProxyGetter is a service that gets proxies.

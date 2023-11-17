@@ -21,9 +21,10 @@ import (
 	"crypto/tls"
 	"net/url"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
 )
 
 func (e *Engine) handleNativeConnection(ctx context.Context, sessionCtx *common.Session) error {

@@ -21,8 +21,9 @@ import (
 	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbiface"
-	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/lib/observability/metrics"
 )
 
 // APIMetrics wraps a dynamodbiface.DynamoDBAPI implementation and

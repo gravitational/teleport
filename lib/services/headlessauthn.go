@@ -20,8 +20,9 @@ import (
 	"crypto/sha256"
 
 	"github.com/google/uuid"
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 // HeadlessAuthenticationUserStubID is the ID of a headless authentication stub.

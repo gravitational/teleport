@@ -24,12 +24,13 @@ import (
 	"time"
 
 	"github.com/go-ldap/ldap/v3"
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth/windows"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth/windows"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // TestDiscoveryLDAPFilter verifies that WindowsService produces a valid

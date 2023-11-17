@@ -20,7 +20,6 @@ import (
 	"context"
 	"testing"
 
-	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
@@ -29,6 +28,8 @@ import (
 	"k8s.io/client-go/kubernetes/fake"
 	fakecorev1 "k8s.io/client-go/kubernetes/typed/core/v1/fake"
 	k8stesting "k8s.io/client-go/testing"
+
+	"github.com/gravitational/teleport/lib/backend"
 )
 
 func TestBackend_Exists(t *testing.T) {

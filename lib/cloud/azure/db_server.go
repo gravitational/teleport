@@ -19,8 +19,9 @@ package azure
 import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/mysql/armmysql"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/postgresql/armpostgresql"
-	"github.com/gravitational/teleport/lib/defaults"
 	log "github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport/lib/defaults"
 )
 
 // DBServer represents an Azure DB Server.

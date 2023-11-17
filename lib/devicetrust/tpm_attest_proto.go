@@ -18,6 +18,7 @@ import (
 	"crypto"
 
 	"github.com/google/go-attestation/attest"
+
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 )
 

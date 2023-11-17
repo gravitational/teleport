@@ -25,6 +25,9 @@ import (
 	"sync"
 
 	"github.com/gorilla/websocket"
+	"github.com/gravitational/trace"
+	"k8s.io/client-go/tools/remotecommand"
+
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/mfa"
@@ -32,8 +35,6 @@ import (
 	"github.com/gravitational/teleport/lib/client/terminal"
 	"github.com/gravitational/teleport/lib/kube/proxy/streamproto"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
-	"k8s.io/client-go/tools/remotecommand"
 )
 
 // KubeSession a joined kubernetes session from the client side.

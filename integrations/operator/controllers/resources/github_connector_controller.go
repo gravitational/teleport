@@ -19,11 +19,12 @@ package resources
 import (
 	"context"
 
+	"github.com/gravitational/trace"
+	kclient "sigs.k8s.io/controller-runtime/pkg/client"
+
 	"github.com/gravitational/teleport/api/types"
 	resourcesv3 "github.com/gravitational/teleport/integrations/operator/apis/resources/v3"
 	"github.com/gravitational/teleport/integrations/operator/sidecar"
-	"github.com/gravitational/trace"
-	kclient "sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 // githubConnectorClient implements TeleportResourceClient and offers CRUD methods needed to reconcile github_connectors

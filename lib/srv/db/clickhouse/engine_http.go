@@ -30,10 +30,11 @@ import (
 
 	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/andybalholm/brotli"
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
 )
 
 const (

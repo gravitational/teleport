@@ -25,8 +25,9 @@ import (
 	"testing"
 
 	"github.com/gravitational/roundtrip"
-	"github.com/gravitational/teleport/api/types"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 func TestNewClient(t *testing.T) {

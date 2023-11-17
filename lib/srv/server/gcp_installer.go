@@ -21,10 +21,11 @@ import (
 	"fmt"
 	"strings"
 
-	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/cloud/gcp"
 	"github.com/gravitational/trace"
 	"golang.org/x/sync/errgroup"
+
+	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/cloud/gcp"
 )
 
 // GCPInstaller handles running commands that install Teleport on GCP

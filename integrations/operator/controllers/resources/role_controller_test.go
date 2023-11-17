@@ -21,10 +21,6 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/gravitational/teleport/api/types"
-	apiutils "github.com/gravitational/teleport/api/utils"
-	resourcesv5 "github.com/gravitational/teleport/integrations/operator/apis/resources/v5"
-	"github.com/gravitational/teleport/integrations/operator/controllers/resources"
 	"github.com/gravitational/trace"
 	"github.com/mitchellh/mapstructure"
 	"github.com/stretchr/testify/assert"
@@ -34,6 +30,11 @@ import (
 	"k8s.io/apimachinery/pkg/util/yaml"
 	"k8s.io/client-go/util/retry"
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
+	resourcesv5 "github.com/gravitational/teleport/integrations/operator/apis/resources/v5"
+	"github.com/gravitational/teleport/integrations/operator/controllers/resources"
 )
 
 // When I create or delete a TeleportRole CR in Kubernetes,

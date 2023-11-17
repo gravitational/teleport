@@ -21,6 +21,7 @@ import (
 
 	"github.com/datastax/go-cassandra-native-protocol/message"
 	"github.com/datastax/go-cassandra-native-protocol/primitive"
+
 	"github.com/gravitational/teleport/api/types/events"
 )
 

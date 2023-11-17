@@ -22,12 +22,13 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/api/types"
 	apiaws "github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	libaws "github.com/gravitational/teleport/lib/utils/aws"
-	"github.com/sirupsen/logrus"
-	"github.com/stretchr/testify/require"
 )
 
 func TestResolveEndpoint(t *testing.T) {

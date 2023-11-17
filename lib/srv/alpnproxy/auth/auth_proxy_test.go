@@ -23,8 +23,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib/observability/tracing"
 )
 
 func TestDialLocalAuthServerNoServers(t *testing.T) {

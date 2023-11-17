@@ -21,12 +21,13 @@ import (
 	"math/rand"
 	"strings"
 
+	"github.com/gravitational/trace"
+	"golang.org/x/exp/slices"
+
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/trace"
-	"golang.org/x/exp/slices"
 )
 
 // Getter returns a list of registered apps and the local cluster name.

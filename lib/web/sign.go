@@ -22,6 +22,9 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/julienschmidt/httprouter"
+
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client/db"
@@ -29,8 +32,6 @@ import (
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
-	"github.com/julienschmidt/httprouter"
 )
 
 /*

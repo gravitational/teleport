@@ -24,14 +24,15 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/gravitational/trace"
+	"github.com/redis/go-redis/v9"
+	"golang.org/x/exp/slices"
+
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
 	"github.com/gravitational/teleport/lib/srv/db/redis/protocol"
-	"github.com/gravitational/trace"
-	"github.com/redis/go-redis/v9"
-	"golang.org/x/exp/slices"
 )
 
 // List of commands that Teleport handles in a special way by Redis standalone and cluster.

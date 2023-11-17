@@ -21,6 +21,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
+	"google.golang.org/protobuf/proto"
+
 	embeddingpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/embedding/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
@@ -28,9 +32,6 @@ import (
 	embeddinglib "github.com/gravitational/teleport/lib/ai/embedding"
 	"github.com/gravitational/teleport/lib/services"
 	streamutils "github.com/gravitational/teleport/lib/utils/stream"
-	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
-	"google.golang.org/protobuf/proto"
 )
 
 // maxEmbeddingAPISize is the maximum number of entities that can be embedded in a single API call.

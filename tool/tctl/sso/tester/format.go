@@ -19,6 +19,7 @@ import (
 	"fmt"
 
 	"github.com/ghodss/yaml"
+
 	"github.com/gravitational/teleport/api/types"
 )
 

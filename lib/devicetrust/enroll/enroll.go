@@ -17,12 +17,13 @@ package enroll
 import (
 	"context"
 
-	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
-	"github.com/gravitational/teleport/lib/devicetrust"
-	"github.com/gravitational/teleport/lib/devicetrust/native"
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
 	log "github.com/sirupsen/logrus"
+
+	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
+	"github.com/gravitational/teleport/lib/devicetrust"
+	"github.com/gravitational/teleport/lib/devicetrust/native"
 )
 
 // Ceremony is the device enrollment ceremony.

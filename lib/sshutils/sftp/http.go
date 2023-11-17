@@ -28,8 +28,9 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/lib/httplib"
 )
 
 type contextKey string

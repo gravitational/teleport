@@ -20,12 +20,13 @@ import (
 	"testing"
 
 	"github.com/go-mysql-org/go-mysql/mysql"
+	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/require"
 )
 
 func Test_maybeHashUsername(t *testing.T) {

@@ -23,10 +23,11 @@ import (
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/google/uuid"
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
-	"github.com/gravitational/trace"
 )
 
 // LockCommand implements `tctl lock` group of commands.

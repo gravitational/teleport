@@ -19,8 +19,9 @@ package events
 import (
 	"context"
 
-	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/trace"
+
+	apievents "github.com/gravitational/teleport/api/types/events"
 )
 
 // NewMultiLog returns a new instance of a multi logger

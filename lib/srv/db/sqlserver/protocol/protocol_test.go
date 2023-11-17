@@ -20,9 +20,10 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/gravitational/teleport/lib/srv/db/sqlserver/protocol/fixtures"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib/srv/db/sqlserver/protocol/fixtures"
 )
 
 // TestReadPreLogin verifies Pre-Login packet parsing.

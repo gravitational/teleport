@@ -27,10 +27,11 @@ import (
 	"strconv"
 
 	"github.com/elastic/go-elasticsearch/v8"
-	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/srv/db/common"
 )
 
 // TestServerOption allows setting test server options.

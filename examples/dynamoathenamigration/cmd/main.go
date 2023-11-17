@@ -23,8 +23,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravitational/teleport/examples/dynamoathenamigration"
 	log "github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport/examples/dynamoathenamigration"
 )
 
 func main() {

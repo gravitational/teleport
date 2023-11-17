@@ -22,9 +22,10 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/stretchr/testify/require"
 )
 
 func TestUserTokenUnmarshal(t *testing.T) {

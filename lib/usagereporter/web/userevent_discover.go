@@ -15,8 +15,9 @@
 package usagereporter
 
 import (
-	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	"github.com/gravitational/trace"
+
+	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 )
 
 // discoverServiceDeploy defines fields for enum string values

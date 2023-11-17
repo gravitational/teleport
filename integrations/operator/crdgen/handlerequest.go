@@ -23,9 +23,10 @@ import (
 	"github.com/gogo/protobuf/protoc-gen-gogo/generator"
 	gogoplugin "github.com/gogo/protobuf/protoc-gen-gogo/plugin"
 	"github.com/gogo/protobuf/vanity/command"
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
 	"sigs.k8s.io/yaml"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 func handleRequest(req *gogoplugin.CodeGeneratorRequest) error {

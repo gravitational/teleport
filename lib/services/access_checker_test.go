@@ -20,8 +20,9 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/gravitational/teleport/api/types"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 func TestAccessCheckerKubeResources(t *testing.T) {

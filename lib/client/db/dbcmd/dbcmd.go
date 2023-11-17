@@ -28,6 +28,10 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
+	"go.mongodb.org/mongo-driver/x/mongo/driver/connstring"
+
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/db"
@@ -37,9 +41,6 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
-	"go.mongodb.org/mongo-driver/x/mongo/driver/connstring"
 )
 
 const (

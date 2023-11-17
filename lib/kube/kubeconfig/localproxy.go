@@ -17,11 +17,12 @@ package kubeconfig
 import (
 	"fmt"
 
-	"github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/trace"
 	"golang.org/x/exp/maps"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
+
+	"github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 )
 
 // LocalProxyCluster contains values for a kube cluster for generating

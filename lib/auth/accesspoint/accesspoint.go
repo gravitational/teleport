@@ -24,15 +24,16 @@ import (
 	"slices"
 	"time"
 
+	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
+	oteltrace "go.opentelemetry.io/otel/trace"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/cache"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
-	oteltrace "go.opentelemetry.io/otel/trace"
 )
 
 // AccessCacheConfig holds parameters used to confiure a cache to

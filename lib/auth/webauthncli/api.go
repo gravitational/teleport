@@ -19,14 +19,15 @@ import (
 	"errors"
 	"strings"
 
+	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
+	oteltrace "go.opentelemetry.io/otel/trace"
+
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/lib/auth/touchid"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	wanwin "github.com/gravitational/teleport/lib/auth/webauthnwin"
-	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
-	oteltrace "go.opentelemetry.io/otel/trace"
 )
 
 // ErrUsingNonRegisteredDevice is returned from Login when the user attempts to

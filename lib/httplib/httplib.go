@@ -30,15 +30,16 @@ import (
 	"strings"
 
 	"github.com/gravitational/roundtrip"
+	"github.com/gravitational/trace"
+	"github.com/julienschmidt/httprouter"
+	log "github.com/sirupsen/logrus"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	tracehttp "github.com/gravitational/teleport/api/observability/tracing/http"
 	"github.com/gravitational/teleport/lib/httplib/csrf"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
-	"github.com/julienschmidt/httprouter"
-	log "github.com/sirupsen/logrus"
-	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
 // timeoutMessage is a generic "timeout" error message that is displayed as a more user-friendly alternative to

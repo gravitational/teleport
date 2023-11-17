@@ -27,10 +27,11 @@ import (
 	"sync"
 	"syscall"
 
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 	"github.com/moby/term"
 	"github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // Terminal is used to configure raw input and output modes for an attached

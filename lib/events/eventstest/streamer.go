@@ -20,10 +20,11 @@ import (
 	"context"
 	"time"
 
+	"github.com/gravitational/trace"
+
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/session"
-	"github.com/gravitational/trace"
 )
 
 // NewFakeStreamer returns a session streamer that streams the provided events, sending one

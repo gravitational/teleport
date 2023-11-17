@@ -21,10 +21,11 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 )
 
 func TestDeployServiceRequest(t *testing.T) {

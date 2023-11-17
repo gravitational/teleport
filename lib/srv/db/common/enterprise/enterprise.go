@@ -17,9 +17,10 @@ limitations under the License.
 package enterprise
 
 import (
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/modules"
-	"github.com/gravitational/trace"
 )
 
 // ProtocolValidation checks if protocol is supported for current build.

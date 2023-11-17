@@ -20,9 +20,10 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
-	"github.com/stretchr/testify/require"
 )
 
 // TestCheckAndSetDefaults makes sure defaults are set when the user does not

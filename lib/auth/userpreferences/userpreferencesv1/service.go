@@ -20,12 +20,13 @@ package userpreferencesv1
 import (
 	"context"
 
-	userpreferences "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
-	"github.com/gravitational/teleport/lib/authz"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/types/known/emptypb"
+
+	userpreferences "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
+	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 // ServiceConfig holds configuration options for the user preferences service.

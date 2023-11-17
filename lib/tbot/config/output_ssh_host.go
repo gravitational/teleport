@@ -20,10 +20,11 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/gravitational/teleport/lib/tbot/bot"
-	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/trace"
 	"gopkg.in/yaml.v3"
+
+	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/teleport/lib/tbot/identity"
 )
 
 const SSHHostOutputType = "ssh_host"

@@ -23,10 +23,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 )
 
 // CertReloaderConfig contains the configuration of the certificate reloader.

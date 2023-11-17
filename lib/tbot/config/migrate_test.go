@@ -21,9 +21,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/tbot/botfs"
-	"github.com/stretchr/testify/require"
 )
 
 func TestMigrate(t *testing.T) {

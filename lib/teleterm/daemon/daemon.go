@@ -20,6 +20,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gravitational/trace"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
@@ -30,10 +35,6 @@ import (
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
 	"github.com/gravitational/teleport/lib/teleterm/services/unifiedresources"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/daemon"
-	"github.com/gravitational/trace"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
 
 const (

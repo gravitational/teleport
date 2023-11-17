@@ -20,11 +20,12 @@ import (
 	"os"
 	"regexp"
 
-	kubestorage "github.com/gravitational/teleport/lib/backend/kubernetes"
 	"github.com/gravitational/trace"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	restclient "k8s.io/client-go/rest"
+
+	kubestorage "github.com/gravitational/teleport/lib/backend/kubernetes"
 )
 
 // onKubeStateDelete lists the Kubernetes Secrets in the same namespace it's running

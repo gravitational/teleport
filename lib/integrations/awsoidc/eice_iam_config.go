@@ -22,8 +22,9 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
-	awslib "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/trace"
+
+	awslib "github.com/gravitational/teleport/lib/cloud/aws"
 )
 
 const (

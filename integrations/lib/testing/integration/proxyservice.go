@@ -30,8 +30,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/gravitational/teleport/integrations/lib/logger"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/integrations/lib/logger"
 )
 
 var regexpWebProxyStarting = regexp.MustCompile(`Web proxy service [^ ]+ is starting on [^ ]+:(\d+)`)

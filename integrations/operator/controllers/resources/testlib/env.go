@@ -24,17 +24,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/gravitational/teleport/api/client"
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/integration/helpers"
-	resourcesv1 "github.com/gravitational/teleport/integrations/operator/apis/resources/v1"
-	resourcesv2 "github.com/gravitational/teleport/integrations/operator/apis/resources/v2"
-	resourcesv3 "github.com/gravitational/teleport/integrations/operator/apis/resources/v3"
-	resourcesv5 "github.com/gravitational/teleport/integrations/operator/apis/resources/v5"
-	"github.com/gravitational/teleport/integrations/operator/controllers/resources"
-	"github.com/gravitational/teleport/integrations/operator/sidecar"
-	"github.com/gravitational/teleport/lib/modules"
-	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -47,6 +36,18 @@ import (
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
+
+	"github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/integration/helpers"
+	resourcesv1 "github.com/gravitational/teleport/integrations/operator/apis/resources/v1"
+	resourcesv2 "github.com/gravitational/teleport/integrations/operator/apis/resources/v2"
+	resourcesv3 "github.com/gravitational/teleport/integrations/operator/apis/resources/v3"
+	resourcesv5 "github.com/gravitational/teleport/integrations/operator/apis/resources/v5"
+	"github.com/gravitational/teleport/integrations/operator/controllers/resources"
+	"github.com/gravitational/teleport/integrations/operator/sidecar"
+	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 )
 
 // scheme is our own test-specific scheme to avoid using the global

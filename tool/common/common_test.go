@@ -20,8 +20,9 @@ import (
 	"maps"
 	"testing"
 
-	"github.com/gravitational/teleport/api/types"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 type mockedAlertGetter struct {

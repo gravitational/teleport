@@ -21,8 +21,9 @@ import (
 	"unicode/utf16"
 
 	"github.com/go-webauthn/webauthn/protocol"
-	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/trace"
+
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 )
 
 func assertOptionsToCType(in wantypes.PublicKeyCredentialRequestOptions, loginOpts *LoginOpts) (*webauthnAuthenticatorGetAssertionOptions, error) {

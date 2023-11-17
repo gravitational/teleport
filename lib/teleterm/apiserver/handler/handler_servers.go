@@ -18,9 +18,10 @@ import (
 	"context"
 	"sort"
 
+	"github.com/gravitational/trace"
+
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
-	"github.com/gravitational/trace"
 )
 
 // GetServers accepts parameterized input to enable searching, sorting, and pagination

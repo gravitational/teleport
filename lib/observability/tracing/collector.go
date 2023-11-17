@@ -23,8 +23,6 @@ import (
 	"net/http"
 	"sync"
 
-	apidefaults "github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/trace"
 	coltracepb "go.opentelemetry.io/proto/otlp/collector/trace/v1"
 	otlp "go.opentelemetry.io/proto/otlp/trace/v1"
@@ -33,6 +31,9 @@ import (
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/protobuf/proto"
+
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/lib/defaults"
 )
 
 // Collector is a simple in memory implementation of an OpenTelemetry Collector

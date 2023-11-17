@@ -20,6 +20,9 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	prehogv1 "github.com/gravitational/teleport/gen/proto/go/prehog/v1"
@@ -27,8 +30,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
-	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 )
 
 // UsageReportsSubmitter is almost SubmitUsageReports from

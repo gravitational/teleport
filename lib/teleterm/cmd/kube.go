@@ -20,9 +20,10 @@ import (
 	"fmt"
 	"os/exec"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
-	"github.com/gravitational/trace"
 )
 
 // NewKubeCLICommand creates CLI commands for kube gateways.

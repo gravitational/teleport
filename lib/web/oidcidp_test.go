@@ -19,8 +19,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gravitational/teleport/lib"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib"
 )
 
 // TestOIDCIdPPublicEndpoints ensures the public endpoints for the AWS OIDC integration are available.

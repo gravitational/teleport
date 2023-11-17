@@ -22,10 +22,11 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/lib/client/db/profile"
 	"github.com/gravitational/trace"
 	"gopkg.in/ini.v1"
+
+	"github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/client/db/profile"
 )
 
 func init() {

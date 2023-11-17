@@ -18,11 +18,12 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
 	lru "github.com/hashicorp/golang-lru/v2"
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 // ContainsExpansion returns true if value contains

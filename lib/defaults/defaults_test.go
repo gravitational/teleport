@@ -20,10 +20,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestMakeAddr(t *testing.T) {

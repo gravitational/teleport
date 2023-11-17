@@ -21,6 +21,9 @@ import (
 	"errors"
 	"sort"
 
+	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
+
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
@@ -31,8 +34,6 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	dbprofile "github.com/gravitational/teleport/lib/client/db"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
-	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 )
 
 // SyncAuthPreference fetches Teleport auth preferences and stores it in the cluster profile

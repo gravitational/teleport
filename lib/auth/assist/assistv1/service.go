@@ -21,6 +21,11 @@ package assistv1
 import (
 	"context"
 
+	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
+	"golang.org/x/exp/slices"
+	"google.golang.org/protobuf/types/known/emptypb"
+
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -28,10 +33,6 @@ import (
 	embeddinglib "github.com/gravitational/teleport/lib/ai/embedding"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
-	"golang.org/x/exp/slices"
-	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 const (

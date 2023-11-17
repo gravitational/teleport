@@ -21,8 +21,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib/fixtures"
 )
 
 func TestTemplateSSHHostCertRender(t *testing.T) {

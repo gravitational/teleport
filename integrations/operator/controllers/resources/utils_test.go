@@ -19,9 +19,10 @@ package resources
 import (
 	"testing"
 
-	"github.com/gravitational/teleport/api/types"
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 func TestCheckOwnership(t *testing.T) {

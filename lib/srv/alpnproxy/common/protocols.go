@@ -19,10 +19,11 @@ package common
 import (
 	"strings"
 
-	"github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/trace"
 	"golang.org/x/exp/slices"
+
+	"github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/defaults"
 )
 
 // Protocol is the TLS ALPN protocol type.

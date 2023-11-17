@@ -17,10 +17,11 @@ limitations under the License.
 package gateway
 
 import (
-	"github.com/gravitational/teleport/lib/teleterm/api/uri"
-	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport/lib/teleterm/api/uri"
+	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 // Gateway is a interface defines all gateway functions.

@@ -21,8 +21,9 @@ import (
 	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/service/dynamodbstreams"
 	"github.com/aws/aws-sdk-go/service/dynamodbstreams/dynamodbstreamsiface"
-	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/lib/observability/metrics"
 )
 
 // StreamsMetricsAPI wraps a dynamodbstreamsiface.DynamoDBStreamsAPI implementation and

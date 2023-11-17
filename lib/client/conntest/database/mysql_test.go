@@ -23,9 +23,10 @@ import (
 	"time"
 
 	"github.com/go-mysql-org/go-mysql/mysql"
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	libmysql "github.com/gravitational/teleport/lib/srv/db/mysql"
-	"github.com/stretchr/testify/require"
 )
 
 func TestMySQLErrors(t *testing.T) {

@@ -22,14 +22,15 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	userpreferencesv1 "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
-	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/backend/memory"
-	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
+
+	userpreferencesv1 "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
+	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/services/local"
 )
 
 func newUserPreferencesService(t *testing.T) *local.UserPreferencesService {

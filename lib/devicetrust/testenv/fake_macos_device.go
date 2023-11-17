@@ -22,10 +22,11 @@ import (
 	"crypto/x509"
 
 	"github.com/google/uuid"
-	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
-	"github.com/gravitational/teleport/lib/devicetrust/native"
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/types/known/timestamppb"
+
+	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
+	"github.com/gravitational/teleport/lib/devicetrust/native"
 )
 
 // FakeMacOSDevice fakes the native methods of a macOS device, as expected by

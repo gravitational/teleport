@@ -21,8 +21,9 @@ import (
 	"context"
 	"net"
 
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // Conn is a connection wrapper that supports

@@ -21,8 +21,9 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
-	"github.com/gravitational/teleport/api/types"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 func TestInstanceMetricsPeriodic(t *testing.T) {

@@ -24,12 +24,13 @@ import (
 	"sync/atomic"
 	"time"
 
-	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/api/utils/retryutils"
-	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	logrus "github.com/sirupsen/logrus"
+
+	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/utils/retryutils"
+	"github.com/gravitational/teleport/lib/session"
 )
 
 // NewSessionWriter returns a new instance of session writer

@@ -24,8 +24,9 @@ import (
 	"runtime"
 
 	"github.com/coreos/go-semver/semver"
-	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/constants"
 )
 
 // KernelVersion parses /proc/sys/kernel/osrelease and returns the kernel

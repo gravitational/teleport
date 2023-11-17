@@ -18,9 +18,10 @@ import (
 	"context"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/lib/modules"
-	"github.com/stretchr/testify/require"
 )
 
 // TestDesktopAccessDisabled makes sure desktop access can be disabled via modules.

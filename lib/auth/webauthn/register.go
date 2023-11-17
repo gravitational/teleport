@@ -26,11 +26,12 @@ import (
 	"github.com/go-webauthn/webauthn/protocol"
 	wan "github.com/go-webauthn/webauthn/webauthn"
 	"github.com/google/uuid"
+	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
+
 	"github.com/gravitational/teleport/api/types"
 	wanpb "github.com/gravitational/teleport/api/types/webauthn"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
-	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 )
 
 // RegistrationIdentity represents the subset of Identity methods used by

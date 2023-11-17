@@ -21,9 +21,10 @@ import (
 	"os/exec"
 	"regexp"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integrations/lib/logger"
-	"github.com/gravitational/trace"
 )
 
 var regexpStatusCAPin = regexp.MustCompile(`CA pin +(sha256:[a-zA-Z0-9]+)`)

@@ -19,8 +19,9 @@ package uri_test
 import (
 	"testing"
 
-	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 )
 
 func TestParse(t *testing.T) {

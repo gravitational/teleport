@@ -29,12 +29,6 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/gravitational/teleport"
-	tracehttp "github.com/gravitational/teleport/api/observability/tracing/http"
-	"github.com/gravitational/teleport/api/profile"
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/trace"
 	"github.com/spf13/cobra"
 	"golang.org/x/exp/slices"
@@ -47,6 +41,13 @@ import (
 	"k8s.io/kubectl/pkg/cmd"
 	"k8s.io/kubectl/pkg/cmd/plugin"
 	cmdutil "k8s.io/kubectl/pkg/cmd/util"
+
+	"github.com/gravitational/teleport"
+	tracehttp "github.com/gravitational/teleport/api/observability/tracing/http"
+	"github.com/gravitational/teleport/api/profile"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 )
 
 var (

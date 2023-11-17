@@ -21,8 +21,9 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/gravitational/teleport/api/types"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 func TestStatusFromStatusCode(t *testing.T) {

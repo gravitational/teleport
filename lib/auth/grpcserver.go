@@ -27,6 +27,20 @@ import (
 
 	"github.com/coreos/go-semver/semver"
 	"github.com/google/uuid"
+	"github.com/gravitational/trace"
+	"github.com/gravitational/trace/trail"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/sirupsen/logrus"
+	collectortracepb "go.opentelemetry.io/proto/otlp/collector/trace/v1"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	_ "google.golang.org/grpc/encoding/gzip" // gzip compressor for gRPC.
+	"google.golang.org/grpc/keepalive"
+	"google.golang.org/grpc/peer"
+	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/emptypb"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
 	authpb "github.com/gravitational/teleport/api/client/proto"
@@ -68,19 +82,6 @@ import (
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
-	"github.com/gravitational/trace/trail"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/sirupsen/logrus"
-	collectortracepb "go.opentelemetry.io/proto/otlp/collector/trace/v1"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
-	_ "google.golang.org/grpc/encoding/gzip" // gzip compressor for gRPC.
-	"google.golang.org/grpc/keepalive"
-	"google.golang.org/grpc/peer"
-	"google.golang.org/grpc/status"
-	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 var (

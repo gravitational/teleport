@@ -20,15 +20,16 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/gravitational/teleport/api/types"
-	v5 "github.com/gravitational/teleport/integrations/operator/apis/resources/v5"
-	"github.com/gravitational/teleport/integrations/operator/sidecar"
 	"github.com/gravitational/trace"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	ctrl "sigs.k8s.io/controller-runtime"
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/gravitational/teleport/api/types"
+	v5 "github.com/gravitational/teleport/integrations/operator/apis/resources/v5"
+	"github.com/gravitational/teleport/integrations/operator/sidecar"
 )
 
 const teleportRoleKind = "TeleportRole"

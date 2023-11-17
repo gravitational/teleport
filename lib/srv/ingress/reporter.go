@@ -22,9 +22,10 @@ import (
 	"net/http"
 	"sync"
 
-	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
+
+	"github.com/gravitational/teleport/lib/observability/metrics"
 )
 
 // Constants for each ingress service.

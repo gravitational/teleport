@@ -26,15 +26,16 @@ import (
 	"time"
 
 	"cloud.google.com/go/storage"
-	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/observability/metrics"
-	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/api/option"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/observability/metrics"
+	"github.com/gravitational/teleport/lib/session"
 )
 
 var (

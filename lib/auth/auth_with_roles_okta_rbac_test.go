@@ -18,12 +18,13 @@ import (
 	"context"
 	"testing"
 
+	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
-	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/require"
 )
 
 func newOktaUser(t *testing.T) types.User {

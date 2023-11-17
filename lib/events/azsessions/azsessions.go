@@ -31,13 +31,14 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/blockblob"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/container"
 	"github.com/google/uuid"
-	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
 	"golang.org/x/sync/errgroup"
+
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/session"
 )
 
 // sessionContainerParam and inprogressContainerParam are the parameters in the

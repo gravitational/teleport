@@ -20,13 +20,14 @@ import (
 	"context"
 	"net/http"
 
+	"github.com/gravitational/trace"
+	"github.com/julienschmidt/httprouter"
+	"golang.org/x/net/websocket"
+
 	"github.com/gravitational/teleport/lib/player"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/web/desktop"
-	"github.com/gravitational/trace"
-	"github.com/julienschmidt/httprouter"
-	"golang.org/x/net/websocket"
 )
 
 func (h *Handler) desktopPlaybackHandle(

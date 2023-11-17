@@ -19,10 +19,11 @@ package auth
 import (
 	"context"
 
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/circleci"
 	"github.com/gravitational/trace"
 	"golang.org/x/exp/slices"
+
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/circleci"
 )
 
 func (a *Server) checkCircleCIJoinRequest(ctx context.Context, req *types.RegisterUsingTokenRequest) (*circleci.IDTokenClaims, error) {

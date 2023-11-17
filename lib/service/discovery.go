@@ -17,10 +17,11 @@ limitations under the License.
 package service
 
 import (
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/srv/discovery"
-	"github.com/gravitational/trace"
 )
 
 func (process *TeleportProcess) shouldInitDiscovery() bool {

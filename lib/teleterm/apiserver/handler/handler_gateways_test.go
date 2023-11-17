@@ -19,8 +19,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/stretchr/testify/require"
+
+	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 )
 
 func Test_makeGatewayCLICommand(t *testing.T) {

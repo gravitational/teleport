@@ -16,12 +16,13 @@ package db
 
 import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/mysql/armmysqlflexibleservers"
+	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
-	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 )
 
 // newAzureMySQLFlexServerFetcher creates a fetcher for Azure MySQL Flexible server.

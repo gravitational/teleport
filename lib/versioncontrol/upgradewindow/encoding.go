@@ -20,9 +20,10 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
 )
 
 // EncodeKubeControllerSchedule converts an agent upgrade schedule to the file format

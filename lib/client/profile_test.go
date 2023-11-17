@@ -19,8 +19,9 @@ package client
 import (
 	"testing"
 
-	"github.com/gravitational/teleport/api/profile"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/profile"
 )
 
 func newTestFSProfileStore(t *testing.T) *FSProfileStore {

@@ -22,8 +22,9 @@ import (
 	"testing/fstest"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/gravitational/teleport/lib/linux"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/gravitational/teleport/lib/linux"
 )
 
 type permErrorFS struct {

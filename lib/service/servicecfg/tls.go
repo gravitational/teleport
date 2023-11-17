@@ -15,8 +15,9 @@
 package servicecfg
 
 import (
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 // TLSMode defines all possible database verification modes.

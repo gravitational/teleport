@@ -23,11 +23,12 @@ import (
 
 	"github.com/coreos/go-oidc/jose"
 	"github.com/google/go-cmp/cmp"
-	apidefaults "github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/api/types"
 	saml2 "github.com/russellhaering/gosaml2"
 	samltypes "github.com/russellhaering/gosaml2/types"
 	"github.com/stretchr/testify/require"
+
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
 )
 
 func TestTraits(t *testing.T) {

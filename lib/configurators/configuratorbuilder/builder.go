@@ -15,11 +15,12 @@
 package configuratorbuilder
 
 import (
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/configurators"
 	"github.com/gravitational/teleport/lib/configurators/aws"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
-	"github.com/gravitational/trace"
 )
 
 // BuildConfigurators reads the configuration and returns a list of

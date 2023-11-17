@@ -24,8 +24,9 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/lib/defaults"
 )
 
 // localFS provides API for accessing the files on

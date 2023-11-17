@@ -20,13 +20,14 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/trace"
 	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport/api/utils/retryutils"
 )
 
 // ConnectPostgres will open a single connection to the "postgres" database in

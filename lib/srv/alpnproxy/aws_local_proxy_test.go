@@ -28,8 +28,9 @@ import (
 	v4 "github.com/aws/aws-sdk-go/aws/signer/v4"
 	"github.com/aws/aws-sdk-go/private/protocol"
 	"github.com/aws/aws-sdk-go/service/sts"
-	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 	"github.com/stretchr/testify/require"
+
+	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 )
 
 func TestAWSAccessMiddleware(t *testing.T) {

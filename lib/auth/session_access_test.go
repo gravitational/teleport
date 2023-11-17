@@ -19,8 +19,9 @@ package auth
 import (
 	"testing"
 
-	"github.com/gravitational/teleport/api/types"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 type startTestCase struct {

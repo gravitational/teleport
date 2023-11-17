@@ -23,12 +23,13 @@ import (
 	"net"
 	"time"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	alpn "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
-	"github.com/gravitational/trace"
 )
 
 // ALPNAuthClient contains the required auth.ClientI methods to create a local ALPN proxy.

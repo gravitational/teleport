@@ -18,11 +18,12 @@ import (
 	"context"
 	"time"
 
+	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
+
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 )
 
 // GetAccessRequestMonthlyUsage returns the number of access requests that have been created this month.

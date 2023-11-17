@@ -43,6 +43,14 @@ import (
 	"time"
 
 	"github.com/ghodss/yaml"
+	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	otlp "go.opentelemetry.io/proto/otlp/trace/v1"
+	"golang.org/x/crypto/ssh"
+	"golang.org/x/exp/slices"
+	yamlv2 "gopkg.in/yaml.v2"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -78,13 +86,6 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/tool/common"
-	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	otlp "go.opentelemetry.io/proto/otlp/trace/v1"
-	"golang.org/x/crypto/ssh"
-	"golang.org/x/exp/slices"
-	yamlv2 "gopkg.in/yaml.v2"
 )
 
 const (

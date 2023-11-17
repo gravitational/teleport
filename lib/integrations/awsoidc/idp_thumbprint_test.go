@@ -21,8 +21,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/gravitational/teleport/lib"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib"
 )
 
 func TestThumbprint(t *testing.T) {

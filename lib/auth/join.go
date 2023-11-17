@@ -23,13 +23,14 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/gravitational/trace"
+	"golang.org/x/exp/slices"
+
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/trace"
-	"golang.org/x/exp/slices"
 )
 
 // tokenJoinMethod returns the join method of the token with the given tokenName

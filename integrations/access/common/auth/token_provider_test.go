@@ -19,12 +19,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport/integrations/access/common/auth/oauth"
-	"github.com/gravitational/teleport/integrations/access/common/auth/storage"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/integrations/access/common/auth/oauth"
+	"github.com/gravitational/teleport/integrations/access/common/auth/storage"
 )
 
 type mockRefresher struct {

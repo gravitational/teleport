@@ -22,8 +22,9 @@ import (
 	"path/filepath"
 	"text/template"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport"
 )
 
 type jdbcSettings struct {

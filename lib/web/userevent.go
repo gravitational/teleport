@@ -19,11 +19,12 @@ package web
 import (
 	"net/http"
 
+	"github.com/gravitational/trace"
+	"github.com/julienschmidt/httprouter"
+
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/lib/httplib"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/web"
-	"github.com/gravitational/trace"
-	"github.com/julienschmidt/httprouter"
 )
 
 // createPreUserEventHandle sends a user event to the UserEvent service

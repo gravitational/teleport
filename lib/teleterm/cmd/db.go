@@ -17,11 +17,12 @@ package cmd
 import (
 	"os/exec"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/lib/client/db/dbcmd"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/trace"
 )
 
 // NewDBCLICommand creates CLI commands for database gateway.

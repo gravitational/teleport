@@ -20,11 +20,12 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
-	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 )
 
 // awsFetcherPlugin defines an interface that provides database type specific

@@ -20,8 +20,9 @@ import (
 	"crypto/rand"
 	"testing"
 
-	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/stretchr/testify/require"
+
+	apievents "github.com/gravitational/teleport/api/types/events"
 )
 
 func TestBytesToSessionPrintEvents(t *testing.T) {

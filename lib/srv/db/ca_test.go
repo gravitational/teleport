@@ -31,6 +31,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/require"
+	sqladmin "google.golang.org/api/sqladmin/v1beta4"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -40,9 +44,6 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/mysql"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/require"
-	sqladmin "google.golang.org/api/sqladmin/v1beta4"
 )
 
 // TestInitCACert verifies automatic download of root certs for cloud databases.

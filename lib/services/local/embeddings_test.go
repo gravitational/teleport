@@ -20,13 +20,14 @@ import (
 	"sort"
 	"testing"
 
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	embeddinglib "github.com/gravitational/teleport/lib/ai/embedding"
 	"github.com/gravitational/teleport/lib/backend/memory"
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	"github.com/stretchr/testify/require"
 )
 
 var (

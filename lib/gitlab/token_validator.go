@@ -22,11 +22,12 @@ import (
 	"time"
 
 	"github.com/coreos/go-oidc"
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 )
 
 type clusterNameGetter interface {

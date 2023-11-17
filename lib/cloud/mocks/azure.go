@@ -20,10 +20,11 @@ import (
 	"context"
 	"time"
 
-	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"k8s.io/client-go/rest"
+
+	"github.com/gravitational/teleport/lib/cloud/azure"
 )
 
 // AKSClusterEntry is an entry in the AKSMock.Clusters list.

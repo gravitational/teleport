@@ -20,8 +20,9 @@ import (
 	"context"
 	"sync"
 
-	"github.com/gravitational/teleport/api/client"
 	log "github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport/api/client"
 )
 
 // Note: this whole part of the code handles client reloading.

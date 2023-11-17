@@ -29,8 +29,6 @@ import (
 	"strings"
 	"time"
 
-	apiclient "github.com/gravitational/teleport/api/client"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -41,6 +39,9 @@ import (
 	streamspdy "k8s.io/apimachinery/pkg/util/httpstream/spdy"
 	utilnet "k8s.io/apimachinery/pkg/util/net"
 	"k8s.io/apimachinery/third_party/forked/golang/netutil"
+
+	apiclient "github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/lib/auth"
 )
 
 // SpdyRoundTripper knows how to upgrade an HTTP request to one that supports

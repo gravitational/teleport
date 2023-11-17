@@ -20,10 +20,11 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/defaults"
 )
 
 // TestMatchResourceLabels tests matching a resource against a selector.

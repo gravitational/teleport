@@ -19,10 +19,11 @@ package eventstest
 import (
 	"context"
 
-	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
+
+	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/session"
 )
 
 // ChannelEmitter emits audit events by writing them to a channel.

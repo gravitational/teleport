@@ -19,10 +19,11 @@ package config
 import (
 	"time"
 
-	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/trace"
 	"golang.org/x/exp/slices"
 	"gopkg.in/yaml.v3"
+
+	"github.com/gravitational/teleport/lib/tbot/bot"
 )
 
 type destinationMixinV1 struct {

@@ -20,10 +20,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gravitational/teleport/api/internalutils/stream"
-	streamutils "github.com/gravitational/teleport/lib/utils/stream"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/internalutils/stream"
+	streamutils "github.com/gravitational/teleport/lib/utils/stream"
 )
 
 func Test_zipStreams_Process(t *testing.T) {

@@ -20,7 +20,6 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 	"golang.org/x/exp/maps"
 	corev1 "k8s.io/api/core/v1"
@@ -34,6 +33,8 @@ import (
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
+
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 const (

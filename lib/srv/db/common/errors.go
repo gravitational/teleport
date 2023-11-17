@@ -25,17 +25,18 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/go-mysql-org/go-mysql/mysql"
-	"github.com/gravitational/teleport/api/types"
-	awslib "github.com/gravitational/teleport/lib/cloud/aws"
-	azurelib "github.com/gravitational/teleport/lib/cloud/azure"
-	"github.com/gravitational/teleport/lib/defaults"
-	dbiam "github.com/gravitational/teleport/lib/srv/db/common/iam"
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
 	"github.com/jackc/pgconn"
 	"github.com/jackc/pgerrcode"
 	"google.golang.org/api/googleapi"
 	"google.golang.org/grpc/status"
+
+	"github.com/gravitational/teleport/api/types"
+	awslib "github.com/gravitational/teleport/lib/cloud/aws"
+	azurelib "github.com/gravitational/teleport/lib/cloud/azure"
+	"github.com/gravitational/teleport/lib/defaults"
+	dbiam "github.com/gravitational/teleport/lib/srv/db/common/iam"
 )
 
 // ConvertError converts errors to trace errors.

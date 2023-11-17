@@ -21,12 +21,13 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/gravitational/teleport/api/types"
-	resourcesv3 "github.com/gravitational/teleport/integrations/operator/apis/resources/v3"
-	"github.com/gravitational/teleport/integrations/operator/controllers/resources/testlib"
 	"github.com/gravitational/trace"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/gravitational/teleport/api/types"
+	resourcesv3 "github.com/gravitational/teleport/integrations/operator/apis/resources/v3"
+	"github.com/gravitational/teleport/integrations/operator/controllers/resources/testlib"
 )
 
 var oidcSpec = types.OIDCConnectorSpecV3{

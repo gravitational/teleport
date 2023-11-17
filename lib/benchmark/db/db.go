@@ -20,11 +20,12 @@ import (
 	"fmt"
 	"net"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
-	"github.com/gravitational/trace"
 )
 
 // retrieveDatabaseCertificates issues user database certificates. Same flow as

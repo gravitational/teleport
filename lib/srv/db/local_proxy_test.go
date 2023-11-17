@@ -21,12 +21,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	"github.com/jackc/pgconn"
 	"github.com/jackc/pgerrcode"
 	"github.com/stretchr/testify/require"
 	"go.mongodb.org/mongo-driver/bson"
+
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/srv/db/postgres"
 )
 
 // TestLocalProxyPostgres verifies connecting to a Postgres database

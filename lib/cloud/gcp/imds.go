@@ -24,8 +24,9 @@ import (
 	"net/url"
 
 	"cloud.google.com/go/compute/metadata"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/lib/defaults"
 )
 
 // contextRoundTripper is a http.RoundTripper that adds a context.Context to

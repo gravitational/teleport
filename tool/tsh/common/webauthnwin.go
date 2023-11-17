@@ -19,8 +19,9 @@ import (
 	"os"
 
 	"github.com/alecthomas/kingpin/v2"
-	wanwin "github.com/gravitational/teleport/lib/auth/webauthnwin"
 	"github.com/gravitational/trace"
+
+	wanwin "github.com/gravitational/teleport/lib/auth/webauthnwin"
 )
 
 type webauthnwinCommand struct {

@@ -22,6 +22,8 @@ import (
 	"testing"
 
 	"github.com/aws/aws-sdk-go/aws/credentials"
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -29,7 +31,6 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/opensearch"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
-	"github.com/stretchr/testify/require"
 )
 
 func registerTestOpenSearchEngine() {

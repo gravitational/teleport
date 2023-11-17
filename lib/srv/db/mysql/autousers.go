@@ -29,11 +29,12 @@ import (
 	"github.com/coreos/go-semver/semver"
 	"github.com/go-mysql-org/go-mysql/client"
 	"github.com/go-mysql-org/go-mysql/mysql"
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
+
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/srv/db/common"
 )
 
 // activateUserDetails contains details about the user activation request and

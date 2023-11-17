@@ -20,9 +20,10 @@ limitations under the License.
 package v2
 
 import (
-	"github.com/gravitational/teleport/integrations/operator/apis/resources"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/scheme"
+
+	"github.com/gravitational/teleport/integrations/operator/apis/resources"
 )
 
 var (

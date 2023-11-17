@@ -19,12 +19,13 @@ package awsoidc
 import (
 	"encoding/base64"
 
+	"github.com/gravitational/trace"
+	"gopkg.in/yaml.v2"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/trace"
-	"gopkg.in/yaml.v2"
 )
 
 // generateTeleportConfigString creates a teleport.yaml configuration that the agent

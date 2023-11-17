@@ -19,13 +19,14 @@ package ai
 import (
 	"context"
 
+	"github.com/gravitational/trace"
+	"github.com/sashabaranov/go-openai"
+
 	"github.com/gravitational/teleport/lib/ai/embedding"
 	"github.com/gravitational/teleport/lib/ai/model"
 	modeltools "github.com/gravitational/teleport/lib/ai/model/tools"
 	"github.com/gravitational/teleport/lib/ai/tokens"
 	"github.com/gravitational/teleport/lib/modules"
-	"github.com/gravitational/trace"
-	"github.com/sashabaranov/go-openai"
 )
 
 const (

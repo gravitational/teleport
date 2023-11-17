@@ -35,6 +35,10 @@ import (
 	"sync"
 
 	"github.com/gorilla/websocket"
+	"github.com/gravitational/trace"
+	"github.com/julienschmidt/httprouter"
+	"github.com/sirupsen/logrus"
+
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/mfa"
@@ -50,9 +54,6 @@ import (
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web/scripts"
-	"github.com/gravitational/trace"
-	"github.com/julienschmidt/httprouter"
-	"github.com/sirupsen/logrus"
 )
 
 // GET /webapi/sites/:site/desktops/:desktopName/connect?access_token=<bearer_token>&username=<username>&width=<width>&height=<height>

@@ -28,8 +28,9 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sns"
 	snsTypes "github.com/aws/aws-sdk-go-v2/service/sns/types"
 	"github.com/google/uuid"
-	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/trace"
+
+	apievents "github.com/gravitational/teleport/api/types/events"
 )
 
 const (

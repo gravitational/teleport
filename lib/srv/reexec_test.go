@@ -27,9 +27,10 @@ import (
 	"syscall"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/stretchr/testify/require"
 )
 
 type stubUser struct {

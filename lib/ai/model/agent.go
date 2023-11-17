@@ -23,12 +23,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravitational/teleport/lib/ai/model/output"
-	"github.com/gravitational/teleport/lib/ai/model/tools"
-	"github.com/gravitational/teleport/lib/ai/tokens"
 	"github.com/gravitational/trace"
 	"github.com/sashabaranov/go-openai"
 	log "github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport/lib/ai/model/output"
+	"github.com/gravitational/teleport/lib/ai/model/tools"
+	"github.com/gravitational/teleport/lib/ai/tokens"
 )
 
 const (

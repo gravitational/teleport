@@ -17,8 +17,9 @@ package opensearch
 import (
 	"testing"
 
-	"github.com/gravitational/teleport/api/types/events"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types/events"
 )
 
 func Test_parsePath(t *testing.T) {

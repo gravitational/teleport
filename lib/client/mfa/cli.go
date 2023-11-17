@@ -23,12 +23,13 @@ import (
 	"io"
 	"sync"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/utils/prompt"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/auth/webauthnwin"
-	"github.com/gravitational/trace"
 )
 
 // CLIPrompt is the default CLI mfa prompt implementation.

@@ -20,10 +20,11 @@ import (
 	"testing"
 
 	"github.com/coreos/go-oidc/jose"
-	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/types"
 )
 
 // TestOIDCRoleMapping verifies basic mapping from OIDC claims to roles.

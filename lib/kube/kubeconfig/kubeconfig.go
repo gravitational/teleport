@@ -22,15 +22,16 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/exp/maps"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
+
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 var log = logrus.WithFields(logrus.Fields{

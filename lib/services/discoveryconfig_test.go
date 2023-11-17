@@ -19,11 +19,12 @@ package services
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/stretchr/testify/require"
 )
 
 // TestDiscoveryConfigUnmarshal verifies a DiscoveryConfig resource can be unmarshaled.

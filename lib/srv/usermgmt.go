@@ -27,12 +27,13 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
-	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 )
 
 // NewHostUsers initialize a new HostUsers object

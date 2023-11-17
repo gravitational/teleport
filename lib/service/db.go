@@ -17,6 +17,8 @@ limitations under the License.
 package service
 
 import (
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
@@ -25,7 +27,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/db"
-	"github.com/gravitational/trace"
 )
 
 func (process *TeleportProcess) shouldInitDatabases() bool {

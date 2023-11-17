@@ -23,11 +23,12 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 	"k8s.io/client-go/tools/remotecommand"
+
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // metaMessage is a control message containing one or more payloads.

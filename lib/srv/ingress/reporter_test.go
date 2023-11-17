@@ -22,11 +22,12 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/gravitational/teleport/lib/fixtures"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/prometheus/client_golang/prometheus"
 	prommodel "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib/fixtures"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestIngressReporter(t *testing.T) {

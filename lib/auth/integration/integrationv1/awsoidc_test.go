@@ -19,12 +19,13 @@ package integrationv1
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	integrationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/stretchr/testify/require"
 )
 
 func TestGenerateAWSOIDCToken(t *testing.T) {

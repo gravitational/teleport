@@ -21,14 +21,15 @@ import (
 	"net/http"
 
 	"github.com/aws/aws-sdk-go/aws/endpoints"
+	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
+
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/tlsca"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
-	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 )
 
 // Audit defines an interface for app access audit events logger.

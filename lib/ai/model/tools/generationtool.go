@@ -20,8 +20,9 @@ import (
 	"context"
 	"fmt"
 
-	modeloutput "github.com/gravitational/teleport/lib/ai/model/output"
 	"github.com/gravitational/trace"
+
+	modeloutput "github.com/gravitational/teleport/lib/ai/model/output"
 )
 
 type CommandGenerationTool struct{}

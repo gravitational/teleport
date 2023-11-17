@@ -17,9 +17,10 @@ package common
 import (
 	"testing"
 
-	"github.com/gravitational/teleport/api/types"
 	"github.com/pelletier/go-toml"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 type wrapRecipientsMap struct {

@@ -25,6 +25,9 @@ import (
 	"strconv"
 
 	"github.com/aws/aws-sdk-go/service/opensearchservice"
+	"github.com/gravitational/trace"
+	"github.com/prometheus/client_golang/prometheus"
+
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/cloud"
@@ -35,8 +38,6 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/elasticsearch"
 	"github.com/gravitational/teleport/lib/utils"
 	libaws "github.com/gravitational/teleport/lib/utils/aws"
-	"github.com/gravitational/trace"
-	"github.com/prometheus/client_golang/prometheus"
 )
 
 // NewEngine create new OpenSearch engine.

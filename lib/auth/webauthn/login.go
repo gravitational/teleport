@@ -26,12 +26,13 @@ import (
 
 	"github.com/go-webauthn/webauthn/protocol"
 	wan "github.com/go-webauthn/webauthn/webauthn"
-	"github.com/gravitational/teleport/api/types"
-	wanpb "github.com/gravitational/teleport/api/types/webauthn"
-	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
+
+	"github.com/gravitational/teleport/api/types"
+	wanpb "github.com/gravitational/teleport/api/types/webauthn"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 )
 
 // loginIdentity contains the subset of services.Identity methods used by

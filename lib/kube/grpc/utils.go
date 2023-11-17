@@ -21,16 +21,17 @@ import (
 	"encoding/pem"
 	"net"
 
+	"github.com/gravitational/trace"
+	"golang.org/x/crypto/ssh"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
-	"golang.org/x/crypto/ssh"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
 )
 
 // getWebAddrAndKubeSNI returns the address of the web server that is running on this

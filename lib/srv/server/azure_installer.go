@@ -24,10 +24,11 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v3"
 	"github.com/aws/aws-sdk-go/aws"
-	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/trace"
 	"golang.org/x/sync/errgroup"
+
+	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/cloud/azure"
 )
 
 // AzureInstaller handles running commands that install Teleport on Azure

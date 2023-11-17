@@ -19,13 +19,14 @@ package db
 import (
 	"context"
 
+	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
 	discovery "github.com/gravitational/teleport/lib/srv/discovery/common"
 	dbfetchers "github.com/gravitational/teleport/lib/srv/discovery/fetchers/db"
-	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 )
 
 // startReconciler starts reconciler that registers/unregisters proxied

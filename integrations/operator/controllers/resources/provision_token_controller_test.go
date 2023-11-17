@@ -21,16 +21,17 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/gravitational/teleport/api/types"
-	resourcesv2 "github.com/gravitational/teleport/integrations/operator/apis/resources/v2"
-	"github.com/gravitational/teleport/integrations/operator/controllers/resources"
-	"github.com/gravitational/teleport/integrations/operator/controllers/resources/testlib"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/yaml"
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/gravitational/teleport/api/types"
+	resourcesv2 "github.com/gravitational/teleport/integrations/operator/apis/resources/v2"
+	"github.com/gravitational/teleport/integrations/operator/controllers/resources"
+	"github.com/gravitational/teleport/integrations/operator/controllers/resources/testlib"
 )
 
 var tokenSpec = &types.ProvisionTokenSpecV2{

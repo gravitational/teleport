@@ -29,13 +29,14 @@ import (
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/google/uuid"
+	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/cache"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 )
 
 // LoadtestCommand implements the `tctl loadtest` family of commands.

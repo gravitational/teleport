@@ -17,13 +17,14 @@ limitations under the License.
 package db
 
 import (
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/recorder"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv/db/common"
-	"github.com/gravitational/trace"
 )
 
 // newSessionRecorder creates a streamer that will be used to stream the

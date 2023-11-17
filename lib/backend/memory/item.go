@@ -20,6 +20,7 @@ import (
 	"bytes"
 
 	"github.com/google/btree"
+
 	"github.com/gravitational/teleport/lib/backend"
 )
 

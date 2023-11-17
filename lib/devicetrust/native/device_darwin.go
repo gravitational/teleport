@@ -35,11 +35,12 @@ import (
 	"unsafe"
 
 	"github.com/google/uuid"
-	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
-	"github.com/gravitational/teleport/lib/darwin"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/types/known/timestamppb"
+
+	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
+	"github.com/gravitational/teleport/lib/darwin"
 )
 
 func enrollDeviceInit() (*devicepb.EnrollDeviceInit, error) {

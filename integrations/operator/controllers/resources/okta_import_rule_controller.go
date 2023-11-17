@@ -19,11 +19,12 @@ package resources
 import (
 	"context"
 
+	"github.com/gravitational/trace"
+	kclient "sigs.k8s.io/controller-runtime/pkg/client"
+
 	"github.com/gravitational/teleport/api/types"
 	resourcesv1 "github.com/gravitational/teleport/integrations/operator/apis/resources/v1"
 	"github.com/gravitational/teleport/integrations/operator/sidecar"
-	"github.com/gravitational/trace"
-	kclient "sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 // oktaImportRuleClient implements TeleportResourceClient and offers CRUD methods needed to reconcile okta_import_rules

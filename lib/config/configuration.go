@@ -39,6 +39,11 @@ import (
 	"unicode"
 
 	"github.com/go-ldap/ldap/v3"
+	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
+	"golang.org/x/exp/slices"
+	kyaml "k8s.io/apimachinery/pkg/util/yaml"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
@@ -59,10 +64,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
-	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
-	"golang.org/x/exp/slices"
-	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 )
 
 // CommandLineFlags stores command line flag values, it's a much simplified subset

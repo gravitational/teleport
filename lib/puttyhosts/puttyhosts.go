@@ -23,14 +23,15 @@ import (
 	"strings"
 	"text/template"
 
+	"github.com/gravitational/trace"
+	"golang.org/x/crypto/ssh"
+	"golang.org/x/exp/slices"
+
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/sshutils"
-	"github.com/gravitational/trace"
-	"golang.org/x/crypto/ssh"
-	"golang.org/x/exp/slices"
 )
 
 type PuttyProxyTelnetCommandArgs struct {

@@ -22,11 +22,12 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/session"
 )
 
 // Player is used to stream recorded sessions over a channel.

@@ -23,12 +23,13 @@ import (
 	"net"
 	"time"
 
-	"github.com/gravitational/teleport/lib/defaults"
-	dbcommon "github.com/gravitational/teleport/lib/srv/db/dbutils"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport/lib/defaults"
+	dbcommon "github.com/gravitational/teleport/lib/srv/db/dbutils"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // WebListenerConfig is the web listener configuration.

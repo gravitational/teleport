@@ -34,6 +34,9 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auditd"
@@ -45,8 +48,6 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/envutils"
-	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 )
 
 // FileFD is a file descriptor passed down from a parent process when

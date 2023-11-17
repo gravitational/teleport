@@ -19,10 +19,11 @@ package opsgenie
 import (
 	"net/url"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/integrations/access/common/auth"
-	"github.com/gravitational/trace"
 )
 
 // Config stores the full configuration for the teleport-opsgenie plugin to run.
