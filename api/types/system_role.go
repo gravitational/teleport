@@ -77,6 +77,8 @@ const (
 	// device inventory.
 	// Device Trust requires Teleport Enteprise.
 	RoleMDM SystemRole = "MDM"
+
+	RoleUserApp SystemRole = "UserApp"
 )
 
 // roleMappings maps a set of allowed lowercase system role names
@@ -103,6 +105,8 @@ var roleMappings = map[string]SystemRole{
 	"discovery":       RoleDiscovery,
 	"okta":            RoleOkta,
 	"mdm":             RoleMDM,
+	"user_app":        RoleUserApp,
+	"userapp":         RoleUserApp,
 }
 
 func normalizedSystemRole(s string) SystemRole {

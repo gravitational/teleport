@@ -717,7 +717,7 @@ func (s *server) handleHeartbeat(conn net.Conn, sconn *ssh.ServerConn, nch ssh.N
 	case types.RoleNode:
 		s.handleNewService(role, conn, sconn, nch, types.NodeTunnel)
 	// App is dialing back.
-	case types.RoleApp:
+	case types.RoleApp, types.RoleUserApp:
 		s.handleNewService(role, conn, sconn, nch, types.AppTunnel)
 	// Kubernetes service is dialing back.
 	case types.RoleKube:

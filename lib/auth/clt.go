@@ -802,6 +802,9 @@ type ClientI interface {
 	// GenerateOpenSSHCert signs a SSH certificate with OpenSSH CA that
 	// can be used to connect to Agentless nodes.
 	GenerateOpenSSHCert(ctx context.Context, req *proto.OpenSSHCertRequest) (*proto.OpenSSHCert, error)
+
+	GenerateUserAppHostCerts(context.Context, *proto.GenerateUserAppHostCertsRequest) (*proto.GenerateUserAppHostCertsResponse, error)
+
 	// AuthenticateWebUser authenticates web user, creates and  returns web session
 	// in case if authentication is successful
 	AuthenticateWebUser(ctx context.Context, req AuthenticateUserRequest) (types.WebSession, error)

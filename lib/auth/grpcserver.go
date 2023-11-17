@@ -581,6 +581,20 @@ func (g *GRPCServer) GenerateHostCerts(ctx context.Context, req *authpb.HostCert
 	return certs, nil
 }
 
+func (g *GRPCServer) GenerateUserAppHostCerts(ctx context.Context, req *authpb.GenerateUserAppHostCertsRequest) (*authpb.GenerateUserAppHostCertsResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp, err := auth.GenerateUserAppHostCerts(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return resp, nil
+}
+
 func (g *GRPCServer) GenerateOpenSSHCert(ctx context.Context, req *authpb.OpenSSHCertRequest) (*authpb.OpenSSHCert, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
@@ -4659,7 +4673,6 @@ func (g *GRPCServer) ListUnifiedResources(ctx context.Context, req *authpb.ListU
 	}
 
 	return auth.ListUnifiedResources(ctx, req)
-
 }
 
 // ListResources retrieves a paginated list of resources.

@@ -18,6 +18,8 @@ package auth
 
 import (
 	"context"
+	"crypto/x509"
+	"encoding/pem"
 	"fmt"
 	"net/url"
 	"strings"
@@ -30,6 +32,7 @@ import (
 	"github.com/sirupsen/logrus"
 	collectortracev1 "go.opentelemetry.io/proto/otlp/collector/trace/v1"
 	otlpcommonv1 "go.opentelemetry.io/proto/otlp/common/v1"
+	"golang.org/x/crypto/ssh"
 	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport"
@@ -1023,6 +1026,47 @@ func (a *ServerWithRoles) GenerateHostCerts(ctx context.Context, req *proto.Host
 		return nil, trace.AccessDenied("roles do not match: %v and %v", existingRoles, req.Role)
 	}
 	return a.authServer.GenerateHostCerts(ctx, req)
+}
+
+func (a *ServerWithRoles) GenerateUserAppHostCerts(ctx context.Context, req *proto.GenerateUserAppHostCertsRequest) (*proto.GenerateUserAppHostCertsResponse, error) {
+	if !authz.IsLocalUser(a.context) {
+		return nil, trace.AccessDenied("not a local user")
+	}
+
+	pubKey, err := x509.ParsePKIXPublicKey(req.GetPublicKeyPkix())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	sshPubKey, err := ssh.NewPublicKey(pubKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	hostID := uuid.NewString()
+
+	certs, err := a.authServer.GenerateHostCerts(ctx, &proto.HostCertsRequest{
+		HostID:   hostID,
+		NodeName: "",
+		Role:     types.RoleUserApp,
+
+		PublicTLSKey: pem.EncodeToMemory(&pem.Block{
+			Type:  "PUBLIC KEY",
+			Bytes: req.GetPublicKeyPkix(),
+		}),
+		PublicSSHKey: ssh.MarshalAuthorizedKey(sshPubKey),
+
+		RemoteAddr: "",
+		Rotation:   nil,
+		NoCache:    false,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &proto.GenerateUserAppHostCertsResponse{
+		Certs: certs,
+	}, nil
 }
 
 // checkAdditionalSystemRoles verifies additional system roles in host cert request.
@@ -5177,6 +5221,62 @@ func (a *ServerWithRoles) GetAppServersAndSAMLIdPServiceProviders(ctx context.Co
 
 // UpsertApplicationServer registers an application server.
 func (a *ServerWithRoles) UpsertApplicationServer(ctx context.Context, server types.AppServer) (*types.KeepAlive, error) {
+	if authz.HasBuiltinRole(a.context, string(types.RoleUserApp)) {
+		clusterName, err := a.authServer.GetDomainName()
+		if err != nil {
+			return nil, trace.Wrap(err, "getting domain name")
+		}
+
+		hostID, err := ExtractHostID(a.context.User.GetName(), clusterName)
+		if err != nil {
+			return nil, trace.Wrap(err, "extracting host ID")
+		}
+
+		proxyPublicAddr := a.authServer.getProxyPublicAddr()
+		if proxyPublicAddr == "" {
+			proxyPublicAddr = clusterName
+		} else {
+			h, _, err := utils.SplitHostPort(proxyPublicAddr)
+			if err == nil {
+				proxyPublicAddr = h
+			}
+		}
+
+		expires := time.Now().Add(apidefaults.ServerAnnounceTTL / 4).UTC()
+		return a.authServer.UpsertApplicationServer(ctx, &types.AppServerV3{
+			Kind:    types.KindAppServer,
+			SubKind: "",
+			Version: types.V3,
+			Metadata: types.Metadata{
+				Name:      hostID,
+				Namespace: apidefaults.Namespace,
+				Expires:   &expires,
+			},
+			Spec: types.AppServerSpecV3{
+				Version:  server.GetVersion(),
+				Hostname: server.GetHostname(),
+				HostID:   hostID,
+				Rotation: server.GetRotation(),
+				App: &types.AppV3{
+					Kind:    types.KindApp,
+					SubKind: "",
+					Version: types.V3,
+					Metadata: types.Metadata{
+						Name:      hostID,
+						Namespace: apidefaults.Namespace,
+					},
+					Spec: types.AppSpecV3{
+						URI:        "http://127.0.0.1",
+						PublicAddr: hostID + "." + proxyPublicAddr,
+
+						Rewrite: nil,
+					},
+				},
+				ProxyIDs: server.GetProxyIDs(),
+			},
+		})
+	}
+
 	if err := a.action(server.GetNamespace(), types.KindAppServer, types.VerbCreate, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -2557,6 +2557,9 @@ service AuthService {
   // target.
   rpc IsMFARequired(IsMFARequiredRequest) returns (IsMFARequiredResponse);
 
+  // TODO(espadolini): add comment
+  rpc GenerateUserAppHostCerts(GenerateUserAppHostCertsRequest) returns (GenerateUserAppHostCertsResponse);
+
   // GetAccessRequestsV2 gets all pending access requests.
   rpc GetAccessRequestsV2(types.AccessRequestFilter) returns (stream types.AccessRequestV3);
   // CreateAccessRequest creates a new access request.
@@ -3237,4 +3240,12 @@ service AuthService {
 
   // DeleteClusterMaintenanceConfig deletes the current maintenance window config singleton.
   rpc DeleteClusterMaintenanceConfig(google.protobuf.Empty) returns (google.protobuf.Empty);
+}
+
+message GenerateUserAppHostCertsRequest {
+  bytes public_key_pkix = 1;
+}
+
+message GenerateUserAppHostCertsResponse {
+  Certs certs = 1;
 }

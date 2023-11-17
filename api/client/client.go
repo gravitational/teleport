@@ -1075,6 +1075,15 @@ func (c *Client) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequ
 	return certs, nil
 }
 
+func (c *Client) GenerateUserAppHostCerts(ctx context.Context, req *proto.GenerateUserAppHostCertsRequest) (*proto.GenerateUserAppHostCertsResponse, error) {
+	resp, err := c.grpc.GenerateUserAppHostCerts(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return resp, nil
+}
+
 // GenerateOpenSSHCert signs a SSH certificate that can be used
 // to connect to Agentless nodes.
 func (c *Client) GenerateOpenSSHCert(ctx context.Context, req *proto.OpenSSHCertRequest) (*proto.OpenSSHCert, error) {
