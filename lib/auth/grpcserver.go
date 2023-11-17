@@ -352,7 +352,8 @@ func (g *GRPCServer) CreateAuditStream(stream authpb.AuthService_CreateAuditStre
 			var errors []error
 			errors = append(errors, eventStream.RecordEvent(stream.Context(), preparedEvent))
 
-			// Emit the event as well for v13 clients.
+			// v13 clients expect this request to also emit the event, so emit here
+			// just for them.
 			switch event.GetType() {
 			// Don't emit really verbose events.
 			case events.ResizeEvent, events.SessionDiskEvent, events.SessionPrintEvent, events.AppSessionRequestEvent, "":
