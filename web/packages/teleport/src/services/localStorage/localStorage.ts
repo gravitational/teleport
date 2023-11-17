@@ -243,6 +243,22 @@ const storage = {
     }
     return null;
   },
+
+  getAccessGraphEnabled(): boolean {
+    const item = window.localStorage.getItem(KeysEnum.ACCESS_GRAPH_ENABLED);
+    if (item) {
+      return JSON.parse(item);
+    }
+    return false;
+  },
+
+  getAccessGraphSQLEnabled(): boolean {
+    const item = window.localStorage.getItem(KeysEnum.ACCESS_GRAPH_ENABLED);
+    if (item) {
+      return JSON.parse(item);
+    }
+    return false;
+  },
 };
 
 export default storage;
