@@ -728,7 +728,7 @@ func waitAndReload(ctx context.Context, cfg Config, srv Process, newTeleport New
 		return nil, trace.BadParameter("the new service has failed to start")
 	}
 	cfg.Log.Infof("New service has started successfully.")
-	shutdownTimeout := cfg.ShutdownTimeout
+	shutdownTimeout := cfg.Testing.ShutdownTimeout
 	if shutdownTimeout == 0 {
 		// The default shutdown timeout is very generous to avoid disrupting
 		// longer running connections.
@@ -1594,7 +1594,7 @@ func (process *TeleportProcess) initAuthService() error {
 			CipherSuites:            cfg.CipherSuites,
 			KeyStoreConfig:          cfg.Auth.KeyStore,
 			Emitter:                 checkingEmitter,
-			Streamer:                events.NewReportingStreamer(checkingStreamer, process.Config.UploadEventsC),
+			Streamer:                events.NewReportingStreamer(checkingStreamer, process.Config.Testing.UploadEventsC),
 			TraceClient:             traceClt,
 			FIPS:                    cfg.FIPS,
 			LoadAllCAs:              cfg.Auth.LoadAllCAs,
@@ -2597,7 +2597,7 @@ func (process *TeleportProcess) initUploaderService() error {
 		Streamer:     conn.Client,
 		ScanDir:      uploadsDir,
 		CorruptedDir: corruptedDir,
-		EventsC:      process.Config.UploadEventsC,
+		EventsC:      process.Config.Testing.UploadEventsC,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -3579,7 +3579,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				KEXAlgorithms:                 cfg.KEXAlgorithms,
 				MACAlgorithms:                 cfg.MACAlgorithms,
 				DataDir:                       process.Config.DataDir,
-				PollingPeriod:                 process.Config.PollingPeriod,
+				PollingPeriod:                 process.Config.Testing.PollingPeriod,
 				FIPS:                          cfg.FIPS,
 				Emitter:                       streamEmitter,
 				Log:                           process.log,
