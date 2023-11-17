@@ -45,6 +45,7 @@ import (
 	resourcesv3 "github.com/gravitational/teleport/integrations/operator/apis/resources/v3"
 	resourcesv5 "github.com/gravitational/teleport/integrations/operator/apis/resources/v5"
 	"github.com/gravitational/teleport/integrations/operator/controllers/resources"
+	"github.com/gravitational/teleport/integrations/operator/sidecar"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 )
@@ -140,6 +141,10 @@ func FastEventually(t *testing.T, condition func() bool) {
 	require.Eventually(t, condition, time.Second, 100*time.Millisecond)
 }
 
+func FastEventuallyWithT(t *testing.T, condition func(collectT *assert.CollectT)) {
+	require.EventuallyWithT(t, condition, time.Second, 100*time.Millisecond)
+}
+
 func clientForTeleport(t *testing.T, teleportServer *helpers.TeleInstance, userName string) *client.Client {
 	identityFilePath := helpers.MustCreateUserIdentityFile(t, teleportServer, userName, time.Hour)
 	creds := client.LoadIdentityFile(identityFilePath)
@@ -173,8 +178,8 @@ func (s *TestSetup) StartKubernetesOperator(t *testing.T) {
 	}
 
 	// We have to create a new Manager on each start because the Manager does not support to be restarted
-	clientAccessor := func(ctx context.Context) (*client.Client, error) {
-		return s.TeleportClient, nil
+	clientAccessor := func(ctx context.Context) (*sidecar.SyncClient, func(), error) {
+		return sidecar.NewSyncClient(s.TeleportClient), func() {}, nil
 	}
 
 	k8sManager, err := ctrl.NewManager(s.K8sRestConfig, ctrl.Options{

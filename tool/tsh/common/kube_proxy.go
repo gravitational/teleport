@@ -35,12 +35,12 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/client/mfa"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/utils"
@@ -567,7 +567,6 @@ func issueKubeCert(ctx context.Context, tc *client.TeleportClient, proxy *client
 		requesterName = proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY_HEADLESS
 	}
 
-	hint := fmt.Sprintf("MFA is required to access Kubernetes cluster %q", kubeCluster)
 	key, err := proxy.IssueUserCertsWithMFA(
 		ctx,
 		client.ReissueParams{
@@ -575,7 +574,7 @@ func issueKubeCert(ctx context.Context, tc *client.TeleportClient, proxy *client
 			KubernetesCluster: kubeCluster,
 			RequesterName:     requesterName,
 		},
-		tc.NewMFAPrompt(mfa.WithHintBeforePrompt(hint)),
+		tc.NewMFAPrompt(mfa.WithPromptReasonSessionMFA("Kubernetes cluster", kubeCluster)),
 		client.WithMFARequired(&mfaRequired),
 	)
 	if err != nil {

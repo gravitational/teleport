@@ -148,20 +148,18 @@ func cloneRepoCommands(cloneDirectory, commit string) []string {
 }
 
 type buildType struct {
-	os              string
-	arch            string
-	fips            bool
-	centos7         bool
-	windowsUnsigned bool
-	buildConnect    bool
+	os           string
+	arch         string
+	fips         bool
+	centos7      bool
+	buildConnect bool
 }
 
 // Description provides a human-facing description of the artifact, e.g.:
 //
-//	Windows 64-bit (tsh client only)
 //	Linux ARMv7 (32-bit)
 //	MacOS Intel .pkg installer
-func (b *buildType) Description(packageType string, extraQualifications ...string) string {
+func (b *buildType) Description(packageType string) string {
 	var result string
 
 	var os string
@@ -175,8 +173,6 @@ func (b *buildType) Description(packageType string, extraQualifications ...strin
 		os = "Linux"
 	case "darwin":
 		os = "MacOS"
-	case "windows":
-		os = "Windows"
 	default:
 		panic(fmt.Sprintf("unhandled OS: %s", b.os))
 	}
@@ -207,14 +203,12 @@ func (b *buildType) Description(packageType string, extraQualifications ...strin
 		qualifications = append(qualifications, "FedRAMP/FIPS")
 	}
 
-	qualifications = append(qualifications, extraQualifications...)
-
 	result = os
 
 	if b.os == "darwin" {
 		result += fmt.Sprintf(" %s", darwinArch)
 	} else {
-		// arch is implicit for Windows/Linux i386/amd64
+		// arch is implicit for Linux i386/amd64
 		if arch == "" {
 			result += fmt.Sprintf(" %d-bit", bitness)
 		} else {
@@ -266,15 +260,6 @@ func releaseMakefileTarget(b buildType) string {
 	}
 	if b.fips {
 		makefileTarget += "-fips"
-	}
-
-	// Override Windows targets.
-	if b.os == "windows" {
-		if b.windowsUnsigned {
-			makefileTarget = "release-windows-unsigned"
-		} else {
-			makefileTarget = "release-windows"
-		}
 	}
 
 	return makefileTarget

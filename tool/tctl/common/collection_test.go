@@ -18,6 +18,7 @@ package common
 
 import (
 	"bytes"
+	"maps"
 	"testing"
 	"time"
 
@@ -338,11 +339,7 @@ func formatTestLabels(l1, l2 map[string]string, verbose bool) string {
 
 func makeTestLabels(extraStaticLabels map[string]string) map[string]string {
 	labels := make(map[string]string)
-	for k, v := range staticLabelsFixture {
-		labels[k] = v
-	}
-	for k, v := range extraStaticLabels {
-		labels[k] = v
-	}
+	maps.Copy(labels, staticLabelsFixture)
+	maps.Copy(labels, extraStaticLabels)
 	return labels
 }

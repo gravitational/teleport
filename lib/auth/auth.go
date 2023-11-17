@@ -257,6 +257,9 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			return nil, trace.Wrap(err)
 		}
 	}
+	if cfg.PluginData == nil {
+		cfg.PluginData = local.NewPluginData(cfg.Backend, cfg.DynamicAccessExt)
+	}
 	if cfg.Integrations == nil {
 		cfg.Integrations, err = local.NewIntegrationsService(cfg.Backend)
 		if err != nil {
@@ -340,6 +343,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		UsageReporter:           cfg.UsageReporter,
 		Assistant:               cfg.Assist,
 		UserPreferences:         cfg.UserPreferences,
+		PluginData:              cfg.PluginData,
 	}
 
 	closeCtx, cancelFunc := context.WithCancel(context.TODO())
@@ -480,6 +484,7 @@ type Services struct {
 	services.Assistant
 	services.Embeddings
 	services.UserPreferences
+	services.PluginData
 	usagereporter.UsageReporter
 	types.Events
 	events.AuditLogSessionStreamer
@@ -3119,7 +3124,7 @@ func (a *Server) DeleteMFADeviceSync(ctx context.Context, req *proto.DeleteMFADe
 			return trace.Wrap(err)
 		}
 
-		if _, _, err := a.validateMFAAuthResponse(
+		if _, _, err := a.ValidateMFAAuthResponse(
 			ctx, req.ExistingMFAResponse, user, false, /* passwordless */
 		); err != nil {
 			return trace.Wrap(err)
@@ -5694,7 +5699,7 @@ func (a *Server) validateMFAAuthResponseForRegister(
 	}
 
 	if err := a.WithUserLock(ctx, username, func() error {
-		_, _, err := a.validateMFAAuthResponse(
+		_, _, err := a.ValidateMFAAuthResponse(
 			ctx, resp, username, false /* passwordless */)
 		return err
 	}); err != nil {
@@ -5704,13 +5709,10 @@ func (a *Server) validateMFAAuthResponseForRegister(
 	return true, nil
 }
 
-// validateMFAAuthResponse validates an MFA or passwordless challenge.
+// ValidateMFAAuthResponse validates an MFA or passwordless challenge.
 // Returns the device used to solve the challenge (if applicable) and the
 // username.
-func (a *Server) validateMFAAuthResponse(
-	ctx context.Context,
-	resp *proto.MFAAuthenticateResponse, user string, passwordless bool,
-) (*types.MFADevice, string, error) {
+func (a *Server) ValidateMFAAuthResponse(ctx context.Context, resp *proto.MFAAuthenticateResponse, user string, passwordless bool) (*types.MFADevice, string, error) {
 	// Sanity check user/passwordless.
 	if user == "" && !passwordless {
 		return nil, "", trace.BadParameter("user required")
