@@ -21,7 +21,7 @@ import { Text, Toggle, Link, Flex } from 'design';
 import { ToolTipInfo } from 'shared/components/ToolTip';
 
 const GUIDE_URL =
-  'https://goteleport.com/docs/setup/reference/predicate-language/#resource-filtering';
+  'https://goteleport.com/docs/reference/predicate-language/#resource-filtering';
 
 export function AdvancedSearchToggle(props: {
   isToggled: boolean;
