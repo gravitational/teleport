@@ -29,7 +29,7 @@ const (
 	// OriginalRolesAndTraitsSet is an annotation that will indicate that the original roles and traits have been
 	// set for this objects. For existing user login states, this will not be set, indicating that we can't
 	// use these fields reliably.
-	// TODO(mdwn): Remove this in v17.
+	// DELETE IN 17 (mdwn)
 	OriginalRolesAndTraitsSet = types.TeleportInternalLabelPrefix + "original-set"
 )
 
