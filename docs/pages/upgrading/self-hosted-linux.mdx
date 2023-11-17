@@ -17,29 +17,10 @@ Linux servers.
   If you are running more than one Auth Service instance, you must reduce the
   size of the Auth Service instance pool to one in order to perform an upgrade.
 
-Teleport supports automatic agent upgrades for systemd-based Linux distributions
-using `apt`, `yum`, and `zypper` package managers. The [Automatic Update
-Architecture](../architecture/agent-update-management.mdx) guide describes how
-agent updating works. Automatic agent upgrades require:
-
-- A Teleport cluster running version 13.0 or above.
-
-- At least one Teleport Enterprise agent, started via systemd on a distribution
-  using the `apt` or `yum` package managers.
-
-- A **version server** in your infrastructure that agents can query in order to
-  upgrade themselves. Read [Set up Automatic Upgrade
-  Infrastructure](./self-hosted-automatic-agent-updates.mdx) for how to deploy a
-  version server.
-
-  If your environment does not support automatic upgrades, you can follow the
-  same instructions to upgrade agents that we use to upgrade the Auth Service
-  and Proxy Service in this guide.
-
-## Step 1/2. Upgrade the Auth Service and Proxy Service
+## Upgrade Teleport binaries
 
 Complete the following steps on all servers that run the Auth Service and Proxy
-Service:
+Service, then on each of your agents:
 
 1. Install the latest Teleport version on the host.
 
@@ -56,100 +37,3 @@ Service:
    the new version.
 
    (!docs/pages/includes/start-teleport.mdx!)
-
-## Step 2/2. Enroll agents in automatic upgrades
-
-Follow these instructions on each of your Teleport agents.
-
-1. Ensure the Teleport repository is added and Teleport Enterprise is installed.
-
-   To verify if the Teleport repository was added to the system, check if either of the follow files exist:
-
-   ```code
-   $ ls /etc/apt/sources.list.d/teleport.list
-   # or
-   $ ls /etc/yum.repos.d/teleport.repo
-   ```
-
-   The upgrader checks the repository for available releases, so make sure that
-   it is up to date.
-   
-1. If the repository was added, make sure the Teleport binary installed on the
-   agent can run the automatic upgrader:
-
-   ```code
-   $ which teleport-upgrade || echo "Install the upgrader"
-   Install the upgrader
-   ```
-
-1. If the Teleport repository is not found, or the Teleport binary you installed
-   does not include the upgrader, add the appropriate repository and reinstall
-   Teleport.
-   
-   (!docs/pages/includes/install-linux-self-hosted.mdx!)
-
-1. Configure the upgrader: 
-
-   Create the upgrade configuration directory:
-   
-   ```code
-   $ sudo mkdir -p /etc/teleport-upgrade.d/
-   ```
-   
-   If you changed the agent user to run as non-root, create
-   `/etc/teleport-upgrade.d/schedule` and grant ownership to your Teleport user.
-   Otherwise, you can skip this step:
-   
-   ```code
-   $ sudo touch /etc/teleport-upgrade.d/schedule
-   $ sudo chown <Var name="your-teleport-user" /> /etc/teleport-upgrade.d/schedule
-   ```
-   
-   Configure the upgrader to connect to your custom version server and subscribe
-   to the right release channel:
-   
-   ```code
-   $ echo <Var name="version-server-url/path" />/<Var name="release-channel" /> | sudo tee /etc/teleport-upgrade.d/endpoint
-   ```
-   
-   Make sure not to include `https://` as a prefix to the server address.
-
-1.  Verify that the upgrader can see your version endpoint by checking for
-    upgrades:
-
-    ```code
-    $ sudo teleport-upgrade dry-run
-    ```
-   
-    You should see one of the following messages, depending on the target version
-    you are currently serving:
-    
-    ```text
-    no upgrades available (1.2.3 == 1.2.3)
-    an upgrade is available (1.2.3 -> 2.3.4)
-    ```
-    
-    `teleport-upgrade` may display warnings about not having a valid upgrade
-    schedule. This is expected immediately after install as the maintenance
-    schedule might not be exported yet.
-
-## Troubleshooting
-
-If the agent is not automatically upgraded, you can invoke the upgrader manually
-and look at its logs:
-
-```code
-$ sudo teleport-upgrade run
-```
-
-To suspend automatic upgrades, disable the systemd timer:
-
-```code
-$ sudo systemctl disable --now teleport-upgrade.timer
-```
-
-To enable and start the systemd timer after suspending:
-
-```code
-$ sudo systemctl enable --now teleport-upgrade.timer
-```

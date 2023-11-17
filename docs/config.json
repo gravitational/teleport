@@ -24,18 +24,13 @@
 	      "title": "Compatibility Overview",
 	      "slug": "/upgrading/overview/"
 	    },
-            {
-              "title": "Deploying Automatic Upgrade Infrastructure",
-              "slug": "/upgrading/self-hosted-automatic-agent-updates/",
-              "forScopes": ["enterprise"]
-            },
 	    {
-	      "title": "Linux",
+	      "title": "Teleport Cloud Agents (Linux)",
 	      "slug": "/upgrading/cloud-linux/",
 	      "forScopes": ["cloud", "team"]
 	    },
 	    {
-	      "title": "Kubernetes",
+	      "title": "Teleport Cloud Agents (Kubernetes)",
 	      "slug": "/upgrading/cloud-kubernetes/",
 	      "forScopes": ["cloud", "team"]
 	    },
@@ -48,7 +43,12 @@
 	      "title": "Self-Hosted Kubernetes",
 	      "slug": "/upgrading/self-hosted-kubernetes/",
 	      "forScopes": ["enterprise", "oss"]
-	    }
+	    },
+            {
+              "title": "Self-Hosted Automatic Upgrades",
+              "slug": "/upgrading/self-hosted-automatic-agent-updates/",
+              "forScopes": ["enterprise"]
+            }
 	  ]
 	},
         {
