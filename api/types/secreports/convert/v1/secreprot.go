@@ -19,10 +19,11 @@ package v1
 import (
 	"time"
 
+	"github.com/gravitational/trace"
+
 	secreportsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/secreports/v1"
 	headerv1 "github.com/gravitational/teleport/api/types/header/convert/v1"
 	"github.com/gravitational/teleport/api/types/secreports"
-	"github.com/gravitational/trace"
 )
 
 // FromProtoAuditQuery converts the audit query from proto.

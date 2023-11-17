@@ -21,10 +21,11 @@ import (
 	"sort"
 	"time"
 
-	"github.com/gravitational/teleport/api"
-	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/trace"
 	"golang.org/x/exp/maps"
+
+	"github.com/gravitational/teleport/api"
+	"github.com/gravitational/teleport/api/utils"
 )
 
 // DatabaseServer represents a database access server.

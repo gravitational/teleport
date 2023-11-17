@@ -19,9 +19,10 @@ package headerv1
 import (
 	"time"
 
+	"google.golang.org/protobuf/types/known/timestamppb"
+
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/teleport/api/types/header"
-	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 // FromResourceHeaderProto converts the resource header protobuf message into an internal resource header object.

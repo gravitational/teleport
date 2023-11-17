@@ -30,9 +30,10 @@ import (
 	"strings"
 
 	"github.com/Microsoft/go-winio"
-	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
+
+	apiutils "github.com/gravitational/teleport/api/utils"
 )
 
 const namedPipe = `\\.\pipe\openssh-ssh-agent`

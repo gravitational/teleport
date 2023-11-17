@@ -19,9 +19,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/stretchr/testify/require"
 )
 
 func TestMFADevice_CheckAndSetDefaults(t *testing.T) {

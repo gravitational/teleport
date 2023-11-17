@@ -20,9 +20,10 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/gravitational/teleport/api/utils"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/protoadapt"
+
+	"github.com/gravitational/teleport/api/utils"
 )
 
 type protoResource interface {

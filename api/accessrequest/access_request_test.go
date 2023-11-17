@@ -20,9 +20,10 @@ import (
 	"context"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/stretchr/testify/require"
 )
 
 func newNode(t *testing.T, name, hostname string) types.Server {

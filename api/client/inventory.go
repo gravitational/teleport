@@ -22,10 +22,11 @@ import (
 	"io"
 	"sync"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/trace"
 )
 
 // DownstreamInventoryControlStream is the client/agent side of a bidirectional stream established

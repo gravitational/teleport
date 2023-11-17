@@ -21,12 +21,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/testhelpers/mtls"
-	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+
+	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/testhelpers/mtls"
+	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 )
 
 // mockServer mocks an Auth Server.

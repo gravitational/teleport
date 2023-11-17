@@ -20,9 +20,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/trace"
 )
 
 // ClusterNetworkingConfig defines cluster networking configuration. This is

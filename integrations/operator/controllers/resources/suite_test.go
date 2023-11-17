@@ -22,11 +22,12 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
+
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integrations/operator/controllers/resources/testlib"
-	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/assert"
 )
 
 // Temporary type alias to slightly decrease the size of this commit, it can be

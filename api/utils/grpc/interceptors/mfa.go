@@ -18,11 +18,12 @@ import (
 	"context"
 	"errors"
 
-	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
 	"google.golang.org/grpc"
+
+	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/mfa"
 )
 
 // RetryWithMFAUnaryInterceptor intercepts a GRPC client unary call to check if the

@@ -21,9 +21,10 @@ import (
 	"crypto/rsa"
 	"time"
 
-	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
+
+	"github.com/gravitational/teleport/api/constants"
 )
 
 const defaultPrincipal = "127.0.0.1"

@@ -19,13 +19,14 @@ package maintenance
 import (
 	"context"
 
-	"github.com/gravitational/teleport/integrations/kube-agent-updater/pkg/podutils"
 	"github.com/gravitational/trace"
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/gravitational/teleport/integrations/kube-agent-updater/pkg/podutils"
 )
 
 // unhealthyWorkloadTrigger allows a maintenance to start if the workload is

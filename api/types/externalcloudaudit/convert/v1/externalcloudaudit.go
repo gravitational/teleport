@@ -17,10 +17,11 @@ limitations under the License.
 package v1
 
 import (
+	"github.com/gravitational/trace"
+
 	externalcloudauditv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/externalcloudaudit/v1"
 	"github.com/gravitational/teleport/api/types/externalcloudaudit"
 	headerv1 "github.com/gravitational/teleport/api/types/header/convert/v1"
-	"github.com/gravitational/trace"
 )
 
 // FromProtoDraft converts an external representation of a v1 `ExternalCloudAudit`

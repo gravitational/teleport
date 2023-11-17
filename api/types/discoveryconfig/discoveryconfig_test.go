@@ -19,10 +19,11 @@ package discoveryconfig
 import (
 	"testing"
 
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/header"
 )
 
 func requireBadParameter(t require.TestingT, err error, i ...interface{}) {

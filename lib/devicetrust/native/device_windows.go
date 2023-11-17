@@ -23,12 +23,13 @@ import (
 	"time"
 
 	"github.com/google/go-attestation/attest"
-	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
-	"github.com/gravitational/teleport/lib/windowsexec"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/sys/windows"
 	"google.golang.org/protobuf/types/known/timestamppb"
+
+	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
+	"github.com/gravitational/teleport/lib/windowsexec"
 )
 
 // deviceStateFolderName starts with a "." on Windows for backwards

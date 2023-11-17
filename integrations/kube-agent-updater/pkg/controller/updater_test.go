@@ -22,13 +22,14 @@ import (
 	"testing"
 
 	"github.com/distribution/reference"
-	"github.com/gravitational/teleport/integrations/kube-agent-updater/pkg/img"
-	"github.com/gravitational/teleport/integrations/kube-agent-updater/pkg/maintenance"
-	"github.com/gravitational/teleport/integrations/kube-agent-updater/pkg/version"
 	"github.com/gravitational/trace"
 	"github.com/opencontainers/go-digest"
 	"github.com/stretchr/testify/require"
 	core "k8s.io/api/core/v1"
+
+	"github.com/gravitational/teleport/integrations/kube-agent-updater/pkg/img"
+	"github.com/gravitational/teleport/integrations/kube-agent-updater/pkg/maintenance"
+	"github.com/gravitational/teleport/integrations/kube-agent-updater/pkg/version"
 )
 
 const (

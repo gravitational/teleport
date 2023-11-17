@@ -22,10 +22,11 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/integrations/kube-agent-updater/pkg/basichttp"
 	"github.com/gravitational/teleport/integrations/kube-agent-updater/pkg/cache"
 	"github.com/gravitational/teleport/integrations/kube-agent-updater/pkg/constants"
-	"github.com/gravitational/trace"
 )
 
 // basicHTTPVersionClient retrieves the version from an HTTP endpoint

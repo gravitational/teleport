@@ -24,10 +24,6 @@ import (
 	"time"
 
 	"github.com/distribution/reference"
-	"github.com/gravitational/teleport/integrations/kube-agent-updater/pkg/controller"
-	"github.com/gravitational/teleport/integrations/kube-agent-updater/pkg/img"
-	"github.com/gravitational/teleport/integrations/kube-agent-updater/pkg/maintenance"
-	"github.com/gravitational/teleport/integrations/kube-agent-updater/pkg/version"
 	"github.com/gravitational/trace"
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
@@ -40,6 +36,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
+
+	"github.com/gravitational/teleport/integrations/kube-agent-updater/pkg/controller"
+	"github.com/gravitational/teleport/integrations/kube-agent-updater/pkg/img"
+	"github.com/gravitational/teleport/integrations/kube-agent-updater/pkg/maintenance"
+	"github.com/gravitational/teleport/integrations/kube-agent-updater/pkg/version"
 )
 
 var (

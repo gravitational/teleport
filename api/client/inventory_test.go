@@ -22,9 +22,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/client/proto"
 )
 
 // TestInventoryControlStreamPipe is a sanity-check to make sure that the in-memory

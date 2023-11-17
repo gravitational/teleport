@@ -21,13 +21,14 @@ import (
 	"os"
 	"path"
 
-	"github.com/gravitational/teleport/build.assets/tooling/lib/logging"
 	"github.com/gravitational/trace"
 	"github.com/hashicorp/go-hclog"
 	"github.com/mitchellh/gon/notarize"
 	"github.com/mitchellh/gon/package/zip"
 	"github.com/mitchellh/gon/sign"
 	"github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport/build.assets/tooling/lib/logging"
 )
 
 type GonWrapper struct {

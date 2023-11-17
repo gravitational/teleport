@@ -17,10 +17,11 @@ package externalcloudaudit
 import (
 	"context"
 
+	"github.com/gravitational/trace"
+
 	externalcloudauditv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/externalcloudaudit/v1"
 	"github.com/gravitational/teleport/api/types/externalcloudaudit"
 	conv "github.com/gravitational/teleport/api/types/externalcloudaudit/convert/v1"
-	"github.com/gravitational/trace"
 )
 
 // Client is an external cloud audit client that conforms to the following lib/services interfaces:

@@ -19,11 +19,12 @@ import (
 	"net"
 	"sync"
 
-	transportv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/transport/v1"
-	streamutils "github.com/gravitational/teleport/api/utils/grpc/stream"
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh/agent"
 	"google.golang.org/grpc/peer"
+
+	transportv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/transport/v1"
+	streamutils "github.com/gravitational/teleport/api/utils/grpc/stream"
 )
 
 // Client is a wrapper around a [transportv1.TransportServiceClient] that

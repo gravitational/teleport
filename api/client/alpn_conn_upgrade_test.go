@@ -28,12 +28,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/fixtures"
 	"github.com/gravitational/teleport/api/testhelpers"
 	"github.com/gravitational/teleport/api/utils/pingconn"
-	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/require"
 )
 
 func TestIsALPNConnUpgradeRequired(t *testing.T) {

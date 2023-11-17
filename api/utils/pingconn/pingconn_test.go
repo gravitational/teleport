@@ -25,8 +25,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport/api/fixtures"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/fixtures"
 )
 
 type pingConn interface {

@@ -20,8 +20,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/utils"
 )
 
 // ClusterName defines the name of the cluster. This is a configuration

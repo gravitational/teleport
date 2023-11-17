@@ -20,11 +20,12 @@ import (
 	"context"
 	"sync"
 
-	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/trace"
 	"google.golang.org/grpc"
 	ggzip "google.golang.org/grpc/encoding/gzip"
+
+	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/types/events"
 )
 
 // createOrResumeAuditStream creates or resumes audit stream described in the request.

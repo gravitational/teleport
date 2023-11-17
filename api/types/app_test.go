@@ -20,9 +20,10 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/constants"
 )
 
 // TestAppPublicAddrValidation tests PublicAddr field validation to make sure that

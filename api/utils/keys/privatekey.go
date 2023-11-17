@@ -28,9 +28,10 @@ import (
 	"encoding/pem"
 	"os"
 
-	"github.com/gravitational/teleport/api/utils/sshutils/ppk"
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
+
+	"github.com/gravitational/teleport/api/utils/sshutils/ppk"
 )
 
 const (

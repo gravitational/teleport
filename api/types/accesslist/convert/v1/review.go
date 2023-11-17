@@ -19,12 +19,13 @@ package v1
 import (
 	"time"
 
+	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/types/known/timestamppb"
+
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	headerv1 "github.com/gravitational/teleport/api/types/header/convert/v1"
 	traitv1 "github.com/gravitational/teleport/api/types/trait/convert/v1"
-	"github.com/gravitational/trace"
-	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 // FromReviewProto converts a v1 access list review into an internal access list review object.

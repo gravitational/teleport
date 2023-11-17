@@ -22,10 +22,11 @@ import (
 	"unsafe"
 
 	"github.com/go-webauthn/webauthn/protocol"
-	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/sys/windows"
+
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 )
 
 var (

@@ -21,8 +21,9 @@ import (
 	"strings"
 
 	"github.com/coreos/go-semver/semver"
-	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api"
 )
 
 // CertAuthType specifies certificate authority type. New variants should be

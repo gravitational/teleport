@@ -22,8 +22,9 @@ import (
 	"crypto/rand"
 	"testing"
 
-	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/utils/keys"
 )
 
 // TestNonHardwareSigner tests the HardwareSigner interface with non-hardware keys.

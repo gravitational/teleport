@@ -20,8 +20,9 @@ package keypaths_test
 import (
 	"testing"
 
-	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/utils/keypaths"
 )
 
 func TestIsProfileKubeConfigPath(t *testing.T) {

@@ -19,8 +19,9 @@ package types
 import (
 	"time"
 
-	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/utils"
 )
 
 // ClusterAuditConfig defines cluster-wide audit log configuration. This is

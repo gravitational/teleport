@@ -17,10 +17,11 @@ package main
 import (
 	"context"
 
-	"github.com/gravitational/teleport/api/client"
 	"google.golang.org/api/option"
 	sheets "google.golang.org/api/sheets/v4"
 	"google.golang.org/grpc"
+
+	"github.com/gravitational/teleport/api/client"
 )
 
 func main() {

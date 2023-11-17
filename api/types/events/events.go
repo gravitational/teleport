@@ -21,11 +21,12 @@ import (
 	"encoding/hex"
 	"encoding/json"
 
-	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
-	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
+
+	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
+	"github.com/gravitational/teleport/api/utils"
 )
 
 func trimN(s string, n int) string {

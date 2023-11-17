@@ -21,9 +21,10 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
+
+	"github.com/gravitational/teleport/api/types/wrappers"
 )
 
 func TestAccessRequestConditionsIsEmpty(t *testing.T) {

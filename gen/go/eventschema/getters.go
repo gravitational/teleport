@@ -19,8 +19,9 @@ import (
 	"reflect"
 	"strings"
 
-	events2 "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/trace"
+
+	events2 "github.com/gravitational/teleport/lib/events"
 )
 
 // GetEventSchemaFromType takes an event type, looks up the corresponding

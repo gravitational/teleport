@@ -18,9 +18,10 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/api/types/externalcloudaudit"
 	"github.com/gravitational/teleport/api/types/header"
-	"github.com/stretchr/testify/require"
 )
 
 func TestRoundtrip(t *testing.T) {

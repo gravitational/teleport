@@ -17,10 +17,11 @@ package userloginstate
 import (
 	"context"
 
+	"github.com/gravitational/trace"
+
 	userloginstatev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/userloginstate/v1"
 	"github.com/gravitational/teleport/api/types/userloginstate"
 	conv "github.com/gravitational/teleport/api/types/userloginstate/convert/v1"
-	"github.com/gravitational/trace"
 )
 
 // Client is a user login state client that conforms to the following lib/services interfaces:

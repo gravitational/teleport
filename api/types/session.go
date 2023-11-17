@@ -21,9 +21,10 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/utils/keys"
-	"github.com/gravitational/trace"
 )
 
 // WebSessionsGetter provides access to web sessions

@@ -24,10 +24,11 @@ import (
 	"testing"
 
 	"github.com/go-piv/piv-go/piv"
-	"github.com/gravitational/teleport/api/utils/keys"
-	"github.com/gravitational/teleport/api/utils/prompt"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils/prompt"
 )
 
 // TestGetYubiKeyPrivateKey_Interactive tests generation and retrieval of YubiKey private keys.

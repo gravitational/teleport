@@ -17,10 +17,11 @@ package discoveryconfig
 import (
 	"context"
 
+	"github.com/gravitational/trace"
+
 	discoveryconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	conv "github.com/gravitational/teleport/api/types/discoveryconfig/convert/v1"
-	"github.com/gravitational/trace"
 )
 
 // Client is an DiscoveryConfig client that conforms to the following lib/services interfaces:

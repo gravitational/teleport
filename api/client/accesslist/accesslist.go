@@ -18,10 +18,11 @@ import (
 	"context"
 	"time"
 
+	"github.com/gravitational/trace"
+
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	conv "github.com/gravitational/teleport/api/types/accesslist/convert/v1"
-	"github.com/gravitational/trace"
 )
 
 // Client is an access list client that conforms to the following lib/services interfaces:

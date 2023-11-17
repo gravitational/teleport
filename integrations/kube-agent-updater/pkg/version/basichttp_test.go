@@ -22,10 +22,11 @@ import (
 	"net/url"
 	"testing"
 
-	"github.com/gravitational/teleport/integrations/kube-agent-updater/pkg/basichttp"
-	"github.com/gravitational/teleport/integrations/kube-agent-updater/pkg/constants"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/integrations/kube-agent-updater/pkg/basichttp"
+	"github.com/gravitational/teleport/integrations/kube-agent-updater/pkg/constants"
 )
 
 const basicHTTPTestPath = "/v1/cloud-stable"

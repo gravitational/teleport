@@ -25,9 +25,10 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/gravitational/teleport/api/utils/tlsutils"
 	"github.com/gravitational/trace"
 	"golang.org/x/net/proxy"
+
+	"github.com/gravitational/teleport/api/utils/tlsutils"
 )
 
 // PROXYHeaderGetter is used if present to get signed PROXY headers to propagate client's IP.

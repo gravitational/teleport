@@ -21,9 +21,10 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
-	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/defaults"
 )
 
 func TestIntegrationJSONMarshalCycle(t *testing.T) {

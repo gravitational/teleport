@@ -26,13 +26,14 @@ import (
 	"net"
 	"testing"
 
-	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/propagation"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"golang.org/x/crypto/ssh"
+
+	"github.com/gravitational/teleport/api/observability/tracing"
 )
 
 const testPayload = "test"

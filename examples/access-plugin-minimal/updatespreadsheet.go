@@ -17,8 +17,9 @@ package main
 import (
 	"errors"
 
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 func (g *googleSheetsClient) updateSpreadsheet(ar types.AccessRequest) error {
