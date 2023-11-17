@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import { FetchStatus, SortType, Page } from 'design/DataTable/types';
 import useAttempt from 'shared/hooks/useAttemptNext';
+import { isAbortError } from 'shared/utils/abortError';
 import { SharedUnifiedResource } from 'shared/components/UnifiedResources/types';
 import { useUnifiedResourcesFetch } from 'shared/components/UnifiedResources';
 import useStickyClusterId from 'teleport/useStickyClusterId';
@@ -32,6 +33,8 @@ export function useNewRequest(ctx: Ctx) {
   const { attempt, setAttempt, handleError } = useAttempt(
     isLeafCluster ? 'processing' : ''
   );
+  const { attempt: dryRunAttempt, setAttempt: setDryRunAttempt } =
+    useAttempt('processing');
   const [selectedResource, setSelectedResource] = useState<ResourceKind>(
     isLeafCluster ? 'node' : 'role'
   );
@@ -39,6 +42,67 @@ export function useNewRequest(ctx: Ctx) {
   const [fetchedData, setFetchedData] = useState<
     ResourcesResponse<UnifiedResource>
   >(getEmptyFetchedDataState());
+  const [resourceRequestsDisabled, setResourceRequestsDisabled] =
+    useState(false);
+
+  useEffect(() => {
+    setResourceRequestsDisabled(false);
+    const signal = new AbortController();
+    async function createDryRunAccessRequest() {
+      try {
+        await ctx.workflowService.createAccessRequest(
+          {
+            resourceIds: [
+              {
+                kind: 'node',
+                name: '',
+                clusterName: clusterId,
+              },
+            ],
+            dryRun: true,
+          },
+          signal.signal
+        );
+        // we shouldn't hit this code as a user who can't search_as_roles will return a 403
+        // and a user who _can_ search_as_roles will receive a 400 due to an "empty" request.
+        // We only set success here to help with tests.
+        setDryRunAttempt({ status: 'success' });
+      } catch (err) {
+        // ignore abort errors
+        if (isAbortError(err)) {
+          return;
+        }
+
+        // This request should _always_ fail due to sending an "empty" request
+        // but that is ok because it is a dry run and we expect one of two failures. (403 and 400)
+        // The 400 we can ignore because it is expected that an empty request will fail.
+        // The 403 is the failure we are interested in as that means the user can't create
+        // a resource access request due to not having an additional roles configured in their
+        // "search_as_roles" setup.
+
+        // Any subsequent attempts to create a request will be handled further along the path,
+        // where errors are already managed. This notification is placed at the "start" of
+        // an access request to prevent users from building up their cart only to encounter failure later.
+        if (err?.response?.status === 403) {
+          setDryRunAttempt({
+            status: 'failed',
+            statusText:
+              'You cannot search for and request additional resources. This could be because you already have access to all resources or your roles do not include the requisite `search_as_roles` field.',
+          });
+          setResourceRequestsDisabled(true);
+          return;
+        }
+        // Any other failure is acceptable at this point and we want to set this as "success" so the resources
+        // list will still show
+        setDryRunAttempt({ status: 'success' });
+      }
+    }
+    createDryRunAccessRequest();
+
+    return () => {
+      signal.abort();
+    };
+  }, [clusterId]);
 
   const [addedAll, setAddedAll] = useState(getDefaultAddedAll());
   const addAllFetchAttempt = useAttempt('');
@@ -652,6 +716,7 @@ export function useNewRequest(ctx: Ctx) {
     unifiedFetch,
     unifiedFetchAttempt,
     updateResourceKind,
+    dryRunAttempt,
     addedResources,
     addOrRemoveResource,
     pageCount: {
@@ -668,6 +733,7 @@ export function useNewRequest(ctx: Ctx) {
     prevPage: page.index > 0 ? fetchPrev : null,
     clearAddedResources,
     requestableRoles,
+    resourceRequestsDisabled,
     toggleAddCurrentPage,
     toggleAddAllPages,
     numOfPages: Math.ceil(fetchedData.totalCount / pageSize),

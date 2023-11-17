@@ -13,7 +13,7 @@ import { makeDefaultUserPreferences } from 'teleport/services/userPreferences/us
 import cfg from 'e-teleport/config';
 import TeleportContextE from 'e-teleport/teleportContextE';
 
-import { AccessRequest } from 'e-teleport/services/workflow';
+import { AccessRequest, makeAccessRequest } from 'e-teleport/services/workflow';
 
 import NewRequest from './NewRequest';
 
@@ -35,6 +35,10 @@ describe('new request behavior', () => {
       startKey: '',
       totalCount: nodesResponse.length,
     });
+
+    jest
+      .spyOn(ctx.workflowService, 'createAccessRequest')
+      .mockResolvedValue(makeAccessRequest({}));
 
     // Overwrites the IntersectionObserver with a mock so that the `useInfiniteScroll` hook always calls the fetching function.
     // eslint-disable-next-line jest/prefer-spy-on
@@ -88,8 +92,21 @@ describe('new request behavior', () => {
 
   test('add and remove a resource from table', async () => {
     render(Component);
+    jest
+      .spyOn(ctx.workflowService, 'createAccessRequest')
+      .mockResolvedValue(makeAccessRequest({}));
 
-    // Initial render is a roles table.
+    // Initial render is a resource table so we select roles
+    const inputEl = within(screen.getByTestId('resource-selector')).getByRole(
+      'textbox'
+    );
+    fireEvent.change(inputEl, { target: { value: 'role' } });
+    fireEvent.focus(inputEl);
+    fireEvent.keyDown(inputEl, { key: 'Enter', keyCode: 13 });
+
+    await waitFor(() => {
+      screen.getByText('Proceed to Request');
+    });
     let rows = screen.getAllByText(/role-/i);
     expect(rows).toHaveLength(
       userContext.accessCapabilities.requestableRoles.length

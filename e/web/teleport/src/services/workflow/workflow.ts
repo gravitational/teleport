@@ -33,8 +33,13 @@ class WorkflowService {
       .then(roles => roles || []);
   }
 
-  createAccessRequest(request: CreateAccessRequest) {
-    return api.post(cfg.getAccessRequestUrl(), request).then(makeAccessRequest);
+  createAccessRequest(
+    request: CreateAccessRequest,
+    signal: AbortSignal = null
+  ) {
+    return api
+      .post(cfg.getAccessRequestUrl(), request, signal)
+      .then(makeAccessRequest);
   }
 
   submitAccessRequestReview(request: UpdateAccessRequest) {

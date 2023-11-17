@@ -24,6 +24,7 @@ import {
 } from 'design/Icon';
 import Select from 'shared/components/Select';
 import Link from 'design/Link';
+import { Info } from 'design/Alert';
 import { SearchPanel } from 'shared/components/Search';
 import localStorage from 'teleport/services/localStorage';
 import { Attempt } from 'shared/hooks/useAttemptNext';
@@ -159,6 +160,7 @@ export function NewRequest(props: State) {
     resources,
     addSelectedResources,
     updateQuery,
+    resourceRequestsDisabled,
     updateSearch,
     fetchStatus,
     onAgentLabelClick,
@@ -171,6 +173,7 @@ export function NewRequest(props: State) {
     prevPage,
     updateResourceKind,
     clearAddedResources,
+    dryRunAttempt,
     requestableRoles,
     toggleAddCurrentPage,
     toggleAddAllPages,
@@ -195,7 +198,7 @@ export function NewRequest(props: State) {
       ? [...agentOptions]
       : [...legacyAgentOptions];
     if (!isLeafCluster) {
-      options.push(roleOption);
+      options.unshift(roleOption);
     }
     return options;
   }, [unifiedResourcesEnabled, isLeafCluster]);
@@ -287,6 +290,9 @@ export function NewRequest(props: State) {
       {addAllFetchAttempt.status === 'failed' && (
         <ErrorMessage message={addAllFetchAttempt.statusText} />
       )}
+      {dryRunAttempt.status === 'failed' && selectedResource !== 'role' && (
+        <Info>{dryRunAttempt.statusText}</Info>
+      )}
       {usage && <UsageInfo {...usage} />}
       <Flex justifyContent="space-between" alignItems="center" mb={4}>
         <Box width="150px" data-testid="resource-selector">
@@ -328,7 +334,7 @@ export function NewRequest(props: State) {
           </Box>
         </Flex>
       </Flex>
-      {selectedResource === 'resource' ? (
+      {dryRunAttempt.status === 'success' && selectedResource === 'resource' && (
         <UnifiedResources
           bulkActions={[
             {
@@ -343,6 +349,7 @@ export function NewRequest(props: State) {
             ui: {
               ActionButton: (
                 <RequestButton
+                  disabled={resourceRequestsDisabled}
                   isAgentAdded={Boolean(
                     addedResources[resource.kind][getResourceId(resource)]
                   )}
@@ -383,9 +390,11 @@ export function NewRequest(props: State) {
             <NoResults query={agentFilter?.query || agentFilter?.search} />
           }
         />
-      ) : (
+      )}
+      {selectedResource !== 'resource' && (
         <Box>
-          {attempt.status === 'processing' && (
+          {(attempt.status === 'processing' ||
+            dryRunAttempt.status === 'processing') && (
             <Box textAlign="center" m={10}>
               <Indicator />
             </Box>
