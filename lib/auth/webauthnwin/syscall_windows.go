@@ -40,13 +40,28 @@ func errnoErr(e syscall.Errno) error {
 var (
 	modWebAuthn = windows.NewLazySystemDLL("WebAuthn.dll")
 
-	procWebAuthNGetApiVersionNumber = modWebAuthn.NewProc("WebAuthNGetApiVersionNumber")
+	procWebAuthNGetApiVersionNumber                           = modWebAuthn.NewProc("WebAuthNGetApiVersionNumber")
+	procWebAuthNIsUserVerifyingPlatformAuthenticatorAvailable = modWebAuthn.NewProc("WebAuthNIsUserVerifyingPlatformAuthenticatorAvailable")
 )
 
 func webAuthNGetApiVersionNumber() (ret int, err error) {
 	r0, _, e1 := syscall.Syscall(procWebAuthNGetApiVersionNumber.Addr(), 0, 0, 0, 0)
 	ret = int(r0)
 	if ret == 0 {
+		err = errnoErr(e1)
+	}
+	return
+}
+
+func webAuthNIsUserVerifyingPlatformAuthenticatorAvailable(out *bool) (ret uintptr, err error) {
+	var _p0 uint32
+	if *out {
+		_p0 = 1
+	}
+	r0, _, e1 := syscall.Syscall(procWebAuthNIsUserVerifyingPlatformAuthenticatorAvailable.Addr(), 1, uintptr(unsafe.Pointer(&_p0)), 0, 0)
+	*out = _p0 != 0
+	ret = uintptr(r0)
+	if ret != 0 {
 		err = errnoErr(e1)
 	}
 	return
