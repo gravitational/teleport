@@ -142,6 +142,10 @@ func (a *App) run(ctx context.Context) error {
 				var accessLists []*accesslist.AccessList
 				accessLists, nextToken, err = a.apiClient.AccessListClient().ListAccessLists(ctx, 0 /* default page size */, nextToken)
 				if err != nil {
+					if trace.IsNotImplemented(err) {
+						log.Errorf("access list endpoint is not implemented on this auth server, so the access list app is ceasing to run.")
+						return nil
+					}
 					log.Errorf("error listing access lists: %v", err)
 					continue
 				}
