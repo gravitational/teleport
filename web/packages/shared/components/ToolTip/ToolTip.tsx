@@ -21,10 +21,17 @@ import { Popover, Text } from 'design';
 import * as Icons from 'design/Icon';
 
 export const ToolTipInfo: React.FC<{
+  trigger?: 'click' | 'hover';
   muteIconColor?: boolean;
   sticky?: boolean;
   maxWidth?: number;
-}> = ({ children, muteIconColor, sticky = false, maxWidth = 350 }) => {
+}> = ({
+  children,
+  trigger = 'hover',
+  muteIconColor,
+  sticky = false,
+  maxWidth = 350,
+}) => {
   const [anchorEl, setAnchorEl] = useState();
   const open = Boolean(anchorEl);
 
@@ -36,13 +43,21 @@ export const ToolTipInfo: React.FC<{
     setAnchorEl(null);
   }
 
+  const triggerOnHoverProps = {
+    onMouseEnter: handlePopoverOpen,
+    onMouseLeave: sticky ? undefined : handlePopoverClose,
+  };
+  const triggerOnClickProps = {
+    onClick: handlePopoverOpen,
+  };
+
   return (
     <>
       <span
         role="icon"
         aria-owns={open ? 'mouse-over-popover' : undefined}
-        onMouseEnter={handlePopoverOpen}
-        onMouseLeave={sticky ? undefined : handlePopoverClose}
+        {...(trigger === 'hover' && triggerOnHoverProps)}
+        {...(trigger === 'click' && triggerOnClickProps)}
         css={`
           :hover {
             cursor: pointer;
@@ -55,7 +70,9 @@ export const ToolTipInfo: React.FC<{
         <InfoIcon $muteIconColor={muteIconColor} size="medium" />
       </span>
       <Popover
-        modalCss={() => `pointer-events: ${sticky ? 'auto' : 'none'}`}
+        modalCss={() =>
+          trigger === 'hover' && `pointer-events: ${sticky ? 'auto' : 'none'}`
+        }
         onClose={handlePopoverClose}
         open={open}
         anchorEl={anchorEl}
