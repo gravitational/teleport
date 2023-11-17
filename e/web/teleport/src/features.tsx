@@ -22,7 +22,10 @@ import {
 
 import { NavTitle } from 'teleport/types';
 
+import localStorage from 'teleport/services/localStorage';
+
 import cfg from 'e-teleport/config';
+
 import { NewRequest, ReviewRequests } from 'e-teleport/Workflow';
 
 import { Downloads } from 'e-teleport/Downloads';
@@ -420,8 +423,8 @@ class FeatureAccessGraph implements TeleportFeature {
     component: AccessGraph,
   };
 
-  hasAccess() {
-    return true;
+  hasAccess(flags: FeatureFlags) {
+    return localStorage.getAccessGraphEnabled() && flags.accessGraph;
   }
 
   navigationItem = {
