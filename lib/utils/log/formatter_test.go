@@ -19,9 +19,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"regexp"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -148,11 +150,17 @@ func TestOutput(t *testing.T) {
 
 				// Add some fields and output the message at the desired log level via logrus.
 				l := entry.WithField("test", 123).WithField("animal", "llama\n").WithField("error", logErr)
-				l.WithField("diag_addr", &addr).WithField(trace.ComponentFields, fields).Log(test.logrusLevel, message)
+				logrusTestLogLineNumber := func() int {
+					l.WithField("diag_addr", &addr).WithField(trace.ComponentFields, fields).Log(test.logrusLevel, message)
+					return getCallerLineNumber() - 1 // Get the line number of this call, and assume the log call is right above it
+				}()
 
 				// Add some fields and output the message at the desired log level via slog.
 				l2 := slogLogger.With("test", 123).With("animal", "llama\n").With("error", logErr)
-				l2.With(trace.ComponentFields, fields).Log(context.Background(), test.slogLevel, message, "diag_addr", &addr)
+				slogTestLogLineNumber := func() int {
+					l2.With(trace.ComponentFields, fields).Log(context.Background(), test.slogLevel, message, "diag_addr", &addr)
+					return getCallerLineNumber() - 1 // Get the line number of this call, and assume the log call is right above it
+				}()
 
 				// Validate that both loggers produces the same output. The added complexity comes from the fact that
 				// our custom slog handler does NOT sort the additional fields like our logrus formatter does.
@@ -175,8 +183,8 @@ func TestOutput(t *testing.T) {
 				// Match the log message: "Adding diagnostic debugging handlers.\t To connect with profiler, use `go tool pprof diag_addr`.\n"
 				assert.Empty(t, cmp.Diff(logrusMatches[3], slogMatches[3]), "expected output messages to be identical")
 				// The last matches are the caller information
-				assert.Equal(t, " log/formatter_test.go:151", logrusMatches[5])
-				assert.Equal(t, " log/formatter_test.go:155", slogMatches[5])
+				assert.Equal(t, fmt.Sprintf(" log/formatter_test.go:%d", logrusTestLogLineNumber), logrusMatches[5])
+				assert.Equal(t, fmt.Sprintf(" log/formatter_test.go:%d", slogTestLogLineNumber), slogMatches[5])
 
 				// The third matches are the fields which will be key value pairs(animal:llama) separated by a space. Since
 				// logrus sorts the fields and slog doesn't we can't just assert equality and instead build a map of the key
@@ -261,11 +269,17 @@ func TestOutput(t *testing.T) {
 
 				// Add some fields and output the message at the desired log level via logrus.
 				l := entry.WithField("test", 123).WithField("animal", "llama").WithField("error", logErr)
-				l.WithField("diag_addr", &addr).Log(test.logrusLevel, message)
+				logrusTestLogLineNumber := func() int {
+					l.WithField("diag_addr", &addr).Log(test.logrusLevel, message)
+					return getCallerLineNumber() - 1 // Get the line number of this call, and assume the log call is right above it
+				}()
 
 				// Add some fields and output the message at the desired log level via slog.
 				l2 := slogLogger.With("test", 123).With("animal", "llama").With("error", logErr)
-				l2.Log(context.Background(), test.slogLevel, message, "diag_addr", &addr)
+				slogTestLogLineNumber := func() int {
+					l2.Log(context.Background(), test.slogLevel, message, "diag_addr", &addr)
+					return getCallerLineNumber() - 1 // Get the line number of this call, and assume the log call is right above it
+				}()
 
 				// The order of the fields emitted by the two loggers is different, so comparing the output directly
 				// for equality won't work. Instead, a map is built with all the key value pairs, excluding the caller
@@ -279,12 +293,12 @@ func TestOutput(t *testing.T) {
 				logrusCaller, ok := logrusData["caller"].(string)
 				delete(logrusData, "caller")
 				assert.True(t, ok, "caller was missing from logrus output")
-				assert.Equal(t, "log/formatter_test.go:264", logrusCaller)
+				assert.Equal(t, fmt.Sprintf("log/formatter_test.go:%d", logrusTestLogLineNumber), logrusCaller)
 
 				slogCaller, ok := slogData["caller"].(string)
 				delete(slogData, "caller")
 				assert.True(t, ok, "caller was missing from slog output")
-				assert.Equal(t, "log/formatter_test.go:268", slogCaller)
+				assert.Equal(t, fmt.Sprintf("log/formatter_test.go:%d", slogTestLogLineNumber), slogCaller)
 
 				require.Empty(t,
 					cmp.Diff(
@@ -296,6 +310,15 @@ func TestOutput(t *testing.T) {
 			})
 		}
 	})
+}
+
+func getCallerLineNumber() int {
+	_, _, lineNumber, ok := runtime.Caller(1)
+	if !ok {
+		panic("failed to get the line number of the function calling this")
+	}
+
+	return lineNumber
 }
 
 func BenchmarkFormatter(b *testing.B) {
