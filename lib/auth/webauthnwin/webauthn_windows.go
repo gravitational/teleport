@@ -32,11 +32,10 @@ import (
 var (
 	// For reference, see
 	// https://learn.microsoft.com/en-us/windows/win32/api/webauthn/.
-	procWebAuthNAuthenticatorMakeCredential = modWebAuthn.NewProc("WebAuthNAuthenticatorMakeCredential")
-	procWebAuthNFreeCredentialAttestation   = modWebAuthn.NewProc("WebAuthNFreeCredentialAttestation")
-	procWebAuthNAuthenticatorGetAssertion   = modWebAuthn.NewProc("WebAuthNAuthenticatorGetAssertion")
-	procWebAuthNFreeAssertion               = modWebAuthn.NewProc("WebAuthNFreeAssertion")
-	procWebAuthNGetErrorName                = modWebAuthn.NewProc("WebAuthNGetErrorName")
+	procWebAuthNFreeCredentialAttestation = modWebAuthn.NewProc("WebAuthNFreeCredentialAttestation")
+	procWebAuthNAuthenticatorGetAssertion = modWebAuthn.NewProc("WebAuthNAuthenticatorGetAssertion")
+	procWebAuthNFreeAssertion             = modWebAuthn.NewProc("WebAuthNFreeAssertion")
+	procWebAuthNGetErrorName              = modWebAuthn.NewProc("WebAuthNGetErrorName")
 
 	modUser32               = windows.NewLazySystemDLL("user32.dll")
 	procGetForegroundWindow = modUser32.NewProc("GetForegroundWindow")
@@ -160,15 +159,8 @@ func (n *nativeImpl) MakeCredential(origin string, in *makeCredentialRequest) (*
 	}
 
 	var out *webauthnCredentialAttestation
-	ret, _, err := procWebAuthNAuthenticatorMakeCredential.Call(
-		uintptr(hwnd),
-		uintptr(unsafe.Pointer(in.rp)),
-		uintptr(unsafe.Pointer(in.user)),
-		uintptr(unsafe.Pointer(in.credParameters)),
-		uintptr(unsafe.Pointer(in.clientData)),
-		uintptr(unsafe.Pointer(in.opts)),
-		uintptr(unsafe.Pointer(&out)),
-	)
+	ret, err := webAuthNAuthenticatorMakeCredential(
+		hwnd, in.rp, in.user, in.credParameters, in.clientData, in.opts, &out)
 	if ret != 0 {
 		return nil, trace.Wrap(getErrorNameOrLastErr(ret, err))
 	}
