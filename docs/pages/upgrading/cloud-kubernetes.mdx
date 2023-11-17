@@ -1,13 +1,12 @@
 ---
-title: Upgrade Teleport Cloud Clusters on Kubernetes
-description: Provides instructions for upgrading Teleport Cloud clusters that run on Kubernetes. 
+title: Upgrade Teleport Cloud Agents on Kubernetes
+description: Provides instructions for upgrading Teleport Cloud agents that run on Kubernetes. 
 ---
 
-This guide explains how to upgrade Teleport Cloud clusters running on
-Kubernetes. On Teleport Cloud, Auth Service and Proxy Service upgrades are
-managed for you. To keep agents up to date, you can either enroll them in
-automatic upgrades or upgrade them manually using the method you used to install
-Teleport.
+This guide explains how to upgrade Teleport Cloud agents running on Kubernetes.
+On Teleport Cloud, Auth Service and Proxy Service upgrades are managed for you.
+To keep agents up to date, you can either enroll them in automatic upgrades or
+upgrade them manually using the method you used to install Teleport.
 
 ## Prerequisites
 
@@ -47,7 +46,9 @@ with no upgrader, filtering these to ignore the Auth Service and Proxy Service
 (which are maintained for you in Teleport Cloud):
 
 ```code
-$ tctl inventory ls --upgrader=none | awk '!($3 ~ /(Proxy|Auth)/){print $0}'
+$ tctl inventory ls \
+  --services=node,kube,db,app,windows_desktop,discovery,okta \
+  --upgrader=none
 Server ID                            Hostname                        Services Version Upgrader
 ------------------------------------ ------------------------------- -------- ------- --------
 00000000-0000-0000-0000-000000000000 teleport-agent-0                Kube     v13.4.3 none

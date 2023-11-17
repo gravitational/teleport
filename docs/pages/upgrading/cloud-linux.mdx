@@ -1,9 +1,9 @@
 ---
-title: Upgrade Teleport Cloud Clusters on Linux
-description: Provides instructions for upgrading Teleport Cloud clusters that run on Linux servers. 
+title: Upgrade Teleport Cloud Agents on Linux
+description: Provides instructions for upgrading Teleport Cloud agents that run on Linux servers. 
 ---
 
-This guide explains how to upgrade Teleport Cloud clusters running on Linux
+This guide explains how to upgrade Teleport Cloud agents running on Linux
 servers. On Teleport Cloud, Auth Service and Proxy Service upgrades are managed
 for you. To keep agents up to date, you can either enroll them in automatic
 upgrades or upgrade them manually using the method you used to install Teleport.
@@ -76,13 +76,12 @@ run the following commands to fetch the hostname for each agent and access it
 via Teleport. 
 
 For each agent ID returned by the `tctl inventory ls` command, copy the ID and
-run the following `tctl` command to get the agent's host name and access the
-host via `tsh`:
+run the following `tctl` command to access the host via `tsh`:
 
 ```code
 $ HOST=00000000-0000-0000-0000-000000000000
 $ USER=root
-$ tsh ssh ${USER?}@$(tctl get node/${HOST?} --format json | jq -r '.[0].spec.hostname')
+$ tsh ssh "${USER?}@${HOST?}"
 ```
 
 You can then follow the steps in the next section on each agent to enroll it in

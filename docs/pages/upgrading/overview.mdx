@@ -55,6 +55,14 @@ Teleport cluster:
 
 ## Upgrading multiple Teleport clusters
 
+When upgrading multiple Teleport clusters with a trust relationship, you must
+upgrade in the following sequence to avoid compatibility issues. 
+
+You must upgrade all clusters one major version at a time. For example, if you
+would like to upgrade your clusters from v10 to v12, you must follow the
+sequence below to upograde clusters from v10 to v11, then repeat the sequence to
+upgrade from v10 to v11.
+
 1. Upgrade the root cluster—that is, the cluster that other clusters
    trust—first.
 1. Verify the upgrade was successful.

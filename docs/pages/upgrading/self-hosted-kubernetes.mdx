@@ -56,12 +56,14 @@ running on Kubernetes.
 1. Update the Teleport Helm chart repository so you can install the latest
    version of the `teleport-cluster` chart:
 
-    (!docs/pages//kubernetes-access/helm/includes/helm-repo-add.mdx!)
+    (!docs/pages/kubernetes-access/helm/includes/helm-repo-add.mdx!)
 
 1. Upgrade the Helm release:
 
     ```code
-    $ helm upgrade teleport-cluster teleport/teleport-cluster --values=values.yaml
+    $ helm upgrade teleport-cluster teleport/teleport-cluster \ 
+      --version (=teleport.version=) \
+      --values=values.yaml
     ```
 
 The `teleport-cluster` Helm chart automatically waits for the previous version
