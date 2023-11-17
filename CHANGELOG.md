@@ -1,7 +1,8 @@
 # Changelog
 
-## 13.4.8 (11/15/23)
+## 13.4.9 (11/16/23)
 
+* Increased the maximum width of the console tabs in the web UI. [#34650](https://github.com/gravitational/teleport/pull/34650)
 * Prevented `.tsh/environment` values from overriding prior set values. [#34625](https://github.com/gravitational/teleport/pull/34625)
 * Fixed incorrect permissions when opening X11 listener. [#34616](https://github.com/gravitational/teleport/pull/34616)
 * Changed access lists to respect user locking. [#34619](https://github.com/gravitational/teleport/pull/34619)
