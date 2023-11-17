@@ -16,7 +16,7 @@ import { ReportList } from 'e-teleport/AccessMonitoring/ReportList';
 
 const Report = lazy(() => import('e-teleport/AccessMonitoring/Report'));
 const QueryEditor = lazy(
-  () => import('e/web/teleport/src/AccessMonitoring/QueryEditor')
+  () => import('e-teleport/AccessMonitoring/QueryEditor')
 );
 
 const Container = styled.div``;
