@@ -224,10 +224,6 @@ type Config struct {
 	// endpoint extended with additional /debug handlers
 	Debug bool
 
-	// UploadEventsC is a channel for upload events
-	// used in tests
-	UploadEventsC chan events.UploadEvent `json:"-"`
-
 	// FileDescriptors is an optional list of file descriptors for the process
 	// to inherit and use for listeners, used for in-process updates.
 	FileDescriptors []FileDescriptor
@@ -236,21 +232,11 @@ type Config struct {
 	// of sync agents, used to speed up integration tests.
 	PollingPeriod time.Duration
 
-	// ClientTimeout is set to override default client timeouts
-	// used by internal clients, used to speed up integration tests.
-	ClientTimeout time.Duration
-
-	// ShutdownTimeout is set to override default shutdown timeout.
-	ShutdownTimeout time.Duration
-
 	// CAPins are the SKPI hashes of the CAs used to verify the Auth Server.
 	CAPins []string
 
 	// Clock is used to control time in tests.
 	Clock clockwork.Clock
-
-	// TeleportVersion is used to control the Teleport version in tests.
-	TeleportVersion string
 
 	// FIPS means FedRAMP/FIPS 140-2 compliant configuration was requested.
 	FIPS bool
@@ -278,9 +264,6 @@ type Config struct {
 	// MaxRetryPeriod is the maximum period between reconnection attempts to auth
 	MaxRetryPeriod time.Duration
 
-	// ConnectFailureC is a channel to notify of failures to connect to auth (used in tests).
-	ConnectFailureC chan time.Duration
-
 	// TeleportHome is the path to tsh configuration and data, used
 	// for loading profiles when TELEPORT_HOME is set
 	TeleportHome string
@@ -296,6 +279,9 @@ type Config struct {
 
 	// InstanceMetadataClient specifies the instance metadata client.
 	InstanceMetadataClient cloud.InstanceMetadata
+
+	// Testing is a group of properties that are used in tests.
+	Testing ConfigTesting
 
 	// token is either the token needed to join the auth server, or a path pointing to a file
 	// that contains the token
@@ -317,6 +303,24 @@ type Config struct {
 	// and the value is retrieved via AuthServerAddresses() and set via SetAuthServerAddresses()
 	// as we still need to keep multiple addresses and return them for older config versions.
 	authServers []utils.NetAddr
+}
+
+type ConfigTesting struct {
+	// ConnectFailureC is a channel to notify of failures to connect to auth (used in tests).
+	ConnectFailureC chan time.Duration
+
+	// UploadEventsC is a channel for upload events used in tests
+	UploadEventsC chan events.UploadEvent `json:"-"`
+
+	// ClientTimeout is set to override default client timeouts
+	// used by internal clients, used to speed up integration tests.
+	ClientTimeout time.Duration
+
+	// ShutdownTimeout is set to override default shutdown timeout.
+	ShutdownTimeout time.Duration
+
+	// TeleportVersion is used to control the Teleport version in tests.
+	TeleportVersion string
 }
 
 // AuthServerAddresses returns the value of authServers for config versions v1 and v2 and
@@ -1686,7 +1690,7 @@ func ApplyDefaults(cfg *Config) {
 
 	cfg.RotationConnectionInterval = defaults.HighResPollingPeriod
 	cfg.MaxRetryPeriod = defaults.MaxWatcherBackoff
-	cfg.ConnectFailureC = make(chan time.Duration, 1)
+	cfg.Testing.ConnectFailureC = make(chan time.Duration, 1)
 	cfg.CircuitBreakerConfig = breaker.DefaultBreakerConfig(cfg.Clock)
 }
 
