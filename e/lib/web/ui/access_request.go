@@ -138,7 +138,10 @@ func NewAccessRequest(request types.AccessRequest, opts ...NewAccessRequestOptio
 				SubResourceName: r.SubResourceName,
 			},
 			// If there are no details for this resource, the map lookup returns
-			// the default value which is empty details
+			// the default value which is empty details. Logic in lib/web relies
+			// on the fact that unrelated resource IDs are ignored and may pass
+			// in resource detail mappings that contain large numbers of unrealted
+			// entries.
 			Details: cfg.resourceDetails[types.ResourceIDToString(r)],
 		}
 	}

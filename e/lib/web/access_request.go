@@ -5,11 +5,13 @@ import (
 	"encoding/json"
 	"net/http"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/sync/errgroup"
 
 	apiaccessrequest "github.com/gravitational/teleport/api/accessrequest"
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
@@ -241,6 +243,92 @@ func getResourceDetails(ctx context.Context, req types.AccessRequest, cfg *getAc
 	return resourceDetails, nil
 }
 
+// getBulkResourceDetails is equivalent to getResourceDetails except that it batch-processes sets of
+// access requests.
+func getBulkResourceDetails(ctx context.Context, reqs []types.AccessRequest, cfg *getAccessRequestConfig) (map[string]ui.ResourceDetails, error) {
+	if cfg.clusterClientProvider == nil {
+		// We have no way to get resource details, but this is not an error.
+		// Some APIs may not need details. A nil map is a valid result
+		// which will return empty details (the default value) for all keys.
+		return nil, nil
+	}
+
+	// allIDs aggregates all resource IDs (this step is mostly only useful for deduplication).
+	allIDs := make(map[string]types.ResourceID)
+	for _, req := range reqs {
+		for _, id := range req.GetRequestedResourceIDs() {
+			allIDs[types.ResourceIDToString(id)] = id
+		}
+	}
+
+	// sortedIDs aggregates ids sorted into a nested mapping of the form cluster -> type -> ids.
+	sortedIDs := make(map[string]map[string][]types.ResourceID)
+	for _, id := range allIDs {
+		cluster := sortedIDs[id.ClusterName]
+		if cluster == nil {
+			cluster = make(map[string][]types.ResourceID)
+			sortedIDs[id.ClusterName] = cluster
+		}
+
+		cluster[id.Kind] = append(cluster[id.Kind], id)
+	}
+
+	var mu sync.Mutex
+	var eg errgroup.Group
+	allDetails := make(map[string]ui.ResourceDetails, len(allIDs))
+
+	for clusterName, idsByKind := range sortedIDs {
+		for _, allIDsOfKind := range idsByKind {
+			// split request IDs into chunks of 256 for cuncurrent resolution (larger chunk sizes than this
+			// result in degraded performance, likely due to the complexity of the resulting predicate expression
+			// becoming more harmful than the batching is beneficial).
+			for _, resourceIDs := range splitChunks(allIDsOfKind, 256) {
+
+				clusterName, resourceIDs := clusterName, resourceIDs
+
+				eg.Go(func() error {
+					clt, err := cfg.clusterClientProvider.UserClientForCluster(ctx, clusterName)
+					if err != nil {
+						return trace.Wrap(err)
+					}
+
+					details, err := apiaccessrequest.GetResourceDetails(ctx, clusterName, clt, resourceIDs)
+					if err != nil {
+						return trace.Wrap(err)
+					}
+
+					mu.Lock()
+					defer mu.Unlock()
+					for id, d := range details {
+						allDetails[id] = ui.ResourceDetails{
+							FriendlyName: d.FriendlyName,
+						}
+					}
+
+					return nil
+				})
+			}
+		}
+	}
+
+	if err := eg.Wait(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return allDetails, nil
+}
+
+// splitChunks is a helper for chunking a slice s into sub-slices of size n. If the length of s
+// is not evenly divisble by n then the last slice will be shorter than the rest.
+func splitChunks[T any](s []T, n int) [][]T {
+	c := make([][]T, 0, (len(s)/n)+1)
+	for i := 0; i < len(s); i += n {
+		end := min(len(s), i+n)
+		c = append(c, s[i:end])
+	}
+	return c
+}
+
 func (p *Plugin) getAccessRequestsHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext, clusterClientProvider web.ClusterClientProvider) (interface{}, error) {
 	clt, err := ctx.GetClient()
 	if err != nil {
@@ -270,24 +358,18 @@ func (p *Plugin) getAccessRequests(ctx context.Context, clt accessRequestGetter,
 		opt(cfg)
 	}
 
+	details, err := getBulkResourceDetails(ctx, reqs, cfg)
+	if err != nil {
+		logrus.WithError(err).Warn("Failed to load resource details for access requests.")
+	}
+
 	uiReqs := make([]ui.AccessRequest, 0, len(reqs))
 	for _, req := range reqs {
-		var opts []ui.NewAccessRequestOption
-		resourceDetails, err := getResourceDetails(ctx, req, cfg)
-		if err != nil {
-			// This error is unexpected, but we don't want to break the API filling
-			// in optional details
-			logrus.WithError(err).Info("Unexpected error in getAccessRequest while fetching resource details")
-		} else {
-			opts = append(opts, ui.WithResourceDetails(resourceDetails))
-		}
-
-		uiReq, err := ui.NewAccessRequest(req, opts...)
+		uiReq, err := ui.NewAccessRequest(req, ui.WithResourceDetails(details))
 		if err != nil {
 			p.Log.Warnf("Failed to process access request: %v", err)
 			continue
 		}
-
 		uiReqs = append(uiReqs, *uiReq)
 	}
 
