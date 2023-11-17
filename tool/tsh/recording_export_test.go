@@ -21,6 +21,7 @@ import (
 	"encoding/base64"
 	"encoding/binary"
 	"os"
+	"path"
 	"testing"
 	"time"
 
@@ -28,6 +29,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
@@ -55,7 +57,7 @@ func TestWriteMovieCanBeCanceled(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	frames, err := writeMovie(ctx, fs, "test", "test.avi", nil)
+	frames, _, err := writeMovieWrapper(t, ctx, fs, "test", "test", nil)
 	require.Equal(t, context.Canceled, err)
 	require.Equal(t, 0, frames)
 }
@@ -68,7 +70,7 @@ func TestWriteMovieDoesNotSupportSSH(t *testing.T) {
 	}
 	fs := eventstest.NewFakeStreamer(events, 0)
 
-	frames, err := writeMovie(context.Background(), fs, "test", "test.avi", nil)
+	frames, _, err := writeMovieWrapper(t, context.Background(), fs, "test", "test", nil)
 	require.True(t, trace.IsBadParameter(err), "expected bad paramater error, got %v", err)
 	require.Equal(t, 0, frames)
 }
@@ -87,8 +89,7 @@ func TestWriteMovieMultipleScreenSpecs(t *testing.T) {
 	}
 
 	fs := eventstest.NewFakeStreamer(events, 0)
-	t.Cleanup(func() { os.RemoveAll("test.avi") })
-	frames, err := writeMovie(context.Background(), fs, session.ID("test"), "test.avi", nil)
+	frames, _, err := writeMovieWrapper(t, context.Background(), fs, session.ID("test"), "test", nil)
 	require.True(t, trace.IsBadParameter(err), "expected bad paramater error, got %v", err)
 	require.Equal(t, 0, frames)
 }
@@ -104,8 +105,7 @@ func TestWriteMovieWritesOneFrame(t *testing.T) {
 		tdpEventMillis(t, tdp.PNG2Frame(pngFrame), int64(oneFrame)+1),
 	}
 	fs := eventstest.NewFakeStreamer(events, 0)
-	t.Cleanup(func() { os.RemoveAll("test.avi") })
-	frames, err := writeMovie(context.Background(), fs, session.ID("test"), "test.avi", nil)
+	frames, _, err := writeMovieWrapper(t, context.Background(), fs, session.ID("test"), "test", nil)
 	require.NoError(t, err)
 	require.Equal(t, 1, frames)
 }
@@ -122,9 +122,26 @@ func TestWriteMovieWritesManyFrames(t *testing.T) {
 	}
 	fs := eventstest.NewFakeStreamer(events, 0)
 	t.Cleanup(func() { os.RemoveAll("test.avi") })
-	frames, err := writeMovie(context.Background(), fs, session.ID("test"), "test.avi", nil)
+	frames, _, err := writeMovieWrapper(t, context.Background(), fs, session.ID("test"), "test", nil)
 	require.NoError(t, err)
 	require.Equal(t, framesPerSecond, frames)
+}
+
+// Calls writeMovie, and tells the test state to cleanup the created files upon completion.
+// Returns the writeMovie call results, as well as the path-qualified prefix to the created file.
+func writeMovieWrapper(t *testing.T, ctx context.Context, ss events.SessionStreamer, sid session.ID, prefix string,
+	write func(format string, args ...any) (int, error)) (int, string, error) {
+
+	tempDir, err := os.MkdirTemp("", "writeMovie-")
+	require.NoError(t, err, "failed to create a temporary directory for the writeMovie %q file", prefix)
+	t.Cleanup(func() {
+		err = os.RemoveAll(tempDir)
+		require.NoError(t, err, "failed to clean up temporary directory %q for the writeMovie %q file", tempDir, prefix)
+	})
+
+	prefix = path.Join(tempDir, prefix)
+	frames, err := writeMovie(ctx, ss, sid, prefix, write)
+	return frames, prefix, err
 }
 
 func tdpEvent(t *testing.T, msg tdp.Message) *apievents.DesktopRecording {
