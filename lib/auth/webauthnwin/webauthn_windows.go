@@ -30,11 +30,8 @@ import (
 )
 
 var (
-	modWebAuthn = windows.NewLazySystemDLL("WebAuthn.dll")
-
 	// For reference, see
 	// https://learn.microsoft.com/en-us/windows/win32/api/webauthn/.
-	procWebAuthNGetApiVersionNumber                           = modWebAuthn.NewProc("WebAuthNGetApiVersionNumber")
 	procWebAuthNIsUserVerifyingPlatformAuthenticatorAvailable = modWebAuthn.NewProc("WebAuthNIsUserVerifyingPlatformAuthenticatorAvailable")
 	procWebAuthNAuthenticatorMakeCredential                   = modWebAuthn.NewProc("WebAuthNAuthenticatorMakeCredential")
 	procWebAuthNFreeCredentialAttestation                     = modWebAuthn.NewProc("WebAuthNFreeCredentialAttestation")
@@ -228,20 +225,7 @@ func freeAssertion(in *webauthnAssertion) error {
 // it's version via API call. This function makes sure to not panic if dll is
 // missing.
 func checkIfDLLExistsAndGetAPIVersionNumber() (int, error) {
-	if err := modWebAuthn.Load(); err != nil {
-		return 0, err
-	}
-	if err := procWebAuthNGetApiVersionNumber.Find(); err != nil {
-		return 0, err
-	}
-	// This is the only API call of Windows Webauthn API that returns non-zero
-	// value when everything went fine.
-	// https://github.com/microsoft/webauthn/blob/7ab979cc833bfab9a682ed51761309db57f56c8c/webauthn.h#L895-L897
-	ret, _, err := procWebAuthNGetApiVersionNumber.Call()
-	if ret == 0 && err != syscall.Errno(0) {
-		return 0, err
-	}
-	return int(ret), nil
+	return webAuthNGetApiVersionNumber()
 }
 
 func getErrorNameOrLastErr(in uintptr, lastError error) error {
