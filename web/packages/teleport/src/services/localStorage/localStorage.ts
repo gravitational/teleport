@@ -253,7 +253,7 @@ const storage = {
   },
 
   getAccessGraphSQLEnabled(): boolean {
-    const item = window.localStorage.getItem(KeysEnum.ACCESS_GRAPH_ENABLED);
+    const item = window.localStorage.getItem(KeysEnum.ACCESS_GRAPH_SQL_ENABLED);
     if (item) {
       return JSON.parse(item);
     }
