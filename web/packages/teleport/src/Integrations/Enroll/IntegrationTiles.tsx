@@ -82,10 +82,10 @@ export function IntegrationTiles({
         }
         data-testid="tile-byob"
       >
-        <Box mt={3} mb={0}>
+        <Box mt={3} mb={2}>
           <AWSIcon size={80} />
         </Box>
-        <Text>Store data on your own Amazon S3 bucket</Text>
+        <Text>External Audit Storage</Text>
         {renderNoPermBadge(hasExternalCloudAuditAccess, isEnterprise)}
       </IntegrationTile>
     </>
