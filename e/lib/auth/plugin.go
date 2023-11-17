@@ -283,6 +283,9 @@ func (p *Plugin) RegisterAuthServices(ctx context.Context, server interface{}) e
 	return nil
 }
 
+// registerAccessGraphService registers gRPC AccessGraphService in Auth.
+// Proxy services call Auth rather than TAG directly, since only Auth holds the Cloud license
+// which is required to authenticate to the external TAG service.
 func (p *Plugin) registerAccessGraphService(ctx context.Context, service grpc.ServiceRegistrar) error {
 	if !p.Config.AccessGraph.Enabled {
 		return nil
@@ -319,7 +322,6 @@ func (p *Plugin) registerAccessGraphService(ctx context.Context, service grpc.Se
 	}
 
 	accessgraphv1.RegisterAccessGraphServiceServer(service, accessGraphService)
-	modules.GetModules().EnableAccessGraph()
 
 	return nil
 }

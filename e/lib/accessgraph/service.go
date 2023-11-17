@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/teleport/e/lib/licensefile"
 	accessgraphv1 "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 )
@@ -103,7 +104,7 @@ func (s *Service) EventsStream(_ accessgraphv1.AccessGraphService_EventsStreamSe
 	return trace.NotImplemented("EventsStream should not be called on the auth server")
 }
 
-// RegisterAccessGraphService registers the access graph service.
+// RegisterAccessGraphService registers the access graph sync service.
 func RegisterAccessGraphService(cfg *servicecfg.Config, process *service.TeleportProcess, license *licensefile.LicenseFile) error {
 	if !cfg.AccessGraph.Enabled {
 		return nil
@@ -113,6 +114,15 @@ func RegisterAccessGraphService(cfg *servicecfg.Config, process *service.Telepor
 	// Register as non-critical service. We don't want to fail the startup if
 	// access graph is not available.
 	process.RegisterFunc("access-graph-service", func() error {
+		// Need to check this here inside the service function, rather than on process creation,
+		// since Cloud features are loaded dynamically. More detailed explanation in:
+		// https://github.com/gravitational/teleport/blob/3af6d9c1a25836bb160589a27a7d168a19a4992b/lib/service/service.go#L1873
+		if !modules.GetModules().Features().IsUsageBasedBilling {
+			cfg.Log.Info("Access Graph specified in config, but license is not for the Team plan. Access Graph sync will not be enabled")
+			return nil
+		}
+		modules.GetModules().EnableAccessGraph()
+
 		cfg.Log.Info("Starting access graph service")
 
 		accessGraphAddr := cfg.AccessGraph.Addr

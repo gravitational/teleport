@@ -16,3 +16,16 @@ Cloud licenses are signed by [sales-center local development CA](https://github.
 To generate a new test license, use the generator program in:
 
 https://github.com/gravitational/ops/tree/master/license
+
+## Testing Team plan features
+
+Some features are exclusive to the Teleport Team cloud plan. The license to use for that is `license-cloud-team.pem`.
+Team plan tenants expect to fetch their `Features` from Sales Center.
+
+To successfully launch a local Teleport instance with the team plan, please first [set up a local dev instance of Sales center](https://github.com/gravitational/cloud/blob/master/README.md#local-sales-center-development), then run teleport with:
+
+```console
+$ TELEPORT_CLOUD_HOSTPORT="https://api.localhost:3080" teleport start --insecure -c config.yaml
+```
+
+It is only required to go through this process once. Afterwards, the features will also be cached in the Teleport backend, and communication with Sales Center is optional.

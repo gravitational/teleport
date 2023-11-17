@@ -20,7 +20,6 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
-	"encoding/pem"
 	"errors"
 	"os"
 	"sync"
@@ -378,11 +377,7 @@ func grpcCredentials(config ServiceClientConfig) (grpc.DialOption, error) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		b, _ := pem.Decode(caBytes)
-		if b == nil {
-			return nil, trace.BadParameter("failed to decode CA certificate")
-		}
-		if !pool.AppendCertsFromPEM(b.Bytes) {
+		if !pool.AppendCertsFromPEM(caBytes) {
 			return nil, trace.BadParameter("failed to append CA certificate to pool")
 		}
 	}
