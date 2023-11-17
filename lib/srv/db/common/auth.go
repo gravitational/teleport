@@ -208,6 +208,61 @@ permissions (note that IAM changes may take a few minutes to propagate):
 // GetRedshiftAuthToken returns authorization token that will be used as a
 // password when connecting to Redshift databases.
 func (a *dbAuth) GetRedshiftAuthToken(ctx context.Context, sessionCtx *Session) (string, string, error) {
+	if awsutils.IsRoleARN(sessionCtx.DatabaseUser) {
+		return a.getRedshiftIAMRoleAuthToken(ctx, sessionCtx)
+	}
+
+	return a.getRedshiftDBUserAuthToken(ctx, sessionCtx)
+}
+
+func (a *dbAuth) getRedshiftIAMRoleAuthToken(ctx context.Context, sessionCtx *Session) (string, string, error) {
+	meta := sessionCtx.Database.GetAWS()
+	roleARN, err := a.buildAWSRoleARNFromDatabaseUser(ctx, sessionCtx)
+	if err != nil {
+		return "", "", trace.Wrap(err)
+	}
+
+	baseSession, err := a.cfg.Clients.GetAWSSession(ctx, meta.Region, cloud.WithAssumeRoleFromAWSMeta(meta))
+	if err != nil {
+		return "", "", trace.Wrap(err)
+	}
+	// Assume the configured AWS role before assuming the role we need to get the
+	// auth token. This allows cross-account AWS access.
+	client, err := a.cfg.Clients.GetAWSRedshiftClient(ctx, meta.Region,
+		cloud.WithChainedAssumeRole(baseSession, roleARN, externalIDForChainedAssumeRole(meta)))
+	if err != nil {
+		return "", "", trace.AccessDenied(`Could not generate Redshift IAM role auth token:
+
+  %v
+
+Make sure that IAM role %q has a trust relationship with Teleport database agent's IAM identity.
+`, err, roleARN)
+	}
+
+	// Now make the API call to generate the temporary credentials.
+	a.cfg.Log.Debugf("Generating Redshift IAM role auth token for %s.", sessionCtx)
+	resp, err := client.GetClusterCredentialsWithIAMWithContext(ctx, &redshift.GetClusterCredentialsWithIAMInput{
+		ClusterIdentifier: aws.String(meta.Redshift.ClusterID),
+		DbName:            aws.String(sessionCtx.DatabaseName),
+	})
+	if err != nil {
+		policy, getPolicyErr := dbiam.GetReadableAWSPolicyDocumentForAssumedRole(sessionCtx.Database)
+		if getPolicyErr != nil {
+			policy = fmt.Sprintf("failed to generate IAM policy: %v", getPolicyErr)
+		}
+		return "", "", trace.AccessDenied(`Could not generate Redshift IAM role auth token:
+
+  %v
+
+Make sure that IAM role %q has permissions to generate credentials. Here is a sample IAM policy:
+
+%v
+`, err, roleARN, policy)
+	}
+	return aws.StringValue(resp.DbUser), aws.StringValue(resp.DbPassword), nil
+}
+
+func (a *dbAuth) getRedshiftDBUserAuthToken(ctx context.Context, sessionCtx *Session) (string, string, error) {
 	meta := sessionCtx.Database.GetAWS()
 	redshiftClient, err := a.cfg.Clients.GetAWSRedshiftClient(ctx, meta.Region, cloud.WithAssumeRoleFromAWSMeta(meta))
 	if err != nil {
@@ -241,7 +296,7 @@ propagate):
 %v
 `, err, policy)
 	}
-	return *resp.DbUser, *resp.DbPassword, nil
+	return aws.StringValue(resp.DbUser), aws.StringValue(resp.DbPassword), nil
 }
 
 // GetRedshiftServerlessAuthToken generates Redshift Serverless auth token.
@@ -259,14 +314,10 @@ func (a *dbAuth) GetRedshiftServerlessAuthToken(ctx context.Context, sessionCtx 
 	if err != nil {
 		return "", "", trace.Wrap(err)
 	}
-	var externalID string
-	if meta.AssumeRoleARN == "" {
-		externalID = meta.ExternalID
-	}
 	// Assume the configured AWS role before assuming the role we need to get the
 	// auth token. This allows cross-account AWS access.
 	client, err := a.cfg.Clients.GetAWSRedshiftServerlessClient(ctx, meta.Region,
-		cloud.WithChainedAssumeRole(baseSession, roleARN, externalID))
+		cloud.WithChainedAssumeRole(baseSession, roleARN, externalIDForChainedAssumeRole(meta)))
 	if err != nil {
 		return "", "", trace.AccessDenied(`Could not generate Redshift Serverless auth token:
 
@@ -866,9 +917,7 @@ func (a *dbAuth) getCurrentAzureVM(ctx context.Context) (*libazure.VirtualMachin
 	return vm, nil
 }
 
-// GetAWSIAMCreds returns the AWS IAM credentials, including access key, secret
-// access key and session token.
-func (a *dbAuth) GetAWSIAMCreds(ctx context.Context, sessionCtx *Session) (string, string, string, error) {
+func (a *dbAuth) buildAWSRoleARNFromDatabaseUser(ctx context.Context, sessionCtx *Session) (string, error) {
 	dbAWS := sessionCtx.Database.GetAWS()
 	awsAccountID := dbAWS.AccountID
 
@@ -878,7 +927,7 @@ func (a *dbAuth) GetAWSIAMCreds(ctx context.Context, sessionCtx *Session) (strin
 			a.cfg.Log.Debugf("Using AWS Account ID from assumed role")
 			assumeRoleARN, err := awsutils.ParseRoleARN(dbAWS.AssumeRoleARN)
 			if err != nil {
-				return "", "", "", trace.Wrap(err)
+				return "", trace.Wrap(err)
 			}
 
 			awsAccountID = assumeRoleARN.AccountID
@@ -886,12 +935,12 @@ func (a *dbAuth) GetAWSIAMCreds(ctx context.Context, sessionCtx *Session) (strin
 			a.cfg.Log.Debugf("Fetching AWS Account ID to build role ARN")
 			stsClient, err := a.cfg.Clients.GetAWSSTSClient(ctx, dbAWS.Region)
 			if err != nil {
-				return "", "", "", trace.Wrap(err)
+				return "", trace.Wrap(err)
 			}
 
 			identity, err := awslib.GetIdentityWithClient(ctx, stsClient)
 			if err != nil {
-				return "", "", "", trace.Wrap(err)
+				return "", trace.Wrap(err)
 			}
 
 			awsAccountID = identity.GetAccountID()
@@ -899,6 +948,14 @@ func (a *dbAuth) GetAWSIAMCreds(ctx context.Context, sessionCtx *Session) (strin
 	}
 
 	arn, err := awsutils.BuildRoleARN(sessionCtx.DatabaseUser, dbAWS.Region, awsAccountID)
+	return arn, trace.Wrap(err)
+}
+
+// GetAWSIAMCreds returns the AWS IAM credentials, including access key, secret
+// access key and session token.
+func (a *dbAuth) GetAWSIAMCreds(ctx context.Context, sessionCtx *Session) (string, string, string, error) {
+	dbAWS := sessionCtx.Database.GetAWS()
+	arn, err := a.buildAWSRoleARNFromDatabaseUser(ctx, sessionCtx)
 	if err != nil {
 		return "", "", "", trace.Wrap(err)
 	}
@@ -908,14 +965,7 @@ func (a *dbAuth) GetAWSIAMCreds(ctx context.Context, sessionCtx *Session) (strin
 		return "", "", "", trace.Wrap(err)
 	}
 
-	// ExternalID should only be used once. If the baseSession assumes a role,
-	// the chained sessions should have an empty external ID.
-	awsExternalID := ""
-	if dbAWS.AssumeRoleARN == "" {
-		awsExternalID = dbAWS.ExternalID
-	}
-
-	sess, err := a.cfg.Clients.GetAWSSession(ctx, dbAWS.Region, cloud.WithChainedAssumeRole(baseSession, arn, awsExternalID))
+	sess, err := a.cfg.Clients.GetAWSSession(ctx, dbAWS.Region, cloud.WithChainedAssumeRole(baseSession, arn, externalIDForChainedAssumeRole(dbAWS)))
 	if err != nil {
 		return "", "", "", trace.Wrap(err)
 	}
@@ -976,6 +1026,15 @@ func redshiftServerlessUsernameToRoleARN(aws types.AWS, username string) (string
 		return "", trace.BadParameter("expecting name or ARN of an AWS IAM role but got %v", username)
 	}
 	return awsutils.BuildRoleARN(username, aws.Region, aws.AccountID)
+}
+
+func externalIDForChainedAssumeRole(meta types.AWS) string {
+	// ExternalID should only be used once. If the baseSession assumes a role,
+	// the chained sessions should have an empty external ID.
+	if meta.AssumeRoleARN == "" {
+		return meta.ExternalID
+	}
+	return ""
 }
 
 // awsRedisIAMTokenRequest builds an AWS IAM auth token for ElastiCache
