@@ -49,7 +49,6 @@ import type {
   Ec2InstanceConnectEndpoint,
   Integration,
 } from 'teleport/services/integrations';
-import { ResourceKind } from './Shared';
 
 export interface DiscoverContextState<T = any> {
   agentMeta: AgentMeta;
@@ -493,13 +492,3 @@ export type KubeMeta = BaseMeta & {
 export type AgentMeta = DbMeta | NodeMeta | KubeMeta;
 
 export type State = ReturnType<typeof useDiscover>;
-
-// TODO fix these
-export const ByobDiscoverInitialState: DiscoverUrlLocationState = {
-  discover: {
-    currentStep: 0,
-    eventState: { id: '', currEventName: DiscoverEvent.Started, manuallyEmitSuccessEvent: false },
-    resourceSpec: { name: 'byob', kind: ResourceKind.Server, icon: null, keywords: "todo", event: DiscoverEventResource.Server }
-  },
-  integration: null,
-}
