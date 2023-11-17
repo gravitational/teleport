@@ -28,42 +28,51 @@ const DestinationNopType = "nop"
 // has to be returned but there is none to return.
 type DestinationNop struct{}
 
+// CheckAndSetDefaults does nothing! It is necessary to implement the
+// Destination interface.
 func (dm *DestinationNop) CheckAndSetDefaults() error {
 	return nil
 }
 
+// Init does nothing! It is necessary to implement the Destination interface.
 func (dm *DestinationNop) Init(_ context.Context, subdirs []string) error {
 	// Nothing to do.
 	return nil
 }
 
+// Verify does nothing! It is necessary to implement the Destination interface.
 func (dm *DestinationNop) Verify(keys []string) error {
 	// Nothing to do.
 	return nil
 }
 
+// Write does nothing! It is necessary to implement the Destination interface.
 func (dm *DestinationNop) Write(_ context.Context, name string, data []byte) error {
 	// Nothing to do.
 	return nil
 }
 
+// Read does nothing, it behaves as if the requested artifact could not be
+// found! It is necessary to implement the Destination interface.
 func (dm *DestinationNop) Read(_ context.Context, name string) ([]byte, error) {
 	// Nothing to do.
 	return nil, trace.NotFound("reading from a nop destination results in no data")
 }
 
+// String returns a human-readable string that describes this instance.
 func (dm *DestinationNop) String() string {
 	return DestinationNopType
 }
 
+// TryLock does nothing! It is necessary to implement the Destination interface.
 func (dm *DestinationNop) TryLock() (func() error, error) {
-	// As this is purely in-memory, no locking behavior is required for the
-	// Destination.
 	return func() error {
 		return nil
 	}, nil
 }
 
+// MarshalYAML enables the yaml package to correctly marshal the Destination
+// as YAML including the type header.
 func (dm *DestinationNop) MarshalYAML() (interface{}, error) {
 	type raw DestinationNop
 	return withTypeHeader((*raw)(dm), DestinationNopType)
