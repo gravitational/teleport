@@ -960,6 +960,19 @@ message Rewrite {
   repeated Header Headers = 2 [(gogoproto.jsontag) = "headers,omitempty"];
   // JWTClaims configures whether roles/traits are included in the JWT token.
   string JWTClaims = 3 [(gogoproto.jsontag) = "jwt_claims,omitempty"];
+  // Substitutions is a list of response body substitutions.
+  repeated Substitution Substitutions = 4 [(gogoproto.jsontag) = "substitutions,omitempty"];
+}
+
+// Substitution represents a single response body substitution.
+message Substitution {
+  // Find is the to be searched for in the response body.
+  string Find = 1 [(gogoproto.jsontag) = "find"];
+  // Replace is the value that will replace all found occurrences.
+  string Replace = 2 [(gogoproto.jsontag) = "replace"];
+  // MimeTypes is a list of MIME types to apply the substitution to besides text/html.
+  // If empty, the substitution will be applied only to text/html.
+  repeated string MimeTypes = 3 [(gogoproto.jsontag) = "mime_types"];
 }
 
 // Header represents a single http header passed over to the proxied application.

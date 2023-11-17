@@ -1801,6 +1801,16 @@ func applyAppsConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 			Cloud:              application.Cloud,
 		}
 		if application.Rewrite != nil {
+			// Parse http rewrite substitutions if there are any.
+			var substitutions []servicecfg.Substitution
+			for _, substitution := range application.Rewrite.Substitutions {
+				substitutions = append(substitutions,
+					servicecfg.Substitution{
+						Find:      substitution.Find,
+						Replace:   substitution.Replace,
+						MimeTypes: substitution.MimeTypes,
+					})
+			}
 			// Parse http rewrite headers if there are any.
 			headers, err := servicecfg.ParseHeaders(application.Rewrite.Headers)
 			if err != nil {
@@ -1808,9 +1818,10 @@ func applyAppsConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 					application.Name)
 			}
 			app.Rewrite = &servicecfg.Rewrite{
-				Redirect:  application.Rewrite.Redirect,
-				Headers:   headers,
-				JWTClaims: application.Rewrite.JWTClaims,
+				Redirect:      application.Rewrite.Redirect,
+				Headers:       headers,
+				JWTClaims:     application.Rewrite.JWTClaims,
+				Substitutions: substitutions,
 			}
 		}
 		if application.AWS != nil {

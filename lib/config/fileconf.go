@@ -1902,6 +1902,19 @@ type Rewrite struct {
 	Headers []string `yaml:"headers,omitempty"`
 	// JWTClaims configures whether roles/traits are included in the JWT token
 	JWTClaims string `yaml:"jwt_claims,omitempty"`
+	// Substitute is a list of substitution rules that should be rewritten in the response body.
+	Substitutions []Substitution `yaml:"substitutions,omitempty"`
+}
+
+// Substitution represents a single http body substitution.
+type Substitution struct {
+	// Value to be searched for in the response body.
+	Find string `yaml:"find"`
+	// Value that will replace all found occurrences.
+	Replace string `yaml:"replace"`
+	// MimeTypes is a list of mime types to apply the substitution to besides
+	// the default "text/html".
+	MimeTypes []string `yaml:"mime_types,omitempty"`
 }
 
 // AppAWS contains additional options for AWS applications.
