@@ -3122,6 +3122,10 @@ func (a *ServerWithRoles) CreateResetPasswordToken(ctx context.Context, req Crea
 		return nil, trace.AccessDenied("access denied")
 	}
 
+	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return a.authServer.CreateResetPasswordToken(ctx, req)
 }
 
