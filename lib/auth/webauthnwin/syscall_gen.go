@@ -17,4 +17,7 @@
 //sys webAuthNGetApiVersionNumber() (ret int, err error) [failretval==0] = WebAuthn.WebAuthNGetApiVersionNumber
 // https://github.com/microsoft/webauthn/blob/7ab979cc833bfab9a682ed51761309db57f56c8c/webauthn.h#L895-L897
 
+//sys webAuthNIsUserVerifyingPlatformAuthenticatorAvailable(out *bool) (ret uintptr, err error) [failretval!=0] = WebAuthn.WebAuthNIsUserVerifyingPlatformAuthenticatorAvailable
+// https://github.com/microsoft/webauthn/blob/7ab979cc833bfab9a682ed51761309db57f56c8c/webauthn.h#L901
+
 package webauthnwin
