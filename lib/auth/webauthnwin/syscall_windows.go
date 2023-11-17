@@ -40,9 +40,19 @@ func errnoErr(e syscall.Errno) error {
 var (
 	modWebAuthn = windows.NewLazySystemDLL("WebAuthn.dll")
 
+	procWebAuthNAuthenticatorMakeCredential                   = modWebAuthn.NewProc("WebAuthNAuthenticatorMakeCredential")
 	procWebAuthNGetApiVersionNumber                           = modWebAuthn.NewProc("WebAuthNGetApiVersionNumber")
 	procWebAuthNIsUserVerifyingPlatformAuthenticatorAvailable = modWebAuthn.NewProc("WebAuthNIsUserVerifyingPlatformAuthenticatorAvailable")
 )
+
+func webAuthNAuthenticatorMakeCredential(hwnd syscall.Handle, rp *webauthnRPEntityInformation, user *webauthnUserEntityInformation, pubKeyCredParams *webauthnCoseCredentialParameters, clientData *webauthnClientData, opts *webauthnAuthenticatorMakeCredentialOptions, out **webauthnCredentialAttestation) (ret uintptr, err error) {
+	r0, _, e1 := syscall.Syscall9(procWebAuthNAuthenticatorMakeCredential.Addr(), 7, uintptr(hwnd), uintptr(unsafe.Pointer(rp)), uintptr(unsafe.Pointer(user)), uintptr(unsafe.Pointer(pubKeyCredParams)), uintptr(unsafe.Pointer(clientData)), uintptr(unsafe.Pointer(opts)), uintptr(unsafe.Pointer(out)), 0, 0)
+	ret = uintptr(r0)
+	if ret != 0 {
+		err = errnoErr(e1)
+	}
+	return
+}
 
 func webAuthNGetApiVersionNumber() (ret int, err error) {
 	r0, _, e1 := syscall.Syscall(procWebAuthNGetApiVersionNumber.Addr(), 0, 0, 0, 0)
