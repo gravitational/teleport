@@ -33,6 +33,7 @@ import desktopService from './services/desktops';
 import userGroupService from './services/userGroups';
 import MfaService from './services/mfa';
 import { agentService } from './services/agents';
+import localStorage from './services/localStorage';
 
 class TeleportContext implements types.Context {
   // stores
