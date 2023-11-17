@@ -314,7 +314,11 @@ const ExtraTopComponents = (props: {
             <NoResultsItem
               clustersWithExpiredCerts={status.clustersWithExpiredCerts}
               getClusterName={getClusterName}
-              advancedSearch={advancedSearch}
+              // Show the toggle only
+              // when ResourceSearchErrorsItem is not visible
+              advancedSearch={
+                shouldShowResourceSearchErrorsItem ? undefined : advancedSearch
+              }
             />
           )}
           {shouldShowTypeToSearchItem && (
