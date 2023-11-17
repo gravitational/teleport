@@ -248,7 +248,7 @@ const ExtraTopComponents = (props: {
   showErrorsInModal: (errors: ResourceSearchError[]) => void;
   advancedSearch: AdvancedSearch;
 }) => {
-  const { status, getClusterName, showErrorsInModal } = props;
+  const { status, getClusterName, showErrorsInModal, advancedSearch } = props;
 
   switch (status.inputState) {
     case 'no-input': {
@@ -257,7 +257,7 @@ const ExtraTopComponents = (props: {
           return (
             <TypeToSearchItem
               hasNoRemainingFilterActions={false}
-              advancedSearch={props.advancedSearch}
+              advancedSearch={advancedSearch}
             />
           );
         }
@@ -271,7 +271,7 @@ const ExtraTopComponents = (props: {
             <>
               <TypeToSearchItem
                 hasNoRemainingFilterActions={hasNoRemainingFilterActions}
-                advancedSearch={props.advancedSearch}
+                advancedSearch={advancedSearch}
               />
               {nonRetryableResourceSearchErrors.length > 0 && (
                 <ResourceSearchErrorsItem
@@ -280,7 +280,7 @@ const ExtraTopComponents = (props: {
                   showErrorsInModal={() => {
                     showErrorsInModal(nonRetryableResourceSearchErrors);
                   }}
-                  advancedSearch={props.advancedSearch}
+                  advancedSearch={advancedSearch}
                 />
               )}
             </>
@@ -307,20 +307,20 @@ const ExtraTopComponents = (props: {
               showErrorsInModal={() => {
                 showErrorsInModal(status.nonRetryableResourceSearchErrors);
               }}
-              advancedSearch={props.advancedSearch}
+              advancedSearch={advancedSearch}
             />
           )}
           {shouldShowNoResultsItem && (
             <NoResultsItem
               clustersWithExpiredCerts={status.clustersWithExpiredCerts}
               getClusterName={getClusterName}
-              advancedSearch={props.advancedSearch}
+              advancedSearch={advancedSearch}
             />
           )}
           {shouldShowTypeToSearchItem && (
             <TypeToSearchItem
               hasNoRemainingFilterActions={false}
-              advancedSearch={props.advancedSearch}
+              advancedSearch={advancedSearch}
             />
           )}
         </>
