@@ -39,6 +39,13 @@ type Bot struct {
 	webProxyURL *url.URL
 }
 
+// SupportedApps are the apps supported by this bot.
+func (b *Bot) SupportedApps() []common.App {
+	return []common.App{
+		accessrequest.NewApp(b),
+	}
+}
+
 // CheckHealth checks if the bot can connect to its messaging service
 func (b *Bot) CheckHealth(ctx context.Context) error {
 	return trace.Wrap(b.client.CheckHealth(ctx))

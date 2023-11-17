@@ -214,6 +214,13 @@ func NewBot(conf Config, clusterName, webProxyAddr string) (Bot, error) {
 	}, nil
 }
 
+// SupportedApps are the apps supported by this bot.
+func (b Bot) SupportedApps() []common.App {
+	return []common.App{
+		accessrequest.NewApp(b),
+	}
+}
+
 func (b Bot) CheckHealth(ctx context.Context) error {
 	_, err := b.GetMe(ctx)
 	return err
