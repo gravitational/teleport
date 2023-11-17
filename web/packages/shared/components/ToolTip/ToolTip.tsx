@@ -44,12 +44,18 @@ export const ToolTipInfo: React.FC<{
     onClick: handlePopoverOpen,
   };
 
+  const triggerProps = {
+    ...(trigger === 'hover' && triggerOnHoverProps),
+    ...(trigger === 'click' && triggerOnClickProps),
+  };
+
   return (
     <>
       <span
         aria-owns={open ? 'mouse-over-popover' : undefined}
-        {...(trigger === 'hover' && triggerOnHoverProps)}
-        {...(trigger === 'click' && triggerOnClickProps)}
+        onMouseEnter={triggerProps.onMouseEnter}
+        onMouseLeave={triggerProps.onMouseLeave}
+        onClick={triggerProps.onClick}
         css={`
           :hover {
             cursor: pointer;
