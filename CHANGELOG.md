@@ -1,6 +1,6 @@
 # Changelog
 
-## 12.4.26 (11/15/23)
+## 12.4.27 (11/16/23)
 
 ### Security Fixes
 
@@ -28,6 +28,7 @@ own proxy headers.
 
 ### Other Fixes & Improvements 
 
+* Increased the maximum width of the console tabs in the web UI. [#34649](https://github.com/gravitational/teleport/pull/34649)
 * Prevented `.tsh/environment` values from overriding prior set values. [#34624](https://github.com/gravitational/teleport/pull/34624)
 * Fixed incorrect permissions when opening X11 listener. [#34615](https://github.com/gravitational/teleport/pull/34615)
 * Fixed access requests to respect explicit deny rules. [#34599](https://github.com/gravitational/teleport/pull/34599)
