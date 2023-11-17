@@ -14,8 +14,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import service from './localStorage';
-
-export default service;
+export { storageService } from './storageService';
 
 export * from './types';

@@ -38,7 +38,7 @@ const KEEP_LOCALSTORAGE_KEYS_ON_LOGOUT = [
   KeysEnum.UNIFIED_RESOURCES_DISABLED,
 ];
 
-const storage = {
+export const storageService = {
   clear() {
     Object.keys(window.localStorage).forEach(key => {
       if (!KEEP_LOCALSTORAGE_KEYS_ON_LOGOUT.includes(key)) {
@@ -161,7 +161,7 @@ const storage = {
   },
 
   getThemePreference(): ThemePreference {
-    const userPreferences = storage.getUserPreferences();
+    const userPreferences = storageService.getUserPreferences();
     if (userPreferences) {
       return userPreferences.theme;
     }
@@ -175,7 +175,7 @@ const storage = {
   },
 
   getOnboardUserPreference(): OnboardUserPreferences {
-    const userPreferences = storage.getUserPreferences();
+    const userPreferences = storageService.getUserPreferences();
     if (userPreferences) {
       return userPreferences.onboard;
     }
@@ -260,5 +260,3 @@ const storage = {
     return false;
   },
 };
-
-export default storage;
