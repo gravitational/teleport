@@ -21,14 +21,13 @@ import (
 	"net"
 	"sync"
 
+	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/trace"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	semconv "go.opentelemetry.io/otel/semconv/v1.10.0"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
-
-	"github.com/gravitational/teleport/api/observability/tracing"
 )
 
 // Client is a wrapper around ssh.Client that adds tracing support.

@@ -21,12 +21,11 @@ import (
 	"net"
 	"strings"
 
-	"github.com/gravitational/trace"
-	"golang.org/x/exp/slices"
-
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web/app"
+	"github.com/gravitational/trace"
+	"golang.org/x/exp/slices"
 )
 
 type hostPolicyCheckerConfig struct {

@@ -17,9 +17,8 @@ package elasticsearch
 import (
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/gravitational/teleport/api/types/events"
+	"github.com/stretchr/testify/require"
 )
 
 func Test_parsePath(t *testing.T) {

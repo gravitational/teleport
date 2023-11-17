@@ -29,10 +29,9 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
-
-	"github.com/gravitational/teleport/api/defaults"
 )
 
 // HandshakePayload structure is sent as a JSON blob by the teleport

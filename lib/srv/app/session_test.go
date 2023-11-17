@@ -21,10 +21,9 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
-
-	"github.com/gravitational/teleport/lib/events"
 )
 
 func newSessionChunk(timeout time.Duration) *sessionChunk {

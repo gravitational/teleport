@@ -25,11 +25,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jonboulle/clockwork"
-	"github.com/stretchr/testify/require"
-
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
+	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/require"
 )
 
 func TestFileLogPagination(t *testing.T) {

@@ -21,13 +21,12 @@ package testauthority
 import (
 	"context"
 
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/keygen"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 )
 
 type Keygen struct {

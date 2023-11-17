@@ -19,9 +19,8 @@ package ui
 import (
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/gravitational/teleport/api/types"
+	"github.com/stretchr/testify/require"
 )
 
 func TestMakeLabels(t *testing.T) {

@@ -19,10 +19,9 @@ package services
 import (
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/stretchr/testify/require"
 )
 
 // TestOktaImportRuleUnmarshal verifies an Okta import rule resource can be unmarshaled.

@@ -18,13 +18,12 @@ import (
 	"context"
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/stretchr/testify/require"
 )
 
 // TestConnect tests client config and connection logic.

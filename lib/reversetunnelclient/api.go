@@ -23,13 +23,12 @@ import (
 	"net"
 	"time"
 
-	"golang.org/x/crypto/ssh"
-
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/proxy/peer"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/teleagent"
+	"golang.org/x/crypto/ssh"
 )
 
 // DialParams is a list of parameters used to Dial to a node within a cluster.

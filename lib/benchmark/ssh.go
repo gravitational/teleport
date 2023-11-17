@@ -19,11 +19,10 @@ import (
 	"context"
 	"math/rand"
 
-	"github.com/gravitational/trace"
-
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/trace"
 )
 
 // SSHBenchmark is a benchmark suite that connects to the configured

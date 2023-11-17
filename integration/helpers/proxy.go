@@ -25,13 +25,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
-	"github.com/stretchr/testify/require"
-
 	"github.com/gravitational/teleport/api/fixtures"
 	apitesthelpers "github.com/gravitational/teleport/api/testhelpers"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/require"
 )
 
 // ProxyHandler is a http.Handler that implements a simple HTTP proxy server.

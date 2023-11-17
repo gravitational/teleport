@@ -25,10 +25,9 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
-
-	"github.com/gravitational/teleport/api/types"
 )
 
 var upgrader = websocket.Upgrader{}

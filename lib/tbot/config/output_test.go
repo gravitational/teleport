@@ -19,9 +19,8 @@ package config
 import (
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/stretchr/testify/require"
 )
 
 type checkAndSetDefaulter interface {

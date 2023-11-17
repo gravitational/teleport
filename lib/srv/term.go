@@ -29,16 +29,15 @@ import (
 	"time"
 
 	"github.com/creack/pty"
-	"github.com/gravitational/trace"
-	"github.com/moby/term"
-	log "github.com/sirupsen/logrus"
-	"golang.org/x/crypto/ssh"
-
 	"github.com/gravitational/teleport"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/trace"
+	"github.com/moby/term"
+	log "github.com/sirupsen/logrus"
+	"golang.org/x/crypto/ssh"
 )
 
 // LookupUser is used to mock the value returned by user.Lookup(string).

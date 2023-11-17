@@ -23,10 +23,9 @@ import (
 	"crypto/rsa"
 	"testing"
 
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
-
-	"github.com/gravitational/teleport/api/constants"
 )
 
 // TestCheckerValidate checks what algorithm are supported in regular (non-FIPS) mode.

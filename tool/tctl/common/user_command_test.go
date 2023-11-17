@@ -20,13 +20,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/require"
-
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/config"
+	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/require"
 )
 
 func TestTrimDurationSuffix(t *testing.T) {

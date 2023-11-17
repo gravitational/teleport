@@ -21,6 +21,7 @@ import (
 	"errors"
 	"sync"
 
+	"github.com/gravitational/teleport/integrations/kube-agent-updater/pkg/podutils"
 	"github.com/gravitational/trace"
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
@@ -30,8 +31,6 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
 	ctrllog "sigs.k8s.io/controller-runtime/pkg/log"
-
-	"github.com/gravitational/teleport/integrations/kube-agent-updater/pkg/podutils"
 )
 
 type StatefulSetVersionUpdater struct {

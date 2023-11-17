@@ -19,10 +19,9 @@ package sshutils
 import (
 	"encoding/binary"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
-
-	"github.com/gravitational/teleport"
 )
 
 // EnvReqParams are parameters for env request

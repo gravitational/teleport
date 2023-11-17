@@ -28,11 +28,10 @@ import (
 	"time"
 
 	"github.com/HdrHistogram/hdrhistogram-go"
-	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
-
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/observability/tracing"
+	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 )
 
 const (

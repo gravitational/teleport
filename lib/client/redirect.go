@@ -25,13 +25,12 @@ import (
 	"net/url"
 
 	"github.com/google/uuid"
-	"github.com/gravitational/trace"
-
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/secret"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace"
 )
 
 const (

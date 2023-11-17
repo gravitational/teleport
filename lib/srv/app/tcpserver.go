@@ -20,14 +20,13 @@ import (
 	"context"
 	"net"
 
-	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
-
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	apitypes "github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 )
 
 type tcpServer struct {

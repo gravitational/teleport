@@ -24,11 +24,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/gravitational/trace"
-	"github.com/jackc/pgconn"
-	"github.com/sirupsen/logrus"
-	"github.com/stretchr/testify/require"
-
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integration/helpers"
@@ -44,6 +39,10 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace"
+	"github.com/jackc/pgconn"
+	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/require"
 )
 
 type proxyTunnelStrategy struct {

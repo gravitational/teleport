@@ -20,11 +20,10 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/gravitational/trace"
-
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/types/header/convert/legacy"
+	"github.com/gravitational/trace"
 )
 
 // Review is an access list review resource.

@@ -19,10 +19,9 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
 	"github.com/gravitational/trace"
 	"golang.org/x/exp/maps"
-
-	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
 )
 
 // NewMemoryResponseWriter creates a MemoryResponseWriter that satisfies

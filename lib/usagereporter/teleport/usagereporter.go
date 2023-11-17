@@ -24,12 +24,6 @@ import (
 	"time"
 
 	"github.com/bufbuild/connect-go"
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
-	"golang.org/x/exp/slices"
-	"google.golang.org/protobuf/types/known/timestamppb"
-
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	prehogv1a "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
@@ -38,6 +32,11 @@ import (
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/usagereporter"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
+	"golang.org/x/exp/slices"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 const (

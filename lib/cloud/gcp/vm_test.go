@@ -24,13 +24,12 @@ import (
 	"time"
 
 	"cloud.google.com/go/compute/apiv1/computepb"
-	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/require"
-	"golang.org/x/crypto/ssh"
-
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/ssh"
 )
 
 type mockInstance struct {

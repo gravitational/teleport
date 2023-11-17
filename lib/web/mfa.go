@@ -20,15 +20,14 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/gravitational/trace"
-	"github.com/julienschmidt/httprouter"
-
 	"github.com/gravitational/teleport/api/client/proto"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/web/ui"
+	"github.com/gravitational/trace"
+	"github.com/julienschmidt/httprouter"
 )
 
 // getMFADevicesWithTokenHandle retrieves the list of registered MFA devices for the user defined in token.

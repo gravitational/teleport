@@ -18,11 +18,10 @@ import (
 	"context"
 	"errors"
 
-	"github.com/gravitational/trace"
-
 	"github.com/gravitational/teleport/api/types"
 	wanpb "github.com/gravitational/teleport/api/types/webauthn"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
+	"github.com/gravitational/trace"
 )
 
 // ErrInvalidCredentials is a special kind of credential "NotFound" error, where

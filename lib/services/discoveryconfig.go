@@ -19,11 +19,10 @@ package services
 import (
 	"context"
 
-	"github.com/gravitational/trace"
-
 	discoveryconfigclient "github.com/gravitational/teleport/api/client/discoveryconfig"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace"
 )
 
 var _ DiscoveryConfigs = (*discoveryconfigclient.Client)(nil)

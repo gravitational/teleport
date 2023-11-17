@@ -25,11 +25,10 @@ import (
 	"sync"
 
 	"github.com/google/uuid"
+	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
-
-	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 )
 
 // FakeEnrollmentToken is a "free", never spent enrollment token.

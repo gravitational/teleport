@@ -26,11 +26,6 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/elasticache"
 	"github.com/aws/aws-sdk-go/service/memorydb"
-	"github.com/gravitational/trace"
-	"github.com/redis/go-redis/v9"
-	"github.com/sirupsen/logrus"
-	"golang.org/x/exp/slices"
-
 	"github.com/gravitational/teleport/api/types"
 	apiawsutils "github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/lib/cloud"
@@ -43,6 +38,10 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/redis/connection"
 	"github.com/gravitational/teleport/lib/srv/db/redis/protocol"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace"
+	"github.com/redis/go-redis/v9"
+	"github.com/sirupsen/logrus"
+	"golang.org/x/exp/slices"
 )
 
 // NewEngine create new Redis engine.

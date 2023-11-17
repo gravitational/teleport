@@ -26,11 +26,10 @@ import (
 	"github.com/aws/aws-sdk-go/service/rds"
 	"github.com/aws/aws-sdk-go/service/redshift"
 	"github.com/aws/aws-sdk-go/service/redshiftserverless"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
-
-	"github.com/gravitational/teleport/api/types"
 )
 
 // ResourceTag is a generic interface that represents an AWS resource tag.

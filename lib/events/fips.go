@@ -16,7 +16,6 @@ package events
 
 import (
 	"github.com/aws/aws-sdk-go/aws/endpoints"
-
 	"github.com/gravitational/teleport/api/types"
 )
 

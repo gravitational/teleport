@@ -17,10 +17,9 @@ package main
 import (
 	"fmt"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
 	sheets "google.golang.org/api/sheets/v4"
-
-	"github.com/gravitational/teleport/api/types"
 )
 
 func (g *googleSheetsClient) updateRow(ar types.AccessRequest, rowNum int64) error {

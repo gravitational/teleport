@@ -24,8 +24,6 @@ import (
 	"time"
 
 	"github.com/go-resty/resty/v2"
-	"github.com/gravitational/trace"
-
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/integrations/access/accessrequest"
@@ -33,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/integrations/lib"
 	"github.com/gravitational/teleport/integrations/lib/logger"
 	pd "github.com/gravitational/teleport/integrations/lib/plugindata"
+	"github.com/gravitational/trace"
 )
 
 const discordMaxConns = 100

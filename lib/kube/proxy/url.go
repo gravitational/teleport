@@ -23,12 +23,11 @@ import (
 	"path"
 	"strings"
 
-	"github.com/gravitational/trace"
-	"k8s.io/apimachinery/pkg/runtime/serializer"
-
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/kube/proxy/responsewriters"
+	"github.com/gravitational/trace"
+	"k8s.io/apimachinery/pkg/runtime/serializer"
 )
 
 type apiResource struct {

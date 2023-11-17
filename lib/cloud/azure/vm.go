@@ -22,9 +22,8 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v3"
-	"github.com/gravitational/trace"
-
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/trace"
 )
 
 // armCompute provides an interface for an Azure virtual machine client.

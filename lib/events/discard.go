@@ -20,11 +20,10 @@ import (
 	"context"
 	"sync/atomic"
 
-	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
-
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 )
 
 // DiscardAuditLog is do-nothing, discard-everything implementation

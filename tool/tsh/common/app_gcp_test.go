@@ -19,11 +19,10 @@ import (
 	"os"
 	"testing"
 
-	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/require"
-
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/require"
 )
 
 func Test_getGCPServiceAccountFromFlags(t *testing.T) {

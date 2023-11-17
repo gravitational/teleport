@@ -18,12 +18,11 @@ import (
 	"context"
 	"time"
 
-	"github.com/gravitational/trace"
-	authztypes "k8s.io/client-go/kubernetes/typed/authorization/v1"
-
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace"
+	authztypes "k8s.io/client-go/kubernetes/typed/authorization/v1"
 )
 
 func nullImpersonationCheck(context.Context, string, authztypes.SelfSubjectAccessReviewInterface) error {

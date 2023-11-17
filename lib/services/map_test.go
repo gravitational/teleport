@@ -21,11 +21,10 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/require"
-
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/require"
 )
 
 func TestRoleParsing(t *testing.T) {

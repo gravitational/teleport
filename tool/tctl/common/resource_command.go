@@ -28,12 +28,6 @@ import (
 	"time"
 
 	"github.com/alecthomas/kingpin/v2"
-	"github.com/gravitational/trace"
-	"github.com/gravitational/trace/trail"
-	log "github.com/sirupsen/logrus"
-	"golang.org/x/exp/slices"
-	kyaml "k8s.io/apimachinery/pkg/util/yaml"
-
 	"github.com/gravitational/teleport"
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -54,6 +48,11 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/tool/tctl/common/loginrule"
+	"github.com/gravitational/trace"
+	"github.com/gravitational/trace/trail"
+	log "github.com/sirupsen/logrus"
+	"golang.org/x/exp/slices"
+	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 )
 
 // ResourceCreateHandler is the generic implementation of a resource creation handler

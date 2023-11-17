@@ -20,13 +20,12 @@ import (
 	"context"
 	"time"
 
-	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
-
 	"github.com/gravitational/teleport/api/types/externalcloudaudit"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 )
 
 const (

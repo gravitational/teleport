@@ -26,11 +26,10 @@ import (
 	"path"
 	"path/filepath"
 
-	"github.com/gravitational/trace"
-	"gopkg.in/yaml.v3"
-
 	"github.com/gravitational/teleport/lib/tbot/botfs"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace"
+	"gopkg.in/yaml.v3"
 )
 
 const DestinationDirectoryType = "directory"

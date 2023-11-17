@@ -18,10 +18,9 @@ import (
 	"errors"
 
 	"github.com/google/uuid"
-	"google.golang.org/protobuf/types/known/timestamppb"
-
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/lib/devicetrust/native"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 // FakeTPMDevice allows us to exercise EnrollCeremony. To avoid requiring

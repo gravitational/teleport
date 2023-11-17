@@ -20,10 +20,9 @@ import (
 	"context"
 
 	"github.com/aws/aws-sdk-go-v2/service/iam"
+	awslib "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
-
-	awslib "github.com/gravitational/teleport/lib/cloud/aws"
 )
 
 var (

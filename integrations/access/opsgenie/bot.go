@@ -21,13 +21,12 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/gravitational/trace"
-
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/integrations/access/accessrequest"
 	"github.com/gravitational/teleport/integrations/access/common"
 	pd "github.com/gravitational/teleport/integrations/lib/plugindata"
+	"github.com/gravitational/trace"
 )
 
 // Bot is a opsgenie client that works with AccessRequest.

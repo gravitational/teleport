@@ -19,10 +19,9 @@ package services
 import (
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/stretchr/testify/require"
 )
 
 // TestTraitsToRoleMatchers verifies expected matching behavior

@@ -24,8 +24,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravitational/trace"
-
 	"github.com/gravitational/teleport/api/constants"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
@@ -42,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/tool/common"
 	"github.com/gravitational/teleport/tool/tctl/common/loginrule"
 	"github.com/gravitational/teleport/tool/tctl/common/oktaassignment"
+	"github.com/gravitational/trace"
 )
 
 type ResourceCollection interface {

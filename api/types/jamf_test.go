@@ -19,10 +19,9 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/proto"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
-
-	"github.com/gravitational/teleport/api/types"
 )
 
 func TestValidateJamfSpecV1(t *testing.T) {

@@ -22,10 +22,9 @@ package auth
 import (
 	"context"
 
-	"github.com/gravitational/trace"
-
 	"github.com/gravitational/teleport/lib/backend/kubernetes"
 	"github.com/gravitational/teleport/lib/backend/lite"
+	"github.com/gravitational/trace"
 )
 
 // NewProcessStorage returns a new instance of the process storage.

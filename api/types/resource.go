@@ -22,12 +22,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravitational/trace"
-	"golang.org/x/exp/slices"
-
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types/common"
 	"github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/trace"
+	"golang.org/x/exp/slices"
 )
 
 // Resource represents common properties for all resources.

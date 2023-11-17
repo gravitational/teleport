@@ -26,10 +26,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
-	"github.com/vulcand/predicate/builder"
-
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
@@ -42,6 +38,9 @@ import (
 	dtauthz "github.com/gravitational/teleport/lib/devicetrust/authz"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
+	"github.com/vulcand/predicate/builder"
 )
 
 // NewAdminContext returns new admin auth context

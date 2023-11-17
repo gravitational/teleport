@@ -31,13 +31,6 @@ import (
 	"time"
 
 	"github.com/coreos/go-oidc/oauth2"
-	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
-	"golang.org/x/crypto/acme"
-	"golang.org/x/crypto/ssh"
-	"golang.org/x/exp/slices"
-	"gopkg.in/yaml.v2"
-
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
@@ -51,6 +44,12 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
+	"golang.org/x/crypto/acme"
+	"golang.org/x/crypto/ssh"
+	"golang.org/x/exp/slices"
+	"gopkg.in/yaml.v2"
 )
 
 // FileConfig structure represents the teleport configuration stored in a config file

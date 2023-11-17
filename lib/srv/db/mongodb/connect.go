@@ -21,6 +21,9 @@ import (
 	"crypto/tls"
 	"strings"
 
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/srv/db/common"
+	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 	"github.com/gravitational/trace"
 	"go.mongodb.org/mongo-driver/mongo/address"
 	"go.mongodb.org/mongo-driver/mongo/description"
@@ -31,10 +34,6 @@ import (
 	"go.mongodb.org/mongo-driver/x/mongo/driver/connstring"
 	"go.mongodb.org/mongo-driver/x/mongo/driver/ocsp"
 	"go.mongodb.org/mongo-driver/x/mongo/driver/topology"
-
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/srv/db/common"
-	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 )
 
 const (

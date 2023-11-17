@@ -18,10 +18,9 @@ import (
 	"github.com/gogo/protobuf/protoc-gen-gogo/generator"
 	gogoplugin "github.com/gogo/protobuf/protoc-gen-gogo/plugin"
 	"github.com/gogo/protobuf/vanity/command"
-	"github.com/gravitational/trace"
-
 	"github.com/gravitational/teleport/build.assets/tooling/lib/eventschema"
 	tree "github.com/gravitational/teleport/build.assets/tooling/lib/protobuf-tree"
+	"github.com/gravitational/trace"
 )
 
 const outputFileName = "zz_generated.eventschema.go"

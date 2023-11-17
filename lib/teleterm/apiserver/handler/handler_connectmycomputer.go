@@ -18,10 +18,9 @@ import (
 	"context"
 	"time"
 
-	"github.com/gravitational/trace"
-
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
+	"github.com/gravitational/trace"
 )
 
 func (s *Handler) CreateConnectMyComputerRole(ctx context.Context, req *api.CreateConnectMyComputerRoleRequest) (*api.CreateConnectMyComputerRoleResponse, error) {

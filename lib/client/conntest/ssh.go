@@ -25,15 +25,14 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/gravitational/trace"
-	"golang.org/x/crypto/ssh"
-
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	libsshutils "github.com/gravitational/teleport/lib/sshutils"
+	"github.com/gravitational/trace"
+	"golang.org/x/crypto/ssh"
 )
 
 // SSHConnectionTesterConfig has the necessary fields to create a new SSHConnectionTester.

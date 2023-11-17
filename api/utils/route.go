@@ -19,9 +19,8 @@ import (
 	"unicode/utf8"
 
 	"github.com/google/uuid"
-	"golang.org/x/exp/slices"
-
 	"github.com/gravitational/teleport/api/utils/aws"
+	"golang.org/x/exp/slices"
 )
 
 // SSHRouteMatcher is a helper used to decide if an ssh dial request should match

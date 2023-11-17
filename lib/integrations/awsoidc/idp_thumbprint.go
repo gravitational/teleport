@@ -23,10 +23,9 @@ import (
 	"encoding/hex"
 	"net/url"
 
-	"github.com/gravitational/trace"
-
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/utils/oidc"
+	"github.com/gravitational/trace"
 )
 
 // ThumbprintIdP returns the thumbprint as required by AWS when adding an OIDC Identity Provider.

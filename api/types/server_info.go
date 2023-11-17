@@ -20,9 +20,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gravitational/trace"
-
 	"github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/trace"
 )
 
 // ServerInfo represents info that should be applied to joining Nodes.

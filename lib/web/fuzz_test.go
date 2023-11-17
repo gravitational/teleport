@@ -23,12 +23,11 @@ import (
 	"math"
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
 	apiproto "github.com/gravitational/teleport/api/client/proto"
 	wanpb "github.com/gravitational/teleport/api/types/webauthn"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
+	"github.com/stretchr/testify/require"
 )
 
 func FuzzTdpMFACodecDecodeChallenge(f *testing.F) {

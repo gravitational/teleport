@@ -26,10 +26,9 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/gravitational/trace"
-
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace"
 )
 
 func writeResponse(resp *http.Response, newResp []byte) (*bytes.Buffer, error) {

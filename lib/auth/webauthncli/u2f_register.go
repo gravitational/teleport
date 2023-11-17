@@ -33,12 +33,11 @@ import (
 	"github.com/fxamacker/cbor/v2"
 	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/go-webauthn/webauthn/protocol/webauthncose"
-	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
-
 	"github.com/gravitational/teleport/api/client/proto"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
+	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 )
 
 // U2FRegister implements Register for U2F/CTAP1 devices.

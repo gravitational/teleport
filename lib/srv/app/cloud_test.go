@@ -27,12 +27,11 @@ import (
 	"github.com/aws/aws-sdk-go/aws/credentials/stscreds"
 	awssession "github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/sts"
+	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
-
-	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 func TestIsSessionUsingTemporaryCredentials(t *testing.T) {

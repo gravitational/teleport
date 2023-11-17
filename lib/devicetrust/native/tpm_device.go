@@ -26,11 +26,10 @@ import (
 	"os"
 
 	"github.com/google/go-attestation/attest"
-	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
-
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/lib/devicetrust"
+	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 )
 
 // tpmDevice implements the generic device trust client-side operations for

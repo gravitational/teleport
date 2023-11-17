@@ -21,11 +21,10 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/gravitational/trace"
-	"github.com/jackc/pgx/v5/pgtype/zeronull"
-
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/trace"
+	"github.com/jackc/pgx/v5/pgtype/zeronull"
 )
 
 type wal2jsonColumn struct {

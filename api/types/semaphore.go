@@ -21,9 +21,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gravitational/trace"
-
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/trace"
 )
 
 // SemaphoreKindConnection is the semaphore kind used by

@@ -17,9 +17,8 @@
 package stream
 
 import (
-	"github.com/gravitational/trace"
-
 	"github.com/gravitational/teleport/api/internalutils/stream"
+	"github.com/gravitational/trace"
 )
 
 // ZipStreams is a helper for iterate two streams and process elements in the

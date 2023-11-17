@@ -21,9 +21,8 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/stretchr/testify/require"
 )
 
 /*

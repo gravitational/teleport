@@ -17,10 +17,9 @@ package clusters
 import (
 	"context"
 
-	"github.com/gravitational/trace"
-
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/trace"
 )
 
 // WatchPendingHeadlessAuthentications watches the backend for pending headless authentication requests for the user.

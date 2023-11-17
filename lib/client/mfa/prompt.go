@@ -20,14 +20,13 @@ import (
 	"context"
 	"strings"
 
-	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
-
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/mfa"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
+	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 )
 
 // PromptConfig contains common mfa prompt config options.

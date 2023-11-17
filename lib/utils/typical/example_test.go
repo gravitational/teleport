@@ -17,9 +17,8 @@ package typical_test
 import (
 	"fmt"
 
-	"golang.org/x/exp/slices"
-
 	"github.com/gravitational/teleport/lib/utils/typical"
+	"golang.org/x/exp/slices"
 )
 
 type expressionEnv struct {

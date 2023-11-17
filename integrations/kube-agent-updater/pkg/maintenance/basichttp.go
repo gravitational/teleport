@@ -22,12 +22,11 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/gravitational/trace"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-
 	"github.com/gravitational/teleport/integrations/kube-agent-updater/pkg/basichttp"
 	"github.com/gravitational/teleport/integrations/kube-agent-updater/pkg/cache"
 	"github.com/gravitational/teleport/integrations/kube-agent-updater/pkg/constants"
+	"github.com/gravitational/trace"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 // basicHTTPMaintenanceClient retrieves whether the target version represents a

@@ -26,8 +26,6 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/roundtrip"
-	"github.com/gravitational/trace"
-
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	tracehttp "github.com/gravitational/teleport/api/observability/tracing/http"
@@ -41,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace"
 )
 
 // UpsertTrustedCluster creates or toggles a Trusted Cluster relationship.

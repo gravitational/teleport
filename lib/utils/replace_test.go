@@ -17,9 +17,8 @@ package utils
 import (
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/gravitational/teleport/api/types"
+	"github.com/stretchr/testify/require"
 )
 
 func TestSliceMatchesRegex(t *testing.T) {

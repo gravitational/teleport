@@ -20,9 +20,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/gravitational/trace"
-
 	"github.com/gravitational/teleport/integrations/lib/plugindata"
+	"github.com/gravitational/trace"
 )
 
 // PluginData is a data associated with access request that we store in Teleport using UpdatePluginData API.

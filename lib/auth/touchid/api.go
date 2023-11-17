@@ -33,11 +33,10 @@ import (
 	"github.com/fxamacker/cbor/v2"
 	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/go-webauthn/webauthn/protocol/webauthncose"
-	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
-
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/darwin"
+	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 )
 
 var (

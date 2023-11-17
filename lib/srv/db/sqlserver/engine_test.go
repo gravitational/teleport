@@ -25,10 +25,6 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	mssql "github.com/microsoft/go-mssqldb"
-	"github.com/sirupsen/logrus"
-	"github.com/stretchr/testify/require"
-
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
@@ -38,6 +34,9 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/sqlserver/protocol"
 	"github.com/gravitational/teleport/lib/srv/db/sqlserver/protocol/fixtures"
+	mssql "github.com/microsoft/go-mssqldb"
+	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/require"
 )
 
 // TestHandleConnectionAuditEvents checks audit events emitted during HandleConnection execution.

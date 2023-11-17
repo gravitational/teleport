@@ -22,9 +22,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gravitational/trace"
-
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace"
 )
 
 // NewInMemoryConfigWriter creates a new virtual file system

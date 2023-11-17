@@ -20,11 +20,10 @@ import (
 	"context"
 	"net"
 
-	"github.com/gravitational/trace"
-	"golang.org/x/crypto/ssh"
-
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace"
+	"golang.org/x/crypto/ssh"
 )
 
 // DiscardServer is a SSH server that discards SSH exec requests and starts

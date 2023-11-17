@@ -22,10 +22,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/gravitational/trace"
-	"github.com/julienschmidt/httprouter"
-	"golang.org/x/crypto/ssh"
-
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -36,6 +32,9 @@ import (
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/sshutils/sftp"
+	"github.com/gravitational/trace"
+	"github.com/julienschmidt/httprouter"
+	"golang.org/x/crypto/ssh"
 )
 
 // fileTransferRequest describes HTTP file transfer request

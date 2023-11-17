@@ -17,13 +17,12 @@ limitations under the License.
 package db
 
 import (
-	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
-
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
+	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 )
 
 // newAzureMySQLFetcher creates a fetcher for Azure MySQL.

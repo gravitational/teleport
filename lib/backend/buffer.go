@@ -25,12 +25,11 @@ import (
 	"time"
 
 	radix "github.com/armon/go-radix"
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
-
-	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/types"
 )
 
 type bufferConfig struct {

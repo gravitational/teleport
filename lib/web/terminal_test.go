@@ -26,11 +26,10 @@ import (
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/gorilla/websocket"
-	"github.com/stretchr/testify/require"
-
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web"
+	"github.com/stretchr/testify/require"
 )
 
 // TestTerminalReadFromClosedConn verifies that Teleport recovers

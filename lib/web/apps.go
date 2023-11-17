@@ -23,9 +23,6 @@ import (
 	"net/http"
 	"sort"
 
-	"github.com/gravitational/trace"
-	"github.com/julienschmidt/httprouter"
-
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -39,6 +36,8 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web/app"
 	"github.com/gravitational/teleport/lib/web/ui"
+	"github.com/gravitational/trace"
+	"github.com/julienschmidt/httprouter"
 )
 
 // clusterAppsGet returns a list of applications in a form the UI can present.

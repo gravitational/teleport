@@ -20,11 +20,10 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/gravitational/teleport/api/defaults"
 )
 
 func getTestVal(isTestField bool, testVal string) string {

@@ -19,9 +19,8 @@ package slack
 import (
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/gravitational/teleport/api/types"
+	"github.com/stretchr/testify/require"
 )
 
 func TestStatusFromResponse(t *testing.T) {

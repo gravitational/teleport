@@ -22,10 +22,9 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/trace"
 	_ "github.com/microsoft/go-mssqldb"
-
-	"github.com/gravitational/teleport/lib/defaults"
 )
 
 // SQLServerPinger implements the DatabasePinger interface for the SQL Server

@@ -21,10 +21,9 @@ import (
 	"context"
 
 	"github.com/gogo/protobuf/jsonpb"
-	"github.com/gravitational/trace"
-
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace"
 )
 
 // Plugins is the plugin service

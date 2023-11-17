@@ -20,9 +20,8 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/gravitational/teleport/api/types/wrappers"
+	"github.com/stretchr/testify/require"
 )
 
 // This tests that `redirect_url` is consistently marshaled as a list of string

@@ -23,10 +23,9 @@ import (
 	"crypto/rand"
 	"time"
 
+	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
-
-	"github.com/gravitational/teleport/lib/auth/native"
 )
 
 // CreateCertificate creates a valid 2048-bit RSA certificate.

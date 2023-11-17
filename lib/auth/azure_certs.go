@@ -23,11 +23,10 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/gravitational/trace"
-
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace"
 )
 
 var allowedAzureCommonNames = []string{

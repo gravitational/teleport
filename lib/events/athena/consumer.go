@@ -31,17 +31,16 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	sqsTypes "github.com/aws/aws-sdk-go-v2/service/sqs/types"
 	"github.com/google/uuid"
-	"github.com/gravitational/trace"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/segmentio/parquet-go"
-	log "github.com/sirupsen/logrus"
-	"golang.org/x/exp/slices"
-
 	"github.com/gravitational/teleport"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/backend"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
+	"github.com/gravitational/trace"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/segmentio/parquet-go"
+	log "github.com/sirupsen/logrus"
+	"golang.org/x/exp/slices"
 )
 
 const (

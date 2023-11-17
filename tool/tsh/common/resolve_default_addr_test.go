@@ -27,11 +27,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/require"
-
 	apihelpers "github.com/gravitational/teleport/api/testhelpers"
 	"github.com/gravitational/teleport/integration/helpers"
+	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/require"
 )
 
 var testLog = log.WithField(trace.Component, "test")

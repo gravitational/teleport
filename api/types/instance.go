@@ -21,11 +21,10 @@ import (
 	"time"
 
 	"github.com/coreos/go-semver/semver"
-	"github.com/gravitational/trace"
-	"golang.org/x/exp/slices"
-
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/trace"
+	"golang.org/x/exp/slices"
 )
 
 // Match checks if the given instance appears to match this filter.

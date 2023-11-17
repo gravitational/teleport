@@ -19,10 +19,9 @@ package utils
 import (
 	"time"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
 	"golang.org/x/exp/slices"
-
-	"github.com/gravitational/teleport/api/types"
 )
 
 // Fields represents a generic string-keyed map.

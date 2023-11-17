@@ -18,14 +18,13 @@ import (
 	"context"
 	"testing"
 
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/integrations/operator/controllers/resources"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/client-go/util/retry"
-
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/integrations/operator/controllers/resources"
 )
 
 type ResourceTestingPrimitives[T resources.TeleportResource, K resources.TeleportKubernetesResource[T]] interface {

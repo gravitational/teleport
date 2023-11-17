@@ -20,8 +20,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/gravitational/trace"
-
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/defaults"
@@ -31,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
+	"github.com/gravitational/trace"
 )
 
 // Kube describes kubernetes service

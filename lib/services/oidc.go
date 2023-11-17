@@ -20,10 +20,9 @@ import (
 	"net/url"
 
 	"github.com/coreos/go-oidc/jose"
-	"github.com/gravitational/trace"
-
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace"
 )
 
 // GetClaimNames returns a list of claim names from the claim values

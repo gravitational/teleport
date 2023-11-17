@@ -21,11 +21,12 @@
 package kubev1
 
 import (
+	reflect "reflect"
+	sync "sync"
+
 	types "github.com/gravitational/teleport/api/types"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
-	reflect "reflect"
-	sync "sync"
 )
 
 const (

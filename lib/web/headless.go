@@ -22,14 +22,13 @@ package web
 import (
 	"net/http"
 
-	"github.com/gravitational/trace"
-	"github.com/julienschmidt/httprouter"
-
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/httplib"
+	"github.com/gravitational/trace"
+	"github.com/julienschmidt/httprouter"
 )
 
 const headlessAuthID = "headless_authentication_id"

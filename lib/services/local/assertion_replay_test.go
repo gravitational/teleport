@@ -22,9 +22,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/stretchr/testify/require"
-
 	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/stretchr/testify/require"
 )
 
 func TestAssertionReplayService(t *testing.T) {

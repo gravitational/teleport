@@ -20,10 +20,9 @@ import (
 	"context"
 	"sync"
 
-	"github.com/gravitational/trace"
-
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/trace"
 )
 
 // NewWatcher returns a new streamWatcher

@@ -21,9 +21,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravitational/trace"
-
 	"github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/trace"
 )
 
 // TunnelConnection is SSH reverse tunnel connection

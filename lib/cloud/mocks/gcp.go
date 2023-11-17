@@ -21,14 +21,13 @@ import (
 	"crypto/tls"
 	"time"
 
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/cloud/gcp"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	sqladmin "google.golang.org/api/sqladmin/v1beta4"
 	"k8s.io/client-go/rest"
-
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/cloud/gcp"
-	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 var _ gcp.SQLAdminClient = (*GCPSQLAdminClientMock)(nil)

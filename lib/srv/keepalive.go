@@ -20,11 +20,10 @@ import (
 	"context"
 	"time"
 
-	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
-
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 )
 
 // RequestSender is an interface that implements SendRequest. It is used so

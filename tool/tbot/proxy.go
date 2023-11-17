@@ -19,10 +19,9 @@ package main
 import (
 	"path/filepath"
 
-	"github.com/gravitational/trace"
-
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/tshwrap"
+	"github.com/gravitational/trace"
 )
 
 func onProxyCommand(botConfig *config.BotConfig, cf *config.CLIConf) error {

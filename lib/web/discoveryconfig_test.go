@@ -25,11 +25,10 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
-	"github.com/stretchr/testify/require"
-
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/web/ui"
+	"github.com/stretchr/testify/require"
 )
 
 func TestDiscoveryConfig(t *testing.T) {

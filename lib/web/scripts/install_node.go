@@ -23,11 +23,10 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/gravitational/trace"
-	"gopkg.in/yaml.v3"
-
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/trace"
+	"gopkg.in/yaml.v3"
 )
 
 // ErrorBashScript is used to display friendly error message when

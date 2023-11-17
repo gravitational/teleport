@@ -17,13 +17,12 @@ limitations under the License.
 package v1
 
 import (
-	"github.com/gravitational/trace"
-
 	userloginstatev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/userloginstate/v1"
 	"github.com/gravitational/teleport/api/types"
 	headerv1 "github.com/gravitational/teleport/api/types/header/convert/v1"
 	traitv1 "github.com/gravitational/teleport/api/types/trait/convert/v1"
 	"github.com/gravitational/teleport/api/types/userloginstate"
+	"github.com/gravitational/trace"
 )
 
 // FromProto converts a v1 user login state into an internal user login state object.

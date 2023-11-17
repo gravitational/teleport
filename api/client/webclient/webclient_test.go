@@ -27,11 +27,10 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/slices"
-
 	"github.com/gravitational/teleport/api/defaults"
 	apihelpers "github.com/gravitational/teleport/api/testhelpers"
+	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/slices"
 )
 
 func newPingHandler(path string) http.Handler {

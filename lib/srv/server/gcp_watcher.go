@@ -21,15 +21,14 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gravitational/trace"
-	"golang.org/x/exp/slices"
-
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/installers"
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/gcp"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/trace"
+	"golang.org/x/exp/slices"
 )
 
 const gcpEventPrefix = "gcp/"

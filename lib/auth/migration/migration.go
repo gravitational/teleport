@@ -19,15 +19,14 @@ import (
 	"encoding/json"
 	"time"
 
+	"github.com/gravitational/teleport/api/observability/tracing"
+	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/exp/slices"
-
-	"github.com/gravitational/teleport/api/observability/tracing"
-	"github.com/gravitational/teleport/lib/backend"
 )
 
 // applyConfig is a group of options used to

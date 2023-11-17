@@ -17,9 +17,8 @@ package servicecfg
 import (
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/gravitational/teleport/api/types"
+	"github.com/stretchr/testify/require"
 )
 
 func TestDiscoveryConfig_IsEmpty(t *testing.T) {

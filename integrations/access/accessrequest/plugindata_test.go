@@ -17,9 +17,8 @@ package accessrequest
 import (
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-
 	"github.com/gravitational/teleport/integrations/lib/plugindata"
+	"github.com/stretchr/testify/assert"
 )
 
 var samplePluginData = PluginData{

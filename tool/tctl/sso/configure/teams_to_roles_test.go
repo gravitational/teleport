@@ -17,9 +17,8 @@ package configure
 import (
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/gravitational/teleport/api/types"
+	"github.com/stretchr/testify/require"
 )
 
 func Test_teamsToRolesParser_Set(t *testing.T) {

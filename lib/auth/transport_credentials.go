@@ -20,11 +20,10 @@ import (
 	"io"
 	"net"
 
-	"github.com/gravitational/trace"
-	"google.golang.org/grpc/credentials"
-
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/trace"
+	"google.golang.org/grpc/credentials"
 )
 
 // UserGetter is responsible for building an authenticated user based on TLS metadata

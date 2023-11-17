@@ -20,10 +20,9 @@ import (
 	"context"
 
 	"github.com/aws/aws-sdk-go-v2/service/ec2instanceconnect"
+	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
-
-	"github.com/gravitational/teleport/lib/auth/native"
 )
 
 // EICESendSSHPublicKeyClient describes the required methods to send an SSH Public Key to

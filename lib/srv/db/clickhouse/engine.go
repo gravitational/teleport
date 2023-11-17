@@ -20,12 +20,11 @@ import (
 	"context"
 	"net"
 
-	"github.com/gravitational/trace"
-
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace"
 )
 
 func NewEngine(ec common.EngineConfig) common.Engine {

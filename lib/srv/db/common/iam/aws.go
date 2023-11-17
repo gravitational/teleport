@@ -21,11 +21,10 @@ import (
 	"strings"
 
 	"github.com/coreos/go-semver/semver"
-	"github.com/gravitational/trace"
-
 	"github.com/gravitational/teleport/api/types"
 	awsutils "github.com/gravitational/teleport/api/utils/aws"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
+	"github.com/gravitational/trace"
 )
 
 // GetAWSPolicyDocument returns the AWS IAM policy document for provided

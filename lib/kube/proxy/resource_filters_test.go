@@ -24,6 +24,8 @@ import (
 	"testing"
 	"text/template"
 
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/kube/proxy/responsewriters"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
@@ -35,9 +37,6 @@ import (
 	networkingv1 "k8s.io/api/networking/v1"
 	authv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/kube/proxy/responsewriters"
 )
 
 func Test_filterBuffer(t *testing.T) {

@@ -19,12 +19,11 @@ package usageevents
 import (
 	"context"
 
-	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
-
 	"github.com/gravitational/teleport"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
+	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 )
 
 // UsageLogger is a trivial audit log sink that forwards an anonymized subset of

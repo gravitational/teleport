@@ -18,9 +18,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/stretchr/testify/require"
 )
 
 func TestClusterExternalAuditWatcher(t *testing.T) {

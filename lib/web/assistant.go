@@ -26,10 +26,6 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
-	"github.com/gravitational/trace"
-	"github.com/julienschmidt/httprouter"
-	"google.golang.org/protobuf/types/known/timestamppb"
-
 	"github.com/gravitational/teleport/api/client/proto"
 	assistpb "github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
@@ -40,6 +36,9 @@ import (
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/trace"
+	"github.com/julienschmidt/httprouter"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 const (

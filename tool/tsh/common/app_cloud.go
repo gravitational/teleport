@@ -17,10 +17,9 @@ package common
 import (
 	"strings"
 
-	"github.com/gravitational/trace"
-
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/trace"
 )
 
 func defaultValue[t any]() t {

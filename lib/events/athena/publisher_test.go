@@ -24,9 +24,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/google/uuid"
-	"github.com/stretchr/testify/require"
-
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/stretchr/testify/require"
 )
 
 // TODO(tobiaszheller): Those UT just cover basic stuff. When we will have consumer

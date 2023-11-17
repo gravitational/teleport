@@ -20,12 +20,11 @@ import (
 	"net/http"
 	"path/filepath"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	"github.com/gravitational/teleport/api/types"
 )
 
 var secretList = corev1.SecretList{

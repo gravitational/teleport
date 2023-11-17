@@ -17,11 +17,10 @@ limitations under the License.
 package types
 
 import (
-	"github.com/gravitational/trace"
-	"golang.org/x/exp/slices"
-
 	apiutils "github.com/gravitational/teleport/api/utils"
 	awsapiutils "github.com/gravitational/teleport/api/utils/aws"
+	"github.com/gravitational/trace"
+	"golang.org/x/exp/slices"
 )
 
 const (

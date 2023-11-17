@@ -21,13 +21,12 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/stretchr/testify/require"
-
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/types/trait"
 	traitv1 "github.com/gravitational/teleport/api/types/trait/convert/v1"
+	"github.com/stretchr/testify/require"
 )
 
 func TestReviewRoundtrip(t *testing.T) {

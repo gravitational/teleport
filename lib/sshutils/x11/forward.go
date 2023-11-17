@@ -21,10 +21,9 @@ import (
 	"io"
 	"sync"
 
+	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
-
-	"github.com/gravitational/teleport/lib/sshutils"
 )
 
 // forwardIO forwards io between two XServer connections until

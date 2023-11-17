@@ -22,10 +22,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravitational/trace"
-
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/trace"
 )
 
 // Application represents a web, TCP or cloud console application.

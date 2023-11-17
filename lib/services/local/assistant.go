@@ -25,12 +25,11 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
+	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/types/known/timestamppb"
-
-	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
-	"github.com/gravitational/teleport/lib/backend"
 )
 
 // Conversation is a conversation entry in the backend.

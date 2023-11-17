@@ -27,12 +27,11 @@ import (
 
 	"github.com/ThalesIgnite/crypto11"
 	"github.com/google/uuid"
+	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
 	"github.com/miekg/pkcs11"
 	"github.com/sirupsen/logrus"
-
-	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/api/types"
 )
 
 var pkcs11Prefix = []byte("pkcs11:")

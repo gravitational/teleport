@@ -17,8 +17,6 @@ package servicecfg
 import (
 	"strings"
 
-	"github.com/gravitational/trace"
-
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/azure"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -26,6 +24,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common/enterprise"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
+	"github.com/gravitational/trace"
 )
 
 // DatabasesConfig configures the database proxy service.

@@ -21,12 +21,11 @@ import (
 	_ "embed"
 	"text/template"
 
-	"github.com/gravitational/trace"
-	"golang.org/x/exp/slices"
-
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/trace"
+	"golang.org/x/exp/slices"
 )
 
 const (

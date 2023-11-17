@@ -23,14 +23,13 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/proto"
-	"github.com/gravitational/trace"
-	"golang.org/x/exp/slices"
-
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/trace"
+	"golang.org/x/exp/slices"
 )
 
 type OnSessionLeaveAction string

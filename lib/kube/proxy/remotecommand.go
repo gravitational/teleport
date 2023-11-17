@@ -25,6 +25,7 @@ import (
 	"strings"
 	"time"
 
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -35,8 +36,6 @@ import (
 	remotecommandconsts "k8s.io/apimachinery/pkg/util/remotecommand"
 	"k8s.io/client-go/tools/remotecommand"
 	utilexec "k8s.io/client-go/util/exec"
-
-	apievents "github.com/gravitational/teleport/api/types/events"
 )
 
 // remoteCommandRequest is a request to execute a remote command

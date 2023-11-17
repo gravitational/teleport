@@ -28,14 +28,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
-
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/pingconn"
 	"github.com/gravitational/teleport/api/utils/tlsutils"
+	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 )
 
 // IsALPNConnUpgradeRequired returns true if a tunnel is required through a HTTP

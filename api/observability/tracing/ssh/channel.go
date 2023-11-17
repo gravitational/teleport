@@ -19,12 +19,11 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/gravitational/teleport/api/observability/tracing"
 	"go.opentelemetry.io/otel/codes"
 	semconv "go.opentelemetry.io/otel/semconv/v1.10.0"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
-
-	"github.com/gravitational/teleport/api/observability/tracing"
 )
 
 // Channel is a wrapper around ssh.Channel that adds tracing support.

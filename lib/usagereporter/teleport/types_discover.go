@@ -17,11 +17,10 @@ limitations under the License.
 package usagereporter
 
 import (
-	"github.com/gravitational/trace"
-
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	prehogv1a "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace"
 )
 
 func discoverMetadataToPrehog(u *usageeventsv1.DiscoverMetadata, userMD UserMetadata) *prehogv1a.DiscoverMetadata {

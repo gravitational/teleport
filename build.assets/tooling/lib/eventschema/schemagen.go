@@ -19,10 +19,9 @@ package eventschema
 import (
 	"strings"
 
+	tree "github.com/gravitational/teleport/build.assets/tooling/lib/protobuf-tree"
 	"github.com/gravitational/trace"
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
-
-	tree "github.com/gravitational/teleport/build.assets/tooling/lib/protobuf-tree"
 )
 
 // SchemaGenerator generates the OpenAPI v3 schema from a proto file.

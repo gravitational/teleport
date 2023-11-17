@@ -21,13 +21,12 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 )
 
 func NewPreparer(cfg PreparerConfig) (*Preparer, error) {

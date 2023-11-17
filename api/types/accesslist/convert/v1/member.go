@@ -17,12 +17,11 @@ limitations under the License.
 package v1
 
 import (
-	"github.com/gravitational/trace"
-	"google.golang.org/protobuf/types/known/timestamppb"
-
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	headerv1 "github.com/gravitational/teleport/api/types/header/convert/v1"
+	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 type MemberOption func(*accesslist.AccessListMember)

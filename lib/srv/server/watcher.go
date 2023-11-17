@@ -20,10 +20,9 @@ import (
 	"context"
 	"time"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
-
-	"github.com/gravitational/teleport/api/types"
 )
 
 // Instances contains information about discovered cloud instances from any provider.

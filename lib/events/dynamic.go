@@ -19,12 +19,11 @@ package events
 import (
 	"encoding/json"
 
-	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
-
 	"github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 )
 
 // FromEventFields converts from the typed dynamic representation

@@ -19,12 +19,11 @@ package servicenow
 import (
 	"net/url"
 
-	"github.com/gravitational/trace"
-
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/integrations/access/common/teleport"
 	"github.com/gravitational/teleport/integrations/lib"
+	"github.com/gravitational/trace"
 )
 
 // Config stores the full configuration for the teleport-servicenow plugin to run.

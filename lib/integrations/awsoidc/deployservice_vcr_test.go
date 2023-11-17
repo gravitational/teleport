@@ -22,11 +22,10 @@ import (
 	"regexp"
 	"testing"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/dnaeon/go-vcr.v3/cassette"
 	"gopkg.in/dnaeon/go-vcr.v3/recorder"
-
-	"github.com/gravitational/teleport/api/types"
 )
 
 func TestDeployDBService(t *testing.T) {

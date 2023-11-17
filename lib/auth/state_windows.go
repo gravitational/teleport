@@ -22,9 +22,8 @@ package auth
 import (
 	"context"
 
-	"github.com/gravitational/trace"
-
 	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/trace"
 )
 
 // NewProcessStorage returns a new instance of the process storage.

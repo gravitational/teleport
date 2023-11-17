@@ -21,10 +21,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/limiter"
+	"github.com/stretchr/testify/require"
 )
 
 func TestProxyConnectionLimiting(t *testing.T) {

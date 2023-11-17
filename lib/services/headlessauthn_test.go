@@ -21,11 +21,10 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/require"
-
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/require"
 )
 
 // TestValidateHeadlessAuthentication tests headless authentication validation logic.

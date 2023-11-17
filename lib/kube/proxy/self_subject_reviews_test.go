@@ -19,12 +19,11 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/gravitational/teleport/api/types"
+	testingkubemock "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
 	"github.com/stretchr/testify/require"
 	authv1 "k8s.io/api/authorization/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	"github.com/gravitational/teleport/api/types"
-	testingkubemock "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
 )
 
 func TestSelfSubjectAccessReviewsRBAC(t *testing.T) {

@@ -20,10 +20,9 @@ import (
 	"crypto/rand"
 	"testing"
 
+	"github.com/gravitational/teleport/lib/darwin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/gravitational/teleport/lib/darwin"
 )
 
 func TestECDSAPublicKeyFromRaw(t *testing.T) {

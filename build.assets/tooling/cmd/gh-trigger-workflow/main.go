@@ -57,10 +57,9 @@ import (
 	ghinst "github.com/bradleyfalzon/ghinstallation/v2"
 	ghapi "github.com/google/go-github/v41/github"
 	"github.com/google/uuid"
+	"github.com/gravitational/teleport/build.assets/tooling/lib/github"
 	"github.com/gravitational/trace"
 	retryablehttp "github.com/hashicorp/go-retryablehttp"
-
-	"github.com/gravitational/teleport/build.assets/tooling/lib/github"
 )
 
 const wokflowTagInput = "workflow-tag"

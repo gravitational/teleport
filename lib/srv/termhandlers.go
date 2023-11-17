@@ -20,12 +20,11 @@ import (
 	"context"
 	"encoding/json"
 
-	"github.com/gravitational/trace"
-	"golang.org/x/crypto/ssh"
-
 	tracingssh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
+	"github.com/gravitational/trace"
+	"golang.org/x/crypto/ssh"
 )
 
 // TermHandlers are common terminal handling functions used by both the

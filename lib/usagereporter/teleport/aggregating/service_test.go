@@ -20,14 +20,13 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	prehogv1 "github.com/gravitational/teleport/gen/proto/go/prehog/v1"
+	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
-
-	prehogv1 "github.com/gravitational/teleport/gen/proto/go/prehog/v1"
-	"github.com/gravitational/teleport/lib/backend/memory"
 )
 
 func newReport(startTime time.Time) *prehogv1.UserActivityReport {

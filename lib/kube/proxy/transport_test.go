@@ -22,12 +22,11 @@ import (
 	"net"
 	"testing"
 
-	"github.com/stretchr/testify/require"
-	"go.opentelemetry.io/otel"
-
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel"
 )
 
 func Test_allServersSupportImpersonation(t *testing.T) {

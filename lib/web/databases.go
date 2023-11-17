@@ -25,9 +25,6 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/gravitational/trace"
-	"github.com/julienschmidt/httprouter"
-
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/tlsutils"
@@ -37,6 +34,8 @@ import (
 	dbiam "github.com/gravitational/teleport/lib/srv/db/common/iam"
 	"github.com/gravitational/teleport/lib/web/scripts"
 	"github.com/gravitational/teleport/lib/web/ui"
+	"github.com/gravitational/trace"
+	"github.com/julienschmidt/httprouter"
 )
 
 // createDatabaseRequest contains the necessary basic information to create a database.

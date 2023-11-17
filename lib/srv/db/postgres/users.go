@@ -23,11 +23,10 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/gravitational/trace"
-	"github.com/jackc/pgx/v4"
-
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/srv/db/common"
+	"github.com/gravitational/trace"
+	"github.com/jackc/pgx/v4"
 )
 
 func (e *Engine) connectAsAdmin(ctx context.Context, sessionCtx *common.Session) (*pgx.Conn, error) {

@@ -23,11 +23,10 @@ import (
 	"net/netip"
 	"strings"
 
-	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
-
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 )
 
 const xForwardedForHeader = "X-Forwarded-For"

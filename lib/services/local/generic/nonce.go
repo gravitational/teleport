@@ -22,10 +22,9 @@ import (
 	"math"
 	"time"
 
-	"github.com/gravitational/trace"
-
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace"
 )
 
 // nonceProtectedResourceShim is a helper for quickly extracting the nonce

@@ -18,10 +18,9 @@ import (
 	"encoding/json"
 	"testing"
 
+	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
-
-	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 )
 
 func TestUserEventRequest_CheckAndSet(t *testing.T) {

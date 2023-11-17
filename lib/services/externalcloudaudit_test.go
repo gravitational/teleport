@@ -19,11 +19,10 @@ package services
 import (
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/gravitational/teleport/api/types/externalcloudaudit"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/stretchr/testify/require"
 )
 
 // TestDraftExternalCloudAudit verifies if marshaling/unmarshaling on draft external cloud audit works.

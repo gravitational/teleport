@@ -18,12 +18,6 @@ import (
 	"context"
 	"errors"
 
-	"github.com/gravitational/trace"
-	"github.com/gravitational/trace/trail"
-	"github.com/sirupsen/logrus"
-	"golang.org/x/exp/slices"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
 	"github.com/gravitational/teleport/api/defaults"
 	proto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -34,6 +28,11 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/trace"
+	"github.com/gravitational/trace/trail"
+	"github.com/sirupsen/logrus"
+	"golang.org/x/exp/slices"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // errDone indicates that resource iteration is complete

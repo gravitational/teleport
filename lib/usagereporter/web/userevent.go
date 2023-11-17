@@ -19,10 +19,9 @@ package usagereporter
 import (
 	"encoding/json"
 
+	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	"github.com/gravitational/trace"
 	"golang.org/x/exp/slices"
-
-	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 )
 
 // these constants are 1:1 with user events found in the web directory

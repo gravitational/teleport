@@ -23,6 +23,9 @@ import (
 	"net/http"
 	"net/url"
 
+	"github.com/gravitational/teleport/api/types"
+	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	authzapi "k8s.io/api/authorization/v1"
@@ -30,6 +33,7 @@ import (
 	utilnet "k8s.io/apimachinery/pkg/util/net"
 	"k8s.io/client-go/kubernetes"
 	authztypes "k8s.io/client-go/kubernetes/typed/authorization/v1"
+
 	// Load kubeconfig auth plugins for gcp and azure.
 	// Without this, users can't provide a kubeconfig using those.
 	//
@@ -39,10 +43,6 @@ import (
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/transport"
-
-	"github.com/gravitational/teleport/api/types"
-	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
-	"github.com/gravitational/teleport/lib/service/servicecfg"
 )
 
 // getKubeDetails fetches the kubernetes API credentials.

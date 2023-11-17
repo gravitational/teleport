@@ -19,9 +19,8 @@ package regular
 import (
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/gravitational/teleport/lib/srv"
+	"github.com/stretchr/testify/require"
 )
 
 func FuzzParseProxySubsys(f *testing.F) {

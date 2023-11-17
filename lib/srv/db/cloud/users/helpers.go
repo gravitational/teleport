@@ -22,12 +22,11 @@ import (
 	"sync"
 
 	"github.com/aws/aws-sdk-go/aws/arn"
-	"github.com/gravitational/trace"
-
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/srv/db/secrets"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace"
 )
 
 // lookupEntry is the entry value for lookupMap.

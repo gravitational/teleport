@@ -26,10 +26,9 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/iam"
 	iamTypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
+	"github.com/gravitational/teleport/lib"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/slices"
-
-	"github.com/gravitational/teleport/lib"
 )
 
 var baseIdPIAMConfigReq = func() IdPIAMConfigureRequest {

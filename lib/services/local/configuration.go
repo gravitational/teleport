@@ -20,9 +20,6 @@ import (
 	"context"
 	"errors"
 
-	"github.com/gravitational/trace"
-	"github.com/prometheus/client_golang/prometheus"
-
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
@@ -31,6 +28,8 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local/generic"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 var clusterNameNotFound = prometheus.NewCounter(

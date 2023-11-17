@@ -18,11 +18,10 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/gravitational/trace"
-	"google.golang.org/protobuf/types/known/timestamppb"
-
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
+	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 func (s *Handler) GetRequestableRoles(ctx context.Context, req *api.GetRequestableRolesRequest) (*api.GetRequestableRolesResponse, error) {

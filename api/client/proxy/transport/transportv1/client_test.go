@@ -28,6 +28,9 @@ import (
 	"testing"
 	"time"
 
+	transportv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/transport/v1"
+	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
+	streamutils "github.com/gravitational/teleport/api/utils/grpc/stream"
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
 	"github.com/stretchr/testify/require"
@@ -35,10 +38,6 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/test/bufconn"
-
-	transportv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/transport/v1"
-	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
-	streamutils "github.com/gravitational/teleport/api/utils/grpc/stream"
 )
 
 type fakeGetClusterDetailsServer func(context.Context, *transportv1pb.GetClusterDetailsRequest) (*transportv1pb.GetClusterDetailsResponse, error)

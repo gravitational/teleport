@@ -21,10 +21,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/stretchr/testify/require"
 )
 
 // TestGenerateCredentials verifies that the smartcard certificates generated

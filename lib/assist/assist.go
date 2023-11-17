@@ -24,13 +24,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravitational/trace"
-	"github.com/gravitational/trace/trail"
-	"github.com/jonboulle/clockwork"
-	"github.com/sashabaranov/go-openai"
-	log "github.com/sirupsen/logrus"
-	"google.golang.org/protobuf/types/known/timestamppb"
-
 	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
 	pluginsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	"github.com/gravitational/teleport/lib/ai"
@@ -38,6 +31,12 @@ import (
 	"github.com/gravitational/teleport/lib/ai/model/output"
 	"github.com/gravitational/teleport/lib/ai/model/tools"
 	"github.com/gravitational/teleport/lib/ai/tokens"
+	"github.com/gravitational/trace"
+	"github.com/gravitational/trace/trail"
+	"github.com/jonboulle/clockwork"
+	"github.com/sashabaranov/go-openai"
+	log "github.com/sirupsen/logrus"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 // MessageType is a type of the Assist message.

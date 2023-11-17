@@ -19,13 +19,12 @@ import (
 	"os"
 
 	"github.com/alecthomas/kingpin/v2"
-	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
-
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
+	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 )
 
 // SSOConfigureCommand implements common.CLICommand interface

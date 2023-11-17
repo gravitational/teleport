@@ -19,11 +19,10 @@ package resources
 import (
 	"context"
 
-	"github.com/gravitational/trace"
-	kclient "sigs.k8s.io/controller-runtime/pkg/client"
-
 	resourcesv1 "github.com/gravitational/teleport/integrations/operator/apis/resources/v1"
 	"github.com/gravitational/teleport/integrations/operator/sidecar"
+	"github.com/gravitational/trace"
+	kclient "sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 // loginRuleClient implements TeleportResourceClient and offers CRUD methods needed to reconcile login_rules

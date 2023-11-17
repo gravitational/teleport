@@ -19,12 +19,11 @@ import (
 	"crypto/x509"
 	"os"
 
-	"github.com/gravitational/trace"
-	"go.opentelemetry.io/otel/attribute"
-
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 // MetricsConfig specifies configuration for the metrics service

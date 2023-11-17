@@ -29,15 +29,14 @@ import (
 	"strconv"
 
 	elastic "github.com/elastic/go-elasticsearch/v8/typedapi/types"
-	"github.com/gravitational/trace"
-	"github.com/prometheus/client_golang/prometheus"
-
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 // NewEngine create new elasticsearch engine.

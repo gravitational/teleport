@@ -21,9 +21,8 @@ import (
 	"maps"
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/gravitational/teleport/api/types"
+	"github.com/stretchr/testify/require"
 )
 
 // TestReconciler makes sure appropriate callbacks are called during reconciliation.

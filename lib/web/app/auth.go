@@ -20,13 +20,12 @@ import (
 	"crypto/subtle"
 	"net/http"
 
-	"github.com/gravitational/trace"
-	"github.com/julienschmidt/httprouter"
-
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
+	"github.com/gravitational/trace"
+	"github.com/julienschmidt/httprouter"
 )
 
 // handleAuth handles authentication for an app

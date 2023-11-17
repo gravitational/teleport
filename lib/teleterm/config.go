@@ -15,9 +15,8 @@
 package teleterm
 
 import (
-	"github.com/gravitational/trace"
-
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace"
 )
 
 // Config describes teleterm configuration

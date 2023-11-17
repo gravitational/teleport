@@ -17,10 +17,9 @@ limitations under the License.
 package services
 
 import (
-	"github.com/gravitational/trace"
-
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace"
 )
 
 // UnmarshalLicense unmarshals the License resource from JSON.

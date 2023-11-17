@@ -21,9 +21,8 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/gravitational/trace"
-
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/trace"
 )
 
 // FakeServer is a fake Server implementation used in tests.

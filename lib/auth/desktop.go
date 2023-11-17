@@ -22,12 +22,11 @@ import (
 	"crypto/x509/pkix"
 	"strconv"
 
-	"github.com/gravitational/trace"
-
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/trace"
 )
 
 // GenerateWindowsDesktopCert generates client certificate for Windows RDP

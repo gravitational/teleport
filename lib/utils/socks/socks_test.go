@@ -22,11 +22,10 @@ import (
 	"os"
 	"testing"
 
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/net/proxy"
-
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestMain(m *testing.M) {

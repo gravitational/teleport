@@ -15,10 +15,9 @@
 package main
 
 import (
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
 	sheets "google.golang.org/api/sheets/v4"
-
-	"github.com/gravitational/teleport/api/types"
 )
 
 func (g *googleSheetsClient) createRow(ar types.AccessRequest) error {

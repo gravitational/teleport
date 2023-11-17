@@ -25,11 +25,10 @@ import (
 	"os"
 
 	"github.com/gravitational/roundtrip"
-	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
-
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 )
 
 // ClientConfig contains configuration for the release client

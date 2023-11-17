@@ -20,9 +20,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/gravitational/teleport/api/types"
+	"github.com/stretchr/testify/require"
 )
 
 func Test_ssoDiagContext_writeToBackend(t *testing.T) {

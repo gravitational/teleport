@@ -19,11 +19,10 @@ package cloud
 import (
 	"context"
 
-	"github.com/gravitational/trace"
-
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/azure"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/trace"
 )
 
 func (c *urlChecker) checkAzure(ctx context.Context, database types.Database) error {

@@ -17,9 +17,8 @@ limitations under the License.
 package integration
 
 import (
-	"github.com/gravitational/trace"
-
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/trace"
 )
 
 type Bootstrap struct {

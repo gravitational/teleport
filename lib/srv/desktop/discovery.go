@@ -24,14 +24,13 @@ import (
 	"time"
 
 	"github.com/go-ldap/ldap/v3"
-	"github.com/gravitational/trace"
-
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/windows"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace"
 )
 
 // startDesktopDiscovery starts fetching desktops from LDAP, periodically

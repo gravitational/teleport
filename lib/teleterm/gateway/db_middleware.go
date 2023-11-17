@@ -20,11 +20,10 @@ import (
 	"errors"
 	"net"
 
-	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
-
 	alpn "github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 )
 
 type dbMiddleware struct {

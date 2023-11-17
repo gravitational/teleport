@@ -36,9 +36,6 @@ import (
 
 	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/gravitational/roundtrip"
-	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
-
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
@@ -54,6 +51,8 @@ import (
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/httplib/csrf"
 	websession "github.com/gravitational/teleport/lib/web/session"
+	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 )
 
 const (

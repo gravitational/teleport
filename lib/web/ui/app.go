@@ -20,11 +20,10 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/sirupsen/logrus"
-
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils/aws"
+	"github.com/sirupsen/logrus"
 )
 
 // App describes an application

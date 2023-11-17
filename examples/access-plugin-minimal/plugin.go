@@ -17,10 +17,9 @@ package main
 import (
 	"context"
 
-	sheets "google.golang.org/api/sheets/v4"
-
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
+	sheets "google.golang.org/api/sheets/v4"
 )
 
 type AccessRequestPlugin struct {

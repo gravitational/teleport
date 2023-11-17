@@ -21,9 +21,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/gravitational/trace"
-
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/trace"
 )
 
 // EncodeClusterName encodes cluster name in the SNI hostname

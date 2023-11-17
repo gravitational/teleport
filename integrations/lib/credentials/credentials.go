@@ -19,9 +19,8 @@ import (
 	"crypto/x509"
 	"time"
 
-	"github.com/gravitational/trace"
-
 	"github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/trace"
 )
 
 // CheckIfExpired returns true if there's at least 1 non-expired credential in the creds list. It also returns

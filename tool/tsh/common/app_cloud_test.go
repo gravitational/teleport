@@ -17,9 +17,8 @@ package common
 import (
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/stretchr/testify/require"
 )
 
 func Test_filterApps(t *testing.T) {

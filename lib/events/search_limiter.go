@@ -18,10 +18,9 @@ import (
 	"context"
 	"time"
 
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/trace"
 	"golang.org/x/time/rate"
-
-	apievents "github.com/gravitational/teleport/api/types/events"
 )
 
 // SearchEventsLimiter allows to wrap any AuditLogger with rate limit on

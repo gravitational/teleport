@@ -21,12 +21,11 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/sirupsen/logrus"
-	"golang.org/x/net/websocket"
-
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/player"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/sirupsen/logrus"
+	"golang.org/x/net/websocket"
 )
 
 const (

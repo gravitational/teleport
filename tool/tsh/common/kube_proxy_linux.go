@@ -25,10 +25,9 @@ import (
 	"os"
 	"os/exec"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
 	"golang.org/x/sys/unix"
-
-	"github.com/gravitational/teleport"
 )
 
 // memFile creates a file in memory and returns a file descriptor.

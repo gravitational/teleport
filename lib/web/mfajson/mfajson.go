@@ -19,11 +19,10 @@ package mfajson
 import (
 	"encoding/json"
 
-	"github.com/gravitational/trace"
-
 	authproto "github.com/gravitational/teleport/api/client/proto"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/trace"
 )
 
 // Decode parses a JSON-encoded MFA authentication response.

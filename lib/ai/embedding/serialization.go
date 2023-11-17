@@ -17,10 +17,9 @@
 package embedding
 
 import (
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
 	"gopkg.in/yaml.v3"
-
-	"github.com/gravitational/teleport/api/types"
 )
 
 // SerializeNode converts a serializable resource into text ready to be fed to an

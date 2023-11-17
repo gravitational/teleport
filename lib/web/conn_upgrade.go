@@ -23,13 +23,12 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/gravitational/trace"
-	"github.com/julienschmidt/httprouter"
-
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/utils/pingconn"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace"
+	"github.com/julienschmidt/httprouter"
 )
 
 // selectConnectionUpgrade selects the requested upgrade type and returns the

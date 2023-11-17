@@ -19,13 +19,12 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/sirupsen/logrus"
-	"github.com/stretchr/testify/require"
-
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
+	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/require"
 )
 
 type fakeExec struct{}

@@ -28,6 +28,7 @@ import (
 	"testing"
 	"time"
 
+	testingkubemock "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
@@ -36,8 +37,6 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/portforward"
 	"k8s.io/client-go/transport/spdy"
-
-	testingkubemock "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
 )
 
 func TestPortForwardKubeService(t *testing.T) {

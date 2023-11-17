@@ -23,9 +23,8 @@ import (
 	"sort"
 	"time"
 
-	"github.com/gravitational/trace"
-
 	"github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/trace"
 )
 
 // AccessRequest is a request for temporarily granted roles

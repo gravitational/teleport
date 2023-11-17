@@ -17,10 +17,9 @@
 package services
 
 import (
-	"github.com/gravitational/trace"
-
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace"
 )
 
 // UnmarshalUIConfig unmarshals the UIConfig resource from JSON.

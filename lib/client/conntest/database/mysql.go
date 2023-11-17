@@ -25,10 +25,9 @@ import (
 
 	"github.com/go-mysql-org/go-mysql/client"
 	"github.com/go-mysql-org/go-mysql/mysql"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
-
-	"github.com/gravitational/teleport/lib/defaults"
 )
 
 // MySQLPinger implements the DatabasePinger interface for the MySQL protocol.

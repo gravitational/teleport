@@ -24,14 +24,13 @@ import (
 	"net/url"
 
 	"github.com/gravitational/roundtrip"
-	"github.com/gravitational/trace"
-	"golang.org/x/net/http/httpproxy"
-
 	"github.com/gravitational/teleport"
 	tracehttp "github.com/gravitational/teleport/api/observability/tracing/http"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace"
+	"golang.org/x/net/http/httpproxy"
 )
 
 func NewInsecureWebClient() *http.Client {

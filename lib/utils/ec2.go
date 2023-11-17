@@ -21,9 +21,8 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/feature/ec2/imds"
-	"github.com/gravitational/trace"
-
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/trace"
 )
 
 // GetRawEC2IdentityDocument fetches the PKCS7 RSA2048 InstanceIdentityDocument

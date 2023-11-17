@@ -23,9 +23,6 @@ import (
 	"net"
 	"time"
 
-	"github.com/gravitational/trace"
-	"golang.org/x/crypto/ssh"
-
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
@@ -37,6 +34,8 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace"
+	"golang.org/x/crypto/ssh"
 )
 
 const (

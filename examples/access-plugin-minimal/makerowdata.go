@@ -18,9 +18,8 @@ import (
 	"fmt"
 	"strings"
 
-	sheets "google.golang.org/api/sheets/v4"
-
 	"github.com/gravitational/teleport/api/types"
+	sheets "google.golang.org/api/sheets/v4"
 )
 
 func stringPtr(s string) *string { return &s }

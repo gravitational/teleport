@@ -18,14 +18,13 @@ import (
 	"fmt"
 	"net"
 
-	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
-	"google.golang.org/grpc"
-
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/teleterm/apiserver/handler"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
+	"google.golang.org/grpc"
 )
 
 // New creates an instance of API Server

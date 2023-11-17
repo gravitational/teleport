@@ -28,12 +28,11 @@ import (
 	"testing"
 
 	"github.com/gravitational/roundtrip"
-	"github.com/julienschmidt/httprouter"
-	"github.com/stretchr/testify/require"
-
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/observability/tracing"
+	"github.com/julienschmidt/httprouter"
+	"github.com/stretchr/testify/require"
 )
 
 type netError struct{}

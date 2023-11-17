@@ -23,11 +23,10 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/gravitational/trace"
-	"golang.org/x/crypto/bcrypt"
-
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace"
+	"golang.org/x/crypto/bcrypt"
 )
 
 // ValidateLocalAuthSecrets validates local auth secret members.

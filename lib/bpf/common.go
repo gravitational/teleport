@@ -22,11 +22,10 @@ import (
 	"context"
 
 	"github.com/coreos/go-semver/semver"
-	"github.com/gravitational/trace"
-
 	"github.com/gravitational/teleport/api/constants"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace"
 )
 
 // BPF implements an interface to open and close a recording session.

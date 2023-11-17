@@ -21,6 +21,9 @@
 package proto
 
 import (
+	reflect "reflect"
+	sync "sync"
+
 	v1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	v12 "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1"
 	v13 "github.com/gravitational/teleport/api/gen/proto/go/teleport/externalcloudaudit/v1"
@@ -29,8 +32,6 @@ import (
 	types "github.com/gravitational/teleport/api/types"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
-	reflect "reflect"
-	sync "sync"
 )
 
 const (

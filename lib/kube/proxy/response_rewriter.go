@@ -23,14 +23,13 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/gravitational/trace"
-	"golang.org/x/exp/slices"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
 	"github.com/gravitational/teleport/lib/kube/proxy/responsewriters"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/trace"
+	"golang.org/x/exp/slices"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // rewriteResponseForbidden rewrites the response body when the response includes

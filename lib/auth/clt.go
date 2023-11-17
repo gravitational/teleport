@@ -23,8 +23,6 @@ import (
 	"time"
 
 	"github.com/gravitational/roundtrip"
-	"github.com/gravitational/trace"
-
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/secreport"
@@ -42,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/trace"
 )
 
 const (

@@ -19,12 +19,11 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/gravitational/teleport/lib/devicetrust"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-
-	"github.com/gravitational/teleport/lib/devicetrust"
 )
 
 func TestHandleUnimplemented(t *testing.T) {

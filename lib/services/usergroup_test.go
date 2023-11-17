@@ -19,10 +19,9 @@ package services
 import (
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/stretchr/testify/require"
 )
 
 // TestUserGroupUnmarshal verifies a group resource can be unmarshaled.

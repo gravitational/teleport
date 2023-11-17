@@ -22,7 +22,6 @@ import (
 	"log"
 
 	"github.com/google/uuid"
-
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
 )

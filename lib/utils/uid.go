@@ -18,7 +18,6 @@ package utils
 
 import (
 	"github.com/google/uuid"
-
 	"github.com/gravitational/teleport/lib/fixtures"
 )
 

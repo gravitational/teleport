@@ -21,11 +21,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravitational/trace"
-	"golang.org/x/exp/slices"
-
 	"github.com/gravitational/teleport/api/defaults"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/trace"
+	"golang.org/x/exp/slices"
 )
 
 // JoinMethod is the method used for new nodes to join the cluster.

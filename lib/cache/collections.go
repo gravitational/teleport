@@ -21,8 +21,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/gravitational/trace"
-
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -31,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/api/types/secreports"
 	"github.com/gravitational/teleport/api/types/userloginstate"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/trace"
 )
 
 // collection is responsible for managing collection

@@ -21,13 +21,12 @@ import (
 	"net"
 	"testing"
 
+	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
-
-	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 )
 
 type errService struct {

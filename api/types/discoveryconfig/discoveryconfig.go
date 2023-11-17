@@ -17,12 +17,11 @@ limitations under the License.
 package discoveryconfig
 
 import (
-	"github.com/gravitational/trace"
-
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/types/header/convert/legacy"
 	"github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/trace"
 )
 
 // DiscoveryConfig describes extra discovery matchers that are added to DiscoveryServices that share the same Discovery Group.

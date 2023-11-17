@@ -20,11 +20,10 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/gravitational/trace"
-
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/teleterm/daemon"
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
+	"github.com/gravitational/trace"
 )
 
 // CreateGateway creates a gateway

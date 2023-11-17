@@ -19,9 +19,8 @@ package aws
 import (
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/gravitational/teleport/api/utils/aws"
+	"github.com/stretchr/testify/require"
 )
 
 func TestGetKnownRegions(t *testing.T) {

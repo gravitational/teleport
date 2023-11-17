@@ -20,10 +20,9 @@ import (
 	"runtime"
 	"testing"
 
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
-
-	"github.com/gravitational/teleport/api/constants"
 )
 
 func TestRejectsInvalidPEMData(t *testing.T) {

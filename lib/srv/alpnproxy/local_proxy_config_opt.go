@@ -22,11 +22,10 @@ import (
 	"crypto/x509"
 	"encoding/base64"
 
-	"github.com/gravitational/trace"
-
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
+	"github.com/gravitational/trace"
 )
 
 // LocalProxyConfigOpt is an option func to update LocalProxyConfig.

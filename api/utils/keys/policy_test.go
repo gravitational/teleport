@@ -21,10 +21,9 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
-
-	"github.com/gravitational/teleport/api/utils/keys"
 )
 
 var (

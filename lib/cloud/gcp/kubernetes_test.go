@@ -27,11 +27,10 @@ import (
 
 	containerpb "cloud.google.com/go/container/apiv1/containerpb"
 	gax "github.com/googleapis/gax-go/v2"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/oauth2"
 	"k8s.io/client-go/rest"
-
-	"github.com/gravitational/teleport/api/types"
 )
 
 func Test_gcpGKEClient_ListClusters(t *testing.T) {

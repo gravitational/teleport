@@ -21,9 +21,8 @@ import (
 	"errors"
 	"time"
 
-	"github.com/gravitational/trace"
-
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/trace"
 )
 
 const notSet = -2

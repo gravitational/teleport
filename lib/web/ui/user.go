@@ -17,9 +17,8 @@ limitations under the License.
 package ui
 
 import (
-	"github.com/gravitational/trace"
-
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/trace"
 )
 
 type UserListEntry struct {

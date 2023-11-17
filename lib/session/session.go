@@ -25,10 +25,9 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
 	"github.com/moby/term"
-
-	"github.com/gravitational/teleport/api/types"
 )
 
 // ID is a unique session ID.

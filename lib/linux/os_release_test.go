@@ -20,9 +20,8 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/stretchr/testify/require"
-
 	"github.com/gravitational/teleport/lib/linux"
+	"github.com/stretchr/testify/require"
 )
 
 func TestParseOSReleaseFromReader(t *testing.T) {

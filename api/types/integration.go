@@ -20,9 +20,8 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/gravitational/trace"
-
 	"github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/trace"
 )
 
 const (

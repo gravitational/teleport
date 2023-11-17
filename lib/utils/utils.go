@@ -36,13 +36,12 @@ import (
 	"unicode"
 
 	"github.com/google/uuid"
-	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
-	"k8s.io/apimachinery/pkg/util/validation"
-
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
+	"k8s.io/apimachinery/pkg/util/validation"
 )
 
 // WriteContextCloser provides close method with context

@@ -54,11 +54,10 @@ import (
 	"syscall"
 	"unsafe"
 
-	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
-
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 )
 
 func init() {

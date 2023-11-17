@@ -23,17 +23,16 @@ import (
 	"net"
 	"strconv"
 
-	"github.com/gravitational/trace"
-	"github.com/jcmturner/gokrb5/v8/client"
-	mssql "github.com/microsoft/go-mssqldb"
-	"github.com/microsoft/go-mssqldb/azuread"
-	"github.com/microsoft/go-mssqldb/msdsn"
-
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/windows"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/sqlserver/kinit"
 	"github.com/gravitational/teleport/lib/srv/db/sqlserver/protocol"
+	"github.com/gravitational/trace"
+	"github.com/jcmturner/gokrb5/v8/client"
+	mssql "github.com/microsoft/go-mssqldb"
+	"github.com/microsoft/go-mssqldb/azuread"
+	"github.com/microsoft/go-mssqldb/msdsn"
 )
 
 const (

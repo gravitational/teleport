@@ -19,11 +19,10 @@ package services
 import (
 	"sync"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/protoadapt"
-
-	"github.com/gravitational/teleport/api/types"
 )
 
 var (

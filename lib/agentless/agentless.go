@@ -22,15 +22,14 @@ import (
 	"context"
 	"time"
 
-	"github.com/gravitational/trace"
-	"golang.org/x/crypto/ssh"
-
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/trace"
+	"golang.org/x/crypto/ssh"
 )
 
 // AuthProvider is a subset of the full Auth API that must be connected

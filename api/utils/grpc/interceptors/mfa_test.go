@@ -19,16 +19,15 @@ import (
 	"net"
 	"testing"
 
+	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/mfa"
+	"github.com/gravitational/teleport/api/testhelpers/mtls"
+	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
-
-	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/mfa"
-	"github.com/gravitational/teleport/api/testhelpers/mtls"
-	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 )
 
 const otpTestCode = "otp-test-code"

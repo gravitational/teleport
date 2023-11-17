@@ -19,12 +19,11 @@ package ai
 import (
 	"context"
 
-	"github.com/gravitational/trace"
-	"github.com/sashabaranov/go-openai"
-
 	"github.com/gravitational/teleport/lib/ai/model"
 	"github.com/gravitational/teleport/lib/ai/model/output"
 	"github.com/gravitational/teleport/lib/ai/tokens"
+	"github.com/gravitational/trace"
+	"github.com/sashabaranov/go-openai"
 )
 
 // Chat represents a conversation between a user and an assistant with context memory.

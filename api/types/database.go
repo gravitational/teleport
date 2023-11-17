@@ -23,13 +23,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
-
 	"github.com/gravitational/teleport/api/utils"
 	atlasutils "github.com/gravitational/teleport/api/utils/atlas"
 	awsutils "github.com/gravitational/teleport/api/utils/aws"
 	azureutils "github.com/gravitational/teleport/api/utils/azure"
+	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 )
 
 // Database represents a single database proxied by a database server.

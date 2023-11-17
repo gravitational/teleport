@@ -18,10 +18,9 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/types/known/timestamppb"
-
-	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 )
 
 // CheckAndSetDefaults checks DeviceV1 fields to catch simple errors, and sets

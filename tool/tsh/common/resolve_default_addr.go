@@ -28,10 +28,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gravitational/trace"
-
 	tracehttp "github.com/gravitational/teleport/api/observability/tracing/http"
 	"github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/trace"
 )
 
 type raceResult struct {

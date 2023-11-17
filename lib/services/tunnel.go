@@ -19,10 +19,9 @@ package services
 import (
 	"encoding/json"
 
-	"github.com/gravitational/trace"
-
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace"
 )
 
 // ValidateReverseTunnel validates the OIDC connector and sets default values

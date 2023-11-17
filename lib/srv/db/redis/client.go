@@ -27,15 +27,14 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/gravitational/trace"
-	"github.com/redis/go-redis/v9"
-
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
 	"github.com/gravitational/teleport/lib/srv/db/redis/connection"
 	"github.com/gravitational/teleport/lib/srv/db/redis/protocol"
+	"github.com/gravitational/trace"
+	"github.com/redis/go-redis/v9"
 )
 
 // Commands with additional processing in Teleport when using cluster mode.

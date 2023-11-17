@@ -20,9 +20,8 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
+	"github.com/stretchr/testify/require"
 )
 
 func TestString(t *testing.T) {

@@ -31,13 +31,12 @@ import (
 	"github.com/fxamacker/cbor/v2"
 	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/go-webauthn/webauthn/protocol/webauthncose"
-	"github.com/gravitational/trace"
-	"github.com/keys-pub/go-libfido2"
-	log "github.com/sirupsen/logrus"
-
 	"github.com/gravitational/teleport/api/client/proto"
 	wanpb "github.com/gravitational/teleport/api/types/webauthn"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
+	"github.com/gravitational/trace"
+	"github.com/keys-pub/go-libfido2"
+	log "github.com/sirupsen/logrus"
 )
 
 // User-friendly device filter errors.

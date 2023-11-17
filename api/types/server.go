@@ -24,9 +24,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/gravitational/trace"
-
 	"github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/trace"
 )
 
 // Server represents a Node, Proxy or Auth server in a Teleport cluster

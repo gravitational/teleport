@@ -22,12 +22,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	fb "github.com/gravitational/teleport/lib/utils/fanoutbuffer"
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 )
 
 var errFanoutReset = errors.New("event fanout system reset")

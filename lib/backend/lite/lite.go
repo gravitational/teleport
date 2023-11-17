@@ -31,14 +31,13 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/mattn/go-sqlite3"
 	log "github.com/sirupsen/logrus"
-
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/lib/backend"
 )
 
 const (

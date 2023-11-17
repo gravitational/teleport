@@ -20,9 +20,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/stretchr/testify/require"
 )
 
 func TestOptions(t *testing.T) {

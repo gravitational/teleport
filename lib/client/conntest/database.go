@@ -25,8 +25,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/gravitational/trace"
-
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
@@ -36,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	alpn "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
+	"github.com/gravitational/trace"
 )
 
 // databasePinger describes the required methods to test a Database Connection.

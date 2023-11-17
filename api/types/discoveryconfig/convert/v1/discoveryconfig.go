@@ -17,12 +17,11 @@ limitations under the License.
 package v1
 
 import (
-	"github.com/gravitational/trace"
-
 	discoveryconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	headerv1 "github.com/gravitational/teleport/api/types/header/convert/v1"
+	"github.com/gravitational/trace"
 )
 
 // FromProto converts a v1 discovery config into an internal discovery config object.

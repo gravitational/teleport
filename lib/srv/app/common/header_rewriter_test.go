@@ -23,9 +23,8 @@ import (
 	"net/url"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-
 	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
+	"github.com/stretchr/testify/assert"
 )
 
 func mustParseURL(urlString string) *url.URL {

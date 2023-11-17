@@ -38,12 +38,11 @@ import (
 	"time"
 
 	"github.com/go-piv/piv-go/piv"
-	"github.com/gravitational/trace"
-
 	"github.com/gravitational/teleport/api"
 	attestation "github.com/gravitational/teleport/api/gen/proto/go/attestation/v1"
 	"github.com/gravitational/teleport/api/utils/prompt"
 	"github.com/gravitational/teleport/api/utils/retryutils"
+	"github.com/gravitational/trace"
 )
 
 const (

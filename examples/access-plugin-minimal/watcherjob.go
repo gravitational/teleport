@@ -18,9 +18,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/gravitational/trace"
-
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/trace"
 )
 
 func (g *googleSheetsClient) HandleEvent(ctx context.Context, event types.Event) error {

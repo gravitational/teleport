@@ -22,12 +22,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravitational/trace"
-	"github.com/sashabaranov/go-openai"
-
 	"github.com/gravitational/teleport/gen/go/eventschema"
 	"github.com/gravitational/teleport/lib/ai/model/output"
 	"github.com/gravitational/teleport/lib/ai/tokens"
+	"github.com/gravitational/trace"
+	"github.com/sashabaranov/go-openai"
 )
 
 const AuditQueryGenerationToolName = "Audit Query Generation"

@@ -20,11 +20,10 @@ import (
 	"strings"
 
 	mysqlclient "github.com/go-mysql-org/go-mysql/client"
-	"github.com/gravitational/trace"
-
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/benchmark"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/trace"
 )
 
 const (

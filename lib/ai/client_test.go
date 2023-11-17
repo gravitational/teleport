@@ -22,14 +22,13 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/sashabaranov/go-openai"
-	"github.com/stretchr/testify/require"
-	"google.golang.org/grpc"
-
 	assistpb "github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
 	"github.com/gravitational/teleport/lib/ai/model/output"
 	"github.com/gravitational/teleport/lib/ai/model/tools"
 	"github.com/gravitational/teleport/lib/ai/testutils"
+	"github.com/sashabaranov/go-openai"
+	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc"
 )
 
 func TestRunTool_AuditQueryGeneration(t *testing.T) {

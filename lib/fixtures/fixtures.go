@@ -18,9 +18,8 @@ import (
 	"runtime/debug"
 	"testing"
 
-	"github.com/gravitational/trace"
-
 	apifixtures "github.com/gravitational/teleport/api/fixtures"
+	"github.com/gravitational/trace"
 )
 
 // AssertNotFound expects not found error

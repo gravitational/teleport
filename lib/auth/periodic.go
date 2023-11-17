@@ -19,10 +19,9 @@ package auth
 import (
 	"fmt"
 
-	"golang.org/x/mod/semver"
-
 	"github.com/gravitational/teleport/api/types"
 	vc "github.com/gravitational/teleport/lib/versioncontrol"
+	"golang.org/x/mod/semver"
 )
 
 // upgradeEnrollPeriodic is a periodic operation that aggregates per-version counts of instances

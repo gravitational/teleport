@@ -22,7 +22,6 @@ import (
 	"time"
 
 	"github.com/go-webauthn/webauthn/protocol"
-
 	"github.com/gravitational/teleport/api/client/proto"
 	wanpb "github.com/gravitational/teleport/api/types/webauthn"
 	"github.com/gravitational/teleport/api/utils/prompt"

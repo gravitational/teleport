@@ -19,10 +19,9 @@ import (
 	"testing"
 
 	"github.com/google/go-attestation/attest"
-	"github.com/stretchr/testify/require"
-
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/devicetrust"
+	"github.com/stretchr/testify/require"
 )
 
 func TestAttestationParametersProto(t *testing.T) {

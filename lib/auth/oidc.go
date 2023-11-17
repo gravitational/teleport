@@ -21,12 +21,11 @@ import (
 	"encoding/json"
 	"net/url"
 
-	"github.com/gravitational/trace"
-
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/trace"
 )
 
 type OIDCService interface {

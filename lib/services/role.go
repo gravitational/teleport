@@ -29,12 +29,6 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws/arn"
 	"github.com/google/uuid"
-	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
-	"github.com/vulcand/predicate"
-	"golang.org/x/crypto/ssh"
-	"golang.org/x/exp/slices"
-
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
@@ -46,6 +40,11 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 	"github.com/gravitational/teleport/lib/utils/parse"
+	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
+	"github.com/vulcand/predicate"
+	"golang.org/x/crypto/ssh"
+	"golang.org/x/exp/slices"
 )
 
 // DefaultImplicitRules provides access to the default set of implicit rules

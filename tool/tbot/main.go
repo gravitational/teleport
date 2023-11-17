@@ -26,10 +26,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
-	"gopkg.in/yaml.v3"
-
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/modules"
@@ -37,6 +33,9 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
+	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
+	"gopkg.in/yaml.v3"
 )
 
 var log = logrus.WithFields(logrus.Fields{

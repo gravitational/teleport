@@ -25,15 +25,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	"golang.org/x/exp/slices"
-	"gopkg.in/square/go-jose.v2"
-
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"golang.org/x/exp/slices"
+	"gopkg.in/square/go-jose.v2"
 )
 
 // Default port numbers used by all teleport tools

@@ -19,10 +19,9 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
-
-	"github.com/gravitational/teleport/api/types"
 )
 
 func TestReporterTopRequestsLimit(t *testing.T) {

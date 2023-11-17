@@ -20,9 +20,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/gravitational/trace"
-
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/trace"
 )
 
 const assertionReplayPrefix = "recognized_assertions"

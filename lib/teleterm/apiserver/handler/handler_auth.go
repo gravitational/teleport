@@ -17,9 +17,8 @@ package handler
 import (
 	"context"
 
-	"github.com/gravitational/trace"
-
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
+	"github.com/gravitational/trace"
 )
 
 // Login logs in a user to a cluster

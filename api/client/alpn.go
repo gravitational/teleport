@@ -24,10 +24,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravitational/trace"
-
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/trace"
 )
 
 // GetClusterCAsFunc is a function to fetch cluster CAs.

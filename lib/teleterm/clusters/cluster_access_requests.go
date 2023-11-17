@@ -18,9 +18,6 @@ import (
 	"context"
 	"time"
 
-	"github.com/gravitational/trace"
-	"golang.org/x/exp/slices"
-
 	"github.com/gravitational/teleport/api/accessrequest"
 	"github.com/gravitational/teleport/api/types"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
@@ -28,6 +25,8 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
+	"github.com/gravitational/trace"
+	"golang.org/x/exp/slices"
 )
 
 type ResourceDetails struct {

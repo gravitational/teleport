@@ -20,10 +20,9 @@ import (
 	"crypto"
 	"io"
 
+	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
-
-	"github.com/gravitational/teleport/api/utils/sshutils"
 )
 
 // LegacySHA1Signer always forces use of SHA-1 for signing. It should be not

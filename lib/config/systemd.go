@@ -19,9 +19,8 @@ import (
 	"os"
 	"text/template"
 
-	"github.com/gravitational/trace"
-
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/trace"
 )
 
 const (

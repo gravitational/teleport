@@ -19,10 +19,9 @@ package client
 import (
 	"context"
 
-	"github.com/gravitational/trace"
-
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/mfa"
+	"github.com/gravitational/trace"
 )
 
 // performMFACeremony retrieves an MFA challenge from the server, prompts the

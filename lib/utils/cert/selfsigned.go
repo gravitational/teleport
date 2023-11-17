@@ -27,10 +27,9 @@ import (
 	"net"
 	"time"
 
+	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
-
-	"github.com/gravitational/teleport/lib/auth/native"
 )
 
 // macMaxTLSCertValidityPeriod is the maximum validity period

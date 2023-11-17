@@ -28,12 +28,11 @@ import (
 	"time"
 
 	"github.com/buildkite/bintest/v3"
+	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/gravitational/teleport/lib/modules"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestOneOffScript(t *testing.T) {

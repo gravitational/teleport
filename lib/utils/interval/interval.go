@@ -21,9 +21,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/jonboulle/clockwork"
-
 	"github.com/gravitational/teleport/api/utils/retryutils"
+	"github.com/jonboulle/clockwork"
 )
 
 // Interval functions similarly to time.Ticker, with the added benefit of being

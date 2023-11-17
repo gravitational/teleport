@@ -27,11 +27,10 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 )
 
 // Forever means that object TTL will not expire unless deleted

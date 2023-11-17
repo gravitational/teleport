@@ -21,9 +21,8 @@ import (
 	"encoding/hex"
 	"net/http"
 
-	"github.com/gravitational/trace"
-
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace"
 )
 
 const (

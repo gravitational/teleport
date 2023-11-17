@@ -22,11 +22,10 @@ import (
 	"context"
 	"encoding/json"
 
-	"github.com/gravitational/trace"
-	"google.golang.org/protobuf/reflect/protoreflect"
-
 	userpreferencesv1 "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
 // UserPreferencesService is responsible for managing a user's preferences.

@@ -19,10 +19,9 @@ import (
 	"time"
 
 	"github.com/go-resty/resty/v2"
-	"github.com/gravitational/trace"
-
 	"github.com/gravitational/teleport/integrations/access/common/auth/oauth"
 	"github.com/gravitational/teleport/integrations/access/common/auth/storage"
+	"github.com/gravitational/trace"
 )
 
 // Authorizer implements oauth2.Authorizer for Slack API.

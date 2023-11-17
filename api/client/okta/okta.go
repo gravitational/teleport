@@ -18,11 +18,10 @@ import (
 	"context"
 	"time"
 
-	"github.com/gravitational/trace"
-	"google.golang.org/protobuf/types/known/durationpb"
-
 	oktapb "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/types/known/durationpb"
 )
 
 // Client is an Okta client that conforms to the following lib/services interfaces:

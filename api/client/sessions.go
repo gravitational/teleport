@@ -19,10 +19,9 @@ package client
 import (
 	"context"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/types/known/emptypb"
-
-	"github.com/gravitational/teleport/api/types"
 )
 
 // GetWebSession returns the web session for the specified request.

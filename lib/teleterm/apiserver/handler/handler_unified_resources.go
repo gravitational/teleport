@@ -17,13 +17,12 @@ package handler
 import (
 	"context"
 
-	"github.com/gravitational/trace"
-
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
+	"github.com/gravitational/trace"
 )
 
 func (s *Handler) ListUnifiedResources(ctx context.Context, req *api.ListUnifiedResourcesRequest) (*api.ListUnifiedResourcesResponse, error) {

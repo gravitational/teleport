@@ -19,9 +19,8 @@ package types
 import (
 	"time"
 
-	"github.com/gravitational/trace"
-
 	"github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/trace"
 )
 
 // PluginType represents the type of the plugin

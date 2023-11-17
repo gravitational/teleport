@@ -20,10 +20,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/types/secreports"
+	"github.com/stretchr/testify/require"
 )
 
 func TestMarshalUnmarshalAuditQuery(t *testing.T) {

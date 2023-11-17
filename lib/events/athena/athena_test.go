@@ -31,14 +31,13 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
-	"github.com/stretchr/testify/require"
-	"google.golang.org/protobuf/protoadapt"
-
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/protoadapt"
 )
 
 func TestMain(m *testing.M) {

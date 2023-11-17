@@ -25,11 +25,10 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 )
 
 // NewMemoryUploader returns a new memory uploader implementing multipart

@@ -20,9 +20,8 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/gravitational/trace"
-
 	"github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/trace"
 )
 
 // UserGroup specifies an externally sourced group.

@@ -20,12 +20,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/integrations/lib"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/integrations/lib"
 )
 
 // MockWatcher is a mock events watcher.

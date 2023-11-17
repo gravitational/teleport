@@ -20,10 +20,9 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/gravitational/trace"
-
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/trace"
 )
 
 // SessionContext contains common context parameters for an App session.
