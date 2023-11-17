@@ -28,6 +28,7 @@ const (
 	maxDataOSUsernameLength              = 40  // arbitrary, "large" number.
 	maxDataJamfBinaryVersionLength       = 40  // arbitrary, "large" number.
 	maxDataMacOSEnrollmentProfilesLength = 400 // arbitrary, "large" number.
+	maxOSIDLength                        = 40  // arbitrary, "large" number.
 
 	maxSourceNameLength = 40 // arbitrary, "large" number.
 )
@@ -88,7 +89,7 @@ func validateCollectedData(cd *devicepb.DeviceCollectedData, createAsResource bo
 		return trace.BadParameter("device serial number required")
 	case len(cd.SerialNumber) > maxDeviceSerialNumberLength:
 		return trace.BadParameter("device serial number exceeds %v characters", maxDeviceSerialNumberLength)
-	case len(cd.GetOsUsername()) > maxDataOSUsernameLength:
+	case len(cd.OsUsername) > maxDataOSUsernameLength:
 		return trace.BadParameter("device OS username exceeds %v characters", maxDeviceSerialNumberLength)
 	}
 
@@ -169,13 +170,14 @@ func validateCollectedDataTPMPlatformAttestation(osType devicepb.OSType, pa *dev
 // devicepb.DeviceProfile.
 type collectedDataLike interface {
 	GetModelIdentifier() string
+	GetOsId() string
 	GetOsVersion() string
 	GetOsBuild() string
 	GetJamfBinaryVersion() string
 }
 
 // validateCollectedDataLike validates the common fields between
-// devicepb.CollectedData and devicepb.DeviceProfile.
+// devicepb.DeviceCollectedData and devicepb.DeviceProfile.
 func validateCollectedDataLike(osType devicepb.OSType, cd collectedDataLike) error {
 	// Length checks for all variable-length fields.
 	switch {
@@ -187,6 +189,8 @@ func validateCollectedDataLike(osType devicepb.OSType, cd collectedDataLike) err
 		return trace.BadParameter("device OS build exceeds %v characters", maxDataOSBuildLength)
 	case len(cd.GetJamfBinaryVersion()) > maxDataJamfBinaryVersionLength:
 		return trace.BadParameter("jamf binary version exceeds %v characters", maxDataJamfBinaryVersionLength)
+	case len(cd.GetOsId()) > maxOSIDLength:
+		return trace.BadParameter("device OS ID exceeds %v characters", maxOSIDLength)
 	}
 
 	// Parse OS version.
@@ -452,6 +456,8 @@ func validateDataLikeDrift(target, source collectedDataLike) error {
 		return NewCollectedDataDriftError("device model drift detected")
 	case isBackwardsVersionDrift(source.GetOsVersion(), target.GetOsVersion()):
 		return NewCollectedDataDriftError("device OS version drift detected")
+	case source.GetOsId() != "" && target.GetOsId() != source.GetOsId():
+		return NewCollectedDataDriftError("device OS ID drift detected")
 	default:
 		return nil
 	}

@@ -2430,6 +2430,10 @@ func TestS_RecordDeviceAuthnData(t *testing.T) {
 			OsType:   devicepb.OSType_OS_TYPE_WINDOWS,
 			AssetTag: "win",
 		},
+		{
+			OsType:   devicepb.OSType_OS_TYPE_LINUX,
+			AssetTag: "linux",
+		},
 	} {
 		created, _, err := createAndEnroll(ctx, s, dev, owner)
 		if err != nil {
@@ -2439,6 +2443,7 @@ func TestS_RecordDeviceAuthnData(t *testing.T) {
 	}
 	macDev := allDevs[0]
 	winDev := allDevs[1]
+	linuxDev := allDevs[2]
 
 	tests := []struct {
 		name     string
@@ -2506,6 +2511,23 @@ MDM server: https://example.com/mdm/ServerURL`,
 						},
 					},
 				},
+			},
+		},
+		{
+			name:     "Linux",
+			deviceID: linuxDev.Id,
+			cd: &devicepb.DeviceCollectedData{
+				CollectTime:           timestamppb.New(nowAndAdvance()),
+				OsType:                devicepb.OSType_OS_TYPE_LINUX,
+				SerialNumber:          linuxDev.AssetTag,
+				ModelIdentifier:       "21J50013US",
+				OsVersion:             "22.04",
+				OsBuild:               "22.04 LTS (Jammy Jellyfish)",
+				OsUsername:            "llama",
+				ReportedAssetTag:      "No Asset Information",
+				SystemSerialNumber:    linuxDev.AssetTag,
+				BaseBoardSerialNumber: "L1AA00A00A0",
+				OsId:                  "ubuntu",
 			},
 		},
 	}
@@ -2597,6 +2619,31 @@ func TestS_RecordDeviceAuthnData_errors(t *testing.T) {
 		if err := s.RecordDeviceAuthnData(ctx, devWithData.Id, cd); err != nil {
 			t.Fatalf("RecordDeviceAuthnData failed: %v", err)
 		}
+	}
+
+	// Prepare devices for a few Linux-specific data drift scenarios.
+	linuxWithData := &devicepb.Device{
+		OsType:   devicepb.OSType_OS_TYPE_LINUX,
+		AssetTag: "linux1",
+	}
+	linuxWithProfile := &devicepb.Device{
+		OsType:   devicepb.OSType_OS_TYPE_LINUX,
+		AssetTag: "linux2",
+		Profile: &devicepb.DeviceProfile{
+			OsId: "ubuntu",
+		},
+	}
+	for _, d := range []**devicepb.Device{&linuxWithData, &linuxWithProfile} {
+		var err error
+		*d, err = s.CreateDevice(ctx, *d, false /* createAsResource */)
+		if err != nil {
+			t.Fatalf("CreateDevice(%q) failed: %v", (*d).AssetTag, err)
+		}
+	}
+	cdLinux := collectedDataForDevice(linuxWithData)
+	cdLinux.OsId = "ubuntu"
+	if err := s.RecordDeviceAuthnData(ctx, linuxWithData.Id, cdLinux); err != nil {
+		t.Fatalf("RecordDeviceAuthnData failed: %v", err)
 	}
 
 	isDriftError := func(err error) bool {
@@ -2745,6 +2792,28 @@ func TestS_RecordDeviceAuthnData_errors(t *testing.T) {
 			wantErr:   "OS username",
 			assertErr: isDriftError,
 		},
+		{
+			name:     "collected data OsId drift (Linux)",
+			deviceID: linuxWithData.Id,
+			createCD: func() *devicepb.DeviceCollectedData {
+				cd := proto.Clone(cdLinux).(*devicepb.DeviceCollectedData)
+				cd.OsId = "" // want "ubuntu"
+				return cd
+			},
+			wantErr:   "OS ID",
+			assertErr: isDriftError,
+		},
+		{
+			name:     "profile OsId drift (Linux)",
+			deviceID: linuxWithProfile.Id,
+			createCD: func() *devicepb.DeviceCollectedData {
+				cd := collectedDataForDevice(linuxWithProfile)
+				cd.OsId = "fedora" // want "ubuntu"
+				return cd
+			},
+			wantErr:   "OS ID",
+			assertErr: isDriftError,
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -2788,7 +2857,7 @@ func enroll(ctx context.Context, s *storage.S, dev *devicepb.Device, owner strin
 			PublicKeyDer: pubKeyDER,
 		}
 		key = ecdsaKey
-	case devicepb.OSType_OS_TYPE_WINDOWS:
+	case devicepb.OSType_OS_TYPE_LINUX, devicepb.OSType_OS_TYPE_WINDOWS:
 		validAKPublic, err := base64.StdEncoding.DecodeString(validAKPublic)
 		if err != nil {
 			return nil, nil, fmt.Errorf("parsing valid ak public: %w", err)

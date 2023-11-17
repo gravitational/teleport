@@ -246,6 +246,7 @@ func deviceToStored(d *devicepb.Device, now time.Time, createAsResource bool) (d
 			OSUsernames:         d.Profile.OsUsernames,
 			JamfBinaryVersion:   d.Profile.JamfBinaryVersion,
 			ExternalID:          d.Profile.ExternalId,
+			OSID:                d.Profile.OsId,
 		}
 	}
 
@@ -1645,6 +1646,7 @@ func storedToDeviceView(deviceID string, sd *storedDevice, view devicepb.DeviceV
 			OsUsernames:         sd.Profile.OSUsernames,
 			JamfBinaryVersion:   sd.Profile.JamfBinaryVersion,
 			ExternalId:          sd.Profile.ExternalID,
+			OsId:                sd.Profile.OSID,
 		}
 	}
 
@@ -1684,6 +1686,7 @@ func collectedDataToStored(cd *devicepb.DeviceCollectedData, origin collectedDat
 		SystemSerialNumber:      cd.SystemSerialNumber,
 		BaseBoardSerialNumber:   cd.BaseBoardSerialNumber,
 		TPMPlatformAttestation:  tpmPlatformAttestationToStored(cd.TpmPlatformAttestation),
+		OSID:                    cd.OsId,
 	}
 
 	if !createAsResource {
@@ -1713,6 +1716,7 @@ func storedToCollectedData(stored *storedCollectedData) *devicepb.DeviceCollecte
 		SystemSerialNumber:      stored.SystemSerialNumber,
 		BaseBoardSerialNumber:   stored.BaseBoardSerialNumber,
 		TpmPlatformAttestation:  tpmPlatformAttestationFromStored(stored.TPMPlatformAttestation),
+		OsId:                    stored.OSID,
 	}
 }
 

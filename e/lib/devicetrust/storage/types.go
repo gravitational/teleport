@@ -71,6 +71,7 @@ type storedCollectedData struct {
 	SystemSerialNumber      string                  `json:"system_serial_number,omitempty"`      // Optional.
 	BaseBoardSerialNumber   string                  `json:"base_board_serial_number,omitempty"`  // Optional.
 	TPMPlatformAttestation  *tpmPlatformAttestation `json:"tpm_platform_attestation,omitempty"`  // Optional.
+	OSID                    string                  `json:"os_id,omitempty"`                     // Optional.
 }
 
 // storedDeviceSource represents a devicepb.DeviceSource in storage.
@@ -89,6 +90,7 @@ type storedDeviceProfile struct {
 	OSUsernames         []string  `json:"os_usernames,omitempty"`          // Optional.
 	JamfBinaryVersion   string    `json:"jamf_binary_version,omitempty"`   // Optional.
 	ExternalID          string    `json:"external_id,omitempty"`           // Optional.
+	OSID                string    `json:"os_id,omitempty"`                 // Optional.
 }
 
 type tpmPlatformAttestation struct {
