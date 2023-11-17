@@ -279,11 +279,6 @@ type ConfigTesting struct {
 	// TeleportVersion is used to control the Teleport version in tests.
 	TeleportVersion string
 
-	// KubeMultiplexerIgnoreSelfConnections signals that Proxy TLS server's listener should
-	// require PROXY header if 'proxyProtocolMode: true' even from self connections. Used in tests as all connections are self
-	// connections there.
-	KubeMultiplexerIgnoreSelfConnections bool
-
 	// OpenAIConfig contains the optional OpenAI client configuration used by
 	// auth and proxy. When it's not set (the default, we don't offer a way to
 	// set it when executing the regular Teleport binary) we use the default
