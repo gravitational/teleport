@@ -289,7 +289,7 @@ const SearchResultItems = () => {
     }),
     {
       kind: 'resource-type-filter',
-      resource: 'kubes',
+      resource: 'kube_cluster',
       nameMatch: '',
       score: 0,
     },
