@@ -1387,7 +1387,7 @@ func initAuthUploadHandler(ctx context.Context, auditConfig types.ClusterAuditCo
 	if externalCloudAudit.IsUsed() {
 		uriString = externalCloudAudit.GetSpec().SessionsRecordingsURI
 	}
-	if len(uriString) == 0 {
+	if uriString == "" {
 		recordsDir := filepath.Join(dataDir, events.RecordsDir)
 		if err := os.MkdirAll(recordsDir, teleport.SharedDirMode); err != nil {
 			return nil, trace.ConvertSystemError(err)
@@ -1473,7 +1473,7 @@ func (process *TeleportProcess) initAuthExternalAuditLog(auditConfig types.Clust
 			return nil, trace.Wrap(err)
 		}
 		if externalCloudAudit.IsUsed() && (len(loggers) > 0 || uri.Scheme != teleport.ComponentAthena) {
-			process.log.Info("Skipping events URI %s because External Audit Storage is enabled", eventsURI)
+			process.log.Infof("Skipping events URI %s because External Audit Storage is enabled", eventsURI)
 			continue
 		}
 		switch uri.Scheme {
