@@ -177,29 +177,6 @@ func CloseAgent(teleAgent *teleagent.AgentServer, socketDirPath string) error {
 	return nil
 }
 
-// GetLocalIP gets the non-loopback IP address of this host.
-func GetLocalIP() (string, error) {
-	addrs, err := net.InterfaceAddrs()
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	for _, addr := range addrs {
-		var ip net.IP
-		switch v := addr.(type) {
-		case *net.IPNet:
-			ip = v.IP
-		case *net.IPAddr:
-			ip = v.IP
-		default:
-			continue
-		}
-		if !ip.IsLoopback() && ip.IsPrivate() {
-			return ip.String(), nil
-		}
-	}
-	return "", trace.NotFound("No non-loopback local IP address found")
-}
-
 func MustCreateUserIdentityFile(t *testing.T, tc *TeleInstance, username string, ttl time.Duration) string {
 	key, err := libclient.GenerateRSAKey()
 	require.NoError(t, err)
