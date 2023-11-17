@@ -3413,6 +3413,11 @@ func (a *ServerWithRoles) CreateResetPasswordToken(ctx context.Context, req Crea
 	if err := a.action(apidefaults.Namespace, types.KindUser, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	if a.hasBuiltinRole(types.RoleOkta) {
+		return nil, trace.AccessDenied("access denied")
+	}
+
 	return a.authServer.CreateResetPasswordToken(ctx, req)
 }
 
