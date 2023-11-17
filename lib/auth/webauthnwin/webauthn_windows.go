@@ -32,12 +32,11 @@ import (
 var (
 	// For reference, see
 	// https://learn.microsoft.com/en-us/windows/win32/api/webauthn/.
-	procWebAuthNIsUserVerifyingPlatformAuthenticatorAvailable = modWebAuthn.NewProc("WebAuthNIsUserVerifyingPlatformAuthenticatorAvailable")
-	procWebAuthNAuthenticatorMakeCredential                   = modWebAuthn.NewProc("WebAuthNAuthenticatorMakeCredential")
-	procWebAuthNFreeCredentialAttestation                     = modWebAuthn.NewProc("WebAuthNFreeCredentialAttestation")
-	procWebAuthNAuthenticatorGetAssertion                     = modWebAuthn.NewProc("WebAuthNAuthenticatorGetAssertion")
-	procWebAuthNFreeAssertion                                 = modWebAuthn.NewProc("WebAuthNFreeAssertion")
-	procWebAuthNGetErrorName                                  = modWebAuthn.NewProc("WebAuthNGetErrorName")
+	procWebAuthNAuthenticatorMakeCredential = modWebAuthn.NewProc("WebAuthNAuthenticatorMakeCredential")
+	procWebAuthNFreeCredentialAttestation   = modWebAuthn.NewProc("WebAuthNFreeCredentialAttestation")
+	procWebAuthNAuthenticatorGetAssertion   = modWebAuthn.NewProc("WebAuthNAuthenticatorGetAssertion")
+	procWebAuthNFreeAssertion               = modWebAuthn.NewProc("WebAuthNFreeAssertion")
+	procWebAuthNGetErrorName                = modWebAuthn.NewProc("WebAuthNGetErrorName")
 
 	modUser32               = windows.NewLazySystemDLL("user32.dll")
 	procGetForegroundWindow = modUser32.NewProc("GetForegroundWindow")
@@ -243,14 +242,12 @@ func getErrorNameOrLastErr(in uintptr, lastError error) error {
 }
 
 func isUVPlatformAuthenticatorAvailable() (bool, error) {
-	var out uint32
-	ret, _, err := procWebAuthNIsUserVerifyingPlatformAuthenticatorAvailable.Call(
-		uintptr(unsafe.Pointer(&out)),
-	)
-	if ret != 0 {
+	var out bool
+	ret, err := webAuthNIsUserVerifyingPlatformAuthenticatorAvailable(&out)
+	if err != nil {
 		return false, getErrorNameOrLastErr(ret, err)
 	}
-	return out == 1, nil
+	return out, nil
 }
 
 // bytesFromCBytes gets slice of bytes from C type and copies it to new slice
