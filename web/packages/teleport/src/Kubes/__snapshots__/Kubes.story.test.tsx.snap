@@ -298,7 +298,7 @@ exports[`failed 1`] = `
   width: 100%;
 }
 
-.c27 {
+.c29 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -325,35 +325,35 @@ exports[`failed 1`] = `
   padding: 0px 16px;
 }
 
-.c27:hover,
-.c27:focus {
+.c29:hover,
+.c29:focus {
   background: rgba(255,255,255,0.07);
 }
 
-.c27:active {
+.c29:active {
   background: rgba(255,255,255,0.13);
 }
 
-.c27:disabled {
+.c29:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
 }
 
-.c21 {
+.c22 {
   display: inline-block;
   transition: color 0.3s;
   color: #FFFFFF;
 }
 
-.c32 {
+.c34 {
   display: inline-block;
   transition: color 0.3s;
   color: #FFFFFF;
   font-size: 16px;
 }
 
-.c30 {
+.c32 {
   align-items: center;
   border: none;
   cursor: pointer;
@@ -375,29 +375,29 @@ exports[`failed 1`] = `
   margin-right: 0px;
 }
 
-.c30 .c20 {
+.c32 .c21 {
   color: inherit;
 }
 
-.c30:disabled {
+.c32:disabled {
   color: rgba(255,255,255,0.36);
 }
 
-.c30:disabled {
+.c32:disabled {
   color: rgba(255,255,255,0.36);
   cursor: default;
 }
 
-.c30:hover:enabled,
-.c30:focus:enabled {
+.c32:hover:enabled,
+.c32:focus:enabled {
   background: rgba(255,255,255,0.13);
 }
 
-.c30:active:enabled {
+.c32:active:enabled {
   background: rgba(255,255,255,0.18);
 }
 
-.c33 {
+.c35 {
   align-items: center;
   border: none;
   cursor: pointer;
@@ -418,38 +418,38 @@ exports[`failed 1`] = `
   margin-left: 0px;
 }
 
-.c33 .c20 {
+.c35 .c21 {
   color: inherit;
 }
 
-.c33:disabled {
+.c35:disabled {
   color: rgba(255,255,255,0.36);
 }
 
-.c33:disabled {
+.c35:disabled {
   color: rgba(255,255,255,0.36);
   cursor: default;
 }
 
-.c33:hover:enabled,
-.c33:focus:enabled {
+.c35:hover:enabled,
+.c35:focus:enabled {
   background: rgba(255,255,255,0.13);
 }
 
-.c33:active:enabled {
+.c35:active:enabled {
   background: rgba(255,255,255,0.18);
 }
 
 .c19 {
   overflow: hidden;
   text-overflow: ellipsis;
-  font-weight: 300;
+  font-weight: 400;
   font-size: 12px;
-  line-height: 24px;
+  line-height: 16px;
   margin: 0px;
 }
 
-.c23 {
+.c25 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 400;
@@ -474,25 +474,87 @@ exports[`failed 1`] = `
   align-items: center;
 }
 
-.c22 {
+.c14 {
+  box-sizing: border-box;
+  padding-left: 24px;
+  padding-right: 24px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.c24 {
   box-sizing: border-box;
   display: flex;
 }
 
-.c25 {
+.c27 {
   box-sizing: border-box;
   display: flex;
   flex-wrap: wrap;
 }
 
-.c29 {
+.c31 {
   box-sizing: border-box;
   width: 100%;
   display: flex;
   justify-content: flex-end;
 }
 
-.c24 {
+.c15 {
+  position: relative;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+.c15[disabled] {
+  cursor: default;
+}
+
+.c18 {
+  width: 32px;
+  height: 12px;
+  border-radius: 12px;
+  background: #222C59;
+  cursor: inherit;
+  flex-shrink: 0;
+}
+
+.c18:before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  transform: translate(0,-50%);
+  width: 16px;
+  height: 16px;
+  border-radius: 16px;
+  background: #9F85FF;
+}
+
+.c16 {
+  opacity: 0;
+  position: absolute;
+  cursor: inherit;
+}
+
+.c16:checked + .c17 {
+  background: rgba(255,255,255,0.13);
+}
+
+.c16:checked + .c17:before {
+  transform: translate(16px,-50%);
+}
+
+.c16:disabled + .c17 {
+  background: #222C59;
+}
+
+.c16:disabled + .c17:before {
+  background: #455a64;
+}
+
+.c26 {
   background: #222C59;
   border-collapse: collapse;
   border-spacing: 0;
@@ -501,39 +563,39 @@ exports[`failed 1`] = `
   width: 100%;
 }
 
-.c24 > thead > tr > th,
-.c24 > tbody > tr > th,
-.c24 > tfoot > tr > th,
-.c24 > thead > tr > td,
-.c24 > tbody > tr > td,
-.c24 > tfoot > tr > td {
+.c26 > thead > tr > th,
+.c26 > tbody > tr > th,
+.c26 > tfoot > tr > th,
+.c26 > thead > tr > td,
+.c26 > tbody > tr > td,
+.c26 > tfoot > tr > td {
   padding: 8px 8px;
   vertical-align: middle;
 }
 
-.c24 > thead > tr > th:first-child,
-.c24 > tbody > tr > th:first-child,
-.c24 > tfoot > tr > th:first-child,
-.c24 > thead > tr > td:first-child,
-.c24 > tbody > tr > td:first-child,
-.c24 > tfoot > tr > td:first-child {
+.c26 > thead > tr > th:first-child,
+.c26 > tbody > tr > th:first-child,
+.c26 > tfoot > tr > th:first-child,
+.c26 > thead > tr > td:first-child,
+.c26 > tbody > tr > td:first-child,
+.c26 > tfoot > tr > td:first-child {
   padding-left: 24px;
 }
 
-.c24 > thead > tr > th:last-child,
-.c24 > tbody > tr > th:last-child,
-.c24 > tfoot > tr > th:last-child,
-.c24 > thead > tr > td:last-child,
-.c24 > tbody > tr > td:last-child,
-.c24 > tfoot > tr > td:last-child {
+.c26 > thead > tr > th:last-child,
+.c26 > tbody > tr > th:last-child,
+.c26 > tfoot > tr > th:last-child,
+.c26 > thead > tr > td:last-child,
+.c26 > tbody > tr > td:last-child,
+.c26 > tfoot > tr > td:last-child {
   padding-right: 24px;
 }
 
-.c24 > tbody > tr > td {
+.c26 > tbody > tr > td {
   vertical-align: middle;
 }
 
-.c24 > thead > tr > th {
+.c26 > thead > tr > th {
   background: rgba(255,255,255,0.07);
   color: #FFFFFF;
   cursor: pointer;
@@ -547,22 +609,22 @@ exports[`failed 1`] = `
   white-space: nowrap;
 }
 
-.c24 > thead > tr > th .c20 {
+.c26 > thead > tr > th .c21 {
   font-weight: bold;
   font-size: 8px;
   margin-left: 8px;
 }
 
-.c24 > tbody > tr > td {
+.c26 > tbody > tr > td {
   color: #FFFFFF;
   line-height: 16px;
 }
 
-.c24 tbody tr {
+.c26 tbody tr {
   border-bottom: 1px solid rgb(49,58,100);
 }
 
-.c24 tbody tr:hover {
+.c26 tbody tr:hover {
   background-color: rgba(255,255,255,0.07);
 }
 
@@ -578,7 +640,7 @@ exports[`failed 1`] = `
   border-top-right-radius: 8px;
 }
 
-.c28 {
+.c30 {
   padding: 16px 24px;
   display: flex;
   height: 24px;
@@ -595,7 +657,7 @@ exports[`failed 1`] = `
   border-radius: 8px;
 }
 
-.c26 {
+.c28 {
   box-sizing: border-box;
   border-radius: 10px;
   display: inline-block;
@@ -611,15 +673,15 @@ exports[`failed 1`] = `
   cursor: pointer;
 }
 
-.c26:hover {
+.c28:hover {
   background-color: rgba(255,255,255,0.13);
 }
 
-.c31 .c20 {
+.c33 .c21 {
   font-size: 20px;
 }
 
-.c31 .c20:before {
+.c33 .c21:before {
   padding-left: 1px;
 }
 
@@ -689,66 +751,19 @@ exports[`failed 1`] = `
   font-size: 12px;
 }
 
-.c15 {
-  position: relative;
-  display: flex;
-  align-items: center;
+.c23 {
+  font-size: 18px;
+  color: inherit;
+}
+
+.c20 {
+  vertical-align: middle;
+  display: inline-block;
+  height: 18px;
+}
+
+.c20:hover {
   cursor: pointer;
-}
-
-.c15[disabled] {
-  cursor: default;
-}
-
-.c18 {
-  width: 32px;
-  height: 12px;
-  border-radius: 12px;
-  background: #222C59;
-  cursor: inherit;
-  flex-shrink: 0;
-}
-
-.c18:before {
-  content: '';
-  position: absolute;
-  top: 50%;
-  transform: translate(0,-50%);
-  width: 16px;
-  height: 16px;
-  border-radius: 16px;
-  background: #9F85FF;
-}
-
-.c16 {
-  opacity: 0;
-  position: absolute;
-  cursor: inherit;
-}
-
-.c16:checked + .c17 {
-  background: rgba(255,255,255,0.13);
-}
-
-.c16:checked + .c17:before {
-  transform: translate(16px,-50%);
-}
-
-.c16:disabled + .c17 {
-  background: #222C59;
-}
-
-.c16:disabled + .c17:before {
-  background: #455a64;
-}
-
-.c14 {
-  display: flex;
-  align-items: center;
-  justify-content: space-around;
-  padding-right: 16px;
-  padding-left: 16px;
-  width: 120px;
 }
 
 .c1 {
@@ -865,26 +880,26 @@ exports[`failed 1`] = `
                       >
                         Advanced
                       </div>
+                      <span
+                        class="c20"
+                        role="icon"
+                      >
+                        <span
+                          class="c21 c22 icon icon-info_outline c23"
+                        />
+                      </span>
                     </div>
                   </div>
                 </div>
               </div>
             </div>
           </div>
-          <div
-            style="line-height: 0px;"
-          >
-            <span
-              class="c20 c21 icon icon-info_outline "
-              style="cursor: pointer; font-size: 20px;"
-            />
-          </div>
         </div>
         <div
-          class="c22"
+          class="c24"
         >
           <div
-            class="c23"
+            class="c25"
             color="text.main"
             style="text-transform: uppercase;"
           >
@@ -906,7 +921,7 @@ exports[`failed 1`] = `
       </div>
     </form>
     <table
-      class="c24"
+      class="c26"
     >
       <thead>
         <tr>
@@ -914,7 +929,7 @@ exports[`failed 1`] = `
             <a>
               Name
               <span
-                class="c20 c21 icon icon-chevron-up "
+                class="c21 c22 icon icon-chevron-up "
                 title="sort items asc"
               />
             </a>
@@ -936,16 +951,16 @@ exports[`failed 1`] = `
           </td>
           <td>
             <div
-              class="c25"
+              class="c27"
             >
               <div
-                class="c26"
+                class="c28"
                 kind="secondary"
               >
                 kernel: 4.15.0-51-generic
               </div>
               <div
-                class="c26"
+                class="c28"
                 kind="secondary"
               >
                 env: prod
@@ -956,7 +971,7 @@ exports[`failed 1`] = `
             align="right"
           >
             <button
-              class="c27"
+              class="c29"
               kind="border"
             >
               Connect
@@ -969,10 +984,10 @@ exports[`failed 1`] = `
           </td>
           <td>
             <div
-              class="c25"
+              class="c27"
             >
               <div
-                class="c26"
+                class="c28"
                 kind="secondary"
               >
                 env: staging
@@ -983,7 +998,7 @@ exports[`failed 1`] = `
             align="right"
           >
             <button
-              class="c27"
+              class="c29"
               kind="border"
             >
               Connect
@@ -996,16 +1011,16 @@ exports[`failed 1`] = `
           </td>
           <td>
             <div
-              class="c25"
+              class="c27"
             >
               <div
-                class="c26"
+                class="c28"
                 kind="secondary"
               >
                 cluster-name: some-cluster-name
               </div>
               <div
-                class="c26"
+                class="c28"
                 kind="secondary"
               >
                 env: idk
@@ -1016,7 +1031,7 @@ exports[`failed 1`] = `
             align="right"
           >
             <button
-              class="c27"
+              class="c29"
               kind="border"
             >
               Connect
@@ -1026,30 +1041,30 @@ exports[`failed 1`] = `
       </tbody>
     </table>
     <nav
-      class="c28"
+      class="c30"
     >
       <div
-        class="c29"
+        class="c31"
         width="100%"
       >
         <div
-          class="c22"
+          class="c24"
         >
           <button
-            class="c30 c31"
+            class="c32 c33"
             title="Previous page"
           >
             <span
-              class="c20 c32 icon icon-arrow-left-circle "
+              class="c21 c34 icon icon-arrow-left-circle "
               font-size="3"
             />
           </button>
           <button
-            class="c33 c31"
+            class="c35 c33"
             title="Next page"
           >
             <span
-              class="c20 c32 icon icon-arrow-right-circle "
+              class="c21 c34 icon icon-arrow-right-circle "
               font-size="3"
             />
           </button>
@@ -1111,7 +1126,7 @@ exports[`loaded 1`] = `
   cursor: auto;
 }
 
-.c27 {
+.c29 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -1138,35 +1153,35 @@ exports[`loaded 1`] = `
   padding: 0px 16px;
 }
 
-.c27:hover,
-.c27:focus {
+.c29:hover,
+.c29:focus {
   background: rgba(255,255,255,0.07);
 }
 
-.c27:active {
+.c29:active {
   background: rgba(255,255,255,0.13);
 }
 
-.c27:disabled {
+.c29:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
 }
 
-.c21 {
+.c22 {
   display: inline-block;
   transition: color 0.3s;
   color: #FFFFFF;
 }
 
-.c32 {
+.c34 {
   display: inline-block;
   transition: color 0.3s;
   color: #FFFFFF;
   font-size: 16px;
 }
 
-.c30 {
+.c32 {
   align-items: center;
   border: none;
   cursor: pointer;
@@ -1188,29 +1203,29 @@ exports[`loaded 1`] = `
   margin-right: 0px;
 }
 
-.c30 .c20 {
+.c32 .c21 {
   color: inherit;
 }
 
-.c30:disabled {
+.c32:disabled {
   color: rgba(255,255,255,0.36);
 }
 
-.c30:disabled {
+.c32:disabled {
   color: rgba(255,255,255,0.36);
   cursor: default;
 }
 
-.c30:hover:enabled,
-.c30:focus:enabled {
+.c32:hover:enabled,
+.c32:focus:enabled {
   background: rgba(255,255,255,0.13);
 }
 
-.c30:active:enabled {
+.c32:active:enabled {
   background: rgba(255,255,255,0.18);
 }
 
-.c33 {
+.c35 {
   align-items: center;
   border: none;
   cursor: pointer;
@@ -1231,38 +1246,38 @@ exports[`loaded 1`] = `
   margin-left: 0px;
 }
 
-.c33 .c20 {
+.c35 .c21 {
   color: inherit;
 }
 
-.c33:disabled {
+.c35:disabled {
   color: rgba(255,255,255,0.36);
 }
 
-.c33:disabled {
+.c35:disabled {
   color: rgba(255,255,255,0.36);
   cursor: default;
 }
 
-.c33:hover:enabled,
-.c33:focus:enabled {
+.c35:hover:enabled,
+.c35:focus:enabled {
   background: rgba(255,255,255,0.13);
 }
 
-.c33:active:enabled {
+.c35:active:enabled {
   background: rgba(255,255,255,0.18);
 }
 
 .c19 {
   overflow: hidden;
   text-overflow: ellipsis;
-  font-weight: 300;
+  font-weight: 400;
   font-size: 12px;
-  line-height: 24px;
+  line-height: 16px;
   margin: 0px;
 }
 
-.c23 {
+.c25 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 400;
@@ -1287,25 +1302,87 @@ exports[`loaded 1`] = `
   align-items: center;
 }
 
-.c22 {
+.c14 {
+  box-sizing: border-box;
+  padding-left: 24px;
+  padding-right: 24px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.c24 {
   box-sizing: border-box;
   display: flex;
 }
 
-.c25 {
+.c27 {
   box-sizing: border-box;
   display: flex;
   flex-wrap: wrap;
 }
 
-.c29 {
+.c31 {
   box-sizing: border-box;
   width: 100%;
   display: flex;
   justify-content: flex-end;
 }
 
-.c24 {
+.c15 {
+  position: relative;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+.c15[disabled] {
+  cursor: default;
+}
+
+.c18 {
+  width: 32px;
+  height: 12px;
+  border-radius: 12px;
+  background: #222C59;
+  cursor: inherit;
+  flex-shrink: 0;
+}
+
+.c18:before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  transform: translate(0,-50%);
+  width: 16px;
+  height: 16px;
+  border-radius: 16px;
+  background: #9F85FF;
+}
+
+.c16 {
+  opacity: 0;
+  position: absolute;
+  cursor: inherit;
+}
+
+.c16:checked + .c17 {
+  background: rgba(255,255,255,0.13);
+}
+
+.c16:checked + .c17:before {
+  transform: translate(16px,-50%);
+}
+
+.c16:disabled + .c17 {
+  background: #222C59;
+}
+
+.c16:disabled + .c17:before {
+  background: #455a64;
+}
+
+.c26 {
   background: #222C59;
   border-collapse: collapse;
   border-spacing: 0;
@@ -1314,39 +1391,39 @@ exports[`loaded 1`] = `
   width: 100%;
 }
 
-.c24 > thead > tr > th,
-.c24 > tbody > tr > th,
-.c24 > tfoot > tr > th,
-.c24 > thead > tr > td,
-.c24 > tbody > tr > td,
-.c24 > tfoot > tr > td {
+.c26 > thead > tr > th,
+.c26 > tbody > tr > th,
+.c26 > tfoot > tr > th,
+.c26 > thead > tr > td,
+.c26 > tbody > tr > td,
+.c26 > tfoot > tr > td {
   padding: 8px 8px;
   vertical-align: middle;
 }
 
-.c24 > thead > tr > th:first-child,
-.c24 > tbody > tr > th:first-child,
-.c24 > tfoot > tr > th:first-child,
-.c24 > thead > tr > td:first-child,
-.c24 > tbody > tr > td:first-child,
-.c24 > tfoot > tr > td:first-child {
+.c26 > thead > tr > th:first-child,
+.c26 > tbody > tr > th:first-child,
+.c26 > tfoot > tr > th:first-child,
+.c26 > thead > tr > td:first-child,
+.c26 > tbody > tr > td:first-child,
+.c26 > tfoot > tr > td:first-child {
   padding-left: 24px;
 }
 
-.c24 > thead > tr > th:last-child,
-.c24 > tbody > tr > th:last-child,
-.c24 > tfoot > tr > th:last-child,
-.c24 > thead > tr > td:last-child,
-.c24 > tbody > tr > td:last-child,
-.c24 > tfoot > tr > td:last-child {
+.c26 > thead > tr > th:last-child,
+.c26 > tbody > tr > th:last-child,
+.c26 > tfoot > tr > th:last-child,
+.c26 > thead > tr > td:last-child,
+.c26 > tbody > tr > td:last-child,
+.c26 > tfoot > tr > td:last-child {
   padding-right: 24px;
 }
 
-.c24 > tbody > tr > td {
+.c26 > tbody > tr > td {
   vertical-align: middle;
 }
 
-.c24 > thead > tr > th {
+.c26 > thead > tr > th {
   background: rgba(255,255,255,0.07);
   color: #FFFFFF;
   cursor: pointer;
@@ -1360,22 +1437,22 @@ exports[`loaded 1`] = `
   white-space: nowrap;
 }
 
-.c24 > thead > tr > th .c20 {
+.c26 > thead > tr > th .c21 {
   font-weight: bold;
   font-size: 8px;
   margin-left: 8px;
 }
 
-.c24 > tbody > tr > td {
+.c26 > tbody > tr > td {
   color: #FFFFFF;
   line-height: 16px;
 }
 
-.c24 tbody tr {
+.c26 tbody tr {
   border-bottom: 1px solid rgb(49,58,100);
 }
 
-.c24 tbody tr:hover {
+.c26 tbody tr:hover {
   background-color: rgba(255,255,255,0.07);
 }
 
@@ -1391,7 +1468,7 @@ exports[`loaded 1`] = `
   border-top-right-radius: 8px;
 }
 
-.c28 {
+.c30 {
   padding: 16px 24px;
   display: flex;
   height: 24px;
@@ -1408,7 +1485,7 @@ exports[`loaded 1`] = `
   border-radius: 8px;
 }
 
-.c26 {
+.c28 {
   box-sizing: border-box;
   border-radius: 10px;
   display: inline-block;
@@ -1424,15 +1501,15 @@ exports[`loaded 1`] = `
   cursor: pointer;
 }
 
-.c26:hover {
+.c28:hover {
   background-color: rgba(255,255,255,0.13);
 }
 
-.c31 .c20 {
+.c33 .c21 {
   font-size: 20px;
 }
 
-.c31 .c20:before {
+.c33 .c21:before {
   padding-left: 1px;
 }
 
@@ -1502,66 +1579,19 @@ exports[`loaded 1`] = `
   font-size: 12px;
 }
 
-.c15 {
-  position: relative;
-  display: flex;
-  align-items: center;
+.c23 {
+  font-size: 18px;
+  color: inherit;
+}
+
+.c20 {
+  vertical-align: middle;
+  display: inline-block;
+  height: 18px;
+}
+
+.c20:hover {
   cursor: pointer;
-}
-
-.c15[disabled] {
-  cursor: default;
-}
-
-.c18 {
-  width: 32px;
-  height: 12px;
-  border-radius: 12px;
-  background: #222C59;
-  cursor: inherit;
-  flex-shrink: 0;
-}
-
-.c18:before {
-  content: '';
-  position: absolute;
-  top: 50%;
-  transform: translate(0,-50%);
-  width: 16px;
-  height: 16px;
-  border-radius: 16px;
-  background: #9F85FF;
-}
-
-.c16 {
-  opacity: 0;
-  position: absolute;
-  cursor: inherit;
-}
-
-.c16:checked + .c17 {
-  background: rgba(255,255,255,0.13);
-}
-
-.c16:checked + .c17:before {
-  transform: translate(16px,-50%);
-}
-
-.c16:disabled + .c17 {
-  background: #222C59;
-}
-
-.c16:disabled + .c17:before {
-  background: #455a64;
-}
-
-.c14 {
-  display: flex;
-  align-items: center;
-  justify-content: space-around;
-  padding-right: 16px;
-  padding-left: 16px;
-  width: 120px;
 }
 
 .c1 {
@@ -1684,26 +1714,26 @@ exports[`loaded 1`] = `
                       >
                         Advanced
                       </div>
+                      <span
+                        class="c20"
+                        role="icon"
+                      >
+                        <span
+                          class="c21 c22 icon icon-info_outline c23"
+                        />
+                      </span>
                     </div>
                   </div>
                 </div>
               </div>
             </div>
           </div>
-          <div
-            style="line-height: 0px;"
-          >
-            <span
-              class="c20 c21 icon icon-info_outline "
-              style="cursor: pointer; font-size: 20px;"
-            />
-          </div>
         </div>
         <div
-          class="c22"
+          class="c24"
         >
           <div
-            class="c23"
+            class="c25"
             color="text.main"
             style="text-transform: uppercase;"
           >
@@ -1725,7 +1755,7 @@ exports[`loaded 1`] = `
       </div>
     </form>
     <table
-      class="c24"
+      class="c26"
     >
       <thead>
         <tr>
@@ -1733,7 +1763,7 @@ exports[`loaded 1`] = `
             <a>
               Name
               <span
-                class="c20 c21 icon icon-chevron-up "
+                class="c21 c22 icon icon-chevron-up "
                 title="sort items asc"
               />
             </a>
@@ -1755,16 +1785,16 @@ exports[`loaded 1`] = `
           </td>
           <td>
             <div
-              class="c25"
+              class="c27"
             >
               <div
-                class="c26"
+                class="c28"
                 kind="secondary"
               >
                 kernel: 4.15.0-51-generic
               </div>
               <div
-                class="c26"
+                class="c28"
                 kind="secondary"
               >
                 env: prod
@@ -1775,7 +1805,7 @@ exports[`loaded 1`] = `
             align="right"
           >
             <button
-              class="c27"
+              class="c29"
               kind="border"
             >
               Connect
@@ -1788,10 +1818,10 @@ exports[`loaded 1`] = `
           </td>
           <td>
             <div
-              class="c25"
+              class="c27"
             >
               <div
-                class="c26"
+                class="c28"
                 kind="secondary"
               >
                 env: staging
@@ -1802,7 +1832,7 @@ exports[`loaded 1`] = `
             align="right"
           >
             <button
-              class="c27"
+              class="c29"
               kind="border"
             >
               Connect
@@ -1815,16 +1845,16 @@ exports[`loaded 1`] = `
           </td>
           <td>
             <div
-              class="c25"
+              class="c27"
             >
               <div
-                class="c26"
+                class="c28"
                 kind="secondary"
               >
                 cluster-name: some-cluster-name
               </div>
               <div
-                class="c26"
+                class="c28"
                 kind="secondary"
               >
                 env: idk
@@ -1835,7 +1865,7 @@ exports[`loaded 1`] = `
             align="right"
           >
             <button
-              class="c27"
+              class="c29"
               kind="border"
             >
               Connect
@@ -1845,30 +1875,30 @@ exports[`loaded 1`] = `
       </tbody>
     </table>
     <nav
-      class="c28"
+      class="c30"
     >
       <div
-        class="c29"
+        class="c31"
         width="100%"
       >
         <div
-          class="c22"
+          class="c24"
         >
           <button
-            class="c30 c31"
+            class="c32 c33"
             title="Previous page"
           >
             <span
-              class="c20 c32 icon icon-arrow-left-circle "
+              class="c21 c34 icon icon-arrow-left-circle "
               font-size="3"
             />
           </button>
           <button
-            class="c33 c31"
+            class="c35 c33"
             title="Next page"
           >
             <span
-              class="c20 c32 icon icon-arrow-right-circle "
+              class="c21 c34 icon icon-arrow-right-circle "
               font-size="3"
             />
           </button>
