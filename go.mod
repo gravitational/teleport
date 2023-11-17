@@ -153,7 +153,7 @@ require (
 	github.com/vulcand/predicate v1.2.0 // replaced
 	go.etcd.io/etcd/api/v3 v3.5.10
 	go.etcd.io/etcd/client/v3 v3.5.10
-	go.mongodb.org/mongo-driver v1.13.0-prerelease.0.20230726045955-5ee10b94cc66
+	go.mongodb.org/mongo-driver v1.13.0
 	go.opentelemetry.io/contrib/instrumentation/github.com/aws/aws-sdk-go-v2/otelaws v0.46.0
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.46.0
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.46.0

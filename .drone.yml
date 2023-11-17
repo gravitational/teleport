@@ -299,7 +299,7 @@ steps:
   - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
   - 'go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e
     -tag-workflow -timeout 30m0s -workflow release-windows.yaml -workflow-ref=${DRONE_BRANCH}
-    -input oss-teleport-repo=${DRONE_REPO} -input oss-teleport-ref=${DRONE_COMMIT} '
+    -input oss-teleport-repo=${DRONE_REPO} -input oss-teleport-ref=${DRONE_BRANCH} '
   environment:
     GHA_APP_KEY:
       from_secret: GITHUB_WORKFLOW_APP_PRIVATE_KEY
@@ -408,10 +408,8 @@ steps:
   - echo "$RELEASES_CERT" | base64 -d > "$RELCLI_CERT"
   - echo "$RELEASES_KEY" | base64 -d > "$RELCLI_KEY"
   - trap "rm -rf /tmpfs/creds" EXIT
-  - |-
-    docker run -i -v /tmpfs/creds:/tmpfs/creds \
-      -e DRONE_REPO -e DRONE_TAG -e RELCLI_BASE_URL -e RELCLI_CERT -e RELCLI_KEY \
-      $RELCLI_IMAGE auto_destroy -f -v 6
+  - docker run -i -v /tmpfs/creds:/tmpfs/creds -e DRONE_REPO -e DRONE_TAG -e RELCLI_BASE_URL
+    -e RELCLI_CERT -e RELCLI_KEY $RELCLI_IMAGE auto_destroy -f -v 6
   environment:
     RELCLI_BASE_URL: https://releases-prod.platform.teleport.sh
     RELCLI_CERT: /tmpfs/creds/releases.crt
@@ -4984,7 +4982,7 @@ steps:
   - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
   - 'go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e
     -tag-workflow -timeout 30m0s -workflow release-windows.yaml -workflow-ref=${DRONE_TAG}
-    -input oss-teleport-repo=${DRONE_REPO} -input oss-teleport-ref=${DRONE_COMMIT} '
+    -input oss-teleport-repo=${DRONE_REPO} -input oss-teleport-ref=${DRONE_TAG} '
   environment:
     GHA_APP_KEY:
       from_secret: GITHUB_WORKFLOW_APP_PRIVATE_KEY
@@ -16356,10 +16354,9 @@ steps:
   - echo "$RELEASES_CERT" | base64 -d > "$RELCLI_CERT"
   - echo "$RELEASES_KEY" | base64 -d > "$RELCLI_KEY"
   - trap "rm -rf /tmpfs/creds" EXIT
-  - |-
-    docker run -i -v /tmpfs/creds:/tmpfs/creds \
-      -e DRONE_REPO -e DRONE_TAG -e RELCLI_BASE_URL -e RELCLI_CERT -e RELCLI_KEY \
-      $RELCLI_IMAGE auto_publish -f -v 6
+  - for i in $(seq 10); do docker run -i -v /tmpfs/creds:/tmpfs/creds -e DRONE_REPO
+    -e DRONE_TAG -e RELCLI_BASE_URL -e RELCLI_CERT -e RELCLI_KEY $RELCLI_IMAGE auto_publish
+    -f -v 6 && break; done || false
   environment:
     RELCLI_BASE_URL: https://releases-prod.platform.teleport.sh
     RELCLI_CERT: /tmpfs/creds/releases.crt
@@ -16398,6 +16395,6 @@ image_pull_secrets:
 - DOCKERHUB_CREDENTIALS
 ---
 kind: signature
-hmac: 18993516593f5eb36eb9a9352006689624540d14f39886639d92b1cf50faf258
+hmac: a98422e79a1c21b4e16c627b76dd91c315735ff992e6126e646fa20a8ae45e63
 
 ...

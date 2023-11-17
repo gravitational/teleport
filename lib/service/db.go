@@ -127,12 +127,13 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 	proxyGetter := reversetunnel.NewConnectedProxyGetter()
 
 	connMonitor, err := srv.NewConnectionMonitor(srv.ConnectionMonitorConfig{
-		AccessPoint: accessPoint,
-		LockWatcher: lockWatcher,
-		Clock:       process.Config.Clock,
-		ServerID:    process.Config.HostUUID,
-		Emitter:     asyncEmitter,
-		Logger:      process.log,
+		AccessPoint:    accessPoint,
+		LockWatcher:    lockWatcher,
+		Clock:          process.Config.Clock,
+		ServerID:       process.Config.HostUUID,
+		Emitter:        asyncEmitter,
+		EmitterContext: process.ExitContext(),
+		Logger:         process.log,
 	})
 	if err != nil {
 		return trace.Wrap(err)

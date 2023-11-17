@@ -33,7 +33,6 @@ import desktopService from './services/desktops';
 import userGroupService from './services/userGroups';
 import MfaService from './services/mfa';
 import { agentService } from './services/agents';
-import localStorage from './services/localStorage';
 
 class TeleportContext implements types.Context {
   // stores
@@ -91,6 +90,21 @@ class TeleportContext implements types.Context {
       const hasResource =
         await userService.checkUserHasAccessToRegisteredResource();
       localStorage.setOnboardDiscover({ hasResource });
+    }
+
+    if (user.acl.accessGraph.list) {
+      // If access graph is enabled, check what features are enabled and store them in local storage.
+      try {
+        const accessGraphFeatures =
+          await userService.fetchAccessGraphFeatures();
+
+        for (let key in accessGraphFeatures) {
+          window.localStorage.setItem(key, accessGraphFeatures[key]);
+        }
+      } catch (e) {
+        // If we fail to fetch access graph features, log the error and continue.
+        console.error('Failed to fetch access graph features', e);
+      }
     }
   }
 

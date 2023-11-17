@@ -42,6 +42,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	awscredentials "github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/google/uuid"
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
@@ -76,6 +77,7 @@ import (
 	"github.com/gravitational/teleport/lib/ai/embedding"
 	"github.com/gravitational/teleport/lib/auditd"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/accesspoint"
 	"github.com/gravitational/teleport/lib/auth/keygen"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/authz"
@@ -85,7 +87,6 @@ import (
 	"github.com/gravitational/teleport/lib/backend/firestore"
 	"github.com/gravitational/teleport/lib/backend/kubernetes"
 	"github.com/gravitational/teleport/lib/backend/lite"
-	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/backend/pgbk"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/cache"
@@ -101,6 +102,7 @@ import (
 	"github.com/gravitational/teleport/lib/events/pgevents"
 	"github.com/gravitational/teleport/lib/events/s3sessions"
 	"github.com/gravitational/teleport/lib/httplib"
+	"github.com/gravitational/teleport/lib/integrations/externalcloudaudit"
 	"github.com/gravitational/teleport/lib/inventory"
 	"github.com/gravitational/teleport/lib/joinserver"
 	kubegrpc "github.com/gravitational/teleport/lib/kube/grpc"
@@ -742,7 +744,7 @@ func waitAndReload(ctx context.Context, cfg servicecfg.Config, srv Process, newT
 		return nil, trace.BadParameter("the new service has failed to start")
 	}
 	cfg.Log.Infof("New service has started successfully.")
-	shutdownTimeout := cfg.ShutdownTimeout
+	shutdownTimeout := cfg.Testing.ShutdownTimeout
 	if shutdownTimeout == 0 {
 		// The default shutdown timeout is very generous to avoid disrupting
 		// longer running connections.
@@ -1380,7 +1382,7 @@ func adminCreds() (*int, *int, error) {
 // When configured to store session recordings in external storage, this will be an API client for
 // cloud-provider storage. Otherwise a local file-based handler is used which stores the recordings
 // on disk.
-func initAuthUploadHandler(ctx context.Context, auditConfig types.ClusterAuditConfig, dataDir string) (events.MultipartHandler, error) {
+func initAuthUploadHandler(ctx context.Context, auditConfig types.ClusterAuditConfig, dataDir string, externalCloudAudit *externalcloudaudit.Configurator) (events.MultipartHandler, error) {
 	if !auditConfig.ShouldUploadSessions() {
 		recordsDir := filepath.Join(dataDir, events.RecordsDir)
 		if err := os.MkdirAll(recordsDir, teleport.SharedDirMode); err != nil {
@@ -1411,9 +1413,18 @@ func initAuthUploadHandler(ctx context.Context, auditConfig types.ClusterAuditCo
 		}
 		return handler, nil
 	case teleport.SchemeS3:
-		config := s3sessions.Config{UseFIPSEndpoint: auditConfig.GetUseFIPSEndpoint()}
-
-		if err := config.SetFromURL(uri, auditConfig.Region()); err != nil {
+		config := s3sessions.Config{
+			UseFIPSEndpoint: auditConfig.GetUseFIPSEndpoint(),
+		}
+		s3URI := uri
+		if externalCloudAudit.IsUsed() {
+			config.Credentials = awscredentials.NewCredentials(externalCloudAudit.CredentialsProviderSDKV1())
+			s3URI, err = apiutils.ParseSessionsURI(externalCloudAudit.GetSpec().SessionsRecordingsURI)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+		}
+		if err := config.SetFromURL(s3URI, auditConfig.Region()); err != nil {
 			return nil, trace.Wrap(err)
 		}
 
@@ -1453,7 +1464,7 @@ func initAuthUploadHandler(ctx context.Context, auditConfig types.ClusterAuditCo
 }
 
 // initAuthExternalAuditLog initializes the auth server's audit log.
-func initAuthExternalAuditLog(ctx context.Context, auditConfig types.ClusterAuditConfig, backend backend.Backend, tracingProvider *tracing.Provider) (events.AuditLogger, error) {
+func initAuthExternalAuditLog(ctx context.Context, auditConfig types.ClusterAuditConfig, backend backend.Backend, tracingProvider *tracing.Provider, externalCloudAudit *externalcloudaudit.Configurator) (events.AuditLogger, error) {
 	var hasNonFileLog bool
 	var loggers []events.AuditLogger
 	for _, eventsURI := range auditConfig.AuditEventsURIs() {
@@ -1525,6 +1536,11 @@ func initAuthExternalAuditLog(ctx context.Context, auditConfig types.ClusterAudi
 			err = cfg.SetFromURL(uri)
 			if err != nil {
 				return nil, trace.Wrap(err)
+			}
+			if externalCloudAudit.IsUsed() {
+				if err := cfg.UpdateForExternalCloudAudit(ctx, externalCloudAudit.GetSpec(), externalCloudAudit.CredentialsProvider()); err != nil {
+					return nil, trace.Wrap(err)
+				}
 			}
 			var logger events.AuditLogger
 			logger, err = athena.New(ctx, cfg)
@@ -1606,6 +1622,8 @@ func (process *TeleportProcess) initAuthService() error {
 	var emitter apievents.Emitter
 	var streamer events.Streamer
 	var uploadHandler events.MultipartHandler
+	var externalCloudAudit *externalcloudaudit.Configurator
+
 	// create the audit log, which will be consuming (and recording) all events
 	// and recording all sessions.
 	if cfg.Auth.NoAudit {
@@ -1630,8 +1648,13 @@ func (process *TeleportProcess) initAuthService() error {
 			cfg.Auth.AuditConfig.SetUseFIPSEndpoint(types.ClusterAuditConfigSpecV2_FIPS_ENABLED)
 		}
 
+		externalCloudAudit, err = process.newExternalCloudAuditConfigurator()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
 		uploadHandler, err = initAuthUploadHandler(
-			process.ExitContext(), cfg.Auth.AuditConfig, filepath.Join(cfg.DataDir, teleport.LogsDir))
+			process.ExitContext(), cfg.Auth.AuditConfig, filepath.Join(cfg.DataDir, teleport.LogsDir), externalCloudAudit)
 		if err != nil {
 			if !trace.IsNotFound(err) {
 				return trace.Wrap(err)
@@ -1643,9 +1666,10 @@ func (process *TeleportProcess) initAuthService() error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
+
 		// initialize external loggers.  may return (nil, nil) if no
 		// external loggers have been defined.
-		externalLog, err := initAuthExternalAuditLog(process.ExitContext(), cfg.Auth.AuditConfig, process.backend, process.TracingProvider)
+		externalLog, err := initAuthExternalAuditLog(process.ExitContext(), cfg.Auth.AuditConfig, process.backend, process.TracingProvider, externalCloudAudit)
 		if err != nil {
 			if !trace.IsNotFound(err) {
 				return trace.Wrap(err)
@@ -1714,11 +1738,11 @@ func (process *TeleportProcess) initAuthService() error {
 
 	var embedderClient embedding.Embedder
 	if cfg.Auth.AssistAPIKey != "" {
-		// cfg.OpenAIConfig is set in tests to change the OpenAI API endpoint
+		// cfg.Testing.OpenAIConfig is set in tests to change the OpenAI API endpoint
 		// Like for proxy, if a custom OpenAIConfig is passed, the token from
 		// cfg.Auth.AssistAPIKey is ignored and the one from the config is used.
-		if cfg.OpenAIConfig != nil {
-			embedderClient = ai.NewClientFromConfig(*cfg.OpenAIConfig)
+		if cfg.Testing.OpenAIConfig != nil {
+			embedderClient = ai.NewClientFromConfig(*cfg.Testing.OpenAIConfig)
 		} else {
 			embedderClient = ai.NewClient(cfg.Auth.AssistAPIKey)
 		}
@@ -1765,7 +1789,7 @@ func (process *TeleportProcess) initAuthService() error {
 			CipherSuites:            cfg.CipherSuites,
 			KeyStoreConfig:          cfg.Auth.KeyStore,
 			Emitter:                 checkingEmitter,
-			Streamer:                events.NewReportingStreamer(streamer, process.Config.UploadEventsC),
+			Streamer:                events.NewReportingStreamer(streamer, process.Config.Testing.UploadEventsC),
 			TraceClient:             traceClt,
 			FIPS:                    cfg.FIPS,
 			LoadAllCAs:              cfg.Auth.LoadAllCAs,
@@ -1780,12 +1804,12 @@ func (process *TeleportProcess) initAuthService() error {
 				return nil
 			}
 
-			cache, err := process.newAccessCache(accessCacheConfig{
-				services:  as.Services,
-				setup:     cache.ForAuth,
-				cacheName: []string{teleport.ComponentAuth},
-				events:    true,
-				unstarted: true,
+			cache, err := process.newAccessCache(accesspoint.AccessCacheConfig{
+				Services:  as.Services,
+				Setup:     cache.ForAuth,
+				CacheName: []string{teleport.ComponentAuth},
+				Events:    true,
+				Unstarted: true,
 			})
 			if err != nil {
 				return trace.Wrap(err)
@@ -1813,6 +1837,10 @@ func (process *TeleportProcess) initAuthService() error {
 		return trace.Wrap(err)
 	}
 	authServer.SetLockWatcher(lockWatcher)
+
+	if externalCloudAudit.IsUsed() {
+		externalCloudAudit.SetGenerateOIDCTokenFn(authServer.GenerateExternalCloudAuditOIDCToken)
+	}
 
 	unifiedResourcesCache, err := services.NewUnifiedResourceCache(process.ExitContext(), services.UnifiedResourceCacheConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
@@ -2147,94 +2175,14 @@ func (process *TeleportProcess) OnExit(serviceName string, callback func(interfa
 	})
 }
 
-// accessCacheConfig contains
-// configuration for access cache
-type accessCacheConfig struct {
-	// services is a collection
-	// of services to use as a cache base
-	services services.Services
-	// setup is a function that takes
-	// cache configuration and modifies it
-	setup cache.SetupConfigFn
-	// cacheName is a cache name
-	cacheName []string
-	// events is true if cache should turn on events
-	events bool
-	// unstarted is true if the cache should not be started
-	unstarted bool
-}
-
-func (c *accessCacheConfig) CheckAndSetDefaults() error {
-	if c.services == nil {
-		return trace.BadParameter("missing parameter services")
-	}
-	if c.setup == nil {
-		return trace.BadParameter("missing parameter setup")
-	}
-	if len(c.cacheName) == 0 {
-		return trace.BadParameter("missing parameter cacheName")
-	}
-	return nil
-}
-
 // newAccessCache returns new local cache access point
-func (process *TeleportProcess) newAccessCache(cfg accessCacheConfig) (*cache.Cache, error) {
-	if err := cfg.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	process.log.Debugf("Creating in-memory backend for %v.", cfg.cacheName)
-	mem, err := memory.New(memory.Config{
-		Context:   process.ExitContext(),
-		EventsOff: !cfg.events,
-		Mirror:    true,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	reporter, err := backend.NewReporter(backend.ReporterConfig{
-		Component: teleport.ComponentCache,
-		Backend:   mem,
-		Tracer:    process.TracingProvider.Tracer(teleport.ComponentCache),
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+func (process *TeleportProcess) newAccessCache(cfg accesspoint.AccessCacheConfig) (*cache.Cache, error) {
+	cfg.Context = process.ExitContext()
+	cfg.ProcessID = process.id
+	cfg.TracingProvider = process.TracingProvider
+	cfg.MaxRetryPeriod = process.Config.CachePolicy.MaxRetryPeriod
 
-	return cache.New(cfg.setup(cache.Config{
-		Context:                 process.ExitContext(),
-		Backend:                 reporter,
-		Events:                  cfg.services,
-		ClusterConfig:           cfg.services,
-		Provisioner:             cfg.services,
-		Trust:                   cfg.services,
-		Users:                   cfg.services,
-		Access:                  cfg.services,
-		DynamicAccess:           cfg.services,
-		Presence:                cfg.services,
-		Restrictions:            cfg.services,
-		Apps:                    cfg.services,
-		Kubernetes:              cfg.services,
-		DatabaseServices:        cfg.services,
-		Databases:               cfg.services,
-		AppSession:              cfg.services,
-		SnowflakeSession:        cfg.services,
-		SAMLIdPSession:          cfg.services,
-		WindowsDesktops:         cfg.services,
-		SAMLIdPServiceProviders: cfg.services,
-		UserGroups:              cfg.services,
-		Okta:                    cfg.services.OktaClient(),
-		SecReports:              cfg.services.SecReportsClient(),
-		UserLoginStates:         cfg.services.UserLoginStateClient(),
-		Integrations:            cfg.services,
-		DiscoveryConfigs:        cfg.services.DiscoveryConfigClient(),
-		WebSession:              cfg.services.WebSessions(),
-		WebToken:                cfg.services.WebTokens(),
-		Component:               teleport.Component(append(cfg.cacheName, process.id, teleport.ComponentCache)...),
-		MetricComponent:         teleport.Component(append(cfg.cacheName, teleport.ComponentCache)...),
-		Tracer:                  process.TracingProvider.Tracer(teleport.ComponentCache),
-		MaxRetryPeriod:          process.Config.CachePolicy.MaxRetryPeriod,
-		Unstarted:               cfg.unstarted,
-	}))
+	return accesspoint.NewAccessCache(cfg)
 }
 
 // newLocalCacheForNode returns new instance of access point configured for a local proxy.
@@ -2386,10 +2334,10 @@ func (process *TeleportProcess) newLocalCacheForWindowsDesktop(clt auth.ClientI,
 
 // NewLocalCache returns new instance of access point
 func (process *TeleportProcess) NewLocalCache(clt auth.ClientI, setupConfig cache.SetupConfigFn, cacheName []string) (*cache.Cache, error) {
-	return process.newAccessCache(accessCacheConfig{
-		services:  clt,
-		setup:     setupConfig,
-		cacheName: cacheName,
+	return process.newAccessCache(accesspoint.AccessCacheConfig{
+		Services:  clt,
+		Setup:     setupConfig,
+		CacheName: cacheName,
 	})
 }
 
@@ -2909,7 +2857,7 @@ func (process *TeleportProcess) initUploaderService() error {
 		Streamer:     uploaderClient,
 		ScanDir:      uploadsDir,
 		CorruptedDir: corruptedDir,
-		EventsC:      process.Config.UploadEventsC,
+		EventsC:      process.Config.Testing.UploadEventsC,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -4070,7 +4018,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				return ctx, trace.Wrap(err)
 			}),
 			PROXYSigner:     proxySigner,
-			OpenAIConfig:    cfg.OpenAIConfig,
+			OpenAIConfig:    cfg.Testing.OpenAIConfig,
 			NodeWatcher:     nodeWatcher,
 			AccessGraphAddr: accessGraphAddr,
 			TracerProvider:  process.TracingProvider,
@@ -4302,12 +4250,13 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	)
 
 	connMonitor, err := srv.NewConnectionMonitor(srv.ConnectionMonitorConfig{
-		AccessPoint: accessPoint,
-		LockWatcher: lockWatcher,
-		Clock:       process.Clock,
-		ServerID:    serverID,
-		Emitter:     asyncEmitter,
-		Logger:      process.log,
+		AccessPoint:    accessPoint,
+		LockWatcher:    lockWatcher,
+		Clock:          process.Clock,
+		ServerID:       serverID,
+		Emitter:        asyncEmitter,
+		EmitterContext: process.ExitContext(),
+		Logger:         process.log,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -4476,11 +4425,8 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			log.Infof("Starting Kube proxy on %v.", kubeListenAddr)
 
 			var mopts []kubeproxy.ServeOption
-			for _, opt := range cfg.Options {
-				if _, ok := opt.(servicecfg.KubeMultiplexerIgnoreSelfConnectionsOption); ok {
-					mopts = append(mopts, kubeproxy.WithMultiplexerIgnoreSelfConnections())
-					break
-				}
+			if cfg.Testing.KubeMultiplexerIgnoreSelfConnections {
+				mopts = append(mopts, kubeproxy.WithMultiplexerIgnoreSelfConnections())
 			}
 
 			err := kubeServer.Serve(listeners.kube, mopts...)
@@ -4515,12 +4461,13 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		}
 
 		connMonitor, err := srv.NewConnectionMonitor(srv.ConnectionMonitorConfig{
-			AccessPoint: accessPoint,
-			LockWatcher: lockWatcher,
-			Clock:       process.Config.Clock,
-			ServerID:    process.Config.HostUUID,
-			Emitter:     asyncEmitter,
-			Logger:      process.log,
+			AccessPoint:    accessPoint,
+			LockWatcher:    lockWatcher,
+			Clock:          process.Config.Clock,
+			ServerID:       process.Config.HostUUID,
+			Emitter:        asyncEmitter,
+			EmitterContext: process.ExitContext(),
+			Logger:         process.log,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -5345,6 +5292,7 @@ func (process *TeleportProcess) initApps() {
 			Clock:               process.Config.Clock,
 			ServerID:            process.Config.HostUUID,
 			Emitter:             asyncEmitter,
+			EmitterContext:      process.ExitContext(),
 			Logger:              process.log,
 			MonitorCloseChannel: process.Config.Apps.MonitorCloseChannel,
 		})
@@ -6069,4 +6017,30 @@ func makeXForwardedForMiddleware(cfg *servicecfg.Config) utils.HTTPMiddleware {
 		return web.NewXForwardedForMiddleware
 	}
 	return utils.NoopHTTPMiddleware
+}
+
+func (process *TeleportProcess) newExternalCloudAuditConfigurator() (*externalcloudaudit.Configurator, error) {
+	watcher, err := local.NewClusterExternalAuditWatcher(process.GracefulExitContext(), local.ClusterExternalCloudAuditWatcherConfig{
+		Backend: process.backend,
+		OnChange: func() {
+			// On change of cluster external cloud audit, trigger teleport
+			// reload, because s3 uploader and athena components don't support
+			// live changes to their configuration.
+			process.BroadcastEvent(Event{Name: TeleportReloadEvent})
+		},
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// Wait for the watcher to init to avoid a race in case the external cloud
+	// audit config changes after the configurator loads it and before the
+	// watcher initialized.
+	watcher.WaitInit(process.GracefulExitContext())
+
+	ecaSvc := local.NewExternalCloudAuditService(process.backend)
+	integrationSvc, err := local.NewIntegrationsService(process.backend)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return externalcloudaudit.NewConfigurator(process.ExitContext(), ecaSvc, integrationSvc)
 }

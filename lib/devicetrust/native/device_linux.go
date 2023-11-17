@@ -51,32 +51,62 @@ var linuxDevice = &tpmDevice{
 }
 
 func enrollDeviceInit() (*devicepb.EnrollDeviceInit, error) {
-	return linuxDevice.enrollDeviceInit()
+	init, err := linuxDevice.enrollDeviceInit()
+	return init, rewriteTPMPermissionError(err)
 }
 
 func signChallenge(chal []byte) (sig []byte, err error) {
-	return linuxDevice.signChallenge(chal)
+	return nil, errors.New("signChallenge not implemented for TPM devices")
 }
 
 func getDeviceCredential() (*devicepb.DeviceCredential, error) {
-	return linuxDevice.getDeviceCredential()
+	cred, err := linuxDevice.getDeviceCredential()
+	return cred, rewriteTPMPermissionError(err)
 }
 
 func solveTPMEnrollChallenge(
 	chal *devicepb.TPMEnrollChallenge,
 	debug bool,
 ) (*devicepb.TPMEnrollChallengeResponse, error) {
+	// No need to call rewriteTPMPermissionError here, enrollDeviceInit must pass
+	// first.
 	return linuxDevice.solveTPMEnrollChallenge(chal, debug)
 }
 
 func solveTPMAuthnDeviceChallenge(
 	chal *devicepb.TPMAuthenticateDeviceChallenge,
 ) (*devicepb.TPMAuthenticateDeviceChallengeResponse, error) {
-	return linuxDevice.solveTPMAuthnDeviceChallenge(chal)
+	resp, err := linuxDevice.solveTPMAuthnDeviceChallenge(chal)
+	return resp, rewriteTPMPermissionError(err)
 }
 
 func handleTPMActivateCredential(encryptedCredential, encryptedCredentialSecret string) error {
 	return errors.New("elevated credential activation not implemented for linux")
+}
+
+func rewriteTPMPermissionError(err error) error {
+	// We are looking for an error that looks roughly like this:
+	//
+	// 	err = &fs.PathError{
+	// 		Path: "/dev/tpmrm0",
+	// 		Err: fs.ErrPermission,
+	// 	}
+	if !errors.Is(err, fs.ErrPermission) {
+		return err
+	}
+
+	pathErr := &fs.PathError{}
+	if !errors.As(err, &pathErr) || pathErr.Path != "/dev/tpmrm0" {
+		return err
+	}
+	log.
+		WithError(err).
+		Debug("TPM: Replacing TPM permission error with a more friendly one")
+
+	return errors.New("" +
+		"Failed to open the TPM device. " +
+		"Consider assigning the user to the `tss` group or creating equivalent udev rules. " +
+		"See https://goteleport.com/docs/access-controls/device-trust/device-management/#troubleshooting.")
 }
 
 // cddFuncs is used to mock various data collection functions for testing.
@@ -95,46 +125,29 @@ var cddFuncs = struct {
 }
 
 func collectDeviceData(mode CollectDataMode) (*devicepb.DeviceCollectedData, error) {
-	osRelease, err := cddFuncs.parseOSRelease()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	// Read collected data concurrently.
+	//
+	// We only have parseOSRelease and readDMIInfoAccordingToMode to consider, the
+	// latter which is already concurrent internally, so a simple channel will do
+	// here.
+	//
+	// Note that user.Current() is likely cached at this point.
+	osReleaseC := make(chan *linux.OSRelease, 1 /* goroutine always completes */)
+	go func() {
+		osRelease, err := cddFuncs.parseOSRelease()
+		if err != nil {
+			log.WithError(err).Debug("TPM: Failed to parse /etc/os-release file")
+			// err swallowed on purpose.
 
-	dmiInfo, err := cddFuncs.dmiInfoFromSysfs()
-	if err != nil {
-		log.WithError(err).Warn("TPM: Failed to read device model and/or serial numbers")
-	}
-	if errors.Is(err, fs.ErrPermission) {
-		switch mode {
-		case CollectedDataNeverEscalate, CollectedDataMaybeEscalate:
-			log.Debug("TPM: Reading cached DMI info")
-
-			dmiCached, err := cddFuncs.readDMIInfoCached()
-			if err == nil {
-				dmiInfo = dmiCached
-				break // from switch
-			}
-
-			log.WithError(err).Debug("TPM: Failed to read cached DMI info")
-			if mode == CollectedDataNeverEscalate {
-				break // from switch
-			}
-
-			fallthrough
-
-		case CollectedDataAlwaysEscalate:
-			log.Debug("TPM: Running escalated `tsh device dmi-info`")
-
-			dmiInfo, err = cddFuncs.readDMIInfoEscalated()
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-
-			if err := cddFuncs.saveDMIInfoToCache(dmiInfo); err != nil {
-				log.WithError(err).Warn("TPM: Failed to write DMI cache")
-				// err swallowed on purpose.
-			}
+			osRelease = &linux.OSRelease{}
 		}
+		osReleaseC <- osRelease
+	}()
+
+	dmiInfo, err := readDMIInfoAccordingToMode(mode)
+	if err != nil {
+		// readDMIInfoAccordingToMode only errors if it fails completely.
+		return nil, trace.Wrap(err)
 	}
 
 	// dmiInfo is expected to never be nil, but code defensively just in case.
@@ -151,12 +164,14 @@ func collectDeviceData(mode CollectDataMode) (*devicepb.DeviceCollectedData, err
 		return nil, trace.Wrap(err)
 	}
 
+	osRelease := <-osReleaseC
+
 	return &devicepb.DeviceCollectedData{
-		CollectTime:     timestamppb.Now(),
-		OsType:          devicepb.OSType_OS_TYPE_LINUX,
-		SerialNumber:    firstValidAssetTag(reportedAssetTag, systemSerialNumber, baseBoardSerialNumber),
-		ModelIdentifier: modelIdentifier,
-		// TODO(codingllama): Write os_id for Linux devices.
+		CollectTime:           timestamppb.Now(),
+		OsType:                devicepb.OSType_OS_TYPE_LINUX,
+		SerialNumber:          firstValidAssetTag(reportedAssetTag, systemSerialNumber, baseBoardSerialNumber),
+		ModelIdentifier:       modelIdentifier,
+		OsId:                  osRelease.ID,
 		OsVersion:             osRelease.VersionID,
 		OsBuild:               osRelease.Version,
 		OsUsername:            u.Name,
@@ -164,6 +179,50 @@ func collectDeviceData(mode CollectDataMode) (*devicepb.DeviceCollectedData, err
 		SystemSerialNumber:    systemSerialNumber,
 		BaseBoardSerialNumber: baseBoardSerialNumber,
 	}, nil
+}
+
+func readDMIInfoAccordingToMode(mode CollectDataMode) (*linux.DMIInfo, error) {
+	dmiInfo, err := cddFuncs.dmiInfoFromSysfs()
+	if err == nil {
+		return dmiInfo, nil
+	}
+
+	log.WithError(err).Warn("TPM: Failed to read device model and/or serial numbers")
+	if !errors.Is(err, fs.ErrPermission) {
+		return dmiInfo, nil // original info
+	}
+
+	switch mode {
+	case CollectedDataNeverEscalate, CollectedDataMaybeEscalate:
+		log.Debug("TPM: Reading cached DMI info")
+
+		dmiCached, err := cddFuncs.readDMIInfoCached()
+		if err == nil {
+			return dmiCached, nil // successful cache hit
+		}
+
+		log.WithError(err).Debug("TPM: Failed to read cached DMI info")
+		if mode == CollectedDataNeverEscalate {
+			return dmiInfo, nil // original info
+		}
+
+		fallthrough
+
+	case CollectedDataAlwaysEscalate:
+		log.Debug("TPM: Running escalated `tsh device dmi-info`")
+
+		dmiInfo, err = cddFuncs.readDMIInfoEscalated()
+		if err != nil {
+			return nil, trace.Wrap(err) // actual failure, abort
+		}
+
+		if err := cddFuncs.saveDMIInfoToCache(dmiInfo); err != nil {
+			log.WithError(err).Warn("TPM: Failed to write DMI cache")
+			// err swallowed on purpose.
+		}
+	}
+
+	return dmiInfo, nil // escalated info or unknown mode
 }
 
 func readDMIInfoCached() (*linux.DMIInfo, error) {

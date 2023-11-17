@@ -44,8 +44,8 @@ func (m *mockMessagingBot) CheckHealth(ctx context.Context) error {
 	return nil
 }
 
-func (m *mockMessagingBot) SendReviewReminders(ctx context.Context, recipients []common.Recipient, accessList *accesslist.AccessList) error {
-	m.lastReminderRecipients = recipients
+func (m *mockMessagingBot) SendReviewReminders(ctx context.Context, recipient common.Recipient, accessList *accesslist.AccessList) error {
+	m.lastReminderRecipients = append(m.lastReminderRecipients, recipient)
 	return nil
 }
 
@@ -56,6 +56,12 @@ func (m *mockMessagingBot) FetchRecipient(ctx context.Context, recipient string)
 	}
 
 	return fetchedRecipient, nil
+}
+
+func (m *mockMessagingBot) SupportedApps() []common.App {
+	return []common.App{
+		NewApp(m),
+	}
 }
 
 type mockPluginConfig struct {
@@ -127,7 +133,7 @@ func TestAccessListReminders(t *testing.T) {
 		Audit: accesslist.Audit{
 			NextAuditDate: clock.Now().Add(28 * 24 * time.Hour), // Four weeks out from today
 			Notifications: accesslist.Notifications{
-				Start: time.Hour * 24 * 14, // Start alerting at two weeks before audit date
+				Start: oneDay * 14, // Start alerting at two weeks before audit date
 			},
 		},
 	})
@@ -137,35 +143,39 @@ func TestAccessListReminders(t *testing.T) {
 	advanceAndLookForRecipients(t, bot, as, clock, 0, accessList)
 
 	// Advance by one week, expect no notifications.
-	advanceAndLookForRecipients(t, bot, as, clock, 24*7*time.Hour, accessList)
+	advanceAndLookForRecipients(t, bot, as, clock, oneDay*7, accessList)
 
 	// Advance by one week, expect a notification. "not-found" will be missing as a recipient.
-	advanceAndLookForRecipients(t, bot, as, clock, 24*7*time.Hour, accessList, "owner1")
+	advanceAndLookForRecipients(t, bot, as, clock, oneDay*7, accessList, "owner1")
 
 	// Add a new owner.
 	accessList.Spec.Owners = append(accessList.Spec.Owners, accesslist.Owner{Name: "owner2"})
 
 	// Advance by one day, expect a notification only to the new owner.
-	advanceAndLookForRecipients(t, bot, as, clock, 24*time.Hour, accessList, "owner2")
+	advanceAndLookForRecipients(t, bot, as, clock, oneDay, accessList, "owner2")
 
 	// Advance by one day, expect no notifications.
-	advanceAndLookForRecipients(t, bot, as, clock, 24*time.Hour, accessList)
+	advanceAndLookForRecipients(t, bot, as, clock, oneDay, accessList)
 
 	// Advance by five more days, to the next week, expect two notifications
-	advanceAndLookForRecipients(t, bot, as, clock, 24*5*time.Hour, accessList, "owner1", "owner2")
+	advanceAndLookForRecipients(t, bot, as, clock, oneDay*5, accessList, "owner1", "owner2")
 
 	// Advance by one day, expect no notifications
-	advanceAndLookForRecipients(t, bot, as, clock, 24*time.Hour, accessList)
+	advanceAndLookForRecipients(t, bot, as, clock, oneDay, accessList)
 
 	// Advance by one day, expect no notifications
-	advanceAndLookForRecipients(t, bot, as, clock, 24*time.Hour, accessList)
+	advanceAndLookForRecipients(t, bot, as, clock, oneDay, accessList)
 
 	// Advance by five more days, to the next week, expect two notifications
-	advanceAndLookForRecipients(t, bot, as, clock, 24*5*time.Hour, accessList, "owner1", "owner2")
+	advanceAndLookForRecipients(t, bot, as, clock, oneDay*5, accessList, "owner1", "owner2")
 
-	// Advance by one year a week at a time, expect two notifications each time.
-	for i := 0; i < 52; i++ {
-		advanceAndLookForRecipients(t, bot, as, clock, 24*7*time.Hour, accessList, "owner1", "owner2")
+	// Advance 60 days a day at a time, expect two notifications each time.
+	for i := 0; i < 60; i++ {
+		// Make sure we only get a notification once per day by iterating through each 6 hours at a time.
+		for j := 0; j < 3; j++ {
+			advanceAndLookForRecipients(t, bot, as, clock, 6*time.Hour, accessList)
+		}
+		advanceAndLookForRecipients(t, bot, as, clock, 6*time.Hour, accessList, "owner1", "owner2")
 	}
 }
 
@@ -196,5 +206,5 @@ func advanceAndLookForRecipients(t *testing.T,
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		assert.ElementsMatch(t, expectedRecipients, bot.lastReminderRecipients)
-	}, 5*time.Second, 250*time.Millisecond)
+	}, 5*time.Second, 5*time.Millisecond)
 }

@@ -73,9 +73,8 @@ func (p *proxySettings) GetProxySettings(ctx context.Context) (*webclient.ProxyS
 // where incoming connections are routed to the proper proxy service based on TLS SNI ALPN routing information.
 func (p *proxySettings) buildProxySettings(proxyListenerMode types.ProxyListenerMode) *webclient.ProxySettings {
 	proxySettings := webclient.ProxySettings{
-		TLSRoutingEnabled:  proxyListenerMode == types.ProxyListenerMode_Multiplex,
-		AssistEnabled:      p.cfg.Proxy.AssistAPIKey != "",
-		AccessGraphEnabled: p.cfg.AccessGraph.Enabled,
+		TLSRoutingEnabled: proxyListenerMode == types.ProxyListenerMode_Multiplex,
+		AssistEnabled:     p.cfg.Proxy.AssistAPIKey != "",
 		Kube: webclient.KubeProxySettings{
 			Enabled: p.cfg.Proxy.Kube.Enabled,
 		},
