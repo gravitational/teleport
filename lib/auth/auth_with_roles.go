@@ -6484,6 +6484,10 @@ func (a *ServerWithRoles) CreateUserGroup(ctx context.Context, userGroup types.U
 		return trace.Wrap(err)
 	}
 
+	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+		return trace.Wrap(err)
+	}
+
 	if err := a.checkAccessToUserGroup(userGroup); err != nil {
 		return trace.Wrap(err)
 	}
@@ -6494,6 +6498,10 @@ func (a *ServerWithRoles) CreateUserGroup(ctx context.Context, userGroup types.U
 // UpdateUserGroup updates an existing user group resource.
 func (a *ServerWithRoles) UpdateUserGroup(ctx context.Context, userGroup types.UserGroup) error {
 	if err := a.action(apidefaults.Namespace, types.KindUserGroup, types.VerbUpdate); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -6515,6 +6523,10 @@ func (a *ServerWithRoles) DeleteUserGroup(ctx context.Context, name string) erro
 		return trace.Wrap(err)
 	}
 
+	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+		return trace.Wrap(err)
+	}
+
 	previousUserGroup, err := a.authServer.GetUserGroup(ctx, name)
 	if err != nil {
 		return trace.Wrap(err)
@@ -6530,6 +6542,10 @@ func (a *ServerWithRoles) DeleteUserGroup(ctx context.Context, name string) erro
 // DeleteAllUserGroups removes all user groups.
 func (a *ServerWithRoles) DeleteAllUserGroups(ctx context.Context) error {
 	if err := a.action(apidefaults.Namespace, types.KindUserGroup, types.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
 		return trace.Wrap(err)
 	}
 
