@@ -81,8 +81,8 @@ function SearchBar() {
       if (
         !(
           e.composedPath().includes(containerRef.current) ||
-          // TODO(gzdunek): Remove this ugly hack that prevents closing the
-          // the search bar when the predicate tooltip is clicked (or closed)
+          // Prevents closing the search bar
+          // when the advanced search tooltip is opened.
           document.querySelector('#predicate-documentation')
         )
       ) {
