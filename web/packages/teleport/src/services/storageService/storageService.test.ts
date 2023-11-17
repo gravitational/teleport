@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import ls from './localStorage';
+import { storageService as ls } from './storageService';
 import { KeysEnum } from './types';
 
 describe('localStorage', () => {
