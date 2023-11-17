@@ -22,7 +22,6 @@ package trustv1
 
 import (
 	context "context"
-
 	types "github.com/gravitational/teleport/api/types"
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"

@@ -21,12 +21,11 @@
 package teletermv1
 
 import (
-	reflect "reflect"
-	sync "sync"
-
 	v1alpha "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
+	reflect "reflect"
+	sync "sync"
 )
 
 const (
