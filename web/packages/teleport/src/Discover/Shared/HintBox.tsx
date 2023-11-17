@@ -23,8 +23,9 @@ import * as Icons from 'design/Icon';
 
 import { TextIcon } from 'teleport/Discover/Shared/Text';
 
-const HintBoxContainer = styled(Box)`
-  max-width: 1000px;
+const HintBoxContainer = styled(Box).attrs(props => ({
+  maxWidth: props.maxWidth,
+}))`
   background-color: ${props => props.theme.colors.spotBackground[0]};
   padding: ${props => `${props.theme.space[3]}px`};
   border-radius: ${props => `${props.theme.space[2]}px`};
@@ -53,11 +54,12 @@ export const SuccessInfo = styled(Box)`
 
 interface HintBoxProps {
   header: string;
+  maxWidth?: string;
 }
 
 export function HintBox(props: React.PropsWithChildren<HintBoxProps>) {
   return (
-    <HintBoxContainer>
+    <HintBoxContainer maxWidth={props.maxWidth || '1000px'}>
       <Text color="warning.main">
         <Flex alignItems="center" mb={2}>
           <TextIcon

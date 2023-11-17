@@ -739,7 +739,7 @@ func TestTSHConfigConnectWithOpenSSHClient(t *testing.T) {
 			name: "node recording mode with TLS routing enabled",
 			opts: []testSuiteOptionFunc{
 				withRootConfigFunc(func(cfg *servicecfg.Config) {
-					cfg.Auth.SessionRecordingConfig.SetMode(types.RecordAtNode)
+					cfg.Auth.SessionRecordingConfig.SetMode(types.RecordAtNodeSync)
 					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 				}),
 			},
@@ -748,7 +748,7 @@ func TestTSHConfigConnectWithOpenSSHClient(t *testing.T) {
 			name: "proxy recording mode with TLS routing enabled",
 			opts: []testSuiteOptionFunc{
 				withRootConfigFunc(func(cfg *servicecfg.Config) {
-					cfg.Auth.SessionRecordingConfig.SetMode(types.RecordAtProxy)
+					cfg.Auth.SessionRecordingConfig.SetMode(types.RecordAtProxySync)
 					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 				}),
 			},
@@ -757,7 +757,7 @@ func TestTSHConfigConnectWithOpenSSHClient(t *testing.T) {
 			name: "node recording mode with TLS routing disabled",
 			opts: []testSuiteOptionFunc{
 				withRootConfigFunc(func(cfg *servicecfg.Config) {
-					cfg.Auth.SessionRecordingConfig.SetMode(types.RecordAtNode)
+					cfg.Auth.SessionRecordingConfig.SetMode(types.RecordAtNodeSync)
 					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Separate)
 				}),
 			},
@@ -766,7 +766,7 @@ func TestTSHConfigConnectWithOpenSSHClient(t *testing.T) {
 			name: "proxy recording mode with TLS routing disabled",
 			opts: []testSuiteOptionFunc{
 				withRootConfigFunc(func(cfg *servicecfg.Config) {
-					cfg.Auth.SessionRecordingConfig.SetMode(types.RecordAtProxy)
+					cfg.Auth.SessionRecordingConfig.SetMode(types.RecordAtProxySync)
 					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Separate)
 				}),
 			},

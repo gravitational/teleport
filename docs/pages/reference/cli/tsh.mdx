@@ -180,6 +180,9 @@ $ tsh puttyconfig [--leaf <leaf-cluster-name>] [login@]hostname
 # Add a saved PuTTY session on 'node' for the user 'ec2-user'
 $ tsh puttyconfig ec2-user@node
 
+# Add a saved PuTTY session for the Teleport-registered OpenSSH node 'openssh' for the user 'ubuntu'
+$ tsh puttyconfig --port 22 ubuntu@openssh
+
 # Add a saved PuTTY session on leaf-node for the user 'ec2-user' on the leaf cluster 'example.teleport.sh'
 $ tsh puttyconfig --leaf example.teleport.sh ec2-user@leaf-node
 ```

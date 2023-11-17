@@ -192,12 +192,12 @@ func TestClient_DialCluster(t *testing.T) {
 				msg := []byte("hello")
 				n, err := conn.Write(msg)
 				require.NoError(t, err)
-				require.Equal(t, len(msg), n)
+				require.Len(t, msg, n)
 
 				out := make([]byte, n)
 				n, err = conn.Read(out)
 				require.NoError(t, err)
-				require.Equal(t, len(msg), n)
+				require.Len(t, msg, n)
 				require.Equal(t, msg, out)
 
 				require.NoError(t, conn.Close())
@@ -407,7 +407,7 @@ func TestClient_DialHost(t *testing.T) {
 				msg := []byte("hello")
 				n, err := conn.Write(msg)
 				require.NoError(t, err)
-				require.Equal(t, len(msg), n)
+				require.Len(t, msg, n)
 
 				out := make([]byte, 10)
 				n, err = conn.Read(out)
@@ -428,12 +428,12 @@ func TestClient_DialHost(t *testing.T) {
 				msg := []byte("hello")
 				n, err := conn.Write(msg)
 				require.NoError(t, err)
-				require.Equal(t, len(msg), n)
+				require.Len(t, msg, n)
 
 				out := make([]byte, n)
 				n, err = conn.Read(out)
 				require.NoError(t, err)
-				require.Equal(t, len(msg), n)
+				require.Len(t, msg, n)
 				require.Equal(t, msg, out)
 
 				n, err = conn.Read(out)
@@ -457,13 +457,13 @@ func TestClient_DialHost(t *testing.T) {
 				msg := []byte("hello")
 				n, err := conn.Write(msg)
 				require.NoError(t, err)
-				require.Equal(t, len(msg), n)
+				require.Len(t, msg, n)
 
 				// read data via ssh frames
 				out := make([]byte, n)
 				n, err = conn.Read(out)
 				require.NoError(t, err)
-				require.Equal(t, len(msg), n)
+				require.Len(t, msg, n)
 				require.Equal(t, msg, out)
 
 				// get the keys from our local keyring
@@ -479,7 +479,7 @@ func TestClient_DialHost(t *testing.T) {
 				out = make([]byte, len(keys[0].Blob))
 				n, err = conn.Read(out)
 				require.NoError(t, err)
-				require.Equal(t, len(keys[0].Blob), n)
+				require.Len(t, keys[0].Blob, n)
 				require.Equal(t, keys[0].Blob, out)
 
 				// close the stream

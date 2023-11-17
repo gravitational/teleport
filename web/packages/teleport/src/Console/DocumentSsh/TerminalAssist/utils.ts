@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-import { getPlatform } from 'design/theme/utils';
+import { getPlatformType } from 'design/platform';
 
 export function getMetaKeySymbol() {
-  const platform = getPlatform();
+  const platform = getPlatformType();
 
   if (platform.isMac) {
     return '⌘';

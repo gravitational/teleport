@@ -89,7 +89,7 @@ func BenchmarkStore(b *testing.B) {
 		wg.Wait()
 		failOnce.Do(func() {})
 		require.NoError(b, failErr)
-		require.True(b, store.Len() == uniqueServers)
+		require.Equal(b, uniqueServers, store.Len())
 	}
 }
 

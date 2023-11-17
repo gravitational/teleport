@@ -19,7 +19,6 @@ package sftp
 import (
 	"bytes"
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"math/rand"
@@ -328,7 +327,7 @@ func TestUpload(t *testing.T) {
 				"idontexist",
 			},
 			errCheck: func(t require.TestingT, err error, i ...interface{}) {
-				require.True(t, errors.Is(err, os.ErrNotExist))
+				require.ErrorIs(t, err, os.ErrNotExist)
 			},
 		},
 	}
@@ -508,7 +507,7 @@ func TestDownload(t *testing.T) {
 			name:    "non-existent src file",
 			srcPath: "idontexist",
 			errCheck: func(t require.TestingT, err error, i ...interface{}) {
-				require.True(t, errors.Is(err, os.ErrNotExist))
+				require.ErrorIs(t, err, os.ErrNotExist)
 			},
 		},
 	}

@@ -261,7 +261,6 @@ func (c *aksClient) ClusterCredentials(ctx context.Context, cfg ClusterCredentia
 	default:
 		return nil, time.Time{}, trace.BadParameter("unsupported AKS authentication mode %v", clusterDetails.Properties.AccessConfig)
 	}
-
 }
 
 // getAzureRBACCredentials generates a config to access the cluster.
@@ -279,7 +278,7 @@ func (c *aksClient) getAzureRBACCredentials(ctx context.Context, cluster Cluster
 	}
 
 	if err := c.checkAccessPermissions(ctx, cfg, cluster); err != nil {
-		return nil, time.Time{}, trace.WrapWithMessage(err, `Azure RBAC rules have not been configured for the agent. 
+		return nil, time.Time{}, trace.WrapWithMessage(err, `Azure RBAC rules have not been configured for the agent.
 		Please check that you have configured them correctly.`)
 	}
 
@@ -300,7 +299,6 @@ func (c *aksClient) getUserCredentials(ctx context.Context, cfg ClusterCredentia
 
 	result, err := c.getRestConfigFromKubeconfigs(res.Kubeconfigs)
 	return result, trace.Wrap(err)
-
 }
 
 // getAzureADCredentials gets the client configuration and checks if Kubernetes RBAC is configured.
@@ -378,7 +376,6 @@ func (c *aksClient) getAdminCredentials(ctx context.Context, group, name string)
 	}
 	result, err = checkIfAuthMethodIsUnSupported(result)
 	return result, trace.Wrap(err)
-
 }
 
 // getRestConfigFromKubeconfigs parses the first kubeConfig returned by ListClusterAdminCredentials and
@@ -433,17 +430,35 @@ func (c *aksClient) genAzureToken(ctx context.Context, tentantID string) (string
 		return "", time.Time{}, trace.Wrap(ConvertResponseError(err))
 	}
 
-	cliAccessToken, err := cred.GetToken(ctx, policy.TokenRequestOptions{
+	cliAccessToken, origErr := cred.GetToken(ctx, policy.TokenRequestOptions{
 		// azureManagedClusterScope is a fixed scope that identifies azure AKS managed clusters.
 		Scopes: []string{azureManagedClusterScope},
 	},
 	)
-	if err != nil {
-		return "", time.Time{}, trace.Wrap(ConvertResponseError(err))
+	if origErr == nil {
+		return cliAccessToken.Token, cliAccessToken.ExpiresOn, nil
 	}
 
+	// Some azure credentials like Workload Identity - but not all - require the
+	// scope to be suffixed with /.default.
+	// Since the AZ identity returns a chained credentials provider
+	// that tries to get the token from any of the configured providers but doesn't
+	// expose which provider was used, we retry the token generation with the
+	// the expected scope.
+	// In the case of this attempt doesn't return any valid credential, we return
+	// the original error.
+	cliAccessToken, err = cred.GetToken(
+		ctx,
+		policy.TokenRequestOptions{
+			// azureManagedClusterScope is a fixed scope that identifies azure AKS managed clusters.
+			Scopes: []string{azureManagedClusterScope + "/.default"},
+		},
+	)
+	if err != nil {
+		// use the original error since it's clear.
+		return "", time.Time{}, trace.Wrap(ConvertResponseError(origErr))
+	}
 	return cliAccessToken.Token, cliAccessToken.ExpiresOn, nil
-
 }
 
 // grantAccessWithAdminCredentials tries to create the ClusterRole and ClusterRoleBinding into the AKS cluster
@@ -460,7 +475,6 @@ func (c *aksClient) grantAccessWithAdminCredentials(ctx context.Context, adminCf
 
 	err = c.upsertClusterRoleBindingWithAdminCredentials(ctx, client, groupID)
 	return trace.Wrap(err)
-
 }
 
 // upsertClusterRoleWithAdminCredentials tries to upsert the ClusterRole using admin credentials.
@@ -538,7 +552,7 @@ func (c *aksClient) grantAccessWithCommand(ctx context.Context, resourceGroupNam
 	return trace.Wrap(ConvertResponseError(err))
 }
 
-// extractGroupFromAzure extracts the first group id in the Azure Bearer Token.
+// extractGroupFromAzure extracts the first group ID from the Azure Bearer Token.
 func extractGroupFromAzure(token string) (string, error) {
 	p := jwt.NewParser()
 	claims := &azureGroupClaims{}
@@ -548,7 +562,11 @@ func extractGroupFromAzure(token string) (string, error) {
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-	// ParseUnverified already validates that len(claims.Groups)>0
+
+	if len(claims.Groups) == 0 {
+		return "", trace.BadParameter("no groups found in Azure token")
+	}
+
 	return claims.Groups[0], nil
 }
 

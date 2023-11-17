@@ -50,7 +50,7 @@ func TestStreams(t *testing.T) {
 	require.NoError(t, err)
 
 	handler, err := NewHandler(ctx, config)
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	t.Run("StreamManyParts", func(t *testing.T) {
 		test.StreamManyParts(t, handler)

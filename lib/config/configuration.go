@@ -25,6 +25,7 @@ import (
 	"errors"
 	"io"
 	stdlog "log"
+	"maps"
 	"net"
 	"net/url"
 	"os"
@@ -62,6 +63,7 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 // CommandLineFlags stores command line flag values, it's a much simplified subset
@@ -213,9 +215,9 @@ type CommandLineFlags struct {
 	// `teleport integration configure listdatabases-iam` command
 	IntegrationConfListDatabasesIAMArguments IntegrationConfListDatabasesIAM
 
-	// IntegrationConfExternalCloudAuditIAMArguments contains the arguments of the
-	// `teleport integration configure externalcloudaudit-iam` command
-	IntegrationConfExternalCloudAuditIAMArguments IntegrationConfExternalCloudAuditIAM
+	// IntegrationConfExternalCloudAuditArguments contains the arguments of the
+	// `teleport integration configure externalcloudaudit` command
+	IntegrationConfExternalCloudAuditArguments IntegrationConfExternalCloudAudit
 }
 
 // IntegrationConfDeployServiceIAM contains the arguments of
@@ -249,8 +251,6 @@ type IntegrationConfAWSOIDCIdP struct {
 	Cluster string
 	// Name is the integration name.
 	Name string
-	// Region is the AWS Region used to set up the client.
-	Region string
 	// Role is the AWS Role to associate with the Integration
 	Role string
 	// ProxyPublicURL is the IdP Issuer URL (Teleport Proxy Public Address).
@@ -267,9 +267,11 @@ type IntegrationConfListDatabasesIAM struct {
 	Role string
 }
 
-// IntegrationConfExternalCloudAuditIAM contains the arguments of the
+// IntegrationConfExternalCloudAudit contains the arguments of the
 // `teleport integration configure externalcloudaudit-iam` command
-type IntegrationConfExternalCloudAuditIAM struct {
+type IntegrationConfExternalCloudAudit struct {
+	// Bootstrap is whether to bootstrap infrastructure (default: false).
+	Bootstrap bool
 	// Region is the AWS Region used.
 	Region string
 	// Role is the AWS IAM Role associated with the OIDC integration.
@@ -288,7 +290,7 @@ type IntegrationConfExternalCloudAuditIAM struct {
 	GlueDatabase string
 	// GlueTable is the name of the Glue table used.
 	GlueTable string
-	// Partition is the AWS partition to use (optional).
+	// Partition is the AWS partition to use (default: aws).
 	Partition string
 }
 
@@ -376,6 +378,18 @@ func ApplyFileConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	if fc.WindowsDesktop.Disabled() {
 		cfg.WindowsDesktop.Enabled = false
 	}
+
+	if fc.AccessGraph.Enabled {
+		cfg.AccessGraph.Enabled = true
+		if fc.AccessGraph.Endpoint == "" {
+			return trace.Errorf("Please, provide access_graph_service.addr configuration variable")
+		}
+		cfg.AccessGraph.Addr = fc.AccessGraph.Endpoint
+		cfg.AccessGraph.CA = fc.AccessGraph.CA
+		// TODO(tigrato): change this behavior when we drop support for plain text connections
+		cfg.AccessGraph.Insecure = fc.AccessGraph.Insecure
+	}
+
 	applyString(fc.NodeName, &cfg.Hostname)
 
 	// apply "advertise_ip" setting:
@@ -695,7 +709,7 @@ func applyLogConfig(loggerConfig Log, cfg *servicecfg.Config) error {
 	case "":
 		fallthrough // not set. defaults to 'text'
 	case "text":
-		formatter := &utils.TextFormatter{
+		formatter := &logutils.TextFormatter{
 			ExtraFields:  loggerConfig.Format.ExtraFields,
 			EnableColors: trace.IsTerminal(os.Stderr),
 		}
@@ -706,7 +720,7 @@ func applyLogConfig(loggerConfig Log, cfg *servicecfg.Config) error {
 
 		logger.SetFormatter(formatter)
 	case "json":
-		formatter := &utils.JSONFormatter{
+		formatter := &logutils.JSONFormatter{
 			ExtraFields: loggerConfig.Format.ExtraFields,
 		}
 
@@ -1289,10 +1303,7 @@ func applySSHConfig(fc *FileConfig, cfg *servicecfg.Config) (err error) {
 		cfg.SSH.Addr = *addr
 	}
 	if fc.SSH.Labels != nil {
-		cfg.SSH.Labels = make(map[string]string)
-		for k, v := range fc.SSH.Labels {
-			cfg.SSH.Labels[k] = v
-		}
+		cfg.SSH.Labels = maps.Clone(fc.SSH.Labels)
 	}
 	if fc.SSH.Commands != nil {
 		cfg.SSH.CmdLabels = make(services.CommandLabels)
@@ -1555,10 +1566,7 @@ func applyKubeConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		cfg.Kube.KubeClusterName = fc.Kube.KubeClusterName
 	}
 	if fc.Kube.StaticLabels != nil {
-		cfg.Kube.StaticLabels = make(map[string]string)
-		for k, v := range fc.Kube.StaticLabels {
-			cfg.Kube.StaticLabels[k] = v
-		}
+		cfg.Kube.StaticLabels = maps.Clone(fc.Kube.StaticLabels)
 	}
 	if fc.Kube.DynamicLabels != nil {
 		cfg.Kube.DynamicLabels = make(services.CommandLabels)
@@ -1646,7 +1654,8 @@ func applyDatabasesConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 				Mode:       servicecfg.TLSMode(database.TLS.Mode),
 			},
 			AdminUser: servicecfg.DatabaseAdminUser{
-				Name: database.AdminUser.Name,
+				Name:            database.AdminUser.Name,
+				DefaultDatabase: database.AdminUser.DefaultDatabase,
 			},
 			Oracle: convOracleOptions(database.Oracle),
 			AWS: servicecfg.DatabaseAWS{
@@ -1996,10 +2005,7 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	cfg.WindowsDesktop.HostLabels = servicecfg.NewHostLabelRules(hlrs...)
 
 	if fc.WindowsDesktop.Labels != nil {
-		cfg.WindowsDesktop.Labels = make(map[string]string)
-		for k, v := range fc.WindowsDesktop.Labels {
-			cfg.WindowsDesktop.Labels[k] = v
-		}
+		cfg.WindowsDesktop.Labels = maps.Clone(fc.WindowsDesktop.Labels)
 	}
 
 	return nil

@@ -23,10 +23,13 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/endpoints"
 	awssession "github.com/aws/aws-sdk-go/aws/session"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -63,8 +66,16 @@ func (s *SigningServiceConfig) CheckAndSetDefaults() error {
 		s.Clock = clockwork.NewRealClock()
 	}
 	if s.Session == nil {
+		useFIPSEndpoint := endpoints.FIPSEndpointStateUnset
+		if modules.GetModules().IsBoringBinary() {
+			useFIPSEndpoint = endpoints.FIPSEndpointStateEnabled
+		}
 		ses, err := awssession.NewSessionWithOptions(awssession.Options{
 			SharedConfigState: awssession.SharedConfigEnable,
+			Config: aws.Config{
+				EC2MetadataEnableFallback: aws.Bool(false),
+				UseFIPSEndpoint:           useFIPSEndpoint,
+			},
 		})
 		if err != nil {
 			return trace.Wrap(err)

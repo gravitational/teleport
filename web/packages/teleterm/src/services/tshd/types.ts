@@ -21,6 +21,7 @@ import { ResourceKind } from 'e-teleterm/ui/DocumentAccessRequests/NewRequest/us
 import { RequestState } from 'e-teleport/services/workflow';
 import { SortType } from 'design/DataTable/types';
 import { FileTransferListeners } from 'shared/components/FileTransfer';
+import { NodeSubKind } from 'shared/services';
 import apiCluster from 'gen-proto-js/teleport/lib/teleterm/v1/cluster_pb';
 import apiDb from 'gen-proto-js/teleport/lib/teleterm/v1/database_pb';
 import apiGateway from 'gen-proto-js/teleport/lib/teleterm/v1/gateway_pb';
@@ -49,6 +50,7 @@ export interface Kube extends apiKube.Kube.AsObject {
 
 export interface Server extends apiServer.Server.AsObject {
   uri: uri.ServerUri;
+  subKind: NodeSubKind;
 }
 
 export interface Gateway extends apiGateway.Gateway.AsObject {
@@ -133,11 +135,27 @@ export interface Cluster extends apiCluster.Cluster.AsObject {
    * `leafClusterId` is equal to the `name` property of the cluster.
    */
   uri: uri.ClusterUri;
+  /**
+   * loggedInUser is present if the user has logged in to the cluster at least once. This
+   * includes a situation in which the cert has expired. If the cluster was added to the app but the
+   * user is yet to log in, loggedInUser is not present.
+   */
   loggedInUser?: LoggedInUser;
 }
 
+/**
+ * LoggedInUser describes loggedInUser field available on root clusters.
+ *
+ * loggedInUser is present if the user has logged in to the cluster at least once. This
+ * includes a situation in which the cert has expired. If the cluster was added to the app but the
+ * user is yet to log in, loggedInUser is not present.
+ */
 export type LoggedInUser = apiCluster.LoggedInUser.AsObject & {
   assumedRequests?: Record<string, AssumedRequest>;
+  /**
+   * acl is available only after the cluster details are fetched, as acl is not stored on disk.
+   */
+  acl?: apiCluster.ACL.AsObject;
 };
 export type AuthProvider = apiAuthSettings.AuthProvider.AsObject;
 export type AuthSettings = apiAuthSettings.AuthSettings.AsObject;
@@ -365,16 +383,16 @@ export type WaitForConnectMyComputerNodeJoinResponse =
 export type ListUnifiedResourcesRequest =
   apiService.ListUnifiedResourcesRequest.AsObject;
 export type ListUnifiedResourcesResponse = {
-  resources: (
-    | { kind: 'server'; resource: Server }
-    | {
-        kind: 'database';
-        resource: Database;
-      }
-    | { kind: 'kube'; resource: Kube }
-  )[];
+  resources: UnifiedResourceResponse[];
   nextKey: string;
 };
+export type UnifiedResourceResponse =
+  | { kind: 'server'; resource: Server }
+  | {
+      kind: 'database';
+      resource: Database;
+    }
+  | { kind: 'kube'; resource: Kube };
 
 // Replaces object property with a new type
 type Modify<T, R> = Omit<T, keyof R> & R;

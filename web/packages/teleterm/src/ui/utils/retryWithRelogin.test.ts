@@ -59,9 +59,13 @@ it('opens the login modal window and calls actionToRetry again on successful rel
 
   // Immediately resolve the login promise.
   jest
-    .spyOn(appContext.modalsService, 'openClusterConnectDialog')
-    .mockImplementation(({ onSuccess }) => {
-      onSuccess('/clusters/foo');
+    .spyOn(appContext.modalsService, 'openRegularDialog')
+    .mockImplementation(dialog => {
+      if (dialog.kind === 'cluster-connect') {
+        dialog.onSuccess('/clusters/foo');
+      } else {
+        throw new Error(`Got unexpected dialog ${dialog.kind}`);
+      }
 
       // Dialog cancel function.
       return { closeDialog: () => {} };
@@ -83,11 +87,13 @@ it('opens the login modal window and calls actionToRetry again on successful rel
     actionToRetry
   );
 
-  const openClusterConnectDialogSpy =
-    appContext.modalsService.openClusterConnectDialog;
-  expect(openClusterConnectDialogSpy).toHaveBeenCalledTimes(1);
-  expect(openClusterConnectDialogSpy).toHaveBeenCalledWith(
-    expect.objectContaining({ clusterUri: '/clusters/foo' })
+  const openRegularDialogSpy = appContext.modalsService.openRegularDialog;
+  expect(openRegularDialogSpy).toHaveBeenCalledTimes(1);
+  expect(openRegularDialogSpy).toHaveBeenCalledWith(
+    expect.objectContaining({
+      kind: 'cluster-connect',
+      clusterUri: '/clusters/foo',
+    })
   );
 
   expect(actionToRetry).toHaveBeenCalledTimes(2);
@@ -98,7 +104,7 @@ it("returns the original retryable error if the document is no longer active, do
   const appContext = new MockAppContext();
 
   jest
-    .spyOn(appContext.modalsService, 'openClusterConnectDialog')
+    .spyOn(appContext.modalsService, 'openRegularDialog')
     .mockImplementation(() => {
       throw new Error('Modal was opened');
     });
@@ -119,9 +125,7 @@ it("returns the original retryable error if the document is no longer active, do
   await expect(actualError).rejects.toEqual(expectedError);
 
   expect(actionToRetry).toHaveBeenCalledTimes(1);
-  expect(
-    appContext.modalsService.openClusterConnectDialog
-  ).not.toHaveBeenCalled();
+  expect(appContext.modalsService.openRegularDialog).not.toHaveBeenCalled();
 });
 
 // This covers situations where the cert was refreshed externally, for example through tsh login.
@@ -129,9 +133,13 @@ it('calls actionToRetry again if relogin attempt was canceled', async () => {
   const appContext = new MockAppContext();
 
   jest
-    .spyOn(appContext.modalsService, 'openClusterConnectDialog')
-    .mockImplementation(({ onCancel }) => {
-      onCancel();
+    .spyOn(appContext.modalsService, 'openRegularDialog')
+    .mockImplementation(dialog => {
+      if (dialog.kind === 'cluster-connect') {
+        dialog.onCancel();
+      } else {
+        throw new Error(`Got unexpected dialog ${dialog.kind}`);
+      }
 
       // Dialog cancel function.
       return { closeDialog: () => {} };

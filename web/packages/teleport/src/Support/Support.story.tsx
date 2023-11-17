@@ -66,7 +66,7 @@ const ctx = createTeleportContext();
 
 const props: Props = {
   clusterId: 'test',
-  authVersion: '4.4.0-dev',
+  authVersion: '13.4.0-dev',
   publicURL: 'localhost:3080',
   isEnterprise: false,
   isCloud: false,

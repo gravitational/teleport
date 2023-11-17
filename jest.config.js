@@ -2,7 +2,7 @@ const config = require('@gravitational/build/jest/config');
 
 process.env.TZ = 'UTC';
 
-const esModules = ['strip-ansi', 'ansi-regex'].join('|');
+const esModules = ['strip-ansi', 'ansi-regex', 'd3-color'].join('|');
 
 /** @type {import('@jest/types').Config.InitialOptions} */
 module.exports = {

@@ -209,14 +209,10 @@ func (a *Server) updateGithubConnector(ctx context.Context, connector types.Gith
 		return nil, trace.Wrap(err)
 	}
 
-	// TODO(tross): add a GithubConnectorUpdate type, GithubConnectorUpdatedEvent/Code for metadata
-	// and convert this to use them instead of a create event. As is this matches
-	// existing behavior since all updates to a connector were done via upsert which
-	// only ever emits a create event.
-	if err := a.emitter.EmitAuditEvent(ctx, &apievents.GithubConnectorCreate{
+	if err := a.emitter.EmitAuditEvent(ctx, &apievents.GithubConnectorUpdate{
 		Metadata: apievents.Metadata{
-			Type: events.GithubConnectorCreatedEvent,
-			Code: events.GithubConnectorCreatedCode,
+			Type: events.GithubConnectorUpdatedEvent,
+			Code: events.GithubConnectorUpdatedCode,
 		},
 		UserMetadata: authz.ClientUserMetadata(ctx),
 		ResourceMetadata: apievents.ResourceMetadata{

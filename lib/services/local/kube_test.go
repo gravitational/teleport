@@ -55,7 +55,7 @@ func TestKubernetesCRUD(t *testing.T) {
 	// Initially we expect no Kubernetess.
 	out, err := service.GetKubernetesClusters(ctx)
 	require.NoError(t, err)
-	require.Equal(t, 0, len(out))
+	require.Empty(t, out)
 
 	// Create both Kubernetess.
 	err = service.CreateKubernetesCluster(ctx, kubeCluster1)
@@ -113,5 +113,5 @@ func TestKubernetesCRUD(t *testing.T) {
 	require.NoError(t, err)
 	out, err = service.GetKubernetesClusters(ctx)
 	require.NoError(t, err)
-	require.Len(t, out, 0)
+	require.Empty(t, out)
 }

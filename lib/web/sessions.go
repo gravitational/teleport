@@ -47,6 +47,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
@@ -297,7 +298,7 @@ func clusterDialer(remoteCluster reversetunnelclient.RemoteSite, src, dst net.Ad
 			OriginalClientDstAddr: dst,
 		}
 
-		clientSrcAddr, clientDstAddr := utils.ClientAddrFromContext(in)
+		clientSrcAddr, clientDstAddr := authz.ClientAddrsFromContext(in)
 		if dialParams.From == nil && clientSrcAddr != nil {
 			dialParams.From = clientSrcAddr
 		}
@@ -329,10 +330,14 @@ func (c *SessionContext) NewKubernetesServiceClient(ctx context.Context, addr st
 		addr,
 		grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)),
 		grpc.WithChainUnaryInterceptor(
+			//nolint:staticcheck // SA1019. There is a data race in the stats.Handler that is replacing
+			// the interceptor. See https://github.com/open-telemetry/opentelemetry-go-contrib/issues/4576.
 			otelgrpc.UnaryClientInterceptor(),
 			metadata.UnaryClientInterceptor,
 		),
 		grpc.WithChainStreamInterceptor(
+			//nolint:staticcheck // SA1019. There is a data race in the stats.Handler that is replacing
+			// the interceptor. See https://github.com/open-telemetry/opentelemetry-go-contrib/issues/4576.
 			otelgrpc.StreamClientInterceptor(),
 			metadata.StreamClientInterceptor,
 		),
@@ -391,7 +396,7 @@ func (c *SessionContext) newRemoteTLSClient(ctx context.Context, cluster reverse
 		return nil, trace.Wrap(err)
 	}
 
-	clientSrcAddr, clientDstAddr := utils.ClientAddrFromContext(ctx)
+	clientSrcAddr, clientDstAddr := authz.ClientAddrsFromContext(ctx)
 
 	return auth.NewClient(apiclient.Config{
 		Context: ctx,

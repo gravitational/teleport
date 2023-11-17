@@ -20,6 +20,7 @@ teleport:
         audit_events_uri:
           - 'dynamodb://events_table_name'
           - 'firestore://events_table_name'
+          - 'postgresql://user_name@database-address/events_table_name'
           - 'file:///var/lib/teleport/log'
           - 'stdout://'
 
@@ -47,16 +48,23 @@ teleport:
         # DynamoDB-specific section:
 
         # continuous_backups is used to enable continuous backups.
-        continuous_backups: [true|false]
+        # default: false
+        continuous_backups: true
 
         # auto_scaling is used to enable (and define settings for) auto
         # scaling.
         # default: false
-        auto_scaling:  [true|false]
+        auto_scaling: true
 
         # By default, Teleport stores stores audit events with an AWS TTL of 1 year.
         # This value can be configured as shown below. If set to 0 seconds, TTL is disabled.
-        audit_retention_period: 365d
+        #
+        # NOTE: Only the DynamoDB events backend respects the retention_period. All other event backends
+        # consume the retention period via a query parameter in the audit_events_uri. See the examples below
+        # for how to configure the retention period for other backends.
+        # Firestore: firestore://events_table_name?eventRetentionPeriod=10d
+        # Postgres: postgresql://user_name@database-address/teleport_audit?retention_period=10d
+        retention_period: 365d
 
         # minimum/maximum read capacity in units
         read_min_capacity: int
@@ -323,7 +331,7 @@ auth_service:
     # certificates expire in the middle of an active session. (default is 'no')
     disconnect_expired_cert: no
 
-    # keep_alive_interval determines the interval at which Teleport will 
+    # keep_alive_interval determines the interval at which Teleport will
     # send keep-alive messages for client and reverse tunnel connections.
     # The default is set to 5 minutes (300 seconds) to stay lower than the
     # common load balancer timeout of 350 seconds.

@@ -27,8 +27,6 @@ var teleport_lib_teleterm_v1_gateway_pb = require('../../../../teleport/lib/tele
 goog.object.extend(proto, teleport_lib_teleterm_v1_gateway_pb);
 var teleport_lib_teleterm_v1_kube_pb = require('../../../../teleport/lib/teleterm/v1/kube_pb.js');
 goog.object.extend(proto, teleport_lib_teleterm_v1_kube_pb);
-var teleport_lib_teleterm_v1_label_pb = require('../../../../teleport/lib/teleterm/v1/label_pb.js');
-goog.object.extend(proto, teleport_lib_teleterm_v1_label_pb);
 var teleport_lib_teleterm_v1_server_pb = require('../../../../teleport/lib/teleterm/v1/server_pb.js');
 goog.object.extend(proto, teleport_lib_teleterm_v1_server_pb);
 var teleport_lib_teleterm_v1_usage_events_pb = require('../../../../teleport/lib/teleterm/v1/usage_events_pb.js');
@@ -1229,7 +1227,7 @@ if (goog.DEBUG && !COMPILED) {
  * @constructor
  */
 proto.teleport.lib.teleterm.v1.CreateConnectMyComputerNodeTokenResponse = function(opt_data) {
-  jspb.Message.initialize(this, opt_data, 0, -1, proto.teleport.lib.teleterm.v1.CreateConnectMyComputerNodeTokenResponse.repeatedFields_, null);
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
 };
 goog.inherits(proto.teleport.lib.teleterm.v1.CreateConnectMyComputerNodeTokenResponse, jspb.Message);
 if (goog.DEBUG && !COMPILED) {
@@ -10618,13 +10616,6 @@ proto.teleport.lib.teleterm.v1.CreateConnectMyComputerNodeTokenRequest.prototype
 
 
 
-/**
- * List of repeated fields within this message type.
- * @private {!Array<number>}
- * @const
- */
-proto.teleport.lib.teleterm.v1.CreateConnectMyComputerNodeTokenResponse.repeatedFields_ = [2];
-
 
 
 if (jspb.Message.GENERATE_TO_OBJECT) {
@@ -10656,9 +10647,7 @@ proto.teleport.lib.teleterm.v1.CreateConnectMyComputerNodeTokenResponse.prototyp
  */
 proto.teleport.lib.teleterm.v1.CreateConnectMyComputerNodeTokenResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    token: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    labelsList: jspb.Message.toObjectList(msg.getLabelsList(),
-    teleport_lib_teleterm_v1_label_pb.Label.toObject, includeInstance)
+    token: jspb.Message.getFieldWithDefault(msg, 1, "")
   };
 
   if (includeInstance) {
@@ -10699,11 +10688,6 @@ proto.teleport.lib.teleterm.v1.CreateConnectMyComputerNodeTokenResponse.deserial
       var value = /** @type {string} */ (reader.readString());
       msg.setToken(value);
       break;
-    case 2:
-      var value = new teleport_lib_teleterm_v1_label_pb.Label;
-      reader.readMessage(value,teleport_lib_teleterm_v1_label_pb.Label.deserializeBinaryFromReader);
-      msg.addLabels(value);
-      break;
     default:
       reader.skipField();
       break;
@@ -10740,14 +10724,6 @@ proto.teleport.lib.teleterm.v1.CreateConnectMyComputerNodeTokenResponse.serializ
       f
     );
   }
-  f = message.getLabelsList();
-  if (f.length > 0) {
-    writer.writeRepeatedMessage(
-      2,
-      f,
-      teleport_lib_teleterm_v1_label_pb.Label.serializeBinaryToWriter
-    );
-  }
 };
 
 
@@ -10766,44 +10742,6 @@ proto.teleport.lib.teleterm.v1.CreateConnectMyComputerNodeTokenResponse.prototyp
  */
 proto.teleport.lib.teleterm.v1.CreateConnectMyComputerNodeTokenResponse.prototype.setToken = function(value) {
   return jspb.Message.setProto3StringField(this, 1, value);
-};
-
-
-/**
- * repeated Label labels = 2;
- * @return {!Array<!proto.teleport.lib.teleterm.v1.Label>}
- */
-proto.teleport.lib.teleterm.v1.CreateConnectMyComputerNodeTokenResponse.prototype.getLabelsList = function() {
-  return /** @type{!Array<!proto.teleport.lib.teleterm.v1.Label>} */ (
-    jspb.Message.getRepeatedWrapperField(this, teleport_lib_teleterm_v1_label_pb.Label, 2));
-};
-
-
-/**
- * @param {!Array<!proto.teleport.lib.teleterm.v1.Label>} value
- * @return {!proto.teleport.lib.teleterm.v1.CreateConnectMyComputerNodeTokenResponse} returns this
-*/
-proto.teleport.lib.teleterm.v1.CreateConnectMyComputerNodeTokenResponse.prototype.setLabelsList = function(value) {
-  return jspb.Message.setRepeatedWrapperField(this, 2, value);
-};
-
-
-/**
- * @param {!proto.teleport.lib.teleterm.v1.Label=} opt_value
- * @param {number=} opt_index
- * @return {!proto.teleport.lib.teleterm.v1.Label}
- */
-proto.teleport.lib.teleterm.v1.CreateConnectMyComputerNodeTokenResponse.prototype.addLabels = function(opt_value, opt_index) {
-  return jspb.Message.addToRepeatedWrapperField(this, 2, opt_value, proto.teleport.lib.teleterm.v1.Label, opt_index);
-};
-
-
-/**
- * Clears the list making it empty but non-null.
- * @return {!proto.teleport.lib.teleterm.v1.CreateConnectMyComputerNodeTokenResponse} returns this
- */
-proto.teleport.lib.teleterm.v1.CreateConnectMyComputerNodeTokenResponse.prototype.clearLabelsList = function() {
-  return this.setLabelsList([]);
 };
 
 

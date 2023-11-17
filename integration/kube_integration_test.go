@@ -1290,8 +1290,8 @@ func testKubeTransportProtocol(t *testing.T, suite *KubeSuite) {
 	resp1, err := client.Get(u.String())
 	require.NoError(t, err)
 	defer resp1.Body.Close()
-	require.Equal(t, resp1.StatusCode, 200)
-	require.Equal(t, resp1.Proto, "HTTP/1.1")
+	require.Equal(t, 200, resp1.StatusCode)
+	require.Equal(t, "HTTP/1.1", resp1.Proto)
 
 	// call proxy with an HTTP2 client
 	err = http2.ConfigureTransport(trans)
@@ -1300,8 +1300,8 @@ func testKubeTransportProtocol(t *testing.T, suite *KubeSuite) {
 	resp2, err := client.Get(u.String())
 	require.NoError(t, err)
 	defer resp2.Body.Close()
-	require.Equal(t, resp2.StatusCode, 200)
-	require.Equal(t, resp2.Proto, "HTTP/2.0")
+	require.Equal(t, 200, resp2.StatusCode)
+	require.Equal(t, "HTTP/2.0", resp2.Proto)
 
 	// stream succeeds with an h1 transport
 	command := kubeExecArgs{
@@ -1328,8 +1328,8 @@ func (s *KubeSuite) teleKubeConfig(hostname string) *servicecfg.Config {
 	tconf.SSH.Enabled = true
 	tconf.Proxy.DisableWebInterface = true
 	tconf.PollingPeriod = 500 * time.Millisecond
-	tconf.ClientTimeout = time.Second
-	tconf.ShutdownTimeout = 2 * tconf.ClientTimeout
+	tconf.Testing.ClientTimeout = time.Second
+	tconf.Testing.ShutdownTimeout = 2 * tconf.Testing.ClientTimeout
 
 	// set kubernetes specific parameters
 	tconf.Proxy.Kube.Enabled = true
@@ -1347,8 +1347,8 @@ func (s *KubeSuite) teleAuthConfig(hostname string) *servicecfg.Config {
 	tconf.Console = nil
 	tconf.Log = s.log
 	tconf.PollingPeriod = 500 * time.Millisecond
-	tconf.ClientTimeout = time.Second
-	tconf.ShutdownTimeout = 2 * tconf.ClientTimeout
+	tconf.Testing.ClientTimeout = time.Second
+	tconf.Testing.ShutdownTimeout = 2 * tconf.Testing.ClientTimeout
 	tconf.Proxy.Enabled = false
 	tconf.SSH.Enabled = false
 	tconf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
@@ -1789,7 +1789,7 @@ func kubeJoinObserverWithSNISet(t *testing.T, tc *client.TeleportClient, telepor
 
 	sessions, err := teleport.Process.GetAuthServer().GetActiveSessionTrackers(context.Background())
 	require.NoError(t, err)
-	require.Greater(t, len(sessions), 0)
+	require.NotEmpty(t, sessions)
 
 	stream, err := kubeJoin(kube.ProxyConfig{
 		T:                   teleport,

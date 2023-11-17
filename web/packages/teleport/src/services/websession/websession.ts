@@ -33,9 +33,9 @@ const logger = Logger.create('services/session');
 let sesstionCheckerTimerId = null;
 
 const session = {
-  logout() {
+  logout(rememberLocation = false) {
     api.delete(cfg.api.webSessionPath).finally(() => {
-      history.goToLogin();
+      history.goToLogin(rememberLocation);
     });
 
     this.clear();
@@ -71,10 +71,15 @@ const session = {
 
   // renewSession renews session and returns the
   // absolute time the new session expires.
-  renewSession(req: RenewSessionRequest): Promise<Date> {
-    return this._renewToken(req).then(token => token.sessionExpires);
+  renewSession(req: RenewSessionRequest, signal?: AbortSignal): Promise<Date> {
+    return this._renewToken(req, signal).then(token => token.sessionExpires);
   },
 
+  /**
+   * isValid first extracts bearer token from HTML if
+   * not already extracted and sets in the local storage.
+   * Then checks if token is not expired.
+   */
   isValid() {
     return this._timeLeft() > 0;
   },
@@ -128,10 +133,10 @@ const session = {
     return this._timeLeft() < RENEW_TOKEN_TIME;
   },
 
-  _renewToken(req: RenewSessionRequest = {}) {
+  _renewToken(req: RenewSessionRequest = {}, signal?: AbortSignal) {
     this._setAndBroadcastIsRenewing(true);
     return api
-      .post(cfg.getRenewTokenUrl(), req)
+      .post(cfg.getRenewTokenUrl(), req, signal)
       .then(json => {
         const token = makeBearerToken(json);
         localStorage.setBearerToken(token);
@@ -190,12 +195,20 @@ const session = {
   },
 
   _fetchStatus() {
-    api.get(cfg.api.userStatusPath).catch(err => {
+    this.validateCookieAndSession().catch(err => {
       // this indicates that session is no longer valid (caused by server restarts or updates)
       if (err.response.status == 403) {
         this.logout();
       }
     });
+  },
+
+  /**
+   * validateCookieAndSessionFromBackend makes an authenticated request
+   * which checks if the cookie and the user session are still valid.
+   */
+  validateCookieAndSession() {
+    return api.get(cfg.api.userStatusPath);
   },
 
   _startTokenChecker() {

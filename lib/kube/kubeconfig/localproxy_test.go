@@ -161,8 +161,9 @@ func TestLocalProxy(t *testing.T) {
 			}},
 		}
 
-		newConfig := CreateLocalProxyConfig(&initialConfig, values)
-		err := Save(kubeconfigPath, *newConfig)
+		newConfig, err := CreateLocalProxyConfig(&initialConfig, values)
+		require.NoError(t, err)
+		err = Save(kubeconfigPath, *newConfig)
 		require.NoError(t, err)
 
 		generatedConfig, err := Load(kubeconfigPath)

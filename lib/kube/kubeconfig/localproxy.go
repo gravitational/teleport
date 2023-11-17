@@ -17,6 +17,7 @@ package kubeconfig
 import (
 	"fmt"
 
+	"github.com/gravitational/trace"
 	"golang.org/x/exp/maps"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 
@@ -72,6 +73,9 @@ type LocalProxyValues struct {
 	ClientKeyData []byte
 	// Clusters is a list of Teleport kube clusters to include.
 	Clusters LocalProxyClusters
+	// OverrideContext is the name of the context or template used when adding a new cluster.
+	// If empty, the context name will be generated from the {teleport-cluster}-{kube-cluster}.
+	OverrideContext string
 }
 
 // TeleportClusterNames returns all Teleport cluster names.
@@ -84,9 +88,13 @@ func (v *LocalProxyValues) TeleportClusterNames() []string {
 }
 
 // CreateLocalProxyConfig creates a kubeconfig for local proxy.
-func CreateLocalProxyConfig(originalKubeConfig *clientcmdapi.Config, localProxyValues *LocalProxyValues) *clientcmdapi.Config {
+func CreateLocalProxyConfig(originalKubeConfig *clientcmdapi.Config, localProxyValues *LocalProxyValues) (*clientcmdapi.Config, error) {
 	prevContext := originalKubeConfig.CurrentContext
 
+	contextTmpl, err := parseContextOverrideTemplate(localProxyValues.OverrideContext)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	// Make a deep copy from default config then remove existing Teleport
 	// entries before adding the ones for local proxy.
 	config := originalKubeConfig.DeepCopy()
@@ -95,6 +103,11 @@ func CreateLocalProxyConfig(originalKubeConfig *clientcmdapi.Config, localProxyV
 
 	for _, cluster := range localProxyValues.Clusters {
 		contextName := ContextName(cluster.TeleportCluster, cluster.KubeCluster)
+		if contextTmpl != nil {
+			if contextName, err = executeKubeContextTemplate(contextTmpl, cluster.TeleportCluster, cluster.KubeCluster); err != nil {
+				return nil, trace.Wrap(err)
+			}
+		}
 
 		config.Clusters[contextName] = &clientcmdapi.Cluster{
 			ProxyURL:                 localProxyValues.LocalProxyURL,
@@ -120,7 +133,7 @@ func CreateLocalProxyConfig(originalKubeConfig *clientcmdapi.Config, localProxyV
 			config.CurrentContext = contextName
 		}
 	}
-	return config
+	return config, nil
 }
 
 // LocalProxyClustersFromDefaultConfig loads Teleport kube clusters data saved

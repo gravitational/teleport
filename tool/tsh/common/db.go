@@ -868,7 +868,7 @@ func (d *databaseInfo) checkAndSetDefaults(cf *CLIConf, tc *client.TeleportClien
 	// If database has admin user defined, we're most likely using automatic
 	// user provisioning so default to Teleport username unless database
 	// username was provided explicitly.
-	if needDBUser && db.GetAdminUser() != "" {
+	if needDBUser && db.GetAdminUser().Name != "" {
 		log.Debugf("Defaulting to Teleport username %q as database username.", tc.Username)
 		d.Username = tc.Username
 		needDBUser = false

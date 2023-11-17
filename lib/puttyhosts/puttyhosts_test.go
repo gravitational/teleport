@@ -300,6 +300,14 @@ func TestNaivelyValidateHostname(t *testing.T) {
 			hostname:   "consecutive..dots",
 			shouldPass: false,
 		},
+		{
+			hostname:   "host:22",
+			shouldPass: false,
+		},
+		{
+			hostname:   "host with spaces",
+			shouldPass: false,
+		},
 	}
 
 	for _, tt := range tests {

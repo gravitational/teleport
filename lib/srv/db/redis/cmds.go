@@ -175,11 +175,11 @@ func (e *Engine) processAuth(ctx context.Context, cmd *redis.Cmd) error {
 
 		err := e.sessionCtx.Checker.CheckAccess(e.sessionCtx.Database,
 			services.AccessState{MFAVerified: true},
-			role.DatabaseRoleMatchers(
-				e.sessionCtx.Database,
-				e.sessionCtx.DatabaseUser,
-				e.sessionCtx.DatabaseName,
-			)...)
+			role.GetDatabaseRoleMatchers(role.RoleMatchersConfig{
+				Database:     e.sessionCtx.Database,
+				DatabaseUser: e.sessionCtx.DatabaseUser,
+				DatabaseName: e.sessionCtx.DatabaseName,
+			})...)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -222,11 +222,11 @@ func (e *Engine) processAuth(ctx context.Context, cmd *redis.Cmd) error {
 
 		err := e.sessionCtx.Checker.CheckAccess(e.sessionCtx.Database,
 			services.AccessState{MFAVerified: true},
-			role.DatabaseRoleMatchers(
-				e.sessionCtx.Database,
-				e.sessionCtx.DatabaseUser,
-				e.sessionCtx.DatabaseName,
-			)...)
+			role.GetDatabaseRoleMatchers(role.RoleMatchersConfig{
+				Database:     e.sessionCtx.Database,
+				DatabaseUser: e.sessionCtx.DatabaseUser,
+				DatabaseName: e.sessionCtx.DatabaseName,
+			})...)
 		if err != nil {
 			return trace.Wrap(err)
 		}

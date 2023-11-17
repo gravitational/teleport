@@ -22,6 +22,7 @@ import (
 	"strings"
 
 	awshttp "github.com/aws/aws-sdk-go-v2/aws/transport/http"
+	"github.com/aws/aws-sdk-go-v2/config"
 	iamTypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/iam"
@@ -121,4 +122,14 @@ func ConvertIAMv2Error(err error) error {
 	}
 
 	return err
+}
+
+// ConvertLoadConfigError converts common AWS config loading errors to trace errors.
+func ConvertLoadConfigError(configErr error) error {
+	switch configErr.(type) {
+	case config.SharedConfigProfileNotExistError:
+		return trace.NotFound(configErr.Error())
+	}
+
+	return configErr
 }

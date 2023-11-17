@@ -100,6 +100,10 @@ const (
 	// By default all users use /bin/bash
 	DefaultShell = "/bin/bash"
 
+	// GRPCMaxConcurrentStreams is the max GRPC streams that can be active at a time.  Once the limit is reached new
+	// RPC calls will queue until capacity is available.
+	GRPCMaxConcurrentStreams = 1000
+
 	// HTTPMaxIdleConns is the max idle connections across all hosts.
 	HTTPMaxIdleConns = 2000
 
@@ -257,9 +261,12 @@ const (
 	// refer to all addresses on the machine.
 	AnyAddress = "0.0.0.0"
 
-	// CallbackTimeout is how long to wait for a response from SSO provider
+	// SSOCallbackTimeout is how long to wait for a response from SSO provider
 	// before timeout.
-	CallbackTimeout = 180 * time.Second
+	SSOCallbackTimeout = 180 * time.Second
+
+	// HeadlessLoginTimeout is how long to wait for user to approve/reject headless login request.
+	HeadlessLoginTimeout = SSOCallbackTimeout
 
 	// NodeJoinTokenTTL is when a token for nodes expires.
 	NodeJoinTokenTTL = 4 * time.Hour

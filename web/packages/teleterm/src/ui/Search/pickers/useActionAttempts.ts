@@ -89,8 +89,11 @@ export function useActionAttempts() {
       await pauseUserInteraction(
         () =>
           new Promise<void>(resolve => {
-            modalsService.openClusterConnectDialog({
+            modalsService.openRegularDialog({
+              kind: 'cluster-connect',
               clusterUri: activeRootClusterUri,
+              reason: undefined,
+              prefill: undefined,
               onSuccess: () => resolve(),
               onCancel: () => resolve(),
             });

@@ -483,7 +483,7 @@ func writeOracleFormat(cfg WriteConfig, writer ConfigWriter) ([]string, error) {
 		}
 	}
 
-	pf, err := pkcs12.Encode(rand.Reader, keyK, certBlock, caCerts, cfg.Password)
+	pf, err := pkcs12.LegacyRC2.WithRand(rand.Reader).Encode(keyK, certBlock, caCerts, cfg.Password)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

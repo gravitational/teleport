@@ -442,7 +442,7 @@ func TestServiceInitExternalLog(t *testing.T) {
 				AuditEventsURI: tt.events,
 			})
 			require.NoError(t, err)
-			loggers, err := initAuthExternalAuditLog(context.Background(), auditConfig, backend, nil /* tracingProvider */)
+			loggers, err := initAuthExternalAuditLog(context.Background(), auditConfig, backend, nil /* tracingProvider */, nil /* externalCloudAudit */)
 			if tt.isErr {
 				require.Error(t, err)
 			} else {
@@ -493,7 +493,7 @@ func TestAthenaAuditLogSetup(t *testing.T) {
 				AuditSessionsURI: "s3://testbucket/sessions-rec",
 			})
 			require.NoError(t, err)
-			log, err := initAuthExternalAuditLog(context.Background(), auditConfig, backend, nil /* tracingProvider */)
+			log, err := initAuthExternalAuditLog(context.Background(), auditConfig, backend, nil /* tracingProvider */, nil /* externalCloudAudit */)
 			tt.wantFn(t, log, err)
 		})
 	}
@@ -821,8 +821,8 @@ func TestTeleportProcess_reconnectToAuth(t *testing.T) {
 	cfg.SSH.Enabled = true
 	cfg.MaxRetryPeriod = 5 * time.Millisecond
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
-	cfg.ConnectFailureC = make(chan time.Duration, 5)
-	cfg.ClientTimeout = time.Millisecond
+	cfg.Testing.ConnectFailureC = make(chan time.Duration, 5)
+	cfg.Testing.ClientTimeout = time.Millisecond
 	cfg.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
 	cfg.Log = utils.NewLoggerForTests()
 	process, err := NewTeleport(cfg)
@@ -842,7 +842,7 @@ func TestTeleportProcess_reconnectToAuth(t *testing.T) {
 	for i := 0; i < 5; i++ {
 		// wait for connection to fail
 		select {
-		case duration := <-process.Config.ConnectFailureC:
+		case duration := <-process.Config.Testing.ConnectFailureC:
 			stepMin := step * time.Duration(i) / 2
 			stepMax := step * time.Duration(i+1)
 
@@ -916,7 +916,7 @@ func TestTeleportProcessAuthVersionCheck(t *testing.T) {
 	currentVersion, err := semver.NewVersion(teleport.Version)
 	require.NoError(t, err)
 	currentVersion.Major++
-	nodeCfg.TeleportVersion = currentVersion.String()
+	nodeCfg.Testing.TeleportVersion = currentVersion.String()
 
 	t.Run("with version check", func(t *testing.T) {
 		testVersionCheck(t, nodeCfg, false)
@@ -1474,8 +1474,8 @@ func TestSingleProcessModeResolver(t *testing.T) {
 			}
 
 			require.NoError(t, err)
-			require.Equal(t, mode, test.mode)
-			require.Equal(t, addr.FullAddress(), test.wantAddr)
+			require.Equal(t, test.mode, mode)
+			require.Equal(t, test.wantAddr, addr.FullAddress())
 		})
 	}
 }

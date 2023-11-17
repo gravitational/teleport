@@ -83,9 +83,8 @@ type Values struct {
 	// SelectCluster is the name of the kubernetes cluster to set in
 	// current-context.
 	SelectCluster string
-	// OverrideContext is the name of the context to set when adding a new cluster.
+	// OverrideContext is the name of the context or template used when adding a new cluster.
 	// If empty, the context name will be generated from the {teleport-cluster}-{kube-cluster}.
-	// It can only be used when adding a single cluster.
 	OverrideContext string
 }
 

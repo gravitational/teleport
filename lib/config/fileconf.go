@@ -96,6 +96,9 @@ type FileConfig struct {
 
 	// Plugins is the section of the config for configuring the plugin service.
 	Plugins PluginService `yaml:"plugin_service,omitempty"`
+
+	// AccessGraph is the section of the config describing AccessGraph service
+	AccessGraph AccessGraph `yaml:"access_graph,omitempty"`
 }
 
 // ReadFromFile reads Teleport configuration from a file. Currently only YAML
@@ -813,6 +816,18 @@ type PluginService struct {
 	Enabled bool `yaml:"enabled"`
 	// Plugins is a map of matchers for enabled plugin resources.
 	Plugins map[string]string `yaml:"plugins,omitempty"`
+}
+
+// AccessGraph represents the configuration for the AccessGraph service.
+type AccessGraph struct {
+	// Enabled enables the AccessGraph service.
+	Enabled bool `yaml:"enabled"`
+	// Endpoint is the endpoint of the AccessGraph service.
+	Endpoint string `yaml:"endpoint"`
+	// CA is the path to the CA certificate for the AccessGraph service.
+	CA string `yaml:"ca"`
+	// Insecure is true if the AccessGraph service should not verify the CA.
+	Insecure bool `yaml:"insecure"`
 }
 
 // Opsgenie represents the configuration for the Opsgenie plugin.
@@ -1695,6 +1710,12 @@ type Database struct {
 type DatabaseAdminUser struct {
 	// Name is the database admin username (e.g. "postgres").
 	Name string `yaml:"name"`
+	// DefaultDatabase is the database that the admin user logs into by
+	// default.
+	//
+	// Depending on the database type, this database may be used to store
+	// procedures or data for managing database users.
+	DefaultDatabase string `yaml:"default_database"`
 }
 
 // DatabaseAD contains database Active Directory configuration.

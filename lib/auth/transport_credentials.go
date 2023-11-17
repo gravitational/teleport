@@ -207,7 +207,7 @@ func (c *TransportCredentials) authorize(ctx context.Context, remoteAddr net.Add
 
 	// construct a context with the keys expected by the Authorizer
 	ctx = authz.ContextWithUserCertificate(ctx, certFromConnState(connState))
-	ctx = authz.ContextWithClientAddr(ctx, remoteAddr)
+	ctx = authz.ContextWithClientSrcAddr(ctx, remoteAddr)
 	ctx = authz.ContextWithUser(ctx, identityGetter)
 
 	authCtx, err := c.authorizer.Authorize(ctx)

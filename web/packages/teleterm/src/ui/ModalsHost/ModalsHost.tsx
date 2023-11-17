@@ -51,15 +51,16 @@ function renderDialog(dialog: Dialog, handleClose: () => void) {
     case 'cluster-connect': {
       return (
         <ClusterConnect
-          clusterUri={dialog.clusterUri}
-          reason={dialog.reason}
-          onCancel={() => {
-            handleClose();
-            dialog.onCancel?.();
-          }}
-          onSuccess={clusterUri => {
-            handleClose();
-            dialog.onSuccess(clusterUri);
+          dialog={{
+            ...dialog,
+            onCancel: () => {
+              handleClose();
+              dialog.onCancel?.();
+            },
+            onSuccess: clusterUri => {
+              handleClose();
+              dialog.onSuccess(clusterUri);
+            },
           }}
         />
       );
@@ -76,6 +77,8 @@ function renderDialog(dialog: Dialog, handleClose: () => void) {
     case 'documents-reopen': {
       return (
         <DocumentsReopen
+          rootClusterUri={dialog.rootClusterUri}
+          numberOfDocuments={dialog.numberOfDocuments}
           onCancel={() => {
             handleClose();
             dialog.onCancel();

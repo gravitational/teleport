@@ -211,7 +211,7 @@ func TestWriteAllFormats(t *testing.T) {
 			for _, file := range files {
 				require.True(t, strings.HasPrefix(file, cfg.OutputPath))
 			}
-			require.True(t, len(files) > 0)
+			require.NotEmpty(t, files)
 		})
 	}
 }

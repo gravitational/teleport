@@ -38,6 +38,8 @@ const clusterLogoutDialog: DialogClusterLogout = {
 
 const documentsReopenDialog: DialogDocumentsReopen = {
   kind: 'documents-reopen',
+  rootClusterUri: '/clusters/foo',
+  numberOfDocuments: 1,
   onConfirm: () => {},
   onCancel: () => {},
 };

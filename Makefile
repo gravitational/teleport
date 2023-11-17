@@ -1097,6 +1097,7 @@ ADDLICENSE_ARGS := -c 'Gravitational, Inc' -l apache \
 		-ignore 'webassets/**' \
 		-ignore '**/node_modules/**' \
 		-ignore 'web/packages/design/src/assets/icomoon/style.css' \
+		-ignore '**/.terraform.lock.hcl' \
 		-ignore 'ignoreme'
 
 .PHONY: lint-license

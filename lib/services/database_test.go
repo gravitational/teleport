@@ -735,12 +735,12 @@ func TestDatabaseFromRDSV2Instance(t *testing.T) {
 		DBClusterIdentifier:              aws.String("cluster-1"),
 		DBInstanceStatus:                 aws.String("available"),
 		DbiResourceId:                    aws.String("resource-1"),
-		IAMDatabaseAuthenticationEnabled: true,
+		IAMDatabaseAuthenticationEnabled: aws.Bool(true),
 		Engine:                           aws.String(RDSEnginePostgres),
 		EngineVersion:                    aws.String("13.0"),
 		Endpoint: &rdsTypesV2.Endpoint{
 			Address: aws.String("localhost"),
-			Port:    5432,
+			Port:    aws.Int32(5432),
 		},
 		TagList: []rdsTypesV2.Tag{{
 			Key:   aws.String("key"),
@@ -2316,7 +2316,7 @@ func TestNewDatabaseFromAzureSQLServer(t *testing.T) {
 				db, ok := i.(types.Database)
 				require.True(t, ok, "expected types.Database, got %T", i)
 
-				require.Equal(t, db.GetProtocol(), defaults.ProtocolSQLServer)
+				require.Equal(t, defaults.ProtocolSQLServer, db.GetProtocol())
 				require.Equal(t, "sqlserver", db.GetName())
 				require.Equal(t, "sqlserver.database.windows.net:1433", db.GetURI())
 				require.Equal(t, "sqlserver", db.GetAzure().Name)
@@ -2371,7 +2371,7 @@ func TestNewDatabaseFromAzureManagedSQLServer(t *testing.T) {
 				db, ok := i.(types.Database)
 				require.True(t, ok, "expected types.Database, got %T", i)
 
-				require.Equal(t, db.GetProtocol(), defaults.ProtocolSQLServer)
+				require.Equal(t, defaults.ProtocolSQLServer, db.GetProtocol())
 				require.Equal(t, "sqlserver", db.GetName())
 				require.Equal(t, "sqlserver.database.windows.net:1433", db.GetURI())
 				require.Equal(t, "sqlserver", db.GetAzure().Name)

@@ -284,10 +284,10 @@ const (
 	KindExternalCloudAudit = "external_cloud_audit"
 	// MetaNameExternalCloudAuditDraft is the exact name of the singleton resource
 	// holding external cloud audit draft configuration.
-	MetaNameExternalCloudAuditDraft = "external-cloud-audit-draft"
+	MetaNameExternalCloudAuditDraft = "draft"
 	// MetaNameExternalCloudAuditCluster is the exact name of the singleton resource
 	// holding external cloud audit cluster configuration.
-	MetaNameExternalCloudAuditCluster = "external-cloud-audit-cluster"
+	MetaNameExternalCloudAuditCluster = "cluster"
 
 	// KindClusterConfig is the resource that holds cluster level configuration.
 	// Deprecated: This does not correspond to an actual resource anymore but is
@@ -444,6 +444,9 @@ const (
 	// KindAssistant is used to program RBAC for
 	// Teleport Assist resources.
 	KindAssistant = "assistant"
+
+	// KindAccessGraph is the RBAC kind for access graph.
+	KindAccessGraph = "access_graph"
 
 	// KindIntegration is a connection to a 3rd party system API.
 	KindIntegration = "integration"
@@ -645,6 +648,10 @@ const (
 	// DatabaseAdminLabel is used to identify database admin user for auto-
 	// discovered databases.
 	DatabaseAdminLabel = TeleportNamespace + "/db-admin"
+
+	// DatabaseAdminDefaultDatabaseLabel is used to identify the database that
+	// the admin user logs into by default.
+	DatabaseAdminDefaultDatabaseLabel = TeleportNamespace + "/db-admin-default-database"
 
 	// cloudKubeClusterNameOverrideLabel is a cloud agnostic label key for
 	// overriding kubernetes cluster name in discovered cloud kube clusters.

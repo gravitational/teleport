@@ -14,13 +14,18 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { throttle } from 'shared/utils/highbar';
 import Logger from 'shared/libs/logger';
+import useAttempt from 'shared/hooks/useAttemptNext';
+import { getErrMessage } from 'shared/utils/errorType';
+import { Box, Indicator } from 'design';
 
 import session from 'teleport/services/websession';
-import history from 'teleport/services/history';
 import localStorage from 'teleport/services/localStorage';
+import { ApiError } from 'teleport/services/api/parseError';
+
+import { ErrorDialog } from './ErrorDialogue';
 
 const logger = Logger.create('/components/Authenticated');
 const ACTIVITY_CHECKER_INTERVAL_MS = 30 * 1000;
@@ -39,11 +44,37 @@ const events = [
 ];
 
 const Authenticated: React.FC = ({ children }) => {
-  React.useEffect(() => {
-    if (!session.isValid()) {
-      logger.warn('invalid session');
-      session.clear();
-      history.goToLogin(true);
+  const { attempt, setAttempt } = useAttempt('processing');
+
+  useEffect(() => {
+    const checkIfUserIsAuthenticated = async () => {
+      if (!session.isValid()) {
+        logger.warn('invalid session');
+        session.logout(true /* rememberLocation */);
+        return;
+      }
+
+      try {
+        await session.validateCookieAndSession();
+        setAttempt({ status: 'success' });
+      } catch (e) {
+        if (e instanceof ApiError && e.response?.status == 403) {
+          logger.warn('invalid session');
+          session.logout(true /* rememberLocation */);
+          // No need to update attempt, as `logout` will
+          // redirect user to login page.
+          return;
+        }
+        // Error unrelated to authentication failure (network blip).
+        setAttempt({ status: 'failed', statusText: getErrMessage(e) });
+      }
+    };
+
+    checkIfUserIsAuthenticated();
+  }, []);
+
+  useEffect(() => {
+    if (attempt.status !== 'success') {
       return;
     }
 
@@ -55,13 +86,21 @@ const Authenticated: React.FC = ({ children }) => {
     }
 
     return startActivityChecker(inactivityTtl);
-  }, []);
+  }, [attempt.status]);
 
-  if (!session.isValid()) {
-    return null;
+  if (attempt.status === 'success') {
+    return <>{children}</>;
   }
 
-  return <>{children}</>;
+  if (attempt.status === 'failed') {
+    return <ErrorDialog errMsg={attempt.statusText} />;
+  }
+
+  return (
+    <Box textAlign="center">
+      <Indicator />
+    </Box>
+  );
 };
 
 export default Authenticated;

@@ -24,6 +24,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	userloginstatev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/userloginstate/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/header"
@@ -68,8 +69,8 @@ func TestGetUserLoginStates(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, getResp.UserLoginStates)
 
-	uls1 := newUserLoginState(t, "1", stRoles, stTraits)
-	uls2 := newUserLoginState(t, "2", stRoles, stTraits)
+	uls1 := newUserLoginState(t, "1", stRoles, stRoles, stTraits)
+	uls2 := newUserLoginState(t, "2", stRoles, stRoles, stTraits)
 
 	_, err = svc.UpsertUserLoginState(ctx, &userloginstatev1.UpsertUserLoginStateRequest{UserLoginState: conv.ToProto(uls1)})
 	require.NoError(t, err)
@@ -94,8 +95,8 @@ func TestUpsertUserLoginStates(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, getResp.UserLoginStates)
 
-	uls1 := newUserLoginState(t, "1", stRoles, stTraits)
-	uls2 := newUserLoginState(t, "2", stRoles, stTraits)
+	uls1 := newUserLoginState(t, "1", stRoles, stRoles, stTraits)
+	uls2 := newUserLoginState(t, "2", stRoles, stRoles, stTraits)
 
 	_, err = svc.UpsertUserLoginState(ctx, &userloginstatev1.UpsertUserLoginStateRequest{UserLoginState: conv.ToProto(uls1)})
 	require.NoError(t, err)
@@ -117,7 +118,7 @@ func TestGetUserLoginState(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, getResp.UserLoginStates)
 
-	uls1 := newUserLoginState(t, "1", stRoles, stTraits)
+	uls1 := newUserLoginState(t, "1", stRoles, stRoles, stTraits)
 
 	_, err = svc.UpsertUserLoginState(ctx, &userloginstatev1.UpsertUserLoginStateRequest{UserLoginState: conv.ToProto(uls1)})
 	require.NoError(t, err)
@@ -143,7 +144,7 @@ func TestDeleteUserLoginState(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, getResp.UserLoginStates)
 
-	uls1 := newUserLoginState(t, "1", stRoles, stTraits)
+	uls1 := newUserLoginState(t, "1", stRoles, stRoles, stTraits)
 
 	_, err = svc.UpsertUserLoginState(ctx, &userloginstatev1.UpsertUserLoginStateRequest{UserLoginState: conv.ToProto(uls1)})
 	require.NoError(t, err)
@@ -170,8 +171,8 @@ func TestDeleteAllAccessLists(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, getResp.UserLoginStates)
 
-	uls1 := newUserLoginState(t, "1", stRoles, stTraits)
-	uls2 := newUserLoginState(t, "2", stRoles, stTraits)
+	uls1 := newUserLoginState(t, "1", stRoles, stRoles, stTraits)
+	uls2 := newUserLoginState(t, "2", stRoles, stRoles, stTraits)
 
 	_, err = svc.UpsertUserLoginState(ctx, &userloginstatev1.UpsertUserLoginStateRequest{UserLoginState: conv.ToProto(uls1)})
 	require.NoError(t, err)
@@ -189,6 +190,17 @@ func TestDeleteAllAccessLists(t *testing.T) {
 	getResp, err = svc.GetUserLoginStates(ctx, &userloginstatev1.GetUserLoginStatesRequest{})
 	require.NoError(t, err)
 	require.Empty(t, getResp.UserLoginStates)
+}
+
+type testClient struct {
+	services.ClusterConfiguration
+	services.Trust
+	services.RoleGetter
+	services.UserGetter
+}
+
+func (c *testClient) ValidateMFAAuthResponse(ctx context.Context, resp *proto.MFAAuthenticateResponse, user string, passwordless bool) (*types.MFADevice, string, error) {
+	return nil, "", nil
 }
 
 func initSvc(t *testing.T) (userContext context.Context, noAccessContext context.Context, svc *Service) {
@@ -210,18 +222,12 @@ func initSvc(t *testing.T) (userContext context.Context, noAccessContext context
 	require.NoError(t, clusterConfigSvc.SetClusterNetworkingConfig(ctx, types.DefaultClusterNetworkingConfig()))
 	require.NoError(t, clusterConfigSvc.SetSessionRecordingConfig(ctx, types.DefaultSessionRecordingConfig()))
 
-	accessPoint := struct {
-		services.ClusterConfiguration
-		services.Trust
-		services.RoleGetter
-		services.UserGetter
-	}{
+	accessPoint := &testClient{
 		ClusterConfiguration: clusterConfigSvc,
 		Trust:                trustSvc,
 		RoleGetter:           roleSvc,
 		UserGetter:           userSvc,
 	}
-
 	accessService := local.NewAccessService(backend)
 	eventService := local.NewEventsService(backend)
 	lockWatcher, err := services.NewLockWatcher(ctx, services.LockWatcherConfig{
