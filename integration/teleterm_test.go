@@ -428,7 +428,7 @@ func testCreateConnectMyComputerRole(t *testing.T, pack *dbhelpers.DatabasePack)
 		{
 			name:                     "user already has existing role that does not include current system username",
 			assignExistingRoleToUser: true,
-			assertCertsReloaded:      require.False,
+			assertCertsReloaded:      require.True,
 			existingRole: func(userName string) types.RoleV6 {
 				return types.RoleV6{
 					Spec: types.RoleSpecV6{
@@ -446,6 +446,23 @@ func testCreateConnectMyComputerRole(t *testing.T, pack *dbhelpers.DatabasePack)
 			name:                     "user already has existing role with modified owner node label",
 			assignExistingRoleToUser: true,
 			assertCertsReloaded:      require.False,
+			existingRole: func(userName string) types.RoleV6 {
+				return types.RoleV6{
+					Spec: types.RoleSpecV6{
+						Allow: types.RoleConditions{
+							NodeLabels: types.Labels{
+								types.ConnectMyComputerNodeOwnerLabel: []string{"bogus-username"},
+							},
+							Logins: []string{systemUser.Username},
+						},
+					},
+				}
+			},
+		},
+		{
+			name:                     "user already has existing role that does not include current system username and has modified owner node label",
+			assignExistingRoleToUser: true,
+			assertCertsReloaded:      require.True,
 			existingRole: func(userName string) types.RoleV6 {
 				return types.RoleV6{
 					Spec: types.RoleSpecV6{
