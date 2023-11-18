@@ -763,6 +763,8 @@ type Server struct {
 	// the auth server. It can be overridden for the purpose of tests.
 	circleCITokenValidate func(ctx context.Context, organizationID, token string) (*circleci.IDTokenClaims, error)
 
+	notificationSender func(ctx context.Context, username string, title string, body string, category string) error
+
 	// k8sTokenReviewValidator allows tokens from Kubernetes to be validated
 	// by the auth server using k8s Token Review API. It can be overridden for
 	// the purpose of tests.
@@ -2314,6 +2316,34 @@ func (a *Server) submitCertificateIssuedEvent(req *certRequest, params services.
 		UsageDesktop:     desktop,
 		PrivateKeyPolicy: string(params.PrivateKeyPolicy),
 	})
+}
+
+// GenerateMobileUserCert
+// TODO(noah): Find a solution to letting the mobile service generate certs
+// that isn't this weirdy exporty stub.
+func (a *Server) GenerateMobileUserCert(ctx context.Context, username string, publicKey []byte) (*proto.Certs, error) {
+	userState, err := a.GetUserOrLoginState(ctx, username)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	accessInfo := services.AccessInfoFromUserState(userState)
+	clusterName, err := a.GetClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	checker, err := services.NewAccessChecker(accessInfo, clusterName.GetClusterName(), a)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return generateCert(a, certRequest{
+		publicKey: publicKey,
+		// Temporary TTL whilst we hack on this
+		ttl:     time.Hour * 24,
+		user:    userState,
+		checker: checker,
+		traits:  userState.GetTraits(),
+	}, types.UserCA)
 }
 
 // generateUserCert generates certificates signed with User CA
@@ -4366,6 +4396,28 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 	if err != nil {
 		log.WithError(err).Warn("Failed to emit access request create event.")
 	}
+	go func() {
+		ctx := context.Background()
+		users, err := a.GetUsers(ctx, false)
+		if err != nil {
+			log.WithError(err).Error("failed to fetch users to notify")
+		}
+		for _, u := range users {
+			err := a.notificationSender(
+				ctx,
+				u.GetName(),
+				"✉️ New Access Request",
+				fmt.Sprintf(
+					"A new access request from %s is ready for review",
+					req.GetUser(),
+				),
+				"ACCESS_REQUEST",
+			)
+			if err != nil {
+				log.WithError(err).Error("failed to notify")
+			}
+		}
+	}()
 
 	// calculate the promotions
 	reqCopy, promotions := a.generateAccessRequestPromotions(ctx, req)
@@ -4560,6 +4612,31 @@ func (a *Server) submitAccessReview(
 	if err := a.emitter.EmitAuditEvent(a.closeCtx, event); err != nil {
 		log.WithError(err).Warn("Failed to emit access request update event.")
 	}
+	go func() {
+		state := strings.ToLower(params.Review.ProposedState.String())
+		emoji := "🦷"
+		switch params.Review.ProposedState {
+		case types.RequestState_APPROVED:
+			emoji = "✅"
+		case types.RequestState_DENIED:
+			emoji = "❌"
+		}
+
+		err := a.notificationSender(
+			context.Background(),
+			req.GetUser(),
+			fmt.Sprintf("%s Access Request %s", emoji, strings.Title(state)),
+			fmt.Sprintf(
+				"Your access request has been %s by %s",
+				state,
+				params.Review.Author,
+			),
+			"",
+		)
+		if err != nil {
+			log.WithError(err).Error("failed to notify")
+		}
+	}()
 
 	return req, nil
 }

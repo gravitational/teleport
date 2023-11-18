@@ -1,0 +1,65 @@
+// Copyright 2023 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package teleport.mobilenotifications.v1;
+
+option go_package = "github.com/gravitational/teleport/gen/proto/go/mobilenotifications/v1;mobilenotificationsv1";
+
+// MobileNotificationsService is a service that sends push notifications to
+// mobile devices.
+service MobileNotificationsService {
+  // SendNotification sends a push notification to a mobile device.
+  rpc SendNotification(SendNotificationRequest) returns (SendNotificationResponse) {}
+  // RegisterDevice registers a device token with the server.
+  rpc RegisterDevice(RegisterDeviceRequest) returns (RegisterDeviceResponse) {}
+}
+
+// SendNotificationRequest is a request to send a push notification to a mobile
+// device.
+message SendNotificationRequest {
+  // Title is the title of the notification.
+  string title = 1;
+  // Body is the body of the notification.
+  string body = 2;
+  // Device UUID is a unique identifier for a mobile device.
+  string device_uuid = 3;
+  // Cluster ID is a unique identifier for a cluster.
+  string cluster_id = 4;
+  // Data is a map of key-value pairs that can be used to pass additional
+  // information to the mobile device.
+  map<string, string> data = 5;
+  // Category is the category of the notification.
+  string category = 6;
+}
+
+// SendNotificationResponse is a response to a SendNotificationRequest.
+message SendNotificationResponse {}
+
+// RegisterDeviceRequest is a request to register a device token with the server.
+message RegisterDeviceRequest {
+  // Device token is a unique identifier for a mobile device.
+  string device_token = 1;
+  // Cluster ID is a unique identifier for a cluster.
+  string cluster_id = 2;
+}
+
+// RegisterDeviceResponse is a response to a RegisterDeviceRequest.
+message RegisterDeviceResponse {
+  string device_uuid = 1;
+  // Already registered indicates whether the device token is already registered
+  // with the server.
+  bool already_registered = 2;
+}

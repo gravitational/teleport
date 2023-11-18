@@ -34,7 +34,7 @@ main() {
   # Clean gen/proto directories before regenerating them. Legacy protos are
   # generated all over the directory tree, so they won't get cleaned up
   # automatically if the proto is deleted.
-  [[ $skip_rm -eq 0 ]] && echoed rm -fr api/gen/proto gen/proto
+#  [[ $skip_rm -eq 0 ]] && echoed rm -fr api/gen/proto gen/proto
 
   # Generate Gogo protos. Generated protos are written to
   # gogogen/github.com/gravitational/teleport/..., so we copy them to the
@@ -69,6 +69,24 @@ main() {
   # Generate connect-go protos.
   echoed buf generate --template=buf-connect-go.gen.yaml \
     --path=proto/prehog/
+
+  # Generate iOS Swift protos.
+  echoed buf generate --template=buf-swift.gen.yaml \
+    --path=api/proto/teleport/legacy/ \
+    --path=api/proto/teleport/accesslist/ \
+    --path=api/proto/teleport/attestation/ \
+    --path=api/proto/teleport/userloginstate/ \
+    --path=api/proto/teleport/discoveryconfig/ \
+    --path=api/proto/teleport/externalcloudaudit/ \
+    --path=api/proto/teleport/header/ \
+    --path=api/proto/teleport/secreports/ \
+    --path=api/proto/teleport/trait/ \
+    --path=api/proto/teleport/usageevents/ \
+    --path=api/proto/teleport/mobile/
+
+  # Generate Rust protos.
+  echoed buf generate --template=buf-rust.gen.yaml \
+    --path=api/proto/teleport/mobilenotifications/
 
   # Generate JS protos.
   [[ $skip_js -eq 0 ]] && echoed buf generate --template=buf-js.gen.yaml \

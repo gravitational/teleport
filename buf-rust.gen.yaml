@@ -1,0 +1,21 @@
+version: v1
+plugins:
+  - plugin: buf.build/community/neoeinstein-prost:v0.2.3
+    out: gen/proto/rust/src
+    opt:
+      - bytes=.
+      - compile_well_known_types
+      - extern_path=.google.protobuf=::pbjson_types
+      - file_descriptor_set
+  - plugin: buf.build/community/neoeinstein-prost-serde:v0.2.3
+    out: gen/proto/rust/src
+  - plugin: buf.build/community/neoeinstein-tonic:v0.3.0
+    out: gen/proto/rust/src
+    opt:
+      - compile_well_known_types
+      - extern_path=.google.protobuf=::pbjson_types
+  - plugin: prost-crate
+    out: gen/proto/rust
+    strategy: all
+    opt:
+      - gen_crate=Cargo.toml

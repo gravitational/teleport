@@ -130,6 +130,9 @@ type User interface {
 	IsBot() bool
 	// BotGenerationLabel returns the bot generation label.
 	BotGenerationLabel() string
+
+	GetMobileDeviceIDs() []string
+	AddMobileDeviceID(token string)
 }
 
 // NewUser creates new empty user
@@ -159,6 +162,16 @@ func (u *UserV2) GetVersion() string {
 // GetKind returns resource kind
 func (u *UserV2) GetKind() string {
 	return u.Kind
+}
+
+// GetKind returns resource kind
+func (u *UserV2) GetMobileDeviceIDs() []string {
+	return u.Spec.MobileDeviceIDs
+}
+
+func (u *UserV2) AddMobileDeviceID(token string) {
+	u.Spec.MobileDeviceIDs = append(u.Spec.MobileDeviceIDs, token)
+	u.Spec.MobileDeviceIDs = utils.Deduplicate(u.Spec.MobileDeviceIDs)
 }
 
 // GetSubKind returns resource sub kind

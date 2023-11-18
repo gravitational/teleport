@@ -887,6 +887,9 @@ func (h *Handler) bindDefaultEndpoints() {
 
 	// Updates the user's cluster preferences.
 	h.PUT("/webapi/user/preferences/:site", h.WithClusterAuth(h.updateUserClusterPreferences))
+
+	// Mobile
+	h.POST("/webapi/mobile/auth", h.WithAuth(h.mobileAuthCreate))
 }
 
 // GetProxyClient returns authenticated auth server client

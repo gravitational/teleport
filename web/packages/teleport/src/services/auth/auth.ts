@@ -303,6 +303,14 @@ const auth = {
       .fetchWebauthnChallenge()
       .then(res => makeWebauthnAssertionResponse(res));
   },
+
+  createMobileAuthToken() {
+    return api.post(cfg.api.mobileCreateAuthTokenPath).then(res => {
+      return {
+        token: res.token,
+      };
+    });
+  },
 };
 
 function base64EncodeUnicode(str: string) {
