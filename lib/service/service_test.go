@@ -548,7 +548,7 @@ func TestAthenaAuditLogSetup(t *testing.T) {
 			name:          "external audit storage without athena uri",
 			uris:          []string{sampleFileURI},
 			externalAudit: externalCloudAuditEnabled,
-			expectErr:     trace.BadParameter("athena audit_events_uri must be configured when External Audit Storage is enabled"),
+			expectErr:     externalAuditMissingAthenaError,
 		},
 		{
 			name:          "external audit storage with multiple uris",

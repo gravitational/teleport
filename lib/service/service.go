@@ -1462,6 +1462,8 @@ func initAuthUploadHandler(ctx context.Context, auditConfig types.ClusterAuditCo
 	}
 }
 
+var externalAuditMissingAthenaError = trace.BadParameter("athena audit_events_uri must be configured when External Audit Storage is enabled")
+
 // initAuthExternalAuditLog initializes the auth server's audit log.
 func (process *TeleportProcess) initAuthExternalAuditLog(auditConfig types.ClusterAuditConfig, externalCloudAudit *externalcloudaudit.Configurator) (events.AuditLogger, error) {
 	ctx := process.ExitContext()
@@ -1599,7 +1601,7 @@ func (process *TeleportProcess) initAuthExternalAuditLog(auditConfig types.Clust
 
 	if len(loggers) < 1 {
 		if externalCloudAudit.IsUsed() {
-			return nil, trace.BadParameter("athena audit_events_uri must be configured when External Audit Storage is enabled")
+			return nil, externalAuditMissingAthenaError
 
 		}
 		return nil, nil
