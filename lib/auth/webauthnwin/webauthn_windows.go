@@ -32,8 +32,7 @@ import (
 var (
 	// For reference, see
 	// https://learn.microsoft.com/en-us/windows/win32/api/webauthn/.
-	procWebAuthNFreeAssertion = modWebAuthn.NewProc("WebAuthNFreeAssertion")
-	procWebAuthNGetErrorName  = modWebAuthn.NewProc("WebAuthNGetErrorName")
+	procWebAuthNGetErrorName = modWebAuthn.NewProc("WebAuthNGetErrorName")
 
 	modUser32               = windows.NewLazySystemDLL("user32.dll")
 	procGetForegroundWindow = modUser32.NewProc("GetForegroundWindow")
@@ -190,12 +189,7 @@ func freeCredentialAttestation(in *webauthnCredentialAttestation) error {
 }
 
 func freeAssertion(in *webauthnAssertion) error {
-	_, _, err := procWebAuthNFreeAssertion.Call(
-		uintptr(unsafe.Pointer(in)),
-	)
-	if err != syscall.Errno(0) {
-		return err
-	}
+	webAuthNFreeAssertion(in)
 	return nil
 }
 
