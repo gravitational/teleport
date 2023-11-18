@@ -24,7 +24,7 @@ use ironrdp_pdu::PduResult;
 use ironrdp_svc::impl_as_any;
 use static_init::dynamic;
 
-use crate::client::{ClientFunction, ClientHandle};
+use crate::client::ClientHandle;
 use crate::util;
 
 #[dynamic]
@@ -60,9 +60,7 @@ impl TeleportCliprdrBackend {
     {
         let res = self
             .client_handle
-            .blocking_send(ClientFunction::WriteCliprdr(Box::new(
-                ClipboardFnInternal::new(name, f),
-            )));
+            .write_cliprdr(Box::new(ClipboardFnInternal::new(name, f)));
         if let Err(e) = res {
             error!("Couldn't send request for {}: {:?}", name, e);
         }
@@ -159,11 +157,8 @@ impl CliprdrBackend for TeleportCliprdrBackend {
             }
         };
         match data {
-            Some(mut data) => {
-                if let Err(e) = self
-                    .client_handle
-                    .blocking_send(ClientFunction::HandleRemoteCopy(data.into_bytes()))
-                {
+            Some(data) => {
+                if let Err(e) = self.client_handle.handle_remote_copy(data.into_bytes()) {
                     error!("Can't send format_data_response: {:?}", e);
                 }
             }
@@ -270,7 +265,7 @@ fn adjust_new_lines(data: &str) -> String {
     converted
 }
 
-fn convert_string(data: &String, format_id: ClipboardFormatId) -> Option<Vec<u8>> {
+fn convert_string(data: &str, format_id: ClipboardFormatId) -> Option<Vec<u8>> {
     match format_id {
         ClipboardFormatId::CF_UNICODETEXT => Some(util::to_unicode(&adjust_new_lines(data), true)),
         ClipboardFormatId::CF_TEXT if data.is_ascii() => {
@@ -325,11 +320,7 @@ mod tests {
                 ClipboardFormatId::CF_UNICODETEXT,
             ), // detection and utf8 -> utf16 conversion & no CRLF conversion
         ] {
-            assert_eq!(
-                expected,
-                convert_string(&input.to_string(), format),
-                "testing {input}",
-            );
+            assert_eq!(expected, convert_string(input, format), "testing {input}",);
         }
     }
 }

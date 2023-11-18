@@ -25,9 +25,10 @@
 #[macro_use]
 extern crate log;
 
-use crate::client::{Client, ClientFunction};
+use crate::client::global::get_client_handle;
+use crate::client::Client;
 use crate::rdpdr::tdp::SharedDirectoryAnnounce;
-use client::{call_function_on_handle, ConnectParams};
+use client::{ClientHandle, ClientResult, ConnectParams};
 use ironrdp_pdu::{other_err, PduError};
 use ironrdp_session::image::DecodedImage;
 use rdpdr::path::UnixPath;
@@ -121,6 +122,26 @@ pub unsafe extern "C" fn client_run(cgo_handle: CgoHandle, params: CGOConnectPar
     }
 }
 
+fn handle_operation<T>(cgo_handle: CgoHandle, ctx: &'static str, f: T) -> CGOErrCode
+where
+    T: FnOnce(ClientHandle) -> ClientResult<()>,
+{
+    let client_handle = match get_client_handle(cgo_handle) {
+        Some(it) => it,
+        None => {
+            warn!("call_function_on_handle failed: handle not found");
+            return CGOErrCode::ErrCodeFailure;
+        }
+    };
+    match f(client_handle) {
+        Ok(_) => CGOErrCode::ErrCodeSuccess,
+        Err(e) => {
+            error!("{} failed: {:?}", ctx, e);
+            CGOErrCode::ErrCodeFailure
+        }
+    }
+}
+
 /// client_stop ensures that a connection started by [`client_run`] is stopped
 /// and that all related memory is cleaned up. Calling [`client_stop`] on a handle
 /// that's already been dropped is safe and will result in a no-op.
@@ -131,7 +152,9 @@ pub unsafe extern "C" fn client_run(cgo_handle: CgoHandle, params: CGOConnectPar
 #[no_mangle]
 pub unsafe extern "C" fn client_stop(cgo_handle: CgoHandle) -> CGOErrCode {
     trace!("client_stop");
-    call_function_on_handle(cgo_handle, ClientFunction::Stop)
+    handle_operation(cgo_handle, "client_stop", move |client_handle| {
+        client_handle.stop()
+    })
 }
 
 /// `client_update_clipboard` is called from Go, and caches data that was copied
@@ -152,7 +175,11 @@ pub unsafe extern "C" fn client_update_clipboard(
 ) -> CGOErrCode {
     let data = from_go_array(data, len);
     match String::from_utf8(data) {
-        Ok(s) => call_function_on_handle(cgo_handle, ClientFunction::UpdateClipboard(s)),
+        Ok(s) => handle_operation(
+            cgo_handle,
+            "client_update_clipboard",
+            move |client_handle| client_handle.update_clipboard(s),
+        ),
         Err(e) => {
             error!("can't convert clipboard data: {}", e);
             CGOErrCode::ErrCodeFailure
@@ -176,7 +203,11 @@ pub unsafe extern "C" fn client_handle_tdp_sd_announce(
     sd_announce: CGOSharedDirectoryAnnounce,
 ) -> CGOErrCode {
     let sd_announce = SharedDirectoryAnnounce::from(sd_announce);
-    call_function_on_handle(cgo_handle, ClientFunction::HandleTdpSdAnnounce(sd_announce))
+    handle_operation(
+        cgo_handle,
+        "client_handle_tdp_sd_announce",
+        move |client_handle| client_handle.handle_tdp_sd_announce(sd_announce),
+    )
 }
 
 /// client_handle_tdp_sd_info_response handles a TDP Shared Directory Info Response
@@ -194,7 +225,11 @@ pub unsafe extern "C" fn client_handle_tdp_sd_info_response(
     res: CGOSharedDirectoryInfoResponse,
 ) -> CGOErrCode {
     let res = SharedDirectoryInfoResponse::from(res);
-    call_function_on_handle(cgo_handle, ClientFunction::HandleTdpSdInfoResponse(res))
+    handle_operation(
+        cgo_handle,
+        "client_handle_tdp_sd_info_response",
+        move |client_handle| client_handle.handle_tdp_sd_info_response(res),
+    )
 }
 
 /// client_handle_tdp_sd_create_response handles a TDP Shared Directory Create Response
@@ -210,7 +245,11 @@ pub unsafe extern "C" fn client_handle_tdp_sd_create_response(
     res: CGOSharedDirectoryCreateResponse,
 ) -> CGOErrCode {
     let res = SharedDirectoryCreateResponse::from(res);
-    call_function_on_handle(cgo_handle, ClientFunction::HandleTdpSdCreateResponse(res))
+    handle_operation(
+        cgo_handle,
+        "client_handle_tdp_sd_create_response",
+        move |client_handle| client_handle.handle_tdp_sd_create_response(res),
+    )
 }
 
 /// client_handle_tdp_sd_delete_response handles a TDP Shared Directory Delete Response
@@ -225,7 +264,11 @@ pub unsafe extern "C" fn client_handle_tdp_sd_delete_response(
     cgo_handle: CgoHandle,
     res: CGOSharedDirectoryDeleteResponse,
 ) -> CGOErrCode {
-    call_function_on_handle(cgo_handle, ClientFunction::HandleTdpSdDeleteResponse(res))
+    handle_operation(
+        cgo_handle,
+        "client_handle_tdp_sd_delete_response",
+        move |client_handle| client_handle.handle_tdp_sd_delete_response(res),
+    )
 }
 
 /// client_handle_tdp_sd_list_response handles a TDP Shared Directory List Response message.
@@ -311,7 +354,11 @@ pub unsafe extern "C" fn client_handle_tdp_rdp_response_pdu(
     res_len: u32,
 ) -> CGOErrCode {
     let res = from_go_array(res, res_len);
-    call_function_on_handle(cgo_handle, ClientFunction::WriteRawPdu(res))
+    handle_operation(
+        cgo_handle,
+        "client_handle_tdp_rdp_response_pdu",
+        move |client_handle| client_handle.write_raw_pdu(res),
+    )
 }
 
 /// # Safety
@@ -323,7 +370,11 @@ pub unsafe extern "C" fn client_write_rdp_pointer(
     cgo_handle: CgoHandle,
     pointer: CGOMousePointerEvent,
 ) -> CGOErrCode {
-    call_function_on_handle(cgo_handle, ClientFunction::WriteRdpPointer(pointer))
+    handle_operation(
+        cgo_handle,
+        "client_write_rdp_pointer",
+        move |client_handle| client_handle.write_rdp_pointer(pointer),
+    )
 }
 
 /// # Safety
@@ -335,7 +386,11 @@ pub unsafe extern "C" fn client_write_rdp_keyboard(
     cgo_handle: CgoHandle,
     key: CGOKeyboardEvent,
 ) -> CGOErrCode {
-    call_function_on_handle(cgo_handle, ClientFunction::WriteRdpKey(key))
+    handle_operation(
+        cgo_handle,
+        "client_write_rdp_keyboard",
+        move |client_handle| client_handle.write_rdp_key(key),
+    )
 }
 
 /// # Safety
