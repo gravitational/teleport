@@ -19,7 +19,6 @@ use crate::{
     handle_fastpath_pdu, handle_rdp_channel_ids, handle_remote_copy, ssl, CGOErrCode,
     CGOKeyboardEvent, CGOMousePointerEvent, CGOPointerButton, CGOPointerWheel, CgoHandle,
 };
-use bitflags::Flags;
 #[cfg(feature = "fips")]
 use boring::error::ErrorStack;
 use bytes::BytesMut;
@@ -333,6 +332,10 @@ impl Client {
                             Client::handle_tdp_sd_create_response(x224_processor.clone(), res)
                                 .await?;
                         }
+                        ClientFunction::HandleTdpSdDeleteResponse(res) => {
+                            Client::handle_tdp_sd_delete_response(x224_processor.clone(), res)
+                                .await?;
+                        }
                         ClientFunction::WriteCliprdr(f) => {
                             Client::write_cliprdr(x224_processor.clone(), &mut write_stream, f)
                                 .await?;
@@ -534,6 +537,21 @@ impl Client {
             .await?
     }
 
+    async fn handle_tdp_sd_delete_response(
+        x224_processor: Arc<Mutex<X224Processor>>,
+        res: tdp::SharedDirectoryDeleteResponse,
+    ) -> ClientResult<()> {
+        global::TOKIO_RT
+            .spawn_blocking(move || {
+                debug!("received tdp: {:?}", res);
+                let mut x224_processor = Self::x224_lock(&x224_processor)?;
+                let rdpdr = Self::rdpdr_backend(&mut x224_processor)?;
+                rdpdr.handle_tdp_sd_delete_response(res)?;
+                Ok(())
+            })
+            .await?
+    }
+
     async fn add_drive(
         x224_processor: Arc<Mutex<X224Processor>>,
         sda: tdp::SharedDirectoryAnnounce,
@@ -541,11 +559,7 @@ impl Client {
         global::TOKIO_RT
             .spawn_blocking(move || {
                 let mut x224_processor = Self::x224_lock(&x224_processor)?;
-                let rdpdr = x224_processor.get_svc_processor_mut::<Rdpdr>().ok_or(
-                    ClientError::InternalError(
-                        "get_svc_processor_mut::<Rdpdr>() returned None".to_string(),
-                    ),
-                )?;
+                let rdpdr = Self::get_svc_processor_mut::<Rdpdr>(&mut x224_processor)?;
                 let pdu = rdpdr.add_drive(sda.directory_id, sda.name);
                 Ok(pdu)
             })
@@ -617,6 +631,29 @@ impl Client {
             )))
     }
 
+    /// Returns a mutable reference to the [`StaticVirtualChannelProcessor`] of type `S`.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// let mut x224_processor = Self::x224_lock(&x224_processor)?;
+    /// let cliprdr = Self::get_svc_processor_mut::<Cliprdr>(&mut x224_processor)?;
+    /// // Now we can call mutating methods on the Cliprdr processor.
+    /// ```
+    fn get_svc_processor_mut<'a, S>(
+        x224_processor: &'a mut MutexGuard<'_, X224Processor>,
+    ) -> Result<&'a mut S, ClientError>
+    where
+        S: StaticVirtualChannelProcessor + 'static,
+    {
+        x224_processor
+            .get_svc_processor_mut::<S>()
+            .ok_or(ClientError::InternalError(format!(
+                "get_svc_processor_mut::<{}>() returned None",
+                std::any::type_name::<S>(),
+            )))
+    }
+
     /// Returns a mutable reference to the [`TeleportCliprdrBackend`] of the [`Cliprdr`] processor.
     fn cliprdr_backend(
         x224_processor: &mut X224Processor,
@@ -667,6 +704,8 @@ pub enum ClientFunction {
     HandleTdpSdInfoResponse(tdp::SharedDirectoryInfoResponse),
     /// Corresponds to [`Client::handle_tdp_sd_create_response`]
     HandleTdpSdCreateResponse(tdp::SharedDirectoryCreateResponse),
+    /// Corresponds to [`Client::handle_tdp_sd_delete_response`]
+    HandleTdpSdDeleteResponse(tdp::SharedDirectoryDeleteResponse),
     /// Corresponds to [`Client::write_cliprdr`]
     WriteCliprdr(Box<dyn ClipboardFn>),
     /// Corresponds to [`Client::update_clipboard`]
