@@ -42,6 +42,7 @@ var (
 
 	procWebAuthNAuthenticatorGetAssertion                     = modWebAuthn.NewProc("WebAuthNAuthenticatorGetAssertion")
 	procWebAuthNAuthenticatorMakeCredential                   = modWebAuthn.NewProc("WebAuthNAuthenticatorMakeCredential")
+	procWebAuthNFreeAssertion                                 = modWebAuthn.NewProc("WebAuthNFreeAssertion")
 	procWebAuthNFreeCredentialAttestation                     = modWebAuthn.NewProc("WebAuthNFreeCredentialAttestation")
 	procWebAuthNGetApiVersionNumber                           = modWebAuthn.NewProc("WebAuthNGetApiVersionNumber")
 	procWebAuthNIsUserVerifyingPlatformAuthenticatorAvailable = modWebAuthn.NewProc("WebAuthNIsUserVerifyingPlatformAuthenticatorAvailable")
@@ -62,6 +63,11 @@ func webAuthNAuthenticatorMakeCredential(hwnd syscall.Handle, rp *webauthnRPEnti
 	if ret != 0 {
 		err = errnoErr(e1)
 	}
+	return
+}
+
+func webAuthNFreeAssertion(in *webauthnAssertion) {
+	syscall.Syscall(procWebAuthNFreeAssertion.Addr(), 1, uintptr(unsafe.Pointer(in)), 0, 0)
 	return
 }
 
