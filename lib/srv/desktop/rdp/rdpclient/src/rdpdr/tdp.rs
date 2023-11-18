@@ -324,26 +324,6 @@ pub struct SharedDirectoryDeleteRequest {
 }
 
 impl SharedDirectoryDeleteRequest {
-    /// Converts this request into a [`SharedDirectoryDeleteRequest`].
-    ///
-    /// Returns a tuple containing the [`SharedDirectoryDeleteRequest`] and a [`CString`],
-    /// which is the memory backing the [`SharedDirectoryDeleteRequest::path`] field.
-    /// It is the caller's responsibility to ensure that the [`CString`] lives until
-    /// the [`SharedDirectoryDeleteRequest::path`] is copied into Go-owned memory.
-    ///
-    /// See the example for [`SharedDirectoryCreateRequest`]'s `into_cgo`.
-    pub fn into_cgo2(self) -> PduResult<(CGOSharedDirectoryDeleteRequest, CString)> {
-        let path = self.path.to_cstring()?;
-        Ok((
-            CGOSharedDirectoryDeleteRequest {
-                completion_id: self.completion_id,
-                directory_id: self.directory_id,
-                path: path.as_ptr(),
-            },
-            path,
-        ))
-    }
-
     /// See [`CGOWithStrings`].
     pub fn into_cgo(self) -> PduResult<CGOWithStrings<CGOSharedDirectoryDeleteRequest>> {
         let path = self.path.to_cstring()?;
