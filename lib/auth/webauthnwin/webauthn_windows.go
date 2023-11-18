@@ -100,8 +100,7 @@ func (n *nativeImpl) GetAssertion(origin string, in *getAssertionRequest) (*want
 
 	// Note that we need to copy bytes out of `out` if we want to free object.
 	// That's why bytesFromCBytes is used.
-	// We don't care about free error so ignore it explicitly.
-	defer func() { _ = freeAssertion(out) }()
+	defer freeAssertion(out)
 
 	authData := bytesFromCBytes(out.cbAuthenticatorData, out.pbAuthenticatorData)
 	signature := bytesFromCBytes(out.cbSignature, out.pbSignature)
@@ -152,8 +151,7 @@ func (n *nativeImpl) MakeCredential(origin string, in *makeCredentialRequest) (*
 
 	// Note that we need to copy bytes out of `out` if we want to free object.
 	// That's why bytesFromCBytes is used.
-	// We don't care about free error so ignore it explicitly.
-	defer func() { _ = freeCredentialAttestation(out) }()
+	defer freeCredentialAttestation(out)
 
 	credential := bytesFromCBytes(out.cbCredentialID, out.pbCredentialID)
 
@@ -172,16 +170,6 @@ func (n *nativeImpl) MakeCredential(origin string, in *makeCredentialRequest) (*
 			AttestationObject: bytesFromCBytes(out.cbAttestationObject, out.pbAttestationObject),
 		},
 	}, nil
-}
-
-func freeCredentialAttestation(in *webauthnCredentialAttestation) error {
-	webAuthNFreeCredentialAttestation(in)
-	return nil
-}
-
-func freeAssertion(in *webauthnAssertion) error {
-	webAuthNFreeAssertion(in)
-	return nil
 }
 
 // checkIfDLLExistsAndGetAPIVersionNumber checks if dll exists and tries to load

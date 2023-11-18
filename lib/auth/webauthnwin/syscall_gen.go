@@ -25,13 +25,13 @@
 //sys webAuthNAuthenticatorMakeCredential(hwnd syscall.Handle, rp *webauthnRPEntityInformation, user *webauthnUserEntityInformation, pubKeyCredParams *webauthnCoseCredentialParameters, clientData *webauthnClientData, opts *webauthnAuthenticatorMakeCredentialOptions, out **webauthnCredentialAttestation) (ret uintptr, err error) [failretval!=0] = WebAuthn.WebAuthNAuthenticatorMakeCredential
 // https://github.com/microsoft/webauthn/blob/7ab979cc833bfab9a682ed51761309db57f56c8c/webauthn.h#L907
 
-//sys webAuthNFreeCredentialAttestation(in *webauthnCredentialAttestation) = WebAuthn.WebAuthNFreeCredentialAttestation
+//sys freeCredentialAttestation(in *webauthnCredentialAttestation) = WebAuthn.WebAuthNFreeCredentialAttestation
 // https://github.com/microsoft/webauthn/blob/7ab979cc833bfab9a682ed51761309db57f56c8c/webauthn.h#L928
 
 //sys webAuthNAuthenticatorGetAssertion(hwnd syscall.Handle, rpID *uint16, clientData *webauthnClientData, opts *webauthnAuthenticatorGetAssertionOptions, out **webauthnAssertion) (ret uintptr, err error) [failretval!=0] = WebAuthn.WebAuthNAuthenticatorGetAssertion
 // https://github.com/microsoft/webauthn/blob/7ab979cc833bfab9a682ed51761309db57f56c8c/webauthn.h#L919
 
-//sys webAuthNFreeAssertion(in *webauthnAssertion) = WebAuthn.WebAuthNFreeAssertion
+//sys freeAssertion(in *webauthnAssertion) = WebAuthn.WebAuthNFreeAssertion
 // https://github.com/microsoft/webauthn/blob/7ab979cc833bfab9a682ed51761309db57f56c8c/webauthn.h#L933
 
 //sys webAuthNGetErrorName(in uintptr) (ret uintptr) = WebAuthn.WebAuthNGetErrorName

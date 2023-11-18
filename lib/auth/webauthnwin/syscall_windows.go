@@ -69,12 +69,12 @@ func webAuthNAuthenticatorMakeCredential(hwnd syscall.Handle, rp *webauthnRPEnti
 	return
 }
 
-func webAuthNFreeAssertion(in *webauthnAssertion) {
+func freeAssertion(in *webauthnAssertion) {
 	syscall.Syscall(procWebAuthNFreeAssertion.Addr(), 1, uintptr(unsafe.Pointer(in)), 0, 0)
 	return
 }
 
-func webAuthNFreeCredentialAttestation(in *webauthnCredentialAttestation) {
+func freeCredentialAttestation(in *webauthnCredentialAttestation) {
 	syscall.Syscall(procWebAuthNFreeCredentialAttestation.Addr(), 1, uintptr(unsafe.Pointer(in)), 0, 0)
 	return
 }
