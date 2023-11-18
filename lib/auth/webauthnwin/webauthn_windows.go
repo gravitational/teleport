@@ -29,11 +29,6 @@ import (
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 )
 
-var (
-	modUser32               = windows.NewLazySystemDLL("user32.dll")
-	procGetForegroundWindow = modUser32.NewProc("GetForegroundWindow")
-)
-
 var native nativeWebauthn = newNativeImpl()
 
 // nativeImpl keeps diagnostic informations about windows webauthn support.
@@ -230,12 +225,4 @@ func bytesFromCBytes(size uint32, p *byte) []byte {
 	out := make([]byte, len(tmp))
 	copy(out, tmp)
 	return out
-}
-
-func getForegroundWindow() (hwnd syscall.Handle, err error) {
-	r0, _, err := procGetForegroundWindow.Call()
-	if err != syscall.Errno(0) {
-		return syscall.InvalidHandle, err
-	}
-	return syscall.Handle(r0), nil
 }
