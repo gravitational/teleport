@@ -32,7 +32,6 @@ import (
 var (
 	// For reference, see
 	// https://learn.microsoft.com/en-us/windows/win32/api/webauthn/.
-	procWebAuthNFreeCredentialAttestation = modWebAuthn.NewProc("WebAuthNFreeCredentialAttestation")
 	procWebAuthNAuthenticatorGetAssertion = modWebAuthn.NewProc("WebAuthNAuthenticatorGetAssertion")
 	procWebAuthNFreeAssertion             = modWebAuthn.NewProc("WebAuthNFreeAssertion")
 	procWebAuthNGetErrorName              = modWebAuthn.NewProc("WebAuthNGetErrorName")
@@ -193,12 +192,7 @@ func (n *nativeImpl) MakeCredential(origin string, in *makeCredentialRequest) (*
 }
 
 func freeCredentialAttestation(in *webauthnCredentialAttestation) error {
-	_, _, err := procWebAuthNFreeCredentialAttestation.Call(
-		uintptr(unsafe.Pointer(in)),
-	)
-	if err != syscall.Errno(0) {
-		return err
-	}
+	webAuthNFreeCredentialAttestation(in)
 	return nil
 }
 
