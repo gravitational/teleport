@@ -19,10 +19,10 @@
   `teleport-v{{ version }}-windows-amd64-bin\teleport\tsh.exe`.
 
   ```code
-  $ Expand-Archive teleport-v{{ .version }}-windows-amd64-bin.zip
+  $ Expand-Archive teleport-v{{ version }}-windows-amd64-bin.zip
   $ cd teleport-v{{ version }}-windows-amd64-bin\teleport
   $ .\tsh.exe version
-  Teleport v{{ version }} git:v{{ .version }} go(=teleport.golang=)
+  Teleport v{{ version }} git:v{{ version }} go(=teleport.golang=)
   ```
 
   Make sure to move `tsh.exe` into your PATH.
