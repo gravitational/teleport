@@ -2006,6 +2006,11 @@ func (a *ServerWithRoles) DeleteToken(ctx context.Context, token string) error {
 	if err := a.action(apidefaults.Namespace, types.KindToken, types.VerbDelete); err != nil {
 		return trace.Wrap(err)
 	}
+
+	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+		return trace.Wrap(err)
+	}
+
 	return a.authServer.DeleteToken(ctx, token)
 }
 
@@ -2081,12 +2086,19 @@ func (a *ServerWithRoles) UpsertToken(ctx context.Context, token types.Provision
 	if err := a.action(apidefaults.Namespace, types.KindToken, types.VerbCreate, types.VerbUpdate); err != nil {
 		return trace.Wrap(err)
 	}
+
+	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+		return trace.Wrap(err)
+	}
+
 	if err := enforceEnterpriseJoinMethodCreation(token); err != nil {
 		return trace.Wrap(err)
 	}
+
 	if err := a.authServer.UpsertToken(ctx, token); err != nil {
 		return trace.Wrap(err)
 	}
+
 	emitTokenEvent(ctx, a.authServer.emitter, token.GetRoles(), token.GetJoinMethod())
 	return nil
 }
@@ -2096,12 +2108,19 @@ func (a *ServerWithRoles) CreateToken(ctx context.Context, token types.Provision
 	if err := a.action(apidefaults.Namespace, types.KindToken, types.VerbCreate); err != nil {
 		return trace.Wrap(err)
 	}
+
+	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+		return trace.Wrap(err)
+	}
+
 	if err := enforceEnterpriseJoinMethodCreation(token); err != nil {
 		return trace.Wrap(err)
 	}
+
 	if err := a.authServer.CreateToken(ctx, token); err != nil {
 		return trace.Wrap(err)
 	}
+
 	emitTokenEvent(ctx, a.authServer.emitter, token.GetRoles(), jm)
 	return nil
 }
