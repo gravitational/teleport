@@ -32,9 +32,8 @@ import (
 var (
 	// For reference, see
 	// https://learn.microsoft.com/en-us/windows/win32/api/webauthn/.
-	procWebAuthNAuthenticatorGetAssertion = modWebAuthn.NewProc("WebAuthNAuthenticatorGetAssertion")
-	procWebAuthNFreeAssertion             = modWebAuthn.NewProc("WebAuthNFreeAssertion")
-	procWebAuthNGetErrorName              = modWebAuthn.NewProc("WebAuthNGetErrorName")
+	procWebAuthNFreeAssertion = modWebAuthn.NewProc("WebAuthNFreeAssertion")
+	procWebAuthNGetErrorName  = modWebAuthn.NewProc("WebAuthNGetErrorName")
 
 	modUser32               = windows.NewLazySystemDLL("user32.dll")
 	procGetForegroundWindow = modUser32.NewProc("GetForegroundWindow")
@@ -101,13 +100,7 @@ func (n *nativeImpl) GetAssertion(origin string, in *getAssertionRequest) (*want
 	}
 
 	var out *webauthnAssertion
-	ret, _, err := procWebAuthNAuthenticatorGetAssertion.Call(
-		uintptr(hwnd),
-		uintptr(unsafe.Pointer(in.rpID)),
-		uintptr(unsafe.Pointer(in.clientData)),
-		uintptr(unsafe.Pointer(in.opts)),
-		uintptr(unsafe.Pointer(&out)),
-	)
+	ret, err := webAuthNAuthenticatorGetAssertion(hwnd, in.rpID, in.clientData, in.opts, &out)
 	if ret != 0 {
 		return nil, trace.Wrap(getErrorNameOrLastErr(ret, err))
 	}
