@@ -768,7 +768,7 @@ type ReadOktaAccessPoint interface {
 	// GetUser returns a services.User for this cluster.
 	GetUser(name string, withSecrets bool) (types.User, error)
 
-	// GetUsers returns a list of users with the  cluster
+	// GetUsers returns a list of users with the cluster
 	GetUsers(ctx context.Context, withSecrets bool) ([]types.User, error)
 
 	// ListUserGroups returns a paginated list of all user group resources.
