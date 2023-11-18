@@ -49,7 +49,7 @@ func enrollDeviceInit() (*devicepb.EnrollDeviceInit, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	cd, err := collectDeviceData(CollectedDataAlwaysEscalate)
+	cd, err := CollectDeviceData(CollectedDataAlwaysEscalate)
 	if err != nil {
 		return nil, trace.Wrap(err, "collecting device data")
 	}

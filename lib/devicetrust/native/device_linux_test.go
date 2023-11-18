@@ -38,6 +38,13 @@ func TestCollectDeviceData_linux(t *testing.T) {
 	// Silence logging for tests.
 	log.SetLevel(log.PanicLevel)
 
+	// Do not cache data during testing.
+	skipCacheBefore := cachedDeviceData.skipCache
+	cachedDeviceData.skipCache = true
+	t.Cleanup(func() {
+		cachedDeviceData.skipCache = skipCacheBefore
+	})
+
 	u, err := user.Current()
 	require.NoError(t, err, "reading current user")
 
