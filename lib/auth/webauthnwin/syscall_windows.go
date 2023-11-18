@@ -39,6 +39,7 @@ func errnoErr(e syscall.Errno) error {
 
 var (
 	modWebAuthn = windows.NewLazySystemDLL("WebAuthn.dll")
+	moduser32   = windows.NewLazySystemDLL("user32.dll")
 
 	procWebAuthNAuthenticatorGetAssertion                     = modWebAuthn.NewProc("WebAuthNAuthenticatorGetAssertion")
 	procWebAuthNAuthenticatorMakeCredential                   = modWebAuthn.NewProc("WebAuthNAuthenticatorMakeCredential")
@@ -47,6 +48,7 @@ var (
 	procWebAuthNGetApiVersionNumber                           = modWebAuthn.NewProc("WebAuthNGetApiVersionNumber")
 	procWebAuthNGetErrorName                                  = modWebAuthn.NewProc("WebAuthNGetErrorName")
 	procWebAuthNIsUserVerifyingPlatformAuthenticatorAvailable = modWebAuthn.NewProc("WebAuthNIsUserVerifyingPlatformAuthenticatorAvailable")
+	procGetForegroundWindow                                   = moduser32.NewProc("GetForegroundWindow")
 )
 
 func webAuthNAuthenticatorGetAssertion(hwnd syscall.Handle, rpID *uint16, clientData *webauthnClientData, opts *webauthnAuthenticatorGetAssertionOptions, out **webauthnAssertion) (ret uintptr, err error) {
@@ -101,6 +103,15 @@ func webAuthNIsUserVerifyingPlatformAuthenticatorAvailable(out *bool) (ret uintp
 	*out = _p0 != 0
 	ret = uintptr(r0)
 	if ret != 0 {
+		err = errnoErr(e1)
+	}
+	return
+}
+
+func getForegroundWindow() (hwnd syscall.Handle, err error) {
+	r0, _, e1 := syscall.Syscall(procGetForegroundWindow.Addr(), 0, 0, 0, 0)
+	hwnd = syscall.Handle(r0)
+	if hwnd == 0 {
 		err = errnoErr(e1)
 	}
 	return
