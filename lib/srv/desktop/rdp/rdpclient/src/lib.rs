@@ -34,8 +34,8 @@ use ironrdp_session::image::DecodedImage;
 use rdpdr::path::UnixPath;
 use rdpdr::tdp::{
     FileSystemObject, FileType, SharedDirectoryAcknowledge, SharedDirectoryCreateResponse,
-    SharedDirectoryDeleteResponse, SharedDirectoryInfoResponse, SharedDirectoryMoveResponse,
-    SharedDirectoryWriteResponse, TdpErrCode,
+    SharedDirectoryDeleteResponse, SharedDirectoryInfoResponse, SharedDirectoryListResponse,
+    SharedDirectoryMoveResponse, SharedDirectoryWriteResponse, TdpErrCode,
 };
 use std::convert::TryFrom;
 use std::ffi::CString;
@@ -287,8 +287,12 @@ pub unsafe extern "C" fn client_handle_tdp_sd_list_response(
     cgo_handle: CgoHandle,
     res: CGOSharedDirectoryListResponse,
 ) -> CGOErrCode {
-    warn!("unimplemented: client_handle_tdp_sd_list_response");
-    CGOErrCode::ErrCodeSuccess
+    let res = SharedDirectoryListResponse::from(res);
+    handle_operation(
+        cgo_handle,
+        "client_client_handle_tdp_sd_list_response",
+        move |client_handle| client_handle.handle_tdp_sd_list_response(res),
+    )
 }
 
 /// client_handle_tdp_sd_read_response handles a TDP Shared Directory Read Response

@@ -18,7 +18,7 @@ use super::{
 };
 use crate::{
     client::ClientHandle, tdp_sd_create_request, tdp_sd_delete_request, tdp_sd_info_request,
-    CGOErrCode, CgoHandle,
+    tdp_sd_list_request, CGOErrCode, CgoHandle,
 };
 use ironrdp_pdu::{cast_length, custom_err, other_err, PduResult};
 use ironrdp_rdpdr::pdu::efs::{self, NtStatus};
@@ -41,6 +41,7 @@ pub struct FilesystemBackend {
     pending_tdp_sd_info_resp_handlers: ResponseCache<tdp::SharedDirectoryInfoResponse>,
     pending_sd_create_resp_handlers: ResponseCache<tdp::SharedDirectoryCreateResponse>,
     pending_sd_delete_resp_handlers: ResponseCache<tdp::SharedDirectoryDeleteResponse>,
+    pending_sd_list_resp_handlers: ResponseCache<tdp::SharedDirectoryListResponse>,
 }
 
 impl FilesystemBackend {
@@ -52,6 +53,7 @@ impl FilesystemBackend {
             pending_tdp_sd_info_resp_handlers: ResponseCache::new(),
             pending_sd_create_resp_handlers: ResponseCache::new(),
             pending_sd_delete_resp_handlers: ResponseCache::new(),
+            pending_sd_list_resp_handlers: ResponseCache::new(),
         }
     }
 
@@ -294,13 +296,10 @@ impl FilesystemBackend {
             // On the initial query, we need to get the list of files in this directory from
             // the client by sending a TDP SharedDirectoryListRequest.
             // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L775
-            // TODO(isaiah): I'm observing that sometimes rdp_req.path will not be precisely equal to dir.path. For example, we will
-            // get a ServerDriveQueryDirectoryRequest where path == "\\*", whereas the corresponding entry in the file_cache will have
-            // path == "\\". I'm not quite sure what to do with this yet, so just leaving this as a note to self.
             let path = dir.path.clone();
 
             // Ask the client for the list of files in this directory.
-            (self.tdp_sd_list_request)(SharedDirectoryListRequest {
+            self.send_tdp_sd_list_request(tdp::SharedDirectoryListRequest {
                 completion_id: rdp_req.device_io_request.completion_id,
                 directory_id: rdp_req.device_io_request.device_id,
                 path,
@@ -309,41 +308,48 @@ impl FilesystemBackend {
             // When we get the response for that list of files...
             self.pending_sd_list_resp_handlers.insert(
                 rdp_req.device_io_request.completion_id,
-                Box::new(
+                SharedDirectoryListResponseHandler::new(
                     move |cli: &mut Self,
-                          res: SharedDirectoryListResponse|
-                          -> RdpResult<Messages> {
-                        if res.err_code != TdpErrCode::Nil {
-                            // TODO(isaiah): For now any error will kill the session.
+                          tdp_resp: tdp::SharedDirectoryListResponse|
+                          -> PduResult<()> {
+                        if tdp_resp.err_code != TdpErrCode::Nil {
+                            // For now any error will kill the session.
                             // In the future, we might want to make this send back
                             // an NTSTATUS::STATUS_UNSUCCESSFUL instead.
-                            return Err(try_error(&format!(
-                                "SharedDirectoryListRequest failed with err_code = {:?}",
-                                res.err_code
-                            )));
+                            return Err(custom_err!(
+                                "FilesystemBackend::handle_query_directory_req",
+                                FilesystemBackendError(format!(
+                                    "SharedDirectoryListRequest failed with err_code = {:?}",
+                                    tdp_resp.err_code
+                                ))
+                            ));
                         }
 
                         // If SharedDirectoryListRequest succeeded, move the
                         // list of FileSystemObjects that correspond to this directory's
                         // contents to its entry in the file cache.
                         if let Some(dir) = cli.file_cache.get_mut(file_id) {
-                            dir.contents = res.fso_list;
+                            dir.contents = tdp_resp.fso_list;
                             // And send back the "." directory over RDP
                             return cli.send_next_drive_query_dir_response(&rdp_req);
                         }
 
-                        cli.prep_file_cache_fail_drive_quey_dir_response(&rdp_req)
+                        cli.send_drive_query_dir_response(
+                            rdp_req.device_io_request,
+                            NtStatus::UNSUCCESSFUL,
+                            None,
+                        )
                     },
                 ),
             );
 
             // Return nothing yet, an RDP message will be returned when the pending_sd_list_resp_handlers
             // closure gets called.
-            return Ok(vec![]);
+            return Ok(());
         }
 
         // File not found in cache, return a failure
-        self.prep_file_cache_fail_drive_query_dir_response(&rdp_req)
+        self.send_drive_query_dir_response(rdp_req.device_io_request, NtStatus::UNSUCCESSFUL, None)
     }
 
     /// Helper function for writing a [`tdp::SharedDirectoryCreateRequest`] to the browser
@@ -477,6 +483,20 @@ impl FilesystemBackend {
         Ok(())
     }
 
+    /// Sends a [`tdp::SharedDirectoryListRequest`] to the browser.
+    fn send_tdp_sd_list_request(&self, tdp_req: tdp::SharedDirectoryListRequest) -> PduResult<()> {
+        debug!("sending tdp: {:?}", tdp_req);
+        let mut req = tdp_req.into_cgo()?;
+        let err = unsafe { tdp_sd_list_request(self.cgo_handle, req.cgo()) };
+        if err != CGOErrCode::ErrCodeSuccess {
+            return Err(custom_err!(
+                "FilesystemBackend::send_tdp_sd_list_request",
+                FilesystemBackendError(format!("call to tdp_sd_list_request failed: {:?}", err))
+            ));
+        };
+        Ok(())
+    }
+
     /// Called from the Go code when a [`tdp::SharedDirectoryInfoResponse`] is received from the browser.
     ///
     /// Calls the [`SharedDirectoryInfoResponseHandler`] associated with the completion id of the
@@ -541,6 +561,30 @@ impl FilesystemBackend {
         } else {
             Err(custom_err!(
                 "FilesystemBackend::client_handle_tdp_sd_delete_response",
+                FilesystemBackendError(format!(
+                    "received invalid completion id: {}",
+                    tdp_resp.completion_id
+                ))
+            ))
+        }
+    }
+
+    /// Called from the Go code when a [`tdp::SharedDirectoryListResponse`] is received from the browser.
+    ///
+    /// Calls the [`SharedDirectoryListResponseHandler`] associated with the completion id of the
+    /// [`tdp::SharedDirectoryListResponse`].
+    pub fn handle_tdp_sd_list_response(
+        &mut self,
+        tdp_resp: tdp::SharedDirectoryListResponse,
+    ) -> PduResult<()> {
+        if let Some(handler) = self
+            .pending_sd_list_resp_handlers
+            .remove(&tdp_resp.completion_id)
+        {
+            handler.call(self, tdp_resp)
+        } else {
+            Err(custom_err!(
+                "FilesystemBackend::handle_tdp_sd_list_response",
                 FilesystemBackendError(format!(
                     "received invalid completion id: {}",
                     tdp_resp.completion_id
@@ -786,7 +830,7 @@ impl FilesystemBackend {
                 };
 
                 return self.send_drive_query_dir_response(
-                    req.device_io_request,
+                    req.device_io_request.clone(),
                     NtStatus::SUCCESS,
                     buffer,
                 );
@@ -798,14 +842,18 @@ impl FilesystemBackend {
             // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/winpr/libwinpr/file/generic.c#L1193
             // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L114
             return self.send_drive_query_dir_response(
-                req.device_io_request,
+                req.device_io_request.clone(),
                 NtStatus::NO_MORE_FILES,
                 None,
             );
         }
 
         // File not found in cache
-        self.send_drive_query_dir_response(req.device_io_request, NtStatus::UNSUCCESSFUL, None)
+        self.send_drive_query_dir_response(
+            req.device_io_request.clone(),
+            NtStatus::UNSUCCESSFUL,
+            None,
+        )
     }
 
     /// Sends an RDP [`efs::ClientDriveQueryDirectoryResponse`] to the RDP server.
@@ -1021,6 +1069,7 @@ impl<T> std::fmt::Debug for ResponseHandler<T> {
 type SharedDirectoryInfoResponseHandler = ResponseHandler<tdp::SharedDirectoryInfoResponse>;
 type SharedDirectoryCreateResponseHandler = ResponseHandler<tdp::SharedDirectoryCreateResponse>;
 type SharedDirectoryDeleteResponseHandler = ResponseHandler<tdp::SharedDirectoryDeleteResponse>;
+type SharedDirectoryListResponseHandler = ResponseHandler<tdp::SharedDirectoryListResponse>;
 
 type CompletionId = u32;
 

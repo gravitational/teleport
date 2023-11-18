@@ -17,7 +17,7 @@ use crate::{
     util::{self, from_c_string, from_go_array},
     CGOSharedDirectoryAnnounce, CGOSharedDirectoryCreateRequest, CGOSharedDirectoryCreateResponse,
     CGOSharedDirectoryDeleteRequest, CGOSharedDirectoryInfoRequest, CGOSharedDirectoryInfoResponse,
-    CGOSharedDirectoryListResponse, CGOSharedDirectoryReadResponse,
+    CGOSharedDirectoryListRequest, CGOSharedDirectoryListResponse, CGOSharedDirectoryReadResponse,
 };
 use ironrdp_pdu::{cast_length, custom_err, PduResult};
 use ironrdp_rdpdr::pdu::efs::{self, DeviceCloseRequest, DeviceCreateRequest};
@@ -454,6 +454,21 @@ pub struct SharedDirectoryListRequest {
     pub completion_id: u32,
     pub directory_id: u32,
     pub path: UnixPath,
+}
+
+impl SharedDirectoryListRequest {
+    /// See [`CGOWithStrings`].
+    pub fn into_cgo(self) -> PduResult<CGOWithStrings<CGOSharedDirectoryListRequest>> {
+        let path = self.path.to_cstring()?;
+        Ok(CGOWithStrings {
+            cgo: CGOSharedDirectoryListRequest {
+                completion_id: self.completion_id,
+                directory_id: self.directory_id,
+                path: path.as_ptr(),
+            },
+            _strings: vec![path],
+        })
+    }
 }
 
 #[repr(C)]
