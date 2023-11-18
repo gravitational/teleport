@@ -18,25 +18,40 @@ import React, { useCallback, useEffect, useState } from 'react';
 import styled from 'styled-components';
 import { Indicator } from 'design';
 
-import { useAppContext } from './appContextProvider';
-import { initUi } from './initUi';
-import ModalsHost from './ModalsHost';
-import { LayoutManager } from './LayoutManager';
+import { useLogger } from 'teleterm/ui/hooks/useLogger';
+import { useAppContext } from 'teleterm/ui/appContextProvider';
+import ModalsHost from 'teleterm/ui/ModalsHost';
+import { LayoutManager } from 'teleterm/ui/LayoutManager';
+
+import { showStartupModalsAndNotifications } from './showStartupModalsAndNotifications';
 
 export const AppInitializer = () => {
-  const ctx = useAppContext();
-  const [isUiReady, setIsUiReady] = useState(false);
+  const logger = useLogger('AppInitializer');
+
+  const appContext = useAppContext();
+  const [shouldShowUi, setShouldShowUi] = useState(false);
 
   const initializeApp = useCallback(async () => {
     try {
-      await ctx.init();
-      await initUi(ctx);
-      setIsUiReady(true);
+      await appContext.pullInitialState();
+
+      setShouldShowUi(true);
+
+      await showStartupModalsAndNotifications(appContext);
+
+      appContext.mainProcessClient.signalUserInterfaceReadiness({
+        success: true,
+      });
     } catch (error) {
-      setIsUiReady(true);
-      ctx.notificationsService.notifyError(error?.message);
+      logger.error(error?.message);
+
+      setShouldShowUi(true);
+      appContext?.notificationsService.notifyError(error?.message);
+      appContext?.mainProcessClient.signalUserInterfaceReadiness({
+        success: false,
+      });
     }
-  }, [ctx]);
+  }, [appContext, logger]);
 
   useEffect(() => {
     initializeApp();
@@ -45,7 +60,7 @@ export const AppInitializer = () => {
   return (
     <>
       <LayoutManager />
-      {!isUiReady && (
+      {!shouldShowUi && (
         <Centered>
           <Indicator delay="short" />
         </Centered>

@@ -14,7 +14,7 @@
 
 use super::{
     path::UnixPath,
-    tdp::{self, SharedDirectoryDeleteRequest, TdpErrCode},
+    tdp::{self, TdpErrCode},
 };
 use crate::{
     client::ClientHandle, tdp_sd_create_request, tdp_sd_delete_request, tdp_sd_info_request,
@@ -38,9 +38,9 @@ pub struct FilesystemBackend {
     ///
     /// See the documentation for [`FileCacheObject`].
     file_cache: FileCache,
-    pending_tdp_sd_info_resp_handlers: ResponseCache<SharedDirectoryInfoResponseHandler>,
-    pending_sd_create_resp_handlers: ResponseCache<SharedDirectoryCreateResponseHandler>,
-    pending_sd_delete_resp_handlers: ResponseCache<SharedDirectoryDeleteResponseHandler>,
+    pending_tdp_sd_info_resp_handlers: ResponseCache<tdp::SharedDirectoryInfoResponse>,
+    pending_sd_create_resp_handlers: ResponseCache<tdp::SharedDirectoryCreateResponse>,
+    pending_sd_delete_resp_handlers: ResponseCache<tdp::SharedDirectoryDeleteResponse>,
 }
 
 impl FilesystemBackend {
@@ -305,7 +305,7 @@ impl FilesystemBackend {
     /// Helper function for combining a [`tdp::SharedDirectoryDeleteRequest`]
     /// with a [`tdp::SharedDirectoryCreateRequest`] to overwrite a file.
     fn tdp_sd_overwrite(&mut self, rdp_req: efs::DeviceCreateRequest) -> PduResult<()> {
-        let tdp_req = SharedDirectoryDeleteRequest::from(&rdp_req);
+        let tdp_req = tdp::SharedDirectoryDeleteRequest::from(&rdp_req);
         self.send_tdp_sd_delete_request(tdp_req)?;
         self.pending_sd_delete_resp_handlers.insert(
             rdp_req.device_io_request.completion_id,
@@ -354,8 +354,8 @@ impl FilesystemBackend {
     /// Sends a [`tdp::SharedDirectoryInfoRequest`] to the browser.
     fn send_tdp_sd_info_request(&self, tdp_req: tdp::SharedDirectoryInfoRequest) -> PduResult<()> {
         debug!("sending tdp: {:?}", tdp_req);
-        let (mut req, _path) = tdp_req.into_cgo()?;
-        let err = unsafe { tdp_sd_info_request(self.cgo_handle, &mut req) };
+        let mut req = tdp_req.into_cgo()?;
+        let err = unsafe { tdp_sd_info_request(self.cgo_handle, req.cgo()) };
         if err != CGOErrCode::ErrCodeSuccess {
             return Err(custom_err!(
                 "FilesystemBackend::send_tdp_sd_info_request",
@@ -371,8 +371,8 @@ impl FilesystemBackend {
         tdp_req: tdp::SharedDirectoryCreateRequest,
     ) -> PduResult<()> {
         debug!("sending tdp: {:?}", tdp_req);
-        let (mut req, _path) = tdp_req.into_cgo()?;
-        let err = unsafe { tdp_sd_create_request(self.cgo_handle, &mut req) };
+        let mut req = tdp_req.into_cgo()?;
+        let err = unsafe { tdp_sd_create_request(self.cgo_handle, req.cgo()) };
         if err != CGOErrCode::ErrCodeSuccess {
             return Err(custom_err!(
                 "FilesystemBackend::send_tdp_sd_create_request",
@@ -388,8 +388,8 @@ impl FilesystemBackend {
         tdp_req: tdp::SharedDirectoryDeleteRequest,
     ) -> PduResult<()> {
         debug!("sending tdp: {:?}", tdp_req);
-        let (mut req, _path) = tdp_req.into_cgo()?;
-        let err = unsafe { tdp_sd_delete_request(self.cgo_handle, &mut req) };
+        let mut req = tdp_req.into_cgo()?;
+        let err = unsafe { tdp_sd_delete_request(self.cgo_handle, req.cgo()) };
         if err != CGOErrCode::ErrCodeSuccess {
             return Err(custom_err!(
                 "FilesystemBackend::send_tdp_sd_delete_request",
@@ -849,116 +849,55 @@ impl std::fmt::Display for FilesystemBackendError {
 
 impl std::error::Error for FilesystemBackendError {}
 
+type Handler<T> = Box<dyn FnOnce(&mut FilesystemBackend, T) -> PduResult<()> + Send>;
+
 /// When we send a TDP Shared Directory Request to the browser, we expect a response
-/// which we will need to call a function on. A [`ResponseHandler`] is a trait that
-/// represents this function (or, more technically, this closure).
-///
-/// # Example
-///
-/// ```
-/// // Create a new ResponseHandler type by calling the
-/// // response_handler! macro with the name of the new type
-/// // and the type of the response that it will handle.
-/// response_handler!(
-///     SharedDirectoryInfoResponseHandler,
-///     tdp::SharedDirectoryInfoResponse
-/// );
-///
-/// // send a tdp request
-/// send_tdp_sd_info_request(tdp::SharedDirectoryInfoRequest::from(&rdp_req))?;
-///
-/// // Create a handler for handling the response
-/// let handler = SharedDirectoryInfoResponseHandler::new(
-///    move |this: &mut FilesystemBackend,
-///         tdp_resp: tdp::SharedDirectoryInfoResponse|
-///        -> PduResult<()> {
-///         // do something with tdp_resp
-///         Ok(())
-///     },
-///
-/// // Add that handler to a cache of handlers indexed by completion id ([`ResponseCache`]).
-/// ```
-trait ResponseHandler: std::fmt::Debug {
-    type ResponseType;
+/// which we will need to call a function on. A [`ResponseHandler`] is a wrapper around
+/// the function that will be called when the response is received.
+struct ResponseHandler<T>(Handler<T>);
 
+impl<T> ResponseHandler<T> {
     fn new(
-        handler: impl FnOnce(&mut FilesystemBackend, Self::ResponseType) -> PduResult<()>
-            + Send
-            + 'static,
-    ) -> Self;
+        handler: impl FnOnce(&mut FilesystemBackend, T) -> PduResult<()> + Send + 'static,
+    ) -> Self {
+        Self(Box::new(handler))
+    }
 
-    fn call(self, this: &mut FilesystemBackend, res: Self::ResponseType) -> PduResult<()>;
+    fn call(self, this: &mut FilesystemBackend, res: T) -> PduResult<()> {
+        (self.0)(this, res)
+    }
 }
 
-/// See the example in [`ResponseHandler`].
-macro_rules! response_handler {
-    ($name:ident, $response_type:ty) => {
-        struct $name {
-            handler:
-                Box<dyn FnOnce(&mut FilesystemBackend, $response_type) -> PduResult<()> + Send>,
-        }
-
-        impl std::fmt::Debug for $name {
-            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                write!(f, stringify!($name))
-            }
-        }
-
-        impl ResponseHandler for $name {
-            type ResponseType = $response_type;
-
-            fn new(
-                handler: impl FnOnce(&mut FilesystemBackend, Self::ResponseType) -> PduResult<()>
-                    + Send
-                    + 'static,
-            ) -> Self {
-                Self {
-                    handler: Box::new(handler),
-                }
-            }
-
-            fn call(self, this: &mut FilesystemBackend, res: Self::ResponseType) -> PduResult<()> {
-                (self.handler)(this, res)
-            }
-        }
-    };
+impl<T> std::fmt::Debug for ResponseHandler<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "<{}>", std::any::type_name::<T>())
+    }
 }
 
-response_handler!(
-    SharedDirectoryInfoResponseHandler,
-    tdp::SharedDirectoryInfoResponse
-);
-response_handler!(
-    SharedDirectoryCreateResponseHandler,
-    tdp::SharedDirectoryCreateResponse
-);
-response_handler!(
-    SharedDirectoryDeleteResponseHandler,
-    tdp::SharedDirectoryDeleteResponse
-);
+type SharedDirectoryInfoResponseHandler = ResponseHandler<tdp::SharedDirectoryInfoResponse>;
+type SharedDirectoryCreateResponseHandler = ResponseHandler<tdp::SharedDirectoryCreateResponse>;
+type SharedDirectoryDeleteResponseHandler = ResponseHandler<tdp::SharedDirectoryDeleteResponse>;
 
 type CompletionId = u32;
 
 /// A generic cache for storing [`ResponseHandler`]s indexed by [`CompletionId`].
-///
-/// See the example in [`ResponseHandler`].
 #[derive(Debug)]
-struct ResponseCache<T: ResponseHandler> {
-    cache: HashMap<CompletionId, T>,
+struct ResponseCache<T> {
+    cache: HashMap<CompletionId, ResponseHandler<T>>,
 }
 
-impl<T: ResponseHandler> ResponseCache<T> {
+impl<T> ResponseCache<T> {
     fn new() -> Self {
         Self {
             cache: HashMap::new(),
         }
     }
 
-    fn insert(&mut self, completion_id: CompletionId, handler: T) {
+    fn insert(&mut self, completion_id: CompletionId, handler: ResponseHandler<T>) {
         self.cache.insert(completion_id, handler);
     }
 
-    fn remove(&mut self, completion_id: &CompletionId) -> Option<T> {
+    fn remove(&mut self, completion_id: &CompletionId) -> Option<ResponseHandler<T>> {
         self.cache.remove(completion_id)
     }
 }

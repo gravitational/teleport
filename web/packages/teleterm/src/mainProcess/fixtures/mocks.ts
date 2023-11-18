@@ -33,6 +33,18 @@ export class MockMainProcessClient implements MainProcessClient {
     });
   }
 
+  subscribeToNativeThemeUpdate() {
+    return { cleanup: () => undefined };
+  }
+
+  subscribeToAgentUpdate() {
+    return { cleanup: () => undefined };
+  }
+
+  subscribeToDeepLinkLaunch() {
+    return { cleanup: () => undefined };
+  }
+
   getRuntimeSettings(): RuntimeSettings {
     return makeRuntimeSettings(this.runtimeSettings);
   }
@@ -80,10 +92,6 @@ export class MockMainProcessClient implements MainProcessClient {
     return true;
   }
 
-  subscribeToNativeThemeUpdate() {
-    return { cleanup: () => undefined };
-  }
-
   downloadAgent() {
     return Promise.resolve();
   }
@@ -116,13 +124,11 @@ export class MockMainProcessClient implements MainProcessClient {
     return '';
   }
 
-  subscribeToAgentUpdate() {
-    return { cleanup: () => undefined };
-  }
-
   removeAgentDirectory() {
     return Promise.resolve();
   }
+
+  signalUserInterfaceReadiness() {}
 }
 
 export const makeRuntimeSettings = (

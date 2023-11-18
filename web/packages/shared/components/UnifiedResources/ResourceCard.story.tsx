@@ -16,13 +16,12 @@
 
 import React from 'react';
 import { Meta, StoryObj } from '@storybook/react';
-import { MemoryRouter } from 'react-router';
 
 import styled from 'styled-components';
 
+import { ButtonBorder } from 'design';
 import { gap } from 'design/system';
 
-import TeleportContextProvider from 'teleport/TeleportContextProvider';
 import { apps } from 'teleport/Apps/fixtures';
 import { databases } from 'teleport/Databases/fixtures';
 
@@ -31,9 +30,16 @@ import { desktops } from 'teleport/Desktops/fixtures';
 import { nodes } from 'teleport/Nodes/fixtures';
 
 import makeApp from 'teleport/services/apps/makeApps';
-import { createTeleportContext } from 'teleport/mocks/contexts';
 
-import { ResourceCard as ResourceCard } from './ResourceCard';
+import { ResourceCard, PinningSupport } from './ResourceCard';
+
+import {
+  makeUnifiedResourceCardApp,
+  makeUnifiedResourceCardDatabase,
+  makeUnifiedResourceCardKube,
+  makeUnifiedResourceCardNode,
+  makeUnifiedResourceCardDesktop,
+} from './cards';
 
 const additionalResources = [
   makeApp({
@@ -74,7 +80,7 @@ const additionalResources = [
 
 const meta: Meta<typeof ResourceCard> = {
   component: ResourceCard,
-  title: 'Teleport/UnifiedResources/ResourceCard',
+  title: 'Shared/UnifiedResources/ResourceCard',
 };
 
 const Grid = styled.div`
@@ -86,35 +92,50 @@ const Grid = styled.div`
 export default meta;
 type Story = StoryObj<typeof ResourceCard>;
 
+const ActionButton = <ButtonBorder size="small">Action</ButtonBorder>;
+
 export const Cards: Story = {
   render() {
-    const ctx = createTeleportContext();
     return (
-      <MemoryRouter>
-        <TeleportContextProvider ctx={ctx}>
-          <Grid gap={2}>
-            {[
-              ...apps,
-              ...databases,
-              ...kubes,
-              ...nodes,
-              ...additionalResources,
-              ...desktops,
-            ].map((res, i) => (
-              <ResourceCard
-                key={i}
-                resource={res}
-                pinned={false}
-                pinResource={() => {}}
-                pinningDisabled={false}
-                selectResource={() => {}}
-                selected={false}
-                pinningNotSupported={false}
-              />
-            ))}
-          </Grid>
-        </TeleportContextProvider>
-      </MemoryRouter>
+      <Grid gap={2}>
+        {[
+          ...apps.map(resource =>
+            makeUnifiedResourceCardApp(resource, { ActionButton })
+          ),
+          ...databases.map(resource =>
+            makeUnifiedResourceCardDatabase(resource, {
+              ActionButton,
+            })
+          ),
+          ...kubes.map(resource =>
+            makeUnifiedResourceCardKube(resource, { ActionButton })
+          ),
+          ...nodes.map(resource =>
+            makeUnifiedResourceCardNode(resource, { ActionButton })
+          ),
+          ...additionalResources.map(resource =>
+            makeUnifiedResourceCardApp(resource, { ActionButton })
+          ),
+          ...desktops.map(resource =>
+            makeUnifiedResourceCardDesktop(resource, { ActionButton })
+          ),
+        ].map((res, i) => (
+          <ResourceCard
+            key={i}
+            pinned={false}
+            pinResource={() => {}}
+            selectResource={() => {}}
+            selected={false}
+            pinningSupport={PinningSupport.Supported}
+            name={res.name}
+            primaryIconName={res.primaryIconName}
+            SecondaryIcon={res.SecondaryIcon}
+            description={res.description}
+            labels={res.labels}
+            ActionButton={res.ActionButton}
+          />
+        ))}
+      </Grid>
     );
   },
 };

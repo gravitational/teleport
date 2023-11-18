@@ -135,7 +135,7 @@ func (r *CreateUserTokenRequest) CheckAndSetDefaults() error {
 }
 
 // CreateResetPasswordToken creates a reset password token
-func (s *Server) CreateResetPasswordToken(ctx context.Context, req CreateUserTokenRequest) (types.UserToken, error) {
+func (a *Server) CreateResetPasswordToken(ctx context.Context, req CreateUserTokenRequest) (types.UserToken, error) {
 	err := req.CheckAndSetDefaults()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -145,32 +145,32 @@ func (s *Server) CreateResetPasswordToken(ctx context.Context, req CreateUserTok
 		return nil, trace.BadParameter("invalid reset password token request type")
 	}
 
-	_, err = s.ResetPassword(ctx, req.Name)
+	_, err = a.ResetPassword(ctx, req.Name)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := s.resetMFA(ctx, req.Name); err != nil {
+	if err := a.resetMFA(ctx, req.Name); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	token, err := s.newUserToken(req)
+	token, err := a.newUserToken(req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// remove any other existing tokens for this user
-	err = s.deleteUserTokens(ctx, req.Name)
+	err = a.deleteUserTokens(ctx, req.Name)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	_, err = s.CreateUserToken(ctx, token)
+	_, err = a.CreateUserToken(ctx, token)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := s.emitter.EmitAuditEvent(ctx, &apievents.UserTokenCreate{
+	if err := a.emitter.EmitAuditEvent(ctx, &apievents.UserTokenCreate{
 		Metadata: apievents.Metadata{
 			Type: events.ResetPasswordTokenCreateEvent,
 			Code: events.ResetPasswordTokenCreateCode,
@@ -179,23 +179,23 @@ func (s *Server) CreateResetPasswordToken(ctx context.Context, req CreateUserTok
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name:    req.Name,
 			TTL:     req.TTL.String(),
-			Expires: s.GetClock().Now().UTC().Add(req.TTL),
+			Expires: a.GetClock().Now().UTC().Add(req.TTL),
 		},
 	}); err != nil {
 		log.WithError(err).Warn("Failed to emit create reset password token event.")
 	}
 
-	return s.GetUserToken(ctx, token.GetName())
+	return a.GetUserToken(ctx, token.GetName())
 }
 
-func (s *Server) resetMFA(ctx context.Context, user string) error {
-	devs, err := s.Services.GetMFADevices(ctx, user, false)
+func (a *Server) resetMFA(ctx context.Context, user string) error {
+	devs, err := a.Services.GetMFADevices(ctx, user, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	var errs []error
 	for _, d := range devs {
-		errs = append(errs, s.DeleteMFADevice(ctx, user, d.Id))
+		errs = append(errs, a.DeleteMFADevice(ctx, user, d.Id))
 	}
 	return trace.NewAggregate(errs...)
 }
@@ -243,7 +243,7 @@ func formatAccountName(s proxyDomainGetter, username string, authHostname string
 }
 
 // createTOTPUserTokenSecrets creates new UserTokenSecrets resource for the given token.
-func (s *Server) createTOTPUserTokenSecrets(ctx context.Context, token types.UserToken, otpKey *otp.Key) (types.UserTokenSecrets, error) {
+func (a *Server) createTOTPUserTokenSecrets(ctx context.Context, token types.UserToken, otpKey *otp.Key) (types.UserTokenSecrets, error) {
 	// Create QR code.
 	var otpQRBuf bytes.Buffer
 	otpImage, err := otpKey.Image(456, 456)
@@ -261,7 +261,7 @@ func (s *Server) createTOTPUserTokenSecrets(ctx context.Context, token types.Use
 	secrets.SetOTPKey(otpKey.Secret())
 	secrets.SetQRCode(otpQRBuf.Bytes())
 	secrets.SetExpiry(token.Expiry())
-	err = s.UpsertUserTokenSecrets(ctx, secrets)
+	err = a.UpsertUserTokenSecrets(ctx, secrets)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -269,13 +269,13 @@ func (s *Server) createTOTPUserTokenSecrets(ctx context.Context, token types.Use
 	return secrets, nil
 }
 
-func (s *Server) newTOTPKey(user string) (*otp.Key, *totp.GenerateOpts, error) {
+func (a *Server) newTOTPKey(user string) (*otp.Key, *totp.GenerateOpts, error) {
 	// Fetch account name to display in OTP apps.
-	accountName, err := formatAccountName(s, user, s.AuthServiceName)
+	accountName, err := formatAccountName(a, user, a.AuthServiceName)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	clusterName, err := s.GetClusterName()
+	clusterName, err := a.GetClusterName()
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -294,7 +294,7 @@ func (s *Server) newTOTPKey(user string) (*otp.Key, *totp.GenerateOpts, error) {
 	return key, &opts, nil
 }
 
-func (s *Server) newUserToken(req CreateUserTokenRequest) (types.UserToken, error) {
+func (a *Server) newUserToken(req CreateUserTokenRequest) (types.UserToken, error) {
 	var err error
 	var proxyHost string
 
@@ -310,7 +310,7 @@ func (s *Server) newUserToken(req CreateUserTokenRequest) (types.UserToken, erro
 
 	// Get the list of proxies and try and guess the address of the proxy. If
 	// failed to guess public address, use "<proxyhost>:3080" as a fallback.
-	proxies, err := s.GetProxies()
+	proxies, err := a.GetProxies()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -334,9 +334,9 @@ func (s *Server) newUserToken(req CreateUserTokenRequest) (types.UserToken, erro
 	}
 
 	token.SetSubKind(req.Type)
-	token.SetExpiry(s.clock.Now().UTC().Add(req.TTL))
+	token.SetExpiry(a.clock.Now().UTC().Add(req.TTL))
 	token.SetUser(req.Name)
-	token.SetCreated(s.clock.Now().UTC())
+	token.SetCreated(a.clock.Now().UTC())
 	token.SetURL(url)
 
 	return token, nil
@@ -364,8 +364,8 @@ func formatUserTokenURL(proxyHost string, tokenID string, reqType string) (strin
 }
 
 // deleteUserTokens deletes all user tokens for the specified user.
-func (s *Server) deleteUserTokens(ctx context.Context, username string) error {
-	tokens, err := s.GetUserTokens(ctx)
+func (a *Server) deleteUserTokens(ctx context.Context, username string) error {
+	tokens, err := a.GetUserTokens(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -375,7 +375,7 @@ func (s *Server) deleteUserTokens(ctx context.Context, username string) error {
 			continue
 		}
 
-		err = s.DeleteUserToken(ctx, token.GetName())
+		err = a.DeleteUserToken(ctx, token.GetName())
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -386,8 +386,8 @@ func (s *Server) deleteUserTokens(ctx context.Context, username string) error {
 
 // getResetPasswordToken returns user token with subkind set to reset or invite, both
 // types which allows users to change their password and set new second factors (if enabled).
-func (s *Server) getResetPasswordToken(ctx context.Context, tokenID string) (types.UserToken, error) {
-	token, err := s.GetUserToken(ctx, tokenID)
+func (a *Server) getResetPasswordToken(ctx context.Context, tokenID string) (types.UserToken, error) {
+	token, err := a.GetUserToken(ctx, tokenID)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -400,7 +400,7 @@ func (s *Server) getResetPasswordToken(ctx context.Context, tokenID string) (typ
 }
 
 // createRecoveryToken creates a user token for account recovery.
-func (s *Server) createRecoveryToken(ctx context.Context, username, tokenType string, usage types.UserTokenUsage) (types.UserToken, error) {
+func (a *Server) createRecoveryToken(ctx context.Context, username, tokenType string, usage types.UserTokenUsage) (types.UserToken, error) {
 	if tokenType != UserTokenTypeRecoveryStart && tokenType != UserTokenTypeRecoveryApproved {
 		return nil, trace.BadParameter("invalid recovery token type: %s", tokenType)
 	}
@@ -418,7 +418,7 @@ func (s *Server) createRecoveryToken(ctx context.Context, username, tokenType st
 		return nil, trace.Wrap(err)
 	}
 
-	newToken, err := s.newUserToken(req)
+	newToken, err := a.newUserToken(req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -426,11 +426,11 @@ func (s *Server) createRecoveryToken(ctx context.Context, username, tokenType st
 	// Mark what recover type user requested.
 	newToken.SetUsage(usage)
 
-	if _, err := s.CreateUserToken(ctx, newToken); err != nil {
+	if _, err := a.CreateUserToken(ctx, newToken); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := s.emitter.EmitAuditEvent(ctx, &apievents.UserTokenCreate{
+	if err := a.emitter.EmitAuditEvent(ctx, &apievents.UserTokenCreate{
 		Metadata: apievents.Metadata{
 			Type: events.RecoveryTokenCreateEvent,
 			Code: events.RecoveryTokenCreateCode,
@@ -439,7 +439,7 @@ func (s *Server) createRecoveryToken(ctx context.Context, username, tokenType st
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name:    req.Name,
 			TTL:     req.TTL.String(),
-			Expires: s.GetClock().Now().UTC().Add(req.TTL),
+			Expires: a.GetClock().Now().UTC().Add(req.TTL),
 		},
 	}); err != nil {
 		log.WithError(err).Warn("Failed to emit create recovery token event.")
@@ -449,13 +449,13 @@ func (s *Server) createRecoveryToken(ctx context.Context, username, tokenType st
 }
 
 // CreatePrivilegeToken implements AuthService.CreatePrivilegeToken.
-func (s *Server) CreatePrivilegeToken(ctx context.Context, req *proto.CreatePrivilegeTokenRequest) (*types.UserTokenV3, error) {
+func (a *Server) CreatePrivilegeToken(ctx context.Context, req *proto.CreatePrivilegeTokenRequest) (*types.UserTokenV3, error) {
 	username, err := authz.GetClientUsername(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	authPref, err := s.GetAuthPreference(ctx)
+	authPref, err := a.GetAuthPreference(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -468,7 +468,7 @@ func (s *Server) CreatePrivilegeToken(ctx context.Context, req *proto.CreatePriv
 	}
 
 	tokenKind := UserTokenTypePrivilege
-	switch hasDevices, err := s.validateMFAAuthResponseForRegister(
+	switch hasDevices, err := a.validateMFAAuthResponseForRegister(
 		ctx, req.GetExistingMFAResponse(), username, false /* passwordless */); {
 	case err != nil:
 		return nil, trace.Wrap(err)
@@ -477,15 +477,15 @@ func (s *Server) CreatePrivilegeToken(ctx context.Context, req *proto.CreatePriv
 	}
 
 	// Delete any existing user tokens for user before creating.
-	if err := s.deleteUserTokens(ctx, username); err != nil {
+	if err := a.deleteUserTokens(ctx, username); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	token, err := s.createPrivilegeToken(ctx, username, tokenKind)
+	token, err := a.createPrivilegeToken(ctx, username, tokenKind)
 	return token, trace.Wrap(err)
 }
 
-func (s *Server) createPrivilegeToken(ctx context.Context, username, tokenKind string) (*types.UserTokenV3, error) {
+func (a *Server) createPrivilegeToken(ctx context.Context, username, tokenKind string) (*types.UserTokenV3, error) {
 	if tokenKind != UserTokenTypePrivilege && tokenKind != UserTokenTypePrivilegeException {
 		return nil, trace.BadParameter("invalid privilege token type")
 	}
@@ -499,17 +499,17 @@ func (s *Server) createPrivilegeToken(ctx context.Context, username, tokenKind s
 		return nil, trace.Wrap(err)
 	}
 
-	newToken, err := s.newUserToken(req)
+	newToken, err := a.newUserToken(req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	token, err := s.CreateUserToken(ctx, newToken)
+	token, err := a.CreateUserToken(ctx, newToken)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := s.emitter.EmitAuditEvent(ctx, &apievents.UserTokenCreate{
+	if err := a.emitter.EmitAuditEvent(ctx, &apievents.UserTokenCreate{
 		Metadata: apievents.Metadata{
 			Type: events.PrivilegeTokenCreateEvent,
 			Code: events.PrivilegeTokenCreateCode,
@@ -518,7 +518,7 @@ func (s *Server) createPrivilegeToken(ctx context.Context, username, tokenKind s
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name:    req.Name,
 			TTL:     req.TTL.String(),
-			Expires: s.GetClock().Now().UTC().Add(req.TTL),
+			Expires: a.GetClock().Now().UTC().Add(req.TTL),
 		},
 	}); err != nil {
 		log.WithError(err).Warn("Failed to emit create privilege token event.")
@@ -533,8 +533,8 @@ func (s *Server) createPrivilegeToken(ctx context.Context, username, tokenKind s
 }
 
 // verifyUserToken verifies that the token is not expired and is of the allowed kinds.
-func (s *Server) verifyUserToken(token types.UserToken, allowedKinds ...string) error {
-	if token.Expiry().Before(s.clock.Now().UTC()) {
+func (a *Server) verifyUserToken(token types.UserToken, allowedKinds ...string) error {
+	if token.Expiry().Before(a.clock.Now().UTC()) {
 		// Provide obscure message on purpose, while logging the real error server side.
 		log.Debugf("Expired token(%s) type(%s)", token.GetName(), token.GetSubKind())
 		return trace.AccessDenied("invalid token")

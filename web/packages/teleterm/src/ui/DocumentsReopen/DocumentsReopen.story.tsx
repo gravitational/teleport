@@ -16,6 +16,8 @@
 
 import React from 'react';
 
+import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
+
 import { DocumentsReopen } from './DocumentsReopen';
 
 export default {
@@ -23,5 +25,56 @@ export default {
 };
 
 export const Story = () => {
-  return <DocumentsReopen onConfirm={() => {}} onCancel={() => {}} />;
+  return (
+    <MockAppContextProvider>
+      <DocumentsReopen
+        rootClusterUri="/clusters/foo.cloud.gravitational.io"
+        numberOfDocuments={8}
+        onConfirm={() => {}}
+        onCancel={() => {}}
+      />
+    </MockAppContextProvider>
+  );
+};
+
+export const OneTab = () => {
+  return (
+    <MockAppContextProvider>
+      <DocumentsReopen
+        rootClusterUri="/clusters/foo.cloud.gravitational.io"
+        numberOfDocuments={1}
+        onConfirm={() => {}}
+        onCancel={() => {}}
+      />
+    </MockAppContextProvider>
+  );
+};
+
+export const LongClusterName = () => {
+  return (
+    <MockAppContextProvider>
+      <DocumentsReopen
+        rootClusterUri="/clusters/foo.bar.baz.quux.cloud.gravitational.io"
+        numberOfDocuments={42}
+        onConfirm={() => {}}
+        onCancel={() => {}}
+      />
+    </MockAppContextProvider>
+  );
+};
+
+export const LongContinuousClusterName = () => {
+  return (
+    <MockAppContextProvider>
+      <DocumentsReopen
+        rootClusterUri={`/clusters/${Array(10)
+          .fill(['foo', 'bar', 'baz', 'quux'], 0)
+          .flat()
+          .join('')}`}
+        numberOfDocuments={680}
+        onConfirm={() => {}}
+        onCancel={() => {}}
+      />
+    </MockAppContextProvider>
+  );
 };

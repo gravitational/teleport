@@ -1,0 +1,5 @@
+{{ database }} limits usernames to {{ limit }} characters. When the Teleport
+username is within this limit, the user created within the database will have
+the same name as the Teleport username. When the Teleport username is over the
+{{ limit }} character limit, the user created within the database will have the
+name in the format of `tp-<base64-sha1-teleport-username>`.

@@ -590,6 +590,9 @@ type IdentityService interface {
 	// GetUsers returns a list of usernames registered in the system
 	GetUsers(ctx context.Context, withSecrets bool) ([]types.User, error)
 
+	// ListUsers returns a page of users.
+	ListUsers(ctx context.Context, pageSize int, pageToken string, withSecrets bool) ([]types.User, string, error)
+
 	// ChangePassword changes user password
 	ChangePassword(ctx context.Context, req *proto.ChangePasswordRequest) error
 

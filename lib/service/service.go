@@ -4283,6 +4283,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			otelgrpc.StreamServerInterceptor(),
 		),
 		grpc.Creds(creds),
+		grpc.MaxConcurrentStreams(defaults.GRPCMaxConcurrentStreams),
 	)
 
 	connMonitor, err := srv.NewConnectionMonitor(srv.ConnectionMonitorConfig{
@@ -5945,6 +5946,7 @@ func (process *TeleportProcess) initPublicGRPCServer(
 			// available for some time.
 			MaxConnectionIdle: 10 * time.Second,
 		}),
+		grpc.MaxConcurrentStreams(defaults.GRPCMaxConcurrentStreams),
 	)
 	joinServiceServer := joinserver.NewJoinServiceGRPCServer(conn.Client)
 	proto.RegisterJoinServiceServer(server, joinServiceServer)
@@ -6004,6 +6006,7 @@ func (process *TeleportProcess) initSecureGRPCServer(cfg initSecureGRPCServerCfg
 		grpc.ChainUnaryInterceptor(authMiddleware.UnaryInterceptors()...),
 		grpc.ChainStreamInterceptor(authMiddleware.StreamInterceptors()...),
 		grpc.Creds(creds),
+		grpc.MaxConcurrentStreams(defaults.GRPCMaxConcurrentStreams),
 	)
 
 	kubeServer, err := kubegrpc.New(kubegrpc.Config{

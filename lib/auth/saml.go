@@ -40,7 +40,7 @@ var ErrSAMLRequiresEnterprise = trace.AccessDenied("SAML is only available in Te
 // SAMLService are the methods that the auth server delegates to a plugin for
 // implementing the SAML connector. These are the core functions of SAML
 // authentication - the connector CRUD operations and Get methods are
-// implemeneted in auth.Server and provide no connector-specific logic.
+// implemented in auth.Server and provide no connector-specific logic.
 type SAMLService interface {
 	// CreateSAMLAuthRequest creates SAML AuthnRequest
 	CreateSAMLAuthRequest(ctx context.Context, req types.SAMLAuthRequest) (*types.SAMLAuthRequest, error)
@@ -87,10 +87,10 @@ func (a *Server) UpdateSAMLConnector(ctx context.Context, connector types.SAMLCo
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := a.emitter.EmitAuditEvent(ctx, &apievents.SAMLConnectorCreate{
+	if err := a.emitter.EmitAuditEvent(ctx, &apievents.SAMLConnectorUpdate{
 		Metadata: apievents.Metadata{
-			Type: events.SAMLConnectorCreatedEvent,
-			Code: events.SAMLConnectorCreatedCode,
+			Type: events.SAMLConnectorUpdatedEvent,
+			Code: events.SAMLConnectorUpdatedCode,
 		},
 		UserMetadata: authz.ClientUserMetadata(ctx),
 		ResourceMetadata: apievents.ResourceMetadata{

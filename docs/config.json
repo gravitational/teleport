@@ -1008,7 +1008,7 @@
           "slug": "/kubernetes-access/introduction/"
         },
         {
-          "title": "Getting Started",
+          "title": "Enroll a Kubernetes Cluster",
           "slug": "/kubernetes-access/getting-started/"
         },
         {
@@ -1240,6 +1240,14 @@
           "title": "Automatic User Provisioning",
           "slug": "/database-access/auto-user-provisioning/",
           "entries": [
+            {
+              "title": "AWS Redshift",
+              "slug": "/database-access/auto-user-provisioning/aws-redshift/"
+            },
+            {
+              "title": "MariaDB",
+              "slug": "/database-access/auto-user-provisioning/mariadb/"
+            },
             {
               "title": "MySQL",
               "slug": "/database-access/auto-user-provisioning/mysql/"
@@ -1906,6 +1914,11 @@
     {
       "source": "/database-access/",
       "destination": "/database-access/introduction/",
+      "permanent": true
+    },
+    {
+      "source": "/desktop-access/",
+      "destination": "/desktop-access/introduction/",
       "permanent": true
     },
     {
@@ -2941,6 +2954,21 @@
     {
       "source": "/database-access/rbac/configuring-auto-user-provisioning/",
       "destination": "/database-access/auto-user-provisioning/",
+      "permanent": true
+    },
+    {	
+      "source": "/database-access/guides/rds-proxy/",
+      "destination": "/database-access/guides/",
+      "permanent": true
+    },
+    {
+      "source": "/deploy-a-cluster/deployments/aws-terraform/",
+      "destination": "/deploy-a-cluster/deployments/aws-ha-autoscale-cluster-terraform/",
+      "permanent": true
+    },
+    {
+      "source": "/machine-id/guides/github-actions/",
+      "destination": "/machine-id/deployment/github-actions/",
       "permanent": true
     }
   ]

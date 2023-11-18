@@ -182,10 +182,6 @@ teleport:
   The PostgreSQL cluster state and audit log storage is available starting from Teleport `13.3`.
 </Details>
 
-<Admonition type="warning" title="Preview">
-  The PostgreSQL cluster state and audit log storage is currently in Preview.
-</Admonition>
-
 <Admonition
   type="tip"
   title="Tip"
@@ -822,7 +818,7 @@ teleport:
 
     # By default, Teleport stores audit events with an AWS TTL of 1 year.
     # This value can be configured as shown below. If set to 0 seconds, TTL is disabled.
-    audit_retention_period: 365d
+    retention_period: 365d
 
     # Enables either Pay Per Request or Provisioned billing for the DynamoDB table. Set when Teleport creates the table.
     # Possible values: "pay_per_request" and "provisioned"
@@ -961,10 +957,9 @@ Config option priority is applied in the following order:
   are not supported in certain regions or environments or are only supported in GovCloud.
 </Admonition>
 
-## Athena (Preview)
+## Athena 
 
-The Athena audit log back-end is available starting from Teleport v14.0, and is
-currently in preview.
+The Athena audit log back-end is available starting from Teleport v14.0.
 
 <Notice type="danger">
 
@@ -1386,10 +1381,6 @@ teleport:
 >
   Azure Blob Storage for session storage is available starting from Teleport `13.3`.
 </Details>
-
-<Admonition type="warning" title="Preview">
-  Azure Blob Storage for session storage is currently in Preview.
-</Admonition>
 
 <Admonition
   type="tip"
