@@ -1,4 +1,4 @@
-#![allow(clippy::new_without_default)] // default trait not supported in wasm
+// default trait not supported in wasm
 // Copyright 2023 Gravitational, Inc
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,6 +13,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// default trait not supported in wasm
+#![allow(clippy::new_without_default)]
 
 #[macro_use]
 extern crate log;
@@ -194,6 +196,7 @@ impl FastPathProcessor {
                 io_channel_id,
                 user_channel_id,
                 no_server_pointer: true,
+                pointer_software_rendering: true,
             }
             .build(),
             image: DecodedImage::new(PixelFormat::RgbA32, width, height),
@@ -243,6 +246,9 @@ impl FastPathProcessor {
                     }
                     UpdateKind::PointerPosition { x, y } => {
                         outputs.push(ActiveStageOutput::PointerPosition { x, y });
+                    }
+                    UpdateKind::PointerBitmap(p) => {
+                        outputs.push(ActiveStageOutput::PointerBitmap(p));
                     }
                 }
             }

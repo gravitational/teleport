@@ -132,7 +132,6 @@ impl Client {
 
         let mut connector = ironrdp_connector::ClientConnector::new(connector_config)
             .with_server_addr(server_socket_addr)
-            .with_server_name(server_addr)
             .with_static_channel(Rdpsnd::new()) // required for rdpdr to work
             .with_static_channel(rdpdr);
 
@@ -150,14 +149,21 @@ impl Client {
             ssl::upgrade(initial_stream, &server_socket_addr.ip().to_string()).await?;
 
         // Upgrade the stream
-        let upgraded =
-            ironrdp_tokio::mark_as_upgraded(should_upgrade, &mut connector, server_public_key);
+        let upgraded = ironrdp_tokio::mark_as_upgraded(should_upgrade, &mut connector);
 
         // Frame the stream again for use by connect_finalize
         let mut rdp_stream = ironrdp_tokio::TokioFramed::new(upgraded_stream);
 
-        let connection_result =
-            ironrdp_tokio::connect_finalize(upgraded, &mut rdp_stream, connector).await?;
+        let connection_result = ironrdp_tokio::connect_finalize(
+            upgraded,
+            &mut rdp_stream,
+            connector,
+            server_addr.into(),
+            server_public_key,
+            None,
+            None,
+        )
+        .await?;
 
         debug!("connection_result: {:?}", connection_result);
 
@@ -936,6 +942,7 @@ fn create_config(width: u16, height: u16, pin: String) -> Config {
         platform: MajorPlatformType::UNSPECIFIED,
         no_server_pointer: false,
         autologon: true,
+        pointer_software_rendering: false,
     }
 }
 
