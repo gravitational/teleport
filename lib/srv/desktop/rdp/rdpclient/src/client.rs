@@ -119,7 +119,7 @@ impl Client {
                 pin,
                 cgo_handle,
             )),
-            "Teleport".to_string(),
+            "Teleport".to_string(), // directories will show up as "<directory> on Teleport"
         )
         .with_smartcard(SCARD_DEVICE_ID);
 

@@ -14,17 +14,14 @@
 
 use super::{
     path::UnixPath,
-    tdp::{self, SharedDirectoryDeleteRequest, TdpErrCode},
+    tdp::{self, TdpErrCode},
 };
 use crate::{
     client::ClientHandle, tdp_sd_create_request, tdp_sd_delete_request, tdp_sd_info_request,
     CGOErrCode, CgoHandle,
 };
 use ironrdp_pdu::{cast_length, custom_err, other_err, PduResult};
-use ironrdp_rdpdr::pdu::{
-    efs::{self, NtStatus},
-    RdpdrPdu,
-};
+use ironrdp_rdpdr::pdu::efs::{self, NtStatus};
 use std::collections::HashMap;
 use std::convert::TryInto;
 
@@ -66,6 +63,7 @@ impl FilesystemBackend {
             efs::ServerDriveIoRequest::ServerDriveQueryInformationRequest(req) => {
                 self.handle_query_information_req(req)
             }
+            efs::ServerDriveIoRequest::DeviceCloseRequest(req) => self.handle_device_close_req(req),
         }
     }
 
@@ -254,9 +252,20 @@ impl FilesystemBackend {
         rdp_req: efs::ServerDriveQueryInformationRequest,
     ) -> PduResult<()> {
         let file = self.file_cache.get(rdp_req.device_io_request.file_id);
-        let rdp_resp = Self::make_client_drive_query_information_response(rdp_req, file)?;
-        self.client_handle.write_rdpdr(rdp_resp)?;
+        self.send_client_drive_query_information_response(rdp_req, file)?;
         Ok(())
+    }
+
+    /// Handles an RDP [`efs::DeviceCloseRequest`] received from the RDP server.
+    fn handle_device_close_req(&mut self, rdp_req: efs::DeviceCloseRequest) -> PduResult<()> {
+        if let Some(file) = self.file_cache.remove(rdp_req.device_io_request.file_id) {
+            if file.delete_pending {
+                return self.tdp_sd_delete(rdp_req, file);
+            }
+            return self.send_device_close_response(rdp_req, NtStatus::SUCCESS);
+        }
+
+        self.send_device_close_response(rdp_req, NtStatus::UNSUCCESSFUL)
     }
 
     /// Helper function for writing a [`tdp::SharedDirectoryCreateRequest`] to the browser
@@ -296,7 +305,7 @@ impl FilesystemBackend {
     /// Helper function for combining a [`tdp::SharedDirectoryDeleteRequest`]
     /// with a [`tdp::SharedDirectoryCreateRequest`] to overwrite a file.
     fn tdp_sd_overwrite(&mut self, rdp_req: efs::DeviceCreateRequest) -> PduResult<()> {
-        let tdp_req = SharedDirectoryDeleteRequest::from(&rdp_req);
+        let tdp_req = tdp::SharedDirectoryDeleteRequest::from(&rdp_req);
         self.send_tdp_sd_delete_request(tdp_req)?;
         self.pending_sd_delete_resp_handlers.insert(
             rdp_req.device_io_request.completion_id,
@@ -311,6 +320,31 @@ impl FilesystemBackend {
                         }
                         _ => this.send_device_create_response(&rdp_req, NtStatus::UNSUCCESSFUL, 0),
                     }
+                },
+            ),
+        );
+        Ok(())
+    }
+
+    fn tdp_sd_delete(
+        &mut self,
+        rdp_req: efs::DeviceCloseRequest,
+        file: FileCacheObject,
+    ) -> PduResult<()> {
+        let tdp_req = tdp::SharedDirectoryDeleteRequest::from_fco(&rdp_req, file);
+        self.send_tdp_sd_delete_request(tdp_req)?;
+        self.pending_sd_delete_resp_handlers.insert(
+            rdp_req.device_io_request.completion_id,
+            SharedDirectoryDeleteResponseHandler::new(
+                move |this: &mut FilesystemBackend,
+                      tdp_resp: tdp::SharedDirectoryDeleteResponse|
+                      -> PduResult<()> {
+                    let io_status = if tdp_resp.err_code == TdpErrCode::Nil {
+                        NtStatus::SUCCESS
+                    } else {
+                        NtStatus::UNSUCCESSFUL
+                    };
+                    this.send_device_close_response(rdp_req, io_status)
                 },
             ),
         );
@@ -437,7 +471,7 @@ impl FilesystemBackend {
         }
     }
 
-    /// Helper function for creating an RDP [`efs::DeviceCreateResponse`] from an RDP [`efs::DeviceCreateRequest`].
+    /// Helper function for sending an RDP [`efs::DeviceCreateResponse`] based on an RDP [`efs::DeviceCreateRequest`].
     fn send_device_create_response(
         &self,
         device_create_request: &efs::DeviceCreateRequest,
@@ -480,22 +514,31 @@ impl FilesystemBackend {
         Ok(())
     }
 
-    fn make_client_drive_query_information_response(
+    /// Helper function for sending an RDP [`efs::ClientDriveQueryInformationResponse`]
+    /// to the RDP server.
+    fn send_client_drive_query_information_response(
+        &self,
         rdp_req: efs::ServerDriveQueryInformationRequest,
         file: Option<&FileCacheObject>,
-    ) -> PduResult<RdpdrPdu> {
-        if file.is_none() {
-            return Ok(RdpdrPdu::ClientDriveQueryInformationResponse(
-                efs::ClientDriveQueryInformationResponse {
-                    device_io_response: efs::DeviceIoResponse::new(
-                        rdp_req.device_io_request.clone(),
-                        NtStatus::UNSUCCESSFUL,
-                    ),
-                    buffer: None,
-                },
-            ));
-        }
-        let file = file.unwrap(); // safe because of the if statement above
+    ) -> PduResult<()> {
+        let file = match file {
+            Some(file) => file,
+            None => {
+                // Early return with NtStatus::UNSUCCESSFUL if the file is not found
+                self.client_handle.write_rdpdr(
+                    efs::ClientDriveQueryInformationResponse {
+                        device_io_response: efs::DeviceIoResponse::new(
+                            rdp_req.device_io_request.clone(),
+                            NtStatus::UNSUCCESSFUL,
+                        ),
+                        buffer: None,
+                    }
+                    .into(),
+                )?;
+                return Ok(());
+            }
+        };
+
         let device_io_response =
             efs::DeviceIoResponse::new(rdp_req.device_io_request.clone(), NtStatus::SUCCESS);
 
@@ -503,70 +546,13 @@ impl FilesystemBackend {
         // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L482
         match rdp_req.file_info_class_lvl {
             efs::FileInformationClassLevel::FILE_BASIC_INFORMATION => {
-                Ok(RdpdrPdu::ClientDriveQueryInformationResponse(
-                    efs::ClientDriveQueryInformationResponse {
-                        device_io_response,
-                        buffer: Some(efs::FileInformationClass::Basic(
-                            efs::FileBasicInformation {
-                                creation_time: to_windows_time(file.fso.last_modified),
-                                last_access_time: to_windows_time(file.fso.last_modified),
-                                last_write_time: to_windows_time(file.fso.last_modified),
-                                change_time: to_windows_time(file.fso.last_modified),
-                                file_attributes: if file.fso.file_type == tdp::FileType::File {
-                                    efs::FileAttributes::FILE_ATTRIBUTE_NORMAL
-                                } else {
-                                    efs::FileAttributes::FILE_ATTRIBUTE_DIRECTORY
-                                },
-                            },
-                        )),
-                    },
-                ))
+                self.send_file_basic_info(device_io_response, file)
             }
             efs::FileInformationClassLevel::FILE_STANDARD_INFORMATION => {
-                let file_fso_size: i64 = cast_length!(
-                    "FilesystemBackend::make_client_drive_query_information_response",
-                    "file.fso.size",
-                    file.fso.size
-                )?;
-                Ok(RdpdrPdu::ClientDriveQueryInformationResponse(
-                    efs::ClientDriveQueryInformationResponse {
-                        device_io_response,
-                        buffer: Some(efs::FileInformationClass::Standard(
-                            efs::FileStandardInformation {
-                                allocation_size: file_fso_size,
-                                end_of_file: file_fso_size,
-                                number_of_links: 0,
-                                delete_pending: if file.delete_pending {
-                                    efs::Boolean::True
-                                } else {
-                                    efs::Boolean::False
-                                },
-                                directory: if file.fso.file_type == tdp::FileType::File {
-                                    efs::Boolean::False
-                                } else {
-                                    efs::Boolean::True
-                                },
-                            },
-                        )),
-                    },
-                ))
+                self.send_file_standard_info(device_io_response, file)
             }
             efs::FileInformationClassLevel::FILE_ATTRIBUTE_TAG_INFORMATION => {
-                Ok(RdpdrPdu::ClientDriveQueryInformationResponse(
-                    efs::ClientDriveQueryInformationResponse {
-                        device_io_response,
-                        buffer: Some(efs::FileInformationClass::AttributeTag(
-                            efs::FileAttributeTagInformation {
-                                file_attributes: if file.fso.file_type == tdp::FileType::File {
-                                    efs::FileAttributes::FILE_ATTRIBUTE_NORMAL
-                                } else {
-                                    efs::FileAttributes::FILE_ATTRIBUTE_DIRECTORY
-                                },
-                                reparse_tag: 0,
-                            },
-                        )),
-                    },
-                ))
+                self.send_file_attr_tag_info(device_io_response, file)
             }
             _ => Err(custom_err!(
                 "FilesystemBackend::make_client_drive_query_information_response",
@@ -576,6 +562,112 @@ impl FilesystemBackend {
                 ))
             )),
         }
+    }
+
+    fn send_file_basic_info(
+        &self,
+        device_io_response: efs::DeviceIoResponse,
+        file: &FileCacheObject,
+    ) -> PduResult<()> {
+        self.client_handle.write_rdpdr(
+            efs::ClientDriveQueryInformationResponse {
+                device_io_response,
+                buffer: Some(efs::FileInformationClass::Basic(
+                    efs::FileBasicInformation {
+                        creation_time: to_windows_time(file.fso.last_modified),
+                        last_access_time: to_windows_time(file.fso.last_modified),
+                        last_write_time: to_windows_time(file.fso.last_modified),
+                        change_time: to_windows_time(file.fso.last_modified),
+                        file_attributes: if file.fso.file_type == tdp::FileType::File {
+                            efs::FileAttributes::FILE_ATTRIBUTE_NORMAL
+                        } else {
+                            efs::FileAttributes::FILE_ATTRIBUTE_DIRECTORY
+                        },
+                    },
+                )),
+            }
+            .into(),
+        )?;
+        Ok(())
+    }
+
+    fn send_file_standard_info(
+        &self,
+        device_io_response: efs::DeviceIoResponse,
+        file: &FileCacheObject,
+    ) -> PduResult<()> {
+        let file_fso_size: i64 = cast_length!(
+            "FilesystemBackend::make_client_drive_query_information_response",
+            "file.fso.size",
+            file.fso.size
+        )?;
+
+        self.client_handle.write_rdpdr(
+            efs::ClientDriveQueryInformationResponse {
+                device_io_response,
+                buffer: Some(efs::FileInformationClass::Standard(
+                    efs::FileStandardInformation {
+                        allocation_size: file_fso_size,
+                        end_of_file: file_fso_size,
+                        number_of_links: 0,
+                        delete_pending: if file.delete_pending {
+                            efs::Boolean::True
+                        } else {
+                            efs::Boolean::False
+                        },
+                        directory: if file.fso.file_type == tdp::FileType::File {
+                            efs::Boolean::False
+                        } else {
+                            efs::Boolean::True
+                        },
+                    },
+                )),
+            }
+            .into(),
+        )?;
+        Ok(())
+    }
+
+    fn send_file_attr_tag_info(
+        &self,
+        device_io_response: efs::DeviceIoResponse,
+        file: &FileCacheObject,
+    ) -> PduResult<()> {
+        self.client_handle.write_rdpdr(
+            efs::ClientDriveQueryInformationResponse {
+                device_io_response,
+                buffer: Some(efs::FileInformationClass::AttributeTag(
+                    efs::FileAttributeTagInformation {
+                        file_attributes: if file.fso.file_type == tdp::FileType::File {
+                            efs::FileAttributes::FILE_ATTRIBUTE_NORMAL
+                        } else {
+                            efs::FileAttributes::FILE_ATTRIBUTE_DIRECTORY
+                        },
+                        reparse_tag: 0,
+                    },
+                )),
+            }
+            .into(),
+        )?;
+        Ok(())
+    }
+
+    /// Sends an RDP [`efs::DeviceCloseResponse`] to the RDP server.
+    fn send_device_close_response(
+        &self,
+        rdp_req: efs::DeviceCloseRequest,
+        io_status: NtStatus,
+    ) -> PduResult<()> {
+        self.client_handle.write_rdpdr(
+            efs::DeviceCloseResponse {
+                device_io_response: efs::DeviceIoResponse::new(
+                    rdp_req.device_io_request.clone(),
+                    io_status,
+                ),
+            }
+            .into(),
+        )?;
+        Ok(())
     }
 }
 
@@ -645,7 +737,7 @@ impl FileCache {
 /// | 3        | IRP_MJ_CLOSE  | The FCO is deleted from the cache                        |
 /// | -------- | ------------- | ---------------------------------------------------------|
 #[derive(Debug, Clone)]
-struct FileCacheObject {
+pub struct FileCacheObject {
     path: UnixPath,
     delete_pending: bool,
     /// The tdp::FileSystemObject pertaining to the file or directory at path.
@@ -673,6 +765,10 @@ impl FileCacheObject {
             dot_sent: false,
             dotdot_sent: false,
         }
+    }
+
+    pub fn path(&self) -> UnixPath {
+        self.path.clone()
     }
 }
 
@@ -785,8 +881,6 @@ type SharedDirectoryDeleteResponseHandler = ResponseHandler<tdp::SharedDirectory
 type CompletionId = u32;
 
 /// A generic cache for storing [`ResponseHandler`]s indexed by [`CompletionId`].
-///
-/// See the example in [`ResponseHandler`].
 #[derive(Debug)]
 struct ResponseCache<T> {
     cache: HashMap<CompletionId, ResponseHandler<T>>,
