@@ -14,6 +14,8 @@
 
 //go:generate go run golang.org/x/sys/windows/mkwinsyscall -output syscall_windows.go syscall_gen.go
 
+// See https://learn.microsoft.com/en-us/windows/win32/api/webauthn/.
+
 //sys webAuthNGetApiVersionNumber() (ret int, err error) [failretval==0] = WebAuthn.WebAuthNGetApiVersionNumber
 // https://github.com/microsoft/webauthn/blob/7ab979cc833bfab9a682ed51761309db57f56c8c/webauthn.h#L895-L897
 
@@ -31,5 +33,8 @@
 
 //sys webAuthNFreeAssertion(in *webauthnAssertion) = WebAuthn.WebAuthNFreeAssertion
 // https://github.com/microsoft/webauthn/blob/7ab979cc833bfab9a682ed51761309db57f56c8c/webauthn.h#L933
+
+//sys webAuthNGetErrorName(in uintptr) (ret uintptr) = WebAuthn.WebAuthNGetErrorName
+// https://github.com/microsoft/webauthn/blob/7ab979cc833bfab9a682ed51761309db57f56c8c/webauthn.h#L982
 
 package webauthnwin
