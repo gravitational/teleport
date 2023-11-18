@@ -35,6 +35,8 @@ const clusterLogoutDialog: DialogClusterLogout = {
 
 const documentsReopenDialog: DialogDocumentsReopen = {
   kind: 'documents-reopen',
+  rootClusterUri: '/clusters/foo',
+  numberOfDocuments: 2,
   onConfirm: () => {},
   onCancel: () => {},
 };

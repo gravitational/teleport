@@ -45,16 +45,16 @@ import (
 
 // GenerateDatabaseCert generates client certificate used by a database
 // service to authenticate with the database instance.
-func (s *Server) GenerateDatabaseCert(ctx context.Context, req *proto.DatabaseCertRequest) (*proto.DatabaseCertResponse, error) {
+func (a *Server) GenerateDatabaseCert(ctx context.Context, req *proto.DatabaseCertRequest) (*proto.DatabaseCertResponse, error) {
 	csr, err := tlsca.ParseCertificateRequestPEM(req.CSR)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	clusterName, err := s.GetClusterName()
+	clusterName, err := a.GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	databaseCA, err := s.GetCertAuthority(ctx, types.CertAuthID{
+	databaseCA, err := a.GetCertAuthority(ctx, types.CertAuthID{
 		Type:       types.DatabaseCA,
 		DomainName: clusterName.GetClusterName(),
 	}, true)
@@ -62,7 +62,7 @@ func (s *Server) GenerateDatabaseCert(ctx context.Context, req *proto.DatabaseCe
 		if trace.IsNotFound(err) {
 			// Database CA doesn't exist. Fallback to Host CA.
 			// https://github.com/gravitational/teleport/issues/5029
-			databaseCA, err = s.GetCertAuthority(ctx, types.CertAuthID{
+			databaseCA, err = a.GetCertAuthority(ctx, types.CertAuthID{
 				Type:       types.HostCA,
 				DomainName: clusterName.GetClusterName(),
 			}, true)
@@ -71,7 +71,7 @@ func (s *Server) GenerateDatabaseCert(ctx context.Context, req *proto.DatabaseCe
 			return nil, trace.Wrap(err)
 		}
 	}
-	caCert, signer, err := getCAandSigner(ctx, s.GetKeyStore(), databaseCA, req)
+	caCert, signer, err := getCAandSigner(ctx, a.GetKeyStore(), databaseCA, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -80,10 +80,10 @@ func (s *Server) GenerateDatabaseCert(ctx context.Context, req *proto.DatabaseCe
 		return nil, trace.Wrap(err)
 	}
 	certReq := tlsca.CertificateRequest{
-		Clock:     s.clock,
+		Clock:     a.clock,
 		PublicKey: csr.PublicKey,
 		Subject:   csr.Subject,
-		NotAfter:  s.clock.Now().UTC().Add(req.TTL.Get()),
+		NotAfter:  a.clock.Now().UTC().Add(req.TTL.Get()),
 	}
 	if req.CertificateExtensions == proto.DatabaseCertRequest_WINDOWS_SMARTCARD {
 		// Pass through ExtKeyUsage (which we need for Smartcard Logon usage)
@@ -134,7 +134,7 @@ func getServerNames(req *proto.DatabaseCertRequest) []string {
 
 // SignDatabaseCSR generates a client certificate used by proxy when talking
 // to a remote database service.
-func (s *Server) SignDatabaseCSR(ctx context.Context, req *proto.DatabaseCSRRequest) (*proto.DatabaseCSRResponse, error) {
+func (a *Server) SignDatabaseCSR(ctx context.Context, req *proto.DatabaseCSRRequest) (*proto.DatabaseCSRResponse, error) {
 	if !modules.GetModules().Features().DB {
 		return nil, trace.AccessDenied(
 			"this Teleport cluster is not licensed for database access, please contact the cluster administrator")
@@ -142,12 +142,12 @@ func (s *Server) SignDatabaseCSR(ctx context.Context, req *proto.DatabaseCSRRequ
 
 	log.Debugf("Signing database CSR for cluster %v.", req.ClusterName)
 
-	clusterName, err := s.GetClusterName()
+	clusterName, err := a.GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	hostCA, err := s.GetCertAuthority(ctx, types.CertAuthID{
+	hostCA, err := a.GetCertAuthority(ctx, types.CertAuthID{
 		Type:       types.HostCA,
 		DomainName: req.ClusterName,
 	}, false)
@@ -180,7 +180,7 @@ func (s *Server) SignDatabaseCSR(ctx context.Context, req *proto.DatabaseCSRRequ
 	}
 
 	// Extract user roles from the identity.
-	roles, err := services.FetchRoles(id.Groups, s, id.Traits)
+	roles, err := services.FetchRoles(id.Groups, a, id.Traits)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -189,7 +189,7 @@ func (s *Server) SignDatabaseCSR(ctx context.Context, req *proto.DatabaseCSRRequ
 	ttl := roles.AdjustSessionTTL(apidefaults.CertDuration)
 
 	// Generate the TLS certificate.
-	ca, err := s.GetCertAuthority(ctx, types.CertAuthID{
+	ca, err := a.GetCertAuthority(ctx, types.CertAuthID{
 		Type:       types.DatabaseCA,
 		DomainName: clusterName.GetClusterName(),
 	}, true)
@@ -197,7 +197,7 @@ func (s *Server) SignDatabaseCSR(ctx context.Context, req *proto.DatabaseCSRRequ
 		return nil, trace.Wrap(err)
 	}
 
-	cert, signer, err := s.GetKeyStore().GetTLSCertAndSigner(ctx, ca)
+	cert, signer, err := a.GetKeyStore().GetTLSCertAndSigner(ctx, ca)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -207,10 +207,10 @@ func (s *Server) SignDatabaseCSR(ctx context.Context, req *proto.DatabaseCSRRequ
 	}
 
 	tlsCert, err := tlsAuthority.GenerateCertificate(tlsca.CertificateRequest{
-		Clock:     s.clock,
+		Clock:     a.clock,
 		PublicKey: csr.PublicKey,
 		Subject:   subject,
-		NotAfter:  s.clock.Now().UTC().Add(ttl),
+		NotAfter:  a.clock.Now().UTC().Add(ttl),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -223,17 +223,17 @@ func (s *Server) SignDatabaseCSR(ctx context.Context, req *proto.DatabaseCSRRequ
 }
 
 // GenerateSnowflakeJWT generates JWT in the format required by Snowflake.
-func (s *Server) GenerateSnowflakeJWT(ctx context.Context, req *proto.SnowflakeJWTRequest) (*proto.SnowflakeJWTResponse, error) {
+func (a *Server) GenerateSnowflakeJWT(ctx context.Context, req *proto.SnowflakeJWTRequest) (*proto.SnowflakeJWTResponse, error) {
 	if !modules.GetModules().Features().DB {
 		return nil, trace.AccessDenied(
 			"this Teleport cluster is not licensed for database access, please contact the cluster administrator")
 	}
 
-	clusterName, err := s.GetClusterName()
+	clusterName, err := a.GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	ca, err := s.GetCertAuthority(ctx, types.CertAuthID{
+	ca, err := a.GetCertAuthority(ctx, types.CertAuthID{
 		Type:       types.DatabaseCA,
 		DomainName: clusterName.GetClusterName(),
 	}, true)
@@ -264,11 +264,11 @@ func (s *Server) GenerateSnowflakeJWT(ctx context.Context, req *proto.SnowflakeJ
 
 	subject, issuer := getSnowflakeJWTParams(req.AccountName, req.UserName, pubKey)
 
-	_, signer, err := s.GetKeyStore().GetTLSCertAndSigner(ctx, ca)
+	_, signer, err := a.GetKeyStore().GetTLSCertAndSigner(ctx, ca)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	privateKey, err := services.GetJWTSigner(signer, ca.GetClusterName(), s.clock)
+	privateKey, err := services.GetJWTSigner(signer, ca.GetClusterName(), a.clock)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

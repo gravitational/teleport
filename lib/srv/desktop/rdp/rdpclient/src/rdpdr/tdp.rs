@@ -1,4 +1,16 @@
-use std::ffi::CString;
+// Copyright 2023 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 use super::path::UnixPath;
 use crate::{
@@ -9,6 +21,7 @@ use crate::{
 };
 use ironrdp_pdu::{custom_err, PduResult};
 use ironrdp_rdpdr::pdu::efs::DeviceCreateRequest;
+use std::ffi::CString;
 
 /// SharedDirectoryAnnounce is sent by the TDP client to the server
 /// to announce a new directory to be shared over TDP.
@@ -53,24 +66,17 @@ pub struct SharedDirectoryInfoRequest {
 }
 
 impl SharedDirectoryInfoRequest {
-    /// Converts this request into a [`CGOSharedDirectoryInfoRequest`].
-    ///
-    /// Returns a tuple containing the [`CGOSharedDirectoryInfoRequest`] and a [`CString`],
-    /// which is the memory backing the [`CGOSharedDirectoryInfoRequest::path`] field.
-    /// It is the caller's responsibility to ensure that the [`CString`] lives until
-    /// the [`CGOSharedDirectoryInfoRequest::path`] is copied into Go-owned memory.
-    ///
-    /// See the example for [`SharedDirectoryCreateRequest`]'s `into_cgo`.
-    pub fn into_cgo(self) -> PduResult<(CGOSharedDirectoryInfoRequest, CString)> {
+    /// See [`CGOWithStrings`].
+    pub fn into_cgo(self) -> PduResult<CGOWithStrings<CGOSharedDirectoryInfoRequest>> {
         let path = self.path.to_cstring()?;
-        Ok((
-            CGOSharedDirectoryInfoRequest {
+        Ok(CGOWithStrings {
+            cgo: CGOSharedDirectoryInfoRequest {
                 completion_id: self.completion_id,
                 directory_id: self.directory_id,
                 path: path.as_ptr(),
             },
-            path,
-        ))
+            _strings: vec![path],
+        })
     }
 }
 
@@ -227,42 +233,18 @@ impl SharedDirectoryCreateRequest {
         }
     }
 
-    /// Converts this request into a [`CGOSharedDirectoryCreateRequest`].
-    ///
-    /// Returns a tuple containing the [`CGOSharedDirectoryCreateRequest`] and a [`CString`],
-    /// which is the memory backing the [`CGOSharedDirectoryCreateRequest::path`] field.
-    /// It is the caller's responsibility to ensure that the [`CString`] lives until
-    /// the [`CGOSharedDirectoryCreateRequest::path`] is copied into Go-owned memory.
-    ///
-    /// ```
-    /// fn example() {
-    ///     let req = SharedDirectoryCreateRequest {
-    ///         completion_id: 0,
-    ///         directory_id: 0,
-    ///         file_type: FileType::File,
-    ///         path: UnixPath::from("/tmp/test.txt"),
-    ///     };
-    ///
-    ///     // using _path (as opposed to _) ensures that the CString is not dropped
-    ///     // until after the CGOSharedDirectoryCreateRequest is copied into Go-owned memory.
-    ///     let (cgo_req, _path) = req.into_cgo().unwrap();
-    ///
-    ///     copy_into_go_memory(cgo_req);
-    ///
-    ///     // _path is dropped here
-    /// }
-    /// ```
-    pub fn into_cgo(self) -> PduResult<(CGOSharedDirectoryCreateRequest, CString)> {
+    /// See [`CGOWithStrings`].
+    pub fn into_cgo(self) -> PduResult<CGOWithStrings<CGOSharedDirectoryCreateRequest>> {
         let path = self.path.to_cstring()?;
-        Ok((
-            CGOSharedDirectoryCreateRequest {
+        Ok(CGOWithStrings {
+            cgo: CGOSharedDirectoryCreateRequest {
                 completion_id: self.completion_id,
                 directory_id: self.directory_id,
                 file_type: self.file_type,
                 path: path.as_ptr(),
             },
-            path,
-        ))
+            _strings: vec![path],
+        })
     }
 }
 
@@ -350,7 +332,7 @@ impl SharedDirectoryDeleteRequest {
     /// the [`SharedDirectoryDeleteRequest::path`] is copied into Go-owned memory.
     ///
     /// See the example for [`SharedDirectoryCreateRequest`]'s `into_cgo`.
-    pub fn into_cgo(self) -> PduResult<(CGOSharedDirectoryDeleteRequest, CString)> {
+    pub fn into_cgo2(self) -> PduResult<(CGOSharedDirectoryDeleteRequest, CString)> {
         let path = self.path.to_cstring()?;
         Ok((
             CGOSharedDirectoryDeleteRequest {
@@ -360,6 +342,19 @@ impl SharedDirectoryDeleteRequest {
             },
             path,
         ))
+    }
+
+    /// See [`CGOWithStrings`].
+    pub fn into_cgo(self) -> PduResult<CGOWithStrings<CGOSharedDirectoryDeleteRequest>> {
+        let path = self.path.to_cstring()?;
+        Ok(CGOWithStrings {
+            cgo: CGOSharedDirectoryDeleteRequest {
+                completion_id: self.completion_id,
+                directory_id: self.directory_id,
+                path: path.as_ptr(),
+            },
+            _strings: vec![path],
+        })
     }
 }
 
@@ -418,6 +413,47 @@ pub enum TdpErrCode {
 pub enum FileType {
     File = 0,
     Directory = 1,
+}
+
+/// Some CGO* structs contain `*const c_char` fields that are backed by [`CString`]\(s\).
+/// We commonly need to pass these structs to Go, so we need to ensure that the
+/// CStrings live long enough for the structs to be copied into Go-owned memory.
+///
+/// This struct is a wrapper around a CGO* struct that contains [`CString`]\(s\),
+/// which can be used to ensure that the CStrings live long enough.
+///
+/// # Example
+///
+/// ```
+/// use std::ffi::CString;
+///
+/// let path = CString::new("/path/to/file").unwrap();
+/// let mut cgo_with_strings = CGOWithStrings {
+///     cgo: CGOSharedDirectoryCreateRequest {
+///         completion_id: 1,
+///         directory_id: 2,
+///         file_type: FileType::File,
+///         path: path,
+///     },
+///     _strings: vec![path],
+/// };
+///
+/// // Pass the CGO* struct to Go.
+/// //
+/// // Because `path` is owned by `cgo_with_strings`,
+/// // it will live long enough for `pass_to_go`
+/// // to copy it into Go-owned memory.
+/// pass_to_go(cgo_with_strings.cgo());
+/// ```
+pub struct CGOWithStrings<T> {
+    cgo: T,
+    _strings: Vec<CString>,
+}
+
+impl<T> CGOWithStrings<T> {
+    pub fn cgo(&mut self) -> *mut T {
+        &mut self.cgo
+    }
 }
 
 pub const FALSE: u8 = 0;

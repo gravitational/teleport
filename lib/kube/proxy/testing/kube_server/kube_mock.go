@@ -99,6 +99,13 @@ func WithGetPodError(status metav1.Status) Option {
 	}
 }
 
+// WithExecError sets the error to be returned by the Exec call
+func WithExecError(status metav1.Status) Option {
+	return func(s *KubeMockServer) {
+		s.execPodError = &status
+	}
+}
+
 type deletedResource struct {
 	requestID string
 	kind      string
@@ -113,6 +120,7 @@ type KubeMockServer struct {
 	CA               []byte
 	deletedResources map[deletedResource][]string
 	getPodError      *metav1.Status
+	execPodError     *metav1.Status
 	mu               sync.Mutex
 }
 
@@ -221,7 +229,10 @@ func (s *KubeMockServer) writeResponseError(rw http.ResponseWriter, respErr erro
 
 func (s *KubeMockServer) exec(w http.ResponseWriter, req *http.Request, p httprouter.Params) (resp any, err error) {
 	q := req.URL.Query()
-
+	if s.execPodError != nil {
+		s.writeResponseError(w, nil, s.execPodError)
+		return nil, nil
+	}
 	request := remoteCommandRequest{
 		namespace:          p.ByName("namespace"),
 		name:               p.ByName("name"),

@@ -184,7 +184,8 @@ func (process *TeleportProcess) connect(role types.SystemRole, opts ...certOptio
 		}
 		// no state recorded - this is the first connect
 		// process will try to connect with the security token.
-		return process.firstTimeConnect(role)
+		c, err := process.firstTimeConnect(role)
+		return c, trace.Wrap(err)
 	}
 	process.log.Debugf("Connected state: %v.", state.Spec.Rotation.String())
 

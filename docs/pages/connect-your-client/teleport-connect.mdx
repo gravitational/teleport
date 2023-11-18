@@ -82,7 +82,7 @@ the lifecycle of the agent.
 {/* The permission to read and update users is needed during setup but not for regular usage,
 that's why it's not listed in the partial. */}
 - Permissions to read and update user objects in the backend (verbs `read` and `update` for [the
-  `user` resource](../access-controls/reference.mdx#teleport-resources)).
+  `user` resource](../access-controls/reference.mdx#rbac-for-dynamic-teleport-resources)).
 
 The agent runs as the current system user, not as root. Some features are thus not available, such
 as logging in as other system users or [host user creation](../server-access/guides/host-user-creation.mdx).
@@ -216,7 +216,7 @@ the agent was successfully configured.
 If you wish to prevent cluster users from using Connect My Computer, make sure they don't have
 permissions to create new join tokens. This is controlled by the `create` verb for the `token`
 resource. Either deny this permission explicitly or do not grant it in the first place. See [Access
-Controls Reference Documentation](../access-controls/reference.mdx#teleport-resources) for more
+Controls Reference Documentation](../access-controls/reference.mdx#rbac-for-dynamic-teleport-resources) for more
 details. Denying this permission will hide the icon in the top bar.
 
 Users who already set up agents will still be able to manage those agents, even after the denying
