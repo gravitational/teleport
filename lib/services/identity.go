@@ -60,6 +60,8 @@ type UsersService interface {
 	DeleteUser(ctx context.Context, user string) error
 	// GetUsers returns a list of users registered with the local auth server
 	GetUsers(ctx context.Context, withSecrets bool) ([]types.User, error)
+	// ListUsers returns a page of users.
+	ListUsers(ctx context.Context, pageSize int, nextToken string, withSecrets bool) ([]types.User, string, error)
 	// DeleteAllUsers deletes all users
 	DeleteAllUsers(ctx context.Context) error
 }

@@ -805,7 +805,7 @@ func TestCreateAndUpdateUserEventsEmitted(t *testing.T) {
 	_, err = s.a.UpdateUser(ctx, user)
 	require.NoError(t, err)
 	require.Equal(t, s.mockEmitter.LastEvent().GetType(), events.UserUpdatedEvent)
-	require.Equal(t, s.mockEmitter.LastEvent().(*apievents.UserCreate).User, teleport.UserSystem)
+	require.Equal(t, s.mockEmitter.LastEvent().(*apievents.UserUpdate).User, teleport.UserSystem)
 }
 
 func TestTrustedClusterCRUDEventEmitted(t *testing.T) {
@@ -882,8 +882,8 @@ func TestGithubConnectorCRUDEventsEmitted(t *testing.T) {
 	github.SetDisplay("llama")
 	github, err = s.a.updateGithubConnector(ctx, github)
 	require.NoError(t, err)
-	require.IsType(t, &apievents.GithubConnectorCreate{}, s.mockEmitter.LastEvent())
-	require.Equal(t, s.mockEmitter.LastEvent().GetType(), events.GithubConnectorCreatedEvent)
+	require.IsType(t, &apievents.GithubConnectorUpdate{}, s.mockEmitter.LastEvent())
+	require.Equal(t, s.mockEmitter.LastEvent().GetType(), events.GithubConnectorUpdatedEvent)
 	s.mockEmitter.Reset()
 
 	// test github upsert event
@@ -930,8 +930,8 @@ func TestOIDCConnectorCRUDEventsEmitted(t *testing.T) {
 	oidc.SetDisplay("llama")
 	oidc, err = s.a.UpdateOIDCConnector(ctx, oidc)
 	require.NoError(t, err)
-	require.IsType(t, &apievents.OIDCConnectorCreate{}, s.mockEmitter.LastEvent())
-	require.Equal(t, s.mockEmitter.LastEvent().GetType(), events.OIDCConnectorCreatedEvent)
+	require.IsType(t, &apievents.OIDCConnectorUpdate{}, s.mockEmitter.LastEvent())
+	require.Equal(t, s.mockEmitter.LastEvent().GetType(), events.OIDCConnectorUpdatedEvent)
 	s.mockEmitter.Reset()
 
 	// test oidc upsert event
@@ -1002,8 +1002,8 @@ func TestSAMLConnectorCRUDEventsEmitted(t *testing.T) {
 	saml.SetDisplay("llama")
 	saml, err = s.a.UpdateSAMLConnector(ctx, saml)
 	require.NoError(t, err)
-	require.IsType(t, &apievents.SAMLConnectorCreate{}, s.mockEmitter.LastEvent())
-	require.Equal(t, s.mockEmitter.LastEvent().GetType(), events.SAMLConnectorCreatedEvent)
+	require.IsType(t, &apievents.SAMLConnectorUpdate{}, s.mockEmitter.LastEvent())
+	require.Equal(t, s.mockEmitter.LastEvent().GetType(), events.SAMLConnectorUpdatedEvent)
 	s.mockEmitter.Reset()
 
 	// test saml upsert event

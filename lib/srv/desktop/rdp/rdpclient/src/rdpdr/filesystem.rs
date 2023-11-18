@@ -338,8 +338,8 @@ impl FilesystemBackend {
     /// Sends a [`tdp::SharedDirectoryInfoRequest`] to the browser.
     fn send_tdp_sd_info_request(&self, tdp_req: tdp::SharedDirectoryInfoRequest) -> PduResult<()> {
         debug!("sending tdp: {:?}", tdp_req);
-        let (mut req, _path) = tdp_req.into_cgo()?;
-        let err = unsafe { tdp_sd_info_request(self.cgo_handle, &mut req) };
+        let mut req = tdp_req.into_cgo()?;
+        let err = unsafe { tdp_sd_info_request(self.cgo_handle, req.cgo()) };
         if err != CGOErrCode::ErrCodeSuccess {
             return Err(custom_err!(
                 "FilesystemBackend::send_tdp_sd_info_request",
@@ -355,8 +355,8 @@ impl FilesystemBackend {
         tdp_req: tdp::SharedDirectoryCreateRequest,
     ) -> PduResult<()> {
         debug!("sending tdp: {:?}", tdp_req);
-        let (mut req, _path) = tdp_req.into_cgo()?;
-        let err = unsafe { tdp_sd_create_request(self.cgo_handle, &mut req) };
+        let mut req = tdp_req.into_cgo()?;
+        let err = unsafe { tdp_sd_create_request(self.cgo_handle, req.cgo()) };
         if err != CGOErrCode::ErrCodeSuccess {
             return Err(custom_err!(
                 "FilesystemBackend::send_tdp_sd_create_request",
@@ -372,8 +372,8 @@ impl FilesystemBackend {
         tdp_req: tdp::SharedDirectoryDeleteRequest,
     ) -> PduResult<()> {
         debug!("sending tdp: {:?}", tdp_req);
-        let (mut req, _path) = tdp_req.into_cgo()?;
-        let err = unsafe { tdp_sd_delete_request(self.cgo_handle, &mut req) };
+        let mut req = tdp_req.into_cgo()?;
+        let err = unsafe { tdp_sd_delete_request(self.cgo_handle, req.cgo()) };
         if err != CGOErrCode::ErrCodeSuccess {
             return Err(custom_err!(
                 "FilesystemBackend::send_tdp_sd_delete_request",

@@ -94,21 +94,21 @@ var tableSchema = []*dynamodb.AttributeDefinition{
 // of Teleport YAML
 type Config struct {
 	// Region is where DynamoDB Table will be used to store k/v
-	Region string `json:"region,omitempty"`
+	Region string
 	// Tablename where to store K/V in DynamoDB
-	Tablename string `json:"table_name,omitempty"`
+	Tablename string
 	// ReadCapacityUnits is Dynamodb read capacity units
-	ReadCapacityUnits int64 `json:"read_capacity_units"`
+	ReadCapacityUnits int64
 	// WriteCapacityUnits is Dynamodb write capacity units
-	WriteCapacityUnits int64 `json:"write_capacity_units"`
+	WriteCapacityUnits int64
 	// RetentionPeriod is a default retention period for events.
-	RetentionPeriod *types.Duration `json:"audit_retention_period"`
+	RetentionPeriod *types.Duration
 	// Clock is a clock interface, used in tests
 	Clock clockwork.Clock
 	// UIDGenerator is unique ID generator
 	UIDGenerator utils.UID
 	// Endpoint is an optional non-AWS endpoint
-	Endpoint string `json:"endpoint,omitempty"`
+	Endpoint string
 
 	// ReadMaxCapacity is the maximum provisioned read capacity.
 	ReadMaxCapacity int64
@@ -174,8 +174,8 @@ func (cfg *Config) CheckAndSetDefaults() error {
 	if cfg.WriteCapacityUnits == 0 {
 		cfg.WriteCapacityUnits = DefaultWriteCapacityUnits
 	}
-	if cfg.RetentionPeriod == nil {
-		duration := types.Duration(DefaultRetentionPeriod)
+	if cfg.RetentionPeriod == nil || cfg.RetentionPeriod.Duration() == 0 {
+		duration := DefaultRetentionPeriod
 		cfg.RetentionPeriod = &duration
 	}
 	if cfg.Clock == nil {
@@ -241,7 +241,7 @@ const (
 
 	// DefaultRetentionPeriod is a default data retention period in events table.
 	// The default is 1 year.
-	DefaultRetentionPeriod = 365 * 24 * time.Hour
+	DefaultRetentionPeriod = types.Duration(365 * 24 * time.Hour)
 )
 
 // New returns new instance of DynamoDB backend.
