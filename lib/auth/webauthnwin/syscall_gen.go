@@ -23,4 +23,7 @@
 //sys webAuthNAuthenticatorMakeCredential(hwnd syscall.Handle, rp *webauthnRPEntityInformation, user *webauthnUserEntityInformation, pubKeyCredParams *webauthnCoseCredentialParameters, clientData *webauthnClientData, opts *webauthnAuthenticatorMakeCredentialOptions, out **webauthnCredentialAttestation) (ret uintptr, err error) [failretval!=0] = WebAuthn.WebAuthNAuthenticatorMakeCredential
 // https://github.com/microsoft/webauthn/blob/7ab979cc833bfab9a682ed51761309db57f56c8c/webauthn.h#L907
 
+//sys webAuthNFreeCredentialAttestation(in *webauthnCredentialAttestation) = WebAuthn.WebAuthNFreeCredentialAttestation
+// https://github.com/microsoft/webauthn/blob/7ab979cc833bfab9a682ed51761309db57f56c8c/webauthn.h#L928
+
 package webauthnwin
