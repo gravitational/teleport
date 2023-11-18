@@ -29,32 +29,14 @@ import { StyledCheckbox } from 'design/Checkbox';
 
 import { ShimmerBox } from 'design/ShimmerBox';
 import { ResourceIcon, ResourceIconName } from 'design/ResourceIcon';
-import {
-  Copy,
-  Check,
-  Application as ApplicationsIcon,
-  Database as DatabasesIcon,
-  Kubernetes as KubernetesIcon,
-  Server as ServersIcon,
-  Desktop as DesktopsIcon,
-  PushPinFilled,
-  PushPin,
-} from 'design/Icon';
+import { Icon, Copy, Check, PushPinFilled, PushPin } from 'design/Icon';
 
 import {
-  ResourceLabel,
-  UnifiedResource,
-  UnifiedResourceKind,
-} from 'teleport/services/agents';
-import { Database } from 'teleport/services/databases';
-
-import { ResourceActionButton } from './ResourceActionButton';
-import {
-  resourceKey,
-  resourceName,
   HoverTooltip,
   PINNING_NOT_SUPPORTED_MESSAGE,
-} from './Resources';
+} from './UnifiedResources';
+
+import type { ResourceLabel } from 'teleport/services/agents'; // Since we do a lot of manual resizing and some absolute positioning, we have
 
 // Since we do a lot of manual resizing and some absolute positioning, we have
 // to put some layout constants in place here.
@@ -72,37 +54,48 @@ const ResTypeIconBox = styled(Box)`
   line-height: 0;
 `;
 
+export enum PinningSupport {
+  Supported = 'Supported',
+  /**
+   * Disables pinning functionality if a leaf cluster hasn't been upgraded yet.
+   * Shows an appropriate message on hover.
+   * */
+  NotSupported = 'NotSupported',
+  /** Disables the pinning button. */
+  Disabled = 'Disabled',
+  /** Hides the pinning button completely. */
+  Hidden = 'Hidden',
+}
+
 type Props = {
-  resource: UnifiedResource;
+  name: string;
+  primaryIconName: ResourceIconName;
+  SecondaryIcon: typeof Icon;
+  description: { primary?: string; secondary?: string };
+  labels: ResourceLabel[];
+  ActionButton: React.ReactElement;
   onLabelClick?: (label: ResourceLabel) => void;
-  pinResource: (id: string) => void;
-  selectResource: (id: string) => void;
-  pinned: boolean;
+  pinResource: () => void;
+  selectResource: () => void;
   selected: boolean;
-  // this is used to disable pinning functionality if
-  // a leaf cluster hasn't been upgraded yet
-  pinningNotSupported: boolean;
-  // pinningDisabled is used to disable the button during
-  // a pinning network request
-  pinningDisabled: boolean;
+  pinned: boolean;
+  pinningSupport: PinningSupport;
 };
 
 export function ResourceCard({
-  resource,
+  name,
+  primaryIconName,
+  SecondaryIcon,
   onLabelClick,
-  pinned = false,
-  selected = false,
+  description,
+  ActionButton,
+  labels,
+  pinningSupport,
+  pinned,
   pinResource,
   selectResource,
-  pinningNotSupported = false,
-  pinningDisabled,
+  selected,
 }: Props) {
-  const name = resourceName(resource);
-  const id = resourceKey(resource);
-  const resIcon = resourceIconName(resource);
-  const ResTypeIcon = resourceTypeIcon(resource.kind);
-  const description = resourceDescription(resource);
-
   const [showMoreLabelsButton, setShowMoreLabelsButton] = useState(false);
   const [showAllLabels, setShowAllLabels] = useState(false);
   const [numMoreLabels, setNumMoreLabels] = useState(0);
@@ -194,10 +187,6 @@ export function ResourceCard({
     }
   };
 
-  const setPinned = () => {
-    pinResource(id);
-  };
-
   return (
     <CardContainer
       onMouseEnter={() => setHovered(true)}
@@ -217,24 +206,27 @@ export function ResourceCard({
         >
           <HoverTooltip tipContent={<>{selected ? 'Deselect' : 'Select'}</>}>
             <StyledCheckbox
-              id={`select-${id}`}
               css={`
                 position: absolute;
                 top: 16px;
                 left: 16px;
               `}
               checked={selected}
-              onChange={() => selectResource(id)}
+              onChange={selectResource}
             />
           </HoverTooltip>
           <PinButton
-            pinningDisabled={pinningDisabled}
-            pinningNotSupported={pinningNotSupported}
-            setPinned={setPinned}
-            hovered={hovered}
+            setPinned={pinResource}
             pinned={pinned}
+            pinningSupport={pinningSupport}
+            hovered={hovered}
           />
-          <ResourceIcon name={resIcon} width="45px" height="45px" ml={2} />
+          <ResourceIcon
+            name={primaryIconName}
+            width="45px"
+            height="45px"
+            ml={2}
+          />
           {/* MinWidth is important to prevent descriptions from overflowing. */}
           <Flex flexDirection="column" flex="1" minWidth="0" ml={3} gap={1}>
             <Flex flexDirection="row" alignItems="center">
@@ -252,11 +244,11 @@ export function ResourceCard({
                 )}
               </SingleLineBox>
               {hovered && <CopyButton name={name} />}
-              <ResourceActionButton resource={resource} />
+              {ActionButton}
             </Flex>
             <Flex flexDirection="row" alignItems="center">
               <ResTypeIconBox>
-                <ResTypeIcon size={18} />
+                <SecondaryIcon size={18} />
               </ResTypeIconBox>
               {description.primary && (
                 <SingleLineBox ml={1} title={description.primary}>
@@ -286,11 +278,11 @@ export function ResourceCard({
                 >
                   + {numMoreLabels} more
                 </MoreLabelsButton>
-                {resource.labels.map((label, i) => {
+                {labels.map((label, i) => {
                   const { name, value } = label;
                   const labelText = `${name}: ${value}`;
                   return (
-                    <ResourceLabel
+                    <StyledLabel
                       key={JSON.stringify([name, value, i])}
                       title={labelText}
                       onClick={() => onLabelClick?.(label)}
@@ -298,7 +290,7 @@ export function ResourceCard({
                       data-is-label=""
                     >
                       {labelText}
-                    </ResourceLabel>
+                    </StyledLabel>
                   );
                 })}
               </LabelsInnerContainer>
@@ -398,85 +390,6 @@ function CopyButton({ name }: { name: string }) {
   );
 }
 
-function resourceDescription(resource: UnifiedResource) {
-  switch (resource.kind) {
-    case 'app':
-      return {
-        primary: resource.description,
-        secondary: resource.addrWithProtocol,
-      };
-    case 'db':
-      return { primary: resource.type, secondary: resource.description };
-    case 'kube_cluster':
-      return { primary: 'Kubernetes' };
-    case 'node':
-      return {
-        primary: resource.subKind || 'SSH Server',
-        secondary: resource.tunnel ? '' : resource.addr,
-      };
-    case 'windows_desktop':
-      return { primary: 'Windows', secondary: resource.addr };
-
-    default:
-      return {};
-  }
-}
-
-function databaseIconName(resource: Database): ResourceIconName {
-  switch (resource.protocol) {
-    case 'postgres':
-      return 'Postgres';
-    case 'mysql':
-      return 'MysqlLarge';
-    case 'mongodb':
-      return 'Mongo';
-    case 'cockroachdb':
-      return 'Cockroach';
-    case 'snowflake':
-      return 'Snowflake';
-    case 'dynamodb':
-      return 'Dynamo';
-    default:
-      return 'Database';
-  }
-}
-
-function resourceIconName(resource: UnifiedResource): ResourceIconName {
-  switch (resource.kind) {
-    case 'app':
-      return resource.guessedAppIconName;
-    case 'db':
-      return databaseIconName(resource);
-    case 'kube_cluster':
-      return 'Kube';
-    case 'node':
-      return 'Server';
-    case 'windows_desktop':
-      return 'Windows';
-
-    default:
-      return 'Server';
-  }
-}
-
-function resourceTypeIcon(kind: UnifiedResourceKind) {
-  switch (kind) {
-    case 'app':
-      return ApplicationsIcon;
-    case 'db':
-      return DatabasesIcon;
-    case 'kube_cluster':
-      return KubernetesIcon;
-    case 'node':
-      return ServersIcon;
-    case 'windows_desktop':
-      return DesktopsIcon;
-
-    default:
-      return ServersIcon;
-  }
-}
-
 /**
  * The outer container's purpose is to reserve horizontal space on the resource
  * grid. It holds the inner container that normally holds a regular layout of
@@ -552,7 +465,7 @@ const LabelsContainer = styled(Box)`
   overflow: hidden;
 `;
 
-const ResourceLabel = styled(Label)`
+const StyledLabel = styled(Label)`
   height: ${labelHeight}px;
   margin: 1px 0;
   overflow: hidden;
@@ -603,46 +516,66 @@ const LoadingCardWrapper = styled(Box)`
 
 function PinButton({
   pinned,
+  pinningSupport,
   hovered,
   setPinned,
-  pinningDisabled,
-  pinningNotSupported,
 }: {
   pinned: boolean;
+  pinningSupport: PinningSupport;
   hovered: boolean;
   setPinned: (id: string) => void;
-  pinningDisabled: boolean;
-  pinningNotSupported: boolean;
 }) {
   const copyAnchorEl = useRef(null);
-  const tipContent = pinningNotSupported
-    ? PINNING_NOT_SUPPORTED_MESSAGE
-    : pinned
-    ? 'Unpin'
-    : 'Pin';
+  const tipContent = getTipContent(pinningSupport, pinned);
+
+  const shouldShowButton =
+    pinningSupport !== PinningSupport.Hidden && (pinned || hovered);
+  const shouldDisableButton =
+    pinningSupport === PinningSupport.Disabled ||
+    pinningSupport === PinningSupport.NotSupported;
+
+  const $content = pinned ? (
+    <PushPinFilled color="brand" size="small" />
+  ) : (
+    <PushPin size="small" />
+  );
 
   return (
     <ButtonIcon
       css={`
         // dont display but keep the layout
-        visibility: ${pinned || hovered ? 'visible' : 'hidden'};
+        visibility: ${shouldShowButton ? 'visible' : 'hidden'};
         position: absolute;
         // we position far from the top so the layout of the pin doesn't change if we expand the card
         top: ${props => props.theme.space[9]}px;
+        transition: none;
         left: 16px;
       `}
-      disabled={pinningDisabled || pinningNotSupported}
+      disabled={shouldDisableButton}
       setRef={copyAnchorEl}
       size={0}
       onClick={setPinned}
     >
-      <HoverTooltip tipContent={<>{tipContent}</>}>
-        {pinned ? (
-          <PushPinFilled color="brand" size="small" />
-        ) : (
-          <PushPin size="small" />
-        )}
-      </HoverTooltip>
+      {tipContent ? (
+        <HoverTooltip tipContent={<>{tipContent}</>}>{$content}</HoverTooltip>
+      ) : (
+        $content
+      )}
+      <HoverTooltip tipContent={<>{tipContent}</>}></HoverTooltip>
     </ButtonIcon>
   );
+}
+
+function getTipContent(
+  pinningSupport: PinningSupport,
+  pinned: boolean
+): string {
+  switch (pinningSupport) {
+    case PinningSupport.NotSupported:
+      return PINNING_NOT_SUPPORTED_MESSAGE;
+    case PinningSupport.Supported:
+      return pinned ? 'Unpin' : 'Pin';
+    default:
+      return '';
+  }
 }

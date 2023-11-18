@@ -18,14 +18,10 @@ import { useState } from 'react';
 import { FetchStatus, Page } from 'design/DataTable/types';
 import useAttempt, { Attempt } from 'shared/hooks/useAttemptNext';
 
-import {
-  ResourcesResponse,
-  UnifiedResource,
-  ResourceFilter,
-} from 'teleport/services/agents';
+import { ResourcesResponse, ResourceFilter } from 'teleport/services/agents';
 import { UrlResourcesParams } from 'teleport/config';
 
-export function useServerSidePagination<T extends UnifiedResource>({
+export function useServerSidePagination<T>({
   fetchFunc,
   clusterId,
   params,
@@ -138,7 +134,7 @@ export function useServerSidePagination<T extends UnifiedResource>({
   };
 }
 
-type Props<T extends UnifiedResource> = {
+type Props<T> = {
   fetchFunc: (
     clusterId: string,
     params: UrlResourcesParams
@@ -148,7 +144,7 @@ type Props<T extends UnifiedResource> = {
   pageSize?: number;
 };
 
-type State<T extends UnifiedResource> = {
+type State<T> = {
   pageIndicators: PageIndicators;
   fetch: () => void;
   fetchNext: (() => void) | null;

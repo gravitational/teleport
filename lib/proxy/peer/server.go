@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -141,6 +142,7 @@ func NewServer(config ServerConfig) (*Server, error) {
 			MinTime:             peerKeepAlive,
 			PermitWithoutStream: true,
 		}),
+		grpc.MaxConcurrentStreams(defaults.GRPCMaxConcurrentStreams),
 	)
 
 	proto.RegisterProxyServiceServer(server, config.service)

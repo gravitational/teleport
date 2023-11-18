@@ -48,6 +48,7 @@ pub mod client;
 mod cliprdr;
 mod piv;
 mod rdpdr;
+mod ssl;
 mod util;
 
 #[no_mangle]

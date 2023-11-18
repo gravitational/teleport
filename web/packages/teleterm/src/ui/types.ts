@@ -54,5 +54,5 @@ export interface IAppContext {
   connectMyComputerService: ConnectMyComputerService;
   headlessAuthenticationService: HeadlessAuthenticationService;
 
-  init(): Promise<void>;
+  pullInitialState(): Promise<void>;
 }

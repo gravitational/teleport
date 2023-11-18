@@ -120,6 +120,7 @@ export const eventCodes = {
   EXEC: 'T3002I',
   GITHUB_CONNECTOR_CREATED: 'T8000I',
   GITHUB_CONNECTOR_DELETED: 'T8001I',
+  GITHUB_CONNECTOR_UPDATED: 'T8002I',
   KUBE_REQUEST: 'T3009I',
   KUBE_CREATED: 'T3010I',
   KUBE_UPDATED: 'T3011I',
@@ -130,6 +131,7 @@ export const eventCodes = {
   MFA_DEVICE_DELETE: 'T1007I',
   OIDC_CONNECTOR_CREATED: 'T8100I',
   OIDC_CONNECTOR_DELETED: 'T8101I',
+  OIDC_CONNECTOR_UPDATED: 'T8102I',
   PORTFORWARD_FAILURE: 'T3003E',
   PORTFORWARD: 'T3003I',
   RECOVERY_TOKEN_CREATED: 'T6001I',
@@ -140,8 +142,10 @@ export const eventCodes = {
   RESET_PASSWORD_TOKEN_CREATED: 'T6000I',
   ROLE_CREATED: 'T9000I',
   ROLE_DELETED: 'T9001I',
+  ROLE_UPDATED: 'T9002I',
   SAML_CONNECTOR_CREATED: 'T8200I',
   SAML_CONNECTOR_DELETED: 'T8201I',
+  SAML_CONNECTOR_UPDATED: 'T8202I',
   SCP_DOWNLOAD_FAILURE: 'T3004E',
   SCP_DOWNLOAD: 'T3004I',
   SCP_UPLOAD_FAILURE: 'T3005E',
@@ -337,11 +341,17 @@ export type RawEvents = {
   [eventCodes.GITHUB_CONNECTOR_DELETED]: RawEventConnector<
     typeof eventCodes.GITHUB_CONNECTOR_DELETED
   >;
+  [eventCodes.GITHUB_CONNECTOR_UPDATED]: RawEventConnector<
+    typeof eventCodes.GITHUB_CONNECTOR_UPDATED
+  >;
   [eventCodes.OIDC_CONNECTOR_CREATED]: RawEventConnector<
     typeof eventCodes.OIDC_CONNECTOR_CREATED
   >;
   [eventCodes.OIDC_CONNECTOR_DELETED]: RawEventConnector<
     typeof eventCodes.OIDC_CONNECTOR_DELETED
+  >;
+  [eventCodes.OIDC_CONNECTOR_UPDATED]: RawEventConnector<
+    typeof eventCodes.OIDC_CONNECTOR_UPDATED
   >;
   [eventCodes.PORTFORWARD]: RawEvent<typeof eventCodes.PORTFORWARD>;
   [eventCodes.PORTFORWARD_FAILURE]: RawEvent<
@@ -355,6 +365,9 @@ export type RawEvents = {
   >;
   [eventCodes.SAML_CONNECTOR_DELETED]: RawEventConnector<
     typeof eventCodes.SAML_CONNECTOR_DELETED
+  >;
+  [eventCodes.SAML_CONNECTOR_UPDATED]: RawEventConnector<
+    typeof eventCodes.SAML_CONNECTOR_UPDATED
   >;
   [eventCodes.SCP_DOWNLOAD]: RawEvent<
     typeof eventCodes.SCP_DOWNLOAD,
@@ -617,6 +630,7 @@ export type RawEvents = {
   >;
   [eventCodes.ROLE_CREATED]: RawEvent<typeof eventCodes.ROLE_CREATED, HasName>;
   [eventCodes.ROLE_DELETED]: RawEvent<typeof eventCodes.ROLE_DELETED, HasName>;
+  [eventCodes.ROLE_UPDATED]: RawEvent<typeof eventCodes.ROLE_UPDATED, HasName>;
   [eventCodes.TRUSTED_CLUSTER_TOKEN_CREATED]: RawEvent<
     typeof eventCodes.TRUSTED_CLUSTER_TOKEN_CREATED
   >;

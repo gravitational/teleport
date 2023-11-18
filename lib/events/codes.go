@@ -371,21 +371,29 @@ const (
 	GithubConnectorCreatedCode = "T8000I"
 	// GithubConnectorDeletedCode is the Github connector deleted event code.
 	GithubConnectorDeletedCode = "T8001I"
+	// GithubConnectorUpdatedCode is the Github connector updated event code.
+	GithubConnectorUpdatedCode = "T80002I"
 
 	// OIDCConnectorCreatedCode is the OIDC connector created event code.
 	OIDCConnectorCreatedCode = "T8100I"
 	// OIDCConnectorDeletedCode is the OIDC connector deleted event code.
 	OIDCConnectorDeletedCode = "T8101I"
+	// OIDCConnectorUpdatedCode is the OIDC connector updated event code.
+	OIDCConnectorUpdatedCode = "T8102I"
 
 	// SAMLConnectorCreatedCode is the SAML connector created event code.
 	SAMLConnectorCreatedCode = "T8200I"
 	// SAMLConnectorDeletedCode is the SAML connector deleted event code.
 	SAMLConnectorDeletedCode = "T8201I"
+	// SAMLConnectorUpdatedCode is the SAML connector updated event code.
+	SAMLConnectorUpdatedCode = "T8202I"
 
 	// RoleCreatedCode is the role created event code.
 	RoleCreatedCode = "T9000I"
 	// RoleDeletedCode is the role deleted event code.
 	RoleDeletedCode = "T9001I"
+	// RoleUpdatedCode is the role created event code.
+	RoleUpdatedCode = "T9002I"
 
 	// BotJoinCode is the 'bot.join' event code.
 	BotJoinCode = "TJ001I"

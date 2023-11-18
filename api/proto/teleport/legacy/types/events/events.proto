@@ -1231,8 +1231,38 @@ message ResourceMetadata {
   string TTL = 4 [(gogoproto.jsontag) = "ttl,omitempty"];
 }
 
-// UserCreate is emitted when the user is created or updated (upsert).
+// UserCreate is emitted when the user is created or upserted.
 message UserCreate {
+  // Metadata is a common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata
+  UserMetadata User = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ResourceMetadata is a common resource event metadata
+  ResourceMetadata Resource = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Roles is a list of roles for the user.
+  repeated string Roles = 4 [(gogoproto.jsontag) = "roles"];
+
+  // Connector is the connector used to create the user.
+  string Connector = 5 [(gogoproto.jsontag) = "connector"];
+}
+
+// UserUpdate is emitted when the user is updated.
+message UserUpdate {
   // Metadata is a common event metadata
   Metadata Metadata = 1 [
     (gogoproto.nullable) = false,
@@ -1874,6 +1904,30 @@ message RoleCreate {
   ];
 }
 
+// RoleUpdate is emitted when a role is updated.
+message RoleUpdate {
+  // Metadata is a common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ResourceMetadata is a common resource event metadata
+  ResourceMetadata Resource = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata
+  UserMetadata User = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
 // RoleDelete is emitted when a role is deleted
 message RoleDelete {
   // Metadata is a common event metadata
@@ -2005,8 +2059,32 @@ message TrustedClusterTokenCreate {
   ];
 }
 
-// GithubConnectorCreate fires when a Github connector is created/updated.
+// GithubConnectorCreate fires when a Github connector is created.
 message GithubConnectorCreate {
+  // Metadata is a common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ResourceMetadata is a common resource event metadata
+  ResourceMetadata Resource = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata
+  UserMetadata User = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// GithubConnectorUpdate fires when a Github connector is updated.
+message GithubConnectorUpdate {
   // Metadata is a common event metadata
   Metadata Metadata = 1 [
     (gogoproto.nullable) = false,
@@ -2053,8 +2131,32 @@ message GithubConnectorDelete {
   ];
 }
 
-// OIDCConnectorCreate fires when OIDC connector is created/updated.
+// OIDCConnectorCreate fires when OIDC connector is created.
 message OIDCConnectorCreate {
+  // Metadata is a common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ResourceMetadata is a common resource event metadata
+  ResourceMetadata Resource = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata
+  UserMetadata User = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// OIDCConnectorUpdate fires when OIDC connector is updated.
+message OIDCConnectorUpdate {
   // Metadata is a common event metadata
   Metadata Metadata = 1 [
     (gogoproto.nullable) = false,
@@ -2103,6 +2205,30 @@ message OIDCConnectorDelete {
 
 // SAMLConnectorCreate fires when SAML connector is created/updated.
 message SAMLConnectorCreate {
+  // Metadata is a common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ResourceMetadata is a common resource event metadata
+  ResourceMetadata Resource = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata
+  UserMetadata User = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// SAMLConnectorUpdate fires when SAML connector is updated.
+message SAMLConnectorUpdate {
   // Metadata is a common event metadata
   Metadata Metadata = 1 [
     (gogoproto.nullable) = false,
@@ -3531,6 +3657,11 @@ message OneOf {
     events.AccessListMemberDeleteAllForAccessList AccessListMemberDeleteAllForAccessList = 133;
     events.AuditQueryRun AuditQueryRun = 134;
     events.SecurityReportRun SecurityReportRun = 135;
+    events.GithubConnectorUpdate GithubConnectorUpdate = 136;
+    events.OIDCConnectorUpdate OIDCConnectorUpdate = 137;
+    events.SAMLConnectorUpdate SAMLConnectorUpdate = 138;
+    events.RoleUpdate RoleUpdate = 139;
+    events.UserUpdate UserUpdate = 140;
   }
 }
 

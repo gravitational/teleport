@@ -22,14 +22,27 @@ import DialogConfirmation, {
 } from 'design/DialogConfirmation';
 import { ButtonIcon, ButtonPrimary, ButtonSecondary, Text } from 'design';
 import { Cross } from 'design/Icon';
+import { pluralize } from 'shared/utils/text';
+
+import { RootClusterUri, routing } from 'teleterm/ui/uri';
+import { useAppContext } from 'teleterm/ui/appContextProvider';
 
 interface DocumentsReopenProps {
+  rootClusterUri: RootClusterUri;
+  numberOfDocuments: number;
   onCancel(): void;
-
   onConfirm(): void;
 }
 
 export function DocumentsReopen(props: DocumentsReopenProps) {
+  const { rootClusterUri } = props;
+  const { clustersService } = useAppContext();
+  // TODO(ravicious): Use a profile name here from the URI and remove the dependency on
+  // clustersService. https://github.com/gravitational/teleport/issues/33733
+  const clusterName =
+    clustersService.findCluster(rootClusterUri)?.name ||
+    routing.parseClusterName(rootClusterUri);
+
   return (
     <DialogConfirmation
       open={true}
@@ -64,6 +77,27 @@ export function DocumentsReopen(props: DocumentsReopenProps) {
         <DialogContent mb={4}>
           <Text typography="body1" color="text.slightlyMuted">
             Do you want to reopen tabs from the previous session?
+          </Text>
+          <Text
+            typography="body1"
+            color="text.slightlyMuted"
+            // Split long continuous cluster names into separate lines.
+            css={`
+              word-wrap: break-word;
+            `}
+          >
+            {/*
+              We show this mostly because we needed to show the cluster name somewhere during UI
+              initialization. When you open the app and have some tabs to restore, the UI will show
+              nothing else but this modal. Showing the cluster name provides some information to the
+              user about which workspace they're in.
+            */}
+            You had{' '}
+            <strong>
+              {props.numberOfDocuments}{' '}
+              {pluralize(props.numberOfDocuments, 'tab')}
+            </strong>{' '}
+            open in <strong>{clusterName}</strong>.
           </Text>
         </DialogContent>
         <DialogFooter>

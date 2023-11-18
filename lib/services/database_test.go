@@ -735,12 +735,12 @@ func TestDatabaseFromRDSV2Instance(t *testing.T) {
 		DBClusterIdentifier:              aws.String("cluster-1"),
 		DBInstanceStatus:                 aws.String("available"),
 		DbiResourceId:                    aws.String("resource-1"),
-		IAMDatabaseAuthenticationEnabled: true,
+		IAMDatabaseAuthenticationEnabled: aws.Bool(true),
 		Engine:                           aws.String(RDSEnginePostgres),
 		EngineVersion:                    aws.String("13.0"),
 		Endpoint: &rdsTypesV2.Endpoint{
 			Address: aws.String("localhost"),
-			Port:    5432,
+			Port:    aws.Int32(5432),
 		},
 		TagList: []rdsTypesV2.Tag{{
 			Key:   aws.String("key"),
