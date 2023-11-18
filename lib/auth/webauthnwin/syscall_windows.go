@@ -45,6 +45,7 @@ var (
 	procWebAuthNFreeAssertion                                 = modWebAuthn.NewProc("WebAuthNFreeAssertion")
 	procWebAuthNFreeCredentialAttestation                     = modWebAuthn.NewProc("WebAuthNFreeCredentialAttestation")
 	procWebAuthNGetApiVersionNumber                           = modWebAuthn.NewProc("WebAuthNGetApiVersionNumber")
+	procWebAuthNGetErrorName                                  = modWebAuthn.NewProc("WebAuthNGetErrorName")
 	procWebAuthNIsUserVerifyingPlatformAuthenticatorAvailable = modWebAuthn.NewProc("WebAuthNIsUserVerifyingPlatformAuthenticatorAvailable")
 )
 
@@ -82,6 +83,12 @@ func webAuthNGetApiVersionNumber() (ret int, err error) {
 	if ret == 0 {
 		err = errnoErr(e1)
 	}
+	return
+}
+
+func webAuthNGetErrorName(in uintptr) (ret uintptr) {
+	r0, _, _ := syscall.Syscall(procWebAuthNGetErrorName.Addr(), 1, uintptr(in), 0, 0)
+	ret = uintptr(r0)
 	return
 }
 
