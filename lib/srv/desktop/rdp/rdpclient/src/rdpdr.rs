@@ -27,7 +27,7 @@ use crate::client::{ClientFunction, ClientHandle};
 use crate::CgoHandle;
 use ironrdp_pdu::{custom_err, PduResult};
 use ironrdp_rdpdr::pdu::efs::{
-    DeviceControlRequest, FilesystemRequest, NtStatus, ServerDeviceAnnounceResponse,
+    DeviceControlRequest, NtStatus, ServerDeviceAnnounceResponse, ServerDriveIoRequest,
 };
 use ironrdp_rdpdr::pdu::esc::{ScardCall, ScardIoCtlCode};
 use ironrdp_rdpdr::pdu::RdpdrPdu;
@@ -78,7 +78,7 @@ impl RdpdrBackend for TeleportRdpdrBackend {
         }
     }
 
-    fn handle_fs_request(&mut self, req: FilesystemRequest) -> PduResult<()> {
+    fn handle_drive_io_request(&mut self, req: ServerDriveIoRequest) -> PduResult<()> {
         self.fs.handle(req)
     }
 }
@@ -92,9 +92,9 @@ impl TeleportRdpdrBackend {
         cgo_handle: CgoHandle,
     ) -> Self {
         Self {
-            client_handle,
+            client_handle: client_handle.clone(),
             scard: ScardBackend::new(cert_der, key_der, pin),
-            fs: FilesystemBackend::new(cgo_handle),
+            fs: FilesystemBackend::new(cgo_handle, client_handle),
         }
     }
 

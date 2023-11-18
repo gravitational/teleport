@@ -12,21 +12,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use ironrdp_pdu::{custom_err, other_err, PduResult};
+use super::{
+    path::UnixPath,
+    tdp::{self, SharedDirectoryDeleteRequest, TdpErrCode},
+};
+use crate::{
+    client::{ClientFunction, ClientHandle},
+    tdp_sd_create_request, tdp_sd_delete_request, tdp_sd_info_request, CGOErrCode, CgoHandle,
+};
+use ironrdp_pdu::{cast_length, custom_err, other_err, PduResult};
 use ironrdp_rdpdr::pdu::{
     efs::{self, NtStatus},
     RdpdrPdu,
 };
 use std::collections::HashMap;
-
-use crate::{
-    tdp_sd_create_request, tdp_sd_delete_request, tdp_sd_info_request, CGOErrCode, CgoHandle,
-};
-
-use super::{
-    path::UnixPath,
-    tdp::{self, SharedDirectoryDeleteRequest, TdpErrCode},
-};
+use std::convert::TryInto;
 
 /// `FilesystemBackend` implements the filesystem redirection backend as described in [\[MS-RDPEFS\]: Remote Desktop Protocol: File System Virtual Channel Extension].
 /// It does so in concert with the TDP directory sharing extension described in [RFD 0067].
@@ -36,6 +36,7 @@ use super::{
 #[derive(Debug)]
 pub struct FilesystemBackend {
     cgo_handle: CgoHandle,
+    client_handle: ClientHandle,
     /// FileId-indexed cache of FileCacheObjects.
     /// See the documentation of FileCacheObject
     /// for more detail on how this is used.
@@ -49,9 +50,10 @@ pub struct FilesystemBackend {
 }
 
 impl FilesystemBackend {
-    pub fn new(cgo_handle: CgoHandle) -> Self {
+    pub fn new(cgo_handle: CgoHandle, client_handle: ClientHandle) -> Self {
         Self {
             cgo_handle,
+            client_handle,
             file_cache: FileCache::new(),
             pending_tdp_sd_info_resp_handlers: HashMap::new(),
             pending_sd_create_resp_handlers: HashMap::new(),
@@ -59,16 +61,19 @@ impl FilesystemBackend {
         }
     }
 
-    pub fn handle(&mut self, req: efs::FilesystemRequest) -> PduResult<()> {
+    pub fn handle(&mut self, req: efs::ServerDriveIoRequest) -> PduResult<()> {
         match req {
-            efs::FilesystemRequest::DeviceCreateRequest(req) => {
-                self.handle_rdp_device_create_req(req)
+            efs::ServerDriveIoRequest::ServerCreateDriveRequest(req) => {
+                self.handle_device_create_req(req)
+            }
+            efs::ServerDriveIoRequest::ServerDriveQueryInformationRequest(req) => {
+                self.handle_query_information_req(req)
             }
         }
     }
 
     /// Handles an RDP [`efs::DeviceCreateRequest`] received from the RDP server.
-    fn handle_rdp_device_create_req(&mut self, rdp_req: efs::DeviceCreateRequest) -> PduResult<()> {
+    fn handle_device_create_req(&mut self, rdp_req: efs::DeviceCreateRequest) -> PduResult<()> {
         // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L210
         self.send_tdp_sd_info_request(tdp::SharedDirectoryInfoRequest::from(&rdp_req))?;
         self.pending_tdp_sd_info_resp_handlers.insert(
@@ -77,7 +82,7 @@ impl FilesystemBackend {
                 |this: &mut FilesystemBackend,
                  tdp_resp: tdp::SharedDirectoryInfoResponse|
                  -> PduResult<Option<RdpdrPdu>> {
-                    this.handle_rdp_device_create_req_continued(rdp_req, tdp_resp)
+                    this.handle_device_create_req_continued(rdp_req, tdp_resp)
                 },
             )),
         );
@@ -86,7 +91,7 @@ impl FilesystemBackend {
 
     /// Continues [`Self::handle_rdp_device_create_req`] after a [`tdp::SharedDirectoryInfoResponse`] is received from the browser,
     /// returning any [`RdpdrPdu`]s that need to be sent back to the RDP server.
-    fn handle_rdp_device_create_req_continued(
+    fn handle_device_create_req_continued(
         &mut self,
         req: efs::DeviceCreateRequest,
         res: tdp::SharedDirectoryInfoResponse,
@@ -252,6 +257,24 @@ impl FilesystemBackend {
             "FilesystemBackend::pending_tdp_sd_info_resp_handlers",
             "Programmer error, this line should never be reached"
         ))
+    }
+
+    /// Handles an RDP [`efs::ServerDriveQueryInformationRequest`] received from the RDP server.
+    fn handle_query_information_req(
+        &mut self,
+        rdp_req: efs::ServerDriveQueryInformationRequest,
+    ) -> PduResult<()> {
+        let file = self.file_cache.get(rdp_req.device_io_request.file_id);
+        let rdp_resp = Self::make_client_drive_query_information_response(rdp_req, file)?;
+        self.client_handle
+            .blocking_send(ClientFunction::WriteRdpdr(rdp_resp))
+            .map_err(|e| {
+                custom_err!(
+                    "FilesystemBackend::write_rdpdr",
+                    FilesystemBackendError(format!("{:?}", e))
+                )
+            })?;
+        Ok(())
     }
 
     /// Helper function for writing a [`tdp::SharedDirectoryCreateRequest`] to the browser
@@ -471,6 +494,104 @@ impl FilesystemBackend {
             },
         )))
     }
+
+    fn make_client_drive_query_information_response(
+        rdp_req: efs::ServerDriveQueryInformationRequest,
+        file: Option<&FileCacheObject>,
+    ) -> PduResult<RdpdrPdu> {
+        if file.is_none() {
+            return Ok(RdpdrPdu::ClientDriveQueryInformationResponse(
+                efs::ClientDriveQueryInformationResponse {
+                    device_io_response: efs::DeviceIoResponse::new(
+                        rdp_req.device_io_request.clone(),
+                        NtStatus::UNSUCCESSFUL,
+                    ),
+                    buffer: None,
+                },
+            ));
+        }
+        let file = file.unwrap(); // safe because of the if statement above
+        let device_io_response =
+            efs::DeviceIoResponse::new(rdp_req.device_io_request.clone(), NtStatus::SUCCESS);
+
+        // We support all the FsInformationClasses that FreeRDP does here
+        // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L482
+        match rdp_req.file_info_class_lvl {
+            efs::FileInformationClassLevel::FILE_BASIC_INFORMATION => {
+                Ok(RdpdrPdu::ClientDriveQueryInformationResponse(
+                    efs::ClientDriveQueryInformationResponse {
+                        device_io_response,
+                        buffer: Some(efs::FileInformationClass::Basic(
+                            efs::FileBasicInformation {
+                                creation_time: to_windows_time(file.fso.last_modified),
+                                last_access_time: to_windows_time(file.fso.last_modified),
+                                last_write_time: to_windows_time(file.fso.last_modified),
+                                change_time: to_windows_time(file.fso.last_modified),
+                                file_attributes: if file.fso.file_type == tdp::FileType::File {
+                                    efs::FileAttributes::FILE_ATTRIBUTE_NORMAL
+                                } else {
+                                    efs::FileAttributes::FILE_ATTRIBUTE_DIRECTORY
+                                },
+                            },
+                        )),
+                    },
+                ))
+            }
+            efs::FileInformationClassLevel::FILE_STANDARD_INFORMATION => {
+                let file_fso_size: i64 = cast_length!(
+                    "FilesystemBackend::make_client_drive_query_information_response",
+                    "file.fso.size",
+                    file.fso.size
+                )?;
+                Ok(RdpdrPdu::ClientDriveQueryInformationResponse(
+                    efs::ClientDriveQueryInformationResponse {
+                        device_io_response,
+                        buffer: Some(efs::FileInformationClass::Standard(
+                            efs::FileStandardInformation {
+                                allocation_size: file_fso_size,
+                                end_of_file: file_fso_size,
+                                number_of_links: 0,
+                                delete_pending: if file.delete_pending {
+                                    efs::Boolean::True
+                                } else {
+                                    efs::Boolean::False
+                                },
+                                directory: if file.fso.file_type == tdp::FileType::File {
+                                    efs::Boolean::False
+                                } else {
+                                    efs::Boolean::True
+                                },
+                            },
+                        )),
+                    },
+                ))
+            }
+            efs::FileInformationClassLevel::FILE_ATTRIBUTE_TAG_INFORMATION => {
+                Ok(RdpdrPdu::ClientDriveQueryInformationResponse(
+                    efs::ClientDriveQueryInformationResponse {
+                        device_io_response,
+                        buffer: Some(efs::FileInformationClass::AttributeTag(
+                            efs::FileAttributeTagInformation {
+                                file_attributes: if file.fso.file_type == tdp::FileType::File {
+                                    efs::FileAttributes::FILE_ATTRIBUTE_NORMAL
+                                } else {
+                                    efs::FileAttributes::FILE_ATTRIBUTE_DIRECTORY
+                                },
+                                reparse_tag: 0,
+                            },
+                        )),
+                    },
+                ))
+            }
+            _ => Err(custom_err!(
+                "FilesystemBackend::make_client_drive_query_information_response",
+                FilesystemBackendError(format!(
+                    "received unsupported FileInformationClass: {:?}",
+                    rdp_req.file_info_class_lvl
+                ))
+            )),
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -622,6 +743,17 @@ impl Iterator for FileCacheObject {
             None
         }
     }
+}
+
+/// TDP handles time in milliseconds since the UNIX epoch (https://en.wikipedia.org/wiki/Unix_time),
+/// whereas Windows prefers 64-bit signed integers representing the number of 100-nanosecond intervals
+/// that have elapsed since January 1, 1601, Coordinated Universal Time (UTC)
+/// (https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/a69cc039-d288-4673-9598-772b6083f8bf).
+fn to_windows_time(tdp_time_ms: u64) -> i64 {
+    // https://stackoverflow.com/a/5471380/6277051
+    // https://docs.microsoft.com/en-us/windows/win32/sysinfo/converting-a-time-t-value-to-a-file-time
+    let tdp_time_sec = tdp_time_ms / 1000;
+    ((tdp_time_sec * 10000000) + 116444736000000000) as i64
 }
 
 /// A generic error type for the FilesystemBackend that can contain any arbitrary error message.
