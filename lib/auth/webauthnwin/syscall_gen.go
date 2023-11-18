@@ -29,4 +29,7 @@
 //sys webAuthNAuthenticatorGetAssertion(hwnd syscall.Handle, rpID *uint16, clientData *webauthnClientData, opts *webauthnAuthenticatorGetAssertionOptions, out **webauthnAssertion) (ret uintptr, err error) [failretval!=0] = WebAuthn.WebAuthNAuthenticatorGetAssertion
 // https://github.com/microsoft/webauthn/blob/7ab979cc833bfab9a682ed51761309db57f56c8c/webauthn.h#L919
 
+//sys webAuthNFreeAssertion(in *webauthnAssertion) = WebAuthn.WebAuthNFreeAssertion
+// https://github.com/microsoft/webauthn/blob/7ab979cc833bfab9a682ed51761309db57f56c8c/webauthn.h#L933
+
 package webauthnwin
