@@ -40,11 +40,21 @@ func errnoErr(e syscall.Errno) error {
 var (
 	modWebAuthn = windows.NewLazySystemDLL("WebAuthn.dll")
 
+	procWebAuthNAuthenticatorGetAssertion                     = modWebAuthn.NewProc("WebAuthNAuthenticatorGetAssertion")
 	procWebAuthNAuthenticatorMakeCredential                   = modWebAuthn.NewProc("WebAuthNAuthenticatorMakeCredential")
 	procWebAuthNFreeCredentialAttestation                     = modWebAuthn.NewProc("WebAuthNFreeCredentialAttestation")
 	procWebAuthNGetApiVersionNumber                           = modWebAuthn.NewProc("WebAuthNGetApiVersionNumber")
 	procWebAuthNIsUserVerifyingPlatformAuthenticatorAvailable = modWebAuthn.NewProc("WebAuthNIsUserVerifyingPlatformAuthenticatorAvailable")
 )
+
+func webAuthNAuthenticatorGetAssertion(hwnd syscall.Handle, rpID *uint16, clientData *webauthnClientData, opts *webauthnAuthenticatorGetAssertionOptions, out **webauthnAssertion) (ret uintptr, err error) {
+	r0, _, e1 := syscall.Syscall6(procWebAuthNAuthenticatorGetAssertion.Addr(), 5, uintptr(hwnd), uintptr(unsafe.Pointer(rpID)), uintptr(unsafe.Pointer(clientData)), uintptr(unsafe.Pointer(opts)), uintptr(unsafe.Pointer(out)), 0)
+	ret = uintptr(r0)
+	if ret != 0 {
+		err = errnoErr(e1)
+	}
+	return
+}
 
 func webAuthNAuthenticatorMakeCredential(hwnd syscall.Handle, rp *webauthnRPEntityInformation, user *webauthnUserEntityInformation, pubKeyCredParams *webauthnCoseCredentialParameters, clientData *webauthnClientData, opts *webauthnAuthenticatorMakeCredentialOptions, out **webauthnCredentialAttestation) (ret uintptr, err error) {
 	r0, _, e1 := syscall.Syscall9(procWebAuthNAuthenticatorMakeCredential.Addr(), 7, uintptr(hwnd), uintptr(unsafe.Pointer(rp)), uintptr(unsafe.Pointer(user)), uintptr(unsafe.Pointer(pubKeyCredParams)), uintptr(unsafe.Pointer(clientData)), uintptr(unsafe.Pointer(opts)), uintptr(unsafe.Pointer(out)), 0, 0)
