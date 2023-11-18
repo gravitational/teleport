@@ -41,6 +41,7 @@ var (
 	modWebAuthn = windows.NewLazySystemDLL("WebAuthn.dll")
 
 	procWebAuthNAuthenticatorMakeCredential                   = modWebAuthn.NewProc("WebAuthNAuthenticatorMakeCredential")
+	procWebAuthNFreeCredentialAttestation                     = modWebAuthn.NewProc("WebAuthNFreeCredentialAttestation")
 	procWebAuthNGetApiVersionNumber                           = modWebAuthn.NewProc("WebAuthNGetApiVersionNumber")
 	procWebAuthNIsUserVerifyingPlatformAuthenticatorAvailable = modWebAuthn.NewProc("WebAuthNIsUserVerifyingPlatformAuthenticatorAvailable")
 )
@@ -51,6 +52,11 @@ func webAuthNAuthenticatorMakeCredential(hwnd syscall.Handle, rp *webauthnRPEnti
 	if ret != 0 {
 		err = errnoErr(e1)
 	}
+	return
+}
+
+func webAuthNFreeCredentialAttestation(in *webauthnCredentialAttestation) {
+	syscall.Syscall(procWebAuthNFreeCredentialAttestation.Addr(), 1, uintptr(unsafe.Pointer(in)), 0, 0)
 	return
 }
 
