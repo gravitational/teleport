@@ -942,6 +942,7 @@ fn create_config(width: u16, height: u16, pin: String) -> Config {
         platform: MajorPlatformType::UNSPECIFIED,
         no_server_pointer: false,
         autologon: true,
+        pointer_software_rendering: false,
     }
 }
 
