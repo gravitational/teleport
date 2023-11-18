@@ -30,10 +30,6 @@ import (
 )
 
 var (
-	// For reference, see
-	// https://learn.microsoft.com/en-us/windows/win32/api/webauthn/.
-	procWebAuthNGetErrorName = modWebAuthn.NewProc("WebAuthNGetErrorName")
-
 	modUser32               = windows.NewLazySystemDLL("user32.dll")
 	procGetForegroundWindow = modUser32.NewProc("GetForegroundWindow")
 )
@@ -201,9 +197,7 @@ func checkIfDLLExistsAndGetAPIVersionNumber() (int, error) {
 }
 
 func getErrorNameOrLastErr(in uintptr, lastError error) error {
-	ret, _, _ := procWebAuthNGetErrorName.Call(
-		uintptr(int32(in)),
-	)
+	ret := webAuthNGetErrorName(in)
 	if ret == 0 {
 		if lastError != syscall.Errno(0) {
 			return fmt.Errorf("webauthn error code %v and syscall err: %v", in, lastError)
