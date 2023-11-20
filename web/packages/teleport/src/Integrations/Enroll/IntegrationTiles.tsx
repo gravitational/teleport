@@ -15,6 +15,7 @@
  */
 
 import React from 'react';
+import { useTheme } from 'styled-components';
 import { Link } from 'react-router-dom';
 import { Text, Box } from 'design';
 import { AWSIcon } from 'design/SVGIcon';
@@ -25,6 +26,8 @@ import {
   ToolTipNoPermBadge,
 } from 'teleport/components/ToolTipNoPermBadge';
 import { IntegrationKind } from 'teleport/services/integrations';
+
+import { ToolTipBadge } from 'teleport/components/ToolTipBadge';
 
 import { IntegrationTile } from './common';
 
@@ -86,16 +89,21 @@ export function IntegrationTiles({
           <AWSIcon size={80} />
         </Box>
         <Text>External Audit Storage</Text>
-        {renderNoPermBadge(hasExternalCloudAuditAccess, isEnterprise)}
+        {renderExternalCloudAuditBadge(
+          hasExternalCloudAuditAccess,
+          isEnterprise
+        )}
       </IntegrationTile>
     </>
   );
 }
 
-function renderNoPermBadge(
+function renderExternalCloudAuditBadge(
   hasExternalCloudAuditAccess: boolean,
   isEnterprise: boolean
 ) {
+  const theme = useTheme();
+
   if (!isEnterprise)
     return (
       <ToolTipNoPermBadge
@@ -119,5 +127,16 @@ function renderNoPermBadge(
     );
   }
 
-  return '';
+  return (
+    <ToolTipBadge
+      badgeTitle="New"
+      children={
+        <div>
+          Connect your own AWS account to store audit logs and session
+          recordings on your own infrastructure
+        </div>
+      }
+      color={theme.colors.success}
+    />
+  );
 }
