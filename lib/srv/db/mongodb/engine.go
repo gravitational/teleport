@@ -19,7 +19,6 @@ package mongodb
 import (
 	"context"
 	"net"
-	"sync/atomic"
 
 	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
@@ -55,7 +54,7 @@ type Engine struct {
 	// maxMessageSize is the max message size.
 	maxMessageSize uint32
 	// serverConnected specifies whether server connection has been created.
-	serverConnected atomic.Bool
+	serverConnected bool
 }
 
 // InitializeConnection initializes the client connection.
@@ -94,7 +93,7 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 	e.Audit.OnSessionStart(e.Context, sessionCtx, nil)
 	defer e.Audit.OnSessionEnd(e.Context, sessionCtx)
 
-	e.serverConnected.Store(true)
+	e.serverConnected = true
 	observe()
 
 	msgFromClient := common.GetMessagesFromClientMetric(sessionCtx.Database)
@@ -281,11 +280,13 @@ func (e *Engine) waitForAnyClientMessage(clientConn net.Conn) protocol.Message {
 	return clientMessage
 }
 
+// replyError sends the error to client. It is currently assumed that this
+// function will only be called when HandleConnection terminates.
 func (e *Engine) replyError(clientConn net.Conn, replyTo protocol.Message, err error) {
 	// If an error happens during server connection, wait for a client message
 	// before replying to ensure the client can interpret the reply.
 	// The first message is usually the isMaster hello message.
-	if replyTo == nil && !e.serverConnected.Load() {
+	if replyTo == nil && !e.serverConnected {
 		waitChan := make(chan protocol.Message, 1)
 		go func() {
 			waitChan <- e.waitForAnyClientMessage(clientConn)

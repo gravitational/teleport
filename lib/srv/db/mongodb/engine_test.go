@@ -40,12 +40,14 @@ func TestEngineReplyError(t *testing.T) {
 	clientMsg := protocol.MakeOpMsg(clientMsgDoc)
 	clientMsg.Header.RequestID = 123456
 
-	e := NewEngine(common.EngineConfig{
-		Clock: clockwork.NewRealClock(),
-		Log:   logrus.StandardLogger(),
-	}).(*Engine)
-
 	t.Run("wait for client message", func(t *testing.T) {
+		t.Parallel()
+
+		e := NewEngine(common.EngineConfig{
+			Clock: clockwork.NewRealClock(),
+			Log:   logrus.StandardLogger(),
+		}).(*Engine)
+
 		enginePipeEndConn, clientPipeEndConn := net.Pipe()
 		defer enginePipeEndConn.Close()
 		defer clientPipeEndConn.Close()
@@ -61,7 +63,13 @@ func TestEngineReplyError(t *testing.T) {
 	})
 
 	t.Run("no wait", func(t *testing.T) {
-		e.serverConnected.Store(true)
+		t.Parallel()
+
+		e := NewEngine(common.EngineConfig{
+			Clock: clockwork.NewRealClock(),
+			Log:   logrus.StandardLogger(),
+		}).(*Engine)
+		e.serverConnected = true
 
 		enginePipeEndConn, clientPipeEndConn := net.Pipe()
 		defer enginePipeEndConn.Close()
