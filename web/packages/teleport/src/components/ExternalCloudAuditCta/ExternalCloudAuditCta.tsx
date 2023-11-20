@@ -59,20 +59,10 @@ export const ExternalCloudAuditCta = ({
         <Flex mr="4" alignItems="center">
           <Icons.Server size="medium" mr="3" />
           <Box>
-            <Text dbold>External Cloud Audit</Text>
+            <Text bold>External Audit Storage</Text>
             <Text style={{ display: 'inline' }}>
-              Store session recordings and audit logs in your own AWS
-              infrastructure{' '}
-              {isEnabled ? (
-                'instead of Teleport Cloud'
-              ) : (
-                <>
-                  with <b>Teleport Enterprise</b>
-                </>
-              )}
-              .
+              {`Connect your own AWS account to store audit logs and session recordings on your own infrastructure${isEnabled ? '' : " with Teleport Enterprise"}.`}
             </Text>
-            {/* {!isEnabled && <Text bold style={{ display: 'inline' }}>{' '}Available in Teleport Enterprise.</Text>} */}
             <Link style={{ display: 'inline', marginLeft: 4 }} to={'TODO'}>
               {' '}
               Learn More
@@ -86,7 +76,7 @@ export const ExternalCloudAuditCta = ({
               to={cfg.getIntegrationEnrollRoute(IntegrationKind.Byob)}
               mr="2"
             >
-              Manage Data Storage
+              Connect your AWS storage
             </ButtonPrimary>
           ) : (
             <ButtonLockedFeature
