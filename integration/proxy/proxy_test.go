@@ -42,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/constants"
+	apihelpers "github.com/gravitational/teleport/api/testhelpers"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integration/appaccess"
 	dbhelpers "github.com/gravitational/teleport/integration/db"
@@ -266,7 +267,7 @@ func TestALPNSNIHTTPSProxy(t *testing.T) {
 	// We need to use the non-loopback address for our Teleport cluster, as the
 	// Go HTTP library will recognize requests to the loopback address and
 	// refuse to use the HTTP proxy, which will invalidate the test.
-	addr, err := helpers.GetLocalIP()
+	addr, err := apihelpers.GetLocalIP()
 	require.NoError(t, err)
 
 	suite := newSuite(t,
@@ -307,7 +308,7 @@ func TestMultiPortHTTPSProxy(t *testing.T) {
 	// We need to use the non-loopback address for our Teleport cluster, as the
 	// Go HTTP library will recognize requests to the loopback address and
 	// refuse to use the HTTP proxy, which will invalidate the test.
-	addr, err := helpers.GetLocalIP()
+	addr, err := apihelpers.GetLocalIP()
 	require.NoError(t, err)
 
 	suite := newSuite(t,
@@ -1502,7 +1503,7 @@ func TestALPNProxyHTTPProxyNoProxyDial(t *testing.T) {
 	// We need to use the non-loopback address for our Teleport cluster, as the
 	// Go HTTP library will recognize requests to the loopback address and
 	// refuse to use the HTTP proxy, which will invalidate the test.
-	addr, err := helpers.GetLocalIP()
+	addr, err := apihelpers.GetLocalIP()
 	require.NoError(t, err)
 
 	instanceCfg := helpers.InstanceConfig{
@@ -1581,7 +1582,7 @@ func TestALPNProxyHTTPProxyBasicAuthDial(t *testing.T) {
 	// We need to use the non-loopback address for our Teleport cluster, as the
 	// Go HTTP library will recognize requests to the loopback address and
 	// refuse to use the HTTP proxy, which will invalidate the test.
-	rcAddr, err := helpers.GetLocalIP()
+	rcAddr, err := apihelpers.GetLocalIP()
 	require.NoError(t, err)
 
 	log.Info("Creating Teleport instance...")
