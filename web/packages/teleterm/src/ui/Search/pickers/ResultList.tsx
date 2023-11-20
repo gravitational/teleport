@@ -230,4 +230,7 @@ const Overflow = styled.div`
   height: 100%;
   list-style: none outside none;
   max-height: 350px;
+  // prevents showing a scrollbar when the container height is very low
+  // by overriding our default line-height value
+  line-height: normal;
 `;
