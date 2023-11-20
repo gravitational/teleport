@@ -19,15 +19,15 @@ package utils
 import (
 	"crypto/x509"
 	"fmt"
-	"github.com/sirupsen/logrus"
 	"testing"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 )
 
 func TestUserMessageFromError(t *testing.T) {
-	// Behaviour is different in debug
+	// Behavior is different in debug
 	priorLevel := logrus.GetLevel()
 	logrus.SetLevel(logrus.InfoLevel)
 	t.Cleanup(func() {
