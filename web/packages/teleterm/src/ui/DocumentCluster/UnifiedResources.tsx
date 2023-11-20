@@ -34,7 +34,6 @@ import * as icons from 'design/Icon';
 import Image from 'design/Image';
 import stack from 'design/assets/resources/stack.png';
 
-import SearchPanel from 'teleport/UnifiedResources/SearchPanel';
 import {
   UnifiedResourcePreferences,
   UnifiedTabPreference,
@@ -205,17 +204,6 @@ export function UnifiedResources(props: {
           disabled: false,
         },
       ]}
-      Header={
-        <Flex alignItems="center" justifyContent="space-between">
-          {/*temporary search panel*/}
-          <SearchPanel
-            params={params}
-            pathname={''}
-            replaceHistory={() => undefined}
-            setParams={onParamsChange}
-          />
-        </Flex>
-      }
       NoResources={
         <NoResources
           canCreate={canAddResources}
