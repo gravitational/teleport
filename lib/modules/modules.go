@@ -52,8 +52,6 @@ type Features struct {
 	SAML bool
 	// AccessControls enables FIPS access controls
 	AccessControls bool
-	// AdvancedAccessWorkflows enables advanced access workflows
-	AdvancedAccessWorkflows bool
 	// Cloud enables some cloud-related features
 	Cloud bool
 	// HSM enables PKCS#11 HSM support
@@ -107,6 +105,11 @@ type AccessRequestsFeature struct {
 	// Meant for usage-based accounts, like Teleport Team. Has no effect if
 	// [Features.IsUsageBasedBilling] is `false`.
 	MonthlyRequestLimit int
+	// Enabling this field enables "advanced access workflows".
+	// This field was previously a standalone field named AdvancedAccessWorkflows.
+	// The name came about to help differentiate the differnet support for Access Requests
+	// between the limited support for OSS tctl/tsh and the full support for enterprise.
+	Enabled bool
 }
 
 // ToProto converts Features into proto.Features
@@ -118,7 +121,7 @@ func (f Features) ToProto() *proto.Features {
 		OIDC:                    f.OIDC,
 		SAML:                    f.SAML,
 		AccessControls:          f.AccessControls,
-		AdvancedAccessWorkflows: f.AdvancedAccessWorkflows,
+		AdvancedAccessWorkflows: f.AccessRequests.Enabled,
 		Cloud:                   f.Cloud,
 		HSM:                     f.HSM,
 		Desktop:                 f.Desktop,
@@ -136,6 +139,7 @@ func (f Features) ToProto() *proto.Features {
 		},
 		AccessRequests: &proto.AccessRequestsFeature{
 			MonthlyRequestLimit: int32(f.AccessRequests.MonthlyRequestLimit),
+			Enabled:             f.AccessRequests.Enabled,
 		},
 	}
 }
