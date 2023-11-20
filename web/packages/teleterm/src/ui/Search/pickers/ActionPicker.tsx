@@ -27,14 +27,15 @@ import { useAppContext } from 'teleterm/ui/appContextProvider';
 import {
   ClusterSearchFilter,
   ResourceMatch,
-  SearchResult,
   ResourceSearchResult,
+  SearchFilter,
+  SearchResult,
+  SearchResultCluster,
   SearchResultDatabase,
   SearchResultKube,
-  SearchResultServer,
-  SearchResultCluster,
   SearchResultResourceType,
-  SearchFilter,
+  SearchResultServer,
+  DocumentClusterSearchResult,
 } from 'teleterm/ui/Search/searchResult';
 import * as tsh from 'teleterm/services/tshd/types';
 import * as uri from 'teleterm/ui/uri';
@@ -72,15 +73,28 @@ export function ActionPicker(props: { input: ReactElement }) {
     toggleAdvancedSearch,
   } = useSearchContext();
   const {
+    documentClusterSearchActionAttempt,
     filterActionsAttempt,
     resourceActionsAttempt,
     resourceSearchAttempt,
   } = useActionAttempts();
   const totalCountOfClusters = clustersService.getClusters().length;
-  // The order of attempts is important. Filter actions should be displayed before resource actions.
-  const actionAttempts = useMemo(
+
+  // Contains actions whose number of results depends on the search value.
+  // Based on these, we should calculate the picker state.
+  //
+  // For example, `documentClusterSearchActionAttempt`
+  // should not be added here, because it is always shown,
+  // and it would cause 'no results' message to never be displayed.
+  const filterableActionAttempts = useMemo(
     () => [filterActionsAttempt, resourceActionsAttempt],
     [filterActionsAttempt, resourceActionsAttempt]
+  );
+  // The order of attempts is important.
+  // Document cluster search and filter actions should be displayed before resource actions.
+  const actionAttempts = useMemo(
+    () => [documentClusterSearchActionAttempt, ...filterableActionAttempts],
+    [documentClusterSearchActionAttempt, filterableActionAttempts]
   );
 
   const getClusterName = useCallback(
@@ -109,7 +123,9 @@ export function ActionPicker(props: { input: ReactElement }) {
         // Overall, the context should probably encapsulate more logic so that the components don't
         // have to worry about low-level stuff such as input state. Input state already lives in the
         // search context so it should be managed from there, if possible.
-        resetInput();
+        if (!action.preventAutoInputReset) {
+          resetInput();
+        }
         if (!action.preventAutoClose) {
           close();
         }
@@ -156,7 +172,7 @@ export function ActionPicker(props: { input: ReactElement }) {
         inputValue,
         filters,
         filterActionsAttempt,
-        actionAttempts,
+        actionAttempts: filterableActionAttempts,
         resourceSearchAttempt,
         allClusters: clustersService.getClusters(),
       }),
@@ -164,7 +180,7 @@ export function ActionPicker(props: { input: ReactElement }) {
       inputValue,
       filters,
       filterActionsAttempt,
-      actionAttempts,
+      filterableActionAttempts,
       resourceSearchAttempt,
       clustersService,
     ]
@@ -199,10 +215,7 @@ export function ActionPicker(props: { input: ReactElement }) {
         render={item => {
           const Component = ComponentMap[item.searchResult.kind];
           return {
-            key:
-              item.searchResult.kind !== 'resource-type-filter'
-                ? item.searchResult.resource.uri
-                : item.searchResult.resource,
+            key: getKey(item.searchResult),
             Component: (
               <Component
                 searchResult={item.searchResult}
@@ -225,6 +238,17 @@ export function ActionPicker(props: { input: ReactElement }) {
       />
     </PickerContainer>
   );
+}
+
+function getKey(searchResult: SearchResult): string {
+  switch (searchResult.kind) {
+    case 'resource-type-filter':
+      return searchResult.resource;
+    case 'document-cluster-search':
+      return searchResult.value;
+    default:
+      return searchResult.resource.uri;
+  }
 }
 
 export const InputWrapper = styled(Flex).attrs({ px: 2 })`
@@ -500,6 +524,7 @@ export const ComponentMap: Record<
   database: DatabaseItem,
   'cluster-filter': ClusterFilterItem,
   'resource-type-filter': ResourceTypeFilterItem,
+  'document-cluster-search': DocumentClusterSearch,
 };
 
 type SearchResultItem<T> = {
@@ -518,6 +543,33 @@ function ClusterFilterItem(props: SearchResultItem<SearchResultCluster>) {
             keywords={[props.searchResult.nameMatch]}
           />
         </strong>
+      </Text>
+    </IconAndContent>
+  );
+}
+
+function DocumentClusterSearch(
+  props: SearchResultItem<DocumentClusterSearchResult>
+) {
+  return (
+    <IconAndContent Icon={icons.Magnifier} iconColor="text.slightlyMuted">
+      <Text typography="body1">
+        {' '}
+        Display {props.searchResult.value ? 'search' : 'all'} results{' '}
+        {props.searchResult.value && (
+          <>
+            for{' '}
+            <strong>
+              <Highlight
+                keywords={[props.searchResult.value]}
+                text={props.searchResult.value}
+              />
+            </strong>
+          </>
+        )}
+        {props.searchResult.documentUri
+          ? ' in the current tab'
+          : ' in a new tab'}
       </Text>
     </IconAndContent>
   );

@@ -21,14 +21,17 @@ import {
   connectToDatabase,
   connectToKube,
   connectToServer,
+  DocumentCluster,
+  getDefaultDocumentClusterQueryParams,
 } from 'teleterm/ui/services/workspacesService';
 import { retryWithRelogin } from 'teleterm/ui/utils';
+import { routing } from 'teleterm/ui/uri';
 
 export interface SimpleAction {
   type: 'simple-action';
   searchResult: SearchResult;
-  preventAutoClose?: boolean; // TODO(gzdunek): consider other options (callback preventClose() in perform?)
-
+  preventAutoInputReset?: boolean;
+  preventAutoClose?: boolean;
   perform(): void;
 }
 
@@ -141,6 +144,53 @@ export function mapToActions(
             filter: 'cluster',
             clusterUri: result.resource.uri,
           });
+        },
+      };
+    }
+    if (result.kind === 'document-cluster-search') {
+      return {
+        type: 'simple-action',
+        searchResult: result,
+        preventAutoInputReset: true,
+        perform: async () => {
+          if (result.documentUri) {
+            ctx.workspacesService
+              .getWorkspaceDocumentService(result.clusterUri)
+              .update(result.documentUri, (prevDoc: DocumentCluster) => {
+                const updated: DocumentCluster = {
+                  ...prevDoc,
+                  queryParams: {
+                    ...prevDoc.queryParams,
+                    kinds: result.kinds,
+                    search: result.value,
+                    advancedSearchEnabled: searchContext.advancedSearchEnabled,
+                  },
+                };
+                return updated;
+              });
+            return;
+          }
+
+          const rootClusterUri = routing.ensureRootClusterUri(
+            result.clusterUri
+          );
+          const { isAtDesiredWorkspace } =
+            await ctx.workspacesService.setActiveWorkspace(rootClusterUri);
+          if (isAtDesiredWorkspace) {
+            const documentsService =
+              ctx.workspacesService.getWorkspaceDocumentService(rootClusterUri);
+            const doc = documentsService.createClusterDocument({
+              clusterUri: result.clusterUri,
+              queryParams: {
+                ...getDefaultDocumentClusterQueryParams(),
+                search: result.value,
+                advancedSearchEnabled: false,
+                kinds: result.kinds,
+              },
+            });
+            documentsService.add(doc);
+            documentsService.open(doc.uri);
+          }
         },
       };
     }
