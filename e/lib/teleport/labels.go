@@ -12,8 +12,14 @@ const (
 	// OktaAppIDLabel is the label for the Okta application ID on appserver objects.
 	OktaAppIDLabel = types.TeleportInternalLabelPrefix + "okta-app-id"
 
+	// OktaUserIDLabel is the label for the Okta user ID on User objects.
+	OktaUserIDLabel = types.TeleportInternalLabelPrefix + "okta-user-id"
+
 	// OktaAssignmentSourceLabel is the label for the source of the Okta assignment.
 	OktaAssignmentSourceLabel = types.TeleportInternalLabelPrefix + "source"
+
+	// OktaTraitPrefix is a prefix added to traits sourced from the Okta user DB
+	OktaTraitPrefix = "okta/"
 
 	// PluginLabel is a unique label generated for plugins that use static credentials
 	// in order to ensure that the static credentials are only readable by specific plugins.

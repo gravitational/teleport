@@ -224,7 +224,12 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
           </li>
           <li>
             <strong>App Synchronization</strong>: Routinely synchronizes Okta
-            applications and groups wth Teleport.
+            applications and groups with Teleport.
+          </li>
+          <li>
+            <strong>User Synchronization</strong>: Routinely synchronizes Okta
+            users with Teleport. The Okta user profile data is exposed to
+            Teleport via user traits.
           </li>
           <li>
             <strong>User Access</strong>: Longer lived permissions that grant

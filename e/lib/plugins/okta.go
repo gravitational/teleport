@@ -28,7 +28,7 @@ func oktaInstanceFactory(ctx context.Context, plugin *types.PluginV1, deps insta
 	}
 
 	return func() error {
-		closeEvent := services.InitOktaPlugin(deps.lifetime, deps.parentProcess, deps.statusSink, oktaSpec.OrgUrl, staticToken, plugin.GetName())
+		closeEvent := services.InitOktaPlugin(deps.lifetime, deps.parentProcess, deps.statusSink, *oktaSpec, staticToken, plugin.GetName())
 
 		// wait for the calling context to finish before doing anything else.
 		<-deps.lifetime.Done()

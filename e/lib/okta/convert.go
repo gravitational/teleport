@@ -6,11 +6,15 @@ import (
 	"math/big"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/mitchellh/mapstructure"
 	"github.com/okta/okta-sdk-golang/v2/okta"
 
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/e/lib/teleport"
+	"github.com/gravitational/teleport/api/types/trait"
+	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/lib/srv/app"
 )
 
@@ -26,8 +30,8 @@ func (s *Service) oktaGroupToUserGroup(oktaGroup *okta.Group, appIDs []string) (
 	}
 
 	labels[types.OriginLabel] = types.OriginOkta
-	labels[teleport.OktaOrgURLLabel] = s.orgURL
-	labels[teleport.OktaGroupIDLabel] = oktaGroup.Id
+	labels[eteleport.OktaOrgURLLabel] = s.orgURL
+	labels[eteleport.OktaGroupIDLabel] = oktaGroup.Id
 
 	description := oktaGroup.Profile.Name
 
@@ -96,8 +100,8 @@ func (s *Service) oktaAppToApp(oktaApplication *okta.Application, groupIDs []str
 	}
 
 	labels[types.OriginLabel] = types.OriginOkta
-	labels[teleport.OktaOrgURLLabel] = s.orgURL
-	labels[teleport.OktaAppIDLabel] = oktaApplication.Id
+	labels[eteleport.OktaOrgURLLabel] = s.orgURL
+	labels[eteleport.OktaAppIDLabel] = oktaApplication.Id
 
 	// Create an app for each app link. This is required because there can be multiple
 	// app links per Okta application.
@@ -206,4 +210,73 @@ func base36Encode(data []byte) string {
 	hashInt := big.NewInt(0)
 	hashInt = hashInt.SetBytes(data)
 	return hashInt.Text(36)
+}
+
+type oktaUserProfile struct {
+	Login  string                 `mapstructure:"login"`
+	Fields map[string]interface{} `mapstructure:",remain"`
+}
+
+func (p *oktaUserProfile) AsTraits() trait.Traits {
+	traits := trait.Traits{}
+	for k, v := range p.Fields {
+		switch value := v.(type) {
+		case string:
+			traits[eteleport.OktaTraitPrefix+k] = []string{value}
+		case []string:
+			traits[eteleport.OktaTraitPrefix+k] = value
+		}
+	}
+	return traits
+}
+
+func parseOktaUserProfile(oktaUser *okta.User) (*oktaUserProfile, error) {
+	var profile oktaUserProfile
+	err := mapstructure.Decode(oktaUser.Profile, &profile)
+	if err != nil {
+		return nil, trace.Wrap(err, "parsing okta user profile")
+	}
+	return &profile, nil
+}
+
+func makeUserConverter(clock clockwork.Clock, ssoConnectorID string, srcURL string) userConverter {
+	return func(oktaUser *okta.User) (types.User, error) {
+		if oktaUser == nil {
+			return nil, trace.BadParameter("oktaUser must not be nil")
+		}
+
+		profile, err := parseOktaUserProfile(oktaUser)
+		if err != nil {
+			return nil, trace.Wrap(err, "decoding Okta user profile")
+		}
+
+		newUser, err := types.NewUser(profile.Login)
+		if err != nil {
+			return nil, trace.Wrap(err, "processing okta user %s", profile.Login)
+		}
+
+		newUser.SetStaticLabels(map[string]string{
+			types.OriginLabel:         types.OriginOkta,
+			eteleport.OktaOrgURLLabel: srcURL,
+			eteleport.OktaUserIDLabel: oktaUser.Id,
+		})
+		newUser.AddRole(teleport.PresetRequesterRoleName)
+
+		traits := profile.AsTraits()
+		newUser.SetTraits(traits)
+
+		newUser.SetCreatedBy(types.CreatedBy{
+			User: types.UserRef{
+				Name: teleport.UserSystem,
+			},
+			Time: clock.Now(),
+			Connector: &types.ConnectorRef{
+				ID:       ssoConnectorID,
+				Type:     constants.SAML,
+				Identity: oktaUser.Id,
+			},
+		})
+
+		return newUser, nil
+	}
 }

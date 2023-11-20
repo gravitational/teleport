@@ -291,7 +291,7 @@ func TestInstanceFactory(t *testing.T) {
 		readyEvent, stoppedEvent string
 	}{
 		{
-			name:       "oktaInstanceFactory",
+			name:       "oktaInstanceFactoryNoSync",
 			pluginType: types.PluginTypeOkta,
 			plugin: types.NewPluginV1(
 				types.Metadata{
@@ -301,6 +301,33 @@ func TestInstanceFactory(t *testing.T) {
 					Settings: &types.PluginSpecV1_Okta{
 						Okta: &types.PluginOktaSettings{
 							OrgUrl: "https://test.url",
+						},
+					},
+				},
+				&types.PluginCredentialsV1{
+					Credentials: &types.PluginCredentialsV1_StaticCredentialsRef{
+						StaticCredentialsRef: &types.PluginStaticCredentialsRef{
+							Labels: map[string]string{
+								"label1": "value1",
+							},
+						},
+					},
+				},
+			),
+			readyEvent:   services.EventWithComponents(services.OktaReady, "okta", fmt.Sprintf("%d", clockwork.NewFakeClock().Now().Unix())),
+			stoppedEvent: services.EventWithComponents(services.OktaStopped, "okta", fmt.Sprintf("%d", clockwork.NewFakeClock().Now().Unix())),
+		}, {
+			name:       "oktaInstanceFactoryWithSync",
+			pluginType: types.PluginTypeOkta,
+			plugin: types.NewPluginV1(
+				types.Metadata{
+					Name: "okta",
+				},
+				types.PluginSpecV1{
+					Settings: &types.PluginSpecV1_Okta{
+						Okta: &types.PluginOktaSettings{
+							OrgUrl:         "https://test.url",
+							EnableUserSync: true,
 						},
 					},
 				},
@@ -432,7 +459,7 @@ func TestInstanceFactory(t *testing.T) {
 			pluginCancel()
 
 			// EXPECT that the plugin process emits a `close` event and eventually
-			// terminmates
+			// terminates
 			_, err = process.WaitForEventTimeout(5*time.Second, tc.stoppedEvent)
 			require.NoError(t, err)
 

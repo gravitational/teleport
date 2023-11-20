@@ -48,7 +48,9 @@ func installOktaPlugin(ctx context.Context, sessCtx *web.SessionContext, w http.
 			Spec: types.PluginSpecV1{
 				Settings: &types.PluginSpecV1_Okta{
 					Okta: &types.PluginOktaSettings{
-						OrgUrl: orgURL.String(),
+						OrgUrl:         orgURL.String(),
+						SsoConnectorId: oktaSSOConnectorName,
+						EnableUserSync: true,
 					},
 				},
 			},

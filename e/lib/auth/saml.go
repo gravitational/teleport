@@ -11,6 +11,7 @@ import (
 	"net"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/beevik/etree"
 	"github.com/google/go-cmp/cmp"
@@ -548,33 +549,63 @@ func (sas *SAMLAuthService) validateSAMLResponse(ctx context.Context, diagCtx *a
 	diagCtx.Info.SAMLAttributeStatements = attributeStatements
 	diagCtx.Info.SAMLAttributesToRoles = connector.GetAttributesToRoles()
 
-	if len(connector.GetAttributesToRoles()) == 0 {
-		samlErr := trace.BadParameter("no attributes to roles mapping, check connector documentation")
-		return nil, trace.WithUserMessage(samlErr, "Attributes-to-roles mapping is empty, SSO user will never have any roles.")
+	user, err := sas.auth.GetUser(ctx, assertionInfo.NameID, false)
+	if err != nil && !trace.IsNotFound(err) {
+		return nil, trace.Wrap(err)
 	}
 
-	log.Debugf("Applying %v SAML attribute to roles mappings.", len(connector.GetAttributesToRoles()))
+	// We don't want to overwrite a sync-service based user with an
+	// ephemeral one, so we do the user upsert *IF* and *ONLY IF* we
+	// determine that:
+	//
+	//  - There is no user with that name in the system, or
+	//  - The user with that name is an ephemeral, sso-connector
+	//    created user.
+	//
+	// All Sync-service create users have an origin label, while those created
+	// via calculateSAMLUser do not.
+	var sessionTTL time.Duration
+	if user == nil || user.Origin() == "" {
+		// This is an ephemeral SAML user: we can happily update and overwrite
+		// this user.
+		if len(connector.GetAttributesToRoles()) == 0 {
+			samlErr := trace.BadParameter("no attributes to roles mapping, check connector documentation")
+			return nil, trace.WithUserMessage(samlErr, "Attributes-to-roles mapping is empty, SSO user will never have any roles.")
+		}
 
-	// Calculate (figure out name, roles, traits, session TTL) of user and
-	// create the user in the backend.
-	params, err := sas.calculateSAMLUser(ctx, diagCtx, connector, *assertionInfo, request)
-	if err != nil {
-		return nil, trace.Wrap(err, "Failed to calculate user attributes.")
-	}
+		log.Debugf("Applying %v SAML attribute to roles mappings.", len(connector.GetAttributesToRoles()))
 
-	diagCtx.Info.CreateUserParams = &types.CreateUserParams{
-		ConnectorName: params.ConnectorName,
-		Username:      params.Username,
-		KubeGroups:    params.KubeGroups,
-		KubeUsers:     params.KubeUsers,
-		Roles:         params.Roles,
-		Traits:        params.Traits,
-		SessionTTL:    types.Duration(params.SessionTTL),
-	}
+		// Calculate (figure out name, roles, traits, session TTL) of user and
+		// create the user in the backend.
+		params, err := sas.calculateSAMLUser(ctx, diagCtx, connector, *assertionInfo, request)
+		if err != nil {
+			return nil, trace.Wrap(err, "Failed to calculate user attributes.")
+		}
 
-	user, err := sas.createSAMLUser(ctx, params, diagCtx.Info.TestFlow)
-	if err != nil {
-		return nil, trace.Wrap(err, "Failed to create user from provided parameters.")
+		diagCtx.Info.CreateUserParams = &types.CreateUserParams{
+			ConnectorName: params.ConnectorName,
+			Username:      params.Username,
+			KubeGroups:    params.KubeGroups,
+			KubeUsers:     params.KubeUsers,
+			Roles:         params.Roles,
+			Traits:        params.Traits,
+			SessionTTL:    types.Duration(params.SessionTTL),
+		}
+
+		user, err = sas.createSAMLUser(ctx, params, diagCtx.Info.TestFlow)
+		if err != nil {
+			return nil, trace.Wrap(err, "Failed to create user from provided parameters.")
+		}
+
+		sessionTTL = params.SessionTTL
+	} else {
+		// Calculate the session TTL as the minimum of all TTLs associated with
+		// the user and their roles.
+		roles, err := services.FetchRoles(user.GetRoles(), sas.auth, user.GetTraits())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		sessionTTL = roles.AdjustSessionTTL(apidefaults.MaxCertDuration)
 	}
 
 	if err := sas.auth.CallLoginHooks(ctx, user); err != nil {
@@ -589,8 +620,8 @@ func (sas *SAMLAuthService) validateSAMLResponse(ctx context.Context, diagCtx *a
 	// Auth was successful, return session, certificate, etc. to caller.
 	resp := &auth.SAMLAuthResponse{
 		Identity: types.ExternalIdentity{
-			ConnectorID: params.ConnectorName,
-			Username:    params.Username,
+			ConnectorID: user.GetCreatedBy().Connector.ID,
+			Username:    user.GetName(),
 		},
 		Username: userState.GetName(),
 	}
@@ -619,7 +650,7 @@ func (sas *SAMLAuthService) validateSAMLResponse(ctx context.Context, diagCtx *a
 			User:             userState.GetName(),
 			Roles:            userState.GetRoles(),
 			Traits:           userState.GetTraits(),
-			SessionTTL:       params.SessionTTL,
+			SessionTTL:       sessionTTL,
 			LoginTime:        sas.auth.GetClock().Now().UTC(),
 			LoginIP:          loginIP,
 			AttestWebSession: true,
@@ -633,7 +664,7 @@ func (sas *SAMLAuthService) validateSAMLResponse(ctx context.Context, diagCtx *a
 
 	// If a public key was provided, sign it and return a certificate.
 	if request != nil && len(request.PublicKey) != 0 {
-		sshCert, tlsCert, err := sas.auth.CreateSessionCert(userState, params.SessionTTL, request.PublicKey, request.Compatibility, request.RouteToCluster,
+		sshCert, tlsCert, err := sas.auth.CreateSessionCert(userState, sessionTTL, request.PublicKey, request.Compatibility, request.RouteToCluster,
 			request.KubernetesCluster, loginIP, keys.AttestationStatementFromProto(request.AttestationStatement))
 		if err != nil {
 			return nil, trace.Wrap(err, "Failed to create session certificate.")

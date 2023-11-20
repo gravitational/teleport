@@ -124,6 +124,10 @@ func (s *Service) updateSynchronizerTicker(ctx context.Context, ticker clockwork
 
 // synchronize will synchronize the Okta groups and applications with the backend.
 func (s *Service) synchronize(ctx context.Context) error {
+	if err := s.syncUsers(ctx); err != nil {
+		return trace.Wrap(err)
+	}
+
 	if err := s.buildImportRuleMappings(ctx); err != nil {
 		return trace.Wrap(err)
 	}
@@ -626,4 +630,33 @@ func (s *Service) emitSyncEventsInBatches(ctx context.Context, eventName, eventC
 			s.log.WithError(emitErr).Warnf("Failed to emit %s event: %v", eventName, event)
 		}
 	}
+}
+
+func (s *Service) syncUsers(ctx context.Context) error {
+	if s.userReconciler == nil {
+		s.log.Debug("User synchronization is disabled. Skipping.")
+		return nil
+	}
+
+	convertUser := makeUserConverter(s.clock, s.ssoConnectorID, s.orgURL)
+
+	oktaUsers, err := fetchOktaUsers(ctx, s.client, convertUser, s.log)
+	if err != nil {
+		return trace.Wrap(err, "enumerating Okta users")
+	}
+
+	teleportUsers, err := listTeleportUsers(ctx, s.accessPoint, s.orgURL, s.log)
+	if err != nil {
+		return trace.Wrap(err, "listing okta-originated Teleport users")
+	}
+
+	s.log.Infof("Reconciling %d Okta and %d Teleport Accounts",
+		len(oktaUsers), len(teleportUsers))
+
+	err = s.userReconciler.reconcileUsers(ctx, oktaUsers, teleportUsers)
+	if err != nil {
+		return trace.Wrap(err, "reconciling teleport users")
+	}
+
+	return nil
 }

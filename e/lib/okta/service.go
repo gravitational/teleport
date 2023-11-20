@@ -38,8 +38,8 @@ const (
 	// https://developer.okta.com/docs/reference/rl-additional-limits/#end-user-rate-limits
 	oktaAPICallsPerSecond     = 4
 	oktaRequestTimeoutSeconds = 300 // Okta request timeout is 5 minutes.
-	// Default to running synchronizations every 10 minutes.
-	oktaDefaultTimeBetweenSyncs = 10 * time.Minute
+	// Default to running synchronizations every half hour.
+	oktaDefaultTimeBetweenSyncs = 30 * time.Minute
 	oktaTransportIdleTimeout    = 30 * time.Second
 	oktaConnectionTimeout       = 30 * time.Second
 
@@ -108,6 +108,13 @@ type Config struct {
 
 	// PluginStatusSink is an optional status sink for reporting the plugin status.
 	PluginStatusSink common.StatusSink
+
+	// UserSyncEnabled indicates that the Okta service will try to sync user
+	// records from the upstream Okta organization
+	UserSyncEnabled bool
+
+	// SSOConnectorID specifies which SSO connector users will be joining from
+	SSOConnectorID string
 }
 
 func (c *Config) CheckAndSetDefaults() error {
@@ -160,6 +167,10 @@ func (c *Config) CheckAndSetDefaults() error {
 		// Default to running 5 backend tasks per second.
 		c.BackendTasksPerSecond = 5
 	}
+	if c.UserSyncEnabled && c.SSOConnectorID == "" {
+		return trace.BadParameter("Okta SSO Connector ID must be set if user sync is enabled")
+	}
+
 	return nil
 }
 
@@ -325,6 +336,16 @@ type Service struct {
 
 	leadershipAcquired     atomic.Bool
 	leadershipRenewRetries atomic.Int32
+
+	// userReconciler is used to reconcile the Teleport user DB with an upstream
+	// Okta organization. If this value is `nil` it means that user syncing is
+	// disabled via config.
+	userReconciler *userReconciler
+
+	// ssoConnectorID is the ID of the SSO connector managing the login for
+	// users associated with this integration. May be empty if user sync is
+	// disabled (i.e. if `userReconciler` is `nil`)
+	ssoConnectorID string
 }
 
 // rateLimitingHTTPTransport will only perform HTTP requests after waiting the
@@ -451,6 +472,21 @@ func newWithClientCreator(ctx context.Context, config Config, creator oktaClient
 	orgURL := strings.TrimSuffix(client.orgURL(), "/")
 	orgURLBase64 := base64.RawURLEncoding.EncodeToString([]byte(orgURL))
 
+	var reconciler *userReconciler
+	if config.UserSyncEnabled {
+		config.Log.Info("User sync is enabled. Configuring reconciler.")
+		reconciler, err = newUserReconciler(userReconcilerConfig{
+			teleportAP: config.AccessPoint,
+			log:        config.Log,
+			userOrgURL: config.OktaAPIEndpoint,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		config.Log.Info("User synchronization is disabled.")
+	}
+
 	s := &Service{
 		log:                  config.Log,
 		clock:                config.Clock,
@@ -481,6 +517,8 @@ func newWithClientCreator(ctx context.Context, config Config, creator oktaClient
 		syncStoppedCh:        make(chan struct{}, 1),
 		stopCh:               make(chan struct{}, 1),
 		pluginStatusSink:     config.PluginStatusSink,
+		userReconciler:       reconciler,
+		ssoConnectorID:       config.SSOConnectorID,
 	}
 	s.tlsConfig = app.CopyAndConfigureTLS(config.Log, s.accessPoint, config.TLSConfig)
 
