@@ -250,6 +250,10 @@ const ExtraTopComponents = (props: {
 }) => {
   const { status, getClusterName, showErrorsInModal, advancedSearch } = props;
 
+  if (advancedSearch.isToggled) {
+    return <AdvancedSearchEnabledItem advancedSearch={advancedSearch} />;
+  }
+
   switch (status.inputState) {
     case 'no-input': {
       switch (status.searchMode.kind) {
@@ -745,6 +749,24 @@ export function TypeToSearchItem({
           Enter space-separated search terms.
           {hasNoRemainingFilterActions ||
             ' Select a filter to narrow down the search.'}
+        </Text>
+        <StyledAdvancedSearchToggle {...advancedSearch} />
+      </Flex>
+    </NonInteractiveItem>
+  );
+}
+
+export function AdvancedSearchEnabledItem({
+  advancedSearch,
+}: {
+  advancedSearch: AdvancedSearch;
+}) {
+  return (
+    <NonInteractiveItem>
+      <Flex gap={2} justifyContent="space-between" alignItems="center">
+        <Text typography="body2">
+          Enter the query using the predicate language. Inline results are not
+          available in this mode.
         </Text>
         <StyledAdvancedSearchToggle {...advancedSearch} />
       </Flex>

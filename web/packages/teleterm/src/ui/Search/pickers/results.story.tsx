@@ -37,6 +37,7 @@ import {
   NoResultsItem,
   ResourceSearchErrorsItem,
   TypeToSearchItem,
+  AdvancedSearchEnabledItem,
 } from './ActionPicker';
 import { SuggestionsError } from './ParameterPicker';
 import { ResultList } from './ResultList';
@@ -322,7 +323,9 @@ const SearchResultItems = () => {
       attempts={[attempt]}
       onPick={() => {}}
       onBack={() => {}}
-      addWindowEventListener={() => ({ cleanup: () => {} })}
+      addWindowEventListener={() => ({
+        cleanup: () => {},
+      })}
       render={searchResult => {
         const Component = ComponentMap[searchResult.kind];
 
@@ -424,6 +427,7 @@ const AuxiliaryItems = () => {
             hasNoRemainingFilterActions={true}
             advancedSearch={advancedSearch}
           />
+          <AdvancedSearchEnabledItem advancedSearch={advancedSearch} />
         </>
       }
     />
