@@ -19,17 +19,21 @@ package utils
 import (
 	"crypto/x509"
 	"fmt"
-	"strings"
 	"testing"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 )
 
 func TestUserMessageFromError(t *testing.T) {
-	t.Parallel()
+	// Behavior is different in debug
+	priorLevel := logrus.GetLevel()
+	logrus.SetLevel(logrus.InfoLevel)
+	t.Cleanup(func() {
+		logrus.SetLevel(priorLevel)
+	})
 
-	t.Skip("Enable after https://drone.gravitational.io/gravitational/teleport/3517 is merged.")
 	tests := []struct {
 		comment   string
 		inError   error
@@ -47,14 +51,14 @@ func TestUserMessageFromError(t *testing.T) {
 		},
 		{
 			comment:   "outputs user message as provided",
-			inError:   trace.Errorf("\x1b[1mWARNING\x1b[0m"),
-			outString: `error: "\x1b[1mWARNING\x1b[0m"`,
+			inError:   trace.Errorf("bad thing occurred"),
+			outString: "\x1b[31mERROR: \x1b[0mbad thing occurred",
 		},
 	}
 
 	for _, tt := range tests {
 		message := UserMessageFromError(tt.inError)
-		require.True(t, strings.HasPrefix(message, tt.outString), tt.comment)
+		require.Contains(t, message, tt.outString)
 	}
 }
 
