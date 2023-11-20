@@ -132,13 +132,7 @@ func TestWriteMovieWritesManyFrames(t *testing.T) {
 func writeMovieWrapper(t *testing.T, ctx context.Context, ss events.SessionStreamer, sid session.ID, prefix string,
 	write func(format string, args ...any) (int, error)) (int, string, error) {
 
-	tempDir, err := os.MkdirTemp("", "writeMovie-")
-	require.NoError(t, err, "failed to create a temporary directory for the writeMovie %q file", prefix)
-	t.Cleanup(func() {
-		err = os.RemoveAll(tempDir)
-		require.NoError(t, err, "failed to clean up temporary directory %q for the writeMovie %q file", tempDir, prefix)
-	})
-
+	tempDir := t.TempDir()
 	prefix = path.Join(tempDir, prefix)
 	frames, err := writeMovie(ctx, ss, sid, prefix, write)
 	return frames, prefix, err
