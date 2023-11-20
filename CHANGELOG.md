@@ -5,7 +5,7 @@
 * Access list review reminders will now be sent via Slack [#34663](https://github.com/gravitational/teleport/pull/34663)
 * Improve the error message when attempting to enroll a hardware key that cannot support passwordless [#34589](https://github.com/gravitational/teleport/pull/34589)
 * Allow selecting multiple resource filters in the search bar in Connect [#34543](https://github.com/gravitational/teleport/pull/34543)
-* Added a guided flow for joining your computer to the Teleport cluster using Teleport Connect; find it in the Web UI under Enroll New Resource -> Connect My Computer (available only for local users, see the prerequisites [here](https://goteleport.com/docs/connect-your-client/teleport-connect/#connect-my-computer)) [#33688](https://github.com/gravitational/teleport/pull/33688)
+* Added a guided flow for joining your computer to the Teleport cluster using Teleport Connect; find it in the Web UI under Enroll New Resource -> Connect My Computer (available only for local users, with prerequisites) [#33688](https://github.com/gravitational/teleport/pull/33688)
 
 ## 14.1.5 (11/16/2023)
 
