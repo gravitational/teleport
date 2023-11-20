@@ -17,12 +17,14 @@ limitations under the License.
 package app
 
 import (
+	"compress/gzip"
 	"context"
 	"crypto/tls"
 	"net"
 	"net/http"
 	"net/url"
 	"path"
+	"strings"
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
@@ -235,15 +237,57 @@ func (t *transport) needsPathRedirect(r *http.Request) (string, bool) {
 }
 
 // rewriteResponse applies any rewriting rules to the response before returning it.
-func (t *transport) rewriteResponse(resp *http.Response) error {
-	switch {
-	case t.app.GetRewrite() != nil && len(t.app.GetRewrite().Redirect) > 0:
+func (t *transport) rewriteResponse(resp *http.Response) (err error) {
+	if t.app.GetRewrite() != nil && len(t.app.GetRewrite().Redirect) > 0 {
 		err := t.rewriteRedirect(resp)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-	default:
 	}
+
+	if t.app.GetRewrite() == nil ||
+		len(t.app.GetRewrite().Substitutions) == 0 ||
+		resp.ContentLength == 0 {
+		return nil
+	}
+	body := resp.Body
+	resp.Header.Del("Content-Length")
+	isGzip := strings.Contains(resp.Header.Get("Content-Encoding"), "gzip")
+	if isGzip {
+		body, err = gzip.NewReader(resp.Body)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	for _, sub := range t.app.GetRewrite().Substitutions {
+		if sub.Find == "" || !slices.ContainsFunc(sub.MimeTypes,
+			func(e string) bool {
+				return strings.EqualFold(resp.Header.Get("Content-Type"), e)
+			}) {
+			continue
+		}
+		// chain readers to apply multiple substitutions in a single pass
+		body, err = newBytesReplacingReader(
+			body,
+			[]byte(sub.Find),
+			[]byte(sub.Replace),
+		)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	if isGzip {
+		// re-apply gzip compression
+		body, err = newGzipCompressor(body)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	resp.Body = body
+
 	return nil
 }
 

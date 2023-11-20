@@ -22,6 +22,7 @@ import (
 	"strings"
 
 	"github.com/gravitational/trace"
+	"golang.org/x/exp/slices"
 	"golang.org/x/net/http/httpguts"
 	"k8s.io/apimachinery/pkg/util/validation"
 
@@ -132,6 +133,16 @@ func (a *App) CheckAndSetDefaults() error {
 					a.Name, http.CanonicalHeaderKey(h.Name))
 			}
 		}
+		for i, s := range a.Rewrite.Substitutions {
+			if !slices.ContainsFunc(
+				s.MimeTypes,
+				func(e string) bool {
+					return strings.EqualFold("text/html", e)
+				},
+			) {
+				a.Rewrite.Substitutions[i].MimeTypes = append(s.MimeTypes, "text/html")
+			}
+		}
 	}
 	return nil
 }
@@ -150,6 +161,18 @@ type Rewrite struct {
 	Headers []Header
 	// JWTClaims configures whether roles/traits are included in the JWT token.
 	JWTClaims string
+	// Substitute is a list of substitution rules that should be rewritten in the response body.
+	Substitutions []Substitution
+}
+
+// Substitution represents a single http body substitution.
+type Substitution struct {
+	// Value to be searched for in the response body.
+	Find string
+	// Value that will replace all found occurrences.
+	Replace string
+	// MimeTypes is a list of mime types that will be searched for substitutions.
+	MimeTypes []string
 }
 
 // Header represents a single http header passed over to the proxied application.
