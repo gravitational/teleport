@@ -725,10 +725,9 @@ export function NoResultsItem(props: {
   return (
     <NonInteractiveItem>
       <IconAndContent Icon={icons.Info} iconColor="text.slightlyMuted">
-        <Flex gap={2} justifyContent="space-between">
+        <ContentAndAdvancedSearch advancedSearch={props.advancedSearch}>
           <Text typography="body1">No matching results found.</Text>
-          <StyledAdvancedSearchToggle {...props.advancedSearch} />
-        </Flex>
+        </ContentAndAdvancedSearch>
         {expiredCertsCopy && <Text typography="body2">{expiredCertsCopy}</Text>}
       </IconAndContent>
     </NonInteractiveItem>
@@ -744,14 +743,13 @@ export function TypeToSearchItem({
 }) {
   return (
     <NonInteractiveItem>
-      <Flex gap={2} justifyContent="space-between" alignItems="center">
+      <ContentAndAdvancedSearch advancedSearch={advancedSearch}>
         <Text typography="body2">
           Enter space-separated search terms.
           {hasNoRemainingFilterActions ||
             ' Select a filter to narrow down the search.'}
         </Text>
-        <StyledAdvancedSearchToggle {...advancedSearch} />
-      </Flex>
+      </ContentAndAdvancedSearch>
     </NonInteractiveItem>
   );
 }
@@ -763,13 +761,12 @@ export function AdvancedSearchEnabledItem({
 }) {
   return (
     <NonInteractiveItem>
-      <Flex gap={2} justifyContent="space-between" alignItems="center">
+      <ContentAndAdvancedSearch advancedSearch={advancedSearch}>
         <Text typography="body2">
           Enter the query using the predicate language. Inline results are not
           available in this mode.
         </Text>
-        <StyledAdvancedSearchToggle {...advancedSearch} />
-      </Flex>
+      </ContentAndAdvancedSearch>
     </NonInteractiveItem>
   );
 }
@@ -799,12 +796,11 @@ export function ResourceSearchErrorsItem(props: {
   return (
     <NonInteractiveItem>
       <IconAndContent Icon={icons.Warning} iconColor="warning.main">
-        <Flex gap={2} justifyContent="space-between">
+        <ContentAndAdvancedSearch advancedSearch={props.advancedSearch}>
           <Text typography="body1">
             Some of the search results are incomplete.
           </Text>
-          <StyledAdvancedSearchToggle {...props.advancedSearch} />
-        </Flex>
+        </ContentAndAdvancedSearch>
 
         <Flex gap={2} justifyContent="space-between" alignItems="baseline">
           <span
@@ -991,10 +987,26 @@ interface AdvancedSearch {
   onToggle(): void;
 }
 
-//TODO(gzdunek): Remove when we get a toggle that can be displayed
-// on a white background
-const StyledAdvancedSearchToggle = styled(AdvancedSearchToggle)`
-  label > div {
-    border: 1px solid ${props => props.theme.colors.spotBackground[1]};
-  }
-`;
+function ContentAndAdvancedSearch(
+  props: React.PropsWithChildren<{
+    advancedSearch: AdvancedSearch;
+  }>
+) {
+  return (
+    <Flex gap={2} justifyContent="space-between" alignItems="flex-start">
+      {props.children}
+      {
+        <AdvancedSearchToggle
+          {...props.advancedSearch}
+          css={`
+            //TODO(gzdunek): Remove when we get a toggle that can be displayed
+            // on a white background
+            label > div {
+              border: 1px solid ${props => props.theme.colors.spotBackground[1]};
+            }
+          `}
+        />
+      }
+    </Flex>
+  );
+}
