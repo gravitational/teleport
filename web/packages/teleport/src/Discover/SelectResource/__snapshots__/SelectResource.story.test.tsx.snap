@@ -900,47 +900,6 @@ exports[`render with all access 1`] = `
     </div>
     <div
       class="c7"
-      data-testid="2"
-    >
-      <div
-        class="c8"
-      >
-        Guided
-      </div>
-      <div
-        class="c9"
-      >
-        <div
-          class="c10"
-          width="24px"
-        >
-          <img
-            class="c11"
-            height="24px"
-            src="file_stub"
-            width="23.9px"
-          />
-        </div>
-        <div
-          class="c12"
-        >
-          <div
-            class="c13"
-            color="text.slightlyMuted"
-            font-size="12px"
-          >
-            Windows Desktop
-          </div>
-          <div
-            class="c14"
-          >
-            Active Directory
-          </div>
-        </div>
-      </div>
-    </div>
-    <div
-      class="c7"
       data-testid="4"
     >
       <div
@@ -1913,47 +1872,6 @@ exports[`render with all access 1`] = `
     </a>
     <a
       class="c15 c7"
-      data-testid="2"
-      href="https://goteleport.com/docs/desktop-access/getting-started/"
-      rel="noreferrer"
-      style="text-decoration: none;"
-      target="_blank"
-    >
-      <div
-        class="c9"
-      >
-        <div
-          class="c10"
-          width="24px"
-        >
-          <img
-            class="c11"
-            height="24px"
-            src="file_stub"
-            width="23.9px"
-          />
-        </div>
-        <div
-          class="c12"
-        >
-          <div
-            class="c13"
-            color="text.slightlyMuted"
-            font-size="12px"
-          >
-            Windows Desktop
-          </div>
-          <div
-            class="c16"
-            color="text.main"
-          >
-            Local Windows Users
-          </div>
-        </div>
-      </div>
-    </a>
-    <a
-      class="c15 c7"
       data-testid="1"
       href="https://goteleport.com/docs/database-access/guides/mongodb-self-hosted"
       rel="noreferrer"
@@ -2432,6 +2350,47 @@ exports[`render with all access 1`] = `
         </div>
       </div>
     </a>
+    <a
+      class="c15 c7"
+      data-testid="2"
+      href="https://goteleport.com/docs/desktop-access/getting-started/"
+      rel="noreferrer"
+      style="text-decoration: none;"
+      target="_blank"
+    >
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c11"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c13"
+            color="text.slightlyMuted"
+            font-size="12px"
+          >
+            Microsoft
+          </div>
+          <div
+            class="c16"
+            color="text.main"
+          >
+            Windows Desktop
+          </div>
+        </div>
+      </div>
+    </a>
   </div>
   <div
     class="c17"
@@ -2652,48 +2611,6 @@ exports[`render with no access 1`] = `
   <div
     class="c6"
   >
-    <div
-      class="c7"
-      data-testid="2"
-    >
-      <div
-        class="c8"
-        data-testid="tooltip"
-      >
-        Lacking Permissions
-      </div>
-      <div
-        class="c9"
-      >
-        <div
-          class="c10"
-          width="24px"
-        >
-          <img
-            class="c11"
-            height="24px"
-            src="file_stub"
-            width="23.9px"
-          />
-        </div>
-        <div
-          class="c12"
-        >
-          <div
-            class="c13"
-            color="text.slightlyMuted"
-            font-size="12px"
-          >
-            Windows Desktop
-          </div>
-          <div
-            class="c14"
-          >
-            Active Directory
-          </div>
-        </div>
-      </div>
-    </div>
     <div
       class="c7"
       data-testid="4"
@@ -3482,52 +3399,6 @@ exports[`render with no access 1`] = `
         </div>
       </div>
     </div>
-    <a
-      class="c15 c7"
-      data-testid="2"
-      rel="noreferrer"
-      style="text-decoration: none;"
-      target="_blank"
-    >
-      <div
-        class="c8"
-        data-testid="tooltip"
-      >
-        Lacking Permissions
-      </div>
-      <div
-        class="c9"
-      >
-        <div
-          class="c10"
-          width="24px"
-        >
-          <img
-            class="c11"
-            height="24px"
-            src="file_stub"
-            width="23.9px"
-          />
-        </div>
-        <div
-          class="c12"
-        >
-          <div
-            class="c13"
-            color="text.slightlyMuted"
-            font-size="12px"
-          >
-            Windows Desktop
-          </div>
-          <div
-            class="c16"
-            color="text.main"
-          >
-            Local Windows Users
-          </div>
-        </div>
-      </div>
-    </a>
     <div
       class="c7"
       data-testid="4"
@@ -4362,6 +4233,52 @@ exports[`render with no access 1`] = `
         </div>
       </div>
     </div>
+    <a
+      class="c15 c7"
+      data-testid="2"
+      rel="noreferrer"
+      style="text-decoration: none;"
+      target="_blank"
+    >
+      <div
+        class="c8"
+        data-testid="tooltip"
+      >
+        Lacking Permissions
+      </div>
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c11"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c13"
+            color="text.slightlyMuted"
+            font-size="12px"
+          >
+            Microsoft
+          </div>
+          <div
+            class="c16"
+            color="text.main"
+          >
+            Windows Desktop
+          </div>
+        </div>
+      </div>
+    </a>
   </div>
   <div
     class="c17"
@@ -4649,47 +4566,6 @@ exports[`render with partial access 1`] = `
             class="c14"
           >
             macOS
-          </div>
-        </div>
-      </div>
-    </div>
-    <div
-      class="c7"
-      data-testid="2"
-    >
-      <div
-        class="c8"
-      >
-        Guided
-      </div>
-      <div
-        class="c9"
-      >
-        <div
-          class="c10"
-          width="24px"
-        >
-          <img
-            class="c11"
-            height="24px"
-            src="file_stub"
-            width="23.9px"
-          />
-        </div>
-        <div
-          class="c12"
-        >
-          <div
-            class="c13"
-            color="text.slightlyMuted"
-            font-size="12px"
-          >
-            Windows Desktop
-          </div>
-          <div
-            class="c14"
-          >
-            Active Directory
           </div>
         </div>
       </div>
@@ -4999,13 +4875,13 @@ exports[`render with partial access 1`] = `
             color="text.slightlyMuted"
             font-size="12px"
           >
-            Windows Desktop
+            Microsoft
           </div>
           <div
             class="c16"
             color="text.main"
           >
-            Local Windows Users
+            Windows Desktop
           </div>
         </div>
       </div>
