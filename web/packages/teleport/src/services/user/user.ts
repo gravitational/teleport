@@ -42,6 +42,10 @@ const service = {
       });
   },
 
+  fetchAccessGraphFeatures(): Promise<object> {
+    return api.get(cfg.getAccessGraphFeaturesUrl());
+  },
+
   fetchUser(username: string) {
     return api.get(cfg.getUserWithUsernameUrl(username)).then(makeUser);
   },
