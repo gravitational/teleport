@@ -254,8 +254,8 @@ github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue v1.12.2/go.mod h1:R
 github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.13.3/go.mod h1:4Q0UFP0YJf0NrsEuEYHpM9fTSEVnD16Z3uyEF7J9JGM=
 github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.14.4 h1:9wKDWEjwSnXZre0/O3+ZwbBl1SmlgWYBbrTV10X/H1s=
 github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.14.4/go.mod h1:t4i+yGHMCcUNIX1x7YVYa6bH/Do7civ5I6cG/6PMfyA=
-github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.14.0 h1:1KdubQbnw76M0Sr8480q6OXBlymBVqpkK+RuCqJz+nQ=
-github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.14.0/go.mod h1:UcgIwJ9KHquYxs6Q5skC9qXjhYMK+JASDYcXQ4X7JZE=
+github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.13.5 h1:P/xwilRdRLLg1PzfviDq0Zjb74weOoDCrh8J5lRCQAY=
+github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.13.5/go.mod h1:9cLHf2IwX6Jyw0KjLVbXly/g6DmzExgUzB1w/AQPGQE=
 github.com/aws/aws-sdk-go-v2/internal/configsources v1.1.33/go.mod h1:7i0PF1ME/2eUPFcjkVIwq+DOygHEoK92t5cDqNgYbIw=
 github.com/aws/aws-sdk-go-v2/internal/configsources v1.2.3 h1:DUwbD79T8gyQ23qVXFUthjzVMTviSHi3y4z58KvghhM=
 github.com/aws/aws-sdk-go-v2/internal/configsources v1.2.3/go.mod h1:7sGSz1JCKHWWBHq98m6sMtWQikmYPpxjqOydDemiVoM=
@@ -296,8 +296,8 @@ github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.16.3 h1:KV0z2RDc7euMtg
 github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.16.3/go.mod h1:KZgs2ny8HsxRIRbDwgvJcHHBZPOzQr/+NtGwnP+w2ec=
 github.com/aws/aws-sdk-go-v2/service/rds v1.63.0 h1:Mb6mn6mRfTpI2WEZkLmmJ7jtiPHKzwJ8otzUA5rIq+o=
 github.com/aws/aws-sdk-go-v2/service/rds v1.63.0/go.mod h1:C73+OVOdaMZNc/Z8PhnLoArk6mCqxkiqfgmCrvNrDDM=
-github.com/aws/aws-sdk-go-v2/service/s3 v1.43.0 h1:cwTuq73Tv6jtNJIMgTDKsih5O2YsVrKGpg20H98tbmo=
-github.com/aws/aws-sdk-go-v2/service/s3 v1.43.0/go.mod h1:NXRKkiRF+erX2hnybnVU660cYT5/KChRD4iUgJ97cI8=
+github.com/aws/aws-sdk-go-v2/service/s3 v1.42.1 h1:o6MCcX1rJW8Y3g+hvg2xpjF6JR6DftuYhfl3Nc1WV9Q=
+github.com/aws/aws-sdk-go-v2/service/s3 v1.42.1/go.mod h1:UDtxEWbREX6y4KREapT+jjtjoH0TiVSS6f5nfaY1UaM=
 github.com/aws/aws-sdk-go-v2/service/sns v1.25.2 h1:KVWf3qQZxqX0ogLvRfq+uEXfbRexe7Y2JBRQ0TQaxwQ=
 github.com/aws/aws-sdk-go-v2/service/sns v1.25.2/go.mod h1:gOyDaoXeBT5gwG0DL+5RFQ7cddwLOablLJdXmWSWdyU=
 github.com/aws/aws-sdk-go-v2/service/sqs v1.28.1 h1:rfX6lA1EW6Q5zT7Cl8RG90hCdWY4VVaobnmbgl5OIy0=
