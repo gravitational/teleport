@@ -28,6 +28,8 @@ import (
 	"github.com/gravitational/teleport/lib/jwt"
 )
 
+// IDTokenValidatorConfig contains the configuration options needed to control
+// the behavior of IDTokenValidator.
 type IDTokenValidatorConfig struct {
 	// Clock is used by the validator when checking expiry and issuer times of
 	// tokens. If omitted, a real clock will be used.
@@ -37,10 +39,12 @@ type IDTokenValidatorConfig struct {
 	insecure bool
 }
 
+// IDTokenValidator validates a Spacelift issued ID Token.
 type IDTokenValidator struct {
 	IDTokenValidatorConfig
 }
 
+// NewIDTokenValidator returns an initialized IDTokenValidator
 func NewIDTokenValidator(
 	cfg IDTokenValidatorConfig,
 ) *IDTokenValidator {
@@ -62,6 +66,7 @@ func (id *IDTokenValidator) issuerURL(hostname string) string {
 	return fmt.Sprintf("%s://%s", scheme, hostname)
 }
 
+// Validate validates a Spacelift issued ID token.
 func (id *IDTokenValidator) Validate(
 	ctx context.Context, hostname string, token string,
 ) (*IDTokenClaims, error) {
@@ -76,6 +81,7 @@ func (id *IDTokenValidator) Validate(
 	verifier := p.Verifier(&oidc.Config{
 		// Spacelift uses an audience of your Spacelift tenant hostname
 		// This is weird - but we just have to work with this.
+		// See https://docs.spacelift.io/integrations/cloud-providers/oidc/#standard-claims
 		ClientID: hostname,
 		Now:      id.Clock.Now,
 	})
