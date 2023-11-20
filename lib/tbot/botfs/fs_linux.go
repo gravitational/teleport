@@ -438,7 +438,8 @@ func HasSecureWriteSupport() (bool, error) {
 	minKernel := semver.New(Openat2MinKernel)
 	version, err := utils.KernelVersion()
 	if err != nil {
-		return false, trace.Wrap(err)
+		log.WithError(err).Info("Failed to determine kernel version. It will be assumed secure write support is not available.")
+		return false, nil
 	}
 	if version.LessThan(*minKernel) {
 		return false, nil
