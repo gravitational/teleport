@@ -1507,7 +1507,6 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 	// get tunnel address to display on cloud instances
 	tunnelPublicAddr := ""
 	assistEnabled := false // TODO(jakule) remove when plugins are implemented
-	accessGraphEnabled := false
 	proxyConfig, err := h.cfg.ProxySettings.GetProxySettings(r.Context())
 	if err != nil {
 		h.log.WithError(err).Warn("Cannot retrieve ProxySettings, tunnel address won't be set in Web UI.")
@@ -1525,7 +1524,6 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 			// disable if auth doesn't support assist
 			assistEnabled = enabled.Enabled
 		}
-		accessGraphEnabled = proxyConfig.AccessGraphEnabled
 	}
 
 	// disable joining sessions if proxy session recording is enabled
@@ -1558,7 +1556,6 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		AutomaticUpgrades:              automaticUpgradesEnabled,
 		AutomaticUpgradesTargetVersion: automaticUpgradesTargetVersion,
 		AssistEnabled:                  assistEnabled,
-		AccessGraphEnabled:             accessGraphEnabled,
 		HideInaccessibleFeatures:       clusterFeatures.GetFeatureHiding(),
 		CustomTheme:                    clusterFeatures.GetCustomTheme(),
 	}
