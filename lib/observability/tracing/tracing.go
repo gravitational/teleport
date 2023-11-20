@@ -26,11 +26,13 @@ import (
 	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
+	metricnoop "go.opentelemetry.io/otel/metric/noop"
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.21.0"
 	oteltrace "go.opentelemetry.io/otel/trace"
+	"go.opentelemetry.io/otel/trace/embedded"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/observability/tracing"
@@ -140,6 +142,8 @@ func (c *Config) Endpoint() string {
 // Provider wraps the OpenTelemetry tracing provider to provide common tags for all tracers.
 type Provider struct {
 	provider *sdktrace.TracerProvider
+
+	embedded.TracerProvider
 }
 
 // Tracer returns a Tracer with the given name and options. If a Tracer for
@@ -210,6 +214,12 @@ func NewTraceProvider(ctx context.Context, cfg Config) (*Provider, error) {
 
 	// set global propagator, the default is no-op.
 	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(propagation.TraceContext{}, propagation.Baggage{}))
+
+	// Set the global metric provider to a no-op so that any metrics created from otelgrpc interceptors
+	// are disabled to prevent memory leaks.
+	// See https://github.com/gravitational/teleport/issues/30759
+	// See https://github.com/open-telemetry/opentelemetry-go-contrib/issues/4226
+	otel.SetMeterProvider(metricnoop.MeterProvider{})
 
 	// override the global logging handled with one that uses the
 	// configured logger instead
