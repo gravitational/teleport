@@ -494,6 +494,7 @@ message Features {
   // AccessControls enables FIPS access controls
   bool AccessControls = 6 [(gogoproto.jsontag) = "access_controls"];
   // AdvancedAccessWorkflows enables advanced access workflows
+  // Deprecated: Use AccessRequests field instead.
   bool AdvancedAccessWorkflows = 7 [(gogoproto.jsontag) = "advanced_access_workflows"];
   // Cloud enables some cloud-related features
   bool Cloud = 8 [(gogoproto.jsontag) = "cloud"];
@@ -550,6 +551,11 @@ message AccessRequestsFeature {
   // Meant for usage-based accounts, like Teleport Team. Has no effect if
   // [Features.IsUsageBased] is `false`.
   int32 monthly_request_limit = 1 [(gogoproto.jsontag) = "monthly_request_limit"];
+  // Enabling this field enables "advanced access workflows".
+  // This field was previously a standalone field named AdvancedAccessWorkflows.
+  // The name came about to help differentiate the differnet support for Access Requests
+  // between the limited support for OSS tctl/tsh and the full support for enterprise.
+  bool enabled = 2 [(gogoproto.jsontag) = "enabled,omitempty"];
 }
 
 // DeleteUserRequest is the input value for the DeleteUser method.
