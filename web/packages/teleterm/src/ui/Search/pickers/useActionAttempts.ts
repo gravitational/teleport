@@ -41,6 +41,8 @@ import { SearchFilter } from 'teleterm/ui/Search/searchResult';
 import { routing } from 'teleterm/ui/uri';
 import { isRetryable } from 'teleterm/ui/utils/retryWithRelogin';
 
+import { useDocumentClusterSearch } from './useDocumentClusterSearch';
+
 export function useActionAttempts() {
   const ctx = useAppContext();
   const { modalsService, workspacesService } = ctx;
@@ -133,6 +135,14 @@ export function useActionAttempts() {
     return makeSuccessAttempt(filterActions);
   }, [runFilterSearch, inputValue, filters, ctx, searchContext]);
 
+  const documentClusterSearch = useDocumentClusterSearch({
+    inputValue,
+    filters,
+  });
+  const documentClusterSearchActionAttempt = makeSuccessAttempt(
+    mapToActions(ctx, searchContext, [documentClusterSearch])
+  );
+
   useEffect(() => {
     // Reset the resource search attempt as soon as the input changes. If we didn't do that, then
     // the attempt would only get updated on debounce. This could lead to the following scenario:
@@ -152,6 +162,7 @@ export function useActionAttempts() {
   ]);
 
   return {
+    documentClusterSearchActionAttempt,
     filterActionsAttempt,
     resourceActionsAttempt,
     // resourceSearchAttempt is the raw version of useResourceSearch attempt that has not been

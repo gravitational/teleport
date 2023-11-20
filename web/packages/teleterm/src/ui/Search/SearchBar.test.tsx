@@ -212,6 +212,7 @@ it('maintains focus on the search input after closing a resource search error mo
   );
 
   const mockActionAttempts = {
+    documentClusterSearchActionAttempt: makeSuccessAttempt([]),
     filterActionsAttempt: makeSuccessAttempt([]),
     resourceActionsAttempt: makeSuccessAttempt([]),
     resourceSearchAttempt: makeSuccessAttempt({
