@@ -20,6 +20,8 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"github.com/gravitational/teleport/lib/auth/authclient"
+	authidentity "github.com/gravitational/teleport/lib/auth/identity"
 	"math"
 	"time"
 
@@ -29,7 +31,6 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/config"
@@ -157,7 +158,7 @@ func botIdentityFromAuth(
 	ctx context.Context,
 	log logrus.FieldLogger,
 	ident *identity.Identity,
-	client auth.ClientI,
+	client *authclient.Client,
 	ttl time.Duration,
 ) (*identity.Identity, error) {
 	log.Info("Fetching bot identity using existing bot identity.")
@@ -207,9 +208,9 @@ func botIdentityFromToken(log logrus.FieldLogger, cfg *config.BotConfig) (*ident
 	}
 
 	expires := time.Now().Add(cfg.CertificateTTL)
-	params := auth.RegisterParams{
+	params := authclient.RegisterParams{
 		Token: token,
-		ID: auth.IdentityID{
+		ID: authidentity.IdentityID{
 			Role: types.RoleBot,
 		},
 		AuthServers:        []utils.NetAddr{*addr},
@@ -226,12 +227,12 @@ func botIdentityFromToken(log logrus.FieldLogger, cfg *config.BotConfig) (*ident
 	}
 
 	if params.JoinMethod == types.JoinMethodAzure {
-		params.AzureParams = auth.AzureParams{
+		params.AzureParams = authclient.AzureParams{
 			ClientID: cfg.Onboarding.Azure.ClientID,
 		}
 	}
 
-	certs, err := auth.Register(params)
+	certs, err := authclient.Register(params)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

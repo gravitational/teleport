@@ -31,7 +31,6 @@ import (
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/mfa"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -57,7 +56,7 @@ type Config struct {
 
 // Connect creates a valid client connection to the auth service.  It may
 // connect directly to the auth server, or tunnel through the proxy.
-func Connect(ctx context.Context, cfg *Config) (*auth.Client, error) {
+func Connect(ctx context.Context, cfg *Config) (*Client, error) {
 	cfg.Log.Debugf("Connecting to: %v.", cfg.AuthServers)
 
 	directClient, err := connectViaAuthDirect(ctx, cfg)
@@ -83,9 +82,9 @@ func Connect(ctx context.Context, cfg *Config) (*auth.Client, error) {
 	)
 }
 
-func connectViaAuthDirect(ctx context.Context, cfg *Config) (*auth.Client, error) {
+func connectViaAuthDirect(ctx context.Context, cfg *Config) (*Client, error) {
 	// Try connecting to the auth server directly over TLS.
-	directClient, err := auth.NewClient(apiclient.Config{
+	directClient, err := NewClient(apiclient.Config{
 		Addrs: utils.NetAddrsToStrings(cfg.AuthServers),
 		Credentials: []apiclient.Credentials{
 			apiclient.LoadTLS(cfg.TLS),
@@ -109,7 +108,7 @@ func connectViaAuthDirect(ctx context.Context, cfg *Config) (*auth.Client, error
 	return directClient, nil
 }
 
-func connectViaProxyTunnel(ctx context.Context, cfg *Config) (*auth.Client, error) {
+func connectViaProxyTunnel(ctx context.Context, cfg *Config) (*Client, error) {
 	// If direct dial failed, we may have a proxy address in
 	// cfg.AuthServers. Try connecting to the reverse tunnel
 	// endpoint and make a client over that.
@@ -140,7 +139,7 @@ func connectViaProxyTunnel(ctx context.Context, cfg *Config) (*auth.Client, erro
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	tunnelClient, err := auth.NewClient(apiclient.Config{
+	tunnelClient, err := NewClient(apiclient.Config{
 		Dialer: dialer,
 		Credentials: []apiclient.Credentials{
 			apiclient.LoadTLS(cfg.TLS),

@@ -19,6 +19,7 @@ package tbot
 import (
 	"context"
 	"fmt"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"math"
 	"strings"
 	"sync"
@@ -36,7 +37,6 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
 	libdefaults "github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
@@ -175,7 +175,7 @@ type identityConfigurator = func(req *proto.UserCertsRequest)
 // certs.
 func (b *Bot) generateIdentity(
 	ctx context.Context,
-	client auth.ClientI,
+	client *authclient.Client,
 	currentIdentity *identity.Identity,
 	output config.Output,
 	defaultRoles []string,
@@ -264,7 +264,7 @@ func (b *Bot) generateIdentity(
 	return newIdentity, nil
 }
 
-func getDatabase(ctx context.Context, clt auth.ClientI, name string) (types.Database, error) {
+func getDatabase(ctx context.Context, clt *authclient.Client, name string) (types.Database, error) {
 	servers, err := apiclient.GetAllResources[types.DatabaseServer](ctx, clt, &proto.ListResourcesRequest{
 		Namespace:           defaults.Namespace,
 		ResourceType:        types.KindDatabaseServer,
@@ -285,7 +285,7 @@ func getDatabase(ctx context.Context, clt auth.ClientI, name string) (types.Data
 	return db, trace.Wrap(err)
 }
 
-func (b *Bot) getRouteToDatabase(ctx context.Context, client auth.ClientI, output *config.DatabaseOutput) (proto.RouteToDatabase, error) {
+func (b *Bot) getRouteToDatabase(ctx context.Context, client *authclient.Client, output *config.DatabaseOutput) (proto.RouteToDatabase, error) {
 	if output.Service == "" {
 		return proto.RouteToDatabase{}, nil
 	}
@@ -316,7 +316,7 @@ func (b *Bot) getRouteToDatabase(ctx context.Context, client auth.ClientI, outpu
 	}, nil
 }
 
-func getKubeCluster(ctx context.Context, clt auth.ClientI, name string) (types.KubeCluster, error) {
+func getKubeCluster(ctx context.Context, clt *authclient.Client, name string) (types.KubeCluster, error) {
 	servers, err := apiclient.GetAllResources[types.KubeServer](ctx, clt, &proto.ListResourcesRequest{
 		Namespace:           defaults.Namespace,
 		ResourceType:        types.KindKubeServer,
@@ -337,7 +337,7 @@ func getKubeCluster(ctx context.Context, clt auth.ClientI, name string) (types.K
 	return cluster, trace.Wrap(err)
 }
 
-func getApp(ctx context.Context, clt auth.ClientI, appName string) (types.Application, error) {
+func getApp(ctx context.Context, clt *authclient.Client, appName string) (types.Application, error) {
 	servers, err := apiclient.GetAllResources[types.AppServer](ctx, clt, &proto.ListResourcesRequest{
 		Namespace:           defaults.Namespace,
 		ResourceType:        types.KindAppServer,
@@ -361,7 +361,7 @@ func getApp(ctx context.Context, clt auth.ClientI, appName string) (types.Applic
 	return apps[0], nil
 }
 
-func (b *Bot) getRouteToApp(ctx context.Context, botIdentity *identity.Identity, client auth.ClientI, output *config.ApplicationOutput) (proto.RouteToApp, error) {
+func (b *Bot) getRouteToApp(ctx context.Context, botIdentity *identity.Identity, client *authclient.Client, output *config.ApplicationOutput) (proto.RouteToApp, error) {
 	app, err := getApp(ctx, client, output.AppName)
 	if err != nil {
 		return proto.RouteToApp{}, trace.Wrap(err)
@@ -377,7 +377,7 @@ func (b *Bot) getRouteToApp(ctx context.Context, botIdentity *identity.Identity,
 		return proto.RouteToApp{}, trace.Wrap(err)
 	}
 
-	err = auth.WaitForAppSession(ctx, ws.GetName(), ws.GetUser(), client)
+	err = authclient.WaitForAppSession(ctx, ws.GetName(), ws.GetUser(), client)
 	if err != nil {
 		return proto.RouteToApp{}, trace.Wrap(err)
 	}
@@ -395,11 +395,11 @@ func (b *Bot) getRouteToApp(ctx context.Context, botIdentity *identity.Identity,
 // impersonated identity.
 func (b *Bot) generateImpersonatedIdentity(
 	ctx context.Context,
-	botClient auth.ClientI,
+	botClient *authclient.Client,
 	botIdentity *identity.Identity,
 	output config.Output,
 	defaultRoles []string,
-) (impersonatedIdentity *identity.Identity, impersonatedClient auth.ClientI, err error) {
+) (impersonatedIdentity *identity.Identity, impersonatedClient *authclient.Client, err error) {
 	impersonatedIdentity, err = b.generateIdentity(
 		ctx, botClient, botIdentity, output, defaultRoles, nil,
 	)
@@ -601,7 +601,7 @@ func (b *Bot) renewOutputs(
 // requests for the same information. This is shared between all of the
 // outputs.
 type outputRenewalCache struct {
-	client auth.ClientI
+	client *authclient.Client
 
 	cfg *config.BotConfig
 	mu  sync.Mutex
@@ -711,7 +711,7 @@ type outputProvider struct {
 	*outputRenewalCache
 	// impersonatedClient is a client using the impersonated identity configured
 	// for that output.
-	impersonatedClient auth.ClientI
+	impersonatedClient *authclient.Client
 }
 
 // GetRemoteClusters uses the impersonatedClient to call GetRemoteClusters.
