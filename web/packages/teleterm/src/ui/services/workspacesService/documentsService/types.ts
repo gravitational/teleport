@@ -14,6 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+import { SharedUnifiedResource } from 'shared/components/UnifiedResources';
+
 import * as uri from 'teleterm/ui/uri';
 
 import type * as tsh from 'teleterm/services/tshd/types';
@@ -145,7 +147,23 @@ export interface DocumentGatewayKube extends DocumentBase {
 export interface DocumentCluster extends DocumentBase {
   kind: 'doc.cluster';
   clusterUri: uri.ClusterUri;
+  queryParams: DocumentClusterQueryParams;
 }
+
+export interface DocumentClusterQueryParams {
+  search: string;
+  advancedSearchEnabled: boolean;
+  kinds: DocumentClusterResourceKind[];
+  sort: {
+    fieldName: string;
+    dir: 'ASC' | 'DESC';
+  };
+}
+
+export type DocumentClusterResourceKind = Extract<
+  SharedUnifiedResource['resource']['kind'],
+  'node' | 'kube_cluster' | 'db'
+>;
 
 export interface DocumentAccessRequests extends DocumentBase {
   kind: 'doc.access_requests';
@@ -214,10 +232,6 @@ export type CreateGatewayDocumentOpts = {
   title?: string;
   port?: string;
   origin: DocumentOrigin;
-};
-
-export type CreateClusterDocumentOpts = {
-  clusterUri: uri.ClusterUri;
 };
 
 export type CreateTshKubeDocumentOptions = {

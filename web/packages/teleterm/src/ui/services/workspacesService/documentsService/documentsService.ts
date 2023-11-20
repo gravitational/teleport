@@ -15,6 +15,7 @@ limitations under the License.
 */
 
 import { unique } from 'teleterm/ui/utils/uid';
+import * as uri from 'teleterm/ui/uri';
 import {
   DocumentUri,
   ServerUri,
@@ -26,7 +27,6 @@ import {
 
 import {
   CreateAccessRequestDocumentOpts,
-  CreateClusterDocumentOpts,
   CreateGatewayDocumentOpts,
   CreateTshKubeDocumentOptions,
   Document,
@@ -40,6 +40,7 @@ import {
   DocumentTshKube,
   DocumentTshNode,
   DocumentTshNodeWithServerId,
+  DocumentClusterQueryParams,
 } from './types';
 
 export class DocumentsService {
@@ -76,7 +77,10 @@ export class DocumentsService {
     };
   }
 
-  createClusterDocument(opts: CreateClusterDocumentOpts): DocumentCluster {
+  createClusterDocument(opts: {
+    clusterUri: uri.ClusterUri;
+    queryParams?: DocumentClusterQueryParams;
+  }): DocumentCluster {
     const uri = routing.getDocUri({ docId: unique() });
     const clusterName = routing.parseClusterName(opts.clusterUri);
     return {
@@ -84,6 +88,7 @@ export class DocumentsService {
       clusterUri: opts.clusterUri,
       title: clusterName,
       kind: 'doc.cluster',
+      queryParams: opts.queryParams || getDefaultDocumentClusterQueryParams(),
     };
   }
 
@@ -415,4 +420,13 @@ export class DocumentsService {
       draft.documents.splice(newIndex, 0, doc);
     });
   }
+}
+
+export function getDefaultDocumentClusterQueryParams(): DocumentClusterQueryParams {
+  return {
+    kinds: [],
+    search: '',
+    sort: { fieldName: 'name', dir: 'ASC' },
+    advancedSearchEnabled: false,
+  };
 }
