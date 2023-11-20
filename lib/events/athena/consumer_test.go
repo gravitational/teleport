@@ -37,7 +37,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/prometheus/client_golang/prometheus"
 	"github.com/segmentio/parquet-go"
 	"github.com/stretchr/testify/require"
 
@@ -237,6 +236,11 @@ func Test_consumer_sqsMessagesCollector(t *testing.T) {
 }
 
 func validCollectCfgForTests(t *testing.T) sqsCollectConfig {
+	metrics, err := newAthenaMetrics(athenaMetricsConfig{
+		batchInterval:        defaultBatchInterval,
+		externalAuditStorage: false,
+	})
+	require.NoError(t, err)
 	return sqsCollectConfig{
 		sqsReceiver:       &mockReceiver{},
 		queueURL:          "test-queue",
@@ -251,7 +255,7 @@ func validCollectCfgForTests(t *testing.T) sqsCollectConfig {
 				t.Fail()
 			}
 		},
-		metricConsumerBatchProcessingDuration: prometheus.NewHistogram(prometheus.HistogramOpts{Name: "for_tests"}),
+		metrics: metrics,
 	}
 }
 
@@ -561,6 +565,17 @@ func TestErrHandlingFnFromSQS(t *testing.T) {
 	var buf bytes.Buffer
 	log.SetOutput(&buf)
 
+	metrics, err := newAthenaMetrics(athenaMetricsConfig{
+		batchInterval:        defaultBatchInterval,
+		externalAuditStorage: false,
+	})
+	require.NoError(t, err)
+
+	cfg := &Config{
+		LogEntry: log.WithField(trace.Component, "test"),
+		metrics:  metrics,
+	}
+
 	t.Run("a lot of errors, make sure only up to maxErrorCountForLogsOnSQSReceive are printed and total count", func(t *testing.T) {
 		buf.Reset()
 		noOfErrors := maxErrorCountForLogsOnSQSReceive + 1
@@ -571,7 +586,7 @@ func TestErrHandlingFnFromSQS(t *testing.T) {
 			}
 			close(errorC)
 		}()
-		errHandlingFnFromSQS(log)(ctx, errorC)
+		errHandlingFnFromSQS(cfg)(ctx, errorC)
 		require.Equal(t, maxErrorCountForLogsOnSQSReceive, strings.Count(buf.String(), "some error"), "number of error log messages does not match")
 		require.Contains(t, buf.String(), fmt.Sprintf("Got %d errors from SQS collector, printed only first", noOfErrors))
 	})
@@ -586,7 +601,7 @@ func TestErrHandlingFnFromSQS(t *testing.T) {
 			}
 			close(errorC)
 		}()
-		errHandlingFnFromSQS(log)(ctx, errorC)
+		errHandlingFnFromSQS(cfg)(ctx, errorC)
 		require.Equal(t, noOfErrors, strings.Count(buf.String(), "some error"), "number of error log messages does not match")
 		require.NotContains(t, buf.String(), "printed only first")
 	})
@@ -597,7 +612,7 @@ func TestErrHandlingFnFromSQS(t *testing.T) {
 			// close without any errors sent means receiving loop finished without any err
 			close(errorC)
 		}()
-		errHandlingFnFromSQS(log)(ctx, errorC)
+		errHandlingFnFromSQS(cfg)(ctx, errorC)
 		require.Empty(t, buf.String())
 	})
 	t.Run("no errors at all - stopped via ctx cancel", func(t *testing.T) {
@@ -608,7 +623,7 @@ func TestErrHandlingFnFromSQS(t *testing.T) {
 		ctx, inCancel := context.WithCancel(ctx)
 		inCancel()
 
-		errHandlingFnFromSQS(log)(ctx, errorC)
+		errHandlingFnFromSQS(cfg)(ctx, errorC)
 		require.Empty(t, buf.String())
 	})
 
@@ -630,7 +645,7 @@ func TestErrHandlingFnFromSQS(t *testing.T) {
 			inCancel()
 		}()
 
-		errHandlingFnFromSQS(log)(ctx, errorC)
+		errHandlingFnFromSQS(cfg)(ctx, errorC)
 		require.Equal(t, maxErrorCountForLogsOnSQSReceive, strings.Count(buf.String(), "some error"), "number of error log messages does not match")
 		require.Contains(t, buf.String(), "printed only first")
 	})
@@ -681,7 +696,9 @@ func TestConsumerWriteToS3(t *testing.T) {
 		close(eventsC)
 	}()
 
-	c := &consumer{}
+	c := &consumer{
+		collectConfig: validCollectCfgForTests(t),
+	}
 	gotHandlesToDelete, err := c.writeToS3(ctx, eventsC, localWriter)
 	require.NoError(t, err)
 	// Make sure that all events are marked to delete.
@@ -748,6 +765,8 @@ func TestDeleteMessagesFromQueue(t *testing.T) {
 	}
 	noOfHandles := 18
 	handles := handlesGen(noOfHandles)
+
+	collectConfig := validCollectCfgForTests(t)
 
 	tests := []struct {
 		name       string
@@ -824,8 +843,9 @@ func TestDeleteMessagesFromQueue(t *testing.T) {
 				respFn: tt.mockRespFn,
 			}
 			c := consumer{
-				sqsDeleter: mock,
-				queueURL:   "queue-url",
+				sqsDeleter:    mock,
+				queueURL:      "queue-url",
+				collectConfig: collectConfig,
 			}
 			err := c.deleteMessagesFromQueue(ctx, handles)
 			tt.wantCheck(t, err, mock)
