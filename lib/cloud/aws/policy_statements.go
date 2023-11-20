@@ -16,7 +16,12 @@ limitations under the License.
 
 package aws
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/aws/aws-sdk-go/aws/arn"
+	"github.com/gravitational/trace"
+)
 
 var (
 	allResources = []string{"*"}
@@ -159,4 +164,135 @@ func StatementForListRDSDatabases() *Statement {
 		},
 		Resources: allResources,
 	}
+}
+
+// ExternalCloudAuditPolicyConfig holds options for the external cloud audit
+// IAM policy.
+type ExternalCloudAuditPolicyConfig struct {
+	// Partition is the AWS partition to use.
+	Partition string
+	// Region is the AWS region to use.
+	Region string
+	// Account is the AWS account ID to use.
+	Account string
+	// S3ARNs is a list of all S3 resource ARNs used for audit events, session
+	// recordings, and Athena query results. For each location, it should include an ARN for the
+	// base bucket and another wildcard ARN for all objects within the bucket
+	// and an optional path/prefix.
+	S3ARNs []string
+	// AthenaWorkgroupName is the name of the Athena workgroup used for queries.
+	AthenaWorkgroupName string
+	// GlueDatabaseName is the name of the AWS Glue database.
+	GlueDatabaseName string
+	// GlueTabelName is the name of the AWS Glue table.
+	GlueTableName string
+}
+
+func (c *ExternalCloudAuditPolicyConfig) CheckAndSetDefaults() error {
+	if len(c.Partition) == 0 {
+		c.Partition = "aws"
+	}
+	if len(c.Region) == 0 {
+		return trace.BadParameter("region is required")
+	}
+	if len(c.Account) == 0 {
+		return trace.BadParameter("account is required")
+	}
+	if len(c.S3ARNs) < 2 {
+		return trace.BadParameter("at least two distinct S3 ARNs are required")
+	}
+	if len(c.AthenaWorkgroupName) == 0 {
+		return trace.BadParameter("athena workgroup name is required")
+	}
+	if len(c.GlueDatabaseName) == 0 {
+		return trace.BadParameter("glue database name is required")
+	}
+	if len(c.GlueTableName) == 0 {
+		return trace.BadParameter("glue table name is required")
+	}
+	return nil
+}
+
+// PolicyDocumentForExternalCloudAudit returns a PolicyDocument with the
+// necessary IAM permissions for the External Cloud Audit feature.
+func PolicyDocumentForExternalCloudAudit(cfg *ExternalCloudAuditPolicyConfig) (*PolicyDocument, error) {
+	if err := cfg.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &PolicyDocument{
+		Version: PolicyVersion,
+		Statements: []*Statement{
+			&Statement{
+				StatementID: "ReadWriteSessionsAndEvents",
+				Effect:      EffectAllow,
+				Actions: []string{
+					"s3:PutObject",
+					"s3:GetObject",
+					"s3:GetObjectVersion",
+					"s3:ListMultipartUploadParts",
+					"s3:AbortMultipartUpload",
+					"s3:ListBucket",
+					"s3:ListBucketVersions",
+					"s3:ListBucketMultipartUploads",
+					"s3:GetBucketOwnershipControls",
+					"s3:GetBucketPublicAccessBlock",
+					"s3:GetBucketObjectLockConfiguration",
+					"s3:GetBucketVersioning",
+					"s3:GetBucketLocation",
+				},
+				Resources: cfg.S3ARNs,
+			},
+			&Statement{
+				StatementID: "AllowAthenaQuery",
+				Effect:      EffectAllow,
+				Actions: []string{
+					"athena:StartQueryExecution",
+					"athena:GetQueryResults",
+					"athena:GetQueryExecution",
+				},
+				Resources: []string{
+					arn.ARN{
+						Partition: cfg.Partition,
+						Service:   "athena",
+						Region:    cfg.Region,
+						AccountID: cfg.Account,
+						Resource:  "workgroup/" + cfg.AthenaWorkgroupName,
+					}.String(),
+				},
+			},
+			&Statement{
+				StatementID: "FullAccessOnGlueTable",
+				Effect:      EffectAllow,
+				Actions: []string{
+					"glue:GetTable",
+					"glue:GetTableVersion",
+					"glue:GetTableVersions",
+					"glue:UpdateTable",
+				},
+				Resources: []string{
+					arn.ARN{
+						Partition: cfg.Partition,
+						Service:   "glue",
+						Region:    cfg.Region,
+						AccountID: cfg.Account,
+						Resource:  "catalog",
+					}.String(),
+					arn.ARN{
+						Partition: cfg.Partition,
+						Service:   "glue",
+						Region:    cfg.Region,
+						AccountID: cfg.Account,
+						Resource:  "database/" + cfg.GlueDatabaseName,
+					}.String(),
+					arn.ARN{
+						Partition: cfg.Partition,
+						Service:   "glue",
+						Region:    cfg.Region,
+						AccountID: cfg.Account,
+						Resource:  "table/" + cfg.GlueDatabaseName + "/" + cfg.GlueTableName,
+					}.String(),
+				},
+			},
+		},
+	}, nil
 }

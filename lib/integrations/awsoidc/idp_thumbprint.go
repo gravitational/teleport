@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/lib"
+	"github.com/gravitational/teleport/lib/utils/oidc"
 )
 
 // ThumbprintIdP returns the thumbprint as required by AWS when adding an OIDC Identity Provider.
@@ -34,7 +35,7 @@ import (
 // Returns the thumbprint of the top intermediate CA that signed the TLS cert used to serve HTTPS requests.
 // In case of a self signed certificate, then it returns the thumbprint of the TLS cert itself.
 func ThumbprintIdP(ctx context.Context, publicAddress string) (string, error) {
-	issuer, err := IssuerFromPublicAddress(publicAddress)
+	issuer, err := oidc.IssuerFromPublicAddress(publicAddress)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
