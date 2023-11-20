@@ -278,6 +278,9 @@ type Config struct {
 	// Eg, v13.4.3
 	// Optional: uses cloud/stable channel when omitted.
 	AutomaticUpgradesVersionURL string
+
+	// AccessGraphAddr is the address of the Access Graph service GRPC API
+	AccessGraphAddr utils.NetAddr
 }
 
 // SetDefaults ensures proper default values are set if
@@ -1009,6 +1012,11 @@ func (h *Handler) PublicProxyAddr() string {
 	return h.cfg.PublicProxyAddr
 }
 
+// AccessGraphAddr returns the TAG API address
+func (h *Handler) AccessGraphAddr() utils.NetAddr {
+	return h.cfg.AccessGraphAddr
+}
+
 func localSettings(cap types.AuthPreference) (webclient.AuthenticationSettings, error) {
 	as := webclient.AuthenticationSettings{
 		Type:                constants.Local,
@@ -1499,6 +1507,7 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 	// get tunnel address to display on cloud instances
 	tunnelPublicAddr := ""
 	assistEnabled := false // TODO(jakule) remove when plugins are implemented
+	accessGraphEnabled := false
 	proxyConfig, err := h.cfg.ProxySettings.GetProxySettings(r.Context())
 	if err != nil {
 		h.log.WithError(err).Warn("Cannot retrieve ProxySettings, tunnel address won't be set in Web UI.")
@@ -1516,6 +1525,7 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 			// disable if auth doesn't support assist
 			assistEnabled = enabled.Enabled
 		}
+		accessGraphEnabled = proxyConfig.AccessGraphEnabled
 	}
 
 	// disable joining sessions if proxy session recording is enabled
@@ -1548,6 +1558,7 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		AutomaticUpgrades:              automaticUpgradesEnabled,
 		AutomaticUpgradesTargetVersion: automaticUpgradesTargetVersion,
 		AssistEnabled:                  assistEnabled,
+		AccessGraphEnabled:             accessGraphEnabled,
 		HideInaccessibleFeatures:       clusterFeatures.GetFeatureHiding(),
 		CustomTheme:                    clusterFeatures.GetCustomTheme(),
 	}

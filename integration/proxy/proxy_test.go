@@ -42,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/constants"
+	apihelpers "github.com/gravitational/teleport/api/testhelpers"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integration/appaccess"
 	dbhelpers "github.com/gravitational/teleport/integration/db"
@@ -266,7 +267,7 @@ func TestALPNSNIHTTPSProxy(t *testing.T) {
 	// We need to use the non-loopback address for our Teleport cluster, as the
 	// Go HTTP library will recognize requests to the loopback address and
 	// refuse to use the HTTP proxy, which will invalidate the test.
-	addr, err := helpers.GetLocalIP()
+	addr, err := apihelpers.GetLocalIP()
 	require.NoError(t, err)
 
 	suite := newSuite(t,
@@ -307,7 +308,7 @@ func TestMultiPortHTTPSProxy(t *testing.T) {
 	// We need to use the non-loopback address for our Teleport cluster, as the
 	// Go HTTP library will recognize requests to the loopback address and
 	// refuse to use the HTTP proxy, which will invalidate the test.
-	addr, err := helpers.GetLocalIP()
+	addr, err := apihelpers.GetLocalIP()
 	require.NoError(t, err)
 
 	suite := newSuite(t,
@@ -583,6 +584,7 @@ func TestKubePROXYProtocol(t *testing.T) {
 				Log:         utils.NewLoggerForTests(),
 			}
 			tconf := servicecfg.MakeDefaultConfig()
+			tconf.Proxy.Kube.ListenAddr = *utils.MustParseAddr(helpers.NewListener(t, service.ListenerProxyKube, &cfg.Fds))
 			if tt.proxyListenerMode == types.ProxyListenerMode_Multiplex {
 				cfg.Listeners = helpers.SingleProxyPortSetup(t, &cfg.Fds)
 				tconf.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
@@ -590,7 +592,6 @@ func TestKubePROXYProtocol(t *testing.T) {
 				cfg.Listeners = helpers.StandardListenerSetup(t, &cfg.Fds)
 				tconf.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Separate)
 				tconf.Proxy.DisableALPNSNIListener = true
-				tconf.Proxy.Kube.ListenAddr = *utils.MustParseAddr(helpers.NewListener(t, service.ListenerProxyKube, &cfg.Fds))
 			}
 
 			testCluster := helpers.NewInstance(t, cfg)
@@ -624,41 +625,43 @@ func TestKubePROXYProtocol(t *testing.T) {
 				require.NoError(t, testCluster.StopAll())
 			})
 
-			targetAddr := testCluster.Config.Proxy.WebAddr
-			if tt.proxyListenerMode == types.ProxyListenerMode_Separate {
-				targetAddr = testCluster.Config.Proxy.Kube.ListenAddr
+			checkForTargetAddr := func(targetAddr utils.NetAddr) {
+				// If PROXY protocol is required, create load balancer in front of Teleport cluster
+				if tt.proxyProtocolMode == multiplexer.PROXYProtocolOn {
+					frontend := *utils.MustParseAddr("127.0.0.1:0")
+					lb, err := utils.NewLoadBalancer(context.Background(), frontend)
+					require.NoError(t, err)
+					lb.PROXYHeader = []byte("PROXY TCP4 127.0.0.1 127.0.0.2 12345 42\r\n") // Send fake PROXY header
+					lb.AddBackend(targetAddr)
+					err = lb.Listen()
+					require.NoError(t, err)
+
+					go lb.Serve()
+					t.Cleanup(func() { require.NoError(t, lb.Close()) })
+					targetAddr = *utils.MustParseAddr(lb.Addr().String())
+				}
+
+				// Create kube client that we'll use to test that connection is working correctly.
+				k8Client, _, err := kube.ProxyClient(kube.ProxyConfig{
+					T:                   testCluster,
+					Username:            kubeRoleSpec.Allow.Logins[0],
+					KubeUsers:           kubeRoleSpec.Allow.KubeGroups,
+					KubeGroups:          kubeRoleSpec.Allow.KubeUsers,
+					CustomTLSServerName: kubeCluster,
+					TargetAddress:       targetAddr,
+					RouteToCluster:      testCluster.Secrets.SiteName,
+				})
+				require.NoError(t, err)
+
+				resp, err := k8Client.CoreV1().Pods("default").List(context.Background(), metav1.ListOptions{})
+				require.NoError(t, err)
+				require.Len(t, resp.Items, 3, "pods item length mismatch")
 			}
 
-			// If PROXY protocol is required, create load balancer in front of Teleport cluster
-			if tt.proxyProtocolMode == multiplexer.PROXYProtocolOn {
-				frontend := *utils.MustParseAddr("127.0.0.1:0")
-				lb, err := utils.NewLoadBalancer(context.Background(), frontend)
-				require.NoError(t, err)
-				lb.PROXYHeader = []byte("PROXY TCP4 127.0.0.1 127.0.0.2 12345 42\r\n") // Send fake PROXY header
-				lb.AddBackend(targetAddr)
-				err = lb.Listen()
-				require.NoError(t, err)
-
-				go lb.Serve()
-				t.Cleanup(func() { require.NoError(t, lb.Close()) })
-				targetAddr = *utils.MustParseAddr(lb.Addr().String())
+			checkForTargetAddr(testCluster.Config.Proxy.Kube.ListenAddr)
+			if tt.proxyListenerMode == types.ProxyListenerMode_Multiplex {
+				checkForTargetAddr(testCluster.Config.Proxy.WebAddr)
 			}
-
-			// Create kube client that we'll use to test that connection is working correctly.
-			k8Client, _, err := kube.ProxyClient(kube.ProxyConfig{
-				T:                   testCluster,
-				Username:            kubeRoleSpec.Allow.Logins[0],
-				KubeUsers:           kubeRoleSpec.Allow.KubeGroups,
-				KubeGroups:          kubeRoleSpec.Allow.KubeUsers,
-				CustomTLSServerName: kubeCluster,
-				TargetAddress:       targetAddr,
-				RouteToCluster:      testCluster.Secrets.SiteName,
-			})
-			require.NoError(t, err)
-
-			resp, err := k8Client.CoreV1().Pods("default").List(context.Background(), metav1.ListOptions{})
-			require.NoError(t, err)
-			require.Equal(t, 3, len(resp.Items), "pods item length mismatch")
 		})
 	}
 }
@@ -1500,7 +1503,7 @@ func TestALPNProxyHTTPProxyNoProxyDial(t *testing.T) {
 	// We need to use the non-loopback address for our Teleport cluster, as the
 	// Go HTTP library will recognize requests to the loopback address and
 	// refuse to use the HTTP proxy, which will invalidate the test.
-	addr, err := helpers.GetLocalIP()
+	addr, err := apihelpers.GetLocalIP()
 	require.NoError(t, err)
 
 	instanceCfg := helpers.InstanceConfig{
@@ -1579,7 +1582,7 @@ func TestALPNProxyHTTPProxyBasicAuthDial(t *testing.T) {
 	// We need to use the non-loopback address for our Teleport cluster, as the
 	// Go HTTP library will recognize requests to the loopback address and
 	// refuse to use the HTTP proxy, which will invalidate the test.
-	rcAddr, err := helpers.GetLocalIP()
+	rcAddr, err := apihelpers.GetLocalIP()
 	require.NoError(t, err)
 
 	log.Info("Creating Teleport instance...")

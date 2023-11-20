@@ -1014,7 +1014,7 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 	}
 
 	if process.Config.Proxy.Enabled {
-		process.RegisterFunc("update.aws-oidc.deploy.agents", process.initDeployServiceUpdater)
+		process.RegisterFunc("update.aws-oidc.deploy.service", process.initAWSOIDCDeployServiceUpdater)
 	}
 
 	serviceStarted := false
@@ -4027,6 +4027,15 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			traceClt = clt
 		}
 
+		var accessGraphAddr utils.NetAddr
+		if cfg.AccessGraph.Enabled {
+			addr, err := utils.ParseAddr(cfg.AccessGraph.Addr)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			accessGraphAddr = *addr
+		}
+
 		webConfig := web.Config{
 			Proxy:            tsrv,
 			AuthServers:      cfg.AuthServerAddresses()[0],
@@ -4056,10 +4065,11 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				ctx, err := controller(ctx, sctx, login, localAddr, remoteAddr)
 				return ctx, trace.Wrap(err)
 			}),
-			PROXYSigner:    proxySigner,
-			OpenAIConfig:   cfg.OpenAIConfig,
-			NodeWatcher:    nodeWatcher,
-			TracerProvider: process.TracingProvider,
+			PROXYSigner:     proxySigner,
+			OpenAIConfig:    cfg.OpenAIConfig,
+			NodeWatcher:     nodeWatcher,
+			AccessGraphAddr: accessGraphAddr,
+			TracerProvider:  process.TracingProvider,
 		}
 		webHandler, err := web.NewHandler(webConfig)
 		if err != nil {
@@ -4405,16 +4415,6 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			return trace.Wrap(err)
 		}
 
-		proxyProtocol := cfg.Proxy.PROXYProtocolMode
-		if clusterNetworkConfig.GetProxyListenerMode() == types.ProxyListenerMode_Multiplex {
-			// If ProxyListenerMode is MULTIPLEX it means that the ALPN listener handles the PROXY line
-			// and sends the connection to the Proxy Kube listener. When it does, it uses the same net.Conn
-			// and doesn't dial so the PROXY Protocol cannot be present. Under those circumstances,
-			// ProxyProtocol for Proxy Kube listener must be off.
-
-			proxyProtocol = multiplexer.PROXYProtocolOff
-		}
-
 		kubeServer, err = kubeproxy.NewTLSServer(kubeproxy.TLSServerConfig{
 			ForwarderConfig: kubeproxy.ForwarderConfig{
 				Namespace:                     apidefaults.Namespace,
@@ -4450,7 +4450,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			Log:                      log,
 			IngressReporter:          ingressReporter,
 			KubernetesServersWatcher: kubeServerWatcher,
-			PROXYProtocolMode:        proxyProtocol,
+			PROXYProtocolMode:        cfg.Proxy.PROXYProtocolMode,
 		})
 		if err != nil {
 			return trace.Wrap(err)

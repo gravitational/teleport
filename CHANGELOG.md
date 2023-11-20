@@ -1,5 +1,28 @@
 # Changelog
 
+## 14.1.5 (11/16/2023)
+
+* Increased the maximum width of the console tabs in the web UI. [#34648](https://github.com/gravitational/teleport/pull/34648)
+* Fixed accessing dedicated Proxy Kubernetes port when TLS routing is enabled. [#34645](https://github.com/gravitational/teleport/pull/34645)
+* Fixed `tsh --piv-slot` custom PIV slot setting for Hardware Key Support. [#34592](https://github.com/gravitational/teleport/pull/34592)
+* Disabled AWS IMDSv1 fallback and enforced use of FIPS endpoints in FIPS mode. [#34433](https://github.com/gravitational/teleport/pull/34433)
+* Fixed incorrect permissions when opening X11 listener. [#34617](https://github.com/gravitational/teleport/pull/34617)
+* Prevented `.tsh/environment` values from overriding prior set values. [#34626](https://github.com/gravitational/teleport/pull/34626)
+* Changed access lists to respect user locking. [#34620](https://github.com/gravitational/teleport/pull/34620)
+* Fixed access requests to respect explicit deny rules. [#34600](https://github.com/gravitational/teleport/pull/34600)
+* Added Teleport Access Graph integration. [#34569](https://github.com/gravitational/teleport/pull/34569)
+* Fixed cleanup of unused GCP KMS keys. [#34468](https://github.com/gravitational/teleport/pull/34468)
+* Added list view option to the unified resources page. [#34466](https://github.com/gravitational/teleport/pull/34466)
+* Fixed duplicate entries in resources view when updating nodename [#34236](https://github.com/gravitational/teleport/issues/34236) [#34453](https://github.com/gravitational/teleport/pull/34453)
+* Allow configuring `cluster_networking_config` and `cluster_auth_preference` via `--bootstrap`. [#34445](https://github.com/gravitational/teleport/pull/34445)
+* Fixed `tsh logout` with broken key directory. [#34435](https://github.com/gravitational/teleport/pull/34435)
+* Added binary formatted parameters as base64 encoded strings to PostgreSQL Statement Bind audit log events. [#34432](https://github.com/gravitational/teleport/pull/34432)
+* Reduced CPU & memory usage, and logging in the operator, by reusing connections to Teleport. [#34425](https://github.com/gravitational/teleport/pull/34425)
+* Updated the code signing certificate for Windows artifacts. [#34377](https://github.com/gravitational/teleport/pull/34377)
+* Added IAM Authentication support for Amazon MemoryDB Access. [#34348](https://github.com/gravitational/teleport/pull/34348)
+* Split large desktop recordings into multiple files during export. [#34319](https://github.com/gravitational/teleport/pull/34319)
+* Allow setting server labels from tctl. [#34137](https://github.com/gravitational/teleport/pull/34137)
+
 ## 14.1.3 (11/8/23)
 
 ### Security Fixes

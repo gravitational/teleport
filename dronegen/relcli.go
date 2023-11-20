@@ -14,6 +14,10 @@
 
 package main
 
+import (
+	"strings"
+)
+
 const relcliImage = "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/relcli:master-57a5d42-20230412T1204687"
 
 func relcliPipeline(trigger trigger, name string, stepName string, command string) pipeline {
@@ -66,6 +70,25 @@ func pullRelcliStep(awsConfigVolumeRef volumeRef) step {
 }
 
 func executeRelcliStep(name string, command string) step {
+	commands := []string{
+		`mkdir -p /tmpfs/creds`,
+		`echo "$RELEASES_CERT" | base64 -d > "$RELCLI_CERT"`,
+		`echo "$RELEASES_KEY" | base64 -d > "$RELCLI_KEY"`,
+		`trap "rm -rf /tmpfs/creds" EXIT`,
+	}
+
+	runReleaseServerCLICommand := "docker run -i -v /tmpfs/creds:/tmpfs/creds " +
+		"-e DRONE_REPO -e DRONE_TAG -e RELCLI_BASE_URL -e RELCLI_CERT -e RELCLI_KEY " +
+		"$RELCLI_IMAGE " + command
+
+	// This is a workaround for a release server issue, and should be removed after the issue is fixed.
+	// The release server publish step does not fail on or after the third step, consistently.
+	if strings.HasPrefix(command, "auto_publish") {
+		// Retry the command up to 10 times until success, and fail if none succeed.
+		runReleaseServerCLICommand = `for i in $(seq 10); do ` + runReleaseServerCLICommand + ` && break; done || false`
+	}
+	commands = append(commands, runReleaseServerCLICommand)
+
 	return step{
 		Name:  name,
 		Image: "docker:git",
@@ -76,15 +99,7 @@ func executeRelcliStep(name string, command string) step {
 			"RELCLI_CERT":     {raw: "/tmpfs/creds/releases.crt"},
 			"RELCLI_KEY":      {raw: "/tmpfs/creds/releases.key"},
 		},
-		Volumes: []volumeRef{volumeRefDocker, volumeRefTmpfs, volumeRefAwsConfig},
-		Commands: []string{
-			`mkdir -p /tmpfs/creds`,
-			`echo "$RELEASES_CERT" | base64 -d > "$RELCLI_CERT"`,
-			`echo "$RELEASES_KEY" | base64 -d > "$RELCLI_KEY"`,
-			`trap "rm -rf /tmpfs/creds" EXIT`,
-			`docker run -i -v /tmpfs/creds:/tmpfs/creds \
-  -e DRONE_REPO -e DRONE_TAG -e RELCLI_BASE_URL -e RELCLI_CERT -e RELCLI_KEY \
-  $RELCLI_IMAGE ` + command,
-		},
+		Volumes:  []volumeRef{volumeRefDocker, volumeRefTmpfs, volumeRefAwsConfig},
+		Commands: commands,
 	}
 }

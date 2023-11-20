@@ -4458,7 +4458,11 @@ func (tc *TeleportClient) applyProxySettings(proxySettings webclient.ProxySettin
 // authentication settings, overriding existing fields in tc.
 func (tc *TeleportClient) applyAuthSettings(authSettings webclient.AuthenticationSettings) {
 	tc.LoadAllCAs = authSettings.LoadAllCAs
-	tc.PIVSlot = authSettings.PIVSlot
+
+	// If PIVSlot is not already set, default to the server setting.
+	if tc.PIVSlot == "" {
+		tc.PIVSlot = authSettings.PIVSlot
+	}
 
 	// Update the private key policy from auth settings if it is stricter than the saved setting.
 	if authSettings.PrivateKeyPolicy != "" && !authSettings.PrivateKeyPolicy.IsSatisfiedBy(tc.PrivateKeyPolicy) {

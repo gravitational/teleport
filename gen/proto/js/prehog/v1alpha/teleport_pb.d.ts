@@ -2254,6 +2254,39 @@ export namespace DesktopClipboardEvent {
     }
 }
 
+export class TAGExecuteQueryEvent extends jspb.Message { 
+    getUserName(): string;
+    setUserName(value: string): TAGExecuteQueryEvent;
+
+    getTotalNodes(): number;
+    setTotalNodes(value: number): TAGExecuteQueryEvent;
+
+    getTotalEdges(): number;
+    setTotalEdges(value: number): TAGExecuteQueryEvent;
+
+    getIsSuccess(): boolean;
+    setIsSuccess(value: boolean): TAGExecuteQueryEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): TAGExecuteQueryEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: TAGExecuteQueryEvent): TAGExecuteQueryEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: TAGExecuteQueryEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): TAGExecuteQueryEvent;
+    static deserializeBinaryFromReader(message: TAGExecuteQueryEvent, reader: jspb.BinaryReader): TAGExecuteQueryEvent;
+}
+
+export namespace TAGExecuteQueryEvent {
+    export type AsObject = {
+        userName: string,
+        totalNodes: number,
+        totalEdges: number,
+        isSuccess: boolean,
+    }
+}
+
 export class SubmitEventRequest extends jspb.Message { 
     getClusterName(): string;
     setClusterName(value: string): SubmitEventRequest;
@@ -2661,6 +2694,12 @@ export class SubmitEventRequest extends jspb.Message {
     setDesktopClipboardTransfer(value?: DesktopClipboardEvent): SubmitEventRequest;
 
 
+    hasTagExecuteQuery(): boolean;
+    clearTagExecuteQuery(): void;
+    getTagExecuteQuery(): TAGExecuteQueryEvent | undefined;
+    setTagExecuteQuery(value?: TAGExecuteQueryEvent): SubmitEventRequest;
+
+
     getEventCase(): SubmitEventRequest.EventCase;
 
     serializeBinary(): Uint8Array;
@@ -2743,6 +2782,7 @@ export namespace SubmitEventRequest {
         uiDiscoverCreateNode?: UIDiscoverCreateNodeEvent.AsObject,
         desktopDirectoryShare?: DesktopDirectoryShareEvent.AsObject,
         desktopClipboardTransfer?: DesktopClipboardEvent.AsObject,
+        tagExecuteQuery?: TAGExecuteQueryEvent.AsObject,
     }
 
     export enum EventCase {
@@ -2879,6 +2919,8 @@ export namespace SubmitEventRequest {
     DESKTOP_DIRECTORY_SHARE = 68,
 
     DESKTOP_CLIPBOARD_TRANSFER = 69,
+
+    TAG_EXECUTE_QUERY = 70,
 
     }
 

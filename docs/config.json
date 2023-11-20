@@ -20,11 +20,15 @@
           "title": "FAQ",
           "slug": "/faq/"
         },
-	{
-	  "title": "Usage Reporting and Billing",
-	  "slug": "/usage-billing/",
-	  "forScopes": ["cloud", "team", "enterprise"]
-	},
+        {
+          "title": "Usage Reporting and Billing",
+          "slug": "/usage-billing/",
+          "forScopes": [
+            "cloud",
+            "team",
+            "enterprise"
+          ]
+        },
         {
           "title": "Upcoming Releases",
           "slug": "/upcoming-releases/"
@@ -242,7 +246,6 @@
               "title": "AWS Multi-Region Proxy Deployment",
               "slug": "/deploy-a-cluster/deployments/aws-gslb-proxy-peering-ha-deployment/",
               "forScopes": [
-                "oss",
                 "enterprise"
               ]
             },
@@ -743,6 +746,10 @@
             {
               "title": "Terraform Provider",
               "slug": "/management/dynamic-resources/terraform-provider/"
+            },
+            {
+              "title": "Spacelift",
+              "slug": "/management/dynamic-resources/spacelift/"
             }
           ]
         },
@@ -839,7 +846,7 @@
               "slug": "/management/operations/enroll-agent-into-automatic-updates/",
               "forScopes": [
                 "enterprise",
-                "cloud", 
+                "cloud",
                 "team"
               ]
             }
@@ -1987,8 +1994,8 @@
       "aws_secret_access_key": "zyxw9876-this-is-an-example"
     },
     "cloud": {
-      "version": "13.4.3",
-      "major_version": "13",
+      "version": "14.1.3",
+      "major_version": "14",
       "sla": {
         "monthly_percentage": "99.9%",
         "monthly_downtime": "44 minutes"
@@ -2031,18 +2038,18 @@
     },
     "teleport": {
       "major_version": "14",
-      "version": "14.1.1",
+      "version": "14.1.5",
       "git": "api/14.0.0-gd1e081e",
       "url": "teleport.example.com",
       "golang": "1.21",
       "plugin": {
-        "version": "14.1.1"
+        "version": "14.1.5"
       },
       "helm_repo_url": "https://charts.releases.teleport.dev",
-      "latest_oss_docker_image": "public.ecr.aws/gravitational/teleport-distroless:14.1.1",
-      "latest_oss_debug_docker_image": "public.ecr.aws/gravitational/teleport-distroless-debug:14.1.1",
-      "latest_ent_docker_image": "public.ecr.aws/gravitational/teleport-ent-distroless:14.1.1",
-      "latest_ent_debug_docker_image": "public.ecr.aws/gravitational/teleport-ent-distroless-debug:14.1.1"
+      "latest_oss_docker_image": "public.ecr.aws/gravitational/teleport-distroless:14.1.5",
+      "latest_oss_debug_docker_image": "public.ecr.aws/gravitational/teleport-distroless-debug:14.1.5",
+      "latest_ent_docker_image": "public.ecr.aws/gravitational/teleport-ent-distroless:14.1.5",
+      "latest_ent_debug_docker_image": "public.ecr.aws/gravitational/teleport-ent-distroless-debug:14.1.5"
     },
     "terraform": {
       "version": "1.0.0"
@@ -3229,7 +3236,7 @@
       "destination": "/database-access/auto-user-provisioning/",
       "permanent": true
     },
-    {	
+    {
       "source": "/database-access/guides/rds-proxy/",
       "destination": "/database-access/guides/",
       "permanent": true
