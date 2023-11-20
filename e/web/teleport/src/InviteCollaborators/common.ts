@@ -1,6 +1,6 @@
 import Logger from 'shared/libs/logger';
 
-import { CloudUserInvites } from 'teleport/services/localStorage';
+import { CloudUserInvites } from 'teleport/services/storageService';
 
 import { NotificationEntry } from './Notifications';
 

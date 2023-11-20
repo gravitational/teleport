@@ -6,9 +6,10 @@ import { CaptureEvent, userEventService } from 'teleport/services/userEvent';
 import { ClusterResource } from 'teleport/services/userPreferences/types';
 import * as service from 'teleport/services/userPreferences';
 
-import localStorage, {
+import {
   LocalStorageSurvey,
-} from 'teleport/services/localStorage';
+  storageService,
+} from 'teleport/services/storageService';
 
 import useAttempt from 'shared/hooks/useAttemptNext';
 
@@ -116,7 +117,7 @@ export const Questionnaire = ({
         clusterResources: clusterResources,
         marketingParams: marketingPref,
       };
-      localStorage.setOnboardSurvey(lsRequest);
+      storageService.setOnboardSurvey(lsRequest);
 
       if (username) {
         // submit a pre-user posthog event

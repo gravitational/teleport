@@ -22,7 +22,7 @@ import { mockUserContextProviderWith } from 'teleport/User/testHelpers/mockUserC
 
 import { makeTestUserContext } from 'teleport/User/testHelpers/makeTestUserContext';
 
-import { KeysEnum } from 'teleport/services/localStorage';
+import { KeysEnum } from 'teleport/services/storageService';
 
 import {
   MockedStoreAccessRequests,

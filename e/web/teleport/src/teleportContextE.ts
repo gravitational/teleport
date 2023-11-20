@@ -1,6 +1,6 @@
 import { getErrMessage } from 'shared/utils/errorType';
 import TeleportContext from 'teleport/teleportContext';
-import localStorage from 'teleport/services/localStorage';
+import { storageService } from 'teleport/services/storageService';
 import * as service from 'teleport/services/userPreferences';
 import cfg from 'teleport/config';
 
@@ -74,7 +74,7 @@ class TeleportEContext extends TeleportContext {
       console.warn('Failed to set notifications: ', getErrMessage(err));
     }
 
-    const survey = localStorage.getOnboardSurvey();
+    const survey = storageService.getOnboardSurvey();
     if (survey) {
       const { clusterResources, marketingParams, ...rest } = survey;
 
@@ -90,7 +90,7 @@ class TeleportEContext extends TeleportContext {
           },
         });
       }
-      localStorage.clearOnboardSurvey();
+      storageService.clearOnboardSurvey();
     }
 
     // fetchNonBillableSummaryInformation will do an auth check on the backend for the billing role,

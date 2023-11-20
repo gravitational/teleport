@@ -18,7 +18,10 @@ import Validation, { Validator } from 'shared/components/Validation';
 
 import api from 'teleport/services/api';
 import cfg from 'teleport/config';
-import localStorage, { CloudUserInvites } from 'teleport/services/localStorage';
+import {
+  CloudUserInvites,
+  storageService,
+} from 'teleport/services/storageService';
 import { Resource } from 'teleport/services/resources';
 
 import { InviteCollaboratorsForm } from 'e-teleport/InviteCollaborators/InviteCollaboratorsForm';
@@ -71,7 +74,7 @@ export function InviteCollaboratorsCard({
       roles: selectedRoles.map(r => r.value.name),
     };
 
-    localStorage.setCloudUserInvites(invite);
+    storageService.setCloudUserInvites(invite);
     onSubmit();
   }
 

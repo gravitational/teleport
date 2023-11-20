@@ -12,7 +12,7 @@ import { Kube } from 'teleport/services/kube';
 import { Database } from 'teleport/services/databases';
 import { Node } from 'teleport/services/nodes';
 import { UserGroup } from 'teleport/services/userGroups';
-import { KeysEnum } from 'teleport/services/localStorage';
+import { KeysEnum } from 'teleport/services/storageService';
 
 import cfg from 'teleport/config';
 

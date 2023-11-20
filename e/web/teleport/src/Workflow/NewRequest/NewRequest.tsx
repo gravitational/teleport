@@ -26,7 +26,7 @@ import Select from 'shared/components/Select';
 import Link from 'design/Link';
 import { Info } from 'design/Alert';
 import { SearchPanel } from 'shared/components/Search';
-import localStorage from 'teleport/services/localStorage';
+import { storageService } from 'teleport/services/storageService';
 import { Attempt } from 'shared/hooks/useAttemptNext';
 import UnifiedSearchPanel from 'teleport/UnifiedResources/SearchPanel';
 import {
@@ -184,7 +184,7 @@ export function NewRequest(props: State) {
     usage,
     fetchUsage,
   } = props;
-  const unifiedResourcesEnabled = localStorage.areUnifiedResourcesEnabled();
+  const unifiedResourcesEnabled = storageService.areUnifiedResourcesEnabled();
   const { preferences, updatePreferences } = useUser();
 
   const [showCheckout, setShowCheckout] = useState(false);

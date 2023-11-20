@@ -2,7 +2,7 @@ import React, { ReactNode, useMemo, useState, useEffect } from 'react';
 
 import { Main } from 'teleport/Main/Main';
 
-import localStorage from 'teleport/services/localStorage';
+import { storageService } from 'teleport/services/storageService';
 
 import { useBanner } from 'e-teleport/Banner/useBanner';
 import useTeleport from 'e-teleport/useTeleportE';
@@ -158,13 +158,13 @@ function InviteCollaboratorsFeedback({
   }
 
   useEffect(() => {
-    const userInvites = localStorage.getCloudUserInvites();
+    const userInvites = storageService.getCloudUserInvites();
     if (userInvites) {
       ctx.cloudService
         .sendTeleportInvite(userInvites)
         .then(() => addNotification(createSuccessNotification(userInvites)))
         .catch(err => addNotification(createErrorNotification(err)))
-        .finally(() => localStorage.clearCloudUserInvites());
+        .finally(() => storageService.clearCloudUserInvites());
     }
   }, []);
 
@@ -175,7 +175,7 @@ function InviteCollaboratorsFeedback({
 // since survey data is moved into preferences on login, this means a user may have just filled
 // out the survey but the results are not yet in preferences.
 const surveyUnanswered = (): boolean => {
-  const onboardPreferences = localStorage.getOnboardUserPreference();
+  const onboardPreferences = storageService.getOnboardUserPreference();
 
   if (
     onboardPreferences &&
@@ -185,7 +185,7 @@ const surveyUnanswered = (): boolean => {
     return false;
   }
 
-  const survey = localStorage.getOnboardSurvey();
+  const survey = storageService.getOnboardSurvey();
   return !(
     survey &&
     survey.clusterResources &&

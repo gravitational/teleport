@@ -5,7 +5,7 @@ import {
 } from 'teleport/services/userEvent';
 
 import { RecommendationStatus } from 'teleport/types';
-import { KeysEnum } from 'teleport/services/localStorage/types';
+import { KeysEnum } from 'teleport/services/storageService/types';
 
 import CloudService from 'e-teleport/services/cloud';
 

@@ -1,6 +1,6 @@
 import { RecommendationStatus } from 'teleport/types';
 
-import localStorage from 'teleport/services/localStorage';
+import { storageService } from 'teleport/services/storageService';
 import {
   Feature,
   FeatureRecommendationStatus,
@@ -19,7 +19,7 @@ export async function setAndEmitFeatureRecommendationStatus(
   cloudService: CloudService
 ) {
   const recommendFeatureCurrentState =
-    localStorage.getFeatureRecommendationStatus();
+    storageService.getFeatureRecommendationStatus();
 
   // Initializes empty local storage state for feature recommendation statuses.
   // Emits "notified" event only if `devicesInUse` is == 0.
@@ -35,7 +35,7 @@ export async function setAndEmitFeatureRecommendationStatus(
       : RecommendationStatus.Notify;
 
     // preserve the current status of trustedDevicesRecommendationStatus
-    localStorage.setRecommendFeature({
+    storageService.setRecommendFeature({
       TrustedDevices: trustedDevicesRecommendationStatus,
     });
 
@@ -60,7 +60,7 @@ export async function setAndEmitFeatureRecommendationStatus(
       : RecommendationStatus.Notify;
 
     // preserve the current status of trustedDevicesRecommendationStatus
-    localStorage.setRecommendFeature({
+    storageService.setRecommendFeature({
       TrustedDevices: trustedDevicesRecommendationStatus,
     });
 
