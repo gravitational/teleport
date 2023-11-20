@@ -61,7 +61,6 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	commonv1 "go.opentelemetry.io/proto/otlp/common/v1"
 	resourcev1 "go.opentelemetry.io/proto/otlp/resource/v1"
 	tracepb "go.opentelemetry.io/proto/otlp/trace/v1"
@@ -7776,14 +7775,8 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 	require.NoError(t, err)
 
 	sshGRPCServer := grpc.NewServer(
-		grpc.ChainUnaryInterceptor(
-			interceptors.GRPCServerUnaryErrorInterceptor,
-			otelgrpc.UnaryServerInterceptor(),
-		),
-		grpc.ChainStreamInterceptor(
-			interceptors.GRPCServerStreamErrorInterceptor,
-			otelgrpc.StreamServerInterceptor(),
-		),
+		grpc.ChainUnaryInterceptor(interceptors.GRPCServerUnaryErrorInterceptor),
+		grpc.ChainStreamInterceptor(interceptors.GRPCServerStreamErrorInterceptor),
 		grpc.Creds(creds),
 	)
 	t.Cleanup(sshGRPCServer.Stop)
