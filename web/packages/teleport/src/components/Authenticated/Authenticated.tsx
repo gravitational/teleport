@@ -22,7 +22,7 @@ import { getErrMessage } from 'shared/utils/errorType';
 import { Box, Indicator } from 'design';
 
 import session from 'teleport/services/websession';
-import localStorage from 'teleport/services/localStorage';
+import { storageService } from 'teleport/services/storageService';
 import { ApiError } from 'teleport/services/api/parseError';
 
 import { ErrorDialog } from './ErrorDialogue';
@@ -122,7 +122,7 @@ function startActivityChecker(ttl = 0) {
   }
 
   // Initialize or renew the storage before starting interval.
-  localStorage.setLastActive(Date.now());
+  storageService.setLastActive(Date.now());
 
   const intervalId = setInterval(() => {
     if (isInactive(adjustedTtl)) {
@@ -132,7 +132,7 @@ function startActivityChecker(ttl = 0) {
   }, ACTIVITY_CHECKER_INTERVAL_MS);
 
   const throttled = throttle(() => {
-    localStorage.setLastActive(Date.now());
+    storageService.setLastActive(Date.now());
   }, ACTIVITY_EVENT_DELAY_MS);
 
   events.forEach(event => window.addEventListener(event, throttled));
@@ -147,6 +147,6 @@ function startActivityChecker(ttl = 0) {
 }
 
 function isInactive(ttl = 0) {
-  const lastActive = localStorage.getLastActive();
+  const lastActive = storageService.getLastActive();
   return lastActive > 0 && Date.now() - lastActive > ttl;
 }
