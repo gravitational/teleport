@@ -607,8 +607,14 @@ tsh ssh node-that-requires-device-trust
   - [ ] Create enrollment token using asset tag (`tctl devices enroll`)
 
 - [ ] Device enrollment
-  - [ ] Enroll device on macOS (`tsh device enroll`)
-  - [ ] Enroll device on Windows (`tsh device enroll`)
+  - [ ] Enroll/authn device on macOS (`tsh device enroll`)
+  - [ ] Enroll/authn device on Windows (`tsh device enroll`)
+  - [ ] Enroll/authn device on Linux (`tsh device enroll`)
+
+    Linux users need read/write permissions to /dev/tpmrm0. The simplest way is
+    to assign yourself to the `tss` group. See
+    https://goteleport.com/docs/access-controls/device-trust/device-management/#troubleshooting.
+
   - [ ] Verify device extensions on TLS certificate
 
     Note that different accesses have different certificates (Database, Kube,
@@ -676,6 +682,8 @@ tsh ssh node-that-requires-device-trust
   - [ ] `tsh device asset-tag` (macOS)
   - [ ] `tsh device collect`   (Windows)
   - [ ] `tsh device asset-tag` (Windows)
+  - [ ] `tsh device collect`   (Linux)
+  - [ ] `tsh device asset-tag` (Linux)
 
 [device_event_codes]: https://github.com/gravitational/teleport/blob/473969a700c3c4f981e956fae8a0d14c65c88abe/lib/events/codes.go#L389-L400
 [event_trusted_device]: https://github.com/gravitational/teleport/blob/473969a700c3c4f981e956fae8a0d14c65c88abe/api/proto/teleport/legacy/types/events/events.proto#L88-L90
