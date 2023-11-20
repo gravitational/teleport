@@ -98,7 +98,7 @@ func TestSessionTrackerStorage(t *testing.T) {
 		Kind: types.KindWindowsDesktop,
 	})
 	require.NoError(t, err)
-	require.Len(t, sessions, 0)
+	require.Empty(t, sessions)
 	sessions, err = srv.GetActiveSessionTrackersWithFilter(ctx, &types.SessionTrackerFilter{
 		Kind: types.KindSSHSession,
 	})

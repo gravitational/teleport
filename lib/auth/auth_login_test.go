@@ -188,7 +188,7 @@ func TestCreateAuthenticateChallenge_WithAuth(t *testing.T) {
 	// TODO(codingllama): Use a public endpoint to verify?
 	mfaResp, err := u.webDev.SolveAuthn(res)
 	require.NoError(t, err)
-	_, _, err = srv.Auth().validateMFAAuthResponse(ctx, mfaResp, u.username, false /* passwordless */)
+	_, _, err = srv.Auth().ValidateMFAAuthResponse(ctx, mfaResp, u.username, false /* passwordless */)
 	require.NoError(t, err)
 }
 
@@ -269,9 +269,9 @@ func TestCreateAuthenticateChallenge_WithUserCredentials_WithLock(t *testing.T) 
 
 		// Test last attempt returns locked error.
 		if i == defaults.MaxLoginAttempts {
-			require.Equal(t, err.Error(), MaxFailedAttemptsErrMsg)
+			require.Equal(t, MaxFailedAttemptsErrMsg, err.Error())
 		} else {
-			require.NotEqual(t, err.Error(), MaxFailedAttemptsErrMsg)
+			require.NotEqual(t, MaxFailedAttemptsErrMsg, err.Error())
 		}
 	}
 }
@@ -928,7 +928,7 @@ func TestServer_Authenticate_passwordless(t *testing.T) {
 			require.NoError(t, err)
 			require.Empty(t, attempts, "Login attempts not reset")
 
-			require.Equal(t, len(test.loginHooks), int(loginHookCounter.Load()))
+			require.Len(t, test.loginHooks, int(loginHookCounter.Load()))
 		})
 	}
 }

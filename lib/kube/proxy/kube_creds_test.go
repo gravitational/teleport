@@ -316,7 +316,7 @@ func Test_DynamicKubeCreds(t *testing.T) {
 			for i := 0; i < 10; i++ {
 				require.Equal(t, got.getKubeRestConfig().CAData, []byte(fixtures.TLSCACertPEM))
 				require.NoError(t, tt.args.validateBearerToken(got.getKubeRestConfig().BearerToken))
-				require.Equal(t, got.getTargetAddr(), tt.wantAddr)
+				require.Equal(t, tt.wantAddr, got.getTargetAddr())
 				fakeClock.BlockUntil(1)
 				fakeClock.Advance(ttl / 2)
 				// notify receives a signal when the cloud client is invoked.

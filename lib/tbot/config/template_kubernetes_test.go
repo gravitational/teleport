@@ -25,6 +25,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/lib/tbot/botfs"
 	"github.com/gravitational/teleport/lib/utils/golden"
 )
@@ -85,6 +86,94 @@ func TestTemplateKubernetesRender(t *testing.T) {
 			require.Equal(
 				t, string(golden.GetNamed(t, "kubeconfig.yaml")), string(kubeconfigBytes),
 			)
+		})
+	}
+}
+
+func Test_selectKubeConnectionMethod(t *testing.T) {
+	tests := []struct {
+		name string
+
+		proxyPing *webclient.PingResponse
+		wantAddr  string
+		wantSNI   string
+	}{
+		{
+			// Copied from my real Teleport Cloud webapi/ping
+			name: "TLS Routing",
+			proxyPing: &webclient.PingResponse{
+				Proxy: webclient.ProxySettings{
+					Kube: webclient.KubeProxySettings{
+						Enabled:    true,
+						ListenAddr: "0.0.0.0:3080",
+					},
+					SSH: webclient.SSHProxySettings{
+						ListenAddr:       "0.0.0.0:3080",
+						TunnelListenAddr: "0.0.0.0:3080",
+						WebListenAddr:    "0.0.0.0:3080",
+						PublicAddr:       "noah.teleport.sh:443",
+					},
+					TLSRoutingEnabled: true,
+				},
+				ClusterName: "noah.teleport.sh",
+			},
+			wantAddr: "https://noah.teleport.sh:443",
+			wantSNI:  "kube-teleport-proxy-alpn.noah.teleport.sh",
+		},
+		{
+			name: "KubePublicAddr specified",
+			proxyPing: &webclient.PingResponse{
+				Proxy: webclient.ProxySettings{
+					Kube: webclient.KubeProxySettings{
+						Enabled:    true,
+						ListenAddr: "0.0.0.0:1337",
+						PublicAddr: "kube.example.com:1337",
+					},
+					SSH: webclient.SSHProxySettings{
+						ListenAddr:       "0.0.0.0:3023",
+						TunnelListenAddr: "0.0.0.0:3024",
+						WebListenAddr:    "0.0.0.0:3080",
+						PublicAddr:       "cluster.example.com:443",
+						SSHPublicAddr:    "cluster.example.com:3023",
+						TunnelPublicAddr: "cluster.example.com:3024",
+					},
+					TLSRoutingEnabled: false,
+				},
+				ClusterName: "cluster.example.com",
+			},
+			wantAddr: "https://kube.example.com:1337",
+		},
+		{
+			// https://github.com/gravitational/teleport/issues/19811
+			name: "Falls back to Kube ListenAddr Port with PublicAddr",
+			proxyPing: &webclient.PingResponse{
+				Proxy: webclient.ProxySettings{
+					Kube: webclient.KubeProxySettings{
+						Enabled:    true,
+						ListenAddr: "0.0.0.0:3026",
+					},
+					SSH: webclient.SSHProxySettings{
+						ListenAddr:       "[::]:3023",
+						TunnelListenAddr: "0.0.0.0:3024",
+						WebListenAddr:    "0.0.0.0:3080",
+						PublicAddr:       "cluster.example.com:5443",
+						SSHPublicAddr:    "cluster.example.com:3023",
+						TunnelPublicAddr: "cluster.example.com:3024",
+					},
+					TLSRoutingEnabled: false,
+				},
+				ClusterName: "cluster.example.com",
+			},
+			wantAddr: "https://cluster.example.com:3026",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			addr, sni, err := selectKubeConnectionMethod(tt.proxyPing)
+			require.NoError(t, err)
+			require.Equal(t, tt.wantAddr, addr)
+			require.Equal(t, tt.wantSNI, sni)
 		})
 	}
 }

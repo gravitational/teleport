@@ -62,7 +62,7 @@ func TestDatabasesCRUD(t *testing.T) {
 	// Initially we expect no databases.
 	out, err := service.GetDatabases(ctx)
 	require.NoError(t, err)
-	require.Equal(t, 0, len(out))
+	require.Empty(t, out)
 
 	// Create both databases.
 	err = service.CreateDatabase(ctx, db1)
@@ -130,5 +130,5 @@ func TestDatabasesCRUD(t *testing.T) {
 	require.NoError(t, err)
 	out, err = service.GetDatabases(ctx)
 	require.NoError(t, err)
-	require.Len(t, out, 0)
+	require.Empty(t, out)
 }

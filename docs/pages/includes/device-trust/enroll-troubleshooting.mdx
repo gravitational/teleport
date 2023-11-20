@@ -12,3 +12,14 @@ Teleport as such. Follow the [registration](
 [enrollment](
 ../../access-controls/device-trust/device-management.mdx#enroll-a-trusted-device) steps
 and make sure to `tsh logout` and `tsh login` after enrollment is done.
+
+### "Failed to open the TPM device" on Linux
+
+Linux users need permissions to read and write from the TPM device, `/dev/tpmrm0`.
+Without such permissions `tsh` would need `sudo` prompts for most operations.
+
+The simplest way to solve this is to check if your distro ships with the `tss`
+group and assign it to your OS user. If that is not possible, or you are looking
+for a different solution, we recommend creating udev rules similar to the ones
+shipped by the [TPM2 Software Stack](
+https://github.com/tpm2-software/tpm2-tss/blob/ede63dd1ac1f0a46029d457304edcac2162bfab8/dist/tpm-udev.rules#L4).

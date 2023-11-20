@@ -640,7 +640,7 @@ func (s *PagerdutySuite) assertReviewSubmitted() {
 	ev := s.assertNewEvent(watcher, types.OpPut, types.KindAccessRequest, reqID)
 	request, ok := ev.Resource.(types.AccessRequest)
 	require.True(t, ok)
-	assert.Len(t, request.GetReviews(), 0)
+	assert.Empty(t, request.GetReviews())
 	assert.Equal(t, types.RequestState_PENDING, request.GetState())
 
 	ev = s.assertNewEvent(watcher, types.OpPut, types.KindAccessRequest, reqID)
@@ -672,14 +672,14 @@ func (s *PagerdutySuite) assertNoReviewSubmitted() {
 	request, ok := ev.Resource.(types.AccessRequest)
 	require.True(t, ok)
 	assert.Equal(t, types.RequestState_PENDING, request.GetState())
-	assert.Len(t, request.GetReviews(), 0)
+	assert.Empty(t, request.GetReviews())
 
 	s.assertNoNewEvents(watcher)
 
 	request, err = s.ruler().GetAccessRequest(s.Context(), request.GetName())
 	require.NoError(t, err)
 	assert.Equal(t, types.RequestState_PENDING, request.GetState())
-	assert.Len(t, request.GetReviews(), 0)
+	assert.Empty(t, request.GetReviews())
 }
 
 func (s *PagerdutySuite) TestAutoApprovalWhenNotOnCall() {

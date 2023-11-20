@@ -19,9 +19,10 @@ import React, { useCallback, useState } from 'react';
 import { Flex } from 'design';
 
 import {
+  FilterKind,
   UnifiedResources as SharedUnifiedResources,
-  UnifiedResourcesPinning,
   useUnifiedResourcesFetch,
+  UnifiedResourcesPinning,
 } from 'shared/components/UnifiedResources';
 
 import useStickyClusterId from 'teleport/useStickyClusterId';
@@ -41,6 +42,7 @@ import AgentButtonAdd from 'teleport/components/AgentButtonAdd';
 import { SearchResource } from 'teleport/Discover/SelectResource';
 import { encodeUrlQueryParams } from 'teleport/components/hooks/useUrlFiltering';
 import Empty, { EmptyStateInfo } from 'teleport/components/Empty';
+import { FeatureFlags } from 'teleport/types';
 
 import { ResourceActionButton } from './ResourceActionButton';
 import SearchPanel from './SearchPanel';
@@ -62,6 +64,31 @@ export function UnifiedResources() {
   );
 }
 
+const getAvailableKindsWithAccess = (flags: FeatureFlags): FilterKind[] => {
+  return [
+    {
+      kind: 'node',
+      disabled: !flags.nodes,
+    },
+    {
+      kind: 'app',
+      disabled: !flags.applications,
+    },
+    {
+      kind: 'db',
+      disabled: !flags.databases,
+    },
+    {
+      kind: 'kube_cluster',
+      disabled: !flags.kubernetes,
+    },
+    {
+      kind: 'windows_desktop',
+      disabled: !flags.desktops,
+    },
+  ];
+};
+
 function ClusterResources({
   clusterId,
   isLeafCluster,
@@ -70,6 +97,7 @@ function ClusterResources({
   isLeafCluster: boolean;
 }) {
   const teleCtx = useTeleport();
+  const flags = teleCtx.getFeatureFlags();
 
   const pinningNotSupported = localStorage.arePinnedResourcesDisabled();
   const {
@@ -176,16 +204,11 @@ function ClusterResources({
         params={params}
         fetchResources={fetch}
         resourcesFetchAttempt={attempt}
+        unifiedResourcePreferences={preferences.unifiedResourcePreferences}
         updateUnifiedResourcesPreferences={preferences => {
           updatePreferences({ unifiedResourcePreferences: preferences });
         }}
-        availableKinds={[
-          'app',
-          'db',
-          'windows_desktop',
-          'kube_cluster',
-          'node',
-        ]}
+        availableKinds={getAvailableKindsWithAccess(flags)}
         pinning={pinning}
         onLabelClick={onLabelClick}
         NoResources={

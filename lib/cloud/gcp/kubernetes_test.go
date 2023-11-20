@@ -167,7 +167,7 @@ func Test_gcpGKEClient_ListClusters(t *testing.T) {
 				return got[i].Name < got[j].Name
 			})
 
-			require.Equal(t, got, tt.want)
+			require.Equal(t, tt.want, got)
 		})
 	}
 }

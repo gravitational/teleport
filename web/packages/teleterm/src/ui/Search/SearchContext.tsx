@@ -43,6 +43,8 @@ export interface SearchContext {
   setFilter(filter: SearchFilter): void;
   removeFilter(filter: SearchFilter): void;
   pauseUserInteraction(action: () => Promise<any>): Promise<void>;
+  advancedSearchEnabled: boolean;
+  toggleAdvancedSearch(): void;
   addWindowEventListener: AddWindowEventListener;
   makeEventListener: <EventListener>(
     eventListener: EventListener
@@ -64,14 +66,12 @@ export const SearchContextProvider: FC = props => {
   const [isOpen, setIsOpen] = useState(false);
   const [inputValue, setInputValue] = useState('');
   const [activePicker, setActivePicker] = useState(actionPicker);
-  // TODO(ravicious): Consider using another data structure for search filters as we know that we
-  // always have only two specific filters: one for clusters and one for resource type.
-  //
-  // This could probably be represented by an object instead plus an array for letting the user
-  // provide those filters in any order they want. The array would be used in the UI that renders
-  // the filters while code that uses the search filters, such as ResourcesService.searchResources,
-  // could operate on the object instead.
   const [filters, setFilters] = useState<SearchFilter[]>([]);
+  const [advancedSearchEnabled, setAdvancedSearchEnabled] = useState(false);
+
+  function toggleAdvancedSearch(): void {
+    setAdvancedSearchEnabled(prevState => !prevState);
+  }
 
   function changeActivePicker(picker: SearchPicker): void {
     setActivePicker(picker);
@@ -227,6 +227,8 @@ export const SearchContextProvider: FC = props => {
         pauseUserInteraction,
         addWindowEventListener,
         makeEventListener,
+        advancedSearchEnabled,
+        toggleAdvancedSearch,
       }}
       children={props.children}
     />
