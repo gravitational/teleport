@@ -302,40 +302,38 @@ func (a *App) onJiraWebhook(ctx context.Context, webhook Webhook) error {
 		return trace.Errorf("got webhook without issue info")
 	}
 
-	issue, err := a.jira.GetIssue(ctx, webhook.Issue.ID)
+	retry, err := retryutils.NewLinear(a.retryConfig)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	var issue Issue
+	var statusName string
+	webHookStatusName := strings.ToLower(webhook.Issue.Fields.Status.Name)
+	// Retry until API syncs up with webhook payload.
+	err = retry.For(ctx, func() error {
+		issue, err = a.jira.GetIssue(ctx, webhook.Issue.ID)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		statusName = strings.ToLower(issue.Fields.Status.Name)
+		if webHookStatusName != statusName {
+			return trace.CompareFailed("mismatch of webhook payload and issue API response: %q and %q",
+				webHookStatusName, statusName)
+		}
+		return nil
+	})
+	if err != nil {
+		if statusName == "" {
+			return trace.Errorf("getting Jira issue status: %w" , err)
+		}
+		log.Warnf("Using most recent successful getIssue response: %v", err)
+	}
+	
 	ctx, log = logger.WithFields(ctx, logger.Fields{
 		"jira_issue_id":  issue.ID,
 		"jira_issue_key": issue.Key,
 	})
-
-	webHookStatusName := strings.ToLower(webhook.Issue.Fields.Status.Name)
-	statusName := strings.ToLower(issue.Fields.Status.Name)
-
-	// Retry until API syncs up with webhook payload.
-	if webHookStatusName != statusName {
-		retry, err := retryutils.NewLinear(a.retryConfig)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		err = retry.For(ctx, func() error {
-			issue, err = a.jira.GetIssue(ctx, webhook.Issue.ID)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			statusName = strings.ToLower(issue.Fields.Status.Name)
-			if webHookStatusName != statusName {
-				return trace.CompareFailed("mismatch of webhook payload and issue API response: %q and %q",
-					webHookStatusName, statusName)
-			}
-			return nil
-		})
-		if err != nil {
-			log.Warnf("Using most recent successful getIssue response: %v", err)
-		}
-	}
 
 	switch {
 	case statusName == "pending":
