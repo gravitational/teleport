@@ -53,6 +53,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/oidc"
 )
 
 // Server is a forwarding server. Server is used to create a single in-memory
@@ -667,7 +668,7 @@ func (s *Server) sendSSHPublicKeyToTarget(ctx context.Context) (ssh.Signer, erro
 		return nil, trace.BadParameter("missing aws cloud metadata")
 	}
 
-	issuer, err := awsoidc.IssuerForCluster(ctx, s.authClient)
+	issuer, err := oidc.IssuerForCluster(ctx, s.authClient)
 	if err != nil {
 		return nil, trace.BadParameter("failed to get issuer %v", err)
 	}

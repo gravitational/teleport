@@ -98,6 +98,8 @@ type UserACL struct {
 	AuditQuery ResourceAccess `json:"auditQuery"`
 	// SecurityReport defines access to security reports.
 	SecurityReport ResourceAccess `json:"securityReport"`
+	// ExternalCloudAudit defines access to manage ExternalCloudAudit
+	ExternalCloudAudit ResourceAccess `json:"externalCloudAudit"`
 	// AccessGraph defines access to access graph.
 	AccessGraph ResourceAccess `json:"accessGraph"`
 }
@@ -175,6 +177,7 @@ func NewUserACL(user types.User, userRoles RoleSet, features proto.Features, des
 	discoveryConfigsAccess := newAccess(userRoles, ctx, types.KindDiscoveryConfig)
 	lockAccess := newAccess(userRoles, ctx, types.KindLock)
 	accessListAccess := newAccess(userRoles, ctx, types.KindAccessList)
+	externalCloudAudit := newAccess(userRoles, ctx, types.KindExternalCloudAudit)
 
 	var auditQuery ResourceAccess
 	var securityReports ResourceAccess
@@ -216,6 +219,7 @@ func NewUserACL(user types.User, userRoles RoleSet, features proto.Features, des
 		AccessList:              accessListAccess,
 		AuditQuery:              auditQuery,
 		SecurityReport:          securityReports,
+		ExternalCloudAudit:      externalCloudAudit,
 		AccessGraph:             accessGraphAccess,
 	}
 }
