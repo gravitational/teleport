@@ -34,7 +34,6 @@ import {
   SearchResultCluster,
   SearchResultResourceType,
   SearchFilter,
-  ResourceTypeFilter,
 } from 'teleterm/ui/Search/searchResult';
 import * as tsh from 'teleterm/services/tshd/types';
 import * as uri from 'teleterm/ui/uri';
@@ -44,7 +43,10 @@ import { assertUnreachable } from 'teleterm/ui/utils';
 
 import { SearchAction } from '../actions';
 import { useSearchContext } from '../SearchContext';
-import { CrossClusterResourceSearchResult } from '../useSearch';
+import {
+  CrossClusterResourceSearchResult,
+  resourceTypeToReadableName,
+} from '../useSearch';
 
 import { useActionAttempts } from './useActionAttempts';
 import { getParameterPicker } from './pickers';
@@ -121,7 +123,7 @@ export function ActionPicker(props: { input: ReactElement }) {
       return (
         <FilterButton
           key={`resource-type-${s.resourceType}`}
-          text={resourceTypeToPrettyName[s.resourceType]}
+          text={resourceTypeToReadableName[s.resourceType]}
           onClick={() => removeFilter(s)}
         />
       );
@@ -509,7 +511,7 @@ function ResourceTypeFilterItem(
         Search for{' '}
         <strong>
           <Highlight
-            text={resourceTypeToPrettyName[props.searchResult.resource]}
+            text={resourceTypeToReadableName[props.searchResult.resource]}
             keywords={[props.searchResult.nameMatch]}
           />
         </strong>
@@ -911,9 +913,3 @@ function FilterButton(props: { text: string; onClick(): void }) {
     </Flex>
   );
 }
-
-const resourceTypeToPrettyName: Record<ResourceTypeFilter, string> = {
-  db: 'databases',
-  node: 'servers',
-  kube_cluster: 'kubes',
-};

@@ -220,6 +220,31 @@ describe('useResourceSearch', () => {
 });
 
 describe('useFiltersSearch', () => {
+  it('resource type filter is matched by the readable name', () => {
+    const appContext = new MockAppContext();
+    appContext.clustersService.setState(draftState => {
+      const rootCluster = makeRootCluster();
+      draftState.clusters.set(rootCluster.uri, rootCluster);
+    });
+
+    const { result } = renderHook(() => useFilterSearch(), {
+      wrapper: ({ children }) => (
+        <MockAppContextProvider appContext={appContext}>
+          {children}
+        </MockAppContextProvider>
+      ),
+    });
+    const clusterFilters = result.current('serv', []);
+    expect(clusterFilters).toEqual([
+      {
+        kind: 'resource-type-filter',
+        resource: 'node',
+        nameMatch: 'serv',
+        score: 100,
+      },
+    ]);
+  });
+
   it('does not return cluster filters if there is only one cluster', () => {
     const appContext = new MockAppContext();
     appContext.clustersService.setState(draftState => {
