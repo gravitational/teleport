@@ -1,3 +1,5 @@
+//go:build cgo
+
 /*
 Copyright 2018 Gravitational, Inc.
 

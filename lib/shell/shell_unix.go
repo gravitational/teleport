@@ -1,5 +1,5 @@
-//go:build !windows
-// +build !windows
+//go:build !windows && cgo
+// +build !windows,cgo
 
 /*
 Copyright 2017 Gravitational, Inc.
