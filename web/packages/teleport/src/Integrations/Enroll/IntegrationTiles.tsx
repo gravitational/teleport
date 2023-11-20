@@ -88,7 +88,7 @@ export function IntegrationTiles({
         <Box mt={3} mb={2}>
           <AWSIcon size={80} />
         </Box>
-        <Text>External Audit Storage</Text>
+        <Text>AWS External Audit Storage</Text>
         {renderExternalCloudAuditBadge(
           hasExternalCloudAuditAccess,
           isEnterprise
@@ -132,8 +132,7 @@ function renderExternalCloudAuditBadge(
       badgeTitle="New"
       children={
         <div>
-          Connect your own AWS account to store audit logs and session
-          recordings on your own infrastructure
+          Connect your own AWS account to store Audit logs and Session recordings using Athena and S3.
         </div>
       }
       color={theme.colors.success}
