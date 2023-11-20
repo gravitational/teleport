@@ -49,6 +49,11 @@ import { useWorkspaceLoggedInUser } from 'teleterm/ui/hooks/useLoggedInUser';
 import { useConnectMyComputerContext } from 'teleterm/ui/ConnectMyComputer';
 
 import { retryWithRelogin } from 'teleterm/ui/utils';
+import {
+  DocumentClusterQueryParams,
+  DocumentCluster,
+  DocumentClusterResourceKind,
+} from 'teleterm/ui/services/workspacesService';
 
 import {
   ConnectServerActionButton,
@@ -57,11 +62,11 @@ import {
 } from './actionButtons';
 import { useResourcesContext } from './resourcesContext';
 
-interface UnifiedResourcesProps {
+export function UnifiedResources(props: {
   clusterUri: uri.ClusterUri;
-}
-
-export function UnifiedResources(props: UnifiedResourcesProps) {
+  docUri: uri.DocumentUri;
+  queryParams: DocumentClusterQueryParams;
+}) {
   const appContext = useAppContext();
   const { onResourcesRefreshRequest } = useResourcesContext();
 
@@ -72,9 +77,17 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
     viewMode: UnifiedViewModePreference.Card,
   });
 
-  const [params, setParams] = useState<UnifiedResourcesQueryParams>({
-    sort: { fieldName: 'name', dir: 'ASC' },
-  });
+  const mergedParams: UnifiedResourcesQueryParams = {
+    kinds: props.queryParams.kinds,
+    sort: props.queryParams.sort,
+    pinnedOnly: false, //TODO: add support for pinning
+    search: props.queryParams.advancedSearchEnabled
+      ? ''
+      : props.queryParams.search,
+    query: props.queryParams.advancedSearchEnabled
+      ? props.queryParams.search
+      : '',
+  };
 
   const { documentsService, rootClusterUri } = useWorkspaceContext();
   const loggedInUser = useWorkspaceLoggedInUser();
@@ -101,13 +114,13 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
                 clusterUri: props.clusterUri,
                 searchAsRoles: false,
                 sortBy: {
-                  isDesc: params.sort.dir === 'DESC',
-                  field: params.sort.fieldName,
+                  isDesc: mergedParams.sort.dir === 'DESC',
+                  field: mergedParams.sort.fieldName,
                 },
-                search: params.search,
-                kindsList: params.kinds,
-                query: params.query,
-                pinnedOnly: params.pinnedOnly,
+                search: mergedParams.search,
+                kindsList: mergedParams.kinds,
+                query: mergedParams.query,
+                pinnedOnly: mergedParams.pinnedOnly,
                 startKey: paginationParams.startKey,
                 limit: paginationParams.limit,
               },
@@ -121,7 +134,16 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
           totalCount: response.resources.length,
         };
       },
-      [appContext, params, props.clusterUri]
+      [
+        appContext,
+        mergedParams.kinds,
+        mergedParams.pinnedOnly,
+        mergedParams.query,
+        mergedParams.search,
+        mergedParams.sort.dir,
+        mergedParams.sort.fieldName,
+        props.clusterUri,
+      ]
     ),
   });
 
@@ -133,14 +155,34 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
     return cleanup;
   }, [onResourcesRefreshRequest, fetch, clear]);
 
-  function onParamsChange(newParams: UnifiedResourcesQueryParams): void {
+  const [prevParams, setPrevParams] = useState(props.queryParams);
+  if (prevParams !== props.queryParams) {
+    setPrevParams(props.queryParams);
     clear();
-    setParams(newParams);
+  }
+
+  function onParamsChange(newParams: UnifiedResourcesQueryParams): void {
+    const documentService =
+      appContext.workspacesService.getWorkspaceDocumentService(
+        uri.routing.ensureRootClusterUri(props.clusterUri)
+      );
+    documentService.update(props.docUri, (prevDoc: DocumentCluster) => {
+      const updated: DocumentCluster = {
+        ...prevDoc,
+        queryParams: {
+          ...prevDoc.queryParams,
+          sort: newParams.sort,
+          kinds: newParams.kinds as DocumentClusterResourceKind[],
+          search: newParams.search || newParams.query,
+        },
+      };
+      return updated;
+    });
   }
 
   return (
     <SharedUnifiedResources
-      params={params}
+      params={mergedParams}
       setParams={onParamsChange}
       unifiedResourcePreferences={userPrefs}
       updateUnifiedResourcesPreferences={setUserPrefs}

@@ -345,10 +345,22 @@ export class DocumentsService {
     });
   }
 
-  update(uri: string, partialDoc: Partial<Document>) {
+  /**
+   * Updates the document by URI.
+   * @param uri - document URI.
+   * @param updated - a new document object or an update function.
+   */
+  update(
+    uri: DocumentUri,
+    updated: Partial<Document> | ((document: Document) => Document)
+  ) {
     this.setState(draft => {
-      const toUpdate = draft.documents.find(doc => doc.uri === uri);
-      Object.assign(toUpdate, partialDoc);
+      const index = draft.documents.findIndex(doc => doc.uri === uri);
+      const toUpdate = draft.documents[index];
+      if (typeof updated === 'function') {
+        draft.documents[index] = updated(toUpdate);
+      }
+      Object.assign(toUpdate, updated);
     });
   }
 

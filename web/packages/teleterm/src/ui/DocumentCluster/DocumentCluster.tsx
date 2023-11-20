@@ -20,6 +20,7 @@ import { Box, ButtonPrimary, Flex, Text, Alert } from 'design';
 import { useAsync, Attempt } from 'shared/hooks/useAsync';
 
 import * as types from 'teleterm/ui/services/workspacesService';
+import { DocumentClusterQueryParams } from 'teleterm/ui/services/workspacesService';
 import Document from 'teleterm/ui/Document';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { retryWithRelogin } from 'teleterm/ui/utils';
@@ -70,6 +71,8 @@ export default function DocumentCluster(props: {
         cluster={cluster}
         syncCluster={syncCluster}
         clusterSyncAttempt={clusterSyncAttempt}
+        queryParams={props.doc.queryParams}
+        docUri={props.doc.uri}
       />
     </Document>
   );
@@ -82,6 +85,8 @@ function ClusterState(props: {
   cluster: Cluster | undefined;
   syncCluster(): void;
   clusterSyncAttempt: Attempt<void>;
+  queryParams: DocumentClusterQueryParams;
+  docUri: uri.DocumentUri;
 }) {
   if (!props.rootCluster.connected) {
     return (
@@ -109,7 +114,11 @@ function ClusterState(props: {
 
   return (
     <Layout>
-      <UnifiedResources clusterUri={props.clusterUri} />
+      <UnifiedResources
+        clusterUri={props.clusterUri}
+        docUri={props.docUri}
+        queryParams={props.queryParams}
+      />
     </Layout>
   );
 }
