@@ -19,6 +19,11 @@ import '@testing-library/jest-dom';
 import { fireEvent, createEvent, render, screen } from '@testing-library/react';
 import { renderHook, act } from '@testing-library/react-hooks';
 
+import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
+
+import { IAppContext } from 'teleterm/ui/types';
+import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
+
 import { SearchContextProvider, useSearchContext } from './SearchContext';
 
 describe('pauseUserInteraction', () => {
@@ -44,11 +49,7 @@ describe('pauseUserInteraction', () => {
   ])('$name', async ({ action, finishAction }) => {
     const inputFocus = jest.fn();
     const onWindowClick = jest.fn();
-    const { result } = renderHook(() => useSearchContext(), {
-      wrapper: ({ children }) => (
-        <SearchContextProvider>{children}</SearchContextProvider>
-      ),
-    });
+    const { result } = renderUseSearchContextHook();
     result.current.inputRef.current = {
       focus: inputFocus,
     } as unknown as HTMLInputElement;
@@ -87,11 +88,7 @@ describe('pauseUserInteraction', () => {
 describe('addWindowEventListener', () => {
   it('returns a cleanup function', () => {
     const onWindowClick = jest.fn();
-    const { result } = renderHook(() => useSearchContext(), {
-      wrapper: ({ children }) => (
-        <SearchContextProvider>{children}</SearchContextProvider>
-      ),
-    });
+    const { result } = renderUseSearchContextHook();
 
     const { cleanup } = result.current.addWindowEventListener(
       'click',
@@ -117,11 +114,7 @@ describe('addWindowEventListener', () => {
       resolveAction = resolve;
     });
 
-    const { result } = renderHook(() => useSearchContext(), {
-      wrapper: ({ children }) => (
-        <SearchContextProvider>{children}</SearchContextProvider>
-      ),
-    });
+    const { result } = renderUseSearchContextHook();
 
     let pauseInteractionPromise;
     act(() => {
@@ -162,9 +155,11 @@ describe('open', () => {
       <>
         <input data-testid="other-input" />
 
-        <SearchContextProvider>
-          <SearchInput />
-        </SearchContextProvider>
+        <MockAppContextProvider>
+          <SearchContextProvider>
+            <SearchInput />
+          </SearchContextProvider>
+        </MockAppContextProvider>
       </>
     );
 
@@ -185,11 +180,7 @@ describe('close', () => {
     const previouslyActive = {
       focus: jest.fn(),
     } as unknown as HTMLInputElement;
-    const { result } = renderHook(() => useSearchContext(), {
-      wrapper: ({ children }) => (
-        <SearchContextProvider>{children}</SearchContextProvider>
-      ),
-    });
+    const { result } = renderUseSearchContextHook();
 
     act(() => {
       result.current.open(previouslyActive);
@@ -208,11 +199,7 @@ describe('closeWithoutRestoringFocus', () => {
     const previouslyActive = {
       focus: jest.fn(),
     } as unknown as HTMLInputElement;
-    const { result } = renderHook(() => useSearchContext(), {
-      wrapper: ({ children }) => (
-        <SearchContextProvider>{children}</SearchContextProvider>
-      ),
-    });
+    const { result } = renderUseSearchContextHook();
 
     act(() => {
       result.current.open(previouslyActive);
@@ -225,3 +212,91 @@ describe('closeWithoutRestoringFocus', () => {
     expect(previouslyActive.focus).not.toHaveBeenCalled();
   });
 });
+
+test('search bar state is adjusted to the active document', () => {
+  const rootClusterUri = '/clusters/localhost';
+  const appContext = new MockAppContext();
+  appContext.workspacesService.setState(draftState => {
+    draftState.rootClusterUri = rootClusterUri;
+    draftState.workspaces[rootClusterUri] = {
+      localClusterUri: rootClusterUri,
+      documents: [],
+      location: undefined,
+      accessRequests: undefined,
+    };
+  });
+  const docService =
+    appContext.workspacesService.getActiveWorkspaceDocumentService();
+  const { result } = renderUseSearchContextHook(appContext);
+
+  // initial state, no document
+  expect(result.current.inputValue).toBe('');
+  expect(result.current.filters).toEqual([]);
+  expect(result.current.advancedSearchEnabled).toBe(false);
+
+  // document changes to the cluster document
+  act(() => {
+    const clusterDoc = docService.createClusterDocument({
+      clusterUri: rootClusterUri,
+      queryParams: {
+        search: 'foo',
+        kinds: ['db'],
+        sort: { dir: 'ASC', fieldName: 'name' },
+        advancedSearchEnabled: true,
+      },
+    });
+    docService.add(clusterDoc);
+    docService.open(clusterDoc.uri);
+  });
+
+  expect(result.current.inputValue).toBe('foo');
+  expect(result.current.filters).toEqual([
+    { filter: 'resource-type', resourceType: 'db' },
+  ]);
+  expect(result.current.advancedSearchEnabled).toBe(true);
+
+  // document changes to another cluster document
+  act(() => {
+    const clusterDoc = docService.createClusterDocument({
+      clusterUri: rootClusterUri,
+      queryParams: {
+        search: 'bar',
+        kinds: ['kube_cluster'],
+        sort: { dir: 'ASC', fieldName: 'name' },
+        advancedSearchEnabled: false,
+      },
+    });
+    docService.add(clusterDoc);
+    docService.open(clusterDoc.uri);
+  });
+
+  expect(result.current.inputValue).toBe('bar');
+  expect(result.current.filters).toEqual([
+    { filter: 'resource-type', resourceType: 'kube_cluster' },
+  ]);
+  expect(result.current.advancedSearchEnabled).toBe(false);
+
+  // document changes to a non-cluster document
+  act(() => {
+    const clusterDoc = docService.createTshNodeDocument(
+      '/clusters/abc/servers/bar',
+      { origin: 'search_bar' }
+    );
+    docService.add(clusterDoc);
+    docService.open(clusterDoc.uri);
+  });
+
+  expect(result.current.inputValue).toBe('');
+  expect(result.current.filters).toEqual([]);
+  expect(result.current.advancedSearchEnabled).toBe(false);
+});
+
+function renderUseSearchContextHook(appContext?: IAppContext) {
+  return renderHook(() => useSearchContext(), {
+    wrapper: ({ children }) => (
+      <MockAppContextProvider appContext={appContext}>
+        <SearchContextProvider>{children}</SearchContextProvider>
+      </MockAppContextProvider>
+    ),
+  });
+}

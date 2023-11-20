@@ -26,6 +26,8 @@ import { ResourceSearchError } from 'teleterm/ui/services/resources';
 import ModalsHost from 'teleterm/ui/ModalsHost';
 import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
 
+import { ClusterUri } from 'teleterm/ui/uri';
+
 import * as pickers from './pickers/pickers';
 import * as useActionAttempts from './pickers/useActionAttempts';
 import * as useSearch from './useSearch';
@@ -42,12 +44,10 @@ beforeEach(() => {
 });
 
 it('does not display empty results copy after selecting two filters', () => {
-  const appContext = new MockAppContext();
-  appContext.workspacesService.setState(draft => {
-    draft.rootClusterUri = '/clusters/foo';
-  });
+  const appContext = setUpContext('/clusters/foo');
 
   const mockActionAttempts = {
+    documentClusterSearchActionAttempt: makeSuccessAttempt([]),
     filterActionsAttempt: makeSuccessAttempt([]),
     resourceActionsAttempt: makeSuccessAttempt([]),
     resourceSearchAttempt: makeSuccessAttempt({
@@ -79,12 +79,10 @@ it('does not display empty results copy after selecting two filters', () => {
 });
 
 it('displays empty results copy after providing search query for which there is no results', () => {
-  const appContext = new MockAppContext();
-  appContext.workspacesService.setState(draft => {
-    draft.rootClusterUri = '/clusters/foo';
-  });
+  const appContext = setUpContext('/clusters/foo');
 
   const mockActionAttempts = {
+    documentClusterSearchActionAttempt: makeSuccessAttempt([]),
     filterActionsAttempt: makeSuccessAttempt([]),
     resourceActionsAttempt: makeSuccessAttempt([]),
     resourceSearchAttempt: makeSuccessAttempt({
@@ -111,16 +109,14 @@ it('displays empty results copy after providing search query for which there is 
 });
 
 it('includes offline cluster names in the empty results copy', () => {
-  const appContext = new MockAppContext();
   const cluster = makeRootCluster({ connected: false });
+  const appContext = setUpContext(cluster.uri);
   appContext.clustersService.setState(draftState => {
     draftState.clusters.set(cluster.uri, cluster);
   });
-  appContext.workspacesService.setState(draft => {
-    draft.rootClusterUri = cluster.uri;
-  });
 
   const mockActionAttempts = {
+    documentClusterSearchActionAttempt: makeSuccessAttempt([]),
     filterActionsAttempt: makeSuccessAttempt([]),
     resourceActionsAttempt: makeSuccessAttempt([]),
     resourceSearchAttempt: makeSuccessAttempt({
@@ -150,10 +146,7 @@ it('includes offline cluster names in the empty results copy', () => {
 });
 
 it('notifies about resource search errors and allows to display details', () => {
-  const appContext = new MockAppContext();
-  appContext.workspacesService.setState(draft => {
-    draft.rootClusterUri = '/clusters/foo';
-  });
+  const appContext = setUpContext('/clusters/foo');
 
   const resourceSearchError = new ResourceSearchError(
     '/clusters/foo',
@@ -162,6 +155,7 @@ it('notifies about resource search errors and allows to display details', () => 
   );
 
   const mockActionAttempts = {
+    documentClusterSearchActionAttempt: makeSuccessAttempt([]),
     filterActionsAttempt: makeSuccessAttempt([]),
     resourceActionsAttempt: makeSuccessAttempt([]),
     resourceSearchAttempt: makeSuccessAttempt({
@@ -209,10 +203,7 @@ it('notifies about resource search errors and allows to display details', () => 
 
 it('maintains focus on the search input after closing a resource search error modal', async () => {
   const user = userEvent.setup();
-  const appContext = new MockAppContext();
-  appContext.workspacesService.setState(draft => {
-    draft.rootClusterUri = '/clusters/foo';
-  });
+  const appContext = setUpContext('/clusters/foo');
 
   const resourceSearchError = new ResourceSearchError(
     '/clusters/foo',
@@ -284,7 +275,7 @@ it('shows a login modal when a request to a cluster from the current workspace f
     .spyOn(useSearch, 'useResourceSearch')
     .mockImplementation(() => resourceSearch);
 
-  const appContext = new MockAppContext();
+  const appContext = setUpContext(cluster.uri);
   appContext.workspacesService.setState(draft => {
     draft.rootClusterUri = cluster.uri;
   });
@@ -328,10 +319,7 @@ it('closes on a click on an unfocusable element outside of the search bar', asyn
     .spyOn(useSearch, 'useResourceSearch')
     .mockImplementation(() => resourceSearch);
 
-  const appContext = new MockAppContext();
-  appContext.workspacesService.setState(draft => {
-    draft.rootClusterUri = cluster.uri;
-  });
+  const appContext = setUpContext(cluster.uri);
   appContext.clustersService.setState(draftState => {
     draftState.clusters.set(cluster.uri, cluster);
   });
@@ -376,3 +364,19 @@ const getMockedSearchContext = (): SearchContext.SearchContext => ({
   advancedSearchEnabled: false,
   toggleAdvancedSearch: () => {},
 });
+
+const setUpContext = (clusterUri: ClusterUri) => {
+  const appContext = new MockAppContext();
+  appContext.workspacesService.setState(draft => {
+    draft.rootClusterUri = clusterUri;
+    draft.workspaces = {
+      [clusterUri]: {
+        documents: [],
+        location: undefined,
+        localClusterUri: clusterUri,
+        accessRequests: undefined,
+      },
+    };
+  });
+  return appContext;
+};
