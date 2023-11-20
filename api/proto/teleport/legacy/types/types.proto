@@ -5559,6 +5559,9 @@ message PluginOktaSettings {
 
   // EnableUserSync controls the user sync in the Okta integration service.
   bool enable_user_sync = 2;
+
+  // SSOConnectorID
+  string sso_connector_id = 3;
 }
 
 // Defines a set of discord channel IDs
