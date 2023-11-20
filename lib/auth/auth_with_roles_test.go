@@ -6537,6 +6537,29 @@ func TestSafeToSkipInventoryCheck(t *testing.T) {
 	}
 }
 
+func TestPing_AccessRequestFeature(t *testing.T) {
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	ping, err := srv.Auth().Ping(ctx)
+	require.Nil(t, err)
+	require.False(t, ping.ServerFeatures.AccessRequests.Enabled)
+	require.False(t, ping.ServerFeatures.AdvancedAccessWorkflows)
+
+	modules.SetTestModules(t, &modules.TestModules{
+		TestFeatures: modules.Features{
+			AccessRequests: modules.AccessRequestsFeature{
+				Enabled: true,
+			},
+		},
+	})
+
+	ping, err = srv.Auth().Ping(ctx)
+	require.Nil(t, err)
+	require.True(t, ping.ServerFeatures.AccessRequests.Enabled)
+	require.True(t, ping.ServerFeatures.AdvancedAccessWorkflows)
+}
+
 func TestCreateAccessRequest(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
