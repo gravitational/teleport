@@ -265,7 +265,7 @@ type AccessInfo struct {
 	// access restrictions should be applied. Used for search-based access
 	// requests.
 	AllowedResourceIDs []types.ResourceID
-	// Username is the Telepeort username.
+	// Username is the Teleport username.
 	Username string
 }
 
