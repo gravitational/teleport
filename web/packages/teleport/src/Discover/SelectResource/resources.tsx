@@ -104,16 +104,8 @@ export const APPLICATIONS: ResourceSpec[] = [
 
 export const WINDOWS_DESKTOPS: ResourceSpec[] = [
   {
-    name: 'Active Directory',
-    kind: ResourceKind.Desktop,
+    name: 'Windows Desktop',
     keywords: 'windows desktop active directory ad',
-    icon: 'Windows',
-    event: DiscoverEventResource.WindowsDesktop,
-    platform: Platform.Windows,
-  },
-  {
-    name: 'Local Windows Users',
-    keywords: 'windows desktop local',
     kind: ResourceKind.Desktop,
     icon: 'Windows',
     unguidedLink: getDesktopLocalWindowsDocLink(),
@@ -172,7 +164,7 @@ export function getResourcePretitle(r: ResourceSpec) {
       }
       break;
     case ResourceKind.Desktop:
-      return 'Windows Desktop';
+      return 'Microsoft';
     case ResourceKind.Server:
       if (r.nodeMeta?.location === ServerLocation.Aws) {
         return 'Amazon Web Services (AWS)';
