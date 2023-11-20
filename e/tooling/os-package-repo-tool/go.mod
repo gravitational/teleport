@@ -3,7 +3,7 @@ module github.com/gravitational/os-package-repo-tool
 go 1.20
 
 require (
-	github.com/aws/aws-sdk-go v1.47.9
+	github.com/aws/aws-sdk-go v1.48.0
 	github.com/cavaliergopher/rpm v1.2.0
 	github.com/davecgh/go-spew v1.1.1
 	github.com/gravitational/trace v1.3.1
