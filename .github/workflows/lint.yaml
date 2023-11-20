@@ -24,7 +24,7 @@ jobs:
       image: ghcr.io/gravitational/teleport-buildbox:teleport15
 
     env:
-      GOLANGCI_LINT_VERSION: v1.55.1
+      GOLANGCI_LINT_VERSION: v1.55.2
 
     steps:
       - name: Checkout
@@ -73,7 +73,7 @@ jobs:
       - uses: bufbuild/buf-setup-action@v1
         with:
           github_token: ${{ github.token }}
-          version: v1.27.0
+          version: v1.28.0
       - uses: bufbuild/buf-lint-action@v1
       - name: buf breaking from parent to self
         uses: bufbuild/buf-breaking-action@v1

@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	"maps"
 	"os"
 	"testing"
 	"time"
@@ -104,9 +105,7 @@ func TestPrefix(t *testing.T) {
 
 	// ...and an etcd backend configured to use a custom prefix
 	cfg := make(backend.Params)
-	for k, v := range commonEtcdParams {
-		cfg[k] = v
-	}
+	maps.Copy(cfg, commonEtcdParams)
 	cfg["prefix"] = customPrefix
 
 	prefixedUut, err := New(context.Background(), cfg, commonEtcdOptions...)

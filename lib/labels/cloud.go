@@ -18,6 +18,7 @@ package labels
 import (
 	"context"
 	"fmt"
+	"maps"
 	"sync"
 	"time"
 
@@ -114,11 +115,8 @@ func (l *CloudImporter) initAzure() {
 func (l *CloudImporter) Get() map[string]string {
 	l.muLabels.RLock()
 	defer l.muLabels.RUnlock()
-	labels := make(map[string]string)
-	for k, v := range l.labels {
-		labels[k] = v
-	}
-	return labels
+
+	return maps.Clone(l.labels)
 }
 
 // Apply adds cloud labels to the provided resource.

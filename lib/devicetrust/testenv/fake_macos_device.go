@@ -26,6 +26,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
+	"github.com/gravitational/teleport/lib/devicetrust/native"
 )
 
 // FakeMacOSDevice fakes the native methods of a macOS device, as expected by
@@ -57,7 +58,7 @@ func NewFakeMacOSDevice() (*FakeMacOSDevice, error) {
 	}, nil
 }
 
-func (f *FakeMacOSDevice) CollectDeviceData() (*devicepb.DeviceCollectedData, error) {
+func (f *FakeMacOSDevice) CollectDeviceData(mode native.CollectDataMode) (*devicepb.DeviceCollectedData, error) {
 	return &devicepb.DeviceCollectedData{
 		CollectTime:  timestamppb.Now(),
 		OsType:       devicepb.OSType_OS_TYPE_MACOS,
@@ -77,7 +78,7 @@ func (f *FakeMacOSDevice) GetDeviceOSType() devicepb.OSType {
 }
 
 func (f *FakeMacOSDevice) EnrollDeviceInit() (*devicepb.EnrollDeviceInit, error) {
-	cd, _ := f.CollectDeviceData()
+	cd, _ := f.CollectDeviceData(native.CollectedDataAlwaysEscalate)
 	return &devicepb.EnrollDeviceInit{
 		Token:        "",
 		CredentialId: f.ID,

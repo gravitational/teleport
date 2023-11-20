@@ -34,13 +34,19 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
+// AccessListsAndLockGetter is an interface for retrieving access lists and locks.
+type AccessListsAndLockGetter interface {
+	services.AccessListsGetter
+	services.LockGetter
+}
+
 // GeneratorConfig is the configuration for the user login state generator.
 type GeneratorConfig struct {
 	// Log is a logger to use for the generator.
 	Log *logrus.Entry
 
-	// AccessLists is a service for retrieving access lists from the backend.
-	AccessLists services.AccessListsGetter
+	// AccessLists is a service for retrieving access lists and locks from the backend.
+	AccessLists AccessListsAndLockGetter
 
 	// Access is a service that will be used for retrieving roles from the backend.
 	Access services.Access
@@ -88,11 +94,12 @@ func (g *GeneratorConfig) CheckAndSetDefaults() error {
 
 // Generator will generate a user login state from a user.
 type Generator struct {
-	log         *logrus.Entry
-	accessLists services.AccessListsGetter
-	access      services.Access
-	usageEvents UsageEventsClient
-	clock       clockwork.Clock
+	log           *logrus.Entry
+	accessLists   AccessListsAndLockGetter
+	access        services.Access
+	usageEvents   UsageEventsClient
+	memberChecker *services.AccessListMembershipChecker
+	clock         clockwork.Clock
 }
 
 // NewGenerator creates a new user login state generator.
@@ -102,31 +109,41 @@ func NewGenerator(config GeneratorConfig) (*Generator, error) {
 	}
 
 	return &Generator{
-		log:         config.Log,
-		accessLists: config.AccessLists,
-		access:      config.Access,
-		usageEvents: config.UsageEvents,
-		clock:       config.Clock,
+		log:           config.Log,
+		accessLists:   config.AccessLists,
+		access:        config.Access,
+		usageEvents:   config.UsageEvents,
+		memberChecker: services.NewAccessListMembershipChecker(config.Clock, config.AccessLists, config.Access),
+		clock:         config.Clock,
 	}, nil
 }
 
 // Generate will generate the user login state for the given user.
 func (g *Generator) Generate(ctx context.Context, user types.User) (*userloginstate.UserLoginState, error) {
+	var originalTraits map[string][]string
 	var traits map[string][]string
 	if len(user.GetTraits()) > 0 {
+		originalTraits = make(map[string][]string, len(user.GetTraits()))
 		traits = make(map[string][]string, len(user.GetTraits()))
 		for k, v := range user.GetTraits() {
+			originalTraits[k] = utils.CopyStrings(v)
 			traits[k] = utils.CopyStrings(v)
 		}
 	}
+
 	// Create a new empty user login state.
 	uls, err := userloginstate.New(
 		header.Metadata{
 			Name: user.GetName(),
+			Labels: map[string]string{
+				userloginstate.OriginalRolesAndTraitsSet: "true",
+			},
 		}, userloginstate.Spec{
-			Roles:    utils.CopyStrings(user.GetRoles()),
-			Traits:   traits,
-			UserType: user.GetUserType(),
+			OriginalRoles:  utils.CopyStrings(user.GetRoles()),
+			OriginalTraits: originalTraits,
+			Roles:          utils.CopyStrings(user.GetRoles()),
+			Traits:         traits,
+			UserType:       user.GetUserType(),
 		})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -169,7 +186,7 @@ func (g *Generator) addAccessListsToState(ctx context.Context, user types.User, 
 
 	for _, accessList := range accessLists {
 		// Check that the user meets the access list requirements.
-		if err := services.IsAccessListMember(ctx, identity, g.clock, accessList, g.accessLists); err != nil {
+		if err := g.memberChecker.IsAccessListMember(ctx, identity, accessList); err != nil {
 			continue
 		}
 

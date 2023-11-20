@@ -18,6 +18,7 @@ package config
 
 import (
 	"context"
+	"sync"
 
 	"github.com/gravitational/trace"
 	"gopkg.in/yaml.v3"
@@ -28,6 +29,8 @@ const DestinationMemoryType = "memory"
 // DestinationMemory is a memory certificate Destination
 type DestinationMemory struct {
 	store map[string][]byte `yaml:"-"`
+	// mutex protects store in case other routines want to read its content
+	mutex sync.RWMutex
 }
 
 func (dm *DestinationMemory) UnmarshalYAML(node *yaml.Node) error {
@@ -65,12 +68,16 @@ func (dm *DestinationMemory) Verify(keys []string) error {
 }
 
 func (dm *DestinationMemory) Write(_ context.Context, name string, data []byte) error {
+	dm.mutex.Lock()
+	defer dm.mutex.Unlock()
 	dm.store[name] = data
 
 	return nil
 }
 
 func (dm *DestinationMemory) Read(_ context.Context, name string) ([]byte, error) {
+	dm.mutex.RLock()
+	defer dm.mutex.RUnlock()
 	b, ok := dm.store[name]
 	if !ok {
 		return nil, trace.NotFound("not found: %s", name)

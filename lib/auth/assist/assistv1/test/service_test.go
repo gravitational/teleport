@@ -29,6 +29,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/proto"
 	assistpb "github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
@@ -311,6 +312,17 @@ func TestService_SearchUnifiedResources(t *testing.T) {
 	}
 }
 
+type testClient struct {
+	services.ClusterConfiguration
+	services.Trust
+	services.RoleGetter
+	services.UserGetter
+}
+
+func (c *testClient) ValidateMFAAuthResponse(ctx context.Context, resp *proto.MFAAuthenticateResponse, user string, passwordless bool) (*types.MFADevice, string, error) {
+	return nil, "", nil
+}
+
 func initSvc(t *testing.T) (map[string]context.Context, *assistv1.Service) {
 	ctx := context.Background()
 	backend, err := memory.New(memory.Config{})
@@ -328,18 +340,11 @@ func initSvc(t *testing.T) (map[string]context.Context, *assistv1.Service) {
 	require.NoError(t, clusterConfigSvc.SetClusterNetworkingConfig(ctx, types.DefaultClusterNetworkingConfig()))
 	require.NoError(t, clusterConfigSvc.SetSessionRecordingConfig(ctx, types.DefaultSessionRecordingConfig()))
 
-	accessPoint := struct {
-		services.ClusterConfiguration
-		services.Trust
-		services.RoleGetter
-		services.UserGetter
-		services.Presence
-	}{
+	accessPoint := &testClient{
 		ClusterConfiguration: clusterConfigSvc,
 		Trust:                trustSvc,
 		RoleGetter:           roleSvc,
 		UserGetter:           userSvc,
-		Presence:             presenceSvc,
 	}
 
 	n1, err := types.NewServer("node-1", types.KindNode, types.ServerSpecV2{})

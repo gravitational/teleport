@@ -67,7 +67,7 @@ export function Tabs(props: Props & { parties: stores.Parties }) {
           style={{
             flex: '1',
             flexBasis: '0',
-            flexGrow: '1',
+            flexGrow: '0',
           }}
         />
       );

@@ -42,6 +42,10 @@ const service = {
       });
   },
 
+  fetchAccessGraphFeatures(): Promise<object> {
+    return api.get(cfg.getAccessGraphFeaturesUrl());
+  },
+
   fetchUser(username: string) {
     return api.get(cfg.getUserWithUsernameUrl(username)).then(makeUser);
   },
@@ -68,8 +72,8 @@ const service = {
     return api.delete(cfg.getUserWithUsernameUrl(name));
   },
 
-  applyUserTraits() {
-    return session.renewSession({ reloadUser: true });
+  async reloadUser(signal?: AbortSignal) {
+    await session.renewSession({ reloadUser: true }, signal);
   },
 
   checkUserHasAccessToRegisteredResource(): Promise<boolean> {
