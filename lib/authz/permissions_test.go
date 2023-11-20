@@ -317,7 +317,8 @@ func TestAuthorizer_Authorize_deviceTrust(t *testing.T) {
 	tests := []struct {
 		name                 string
 		deviceMode           string
-		disableDeviceAuthz   bool
+		disableDeviceAuthz   bool                    // aka AuthorizerOpts.DisableDeviceAuthorization
+		deviceAuthz          DeviceAuthorizationOpts // aka AuthorizerOpts.DeviceAuthorization
 		user                 IdentityGetter
 		wantErr              string
 		wantCtxAuthnDisabled bool // defaults to disableDeviceAuthz
@@ -338,6 +339,23 @@ func TestAuthorizer_Authorize_deviceTrust(t *testing.T) {
 			deviceMode:         constants.DeviceTrustModeRequired,
 			disableDeviceAuthz: true,
 			user:               userWithoutExtensions,
+		},
+		{
+			name:       "global mode disabled only",
+			deviceMode: constants.DeviceTrustModeRequired,
+			deviceAuthz: DeviceAuthorizationOpts{
+				DisableGlobalMode: true,
+			},
+			user: userWithoutExtensions,
+		},
+		{
+			name:       "global and role modes disabled",
+			deviceMode: constants.DeviceTrustModeRequired,
+			deviceAuthz: DeviceAuthorizationOpts{
+				DisableGlobalMode: true,
+				DisableRoleMode:   true,
+			},
+			user: userWithoutExtensions,
 		},
 		{
 			name:       "user with extensions and mode=required",
@@ -394,6 +412,7 @@ func TestAuthorizer_Authorize_deviceTrust(t *testing.T) {
 				AccessPoint:                client,
 				LockWatcher:                watcher,
 				DisableDeviceAuthorization: test.disableDeviceAuthz,
+				DeviceAuthorization:        test.deviceAuthz,
 			})
 			require.NoError(t, err, "NewAuthorizer failed")
 
@@ -411,10 +430,10 @@ func TestAuthorizer_Authorize_deviceTrust(t *testing.T) {
 			}
 
 			// Verify that the auth.Context has the correct disableDeviceAuthorization
-			// value.
-			wantDisabled := test.disableDeviceAuthz || test.wantCtxAuthnDisabled
+			// value, based on either the global toggle or role mode.
+			wantDisabled := test.disableDeviceAuthz || test.deviceAuthz.DisableRoleMode || test.wantCtxAuthnDisabled
 			assert.Equal(
-				t, wantDisabled, authCtx.disableDeviceAuthorization,
+				t, wantDisabled, authCtx.disableDeviceRoleMode,
 				"auth.Context.disableDeviceAuthorization not inherited from Authorizer")
 		})
 	}
@@ -699,7 +718,7 @@ func TestContext_GetAccessState(t *testing.T) {
 				localUser := ctx.Identity.(LocalUser)
 				localUser.Identity.DeviceExtensions = deviceExt
 				ctx.Identity = localUser
-				ctx.disableDeviceAuthorization = true
+				ctx.disableDeviceRoleMode = true
 				return &ctx
 			},
 			want: services.AccessState{

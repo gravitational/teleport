@@ -3097,6 +3097,7 @@ type AccessState struct {
 	// EnableDeviceVerification enables device verification in access checks.
 	// It's recommended to set this in tandem with DeviceVerified, so device
 	// checks are easier to reason about and have a proper chance of succeeding.
+	// Used for role-based device mode checks.
 	// Defaults to false for backwards compatibility.
 	EnableDeviceVerification bool
 	// DeviceVerified is true if the user certificate contains all required

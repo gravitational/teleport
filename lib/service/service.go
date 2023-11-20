@@ -5290,8 +5290,11 @@ func (process *TeleportProcess) initApps() {
 			AccessPoint: accessPoint,
 			LockWatcher: lockWatcher,
 			Logger:      log,
-			// Device authorization breaks browser-based access.
-			DisableDeviceAuthorization: true,
+			DeviceAuthorization: authz.DeviceAuthorizationOpts{
+				// Ignore the global device_trust.mode toggle, but allow role-based
+				// settings to be applied.
+				DisableGlobalMode: true,
+			},
 		})
 		if err != nil {
 			return trace.Wrap(err)
