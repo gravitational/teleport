@@ -2882,8 +2882,10 @@ func formatUsersForDB(database types.Database, accessChecker services.AccessChec
 
 	// Add a note for auto-provisioned user.
 	if database.SupportsAutoUsers() && database.GetAdminUser().Name != "" {
-		autoUser, _, _ := accessChecker.CheckDatabaseRoles(database)
-		if autoUser.IsEnabled() {
+		autoUser, _, err := accessChecker.CheckDatabaseRoles(database)
+		if err != nil {
+			log.Warnf("Failed to CheckDatabaseRoles for database %v: %v.", database.GetName(), err)
+		} else if autoUser.IsEnabled() {
 			defer func() {
 				users = users + " (Auto-provisioned)"
 			}()
