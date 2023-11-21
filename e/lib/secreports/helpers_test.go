@@ -65,8 +65,10 @@ func (m *mockSemaphore) CancelSemaphoreLease(ctx context.Context, lease types.Se
 	return nil
 }
 
+type runQueryFuncType func(ctx context.Context, queryText string, days int) (*query.RunQueryResponse, error)
+
 type athenaMock struct {
-	runQueryFunc   func(ctx context.Context, queryText string, days int) (*query.RunQueryResponse, error)
+	runQueryFunc   runQueryFuncType
 	getQueryResult func(ctx context.Context, queryID, nextToken string, maxResults int32) (*query.GetQueryResultResponse, error)
 }
 

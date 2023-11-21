@@ -112,21 +112,10 @@ func TestService(t *testing.T) {
 
 	t.Run("run security report with error", func(t *testing.T) {
 		clock.Advance(time.Hour)
-		var runQueryCount atomic.Int64
-		mockAthena.runQueryFunc = func(ctx context.Context, queryText string, days int) (*query.RunQueryResponse, error) {
-			runQueryCount.Add(1)
+		queryFunc := func(ctx context.Context, queryText string, days int) (*query.RunQueryResponse, error) {
 			return nil, trace.BadParameter("failed to run query")
 		}
-		_, err := svc.RunReport(ctx, &pb.RunReportRequest{
-			Name: reports.PrivilegeAccessReport.Name,
-			Days: 7,
-		})
-		require.NoError(t, err)
-
-		// Ensure that all reports queries were executed.
-		require.EventuallyWithT(t, func(t *assert.CollectT) {
-			assert.Len(t, reports.PrivilegeAccessReport.Queries, int(runQueryCount.Load()))
-		}, time.Second*3, time.Millisecond*100)
+		mustRunReportAndWaitForAllQueries(t, mockAthena, &svc, queryFunc)
 
 		require.EventuallyWithT(t, func(t *assert.CollectT) {
 			statusResp, err := svc.GetReportState(ctx, &pb.GetReportStateRequest{
@@ -140,17 +129,12 @@ func TestService(t *testing.T) {
 
 	t.Run("run report in sequence", func(t *testing.T) {
 		clock.Advance(time.Hour)
-
-		mockAthena.runQueryFunc = func(ctx context.Context, queryText string, days int) (*query.RunQueryResponse, error) {
+		queryFunc := func(ctx context.Context, queryText string, days int) (*query.RunQueryResponse, error) {
 			return &query.RunQueryResponse{
 				ResultID: "1234",
 			}, nil
 		}
-		_, err = svc.RunReport(ctx, &pb.RunReportRequest{
-			Name: reports.PrivilegeAccessReport.Name,
-			Days: 7,
-		})
-		require.NoError(t, err)
+		mustRunReportAndWaitForAllQueries(t, mockAthena, &svc, queryFunc)
 
 		timeFirstRun := clock.Now().UTC().Format(time.RFC3339)
 		require.EventuallyWithT(t, func(t *assert.CollectT) {
@@ -447,6 +431,28 @@ func newSuite(t *testing.T) *suite {
 		clock:             clock,
 		costLimiterStore:  store,
 	}
+}
+
+func mustRunReportAndWaitForAllQueries(t *testing.T, mockAthena *athenaMock, svc *Service, queryFn runQueryFuncType) {
+	t.Helper()
+	ctx := context.Background()
+	var runQueryCount atomic.Int64
+
+	mockAthena.runQueryFunc = func(ctx context.Context, queryText string, days int) (*query.RunQueryResponse, error) {
+		defer runQueryCount.Add(1)
+		return queryFn(ctx, queryText, days)
+
+	}
+	_, err := svc.RunReport(ctx, &pb.RunReportRequest{
+		Name: reports.PrivilegeAccessReport.Name,
+		Days: 7,
+	})
+	require.NoError(t, err)
+
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		assert.Len(t, reports.PrivilegeAccessReport.Queries, int(runQueryCount.Load()))
+	}, time.Second*3, time.Millisecond*100)
+
 }
 
 func mustUpsertReport(t *testing.T, store services.SecReports) {
