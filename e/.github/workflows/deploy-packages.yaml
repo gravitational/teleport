@@ -129,7 +129,7 @@ jobs:
     steps:
       - name: Disallow prerelease artifacts from being deployed to production repos
         if: inputs.environment == 'production' || inputs.environment == 'promote'
-        uses: actions/github-script@v6
+        uses: actions/github-script@v7
         with: 
           script: |
             if ("${{ inputs.artifact-tag }}".indexOf("-") > -1)
