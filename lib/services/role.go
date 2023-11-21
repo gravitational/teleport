@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
+	dtauthz "github.com/gravitational/teleport/lib/devicetrust/authz"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
@@ -85,9 +86,8 @@ var DefaultCertAuthorityRules = []types.Rule{
 
 // ErrTrustedDeviceRequired is returned by AccessChecker when access to a
 // resource requires a trusted device.
-var ErrTrustedDeviceRequired = &trace.AccessDeniedError{
-	Message: "access to resource requires a trusted device",
-}
+// It's an alias to [dtauthz.ErrTrustedDeviceRequired].
+var ErrTrustedDeviceRequired = dtauthz.ErrTrustedDeviceRequired
 
 // ErrSessionMFARequired is returned by AccessChecker when access to a resource
 // requires an MFA check.

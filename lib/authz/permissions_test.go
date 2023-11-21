@@ -332,7 +332,7 @@ func TestAuthorizer_Authorize_deviceTrust(t *testing.T) {
 			name:       "nok: user without extensions and mode=required",
 			deviceMode: constants.DeviceTrustModeRequired,
 			user:       userWithoutExtensions,
-			wantErr:    "unauthorized device",
+			wantErr:    "trusted device",
 		},
 		{
 			name:               "device authorization disabled",
