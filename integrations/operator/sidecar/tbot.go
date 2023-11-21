@@ -187,10 +187,6 @@ type clientCredentials struct {
 	id *identity.Identity
 }
 
-func (c clientCredentials) Dialer(client.Config) (client.ContextDialer, error) {
-	return nil, trace.NotImplemented("no dialer")
-}
-
 func (c clientCredentials) TLSConfig() (*tls.Config, error) {
 	return c.id.TLSConfig(utils.DefaultCipherSuites())
 }

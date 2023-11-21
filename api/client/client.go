@@ -272,19 +272,6 @@ func connect(ctx context.Context, cfg Config) (*Client, error) {
 				})
 			}
 
-			// Connect with dialer provided in creds.
-			if dialer, err := creds.Dialer(cfg); err != nil {
-				if !trace.IsNotImplemented(err) {
-					sendError(trace.Wrap(err, "failed to retrieve dialer from creds of type %T", creds))
-				}
-			} else {
-				syncConnect(ctx, dialerConnect, connectParams{
-					cfg:       cfg,
-					tlsConfig: tlsConfig,
-					dialer:    dialer,
-				})
-			}
-
 			// Attempt to connect to each address as Auth, Proxy, Tunnel and TLS Routing.
 			for _, addr := range cfg.Addrs {
 				syncConnect(ctx, authConnect, connectParams{
@@ -393,7 +380,15 @@ func proxyConnect(ctx context.Context, params connectParams) (*Client, error) {
 	if params.sshConfig == nil {
 		return nil, trace.BadParameter("must provide ssh client config")
 	}
-	dialer := NewProxyDialer(*params.sshConfig, params.cfg.KeepAlivePeriod, params.cfg.DialTimeout, params.addr, params.cfg.InsecureAddressDiscovery, WithInsecureSkipVerify(params.cfg.InsecureAddressDiscovery))
+
+	dialer := NewProxyDialer(
+		*params.sshConfig,
+		params.cfg.KeepAlivePeriod,
+		params.cfg.DialTimeout,
+		params.addr,
+		params.cfg.InsecureAddressDiscovery,
+		WithInsecureSkipVerify(params.cfg.InsecureAddressDiscovery),
+	)
 	clt := newClient(params.cfg, dialer, params.tlsConfig)
 	if err := clt.dialGRPC(ctx, params.addr); err != nil {
 		return nil, trace.Wrap(err, "failed to connect to addr %v as a web proxy", params.addr)
