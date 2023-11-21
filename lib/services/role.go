@@ -85,15 +85,21 @@ var DefaultCertAuthorityRules = []types.Rule{
 
 // ErrTrustedDeviceRequired is returned by AccessChecker when access to a
 // resource requires a trusted device.
-var ErrTrustedDeviceRequired = trace.AccessDenied("access to resource requires a trusted device")
+var ErrTrustedDeviceRequired = &trace.AccessDeniedError{
+	Message: "access to resource requires a trusted device",
+}
 
 // ErrSessionMFARequired is returned by AccessChecker when access to a resource
 // requires an MFA check.
-var ErrSessionMFARequired = trace.AccessDenied("access to resource requires MFA")
+var ErrSessionMFARequired = &trace.AccessDeniedError{
+	Message: "access to resource requires MFA",
+}
 
 // ErrSessionMFANotRequired indicates that per session mfa will not grant
 // access to a resource.
-var ErrSessionMFANotRequired = trace.AccessDenied("MFA is not required to access resource")
+var ErrSessionMFANotRequired = &trace.AccessDeniedError{
+	Message: "MFA is not required to access resource",
+}
 
 // RoleNameForUser returns role name associated with a user.
 func RoleNameForUser(name string) string {
