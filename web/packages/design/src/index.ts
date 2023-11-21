@@ -45,6 +45,7 @@ import Menu, { MenuItem, MenuItemIcon } from './Menu';
 import { Pill } from './Pill';
 import Popover from './Popover';
 import { TextArea } from './TextArea';
+import { Toggle } from './Toggle';
 
 export { AnimatedProgressBar } from './AnimatedProgressBar';
 export {
@@ -82,5 +83,6 @@ export {
   MenuItem,
   MenuItemIcon,
   TextArea,
+  Toggle,
 };
 export type { TextAreaProps } from './TextArea';

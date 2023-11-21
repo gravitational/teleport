@@ -20,7 +20,11 @@ import styled from 'styled-components';
 import { Text, Popover } from 'design';
 import * as Icons from 'design/Icon';
 
-export const ToolTipInfo: React.FC = ({ children }) => {
+export const ToolTipInfo: React.FC<{
+  trigger?: 'click' | 'hover';
+  sticky?: boolean;
+  maxWidth?: number;
+}> = ({ children, trigger = 'hover', sticky = false, maxWidth = 350 }) => {
   const [anchorEl, setAnchorEl] = useState();
   const open = Boolean(anchorEl);
 
@@ -32,12 +36,26 @@ export const ToolTipInfo: React.FC = ({ children }) => {
     setAnchorEl(null);
   }
 
+  const triggerOnHoverProps = {
+    onMouseEnter: handlePopoverOpen,
+    onMouseLeave: sticky ? undefined : handlePopoverClose,
+  };
+  const triggerOnClickProps = {
+    onClick: handlePopoverOpen,
+  };
+
+  const triggerProps = {
+    ...(trigger === 'hover' && triggerOnHoverProps),
+    ...(trigger === 'click' && triggerOnClickProps),
+  };
+
   return (
     <>
       <span
         aria-owns={open ? 'mouse-over-popover' : undefined}
-        onMouseEnter={handlePopoverOpen}
-        onMouseLeave={handlePopoverClose}
+        onMouseEnter={triggerProps.onMouseEnter}
+        onMouseLeave={triggerProps.onMouseLeave}
+        onClick={triggerProps.onClick}
         css={`
           :hover {
             cursor: pointer;
@@ -50,7 +68,9 @@ export const ToolTipInfo: React.FC = ({ children }) => {
         <Icons.Info fontSize={4} />
       </span>
       <Popover
-        modalCss={modalCss}
+        modalCss={() =>
+          trigger === 'hover' && `pointer-events: ${sticky ? 'auto' : 'none'}`
+        }
         onClose={handlePopoverClose}
         open={open}
         anchorEl={anchorEl}
@@ -63,7 +83,7 @@ export const ToolTipInfo: React.FC = ({ children }) => {
           horizontal: 'left',
         }}
       >
-        <StyledOnHover px={3} py={2}>
+        <StyledOnHover px={3} py={2} $maxWidth={maxWidth}>
           {children}
         </StyledOnHover>
       </Popover>
@@ -71,12 +91,8 @@ export const ToolTipInfo: React.FC = ({ children }) => {
   );
 };
 
-const modalCss = () => `
-  pointer-events: none;
-`;
-
 const StyledOnHover = styled(Text)`
   background-color: white;
   color: black;
-  max-width: 350px;
+  max-width: ${p => p.$maxWidth}px;
 `;

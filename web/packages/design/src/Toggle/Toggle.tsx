@@ -17,14 +17,21 @@ limitations under the License.
 import React, { ReactNode } from 'react';
 import styled from 'styled-components';
 
-export default function Toggle({
+export function Toggle({
   isToggled,
   onToggle,
   children,
   disabled,
-}: Props) {
+  className,
+}: {
+  isToggled: boolean;
+  onToggle: () => void;
+  children?: ReactNode;
+  disabled?: boolean;
+  className?: string;
+}) {
   return (
-    <StyledWrapper disabled={disabled}>
+    <StyledWrapper disabled={disabled} className={className}>
       <StyledInput
         checked={isToggled}
         onChange={onToggle}
@@ -35,13 +42,6 @@ export default function Toggle({
     </StyledWrapper>
   );
 }
-
-type Props = {
-  isToggled: boolean;
-  onToggle: () => void;
-  children?: ReactNode;
-  disabled?: boolean;
-};
 
 const StyledWrapper = styled.label`
   position: relative;
