@@ -329,8 +329,9 @@ larger clusters, so it may take several minutes for the new labels to appear.
    ```
 
 Resource-based labels are stored in memory on servers, so if a server restarts it may temporarily lose
-its resource-based labels until the Auth Service applies them again. To update resource-based labels,
-recreate the `server_info` resource with updated labels.
+its resource-based labels until the Auth Service applies them again. Because of this, it is not safe to
+use resource-based labels in an RBAC deny rule. To update resource-based labels, recreate the
+`server_info` resource with updated labels.
 
 ## Next steps
 
