@@ -206,6 +206,8 @@ type Modules interface {
 	EnablePlugins()
 	// EnableAccessGraph enables the usage of access graph.
 	EnableAccessGraph()
+	// EnableAccessMonitoring enables the usage of access monitoring.
+	EnableAccessMonitoring()
 }
 
 const (
@@ -319,6 +321,10 @@ func (p *defaultModules) EnablePlugins() {
 // EnableAccessGraph enables the usage of access graph.
 // This is a noop since OSS teleport does not support access graph.
 func (p *defaultModules) EnableAccessGraph() {}
+
+// EnableAccessMonitoring enables the usage of access monitoring.
+// This is a noop since OSS teleport does not support access monitoring.
+func (p *defaultModules) EnableAccessMonitoring() {}
 
 var (
 	mutex   sync.Mutex
