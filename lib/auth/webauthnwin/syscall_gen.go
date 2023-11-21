@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//go:generate go run golang.org/x/sys/windows/mkwinsyscall -output syscall_windows.go syscall_gen.go
+//go:generate go run golang.org/x/sys/windows/mkwinsyscall -output zsyscall_windows.go syscall_gen.go
 
 // See https://learn.microsoft.com/en-us/windows/win32/api/webauthn/.
 
