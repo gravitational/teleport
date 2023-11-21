@@ -4142,14 +4142,14 @@ func checkRoleFeatureSupport(role types.Role) error {
 	case !features.AccessControls && options.MaxSessions > 0:
 		return trace.AccessDenied(
 			"role option max_sessions is only available in enterprise subscriptions")
-	case !features.AdvancedAccessWorkflows &&
+	case !features.AccessRequests.Enabled &&
 		(options.RequestAccess == types.RequestStrategyReason || options.RequestAccess == types.RequestStrategyAlways):
 		return trace.AccessDenied(
 			"role option request_access: %v is only available in enterprise subscriptions", options.RequestAccess)
-	case !features.AdvancedAccessWorkflows && len(allowReq.Thresholds) != 0:
+	case !features.AccessRequests.Enabled && len(allowReq.Thresholds) != 0:
 		return trace.AccessDenied(
 			"role field allow.request.thresholds is only available in enterprise subscriptions")
-	case !features.AdvancedAccessWorkflows && !allowRev.IsZero():
+	case !features.AccessRequests.Enabled && !allowRev.IsZero():
 		return trace.AccessDenied(
 			"role field allow.review_requests is only available in enterprise subscriptions")
 	case modules.GetModules().BuildType() != modules.BuildEnterprise && len(allowReq.SearchAsRoles) != 0:
