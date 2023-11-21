@@ -23,4 +23,7 @@ const (
 
 	// ComponentPluginManager is a plugin manager component.
 	ComponentPluginManager = "pluginmanager"
+
+	// ComponentUserMonitor is a user monitor component.
+	ComponentUserMonitor = "usermonitor"
 )

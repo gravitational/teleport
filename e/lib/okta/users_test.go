@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/types/userloginstate"
@@ -98,8 +99,82 @@ func TestUserAssignmentCreator(t *testing.T) {
 	_, err = ap.UpsertApplicationServer(ctx, app1)
 	require.NoError(t, err)
 
+	// Should get an assignment that has one action for the app.
+	require.NoError(t, uac.OnLogin(ctx, user))
+
+	assignments, _, err = ap.ListOktaAssignments(ctx, 0, "")
+	require.NoError(t, err)
+
+	expectedName, err := uacAssignmentName(uac.hash, testUser, []string{}, []string{app1.GetName()})
+	require.NoError(t, err)
+
+	var allAssignments []types.OktaAssignment
+	expectedAssignmentAppOnly, err := types.NewOktaAssignment(types.Metadata{
+		Name: expectedName,
+		Labels: map[string]string{
+			teleport.OktaAssignmentSourceLabel: userAssignmentCreatorSource,
+		},
+	}, types.OktaAssignmentSpecV1{
+		User: testUser,
+		Targets: []*types.OktaAssignmentTargetV1{
+			{
+				Type: types.OktaAssignmentTargetV1_APPLICATION,
+				Id:   app1.GetName(),
+			},
+		},
+		Status:         types.OktaAssignmentSpecV1_PENDING,
+		LastTransition: clock.Now(),
+	})
+	require.NoError(t, err)
+
+	allAssignments = append(allAssignments, expectedAssignmentAppOnly)
+
+	// Revision will be autofilled with a placeholder value when empty, so we should ignore it here.
+	cmpoptsIgnoreRevision := append(cmp.Options{}, cmpopts.IgnoreFields(types.OktaAssignmentV1{}, "ResourceHeader.Metadata.Revision"),
+		cmpopts.SortSlices(assignmentLess))
+	require.Empty(t, cmp.Diff(allAssignments, assignments, cmpoptsIgnoreRevision))
+
+	require.NoError(t, ap.DeleteApplicationServer(ctx, defaults.Namespace, app1.GetHostID(), app1.GetName()))
+
 	group1 := group(t, "group1", types.OriginOkta, testOrgURL)
 	require.NoError(t, ap.CreateUserGroup(ctx, group1))
+
+	// Should get an assignment that has one action for the group.
+	require.NoError(t, uac.OnLogin(ctx, user))
+
+	assignments, _, err = ap.ListOktaAssignments(ctx, 0, "")
+	require.NoError(t, err)
+
+	expectedName, err = uacAssignmentName(uac.hash, testUser, []string{group1.GetName()}, []string{})
+	require.NoError(t, err)
+
+	expectedAssignmentAppOnly.SetCleanupTime(clock.Now())
+
+	expectedAssignmentGroupOnly, err := types.NewOktaAssignment(types.Metadata{
+		Name: expectedName,
+		Labels: map[string]string{
+			teleport.OktaAssignmentSourceLabel: userAssignmentCreatorSource,
+		},
+	}, types.OktaAssignmentSpecV1{
+		User: testUser,
+		Targets: []*types.OktaAssignmentTargetV1{
+			{
+				Type: types.OktaAssignmentTargetV1_GROUP,
+				Id:   group1.GetName(),
+			},
+		},
+		Status:         types.OktaAssignmentSpecV1_PENDING,
+		LastTransition: clock.Now(),
+	})
+	require.NoError(t, err)
+
+	allAssignments = append(allAssignments, expectedAssignmentGroupOnly)
+
+	require.Empty(t, cmp.Diff(allAssignments, assignments, cmpoptsIgnoreRevision))
+
+	// Re-add application server.
+	_, err = ap.UpsertApplicationServer(ctx, app1)
+	require.NoError(t, err)
 
 	// Should get an assignment that has two actions: one for the app and one for the group.
 	require.NoError(t, uac.OnLogin(ctx, user))
@@ -107,8 +182,10 @@ func TestUserAssignmentCreator(t *testing.T) {
 	assignments, _, err = ap.ListOktaAssignments(ctx, 0, "")
 	require.NoError(t, err)
 
-	expectedName, err := uacAssignmentName(uac.hash, testUser, []string{"group1"}, []string{app1.GetName()})
+	expectedName, err = uacAssignmentName(uac.hash, testUser, []string{group1.GetName()}, []string{app1.GetName()})
 	require.NoError(t, err)
+
+	expectedAssignmentGroupOnly.SetCleanupTime(clock.Now())
 
 	expectedAssignment1, err := types.NewOktaAssignment(types.Metadata{
 		Name: expectedName,
@@ -120,7 +197,7 @@ func TestUserAssignmentCreator(t *testing.T) {
 		Targets: []*types.OktaAssignmentTargetV1{
 			{
 				Type: types.OktaAssignmentTargetV1_GROUP,
-				Id:   "group1",
+				Id:   group1.GetName(),
 			},
 			{
 				Type: types.OktaAssignmentTargetV1_APPLICATION,
@@ -132,9 +209,8 @@ func TestUserAssignmentCreator(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// Revision will be autofilled with a placeholder value when empty, so we should ignore it here.
-	cmpoptsIgnoreRevision := cmpopts.IgnoreFields(types.OktaAssignmentV1{}, "ResourceHeader.Metadata.Revision")
-	require.Empty(t, cmp.Diff([]types.OktaAssignment{expectedAssignment1}, assignments, cmpoptsIgnoreRevision))
+	allAssignments = append(allAssignments, expectedAssignment1)
+	require.Empty(t, cmp.Diff(allAssignments, assignments, cmpoptsIgnoreRevision))
 
 	// We'll add a new app, which should cause a new assignment to be generated and the
 	// old one to be marked as needing cleanup.
@@ -147,7 +223,7 @@ func TestUserAssignmentCreator(t *testing.T) {
 	assignments, _, err = ap.ListOktaAssignments(ctx, 0, "")
 	require.NoError(t, err)
 
-	expectedName, err = uacAssignmentName(uac.hash, testUser, []string{"group1"}, []string{app1.GetName(), app2.GetName()})
+	expectedName, err = uacAssignmentName(uac.hash, testUser, []string{group1.GetName()}, []string{app1.GetName(), app2.GetName()})
 	require.NoError(t, err)
 
 	// Old assignment should be marked as needing cleanup.
@@ -163,7 +239,7 @@ func TestUserAssignmentCreator(t *testing.T) {
 		Targets: []*types.OktaAssignmentTargetV1{
 			{
 				Type: types.OktaAssignmentTargetV1_GROUP,
-				Id:   "group1",
+				Id:   group1.GetName(),
 			},
 			{
 				Type: types.OktaAssignmentTargetV1_APPLICATION,
@@ -179,8 +255,9 @@ func TestUserAssignmentCreator(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	require.Empty(t, cmp.Diff([]types.OktaAssignment{expectedAssignment1, expectedAssignment2}, assignments,
-		cmpopts.SortSlices(assignmentLess), cmpoptsIgnoreRevision))
+	allAssignments = append(allAssignments, expectedAssignment2)
+
+	require.Empty(t, cmp.Diff(allAssignments, assignments, cmpoptsIgnoreRevision))
 
 	// We'll add in a group and make sure that triggers a second cleanup and another new assignment.
 	group2 := group(t, "group2", types.OriginOkta, testOrgURL)
@@ -191,7 +268,7 @@ func TestUserAssignmentCreator(t *testing.T) {
 	assignments, _, err = ap.ListOktaAssignments(ctx, 0, "")
 	require.NoError(t, err)
 
-	expectedName, err = uacAssignmentName(uac.hash, testUser, []string{"group1", "group2"}, []string{app1.GetName(), app2.GetName()})
+	expectedName, err = uacAssignmentName(uac.hash, testUser, []string{group1.GetName(), "group2"}, []string{app1.GetName(), app2.GetName()})
 	require.NoError(t, err)
 
 	// Old assignment should be given a cleanup time.
@@ -207,7 +284,7 @@ func TestUserAssignmentCreator(t *testing.T) {
 		Targets: []*types.OktaAssignmentTargetV1{
 			{
 				Type: types.OktaAssignmentTargetV1_GROUP,
-				Id:   "group1",
+				Id:   group1.GetName(),
 			},
 			{
 				Type: types.OktaAssignmentTargetV1_GROUP,
@@ -227,8 +304,9 @@ func TestUserAssignmentCreator(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	require.Empty(t, cmp.Diff([]types.OktaAssignment{expectedAssignment1, expectedAssignment2, expectedAssignment3}, assignments,
-		cmpopts.SortSlices(assignmentLess), cmpoptsIgnoreRevision))
+	allAssignments = append(allAssignments, expectedAssignment3)
+
+	require.Empty(t, cmp.Diff(allAssignments, assignments, cmpoptsIgnoreRevision))
 
 	// We'll delete the old group and ensure that the old assignment is restored.
 	require.NoError(t, ap.DeleteUserGroup(ctx, group2.GetName()))
@@ -242,8 +320,7 @@ func TestUserAssignmentCreator(t *testing.T) {
 	expectedAssignment2.SetCleanupTime(time.Time{})
 	expectedAssignment3.SetCleanupTime(clock.Now())
 
-	require.Empty(t, cmp.Diff([]types.OktaAssignment{expectedAssignment1, expectedAssignment2, expectedAssignment3}, assignments,
-		cmpopts.SortSlices(assignmentLess), cmpoptsIgnoreRevision))
+	require.Empty(t, cmp.Diff(allAssignments, assignments, cmpoptsIgnoreRevision))
 
 	// Create an empty user state, which should cause a cleanup of all assignmentssince it has no permissions.
 	ap.userState, err = userloginstate.New(header.Metadata{
@@ -260,8 +337,7 @@ func TestUserAssignmentCreator(t *testing.T) {
 	expectedAssignment1.SetCleanupTime(clock.Now())
 	expectedAssignment2.SetCleanupTime(clock.Now())
 
-	require.Empty(t, cmp.Diff([]types.OktaAssignment{expectedAssignment1, expectedAssignment2, expectedAssignment3}, assignments,
-		cmpopts.SortSlices(assignmentLess), cmpoptsIgnoreRevision))
+	require.Empty(t, cmp.Diff(allAssignments, assignments, cmpoptsIgnoreRevision))
 }
 
 func TestAssignmentDiff(t *testing.T) {

@@ -1,0 +1,406 @@
+// Copyright 2023 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package auth
+
+import (
+	"context"
+	"slices"
+	"time"
+
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/accesslist"
+	"github.com/gravitational/teleport/api/types/userloginstate"
+	"github.com/gravitational/teleport/api/utils/retryutils"
+	eteleport "github.com/gravitational/teleport/e/lib/teleport"
+	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/utils/interval"
+)
+
+const (
+	userMonitorRetryPeriod = 5 * time.Second
+
+	// userMonitorReconcile is when to reconcile all user login states in Teleport.
+	userMonitorReconcile = 10 * time.Minute
+)
+
+// UserMonitorConfig is the configuration for the user monitor.
+type UserMonitorConfig struct {
+	// Log is the logger for the user monitor.
+	Log *logrus.Entry
+
+	// Clock is the click used for the user monitor.
+	Clock clockwork.Clock
+
+	// AuthServer is the parent auth server for the user monitor.
+	AuthServer *auth.Server
+
+	// Events is the event monitor. This will allow us to monitor for access list membership
+	// and user definition changes.
+	Events types.Events
+}
+
+func (u *UserMonitorConfig) CheckAndSetDefaults() error {
+	if u.Log == nil {
+		u.Log = logrus.WithField(trace.Component, eteleport.ComponentUserMonitor)
+	}
+
+	if u.Clock == nil {
+		u.Clock = clockwork.NewRealClock()
+	}
+
+	if u.AuthServer == nil {
+		return trace.BadParameter("auth server is missing")
+	}
+
+	if u.Events == nil {
+		return trace.BadParameter("events is missing")
+	}
+
+	return nil
+}
+
+// UserMonitor is a service that must run on the auth service that monitors for
+// user changes:
+// - User changes
+// - Role changes
+// - Access list changes
+// - Access list membership changes.
+// The user login hooks attached to the auth service will be re-run, which will allow
+// for dynamic changing of things like Okta assignments. This monitor must be run on
+// the auth server.
+type UserMonitor struct {
+	log        *logrus.Entry
+	clock      clockwork.Clock
+	authServer *auth.Server
+	events     types.Events
+}
+
+func NewUserMonitor(ctx context.Context, cfg UserMonitorConfig) (*UserMonitor, error) {
+	if err := cfg.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	u := &UserMonitor{
+		log:        cfg.Log,
+		clock:      cfg.Clock,
+		authServer: cfg.AuthServer,
+		events:     cfg.Events,
+	}
+
+	return u, nil
+}
+
+// Start will start the user monitor.
+func (u *UserMonitor) Start(ctx context.Context) {
+	go u.reconciler(ctx)
+	go u.runWatcher(ctx)
+}
+
+// reconciler will periodically reconcile user states.
+func (u *UserMonitor) reconciler(ctx context.Context) {
+	interval := interval.New(interval.Config{
+		Duration: userMonitorReconcile,
+		Clock:    u.clock,
+		Jitter:   retryutils.NewSeventhJitter(),
+	})
+
+	for {
+		u.log.Info("Reconciling users.")
+
+		if err := u.reconcile(ctx); err != nil {
+			u.log.WithError(err).Error("Error during reconciliation")
+		}
+
+		select {
+		case <-interval.Next():
+		case <-ctx.Done():
+			return
+		}
+	}
+}
+
+func (u *UserMonitor) reconcile(ctx context.Context) error {
+	users, err := u.authServer.GetUsers(ctx, false)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	maxUsers := len(users)
+
+	states, err := u.authServer.UserLoginStates.GetUserLoginStates(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	numStates := len(states)
+	if numStates > maxUsers {
+		maxUsers = numStates
+	}
+
+	// We'll assume that the maximum length between get users and get user login states
+	// is the maximum number of users we'll see.
+	usersToProcess := make(map[string]types.User, maxUsers)
+	for _, user := range users {
+		usersToProcess[user.GetName()] = user
+	}
+
+	// For each state, see if there's already a user present. If so, skip it. Otherwise, attempt
+	// to rebuild the user state.
+	for _, uls := range states {
+		if _, ok := usersToProcess[uls.GetName()]; ok {
+			continue
+		}
+
+		usersToProcess[uls.GetName()], err = rebuildUserFromUserLoginState(uls)
+		if err != nil {
+			u.log.WithError(err).Warnf("Unable to rebuild user %s", uls.GetName())
+		}
+	}
+
+	var processErrs []error
+	for _, user := range usersToProcess {
+		if err := u.processUserChange(ctx, user); err != nil {
+			processErrs = append(processErrs, err)
+		}
+	}
+
+	return trace.NewAggregate(processErrs...)
+}
+
+// runWatcher will watch events and retry on failure until the context is canceled.
+func (u *UserMonitor) runWatcher(ctx context.Context) {
+	for {
+		err := u.watchEvents(ctx)
+		if ctx.Err() != nil {
+			return
+		}
+
+		log.Warnf("Watcher closed: %v (retry in %s)", err, userMonitorRetryPeriod)
+
+		select {
+		case <-u.clock.After(userMonitorRetryPeriod):
+		case <-ctx.Done():
+			return
+		}
+	}
+}
+
+// newWatcher will create a new watcher.
+func (u *UserMonitor) newWatcher(ctx context.Context) (types.Watcher, error) {
+	watcher, err := u.events.NewWatcher(ctx, types.Watch{
+		Kinds: []types.WatchKind{
+			{Kind: types.KindUser},
+			{Kind: types.KindRole},
+			{Kind: types.KindAccessListMember},
+			{Kind: types.KindAccessList},
+		},
+	})
+	return watcher, trace.Wrap(err)
+}
+
+// watchEvents will watch events from a newly created watcher.
+func (u *UserMonitor) watchEvents(ctx context.Context) error {
+	watcher, err := u.newWatcher(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// We don't worry about the init event here, as we won't process it.
+	select {
+	case event := <-watcher.Events():
+		if event.Type != types.OpInit {
+			return trace.BadParameter("expected init operation on start, got %s", event.Type.String())
+		}
+	case <-watcher.Done():
+		return watcher.Error()
+	}
+
+	for {
+		select {
+		case event := <-watcher.Events():
+			if err := u.processResource(ctx, event.Resource, event.Type); err != nil {
+				u.log.WithError(err).Error("Error while processing events")
+			}
+		case <-watcher.Done():
+			return watcher.Error()
+		}
+	}
+}
+
+func (u *UserMonitor) processResource(ctx context.Context, resource types.Resource, op types.OpType) error {
+	if resource == nil {
+		return trace.BadParameter("resource is empty")
+	}
+
+	if op != types.OpDelete && op != types.OpPut {
+		return trace.BadParameter("only modification operations are supported")
+	}
+
+	switch resource.GetKind() {
+	case types.KindUser:
+		if op == types.OpPut {
+			user, ok := resource.(types.User)
+			if !ok {
+				return trace.BadParameter("got resource %T, expected User", resource)
+			}
+			return trace.Wrap(u.processUserChange(ctx, user))
+		} else {
+			return trace.Wrap(u.rebuildAndProcessUser(ctx, resource.GetName()))
+		}
+	case types.KindRole:
+		return trace.Wrap(u.processRoleChange(ctx, resource.GetName()))
+	case types.KindAccessListMember:
+		return trace.Wrap(u.rebuildAndProcessUser(ctx, resource.GetName()))
+	case types.KindAccessList:
+		// Delete isn't needed because the individual removals of the access list members will be handled by the monitor
+		// individually.
+		if op == types.OpDelete {
+			return nil
+		}
+
+		accessList, ok := resource.(*accesslist.AccessList)
+		if !ok {
+			return trace.BadParameter("got resource %T, expected AccessList", resource)
+		}
+
+		return trace.Wrap(u.processAccessListChange(ctx, accessList))
+	}
+
+	return nil
+}
+
+// processUserChange will re-process a user by re-calling the login hooks for the user.
+func (u *UserMonitor) processUserChange(ctx context.Context, user types.User) error {
+	u.log.Infof("User access has changed for user %s", user.GetName())
+	if err := u.authServer.CallLoginHooks(ctx, user); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// processRoleChange will re-process any users affected by a role change.
+func (u *UserMonitor) processRoleChange(ctx context.Context, roleName string) error {
+	users, err := u.authServer.GetUsers(ctx, false)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Process all users that have this role defined.
+	var allErrs []error
+	for _, user := range users {
+		if slices.Contains(user.GetRoles(), roleName) {
+			if err := u.processUserChange(ctx, user); err != nil {
+				allErrs = append(allErrs, err)
+			}
+		}
+	}
+
+	// Process all access lists which grant the changed role.
+	var nextToken string
+	for {
+		var accessLists []*accesslist.AccessList
+		var err error
+		accessLists, nextToken, err = u.authServer.AccessLists.ListAccessLists(ctx, 0 /* default page size */, nextToken)
+		if err != nil {
+			allErrs = append(allErrs, err)
+			break
+		}
+
+		for _, accessList := range accessLists {
+			if slices.Contains(accessList.Spec.Grants.Roles, roleName) {
+				if err := u.processAccessListChange(ctx, accessList); err != nil {
+					allErrs = append(allErrs, err)
+				}
+			}
+		}
+
+		if nextToken == "" {
+			break
+		}
+	}
+
+	return trace.NewAggregate(allErrs...)
+}
+
+// rebuildAndProcessUser will process a user by rebuilding the user if necessary and processing it.
+func (u *UserMonitor) rebuildAndProcessUser(ctx context.Context, name string) error {
+	uls, err := u.authServer.UserLoginStates.GetUserLoginState(ctx, name)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	user, err := rebuildUserFromUserLoginState(uls)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return trace.Wrap(u.processUserChange(ctx, user))
+}
+
+// rebuildUserFromUserLoginState will attempt to create a user object from the user login state if the user login state
+// represents an SSO user. Otherwise this will return an empty user.
+func rebuildUserFromUserLoginState(uls *userloginstate.UserLoginState) (types.User, error) {
+	if !uls.IsOriginalRolesAndTraitsSet() {
+		return nil, trace.BadParameter("user login state cannot be used, as original roles and traits not set")
+	}
+
+	user, err := types.NewUser(uls.GetName())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if uls.GetUserType() == types.UserTypeSSO {
+		user.SetRoles(uls.GetOriginalRoles())
+		user.SetTraits(uls.GetOriginalTraits())
+
+		// This will ensure that user login state generated from this user will
+		// also be set to type SSO.
+		user.SetCreatedBy(types.CreatedBy{
+			Connector: &types.ConnectorRef{},
+		})
+	}
+
+	return user, nil
+}
+
+// processAccessListChange will process all users affected by a change to an access list.
+func (u *UserMonitor) processAccessListChange(ctx context.Context, accessList *accesslist.AccessList) error {
+	// Iterate through all of the access list members.
+	var nextToken string
+	for {
+		var members []*accesslist.AccessListMember
+		var err error
+		members, nextToken, err = u.authServer.AccessLists.ListAccessListMembers(ctx, accessList.GetName(), 0 /* default page size */, nextToken)
+		if err != nil {
+			return trace.BadParameter("error while getting access list members for access list %s", accessList.GetName())
+		}
+
+		for _, member := range members {
+			if err := u.rebuildAndProcessUser(ctx, member.GetName()); err != nil {
+				return trace.Wrap(err)
+			}
+		}
+
+		if nextToken == "" {
+			break
+		}
+	}
+
+	return nil
+}

@@ -158,7 +158,7 @@ func (u *UserAssignmentCreator) OnLogin(ctx context.Context, user types.User) er
 	var newAssignment types.OktaAssignment
 
 	// Only create an assignment if there are groups and apps to add to it.
-	if len(groups) != 0 && len(apps) != 0 {
+	if len(groups) != 0 || len(apps) != 0 {
 		// The Okta assignment already exists, so skip any further processing.
 		foundAssignment, err := u.accessPoint.GetOktaAssignment(ctx, assignmentName)
 		if err != nil && !trace.IsNotFound(err) {

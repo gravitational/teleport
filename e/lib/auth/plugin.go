@@ -280,6 +280,16 @@ func (p *Plugin) RegisterAuthServices(ctx context.Context, server interface{}) e
 		return trace.Wrap(err)
 	}
 
+	userMonitor, err := NewUserMonitor(ctx, UserMonitorConfig{
+		Log:        log,
+		AuthServer: p.authServer.AuthServer,
+		Events:     p.authServer.AuthServer.Services,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	userMonitor.Start(ctx)
+
 	return nil
 }
 
