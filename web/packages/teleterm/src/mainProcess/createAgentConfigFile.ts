@@ -42,13 +42,7 @@ export async function createAgentConfigFile(
   );
 
   // remove the config file if exists
-  try {
-    await fs.rm(configFile);
-  } catch (e) {
-    if (e.code !== 'ENOENT') {
-      throw e;
-    }
-  }
+  await fs.rm(configFile, { force: true });
 
   const labels = Object.entries({
     [constants.ConnectMyComputerNodeOwnerLabel]: args.username,
