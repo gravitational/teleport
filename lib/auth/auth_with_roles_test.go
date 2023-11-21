@@ -6537,32 +6537,6 @@ func TestSafeToSkipInventoryCheck(t *testing.T) {
 	}
 }
 
-// TestPing_AccessRequestFeature tests setting of both the deprecated field "AdvancedAccessWorkflows"
-// (kept for backwards compat) and the new field "AccessRequests.Enabled" (that replaces the deprecated field)
-// are set to the same bool value when enabling/disabling.
-func TestPing_AccessRequestFeature(t *testing.T) {
-	ctx := context.Background()
-	srv := newTestTLSServer(t)
-
-	ping, err := srv.Auth().Ping(ctx)
-	require.NoError(t, err)
-	require.False(t, ping.ServerFeatures.AccessRequests.Enabled, "expected field AccessRequests.Enabled to be false")
-	require.False(t, ping.ServerFeatures.AdvancedAccessWorkflows, "expected field AdvancedAccessWorkflows to be false")
-
-	modules.SetTestModules(t, &modules.TestModules{
-		TestFeatures: modules.Features{
-			AccessRequests: modules.AccessRequestsFeature{
-				Enabled: true,
-			},
-		},
-	})
-
-	ping, err = srv.Auth().Ping(ctx)
-	require.NoError(t, err)
-	require.True(t, ping.ServerFeatures.AccessRequests.Enabled, "expected field AccessRequests.Enabled to be true")
-	require.True(t, ping.ServerFeatures.AdvancedAccessWorkflows, "expected field AdvancedAccessWorkflows to be true")
-}
-
 func TestCreateAccessRequest(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
