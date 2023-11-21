@@ -20,7 +20,7 @@ import {
   ThemeProvider as StyledThemeProvider,
 } from 'styled-components';
 
-import storage, { KeysEnum } from 'teleport/services/localStorage';
+import { KeysEnum, storageService } from 'teleport/services/storageService';
 
 import { ThemePreference } from 'teleport/services/userPreferences/types';
 import cfg from 'teleport/config';
@@ -35,11 +35,11 @@ function themePreferenceToTheme(themePreference: ThemePreference) {
 
 const ThemeProvider = props => {
   const [themePreference, setThemePreference] = useState<ThemePreference>(
-    storage.getThemePreference()
+    storageService.getThemePreference()
   );
 
   useEffect(() => {
-    storage.subscribe(receiveMessage);
+    storageService.subscribe(receiveMessage);
 
     function receiveMessage(event) {
       const { key, newValue } = event;
@@ -56,7 +56,7 @@ const ThemeProvider = props => {
 
     // Cleanup on unmount
     return function unsubscribe() {
-      storage.unsubscribe(receiveMessage);
+      storageService.unsubscribe(receiveMessage);
     };
   }, [themePreference]);
 

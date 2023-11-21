@@ -188,6 +188,32 @@ func (m *mockSSMInstaller) GetInstalledInstances() []string {
 
 func TestDiscoveryServer(t *testing.T) {
 	t.Parallel()
+
+	defaultDiscoveryGroup := "dc001"
+	defaultStaticMatcher := Matchers{
+		AWS: []types.AWSMatcher{{
+			Types:   []string{"ec2"},
+			Regions: []string{"eu-central-1"},
+			Tags:    map[string]utils.Strings{"teleport": {"yes"}},
+			SSM:     &types.AWSSSM{DocumentName: "document"},
+			Params: &types.InstallerParams{
+				InstallTeleport: true,
+			},
+		}},
+	}
+
+	defaultDiscoveryConfig, err := discoveryconfig.NewDiscoveryConfig(
+		header.Metadata{Name: uuid.NewString()},
+		discoveryconfig.Spec{
+			DiscoveryGroup: defaultDiscoveryGroup,
+			AWS:            defaultStaticMatcher.AWS,
+			Azure:          defaultStaticMatcher.Azure,
+			GCP:            defaultStaticMatcher.GCP,
+			Kube:           defaultStaticMatcher.Kubernetes,
+		},
+	)
+	require.NoError(t, err)
+
 	tcs := []struct {
 		name string
 		// presentInstances is a list of servers already present in teleport
@@ -195,6 +221,8 @@ func TestDiscoveryServer(t *testing.T) {
 		foundEC2Instances      []*ec2.Instance
 		ssm                    *mockSSMClient
 		emitter                *mockEmitter
+		discoveryConfig        *discoveryconfig.DiscoveryConfig
+		staticMatchers         Matchers
 		wantInstalledInstances []string
 	}{
 		{
@@ -240,6 +268,7 @@ func TestDiscoveryServer(t *testing.T) {
 					})
 				},
 			},
+			staticMatchers:         defaultStaticMatcher,
 			wantInstalledInstances: []string{"instance-id-1"},
 		},
 		{
@@ -280,7 +309,8 @@ func TestDiscoveryServer(t *testing.T) {
 					ResponseCode: aws.Int64(0),
 				},
 			},
-			emitter: &mockEmitter{},
+			staticMatchers: defaultStaticMatcher,
+			emitter:        &mockEmitter{},
 		},
 		{
 			name: "nodes present, instance not filtered",
@@ -321,6 +351,7 @@ func TestDiscoveryServer(t *testing.T) {
 				},
 			},
 			emitter:                &mockEmitter{},
+			staticMatchers:         defaultStaticMatcher,
 			wantInstalledInstances: []string{"instance-id-1"},
 		},
 		{
@@ -339,7 +370,55 @@ func TestDiscoveryServer(t *testing.T) {
 				},
 			},
 			emitter:                &mockEmitter{},
+			staticMatchers:         defaultStaticMatcher,
 			wantInstalledInstances: genEC2InstanceIDs(58),
+		},
+		{
+			name:             "no nodes present, 1 found using dynamic matchers",
+			presentInstances: []types.Server{},
+			foundEC2Instances: []*ec2.Instance{
+				{
+					InstanceId: aws.String("instance-id-1"),
+					Tags: []*ec2.Tag{{
+						Key:   aws.String("env"),
+						Value: aws.String("dev"),
+					}},
+					State: &ec2.InstanceState{
+						Name: aws.String(ec2.InstanceStateNameRunning),
+					},
+				},
+			},
+			ssm: &mockSSMClient{
+				commandOutput: &ssm.SendCommandOutput{
+					Command: &ssm.Command{
+						CommandId: aws.String("command-id-1"),
+					},
+				},
+				invokeOutput: &ssm.GetCommandInvocationOutput{
+					Status:       aws.String(ssm.CommandStatusSuccess),
+					ResponseCode: aws.Int64(0),
+				},
+			},
+			emitter: &mockEmitter{
+				eventHandler: func(t *testing.T, ae events.AuditEvent, server *Server) {
+					t.Helper()
+					require.Equal(t, ae, &events.SSMRun{
+						Metadata: events.Metadata{
+							Type: libevents.SSMRunEvent,
+							Code: libevents.SSMRunSuccessCode,
+						},
+						CommandID:  "command-id-1",
+						AccountID:  "owner",
+						InstanceID: "instance-id-1",
+						Region:     "eu-central-1",
+						ExitCode:   0,
+						Status:     ssm.CommandStatusSuccess,
+					})
+				},
+			},
+			staticMatchers:         Matchers{},
+			discoveryConfig:        defaultDiscoveryConfig,
+			wantInstalledInstances: []string{"instance-id-1"},
 		},
 	}
 
@@ -393,30 +472,27 @@ func TestDiscoveryServer(t *testing.T) {
 				CloudClients:     testCloudClients,
 				KubernetesClient: fake.NewSimpleClientset(),
 				AccessPoint:      tlsServer.Auth(),
-				Matchers: Matchers{
-					AWS: []types.AWSMatcher{{
-						Types:   []string{"ec2"},
-						Regions: []string{"eu-central-1"},
-						Tags:    map[string]utils.Strings{"teleport": {"yes"}},
-						SSM:     &types.AWSSSM{DocumentName: "document"},
-						Params: &types.InstallerParams{
-							InstallTeleport: true,
-						},
-					}},
-				},
-				Emitter: tc.emitter,
-				Log:     logger,
+				Matchers:         tc.staticMatchers,
+				Emitter:          tc.emitter,
+				Log:              logger,
+				DiscoveryGroup:   defaultDiscoveryGroup,
 			})
 			require.NoError(t, err)
 			server.ec2Installer = installer
 			tc.emitter.server = server
 			tc.emitter.t = t
 
-			r, w := io.Pipe()
-			t.Cleanup(func() {
-				require.NoError(t, r.Close())
-				require.NoError(t, w.Close())
-			})
+			if tc.discoveryConfig != nil {
+				_, err := tlsServer.Auth().DiscoveryConfigClient().CreateDiscoveryConfig(ctx, tc.discoveryConfig)
+				require.NoError(t, err)
+
+				// Wait for the DiscoveryConfig to be added to the dynamic matchers
+				require.Eventually(t, func() bool {
+					server.muDynamicServerAWSFetchers.RLock()
+					defer server.muDynamicServerAWSFetchers.RUnlock()
+					return len(server.dynamicServerAWSFetchers) > 0
+				}, 1*time.Second, 100*time.Millisecond)
+			}
 
 			go server.Start()
 			t.Cleanup(server.Stop)
@@ -427,7 +503,7 @@ func TestDiscoveryServer(t *testing.T) {
 					instances := installer.GetInstalledInstances()
 					slices.Sort(instances)
 					return slices.Equal(tc.wantInstalledInstances, instances) && len(tc.wantInstalledInstances) == reporter.EventsCount()
-				}, 500*time.Millisecond, 50*time.Millisecond)
+				}, 5000*time.Millisecond, 50*time.Millisecond)
 			} else {
 				require.Never(t, func() bool {
 					return len(installer.GetInstalledInstances()) > 0 || reporter.EventsCount() > 0
@@ -1532,8 +1608,8 @@ func TestDiscoveryDatabase(t *testing.T) {
 
 				// Wait for the DiscoveryConfig to be added to the dynamic matchers
 				require.Eventually(t, func() bool {
-					srv.muDynamicFetchers.RLock()
-					defer srv.muDynamicFetchers.RUnlock()
+					srv.muDynamicDatabaseFetchers.RLock()
+					defer srv.muDynamicDatabaseFetchers.RUnlock()
 					return len(srv.dynamicDatabaseFetchers) > 0
 				}, 1*time.Second, 100*time.Millisecond)
 			}
@@ -1659,8 +1735,8 @@ func TestDiscoveryDatabaseRemovingDiscoveryConfigs(t *testing.T) {
 		_, err = tlsServer.Auth().DiscoveryConfigClient().CreateDiscoveryConfig(ctx, dc1)
 		require.NoError(t, err)
 		require.Eventually(t, func() bool {
-			srv.muDynamicFetchers.RLock()
-			defer srv.muDynamicFetchers.RUnlock()
+			srv.muDynamicDatabaseFetchers.RLock()
+			defer srv.muDynamicDatabaseFetchers.RUnlock()
 			return len(srv.dynamicDatabaseFetchers) == 0
 		}, 1*time.Second, 100*time.Millisecond)
 
@@ -1696,8 +1772,8 @@ func TestDiscoveryDatabaseRemovingDiscoveryConfigs(t *testing.T) {
 		_, err = tlsServer.Auth().DiscoveryConfigClient().CreateDiscoveryConfig(ctx, dc1)
 		require.NoError(t, err)
 		require.Eventually(t, func() bool {
-			srv.muDynamicFetchers.RLock()
-			defer srv.muDynamicFetchers.RUnlock()
+			srv.muDynamicDatabaseFetchers.RLock()
+			defer srv.muDynamicDatabaseFetchers.RUnlock()
 			return len(srv.dynamicDatabaseFetchers) > 0
 		}, 1*time.Second, 100*time.Millisecond)
 
@@ -1723,8 +1799,8 @@ func TestDiscoveryDatabaseRemovingDiscoveryConfigs(t *testing.T) {
 			err = tlsServer.Auth().DiscoveryConfigClient().DeleteDiscoveryConfig(ctx, dc1.GetName())
 			require.NoError(t, err)
 			require.Eventually(t, func() bool {
-				srv.muDynamicFetchers.RLock()
-				defer srv.muDynamicFetchers.RUnlock()
+				srv.muDynamicDatabaseFetchers.RLock()
+				defer srv.muDynamicDatabaseFetchers.RUnlock()
 				return len(srv.dynamicDatabaseFetchers) == 0
 			}, 1*time.Second, 100*time.Millisecond)
 
@@ -1862,10 +1938,40 @@ func (m *mockAzureInstaller) GetInstalledInstances() []string {
 
 func TestAzureVMDiscovery(t *testing.T) {
 	t.Parallel()
+
+	defaultDiscoveryGroup := "dc001"
+
+	vmMatcherFn := func() Matchers {
+		return Matchers{
+			Azure: []types.AzureMatcher{{
+				Types:          []string{"vm"},
+				Subscriptions:  []string{"testsub"},
+				ResourceGroups: []string{"testrg"},
+				Regions:        []string{"westcentralus"},
+				ResourceTags:   types.Labels{"teleport": {"yes"}},
+			}},
+		}
+	}
+
+	vmMatcher := vmMatcherFn()
+	defaultDiscoveryConfig, err := discoveryconfig.NewDiscoveryConfig(
+		header.Metadata{Name: uuid.NewString()},
+		discoveryconfig.Spec{
+			DiscoveryGroup: defaultDiscoveryGroup,
+			AWS:            vmMatcher.AWS,
+			Azure:          vmMatcher.Azure,
+			GCP:            vmMatcher.GCP,
+			Kube:           vmMatcher.Kubernetes,
+		},
+	)
+	require.NoError(t, err)
+
 	tests := []struct {
 		name                   string
 		presentVMs             []types.Server
 		foundAzureVMs          []*armcompute.VirtualMachine
+		discoveryConfig        *discoveryconfig.DiscoveryConfig
+		staticMatchers         Matchers
 		wantInstalledInstances []string
 	}{
 		{
@@ -1888,6 +1994,7 @@ func TestAzureVMDiscovery(t *testing.T) {
 					},
 				},
 			},
+			staticMatchers:         vmMatcherFn(),
 			wantInstalledInstances: []string{"testvm"},
 		},
 		{
@@ -1905,6 +2012,7 @@ func TestAzureVMDiscovery(t *testing.T) {
 					},
 				},
 			},
+			staticMatchers: vmMatcherFn(),
 			foundAzureVMs: []*armcompute.VirtualMachine{
 				{
 					ID: aws.String((&arm.ResourceID{
@@ -1937,6 +2045,7 @@ func TestAzureVMDiscovery(t *testing.T) {
 					},
 				},
 			},
+			staticMatchers: vmMatcherFn(),
 			foundAzureVMs: []*armcompute.VirtualMachine{
 				{
 					ID: aws.String((&arm.ResourceID{
@@ -1954,6 +2063,30 @@ func TestAzureVMDiscovery(t *testing.T) {
 					},
 				},
 			},
+			wantInstalledInstances: []string{"testvm"},
+		},
+		{
+			name:       "no nodes present, 1 found using dynamic matchers",
+			presentVMs: []types.Server{},
+			foundAzureVMs: []*armcompute.VirtualMachine{
+				{
+					ID: aws.String((&arm.ResourceID{
+						SubscriptionID:    "testsub",
+						ResourceGroupName: "rg",
+						Name:              "testvm",
+					}).String()),
+					Name:     aws.String("testvm"),
+					Location: aws.String("westcentralus"),
+					Tags: map[string]*string{
+						"teleport": aws.String("yes"),
+					},
+					Properties: &armcompute.VirtualMachineProperties{
+						VMID: aws.String("test-vmid"),
+					},
+				},
+			},
+			discoveryConfig:        defaultDiscoveryConfig,
+			staticMatchers:         Matchers{},
 			wantInstalledInstances: []string{"testvm"},
 		},
 	}
@@ -2001,17 +2134,10 @@ func TestAzureVMDiscovery(t *testing.T) {
 				CloudClients:     testCloudClients,
 				KubernetesClient: fake.NewSimpleClientset(),
 				AccessPoint:      tlsServer.Auth(),
-				Matchers: Matchers{
-					Azure: []types.AzureMatcher{{
-						Types:          []string{"vm"},
-						Subscriptions:  []string{"testsub"},
-						ResourceGroups: []string{"testrg"},
-						Regions:        []string{"westcentralus"},
-						ResourceTags:   types.Labels{"teleport": {"yes"}},
-					}},
-				},
-				Emitter: emitter,
-				Log:     logger,
+				Matchers:         tc.staticMatchers,
+				Emitter:          emitter,
+				Log:              logger,
+				DiscoveryGroup:   defaultDiscoveryGroup,
 			})
 
 			require.NoError(t, err)
@@ -2019,11 +2145,17 @@ func TestAzureVMDiscovery(t *testing.T) {
 			emitter.server = server
 			emitter.t = t
 
-			r, w := io.Pipe()
-			t.Cleanup(func() {
-				require.NoError(t, r.Close())
-				require.NoError(t, w.Close())
-			})
+			if tc.discoveryConfig != nil {
+				_, err := tlsServer.Auth().DiscoveryConfigClient().CreateDiscoveryConfig(ctx, tc.discoveryConfig)
+				require.NoError(t, err)
+
+				// Wait for the DiscoveryConfig to be added to the dynamic matchers
+				require.Eventually(t, func() bool {
+					server.muDynamicServerAzureFetchers.RLock()
+					defer server.muDynamicServerAzureFetchers.RUnlock()
+					return len(server.dynamicServerAzureFetchers) > 0
+				}, 1*time.Second, 100*time.Millisecond)
+			}
 
 			go server.Start()
 			t.Cleanup(server.Stop)
@@ -2090,10 +2222,35 @@ func (m *mockGCPInstaller) GetInstalledInstances() []string {
 
 func TestGCPVMDiscovery(t *testing.T) {
 	t.Parallel()
+
+	defaultDiscoveryGroup := "dc001"
+	defaultStaticMatcher := Matchers{
+		GCP: []types.GCPMatcher{{
+			Types:      []string{"gce"},
+			ProjectIDs: []string{"myproject"},
+			Locations:  []string{"myzone"},
+			Labels:     types.Labels{"teleport": {"yes"}},
+		}},
+	}
+
+	defaultDiscoveryConfig, err := discoveryconfig.NewDiscoveryConfig(
+		header.Metadata{Name: uuid.NewString()},
+		discoveryconfig.Spec{
+			DiscoveryGroup: defaultDiscoveryGroup,
+			AWS:            defaultStaticMatcher.AWS,
+			Azure:          defaultStaticMatcher.Azure,
+			GCP:            defaultStaticMatcher.GCP,
+			Kube:           defaultStaticMatcher.Kubernetes,
+		},
+	)
+	require.NoError(t, err)
+
 	tests := []struct {
 		name                   string
 		presentVMs             []types.Server
 		foundGCPVMs            []*gcp.Instance
+		discoveryConfig        *discoveryconfig.DiscoveryConfig
+		staticMatchers         Matchers
 		wantInstalledInstances []string
 	}{
 		{
@@ -2109,6 +2266,7 @@ func TestGCPVMDiscovery(t *testing.T) {
 					},
 				},
 			},
+			staticMatchers:         defaultStaticMatcher,
 			wantInstalledInstances: []string{"myinstance"},
 		},
 		{
@@ -2127,6 +2285,7 @@ func TestGCPVMDiscovery(t *testing.T) {
 					},
 				},
 			},
+			staticMatchers: defaultStaticMatcher,
 			foundGCPVMs: []*gcp.Instance{
 				{
 					ProjectID: "myproject",
@@ -2154,6 +2313,7 @@ func TestGCPVMDiscovery(t *testing.T) {
 					},
 				},
 			},
+			staticMatchers: defaultStaticMatcher,
 			foundGCPVMs: []*gcp.Instance{
 				{
 					ProjectID: "myproject",
@@ -2164,6 +2324,23 @@ func TestGCPVMDiscovery(t *testing.T) {
 					},
 				},
 			},
+			wantInstalledInstances: []string{"myinstance"},
+		},
+		{
+			name:       "no nodes present, 1 found usind dynamic matchers",
+			presentVMs: []types.Server{},
+			foundGCPVMs: []*gcp.Instance{
+				{
+					ProjectID: "myproject",
+					Zone:      "myzone",
+					Name:      "myinstance",
+					Labels: map[string]string{
+						"teleport": "yes",
+					},
+				},
+			},
+			staticMatchers:         Matchers{},
+			discoveryConfig:        defaultDiscoveryConfig,
 			wantInstalledInstances: []string{"myinstance"},
 		},
 	}
@@ -2210,16 +2387,10 @@ func TestGCPVMDiscovery(t *testing.T) {
 				CloudClients:     testCloudClients,
 				KubernetesClient: fake.NewSimpleClientset(),
 				AccessPoint:      tlsServer.Auth(),
-				Matchers: Matchers{
-					GCP: []types.GCPMatcher{{
-						Types:      []string{"gce"},
-						ProjectIDs: []string{"myproject"},
-						Locations:  []string{"myzone"},
-						Labels:     types.Labels{"teleport": {"yes"}},
-					}},
-				},
-				Emitter: emitter,
-				Log:     logger,
+				Matchers:         tc.staticMatchers,
+				Emitter:          emitter,
+				Log:              logger,
+				DiscoveryGroup:   defaultDiscoveryGroup,
 			})
 
 			require.NoError(t, err)
@@ -2227,11 +2398,17 @@ func TestGCPVMDiscovery(t *testing.T) {
 			emitter.server = server
 			emitter.t = t
 
-			r, w := io.Pipe()
-			t.Cleanup(func() {
-				require.NoError(t, r.Close())
-				require.NoError(t, w.Close())
-			})
+			if tc.discoveryConfig != nil {
+				_, err := tlsServer.Auth().DiscoveryConfigClient().CreateDiscoveryConfig(ctx, tc.discoveryConfig)
+				require.NoError(t, err)
+
+				// Wait for the DiscoveryConfig to be added to the dynamic matchers
+				require.Eventually(t, func() bool {
+					server.muDynamicServerGCPFetchers.RLock()
+					defer server.muDynamicServerGCPFetchers.RUnlock()
+					return len(server.dynamicServerGCPFetchers) > 0
+				}, 1*time.Second, 100*time.Millisecond)
+			}
 
 			go server.Start()
 			t.Cleanup(server.Stop)

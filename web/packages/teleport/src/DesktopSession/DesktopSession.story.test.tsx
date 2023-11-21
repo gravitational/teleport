@@ -18,7 +18,7 @@ import React from 'react';
 import 'jest-canvas-mock';
 import { render, screen } from 'design/utils/testing';
 
-import { KeysEnum } from 'teleport/services/localStorage';
+import { KeysEnum } from 'teleport/services/storageService';
 
 import {
   Processing,

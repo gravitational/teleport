@@ -33,7 +33,8 @@ import cfg from 'teleport/config';
 
 import { useLayout } from 'teleport/Main/LayoutContext';
 
-import { KeysEnum } from 'teleport/services/localStorage';
+import { KeysEnum } from 'teleport/services/storageService';
+
 import {
   Popup,
   PopupButton,
