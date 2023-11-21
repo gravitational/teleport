@@ -228,6 +228,7 @@ export enum CtaEvent {
   CTA_BILLING_SUMMARY = 7,
   CTA_ACCESS_LIST = 8,
   CTA_ACCESS_MONITORING = 9,
+  CTA_EXTERNAL_AUDIT_STORAGE = 10,
 }
 
 export enum Feature {
