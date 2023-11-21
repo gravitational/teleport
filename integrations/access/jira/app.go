@@ -181,7 +181,7 @@ func (a *App) init(ctx context.Context) error {
 	}
 
 	var teleportProxyAddr string
-	if pong.ServerFeatures.AdvancedAccessWorkflows {
+	if pong.ServerFeatures.AccessRequests.Enabled {
 		teleportProxyAddr = pong.ProxyPublicAddr
 	}
 
