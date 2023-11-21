@@ -1,6 +1,6 @@
 # Changelog
 
-## 12.4.27 (11/16/23)
+## 12.4.28 (11/21/23)
 
 ### Security Fixes
 
@@ -25,6 +25,11 @@ the SSH protocol prefix, denying a malicious actor the opportunity to send their
 own proxy headers.
 
 [#33731](https://github.com/gravitational/teleport/pull/33731)
+
+#### Third-party Security Fixes
+
+* Updated go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc dependency
+  * otelgrpc DoS vulnerability due to unbound cardinality metrics: [CVE-2023-47108](https://github.com/advisories/GHSA-8pgv-569h-w5rw)
 
 ### Other Fixes & Improvements 
 
