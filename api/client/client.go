@@ -24,8 +24,6 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"reflect"
-	"runtime"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -240,7 +238,6 @@ func connect(ctx context.Context, cfg Config) (*Client, error) {
 				sendError(trace.Wrap(err))
 				return
 			}
-			log.Debugf("succesfully connected using: %s", runtime.FuncForPC(reflect.ValueOf(connect).Pointer()).Name())
 			select {
 			case cltChan <- clt:
 			case <-ctx.Done():
