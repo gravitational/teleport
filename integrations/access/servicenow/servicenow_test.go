@@ -558,7 +558,7 @@ func (s *ServiceNowSuite) TestDenialByReview() {
 func (s *ServiceNowSuite) TestAutoApproval() {
 	t := s.T()
 
-	if !s.teleportFeatures.AdvancedAccessWorkflows {
+	if !s.teleportFeatures.AccessRequests.Enabled {
 		t.Skip("Doesn't work in OSS version")
 	}
 

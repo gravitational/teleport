@@ -107,7 +107,7 @@ type AccessRequestsFeature struct {
 	MonthlyRequestLimit int
 	// Enabling this field enables "advanced access workflows".
 	// This field was previously a standalone field named AdvancedAccessWorkflows.
-	// The name came about to help differentiate the differnet support for Access Requests
+	// The name came about to help differentiate the different support for Access Requests
 	// between the limited support for OSS tctl/tsh and the full support for enterprise.
 	Enabled bool
 }
