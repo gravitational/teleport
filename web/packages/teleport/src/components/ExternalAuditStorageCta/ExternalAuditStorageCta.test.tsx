@@ -35,7 +35,7 @@ describe('externalCloudAuditCta', () => {
         onDismiss={() => null}
       />
     );
-    expect(screen.getByText(/External Cloud Audit/)).toBeInTheDocument();
+    expect(screen.getByText(/External Audit Storage/)).toBeInTheDocument();
   });
 
   test('renders nothing on showCta=false', () => {
@@ -57,7 +57,7 @@ describe('externalCloudAuditCta', () => {
         onDismiss={() => null}
       />
     );
-    expect(screen.getByText(/Manage Data Storage/)).toBeInTheDocument();
+    expect(screen.getByText(/Connect your AWS storage/)).toBeInTheDocument();
 
     render(
       <ExternalCloudAuditCta
