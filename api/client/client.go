@@ -287,7 +287,7 @@ func connect(ctx context.Context, cfg Config) (*Client, error) {
 					}
 					addrs = []string{addr}
 					log.WithField("address", addr).Debug(
-						"No address was configured explicitly, falling back to address specified by credential",
+						"No address was configured explicitly, falling back to address specified by credential. Consider explictly configuring an address.",
 					)
 				}
 			}
