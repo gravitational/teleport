@@ -26,7 +26,6 @@ export enum ResourceKind {
   Server,
   SamlApplication,
   Discovery,
-  ExternalCloudAudit,
   ConnectMyComputer,
 }
 

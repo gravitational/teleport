@@ -516,7 +516,7 @@ exports[`render with URL loc state set to "server" 1`] = `
     </div>
     <div
       class="c11"
-      data-testid="8"
+      data-testid="7"
     >
       <div
         class="c12"
@@ -1497,7 +1497,7 @@ exports[`render with all access 1`] = `
     </div>
     <div
       class="c7"
-      data-testid="8"
+      data-testid="7"
     >
       <div
         class="c8"
@@ -3117,7 +3117,7 @@ exports[`render with no access 1`] = `
     </a>
     <div
       class="c7"
-      data-testid="8"
+      data-testid="7"
     >
       <div
         class="c8"
@@ -4990,7 +4990,7 @@ exports[`render with partial access 1`] = `
     </div>
     <div
       class="c7"
-      data-testid="8"
+      data-testid="7"
     >
       <div
         class="c8"

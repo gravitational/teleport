@@ -182,8 +182,6 @@ export function getResourcePretitle(r: ResourceSpec) {
         return 'Amazon Web Services (AWS)';
       }
       return 'Server';
-    case ResourceKind.ExternalCloudAudit:
-      return 'External Cloud Audit (AWS)';
   }
 
   return '';

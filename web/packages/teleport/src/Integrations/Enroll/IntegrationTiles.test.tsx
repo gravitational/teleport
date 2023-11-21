@@ -42,7 +42,7 @@ test('render disabled', async () => {
     <MemoryRouter>
       <IntegrationTiles
         hasIntegrationAccess={false}
-        hasExternalCloudAuditAccess={false}
+        hasExternalAuditStorage={false}
       />
     </MemoryRouter>
   );

@@ -35,7 +35,7 @@ import {
   IntegrationStatusCode,
   IntegrationKind,
   Plugin,
-  ExternalCloudAuditIntegration,
+  ExternalAuditStorageIntegration,
 } from 'teleport/services/integrations';
 
 type Props<IntegrationLike> = {
@@ -45,12 +45,12 @@ type Props<IntegrationLike> = {
     onDeleteIntegration(i: Integration): void;
     onEditIntegration(i: Integration): void;
   };
-  externalCloudAuditOps?: {
-    onDeleteExternalCloudAudit(i: ExternalCloudAuditIntegration): void;
+  externalAuditStorageOps?: {
+    onDeleteExternalAuditStorage(i: ExternalAuditStorageIntegration): void;
   };
 };
 
-type IntegrationLike = Integration | Plugin | ExternalCloudAuditIntegration;
+type IntegrationLike = Integration | Plugin | ExternalAuditStorageIntegration;
 
 export function IntegrationList(props: Props<IntegrationLike>) {
   return (
@@ -122,7 +122,7 @@ export function IntegrationList(props: Props<IntegrationLike>) {
                 <MenuButton>
                   <MenuItem
                     onClick={() =>
-                      props.externalCloudAuditOps?.onDeleteExternalCloudAudit(
+                      props.externalAuditStorageOps?.onDeleteExternalAuditStorage(
                         item
                       )
                     }
@@ -231,7 +231,7 @@ const IconCell = ({ item }: { item: IntegrationLike }) => {
     // Default is integration.
     switch (item.kind) {
       case IntegrationKind.AwsOidc:
-      case IntegrationKind.Byob:
+      case IntegrationKind.ExternalAuditStorage:
         formattedText = item.name;
         icon = (
           <SvgIconContainer>

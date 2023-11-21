@@ -33,10 +33,10 @@ import { IntegrationTile } from './common';
 
 export function IntegrationTiles({
   hasIntegrationAccess = true,
-  hasExternalCloudAuditAccess = true,
+  hasExternalAuditStorage = true,
 }: {
   hasIntegrationAccess?: boolean;
-  hasExternalCloudAuditAccess?: boolean;
+  hasExternalAuditStorage?: boolean;
 }) {
   // TODO(mcbattirola): isUsageBasedBilling is used here and in other
   // parts of the app as synonym with Team product, but this
@@ -76,30 +76,29 @@ export function IntegrationTiles({
         )}
       </IntegrationTile>
       <IntegrationTile
-        disabled={!hasExternalCloudAuditAccess || !isEnterprise}
-        as={hasExternalCloudAuditAccess ? Link : null}
+        disabled={!hasExternalAuditStorage || !isEnterprise}
+        as={hasExternalAuditStorage ? Link : null}
         to={
-          hasExternalCloudAuditAccess
-            ? cfg.getIntegrationEnrollRoute(IntegrationKind.Byob)
+          hasExternalAuditStorage
+            ? cfg.getIntegrationEnrollRoute(
+                IntegrationKind.ExternalAuditStorage
+              )
             : null
         }
-        data-testid="tile-byob"
+        data-testid="tile-external-audit-storage"
       >
         <Box mt={3} mb={2}>
           <AWSIcon size={80} />
         </Box>
         <Text>AWS External Audit Storage</Text>
-        {renderExternalCloudAuditBadge(
-          hasExternalCloudAuditAccess,
-          isEnterprise
-        )}
+        {renderExternalAuditStorageBadge(hasExternalAuditStorage, isEnterprise)}
       </IntegrationTile>
     </>
   );
 }
 
-function renderExternalCloudAuditBadge(
-  hasExternalCloudAuditAccess: boolean,
+function renderExternalAuditStorageBadge(
+  hasExternalAuditStorageAccess: boolean,
   isEnterprise: boolean
 ) {
   const theme = useTheme();
@@ -113,7 +112,7 @@ function renderExternalCloudAuditBadge(
         }
       />
     );
-  if (!hasExternalCloudAuditAccess) {
+  if (!hasExternalAuditStorageAccess) {
     return (
       <ToolTipNoPermBadge
         children={
@@ -132,7 +131,8 @@ function renderExternalCloudAuditBadge(
       badgeTitle="New"
       children={
         <div>
-          Connect your own AWS account to store Audit logs and Session recordings using Athena and S3.
+          Connect your own AWS account to store Audit logs and Session
+          recordings using Athena and S3.
         </div>
       }
       color={theme.colors.success}

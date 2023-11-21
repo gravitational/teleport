@@ -98,8 +98,8 @@ type UserACL struct {
 	AuditQuery ResourceAccess `json:"auditQuery"`
 	// SecurityReport defines access to security reports.
 	SecurityReport ResourceAccess `json:"securityReport"`
-	// ExternalCloudAudit defines access to manage ExternalCloudAudit
-	ExternalCloudAudit ResourceAccess `json:"externalCloudAudit"`
+	// ExternalAuditStorage defines access to manage ExternalAuditStorage
+	ExternalAuditStorage ResourceAccess `json:"externalAuditStorage"`
 	// AccessGraph defines access to access graph.
 	AccessGraph ResourceAccess `json:"accessGraph"`
 }
@@ -219,7 +219,7 @@ func NewUserACL(user types.User, userRoles RoleSet, features proto.Features, des
 		AccessList:              accessListAccess,
 		AuditQuery:              auditQuery,
 		SecurityReport:          securityReports,
-		ExternalCloudAudit:      externalCloudAudit,
+		ExternalAuditStorage:    externalCloudAudit,
 		AccessGraph:             accessGraphAccess,
 	}
 }

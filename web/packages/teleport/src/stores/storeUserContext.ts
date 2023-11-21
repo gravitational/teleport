@@ -215,7 +215,7 @@ export default class StoreUserContext extends Store<UserContext> {
     return this.state.acl.securityReport;
   }
 
-  getExternalCloudAuditAccess() {
-    return this.state.acl.externalCloudAudit;
+  getExternalAuditStorageAccess() {
+    return this.state.acl.externalAuditStorage;
   }
 }

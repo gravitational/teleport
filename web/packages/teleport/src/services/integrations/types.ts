@@ -49,7 +49,7 @@ export type Integration<
 // resource's subKind field.
 export enum IntegrationKind {
   AwsOidc = 'aws-oidc',
-  Byob = 'byob',
+  ExternalAuditStorage = 'external-audit-storage',
 }
 export type IntegrationSpecAwsOidc = {
   roleArn: string;
@@ -93,7 +93,7 @@ export function getStatusCodeDescription(
   }
 }
 
-export type ExternalCloudAudit = {
+export type ExternalAuditStorage = {
   integrationName: string;
   policyName: string;
   region: string;
@@ -105,10 +105,10 @@ export type ExternalCloudAudit = {
   athenaResultsURI: string;
 };
 
-export type ExternalCloudAuditIntegration = Integration<
-  'byob',
-  IntegrationKind.Byob,
-  ExternalCloudAudit
+export type ExternalAuditStorageIntegration = Integration<
+  'external-audit-storage',
+  IntegrationKind.ExternalAuditStorage,
+  ExternalAuditStorage
 >;
 
 export type Plugin = Integration<'plugin', PluginKind, PluginSpec>;
@@ -378,7 +378,7 @@ export type Cidr = {
 };
 
 // IntegrationUrlLocationState define fields to preserve state between
-// react routes (eg. in BYOB flow, it is required of user
+// react routes (eg. in External Audit Storage flow, it is required of user
 // to create a AWS OIDC integration which requires changing route
 // and then coming back to resume the flow.)
 export type IntegrationUrlLocationState = {

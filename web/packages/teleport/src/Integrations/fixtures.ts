@@ -19,7 +19,7 @@ import { IntegrationStatusCode } from 'teleport/services/integrations';
 import type {
   Plugin,
   Integration,
-  ExternalCloudAudit,
+  ExternalAuditStorage,
 } from 'teleport/services/integrations';
 
 export const plugins: Plugin[] = [
@@ -114,7 +114,7 @@ export const integrations: Integration[] = [
   },
 ];
 
-export const externalCloudAudit: ExternalCloudAudit = {
+export const externalAuditStorage: ExternalAuditStorage = {
   athenaResultsURI: 'athenaResultsURI',
   athenaWorkgroup: 'athenaWorkgroup',
   auditEventsLongTermURI: 'auditEventsLongTermURI',
