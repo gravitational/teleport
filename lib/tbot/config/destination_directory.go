@@ -69,16 +69,6 @@ func (dd *DestinationDirectory) CheckAndSetDefaults() error {
 		return trace.BadParameter("destination path must not be empty")
 	}
 
-	secureSupported, err := botfs.HasSecureWriteSupport()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	aclsSupported, err := botfs.HasACLSupport()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	switch dd.Symlinks {
 	case "":
 		// We default to SymlinksTrySecure. It's become apparent that the
@@ -89,13 +79,14 @@ func (dd *DestinationDirectory) CheckAndSetDefaults() error {
 	case botfs.SymlinksInsecure, botfs.SymlinksTrySecure:
 		// valid
 	case botfs.SymlinksSecure:
-		if !secureSupported {
+		if !botfs.HasSecureWriteSupport() {
 			return trace.BadParameter("symlink mode %q not supported on this system", dd.Symlinks)
 		}
 	default:
 		return trace.BadParameter("invalid symlinks mode: %q", dd.Symlinks)
 	}
 
+	aclsSupported := botfs.HasACLSupport()
 	switch dd.ACLs {
 	case "":
 		if aclsSupported {
@@ -162,11 +153,6 @@ func (dd *DestinationDirectory) Init(_ context.Context, subdirs []string) error 
 }
 
 func (dd *DestinationDirectory) Verify(keys []string) error {
-	aclsSupported, err := botfs.HasACLSupport()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	currentUser, err := user.Current()
 	if err != nil {
 		return trace.Wrap(err)
@@ -189,7 +175,7 @@ func (dd *DestinationDirectory) Verify(keys []string) error {
 	// Make sure it's worth warning about ACLs for this Destination. If ACLs
 	// are disabled, unsupported, or the Destination is owned by the bot
 	// (implying the user is not trying to use ACLs), just bail.
-	if dd.ACLs == botfs.ACLOff || !aclsSupported || ownedByBot {
+	if dd.ACLs == botfs.ACLOff || !botfs.HasACLSupport() || ownedByBot {
 		return nil
 	}
 

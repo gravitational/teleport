@@ -30,7 +30,7 @@ import { UserContextProvider } from 'teleport/User';
 
 import { ThemePreference } from 'teleport/services/userPreferences/types';
 import { useUser } from 'teleport/User/UserContext';
-import { KeysEnum } from 'teleport/services/localStorage';
+import { KeysEnum } from 'teleport/services/storageService';
 
 function ThemeName() {
   const { preferences } = useUser();
