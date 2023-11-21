@@ -15,7 +15,6 @@
  */
 
 import React from 'react';
-import { useTheme } from 'styled-components';
 import { Link } from 'react-router-dom';
 import { Text, Box } from 'design';
 import { AWSIcon } from 'design/SVGIcon';
@@ -101,8 +100,6 @@ function renderExternalAuditStorageBadge(
   hasExternalAuditStorageAccess: boolean,
   isEnterprise: boolean
 ) {
-  const theme = useTheme();
-
   if (!isEnterprise)
     return (
       <ToolTipNoPermBadge
@@ -135,7 +132,7 @@ function renderExternalAuditStorageBadge(
           recordings using Athena and S3.
         </div>
       }
-      color={theme.colors.success}
+      color="success"
     />
   );
 }

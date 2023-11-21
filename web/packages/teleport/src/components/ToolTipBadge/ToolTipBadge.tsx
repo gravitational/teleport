@@ -52,13 +52,13 @@ export const ToolTipBadge: React.FC<Props> = ({
         onMouseLeave={!sticky ? handlePopoverClose : undefined}
         borderTopRightRadius={borderRadius}
         borderBottomLeftRadius={borderRadius}
+        bg={color}
         css={`
           position: absolute;
           padding: 0px 6px;
           top: 0px;
           right: 0px;
           font-size: 10px;
-          background-color: ${color};
         `}
       >
         {badgeTitle}

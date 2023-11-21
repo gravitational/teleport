@@ -30,7 +30,7 @@ export const BadgeString = () => (
     <ToolTipBadge
       children={'I am a string'}
       badgeTitle="Title"
-      color="#000000"
+      color="success"
     />
   </SomeBox>
 );
@@ -40,7 +40,7 @@ export const BadgeComp = () => (
     I'm a sample container
     <ToolTipBadge
       badgeTitle="Title"
-      color="#000000"
+      color="success"
       children={<Box p={3}>I'm a box component with too much padding</Box>}
     />
   </SomeBox>
@@ -48,8 +48,8 @@ export const BadgeComp = () => (
 
 const SomeBox = styled.div`
   width: 240px;
-  border-radius: 8px;
-  padding: 16px;
+  border-radius: ${props => props.theme.space[2]}px;
+  padding: ${props => props.theme.space[3]}px;
   display: flex;
   position: relative;
   align-items: center;
