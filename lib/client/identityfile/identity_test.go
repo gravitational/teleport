@@ -194,7 +194,7 @@ func TestWriteKubeOnlyWritesToWriter(t *testing.T) {
 	cfg.OutputPath = filepath.Join(outputDir, "kubeconfig")
 	cfg.Format = FormatOpenSSH
 	cfg.KubeProxyAddr = "far.away.cluster"
-	cfg.KubeTLSServerName = constants.KubeTeleportProxyALPNPrefix + "far.away.cluster"
+	cfg.KubeTLSServerName = "kube.far.away.cluster"
 	files, err := Write(context.Background(), cfg)
 	require.NoError(t, err)
 
