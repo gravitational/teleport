@@ -31,7 +31,6 @@ x509-parser = "0.14"
 sspi = { git = "https://github.com/Devolutions/sspi-rs", rev="d54bdfcafa0e10d9d78224ebacc4f2a0992a6b79", features = ["network_client"] }
 static_init = "1.0.3"
 
-# Change this once https://github.com/Devolutions/IronRDP/pull/257 lands
 ironrdp-connector = { git = "https://github.com/Devolutions/IronRDP", rev = "8fc213e69996e4f8a3dc8c201fce619a2b4bddbd" }
 ironrdp-tls = { git = "https://github.com/Devolutions/IronRDP", rev = "8fc213e69996e4f8a3dc8c201fce619a2b4bddbd" }
 ironrdp-session = { git = "https://github.com/Devolutions/IronRDP", rev = "8fc213e69996e4f8a3dc8c201fce619a2b4bddbd" }
