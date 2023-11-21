@@ -1,3 +1,6 @@
+/**
+ * @jest-environment node
+ */
 /*
 Copyright 2023 Gravitational, Inc.
 
