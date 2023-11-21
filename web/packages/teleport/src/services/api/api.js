@@ -65,61 +65,35 @@ const api = {
     });
   },
 
-  async fetchJson(url, params, withMFA) {
-    if (withMFA) {
-      // Get an MFA response and add it to the request headers.
-      const webauthn = auth.getWebauthnResponse();
-      params.headers = {
-        ...params.headers,
-        'Mfa-Response': JSON.stringify({
-          webauthnAssertionResponse: webauthn,
-        }),
-      };
-    }
+  async fetchJson(url, params) {
+    let response;
+    try {
+      response = await this.fetch(url, params);
+      let json = await response.json();
 
-    return new Promise((resolve, reject) => {
-      this.fetch(url, params)
-        .then(response => {
-          if (response.ok) {
-            return response
-              .json()
-              .then(json => resolve(json))
-              .catch(err =>
-                reject(new ApiError(err.message, response, { cause: err }))
-              );
-          } else {
-            return response
-              .json()
-              .then(json => {
-                if (
-                  !withMFA &&
-                  isAdminActionRequiresMFAError(parseError(json))
-                ) {
-                  // Retry with MFA.
-                  return this.fetchJson(url, params, true)
-                    .then(resp => resolve(resp))
-                    .catch(err => reject(err));
-                }
-                reject(new ApiError(parseError(json), response));
-              })
-              .catch(err =>
-                reject(
-                  new ApiError(
-                    `${response.status} - ${response.url}`,
-                    response,
-                    { cause: err }
-                  )
-                )
-              );
-          }
-        })
-        .catch(err => {
-          reject(err);
-        });
-    });
+      // Retry with MFA if we get an admin action missing MFA error.
+      if (!response.ok && isAdminActionRequiresMFAError(parseError(json))) {
+        params.headers = {
+          ...params.headers,
+          'Mfa-Response': JSON.stringify({
+            webauthnAssertionResponse: await auth.getWebauthnResponse(),
+          }),
+        };
+        response = await this.fetch(url, params);
+        json = await response.json();
+      }
+
+      if (!response.ok) {
+        throw new ApiError(parseError(json), response);
+      }
+
+      return json;
+    } catch (err) {
+      throw new ApiError(err.message, response, { cause: err });
+    }
   },
 
-  fetch(url, params = {}) {
+  async fetch(url, params = {}) {
     url = window.location.origin + url;
     const options = {
       ...requestOptions,
@@ -133,7 +107,14 @@ const api = {
     };
 
     // native call
-    return fetch(url, options);
+    const response = fetch(url, options);
+    try {
+      return await response;
+    } catch (err) {
+      throw new ApiError(`${response.status} - ${response.url}`, response, {
+        cause: err,
+      });
+    }
   },
 };
 
