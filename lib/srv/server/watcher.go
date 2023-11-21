@@ -48,7 +48,7 @@ type Watcher struct {
 	InstancesC     chan Instances
 	missedRotation <-chan []types.Server
 
-	fetchers     []Fetcher
+	fetchersFn   func() []Fetcher
 	pollInterval time.Duration
 	ctx          context.Context
 	cancel       context.CancelFunc
@@ -72,24 +72,21 @@ func (w *Watcher) sendInstancesOrLogError(instancesColl []Instances, err error) 
 
 // Run starts the watcher's main watch loop.
 func (w *Watcher) Run() {
-	if len(w.fetchers) == 0 {
-		return
-	}
 	ticker := time.NewTicker(w.pollInterval)
 	defer ticker.Stop()
 
-	for _, fetcher := range w.fetchers {
+	for _, fetcher := range w.fetchersFn() {
 		w.sendInstancesOrLogError(fetcher.GetInstances(w.ctx, false))
 	}
 
 	for {
 		select {
 		case insts := <-w.missedRotation:
-			for _, fetcher := range w.fetchers {
+			for _, fetcher := range w.fetchersFn() {
 				w.sendInstancesOrLogError(fetcher.GetMatchingInstances(insts, true))
 			}
 		case <-ticker.C:
-			for _, fetcher := range w.fetchers {
+			for _, fetcher := range w.fetchersFn() {
 				w.sendInstancesOrLogError(fetcher.GetInstances(w.ctx, false))
 			}
 		case <-w.ctx.Done():

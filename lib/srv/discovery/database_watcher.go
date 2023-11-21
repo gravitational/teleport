@@ -97,11 +97,11 @@ func (s *Server) startDatabaseWatchers() error {
 func (s *Server) getAllDatabaseFetchers() []common.Fetcher {
 	allFetchers := make([]common.Fetcher, 0, len(s.databaseFetchers))
 
-	s.muDynamicFetchers.RLock()
+	s.muDynamicDatabaseFetchers.RLock()
 	for _, fetcherSet := range s.dynamicDatabaseFetchers {
 		allFetchers = append(allFetchers, fetcherSet...)
 	}
-	s.muDynamicFetchers.RUnlock()
+	s.muDynamicDatabaseFetchers.RUnlock()
 
 	return append(allFetchers, s.databaseFetchers...)
 }

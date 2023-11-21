@@ -20,20 +20,35 @@ import (
 	"io/fs"
 	"os"
 	"sync"
-	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport/lib/utils"
 )
 
+type InMemoryFS map[string]*utils.InMemoryFile
+
+type InMemoryConfigWriterOption func(*InMemoryConfigWriter)
+
+func WithClock(clock clockwork.Clock) InMemoryConfigWriterOption {
+	return func(w *InMemoryConfigWriter) {
+		w.clock = clock
+	}
+}
+
 // NewInMemoryConfigWriter creates a new virtual file system
 // It stores the files contents and their properties in memory
-func NewInMemoryConfigWriter() *InMemoryConfigWriter {
-	return &InMemoryConfigWriter{
+func NewInMemoryConfigWriter(options ...InMemoryConfigWriterOption) *InMemoryConfigWriter {
+	w := &InMemoryConfigWriter{
 		mux:   &sync.RWMutex{},
-		files: make(map[string]*utils.InMemoryFile),
+		clock: clockwork.NewRealClock(),
+		files: InMemoryFS{},
 	}
+	for _, option := range options {
+		option(w)
+	}
+	return w
 }
 
 // InMemoryConfigWriter is a basic virtual file system abstraction that writes into memory
@@ -41,7 +56,8 @@ func NewInMemoryConfigWriter() *InMemoryConfigWriter {
 //	instead of writing to a more persistent storage.
 type InMemoryConfigWriter struct {
 	mux   *sync.RWMutex
-	files map[string]*utils.InMemoryFile
+	clock clockwork.Clock
+	files InMemoryFS
 }
 
 // WriteFile writes the given data to path `name`
@@ -49,7 +65,7 @@ type InMemoryConfigWriter struct {
 func (m *InMemoryConfigWriter) WriteFile(name string, data []byte, perm os.FileMode) error {
 	m.mux.Lock()
 	defer m.mux.Unlock()
-	m.files[name] = utils.NewInMemoryFile(name, perm, time.Now(), data)
+	m.files[name] = utils.NewInMemoryFile(name, perm, m.clock.Now(), data)
 
 	return nil
 }
@@ -92,7 +108,13 @@ func (m *InMemoryConfigWriter) ReadFile(name string) ([]byte, error) {
 	return f.Content(), nil
 }
 
-// Open is not implemented but exists here to satisfy the io/fs.ReadFileFS interface.
+// Open is not implemented but exists here to satisfy the io/fs. interface.
 func (m *InMemoryConfigWriter) Open(name string) (fs.File, error) {
 	return nil, trace.NotImplemented("Open is not implemented for InMemoryConfigWriter")
+}
+
+func (m *InMemoryConfigWriter) WithReadonlyFiles(fn func(InMemoryFS) error) error {
+	m.mux.RLock()
+	defer m.mux.RUnlock()
+	return fn(m.files)
 }
