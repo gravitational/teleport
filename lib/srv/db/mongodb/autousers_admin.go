@@ -53,6 +53,16 @@ func (e *Engine) connectAsAdmin(ctx context.Context, sessionCtx *common.Session)
 		return client, trace.Wrap(err)
 	}
 
+	// The shared client will be cached for a short period. The shared client
+	// will be terminated when the cache expires and all callers released the
+	// shared client.
+	//
+	// The shared client (and mongo client in general) is goroutine-safe and
+	// handles reconnection in case of network issues.
+	//
+	// During a CA rotation, the cached client may have the wrong TLS config,
+	// but the cache should expires shortly so a new shared client will be
+	// created.
 	shareableClient, err := getShareableAdminClient(ctx, adminClientFnCache, sessionCtx, e, makeBasicAdminClient)
 	return shareableClient, trace.Wrap(err)
 }
@@ -153,7 +163,8 @@ func (c *shareableAdminClient) waitAndCleanup() {
 	// Wait until all shared sessions are released.
 	c.wg.Wait()
 
-	// Disconnect.
+	// Disconnect connection. This happens after cache item expired to ensure
+	// that shared client won't be reused when wrapped client was disconnected.
 	if err := c.adminClient.Disconnect(context.Background()); err != nil {
 		c.log.Warnf("Failed to disconnect MongoDB connection as admin user %q on %q: %v.", c.adminUser, c.databaseName, err)
 	} else {
@@ -162,6 +173,8 @@ func (c *shareableAdminClient) waitAndCleanup() {
 }
 
 func (c *shareableAdminClient) acquire() *shareableAdminClient {
+	// acquire() should only be called while the client is still cached (while
+	// waitAndCleanup waits for the timer).
 	c.wg.Add(1)
 	return c
 }
@@ -196,7 +209,7 @@ func makeBasicAdminClient(ctx context.Context, sessionCtx *common.Session, e *En
 }
 
 // basicAdminClient is a simple wrapper of mongo.Client with some helper
-// functions.
+// functions. Note that mongo.Client is goroutine-safe.
 type basicAdminClient struct {
 	*mongo.Client
 

@@ -24,12 +24,14 @@ import (
 
 	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 	"go.mongodb.org/mongo-driver/bson"
 
 	"github.com/gravitational/teleport/lib/srv/db/common"
 )
 
+// user defines a MongoDB user.
+//
+// https://www.mongodb.com/docs/manual/reference/command/usersInfo/#output
 type user struct {
 	Username         string                `bson:"user"`
 	Roles            userRoles             `bson:"roles"`
@@ -46,14 +48,27 @@ func (u *user) isLocked() bool {
 	return false
 }
 
+// userCustomData specifies the "customData" field of a MongoDB user.
+//
+// https://www.mongodb.com/docs/manual/reference/command/createUser/
 type userCustomData struct {
+	// TeleportAutoUser identifies users that are managed by Teleport. An
+	// "admin" can search all Teleport-managed users by command:
+	// { "usersInfo": 1, "filter": { "customData.teleport-auto-user": true } }
 	TeleportAutoUser bool `bson:"teleport-auto-user"`
 }
 
+// userAuthRestriction specifies the "authenticationRestrictions" field of a
+// MongoDB user.
+//
+// https://www.mongodb.com/docs/manual/reference/command/createUser/#authentication-restrictions
 type userAuthRestriction struct {
 	ClientSource []string `bson:"clientSource"`
 }
 
+// userRole defines a role element in the "roles" slice of a MongoDB user.
+//
+// https://www.mongodb.com/docs/manual/reference/command/createUser/#roles
 type userRole struct {
 	Rolename string `bson:"role"`
 	Database string `bson:"db"`
@@ -164,7 +179,7 @@ func (e *Engine) DeleteUser(ctx context.Context, sessionCtx *common.Session) err
 }
 
 func (e *Engine) isUserActive(ctx context.Context, sessionCtx *common.Session, client adminClient) (bool, error) {
-	logrus.Debugf("Checking if user %q is active.", sessionCtx.DatabaseUser)
+	e.Log.Debugf("Checking if user %q is active.", sessionCtx.DatabaseUser)
 	var resp struct {
 		Inprog []interface{} `bson:"inprog"`
 	}
@@ -203,7 +218,7 @@ func (e *Engine) isShowCustomDataSupported(ctx context.Context, client adminClie
 }
 
 func (e *Engine) getUser(ctx context.Context, sessionCtx *common.Session, client adminClient) (*user, bool, error) {
-	logrus.Debugf("Getting user info for %q.", sessionCtx.DatabaseUser)
+	e.Log.Debugf("Getting user info for %q.", sessionCtx.DatabaseUser)
 	var resp struct {
 		Users []user `bson:"users"`
 	}
@@ -233,7 +248,7 @@ func (e *Engine) getUser(ctx context.Context, sessionCtx *common.Session, client
 }
 
 func (e *Engine) createUser(ctx context.Context, sessionCtx *common.Session, client adminClient, userRoles []userRole) error {
-	logrus.Debugf("Creating user %q.", sessionCtx.DatabaseUser)
+	e.Log.Debugf("Creating user %q.", sessionCtx.DatabaseUser)
 	return trace.Wrap(client.Database(externalDatabaseName).RunCommand(ctx, bson.D{
 		{Key: "createUser", Value: x509Username(sessionCtx)},
 		{Key: "roles", Value: userRoles},
@@ -243,7 +258,7 @@ func (e *Engine) createUser(ctx context.Context, sessionCtx *common.Session, cli
 }
 
 func (e *Engine) updateUser(ctx context.Context, sessionCtx *common.Session, client adminClient, userRoles []userRole, authRestrictions []userAuthRestriction) error {
-	logrus.Debugf("Updating user %q.", sessionCtx.DatabaseUser)
+	e.Log.Debugf("Updating user %q.", sessionCtx.DatabaseUser)
 	return trace.Wrap(client.Database(externalDatabaseName).RunCommand(ctx, bson.D{
 		{Key: "updateUser", Value: x509Username(sessionCtx)},
 		{Key: "roles", Value: userRoles},
@@ -252,7 +267,7 @@ func (e *Engine) updateUser(ctx context.Context, sessionCtx *common.Session, cli
 }
 
 func (e *Engine) dropUser(ctx context.Context, sessionCtx *common.Session, client adminClient) error {
-	logrus.Debugf("Dropping user %q.", sessionCtx.DatabaseUser)
+	e.Log.Debugf("Dropping user %q.", sessionCtx.DatabaseUser)
 	return trace.Wrap(client.Database(externalDatabaseName).RunCommand(ctx, bson.D{
 		{Key: "dropUser", Value: x509Username(sessionCtx)},
 	}).Err())
