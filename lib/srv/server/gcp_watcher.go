@@ -27,7 +27,6 @@ import (
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/installers"
-	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/gcp"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -70,26 +69,30 @@ func (instances *GCPInstances) MakeEvents() map[string]*usageeventsv1.ResourceCr
 }
 
 // NewGCPWatcher creates a new GCP watcher.
-func NewGCPWatcher(ctx context.Context, matchers []types.GCPMatcher, clients cloud.Clients) (*Watcher, error) {
+func NewGCPWatcher(ctx context.Context, fetchersFn func() []Fetcher) (*Watcher, error) {
 	cancelCtx, cancelFn := context.WithCancel(ctx)
 	watcher := Watcher{
-		fetchers:     []Fetcher{},
+		fetchersFn:   fetchersFn,
 		ctx:          cancelCtx,
 		cancel:       cancelFn,
 		pollInterval: time.Minute,
 		InstancesC:   make(chan Instances),
 	}
-	client, err := clients.GetGCPInstancesClient(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	return &watcher, nil
+}
+
+// MatchersToGCPInstanceFetchers converts a list of GCP GCE Matchers into a list of GCP GCE Fetchers.
+func MatchersToGCPInstanceFetchers(matchers []types.GCPMatcher, gcpClient gcp.InstancesClient) []Fetcher {
+	fetchers := make([]Fetcher, 0, len(matchers))
+
 	for _, matcher := range matchers {
-		watcher.fetchers = append(watcher.fetchers, newGCPInstanceFetcher(gcpFetcherConfig{
+		fetchers = append(fetchers, newGCPInstanceFetcher(gcpFetcherConfig{
 			Matcher:   matcher,
-			GCPClient: client,
+			GCPClient: gcpClient,
 		}))
 	}
-	return &watcher, nil
+
+	return fetchers
 }
 
 type gcpFetcherConfig struct {
