@@ -367,7 +367,7 @@ function AgentSetup() {
     },
   ];
 
-  const runSteps = useCallback(async () => {
+  const runSteps = async () => {
     function withEventOnFailure(
       fn: () => Promise<[void, Error]>,
       failedStep: string
@@ -415,19 +415,7 @@ function AgentSetup() {
     // to notice that all four steps have completed.
     await wait(750);
     markAgentAsConfigured();
-  }, [
-    setCreateRoleAttempt,
-    setDownloadAgentAttempt,
-    setGenerateConfigFileAttempt,
-    setJoinClusterAttempt,
-    runCreateRoleAttempt,
-    runDownloadAgentAttempt,
-    runGenerateConfigFileAttempt,
-    runJoinClusterAttempt,
-    markAgentAsConfigured,
-    ctx.usageService,
-    rootCluster.uri,
-  ]);
+  };
 
   useEffect(() => {
     if (
@@ -440,13 +428,7 @@ function AgentSetup() {
     ) {
       runSteps();
     }
-  }, [
-    downloadAgentAttempt,
-    generateConfigFileAttempt,
-    joinClusterAttempt,
-    createRoleAttempt,
-    runSteps,
-  ]);
+  }, []);
 
   const hasSetupFailed = steps.some(s => s.attempt.status === 'error');
   const { clusterName, hostname } = useAgentProperties();
