@@ -66,7 +66,7 @@ actions which modify the following administrative resources.
   - User groups
     - `CreateUserGroup`, `UpdateUserGroup`, `DeleteUserGroup`, `DeleteAllUserGroups`
   - Account recovery
-    - `ChangeUserAuthentication`, `StartAccountRecovery`, `VerifyAccountRecovery`, `CompleteAccountRecovery`, `CreateAccountRecoveryCodes`
+    - `CreateResetPasswordToken`,
 - Cluster configuration
   - Networking
     - `SetClusterNetworkingConfig`, `ResetClusterNetworkingConfig`
@@ -78,9 +78,9 @@ actions which modify the following administrative resources.
     - `SetNetworkRestrictions`, `DeleteNetworkRestrictions`
 - Access management
   - Auth connectors
-    - `UpsertOIDCConnector`, `DeleteOIDCConnector`, `CreateOIDCAuthRequest`
-    - `UpsertSAMLConnector`, `DeleteSAMLConnector`, `CreateSAMLAuthRequest`
-    - `UpsertGithubConnector`, `DeleteGithubConnector`, `CreateGithubAuthRequest`
+    - `UpsertOIDCConnector`, `DeleteOIDCConnector`
+    - `UpsertSAMLConnector`, `DeleteSAMLConnector`
+    - `UpsertGithubConnector`, `DeleteGithubConnector`
     - `CreateSAMLIdPServiceProvider`, `UpdateSAMLIdPServiceProvider`, `DeleteSAMLIdPServiceProvider`, `DeleteAllSAMLIdPServiceProviders`
   - Access requests
     - `CreateAccessRequest`, `DeleteAccessRequest`, `SetAccessRequestState`, `SubmitAccessReview`
