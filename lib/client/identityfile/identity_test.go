@@ -180,6 +180,42 @@ func TestWrite(t *testing.T) {
 	assertKubeconfigContents(t, cfg.OutputPath, key.ClusterName, "far.away.cluster", cfg.KubeTLSServerName)
 }
 
+// Assert that the kubeconfig writer only writes to the supplied filesystem
+// abstraction, and not to the system
+func TestWriteKubeOnlyWritesToWriter(t *testing.T) {
+	key := newClientKey(t)
+	outputDir := t.TempDir()
+
+	fs := NewInMemoryConfigWriter()
+	cfg := WriteConfig{
+		Key:    key,
+		Writer: fs,
+	}
+
+	cfg.OutputPath = filepath.Join(outputDir, "kubeconfig")
+	cfg.Format = FormatOpenSSH
+	cfg.KubeProxyAddr = "far.away.cluster"
+	cfg.KubeTLSServerName = "kube.far.away.cluster"
+	files, err := Write(context.Background(), cfg)
+	require.NoError(t, err)
+
+	// Assert that none of the listed files
+	for _, fn := range files {
+		// assert that no such file exists on the system filesystem
+		_, err := os.Stat(fn)
+		require.Error(t, err)
+
+		// assert that the file exists is in the filesystem abstraction
+		require.Contains(t, fs.files, fn)
+	}
+
+	// Assert that nothing has written to the temp dir without it being added to
+	// the returned file list
+	actualFiles, err := os.ReadDir(outputDir)
+	require.NoError(t, err)
+	require.Empty(t, actualFiles)
+}
+
 func TestWriteAllFormats(t *testing.T) {
 	for _, format := range KnownFileFormats {
 		t.Run(string(format), func(t *testing.T) {
