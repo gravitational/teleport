@@ -16,6 +16,7 @@
 
 import { spawn, fork, ChildProcess } from 'node:child_process';
 import os from 'node:os';
+import fs from 'node:fs/promises';
 
 import stripAnsi from 'strip-ansi';
 
@@ -93,6 +94,24 @@ export class AgentRunner {
     this.setupCleanupDaemon(rootClusterUri, agentProcess);
 
     return agentProcess;
+  }
+
+  /**
+   * tryRemoveAgentBinary removes the agent binary but only if all agents are stopped.
+   *
+   * Rejects on filesystem errors.
+   */
+  async tryRemoveAgentBinary(): Promise<void> {
+    // If we remove the binary while an agent is running, the agent will continue to run but it
+    // won't be able to spawn new shells.
+    if (!this.areAllAgentsStopped()) {
+      this.logger.info(
+        'Skipping agent binary removal, not all agents are stopped.'
+      );
+      return;
+    }
+
+    await fs.rm(this.settings.agentBinaryPath, { force: true });
   }
 
   getState(rootClusterUri: RootClusterUri): AgentProcessState | undefined {
@@ -254,6 +273,13 @@ export class AgentRunner {
     const agent = this.agentProcesses.get(rootClusterUri);
     agent.state = state;
     this.sendProcessState(rootClusterUri, state);
+  }
+
+  private areAllAgentsStopped(): boolean {
+    return [...this.agentProcesses.values()].every(
+      ({ state: { status } }) =>
+        status === 'not-started' || status === 'exited' || status === 'error'
+    );
   }
 }
 
