@@ -255,8 +255,8 @@ func (a *AuthCommand) GenerateKeys(ctx context.Context) error {
 // GenerateAndSignKeys generates a new keypair and signs it for role
 func (a *AuthCommand) GenerateAndSignKeys(ctx context.Context, clusterAPI auth.ClientI) error {
 	if a.streamTarfile {
-		tarWriter := newTarWriter(os.Stdout, clockwork.NewRealClock())
-		defer tarWriter.Close()
+		tarWriter := newTarWriter(clockwork.NewRealClock())
+		defer tarWriter.Archive(os.Stdout)
 		a.identityWriter = tarWriter
 	}
 
@@ -950,7 +950,7 @@ func (a *AuthCommand) checkKubeCluster(ctx context.Context, clusterAPI auth.Clie
 	if a.outputFormat != identityfile.FormatKubernetes && a.kubeCluster != "" {
 		// User set --kube-cluster-name but it's not actually used for the chosen --format.
 		// Print a warning but continue.
-		fmt.Printf("Note: --kube-cluster-name is only used with --format=%q, ignoring for --format=%q\n", identityfile.FormatKubernetes, a.outputFormat)
+		fmt.Fprintf(a.helperMsgDst(), "Note: --kube-cluster-name is only used with --format=%q, ignoring for --format=%q\n", identityfile.FormatKubernetes, a.outputFormat)
 	}
 	if a.outputFormat != identityfile.FormatKubernetes {
 		return nil
@@ -977,7 +977,7 @@ func (a *AuthCommand) checkProxyAddr(ctx context.Context, clusterAPI auth.Client
 	if a.outputFormat != identityfile.FormatKubernetes && a.proxyAddr != "" {
 		// User set --proxy but it's not actually used for the chosen --format.
 		// Print a warning but continue.
-		fmt.Printf("Note: --proxy is only used with --format=%q, ignoring for --format=%q\n", identityfile.FormatKubernetes, a.outputFormat)
+		fmt.Fprintf(a.helperMsgDst(), "Note: --proxy is only used with --format=%q, ignoring for --format=%q\n", identityfile.FormatKubernetes, a.outputFormat)
 		return nil
 	}
 	if a.outputFormat != identityfile.FormatKubernetes {
