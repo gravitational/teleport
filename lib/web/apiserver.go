@@ -4096,33 +4096,27 @@ func (h *Handler) AuthenticateRequest(w http.ResponseWriter, r *http.Request, ch
 		}
 	}
 
-	if err := parseMFAResponseFromRequest(r); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	return sctx, nil
 }
 
-// parseMFAResponseFromRequest attempts to parse an MFA reponse from the request body.
-// If found, the MFA reponse is added to the request context where it can be recalled
-// further down the call stack.
-func parseMFAResponseFromRequest(r *http.Request) error {
-	if mfaResponseJSON := r.Header.Get("Mfa-Response"); mfaResponseJSON != "" {
+// contextWithMFAResponseFromRequestHeader attempts to parse an MFA reponse
+// from the request header. If found, the MFA reponse is added to the given
+// context and returned.
+func contextWithMFAResponseFromRequestHeader(ctx context.Context, requestHeader http.Header) (context.Context, error) {
+	if mfaResponseJSON := requestHeader.Get("Mfa-Response"); mfaResponseJSON != "" {
 		var resp mfaResponse
 		if err := json.Unmarshal([]byte(mfaResponseJSON), &resp); err != nil {
-			return trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 
-		mfaResp := &proto.MFAAuthenticateResponse{
+		return mfa.ContextWithMFAResponse(ctx, &proto.MFAAuthenticateResponse{
 			Response: &proto.MFAAuthenticateResponse_Webauthn{
 				Webauthn: wantypes.CredentialAssertionResponseToProto(resp.WebauthnAssertionResponse),
 			},
-		}
-
-		ctx := mfa.ContextWithMFAResponse(r.Context(), mfaResp)
-		*r = *r.WithContext(ctx)
+		}), nil
 	}
-	return nil
+
+	return ctx, nil
 }
 
 // ProxyWithRoles returns a reverse tunnel proxy verifying the permissions

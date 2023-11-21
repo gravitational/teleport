@@ -114,16 +114,16 @@ func EncodeMFAChallengeResponseCredentials(mfaResp *proto.MFAAuthenticateRespons
 	return base64.StdEncoding.EncodeToString([]byte(challengeJSON)), nil
 }
 
-type contextKey struct{}
+type mfaResponseContextKey struct{}
 
 // ContextWithMFAResponse embeds the MFA response in the context.
 func ContextWithMFAResponse(ctx context.Context, mfaResp *proto.MFAAuthenticateResponse) context.Context {
-	return context.WithValue(ctx, contextKey{}, mfaResp)
+	return context.WithValue(ctx, mfaResponseContextKey{}, mfaResp)
 }
 
 // MFAResponseFromContext returns the MFA response from the context.
 func MFAResponseFromContext(ctx context.Context) (*proto.MFAAuthenticateResponse, error) {
-	if val := ctx.Value(contextKey{}); val != nil {
+	if val := ctx.Value(mfaResponseContextKey{}); val != nil {
 		mfaResp, ok := val.(*proto.MFAAuthenticateResponse)
 		if !ok {
 			return nil, trace.BadParameter("unexpected context value type %T", val)
