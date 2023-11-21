@@ -1926,15 +1926,14 @@ func (s *Server) handleEnvs(ch ssh.Channel, req *ssh.Request, ctx *srv.ServerCon
 
 // handleKeepAlive accepts and replies to keepalive@openssh.com requests.
 func (s *Server) handleKeepAlive(req *ssh.Request) {
-	s.Logger.Debugf("Received %q: WantReply: %v", req.Type, req.WantReply)
-
 	// only reply if the sender actually wants a response
-	if req.WantReply {
-		err := req.Reply(true, nil)
-		if err != nil {
-			s.Logger.Warnf("Unable to reply to %q request: %v", req.Type, err)
-			return
-		}
+	if !req.WantReply {
+		return
+	}
+
+	if err := req.Reply(true, nil); err != nil {
+		s.Logger.Warnf("Unable to reply to %q request: %v", req.Type, err)
+		return
 	}
 
 	s.Logger.Debugf("Replied to %q", req.Type)
