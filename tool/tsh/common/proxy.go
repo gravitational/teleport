@@ -72,16 +72,21 @@ func onProxyCommandSSH(cf *CLIConf) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		defer conn.Close()
 
 		errC := make(chan error, 2)
 		go func() {
-			defer conn.Close()
 			_, err := io.Copy(os.Stdout, conn)
+			if err != nil && utils.IsOKNetworkError(err) {
+				err = nil
+			}
 			errC <- err
 		}()
 		go func() {
-			defer conn.Close()
 			_, err := io.Copy(conn, os.Stdin)
+			if err != nil && utils.IsOKNetworkError(err) {
+				err = nil
+			}
 			errC <- err
 		}()
 
@@ -208,7 +213,7 @@ func onProxyCommandDB(cf *CLIConf) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		var opts = []dbcmd.ConnectCommandFunc{
+		opts := []dbcmd.ConnectCommandFunc{
 			dbcmd.WithLocalProxy("localhost", addr.Port(0), ""),
 			dbcmd.WithNoTLS(),
 			dbcmd.WithLogger(log),
@@ -633,7 +638,6 @@ func generateDBLocalProxyCert(key *libclient.Key, profile *libclient.ProfileStat
 	path := profile.DatabaseLocalCAPath()
 	if utils.FileExists(path) {
 		return nil
-
 	}
 	certPem, err := tlsca.GenerateSelfSignedCAWithConfig(tlsca.GenerateCAConfig{
 		Entity: pkix.Name{
@@ -709,7 +713,7 @@ var dbProxyAuthMultiTpl = template.Must(template.New("").Parse(
 ` + dbProxyConnectAd + `
 Use one of the following commands to connect to the database or to the address above using other database GUI/CLI clients:
 {{range $item := .commands}}
-  * {{$item.Description}}: 
+  * {{$item.Description}}:
 
   $ {{$item.Command}}
 {{end}}
