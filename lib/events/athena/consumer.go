@@ -32,7 +32,6 @@ import (
 	sqsTypes "github.com/aws/aws-sdk-go-v2/service/sqs/types"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-	"github.com/prometheus/client_golang/prometheus"
 	"github.com/segmentio/parquet-go"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
@@ -103,21 +102,20 @@ type s3downloader interface {
 	Download(ctx context.Context, w io.WriterAt, input *s3.GetObjectInput, options ...func(*manager.Downloader)) (n int64, err error)
 }
 
-func newConsumer(cfg Config, cancelFn context.CancelFunc, metricConsumerBatchProcessingDuration prometheus.Histogram) (*consumer, error) {
-	s3client := s3.NewFromConfig(*cfg.AWSConfig)
-	sqsClient := sqs.NewFromConfig(*cfg.AWSConfig)
+func newConsumer(cfg Config, cancelFn context.CancelFunc) (*consumer, error) {
+	sqsClient := sqs.NewFromConfig(*cfg.PublisherConsumerAWSConfig)
 
 	collectCfg := sqsCollectConfig{
 		sqsReceiver: sqsClient,
 		queueURL:    cfg.QueueURL,
-		// TODO(tobiaszheller): use s3 manager from teleport observability.
-		payloadDownloader:                     manager.NewDownloader(s3client),
-		payloadBucket:                         cfg.largeEventsBucket,
-		visibilityTimeout:                     int32(cfg.BatchMaxInterval.Seconds()),
-		batchMaxItems:                         cfg.BatchMaxItems,
-		errHandlingFn:                         errHandlingFnFromSQS(cfg.LogEntry),
-		logger:                                cfg.LogEntry,
-		metricConsumerBatchProcessingDuration: metricConsumerBatchProcessingDuration,
+		// TODO(nklaassen): use s3 manager from teleport observability.
+		payloadDownloader: manager.NewDownloader(s3.NewFromConfig(*cfg.PublisherConsumerAWSConfig)),
+		payloadBucket:     cfg.largeEventsBucket,
+		visibilityTimeout: int32(cfg.BatchMaxInterval.Seconds()),
+		batchMaxItems:     cfg.BatchMaxItems,
+		errHandlingFn:     errHandlingFnFromSQS(&cfg),
+		logger:            cfg.LogEntry,
+		metrics:           cfg.metrics,
 	}
 	err := collectCfg.CheckAndSetDefaults()
 	if err != nil {
@@ -140,7 +138,7 @@ func newConsumer(cfg Config, cancelFn context.CancelFunc, metricConsumerBatchPro
 		queueURL:            cfg.QueueURL,
 		perDateFileParquetWriter: func(ctx context.Context, date string) (io.WriteCloser, error) {
 			key := fmt.Sprintf("%s/%s/%s.parquet", cfg.locationS3Prefix, date, uuid.NewString())
-			fw, err := awsutils.NewS3V2FileWriter(ctx, s3client, cfg.locationS3Bucket, key, nil /* uploader options */, func(poi *s3.PutObjectInput) {
+			fw, err := awsutils.NewS3V2FileWriter(ctx, s3.NewFromConfig(*cfg.StorerQuerierAWSConfig), cfg.locationS3Bucket, key, nil /* uploader options */, func(poi *s3.PutObjectInput) {
 				// ChecksumAlgorithm is required for putting objects when object lock is enabled.
 				poi.ChecksumAlgorithm = s3Types.ChecksumAlgorithmSha256
 			})
@@ -293,8 +291,8 @@ func (c *consumer) processBatchOfEvents(ctx context.Context) (reachedMaxSize boo
 	start := time.Now()
 	var size int
 	defer func() {
-		consumerLastProcessedTimestamp.SetToCurrentTime()
-		c.collectConfig.metricConsumerBatchProcessingDuration.Observe(time.Since(start).Seconds())
+		c.collectConfig.metrics.consumerLastProcessedTimestamp.SetToCurrentTime()
+		c.collectConfig.metrics.consumerBatchProcessingDuration.Observe(time.Since(start).Seconds())
 	}()
 
 	msgsCollector := newSqsMessagesCollector(c.collectConfig)
@@ -344,7 +342,7 @@ type sqsCollectConfig struct {
 	logger        log.FieldLogger
 	errHandlingFn func(ctx context.Context, errC chan error)
 
-	metricConsumerBatchProcessingDuration prometheus.Histogram
+	metrics *athenaMetrics
 }
 
 func (cfg *sqsCollectConfig) CheckAndSetDefaults() error {
@@ -389,8 +387,8 @@ func (cfg *sqsCollectConfig) CheckAndSetDefaults() error {
 	if cfg.errHandlingFn == nil {
 		return trace.BadParameter("errHandlingFn is not specified")
 	}
-	if cfg.metricConsumerBatchProcessingDuration == nil {
-		return trace.BadParameter("metricConsumerBatchProcessingDuration is not specified")
+	if cfg.metrics == nil {
+		return trace.BadParameter("metrics is not specified")
 	}
 	return nil
 }
@@ -480,12 +478,12 @@ func (s *sqsMessagesCollector) fromSQS(ctx context.Context) {
 	wg.Wait()
 	close(eventsC)
 	if fullBatchMetadata.Count > 0 {
-		consumerBatchCount.Add(float64(fullBatchMetadata.Count))
-		consumerBatchSize.Observe(float64(fullBatchMetadata.Size))
-		consumerAgeOfOldestProcessedMessage.Set(time.Since(fullBatchMetadata.OldestTimestamp).Seconds())
+		s.cfg.metrics.consumerBatchCount.Add(float64(fullBatchMetadata.Count))
+		s.cfg.metrics.consumerBatchSize.Observe(float64(fullBatchMetadata.Size))
+		s.cfg.metrics.consumerAgeOfOldestProcessedMessage.Set(time.Since(fullBatchMetadata.OldestTimestamp).Seconds())
 	} else {
 		// When no messages were processed, clear gauge metric.
-		consumerAgeOfOldestProcessedMessage.Set(0)
+		s.cfg.metrics.consumerAgeOfOldestProcessedMessage.Set(0)
 	}
 }
 
@@ -665,15 +663,15 @@ type eventAndAckID struct {
 	receiptHandle string
 }
 
-func errHandlingFnFromSQS(logger log.FieldLogger) func(ctx context.Context, errC chan error) {
+func errHandlingFnFromSQS(cfg *Config) func(ctx context.Context, errC chan error) {
 	return func(ctx context.Context, errC chan error) {
 		var errorsCount int
 
 		defer func() {
 			if errorsCount > maxErrorCountForLogsOnSQSReceive {
-				logger.Errorf("Got %d errors from SQS collector, printed only first %d", errorsCount, maxErrorCountForLogsOnSQSReceive)
+				cfg.LogEntry.Errorf("Got %d errors from SQS collector, printed only first %d", errorsCount, maxErrorCountForLogsOnSQSReceive)
 			}
-			consumerNumberOfErrorsFromSQSCollect.Add(float64(errorsCount))
+			cfg.metrics.consumerNumberOfErrorsFromSQSCollect.Add(float64(errorsCount))
 		}()
 
 		for {
@@ -687,7 +685,7 @@ func errHandlingFnFromSQS(logger log.FieldLogger) func(ctx context.Context, errC
 				}
 				errorsCount++
 				if errorsCount <= maxErrorCountForLogsOnSQSReceive {
-					logger.WithError(err).Error("Failure processing SQS messages")
+					cfg.LogEntry.WithError(err).Error("Failure processing SQS messages")
 				}
 			}
 		}
@@ -790,7 +788,7 @@ eventLoop:
 	}
 	eventLoopFinishedTime := time.Now()
 	defer func() {
-		consumerS3parquetFlushDuration.Observe(time.Since(eventLoopFinishedTime).Seconds())
+		c.collectConfig.metrics.consumerS3parquetFlushDuration.Observe(time.Since(eventLoopFinishedTime).Seconds())
 	}()
 	for _, pw := range perDateWriter {
 		if err := pw.Close(); err != nil {
@@ -835,7 +833,7 @@ func (c *consumer) deleteMessagesFromQueue(ctx context.Context, handles []string
 	}
 	start := time.Now()
 	defer func() {
-		consumerDeleteMessageDuration.Observe(time.Since(start).Seconds())
+		c.collectConfig.metrics.consumerDeleteMessageDuration.Observe(time.Since(start).Seconds())
 	}()
 	const (
 		// maxDeleteBatchSize defines maximum number of handles passed to deleteMessage endpoint, limited by AWS.

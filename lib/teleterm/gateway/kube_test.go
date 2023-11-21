@@ -119,7 +119,7 @@ func sendRequestToKubeLocalProxyAndSucceed(t *testing.T, client *kubernetes.Clie
 	t.Helper()
 	resp, err := client.CoreV1().Pods("default").List(context.Background(), metav1.ListOptions{})
 	require.NoError(t, err)
-	require.Equal(t, len(resp.Items), 1)
+	require.Len(t, resp.Items, 1)
 	require.Equal(t, "kube-pod-name", resp.Items[0].GetName())
 }
 func sendRequestToKubeLocalProxyAndFail(t *testing.T, client *kubernetes.Clientset) {

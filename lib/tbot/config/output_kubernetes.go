@@ -107,9 +107,9 @@ func (o *KubernetesOutput) Describe() []FileDescription {
 	return fds
 }
 
-func (o KubernetesOutput) MarshalYAML() (interface{}, error) {
+func (o *KubernetesOutput) MarshalYAML() (interface{}, error) {
 	type raw KubernetesOutput
-	return withTypeHeader(raw(o), KubernetesOutputType)
+	return withTypeHeader((*raw)(o), KubernetesOutputType)
 }
 
 func (o *KubernetesOutput) UnmarshalYAML(node *yaml.Node) error {

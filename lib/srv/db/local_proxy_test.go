@@ -65,7 +65,7 @@ func TestLocalProxyPostgres(t *testing.T) {
 	var pgErr *pgconn.PgError
 	require.ErrorAs(t, err, &pgErr)
 	require.Equal(t, pgerrcode.QueryCanceled, pgErr.Code)
-	require.Len(t, results, 0)
+	require.Empty(t, results)
 }
 
 // TestLocalProxyMySQL verifies connecting to a MySQL database

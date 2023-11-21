@@ -45,7 +45,6 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
-	"go.mongodb.org/mongo-driver/x/mongo/driver/wiremessage"
 	sqladmin "google.golang.org/api/sqladmin/v1beta4"
 
 	"github.com/gravitational/teleport"
@@ -76,6 +75,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/dynamodb"
 	"github.com/gravitational/teleport/lib/srv/db/elasticsearch"
 	"github.com/gravitational/teleport/lib/srv/db/mongodb"
+	"github.com/gravitational/teleport/lib/srv/db/mongodb/protocol"
 	"github.com/gravitational/teleport/lib/srv/db/mysql"
 	"github.com/gravitational/teleport/lib/srv/db/opensearch"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
@@ -862,7 +862,7 @@ func TestAccessMongoDB(t *testing.T) {
 		{
 			name: "current server",
 			opts: []mongodb.TestServerOption{
-				mongodb.TestServerWireVersion(wiremessage.OpmsgWireVersion),
+				mongodb.TestServerWireVersion(protocol.OpmsgWireVersion),
 			},
 		},
 		{
@@ -903,14 +903,14 @@ func TestAccessMongoDB(t *testing.T) {
 				testCtx := setupTestContext(ctx, t, withSelfHostedMongo("mongo", serverOpt.opts...))
 				go testCtx.startHandlingConnections()
 
+				// Create user/role with the requested permissions.
+				testCtx.createUserAndRole(ctx, t, test.user, test.role, test.allowDbUsers, test.allowDbNames)
+
 				for _, clientOpt := range clientOpts {
 					clientOpt := clientOpt
 
 					t.Run(fmt.Sprintf("%v/%v", serverOpt.name, clientOpt.name), func(t *testing.T) {
 						t.Parallel()
-
-						// Create user/role with the requested permissions.
-						testCtx.createUserAndRole(ctx, t, test.user, test.role, test.allowDbUsers, test.allowDbNames)
 
 						// Try to connect to the database as this user.
 						mongoClient, err := testCtx.mongoClient(ctx, test.user, "mongo", test.dbUser, clientOpt.opts)
@@ -951,13 +951,13 @@ func TestMongoDBMaxMessageSize(t *testing.T) {
 		expectedQueryError bool
 	}{
 		"default message size": {
-			messageSize: 256,
+			messageSize: 300,
 		},
 		"message size exceeded": {
 			// Set a value that will enable handshake message to complete
 			// successfully.
-			maxMessageSize:     256,
-			messageSize:        512,
+			maxMessageSize:     300,
+			messageSize:        500,
 			expectedQueryError: true,
 		},
 	} {
@@ -1084,7 +1084,7 @@ func TestRedisGetSet(t *testing.T) {
 
 	getResult := redisClient.Get(ctx, "key1")
 	require.NoError(t, getResult.Err())
-	require.Equal(t, getResult.Val(), "123")
+	require.Equal(t, "123", getResult.Val())
 
 	// Disconnect.
 	err = redisClient.Close()
@@ -2193,12 +2193,13 @@ func setupTestContext(ctx context.Context, t testing.TB, withDatabases ...withDa
 	testCtx.emitter = eventstest.NewChannelEmitter(100)
 
 	connMonitor, err := srv.NewConnectionMonitor(srv.ConnectionMonitorConfig{
-		AccessPoint: proxyAuthClient,
-		LockWatcher: proxyLockWatcher,
-		Clock:       testCtx.clock,
-		ServerID:    testCtx.hostID,
-		Emitter:     testCtx.emitter,
-		Logger:      utils.NewLoggerForTests(),
+		AccessPoint:    proxyAuthClient,
+		LockWatcher:    proxyLockWatcher,
+		Clock:          testCtx.clock,
+		ServerID:       testCtx.hostID,
+		Emitter:        testCtx.emitter,
+		EmitterContext: ctx,
+		Logger:         utils.NewLoggerForTests(),
 	})
 	require.NoError(t, err)
 
@@ -2242,6 +2243,8 @@ type agentParams struct {
 	GCPSQL *mocks.GCPSQLAdminClientMock
 	// ElastiCache defines the AWS ElastiCache mock to use for ElastiCache API calls.
 	ElastiCache *mocks.ElastiCacheMock
+	// MemoryDB defines the AWS MemoryDB mock to use for MemoryDB API calls.
+	MemoryDB *mocks.MemoryDBMock
 	// OnHeartbeat defines a heartbeat function that generates heartbeat events.
 	OnHeartbeat func(error)
 	// CADownloader defines the CA downloader.
@@ -2275,6 +2278,9 @@ func (p *agentParams) setDefaults(c *testContext) {
 	if p.ElastiCache == nil {
 		p.ElastiCache = &mocks.ElastiCacheMock{}
 	}
+	if p.MemoryDB == nil {
+		p.MemoryDB = &mocks.MemoryDBMock{}
+	}
 	if p.CADownloader == nil {
 		p.CADownloader = &fakeDownloader{
 			cert: []byte(fixtures.TLSCACertPEM),
@@ -2288,7 +2294,7 @@ func (p *agentParams) setDefaults(c *testContext) {
 			Redshift:           &mocks.RedshiftMock{},
 			RedshiftServerless: &mocks.RedshiftServerlessMock{},
 			ElastiCache:        p.ElastiCache,
-			MemoryDB:           &mocks.MemoryDBMock{},
+			MemoryDB:           p.MemoryDB,
 			SecretsManager:     secrets.NewMockSecretsManagerClient(secrets.MockSecretsManagerClientConfig{}),
 			IAM:                &mocks.IAMMock{},
 			GCPSQL:             p.GCPSQL,
@@ -2337,12 +2343,13 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t testing.TB, p a
 	require.NoError(t, err)
 
 	connMonitor, err := srv.NewConnectionMonitor(srv.ConnectionMonitorConfig{
-		AccessPoint: c.authClient,
-		LockWatcher: lockWatcher,
-		Clock:       c.clock,
-		ServerID:    p.HostID,
-		Emitter:     c.emitter,
-		Logger:      utils.NewLoggerForTests(),
+		AccessPoint:    c.authClient,
+		LockWatcher:    lockWatcher,
+		Clock:          c.clock,
+		ServerID:       p.HostID,
+		Emitter:        c.emitter,
+		EmitterContext: context.Background(),
+		Logger:         utils.NewLoggerForTests(),
 	})
 	require.NoError(t, err)
 
@@ -3062,6 +3069,43 @@ func withElastiCacheRedis(name string, token, engineVersion string) withDatabase
 				Region: "us-west-1",
 				ElastiCache: types.ElastiCache{
 					ReplicationGroupID: "example-cluster",
+				},
+			},
+			// Set CA cert to pass cert validation.
+			TLS: types.DatabaseTLS{
+				CACert: string(testCtx.databaseCA.GetActiveKeys().TLS[0].Cert),
+			},
+		})
+		require.NoError(t, err)
+		testCtx.redis[name] = testRedis{
+			db:       redisServer,
+			resource: database,
+		}
+		return database
+	}
+}
+
+func withMemoryDBRedis(name string, token, engineVersion string) withDatabaseOption {
+	return func(t testing.TB, ctx context.Context, testCtx *testContext) types.Database {
+		redisServer, err := redis.NewTestServer(t, common.TestServerConfig{
+			Name:       name,
+			AuthClient: testCtx.authClient,
+		}, redis.TestServerPassword(token))
+		require.NoError(t, err)
+
+		database, err := types.NewDatabaseV3(types.Metadata{
+			Name: name,
+			Labels: map[string]string{
+				"engine-version": engineVersion,
+			},
+		}, types.DatabaseSpecV3{
+			Protocol:      defaults.ProtocolRedis,
+			URI:           fmt.Sprintf("rediss://%s", net.JoinHostPort("localhost", redisServer.Port())),
+			DynamicLabels: dynamicLabels,
+			AWS: types.AWS{
+				Region: "us-west-1",
+				MemoryDB: types.MemoryDB{
+					ClusterName: "example-cluster",
 				},
 			},
 			// Set CA cert to pass cert validation.

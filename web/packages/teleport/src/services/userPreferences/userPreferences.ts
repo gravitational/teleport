@@ -21,9 +21,10 @@ import { ViewMode } from 'teleport/Assist/types';
 import {
   ThemePreference,
   UnifiedTabPreference,
+  UnifiedViewModePreference,
 } from 'teleport/services/userPreferences/types';
 
-import { KeysEnum } from '../localStorage';
+import { KeysEnum } from '../storageService';
 
 import type {
   GetUserPreferencesResponse,
@@ -92,6 +93,7 @@ export function makeDefaultUserPreferences(): UserPreferences {
     },
     unifiedResourcePreferences: {
       defaultTab: UnifiedTabPreference.All,
+      viewMode: UnifiedViewModePreference.Card,
     },
     clusterPreferences: makeDefaultUserClusterPreferences(),
   };

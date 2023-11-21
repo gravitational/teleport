@@ -427,7 +427,7 @@ func TestUnknownIdentifier(t *testing.T) {
 	_, err = parser.Parse("unknown")
 
 	var u typical.UnknownIdentifierError
-	require.True(t, errors.As(err, &u))
-	require.True(t, errors.As(trace.Wrap(err), &u))
+	require.ErrorAs(t, err, &u)
+	require.ErrorAs(t, trace.Wrap(err), &u)
 	require.Equal(t, "unknown", u.Identifier())
 }

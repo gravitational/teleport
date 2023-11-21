@@ -515,7 +515,7 @@ func (rc *ResourceCommand) createUser(ctx context.Context, client auth.ClientI, 
 		// This field should not be allowed to be overwritten.
 		user.SetCreatedBy(existingUser.GetCreatedBy())
 
-		if _, err := client.UpdateUser(ctx, user); err != nil {
+		if _, err := client.UpsertUser(ctx, user); err != nil {
 			return trace.Wrap(err)
 		}
 		fmt.Printf("user %q has been updated\n", userName)

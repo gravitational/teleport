@@ -18,7 +18,7 @@ import { useState, useEffect, useRef, Dispatch, SetStateAction } from 'react';
 import { Attempt } from 'shared/hooks/useAttemptNext';
 import { NotificationItem } from 'shared/components/Notification';
 
-import { getPlatform } from 'design/theme/utils';
+import { Platform, getPlatform } from 'design/platform';
 
 import { TdpClient, ButtonState, ScrollAxis } from 'teleport/lib/tdp';
 import { ClipboardData, PngFrame, SyncKeys } from 'teleport/lib/tdp/codec';
@@ -179,7 +179,7 @@ export default function useTdpClientCanvas(props: Props) {
     }
   };
 
-  const { isMac } = getPlatform();
+  const isMac = getPlatform() === Platform.macOS;
   /**
    * On MacOS Edge/Chrome/Safari, each physical CapsLock DOWN-UP registers
    * as either a single DOWN or single UP, with DOWN corresponding to

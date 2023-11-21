@@ -27,7 +27,7 @@ import (
 type AutoEnrollCeremony struct {
 	*Ceremony
 
-	CollectDeviceData func() (*devicepb.DeviceCollectedData, error)
+	CollectDeviceData func(mode native.CollectDataMode) (*devicepb.DeviceCollectedData, error)
 }
 
 // NewAutoEnrollCeremony creates a new [AutoEnrollCeremony] based on the regular
@@ -49,7 +49,7 @@ func AutoEnroll(ctx context.Context, devicesClient devicepb.DeviceTrustServiceCl
 // [devicepb.DeviceTrustServiceClient.CreateDeviceEnrollToken] and enrolls the
 // device using a regular [Ceremony].
 func (c *AutoEnrollCeremony) Run(ctx context.Context, devicesClient devicepb.DeviceTrustServiceClient) (*devicepb.Device, error) {
-	cd, err := c.CollectDeviceData()
+	cd, err := c.CollectDeviceData(native.CollectedDataAlwaysEscalate)
 	if err != nil {
 		return nil, trace.Wrap(err, "collecting device data")
 	}

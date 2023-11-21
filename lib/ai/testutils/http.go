@@ -50,7 +50,7 @@ func GetTestHandlerFn(t *testing.T, responses []string) http.HandlerFunc {
 func streamResponse(w http.ResponseWriter, t *testing.T, responses []string) []string {
 	w.Header().Set("Content-Type", "text/event-stream")
 
-	if !assert.GreaterOrEqual(t, len(responses), 1, "Unexpected request") {
+	if !assert.NotEmpty(t, responses, "Unexpected request") {
 		http.Error(w, "Unexpected request", http.StatusBadRequest)
 		return responses
 	}
@@ -95,7 +95,7 @@ func messageResponse(w http.ResponseWriter, r *http.Request, t *testing.T, respo
 	}
 
 	// Use assert as require doesn't work when called from a goroutine
-	if !assert.GreaterOrEqual(t, len(responses), 1, "Unexpected request") {
+	if !assert.NotEmpty(t, responses, "Unexpected request") {
 		http.Error(w, "Unexpected request", http.StatusBadRequest)
 		return responses
 	}

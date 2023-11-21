@@ -21,6 +21,13 @@ import { ChevronDown } from 'design/Icon';
 
 import { MenuProps, AnchorProps } from './types';
 
+type Props = MenuProps & {
+  defaultOpen?: boolean;
+  buttonProps?: AnchorProps;
+  buttonText?: string;
+  menuProps?: MenuProps;
+};
+
 export default class MenuActionIcon extends React.Component<Props> {
   anchorEl = null;
 
@@ -54,7 +61,7 @@ export default class MenuActionIcon extends React.Component<Props> {
           onClick={this.onOpen}
           {...buttonProps}
         >
-          OPTIONS
+          {this.props.buttonText || 'OPTIONS'}
           <ChevronDown ml={2} mr={-2} size="small" color="text.slightlyMuted" />
         </ButtonBorder>
         <Menu
@@ -102,9 +109,3 @@ export default class MenuActionIcon extends React.Component<Props> {
 const menuListCss = () => `
   min-width: 100px;
 `;
-
-type Props = MenuProps & {
-  defaultOpen?: boolean;
-  buttonProps?: AnchorProps;
-  menuProps?: MenuProps;
-};

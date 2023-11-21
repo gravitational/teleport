@@ -86,29 +86,29 @@ func (m *MessageOpQuery) MoreToCome(_ Message) bool {
 //
 // https://docs.mongodb.com/manual/reference/mongodb-wire-protocol/#op_query
 func readOpQuery(header MessageHeader, payload []byte) (*MessageOpQuery, error) {
-	flags, rem, ok := wiremessage.ReadQueryFlags(payload)
+	flags, rem, ok := ReadQueryFlags(payload)
 	if !ok {
 		return nil, trace.BadParameter("malformed OP_QUERY: missing flags %v", payload)
 	}
-	fullCollectionName, rem, ok := wiremessage.ReadQueryFullCollectionName(rem)
+	fullCollectionName, rem, ok := ReadQueryFullCollectionName(rem)
 	if !ok {
 		return nil, trace.BadParameter("malformed OP_QUERY: missing full collection name %v", payload)
 	}
-	numberToSkip, rem, ok := wiremessage.ReadQueryNumberToSkip(rem)
+	numberToSkip, rem, ok := ReadQueryNumber(rem)
 	if !ok {
 		return nil, trace.BadParameter("malformed OP_QUERY: missing number to skip %v", payload)
 	}
-	numberToReturn, rem, ok := wiremessage.ReadQueryNumberToReturn(rem)
+	numberToReturn, rem, ok := ReadQueryNumber(rem)
 	if !ok {
 		return nil, trace.BadParameter("malformed OP_QUERY: missing number to return %v", payload)
 	}
-	query, rem, ok := wiremessage.ReadQueryQuery(rem)
+	query, rem, ok := ReadDocument(rem)
 	if !ok {
 		return nil, trace.BadParameter("malformed OP_QUERY: missing query %v", payload)
 	}
 	var returnFieldsSelector bsoncore.Document
 	if len(rem) > 0 {
-		returnFieldsSelector, _, ok = wiremessage.ReadQueryReturnFieldsSelector(rem)
+		returnFieldsSelector, _, ok = ReadDocument(rem)
 		if !ok {
 			return nil, trace.BadParameter("malformed OP_QUERY: missing return field selector %v", payload)
 		}
@@ -130,6 +130,7 @@ func readOpQuery(header MessageHeader, payload []byte) (*MessageOpQuery, error) 
 // https://docs.mongodb.com/manual/reference/mongodb-wire-protocol/#op_query
 func (m *MessageOpQuery) ToWire(responseTo int32) (dst []byte) {
 	var idx int32
+	//nolint:staticcheck // ignore deprecation till OpQuery is removed, at which point this wire format should be updated
 	idx, dst = wiremessage.AppendHeaderStart(dst, m.Header.RequestID, responseTo, wiremessage.OpQuery)
 	dst = wiremessage.AppendQueryFlags(dst, m.Flags)
 	dst = wiremessage.AppendQueryFullCollectionName(dst, m.FullCollectionName)

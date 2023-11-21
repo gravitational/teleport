@@ -552,11 +552,11 @@ func TestParties(t *testing.T) {
 
 	// Create a session with 3 parties
 	sess, _ := testOpenSession(t, reg, nil)
-	require.Equal(t, 1, len(sess.getParties()))
+	require.Len(t, sess.getParties(), 1)
 	testJoinSession(t, reg, sess)
-	require.Equal(t, 2, len(sess.getParties()))
+	require.Len(t, sess.getParties(), 2)
 	testJoinSession(t, reg, sess)
-	require.Equal(t, 3, len(sess.getParties()))
+	require.Len(t, sess.getParties(), 3)
 
 	// If a party leaves, the session should remove the party and continue.
 	p := sess.getParties()[0]
@@ -590,7 +590,7 @@ func TestParties(t *testing.T) {
 
 	// If a party connects to the lingering session, it will continue.
 	testJoinSession(t, reg, sess)
-	require.Equal(t, 1, len(sess.getParties()))
+	require.Len(t, sess.getParties(), 1)
 
 	// advance clock and give lingerAndDie goroutine a second to complete.
 	regClock.Advance(defaults.SessionIdlePeriod)

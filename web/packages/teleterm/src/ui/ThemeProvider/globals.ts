@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 import { createGlobalStyle, css } from 'styled-components';
-import { getPlatform } from 'design/theme/utils';
+import { getPlatformType } from 'design/platform';
 
 const GlobalStyle = createGlobalStyle`
 
@@ -44,7 +44,7 @@ const GlobalStyle = createGlobalStyle`
     }
   }
 
-  ${() => !getPlatform().isMac && customScrollbar}
+  ${() => !getPlatformType().isMac && customScrollbar}
 `;
 
 const customScrollbar = css`

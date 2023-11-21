@@ -25,12 +25,16 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"github.com/vulcand/predicate/builder"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils"
@@ -110,15 +114,16 @@ type AuthorizerAccessPoint interface {
 	// GetAuthPreference returns the cluster authentication configuration.
 	GetAuthPreference(ctx context.Context) (types.AuthPreference, error)
 
-	// GetRole returns role by name
+	// GetRole returns role by name.
 	GetRole(ctx context.Context, name string) (types.Role, error)
 
+	// GetUser returns user by name.
 	GetUser(ctx context.Context, name string, withSecrets bool) (types.User, error)
 
-	// GetCertAuthority returns cert authority by id
+	// GetCertAuthority returns cert authority by id.
 	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)
 
-	// GetCertAuthorities returns a list of cert authorities
+	// GetCertAuthorities returns a list of cert authorities.
 	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool) ([]types.CertAuthority, error)
 
 	// GetClusterAuditConfig returns cluster audit configuration.
@@ -129,6 +134,10 @@ type AuthorizerAccessPoint interface {
 
 	// GetSessionRecordingConfig returns session recording configuration.
 	GetSessionRecordingConfig(ctx context.Context, opts ...services.MarshalOption) (types.SessionRecordingConfig, error)
+
+	// ValidateMFAAuthResponse validates an MFA or passwordless challenge.
+	// Returns the device used to solve the challenge (if applicable) and the username.
+	ValidateMFAAuthResponse(ctx context.Context, resp *proto.MFAAuthenticateResponse, user string, passwordless bool) (*types.MFADevice, string, error)
 }
 
 // authorizer creates new local authorizer
@@ -162,6 +171,11 @@ type Context struct {
 	// disableDeviceAuthorization disables device verification.
 	// Inherited from the authorizer that creates the context.
 	disableDeviceAuthorization bool
+
+	// AdminActionVerified is whether this auth request is verified for admin actions. This
+	// either means that the request was MFA verified through the context or Hardware Key support,
+	// or the identity does not require admin MFA (built in roles, bot impersonated user, etc).
+	adminActionAuthorized bool
 }
 
 // LockTargets returns a list of LockTargets inferred from the context's
@@ -293,6 +307,10 @@ func (a *authorizer) Authorize(ctx context.Context) (*Context, error) {
 		}
 	}
 
+	if err := a.checkAdminActionVerification(ctx, authContext); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return authContext, nil
 }
 
@@ -330,6 +348,82 @@ func (a *authorizer) fromUser(ctx context.Context, userI interface{}) (*Context,
 	default:
 		return nil, trace.AccessDenied("unsupported context type %T", userI)
 	}
+}
+
+// checkAdminActionVerification checks if this auth request is verified for admin actions.
+func (a *authorizer) checkAdminActionVerification(ctx context.Context, authContext *Context) error {
+	if err := a.authorizeAdminAction(ctx, authContext); err != nil {
+		if trace.IsNotFound(err) {
+			// missing MFA verification should be a noop.
+			return nil
+		}
+		return trace.Wrap(err)
+	}
+
+	authContext.adminActionAuthorized = true
+	return nil
+}
+
+func (a *authorizer) authorizeAdminAction(ctx context.Context, authContext *Context) error {
+	// Builtin roles do not require MFA to perform admin actions.
+	switch authContext.Identity.(type) {
+	case BuiltinRole, RemoteBuiltinRole:
+		return nil
+	}
+
+	authpref, err := a.accessPoint.GetAuthPreference(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Admin actions do not require MFA when MFA is not enabled.
+	if authpref.GetSecondFactor() == constants.SecondFactorOff {
+		return nil
+	}
+
+	// Skip MFA check if the user is a Bot.
+	if user, err := a.accessPoint.GetUser(ctx, authContext.Identity.GetIdentity().Username, false); err == nil && user.IsBot() {
+		a.logger.Debugf("Skipping admin action MFA check for bot identity: %v", authContext.Identity.GetIdentity())
+		return nil
+	}
+
+	// Skip MFA if the identity is being impersonated by the Bot or Admin built in role.
+	if impersonator := authContext.Identity.GetIdentity().Impersonator; impersonator != "" {
+		impersonatorUser, err := a.accessPoint.GetUser(ctx, impersonator, false)
+		if err == nil && impersonatorUser.IsBot() {
+			a.logger.Debugf("Skipping admin action MFA check for bot-impersonated identity: %v", authContext.Identity.GetIdentity())
+			return nil
+		}
+
+		// If we don't find a user matching the impersonator, it may be the admin role impersonating.
+		// Check that the impersonator matches a host service FQDN - <host-id>.<clustername>
+		if trace.IsNotFound(err) {
+			hostFQDNParts := strings.SplitN(impersonator, ".", 2)
+			if hostFQDNParts[1] == a.clusterName {
+				if _, err := uuid.Parse(hostFQDNParts[0]); err == nil {
+					a.logger.Debugf("Skipping admin action MFA check for admin-impersonated identity: %v", authContext.Identity.GetIdentity())
+					return nil
+				}
+			}
+		}
+	}
+
+	// Certain hardware-key based private key policies require MFA for each request.
+	if authContext.Identity.GetIdentity().PrivateKeyPolicy.MFAVerified() {
+		return nil
+	}
+
+	// MFA is required to be passed through the request context.
+	mfaResp, err := mfa.CredentialsFromContext(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if _, _, err := a.accessPoint.ValidateMFAAuthResponse(ctx, mfaResp, authContext.User.GetName(), false); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
 }
 
 // ErrIPPinningMissing is returned when user cert should be pinned but isn't.
@@ -916,7 +1010,7 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 						types.NewRule(types.KindEvent, services.RW()),
 						types.NewRule(types.KindAppServer, services.RW()),
 						types.NewRule(types.KindClusterNetworkingConfig, services.RO()),
-						types.NewRule(types.KindUser, services.RO()),
+						types.NewRule(types.KindUser, services.RW()),
 						types.NewRule(types.KindUserGroup, services.RW()),
 						types.NewRule(types.KindOktaImportRule, services.RO()),
 						types.NewRule(types.KindOktaAssignment, services.RW()),
@@ -1035,6 +1129,9 @@ const (
 
 	// contextClientDstAddr is a client destination address set in the context of the request
 	contextClientDstAddr contextKey = "teleport-client-dst-addr"
+
+	// contextConn is a connection in the context associated with the request
+	contextConn contextKey = "teleport-connection"
 )
 
 // WithDelegator alias for backwards compatibility
@@ -1194,11 +1291,18 @@ func AuthorizeContextWithVerbs(ctx context.Context, log logrus.FieldLogger, auth
 		errs[i] = authCtx.Checker.CheckAccessToRule(ruleCtx, defaults.Namespace, kind, verb, quiet)
 	}
 
-	// Convert generic aggregate error to AccessDenied (auth_with_roles also does this).
 	if err := trace.NewAggregate(errs...); err != nil {
-		return nil, trace.AccessDenied(err.Error())
+		return nil, err
 	}
 	return authCtx, nil
+}
+
+// AuthorizeAdminAction will ensure that the user is authorized to perform admin actions.
+func AuthorizeAdminAction(ctx context.Context, authCtx *Context) error {
+	if !authCtx.adminActionAuthorized {
+		return trace.Wrap(&mfa.ErrAdminActionMFARequired)
+	}
+	return nil
 }
 
 // LocalUser is a local user
@@ -1393,6 +1497,24 @@ func ClientAddrsFromContext(ctx context.Context) (src net.Addr, dst net.Addr) {
 	src, _ = ctx.Value(contextClientSrcAddr).(net.Addr)
 	dst, _ = ctx.Value(contextClientDstAddr).(net.Addr)
 	return
+}
+
+func ContextWithConn(ctx context.Context, conn net.Conn) context.Context {
+	if ctx == nil {
+		return nil
+	}
+	return context.WithValue(ctx, contextConn, conn)
+}
+
+func ConnFromContext(ctx context.Context) (net.Conn, error) {
+	if ctx == nil {
+		return nil, trace.BadParameter("context is nil")
+	}
+	conn, ok := ctx.Value(contextConn).(net.Conn)
+	if !ok {
+		return nil, trace.NotFound("connection was not found in the context")
+	}
+	return conn, nil
 }
 
 // ContextWithUser returns the context with the user embedded.

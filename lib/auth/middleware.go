@@ -194,6 +194,9 @@ func NewTLSServer(ctx context.Context, cfg TLSServerConfig) (*TLSServer, error) 
 			ReadHeaderTimeout: defaults.ReadHeadersTimeout,
 			WriteTimeout:      apidefaults.DefaultIOTimeout,
 			IdleTimeout:       apidefaults.DefaultIdleTimeout,
+			ConnContext: func(ctx context.Context, c net.Conn) context.Context {
+				return authz.ContextWithConn(ctx, c)
+			},
 		},
 		log: logrus.WithFields(logrus.Fields{
 			trace.Component: cfg.Component,
@@ -471,6 +474,8 @@ func (a *Middleware) withAuthenticatedUserStreamInterceptor(srv interface{}, ser
 // UnaryInterceptors returns the gRPC unary interceptor chain.
 func (a *Middleware) UnaryInterceptors() []grpc.UnaryServerInterceptor {
 	is := []grpc.UnaryServerInterceptor{
+		//nolint:staticcheck // SA1019. There is a data race in the stats.Handler that is replacing
+		// the interceptor. See https://github.com/open-telemetry/opentelemetry-go-contrib/issues/4576.
 		otelgrpc.UnaryServerInterceptor(),
 	}
 
@@ -488,6 +493,8 @@ func (a *Middleware) UnaryInterceptors() []grpc.UnaryServerInterceptor {
 // StreamInterceptors returns the gRPC stream interceptor chain.
 func (a *Middleware) StreamInterceptors() []grpc.StreamServerInterceptor {
 	is := []grpc.StreamServerInterceptor{
+		//nolint:staticcheck // SA1019. There is a data race in the stats.Handler that is replacing
+		// the interceptor. See https://github.com/open-telemetry/opentelemetry-go-contrib/issues/4576.
 		otelgrpc.StreamServerInterceptor(),
 	}
 

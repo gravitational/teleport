@@ -30,7 +30,7 @@ func TestWithDatabaseProtocol(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		var config LocalProxyConfig
 		require.NoError(t, WithDatabaseProtocol(defaults.ProtocolRedis)(&config))
-		require.Equal(t, config.Protocols, []common.Protocol{common.ProtocolRedisDB})
+		require.Equal(t, []common.Protocol{common.ProtocolRedisDB}, config.Protocols)
 	})
 	t.Run("fail", func(t *testing.T) {
 		var config LocalProxyConfig

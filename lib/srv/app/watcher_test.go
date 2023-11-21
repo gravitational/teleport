@@ -18,6 +18,7 @@ package app
 
 import (
 	"context"
+	"maps"
 	"sort"
 	"testing"
 	"time"
@@ -198,9 +199,7 @@ func makeApp(name string, labels map[string]string, additionalLabels map[string]
 	if labels == nil {
 		labels = make(map[string]string)
 	}
-	for k, v := range additionalLabels {
-		labels[k] = v
-	}
+	maps.Copy(labels, additionalLabels)
 	return types.NewAppV3(types.Metadata{
 		Name:   name,
 		Labels: labels,

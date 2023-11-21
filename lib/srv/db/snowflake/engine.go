@@ -358,11 +358,11 @@ func (e *Engine) authorizeConnection(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 	state := e.sessionCtx.GetAccessState(authPref)
-	dbRoleMatchers := role.DatabaseRoleMatchers(
-		e.sessionCtx.Database,
-		e.sessionCtx.DatabaseUser,
-		e.sessionCtx.DatabaseName,
-	)
+	dbRoleMatchers := role.GetDatabaseRoleMatchers(role.RoleMatchersConfig{
+		Database:     e.sessionCtx.Database,
+		DatabaseUser: e.sessionCtx.DatabaseUser,
+		DatabaseName: e.sessionCtx.DatabaseName,
+	})
 	err = e.sessionCtx.Checker.CheckAccess(
 		e.sessionCtx.Database,
 		state,

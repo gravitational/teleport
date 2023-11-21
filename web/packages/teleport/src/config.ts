@@ -39,6 +39,8 @@ const cfg = {
   assistEnabled: false,
   automaticUpgrades: false,
   automaticUpgradesTargetVersion: '',
+  // isDashboard is used generally when we want to hide features that can't be hidden by RBAC in
+  // the case of a self-hosted license tenant dashboard.
   isDashboard: false,
   tunnelPublicAddress: '',
   recoveryCodesEnabled: false,
@@ -277,6 +279,8 @@ const cfg = {
 
     // Assist needs some access request info to exist in OSS
     accessRequestPath: '/v1/enterprise/accessrequest/:requestId?',
+
+    accessGraphFeatures: '/v1/enterprise/accessgraph/static/features.json',
   },
 
   getUserClusterPreferencesUrl(clusterId: string) {
@@ -843,6 +847,10 @@ const cfg = {
 
   getAccessRequestRoute(requestId?: string) {
     return generatePath(cfg.routes.requests, { requestId });
+  },
+
+  getAccessGraphFeaturesUrl() {
+    return cfg.api.accessGraphFeatures;
   },
 
   getListEc2InstancesUrl(integrationName: string) {

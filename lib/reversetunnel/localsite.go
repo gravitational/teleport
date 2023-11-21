@@ -45,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/forward"
 	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/oidc"
 	proxyutils "github.com/gravitational/teleport/lib/utils/proxy"
 )
 
@@ -531,7 +532,7 @@ func (s *localSite) setupTunnelForOpenSSHEICENode(ctx context.Context, targetSer
 		return nil, trace.BadParameter("missing aws cloud metadata")
 	}
 
-	issuer, err := awsoidc.IssuerForCluster(ctx, s.accessPoint)
+	issuer, err := oidc.IssuerForCluster(ctx, s.accessPoint)
 	if err != nil {
 		return nil, trace.BadParameter("failed to get issuer %v", err)
 	}

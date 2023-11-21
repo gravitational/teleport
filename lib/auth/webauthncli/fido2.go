@@ -47,7 +47,7 @@ var (
 	errNoPlatform              = errors.New("device cannot fulfill platform attachment requirement")
 	errNoRK                    = errors.New("device lacks resident key capabilities")
 	errNoRegisteredCredentials = errors.New("device lacks registered credentials")
-	errNoUV                    = errors.New("device lacks PIN or user verification capabilities")
+	errNoUV                    = errors.New("device lacks PIN or user verification capabilities necessary to support passwordless")
 	errPasswordlessU2F         = errors.New("U2F devices cannot do passwordless")
 )
 

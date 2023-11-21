@@ -106,7 +106,7 @@ func TestModifyFailed(t *testing.T) {
 	})
 
 	require.Error(t, err, "fail")
-	require.Equal(t, r, mockData{})
+	require.Equal(t, mockData{}, r)
 }
 
 // We test cas is retrying modityT properly if modifyT returns a CompareFailedError during the first iteration.
@@ -130,7 +130,7 @@ func TestModifyCompareFailed(t *testing.T) {
 
 	require.NoError(t, err)
 	require.NotNil(t, r)
-	require.Equal(t, r.Bar, "other value")
+	require.Equal(t, "other value", r.Bar)
 }
 
 func TestModifySuccess(t *testing.T) {
@@ -146,7 +146,7 @@ func TestModifySuccess(t *testing.T) {
 
 	require.NoError(t, err)
 	require.NotNil(t, r)
-	require.Equal(t, r.Foo, "other value")
+	require.Equal(t, "other value", r.Foo)
 }
 
 func TestBackoff(t *testing.T) {
@@ -162,7 +162,7 @@ func TestBackoff(t *testing.T) {
 
 	require.NoError(t, err)
 	require.NotNil(t, r)
-	require.Equal(t, r.Foo, "yes")
+	require.Equal(t, "yes", r.Foo)
 }
 
 func TestWrongData(t *testing.T) {

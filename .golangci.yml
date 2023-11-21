@@ -27,7 +27,9 @@ linters:
     - misspell
     - nolintlint
     - revive
+    - sloglint
     - staticcheck
+    - testifylint
     - unconvert
     - unused
 
@@ -71,6 +73,22 @@ linters-settings:
     rules:
     - name: unused-parameter
       disabled: true
+  sloglint:
+    context-only: true
+    key-naming-case: snake
+    static-msg: true
+  testifylint:
+    enable:
+      - bool-compare
+      - compares
+      - empty
+      - error-is-as
+      - error-nil
+      - expected-actual
+      - float-compare
+      - len
+      - suite-extra-assert-call
+      - suite-thelper
 
 output:
   uniq-by-line: false

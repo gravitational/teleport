@@ -270,35 +270,35 @@ func TestHeartbeatAnnounce(t *testing.T) {
 				},
 			})
 			require.NoError(t, err)
-			require.Equal(t, hb.state, HeartbeatStateInit)
+			require.Equal(t, HeartbeatStateInit, hb.state)
 
 			// on the first run, heartbeat will move to announce state,
 			// will call announce right away
 			err = hb.fetch()
 			require.NoError(t, err)
-			require.Equal(t, hb.state, HeartbeatStateAnnounce)
+			require.Equal(t, HeartbeatStateAnnounce, hb.state)
 
 			err = hb.announce()
 			require.NoError(t, err)
-			require.Equal(t, announcer.upsertCalls[hb.Mode], 1)
-			require.Equal(t, hb.state, HeartbeatStateAnnounceWait)
-			require.Equal(t, hb.nextAnnounce, clock.Now().UTC().Add(hb.AnnouncePeriod))
+			require.Equal(t, 1, announcer.upsertCalls[hb.Mode])
+			require.Equal(t, HeartbeatStateAnnounceWait, hb.state)
+			require.Equal(t, clock.Now().UTC().Add(hb.AnnouncePeriod), hb.nextAnnounce)
 
 			// next call will not move to announce, because time is not up yet
 			err = hb.fetchAndAnnounce()
 			require.NoError(t, err)
-			require.Equal(t, hb.state, HeartbeatStateAnnounceWait)
+			require.Equal(t, HeartbeatStateAnnounceWait, hb.state)
 
 			// advance time, and heartbeat will move to announce
 			clock.Advance(hb.AnnouncePeriod + time.Second)
 			err = hb.fetch()
 			require.NoError(t, err)
-			require.Equal(t, hb.state, HeartbeatStateAnnounce)
+			require.Equal(t, HeartbeatStateAnnounce, hb.state)
 			err = hb.announce()
 			require.NoError(t, err)
-			require.Equal(t, announcer.upsertCalls[hb.Mode], 2)
-			require.Equal(t, hb.state, HeartbeatStateAnnounceWait)
-			require.Equal(t, hb.nextAnnounce, clock.Now().UTC().Add(hb.AnnouncePeriod))
+			require.Equal(t, 2, announcer.upsertCalls[hb.Mode])
+			require.Equal(t, HeartbeatStateAnnounceWait, hb.state)
+			require.Equal(t, clock.Now().UTC().Add(hb.AnnouncePeriod), hb.nextAnnounce)
 
 			// in case of error, system will move to announce wait state,
 			// with next attempt scheduled on the next keep alive period
@@ -307,18 +307,18 @@ func TestHeartbeatAnnounce(t *testing.T) {
 			err = hb.fetchAndAnnounce()
 			require.Error(t, err)
 			require.True(t, trace.IsConnectionProblem(err))
-			require.Equal(t, announcer.upsertCalls[hb.Mode], 3)
-			require.Equal(t, hb.state, HeartbeatStateAnnounceWait)
-			require.Equal(t, hb.nextAnnounce, clock.Now().UTC().Add(hb.KeepAlivePeriod))
+			require.Equal(t, 3, announcer.upsertCalls[hb.Mode])
+			require.Equal(t, HeartbeatStateAnnounceWait, hb.state)
+			require.Equal(t, clock.Now().UTC().Add(hb.KeepAlivePeriod), hb.nextAnnounce)
 
 			// once announce is successful, next announce is set on schedule
 			announcer.err = nil
 			clock.Advance(hb.KeepAlivePeriod + time.Second)
 			err = hb.fetchAndAnnounce()
 			require.NoError(t, err)
-			require.Equal(t, announcer.upsertCalls[hb.Mode], 4)
-			require.Equal(t, hb.state, HeartbeatStateAnnounceWait)
-			require.Equal(t, hb.nextAnnounce, clock.Now().UTC().Add(hb.AnnouncePeriod))
+			require.Equal(t, 4, announcer.upsertCalls[hb.Mode])
+			require.Equal(t, HeartbeatStateAnnounceWait, hb.state)
+			require.Equal(t, clock.Now().UTC().Add(hb.AnnouncePeriod), hb.nextAnnounce)
 		})
 	}
 }

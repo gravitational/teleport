@@ -1029,7 +1029,7 @@ func (test *dynamicResourceTest[T]) run(t *testing.T) {
 	buf, err := runResourceCommand(t, fileConfig, []string{"get", test.kind, "--format=json"})
 	require.NoError(t, err)
 	resources := mustDecodeJSON[[]T](t, buf)
-	require.Len(t, resources, 0)
+	require.Empty(t, resources)
 
 	// Create the resources.
 	yamlPath := filepath.Join(t.TempDir(), "resources.yaml")
@@ -1364,6 +1364,10 @@ func TestCreateResources(t *testing.T) {
 			kind:   types.KindServerInfo,
 			create: testCreateServerInfo,
 		},
+		{
+			kind:   types.KindUser,
+			create: testCreateUser,
+		},
 	}
 
 	for _, test := range tests {
@@ -1430,6 +1434,193 @@ version: v3`
 	require.True(t, trace.IsAlreadyExists(err))
 
 	_, err = runResourceCommand(t, fc, []string{"create", "-f", connectorYAMLPath})
+	require.NoError(t, err)
+}
+
+func testCreateRole(t *testing.T, fc *config.FileConfig) {
+	// Ensure that our test role does not exist
+	_, err := runResourceCommand(t, fc, []string{"get", types.KindRole + "/test-role", "--format=json"})
+	require.True(t, trace.IsNotFound(err), "expected test-role to not exist prior to being created")
+
+	const roleYAML = `kind: role
+metadata:
+  name: test-role
+spec:
+  allow:
+    app_labels:
+      '*': '*'
+    db_labels:
+      '*': '*'
+    kubernetes_labels:
+      '*': '*'
+    kubernetes_resources:
+    - kind: pod
+      name: '*'
+      namespace: '*'
+    logins:
+    - test
+    node_labels:
+      '*': '*'
+  deny: {}
+  options:
+    cert_format: standard
+    create_db_user: false
+    create_desktop_user: false
+    desktop_clipboard: true
+    desktop_directory_sharing: true
+    enhanced_recording:
+    - command
+    - network
+    forward_agent: false
+    idp:
+      saml:
+        enabled: true
+    max_session_ttl: 30h0m0s
+    pin_source_ip: false
+    port_forwarding: true
+    record_session:
+      default: best_effort
+      desktop: true
+    ssh_file_copy: true
+version: v7
+`
+
+	// Create the role
+	roleYAMLPath := filepath.Join(t.TempDir(), "role.yaml")
+	require.NoError(t, os.WriteFile(roleYAMLPath, []byte(roleYAML), 0644))
+	_, err = runResourceCommand(t, fc, []string{"create", roleYAMLPath})
+	require.NoError(t, err)
+
+	// Fetch the role
+	buf, err := runResourceCommand(t, fc, []string{"get", types.KindRole + "/test-role", "--format=json"})
+	require.NoError(t, err)
+	roles := mustDecodeJSON[[]*types.RoleV6](t, buf)
+	require.Len(t, roles, 1)
+
+	var expected types.RoleV6
+	require.NoError(t, yaml.Unmarshal([]byte(roleYAML), &expected))
+
+	require.Empty(t, cmp.Diff(
+		[]*types.RoleV6{&expected},
+		roles,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+	))
+
+	// Explicitly change the revision and try creating the role with and without
+	// the force flag.
+	expected.SetRevision(uuid.NewString())
+	connectorBytes, err := services.MarshalRole(&expected, services.PreserveResourceID())
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(roleYAMLPath, connectorBytes, 0644))
+
+	_, err = runResourceCommand(t, fc, []string{"create", roleYAMLPath})
+	require.True(t, trace.IsAlreadyExists(err))
+
+	_, err = runResourceCommand(t, fc, []string{"create", "-f", roleYAMLPath})
+	require.NoError(t, err)
+}
+
+func testCreateServerInfo(t *testing.T, fc *config.FileConfig) {
+	// Ensure that our test server info does not exist
+	_, err := runResourceCommand(t, fc, []string{"get", types.KindServerInfo + "/test-server-info", "--format=json"})
+	require.True(t, trace.IsNotFound(err), "expected test-role to not exist prior to being created")
+
+	const serverInfoYAML = `---
+kind: server_info
+sub_kind: cloud_info
+version: v1
+metadata:
+  name: test-server-info
+spec:
+  new_labels:
+    'a': '1'
+    'b': '2'
+`
+
+	// Create the server info
+	serverInfoYAMLPath := filepath.Join(t.TempDir(), "server-info.yaml")
+	err = os.WriteFile(serverInfoYAMLPath, []byte(serverInfoYAML), 0644)
+	require.NoError(t, err)
+	_, err = runResourceCommand(t, fc, []string{"create", serverInfoYAMLPath})
+	require.NoError(t, err)
+
+	// Fetch the server info
+	buf, err := runResourceCommand(t, fc, []string{"get", types.KindServerInfo + "/test-server-info", "--format=json"})
+	require.NoError(t, err)
+	serverInfos := mustDecodeJSON[[]*types.ServerInfoV1](t, buf)
+	require.Len(t, serverInfos, 1)
+
+	var expected types.ServerInfoV1
+	err = yaml.Unmarshal([]byte(serverInfoYAML), &expected)
+	require.NoError(t, err)
+
+	require.Empty(t, cmp.Diff(
+		[]*types.ServerInfoV1{&expected},
+		serverInfos,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+	))
+
+	// Explicitly change the revision and try creating the resource with and without
+	// the force flag.
+	expected.SetRevision(uuid.NewString())
+	newRevisionServerInfo, err := services.MarshalServerInfo(&expected, services.PreserveResourceID())
+	require.NoError(t, err)
+	err = os.WriteFile(serverInfoYAMLPath, newRevisionServerInfo, 0644)
+	require.NoError(t, err)
+
+	_, err = runResourceCommand(t, fc, []string{"create", serverInfoYAMLPath})
+	require.True(t, trace.IsAlreadyExists(err))
+
+	_, err = runResourceCommand(t, fc, []string{"create", "-f", serverInfoYAMLPath})
+	require.NoError(t, err)
+}
+
+func testCreateUser(t *testing.T, fc *config.FileConfig) {
+	// Ensure that our test user does not exist
+	_, err := runResourceCommand(t, fc, []string{"get", types.KindUser + "/llama", "--format=json"})
+	require.True(t, trace.IsNotFound(err), "expected llama user to not exist prior to being created")
+
+	const userYAML = `kind: user
+version: v2
+metadata:
+  name: llama
+spec:
+  roles: ["access"]
+`
+
+	// Create the user
+	userYAMLPath := filepath.Join(t.TempDir(), "user.yaml")
+	require.NoError(t, os.WriteFile(userYAMLPath, []byte(userYAML), 0644))
+	_, err = runResourceCommand(t, fc, []string{"create", userYAMLPath})
+	require.NoError(t, err)
+
+	// Fetch the user
+	buf, err := runResourceCommand(t, fc, []string{"get", types.KindUser + "/llama", "--format=json"})
+	require.NoError(t, err)
+	users := mustDecodeJSON[[]*types.UserV2](t, buf)
+	require.Len(t, users, 1)
+
+	var expected types.UserV2
+	require.NoError(t, yaml.Unmarshal([]byte(userYAML), &expected))
+
+	require.Empty(t, cmp.Diff(
+		[]*types.UserV2{&expected},
+		users,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+		cmpopts.IgnoreFields(types.UserSpecV2{}, "CreatedBy"),
+	))
+
+	// Explicitly change the revision and try creating the user with and without
+	// the force flag.
+	expected.SetRevision(uuid.NewString())
+	connectorBytes, err := services.MarshalUser(&expected, services.PreserveResourceID())
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(userYAMLPath, connectorBytes, 0644))
+
+	_, err = runResourceCommand(t, fc, []string{"create", userYAMLPath})
+	require.True(t, trace.IsAlreadyExists(err))
+
+	_, err = runResourceCommand(t, fc, []string{"create", "-f", userYAMLPath})
 	require.NoError(t, err)
 }
 
@@ -1602,143 +1793,5 @@ spec:
 	require.True(t, trace.IsAlreadyExists(err))
 
 	_, err = runResourceCommand(t, fc, []string{"create", "-f", connectorYAMLPath})
-	require.NoError(t, err)
-}
-
-func testCreateRole(t *testing.T, fc *config.FileConfig) {
-	// Ensure that our test role does not exist
-	_, err := runResourceCommand(t, fc, []string{"get", types.KindRole + "/test-role", "--format=json"})
-	require.True(t, trace.IsNotFound(err), "expected test-role to not exist prior to being created")
-
-	const roleYAML = `kind: role
-metadata:
-  name: test-role
-spec:
-  allow:
-    app_labels:
-      '*': '*'
-    db_labels:
-      '*': '*'
-    kubernetes_labels:
-      '*': '*'
-    kubernetes_resources:
-    - kind: pod
-      name: '*'
-      namespace: '*'
-    logins:
-    - test
-    node_labels:
-      '*': '*'
-  deny: {}
-  options:
-    cert_format: standard
-    create_db_user: false
-    create_desktop_user: false
-    desktop_clipboard: true
-    desktop_directory_sharing: true
-    enhanced_recording:
-    - command
-    - network
-    forward_agent: false
-    idp:
-      saml:
-        enabled: true
-    max_session_ttl: 30h0m0s
-    pin_source_ip: false
-    port_forwarding: true
-    record_session:
-      default: best_effort
-      desktop: true
-    ssh_file_copy: true
-version: v7
-`
-
-	// Create the connector
-	roleYAMLPath := filepath.Join(t.TempDir(), "role.yaml")
-	require.NoError(t, os.WriteFile(roleYAMLPath, []byte(roleYAML), 0644))
-	_, err = runResourceCommand(t, fc, []string{"create", roleYAMLPath})
-	require.NoError(t, err)
-
-	// Fetch the connector
-	buf, err := runResourceCommand(t, fc, []string{"get", types.KindRole + "/test-role", "--format=json"})
-	require.NoError(t, err)
-	roles := mustDecodeJSON[[]*types.RoleV6](t, buf)
-	require.Len(t, roles, 1)
-
-	var expected types.RoleV6
-	require.NoError(t, yaml.Unmarshal([]byte(roleYAML), &expected))
-
-	require.Empty(t, cmp.Diff(
-		[]*types.RoleV6{&expected},
-		roles,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
-	))
-
-	// Explicitly change the revision and try creating the role with and without
-	// the force flag.
-	expected.SetRevision(uuid.NewString())
-	connectorBytes, err := services.MarshalRole(&expected, services.PreserveResourceID())
-	require.NoError(t, err)
-	require.NoError(t, os.WriteFile(roleYAMLPath, connectorBytes, 0644))
-
-	_, err = runResourceCommand(t, fc, []string{"create", roleYAMLPath})
-	require.True(t, trace.IsAlreadyExists(err))
-
-	_, err = runResourceCommand(t, fc, []string{"create", "-f", roleYAMLPath})
-	require.NoError(t, err)
-}
-
-func testCreateServerInfo(t *testing.T, fc *config.FileConfig) {
-	// Ensure that our test server info does not exist
-	_, err := runResourceCommand(t, fc, []string{"get", types.KindServerInfo + "/test-server-info", "--format=json"})
-	require.True(t, trace.IsNotFound(err), "expected test-role to not exist prior to being created")
-
-	const serverInfoYAML = `---
-kind: server_info
-sub_kind: cloud_info
-version: v1
-metadata:
-  name: test-server-info
-spec:
-  new_labels:
-    'a': '1'
-    'b': '2'
-`
-
-	// Create the server info
-	serverInfoYAMLPath := filepath.Join(t.TempDir(), "server-info.yaml")
-	err = os.WriteFile(serverInfoYAMLPath, []byte(serverInfoYAML), 0644)
-	require.NoError(t, err)
-	_, err = runResourceCommand(t, fc, []string{"create", serverInfoYAMLPath})
-	require.NoError(t, err)
-
-	// Fetch the server info
-	buf, err := runResourceCommand(t, fc, []string{"get", types.KindServerInfo + "/test-server-info", "--format=json"})
-	require.NoError(t, err)
-	serverInfos := mustDecodeJSON[[]*types.ServerInfoV1](t, buf)
-	require.Len(t, serverInfos, 1)
-
-	var expected types.ServerInfoV1
-	err = yaml.Unmarshal([]byte(serverInfoYAML), &expected)
-	require.NoError(t, err)
-
-	require.Empty(t, cmp.Diff(
-		[]*types.ServerInfoV1{&expected},
-		serverInfos,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
-	))
-
-	// Explicitly change the revision and try creating the resource with and without
-	// the force flag.
-	expected.SetRevision(uuid.NewString())
-	newRevisionServerInfo, err := services.MarshalServerInfo(&expected, services.PreserveResourceID())
-	require.NoError(t, err)
-	err = os.WriteFile(serverInfoYAMLPath, newRevisionServerInfo, 0644)
-	require.NoError(t, err)
-
-	_, err = runResourceCommand(t, fc, []string{"create", serverInfoYAMLPath})
-	require.True(t, trace.IsAlreadyExists(err))
-
-	_, err = runResourceCommand(t, fc, []string{"create", "-f", serverInfoYAMLPath})
 	require.NoError(t, err)
 }

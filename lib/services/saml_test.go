@@ -21,7 +21,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
@@ -43,12 +42,12 @@ func TestParseFromMetadata(t *testing.T) {
 
 	oc, err := UnmarshalSAMLConnector(raw.Raw)
 	require.NoError(t, err)
-	require.Equal(t, oc.GetIssuer(), "http://www.okta.com/exkafftca6RqPVgyZ0h7")
-	require.Equal(t, oc.GetSSO(), "https://dev-813354.oktapreview.com/app/gravitationaldev813354_teleportsaml_1/exkafftca6RqPVgyZ0h7/sso/saml")
-	require.Equal(t, oc.GetAssertionConsumerService(), "https://localhost:3080/v1/webapi/saml/acs")
-	require.Equal(t, oc.GetAudience(), "https://localhost:3080/v1/webapi/saml/acs")
+	require.Equal(t, "http://www.okta.com/exkafftca6RqPVgyZ0h7", oc.GetIssuer())
+	require.Equal(t, "https://dev-813354.oktapreview.com/app/gravitationaldev813354_teleportsaml_1/exkafftca6RqPVgyZ0h7/sso/saml", oc.GetSSO())
+	require.Equal(t, "https://localhost:3080/v1/webapi/saml/acs", oc.GetAssertionConsumerService())
+	require.Equal(t, "https://localhost:3080/v1/webapi/saml/acs", oc.GetAudience())
 	require.NotNil(t, oc.GetSigningKeyPair())
-	require.Empty(t, cmp.Diff(oc.GetAttributes(), []string{"groups"}))
+	require.Equal(t, []string{"groups"}, oc.GetAttributes())
 }
 
 func TestCheckSAMLEntityDescriptor(t *testing.T) {

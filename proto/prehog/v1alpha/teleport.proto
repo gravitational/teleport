@@ -638,6 +638,8 @@ enum CTA {
   CTA_TRUSTED_DEVICES = 5;
   CTA_UPGRADE_BANNER = 6;
   CTA_BILLING_SUMMARY = 7;
+  CTA_ACCESS_LIST = 8;
+  CTA_ACCESS_MONITORING = 9;
 }
 
 // a request forwarded to a kube cluster's API server (other than exec and
@@ -1012,6 +1014,22 @@ message DesktopClipboardEvent {
   string user_name = 2;
 }
 
+// TAGExecuteQueryEvent is an event that is emitted
+// when a single query is executed in the Teleport Access Graph.
+// This event is emitted for both successful and failed queries and for
+// successful queries, the total number of nodes and edges is reported.
+message TAGExecuteQueryEvent {
+  // anonymized
+  string user_name = 1;
+
+  // total_nodes is the total amount of nodes returned by the query.
+  int64 total_nodes = 2;
+  // total_edges is the total amount of edges returned by the query.
+  int64 total_edges = 3;
+  // is_success is true if the query was successful and false it if failed.
+  bool is_success = 4;
+}
+
 message SubmitEventRequest {
   // anonymized, 32 bytes (HMAC-SHA-256) encoded in base64
   //
@@ -1121,6 +1139,8 @@ message SubmitEventRequest {
 
     DesktopDirectoryShareEvent desktop_directory_share = 68;
     DesktopClipboardEvent desktop_clipboard_transfer = 69;
+
+    TAGExecuteQueryEvent tag_execute_query = 70;
   }
 
   reserved 8; // UIOnboardGetStartedClickEvent

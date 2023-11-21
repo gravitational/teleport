@@ -17,6 +17,7 @@ package common
 import (
 	"bytes"
 	"context"
+	"maps"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -102,12 +103,8 @@ func TestFormatLabels(t *testing.T) {
 		types.TeleportHiddenLabelPrefix + "baz":   "ghi",
 	}
 	allLabels := make(map[string]string)
-	for k, v := range basicLabels {
-		allLabels[k] = v
-	}
-	for k, v := range namespacedLabels {
-		allLabels[k] = v
-	}
+	maps.Copy(allLabels, basicLabels)
+	maps.Copy(allLabels, namespacedLabels)
 	tests := []struct {
 		desc    string
 		labels  map[string]string

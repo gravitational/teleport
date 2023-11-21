@@ -30,6 +30,7 @@ import (
 // fetchOSVersion combines the content of '/etc/os-release' to be e.g.
 // "ubuntu 22.04".
 func (c *fetchConfig) fetchOSVersion() string {
+	// TODO(codingllama): Leverage lib/linux.ParseOSRelease here?
 	filename := "/etc/os-release"
 	out, err := c.read(filename)
 	if err != nil {

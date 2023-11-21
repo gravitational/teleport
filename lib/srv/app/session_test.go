@@ -74,7 +74,7 @@ func TestSessionChunkCloseTimeout(t *testing.T) {
 	}
 
 	elapsed := time.Since(start)
-	require.True(t, elapsed > timeout, "expected to wait at least %s before closing, waited only %s", timeout, elapsed)
+	require.Greater(t, elapsed, timeout, "expected to wait at least %s before closing, waited only %s", timeout, elapsed)
 }
 
 func TestSessionChunkCannotAcquireAfterClosing(t *testing.T) {

@@ -50,6 +50,7 @@ var SupportedJoinMethods = []string{
 	string(types.JoinMethodGitLab),
 	string(types.JoinMethodIAM),
 	string(types.JoinMethodKubernetes),
+	string(types.JoinMethodSpacelift),
 	string(types.JoinMethodToken),
 }
 

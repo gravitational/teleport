@@ -15,7 +15,7 @@ limitations under the License.
 */
 import React, { useEffect, useRef } from 'react';
 
-import { getPlatform } from 'design/theme/utils';
+import { getPlatformType } from 'design/platform';
 import { useTheme } from 'styled-components';
 
 import Terminal from 'teleport/lib/term/terminal';
@@ -32,7 +32,7 @@ export default function Xterm({ tty }: { tty: Tty }) {
     const term = new TerminalPlayer(tty, {
       el: refContainer.current,
       fontFamily: theme.fonts.mono,
-      fontSize: getPlatform().isMac ? 12 : 14,
+      fontSize: getPlatformType().isMac ? 12 : 14,
       theme: theme.colors.terminal,
     });
 
