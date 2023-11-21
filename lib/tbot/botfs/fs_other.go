@@ -112,13 +112,13 @@ func ConfigureACL(path string, owner *user.User, opts *ACLOptions) error {
 
 // HasACLSupport determines if this binary / system supports ACLs. This
 // catch-all implementation just returns false.
-func HasACLSupport() (bool, error) {
-	return false, nil
+func HasACLSupport() bool {
+	return false
 }
 
 // HasSecureWriteSupport determines if `CreateSecure()` should be supported
 // on this OS / kernel version. This is only supported on Linux, so this
 // catch-all implementation just returns false.
-func HasSecureWriteSupport() (bool, error) {
-	return false, nil
+func HasSecureWriteSupport() bool {
+	return false
 }
