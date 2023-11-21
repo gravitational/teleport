@@ -53,6 +53,10 @@ type Features struct {
 	// AccessControls enables FIPS access controls
 	AccessControls bool
 	// AdvancedAccessWorkflows enables advanced access workflows
+	//
+	// This field is now a legacy flag with the introduction of Enterprise Usage Based (EUB)
+	// product. It will still be used for backwards compatability for legacy feature support
+	// where existing licenses before EUB should still have the same support as before.
 	AdvancedAccessWorkflows bool
 	// Cloud enables some cloud-related features
 	Cloud bool
@@ -85,28 +89,51 @@ type Features struct {
 	IsTeamProduct bool
 	// AccessGraph enables the usage of access graph.
 	AccessGraph bool
+	// IdentityGovernanceSecurity indicates whether IGS related features are enabled:
+	// access list, access request, access monitoring, device trust.
+	IdentityGovernanceSecurity bool
+	// AccessList holds its namesake feature settings.
+	AccessList AccessListFeature
+	// AccessMonitoring holds its namesake feature settings.
+	AccessMonitoring AccessMonitoringFeature
 }
 
 // DeviceTrustFeature holds the Device Trust feature general and usage-based
 // settings.
-// Requires Teleport Enterprise.
+// Limits have no affect if [Feature.IdentityGovernanceSecurity] is enabled.
 type DeviceTrustFeature struct {
 	// Enabled is true if the Device Trust feature is enabled.
+	//
+	// This field is now a legacy flag with the introduction of Enterprise Usage Based (EUB)
+	// product. It will still be used for backwards compatability for legacy feature support
+	// where existing licenses before EUB should still have the same support as before.
 	Enabled bool
 	// DevicesUsageLimit is the usage-based limit for the number of
 	// registered/enrolled devices, at the implementation's discretion.
-	// Meant for usage-based accounts, like Teleport Team. Has no effect if
-	// [Features.IsUsageBasedBilling] is `false`.
 	DevicesUsageLimit int
 }
 
 // AccessRequestsFeature holds the Access Requests feature general and usage-based settings.
+// Limits have no affect if [Feature.IdentityGovernanceSecurity] is enabled.
 type AccessRequestsFeature struct {
 	// MonthlyRequestLimit is the usage-based limit for the number of
 	// access requests created in a calendar month.
-	// Meant for usage-based accounts, like Teleport Team. Has no effect if
-	// [Features.IsUsageBasedBilling] is `false`.
 	MonthlyRequestLimit int
+}
+
+// AccessListFeature holds the Access List feature settings.
+// Limits have no affect if feature is enabled.
+type AccessListFeature struct {
+	// Limit for the number of access list creatable when feature is
+	// not enabled.
+	CreateLimit int
+}
+
+// AccessMonitoring holds the Access Monitoring feature settings.
+// Limits have no affect if [Feature.IdentityGovernanceSecurity] is enabled.
+type AccessMonitoringFeature struct {
+	// True if enabled in the auth service config: [auth_service.access_monitoring.enabled].
+	Enabled bool
 }
 
 // ToProto converts Features into proto.Features

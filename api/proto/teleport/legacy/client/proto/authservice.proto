@@ -493,7 +493,11 @@ message Features {
   bool SAML = 5 [(gogoproto.jsontag) = "saml"];
   // AccessControls enables FIPS access controls
   bool AccessControls = 6 [(gogoproto.jsontag) = "access_controls"];
-  // AdvancedAccessWorkflows enables advanced access workflows
+  // AdvancedAccessWorkflows enables advanced access workflows.
+  //
+  // This field is now a legacy flag with the introduction of Enterprise Usage Based (EUB)
+  // product. It will still be used for backwards compatability for legacy feature support
+  // where existing licenses before EUB should still have the same support as before.
   bool AdvancedAccessWorkflows = 7 [(gogoproto.jsontag) = "advanced_access_workflows"];
   // Cloud enables some cloud-related features
   bool Cloud = 8 [(gogoproto.jsontag) = "cloud"];
@@ -522,34 +526,62 @@ message Features {
   AccessRequestsFeature AccessRequests = 21 [(gogoproto.jsontag) = "access_requests,omitempty"];
   // CustomTheme holds the name of WebUI custom theme.
   string CustomTheme = 22 [(gogoproto.jsontag) = "custom_theme,omitempty"];
-  // IdentityGovernance holds the Identity Governance feature settings (Access Monitoring)
-  bool IdentityGovernance = 23 [(gogoproto.jsontag) = "identity_governance,omitempty"];
+  // DELETE IN 16.0 (reserved 23 // bool IdentityGovernance)
+  // IdentityGovernance is incorrectly used to indicate if access monitoring is enabled in the
+  // auth_service configuration. Kept for older proxies who rely on this flag.
+  // Deprecated: Use `[Features.IdentityGovernanceSecurity] = 25` instead.
+  bool IdentityGovernance = 23 [
+    (gogoproto.jsontag) = "identity_governance,omitempty",
+    deprecated = true
+  ];
   // AccessGraph indicates whether Teleport Access Graph is enabled.
   bool AccessGraph = 24 [(gogoproto.jsontag) = "access_graph,omitempty"];
+  // IdentityGovernanceSecurity indicates whether IGS related features are enabled:
+  // access list, access request, access monitoring, device trust.
+  bool IdentityGovernanceSecurity = 25 [(gogoproto.jsontag) = "identity_governance_security,omitempty"];
+  // AccessListFeature holds its namesake feature settings.
+  AccessListFeature AccessList = 26 [(gogoproto.jsontag) = "access_list,omitempty"];
+  // AccessMonitoringFeature holds its namesake feature settings.
+  AccessMonitoringFeature AccessMonitoring = 27 [(gogoproto.jsontag) = "access_monitoring,omitempty"];
 }
 
 // DeviceTrustFeature holds the Device Trust feature general and usage-based
 // settings.
-// Requires Teleport Enterprise.
+// Limits have no affect if [Features.IdentityGovernanceSecurity] is enabled.
 message DeviceTrustFeature {
   // True if the Device Trust feature is enabled.
+  //
+  // This field is now a legacy flag with the introduction of Enterprise Usage Based (EUB)
+  // product. It will still be used for backwards compatability for legacy feature support
+  // where existing licenses before EUB should still have the same support as before.
   bool enabled = 1 [(gogoproto.jsontag) = "enabled,omitempty"];
   // Usage-based limit for the number of registered/enrolled devices, at the
   // implementation's discretion.
-  // Meant for usage-based accounts, like Teleport Team. Has no effect if
-  // [Features.IsUsageBased] is `false`.
   int32 devices_usage_limit = 2 [(gogoproto.jsontag) = "devices_usage_limit,omitempty"];
 }
 
 // AccessRequestsFeature holds the AccessRequest feature general and usage-based
 // settings.
-// Requires Teleport Enterprise.
+// Limits have no affect if [Features.IdentityGovernanceSecurity] is enabled.
 message AccessRequestsFeature {
   // Usage-based limit for the number of limit for the number of
   // access requests created in a calendar month.
-  // Meant for usage-based accounts, like Teleport Team. Has no effect if
-  // [Features.IsUsageBased] is `false`.
   int32 monthly_request_limit = 1 [(gogoproto.jsontag) = "monthly_request_limit"];
+}
+
+// AccessListFeature holds the Access List feature settings.
+// Limits have no affect if [Features.IdentityGovernanceSecurity] is enabled.
+message AccessListFeature {
+  // Limit for the number of access list creatable when feature is
+  // not enabled.
+  int32 create_limit = 1 [(gogoproto.jsontag) = "create_limit,omitempty"];
+}
+
+// AccessMonitoring holds the Access Monitoring feature settings.
+// Limits have no affect if [Features.IdentityGovernanceSecurity] is enabled.
+message AccessMonitoringFeature {
+  // True if enabled in the auth service config: [auth_service.access_monitoring.enabled].
+  bool enabled = 1 [(gogoproto.jsontag) = "enabled,omitempty"];
 }
 
 // DeleteUserRequest is the input value for the DeleteUser method.

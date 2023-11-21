@@ -5269,6 +5269,8 @@ func (a *Server) Ping(ctx context.Context) (proto.PingResponse, error) {
 	}
 	features := modules.GetModules().Features().ToProto()
 
+	// DELETE IN 16.0 (just the entire if block, no other changes necessary)
+	// Enabling access monitoring is now done earlier near startup.
 	if a.accessMonitoringEnabled {
 		features.IdentityGovernance = a.accessMonitoringEnabled
 	}
