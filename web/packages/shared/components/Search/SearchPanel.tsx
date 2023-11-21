@@ -20,10 +20,8 @@ import { Text, Flex } from 'design';
 import { StyledPanel } from 'design/DataTable';
 import InputSearch from 'design/DataTable/InputSearch';
 import { ResourceFilter } from 'teleport/services/agents';
-import Toggle from 'teleport/components/Toggle';
-import Tooltip from 'teleport/components/ServersideSearchPanel/Tooltip';
 
-import { PredicateDoc } from './PredicateDoc';
+import { AdvancedSearchToggle } from 'shared/components/AdvancedSearchToggle';
 
 export function SearchPanel({
   updateQuery,
@@ -81,18 +79,14 @@ export function SearchPanel({
           >
             {showSearchBar && (
               <InputSearch searchValue={query} setSearchValue={setQuery}>
-                <ToggleWrapper>
-                  <Toggle isToggled={isAdvancedSearch} onToggle={onToggle} />
-                  <Text typography="paragraph2">Advanced</Text>
-                </ToggleWrapper>
+                <AdvancedSearchToggle
+                  isToggled={isAdvancedSearch}
+                  onToggle={onToggle}
+                  px={3}
+                />
               </InputSearch>
             )}
           </StyledFlex>
-          {showSearchBar && (
-            <Tooltip>
-              <PredicateDoc />
-            </Tooltip>
-          )}
         </Flex>
         <Flex alignItems="center">
           <PageIndicatorText
@@ -106,15 +100,6 @@ export function SearchPanel({
     </StyledPanel>
   );
 }
-
-const ToggleWrapper = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: space-around;
-  padding-right: 16px;
-  padding-left: 16px;
-  width: 120px;
-`;
 
 const StyledFlex = styled(Flex)`
   // The timing functions of transitions have been chosen so that the element loses opacity slowly
