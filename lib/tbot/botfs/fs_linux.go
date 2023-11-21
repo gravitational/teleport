@@ -422,10 +422,10 @@ func ConfigureACL(path string, owner *user.User, opts *ACLOptions) error {
 }
 
 // HasACLSupport determines if this binary / system supports ACLs.
-func HasACLSupport() (bool, error) {
+func HasACLSupport() bool {
 	// We just assume Linux _can_ support ACLs here, and will test for support
 	// at runtime.
-	return true, nil
+	return true
 }
 
 // HasSecureWriteSupport determines if `CreateSecure()` should be supported
@@ -434,16 +434,16 @@ func HasACLSupport() (bool, error) {
 //
 // We've encountered this being incorrect in environments where access to the
 // kernel is hampered e.g. seccomp/apparmor/container runtimes.
-func HasSecureWriteSupport() (bool, error) {
+func HasSecureWriteSupport() bool {
 	minKernel := semver.New(Openat2MinKernel)
 	version, err := utils.KernelVersion()
 	if err != nil {
 		log.WithError(err).Info("Failed to determine kernel version. It will be assumed secure write support is not available.")
-		return false, nil
+		return false
 	}
 	if version.LessThan(*minKernel) {
-		return false, nil
+		return false
 	}
 
-	return true, nil
+	return true
 }
