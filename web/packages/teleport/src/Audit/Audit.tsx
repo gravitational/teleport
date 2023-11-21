@@ -28,7 +28,7 @@ import {
 import useTeleport from 'teleport/useTeleport';
 import useStickyClusterId from 'teleport/useStickyClusterId';
 
-import { ExternalCloudAuditCta } from 'teleport/components/ExternalCloudAuditCta';
+import { ExternalAuditStorageCta } from '@gravitational/teleport/src/components/ExternalAuditStorageCta';
 
 import EventList from './EventList';
 
@@ -64,7 +64,7 @@ export function Audit(props: State) {
           onChangeRange={setRange}
         />
       </FeatureHeader>
-      <ExternalCloudAuditCta />
+      <ExternalAuditStorageCta />
       {attempt.status === 'failed' && <Danger> {attempt.statusText} </Danger>}
       {attempt.status === 'processing' && (
         <Box textAlign="center" m={10}>

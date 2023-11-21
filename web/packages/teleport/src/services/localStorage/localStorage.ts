@@ -260,9 +260,9 @@ const storage = {
     return false;
   },
 
-  getExternalCloudAuditCtaDisabled(): boolean {
+  getExternalAuditStorageCtaDisabled(): boolean {
     const item = window.localStorage.getItem(
-      KeysEnum.EXTERNAL_CLOUD_AUDIT_CTA_DISABLED
+      KeysEnum.EXTERNAL_AUDIT_STORAGE_CTA_DISABLED
     );
     if (item) {
       return JSON.parse(item);
@@ -270,9 +270,9 @@ const storage = {
     return false;
   },
 
-  disableExternalCloudAuditCta(): void {
+  disableExternalAuditStorageCta(): void {
     window.localStorage.setItem(
-      KeysEnum.EXTERNAL_CLOUD_AUDIT_CTA_DISABLED,
+      KeysEnum.EXTERNAL_AUDIT_STORAGE_CTA_DISABLED,
       JSON.stringify(true)
     );
   },

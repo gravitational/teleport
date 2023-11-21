@@ -22,11 +22,11 @@ export const Container = () => {
   const featureEnabled = !ctx.lockedFeatures.externalCloudAudit;
 
   useEffect(() => {
-    setShowCta(cfg.isCloud && !localStorage.getExternalCloudAuditCtaDisabled());
+    setShowCta(cfg.isCloud && !localStorage.getExternalAuditStorageCtaDisabled());
   }, [cfg.isCloud]);
 
   function handleDismiss() {
-    localStorage.disableExternalCloudAuditCta();
+    localStorage.disableExternalAuditStorageCta();
     setShowCta(false);
   }
 
@@ -73,7 +73,7 @@ export const ExternalCloudAuditCta = ({
           {isEnabled ? (
             <ButtonPrimary
               as={Link}
-              to={cfg.getIntegrationEnrollRoute(IntegrationKind.Byob)}
+              to={cfg.getIntegrationEnrollRoute(IntegrationKind.ExternalCloudAudit)}
               mr="2"
             >
               Connect your AWS storage

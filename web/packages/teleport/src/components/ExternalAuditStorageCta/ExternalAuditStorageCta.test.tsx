@@ -20,7 +20,7 @@ import { screen } from 'design/utils/testing';
 
 import { renderWithElementsAndContext } from 'e-teleport/Billing/StripeLoader/testhelper/renderWithElementsAndContext';
 
-import { ExternalCloudAuditCta } from './ExternalCloudAuditCta';
+import { ExternalCloudAuditCta } from './ExternalAuditStorageCta';
 
 function render(children) {
   return renderWithElementsAndContext(<MemoryRouter>{children}</MemoryRouter>);
