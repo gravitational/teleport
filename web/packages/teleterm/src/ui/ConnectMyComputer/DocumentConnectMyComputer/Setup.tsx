@@ -212,6 +212,7 @@ function AccessError(props: { access: ConnectMyComputerAccessNoAccess }) {
 function AgentSetup() {
   const logger = useLogger('AgentSetup');
   const ctx = useAppContext();
+  const { mainProcessClient, notificationsService } = ctx;
   const { rootClusterUri } = useWorkspaceContext();
   const {
     startAgent,
@@ -430,6 +431,30 @@ function AgentSetup() {
     }
   }, []);
 
+  const retryRunSteps = async () => {
+    try {
+      // This will remove the binary but only if no other agents are running.
+      //
+      // Removing the binary is useful in situations where the download got corrupted or the OS
+      // decided to ban the binary from being executed for some reason. In those cases,
+      // redownloading the binary might resolve the problem.
+      //
+      // If other agents are running, then we at least know that there's probably no problems with
+      // the binary itself, in which case we can simply ignore the fact that it wasn't removed and
+      // carry on.
+      await mainProcessClient.tryRemoveConnectMyComputerAgentBinary();
+    } catch (error) {
+      const { agentBinaryPath } = mainProcessClient.getRuntimeSettings();
+      notificationsService.notifyError({
+        title: 'Could not remove the agent binary',
+        description: `Please try removing the binary manually to continue. The binary is at ${agentBinaryPath}. The error message was: ${error.message}`,
+      });
+      return;
+    }
+
+    await runSteps();
+  };
+
   const hasSetupFailed = steps.some(s => s.attempt.status === 'error');
   const { clusterName, hostname } = useAgentProperties();
 
@@ -450,7 +475,7 @@ function AgentSetup() {
         }))}
       />
       {hasSetupFailed && (
-        <ButtonPrimary alignSelf="center" onClick={runSteps}>
+        <ButtonPrimary alignSelf="center" onClick={retryRunSteps}>
           Retry
         </ButtonPrimary>
       )}
