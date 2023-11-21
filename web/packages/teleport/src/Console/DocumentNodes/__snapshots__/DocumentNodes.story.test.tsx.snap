@@ -13,7 +13,7 @@ exports[`render DocumentNodes 1`] = `
   width: 100%;
 }
 
-.c33 {
+.c35 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -41,28 +41,28 @@ exports[`render DocumentNodes 1`] = `
   height: 24px;
 }
 
-.c33:hover,
-.c33:focus {
+.c35:hover,
+.c35:focus {
   background: rgba(255,255,255,0.07);
 }
 
-.c33:active {
+.c35:active {
   background: rgba(255,255,255,0.13);
 }
 
-.c33:disabled {
+.c35:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
 }
 
-.c27 {
+.c28 {
   display: inline-block;
   transition: color 0.3s;
   color: #FFFFFF;
 }
 
-.c34 {
+.c36 {
   display: inline-block;
   transition: color 0.3s;
   color: #FFFFFF;
@@ -72,14 +72,14 @@ exports[`render DocumentNodes 1`] = `
   font-size: 14px;
 }
 
-.c39 {
+.c41 {
   display: inline-block;
   transition: color 0.3s;
   color: #FFFFFF;
   font-size: 16px;
 }
 
-.c37 {
+.c39 {
   align-items: center;
   border: none;
   cursor: pointer;
@@ -101,29 +101,29 @@ exports[`render DocumentNodes 1`] = `
   margin-right: 0px;
 }
 
-.c37 .c26 {
+.c39 .c27 {
   color: inherit;
 }
 
-.c37:disabled {
+.c39:disabled {
   color: rgba(255,255,255,0.36);
 }
 
-.c37:disabled {
+.c39:disabled {
   color: rgba(255,255,255,0.36);
   cursor: default;
 }
 
-.c37:hover:enabled,
-.c37:focus:enabled {
+.c39:hover:enabled,
+.c39:focus:enabled {
   background: rgba(255,255,255,0.13);
 }
 
-.c37:active:enabled {
+.c39:active:enabled {
   background: rgba(255,255,255,0.18);
 }
 
-.c40 {
+.c42 {
   align-items: center;
   border: none;
   cursor: pointer;
@@ -144,38 +144,38 @@ exports[`render DocumentNodes 1`] = `
   margin-left: 0px;
 }
 
-.c40 .c26 {
+.c42 .c27 {
   color: inherit;
 }
 
-.c40:disabled {
+.c42:disabled {
   color: rgba(255,255,255,0.36);
 }
 
-.c40:disabled {
+.c42:disabled {
   color: rgba(255,255,255,0.36);
   cursor: default;
 }
 
-.c40:hover:enabled,
-.c40:focus:enabled {
+.c42:hover:enabled,
+.c42:focus:enabled {
   background: rgba(255,255,255,0.13);
 }
 
-.c40:active:enabled {
+.c42:active:enabled {
   background: rgba(255,255,255,0.18);
 }
 
 .c25 {
   overflow: hidden;
   text-overflow: ellipsis;
-  font-weight: 300;
+  font-weight: 400;
   font-size: 12px;
-  line-height: 24px;
+  line-height: 16px;
   margin: 0px;
 }
 
-.c29 {
+.c31 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 400;
@@ -230,25 +230,87 @@ exports[`render DocumentNodes 1`] = `
   align-items: center;
 }
 
-.c28 {
+.c20 {
+  box-sizing: border-box;
+  padding-left: 24px;
+  padding-right: 24px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.c30 {
   box-sizing: border-box;
   display: flex;
 }
 
-.c31 {
+.c33 {
   box-sizing: border-box;
   display: flex;
   flex-wrap: wrap;
 }
 
-.c36 {
+.c38 {
   box-sizing: border-box;
   width: 100%;
   display: flex;
   justify-content: flex-end;
 }
 
-.c30 {
+.c21 {
+  position: relative;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+.c21[disabled] {
+  cursor: default;
+}
+
+.c24 {
+  width: 32px;
+  height: 12px;
+  border-radius: 12px;
+  background: #222C59;
+  cursor: inherit;
+  flex-shrink: 0;
+}
+
+.c24:before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  transform: translate(0,-50%);
+  width: 16px;
+  height: 16px;
+  border-radius: 16px;
+  background: #9F85FF;
+}
+
+.c22 {
+  opacity: 0;
+  position: absolute;
+  cursor: inherit;
+}
+
+.c22:checked + .c23 {
+  background: rgba(255,255,255,0.13);
+}
+
+.c22:checked + .c23:before {
+  transform: translate(16px,-50%);
+}
+
+.c22:disabled + .c23 {
+  background: #222C59;
+}
+
+.c22:disabled + .c23:before {
+  background: #455a64;
+}
+
+.c32 {
   background: #222C59;
   border-collapse: collapse;
   border-spacing: 0;
@@ -257,39 +319,39 @@ exports[`render DocumentNodes 1`] = `
   width: 100%;
 }
 
-.c30 > thead > tr > th,
-.c30 > tbody > tr > th,
-.c30 > tfoot > tr > th,
-.c30 > thead > tr > td,
-.c30 > tbody > tr > td,
-.c30 > tfoot > tr > td {
+.c32 > thead > tr > th,
+.c32 > tbody > tr > th,
+.c32 > tfoot > tr > th,
+.c32 > thead > tr > td,
+.c32 > tbody > tr > td,
+.c32 > tfoot > tr > td {
   padding: 8px 8px;
   vertical-align: middle;
 }
 
-.c30 > thead > tr > th:first-child,
-.c30 > tbody > tr > th:first-child,
-.c30 > tfoot > tr > th:first-child,
-.c30 > thead > tr > td:first-child,
-.c30 > tbody > tr > td:first-child,
-.c30 > tfoot > tr > td:first-child {
+.c32 > thead > tr > th:first-child,
+.c32 > tbody > tr > th:first-child,
+.c32 > tfoot > tr > th:first-child,
+.c32 > thead > tr > td:first-child,
+.c32 > tbody > tr > td:first-child,
+.c32 > tfoot > tr > td:first-child {
   padding-left: 24px;
 }
 
-.c30 > thead > tr > th:last-child,
-.c30 > tbody > tr > th:last-child,
-.c30 > tfoot > tr > th:last-child,
-.c30 > thead > tr > td:last-child,
-.c30 > tbody > tr > td:last-child,
-.c30 > tfoot > tr > td:last-child {
+.c32 > thead > tr > th:last-child,
+.c32 > tbody > tr > th:last-child,
+.c32 > tfoot > tr > th:last-child,
+.c32 > thead > tr > td:last-child,
+.c32 > tbody > tr > td:last-child,
+.c32 > tfoot > tr > td:last-child {
   padding-right: 24px;
 }
 
-.c30 > tbody > tr > td {
+.c32 > tbody > tr > td {
   vertical-align: middle;
 }
 
-.c30 > thead > tr > th {
+.c32 > thead > tr > th {
   background: rgba(255,255,255,0.07);
   color: #FFFFFF;
   cursor: pointer;
@@ -303,22 +365,22 @@ exports[`render DocumentNodes 1`] = `
   white-space: nowrap;
 }
 
-.c30 > thead > tr > th .c26 {
+.c32 > thead > tr > th .c27 {
   font-weight: bold;
   font-size: 8px;
   margin-left: 8px;
 }
 
-.c30 > tbody > tr > td {
+.c32 > tbody > tr > td {
   color: #FFFFFF;
   line-height: 16px;
 }
 
-.c30 tbody tr {
+.c32 tbody tr {
   border-bottom: 1px solid rgb(49,58,100);
 }
 
-.c30 tbody tr:hover {
+.c32 tbody tr:hover {
   background-color: rgba(255,255,255,0.07);
 }
 
@@ -334,7 +396,7 @@ exports[`render DocumentNodes 1`] = `
   border-top-right-radius: 8px;
 }
 
-.c35 {
+.c37 {
   padding: 16px 24px;
   display: flex;
   height: 24px;
@@ -351,7 +413,7 @@ exports[`render DocumentNodes 1`] = `
   border-radius: 8px;
 }
 
-.c32 {
+.c34 {
   box-sizing: border-box;
   border-radius: 10px;
   display: inline-block;
@@ -367,15 +429,15 @@ exports[`render DocumentNodes 1`] = `
   cursor: pointer;
 }
 
-.c32:hover {
+.c34:hover {
   background-color: rgba(255,255,255,0.13);
 }
 
-.c38 .c26 {
+.c40 .c27 {
   font-size: 20px;
 }
 
-.c38 .c26:before {
+.c40 .c27:before {
   padding-left: 1px;
 }
 
@@ -445,66 +507,19 @@ exports[`render DocumentNodes 1`] = `
   font-size: 12px;
 }
 
-.c21 {
-  position: relative;
-  display: flex;
-  align-items: center;
+.c29 {
+  font-size: 18px;
+  color: inherit;
+}
+
+.c26 {
+  vertical-align: middle;
+  display: inline-block;
+  height: 18px;
+}
+
+.c26:hover {
   cursor: pointer;
-}
-
-.c21[disabled] {
-  cursor: default;
-}
-
-.c24 {
-  width: 32px;
-  height: 12px;
-  border-radius: 12px;
-  background: #222C59;
-  cursor: inherit;
-  flex-shrink: 0;
-}
-
-.c24:before {
-  content: '';
-  position: absolute;
-  top: 50%;
-  transform: translate(0,-50%);
-  width: 16px;
-  height: 16px;
-  border-radius: 16px;
-  background: #9F85FF;
-}
-
-.c22 {
-  opacity: 0;
-  position: absolute;
-  cursor: inherit;
-}
-
-.c22:checked + .c23 {
-  background: rgba(255,255,255,0.13);
-}
-
-.c22:checked + .c23:before {
-  transform: translate(16px,-50%);
-}
-
-.c22:disabled + .c23 {
-  background: #222C59;
-}
-
-.c22:disabled + .c23:before {
-  background: #455a64;
-}
-
-.c20 {
-  display: flex;
-  align-items: center;
-  justify-content: space-around;
-  padding-right: 16px;
-  padding-left: 16px;
-  width: 120px;
 }
 
 .c7 {
@@ -914,26 +929,26 @@ exports[`render DocumentNodes 1`] = `
                           >
                             Advanced
                           </div>
+                          <span
+                            class="c26"
+                            role="icon"
+                          >
+                            <span
+                              class="c27 c28 icon icon-info_outline c29"
+                            />
+                          </span>
                         </div>
                       </div>
                     </div>
                   </div>
                 </div>
               </div>
-              <div
-                style="line-height: 0px;"
-              >
-                <span
-                  class="c26 c27 icon icon-info_outline "
-                  style="cursor: pointer; font-size: 20px;"
-                />
-              </div>
             </div>
             <div
-              class="c28"
+              class="c30"
             >
               <div
-                class="c29"
+                class="c31"
                 color="text.main"
                 style="text-transform: uppercase;"
               >
@@ -955,7 +970,7 @@ exports[`render DocumentNodes 1`] = `
           </div>
         </form>
         <table
-          class="c30"
+          class="c32"
         >
           <thead>
             <tr>
@@ -963,7 +978,7 @@ exports[`render DocumentNodes 1`] = `
                 <a>
                   Hostname
                   <span
-                    class="c26 c27 icon icon-chevron-up "
+                    class="c27 c28 icon icon-chevron-up "
                     title="sort items asc"
                   />
                 </a>
@@ -993,16 +1008,16 @@ exports[`render DocumentNodes 1`] = `
               </td>
               <td>
                 <div
-                  class="c31"
+                  class="c33"
                 >
                   <div
-                    class="c32"
+                    class="c34"
                     kind="secondary"
                   >
                     cluster: one
                   </div>
                   <div
-                    class="c32"
+                    class="c34"
                     kind="secondary"
                   >
                     kernel: 4.15.0-51-generic
@@ -1013,13 +1028,13 @@ exports[`render DocumentNodes 1`] = `
                 align="right"
               >
                 <button
-                  class="c33"
+                  class="c35"
                   height="24px"
                   kind="border"
                 >
                   Connect
                   <span
-                    class="c26 c34 icon icon-caret-down "
+                    class="c27 c36 icon icon-caret-down "
                     color="text.slightlyMuted"
                     font-size="2"
                   />
@@ -1035,16 +1050,16 @@ exports[`render DocumentNodes 1`] = `
               </td>
               <td>
                 <div
-                  class="c31"
+                  class="c33"
                 >
                   <div
-                    class="c32"
+                    class="c34"
                     kind="secondary"
                   >
                     cluster: one
                   </div>
                   <div
-                    class="c32"
+                    class="c34"
                     kind="secondary"
                   >
                     kernel: 4.15.0-51-generic
@@ -1055,13 +1070,13 @@ exports[`render DocumentNodes 1`] = `
                 align="right"
               >
                 <button
-                  class="c33"
+                  class="c35"
                   height="24px"
                   kind="border"
                 >
                   Connect
                   <span
-                    class="c26 c34 icon icon-caret-down "
+                    class="c27 c36 icon icon-caret-down "
                     color="text.slightlyMuted"
                     font-size="2"
                   />
@@ -1082,16 +1097,16 @@ exports[`render DocumentNodes 1`] = `
               </td>
               <td>
                 <div
-                  class="c31"
+                  class="c33"
                 >
                   <div
-                    class="c32"
+                    class="c34"
                     kind="secondary"
                   >
                     cluster: one
                   </div>
                   <div
-                    class="c32"
+                    class="c34"
                     kind="secondary"
                   >
                     kernel: 4.15.0-51-generic
@@ -1102,13 +1117,13 @@ exports[`render DocumentNodes 1`] = `
                 align="right"
               >
                 <button
-                  class="c33"
+                  class="c35"
                   height="24px"
                   kind="border"
                 >
                   Connect
                   <span
-                    class="c26 c34 icon icon-caret-down "
+                    class="c27 c36 icon icon-caret-down "
                     color="text.slightlyMuted"
                     font-size="2"
                   />
@@ -1129,16 +1144,16 @@ exports[`render DocumentNodes 1`] = `
               </td>
               <td>
                 <div
-                  class="c31"
+                  class="c33"
                 >
                   <div
-                    class="c32"
+                    class="c34"
                     kind="secondary"
                   >
                     cluster: one
                   </div>
                   <div
-                    class="c32"
+                    class="c34"
                     kind="secondary"
                   >
                     kernel: 4.15.0-51-generic
@@ -1149,13 +1164,13 @@ exports[`render DocumentNodes 1`] = `
                 align="right"
               >
                 <button
-                  class="c33"
+                  class="c35"
                   height="24px"
                   kind="border"
                 >
                   Connect
                   <span
-                    class="c26 c34 icon icon-caret-down "
+                    class="c27 c36 icon icon-caret-down "
                     color="text.slightlyMuted"
                     font-size="2"
                   />
@@ -1171,40 +1186,40 @@ exports[`render DocumentNodes 1`] = `
               </td>
               <td>
                 <div
-                  class="c31"
+                  class="c33"
                 >
                   <div
-                    class="c32"
+                    class="c34"
                     kind="secondary"
                   >
                     cluster: one
                   </div>
                   <div
-                    class="c32"
+                    class="c34"
                     kind="secondary"
                   >
                     kernel: 4.15.0-51-generic
                   </div>
                   <div
-                    class="c32"
+                    class="c34"
                     kind="secondary"
                   >
                     lortavma: one
                   </div>
                   <div
-                    class="c32"
+                    class="c34"
                     kind="secondary"
                   >
                     lenisret: 4.15.0-51-generic
                   </div>
                   <div
-                    class="c32"
+                    class="c34"
                     kind="secondary"
                   >
                     lofdevod: one
                   </div>
                   <div
-                    class="c32"
+                    class="c34"
                     kind="secondary"
                   >
                     llhurlaz: 4.15.0-51-generic
@@ -1215,13 +1230,13 @@ exports[`render DocumentNodes 1`] = `
                 align="right"
               >
                 <button
-                  class="c33"
+                  class="c35"
                   height="24px"
                   kind="border"
                 >
                   Connect
                   <span
-                    class="c26 c34 icon icon-caret-down "
+                    class="c27 c36 icon icon-caret-down "
                     color="text.slightlyMuted"
                     font-size="2"
                   />
@@ -1231,32 +1246,32 @@ exports[`render DocumentNodes 1`] = `
           </tbody>
         </table>
         <nav
-          class="c35"
+          class="c37"
         >
           <div
-            class="c36"
+            class="c38"
             width="100%"
           >
             <div
-              class="c28"
+              class="c30"
             >
               <button
-                class="c37 c38"
+                class="c39 c40"
                 disabled=""
                 title="Previous page"
               >
                 <span
-                  class="c26 c39 icon icon-arrow-left-circle "
+                  class="c27 c41 icon icon-arrow-left-circle "
                   font-size="3"
                 />
               </button>
               <button
-                class="c40 c38"
+                class="c42 c40"
                 disabled=""
                 title="Next page"
               >
                 <span
-                  class="c26 c39 icon icon-arrow-right-circle "
+                  class="c27 c41 icon icon-arrow-right-circle "
                   font-size="3"
                 />
               </button>
