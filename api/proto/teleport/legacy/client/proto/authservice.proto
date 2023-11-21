@@ -530,35 +530,53 @@ message Features {
   bool IdentityGovernance = 23 [(gogoproto.jsontag) = "identity_governance,omitempty"];
   // AccessGraph indicates whether Teleport Access Graph is enabled.
   bool AccessGraph = 24 [(gogoproto.jsontag) = "access_graph,omitempty"];
+  // AccessListFeature holds its namesake feature settings.
+  AccessListFeature AccessList = 25 [(gogoproto.jsontag) = "access_list,omitempty"];
+  // AccessMonitoringFeature holds its namesake feature settings.
+  AccessMonitoringFeature AccessMonitoring = 26 [(gogoproto.jsontag) = "access_monitoring,omitempty"];
 }
 
 // DeviceTrustFeature holds the Device Trust feature general and usage-based
 // settings.
-// Requires Teleport Enterprise.
+// Limits have no affect if feature is enabled.
 message DeviceTrustFeature {
-  // True if the Device Trust feature is enabled.
+  // Requires purchase of Identity Governance & Security (IGS) product to enable.
   bool enabled = 1 [(gogoproto.jsontag) = "enabled,omitempty"];
   // Usage-based limit for the number of registered/enrolled devices, at the
   // implementation's discretion.
-  // Meant for usage-based accounts, like Teleport Team. Has no effect if
-  // [Features.IsUsageBased] is `false`.
   int32 devices_usage_limit = 2 [(gogoproto.jsontag) = "devices_usage_limit,omitempty"];
 }
 
 // AccessRequestsFeature holds the AccessRequest feature general and usage-based
 // settings.
-// Requires Teleport Enterprise.
+// Limits have no affect if feature is enabled.
 message AccessRequestsFeature {
   // Usage-based limit for the number of limit for the number of
   // access requests created in a calendar month.
-  // Meant for usage-based accounts, like Teleport Team. Has no effect if
-  // [Features.IsUsageBased] is `false`.
   int32 monthly_request_limit = 1 [(gogoproto.jsontag) = "monthly_request_limit"];
+  // Requires purchase of Identity Governance & Security (IGS) product to enable.
   // Enabling this field enables "advanced access workflows".
   // This field was previously a standalone field named AdvancedAccessWorkflows.
   // The name came about to help differentiate the different support for Access Requests
   // between the limited support for OSS tctl/tsh and the full support for enterprise.
   bool enabled = 2 [(gogoproto.jsontag) = "enabled,omitempty"];
+}
+
+// AccessListFeature holds the Access List feature settings.
+// Limits have no affect if feature is enabled.
+message AccessListFeature {
+  // Requires purchase of Identity Governance & Security (IGS) product to enable.
+  bool enabled = 1 [(gogoproto.jsontag) = "enabled,omitempty"];
+  // Limit for the number of access list creatable when feature is
+  // not enabled.
+  int32 create_limit = 2 [(gogoproto.jsontag) = "create_limit,omitempty"];
+}
+
+// AccessMonitoring holds the Access List feature settings.
+// Limits have no affect if feature is enabled.
+message AccessMonitoringFeature {
+  // Requires purchase of Identity Governance & Security (IGS) product to enable.
+  bool enabled = 1 [(gogoproto.jsontag) = "enabled,omitempty"];
 }
 
 // DeleteUserRequest is the input value for the DeleteUser method.

@@ -83,32 +83,50 @@ type Features struct {
 	IsTeamProduct bool
 	// AccessGraph enables the usage of access graph.
 	AccessGraph bool
+	// AccessList holds its namesake feature settings.
+	AccessList AccessListFeature
+	// AccessMonitoring holds its namesake feature settings.
+	AccessMonitoring AccessMonitoringFeature
 }
 
 // DeviceTrustFeature holds the Device Trust feature general and usage-based
 // settings.
-// Requires Teleport Enterprise.
+// Limits have no affect if feature is enabled.
 type DeviceTrustFeature struct {
-	// Enabled is true if the Device Trust feature is enabled.
+	// Requires purchase of Identity Governance & Security (IGS) product to enable.
 	Enabled bool
 	// DevicesUsageLimit is the usage-based limit for the number of
 	// registered/enrolled devices, at the implementation's discretion.
-	// Meant for usage-based accounts, like Teleport Team. Has no effect if
-	// [Features.IsUsageBasedBilling] is `false`.
 	DevicesUsageLimit int
 }
 
 // AccessRequestsFeature holds the Access Requests feature general and usage-based settings.
+// Limits have no affect if feature is enabled.
 type AccessRequestsFeature struct {
 	// MonthlyRequestLimit is the usage-based limit for the number of
 	// access requests created in a calendar month.
-	// Meant for usage-based accounts, like Teleport Team. Has no effect if
-	// [Features.IsUsageBasedBilling] is `false`.
 	MonthlyRequestLimit int
+	// Requires purchase of Identity Governance & Security (IGS) product to enable.
 	// Enabling this field enables "advanced access workflows".
 	// This field was previously a standalone field named AdvancedAccessWorkflows.
 	// The name came about to help differentiate the different support for Access Requests
 	// between the limited support for OSS tctl/tsh and the full support for enterprise.
+	Enabled bool
+}
+
+// AccessListFeature holds the Access List feature settings.
+// Limits have no affect if feature is enabled.
+type AccessListFeature struct {
+	// Requires purchase of Identity Governance & Security (IGS) product to enable.
+	Enabled bool
+	// Limit for the number of access list creatable when feature is
+	// not enabled.
+	CreateLimit int
+}
+
+// AccessMonitoringFeature holds the Access Monitoring feature settings.
+type AccessMonitoringFeature struct {
+	// Requires purchase of Identity Governance & Security (IGS) product to enable.
 	Enabled bool
 }
 
