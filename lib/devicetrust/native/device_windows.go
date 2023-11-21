@@ -17,6 +17,7 @@ package native
 import (
 	"bytes"
 	"encoding/base64"
+	"errors"
 	"os"
 	"os/exec"
 	"os/user"
@@ -48,7 +49,7 @@ func enrollDeviceInit() (*devicepb.EnrollDeviceInit, error) {
 }
 
 func signChallenge(chal []byte) (sig []byte, err error) {
-	return windowsDevice.signChallenge(chal)
+	return nil, errors.New("signChallenge not implemented for TPM devices")
 }
 
 func getDeviceCredential() (*devicepb.DeviceCredential, error) {

@@ -303,6 +303,7 @@ var supportedBotJoinMethods = []types.JoinMethod{
 	types.JoinMethodGitLab,
 	types.JoinMethodIAM,
 	types.JoinMethodKubernetes,
+	types.JoinMethodSpacelift,
 	types.JoinMethodToken,
 }
 

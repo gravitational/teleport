@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2021 Gravitational, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -262,7 +262,7 @@ func (a *Server) VerifyAccountRecovery(ctx context.Context, req *proto.VerifyAcc
 		}
 
 		if err := a.verifyAuthnWithRecoveryLock(ctx, startToken, func() error {
-			_, _, err := a.validateMFAAuthResponse(
+			_, _, err := a.ValidateMFAAuthResponse(
 				ctx, req.GetMFAAuthenticateResponse(), startToken.GetUser(), false /* passwordless */)
 			return err
 		}); err != nil {

@@ -64,7 +64,7 @@ func setupDeviceStateDir(getBaseDir func() (string, error)) (*deviceState, error
 	case os.IsNotExist(err):
 		// If it doesn't exist, we can create it and return as we know
 		// the perms are correct as we created it.
-		if err := os.Mkdir(deviceStateDirPath, 0700); err != nil {
+		if err := os.MkdirAll(deviceStateDirPath, 0700); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	case err != nil:

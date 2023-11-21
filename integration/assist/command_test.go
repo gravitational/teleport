@@ -225,7 +225,7 @@ func setupTeleport(t *testing.T, testDir, openaiMockURL string) *helpers.TeleIns
 	rcConf.Auth.AssistAPIKey = "test"
 	openAIConfig := openai.DefaultConfig("test")
 	openAIConfig.BaseURL = openaiMockURL + "/v1"
-	rcConf.OpenAIConfig = &openAIConfig
+	rcConf.Testing.OpenAIConfig = &openAIConfig
 	require.NoError(t, err)
 	rcConf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 

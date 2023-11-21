@@ -231,6 +231,8 @@ func (p *cliModules) EnablePlugins() {
 func (p *cliModules) SetFeatures(f modules.Features) {
 }
 
+func (p *cliModules) EnableAccessGraph() {}
+
 func TestAlias(t *testing.T) {
 	testExecutable, err := os.Executable()
 	require.NoError(t, err)
@@ -4512,6 +4514,18 @@ func TestListDatabasesWithUsers(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	dbWithAutoUser, err := types.NewDatabaseV3(types.Metadata{
+		Name:   "auto-user",
+		Labels: map[string]string{"env": "prod"},
+	}, types.DatabaseSpecV3{
+		Protocol: "postgres",
+		URI:      "localhost:5432",
+		AdminUser: &types.DatabaseAdminUser{
+			Name: "teleport-admin",
+		},
+	})
+	require.NoError(t, err)
+
 	roleDevStage := &types.RoleV6{
 		Metadata: types.Metadata{Name: "dev-stage", Namespace: apidefaults.Namespace},
 		Spec: types.RoleSpecV6{
@@ -4533,6 +4547,21 @@ func TestListDatabasesWithUsers(t *testing.T) {
 				Namespaces:     []string{apidefaults.Namespace},
 				DatabaseLabels: types.Labels{"env": []string{"prod"}},
 				DatabaseUsers:  []string{"dev"},
+			},
+		},
+	}
+	roleAutoUser := &types.RoleV6{
+		Metadata: types.Metadata{Name: "auto-user", Namespace: apidefaults.Namespace},
+		Spec: types.RoleSpecV6{
+			Options: types.RoleOptions{
+				CreateDatabaseUserMode: types.CreateDatabaseUserMode_DB_USER_MODE_KEEP,
+			},
+			Allow: types.RoleConditions{
+				Namespaces:     []string{apidefaults.Namespace},
+				DatabaseLabels: types.Labels{"env": []string{"prod"}},
+				DatabaseRoles:  []string{"dev"},
+				DatabaseNames:  []string{"*"},
+				DatabaseUsers:  []string{types.Wildcard},
 			},
 		},
 	}
@@ -4596,6 +4625,33 @@ func TestListDatabasesWithUsers(t *testing.T) {
 			},
 			wantText: "[dev]",
 		},
+		{
+			name:     "db with admin user and role with auto-user",
+			database: dbWithAutoUser,
+			roles:    services.RoleSet{roleAutoUser},
+			wantUsers: &dbUsers{
+				Allowed: []string{"alice"},
+			},
+			wantText: "[alice] (Auto-provisioned)",
+		},
+		{
+			name:     "db with admin user but role without auto-user",
+			database: dbWithAutoUser,
+			roles:    services.RoleSet{roleDevProd},
+			wantUsers: &dbUsers{
+				Allowed: []string{"dev"},
+			},
+			wantText: "[dev]",
+		},
+		{
+			name:     "db without admin user but role with auto-user",
+			database: dbProd,
+			roles:    services.RoleSet{roleAutoUser},
+			wantUsers: &dbUsers{
+				Allowed: []string{"*"},
+			},
+			wantText: "[*]",
+		},
 	}
 
 	for _, tt := range tests {
@@ -4603,7 +4659,9 @@ func TestListDatabasesWithUsers(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			accessChecker := services.NewAccessCheckerWithRoleSet(&services.AccessInfo{}, "clustername", tt.roles)
+			accessChecker := services.NewAccessCheckerWithRoleSet(&services.AccessInfo{
+				Username: "alice",
+			}, "clustername", tt.roles)
 
 			gotUsers := getDBUsers(tt.database, accessChecker)
 			require.Equal(t, tt.wantUsers, gotUsers)

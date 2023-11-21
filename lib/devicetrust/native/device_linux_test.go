@@ -38,6 +38,13 @@ func TestCollectDeviceData_linux(t *testing.T) {
 	// Silence logging for tests.
 	log.SetLevel(log.PanicLevel)
 
+	// Do not cache data during testing.
+	skipCacheBefore := cachedDeviceData.skipCache
+	cachedDeviceData.skipCache = true
+	t.Cleanup(func() {
+		cachedDeviceData.skipCache = skipCacheBefore
+	})
+
 	u, err := user.Current()
 	require.NoError(t, err, "reading current user")
 
@@ -52,6 +59,7 @@ func TestCollectDeviceData_linux(t *testing.T) {
 		ReportedAssetTag:      "No Asset Information",
 		SystemSerialNumber:    "PF0A0AAA",
 		BaseBoardSerialNumber: "L1AA00A00A0",
+		OsId:                  "ubuntu",
 	}
 
 	dmiInfoSuccess := func() (*linux.DMIInfo, error) {
@@ -74,7 +82,7 @@ func TestCollectDeviceData_linux(t *testing.T) {
 		return &linux.OSRelease{
 			VersionID: wantCD.OsVersion,
 			Version:   wantCD.OsBuild,
-			ID:        "ubuntu",
+			ID:        wantCD.OsId,
 		}, nil
 	}
 	cddFuncs.dmiInfoFromSysfs = dmiInfoSuccess

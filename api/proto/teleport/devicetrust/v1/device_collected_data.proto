@@ -97,4 +97,10 @@ message DeviceCollectedData {
   //
   // System managed.
   TPMPlatformAttestation tpm_platform_attestation = 14;
+
+  // OS identifier.
+  // Mainly used to differentiate Linux distros, as there is be no variation
+  // for systems like macOS or Windows.
+  // Example: "ubuntu", "centos", "fedora", "rhel".
+  string os_id = 15;
 }

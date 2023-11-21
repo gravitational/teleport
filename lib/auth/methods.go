@@ -297,7 +297,7 @@ func (a *Server) authenticateUser(ctx context.Context, req AuthenticateUserReque
 					Webauthn: wantypes.CredentialAssertionResponseToProto(req.Webauthn),
 				},
 			}
-			dev, _, err := a.validateMFAAuthResponse(ctx, mfaResponse, user, passwordless)
+			dev, _, err := a.ValidateMFAAuthResponse(ctx, mfaResponse, user, passwordless)
 			return dev, trace.Wrap(err)
 		}
 		authErr = authenticateWebauthnError
@@ -391,7 +391,7 @@ func (a *Server) authenticatePasswordless(ctx context.Context, req AuthenticateU
 			Webauthn: wantypes.CredentialAssertionResponseToProto(req.Webauthn),
 		},
 	}
-	dev, user, err := a.validateMFAAuthResponse(ctx, mfaResponse, "", true /* passwordless */)
+	dev, user, err := a.ValidateMFAAuthResponse(ctx, mfaResponse, "", true /* passwordless */)
 	if err != nil {
 		log.Debugf("Passwordless authentication failed: %v", err)
 		return nil, "", trace.Wrap(authenticateWebauthnError)
