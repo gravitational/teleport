@@ -356,6 +356,8 @@ type Config struct {
 	// BindAddr is an optional host:port to bind to for SSO redirect flows.
 	BindAddr string
 
+	CallbackAddr string
+
 	// NoRemoteExec will not execute a remote command after connecting to a host,
 	// will block instead. Useful when port forwarding. Equivalent of -N for OpenSSH.
 	NoRemoteExec bool
@@ -4073,11 +4075,12 @@ func (tc *TeleportClient) ssoLogin(ctx context.Context, priv *keys.PrivateKey, c
 
 	// ask the CA (via proxy) to sign our public key:
 	response, err := SSHAgentSSOLogin(ctx, SSHLoginSSO{
-		SSHLogin:    sshLogin,
-		ConnectorID: connectorID,
-		Protocol:    protocol,
-		BindAddr:    tc.BindAddr,
-		Browser:     tc.Browser,
+		SSHLogin:     sshLogin,
+		ConnectorID:  connectorID,
+		Protocol:     protocol,
+		BindAddr:     tc.BindAddr,
+		CallbackAddr: tc.CallbackAddr,
+		Browser:      tc.Browser,
 	}, nil)
 	return response, trace.Wrap(err)
 }

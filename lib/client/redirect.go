@@ -224,7 +224,11 @@ func (rd *Redirector) ClickableURL() string {
 	if rd.server == nil {
 		return "<undefined - server is not started>"
 	}
-	return utils.ClickableURL(rd.server.URL + rd.shortPath)
+	url := rd.server.URL
+	if rd.CallbackAddr != "" {
+		url = rd.CallbackAddr
+	}
+	return utils.ClickableURL(url + rd.shortPath)
 }
 
 // ResponseC returns a channel with response

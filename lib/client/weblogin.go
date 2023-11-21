@@ -245,6 +245,8 @@ type SSHLoginSSO struct {
 	// BindAddr is an optional host:port address to bind
 	// to for SSO login flows
 	BindAddr string
+
+	CallbackAddr string
 	// Browser can be used to pass the name of a browser to override the system
 	// default (not currently implemented), or set to 'none' to suppress
 	// browser opening entirely.
