@@ -14,7 +14,7 @@ on:
   pull_request:
     paths:
       - ".github/**"
-      - "!.github/workflows/lint.yaml"
+      - "!.github/workflows/lint-bypass.yaml"
       - "docs/**"
       - "e"
       - "rfd/**"
