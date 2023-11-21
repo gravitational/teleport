@@ -10,7 +10,7 @@
   },
   "license": "Apache-2.0",
   "scripts": {
-    "start": "webpack serve --config webpack.renderer.dev.config.js --progress",
+    "start": "yarn build-native-deps && webpack serve --config webpack.renderer.dev.config.js --progress",
     "start-main": "webpack build --config webpack.main.config.js --mode=development --progress --watch",
     "start-electron": "electron build/app/dist/main/main.js",
     "build": "yarn build-main && yarn build-renderer",
