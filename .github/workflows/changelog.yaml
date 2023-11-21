@@ -1,0 +1,42 @@
+# This changelog ensures that PR bodies include a `changelog: <changelog entry>` section,
+# or a `no-changelog` label set. If they do not, then a comment will be added to the PR
+# asking the developer to add one of the two.
+name: Validate changelog entry
+on:
+  pull_request:
+    types:
+      - edited
+      - labeled
+      - opened
+      - ready_for_review
+      - reopened
+      - synchronize
+      - unlabeled
+
+permissions:
+  pull-requests: write
+
+concurrency: 
+  cancel-in-progress: true
+  # This value is arbitrary as long as it includes the pull request number
+  group: 'limit to running one instance at a time for the pull request ${{ github.event.pull_request.number }}'
+
+jobs:
+  validate-changelog:
+    name: Validate the changelog entry
+    if: ${{ !github.event.pull_request.draft }}
+    runs-on: ubuntu-latest
+    steps:
+      # Checkout main branch of shared-workflow repository.
+      - name: Checkout shared-workflow
+        uses: actions/checkout@v4
+        with:
+          repository: gravitational/shared-workflows
+          path: .github/shared-workflows
+          ref: main
+      - name: Installing Go
+        uses: actions/setup-go@v4
+        with:
+          go-version-file: .github/shared-workflows/bot/go.mod
+      - name: Validate the changelog entry
+        run: cd .github/shared-workflows/bot && go run main.go -workflow=changelog -token="${{ secrets.GITHUB_TOKEN }}" -reviewers="${{ secrets.reviewers }}"
