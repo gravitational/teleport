@@ -24,6 +24,8 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"reflect"
+	"runtime"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -238,6 +240,7 @@ func connect(ctx context.Context, cfg Config) (*Client, error) {
 				sendError(trace.Wrap(err))
 				return
 			}
+			log.Debugf("succesfully connected using: %s", runtime.FuncForPC(reflect.ValueOf(connect).Pointer()).Name())
 			select {
 			case cltChan <- clt:
 			case <-ctx.Done():
@@ -252,6 +255,23 @@ func connect(ctx context.Context, cfg Config) (*Client, error) {
 
 		// Connect with provided credentials.
 		for _, creds := range cfg.Credentials {
+			addrs := cfg.Addrs
+
+			// If the credential exposes a hint to the proxy address, add that
+			// to the set of addresses. This allows users to provide no address
+			// when using some credentials.
+			credAddrSource, ok := creds.(interface {
+				ProxyWebAddr() (string, error)
+			})
+			if ok {
+				addr, err := credAddrSource.ProxyWebAddr()
+				if err != nil {
+					sendError(trace.Wrap(err))
+					continue
+				}
+				addrs = utils.Deduplicate(append(addrs, addr))
+			}
+
 			tlsConfig, err := creds.TLSConfig()
 			if err != nil {
 				sendError(trace.Wrap(err))
@@ -272,37 +292,15 @@ func connect(ctx context.Context, cfg Config) (*Client, error) {
 				})
 			}
 
-			// Handle a special case for the Profile based creds which can
-			// provide an address to use in addition to the address provided in
-			// the config. This allows the user to specify no addresses.
-			if len(cfg.Addrs) == 0 {
-				profileWebAddrSource, ok := creds.(interface {
-					ProxyWebAddr() (string, error)
-				})
-				if sshConfig != nil && ok {
-					addr, err := profileWebAddrSource.ProxyWebAddr()
-					if err != nil {
-						sendError(trace.Wrap(err))
-						continue
-					}
-					syncConnect(ctx, proxyConnect(addr), connectParams{
-						cfg:       cfg,
-						tlsConfig: tlsConfig,
-						sshConfig: sshConfig,
-						addr:      addr,
-					})
-				}
-			}
-
 			// Attempt to connect to each address as Auth, Proxy, Tunnel and TLS Routing.
-			for _, addr := range cfg.Addrs {
+			for _, addr := range addrs {
 				syncConnect(ctx, authConnect, connectParams{
 					cfg:       cfg,
 					tlsConfig: tlsConfig,
 					addr:      addr,
 				})
 				if sshConfig != nil {
-					for _, cf := range []connectFunc{proxyConnect(addr), tunnelConnect, tlsRoutingConnect, tlsRoutingWithConnUpgradeConnect} {
+					for _, cf := range []connectFunc{proxyConnect, tunnelConnect, tlsRoutingConnect, tlsRoutingWithConnUpgradeConnect} {
 						syncConnect(ctx, cf, connectParams{
 							cfg:       cfg,
 							tlsConfig: tlsConfig,
@@ -400,26 +398,24 @@ func tunnelConnect(ctx context.Context, params connectParams) (*Client, error) {
 // proxyConnect connects to the Teleport Auth Server through the proxy.
 // takes a specific addr parameter to allow the proxy address to be modified
 // when using special credentials.
-func proxyConnect(addr string) connectFunc {
-	return func(ctx context.Context, params connectParams) (*Client, error) {
-		if params.sshConfig == nil {
-			return nil, trace.BadParameter("must provide ssh client config")
-		}
-
-		dialer := NewProxyDialer(
-			*params.sshConfig,
-			params.cfg.KeepAlivePeriod,
-			params.cfg.DialTimeout,
-			addr,
-			params.cfg.InsecureAddressDiscovery,
-			WithInsecureSkipVerify(params.cfg.InsecureAddressDiscovery),
-		)
-		clt := newClient(params.cfg, dialer, params.tlsConfig)
-		if err := clt.dialGRPC(ctx, params.addr); err != nil {
-			return nil, trace.Wrap(err, "failed to connect to addr %v as a web proxy", params.addr)
-		}
-		return clt, nil
+func proxyConnect(ctx context.Context, params connectParams) (*Client, error) {
+	if params.sshConfig == nil {
+		return nil, trace.BadParameter("must provide ssh client config")
 	}
+
+	dialer := NewProxyDialer(
+		*params.sshConfig,
+		params.cfg.KeepAlivePeriod,
+		params.cfg.DialTimeout,
+		params.addr,
+		params.cfg.InsecureAddressDiscovery,
+		WithInsecureSkipVerify(params.cfg.InsecureAddressDiscovery),
+	)
+	clt := newClient(params.cfg, dialer, params.tlsConfig)
+	if err := clt.dialGRPC(ctx, params.addr); err != nil {
+		return nil, trace.Wrap(err, "failed to connect to addr %v as a web proxy", params.addr)
+	}
+	return clt, nil
 }
 
 // tlsRoutingConnect connects to the Teleport Auth Server through the proxy using TLS Routing.
