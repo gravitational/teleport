@@ -255,23 +255,6 @@ func connect(ctx context.Context, cfg Config) (*Client, error) {
 
 		// Connect with provided credentials.
 		for _, creds := range cfg.Credentials {
-			addrs := cfg.Addrs
-
-			// If the credential exposes a hint to the proxy address, add that
-			// to the set of addresses. This allows users to provide no address
-			// when using some credentials.
-			credAddrSource, ok := creds.(interface {
-				ProxyWebAddr() (string, error)
-			})
-			if ok {
-				addr, err := credAddrSource.ProxyWebAddr()
-				if err != nil {
-					sendError(trace.Wrap(err))
-					continue
-				}
-				addrs = utils.Deduplicate(append(addrs, addr))
-			}
-
 			tlsConfig, err := creds.TLSConfig()
 			if err != nil {
 				sendError(trace.Wrap(err))
@@ -290,6 +273,26 @@ func connect(ctx context.Context, cfg Config) (*Client, error) {
 					cfg:       cfg,
 					tlsConfig: tlsConfig,
 				})
+			}
+
+			addrs := cfg.Addrs
+			if len(addrs) == 0 {
+				// If there's no explicitly specified address, fall back to
+				// an address provided by the credential, if it provides one.
+				credAddrSource, ok := creds.(interface {
+					ProxyWebAddr() (string, error)
+				})
+				if ok {
+					addr, err := credAddrSource.ProxyWebAddr()
+					if err != nil {
+						sendError(trace.Wrap(err))
+						continue
+					}
+					addrs = []string{addr}
+					log.WithField("address", addr).Debug(
+						"No address was configured explicitly, falling back to address specified by credential",
+					)
+				}
 			}
 
 			// Attempt to connect to each address as Auth, Proxy, Tunnel and TLS Routing.
