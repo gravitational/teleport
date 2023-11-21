@@ -69,6 +69,11 @@ const (
 // initialized and gets an error when trying to retrieve credentials, that's
 // still okay, it will always retry.
 type Configurator struct {
+	// ErrorCounter provides audit middlewares that count errors and raise or clear
+	// cluster alerts based on recent error rates.
+	// It will be nil if created via NewDraftConfigurator.
+	ErrorCounter *ErrorCounter
+
 	// spec is set during initialization of the Configurator. It won't
 	// change, because every change of spec triggers an Auth service reload.
 	spec   *externalcloudaudit.ExternalCloudAuditSpec
@@ -125,7 +130,7 @@ func WithSTSClient(clt stscreds.AssumeRoleWithWebIdentityAPIClient) func(*Option
 //
 // If the External Cloud Audit feature is not used in this cluster then a valid
 // instance will be returned where IsUsed() will return false.
-func NewConfigurator(ctx context.Context, ecaSvc services.ExternalCloudAuditGetter, integrationSvc services.IntegrationsGetter, optFns ...func(*Options)) (*Configurator, error) {
+func NewConfigurator(ctx context.Context, ecaSvc services.ExternalCloudAuditGetter, integrationSvc services.IntegrationsGetter, alertService ClusterAlertService, optFns ...func(*Options)) (*Configurator, error) {
 	active, err := ecaSvc.GetClusterExternalCloudAudit(ctx)
 	if err != nil {
 		if trace.IsNotFound(err) {
@@ -133,7 +138,7 @@ func NewConfigurator(ctx context.Context, ecaSvc services.ExternalCloudAuditGett
 		}
 		return nil, trace.Wrap(err)
 	}
-	return newConfigurator(ctx, &active.Spec, integrationSvc, optFns...)
+	return newConfigurator(ctx, &active.Spec, integrationSvc, alertService, optFns...)
 }
 
 // NewDraftConfigurator is equivalent to NewConfigurator but is based on the
@@ -147,10 +152,11 @@ func NewDraftConfigurator(ctx context.Context, ecaSvc services.ExternalCloudAudi
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return newConfigurator(ctx, &draft.Spec, integrationSvc, optFns...)
+	// Draft configurator never needs to set up cluster alerts.
+	return newConfigurator(ctx, &draft.Spec, integrationSvc, nil /* alertService */, optFns...)
 }
 
-func newConfigurator(ctx context.Context, spec *externalcloudaudit.ExternalCloudAuditSpec, integrationSvc services.IntegrationsGetter, optFns ...func(*Options)) (*Configurator, error) {
+func newConfigurator(ctx context.Context, spec *externalcloudaudit.ExternalCloudAuditSpec, integrationSvc services.IntegrationsGetter, alertService ClusterAlertService, optFns ...func(*Options)) (*Configurator, error) {
 	// ExternalCloudAudit is only available in Cloud Enterprise
 	// (IsUsageBasedBilling indicates Teleport Team, where this is not supported)
 	if !modules.GetModules().Features().Cloud || modules.GetModules().Features().IsUsageBasedBilling {
@@ -162,14 +168,14 @@ func newConfigurator(ctx context.Context, spec *externalcloudaudit.ExternalCloud
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return nil, trace.NotFound(
-				"ExternalCloudAudit: configured AWS OIDC integration %q not found",
+				"ExternalAuditStorage: configured AWS OIDC integration %q not found",
 				oidcIntegrationName)
 		}
 	}
 	awsOIDCSpec := integration.GetAWSOIDCIntegrationSpec()
 	if awsOIDCSpec == nil {
 		return nil, trace.NotFound(
-			"ExternalCloudAudit: configured integration %q does not appear to be an AWS OIDC integration",
+			"ExternalAuditStorage: configured integration %q does not appear to be an AWS OIDC integration",
 			oidcIntegrationName)
 	}
 	awsRoleARN := awsOIDCSpec.RoleARN
@@ -188,7 +194,16 @@ func newConfigurator(ctx context.Context, spec *externalcloudaudit.ExternalCloud
 	}
 	go credentialsCache.run(ctx)
 
+	// Draft configurator does not need to count errors or create cluster
+	// alerts.
+	var errorCounter *ErrorCounter
+	if alertService != nil {
+		errorCounter = NewErrorCounter(alertService)
+		go errorCounter.run(ctx)
+	}
+
 	return &Configurator{
+		ErrorCounter:     errorCounter,
 		isUsed:           true,
 		spec:             spec,
 		credentialsCache: credentialsCache,
@@ -284,13 +299,13 @@ func newCredentialsCache(ctx context.Context, region, roleARN string, options *O
 	gotFirstCredsOrErr := make(chan struct{})
 	return &credentialsCache{
 		roleARN:                 roleARN,
-		log:                     logrus.WithField(trace.Component, "ExternalCloudAudit.CredentialsCache"),
+		log:                     logrus.WithField(trace.Component, "ExternalAuditStorage.CredentialsCache"),
 		initialized:             initialized,
 		closeInitialized:        sync.OnceFunc(func() { close(initialized) }),
 		gotFirstCredsOrErr:      gotFirstCredsOrErr,
 		closeGotFirstCredsOrErr: sync.OnceFunc(func() { close(gotFirstCredsOrErr) }),
 		credsOrErr: credsOrErr{
-			err: errors.New("ExternalCloudAudit: credential cache not yet initialized"),
+			err: errors.New("ExternalAuditStorage: credential cache not yet initialized"),
 		},
 		clock:     options.clock,
 		stsClient: options.stsClient,
