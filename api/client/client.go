@@ -275,21 +275,23 @@ func connect(ctx context.Context, cfg Config) (*Client, error) {
 			// Handle a special case for the Profile based creds which can
 			// provide an address to use in addition to the address provided in
 			// the config. This allows the user to specify no addresses.
-			profileWebAddrSource, ok := creds.(interface {
-				ProxyWebAddr() (string, error)
-			})
-			if sshConfig != nil && ok {
-				addr, err := profileWebAddrSource.ProxyWebAddr()
-				if err != nil {
-					sendError(trace.Wrap(err))
-					continue
-				}
-				syncConnect(ctx, proxyConnect(addr), connectParams{
-					cfg:       cfg,
-					tlsConfig: tlsConfig,
-					sshConfig: sshConfig,
-					addr:      addr,
+			if len(cfg.Addrs) == 0 {
+				profileWebAddrSource, ok := creds.(interface {
+					ProxyWebAddr() (string, error)
 				})
+				if sshConfig != nil && ok {
+					addr, err := profileWebAddrSource.ProxyWebAddr()
+					if err != nil {
+						sendError(trace.Wrap(err))
+						continue
+					}
+					syncConnect(ctx, proxyConnect(addr), connectParams{
+						cfg:       cfg,
+						tlsConfig: tlsConfig,
+						sshConfig: sshConfig,
+						addr:      addr,
+					})
+				}
 			}
 
 			// Attempt to connect to each address as Auth, Proxy, Tunnel and TLS Routing.
