@@ -325,11 +325,11 @@ func (a *App) onJiraWebhook(ctx context.Context, webhook Webhook) error {
 	})
 	if err != nil {
 		if statusName == "" {
-			return trace.Errorf("getting Jira issue status: %w" , err)
+			return trace.Errorf("getting Jira issue status: %w", err)
 		}
 		log.Warnf("Using most recent successful getIssue response: %v", err)
 	}
-	
+
 	ctx, log = logger.WithFields(ctx, logger.Fields{
 		"jira_issue_id":  issue.ID,
 		"jira_issue_key": issue.Key,
