@@ -22,7 +22,7 @@ on:
   merge_group:
     paths:
       - ".github/**"
-      - "!.github/workflows/lint.yaml"
+      - "!.github/workflows/lint-bypass.yaml"
       - "docs/**"
       - "e"
       - "rfd/**"
