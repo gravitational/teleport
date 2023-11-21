@@ -639,11 +639,6 @@ func (h *Handler) bindDefaultEndpoints() {
 	// Teleport
 	h.GET("/webapi/scripts/installer/:name", h.WithLimiter(h.installer))
 
-	// desktop access configuration scripts
-	h.GET("/webapi/scripts/desktop-access/install-ad-ds.ps1", h.WithLimiter(h.desktopAccessScriptInstallADDSHandle))
-	h.GET("/webapi/scripts/desktop-access/install-ad-cs.ps1", h.WithLimiter(h.desktopAccessScriptInstallADCSHandle))
-	h.GET("/webapi/scripts/desktop-access/configure/:token/configure-ad.ps1", h.WithLimiter(h.desktopAccessScriptConfigureHandle))
-
 	// Forwards traces to the configured upstream collector
 	h.POST("/webapi/traces", h.WithAuth(h.traces))
 

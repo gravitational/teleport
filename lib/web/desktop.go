@@ -19,19 +19,14 @@ package web
 import (
 	"bytes"
 	"context"
-	"crypto/sha1"
 	"crypto/tls"
-	"encoding/base64"
 	"encoding/binary"
-	"encoding/pem"
 	"errors"
-	"fmt"
 	"io"
 	"math/rand"
 	"net"
 	"net/http"
 	"strconv"
-	"strings"
 	"sync"
 
 	"github.com/gorilla/websocket"
@@ -49,11 +44,9 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/web/scripts"
 )
 
 // GET /webapi/sites/:site/desktops/:desktopName/connect?access_token=<bearer_token>&username=<username>&width=<width>&height=<height>
@@ -557,87 +550,6 @@ func createCertificateBlob(certData []byte) []byte {
 	buf.Write(certData)
 
 	return buf.Bytes()
-}
-
-func (h *Handler) desktopAccessScriptConfigureHandle(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	tokenStr := p.ByName("token")
-	if tokenStr == "" {
-		return "", trace.BadParameter("invalid token")
-	}
-
-	// verify that the token exists
-	token, err := h.GetProxyClient().GetToken(r.Context(), tokenStr)
-	if err != nil {
-		return "", trace.BadParameter("invalid token")
-	}
-
-	proxyServers, err := h.GetProxyClient().GetProxies()
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	if len(proxyServers) == 0 {
-		return "", trace.NotFound("no proxy servers found")
-	}
-
-	clusterName, err := h.GetProxyClient().GetDomainName(r.Context())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	certAuthority, err := h.GetProxyClient().GetCertAuthority(
-		r.Context(),
-		types.CertAuthID{Type: types.UserCA, DomainName: clusterName},
-		false,
-	)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if len(certAuthority.GetActiveKeys().TLS) != 1 {
-		return nil, trace.BadParameter("expected one TLS key pair, got %v", len(certAuthority.GetActiveKeys().TLS))
-	}
-
-	var internalResourceID string
-	for labelKey, labelValues := range token.GetSuggestedLabels() {
-		if labelKey == types.InternalResourceIDLabel {
-			internalResourceID = strings.Join(labelValues, " ")
-			break
-		}
-	}
-
-	keyPair := certAuthority.GetActiveKeys().TLS[0]
-	block, _ := pem.Decode(keyPair.Cert)
-	if block == nil {
-		return nil, trace.BadParameter("no PEM data in CA data")
-	}
-
-	httplib.SetScriptHeaders(w.Header())
-	w.WriteHeader(http.StatusOK)
-	err = scripts.DesktopAccessScriptConfigure.Execute(w, map[string]string{
-		"caCertPEM":          string(keyPair.Cert),
-		"caCertSHA1":         fmt.Sprintf("%X", sha1.Sum(block.Bytes)),
-		"caCertBase64":       base64.StdEncoding.EncodeToString(createCertificateBlob(block.Bytes)),
-		"proxyPublicAddr":    proxyServers[0].GetPublicAddr(),
-		"provisionToken":     tokenStr,
-		"internalResourceID": internalResourceID,
-	})
-
-	return nil, trace.Wrap(err)
-}
-
-func (h *Handler) desktopAccessScriptInstallADDSHandle(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	httplib.SetScriptHeaders(w.Header())
-	w.WriteHeader(http.StatusOK)
-	_, err := io.WriteString(w, scripts.DesktopAccessScriptInstallADDS)
-	return nil, trace.Wrap(err)
-}
-
-func (h *Handler) desktopAccessScriptInstallADCSHandle(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	httplib.SetScriptHeaders(w.Header())
-	w.WriteHeader(http.StatusOK)
-	_, err := io.WriteString(w, scripts.DesktopAccessScriptInstallADCS)
-	return nil, trace.Wrap(err)
 }
 
 // sendTDPNotification sends a tdp Notification over the supplied websocket with the
