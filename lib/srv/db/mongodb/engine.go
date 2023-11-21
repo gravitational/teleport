@@ -53,6 +53,8 @@ type Engine struct {
 	clientConn net.Conn
 	// maxMessageSize is the max message size.
 	maxMessageSize uint32
+	// serverConnected specifies whether server connection has been created.
+	serverConnected bool
 }
 
 // InitializeConnection initializes the client connection.
@@ -91,6 +93,7 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 	e.Audit.OnSessionStart(e.Context, sessionCtx, nil)
 	defer e.Audit.OnSessionEnd(e.Context, sessionCtx)
 
+	e.serverConnected = true
 	observe()
 
 	msgFromClient := common.GetMessagesFromClientMetric(sessionCtx.Database)
@@ -278,7 +281,37 @@ func (e *Engine) checkClientMessage(sessionCtx *common.Session, message protocol
 	)
 }
 
+func (e *Engine) waitForAnyClientMessage(clientConn net.Conn) protocol.Message {
+	clientMessage, err := protocol.ReadMessage(clientConn, e.maxMessageSize)
+	if err != nil {
+		e.Log.Warnf("Failed to read a message for reply: %v.", err)
+	}
+	return clientMessage
+}
+
+// replyError sends the error to client. It is currently assumed that this
+// function will only be called when HandleConnection terminates.
 func (e *Engine) replyError(clientConn net.Conn, replyTo protocol.Message, err error) {
+	// If an error happens during server connection, wait for a client message
+	// before replying to ensure the client can interpret the reply.
+	// The first message is usually the isMaster hello message.
+	if replyTo == nil && !e.serverConnected {
+		waitChan := make(chan protocol.Message, 1)
+		go func() {
+			waitChan <- e.waitForAnyClientMessage(clientConn)
+		}()
+
+		select {
+		case clientMessage := <-waitChan:
+			replyTo = clientMessage
+		case <-e.Clock.After(common.DefaultMongoDBServerSelectionTimeout):
+			e.Log.Warnf("Timed out waiting for client message to reply err %v.", err)
+			// Make sure the connection is closed so waitForAnyClientMessage
+			// doesn't get stuck.
+			defer clientConn.Close()
+		}
+	}
+
 	errSend := protocol.ReplyError(clientConn, replyTo, err)
 	if errSend != nil {
 		e.Log.WithError(errSend).Errorf("Failed to send error message to MongoDB client: %v.", err)

@@ -29,8 +29,7 @@ import (
 func TestReadWrite(t *testing.T) {
 	dir := t.TempDir()
 
-	secureWriteExpected, err := HasSecureWriteSupport()
-	require.NoError(t, err)
+	secureWriteExpected := HasSecureWriteSupport()
 
 	expectedData := []byte{1, 2, 3, 4}
 
