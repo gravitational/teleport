@@ -259,6 +259,7 @@ operator:
   #    memory: "1Gi"
   #  limits:
   #    memory: "1Gi"
+  extraVolumeMounts: []
 
 # If true, create & use Pod Security Policy resources
 # https://kubernetes.io/docs/concepts/policy/pod-security-policy/
