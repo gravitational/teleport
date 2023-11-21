@@ -157,6 +157,22 @@ automatically.
 You can list them with the `tctl get db` command or check a specific database
 with `tctl get db/<database-name>`.
 
+<Admonition type="note" title="database names">
+
+The default name of the discovered database includes the AWS resource ID,
+endpoint and matcher types, AWS region and account ID to ensure uniqueness, for
+example `my-postgres-rds-aurora-us-east-1-123456789012`.
+
+A discovered database with the default name also has a shorter display name
+that consists only the AWS resource ID and the endpoint type, for example
+`my-postgres`, `my-postgres-reader`. Either the full name or the display name
+can be used for `tctl` and `tsh` commands.
+
+You can override the default name by applying the `TeleportDatabaseName` AWS
+tag to the AWS database resource.
+
+</Admonition>
+
 ## Next
 - Learn about [Dynamic Registration](./dynamic-registration.mdx) by the
   Teleport Database Service.
