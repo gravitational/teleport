@@ -105,7 +105,7 @@ jobs:
           role-duration-seconds: 3600
 
       - name: Setup packer
-        uses: hashicorp/setup-packer@main
+        uses: hashicorp/setup-packer@ecc5516821087666a672c0d280a0084ea6d9aafd # v2.0.1
         with:
           version: 1.9.4
 

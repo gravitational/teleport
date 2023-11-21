@@ -108,7 +108,7 @@ jobs:
 
       - name: Send report to slack
         if: failure()
-        uses: slackapi/slack-github-action@v1.24.0
+        uses: slackapi/slack-github-action@e28cf165c92ffef168d23c5c9000cffc8a25e117 # v1.24.0
         env:
           SLACK_BOT_TOKEN: ${{ secrets.FLAKY_TEST_REPORTER_SLACK_TOKEN }}
         with:
@@ -135,7 +135,7 @@ jobs:
 
       - name: Send success report to slack
         if: success()
-        uses: slackapi/slack-github-action@v1.24.0
+        uses: slackapi/slack-github-action@e28cf165c92ffef168d23c5c9000cffc8a25e117 # v1.24.0
         env:
           SLACK_BOT_TOKEN: ${{ secrets.FLAKY_TEST_REPORTER_SLACK_TOKEN }}
         with:

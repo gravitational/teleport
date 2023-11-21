@@ -190,10 +190,10 @@ jobs:
           echo "DEB_FIPS_INFIX=$DEB_FIPS_INFIX" >> $GITHUB_ENV
 
       - name: Set up Docker QEMU integration
-        uses: docker/setup-qemu-action@v3
+        uses: docker/setup-qemu-action@68827325e0b33c7199eb31dd4e31fbe9023e06e3 # v3.0.0
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@f95db51fddba0c2d1ec667646a06c2ce06100226 # v3.0.0
         with:
           driver: docker-container
 
@@ -309,7 +309,7 @@ jobs:
           role-duration-seconds: 3600
 
       - name: Login to Destination ECR Registry
-        uses: docker/login-action@v3
+        uses: docker/login-action@343f7c4344506bcbf9b4de18042ae17996df046d # v3.0.0
         with:
           registry: ${{ inputs.dest-image-registry }}
           ecr: true
@@ -337,7 +337,7 @@ jobs:
           echo build_image=${build_image} >> $GITHUB_OUTPUT
 
       - name: Build Docker image
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@0565240e2d4ab88bba5387d719585280857ece09 # v5.0.0
         id: build
         if: steps.check.outputs.build_image == 'true'
         with:
@@ -377,14 +377,14 @@ jobs:
           role-duration-seconds: 3600
 
       - name: Login to ECR
-        uses: docker/login-action@v3
+        uses: docker/login-action@343f7c4344506bcbf9b4de18042ae17996df046d # v3.0.0
         with:
           registry: ${{ inputs.dest-image-registry }}
         env:
           AWS_REGION: ${{ inputs.dest-image-registry-region }}
 
       - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@2b6a709cf9c4025c5438138008beaddbb02086f0 # v0.14.0
         with:
           image-ref: "${{ inputs.dest-image-registry }}/${{ inputs.dest-image-repo }}@${{ needs.build-docker-image.outputs.image-digest }}"
           ignore-unfixed: true

@@ -222,7 +222,7 @@ jobs:
           path: ./teleport
 
       - name: Set up Docker QEMU integration
-        uses: docker/setup-qemu-action@v3
+        uses: docker/setup-qemu-action@68827325e0b33c7199eb31dd4e31fbe9023e06e3 # v3.0.0
 
       - name: Assume tag build AWS role
         uses: aws-actions/configure-aws-credentials@010d0da01d0b5a38af31e9c3470dbfdabdecca3a # v4.0.1
@@ -233,7 +233,7 @@ jobs:
           role-duration-seconds: 3600
 
       - name: Login to ECR
-        uses: docker/login-action@v3
+        uses: docker/login-action@343f7c4344506bcbf9b4de18042ae17996df046d # v3.0.0
         with:
           registry: ${{ inputs.dest-repo-prefix }}
 

@@ -124,11 +124,11 @@ jobs:
           esac >> "$GITHUB_OUTPUT"
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@f95db51fddba0c2d1ec667646a06c2ce06100226 # v3.0.0
 
       # Log into Docker Hub to increase rate limits
       - name: Login to Docker Hub
-        uses: docker/login-action@v3
+        uses: docker/login-action@343f7c4344506bcbf9b4de18042ae17996df046d # v3.0.0
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
@@ -145,7 +145,7 @@ jobs:
       # Log into ECR to raise rate limits, needed for the public.ecr.aws/gravitational/fpm
       # image used for building .deb and .rpm files.
       - name: Log into ECR
-        uses: aws-actions/amazon-ecr-login@v2
+        uses: aws-actions/amazon-ecr-login@062b18b96a7aff071d4dc91bc00c4c1a7945b076 # v2.0.1
         with:
           registry-type: public
         env:
