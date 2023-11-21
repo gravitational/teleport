@@ -68,7 +68,7 @@ jobs:
     runs-on: ${{ matrix.linter-config.runner || 'ubuntu-22.04' }}
     steps:
       - name: Collect Workflow Telemetry
-        uses: runforesight/workflow-telemetry-action@v1
+        uses: catchpoint/workflow-telemetry-action@6705383eabd01833acfe8412ec697384830e1455 # v1.8.7
         with:
           comment_on_pr: false
           proc_trace_sys_enable: true
@@ -91,7 +91,7 @@ jobs:
       image: ghcr.io/gravitational/teleport-buildbox:teleport15
     steps:
       - name: Collect Workflow Telemetry
-        uses: runforesight/workflow-telemetry-action@v1
+        uses: catchpoint/workflow-telemetry-action@v1
         with:
           comment_on_pr: false
           proc_trace_sys_enable: true
