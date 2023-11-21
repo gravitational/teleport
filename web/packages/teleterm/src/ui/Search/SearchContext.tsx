@@ -43,6 +43,8 @@ export interface SearchContext {
   setFilter(filter: SearchFilter): void;
   removeFilter(filter: SearchFilter): void;
   pauseUserInteraction(action: () => Promise<any>): Promise<void>;
+  advancedSearchEnabled: boolean;
+  toggleAdvancedSearch(): void;
   addWindowEventListener: AddWindowEventListener;
   makeEventListener: <EventListener>(
     eventListener: EventListener
@@ -65,6 +67,11 @@ export const SearchContextProvider: FC = props => {
   const [inputValue, setInputValue] = useState('');
   const [activePicker, setActivePicker] = useState(actionPicker);
   const [filters, setFilters] = useState<SearchFilter[]>([]);
+  const [advancedSearchEnabled, setAdvancedSearchEnabled] = useState(false);
+
+  function toggleAdvancedSearch(): void {
+    setAdvancedSearchEnabled(prevState => !prevState);
+  }
 
   function changeActivePicker(picker: SearchPicker): void {
     setActivePicker(picker);
@@ -220,6 +227,8 @@ export const SearchContextProvider: FC = props => {
         pauseUserInteraction,
         addWindowEventListener,
         makeEventListener,
+        advancedSearchEnabled,
+        toggleAdvancedSearch,
       }}
       children={props.children}
     />

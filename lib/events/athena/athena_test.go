@@ -158,6 +158,7 @@ func TestConfig_CheckAndSetDefaults(t *testing.T) {
 		QueueURL:                   "https://queue-url",
 		PublisherConsumerAWSConfig: dummyAWSCfg,
 		Backend:                    mockBackend{},
+		metrics:                    &athenaMetrics{},
 	}
 	tests := []struct {
 		name    string
@@ -305,7 +306,7 @@ func TestConfig_CheckAndSetDefaults(t *testing.T) {
 			err := cfg.CheckAndSetDefaults(context.Background())
 			if tt.wantErr == "" {
 				require.NoError(t, err, "CheckAndSetDefaults return unexpected err")
-				require.Empty(t, cmp.Diff(tt.want, cfg, cmpopts.EquateApprox(0, 0.0001), cmpopts.IgnoreFields(Config{}, "Clock", "UIDGenerator", "LogEntry", "Tracer"), cmp.AllowUnexported(Config{})))
+				require.Empty(t, cmp.Diff(tt.want, cfg, cmpopts.EquateApprox(0, 0.0001), cmpopts.IgnoreFields(Config{}, "Clock", "UIDGenerator", "LogEntry", "Tracer", "metrics"), cmp.AllowUnexported(Config{})))
 			} else {
 				require.ErrorContains(t, err, tt.wantErr)
 			}

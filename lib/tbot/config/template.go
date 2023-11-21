@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/client/identityfile"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 )
@@ -128,6 +129,15 @@ func (b *BotConfigWriter) Remove(name string) error {
 func (b *BotConfigWriter) Stat(name string) (fs.FileInfo, error) {
 	return nil, &os.PathError{Op: "stat", Path: name, Err: os.ErrNotExist}
 }
+
+// ReadFile reads a given file. This implementation always returns not found.
+func (b *BotConfigWriter) ReadFile(name string) ([]byte, error) {
+	return nil, &os.PathError{Op: "read", Path: name, Err: os.ErrNotExist}
+}
+
+// compile-time assertion that the BotConfigWriter implements the
+// identityfile.ConfigWriter interface
+var _ identityfile.ConfigWriter = (*BotConfigWriter)(nil)
 
 // newClientKey returns a sane client.Key for the given bot identity.
 func newClientKey(ident *identity.Identity, hostCAs []types.CertAuthority) (*client.Key, error) {
