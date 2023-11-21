@@ -22,7 +22,9 @@ export const Container = () => {
   const featureEnabled = !ctx.lockedFeatures.externalCloudAudit;
 
   useEffect(() => {
-    setShowCta(cfg.isCloud && !localStorage.getExternalAuditStorageCtaDisabled());
+    setShowCta(
+      cfg.isCloud && !localStorage.getExternalAuditStorageCtaDisabled()
+    );
   }, [cfg.isCloud]);
 
   function handleDismiss() {
@@ -61,7 +63,9 @@ export const ExternalCloudAuditCta = ({
           <Box>
             <Text bold>External Audit Storage</Text>
             <Text style={{ display: 'inline' }}>
-              {`Connect your own AWS account to store audit logs and session recordings on your own infrastructure${isEnabled ? '' : " with Teleport Enterprise"}.`}
+              {`Connect your own AWS account to store audit logs and session recordings on your own infrastructure${
+                isEnabled ? '' : ' with Teleport Enterprise'
+              }.`}
             </Text>
             <Link style={{ display: 'inline', marginLeft: 4 }} to={'TODO'}>
               {' '}
@@ -73,7 +77,9 @@ export const ExternalCloudAuditCta = ({
           {isEnabled ? (
             <ButtonPrimary
               as={Link}
-              to={cfg.getIntegrationEnrollRoute(IntegrationKind.ExternalCloudAudit)}
+              to={cfg.getIntegrationEnrollRoute(
+                IntegrationKind.ExternalCloudAudit
+              )}
               mr="2"
             >
               Connect your AWS storage
