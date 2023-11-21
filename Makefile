@@ -1074,6 +1074,7 @@ lint-helm:
 			yamllint -c examples/chart/.lint-config.yaml $${HELM_TEMP} || { cat -en $${HELM_TEMP}; exit 1; }; \
 		fi; \
 	done
+	$(MAKE) -C examples/chart check-chart-ref
 
 ADDLICENSE := $(GOPATH)/bin/addlicense
 ADDLICENSE_ARGS := -c 'Gravitational, Inc' -l apache \
