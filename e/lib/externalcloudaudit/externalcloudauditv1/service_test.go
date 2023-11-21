@@ -6,11 +6,14 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/externalcloudaudit/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/externalcloudaudit"
+	conv "github.com/gravitational/teleport/api/types/externalcloudaudit/convert/v1"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/services"
@@ -79,10 +82,16 @@ func TestRBAC(t *testing.T) {
 	p := newTestPack(t)
 
 	authorizer := &fakeAuthorizer{}
+	sampleAthenaURI := "athena://db.table?topicArn=arn:aws:sns:eu-central-1:accnr:topicName&queryResultsS3=s3://testbucket/query-result/&workgroup=workgroup&locationS3=s3://testbucket/events-location&queueURL=https://sqs.eu-central-1.amazonaws.com/accnr/sqsname&largeEventsS3=s3://testbucket/largeevents"
+	clusterAuditConfig, err := types.NewClusterAuditConfig(types.ClusterAuditConfigSpecV2{
+		AuditEventsURI: []string{sampleAthenaURI},
+	})
+	require.NoError(t, err)
 
 	cfg := &ServiceConfig{
-		ExternalCloudAudit: p.s,
-		Authorizer:         authorizer,
+		ExternalCloudAudit:       p.s,
+		Authorizer:               authorizer,
+		ClusterAuditConfigGetter: &staticAuditConfigGetter{clusterAuditConfig},
 	}
 
 	service, err := NewService(cfg)
@@ -227,4 +236,79 @@ func TestRBAC(t *testing.T) {
 			require.ElementsMatch(t, tc.expectChecks, authorizer.checker.checks)
 		})
 	}
+}
+
+func TestClusterAuditConfigCheck(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	p := newTestPack(t)
+
+	authorizer := &fakeAuthorizer{&fakeChecker{
+		allow: map[check]bool{
+			{types.KindExternalCloudAudit, types.VerbCreate}: true,
+			{types.KindExternalCloudAudit, types.VerbUpdate}: true,
+		},
+	}}
+	sampleAthenaURI := "athena://db.table?topicArn=arn:aws:sns:eu-central-1:accnr:topicName&queryResultsS3=s3://testbucket/query-result/&workgroup=workgroup&locationS3=s3://testbucket/events-location&queueURL=https://sqs.eu-central-1.amazonaws.com/accnr/sqsname&largeEventsS3=s3://testbucket/largeevents"
+	sampleFileURI := "file:///tmp/teleport-test/events"
+	sampleExternalCloudAudit, err := externalcloudaudit.GenerateDraftExternalCloudAudit("test-integration", "us-west-2")
+	require.NoError(t, err)
+
+	for _, tc := range []struct {
+		desc      string
+		auditURIs []string
+		expectErr error
+	}{
+		{
+			desc:      "only athena",
+			auditURIs: []string{sampleAthenaURI},
+		},
+		{
+			desc:      "with athena",
+			auditURIs: []string{sampleFileURI, sampleAthenaURI},
+		},
+		{
+			desc:      "without athena",
+			auditURIs: []string{sampleFileURI},
+			expectErr: externalAuditMissingAthenaError,
+		},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			clusterAuditConfig, err := types.NewClusterAuditConfig(types.ClusterAuditConfigSpecV2{
+				AuditEventsURI: tc.auditURIs,
+			})
+			require.NoError(t, err)
+
+			cfg := &ServiceConfig{
+				ExternalCloudAudit:       p.s,
+				Authorizer:               authorizer,
+				ClusterAuditConfigGetter: &staticAuditConfigGetter{clusterAuditConfig},
+			}
+			service, err := NewService(cfg)
+			require.NoError(t, err)
+
+			_, err = service.GenerateDraftExternalCloudAudit(ctx, &pb.GenerateDraftExternalCloudAuditRequest{
+				Region:          "us-west-2",
+				IntegrationName: "test-integration",
+			})
+			assert.ErrorIs(t, err, tc.expectErr)
+
+			_, err = service.UpsertDraftExternalCloudAudit(ctx, &pb.UpsertDraftExternalCloudAuditRequest{
+				ExternalCloudAudit: conv.ToProto(sampleExternalCloudAudit),
+			})
+			assert.ErrorIs(t, err, tc.expectErr)
+
+			_, err = service.PromoteToClusterExternalCloudAudit(ctx, &pb.PromoteToClusterExternalCloudAuditRequest{})
+			assert.ErrorIs(t, err, tc.expectErr)
+		})
+	}
+}
+
+type staticAuditConfigGetter struct {
+	clusterAuditConfig types.ClusterAuditConfig
+}
+
+func (s *staticAuditConfigGetter) GetClusterAuditConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterAuditConfig, error) {
+	return s.clusterAuditConfig, nil
 }

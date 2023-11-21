@@ -163,7 +163,7 @@ func (p *Plugin) RegisterAuthServices(ctx context.Context, server interface{}) e
 	}
 
 	if modules.GetModules().Features().Cloud && !modules.GetModules().Features().IsUsageBasedBilling {
-		if err := p.registerExternalCloudAuditService(p.authServer); err != nil {
+		if err := p.registerExternalCloudAuditService(ctx); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -440,17 +440,18 @@ func (p *Plugin) registerLoginRuleService(server *auth.GRPCServer) error {
 	return nil
 }
 
-func (p *Plugin) registerExternalCloudAuditService(server *auth.GRPCServer) error {
+func (p *Plugin) registerExternalCloudAuditService(ctx context.Context) error {
 	externalCloudAudit := local.NewExternalCloudAuditService(p.authServer.GetBackend())
 
 	externalauditSvc, err := externalcloudauditv1.NewService(&externalcloudauditv1.ServiceConfig{
-		Authorizer:         p.authServer.Authorizer,
-		ExternalCloudAudit: externalCloudAudit,
+		Authorizer:               p.authServer.Authorizer,
+		ExternalCloudAudit:       externalCloudAudit,
+		ClusterAuditConfigGetter: p.authServer.AuthServer,
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	grpcServer, err := server.GetServer()
+	grpcServer, err := p.authServer.GetServer()
 	if err != nil {
 		return trace.Wrap(err)
 	}
