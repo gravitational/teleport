@@ -20,16 +20,16 @@ import { screen } from 'design/utils/testing';
 
 import { renderWithElementsAndContext } from 'e-teleport/Billing/StripeLoader/testhelper/renderWithElementsAndContext';
 
-import { ExternalCloudAuditCta } from './ExternalAuditStorageCta';
+import { ExternalAuditStorageCta } from './ExternalAuditStorageCta';
 
 function render(children) {
   return renderWithElementsAndContext(<MemoryRouter>{children}</MemoryRouter>);
 }
 
-describe('externalCloudAuditCta', () => {
+describe('externalAuditStorageCta', () => {
   test('renders the CTA', () => {
     render(
-      <ExternalCloudAuditCta
+      <ExternalAuditStorageCta
         isEnabled={true}
         showCta={true}
         onDismiss={() => null}
@@ -40,7 +40,7 @@ describe('externalCloudAuditCta', () => {
 
   test('renders nothing on showCta=false', () => {
     const { container } = render(
-      <ExternalCloudAuditCta
+      <ExternalAuditStorageCta
         isEnabled={true}
         showCta={false}
         onDismiss={() => null}
@@ -51,7 +51,7 @@ describe('externalCloudAuditCta', () => {
 
   test('renders button based on isEnabled', () => {
     render(
-      <ExternalCloudAuditCta
+      <ExternalAuditStorageCta
         isEnabled={true}
         showCta={true}
         onDismiss={() => null}
@@ -60,7 +60,7 @@ describe('externalCloudAuditCta', () => {
     expect(screen.getByText(/Connect your AWS storage/)).toBeInTheDocument();
 
     render(
-      <ExternalCloudAuditCta
+      <ExternalAuditStorageCta
         isEnabled={false}
         showCta={true}
         onDismiss={() => null}

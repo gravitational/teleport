@@ -33,7 +33,7 @@ export const Container = () => {
   }
 
   return (
-    <ExternalCloudAuditCta
+    <ExternalAuditStorageCta
       showCta={showCta}
       onDismiss={handleDismiss}
       isEnabled={featureEnabled}
@@ -47,7 +47,7 @@ export type Props = {
   onDismiss: () => void;
 };
 
-export const ExternalCloudAuditCta = ({
+export const ExternalAuditStorageCta = ({
   showCta,
   isEnabled,
   onDismiss,
@@ -78,7 +78,7 @@ export const ExternalCloudAuditCta = ({
             <ButtonPrimary
               as={Link}
               to={cfg.getIntegrationEnrollRoute(
-                IntegrationKind.ExternalCloudAudit
+                IntegrationKind.ExternalAuditStorage
               )}
               mr="2"
             >
@@ -88,7 +88,7 @@ export const ExternalCloudAuditCta = ({
             <ButtonLockedFeature
               height="32px"
               size="medium"
-              event={CtaEvent.CTA_UNSPECIFIED}
+              event={CtaEvent.CTA_EXTERNAL_AUDIT_STORAGE}
               mr={5}
             >
               Contact Sales
