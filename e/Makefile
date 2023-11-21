@@ -16,9 +16,9 @@ BINARIES ?= $(addprefix $(BUILDDIR)/,$(BINS))
 # When TELEPORT_DEBUG is true, set flags so produce
 # debugger-friendly builds.
 ifeq ("$(TELEPORT_DEBUG)","true")
-BUILDFLAGS ?= $(ADDFLAGS) -gcflags=all="-N -l"
+BUILDFLAGS ?= $(ADDFLAGS) -gcflags=all="-N -l $(KUBECTL_SETVERSION)"
 else
-BUILDFLAGS ?= $(ADDFLAGS) -ldflags '-w -s $(LDFLAGS)' -trimpath
+BUILDFLAGS ?= $(ADDFLAGS) -ldflags '-w -s $(LDFLAGS) $(KUBECTL_SETVERSION)' -trimpath
 endif
 
 OS ?= $(shell go env GOOS)
@@ -160,7 +160,7 @@ else ifeq ("$(ARCH)","arm")
 # ARM builds need to specify the correct C compiler
 CGOFLAG = CGO_ENABLED=1 $(if $(IS_CROSS_BUILD),CC=arm-linux-gnueabihf-gcc)
 # Add -debugtramp=2 to work around 24 bit CALL/JMP instruction offset.
-BUILDFLAGS = $(ADDFLAGS) -ldflags '-w -s -debugtramp=2' -trimpath
+BUILDFLAGS = $(ADDFLAGS) -ldflags '-w -s -debugtramp=2 $(KUBECTL_SETVERSION)' -trimpath
 
 else ifeq ("$(ARCH)","arm64")
 
@@ -196,6 +196,8 @@ $(BUILDDIR)/teleport: ensure-webassets-e bpf-bytecode-e teleport-fips-check rdpc
 	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -buildvcs=false -tags "webassets_embed webassets_ent $(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(WEBASSETS_TAG) $(RDPCLIENT_TAG) $(PIV_BUILD_TAG)" -o $(BUILDDIR)/teleport $(BUILDFLAGS) ./tool/teleport
 
 .PHONY: $(BUILDDIR)/tsh
+$(BUILDDIR)/tsh: KUBECTL_VERSION ?= $(shell go run ../build.assets/kubectl-version/main.go)
+$(BUILDDIR)/tsh: KUBECTL_SETVERSION=-X k8s.io/component-base/version.gitVersion=$(KUBECTL_VERSION)
 $(BUILDDIR)/tsh:
 	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG_TSH) go build -buildvcs=false -tags "$(PAM_TAG) $(FIPS_TAG) $(LIBFIDO2_BUILD_TAG) $(TOUCHID_TAG) $(PIV_BUILD_TAG)" -o $(BUILDDIR)/tsh $(BUILDFLAGS) ../tool/tsh
 
