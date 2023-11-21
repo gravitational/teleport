@@ -319,6 +319,16 @@ func (c *profileCreds) SSHClientConfig() (*ssh.ClientConfig, error) {
 	return sshConfig, nil
 }
 
+// ProxyWebAddr returns the ProxyWebAddr specified in the profile. This can
+// be fell back to when the user does not specify an address when creating a
+// client.
+func (c *profileCreds) ProxyWebAddr() (string, error) {
+	if err := c.load(); err != nil {
+		return "", trace.Wrap(err)
+	}
+	return c.profile.WebProxyAddr, nil
+}
+
 // load is used to lazy load the profile from persistent storage.
 // This allows LoadProfile to avoid possible errors for UX purposes.
 func (c *profileCreds) load() error {

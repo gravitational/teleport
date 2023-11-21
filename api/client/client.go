@@ -272,6 +272,26 @@ func connect(ctx context.Context, cfg Config) (*Client, error) {
 				})
 			}
 
+			// Handle a special case for the Profile based creds which can
+			// provide an address to use in addition to the address provided in
+			// the config. This allows the user to specify no addresses.
+			profileWebAddrSource, ok := creds.(interface {
+				ProxyWebAddr() (string, error)
+			})
+			if sshConfig != nil && ok {
+				addr, err := profileWebAddrSource.ProxyWebAddr()
+				if err != nil {
+					sendError(trace.Wrap(err))
+					continue
+				}
+				syncConnect(ctx, proxyConnect(addr), connectParams{
+					cfg:       cfg,
+					tlsConfig: tlsConfig,
+					sshConfig: sshConfig,
+					addr:      addr,
+				})
+			}
+
 			// Attempt to connect to each address as Auth, Proxy, Tunnel and TLS Routing.
 			for _, addr := range cfg.Addrs {
 				syncConnect(ctx, authConnect, connectParams{
@@ -280,7 +300,7 @@ func connect(ctx context.Context, cfg Config) (*Client, error) {
 					addr:      addr,
 				})
 				if sshConfig != nil {
-					for _, cf := range []connectFunc{proxyConnect, tunnelConnect, tlsRoutingConnect, tlsRoutingWithConnUpgradeConnect} {
+					for _, cf := range []connectFunc{proxyConnect(addr), tunnelConnect, tlsRoutingConnect, tlsRoutingWithConnUpgradeConnect} {
 						syncConnect(ctx, cf, connectParams{
 							cfg:       cfg,
 							tlsConfig: tlsConfig,
@@ -376,24 +396,28 @@ func tunnelConnect(ctx context.Context, params connectParams) (*Client, error) {
 }
 
 // proxyConnect connects to the Teleport Auth Server through the proxy.
-func proxyConnect(ctx context.Context, params connectParams) (*Client, error) {
-	if params.sshConfig == nil {
-		return nil, trace.BadParameter("must provide ssh client config")
-	}
+// takes a specific addr parameter to allow the proxy address to be modified
+// when using special credentials.
+func proxyConnect(addr string) connectFunc {
+	return func(ctx context.Context, params connectParams) (*Client, error) {
+		if params.sshConfig == nil {
+			return nil, trace.BadParameter("must provide ssh client config")
+		}
 
-	dialer := NewProxyDialer(
-		*params.sshConfig,
-		params.cfg.KeepAlivePeriod,
-		params.cfg.DialTimeout,
-		params.addr,
-		params.cfg.InsecureAddressDiscovery,
-		WithInsecureSkipVerify(params.cfg.InsecureAddressDiscovery),
-	)
-	clt := newClient(params.cfg, dialer, params.tlsConfig)
-	if err := clt.dialGRPC(ctx, params.addr); err != nil {
-		return nil, trace.Wrap(err, "failed to connect to addr %v as a web proxy", params.addr)
+		dialer := NewProxyDialer(
+			*params.sshConfig,
+			params.cfg.KeepAlivePeriod,
+			params.cfg.DialTimeout,
+			addr,
+			params.cfg.InsecureAddressDiscovery,
+			WithInsecureSkipVerify(params.cfg.InsecureAddressDiscovery),
+		)
+		clt := newClient(params.cfg, dialer, params.tlsConfig)
+		if err := clt.dialGRPC(ctx, params.addr); err != nil {
+			return nil, trace.Wrap(err, "failed to connect to addr %v as a web proxy", params.addr)
+		}
+		return clt, nil
 	}
-	return clt, nil
 }
 
 // tlsRoutingConnect connects to the Teleport Auth Server through the proxy using TLS Routing.
