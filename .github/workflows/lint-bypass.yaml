@@ -1,3 +1,4 @@
+---
 # This workflow is required to ensure that required check passes even if
 # the actual "Lint (Go)" workflow is skipped due to path filtering.
 # Otherwise it will stay pending forever.
@@ -12,14 +13,20 @@ run-name: make lint
 on:
   pull_request:
     paths:
-      - 'docs/**'
-      - 'rfd/**'
-      - '**/*.md*'
+      - ".github/**"
+      - "!.github/workflows/lint-bypass.yaml"
+      - "docs/**"
+      - "e"
+      - "rfd/**"
+      - "**/*.md*"
   merge_group:
     paths:
-      - 'docs/**'
-      - 'rfd/**'
-      - '**/*.md*'
+      - ".github/**"
+      - "!.github/workflows/lint-bypass.yaml"
+      - "docs/**"
+      - "e"
+      - "rfd/**"
+      - "**/*.md*"
 
 jobs:
   lint:
@@ -30,4 +37,4 @@ jobs:
       contents: none
 
     steps:
-    - run: 'echo "No changes to verify"'
+      - run: 'echo "No changes to verify"'

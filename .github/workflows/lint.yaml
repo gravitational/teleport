@@ -1,75 +1,106 @@
-name: Lint (Go)
+---
+name: Lint
 run-name: make lint
 on:
   pull_request:
-    paths-ignore:
-      - "docs/**"
-      - "rfd/**"
-      - "**/*.md*"
+    paths:
+      - "!.github/**"
+      - ".github/workflows/lint.yaml"
+      - "!docs/**"
+      - "!e"
+      - "!rfd/**"
+      - "!**/*.md*"
   merge_group:
-    paths-ignore:
-      - "docs/**"
-      - "rfd/**"
-      - "**/*.md*"
+    paths:
+      - "!.github/**"
+      - ".github/workflows/lint.yaml"
+      - "!docs/**"
+      - "!e"
+      - "!rfd/**"
+      - "!**/*.md*"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: Run a single instance of ${{ github.workflow }} at a time on ${{ github.ref_name }}
+  cancel-in-progress: true
+
+env:
+  GOLANGCI_LINT_VERSION: v1.55.2
 
 jobs:
-  lint:
-    name: Lint (Go)
+  lint-go-mod:
+    name: Lint Go mod file
     runs-on: ubuntu-22.04-16core
-
-    permissions:
-      contents: read
-
     container:
       image: ghcr.io/gravitational/teleport-buildbox:teleport15
-
-    env:
-      GOLANGCI_LINT_VERSION: v1.55.2
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
       - name: Run `go mod tidy`
         run: rm go.sum api/go.sum && go mod tidy && (cd api && go mod tidy)
-
       - name: Check for no changes after `go mod tidy`
         # We have to add the current directory as a safe directory or else git commands will not work as expected.
         run: git config --global --add safe.directory $( realpath . ) && git diff --exit-code -- go.mod go.sum api/go.mod api/go.sum
+      
+  # Run various golangci-lint checks.
+  lint-go:
+    name: Lint Go code
+    container:
+      image: ghcr.io/gravitational/teleport-buildbox:teleport15
+    strategy:
+      # This is useful in case there are multiple different linting errors in a PR.
+      fail-fast: ${{ github.event_name == 'merge_group' }}
+      matrix:
+        linter-config:
+          - name: api
+            working-directory: api
+          - name: teleport
+            args: "--build-tags libfido2,piv"
+            runner: ubuntu-22.04-32core
+          - name: kube-agent-updater
+            working-directory: integrations/kube-agent-updater
+          - name: assetes/backport
+            working-directory: assets/backport
+          - name: build.assets/tooling
+            working-directory: build.assets/tooling
+    runs-on: ${{ matrix.linter-config.runner || 'ubuntu-22.04' }}
+    steps:
+      - name: Collect Workflow Telemetry
+        uses: catchpoint/workflow-telemetry-action@6705383eabd01833acfe8412ec697384830e1455 # v1.8.7
+        with:
+          comment_on_pr: false
+          proc_trace_sys_enable: true
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Mark the source control directory as safe
+        run: git config --global --add safe.directory $( realpath . )
+      - name: golangci-lint (${{ matrix.linter-config.name }})
+        uses: golangci/golangci-lint-action@v3
+        with:
+          args: ${{ matrix.linter-config.args }}
+          skip-cache: true
+          version: ${{ env.GOLANGCI_LINT_VERSION }}
+          working-directory: ${{ matrix.linter-config.working-directory }}
 
-      # Run various golangci-lint checks.
-      # TODO(codingllama): Using go.work could save a bunch of repetition here.
-      - name: golangci-lint (api)
-        uses: golangci/golangci-lint-action@v3
+  lint-misc:
+    name: Lint miscelaneous files (Rust, Shell, Helm charts, license headers, etc.)
+    runs-on: ubuntu-22.04-16core
+    container:
+      image: ghcr.io/gravitational/teleport-buildbox:teleport15
+    steps:
+      - name: Collect Workflow Telemetry
+        uses: catchpoint/workflow-telemetry-action@v1
         with:
-          version: ${{ env.GOLANGCI_LINT_VERSION }}
-          working-directory: api
-          skip-cache: true
-      - name: golangci-lint (teleport)
-        uses: golangci/golangci-lint-action@v3
-        with:
-          version: ${{ env.GOLANGCI_LINT_VERSION }}
-          args: --build-tags libfido2,piv
-          skip-cache: true
-      - name: golangci-lint (kube-agent-updater)
-        uses: golangci/golangci-lint-action@v3
-        with:
-          version: ${{ env.GOLANGCI_LINT_VERSION }}
-          working-directory: integrations/kube-agent-updater
-          skip-cache: true
-      - name: golangci-lint (assets/backport)
-        uses: golangci/golangci-lint-action@v3
-        with:
-          version: ${{ env.GOLANGCI_LINT_VERSION }}
-          working-directory: assets/backport
-          skip-cache: true
-      - name: golangci-lint (build.assets/tooling)
-        uses: golangci/golangci-lint-action@v3
-        with:
-          version: ${{ env.GOLANGCI_LINT_VERSION }}
-          working-directory: build.assets/tooling
-          skip-cache: true
-
+          comment_on_pr: false
+          proc_trace_sys_enable: true
+      - name: Checkout
+        uses: actions/checkout@v4
+      # TODO(codingllama): Consider https://github.com/actions-rs/clippy-check
+      #  for Rust.
+      - name: Run (non-action) linters
+        run: make lint-no-actions
       - uses: bufbuild/buf-setup-action@v1
         with:
           github_token: ${{ github.token }}
@@ -85,16 +116,20 @@ jobs:
         with:
           input: "https://github.com/${GITHUB_REPOSITORY}.git#branch=master"
           against: "."
-
-      # TODO(codingllama): Consider https://github.com/actions-rs/clippy-check
-      #  for Rust.
-      - name: Run (non-action) linters
-        run: make lint-no-actions
-
       - name: Check if protos are up to date
         # We have to add the current directory as a safe directory or else git commands will not work as expected.
         run: git config --global --add safe.directory $(realpath .) && make protos-up-to-date/host
-
       - name: Check if Operator CRDs are up to date
         # We have to add the current directory as a safe directory or else git commands will not work as expected.
         run: git config --global --add safe.directory $(realpath .) && make crds-up-to-date
+  
+  coalesce-output:
+    name: Lint (Go) # This is to preserve backwards compatibility but status check requirements should be updated
+    needs:
+      - lint-go-mod
+      - lint-go
+      - lint-misc
+    runs-on: ubuntu-22.04
+    steps:
+      - run: |
+          # Don't do anything, this is just so that only one status check is required for the workflow
