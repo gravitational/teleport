@@ -43,7 +43,7 @@ func Commands() []CLICommand {
 		&ProxyCommand{},
 		&ResourceCommand{},
 		&EditCommand{},
-		&ExternalCloudAuditCommand{},
+		&ExternalAuditStorageCommand{},
 		&LoadtestCommand{},
 		&DevicesCommand{},
 		&SAMLCommand{},
