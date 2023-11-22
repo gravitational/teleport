@@ -19,6 +19,7 @@ package service
 import (
 	"context"
 	"crypto/tls"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"path/filepath"
 	"strings"
 	"time"
@@ -408,7 +409,7 @@ func (process *TeleportProcess) reRegister(conn *Connector, additionalPrincipals
 	if id.Role == types.RoleInstance {
 		systemRoles = process.getInstanceRoles()
 	}
-	identity, err := auth.ReRegister(auth.ReRegisterParams{
+	identity, err := authclient.ReRegister(authclient.ReRegisterParams{
 		Client:               conn.Client,
 		ID:                   id,
 		AdditionalPrincipals: additionalPrincipals,

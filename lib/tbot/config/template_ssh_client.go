@@ -19,19 +19,17 @@ package config
 import (
 	"context"
 	"fmt"
+	"github.com/gravitational/teleport/lib/services"
 	"path/filepath"
 	"strings"
 
 	"github.com/coreos/go-semver/semver"
-	"github.com/gravitational/trace"
-	"golang.org/x/crypto/ssh"
-
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/config/openssh"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace"
 )
 
 // templateSSHClient contains parameters for the ssh_config config
@@ -186,17 +184,11 @@ func fetchKnownHosts(ctx context.Context, bot provider, clusterNames []string, p
 	}
 
 	var sb strings.Builder
-	for _, auth := range auth.AuthoritiesToTrustedCerts(certAuthorities) {
-		pubKeys, err := auth.SSHCertPublicKeys()
-		if err != nil {
-			return "", trace.Wrap(err)
-		}
-
-		for _, pubKey := range pubKeys {
-			bytes := ssh.MarshalAuthorizedKey(pubKey)
+	for _, ca := range certAuthorities {
+		for _, pubKey := range services.GetSSHCheckingKeys(ca) {
 			sb.WriteString(fmt.Sprintf(
 				"@cert-authority %s,%s,*.%s %s type=host\n",
-				proxyHosts, auth.ClusterName, auth.ClusterName, strings.TrimSpace(string(bytes)),
+				proxyHosts, ca.GetClusterName(), ca.GetClusterName(), strings.TrimSpace(string(pubKey)),
 			))
 		}
 	}
