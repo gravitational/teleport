@@ -244,8 +244,8 @@ func newHSMAuthConfig(ctx context.Context, t *testing.T, storageConfig *backend.
 	config.PollingPeriod = 1 * time.Second
 	config.SSH.Enabled = false
 	config.Proxy.Enabled = false
-	config.ClientTimeout = time.Second
-	config.ShutdownTimeout = time.Minute
+	config.Testing.ClientTimeout = time.Second
+	config.Testing.ShutdownTimeout = time.Minute
 	config.DataDir = t.TempDir()
 	config.Auth.ListenAddr.Addr = net.JoinHostPort(hostName, "0")
 	config.Auth.PublicAddrs = []utils.NetAddr{
@@ -302,7 +302,7 @@ func newProxyConfig(ctx context.Context, t *testing.T, authAddr utils.NetAddr, l
 	config.Proxy.WebAddr.Addr = net.JoinHostPort(hostName, "0")
 	config.CachePolicy.Enabled = true
 	config.PollingPeriod = 1 * time.Second
-	config.ShutdownTimeout = time.Minute
+	config.Testing.ShutdownTimeout = time.Minute
 	config.DataDir = t.TempDir()
 	config.SetAuthServerAddress(authAddr)
 	config.CircuitBreakerConfig = breaker.NoopBreakerConfig()

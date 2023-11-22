@@ -125,7 +125,7 @@ func (process *TeleportProcess) reconnectToAuthService(role types.SystemRole) (*
 
 		// Used for testing that auth service will attempt to reconnect in the provided duration.
 		select {
-		case process.Config.ConnectFailureC <- retry.Duration():
+		case process.Config.Testing.ConnectFailureC <- retry.Duration():
 		default:
 		}
 
@@ -176,8 +176,8 @@ func (process *TeleportProcess) authServerTooOld(resp *proto.PingResponse) error
 	}
 
 	version := teleport.Version
-	if process.Config.TeleportVersion != "" {
-		version = process.Config.TeleportVersion
+	if process.Config.Testing.TeleportVersion != "" {
+		version = process.Config.Testing.TeleportVersion
 	}
 	teleportVersion, err := semver.NewVersion(version)
 	if err != nil {
@@ -1160,7 +1160,7 @@ func (process *TeleportProcess) newClientThroughTunnel(addr string, tlsConfig *t
 		Context:   process.ExitContext(),
 		ProxyAddr: addr,
 		Insecure:  lib.IsInsecureDevMode(),
-		Timeout:   process.Config.ClientTimeout,
+		Timeout:   process.Config.Testing.ClientTimeout,
 	})
 
 	resolver, err := reversetunnelclient.CachingResolver(process.ExitContext(), resolver, process.Clock)
@@ -1184,7 +1184,7 @@ func (process *TeleportProcess) newClientThroughTunnel(addr string, tlsConfig *t
 			apiclient.LoadTLS(tlsConfig),
 		},
 		CircuitBreakerConfig: process.Config.CircuitBreakerConfig,
-		DialTimeout:          process.Config.ClientTimeout,
+		DialTimeout:          process.Config.Testing.ClientTimeout,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1205,10 +1205,10 @@ func (process *TeleportProcess) newClientThroughTunnel(addr string, tlsConfig *t
 
 func (process *TeleportProcess) newClientDirect(authServers []utils.NetAddr, tlsConfig *tls.Config, role types.SystemRole) (*auth.Client, error) {
 	var cltParams []roundtrip.ClientParam
-	if process.Config.ClientTimeout != 0 {
+	if process.Config.Testing.ClientTimeout != 0 {
 		cltParams = []roundtrip.ClientParam{
-			auth.ClientParamIdleConnTimeout(process.Config.ClientTimeout),
-			auth.ClientParamResponseHeaderTimeout(process.Config.ClientTimeout),
+			auth.ClientParamIdleConnTimeout(process.Config.Testing.ClientTimeout),
+			auth.ClientParamResponseHeaderTimeout(process.Config.Testing.ClientTimeout),
 		}
 	}
 
@@ -1230,7 +1230,7 @@ func (process *TeleportProcess) newClientDirect(authServers []utils.NetAddr, tls
 		Credentials: []apiclient.Credentials{
 			apiclient.LoadTLS(tlsConfig),
 		},
-		DialTimeout:          process.Config.ClientTimeout,
+		DialTimeout:          process.Config.Testing.ClientTimeout,
 		CircuitBreakerConfig: process.Config.CircuitBreakerConfig,
 		DialOpts:             dialOpts,
 	}, cltParams...)
