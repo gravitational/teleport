@@ -583,7 +583,7 @@ func onProxyCommandApp(cf *CLIConf) error {
 				return trace.Wrap(err)
 			}
 		} else {
-			fmt.Println("Generating self-signed certificate for local port.")
+			log.Debug("Generating self-signed certificate for local port.")
 
 			// Generate a self-signed certificate to use in the proxy.
 			signedCert, err := cert.GenerateSelfSignedCert([]string{"localhost"}, nil, x509.ExtKeyUsageAny)

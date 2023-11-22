@@ -827,8 +827,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 
 	// Local TLS
 	proxyApp.Flag("tls", "Specifies to use TLS Encryption on the local port, uses self-signed if no certificate and key are provided.").BoolVar(&cf.LocalTLS)
-	proxyApp.Flag("local-cert", "Specifies the certificate file for the local TLS Port").Default("").StringVar(&cf.LocalTLSCertificate)
-	proxyApp.Flag("local-key", "Specifies the key file for the local TLS Port").Default("").StringVar(&cf.LocalTLSKey)
+	proxyApp.Flag("cert-file", "Specifies the certificate file for the local TLS Port").Default("").StringVar(&cf.LocalTLSCertificate)
+	proxyApp.Flag("key-file", "Specifies the key file for the local TLS Port").Default("").StringVar(&cf.LocalTLSKey)
 
 	proxyAWS := proxy.Command("aws", "Start local proxy for AWS access.")
 	proxyAWS.Flag("app", "Optional Name of the AWS application to use if logged into multiple.").StringVar(&cf.AppName)
