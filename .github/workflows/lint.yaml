@@ -24,7 +24,7 @@ jobs:
       image: ghcr.io/gravitational/teleport-buildbox:teleport15
 
     env:
-      GOLANGCI_LINT_VERSION: v1.55.1
+      GOLANGCI_LINT_VERSION: v1.55.2
 
     steps:
       - name: Checkout
@@ -40,47 +40,47 @@ jobs:
       # Run various golangci-lint checks.
       # TODO(codingllama): Using go.work could save a bunch of repetition here.
       - name: golangci-lint (api)
-        uses: golangci/golangci-lint-action@v3
+        uses: golangci/golangci-lint-action@3a919529898de77ec3da873e3063ca4b10e7f5cc # v3.7.0
         with:
           version: ${{ env.GOLANGCI_LINT_VERSION }}
           working-directory: api
           skip-cache: true
       - name: golangci-lint (teleport)
-        uses: golangci/golangci-lint-action@v3
+        uses: golangci/golangci-lint-action@3a919529898de77ec3da873e3063ca4b10e7f5cc # v3.7.0
         with:
           version: ${{ env.GOLANGCI_LINT_VERSION }}
           args: --build-tags libfido2,piv
           skip-cache: true
       - name: golangci-lint (kube-agent-updater)
-        uses: golangci/golangci-lint-action@v3
+        uses: golangci/golangci-lint-action@3a919529898de77ec3da873e3063ca4b10e7f5cc # v3.7.0
         with:
           version: ${{ env.GOLANGCI_LINT_VERSION }}
           working-directory: integrations/kube-agent-updater
           skip-cache: true
       - name: golangci-lint (assets/backport)
-        uses: golangci/golangci-lint-action@v3
+        uses: golangci/golangci-lint-action@3a919529898de77ec3da873e3063ca4b10e7f5cc # v3.7.0
         with:
           version: ${{ env.GOLANGCI_LINT_VERSION }}
           working-directory: assets/backport
           skip-cache: true
       - name: golangci-lint (build.assets/tooling)
-        uses: golangci/golangci-lint-action@v3
+        uses: golangci/golangci-lint-action@3a919529898de77ec3da873e3063ca4b10e7f5cc # v3.7.0
         with:
           version: ${{ env.GOLANGCI_LINT_VERSION }}
           working-directory: build.assets/tooling
           skip-cache: true
 
-      - uses: bufbuild/buf-setup-action@v1
+      - uses: bufbuild/buf-setup-action@382440cdb8ec7bc25a68d7b4711163d95f7cc3aa # v1.28.1
         with:
           github_token: ${{ github.token }}
-          version: v1.27.0
-      - uses: bufbuild/buf-lint-action@v1
+          version: v1.28.0
+      - uses: bufbuild/buf-lint-action@044d13acb1f155179c606aaa2e53aea304d22058 # v1.1.0
       - name: buf breaking from parent to self
-        uses: bufbuild/buf-breaking-action@v1
+        uses: bufbuild/buf-breaking-action@a074e988ee34efcd4927079e79c611f428354c01 # v1.1.3
         with:
           against: "https://github.com/${GITHUB_REPOSITORY}.git#branch=${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}"
       - name: buf breaking from self to master
-        uses: bufbuild/buf-breaking-action@v1
+        uses: bufbuild/buf-breaking-action@a074e988ee34efcd4927079e79c611f428354c01 # v1.1.3
         if: ${{ github.base_ref != 'master' && github.event.merge_group.base_ref != 'refs/heads/master' }}
         with:
           input: "https://github.com/${GITHUB_REPOSITORY}.git#branch=master"

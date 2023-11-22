@@ -19,7 +19,7 @@ import Logger from 'shared/libs/logger';
 import cfg from 'teleport/config';
 import history from 'teleport/services/history';
 import api from 'teleport/services/api';
-import localStorage, { KeysEnum } from 'teleport/services/localStorage';
+import { KeysEnum, storageService } from 'teleport/services/storageService';
 
 import makeBearerToken from './makeBearerToken';
 import { RenewSessionRequest } from './types';
@@ -43,8 +43,8 @@ const session = {
 
   clear() {
     this._stopTokenChecker();
-    localStorage.unsubscribe(receiveMessage);
-    localStorage.clear();
+    storageService.unsubscribe(receiveMessage);
+    storageService.clear();
   },
 
   // ensureSession verifies that token is valid and starts
@@ -71,8 +71,8 @@ const session = {
 
   // renewSession renews session and returns the
   // absolute time the new session expires.
-  renewSession(req: RenewSessionRequest): Promise<Date> {
-    return this._renewToken(req).then(token => token.sessionExpires);
+  renewSession(req: RenewSessionRequest, signal?: AbortSignal): Promise<Date> {
+    return this._renewToken(req, signal).then(token => token.sessionExpires);
   },
 
   /**
@@ -95,9 +95,9 @@ const session = {
     try {
       token = this._extractBearerTokenFromHtml();
       if (token) {
-        localStorage.setBearerToken(token);
+        storageService.setBearerToken(token);
       } else {
-        token = localStorage.getBearerToken();
+        token = storageService.getBearerToken();
       }
     } catch (err) {
       logger.error('Cannot find bearer token', err);
@@ -114,7 +114,7 @@ const session = {
       return null;
     }
     // remove token from HTML as it will be renewed with a time
-    // and stored in the localStorage
+    // and stored in the storageService
     el.parentNode.removeChild(el);
     const decoded = window.atob(el.content);
     const json = JSON.parse(decoded);
@@ -133,13 +133,13 @@ const session = {
     return this._timeLeft() < RENEW_TOKEN_TIME;
   },
 
-  _renewToken(req: RenewSessionRequest = {}) {
+  _renewToken(req: RenewSessionRequest = {}, signal?: AbortSignal) {
     this._setAndBroadcastIsRenewing(true);
     return api
-      .post(cfg.getRenewTokenUrl(), req)
+      .post(cfg.getRenewTokenUrl(), req, signal)
       .then(json => {
         const token = makeBearerToken(json);
-        localStorage.setBearerToken(token);
+        storageService.setBearerToken(token);
         return token;
       })
       .finally(() => {
@@ -149,7 +149,7 @@ const session = {
 
   _setAndBroadcastIsRenewing(value) {
     this._setIsRenewing(value);
-    localStorage.broadcast(KeysEnum.TOKEN_RENEW, value);
+    storageService.broadcast(KeysEnum.TOKEN_RENEW, value);
   },
 
   _setIsRenewing(value) {
@@ -189,9 +189,9 @@ const session = {
     return this._timeLeft() > TOKEN_CHECKER_INTERVAL * 2;
   },
 
-  // subsribes to localStorage changes (triggered from other browser tabs)
+  // subsribes to storageService changes (triggered from other browser tabs)
   _ensureLocalStorageSubscription() {
-    localStorage.subscribe(receiveMessage);
+    storageService.subscribe(receiveMessage);
   },
 
   _fetchStatus() {
@@ -235,7 +235,7 @@ function receiveMessage(event) {
   const { key, newValue } = event;
 
   // check if logout was triggered from other tabs
-  if (localStorage.getBearerToken() === null) {
+  if (storageService.getBearerToken() === null) {
     session.logout();
   }
 

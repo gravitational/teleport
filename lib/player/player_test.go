@@ -47,6 +47,7 @@ func TestBasicStream(t *testing.T) {
 	}
 
 	require.Equal(t, 3, count)
+	require.NoError(t, p.Err())
 }
 
 func TestPlayPause(t *testing.T) {
@@ -163,6 +164,7 @@ func TestClose(t *testing.T) {
 	// channel should have been closed
 	_, ok := <-p.C()
 	require.False(t, ok, "player channel should have been closed")
+	require.NoError(t, p.Err())
 }
 
 func TestSeekForward(t *testing.T) {

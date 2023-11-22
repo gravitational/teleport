@@ -41,6 +41,7 @@ type User interface {
 	// ResourceWithSecrets provides common resource properties
 	ResourceWithSecrets
 	ResourceWithOrigin
+	ResourceWithLabels
 	// SetMetadata sets object metadata
 	SetMetadata(meta Metadata)
 	// GetOIDCIdentities returns a list of connected OIDC identities
@@ -203,6 +204,35 @@ func (u *UserV2) Origin() string {
 // SetOrigin sets the origin value of the resource.
 func (u *UserV2) SetOrigin(origin string) {
 	u.Metadata.SetOrigin(origin)
+}
+
+// GetLabel fetches the given user label, with the same semantics
+// as a map read
+func (u *UserV2) GetLabel(key string) (value string, ok bool) {
+	value, ok = u.Metadata.Labels[key]
+	return
+}
+
+// GetAllLabels fetches all the user labels.
+func (u *UserV2) GetAllLabels() map[string]string {
+	return u.Metadata.Labels
+}
+
+// GetStaticLabels fetches all the user labels.
+func (u *UserV2) GetStaticLabels() map[string]string {
+	return u.Metadata.Labels
+}
+
+// SetStaticLabels sets the entire label set for the user.
+func (u *UserV2) SetStaticLabels(sl map[string]string) {
+	u.Metadata.Labels = sl
+}
+
+// MatchSearch goes through select field values and tries to
+// match against the list of search values.
+func (u *UserV2) MatchSearch(values []string) bool {
+	fieldVals := append(utils.MapToStrings(u.Metadata.Labels), u.GetName())
+	return MatchSearch(fieldVals, values, nil)
 }
 
 // SetMetadata sets object metadata

@@ -18,12 +18,12 @@ package resources_test
 
 import (
 	"context"
-	"reflect"
 	"sort"
 	"testing"
 
 	"github.com/gravitational/trace"
 	"github.com/mitchellh/mapstructure"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -47,21 +47,19 @@ func TestRoleCreation(t *testing.T) {
 	// End of setup, we create the role in Kubernetes
 	k8sCreateDummyRole(ctx, t, setup.K8sClient, setup.Namespace.Name, roleName)
 
+	var tRole types.Role
+	var err error
 	// We wait for the role to be created in Teleport
 	fastEventually(t, func() bool {
-		tRole, err := setup.TeleportClient.GetRole(ctx, roleName)
-		if trace.IsNotFound(err) {
-			return false
-		}
-		require.NoError(t, err)
-
-		// Role should have the same name, and have the Kubernetes origin label
-		require.Equal(t, roleName, tRole.GetName())
-		require.Contains(t, tRole.GetMetadata().Labels, types.OriginLabel)
-		require.Equal(t, types.OriginKubernetes, tRole.GetMetadata().Labels[types.OriginLabel])
-
-		return true
+		tRole, err = setup.TeleportClient.GetRole(ctx, roleName)
+		return !trace.IsNotFound(err)
 	})
+	require.NoError(t, err)
+
+	// Role should have the same name, and have the Kubernetes origin label
+	require.Equal(t, roleName, tRole.GetName())
+	require.Contains(t, tRole.GetMetadata().Labels, types.OriginLabel)
+	require.Equal(t, types.OriginKubernetes, tRole.GetMetadata().Labels[types.OriginLabel])
 
 	// Cleanup and setup, we delete the role in Kubernetes
 	k8sDeleteRole(ctx, t, setup.K8sClient, roleName, setup.Namespace.Name)
@@ -207,32 +205,24 @@ allow:
 					}, obj)
 					errorConditions := getRoleStatusConditionError(obj.Object)
 					// If there's no error condition, reconciliation has not happened yet
-					if len(errorConditions) == 0 {
-						return false
-					}
-
-					_, err := setup.TeleportClient.GetRole(ctx, roleName)
-					require.True(t, trace.IsNotFound(err), "The role should not be created in Teleport")
-					return true
+					return len(errorConditions) != 0
 				})
+				_, err = setup.TeleportClient.GetRole(ctx, roleName)
+				require.True(t, trace.IsNotFound(err), "The role should not be created in Teleport")
 			} else {
+				var tRole types.Role
 				// We wait for Teleport resource creation
 				fastEventually(t, func() bool {
-					tRole, err := setup.TeleportClient.GetRole(ctx, roleName)
-					// If the resource creation should succeed we check the resource was found and validate ownership labels
-					if trace.IsNotFound(err) {
-						return false
-					}
-					require.NoError(t, err)
-
-					require.Equal(t, roleName, tRole.GetName())
-					require.Contains(t, tRole.GetMetadata().Labels, types.OriginLabel)
-					require.Equal(t, types.OriginKubernetes, tRole.GetMetadata().Labels[types.OriginLabel])
-					expectedRole, _ := types.NewRole(roleName, *tc.expectedSpec)
-					compareRoleSpecs(t, expectedRole, tRole)
-
-					return true
+					tRole, err = setup.TeleportClient.GetRole(ctx, roleName)
+					return !trace.IsNotFound(err)
 				})
+				// If the resource creation should succeed we check the resource was found and validate ownership labels
+				require.NoError(t, err)
+				require.Equal(t, roleName, tRole.GetName())
+				require.Contains(t, tRole.GetMetadata().Labels, types.OriginLabel)
+				require.Equal(t, types.OriginKubernetes, tRole.GetMetadata().Labels[types.OriginLabel])
+				expectedRole, _ := types.NewRole(roleName, *tc.expectedSpec)
+				compareRoleSpecs(t, expectedRole, tRole)
 			}
 			// Teardown
 
@@ -268,25 +258,22 @@ func TestRoleDeletionDrift(t *testing.T) {
 	// The role is created in K8S
 	k8sCreateDummyRole(ctx, t, setup.K8sClient, setup.Namespace.Name, roleName)
 
+	var tRole types.Role
+	var err error
 	fastEventually(t, func() bool {
-		tRole, err := setup.TeleportClient.GetRole(ctx, roleName)
-		if trace.IsNotFound(err) {
-			return false
-		}
-		require.NoError(t, err)
-
-		require.Equal(t, roleName, tRole.GetName())
-
-		require.Contains(t, tRole.GetMetadata().Labels, types.OriginLabel)
-		require.Equal(t, types.OriginKubernetes, tRole.GetMetadata().Labels[types.OriginLabel])
-
-		return true
+		tRole, err = setup.TeleportClient.GetRole(ctx, roleName)
+		return !trace.IsNotFound(err)
 	})
+	require.NoError(t, err)
+	require.Equal(t, roleName, tRole.GetName())
+	require.Contains(t, tRole.GetMetadata().Labels, types.OriginLabel)
+	require.Equal(t, types.OriginKubernetes, tRole.GetMetadata().Labels[types.OriginLabel])
+
 	// We cause a drift by altering the Teleport resource.
 	// To make sure the operator does not reconcile while we're finished we suspend the operator
 	setup.StopKubernetesOperator()
 
-	err := setup.TeleportClient.DeleteRole(ctx, roleName)
+	err = setup.TeleportClient.DeleteRole(ctx, roleName)
 	require.NoError(t, err)
 	fastEventually(t, func() bool {
 		_, err := setup.TeleportClient.GetRole(ctx, roleName)
@@ -340,14 +327,14 @@ func TestRoleUpdate(t *testing.T) {
 	k8sCreateRole(ctx, t, setup.K8sClient, &k8sRole)
 
 	// The role is updated in Teleport
-	fastEventually(t, func() bool {
+	fastEventuallyWithT(t, func(c *assert.CollectT) {
 		tRole, err := setup.TeleportClient.GetRole(ctx, roleName)
-		require.NoError(t, err)
+		require.NoError(c, err)
 
 		// TeleportRole updated with new logins
 		logins := tRole.GetLogins(types.Allow)
 		sort.Strings(logins)
-		return reflect.DeepEqual(logins, []string{"x", "z"})
+		assert.ElementsMatch(c, logins, []string{"x", "z"})
 	})
 
 	// Updating the role in K8S
@@ -368,14 +355,14 @@ func TestRoleUpdate(t *testing.T) {
 	require.NoError(t, err)
 
 	// Updates the role in Teleport
-	fastEventually(t, func() bool {
+	fastEventuallyWithT(t, func(c *assert.CollectT) {
 		tRole, err := setup.TeleportClient.GetRole(ctx, roleName)
-		require.NoError(t, err)
+		require.NoError(c, err)
 
 		// TeleportRole updated with new logins
 		logins := tRole.GetLogins(types.Allow)
 		sort.Strings(logins)
-		return reflect.DeepEqual(logins, []string{"admin", "root", "x", "z"})
+		assert.ElementsMatch(c, logins, []string{"admin", "root", "x", "z"})
 	})
 }
 

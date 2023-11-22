@@ -22,8 +22,13 @@ const (
 	// This value must match the Audience defined in the IAM Identity Provider of the Integration.
 	IntegrationAWSOIDCAudience = "discover.teleport"
 
-	// IntegrationAWSOIDCSubject identifies the system that is going to use the token.
+	// IntegrationAWSOIDCSubject identifies the system that is going to use the
+	// token as the Teleport Proxy.
 	IntegrationAWSOIDCSubject = "system:proxy"
+
+	// IntegrationAWSOIDCSubject identifies the system that is going to use the
+	// token as the Teleport Auth service.
+	IntegrationAWSOIDCSubjectAuth = "system:auth"
 )
 
 // GenerateAWSOIDCTokenRequest are the parameters used to request an AWS OIDC Integration token.

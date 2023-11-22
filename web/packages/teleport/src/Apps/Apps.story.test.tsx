@@ -17,7 +17,7 @@
 import React from 'react';
 import { render, screen } from 'design/utils/testing';
 
-import { KeysEnum } from 'teleport/services/localStorage';
+import { KeysEnum } from 'teleport/services/storageService';
 
 import { Loaded, Failed, Empty, EmptyReadOnly } from './Apps.story';
 

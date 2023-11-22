@@ -43,12 +43,13 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
-	"github.com/gravitational/teleport/lib/client/mfa"
+	libmfa "github.com/gravitational/teleport/lib/client/mfa"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/httplib/csrf"
@@ -268,7 +269,7 @@ type SSHLoginMFA struct {
 	SSHLogin
 	// PromptMFA is a customizable MFA prompt function.
 	// Defaults to [mfa.NewPrompt().Run]
-	PromptMFA PromptMFAFunc
+	PromptMFA mfa.Prompt
 	// User is the login username.
 	User string
 	// Password is the login password.
@@ -618,10 +619,10 @@ func SSHAgentMFALogin(ctx context.Context, login SSHLoginMFA) (*auth.SSHLoginRes
 
 	promptMFA := login.PromptMFA
 	if promptMFA == nil {
-		promptMFA = mfa.NewPrompt(login.ProxyAddr).Run
+		promptMFA = libmfa.NewCLIPrompt(libmfa.NewPromptConfig(login.ProxyAddr), os.Stderr)
 	}
 
-	respPB, err := promptMFA(ctx, chal)
+	respPB, err := promptMFA.Run(ctx, chal)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -816,10 +817,10 @@ func SSHAgentMFAWebSessionLogin(ctx context.Context, login SSHLoginMFA) (*WebCli
 
 	promptMFA := login.PromptMFA
 	if promptMFA == nil {
-		promptMFA = mfa.NewPrompt(login.ProxyAddr).Run
+		promptMFA = libmfa.NewCLIPrompt(libmfa.NewPromptConfig(login.ProxyAddr), os.Stderr)
 	}
 
-	respPB, err := promptMFA(ctx, chal)
+	respPB, err := promptMFA.Run(ctx, chal)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}

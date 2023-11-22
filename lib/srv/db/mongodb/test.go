@@ -280,12 +280,12 @@ func (s *TestServer) handleFind(message protocol.Message) (protocol.Message, err
 
 // handleSaslStart makes response to the client's "saslStart" command.
 func (s *TestServer) handleSaslStart(message protocol.Message) (protocol.Message, error) {
-	opmsg, ok := message.(*protocol.MessageOpQuery)
+	opmsg, ok := message.(*protocol.MessageOpMsg)
 	if !ok {
-		return nil, trace.BadParameter("expected message type *protocol.MessageOpQuery but got %T", message)
+		return nil, trace.BadParameter("expected message type *protocol.MessageOpMsg but got %T", message)
 	}
 
-	mechanism := opmsg.Query.Lookup("mechanism").StringValue()
+	mechanism := opmsg.BodySection.Document.Lookup("mechanism").StringValue()
 	conversationID := atomic.AddInt32(&s.conversationIdx, 1)
 	s.saslConversationTracker.Store(conversationID, mechanism)
 
@@ -301,12 +301,12 @@ func (s *TestServer) handleSaslStart(message protocol.Message) (protocol.Message
 // It expects a conversion to be present at `saslConversationTracker`,
 // otherwise it won't be able to define which authentication mechanism to use.
 func (s *TestServer) handleSaslContinue(message protocol.Message) (protocol.Message, error) {
-	opmsg, ok := message.(*protocol.MessageOpQuery)
+	opmsg, ok := message.(*protocol.MessageOpMsg)
 	if !ok {
-		return nil, trace.BadParameter("expected message type *protocol.MessageOpQuery but got %T", message)
+		return nil, trace.BadParameter("expected message type *protocol.MessageOpMsg but got %T", message)
 	}
 
-	conversationID := opmsg.Query.Lookup("conversationId").Int32()
+	conversationID := opmsg.BodySection.Document.Lookup("conversationId").Int32()
 	mechanism, ok := s.saslConversationTracker.Load(conversationID)
 	if !ok {
 		return nil, trace.NotFound("conversationID not found")
@@ -322,8 +322,8 @@ func (s *TestServer) handleSaslContinue(message protocol.Message) (protocol.Mess
 
 // handleAWSIAMSaslStart handles the "saslStart" command for "MONGODB-AWS"
 // authentication.
-func (s *TestServer) handleAWSIAMSaslStart(conversationID int32, opmsg *protocol.MessageOpQuery) (protocol.Message, error) {
-	_, userPass := opmsg.Query.Lookup("payload").Binary()
+func (s *TestServer) handleAWSIAMSaslStart(conversationID int32, opmsg *protocol.MessageOpMsg) (protocol.Message, error) {
+	_, userPass := opmsg.BodySection.Document.Lookup("payload").Binary()
 	doc, _, ok := bsoncore.ReadDocument(userPass)
 	if !ok {
 		return nil, trace.BadParameter("invalid payload")
@@ -358,8 +358,8 @@ func (s *TestServer) handleAWSIAMSaslStart(conversationID int32, opmsg *protocol
 
 // handleAWSIAMSaslContinue handles the "saslStart" command for "MONGODB-AWS"
 // authentication.
-func (s *TestServer) handleAWSIAMSaslContinue(conversationID int32, opmsg *protocol.MessageOpQuery) (protocol.Message, error) {
-	_, awsSaslPayload := opmsg.Query.Lookup("payload").Binary()
+func (s *TestServer) handleAWSIAMSaslContinue(conversationID int32, opmsg *protocol.MessageOpMsg) (protocol.Message, error) {
+	_, awsSaslPayload := opmsg.BodySection.Document.Lookup("payload").Binary()
 	doc, _, ok := bsoncore.ReadDocument(awsSaslPayload)
 	if !ok {
 		return nil, trace.BadParameter("invalid payload")

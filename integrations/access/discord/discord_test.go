@@ -34,6 +34,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/integrations/access/accessrequest"
 	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/integrations/lib"
 	"github.com/gravitational/teleport/integrations/lib/logger"
@@ -106,8 +107,8 @@ func (s *DiscordSuite) SetupSuite() {
 	// Set up user who can request the access to role "editor".
 
 	conditions := types.RoleConditions{Request: &types.AccessRequestConditions{Roles: []string{"editor"}}}
-	if teleportFeatures.AdvancedAccessWorkflows {
-		conditions.Request.Thresholds = []types.AccessReviewThreshold{types.AccessReviewThreshold{Approve: 2, Deny: 2}}
+	if teleportFeatures.AccessRequests.Enabled {
+		conditions.Request.Thresholds = []types.AccessReviewThreshold{{Approve: 2, Deny: 2}}
 	}
 	role, err := bootstrap.AddRole("foo", types.RoleSpecV6{Allow: conditions})
 	require.NoError(t, err)
@@ -119,7 +120,7 @@ func (s *DiscordSuite) SetupSuite() {
 	// Set up TWO users who can review access requests to role "editor".
 
 	conditions = types.RoleConditions{}
-	if teleportFeatures.AdvancedAccessWorkflows {
+	if teleportFeatures.AccessRequests.Enabled {
 		conditions.ReviewRequests = &types.AccessReviewConditions{Roles: []string{"editor"}}
 	}
 	role, err = bootstrap.AddRole("foo-reviewer", types.RoleSpecV6{Allow: conditions})
@@ -159,7 +160,7 @@ func (s *DiscordSuite) SetupSuite() {
 	require.NoError(t, err)
 	s.clients[s.userNames.requestor] = client
 
-	if teleportFeatures.AdvancedAccessWorkflows {
+	if teleportFeatures.AccessRequests.Enabled {
 		client, err = teleport.NewClient(ctx, auth, s.userNames.reviewer1)
 		require.NoError(t, err)
 		s.clients[s.userNames.reviewer1] = client
@@ -240,14 +241,14 @@ func (s *DiscordSuite) createAccessRequest() types.AccessRequest {
 	return out
 }
 
-func (s *DiscordSuite) checkPluginData(reqID string, cond func(common.GenericPluginData) bool) common.GenericPluginData {
+func (s *DiscordSuite) checkPluginData(reqID string, cond func(accessrequest.PluginData) bool) accessrequest.PluginData {
 	t := s.T()
 	t.Helper()
 
 	for {
 		rawData, err := s.ruler().PollAccessRequestPluginData(s.Context(), "discord", reqID)
 		require.NoError(t, err)
-		data, err := common.DecodePluginData(rawData)
+		data, err := accessrequest.DecodePluginData(rawData)
 		require.NoError(t, err)
 		if cond(data) {
 			return data
@@ -269,7 +270,7 @@ func (s *DiscordSuite) TestMessagePosting() {
 	s.startApp()
 	request := s.createAccessRequest()
 
-	pluginData := s.checkPluginData(request.GetName(), func(data common.GenericPluginData) bool {
+	pluginData := s.checkPluginData(request.GetName(), func(data accessrequest.PluginData) bool {
 		return len(data.SentMessages) > 0
 	})
 	assert.Len(t, pluginData.SentMessages, 2)
@@ -279,7 +280,7 @@ func (s *DiscordSuite) TestMessagePosting() {
 	for i := 0; i < 2; i++ {
 		msg, err := s.fakeDiscord.CheckNewMessage(s.Context())
 		require.NoError(t, err)
-		messageSet.Add(common.MessageData{ChannelID: msg.Channel, MessageID: msg.DiscordID})
+		messageSet.Add(accessrequest.MessageData{ChannelID: msg.Channel, MessageID: msg.DiscordID})
 		messages = append(messages, msg)
 	}
 
@@ -372,7 +373,7 @@ func (s *DiscordSuite) TestDenial() {
 func (s *DiscordSuite) TestReviewUpdates() {
 	t := s.T()
 
-	if !s.teleportFeatures.AdvancedAccessWorkflows {
+	if !s.teleportFeatures.AccessRequests.Enabled {
 		t.Skip("Doesn't work in OSS version")
 	}
 
@@ -387,7 +388,7 @@ func (s *DiscordSuite) TestReviewUpdates() {
 
 	request := s.createAccessRequest()
 
-	s.checkPluginData(request.GetName(), func(data common.GenericPluginData) bool {
+	s.checkPluginData(request.GetName(), func(data accessrequest.PluginData) bool {
 		return len(data.SentMessages) > 0
 	})
 
@@ -431,7 +432,7 @@ func (s *DiscordSuite) TestReviewUpdates() {
 func (s *DiscordSuite) TestApprovalByReview() {
 	t := s.T()
 
-	if !s.teleportFeatures.AdvancedAccessWorkflows {
+	if !s.teleportFeatures.AccessRequests.Enabled {
 		t.Skip("Doesn't work in OSS version")
 	}
 
@@ -446,7 +447,7 @@ func (s *DiscordSuite) TestApprovalByReview() {
 
 	request := s.createAccessRequest()
 
-	s.checkPluginData(request.GetName(), func(data common.GenericPluginData) bool {
+	s.checkPluginData(request.GetName(), func(data accessrequest.PluginData) bool {
 		return len(data.SentMessages) > 0
 	})
 
@@ -489,7 +490,7 @@ func (s *DiscordSuite) TestApprovalByReview() {
 func (s *DiscordSuite) TestDenialByReview() {
 	t := s.T()
 
-	if !s.teleportFeatures.AdvancedAccessWorkflows {
+	if !s.teleportFeatures.AccessRequests.Enabled {
 		t.Skip("Doesn't work in OSS version")
 	}
 
@@ -504,7 +505,7 @@ func (s *DiscordSuite) TestDenialByReview() {
 
 	request := s.createAccessRequest()
 
-	s.checkPluginData(request.GetName(), func(data common.GenericPluginData) bool {
+	s.checkPluginData(request.GetName(), func(data accessrequest.PluginData) bool {
 		return len(data.SentMessages) > 0
 	})
 
@@ -558,7 +559,7 @@ func (s *DiscordSuite) TestExpiration() {
 
 	request := s.createAccessRequest()
 
-	s.checkPluginData(request.GetName(), func(data common.GenericPluginData) bool {
+	s.checkPluginData(request.GetName(), func(data accessrequest.PluginData) bool {
 		return len(data.SentMessages) > 0
 	})
 
@@ -566,7 +567,7 @@ func (s *DiscordSuite) TestExpiration() {
 	require.NoError(t, err)
 	assert.Equal(t, s.appConfig.Recipients["editor"][0], msg.Channel)
 
-	s.checkPluginData(request.GetName(), func(data common.GenericPluginData) bool {
+	s.checkPluginData(request.GetName(), func(data accessrequest.PluginData) bool {
 		return len(data.SentMessages) > 0
 	})
 
@@ -586,7 +587,7 @@ func (s *DiscordSuite) TestExpiration() {
 func (s *DiscordSuite) TestRace() {
 	t := s.T()
 
-	if !s.teleportFeatures.AdvancedAccessWorkflows {
+	if !s.teleportFeatures.AccessRequests.Enabled {
 		t.Skip("Doesn't work in OSS version")
 	}
 
@@ -641,7 +642,7 @@ func (s *DiscordSuite) TestRace() {
 				return setRaceErr(trace.Wrap(err))
 			}
 
-			threadMsgKey := common.MessageData{ChannelID: msg.Channel, MessageID: msg.DiscordID}
+			threadMsgKey := accessrequest.MessageData{ChannelID: msg.Channel, MessageID: msg.DiscordID}
 			if _, loaded := threadMsgIDs.LoadOrStore(threadMsgKey, struct{}{}); loaded {
 				return setRaceErr(trace.Errorf("thread %v already stored", threadMsgKey))
 			}
@@ -682,7 +683,7 @@ func (s *DiscordSuite) TestRace() {
 				return setRaceErr(trace.Wrap(err))
 			}
 
-			threadMsgKey := common.MessageData{ChannelID: msg.Channel, MessageID: msg.DiscordID}
+			threadMsgKey := accessrequest.MessageData{ChannelID: msg.Channel, MessageID: msg.DiscordID}
 			var newCounter int32
 			val, _ := msgUpdateCounters.LoadOrStore(threadMsgKey, &newCounter)
 			counterPtr := val.(*int32)

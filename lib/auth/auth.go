@@ -99,6 +99,7 @@ import (
 	"github.com/gravitational/teleport/lib/resourceusage"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
+	"github.com/gravitational/teleport/lib/spacelift"
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -257,6 +258,9 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			return nil, trace.Wrap(err)
 		}
 	}
+	if cfg.PluginData == nil {
+		cfg.PluginData = local.NewPluginData(cfg.Backend, cfg.DynamicAccessExt)
+	}
 	if cfg.Integrations == nil {
 		cfg.Integrations, err = local.NewIntegrationsService(cfg.Backend)
 		if err != nil {
@@ -340,6 +344,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		UsageReporter:           cfg.UsageReporter,
 		Assistant:               cfg.Assist,
 		UserPreferences:         cfg.UserPreferences,
+		PluginData:              cfg.PluginData,
 	}
 
 	closeCtx, cancelFunc := context.WithCancel(context.TODO())
@@ -393,6 +398,13 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	if as.ghaIDTokenValidator == nil {
 		as.ghaIDTokenValidator = githubactions.NewIDTokenValidator(
 			githubactions.IDTokenValidatorConfig{
+				Clock: as.clock,
+			},
+		)
+	}
+	if as.spaceliftIDTokenValidator == nil {
+		as.spaceliftIDTokenValidator = spacelift.NewIDTokenValidator(
+			spacelift.IDTokenValidatorConfig{
 				Clock: as.clock,
 			},
 		)
@@ -480,6 +492,7 @@ type Services struct {
 	services.Assistant
 	services.Embeddings
 	services.UserPreferences
+	services.PluginData
 	usagereporter.UsageReporter
 	types.Events
 	events.AuditLogSessionStreamer
@@ -749,6 +762,10 @@ type Server struct {
 	// ghaIDTokenValidator allows ID tokens from GitHub Actions to be validated
 	// by the auth server. It can be overridden for the purpose of tests.
 	ghaIDTokenValidator ghaIDTokenValidator
+
+	// spaceliftIDTokenValidator allows ID tokens from Spacelift to be validated
+	// by the auth server. It can be overridden for the purpose of tests.
+	spaceliftIDTokenValidator spaceliftIDTokenValidator
 
 	// gitlabIDTokenValidator allows ID tokens from GitLab CI to be validated by
 	// the auth server. It can be overridden for the purpose of tests.
@@ -3119,7 +3136,7 @@ func (a *Server) DeleteMFADeviceSync(ctx context.Context, req *proto.DeleteMFADe
 			return trace.Wrap(err)
 		}
 
-		if _, _, err := a.validateMFAAuthResponse(
+		if _, _, err := a.ValidateMFAAuthResponse(
 			ctx, req.ExistingMFAResponse, user, false, /* passwordless */
 		); err != nil {
 			return trace.Wrap(err)
@@ -5694,7 +5711,7 @@ func (a *Server) validateMFAAuthResponseForRegister(
 	}
 
 	if err := a.WithUserLock(ctx, username, func() error {
-		_, _, err := a.validateMFAAuthResponse(
+		_, _, err := a.ValidateMFAAuthResponse(
 			ctx, resp, username, false /* passwordless */)
 		return err
 	}); err != nil {
@@ -5704,13 +5721,10 @@ func (a *Server) validateMFAAuthResponseForRegister(
 	return true, nil
 }
 
-// validateMFAAuthResponse validates an MFA or passwordless challenge.
+// ValidateMFAAuthResponse validates an MFA or passwordless challenge.
 // Returns the device used to solve the challenge (if applicable) and the
 // username.
-func (a *Server) validateMFAAuthResponse(
-	ctx context.Context,
-	resp *proto.MFAAuthenticateResponse, user string, passwordless bool,
-) (*types.MFADevice, string, error) {
+func (a *Server) ValidateMFAAuthResponse(ctx context.Context, resp *proto.MFAAuthenticateResponse, user string, passwordless bool) (*types.MFADevice, string, error) {
 	// Sanity check user/passwordless.
 	if user == "" && !passwordless {
 		return nil, "", trace.BadParameter("user required")

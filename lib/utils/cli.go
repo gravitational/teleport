@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 type LoggingPurpose int
@@ -48,7 +49,7 @@ const (
 )
 
 // InitLogger configures the global logger for a given purpose / verbosity level
-func InitLogger(purpose LoggingPurpose, level logrus.Level, verbose ...bool) {
+func InitLogger(purpose LoggingPurpose, level logrus.Level) {
 	logrus.StandardLogger().ReplaceHooks(make(logrus.LevelHooks))
 	logrus.SetLevel(level)
 	switch purpose {
@@ -56,15 +57,15 @@ func InitLogger(purpose LoggingPurpose, level logrus.Level, verbose ...bool) {
 		// If debug logging was asked for on the CLI, then write logs to stderr.
 		// Otherwise, discard all logs.
 		if level == logrus.DebugLevel {
-			debugFormatter := NewDefaultTextFormatter(trace.IsTerminal(os.Stderr))
-			debugFormatter.timestampEnabled = true
+			debugFormatter := logutils.NewDefaultTextFormatter(trace.IsTerminal(os.Stderr))
+			_ = debugFormatter.CheckAndSetDefaults()
 			logrus.SetFormatter(debugFormatter)
 			logrus.SetOutput(os.Stderr)
 		} else {
 			logrus.SetOutput(io.Discard)
 		}
 	case LoggingForDaemon:
-		logrus.SetFormatter(NewDefaultTextFormatter(trace.IsTerminal(os.Stderr)))
+		logrus.SetFormatter(logutils.NewDefaultTextFormatter(trace.IsTerminal(os.Stderr)))
 		logrus.SetOutput(os.Stderr)
 	}
 }
@@ -76,7 +77,7 @@ func InitLoggerForTests() {
 
 	logger := logrus.StandardLogger()
 	logger.ReplaceHooks(make(logrus.LevelHooks))
-	logrus.SetFormatter(NewTestJSONFormatter())
+	logrus.SetFormatter(logutils.NewTestJSONFormatter())
 	logger.SetLevel(logrus.DebugLevel)
 	logger.SetOutput(os.Stderr)
 	if testing.Verbose() {
@@ -90,7 +91,7 @@ func InitLoggerForTests() {
 func NewLoggerForTests() *logrus.Logger {
 	logger := logrus.New()
 	logger.ReplaceHooks(make(logrus.LevelHooks))
-	logger.SetFormatter(NewTestJSONFormatter())
+	logger.SetFormatter(logutils.NewTestJSONFormatter())
 	logger.SetLevel(logrus.DebugLevel)
 	logger.SetOutput(os.Stderr)
 	return logger
@@ -105,7 +106,7 @@ func WrapLogger(logger *logrus.Entry) Logger {
 // NewLogger creates a new empty logger
 func NewLogger() *logrus.Logger {
 	logger := logrus.New()
-	logger.SetFormatter(NewDefaultTextFormatter(trace.IsTerminal(os.Stderr)))
+	logger.SetFormatter(logutils.NewDefaultTextFormatter(trace.IsTerminal(os.Stderr)))
 	return logger
 }
 
@@ -177,19 +178,13 @@ func UserMessageFromError(err error) string {
 // The error message is escaped if necessary. A newline is added if the error text
 // does not end with a newline.
 func FormatErrorWithNewline(err error) string {
-	message := formatError(err)
+	var buf bytes.Buffer
+	formatErrorWriter(err, &buf)
+	message := buf.String()
 	if !strings.HasSuffix(message, "\n") {
 		message = message + "\n"
 	}
 	return message
-}
-
-// formatError returns user friendly error message from error.
-// The error message is escaped if necessary
-func formatError(err error) string {
-	var buf bytes.Buffer
-	formatErrorWriter(err, &buf)
-	return buf.String()
 }
 
 // formatErrorWriter formats the specified error into the provided writer.
@@ -202,22 +197,15 @@ func formatErrorWriter(err error, w io.Writer) {
 		fmt.Fprintln(w, certErr)
 		return
 	}
-	// If the error is a trace error, check if it has a user message embedded in
-	// it, if it does, print it, otherwise escape and print the original error.
-	if traceErr, ok := err.(*trace.TraceErr); ok {
-		for _, message := range traceErr.Messages {
-			fmt.Fprintln(w, AllowWhitespace(message))
-		}
-		fmt.Fprintln(w, AllowWhitespace(trace.Unwrap(traceErr).Error()))
+
+	msg := trace.UserMessage(err)
+	// Error can be of type trace.proxyError where error message didn't get captured.
+	if msg == "" {
+		fmt.Fprintln(w, "please check Teleport's log for more details")
 		return
 	}
-	strErr := err.Error()
-	// Error can be of type trace.proxyError where error message didn't get captured.
-	if strErr == "" {
-		fmt.Fprintln(w, "please check Teleport's log for more details")
-	} else {
-		fmt.Fprintln(w, AllowWhitespace(err.Error()))
-	}
+
+	fmt.Fprintln(w, AllowWhitespace(msg))
 }
 
 func formatCertError(err error) string {

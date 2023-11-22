@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/prompt"
 	"github.com/gravitational/teleport/lib/asciitable"
@@ -42,7 +43,6 @@ import (
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	wanwin "github.com/gravitational/teleport/lib/auth/webauthnwin"
 	"github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/client/mfa"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -349,7 +349,7 @@ func (c *mfaAddCommand) addDeviceRPC(ctx context.Context, tc *client.TeleportCli
 
 		// Prompt for authentication.
 		// Does nothing if no challenges were issued (aka user has no devices).
-		authnResp, err := tc.NewMFAPrompt(mfa.WithPromptDevicePrefix("*registered*"))(ctx, authChallenge)
+		authnResp, err := tc.NewMFAPrompt(mfa.WithPromptDeviceType(mfa.DeviceDescriptorRegistered)).Run(ctx, authChallenge)
 		if err != nil {
 			return trace.Wrap(err)
 		}

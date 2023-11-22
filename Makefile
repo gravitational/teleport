@@ -46,7 +46,7 @@ RELEASE_DIR := $(CURDIR)/$(BUILDDIR)/artifacts
 ifeq ("$(TELEPORT_DEBUG)","true")
 BUILDFLAGS ?= $(ADDFLAGS) -gcflags=all="-N -l"
 else
-BUILDFLAGS ?= $(ADDFLAGS) -ldflags '-w -s' -trimpath
+BUILDFLAGS ?= $(ADDFLAGS) -ldflags '-w -s $(KUBECTL_SETVERSION)' -trimpath
 endif
 
 GO_ENV_OS := $(shell go env GOOS)
@@ -246,7 +246,7 @@ CC=arm-linux-gnueabihf-gcc
 endif
 
 # Add -debugtramp=2 to work around 24 bit CALL/JMP instruction offset.
-BUILDFLAGS = $(ADDFLAGS) -ldflags '-w -s -debugtramp=2' -trimpath
+BUILDFLAGS = $(ADDFLAGS) -ldflags '-w -s -debugtramp=2 $(KUBECTL_SETVERSION)' -trimpath
 endif
 endif # OS == linux
 
@@ -257,7 +257,7 @@ ifneq ("$(ARCH)","amd64")
 $(error "Building for windows requires ARCH=amd64")
 endif
 CGOFLAG = CGO_ENABLED=1 CC=x86_64-w64-mingw32-gcc CXX=x86_64-w64-mingw32-g++
-BUILDFLAGS = $(ADDFLAGS) -ldflags '-w -s' -trimpath -buildmode=exe
+BUILDFLAGS = $(ADDFLAGS) -ldflags '-w -s $(KUBECTL_SETVERSION)' -trimpath -buildmode=exe
 endif
 
 CGOFLAG_TSH ?= $(CGOFLAG)
@@ -299,6 +299,8 @@ $(BUILDDIR)/teleport: ensure-webassets bpf-bytecode rdpclient
 # NOTE: Any changes to the `tsh` build here must be copied to `windows.go` in Dronegen until
 # 		we can use this Makefile for native Windows builds.
 .PHONY: $(BUILDDIR)/tsh
+$(BUILDDIR)/tsh: KUBECTL_VERSION ?= $(shell go run ./build.assets/kubectl-version/main.go)
+$(BUILDDIR)/tsh: KUBECTL_SETVERSION ?= -X k8s.io/component-base/version.gitVersion=$(KUBECTL_VERSION)
 $(BUILDDIR)/tsh:
 	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG_TSH) go build -tags "$(FIPS_TAG) $(LIBFIDO2_BUILD_TAG) $(TOUCHID_TAG) $(PIV_BUILD_TAG)" -o $(BUILDDIR)/tsh $(BUILDFLAGS) ./tool/tsh
 

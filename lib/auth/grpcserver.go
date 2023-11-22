@@ -55,6 +55,7 @@ import (
 	userloginstatev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/userloginstate/v1"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	userpreferencespb "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
+	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -348,7 +349,22 @@ func (g *GRPCServer) CreateAuditStream(stream authpb.AuthService_CreateAuditStre
 			setter := &events.NoOpPreparer{}
 			start := time.Now()
 			preparedEvent, _ := setter.PrepareSessionEvent(event)
-			err = eventStream.RecordEvent(stream.Context(), preparedEvent)
+			var errors []error
+			errors = append(errors, eventStream.RecordEvent(stream.Context(), preparedEvent))
+
+			// v13 clients expect this request to also emit the event, so emit here
+			// just for them.
+			switch event.GetType() {
+			// Don't emit really verbose events.
+			case events.ResizeEvent, events.SessionDiskEvent, events.SessionPrintEvent, events.AppSessionRequestEvent, "":
+			default:
+				clientVersion, versionExists := metadata.ClientVersionFromContext(stream.Context())
+				if versionExists && semver.New(clientVersion).Major <= 13 {
+					errors = append(errors, auth.EmitAuditEvent(stream.Context(), event))
+				}
+			}
+
+			err = trace.NewAggregate(errors...)
 			if err != nil {
 				switch {
 				case events.IsPermanentEmitError(err):
@@ -359,7 +375,7 @@ func (g *GRPCServer) CreateAuditStream(stream authpb.AuthService_CreateAuditStre
 					return trace.Wrap(err)
 				}
 			}
-			event.Size()
+
 			processed += int64(event.Size())
 			seconds := time.Since(streamStart) / time.Second
 			counter++
@@ -389,8 +405,24 @@ func (g *GRPCServer) WatchEvents(watch *authpb.Watch, stream authpb.AuthService_
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	return trace.Wrap(WatchEvents(watch, stream, auth.User.GetName(), auth))
+}
+
+// WatchEvent is a stream interface for sending events.
+type WatchEvent interface {
+	Context() context.Context
+	Send(*authpb.Event) error
+}
+
+type Watcher interface {
+	NewStream(ctx context.Context, watch types.Watch) (stream.Stream[types.Event], error)
+}
+
+// WatchEvents watches for events and streams them to the provided stream.
+func WatchEvents(watch *authpb.Watch, stream WatchEvent, componentName string, auth Watcher) error {
 	servicesWatch := types.Watch{
-		Name:                auth.User.GetName(),
+		Name:                componentName,
 		Kinds:               watch.Kinds,
 		AllowPartialSuccess: watch.AllowPartialSuccess,
 	}
@@ -430,7 +462,7 @@ func (g *GRPCServer) WatchEvents(watch *authpb.Watch, stream authpb.AuthService_
 		}
 	}
 
-	// defferred cleanup func will inject stream error if needed
+	// deferred cleanup func will inject stream error if needed
 	return nil
 }
 
@@ -2385,7 +2417,7 @@ func doMFAPresenceChallenge(ctx context.Context, actx *grpcContext, stream authp
 		return trace.BadParameter("expected MFAAuthenticateResponse, got %T", challengeResp)
 	}
 
-	if _, _, err := actx.authServer.validateMFAAuthResponse(ctx, challengeResp, user, passwordless); err != nil {
+	if _, _, err := actx.authServer.ValidateMFAAuthResponse(ctx, challengeResp, user, passwordless); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -2541,7 +2573,7 @@ func addMFADeviceAuthChallenge(gctx *grpcContext, stream authpb.AuthService_AddM
 	}
 	// Only validate if there was a challenge.
 	if authChallenge.TOTP != nil || authChallenge.WebauthnChallenge != nil {
-		if _, _, err := auth.validateMFAAuthResponse(ctx, authResp, user, passwordless); err != nil {
+		if _, _, err := auth.ValidateMFAAuthResponse(ctx, authResp, user, passwordless); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -2683,7 +2715,7 @@ func deleteMFADeviceAuthChallenge(gctx *grpcContext, stream authpb.AuthService_D
 	if authResp == nil {
 		return trace.BadParameter("expected MFAAuthenticateResponse, got %T", req)
 	}
-	if _, _, err := auth.validateMFAAuthResponse(ctx, authResp, user, passwordless); err != nil {
+	if _, _, err := auth.ValidateMFAAuthResponse(ctx, authResp, user, passwordless); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
@@ -2919,7 +2951,7 @@ func userSingleUseCertsAuthChallenge(gctx *grpcContext, stream authpb.AuthServic
 	if authResp == nil {
 		return nil, trace.BadParameter("expected MFAAuthenticateResponse, got %T", req.Request)
 	}
-	mfaDev, _, err := auth.validateMFAAuthResponse(ctx, authResp, user, passwordless)
+	mfaDev, _, err := auth.ValidateMFAAuthResponse(ctx, authResp, user, passwordless)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -4642,7 +4674,6 @@ func (g *GRPCServer) ListUnifiedResources(ctx context.Context, req *authpb.ListU
 	}
 
 	return auth.ListUnifiedResources(ctx, req)
-
 }
 
 // ListResources retrieves a paginated list of resources.

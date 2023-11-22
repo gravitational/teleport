@@ -20,6 +20,8 @@ import path from 'node:path';
 
 import { app, globalShortcut, shell, nativeTheme } from 'electron';
 
+import { CUSTOM_PROTOCOL } from 'shared/deepLinks';
+
 import MainProcess from 'teleterm/mainProcess';
 import { getRuntimeSettings } from 'teleterm/mainProcess/runtimeSettings';
 import { enableWebHandlersProtection } from 'teleterm/mainProcess/protocolHandler';
@@ -32,7 +34,7 @@ import {
 } from 'teleterm/services/config';
 import { createFileStorage } from 'teleterm/services/fileStorage';
 import { WindowsManager } from 'teleterm/mainProcess/windowsManager';
-import { CUSTOM_PROTOCOL, parseDeepLink } from 'teleterm/deepLinks';
+import { parseDeepLink } from 'teleterm/deepLinks';
 import { assertUnreachable } from 'teleterm/ui/utils';
 
 // Set the app as a default protocol client only if it wasn't started through `electron .`.

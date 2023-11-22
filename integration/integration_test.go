@@ -67,6 +67,7 @@ import (
 	"github.com/gravitational/teleport/api/metadata"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/profile"
+	apihelpers "github.com/gravitational/teleport/api/testhelpers"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -1494,7 +1495,7 @@ func testIPPropagation(t *testing.T, suite *integrationTestSuite) {
 
 			conf.DataDir = t.TempDir()
 			conf.SetToken("token")
-			conf.UploadEventsC = i.UploadEventsC
+			conf.Testing.UploadEventsC = i.UploadEventsC
 			conf.SetAuthServerAddress(*utils.MustParseAddr(net.JoinHostPort(i.Hostname, helpers.PortStr(t, i.Web))))
 			conf.HostUUID = name
 			conf.Hostname = name
@@ -2671,7 +2672,7 @@ func testTwoClustersProxy(t *testing.T, suite *integrationTestSuite) {
 
 	// httpproxy doesn't allow proxying when the target is localhost, so use
 	// this address instead.
-	addr, err := helpers.GetLocalIP()
+	addr, err := apihelpers.GetLocalIP()
 	require.NoError(t, err)
 	a := suite.newNamedTeleportInstance(t, "site-A",
 		WithNodeName(addr),
@@ -3096,7 +3097,7 @@ func testMultiplexingTrustedClusters(t *testing.T, suite *integrationTestSuite) 
 	trustedClusters(t, suite, trustedClusterTest{multiplex: true})
 }
 
-func standardPortsOrMuxSetup(t *testing.T, mux bool, fds *[]servicecfg.FileDescriptor) *helpers.InstanceListeners {
+func standardPortsOrMuxSetup(t *testing.T, mux bool, fds *[]*servicecfg.FileDescriptor) *helpers.InstanceListeners {
 	if mux {
 		return helpers.WebReverseTunnelMuxPortSetup(t, fds)
 	}
@@ -5685,8 +5686,8 @@ func (s *integrationTestSuite) rotationConfig(disableWebService bool) *servicecf
 	tconf.Proxy.DisableDatabaseProxy = true
 	tconf.Proxy.DisableALPNSNIListener = true
 	tconf.PollingPeriod = time.Second
-	tconf.ClientTimeout = time.Second
-	tconf.ShutdownTimeout = 2 * tconf.ClientTimeout
+	tconf.Testing.ClientTimeout = time.Second
+	tconf.Testing.ShutdownTimeout = 2 * tconf.Testing.ClientTimeout
 	tconf.MaxRetryPeriod = time.Second
 	return tconf
 }
@@ -7588,7 +7589,7 @@ func testListResourcesAcrossClusters(t *testing.T, suite *integrationTestSuite) 
 
 			conf.DataDir = t.TempDir()
 			conf.SetToken("token")
-			conf.UploadEventsC = i.UploadEventsC
+			conf.Testing.UploadEventsC = i.UploadEventsC
 			conf.SetAuthServerAddress(*utils.MustParseAddr(net.JoinHostPort(i.Hostname, helpers.PortStr(t, i.Web))))
 			conf.HostUUID = name
 			conf.Hostname = name

@@ -63,7 +63,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 func TestGenerateUserCerts_MFAVerifiedFieldSet(t *testing.T) {
@@ -1325,7 +1325,7 @@ func BenchmarkListNodes(b *testing.B) {
 
 	logger := logrus.StandardLogger()
 	logger.ReplaceHooks(make(logrus.LevelHooks))
-	logrus.SetFormatter(utils.NewTestJSONFormatter())
+	logrus.SetFormatter(logutils.NewTestJSONFormatter())
 	logger.SetLevel(logrus.DebugLevel)
 	logger.SetOutput(io.Discard)
 
@@ -4292,7 +4292,12 @@ func TestListResources_WithRoles(t *testing.T) {
 func TestListUnifiedResources_KindsFilter(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	srv := newTestTLSServer(t)
+	srv := newTestTLSServer(t, withCacheEnabled(true))
+
+	require.Eventually(t, func() bool {
+		return srv.Auth().UnifiedResourceCache.IsInitialized()
+	}, 5*time.Second, 200*time.Millisecond, "unified resource watcher never initialized")
+
 	for i := 0; i < 5; i++ {
 		name := uuid.New().String()
 		node, err := types.NewServerWithLabels(
@@ -4330,15 +4335,19 @@ func TestListUnifiedResources_KindsFilter(t *testing.T) {
 	require.NoError(t, err)
 	clt, err := srv.NewClient(TestUser(user.GetName()))
 	require.NoError(t, err)
-	resp, err := clt.ListUnifiedResources(ctx, &proto.ListUnifiedResourcesRequest{
-		Kinds:  []string{types.KindDatabase},
-		Limit:  5,
-		SortBy: types.SortBy{IsDesc: true, Field: types.ResourceMetadataName},
-	})
-	require.NoError(t, err)
-	require.Eventually(t, func() bool {
+
+	var resp *proto.ListUnifiedResourcesResponse
+	inlineEventually(t, func() bool {
+		var err error
+		resp, err = clt.ListUnifiedResources(ctx, &proto.ListUnifiedResourcesRequest{
+			Kinds:  []string{types.KindDatabase},
+			Limit:  5,
+			SortBy: types.SortBy{IsDesc: true, Field: types.ResourceMetadataName},
+		})
+		require.NoError(t, err)
 		return len(resp.Resources) == 5
 	}, time.Second, time.Second/10)
+
 	// Check that all resources are of type KindDatabaseServer
 	for _, resource := range resp.Resources {
 		r := resource.GetDatabaseServer()
@@ -4349,7 +4358,12 @@ func TestListUnifiedResources_KindsFilter(t *testing.T) {
 func TestListUnifiedResources_WithPinnedResources(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	srv := newTestTLSServer(t)
+	srv := newTestTLSServer(t, withCacheEnabled(true))
+
+	require.Eventually(t, func() bool {
+		return srv.Auth().UnifiedResourceCache.IsInitialized()
+	}, 5*time.Second, 200*time.Millisecond, "unified resource watcher never initialized")
+
 	names := []string{"tifa", "cloud", "aerith", "baret", "cid", "tifa2"}
 	for _, name := range names {
 
@@ -4392,11 +4406,17 @@ func TestListUnifiedResources_WithPinnedResources(t *testing.T) {
 
 	clt, err := srv.NewClient(identity)
 	require.NoError(t, err)
-	resp, err := clt.ListUnifiedResources(ctx, &proto.ListUnifiedResourcesRequest{
-		PinnedOnly: true,
-	})
-	require.NoError(t, err)
-	require.Len(t, resp.Resources, 1)
+
+	var resp *proto.ListUnifiedResourcesResponse
+	inlineEventually(t, func() bool {
+		var err error
+		resp, err = clt.ListUnifiedResources(ctx, &proto.ListUnifiedResourcesRequest{
+			PinnedOnly: true,
+		})
+		require.NoError(t, err)
+		return len(resp.Resources) == 1
+	}, time.Second*5, time.Millisecond*200)
+
 	require.Empty(t, resp.NextKey)
 	// Check that our returned resource is the pinned resource
 	require.Equal(t, "tifa", resp.Resources[0].GetNode().GetHostname())
@@ -4407,7 +4427,12 @@ func TestListUnifiedResources_WithPinnedResources(t *testing.T) {
 func TestListUnifiedResources_WithSearch(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	srv := newTestTLSServer(t)
+	srv := newTestTLSServer(t, withCacheEnabled(true))
+
+	require.Eventually(t, func() bool {
+		return srv.Auth().UnifiedResourceCache.IsInitialized()
+	}, 5*time.Second, 200*time.Millisecond, "unified resource watcher never initialized")
+
 	names := []string{"vivi", "cloud", "aerith", "barret", "cid", "vivi2"}
 	for i := 0; i < 6; i++ {
 		name := names[i]
@@ -4424,9 +4449,12 @@ func TestListUnifiedResources_WithSearch(t *testing.T) {
 		_, err = srv.Auth().UpsertNode(ctx, node)
 		require.NoError(t, err)
 	}
-	testNodes, err := srv.Auth().GetNodes(ctx, apidefaults.Namespace)
-	require.NoError(t, err)
-	require.Len(t, testNodes, 6)
+
+	inlineEventually(t, func() bool {
+		testNodes, err := srv.Auth().GetNodes(ctx, apidefaults.Namespace)
+		require.NoError(t, err)
+		return len(testNodes) == 6
+	}, time.Second*5, time.Millisecond*200)
 
 	sp := &types.SAMLIdPServiceProviderV1{
 		ResourceHeader: types.ResourceHeader{
@@ -4446,13 +4474,19 @@ func TestListUnifiedResources_WithSearch(t *testing.T) {
 	require.NoError(t, err)
 	clt, err := srv.NewClient(TestUser(user.GetName()))
 	require.NoError(t, err)
-	resp, err := clt.ListUnifiedResources(ctx, &proto.ListUnifiedResourcesRequest{
-		SearchKeywords: []string{"tifa"},
-		Limit:          10,
-		SortBy:         types.SortBy{IsDesc: true, Field: types.ResourceMetadataName},
-	})
-	require.NoError(t, err)
-	require.Len(t, resp.Resources, 1)
+
+	var resp *proto.ListUnifiedResourcesResponse
+	inlineEventually(t, func() bool {
+		var err error
+		resp, err = clt.ListUnifiedResources(ctx, &proto.ListUnifiedResourcesRequest{
+			SearchKeywords: []string{"tifa"},
+			Limit:          10,
+			SortBy:         types.SortBy{IsDesc: true, Field: types.ResourceMetadataName},
+		})
+		require.NoError(t, err)
+		return len(resp.Resources) == 1
+	}, time.Second*5, time.Millisecond*200)
+
 	require.Empty(t, resp.NextKey)
 
 	// Check that our returned resource has the correct name
@@ -4467,7 +4501,12 @@ func TestListUnifiedResources_WithSearch(t *testing.T) {
 func TestListUnifiedResources_MixedAccess(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	srv := newTestTLSServer(t)
+	srv := newTestTLSServer(t, withCacheEnabled(true))
+
+	require.Eventually(t, func() bool {
+		return srv.Auth().UnifiedResourceCache.IsInitialized()
+	}, 5*time.Second, 200*time.Millisecond, "unified resource watcher never initialized")
+
 	names := []string{"tifa", "cloud", "aerith", "baret", "cid", "tifa2"}
 	for i := 0; i < 6; i++ {
 		name := names[i]
@@ -4507,46 +4546,67 @@ func TestListUnifiedResources_MixedAccess(t *testing.T) {
 		require.NoError(t, err)
 
 		// add desktops
-		desktop, err := types.NewWindowsDesktopV3(name, map[string]string{"name": "mylabel"},
+		desktop, err := types.NewWindowsDesktopV3(name, nil,
 			types.WindowsDesktopSpecV3{Addr: "_", HostID: "_"})
 		require.NoError(t, err)
 		require.NoError(t, srv.Auth().UpsertWindowsDesktop(ctx, desktop))
 	}
-	testNodes, err := srv.Auth().GetNodes(ctx, apidefaults.Namespace)
-	require.NoError(t, err)
-	require.Len(t, testNodes, 6)
 
-	testDbs, err := srv.Auth().GetDatabaseServers(ctx, apidefaults.Namespace)
-	require.NoError(t, err)
-	require.Len(t, testDbs, 6)
+	inlineEventually(t, func() bool {
+		testNodes, err := srv.Auth().GetNodes(ctx, apidefaults.Namespace)
+		require.NoError(t, err)
+		return len(testNodes) == 6
+	}, time.Second*5, time.Millisecond*200)
 
-	testDesktops, err := srv.Auth().GetWindowsDesktops(ctx, types.WindowsDesktopFilter{})
-	require.NoError(t, err)
-	require.Len(t, testDesktops, 6)
+	inlineEventually(t, func() bool {
+		testDbs, err := srv.Auth().GetDatabaseServers(ctx, apidefaults.Namespace)
+		require.NoError(t, err)
+		return len(testDbs) == 6
+	}, time.Second*5, time.Millisecond*200)
+
+	inlineEventually(t, func() bool {
+		testDesktops, err := srv.Auth().GetWindowsDesktops(ctx, types.WindowsDesktopFilter{})
+		require.NoError(t, err)
+		return len(testDesktops) == 6
+	}, time.Second*5, time.Millisecond*200)
 
 	// create user, role, and client
 	username := "user"
 	user, role, err := CreateUserAndRole(srv.Auth(), username, nil, nil)
 	require.NoError(t, err)
-	// remove permission from nodes and desktops
-	role.SetNodeLabels(types.Deny, types.Labels{"name": {"mylabel"}})
+
+	role.SetNodeLabels(types.Allow, types.Labels{"*": {"*"}})
+	role.SetDatabaseLabels(types.Allow, types.Labels{"*": {"*"}})
+	role.SetWindowsDesktopLabels(types.Allow, types.Labels{"*": {"*"}})
 	_, err = srv.Auth().UpsertRole(ctx, role)
 	require.NoError(t, err)
+	// remove permission from nodes by labels
+	role.SetNodeLabels(types.Deny, types.Labels{"name": {"mylabel"}})
+	// remove permission from desktops by rule
+	denyRules := []types.Rule{{
+		Resources: []string{types.KindWindowsDesktop},
+		Verbs:     []string{types.VerbList, types.VerbRead},
+	}}
+	role.SetRules(types.Deny, denyRules)
+	_, err = srv.Auth().UpsertRole(ctx, role)
 	require.NoError(t, err)
+	// require.NoError(t, err)
 	identity := TestUser(user.GetName())
 	clt, err := srv.NewClient(identity)
 	require.NoError(t, err)
 
-	require.NoError(t, err)
+	// ensure updated roles have propagated to auth cache
+	flushCache(t, srv.Auth())
+
 	resp, err := clt.ListUnifiedResources(ctx, &proto.ListUnifiedResourcesRequest{
-		Limit:  10,
+		Limit:  20,
 		SortBy: types.SortBy{IsDesc: true, Field: types.ResourceMetadataName},
 	})
 	require.NoError(t, err)
 	require.Len(t, resp.Resources, 6)
 	require.Empty(t, resp.NextKey)
 
-	// only receive databases
+	// only receive databases because nodes are denied with labels and desktops are denied with a verb rule
 	for _, resource := range resp.Resources {
 		r := resource.GetDatabaseServer()
 		require.Equal(t, types.KindDatabaseServer, r.GetKind())
@@ -4558,7 +4618,12 @@ func TestListUnifiedResources_MixedAccess(t *testing.T) {
 func TestListUnifiedResources_WithPredicate(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	srv := newTestTLSServer(t)
+	srv := newTestTLSServer(t, withCacheEnabled(true))
+
+	require.Eventually(t, func() bool {
+		return srv.Auth().UnifiedResourceCache.IsInitialized()
+	}, 5*time.Second, 200*time.Millisecond, "unified resource watcher never initialized")
+
 	names := []string{"tifa", "cloud", "aerith", "baret", "cid", "tifa2"}
 	for i := 0; i < 6; i++ {
 		name := names[i]
@@ -4577,9 +4642,12 @@ func TestListUnifiedResources_WithPredicate(t *testing.T) {
 		_, err = srv.Auth().UpsertNode(ctx, node)
 		require.NoError(t, err)
 	}
-	testNodes, err := srv.Auth().GetNodes(ctx, apidefaults.Namespace)
-	require.NoError(t, err)
-	require.Len(t, testNodes, 6)
+
+	inlineEventually(t, func() bool {
+		testNodes, err := srv.Auth().GetNodes(ctx, apidefaults.Namespace)
+		require.NoError(t, err)
+		return len(testNodes) == 6
+	}, time.Second*5, time.Millisecond*200)
 
 	// create user, role, and client
 	username := "theuser"
@@ -4589,7 +4657,6 @@ func TestListUnifiedResources_WithPredicate(t *testing.T) {
 	clt, err := srv.NewClient(identity)
 	require.NoError(t, err)
 
-	require.NoError(t, err)
 	resp, err := clt.ListUnifiedResources(ctx, &proto.ListUnifiedResourcesRequest{
 		PredicateExpression: `labels.name == "tifa"`,
 		Limit:               10,
@@ -4623,7 +4690,7 @@ func BenchmarkListUnifiedResources(b *testing.B) {
 
 	logger := logrus.StandardLogger()
 	logger.ReplaceHooks(make(logrus.LevelHooks))
-	logrus.SetFormatter(utils.NewTestJSONFormatter())
+	logrus.SetFormatter(logutils.NewTestJSONFormatter())
 	logger.SetLevel(logrus.DebugLevel)
 	logger.SetOutput(io.Discard)
 
@@ -6470,6 +6537,32 @@ func TestSafeToSkipInventoryCheck(t *testing.T) {
 	}
 }
 
+// TestPing_AccessRequestFeature tests setting of both the deprecated field "AdvancedAccessWorkflows"
+// (kept for backwards compat) and the new field "AccessRequests.Enabled" (that replaces the deprecated field)
+// are set to the same bool value when enabling/disabling.
+func TestPing_AccessRequestFeature(t *testing.T) {
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	ping, err := srv.Auth().Ping(ctx)
+	require.NoError(t, err)
+	require.False(t, ping.ServerFeatures.AccessRequests.Enabled, "expected field AccessRequests.Enabled to be false")
+	require.False(t, ping.ServerFeatures.AdvancedAccessWorkflows, "expected field AdvancedAccessWorkflows to be false")
+
+	modules.SetTestModules(t, &modules.TestModules{
+		TestFeatures: modules.Features{
+			AccessRequests: modules.AccessRequestsFeature{
+				Enabled: true,
+			},
+		},
+	})
+
+	ping, err = srv.Auth().Ping(ctx)
+	require.NoError(t, err)
+	require.True(t, ping.ServerFeatures.AccessRequests.Enabled, "expected field AccessRequests.Enabled to be true")
+	require.True(t, ping.ServerFeatures.AdvancedAccessWorkflows, "expected field AdvancedAccessWorkflows to be true")
+}
+
 func TestCreateAccessRequest(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -6929,5 +7022,28 @@ func TestKubeKeepAliveServer(t *testing.T) {
 			test.assertErr(t, err)
 		},
 		)
+	}
+}
+
+// inlineEventually is equivalent to require.Eventually except that it runs the provided function directly
+// instead of in a background goroutine, making it safe to fail the test from within the closure.
+func inlineEventually(t *testing.T, cond func() bool, waitFor time.Duration, tick time.Duration, msgAndArgs ...interface{}) {
+	t.Helper()
+
+	timer := time.NewTimer(waitFor)
+	defer timer.Stop()
+
+	ticker := time.NewTicker(tick)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-timer.C:
+			require.FailNow(t, "condition never satisfied", msgAndArgs...)
+		case <-ticker.C:
+			if cond() {
+				return
+			}
+		}
 	}
 }

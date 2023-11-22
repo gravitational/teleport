@@ -63,7 +63,7 @@ export const StyledCheckbox = styled.input.attrs({ type: 'checkbox' })`
   }
 
   &:hover {
-    cursor: pointer;
+    cursor: ${props => (props.disabled ? 'not-allowed' : 'pointer')};
   }
 
   &::before {
@@ -76,5 +76,6 @@ export const StyledCheckbox = styled.input.attrs({ type: 'checkbox' })`
     color: ${props => props.theme.colors.levels.deep};
     position: absolute;
     right: 1px;
+    top: -1px;
   }
 `;

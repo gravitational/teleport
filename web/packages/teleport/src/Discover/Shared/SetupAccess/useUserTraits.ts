@@ -248,7 +248,7 @@ export function useUserTraits(props: AgentStepProps) {
           throw error;
         });
 
-      await ctx.userService.applyUserTraits().catch((error: Error) => {
+      await ctx.userService.reloadUser().catch((error: Error) => {
         emitErrorEvent(`error applying new user traits: ${error.message}`);
         throw error;
       });

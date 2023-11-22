@@ -22,6 +22,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"net"
 	"net/url"
 	"os"
@@ -1434,6 +1435,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = deviceCmd.keyget.run(&cf)
 	case deviceCmd.activateCredential.FullCommand():
 		err = deviceCmd.activateCredential.run(&cf)
+	case deviceCmd.dmiRead.FullCommand():
+		err = deviceCmd.dmiRead.run(&cf)
 	case kubectl.FullCommand():
 		idx := slices.Index(args, kubectl.FullCommand())
 		err = onKubectlCommand(&cf, args, args[idx:])
@@ -2818,7 +2821,11 @@ type databaseWithUsers struct {
 }
 
 func getDBUsers(db types.Database, accessChecker services.AccessChecker) *dbUsers {
-	users := accessChecker.EnumerateDatabaseUsers(db)
+	users, err := accessChecker.EnumerateDatabaseUsers(db)
+	if err != nil {
+		log.Warnf("Failed to EnumerateDatabaseUsers for database %v: %v.", db.GetName(), err)
+		return &dbUsers{}
+	}
 	var denied []string
 	allowed := users.Allowed()
 	if users.WildcardAllowed() {
@@ -2872,7 +2879,7 @@ func serializeDatabasesAllClusters(dbListings []databaseListing, format string) 
 	return string(out), trace.Wrap(err)
 }
 
-func formatUsersForDB(database types.Database, accessChecker services.AccessChecker) string {
+func formatUsersForDB(database types.Database, accessChecker services.AccessChecker) (users string) {
 	// may happen if fetching the role set failed for any reason.
 	if accessChecker == nil {
 		return "(unknown)"
@@ -2881,6 +2888,18 @@ func formatUsersForDB(database types.Database, accessChecker services.AccessChec
 	dbUsers := getDBUsers(database, accessChecker)
 	if len(dbUsers.Allowed) == 0 {
 		return "(none)"
+	}
+
+	// Add a note for auto-provisioned user.
+	if database.SupportsAutoUsers() && database.GetAdminUser().Name != "" {
+		autoUser, _, err := accessChecker.CheckDatabaseRoles(database)
+		if err != nil {
+			log.Warnf("Failed to CheckDatabaseRoles for database %v: %v.", database.GetName(), err)
+		} else if autoUser.IsEnabled() {
+			defer func() {
+				users = users + " (Auto-provisioned)"
+			}()
+		}
 	}
 
 	if len(dbUsers.Denied) == 0 {
@@ -3664,9 +3683,7 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 			return nil, trace.Wrap(err, "invalid proxy glob %q in tsh configuration file", proxyGlob)
 		}
 		if proxyRegexp.MatchString(c.WebProxyAddr) {
-			for k, v := range proxyHeaders.Headers {
-				c.ExtraProxyHeaders[k] = v
-			}
+			maps.Copy(c.ExtraProxyHeaders, proxyHeaders.Headers)
 		}
 	}
 

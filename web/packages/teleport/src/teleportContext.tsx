@@ -33,7 +33,7 @@ import desktopService from './services/desktops';
 import userGroupService from './services/userGroups';
 import MfaService from './services/mfa';
 import { agentService } from './services/agents';
-import localStorage from './services/localStorage';
+import { storageService } from './services/storageService';
 
 class TeleportContext implements types.Context {
   // stores
@@ -86,11 +86,26 @@ class TeleportContext implements types.Context {
     if (
       this.storeUser.hasPrereqAccessToAddAgents() &&
       this.storeUser.hasAccessToQueryAgent() &&
-      !localStorage.getOnboardDiscover()
+      !storageService.getOnboardDiscover()
     ) {
       const hasResource =
         await userService.checkUserHasAccessToRegisteredResource();
-      localStorage.setOnboardDiscover({ hasResource });
+      storageService.setOnboardDiscover({ hasResource });
+    }
+
+    if (user.acl.accessGraph.list) {
+      // If access graph is enabled, check what features are enabled and store them in local storage.
+      try {
+        const accessGraphFeatures =
+          await userService.fetchAccessGraphFeatures();
+
+        for (let key in accessGraphFeatures) {
+          window.localStorage.setItem(key, accessGraphFeatures[key]);
+        }
+      } catch (e) {
+        // If we fail to fetch access graph features, log the error and continue.
+        console.error('Failed to fetch access graph features', e);
+      }
     }
   }
 
@@ -150,11 +165,19 @@ class TeleportContext implements types.Context {
       roles: userContext.getRoleAccess().list,
       trustedClusters: userContext.getTrustedClusterAccess().list,
       users: userContext.getUserAccess().list,
-      applications: userContext.getAppServerAccess().list,
-      kubernetes: userContext.getKubeServerAccess().list,
+      applications:
+        userContext.getAppServerAccess().list &&
+        userContext.getAppServerAccess().read,
+      kubernetes:
+        userContext.getKubeServerAccess().list &&
+        userContext.getKubeServerAccess().read,
       billing: userContext.getBillingAccess().list,
-      databases: userContext.getDatabaseServerAccess().list,
-      desktops: userContext.getDesktopAccess().list,
+      databases:
+        userContext.getDatabaseServerAccess().list &&
+        userContext.getDatabaseServerAccess().read,
+      desktops:
+        userContext.getDesktopAccess().list &&
+        userContext.getDesktopAccess().read,
       nodes: userContext.getNodeAccess().list,
       activeSessions: userContext.getActiveSessionsAccess().list,
       accessRequests: hasAccessRequestsAccess(),
@@ -174,6 +197,7 @@ class TeleportContext implements types.Context {
       assist: userContext.getAssistantAccess().list && this.assistEnabled,
       accessMonitoring: hasAccessMonitoringAccess(),
       managementSection: hasManagementSectionAccess(),
+      accessGraph: userContext.getAccessGraphAccess().list,
     };
   }
 }
@@ -206,6 +230,7 @@ export const disabledFeatureFlags: types.FeatureFlags = {
   assist: false,
   managementSection: false,
   accessMonitoring: false,
+  accessGraph: false,
 };
 
 export default TeleportContext;

@@ -25,6 +25,14 @@ import (
 	"github.com/gravitational/teleport/api/types/trait"
 )
 
+const (
+	// OriginalRolesAndTraitsSet is an annotation that will indicate that the original roles and traits have been
+	// set for this objects. For existing user login states, this will not be set, indicating that we can't
+	// use these fields reliably.
+	// DELETE IN 17 (mdwn)
+	OriginalRolesAndTraitsSet = types.TeleportInternalLabelPrefix + "original-set"
+)
+
 // UserLoginState is the ephemeral user login state. This will hold data to differentiate
 // from the User object. This will allow us to store derived roles and traits from
 // access lists, login rules, and other mechanisms to more easily incorporate these
@@ -41,6 +49,12 @@ type UserLoginState struct {
 
 // Spec is the specification for the user login state.
 type Spec struct {
+	// OriginalRoles is the list of the original roles from the user login state.
+	OriginalRoles []string `json:"original_roles" yaml:"original_roles"`
+
+	// OriginalTraits is the list of the original traits from the user login state.
+	OriginalTraits trait.Traits `json:"original_traits" yaml:"original_traits"`
+
 	// Roles is the list of roles attached to the user login state.
 	Roles []string `json:"roles" yaml:"roles"`
 
@@ -79,6 +93,22 @@ func (u *UserLoginState) CheckAndSetDefaults() error {
 	}
 
 	return nil
+}
+
+// GetOriginalRoles returns the original roles that the user login state was derived from.
+func (u *UserLoginState) GetOriginalRoles() []string {
+	return u.Spec.OriginalRoles
+}
+
+// GetOriginalTraits returns the original traits that the user login state was derived from.
+func (u *UserLoginState) GetOriginalTraits() map[string][]string {
+	return u.Spec.OriginalTraits
+}
+
+// IsOriginalRolesAndTraitsSet will return true if the original roles and traits annotation is present.
+func (u *UserLoginState) IsOriginalRolesAndTraitsSet() bool {
+	_, isSet := u.GetLabel(OriginalRolesAndTraitsSet)
+	return isSet
 }
 
 // GetRoles returns the roles attached to the user login state.

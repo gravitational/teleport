@@ -60,6 +60,7 @@ import (
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/mfa"
 	apitracing "github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -178,7 +179,7 @@ type proxySettingsGetter interface {
 
 // PresenceChecker is a function that executes an mfa prompt to enforce
 // that a user is present.
-type PresenceChecker = func(ctx context.Context, term io.Writer, maintainer client.PresenceMaintainer, sessionID string, promptMFA client.PromptMFAFunc, opts ...client.PresenceOption) error
+type PresenceChecker = func(ctx context.Context, term io.Writer, maintainer client.PresenceMaintainer, sessionID string, mfaPrompt mfa.Prompt, opts ...client.PresenceOption) error
 
 // Config represents web handler configuration parameters
 type Config struct {
@@ -287,6 +288,9 @@ type Config struct {
 	// Eg, v13.4.3
 	// Optional: uses cloud/stable channel when omitted.
 	AutomaticUpgradesVersionURL string
+
+	// AccessGraphAddr is the address of the Access Graph service GRPC API
+	AccessGraphAddr utils.NetAddr
 }
 
 // SetDefaults ensures proper default values are set if
@@ -1020,6 +1024,11 @@ func (h *Handler) getUserContext(w http.ResponseWriter, r *http.Request, p httpr
 // PublicProxyAddr returns the publicly advertised proxy address
 func (h *Handler) PublicProxyAddr() string {
 	return h.cfg.PublicProxyAddr
+}
+
+// AccessGraphAddr returns the TAG API address
+func (h *Handler) AccessGraphAddr() utils.NetAddr {
+	return h.cfg.AccessGraphAddr
 }
 
 func localSettings(cap types.AuthPreference) (webclient.AuthenticationSettings, error) {

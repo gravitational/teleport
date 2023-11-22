@@ -27,7 +27,7 @@ import Empty, { EmptyStateInfo } from 'teleport/components/Empty';
 import ErrorMessage from 'teleport/components/AgentErrorMessage';
 import cfg from 'teleport/config';
 import history from 'teleport/services/history/history';
-import localStorage from 'teleport/services/localStorage';
+import { storageService } from 'teleport/services/storageService';
 
 import AgentButtonAdd from 'teleport/components/AgentButtonAdd';
 
@@ -71,7 +71,7 @@ export function Databases(props: State) {
     fetchedData.agents.length === 0 &&
     isSearchEmpty;
 
-  const enabled = localStorage.areUnifiedResourcesEnabled();
+  const enabled = storageService.areUnifiedResourcesEnabled();
   if (enabled) {
     history.replace(cfg.getUnifiedResourcesRoute(clusterId));
   }
