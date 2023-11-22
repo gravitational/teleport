@@ -978,7 +978,7 @@ func (c *Client) EmitAuditEvent(ctx context.Context, event events.AuditEvent) er
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	_, err = c.grpc.EmitAuditEvent(ctx, grpcEvent)
+	_, err = c.grpc.EmitAuditEvent(context.WithoutCancel(ctx), grpcEvent)
 	if err != nil {
 		return trace.Wrap(err)
 	}
