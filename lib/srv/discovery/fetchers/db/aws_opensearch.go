@@ -45,7 +45,7 @@ func (f *openSearchPlugin) ComponentShortName() string {
 func (f *openSearchPlugin) GetDatabases(ctx context.Context, cfg *awsFetcherConfig) (types.Databases, error) {
 	opensearchClient, err := cfg.AWSClients.GetAWSOpenSearchClient(ctx, cfg.Region,
 		cloud.WithAssumeRole(cfg.AssumeRole.RoleARN, cfg.AssumeRole.ExternalID),
-		cloud.WithIntergration(cfg.Integration),
+		cloud.WithIntegration(cfg.Integration),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)

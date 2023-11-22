@@ -46,7 +46,7 @@ func (f *memoryDBPlugin) ComponentShortName() string {
 func (f *memoryDBPlugin) GetDatabases(ctx context.Context, cfg *awsFetcherConfig) (types.Databases, error) {
 	memDBClient, err := cfg.AWSClients.GetAWSMemoryDBClient(ctx, cfg.Region,
 		cloud.WithAssumeRole(cfg.AssumeRole.RoleARN, cfg.AssumeRole.ExternalID),
-		cloud.WithIntergration(cfg.Integration),
+		cloud.WithIntegration(cfg.Integration),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)

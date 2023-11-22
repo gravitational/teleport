@@ -59,7 +59,7 @@ type rssAPI = redshiftserverlessiface.RedshiftServerlessAPI
 func (f *redshiftServerlessPlugin) GetDatabases(ctx context.Context, cfg *awsFetcherConfig) (types.Databases, error) {
 	client, err := cfg.AWSClients.GetAWSRedshiftServerlessClient(ctx, cfg.Region,
 		cloud.WithAssumeRole(cfg.AssumeRole.RoleARN, cfg.AssumeRole.ExternalID),
-		cloud.WithIntergration(cfg.Integration),
+		cloud.WithIntegration(cfg.Integration),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)

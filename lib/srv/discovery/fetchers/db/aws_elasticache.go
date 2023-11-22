@@ -48,7 +48,7 @@ func (f *elastiCachePlugin) ComponentShortName() string {
 func (f *elastiCachePlugin) GetDatabases(ctx context.Context, cfg *awsFetcherConfig) (types.Databases, error) {
 	ecClient, err := cfg.AWSClients.GetAWSElastiCacheClient(ctx, cfg.Region,
 		cloud.WithAssumeRole(cfg.AssumeRole.RoleARN, cfg.AssumeRole.ExternalID),
-		cloud.WithIntergration(cfg.Integration),
+		cloud.WithIntegration(cfg.Integration),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)

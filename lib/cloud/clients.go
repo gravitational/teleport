@@ -18,7 +18,6 @@ package cloud
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"sync"
 	"time"
@@ -275,15 +274,22 @@ func WithAWSIntegrationSessionProvider(sessionProvider AWSIntegrationSessionProv
 	}
 }
 
-// AWSIntegrationSessionProvider defines a function that receives a region and an integration and returns an [awssession.Session].
+// AWSIntegrationSessionProvider defines a function that creates an [awssession.Session] from a Region and an Integration.
+// This is used to generate aws sessions for clients that must use an Integration instead of ambient credentials.
 type AWSIntegrationSessionProvider func(ctx context.Context, region string, integration string) (*awssession.Session, error)
+
+type awsSessionCacheKey struct {
+	region      string
+	integration string
+	roleARN     string
+	externalID  string
+}
 
 type cloudClients struct {
 	// awsSessionsCache is a cache of AWS sessions, where the cache key is
-	// - "Region[<region>]:Integration[<integration>]:RoleARN[<arn>]:ExternalID[<id>]"
-	// integration, arn and id might be an empty string.
+	// an instance of awsSessionCacheKey.
 	awsSessionsCache *utils.FnCache
-	// awsIntegrationSessionProviderFn is a AWS Session Generator that
+	// awsIntegrationSessionProviderFn is a AWS Session Generator that uses an Integration to generate an AWS Session.
 	awsIntegrationSessionProviderFn AWSIntegrationSessionProvider
 	// instanceMetadata is the cached instance metadata client.
 	instanceMetadata InstanceMetadata
@@ -293,11 +299,6 @@ type cloudClients struct {
 	*azureClients
 	// mtx is used for locking.
 	mtx sync.RWMutex
-}
-
-// awsSessionsCacheKey returns the cache key for an AWS Session
-func awsSessionsCacheKey(region, integration, arn, id string) string {
-	return fmt.Sprintf("Region[%s]:Integration[%s]:RoleARN[%s]:ExternalID[%s]", region, integration, arn, id)
 }
 
 // gcpClients contains GCP-specific clients.
@@ -355,7 +356,7 @@ type awsAssumeRoleOpts struct {
 	assumeRoleARN string
 	// assumeRoleExternalID is used to assume an external AWS IAM Role.
 	assumeRoleExternalID string
-	// integration is the integration to be used to fetch the credentials.
+	// integration is the name of the integration to be used to fetch the credentials.
 	// When set, the role/credentials must be the ones from the Integration and not the ambient ones.
 	integration string
 }
@@ -388,9 +389,9 @@ func WithChainedAssumeRole(session *awssession.Session, roleARN, externalID stri
 	}
 }
 
-// WithIntergration configures options with an Integration that must be used to fetch Credentials to assume a role.
+// WithIntegration configures options with an Integration that must be used to fetch Credentials to assume a role.
 // This prevents the usage of AWS environment credentials.
-func WithIntergration(integration string) AWSAssumeRoleOptionFn {
+func WithIntegration(integration string) AWSAssumeRoleOptionFn {
 	return func(options *awsAssumeRoleOpts) {
 		options.integration = integration
 	}
@@ -681,7 +682,12 @@ func awsAmbientSessionProvider(ctx context.Context, region string) (*awssession.
 
 // getAWSSessionForRegion returns AWS session for the specified region.
 func (c *cloudClients) getAWSSessionForRegion(region string, opts awsAssumeRoleOpts) (*awssession.Session, error) {
-	cacheKey := awsSessionsCacheKey(region, opts.integration, opts.assumeRoleARN, opts.assumeRoleExternalID)
+	cacheKey := awsSessionCacheKey{
+		region:      region,
+		integration: opts.integration,
+		roleARN:     opts.assumeRoleARN,
+		externalID:  opts.assumeRoleExternalID,
+	}
 
 	return utils.FnCacheGet(context.Background(), c.awsSessionsCache, cacheKey, func(ctx context.Context) (*awssession.Session, error) {
 		if opts.integration != "" {
@@ -702,7 +708,12 @@ func (c *cloudClients) getAWSSessionForRegion(region string, opts awsAssumeRoleO
 
 // getAWSSessionForRole returns AWS session for the specified region and role.
 func (c *cloudClients) getAWSSessionForRole(ctx context.Context, region string, options awsAssumeRoleOpts) (*awssession.Session, error) {
-	cacheKey := awsSessionsCacheKey(region, options.integration, options.assumeRoleARN, options.assumeRoleExternalID)
+	cacheKey := awsSessionCacheKey{
+		region:      region,
+		integration: options.integration,
+		roleARN:     options.assumeRoleARN,
+		externalID:  options.assumeRoleExternalID,
+	}
 	return utils.FnCacheGet(ctx, c.awsSessionsCache, cacheKey, func(ctx context.Context) (*awssession.Session, error) {
 		stsClient := sts.New(options.baseSession)
 		return newSessionWithRole(ctx, stsClient, region, options.assumeRoleARN, options.assumeRoleExternalID)

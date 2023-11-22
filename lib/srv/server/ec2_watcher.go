@@ -167,7 +167,7 @@ func MatchersToEC2InstanceFetchers(ctx context.Context, matchers []types.AWSMatc
 		for _, region := range matcher.Regions {
 			// TODO(gavin): support assume_role_arn for ec2.
 			ec2Client, err := clients.GetAWSEC2Client(ctx, region,
-				cloud.WithIntergration(matcher.Integration),
+				cloud.WithIntegration(matcher.Integration),
 			)
 			if err != nil {
 				return nil, trace.Wrap(err)

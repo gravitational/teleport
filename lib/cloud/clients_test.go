@@ -34,15 +34,17 @@ func TestClientGetAWSSessionIntegration(t *testing.T) {
 	t.Run("without an integration, must return a missing aws integration session provider error", func(t *testing.T) {
 		ctx := context.Background()
 
-		client, err := NewClients()
+		clients, err := NewClients()
 		require.NoError(t, err)
 
-		_, err = client.GetAWSSession(ctx, "us-region-2", WithIntergration("integration-test"))
+		t.Cleanup(func() { require.NoError(t, clients.Close()) })
+
+		_, err = clients.GetAWSSession(ctx, "us-region-2", WithIntegration("integration-test"))
 		require.True(t, trace.IsBadParameter(err), "expected err to be BadParameter, got %+v", err)
 		require.ErrorContains(t, err, "missing aws integration session provider")
 	})
 
-	t.Run("with  an integration session provider, must return the session", func(t *testing.T) {
+	t.Run("with an integration session provider, must return the session", func(t *testing.T) {
 		ctx := context.Background()
 		dummySession := &awssession.Session{
 			Config: &aws.Config{
@@ -50,14 +52,15 @@ func TestClientGetAWSSessionIntegration(t *testing.T) {
 			},
 		}
 
-		client, err := NewClients(WithAWSIntegrationSessionProvider(func(ctx context.Context, region, integration string) (*awssession.Session, error) {
+		clients, err := NewClients(WithAWSIntegrationSessionProvider(func(ctx context.Context, region, integration string) (*awssession.Session, error) {
 			assert.Equal(t, dummyIntegration, integration)
 			assert.Equal(t, dummyRegion, region)
 			return dummySession, nil
 		}))
 		require.NoError(t, err)
+		t.Cleanup(func() { require.NoError(t, clients.Close()) })
 
-		sess, err := client.GetAWSSession(ctx, dummyRegion, WithIntergration("integration-test"))
+		sess, err := clients.GetAWSSession(ctx, dummyRegion, WithIntegration("integration-test"))
 		require.NoError(t, err)
 		require.Equal(t, dummySession, sess)
 	})
@@ -65,13 +68,14 @@ func TestClientGetAWSSessionIntegration(t *testing.T) {
 	t.Run("with an integration session provider, but no integration is requested, must not call the integration session provider", func(t *testing.T) {
 		ctx := context.Background()
 
-		client, err := NewClients(WithAWSIntegrationSessionProvider(func(ctx context.Context, region, integration string) (*awssession.Session, error) {
+		clients, err := NewClients(WithAWSIntegrationSessionProvider(func(ctx context.Context, region, integration string) (*awssession.Session, error) {
 			assert.Fail(t, "should not be called")
 			return nil, nil
 		}))
 		require.NoError(t, err)
+		t.Cleanup(func() { require.NoError(t, clients.Close()) })
 
-		sess, err := client.GetAWSSession(ctx, dummyRegion)
+		sess, err := clients.GetAWSSession(ctx, dummyRegion)
 		require.NoError(t, err)
 		require.NotNil(t, sess)
 	})

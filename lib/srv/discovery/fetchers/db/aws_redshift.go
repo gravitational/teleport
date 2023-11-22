@@ -43,7 +43,7 @@ type redshiftPlugin struct{}
 func (f *redshiftPlugin) GetDatabases(ctx context.Context, cfg *awsFetcherConfig) (types.Databases, error) {
 	redshiftClient, err := cfg.AWSClients.GetAWSRedshiftClient(ctx, cfg.Region,
 		cloud.WithAssumeRole(cfg.AssumeRole.RoleARN, cfg.AssumeRole.ExternalID),
-		cloud.WithIntergration(cfg.Integration),
+		cloud.WithIntegration(cfg.Integration),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
