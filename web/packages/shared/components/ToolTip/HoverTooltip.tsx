@@ -79,7 +79,8 @@ export const HoverTooltip: React.FC<{
         <StyledOnHover
           px={2}
           py={1}
-          fontSize="10px"
+          fontWeight="regular"
+          typography="subtitle2"
           css={`
             word-wrap: break-word;
           `}
