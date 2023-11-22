@@ -435,7 +435,7 @@ func (i *TeleInstance) GenerateConfig(t *testing.T, trustedSecrets []*InstanceSe
 	}
 	tconf.Log = i.Log
 	tconf.DataDir = dataDir
-	tconf.UploadEventsC = i.UploadEventsC
+	tconf.Testing.UploadEventsC = i.UploadEventsC
 	tconf.CachePolicy.Enabled = true
 	tconf.Auth.ClusterName, err = services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
 		ClusterName: i.Secrets.SiteName,
@@ -676,7 +676,7 @@ func (i *TeleInstance) StartNodeWithTargetPort(tconf *servicecfg.Config, authPor
 	}
 
 	tconf.SetToken("token")
-	tconf.UploadEventsC = i.UploadEventsC
+	tconf.Testing.UploadEventsC = i.UploadEventsC
 	tconf.CachePolicy = servicecfg.CachePolicy{
 		Enabled: true,
 	}
@@ -731,7 +731,7 @@ func (i *TeleInstance) StartApp(conf *servicecfg.Config) (*service.TeleportProce
 		Addr:        i.Web,
 	})
 	conf.SetToken("token")
-	conf.UploadEventsC = i.UploadEventsC
+	conf.Testing.UploadEventsC = i.UploadEventsC
 	conf.Auth.Enabled = false
 	conf.Proxy.Enabled = false
 
@@ -781,7 +781,7 @@ func (i *TeleInstance) StartApps(configs []*servicecfg.Config) ([]*service.Telep
 				Addr:        i.Web,
 			})
 			cfg.SetToken("token")
-			cfg.UploadEventsC = i.UploadEventsC
+			cfg.Testing.UploadEventsC = i.UploadEventsC
 			cfg.Auth.Enabled = false
 			cfg.Proxy.Enabled = false
 
@@ -843,7 +843,7 @@ func (i *TeleInstance) StartDatabase(conf *servicecfg.Config) (*service.Teleport
 		Addr:        i.Web,
 	})
 	conf.SetToken("token")
-	conf.UploadEventsC = i.UploadEventsC
+	conf.Testing.UploadEventsC = i.UploadEventsC
 	conf.Auth.Enabled = false
 	conf.Proxy.Enabled = false
 	conf.Apps.Enabled = false
@@ -904,7 +904,7 @@ func (i *TeleInstance) StartKube(t *testing.T, conf *servicecfg.Config, clusterN
 		Addr:        i.Web,
 	})
 	conf.SetToken("token")
-	conf.UploadEventsC = i.UploadEventsC
+	conf.Testing.UploadEventsC = i.UploadEventsC
 	conf.Auth.Enabled = false
 	conf.Proxy.Enabled = false
 	conf.Apps.Enabled = false
@@ -954,7 +954,7 @@ func (i *TeleInstance) StartNodeAndProxy(t *testing.T, name string) (sshPort, we
 	tconf.SetToken("token")
 	tconf.HostUUID = name
 	tconf.Hostname = name
-	tconf.UploadEventsC = i.UploadEventsC
+	tconf.Testing.UploadEventsC = i.UploadEventsC
 	tconf.DataDir = dataDir
 	tconf.CachePolicy = servicecfg.CachePolicy{
 		Enabled: true,
@@ -1047,7 +1047,7 @@ func (i *TeleInstance) StartProxy(cfg ProxyConfig) (reversetunnelclient.Server, 
 	tconf.SetAuthServerAddress(*authServer)
 	tconf.CachePolicy = servicecfg.CachePolicy{Enabled: true}
 	tconf.DataDir = dataDir
-	tconf.UploadEventsC = i.UploadEventsC
+	tconf.Testing.UploadEventsC = i.UploadEventsC
 	tconf.HostUUID = cfg.Name
 	tconf.Hostname = cfg.Name
 	tconf.SetToken("token")

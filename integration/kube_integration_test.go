@@ -1323,8 +1323,8 @@ func (s *KubeSuite) teleKubeConfig(hostname string) *servicecfg.Config {
 	tconf.SSH.Enabled = true
 	tconf.Proxy.DisableWebInterface = true
 	tconf.PollingPeriod = 500 * time.Millisecond
-	tconf.ClientTimeout = time.Second
-	tconf.ShutdownTimeout = 2 * tconf.ClientTimeout
+	tconf.Testing.ClientTimeout = time.Second
+	tconf.Testing.ShutdownTimeout = 2 * tconf.Testing.ClientTimeout
 
 	// set kubernetes specific parameters
 	tconf.Proxy.Kube.Enabled = true

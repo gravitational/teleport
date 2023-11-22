@@ -745,7 +745,7 @@ func waitAndReload(ctx context.Context, cfg servicecfg.Config, srv Process, newT
 		return nil, trace.BadParameter("the new service has failed to start")
 	}
 	cfg.Log.Infof("New service has started successfully.")
-	shutdownTimeout := cfg.ShutdownTimeout
+	shutdownTimeout := cfg.Testing.ShutdownTimeout
 	if shutdownTimeout == 0 {
 		// The default shutdown timeout is very generous to avoid disrupting
 		// longer running connections.
@@ -1680,11 +1680,11 @@ func (process *TeleportProcess) initAuthService() error {
 
 	var embedderClient embedding.Embedder
 	if cfg.Auth.AssistAPIKey != "" {
-		// cfg.OpenAIConfig is set in tests to change the OpenAI API endpoint
+		// cfg.Testing.OpenAIConfig is set in tests to change the OpenAI API endpoint
 		// Like for proxy, if a custom OpenAIConfig is passed, the token from
 		// cfg.Auth.AssistAPIKey is ignored and the one from the config is used.
-		if cfg.OpenAIConfig != nil {
-			embedderClient = ai.NewClientFromConfig(*cfg.OpenAIConfig)
+		if cfg.Testing.OpenAIConfig != nil {
+			embedderClient = ai.NewClientFromConfig(*cfg.Testing.OpenAIConfig)
 		} else {
 			embedderClient = ai.NewClient(cfg.Auth.AssistAPIKey)
 		}
@@ -1731,7 +1731,7 @@ func (process *TeleportProcess) initAuthService() error {
 			CipherSuites:            cfg.CipherSuites,
 			KeyStoreConfig:          cfg.Auth.KeyStore,
 			Emitter:                 checkingEmitter,
-			Streamer:                events.NewReportingStreamer(checkingStreamer, process.Config.UploadEventsC),
+			Streamer:                events.NewReportingStreamer(checkingStreamer, process.Config.Testing.UploadEventsC),
 			TraceClient:             traceClt,
 			FIPS:                    cfg.FIPS,
 			LoadAllCAs:              cfg.Auth.LoadAllCAs,
@@ -2820,7 +2820,7 @@ func (process *TeleportProcess) initUploaderService() error {
 		Streamer:     uploaderClient,
 		ScanDir:      uploadsDir,
 		CorruptedDir: corruptedDir,
-		EventsC:      process.Config.UploadEventsC,
+		EventsC:      process.Config.Testing.UploadEventsC,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -3968,7 +3968,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			Router:           proxyRouter,
 			SessionControl:   sessionController,
 			PROXYSigner:      proxySigner,
-			OpenAIConfig:     cfg.OpenAIConfig,
+			OpenAIConfig:     cfg.Testing.OpenAIConfig,
 			NodeWatcher:      nodeWatcher,
 		}
 		webHandler, err := web.NewHandler(webConfig)
