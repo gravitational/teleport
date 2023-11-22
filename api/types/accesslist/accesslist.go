@@ -42,6 +42,13 @@ const (
 	twoWeeks = 24 * time.Hour * 14
 )
 
+type Inclusion string
+
+const (
+	Implicit Inclusion = "implicit"
+	Explicit Inclusion = "explicit"
+)
+
 func (r ReviewFrequency) String() string {
 	switch r {
 	case OneMonth:
@@ -136,10 +143,28 @@ type Spec struct {
 	// Audit describes the frequency that this access list must be audited.
 	Audit Audit `json:"audit" yaml:"audit"`
 
+	// Membership defines how list ownership of this list is determined. There
+	// are two possible values:
+	//  Explicit: To be considered an member of the access list, a user must
+	//            both meet the `membership_conditions` AND be explicitly added
+	//            to the list.
+	//  Implicit: Any user meeting the `membership_conditions` will automatically
+	//            be considered an owner of this list.
+	Membership Inclusion `json:"membership" yaml:"membership"`
+
 	// MembershipRequires describes the requirements for a user to be a member of the access list.
 	// For a membership to an access list to be effective, the user must meet the requirements of
 	// MembershipRequires and must be in the members list.
 	MembershipRequires Requires `json:"membership_requires" yaml:"membership_requires"`
+
+	// Ownership defines how list ownership of this list is determined. There
+	// are two possible values:
+	//  Explicit: To be considered an owner of the access list, a user must
+	//            both meet the `ownership_conditions` AND be explicitly added
+	//            to the list.
+	//  Implicit: Any user meeting the `ownership_conditions` will automatically
+	//            be considered an owner of this list.
+	Ownership Inclusion `json:"ownership" yaml:"ownership"`
 
 	// OwnershipRequires describes the requirements for a user to be an owner of the access list.
 	// For ownership of an access list to be effective, the user must meet the requirements of
@@ -241,6 +266,18 @@ func NewAccessList(metadata header.Metadata, spec Spec) (*AccessList, error) {
 	return accessList, nil
 }
 
+func checkInclusion(i Inclusion) (Inclusion, error) {
+	if i == "" {
+		return Explicit, nil
+	}
+
+	if i != Explicit && i != Implicit {
+		return Explicit, trace.BadParameter("invalid inclusion mode %q", i)
+	}
+
+	return i, nil
+}
+
 // CheckAndSetDefaults validates fields and populates empty fields with default values.
 func (a *AccessList) CheckAndSetDefaults() error {
 	a.SetKind(types.KindAccessList)
@@ -254,7 +291,16 @@ func (a *AccessList) CheckAndSetDefaults() error {
 		return trace.BadParameter("access list title required")
 	}
 
-	if len(a.Spec.Owners) == 0 {
+	var err error
+	if a.Spec.Ownership, err = checkInclusion(a.Spec.Ownership); err != nil {
+		return trace.Wrap(err, "ownership")
+	}
+
+	if a.Spec.Membership, err = checkInclusion(a.Spec.Membership); err != nil {
+		return trace.Wrap(err, "membership")
+	}
+
+	if a.Spec.Ownership == Explicit && len(a.Spec.Owners) == 0 {
 		return trace.BadParameter("owners are missing")
 	}
 
