@@ -346,6 +346,16 @@ type azureClients struct {
 	azureRunCommandClients azure.ClientMap[azure.RunCommandClient]
 }
 
+// credentialsSource defines where the credentials must come from.
+type credentialsSource int
+
+const (
+	// credentialsSourceAmbient uses the default Cloud SDK method to load the credentials.
+	credentialsSourceAmbient = iota + 1
+	// CredentialsSourceIntegration uses an Integration to load the credentials.
+	credentialsSourceIntegration
+)
+
 // awsAssumeRoleOpts a struct of additional options for assuming an AWS role
 // when construction an underlying AWS session.
 type awsAssumeRoleOpts struct {
@@ -356,9 +366,27 @@ type awsAssumeRoleOpts struct {
 	assumeRoleARN string
 	// assumeRoleExternalID is used to assume an external AWS IAM Role.
 	assumeRoleExternalID string
+
+	// credentialsSource describes which source to use to fetch credentials.
+	credentialsSource credentialsSource
+
 	// integration is the name of the integration to be used to fetch the credentials.
-	// When set, the role/credentials must be the ones from the Integration and not the ambient ones.
 	integration string
+}
+
+func (a *awsAssumeRoleOpts) checkAndSetDefaults() error {
+	switch a.credentialsSource {
+	case credentialsSourceAmbient:
+		a.integration = ""
+	case credentialsSourceIntegration:
+		if a.integration == "" {
+			return trace.BadParameter("missing integration name")
+		}
+	default:
+		return trace.BadParameter("missing credentials source (ambient or integration)")
+	}
+
+	return nil
 }
 
 // AWSAssumeRoleOptionFn is an option function for setting additional options
@@ -389,11 +417,30 @@ func WithChainedAssumeRole(session *awssession.Session, roleARN, externalID stri
 	}
 }
 
-// WithIntegration configures options with an Integration that must be used to fetch Credentials to assume a role.
+// WithCredentialsMaybeIntegration sets the credential source to be
+// - ambient if the integration is an empty string
+// - integration, otherwise
+func WithCredentialsMaybeIntegration(integration string) AWSAssumeRoleOptionFn {
+	if integration != "" {
+		return withIntegrationCredentials(integration)
+	}
+
+	return withAmbientCredentials()
+}
+
+// withIntegrationCredentials configures options with an Integration that must be used to fetch Credentials to assume a role.
 // This prevents the usage of AWS environment credentials.
-func WithIntegration(integration string) AWSAssumeRoleOptionFn {
+func withIntegrationCredentials(integration string) AWSAssumeRoleOptionFn {
 	return func(options *awsAssumeRoleOpts) {
+		options.credentialsSource = credentialsSourceIntegration
 		options.integration = integration
+	}
+}
+
+// withAmbientCredentials configures options to use the ambient credentials.
+func withAmbientCredentials() AWSAssumeRoleOptionFn {
+	return func(options *awsAssumeRoleOpts) {
+		options.credentialsSource = credentialsSourceAmbient
 	}
 }
 
@@ -682,6 +729,10 @@ func awsAmbientSessionProvider(ctx context.Context, region string) (*awssession.
 
 // getAWSSessionForRegion returns AWS session for the specified region.
 func (c *cloudClients) getAWSSessionForRegion(region string, opts awsAssumeRoleOpts) (*awssession.Session, error) {
+	if err := opts.checkAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	cacheKey := awsSessionCacheKey{
 		region:      region,
 		integration: opts.integration,
@@ -690,7 +741,7 @@ func (c *cloudClients) getAWSSessionForRegion(region string, opts awsAssumeRoleO
 	}
 
 	return utils.FnCacheGet(context.Background(), c.awsSessionsCache, cacheKey, func(ctx context.Context) (*awssession.Session, error) {
-		if opts.integration != "" {
+		if opts.credentialsSource == credentialsSourceIntegration {
 			if c.awsIntegrationSessionProviderFn == nil {
 				return nil, trace.BadParameter("missing aws integration session provider")
 			}
@@ -708,6 +759,10 @@ func (c *cloudClients) getAWSSessionForRegion(region string, opts awsAssumeRoleO
 
 // getAWSSessionForRole returns AWS session for the specified region and role.
 func (c *cloudClients) getAWSSessionForRole(ctx context.Context, region string, options awsAssumeRoleOpts) (*awssession.Session, error) {
+	if err := options.checkAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	cacheKey := awsSessionCacheKey{
 		region:      region,
 		integration: options.integration,

@@ -49,7 +49,7 @@ func (f *rdsDBInstancesPlugin) ComponentShortName() string {
 func (f *rdsDBInstancesPlugin) GetDatabases(ctx context.Context, cfg *awsFetcherConfig) (types.Databases, error) {
 	rdsClient, err := cfg.AWSClients.GetAWSRDSClient(ctx, cfg.Region,
 		cloud.WithAssumeRole(cfg.AssumeRole.RoleARN, cfg.AssumeRole.ExternalID),
-		cloud.WithIntegration(cfg.Integration),
+		cloud.WithCredentialsMaybeIntegration(cfg.Integration),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -126,7 +126,7 @@ func (f *rdsAuroraClustersPlugin) ComponentShortName() string {
 func (f *rdsAuroraClustersPlugin) GetDatabases(ctx context.Context, cfg *awsFetcherConfig) (types.Databases, error) {
 	rdsClient, err := cfg.AWSClients.GetAWSRDSClient(ctx, cfg.Region,
 		cloud.WithAssumeRole(cfg.AssumeRole.RoleARN, cfg.AssumeRole.ExternalID),
-		cloud.WithIntegration(cfg.Integration),
+		cloud.WithCredentialsMaybeIntegration(cfg.Integration),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
