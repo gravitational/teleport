@@ -85,6 +85,8 @@ type BootstrapS3Client interface {
 // We are currently very opinionated about inputs and have additional checks to ensure
 // a stricter setup is created.
 func BootstrapInfra(ctx context.Context, params BootstrapInfraParams) error {
+	fmt.Println("\nBootstrapping External Audit Storage infrastructure")
+
 	switch {
 	case params.Athena == nil:
 		return trace.BadParameter("param Athena required")
@@ -129,11 +131,13 @@ func BootstrapInfra(ctx context.Context, params BootstrapInfraParams) error {
 // * Object ownership set to BucketOwnerEnforced
 // * Default SSE-S3 encryption
 func createLTSBucket(ctx context.Context, clt BootstrapS3Client, bucketName string, region string) error {
+	fmt.Printf("Creating long term storage S3 bucket %s\n", bucketName)
 	err := createBucket(ctx, clt, bucketName, region, true)
 	if err != nil && !trace.IsAlreadyExists(err) {
-		return trace.Wrap(err, "creating long-term S3 bucket")
+		return trace.Wrap(err, "creating long term storage S3 bucket")
 	}
 
+	fmt.Printf("Applying object lock configuration to long term storage S3 bucket with default retention period of %d years\n", defaultObjectLockRetentionYears)
 	_, err = clt.PutObjectLockConfiguration(ctx, &s3.PutObjectLockConfigurationInput{
 		Bucket: &bucketName,
 		ObjectLockConfiguration: &s3types.ObjectLockConfiguration{
@@ -155,11 +159,13 @@ func createLTSBucket(ctx context.Context, clt BootstrapS3Client, bucketName stri
 // * Query results expire after 1 day
 // * DeleteMarkers, NonCurrentVersions and IncompleteMultipartUploads are also removed
 func createTransientBucket(ctx context.Context, clt BootstrapS3Client, bucketName string, region string) error {
+	fmt.Printf("Creating transient storage S3 bucket %s\n", bucketName)
 	err := createBucket(ctx, clt, bucketName, region, false)
 	if err != nil && !trace.IsAlreadyExists(err) {
 		return trace.Wrap(err, "creating transient S3 bucket")
 	}
 
+	fmt.Println("Applying bucket lifecycle configuration to transient storage S3 bucket")
 	_, err = clt.PutBucketLifecycleConfiguration(ctx, &s3.PutBucketLifecycleConfigurationInput{
 		Bucket: &bucketName,
 		LifecycleConfiguration: &s3types.BucketLifecycleConfiguration{
@@ -220,12 +226,13 @@ func createBucket(ctx context.Context, clt BootstrapS3Client, bucketName string,
 
 // createAthenaWorkgroup creates an athena workgroup in which to run athena sql queries.
 func createAthenaWorkgroup(ctx context.Context, clt BootstrapAthenaClient, workgroup string) error {
+	fmt.Printf("Creating Athena workgroup %s\n", workgroup)
 	_, err := clt.CreateWorkGroup(ctx, &athena.CreateWorkGroupInput{
 		Name:          &workgroup,
 		Configuration: &athenatypes.WorkGroupConfiguration{},
 	})
 	if err != nil && !strings.Contains(err.Error(), "is already created") {
-		return trace.Wrap(err, "creating athena workgroup")
+		return trace.Wrap(err, "creating Athena workgroup")
 	}
 
 	return nil
@@ -238,6 +245,7 @@ func createAthenaWorkgroup(ctx context.Context, clt BootstrapAthenaClient, workg
 // * CreateTable
 // * UpdateTable
 func createGlueInfra(ctx context.Context, clt BootstrapGlueClient, table, database, eventBucket string) error {
+	fmt.Printf("Creating Glue database %s\n", database)
 	_, err := clt.CreateDatabase(ctx, &glue.CreateDatabaseInput{
 		DatabaseInput: &gluetypes.DatabaseInput{
 			Name:        &database,
@@ -247,7 +255,7 @@ func createGlueInfra(ctx context.Context, clt BootstrapGlueClient, table, databa
 	if err != nil {
 		var aee *gluetypes.AlreadyExistsException
 		if !errors.As(err, &aee) {
-			return trace.Wrap(err, "creating glue database")
+			return trace.Wrap(err, "creating Glue database")
 		}
 	}
 
@@ -255,6 +263,7 @@ func createGlueInfra(ctx context.Context, clt BootstrapGlueClient, table, databa
 	// https://github.com/gravitational/cloud/blob/22393dcc9362ec77b0a111c3cc81b65df19da0b0/pkg/tenantcontroller/athena.go#L458-L504
 	// TODO(logand22): Consolidate source of truth to a single location. Preferably teleport repository.
 	// We do want to ensure that the table that exists has the correct table input so we'll update already existing tables.
+	fmt.Printf("Creating Glue table %s\n", table)
 	_, err = clt.CreateTable(ctx, &glue.CreateTableInput{
 		DatabaseName: &database,
 		TableInput:   getGlueTableInput(table, eventBucket),
@@ -262,7 +271,7 @@ func createGlueInfra(ctx context.Context, clt BootstrapGlueClient, table, databa
 	if err != nil {
 		var aee *gluetypes.AlreadyExistsException
 		if !errors.As(err, &aee) {
-			return trace.Wrap(err, "creating glue table")
+			return trace.Wrap(err, "creating Glue table")
 		}
 
 		_, err = clt.UpdateTable(ctx, &glue.UpdateTableInput{
@@ -270,7 +279,7 @@ func createGlueInfra(ctx context.Context, clt BootstrapGlueClient, table, databa
 			TableInput:   getGlueTableInput(table, eventBucket),
 		})
 		if err != nil {
-			return trace.Wrap(err, "updating glue table")
+			return trace.Wrap(err, "updating Glue table")
 		}
 	}
 
