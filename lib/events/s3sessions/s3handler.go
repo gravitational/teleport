@@ -154,33 +154,31 @@ func (s *Config) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing parameter Bucket")
 	}
 	if s.Session == nil {
-		// create an AWS session using default SDK behavior, i.e. it will interpret
-		// the environment and ~/.aws directory just like an AWS CLI tool would:
+		awsConfig := aws.Config{
+			EC2MetadataEnableFallback: aws.Bool(false),
+			UseFIPSEndpoint:           events.FIPSProtoStateToAWSState(s.UseFIPSEndpoint),
+		}
+		if s.Region != "" {
+			awsConfig.Region = aws.String(s.Region)
+		}
+		if s.Endpoint != "" {
+			awsConfig.Endpoint = aws.String(s.Endpoint)
+			awsConfig.S3ForcePathStyle = aws.Bool(true)
+		}
+		if s.Insecure {
+			awsConfig.DisableSSL = aws.Bool(s.Insecure)
+		}
+		if s.Credentials != nil {
+			awsConfig.Credentials = s.Credentials
+		}
+
 		sess, err := awssession.NewSessionWithOptions(awssession.Options{
 			SharedConfigState: awssession.SharedConfigEnable,
+			Config:            awsConfig,
 		})
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		// override the default environment (region + Host + credentials) with the values
-		// from the YAML file:
-		if s.Region != "" {
-			sess.Config.Region = aws.String(s.Region)
-		}
-		if s.Endpoint != "" {
-			sess.Config.Endpoint = aws.String(s.Endpoint)
-			sess.Config.S3ForcePathStyle = aws.Bool(true)
-		}
-		if s.Insecure {
-			sess.Config.DisableSSL = aws.Bool(s.Insecure)
-		}
-		if s.Credentials != nil {
-			sess.Config.Credentials = s.Credentials
-		}
-
-		sess.Config.EC2MetadataEnableFallback = aws.Bool(false)
-
-		sess.Config.UseFIPSEndpoint = events.FIPSProtoStateToAWSState(s.UseFIPSEndpoint)
 
 		s.Session = sess
 	}
