@@ -110,7 +110,9 @@ on_gcp() {
   sudo /usr/local/bin/teleport node configure \
     --proxy="{{ .PublicProxyAddr }}" \
     --join-method=${JOIN_METHOD} \
+    {{- if .AzureClientID }}
     --azure-client-id="{{ .AzureClientID }}" \
+    {{ end -}}
     --token="$1" \
     --output=file \
     --labels="${LABELS}"
