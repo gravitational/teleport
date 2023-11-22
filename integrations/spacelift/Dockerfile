@@ -31,7 +31,7 @@ FROM public.ecr.aws/spacelift/runner-terraform:v1.4.2_20231120
 USER root
 
 # Install gcompat to allow glibc compiled tbot to run on Spacelift.
-RUN apk add gcompat
+RUN apk add --no-cache gcompat=1.1.0-r1
 
 # Copy in `tbot`
 COPY --from=builder /workspace/build/tbot /usr/local/bin
