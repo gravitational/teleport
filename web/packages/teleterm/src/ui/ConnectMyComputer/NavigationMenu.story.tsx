@@ -20,7 +20,7 @@ import { MockWorkspaceContextProvider } from 'teleterm/ui/fixtures/MockWorkspace
 import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
-
+import { ResourcesContextProvider } from 'teleterm/ui/DocumentCluster/resourcesContext';
 import { AgentProcessState } from 'teleterm/mainProcess/types';
 
 import { NavigationMenu } from './NavigationMenu';
@@ -193,9 +193,11 @@ function ShowState({
   return (
     <MockAppContextProvider appContext={appContext}>
       <MockWorkspaceContextProvider rootClusterUri={cluster.uri}>
-        <ConnectMyComputerContextProvider rootClusterUri={cluster.uri}>
-          <NavigationMenu />
-        </ConnectMyComputerContextProvider>
+        <ResourcesContextProvider>
+          <ConnectMyComputerContextProvider rootClusterUri={cluster.uri}>
+            <NavigationMenu />
+          </ConnectMyComputerContextProvider>
+        </ResourcesContextProvider>
       </MockWorkspaceContextProvider>
     </MockAppContextProvider>
   );
