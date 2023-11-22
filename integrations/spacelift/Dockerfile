@@ -1,4 +1,4 @@
-FROM --platform=$BUILDPLATFORM public.ecr.aws/gravitational/teleport-buildbox:teleport15 as builder
+FROM public.ecr.aws/gravitational/teleport-buildbox-centos7:teleport15 as builder
 
 WORKDIR /workspace
 
@@ -35,6 +35,7 @@ RUN apk add gcompat
 
 # Copy in `tbot`
 COPY --from=builder /workspace/build/tbot /usr/local/bin
+RUN chmod 755 /usr/local/bin/tbot
 
 # Switch back to the default spacelift user.
 USER spacelift
