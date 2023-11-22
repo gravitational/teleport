@@ -1062,7 +1062,7 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
     url: 'https://goteleport.com/docs/access-controls/access-request-plugins/ssh-approval-mattermost/',
     fullName: 'Mattermost access request notifications',
     cloudHostable: true,
-    selfHostable: false,
+    selfHostable: true,
     Description: () => (
       <Text>
         <p>
