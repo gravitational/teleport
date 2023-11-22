@@ -216,7 +216,14 @@ func TestEC2Watcher(t *testing.T) {
 		}},
 	}
 	clients.ec2Client.output = &output
-	watcher, err := NewEC2Watcher(ctx, matchers, &clients, make(<-chan []types.Server))
+
+	fetchersFn := func() []Fetcher {
+		fetchers, err := MatchersToEC2InstanceFetchers(ctx, matchers, &clients)
+		require.NoError(t, err)
+
+		return fetchers
+	}
+	watcher, err := NewEC2Watcher(ctx, fetchersFn, make(<-chan []types.Server))
 	require.NoError(t, err)
 
 	go watcher.Run()

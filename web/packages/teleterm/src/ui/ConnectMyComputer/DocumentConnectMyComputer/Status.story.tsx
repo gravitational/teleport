@@ -28,6 +28,7 @@ import { MockWorkspaceContextProvider } from 'teleterm/ui/fixtures/MockWorkspace
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 import { AgentProcessState } from 'teleterm/mainProcess/types';
 import { makeRuntimeSettings } from 'teleterm/mainProcess/fixtures/mocks';
+import { ResourcesContextProvider } from 'teleterm/ui/DocumentCluster/resourcesContext';
 
 import {
   AgentCompatibilityError,
@@ -270,9 +271,11 @@ function ShowState(props: {
   return (
     <MockAppContextProvider appContext={appContext}>
       <MockWorkspaceContextProvider rootClusterUri={cluster.uri}>
-        <ConnectMyComputerContextProvider rootClusterUri={cluster.uri}>
-          <Status />
-        </ConnectMyComputerContextProvider>
+        <ResourcesContextProvider>
+          <ConnectMyComputerContextProvider rootClusterUri={cluster.uri}>
+            <Status />
+          </ConnectMyComputerContextProvider>
+        </ResourcesContextProvider>
       </MockWorkspaceContextProvider>
     </MockAppContextProvider>
   );

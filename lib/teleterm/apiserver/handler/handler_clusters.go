@@ -109,7 +109,7 @@ func newAPIRootClusterWithDetails(cluster *clusters.ClusterWithDetails) (*api.Cl
 	apiCluster := newAPIRootCluster(cluster.Cluster)
 
 	apiCluster.Features = &api.Features{
-		AdvancedAccessWorkflows: cluster.Features.GetAdvancedAccessWorkflows(),
+		AdvancedAccessWorkflows: cluster.Features.GetAccessRequests().GetEnabled(),
 		IsUsageBasedBilling:     cluster.Features.GetIsUsageBased(),
 	}
 	apiCluster.LoggedInUser.RequestableRoles = cluster.RequestableRoles

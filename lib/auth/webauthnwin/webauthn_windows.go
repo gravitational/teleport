@@ -29,23 +29,6 @@ import (
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 )
 
-var (
-	modWebAuthn = windows.NewLazySystemDLL("WebAuthn.dll")
-
-	// For reference, see
-	// https://learn.microsoft.com/en-us/windows/win32/api/webauthn/.
-	procWebAuthNGetApiVersionNumber                           = modWebAuthn.NewProc("WebAuthNGetApiVersionNumber")
-	procWebAuthNIsUserVerifyingPlatformAuthenticatorAvailable = modWebAuthn.NewProc("WebAuthNIsUserVerifyingPlatformAuthenticatorAvailable")
-	procWebAuthNAuthenticatorMakeCredential                   = modWebAuthn.NewProc("WebAuthNAuthenticatorMakeCredential")
-	procWebAuthNFreeCredentialAttestation                     = modWebAuthn.NewProc("WebAuthNFreeCredentialAttestation")
-	procWebAuthNAuthenticatorGetAssertion                     = modWebAuthn.NewProc("WebAuthNAuthenticatorGetAssertion")
-	procWebAuthNFreeAssertion                                 = modWebAuthn.NewProc("WebAuthNFreeAssertion")
-	procWebAuthNGetErrorName                                  = modWebAuthn.NewProc("WebAuthNGetErrorName")
-
-	modUser32               = windows.NewLazySystemDLL("user32.dll")
-	procGetForegroundWindow = modUser32.NewProc("GetForegroundWindow")
-)
-
 var native nativeWebauthn = newNativeImpl()
 
 // nativeImpl keeps diagnostic informations about windows webauthn support.
@@ -107,13 +90,7 @@ func (n *nativeImpl) GetAssertion(origin string, in *getAssertionRequest) (*want
 	}
 
 	var out *webauthnAssertion
-	ret, _, err := procWebAuthNAuthenticatorGetAssertion.Call(
-		uintptr(hwnd),
-		uintptr(unsafe.Pointer(in.rpID)),
-		uintptr(unsafe.Pointer(in.clientData)),
-		uintptr(unsafe.Pointer(in.opts)),
-		uintptr(unsafe.Pointer(&out)),
-	)
+	ret, err := webAuthNAuthenticatorGetAssertion(hwnd, in.rpID, in.clientData, in.opts, &out)
 	if ret != 0 {
 		return nil, trace.Wrap(getErrorNameOrLastErr(ret, err))
 	}
@@ -123,8 +100,7 @@ func (n *nativeImpl) GetAssertion(origin string, in *getAssertionRequest) (*want
 
 	// Note that we need to copy bytes out of `out` if we want to free object.
 	// That's why bytesFromCBytes is used.
-	// We don't care about free error so ignore it explicitly.
-	defer func() { _ = freeAssertion(out) }()
+	defer freeAssertion(out)
 
 	authData := bytesFromCBytes(out.cbAuthenticatorData, out.pbAuthenticatorData)
 	signature := bytesFromCBytes(out.cbSignature, out.pbSignature)
@@ -164,15 +140,8 @@ func (n *nativeImpl) MakeCredential(origin string, in *makeCredentialRequest) (*
 	}
 
 	var out *webauthnCredentialAttestation
-	ret, _, err := procWebAuthNAuthenticatorMakeCredential.Call(
-		uintptr(hwnd),
-		uintptr(unsafe.Pointer(in.rp)),
-		uintptr(unsafe.Pointer(in.user)),
-		uintptr(unsafe.Pointer(in.credParameters)),
-		uintptr(unsafe.Pointer(in.clientData)),
-		uintptr(unsafe.Pointer(in.opts)),
-		uintptr(unsafe.Pointer(&out)),
-	)
+	ret, err := webAuthNAuthenticatorMakeCredential(
+		hwnd, in.rp, in.user, in.credParameters, in.clientData, in.opts, &out)
 	if ret != 0 {
 		return nil, trace.Wrap(getErrorNameOrLastErr(ret, err))
 	}
@@ -182,8 +151,7 @@ func (n *nativeImpl) MakeCredential(origin string, in *makeCredentialRequest) (*
 
 	// Note that we need to copy bytes out of `out` if we want to free object.
 	// That's why bytesFromCBytes is used.
-	// We don't care about free error so ignore it explicitly.
-	defer func() { _ = freeCredentialAttestation(out) }()
+	defer freeCredentialAttestation(out)
 
 	credential := bytesFromCBytes(out.cbCredentialID, out.pbCredentialID)
 
@@ -204,50 +172,15 @@ func (n *nativeImpl) MakeCredential(origin string, in *makeCredentialRequest) (*
 	}, nil
 }
 
-func freeCredentialAttestation(in *webauthnCredentialAttestation) error {
-	_, _, err := procWebAuthNFreeCredentialAttestation.Call(
-		uintptr(unsafe.Pointer(in)),
-	)
-	if err != syscall.Errno(0) {
-		return err
-	}
-	return nil
-}
-
-func freeAssertion(in *webauthnAssertion) error {
-	_, _, err := procWebAuthNFreeAssertion.Call(
-		uintptr(unsafe.Pointer(in)),
-	)
-	if err != syscall.Errno(0) {
-		return err
-	}
-	return nil
-}
-
 // checkIfDLLExistsAndGetAPIVersionNumber checks if dll exists and tries to load
 // it's version via API call. This function makes sure to not panic if dll is
 // missing.
 func checkIfDLLExistsAndGetAPIVersionNumber() (int, error) {
-	if err := modWebAuthn.Load(); err != nil {
-		return 0, err
-	}
-	if err := procWebAuthNGetApiVersionNumber.Find(); err != nil {
-		return 0, err
-	}
-	// This is the only API call of Windows Webauthn API that returns non-zero
-	// value when everything went fine.
-	// https://github.com/microsoft/webauthn/blob/7ab979cc833bfab9a682ed51761309db57f56c8c/webauthn.h#L895-L897
-	ret, _, err := procWebAuthNGetApiVersionNumber.Call()
-	if ret == 0 && err != syscall.Errno(0) {
-		return 0, err
-	}
-	return int(ret), nil
+	return webAuthNGetApiVersionNumber()
 }
 
 func getErrorNameOrLastErr(in uintptr, lastError error) error {
-	ret, _, _ := procWebAuthNGetErrorName.Call(
-		uintptr(int32(in)),
-	)
+	ret := webAuthNGetErrorName(in)
 	if ret == 0 {
 		if lastError != syscall.Errno(0) {
 			return fmt.Errorf("webauthn error code %v and syscall err: %v", in, lastError)
@@ -259,14 +192,12 @@ func getErrorNameOrLastErr(in uintptr, lastError error) error {
 }
 
 func isUVPlatformAuthenticatorAvailable() (bool, error) {
-	var out uint32
-	ret, _, err := procWebAuthNIsUserVerifyingPlatformAuthenticatorAvailable.Call(
-		uintptr(unsafe.Pointer(&out)),
-	)
-	if ret != 0 {
+	var out bool
+	ret, err := webAuthNIsUserVerifyingPlatformAuthenticatorAvailable(&out)
+	if err != nil {
 		return false, getErrorNameOrLastErr(ret, err)
 	}
-	return out == 1, nil
+	return out, nil
 }
 
 // bytesFromCBytes gets slice of bytes from C type and copies it to new slice
@@ -282,12 +213,4 @@ func bytesFromCBytes(size uint32, p *byte) []byte {
 	out := make([]byte, len(tmp))
 	copy(out, tmp)
 	return out
-}
-
-func getForegroundWindow() (hwnd syscall.Handle, err error) {
-	r0, _, err := procGetForegroundWindow.Call()
-	if err != syscall.Errno(0) {
-		return syscall.InvalidHandle, err
-	}
-	return syscall.Handle(r0), nil
 }
