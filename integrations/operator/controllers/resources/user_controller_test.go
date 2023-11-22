@@ -21,9 +21,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
 	"github.com/mitchellh/mapstructure"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -347,7 +348,7 @@ func TestUserUpdate(t *testing.T) {
 		require.NoError(t, err)
 
 		// TeleportUser was updated with new roles
-		return assert.ElementsMatch(t, tUser.GetRoles(), []string{"x", "z"})
+		return compareRoles([]string{"x", "z"}, tUser.GetRoles())
 	})
 
 	// Updating the user in K8S
@@ -373,7 +374,7 @@ func TestUserUpdate(t *testing.T) {
 		require.NoError(t, err)
 
 		// TeleportUser updated with new roles
-		return assert.ElementsMatch(t, tUser.GetRoles(), []string{"x", "z", "y"})
+		return compareRoles([]string{"x", "y", "z"}, tUser.GetRoles())
 	})
 	require.Equal(t, setup.OperatorName, tUser.GetCreatedBy().User.Name, "createdBy has not been erased")
 }
@@ -418,4 +419,12 @@ func getUserStatusConditionError(object map[string]interface{}) []metav1.Conditi
 		}
 	}
 	return conditionsWithError
+}
+
+func compareRoles(expected, actual []string) bool {
+	return cmp.Diff(
+		expected,
+		actual,
+		cmpopts.SortSlices(func(a, b string) bool { return a < b }),
+	) == ""
 }
