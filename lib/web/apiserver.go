@@ -887,6 +887,10 @@ func (h *Handler) bindDefaultEndpoints() {
 
 	// Updates the user's cluster preferences.
 	h.PUT("/webapi/user/preferences/:site", h.WithClusterAuth(h.updateUserClusterPreferences))
+
+	// Returns logins included in the Connect My Computer role of the user.
+	// Returns an empty list of logins if the user does not have a Connect My Computer role assigned.
+	h.GET("/webapi/connectmycomputer/logins", h.WithAuth(h.connectMyComputerLoginsList))
 }
 
 // GetProxyClient returns authenticated auth server client
