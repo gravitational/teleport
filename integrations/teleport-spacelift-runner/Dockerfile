@@ -1,4 +1,7 @@
-FROM public.ecr.aws/gravitational/teleport-buildbox-centos7:teleport15 as builder
+ARG BUILDBOX_CENTOS7
+ARG BASE_IMAGE
+
+FROM $BUILDBOX_CENTOS7 as builder
 
 WORKDIR /workspace
 
@@ -24,7 +27,7 @@ COPY common.mk common.mk
 
 RUN make build/tbot
 
-FROM public.ecr.aws/spacelift/runner-terraform:v1.4.2_20231120
+FROM $BASE_IMAGE
 # https://github.com/spacelift-io/runner-terraform/blob/main/Dockerfile
 
 # Switch to root so we can invoke gcompat
