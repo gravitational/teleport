@@ -580,7 +580,7 @@ func onProxyCommandApp(cf *CLIConf) error {
 		if cf.LocalTLSCertificate != "" && cf.LocalTLSKey != "" {
 			serverCert, err = tls.LoadX509KeyPair(cf.LocalTLSCertificate, cf.LocalTLSCertificate)
 			if err != nil {
-				return err
+				return trace.Wrap(err)
 			}
 		} else {
 			fmt.Println("Generating self-signed certificate for local port.")
@@ -588,13 +588,13 @@ func onProxyCommandApp(cf *CLIConf) error {
 			// Generate a self-signed certificate to use in the proxy.
 			signedCert, err := cert.GenerateSelfSignedCert([]string{"localhost"}, nil, x509.ExtKeyUsageAny)
 			if err != nil {
-				return err
+				return trace.Wrap(err)
 			}
 
 			// Combine the key and certificate into a usable object for the Listener.
 			serverCert, err = tls.X509KeyPair(signedCert.Cert, signedCert.PrivateKey)
 			if err != nil {
-				return err
+				return trace.Wrap(err)
 			}
 		}
 
