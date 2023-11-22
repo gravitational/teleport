@@ -261,34 +261,39 @@ func New(ctx context.Context, cfg Config) (*Log, error) {
 		Entry:  l,
 		Config: cfg,
 	}
-	// create an AWS session using default SDK behavior, i.e. it will interpret
-	// the environment and ~/.aws directory just like an AWS CLI tool would:
-	b.session, err = awssession.NewSessionWithOptions(awssession.Options{
-		SharedConfigState: awssession.SharedConfigEnable,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
+
+	awsConfig := aws.Config{
+		EC2MetadataEnableFallback: aws.Bool(false),
 	}
-	// override the default environment (region + credentials) with the values
-	// from the YAML file:
+
+	// Override the default environment's region if value set in YAML file:
 	if cfg.Region != "" {
-		b.session.Config.Region = aws.String(cfg.Region)
+		awsConfig.Region = aws.String(cfg.Region)
 	}
 
 	// Override the service endpoint using the "endpoint" query parameter from
 	// "audit_events_uri". This is for non-AWS DynamoDB-compatible backends.
 	if cfg.Endpoint != "" {
-		b.session.Config.Endpoint = aws.String(cfg.Endpoint)
+		awsConfig.Endpoint = aws.String(cfg.Endpoint)
 	}
 
-	// Explicitly enable or disable FIPS endpoints for DynamoDB
-	b.session.Config.UseFIPSEndpoint = events.FIPSProtoStateToAWSState(cfg.UseFIPSEndpoint)
-
-	// Explicitly disable IMDSv1 fallback
-	b.session.Config.EC2MetadataEnableFallback = aws.Bool(false)
+	b.session, err = awssession.NewSessionWithOptions(awssession.Options{
+		SharedConfigState: awssession.SharedConfigEnable,
+		Config:            awsConfig,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	// create DynamoDB service:
-	svc, err := dynamometrics.NewAPIMetrics(dynamometrics.Events, dynamodb.New(b.session))
+	svc, err := dynamometrics.NewAPIMetrics(dynamometrics.Events, dynamodb.New(b.session, &aws.Config{
+		// Setting this on the individual service instead of the session, as DynamoDB Streams
+		// and Application Auto Scaling do not yet have FIPS endpoints in non-GovCloud.
+		// See also: https://aws.amazon.com/compliance/fips/#FIPS_Endpoints_by_Service
+		// TODO(reed): This can be simplified once https://github.com/aws/aws-sdk-go/pull/5078
+		// is available (or whenever AWS adds the missing FIPS endpoints).
+		UseFIPSEndpoint: events.FIPSProtoStateToAWSState(cfg.UseFIPSEndpoint),
+	}))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
