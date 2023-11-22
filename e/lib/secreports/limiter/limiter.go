@@ -238,7 +238,9 @@ func (l *Limiter) GetDetails(ctx context.Context) (*Details, error) {
 				return trace.Wrap(err)
 			}
 		}
-		metrics.LimitUsage.Set(float64(item.Spec.BytesScanned / l.TotalLimit))
+		if l.TotalLimit != 0 {
+			metrics.LimitUsage.Set(float64(item.Spec.BytesScanned) / float64(l.TotalLimit))
+		}
 		metrics.LimitRefillTimestamp.Set(float64(item.Spec.RefillAt.Unix()))
 		return nil
 	})

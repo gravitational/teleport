@@ -12,6 +12,7 @@ func init() {
 		QueryExecutionTimeHist,
 		QueryScannedBytes,
 		LimitUsage,
+		LimitRefillTimestamp,
 	)
 }
 
