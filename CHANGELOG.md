@@ -1,5 +1,11 @@
 # Changelog
 
+## 13.4.10 (11/22/23)
+
+* Device trust data is now collected concurrently on Windows [#34838](https://github.com/gravitational/teleport/pull/34838)
+* Fixed crash when writing kubeconfig with `tctl auth sign --tar` [#34822](https://github.com/gravitational/teleport/pull/34822)
+* Multiple resource filters can now be selected in the search bar in Teleport Connect [#34544](https://github.com/gravitational/teleport/pull/34544)
+
 ## 13.4.9 (11/16/23)
 
 * Increased the maximum width of the console tabs in the web UI. [#34650](https://github.com/gravitational/teleport/pull/34650)
