@@ -61,6 +61,7 @@ export enum IntegrationStatusCode {
   OtherError = 2,
   Unauthorized = 3,
   SlackNotInChannel = 10,
+  Draft = 100,
 }
 
 export function getStatusCodeTitle(code: IntegrationStatusCode): string {
@@ -73,6 +74,8 @@ export function getStatusCodeTitle(code: IntegrationStatusCode): string {
       return 'Unauthorized';
     case IntegrationStatusCode.SlackNotInChannel:
       return 'Bot not invited to channel';
+    case IntegrationStatusCode.Draft:
+      return 'Draft';
     default:
       return 'Unknown error';
   }
@@ -87,7 +90,6 @@ export function getStatusCodeDescription(
 
     case IntegrationStatusCode.SlackNotInChannel:
       return 'The Slack integration must be invited to the default channel in order to receive access request notifications.';
-
     default:
       return null;
   }
