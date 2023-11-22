@@ -16,56 +16,61 @@ limitations under the License.
 
 import React from 'react';
 import { MemoryRouter } from 'react-router';
-import { screen } from 'design/utils/testing';
+import { render, screen } from 'design/utils/testing';
 
-import { renderWithElementsAndContext } from 'e-teleport/Billing/StripeLoader/testhelper/renderWithElementsAndContext';
+import TeleportContext from 'teleport/teleportContext';
+import localStorage from 'teleport/services/localStorage';
+import { ContextProvider } from 'teleport/index';
+import cfg from 'teleport/config';
+import { clusters } from 'teleport/Clusters/fixtures';
 
 import { ExternalAuditStorageCta } from './ExternalAuditStorageCta';
 
-function render(children) {
-  return renderWithElementsAndContext(<MemoryRouter>{children}</MemoryRouter>);
-}
-
 describe('externalAuditStorageCta', () => {
-  test('renders the CTA', () => {
-    render(
-      <ExternalAuditStorageCta
-        isEnabled={true}
-        showCta={true}
-        onDismiss={() => null}
-      />
+  afterEach(() => {
+    jest.clearAllMocks();
+  });
+
+  const setup = (isCloud: boolean, losckedFeature: boolean) => {
+    const ctx = new TeleportContext();
+    ctx.storeUser.setState({
+      username: 'joe@example.com',
+      cluster: clusters[0],
+    });
+
+    cfg.isCloud = isCloud;
+    ctx.lockedFeatures.externalCloudAudit = losckedFeature;
+
+    jest
+      .spyOn(localStorage, 'getExternalAuditStorageCtaDisabled')
+      .mockReturnValue(false);
+
+    const { container } = render(
+      <MemoryRouter>
+        <ContextProvider ctx={ctx}>
+          <ExternalAuditStorageCta />
+        </ContextProvider>
+      </MemoryRouter>
     );
+
+    return { container, ctx };
+  };
+
+  test('renders the CTA', () => {
+    setup(true, false);
     expect(screen.getByText(/External Audit Storage/)).toBeInTheDocument();
   });
 
-  test('renders nothing on showCta=false', () => {
-    const { container } = render(
-      <ExternalAuditStorageCta
-        isEnabled={true}
-        showCta={false}
-        onDismiss={() => null}
-      />
-    );
+  test('renders nothing on cfg.isCloud=false', () => {
+    const { container } = setup(false, true);
     expect(container).toBeEmptyDOMElement();
   });
 
-  test('renders button based on isEnabled', () => {
-    render(
-      <ExternalAuditStorageCta
-        isEnabled={true}
-        showCta={true}
-        onDismiss={() => null}
-      />
-    );
+  test('renders button based on lockedFeatures', () => {
+    setup(true, false);
     expect(screen.getByText(/Connect your AWS storage/)).toBeInTheDocument();
 
-    render(
-      <ExternalAuditStorageCta
-        isEnabled={false}
-        showCta={true}
-        onDismiss={() => null}
-      />
-    );
+    setup(true, true);
     expect(screen.getByText(/Contact Sales/)).toBeInTheDocument();
   });
 });

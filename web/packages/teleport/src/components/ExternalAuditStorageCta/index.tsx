@@ -1,1 +1,1 @@
-export { Container as ExternalAuditStorageCta } from './ExternalAuditStorageCta';
+export { ExternalAuditStorageCta } from './ExternalAuditStorageCta';

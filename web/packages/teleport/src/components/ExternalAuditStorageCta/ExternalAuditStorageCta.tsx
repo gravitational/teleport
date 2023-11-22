@@ -16,7 +16,7 @@ import { CtaEvent } from 'teleport/services/userEvent';
 
 import { ButtonLockedFeature } from '../ButtonLockedFeature';
 
-export const Container = () => {
+export const ExternalAuditStorageCta = () => {
   const [showCta, setShowCta] = useState<boolean>(false);
   const ctx = useTeleport();
   const featureEnabled = !ctx.lockedFeatures.externalCloudAudit;
@@ -32,29 +32,10 @@ export const Container = () => {
     setShowCta(false);
   }
 
-  return (
-    <ExternalAuditStorageCta
-      showCta={showCta}
-      onDismiss={handleDismiss}
-      isEnabled={featureEnabled}
-    />
-  );
-};
-
-export type Props = {
-  showCta: boolean;
-  isEnabled: boolean;
-  onDismiss: () => void;
-};
-
-export const ExternalAuditStorageCta = ({
-  showCta,
-  isEnabled,
-  onDismiss,
-}: Props) => {
   if (!showCta) {
     return null;
   }
+
   return (
     <CtaContainer mb="4">
       <Flex justifyContent="space-between">
@@ -64,7 +45,7 @@ export const ExternalAuditStorageCta = ({
             <Text bold>External Audit Storage</Text>
             <Text style={{ display: 'inline' }}>
               {`Connect your own AWS account to store audit logs and session recordings on your own infrastructure${
-                isEnabled ? '' : ' with Teleport Enterprise'
+                featureEnabled ? '' : ' with Teleport Enterprise'
               }.`}
             </Text>
             <Link style={{ display: 'inline', marginLeft: 4 }} to={'TODO'}>
@@ -74,7 +55,7 @@ export const ExternalAuditStorageCta = ({
           </Box>
         </Flex>
         <Flex alignItems="center" minWidth="300px">
-          {isEnabled ? (
+          {featureEnabled ? (
             <ButtonPrimary
               as={Link}
               to={cfg.getIntegrationEnrollRoute(
@@ -95,7 +76,7 @@ export const ExternalAuditStorageCta = ({
             </ButtonLockedFeature>
           )}
 
-          <ButtonSecondary onClick={onDismiss}>Dismiss</ButtonSecondary>
+          <ButtonSecondary onClick={handleDismiss}>Dismiss</ButtonSecondary>
         </Flex>
       </Flex>
     </CtaContainer>
