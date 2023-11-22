@@ -22,11 +22,13 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/credentials/stscreds"
+	"github.com/aws/aws-sdk-go/aws/endpoints"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/utils/oidc"
 )
 
@@ -60,8 +62,17 @@ func NewSessionV1(ctx context.Context, client IntegrationTokenGenerator, region 
 		return nil, trace.BadParameter("invalid integration subkind, expected awsoidc, got %s", integration.GetSubKind())
 	}
 
+	useFIPSEndpoint := endpoints.FIPSEndpointStateUnset
+	if modules.GetModules().IsBoringBinary() {
+		useFIPSEndpoint = endpoints.FIPSEndpointStateEnabled
+	}
+
 	sess, err := session.NewSessionWithOptions(session.Options{
 		SharedConfigState: session.SharedConfigDisable,
+		Config: aws.Config{
+			EC2MetadataEnableFallback: aws.Bool(false),
+			UseFIPSEndpoint:           useFIPSEndpoint,
+		},
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -88,13 +99,14 @@ func NewSessionV1(ctx context.Context, client IntegrationTokenGenerator, region 
 	)
 	awsCredentials := credentials.NewCredentials(roleProvider)
 
-	awsConfig := aws.NewConfig().
-		WithRegion(region).
-		WithCredentials(awsCredentials)
-
 	session, err := session.NewSessionWithOptions(session.Options{
-		Config:            *awsConfig,
 		SharedConfigState: session.SharedConfigDisable,
+		Config: aws.Config{
+			Region:                    aws.String(region),
+			Credentials:               awsCredentials,
+			EC2MetadataEnableFallback: aws.Bool(false),
+			UseFIPSEndpoint:           useFIPSEndpoint,
+		},
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
