@@ -31,7 +31,7 @@ import {
   UnifiedResourcePreferences,
   UnifiedTabPreference,
   UnifiedViewModePreference,
-} from 'teleport/services/userPreferences/types';
+} from 'shared/services';
 
 import { UnifiedResources, useUnifiedResourcesFetch } from './UnifiedResources';
 import {
@@ -93,8 +93,8 @@ const story = ({
   };
   return () => {
     const [userPrefs, setUserPrefs] = useState<UnifiedResourcePreferences>({
-      defaultTab: UnifiedTabPreference.All,
-      viewMode: UnifiedViewModePreference.Card,
+      defaultTab: UnifiedTabPreference.DEFAULT_TAB_ALL,
+      viewMode: UnifiedViewModePreference.VIEW_MODE_CARD,
     });
     const { fetch, attempt, resources } = useUnifiedResourcesFetch({
       fetchFunc,

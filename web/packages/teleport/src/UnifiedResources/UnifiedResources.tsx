@@ -24,13 +24,13 @@ import {
   useUnifiedResourcesFetch,
   UnifiedResourcesPinning,
 } from 'shared/components/UnifiedResources';
+import { UnifiedTabPreference } from 'shared/services';
 
 import useStickyClusterId from 'teleport/useStickyClusterId';
 import { storageService } from 'teleport/services/storageService';
 import { useUser } from 'teleport/User/UserContext';
 import { useTeleport } from 'teleport';
 import { useUrlFiltering } from 'teleport/components/hooks';
-import { UnifiedTabPreference } from 'teleport/services/userPreferences/types';
 import history from 'teleport/services/history';
 import cfg from 'teleport/config';
 import {
@@ -116,7 +116,7 @@ function ClusterResources({
       },
       pinnedOnly:
         preferences.unifiedResourcePreferences.defaultTab ===
-        UnifiedTabPreference.Pinned,
+        UnifiedTabPreference.DEFAULT_TAB_PINNED,
     });
 
   const getCurrentClusterPinnedResources = useCallback(

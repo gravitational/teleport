@@ -16,21 +16,13 @@
 
 import { DeprecatedThemeOption } from 'design/theme';
 
+import { UnifiedResourcePreferences } from 'shared/services';
+
 import type { AssistUserPreferences } from 'teleport/Assist/types';
 
 export enum ThemePreference {
   Light = 1,
   Dark = 2,
-}
-
-export enum UnifiedTabPreference {
-  All = 1,
-  Pinned = 2,
-}
-
-export enum UnifiedViewModePreference {
-  Card = 1,
-  List = 2,
 }
 
 export enum ClusterResource {
@@ -67,14 +59,6 @@ export interface UserPreferences {
 export interface UserClusterPreferences {
   // pinnedResources is an array of resource IDs.
   pinnedResources: string[];
-}
-
-// UnifiedResourcePreferences are preferences related to the Unified Resource view
-export interface UnifiedResourcePreferences {
-  // defaultTab is the default tab selected in the unified resource view
-  defaultTab: UnifiedTabPreference;
-  // viewMode is the view mode selected in the unified resource view (Card/List).
-  viewMode: UnifiedViewModePreference;
 }
 
 export type GetUserClusterPreferencesResponse = UserClusterPreferences;

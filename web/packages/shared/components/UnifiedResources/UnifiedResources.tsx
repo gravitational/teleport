@@ -31,12 +31,12 @@ import { Danger } from 'design/Alert';
 import './unifiedStyles.css';
 
 import { ResourcesResponse, ResourceLabel } from 'teleport/services/agents';
+
 import {
   UnifiedTabPreference,
   UnifiedViewModePreference,
   UnifiedResourcePreferences,
-} from 'teleport/services/userPreferences/types';
-
+} from 'shared/services';
 import { HoverTooltip } from 'shared/components/ToolTip';
 import {
   makeEmptyAttempt,
@@ -44,7 +44,6 @@ import {
   useAsync,
   Attempt as AsyncAttempt,
 } from 'shared/hooks/useAsync';
-
 import {
   useKeyBasedPagination,
   useInfiniteScroll,
@@ -75,11 +74,11 @@ export const PINNING_NOT_SUPPORTED_MESSAGE =
 const tabs: { label: string; value: UnifiedTabPreference }[] = [
   {
     label: 'All Resources',
-    value: UnifiedTabPreference.All,
+    value: UnifiedTabPreference.DEFAULT_TAB_ALL,
   },
   {
     label: 'Pinned Resources',
-    value: UnifiedTabPreference.Pinned,
+    value: UnifiedTabPreference.DEFAULT_TAB_PINNED,
   },
 ];
 
@@ -274,7 +273,7 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
   };
 
   const selectTab = (value: UnifiedTabPreference) => {
-    const pinnedOnly = value === UnifiedTabPreference.Pinned;
+    const pinnedOnly = value === UnifiedTabPreference.DEFAULT_TAB_PINNED;
     setParams({
       ...params,
       pinnedOnly,
@@ -329,7 +328,8 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
   };
 
   const ViewComponent =
-    unifiedResourcePreferences.viewMode === UnifiedViewModePreference.List
+    unifiedResourcePreferences.viewMode ===
+    UnifiedViewModePreference.VIEW_MODE_LIST
       ? ListView
       : CardsView;
 
@@ -424,14 +424,14 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
               key={tab.value}
               onClick={() => selectTab(tab.value)}
               disabled={
-                tab.value === UnifiedTabPreference.Pinned &&
+                tab.value === UnifiedTabPreference.DEFAULT_TAB_PINNED &&
                 pinning.kind === 'not-supported'
               }
               title={tab.label}
               isSelected={
                 params.pinnedOnly
-                  ? tab.value === UnifiedTabPreference.Pinned
-                  : tab.value === UnifiedTabPreference.All
+                  ? tab.value === UnifiedTabPreference.DEFAULT_TAB_PINNED
+                  : tab.value === UnifiedTabPreference.DEFAULT_TAB_ALL
               }
             />
           ))}

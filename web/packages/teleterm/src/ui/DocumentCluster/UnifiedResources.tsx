@@ -39,7 +39,7 @@ import {
   UnifiedResourcePreferences,
   UnifiedTabPreference,
   UnifiedViewModePreference,
-} from 'teleport/services/userPreferences/types';
+} from 'shared/services';
 
 import { UnifiedResourceResponse } from 'teleterm/services/tshd/types';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
@@ -68,8 +68,8 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
   // TODO: Add user preferences to Connect.
   // Until we add stored user preferences to Connect, store it in the state.
   const [userPrefs, setUserPrefs] = useState<UnifiedResourcePreferences>({
-    defaultTab: UnifiedTabPreference.All,
-    viewMode: UnifiedViewModePreference.Card,
+    defaultTab: UnifiedTabPreference.DEFAULT_TAB_ALL,
+    viewMode: UnifiedViewModePreference.VIEW_MODE_CARD,
   });
 
   const [params, setParams] = useState<UnifiedResourcesQueryParams>({

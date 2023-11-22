@@ -45,3 +45,28 @@ export type AuthProvider = {
 
 /** Values are taken from https://github.com/gravitational/teleport/blob/0460786b4c3afced1350dd9362ce761806e1c99d/api/types/constants.go#L140-L154 */
 export type NodeSubKind = 'teleport' | 'openssh' | 'openssh-ec2-ice';
+
+/**
+ * Should be kept in sync with
+ * https://github.com/gravitational/teleport/blob/cc330931e2b691b7438bfee73587e828e874fa47/api/proto/teleport/userpreferences/v1/unified_resource_preferences.proto
+ */
+
+/** Preferences related to the Unified Resource view. */
+export interface UnifiedResourcePreferences {
+  /** Default tab selected in the unified resource view. */
+  defaultTab: UnifiedTabPreference;
+  /** View mode selected in the unified resource view (Cards/List). */
+  viewMode: UnifiedViewModePreference;
+}
+
+export enum UnifiedTabPreference {
+  DEFAULT_TAB_UNSPECIFIED = 0,
+  DEFAULT_TAB_ALL = 1,
+  DEFAULT_TAB_PINNED = 2,
+}
+
+export enum UnifiedViewModePreference {
+  VIEW_MODE_UNSPECIFIED = 0,
+  VIEW_MODE_CARD = 1,
+  VIEW_MODE_LIST = 2,
+}
