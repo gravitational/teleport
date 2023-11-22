@@ -14,10 +14,10 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 import 'whatwg-fetch';
+import auth from 'teleport/services/auth/auth';
 import { storageService } from '../storageService';
 
 import parseError, { ApiError } from './parseError';
-import auth from 'teleport/services/auth/auth';
 
 const api = {
   get(url, abortSignal) {
