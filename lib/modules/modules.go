@@ -164,6 +164,13 @@ func (f Features) ToProto() *proto.Features {
 		AccessRequests: &proto.AccessRequestsFeature{
 			MonthlyRequestLimit: int32(f.AccessRequests.MonthlyRequestLimit),
 		},
+		IdentityGovernanceSecurity: f.IdentityGovernanceSecurity,
+		AccessMonitoring: &proto.AccessMonitoringFeature{
+			Enabled: f.AccessMonitoring.Enabled,
+		},
+		AccessList: &proto.AccessListFeature{
+			CreateLimit: int32(f.AccessList.CreateLimit),
+		},
 	}
 }
 

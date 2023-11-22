@@ -2435,7 +2435,7 @@ func (m *Features) GetAccessMonitoring() *AccessMonitoringFeature {
 
 // DeviceTrustFeature holds the Device Trust feature general and usage-based
 // settings.
-// Limits have no affect if [Feature.IdentityGovernanceSecurity] is enabled.
+// Limits have no affect if [Features.IdentityGovernanceSecurity] is enabled.
 type DeviceTrustFeature struct {
 	// True if the Device Trust feature is enabled.
 	//
@@ -2500,7 +2500,7 @@ func (m *DeviceTrustFeature) GetDevicesUsageLimit() int32 {
 
 // AccessRequestsFeature holds the AccessRequest feature general and usage-based
 // settings.
-// Limits have no affect if [Feature.IdentityGovernanceSecurity] is enabled.
+// Limits have no affect if [Features.IdentityGovernanceSecurity] is enabled.
 type AccessRequestsFeature struct {
 	// Usage-based limit for the number of limit for the number of
 	// access requests created in a calendar month.
@@ -2551,7 +2551,7 @@ func (m *AccessRequestsFeature) GetMonthlyRequestLimit() int32 {
 }
 
 // AccessListFeature holds the Access List feature settings.
-// Limits have no affect if [Feature.IdentityGovernanceSecurity] is enabled.
+// Limits have no affect if [Features.IdentityGovernanceSecurity] is enabled.
 type AccessListFeature struct {
 	// Limit for the number of access list creatable when feature is
 	// not enabled.
@@ -2602,7 +2602,7 @@ func (m *AccessListFeature) GetCreateLimit() int32 {
 }
 
 // AccessMonitoring holds the Access Monitoring feature settings.
-// Limits have no affect if [Feature.IdentityGovernanceSecurity] is enabled.
+// Limits have no affect if [Features.IdentityGovernanceSecurity] is enabled.
 type AccessMonitoringFeature struct {
 	// True if enabled in the auth service config: [auth_service.access_monitoring.enabled].
 	Enabled              bool     `protobuf:"varint,1,opt,name=enabled,proto3" json:"enabled,omitempty"`
