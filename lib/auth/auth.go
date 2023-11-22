@@ -43,6 +43,7 @@ import (
 	"time"
 
 	"github.com/coreos/go-oidc/oauth2"
+	"github.com/coreos/go-semver/semver"
 	"github.com/google/uuid"
 	liblicense "github.com/gravitational/license"
 	"github.com/gravitational/trace"
@@ -64,6 +65,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
+	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
@@ -5269,11 +5271,9 @@ func (a *Server) Ping(ctx context.Context) (proto.PingResponse, error) {
 	}
 	features := modules.GetModules().Features().ToProto()
 
-	// DELETE IN 16.0 (just the entire if block, no other changes necessary)
-	// Enabling access monitoring is now done earlier near startup.
-	if a.accessMonitoringEnabled {
-		features.IdentityGovernance = a.accessMonitoringEnabled
-	}
+	// DELETE IN 16.0 and the [func setAccessMonitoringFeatureForOlderClients]
+	// (no other changes necessary)
+	setAccessMonitoringFeatureForOlderClients(ctx, features, a.accessMonitoringEnabled)
 
 	return proto.PingResponse{
 		ClusterName:     cn.GetClusterName(),
@@ -5283,6 +5283,23 @@ func (a *Server) Ping(ctx context.Context) (proto.PingResponse, error) {
 		IsBoring:        modules.GetModules().IsBoringBinary(),
 		LoadAllCAs:      a.loadAllCAs,
 	}, nil
+}
+
+// DELETE IN 16.0
+func setAccessMonitoringFeatureForOlderClients(ctx context.Context, features *proto.Features, accessMonitoringEnabled bool) {
+	clientVersionString, versionExists := metadata.ClientVersionFromContext(ctx)
+
+	// Older proxies <= 14.2.0 will read from [Features.IdentityGovernance] to determine
+	// if access monitoring is enabled.
+	if versionExists {
+		clientVersion := semver.New(clientVersionString)
+		if clientVersion.Major <= 14 && clientVersion.Minor <= 2 && clientVersion.Patch <= 0 {
+			features.IdentityGovernance = accessMonitoringEnabled
+		}
+	}
+
+	// Newer proxies will read from new field [Features.AccessMonitoring.Enabled]
+	// which will be already set from startup, so nothing else to do here.
 }
 
 type maintenanceWindowCacheKey struct {
