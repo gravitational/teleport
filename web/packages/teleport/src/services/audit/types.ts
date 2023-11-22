@@ -1020,6 +1020,7 @@ export type RawEvents = {
     typeof eventCodes.DESKTOP_SESSION_STARTED,
     {
       desktop_addr: string;
+      desktop_name: string;
       windows_user: string;
       windows_domain: string;
     }
@@ -1028,6 +1029,7 @@ export type RawEvents = {
     typeof eventCodes.DESKTOP_SESSION_STARTED_FAILED,
     {
       desktop_addr: string;
+      desktop_name: string;
       windows_user: string;
       windows_domain: string;
     }
@@ -1036,6 +1038,7 @@ export type RawEvents = {
     typeof eventCodes.DESKTOP_SESSION_ENDED,
     {
       desktop_addr: string;
+      desktop_name: string;
       windows_user: string;
       windows_domain: string;
     }
