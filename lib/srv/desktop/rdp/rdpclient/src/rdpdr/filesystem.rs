@@ -21,7 +21,10 @@ use crate::{
     tdp_sd_list_request, CGOErrCode, CgoHandle,
 };
 use ironrdp_pdu::{cast_length, custom_err, other_err, PduResult};
-use ironrdp_rdpdr::pdu::efs::{self, NtStatus};
+use ironrdp_rdpdr::pdu::{
+    efs::{self, NtStatus},
+    esc,
+};
 use std::collections::HashMap;
 use std::convert::TryInto;
 
@@ -71,6 +74,9 @@ impl FilesystemBackend {
             }
             efs::ServerDriveIoRequest::ServerDriveQueryVolumeInformationRequest(req) => {
                 self.handle_query_volume_req(req)
+            }
+            efs::ServerDriveIoRequest::DeviceControlRequest(req) => {
+                self.handle_device_control_req(req)
             }
         }
     }
@@ -276,6 +282,7 @@ impl FilesystemBackend {
         self.send_device_close_response(rdp_req, NtStatus::UNSUCCESSFUL)
     }
 
+    /// Handles an RDP [`efs::ServerDriveQueryDirectoryRequest`] received from the RDP server.
     fn handle_query_directory_req(
         &mut self,
         rdp_req: efs::ServerDriveQueryDirectoryRequest,
@@ -355,6 +362,7 @@ impl FilesystemBackend {
         self.send_drive_query_dir_response(rdp_req.device_io_request, NtStatus::UNSUCCESSFUL, None)
     }
 
+    /// Handles an RDP [`efs::ServerDriveQueryVolumeInformationRequest`] received from the RDP server.
     fn handle_query_volume_req(
         &mut self,
         rdp_req: efs::ServerDriveQueryVolumeInformationRequest,
@@ -456,6 +464,15 @@ impl FilesystemBackend {
                 rdp_req.device_io_request.file_id
             ))
         ))
+    }
+
+    /// Handles an RDP [`efs::DeviceControlRequest`] received from the RDP server.
+    fn handle_device_control_req(
+        &self,
+        req: efs::DeviceControlRequest<efs::AnyIoCtlCode>,
+    ) -> PduResult<()> {
+        // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L677-L684
+        self.send_device_control_response(req, NtStatus::SUCCESS, None)
     }
 
     /// Helper function for writing a [`tdp::SharedDirectoryCreateRequest`] to the browser
@@ -994,6 +1011,17 @@ impl FilesystemBackend {
             )
             .into(),
         )?;
+        Ok(())
+    }
+
+    fn send_device_control_response<T: efs::IoCtlCode>(
+        &self,
+        req: efs::DeviceControlRequest<T>,
+        io_status: NtStatus,
+        output_buffer: Option<Box<dyn esc::rpce::Encode>>,
+    ) -> PduResult<()> {
+        self.client_handle
+            .write_rdpdr(efs::DeviceControlResponse::new(req, io_status, output_buffer).into())?;
         Ok(())
     }
 }
