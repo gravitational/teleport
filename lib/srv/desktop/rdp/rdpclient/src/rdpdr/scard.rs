@@ -213,10 +213,10 @@ impl ScardBackend {
                 DeviceControlResponse::new(
                     req,
                     NtStatus::SUCCESS,
-                    Box::new(GetStatusChangeReturn::new(
+                    Some(Box::new(GetStatusChangeReturn::new(
                         ReturnCode::Cancelled,
                         get_status_change_ret.into_inner().reader_states,
-                    )),
+                    ))),
                 ),
             )?;
 
@@ -499,7 +499,8 @@ impl ScardBackend {
         req: DeviceControlRequest<ScardIoCtlCode>,
         output_buffer: impl rpce::Encode + 'static,
     ) -> PduResult<()> {
-        let resp = DeviceControlResponse::new(req, NtStatus::SUCCESS, Box::new(output_buffer));
+        let resp =
+            DeviceControlResponse::new(req, NtStatus::SUCCESS, Some(Box::new(output_buffer)));
         self.client_handle.write_rdpdr(resp.into())?;
         Ok(())
     }
