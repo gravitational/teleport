@@ -73,8 +73,8 @@ func (r userClient) Delete(ctx context.Context, name string) error {
 	return trace.Wrap(teleportClient.DeleteUser(ctx, name))
 }
 
-// Mutate ensures the spec.createdBy property is persisted
-func (r userClient) Mutate(newUser, existingUser types.User) {
+// MutateExisting ensures the spec.createdBy property is persisted
+func (r userClient) MutateExisting(newUser, existingUser types.User) {
 	if existingUser != nil {
 		newUser.SetCreatedBy(existingUser.GetCreatedBy())
 	}
