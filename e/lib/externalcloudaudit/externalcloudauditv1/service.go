@@ -79,6 +79,7 @@ func NewService(cfg *ServiceConfig) (*Service, error) {
 		externalCloudAudit:       cfg.ExternalCloudAudit,
 		clusterAuditConfigGetter: cfg.ClusterAuditConfigGetter,
 		integrationSvc:           cfg.IntegrationSvc,
+		oidcTokenFn:              cfg.OIDCTokenFn,
 	}, nil
 }
 
