@@ -29,34 +29,34 @@ import (
 
 // samlConnectorClient implements TeleportResourceClient and offers CRUD methods needed to reconcile saml_connectors
 type samlConnectorClient struct {
-	TeleportClient *client.Client
+	teleportClient *client.Client
 }
 
 // Get gets the Teleport saml_connector of a given name
 func (r samlConnectorClient) Get(ctx context.Context, name string) (types.SAMLConnector, error) {
-	saml, err := r.TeleportClient.GetSAMLConnector(ctx, name, false /* with secrets*/)
+	saml, err := r.teleportClient.GetSAMLConnector(ctx, name, false /* with secrets*/)
 	return saml, trace.Wrap(err)
 }
 
 // Create creates a Teleport saml_connector
 func (r samlConnectorClient) Create(ctx context.Context, saml types.SAMLConnector) error {
-	return trace.Wrap(r.TeleportClient.UpsertSAMLConnector(ctx, saml))
+	return trace.Wrap(r.teleportClient.UpsertSAMLConnector(ctx, saml))
 }
 
 // Update updates a Teleport saml_connector
 func (r samlConnectorClient) Update(ctx context.Context, saml types.SAMLConnector) error {
-	return trace.Wrap(r.TeleportClient.UpsertSAMLConnector(ctx, saml))
+	return trace.Wrap(r.teleportClient.UpsertSAMLConnector(ctx, saml))
 }
 
 // Delete deletes a Teleport saml_connector
 func (r samlConnectorClient) Delete(ctx context.Context, name string) error {
-	return trace.Wrap(r.TeleportClient.DeleteSAMLConnector(ctx, name))
+	return trace.Wrap(r.teleportClient.DeleteSAMLConnector(ctx, name))
 }
 
 // NewSAMLConnectorReconciler instantiates a new Kubernetes controller reconciling saml_connector resources
 func NewSAMLConnectorReconciler(client kclient.Client, tClient *client.Client) *TeleportResourceReconciler[types.SAMLConnector, *resourcesv2.TeleportSAMLConnector] {
 	samlClient := &samlConnectorClient{
-		TeleportClient: tClient,
+		teleportClient: tClient,
 	}
 
 	resourceReconciler := NewTeleportResourceReconciler[types.SAMLConnector, *resourcesv2.TeleportSAMLConnector](

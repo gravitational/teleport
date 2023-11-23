@@ -29,34 +29,34 @@ import (
 
 // githubConnectorClient implements TeleportResourceClient and offers CRUD methods needed to reconcile github_connectors
 type githubConnectorClient struct {
-	TeleportClient *client.Client
+	teleportClient *client.Client
 }
 
 // Get gets the Teleport github_connector of a given name
 func (r githubConnectorClient) Get(ctx context.Context, name string) (types.GithubConnector, error) {
-	github, err := r.TeleportClient.GetGithubConnector(ctx, name, false /* with secrets*/)
+	github, err := r.teleportClient.GetGithubConnector(ctx, name, false /* with secrets*/)
 	return github, trace.Wrap(err)
 }
 
 // Create creates a Teleport github_connector
 func (r githubConnectorClient) Create(ctx context.Context, github types.GithubConnector) error {
-	return trace.Wrap(r.TeleportClient.UpsertGithubConnector(ctx, github))
+	return trace.Wrap(r.teleportClient.UpsertGithubConnector(ctx, github))
 }
 
 // Update updates a Teleport github_connector
 func (r githubConnectorClient) Update(ctx context.Context, github types.GithubConnector) error {
-	return trace.Wrap(r.TeleportClient.UpsertGithubConnector(ctx, github))
+	return trace.Wrap(r.teleportClient.UpsertGithubConnector(ctx, github))
 }
 
 // Delete deletes a Teleport github_connector
 func (r githubConnectorClient) Delete(ctx context.Context, name string) error {
-	return trace.Wrap(r.TeleportClient.DeleteGithubConnector(ctx, name))
+	return trace.Wrap(r.teleportClient.DeleteGithubConnector(ctx, name))
 }
 
 // NewGithubConnectorReconciler instantiates a new Kubernetes controller reconciling github_connector resources
 func NewGithubConnectorReconciler(client kclient.Client, tClient *client.Client) *TeleportResourceReconciler[types.GithubConnector, *resourcesv3.TeleportGithubConnector] {
 	githubClient := &githubConnectorClient{
-		TeleportClient: tClient,
+		teleportClient: tClient,
 	}
 
 	resourceReconciler := NewTeleportResourceReconciler[types.GithubConnector, *resourcesv3.TeleportGithubConnector](

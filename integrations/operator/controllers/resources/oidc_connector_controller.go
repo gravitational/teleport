@@ -29,34 +29,34 @@ import (
 
 // oidcConnectorClient implements TeleportResourceClient and offers CRUD methods needed to reconcile oidc_connectors
 type oidcConnectorClient struct {
-	TeleportClient *client.Client
+	teleportClient *client.Client
 }
 
 // Get gets the Teleport oidc_connector of a given name
 func (r oidcConnectorClient) Get(ctx context.Context, name string) (types.OIDCConnector, error) {
-	oidc, err := r.TeleportClient.GetOIDCConnector(ctx, name, false /* with secrets*/)
+	oidc, err := r.teleportClient.GetOIDCConnector(ctx, name, false /* with secrets*/)
 	return oidc, trace.Wrap(err)
 }
 
 // Create creates a Teleport oidc_connector
 func (r oidcConnectorClient) Create(ctx context.Context, oidc types.OIDCConnector) error {
-	return trace.Wrap(r.TeleportClient.UpsertOIDCConnector(ctx, oidc))
+	return trace.Wrap(r.teleportClient.UpsertOIDCConnector(ctx, oidc))
 }
 
 // Update updates a Teleport oidc_connector
 func (r oidcConnectorClient) Update(ctx context.Context, oidc types.OIDCConnector) error {
-	return trace.Wrap(r.TeleportClient.UpsertOIDCConnector(ctx, oidc))
+	return trace.Wrap(r.teleportClient.UpsertOIDCConnector(ctx, oidc))
 }
 
 // Delete deletes a Teleport oidc_connector
 func (r oidcConnectorClient) Delete(ctx context.Context, name string) error {
-	return trace.Wrap(r.TeleportClient.DeleteOIDCConnector(ctx, name))
+	return trace.Wrap(r.teleportClient.DeleteOIDCConnector(ctx, name))
 }
 
 // NewOIDCConnectorReconciler instantiates a new Kubernetes controller reconciling oidc_connector resources
 func NewOIDCConnectorReconciler(client kclient.Client, tClient *client.Client) *TeleportResourceReconciler[types.OIDCConnector, *resourcesv3.TeleportOIDCConnector] {
 	oidcClient := &oidcConnectorClient{
-		TeleportClient: tClient,
+		teleportClient: tClient,
 	}
 
 	resourceReconciler := NewTeleportResourceReconciler[types.OIDCConnector, *resourcesv3.TeleportOIDCConnector](

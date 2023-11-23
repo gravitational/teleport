@@ -26,34 +26,34 @@ import (
 
 // provisionTokenClient implements TeleportResourceClient and offers CRUD methods needed to reconcile provision tokens
 type provisionTokenClient struct {
-	TeleportClient *client.Client
+	teleportClient *client.Client
 }
 
 // Get gets the Teleport provision token of a given name
 func (r provisionTokenClient) Get(ctx context.Context, name string) (types.ProvisionToken, error) {
-	token, err := r.TeleportClient.GetToken(ctx, name)
+	token, err := r.teleportClient.GetToken(ctx, name)
 	return token, trace.Wrap(err)
 }
 
 // Create creates a Teleport provision token
 func (r provisionTokenClient) Create(ctx context.Context, token types.ProvisionToken) error {
-	return trace.Wrap(r.TeleportClient.UpsertToken(ctx, token))
+	return trace.Wrap(r.teleportClient.UpsertToken(ctx, token))
 }
 
 // Update updates a Teleport provision token
 func (r provisionTokenClient) Update(ctx context.Context, token types.ProvisionToken) error {
-	return trace.Wrap(r.TeleportClient.UpsertToken(ctx, token))
+	return trace.Wrap(r.teleportClient.UpsertToken(ctx, token))
 }
 
 // Delete deletes a Teleport provision token
 func (r provisionTokenClient) Delete(ctx context.Context, name string) error {
-	return trace.Wrap(r.TeleportClient.DeleteToken(ctx, name))
+	return trace.Wrap(r.teleportClient.DeleteToken(ctx, name))
 }
 
 // NewProvisionTokenReconciler instantiates a new Kubernetes controller reconciling provision token resources
 func NewProvisionTokenReconciler(client kclient.Client, tClient *client.Client) *TeleportResourceReconciler[types.ProvisionToken, *resourcesv2.TeleportProvisionToken] {
 	tokenClient := &provisionTokenClient{
-		TeleportClient: tClient,
+		teleportClient: tClient,
 	}
 
 	resourceReconciler := NewTeleportResourceReconciler[types.ProvisionToken, *resourcesv2.TeleportProvisionToken](

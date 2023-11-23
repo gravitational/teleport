@@ -29,36 +29,36 @@ import (
 
 // oktaImportRuleClient implements TeleportResourceClient and offers CRUD methods needed to reconcile okta_import_rules
 type oktaImportRuleClient struct {
-	TeleportClient *client.Client
+	teleportClient *client.Client
 }
 
 // Get gets the Teleport okta_import_rule of a given name
 func (r oktaImportRuleClient) Get(ctx context.Context, name string) (types.OktaImportRule, error) {
-	importRule, err := r.TeleportClient.OktaClient().GetOktaImportRule(ctx, name)
+	importRule, err := r.teleportClient.OktaClient().GetOktaImportRule(ctx, name)
 	return importRule, trace.Wrap(err)
 }
 
 // Create creates a Teleport okta_import_rule
 func (r oktaImportRuleClient) Create(ctx context.Context, importRule types.OktaImportRule) error {
-	_, err := r.TeleportClient.OktaClient().CreateOktaImportRule(ctx, importRule)
+	_, err := r.teleportClient.OktaClient().CreateOktaImportRule(ctx, importRule)
 	return trace.Wrap(err)
 }
 
 // Update updates a Teleport okta_import_rule
 func (r oktaImportRuleClient) Update(ctx context.Context, importRule types.OktaImportRule) error {
-	_, err := r.TeleportClient.OktaClient().UpdateOktaImportRule(ctx, importRule)
+	_, err := r.teleportClient.OktaClient().UpdateOktaImportRule(ctx, importRule)
 	return trace.Wrap(err)
 }
 
 // Delete deletes a Teleport okta_import_rule
 func (r oktaImportRuleClient) Delete(ctx context.Context, name string) error {
-	return trace.Wrap(r.TeleportClient.OktaClient().DeleteOktaImportRule(ctx, name))
+	return trace.Wrap(r.teleportClient.OktaClient().DeleteOktaImportRule(ctx, name))
 }
 
 // NewOktaImportRuleReconciler instantiates a new Kubernetes controller reconciling okta_import_rule resources
 func NewOktaImportRuleReconciler(client kclient.Client, tClient *client.Client) *TeleportResourceReconciler[types.OktaImportRule, *resourcesv1.TeleportOktaImportRule] {
 	oktaImportRuleClient := &oktaImportRuleClient{
-		TeleportClient: tClient,
+		teleportClient: tClient,
 	}
 
 	resourceReconciler := NewTeleportResourceReconciler[types.OktaImportRule, *resourcesv1.TeleportOktaImportRule](
