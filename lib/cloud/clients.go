@@ -377,6 +377,9 @@ type awsAssumeRoleOpts struct {
 func (a *awsAssumeRoleOpts) checkAndSetDefaults() error {
 	switch a.credentialsSource {
 	case credentialsSourceAmbient:
+		if a.integration != "" {
+			return trace.BadParameter("integration and ambient credentials cannot be used at the same time")
+		}
 	case credentialsSourceIntegration:
 		if a.integration == "" {
 			return trace.BadParameter("missing integration name")
@@ -424,7 +427,7 @@ func WithCredentialsMaybeIntegration(integration string) AWSAssumeRoleOptionFn {
 		return withIntegrationCredentials(integration)
 	}
 
-	return withAmbientCredentials()
+	return WithAmbientCredentials()
 }
 
 // withIntegrationCredentials configures options with an Integration that must be used to fetch Credentials to assume a role.
@@ -436,8 +439,8 @@ func withIntegrationCredentials(integration string) AWSAssumeRoleOptionFn {
 	}
 }
 
-// withAmbientCredentials configures options to use the ambient credentials.
-func withAmbientCredentials() AWSAssumeRoleOptionFn {
+// WithAmbientCredentials configures options to use the ambient credentials.
+func WithAmbientCredentials() AWSAssumeRoleOptionFn {
 	return func(options *awsAssumeRoleOpts) {
 		options.credentialsSource = credentialsSourceAmbient
 	}

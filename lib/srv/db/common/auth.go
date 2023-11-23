@@ -177,7 +177,10 @@ func NewAuth(config AuthConfig) (Auth, error) {
 // when connecting to RDS and Aurora databases.
 func (a *dbAuth) GetRDSAuthToken(ctx context.Context, sessionCtx *Session) (string, error) {
 	meta := sessionCtx.Database.GetAWS()
-	awsSession, err := a.cfg.Clients.GetAWSSession(ctx, meta.Region, cloud.WithAssumeRoleFromAWSMeta(meta))
+	awsSession, err := a.cfg.Clients.GetAWSSession(ctx, meta.Region,
+		cloud.WithAssumeRoleFromAWSMeta(meta),
+		cloud.WithAmbientCredentials(),
+	)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -209,7 +212,10 @@ permissions (note that IAM changes may take a few minutes to propagate):
 // password when connecting to Redshift databases.
 func (a *dbAuth) GetRedshiftAuthToken(ctx context.Context, sessionCtx *Session) (string, string, error) {
 	meta := sessionCtx.Database.GetAWS()
-	redshiftClient, err := a.cfg.Clients.GetAWSRedshiftClient(ctx, meta.Region, cloud.WithAssumeRoleFromAWSMeta(meta))
+	redshiftClient, err := a.cfg.Clients.GetAWSRedshiftClient(ctx, meta.Region,
+		cloud.WithAssumeRoleFromAWSMeta(meta),
+		cloud.WithAmbientCredentials(),
+	)
 	if err != nil {
 		return "", "", trace.Wrap(err)
 	}
@@ -255,7 +261,10 @@ func (a *dbAuth) GetRedshiftServerlessAuthToken(ctx context.Context, sessionCtx 
 	if err != nil {
 		return "", "", trace.Wrap(err)
 	}
-	baseSession, err := a.cfg.Clients.GetAWSSession(ctx, meta.Region, cloud.WithAssumeRoleFromAWSMeta(meta))
+	baseSession, err := a.cfg.Clients.GetAWSSession(ctx, meta.Region,
+		cloud.WithAssumeRoleFromAWSMeta(meta),
+		cloud.WithAmbientCredentials(),
+	)
 	if err != nil {
 		return "", "", trace.Wrap(err)
 	}
@@ -266,7 +275,9 @@ func (a *dbAuth) GetRedshiftServerlessAuthToken(ctx context.Context, sessionCtx 
 	// Assume the configured AWS role before assuming the role we need to get the
 	// auth token. This allows cross-account AWS access.
 	client, err := a.cfg.Clients.GetAWSRedshiftServerlessClient(ctx, meta.Region,
-		cloud.WithChainedAssumeRole(baseSession, roleARN, externalID))
+		cloud.WithChainedAssumeRole(baseSession, roleARN, externalID),
+		cloud.WithAmbientCredentials(),
+	)
 	if err != nil {
 		return "", "", trace.AccessDenied(`Could not generate Redshift Serverless auth token:
 
@@ -413,7 +424,10 @@ func (a *dbAuth) GetAzureAccessToken(ctx context.Context, sessionCtx *Session) (
 // GetElastiCacheRedisToken generates an ElastiCache Redis auth token.
 func (a *dbAuth) GetElastiCacheRedisToken(ctx context.Context, sessionCtx *Session) (string, error) {
 	meta := sessionCtx.Database.GetAWS()
-	awsSession, err := a.cfg.Clients.GetAWSSession(ctx, meta.Region, cloud.WithAssumeRoleFromAWSMeta(meta))
+	awsSession, err := a.cfg.Clients.GetAWSSession(ctx, meta.Region,
+		cloud.WithAssumeRoleFromAWSMeta(meta),
+		cloud.WithAmbientCredentials(),
+	)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -435,7 +449,10 @@ func (a *dbAuth) GetElastiCacheRedisToken(ctx context.Context, sessionCtx *Sessi
 // GetMemoryDBToken generates a MemoryDB auth token.
 func (a *dbAuth) GetMemoryDBToken(ctx context.Context, sessionCtx *Session) (string, error) {
 	meta := sessionCtx.Database.GetAWS()
-	awsSession, err := a.cfg.Clients.GetAWSSession(ctx, meta.Region, cloud.WithAssumeRoleFromAWSMeta(meta))
+	awsSession, err := a.cfg.Clients.GetAWSSession(ctx, meta.Region,
+		cloud.WithAssumeRoleFromAWSMeta(meta),
+		cloud.WithAmbientCredentials(),
+	)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -884,7 +901,7 @@ func (a *dbAuth) GetAWSIAMCreds(ctx context.Context, sessionCtx *Session) (strin
 			awsAccountID = assumeRoleARN.AccountID
 		default:
 			a.cfg.Log.Debugf("Fetching AWS Account ID to build role ARN")
-			stsClient, err := a.cfg.Clients.GetAWSSTSClient(ctx, dbAWS.Region)
+			stsClient, err := a.cfg.Clients.GetAWSSTSClient(ctx, dbAWS.Region, cloud.WithAmbientCredentials())
 			if err != nil {
 				return "", "", "", trace.Wrap(err)
 			}
@@ -903,7 +920,10 @@ func (a *dbAuth) GetAWSIAMCreds(ctx context.Context, sessionCtx *Session) (strin
 		return "", "", "", trace.Wrap(err)
 	}
 
-	baseSession, err := a.cfg.Clients.GetAWSSession(ctx, dbAWS.Region, cloud.WithAssumeRoleFromAWSMeta(dbAWS))
+	baseSession, err := a.cfg.Clients.GetAWSSession(ctx, dbAWS.Region,
+		cloud.WithAssumeRoleFromAWSMeta(dbAWS),
+		cloud.WithAmbientCredentials(),
+	)
 	if err != nil {
 		return "", "", "", trace.Wrap(err)
 	}
@@ -915,7 +935,10 @@ func (a *dbAuth) GetAWSIAMCreds(ctx context.Context, sessionCtx *Session) (strin
 		awsExternalID = dbAWS.ExternalID
 	}
 
-	sess, err := a.cfg.Clients.GetAWSSession(ctx, dbAWS.Region, cloud.WithChainedAssumeRole(baseSession, arn, awsExternalID))
+	sess, err := a.cfg.Clients.GetAWSSession(ctx, dbAWS.Region,
+		cloud.WithChainedAssumeRole(baseSession, arn, awsExternalID),
+		cloud.WithAmbientCredentials(),
+	)
 	if err != nil {
 		return "", "", "", trace.Wrap(err)
 	}

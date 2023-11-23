@@ -65,7 +65,7 @@ func TestClientGetAWSSessionIntegration(t *testing.T) {
 		require.Equal(t, dummySession, sess)
 	})
 
-	t.Run("with an integration session provider, but using ambient credentials, must not call the integration session provider", func(t *testing.T) {
+	t.Run("with an integration session provider, but using an empty integration falls back to ambient credentials, must not call the integration session provider", func(t *testing.T) {
 		ctx := context.Background()
 
 		clients, err := NewClients(WithAWSIntegrationSessionProvider(func(ctx context.Context, region, integration string) (*awssession.Session, error) {
@@ -76,6 +76,21 @@ func TestClientGetAWSSessionIntegration(t *testing.T) {
 		t.Cleanup(func() { require.NoError(t, clients.Close()) })
 
 		sess, err := clients.GetAWSSession(ctx, dummyRegion, WithCredentialsMaybeIntegration(""))
+		require.NoError(t, err)
+		require.NotNil(t, sess)
+	})
+
+	t.Run("with an integration session provider, but using ambient credentials, must not call the integration session provider", func(t *testing.T) {
+		ctx := context.Background()
+
+		clients, err := NewClients(WithAWSIntegrationSessionProvider(func(ctx context.Context, region, integration string) (*awssession.Session, error) {
+			assert.Fail(t, "should not be called")
+			return nil, nil
+		}))
+		require.NoError(t, err)
+		t.Cleanup(func() { require.NoError(t, clients.Close()) })
+
+		sess, err := clients.GetAWSSession(ctx, dummyRegion, WithAmbientCredentials())
 		require.NoError(t, err)
 		require.NotNil(t, sess)
 	})

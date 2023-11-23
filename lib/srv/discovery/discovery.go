@@ -402,6 +402,7 @@ func (s *Server) initAWSWatchers(matchers []types.AWSMatcher) error {
 							matcherAssumeRole.RoleARN,
 							matcherAssumeRole.ExternalID,
 						),
+						cloud.WithAmbientCredentials(),
 					)
 					if err != nil {
 						return trace.Wrap(err)
@@ -716,8 +717,9 @@ func genInstancesLogStr[T any](instances []T, getID func(T) string) string {
 }
 
 func (s *Server) handleEC2Instances(instances *server.EC2Instances) error {
+	// TODO(marco): support AWS SSM Client backed by an integration
 	// TODO(gavin): support assume_role_arn for ec2.
-	ec2Client, err := s.CloudClients.GetAWSSSMClient(s.ctx, instances.Region)
+	ec2Client, err := s.CloudClients.GetAWSSSMClient(s.ctx, instances.Region, cloud.WithAmbientCredentials())
 	if err != nil {
 		return trace.Wrap(err)
 	}

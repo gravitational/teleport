@@ -266,7 +266,9 @@ func getAWSResourceMatcherToCluster(kubeCluster types.KubeCluster, resourceMatch
 func getAWSClientRestConfig(cloudClients cloud.Clients, clock clockwork.Clock, resourceMatchers []services.ResourceMatcher) dynamicCredsClient {
 	return func(ctx context.Context, cluster types.KubeCluster) (*rest.Config, time.Time, error) {
 		region := cluster.GetAWSConfig().Region
-		var opts []cloud.AWSAssumeRoleOptionFn
+		opts := []cloud.AWSAssumeRoleOptionFn{
+			cloud.WithAmbientCredentials(),
+		}
 		if awsAssume := getAWSResourceMatcherToCluster(cluster, resourceMatchers); awsAssume != nil {
 			opts = append(opts, cloud.WithAssumeRole(awsAssume.AssumeRoleARN, awsAssume.ExternalID))
 		}
