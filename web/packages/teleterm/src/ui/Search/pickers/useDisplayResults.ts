@@ -24,7 +24,7 @@ import {
 } from 'teleterm/ui/Search/searchResult';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 
-export function useDocumentClusterSearch(args: {
+export function useDisplayResults(args: {
   filters: SearchFilter[];
   inputValue: string;
 }): DisplayResults {

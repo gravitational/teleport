@@ -41,7 +41,7 @@ import { SearchFilter } from 'teleterm/ui/Search/searchResult';
 import { routing } from 'teleterm/ui/uri';
 import { isRetryable } from 'teleterm/ui/utils/retryWithRelogin';
 
-import { useDocumentClusterSearch } from './useDocumentClusterSearch';
+import { useDisplayResults } from './useDisplayResults';
 
 export function useActionAttempts() {
   const ctx = useAppContext();
@@ -140,7 +140,7 @@ export function useActionAttempts() {
     return makeSuccessAttempt(filterActions);
   }, [runFilterSearch, inputValue, filters, ctx, searchContext]);
 
-  const displayResults = useDocumentClusterSearch({
+  const displayResults = useDisplayResults({
     inputValue,
     filters,
   });

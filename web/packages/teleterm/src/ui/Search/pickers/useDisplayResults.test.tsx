@@ -21,7 +21,7 @@ import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
 import { makeDocumentCluster } from 'teleterm/ui/services/workspacesService/documentsService/testHelpers';
 
-import { useDocumentClusterSearch } from './useDocumentClusterSearch';
+import { useDisplayResults } from './useDisplayResults';
 
 const documentCluster = makeDocumentCluster({
   clusterUri: '/clusters/teleport-a',
@@ -43,7 +43,7 @@ test('if the cluster document is active, the search results should be shown in i
 
   const { result } = renderHook(
     () =>
-      useDocumentClusterSearch({
+      useDisplayResults({
         inputValue: 'bar',
         filters: [{ filter: 'resource-type', resourceType: 'db' }],
       }),
@@ -78,7 +78,7 @@ test('if the cluster filter does not match the document cluster, the results sho
 
   const { result } = renderHook(
     () =>
-      useDocumentClusterSearch({
+      useDisplayResults({
         inputValue: 'bar',
         // cluster filter set to a cluster different from the one in the document
         filters: [{ filter: 'cluster', clusterUri: '/clusters/teleport-b' }],
@@ -114,7 +114,7 @@ test('if the cluster document is not active, the results should be opened in a n
 
   const { result } = renderHook(
     () =>
-      useDocumentClusterSearch({
+      useDisplayResults({
         inputValue: 'bar',
         filters: [{ filter: 'resource-type', resourceType: 'db' }],
       }),
