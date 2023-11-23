@@ -27,7 +27,7 @@ import (
 
 const (
 	receiveBufferSize = 128 * 1024
-	replayBufferSize  = 2 * 1024 * 1024
+	sendBufferSize    = 2 * 1024 * 1024
 	initialBufferSize = 4096
 )
 
@@ -44,18 +44,33 @@ func newManagedConn() *managedConn {
 	return c
 }
 
+// managedConn is a [net.Conn] that's managed externally by interacting with its
+// two internal buffers, one for each direction, which also keep track of the
+// absolute positions in the bytestream.
 type managedConn struct {
-	mu   sync.Mutex
+	// mu protects the rest of the data in the struct.
+	mu sync.Mutex
+
+	// cond is a condition variable that uses mu as its Locker. Anything that
+	// modifies data that other functions might Wait() on should Broadcast()
+	// before unlocking.
 	cond sync.Cond
 
 	localAddr  net.Addr
 	remoteAddr net.Addr
 
-	localClosed  bool
+	// localClosed indicates that Close() has been called; most operations will
+	// fail immediately with no effect returning [net.ErrClosed]. Takes priority
+	// over just about every other condition.
+	localClosed bool
+
+	// remoteClosed indicates that we know that the remote side of the
+	// connection is gone; reads will start returning [io.EOF] after exhausting
+	// the internal buffer, writes return [syscall.EPIPE].
 	remoteClosed bool
 
 	receiveBuffer buffer
-	replayBuffer  buffer
+	sendBuffer    buffer
 
 	readDeadline  deadline
 	writeDeadline deadline
@@ -203,9 +218,9 @@ func (c *managedConn) Write(b []byte) (n int, err error) {
 	}
 
 	for {
-		if c.replayBuffer.len() < replayBufferSize {
-			s := min(replayBufferSize-c.replayBuffer.len(), len64(b))
-			c.replayBuffer.append(b[:s])
+		if c.sendBuffer.len() < sendBufferSize {
+			s := min(sendBufferSize-c.sendBuffer.len(), len64(b))
+			c.sendBuffer.append(b[:s])
 			b = b[s:]
 			n += int(s)
 			c.cond.Broadcast()

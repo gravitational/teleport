@@ -49,7 +49,7 @@ func TestManagedConn(t *testing.T) {
 					return
 				}
 
-				b, _ := c.replayBuffer.buffered()
+				b, _ := c.sendBuffer.buffered()
 				if len(b) >= len(expected) {
 					break
 				}
@@ -57,7 +57,7 @@ func TestManagedConn(t *testing.T) {
 				c.cond.Wait()
 			}
 
-			b, _ := c.replayBuffer.buffered()
+			b, _ := c.sendBuffer.buffered()
 			if !assert.Equal(t, []byte(expected), b[:len(expected)]) {
 				c.remoteClosed = true
 				c.cond.Broadcast()
