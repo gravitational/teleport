@@ -14,16 +14,16 @@ include ../../build.assets/images.mk
 .PHONY: docker-build
 docker-build:
 	docker buildx build --platform="$(OS)/$(ARCH)" \
-		--build-arg BUILDBOX_CENTOS7=$(BUILDBOX_CENTOS7) \
+		--build-arg BUILDBOX=$(BUILDBOX_CENTOS7) \
 		--build-arg BASE_IMAGE=$(BASE_IMAGE) \
 		--load \
 		-f ./Dockerfile \
-		-t ${IMG} \
+		-t $(IMG) \
 		 ../..
 
 .PHONY: docker-push
 docker-push:
-	docker push ${IMG}
+	docker push $(IMG)
 
 .PHONY:show-base-image
 show-base-image:
