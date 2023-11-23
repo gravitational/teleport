@@ -91,7 +91,7 @@ func (b *EmbeddedBot) start(ctx context.Context) {
 		} else {
 			log.Infof("bot exited without error")
 		}
-		b.errCh <- err
+		b.errCh <- trace.Wrap(err)
 	}()
 }
 
