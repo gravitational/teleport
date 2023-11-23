@@ -24,7 +24,7 @@ import {
   DocumentCluster,
   getDefaultDocumentClusterQueryParams,
 } from 'teleterm/ui/services/workspacesService';
-import { retryWithRelogin } from 'teleterm/ui/utils';
+import { retryWithRelogin, assertUnreachable } from 'teleterm/ui/utils';
 import { routing } from 'teleterm/ui/uri';
 
 export interface SimpleAction {
@@ -49,13 +49,13 @@ export interface ParametrizedAction {
 
 export type SearchAction = SimpleAction | ParametrizedAction;
 
-export function mapToActions(
+export function mapToAction(
   ctx: IAppContext,
   searchContext: SearchContext,
-  searchResults: SearchResult[]
-): SearchAction[] {
-  return searchResults.map(result => {
-    if (result.kind === 'server') {
+  result: SearchResult
+): SearchAction {
+  switch (result.kind) {
+    case 'server': {
       return {
         type: 'parametrized-action',
         searchResult: result,
@@ -77,7 +77,7 @@ export function mapToActions(
         },
       };
     }
-    if (result.kind === 'kube') {
+    case 'kube': {
       return {
         type: 'simple-action',
         searchResult: result,
@@ -93,7 +93,7 @@ export function mapToActions(
         },
       };
     }
-    if (result.kind === 'database') {
+    case 'database': {
       return {
         type: 'parametrized-action',
         searchResult: result,
@@ -121,7 +121,7 @@ export function mapToActions(
         },
       };
     }
-    if (result.kind === 'resource-type-filter') {
+    case 'resource-type-filter': {
       return {
         type: 'simple-action',
         searchResult: result,
@@ -134,7 +134,7 @@ export function mapToActions(
         },
       };
     }
-    if (result.kind === 'cluster-filter') {
+    case 'cluster-filter': {
       return {
         type: 'simple-action',
         searchResult: result,
@@ -147,7 +147,7 @@ export function mapToActions(
         },
       };
     }
-    if (result.kind === 'display-results') {
+    case 'display-results': {
       return {
         type: 'simple-action',
         searchResult: result,
@@ -194,5 +194,7 @@ export function mapToActions(
         },
       };
     }
-  });
+    default:
+      assertUnreachable(result);
+  }
 }

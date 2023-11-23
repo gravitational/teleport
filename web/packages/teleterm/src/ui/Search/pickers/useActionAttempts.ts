@@ -34,7 +34,7 @@ import {
   useFilterSearch,
   useResourceSearch,
 } from 'teleterm/ui/Search/useSearch';
-import { mapToActions } from 'teleterm/ui/Search/actions';
+import { mapToAction } from 'teleterm/ui/Search/actions';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { useSearchContext } from 'teleterm/ui/Search/SearchContext';
 import { SearchFilter } from 'teleterm/ui/Search/searchResult';
@@ -124,18 +124,20 @@ export function useActionAttempts() {
   );
   const resourceActionsAttempt = useMemo(
     () =>
-      mapAttempt(resourceSearchAttempt, ({ results, search }) => {
-        const sortedResults = rankResults(results, search);
-        return mapToActions(ctx, searchContext, sortedResults);
-      }),
+      mapAttempt(resourceSearchAttempt, ({ results, search }) =>
+        rankResults(results, search).map(result =>
+          mapToAction(ctx, searchContext, result)
+        )
+      ),
     [ctx, resourceSearchAttempt, searchContext]
   );
 
   const runFilterSearch = useFilterSearch();
   const filterActionsAttempt = useMemo(() => {
     // TODO(gzdunek): filters are sorted inline, should be done here to align with resource search
-    const filterSearchResults = runFilterSearch(inputValue, filters);
-    const filterActions = mapToActions(ctx, searchContext, filterSearchResults);
+    const filterActions = runFilterSearch(inputValue, filters).map(result =>
+      mapToAction(ctx, searchContext, result)
+    );
 
     return makeSuccessAttempt(filterActions);
   }, [runFilterSearch, inputValue, filters, ctx, searchContext]);
@@ -144,9 +146,9 @@ export function useActionAttempts() {
     inputValue,
     filters,
   });
-  const displayResultsAttempt = makeSuccessAttempt(
-    mapToActions(ctx, searchContext, [displayResults])
-  );
+  const displayResultsAttempt = makeSuccessAttempt([
+    mapToAction(ctx, searchContext, displayResults),
+  ]);
 
   useEffect(() => {
     // Reset the resource search attempt as soon as the input changes. If we didn't do that, then
