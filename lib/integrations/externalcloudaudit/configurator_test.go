@@ -157,7 +157,7 @@ func TestConfiguratorIsUsed(t *testing.T) {
 
 			modules.SetTestModules(t, tt.modules)
 
-			c, err := NewConfigurator(ctx, ecaSvc, integrationSvc)
+			c, err := NewConfigurator(ctx, ecaSvc, integrationSvc, nil /*alertService*/)
 			require.NoError(t, err)
 			require.Equal(t, tt.wantIsUsed, c.IsUsed(),
 				"Configurator.IsUsed() = %v, want %v", c.IsUsed(), tt.wantIsUsed)
@@ -204,7 +204,7 @@ func TestCredentialsCache(t *testing.T) {
 	}
 
 	// Create a configurator with a fake clock and STS client.
-	c, err := NewConfigurator(ctx, svc, integrationSvc, WithClock(clock), WithSTSClient(stsClient))
+	c, err := NewConfigurator(ctx, svc, integrationSvc, nil /*alertService*/, WithClock(clock), WithSTSClient(stsClient))
 	require.NoError(t, err)
 	require.True(t, c.IsUsed())
 

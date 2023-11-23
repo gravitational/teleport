@@ -34,9 +34,9 @@ import (
 
 	"github.com/gravitational/teleport"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/api/types/externalcloudaudit"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/integrations/externalcloudaudit"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/utils"
@@ -138,6 +138,10 @@ type Config struct {
 
 	// Tracer is used to create spans
 	Tracer oteltrace.Tracer
+
+	// ObserveWriteEventsError will be called with every error encountered
+	// writing events to S3.
+	ObserveWriteEventsError func(error)
 
 	externalAuditStorage bool
 	metrics              *athenaMetrics
@@ -289,6 +293,10 @@ func (cfg *Config) CheckAndSetDefaults(ctx context.Context) error {
 		cfg.Tracer = tracing.NoopTracer(teleport.ComponentAthena)
 	}
 
+	if cfg.ObserveWriteEventsError == nil {
+		cfg.ObserveWriteEventsError = func(error) {}
+	}
+
 	if cfg.metrics == nil {
 		cfg.metrics, err = newAthenaMetrics(athenaMetricsConfig{
 			batchInterval:        cfg.BatchMaxInterval,
@@ -398,8 +406,10 @@ func (cfg *Config) SetFromURL(url *url.URL) error {
 	return nil
 }
 
-func (cfg *Config) UpdateForExternalCloudAudit(ctx context.Context, spec *externalcloudaudit.ExternalCloudAuditSpec, credentialsProvider aws.CredentialsProvider) error {
+func (cfg *Config) UpdateForExternalCloudAudit(ctx context.Context, externalAuditStorage *externalcloudaudit.Configurator) error {
 	cfg.externalAuditStorage = true
+
+	spec := externalAuditStorage.GetSpec()
 	cfg.LocationS3 = spec.AuditEventsLongTermURI
 	cfg.Workgroup = spec.AthenaWorkgroup
 	cfg.QueryResultsS3 = spec.AthenaResultsURI
@@ -408,13 +418,15 @@ func (cfg *Config) UpdateForExternalCloudAudit(ctx context.Context, spec *extern
 
 	awsCfg, err := awsconfig.LoadDefaultConfig(ctx,
 		awsconfig.WithRegion(cfg.Region),
-		awsconfig.WithCredentialsProvider(credentialsProvider),
+		awsconfig.WithCredentialsProvider(externalAuditStorage.CredentialsProvider()),
 	)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	otelaws.AppendMiddlewares(&awsCfg.APIOptions)
 	cfg.StorerQuerierAWSConfig = &awsCfg
+
+	cfg.ObserveWriteEventsError = externalAuditStorage.ErrorCounter.ObserveEmitError
 
 	return nil
 }

@@ -503,11 +503,13 @@ func TestAthenaAuditLogSetup(t *testing.T) {
 	_, err = ecaSvc.GenerateDraftExternalCloudAudit(ctx, "aws-integration-1", "us-west-2")
 	require.NoError(t, err)
 
-	externalCloudAuditDisabled, err := externalcloudaudit.NewConfigurator(ctx, ecaSvc, integrationSvc)
+	statusService := local.NewStatusService(process.backend)
+
+	externalCloudAuditDisabled, err := externalcloudaudit.NewConfigurator(ctx, ecaSvc, integrationSvc, statusService)
 	require.NoError(t, err)
 	err = ecaSvc.PromoteToClusterExternalCloudAudit(ctx)
 	require.NoError(t, err)
-	externalCloudAuditEnabled, err := externalcloudaudit.NewConfigurator(ctx, ecaSvc, integrationSvc)
+	externalCloudAuditEnabled, err := externalcloudaudit.NewConfigurator(ctx, ecaSvc, integrationSvc, statusService)
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -555,9 +557,8 @@ func TestAthenaAuditLogSetup(t *testing.T) {
 			uris:          []string{sampleAthenaURI, sampleFileURI},
 			externalAudit: externalCloudAuditEnabled,
 			wantFn: func(t *testing.T, alog events.AuditLogger) {
-				// should not be MultiLog even though multi URIs passed
-				v, ok := alog.(*athena.Log)
-				require.True(t, ok, "invalid logger type, got %T", v)
+				_, ok := alog.(*externalcloudaudit.ErrorCountingLogger)
+				require.True(t, ok, "invalid logger type, got %T", alog)
 			},
 		},
 	}

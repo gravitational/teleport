@@ -1427,9 +1427,13 @@ func initAuthUploadHandler(ctx context.Context, auditConfig types.ClusterAuditCo
 			return nil, trace.Wrap(err)
 		}
 
-		handler, err := s3sessions.NewHandler(ctx, config)
+		var handler events.MultipartHandler
+		handler, err = s3sessions.NewHandler(ctx, config)
 		if err != nil {
 			return nil, trace.Wrap(err)
+		}
+		if externalCloudAudit.IsUsed() {
+			handler = externalCloudAudit.ErrorCounter.WrapSessionHandler(handler)
 		}
 		return handler, nil
 	case teleport.SchemeAZBlob, teleport.SchemeAZBlobHTTP:
@@ -1547,7 +1551,7 @@ func (process *TeleportProcess) initAuthExternalAuditLog(auditConfig types.Clust
 				// External Audit Storage uses the topicArn, largeEventsS3, and
 				// queueURL from the athena audit_events_uri passed by cloud,
 				// and overwrites the remaining fields.
-				if err := cfg.UpdateForExternalCloudAudit(ctx, externalCloudAudit.GetSpec(), externalCloudAudit.CredentialsProvider()); err != nil {
+				if err := cfg.UpdateForExternalCloudAudit(ctx, externalCloudAudit); err != nil {
 					return nil, trace.Wrap(err)
 				}
 			}
@@ -1555,6 +1559,9 @@ func (process *TeleportProcess) initAuthExternalAuditLog(auditConfig types.Clust
 			logger, err = athena.New(ctx, cfg)
 			if err != nil {
 				return nil, trace.Wrap(err)
+			}
+			if externalCloudAudit.IsUsed() {
+				logger = externalCloudAudit.ErrorCounter.WrapAuditLogger(logger)
 			}
 			if cfg.LimiterBurst > 0 {
 				// Wrap athena logger with rate limiter on search events.
@@ -6050,5 +6057,6 @@ func (process *TeleportProcess) newExternalCloudAuditConfigurator() (*externalcl
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return externalcloudaudit.NewConfigurator(process.ExitContext(), ecaSvc, integrationSvc)
+	statusService := local.NewStatusService(process.backend)
+	return externalcloudaudit.NewConfigurator(process.ExitContext(), ecaSvc, integrationSvc, statusService)
 }
