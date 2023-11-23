@@ -972,8 +972,8 @@ func (a *ServerWithRoles) UpdateUserCARoleMap(ctx context.Context, name string, 
 
 func (a *ServerWithRoles) RegisterUsingToken(ctx context.Context, req *types.RegisterUsingTokenRequest) (*proto.Certs, error) {
 	// We do not trust remote addr in the request unless it's coming from the Proxy.
-	if !a.hasBuiltinRole(types.RoleProxy) {
-		req.RemoteAddr = ""
+	if !a.hasBuiltinRole(types.RoleProxy) || req.RemoteAddr == "" {
+		setRemoteAddrFromContext(ctx, req)
 	}
 
 	// tokens have authz mechanism  on their own, no need to check
