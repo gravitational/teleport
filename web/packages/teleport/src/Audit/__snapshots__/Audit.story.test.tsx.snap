@@ -6903,7 +6903,7 @@ exports[`list of all events 1`] = `
           <td
             style="word-break: break-word;"
           >
-            User [joe] was denied access to Windows desktop [Administrator@100.104.52.89:3389] on [desktopaccess.com]
+            User [joe] was denied access to Windows desktop [Administrator@desktop-name] on [desktopaccess.com]
           </td>
           <td
             style="min-width: 120px;"
@@ -6951,7 +6951,7 @@ exports[`list of all events 1`] = `
           <td
             style="word-break: break-word;"
           >
-            Session for Windows desktop [Administrator@100.104.52.89:3389] on [desktopaccess.com] has ended for user [joe]
+            Session for Windows desktop [Administrator@desktop-name] on [desktopaccess.com] has ended for user [joe]
           </td>
           <td
             style="min-width: 120px;"
@@ -6999,7 +6999,7 @@ exports[`list of all events 1`] = `
           <td
             style="word-break: break-word;"
           >
-            User [joe] has connected to Windows desktop [Administrator@100.104.52.89:3389] on [desktopaccess.com]
+            User [joe] has connected to Windows desktop [Administrator@desktop-name] on [desktopaccess.com]
           </td>
           <td
             style="min-width: 120px;"

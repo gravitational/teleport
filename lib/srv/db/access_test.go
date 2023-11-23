@@ -45,7 +45,6 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
-	"go.mongodb.org/mongo-driver/x/mongo/driver/wiremessage"
 	sqladmin "google.golang.org/api/sqladmin/v1beta4"
 
 	"github.com/gravitational/teleport"
@@ -76,6 +75,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/dynamodb"
 	"github.com/gravitational/teleport/lib/srv/db/elasticsearch"
 	"github.com/gravitational/teleport/lib/srv/db/mongodb"
+	"github.com/gravitational/teleport/lib/srv/db/mongodb/protocol"
 	"github.com/gravitational/teleport/lib/srv/db/mysql"
 	"github.com/gravitational/teleport/lib/srv/db/opensearch"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
@@ -862,7 +862,7 @@ func TestAccessMongoDB(t *testing.T) {
 		{
 			name: "current server",
 			opts: []mongodb.TestServerOption{
-				mongodb.TestServerWireVersion(wiremessage.OpmsgWireVersion),
+				mongodb.TestServerWireVersion(protocol.OpmsgWireVersion),
 			},
 		},
 		{
@@ -903,14 +903,14 @@ func TestAccessMongoDB(t *testing.T) {
 				testCtx := setupTestContext(ctx, t, withSelfHostedMongo("mongo", serverOpt.opts...))
 				go testCtx.startHandlingConnections()
 
+				// Create user/role with the requested permissions.
+				testCtx.createUserAndRole(ctx, t, test.user, test.role, test.allowDbUsers, test.allowDbNames)
+
 				for _, clientOpt := range clientOpts {
 					clientOpt := clientOpt
 
 					t.Run(fmt.Sprintf("%v/%v", serverOpt.name, clientOpt.name), func(t *testing.T) {
 						t.Parallel()
-
-						// Create user/role with the requested permissions.
-						testCtx.createUserAndRole(ctx, t, test.user, test.role, test.allowDbUsers, test.allowDbNames)
 
 						// Try to connect to the database as this user.
 						mongoClient, err := testCtx.mongoClient(ctx, test.user, "mongo", test.dbUser, clientOpt.opts)
@@ -951,13 +951,13 @@ func TestMongoDBMaxMessageSize(t *testing.T) {
 		expectedQueryError bool
 	}{
 		"default message size": {
-			messageSize: 256,
+			messageSize: 300,
 		},
 		"message size exceeded": {
 			// Set a value that will enable handshake message to complete
 			// successfully.
-			maxMessageSize:     256,
-			messageSize:        512,
+			maxMessageSize:     300,
+			messageSize:        500,
 			expectedQueryError: true,
 		},
 	} {
@@ -2193,12 +2193,13 @@ func setupTestContext(ctx context.Context, t testing.TB, withDatabases ...withDa
 	testCtx.emitter = eventstest.NewChannelEmitter(100)
 
 	connMonitor, err := srv.NewConnectionMonitor(srv.ConnectionMonitorConfig{
-		AccessPoint: proxyAuthClient,
-		LockWatcher: proxyLockWatcher,
-		Clock:       testCtx.clock,
-		ServerID:    testCtx.hostID,
-		Emitter:     testCtx.emitter,
-		Logger:      utils.NewLoggerForTests(),
+		AccessPoint:    proxyAuthClient,
+		LockWatcher:    proxyLockWatcher,
+		Clock:          testCtx.clock,
+		ServerID:       testCtx.hostID,
+		Emitter:        testCtx.emitter,
+		EmitterContext: ctx,
+		Logger:         utils.NewLoggerForTests(),
 	})
 	require.NoError(t, err)
 
@@ -2342,12 +2343,13 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t testing.TB, p a
 	require.NoError(t, err)
 
 	connMonitor, err := srv.NewConnectionMonitor(srv.ConnectionMonitorConfig{
-		AccessPoint: c.authClient,
-		LockWatcher: lockWatcher,
-		Clock:       c.clock,
-		ServerID:    p.HostID,
-		Emitter:     c.emitter,
-		Logger:      utils.NewLoggerForTests(),
+		AccessPoint:    c.authClient,
+		LockWatcher:    lockWatcher,
+		Clock:          c.clock,
+		ServerID:       p.HostID,
+		Emitter:        c.emitter,
+		EmitterContext: context.Background(),
+		Logger:         utils.NewLoggerForTests(),
 	})
 	require.NoError(t, err)
 

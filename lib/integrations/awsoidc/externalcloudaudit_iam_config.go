@@ -16,6 +16,7 @@ package awsoidc
 
 import (
 	"context"
+	"fmt"
 	"net/url"
 	"strings"
 
@@ -64,6 +65,8 @@ func ConfigureExternalCloudAudit(
 	clt ConfigureExternalCloudAuditClient,
 	params *config.IntegrationConfExternalCloudAudit,
 ) error {
+	fmt.Println("\nConfiguring necessary IAM permissions for External Audit Storage")
+
 	policyCfg := &awslib.ExternalCloudAuditPolicyConfig{
 		Partition:           params.Partition,
 		Region:              params.Region,
@@ -105,6 +108,7 @@ func ConfigureExternalCloudAudit(
 		return trace.Wrap(err)
 	}
 
+	fmt.Printf("Attaching inline policy %s to role %s\n", params.Policy, params.Role)
 	_, err = clt.PutRolePolicy(ctx, &iam.PutRolePolicyInput{
 		PolicyName:     &params.Policy,
 		RoleName:       &params.Role,

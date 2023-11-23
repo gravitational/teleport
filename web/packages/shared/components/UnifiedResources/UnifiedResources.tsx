@@ -317,7 +317,7 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
         text: shouldUnpin ? 'Unpin Selected' : 'Pin Selected',
         Icon: PushPin,
         tooltip:
-          pinning.kind !== 'not-supported'
+          pinning.kind === 'not-supported'
             ? PINNING_NOT_SUPPORTED_MESSAGE
             : null,
         disabled:

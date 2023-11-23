@@ -15,18 +15,15 @@ limitations under the License.
 */
 
 import React from 'react';
-import styled from 'styled-components';
 import { PageIndicatorText } from 'shared/components/Search';
-import { Text, Box, Flex } from 'design';
+import { Box, Flex } from 'design';
 import { StyledPanel } from 'design/DataTable';
 import InputSearch from 'design/DataTable/InputSearch';
-import { PredicateDoc } from 'shared/components/Search/PredicateDoc';
 
-import Toggle from 'teleport/components/Toggle';
+import { AdvancedSearchToggle } from 'shared/components/AdvancedSearchToggle';
 
 import { PageIndicators } from 'teleport/components/hooks/useServersidePagination';
 
-import Tooltip from './Tooltip';
 import useServersideSearchPanel, {
   SearchPanelState,
   HookProps,
@@ -81,15 +78,13 @@ export function ServersideSearchPanel({
               searchValue={searchString}
               setSearchValue={setSearchString}
             >
-              <ToggleWrapper>
-                <Toggle isToggled={isAdvancedSearch} onToggle={onToggle} />
-                <Text typography="paragraph2">Advanced</Text>
-              </ToggleWrapper>
+              <AdvancedSearchToggle
+                isToggled={isAdvancedSearch}
+                onToggle={onToggle}
+                px={4}
+              />
             </InputSearch>
           </Box>
-          <Tooltip>
-            <PredicateDoc />
-          </Tooltip>
         </Flex>
         <Flex>
           <PageIndicatorText
@@ -102,12 +97,3 @@ export function ServersideSearchPanel({
     </StyledPanel>
   );
 }
-
-const ToggleWrapper = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: space-around;
-  padding-right: 16px;
-  padding-left: 16px;
-  width: 120px;
-`;

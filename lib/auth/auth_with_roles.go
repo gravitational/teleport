@@ -65,6 +65,7 @@ import (
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
+	accessgraphv1 "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 	"github.com/gravitational/teleport/lib/auth/integration/integrationv1"
 	"github.com/gravitational/teleport/lib/auth/trust/trustv1"
 	"github.com/gravitational/teleport/lib/auth/users/usersv1"
@@ -301,7 +302,7 @@ func (a *ServerWithRoles) LoginRuleClient() loginrulepb.LoginRuleServiceClient {
 // ExternalCloudAuditClient allows ServerWithRoles to implement ClientI.
 // It should not be called through ServerWithRoles,
 // as it returns a dummy client that will always respond with "not implemented".
-func (a *ServerWithRoles) ExternalCloudAuditClient() services.ExternalCloudAudits {
+func (a *ServerWithRoles) ExternalCloudAuditClient() *externalcloudaudit.Client {
 	return externalcloudaudit.NewClient(externalcloudauditv1.NewExternalCloudAuditServiceClient(
 		utils.NewGRPCDummyClientConnection("ExternalCloudAuditClient() should not be called on ServerWithRoles"),
 	))
@@ -382,6 +383,14 @@ func (a *ServerWithRoles) SecReportsClient() *secreport.Client {
 	return secreport.NewClient(secreportsv1.NewSecReportsServiceClient(
 		utils.NewGRPCDummyClientConnection("SecReportsClient() should not be called on ServerWithRoles"),
 	))
+}
+
+// AccessGraphClient returns a client for the AccessGraph service.
+// It should not be called through ServerWithRoles,
+// as it returns a dummy client that will always respond with "not implemented".
+func (a *ServerWithRoles) AccessGraphClient() accessgraphv1.AccessGraphServiceClient {
+	return accessgraphv1.NewAccessGraphServiceClient(
+		utils.NewGRPCDummyClientConnection("AccessGraphClient() should not be called on ServerWithRoles"))
 }
 
 // integrationsService returns an Integrations Service.
@@ -3062,7 +3071,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 
 	var verifiedMFADeviceID string
 	if req.MFAResponse != nil {
-		dev, _, err := a.authServer.validateMFAAuthResponse(
+		dev, _, err := a.authServer.ValidateMFAAuthResponse(
 			ctx, req.GetMFAResponse(), req.Username, false /* passwordless */)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -3416,6 +3425,11 @@ func (a *ServerWithRoles) CreateResetPasswordToken(ctx context.Context, req Crea
 	if err := a.action(apidefaults.Namespace, types.KindUser, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	if a.hasBuiltinRole(types.RoleOkta) {
+		return nil, trace.AccessDenied("access denied")
+	}
+
 	return a.authServer.CreateResetPasswordToken(ctx, req)
 }
 
@@ -4250,14 +4264,14 @@ func checkRoleFeatureSupport(role types.Role) error {
 	case !features.AccessControls && options.MaxSessions > 0:
 		return trace.AccessDenied(
 			"role option max_sessions is only available in enterprise subscriptions")
-	case !features.AdvancedAccessWorkflows &&
+	case !features.AccessRequests.Enabled &&
 		(options.RequestAccess == types.RequestStrategyReason || options.RequestAccess == types.RequestStrategyAlways):
 		return trace.AccessDenied(
 			"role option request_access: %v is only available in enterprise subscriptions", options.RequestAccess)
-	case !features.AdvancedAccessWorkflows && len(allowReq.Thresholds) != 0:
+	case !features.AccessRequests.Enabled && len(allowReq.Thresholds) != 0:
 		return trace.AccessDenied(
 			"role field allow.request.thresholds is only available in enterprise subscriptions")
-	case !features.AdvancedAccessWorkflows && !allowRev.IsZero():
+	case !features.AccessRequests.Enabled && !allowRev.IsZero():
 		return trace.AccessDenied(
 			"role field allow.review_requests is only available in enterprise subscriptions")
 	case modules.GetModules().BuildType() != modules.BuildEnterprise && len(allowReq.SearchAsRoles) != 0:
@@ -6995,7 +7009,7 @@ func (a *ServerWithRoles) UpdateHeadlessAuthenticationState(ctx context.Context,
 			return err
 		}
 
-		mfaDevice, _, err := a.authServer.validateMFAAuthResponse(ctx, mfaResp, headlessAuthn.User, false /* passwordless */)
+		mfaDevice, _, err := a.authServer.ValidateMFAAuthResponse(ctx, mfaResp, headlessAuthn.User, false /* passwordless */)
 		if err != nil {
 			emitHeadlessLoginEvent(ctx, events.UserHeadlessLoginApprovedFailureCode, a.authServer.emitter, headlessAuthn, err)
 			return trace.Wrap(err)
@@ -7167,6 +7181,11 @@ func (a *ServerWithRoles) DeleteClusterMaintenanceConfig(ctx context.Context) er
 	}
 
 	return a.authServer.DeleteClusterMaintenanceConfig(ctx)
+}
+
+// ValidateMFAAuthResponse not implemented: can only be called locally.
+func (a *ServerWithRoles) ValidateMFAAuthResponse(ctx context.Context, resp *proto.MFAAuthenticateResponse, user string, passwordless bool) (*types.MFADevice, string, error) {
+	return nil, "", trace.NotImplemented(notImplementedMessage)
 }
 
 // NewAdminAuthServer returns auth server authorized as admin,

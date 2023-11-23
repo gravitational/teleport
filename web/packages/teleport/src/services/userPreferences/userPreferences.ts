@@ -24,7 +24,7 @@ import {
   UnifiedViewModePreference,
 } from 'teleport/services/userPreferences/types';
 
-import { KeysEnum } from '../localStorage';
+import { KeysEnum } from '../storageService';
 
 import type {
   GetUserPreferencesResponse,

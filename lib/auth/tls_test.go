@@ -4570,15 +4570,32 @@ func verifyJWTAWSOIDC(clock clockwork.Clock, clusterName string, pairs []*types.
 	return nil, trace.NewAggregate(errs...)
 }
 
+type testTLSServerOptions struct {
+	cacheEnabled bool
+}
+
+type testTLSServerOption func(*testTLSServerOptions)
+
+func withCacheEnabled(enabled bool) testTLSServerOption {
+	return func(options *testTLSServerOptions) {
+		options.cacheEnabled = enabled
+	}
+}
+
 // newTestTLSServer is a helper that returns a *TestTLSServer with sensible
 // defaults for most tests that are exercising Auth Service RPCs.
 //
 // For more advanced use-cases, call NewTestAuthServer and NewTestTLSServer
 // to provide a more detailed configuration.
-func newTestTLSServer(t testing.TB) *TestTLSServer {
+func newTestTLSServer(t testing.TB, opts ...testTLSServerOption) *TestTLSServer {
+	var options testTLSServerOptions
+	for _, opt := range opts {
+		opt(&options)
+	}
 	as, err := NewTestAuthServer(TestAuthServerConfig{
-		Dir:   t.TempDir(),
-		Clock: clockwork.NewFakeClockAt(time.Now().Round(time.Second).UTC()),
+		Dir:          t.TempDir(),
+		Clock:        clockwork.NewFakeClockAt(time.Now().Round(time.Second).UTC()),
+		CacheEnabled: options.cacheEnabled,
 	})
 	require.NoError(t, err)
 

@@ -17,6 +17,7 @@ package native
 import (
 	"bytes"
 	"encoding/base64"
+	"errors"
 	"os"
 	"os/exec"
 	"os/user"
@@ -25,6 +26,7 @@ import (
 	"github.com/google/go-attestation/attest"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/sync/errgroup"
 	"golang.org/x/sys/windows"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -48,7 +50,7 @@ func enrollDeviceInit() (*devicepb.EnrollDeviceInit, error) {
 }
 
 func signChallenge(chal []byte) (sig []byte, err error) {
-	return windowsDevice.signChallenge(chal)
+	return nil, errors.New("signChallenge not implemented for TPM devices")
 }
 
 func getDeviceCredential() (*devicepb.DeviceCredential, error) {
@@ -176,30 +178,41 @@ func getOSBuildNumber() (string, error) {
 
 func collectDeviceData(_ CollectDataMode) (*devicepb.DeviceCollectedData, error) {
 	log.Debug("TPM: Collecting device data.")
-	systemSerial, err := getDeviceSerial()
-	if err != nil {
-		return nil, trace.Wrap(err, "fetching system serial")
+
+	var g errgroup.Group
+	const groupLimit = 4 // arbitrary
+	g.SetLimit(groupLimit)
+
+	// Run exec-ed commands concurrently.
+	var systemSerial, baseBoardSerial, reportedAssetTag, model, osVersion, osBuildNumber string
+	for _, spec := range []struct {
+		fn   func() (string, error)
+		out  *string
+		desc string
+	}{
+		{fn: getDeviceModel, out: &model, desc: "device model"},
+		{fn: getOSVersion, out: &osVersion, desc: "os version"},
+		{fn: getOSBuildNumber, out: &osBuildNumber, desc: "os build number"},
+		{fn: getDeviceSerial, out: &systemSerial, desc: "system serial"},
+		{fn: getDeviceBaseBoardSerial, out: &baseBoardSerial, desc: "base board serial"},
+		{fn: getReportedAssetTag, out: &reportedAssetTag, desc: "reported asset tag"},
+	} {
+		spec := spec
+		g.Go(func() error {
+			val, err := spec.fn()
+			if err != nil {
+				log.WithError(err).Debugf("TPM: Failed to fetch %v", spec.desc)
+				return nil // Swallowed on purpose.
+			}
+
+			*spec.out = val
+			return nil
+		})
 	}
-	model, err := getDeviceModel()
-	if err != nil {
-		return nil, trace.Wrap(err, "fetching device model")
-	}
-	baseBoardSerial, err := getDeviceBaseBoardSerial()
-	if err != nil {
-		return nil, trace.Wrap(err, "fetching base board serial")
-	}
-	reportedAssetTag, err := getReportedAssetTag()
-	if err != nil {
-		return nil, trace.Wrap(err, "fetching reported asset tag")
-	}
-	osVersion, err := getOSVersion()
-	if err != nil {
-		return nil, trace.Wrap(err, "fetching os version")
-	}
-	osBuildNumber, err := getOSBuildNumber()
-	if err != nil {
-		return nil, trace.Wrap(err, "fetching os build number")
-	}
+
+	// We want to fetch as much info as possible, so errors are ignored.
+	_ = g.Wait()
+
 	u, err := user.Current()
 	if err != nil {
 		return nil, trace.Wrap(err, "fetching user")
@@ -215,9 +228,9 @@ func collectDeviceData(_ CollectDataMode) (*devicepb.DeviceCollectedData, error)
 		OsType:                devicepb.OSType_OS_TYPE_WINDOWS,
 		SerialNumber:          serial,
 		ModelIdentifier:       model,
-		OsUsername:            u.Username,
 		OsVersion:             osVersion,
 		OsBuild:               osBuildNumber,
+		OsUsername:            u.Username,
 		SystemSerialNumber:    systemSerial,
 		BaseBoardSerialNumber: baseBoardSerial,
 		ReportedAssetTag:      reportedAssetTag,

@@ -113,8 +113,12 @@ export function useActionAttempts() {
   const resourceActionsAttempt = useMemo(
     () =>
       mapAttempt(resourceSearchAttempt, ({ results, search }) => {
-        const sortedResults = rankResults(results, search);
+        // the scoring algorithm doesn't support advanced search
+        if (searchContext.advancedSearchEnabled) {
+          return [];
+        }
 
+        const sortedResults = rankResults(results, search);
         return mapToActions(ctx, searchContext, sortedResults);
       }),
     [ctx, resourceSearchAttempt, searchContext]

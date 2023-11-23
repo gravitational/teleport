@@ -196,7 +196,9 @@ export function useFilterSearch() {
         });
         if (search) {
           resourceTypes = resourceTypes.filter(resourceType =>
-            resourceType.toLowerCase().includes(search.toLowerCase())
+            resourceTypeToReadableName[resourceType]
+              .toLowerCase()
+              .includes(search.toLowerCase())
           );
         }
         return resourceTypes.map(resourceType => ({
@@ -380,3 +382,9 @@ function getResourceSearchMode(
 function getLengthScore(searchTerm: string, matchedValue: string): number {
   return Math.floor((searchTerm.length / matchedValue.length) * 100);
 }
+
+export const resourceTypeToReadableName: Record<ResourceTypeFilter, string> = {
+  db: 'databases',
+  node: 'servers',
+  kube_cluster: 'kubes',
+};

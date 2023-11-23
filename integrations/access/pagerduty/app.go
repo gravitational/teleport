@@ -157,7 +157,7 @@ func (a *App) init(ctx context.Context) error {
 	}
 
 	var webProxyAddr string
-	if pong.ServerFeatures.AdvancedAccessWorkflows {
+	if pong.ServerFeatures.AccessRequests.Enabled {
 		webProxyAddr = pong.ProxyPublicAddr
 	}
 	a.pagerduty, err = NewPagerdutyClient(a.conf.Pagerduty, pong.ClusterName, webProxyAddr, a.statusSink)

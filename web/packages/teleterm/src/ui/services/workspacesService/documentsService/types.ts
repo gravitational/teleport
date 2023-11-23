@@ -134,6 +134,11 @@ export interface DocumentGatewayCliClient extends DocumentBase {
   status: '' | 'connecting' | 'connected' | 'error';
 }
 
+/**
+ * DocumentGatewayKube replaced DocumentTshKube in Connect v14. Before removing DocumentTshKube
+ * completely, we should add a migration that transforms all DocumentTshKube docs into
+ * DocumentGatewayKube docs when loading the workspace state from disk.
+ */
 export interface DocumentGatewayKube extends DocumentBase {
   kind: 'doc.gateway_kube';
   rootClusterId: string;

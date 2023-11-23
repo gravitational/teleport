@@ -29,7 +29,7 @@ import {
   NavigationItemSize,
 } from 'teleport/Navigation/common';
 import useStickyClusterId from 'teleport/useStickyClusterId';
-import localStorage from 'teleport/services/localStorage';
+import { storageService } from 'teleport/services/storageService';
 import { useTeleport } from 'teleport';
 import { NavTitle, RecommendationStatus } from 'teleport/types';
 import { NotificationKind } from 'teleport/stores/storeNotifications';
@@ -181,13 +181,13 @@ export function NavigationItem(props: NavigationItemProps) {
 
     // Get onboarding status. We'll only recommend features once user completes
     // initial onboarding (i.e. connect resources to Teleport cluster).
-    const onboard = localStorage.getOnboardDiscover();
+    const onboard = storageService.getOnboardDiscover();
     if (!onboard?.hasResource) {
       return null;
     }
 
     const recommendFeatureStatus =
-      localStorage.getFeatureRecommendationStatus();
+      storageService.getFeatureRecommendationStatus();
     if (
       featureName === NavTitle.TrustedDevices &&
       recommendFeatureStatus?.TrustedDevices === RecommendationStatus.Notify

@@ -1,0 +1,193 @@
+/*
+Copyright 2023 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package local
+
+import (
+	"context"
+	"errors"
+	"sync"
+
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/retryutils"
+	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/defaults"
+)
+
+// ClusterExternalCloudAuditWatcherConfig contains configuration options for a ClusterExternalAuditWatcher.
+type ClusterExternalCloudAuditWatcherConfig struct {
+	// Backend is the storage backend used to create watchers.
+	Backend backend.Backend
+	// Log is a logger.
+	Log logrus.FieldLogger
+	// Clock is used to control time.
+	Clock clockwork.Clock
+	// OnChange is the action to take when the cluster ExternalCloudAudit
+	// changes.
+	OnChange func()
+}
+
+// CheckAndSetDefaults checks parameters and sets default values.
+func (cfg *ClusterExternalCloudAuditWatcherConfig) CheckAndSetDefaults() error {
+	if cfg.Backend == nil {
+		return trace.BadParameter("missing parameter Backend")
+	}
+	if cfg.Log == nil {
+		cfg.Log = logrus.StandardLogger().WithField(trace.Component, "ExternalCloudAudit.watcher")
+	}
+	if cfg.Clock == nil {
+		cfg.Clock = cfg.Backend.Clock()
+	}
+	if cfg.OnChange == nil {
+		return trace.BadParameter("missing parameter OnChange")
+	}
+	return nil
+}
+
+// ClusterExternalAuditWatcher is a light weight backend watcher for the cluster external audit resource.
+type ClusterExternalAuditWatcher struct {
+	backend     backend.Backend
+	log         logrus.FieldLogger
+	clock       clockwork.Clock
+	onChange    func()
+	retry       retryutils.Retry
+	initialized chan struct{}
+	closed      chan struct{}
+	closeOnce   sync.Once
+	done        chan struct{}
+}
+
+// NewClusterExternalAuditWatcher creates a new cluster external audit resource watcher.
+// The watcher will close once the given ctx is closed.
+func NewClusterExternalAuditWatcher(ctx context.Context, cfg ClusterExternalCloudAuditWatcherConfig) (*ClusterExternalAuditWatcher, error) {
+	if err := cfg.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	retry, err := retryutils.NewRetryV2(retryutils.RetryV2Config{
+		First:  defaults.HighResPollingPeriod,
+		Driver: retryutils.NewExponentialDriver(defaults.HighResPollingPeriod),
+		Max:    defaults.LowResPollingPeriod,
+		Jitter: retryutils.NewHalfJitter(),
+		Clock:  cfg.Clock,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	w := &ClusterExternalAuditWatcher{
+		backend:     cfg.Backend,
+		log:         cfg.Log,
+		clock:       cfg.Clock,
+		onChange:    cfg.OnChange,
+		retry:       retry,
+		initialized: make(chan struct{}),
+		closed:      make(chan struct{}),
+		done:        make(chan struct{}),
+	}
+
+	go w.runWatchLoop(ctx)
+
+	return w, nil
+}
+
+// WaitInit waits for the watch loop to initialize.
+func (w *ClusterExternalAuditWatcher) WaitInit(ctx context.Context) error {
+	select {
+	case <-w.initialized:
+	case <-w.done:
+		return errors.New("watcher closed")
+	case <-ctx.Done():
+		return trace.Wrap(ctx.Err())
+	}
+	return nil
+}
+
+// close stops the watcher and waits for the watch loop to exit
+func (w *ClusterExternalAuditWatcher) close() {
+	w.closeOnce.Do(func() { close(w.closed) })
+	<-w.done
+}
+
+func (w *ClusterExternalAuditWatcher) runWatchLoop(ctx context.Context) {
+	defer close(w.done)
+	for {
+		err := w.watch(ctx)
+
+		startedWaiting := w.clock.Now()
+		select {
+		case t := <-w.retry.After():
+			w.log.Warningf("Restarting watch on error after waiting %v. Error: %v.", t.Sub(startedWaiting), err)
+			w.retry.Inc()
+		case <-ctx.Done():
+			return
+		case <-w.closed:
+			return
+		}
+	}
+}
+
+func (w *ClusterExternalAuditWatcher) watch(ctx context.Context) error {
+	watcher, err := w.newWatcher(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer watcher.Close()
+	for {
+		select {
+		case <-watcher.Events():
+			w.log.Infof("Detected change to cluster ExternalCloudAudit config")
+			w.onChange()
+		case <-watcher.Done():
+			return errors.New("watcher closed")
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-w.closed:
+			return nil
+		}
+	}
+}
+
+func (w *ClusterExternalAuditWatcher) newWatcher(ctx context.Context) (backend.Watcher, error) {
+	watcher, err := w.backend.NewWatcher(ctx, backend.Watch{
+		Name:     types.KindExternalCloudAudit,
+		Prefixes: [][]byte{clusterExternalCloudAuditBackendKey},
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	select {
+	case <-watcher.Done():
+		return nil, errors.New("watcher closed")
+	case <-w.closed:
+		return nil, errors.New("watcher closed")
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case event := <-watcher.Events():
+		if event.Type != types.OpInit {
+			return nil, trace.BadParameter("expected init event, got %v instead", event.Type)
+		}
+		close(w.initialized)
+	}
+
+	w.retry.Reset()
+	return watcher, nil
+}

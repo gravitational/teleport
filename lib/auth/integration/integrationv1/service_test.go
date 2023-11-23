@@ -24,6 +24,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/keystore"
@@ -321,6 +322,17 @@ type localClient interface {
 	CreateIntegration(ctx context.Context, ig types.Integration) (types.Integration, error)
 }
 
+type testClient struct {
+	services.ClusterConfiguration
+	services.Trust
+	services.RoleGetter
+	services.UserGetter
+}
+
+func (c *testClient) ValidateMFAAuthResponse(ctx context.Context, resp *proto.MFAAuthenticateResponse, user string, passwordless bool) (*types.MFADevice, string, error) {
+	return nil, "", nil
+}
+
 func initSvc(t *testing.T, kind string, ca types.CertAuthority, clusterName string) (context.Context, localClient, *Service) {
 	ctx := context.Background()
 	backend, err := memory.New(memory.Config{})
@@ -337,12 +349,7 @@ func initSvc(t *testing.T, kind string, ca types.CertAuthority, clusterName stri
 	require.NoError(t, clusterConfigSvc.SetClusterNetworkingConfig(ctx, types.DefaultClusterNetworkingConfig()))
 	require.NoError(t, clusterConfigSvc.SetSessionRecordingConfig(ctx, types.DefaultSessionRecordingConfig()))
 
-	accessPoint := struct {
-		services.ClusterConfiguration
-		services.Trust
-		services.RoleGetter
-		services.UserGetter
-	}{
+	accessPoint := &testClient{
 		ClusterConfiguration: clusterConfigSvc,
 		Trust:                trustSvc,
 		RoleGetter:           roleSvc,
