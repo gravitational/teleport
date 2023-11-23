@@ -150,6 +150,9 @@ export interface DocumentCluster extends DocumentBase {
   queryParams: DocumentClusterQueryParams;
 }
 
+// When extending this type, remember to update the
+// `WorkspacesService.reopenPreviousDocuments` method
+// that spreads all of its properties.
 export interface DocumentClusterQueryParams {
   search: string;
   advancedSearchEnabled: boolean;
