@@ -20,3 +20,6 @@
  * username of the cluster user that is running the agent.
  */
 export const NodeOwnerLabel = `teleport.dev/connect-my-computer/owner` as const;
+
+export const getRoleNameForUser = (username: string) =>
+  `connect-my-computer-${username}`;
