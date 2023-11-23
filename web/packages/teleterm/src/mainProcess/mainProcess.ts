@@ -28,6 +28,7 @@ import {
   MenuItemConstructorOptions,
   nativeTheme,
   shell,
+  clipboard,
 } from 'electron';
 
 import { FileStorage, RuntimeSettings } from 'teleterm/types';
@@ -391,6 +392,13 @@ export default class MainProcess {
         }
       ) => {
         event.returnValue = this.agentRunner.getLogs(args.rootClusterUri);
+      }
+    );
+
+    ipcMain.on(
+      MainProcessIpc.WriteTextToClipboard,
+      (_, args: { text: string }) => {
+        clipboard.writeText(args.text);
       }
     );
 

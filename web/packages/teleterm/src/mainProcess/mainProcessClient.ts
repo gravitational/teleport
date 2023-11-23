@@ -185,5 +185,8 @@ export default function createMainProcessClient(): MainProcessClient {
     signalUserInterfaceReadiness(args: { success: boolean }) {
       ipcRenderer.send(WindowsManagerIpc.SignalUserInterfaceReadiness, args);
     },
+    writeTextToClipboard(text: string) {
+      ipcRenderer.send(MainProcessIpc.WriteTextToClipboard, { text });
+    },
   };
 }
