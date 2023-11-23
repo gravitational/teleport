@@ -1411,13 +1411,17 @@
               "title": "Jenkins",
               "slug": "/machine-id/deployment/jenkins/"
             },
-	    {
+	        {
               "title": "Linux Server",
               "slug": "/machine-id/deployment/linux/"
             },
             {
               "title": "Kubernetes",
               "slug": "/machine-id/deployment/kubernetes/"
+            },
+            {
+              "title": "Spacelift",
+              "slug": "/machine-id/deployment/spacelift/"
             }
           ]
         },
