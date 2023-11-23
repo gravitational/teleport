@@ -55,7 +55,7 @@ type Features struct {
 	// AdvancedAccessWorkflows enables advanced access workflows
 	//
 	// This field is now a legacy flag with the introduction of Enterprise Usage Based (EUB)
-	// product. It will still be used for backwards compatability for legacy feature support
+	// product. It will still be used for backwards compatibility for legacy feature support
 	// where existing licenses before EUB should still have the same support as before.
 	AdvancedAccessWorkflows bool
 	// Cloud enables some cloud-related features
@@ -105,7 +105,7 @@ type DeviceTrustFeature struct {
 	// Enabled is true if the Device Trust feature is enabled.
 	//
 	// This field is now a legacy flag with the introduction of Enterprise Usage Based (EUB)
-	// product. It will still be used for backwards compatability for legacy feature support
+	// product. It will still be used for backwards compatibility for legacy feature support
 	// where existing licenses before EUB should still have the same support as before.
 	Enabled bool
 	// DevicesUsageLimit is the usage-based limit for the number of
@@ -164,7 +164,7 @@ func (f Features) ToProto() *proto.Features {
 		AccessRequests: &proto.AccessRequestsFeature{
 			MonthlyRequestLimit: int32(f.AccessRequests.MonthlyRequestLimit),
 		},
-		IdentityGovernanceSecurity: f.IdentityGovernanceSecurity,
+		IdentityGovernance: f.IdentityGovernanceSecurity,
 		AccessMonitoring: &proto.AccessMonitoringFeature{
 			Enabled: f.AccessMonitoring.Enabled,
 		},

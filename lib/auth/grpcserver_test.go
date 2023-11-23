@@ -3916,7 +3916,7 @@ func TestPing_VersionCheck_AccessMonitoringFlag(t *testing.T) {
 	// (because that's what older clients expect)
 	ctx4 := context.Background()
 	ctx4 = metadata.AddMetadataToContext(ctx4, map[string]string{
-		metadata.VersionKey: "14.0.0",
+		metadata.VersionKey: "13.3.0",
 	})
 	ping, err = client.Ping(ctx4)
 	require.NoError(t, err)

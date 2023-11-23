@@ -5293,7 +5293,8 @@ func setAccessMonitoringFeatureForOlderClients(ctx context.Context, features *pr
 	// if access monitoring is enabled.
 	if versionExists {
 		clientVersion := semver.New(clientVersionString)
-		if clientVersion.Major <= 14 && clientVersion.Minor <= 2 && clientVersion.Patch <= 0 {
+		supportedVersion := semver.New("14.2.1")
+		if clientVersion.LessThan(*supportedVersion) {
 			features.IdentityGovernance = accessMonitoringEnabled
 		}
 	}
