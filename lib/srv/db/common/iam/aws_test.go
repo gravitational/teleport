@@ -23,7 +23,6 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
-	"github.com/gravitational/teleport/lib/fixtures"
 )
 
 func TestGetAWSPolicyDocument(t *testing.T) {
@@ -31,7 +30,7 @@ func TestGetAWSPolicyDocument(t *testing.T) {
 		Name: "aws-redshift",
 	}, types.DatabaseSpecV3{
 		Protocol: "postgres",
-		URI:      fixtures.AWSRedshiftURI,
+		URI:      "redshift-cluster-1.abcdefghijklmnop.us-east-1.redshift.amazonaws.com:5438",
 	})
 	require.NoError(t, err)
 
@@ -39,9 +38,9 @@ func TestGetAWSPolicyDocument(t *testing.T) {
 		Name: "aws-rds",
 	}, types.DatabaseSpecV3{
 		Protocol: "postgres",
-		URI:      fixtures.AWSRDSInstanceURI,
+		URI:      "instance.abcdefghijklmnop.us-east-1.rds.amazonaws.com:5438",
 		AWS: types.AWS{
-			AccountID: fixtures.AWSAccountID,
+			AccountID: "123456789012",
 			RDS: types.RDS{
 				ResourceID: "abcdef",
 			},
@@ -53,9 +52,9 @@ func TestGetAWSPolicyDocument(t *testing.T) {
 		Name: "aws-rds-proxy",
 	}, types.DatabaseSpecV3{
 		Protocol: "postgres",
-		URI:      fixtures.AWSRDSProxyURI,
+		URI:      "my-proxy.proxy-abcdefghijklmnop.us-west-1.rds.amazonaws.com:5432",
 		AWS: types.AWS{
-			AccountID: fixtures.AWSAccountID,
+			AccountID: "123456789012",
 			RDSProxy: types.RDSProxy{
 				ResourceID: "qwerty",
 			},
@@ -67,9 +66,9 @@ func TestGetAWSPolicyDocument(t *testing.T) {
 		Name: "aws-elasticache",
 	}, types.DatabaseSpecV3{
 		Protocol: "redis",
-		URI:      fixtures.AWSElastiCacheClusterURI,
+		URI:      "clustercfg.my-redis-cluster.xxxxxx.cac1.cache.amazonaws.com:6379",
 		AWS: types.AWS{
-			AccountID: fixtures.AWSAccountID,
+			AccountID: "123456789012",
 			ElastiCache: types.ElastiCache{
 				ReplicationGroupID: "some-group",
 			},
@@ -81,9 +80,9 @@ func TestGetAWSPolicyDocument(t *testing.T) {
 		Name: "aws-memorydb",
 	}, types.DatabaseSpecV3{
 		Protocol: "redis",
-		URI:      fixtures.AWSMemoryDBURI,
+		URI:      "clustercfg.my-memorydb.xxxxxx.memorydb.us-east-1.amazonaws.com:6379",
 		AWS: types.AWS{
-			AccountID: fixtures.AWSAccountID,
+			AccountID: "123456789012",
 			MemoryDB: types.MemoryDB{
 				ClusterName:  "my-memorydb",
 				TLSEnabled:   true,
@@ -138,7 +137,7 @@ func TestGetAWSPolicyDocument(t *testing.T) {
         {
             "Effect": "Allow",
             "Action": "rds-db:connect",
-            "Resource": "arn:aws:rds-db:us-east-1:123456789012:dbuser:qwerty/*"
+            "Resource": "arn:aws:rds-db:us-west-1:123456789012:dbuser:qwerty/*"
         }
     ]
 }`,
@@ -152,8 +151,8 @@ func TestGetAWSPolicyDocument(t *testing.T) {
             "Effect": "Allow",
             "Action": "elasticache:Connect",
             "Resource": [
-                "arn:aws:elasticache:us-east-1:123456789012:replicationgroup:some-group",
-                "arn:aws:elasticache:us-east-1:123456789012:user:*"
+                "arn:aws:elasticache:ca-central-1:123456789012:replicationgroup:some-group",
+                "arn:aws:elasticache:ca-central-1:123456789012:user:*"
             ]
         }
     ]
@@ -207,10 +206,10 @@ func TestGetAWSPolicyDocumentForAssumedRole(t *testing.T) {
 		Name: "aws-redshift",
 	}, types.DatabaseSpecV3{
 		Protocol: "postgres",
-		URI:      fixtures.AWSRedshiftURI,
+		URI:      "redshift-cluster-1.abcdefghijklmnop.us-east-1.redshift.amazonaws.com:5438",
 		AWS: types.AWS{
-			AccountID: fixtures.AWSAccountID,
-			Region:    fixtures.AWSRegion,
+			AccountID: "123456789012",
+			Region:    "us-east-1",
 		},
 	})
 	require.NoError(t, err)
@@ -218,7 +217,7 @@ func TestGetAWSPolicyDocumentForAssumedRole(t *testing.T) {
 		Name: "aws-redshift-serverless",
 	}, types.DatabaseSpecV3{
 		Protocol: "postgres",
-		URI:      fixtures.AWSRedshiftServerlessURI,
+		URI:      "my-workgroup.123456789012.us-east-1.redshift-serverless.amazonaws.com:5439",
 	})
 	require.NoError(t, err)
 

@@ -1031,10 +1031,10 @@ func redshiftServerlessUsernameToRoleARN(aws types.AWS, username string) (string
 func externalIDForChainedAssumeRole(meta types.AWS) string {
 	// ExternalID should only be used once. If the baseSession assumes a role,
 	// the chained sessions should have an empty external ID.
-	if meta.AssumeRoleARN == "" {
-		return meta.ExternalID
+	if meta.AssumeRoleARN != "" {
+		return ""
 	}
-	return ""
+	return meta.ExternalID
 }
 
 // awsRedisIAMTokenRequest builds an AWS IAM auth token for ElastiCache
