@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import React from 'react';
+import React, { PropsWithChildren } from 'react';
 import '@testing-library/jest-dom';
 import { fireEvent, createEvent, render, screen } from '@testing-library/react';
 import { renderHook, act } from '@testing-library/react-hooks';
@@ -49,7 +49,9 @@ describe('pauseUserInteraction', () => {
   ])('$name', async ({ action, finishAction }) => {
     const inputFocus = jest.fn();
     const onWindowClick = jest.fn();
-    const { result } = renderUseSearchContextHook();
+    const { result } = renderHook(() => useSearchContext(), {
+      wrapper: ({ children }) => <Wrapper>{children}</Wrapper>,
+    });
     result.current.inputRef.current = {
       focus: inputFocus,
     } as unknown as HTMLInputElement;
@@ -88,7 +90,9 @@ describe('pauseUserInteraction', () => {
 describe('addWindowEventListener', () => {
   it('returns a cleanup function', () => {
     const onWindowClick = jest.fn();
-    const { result } = renderUseSearchContextHook();
+    const { result } = renderHook(() => useSearchContext(), {
+      wrapper: ({ children }) => <Wrapper>{children}</Wrapper>,
+    });
 
     const { cleanup } = result.current.addWindowEventListener(
       'click',
@@ -114,7 +118,9 @@ describe('addWindowEventListener', () => {
       resolveAction = resolve;
     });
 
-    const { result } = renderUseSearchContextHook();
+    const { result } = renderHook(() => useSearchContext(), {
+      wrapper: ({ children }) => <Wrapper>{children}</Wrapper>,
+    });
 
     let pauseInteractionPromise;
     act(() => {
@@ -180,7 +186,9 @@ describe('close', () => {
     const previouslyActive = {
       focus: jest.fn(),
     } as unknown as HTMLInputElement;
-    const { result } = renderUseSearchContextHook();
+    const { result } = renderHook(() => useSearchContext(), {
+      wrapper: ({ children }) => <Wrapper>{children}</Wrapper>,
+    });
 
     act(() => {
       result.current.open(previouslyActive);
@@ -199,7 +207,9 @@ describe('closeWithoutRestoringFocus', () => {
     const previouslyActive = {
       focus: jest.fn(),
     } as unknown as HTMLInputElement;
-    const { result } = renderUseSearchContextHook();
+    const { result } = renderHook(() => useSearchContext(), {
+      wrapper: ({ children }) => <Wrapper>{children}</Wrapper>,
+    });
 
     act(() => {
       result.current.open(previouslyActive);
@@ -227,7 +237,11 @@ test('search bar state is adjusted to the active document', () => {
   });
   const docService =
     appContext.workspacesService.getActiveWorkspaceDocumentService();
-  const { result } = renderUseSearchContextHook(appContext);
+  const { result } = renderHook(() => useSearchContext(), {
+    wrapper: ({ children }) => (
+      <Wrapper appContext={appContext}>{children}</Wrapper>
+    ),
+  });
 
   // initial state, no document
   expect(result.current.inputValue).toBe('');
@@ -291,12 +305,10 @@ test('search bar state is adjusted to the active document', () => {
   expect(result.current.advancedSearchEnabled).toBe(false);
 });
 
-function renderUseSearchContextHook(appContext?: IAppContext) {
-  return renderHook(() => useSearchContext(), {
-    wrapper: ({ children }) => (
-      <MockAppContextProvider appContext={appContext}>
-        <SearchContextProvider>{children}</SearchContextProvider>
-      </MockAppContextProvider>
-    ),
-  });
+function Wrapper(props: PropsWithChildren<{ appContext?: IAppContext }>) {
+  return (
+    <MockAppContextProvider appContext={props.appContext}>
+      <SearchContextProvider>{props.children}</SearchContextProvider>
+    </MockAppContextProvider>
+  );
 }
