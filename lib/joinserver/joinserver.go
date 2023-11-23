@@ -120,7 +120,7 @@ func (s *JoinServiceGRPCServer) registerUsingIAMMethod(ctx context.Context, srv 
 			return nil, trace.Wrap(err)
 		}
 
-		return req, trace.Wrap(err)
+		return req, nil
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -207,7 +207,7 @@ func (s *JoinServiceGRPCServer) registerUsingAzureMethod(ctx context.Context, sr
 			return nil, trace.Wrap(err)
 		}
 
-		return req, trace.Wrap(err)
+		return req, nil
 	})
 	if err != nil {
 		return trace.Wrap(err)
