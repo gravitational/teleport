@@ -18,10 +18,12 @@ use crate::{
     CGOSharedDirectoryAnnounce, CGOSharedDirectoryCreateRequest, CGOSharedDirectoryCreateResponse,
     CGOSharedDirectoryDeleteRequest, CGOSharedDirectoryInfoRequest, CGOSharedDirectoryInfoResponse,
     CGOSharedDirectoryListRequest, CGOSharedDirectoryListResponse, CGOSharedDirectoryReadRequest,
-    CGOSharedDirectoryReadResponse,
+    CGOSharedDirectoryReadResponse, CGOSharedDirectoryWriteRequest,
 };
 use ironrdp_pdu::{cast_length, custom_err, PduResult};
-use ironrdp_rdpdr::pdu::efs::{self, DeviceCloseRequest, DeviceCreateRequest, DeviceReadRequest};
+use ironrdp_rdpdr::pdu::efs::{
+    self, DeviceCloseRequest, DeviceCreateRequest, DeviceReadRequest, DeviceWriteRequest,
+};
 use std::convert::TryInto;
 use std::ffi::CString;
 
@@ -221,6 +223,34 @@ pub struct SharedDirectoryWriteRequest {
     pub offset: u64,
     pub path: UnixPath,
     pub write_data: Vec<u8>,
+}
+
+impl SharedDirectoryWriteRequest {
+    pub fn from_fco(rdp_req: &DeviceWriteRequest, file: &FileCacheObject) -> Self {
+        SharedDirectoryWriteRequest {
+            completion_id: rdp_req.device_io_request.completion_id,
+            directory_id: rdp_req.device_io_request.device_id,
+            path: file.path(),
+            offset: rdp_req.offset,
+            write_data: rdp_req.write_data.clone(),
+        }
+    }
+
+    pub fn into_cgo(self) -> PduResult<CGOWithStrings<CGOSharedDirectoryWriteRequest>> {
+        let path = self.path.to_cstring()?;
+        Ok(CGOWithStrings {
+            cgo: CGOSharedDirectoryWriteRequest {
+                completion_id: self.completion_id,
+                directory_id: self.directory_id,
+                offset: self.offset,
+                path: path.as_ptr(),
+                path_length: self.path.len(),
+                write_data_length: self.write_data.len() as u32,
+                write_data: self.write_data.as_ptr() as *mut u8,
+            },
+            _strings: vec![path],
+        })
+    }
 }
 
 impl std::fmt::Debug for SharedDirectoryWriteRequest {

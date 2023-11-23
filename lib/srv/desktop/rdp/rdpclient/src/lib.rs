@@ -326,8 +326,12 @@ pub unsafe extern "C" fn client_handle_tdp_sd_write_response(
     cgo_handle: CgoHandle,
     res: CGOSharedDirectoryWriteResponse,
 ) -> CGOErrCode {
-    warn!("unimplemented: client_handle_tdp_sd_write_response");
-    CGOErrCode::ErrCodeSuccess
+    let res = SharedDirectoryWriteResponse::from(res);
+    handle_operation(
+        cgo_handle,
+        "client_handle_tdp_sd_write_response",
+        move |client_handle| client_handle.handle_tdp_sd_write_response(res),
+    )
 }
 
 /// client_handle_tdp_sd_move_response handles a TDP Shared Directory Move Response
