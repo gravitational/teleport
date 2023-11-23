@@ -153,6 +153,12 @@ export interface DocumentCluster extends DocumentBase {
 export interface DocumentClusterQueryParams {
   search: string;
   advancedSearchEnabled: boolean;
+  /**
+   * This is a list of 'resource kind' filters that can be selected from
+   * both the search bar and the types selector in the unified resources view.
+   *
+   * If it is empty, all resource kinds are listed.
+   */
   resourceKinds: DocumentClusterResourceKind[];
   sort: {
     fieldName: string;
