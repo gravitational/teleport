@@ -60,7 +60,40 @@ service ExternalCloudAuditService {
   // resource with randomized resource names and upserts it as the current
   // draft.
   rpc GenerateDraftExternalCloudAudit(GenerateDraftExternalCloudAuditRequest) returns (GenerateDraftExternalCloudAuditResponse);
+
+  // TestDraftExternalCloudAuditBuckets tests the connection to the current draft buckets.
+  rpc TestDraftExternalCloudAuditBuckets(TestDraftExternalCloudAuditBucketsRequest) returns (TestDraftExternalCloudAuditBucketsResponse);
+
+  // TestDraftExternalCloudAuditGlue tests the configuration to the current draft glue table and database.
+  rpc TestDraftExternalCloudAuditGlue(TestDraftExternalCloudAuditGlueRequest) returns (TestDraftExternalCloudAuditGlueResponse);
+
+  // TestDraftExternalCloudAuditAthena tests the configuration to the current draft athena.
+  rpc TestDraftExternalCloudAuditAthena(TestDraftExternalCloudAuditAthenaRequest) returns (TestDraftExternalCloudAuditAthenaResponse);
 }
+
+// TestDraftExternalCloudAuditBucketsRequest is a request to test the connection of
+// the current draft external cloud audit configuration buckets.
+message TestDraftExternalCloudAuditBucketsRequest {}
+
+// TestDraftExternalCloudAuditBucketsResponse is a response from testing the connection
+// of the current draft external cloud audit configuration buckets.
+message TestDraftExternalCloudAuditBucketsResponse {}
+
+// TestDraftExternalCloudAuditGlueRequest is a request to test the connection of
+// the current draft external cloud audit configuration glue table.
+message TestDraftExternalCloudAuditGlueRequest {}
+
+// TestDraftExternalCloudAuditGlueResponse is a response from testing the connection
+// of the current draft external cloud audit configuration glue table.
+message TestDraftExternalCloudAuditGlueResponse {}
+
+// TestDraftExternalCloudAuditAthenaRequest is a request to test the connection of
+// the current draft external cloud audit configuration athena.
+message TestDraftExternalCloudAuditAthenaRequest {}
+
+// TestDraftExternalCloudAuditAthenaResponse is a response from testing the connection
+// of the current draft external cloud audit configuration athena.
+message TestDraftExternalCloudAuditAthenaResponse {}
 
 // GetDraftExternalCloudAuditRequest is a request to get the draft external
 // cloud audit configuration.

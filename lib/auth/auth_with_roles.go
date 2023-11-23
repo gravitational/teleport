@@ -313,7 +313,7 @@ func (a *ServerWithRoles) LoginRuleClient() loginrulepb.LoginRuleServiceClient {
 // ExternalCloudAuditClient allows ServerWithRoles to implement ClientI.
 // It should not be called through ServerWithRoles,
 // as it returns a dummy client that will always respond with "not implemented".
-func (a *ServerWithRoles) ExternalCloudAuditClient() services.ExternalCloudAudits {
+func (a *ServerWithRoles) ExternalCloudAuditClient() *externalcloudaudit.Client {
 	return externalcloudaudit.NewClient(externalcloudauditv1.NewExternalCloudAuditServiceClient(
 		utils.NewGRPCDummyClientConnection("ExternalCloudAuditClient() should not be called on ServerWithRoles"),
 	))
