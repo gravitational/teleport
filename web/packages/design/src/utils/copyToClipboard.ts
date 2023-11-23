@@ -15,13 +15,18 @@
  */
 
 /**
- * copyToClipboard copies text to clipboard.
+ * Copies text to clipboard.
+ * Works only in browser, not in Electron.
  *
  * @param textToCopy the text to copy to clipboard
  */
-export default function copyToClipboard(textToCopy: string): Promise<any> {
-  return navigator.clipboard.writeText(textToCopy).catch(err => {
-    // This can happen if the user denies clipboard permissions:
+export default async function copyToClipboard(
+  textToCopy: string
+): Promise<void> {
+  try {
+    await navigator.clipboard.writeText(textToCopy);
+  } catch (err) {
+    // Error can happen if the user denies clipboard permissions.
     window.prompt('Cannot copy to clipboard. Use ctrl/cmd + c', err);
-  });
+  }
 }
