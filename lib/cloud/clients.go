@@ -377,7 +377,6 @@ type awsAssumeRoleOpts struct {
 func (a *awsAssumeRoleOpts) checkAndSetDefaults() error {
 	switch a.credentialsSource {
 	case credentialsSourceAmbient:
-		a.integration = ""
 	case credentialsSourceIntegration:
 		if a.integration == "" {
 			return trace.BadParameter("missing integration name")
