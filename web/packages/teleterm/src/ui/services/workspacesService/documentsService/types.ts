@@ -160,6 +160,8 @@ export interface DocumentClusterQueryParams {
   };
 }
 
+// Any changes done to this type must be backwards compatible as
+// `DocumentClusterQueryParams` uses values of this type and documents are stored to disk.
 export type DocumentClusterResourceKind = Extract<
   SharedUnifiedResource['resource']['kind'],
   'node' | 'kube_cluster' | 'db'
