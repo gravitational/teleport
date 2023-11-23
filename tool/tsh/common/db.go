@@ -1122,7 +1122,10 @@ func getDefaultDBUser(db types.Database, checker services.AccessChecker) (string
 		// ref: https://redis.io/commands/auth
 		extraUsers = append(extraUsers, defaults.DefaultRedisUsername)
 	}
-	dbUsers := checker.EnumerateDatabaseUsers(db, extraUsers...)
+	dbUsers, err := checker.EnumerateDatabaseUsers(db, extraUsers...)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
 	allowed := dbUsers.Allowed()
 	if len(allowed) == 1 {
 		return allowed[0], nil
