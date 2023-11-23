@@ -53,6 +53,8 @@ type Config struct {
 	// PromptAdminRequestMFA is used to prompt the user for MFA on admin requests when needed.
 	// If nil, the client will not prompt for MFA.
 	PromptAdminRequestMFA func(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error)
+	// Insecure turns off TLS certificate verification when enabled.
+	Insecure bool
 }
 
 // Connect creates a valid client connection to the auth service.  It may
@@ -91,7 +93,7 @@ func connectViaAuthDirect(ctx context.Context, cfg *Config) (auth.ClientI, error
 			apiclient.LoadTLS(cfg.TLS),
 		},
 		CircuitBreakerConfig:     cfg.CircuitBreakerConfig,
-		InsecureAddressDiscovery: cfg.TLS.InsecureSkipVerify,
+		InsecureAddressDiscovery: cfg.Insecure,
 		DialTimeout:              cfg.DialTimeout,
 		PromptAdminRequestMFA:    cfg.PromptAdminRequestMFA,
 	})
@@ -119,7 +121,7 @@ func connectViaProxyTunnel(ctx context.Context, cfg *Config) (auth.ClientI, erro
 	resolver := reversetunnelclient.WebClientResolver(&webclient.Config{
 		Context:   ctx,
 		ProxyAddr: cfg.AuthServers[0].String(),
-		Insecure:  cfg.TLS.InsecureSkipVerify,
+		Insecure:  cfg.Insecure,
 		Timeout:   cfg.DialTimeout,
 	})
 
@@ -134,7 +136,7 @@ func connectViaProxyTunnel(ctx context.Context, cfg *Config) (auth.ClientI, erro
 		Resolver:              resolver,
 		ClientConfig:          cfg.SSH,
 		Log:                   cfg.Log,
-		InsecureSkipTLSVerify: cfg.TLS.InsecureSkipVerify,
+		InsecureSkipTLSVerify: cfg.Insecure,
 		ClusterCAs:            cfg.TLS.RootCAs,
 	})
 	if err != nil {
