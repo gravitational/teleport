@@ -3,7 +3,7 @@
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
-  name: {{ .Release.Name }}-operator
+  name: {{ include "teleport-cluster.operator.fullname" . }}
   namespace: {{ .Release.Namespace }}
 rules:
   - apiGroups:
@@ -31,7 +31,6 @@ rules:
       - patch
       - update
       - watch
-
   - apiGroups:
       - "coordination.k8s.io"
     resources:
@@ -40,7 +39,6 @@ rules:
       - create
       - get
       - update
-
   - apiGroups:
       - ""
     resources:

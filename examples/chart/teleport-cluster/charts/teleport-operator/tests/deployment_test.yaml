@@ -14,6 +14,24 @@ tests:
       - containsDocument:
           kind: Deployment
           apiVersion: apps/v1
+          name: RELEASE-NAME-teleport-operator
+
+  - it: shortens fullname if .Release.Name == .Chart.Name
+    release:
+      name: teleport-operator
+    asserts:
+      - containsDocument:
+          kind: Deployment
+          apiVersion: apps/v1
+          name: teleport-operator
+
+  - it: respects the nameOverride
+    set:
+      nameOverride: operator
+    asserts:
+      - containsDocument:
+          kind: Deployment
+          apiVersion: apps/v1
           name: RELEASE-NAME-operator
 
   - it: sets annotations when specified

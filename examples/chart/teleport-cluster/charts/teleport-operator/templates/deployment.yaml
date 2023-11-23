@@ -4,7 +4,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ .Release.Name }}-operator
+  name: {{ include "teleport-cluster.operator.fullname" . }}
   namespace: {{ .Release.Namespace }}
   labels: {{- include "teleport-cluster.operator.labels" . | nindent 4 }}
   {{- if .Values.annotations.deployment }}

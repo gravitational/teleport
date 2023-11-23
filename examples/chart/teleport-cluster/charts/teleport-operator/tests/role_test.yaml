@@ -8,6 +8,7 @@ tests:
     asserts:
       - hasDocuments:
           count: 0
+
   - it: creates no role when rbac.create is false
     set:
       rbac:
@@ -15,7 +16,26 @@ tests:
     asserts:
       - hasDocuments:
           count: 0
+
   - it: creates a role by default
+    asserts:
+      - containsDocument:
+          kind: Role
+          apiVersion: rbac.authorization.k8s.io/v1
+          name: RELEASE-NAME-teleport-operator
+
+  - it: shortens fullname if .Release.Name == .Chart.Name
+    release:
+      name: teleport-operator
+    asserts:
+      - containsDocument:
+          kind: Role
+          apiVersion: rbac.authorization.k8s.io/v1
+          name: teleport-operator
+
+  - it: respects the nameOverride
+    set:
+      nameOverride: operator
     asserts:
       - containsDocument:
           kind: Role
