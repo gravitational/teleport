@@ -119,10 +119,6 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 		return nil, trace.Wrap(err)
 	}
 
-	if req.RemoteAddr == "" {
-		setRemoteAddrFromContext(ctx, req)
-	}
-
 	var joinAttributeSrc joinAttributeSourcer
 	switch method := a.tokenJoinMethod(ctx, req.Token); method {
 	case types.JoinMethodEC2:
