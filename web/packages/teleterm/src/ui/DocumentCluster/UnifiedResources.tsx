@@ -66,15 +66,37 @@ export function UnifiedResources(props: {
   docUri: uri.DocumentUri;
   queryParams: DocumentClusterQueryParams;
 }) {
-  const appContext = useAppContext();
-  const { onResourcesRefreshRequest } = useResourcesContext();
-
   // TODO: Add user preferences to Connect.
   // Until we add stored user preferences to Connect, store it in the state.
-  const [userPrefs, setUserPrefs] = useState<UnifiedResourcePreferences>({
-    defaultTab: UnifiedTabPreference.All,
-    viewMode: UnifiedViewModePreference.Card,
-  });
+  const [userPreferences, setUserPreferences] =
+    useState<UnifiedResourcePreferences>({
+      defaultTab: UnifiedTabPreference.All,
+      viewMode: UnifiedViewModePreference.Card,
+    });
+
+  return (
+    <Resources
+      queryParams={props.queryParams}
+      docUri={props.docUri}
+      clusterUri={props.clusterUri}
+      userPreferences={userPreferences}
+      setUserPreferences={setUserPreferences}
+      // Reset the component state when query params object change.
+      // JSON.stringify on the same object will always produce the same string.
+      key={JSON.stringify(props.queryParams)}
+    />
+  );
+}
+
+function Resources(props: {
+  clusterUri: uri.ClusterUri;
+  docUri: uri.DocumentUri;
+  queryParams: DocumentClusterQueryParams;
+  userPreferences: UnifiedResourcePreferences;
+  setUserPreferences(u: UnifiedResourcePreferences): void;
+}) {
+  const appContext = useAppContext();
+  const { onResourcesRefreshRequest } = useResourcesContext();
 
   const mergedParams: UnifiedResourcesQueryParams = {
     kinds: props.queryParams.resourceKinds,
@@ -154,12 +176,6 @@ export function UnifiedResources(props: {
     return cleanup;
   }, [onResourcesRefreshRequest, fetch, clear]);
 
-  const [prevParams, setPrevParams] = useState(props.queryParams);
-  if (prevParams !== props.queryParams) {
-    setPrevParams(props.queryParams);
-    clear();
-  }
-
   function onParamsChange(newParams: UnifiedResourcesQueryParams): void {
     const documentService =
       appContext.workspacesService.getWorkspaceDocumentService(
@@ -183,8 +199,8 @@ export function UnifiedResources(props: {
     <SharedUnifiedResources
       params={mergedParams}
       setParams={onParamsChange}
-      unifiedResourcePreferences={userPrefs}
-      updateUnifiedResourcesPreferences={setUserPrefs}
+      unifiedResourcePreferences={props.userPreferences}
+      updateUnifiedResourcesPreferences={props.setUserPreferences}
       onLabelClick={() => alert('Not implemented')}
       pinning={{ kind: 'hidden' }}
       resources={resources.map(mapToSharedResource)}
