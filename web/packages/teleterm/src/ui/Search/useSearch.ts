@@ -60,9 +60,14 @@ export function useResourceSearch() {
   return useCallback(
     async (
       search: string,
-      filters: SearchFilter[]
+      filters: SearchFilter[],
+      advancedSearchEnabled: boolean
     ): Promise<CrossClusterResourceSearchResult> => {
-      const searchMode = getResourceSearchMode(search, filters);
+      const searchMode = getResourceSearchMode(
+        search,
+        filters,
+        advancedSearchEnabled
+      );
       let limit = 100;
 
       switch (searchMode) {
@@ -362,8 +367,13 @@ type ResourceSearchMode = 'no-search' | 'preview' | 'full-search';
 
 function getResourceSearchMode(
   search: string,
-  filters: SearchFilter[]
+  filters: SearchFilter[],
+  advancedSearchEnabled: boolean
 ): ResourceSearchMode {
+  // the scoring algorithm doesn't support advanced search
+  if (advancedSearchEnabled) {
+    return 'no-search';
+  }
   // Trim the search to avoid sending requests with limit set to 100 if the user just pressed some
   // spaces.
   const trimmedSearch = search.trim();

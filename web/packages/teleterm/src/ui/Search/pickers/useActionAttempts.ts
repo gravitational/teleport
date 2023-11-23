@@ -70,7 +70,11 @@ export function useActionAttempts() {
   const runRetryableResourceSearch = useCallback(
     async (search: string, filters: SearchFilter[]): Promise<void> => {
       const activeRootClusterUri = workspacesService.getRootClusterUri();
-      const [results, err] = await runResourceSearch(search, filters);
+      const [results, err] = await runResourceSearch(
+        search,
+        filters,
+        searchContext.advancedSearchEnabled
+      );
       // Since resource search uses Promise.allSettled underneath, the only error that could be
       // returned here is CanceledError from useAsync. In that case, we can just return early.
       if (err) {
@@ -104,9 +108,15 @@ export function useActionAttempts() {
 
       // Retrying the request no matter if the user logged in through the modal or not, for the same
       // reasons as described in retryWithRelogin.
-      runResourceSearch(search, filters);
+      runResourceSearch(search, filters, searchContext.advancedSearchEnabled);
     },
-    [modalsService, workspacesService, runResourceSearch, pauseUserInteraction]
+    [
+      searchContext.advancedSearchEnabled,
+      workspacesService,
+      runResourceSearch,
+      pauseUserInteraction,
+      modalsService,
+    ]
   );
   const runDebouncedResourceSearch = useDebounce(
     runRetryableResourceSearch,
@@ -115,11 +125,6 @@ export function useActionAttempts() {
   const resourceActionsAttempt = useMemo(
     () =>
       mapAttempt(resourceSearchAttempt, ({ results, search }) => {
-        // the scoring algorithm doesn't support advanced search
-        if (searchContext.advancedSearchEnabled) {
-          return [];
-        }
-
         const sortedResults = rankResults(results, search);
         return mapToActions(ctx, searchContext, sortedResults);
       }),
@@ -159,6 +164,7 @@ export function useActionAttempts() {
     setResourceSearchAttempt,
     runFilterSearch,
     runDebouncedResourceSearch,
+    searchContext.advancedSearchEnabled,
   ]);
 
   return {
