@@ -42,9 +42,32 @@ videoBanner: UFhT52d5bYg
 
 ## Step 3/5. Create an IAM policy for Teleport
 
-Teleport needs AWS IAM permissions to be able to:
+There are two methods of IAM authentication supported by Redshift. Teleport
+requires different IAM permissions depending on which IAM authentication method
+will be used:
 
-- Manage IAM user or IAM role policies.
+<Tabs>
+<TabItem label="IAM authentication as database users (recommended)">
+Teleport Database Service can authenticate with Redshift by generating IAM
+authentication tokens as existing database users.
+
+The Database Service requires IAM permissions to manage its own IAM role or IAM
+user policies. As a result, appropriate `redshift:GetClusterCredentials`
+permissions will be added to the IAM role or IAM user of the Database Service.
+</TabItem>
+
+<TabItem label="IAM authentication as IAM roles">
+Teleport Database Service can authenticate with Redshift by generating IAM
+authentication tokens as IAM roles, and Redshift maps these IAM roles to
+database users automatically.
+
+The Database Service must have trust relationship with these IAM roles so the
+Database Service can assume these IAM roles. Note that these IAM roles must
+have `redshift:GetClusterCredentialsWithIAM` to the Redshift clusters to be
+accessed.
+
+</TabItem>
+</Tabs>
 
 Before you can generate IAM permissions, you must provide the Teleport Database
 Service access to AWS credentials.
@@ -99,14 +122,25 @@ $ tsh db ls
 
 To retrieve credentials for a database and connect to it:
 
+<Tabs>
+<TabItem label="authenticate as database users">
 ```code
-$ tsh db connect --db-user=awsuser --db-name=dev my-redshift
+$ tsh db connect --db-user=alice --db-name=dev my-redshift
 ```
 
 <Admonition type="note" title="Database users must exist">
   Teleport does not currently use the auto-create option when generating
   tokens for Redshift databases. Users must exist in the database.
 </Admonition>
+</TabItem>
+
+<TabItem label="authenticate as IAM roles">
+
+```code
+$ tsh db connect --db-user=role/my-iam-role --db-name=dev my-redshift
+```
+</TabItem>
+</Tabs>
 
 To log out of the database and remove credentials:
 
