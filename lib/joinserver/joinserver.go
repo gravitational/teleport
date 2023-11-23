@@ -177,16 +177,16 @@ func checkForProxyRole(identity tlsca.Identity) bool {
 }
 
 func setClientRemoteAddr(ctx context.Context, req *types.RegisterUsingTokenRequest) error {
-	// If request is coming from the Proxy we trust the IP set on the request, otherwise we set it ourselves
-	// from the connection.
-	if user, err := authz.UserFromContext(ctx); err != nil || !checkForProxyRole(user.GetIdentity()) {
-		p, ok := peer.FromContext(ctx)
-		if !ok {
-			return trace.BadParameter("could not get peer from the context")
-		}
-		req.RemoteAddr = p.Addr.String()
+	// If request is coming from the Proxy, trust the IP set on the request.
+	if user, err := authz.UserFromContext(ctx); err == nil && checkForProxyRole(user.GetIdentity()) {
+		return nil
 	}
-
+	// Otherwise this is (likely) the proxy, set the IP from the connection.
+	p, ok := peer.FromContext(ctx)
+	if !ok {
+		return trace.BadParameter("could not get peer from the context")
+	}
+	req.RemoteAddr = p.Addr.String()
 	return nil
 }
 
