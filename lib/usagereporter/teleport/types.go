@@ -902,7 +902,7 @@ type ExternalAuditStorageAuthenticateEvent prehogv1a.ExternalAuditStorageAuthent
 func (e *ExternalAuditStorageAuthenticateEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
 	return prehogv1a.SubmitEventRequest{
 		Event: &prehogv1a.SubmitEventRequest_ExternalAuditStorageAuthenticate{
-			ExternalAuditStorageAuthenticate: e,
+			ExternalAuditStorageAuthenticate: &prehogv1a.ExternalAuditStorageAuthenticateEvent{},
 		},
 	}
 }
