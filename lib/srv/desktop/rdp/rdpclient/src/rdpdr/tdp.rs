@@ -17,10 +17,11 @@ use crate::{
     util::{self, from_c_string, from_go_array},
     CGOSharedDirectoryAnnounce, CGOSharedDirectoryCreateRequest, CGOSharedDirectoryCreateResponse,
     CGOSharedDirectoryDeleteRequest, CGOSharedDirectoryInfoRequest, CGOSharedDirectoryInfoResponse,
-    CGOSharedDirectoryListRequest, CGOSharedDirectoryListResponse, CGOSharedDirectoryReadResponse,
+    CGOSharedDirectoryListRequest, CGOSharedDirectoryListResponse, CGOSharedDirectoryReadRequest,
+    CGOSharedDirectoryReadResponse,
 };
 use ironrdp_pdu::{cast_length, custom_err, PduResult};
-use ironrdp_rdpdr::pdu::efs::{self, DeviceCloseRequest, DeviceCreateRequest};
+use ironrdp_rdpdr::pdu::efs::{self, DeviceCloseRequest, DeviceCreateRequest, DeviceReadRequest};
 use std::convert::TryInto;
 use std::ffi::CString;
 
@@ -243,6 +244,33 @@ pub struct SharedDirectoryReadRequest {
     pub path: UnixPath,
     pub offset: u64,
     pub length: u32,
+}
+
+impl SharedDirectoryReadRequest {
+    pub fn from_fco(rdp_req: &DeviceReadRequest, file: &FileCacheObject) -> Self {
+        SharedDirectoryReadRequest {
+            completion_id: rdp_req.device_io_request.completion_id,
+            directory_id: rdp_req.device_io_request.device_id,
+            path: file.path(),
+            length: rdp_req.length,
+            offset: rdp_req.offset,
+        }
+    }
+
+    pub fn into_cgo(self) -> PduResult<CGOWithStrings<CGOSharedDirectoryReadRequest>> {
+        let path = self.path.to_cstring()?;
+        Ok(CGOWithStrings {
+            cgo: CGOSharedDirectoryReadRequest {
+                completion_id: self.completion_id,
+                directory_id: self.directory_id,
+                path_length: self.path.len(),
+                path: path.as_ptr(),
+                offset: self.offset,
+                length: self.length,
+            },
+            _strings: vec![path],
+        })
+    }
 }
 
 /// SharedDirectoryReadResponse is sent by the TDP client to the server

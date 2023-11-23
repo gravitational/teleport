@@ -35,7 +35,8 @@ use rdpdr::path::UnixPath;
 use rdpdr::tdp::{
     FileSystemObject, FileType, SharedDirectoryAcknowledge, SharedDirectoryCreateResponse,
     SharedDirectoryDeleteResponse, SharedDirectoryInfoResponse, SharedDirectoryListResponse,
-    SharedDirectoryMoveResponse, SharedDirectoryWriteResponse, TdpErrCode,
+    SharedDirectoryMoveResponse, SharedDirectoryReadResponse, SharedDirectoryWriteResponse,
+    TdpErrCode,
 };
 use std::convert::TryFrom;
 use std::ffi::CString;
@@ -306,8 +307,12 @@ pub unsafe extern "C" fn client_handle_tdp_sd_read_response(
     cgo_handle: CgoHandle,
     res: CGOSharedDirectoryReadResponse,
 ) -> CGOErrCode {
-    warn!("unimplemented: client_handle_tdp_sd_read_response");
-    CGOErrCode::ErrCodeSuccess
+    let res = SharedDirectoryReadResponse::from(res);
+    handle_operation(
+        cgo_handle,
+        "client_handle_tdp_sd_read_response",
+        move |client_handle| client_handle.handle_tdp_sd_read_response(res),
+    )
 }
 
 /// client_handle_tdp_sd_write_response handles a TDP Shared Directory Write Response

@@ -18,7 +18,7 @@ use super::{
 };
 use crate::{
     client::ClientHandle, tdp_sd_create_request, tdp_sd_delete_request, tdp_sd_info_request,
-    tdp_sd_list_request, CGOErrCode, CgoHandle,
+    tdp_sd_list_request, tdp_sd_read_request, CGOErrCode, CgoHandle,
 };
 use ironrdp_pdu::{cast_length, custom_err, other_err, PduResult};
 use ironrdp_rdpdr::pdu::{
@@ -45,6 +45,7 @@ pub struct FilesystemBackend {
     pending_sd_create_resp_handlers: ResponseCache<tdp::SharedDirectoryCreateResponse>,
     pending_sd_delete_resp_handlers: ResponseCache<tdp::SharedDirectoryDeleteResponse>,
     pending_sd_list_resp_handlers: ResponseCache<tdp::SharedDirectoryListResponse>,
+    pending_sd_read_resp_handlers: ResponseCache<tdp::SharedDirectoryReadResponse>,
 }
 
 impl FilesystemBackend {
@@ -57,6 +58,7 @@ impl FilesystemBackend {
             pending_sd_create_resp_handlers: ResponseCache::new(),
             pending_sd_delete_resp_handlers: ResponseCache::new(),
             pending_sd_list_resp_handlers: ResponseCache::new(),
+            pending_sd_read_resp_handlers: ResponseCache::new(),
         }
     }
 
@@ -78,6 +80,7 @@ impl FilesystemBackend {
             efs::ServerDriveIoRequest::DeviceControlRequest(req) => {
                 self.handle_device_control_req(req)
             }
+            efs::ServerDriveIoRequest::DeviceReadRequest(req) => self.handle_device_read_req(req),
         }
     }
 
@@ -475,6 +478,11 @@ impl FilesystemBackend {
         self.send_device_control_response(req, NtStatus::SUCCESS, None)
     }
 
+    /// Handles an RDP [`efs::DeviceReadRequest`] received from the RDP server.
+    fn handle_device_read_req(&mut self, req: efs::DeviceReadRequest) -> PduResult<()> {
+        self.tdp_sd_read(req)
+    }
+
     /// Helper function for writing a [`tdp::SharedDirectoryCreateRequest`] to the browser
     /// and handling the [`tdp::SharedDirectoryCreateResponse`] that is received in response.
     fn tdp_sd_create(
@@ -558,6 +566,41 @@ impl FilesystemBackend {
         Ok(())
     }
 
+    /// Helper function for sending a [`tdp::SharedDirectoryReadRequest`] to the browser
+    /// and handling the [`tdp::SharedDirectoryReadResponse`] that is received in response.
+    fn tdp_sd_read(&mut self, rdp_req: efs::DeviceReadRequest) -> PduResult<()> {
+        if let Some(file) = self.file_cache.get(rdp_req.device_io_request.file_id) {
+            let tdp_req = tdp::SharedDirectoryReadRequest::from_fco(&rdp_req, file);
+            self.send_tdp_sd_read_request(tdp_req)?;
+            self.pending_sd_read_resp_handlers.insert(
+                rdp_req.device_io_request.completion_id,
+                SharedDirectoryReadResponseHandler::new(
+                    move |this: &mut FilesystemBackend,
+                          res: tdp::SharedDirectoryReadResponse|
+                          -> PduResult<()> {
+                        match res.err_code {
+                            TdpErrCode::Nil => this.send_read_response(
+                                rdp_req.device_io_request,
+                                NtStatus::SUCCESS,
+                                res.read_data,
+                            ),
+                            _ => this.send_read_response(
+                                rdp_req.device_io_request,
+                                NtStatus::UNSUCCESSFUL,
+                                vec![],
+                            ),
+                        }
+                    },
+                ),
+            );
+
+            return Ok(());
+        }
+
+        // File not found in cache
+        self.send_read_response(rdp_req.device_io_request, NtStatus::UNSUCCESSFUL, vec![])
+    }
+
     /// Sends a [`tdp::SharedDirectoryInfoRequest`] to the browser.
     fn send_tdp_sd_info_request(&self, tdp_req: tdp::SharedDirectoryInfoRequest) -> PduResult<()> {
         debug!("sending tdp: {:?}", tdp_req);
@@ -615,6 +658,20 @@ impl FilesystemBackend {
             return Err(custom_err!(
                 "FilesystemBackend::send_tdp_sd_list_request",
                 FilesystemBackendError(format!("call to tdp_sd_list_request failed: {:?}", err))
+            ));
+        };
+        Ok(())
+    }
+
+    /// Sends a [`tdp::SharedDirectoryReadRequest`] to the browser.
+    fn send_tdp_sd_read_request(&self, tdp_req: tdp::SharedDirectoryReadRequest) -> PduResult<()> {
+        debug!("sending tdp: {:?}", tdp_req);
+        let mut req = tdp_req.into_cgo()?;
+        let err = unsafe { tdp_sd_read_request(self.cgo_handle, req.cgo()) };
+        if err != CGOErrCode::ErrCodeSuccess {
+            return Err(custom_err!(
+                "FilesystemBackend::send_tdp_sd_read_request",
+                FilesystemBackendError(format!("call to tdp_sd_read_request failed: {:?}", err))
             ));
         };
         Ok(())
@@ -708,6 +765,30 @@ impl FilesystemBackend {
         } else {
             Err(custom_err!(
                 "FilesystemBackend::handle_tdp_sd_list_response",
+                FilesystemBackendError(format!(
+                    "received invalid completion id: {}",
+                    tdp_resp.completion_id
+                ))
+            ))
+        }
+    }
+
+    /// Called from the Go code when a [`tdp::SharedDirectoryReadResponse`] is received from the browser.
+    ///
+    /// Calls the [`SharedDirectoryReadResponseHandler`] associated with the completion id of the
+    /// [`tdp::SharedDirectoryReadResponse`].
+    pub fn handle_tdp_sd_read_response(
+        &mut self,
+        tdp_resp: tdp::SharedDirectoryReadResponse,
+    ) -> PduResult<()> {
+        if let Some(handler) = self
+            .pending_sd_read_resp_handlers
+            .remove(&tdp_resp.completion_id)
+        {
+            handler.call(self, tdp_resp)
+        } else {
+            Err(custom_err!(
+                "FilesystemBackend::handle_tdp_sd_read_response",
                 FilesystemBackendError(format!(
                     "received invalid completion id: {}",
                     tdp_resp.completion_id
@@ -1014,6 +1095,7 @@ impl FilesystemBackend {
         Ok(())
     }
 
+    /// Sends an RDP [`efs::DeviceControlResponse`] to the RDP server.
     fn send_device_control_response<T: efs::IoCtlCode>(
         &self,
         req: efs::DeviceControlRequest<T>,
@@ -1022,6 +1104,22 @@ impl FilesystemBackend {
     ) -> PduResult<()> {
         self.client_handle
             .write_rdpdr(efs::DeviceControlResponse::new(req, io_status, output_buffer).into())?;
+        Ok(())
+    }
+
+    fn send_read_response(
+        &self,
+        device_io_request: efs::DeviceIoRequest,
+        io_status: NtStatus,
+        read_data: Vec<u8>,
+    ) -> PduResult<()> {
+        self.client_handle.write_rdpdr(
+            efs::DeviceReadResponse {
+                device_io_reply: efs::DeviceIoResponse::new(device_io_request, io_status),
+                read_data,
+            }
+            .into(),
+        )?;
         Ok(())
     }
 }
@@ -1222,6 +1320,7 @@ type SharedDirectoryInfoResponseHandler = ResponseHandler<tdp::SharedDirectoryIn
 type SharedDirectoryCreateResponseHandler = ResponseHandler<tdp::SharedDirectoryCreateResponse>;
 type SharedDirectoryDeleteResponseHandler = ResponseHandler<tdp::SharedDirectoryDeleteResponse>;
 type SharedDirectoryListResponseHandler = ResponseHandler<tdp::SharedDirectoryListResponse>;
+type SharedDirectoryReadResponseHandler = ResponseHandler<tdp::SharedDirectoryReadResponse>;
 
 type CompletionId = u32;
 
