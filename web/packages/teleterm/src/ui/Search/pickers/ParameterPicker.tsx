@@ -96,7 +96,9 @@ export function ParameterPicker(props: ParameterPickerProps) {
         render={item => ({
           key: item,
           Component: (
-            <Highlight text={item} keywords={[inputValue]}></Highlight>
+            <Text typography="body1" fontSize={1}>
+              <Highlight text={item} keywords={[inputValue]}></Highlight>
+            </Text>
           ),
         })}
       />
