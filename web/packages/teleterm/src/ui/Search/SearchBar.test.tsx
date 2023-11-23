@@ -28,6 +28,8 @@ import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
 
 import { ClusterUri } from 'teleterm/ui/uri';
 
+import { SearchAction } from './actions';
+
 import * as pickers from './pickers/pickers';
 import * as useActionAttempts from './pickers/useActionAttempts';
 import * as useSearch from './useSearch';
@@ -43,12 +45,24 @@ beforeEach(() => {
   jest.restoreAllMocks();
 });
 
+const displayResultsAction: SearchAction = {
+  type: 'simple-action',
+  searchResult: {
+    kind: 'display-results',
+    value: '',
+    resourceKinds: [],
+    clusterUri: '/clusters/foo',
+    documentUri: undefined,
+  },
+  perform() {},
+};
+
 it('does not display empty results copy after selecting two filters', () => {
   const appContext = setUpContext('/clusters/foo');
 
   const mockActionAttempts = {
-    displayResultsAttempt: makeSuccessAttempt([]),
-    filterActionsAttempt: makeSuccessAttempt([]),
+    displayResultsAction,
+    filterActions: [],
     resourceActionsAttempt: makeSuccessAttempt([]),
     resourceSearchAttempt: makeSuccessAttempt({
       results: [],
@@ -82,8 +96,8 @@ it('displays empty results copy after providing search query for which there is 
   const appContext = setUpContext('/clusters/foo');
 
   const mockActionAttempts = {
-    displayResultsAttempt: makeSuccessAttempt([]),
-    filterActionsAttempt: makeSuccessAttempt([]),
+    displayResultsAction,
+    filterActions: [],
     resourceActionsAttempt: makeSuccessAttempt([]),
     resourceSearchAttempt: makeSuccessAttempt({
       results: [],
@@ -116,8 +130,8 @@ it('includes offline cluster names in the empty results copy', () => {
   });
 
   const mockActionAttempts = {
-    displayResultsAttempt: makeSuccessAttempt([]),
-    filterActionsAttempt: makeSuccessAttempt([]),
+    displayResultsAction,
+    filterActions: [],
     resourceActionsAttempt: makeSuccessAttempt([]),
     resourceSearchAttempt: makeSuccessAttempt({
       results: [],
@@ -155,8 +169,8 @@ it('notifies about resource search errors and allows to display details', () => 
   );
 
   const mockActionAttempts = {
-    displayResultsAttempt: makeSuccessAttempt([]),
-    filterActionsAttempt: makeSuccessAttempt([]),
+    displayResultsAction,
+    filterActions: [],
     resourceActionsAttempt: makeSuccessAttempt([]),
     resourceSearchAttempt: makeSuccessAttempt({
       results: [],
@@ -212,8 +226,8 @@ it('maintains focus on the search input after closing a resource search error mo
   );
 
   const mockActionAttempts = {
-    displayResultsAttempt: makeSuccessAttempt([]),
-    filterActionsAttempt: makeSuccessAttempt([]),
+    displayResultsAction,
+    filterActions: [],
     resourceActionsAttempt: makeSuccessAttempt([]),
     resourceSearchAttempt: makeSuccessAttempt({
       results: [],

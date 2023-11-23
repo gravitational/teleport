@@ -66,9 +66,7 @@ export function ResultList<T>(props: ResultListProps<T>) {
     [onPick]
   );
 
-  const items = useMemo(() => {
-    return attempts.map(a => a.data || []).flat();
-  }, [attempts]);
+  const items = attempts.map(a => a.data || []).flat();
 
   // Reset the active item index if it's greater than the number of available items.
   // This can happen in cases where the user selects the nth item and then filters the list so that

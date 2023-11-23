@@ -20,12 +20,15 @@ import { Box, ButtonBorder, Flex, Label as DesignLabel, Text } from 'design';
 import * as icons from 'design/Icon';
 import { Cross as CloseIcon } from 'design/Icon';
 import { Highlight } from 'shared/components/Highlight';
-import { Attempt, hasFinished } from 'shared/hooks/useAsync';
+import {
+  Attempt,
+  hasFinished,
+  makeSuccessAttempt,
+} from 'shared/hooks/useAsync';
 import { AdvancedSearchToggle } from 'shared/components/AdvancedSearchToggle';
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import {
-  ClusterSearchFilter,
   ResourceMatch,
   ResourceSearchResult,
   SearchFilter,
@@ -36,6 +39,7 @@ import {
   SearchResultResourceType,
   SearchResultServer,
   DisplayResults,
+  isClusterSearchFilter,
 } from 'teleterm/ui/Search/searchResult';
 import * as tsh from 'teleterm/services/tshd/types';
 import * as uri from 'teleterm/ui/uri';
@@ -73,29 +77,12 @@ export function ActionPicker(props: { input: ReactElement }) {
     toggleAdvancedSearch,
   } = useSearchContext();
   const {
-    displayResultsAttempt,
-    filterActionsAttempt,
+    displayResultsAction,
+    filterActions,
     resourceActionsAttempt,
     resourceSearchAttempt,
   } = useActionAttempts();
   const totalCountOfClusters = clustersService.getClusters().length;
-
-  // Contains actions whose number of results depends on the search value.
-  // Based on these, we should calculate the picker state.
-  //
-  // For example, `displayResultsAttempt`
-  // should not be added here, because it is always shown,
-  // and it would cause 'no results' message to never be displayed.
-  const filterableActionAttempts = useMemo(
-    () => [filterActionsAttempt, resourceActionsAttempt],
-    [filterActionsAttempt, resourceActionsAttempt]
-  );
-  // The order of attempts is important.
-  // Display results and filter actions should be displayed before resource actions.
-  const actionAttempts = useMemo(
-    () => [displayResultsAttempt, ...filterableActionAttempts],
-    [displayResultsAttempt, filterableActionAttempts]
-  );
 
   const getClusterName = useCallback(
     (resourceUri: uri.ClusterOrResourceUri) => {
@@ -171,19 +158,11 @@ export function ActionPicker(props: { input: ReactElement }) {
       getActionPickerStatus({
         inputValue,
         filters,
-        filterActionsAttempt,
-        actionAttempts: filterableActionAttempts,
+        filterActions,
         resourceSearchAttempt,
         allClusters: clustersService.getClusters(),
       }),
-    [
-      inputValue,
-      filters,
-      filterActionsAttempt,
-      filterableActionAttempts,
-      resourceSearchAttempt,
-      clustersService,
-    ]
+    [inputValue, filters, filterActions, resourceSearchAttempt, clustersService]
   );
   const showErrorsInModal = useCallback(
     errors =>
@@ -201,6 +180,14 @@ export function ActionPicker(props: { input: ReactElement }) {
     [pauseUserInteraction, modalsService, getClusterName]
   );
 
+  // The order of attempts is important.
+  // Display results action and filter actions should be displayed before resource actions.
+  const resultListAttempts = [
+    makeSuccessAttempt([displayResultsAction]),
+    makeSuccessAttempt(filterActions),
+    resourceActionsAttempt,
+  ];
+
   return (
     <PickerContainer>
       <InputWrapper onKeyDown={handleKeyDown}>
@@ -208,7 +195,7 @@ export function ActionPicker(props: { input: ReactElement }) {
         {props.input}
       </InputWrapper>
       <ResultList<SearchAction>
-        attempts={actionAttempts}
+        attempts={resultListAttempts}
         onPick={onPick}
         onBack={close}
         addWindowEventListener={addWindowEventListener}
@@ -407,16 +394,14 @@ type ActionPickerStatus =
 export function getActionPickerStatus({
   inputValue,
   filters,
-  filterActionsAttempt,
+  filterActions,
   allClusters,
-  actionAttempts,
   resourceSearchAttempt,
 }: {
   inputValue: string;
   filters: SearchFilter[];
-  filterActionsAttempt: Attempt<SearchAction[]>;
+  filterActions: SearchAction[];
   allClusters: tsh.Cluster[];
-  actionAttempts: Attempt<SearchAction[]>[];
   resourceSearchAttempt: Attempt<CrossClusterResourceSearchResult>;
 }): ActionPickerStatus {
   if (!inputValue) {
@@ -438,9 +423,7 @@ export function getActionPickerStatus({
     //
     // We also know that this attempt is always successful as filters are calculated in a sync way.
     // They're converted into an attempt only to conform to the interface of ResultList.
-    const hasNoRemainingFilterActions =
-      filterActionsAttempt.status === 'success' &&
-      filterActionsAttempt.data.length === 0;
+    const hasNoRemainingFilterActions = filterActions.length === 0;
 
     const nonRetryableResourceSearchErrors =
       resourceSearchAttempt.status === 'success'
@@ -463,11 +446,8 @@ export function getActionPickerStatus({
   let clustersWithExpiredCerts = new Set(
     allClusters.filter(c => !c.connected).map(c => c.uri)
   );
-  const haveActionAttemptsFinished = actionAttempts.every(attempt =>
-    hasFinished(attempt)
-  );
 
-  if (!haveActionAttemptsFinished) {
+  if (!hasFinished(resourceSearchAttempt)) {
     return {
       inputState: 'some-input',
       hasNoResults: false,
@@ -476,26 +456,21 @@ export function getActionPickerStatus({
     };
   }
 
-  const hasNoResults = actionAttempts.every(
-    attempt => attempt.data.length === 0
-  );
+  // resourceSearchAttempt never has error status.
+  const hasNoResults =
+    resourceSearchAttempt.data.results.length === 0 &&
+    filterActions.length === 0;
 
-  // We could assume that resourceSearchAttempt has finished since action attempts depend on it and
-  // we know that they all finished at this point. But we check status explicitly anyway.
-  if (resourceSearchAttempt.status === 'success') {
-    resourceSearchAttempt.data.errors.forEach(err => {
-      if (isRetryable(err.cause)) {
-        clustersWithExpiredCerts.add(err.clusterUri);
-      } else {
-        nonRetryableResourceSearchErrors.push(err);
-      }
-    });
-  }
+  resourceSearchAttempt.data.errors.forEach(err => {
+    if (isRetryable(err.cause)) {
+      clustersWithExpiredCerts.add(err.clusterUri);
+    } else {
+      nonRetryableResourceSearchErrors.push(err);
+    }
+  });
 
   // Make sure we don't list extra clusters with expired certs if a cluster filter is selected.
-  const clusterFilter = filters.find(
-    filter => filter.filter === 'cluster'
-  ) as ClusterSearchFilter;
+  const clusterFilter = filters.find(isClusterSearchFilter);
   if (clusterFilter) {
     const hasClusterCertExpired = clustersWithExpiredCerts.has(
       clusterFilter.clusterUri
@@ -524,7 +499,7 @@ export const ComponentMap: Record<
   database: DatabaseItem,
   'cluster-filter': ClusterFilterItem,
   'resource-type-filter': ResourceTypeFilterItem,
-  'display-results': DisplayResults,
+  'display-results': DisplayResultsItem,
 };
 
 type SearchResultItem<T> = {
@@ -548,7 +523,7 @@ function ClusterFilterItem(props: SearchResultItem<SearchResultCluster>) {
   );
 }
 
-function DisplayResults(props: SearchResultItem<DisplayResults>) {
+function DisplayResultsItem(props: SearchResultItem<DisplayResults>) {
   return (
     <IconAndContent Icon={icons.Magnifier} iconColor="text.slightlyMuted">
       <Text typography="body1">

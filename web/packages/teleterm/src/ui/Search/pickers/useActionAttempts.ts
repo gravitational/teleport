@@ -21,12 +21,7 @@ import {
   useRef,
   useCallback,
 } from 'react';
-import {
-  makeEmptyAttempt,
-  makeSuccessAttempt,
-  mapAttempt,
-  useAsync,
-} from 'shared/hooks/useAsync';
+import { makeEmptyAttempt, mapAttempt, useAsync } from 'shared/hooks/useAsync';
 import { debounce } from 'shared/utils/highbar';
 
 import {
@@ -133,22 +128,23 @@ export function useActionAttempts() {
   );
 
   const runFilterSearch = useFilterSearch();
-  const filterActionsAttempt = useMemo(() => {
-    // TODO(gzdunek): filters are sorted inline, should be done here to align with resource search
-    const filterActions = runFilterSearch(inputValue, filters).map(result =>
-      mapToAction(ctx, searchContext, result)
-    );
+  const filterActions = useMemo(
+    () =>
+      // TODO(gzdunek): filters are sorted inline, should be done here to align with resource search
+      runFilterSearch(inputValue, filters).map(result =>
+        mapToAction(ctx, searchContext, result)
+      ),
+    [runFilterSearch, inputValue, filters, ctx, searchContext]
+  );
 
-    return makeSuccessAttempt(filterActions);
-  }, [runFilterSearch, inputValue, filters, ctx, searchContext]);
-
-  const displayResults = useDisplayResults({
-    inputValue,
-    filters,
-  });
-  const displayResultsAttempt = makeSuccessAttempt([
-    mapToAction(ctx, searchContext, displayResults),
-  ]);
+  const displayResultsAction = mapToAction(
+    ctx,
+    searchContext,
+    useDisplayResults({
+      inputValue,
+      filters,
+    })
+  );
 
   useEffect(() => {
     // Reset the resource search attempt as soon as the input changes. If we didn't do that, then
@@ -170,12 +166,16 @@ export function useActionAttempts() {
   ]);
 
   return {
-    displayResultsAttempt,
-    filterActionsAttempt,
+    displayResultsAction,
+    filterActions,
     resourceActionsAttempt,
-    // resourceSearchAttempt is the raw version of useResourceSearch attempt that has not been
-    // mapped to actions. Returning this will allow ActionPicker to inspect errors returned from the
-    // resource search.
+    /**
+     * resourceSearchAttempt is the raw version of useResourceSearch attempt that has not been
+     * mapped to actions. Returning this will allow ActionPicker to inspect errors returned from the
+     * resource search.
+     *
+     * The status of this attempt never equals to 'error'.
+     * */
     resourceSearchAttempt,
   };
 }
