@@ -56,7 +56,7 @@ export function useDocumentClusterSearch(args: {
       clusterUri: shouldOpenInCurrentTab
         ? clusterDocument.clusterUri
         : clusterFilter?.clusterUri || localClusterUri,
-      kinds: kinds.map(kind => kind.resourceType),
+      resourceKinds: kinds.map(kind => kind.resourceType),
     };
   }, [activeDocument, args.filters, args.inputValue, localClusterUri]);
 }

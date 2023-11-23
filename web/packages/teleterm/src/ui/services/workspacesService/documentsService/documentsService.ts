@@ -436,7 +436,7 @@ export class DocumentsService {
 
 export function getDefaultDocumentClusterQueryParams(): DocumentClusterQueryParams {
   return {
-    kinds: [],
+    resourceKinds: [],
     search: '',
     sort: { fieldName: 'name', dir: 'ASC' },
     advancedSearchEnabled: false,

@@ -57,7 +57,7 @@ test('if the cluster document is active, the search results should be shown in i
   );
   const { current } = result;
   expect(current.clusterUri).toEqual(documentCluster.clusterUri);
-  expect(current.kinds).toEqual(['db']);
+  expect(current.resourceKinds).toEqual(['db']);
   expect(current.documentUri).toEqual(documentCluster.uri);
   expect(current.value).toBe('bar');
 });
@@ -93,7 +93,7 @@ test('if the cluster filter does not match the document cluster, the results sho
   );
   const { current } = result;
   expect(current.clusterUri).toBe('/clusters/teleport-b');
-  expect(current.kinds).toEqual([]);
+  expect(current.resourceKinds).toEqual([]);
   expect(current.documentUri).toBeUndefined();
   expect(current.value).toBe('bar');
 });
@@ -128,7 +128,7 @@ test('if the cluster document is not active, the results should be opened in a n
   );
   const { current } = result;
   expect(current.clusterUri).toBe('/clusters/teleport-a');
-  expect(current.kinds).toEqual(['db']);
+  expect(current.resourceKinds).toEqual(['db']);
   expect(current.documentUri).toBeUndefined();
   expect(current.value).toBe('bar');
 });

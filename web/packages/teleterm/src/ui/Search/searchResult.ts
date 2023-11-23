@@ -51,7 +51,7 @@ export type SearchResultResourceType = {
 export type DocumentClusterSearchResult = {
   kind: 'document-cluster-search';
   value: string;
-  kinds: DocumentClusterResourceKind[];
+  resourceKinds: DocumentClusterResourceKind[];
   clusterUri: ClusterUri;
   documentUri: DocumentUri | undefined;
 };

@@ -161,7 +161,7 @@ export function mapToActions(
                   ...prevDoc,
                   queryParams: {
                     ...prevDoc.queryParams,
-                    kinds: result.kinds,
+                    resourceKinds: result.resourceKinds,
                     search: result.value,
                     advancedSearchEnabled: searchContext.advancedSearchEnabled,
                   },
@@ -185,7 +185,7 @@ export function mapToActions(
                 ...getDefaultDocumentClusterQueryParams(),
                 search: result.value,
                 advancedSearchEnabled: false,
-                kinds: result.kinds,
+                resourceKinds: result.resourceKinds,
               },
             });
             documentsService.add(doc);

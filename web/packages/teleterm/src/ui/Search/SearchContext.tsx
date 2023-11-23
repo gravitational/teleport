@@ -120,7 +120,7 @@ export const SearchContextProvider: FC = props => {
     setInputValue(queryParams.search);
     setAdvancedSearchEnabled(queryParams.advancedSearchEnabled);
     setFilters(
-      queryParams.kinds.map(resourceType => ({
+      queryParams.resourceKinds.map(resourceType => ({
         filter: 'resource-type',
         resourceType,
       }))

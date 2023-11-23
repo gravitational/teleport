@@ -29,7 +29,7 @@ export function makeDocumentCluster(
         fieldName: 'name',
         dir: 'ASC',
       },
-      kinds: [],
+      resourceKinds: [],
       search: '',
       advancedSearchEnabled: false,
     },

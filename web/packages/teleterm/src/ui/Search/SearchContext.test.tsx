@@ -240,7 +240,7 @@ test('search bar state is adjusted to the active document', () => {
       clusterUri: rootClusterUri,
       queryParams: {
         search: 'foo',
-        kinds: ['db'],
+        resourceKinds: ['db'],
         sort: { dir: 'ASC', fieldName: 'name' },
         advancedSearchEnabled: true,
       },
@@ -261,7 +261,7 @@ test('search bar state is adjusted to the active document', () => {
       clusterUri: rootClusterUri,
       queryParams: {
         search: 'bar',
-        kinds: ['kube_cluster'],
+        resourceKinds: ['kube_cluster'],
         sort: { dir: 'ASC', fieldName: 'name' },
         advancedSearchEnabled: false,
       },

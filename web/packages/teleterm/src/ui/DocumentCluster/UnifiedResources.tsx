@@ -77,7 +77,7 @@ export function UnifiedResources(props: {
   });
 
   const mergedParams: UnifiedResourcesQueryParams = {
-    kinds: props.queryParams.kinds,
+    kinds: props.queryParams.resourceKinds,
     sort: props.queryParams.sort,
     pinnedOnly: false, //TODO: add support for pinning
     search: props.queryParams.advancedSearchEnabled
@@ -171,7 +171,7 @@ export function UnifiedResources(props: {
         queryParams: {
           ...prevDoc.queryParams,
           sort: newParams.sort,
-          kinds: newParams.kinds as DocumentClusterResourceKind[],
+          resourceKinds: newParams.kinds as DocumentClusterResourceKind[],
           search: newParams.search || newParams.query,
         },
       };

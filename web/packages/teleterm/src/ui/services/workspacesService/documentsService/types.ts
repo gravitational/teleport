@@ -153,7 +153,7 @@ export interface DocumentCluster extends DocumentBase {
 export interface DocumentClusterQueryParams {
   search: string;
   advancedSearchEnabled: boolean;
-  kinds: DocumentClusterResourceKind[];
+  resourceKinds: DocumentClusterResourceKind[];
   sort: {
     fieldName: string;
     dir: 'ASC' | 'DESC';
