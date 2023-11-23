@@ -21,6 +21,8 @@ import (
 	"sync"
 	"syscall"
 	"time"
+
+	"github.com/jonboulle/clockwork"
 )
 
 const (
@@ -36,16 +38,9 @@ const (
 // always return EPIPE instead.
 var errBrokenPipe = syscall.EPIPE
 
-func newManagedConn(localAddr, remoteAddr net.Addr) *managedConn {
-	c := &managedConn{
-		localAddr:  localAddr,
-		remoteAddr: remoteAddr,
-
-		receiveBuffer: buffer{data: make([]byte, initialBufferSize)},
-		replayBuffer:  buffer{data: make([]byte, initialBufferSize)},
-	}
+func newManagedConn() *managedConn {
+	c := new(managedConn)
 	c.cond.L = &c.mu
-
 	return c
 }
 
@@ -108,8 +103,8 @@ func (c *managedConn) SetDeadline(t time.Time) error {
 		return net.ErrClosed
 	}
 
-	c.readDeadline.setDeadlineLocked(t, &c.cond)
-	c.writeDeadline.setDeadlineLocked(t, &c.cond)
+	c.readDeadline.setDeadlineLocked(t, &c.cond, clockwork.NewRealClock())
+	c.writeDeadline.setDeadlineLocked(t, &c.cond, clockwork.NewRealClock())
 
 	return nil
 }
@@ -123,7 +118,7 @@ func (c *managedConn) SetReadDeadline(t time.Time) error {
 		return net.ErrClosed
 	}
 
-	c.readDeadline.setDeadlineLocked(t, &c.cond)
+	c.readDeadline.setDeadlineLocked(t, &c.cond, clockwork.NewRealClock())
 
 	return nil
 }
@@ -137,7 +132,7 @@ func (c *managedConn) SetWriteDeadline(t time.Time) error {
 		return net.ErrClosed
 	}
 
-	c.writeDeadline.setDeadlineLocked(t, &c.cond)
+	c.writeDeadline.setDeadlineLocked(t, &c.cond, clockwork.NewRealClock())
 
 	return nil
 }
@@ -236,10 +231,6 @@ func (c *managedConn) Write(b []byte) (n int, err error) {
 	}
 }
 
-func len64(s []byte) uint64 {
-	return uint64(len(s))
-}
-
 // buffer represents a view of contiguous data in a bytestream, between the
 // absolute positions start and end (with 0 being the beginning of the
 // bytestream). The byte at absolute position i is data[i % len(data)],
@@ -262,6 +253,9 @@ func (w *buffer) len() uint64 {
 	return w.end - w.start
 }
 
+// buffered returns the currently used areas of the internal buffer, in order.
+// It's not possible for the second slice to be nonempty if the first slice is
+// empty. The total length of the slices is equal to w.len().
 func (w *buffer) buffered() ([]byte, []byte) {
 	if w.len() == 0 {
 		return nil, nil
@@ -275,6 +269,9 @@ func (w *buffer) buffered() ([]byte, []byte) {
 	return w.data[left:right], nil
 }
 
+// free returns the currently unused areas of the internal buffer, in order.
+// It's not possible for the second slice to be nonempty if the first slice is
+// empty. The total length of the slices is equal to len(w.data)-w.len().
 func (w *buffer) free() ([]byte, []byte) {
 	if w.len() == 0 {
 		return w.data, nil
@@ -288,33 +285,44 @@ func (w *buffer) free() ([]byte, []byte) {
 	return w.data[right:], w.data[:left]
 }
 
+// reserve ensures that the buffer has a given amount of free space,
+// reallocating its internal buffer as needed. After reserve(n), the two slices
+// returned by free have total length at least n.
 func (w *buffer) reserve(n uint64) {
-	if w.len()+n <= len64(w.data) {
+	n += w.len()
+	if n <= len64(w.data) {
 		return
 	}
 
+	newCapacity := max(len64(w.data)*2, initialBufferSize)
+	for n > newCapacity {
+		newCapacity *= 2
+	}
+
 	d1, d2 := w.buffered()
-	capacity := len64(w.data) * 2
-	for w.len()+n > capacity {
-		capacity *= 2
-	}
-	w.data = make([]byte, capacity)
-	left := w.start % capacity
-	copy(w.data[left:], d1)
-	mid := left + len64(d1)
-	if mid > capacity {
-		mid -= capacity
-	}
-	copy(w.data[mid:], d2)
+	w.data = make([]byte, newCapacity)
+	w.end = w.start
+
+	// this is less efficient than copying the data manually, but almost all
+	// uses of buffer will eventually hit a maximum buffer size anyway
+	w.append(d1)
+	w.append(d2)
 }
 
+// append copies the slice to the tail of the buffer, resizing it if necessary.
+// Writing to the slices returned by free() and appending them in order will not
+// result in any memory copy (if the buffer hasn't been reallocated).
 func (w *buffer) append(b []byte) {
 	w.reserve(len64(b))
 	f1, f2 := w.free()
+	// after reserve(n), len(f1)+len(f2) >= n, so this is guaranteed to work
 	copy(f2, b[copy(f1, b):])
 	w.end += len64(b)
 }
 
+// advance will discard bytes from the head of the buffer, advancing its start
+// position. Advancing past the end causes the end to be pushed forwards as
+// well, such that an empty buffer advanced by n ends up with start = end = n.
 func (w *buffer) advance(n uint64) {
 	w.start += n
 	if w.start > w.end {
@@ -322,6 +330,9 @@ func (w *buffer) advance(n uint64) {
 	}
 }
 
+// read will attempt to fill the slice with as much data from the buffer,
+// advancing the start position of the buffer to match. Returns the amount of
+// bytes copied in the slice.
 func (w *buffer) read(b []byte) int {
 	d1, d2 := w.buffered()
 	n := copy(b, d1)
@@ -330,31 +341,43 @@ func (w *buffer) read(b []byte) int {
 	return n
 }
 
+// deadline holds the state necessary to handle [net.Conn]-like deadlines.
+// Should be paired with a [sync.Cond], whose lock protects access to the data
+// inside the deadline, and that will get awakened if and when the timeout is
+// reached.
 type deadline struct {
+	// deadline should not be moved or copied
+	_ [0]sync.Mutex
+
+	// timeout is true if we're past the deadline.
 	timeout bool
+
+	// stopped is set if timer is non-nil but it's stopped and ready for reuse.
 	stopped bool
-	timer   *time.Timer
+	// timer, if set, is a [time.AfterFunc] timer that sets timeout after
+	// reaching the deadline. Initialized on first use.
+	timer clockwork.Timer
 }
 
-func (d *deadline) setDeadlineLocked(t time.Time, cond *sync.Cond) {
-	if d.timer != nil && !d.stopped {
-		if d.timer.Stop() {
-			// the happy path: we stopped the timer with plenty of time left, so
-			// we prevented the execution of the func, and we can just reuse the
-			// timer; unfortunately, timer.Stop() again will return false, so we
-			// have to keep an additional boolean flag around
-			d.stopped = true
-		} else {
-			// the timer has fired but the func hasn't completed yet (it'll get
-			// stuck acquiring the lock that we're currently holding), so we
-			// reset d.timer to tell the func that it should do nothing after
-			// acquiring the lock
-			d.timer = nil
+// setDeadlineLocked sets a new deadline, waking the cond's waiters when the
+// deadline is hit (immediately, if the deadline is in the past) and protecting
+// its data with cond.L, which is assumed to be held by the caller.
+func (d *deadline) setDeadlineLocked(t time.Time, cond *sync.Cond, clock clockwork.Clock) {
+	if d.timer != nil {
+		for {
+			if d.stopped {
+				break
+			}
+			if d.timer.Stop() {
+				d.stopped = true
+				break
+			}
+			// we failed to stop the timer, so we have to wait for its callback
+			// to finish (as signaled by d.stopped) or it will set the timeout
+			// flag after we're done
+			cond.Wait()
 		}
 	}
-
-	// if we got here, either timer is nil and stopped is unset, or timer is not
-	// nil but it's not running (and can be reused), and stopped is set
 
 	if t.IsZero() {
 		d.timeout = false
@@ -372,20 +395,21 @@ func (d *deadline) setDeadlineLocked(t time.Time, cond *sync.Cond) {
 	d.timeout = false
 
 	if d.timer == nil {
-		var thisTimer *time.Timer
-		thisTimer = time.AfterFunc(dt, func() {
+		// the func doesn't know about which time it's supposed to run, so we
+		// can reuse this timer by just stopping and resetting it
+		d.timer = clock.AfterFunc(dt, func() {
 			cond.L.Lock()
 			defer cond.L.Unlock()
-			if d.timer != thisTimer {
-				return
-			}
 			d.timeout = true
 			d.stopped = true
 			cond.Broadcast()
 		})
-		d.timer = thisTimer
 	} else {
 		d.timer.Reset(dt)
 		d.stopped = false
 	}
+}
+
+func len64(s []byte) uint64 {
+	return uint64(len(s))
 }
