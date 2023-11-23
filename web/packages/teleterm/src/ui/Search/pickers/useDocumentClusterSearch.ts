@@ -20,14 +20,14 @@ import {
   isClusterSearchFilter,
   isResourceTypeSearchFilter,
   SearchFilter,
-  DocumentClusterSearchResult,
+  DisplayResults,
 } from 'teleterm/ui/Search/searchResult';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 
 export function useDocumentClusterSearch(args: {
   filters: SearchFilter[];
   inputValue: string;
-}): DocumentClusterSearchResult {
+}): DisplayResults {
   const { workspacesService } = useAppContext();
   workspacesService.useState();
 
@@ -50,7 +50,7 @@ export function useDocumentClusterSearch(args: {
         clusterFilter.clusterUri === clusterDocument.clusterUri);
 
     return {
-      kind: 'document-cluster-search',
+      kind: 'display-results',
       value: args.inputValue,
       documentUri: shouldOpenInCurrentTab ? clusterDocument.uri : undefined,
       clusterUri: shouldOpenInCurrentTab

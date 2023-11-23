@@ -147,7 +147,7 @@ export function mapToActions(
         },
       };
     }
-    if (result.kind === 'document-cluster-search') {
+    if (result.kind === 'display-results') {
       return {
         type: 'simple-action',
         searchResult: result,

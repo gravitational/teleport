@@ -316,21 +316,21 @@ const SearchResultItems = () => {
       score: 0,
     },
     {
-      kind: 'document-cluster-search',
+      kind: 'display-results',
       clusterUri,
       value: 'abc',
       resourceKinds: ['db'],
       documentUri: '/docs/abc',
     },
     {
-      kind: 'document-cluster-search',
+      kind: 'display-results',
       clusterUri,
       value: 'abc',
       resourceKinds: ['node'],
       documentUri: undefined,
     },
     {
-      kind: 'document-cluster-search',
+      kind: 'display-results',
       clusterUri,
       value: 'abc',
       resourceKinds: [],
@@ -368,7 +368,7 @@ function getKey(searchResult: SearchResult): string {
   switch (searchResult.kind) {
     case 'resource-type-filter':
       return searchResult.resource;
-    case 'document-cluster-search':
+    case 'display-results':
       return searchResult.value;
     default:
       return searchResult.resource.uri;

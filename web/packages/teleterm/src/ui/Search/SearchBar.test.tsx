@@ -47,7 +47,7 @@ it('does not display empty results copy after selecting two filters', () => {
   const appContext = setUpContext('/clusters/foo');
 
   const mockActionAttempts = {
-    documentClusterSearchActionAttempt: makeSuccessAttempt([]),
+    displayResultsAttempt: makeSuccessAttempt([]),
     filterActionsAttempt: makeSuccessAttempt([]),
     resourceActionsAttempt: makeSuccessAttempt([]),
     resourceSearchAttempt: makeSuccessAttempt({
@@ -82,7 +82,7 @@ it('displays empty results copy after providing search query for which there is 
   const appContext = setUpContext('/clusters/foo');
 
   const mockActionAttempts = {
-    documentClusterSearchActionAttempt: makeSuccessAttempt([]),
+    displayResultsAttempt: makeSuccessAttempt([]),
     filterActionsAttempt: makeSuccessAttempt([]),
     resourceActionsAttempt: makeSuccessAttempt([]),
     resourceSearchAttempt: makeSuccessAttempt({
@@ -116,7 +116,7 @@ it('includes offline cluster names in the empty results copy', () => {
   });
 
   const mockActionAttempts = {
-    documentClusterSearchActionAttempt: makeSuccessAttempt([]),
+    displayResultsAttempt: makeSuccessAttempt([]),
     filterActionsAttempt: makeSuccessAttempt([]),
     resourceActionsAttempt: makeSuccessAttempt([]),
     resourceSearchAttempt: makeSuccessAttempt({
@@ -155,7 +155,7 @@ it('notifies about resource search errors and allows to display details', () => 
   );
 
   const mockActionAttempts = {
-    documentClusterSearchActionAttempt: makeSuccessAttempt([]),
+    displayResultsAttempt: makeSuccessAttempt([]),
     filterActionsAttempt: makeSuccessAttempt([]),
     resourceActionsAttempt: makeSuccessAttempt([]),
     resourceSearchAttempt: makeSuccessAttempt({
@@ -212,7 +212,7 @@ it('maintains focus on the search input after closing a resource search error mo
   );
 
   const mockActionAttempts = {
-    documentClusterSearchActionAttempt: makeSuccessAttempt([]),
+    displayResultsAttempt: makeSuccessAttempt([]),
     filterActionsAttempt: makeSuccessAttempt([]),
     resourceActionsAttempt: makeSuccessAttempt([]),
     resourceSearchAttempt: makeSuccessAttempt({

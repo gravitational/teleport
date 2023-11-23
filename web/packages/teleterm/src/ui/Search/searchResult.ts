@@ -48,8 +48,8 @@ export type SearchResultResourceType = {
   nameMatch: string;
   score: number;
 };
-export type DocumentClusterSearchResult = {
-  kind: 'document-cluster-search';
+export type DisplayResults = {
+  kind: 'display-results';
   value: string;
   resourceKinds: DocumentClusterResourceKind[];
   clusterUri: ClusterUri;
@@ -69,7 +69,7 @@ export type FilterSearchResult = SearchResultResourceType | SearchResultCluster;
 export type SearchResult =
   | ResourceSearchResult
   | FilterSearchResult
-  | DocumentClusterSearchResult;
+  | DisplayResults;
 
 export type LabelMatch = {
   kind: 'label-name' | 'label-value';

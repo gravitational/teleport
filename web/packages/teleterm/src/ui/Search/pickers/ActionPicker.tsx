@@ -35,7 +35,7 @@ import {
   SearchResultKube,
   SearchResultResourceType,
   SearchResultServer,
-  DocumentClusterSearchResult,
+  DisplayResults,
 } from 'teleterm/ui/Search/searchResult';
 import * as tsh from 'teleterm/services/tshd/types';
 import * as uri from 'teleterm/ui/uri';
@@ -73,7 +73,7 @@ export function ActionPicker(props: { input: ReactElement }) {
     toggleAdvancedSearch,
   } = useSearchContext();
   const {
-    documentClusterSearchActionAttempt,
+    displayResultsAttempt,
     filterActionsAttempt,
     resourceActionsAttempt,
     resourceSearchAttempt,
@@ -83,7 +83,7 @@ export function ActionPicker(props: { input: ReactElement }) {
   // Contains actions whose number of results depends on the search value.
   // Based on these, we should calculate the picker state.
   //
-  // For example, `documentClusterSearchActionAttempt`
+  // For example, `displayResultsAttempt`
   // should not be added here, because it is always shown,
   // and it would cause 'no results' message to never be displayed.
   const filterableActionAttempts = useMemo(
@@ -91,10 +91,10 @@ export function ActionPicker(props: { input: ReactElement }) {
     [filterActionsAttempt, resourceActionsAttempt]
   );
   // The order of attempts is important.
-  // Document cluster search and filter actions should be displayed before resource actions.
+  // Display results and filter actions should be displayed before resource actions.
   const actionAttempts = useMemo(
-    () => [documentClusterSearchActionAttempt, ...filterableActionAttempts],
-    [documentClusterSearchActionAttempt, filterableActionAttempts]
+    () => [displayResultsAttempt, ...filterableActionAttempts],
+    [displayResultsAttempt, filterableActionAttempts]
   );
 
   const getClusterName = useCallback(
@@ -244,7 +244,7 @@ function getKey(searchResult: SearchResult): string {
   switch (searchResult.kind) {
     case 'resource-type-filter':
       return searchResult.resource;
-    case 'document-cluster-search':
+    case 'display-results':
       return searchResult.value;
     default:
       return searchResult.resource.uri;
@@ -524,7 +524,7 @@ export const ComponentMap: Record<
   database: DatabaseItem,
   'cluster-filter': ClusterFilterItem,
   'resource-type-filter': ResourceTypeFilterItem,
-  'document-cluster-search': DocumentClusterSearch,
+  'display-results': DisplayResults,
 };
 
 type SearchResultItem<T> = {
@@ -548,9 +548,7 @@ function ClusterFilterItem(props: SearchResultItem<SearchResultCluster>) {
   );
 }
 
-function DocumentClusterSearch(
-  props: SearchResultItem<DocumentClusterSearchResult>
-) {
+function DisplayResults(props: SearchResultItem<DisplayResults>) {
   return (
     <IconAndContent Icon={icons.Magnifier} iconColor="text.slightlyMuted">
       <Text typography="body1">

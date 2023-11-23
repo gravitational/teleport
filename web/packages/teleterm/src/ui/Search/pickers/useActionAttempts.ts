@@ -140,12 +140,12 @@ export function useActionAttempts() {
     return makeSuccessAttempt(filterActions);
   }, [runFilterSearch, inputValue, filters, ctx, searchContext]);
 
-  const documentClusterSearch = useDocumentClusterSearch({
+  const displayResults = useDocumentClusterSearch({
     inputValue,
     filters,
   });
-  const documentClusterSearchActionAttempt = makeSuccessAttempt(
-    mapToActions(ctx, searchContext, [documentClusterSearch])
+  const displayResultsAttempt = makeSuccessAttempt(
+    mapToActions(ctx, searchContext, [displayResults])
   );
 
   useEffect(() => {
@@ -168,7 +168,7 @@ export function useActionAttempts() {
   ]);
 
   return {
-    documentClusterSearchActionAttempt,
+    displayResultsAttempt,
     filterActionsAttempt,
     resourceActionsAttempt,
     // resourceSearchAttempt is the raw version of useResourceSearch attempt that has not been
