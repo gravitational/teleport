@@ -7348,6 +7348,102 @@ func (mock authProviderMock) GetRole(_ context.Context, _ string) (types.Role, e
 	return nil, nil
 }
 
+type terminalOpt func(t *TerminalRequest)
+
+func withSessionID(sid session.ID) terminalOpt {
+	return func(t *TerminalRequest) { t.SessionID = sid }
+}
+
+func withServer(target string) terminalOpt {
+	return func(t *TerminalRequest) { t.Server = target }
+}
+
+func withKeepaliveInterval(d time.Duration) terminalOpt {
+	return func(t *TerminalRequest) { t.KeepAliveInterval = d }
+}
+
+func withParticipantMode(m types.SessionParticipantMode) terminalOpt {
+	return func(t *TerminalRequest) { t.ParticipantMode = m }
+}
+
+func (s *WebSuite) makeTerminal(t *testing.T, pack *authPack, opts ...terminalOpt) (*websocket.Conn, *session.Session, error) {
+	req := TerminalRequest{
+		Server: s.srvID,
+		Login:  pack.login,
+		Term: session.TerminalParams{
+			W: 100,
+			H: 100,
+		},
+	}
+	for _, opt := range opts {
+		opt(&req)
+	}
+
+	u := url.URL{
+		Host:   s.url().Host,
+		Scheme: client.WSS,
+		Path:   fmt.Sprintf("/v1/webapi/sites/%v/connect/ws", currentSiteShortcut),
+	}
+	data, err := json.Marshal(req)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	q := u.Query()
+	q.Set("params", string(data))
+	u.RawQuery = q.Encode()
+
+	dialer := websocket.Dialer{}
+	dialer.TLSClientConfig = &tls.Config{
+		InsecureSkipVerify: true,
+	}
+
+	header := http.Header{}
+	header.Add("Origin", "http://localhost")
+	for _, cookie := range pack.cookies {
+		header.Add("Cookie", cookie.String())
+	}
+
+	ws, resp, err := dialer.Dial(u.String(), header)
+	if err != nil {
+		var sb strings.Builder
+		sb.WriteString("websocket dial")
+		if resp != nil {
+			fmt.Fprintf(&sb, "; status code %v;", resp.StatusCode)
+			fmt.Fprintf(&sb, "headers: %v; body: ", resp.Header)
+			io.Copy(&sb, resp.Body)
+		}
+		return nil, nil, trace.Wrap(err, sb.String())
+	}
+	makeAuthReqOverWS(t, ws, pack.session.Token)
+
+	ty, raw, err := ws.ReadMessage()
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	require.Equal(t, websocket.BinaryMessage, ty)
+	var env Envelope
+
+	err = proto.Unmarshal(raw, &env)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	var sessResp siteSessionGenerateResponse
+
+	err = json.Unmarshal([]byte(env.Payload), &sessResp)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	err = resp.Body.Close()
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	return ws, &sessResp.Session, nil
+}
+
 func waitForOutputWithDuration(r io.Reader, substr string, timeout time.Duration) error {
 	timeoutCh := time.After(timeout)
 
@@ -8117,18 +8213,91 @@ func (r *testProxy) newClient(t *testing.T, opts ...roundtrip.ClientParam) *Test
 	return &TestWebClient{clt, t}
 }
 
+func (r *testProxy) makeTerminal(t *testing.T, pack *authPack, sessionID session.ID) (*websocket.Conn, session.Session) {
+	u := url.URL{
+		Host:   r.webURL.Host,
+		Scheme: client.WSS,
+		Path:   fmt.Sprintf("/v1/webapi/sites/%v/connect/ws", currentSiteShortcut),
+	}
+
+	requestData := TerminalRequest{
+		Server: r.node.ID(),
+		Login:  pack.login,
+		Term: session.TerminalParams{
+			W: 100,
+			H: 100,
+		},
+	}
+
+	if sessionID != "" {
+		requestData.SessionID = sessionID
+	}
+
+	data, err := json.Marshal(requestData)
+	require.NoError(t, err)
+
+	q := u.Query()
+	q.Set("params", string(data))
+	u.RawQuery = q.Encode()
+
+	dialer := websocket.Dialer{}
+	dialer.TLSClientConfig = &tls.Config{
+		InsecureSkipVerify: true,
+	}
+
+	header := http.Header{}
+	header.Add("Origin", "http://localhost")
+	for _, cookie := range pack.cookies {
+		header.Add("Cookie", cookie.String())
+	}
+
+	ws, resp, err := dialer.Dial(u.String(), header)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, ws.Close())
+		require.NoError(t, resp.Body.Close())
+	})
+
+	makeAuthReqOverWS(t, ws, pack.session.Token)
+
+	ty, raw, err := ws.ReadMessage()
+	require.NoError(t, err)
+	require.Equal(t, websocket.BinaryMessage, ty)
+	var env Envelope
+	require.NoError(t, proto.Unmarshal(raw, &env))
+
+	var sessResp siteSessionGenerateResponse
+	require.NoError(t, json.Unmarshal([]byte(env.Payload), &sessResp))
+
+	return ws, sessResp.Session
+}
+
+func makeAuthReqOverWS(t *testing.T, ws *websocket.Conn, token string) {
+	t.Helper()
+	authReq, err := json.Marshal(struct {
+		Token string `json:"token"`
+	}{Token: token})
+	require.NoError(t, err)
+
+	err = ws.WriteMessage(websocket.TextMessage, authReq)
+	require.NoError(t, err)
+
+	_, authRes, err := ws.ReadMessage()
+	require.NoError(t, err)
+	require.Contains(t, string(authRes), `"status":"ok"`)
+}
+
 func (r *testProxy) makeDesktopSession(t *testing.T, pack *authPack, sessionID session.ID, addr net.Addr) *websocket.Conn {
 	u := url.URL{
 		Host:   r.webURL.Host,
 		Scheme: client.WSS,
-		Path:   fmt.Sprintf("/webapi/sites/%s/desktops/%s/connect", currentSiteShortcut, "desktop1"),
+		Path:   fmt.Sprintf("/webapi/sites/%s/desktops/%s/connect/ws", currentSiteShortcut, "desktop1"),
 	}
 
 	q := u.Query()
 	q.Set("username", "marek")
 	q.Set("width", "100")
 	q.Set("height", "100")
-	q.Set(roundtrip.AccessTokenQueryParam, pack.session.Token)
 	u.RawQuery = q.Encode()
 
 	dialer := websocket.Dialer{}
@@ -8143,6 +8312,9 @@ func (r *testProxy) makeDesktopSession(t *testing.T, pack *authPack, sessionID s
 
 	ws, resp, err := dialer.Dial(u.String(), header)
 	require.NoError(t, err)
+
+	makeAuthReqOverWS(t, ws, pack.session.Token)
+
 	t.Cleanup(func() {
 		require.NoError(t, ws.Close())
 		require.NoError(t, resp.Body.Close())
@@ -9064,6 +9236,109 @@ func (s *fakeKubeService) ListKubernetesResources(ctx context.Context, req *kube
 		},
 		TotalCount: 2,
 	}, nil
+}
+
+func TestWSAuthenticateRequest(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	env := newWebPack(t, 1)
+	proxy := env.proxies[0]
+	pack := proxy.authPack(t, "test-user@example.com", nil)
+	wsIODeadline = time.Second
+
+	for _, tc := range []struct {
+		name              string
+		serverExpectError string
+		expectResponse    wsStatus
+		token             string
+		writeTimeout      func()
+		readTimeout       func()
+	}{
+		{
+			name: "valid token",
+			expectResponse: wsStatus{
+				Type:   "create_session_response",
+				Status: "ok",
+			},
+			token: pack.session.Token,
+		},
+		{
+			name:              "invalid token",
+			serverExpectError: "not found",
+			expectResponse: wsStatus{
+				Type:    "create_session_response",
+				Status:  "error",
+				Message: "invalid token",
+			},
+			token: "honk",
+		},
+		{
+			name:              "server read timeout",
+			serverExpectError: "i/o timeout",
+			token:             pack.session.Token,
+			readTimeout: func() {
+				<-time.After(time.Second * 3)
+			},
+		},
+	} {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				sctx, ws, err := proxy.handler.handler.AuthenticateRequestWS(w, r)
+				if err != nil {
+					if !strings.Contains(err.Error(), tc.serverExpectError) {
+						t.Errorf("unexpected error: %v", err)
+						return
+					}
+					return
+				}
+				defer ws.Close()
+				if err == nil && tc.serverExpectError != "" {
+					t.Errorf("expected error, got nil")
+					return
+				}
+
+				clt, err := sctx.GetClient()
+				if err != nil {
+					t.Errorf("unexpected error: %v", err)
+					return
+				}
+				_, err = clt.GetDomainName(ctx)
+				if err != nil {
+					t.Errorf("unexpected error: %v", err)
+					return
+				}
+			}))
+
+			header := http.Header{}
+			for _, cookie := range pack.cookies {
+				header.Add("Cookie", cookie.String())
+			}
+
+			u := strings.Replace(server.URL, "http:", "ws:", 1)
+			conn, resp, err := websocket.DefaultDialer.Dial(u, header)
+			require.NoError(t, err)
+			defer conn.Close()
+			defer resp.Body.Close()
+
+			if tc.readTimeout != nil {
+				tc.readTimeout()
+			}
+			err = conn.WriteJSON(wsBearerToken{
+				Token: tc.token,
+			})
+			require.NoError(t, err)
+			if tc.readTimeout != nil {
+				return // Reading will fail as the server will have closed the connection
+			}
+
+			var status wsStatus
+			err = conn.ReadJSON(&status)
+			require.NoError(t, err)
+			require.Equal(t, tc.expectResponse, status)
+		})
+	}
 }
 
 // TestSimultaneousAuthenticateRequest ensures that multiple authenticated
