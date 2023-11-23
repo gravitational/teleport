@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
+
 import { DocumentCluster } from './types';
 
 export function makeDocumentCluster(
@@ -23,7 +25,7 @@ export function makeDocumentCluster(
     kind: 'doc.cluster',
     uri: '/docs/unique-uri',
     title: 'teleport-ent.asteroid.earth',
-    clusterUri: '/clusters/teleport-ent.asteroid.earth',
+    clusterUri: makeRootCluster().uri,
     queryParams: {
       sort: {
         fieldName: 'name',
