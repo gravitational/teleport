@@ -98,6 +98,8 @@ func (s *RoleSetup) Run(ctx context.Context, accessAndIdentity AccessAndIdentity
 		return noCertsReloaded, trace.Wrap(err)
 	}
 
+	reloadCerts := false
+
 	if !doesRoleExist {
 		s.cfg.Log.Infof("Creating the role %v.", roleName)
 
@@ -131,6 +133,9 @@ func (s *RoleSetup) Run(ctx context.Context, accessAndIdentity AccessAndIdentity
 
 			existingRole.SetLogins(types.Allow, append(allowedLogins, systemUser.Username))
 			isRoleDirty = true
+			// Reload certs at the later stage because we added new a new login to the Connect My Computer
+			// role. The certs need to be reloaded to include the new role.
+			reloadCerts = true
 		}
 
 		// Ensure that the owner label has the expected value.
@@ -166,42 +171,49 @@ func (s *RoleSetup) Run(ctx context.Context, accessAndIdentity AccessAndIdentity
 
 	if hasCMCRole {
 		s.cfg.Log.Infof("The user %v already has the role %v.", clusterUser.GetName(), roleName)
-		return noCertsReloaded, nil
+	} else {
+		s.cfg.Log.Infof("Adding the role %v to the user %v.", roleName, clusterUser.GetName())
+		clusterUser.AddRole(roleName)
+		timeoutCtx, cancel := context.WithTimeout(ctx, resourceUpdateTimeout)
+		defer cancel()
+		err = s.syncResourceUpdate(timeoutCtx, accessAndIdentity, clusterUser, func(ctx context.Context) error {
+			_, err := accessAndIdentity.UpdateUser(ctx, clusterUser)
+			return trace.Wrap(err, "updating user %v", clusterUser.GetName())
+		})
+		if err != nil {
+			return noCertsReloaded, trace.Wrap(err)
+		}
+		// Reload certs because we just assigned a new role to the user. The certs need to be reloaded
+		// to include the new logins that the role includes.
+		reloadCerts = true
 	}
 
-	s.cfg.Log.Infof("Adding the role %v to the user %v.", roleName, clusterUser.GetName())
-	clusterUser.AddRole(roleName)
-	timeoutCtx, cancel := context.WithTimeout(ctx, resourceUpdateTimeout)
-	defer cancel()
-	err = s.syncResourceUpdate(timeoutCtx, accessAndIdentity, clusterUser, func(ctx context.Context) error {
-		_, err := accessAndIdentity.UpdateUser(ctx, clusterUser)
-		return trace.Wrap(err, "updating user %v", clusterUser.GetName())
-	})
-	if err != nil {
-		return noCertsReloaded, trace.Wrap(err)
+	if reloadCerts {
+		s.cfg.Log.Info("Reissuing certs.")
+		// ReissueUserCerts called with CertCacheDrop and a bogus access request ID in DropAccessRequests
+		// allows us to refresh the role list in the certs without forcing the user to relogin.
+		//
+		// Sending bogus request IDs is not documented but it is covered by tests. Refreshing roles based
+		// on the server state is necessary for tsh request drop to work.
+		//
+		// If passing bogus request IDs ever needs to be removed, then there are two options here:
+		// * Pass a wildcard instead. This will break setups where people use access requests to make
+		//   Connect My Computer work. Most users will probably not use access requests for that though.
+		// * Invalidate the stored certs somehow to force the user to relogin. If Connect makes a request
+		//   after role setup and [client.IsErrorResolvableWithRelogin] returns true for the error from
+		//   the response, Connect will ask the user to relogin.
+		//
+		// TODO(ravicious): Expand auth.ServerWithRoles.GenerateUserCerts to support refreshing role
+		// list without having to send a bogus request ID, like how lib/auth.HTTPClient.ExtendWebSession
+		// works.
+		err = certManager.ReissueUserCerts(ctx, client.CertCacheDrop, client.ReissueParams{
+			RouteToCluster:     cluster.Name,
+			DropAccessRequests: []string{fmt.Sprintf("bogus-request-id-%v", uuid.NewString())},
+		})
+		return RoleSetupResult{CertsReloaded: true}, trace.Wrap(err)
+	} else {
+		return RoleSetupResult{CertsReloaded: false}, nil
 	}
-
-	s.cfg.Log.Info("Reissuing certs.")
-	// ReissueUserCerts called with CertCacheDrop and a bogus access request ID in DropAccessRequests
-	// allows us to refresh the role list in the certs without forcing the user to relogin.
-	//
-	// Sending bogus request IDs is not documented but it is covered by tests. Refreshing roles based
-	// on the server state is necessary for tsh request drop to work.
-	//
-	// If passing bogus request IDs ever needs to be removed, then there are two options here:
-	// * Pass a wildcard instead. This will break setups where people use access requests to make
-	//   Connect My Computer work. Most users will probably not use access requests for that though.
-	// * Invalidate the stored certs somehow to force the user to relogin. If Connect makes a request
-	//   after role setup and [client.IsErrorResolvableWithRelogin] returns true for the error from
-	//   the response, Connect will ask the user to relogin.
-	//
-	// TODO(ravicious): Expand auth.ServerWithRoles.GenerateUserCerts to support refreshing role
-	// list without having to send a bogus request ID.
-	err = certManager.ReissueUserCerts(ctx, client.CertCacheDrop, client.ReissueParams{
-		RouteToCluster:     cluster.Name,
-		DropAccessRequests: []string{fmt.Sprintf("bogus-request-id-%v", uuid.NewString())},
-	})
-	return RoleSetupResult{CertsReloaded: true}, trace.Wrap(err)
 }
 
 const resourceUpdateTimeout = 15 * time.Second

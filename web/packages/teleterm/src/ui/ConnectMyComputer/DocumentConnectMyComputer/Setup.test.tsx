@@ -113,6 +113,42 @@ describe('setup of DocumentConnectMyComputer', () => {
       1
     );
   });
+
+  it('attempts to remove the agent binary before retrying', async () => {
+    const { elementToRender, appContext } = setupAppContext();
+
+    jest
+      .spyOn(appContext.connectMyComputerService, 'waitForNodeToJoin')
+      .mockReset() // Reset mocks set by setupAppContext.
+      .mockRejectedValueOnce(new Error('Something went wrong'))
+      .mockResolvedValueOnce(makeServer());
+
+    jest.spyOn(
+      appContext.mainProcessClient,
+      'tryRemoveConnectMyComputerAgentBinary'
+    );
+
+    render(elementToRender);
+
+    // Start the setup and wait for the last step to fail.
+    screen.getByText('Connect').click();
+    const step = await screen.findByTestId('Joining the cluster');
+    await waitFor(
+      () => expect(step).toHaveAttribute('data-teststatus', 'error'),
+      { container: step }
+    );
+
+    // Retry the setup and wait for the last step to succeed.
+    screen.getByText('Retry').click();
+    await waitFor(
+      () => expect(step).toHaveAttribute('data-teststatus', 'success'),
+      { container: step }
+    );
+
+    expect(
+      appContext.mainProcessClient.tryRemoveConnectMyComputerAgentBinary
+    ).toHaveBeenCalledTimes(1);
+  });
 });
 
 function setupAppContext(): {

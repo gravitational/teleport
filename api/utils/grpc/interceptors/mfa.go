@@ -17,6 +17,7 @@ package interceptors
 import (
 	"context"
 	"errors"
+	"strings"
 
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
@@ -35,7 +36,14 @@ func RetryWithMFAUnaryInterceptor(mfaCeremony func(ctx context.Context, opts ...
 			return err
 		}
 
-		mfaResp, ceremonyErr := mfaCeremony(ctx, mfa.WithPromptReasonAdminAction(method))
+		// In this context, method looks like "/proto.<grpc-service-name>/<method-name>",
+		// we just want the method name.
+		splitMethod := strings.Split(method, "/")
+		readableMethodName := splitMethod[len(splitMethod)-1]
+
+		// Start an MFA prompt that shares what API request caused MFA to be prompted.
+		// ex: MFA is required for admin-level API request: "CreateUser"
+		mfaResp, ceremonyErr := mfaCeremony(ctx, mfa.WithPromptReasonAdminAction(readableMethodName))
 		if ceremonyErr != nil {
 			return trace.NewAggregate(trail.FromGRPC(err), ceremonyErr)
 		}

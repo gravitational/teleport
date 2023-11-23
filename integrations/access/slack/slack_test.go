@@ -112,7 +112,7 @@ func (s *SlackSuite) SetupSuite() {
 	// Set up user who can request the access to role "editor".
 
 	conditions := types.RoleConditions{Request: &types.AccessRequestConditions{Roles: []string{"editor"}}}
-	if teleportFeatures.AdvancedAccessWorkflows {
+	if teleportFeatures.AccessRequests.Enabled {
 		conditions.Request.Thresholds = []types.AccessReviewThreshold{{Approve: 2, Deny: 2}}
 	}
 	role, err := bootstrap.AddRole("foo", types.RoleSpecV6{Allow: conditions})
@@ -125,7 +125,7 @@ func (s *SlackSuite) SetupSuite() {
 	// Set up TWO users who can review access requests to role "editor".
 
 	conditions = types.RoleConditions{}
-	if teleportFeatures.AdvancedAccessWorkflows {
+	if teleportFeatures.AccessRequests.Enabled {
 		conditions.ReviewRequests = &types.AccessReviewConditions{Roles: []string{"editor"}}
 	}
 	role, err = bootstrap.AddRole("foo-reviewer", types.RoleSpecV6{Allow: conditions})
@@ -167,7 +167,7 @@ func (s *SlackSuite) SetupSuite() {
 	require.NoError(t, err)
 	s.clients[s.userNames.requestor] = client
 
-	if teleportFeatures.AdvancedAccessWorkflows {
+	if teleportFeatures.AccessRequests.Enabled {
 		client, err = teleport.NewClient(ctx, auth, s.userNames.reviewer1)
 		require.NoError(t, err)
 		s.clients[s.userNames.reviewer1] = client
@@ -424,7 +424,7 @@ func (s *SlackSuite) TestDenial() {
 func (s *SlackSuite) TestReviewReplies() {
 	t := s.T()
 
-	if !s.teleportFeatures.AdvancedAccessWorkflows {
+	if !s.teleportFeatures.AccessRequests.Enabled {
 		t.Skip("Doesn't work in OSS version")
 	}
 
@@ -477,7 +477,7 @@ func (s *SlackSuite) TestReviewReplies() {
 func (s *SlackSuite) TestApprovalByReview() {
 	t := s.T()
 
-	if !s.teleportFeatures.AdvancedAccessWorkflows {
+	if !s.teleportFeatures.AccessRequests.Enabled {
 		t.Skip("Doesn't work in OSS version")
 	}
 
@@ -534,7 +534,7 @@ func (s *SlackSuite) TestApprovalByReview() {
 func (s *SlackSuite) TestDenialByReview() {
 	t := s.T()
 
-	if !s.teleportFeatures.AdvancedAccessWorkflows {
+	if !s.teleportFeatures.AccessRequests.Enabled {
 		t.Skip("Doesn't work in OSS version")
 	}
 
@@ -620,7 +620,7 @@ func (s *SlackSuite) TestExpiration() {
 func (s *SlackSuite) TestAccessListReminder() {
 	t := s.T()
 
-	if !s.teleportFeatures.AdvancedAccessWorkflows {
+	if !s.teleportFeatures.AccessRequests.Enabled {
 		t.Skip("Doesn't work in OSS version")
 	}
 
@@ -680,7 +680,7 @@ func (s *SlackSuite) requireReminderMsgEqual(id, text string) {
 func (s *SlackSuite) TestRace() {
 	t := s.T()
 
-	if !s.teleportFeatures.AdvancedAccessWorkflows {
+	if !s.teleportFeatures.AccessRequests.Enabled {
 		t.Skip("Doesn't work in OSS version")
 	}
 

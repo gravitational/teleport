@@ -53,6 +53,8 @@ type Config struct {
 	// MFAPromptConstructor is used to create MFA prompts when needed.
 	// If nil, the client will not prompt for MFA.
 	MFAPromptConstructor mfa.PromptConstructor
+	// Insecure turns off TLS certificate verification when enabled.
+	Insecure bool
 }
 
 // Connect creates a valid client connection to the auth service.  It may
@@ -91,7 +93,7 @@ func connectViaAuthDirect(ctx context.Context, cfg *Config) (*auth.Client, error
 			apiclient.LoadTLS(cfg.TLS),
 		},
 		CircuitBreakerConfig:     cfg.CircuitBreakerConfig,
-		InsecureAddressDiscovery: cfg.TLS.InsecureSkipVerify,
+		InsecureAddressDiscovery: cfg.Insecure,
 		DialTimeout:              cfg.DialTimeout,
 		MFAPromptConstructor:     cfg.MFAPromptConstructor,
 	})
@@ -119,7 +121,7 @@ func connectViaProxyTunnel(ctx context.Context, cfg *Config) (*auth.Client, erro
 	resolver := reversetunnelclient.WebClientResolver(&webclient.Config{
 		Context:   ctx,
 		ProxyAddr: cfg.AuthServers[0].String(),
-		Insecure:  cfg.TLS.InsecureSkipVerify,
+		Insecure:  cfg.Insecure,
 		Timeout:   cfg.DialTimeout,
 	})
 
@@ -134,7 +136,7 @@ func connectViaProxyTunnel(ctx context.Context, cfg *Config) (*auth.Client, erro
 		Resolver:              resolver,
 		ClientConfig:          cfg.SSH,
 		Log:                   cfg.Log,
-		InsecureSkipTLSVerify: cfg.TLS.InsecureSkipVerify,
+		InsecureSkipTLSVerify: cfg.Insecure,
 		ClusterCAs:            cfg.TLS.RootCAs,
 	})
 	if err != nil {

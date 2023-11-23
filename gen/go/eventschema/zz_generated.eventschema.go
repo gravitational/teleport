@@ -8120,7 +8120,7 @@ var events = map[string]*Event{
 		},
 	},
 	"GithubConnectorCreate": {
-		Description: "fires when a Github connector is created/updated",
+		Description: "fires when a Github connector is created",
 		Fields: []*EventField{
 			{
 				Name:        "access_requests",
@@ -8251,6 +8251,136 @@ var events = map[string]*Event{
 	},
 	"GithubConnectorDelete": {
 		Description: "fires when a Github connector is deleted",
+		Fields: []*EventField{
+			{
+				Name:        "access_requests",
+				Description: "are the IDs of access requests created by the user",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "aws_role_arn",
+				Description: "is AWS IAM role user assumes when accessing AWS console",
+				Type:        "string",
+			},
+			{
+				Name:        "azure_identity",
+				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "cluster_name",
+				Description: "identifies the originating teleport cluster",
+				Type:        "string",
+			},
+			{
+				Name:        "code",
+				Description: "is a unique event code",
+				Type:        "string",
+			},
+			{
+				Name:        "ei",
+				Description: "is a monotonically incremented index in the event sequence",
+				Type:        "integer",
+			},
+			{
+				Name:        "event",
+				Description: "is the event type",
+				Type:        "string",
+			},
+			{
+				Name:        "expires",
+				Description: "is set if resource expires",
+				Type:        "string",
+			},
+			{
+				Name:        "gcp_service_account",
+				Description: "is the GCP service account user assumes when accessing GCP API",
+				Type:        "string",
+			},
+			{
+				Name:        "impersonator",
+				Description: "is a user acting on behalf of another user",
+				Type:        "string",
+			},
+			{
+				Name:        "login",
+				Description: "is OS login",
+				Type:        "string",
+			},
+			{
+				Name:        "name",
+				Description: "is a resource name",
+				Type:        "string",
+			},
+			{
+				Name:        "required_private_key_policy",
+				Description: "is the private key policy enforced for this login",
+				Type:        "string",
+			},
+			{
+				Name:        "time",
+				Description: "is event time",
+				Type:        "string",
+			},
+			{
+				Name:        "trusted_device",
+				Description: "contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication",
+				Type:        "object",
+				Fields: []*EventField{
+					{
+						Name:        "asset_tag",
+						Description: "inventory identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "credential_id",
+						Description: "credential identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "device_id",
+						Description: "of the device",
+						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
+						Name:        "os_type",
+						Description: "of the device",
+						Type:        "integer",
+					},
+				},
+			},
+			{
+				Name:        "ttl",
+				Description: "is a TTL of reset password token represented as duration, e.g. \"10m\" used for compatibility purposes for some events, Expires should be used instead as it's more useful (contains exact expiration date/time)",
+				Type:        "string",
+			},
+			{
+				Name:        "uid",
+				Description: "is a unique event identifier",
+				Type:        "string",
+			},
+			{
+				Name:        "updated_by",
+				Description: "if set indicates the user who modified the resource",
+				Type:        "string",
+			},
+			{
+				Name:        "user",
+				Description: "is teleport user name",
+				Type:        "string",
+			},
+		},
+	},
+	"GithubConnectorUpdate": {
+		Description: "fires when a Github connector is updated",
 		Fields: []*EventField{
 			{
 				Name:        "access_requests",
@@ -12896,7 +13026,7 @@ var events = map[string]*Event{
 		},
 	},
 	"OIDCConnectorCreate": {
-		Description: "fires when OIDC connector is created/updated",
+		Description: "fires when OIDC connector is created",
 		Fields: []*EventField{
 			{
 				Name:        "access_requests",
@@ -13027,6 +13157,136 @@ var events = map[string]*Event{
 	},
 	"OIDCConnectorDelete": {
 		Description: "fires when OIDC connector is deleted",
+		Fields: []*EventField{
+			{
+				Name:        "access_requests",
+				Description: "are the IDs of access requests created by the user",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "aws_role_arn",
+				Description: "is AWS IAM role user assumes when accessing AWS console",
+				Type:        "string",
+			},
+			{
+				Name:        "azure_identity",
+				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "cluster_name",
+				Description: "identifies the originating teleport cluster",
+				Type:        "string",
+			},
+			{
+				Name:        "code",
+				Description: "is a unique event code",
+				Type:        "string",
+			},
+			{
+				Name:        "ei",
+				Description: "is a monotonically incremented index in the event sequence",
+				Type:        "integer",
+			},
+			{
+				Name:        "event",
+				Description: "is the event type",
+				Type:        "string",
+			},
+			{
+				Name:        "expires",
+				Description: "is set if resource expires",
+				Type:        "string",
+			},
+			{
+				Name:        "gcp_service_account",
+				Description: "is the GCP service account user assumes when accessing GCP API",
+				Type:        "string",
+			},
+			{
+				Name:        "impersonator",
+				Description: "is a user acting on behalf of another user",
+				Type:        "string",
+			},
+			{
+				Name:        "login",
+				Description: "is OS login",
+				Type:        "string",
+			},
+			{
+				Name:        "name",
+				Description: "is a resource name",
+				Type:        "string",
+			},
+			{
+				Name:        "required_private_key_policy",
+				Description: "is the private key policy enforced for this login",
+				Type:        "string",
+			},
+			{
+				Name:        "time",
+				Description: "is event time",
+				Type:        "string",
+			},
+			{
+				Name:        "trusted_device",
+				Description: "contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication",
+				Type:        "object",
+				Fields: []*EventField{
+					{
+						Name:        "asset_tag",
+						Description: "inventory identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "credential_id",
+						Description: "credential identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "device_id",
+						Description: "of the device",
+						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
+						Name:        "os_type",
+						Description: "of the device",
+						Type:        "integer",
+					},
+				},
+			},
+			{
+				Name:        "ttl",
+				Description: "is a TTL of reset password token represented as duration, e.g. \"10m\" used for compatibility purposes for some events, Expires should be used instead as it's more useful (contains exact expiration date/time)",
+				Type:        "string",
+			},
+			{
+				Name:        "uid",
+				Description: "is a unique event identifier",
+				Type:        "string",
+			},
+			{
+				Name:        "updated_by",
+				Description: "if set indicates the user who modified the resource",
+				Type:        "string",
+			},
+			{
+				Name:        "user",
+				Description: "is teleport user name",
+				Type:        "string",
+			},
+		},
+	},
+	"OIDCConnectorUpdate": {
+		Description: "fires when OIDC connector is updated",
 		Fields: []*EventField{
 			{
 				Name:        "access_requests",
@@ -15996,6 +16256,136 @@ var events = map[string]*Event{
 			},
 		},
 	},
+	"RoleUpdate": {
+		Description: "is emitted when a role is updated",
+		Fields: []*EventField{
+			{
+				Name:        "access_requests",
+				Description: "are the IDs of access requests created by the user",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "aws_role_arn",
+				Description: "is AWS IAM role user assumes when accessing AWS console",
+				Type:        "string",
+			},
+			{
+				Name:        "azure_identity",
+				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "cluster_name",
+				Description: "identifies the originating teleport cluster",
+				Type:        "string",
+			},
+			{
+				Name:        "code",
+				Description: "is a unique event code",
+				Type:        "string",
+			},
+			{
+				Name:        "ei",
+				Description: "is a monotonically incremented index in the event sequence",
+				Type:        "integer",
+			},
+			{
+				Name:        "event",
+				Description: "is the event type",
+				Type:        "string",
+			},
+			{
+				Name:        "expires",
+				Description: "is set if resource expires",
+				Type:        "string",
+			},
+			{
+				Name:        "gcp_service_account",
+				Description: "is the GCP service account user assumes when accessing GCP API",
+				Type:        "string",
+			},
+			{
+				Name:        "impersonator",
+				Description: "is a user acting on behalf of another user",
+				Type:        "string",
+			},
+			{
+				Name:        "login",
+				Description: "is OS login",
+				Type:        "string",
+			},
+			{
+				Name:        "name",
+				Description: "is a resource name",
+				Type:        "string",
+			},
+			{
+				Name:        "required_private_key_policy",
+				Description: "is the private key policy enforced for this login",
+				Type:        "string",
+			},
+			{
+				Name:        "time",
+				Description: "is event time",
+				Type:        "string",
+			},
+			{
+				Name:        "trusted_device",
+				Description: "contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication",
+				Type:        "object",
+				Fields: []*EventField{
+					{
+						Name:        "asset_tag",
+						Description: "inventory identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "credential_id",
+						Description: "credential identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "device_id",
+						Description: "of the device",
+						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
+						Name:        "os_type",
+						Description: "of the device",
+						Type:        "integer",
+					},
+				},
+			},
+			{
+				Name:        "ttl",
+				Description: "is a TTL of reset password token represented as duration, e.g. \"10m\" used for compatibility purposes for some events, Expires should be used instead as it's more useful (contains exact expiration date/time)",
+				Type:        "string",
+			},
+			{
+				Name:        "uid",
+				Description: "is a unique event identifier",
+				Type:        "string",
+			},
+			{
+				Name:        "updated_by",
+				Description: "if set indicates the user who modified the resource",
+				Type:        "string",
+			},
+			{
+				Name:        "user",
+				Description: "is teleport user name",
+				Type:        "string",
+			},
+		},
+	},
 	"SAMLConnectorCreate": {
 		Description: "fires when SAML connector is created/updated",
 		Fields: []*EventField{
@@ -16128,6 +16518,136 @@ var events = map[string]*Event{
 	},
 	"SAMLConnectorDelete": {
 		Description: "fires when SAML connector is deleted",
+		Fields: []*EventField{
+			{
+				Name:        "access_requests",
+				Description: "are the IDs of access requests created by the user",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "aws_role_arn",
+				Description: "is AWS IAM role user assumes when accessing AWS console",
+				Type:        "string",
+			},
+			{
+				Name:        "azure_identity",
+				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "cluster_name",
+				Description: "identifies the originating teleport cluster",
+				Type:        "string",
+			},
+			{
+				Name:        "code",
+				Description: "is a unique event code",
+				Type:        "string",
+			},
+			{
+				Name:        "ei",
+				Description: "is a monotonically incremented index in the event sequence",
+				Type:        "integer",
+			},
+			{
+				Name:        "event",
+				Description: "is the event type",
+				Type:        "string",
+			},
+			{
+				Name:        "expires",
+				Description: "is set if resource expires",
+				Type:        "string",
+			},
+			{
+				Name:        "gcp_service_account",
+				Description: "is the GCP service account user assumes when accessing GCP API",
+				Type:        "string",
+			},
+			{
+				Name:        "impersonator",
+				Description: "is a user acting on behalf of another user",
+				Type:        "string",
+			},
+			{
+				Name:        "login",
+				Description: "is OS login",
+				Type:        "string",
+			},
+			{
+				Name:        "name",
+				Description: "is a resource name",
+				Type:        "string",
+			},
+			{
+				Name:        "required_private_key_policy",
+				Description: "is the private key policy enforced for this login",
+				Type:        "string",
+			},
+			{
+				Name:        "time",
+				Description: "is event time",
+				Type:        "string",
+			},
+			{
+				Name:        "trusted_device",
+				Description: "contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication",
+				Type:        "object",
+				Fields: []*EventField{
+					{
+						Name:        "asset_tag",
+						Description: "inventory identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "credential_id",
+						Description: "credential identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "device_id",
+						Description: "of the device",
+						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
+						Name:        "os_type",
+						Description: "of the device",
+						Type:        "integer",
+					},
+				},
+			},
+			{
+				Name:        "ttl",
+				Description: "is a TTL of reset password token represented as duration, e.g. \"10m\" used for compatibility purposes for some events, Expires should be used instead as it's more useful (contains exact expiration date/time)",
+				Type:        "string",
+			},
+			{
+				Name:        "uid",
+				Description: "is a unique event identifier",
+				Type:        "string",
+			},
+			{
+				Name:        "updated_by",
+				Description: "if set indicates the user who modified the resource",
+				Type:        "string",
+			},
+			{
+				Name:        "user",
+				Description: "is teleport user name",
+				Type:        "string",
+			},
+		},
+	},
+	"SAMLConnectorUpdate": {
+		Description: "fires when SAML connector is updated",
 		Fields: []*EventField{
 			{
 				Name:        "access_requests",
@@ -20588,7 +21108,7 @@ var events = map[string]*Event{
 		},
 	},
 	"UserCreate": {
-		Description: "is emitted when the user is created or updated (upsert)",
+		Description: "is emitted when the user is created or upserted",
 		Fields: []*EventField{
 			{
 				Name:        "access_requests",
@@ -21225,6 +21745,149 @@ var events = map[string]*Event{
 				Name:        "required_private_key_policy",
 				Description: "is the private key policy enforced for this login",
 				Type:        "string",
+			},
+			{
+				Name:        "time",
+				Description: "is event time",
+				Type:        "string",
+			},
+			{
+				Name:        "trusted_device",
+				Description: "contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication",
+				Type:        "object",
+				Fields: []*EventField{
+					{
+						Name:        "asset_tag",
+						Description: "inventory identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "credential_id",
+						Description: "credential identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "device_id",
+						Description: "of the device",
+						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
+						Name:        "os_type",
+						Description: "of the device",
+						Type:        "integer",
+					},
+				},
+			},
+			{
+				Name:        "ttl",
+				Description: "is a TTL of reset password token represented as duration, e.g. \"10m\" used for compatibility purposes for some events, Expires should be used instead as it's more useful (contains exact expiration date/time)",
+				Type:        "string",
+			},
+			{
+				Name:        "uid",
+				Description: "is a unique event identifier",
+				Type:        "string",
+			},
+			{
+				Name:        "updated_by",
+				Description: "if set indicates the user who modified the resource",
+				Type:        "string",
+			},
+			{
+				Name:        "user",
+				Description: "is teleport user name",
+				Type:        "string",
+			},
+		},
+	},
+	"UserUpdate": {
+		Description: "is emitted when the user is updated",
+		Fields: []*EventField{
+			{
+				Name:        "access_requests",
+				Description: "are the IDs of access requests created by the user",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "aws_role_arn",
+				Description: "is AWS IAM role user assumes when accessing AWS console",
+				Type:        "string",
+			},
+			{
+				Name:        "azure_identity",
+				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "cluster_name",
+				Description: "identifies the originating teleport cluster",
+				Type:        "string",
+			},
+			{
+				Name:        "code",
+				Description: "is a unique event code",
+				Type:        "string",
+			},
+			{
+				Name:        "connector",
+				Description: "is the connector used to create the user",
+				Type:        "string",
+			},
+			{
+				Name:        "ei",
+				Description: "is a monotonically incremented index in the event sequence",
+				Type:        "integer",
+			},
+			{
+				Name:        "event",
+				Description: "is the event type",
+				Type:        "string",
+			},
+			{
+				Name:        "expires",
+				Description: "is set if resource expires",
+				Type:        "string",
+			},
+			{
+				Name:        "gcp_service_account",
+				Description: "is the GCP service account user assumes when accessing GCP API",
+				Type:        "string",
+			},
+			{
+				Name:        "impersonator",
+				Description: "is a user acting on behalf of another user",
+				Type:        "string",
+			},
+			{
+				Name:        "login",
+				Description: "is OS login",
+				Type:        "string",
+			},
+			{
+				Name:        "name",
+				Description: "is a resource name",
+				Type:        "string",
+			},
+			{
+				Name:        "required_private_key_policy",
+				Description: "is the private key policy enforced for this login",
+				Type:        "string",
+			},
+			{
+				Name:        "roles",
+				Description: "is a list of roles for the user",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
 			},
 			{
 				Name:        "time",

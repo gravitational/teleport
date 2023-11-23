@@ -53,6 +53,8 @@ describe('invite collaborators integration', () => {
       onInviteCollaboratorsClose: () => undefined,
       InviteCollaborators: null,
       inviteCollaboratorsOpen: false,
+      onEmailPasswordResetClose: () => undefined,
+      EmailPasswordReset: null,
     };
   });
 
@@ -98,5 +100,80 @@ describe('invite collaborators integration', () => {
     // dialog itself, and our mock above is trivial, but we can make sure it
     // renders.
     expect(screen.getByTestId('invite-collaborators')).toBeInTheDocument();
+  });
+});
+
+describe('email password reset integration', () => {
+  const ctx = createTeleportContext();
+
+  let props: State;
+  beforeEach(() => {
+    props = {
+      attempt: {
+        message: 'success',
+        isSuccess: true,
+        isProcessing: false,
+        isFailed: false,
+      },
+      users: [],
+      roles: [],
+      operation: {
+        type: 'reset',
+        user: { name: 'alice@example.com', roles: ['foo'] },
+      },
+
+      onStartCreate: () => undefined,
+      onStartDelete: () => undefined,
+      onStartEdit: () => undefined,
+      onStartReset: () => undefined,
+      onStartInviteCollaborators: () => undefined,
+      onClose: () => undefined,
+      onDelete: () => undefined,
+      onCreate: () => undefined,
+      onUpdate: () => undefined,
+      onReset: () => undefined,
+      onInviteCollaboratorsClose: () => undefined,
+      InviteCollaborators: null,
+      inviteCollaboratorsOpen: false,
+      onEmailPasswordResetClose: () => undefined,
+      EmailPasswordReset: null,
+    };
+  });
+
+  test('displays the traditional reset UI when not configured', async () => {
+    render(
+      <MemoryRouter>
+        <ContextProvider ctx={ctx}>
+          <Users {...props} />
+        </ContextProvider>
+      </MemoryRouter>
+    );
+
+    expect(screen.getByText('Reset User Authentication?')).toBeInTheDocument();
+    expect(screen.queryByText('New Reset UI')).not.toBeInTheDocument();
+  });
+
+  test('displays the email-based UI when configured', async () => {
+    props = {
+      ...props,
+      InviteCollaborators: () => (
+        <div data-testid="new-reset-ui">New Reset UI</div>
+      ),
+    };
+
+    render(
+      <MemoryRouter>
+        <ContextProvider ctx={ctx}>
+          <Users {...props} />
+        </ContextProvider>
+      </MemoryRouter>
+    );
+
+    expect(screen.getByText('New Reset UI')).toBeInTheDocument();
+
+    // This will display regardless since the dialog display is managed by the
+    // dialog itself, and our mock above is trivial, but we can make sure it
+    // renders.
+    expect(screen.getByTestId('new-reset-ui')).toBeInTheDocument();
   });
 });
