@@ -303,6 +303,38 @@ test('search bar state is adjusted to the active document', () => {
   expect(result.current.inputValue).toBe('');
   expect(result.current.filters).toEqual([]);
   expect(result.current.advancedSearchEnabled).toBe(false);
+
+  // document changes to a cluster document
+  act(() => {
+    const clusterDoc = docService.createClusterDocument({
+      clusterUri: rootClusterUri,
+      queryParams: {
+        search: 'bar',
+        resourceKinds: ['kube_cluster'],
+        sort: { dir: 'ASC', fieldName: 'name' },
+        advancedSearchEnabled: false,
+      },
+    });
+    docService.add(clusterDoc);
+    docService.open(clusterDoc.uri);
+  });
+
+  expect(result.current.inputValue).toBe('bar');
+  expect(result.current.filters).toEqual([
+    { filter: 'resource-type', resourceType: 'kube_cluster' },
+  ]);
+  expect(result.current.advancedSearchEnabled).toBe(false);
+
+  // closing all documents
+  act(() => {
+    docService.getDocuments().forEach(d => {
+      docService.close(d.uri);
+    });
+  });
+
+  expect(result.current.inputValue).toBe('');
+  expect(result.current.filters).toEqual([]);
+  expect(result.current.advancedSearchEnabled).toBe(false);
 });
 
 function Wrapper(props: PropsWithChildren<{ appContext?: IAppContext }>) {

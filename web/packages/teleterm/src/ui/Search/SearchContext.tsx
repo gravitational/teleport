@@ -133,14 +133,14 @@ export const SearchContextProvider: FC = props => {
     ?.getActive();
 
   const [previousActiveDocument, setPreviousActiveDocument] =
-    useState<Document>(() => activeDocument);
+    useState<Document>(activeDocument);
 
   // update the state when the cluster document becomes active
   if (previousActiveDocument !== activeDocument) {
-    if (activeDocument.kind === 'doc.cluster') {
+    if (activeDocument?.kind === 'doc.cluster') {
       updateStateFromQueryParams(activeDocument.queryParams);
       // clear it when a non-cluster document is activated
-    } else if (previousActiveDocument.kind === 'doc.cluster') {
+    } else if (previousActiveDocument?.kind === 'doc.cluster') {
       resetState();
     }
     setPreviousActiveDocument(activeDocument);
