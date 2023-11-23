@@ -104,6 +104,18 @@ func TestKubeControllerDriver(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, "", bk.data[key])
+
+	// verify basic version creation
+	err = driver.SyncAuthVersion(ctx, "14.1.5")
+	require.NoError(t, err)
+
+	keyVersion := "agent-auth-version"
+	require.Equal(t, "14.1.5", bk.data[keyVersion])
+
+	// verify overwrite of existing version
+	err = driver.SyncAuthVersion(ctx, "14.2.0")
+	require.NoError(t, err)
+	require.Equal(t, "14.2.0", bk.data[keyVersion])
 }
 
 // TestSystemdUnitDriver verifies the basic behavior of the systemd unit export driver.
@@ -178,14 +190,34 @@ func TestSystemdUnitDriver(t *testing.T) {
 	sb, err = os.ReadFile(schedPath)
 	require.NoError(t, err)
 	require.Equal(t, "", string(sb))
+
+	// verify basic version creation
+	err = driver.SyncAuthVersion(ctx, "14.1.5")
+	require.NoError(t, err)
+
+	versionPath := filepath.Join(dir, "version")
+
+	vb, err := os.ReadFile(versionPath)
+	require.NoError(t, err)
+
+	require.Equal(t, "14.1.5", string(vb))
+
+	// verify overwrite of existing version
+	err = driver.SyncAuthVersion(ctx, "14.2.0")
+	require.NoError(t, err)
+
+	vb, err = os.ReadFile(versionPath)
+	require.NoError(t, err)
+	require.Equal(t, "14.2.0", string(vb))
 }
 
 // fakeDriver is used to inject custom behavior into a dummy Driver instance.
 type fakeDriver struct {
-	mu    sync.Mutex
-	kind  string
-	sync  func(context.Context, proto.ExportUpgradeWindowsResponse) error
-	reset func(context.Context) error
+	mu          sync.Mutex
+	kind        string
+	sync        func(context.Context, proto.ExportUpgradeWindowsResponse) error
+	syncVersion func(context.Context, string) error
+	reset       func(context.Context) error
 }
 
 func (d *fakeDriver) Kind() string {
@@ -202,6 +234,16 @@ func (d *fakeDriver) Sync(ctx context.Context, rsp proto.ExportUpgradeWindowsRes
 	defer d.mu.Unlock()
 	if d.sync != nil {
 		return d.sync(ctx, rsp)
+	}
+
+	return nil
+}
+
+func (d *fakeDriver) SyncAuthVersion(ctx context.Context, version string) error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if d.syncVersion != nil {
+		return d.syncVersion(ctx, version)
 	}
 
 	return nil
@@ -255,6 +297,11 @@ func TestExporterBasics(t *testing.T) {
 		return
 	}
 
+	exportVersion := func(ctx context.Context) (version string, err error) {
+		version = "fake-version"
+		return
+	}
+
 	driver := new(fakeDriver)
 
 	driver.withLock(func() {
@@ -269,6 +316,7 @@ func TestExporterBasics(t *testing.T) {
 	exporter, err := NewExporter(ExporterConfig[context.Context]{
 		Driver:                   driver,
 		ExportFunc:               export,
+		ExportVersionFunc:        exportVersion,
 		AuthConnectivitySentinel: sc,
 		UnhealthyThreshold:       time.Millisecond * 200,
 		ExportInterval:           time.Millisecond * 300,

@@ -1001,6 +1001,7 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 		exporter, err := uw.NewExporter(uw.ExporterConfig[inventory.DownstreamSender]{
 			Driver:                   driver,
 			ExportFunc:               process.exportUpgradeWindows,
+			ExportVersionFunc:        process.exportAuthVersion,
 			AuthConnectivitySentinel: process.inventoryHandle.Sender(),
 		})
 		if err != nil {
@@ -1357,6 +1358,26 @@ func (process *TeleportProcess) exportUpgradeWindows(ctx context.Context, req pr
 		return proto.ExportUpgradeWindowsResponse{}, trace.Errorf("instance client not yet initialized")
 	}
 	return clt.ExportUpgradeWindows(ctx, req)
+}
+
+func (process *TeleportProcess) exportAuthVersion(ctx context.Context) (string, error) {
+	if auth := process.getLocalAuth(); auth != nil {
+		resp, err := auth.Ping(ctx)
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+		return resp.ServerVersion, nil
+	}
+
+	clt := process.getInstanceClient()
+	if clt == nil {
+		return "", trace.Errorf("instance client not yet initialized")
+	}
+	resp, err := clt.Ping(ctx)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return resp.ServerVersion, nil
 }
 
 // adminCreds returns admin UID and GID settings based on the OS

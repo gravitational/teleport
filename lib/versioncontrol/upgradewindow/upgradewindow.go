@@ -40,8 +40,14 @@ const (
 	// kubeSchedKey is the key under which the kube controller schedule is exported
 	kubeSchedKey = "agent-maintenance-schedule"
 
+	// kubeVersionKey is the key under which the kube controller version is exported
+	kubeVersionKey = "agent-auth-version"
+
 	// unitScheduleFile is the name of the file to which the unit schedule is exported.
 	unitScheduleFile = "schedule"
+
+	// unitVersionFile is the name of the file to which the version is exported.
+	unitVersionFile = "version"
 
 	// unitConfigDir is the configuration directory of the teleport-upgrade unit.
 	unitConfigDir = "/etc/teleport-upgrade.d"
@@ -49,6 +55,9 @@ const (
 
 // ExportFunc represents the ExportUpgradeWindows rpc exposed by auth servers.
 type ExportFunc func(ctx context.Context, req proto.ExportUpgradeWindowsRequest) (proto.ExportUpgradeWindowsResponse, error)
+
+// ExportVersionFunc exports the auth version.
+type ExportVersionFunc func(ctx context.Context) (string, error)
 
 // contextLike lets us abstract over the difference between basic contexts and context-like values such
 // as control stream senders or resource watchers. the exporter uses a contextLike value to decide wether
@@ -61,15 +70,18 @@ type contextLike interface {
 type testEvent string
 
 const (
-	resetFromExport  testEvent = "reset-from-export"
-	resetFromRun     testEvent = "reset-from-run"
-	exportAttempt    testEvent = "export-attempt"
-	exportSuccess    testEvent = "export-success"
-	exportFailure    testEvent = "export-failure"
-	getExportErr     testEvent = "get-export-err"
-	syncExportErr    testEvent = "sync-export-err"
-	sentinelAcquired testEvent = "sentinel-acquired"
-	sentinelLost     testEvent = "sentinel-lost"
+	resetFromExport      testEvent = "reset-from-export"
+	resetFromRun         testEvent = "reset-from-run"
+	exportAttempt        testEvent = "export-attempt"
+	exportSuccess        testEvent = "export-success"
+	exportVersionSuccess testEvent = "export-version-success"
+	exportFailure        testEvent = "export-failure"
+	getExportErr         testEvent = "get-export-err"
+	getExportVersionErr  testEvent = "get-export-version-err"
+	syncExportErr        testEvent = "sync-export-err"
+	syncExportVersionErr testEvent = "sync-export-version-err"
+	sentinelAcquired     testEvent = "sentinel-acquired"
+	sentinelLost         testEvent = "sentinel-lost"
 )
 
 // ExporterConfig configures a maintenance window exporter.
@@ -79,6 +91,9 @@ type ExporterConfig[C contextLike] struct {
 
 	// ExportFunc gets the current maintenance window.
 	ExportFunc ExportFunc
+
+	// ExportVersionFunc gets the current auth server version.
+	ExportVersionFunc ExportVersionFunc
 
 	// AuthConnectivitySentinel is a channel that yields context-like values indicating the current health of
 	// auth connectivity. When connectivity to auth is established, a context-like value should be sent over
@@ -109,6 +124,10 @@ func (c *ExporterConfig[C]) CheckAndSetDefaults() error {
 
 	if c.ExportFunc == nil {
 		return trace.BadParameter("exporter config missing required parameter 'ExportFunc'")
+	}
+
+	if c.ExportVersionFunc == nil {
+		return trace.BadParameter("exporter config missing required parameter 'ExportVersionFunc'")
 	}
 
 	if c.AuthConnectivitySentinel == nil {
@@ -295,6 +314,25 @@ func (e *Exporter[C]) exportWithRetry(ctx context.Context) {
 
 		log.Infof("Successfully synced %q upgrader maintenance window value.", e.cfg.Driver.Kind())
 		e.event(exportSuccess)
+
+		version, err := e.cfg.ExportVersionFunc(ctx)
+		if err != nil {
+			log.Warnf("Failed to import %q auth version: %v", e.cfg.Driver.Kind(), err)
+			e.retry.Inc()
+			e.event(getExportVersionErr)
+			continue
+		}
+
+		if err := e.cfg.Driver.SyncAuthVersion(ctx, version); err != nil {
+			log.Warnf("Failed to sync %q auth version: %v", e.cfg.Driver.Kind(), err)
+			e.retry.Inc()
+			e.event(syncExportVersionErr)
+			continue
+		}
+
+		log.Infof("Successfully synced %q auth version value.", e.cfg.Driver.Kind())
+		e.event(exportVersionSuccess)
+
 		return
 	}
 }
@@ -309,6 +347,9 @@ type Driver interface {
 	// resets/clears the maintenance window if the schedule response returns no viable scheduling
 	// info.
 	Sync(ctx context.Context, rsp proto.ExportUpgradeWindowsResponse) error
+
+	// SyncAuthVersion exports the auth server version.
+	SyncAuthVersion(ctx context.Context, version string) error
 
 	// Reset forcibly clears any previously exported maintenance window values. This should be
 	// called if teleport experiences prolonged loss of auth connectivity, which may be an indicator
@@ -374,6 +415,15 @@ func (e *kubeDriver) Sync(ctx context.Context, rsp proto.ExportUpgradeWindowsRes
 	return trace.Wrap(err)
 }
 
+func (e *kubeDriver) SyncAuthVersion(ctx context.Context, version string) error {
+	_, err := e.cfg.Backend.Put(ctx, backend.Item{
+		Key:   []byte(kubeVersionKey),
+		Value: []byte(version),
+	})
+
+	return trace.Wrap(err)
+}
+
 func (e *kubeDriver) Reset(ctx context.Context) error {
 	// kube backend doesn't support deletes right now, so just set
 	// the key to empty.
@@ -427,6 +477,18 @@ func (e *systemdDriver) Sync(ctx context.Context, rsp proto.ExportUpgradeWindows
 	return nil
 }
 
+func (e *systemdDriver) SyncAuthVersion(ctx context.Context, version string) error {
+	if err := os.MkdirAll(e.cfg.ConfigDir, defaults.DirectoryPermissions); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := os.WriteFile(e.versionFile(), []byte(version), defaults.FilePermissions); err != nil {
+		return trace.Errorf("failed to write version file: %v", err)
+	}
+
+	return nil
+}
+
 func (e *systemdDriver) Reset(_ context.Context) error {
 	if _, err := os.Stat(e.scheduleFile()); os.IsNotExist(err) {
 		return nil
@@ -444,4 +506,8 @@ func (e *systemdDriver) Reset(_ context.Context) error {
 
 func (e *systemdDriver) scheduleFile() string {
 	return filepath.Join(e.cfg.ConfigDir, unitScheduleFile)
+}
+
+func (e *systemdDriver) versionFile() string {
+	return filepath.Join(e.cfg.ConfigDir, unitVersionFile)
 }
