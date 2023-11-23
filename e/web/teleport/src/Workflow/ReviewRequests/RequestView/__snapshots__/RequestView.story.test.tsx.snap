@@ -2995,12 +2995,7 @@ exports[`loaded pending search based request state 1`] = `
                     <th
                       style="cursor: default;"
                     >
-                      Requested Resource ID
-                    </th>
-                    <th
-                      style="cursor: default;"
-                    >
-                      Description
+                      Requested Resource Name
                     </th>
                   </tr>
                 </thead>
@@ -3015,7 +3010,6 @@ exports[`loaded pending search based request state 1`] = `
                     <td>
                       app-name
                     </td>
-                    <td />
                   </tr>
                   <tr>
                     <td>
@@ -3027,7 +3021,6 @@ exports[`loaded pending search based request state 1`] = `
                     <td>
                       db-name
                     </td>
-                    <td />
                   </tr>
                   <tr>
                     <td>
@@ -3039,7 +3032,6 @@ exports[`loaded pending search based request state 1`] = `
                     <td>
                       node-name
                     </td>
-                    <td />
                   </tr>
                   <tr>
                     <td>
@@ -3051,7 +3043,6 @@ exports[`loaded pending search based request state 1`] = `
                     <td>
                       user-group-name
                     </td>
-                    <td />
                   </tr>
                   <tr>
                     <td>
@@ -3063,7 +3054,6 @@ exports[`loaded pending search based request state 1`] = `
                     <td>
                       kube-cluster-name
                     </td>
-                    <td />
                   </tr>
                   <tr>
                     <td>
@@ -3075,7 +3065,6 @@ exports[`loaded pending search based request state 1`] = `
                     <td>
                       windows-desktop-name
                     </td>
-                    <td />
                   </tr>
                   <tr>
                     <td>
@@ -3083,9 +3072,6 @@ exports[`loaded pending search based request state 1`] = `
                     </td>
                     <td>
                       app
-                    </td>
-                    <td>
-                      raw-id
                     </td>
                     <td>
                       Some Friendly Name
