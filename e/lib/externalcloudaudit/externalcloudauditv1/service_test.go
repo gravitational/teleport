@@ -21,9 +21,10 @@ import (
 )
 
 type testPack struct {
-	clock clockwork.FakeClock
-	mem   *memory.Memory
-	s     services.ExternalCloudAudits
+	clock           clockwork.FakeClock
+	mem             *memory.Memory
+	s               services.ExternalCloudAudits
+	integrationsSvc *local.IntegrationsService
 }
 
 func newTestPack(t *testing.T) *testPack {
@@ -39,10 +40,14 @@ func newTestPack(t *testing.T) *testPack {
 
 	s := local.NewExternalCloudAuditService(mem)
 
+	integrationsSvc, err := local.NewIntegrationsService(mem)
+	require.NoError(t, err)
+
 	return &testPack{
-		clock: clock,
-		mem:   mem,
-		s:     s,
+		clock:           clock,
+		mem:             mem,
+		s:               s,
+		integrationsSvc: integrationsSvc,
 	}
 }
 
@@ -92,6 +97,8 @@ func TestRBAC(t *testing.T) {
 		ExternalCloudAudit:       p.s,
 		Authorizer:               authorizer,
 		ClusterAuditConfigGetter: &staticAuditConfigGetter{clusterAuditConfig},
+		IntegrationSvc:           p.integrationsSvc,
+		OIDCTokenFn:              func(context.Context) (string, error) { return "token", nil },
 	}
 
 	service, err := NewService(cfg)
@@ -284,6 +291,8 @@ func TestClusterAuditConfigCheck(t *testing.T) {
 				ExternalCloudAudit:       p.s,
 				Authorizer:               authorizer,
 				ClusterAuditConfigGetter: &staticAuditConfigGetter{clusterAuditConfig},
+				IntegrationSvc:           p.integrationsSvc,
+				OIDCTokenFn:              func(context.Context) (string, error) { return "token", nil },
 			}
 			service, err := NewService(cfg)
 			require.NoError(t, err)

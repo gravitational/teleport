@@ -443,10 +443,17 @@ func (p *Plugin) registerLoginRuleService(server *auth.GRPCServer) error {
 func (p *Plugin) registerExternalCloudAuditService(ctx context.Context) error {
 	externalCloudAudit := local.NewExternalCloudAuditService(p.authServer.GetBackend())
 
+	integrationsSvc, err := local.NewIntegrationsService(p.authServer.GetBackend())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	externalauditSvc, err := externalcloudauditv1.NewService(&externalcloudauditv1.ServiceConfig{
 		Authorizer:               p.authServer.Authorizer,
 		ExternalCloudAudit:       externalCloudAudit,
 		ClusterAuditConfigGetter: p.authServer.AuthServer,
+		IntegrationSvc:           integrationsSvc,
+		OIDCTokenFn:              p.authServer.AuthServer.GenerateExternalCloudAuditOIDCToken,
 	})
 	if err != nil {
 		return trace.Wrap(err)
