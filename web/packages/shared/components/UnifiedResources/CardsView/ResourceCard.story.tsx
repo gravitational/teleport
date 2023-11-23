@@ -21,6 +21,7 @@ import styled from 'styled-components';
 
 import { ButtonBorder } from 'design';
 import { gap } from 'design/system';
+import copyToClipboard from 'design/utils/copyToClipboard';
 
 import { apps } from 'teleport/Apps/fixtures';
 import { databases } from 'teleport/Databases/fixtures';
@@ -135,6 +136,7 @@ export const Cards: Story = {
             cardViewProps={res.cardViewProps}
             labels={res.labels}
             ActionButton={res.ActionButton}
+            onCopyToClipboard={copyToClipboard}
           />
         ))}
       </Grid>

@@ -183,6 +183,7 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
           }}
         />
       }
+      onCopyToClipboard={appContext.mainProcessClient.writeTextToClipboard}
     />
   );
 }

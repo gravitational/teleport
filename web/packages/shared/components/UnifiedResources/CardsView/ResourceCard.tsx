@@ -59,6 +59,7 @@ export function ResourceCard({
   pinResource,
   selectResource,
   selected,
+  onCopyToClipboard,
 }: Omit<ResourceItemProps, 'listViewProps'>) {
   const { primaryDesc, secondaryDesc } = cardViewProps;
 
@@ -201,7 +202,9 @@ export function ResourceCard({
                   </Text>
                 </HoverTooltip>
               </SingleLineBox>
-              {hovered && <CopyButton name={name} mr={2} />}
+              {hovered && (
+                <CopyButton name={name} mr={2} onCopy={onCopyToClipboard} />
+              )}
               {ActionButton}
             </Flex>
             <Flex flexDirection="row" alignItems="center">

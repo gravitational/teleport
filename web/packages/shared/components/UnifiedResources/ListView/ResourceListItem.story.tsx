@@ -18,6 +18,7 @@ import React from 'react';
 import { Meta, StoryObj } from '@storybook/react';
 
 import { ButtonBorder, Flex } from 'design';
+import copyToClipboard from 'design/utils/copyToClipboard';
 
 import { apps } from 'teleport/Apps/fixtures';
 import { databases } from 'teleport/Databases/fixtures';
@@ -126,6 +127,7 @@ export const ListItems: Story = {
             listViewProps={res.listViewProps}
             labels={res.labels}
             ActionButton={res.ActionButton}
+            onCopyToClipboard={copyToClipboard}
           />
         ))}
       </Flex>

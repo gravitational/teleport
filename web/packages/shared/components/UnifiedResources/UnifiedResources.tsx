@@ -140,6 +140,7 @@ interface UnifiedResourcesProps {
   updateUnifiedResourcesPreferences(
     preferences: UnifiedResourcePreferences
   ): void;
+  onCopyToClipboard(text: string): void;
 }
 
 export function UnifiedResources(props: UnifiedResourcesProps) {
@@ -458,6 +459,7 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
             item: mapResourceToViewItem(unifiedResource),
             key: generateUnifiedResourceKey(unifiedResource.resource),
           }))}
+          onCopyToClipboard={props.onCopyToClipboard}
         />
       )}
       <div ref={setTrigger} />

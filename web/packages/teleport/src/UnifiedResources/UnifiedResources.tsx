@@ -17,6 +17,7 @@
 import React, { useCallback, useState } from 'react';
 
 import { Flex } from 'design';
+import copyToClipboard from 'design/utils/copyToClipboard';
 
 import {
   FilterKind,
@@ -267,6 +268,7 @@ function ClusterResources({
             </Flex>
           </>
         }
+        onCopyToClipboard={copyToClipboard}
       />
     </FeatureBox>
   );

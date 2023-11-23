@@ -18,7 +18,6 @@ import React, { useState, useRef, useEffect } from 'react';
 
 import ButtonIcon from 'design/ButtonIcon';
 import { Check, Copy } from 'design/Icon';
-import copyToClipboard from 'design/utils/copyToClipboard';
 
 import { HoverTooltip } from 'shared/components/ToolTip';
 
@@ -26,10 +25,12 @@ export function CopyButton({
   name,
   mr,
   ml,
+  onCopy,
 }: {
   name: string;
   mr?: number;
   ml?: number;
+  onCopy(text: string): void;
 }) {
   const copySuccess = 'Copied!';
   const copyDefault = 'Click to copy';
@@ -47,7 +48,7 @@ export function CopyButton({
   const handleCopy = () => {
     clearCurrentTimeout();
     setCopiedText(copySuccess);
-    copyToClipboard(name);
+    onCopy(name);
     // Change to default text after 1 second
     timeout.current = setTimeout(() => {
       setCopiedText(copyDefault);

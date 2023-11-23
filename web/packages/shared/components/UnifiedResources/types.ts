@@ -144,6 +144,7 @@ export type ResourceItemProps = {
   selected: boolean;
   pinned: boolean;
   pinningSupport: PinningSupport;
+  onCopyToClipboard(text: string): void;
 };
 
 // Props that are needed for the Card view.
@@ -184,4 +185,5 @@ export type ResourceViewProps = {
   pinningSupport: PinningSupport;
   isProcessing: boolean;
   mappedResources: { item: UnifiedResourceViewItem; key: string }[];
+  onCopyToClipboard(text: string): void;
 };

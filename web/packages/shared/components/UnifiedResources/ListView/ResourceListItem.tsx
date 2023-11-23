@@ -43,6 +43,7 @@ export function ResourceListItem({
   pinResource,
   selectResource,
   selected,
+  onCopyToClipboard,
 }: Omit<ResourceItemProps, 'cardViewProps'>) {
   const { description, resourceType, addr } = listViewProps;
 
@@ -131,7 +132,9 @@ export function ResourceListItem({
               align-self: start;
             `}
           >
-            {hovered && <CopyButton name={name} ml={1} />}
+            {hovered && (
+              <CopyButton name={name} ml={1} onCopy={onCopyToClipboard} />
+            )}
           </Box>
         </Flex>
 
@@ -328,6 +331,7 @@ const ShowLabelsButton = styled(ButtonIcon)`
     &:focus {
       background: ${props => props.theme.colors.buttons.secondary.hover};
     }
+
     &:active {
       background: ${props => props.theme.colors.buttons.secondary.active};
     }

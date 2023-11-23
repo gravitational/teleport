@@ -17,6 +17,7 @@
 import React, { useState } from 'react';
 
 import { ButtonBorder } from 'design';
+import copyToClipboard from 'design/utils/copyToClipboard';
 
 import { apps } from 'teleport/Apps/fixtures';
 import { databases } from 'teleport/Databases/fixtures';
@@ -138,6 +139,7 @@ const story = ({
             ActionButton: <ButtonBorder size="small">Connect</ButtonBorder>,
           },
         }))}
+        onCopyToClipboard={copyToClipboard}
       />
     );
   };

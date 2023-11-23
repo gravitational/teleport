@@ -38,6 +38,7 @@ export function CardsView({
   onPinResource,
   isProcessing,
   pinningSupport,
+  onCopyToClipboard,
 }: ResourceViewProps) {
   return (
     <CardsContainer className="CardsContainer" gap={2}>
@@ -56,6 +57,7 @@ export function CardsView({
           selected={selectedResources.includes(key)}
           selectResource={() => onSelectResource(key)}
           pinResource={() => onPinResource(key)}
+          onCopyToClipboard={onCopyToClipboard}
         />
       ))}
       {isProcessing && (

@@ -35,6 +35,7 @@ export function ListView({
   onPinResource,
   pinningSupport,
   isProcessing,
+  onCopyToClipboard,
 }: ResourceViewProps) {
   return (
     <Flex className="ListContainer">
@@ -53,6 +54,7 @@ export function ListView({
           selected={selectedResources.includes(key)}
           selectResource={() => onSelectResource(key)}
           pinResource={() => onPinResource(key)}
+          onCopyToClipboard={onCopyToClipboard}
         />
       ))}
       {isProcessing && (
