@@ -224,7 +224,7 @@ type AccessChecker interface {
 	GetKubeResources(cluster types.KubeCluster) (allowed, denied []types.KubernetesResource)
 
 	// EnumerateDatabaseUsers specializes EnumerateEntities to enumerate db_users.
-	EnumerateDatabaseUsers(database types.Database, extraUsers ...string) EnumerationResult
+	EnumerateDatabaseUsers(database types.Database, extraUsers ...string) (EnumerationResult, error)
 
 	// GetAllowedLoginsForResource returns all of the allowed logins for the passed resource.
 	//
@@ -250,6 +250,8 @@ type AccessInfo struct {
 	// access restrictions should be applied. Used for search-based access
 	// requests.
 	AllowedResourceIDs []types.ResourceID
+	// Username is the Teleport username.
+	Username string
 }
 
 // accessChecker implements the AccessChecker interface.
@@ -325,7 +327,8 @@ func NewAccessCheckerForRemoteCluster(ctx context.Context, localAccessInfo *Acce
 	}
 
 	remoteAccessInfo := &AccessInfo{
-		Traits: remoteUser.GetTraits(),
+		Username: localAccessInfo.Username,
+		Traits:   remoteUser.GetTraits(),
 		// Will fill this in with the names of the remote/mapped roles we got
 		// from GetCurrentUserRoles.
 		Roles: make([]string, 0, len(remoteRoles)),
@@ -534,14 +537,26 @@ func (a *accessChecker) CheckDatabaseRoles(database types.Database) (create bool
 }
 
 // EnumerateDatabaseUsers specializes EnumerateEntities to enumerate db_users.
-func (a *accessChecker) EnumerateDatabaseUsers(database types.Database, extraUsers ...string) EnumerationResult {
+func (a *accessChecker) EnumerateDatabaseUsers(database types.Database, extraUsers ...string) (EnumerationResult, error) {
+	// When auto-user provisioning is enabled, only Teleport username is allowed.
+	if database.SupportsAutoUsers() && database.GetAdminUser() != "" {
+		result := NewEnumerationResult()
+		createAutoUser, _, err := a.CheckDatabaseRoles(database)
+		if err != nil {
+			return result, trace.Wrap(err)
+		} else if createAutoUser {
+			result.allowedDeniedMap[a.info.Username] = true
+			return result, nil
+		}
+	}
+
 	listFn := func(role types.Role, condition types.RoleConditionType) []string {
 		return role.GetDatabaseUsers(condition)
 	}
 	newMatcher := func(user string) RoleMatcher {
 		return NewDatabaseUserMatcher(database, user)
 	}
-	return a.EnumerateEntities(database, listFn, newMatcher, extraUsers...)
+	return a.EnumerateEntities(database, listFn, newMatcher, extraUsers...), nil
 }
 
 // EnumerateDatabaseNames specializes EnumerateEntities to enumerate db_names.
@@ -968,6 +983,7 @@ func AccessInfoFromLocalCertificate(cert *ssh.Certificate) (*AccessInfo, error) 
 	}
 
 	return &AccessInfo{
+		Username:           cert.KeyId,
 		Roles:              roles,
 		Traits:             traits,
 		AllowedResourceIDs: allowedResourceIDs,
@@ -1014,6 +1030,7 @@ func AccessInfoFromRemoteCertificate(cert *ssh.Certificate, roleMap types.RoleMa
 	}
 
 	return &AccessInfo{
+		Username:           cert.KeyId,
 		Roles:              roles,
 		Traits:             traits,
 		AllowedResourceIDs: allowedResourceIDs,
@@ -1047,6 +1064,7 @@ func AccessInfoFromLocalIdentity(identity tlsca.Identity, access UserGetter) (*A
 	}
 
 	return &AccessInfo{
+		Username:           identity.Username,
 		Roles:              roles,
 		Traits:             traits,
 		AllowedResourceIDs: allowedResourceIDs,
@@ -1096,6 +1114,7 @@ func AccessInfoFromRemoteIdentity(identity tlsca.Identity, roleMap types.RoleMap
 	allowedResourceIDs := identity.AllowedResourceIDs
 
 	return &AccessInfo{
+		Username:           identity.Username,
 		Roles:              roles,
 		Traits:             traits,
 		AllowedResourceIDs: allowedResourceIDs,
@@ -1140,7 +1159,8 @@ func AccessInfoFromUserState(user UserState) *AccessInfo {
 	roles := user.GetRoles()
 	traits := user.GetTraits()
 	return &AccessInfo{
-		Roles:  roles,
-		Traits: traits,
+		Username: user.GetName(),
+		Roles:    roles,
+		Traits:   traits,
 	}
 }

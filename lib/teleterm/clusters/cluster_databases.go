@@ -233,7 +233,10 @@ func (c *Cluster) GetAllowedDatabaseUsers(ctx context.Context, dbURI string) ([]
 		return nil, trace.Wrap(err)
 	}
 
-	dbUsers := accessChecker.EnumerateDatabaseUsers(db)
+	dbUsers, err := accessChecker.EnumerateDatabaseUsers(db)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	return dbUsers.Allowed(), nil
 }

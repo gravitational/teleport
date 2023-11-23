@@ -1990,6 +1990,7 @@ func makeAccessCheckerWithRoleSet(roleSet RoleSet) AccessChecker {
 		roleNames[i] = role.GetName()
 	}
 	accessInfo := &AccessInfo{
+		Username:           "alice",
 		Roles:              roleNames,
 		Traits:             nil,
 		AllowedResourceIDs: nil,
@@ -3820,6 +3821,17 @@ func TestRoleSetEnumerateDatabaseUsers(t *testing.T) {
 		URI:      "uri",
 	})
 	require.NoError(t, err)
+	dbAutoUser, err := types.NewDatabaseV3(types.Metadata{
+		Name:   "auto-user",
+		Labels: map[string]string{"env": "prod"},
+	}, types.DatabaseSpecV3{
+		Protocol: "postgres",
+		URI:      "localhost:5432",
+		AdminUser: &types.DatabaseAdminUser{
+			Name: "teleport-admin",
+		},
+	})
+	require.NoError(t, err)
 	roleDevStage := &types.RoleV6{
 		Metadata: types.Metadata{Name: "dev-stage", Namespace: apidefaults.Namespace},
 		Spec: types.RoleSpecV6{
@@ -3870,6 +3882,22 @@ func TestRoleSetEnumerateDatabaseUsers(t *testing.T) {
 		},
 	}
 
+	roleAutoUser := &types.RoleV6{
+		Metadata: types.Metadata{Name: "auto-user", Namespace: apidefaults.Namespace},
+		Spec: types.RoleSpecV6{
+			Options: types.RoleOptions{
+				CreateDatabaseUser: types.NewBoolOption(true),
+			},
+			Allow: types.RoleConditions{
+				Namespaces:     []string{apidefaults.Namespace},
+				DatabaseLabels: types.Labels{"env": []string{"prod"}},
+				DatabaseRoles:  []string{"dev"},
+				DatabaseNames:  []string{"*"},
+				DatabaseUsers:  []string{types.Wildcard},
+			},
+		},
+	}
+
 	testCases := []struct {
 		name       string
 		roles      RoleSet
@@ -3916,11 +3944,22 @@ func TestRoleSetEnumerateDatabaseUsers(t *testing.T) {
 				wildcardDenied:   true,
 			},
 		},
+		{
+			name:   "auto-user provisioning enabled",
+			roles:  RoleSet{roleAutoUser},
+			server: dbAutoUser,
+			enumResult: EnumerationResult{
+				allowedDeniedMap: map[string]bool{"alice": true},
+				wildcardAllowed:  false,
+				wildcardDenied:   false,
+			},
+		},
 	}
 	for _, tc := range testCases {
 		accessChecker := makeAccessCheckerWithRoleSet(tc.roles)
 		t.Run(tc.name, func(t *testing.T) {
-			enumResult := accessChecker.EnumerateDatabaseUsers(tc.server)
+			enumResult, err := accessChecker.EnumerateDatabaseUsers(tc.server)
+			require.NoError(t, err)
 			require.Equal(t, tc.enumResult, enumResult)
 		})
 	}
@@ -7384,6 +7423,10 @@ func (u mockCurrentUser) GetTraits() map[string][]string {
 	return u.traits
 }
 
+func (u mockCurrentUser) GetName() string {
+	return "mockCurrentUser"
+}
+
 func TestNewAccessCheckerForRemoteCluster(t *testing.T) {
 	user := mockCurrentUser{
 		roles: []string{"dev", "admin"},
@@ -7409,6 +7452,7 @@ func TestNewAccessCheckerForRemoteCluster(t *testing.T) {
 	}
 
 	accessInfo := AccessInfoFromUserState(user)
+	require.Equal(t, "mockCurrentUser", accessInfo.Username)
 	accessChecker, err := NewAccessCheckerForRemoteCluster(context.Background(), accessInfo, "clustername", currentUserRoleGetter)
 	require.NoError(t, err)
 
