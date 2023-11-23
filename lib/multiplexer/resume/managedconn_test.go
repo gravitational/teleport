@@ -137,6 +137,78 @@ func TestManagedConn(t *testing.T) {
 		require.ErrorIs(t, err, syscall.EPIPE)
 		require.Zero(t, n)
 	})
+
+	t.Run("WriteBuffering", func(t *testing.T) {
+		c := newManagedConn()
+		t.Cleanup(func() { c.Close() })
+
+		const testSize = sendBufferSize * 10
+		go func() {
+			defer c.Close()
+			_, err := c.Write(bytes.Repeat([]byte("a"), testSize))
+			assert.NoError(t, err)
+		}()
+
+		var n uint64
+		c.mu.Lock()
+		defer c.mu.Unlock()
+		for {
+			require.LessOrEqual(t, len(c.sendBuffer.data), sendBufferSize)
+
+			n += c.sendBuffer.len()
+
+			c.sendBuffer.advance(c.sendBuffer.len())
+			c.cond.Broadcast()
+
+			if c.localClosed {
+				break
+			}
+
+			c.cond.Wait()
+		}
+		require.EqualValues(t, testSize, n)
+	})
+
+	t.Run("ReadBuffering", func(t *testing.T) {
+		c := newManagedConn()
+		t.Cleanup(func() { c.Close() })
+
+		const testSize = sendBufferSize * 10
+		go func() {
+			defer c.Close()
+
+			n, err := io.Copy(io.Discard, c)
+			assert.NoError(t, err)
+			assert.EqualValues(t, testSize, n)
+		}()
+
+		b := bytes.Repeat([]byte("a"), testSize)
+
+		c.mu.Lock()
+		defer c.mu.Unlock()
+
+		for {
+			if c.localClosed {
+				break
+			}
+
+			s := min(receiveBufferSize-c.receiveBuffer.len(), len64(b))
+			if s > 0 {
+				c.receiveBuffer.append(b[:s])
+				require.LessOrEqual(t, len(c.receiveBuffer.data), receiveBufferSize)
+
+				b = b[s:]
+				if len(b) == 0 {
+					c.remoteClosed = true
+				}
+				c.cond.Broadcast()
+			}
+
+			c.cond.Wait()
+		}
+
+		require.Empty(t, b)
+	})
 }
 
 func TestBuffer(t *testing.T) {
