@@ -23,7 +23,7 @@ import { Indicator, Box, Alert, Flex } from 'design';
 import cfg from 'teleport/config';
 import { StatusEnum, formatDisplayTime } from 'teleport/lib/player';
 import { PlayerClient, TdpClient } from 'teleport/lib/tdp';
-import { getAccessToken, getHostName } from 'teleport/services/api';
+import { getHostName } from 'teleport/services/api';
 import TdpClientCanvas from 'teleport/components/TdpClientCanvas';
 
 import ProgressBar from './ProgressBar';
@@ -158,7 +158,6 @@ const useDesktopPlayer = ({ clusterId, sid }) => {
       .replace(':fqdn', getHostName())
       .replace(':clusterId', clusterId)
       .replace(':sid', sid)
-      .replace(':token', getAccessToken());
     return new PlayerClient({ url, setTime, setPlayerStatus, setStatusText });
   }, [clusterId, sid, setTime, setPlayerStatus]);
 
