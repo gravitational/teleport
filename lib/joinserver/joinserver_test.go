@@ -224,7 +224,7 @@ func TestJoinServiceGRPCServer_RegisterUsingIAMMethod(t *testing.T) {
 					require.NoError(t, err)
 					// client should get the certs from auth
 					require.Equal(t, tc.certs, certs)
-					// auth should get the challenge response from client with remote addry set to connection src addr
+					// auth should get the challenge response from client with remote addr set to connection src addr
 					expectedResponse := tc.challengeResponse
 					expectedResponse.RegisterUsingTokenRequest.RemoteAddr = "bufconn"
 					require.Equal(t, expectedResponse, testPack.mockAuthServer.gotIAMChallengeResponse)
