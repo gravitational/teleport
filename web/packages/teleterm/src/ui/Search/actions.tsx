@@ -153,9 +153,12 @@ export function mapToActions(
         searchResult: result,
         preventAutoInputReset: true,
         perform: async () => {
+          const rootClusterUri = routing.ensureRootClusterUri(
+            result.clusterUri
+          );
           if (result.documentUri) {
             ctx.workspacesService
-              .getWorkspaceDocumentService(result.clusterUri)
+              .getWorkspaceDocumentService(rootClusterUri)
               .update(result.documentUri, (prevDoc: DocumentCluster) => {
                 const updated: DocumentCluster = {
                   ...prevDoc,
@@ -171,9 +174,6 @@ export function mapToActions(
             return;
           }
 
-          const rootClusterUri = routing.ensureRootClusterUri(
-            result.clusterUri
-          );
           const { isAtDesiredWorkspace } =
             await ctx.workspacesService.setActiveWorkspace(rootClusterUri);
           if (isAtDesiredWorkspace) {
