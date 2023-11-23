@@ -855,7 +855,7 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
     url: 'https://goteleport.com/docs/access-controls/access-request-plugins/ssh-approval-pagerduty/',
     fullName: 'PagerDuty access request management',
     cloudHostable: true,
-    selfHostable: false,
+    selfHostable: true,
     Description: () => (
       <Text>
         <p>
