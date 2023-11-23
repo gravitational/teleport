@@ -138,6 +138,7 @@ func NewTerminal(ctx context.Context, cfg TerminalHandlerConfig) (*TerminalHandl
 		participantMode: cfg.ParticipantMode,
 		tracker:         cfg.Tracker,
 		clock:           cfg.Clock,
+		websocketConn:   cfg.WebsocketConn,
 	}, nil
 }
 
@@ -182,6 +183,8 @@ type TerminalHandlerConfig struct {
 	Tracker types.SessionTracker
 	// Clock used for presence checking.
 	Clock clockwork.Clock
+	// WebsocketConn is the active websocket connection
+	WebsocketConn *websocket.Conn
 }
 
 func (t *TerminalHandlerConfig) CheckAndSetDefaults() error {
@@ -288,12 +291,14 @@ type TerminalHandler struct {
 	// if the user is not joining a session.
 	tracker types.SessionTracker
 
-	// clock to use for presence checking
-	clock clockwork.Clock
-
 	// closedByClient indicates if the websocket connection was closed by the
 	// user (closing the browser tab, exiting the session, etc).
 	closedByClient atomic.Bool
+	// clock used to interact with time.
+	clock clockwork.Clock
+
+	// websocketConn is the active websocket connection
+	websocketConn *websocket.Conn
 }
 
 // ServeHTTP builds a connection to the remote node and then pumps back two types of
@@ -305,21 +310,9 @@ func (t *TerminalHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	t.ctx.AddClosers(t)
 	defer t.ctx.RemoveCloser(t)
 
-	upgrader := websocket.Upgrader{
-		ReadBufferSize:  1024,
-		WriteBufferSize: 1024,
-		CheckOrigin:     func(r *http.Request) bool { return true },
-	}
+	ws := t.websocketConn
 
-	ws, err := upgrader.Upgrade(w, r, nil)
-	if err != nil {
-		errMsg := "Error upgrading to websocket"
-		t.log.WithError(err).Error(errMsg)
-		http.Error(w, errMsg, http.StatusInternalServerError)
-		return
-	}
-
-	err = ws.SetReadDeadline(deadlineForInterval(t.keepAliveInterval))
+	err := ws.SetReadDeadline(deadlineForInterval(t.keepAliveInterval))
 	if err != nil {
 		t.log.WithError(err).Error("Error setting websocket readline")
 		return
