@@ -16,6 +16,7 @@
 
 import React from 'react';
 import styled from 'styled-components';
+import { Link } from 'react-router-dom';
 
 import { Box, Flex, Image } from 'design';
 import { AWSIcon } from 'design/SVGIcon';
@@ -35,7 +36,11 @@ import {
   IntegrationStatusCode,
   IntegrationKind,
   Plugin,
+  ExternalAuditStorageIntegration,
 } from 'teleport/services/integrations';
+import cfg from 'teleport/config';
+
+import { ExternalAuditStorageOpType } from './Operations/useIntegrationOperation';
 
 type Props<IntegrationLike> = {
   list: IntegrationLike[];
@@ -44,9 +49,10 @@ type Props<IntegrationLike> = {
     onDeleteIntegration(i: Integration): void;
     onEditIntegration(i: Integration): void;
   };
+  onDeleteExternalAuditStorage?(opType: ExternalAuditStorageOpType): void;
 };
 
-type IntegrationLike = Integration | Plugin;
+type IntegrationLike = Integration | Plugin | ExternalAuditStorageIntegration;
 
 export function IntegrationList(props: Props<IntegrationLike>) {
   return (
@@ -90,17 +96,64 @@ export function IntegrationList(props: Props<IntegrationLike>) {
               );
             }
 
+            if (item.resourceType === 'integration') {
+              return (
+                <Cell align="right">
+                  <MenuButton>
+                    <MenuItem
+                      onClick={() =>
+                        props.integrationOps.onEditIntegration(item)
+                      }
+                    >
+                      Edit...
+                    </MenuItem>
+                    <MenuItem
+                      onClick={() =>
+                        props.integrationOps.onDeleteIntegration(item)
+                      }
+                    >
+                      Delete...
+                    </MenuItem>
+                  </MenuButton>
+                </Cell>
+              );
+            }
+
+            // draft external audit storage
+            if (item.statusCode === IntegrationStatusCode.Draft) {
+              return (
+                <Cell align="right">
+                  <MenuButton>
+                    <MenuItem
+                      as={Link}
+                      to={{
+                        pathname: cfg.getIntegrationEnrollRoute(
+                          IntegrationKind.ExternalAuditStorage
+                        ),
+                        state: { continueDraft: true },
+                      }}
+                    >
+                      Continue Setup...
+                    </MenuItem>
+                    <MenuItem
+                      onClick={() =>
+                        props.onDeleteExternalAuditStorage('draft')
+                      }
+                    >
+                      Delete...
+                    </MenuItem>
+                  </MenuButton>
+                </Cell>
+              );
+            }
+
+            // active external audit storage
             return (
               <Cell align="right">
                 <MenuButton>
                   <MenuItem
-                    onClick={() => props.integrationOps.onEditIntegration(item)}
-                  >
-                    Edit...
-                  </MenuItem>
-                  <MenuItem
                     onClick={() =>
-                      props.integrationOps.onDeleteIntegration(item)
+                      props.onDeleteExternalAuditStorage('cluster')
                     }
                   >
                     Delete...
@@ -142,8 +195,17 @@ enum Status {
 }
 
 function getStatus(item: IntegrationLike): Status | null {
-  if (item.resourceType !== 'plugin') {
+  if (item.resourceType === 'integration') {
     return Status.Success;
+  }
+
+  if (item.resourceType === 'external-audit-storage') {
+    switch (item.statusCode) {
+      case IntegrationStatusCode.Draft:
+        return Status.Warning;
+      default:
+        return Status.Success;
+    }
   }
 
   switch (item.statusCode) {
@@ -152,6 +214,8 @@ function getStatus(item: IntegrationLike): Status | null {
     case IntegrationStatusCode.Running:
       return Status.Success;
     case IntegrationStatusCode.SlackNotInChannel:
+      return Status.Warning;
+    case IntegrationStatusCode.Draft:
       return Status.Warning;
     default:
       return Status.Error;
@@ -207,6 +271,7 @@ const IconCell = ({ item }: { item: IntegrationLike }) => {
     // Default is integration.
     switch (item.kind) {
       case IntegrationKind.AwsOidc:
+      case IntegrationKind.ExternalAuditStorage:
         formattedText = item.name;
         icon = (
           <SvgIconContainer>
