@@ -147,6 +147,7 @@ buildbox-centos7:
 	DOCKER_BUILDKIT=1 docker build \
 		--build-arg UID=$(UID) \
 		--build-arg GID=$(GID) \
+		--build-arg BUILDBOX_CENTOS7_ASSETS=$(BUILDBOX_CENTOS7_ASSETS) \
 		--build-arg BUILDARCH=$(RUNTIME_ARCH) \
 		--build-arg TARGETARCH=$(HOST_ARCH) \
 		--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
@@ -155,27 +156,21 @@ buildbox-centos7:
 		--build-arg DEVTOOLSET=$(DEVTOOLSET) \
 		--build-arg LIBBPF_VERSION=$(LIBBPF_VERSION) \
 		--build-arg LIBPCSCLITE_VERSION=$(LIBPCSCLITE_VERSION) \
-		--cache-from $(BUILDBOX_CENTOS7) \
-		--tag $(BUILDBOX_CENTOS7) -f Dockerfile-centos7 .
+		--cache-from $(BUILDBOX_CENTOS7)-${RUNTIME_ARCH} \
+		--tag $(BUILDBOX_CENTOS7)-${RUNTIME_ARCH} -f Dockerfile-centos7 .
 
 #
 # Builds a Docker buildbox for CentOS 7 FIPS builds
+# Uses regular CentOS 7 buildbox as base, so limited arguments are needed.
 #
 .PHONY:buildbox-centos7-fips
 buildbox-centos7-fips:
 	@if [[ $${DRONE} == "true" ]] && ! docker inspect --type=image $(BUILDBOX_CENTOS7_FIPS) 2>&1 >/dev/null; then docker pull $(BUILDBOX_CENTOS7_FIPS) || true; fi;
 	docker build \
-		--build-arg UID=$(UID) \
-		--build-arg GID=$(GID) \
+		--build-arg BUILDBOX_CENTOS7=$(BUILDBOX_CENTOS7) \
 		--build-arg BUILDARCH=$(RUNTIME_ARCH) \
-		--build-arg TARGETARCH=$(HOST_ARCH) \
-		--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
-		--build-arg RUST_VERSION=$(RUST_VERSION) \
-		--build-arg WASM_PACK_VERSION=$(WASM_PACK_VERSION) \
-		--build-arg DEVTOOLSET=$(DEVTOOLSET) \
-		--build-arg LIBBPF_VERSION=$(LIBBPF_VERSION) \
-		--cache-from $(BUILDBOX_CENTOS7_FIPS) \
-		--tag $(BUILDBOX_CENTOS7_FIPS) -f Dockerfile-centos7-fips .
+		--cache-from $(BUILDBOX_CENTOS7_FIPS)-${RUNTIME_ARCH} \
+		--tag $(BUILDBOX_CENTOS7_FIPS)-${RUNTIME_ARCH} -f Dockerfile-centos7-fips .
 
 #
 # Builds a Docker buildbox for ARMv7/ARM64 builds

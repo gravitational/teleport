@@ -5462,12 +5462,13 @@ steps:
   - aws ecr get-login-password --profile staging --region=us-west-2 | docker login
     -u="AWS" --password-stdin 146628656107.dkr.ecr.us-west-2.amazonaws.com
   - make -C build.assets buildbox
-  - docker tag public.ecr.aws/gravitational/teleport-buildbox:$BUILDBOX_VERSION 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-buildbox:$BUILDBOX_VERSION-$DRONE_COMMIT_SHA
-  - docker push 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-buildbox:$BUILDBOX_VERSION-$DRONE_COMMIT_SHA
+  - docker tag public.ecr.aws/gravitational/teleport-buildbox:${BUILDBOX_VERSION}-amd64
+    146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-buildbox:${BUILDBOX_VERSION}-amd64-${DRONE_COMMIT_SHA}
+  - docker push 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-buildbox:${BUILDBOX_VERSION}-amd64-${DRONE_COMMIT_SHA}
   - docker logout 146628656107.dkr.ecr.us-west-2.amazonaws.com
   - aws ecr-public get-login-password --profile production --region=us-east-1 | docker
     login -u="AWS" --password-stdin public.ecr.aws
-  - docker push public.ecr.aws/gravitational/teleport-buildbox:$BUILDBOX_VERSION
+  - docker push public.ecr.aws/gravitational/teleport-buildbox:${BUILDBOX_VERSION}-amd64
   volumes:
   - name: awsconfig
     path: /root/.aws
@@ -5484,13 +5485,13 @@ steps:
   - aws ecr get-login-password --profile staging --region=us-west-2 | docker login
     -u="AWS" --password-stdin 146628656107.dkr.ecr.us-west-2.amazonaws.com
   - make -C build.assets buildbox-arm
-  - docker tag public.ecr.aws/gravitational/teleport-buildbox-arm:$BUILDBOX_VERSION
-    146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-buildbox-arm:$BUILDBOX_VERSION-$DRONE_COMMIT_SHA
-  - docker push 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-buildbox-arm:$BUILDBOX_VERSION-$DRONE_COMMIT_SHA
+  - docker tag public.ecr.aws/gravitational/teleport-buildbox-arm:${BUILDBOX_VERSION}-amd64
+    146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-buildbox-arm:${BUILDBOX_VERSION}-amd64-${DRONE_COMMIT_SHA}
+  - docker push 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-buildbox-arm:${BUILDBOX_VERSION}-amd64-${DRONE_COMMIT_SHA}
   - docker logout 146628656107.dkr.ecr.us-west-2.amazonaws.com
   - aws ecr-public get-login-password --profile production --region=us-east-1 | docker
     login -u="AWS" --password-stdin public.ecr.aws
-  - docker push public.ecr.aws/gravitational/teleport-buildbox-arm:$BUILDBOX_VERSION
+  - docker push public.ecr.aws/gravitational/teleport-buildbox-arm:${BUILDBOX_VERSION}-amd64
   volumes:
   - name: awsconfig
     path: /root/.aws
@@ -5507,13 +5508,13 @@ steps:
   - aws ecr get-login-password --profile staging --region=us-west-2 | docker login
     -u="AWS" --password-stdin 146628656107.dkr.ecr.us-west-2.amazonaws.com
   - make -C build.assets buildbox-centos7
-  - docker tag public.ecr.aws/gravitational/teleport-buildbox-centos7:$BUILDBOX_VERSION
-    146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-buildbox-centos7:$BUILDBOX_VERSION-$DRONE_COMMIT_SHA
-  - docker push 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-buildbox-centos7:$BUILDBOX_VERSION-$DRONE_COMMIT_SHA
+  - docker tag public.ecr.aws/gravitational/teleport-buildbox-centos7:${BUILDBOX_VERSION}-amd64
+    146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-buildbox-centos7:${BUILDBOX_VERSION}-amd64-${DRONE_COMMIT_SHA}
+  - docker push 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-buildbox-centos7:${BUILDBOX_VERSION}-amd64-${DRONE_COMMIT_SHA}
   - docker logout 146628656107.dkr.ecr.us-west-2.amazonaws.com
   - aws ecr-public get-login-password --profile production --region=us-east-1 | docker
     login -u="AWS" --password-stdin public.ecr.aws
-  - docker push public.ecr.aws/gravitational/teleport-buildbox-centos7:$BUILDBOX_VERSION
+  - docker push public.ecr.aws/gravitational/teleport-buildbox-centos7:${BUILDBOX_VERSION}-amd64
   volumes:
   - name: awsconfig
     path: /root/.aws
@@ -5530,13 +5531,13 @@ steps:
   - aws ecr get-login-password --profile staging --region=us-west-2 | docker login
     -u="AWS" --password-stdin 146628656107.dkr.ecr.us-west-2.amazonaws.com
   - make -C build.assets buildbox-centos7-fips
-  - docker tag public.ecr.aws/gravitational/teleport-buildbox-centos7-fips:$BUILDBOX_VERSION
-    146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-buildbox-centos7-fips:$BUILDBOX_VERSION-$DRONE_COMMIT_SHA
-  - docker push 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-buildbox-centos7-fips:$BUILDBOX_VERSION-$DRONE_COMMIT_SHA
+  - docker tag public.ecr.aws/gravitational/teleport-buildbox-centos7-fips:${BUILDBOX_VERSION}-amd64
+    146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-buildbox-centos7-fips:${BUILDBOX_VERSION}-amd64-${DRONE_COMMIT_SHA}
+  - docker push 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-buildbox-centos7-fips:${BUILDBOX_VERSION}-amd64-${DRONE_COMMIT_SHA}
   - docker logout 146628656107.dkr.ecr.us-west-2.amazonaws.com
   - aws ecr-public get-login-password --profile production --region=us-east-1 | docker
     login -u="AWS" --password-stdin public.ecr.aws
-  - docker push public.ecr.aws/gravitational/teleport-buildbox-centos7-fips:$BUILDBOX_VERSION
+  - docker push public.ecr.aws/gravitational/teleport-buildbox-centos7-fips:${BUILDBOX_VERSION}-amd64
   volumes:
   - name: awsconfig
     path: /root/.aws
@@ -7266,7 +7267,7 @@ steps:
   - docker buildx build --push --builder "teleport-operator-v15-amd64-builder" --platform
     "linux/amd64" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-amd64
     --file "/go/src/github.com/gravitational/teleport/integrations/operator/Dockerfile"
-    --build-arg BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox:teleport15
+    --build-arg BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox:teleport15-amd64
     --build-arg COMPILER_NAME=x86_64-linux-gnu-gcc --build-arg GOLANG_VERSION=go1.21.4
     --build-arg PROTOC_VERSION=3.20.3 --build-arg TARGETARCH=amd64 --build-arg BUILD_ARCH=amd64
     /go/src/github.com/gravitational/teleport
@@ -7310,7 +7311,7 @@ steps:
   - docker buildx build --push --builder "teleport-operator-v15-arm-builder" --platform
     "linux/arm" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm
     --file "/go/src/github.com/gravitational/teleport/integrations/operator/Dockerfile"
-    --build-arg BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport15
+    --build-arg BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport15-amd64
     --build-arg COMPILER_NAME=arm-linux-gnueabihf-gcc --build-arg GOLANG_VERSION=go1.21.4
     --build-arg PROTOC_VERSION=3.20.3 --build-arg TARGETARCH=arm --build-arg BUILD_ARCH=amd64
     /go/src/github.com/gravitational/teleport
@@ -7354,7 +7355,7 @@ steps:
   - docker buildx build --push --builder "teleport-operator-v15-arm64-builder" --platform
     "linux/arm64" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm64
     --file "/go/src/github.com/gravitational/teleport/integrations/operator/Dockerfile"
-    --build-arg BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport15
+    --build-arg BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport15-amd64
     --build-arg COMPILER_NAME=aarch64-linux-gnu-gcc --build-arg GOLANG_VERSION=go1.21.4
     --build-arg PROTOC_VERSION=3.20.3 --build-arg TARGETARCH=arm64 --build-arg BUILD_ARCH=amd64
     /go/src/github.com/gravitational/teleport
@@ -10868,7 +10869,7 @@ steps:
   - docker buildx build --push --builder "teleport-operator-v14-amd64-builder" --platform
     "linux/amd64" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-amd64
     --file "/go/src/github.com/gravitational/teleport/integrations/operator/Dockerfile"
-    --build-arg BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox:teleport15
+    --build-arg BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox:teleport15-amd64
     --build-arg COMPILER_NAME=x86_64-linux-gnu-gcc --build-arg GOLANG_VERSION=go1.21.4
     --build-arg PROTOC_VERSION=3.20.3 --build-arg TARGETARCH=amd64 --build-arg BUILD_ARCH=amd64
     /go/src/github.com/gravitational/teleport
@@ -10914,7 +10915,7 @@ steps:
   - docker buildx build --push --builder "teleport-operator-v14-arm-builder" --platform
     "linux/arm" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm
     --file "/go/src/github.com/gravitational/teleport/integrations/operator/Dockerfile"
-    --build-arg BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport15
+    --build-arg BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport15-amd64
     --build-arg COMPILER_NAME=arm-linux-gnueabihf-gcc --build-arg GOLANG_VERSION=go1.21.4
     --build-arg PROTOC_VERSION=3.20.3 --build-arg TARGETARCH=arm --build-arg BUILD_ARCH=amd64
     /go/src/github.com/gravitational/teleport
@@ -10960,7 +10961,7 @@ steps:
   - docker buildx build --push --builder "teleport-operator-v14-arm64-builder" --platform
     "linux/arm64" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm64
     --file "/go/src/github.com/gravitational/teleport/integrations/operator/Dockerfile"
-    --build-arg BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport15
+    --build-arg BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport15-amd64
     --build-arg COMPILER_NAME=aarch64-linux-gnu-gcc --build-arg GOLANG_VERSION=go1.21.4
     --build-arg PROTOC_VERSION=3.20.3 --build-arg TARGETARCH=arm64 --build-arg BUILD_ARCH=amd64
     /go/src/github.com/gravitational/teleport
@@ -13286,7 +13287,7 @@ steps:
   - docker buildx build --push --builder "teleport-operator-v13-amd64-builder" --platform
     "linux/amd64" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-amd64
     --file "/go/src/github.com/gravitational/teleport/integrations/operator/Dockerfile"
-    --build-arg BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox:teleport15
+    --build-arg BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox:teleport15-amd64
     --build-arg COMPILER_NAME=x86_64-linux-gnu-gcc --build-arg GOLANG_VERSION=go1.21.4
     --build-arg PROTOC_VERSION=3.20.3 --build-arg TARGETARCH=amd64 --build-arg BUILD_ARCH=amd64
     /go/src/github.com/gravitational/teleport
@@ -13332,7 +13333,7 @@ steps:
   - docker buildx build --push --builder "teleport-operator-v13-arm-builder" --platform
     "linux/arm" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm
     --file "/go/src/github.com/gravitational/teleport/integrations/operator/Dockerfile"
-    --build-arg BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport15
+    --build-arg BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport15-amd64
     --build-arg COMPILER_NAME=arm-linux-gnueabihf-gcc --build-arg GOLANG_VERSION=go1.21.4
     --build-arg PROTOC_VERSION=3.20.3 --build-arg TARGETARCH=arm --build-arg BUILD_ARCH=amd64
     /go/src/github.com/gravitational/teleport
@@ -13378,7 +13379,7 @@ steps:
   - docker buildx build --push --builder "teleport-operator-v13-arm64-builder" --platform
     "linux/arm64" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm64
     --file "/go/src/github.com/gravitational/teleport/integrations/operator/Dockerfile"
-    --build-arg BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport15
+    --build-arg BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport15-amd64
     --build-arg COMPILER_NAME=aarch64-linux-gnu-gcc --build-arg GOLANG_VERSION=go1.21.4
     --build-arg PROTOC_VERSION=3.20.3 --build-arg TARGETARCH=arm64 --build-arg BUILD_ARCH=amd64
     /go/src/github.com/gravitational/teleport
@@ -15704,7 +15705,7 @@ steps:
   - docker buildx build --push --builder "teleport-operator-v12-amd64-builder" --platform
     "linux/amd64" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-amd64
     --file "/go/src/github.com/gravitational/teleport/integrations/operator/Dockerfile"
-    --build-arg BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox:teleport15
+    --build-arg BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox:teleport15-amd64
     --build-arg COMPILER_NAME=x86_64-linux-gnu-gcc --build-arg GOLANG_VERSION=go1.21.4
     --build-arg PROTOC_VERSION=3.20.3 --build-arg TARGETARCH=amd64 --build-arg BUILD_ARCH=amd64
     /go/src/github.com/gravitational/teleport
@@ -15750,7 +15751,7 @@ steps:
   - docker buildx build --push --builder "teleport-operator-v12-arm-builder" --platform
     "linux/arm" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm
     --file "/go/src/github.com/gravitational/teleport/integrations/operator/Dockerfile"
-    --build-arg BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport15
+    --build-arg BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport15-amd64
     --build-arg COMPILER_NAME=arm-linux-gnueabihf-gcc --build-arg GOLANG_VERSION=go1.21.4
     --build-arg PROTOC_VERSION=3.20.3 --build-arg TARGETARCH=arm --build-arg BUILD_ARCH=amd64
     /go/src/github.com/gravitational/teleport
@@ -15796,7 +15797,7 @@ steps:
   - docker buildx build --push --builder "teleport-operator-v12-arm64-builder" --platform
     "linux/arm64" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm64
     --file "/go/src/github.com/gravitational/teleport/integrations/operator/Dockerfile"
-    --build-arg BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport15
+    --build-arg BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport15-amd64
     --build-arg COMPILER_NAME=aarch64-linux-gnu-gcc --build-arg GOLANG_VERSION=go1.21.4
     --build-arg PROTOC_VERSION=3.20.3 --build-arg TARGETARCH=arm64 --build-arg BUILD_ARCH=amd64
     /go/src/github.com/gravitational/teleport
@@ -16513,6 +16514,6 @@ image_pull_secrets:
 - DOCKERHUB_CREDENTIALS
 ---
 kind: signature
-hmac: 97f8ff5598b412a8a38fef40ad2d6bb7f4552193519c273c7cfea53dc7fb54a3
+hmac: bb9101b255c109f9062c0757df8e5d3c8e06a8f6615250212043b492dc1edc19
 
 ...

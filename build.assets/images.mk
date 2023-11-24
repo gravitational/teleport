@@ -3,7 +3,7 @@
 # These values may need to be updated in `dronegen/container_image_products.go` if
 # they change here
 BUILDBOX_VERSION ?= teleport15
-BUILDBOX_BASE_NAME ?= public.ecr.aws/gravitational/teleport-buildbox
+BUILDBOX_BASE_NAME ?= ghcr.io/gravitational/teleport-buildbox
 
 BUILDBOX=$(BUILDBOX_BASE_NAME):$(BUILDBOX_VERSION)
 BUILDBOX_CENTOS7=$(BUILDBOX_BASE_NAME)-centos7:$(BUILDBOX_VERSION)
