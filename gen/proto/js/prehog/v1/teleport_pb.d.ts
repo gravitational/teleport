@@ -126,11 +126,89 @@ export namespace UserActivityRecord {
     }
 }
 
+export class ResourceCountReport extends jspb.Message { 
+    getReportUuid(): Uint8Array | string;
+    getReportUuid_asU8(): Uint8Array;
+    getReportUuid_asB64(): string;
+    setReportUuid(value: Uint8Array | string): ResourceCountReport;
+
+    getClusterName(): Uint8Array | string;
+    getClusterName_asU8(): Uint8Array;
+    getClusterName_asB64(): string;
+    setClusterName(value: Uint8Array | string): ResourceCountReport;
+
+    getReporterHostid(): Uint8Array | string;
+    getReporterHostid_asU8(): Uint8Array;
+    getReporterHostid_asB64(): string;
+    setReporterHostid(value: Uint8Array | string): ResourceCountReport;
+
+
+    hasStartTime(): boolean;
+    clearStartTime(): void;
+    getStartTime(): google_protobuf_timestamp_pb.Timestamp | undefined;
+    setStartTime(value?: google_protobuf_timestamp_pb.Timestamp): ResourceCountReport;
+
+    clearRecordsList(): void;
+    getRecordsList(): Array<ResourceCountRecord>;
+    setRecordsList(value: Array<ResourceCountRecord>): ResourceCountReport;
+    addRecords(value?: ResourceCountRecord, index?: number): ResourceCountRecord;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): ResourceCountReport.AsObject;
+    static toObject(includeInstance: boolean, msg: ResourceCountReport): ResourceCountReport.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: ResourceCountReport, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): ResourceCountReport;
+    static deserializeBinaryFromReader(message: ResourceCountReport, reader: jspb.BinaryReader): ResourceCountReport;
+}
+
+export namespace ResourceCountReport {
+    export type AsObject = {
+        reportUuid: Uint8Array | string,
+        clusterName: Uint8Array | string,
+        reporterHostid: Uint8Array | string,
+        startTime?: google_protobuf_timestamp_pb.Timestamp.AsObject,
+        recordsList: Array<ResourceCountRecord.AsObject>,
+    }
+}
+
+export class ResourceCountRecord extends jspb.Message { 
+    getResourceKind(): ResourceKind;
+    setResourceKind(value: ResourceKind): ResourceCountRecord;
+
+    getCount(): number;
+    setCount(value: number): ResourceCountRecord;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): ResourceCountRecord.AsObject;
+    static toObject(includeInstance: boolean, msg: ResourceCountRecord): ResourceCountRecord.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: ResourceCountRecord, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): ResourceCountRecord;
+    static deserializeBinaryFromReader(message: ResourceCountRecord, reader: jspb.BinaryReader): ResourceCountRecord;
+}
+
+export namespace ResourceCountRecord {
+    export type AsObject = {
+        resourceKind: ResourceKind,
+        count: number,
+    }
+}
+
 export class SubmitUsageReportsRequest extends jspb.Message { 
     clearUserActivityList(): void;
     getUserActivityList(): Array<UserActivityReport>;
     setUserActivityList(value: Array<UserActivityReport>): SubmitUsageReportsRequest;
     addUserActivity(value?: UserActivityReport, index?: number): UserActivityReport;
+
+    clearResourceCountsList(): void;
+    getResourceCountsList(): Array<ResourceCountReport>;
+    setResourceCountsList(value: Array<ResourceCountReport>): SubmitUsageReportsRequest;
+    addResourceCounts(value?: ResourceCountReport, index?: number): ResourceCountReport;
 
 
     serializeBinary(): Uint8Array;
@@ -146,6 +224,7 @@ export class SubmitUsageReportsRequest extends jspb.Message {
 export namespace SubmitUsageReportsRequest {
     export type AsObject = {
         userActivityList: Array<UserActivityReport.AsObject>,
+        resourceCountsList: Array<ResourceCountReport.AsObject>,
     }
 }
 
@@ -170,4 +249,15 @@ export namespace SubmitUsageReportsResponse {
     export type AsObject = {
         batchUuid: Uint8Array | string,
     }
+}
+
+export enum ResourceKind {
+    RESOURCE_KIND_UNSPECIFIED = 0,
+    RESOURCE_KIND_NODE = 1,
+    RESOURCE_KIND_APP_SERVER = 2,
+    RESOURCE_KIND_KUBE_SERVER = 3,
+    RESOURCE_KIND_DB_SERVER = 4,
+    RESOURCE_KIND_WINDOWS_DESKTOP = 5,
+    RESOURCE_KIND_NODE_OPENSSH = 6,
+    RESOURCE_KIND_NODE_OPENSSH_EICE = 7,
 }

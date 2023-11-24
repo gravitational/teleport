@@ -216,6 +216,18 @@ func (r *Reporter) run(ctx context.Context) {
 		return record
 	}
 
+	// ResourcePresences is a map of resource kinds to sets of resource names.
+	// As there may be multiple heartbeats for the same resource, we use a set to count each once.
+	resourcePresences := make(map[prehogv1.ResourceKind](*map[string]interface{}))
+	resourcePresence := func(kind prehogv1.ResourceKind) *map[string]interface{} {
+		record := resourcePresences[kind]
+		if record == nil {
+			record = &map[string]interface{}{}
+			resourcePresences[kind] = record
+		}
+		return record
+	}
+
 	var wg sync.WaitGroup
 
 Ingest:
@@ -273,6 +285,9 @@ Ingest:
 			userRecord(te.UserName).KubeRequests++
 		case *usagereporter.SFTPEvent:
 			userRecord(te.UserName).SftpEvents++
+		case *usagereporter.ResourceHeartbeatEvent:
+			// ResourceKind is the same int32 in both prehogv1 and prehogv1alpha1.
+			(*resourcePresence(prehogv1.ResourceKind(te.Kind)))[te.Name] = struct{}{}
 		}
 
 		if ae != nil && r.ingested != nil {
@@ -282,6 +297,10 @@ Ingest:
 
 	if len(userActivity) > 0 {
 		r.persistUserActivity(ctx, startTime, userActivity)
+	}
+
+	if len(resourcePresences) > 0 {
+		r.persistResourceCounts(ctx, startTime, resourcePresences)
 	}
 
 	wg.Wait()
@@ -320,4 +339,35 @@ func (r *Reporter) persistUserActivity(ctx context.Context, startTime time.Time,
 			"records":     len(report.Records),
 		}).Debug("Persisted user activity report.")
 	}
+}
+
+func (r *Reporter) persistResourceCounts(ctx context.Context, startTime time.Time, resourcePresences map[prehogv1.ResourceKind](*map[string]interface{})) {
+	records := make([]*prehogv1.ResourceCountRecord, 0, len(resourcePresences))
+	for kind, set := range resourcePresences {
+		record := &prehogv1.ResourceCountRecord{}
+		record.ResourceKind = kind
+		record.Count = uint64(len(*set))
+		records = append(records, record)
+	}
+
+	report, err := prepareResourceCountsReport(r.clusterName, r.hostID, startTime, resourceCounts)
+	if err != nil {
+		r.log.WithError(err).WithFields(logrus.Fields{
+			"start_time": startTime,
+		}).Error("Failed to prepare resource counts report, dropping data.")
+		return
+	}
+
+	if err := r.svc.upsertResourceCountsReport(ctx, report, reportTTL); err != nil {
+		r.log.WithError(err).WithFields(logrus.Fields{
+			"start_time": startTime,
+		}).Error("Failed to persist resource counts report, dropping data.")
+		return
+	}
+
+	reportUUID, _ := uuid.FromBytes(report.ReportUuid)
+	r.log.WithFields(logrus.Fields{
+		"report_uuid": reportUUID,
+		"start_time":  startTime,
+	}).Debug("Persisted resource counts report.")
 }

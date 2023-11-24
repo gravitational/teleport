@@ -120,13 +120,22 @@ func RunSubmitter(ctx context.Context, cfg SubmitterConfig) {
 func submitOnce(ctx context.Context, c SubmitterConfig) {
 	svc := reportService{c.Backend}
 
-	reports, err := svc.listUserActivityReports(ctx, submitBatchSize)
+	userActivityReports, err := svc.listUserActivityReports(ctx, submitBatchSize)
 	if err != nil {
 		c.Log.WithError(err).Error("Failed to load usage reports for submission.")
 		return
 	}
 
-	if len(reports) < 1 {
+	freeBatchSize := submitBatchSize - len(userActivityReports)
+	resourceCountsReports, err := svc.listResourceCountsReports(ctx, freeBatchSize)
+	if err != nil {
+		c.Log.WithError(err).Error("Failed to load resource counts reports for submission.")
+		return
+	}
+
+	totalReportCount := len(userActivityReports) + len(resourceCountsReports)
+
+	if totalReportCount < 1 {
 		err := ClearAlert(ctx, c.Status)
 		if err == nil {
 			c.Log.Infof("Deleted cluster alert %v after successfully clearing usage report backlog.", alertName)
@@ -150,16 +159,17 @@ func submitOnce(ctx context.Context, c SubmitterConfig) {
 	defer cancel()
 
 	batchUUID, err := c.Submitter(lockCtx, &prehogv1.SubmitUsageReportsRequest{
-		UserActivity: reports,
+		UserActivity:   userActivityReports,
+		ResourceCounts: resourceCountsReports,
 	})
 	if err != nil {
 		c.Log.WithError(err).WithFields(logrus.Fields{
-			"reports":       len(reports),
-			"oldest_report": reports[0].GetStartTime().AsTime(),
-			"newest_report": reports[len(reports)-1].GetStartTime().AsTime(),
+			"reports":       totalReportCount,
+			"oldest_report": userActivityReports[0].GetStartTime().AsTime(),
+			"newest_report": userActivityReports[len(userActivityReports)-1].GetStartTime().AsTime(),
 		}).Error("Failed to send usage reports.")
 
-		if time.Since(reports[0].StartTime.AsTime()) <= alertGraceDuration {
+		if time.Since(userActivityReports[0].StartTime.AsTime()) <= alertGraceDuration {
 			return
 		}
 		alert, err := types.NewClusterAlert(
@@ -182,13 +192,18 @@ func submitOnce(ctx context.Context, c SubmitterConfig) {
 
 	c.Log.WithFields(logrus.Fields{
 		"batch_uuid":    batchUUID,
-		"reports":       len(reports),
-		"oldest_report": reports[0].GetStartTime().AsTime(),
+		"reports":       totalReportCount,
+		"oldest_report": userActivityReports[0].GetStartTime().AsTime(),
 	}).Info("Successfully sent usage reports.")
 
 	var lastErr error
-	for _, report := range reports {
+	for _, report := range userActivityReports {
 		if err := svc.deleteUserActivityReport(ctx, report); err != nil {
+			lastErr = err
+		}
+	}
+	for _, report := range resourceCountsReports {
+		if err := svc.deleteResourceCountReport(ctx, report); err != nil {
 			lastErr = err
 		}
 	}

@@ -63,9 +63,66 @@ message UserActivityRecord {
   uint64 kube_port_sessions = 13;
 }
 
+// the kind of a "resource" (e.g. a node, a pod, a service, etc.)
+enum ResourceKind {
+  RESOURCE_KIND_UNSPECIFIED = 0;
+
+  // PostHog property value: "node"
+  RESOURCE_KIND_NODE = 1;
+
+  // PostHog property value: "app_server"
+  RESOURCE_KIND_APP_SERVER = 2;
+
+  // PostHog property value: "kube_server"
+  RESOURCE_KIND_KUBE_SERVER = 3;
+
+  // PostHog property value: "db_server"
+  RESOURCE_KIND_DB_SERVER = 4;
+
+  // PostHog property value: "windows_desktop"
+  RESOURCE_KIND_WINDOWS_DESKTOP = 5;
+
+  // ServerV3 ("node") heartbeat with a subkind of "openssh" (as opposed to
+  // empty or "teleport"); not used in keepalives
+  //
+  // PostHog property value: "node.openssh"
+  RESOURCE_KIND_NODE_OPENSSH = 6;
+
+  // ServerV3 ("node") heartbeat with a subkind of "openssh-ec2-ice".
+  // Nodes that map EC2 instances and are accessed using EC2 Instance Connect Endpoint.
+  // Not used in keepalives.
+  // This is the SubKind SubKindOpenSSHEICENode in teleport repo.
+  //
+  // PostHog property value: "node.openssh_ec2_ice"
+  RESOURCE_KIND_NODE_OPENSSH_EICE = 7;
+}
+
+message ResourceCountReport {
+  // randomly generated UUID for this specific report, 16 bytes (in string order)
+  bytes report_uuid = 1;
+  // anonymized, 32 bytes (HMAC-SHA-256)
+  bytes cluster_name = 2;
+  // anonymized, 32 bytes (HMAC-SHA-256)
+  bytes reporter_hostid = 3;
+  // beginning of the time window for this data; ending is not specified but is
+  // intended to be at most 15 minutes
+  google.protobuf.Timestamp start_time = 4;
+
+  repeated ResourceCountRecord records = 5;
+}
+
+message ResourceCountRecord {
+  // the kind of resource
+  ResourceKind resource_kind = 1;
+  // the number of times this resource was accessed
+  uint64 count = 2;
+}
+
 message SubmitUsageReportsRequest {
-  // at most 10 in a single RPC, each shouldn't exceed 128KiB or so
+  // at most 10 reports of all kinds in a single RPC, each shouldn't exceed 128KiB or so
   repeated UserActivityReport user_activity = 1;
+  // in most cases, there will be only one resource counts report
+  repeated ResourceCountReport resource_counts = 2;
 }
 message SubmitUsageReportsResponse {
   // randomly generated UUID for this specific batch, 16 bytes (in string order)
