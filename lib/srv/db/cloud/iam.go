@@ -245,7 +245,7 @@ func (c *IAM) getAWSIdentity(ctx context.Context, database types.Database) (awsl
 		return c.agentIdentity, nil
 	}
 	c.mu.RUnlock()
-	sts, err := c.cfg.Clients.GetAWSSTSClient(ctx, meta.Region)
+	sts, err := c.cfg.Clients.GetAWSSTSClient(ctx, meta.Region, cloud.WithAmbientCredentials())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
