@@ -141,7 +141,7 @@ func NewTeleportOperatorProduct(cloneDirectory string) *Product {
 				compilerName = "arm-linux-gnueabihf-gcc"
 			}
 
-			buildboxName = fmt.Sprintf("%s:teleport%d", buildboxName, branchMajorVersion)
+			buildboxName = fmt.Sprintf("%s:teleport%d-%s", buildboxName, branchMajorVersion, "amd64") // all our runners are amd64
 			toolVersions, err := readToolsVersions()
 			if err != nil {
 				panic(err)

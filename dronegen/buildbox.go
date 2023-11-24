@@ -66,6 +66,7 @@ func buildboxPipelineStep(buildboxName string, fips bool) step {
 	if fips {
 		buildboxName += "-fips"
 	}
+	buildboxArch := "amd64" // all our runners are amd64
 	return step{
 		Name:    "Build and push " + buildboxName,
 		Image:   "docker",
@@ -79,14 +80,14 @@ func buildboxPipelineStep(buildboxName string, fips bool) step {
 			// Build buildbox image
 			fmt.Sprintf(`make -C build.assets %s`, buildboxName),
 			// Retag for staging registry
-			fmt.Sprintf(`docker tag %s/gravitational/teleport-%s:$BUILDBOX_VERSION %s/gravitational/teleport-%s:$BUILDBOX_VERSION-$DRONE_COMMIT_SHA`, ProductionRegistry, buildboxName, StagingRegistry, buildboxName),
+			fmt.Sprintf(`docker tag %s/gravitational/teleport-%s:${BUILDBOX_VERSION}-%s %s/gravitational/teleport-%s:${BUILDBOX_VERSION}-%s-${DRONE_COMMIT_SHA}`, ProductionRegistry, buildboxName, buildboxArch, StagingRegistry, buildboxName, buildboxArch),
 			// Push to staging registry
-			fmt.Sprintf(`docker push %s/gravitational/teleport-%s:$BUILDBOX_VERSION-$DRONE_COMMIT_SHA`, StagingRegistry, buildboxName),
+			fmt.Sprintf(`docker push %s/gravitational/teleport-%s:${BUILDBOX_VERSION}-%s-${DRONE_COMMIT_SHA}`, StagingRegistry, buildboxName, buildboxArch),
 			// Authenticate to production registry
 			`docker logout ` + StagingRegistry,
 			`aws ecr-public get-login-password --profile production --region=us-east-1 | docker login -u="AWS" --password-stdin ` + ProductionRegistry,
 			// Push to production registry
-			fmt.Sprintf(`docker push %s/gravitational/teleport-%s:$BUILDBOX_VERSION`, ProductionRegistry, buildboxName),
+			fmt.Sprintf(`docker push %s/gravitational/teleport-%s:${BUILDBOX_VERSION}-%s`, ProductionRegistry, buildboxName, buildboxArch),
 		},
 	}
 }
