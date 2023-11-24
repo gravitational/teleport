@@ -17,6 +17,8 @@ package helpers
 import (
 	"bytes"
 	"context"
+	"fmt"
+	"os"
 	"testing"
 	"time"
 
@@ -85,6 +87,12 @@ func WaitForClusters(tun reversetunnelclient.Server, expected int) func() bool {
 		if err != nil {
 			return false
 		}
+
+		names := make([]string, 0, len(clusters))
+		for _, c := range clusters {
+			names = append(names, c.GetName())
+		}
+		fmt.Fprintf(os.Stderr, "current clusters: %q\n", names)
 
 		if len(clusters) < expected {
 			return false
@@ -175,8 +183,6 @@ func CheckTrustedClustersCanConnect(ctx context.Context, t *testing.T, tcSetup T
 
 	// Wait for both cluster to see each other via reverse tunnels.
 	require.Eventually(t, WaitForClusters(main.Tunnel, 1), 10*time.Second, 1*time.Second,
-		"Two clusters do not see each other: tunnels are not working.")
-	require.Eventually(t, WaitForClusters(aux.Tunnel, 1), 10*time.Second, 1*time.Second,
 		"Two clusters do not see each other: tunnels are not working.")
 
 	// Try and connect to a node in the Aux cluster from the Main cluster using

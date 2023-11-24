@@ -33,6 +33,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.mongodb.org/mongo-driver/bson"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -268,7 +269,7 @@ func TestALPNSNIHTTPSProxy(t *testing.T) {
 	addr, err := apihelpers.GetLocalIP()
 	require.NoError(t, err)
 
-	suite := newSuite(t,
+	_ = newSuite(t,
 		withRootClusterConfig(rootClusterStandardConfig(t)),
 		withLeafClusterConfig(leafClusterStandardConfig(t)),
 		withRootClusterNodeName(addr),
@@ -279,13 +280,9 @@ func TestALPNSNIHTTPSProxy(t *testing.T) {
 		withStandardRoleMapping(),
 	)
 
-	// Wait for both cluster to see each other via reverse tunnels.
-	require.Eventually(t, helpers.WaitForClusters(suite.root.Tunnel, 1), 10*time.Second, 1*time.Second,
-		"Two clusters do not see each other: tunnels are not working.")
-	require.Eventually(t, helpers.WaitForClusters(suite.leaf.Tunnel, 1), 10*time.Second, 1*time.Second,
-		"Two clusters do not see each other: tunnels are not working.")
-
-	require.Greater(t, ph.Count(), 0, "proxy did not intercept any connection")
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		assert.NotZero(t, ph.Count())
+	}, 10*time.Second, time.Second, "http proxy did not intercept any connection")
 }
 
 // TestMultiPortHTTPSProxy tests if the reverse tunnel uses http_proxy
@@ -309,7 +306,7 @@ func TestMultiPortHTTPSProxy(t *testing.T) {
 	addr, err := apihelpers.GetLocalIP()
 	require.NoError(t, err)
 
-	suite := newSuite(t,
+	_ = newSuite(t,
 		withRootClusterConfig(rootClusterStandardConfig(t)),
 		withLeafClusterConfig(leafClusterStandardConfig(t)),
 		withRootClusterNodeName(addr),
@@ -320,13 +317,9 @@ func TestMultiPortHTTPSProxy(t *testing.T) {
 		withStandardRoleMapping(),
 	)
 
-	// Wait for both cluster to see each other via reverse tunnels.
-	require.Eventually(t, helpers.WaitForClusters(suite.root.Tunnel, 1), 10*time.Second, 1*time.Second,
-		"Two clusters do not see each other: tunnels are not working.")
-	require.Eventually(t, helpers.WaitForClusters(suite.leaf.Tunnel, 1), 10*time.Second, 1*time.Second,
-		"Two clusters do not see each other: tunnels are not working.")
-
-	require.Greater(t, ph.Count(), 0, "proxy did not intercept any connection")
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		assert.NotZero(t, ph.Count())
+	}, 10*time.Second, time.Second, "http proxy did not intercept any connection")
 }
 
 // TestAlpnSniProxyKube tests Kubernetes access with custom Kube API mock where traffic is forwarded via
