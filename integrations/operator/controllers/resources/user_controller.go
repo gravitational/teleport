@@ -22,61 +22,37 @@ import (
 	"github.com/gravitational/trace"
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
 	resourcesv2 "github.com/gravitational/teleport/integrations/operator/apis/resources/v2"
-	"github.com/gravitational/teleport/integrations/operator/sidecar"
 )
 
 // userClient implements TeleportResourceClient and offers CRUD methods needed to reconcile users
 type userClient struct {
-	TeleportClientAccessor sidecar.ClientAccessor
+	teleportClient *client.Client
 }
 
 // Get gets the Teleport user of a given name
 func (r userClient) Get(ctx context.Context, name string) (types.User, error) {
-	teleportClient, release, err := r.TeleportClientAccessor(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer release()
-
-	user, err := teleportClient.GetUser(ctx, name, false /* with secrets*/)
+	user, err := r.teleportClient.GetUser(ctx, name, false /* with secrets*/)
 	return user, trace.Wrap(err)
 }
 
 // Create creates a Teleport user
 func (r userClient) Create(ctx context.Context, user types.User) error {
-	teleportClient, release, err := r.TeleportClientAccessor(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer release()
-
-	_, err = teleportClient.CreateUser(ctx, user)
+	_, err := r.teleportClient.CreateUser(ctx, user)
 	return trace.Wrap(err)
 }
 
 // Update updates a Teleport user
 func (r userClient) Update(ctx context.Context, user types.User) error {
-	teleportClient, release, err := r.TeleportClientAccessor(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer release()
-
-	_, err = teleportClient.UpdateUser(ctx, user)
+	_, err := r.teleportClient.UpdateUser(ctx, user)
 	return trace.Wrap(err)
 }
 
 // Delete deletes a Teleport user
 func (r userClient) Delete(ctx context.Context, name string) error {
-	teleportClient, release, err := r.TeleportClientAccessor(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer release()
-
-	return trace.Wrap(teleportClient.DeleteUser(ctx, name))
+	return trace.Wrap(r.teleportClient.DeleteUser(ctx, name))
 }
 
 // MutateExisting ensures the spec.createdBy property is persisted
@@ -87,9 +63,9 @@ func (r userClient) MutateExisting(newUser, existingUser types.User) {
 }
 
 // NewUserReconciler instantiates a new Kubernetes controller reconciling user resources
-func NewUserReconciler(client kclient.Client, accessor sidecar.ClientAccessor) *TeleportResourceReconciler[types.User, *resourcesv2.TeleportUser] {
+func NewUserReconciler(client kclient.Client, tClient *client.Client) *TeleportResourceReconciler[types.User, *resourcesv2.TeleportUser] {
 	userClient := &userClient{
-		TeleportClientAccessor: accessor,
+		teleportClient: tClient,
 	}
 
 	resourceReconciler := NewTeleportResourceReconciler[types.User, *resourcesv2.TeleportUser](

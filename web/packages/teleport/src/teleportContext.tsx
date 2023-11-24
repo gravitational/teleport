@@ -187,10 +187,13 @@ class TeleportContext implements types.Context {
       discover: userContext.hasDiscoverAccess(),
       plugins: userContext.getPluginsAccess().list,
       integrations: userContext.getIntegrationsAccess().list,
-      enrollIntegrations: userContext.getIntegrationsAccess().create,
+      enrollIntegrations:
+        userContext.getIntegrationsAccess().create ||
+        userContext.getExternalAuditStorageAccess().create,
       enrollIntegrationsOrPlugins:
         userContext.getPluginsAccess().create ||
-        userContext.getIntegrationsAccess().create,
+        userContext.getIntegrationsAccess().create ||
+        userContext.getExternalAuditStorageAccess().create,
       deviceTrust: userContext.getDeviceTrustAccess().list,
       locks: userContext.getLockAccess().list,
       newLocks:
@@ -199,6 +202,7 @@ class TeleportContext implements types.Context {
       accessMonitoring: hasAccessMonitoringAccess(),
       managementSection: hasManagementSectionAccess(),
       accessGraph: userContext.getAccessGraphAccess().list,
+      externalAuditStorage: userContext.getExternalAuditStorageAccess().list,
     };
   }
 }
@@ -232,6 +236,7 @@ export const disabledFeatureFlags: types.FeatureFlags = {
   managementSection: false,
   accessMonitoring: false,
   accessGraph: false,
+  externalAuditStorage: false,
 };
 
 export default TeleportContext;
