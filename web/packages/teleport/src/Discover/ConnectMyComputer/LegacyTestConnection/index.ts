@@ -14,4 +14,4 @@
  * limitations under the License.
  */
 
-export { TestConnection } from './TestConnection';
+export { LegacyTestConnection } from './LegacyTestConnection';

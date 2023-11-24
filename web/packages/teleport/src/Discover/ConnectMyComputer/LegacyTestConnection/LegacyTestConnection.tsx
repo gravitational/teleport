@@ -45,7 +45,7 @@ import { NodeMeta } from '../../useDiscover';
 
 import type { AgentStepProps } from '../../types';
 
-export const TestConnection = (props: AgentStepProps) => {
+export const LegacyTestConnection = (props: AgentStepProps) => {
   const { userService, storeUser } = useTeleport();
   const meta = props.agentMeta as NodeMeta;
 

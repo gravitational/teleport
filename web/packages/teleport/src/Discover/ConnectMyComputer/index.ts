@@ -21,7 +21,7 @@ import { DiscoverEvent } from 'teleport/services/userEvent';
 import { ResourceSpec } from '../SelectResource';
 
 import { SetupConnect } from './SetupConnect';
-import { TestConnection } from './TestConnection';
+import { LegacyTestConnection } from './LegacyTestConnection';
 
 export const ConnectMyComputerResource: ResourceViewConfig<ResourceSpec> = {
   kind: ResourceKind.ConnectMyComputer,
@@ -34,7 +34,7 @@ export const ConnectMyComputerResource: ResourceViewConfig<ResourceSpec> = {
     {
       // TODO(ravicious): Rename this to "Test Connection" after implementing the connection test.
       title: 'Start a Session',
-      component: TestConnection,
+      component: LegacyTestConnection,
       eventName: DiscoverEvent.TestConnection,
       // TODO(ravicious): Manually emit success event on test connection success.
       manuallyEmitSuccessEvent: true,

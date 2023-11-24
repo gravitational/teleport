@@ -26,10 +26,10 @@ import { UserContext } from 'teleport/User/UserContext';
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import { makeDefaultUserPreferences } from 'teleport/services/userPreferences/userPreferences';
 
-import { TestConnection } from './TestConnection';
+import { LegacyTestConnection } from './LegacyTestConnection';
 
 export default {
-  title: 'Teleport/Discover/ConnectMyComputer/TestConnection',
+  title: 'Teleport/Discover/ConnectMyComputer/LegacyTestConnection',
   loaders: [mswLoader],
 };
 
@@ -46,7 +46,7 @@ const agentStepProps = {
 export const SingleLogin = () => {
   return (
     <Provider>
-      <TestConnection {...agentStepProps} />
+      <LegacyTestConnection {...agentStepProps} />
     </Provider>
   );
 };
@@ -67,7 +67,7 @@ SingleLogin.parameters = {
 export const MultipleLogins = () => {
   return (
     <Provider>
-      <TestConnection {...agentStepProps} />
+      <LegacyTestConnection {...agentStepProps} />
     </Provider>
   );
 };
@@ -88,7 +88,7 @@ MultipleLogins.parameters = {
 export const NoLogins = () => {
   return (
     <Provider>
-      <TestConnection {...agentStepProps} />
+      <LegacyTestConnection {...agentStepProps} />
     </Provider>
   );
 };
@@ -109,7 +109,7 @@ NoLogins.parameters = {
 export const NoRole = () => {
   return (
     <Provider>
-      <TestConnection {...agentStepProps} />
+      <LegacyTestConnection {...agentStepProps} />
     </Provider>
   );
 };
@@ -131,7 +131,7 @@ NoRole.parameters = {
 export const ReloadUserProcessing = () => {
   return (
     <Provider>
-      <TestConnection {...agentStepProps} />
+      <LegacyTestConnection {...agentStepProps} />
     </Provider>
   );
 };
@@ -149,7 +149,7 @@ ReloadUserProcessing.parameters = {
 export const ReloadUserError = () => {
   return (
     <Provider>
-      <TestConnection {...agentStepProps} />
+      <LegacyTestConnection {...agentStepProps} />
     </Provider>
   );
 };
