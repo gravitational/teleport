@@ -14,6 +14,7 @@
 
 syntax = "proto3";
 
+// TODO(nklaassen): delete service this after switching to ExternalAuditStorage.
 package teleport.externalcloudaudit.v1;
 
 import "google/protobuf/empty.proto";

@@ -18,7 +18,7 @@ package proto;
 
 import "teleport/accesslist/v1/accesslist.proto";
 import "teleport/discoveryconfig/v1/discoveryconfig.proto";
-import "teleport/externalcloudaudit/v1/externalcloudaudit.proto";
+import "teleport/externalauditstorage/v1/externalauditstorage.proto";
 import "teleport/legacy/types/types.proto";
 import "teleport/secreports/v1/secreports.proto";
 import "teleport/userloginstate/v1/userloginstate.proto";
@@ -39,6 +39,7 @@ enum Operation {
 // Event returns cluster event
 message Event {
   reserved 7;
+  reserved 49;
 
   // Operation identifies operation
   Operation Type = 1;
@@ -138,13 +139,13 @@ message Event {
     teleport.accesslist.v1.Member AccessListMember = 47;
     // DiscoveryConfig contains a list of matchers to be loaded dynamically by Discovery Services.
     teleport.discoveryconfig.v1.DiscoveryConfig DiscoveryConfig = 48;
-    // ExternalCloudAudit is an ExternalCloudAudit resource.
-    teleport.externalcloudaudit.v1.ExternalCloudAudit ExternalCloudAudit = 49;
     // AuditQuery is an audit query resource.
     teleport.secreports.v1.AuditQuery AuditQuery = 50;
     // SecurityReport is a security report resource.
     teleport.secreports.v1.Report Report = 51;
     // SecurityReportState is a security report state resource.
     teleport.secreports.v1.ReportState ReportState = 52;
+    // ExternalAuditStorage is an ExternalAuditStorage resource.
+    teleport.externalauditstorage.v1.ExternalAuditStorage ExternalAuditStorage = 53;
   }
 }

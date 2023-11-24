@@ -39,6 +39,8 @@ const (
 // It's used only in Teleport Cloud with feature called "bring your own bucket".
 // It contains configuration that allows store audit events and session
 // recordings on customer infra instead of Teleport Cloud.
+// TODO(nklaassen): deprecate or delete this after switching to
+// ExternalAuditStorage in teleport.e.
 type ExternalCloudAudit struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
@@ -97,6 +99,8 @@ func (x *ExternalCloudAudit) GetSpec() *ExternalCloudAuditSpec {
 }
 
 // ExternalCloudAuditConfigSpec is the specification of external cloud audit.
+// TODO(nklaassen): deprecate or delete this after switching to
+// ExternalAuditStorage in teleport.e.
 type ExternalCloudAuditSpec struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache

@@ -21,14 +21,13 @@ import (
 
 	"github.com/gravitational/trace"
 
-	externalcloudauditclient "github.com/gravitational/teleport/api/client/externalcloudaudit"
 	"github.com/gravitational/teleport/api/types/externalcloudaudit"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-var _ ExternalCloudAudits = (*externalcloudauditclient.Client)(nil)
-
 // ExternalCloudAuditGetter defines an interface for reading external cloud audits.
+//
+// TODO(nklaassen): delete this
 type ExternalCloudAuditGetter interface {
 	// GetDraftExternalCloudAudit returns the draft external cloud audit resource.
 	GetDraftExternalCloudAudit(context.Context) (*externalcloudaudit.ExternalCloudAudit, error)
@@ -37,6 +36,8 @@ type ExternalCloudAuditGetter interface {
 }
 
 // ExternalCloudAudits defines an interface for managing ExternalCloudAudits.
+//
+// TODO(nklaassen): delete this
 type ExternalCloudAudits interface {
 	ExternalCloudAuditGetter
 
@@ -57,6 +58,8 @@ type ExternalCloudAudits interface {
 }
 
 // UnmarshalExternalCloudAudit unmarshals the external cloud audit resource from JSON.
+//
+// TODO(nklaassen): delete this
 func UnmarshalExternalCloudAudit(data []byte, opts ...MarshalOption) (*externalcloudaudit.ExternalCloudAudit, error) {
 	if len(data) == 0 {
 		return nil, trace.BadParameter("missing external cloud audit data")
@@ -85,6 +88,8 @@ func UnmarshalExternalCloudAudit(data []byte, opts ...MarshalOption) (*externalc
 }
 
 // MarshalExternalCloudAudit marshals the external cloud audit resource to JSON.
+//
+// TODO(nklaassen): delete this
 func MarshalExternalCloudAudit(externalCloudaudit *externalcloudaudit.ExternalCloudAudit, opts ...MarshalOption) ([]byte, error) {
 	if err := externalCloudaudit.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)

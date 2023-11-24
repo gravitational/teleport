@@ -31,43 +31,43 @@ import (
 	"github.com/gravitational/teleport/lib/config"
 )
 
-// ConfigureExternalCloudAuditClient is an interface for the AWS client methods
-// used by ConfigureExternalCloudAudit.
-type ConfigureExternalCloudAuditClient interface {
+// ConfigureExternalAuditStorageClient is an interface for the AWS client methods
+// used by ConfigureExternalAuditStorage.
+type ConfigureExternalAuditStorageClient interface {
 	PutRolePolicy(context.Context, *iam.PutRolePolicyInput, ...func(*iam.Options)) (*iam.PutRolePolicyOutput, error)
 	GetCallerIdentity(context.Context, *sts.GetCallerIdentityInput, ...func(*sts.Options)) (*sts.GetCallerIdentityOutput, error)
 }
 
-// DefaultConfigureExternalCloudAuditClient wraps an iam and sts client to
-// implement ConfigureExternalCloudAuditClient.
-type DefaultConfigureExternalCloudAuditClient struct {
+// DefaultConfigureExternalAuditStorageClient wraps an iam and sts client to
+// implement ConfigureExternalAuditStorageClient.
+type DefaultConfigureExternalAuditStorageClient struct {
 	Iam *iam.Client
 	Sts *sts.Client
 }
 
 // PutRolePolicy adds or updates an inline policy document that is embedded in
 // the specified IAM role.
-func (d *DefaultConfigureExternalCloudAuditClient) PutRolePolicy(ctx context.Context, input *iam.PutRolePolicyInput, opts ...func(*iam.Options)) (*iam.PutRolePolicyOutput, error) {
+func (d *DefaultConfigureExternalAuditStorageClient) PutRolePolicy(ctx context.Context, input *iam.PutRolePolicyInput, opts ...func(*iam.Options)) (*iam.PutRolePolicyOutput, error) {
 	return d.Iam.PutRolePolicy(ctx, input, opts...)
 }
 
 // GetCallerIdentity returns details about the IAM user or role whose
 // credentials are used to call the operation.
-func (d *DefaultConfigureExternalCloudAuditClient) GetCallerIdentity(ctx context.Context, input *sts.GetCallerIdentityInput, opts ...func(*sts.Options)) (*sts.GetCallerIdentityOutput, error) {
+func (d *DefaultConfigureExternalAuditStorageClient) GetCallerIdentity(ctx context.Context, input *sts.GetCallerIdentityInput, opts ...func(*sts.Options)) (*sts.GetCallerIdentityOutput, error) {
 	return d.Sts.GetCallerIdentity(ctx, input, opts...)
 }
 
-// ConfigureExternalCloudAudit attaches an IAM policy with necessary permissions
-// for the ExternalCloudAudit feature to an existing IAM role associated with an
+// ConfigureExternalAuditStorage attaches an IAM policy with necessary permissions
+// for the ExternalAuditStorage feature to an existing IAM role associated with an
 // AWS OIDC integration.
-func ConfigureExternalCloudAudit(
+func ConfigureExternalAuditStorage(
 	ctx context.Context,
-	clt ConfigureExternalCloudAuditClient,
-	params *config.IntegrationConfExternalCloudAudit,
+	clt ConfigureExternalAuditStorageClient,
+	params *config.IntegrationConfExternalAuditStorage,
 ) error {
 	fmt.Println("\nConfiguring necessary IAM permissions for External Audit Storage")
 
-	policyCfg := &awslib.ExternalCloudAuditPolicyConfig{
+	policyCfg := &awslib.ExternalAuditStoragePolicyConfig{
 		Partition:           params.Partition,
 		Region:              params.Region,
 		AthenaWorkgroupName: params.AthenaWorkgroup,
@@ -99,7 +99,7 @@ func ConfigureExternalCloudAudit(
 	}
 	policyCfg.Account = aws.ToString(stsResp.Account)
 
-	policyDoc, err := awslib.PolicyDocumentForExternalCloudAudit(policyCfg)
+	policyDoc, err := awslib.PolicyDocumentForExternalAuditStorage(policyCfg)
 	if err != nil {
 		return trace.Wrap(err)
 	}

@@ -26,13 +26,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport/api/types/externalcloudaudit"
+	"github.com/gravitational/teleport/api/types/externalauditstorage"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
 )
 
-func TestExternalCloudAuditService(t *testing.T) {
+func TestExternalAuditStorageService(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	clock := clockwork.NewFakeClock()
@@ -43,16 +43,16 @@ func TestExternalCloudAuditService(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	service := NewExternalCloudAuditService(backend.NewSanitizer(mem))
+	service := NewExternalAuditStorageService(backend.NewSanitizer(mem))
 
 	sessRecURL1 := "s3://bucket1/ses-rec-v1"
 	sessRecURL2 := "s3://bucket1/ses-rec-v2"
 
 	spec1 := newSpecWithSessRec(t, sessRecURL1)
-	draftFromSpec1, err := externalcloudaudit.NewDraftExternalCloudAudit(header.Metadata{}, spec1)
+	draftFromSpec1, err := externalauditstorage.NewDraftExternalAuditStorage(header.Metadata{}, spec1)
 	require.NoError(t, err)
 
-	clusterFromSpec1, err := externalcloudaudit.NewClusterExternalCloudAudit(header.Metadata{}, spec1)
+	clusterFromSpec1, err := externalauditstorage.NewClusterExternalAuditStorage(header.Metadata{}, spec1)
 	require.NoError(t, err)
 
 	cmpOpts := []cmp.Option{
@@ -61,85 +61,85 @@ func TestExternalCloudAuditService(t *testing.T) {
 
 	t.Run("no draft, can't promote anything", func(t *testing.T) {
 		// Given no draft
-		// When PromoteToClusterExternalCloudAudit
+		// When PromoteToClusterExternalAuditStorage
 		// Then error is returned
 
 		// When
-		err := service.PromoteToClusterExternalCloudAudit(ctx)
+		err := service.PromoteToClusterExternalAuditStorage(ctx)
 		// Then
 		require.ErrorContains(t, err, "can't promote to cluster when draft does not exist")
 	})
 
 	t.Run("create draft", func(t *testing.T) {
 		// Given no draft
-		// When UpsertDraftExternalCloudAudit
-		// Then draft is returned on GetDraftExternalCloudAudit
+		// When UpsertDraftExternalAuditStorage
+		// Then draft is returned on GetDraftExternalAuditStorage
 		// And GetClusterExternalCloutAudit returns not found.
 
 		// When
-		_, err := service.UpsertDraftExternalCloudAudit(ctx, draftFromSpec1)
+		_, err := service.UpsertDraftExternalAuditStorage(ctx, draftFromSpec1)
 		require.NoError(t, err)
 
 		// Then
-		out, err := service.GetDraftExternalCloudAudit(ctx)
+		out, err := service.GetDraftExternalAuditStorage(ctx)
 		require.NoError(t, err)
 		require.Empty(t, cmp.Diff(draftFromSpec1, out, cmpOpts...))
 		// And
-		_, err = service.GetClusterExternalCloudAudit(ctx)
+		_, err = service.GetClusterExternalAuditStorage(ctx)
 		require.Error(t, err)
 		require.True(t, trace.IsNotFound(err))
 	})
 
 	t.Run("promote draft audit to cluster external cloud audit", func(t *testing.T) {
-		// Given draft external_cloud_audit resource
-		// When PromoteToClusterExternalCloudAudit is executed
+		// Given draft external_audit_storage resource
+		// When PromoteToClusterExternalAuditStorage is executed
 		// Then GetClusterExternalAudit returns copy of draft config.
 
 		// When
-		err := service.PromoteToClusterExternalCloudAudit(ctx)
+		err := service.PromoteToClusterExternalAuditStorage(ctx)
 		require.NoError(t, err)
 		// Then
-		out, err := service.GetClusterExternalCloudAudit(ctx)
+		out, err := service.GetClusterExternalAuditStorage(ctx)
 		require.NoError(t, err)
 		require.Empty(t, cmp.Diff(clusterFromSpec1, out, cmpOpts...))
 	})
 
 	t.Run("updating draft does not change to cluster", func(t *testing.T) {
-		// Given existing cluster external_cloud_audit
-		// When UpsertDraftExternalCloudAudit
+		// Given existing cluster external_audit_storage
+		// When UpsertDraftExternalAuditStorage
 		// Then draft is written
 		// And cluster external audit remains unchanged.
 
 		// Given
 		specWithNewSessRec := newSpecWithSessRec(t, sessRecURL2)
-		draftWithNewSessRec, err := externalcloudaudit.NewDraftExternalCloudAudit(header.Metadata{}, specWithNewSessRec)
+		draftWithNewSessRec, err := externalauditstorage.NewDraftExternalAuditStorage(header.Metadata{}, specWithNewSessRec)
 		require.NoError(t, err)
 
 		// When
-		_, err = service.UpsertDraftExternalCloudAudit(ctx, draftWithNewSessRec)
+		_, err = service.UpsertDraftExternalAuditStorage(ctx, draftWithNewSessRec)
 		require.NoError(t, err)
 
 		// Then
-		updatedDraft, err := service.GetDraftExternalCloudAudit(ctx)
+		updatedDraft, err := service.GetDraftExternalAuditStorage(ctx)
 		require.NoError(t, err)
 		require.Empty(t, cmp.Diff(draftWithNewSessRec, updatedDraft, cmpOpts...))
 		// And
-		clusterOutput, err := service.GetClusterExternalCloudAudit(ctx)
+		clusterOutput, err := service.GetClusterExternalAuditStorage(ctx)
 		require.NoError(t, err)
 		require.Empty(t, cmp.Diff(clusterFromSpec1, clusterOutput, cmpOpts...))
 	})
 
 	t.Run("disable cluster", func(t *testing.T) {
 		// Given existing cluster
-		// When DisableClusterExternalCloudAudit
+		// When DisableClusterExternalAuditStorage
 		// Then not found error is returner on GetCluster.
 
 		// When
-		err := service.DisableClusterExternalCloudAudit(ctx)
+		err := service.DisableClusterExternalAuditStorage(ctx)
 		require.NoError(t, err)
 
 		// Then
-		_, err = service.GetClusterExternalCloudAudit(ctx)
+		_, err = service.GetClusterExternalAuditStorage(ctx)
 		require.Error(t, err)
 		require.True(t, trace.IsNotFound(err))
 	})
@@ -151,16 +151,16 @@ func TestExternalCloudAuditService(t *testing.T) {
 		// And deleting again fails
 
 		// When
-		err := service.DeleteDraftExternalCloudAudit(ctx)
+		err := service.DeleteDraftExternalAuditStorage(ctx)
 		require.NoError(t, err)
 
 		// Then
-		_, err = service.GetDraftExternalCloudAudit(ctx)
+		_, err = service.GetDraftExternalAuditStorage(ctx)
 		require.Error(t, err)
 		require.True(t, trace.IsNotFound(err))
 
 		// And
-		err = service.DeleteDraftExternalCloudAudit(ctx)
+		err = service.DeleteDraftExternalAuditStorage(ctx)
 		require.Error(t, err)
 		require.True(t, trace.IsNotFound(err), "expected NotFound error, got %v", err)
 	})
@@ -168,19 +168,19 @@ func TestExternalCloudAuditService(t *testing.T) {
 	t.Run("generate", func(t *testing.T) {
 		// Given no draft
 
-		// When GenerateDraftExternalCloudAudit
-		generateResp, err := service.GenerateDraftExternalCloudAudit(ctx, "test-integration", "us-west-2")
+		// When GenerateDraftExternalAuditStorage
+		generateResp, err := service.GenerateDraftExternalAuditStorage(ctx, "test-integration", "us-west-2")
 		require.NoError(t, err)
 
 		// Then draft is returned with generated values
 		spec := generateResp.Spec
-		nonce := strings.TrimPrefix(spec.PolicyName, "ExternalCloudAuditPolicy-")
+		nonce := strings.TrimPrefix(spec.PolicyName, "ExternalAuditStoragePolicy-")
 		underscoreNonce := strings.ReplaceAll(nonce, "-", "_")
-		expectedSpec := externalcloudaudit.ExternalCloudAuditSpec{
+		expectedSpec := externalauditstorage.ExternalAuditStorageSpec{
 			IntegrationName:        "test-integration",
-			PolicyName:             "ExternalCloudAuditPolicy-" + nonce,
+			PolicyName:             "ExternalAuditStoragePolicy-" + nonce,
 			Region:                 "us-west-2",
-			SessionsRecordingsURI:  "s3://teleport-longterm-" + nonce + "/sessions",
+			SessionRecordingsURI:   "s3://teleport-longterm-" + nonce + "/sessions",
 			AuditEventsLongTermURI: "s3://teleport-longterm-" + nonce + "/events",
 			AthenaResultsURI:       "s3://teleport-transient-" + nonce + "/query_results",
 			AthenaWorkgroup:        "teleport_events_" + underscoreNonce,
@@ -189,24 +189,24 @@ func TestExternalCloudAuditService(t *testing.T) {
 		}
 		assert.Equal(t, expectedSpec, spec)
 
-		// And GetDraftExternalCloudAudit returns the same draft
-		getResp, err := service.GetDraftExternalCloudAudit(ctx)
+		// And GetDraftExternalAuditStorage returns the same draft
+		getResp, err := service.GetDraftExternalAuditStorage(ctx)
 		require.NoError(t, err)
 		assert.Empty(t, cmp.Diff(generateResp, getResp, cmpOpts...))
 
 		// And can't generate when there is an existing draft
-		_, err = service.GenerateDraftExternalCloudAudit(ctx, "test-integration", "us-west-2")
+		_, err = service.GenerateDraftExternalAuditStorage(ctx, "test-integration", "us-west-2")
 		require.Error(t, err)
 		assert.True(t, trace.IsAlreadyExists(err), "expected AlreadyExists error, got %v", err)
 	})
 }
 
-func newSpecWithSessRec(t *testing.T, sessionsRecordingsURI string) externalcloudaudit.ExternalCloudAuditSpec {
-	return externalcloudaudit.ExternalCloudAuditSpec{
+func newSpecWithSessRec(t *testing.T, sessionRecordingsURI string) externalauditstorage.ExternalAuditStorageSpec {
+	return externalauditstorage.ExternalAuditStorageSpec{
 		IntegrationName:        "aws-integration-1",
 		PolicyName:             "test-policy",
 		Region:                 "us-west-2",
-		SessionsRecordingsURI:  sessionsRecordingsURI,
+		SessionRecordingsURI:   sessionRecordingsURI,
 		AthenaWorkgroup:        "primary",
 		GlueDatabase:           "teleport_db",
 		GlueTable:              "teleport_table",

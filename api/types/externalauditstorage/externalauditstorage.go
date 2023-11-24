@@ -14,9 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// TODO(nklaassen): deprecate or delete this package after reference are removed
-// from teleport.e
-package externalcloudaudit
+package externalauditstorage
 
 import (
 	"net/url"
@@ -35,23 +33,23 @@ import (
 )
 
 const (
-	externalCloudAuditPolicyNamePrefix      = "ExternalCloudAuditPolicy-"
-	externalCloudAuditLongtermBucketPrefix  = "s3://teleport-longterm-"
-	externalCloudAuditTransientBucketPrefix = "s3://teleport-transient-"
+	externalAuditStoragePolicyNamePrefix      = "ExternalAuditStoragePolicy-"
+	externalAuditStorageLongtermBucketPrefix  = "s3://teleport-longterm-"
+	externalAuditStorageTransientBucketPrefix = "s3://teleport-transient-"
 )
 
-// ExternalCloudAudit is internal representation of an external cloud audit resource.
-// Proto definion can be found https://github.com/gravitational/teleport/blob/master/api/proto/teleport/externalcloudaudit/v1/externalcloudaudit.proto
-type ExternalCloudAudit struct {
+// ExternalAuditStorage is internal representation of an External Audit Storage resource.
+// Proto definion can be found https://github.com/gravitational/teleport/blob/master/api/proto/teleport/externalauditstorage/v1/externalauditstorage.proto
+type ExternalAuditStorage struct {
 	// ResourceHeader is the common resource header for all resources.
 	header.ResourceHeader
 
-	// Spec is the specification for the external cloud audit.
-	Spec ExternalCloudAuditSpec `json:"spec" yaml:"spec"`
+	// Spec is the specification for the External Audit Storage.
+	Spec ExternalAuditStorageSpec `json:"spec" yaml:"spec"`
 }
 
-// ExternalCloudAuditSpec is the specification for an external cloud audit.
-type ExternalCloudAuditSpec struct {
+// ExternalAuditStorageSpec is the specification for an External Audit Storage.
+type ExternalAuditStorageSpec struct {
 	// IntegrationName is name of existing OIDC integration used to
 	// generate AWS credentials.
 	IntegrationName string `json:"integration_name" yaml:"integration_name"`
@@ -60,8 +58,8 @@ type ExternalCloudAuditSpec struct {
 	PolicyName string `json:"policy_name" yaml:"policy_name"`
 	// Region is the AWS region where the infrastructure is hosted.
 	Region string `json:"region" yaml:"region"`
-	// SessionsRecordingsURI is s3 path used to store sessions recordings.
-	SessionsRecordingsURI string `json:"sessions_recordings_uri" yaml:"sessions_recordings_uri"`
+	// SessionRecordingsURI is s3 path used to store session recordings.
+	SessionRecordingsURI string `json:"session_recordings_uri" yaml:"session_recordings_uri"`
 	// AthenaWorkgroup is workgroup used by Athena audit logs during queries.
 	AthenaWorkgroup string `json:"athena_workgroup" yaml:"athena_workgroup"`
 	// GlueDatabase is database used by Athena audit logs during queries.
@@ -76,9 +74,9 @@ type ExternalCloudAuditSpec struct {
 	AthenaResultsURI string `json:"athena_results_uri" yaml:"athena_results_uri"`
 }
 
-// NewDraftExternalCloudAudit will create a new draft external cloud audit.
-func NewDraftExternalCloudAudit(metadata header.Metadata, spec ExternalCloudAuditSpec) (*ExternalCloudAudit, error) {
-	externalaudit := &ExternalCloudAudit{
+// NewDraftExternalAuditStorage will create a new draft External Audit Storage.
+func NewDraftExternalAuditStorage(metadata header.Metadata, spec ExternalAuditStorageSpec) (*ExternalAuditStorage, error) {
+	externalaudit := &ExternalAuditStorage{
 		ResourceHeader: header.ResourceHeaderFromMetadata(metadata),
 		Spec:           spec,
 	}
@@ -86,9 +84,9 @@ func NewDraftExternalCloudAudit(metadata header.Metadata, spec ExternalCloudAudi
 	name := externalaudit.GetName()
 	switch {
 	case name == "":
-		externalaudit.SetName(types.MetaNameExternalCloudAuditDraft)
-	case name != types.MetaNameExternalCloudAuditDraft:
-		return nil, trace.BadParameter("draft external cloud audit invalid name")
+		externalaudit.SetName(types.MetaNameExternalAuditStorageDraft)
+	case name != types.MetaNameExternalAuditStorageDraft:
+		return nil, trace.BadParameter("draft External Audit Storage invalid name")
 	}
 
 	if err := externalaudit.CheckAndSetDefaults(); err != nil {
@@ -97,9 +95,9 @@ func NewDraftExternalCloudAudit(metadata header.Metadata, spec ExternalCloudAudi
 	return externalaudit, nil
 }
 
-// GenerateDraftExternalCloudAudit creates a new draft ExternalCloudAudit with
+// GenerateDraftExternalAuditStorage creates a new draft ExternalAuditStorage with
 // randomized resource names.
-func GenerateDraftExternalCloudAudit(integrationName, region string) (*ExternalCloudAudit, error) {
+func GenerateDraftExternalAuditStorage(integrationName, region string) (*ExternalAuditStorage, error) {
 	// S3 bucket names can't use underscores, Glue tables can't use hyphens,
 	// Athena workgroups can use either.
 	// https://docs.aws.amazon.com/AmazonS3/latest/userguide/bucketnamingrules.html
@@ -107,14 +105,14 @@ func GenerateDraftExternalCloudAudit(integrationName, region string) (*ExternalC
 	// https://docs.aws.amazon.com/athena/latest/ug/workgroups-settings.html
 	nonce := uuid.NewString()
 	underscoreNonce := strings.ReplaceAll(nonce, "-", "_")
-	draft, err := NewDraftExternalCloudAudit(header.Metadata{},
-		ExternalCloudAuditSpec{
+	draft, err := NewDraftExternalAuditStorage(header.Metadata{},
+		ExternalAuditStorageSpec{
 			IntegrationName:        integrationName,
-			PolicyName:             externalCloudAuditPolicyNamePrefix + nonce,
+			PolicyName:             externalAuditStoragePolicyNamePrefix + nonce,
 			Region:                 region,
-			SessionsRecordingsURI:  externalCloudAuditLongtermBucketPrefix + nonce + "/sessions",
-			AuditEventsLongTermURI: externalCloudAuditLongtermBucketPrefix + nonce + "/events",
-			AthenaResultsURI:       externalCloudAuditTransientBucketPrefix + nonce + "/query_results",
+			SessionRecordingsURI:   externalAuditStorageLongtermBucketPrefix + nonce + "/sessions",
+			AuditEventsLongTermURI: externalAuditStorageLongtermBucketPrefix + nonce + "/events",
+			AthenaResultsURI:       externalAuditStorageTransientBucketPrefix + nonce + "/query_results",
 			AthenaWorkgroup:        "teleport_events_" + underscoreNonce,
 			GlueDatabase:           "teleport_events_" + underscoreNonce,
 			GlueTable:              "teleport_events",
@@ -156,9 +154,10 @@ func ValidateS3URI(uri string) error {
 	return nil
 }
 
-// NewClusterExternalCloudAudit will create a new cluster external cloud audit.
-func NewClusterExternalCloudAudit(metadata header.Metadata, spec ExternalCloudAuditSpec) (*ExternalCloudAudit, error) {
-	externalaudit := &ExternalCloudAudit{
+// NewClusterExternalAuditStorage will create a new cluster External Audit
+// Storage.
+func NewClusterExternalAuditStorage(metadata header.Metadata, spec ExternalAuditStorageSpec) (*ExternalAuditStorage, error) {
+	externalaudit := &ExternalAuditStorage{
 		ResourceHeader: header.ResourceHeaderFromMetadata(metadata),
 		Spec:           spec,
 	}
@@ -166,9 +165,9 @@ func NewClusterExternalCloudAudit(metadata header.Metadata, spec ExternalCloudAu
 	name := externalaudit.GetName()
 	switch {
 	case name == "":
-		externalaudit.SetName(types.MetaNameExternalCloudAuditCluster)
-	case name != types.MetaNameExternalCloudAuditCluster:
-		return nil, trace.BadParameter("cluster external cloud audit invalid name")
+		externalaudit.SetName(types.MetaNameExternalAuditStorageCluster)
+	case name != types.MetaNameExternalAuditStorageCluster:
+		return nil, trace.BadParameter("cluster External Audit Storage invalid name")
 	}
 
 	if err := externalaudit.CheckAndSetDefaults(); err != nil {
@@ -178,13 +177,13 @@ func NewClusterExternalCloudAudit(metadata header.Metadata, spec ExternalCloudAu
 }
 
 // CheckAndSetDefaults validates fields and populates empty fields with default values.
-func (a *ExternalCloudAudit) CheckAndSetDefaults() error {
-	a.SetKind(types.KindExternalCloudAudit)
+func (a *ExternalAuditStorage) CheckAndSetDefaults() error {
+	a.SetKind(types.KindExternalAuditStorage)
 	a.SetExpiry(time.Time{})
 	if version := a.GetVersion(); len(version) == 0 {
 		a.SetVersion(types.V1)
 	} else if version != types.V1 {
-		return trace.BadParameter("unrecognized external_cloud_audit version %q", version)
+		return trace.BadParameter("unrecognized external_audit_storage version %q", version)
 	}
 
 	if err := a.ResourceHeader.CheckAndSetDefaults(); err != nil {
@@ -192,7 +191,7 @@ func (a *ExternalCloudAudit) CheckAndSetDefaults() error {
 	}
 
 	if a.Spec.IntegrationName == "" {
-		return trace.BadParameter("external cloud audit integration_name required")
+		return trace.BadParameter("integration_name required")
 	}
 	if err := aws.IsValidIAMPolicyName(a.Spec.PolicyName); err != nil {
 		return trace.Wrap(err, "validating policy_name")
@@ -200,8 +199,8 @@ func (a *ExternalCloudAudit) CheckAndSetDefaults() error {
 	if err := aws.IsValidRegion(a.Spec.Region); err != nil {
 		return trace.Wrap(err, "validating region")
 	}
-	if err := ValidateS3URI(a.Spec.SessionsRecordingsURI); err != nil {
-		return trace.Wrap(err, "validating sessions_recordings_uri")
+	if err := ValidateS3URI(a.Spec.SessionRecordingsURI); err != nil {
+		return trace.Wrap(err, "validating session_recordings_uri")
 	}
 	if err := ValidateS3URI(a.Spec.AuditEventsLongTermURI); err != nil {
 		return trace.Wrap(err, "validating audit_events_long_term_uri")
@@ -224,20 +223,20 @@ func (a *ExternalCloudAudit) CheckAndSetDefaults() error {
 
 // GetMetadata returns metadata. This is specifically for conforming to the Resource interface,
 // and should be removed when possible.
-func (a *ExternalCloudAudit) GetMetadata() types.Metadata {
+func (a *ExternalAuditStorage) GetMetadata() types.Metadata {
 	return legacy.FromHeaderMetadata(a.Metadata)
 }
 
 // MatchSearch goes through select field values of a resource
 // and tries to match against the list of search values.
-func (a *ExternalCloudAudit) MatchSearch(values []string) bool {
+func (a *ExternalAuditStorage) MatchSearch(values []string) bool {
 	fieldVals := append(utils.MapToStrings(a.GetAllLabels()), a.GetName())
 	return types.MatchSearch(fieldVals, values, nil)
 }
 
 // CloneResource returns a copy of the resource as types.ResourceWithLabels.
-func (a *ExternalCloudAudit) CloneResource() types.ResourceWithLabels {
-	var copy *ExternalCloudAudit
+func (a *ExternalAuditStorage) CloneResource() types.ResourceWithLabels {
+	var copy *ExternalAuditStorage
 	utils.StrictObjectToStruct(a, &copy)
 	return copy
 }
