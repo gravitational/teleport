@@ -18,37 +18,61 @@ import React, { useState } from 'react';
 import { ButtonSecondary, Text, Box, LabelInput } from 'design';
 import Select from 'shared/components/Select';
 
+import cfg from 'teleport/config';
 import ReAuthenticate from 'teleport/components/ReAuthenticate';
-
+import { openNewTab } from 'teleport/lib/util';
 import {
+  useConnectionDiagnostic,
   Header,
   ActionButtons,
   HeaderSubtitle,
   ConnectionDiagnosticResult,
   StyledBox,
-} from '../../Shared';
+} from 'teleport/Discover/Shared';
 
-import { useTestConnection } from './useTestConnection';
+import { NodeMeta } from '../../useDiscover';
 
 import type { Option } from 'shared/components/Select';
 import type { AgentStepProps } from '../../types';
+import type { MfaAuthnResponse } from 'teleport/services/mfa';
 
 export function TestConnection(props: AgentStepProps) {
   const {
+    runConnectionDiagnostic,
     attempt,
-    startSshSession,
-    logins,
-    testConnection,
     diagnosis,
     nextStep,
     prevStep,
     canTestConnection,
     showMfaDialog,
     cancelMfaDialog,
-  } = useTestConnection(props);
-  const [usernameOpts] = useState(() =>
-    logins.map(l => ({ value: l, label: l }))
-  );
+    clusterId,
+  } = useConnectionDiagnostic();
+  const nodeMeta = props.agentMeta as NodeMeta;
+  const logins = sortLogins(nodeMeta.node.sshLogins);
+
+  function startSshSession(login: string) {
+    const url = cfg.getSshConnectRoute({
+      clusterId: clusterId,
+      serverId: nodeMeta.node.id,
+      login,
+    });
+
+    openNewTab(url);
+  }
+
+  function testConnection(login: string, mfaResponse?: MfaAuthnResponse) {
+    runConnectionDiagnostic(
+      {
+        resourceKind: 'node',
+        resourceName: props.agentMeta.resourceName,
+        sshPrincipal: login,
+      },
+      mfaResponse
+    );
+  }
+
+  const usernameOpts = logins.map(l => ({ value: l, label: l }));
   // There will always be one login, as the user cannot proceed
   // the step that requires users to have at least one login.
   const [selectedOpt, setSelectedOpt] = useState(usernameOpts[0]);
@@ -105,3 +129,12 @@ export function TestConnection(props: AgentStepProps) {
     </Box>
   );
 }
+
+// sort logins by making 'root' as the first in the list.
+const sortLogins = (logins: string[]) => {
+  const noRoot = logins.filter(l => l !== 'root').sort();
+  if (noRoot.length === logins.length) {
+    return logins;
+  }
+  return ['root', ...noRoot];
+};
