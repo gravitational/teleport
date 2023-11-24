@@ -738,8 +738,6 @@ func (c *cloudClients) getAWSSessionForRegion(region string, opts awsAssumeRoleO
 	cacheKey := awsSessionCacheKey{
 		region:      region,
 		integration: opts.integration,
-		roleARN:     opts.assumeRoleARN,
-		externalID:  opts.assumeRoleExternalID,
 	}
 
 	return utils.FnCacheGet(context.Background(), c.awsSessionsCache, cacheKey, func(ctx context.Context) (*awssession.Session, error) {
