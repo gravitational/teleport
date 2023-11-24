@@ -21,6 +21,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"fmt"
+	"net"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -94,12 +95,20 @@ type joinAttributeSourcer interface {
 	JoinAuditAttributes() (map[string]interface{}, error)
 }
 
-func setRemoteAddrFromContext(ctx context.Context, req *types.RegisterUsingTokenRequest) {
+func setRemoteAddrFromContext(ctx context.Context, req *types.RegisterUsingTokenRequest) error {
+	var addr string
 	if clientIP, err := authz.ClientSrcAddrFromContext(ctx); err == nil {
-		req.RemoteAddr = clientIP.String()
+		addr = clientIP.String()
 	} else if p, ok := peer.FromContext(ctx); ok {
-		req.RemoteAddr = p.Addr.String()
+		addr = p.Addr.String()
 	}
+	ip, _, err := net.SplitHostPort(addr)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	req.RemoteAddr = ip
+
+	return nil
 }
 
 // RegisterUsingToken returns credentials for a new node to join the Teleport
