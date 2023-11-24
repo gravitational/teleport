@@ -2287,6 +2287,23 @@ export namespace TAGExecuteQueryEvent {
     }
 }
 
+export class ExternalAuditStorageAuthenticateEvent extends jspb.Message { 
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): ExternalAuditStorageAuthenticateEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: ExternalAuditStorageAuthenticateEvent): ExternalAuditStorageAuthenticateEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: ExternalAuditStorageAuthenticateEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): ExternalAuditStorageAuthenticateEvent;
+    static deserializeBinaryFromReader(message: ExternalAuditStorageAuthenticateEvent, reader: jspb.BinaryReader): ExternalAuditStorageAuthenticateEvent;
+}
+
+export namespace ExternalAuditStorageAuthenticateEvent {
+    export type AsObject = {
+    }
+}
+
 export class SubmitEventRequest extends jspb.Message { 
     getClusterName(): string;
     setClusterName(value: string): SubmitEventRequest;
@@ -2700,6 +2717,12 @@ export class SubmitEventRequest extends jspb.Message {
     setTagExecuteQuery(value?: TAGExecuteQueryEvent): SubmitEventRequest;
 
 
+    hasExternalAuditStorageAuthenticate(): boolean;
+    clearExternalAuditStorageAuthenticate(): void;
+    getExternalAuditStorageAuthenticate(): ExternalAuditStorageAuthenticateEvent | undefined;
+    setExternalAuditStorageAuthenticate(value?: ExternalAuditStorageAuthenticateEvent): SubmitEventRequest;
+
+
     getEventCase(): SubmitEventRequest.EventCase;
 
     serializeBinary(): Uint8Array;
@@ -2783,6 +2806,7 @@ export namespace SubmitEventRequest {
         desktopDirectoryShare?: DesktopDirectoryShareEvent.AsObject,
         desktopClipboardTransfer?: DesktopClipboardEvent.AsObject,
         tagExecuteQuery?: TAGExecuteQueryEvent.AsObject,
+        externalAuditStorageAuthenticate?: ExternalAuditStorageAuthenticateEvent.AsObject,
     }
 
     export enum EventCase {
@@ -2921,6 +2945,8 @@ export namespace SubmitEventRequest {
     DESKTOP_CLIPBOARD_TRANSFER = 69,
 
     TAG_EXECUTE_QUERY = 70,
+
+    EXTERNAL_AUDIT_STORAGE_AUTHENTICATE = 71,
 
     }
 
