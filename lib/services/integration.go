@@ -46,6 +46,12 @@ type IntegrationsGetter interface {
 	GetIntegration(ctx context.Context, name string) (types.Integration, error)
 }
 
+// IntegrationsTokenGenerator defines methods to generate tokens for Integrations.
+type IntegrationsTokenGenerator interface {
+	// GenerateAWSOIDCToken generates a token to be used to execute an AWS OIDC Integration action.
+	GenerateAWSOIDCToken(ctx context.Context, req types.GenerateAWSOIDCTokenRequest) (string, error)
+}
+
 // MarshalIntegration marshals the Integration resource to JSON.
 func MarshalIntegration(ig types.Integration, opts ...MarshalOption) ([]byte, error) {
 	if err := ig.CheckAndSetDefaults(); err != nil {
