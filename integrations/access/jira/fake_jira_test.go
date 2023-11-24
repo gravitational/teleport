@@ -252,6 +252,7 @@ func (s *FakeJira) TransitionIssue(issue Issue, status string) Issue {
 			},
 		},
 	}
+	issue.Fields.Status = StatusDetails{Name: status}
 	issue.Changelog.Histories = append([]Changelog{changelog}, issue.Changelog.Histories...)
 	issue = s.StoreIssue(issue)
 	s.issueTransitions <- issue
