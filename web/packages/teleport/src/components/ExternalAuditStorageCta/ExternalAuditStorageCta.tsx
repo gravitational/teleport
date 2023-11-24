@@ -64,10 +64,6 @@ export const ExternalAuditStorageCta = () => {
                 featureEnabled ? '' : ' with Teleport Enterprise'
               }.`}
             </Text>
-            <Link style={{ display: 'inline', marginLeft: 4 }} to={'TODO'}>
-              {' '}
-              Learn More
-            </Link>
           </Box>
         </Flex>
         <Flex alignItems="center" minWidth="300px">
