@@ -1,5 +1,3 @@
-ARG RUST_VERSION
-
 ## GIT2 ###################################################################
 
 # git2 packages are not available on ARM64, so we need to build it from source.
@@ -220,10 +218,9 @@ ENV LANGUAGE=en_US.UTF-8 \
     LC_ALL=en_US.UTF-8 \
     LC_CTYPE=en_US.UTF-8
 
-ARG GOLANG_VERSION
-ARG RUST_VERSION
-ARG DEVTOOLSET
+ARG BUILDARCH
 ARG TARGETARCH
+ARG DEVTOOLSET
 
 ARG UID
 ARG GID
@@ -238,6 +235,7 @@ ENV DEVTOOLSET=${DEVTOOLSET} \
 RUN bash -c 'if [ "${TARGETARCH}" = "arm64" ]; then export TARGETARCH="aarch64"; fi; \
     echo -e "[${DEVTOOLSET}-build]\nname=${DEVTOOLSET} - Build\nbaseurl=https://buildlogs.centos.org/c7-${DEVTOOLSET}.${TARGETARCH}/\ngpgcheck=0\nenabled=1" > /etc/yum.repos.d/${DEVTOOLSET}-build.repo'
 
+# Install required dependencies.
 RUN yum groupinstall -y 'Development Tools' && \
     yum install -y epel-release && \
     yum update -y && \
@@ -269,10 +267,9 @@ RUN yum install --nogpgcheck -y \
 # Override the old git in /usr/local installed by yum. We need git 2+ on GitHub Actions.
 COPY --from=git2 /opt/git /
 
-ARG BUILDARCH
-
 # Install Go.
-RUN mkdir -p /opt && cd /opt && curl -fsSL https://storage.googleapis.com/golang/$GOLANG_VERSION.linux-${BUILDARCH}.tar.gz | tar xz && \
+ARG GOLANG_VERSION
+RUN mkdir -p /opt && cd /opt && curl -fsSL https://storage.googleapis.com/golang/${GOLANG_VERSION}.linux-${BUILDARCH}.tar.gz | tar xz && \
     mkdir -p /go/src/github.com/gravitational/teleport && \
     chmod a+w /go && \
     chmod a+w /var/lib && \
@@ -286,6 +283,7 @@ COPY pam/ /opt/pam_teleport/
 RUN make -C /opt/pam_teleport install
 
 # Install Rust.
+ARG RUST_VERSION
 ENV RUSTUP_HOME=/usr/local/rustup \
     CARGO_HOME=/usr/local/cargo \
     PATH=/usr/local/cargo/bin:$PATH \
@@ -296,11 +294,15 @@ RUN mkdir -p $RUSTUP_HOME && chmod a+w $RUSTUP_HOME && \
 
 RUN chmod a-w /
 
+# Install Rust using the ci user, as that is the user that
+# will run builds using the Rust toolchains we install here.
 USER ci
 RUN curl --proto '=https' --tlsv1.2 -fsSL https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain $RUST_VERSION && \
     rustup --version && \
     cargo --version && \
-    rustc --version
+    rustc --version && \
+    rustup component add rustfmt clippy && \
+    rustup target add ${TARGETARCH}-unknown-linux-gnu
 
 ARG WASM_PACK_VERSION
 # Install wasm-pack for targeting WebAssembly from Rust.

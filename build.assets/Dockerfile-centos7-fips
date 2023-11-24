@@ -1,12 +1,61 @@
-# Create an alias to the assets image. Ref: https://github.com/docker/for-mac/issues/2155
-ARG BUILDARCH
-FROM ghcr.io/gravitational/teleport-buildbox-centos7-assets:teleport15-${BUILDARCH} AS teleport-buildbox-centos7-assets
+## GIT2 ###################################################################
 
-FROM centos:7 AS libbpf
+# git2 packages are not available on ARM64, so we need to build it from source.
+FROM centos:7 AS git2
 
 ARG BUILDARCH
 ARG TARGETARCH
 ARG DEVTOOLSET
+
+# devtoolset-12 is only in CentOS buildlogs. The rpms are unsigned since they never were
+# published to the official CentOS SCL repos.
+ENV DEVTOOLSET=${DEVTOOLSET} \
+    TARGETARCH=${TARGETARCH}
+
+RUN bash -c 'if [ "${TARGETARCH}" = "arm64" ]; then export TARGETARCH="aarch64"; fi; \
+    echo -e "[${DEVTOOLSET}-build]\nname=${DEVTOOLSET} - Build\nbaseurl=https://buildlogs.centos.org/c7-${DEVTOOLSET}.${TARGETARCH}/\ngpgcheck=0\nenabled=1" > /etc/yum.repos.d/${DEVTOOLSET}-build.repo'
+
+# Install required dependencies.
+RUN yum groupinstall -y 'Development Tools' && \
+    yum install -y \
+    ca-certificates  \
+    curl-devel  \
+    expat-devel  \
+    gettext-devel  \
+    openssl-devel  \
+    zlib-devel  \
+    perl-CPAN  \
+    perl-devel wget && \
+    yum update -y && \
+    yum -y install centos-release-scl-rh && \
+    yum install -y \
+    centos-release-scl && \
+    yum clean all
+
+# As mentioned above, these packages are unsigned.
+RUN yum install --nogpgcheck -y \
+        ${DEVTOOLSET}-gcc* \
+        ${DEVTOOLSET}-make && \
+    yum clean all
+
+RUN git clone --depth=1 https://github.com/git/git.git -b v2.42.0 && \
+    cd git && \
+    [ "$(git rev-parse HEAD)" = '43c8a30d150ecede9709c1f2527c8fba92c65f40' ] && \
+    scl enable ${DEVTOOLSET} "make configure && \
+    ./configure --prefix=/usr/local && \
+    make -j"$(nproc)" all && \
+    DESTDIR=/opt/git make install"
+
+# Create an alias to the assets image. Ref: https://github.com/docker/for-mac/issues/2155
+ARG BUILDARCH
+FROM ghcr.io/gravitational/teleport-buildbox-centos7-assets:teleport15-${BUILDARCH} AS teleport-buildbox-centos7-assets
+
+## LIBBPF #####################################################################
+
+FROM centos:7 AS libbpf
+
+ARG DEVTOOLSET
+ARG TARGETARCH
 
 # devtoolset-12 is only in CentOS buildlogs. The rpms are unsigned since they never were
 # published to the official CentOS SCL repos.
@@ -41,16 +90,18 @@ RUN mkdir -p /opt && cd /opt && \
     cd /opt/libbpf-${LIBBPF_VERSION}/src && \
     scl enable ${DEVTOOLSET} "make && BUILD_STATIC_ONLY=y DESTDIR=/opt/libbpf make install install_uapi_headers"
 
-FROM centos:7
+## BUILDBOX ###################################################################
 
-ARG BUILDARCH
-ARG TARGETARCH
-ARG DEVTOOLSET
+FROM centos:7 AS buildbox
 
 ENV LANGUAGE=en_US.UTF-8 \
     LANG=en_US.UTF-8 \
     LC_ALL=en_US.UTF-8 \
     LC_CTYPE=en_US.UTF-8
+
+ARG BUILDARCH
+ARG TARGETARCH
+ARG DEVTOOLSET
 
 ARG UID
 ARG GID
@@ -77,7 +128,6 @@ RUN yum groupinstall -y 'Development Tools' && \
     cmake3 \
     # required by libbpf
     elfutils-libelf-devel-static \
-    git \
     net-tools \
     # required by boringssl
     ninja-build \
@@ -90,7 +140,8 @@ RUN yum groupinstall -y 'Development Tools' && \
     zip \
     # required by libbpf
     zlib-static && \
-    yum clean all
+    yum clean all && \
+    localedef -c -i en_US -f UTF-8 en_US.UTF-8
 
 # As mentioned above, these packages are unsigned.
 RUN yum install --nogpgcheck -y \
@@ -98,13 +149,16 @@ RUN yum install --nogpgcheck -y \
         ${DEVTOOLSET}-make && \
     yum clean all
 
+# Override the old git in /usr/local installed by yum. We need git 2+ on GitHub Actions.
+COPY --from=git2 /opt/git /
+
 # Install Go.
 ARG GOLANG_VERSION
 RUN mkdir -p /opt && cd /opt && curl -fsSL https://storage.googleapis.com/golang/${GOLANG_VERSION}.linux-${BUILDARCH}.tar.gz | tar xz && \
     mkdir -p /go/src/github.com/gravitational/teleport && \
     chmod a+w /go && \
     chmod a+w /var/lib && \
-    chmod a-w /
+    /opt/go/bin/go version
 ENV GOEXPERIMENT=boringcrypto \
     GOPATH="/go" \
     GOROOT="/opt/go" \
@@ -114,16 +168,17 @@ ENV GOEXPERIMENT=boringcrypto \
 COPY pam/ /opt/pam_teleport/
 RUN make -C /opt/pam_teleport install
 
-RUN chmod a-w /
-
+# Install Rust.
 ARG RUST_VERSION
 ENV RUSTUP_HOME=/usr/local/rustup \
-     CARGO_HOME=/usr/local/cargo \
-     PATH=/usr/local/cargo/bin:$PATH \
-     RUST_VERSION=$RUST_VERSION
+    CARGO_HOME=/usr/local/cargo \
+    PATH=/usr/local/cargo/bin:$PATH \
+    RUST_VERSION=$RUST_VERSION
 
 RUN mkdir -p $RUSTUP_HOME && chmod a+w $RUSTUP_HOME && \
     mkdir -p $CARGO_HOME/registry && chmod -R a+w $CARGO_HOME
+
+RUN chmod a-w /
 
 # Install Rust using the ci user, as that is the user that
 # will run builds using the Rust toolchains we install here.
@@ -139,10 +194,12 @@ ARG WASM_PACK_VERSION
 # Install wasm-pack for targeting WebAssembly from Rust.
 RUN cargo install wasm-pack --version ${WASM_PACK_VERSION}
 
+# Copy libbpf into the final image.
 ARG LIBBPF_VERSION
 COPY --from=libbpf /opt/libbpf/usr /usr/libbpf-${LIBBPF_VERSION}
 
 # Download pre-built CentOS 7 assets with clang needed to build BoringSSL and BPF tools.
+ARG BUILDARCH
 COPY --from=teleport-buildbox-centos7-assets /opt/llvm /opt/llvm
 
 VOLUME ["/go/src/github.com/gravitational/teleport"]
