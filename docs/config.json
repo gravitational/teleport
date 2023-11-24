@@ -1874,6 +1874,10 @@
           ]
         },
         {
+          "title": "Join Methods",
+          "slug": "/reference/join-methods/"
+        },
+        {
           "title": "Networking",
           "slug": "/reference/networking/"
         },
