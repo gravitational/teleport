@@ -22,65 +22,41 @@ import (
 	"github.com/gravitational/trace"
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
 	resourcesv3 "github.com/gravitational/teleport/integrations/operator/apis/resources/v3"
-	"github.com/gravitational/teleport/integrations/operator/sidecar"
 )
 
 // oidcConnectorClient implements TeleportResourceClient and offers CRUD methods needed to reconcile oidc_connectors
 type oidcConnectorClient struct {
-	TeleportClientAccessor sidecar.ClientAccessor
+	teleportClient *client.Client
 }
 
 // Get gets the Teleport oidc_connector of a given name
 func (r oidcConnectorClient) Get(ctx context.Context, name string) (types.OIDCConnector, error) {
-	teleportClient, release, err := r.TeleportClientAccessor(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer release()
-
-	oidc, err := teleportClient.GetOIDCConnector(ctx, name, false /* with secrets*/)
+	oidc, err := r.teleportClient.GetOIDCConnector(ctx, name, false /* with secrets*/)
 	return oidc, trace.Wrap(err)
 }
 
 // Create creates a Teleport oidc_connector
 func (r oidcConnectorClient) Create(ctx context.Context, oidc types.OIDCConnector) error {
-	teleportClient, release, err := r.TeleportClientAccessor(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer release()
-
-	return trace.Wrap(teleportClient.UpsertOIDCConnector(ctx, oidc))
+	return trace.Wrap(r.teleportClient.UpsertOIDCConnector(ctx, oidc))
 }
 
 // Update updates a Teleport oidc_connector
 func (r oidcConnectorClient) Update(ctx context.Context, oidc types.OIDCConnector) error {
-	teleportClient, release, err := r.TeleportClientAccessor(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer release()
-
-	return trace.Wrap(teleportClient.UpsertOIDCConnector(ctx, oidc))
+	return trace.Wrap(r.teleportClient.UpsertOIDCConnector(ctx, oidc))
 }
 
 // Delete deletes a Teleport oidc_connector
 func (r oidcConnectorClient) Delete(ctx context.Context, name string) error {
-	teleportClient, release, err := r.TeleportClientAccessor(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer release()
-
-	return trace.Wrap(teleportClient.DeleteOIDCConnector(ctx, name))
+	return trace.Wrap(r.teleportClient.DeleteOIDCConnector(ctx, name))
 }
 
 // NewOIDCConnectorReconciler instantiates a new Kubernetes controller reconciling oidc_connector resources
-func NewOIDCConnectorReconciler(client kclient.Client, accessor sidecar.ClientAccessor) *TeleportResourceReconciler[types.OIDCConnector, *resourcesv3.TeleportOIDCConnector] {
+func NewOIDCConnectorReconciler(client kclient.Client, tClient *client.Client) *TeleportResourceReconciler[types.OIDCConnector, *resourcesv3.TeleportOIDCConnector] {
 	oidcClient := &oidcConnectorClient{
-		TeleportClientAccessor: accessor,
+		teleportClient: tClient,
 	}
 
 	resourceReconciler := NewTeleportResourceReconciler[types.OIDCConnector, *resourcesv3.TeleportOIDCConnector](

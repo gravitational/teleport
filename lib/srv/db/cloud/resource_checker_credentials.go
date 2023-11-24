@@ -104,7 +104,7 @@ func (c *credentialsChecker) getAWSIdentity(ctx context.Context, meta *types.AWS
 	}
 
 	identity, err := utils.FnCacheGet(ctx, c.cache, types.CloudAWS, func(ctx context.Context) (aws.Identity, error) {
-		client, err := c.cloudClients.GetAWSSTSClient(ctx, "")
+		client, err := c.cloudClients.GetAWSSTSClient(ctx, "", cloud.WithAmbientCredentials())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
