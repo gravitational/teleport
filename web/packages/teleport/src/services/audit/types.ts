@@ -1468,13 +1468,13 @@ export type RawEvents = {
   [eventCodes.EXTERNAL_AUDIT_STORAGE_ENABLE]: RawEvent<
     typeof eventCodes.EXTERNAL_AUDIT_STORAGE_ENABLE,
     {
-	  updated_by: string;
+      updated_by: string;
     }
   >;
   [eventCodes.EXTERNAL_AUDIT_STORAGE_DISABLE]: RawEvent<
     typeof eventCodes.EXTERNAL_AUDIT_STORAGE_DISABLE,
     {
-	  updated_by: string;
+      updated_by: string;
     }
   >;
 };
