@@ -542,6 +542,11 @@ const (
 	// SecReportsReportRunCode is used when a report in run.
 	SecReportsReportRunCode = "SRE002I"
 
+	// ExternalAuditStorageEnableCode is the External Audit Storage enabled code.
+	ExternalAuditStorageEnableCode = "TEAS001I"
+	// ExternalAuditStorageDisableCode is the External Audit Storage disabled code.
+	ExternalAuditStorageDisableCode = "TEAS002I"
+
 	// UnknownCode is used when an event of unknown type is encountered.
 	UnknownCode = apievents.UnknownCode
 )
