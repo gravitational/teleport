@@ -1,27 +1,45 @@
 import { useEffect, useState } from 'react';
 import useAttempt from 'shared/hooks/useAttemptNext';
-import { integrationService } from 'teleport/services/integrations';
+import {
+  IntegrationKind,
+  IntegrationStatusCode,
+  integrationService,
+} from 'teleport/services/integrations';
 import {
   EditableIntegrationFields,
+  ExternalAuditStorageOpType,
   Operation,
   useIntegrationOperation,
 } from 'teleport/Integrations/Operations/useIntegrationOperation';
 
 import useTeleport from 'e-teleport/useTeleportE';
 
-import type { Integration, Plugin } from 'teleport/services/integrations';
+import type {
+  ExternalAuditStorage,
+  ExternalAuditStorageIntegration,
+  Integration,
+  IntegrationListResponse,
+  Plugin,
+} from 'teleport/services/integrations';
 
 export function useIntegrations() {
   const ctx = useTeleport();
   const integrationOps = useIntegrationOperation();
-  const [items, setItems] = useState<(Plugin | Integration)[]>([]);
+  const [items, setItems] = useState<
+    (Plugin | Integration | ExternalAuditStorageIntegration)[]
+  >([]);
   const { attempt, run, setAttempt } = useAttempt('processing');
+  const { attempt: auditStorageAttempt, run: auditStorageRun } = useAttempt('');
   // warning is used when a user has permissions to list both the
   // "integration" and "plugin" resource, but when fetching
   // only one resolved. This lets the user know why the listing
   // may not be complete.
   const [warning, setWarning] = useState('');
   const [pluginOps, setPluginOps] = useState({
+    type: 'none',
+  } as Operation);
+
+  const [externalAuditStorageOps, setExternalAuditStorageOps] = useState({
     type: 'none',
   } as Operation);
 
@@ -32,87 +50,119 @@ export function useIntegrations() {
     // be fetching at least one resource.
     const hasPluginAccess = ctx.getFeatureFlags().plugins;
     const hasIntegrationAccess = ctx.getFeatureFlags().integrations;
-    const hasAllAccess = hasPluginAccess && hasIntegrationAccess;
+    const hasExternalAuditStorageAccess =
+      ctx.getFeatureFlags().externalAuditStorage;
 
-    // If the user had all list accesses and one of the fetch failed,
-    // we will render a warning for user, while rendering the list
-    // from the resolved promise. There can be two failure points:
+    // There can be two failure points:
     //   1) network error
-    //   2) access error: user is missing a read access in one or both resources.
-    // If both failed to fetch, we will render an error instead.
-    if (hasAllAccess) {
-      setAttempt({ status: 'processing' });
-      Promise.allSettled([
-        ctx.pluginsService.fetchPlugins(),
-        integrationService.fetchIntegrations(),
-      ]).then(responses => {
-        // TODO(lisa): handle paginating as a follow up polish.
-        // Default fetch is 1k of integrations, which is plenty for beginning.
-        // Currently only integration resource has pagination, check up on
-        // plugins.
-        const plugins = responses[0];
-        const integrations = responses[1];
-        let fetchedItems;
+    //   2) access error: user is missing a read access in one or more resources.
+    // If all failed to fetch, we will render an error instead.
+    setAttempt({ status: 'processing' });
+    Promise.allSettled([
+      hasPluginAccess ? ctx.pluginsService.fetchPlugins() : null,
+      hasIntegrationAccess ? integrationService.fetchIntegrations() : null,
+      hasExternalAuditStorageAccess
+        ? ctx.externalAuditStorageService.getCluster()
+        : null,
+      hasExternalAuditStorageAccess
+        ? ctx.externalAuditStorageService.getDraft()
+        : null,
+    ]).then(responses => {
+      // TODO(lisa): handle paginating as a follow up polish.
+      // Default fetch is 1k of integrations, which is plenty for beginning.
+      // Currently only integration resource has pagination, check up on
+      // plugins.
+      const plugins = responses[0];
+      const integrations = responses[1];
+      const clusterExternalAuditStorage = responses[2];
+      const draftExternalAuditStorage = responses[3];
+      let fetchedItems = [];
 
+      if (
+        plugins.status === 'fulfilled' &&
+        integrations.status === 'fulfilled' &&
+        clusterExternalAuditStorage.status === 'fulfilled' &&
+        draftExternalAuditStorage.status === 'fulfilled'
+      ) {
+        // Merge the responses into one
+
+        // If the user doesn't have permission, instead of the request we make a null promise.
+        // In that case, the promise will be fulfilled and the value is undefined.
+        if (plugins.value) {
+          fetchedItems.push(...plugins.value);
+        }
+        if (integrations.value) {
+          fetchedItems.push(...integrations.value.items);
+        }
+        const audit = makeClusterExternalAuditStorageIntegration(
+          clusterExternalAuditStorage?.value
+        );
+        if (audit) {
+          fetchedItems.push(audit);
+        }
+
+        const draftAudit = makeDraftExternalAuditStorageIntegration(
+          draftExternalAuditStorage?.value
+        );
+        if (draftAudit) {
+          fetchedItems.push(draftAudit);
+        }
+      } else {
+        const warning = getWarningMessage(
+          plugins,
+          integrations,
+          clusterExternalAuditStorage
+          // TODO draft
+        );
         if (
-          plugins.status === 'fulfilled' &&
-          integrations.status === 'fulfilled'
-        ) {
-          // Merge the responses into one
-          fetchedItems = [...plugins.value, ...integrations.value.items];
-        } else if (
-          plugins.status === 'fulfilled' &&
-          integrations.status === 'rejected'
-        ) {
-          fetchedItems = plugins.value;
-          setWarning(`Failed to fetch rest of integrations (try refreshing browser or \
-                  check your "integration" access): ${integrations.reason}`);
-        } else if (
-          integrations.status === 'fulfilled' &&
-          plugins.status === 'rejected'
-        ) {
-          fetchedItems = integrations.value.items;
-          setWarning(`Failed to fetch plugin integrations (try refreshing browser or \
-                  check your "plugin" access): ${plugins.reason}`);
-        } else if (
-          // Explicitly check for rejected to satisfy typescript.
           plugins.status === 'rejected' &&
-          integrations.status === 'rejected'
+          integrations.status === 'rejected' &&
+          clusterExternalAuditStorage.status === 'rejected'
         ) {
-          const pluginsErr = plugins.reason;
-          const integegrationsErr = integrations.reason;
+          // all failed
           setAttempt({
             status: 'failed',
-            statusText: `An error has occurred. PLUGINS: ${pluginsErr}, INTEGRATIONS: ${integegrationsErr}`,
+            statusText: warning,
           });
           return;
-        }
-
-        if (fetchedItems) {
-          setAttempt({ status: 'success' });
-          setItems(fetchedItems);
         } else {
-          // Should never reach here, but just in case.
-          setAttempt({
-            status: 'failed',
-            statusText: `Failed to fetch. Try refreshing the browser`,
-          });
+          // some failed
+          setWarning(warning);
+          if (plugins.status === 'fulfilled' && plugins.value) {
+            fetchedItems.push(...plugins.value);
+          }
+          if (integrations.status === 'fulfilled' && integrations.value) {
+            fetchedItems.push(...integrations.value.items);
+          }
+          if (
+            clusterExternalAuditStorage.status === 'fulfilled' &&
+            clusterExternalAuditStorage.value
+          ) {
+            const audit = makeClusterExternalAuditStorageIntegration(
+              clusterExternalAuditStorage.value
+            );
+            if (audit) {
+              fetchedItems.push(audit);
+            }
+          }
+          if (
+            draftExternalAuditStorage.status === 'fulfilled' &&
+            draftExternalAuditStorage.value
+          ) {
+            const draft = makeDraftExternalAuditStorageIntegration(
+              draftExternalAuditStorage.value
+            );
+            if (draft) {
+              fetchedItems.push(draft);
+            }
+          }
         }
-      });
-      return;
-    }
-
-    if (hasPluginAccess) {
-      run(() => ctx.pluginsService.fetchPlugins().then(setItems));
-      return;
-    }
-
-    if (hasIntegrationAccess) {
-      run(() =>
-        integrationService.fetchIntegrations().then(res => setItems(res.items))
-      );
-      return;
-    }
+      }
+      if (fetchedItems) {
+        setAttempt({ status: 'success' });
+        setItems(fetchedItems);
+      }
+    });
   }, []);
 
   function onCancelDelete() {
@@ -158,6 +208,48 @@ export function useIntegrations() {
     });
   }
 
+  function onCancelDeleteExternalAuditStorage() {
+    console.log(
+      'onCancelDeleteExternalAuditStorage',
+      onCancelDeleteExternalAuditStorage
+    );
+    setExternalAuditStorageOps({ type: 'none' });
+  }
+
+  function onStartDeleteExternalAuditStorage(
+    opType: ExternalAuditStorageOpType
+  ) {
+    console.log('onStartDeleteExternalAuditStorage', opType);
+    setExternalAuditStorageOps({ type: 'delete', item: { name: opType } });
+  }
+
+  function onDeleteExternalAuditStorage() {
+    if (externalAuditStorageOps.item.name === 'cluster') {
+      return auditStorageRun(() =>
+        ctx.externalAuditStorageService.deleteCluster().then(() => {
+          setItems(
+            items.filter(
+              item =>
+                item.kind !== IntegrationKind.ExternalAuditStorage ||
+                item.statusCode === IntegrationStatusCode.Draft
+            )
+          );
+        })
+      );
+    }
+    return auditStorageRun(ctx.externalAuditStorageService.deleteDraft).then(
+      () => {
+        setItems(
+          items.filter(
+            item =>
+              item.kind !== IntegrationKind.ExternalAuditStorage &&
+              item.statusCode !== IntegrationStatusCode.Draft
+          )
+        );
+      }
+    );
+  }
+
   return {
     items,
     attempt,
@@ -173,6 +265,13 @@ export function useIntegrations() {
       removeIntegration,
       editIntegration,
     },
+    externalAuditStorageOps: {
+      ...externalAuditStorageOps,
+      onCancelDeleteExternalAuditStorage,
+      onDeleteExternalAuditStorage,
+      onStartDeleteExternalAuditStorage,
+    },
+    auditStorageAttempt,
     warning,
     canCreateIntegrations:
       ctx.storeUser.getPluginsAccess().create ||
@@ -181,3 +280,99 @@ export function useIntegrations() {
 }
 
 export type State = ReturnType<typeof useIntegrations>;
+
+export function getWarningMessage(
+  plugins: PromiseSettledResult<Plugin[]>,
+  integrations: PromiseSettledResult<IntegrationListResponse>,
+  externalAuditStorage: PromiseSettledResult<ExternalAuditStorage>
+): string {
+  if (
+    plugins.status === 'fulfilled' &&
+    integrations.status === 'fulfilled' &&
+    externalAuditStorage.status === 'fulfilled'
+  ) {
+    return '';
+  }
+
+  if (
+    plugins.status === 'rejected' &&
+    integrations.status === 'rejected' &&
+    externalAuditStorage.status === 'rejected'
+  ) {
+    const pluginsErr = plugins.reason;
+    const integegrationsErr = integrations.reason;
+    const externalAuditStorageErr = externalAuditStorage.reason;
+    return `An error has occurred. PLUGINS: ${pluginsErr}, INTEGRATIONS: ${integegrationsErr}, EXTERNAL AUDIT: ${externalAuditStorageErr}`;
+  } else {
+    let warning = 'Failed to fetch ';
+    let helpMsg = 'try refreshing browser or check your ';
+    let errMsg = '';
+    let errAmount = 0;
+
+    if (externalAuditStorage.status === 'rejected') {
+      warning += `external audit integration`;
+      helpMsg += `"external_cloud_audit"`;
+      errMsg += externalAuditStorage.reason;
+      errAmount += 1;
+    }
+
+    if (plugins.status === 'rejected') {
+      let and = errAmount > 0 ? ' and ' : '';
+      warning += `${and}plugin integrations`;
+      helpMsg += `${and}"plugin"`;
+      errMsg += `${and}${plugins.reason}`;
+      errAmount += 1;
+    }
+
+    if (integrations.status === 'rejected') {
+      let and = errAmount > 0 ? ' and ' : '';
+      warning += `${and}rest of integrations`;
+      helpMsg += `${and}"integration"`;
+      errMsg += `${and}${integrations.reason}`;
+      errAmount += 1;
+    }
+
+    helpMsg += '';
+
+    return `${warning} (${helpMsg} access): ${errMsg}`;
+  }
+}
+
+function makeExternalAuditStorageIntegration(
+  externalAuditStorage: ExternalAuditStorage | null,
+  isDraft: boolean,
+  details: string
+): ExternalAuditStorageIntegration | null {
+  if (!externalAuditStorage) {
+    return null;
+  }
+  return {
+    kind: IntegrationKind.ExternalAuditStorage,
+    resourceType: 'external-audit-storage',
+    name: `External Audit Storage${isDraft ? ' (Draft) ' : ''}`,
+    statusCode: isDraft
+      ? IntegrationStatusCode.Draft
+      : IntegrationStatusCode.Running,
+    spec: externalAuditStorage,
+    details,
+  };
+}
+
+function makeClusterExternalAuditStorageIntegration(
+  externalAuditStorage: ExternalAuditStorage | null
+): ExternalAuditStorageIntegration | null {
+  return makeExternalAuditStorageIntegration(
+    externalAuditStorage,
+    false,
+    `Audit Log Events and Session Recordings Storage in AWS Integration ${externalAuditStorage?.integrationName}`
+  );
+}
+function makeDraftExternalAuditStorageIntegration(
+  externalAuditStorage: ExternalAuditStorage | null
+): ExternalAuditStorageIntegration | null {
+  return makeExternalAuditStorageIntegration(
+    externalAuditStorage,
+    true,
+    `In-progress configuration for Audit Log and Session Recording storage with AWS Integration ${externalAuditStorage?.integrationName}`
+  );
+}

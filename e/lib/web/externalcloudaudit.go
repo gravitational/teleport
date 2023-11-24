@@ -180,9 +180,7 @@ func (h *Plugin) externalCloudAuditGetCluster(w http.ResponseWriter, r *http.Req
 		return nil, trace.Wrap(err, "failed to fetch cluster external cloud audit")
 	}
 
-	return ui.ExternalCloudAudit{
-		IntegrationName: clusterAudit.Spec.IntegrationName,
-	}, nil
+	return clusterAudit, nil
 }
 
 // externalCloudAuditGetDraft returns the current draft ExternalCloudAudit.
@@ -200,9 +198,7 @@ func (h *Plugin) externalCloudAuditGetDraft(w http.ResponseWriter, r *http.Reque
 		return nil, trace.Wrap(err, "failed to fetch draft external cloud audit")
 	}
 
-	return ui.ExternalCloudAudit{
-		IntegrationName: draftAudit.Spec.IntegrationName,
-	}, nil
+	return draftAudit, nil
 }
 
 // externalCloudAuditDeleteDraft deletes the current ExternalCloudAudit draft.

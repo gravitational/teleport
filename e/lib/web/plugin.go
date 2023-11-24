@@ -220,13 +220,13 @@ func (p *Plugin) RegisterProxyWebHandlers(handler interface{}) error {
 	h.GET("/webapi/sites/:site/audit/reports/:name/result/days/:days", h.WithClusterAuth(p.getSecurityReportResult))
 	h.GET("/webapi/sites/:site/audit/reports/:name/state/days/:days", h.WithClusterAuth(p.getSecurityReportState))
 
-	h.POST("/webapi/sites/:site/integration/externalcloudaudit/generate", h.WithClusterAuth(externalCloudAuditGenerate))
-	h.GET("/webapi/scripts/integration/externalcloudaudit-bootstrap.sh", h.WithLimiter(getExternalCloudAuditBootstrapScript))
-	h.POST("/webapi/sites/:site/integration/externalcloudaudit/promote", h.WithClusterAuth(p.externalCloudAuditPromote))
-	h.GET("/webapi/sites/:site/integration/externalcloudaudit/cluster", h.WithClusterAuth(p.externalCloudAuditGetCluster))
-	h.GET("/webapi/sites/:site/integration/externalcloudaudit/draft", h.WithClusterAuth(p.externalCloudAuditGetDraft))
-	h.DELETE("/webapi/sites/:site/integration/externalcloudaudit/cluster", h.WithClusterAuth(p.externalCloudAuditDeleteCluster))
-	h.DELETE("/webapi/sites/:site/integration/externalcloudaudit/draft", h.WithClusterAuth(p.externalCloudAuditDeleteDraft))
+	h.POST("/webapi/sites/:site/integration/externalauditstorage/generate", h.WithClusterAuth(externalCloudAuditGenerate))
+	h.GET("/webapi/scripts/integration/externalauditstorage-bootstrap.sh", h.WithLimiter(getExternalCloudAuditBootstrapScript))
+	h.POST("/webapi/sites/:site/integration/externalauditstorage/promote", h.WithClusterAuth(p.externalCloudAuditPromote))
+	h.GET("/webapi/sites/:site/integration/externalauditstorage/cluster", h.WithClusterAuth(p.externalCloudAuditGetCluster))
+	h.GET("/webapi/sites/:site/integration/externalauditstorage/draft", h.WithClusterAuth(p.externalCloudAuditGetDraft))
+	h.DELETE("/webapi/sites/:site/integration/externalauditstorage/cluster", h.WithClusterAuth(p.externalCloudAuditDeleteCluster))
+	h.DELETE("/webapi/sites/:site/integration/externalauditstorage/draft", h.WithClusterAuth(p.externalCloudAuditDeleteDraft))
 
 	if p.h.ClusterFeatures.GetCloud() {
 		h.DELETE("/enterprise/cloud/card", p.withCloudAuth(p.removeCardHandle))

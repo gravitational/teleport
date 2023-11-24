@@ -37,7 +37,7 @@ func TestGenerateDraftExternalCloudAudit(t *testing.T) {
 	auditConfig.SetAuditEventsURIs([]string{sampleAthenaURI})
 	require.NoError(t, s.testAuthServer.Auth().SetClusterAuditConfig(ctx, auditConfig))
 
-	generateEndpoint := webPack.clt.Endpoint("webapi", "sites", clusterName, "integration", "externalcloudaudit", "generate")
+	generateEndpoint := webPack.clt.Endpoint("webapi", "sites", clusterName, "integration", "externalauditstorage", "generate")
 	resp, err := webPack.clt.PostJSON(ctx, generateEndpoint, ui.GenerateDraftExternalCloudAuditRequest{
 		IntegrationName: "test-integration",
 	})
@@ -73,7 +73,7 @@ func TestBuildExternalCloudAuditBootstrapScript(t *testing.T) {
 		"webapi",
 		"scripts",
 		"integration",
-		"externalcloudaudit-bootstrap.sh",
+		"externalauditstorage-bootstrap.sh",
 	)
 
 	for _, tc := range []struct {
@@ -211,7 +211,7 @@ func TestExternalCloudAuditPromote(t *testing.T) {
 	require.NoError(t, s.testAuthServer.Auth().SetClusterAuditConfig(ctx, auditConfig))
 
 	// assert that it fails if no drafts exist
-	promoteEndpoint := webPack.clt.Endpoint("webapi", "sites", clusterName, "integration", "externalcloudaudit", "promote")
+	promoteEndpoint := webPack.clt.Endpoint("webapi", "sites", clusterName, "integration", "externalauditstorage", "promote")
 	_, err = webPack.clt.PostJSON(ctx, promoteEndpoint, nil)
 	require.Error(t, err)
 	require.False(t, trace.IsAccessDenied(err))
@@ -250,7 +250,7 @@ func TestExternalCloudAuditGetCluster(t *testing.T) {
 	auditConfig.SetAuditEventsURIs([]string{sampleAthenaURI})
 	require.NoError(t, s.testAuthServer.Auth().SetClusterAuditConfig(ctx, auditConfig))
 
-	getClusterEndpoint := webPack.clt.Endpoint("webapi", "sites", clusterName, "integration", "externalcloudaudit", "cluster")
+	getClusterEndpoint := webPack.clt.Endpoint("webapi", "sites", clusterName, "integration", "externalauditstorage", "cluster")
 
 	// assert that it returns a not found error if no active cluster audit exist
 	_, err = webPack.clt.Get(ctx, getClusterEndpoint, nil)
@@ -267,9 +267,9 @@ func TestExternalCloudAuditGetCluster(t *testing.T) {
 	resp, err := webPack.clt.Get(ctx, getClusterEndpoint, nil)
 	require.NoError(t, err)
 	// Make sure we can decode the generated config and it's valid
-	var returned ui.ExternalCloudAudit
+	var returned externalcloudaudit.ExternalCloudAudit
 	require.NoError(t, json.NewDecoder(resp.Reader()).Decode(&returned))
-	require.Equal(t, "test-integration", returned.IntegrationName)
+	require.Equal(t, "test-integration", returned.Spec.IntegrationName)
 
 	// Make sure an unauthenticated client can't get active cluster audit
 	publicClt := s.client(t)
@@ -297,7 +297,7 @@ func TestExternalCloudAuditGetDraft(t *testing.T) {
 	auditConfig.SetAuditEventsURIs([]string{sampleAthenaURI})
 	require.NoError(t, s.testAuthServer.Auth().SetClusterAuditConfig(ctx, auditConfig))
 
-	getDraftEndpoint := webPack.clt.Endpoint("webapi", "sites", clusterName, "integration", "externalcloudaudit", "draft")
+	getDraftEndpoint := webPack.clt.Endpoint("webapi", "sites", clusterName, "integration", "externalauditstorage", "draft")
 
 	// assert that it returns a not found error if no draft cluster audit exist
 	_, err = webPack.clt.Get(ctx, getDraftEndpoint, nil)
@@ -312,9 +312,9 @@ func TestExternalCloudAuditGetDraft(t *testing.T) {
 	resp, err := webPack.clt.Get(ctx, getDraftEndpoint, nil)
 	require.NoError(t, err)
 	// Make sure we can decode the generated config and it's valid
-	var returned ui.ExternalCloudAudit
+	var returned externalcloudaudit.ExternalCloudAudit
 	require.NoError(t, json.NewDecoder(resp.Reader()).Decode(&returned))
-	require.Equal(t, "test-integration", returned.IntegrationName)
+	require.Equal(t, "test-integration", returned.Spec.IntegrationName)
 
 	// Make sure an unauthenticated client can't get draft cluster audit
 	publicClt := s.client(t)
@@ -342,7 +342,7 @@ func TestExternalCloudAuditDeleteCluster(t *testing.T) {
 	auditConfig.SetAuditEventsURIs([]string{sampleAthenaURI})
 	require.NoError(t, s.testAuthServer.Auth().SetClusterAuditConfig(ctx, auditConfig))
 
-	deleteClusterEndpoint := webPack.clt.Endpoint("webapi", "sites", clusterName, "integration", "externalcloudaudit", "cluster")
+	deleteClusterEndpoint := webPack.clt.Endpoint("webapi", "sites", clusterName, "integration", "externalauditstorage", "cluster")
 
 	// assert that it returns a not found error if no active cluster audit exist
 	_, err = webPack.clt.Delete(ctx, deleteClusterEndpoint)
@@ -389,7 +389,7 @@ func TestExternalCloudAuditDeleteDraft(t *testing.T) {
 	auditConfig.SetAuditEventsURIs([]string{sampleAthenaURI})
 	require.NoError(t, s.testAuthServer.Auth().SetClusterAuditConfig(ctx, auditConfig))
 
-	deleteDraftEndpoint := webPack.clt.Endpoint("webapi", "sites", clusterName, "integration", "externalcloudaudit", "draft")
+	deleteDraftEndpoint := webPack.clt.Endpoint("webapi", "sites", clusterName, "integration", "externalauditstorage", "draft")
 
 	// assert that it returns a not found error if no draft cluster audit exist
 	_, err = webPack.clt.Delete(ctx, deleteDraftEndpoint)

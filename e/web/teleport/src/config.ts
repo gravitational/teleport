@@ -114,6 +114,21 @@ const cfg = {
       queryRun: '/v1/webapi/sites/:clusterId/audit/queries/run',
       result: '/v1/webapi/sites/:clusterId/audit/queries/result',
     },
+
+    externalAuditStorage: {
+      generate:
+        '/v1/webapi/sites/:clusterId/integration/externalauditstorage/generate',
+      bootstrap:
+        '/v1/webapi/scripts/integration/externalauditstorage-bootstrap.sh',
+      promote:
+        '/v1/webapi/sites/:clusterId/integration/externalauditstorage/promote',
+      cluster:
+        '/v1/webapi/sites/:clusterId/integration/externalauditstorage/cluster',
+      draft:
+        '/v1/webapi/sites/:clusterId/integration/externalauditstorage/draft',
+      testConnection:
+        '/v1/webapi/sites/:clusterId/integration/externalauditstorage/test',
+    },
   },
 
   getTrustedDevicesUrl(params: UrlResourcesParams) {
@@ -250,6 +265,30 @@ const cfg = {
       clusterId,
       name: reportName,
       timeframe,
+    });
+  },
+
+  getExternalAuditStorageGenerateUrl(clusterId: string) {
+    return generatePath(cfg.api.externalAuditStorage.generate, {
+      clusterId,
+    });
+  },
+
+  getExternalAuditStoragePromoteUrl(clusterId: string) {
+    return generatePath(cfg.api.externalAuditStorage.promote, {
+      clusterId,
+    });
+  },
+
+  getExternalAuditStorageClusterUrl(clusterId: string) {
+    return generatePath(cfg.api.externalAuditStorage.cluster, {
+      clusterId,
+    });
+  },
+
+  getExternalAuditStorageDraftUrl(clusterId: string) {
+    return generatePath(cfg.api.externalAuditStorage.draft, {
+      clusterId,
     });
   },
 

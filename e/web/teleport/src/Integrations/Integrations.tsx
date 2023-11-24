@@ -11,9 +11,12 @@ import { IntegrationsAddButton } from 'teleport/Integrations/IntegrationsAddButt
 import { Integration, Plugin } from 'teleport/services/integrations';
 import { IntegrationOperations } from 'teleport/Integrations/Operations';
 
+import { ExternalAuditStorageOpType } from 'teleport/Integrations/Operations/useIntegrationOperation';
+
 import { useIntegrations, State } from './useIntegrations';
 import { PluginDelete } from './PluginDelete';
 import { IntegrationsSplash } from './IntegrationsSplash';
+import { ExternalAuditStorageDelete } from './ExternalAuditStorageDelete';
 
 export default function Container() {
   const state = useIntegrations();
@@ -26,8 +29,10 @@ export function Integrations(props: State) {
     items,
     pluginOps,
     integrationOps,
+    externalAuditStorageOps,
     warning,
     canCreateIntegrations,
+    auditStorageAttempt,
   } = props;
 
   const hasItems = items.length !== 0;
@@ -41,6 +46,11 @@ export function Integrations(props: State) {
         )}
       </FeatureHeader>
       {warning && <Alert kind="warning" children={warning} />}
+      {auditStorageAttempt.status === 'failed' && (
+        <Alert
+          children={`Failed removing external audit: ${auditStorageAttempt.statusText}`}
+        />
+      )}
       {attempt.status === 'failed' && <Alert children={attempt.statusText} />}
       {attempt.status === 'processing' && (
         <Box textAlign="center" m={10}>
@@ -56,6 +66,9 @@ export function Integrations(props: State) {
               onDeleteIntegration: integrationOps.onRemove,
               onEditIntegration: integrationOps.onEdit,
             }}
+            onDeleteExternalAuditStorage={
+              externalAuditStorageOps.onStartDeleteExternalAuditStorage
+            }
           />
         ) : (
           <IntegrationsSplash />
@@ -64,6 +77,17 @@ export function Integrations(props: State) {
         <PluginDelete
           onClose={pluginOps.onCancelDelete}
           onDelete={() => pluginOps.onDelete(pluginOps.item as Plugin)}
+        />
+      )}
+      {externalAuditStorageOps.type === 'delete' && (
+        <ExternalAuditStorageDelete
+          onClose={externalAuditStorageOps.onCancelDeleteExternalAuditStorage}
+          onDelete={() =>
+            externalAuditStorageOps.onDeleteExternalAuditStorage()
+          }
+          opType={
+            externalAuditStorageOps.item.name as ExternalAuditStorageOpType
+          }
         />
       )}
       <IntegrationOperations

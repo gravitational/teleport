@@ -61,6 +61,8 @@ export function IntegrationPick() {
   const ctx = useTeleport();
   const hasPluginAccess = ctx.storeUser.getPluginsAccess().create;
   const hasIntegrationAccess = ctx.storeUser.getIntegrationsAccess().create;
+  const hasExternalAuditStorageAccess =
+    ctx.storeUser.getExternalAuditStorageAccess().create;
 
   const { attempt, run } = useAttempt(hasPluginAccess ? 'processing' : '');
   const [plugins, setPlugins] = useState<Plugins>({
@@ -121,7 +123,10 @@ export function IntegrationPick() {
         <Flex flexDirection="column">
           <NoCodeIntegrationDescription />
           <Flex mb={2} gap={3} flexWrap="wrap">
-            <IntegrationTiles hasAccess={hasIntegrationAccess} />
+            <IntegrationTiles
+              hasIntegrationAccess={hasIntegrationAccess}
+              hasExternalAuditStorage={hasExternalAuditStorageAccess}
+            />
             {plugins.available.map(p => (
               <PluginTile
                 pluginAlreadyEnrolled={plugins.enrolled.includes(p.type)}

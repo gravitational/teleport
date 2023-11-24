@@ -23,6 +23,7 @@ import { upgradeWindowService } from './services/upgradeWindow';
 import { IdpService } from './services/idp';
 import { accessManagementService } from './services/accessmanagement';
 import { StoreNotificationsE } from './stores/storeNotificationsE';
+import { externalAuditStorageService } from './services/externalauditstorage';
 
 class TeleportEContext extends TeleportContext {
   // stores
@@ -39,6 +40,7 @@ class TeleportEContext extends TeleportContext {
   pluginsService = pluginsService;
   deviceService = deviceService;
   idpService = new IdpService();
+  externalAuditStorageService = externalAuditStorageService;
 
   // init fetches data required for initial rendering of components.
   // The caller of this function provides the try/catch

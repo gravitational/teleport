@@ -363,7 +363,7 @@ class FeatureIntegrations extends OSS.FeatureIntegrations {
   };
 
   hasAccess(flags: FeatureFlags) {
-    return flags.plugins || flags.integrations;
+    return flags.plugins || flags.integrations || flags.externalAuditStorage;
   }
 }
 
