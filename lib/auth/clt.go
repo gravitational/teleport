@@ -27,7 +27,6 @@ import (
 
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/externalauditstorage"
-	"github.com/gravitational/teleport/api/client/externalcloudaudit"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/secreport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -445,10 +444,6 @@ func (c *Client) SecReportsClient() *secreport.Client {
 
 func (c *Client) AccessListClient() services.AccessLists {
 	return c.APIClient.AccessListClient()
-}
-
-func (c *Client) ExternalCloudAuditClient() *externalcloudaudit.Client {
-	return c.APIClient.ExternalCloudAuditClient()
 }
 
 func (c *Client) ExternalAuditStorageClient() *externalauditstorage.Client {
@@ -942,15 +937,7 @@ type ClientI interface {
 	// "not implemented" errors (as per the default gRPC behavior).
 	ResourceUsageClient() resourceusagepb.ResourceUsageServiceClient
 
-	// ExternalCloudAuditClient returns an external cloud audit client.
-	// Clients connecting to non-Enterprise clusters, or older Teleport versions,
-	// still get a client when calling this method, but all RPCs will return
-	// "not implemented" errors (as per the default gRPC behavior).
-	//
-	// TODO(nklaassen): Delete this after switch to ExternalCloudAuditClient
-	ExternalCloudAuditClient() *externalcloudaudit.Client
-
-	// ExternalAuditStorageClient returns an external cloud audit client.
+	// ExternalAuditStorageClient returns an External Audit Storage client.
 	// Clients connecting to non-Enterprise clusters, or older Teleport versions,
 	// still get a client when calling this method, but all RPCs will return
 	// "not implemented" errors (as per the default gRPC behavior).

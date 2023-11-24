@@ -38,7 +38,6 @@ import (
 	"github.com/gravitational/teleport/api/client/accesslist"
 	"github.com/gravitational/teleport/api/client/discoveryconfig"
 	"github.com/gravitational/teleport/api/client/externalauditstorage"
-	"github.com/gravitational/teleport/api/client/externalcloudaudit"
 	"github.com/gravitational/teleport/api/client/okta"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/secreport"
@@ -50,7 +49,6 @@ import (
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	discoveryconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1"
 	externalauditstoragev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/externalauditstorage/v1"
-	externalcloudauditv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/externalcloudaudit/v1"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	oktapb "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
@@ -299,17 +297,6 @@ func (a *ServerWithRoles) LoginRuleClient() loginrulepb.LoginRuleServiceClient {
 	return loginrulepb.NewLoginRuleServiceClient(
 		utils.NewGRPCDummyClientConnection("LoginRuleClient() should not be called on ServerWithRoles"),
 	)
-}
-
-// ExternalCloudAuditClient allows ServerWithRoles to implement ClientI.
-// It should not be called through ServerWithRoles,
-// as it returns a dummy client that will always respond with "not implemented".
-//
-// TODO(nklaassen): delete this
-func (a *ServerWithRoles) ExternalCloudAuditClient() *externalcloudaudit.Client {
-	return externalcloudaudit.NewClient(externalcloudauditv1.NewExternalCloudAuditServiceClient(
-		utils.NewGRPCDummyClientConnection("ExternalCloudAuditClient() should not be called on ServerWithRoles"),
-	))
 }
 
 // ExternalAuditStorageClient allows ServerWithRoles to implement ClientI.
