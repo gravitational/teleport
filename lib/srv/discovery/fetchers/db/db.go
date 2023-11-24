@@ -77,11 +77,12 @@ func MakeAWSFetchers(ctx context.Context, clients cloud.AWSClients, matchers []t
 			for _, makeFetcher := range makeFetchers {
 				for _, region := range matcher.Regions {
 					fetcher, err := makeFetcher(awsFetcherConfig{
-						AWSClients: clients,
-						Type:       matcherType,
-						AssumeRole: assumeRole,
-						Labels:     matcher.Tags,
-						Region:     region,
+						AWSClients:  clients,
+						Type:        matcherType,
+						AssumeRole:  assumeRole,
+						Labels:      matcher.Tags,
+						Region:      region,
+						Integration: matcher.Integration,
 					})
 					if err != nil {
 						return nil, trace.Wrap(err)

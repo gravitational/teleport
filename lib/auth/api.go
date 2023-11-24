@@ -709,6 +709,12 @@ type ReadDiscoveryAccessPoint interface {
 
 	// ListDiscoveryConfigs returns a paginated list of Discovery Config resources.
 	ListDiscoveryConfigs(ctx context.Context, pageSize int, nextKey string) ([]*discoveryconfig.DiscoveryConfig, string, error)
+
+	// GetIntegration returns the specified integration resource.
+	GetIntegration(ctx context.Context, name string) (types.Integration, error)
+
+	// GetProxies returns a list of registered proxies.
+	GetProxies() ([]types.Server, error)
 }
 
 // DiscoveryAccessPoint is an API interface implemented by a certificate authority (CA) to be
@@ -745,6 +751,9 @@ type DiscoveryAccessPoint interface {
 
 	// SubmitUsageEvent submits an external usage event.
 	SubmitUsageEvent(ctx context.Context, req *proto.SubmitUsageEventRequest) error
+
+	// GenerateAWSOIDCToken generates a token to be used to execute an AWS OIDC Integration action.
+	GenerateAWSOIDCToken(ctx context.Context, req types.GenerateAWSOIDCTokenRequest) (string, error)
 }
 
 // ReadOktaAccessPoint is a read only API interface to be
@@ -1269,6 +1278,11 @@ func (w *DiscoveryWrapper) UpsertServerInfo(ctx context.Context, si types.Server
 // SubmitUsageEvent submits an external usage event.
 func (w *DiscoveryWrapper) SubmitUsageEvent(ctx context.Context, req *proto.SubmitUsageEventRequest) error {
 	return w.NoCache.SubmitUsageEvent(ctx, req)
+}
+
+// GenerateAWSOIDCToken generates a token to be used to execute an AWS OIDC Integration action.
+func (w *DiscoveryWrapper) GenerateAWSOIDCToken(ctx context.Context, req types.GenerateAWSOIDCTokenRequest) (string, error) {
+	return w.NoCache.GenerateAWSOIDCToken(ctx, req)
 }
 
 // Close closes all associated resources
