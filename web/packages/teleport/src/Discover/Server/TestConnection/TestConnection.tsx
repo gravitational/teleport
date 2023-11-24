@@ -29,6 +29,7 @@ import {
   ConnectionDiagnosticResult,
   StyledBox,
 } from 'teleport/Discover/Shared';
+import { sortNodeLogins } from 'teleport/services/nodes';
 
 import { NodeMeta } from '../../useDiscover';
 
@@ -49,7 +50,7 @@ export function TestConnection(props: AgentStepProps) {
     clusterId,
   } = useConnectionDiagnostic();
   const nodeMeta = props.agentMeta as NodeMeta;
-  const logins = sortLogins(nodeMeta.node.sshLogins);
+  const logins = sortNodeLogins(nodeMeta.node.sshLogins);
 
   function startSshSession(login: string) {
     const url = cfg.getSshConnectRoute({
@@ -129,12 +130,3 @@ export function TestConnection(props: AgentStepProps) {
     </Box>
   );
 }
-
-// sort logins by making 'root' as the first in the list.
-const sortLogins = (logins: string[]) => {
-  const noRoot = logins.filter(l => l !== 'root').sort();
-  if (noRoot.length === logins.length) {
-    return logins;
-  }
-  return ['root', ...noRoot];
-};
