@@ -3,9 +3,14 @@ title: Deploying Machine ID on Spacelift
 description: How to install and configure Machine ID on Spacelift
 ---
 
-Spacelift is a popular Terraform CI/CD platform. Configuring Machine ID for
-Spacelift allows the Teleport Terraform Provider to access your Teleport cluster
-without the need for long-lived secrets.
+This guide shows you how to use the Machine ID agent, `tbot`, to allow the
+Teleport Terraform provider running in a Spacelift stack to configure your
+Teleport cluster.
+
+This guide makes use of the `spacelift` join method, in which `tbot` proves its
+identity to the Teleport Auth Service by presenting an ID token signed by
+Spacelift. This allows the `tbot` to authenticate with the Teleport cluster
+without the need for a long-lived shared secret.
 
 ## Prerequisites
 
@@ -56,9 +61,9 @@ spec:
 ```
 
 Replace:
-- `example.app.spacelift.io`
-- `root`
-- `my-stack`
+- `example.app.spacelift.io` with the hostname of your Spacelift tenant.
+- `my-stack` with the name of the Spacelfit stack.
+- `root` with the name of the space that the stack resides within.
 
 Once the resource file has been written, create the token with `tctl`:
 
@@ -78,7 +83,50 @@ example-bot Bot
 
 ## Step 2/3. Create a role and Machine ID bot
 
-(!docs/pages/includes/machine-id/blank-role.mdx!)
+Create `example-bot-role.yaml`:
+
+```yaml
+kind: role
+version: v5
+metadata:
+  name: example-bot
+spec:
+  allow:
+    rules:
+    - resources:
+      # These currently represent all the resources that can be configured by
+      # Terraform. You may wish to remove resources that you do not intend to
+      # configure with Terraform from this list to reduce blast radius.
+      - app
+      - cluster_auth_preference
+      - cluster_networking_config
+      - db
+      - device
+      - github
+      - login_rule
+      - oidc
+      - okta_import_rule
+      - role
+      - saml
+      - session_recording_config
+      - token
+      - trusted_cluster
+      - user
+      verbs:
+      - create
+      - read
+      - update
+      - delete
+      - list
+  deny: {}
+  options: {}
+```
+
+Create this role by applying the manifest:
+
+```
+$ tctl create -f example-bot-role.yaml
+```
 
 Create the bot, specifying the role and token that you have created:
 
@@ -86,7 +134,7 @@ Create the bot, specifying the role and token that you have created:
 $ tctl bots add example --roles=example-bot --token=example-bot
 ```
 
-## Step 3/3. Configure your Spacelift Stack
+## Step 3/3. Configure your Spacelift stack
 
 Now that the bot has been successfully created, you now need to configure your
 Spacelift stack to authenticate as this bot using `tbot` and then configure
@@ -95,6 +143,79 @@ the Terraform provider to use the credentials produced by `tbot`.
 To help with this, Teleport publishes a custom Spacelift container image. This
 image is based on the default image provided by Spacelift but additionally
 includes `tbot`.
+
+Create `.spacelift/config.yaml` to specify the `teleport-spacelift-runner` image
+and to include a `before_init` step that invokes `tbot` to produce credentials:
+
+```yaml
+version: "1"
+stack_defaults:
+  runner_image: public.ecr.aws/gravitational/teleport-spacelift-runner:(=teleport.version=)
+  before_init:
+  - >
+    tbot start --oneshot
+      --data-dir=memory://
+      --auth-server teleport.example.com:443
+      --join-method spacelift --token example-bot
+      --destination-dir=/mnt/workspace/tbot-output
+```
+
+Replace:
+
+- `teleport.example.com:443` with the address of your Teleport cluster.
+- `example-bot` with the name of the token you created in the first step.
+
+Create `main.tf`:
+
+```hcl
+terraform {
+  required_providers {
+    teleport = {
+      version = "(=teleport.version=)"
+      source  = "terraform.releases.teleport.dev/gravitational/teleport"
+    }
+  }
+}
+
+provider "teleport" {
+  # Replace with the address of your Teleport Proxy or Auth Server.
+  addr               = "teleport.example.com:443"
+  # This path should match the path specified when invoking tbot in the
+  # before_init hook.
+  identity_file_path = "/mnt/workspace/tbot-output/identity"
+}
+
+resource "teleport_role" "terraform_test" {
+  metadata = {
+    name        = "terraform-test"
+    description = "Terraform test role"
+    labels = {
+      example = "yes"
+    }
+  }
+}
+
+resource "teleport_user" "terraform-test" {
+  metadata = {
+    name        = "terraform-test"
+    description = "Terraform test user"
+
+    labels = {
+      test = "true"
+    }
+  }
+
+  spec = {
+    roles = [teleport_role.terraform_test.id]
+  }
+}
+```
+
+Replace:
+
+- `teleport.example.com:443` with the address of your Teleport cluster.
+
+Commit both files and push.
 
 ## Next steps
 
