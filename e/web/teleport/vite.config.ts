@@ -15,11 +15,10 @@ const config = defineConfig(env => {
   // access-graph/
   //   teleport/
   //     e/
-  // because of this, the tsconfig.json points to the folder above teleport so
-  // code completion works.
-  // however this results in vite not being able to find the files when not developing
-  // access-graph (or building the production bundle), so we override the `access-graph`
-  // package to point to the component that will load access graph from a CDN during runtime
+  // in order to have a point where access-graph and teleport can point to,
+  // we use a module called `access-graph`.
+  // when building teleport, this points to the code that loads it from an external CDN (production).
+  // when developing access-graph, the acces-graph Vite config changes this to point to the source code.
 
   config.resolve = {
     alias: {

@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 
-/* eslint-disable @typescript-eslint/ban-ts-comment*/
-// @ts-ignore
 import { AccessGraph } from 'access-graph';
 
 export function AccessGraphWrapper() {
