@@ -20,6 +20,7 @@ package joinserver
 
 import (
 	"context"
+	"net"
 	"slices"
 	"time"
 
@@ -186,7 +187,10 @@ func setClientRemoteAddr(ctx context.Context, req *types.RegisterUsingTokenReque
 	if !ok {
 		return trace.BadParameter("could not get peer from the context")
 	}
-	req.RemoteAddr = p.Addr.String()
+	req.RemoteAddr = p.Addr.String() // Addr without port is used in tests.
+	if ip, _, err := net.SplitHostPort(req.RemoteAddr); err == nil {
+		req.RemoteAddr = ip
+	}
 	return nil
 }
 
