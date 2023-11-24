@@ -17,8 +17,6 @@ package helpers
 import (
 	"bytes"
 	"context"
-	"fmt"
-	"os"
 	"testing"
 	"time"
 
@@ -87,12 +85,6 @@ func WaitForClusters(tun reversetunnelclient.Server, expected int) func() bool {
 		if err != nil {
 			return false
 		}
-
-		names := make([]string, 0, len(clusters))
-		for _, c := range clusters {
-			names = append(names, c.GetName())
-		}
-		fmt.Fprintf(os.Stderr, "current clusters: %q\n", names)
 
 		if len(clusters) < expected {
 			return false
