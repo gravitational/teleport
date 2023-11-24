@@ -144,8 +144,9 @@ To help with this, Teleport publishes a custom Spacelift container image. This
 image is based on the default image provided by Spacelift but additionally
 includes `tbot`.
 
-Create `.spacelift/config.yaml` to specify the `teleport-spacelift-runner` image
-and to include a `before_init` step that invokes `tbot` to produce credentials:
+Within the repository linked to your Spacelift stack, create
+`.spacelift/config.yaml` to specify the `teleport-spacelift-runner` image and to
+include a `before_init` step that invokes `tbot` to produce credentials:
 
 ```yaml
 version: "1"
@@ -163,9 +164,9 @@ stack_defaults:
 Replace:
 
 - `teleport.example.com:443` with the address of your Teleport cluster.
-- `example-bot` with the name of the token you created in the first step.
+- `example-bot` with the name of the token you created in  the first step.
 
-Create `main.tf`:
+Within the repository linked to your Spacelift stack, create a `main.tf`:
 
 ```hcl
 terraform {
