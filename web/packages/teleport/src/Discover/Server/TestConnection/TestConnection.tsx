@@ -47,14 +47,13 @@ export function TestConnection(props: AgentStepProps) {
     canTestConnection,
     showMfaDialog,
     cancelMfaDialog,
-    clusterId,
   } = useConnectionDiagnostic();
   const nodeMeta = props.agentMeta as NodeMeta;
   const logins = sortNodeLogins(nodeMeta.node.sshLogins);
 
   function startSshSession(login: string) {
     const url = cfg.getSshConnectRoute({
-      clusterId: clusterId,
+      clusterId: nodeMeta.node.clusterId,
       serverId: nodeMeta.node.id,
       login,
     });
