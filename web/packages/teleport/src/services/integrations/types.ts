@@ -49,6 +49,7 @@ export type Integration<
 // resource's subKind field.
 export enum IntegrationKind {
   AwsOidc = 'aws-oidc',
+  ExternalAuditStorage = 'external-audit-storage',
 }
 export type IntegrationSpecAwsOidc = {
   roleArn: string;
@@ -60,6 +61,7 @@ export enum IntegrationStatusCode {
   OtherError = 2,
   Unauthorized = 3,
   SlackNotInChannel = 10,
+  Draft = 100,
 }
 
 export function getStatusCodeTitle(code: IntegrationStatusCode): string {
@@ -72,6 +74,8 @@ export function getStatusCodeTitle(code: IntegrationStatusCode): string {
       return 'Unauthorized';
     case IntegrationStatusCode.SlackNotInChannel:
       return 'Bot not invited to channel';
+    case IntegrationStatusCode.Draft:
+      return 'Draft';
     default:
       return 'Unknown error';
   }
@@ -86,11 +90,28 @@ export function getStatusCodeDescription(
 
     case IntegrationStatusCode.SlackNotInChannel:
       return 'The Slack integration must be invited to the default channel in order to receive access request notifications.';
-
     default:
       return null;
   }
 }
+
+export type ExternalAuditStorage = {
+  integrationName: string;
+  policyName: string;
+  region: string;
+  sessionsRecordingsURI: string;
+  athenaWorkgroup: string;
+  glueDatabase: string;
+  glueTable: string;
+  auditEventsLongTermURI: string;
+  athenaResultsURI: string;
+};
+
+export type ExternalAuditStorageIntegration = Integration<
+  'external-audit-storage',
+  IntegrationKind.ExternalAuditStorage,
+  ExternalAuditStorage
+>;
 
 export type Plugin = Integration<'plugin', PluginKind, PluginSpec>;
 export type PluginSpec = Record<string, never>; // currently no 'spec' fields exposed to the frontend
@@ -356,4 +377,13 @@ export type Cidr = {
   cidr: string;
   // Description contains a small text describing the CIDR.
   description: string;
+};
+
+// IntegrationUrlLocationState define fields to preserve state between
+// react routes (eg. in External Audit Storage flow, it is required of user
+// to create a AWS OIDC integration which requires changing route
+// and then coming back to resume the flow.)
+export type IntegrationUrlLocationState = {
+  kind: IntegrationKind;
+  redirectText: string;
 };
