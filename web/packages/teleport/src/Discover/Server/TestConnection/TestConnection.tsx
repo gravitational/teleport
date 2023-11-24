@@ -28,29 +28,24 @@ import {
   StyledBox,
 } from '../../Shared';
 
-import { useTestConnection, State } from './useTestConnection';
+import { useTestConnection } from './useTestConnection';
 
 import type { Option } from 'shared/components/Select';
 import type { AgentStepProps } from '../../types';
 
-export default function Container(props: AgentStepProps) {
-  const state = useTestConnection(props);
-
-  return <TestConnection {...state} />;
-}
-
-export function TestConnection({
-  attempt,
-  startSshSession,
-  logins,
-  testConnection,
-  diagnosis,
-  nextStep,
-  prevStep,
-  canTestConnection,
-  showMfaDialog,
-  cancelMfaDialog,
-}: State) {
+export function TestConnection(props: AgentStepProps) {
+  const {
+    attempt,
+    startSshSession,
+    logins,
+    testConnection,
+    diagnosis,
+    nextStep,
+    prevStep,
+    canTestConnection,
+    showMfaDialog,
+    cancelMfaDialog,
+  } = useTestConnection(props);
   const [usernameOpts] = useState(() =>
     logins.map(l => ({ value: l, label: l }))
   );

@@ -65,5 +65,3 @@ const sortLogins = (logins: string[]) => {
   }
   return ['root', ...noRoot];
 };
-
-export type State = ReturnType<typeof useTestConnection>;

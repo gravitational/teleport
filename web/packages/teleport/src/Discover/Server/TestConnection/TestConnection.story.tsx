@@ -17,35 +17,64 @@
 import React from 'react';
 import { MemoryRouter } from 'react-router';
 
-import { TestConnection } from './TestConnection';
+import { ContextProvider } from 'teleport';
+import cfg from 'teleport/config';
+import { nodes } from 'teleport/Nodes/fixtures';
+import { createTeleportContext } from 'teleport/mocks/contexts';
+import {
+  DiscoverProvider,
+  DiscoverContextState,
+} from 'teleport/Discover/useDiscover';
 
-import type { State } from './useTestConnection';
+import { TestConnection } from './TestConnection';
 
 export default {
   title: 'Teleport/Discover/Shared/ConnectionDiagnostic/Server',
 };
 
+const node = { ...nodes[0] };
+node.sshLogins = [
+  ...node.sshLogins,
+  'george_washington_really_long_name_testing',
+];
+const agentStepProps = {
+  prevStep: () => {},
+  nextStep: () => {},
+  agentMeta: { resourceName: node.hostname, node, agentMatcherLabels: [] },
+};
+
 export const Init = () => (
-  <MemoryRouter>
-    <TestConnection {...props} />
-  </MemoryRouter>
+  <Provider>
+    <TestConnection {...agentStepProps} />
+  </Provider>
 );
 
-const props: State = {
-  attempt: {
-    status: 'success',
-    statusText: '',
-  },
-  logins: ['root', 'llama', 'george_washington_really_long_name_testing'],
-  startSshSession: () => null,
-  testConnection: () => null,
-  nextStep: () => null,
-  prevStep: () => null,
-  diagnosis: null,
-  canTestConnection: true,
-  username: 'teleport-username',
-  authType: 'local',
-  clusterId: 'some-cluster-id',
-  showMfaDialog: false,
-  cancelMfaDialog: () => null,
+const Provider = ({ children }) => {
+  const ctx = createTeleportContext();
+  const discoverCtx: DiscoverContextState = {
+    ...agentStepProps,
+    currentStep: 0,
+    onSelectResource: () => null,
+    resourceSpec: undefined,
+    exitFlow: () => null,
+    viewConfig: null,
+    indexedViews: [],
+    setResourceSpec: () => null,
+    updateAgentMeta: () => null,
+    emitErrorEvent: () => null,
+    emitEvent: () => null,
+    eventState: null,
+  };
+
+  return (
+    <MemoryRouter
+      initialEntries={[
+        { pathname: cfg.routes.discover, state: { entity: 'server' } },
+      ]}
+    >
+      <ContextProvider ctx={ctx}>
+        <DiscoverProvider mockCtx={discoverCtx}>{children}</DiscoverProvider>
+      </ContextProvider>
+    </MemoryRouter>
+  );
 };
