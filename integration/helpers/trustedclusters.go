@@ -77,23 +77,32 @@ func TryCreateTrustedCluster(t *testing.T, authServer *auth.Server, trustedClust
 }
 
 func WaitForClusters(tun reversetunnelclient.Server, expected int) func() bool {
-	return func() bool {
+	// GetSites will always return the local site
+	expected++
+
+	return func() (ok bool) {
 		clusters, err := tun.GetSites()
 		if err != nil {
 			return false
 		}
 
-		// Check the expected number of clusters are connected, and they have all
-		// connected with the past 10 seconds.
-		if len(clusters) >= expected {
-			for _, cluster := range clusters {
-				if time.Since(cluster.GetLastConnected()).Seconds() > 10.0 {
-					return false
-				}
+		if len(clusters) < expected {
+			return false
+		}
+
+		var live int
+		for _, cluster := range clusters {
+			if time.Since(cluster.GetLastConnected()) > 10*time.Second {
+				continue
+			}
+
+			live++
+			if live >= expected {
+				return true
 			}
 		}
 
-		return true
+		return false
 	}
 }
 
