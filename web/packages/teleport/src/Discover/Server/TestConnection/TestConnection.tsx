@@ -48,13 +48,13 @@ export function TestConnection(props: AgentStepProps) {
     showMfaDialog,
     cancelMfaDialog,
   } = useConnectionDiagnostic();
-  const nodeMeta = props.agentMeta as NodeMeta;
-  const logins = sortNodeLogins(nodeMeta.node.sshLogins);
+  const node = (props.agentMeta as NodeMeta).node;
+  const logins = sortNodeLogins(node.sshLogins);
 
   function startSshSession(login: string) {
     const url = cfg.getSshConnectRoute({
-      clusterId: nodeMeta.node.clusterId,
-      serverId: nodeMeta.node.id,
+      clusterId: node.clusterId,
+      serverId: node.id,
       login,
     });
 
