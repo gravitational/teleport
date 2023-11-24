@@ -38,7 +38,6 @@ export const ConnectMyComputerResource: ResourceViewConfig<ResourceSpec> = {
           title: 'Test Connection',
           component: TestConnection,
           eventName: DiscoverEvent.TestConnection,
-          // TODO(ravicious): Manually emit success event on test connection success.
           manuallyEmitSuccessEvent: true,
         }
       : {
