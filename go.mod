@@ -56,7 +56,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sqs v1.28.0
 	github.com/aws/aws-sdk-go-v2/service/sts v1.25.1
 	github.com/aws/aws-sigv4-auth-cassandra-gocql-driver-plugin v0.0.0-20220331165046-e4d000c0d6a6
-	github.com/aws/smithy-go v1.16.0
+	github.com/aws/smithy-go v1.17.0
 	github.com/beevik/etree v1.2.0
 	github.com/bufbuild/connect-go v1.10.0
 	github.com/buildkite/bintest/v3 v3.2.0
