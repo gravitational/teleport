@@ -128,8 +128,8 @@ github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/sql/armsql v1.1.0 h1:G2MvN
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/sql/armsql v1.1.0/go.mod h1:f/IvRlQ/eFP31UXVUwh3BzTOOC2cEo6/u+7g9+KTzPk=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/storage/armstorage v1.2.0 h1:Ma67P/GGprNwsslzEH6+Kb8nybI8jpDTm4Wmzu2ReK8=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/storage/armstorage v1.2.0/go.mod h1:c+Lifp3EDEamAkPVzMooRNOK6CZjNSdEnf1A7jsI9u4=
-github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/subscription/armsubscription v1.1.0 h1:pYhaMoTHP/zYIJGDA1sWsfyTDjdglaoYjIFMOEcL+/U=
-github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/subscription/armsubscription v1.1.0/go.mod h1:iLq8GwpQhj09gpI4EdELwifR9kHrb/Q0LThq6iQq9yY=
+github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/subscription/armsubscription v1.2.0 h1:UrGzkHueDwAWDdjQxC+QaXHd4tVCkISYE9j7fSSXF8k=
+github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/subscription/armsubscription v1.2.0/go.mod h1:qskvSQeW+cxEE2bcKYyKimB1/KiQ9xpJ99bcHY0BX6c=
 github.com/Azure/azure-sdk-for-go/sdk/storage/azblob v1.2.0 h1:gggzg0SUMs6SQbEw+3LoSsYf9YMjkupeAnHMX8O9mmY=
 github.com/Azure/azure-sdk-for-go/sdk/storage/azblob v1.2.0/go.mod h1:+6KLcKIVgxoBDMqMO/Nvy7bZ9a0nbU3I1DtFQK3YvB4=
 github.com/Azure/azure-service-bus-go v0.9.1/go.mod h1:yzBx6/BUGfjfeqbRZny9AQIbIe3AcV9WZbAdpkoXOa0=
