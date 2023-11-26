@@ -722,9 +722,9 @@ dependencies = [
 
 [[package]]
 name = "iso7816"
-version = "0.1.1"
+version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e7e6ac743d509349b7865595ce90bbfcfbe59f42b8ec0db9e76ec361ace3f652"
+checksum = "b3af73ac9c821e7aea3280532118e15cdf9e7bb45c923cbf0e319ae25b27d20c"
 dependencies = [
  "delog",
  "heapless",
@@ -1224,7 +1224,7 @@ dependencies = [
  "rand 0.8.5",
  "rand_chacha 0.3.1",
  "rdp-rs",
- "rsa 0.9.3",
+ "rsa 0.9.4",
  "tempfile",
  "utf16string",
  "uuid",
@@ -1318,9 +1318,9 @@ dependencies = [
 
 [[package]]
 name = "rsa"
-version = "0.9.3"
+version = "0.9.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "86ef35bf3e7fe15a53c4ab08a998e42271eab13eb0db224126bc7bc4c4bad96d"
+checksum = "6a3211b01eea83d80687da9eef70e39d65144a3894866a5153a2723e425a157f"
 dependencies = [
  "const-oid 0.9.2",
  "digest 0.10.6",
@@ -1466,9 +1466,9 @@ checksum = "43b2853a4d09f215c24cc5489c992ce46052d359b5109343cbafbf26bc62f8a3"
 
 [[package]]
 name = "signature"
-version = "2.0.0"
+version = "2.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8fe458c98333f9c8152221191a77e2a44e8325d0193484af2e9421a53019e57d"
+checksum = "77549399552de45a898a580c1b41d445bf730df867cc44e6c0233bbc4b8329de"
 dependencies = [
  "digest 0.10.6",
  "rand_core 0.6.4",
@@ -1704,9 +1704,9 @@ dependencies = [
 
 [[package]]
 name = "uuid"
-version = "1.5.0"
+version = "1.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "88ad59a7560b41a70d191093a945f0b87bc1deeda46fb237479708a1d6b6cdfc"
+checksum = "5e395fcf16a7a3d8127ec99782007af141946b4795001f876d54fb0d55978560"
 dependencies = [
  "getrandom 0.2.8",
 ]
