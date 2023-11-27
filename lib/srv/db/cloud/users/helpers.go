@@ -168,7 +168,10 @@ func newSecretStore(ctx context.Context, database types.Database, clients cloud.
 	secretStoreConfig := database.GetSecretStore()
 
 	meta := database.GetAWS()
-	client, err := clients.GetAWSSecretsManagerClient(ctx, meta.Region, cloud.WithAssumeRoleFromAWSMeta(meta))
+	client, err := clients.GetAWSSecretsManagerClient(ctx, meta.Region,
+		cloud.WithAssumeRoleFromAWSMeta(meta),
+		cloud.WithAmbientCredentials(),
+	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

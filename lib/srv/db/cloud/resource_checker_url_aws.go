@@ -68,7 +68,10 @@ func (c *urlChecker) logAWSAccessDeniedError(database types.Database, accessDeni
 
 func (c *urlChecker) checkRDS(ctx context.Context, database types.Database) error {
 	meta := database.GetAWS()
-	rdsClient, err := c.clients.GetAWSRDSClient(ctx, meta.Region, cloud.WithAssumeRoleFromAWSMeta(meta))
+	rdsClient, err := c.clients.GetAWSRDSClient(ctx, meta.Region,
+		cloud.WithAssumeRoleFromAWSMeta(meta),
+		cloud.WithAmbientCredentials(),
+	)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -110,7 +113,10 @@ func (c *urlChecker) checkRDSCluster(ctx context.Context, database types.Databas
 
 func (c *urlChecker) checkRDSProxy(ctx context.Context, database types.Database) error {
 	meta := database.GetAWS()
-	rdsClient, err := c.clients.GetAWSRDSClient(ctx, meta.Region, cloud.WithAssumeRoleFromAWSMeta(meta))
+	rdsClient, err := c.clients.GetAWSRDSClient(ctx, meta.Region,
+		cloud.WithAssumeRoleFromAWSMeta(meta),
+		cloud.WithAmbientCredentials(),
+	)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -137,7 +143,10 @@ func (c *urlChecker) checkRDSProxyCustomEndpoint(ctx context.Context, database t
 
 func (c *urlChecker) checkRedshift(ctx context.Context, database types.Database) error {
 	meta := database.GetAWS()
-	redshift, err := c.clients.GetAWSRedshiftClient(ctx, meta.Region, cloud.WithAssumeRoleFromAWSMeta(meta))
+	redshift, err := c.clients.GetAWSRedshiftClient(ctx, meta.Region,
+		cloud.WithAssumeRoleFromAWSMeta(meta),
+		cloud.WithAmbientCredentials(),
+	)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -153,7 +162,10 @@ func (c *urlChecker) checkRedshift(ctx context.Context, database types.Database)
 
 func (c *urlChecker) checkRedshiftServerless(ctx context.Context, database types.Database) error {
 	meta := database.GetAWS()
-	client, err := c.clients.GetAWSRedshiftServerlessClient(ctx, meta.Region, cloud.WithAssumeRoleFromAWSMeta(meta))
+	client, err := c.clients.GetAWSRedshiftServerlessClient(ctx, meta.Region,
+		cloud.WithAssumeRoleFromAWSMeta(meta),
+		cloud.WithAmbientCredentials(),
+	)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -185,7 +197,10 @@ func (c *urlChecker) checkRedshiftServerlessWorkgroup(ctx context.Context, datab
 
 func (c *urlChecker) checkElastiCache(ctx context.Context, database types.Database) error {
 	meta := database.GetAWS()
-	elastiCacheClient, err := c.clients.GetAWSElastiCacheClient(ctx, meta.Region, cloud.WithAssumeRoleFromAWSMeta(meta))
+	elastiCacheClient, err := c.clients.GetAWSElastiCacheClient(ctx, meta.Region,
+		cloud.WithAssumeRoleFromAWSMeta(meta),
+		cloud.WithAmbientCredentials(),
+	)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -202,7 +217,10 @@ func (c *urlChecker) checkElastiCache(ctx context.Context, database types.Databa
 
 func (c *urlChecker) checkMemoryDB(ctx context.Context, database types.Database) error {
 	meta := database.GetAWS()
-	memoryDBClient, err := c.clients.GetAWSMemoryDBClient(ctx, meta.Region, cloud.WithAssumeRoleFromAWSMeta(meta))
+	memoryDBClient, err := c.clients.GetAWSMemoryDBClient(ctx, meta.Region,
+		cloud.WithAssumeRoleFromAWSMeta(meta),
+		cloud.WithAmbientCredentials(),
+	)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -215,7 +233,10 @@ func (c *urlChecker) checkMemoryDB(ctx context.Context, database types.Database)
 
 func (c *urlChecker) checkOpenSearch(ctx context.Context, database types.Database) error {
 	meta := database.GetAWS()
-	client, err := c.clients.GetAWSOpenSearchClient(ctx, meta.Region, cloud.WithAssumeRoleFromAWSMeta(meta))
+	client, err := c.clients.GetAWSOpenSearchClient(ctx, meta.Region,
+		cloud.WithAssumeRoleFromAWSMeta(meta),
+		cloud.WithAmbientCredentials(),
+	)
 	if err != nil {
 		return trace.Wrap(err)
 	}

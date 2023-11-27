@@ -1,36 +1,3 @@
-should add an operator side-car when operator is enabled:
-  1: |
-    image: public.ecr.aws/gravitational/teleport-operator:15.0.0-dev
-    imagePullPolicy: IfNotPresent
-    livenessProbe:
-      httpGet:
-        path: /healthz
-        port: 8081
-      initialDelaySeconds: 15
-      periodSeconds: 20
-    name: operator
-    ports:
-    - containerPort: 8080
-      name: op-metrics
-      protocol: TCP
-    - containerPort: 8081
-      name: op-health
-      protocol: TCP
-    readinessProbe:
-      httpGet:
-        path: /readyz
-        port: 8081
-      initialDelaySeconds: 5
-      periodSeconds: 10
-    volumeMounts:
-    - mountPath: /etc/teleport
-      name: config
-      readOnly: true
-    - mountPath: /var/lib/teleport
-      name: data
-    - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
-      name: auth-serviceaccount-token
-      readOnly: true
 ? should not add named PersistentVolumeClaim as volume when in scratch mode, persistence.existingClaimName
   is set and persistence.enabled is false
 : 1: |

@@ -77,23 +77,32 @@ func TryCreateTrustedCluster(t *testing.T, authServer *auth.Server, trustedClust
 }
 
 func WaitForClusters(tun reversetunnelclient.Server, expected int) func() bool {
-	return func() bool {
+	// GetSites will always return the local site
+	expected++
+
+	return func() (ok bool) {
 		clusters, err := tun.GetSites()
 		if err != nil {
 			return false
 		}
 
-		// Check the expected number of clusters are connected, and they have all
-		// connected with the past 10 seconds.
-		if len(clusters) >= expected {
-			for _, cluster := range clusters {
-				if time.Since(cluster.GetLastConnected()).Seconds() > 10.0 {
-					return false
-				}
+		if len(clusters) < expected {
+			return false
+		}
+
+		var live int
+		for _, cluster := range clusters {
+			if time.Since(cluster.GetLastConnected()) > 10*time.Second {
+				continue
+			}
+
+			live++
+			if live >= expected {
+				return true
 			}
 		}
 
-		return true
+		return false
 	}
 }
 
@@ -166,8 +175,6 @@ func CheckTrustedClustersCanConnect(ctx context.Context, t *testing.T, tcSetup T
 
 	// Wait for both cluster to see each other via reverse tunnels.
 	require.Eventually(t, WaitForClusters(main.Tunnel, 1), 10*time.Second, 1*time.Second,
-		"Two clusters do not see each other: tunnels are not working.")
-	require.Eventually(t, WaitForClusters(aux.Tunnel, 1), 10*time.Second, 1*time.Second,
 		"Two clusters do not see each other: tunnels are not working.")
 
 	// Try and connect to a node in the Aux cluster from the Main cluster using
