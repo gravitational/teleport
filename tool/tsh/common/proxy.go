@@ -562,7 +562,7 @@ func onProxyCommandApp(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	listener, err := createListener(cf, err, tc)
+	listener, err := createListener(cf, tc)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -599,7 +599,9 @@ func onProxyCommandApp(cf *CLIConf) error {
 }
 
 // This function creates a net.Listener or tls.Listener according to the requested TLS Configuration
-func createListener(cf *CLIConf, err error, tc *libclient.TeleportClient) (net.Listener, error) {
+func createListener(cf *CLIConf, tc *libclient.TeleportClient) (net.Listener, error) {
+	var err error
+
 	addr := "localhost:0"
 	if cf.LocalProxyPort != "" {
 		addr = fmt.Sprintf("127.0.0.1:%s", cf.LocalProxyPort)
