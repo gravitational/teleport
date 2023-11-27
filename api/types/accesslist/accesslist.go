@@ -42,10 +42,19 @@ const (
 	twoWeeks = 24 * time.Hour * 14
 )
 
+// Inclusion values indicate how membership and ownership of an AccessList
+// should be applied.
 type Inclusion string
 
 const (
+	// Implicit inclusion indicates that a user need only meet a requirement set
+	// to be considered included in a list. Both list membership and ownership
+	// may be Implicit.
 	Implicit Inclusion = "implicit"
+
+	// Explicit inclusion indicates that a user must meet a requirement set AND
+	// be explicitly added to an access list to be included in it. Both list
+	// membership and ownership may be Explicit.
 	Explicit Inclusion = "explicit"
 )
 
@@ -266,16 +275,19 @@ func NewAccessList(metadata header.Metadata, spec Spec) (*AccessList, error) {
 	return accessList, nil
 }
 
+// checkInclusion validates an Inclusion value, defaulting to "Explicit" if not
+// set. Any other invalid value is an error.
 func checkInclusion(i Inclusion) (Inclusion, error) {
-	if i == "" {
+	switch i {
+	case "":
 		return Explicit, nil
-	}
 
-	if i != Explicit && i != Implicit {
-		return Explicit, trace.BadParameter("invalid inclusion mode %q", i)
-	}
+	case Explicit, Implicit:
+		return i, nil
 
-	return i, nil
+	default:
+		return Explicit, trace.BadParameter("invalid inclusion mode %q (must be %q or %q)", i, Explicit, Implicit)
+	}
 }
 
 // CheckAndSetDefaults validates fields and populates empty fields with default values.
