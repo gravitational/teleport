@@ -134,6 +134,11 @@ export interface DocumentGatewayCliClient extends DocumentBase {
   status: '' | 'connecting' | 'connected' | 'error';
 }
 
+/**
+ * DocumentGatewayKube replaced DocumentTshKube in Connect v14. Before removing DocumentTshKube
+ * completely, we should add a migration that transforms all DocumentTshKube docs into
+ * DocumentGatewayKube docs when loading the workspace state from disk.
+ */
 export interface DocumentGatewayKube extends DocumentBase {
   kind: 'doc.gateway_kube';
   rootClusterId: string;
@@ -167,6 +172,11 @@ export interface DocumentConnectMyComputer extends DocumentBase {
   // However, there are a few components in the system, such as `getResourceUri`, which need to determine the relation
   // between a document and a cluster just by looking at the document fields.
   rootClusterUri: uri.RootClusterUri;
+  /**
+   * The status of 'connecting' is used to indicate that Connect My Computer permissions cannot be
+   * established yet and the document is waiting for the app to receive full cluster details.
+   */
+  status: '' | 'connecting' | 'connected' | 'error';
 }
 
 export type DocumentTerminal =

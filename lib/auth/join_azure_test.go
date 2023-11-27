@@ -23,7 +23,6 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"fmt"
-	"net"
 	"testing"
 	"time"
 
@@ -37,7 +36,6 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
-	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/fixtures"
 )
@@ -384,9 +382,6 @@ func TestAuth_RegisterUsingAzureMethod(t *testing.T) {
 			accessToken, err := makeToken(rsID, a.clock.Now())
 			require.NoError(t, err)
 
-			reqCtx := context.Background()
-			reqCtx = authz.ContextWithClientAddr(reqCtx, &net.IPAddr{})
-
 			vmResult := tc.vmResult
 			if vmResult == nil {
 				vmResult = &azure.VirtualMachine{
@@ -400,7 +395,7 @@ func TestAuth_RegisterUsingAzureMethod(t *testing.T) {
 
 			vmClient := &mockAzureVMClient{vm: vmResult}
 
-			_, err = a.RegisterUsingAzureMethod(reqCtx, func(challenge string) (*proto.RegisterUsingAzureMethodRequest, error) {
+			_, err = a.RegisterUsingAzureMethod(context.Background(), func(challenge string) (*proto.RegisterUsingAzureMethodRequest, error) {
 				cfg := &azureChallengeResponseConfig{Challenge: challenge}
 				for _, opt := range tc.challengeResponseOptions {
 					opt(cfg)

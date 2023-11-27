@@ -41,6 +41,9 @@ const (
 	ExternalCloudAuditService_GetClusterExternalCloudAudit_FullMethodName       = "/teleport.externalcloudaudit.v1.ExternalCloudAuditService/GetClusterExternalCloudAudit"
 	ExternalCloudAuditService_DisableClusterExternalCloudAudit_FullMethodName   = "/teleport.externalcloudaudit.v1.ExternalCloudAuditService/DisableClusterExternalCloudAudit"
 	ExternalCloudAuditService_GenerateDraftExternalCloudAudit_FullMethodName    = "/teleport.externalcloudaudit.v1.ExternalCloudAuditService/GenerateDraftExternalCloudAudit"
+	ExternalCloudAuditService_TestDraftExternalCloudAuditBuckets_FullMethodName = "/teleport.externalcloudaudit.v1.ExternalCloudAuditService/TestDraftExternalCloudAuditBuckets"
+	ExternalCloudAuditService_TestDraftExternalCloudAuditGlue_FullMethodName    = "/teleport.externalcloudaudit.v1.ExternalCloudAuditService/TestDraftExternalCloudAuditGlue"
+	ExternalCloudAuditService_TestDraftExternalCloudAuditAthena_FullMethodName  = "/teleport.externalcloudaudit.v1.ExternalCloudAuditService/TestDraftExternalCloudAuditAthena"
 )
 
 // ExternalCloudAuditServiceClient is the client API for ExternalCloudAuditService service.
@@ -66,6 +69,12 @@ type ExternalCloudAuditServiceClient interface {
 	// resource with randomized resource names and upserts it as the current
 	// draft.
 	GenerateDraftExternalCloudAudit(ctx context.Context, in *GenerateDraftExternalCloudAuditRequest, opts ...grpc.CallOption) (*GenerateDraftExternalCloudAuditResponse, error)
+	// TestDraftExternalCloudAuditBuckets tests the connection to the current draft buckets.
+	TestDraftExternalCloudAuditBuckets(ctx context.Context, in *TestDraftExternalCloudAuditBucketsRequest, opts ...grpc.CallOption) (*TestDraftExternalCloudAuditBucketsResponse, error)
+	// TestDraftExternalCloudAuditGlue tests the configuration to the current draft glue table and database.
+	TestDraftExternalCloudAuditGlue(ctx context.Context, in *TestDraftExternalCloudAuditGlueRequest, opts ...grpc.CallOption) (*TestDraftExternalCloudAuditGlueResponse, error)
+	// TestDraftExternalCloudAuditAthena tests the configuration to the current draft athena.
+	TestDraftExternalCloudAuditAthena(ctx context.Context, in *TestDraftExternalCloudAuditAthenaRequest, opts ...grpc.CallOption) (*TestDraftExternalCloudAuditAthenaResponse, error)
 }
 
 type externalCloudAuditServiceClient struct {
@@ -139,6 +148,33 @@ func (c *externalCloudAuditServiceClient) GenerateDraftExternalCloudAudit(ctx co
 	return out, nil
 }
 
+func (c *externalCloudAuditServiceClient) TestDraftExternalCloudAuditBuckets(ctx context.Context, in *TestDraftExternalCloudAuditBucketsRequest, opts ...grpc.CallOption) (*TestDraftExternalCloudAuditBucketsResponse, error) {
+	out := new(TestDraftExternalCloudAuditBucketsResponse)
+	err := c.cc.Invoke(ctx, ExternalCloudAuditService_TestDraftExternalCloudAuditBuckets_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *externalCloudAuditServiceClient) TestDraftExternalCloudAuditGlue(ctx context.Context, in *TestDraftExternalCloudAuditGlueRequest, opts ...grpc.CallOption) (*TestDraftExternalCloudAuditGlueResponse, error) {
+	out := new(TestDraftExternalCloudAuditGlueResponse)
+	err := c.cc.Invoke(ctx, ExternalCloudAuditService_TestDraftExternalCloudAuditGlue_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *externalCloudAuditServiceClient) TestDraftExternalCloudAuditAthena(ctx context.Context, in *TestDraftExternalCloudAuditAthenaRequest, opts ...grpc.CallOption) (*TestDraftExternalCloudAuditAthenaResponse, error) {
+	out := new(TestDraftExternalCloudAuditAthenaResponse)
+	err := c.cc.Invoke(ctx, ExternalCloudAuditService_TestDraftExternalCloudAuditAthena_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ExternalCloudAuditServiceServer is the server API for ExternalCloudAuditService service.
 // All implementations must embed UnimplementedExternalCloudAuditServiceServer
 // for forward compatibility
@@ -162,6 +198,12 @@ type ExternalCloudAuditServiceServer interface {
 	// resource with randomized resource names and upserts it as the current
 	// draft.
 	GenerateDraftExternalCloudAudit(context.Context, *GenerateDraftExternalCloudAuditRequest) (*GenerateDraftExternalCloudAuditResponse, error)
+	// TestDraftExternalCloudAuditBuckets tests the connection to the current draft buckets.
+	TestDraftExternalCloudAuditBuckets(context.Context, *TestDraftExternalCloudAuditBucketsRequest) (*TestDraftExternalCloudAuditBucketsResponse, error)
+	// TestDraftExternalCloudAuditGlue tests the configuration to the current draft glue table and database.
+	TestDraftExternalCloudAuditGlue(context.Context, *TestDraftExternalCloudAuditGlueRequest) (*TestDraftExternalCloudAuditGlueResponse, error)
+	// TestDraftExternalCloudAuditAthena tests the configuration to the current draft athena.
+	TestDraftExternalCloudAuditAthena(context.Context, *TestDraftExternalCloudAuditAthenaRequest) (*TestDraftExternalCloudAuditAthenaResponse, error)
 	mustEmbedUnimplementedExternalCloudAuditServiceServer()
 }
 
@@ -189,6 +231,15 @@ func (UnimplementedExternalCloudAuditServiceServer) DisableClusterExternalCloudA
 }
 func (UnimplementedExternalCloudAuditServiceServer) GenerateDraftExternalCloudAudit(context.Context, *GenerateDraftExternalCloudAuditRequest) (*GenerateDraftExternalCloudAuditResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GenerateDraftExternalCloudAudit not implemented")
+}
+func (UnimplementedExternalCloudAuditServiceServer) TestDraftExternalCloudAuditBuckets(context.Context, *TestDraftExternalCloudAuditBucketsRequest) (*TestDraftExternalCloudAuditBucketsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method TestDraftExternalCloudAuditBuckets not implemented")
+}
+func (UnimplementedExternalCloudAuditServiceServer) TestDraftExternalCloudAuditGlue(context.Context, *TestDraftExternalCloudAuditGlueRequest) (*TestDraftExternalCloudAuditGlueResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method TestDraftExternalCloudAuditGlue not implemented")
+}
+func (UnimplementedExternalCloudAuditServiceServer) TestDraftExternalCloudAuditAthena(context.Context, *TestDraftExternalCloudAuditAthenaRequest) (*TestDraftExternalCloudAuditAthenaResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method TestDraftExternalCloudAuditAthena not implemented")
 }
 func (UnimplementedExternalCloudAuditServiceServer) mustEmbedUnimplementedExternalCloudAuditServiceServer() {
 }
@@ -330,6 +381,60 @@ func _ExternalCloudAuditService_GenerateDraftExternalCloudAudit_Handler(srv inte
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ExternalCloudAuditService_TestDraftExternalCloudAuditBuckets_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(TestDraftExternalCloudAuditBucketsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ExternalCloudAuditServiceServer).TestDraftExternalCloudAuditBuckets(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ExternalCloudAuditService_TestDraftExternalCloudAuditBuckets_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ExternalCloudAuditServiceServer).TestDraftExternalCloudAuditBuckets(ctx, req.(*TestDraftExternalCloudAuditBucketsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ExternalCloudAuditService_TestDraftExternalCloudAuditGlue_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(TestDraftExternalCloudAuditGlueRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ExternalCloudAuditServiceServer).TestDraftExternalCloudAuditGlue(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ExternalCloudAuditService_TestDraftExternalCloudAuditGlue_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ExternalCloudAuditServiceServer).TestDraftExternalCloudAuditGlue(ctx, req.(*TestDraftExternalCloudAuditGlueRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ExternalCloudAuditService_TestDraftExternalCloudAuditAthena_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(TestDraftExternalCloudAuditAthenaRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ExternalCloudAuditServiceServer).TestDraftExternalCloudAuditAthena(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ExternalCloudAuditService_TestDraftExternalCloudAuditAthena_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ExternalCloudAuditServiceServer).TestDraftExternalCloudAuditAthena(ctx, req.(*TestDraftExternalCloudAuditAthenaRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // ExternalCloudAuditService_ServiceDesc is the grpc.ServiceDesc for ExternalCloudAuditService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -364,6 +469,18 @@ var ExternalCloudAuditService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GenerateDraftExternalCloudAudit",
 			Handler:    _ExternalCloudAuditService_GenerateDraftExternalCloudAudit_Handler,
+		},
+		{
+			MethodName: "TestDraftExternalCloudAuditBuckets",
+			Handler:    _ExternalCloudAuditService_TestDraftExternalCloudAuditBuckets_Handler,
+		},
+		{
+			MethodName: "TestDraftExternalCloudAuditGlue",
+			Handler:    _ExternalCloudAuditService_TestDraftExternalCloudAuditGlue_Handler,
+		},
+		{
+			MethodName: "TestDraftExternalCloudAuditAthena",
+			Handler:    _ExternalCloudAuditService_TestDraftExternalCloudAuditAthena_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

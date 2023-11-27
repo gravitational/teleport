@@ -236,7 +236,7 @@ func TestApplicationServersCRUD(t *testing.T) {
 	// No app servers should be registered initially
 	out, err := presence.GetApplicationServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
-	require.Equal(t, 0, len(out))
+	require.Empty(t, out)
 
 	// Create app servers.
 	lease, err := presence.UpsertApplicationServer(ctx, serverA)
@@ -327,7 +327,7 @@ func TestDatabaseServersCRUD(t *testing.T) {
 	// Initially expect not to be returned any servers.
 	out, err := presence.GetDatabaseServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
-	require.Equal(t, 0, len(out))
+	require.Empty(t, out)
 
 	// Upsert server.
 	lease, err := presence.UpsertDatabaseServer(ctx, server)
@@ -357,7 +357,7 @@ func TestDatabaseServersCRUD(t *testing.T) {
 	// Now expect no servers to be returned.
 	out, err = presence.GetDatabaseServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
-	require.Equal(t, 0, len(out))
+	require.Empty(t, out)
 
 	// Upsert server with TTL.
 	server.SetExpiry(clock.Now().UTC().Add(time.Hour))
@@ -384,7 +384,7 @@ func TestDatabaseServersCRUD(t *testing.T) {
 	// Now expect no servers to be returned.
 	out, err = presence.GetDatabaseServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
-	require.Equal(t, 0, len(out))
+	require.Empty(t, out)
 }
 
 func TestNodeCRUD(t *testing.T) {
@@ -405,7 +405,7 @@ func TestNodeCRUD(t *testing.T) {
 		// Initially expect no nodes to be returned.
 		nodes, err := presence.GetNodes(ctx, apidefaults.Namespace)
 		require.NoError(t, err)
-		require.Equal(t, 0, len(nodes))
+		require.Empty(t, nodes)
 
 		// Create nodes
 		_, err = presence.UpsertNode(ctx, node1)
@@ -465,7 +465,7 @@ func TestNodeCRUD(t *testing.T) {
 		// Now expect no nodes to be returned.
 		nodes, err := presence.GetNodes(ctx, apidefaults.Namespace)
 		require.NoError(t, err)
-		require.Equal(t, 0, len(nodes))
+		require.Empty(t, nodes)
 	})
 }
 
@@ -1094,7 +1094,7 @@ func TestFakePaginate_TotalCount(t *testing.T) {
 				require.NoError(t, err)
 				require.Len(t, resp.Resources, tc.limit)
 				require.Equal(t, resources[0:tc.limit], resp.Resources)
-				require.Equal(t, len(nodes), resp.TotalCount)
+				require.Len(t, nodes, resp.TotalCount)
 
 				// Next fetch should return same amount of totals.
 				if tc.limit != len(nodes) {
@@ -1105,11 +1105,11 @@ func TestFakePaginate_TotalCount(t *testing.T) {
 					require.NoError(t, err)
 					require.Len(t, resp.Resources, tc.limit)
 					require.Equal(t, resources[tc.limit:tc.limit*2], resp.Resources)
-					require.Equal(t, len(nodes), resp.TotalCount)
+					require.Len(t, nodes, resp.TotalCount)
 				} else {
 					require.Empty(t, resp.NextKey)
 					require.Equal(t, resources, resp.Resources)
-					require.Equal(t, len(nodes), resp.TotalCount)
+					require.Len(t, nodes, resp.TotalCount)
 				}
 			})
 		}

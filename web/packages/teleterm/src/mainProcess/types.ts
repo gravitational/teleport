@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { AgentConfigFileClusterProperties } from 'teleterm/mainProcess/createAgentConfigFile';
+import { CreateAgentConfigFileArgs } from 'teleterm/mainProcess/createAgentConfigFile';
 import { DeepLinkParseResult } from 'teleterm/deepLinks';
 import { RootClusterUri } from 'teleterm/ui/uri';
 
@@ -134,9 +134,7 @@ export type MainProcessClient = {
   openConfigFile(): Promise<string>;
   shouldUseDarkColors(): boolean;
   downloadAgent(): Promise<void>;
-  createAgentConfigFile(
-    properties: AgentConfigFileClusterProperties
-  ): Promise<void>;
+  createAgentConfigFile(args: CreateAgentConfigFileArgs): Promise<void>;
   openAgentLogsDirectory(args: {
     rootClusterUri: RootClusterUri;
   }): Promise<void>;
@@ -146,6 +144,13 @@ export type MainProcessClient = {
   }): Promise<boolean>;
   killAgent(args: { rootClusterUri: RootClusterUri }): Promise<void>;
   removeAgentDirectory(args: { rootClusterUri: RootClusterUri }): Promise<void>;
+  /**
+   * tryRemoveConnectMyComputerAgentBinary removes the agent binary but only if all agents are
+   * stopped.
+   *
+   * Rejects on filesystem errors.
+   */
+  tryRemoveConnectMyComputerAgentBinary(): Promise<void>;
   getAgentState(args: { rootClusterUri: RootClusterUri }): AgentProcessState;
   getAgentLogs(args: { rootClusterUri: RootClusterUri }): string;
   signalUserInterfaceReadiness(args: { success: boolean }): void;
@@ -259,6 +264,7 @@ export enum RendererIpc {
 
 export enum MainProcessIpc {
   GetRuntimeSettings = 'main-process-get-runtime-settings',
+  TryRemoveConnectMyComputerAgentBinary = 'main-process-try-remove-connect-my-computer-agent-binary',
 }
 
 export enum WindowsManagerIpc {

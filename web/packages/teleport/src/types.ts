@@ -64,6 +64,7 @@ export enum NavTitle {
   // Resources Requests
   NewRequest = 'New Request',
   ReviewRequests = 'Review Requests',
+  AccessGraph = 'Access Graph',
 
   // Activity
   SessionRecordings = 'Session Recordings',
@@ -162,6 +163,8 @@ export interface FeatureFlags {
   accessMonitoring: boolean;
   // Whether or not the management section should be available.
   managementSection: boolean;
+  accessGraph: boolean;
+  externalAuditStorage: boolean;
 }
 
 // LockedFeatures are used for determining which features are disabled in the user's cluster.

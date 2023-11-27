@@ -34,5 +34,6 @@ export { SecurityGroupPicker } from './SecurityGroupPicker';
 export type { ViewRulesSelection } from './SecurityGroupPicker';
 export { AwsAccount } from './AwsAccount';
 export { DisableableCell, Labels, labelMatcher, RadioCell } from './Aws';
+export { StyledBox } from './StyledBox';
 
 export type { DiscoverLabel } from './LabelsCreater';

@@ -1,4 +1,6 @@
-# This image builds clang from source. clang7 is required to build boringssl, clang10 is required for BPF.
+# syntax=docker/dockerfile:1
+
+# This image builds clang from source. clang12 is required to build boringssl, clang10+ is required for BPF.
 ARG BUILDBOX_VERSION
 ARG BUILDBOX_PREFIX
 

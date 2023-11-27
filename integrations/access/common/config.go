@@ -20,16 +20,13 @@ import (
 	"context"
 
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
-	"google.golang.org/grpc"
-	grpcbackoff "google.golang.org/grpc/backoff"
 
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integrations/access/common/teleport"
 	"github.com/gravitational/teleport/integrations/lib"
-	"github.com/gravitational/teleport/integrations/lib/credentials"
 	"github.com/gravitational/teleport/integrations/lib/logger"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 type PluginConfiguration interface {
@@ -50,33 +47,34 @@ func (c BaseConfig) GetRecipients() RawRecipientsMap {
 	return c.Recipients
 }
 
-func (c BaseConfig) GetTeleportClient(ctx context.Context) (teleport.Client, error) {
-	if validCred, err := credentials.CheckIfExpired(c.Teleport.Credentials()); err != nil {
-		log.Warn(err)
-		if !validCred {
-			return nil, trace.BadParameter(
-				"No valid credentials found, this likely means credentials are expired. In this case, please sign new credentials and increase their TTL if needed.",
-			)
-		}
-		log.Info("At least one non-expired credential has been found, continuing startup")
+type wrappedClient struct {
+	*client.Client
+}
+
+func (w *wrappedClient) AccessListClient() services.AccessLists {
+	return w.Client.AccessListClient()
+}
+
+// wrapAPIClient will wrap the API client such that it conforms to the Teleport plugin client interface.
+func wrapAPIClient(clt *client.Client) teleport.Client {
+	return &wrappedClient{
+		Client: clt,
 	}
+}
 
-	bk := grpcbackoff.DefaultConfig
-	bk.MaxDelay = grpcBackoffMaxDelay
-
-	clt, err := client.New(ctx, client.Config{
-		Addrs:       c.Teleport.GetAddrs(),
-		Credentials: c.Teleport.Credentials(),
-		DialOpts: []grpc.DialOption{
-			grpc.WithConnectParams(grpc.ConnectParams{Backoff: bk, MinConnectTimeout: initTimeout}),
-			grpc.WithReturnConnectionError(),
-		},
-	})
+// GetTeleportClient will return a Teleport plugin client given a config.
+func GetTeleportClient(ctx context.Context, conf lib.TeleportConfig) (teleport.Client, error) {
+	clt, err := conf.NewClient(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return clt, nil
+	return wrapAPIClient(clt), nil
+}
+
+// GetTeleportClient returns a Teleport plugin client for the given config.
+func (c BaseConfig) GetTeleportClient(ctx context.Context) (teleport.Client, error) {
+	return GetTeleportClient(ctx, c.Teleport)
 }
 
 // GetPluginType returns the type of plugin this config is for.

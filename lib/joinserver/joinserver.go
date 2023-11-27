@@ -20,6 +20,8 @@ package joinserver
 
 import (
 	"context"
+	"net"
+	"slices"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -29,6 +31,9 @@ import (
 
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 const (
@@ -109,7 +114,14 @@ func (s *JoinServiceGRPCServer) registerUsingIAMMethod(ctx context.Context, srv 
 
 		// Then get the response from the client and return it.
 		req, err := srv.Recv()
-		return req, trace.Wrap(err)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if err := setClientRemoteAddr(ctx, req.RegisterUsingTokenRequest); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return req, nil
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -160,6 +172,28 @@ func (s *JoinServiceGRPCServer) RegisterUsingAzureMethod(srv proto.JoinService_R
 	}
 }
 
+func checkForProxyRole(identity tlsca.Identity) bool {
+	const proxyRole = string(types.RoleProxy)
+	return slices.Contains(identity.Groups, proxyRole) || slices.Contains(identity.SystemRoles, proxyRole)
+}
+
+func setClientRemoteAddr(ctx context.Context, req *types.RegisterUsingTokenRequest) error {
+	// If request is coming from the Proxy, trust the IP set on the request.
+	if user, err := authz.UserFromContext(ctx); err == nil && checkForProxyRole(user.GetIdentity()) {
+		return nil
+	}
+	// Otherwise this is (likely) the proxy, set the IP from the connection.
+	p, ok := peer.FromContext(ctx)
+	if !ok {
+		return trace.BadParameter("could not get peer from the context")
+	}
+	req.RemoteAddr = p.Addr.String() // Addr without port is used in tests.
+	if ip, _, err := net.SplitHostPort(req.RemoteAddr); err == nil {
+		req.RemoteAddr = ip
+	}
+	return nil
+}
+
 func (s *JoinServiceGRPCServer) registerUsingAzureMethod(ctx context.Context, srv proto.JoinService_RegisterUsingAzureMethodServer) error {
 	certs, err := s.joinServiceClient.RegisterUsingAzureMethod(ctx, func(challenge string) (*proto.RegisterUsingAzureMethodRequest, error) {
 		err := srv.Send(&proto.RegisterUsingAzureMethodResponse{
@@ -170,7 +204,14 @@ func (s *JoinServiceGRPCServer) registerUsingAzureMethod(ctx context.Context, sr
 		}
 
 		req, err := srv.Recv()
-		return req, trace.Wrap(err)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if err := setClientRemoteAddr(ctx, req.RegisterUsingTokenRequest); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return req, nil
 	})
 	if err != nil {
 		return trace.Wrap(err)

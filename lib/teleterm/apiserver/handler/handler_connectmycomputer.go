@@ -16,7 +16,6 @@ package handler
 
 import (
 	"context"
-	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -36,17 +35,8 @@ func (s *Handler) CreateConnectMyComputerNodeToken(ctx context.Context, req *api
 		return nil, trace.Wrap(err)
 	}
 
-	apiLabels := APILabels{}
-	for labelName, labelValues := range token.Labels {
-		apiLabels = append(apiLabels, &api.Label{
-			Name:  labelName,
-			Value: strings.Join(labelValues, " "),
-		})
-	}
-
 	response := &api.CreateConnectMyComputerNodeTokenResponse{
-		Token:  token.Token,
-		Labels: apiLabels,
+		Token: token,
 	}
 
 	return response, nil

@@ -20,7 +20,6 @@ import (
 	"crypto"
 	"crypto/tls"
 	"crypto/x509"
-	"net"
 	"os"
 	"sync"
 
@@ -545,9 +544,17 @@ func (d *DynamicIdentityFileCreds) TLSConfig() (*tls.Config, error) {
 // SSHClientConfig returns SSH configuration, implementing the Credentials
 // interface.
 func (d *DynamicIdentityFileCreds) SSHClientConfig() (*ssh.ClientConfig, error) {
-	// This lock is necessary for `d.sshCert` used in `cfg.User`.
-	d.mu.RLock()
-	defer d.mu.RUnlock()
+	hostKeyCallback, err := sshutils.NewHostKeyCallback(sshutils.HostKeyCallbackConfig{
+		GetHostCheckers: func() ([]ssh.PublicKey, error) {
+			d.mu.RLock()
+			defer d.mu.RUnlock()
+			return d.sshKnownHosts, nil
+		},
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// Build a "dynamic" ssh config. Based roughly on
 	// `sshutils.ProxyClientSSHConfig` with modifications to make it work with
 	// dynamically changing credentials and CAs.
@@ -563,29 +570,21 @@ func (d *DynamicIdentityFileCreds) SSHClientConfig() (*ssh.ClientConfig, error) 
 				return []ssh.Signer{sshSigner}, nil
 			}),
 		},
-		HostKeyCallback: func(hostname string, remote net.Addr, key ssh.PublicKey) error {
-			d.mu.RLock()
-			defer d.mu.RUnlock()
-			hostKeyCallback, err := sshutils.HostKeyCallback(
-				d.sshKnownHosts,
-				false,
-			)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			return hostKeyCallback(hostname, remote, key)
-		},
-		Timeout: defaults.DefaultIOTimeout,
-		User:    userFromSSHCert(d.sshCert),
+		HostKeyCallback: hostKeyCallback,
+		Timeout:         defaults.DefaultIOTimeout,
+		// We use this because we can't always guarantee that a user will have
+		// a principal other than this (they may not have access to SSH nodes)
+		// and the actual user here doesn't matter for auth server API
+		// authentication. All that matters is that the principal specified here
+		// is stable across all certificates issued to the user, since this
+		// value cannot be changed in a following rotation -
+		// SSHSessionJoinPrincipal is included on all user ssh certs.
+		//
+		// This is a bit of a hack - the ideal solution is a refactor of the
+		// API client in order to support the SSH config being generated at
+		// time of use, rather than a single SSH config being made dynamic.
+		// ~ noah
+		User: "-teleport-internal-join",
 	}
 	return cfg, nil
-}
-
-func userFromSSHCert(c *ssh.Certificate) string {
-	// The KeyId is not always a valid principal, so we prefer the first valid
-	// principal.
-	if len(c.ValidPrincipals) > 0 {
-		return c.ValidPrincipals[0]
-	}
-	return c.KeyId
 }

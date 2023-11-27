@@ -1,5 +1,4 @@
 /*
- *
  * Copyright 2023 Gravitational, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,7 +12,6 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- *
  */
 
 package local
@@ -43,6 +41,7 @@ func DefaultUserPreferences() *userpreferencesv1.UserPreferences {
 		Theme: userpreferencesv1.Theme_THEME_LIGHT,
 		UnifiedResourcePreferences: &userpreferencesv1.UnifiedResourcePreferences{
 			DefaultTab: userpreferencesv1.DefaultTab_DEFAULT_TAB_ALL,
+			ViewMode:   userpreferencesv1.ViewMode_VIEW_MODE_CARD,
 		},
 		Onboard: &userpreferencesv1.OnboardUserPreferences{
 			PreferredResources: []userpreferencesv1.Resource{},

@@ -33,7 +33,7 @@ import { StyledIndicator } from 'teleport/Main';
 import * as service from 'teleport/services/userPreferences';
 import cfg from 'teleport/config';
 
-import storage, { KeysEnum } from 'teleport/services/localStorage';
+import { KeysEnum, storageService } from 'teleport/services/storageService';
 
 import {
   deprecatedThemeToThemePreference,
@@ -77,7 +77,7 @@ export function UserContextProvider(props: PropsWithChildren<unknown>) {
     if (clusterPreferences.current[clusterId]) {
       // we know that pinned resources is supported because we've already successfully
       // fetched their pinned resources once before
-      localStorage.removeItem(KeysEnum.PINNED_RESOURCES_NOT_SUPPORTED);
+      window.localStorage.removeItem(KeysEnum.PINNED_RESOURCES_NOT_SUPPORTED);
       return clusterPreferences.current[clusterId].pinnedResources;
     }
     const prefs = await service.getUserClusterPreferences(clusterId);
@@ -104,8 +104,8 @@ export function UserContextProvider(props: PropsWithChildren<unknown>) {
   };
 
   async function loadUserPreferences() {
-    const storedPreferences = storage.getUserPreferences();
-    const theme = storage.getDeprecatedThemePreference();
+    const storedPreferences = storageService.getUserPreferences();
+    const theme = storageService.getDeprecatedThemePreference();
 
     try {
       const preferences = await service.getUserPreferences();
@@ -124,12 +124,12 @@ export function UserContextProvider(props: PropsWithChildren<unknown>) {
             updatePreferences(preferences);
           }
 
-          storage.clearDeprecatedThemePreference();
+          storageService.clearDeprecatedThemePreference();
         }
       }
 
       setPreferences(preferences);
-      storage.setUserPreferences(preferences);
+      storageService.setUserPreferences(preferences);
     } catch (err) {
       if (storedPreferences) {
         setPreferences(storedPreferences);
@@ -167,7 +167,7 @@ export function UserContextProvider(props: PropsWithChildren<unknown>) {
       clusterPreferences: clusterPreferences.current[cfg.proxyCluster],
     } as UserPreferences;
     setPreferences(nextPreferences);
-    storage.setUserPreferences(nextPreferences);
+    storageService.setUserPreferences(nextPreferences);
 
     return service.updateUserPreferences(nextPreferences);
   }
@@ -181,9 +181,9 @@ export function UserContextProvider(props: PropsWithChildren<unknown>) {
       setPreferences(JSON.parse(event.newValue));
     }
 
-    storage.subscribe(receiveMessage);
+    storageService.subscribe(receiveMessage);
 
-    return () => storage.unsubscribe(receiveMessage);
+    return () => storageService.unsubscribe(receiveMessage);
   }, []);
 
   useEffect(() => {

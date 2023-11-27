@@ -24,7 +24,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/url"
-	"regexp"
 	"strings"
 
 	awssdk "github.com/aws/aws-sdk-go/aws"
@@ -39,7 +38,6 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/authz"
 	cloudaws "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/aws"
@@ -236,12 +234,7 @@ func executeSTSIdentityRequest(ctx context.Context, client utils.HTTPDoClient, r
 // of zero or more characters and "?" to match any single character.
 // See https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_resource.html
 func arnMatches(pattern, arn string) (bool, error) {
-	pattern = regexp.QuoteMeta(pattern)
-	pattern = strings.ReplaceAll(pattern, `\*`, ".*")
-	pattern = strings.ReplaceAll(pattern, `\?`, ".")
-	pattern = "^" + pattern + "$"
-	matched, err := regexp.MatchString(pattern, arn)
-	return matched, trace.Wrap(err)
+	return globMatch(pattern, arn)
 }
 
 // checkIAMAllowRules checks if the given identity matches any of the given
@@ -354,11 +347,6 @@ func (a *Server) RegisterUsingIAMMethod(ctx context.Context, challengeResponse c
 		opt(cfg)
 	}
 
-	clientAddr, err := authz.ClientAddrFromContext(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	challenge, err := generateIAMChallenge()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -369,8 +357,6 @@ func (a *Server) RegisterUsingIAMMethod(ctx context.Context, challengeResponse c
 		return nil, trace.Wrap(err)
 	}
 
-	// fill in the client remote addr to the register request
-	req.RegisterUsingTokenRequest.RemoteAddr = clientAddr.String()
 	if err := req.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -453,8 +439,9 @@ func createSignedSTSIdentityRequest(ctx context.Context, challenge string, opts 
 
 func newSTSClient(ctx context.Context, cfg *stsIdentityRequestConfig) (*sts.STS, error) {
 	awsConfig := awssdk.Config{
-		UseFIPSEndpoint:     cfg.fipsEndpointOption,
-		STSRegionalEndpoint: cfg.regionalEndpointOption,
+		EC2MetadataEnableFallback: awssdk.Bool(false),
+		UseFIPSEndpoint:           cfg.fipsEndpointOption,
+		STSRegionalEndpoint:       cfg.regionalEndpointOption,
 	}
 	sess, err := session.NewSessionWithOptions(session.Options{
 		SharedConfigState: session.SharedConfigEnable,

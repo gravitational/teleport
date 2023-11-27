@@ -22,61 +22,41 @@ import (
 	"github.com/gravitational/trace"
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
 	resourcesv2 "github.com/gravitational/teleport/integrations/operator/apis/resources/v2"
-	"github.com/gravitational/teleport/integrations/operator/sidecar"
 )
 
 // samlConnectorClient implements TeleportResourceClient and offers CRUD methods needed to reconcile saml_connectors
 type samlConnectorClient struct {
-	TeleportClientAccessor sidecar.ClientAccessor
+	teleportClient *client.Client
 }
 
 // Get gets the Teleport saml_connector of a given name
 func (r samlConnectorClient) Get(ctx context.Context, name string) (types.SAMLConnector, error) {
-	teleportClient, err := r.TeleportClientAccessor(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	saml, err := teleportClient.GetSAMLConnector(ctx, name, false /* with secrets*/)
+	saml, err := r.teleportClient.GetSAMLConnector(ctx, name, false /* with secrets*/)
 	return saml, trace.Wrap(err)
 }
 
 // Create creates a Teleport saml_connector
 func (r samlConnectorClient) Create(ctx context.Context, saml types.SAMLConnector) error {
-	teleportClient, err := r.TeleportClientAccessor(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return trace.Wrap(teleportClient.UpsertSAMLConnector(ctx, saml))
+	return trace.Wrap(r.teleportClient.UpsertSAMLConnector(ctx, saml))
 }
 
 // Update updates a Teleport saml_connector
 func (r samlConnectorClient) Update(ctx context.Context, saml types.SAMLConnector) error {
-	teleportClient, err := r.TeleportClientAccessor(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return trace.Wrap(teleportClient.UpsertSAMLConnector(ctx, saml))
+	return trace.Wrap(r.teleportClient.UpsertSAMLConnector(ctx, saml))
 }
 
 // Delete deletes a Teleport saml_connector
 func (r samlConnectorClient) Delete(ctx context.Context, name string) error {
-	teleportClient, err := r.TeleportClientAccessor(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return trace.Wrap(teleportClient.DeleteSAMLConnector(ctx, name))
+	return trace.Wrap(r.teleportClient.DeleteSAMLConnector(ctx, name))
 }
 
 // NewSAMLConnectorReconciler instantiates a new Kubernetes controller reconciling saml_connector resources
-func NewSAMLConnectorReconciler(client kclient.Client, accessor sidecar.ClientAccessor) *TeleportResourceReconciler[types.SAMLConnector, *resourcesv2.TeleportSAMLConnector] {
+func NewSAMLConnectorReconciler(client kclient.Client, tClient *client.Client) *TeleportResourceReconciler[types.SAMLConnector, *resourcesv2.TeleportSAMLConnector] {
 	samlClient := &samlConnectorClient{
-		TeleportClientAccessor: accessor,
+		teleportClient: tClient,
 	}
 
 	resourceReconciler := NewTeleportResourceReconciler[types.SAMLConnector, *resourcesv2.TeleportSAMLConnector](

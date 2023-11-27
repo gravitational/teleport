@@ -218,6 +218,8 @@ func ParseShortcut(in string) (string, error) {
 		return types.KindAuditQuery, nil
 	case types.KindSecurityReport:
 		return types.KindSecurityReport, nil
+	case types.KindServerInfo:
+		return types.KindServerInfo, nil
 	}
 	return "", trace.BadParameter("unsupported resource: %q - resources should be expressed as 'type/name', for example 'connector/github'", in)
 }
@@ -592,6 +594,42 @@ func init() {
 			return nil, trace.Wrap(err)
 		}
 		return lock, nil
+	})
+	RegisterResourceMarshaler(types.KindClusterNetworkingConfig, func(resource types.Resource, opts ...MarshalOption) ([]byte, error) {
+		cnc, ok := resource.(types.ClusterNetworkingConfig)
+		if !ok {
+			return nil, trace.BadParameter("expected cluster_networking_config go %T", resource)
+		}
+		bytes, err := MarshalClusterNetworkingConfig(cnc, opts...)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return bytes, nil
+	})
+	RegisterResourceUnmarshaler(types.KindClusterNetworkingConfig, func(bytes []byte, opts ...MarshalOption) (types.Resource, error) {
+		cnc, err := UnmarshalClusterNetworkingConfig(bytes, opts...)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return cnc, nil
+	})
+	RegisterResourceMarshaler(types.KindClusterAuthPreference, func(resource types.Resource, opts ...MarshalOption) ([]byte, error) {
+		ap, ok := resource.(types.AuthPreference)
+		if !ok {
+			return nil, trace.BadParameter("expected cluster_auth_preference go %T", resource)
+		}
+		bytes, err := MarshalAuthPreference(ap, opts...)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return bytes, nil
+	})
+	RegisterResourceUnmarshaler(types.KindClusterAuthPreference, func(bytes []byte, opts ...MarshalOption) (types.Resource, error) {
+		ap, err := UnmarshalAuthPreference(bytes, opts...)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return ap, nil
 	})
 }
 

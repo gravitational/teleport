@@ -96,6 +96,7 @@ const clusters = [
 const nodes: Node[] = [
   {
     kind: 'node',
+    subKind: 'teleport',
     tunnel: false,
     sshLogins: ['dev', 'root'],
     id: '104',
@@ -115,6 +116,7 @@ const nodes: Node[] = [
   },
   {
     kind: 'node',
+    subKind: 'teleport',
     tunnel: false,
     sshLogins: ['dev', 'root'],
     id: '170',
@@ -134,6 +136,7 @@ const nodes: Node[] = [
   },
   {
     kind: 'node',
+    subKind: 'teleport',
     tunnel: true,
     sshLogins: ['dev', 'root'],
     id: '192',
@@ -153,6 +156,7 @@ const nodes: Node[] = [
   },
   {
     kind: 'node',
+    subKind: 'teleport',
     tunnel: true,
     sshLogins: ['dev', 'root'],
     id: '64',
@@ -172,6 +176,7 @@ const nodes: Node[] = [
   },
   {
     kind: 'node',
+    subKind: 'teleport',
     tunnel: false,
     sshLogins: ['dev', 'root'],
     id: '81',

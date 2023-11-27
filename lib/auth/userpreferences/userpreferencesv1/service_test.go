@@ -23,6 +23,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	userpreferencesv1 "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
@@ -60,6 +61,7 @@ func TestService_GetUserPreferences(t *testing.T) {
 					Theme: userpreferencesv1.Theme_THEME_LIGHT,
 					UnifiedResourcePreferences: &userpreferencesv1.UnifiedResourcePreferences{
 						DefaultTab: userpreferencesv1.DefaultTab_DEFAULT_TAB_ALL,
+						ViewMode:   userpreferencesv1.ViewMode_VIEW_MODE_CARD,
 					},
 					Onboard: &userpreferencesv1.OnboardUserPreferences{
 						PreferredResources: []userpreferencesv1.Resource{},
@@ -150,6 +152,17 @@ func TestService_UpsertUserPreferences(t *testing.T) {
 	}
 }
 
+type testClient struct {
+	services.ClusterConfiguration
+	services.Trust
+	services.RoleGetter
+	services.UserGetter
+}
+
+func (c *testClient) ValidateMFAAuthResponse(ctx context.Context, resp *proto.MFAAuthenticateResponse, user string, passwordless bool) (*types.MFADevice, string, error) {
+	return nil, "", nil
+}
+
 func initSvc(t *testing.T) (map[string]context.Context, *Service) {
 	ctx := context.Background()
 	backend, err := memory.New(memory.Config{})
@@ -166,12 +179,7 @@ func initSvc(t *testing.T) (map[string]context.Context, *Service) {
 	require.NoError(t, clusterConfigSvc.SetClusterNetworkingConfig(ctx, types.DefaultClusterNetworkingConfig()))
 	require.NoError(t, clusterConfigSvc.SetSessionRecordingConfig(ctx, types.DefaultSessionRecordingConfig()))
 
-	accessPoint := struct {
-		services.ClusterConfiguration
-		services.Trust
-		services.RoleGetter
-		services.UserGetter
-	}{
+	accessPoint := &testClient{
 		ClusterConfiguration: clusterConfigSvc,
 		Trust:                trustSvc,
 		RoleGetter:           roleSvc,

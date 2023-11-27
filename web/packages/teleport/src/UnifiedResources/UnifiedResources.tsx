@@ -19,31 +19,37 @@ import React, { useCallback, useState } from 'react';
 import { Flex } from 'design';
 
 import {
+  FilterKind,
   UnifiedResources as SharedUnifiedResources,
-  UnifiedResourcesPinning,
   useUnifiedResourcesFetch,
+  UnifiedResourcesPinning,
 } from 'shared/components/UnifiedResources';
 
 import useStickyClusterId from 'teleport/useStickyClusterId';
-import localStorage from 'teleport/services/localStorage';
+import { storageService } from 'teleport/services/storageService';
 import { useUser } from 'teleport/User/UserContext';
 import { useTeleport } from 'teleport';
 import { useUrlFiltering } from 'teleport/components/hooks';
 import { UnifiedTabPreference } from 'teleport/services/userPreferences/types';
 import history from 'teleport/services/history';
 import cfg from 'teleport/config';
-import { FeatureHeader, FeatureHeaderTitle } from 'teleport/components/Layout';
+import {
+  FeatureHeader,
+  FeatureHeaderTitle,
+  FeatureBox,
+} from 'teleport/components/Layout';
 import AgentButtonAdd from 'teleport/components/AgentButtonAdd';
 import { SearchResource } from 'teleport/Discover/SelectResource';
 import { encodeUrlQueryParams } from 'teleport/components/hooks/useUrlFiltering';
 import Empty, { EmptyStateInfo } from 'teleport/components/Empty';
+import { FeatureFlags } from 'teleport/types';
 
 import { ResourceActionButton } from './ResourceActionButton';
 import SearchPanel from './SearchPanel';
 
 export function UnifiedResources() {
   const { clusterId, isLeafCluster } = useStickyClusterId();
-  const enabled = localStorage.areUnifiedResourcesEnabled();
+  const enabled = storageService.areUnifiedResourcesEnabled();
 
   if (!enabled) {
     history.replace(cfg.getNodesRoute(clusterId));
@@ -58,6 +64,31 @@ export function UnifiedResources() {
   );
 }
 
+const getAvailableKindsWithAccess = (flags: FeatureFlags): FilterKind[] => {
+  return [
+    {
+      kind: 'node',
+      disabled: !flags.nodes,
+    },
+    {
+      kind: 'app',
+      disabled: !flags.applications,
+    },
+    {
+      kind: 'db',
+      disabled: !flags.databases,
+    },
+    {
+      kind: 'kube_cluster',
+      disabled: !flags.kubernetes,
+    },
+    {
+      kind: 'windows_desktop',
+      disabled: !flags.desktops,
+    },
+  ];
+};
+
 function ClusterResources({
   clusterId,
   isLeafCluster,
@@ -66,8 +97,9 @@ function ClusterResources({
   isLeafCluster: boolean;
 }) {
   const teleCtx = useTeleport();
+  const flags = teleCtx.getFeatureFlags();
 
-  const pinningNotSupported = localStorage.arePinnedResourcesDisabled();
+  const pinningNotSupported = storageService.arePinnedResourcesDisabled();
   const {
     getClusterPinnedResources,
     preferences,
@@ -105,26 +137,34 @@ function ClusterResources({
   const { fetch, resources, attempt, clear } = useUnifiedResourcesFetch({
     fetchFunc: useCallback(
       async (paginationParams, signal) => {
-        const response = await teleCtx.resourceService.fetchUnifiedResources(
-          clusterId,
-          {
-            search: params.search,
-            query: params.query,
-            pinnedOnly: params.pinnedOnly,
-            sort: params.sort,
-            kinds: params.kinds,
-            searchAsRoles: '',
-            limit: paginationParams.limit,
-            startKey: paginationParams.startKey,
-          },
-          signal
-        );
+        try {
+          const response = await teleCtx.resourceService.fetchUnifiedResources(
+            clusterId,
+            {
+              search: params.search,
+              query: params.query,
+              pinnedOnly: params.pinnedOnly,
+              sort: params.sort,
+              kinds: params.kinds,
+              searchAsRoles: '',
+              limit: paginationParams.limit,
+              startKey: paginationParams.startKey,
+            },
+            signal
+          );
 
-        return {
-          startKey: response.startKey,
-          agents: response.agents,
-          totalCount: response.agents.length,
-        };
+          return {
+            startKey: response.startKey,
+            agents: response.agents,
+            totalCount: response.agents.length,
+          };
+        } catch (err) {
+          if (!storageService.areUnifiedResourcesEnabled()) {
+            history.replace(cfg.getNodesRoute(clusterId));
+          } else {
+            throw err;
+          }
+        }
       },
       [
         clusterId,
@@ -159,74 +199,76 @@ function ClusterResources({
   }
 
   return (
-    <SharedUnifiedResources
-      params={params}
-      fetchResources={fetch}
-      resourcesFetchAttempt={attempt}
-      updateUnifiedResourcesPreferences={preferences => {
-        updatePreferences({ unifiedResourcePreferences: preferences });
-      }}
-      availableKinds={['app', 'db', 'windows_desktop', 'kube_cluster', 'node']}
-      Header={pinAllButton => (
-        <>
-          <FeatureHeader
-            css={`
-              border-bottom: none;
-            `}
-            mb={1}
-            alignItems="center"
-            justifyContent="space-between"
-          >
-            <FeatureHeaderTitle>Resources</FeatureHeaderTitle>
-            <Flex alignItems="center">
-              <AgentButtonAdd
-                agent={SearchResource.UNIFIED_RESOURCE}
-                beginsWithVowel={false}
-                isLeafCluster={isLeafCluster}
-                canCreate={canCreate}
+    <FeatureBox px={4}>
+      <SharedUnifiedResources
+        params={params}
+        fetchResources={fetch}
+        resourcesFetchAttempt={attempt}
+        unifiedResourcePreferences={preferences.unifiedResourcePreferences}
+        updateUnifiedResourcesPreferences={preferences => {
+          updatePreferences({ unifiedResourcePreferences: preferences });
+        }}
+        availableKinds={getAvailableKindsWithAccess(flags)}
+        pinning={pinning}
+        onLabelClick={onLabelClick}
+        NoResources={
+          <Empty
+            clusterId={clusterId}
+            canCreate={canCreate && !isLeafCluster}
+            emptyStateInfo={emptyStateInfo}
+          />
+        }
+        resources={resources.map(resource => ({
+          resource,
+          ui: {
+            ActionButton: <ResourceActionButton resource={resource} />,
+          },
+        }))}
+        setParams={newParams => {
+          setParams(newParams);
+          replaceHistory(
+            encodeUrlQueryParams(
+              pathname,
+              newParams.search,
+              newParams.sort,
+              newParams.kinds,
+              !!newParams.query /* isAdvancedSearch */,
+              newParams.pinnedOnly
+            )
+          );
+        }}
+        Header={
+          <>
+            <FeatureHeader
+              css={`
+                border-bottom: none;
+              `}
+              mb={1}
+              alignItems="center"
+              justifyContent="space-between"
+            >
+              <FeatureHeaderTitle>Resources</FeatureHeaderTitle>
+              <Flex alignItems="center">
+                <AgentButtonAdd
+                  agent={SearchResource.UNIFIED_RESOURCE}
+                  beginsWithVowel={false}
+                  isLeafCluster={isLeafCluster}
+                  canCreate={canCreate}
+                />
+              </Flex>
+            </FeatureHeader>
+            <Flex alignItems="center" justifyContent="space-between">
+              <SearchPanel
+                params={params}
+                pathname={pathname}
+                replaceHistory={replaceHistory}
+                setParams={setParams}
               />
             </Flex>
-          </FeatureHeader>
-          <Flex alignItems="center" justifyContent="space-between">
-            <SearchPanel
-              params={params}
-              pathname={pathname}
-              replaceHistory={replaceHistory}
-              setParams={setParams}
-            />
-            {pinAllButton}
-          </Flex>
-        </>
-      )}
-      setParams={newParams => {
-        setParams(newParams);
-        replaceHistory(
-          encodeUrlQueryParams(
-            pathname,
-            newParams.search,
-            newParams.sort,
-            newParams.kinds,
-            !!newParams.query /* isAdvancedSearch */,
-            newParams.pinnedOnly
-          )
-        );
-      }}
-      pinning={pinning}
-      onLabelClick={onLabelClick}
-      NoResources={
-        <Empty
-          clusterId={clusterId}
-          canCreate={canCreate && !isLeafCluster}
-          emptyStateInfo={emptyStateInfo}
-        />
-      }
-      resources={resources.map(resource => ({
-        resource,
-        ui: {
-          ActionButton: <ResourceActionButton resource={resource} />,
-        },
-      }))}
-    />
+          </>
+        }
+      />
+    </FeatureBox>
   );
 }
 

@@ -40,13 +40,13 @@ func TestOptions(t *testing.T) {
 
 	// test empty scenario
 	out := AddOptions(nil)
-	require.Len(t, out, 0)
+	require.Empty(t, out)
 
 	// make sure original option list is not affected
 	var in []MarshalOption
 	out = AddOptions(in, WithResourceID(1), WithRevision("abc"))
 	require.Len(t, out, 2)
-	require.Len(t, in, 0)
+	require.Empty(t, in)
 	cfg, err := CollectOptions(out)
 	require.NoError(t, err)
 	require.Equal(t, int64(1), cfg.ID)
@@ -55,7 +55,7 @@ func TestOptions(t *testing.T) {
 	// Add a couple of other parameters
 	out = AddOptions(in, WithResourceID(2), WithVersion(types.V2), WithRevision("xyz"))
 	require.Len(t, out, 3)
-	require.Len(t, in, 0)
+	require.Empty(t, in)
 	cfg, err = CollectOptions(out)
 	require.NoError(t, err)
 	require.Equal(t, int64(2), cfg.ID)
@@ -69,7 +69,7 @@ func TestCommandLabels(t *testing.T) {
 
 	var l CommandLabels
 	out := l.Clone()
-	require.Len(t, out, 0)
+	require.Empty(t, out)
 
 	label := &types.CommandLabelV2{Command: []string{"ls", "-l"}, Period: types.Duration(time.Second)}
 	l = CommandLabels{"a": label}

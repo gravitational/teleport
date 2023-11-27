@@ -304,8 +304,9 @@ func (s *IdentityService) CreateUser(ctx context.Context, user types.User) (type
 	return user, nil
 }
 
-// UpdateUser updates an existing user.
-func (s *IdentityService) UpdateUser(ctx context.Context, user types.User) (types.User, error) {
+// LegacyUpdateUser blindly updates an existing user. [IdentityService.UpdateUser] should be
+// used instead so that optimistic locking prevents concurrent resource updates.
+func (s *IdentityService) LegacyUpdateUser(ctx context.Context, user types.User) (types.User, error) {
 	if err := services.ValidateUser(user); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -328,6 +329,38 @@ func (s *IdentityService) UpdateUser(ctx context.Context, user types.User) (type
 		Revision: rev,
 	}
 	lease, err := s.Update(ctx, item)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if auth := user.GetLocalAuth(); auth != nil {
+		if err = s.upsertLocalAuthSecrets(ctx, user.GetName(), *auth); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	user.SetRevision(lease.Revision)
+	user.SetResourceID(lease.ID)
+	return user, nil
+}
+
+// UpdateUser updates an existing user if the revisions match.
+func (s *IdentityService) UpdateUser(ctx context.Context, user types.User) (types.User, error) {
+	if err := services.ValidateUser(user); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	rev := user.GetRevision()
+	value, err := services.MarshalUser(user.WithoutSecrets().(types.User))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	item := backend.Item{
+		Key:      backend.Key(webPrefix, usersPrefix, user.GetName(), paramsPrefix),
+		Value:    value,
+		Expires:  user.Expiry(),
+		ID:       user.GetResourceID(),
+		Revision: rev,
+	}
+	lease, err := s.Backend.ConditionalUpdate(ctx, item)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

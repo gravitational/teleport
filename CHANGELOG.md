@@ -1,5 +1,17 @@
 # Changelog
 
+## 15.0.0 (xx/xx/24)
+
+### Breaking changes
+
+#### `tsh ssh`
+
+When running a command on multiple nodes with `tsh ssh`, each line of output
+is now labeled with the hostname of the node it was written by. Users that
+rely on parsing the output from multiple nodes should pass the `--log-dir` flag
+to `tsh ssh`, which will create a directory where the separated output of each node
+will be written.
+
 ## 14.0.0 (09/20/23)
 
 Teleport 14 brings the following new major features and improvements:

@@ -26,18 +26,15 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"google.golang.org/grpc"
-	grpcbackoff "google.golang.org/grpc/backoff"
 
-	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/integrations/access/common/teleport"
 	"github.com/gravitational/teleport/integrations/lib"
 	"github.com/gravitational/teleport/integrations/lib/backoff"
-	"github.com/gravitational/teleport/integrations/lib/credentials"
 	"github.com/gravitational/teleport/integrations/lib/logger"
 	"github.com/gravitational/teleport/integrations/lib/watcherjob"
 )
@@ -47,8 +44,6 @@ const (
 	minServerVersion = "6.1.0"
 	// pluginName is used to tag PluginData and as a Delegator in Audit log.
 	pluginName = "jira"
-	// grpcBackoffMaxDelay is a maximum time gRPC client waits before reconnection attempt.
-	grpcBackoffMaxDelay = time.Second * 2
 	// initTimeout is used to bound execution time of health check and teleport version check.
 	initTimeout = time.Second * 10
 	// handlerTimeout is used to bound the execution time of watcher event handler.
@@ -57,6 +52,11 @@ const (
 	modifyPluginDataBackoffBase = time.Millisecond
 	// modifyPluginDataBackoffMax is a backoff threshold
 	modifyPluginDataBackoffMax = time.Second
+	// webhookIssueAPIRetryInterval is the time the plugin will wait before grabbing,
+	// the jira issue again if the webhook payload and jira API disagree on the issue status.
+	webhookIssueAPIRetryInterval = time.Second
+	// webhookIssueAPIRetryTimeout the timeout for retrying check that webhook payload matches issue API response.
+	webhookIssueAPIRetryTimeout = 5 * time.Second
 )
 
 var resolveReasonInlineRegex = regexp.MustCompile(`(?im)^ *(resolution|reason) *: *(.+)$`)
@@ -66,20 +66,26 @@ var resolveReasonSeparatorRegex = regexp.MustCompile(`(?im)^ *(resolution|reason
 type App struct {
 	conf Config
 
-	teleport   teleport.Client
-	jira       *Jira
-	webhookSrv *WebhookServer
-	mainJob    lib.ServiceJob
-	statusSink common.StatusSink
+	teleport    teleport.Client
+	jira        *Jira
+	webhookSrv  *WebhookServer
+	mainJob     lib.ServiceJob
+	statusSink  common.StatusSink
+	retryConfig retryutils.LinearConfig
 
 	*lib.Process
 }
 
 func NewApp(conf Config) (*App, error) {
+	retryConfig := retryutils.LinearConfig{
+		Step: webhookIssueAPIRetryInterval,
+		Max:  webhookIssueAPIRetryTimeout,
+	}
 	app := &App{
-		conf:       conf,
-		teleport:   conf.Client,
-		statusSink: conf.StatusSink,
+		conf:        conf,
+		teleport:    conf.Client,
+		statusSink:  conf.StatusSink,
+		retryConfig: retryConfig,
 	}
 	app.mainJob = lib.NewServiceJob(app.run)
 	return app, nil
@@ -138,7 +144,7 @@ func (a *App) run(ctx context.Context) error {
 	watcherJob, err := watcherjob.NewJob(
 		a.teleport,
 		watcherjob.Config{
-			Watch:            types.Watch{Kinds: []types.WatchKind{types.WatchKind{Kind: types.KindAccessRequest}}},
+			Watch:            types.Watch{Kinds: []types.WatchKind{{Kind: types.KindAccessRequest}}},
 			EventFuncTimeout: handlerTimeout,
 		},
 		a.onWatcherEvent,
@@ -169,43 +175,14 @@ func (a *App) run(ctx context.Context) error {
 	return trace.NewAggregate(httpErr, watcherJob.Err())
 }
 
-func (a *App) createTeleportClient(ctx context.Context) error {
-	log := logger.Get(ctx)
-
-	if validCred, err := credentials.CheckIfExpired(a.conf.Teleport.Credentials()); err != nil {
-		log.Warn(err)
-		if !validCred {
-			return trace.BadParameter(
-				"No valid credentials found, this likely means credentials are expired. In this case, please sign new credentials and increase their TTL if needed.",
-			)
-		}
-		log.Info("At least one non-expired credential has been found, continuing startup")
-	}
-
-	var err error
-	bk := grpcbackoff.DefaultConfig
-	bk.MaxDelay = grpcBackoffMaxDelay
-	if a.teleport, err = client.New(ctx, client.Config{
-		Addrs:       a.conf.Teleport.GetAddrs(),
-		Credentials: a.conf.Teleport.Credentials(),
-		DialOpts: []grpc.DialOption{
-			grpc.WithConnectParams(grpc.ConnectParams{Backoff: bk, MinConnectTimeout: initTimeout}),
-			grpc.WithReturnConnectionError(),
-		},
-	}); err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
-}
-
 func (a *App) init(ctx context.Context) error {
 	ctx, cancel := context.WithTimeout(ctx, initTimeout)
 	defer cancel()
 	log := logger.Get(ctx)
 
+	var err error
 	if a.teleport == nil {
-		if err := a.createTeleportClient(ctx); err != nil {
+		if a.teleport, err = common.GetTeleportClient(ctx, a.conf.Teleport); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -216,7 +193,7 @@ func (a *App) init(ctx context.Context) error {
 	}
 
 	var teleportProxyAddr string
-	if pong.ServerFeatures.AdvancedAccessWorkflows {
+	if pong.ServerFeatures.AccessRequests.Enabled {
 		teleportProxyAddr = pong.ProxyPublicAddr
 	}
 
@@ -325,16 +302,39 @@ func (a *App) onJiraWebhook(ctx context.Context, webhook Webhook) error {
 		return trace.Errorf("got webhook without issue info")
 	}
 
-	issue, err := a.jira.GetIssue(ctx, webhook.Issue.ID)
+	retry, err := retryutils.NewLinear(a.retryConfig)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	var issue Issue
+	var statusName string
+	webHookStatusName := strings.ToLower(webhook.Issue.Fields.Status.Name)
+	// Retry until API syncs up with webhook payload.
+	err = retry.For(ctx, func() error {
+		issue, err = a.jira.GetIssue(ctx, webhook.Issue.ID)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		statusName = strings.ToLower(issue.Fields.Status.Name)
+		if webHookStatusName != statusName {
+			return trace.CompareFailed("mismatch of webhook payload and issue API response: %q and %q",
+				webHookStatusName, statusName)
+		}
+		return nil
+	})
+	if err != nil {
+		if statusName == "" {
+			return trace.Errorf("getting Jira issue status: %w", err)
+		}
+		log.Warnf("Using most recent successful getIssue response: %v", err)
+	}
+
 	ctx, log = logger.WithFields(ctx, logger.Fields{
 		"jira_issue_id":  issue.ID,
 		"jira_issue_key": issue.Key,
 	})
 
-	statusName := strings.ToLower(issue.Fields.Status.Name)
 	switch {
 	case statusName == "pending":
 		log.Debug("Issue has pending status, ignoring it")

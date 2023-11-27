@@ -153,7 +153,15 @@ func (p *mockProvider) GenerateHostCert(
 }
 
 func (p *mockProvider) ProxyPing(ctx context.Context) (*webclient.PingResponse, error) {
-	return &webclient.PingResponse{}, nil
+	return &webclient.PingResponse{
+		ClusterName: p.clusterName,
+		Proxy: webclient.ProxySettings{
+			TLSRoutingEnabled: true,
+			SSH: webclient.SSHProxySettings{
+				PublicAddr: p.proxyAddr,
+			},
+		},
+	}, nil
 }
 
 func (p *mockProvider) Config() *BotConfig {
@@ -237,7 +245,7 @@ func getTestIdent(t *testing.T, username string, reqs ...identRequest) *identity
 	ident, err := identity.ReadIdentityFromStore(&identity.LoadIdentityParams{
 		PrivateKeyBytes: privateKey,
 		PublicKeyBytes:  tlsPublicKeyPEM,
-	}, certs, identity.DestinationKinds()...)
+	}, certs)
 	require.NoError(t, err)
 
 	return ident

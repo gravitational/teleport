@@ -96,14 +96,13 @@ func ToEC2Instances(insts []*ec2.Instance) []EC2Instance {
 func (i *EC2Instances) ServerInfos() ([]types.ServerInfo, error) {
 	serverInfos := make([]types.ServerInfo, 0, len(i.Instances))
 	for _, instance := range i.Instances {
-		name := i.AccountID + "-" + instance.InstanceID
 		tags := make(map[string]string, len(instance.Tags))
 		for k, v := range instance.Tags {
 			tags[labels.FormatCloudLabelKey(labels.AWSLabelNamespace, k)] = v
 		}
 
 		si, err := types.NewServerInfo(types.Metadata{
-			Name: name,
+			Name: types.ServerInfoNameFromAWS(i.AccountID, instance.InstanceID),
 		}, types.ServerInfoSpecV1{
 			NewLabels: tags,
 		})
@@ -145,10 +144,10 @@ func (instances *EC2Instances) MakeEvents() map[string]*usageeventsv1.ResourceCr
 }
 
 // NewEC2Watcher creates a new EC2 watcher instance.
-func NewEC2Watcher(ctx context.Context, matchers []types.AWSMatcher, clients cloud.Clients, missedRotation <-chan []types.Server, opts ...Option) (*Watcher, error) {
+func NewEC2Watcher(ctx context.Context, fetchersFn func() []Fetcher, missedRotation <-chan []types.Server, opts ...Option) (*Watcher, error) {
 	cancelCtx, cancelFn := context.WithCancel(ctx)
 	watcher := Watcher{
-		fetchers:       []Fetcher{},
+		fetchersFn:     fetchersFn,
 		ctx:            cancelCtx,
 		cancel:         cancelFn,
 		pollInterval:   time.Minute,
@@ -158,10 +157,18 @@ func NewEC2Watcher(ctx context.Context, matchers []types.AWSMatcher, clients clo
 	for _, opt := range opts {
 		opt(&watcher)
 	}
+	return &watcher, nil
+}
+
+// MatchersToEC2InstanceFetchers converts a list of AWS EC2 Matchers into a list of AWS EC2 Fetchers.
+func MatchersToEC2InstanceFetchers(ctx context.Context, matchers []types.AWSMatcher, clients cloud.Clients) ([]Fetcher, error) {
+	ret := []Fetcher{}
 	for _, matcher := range matchers {
 		for _, region := range matcher.Regions {
 			// TODO(gavin): support assume_role_arn for ec2.
-			ec2Client, err := clients.GetAWSEC2Client(ctx, region)
+			ec2Client, err := clients.GetAWSEC2Client(ctx, region,
+				cloud.WithCredentialsMaybeIntegration(matcher.Integration),
+			)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -176,10 +183,10 @@ func NewEC2Watcher(ctx context.Context, matchers []types.AWSMatcher, clients clo
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			watcher.fetchers = append(watcher.fetchers, fetcher)
+			ret = append(ret, fetcher)
 		}
 	}
-	return &watcher, nil
+	return ret, nil
 }
 
 type ec2FetcherConfig struct {

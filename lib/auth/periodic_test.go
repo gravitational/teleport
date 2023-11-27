@@ -93,7 +93,7 @@ func TestInstanceMetricsPeriodic(t *testing.T) {
 
 			require.Equal(t, tt.expectEnrolled, periodic.TotalEnrolledInUpgrades(), "tt=%q", tt.desc)
 
-			require.Equal(t, len(tt.upgraders), periodic.TotalInstances(), "tt=%q", tt.desc)
+			require.Len(t, tt.upgraders, periodic.TotalInstances(), "tt=%q", tt.desc)
 		})
 	}
 }

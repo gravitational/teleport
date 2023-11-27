@@ -130,8 +130,8 @@ func (s *PagerdutySuite) SetupSuite() {
 			},
 		},
 	}
-	if teleportFeatures.AdvancedAccessWorkflows {
-		conditions.Request.Thresholds = []types.AccessReviewThreshold{types.AccessReviewThreshold{Approve: 2, Deny: 2}}
+	if teleportFeatures.AccessRequests.Enabled {
+		conditions.Request.Thresholds = []types.AccessReviewThreshold{{Approve: 2, Deny: 2}}
 	}
 	// This is the role for testing notification incident creation.
 	role, err := bootstrap.AddRole("foo", types.RoleSpecV6{Allow: conditions})
@@ -141,7 +141,7 @@ func (s *PagerdutySuite) SetupSuite() {
 	require.NoError(t, err)
 	s.userNames.requestor = user.GetName()
 
-	if teleportFeatures.AdvancedAccessWorkflows {
+	if teleportFeatures.AccessRequests.Enabled {
 		// Set up TWO users who can review access requests to role "editor".
 
 		role, err = bootstrap.AddRole("foo-reviewer", types.RoleSpecV6{
@@ -208,7 +208,7 @@ func (s *PagerdutySuite) SetupSuite() {
 			types.NewRule("access_plugin_data", []string{"update"}),
 		},
 	}
-	if teleportFeatures.AdvancedAccessWorkflows {
+	if teleportFeatures.AccessRequests.Enabled {
 		conditions.ReviewRequests = &types.AccessReviewConditions{Roles: []string{"editor"}}
 	}
 
@@ -232,7 +232,7 @@ func (s *PagerdutySuite) SetupSuite() {
 	require.NoError(t, err)
 	s.clients[s.userNames.requestor] = client
 
-	if teleportFeatures.AdvancedAccessWorkflows {
+	if teleportFeatures.AccessRequests.Enabled {
 		client, err = teleport.NewClient(ctx, auth, s.userNames.approver)
 		require.NoError(t, err)
 		s.clients[s.userNames.approver] = client
@@ -429,7 +429,7 @@ func (s *PagerdutySuite) TestDenial() {
 func (s *PagerdutySuite) TestReviewNotes() {
 	t := s.T()
 
-	if !s.teleportFeatures.AdvancedAccessWorkflows {
+	if !s.teleportFeatures.AccessRequests.Enabled {
 		t.Skip("Doesn't work in OSS version")
 	}
 
@@ -475,7 +475,7 @@ func (s *PagerdutySuite) TestReviewNotes() {
 func (s *PagerdutySuite) TestApprovalByReview() {
 	t := s.T()
 
-	if !s.teleportFeatures.AdvancedAccessWorkflows {
+	if !s.teleportFeatures.AccessRequests.Enabled {
 		t.Skip("Doesn't work in OSS version")
 	}
 
@@ -531,7 +531,7 @@ func (s *PagerdutySuite) TestApprovalByReview() {
 func (s *PagerdutySuite) TestDenialByReview() {
 	t := s.T()
 
-	if !s.teleportFeatures.AdvancedAccessWorkflows {
+	if !s.teleportFeatures.AccessRequests.Enabled {
 		t.Skip("Doesn't work in OSS version")
 	}
 
@@ -640,7 +640,7 @@ func (s *PagerdutySuite) assertReviewSubmitted() {
 	ev := s.assertNewEvent(watcher, types.OpPut, types.KindAccessRequest, reqID)
 	request, ok := ev.Resource.(types.AccessRequest)
 	require.True(t, ok)
-	assert.Len(t, request.GetReviews(), 0)
+	assert.Empty(t, request.GetReviews())
 	assert.Equal(t, types.RequestState_PENDING, request.GetState())
 
 	ev = s.assertNewEvent(watcher, types.OpPut, types.KindAccessRequest, reqID)
@@ -672,20 +672,20 @@ func (s *PagerdutySuite) assertNoReviewSubmitted() {
 	request, ok := ev.Resource.(types.AccessRequest)
 	require.True(t, ok)
 	assert.Equal(t, types.RequestState_PENDING, request.GetState())
-	assert.Len(t, request.GetReviews(), 0)
+	assert.Empty(t, request.GetReviews())
 
 	s.assertNoNewEvents(watcher)
 
 	request, err = s.ruler().GetAccessRequest(s.Context(), request.GetName())
 	require.NoError(t, err)
 	assert.Equal(t, types.RequestState_PENDING, request.GetState())
-	assert.Len(t, request.GetReviews(), 0)
+	assert.Empty(t, request.GetReviews())
 }
 
 func (s *PagerdutySuite) TestAutoApprovalWhenNotOnCall() {
 	t := s.T()
 
-	if !s.teleportFeatures.AdvancedAccessWorkflows {
+	if !s.teleportFeatures.AccessRequests.Enabled {
 		t.Skip("Doesn't work in OSS version")
 	}
 
@@ -701,7 +701,7 @@ func (s *PagerdutySuite) TestAutoApprovalWhenNotOnCall() {
 func (s *PagerdutySuite) TestAutoApprovalWhenOnCall() {
 	t := s.T()
 
-	if !s.teleportFeatures.AdvancedAccessWorkflows {
+	if !s.teleportFeatures.AccessRequests.Enabled {
 		t.Skip("Doesn't work in OSS version")
 	}
 
@@ -721,7 +721,7 @@ func (s *PagerdutySuite) TestAutoApprovalWhenOnCall() {
 func (s *PagerdutySuite) TestAutoApprovalWhenOnCallInSecondPolicy() {
 	t := s.T()
 
-	if !s.teleportFeatures.AdvancedAccessWorkflows {
+	if !s.teleportFeatures.AccessRequests.Enabled {
 		t.Skip("Doesn't work in OSS version")
 	}
 
@@ -741,7 +741,7 @@ func (s *PagerdutySuite) TestAutoApprovalWhenOnCallInSecondPolicy() {
 func (s *PagerdutySuite) TestAutoApprovalWhenOnCallInSomeOtherPolicy() {
 	t := s.T()
 
-	if !s.teleportFeatures.AdvancedAccessWorkflows {
+	if !s.teleportFeatures.AccessRequests.Enabled {
 		t.Skip("Doesn't work in OSS version")
 	}
 
@@ -791,7 +791,7 @@ func (s *PagerdutySuite) TestExpiration() {
 func (s *PagerdutySuite) TestRace() {
 	t := s.T()
 
-	if !s.teleportFeatures.AdvancedAccessWorkflows {
+	if !s.teleportFeatures.AccessRequests.Enabled {
 		t.Skip("Doesn't work in OSS version")
 	}
 

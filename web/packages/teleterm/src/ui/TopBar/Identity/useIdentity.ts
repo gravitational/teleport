@@ -24,8 +24,8 @@ export function useIdentity() {
   ctx.clustersService.useState();
   ctx.workspacesService.useState();
 
-  function changeRootCluster(clusterUri: RootClusterUri): Promise<void> {
-    return ctx.workspacesService.setActiveWorkspace(clusterUri);
+  async function changeRootCluster(clusterUri: RootClusterUri): Promise<void> {
+    await ctx.workspacesService.setActiveWorkspace(clusterUri);
   }
 
   function addCluster(): void {

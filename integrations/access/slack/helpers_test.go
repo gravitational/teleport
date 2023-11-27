@@ -19,11 +19,11 @@ import (
 	"sync/atomic"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/integrations/access/common"
+	"github.com/gravitational/teleport/integrations/access/accessrequest"
 )
 
 type SlackMessageSlice []Message
-type SlackDataMessageSet map[common.MessageData]struct{}
+type SlackDataMessageSet map[accessrequest.MessageData]struct{}
 
 func (slice SlackMessageSlice) Len() int {
 	return len(slice)
@@ -40,11 +40,11 @@ func (slice SlackMessageSlice) Swap(i, j int) {
 	slice[i], slice[j] = slice[j], slice[i]
 }
 
-func (set SlackDataMessageSet) Add(msg common.MessageData) {
+func (set SlackDataMessageSet) Add(msg accessrequest.MessageData) {
 	set[msg] = struct{}{}
 }
 
-func (set SlackDataMessageSet) Contains(msg common.MessageData) bool {
+func (set SlackDataMessageSet) Contains(msg accessrequest.MessageData) bool {
 	_, ok := set[msg]
 	return ok
 }

@@ -73,9 +73,13 @@ const commands = {
         ctx.commandLauncher.executeCommand('cluster-open', { clusterUri });
       };
 
-      ctx.modalsService.openClusterConnectDialog({
+      ctx.modalsService.openRegularDialog({
+        kind: 'cluster-connect',
         clusterUri: args.clusterUri,
+        reason: undefined,
+        prefill: undefined,
         onSuccess: args.onSuccess || defaultHandler,
+        onCancel: undefined,
       });
     },
   },

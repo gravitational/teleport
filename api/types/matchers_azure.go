@@ -85,6 +85,9 @@ func (m *AzureMatcher) CheckAndSetDefaults() error {
 		if m.Params == nil {
 			m.Params = &InstallerParams{}
 		}
+		if m.Params.Azure == nil {
+			m.Params.Azure = &AzureInstallerParams{}
+		}
 
 		switch m.Params.JoinMethod {
 		case JoinMethodAzure, "":

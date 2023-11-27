@@ -19,6 +19,7 @@ package proxy
 import (
 	"context"
 	"crypto/tls"
+	"maps"
 	"net"
 	"net/http"
 	"sync"
@@ -26,13 +27,13 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
-	"golang.org/x/exp/maps"
 	"golang.org/x/net/http2"
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -248,7 +249,7 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 			TLSConfig:   cfg.TLS,
 			ConnState:   ingress.HTTPConnStateReporter(ingress.Kube, cfg.IngressReporter),
 			ConnContext: func(ctx context.Context, c net.Conn) context.Context {
-				return utils.ClientAddrContext(ctx, c.RemoteAddr(), c.LocalAddr())
+				return authz.ContextWithClientAddrs(ctx, c.RemoteAddr(), c.LocalAddr())
 			},
 		},
 		heartbeats: make(map[string]*srv.Heartbeat),
@@ -575,9 +576,7 @@ func (t *TLSServer) getServiceStaticLabels() map[string]string {
 	}
 	labels := maps.Clone(t.CloudLabels.Get())
 	// Let static labels override ec2 labels.
-	for k, v := range t.StaticLabels {
-		labels[k] = v
-	}
+	maps.Copy(labels, t.StaticLabels)
 	return labels
 }
 

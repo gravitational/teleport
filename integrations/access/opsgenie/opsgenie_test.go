@@ -124,7 +124,7 @@ func (s *OpsgenieSuite) SetupSuite() {
 			},
 		},
 	}
-	if teleportFeatures.AdvancedAccessWorkflows {
+	if teleportFeatures.AccessRequests.Enabled {
 		conditions.Request.Thresholds = []types.AccessReviewThreshold{{Approve: 2, Deny: 2}}
 	}
 	// This is the role for testing notification alert creation.
@@ -135,7 +135,7 @@ func (s *OpsgenieSuite) SetupSuite() {
 	require.NoError(t, err)
 	s.userNames.requestor = user.GetName()
 
-	if teleportFeatures.AdvancedAccessWorkflows {
+	if teleportFeatures.AccessRequests.Enabled {
 		// Set up TWO users who can review access requests to role "editor".
 
 		role, err = bootstrap.AddRole("foo-reviewer", types.RoleSpecV6{
@@ -202,7 +202,7 @@ func (s *OpsgenieSuite) SetupSuite() {
 			types.NewRule("access_plugin_data", []string{"update"}),
 		},
 	}
-	if teleportFeatures.AdvancedAccessWorkflows {
+	if teleportFeatures.AccessRequests.Enabled {
 		conditions.ReviewRequests = &types.AccessReviewConditions{Roles: []string{"editor"}}
 	}
 
@@ -226,7 +226,7 @@ func (s *OpsgenieSuite) SetupSuite() {
 	require.NoError(t, err)
 	s.clients[s.userNames.requestor] = client
 
-	if teleportFeatures.AdvancedAccessWorkflows {
+	if teleportFeatures.AccessRequests.Enabled {
 		client, err = teleport.NewClient(ctx, auth, s.userNames.approver)
 		require.NoError(t, err)
 		s.clients[s.userNames.approver] = client
@@ -416,7 +416,7 @@ func (s *OpsgenieSuite) TestDenial() {
 func (s *OpsgenieSuite) TestReviewNotes() {
 	t := s.T()
 
-	if !s.teleportFeatures.AdvancedAccessWorkflows {
+	if !s.teleportFeatures.AccessRequests.Enabled {
 		t.Skip("Doesn't work in OSS version")
 	}
 
@@ -462,7 +462,7 @@ func (s *OpsgenieSuite) TestReviewNotes() {
 func (s *OpsgenieSuite) TestApprovalByReview() {
 	t := s.T()
 
-	if !s.teleportFeatures.AdvancedAccessWorkflows {
+	if !s.teleportFeatures.AccessRequests.Enabled {
 		t.Skip("Doesn't work in OSS version")
 	}
 
@@ -518,7 +518,7 @@ func (s *OpsgenieSuite) TestApprovalByReview() {
 func (s *OpsgenieSuite) TestDenialByReview() {
 	t := s.T()
 
-	if !s.teleportFeatures.AdvancedAccessWorkflows {
+	if !s.teleportFeatures.AccessRequests.Enabled {
 		t.Skip("Doesn't work in OSS version")
 	}
 

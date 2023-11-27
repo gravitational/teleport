@@ -1,6 +1,8 @@
-Like all Teleport users, `{{ user }}` needs signed credentials in
-order to connect to your Teleport cluster. You will use the `tctl auth sign`
-command to request these credentials for your plugin.
+{{ client="The plugin" }}
+
+Like all Teleport users, `{{ user }}` needs signed credentials in order to
+connect to your Teleport cluster. You will use the `tctl auth sign` command to
+request these credentials.
 
 The following `tctl auth sign` command impersonates the `{{ user }}` user,
 generates signed credentials, and writes an identity file to the local
@@ -10,15 +12,13 @@ directory:
 $ tctl auth sign --user={{ user }} --out=auth.pem
 ```
 
-The plugin connects to the Teleport Auth Service's gRPC endpoint over TLS.
+{{ client }} connects to the Teleport Auth Service's gRPC endpoint over TLS.
 
-The identity file, `auth.pem`, includes both TLS and SSH credentials. The plugin
+The identity file, `auth.pem`, includes both TLS and SSH credentials. {{ client }}
 uses the SSH credentials to connect to the Proxy Service, which establishes a
-reverse tunnel connection to the Auth Service. The plugin uses this reverse
+reverse tunnel connection to the Auth Service. {{ client }}  uses this reverse
 tunnel, along with your TLS credentials, to connect to the Auth Service's gRPC
 endpoint.
-
-You will refer to this file later when configuring the plugin.
 
 <Admonition
   title="Certificate Lifetime"

@@ -19,14 +19,19 @@ package slack
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/url"
 	"time"
 
 	"github.com/go-resty/resty/v2"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/accesslist"
+	appAccesslist "github.com/gravitational/teleport/integrations/access/accesslist"
+	"github.com/gravitational/teleport/integrations/access/accessrequest"
 	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/integrations/lib"
 	pd "github.com/gravitational/teleport/integrations/lib/plugindata"
@@ -42,6 +47,7 @@ const statusEmitTimeout = 10 * time.Second
 // request is processed/updated.
 type Bot struct {
 	client      *resty.Client
+	clock       clockwork.Clock
 	clusterName string
 	webProxyURL *url.URL
 }
@@ -81,6 +87,14 @@ func onAfterResponseSlack(sink common.StatusSink) func(_ *resty.Client, resp *re
 	}
 }
 
+// SupportedApps are the apps supported by this bot.
+func (b Bot) SupportedApps() []common.App {
+	return []common.App{
+		accessrequest.NewApp(b),
+		appAccesslist.NewApp(b),
+	}
+}
+
 func (b Bot) CheckHealth(ctx context.Context) error {
 	_, err := b.client.NewRequest().
 		SetContext(ctx).
@@ -94,30 +108,41 @@ func (b Bot) CheckHealth(ctx context.Context) error {
 	return nil
 }
 
-// Broadcast posts request info to Slack with action buttons.
-func (b Bot) Broadcast(ctx context.Context, recipients []common.Recipient, reqID string, reqData pd.AccessRequestData) (common.SentMessages, error) {
-	var data common.SentMessages
+// SendReviewReminders will send a review reminder that an access list needs to be reviewed.
+func (b Bot) SendReviewReminders(ctx context.Context, recipient common.Recipient, accessList *accesslist.AccessList) error {
+	var result ChatMsgResponse
+	_, err := b.client.NewRequest().
+		SetContext(ctx).
+		SetBody(Message{BaseMessage: BaseMessage{Channel: recipient.ID}, BlockItems: b.slackAccessListReminderMsgSection(accessList)}).
+		SetResult(&result).
+		Post("chat.postMessage")
+	return trace.Wrap(err)
+}
+
+// BroadcastAccessRequestMessage posts request info to Slack with action buttons.
+func (b Bot) BroadcastAccessRequestMessage(ctx context.Context, recipients []common.Recipient, reqID string, reqData pd.AccessRequestData) (accessrequest.SentMessages, error) {
+	var data accessrequest.SentMessages
 	var errors []error
 
 	for _, recipient := range recipients {
 		var result ChatMsgResponse
 		_, err := b.client.NewRequest().
 			SetContext(ctx).
-			SetBody(Message{BaseMessage: BaseMessage{Channel: recipient.ID}, BlockItems: b.slackMsgSections(reqID, reqData)}).
+			SetBody(Message{BaseMessage: BaseMessage{Channel: recipient.ID}, BlockItems: b.slackAccessRequestMsgSections(reqID, reqData)}).
 			SetResult(&result).
 			Post("chat.postMessage")
 		if err != nil {
 			errors = append(errors, trace.Wrap(err))
 			continue
 		}
-		data = append(data, common.MessageData{ChannelID: result.Channel, MessageID: result.Timestamp})
+		data = append(data, accessrequest.MessageData{ChannelID: result.Channel, MessageID: result.Timestamp})
 	}
 
 	return data, trace.NewAggregate(errors...)
 }
 
 func (b Bot) PostReviewReply(ctx context.Context, channelID, timestamp string, review types.AccessReview) error {
-	text, err := common.MsgReview(review)
+	text, err := accessrequest.MsgReview(review)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -148,7 +173,7 @@ func (b Bot) lookupDirectChannelByEmail(ctx context.Context, email string) (stri
 }
 
 // Expire updates request's Slack post with EXPIRED status and removes action buttons.
-func (b Bot) UpdateMessages(ctx context.Context, reqID string, reqData pd.AccessRequestData, slackData common.SentMessages, reviews []types.AccessReview) error {
+func (b Bot) UpdateMessages(ctx context.Context, reqID string, reqData pd.AccessRequestData, slackData accessrequest.SentMessages, reviews []types.AccessReview) error {
 	var errors []error
 	for _, msg := range slackData {
 		_, err := b.client.NewRequest().
@@ -156,7 +181,7 @@ func (b Bot) UpdateMessages(ctx context.Context, reqID string, reqData pd.Access
 			SetBody(Message{BaseMessage: BaseMessage{
 				Channel:   msg.ChannelID,
 				Timestamp: msg.MessageID,
-			}, BlockItems: b.slackMsgSections(reqID, reqData)}).
+			}, BlockItems: b.slackAccessRequestMsgSections(reqID, reqData)}).
 			Post("chat.update")
 		if err != nil {
 			switch err.Error() {
@@ -176,17 +201,17 @@ func (b Bot) UpdateMessages(ctx context.Context, reqID string, reqData pd.Access
 	return nil
 }
 
-func (b Bot) FetchRecipient(ctx context.Context, recipient string) (*common.Recipient, error) {
-	if lib.IsEmail(recipient) {
-		channel, err := b.lookupDirectChannelByEmail(ctx, recipient)
+func (b Bot) FetchRecipient(ctx context.Context, name string) (*common.Recipient, error) {
+	if lib.IsEmail(name) {
+		channel, err := b.lookupDirectChannelByEmail(ctx, name)
 		if err != nil {
 			if err.Error() == "users_not_found" {
-				return nil, trace.NotFound("email recipient '%s' not found: %s", recipient, err)
+				return nil, trace.NotFound("email recipient '%s' not found: %s", name, err)
 			}
-			return nil, trace.Errorf("error resolving email recipient %s: %s", recipient, err)
+			return nil, trace.Errorf("error resolving email recipient %s: %s", name, err)
 		}
 		return &common.Recipient{
-			Name: recipient,
+			Name: name,
 			ID:   channel,
 			Kind: "Email",
 			Data: nil,
@@ -194,17 +219,42 @@ func (b Bot) FetchRecipient(ctx context.Context, recipient string) (*common.Reci
 	}
 	// TODO: check if channel exists ?
 	return &common.Recipient{
-		Name: recipient,
-		ID:   recipient,
+		Name: name,
+		ID:   name,
 		Kind: "Channel",
 		Data: nil,
 	}, nil
 }
 
-// msgSection builds a Slack message section (obeys markdown).
-func (b Bot) slackMsgSections(reqID string, reqData pd.AccessRequestData) []BlockItem {
-	fields := common.MsgFields(reqID, reqData, b.clusterName, b.webProxyURL)
-	statusText := common.MsgStatusText(reqData.ResolutionTag, reqData.ResolutionReason)
+// slackAccessListReminderMsgSection builds an access list reminder Slack message section (obeys markdown).
+func (b Bot) slackAccessListReminderMsgSection(accessList *accesslist.AccessList) []BlockItem {
+	nextAuditDate := accessList.Spec.Audit.NextAuditDate
+
+	name := fmt.Sprintf("*%s*", accessList.Spec.Title)
+	var msg string
+	if b.clock.Now().After(nextAuditDate) {
+		daysSinceDue := int(b.clock.Since(nextAuditDate).Hours() / 24)
+		msg = fmt.Sprintf("Access List %s is %d day(s) past due for a review! Please review it.",
+			name, daysSinceDue)
+	} else {
+		msg = fmt.Sprintf(
+			"Access List %s is due for a review by %s. Please review it soon!",
+			name, accessList.Spec.Audit.NextAuditDate.Format(time.DateOnly))
+	}
+
+	sections := []BlockItem{
+		NewBlockItem(SectionBlock{
+			Text: NewTextObjectItem(MarkdownObject{Text: msg}),
+		}),
+	}
+
+	return sections
+}
+
+// slackAccessRequestMsgSection builds an access request Slack message section (obeys markdown).
+func (b Bot) slackAccessRequestMsgSections(reqID string, reqData pd.AccessRequestData) []BlockItem {
+	fields := accessrequest.MsgFields(reqID, reqData, b.clusterName, b.webProxyURL)
+	statusText := accessrequest.MsgStatusText(reqData.ResolutionTag, reqData.ResolutionReason)
 
 	sections := []BlockItem{
 		NewBlockItem(SectionBlock{

@@ -24,21 +24,20 @@ import {
   ButtonSecondary,
   Text,
   ButtonBorder,
-  Popover,
 } from 'design';
-import { Magnifier, PushPin } from 'design/Icon';
+import { Icon, Magnifier, PushPin } from 'design/Icon';
 import { Danger } from 'design/Alert';
 
 import './unifiedStyles.css';
 
 import { ResourcesResponse, ResourceLabel } from 'teleport/services/agents';
-import { FeatureBox } from 'teleport/components/Layout';
-import { TextIcon } from 'teleport/Discover/Shared';
 import {
   UnifiedTabPreference,
+  UnifiedViewModePreference,
   UnifiedResourcePreferences,
 } from 'teleport/services/userPreferences/types';
 
+import { HoverTooltip } from 'shared/components/ToolTip';
 import {
   makeEmptyAttempt,
   makeSuccessAttempt,
@@ -52,27 +51,23 @@ import {
 } from 'shared/hooks/useInfiniteScroll';
 import { Attempt } from 'shared/hooks/useAttemptNext';
 
-import { SharedUnifiedResource, UnifiedResourcesQueryParams } from './types';
 import {
-  makeUnifiedResourceCardNode,
-  makeUnifiedResourceCardDatabase,
-  makeUnifiedResourceCardKube,
-  makeUnifiedResourceCardApp,
-  makeUnifiedResourceCardDesktop,
-  makeUnifiedResourceCardUserGroup,
-} from './cards';
+  SharedUnifiedResource,
+  PinningSupport,
+  UnifiedResourcesPinning,
+  UnifiedResourcesQueryParams,
+} from './types';
 
 import { ResourceTab } from './ResourceTab';
-import { ResourceCard, LoadingCard, PinningSupport } from './ResourceCard';
 import { FilterPanel } from './FilterPanel';
+import { CardsView } from './CardsView/CardsView';
+import { ListView } from './ListView/ListView';
+import { mapResourceToViewItem } from './shared/viewItemsFactory';
 
-const RESOURCES_MAX_WIDTH = '1800px';
 // get 48 resources to start
 const INITIAL_FETCH_SIZE = 48;
 // increment by 24 every fetch
-const FETCH_MORE_SIZE = 24;
-
-const loadingCardArray = new Array(FETCH_MORE_SIZE).fill(undefined);
+export const FETCH_MORE_SIZE = 24;
 
 export const PINNING_NOT_SUPPORTED_MESSAGE =
   'This cluster does not support pinning resources. To enable, upgrade to 14.1 or newer.';
@@ -88,28 +83,43 @@ const tabs: { label: string; value: UnifiedTabPreference }[] = [
   },
 ];
 
-export type UnifiedResourcesPinning =
-  | {
-      kind: 'supported';
-      /** `getClusterPinnedResources` has to be stable, it is used in `useEffect`. */
-      getClusterPinnedResources(): Promise<string[]>;
-      updateClusterPinnedResources(pinned: string[]): Promise<void>;
-    }
-  | {
-      kind: 'not-supported';
-    }
-  | {
-      kind: 'hidden';
-    };
+/*
+ * BulkAction describes a component that allows you to perform an action
+ * on multiple selected resources
+ */
+type BulkAction = {
+  /*
+   * key is an arbitrary name of what the bulk action is, as well
+   * as the key used when mapping our action components
+   */
+  key: string;
+  Icon: typeof Icon;
+  text: string;
+  disabled?: boolean;
+  /*
+   * a tooltip will be rendered when the action is hovered
+   * over if this prop is supplied
+   */
+  tooltip?: string;
+  action: (
+    selectedResources: {
+      unifiedResourceId: string;
+      resource: SharedUnifiedResource['resource'];
+    }[]
+  ) => void;
+};
+
+export type FilterKind = {
+  kind: SharedUnifiedResource['resource']['kind'];
+  disabled: boolean;
+};
 
 interface UnifiedResourcesProps {
   params: UnifiedResourcesQueryParams;
   resourcesFetchAttempt: Attempt;
   fetchResources(options?: { force?: boolean }): Promise<void>;
   resources: SharedUnifiedResource[];
-  //TODO(gzdunek): the pin button should be moved to some other place
-  //according to the new designs
-  Header(pinAllButton: React.ReactElement): React.ReactElement;
+  Header?: React.ReactElement;
   /**
    * Typically used to inform the user that there are no matching resources when
    * they want to list resources without filtering the list with a search query.
@@ -121,9 +131,12 @@ interface UnifiedResourcesProps {
    * can be passed here.
    */
   pinning: UnifiedResourcesPinning;
-  availableKinds: SharedUnifiedResource['resource']['kind'][];
+  availableKinds: FilterKind[];
   setParams(params: UnifiedResourcesQueryParams): void;
   onLabelClick(label: ResourceLabel): void;
+  /** A list of actions that can be performed on the selected items. */
+  bulkActions?: BulkAction[];
+  unifiedResourcePreferences: UnifiedResourcePreferences;
   updateUnifiedResourcesPreferences(
     preferences: UnifiedResourcePreferences
   ): void;
@@ -139,7 +152,9 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
     onLabelClick,
     availableKinds,
     pinning,
+    unifiedResourcePreferences,
     updateUnifiedResourcesPreferences,
+    bulkActions = [],
   } = props;
 
   const { setTrigger } = useInfiniteScroll({
@@ -206,7 +221,7 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
     pinnedResources.includes(resource)
   );
 
-  const handleSelectResources = (resourceId: string) => {
+  const handleSelectResource = (resourceId: string) => {
     setSelectedResources(prevResources => {
       if (selectedResources.includes(resourceId)) {
         return prevResources.filter(i => i !== resourceId);
@@ -244,8 +259,8 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
 
   const allSelected =
     resources.length > 0 &&
-    resources.every(resource =>
-      selectedResources.includes(generateResourceKey(resource))
+    resources.every(({ resource }) =>
+      selectedResources.includes(generateUnifiedResourceKey(resource))
     );
 
   const toggleSelectVisible = () => {
@@ -254,7 +269,7 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
       return;
     }
     setSelectedResources(
-      resources.map(resource => generateResourceKey(resource))
+      resources.map(({ resource }) => generateUnifiedResourceKey(resource))
     );
   };
 
@@ -266,45 +281,85 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
     });
     setSelectedResources([]);
     setUpdatePinnedResources(makeEmptyAttempt());
-    updateUnifiedResourcesPreferences({ defaultTab: value });
+    updateUnifiedResourcesPreferences({
+      ...unifiedResourcePreferences,
+      defaultTab: value,
+    });
   };
 
-  const $pinAllButton = (
-    <ButtonBorder
-      onClick={() => handlePinSelected(shouldUnpin)}
-      textTransform="none"
-      disabled={pinning.kind === 'not-supported'}
-      css={`
-        border: none;
-        color: ${props => props.theme.colors.brand};
-      `}
-    >
-      <PushPin color="brand" size={16} mr={2} />
-      {shouldUnpin ? 'Unpin ' : 'Pin '}
-      Selected
-    </ButtonBorder>
-  );
+  const selectViewMode = (viewMode: UnifiedViewModePreference) => {
+    updateUnifiedResourcesPreferences({
+      ...unifiedResourcePreferences,
+      viewMode,
+    });
+  };
+
+  const getSelectedResources = () => {
+    return resources
+      .filter(({ resource }) =>
+        selectedResources.includes(generateUnifiedResourceKey(resource))
+      )
+      .map(({ resource }) => ({
+        resource: resource,
+        unifiedResourceId: generateUnifiedResourceKey(resource),
+      }));
+  };
+
+  const bulkActionsAndPinning = (): BulkAction[] => {
+    if (pinning.kind === 'hidden') {
+      return bulkActions;
+    }
+
+    return [
+      ...bulkActions,
+      {
+        key: 'pin_resource',
+        text: shouldUnpin ? 'Unpin Selected' : 'Pin Selected',
+        Icon: PushPin,
+        tooltip:
+          pinning.kind === 'not-supported'
+            ? PINNING_NOT_SUPPORTED_MESSAGE
+            : null,
+        disabled:
+          pinning.kind === 'not-supported' ||
+          updatePinnedResourcesAttempt.status === 'processing',
+        action: () => handlePinSelected(shouldUnpin),
+      },
+    ];
+  };
+
+  const ViewComponent =
+    unifiedResourcePreferences.viewMode === UnifiedViewModePreference.List
+      ? ListView
+      : CardsView;
 
   return (
-    <FeatureBox
+    <div
       className="ContainerContext"
-      px={4}
       css={`
-        max-width: ${RESOURCES_MAX_WIDTH};
-        margin: auto;
+        width: 100%;
+        max-width: 1800px;
+        margin: 0 auto;
       `}
     >
       {resourcesFetchAttempt.status === 'failed' && (
         <ErrorBox>
-          <ErrorBoxInternal>
+          {/* If pinning is hidden, we hide the different tabs to select a view (All resources, pinning).
+              This causes this error box to cover the search bar. If pinning isn't supported, we push down the
+              error by 60px to not hide the search bar.
+          */}
+          <ErrorBoxInternal
+            topPadding={pinning.kind === 'hidden' ? '60px' : '0px'}
+          >
             <Danger>
               {resourcesFetchAttempt.statusText}
               {/* we don't want them to try another request with BAD REQUEST, it will just fail again. */}
-              {resourcesFetchAttempt.statusCode !== 400 && (
-                <Box flex="0 0 auto" ml={2}>
-                  <ButtonLink onClick={onRetryClicked}>Retry</ButtonLink>
-                </Box>
-              )}
+              {resourcesFetchAttempt.statusCode !== 400 &&
+                resourcesFetchAttempt.statusCode !== 403 && (
+                  <Box flex="0 0 auto" ml={2}>
+                    <ButtonLink onClick={onRetryClicked}>Retry</ButtonLink>
+                  </Box>
+                )}
             </Danger>
           </ErrorBoxInternal>
         </ErrorBox>
@@ -319,26 +374,48 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
           <Danger>{updatePinnedResourcesAttempt.statusText}</Danger>
         </ErrorBox>
       )}
-      {props.Header(
-        <>
-          {selectedResources.length > 0 &&
-            pinning.kind !== 'hidden' &&
-            (pinning.kind === 'not-supported' ? (
-              <HoverTooltip tipContent={<>{PINNING_NOT_SUPPORTED_MESSAGE}</>}>
-                {$pinAllButton}
-              </HoverTooltip>
-            ) : (
-              $pinAllButton
-            ))}
-        </>
-      )}
+      {props.Header}
       <FilterPanel
         params={params}
         setParams={setParams}
         availableKinds={availableKinds}
         selectVisible={toggleSelectVisible}
         selected={allSelected}
-        shouldUnpin={shouldUnpin}
+        currentViewMode={unifiedResourcePreferences.viewMode}
+        onSelectViewMode={selectViewMode}
+        BulkActions={
+          <>
+            {selectedResources.length > 0 && (
+              <>
+                {bulkActionsAndPinning().map(
+                  ({ key, Icon, text, action, tooltip, disabled = false }) => {
+                    const $button = (
+                      <ButtonBorder
+                        key={key}
+                        data-testid={key}
+                        textTransform="none"
+                        onClick={() => action(getSelectedResources())}
+                        disabled={disabled}
+                        css={`
+                          border: none;
+                          color: ${props => props.theme.colors.brand};
+                        `}
+                      >
+                        <Icon size="small" color="brand" mr={2} />
+                        {text}
+                      </ButtonBorder>
+                    );
+                    return (
+                      <HoverTooltip tipContent={tooltip} key={key}>
+                        {$button}
+                      </HoverTooltip>
+                    );
+                  }
+                )}
+              </>
+            )}
+          </>
+        }
       />
       {pinning.kind !== 'hidden' && (
         <Flex gap={4} mb={3}>
@@ -363,39 +440,25 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
       {pinning.kind === 'not-supported' && params.pinnedOnly ? (
         <PinningNotSupported />
       ) : (
-        <ResourcesContainer className="ResourcesContainer" gap={2}>
-          {resources
-            .map(unifiedResource => ({
-              card: mapResourceToCard(unifiedResource),
-              key: generateResourceKey(unifiedResource),
-            }))
-            .map(({ card, key }) => (
-              <ResourceCard
-                key={key}
-                name={card.name}
-                ActionButton={card.ActionButton}
-                primaryIconName={card.primaryIconName}
-                onLabelClick={onLabelClick}
-                SecondaryIcon={card.SecondaryIcon}
-                description={card.description}
-                labels={card.labels}
-                pinned={pinnedResources.includes(key)}
-                pinningSupport={getResourcePinningSupport(
-                  pinning.kind,
-                  updatePinnedResourcesAttempt
-                )}
-                selected={selectedResources.includes(key)}
-                selectResource={() => handleSelectResources(key)}
-                pinResource={() => handlePinResource(key)}
-              />
-            ))}
-          {/* Using index as key here is ok because these elements never change order */}
-          {(resourcesFetchAttempt.status === 'processing' ||
-            getPinnedResourcesAttempt.status === 'processing') &&
-            loadingCardArray.map((_, i) => (
-              <LoadingCard delay="short" key={i} />
-            ))}
-        </ResourcesContainer>
+        <ViewComponent
+          onLabelClick={onLabelClick}
+          pinnedResources={pinnedResources}
+          selectedResources={selectedResources}
+          onSelectResource={handleSelectResource}
+          onPinResource={handlePinResource}
+          pinningSupport={getResourcePinningSupport(
+            pinning.kind,
+            updatePinnedResourcesAttempt
+          )}
+          isProcessing={
+            resourcesFetchAttempt.status === 'processing' ||
+            getPinnedResourcesAttempt.status === 'processing'
+          }
+          mappedResources={resources.map(unifiedResource => ({
+            item: mapResourceToViewItem(unifiedResource),
+            key: generateUnifiedResourceKey(unifiedResource.resource),
+          }))}
+        />
       )}
       <div ref={setTrigger} />
       <ListFooter>
@@ -411,7 +474,7 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
           />
         )}
       </ListFooter>
-    </FeatureBox>
+    </div>
   );
 }
 
@@ -447,7 +510,9 @@ function getResourcePinningSupport(
   return PinningSupport.Supported;
 }
 
-function generateResourceKey({ resource }: SharedUnifiedResource): string {
+function generateUnifiedResourceKey(
+  resource: SharedUnifiedResource['resource']
+): string {
   if (resource.kind === 'node') {
     return `${resource.hostname}/${resource.id}/node`.toLowerCase();
   }
@@ -477,35 +542,39 @@ function NoResults({
   query: string;
   isPinnedTab: boolean;
 }) {
-  // Prevent `No resources were found for ""` flicker.
   if (query) {
     return (
-      <Box p={8} mt={3} mx="auto" maxWidth="720px" textAlign="center">
-        <TextIcon typography="h3">
-          <Magnifier />
-          No {isPinnedTab ? 'pinned ' : ''}resources were found for&nbsp;
-          <Text
-            as="span"
-            bold
-            css={`
-              max-width: 270px;
-              overflow: hidden;
-              text-overflow: ellipsis;
-            `}
-          >
-            {query}
-          </Text>
-        </TextIcon>
-      </Box>
+      <Text
+        typography="h3"
+        mt={9}
+        mx="auto"
+        justifyContent="center"
+        alignItems="center"
+        css={`
+          white-space: nowrap;
+        `}
+        as={Flex}
+      >
+        <Magnifier mr={2} />
+        No {isPinnedTab ? 'pinned ' : ''}resources were found for&nbsp;
+        <Text
+          as="span"
+          bold
+          css={`
+            max-width: 270px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+          `}
+        >
+          {query}
+        </Text>
+      </Text>
     );
   }
+
   return null;
 }
-
-const ResourcesContainer = styled(Flex)`
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
-`;
 
 const ErrorBox = styled(Box)`
   position: sticky;
@@ -517,6 +586,7 @@ const ErrorBoxInternal = styled(Box)`
   position: absolute;
   left: 0;
   right: 0;
+  top: ${props => props.topPadding};
   margin: ${props => props.theme.space[1]}px 10% 0 10%;
 `;
 
@@ -532,75 +602,3 @@ const ListFooter = styled.div`
   min-height: ${INDICATOR_SIZE};
   text-align: center;
 `;
-
-// TODO (avatus) extract to the shared package in ToolTip
-export const HoverTooltip: React.FC<{
-  tipContent: React.ReactElement;
-  fontSize?: number;
-}> = ({ tipContent, fontSize = 10, children }) => {
-  const [anchorEl, setAnchorEl] = useState();
-  const open = Boolean(anchorEl);
-
-  function handlePopoverOpen(event) {
-    setAnchorEl(event.currentTarget);
-  }
-
-  function handlePopoverClose() {
-    setAnchorEl(null);
-  }
-
-  return (
-    <Flex
-      aria-owns={open ? 'mouse-over-popover' : undefined}
-      onMouseEnter={handlePopoverOpen}
-      onMouseLeave={handlePopoverClose}
-    >
-      {children}
-      <Popover
-        modalCss={modalCss}
-        onClose={handlePopoverClose}
-        open={open}
-        anchorEl={anchorEl}
-        anchorOrigin={{
-          vertical: 'top',
-          horizontal: 'center',
-        }}
-        transformOrigin={{
-          vertical: 'bottom',
-          horizontal: 'center',
-        }}
-      >
-        <StyledOnHover px={2} py={1} fontSize={`${fontSize}px`}>
-          {tipContent}
-        </StyledOnHover>
-      </Popover>
-    </Flex>
-  );
-};
-
-const modalCss = () => `
-  pointer-events: none;
-`;
-
-const StyledOnHover = styled(Text)`
-  color: ${props => props.theme.colors.text.main};
-  background-color: ${props => props.theme.colors.tooltip.background};
-  max-width: 350px;
-`;
-
-function mapResourceToCard({ resource, ui }: SharedUnifiedResource) {
-  switch (resource.kind) {
-    case 'node':
-      return makeUnifiedResourceCardNode(resource, ui);
-    case 'db':
-      return makeUnifiedResourceCardDatabase(resource, ui);
-    case 'kube_cluster':
-      return makeUnifiedResourceCardKube(resource, ui);
-    case 'app':
-      return makeUnifiedResourceCardApp(resource, ui);
-    case 'windows_desktop':
-      return makeUnifiedResourceCardDesktop(resource, ui);
-    case 'user_group':
-      return makeUnifiedResourceCardUserGroup(resource, ui);
-  }
-}

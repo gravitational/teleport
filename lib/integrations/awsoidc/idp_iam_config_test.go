@@ -36,7 +36,6 @@ var baseIdPIAMConfigReq = func() IdPIAMConfigureRequest {
 	return IdPIAMConfigureRequest{
 		Cluster:            "mycluster",
 		IntegrationName:    "myintegration",
-		Region:             "us-east-1",
 		IntegrationRole:    "integrationrole",
 		ProxyPublicAddress: "https://proxy.example.com",
 	}
@@ -56,7 +55,6 @@ func TestIdPIAMConfigReqDefaults(t *testing.T) {
 			expected: IdPIAMConfigureRequest{
 				Cluster:            "mycluster",
 				IntegrationName:    "myintegration",
-				Region:             "us-east-1",
 				IntegrationRole:    "integrationrole",
 				ProxyPublicAddress: "https://proxy.example.com",
 				issuer:             "proxy.example.com",
@@ -76,15 +74,6 @@ func TestIdPIAMConfigReqDefaults(t *testing.T) {
 			req: func() IdPIAMConfigureRequest {
 				req := baseIdPIAMConfigReq()
 				req.IntegrationName = ""
-				return req
-			},
-			errCheck: badParameterCheck,
-		},
-		{
-			name: "missing region",
-			req: func() IdPIAMConfigureRequest {
-				req := baseIdPIAMConfigReq()
-				req.Region = ""
 				return req
 			},
 			errCheck: badParameterCheck,
@@ -200,7 +189,11 @@ func (m *mockIdPIAMConfigClient) CreateRole(ctx context.Context, params *iam.Cre
 	}
 	m.existingRoles = append(m.existingRoles, *params.RoleName)
 
-	return nil, nil
+	return &iam.CreateRoleOutput{
+		Role: &iamTypes.Role{
+			Arn: aws.String("arn:something"),
+		},
+	}, nil
 }
 
 // CreateOpenIDConnectProvider creates an IAM OpenID Connect Provider.
@@ -216,4 +209,18 @@ func (m *mockIdPIAMConfigClient) CreateOpenIDConnectProvider(ctx context.Context
 	return &iam.CreateOpenIDConnectProviderOutput{
 		OpenIDConnectProviderArn: aws.String("arn:something"),
 	}, nil
+}
+
+func TestNewIdPIAMConfigureClient(t *testing.T) {
+	t.Run("no aws_region env var, returns an error", func(t *testing.T) {
+		_, err := NewIdPIAMConfigureClient(context.Background())
+		require.ErrorContains(t, err, "please set the AWS_REGION environment variable")
+	})
+
+	t.Run("aws_region env var was set, success", func(t *testing.T) {
+		t.Setenv("AWS_REGION", "some-region")
+		idpClient, err := NewIdPIAMConfigureClient(context.Background())
+		require.NoError(t, err)
+		require.NotNil(t, idpClient)
+	})
 }

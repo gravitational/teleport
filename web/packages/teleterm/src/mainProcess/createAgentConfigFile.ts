@@ -16,39 +16,39 @@
 
 import { promisify } from 'node:util';
 import { execFile } from 'node:child_process';
-import { access, rm } from 'node:fs/promises';
+import fs from 'node:fs/promises';
 import path from 'node:path';
+
+import * as constants from 'shared/constants';
 
 import { RootClusterUri, routing } from 'teleterm/ui/uri';
 import { RuntimeSettings } from 'teleterm/mainProcess/types';
 
-import type * as tsh from 'teleterm/services/tshd/types';
-
-export interface AgentConfigFileClusterProperties {
+export interface CreateAgentConfigFileArgs {
   rootClusterUri: RootClusterUri;
   proxy: string;
   token: string;
-  labels: tsh.Label[];
+  username: string;
 }
 
 export async function createAgentConfigFile(
   runtimeSettings: RuntimeSettings,
-  clusterProperties: AgentConfigFileClusterProperties
+  args: CreateAgentConfigFileArgs
 ): Promise<void> {
   const asyncExecFile = promisify(execFile);
   const { configFile, dataDirectory } = generateAgentConfigPaths(
     runtimeSettings,
-    clusterProperties.rootClusterUri
+    args.rootClusterUri
   );
 
   // remove the config file if exists
-  try {
-    await rm(configFile);
-  } catch (e) {
-    if (e.code !== 'ENOENT') {
-      throw e;
-    }
-  }
+  await fs.rm(configFile, { force: true });
+
+  const labels = Object.entries({
+    [constants.ConnectMyComputerNodeOwnerLabel]: args.username,
+  })
+    .map(keyAndValue => keyAndValue.join('='))
+    .join(',');
 
   await asyncExecFile(
     runtimeSettings.agentBinaryPath,
@@ -57,9 +57,9 @@ export async function createAgentConfigFile(
       'configure',
       `--output=${configFile}`,
       `--data-dir=${dataDirectory}`,
-      `--proxy=${clusterProperties.proxy}`,
-      `--token=${clusterProperties.token}`,
-      `--labels=${clusterProperties.labels.map(toNameAndValue).join(',')}`,
+      `--proxy=${args.proxy}`,
+      `--token=${args.token}`,
+      `--labels=${labels}`,
     ],
     {
       timeout: 10_000, // 10 seconds
@@ -76,7 +76,7 @@ export async function removeAgentDirectory(
     rootClusterUri
   );
   // `force` ignores exceptions if path does not exist
-  await rm(agentDirectory, { recursive: true, force: true });
+  await fs.rm(agentDirectory, { recursive: true, force: true });
 }
 
 export async function isAgentConfigFileCreated(
@@ -88,7 +88,7 @@ export async function isAgentConfigFileCreated(
     rootClusterUri
   );
   try {
-    await access(configFile);
+    await fs.access(configFile);
     return true;
   } catch (e) {
     if (e.code === 'ENOENT') {
@@ -160,8 +160,4 @@ function getAgentDirectoryOrThrow(
     throw new Error(`The agent config path is incorrect: ${resolved}`);
   }
   return resolved;
-}
-
-function toNameAndValue(label: tsh.Label): string {
-  return `${label.name}=${label.value}`;
 }

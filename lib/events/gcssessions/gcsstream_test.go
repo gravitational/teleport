@@ -75,7 +75,7 @@ func TestStreams(t *testing.T) {
 			teleport.GCSTestURI)
 	}
 	u, err := url.Parse(uri)
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	config := Config{}
 	err = config.SetFromURL(u)

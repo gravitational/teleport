@@ -272,7 +272,6 @@ func TestBuildAWSOIDCIdPConfigureScript(t *testing.T) {
 			expectedTeleportArgs: "integration configure awsoidc-idp " +
 				"--cluster=localhost " +
 				"--name=myintegration " +
-				"--aws-region=us-east-1 " +
 				"--role=myRole " +
 				"--proxy-public-url=" + proxyPublicURL.String(),
 		},
@@ -287,22 +286,12 @@ func TestBuildAWSOIDCIdPConfigureScript(t *testing.T) {
 			expectedTeleportArgs: "integration configure awsoidc-idp " +
 				"--cluster=localhost " +
 				"--name=myintegration " +
-				"--aws-region=us-east-1 " +
 				"--role=Test+1=2,3.4@5-6_7 " +
 				"--proxy-public-url=" + proxyPublicURL.String(),
 		},
 		{
-			name: "missing aws-region",
-			reqQuery: url.Values{
-				"role":            []string{"myRole"},
-				"integrationName": []string{"myintegration"},
-			},
-			errCheck: isBadParamErrFn,
-		},
-		{
 			name: "missing role",
 			reqQuery: url.Values{
-				"awsRegion":       []string{"us-east-1"},
 				"integrationName": []string{"myintegration"},
 			},
 			errCheck: isBadParamErrFn,
@@ -310,8 +299,7 @@ func TestBuildAWSOIDCIdPConfigureScript(t *testing.T) {
 		{
 			name: "missing integration name",
 			reqQuery: url.Values{
-				"awsRegion": []string{"us-east-1"},
-				"role":      []string{"role"},
+				"role": []string{"role"},
 			},
 			errCheck: isBadParamErrFn,
 		},

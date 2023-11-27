@@ -29,7 +29,8 @@ export default function useClusterLogin(props: Props) {
   const { clustersService } = useAppContext();
   const cluster = clustersService.findCluster(clusterUri);
   const refAbortCtrl = useRef<tsh.TshAbortController>(null);
-  const loggedInUserName = cluster.loggedInUser?.name || null;
+  const loggedInUserName =
+    props.prefill.username || cluster.loggedInUser?.name || null;
   const [shouldPromptSsoStatus, promptSsoStatus] = useState(false);
   const [webauthnLogin, setWebauthnLogin] = useState<WebauthnLogin>();
 
@@ -188,6 +189,7 @@ export type Props = {
   clusterUri: RootClusterUri;
   onCancel(): void;
   onSuccess?(): void;
+  prefill: { username: string };
 };
 
 export type WebauthnLogin = {

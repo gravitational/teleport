@@ -225,7 +225,7 @@ func setupTeleport(t *testing.T, testDir, openaiMockURL string) *helpers.TeleIns
 	rcConf.Auth.AssistAPIKey = "test"
 	openAIConfig := openai.DefaultConfig("test")
 	openAIConfig.BaseURL = openaiMockURL + "/v1"
-	rcConf.OpenAIConfig = &openAIConfig
+	rcConf.Testing.OpenAIConfig = &openAIConfig
 	require.NoError(t, err)
 	rcConf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 
@@ -324,7 +324,7 @@ func registerAndSetupMockSSHNode(t *testing.T, ctx context.Context, testDir stri
 	// right now because we need to get a valid certificate. The certificate
 	// needs proper principals, which implies knowing the node ID. This only
 	// happens after the node has joined.
-	var sshListenerFds []servicecfg.FileDescriptor
+	var sshListenerFds []*servicecfg.FileDescriptor
 	sshAddr := helpers.NewListenerOn(t, "localhost", service.ListenerNodeSSH, &sshListenerFds)
 
 	node := registerMockSSHNode(t, ctx, sshAddr, testDir, rc)
@@ -369,7 +369,7 @@ func registerMockSSHNode(t *testing.T, ctx context.Context, sshAddr, testDir str
 	require.Eventually(t, helpers.FindNodeWithLabel(t, ctx, rc.Process.GetAuthServer(), "hello", "true"), time.Second*2, time.Millisecond*50)
 	nodes, err := rc.Process.GetAuthServer().GetNodes(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
-	require.Equal(t, 1, len(nodes))
+	require.Len(t, nodes, 1)
 	return nodes[0]
 }
 

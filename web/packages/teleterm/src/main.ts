@@ -20,6 +20,8 @@ import path from 'node:path';
 
 import { app, globalShortcut, shell, nativeTheme } from 'electron';
 
+import { CUSTOM_PROTOCOL } from 'shared/deepLinks';
+
 import MainProcess from 'teleterm/mainProcess';
 import { getRuntimeSettings } from 'teleterm/mainProcess/runtimeSettings';
 import { enableWebHandlersProtection } from 'teleterm/mainProcess/protocolHandler';
@@ -32,13 +34,12 @@ import {
 } from 'teleterm/services/config';
 import { createFileStorage } from 'teleterm/services/fileStorage';
 import { WindowsManager } from 'teleterm/mainProcess/windowsManager';
-import { TELEPORT_CUSTOM_PROTOCOL } from 'teleterm/ui/uri';
 import { parseDeepLink } from 'teleterm/deepLinks';
 import { assertUnreachable } from 'teleterm/ui/utils';
 
 // Set the app as a default protocol client only if it wasn't started through `electron .`.
 if (!process.defaultApp) {
-  app.setAsDefaultProtocolClient(TELEPORT_CUSTOM_PROTOCOL);
+  app.setAsDefaultProtocolClient(CUSTOM_PROTOCOL);
 }
 
 if (app.requestSingleInstanceLock()) {
@@ -328,7 +329,7 @@ function setUpDeepLinks(
 // We don't know the exact position of the URL is in argv. Chromium might inject its own arguments
 // into argv. See https://www.electronjs.org/docs/latest/api/app#event-second-instance.
 function findCustomProtocolUrlInArgv(argv: string[]) {
-  return argv.find(arg => arg.startsWith(`${TELEPORT_CUSTOM_PROTOCOL}://`));
+  return argv.find(arg => arg.startsWith(`${CUSTOM_PROTOCOL}://`));
 }
 
 function launchDeepLink(

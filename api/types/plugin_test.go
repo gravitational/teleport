@@ -213,6 +213,7 @@ func TestPluginOktaValidation(t *testing.T) {
 		Okta: &PluginOktaSettings{
 			OrgUrl:         "https://test.okta.com",
 			EnableUserSync: true,
+			SsoConnectorId: "some-sso-connector-id",
 		},
 	}
 
@@ -307,6 +308,30 @@ func TestPluginOktaValidation(t *testing.T) {
 			assertErr: require.NoError,
 			assertValue: func(t *testing.T, settings *PluginOktaSettings) {
 				require.False(t, settings.EnableUserSync)
+			},
+		}, {
+			name: "SSO connector ID required for user sync",
+			settings: &PluginSpecV1_Okta{
+				Okta: &PluginOktaSettings{
+					OrgUrl:         "https://test.okta.com",
+					EnableUserSync: true,
+				},
+			},
+			creds:     validCreds,
+			assertErr: require.Error,
+		}, {
+			name: "SSO connector ID not required without user sync",
+			settings: &PluginSpecV1_Okta{
+				Okta: &PluginOktaSettings{
+					OrgUrl:         "https://test.okta.com",
+					EnableUserSync: false,
+				},
+			},
+			creds:     validCreds,
+			assertErr: require.NoError,
+			assertValue: func(t *testing.T, settings *PluginOktaSettings) {
+				require.False(t, settings.EnableUserSync)
+				require.Empty(t, settings.SsoConnectorId)
 			},
 		},
 	}
