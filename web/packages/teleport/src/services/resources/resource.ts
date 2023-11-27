@@ -18,7 +18,7 @@ import api from 'teleport/services/api';
 import cfg, { UrlResourcesParams } from 'teleport/config';
 
 import { UnifiedResource, ResourcesResponse } from '../agents';
-import { KeysEnum } from '../localStorage';
+import { KeysEnum } from '../storageService';
 
 import { makeUnifiedResource } from './makeUnifiedResource';
 

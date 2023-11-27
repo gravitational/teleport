@@ -108,7 +108,7 @@ func (s *JiraSuite) SetupSuite() {
 	// Set up user who can request the access to role "editor".
 
 	conditions := types.RoleConditions{Request: &types.AccessRequestConditions{Roles: []string{"editor"}}}
-	if teleportFeatures.AdvancedAccessWorkflows {
+	if teleportFeatures.AccessRequests.Enabled {
 		conditions.Request.Thresholds = []types.AccessReviewThreshold{{Approve: 2, Deny: 2}}
 	}
 	role, err := bootstrap.AddRole("foo", types.RoleSpecV6{Allow: conditions})
@@ -121,7 +121,7 @@ func (s *JiraSuite) SetupSuite() {
 	s.authorUser = UserDetails{AccountID: "USER-1", DisplayName: me.Username, EmailAddress: s.userNames.requestor}
 	s.otherUser = UserDetails{AccountID: "USER-2", DisplayName: me.Username + " evil twin", EmailAddress: me.Username + "-evil@example.com"}
 
-	if teleportFeatures.AdvancedAccessWorkflows {
+	if teleportFeatures.AccessRequests.Enabled {
 		// Set up TWO users who can review access requests to role "editor".
 
 		role, err = bootstrap.AddRole("foo-reviewer", types.RoleSpecV6{
@@ -166,7 +166,7 @@ func (s *JiraSuite) SetupSuite() {
 	require.NoError(t, err)
 	s.clients[s.userNames.requestor] = client
 
-	if teleportFeatures.AdvancedAccessWorkflows {
+	if teleportFeatures.AccessRequests.Enabled {
 		client, err = teleport.NewClient(ctx, auth, s.userNames.reviewer1)
 		require.NoError(t, err)
 		s.clients[s.userNames.reviewer1] = client
@@ -267,12 +267,19 @@ func (s *JiraSuite) checkPluginData(reqID string, cond func(PluginData) bool) Pl
 	}
 }
 
-func (s *JiraSuite) postWebhook(ctx context.Context, url, issueID string) (*http.Response, error) {
+func (s *JiraSuite) postWebhook(ctx context.Context, url, issueID, status string) (*http.Response, error) {
 	var buf bytes.Buffer
 	wh := Webhook{
 		WebhookEvent:       "jira:issue_updated",
 		IssueEventTypeName: "issue_generic",
-		Issue:              &WebhookIssue{ID: issueID},
+		Issue: &WebhookIssue{
+			ID: issueID,
+			Fields: IssueFields{
+				Status: StatusDetails{
+					Name: status,
+				},
+			},
+		},
 	}
 	err := json.NewEncoder(&buf).Encode(&wh)
 	if err != nil {
@@ -289,11 +296,11 @@ func (s *JiraSuite) postWebhook(ctx context.Context, url, issueID string) (*http
 	return response, trace.Wrap(err)
 }
 
-func (s *JiraSuite) postWebhookAndCheck(url, issueID string) {
+func (s *JiraSuite) postWebhookAndCheck(url, issueID, status string) {
 	t := s.T()
 	t.Helper()
 
-	resp, err := s.postWebhook(s.Context(), url, issueID)
+	resp, err := s.postWebhook(s.Context(), url, issueID, status)
 	require.NoError(t, err)
 	require.NoError(t, resp.Body.Close())
 	require.Equal(t, http.StatusOK, resp.StatusCode)
@@ -366,7 +373,7 @@ func (s *JiraSuite) TestIssueCreationWithLargeRequestReason() {
 func (s *JiraSuite) TestReviewComments() {
 	t := s.T()
 
-	if !s.teleportFeatures.AdvancedAccessWorkflows {
+	if !s.teleportFeatures.AccessRequests.Enabled {
 		t.Skip("Doesn't work in OSS version")
 	}
 
@@ -410,7 +417,7 @@ func (s *JiraSuite) TestReviewComments() {
 func (s *JiraSuite) TestReviewerApproval() {
 	t := s.T()
 
-	if !s.teleportFeatures.AdvancedAccessWorkflows {
+	if !s.teleportFeatures.AccessRequests.Enabled {
 		t.Skip("Doesn't work in OSS version")
 	}
 
@@ -469,7 +476,7 @@ func (s *JiraSuite) TestReviewerApproval() {
 func (s *JiraSuite) TestReviewerDenial() {
 	t := s.T()
 
-	if !s.teleportFeatures.AdvancedAccessWorkflows {
+	if !s.teleportFeatures.AccessRequests.Enabled {
 		t.Skip("Doesn't work in OSS version")
 	}
 
@@ -541,7 +548,7 @@ func (s *JiraSuite) TestWebhookApproval() {
 	assert.Equal(t, issueID, issue.ID)
 
 	s.fakeJira.TransitionIssue(issue, "Approved")
-	s.postWebhookAndCheck(app.PublicURL().String(), issue.ID)
+	s.postWebhookAndCheck(app.PublicURL().String(), issue.ID, "Approved")
 
 	request, err = s.ruler().GetAccessRequest(s.Context(), request.GetName())
 	require.NoError(t, err)
@@ -576,7 +583,7 @@ func (s *JiraSuite) TestWebhookDenial() {
 	assert.Equal(t, issueID, issue.ID)
 
 	s.fakeJira.TransitionIssue(issue, "Denied")
-	s.postWebhookAndCheck(app.PublicURL().String(), issue.ID)
+	s.postWebhookAndCheck(app.PublicURL().String(), issue.ID, "Denied")
 
 	request, err = s.ruler().GetAccessRequest(s.Context(), request.GetName())
 	require.NoError(t, err)
@@ -616,7 +623,7 @@ func (s *JiraSuite) TestWebhookApprovalWithReason() {
 	})
 
 	s.fakeJira.TransitionIssue(issue, "Approved")
-	s.postWebhookAndCheck(app.PublicURL().String(), issue.ID)
+	s.postWebhookAndCheck(app.PublicURL().String(), issue.ID, "Approved")
 
 	request, err = s.ruler().GetAccessRequest(s.Context(), request.GetName())
 	require.NoError(t, err)
@@ -670,7 +677,7 @@ func (s *JiraSuite) TestWebhookDenialWithReason() {
 	})
 
 	s.fakeJira.TransitionIssue(issue, "Denied")
-	s.postWebhookAndCheck(app.PublicURL().String(), issue.ID)
+	s.postWebhookAndCheck(app.PublicURL().String(), issue.ID, "Denied")
 
 	request, err = s.ruler().GetAccessRequest(s.Context(), request.GetName())
 	require.NoError(t, err)
@@ -780,7 +787,7 @@ func (s *JiraSuite) TestRace() {
 			var lastErr error
 			for {
 				logger.Get(ctx).Infof("Trying to approve issue %q", issue.Key)
-				resp, err := s.postWebhook(ctx, app.PublicURL().String(), issue.ID)
+				resp, err := s.postWebhook(ctx, app.PublicURL().String(), issue.ID, "Approved")
 				if err != nil {
 					if lib.IsDeadline(err) {
 						return setRaceErr(lastErr)

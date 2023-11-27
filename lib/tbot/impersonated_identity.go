@@ -256,7 +256,7 @@ func (b *Bot) generateIdentity(
 	newIdentity, err := identity.ReadIdentityFromStore(&identity.LoadIdentityParams{
 		PrivateKeyBytes: privateKey,
 		PublicKeyBytes:  publicKey,
-	}, certs, identity.DestinationKinds()...)
+	}, certs)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -495,6 +495,8 @@ func (b *Bot) generateImpersonatedIdentity(
 
 		return routedIdentity, impersonatedClient, nil
 	case *config.SSHHostOutput:
+		return impersonatedIdentity, impersonatedClient, nil
+	case *config.UnstableClientCredentialOutput:
 		return impersonatedIdentity, impersonatedClient, nil
 	default:
 		return nil, nil, trace.BadParameter("generateImpersonatedIdentity does not support output type (%T)", output)

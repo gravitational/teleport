@@ -22,24 +22,18 @@ import (
 	"github.com/gravitational/trace"
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/gravitational/teleport/api/client"
 	resourcesv1 "github.com/gravitational/teleport/integrations/operator/apis/resources/v1"
-	"github.com/gravitational/teleport/integrations/operator/sidecar"
 )
 
 // loginRuleClient implements TeleportResourceClient and offers CRUD methods needed to reconcile login_rules
 type loginRuleClient struct {
-	TeleportClientAccessor sidecar.ClientAccessor
+	teleportClient *client.Client
 }
 
 // Get gets the Teleport login_rule of a given name
 func (l loginRuleClient) Get(ctx context.Context, name string) (*resourcesv1.LoginRuleResource, error) {
-	teleportClient, release, err := l.TeleportClientAccessor(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer release()
-
-	loginRule, err := teleportClient.GetLoginRule(ctx, name)
+	loginRule, err := l.teleportClient.GetLoginRule(ctx, name)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -49,43 +43,25 @@ func (l loginRuleClient) Get(ctx context.Context, name string) (*resourcesv1.Log
 
 // Create creates a Teleport login_rule
 func (l loginRuleClient) Create(ctx context.Context, resource *resourcesv1.LoginRuleResource) error {
-	teleportClient, release, err := l.TeleportClientAccessor(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer release()
-
-	_, err = teleportClient.CreateLoginRule(ctx, resource.LoginRule)
+	_, err := l.teleportClient.CreateLoginRule(ctx, resource.LoginRule)
 	return trace.Wrap(err)
 }
 
 // Update updates a Teleport login_rule
 func (l loginRuleClient) Update(ctx context.Context, resource *resourcesv1.LoginRuleResource) error {
-	teleportClient, release, err := l.TeleportClientAccessor(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer release()
-
-	_, err = teleportClient.UpsertLoginRule(ctx, resource.LoginRule)
+	_, err := l.teleportClient.UpsertLoginRule(ctx, resource.LoginRule)
 	return trace.Wrap(err)
 }
 
 // Delete deletes a Teleport login_rule
 func (l loginRuleClient) Delete(ctx context.Context, name string) error {
-	teleportClient, release, err := l.TeleportClientAccessor(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer release()
-
-	return trace.Wrap(teleportClient.DeleteLoginRule(ctx, name))
+	return trace.Wrap(l.teleportClient.DeleteLoginRule(ctx, name))
 }
 
 // NewLoginRuleReconciler instantiates a new Kubernetes controller reconciling login_rule resources
-func NewLoginRuleReconciler(client kclient.Client, accessor sidecar.ClientAccessor) *TeleportResourceReconciler[*resourcesv1.LoginRuleResource, *resourcesv1.TeleportLoginRule] {
+func NewLoginRuleReconciler(client kclient.Client, tClient *client.Client) *TeleportResourceReconciler[*resourcesv1.LoginRuleResource, *resourcesv1.TeleportLoginRule] {
 	loginRuleClient := &loginRuleClient{
-		TeleportClientAccessor: accessor,
+		teleportClient: tClient,
 	}
 
 	resourceReconciler := NewTeleportResourceReconciler[*resourcesv1.LoginRuleResource, *resourcesv1.TeleportLoginRule](

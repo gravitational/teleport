@@ -16,3 +16,7 @@ BUILDBOX_CENTOS7_ASSETS=$(BUILDBOX_BASE_NAME)-centos7-assets:$(BUILDBOX_VERSION)
 .PHONY:show-buildbox-base-image
 show-buildbox-base-image:
 	@echo "$(BUILDBOX)"
+
+.PHONY:show-buildbox-centos7-image
+show-buildbox-centos7-image:
+	@echo "$(BUILDBOX_CENTOS7)"

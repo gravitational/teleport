@@ -134,7 +134,10 @@ func (e *Engine) HandleConnection(ctx context.Context, _ *common.Session) error 
 	}
 
 	meta := e.sessionCtx.Database.GetAWS()
-	awsSession, err := e.CloudClients.GetAWSSession(ctx, meta.Region, cloud.WithAssumeRoleFromAWSMeta(meta))
+	awsSession, err := e.CloudClients.GetAWSSession(ctx, meta.Region,
+		cloud.WithAssumeRoleFromAWSMeta(meta),
+		cloud.WithAmbientCredentials(),
+	)
 	if err != nil {
 		return trace.Wrap(err)
 	}

@@ -21,6 +21,7 @@ import * as icons from 'design/Icon';
 import { Cross as CloseIcon } from 'design/Icon';
 import { Highlight } from 'shared/components/Highlight';
 import { Attempt, hasFinished } from 'shared/hooks/useAsync';
+import { AdvancedSearchToggle } from 'shared/components/AdvancedSearchToggle';
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import {
@@ -67,6 +68,8 @@ export function ActionPicker(props: { input: ReactElement }) {
     filters,
     removeFilter,
     addWindowEventListener,
+    advancedSearchEnabled,
+    toggleAdvancedSearch,
   } = useSearchContext();
   const {
     filterActionsAttempt,
@@ -213,6 +216,10 @@ export function ActionPicker(props: { input: ReactElement }) {
             status={actionPickerStatus}
             getClusterName={getClusterName}
             showErrorsInModal={showErrorsInModal}
+            advancedSearch={{
+              isToggled: advancedSearchEnabled,
+              onToggle: toggleAdvancedSearch,
+            }}
           />
         }
       />
@@ -241,14 +248,24 @@ const ExtraTopComponents = (props: {
   status: ActionPickerStatus;
   getClusterName: (resourceUri: uri.ClusterOrResourceUri) => string;
   showErrorsInModal: (errors: ResourceSearchError[]) => void;
+  advancedSearch: AdvancedSearch;
 }) => {
-  const { status, getClusterName, showErrorsInModal } = props;
+  const { status, getClusterName, showErrorsInModal, advancedSearch } = props;
+
+  if (advancedSearch.isToggled) {
+    return <AdvancedSearchEnabledItem advancedSearch={advancedSearch} />;
+  }
 
   switch (status.inputState) {
     case 'no-input': {
       switch (status.searchMode.kind) {
         case 'no-search': {
-          return <TypeToSearchItem hasNoRemainingFilterActions={false} />;
+          return (
+            <TypeToSearchItem
+              hasNoRemainingFilterActions={false}
+              advancedSearch={advancedSearch}
+            />
+          );
         }
         case 'preview': {
           const {
@@ -260,6 +277,7 @@ const ExtraTopComponents = (props: {
             <>
               <TypeToSearchItem
                 hasNoRemainingFilterActions={hasNoRemainingFilterActions}
+                advancedSearch={advancedSearch}
               />
               {nonRetryableResourceSearchErrors.length > 0 && (
                 <ResourceSearchErrorsItem
@@ -268,6 +286,7 @@ const ExtraTopComponents = (props: {
                   showErrorsInModal={() => {
                     showErrorsInModal(nonRetryableResourceSearchErrors);
                   }}
+                  advancedSearch={advancedSearch}
                 />
               )}
             </>
@@ -279,21 +298,39 @@ const ExtraTopComponents = (props: {
       }
     }
     case 'some-input': {
+      const shouldShowResourceSearchErrorsItem =
+        status.nonRetryableResourceSearchErrors.length > 0;
+      const shouldShowNoResultsItem = status.hasNoResults;
+      const shouldShowTypeToSearchItem =
+        !shouldShowResourceSearchErrorsItem && !shouldShowNoResultsItem;
+
       return (
         <>
-          {status.nonRetryableResourceSearchErrors.length > 0 && (
+          {shouldShowResourceSearchErrorsItem && (
             <ResourceSearchErrorsItem
               errors={status.nonRetryableResourceSearchErrors}
               getClusterName={getClusterName}
               showErrorsInModal={() => {
                 showErrorsInModal(status.nonRetryableResourceSearchErrors);
               }}
+              advancedSearch={advancedSearch}
             />
           )}
-          {status.hasNoResults && (
+          {shouldShowNoResultsItem && (
             <NoResultsItem
               clustersWithExpiredCerts={status.clustersWithExpiredCerts}
               getClusterName={getClusterName}
+              // Show the toggle only
+              // when ResourceSearchErrorsItem is not visible
+              advancedSearch={
+                shouldShowResourceSearchErrorsItem ? undefined : advancedSearch
+              }
+            />
+          )}
+          {shouldShowTypeToSearchItem && (
+            <TypeToSearchItem
+              hasNoRemainingFilterActions={false}
+              advancedSearch={advancedSearch}
             />
           )}
         </>
@@ -669,6 +706,7 @@ export function KubeItem(props: SearchResultItem<SearchResultKube>) {
 export function NoResultsItem(props: {
   clustersWithExpiredCerts: Set<uri.ClusterUri>;
   getClusterName: (resourceUri: uri.ClusterOrResourceUri) => string;
+  advancedSearch: AdvancedSearch;
 }) {
   const clustersWithExpiredCerts = Array.from(
     props.clustersWithExpiredCerts,
@@ -689,7 +727,9 @@ export function NoResultsItem(props: {
   return (
     <NonInteractiveItem>
       <IconAndContent Icon={icons.Info} iconColor="text.slightlyMuted">
-        <Text typography="body1">No matching results found.</Text>
+        <ContentAndAdvancedSearch advancedSearch={props.advancedSearch}>
+          <Text typography="body1">No matching results found.</Text>
+        </ContentAndAdvancedSearch>
         {expiredCertsCopy && <Text typography="body2">{expiredCertsCopy}</Text>}
       </IconAndContent>
     </NonInteractiveItem>
@@ -698,16 +738,37 @@ export function NoResultsItem(props: {
 
 export function TypeToSearchItem({
   hasNoRemainingFilterActions,
+  advancedSearch,
 }: {
   hasNoRemainingFilterActions: boolean;
+  advancedSearch: AdvancedSearch;
 }) {
   return (
     <NonInteractiveItem>
-      <Text typography="body2">
-        Enter space-separated search terms.
-        {hasNoRemainingFilterActions ||
-          ' Select a filter to narrow down the search.'}
-      </Text>
+      <ContentAndAdvancedSearch advancedSearch={advancedSearch}>
+        <Text typography="body2">
+          Enter space-separated search terms.
+          {hasNoRemainingFilterActions ||
+            ' Select a filter to narrow down the search.'}
+        </Text>
+      </ContentAndAdvancedSearch>
+    </NonInteractiveItem>
+  );
+}
+
+export function AdvancedSearchEnabledItem({
+  advancedSearch,
+}: {
+  advancedSearch: AdvancedSearch;
+}) {
+  return (
+    <NonInteractiveItem>
+      <ContentAndAdvancedSearch advancedSearch={advancedSearch}>
+        <Text typography="body2">
+          Enter the query using the predicate language. Inline results are not
+          available in this mode.
+        </Text>
+      </ContentAndAdvancedSearch>
     </NonInteractiveItem>
   );
 }
@@ -716,6 +777,7 @@ export function ResourceSearchErrorsItem(props: {
   errors: ResourceSearchError[];
   getClusterName: (resourceUri: uri.ClusterOrResourceUri) => string;
   showErrorsInModal: () => void;
+  advancedSearch: AdvancedSearch;
 }) {
   const { errors, getClusterName } = props;
 
@@ -736,9 +798,11 @@ export function ResourceSearchErrorsItem(props: {
   return (
     <NonInteractiveItem>
       <IconAndContent Icon={icons.Warning} iconColor="warning.main">
-        <Text typography="body1">
-          Some of the search results are incomplete.
-        </Text>
+        <ContentAndAdvancedSearch advancedSearch={props.advancedSearch}>
+          <Text typography="body1">
+            Some of the search results are incomplete.
+          </Text>
+        </ContentAndAdvancedSearch>
 
         <Flex gap={2} justifyContent="space-between" alignItems="baseline">
           <span
@@ -910,6 +974,35 @@ function FilterButton(props: { text: string; onClick(): void }) {
       >
         {props.text}
       </span>
+    </Flex>
+  );
+}
+
+interface AdvancedSearch {
+  isToggled: boolean;
+  onToggle(): void;
+}
+
+function ContentAndAdvancedSearch(
+  props: React.PropsWithChildren<{
+    advancedSearch: AdvancedSearch;
+  }>
+) {
+  return (
+    <Flex gap={2} justifyContent="space-between" alignItems="flex-start">
+      {props.children}
+      {
+        <AdvancedSearchToggle
+          {...props.advancedSearch}
+          css={`
+            //TODO(gzdunek): Remove when we get a toggle that can be displayed
+            // on a white background
+            label > div {
+              border: 1px solid ${props => props.theme.colors.spotBackground[1]};
+            }
+          `}
+        />
+      }
     </Flex>
   );
 }
