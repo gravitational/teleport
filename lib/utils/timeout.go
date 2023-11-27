@@ -19,52 +19,63 @@ package utils
 
 import (
 	"net"
+	"sync"
 	"time"
 )
 
-// TimeoutConn wraps an existing net.Conn and adds read/write timeouts
-// for it, allowing to implement "disconnect after XX of idle time" policy
-//
-// Usage example:
-// tc := utils.ObeyIdleTimeout(conn, time.Second * 30, "ssh connection")
-// io.Copy(tc, xxx)
-type TimeoutConn struct {
-	net.Conn
-	TimeoutDuration time.Duration
-
-	// Name is only useful for debugging/logging, it's a convenient
-	// way to tag every idle connection
-	OwnerName string
-}
-
-// ObeyIdleTimeout wraps an existing network connection with timeout-obeying
-// Write() and Read() - it will drop the connection after 'timeout' on idle
-//
-// Example:
-// ObeyIdletimeout(conn, time.Second * 60, "api server").
-func ObeyIdleTimeout(conn net.Conn, timeout time.Duration, ownerName string) net.Conn {
-	return &TimeoutConn{
-		Conn:            conn,
-		TimeoutDuration: timeout,
-		OwnerName:       ownerName,
+// ObeyIdleTimeout wraps an existing network connection, closing it if data
+// isn't read often enough. The connection will be closed even if Read is never
+// called, or if it's called on the underlying connection instead of the
+// returned one.
+func ObeyIdleTimeout(conn net.Conn, timeout time.Duration) net.Conn {
+	return &timeoutConn{
+		Conn: conn,
+		watchdog: time.AfterFunc(timeout, func() {
+			conn.Close()
+		}),
 	}
 }
 
-// NetConn returns the underlying net.Conn.
-func (tc *TimeoutConn) NetConn() net.Conn {
-	return tc.Conn
+type timeoutConn struct {
+	net.Conn
+
+	timeout time.Duration
+
+	mu       sync.Mutex
+	watchdog *time.Timer
 }
 
-func (tc *TimeoutConn) Read(p []byte) (n int, err error) {
-	// note: checking for errors here does not buy anything: some net.Conn interface
-	// 	     implementations (sshConn, pipe) simply return "not supported" error
-	tc.Conn.SetReadDeadline(time.Now().Add(tc.TimeoutDuration))
-	return tc.Conn.Read(p)
+func (c *timeoutConn) pet() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	// if the timer has already fired the underlying net.Conn has been closed or
+	// will be closed shortly anyway
+	if c.watchdog.Stop() {
+		c.watchdog.Reset(c.timeout)
+	}
 }
 
-func (tc *TimeoutConn) Write(p []byte) (n int, err error) {
-	// note: checking for errors here does not buy anything: some net.Conn interface
-	// 	     implementations (sshConn, pipe) simply return "not supported" error
-	tc.Conn.SetWriteDeadline(time.Now().Add(tc.TimeoutDuration))
-	return tc.Conn.Write(p)
+// NetConn returns the underlying [net.Conn].
+func (c *timeoutConn) NetConn() net.Conn {
+	return c.Conn
+}
+
+// Close implements [io.Closer] and [net.Conn] by closing the underlying
+// connection and then stopping the watchdog, if it's still running.
+func (c *timeoutConn) Close() error {
+	err := c.Conn.Close()
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.watchdog.Stop()
+	return err
+}
+
+// Read implements [io.Reader] and [net.Conn], petting the watchdog timer if any
+// data is successfully read.
+func (c *timeoutConn) Read(p []byte) (n int, err error) {
+	n, err = c.Conn.Read(p)
+	if n > 0 {
+		c.pet()
+	}
+	return n, err
 }
