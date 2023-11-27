@@ -242,6 +242,9 @@ const (
 	// (as defined by types.PluginStatus) for a plugin instance
 	MetricHostedPluginStatus = "hosted_plugin_status"
 
+	// MetricTeleportServices tracks which services are currently running in the current Teleport Process.
+	MetricTeleportServices = "services"
+
 	// TagRange is a tag specifying backend requests
 	TagRange = "range"
 
@@ -282,6 +285,11 @@ const (
 	// were used for the agent.
 	// This value comes from UpstreamInventoryAgentMetadata (sourced in lib/inventory/metadata.fetchInstallMethods).
 	TagInstallMethods = "install_methods"
+
+	// TagServiceName is the prometheus label to indicate what services are running in the current proxy.
+	// Those services are monitored using the Supervisor.
+	// Eg, proxy.web, discovery.init, ssh.node, auth.tls ...
+	TagServiceName = "service_name"
 )
 
 const (

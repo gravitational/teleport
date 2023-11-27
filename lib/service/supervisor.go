@@ -23,9 +23,11 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/observability/metrics"
 )
 
 // Supervisor implements the simple service logic - registering
@@ -271,11 +273,24 @@ type ExitEventPayload struct {
 	Error error
 }
 
+var metricsServicesRunning = prometheus.NewGaugeVec(
+	prometheus.GaugeOpts{
+		Namespace: teleport.MetricNamespace,
+		Name:      teleport.MetricTeleportServices,
+		Help:      "Teleport Services",
+	},
+	[]string{teleport.TagServiceName},
+)
+
 func (s *LocalSupervisor) serve(srv Service) {
 	s.wg.Add(1)
 	go func() {
 		defer s.wg.Done()
 		defer s.RemoveService(srv)
+
+		metricsServicesRunning.WithLabelValues(srv.Name()).Inc()
+		defer metricsServicesRunning.WithLabelValues(srv.Name()).Dec()
+
 		l := s.log.WithField("service", srv.Name())
 		l.Debug("Service has started.")
 		err := srv.Serve()
@@ -301,6 +316,11 @@ func (s *LocalSupervisor) Start() error {
 	if len(s.services) == 0 {
 		s.log.Warning("Supervisor has no services to run. Exiting.")
 		return nil
+	}
+
+	err := metrics.RegisterPrometheusCollectors(metricsServicesRunning)
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
 	for _, srv := range s.services {
