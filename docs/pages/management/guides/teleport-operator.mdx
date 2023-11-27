@@ -253,11 +253,11 @@ $ kubectl logs "$AUTH_POD" -c operator
 
 ### The operator does not see the resource
 
-If you created the resource, can get it with `kubectl get <resource-type>`, but
-the resource status stays empty and the operator does not produce logs, please
+If you created a resource, and can get it with `kubectl get <resource-type>`, but
+the resource status stays empty and the operator does not produce logs,
 check if the resource lives in the `teleport-cluster` namespace.
 
-The operator only watches for resource in its own namespace.
+The operator only watches for resources in its own namespace.
 
 ### Cluster instability after enabling the Operator
 
