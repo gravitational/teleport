@@ -526,7 +526,7 @@ message Features {
   AccessRequestsFeature AccessRequests = 21 [(gogoproto.jsontag) = "access_requests,omitempty"];
   // CustomTheme holds the name of WebUI custom theme.
   string CustomTheme = 22 [(gogoproto.jsontag) = "custom_theme,omitempty"];
-  // IdentityGovernanceSecurity indicates whether IGS related features are enabled:
+  // IdentityGovernance indicates whether IGS related features are enabled:
   // access list, access request, access monitoring, device trust.
   bool IdentityGovernance = 23 [(gogoproto.jsontag) = "identity_governance,omitempty"];
   // AccessGraph indicates whether Teleport Access Graph is enabled.
@@ -559,6 +559,8 @@ message AccessRequestsFeature {
   // Usage-based limit for the number of limit for the number of
   // access requests created in a calendar month.
   int32 monthly_request_limit = 1 [(gogoproto.jsontag) = "monthly_request_limit"];
+  reserved 2;
+  reserved "enabled";
 }
 
 // AccessListFeature holds the Access List feature settings.
