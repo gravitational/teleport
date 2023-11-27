@@ -1,3 +1,5 @@
+# syntax=docker/dockerfile:1
+
 ARG BUILDBOX_VERSION
 FROM public.ecr.aws/gravitational/teleport-buildbox:$BUILDBOX_VERSION
 

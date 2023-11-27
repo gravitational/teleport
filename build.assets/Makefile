@@ -69,13 +69,6 @@ endif
 DOCKERFLAGS := $(DOCKERFLAGS) -v $(GOCACHE):/go/cache -e GOCACHE=/go/cache
 endif
 
-ifeq ("$(RUNTIME_ARCH)","arm64")
-	# devtoolset-11 is not available on CentOS 7 aarch64
-	DEVTOOLSET ?= devtoolset-10
-else
-	DEVTOOLSET ?= devtoolset-11
-endif
-
 #
 # Build 'teleport' release inside a docker container
 #
@@ -152,6 +145,7 @@ buildbox-centos7:
 		--build-arg UID=$(UID) \
 		--build-arg GID=$(GID) \
 		--build-arg BUILDARCH=$(RUNTIME_ARCH) \
+		--build-arg TARGETARCH=$(HOST_ARCH) \
 		--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
 		--build-arg RUST_VERSION=$(RUST_VERSION) \
 		--build-arg DEVTOOLSET=$(DEVTOOLSET) \
@@ -170,8 +164,10 @@ buildbox-centos7-fips:
 		--build-arg UID=$(UID) \
 		--build-arg GID=$(GID) \
 		--build-arg BUILDARCH=$(RUNTIME_ARCH) \
+		--build-arg TARGETARCH=$(HOST_ARCH) \
 		--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
 		--build-arg RUST_VERSION=$(RUST_VERSION) \
+		--build-arg DEVTOOLSET=$(DEVTOOLSET) \
 		--build-arg LIBBPF_VERSION=$(LIBBPF_VERSION) \
 		--cache-from $(BUILDBOX_CENTOS7_FIPS) \
 		--tag $(BUILDBOX_CENTOS7_FIPS) -f Dockerfile-centos7-fips .
@@ -533,5 +529,6 @@ print-buildbox-version:
 build-centos7-assets:
 	docker build \
 		--build-arg DEVTOOLSET=$(DEVTOOLSET) \
+		--build-arg TARGETARCH=$(HOST_ARCH) \
 		--tag $(BUILDBOX_CENTOS7_ASSETS)-$(RUNTIME_ARCH) \
 		-f Dockerfile-centos7-assets .
