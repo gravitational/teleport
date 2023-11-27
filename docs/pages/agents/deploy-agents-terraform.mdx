@@ -157,13 +157,57 @@ The Terraform configuration we show in this guide relies on the following inputs
 In your `agent-pool-terraform` project directory, create a file called
 `main.auto.tfvars` with the following content:
 
+<Tabs>
+<TabItem label="Community Edition">
+
 ```hcl
 agent_count=2
 proxy_service_address="mytenant.teleport.sh"
 aws_region=""
 teleport_version=(=teleport.version=)
+teleport_edition="oss"
 subnet_id=""
 ```
+
+</TabItem>
+<TabItem label="Team">
+
+```hcl
+agent_count=2
+proxy_service_address="mytenant.teleport.sh"
+aws_region=""
+teleport_version=(=teleport.version=)
+teleport_edition="team"
+subnet_id=""
+```
+
+</TabItem>
+
+<TabItem label="Enterprise Cloud">
+
+```hcl
+agent_count=2
+proxy_service_address="mytenant.teleport.sh"
+aws_region=""
+teleport_version=(=teleport.version=)
+teleport_edition="cloud"
+subnet_id=""
+```
+
+</TabItem>
+<TabItem label="Enterprise">
+
+```hcl
+agent_count=2
+proxy_service_address="mytenant.teleport.sh"
+aws_region=""
+teleport_version=(=teleport.version=)
+teleport_edition="enterprise"
+subnet_id=""
+```
+
+</TabItem>
+</Tabs>
 
 Assign `agent_count` to `2` for high availability. As you scale your Teleport
 usage, you can increase this count to ease the load on each agent. You can
