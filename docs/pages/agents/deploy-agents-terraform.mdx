@@ -61,14 +61,11 @@ a demo cluster using:
 
 </Admonition>
 
-- An AWS, Google Cloud, or Azure account with permissions to create virtual
-  machine instances.
+- An AWS account with permissions to create virtual machine instances.
   
 - Cloud infrastructure that enables virtual machine instances to connect to the
-  Teleport Proxy Service. For example:
-    - An AWS subnet with a public NAT gateway or NAT instance.
-    - Google Cloud NAT
-    - Azure NAT Gateway
+  Teleport Proxy Service, such as an AWS subnet with a public NAT gateway or NAT
+  instance.
 
   For demo purposes, you can also configure the VM instances you deploy to
   have public IP addresses.
@@ -92,37 +89,6 @@ a demo cluster using:
    $ cp -R teleport/examples/agent-pool-terraform .
    $ rm -rf teleport
    ```
-
-1. The example Terraform module includes separate provider configurations for
-   deployments on AWS, Google Cloud, and Azure. Delete the configurations that
-   you are not using:
-
-   <Tabs>
-   <TabItem label="AWS">
-   
-   ```code
-   $ cd agent-pool-terraform
-   $ rm providers-gcp.tf providers-azure.tf gcp-instance.tf azure-instance.tf
-   ```
-   
-   </TabItem>
-   <TabItem label="Google Cloud">
-   
-   ```code
-   $ cd agent-pool-terraform
-   $ rm providers-aws.tf providers-azure.tf ec2-instance.tf azure-instance.tf
-   ```
-   
-   </TabItem>
-   <TabItem label="Azure">
-   
-   ```code
-   $ cd agent-pool-terraform
-   $ rm providers-aws.tf providers-gcp.tf ec2-instance.tf gcp-instance.tf
-   ```
-   
-   </TabItem>
-   </Tabs>
 
 1. Move the identity file for the Teleport Terraform provider into your project
    directory so the Terraform provider an access it. Name the file
@@ -171,15 +137,12 @@ with the cluster. Depending on how you modified the `agent-pool-terraform`
 project directory earlier, it should contain one of the following files, which
 declares resources to deploy a virtual machine instance:
 
-<Tabs>
-<TabItem label="AWS">
-
-`ec2-instance.tf` declares a data source for an Amazon Linux 2023 machine image
+`agent-pool.tf` declares a data source for an Amazon Linux 2023 machine image
 and uses it to launch EC2 instances that run Teleport agents with the
 `teleport_provision_token` resource:
 
 ```hcl
-(!examples/agent-pool-terraform/ec2-instance.tf!)
+(!examples/agent-pool-terraform/agent-pool.tf!)
 ```
 
 If you are deploying your instance in a demo environment and do not have a NAT
@@ -190,67 +153,6 @@ IP address with it:
 ```hcl
 associate_public_ip_address = true
 ```
-
-</TabItem>
-<TabItem label="Google Cloud">
-
-`gcp-instance.tf` declares Google Compute Engine instances that use the
-`teleport_provision_token` to run Teleport agents:
-
-```hcl
-(!examples/agent-pool-terraform/gcp-instance.tf!)
-```
-
-If you are deploying your instances in a demo environment and have not
-configured Google Cloud NAT or other method for connecting your instances to the
-Teleport Proxy Service, modify the `google_compute_instance` resource to
-associate a public IP address with it by adding the folloinwg to the
-`network_interface` block:
-
-```hcl
-    access_config {}
-```
-
-</TabItem>
-<TabItem label="Azure">
-
-`azure-instance.tf` declares an Azure virtual machine resource to run Teleport
-agents using the `teleport_provision_token` resource, plus the required network
-interface for each instance. 
-
-Note that while Azure VM instances require a user account, this module declares
-a temporary one to pass validation, but uses Teleport to enable access to the
-instances:
-
-```hcl
-(!examples/agent-pool-terraform/azure-instance.tf!)
-```
-
-If you are deploying your instance in a demo environment and have not configured
-Azure NAT gateway or other method for connecting your instances to the Teleport
-Proxy Service, modify `azure-instance.tf` as follows:
-
-1. Add an `azurerm_public_ip` resource:
-
-   ```hcl
-   resource "azurerm_public_ip" "agent" {
-     count               = var.agent_count
-     name                = "agentIP-${count.index}"
-     resource_group_name = var.azure_resource_group
-     location            = var.region
-     allocation_method   = "Static"
-   }  
-   ```
-
-1. Edit the `ip_configuration` block inside the `azurerm_network_interface`
-   resource to add the following line:
-
-   ```hcl
-   public_ip_address_id = azurerm_public_ip.agent[count.index].id
-   ```
-
-</TabItem>
-</Tabs>
 
 ### Startup script
 
