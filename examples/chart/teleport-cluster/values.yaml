@@ -18,6 +18,10 @@ clusterName: ""
 # Name for this kubernetes cluster to be used by teleport users.
 kubeClusterName: ""
 
+# Common labels for the all resources
+additionalLabels: {}
+  # app: teleport-cluster
+    
 ##################################################
 # Values that you may need to change.
 ##################################################
