@@ -1,28 +1,31 @@
-resource "random_string" "token" {
-  count  = var.agent_count
-  length = 32
-}
+data "aws_ami" "amazon_linux_2023" {
+  most_recent = true
 
-resource "teleport_provision_token" "agent" {
-  count = var.agent_count
-  spec = {
-    roles = [
-      "Node",
-      "App",
-      "Db",
-      "Kube",
-    ]
-    name = random_string.token[count.index].result
+  filter {
+    name   = "description"
+    values = ["Amazon Linux 2023 AMI*"]
   }
-  metadata = {
-    expires = timeadd(timestamp(), "1h")
+
+  filter {
+    name   = "architecture"
+    values = ["x86_64"]
+  }
+
+  filter {
+    name   = "virtualization-type"
+    values = ["hvm"]
+  }
+
+  filter {
+    name   = "owner-alias"
+    values = ["amazon"]
   }
 }
 
 resource "aws_instance" "teleport_agent" {
-  count = var.agent_count
+  count = var.cloud == "aws" ? var.agent_count : 0
   # Amazon Linux 2023 64-bit x86
-  ami           = "ami-04a0ae173da5807d3"
+  ami           = data.aws_ami.amazon_linux_2023.id
   instance_type = "t3.small"
   subnet_id     = var.subnet_id
   user_data = templatefile("./userdata", {
