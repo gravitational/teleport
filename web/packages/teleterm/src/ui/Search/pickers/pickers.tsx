@@ -23,7 +23,7 @@ import { ParameterPicker } from './ParameterPicker';
 
 export const actionPicker: SearchPicker = {
   picker: props => <ActionPicker input={props.input} />,
-  placeholder: 'Search or jump to...',
+  placeholder: 'Search or jump to…',
 };
 export const getParameterPicker = (
   parametrizedAction: ParametrizedAction
