@@ -269,19 +269,6 @@ func (generator *SchemaGenerator) prop(field *Field) (apiextv1.JSONSchemaProps, 
 		prop.Nullable = true
 	}
 
-	// Labels are relying on `utils.Strings`, which can either marshall as an array of strings or a single string
-	// This does not pass Schema validation from the apiserver, to workaround we don't specify type for those fields
-	// and ask Kubernetes to preserve unknown fields.
-	if field.CustomType() == "Labels" {
-		prop.Type = "object"
-		preserveUnknownFields := true
-		prop.AdditionalProperties = &apiextv1.JSONSchemaPropsOrBool{
-			Schema: &apiextv1.JSONSchemaProps{
-				XPreserveUnknownFields: &preserveUnknownFields,
-			},
-		}
-	}
-
 	return prop, nil
 }
 

@@ -17,10 +17,13 @@ limitations under the License.
 package v5
 
 import (
+	"encoding/json"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integrations/operator/apis/resources"
+	"github.com/gravitational/teleport/integrations/operator/apis/resources/utils"
 )
 
 func init() {
@@ -103,4 +106,48 @@ func (spec *TeleportRoleSpec) DeepCopyInto(out *TeleportRoleSpec) {
 // StatusConditions returns a pointer to Status.Conditions slice.
 func (r *TeleportRole) StatusConditions() *[]metav1.Condition {
 	return &r.Status.Conditions
+}
+
+// MarshalJSON serializes a spec into a JSON string
+func (spec TeleportRoleSpec) MarshalJSON() ([]byte, error) {
+	type Alias TeleportRoleSpec
+
+	return json.Marshal(&struct {
+		Allow TeleportRoleConditions `json:"allow,omitempty"`
+		Deny  TeleportRoleConditions `json:"deny,omitempty"`
+		Alias
+	}{
+		Allow: TeleportRoleConditions(spec.Allow),
+		Deny:  TeleportRoleConditions(spec.Deny),
+		Alias: (Alias)(spec),
+	})
+}
+
+type TeleportRoleConditions types.RoleConditions
+
+func (cond TeleportRoleConditions) MarshalJSON() ([]byte, error) {
+	type Alias types.RoleConditions
+
+	return json.Marshal(&struct {
+		NodeLabels            map[string][]string `json:"node_labels,omitempty"`
+		AppLabels             map[string][]string `json:"app_labels,omitempty"`
+		ClusterLabels         map[string][]string `json:"cluster_labels,omitempty"`
+		KubernetesLabels      map[string][]string `json:"kubernetes_labels,omitempty"`
+		DatabaseLabels        map[string][]string `json:"db_labels,omitempty"`
+		WindowsDesktopLabels  map[string][]string `json:"windows_desktop_labels,omitempty"`
+		DatabaseServiceLabels map[string][]string `json:"database_service_labels,omitempty"`
+		GroupLabels           map[string][]string `json:"group_labels,omitempty"`
+
+		Alias
+	}{
+		NodeLabels:            utils.LabelsToMap(cond.NodeLabels),
+		AppLabels:             utils.LabelsToMap(cond.AppLabels),
+		ClusterLabels:         utils.LabelsToMap(cond.ClusterLabels),
+		KubernetesLabels:      utils.LabelsToMap(cond.KubernetesLabels),
+		DatabaseLabels:        utils.LabelsToMap(cond.DatabaseLabels),
+		WindowsDesktopLabels:  utils.LabelsToMap(cond.WindowsDesktopLabels),
+		DatabaseServiceLabels: utils.LabelsToMap(cond.DatabaseServiceLabels),
+		GroupLabels:           utils.LabelsToMap(cond.GroupLabels),
+		Alias:                 Alias(cond),
+	})
 }

@@ -14,10 +14,13 @@ limitations under the License.
 package v2
 
 import (
+	"encoding/json"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integrations/operator/apis/resources"
+	"github.com/gravitational/teleport/integrations/operator/apis/resources/utils"
 )
 
 func init() {
@@ -95,4 +98,18 @@ func (spec *TeleportProvisionTokenSpec) DeepCopyInto(out *TeleportProvisionToken
 	if err = out.Unmarshal(data); err != nil {
 		panic(err)
 	}
+}
+
+func (spec TeleportProvisionTokenSpec) MarshalJSON() ([]byte, error) {
+	type Alias TeleportProvisionTokenSpec
+
+	return json.Marshal(&struct {
+		SuggestedLabels             map[string][]string `json:"suggested_labels,omitempty"`
+		SuggestedAgentMatcherLabels map[string][]string `json:"suggested_agent_matcher_labels,omitempty"`
+		Alias
+	}{
+		SuggestedLabels:             utils.LabelsToMap(spec.SuggestedLabels),
+		SuggestedAgentMatcherLabels: utils.LabelsToMap(spec.SuggestedAgentMatcherLabels),
+		Alias:                       Alias(spec),
+	})
 }
