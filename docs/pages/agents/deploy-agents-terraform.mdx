@@ -164,7 +164,7 @@ In your `agent-pool-terraform` project directory, create a file called
 agent_count=2
 proxy_service_address="mytenant.teleport.sh"
 aws_region=""
-teleport_version=(=teleport.version=)
+teleport_version="(=teleport.version=)"
 teleport_edition="oss"
 subnet_id=""
 ```
@@ -176,7 +176,7 @@ subnet_id=""
 agent_count=2
 proxy_service_address="mytenant.teleport.sh"
 aws_region=""
-teleport_version=(=teleport.version=)
+teleport_version="(=teleport.version=)"
 teleport_edition="team"
 subnet_id=""
 ```
@@ -189,7 +189,7 @@ subnet_id=""
 agent_count=2
 proxy_service_address="mytenant.teleport.sh"
 aws_region=""
-teleport_version=(=teleport.version=)
+teleport_version="(=teleport.version=)"
 teleport_edition="cloud"
 subnet_id=""
 ```
@@ -201,7 +201,7 @@ subnet_id=""
 agent_count=2
 proxy_service_address="mytenant.teleport.sh"
 aws_region=""
-teleport_version=(=teleport.version=)
+teleport_version="(=teleport.version=)"
 teleport_edition="enterprise"
 subnet_id=""
 ```
@@ -249,6 +249,7 @@ approach for your organization.
 Apply the Terraform configuration:
 
 ```code
+$ terraform init
 $ terraform apply
 ```
 
