@@ -32,19 +32,23 @@ import (
 func TestAutoUsersPostgres(t *testing.T) {
 	ctx := context.Background()
 	for name, tc := range map[string]struct {
-		mode                types.CreateDatabaseUserMode
-		databaseRoles       []string
-		expectConnectionErr bool
+		mode                 types.CreateDatabaseUserMode
+		databaseRoles        []string
+		adminDefaultDatabase string
+		expectConnectionErr  bool
+		expectAdminDatabase  string
 	}{
 		"activate/deactivate users": {
 			mode:                types.CreateDatabaseUserMode_DB_USER_MODE_KEEP,
 			databaseRoles:       []string{"reader", "writer"},
 			expectConnectionErr: false,
+			expectAdminDatabase: "user-db",
 		},
 		"activate/delete users": {
 			mode:                types.CreateDatabaseUserMode_DB_USER_MODE_BEST_EFFORT_DROP,
 			databaseRoles:       []string{"reader", "writer"},
 			expectConnectionErr: false,
+			expectAdminDatabase: "user-db",
 		},
 		"disabled": {
 			mode:          types.CreateDatabaseUserMode_DB_USER_MODE_OFF,
@@ -54,6 +58,13 @@ func TestAutoUsersPostgres(t *testing.T) {
 			// error.
 			expectConnectionErr: true,
 		},
+		"admin user default database": {
+			mode:                 types.CreateDatabaseUserMode_DB_USER_MODE_KEEP,
+			databaseRoles:        []string{"reader", "writer"},
+			adminDefaultDatabase: "admin-db",
+			expectConnectionErr:  false,
+			expectAdminDatabase:  "admin-db",
+		},
 	} {
 		t.Run(name, func(t *testing.T) {
 			tc := tc
@@ -62,7 +73,8 @@ func TestAutoUsersPostgres(t *testing.T) {
 			// At initial setup, only allows postgres (used to create execute the procedures).
 			testCtx := setupTestContext(ctx, t, withSelfHostedPostgresUsers("postgres", []string{"postgres"}, func(db *types.DatabaseV3) {
 				db.Spec.AdminUser = &types.DatabaseAdminUser{
-					Name: "postgres",
+					Name:            "postgres",
+					DefaultDatabase: tc.adminDefaultDatabase,
 				}
 			}))
 			go testCtx.startHandlingConnections()
@@ -79,12 +91,16 @@ func TestAutoUsersPostgres(t *testing.T) {
 			require.NoError(t, err)
 
 			// Try to connect to the database as this user.
-			pgConn, err := testCtx.postgresClient(ctx, "alice", "postgres", "alice", "postgres")
+			pgConn, err := testCtx.postgresClient(ctx, "alice", "postgres", "alice", "user-db")
 			if tc.expectConnectionErr {
 				require.Error(t, err)
 				return
 			}
 			require.NoError(t, err)
+
+			// Verify there are two connections.
+			requirePostgresConnection(t, testCtx.postgres["postgres"].db.ParametersCh(), "postgres", tc.expectAdminDatabase)
+			requirePostgresConnection(t, testCtx.postgres["postgres"].db.ParametersCh(), "alice", "user-db")
 
 			// Verify user was activated.
 			select {
@@ -109,6 +125,18 @@ func TestAutoUsersPostgres(t *testing.T) {
 				t.Fatal("user not deactivated after 5s")
 			}
 		})
+	}
+}
+
+func requirePostgresConnection(t *testing.T, parametersCh chan map[string]string, expectUser, expectDatabase string) {
+	t.Helper()
+	select {
+	case parameters := <-parametersCh:
+		require.NotNil(t, parameters)
+		require.Equal(t, expectUser, parameters["user"])
+		require.Equal(t, expectDatabase, parameters["database"])
+	case <-time.After(5 * time.Second):
+		t.Fatal("no connection after 5s")
 	}
 }
 
