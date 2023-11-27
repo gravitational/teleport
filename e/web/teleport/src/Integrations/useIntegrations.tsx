@@ -311,7 +311,7 @@ export function getWarningMessage(
 
     if (externalAuditStorage.status === 'rejected') {
       warning += `external audit integration`;
-      helpMsg += `"external_cloud_audit"`;
+      helpMsg += `"external_audit_storage"`;
       errMsg += externalAuditStorage.reason;
       errAmount += 1;
     }

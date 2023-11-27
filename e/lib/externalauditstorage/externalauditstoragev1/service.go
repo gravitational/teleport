@@ -1,4 +1,4 @@
-package externalcloudauditv1
+package externalauditstoragev1
 
 import (
 	"context"
@@ -14,13 +14,13 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/gravitational/teleport"
-	pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/externalcloudaudit/v1"
+	pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/externalauditstorage/v1"
 	"github.com/gravitational/teleport/api/types"
-	conv "github.com/gravitational/teleport/api/types/externalcloudaudit/convert/v1"
+	conv "github.com/gravitational/teleport/api/types/externalauditstorage/convert/v1"
 	"github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/e/lib/externalcloudaudit"
+	"github.com/gravitational/teleport/e/lib/externalauditstorage"
 	"github.com/gravitational/teleport/lib/authz"
-	ecaint "github.com/gravitational/teleport/lib/integrations/externalcloudaudit"
+	ecaint "github.com/gravitational/teleport/lib/integrations/externalauditstorage"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 )
@@ -36,8 +36,8 @@ type ClusterAuditConfigGetter interface {
 type ServiceConfig struct {
 	// Authorizer is the authorizer to use.
 	Authorizer authz.Authorizer
-	// ExternalCloudAudit is the external cloud audit service to use.
-	ExternalCloudAudit services.ExternalCloudAudits
+	// ExternalAuditStorage is the External Audit Storage service to use.
+	ExternalAuditStorage *local.ExternalAuditStorageService
 	// ClusterAuditConfig holds cluster audit configuration
 	ClusterAuditConfigGetter ClusterAuditConfigGetter
 	// IntegrationSvc is required to create a configurator on demand for draft testing
@@ -48,12 +48,12 @@ type ServiceConfig struct {
 
 // Service implements the external audit gRPC service.
 type Service struct {
-	pb.UnimplementedExternalCloudAuditServiceServer
+	pb.UnimplementedExternalAuditStorageServiceServer
 
 	logger *logrus.Entry
 
 	authorizer               authz.Authorizer
-	externalCloudAudit       services.ExternalCloudAudits
+	externalAuditStorage     *local.ExternalAuditStorageService
 	clusterAuditConfigGetter ClusterAuditConfigGetter
 	integrationSvc           *local.IntegrationsService
 	oidcTokenFn              ecaint.GenerateOIDCTokenFn
@@ -62,8 +62,8 @@ type Service struct {
 // NewService returns a new external audit gRPC service.
 func NewService(cfg *ServiceConfig) (*Service, error) {
 	switch {
-	case cfg.ExternalCloudAudit == nil:
-		return nil, trace.BadParameter("ExternalCloudAudit Service is required")
+	case cfg.ExternalAuditStorage == nil:
+		return nil, trace.BadParameter("ExternalAuditStorage Service is required")
 	case cfg.Authorizer == nil:
 		return nil, trace.BadParameter("Authorizer is required")
 	case cfg.ClusterAuditConfigGetter == nil:
@@ -74,23 +74,23 @@ func NewService(cfg *ServiceConfig) (*Service, error) {
 		return nil, trace.BadParameter("OIDCTokenFn is required")
 	}
 	return &Service{
-		logger:                   logrus.WithField(trace.Component, "externalcloudaudit.service"),
+		logger:                   logrus.WithField(trace.Component, "ExternalAuditStorage.service"),
 		authorizer:               cfg.Authorizer,
-		externalCloudAudit:       cfg.ExternalCloudAudit,
+		externalAuditStorage:     cfg.ExternalAuditStorage,
 		clusterAuditConfigGetter: cfg.ClusterAuditConfigGetter,
 		integrationSvc:           cfg.IntegrationSvc,
 		oidcTokenFn:              cfg.OIDCTokenFn,
 	}, nil
 }
 
-func (s *Service) TestDraftExternalCloudAuditBuckets(ctx context.Context, req *pb.TestDraftExternalCloudAuditBucketsRequest) (*pb.TestDraftExternalCloudAuditBucketsResponse, error) {
+func (s *Service) TestDraftExternalAuditStorageBuckets(ctx context.Context, req *pb.TestDraftExternalAuditStorageBucketsRequest) (*pb.TestDraftExternalAuditStorageBucketsResponse, error) {
 	if err := s.authorizeVerbs(ctx, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	draft, err := s.externalCloudAudit.GetDraftExternalCloudAudit(ctx)
+	draft, err := s.externalAuditStorage.GetDraftExternalAuditStorage(ctx)
 	if err != nil {
-		return nil, trace.Wrap(err, "error getting draft external cloud audit")
+		return nil, trace.Wrap(err, "error getting draft External Audit Storage configuration")
 	}
 
 	cfg, err := s.getAWSConfig(ctx)
@@ -98,21 +98,21 @@ func (s *Service) TestDraftExternalCloudAuditBuckets(ctx context.Context, req *p
 		return nil, trace.Wrap(err, "error getting aws config")
 	}
 
-	if err := externalcloudaudit.ConnectionTestBuckets(ctx, s3.NewFromConfig(cfg), &draft.Spec); err != nil {
+	if err := externalauditstorage.ConnectionTestBuckets(ctx, s3.NewFromConfig(cfg), &draft.Spec); err != nil {
 		return nil, trace.Wrap(err, "connection test for draft buckets failed")
 	}
 
-	return &pb.TestDraftExternalCloudAuditBucketsResponse{}, nil
+	return &pb.TestDraftExternalAuditStorageBucketsResponse{}, nil
 }
 
-func (s *Service) TestDraftExternalCloudAuditGlue(ctx context.Context, req *pb.TestDraftExternalCloudAuditGlueRequest) (*pb.TestDraftExternalCloudAuditGlueResponse, error) {
+func (s *Service) TestDraftExternalAuditStorageGlue(ctx context.Context, req *pb.TestDraftExternalAuditStorageGlueRequest) (*pb.TestDraftExternalAuditStorageGlueResponse, error) {
 	if err := s.authorizeVerbs(ctx, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	draft, err := s.externalCloudAudit.GetDraftExternalCloudAudit(ctx)
+	draft, err := s.externalAuditStorage.GetDraftExternalAuditStorage(ctx)
 	if err != nil {
-		return nil, trace.Wrap(err, "error getting draft external cloud audit")
+		return nil, trace.Wrap(err, "error getting draft External Audit Storage configuration")
 	}
 
 	cfg, err := s.getAWSConfig(ctx)
@@ -120,21 +120,21 @@ func (s *Service) TestDraftExternalCloudAuditGlue(ctx context.Context, req *pb.T
 		return nil, trace.Wrap(err, "error getting aws config")
 	}
 
-	if err := externalcloudaudit.ConnectionTestGlue(ctx, glue.NewFromConfig(cfg), &draft.Spec); err != nil {
+	if err := externalauditstorage.ConnectionTestGlue(ctx, glue.NewFromConfig(cfg), &draft.Spec); err != nil {
 		return nil, trace.Wrap(err, "connection test for draft glue table failed")
 	}
 
-	return &pb.TestDraftExternalCloudAuditGlueResponse{}, nil
+	return &pb.TestDraftExternalAuditStorageGlueResponse{}, nil
 }
 
-func (s *Service) TestDraftExternalCloudAuditAthena(ctx context.Context, req *pb.TestDraftExternalCloudAuditAthenaRequest) (*pb.TestDraftExternalCloudAuditAthenaResponse, error) {
+func (s *Service) TestDraftExternalAuditStorageAthena(ctx context.Context, req *pb.TestDraftExternalAuditStorageAthenaRequest) (*pb.TestDraftExternalAuditStorageAthenaResponse, error) {
 	if err := s.authorizeVerbs(ctx, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	draft, err := s.externalCloudAudit.GetDraftExternalCloudAudit(ctx)
+	draft, err := s.externalAuditStorage.GetDraftExternalAuditStorage(ctx)
 	if err != nil {
-		return nil, trace.Wrap(err, "error getting draft external cloud audit")
+		return nil, trace.Wrap(err, "error getting draft External Audit Storage configuration")
 	}
 
 	cfg, err := s.getAWSConfig(ctx)
@@ -142,14 +142,14 @@ func (s *Service) TestDraftExternalCloudAuditAthena(ctx context.Context, req *pb
 		return nil, trace.Wrap(err, "error getting aws config")
 	}
 
-	if err := externalcloudaudit.ConnectionTestAthena(ctx, athena.NewFromConfig(cfg), &draft.Spec); err != nil {
+	if err := externalauditstorage.ConnectionTestAthena(ctx, athena.NewFromConfig(cfg), &draft.Spec); err != nil {
 		return nil, trace.Wrap(err, "connection test for draft athena query failed")
 	}
 
-	return &pb.TestDraftExternalCloudAuditAthenaResponse{}, nil
+	return &pb.TestDraftExternalAuditStorageAthenaResponse{}, nil
 }
 
-func (s *Service) GenerateDraftExternalCloudAudit(ctx context.Context, req *pb.GenerateDraftExternalCloudAuditRequest) (*pb.GenerateDraftExternalCloudAuditResponse, error) {
+func (s *Service) GenerateDraftExternalAuditStorage(ctx context.Context, req *pb.GenerateDraftExternalAuditStorageRequest) (*pb.GenerateDraftExternalAuditStorageResponse, error) {
 	if err := s.authorizeVerbs(ctx, types.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -158,16 +158,16 @@ func (s *Service) GenerateDraftExternalCloudAudit(ctx context.Context, req *pb.G
 		return nil, trace.Wrap(err, "unable to configure External Audit Storage")
 	}
 
-	resp, err := s.externalCloudAudit.GenerateDraftExternalCloudAudit(ctx, req.IntegrationName, req.Region)
+	resp, err := s.externalAuditStorage.GenerateDraftExternalAuditStorage(ctx, req.IntegrationName, req.Region)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &pb.GenerateDraftExternalCloudAuditResponse{
-		ExternalCloudAudit: conv.ToProto(resp),
+	return &pb.GenerateDraftExternalAuditStorageResponse{
+		ExternalAuditStorage: conv.ToProto(resp),
 	}, nil
 }
 
-func (s *Service) UpsertDraftExternalCloudAudit(ctx context.Context, req *pb.UpsertDraftExternalCloudAuditRequest) (*pb.UpsertDraftExternalCloudAuditResponse, error) {
+func (s *Service) UpsertDraftExternalAuditStorage(ctx context.Context, req *pb.UpsertDraftExternalAuditStorageRequest) (*pb.UpsertDraftExternalAuditStorageResponse, error) {
 	if err := s.authorizeVerbs(ctx, types.VerbCreate, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -177,45 +177,45 @@ func (s *Service) UpsertDraftExternalCloudAudit(ctx context.Context, req *pb.Ups
 	}
 
 	// Validation of parameters is done in FromProtoDraft.
-	draft, err := conv.FromProtoDraft(req.GetExternalCloudAudit())
+	draft, err := conv.FromProtoDraft(req.GetExternalAuditStorage())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	resp, err := s.externalCloudAudit.UpsertDraftExternalCloudAudit(ctx, draft)
+	resp, err := s.externalAuditStorage.UpsertDraftExternalAuditStorage(ctx, draft)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &pb.UpsertDraftExternalCloudAuditResponse{
-		ExternalCloudAudit: conv.ToProto(resp),
+	return &pb.UpsertDraftExternalAuditStorageResponse{
+		ExternalAuditStorage: conv.ToProto(resp),
 	}, nil
 }
 
-func (s *Service) GetDraftExternalCloudAudit(ctx context.Context, req *pb.GetDraftExternalCloudAuditRequest) (*pb.GetDraftExternalCloudAuditResponse, error) {
+func (s *Service) GetDraftExternalAuditStorage(ctx context.Context, req *pb.GetDraftExternalAuditStorageRequest) (*pb.GetDraftExternalAuditStorageResponse, error) {
 	if err := s.authorizeVerbs(ctx, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	externalAudit, err := s.externalCloudAudit.GetDraftExternalCloudAudit(ctx)
+	externalAudit, err := s.externalAuditStorage.GetDraftExternalAuditStorage(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &pb.GetDraftExternalCloudAuditResponse{
-		ExternalCloudAudit: conv.ToProto(externalAudit),
+	return &pb.GetDraftExternalAuditStorageResponse{
+		ExternalAuditStorage: conv.ToProto(externalAudit),
 	}, nil
 }
 
-func (s *Service) DeleteDraftExternalCloudAudit(ctx context.Context, req *pb.DeleteDraftExternalCloudAuditRequest) (*emptypb.Empty, error) {
+func (s *Service) DeleteDraftExternalAuditStorage(ctx context.Context, req *pb.DeleteDraftExternalAuditStorageRequest) (*emptypb.Empty, error) {
 	if err := s.authorizeVerbs(ctx, types.VerbDelete); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := s.externalCloudAudit.DeleteDraftExternalCloudAudit(ctx); err != nil {
+	if err := s.externalAuditStorage.DeleteDraftExternalAuditStorage(ctx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &emptypb.Empty{}, nil
 }
 
-func (s *Service) PromoteToClusterExternalCloudAudit(ctx context.Context, req *pb.PromoteToClusterExternalCloudAuditRequest) (*pb.PromoteToClusterExternalCloudAuditResponse, error) {
+func (s *Service) PromoteToClusterExternalAuditStorage(ctx context.Context, req *pb.PromoteToClusterExternalAuditStorageRequest) (*pb.PromoteToClusterExternalAuditStorageResponse, error) {
 	if err := s.authorizeVerbs(ctx, types.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -227,27 +227,27 @@ func (s *Service) PromoteToClusterExternalCloudAudit(ctx context.Context, req *p
 
 	// TODO(nklaassen): emit audit event.
 
-	if err := s.externalCloudAudit.PromoteToClusterExternalCloudAudit(ctx); err != nil {
+	if err := s.externalAuditStorage.PromoteToClusterExternalAuditStorage(ctx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return &pb.PromoteToClusterExternalCloudAuditResponse{}, nil
+	return &pb.PromoteToClusterExternalAuditStorageResponse{}, nil
 }
 
-func (s *Service) GetClusterExternalCloudAudit(ctx context.Context, req *pb.GetClusterExternalCloudAuditRequest) (*pb.GetClusterExternalCloudAuditResponse, error) {
+func (s *Service) GetClusterExternalAuditStorage(ctx context.Context, req *pb.GetClusterExternalAuditStorageRequest) (*pb.GetClusterExternalAuditStorageResponse, error) {
 	if err := s.authorizeVerbs(ctx, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	externalAudit, err := s.externalCloudAudit.GetClusterExternalCloudAudit(ctx)
+	externalAudit, err := s.externalAuditStorage.GetClusterExternalAuditStorage(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &pb.GetClusterExternalCloudAuditResponse{
-		ClusterExternalCloudAudit: conv.ToProto(externalAudit),
+	return &pb.GetClusterExternalAuditStorageResponse{
+		ClusterExternalAuditStorage: conv.ToProto(externalAudit),
 	}, nil
 }
 
-func (s *Service) DisableClusterExternalCloudAudit(ctx context.Context, req *pb.DisableClusterExternalCloudAuditRequest) (*emptypb.Empty, error) {
+func (s *Service) DisableClusterExternalAuditStorage(ctx context.Context, req *pb.DisableClusterExternalAuditStorageRequest) (*emptypb.Empty, error) {
 	if err := s.authorizeVerbs(ctx, types.VerbDelete); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -255,7 +255,7 @@ func (s *Service) DisableClusterExternalCloudAudit(ctx context.Context, req *pb.
 	// TODO(nklaassen): administrative endpoint with mfa.
 	// TODO(nklaassen): emit audit event.
 
-	if err := s.externalCloudAudit.DisableClusterExternalCloudAudit(ctx); err != nil {
+	if err := s.externalAuditStorage.DisableClusterExternalAuditStorage(ctx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -263,7 +263,7 @@ func (s *Service) DisableClusterExternalCloudAudit(ctx context.Context, req *pb.
 }
 
 func (s *Service) authorizeVerbs(ctx context.Context, verbs ...string) error {
-	_, err := authz.AuthorizeWithVerbs(ctx, s.logger, s.authorizer, false /*quiet*/, types.KindExternalCloudAudit, verbs...)
+	_, err := authz.AuthorizeWithVerbs(ctx, s.logger, s.authorizer, false /*quiet*/, types.KindExternalAuditStorage, verbs...)
 	return trace.Wrap(err)
 }
 
@@ -291,7 +291,7 @@ func (s *Service) getAWSConfig(ctx context.Context) (aws.Config, error) {
 	if _, err := authz.AuthorizeWithVerbs(ctx, s.logger, s.authorizer, false /*quiet*/, types.KindIntegration, types.VerbRead); err != nil {
 		return aws.Config{}, trace.Wrap(err)
 	}
-	configurator, err := ecaint.NewDraftConfigurator(ctx, s.externalCloudAudit, s.integrationSvc)
+	configurator, err := ecaint.NewDraftConfigurator(ctx, s.externalAuditStorage, s.integrationSvc)
 	if err != nil {
 		return aws.Config{}, trace.Wrap(err)
 	}

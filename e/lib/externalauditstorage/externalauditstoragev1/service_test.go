@@ -1,4 +1,4 @@
-package externalcloudauditv1
+package externalauditstoragev1
 
 import (
 	"context"
@@ -9,11 +9,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/externalcloudaudit/v1"
+	pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/externalauditstorage/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/externalcloudaudit"
-	conv "github.com/gravitational/teleport/api/types/externalcloudaudit/convert/v1"
+	"github.com/gravitational/teleport/api/types/externalauditstorage"
+	conv "github.com/gravitational/teleport/api/types/externalauditstorage/convert/v1"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/services"
@@ -23,7 +23,7 @@ import (
 type testPack struct {
 	clock           clockwork.FakeClock
 	mem             *memory.Memory
-	s               services.ExternalCloudAudits
+	s               *local.ExternalAuditStorageService
 	integrationsSvc *local.IntegrationsService
 }
 
@@ -38,7 +38,7 @@ func newTestPack(t *testing.T) *testPack {
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, mem.Close()) })
 
-	s := local.NewExternalCloudAuditService(mem)
+	s := local.NewExternalAuditStorageService(mem)
 
 	integrationsSvc, err := local.NewIntegrationsService(mem)
 	require.NoError(t, err)
@@ -94,7 +94,7 @@ func TestRBAC(t *testing.T) {
 	require.NoError(t, err)
 
 	cfg := &ServiceConfig{
-		ExternalCloudAudit:       p.s,
+		ExternalAuditStorage:     p.s,
 		Authorizer:               authorizer,
 		ClusterAuditConfigGetter: &staticAuditConfigGetter{clusterAuditConfig},
 		IntegrationSvc:           p.integrationsSvc,
@@ -104,17 +104,17 @@ func TestRBAC(t *testing.T) {
 	service, err := NewService(cfg)
 	require.NoError(t, err)
 
-	draftAuditConfig := &pb.ExternalCloudAudit{
+	draftAuditConfig := &pb.ExternalAuditStorage{
 		Header: &headerv1.ResourceHeader{
 			Metadata: &headerv1.Metadata{
-				Name: types.MetaNameExternalCloudAuditDraft,
+				Name: types.MetaNameExternalAuditStorageDraft,
 			},
 		},
-		Spec: &pb.ExternalCloudAuditSpec{
+		Spec: &pb.ExternalAuditStorageSpec{
 			IntegrationName:        "aws-integration-1",
 			Region:                 "us-west-2",
 			PolicyName:             "test-policy",
-			SessionsRecordingsUri:  "s3://bucket/sess",
+			SessionRecordingsUri:   "s3://bucket/sess",
 			AthenaWorkgroup:        "primary",
 			GlueDatabase:           "teleport_db",
 			GlueTable:              "teleport_table",
@@ -132,99 +132,99 @@ func TestRBAC(t *testing.T) {
 		{
 			desc: "upsert draft",
 			f: func() error {
-				_, err := service.UpsertDraftExternalCloudAudit(ctx, &pb.UpsertDraftExternalCloudAuditRequest{
-					ExternalCloudAudit: draftAuditConfig,
+				_, err := service.UpsertDraftExternalAuditStorage(ctx, &pb.UpsertDraftExternalAuditStorageRequest{
+					ExternalAuditStorage: draftAuditConfig,
 				})
 				return err
 			},
 			allow: map[check]bool{
-				{types.KindExternalCloudAudit, types.VerbCreate}: true,
-				{types.KindExternalCloudAudit, types.VerbUpdate}: true,
+				{types.KindExternalAuditStorage, types.VerbCreate}: true,
+				{types.KindExternalAuditStorage, types.VerbUpdate}: true,
 			},
 			expectChecks: []check{
-				{types.KindExternalCloudAudit, types.VerbCreate},
-				{types.KindExternalCloudAudit, types.VerbUpdate},
+				{types.KindExternalAuditStorage, types.VerbCreate},
+				{types.KindExternalAuditStorage, types.VerbUpdate},
 			},
 		},
 		{
 			desc: "get draft",
 			f: func() error {
-				_, err := service.GetDraftExternalCloudAudit(ctx, &pb.GetDraftExternalCloudAuditRequest{})
+				_, err := service.GetDraftExternalAuditStorage(ctx, &pb.GetDraftExternalAuditStorageRequest{})
 				return err
 			},
 			allow: map[check]bool{
-				{types.KindExternalCloudAudit, types.VerbRead}: true,
+				{types.KindExternalAuditStorage, types.VerbRead}: true,
 			},
 			expectChecks: []check{
-				{types.KindExternalCloudAudit, types.VerbRead},
+				{types.KindExternalAuditStorage, types.VerbRead},
 			},
 		},
 		{
 			desc: "promote to cluster",
 			f: func() error {
-				_, err := service.PromoteToClusterExternalCloudAudit(ctx, &pb.PromoteToClusterExternalCloudAuditRequest{})
+				_, err := service.PromoteToClusterExternalAuditStorage(ctx, &pb.PromoteToClusterExternalAuditStorageRequest{})
 				return err
 			},
 			allow: map[check]bool{
-				{types.KindExternalCloudAudit, types.VerbCreate}: true,
+				{types.KindExternalAuditStorage, types.VerbCreate}: true,
 			},
 			expectChecks: []check{
-				{types.KindExternalCloudAudit, types.VerbCreate},
+				{types.KindExternalAuditStorage, types.VerbCreate},
 			},
 		},
 		{
 			desc: "get cluster",
 			f: func() error {
-				_, err := service.GetClusterExternalCloudAudit(ctx, &pb.GetClusterExternalCloudAuditRequest{})
+				_, err := service.GetClusterExternalAuditStorage(ctx, &pb.GetClusterExternalAuditStorageRequest{})
 				return err
 			},
 			allow: map[check]bool{
-				{types.KindExternalCloudAudit, types.VerbRead}: true,
+				{types.KindExternalAuditStorage, types.VerbRead}: true,
 			},
 			expectChecks: []check{
-				{types.KindExternalCloudAudit, types.VerbRead},
+				{types.KindExternalAuditStorage, types.VerbRead},
 			},
 		},
 		{
 			desc: "delete cluster",
 			f: func() error {
-				_, err := service.DisableClusterExternalCloudAudit(ctx, &pb.DisableClusterExternalCloudAuditRequest{})
+				_, err := service.DisableClusterExternalAuditStorage(ctx, &pb.DisableClusterExternalAuditStorageRequest{})
 				return err
 			},
 			allow: map[check]bool{
-				{types.KindExternalCloudAudit, types.VerbDelete}: true,
+				{types.KindExternalAuditStorage, types.VerbDelete}: true,
 			},
 			expectChecks: []check{
-				{types.KindExternalCloudAudit, types.VerbDelete},
+				{types.KindExternalAuditStorage, types.VerbDelete},
 			},
 		},
 		{
 			desc: "generate draft",
 			f: func() error {
-				_, err := service.GenerateDraftExternalCloudAudit(ctx, &pb.GenerateDraftExternalCloudAuditRequest{
+				_, err := service.GenerateDraftExternalAuditStorage(ctx, &pb.GenerateDraftExternalAuditStorageRequest{
 					IntegrationName: "test-integration",
 					Region:          "us-west-2",
 				})
 				return err
 			},
 			allow: map[check]bool{
-				{types.KindExternalCloudAudit, types.VerbCreate}: true,
+				{types.KindExternalAuditStorage, types.VerbCreate}: true,
 			},
 			expectChecks: []check{
-				{types.KindExternalCloudAudit, types.VerbCreate},
+				{types.KindExternalAuditStorage, types.VerbCreate},
 			},
 		},
 		{
 			desc: "delete draft",
 			f: func() error {
-				_, err := service.DeleteDraftExternalCloudAudit(ctx, &pb.DeleteDraftExternalCloudAuditRequest{})
+				_, err := service.DeleteDraftExternalAuditStorage(ctx, &pb.DeleteDraftExternalAuditStorageRequest{})
 				return err
 			},
 			allow: map[check]bool{
-				{types.KindExternalCloudAudit, types.VerbDelete}: true,
+				{types.KindExternalAuditStorage, types.VerbDelete}: true,
 			},
 			expectChecks: []check{
-				{types.KindExternalCloudAudit, types.VerbDelete},
+				{types.KindExternalAuditStorage, types.VerbDelete},
 			},
 		},
 	} {
@@ -253,13 +253,13 @@ func TestClusterAuditConfigCheck(t *testing.T) {
 
 	authorizer := &fakeAuthorizer{&fakeChecker{
 		allow: map[check]bool{
-			{types.KindExternalCloudAudit, types.VerbCreate}: true,
-			{types.KindExternalCloudAudit, types.VerbUpdate}: true,
+			{types.KindExternalAuditStorage, types.VerbCreate}: true,
+			{types.KindExternalAuditStorage, types.VerbUpdate}: true,
 		},
 	}}
 	sampleAthenaURI := "athena://db.table?topicArn=arn:aws:sns:eu-central-1:accnr:topicName&queryResultsS3=s3://testbucket/query-result/&workgroup=workgroup&locationS3=s3://testbucket/events-location&queueURL=https://sqs.eu-central-1.amazonaws.com/accnr/sqsname&largeEventsS3=s3://testbucket/largeevents"
 	sampleFileURI := "file:///tmp/teleport-test/events"
-	sampleExternalCloudAudit, err := externalcloudaudit.GenerateDraftExternalCloudAudit("test-integration", "us-west-2")
+	sampleExternalAuditStorage, err := externalauditstorage.GenerateDraftExternalAuditStorage("test-integration", "us-west-2")
 	require.NoError(t, err)
 
 	for _, tc := range []struct {
@@ -288,7 +288,7 @@ func TestClusterAuditConfigCheck(t *testing.T) {
 			require.NoError(t, err)
 
 			cfg := &ServiceConfig{
-				ExternalCloudAudit:       p.s,
+				ExternalAuditStorage:     p.s,
 				Authorizer:               authorizer,
 				ClusterAuditConfigGetter: &staticAuditConfigGetter{clusterAuditConfig},
 				IntegrationSvc:           p.integrationsSvc,
@@ -297,18 +297,18 @@ func TestClusterAuditConfigCheck(t *testing.T) {
 			service, err := NewService(cfg)
 			require.NoError(t, err)
 
-			_, err = service.GenerateDraftExternalCloudAudit(ctx, &pb.GenerateDraftExternalCloudAuditRequest{
+			_, err = service.GenerateDraftExternalAuditStorage(ctx, &pb.GenerateDraftExternalAuditStorageRequest{
 				Region:          "us-west-2",
 				IntegrationName: "test-integration",
 			})
 			assert.ErrorIs(t, err, tc.expectErr)
 
-			_, err = service.UpsertDraftExternalCloudAudit(ctx, &pb.UpsertDraftExternalCloudAuditRequest{
-				ExternalCloudAudit: conv.ToProto(sampleExternalCloudAudit),
+			_, err = service.UpsertDraftExternalAuditStorage(ctx, &pb.UpsertDraftExternalAuditStorageRequest{
+				ExternalAuditStorage: conv.ToProto(sampleExternalAuditStorage),
 			})
 			assert.ErrorIs(t, err, tc.expectErr)
 
-			_, err = service.PromoteToClusterExternalCloudAudit(ctx, &pb.PromoteToClusterExternalCloudAuditRequest{})
+			_, err = service.PromoteToClusterExternalAuditStorage(ctx, &pb.PromoteToClusterExternalAuditStorageRequest{})
 			assert.ErrorIs(t, err, tc.expectErr)
 		})
 	}

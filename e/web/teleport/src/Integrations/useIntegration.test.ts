@@ -63,7 +63,7 @@ describe('getErrorsMessage', () => {
       makeRejected<ExternalAuditStorage>('no permission to fetch cluster audit')
     );
     expect(result).toBe(
-      'Failed to fetch external audit integration (try refreshing browser or check your "external_cloud_audit" access): no permission to fetch cluster audit'
+      'Failed to fetch external audit integration (try refreshing browser or check your "external_audit_storage" access): no permission to fetch cluster audit'
     );
   });
 
@@ -85,7 +85,7 @@ describe('getErrorsMessage', () => {
       )
     );
     expect(result).toBe(
-      'Failed to fetch external audit integration and plugin integrations (try refreshing browser or check your "external_cloud_audit" and "plugin" access): no permission to fetch external audit and no permission to fetch plugins'
+      'Failed to fetch external audit integration and plugin integrations (try refreshing browser or check your "external_audit_storage" and "plugin" access): no permission to fetch external audit and no permission to fetch plugins'
     );
 
     result = getWarningMessage(
@@ -96,7 +96,7 @@ describe('getErrorsMessage', () => {
       )
     );
     expect(result).toBe(
-      'Failed to fetch external audit integration and rest of integrations (try refreshing browser or check your "external_cloud_audit" and "integration" access): no permission to fetch external audit and some error with integrations'
+      'Failed to fetch external audit integration and rest of integrations (try refreshing browser or check your "external_audit_storage" and "integration" access): no permission to fetch external audit and some error with integrations'
     );
   });
 });

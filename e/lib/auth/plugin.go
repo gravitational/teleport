@@ -14,7 +14,7 @@ import (
 
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
-	externalcloudauditv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/externalcloudaudit/v1"
+	externalauditstoragev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/externalauditstorage/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	resourceusagepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/resourceusage/v1"
@@ -25,7 +25,7 @@ import (
 	"github.com/gravitational/teleport/e/lib/accesslist"
 	"github.com/gravitational/teleport/e/lib/devicetrust/devicetrustv1"
 	dtstorage "github.com/gravitational/teleport/e/lib/devicetrust/storage"
-	"github.com/gravitational/teleport/e/lib/externalcloudaudit/externalcloudauditv1"
+	"github.com/gravitational/teleport/e/lib/externalauditstorage/externalauditstoragev1"
 	"github.com/gravitational/teleport/e/lib/idp/saml"
 	"github.com/gravitational/teleport/e/lib/licensefile"
 	"github.com/gravitational/teleport/e/lib/loginrule"
@@ -163,7 +163,7 @@ func (p *Plugin) RegisterAuthServices(ctx context.Context, server interface{}) e
 	}
 
 	if modules.GetModules().Features().Cloud && !modules.GetModules().Features().IsUsageBasedBilling {
-		if err := p.registerExternalCloudAuditService(ctx); err != nil {
+		if err := p.registerExternalAuditStorageService(ctx); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -443,20 +443,20 @@ func (p *Plugin) registerLoginRuleService(server *auth.GRPCServer) error {
 	return nil
 }
 
-func (p *Plugin) registerExternalCloudAuditService(ctx context.Context) error {
-	externalCloudAudit := local.NewExternalCloudAuditService(p.authServer.GetBackend())
+func (p *Plugin) registerExternalAuditStorageService(ctx context.Context) error {
+	externalAuditStorage := local.NewExternalAuditStorageService(p.authServer.GetBackend())
 
 	integrationsSvc, err := local.NewIntegrationsService(p.authServer.GetBackend())
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	externalauditSvc, err := externalcloudauditv1.NewService(&externalcloudauditv1.ServiceConfig{
+	externalauditSvc, err := externalauditstoragev1.NewService(&externalauditstoragev1.ServiceConfig{
 		Authorizer:               p.authServer.Authorizer,
-		ExternalCloudAudit:       externalCloudAudit,
+		ExternalAuditStorage:     externalAuditStorage,
 		ClusterAuditConfigGetter: p.authServer.AuthServer,
 		IntegrationSvc:           integrationsSvc,
-		OIDCTokenFn:              p.authServer.AuthServer.GenerateExternalCloudAuditOIDCToken,
+		OIDCTokenFn:              p.authServer.AuthServer.GenerateExternalAuditStorageOIDCToken,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -466,7 +466,7 @@ func (p *Plugin) registerExternalCloudAuditService(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
-	externalcloudauditv1pb.RegisterExternalCloudAuditServiceServer(grpcServer, externalauditSvc)
+	externalauditstoragev1pb.RegisterExternalAuditStorageServiceServer(grpcServer, externalauditSvc)
 
 	return nil
 }

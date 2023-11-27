@@ -164,25 +164,25 @@ export function ConfigurePermissions() {
 }
 
 function getBootstrapScript(
-  externalCloudAudit: ExternalAuditStorage | null,
+  externalAuditStorage: ExternalAuditStorage | null,
   selectedAwsIntegration: Integration | null
 ): string {
-  if (!externalCloudAudit || !selectedAwsIntegration) {
+  if (!externalAuditStorage || !selectedAwsIntegration) {
     return '';
   }
   const query = new URLSearchParams();
-  query.set('region', externalCloudAudit.region);
+  query.set('region', externalAuditStorage.region);
   query.set(
     'role',
     selectedAwsIntegration.spec.roleArn.split(':role/')[1] || ''
   );
-  query.set('policy', externalCloudAudit.policyName);
-  query.set('recordings', externalCloudAudit.sessionsRecordingsURI);
-  query.set('events', externalCloudAudit.auditEventsLongTermURI);
-  query.set('results', externalCloudAudit.athenaResultsURI);
-  query.set('workgroup', externalCloudAudit.athenaWorkgroup);
-  query.set('db', externalCloudAudit.glueDatabase);
-  query.set('table', externalCloudAudit.glueTable);
+  query.set('policy', externalAuditStorage.policyName);
+  query.set('recordings', externalAuditStorage.sessionsRecordingsURI);
+  query.set('events', externalAuditStorage.auditEventsLongTermURI);
+  query.set('results', externalAuditStorage.athenaResultsURI);
+  query.set('workgroup', externalAuditStorage.athenaWorkgroup);
+  query.set('db', externalAuditStorage.glueDatabase);
+  query.set('table', externalAuditStorage.glueTable);
   const path = generatePath(cfg.api.externalAuditStorage.bootstrap, {
     clusterId: cfg.oss.proxyCluster,
   });

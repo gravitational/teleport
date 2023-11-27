@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package externalcloudaudit
+package externalauditstorage
 
 import (
 	"context"
@@ -30,7 +30,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/gravitational/trace"
 
-	ecatypes "github.com/gravitational/teleport/api/types/externalcloudaudit"
+	"github.com/gravitational/teleport/api/types/externalauditstorage"
 )
 
 const (
@@ -69,12 +69,12 @@ type ConnectionTestS3Client interface {
 // ConnectionTestBuckets performs tests against External Audit Storage buckets.
 // * Upload dummy file to S3 for both storage buckets.
 // * Download dummy file from S3 for session storage bucket.
-func ConnectionTestBuckets(ctx context.Context, clt ConnectionTestS3Client, spec *ecatypes.ExternalCloudAuditSpec) error {
+func ConnectionTestBuckets(ctx context.Context, clt ConnectionTestS3Client, spec *externalauditstorage.ExternalAuditStorageSpec) error {
 	if spec == nil {
 		return trace.BadParameter("spec is required parameter")
 	}
 
-	sessionBucket, sessionPrefix, err := parseS3URI(spec.SessionsRecordingsURI)
+	sessionBucket, sessionPrefix, err := parseS3URI(spec.SessionRecordingsURI)
 	if err != nil {
 		return trace.Wrap(err, "failed to parse session recordings URI")
 	}
@@ -113,7 +113,7 @@ func ConnectionTestBuckets(ctx context.Context, clt ConnectionTestS3Client, spec
 }
 
 // ConnectionTestGlue checks that the glue table exists and we have permission to access it.
-func ConnectionTestGlue(ctx context.Context, clt ConnectionTestGlueClient, spec *ecatypes.ExternalCloudAuditSpec) error {
+func ConnectionTestGlue(ctx context.Context, clt ConnectionTestGlueClient, spec *externalauditstorage.ExternalAuditStorageSpec) error {
 	// Verify glue table exists
 	_, err := clt.GetTable(ctx, &glue.GetTableInput{
 		DatabaseName: &spec.GlueDatabase,
@@ -125,7 +125,7 @@ func ConnectionTestGlue(ctx context.Context, clt ConnectionTestGlueClient, spec 
 // ConnectionTestAthena performs a small query against the provided athena workgroup and glue database and table.
 // The query polls for the results and returns them. This tests that audit events bucket can be accessed through an athena
 // query.
-func ConnectionTestAthena(ctx context.Context, clt ConnectionTestAthenaClient, spec *ecatypes.ExternalCloudAuditSpec) error {
+func ConnectionTestAthena(ctx context.Context, clt ConnectionTestAthenaClient, spec *externalauditstorage.ExternalAuditStorageSpec) error {
 	// Test Athena Queries
 	startQueryExecutionOutput, err := clt.StartQueryExecution(ctx, &athena.StartQueryExecutionInput{
 		QueryString: aws.String(fmt.Sprintf("select uid, event_time, event_data FROM %s limit 1;", spec.GlueTable)),

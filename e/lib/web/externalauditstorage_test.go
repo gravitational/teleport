@@ -9,14 +9,14 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport/api/types/externalcloudaudit"
+	"github.com/gravitational/teleport/api/types/externalauditstorage"
 	"github.com/gravitational/teleport/e/lib/web/ui"
 	"github.com/gravitational/teleport/lib/modules"
 )
 
 var sampleAthenaURI = "athena://db.table?topicArn=arn:aws:sns:eu-central-1:accnr:topicName&queryResultsS3=s3://testbucket/query-result/&workgroup=workgroup&locationS3=s3://testbucket/events-location&queueURL=https://sqs.eu-central-1.amazonaws.com/accnr/sqsname&largeEventsS3=s3://testbucket/largeevents"
 
-func TestGenerateDraftExternalCloudAudit(t *testing.T) {
+func TestGenerateDraftExternalAuditStorage(t *testing.T) {
 	modules.SetTestModules(t, &modules.TestModules{
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
@@ -38,26 +38,26 @@ func TestGenerateDraftExternalCloudAudit(t *testing.T) {
 	require.NoError(t, s.testAuthServer.Auth().SetClusterAuditConfig(ctx, auditConfig))
 
 	generateEndpoint := webPack.clt.Endpoint("webapi", "sites", clusterName, "integration", "externalauditstorage", "generate")
-	resp, err := webPack.clt.PostJSON(ctx, generateEndpoint, ui.GenerateDraftExternalCloudAuditRequest{
+	resp, err := webPack.clt.PostJSON(ctx, generateEndpoint, ui.GenerateDraftExternalAuditStorageRequest{
 		IntegrationName: "test-integration",
 	})
 	require.NoError(t, err)
 
 	// Make sure we can decode the generated config and it's valid
-	var generated externalcloudaudit.ExternalCloudAudit
+	var generated externalauditstorage.ExternalAuditStorage
 	require.NoError(t, json.NewDecoder(resp.Reader()).Decode(&generated))
 	require.NoError(t, generated.CheckAndSetDefaults())
 
 	// Make sure an unauthenticated client can't generate
 	publicClt := s.client(t)
-	_, err = publicClt.PostJSON(ctx, generateEndpoint, ui.GenerateDraftExternalCloudAuditRequest{
+	_, err = publicClt.PostJSON(ctx, generateEndpoint, ui.GenerateDraftExternalAuditStorageRequest{
 		IntegrationName: "test-integration",
 	})
 	require.Error(t, err)
 	require.True(t, trace.IsAccessDenied(err))
 }
 
-func TestBuildExternalCloudAuditBootstrapScript(t *testing.T) {
+func TestBuildExternalAuditStorageBootstrapScript(t *testing.T) {
 	modules.SetTestModules(t, &modules.TestModules{
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
@@ -95,7 +95,7 @@ func TestBuildExternalCloudAuditBootstrapScript(t *testing.T) {
 				"db":         {"teleport_events_test"},
 				"table":      {"teleport_events_test"},
 			},
-			expectArgs: `integration configure externalcloudaudit ` +
+			expectArgs: `integration configure externalauditstorage ` +
 				`--bootstrap --aws-region=us-west-2 ` +
 				`--role=test-iam-role --policy=test-policy ` +
 				`--session-recordings=s3://teleport-longterm-test/recordings ` +
@@ -191,7 +191,7 @@ func TestBuildExternalCloudAuditBootstrapScript(t *testing.T) {
 	}
 }
 
-func TestExternalCloudAuditPromote(t *testing.T) {
+func TestExternalAuditStoragePromote(t *testing.T) {
 	modules.SetTestModules(t, &modules.TestModules{
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
@@ -217,8 +217,8 @@ func TestExternalCloudAuditPromote(t *testing.T) {
 	require.False(t, trace.IsAccessDenied(err))
 
 	// create draft
-	client := s.newAdminAuthClient(ctx, t).ExternalCloudAuditClient()
-	_, err = client.GenerateDraftExternalCloudAudit(ctx, "test-integration", "us-west-2")
+	client := s.newAdminAuthClient(ctx, t).ExternalAuditStorageClient()
+	_, err = client.GenerateDraftExternalAuditStorage(ctx, "test-integration", "us-west-2")
 	require.NoError(t, err)
 	// assert that we can promote it
 	_, err = webPack.clt.PostJSON(ctx, promoteEndpoint, nil)
@@ -231,7 +231,7 @@ func TestExternalCloudAuditPromote(t *testing.T) {
 	require.True(t, trace.IsAccessDenied(err))
 }
 
-func TestExternalCloudAuditGetCluster(t *testing.T) {
+func TestExternalAuditStorageGetCluster(t *testing.T) {
 	modules.SetTestModules(t, &modules.TestModules{
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
@@ -258,16 +258,16 @@ func TestExternalCloudAuditGetCluster(t *testing.T) {
 	require.True(t, trace.IsNotFound(err))
 
 	// assert that it returns the existing active cluster audit
-	client := s.newAdminAuthClient(ctx, t).ExternalCloudAuditClient()
-	_, err = client.GenerateDraftExternalCloudAudit(ctx, "test-integration", "us-west-2")
+	client := s.newAdminAuthClient(ctx, t).ExternalAuditStorageClient()
+	_, err = client.GenerateDraftExternalAuditStorage(ctx, "test-integration", "us-west-2")
 	require.NoError(t, err)
-	err = client.PromoteToClusterExternalCloudAudit(ctx)
+	err = client.PromoteToClusterExternalAuditStorage(ctx)
 	require.NoError(t, err)
 
 	resp, err := webPack.clt.Get(ctx, getClusterEndpoint, nil)
 	require.NoError(t, err)
 	// Make sure we can decode the generated config and it's valid
-	var returned externalcloudaudit.ExternalCloudAudit
+	var returned externalauditstorage.ExternalAuditStorage
 	require.NoError(t, json.NewDecoder(resp.Reader()).Decode(&returned))
 	require.Equal(t, "test-integration", returned.Spec.IntegrationName)
 
@@ -278,7 +278,7 @@ func TestExternalCloudAuditGetCluster(t *testing.T) {
 	require.True(t, trace.IsAccessDenied(err))
 }
 
-func TestExternalCloudAuditGetDraft(t *testing.T) {
+func TestExternalAuditStorageGetDraft(t *testing.T) {
 	modules.SetTestModules(t, &modules.TestModules{
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
@@ -305,14 +305,14 @@ func TestExternalCloudAuditGetDraft(t *testing.T) {
 	require.True(t, trace.IsNotFound(err))
 
 	// assert that it returns the existing draft cluster audit
-	client := s.newAdminAuthClient(ctx, t).ExternalCloudAuditClient()
-	_, err = client.GenerateDraftExternalCloudAudit(ctx, "test-integration", "us-west-2")
+	client := s.newAdminAuthClient(ctx, t).ExternalAuditStorageClient()
+	_, err = client.GenerateDraftExternalAuditStorage(ctx, "test-integration", "us-west-2")
 	require.NoError(t, err)
 
 	resp, err := webPack.clt.Get(ctx, getDraftEndpoint, nil)
 	require.NoError(t, err)
 	// Make sure we can decode the generated config and it's valid
-	var returned externalcloudaudit.ExternalCloudAudit
+	var returned externalauditstorage.ExternalAuditStorage
 	require.NoError(t, json.NewDecoder(resp.Reader()).Decode(&returned))
 	require.Equal(t, "test-integration", returned.Spec.IntegrationName)
 
@@ -323,7 +323,7 @@ func TestExternalCloudAuditGetDraft(t *testing.T) {
 	require.True(t, trace.IsAccessDenied(err))
 }
 
-func TestExternalCloudAuditDeleteCluster(t *testing.T) {
+func TestExternalAuditStorageDeleteCluster(t *testing.T) {
 	modules.SetTestModules(t, &modules.TestModules{
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
@@ -350,16 +350,16 @@ func TestExternalCloudAuditDeleteCluster(t *testing.T) {
 	require.True(t, trace.IsNotFound(err))
 
 	// assert that it deletes the existing active cluster audit
-	client := s.newAdminAuthClient(ctx, t).ExternalCloudAuditClient()
-	_, err = client.GenerateDraftExternalCloudAudit(ctx, "test-integration", "us-west-2")
+	client := s.newAdminAuthClient(ctx, t).ExternalAuditStorageClient()
+	_, err = client.GenerateDraftExternalAuditStorage(ctx, "test-integration", "us-west-2")
 	require.NoError(t, err)
-	err = client.PromoteToClusterExternalCloudAudit(ctx)
+	err = client.PromoteToClusterExternalAuditStorage(ctx)
 	require.NoError(t, err)
 
 	_, err = webPack.clt.Delete(ctx, deleteClusterEndpoint)
 	require.NoError(t, err)
 
-	_, err = client.GetClusterExternalCloudAudit(ctx)
+	_, err = client.GetClusterExternalAuditStorage(ctx)
 	require.Error(t, err)
 	require.True(t, trace.IsNotFound(err))
 
@@ -370,7 +370,7 @@ func TestExternalCloudAuditDeleteCluster(t *testing.T) {
 	require.True(t, trace.IsAccessDenied(err))
 }
 
-func TestExternalCloudAuditDeleteDraft(t *testing.T) {
+func TestExternalAuditStorageDeleteDraft(t *testing.T) {
 	modules.SetTestModules(t, &modules.TestModules{
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
@@ -397,14 +397,14 @@ func TestExternalCloudAuditDeleteDraft(t *testing.T) {
 	require.True(t, trace.IsNotFound(err))
 
 	// assert that it deletes the existing draft cluster audit
-	client := s.newAdminAuthClient(ctx, t).ExternalCloudAuditClient()
-	_, err = client.GenerateDraftExternalCloudAudit(ctx, "test-integration", "us-west-2")
+	client := s.newAdminAuthClient(ctx, t).ExternalAuditStorageClient()
+	_, err = client.GenerateDraftExternalAuditStorage(ctx, "test-integration", "us-west-2")
 	require.NoError(t, err)
 
 	_, err = webPack.clt.Delete(ctx, deleteDraftEndpoint)
 	require.NoError(t, err)
 
-	_, err = client.GetDraftExternalCloudAudit(ctx)
+	_, err = client.GetDraftExternalAuditStorage(ctx)
 	require.Error(t, err)
 	require.True(t, trace.IsNotFound(err))
 

@@ -381,7 +381,7 @@ func (s *webSuite) createUser(t *testing.T, user string, login string, pass stri
 				types.NewRule(types.KindClusterName, services.RW()),
 				types.NewRule(types.KindClusterNetworkingConfig, services.RW()),
 				types.NewRule(types.KindSessionRecordingConfig, services.RW()),
-				types.NewRule(types.KindExternalCloudAudit, services.RW()),
+				types.NewRule(types.KindExternalAuditStorage, services.RW()),
 				types.NewRule(types.KindUIConfig, services.RW()),
 				types.NewRule(types.KindTrustedCluster, services.RW()),
 				types.NewRule(types.KindRemoteCluster, services.RW()),

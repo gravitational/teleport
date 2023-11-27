@@ -65,7 +65,7 @@ export const externalAuditStorageService = {
   testConnection(): Promise<ConnectionDiagnostic> {
     return api
       .post(cfg.oss.getConnectionDiagnosticUrl(), {
-        resource_kind: 'external_cloud_audit',
+        resource_kind: 'external_audit_storage',
         resource_name: 'draft',
       })
       .then(makeConnectionDiagnostic);
@@ -77,7 +77,7 @@ export function makeExternalAuditStorage(json: any): ExternalAuditStorage {
     integration_name,
     policy_name,
     region,
-    sessions_recordings_uri,
+    session_recordings_uri,
     athena_workgroup,
     glue_database,
     glue_table,
@@ -89,7 +89,7 @@ export function makeExternalAuditStorage(json: any): ExternalAuditStorage {
     integrationName: integration_name,
     policyName: policy_name,
     region: region,
-    sessionsRecordingsURI: sessions_recordings_uri,
+    sessionsRecordingsURI: session_recordings_uri,
     athenaWorkgroup: athena_workgroup,
     glueDatabase: glue_database,
     glueTable: glue_table,

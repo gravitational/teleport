@@ -10,7 +10,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 
-	"github.com/gravitational/teleport/api/types/externalcloudaudit"
+	"github.com/gravitational/teleport/api/types/externalauditstorage"
 	"github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/e/lib/web/ui"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -19,12 +19,12 @@ import (
 	"github.com/gravitational/teleport/lib/web/scripts/oneoff"
 )
 
-// externalCloudAuditGenerate generates a new ExternalCloudAudit configuration
+// externalAuditStorageGenerate generates a new ExternalAuditStorage configuration
 // and saves it as the current draft.
-func externalCloudAuditGenerate(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *web.SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
+func externalAuditStorageGenerate(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *web.SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
 	ctx := r.Context()
 
-	var req ui.GenerateDraftExternalCloudAuditRequest
+	var req ui.GenerateDraftExternalAuditStorageRequest
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -39,12 +39,12 @@ func externalCloudAuditGenerate(w http.ResponseWriter, r *http.Request, p httpro
 		return nil, trace.Wrap(err, "failed to fetch cluster audit config")
 	}
 
-	clt := userClient.ExternalCloudAuditClient()
-	generated, err := clt.GenerateDraftExternalCloudAudit(ctx, req.IntegrationName, auditConfig.Region())
+	clt := userClient.ExternalAuditStorageClient()
+	generated, err := clt.GenerateDraftExternalAuditStorage(ctx, req.IntegrationName, auditConfig.Region())
 	return generated, trace.Wrap(err)
 }
 
-type externalCloudAuditBootstrapArg struct {
+type externalAuditStorageBootstrapArg struct {
 	queryParam string
 	cliFlag    string
 	optional   bool
@@ -53,7 +53,7 @@ type externalCloudAuditBootstrapArg struct {
 
 // Some of the query params use shorter names to keep the URL a somewhat
 // manageable length while still being readable.
-var ecaBootstrapArgs = []externalCloudAuditBootstrapArg{
+var ecaBootstrapArgs = []externalAuditStorageBootstrapArg{
 	{
 		queryParam: "region",
 		cliFlag:    "aws-region",
@@ -72,17 +72,17 @@ var ecaBootstrapArgs = []externalCloudAuditBootstrapArg{
 	{
 		queryParam: "recordings",
 		cliFlag:    "session-recordings",
-		validate:   externalcloudaudit.ValidateS3URI,
+		validate:   externalauditstorage.ValidateS3URI,
 	},
 	{
 		queryParam: "events",
 		cliFlag:    "audit-events",
-		validate:   externalcloudaudit.ValidateS3URI,
+		validate:   externalauditstorage.ValidateS3URI,
 	},
 	{
 		queryParam: "results",
 		cliFlag:    "athena-results",
-		validate:   externalcloudaudit.ValidateS3URI,
+		validate:   externalauditstorage.ValidateS3URI,
 	},
 	{
 		queryParam: "workgroup",
@@ -107,11 +107,11 @@ var ecaBootstrapArgs = []externalCloudAuditBootstrapArg{
 	},
 }
 
-func readExternalCloudAuditBootstrapArgsFromQuery(query url.Values) ([]string, error) {
+func readExternalAuditStorageBootstrapArgsFromQuery(query url.Values) ([]string, error) {
 	cliArgs := []string{
 		"integration",
 		"configure",
-		"externalcloudaudit",
+		"externalauditstorage",
 		"--bootstrap",
 	}
 	for _, arg := range ecaBootstrapArgs {
@@ -130,14 +130,14 @@ func readExternalCloudAuditBootstrapArgsFromQuery(query url.Values) ([]string, e
 	return cliArgs, nil
 }
 
-func getExternalCloudAuditBootstrapScript(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
-	cliArgs, err := readExternalCloudAuditBootstrapArgsFromQuery(r.URL.Query())
+func getExternalAuditStorageBootstrapScript(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
+	cliArgs, err := readExternalAuditStorageBootstrapArgsFromQuery(r.URL.Query())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	script, err := oneoff.BuildScript(oneoff.OneOffScriptParams{
 		TeleportArgs:   strings.Join(cliArgs, " "),
-		SuccessMessage: "Success! You can now go back to the browser to complete the external audit setup.",
+		SuccessMessage: "Success! You can now go back to the browser to complete the External Audit Storage setup.",
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -147,8 +147,8 @@ func getExternalCloudAuditBootstrapScript(w http.ResponseWriter, r *http.Request
 	return nil, trace.Wrap(err)
 }
 
-// enableExternalCloudAuditDraft promotes the current draft ExternalCloudAudit to active.
-func (h *Plugin) externalCloudAuditPromote(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *web.SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
+// enableExternalAuditStorageDraft promotes the current draft ExternalAuditStorage to active.
+func (h *Plugin) externalAuditStoragePromote(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *web.SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
 	ctx := r.Context()
 
 	userClient, err := sctx.GetUserClient(ctx, site)
@@ -156,17 +156,17 @@ func (h *Plugin) externalCloudAuditPromote(w http.ResponseWriter, r *http.Reques
 		return nil, trace.Wrap(err)
 	}
 
-	clt := userClient.ExternalCloudAuditClient()
-	err = clt.PromoteToClusterExternalCloudAudit(ctx)
+	clt := userClient.ExternalAuditStorageClient()
+	err = clt.PromoteToClusterExternalAuditStorage(ctx)
 	if err != nil {
-		return nil, trace.Wrap(err, "failed to promote current draft external audit config to cluster")
+		return nil, trace.Wrap(err, "failed to promote current draft External Audit Storage configuration to cluster")
 	}
 
 	return web.OK(), nil
 }
 
-// externalCloudAuditGetCluster returns the current active ExternalCloudAudit.
-func (h *Plugin) externalCloudAuditGetCluster(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *web.SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
+// externalAuditStorageGetCluster returns the current active ExternalAuditStorage.
+func (h *Plugin) externalAuditStorageGetCluster(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *web.SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
 	ctx := r.Context()
 
 	userClient, err := sctx.GetUserClient(ctx, site)
@@ -174,17 +174,17 @@ func (h *Plugin) externalCloudAuditGetCluster(w http.ResponseWriter, r *http.Req
 		return nil, trace.Wrap(err)
 	}
 
-	clt := userClient.ExternalCloudAuditClient()
-	clusterAudit, err := clt.GetClusterExternalCloudAudit(ctx)
+	clt := userClient.ExternalAuditStorageClient()
+	clusterAudit, err := clt.GetClusterExternalAuditStorage(ctx)
 	if err != nil {
-		return nil, trace.Wrap(err, "failed to fetch cluster external cloud audit")
+		return nil, trace.Wrap(err, "failed to fetch cluster External Audit Storage configuration")
 	}
 
 	return clusterAudit, nil
 }
 
-// externalCloudAuditGetDraft returns the current draft ExternalCloudAudit.
-func (h *Plugin) externalCloudAuditGetDraft(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *web.SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
+// externalAuditStorageGetDraft returns the current draft ExternalAuditStorage.
+func (h *Plugin) externalAuditStorageGetDraft(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *web.SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
 	ctx := r.Context()
 
 	userClient, err := sctx.GetUserClient(ctx, site)
@@ -192,17 +192,17 @@ func (h *Plugin) externalCloudAuditGetDraft(w http.ResponseWriter, r *http.Reque
 		return nil, trace.Wrap(err)
 	}
 
-	clt := userClient.ExternalCloudAuditClient()
-	draftAudit, err := clt.GetDraftExternalCloudAudit(ctx)
+	clt := userClient.ExternalAuditStorageClient()
+	draftAudit, err := clt.GetDraftExternalAuditStorage(ctx)
 	if err != nil {
-		return nil, trace.Wrap(err, "failed to fetch draft external cloud audit")
+		return nil, trace.Wrap(err, "failed to fetch draft External Audit Storage configuration")
 	}
 
 	return draftAudit, nil
 }
 
-// externalCloudAuditDeleteDraft deletes the current ExternalCloudAudit draft.
-func (h *Plugin) externalCloudAuditDeleteDraft(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *web.SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
+// externalAuditStorageDeleteDraft deletes the current ExternalAuditStorage draft.
+func (h *Plugin) externalAuditStorageDeleteDraft(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *web.SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
 	ctx := r.Context()
 
 	userClient, err := sctx.GetUserClient(ctx, site)
@@ -210,17 +210,17 @@ func (h *Plugin) externalCloudAuditDeleteDraft(w http.ResponseWriter, r *http.Re
 		return nil, trace.Wrap(err)
 	}
 
-	clt := userClient.ExternalCloudAuditClient()
-	err = clt.DeleteDraftExternalCloudAudit(ctx)
+	clt := userClient.ExternalAuditStorageClient()
+	err = clt.DeleteDraftExternalAuditStorage(ctx)
 	if err != nil {
-		return nil, trace.Wrap(err, "failed to delete draft external cloud audit")
+		return nil, trace.Wrap(err, "failed to delete draft External Audit Storage configuration")
 	}
 
 	return web.OK(), nil
 }
 
-// externalCloudAuditDeleteCluster deletes the current active ExternalCloudAudit.
-func (h *Plugin) externalCloudAuditDeleteCluster(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *web.SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
+// externalAuditStorageDeleteCluster deletes the current active ExternalAuditStorage.
+func (h *Plugin) externalAuditStorageDeleteCluster(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *web.SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
 	ctx := r.Context()
 
 	userClient, err := sctx.GetUserClient(ctx, site)
@@ -228,10 +228,10 @@ func (h *Plugin) externalCloudAuditDeleteCluster(w http.ResponseWriter, r *http.
 		return nil, trace.Wrap(err)
 	}
 
-	clt := userClient.ExternalCloudAuditClient()
-	err = clt.DisableClusterExternalCloudAudit(ctx)
+	clt := userClient.ExternalAuditStorageClient()
+	err = clt.DisableClusterExternalAuditStorage(ctx)
 	if err != nil {
-		return nil, trace.Wrap(err, "failed to delete cluster external cloud audit")
+		return nil, trace.Wrap(err, "failed to delete cluster External Audit Storage configuration")
 	}
 
 	return web.OK(), nil
