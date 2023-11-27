@@ -16,5 +16,58 @@ limitations under the License.
 
 package auth
 
+import (
+	"context"
+	"encoding/json"
+	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/trace"
+	"time"
+)
+
 // httpfallback.go holds endpoints that have been converted to gRPC
 // but still need http fallback logic in the old client.
+
+// GenerateHostCert takes the public key in the Open SSH “authorized_keys“
+// plain text format, signs it using Host Certificate Authority private key and
+// returns the resulting certificate.
+// DELETE IN 16.0.0
+func (c *Client) GenerateHostCert(
+	ctx context.Context,
+	key []byte,
+	hostID, nodeName string,
+	principals []string,
+	clusterName string,
+	role types.SystemRole,
+	ttl time.Duration,
+) ([]byte, error) {
+	res, err := c.APIClient.TrustClient().GenerateHostCert(ctx, &trustpb.GenerateHostCertRequest{
+		// TODO(noah): fill
+	})
+	if err == nil {
+		return res.SshCertificate, nil
+	} else if !trace.IsNotImplemented(err) {
+		return nil, trace.Wrap(err)
+	}
+
+	out, err := c.PostJSON(ctx, c.Endpoint("ca", "host", "certs"),
+		generateHostCertReq{
+			Key:         key,
+			HostID:      hostID,
+			NodeName:    nodeName,
+			Principals:  principals,
+			ClusterName: clusterName,
+			Roles:       types.SystemRoles{role},
+			TTL:         ttl,
+		})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var cert string
+	if err := json.Unmarshal(out.Bytes(), &cert); err != nil {
+		return nil, err
+	}
+
+	return []byte(cert), nil
+}

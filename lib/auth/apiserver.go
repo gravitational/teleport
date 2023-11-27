@@ -93,6 +93,7 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	srv.POST("/:version/authorities/:type/rotate/external", srv.WithAuth(srv.rotateExternalCertAuthority))
 
 	// Generating certificates for user and host authorities
+	// TODO(noah): DELETE IN 16.0.0 as replaced with gRPC equiv
 	srv.POST("/:version/ca/host/certs", srv.WithAuth(srv.generateHostCert))
 
 	// Operations on users

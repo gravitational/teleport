@@ -734,34 +734,6 @@ func (c *HTTPClient) DeleteWebSession(ctx context.Context, user string, sid stri
 	return trace.Wrap(err)
 }
 
-// GenerateHostCert takes the public key in the Open SSH “authorized_keys“
-// plain text format, signs it using Host Certificate Authority private key and returns the
-// resulting certificate.
-func (c *HTTPClient) GenerateHostCert(
-	ctx context.Context, key []byte, hostID, nodeName string, principals []string, clusterName string, role types.SystemRole, ttl time.Duration,
-) ([]byte, error) {
-	out, err := c.PostJSON(ctx, c.Endpoint("ca", "host", "certs"),
-		generateHostCertReq{
-			Key:         key,
-			HostID:      hostID,
-			NodeName:    nodeName,
-			Principals:  principals,
-			ClusterName: clusterName,
-			Roles:       types.SystemRoles{role},
-			TTL:         ttl,
-		})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	var cert string
-	if err := json.Unmarshal(out.Bytes(), &cert); err != nil {
-		return nil, err
-	}
-
-	return []byte(cert), nil
-}
-
 // ValidateOIDCAuthCallback validates OIDC auth callback returned from redirect
 func (c *HTTPClient) ValidateOIDCAuthCallback(ctx context.Context, q url.Values) (*OIDCAuthResponse, error) {
 	out, err := c.PostJSON(ctx, c.Endpoint("oidc", "requests", "validate"), ValidateOIDCAuthCallbackReq{
