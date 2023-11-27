@@ -218,12 +218,11 @@ func (c *managedConn) Write(b []byte) (n int, err error) {
 	}
 
 	for {
-		if c.sendBuffer.len() < sendBufferSize {
-			s := min(sendBufferSize-c.sendBuffer.len(), len64(b))
-			c.sendBuffer.append(b[:s])
+		s := c.sendBuffer.write(b, sendBufferSize)
+		if s > 0 {
+			c.cond.Broadcast()
 			b = b[s:]
 			n += int(s)
-			c.cond.Broadcast()
 
 			if len(b) == 0 {
 				return n, nil
@@ -333,6 +332,19 @@ func (w *buffer) append(b []byte) {
 	// after reserve(n), len(f1)+len(f2) >= n, so this is guaranteed to work
 	copy(f2, b[copy(f1, b):])
 	w.end += len64(b)
+}
+
+// write copies the slice to the tail of the buffer like in append, but only up
+// to the total buffer size specified by max. Returns the count of bytes copied
+// in, which is always not greater than len(b) and (max-w.len()).
+func (w *buffer) write(b []byte, max uint64) uint64 {
+	if w.len() >= max {
+		return 0
+	}
+
+	s := min(max-w.len(), len64(b))
+	w.append(b[:s])
+	return s
 }
 
 // advance will discard bytes from the head of the buffer, advancing its start

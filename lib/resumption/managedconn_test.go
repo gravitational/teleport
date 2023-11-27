@@ -187,21 +187,17 @@ func TestManagedConn(t *testing.T) {
 		c.mu.Lock()
 		defer c.mu.Unlock()
 
-		for {
-			if c.localClosed {
-				break
-			}
-
-			s := min(receiveBufferSize-c.receiveBuffer.len(), len64(b))
+		for !c.localClosed {
+			s := c.receiveBuffer.write(b, receiveBufferSize)
 			if s > 0 {
-				c.receiveBuffer.append(b[:s])
+				c.cond.Broadcast()
+
 				require.LessOrEqual(t, len(c.receiveBuffer.data), receiveBufferSize)
 
 				b = b[s:]
 				if len(b) == 0 {
 					c.remoteClosed = true
 				}
-				c.cond.Broadcast()
 			}
 
 			c.cond.Wait()
