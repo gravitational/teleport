@@ -10,6 +10,10 @@ teleportVersionOverride: ""
 nameOverride: ""
 fullNameOverride: ""
 
+# Common labels for the all resources
+additionalLabels: {}
+# app: teleport-operator
+
 # Kubernetes Teleport Operator image
 image: public.ecr.aws/gravitational/teleport-operator
 

@@ -36,6 +36,9 @@ helm.sh/chart: '{{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}'
 app.kubernetes.io/managed-by: '{{ .Release.Service }}'
 app.kubernetes.io/version: '{{ include "teleport-cluster.version" . }}'
 teleport.dev/majorVersion: '{{ include "teleport-cluster.majorVersion" . }}'
+{{- with .Values.additionalLabels }}
+{{ toYaml . }}
+{{- end }}
 {{- end -}}
 
 {{/* Auth pods selector labels */}}
@@ -52,6 +55,9 @@ helm.sh/chart: '{{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}'
 app.kubernetes.io/managed-by: '{{ .Release.Service }}'
 app.kubernetes.io/version: '{{ include "teleport-cluster.version" . }}'
 teleport.dev/majorVersion: '{{ include "teleport-cluster.majorVersion" . }}'
+{{- with .Values.additionalLabels }}
+{{ toYaml . }}
+{{- end }}
 {{- end -}}
 
 {{/* All pods selector labels */}}
@@ -67,6 +73,9 @@ helm.sh/chart: '{{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}'
 app.kubernetes.io/managed-by: '{{ .Release.Service }}'
 app.kubernetes.io/version: '{{ include "teleport-cluster.version" . }}'
 teleport.dev/majorVersion: '{{ include "teleport-cluster.majorVersion" . }}'
+{{- with .Values.additionalLabels }}
+{{ toYaml . }}
+{{- end }}
 {{- end -}}
 
 {{/* ServiceNames are limited to 63 characters, we might have to truncate the ReleaseName
