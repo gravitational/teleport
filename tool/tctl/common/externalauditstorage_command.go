@@ -39,15 +39,15 @@ type ExternalAuditStorageCommand struct {
 	generate *kingpin.CmdClause
 }
 
-// Initialize allows ExternalCloudAuditCommand to plug itself into the CLI parser.
+// Initialize allows ExternalAuditStorageCommand to plug itself into the CLI parser.
 func (c *ExternalAuditStorageCommand) Initialize(app *kingpin.Application, config *servicecfg.Config) {
 	c.config = config
 
-	externalAuditStorage := app.Command("externalauditstorage", "Operate on external cloud audit configuration.").Alias("externalcloudaudit").Hidden()
-	c.promote = externalAuditStorage.Command("promote", "Promotes existing draft external cloud audit to be used in cluster").Hidden()
+	externalAuditStorage := app.Command("externalauditstorage", "Operate on External Audit Storage configuration.").Alias("externalcloudaudit").Hidden()
+	c.promote = externalAuditStorage.Command("promote", "Promotes existing draft External Audit Storage configuration to cluster").Hidden()
 
 	// This command should remain hidden it is only meant for development/test.
-	c.generate = externalAuditStorage.Command("generate", "Generates an external cloud audit configuration with randomized resource names and saves it as the current draft").Hidden()
+	c.generate = externalAuditStorage.Command("generate", "Generates an External Audit Storage configuration with randomized resource names and saves it as the current draft").Hidden()
 	c.generate.Flag("integration", "Name of an existing AWS OIDC integration").Required().StringVar(&c.integrationName)
 	c.generate.Flag("region", "AWS region where infrastructure will be hosted").Required().StringVar(&c.region)
 }
@@ -65,15 +65,15 @@ func (c *ExternalAuditStorageCommand) TryRun(ctx context.Context, cmd string, cl
 	return true, trace.Wrap(err)
 }
 
-// Promote calls PromoteToClusterExternalCloudAudit, which results in enabling
-// external cloud audit in cluster based on existing draft.
+// Promote calls PromoteToClusterExternalAuditStorage, which results in enabling
+// External Audit Storage in the cluster based on existing draft.
 func (c *ExternalAuditStorageCommand) Promote(ctx context.Context, clt auth.ClientI) error {
-	return trace.Wrap(clt.ExternalCloudAuditClient().PromoteToClusterExternalCloudAudit(ctx))
+	return trace.Wrap(clt.ExternalAuditStorageClient().PromoteToClusterExternalAuditStorage(ctx))
 }
 
-// Generate creates an external cloud audit configuration with randomized
+// Generate creates an External Audit Storage configuration with randomized
 // resource names and saves it as the current draft.
 func (c *ExternalAuditStorageCommand) Generate(ctx context.Context, clt auth.ClientI) error {
-	_, err := clt.ExternalCloudAuditClient().GenerateDraftExternalCloudAudit(ctx, c.integrationName, c.region)
+	_, err := clt.ExternalAuditStorageClient().GenerateDraftExternalAuditStorage(ctx, c.integrationName, c.region)
 	return trace.Wrap(err)
 }
