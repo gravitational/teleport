@@ -27,6 +27,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v3"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
+	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ssm"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -44,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/gcp"
+	"github.com/gravitational/teleport/lib/integrations/awsoidc"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 	"github.com/gravitational/teleport/lib/srv/discovery/fetchers"
@@ -142,7 +144,12 @@ func (c *Config) CheckAndSetDefaults() error {
 kubernetes matchers are present.`)
 	}
 	if c.CloudClients == nil {
-		cloudClients, err := cloud.NewClients()
+		awsIntegrationSessionProvider := func(ctx context.Context, region, integration string) (*session.Session, error) {
+			return awsoidc.NewSessionV1(ctx, c.AccessPoint, region, integration)
+		}
+		cloudClients, err := cloud.NewClients(
+			cloud.WithAWSIntegrationSessionProvider(awsIntegrationSessionProvider),
+		)
 		if err != nil {
 			return trace.Wrap(err, "unable to create cloud clients")
 		}
@@ -395,6 +402,7 @@ func (s *Server) initAWSWatchers(matchers []types.AWSMatcher) error {
 							matcherAssumeRole.RoleARN,
 							matcherAssumeRole.ExternalID,
 						),
+						cloud.WithAmbientCredentials(),
 					)
 					if err != nil {
 						return trace.Wrap(err)
@@ -709,8 +717,9 @@ func genInstancesLogStr[T any](instances []T, getID func(T) string) string {
 }
 
 func (s *Server) handleEC2Instances(instances *server.EC2Instances) error {
+	// TODO(marco): support AWS SSM Client backed by an integration
 	// TODO(gavin): support assume_role_arn for ec2.
-	ec2Client, err := s.CloudClients.GetAWSSSMClient(s.ctx, instances.Region)
+	ec2Client, err := s.CloudClients.GetAWSSSMClient(s.ctx, instances.Region, cloud.WithAmbientCredentials())
 	if err != nil {
 		return trace.Wrap(err)
 	}
