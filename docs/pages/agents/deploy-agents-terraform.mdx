@@ -133,9 +133,7 @@ configuration above generates tokens for the following Teleport services:
 - Teleport Discovery Service (`Discovery`)
 
 Each virtual machine instance presents the token in order to establish trust
-with the cluster. Depending on how you modified the `agent-pool-terraform`
-project directory earlier, it should contain one of the following files, which
-declares resources to deploy a virtual machine instance:
+with the cluster. 
 
 `agent-pool.tf` declares a data source for an Amazon Linux 2023 machine image
 and uses it to launch EC2 instances that run Teleport agents with the
@@ -186,59 +184,16 @@ In this step, you will configure the Terraform module for your environment.
 1. In your `agent-pool-terraform` project directory, create a file called
    `main.auto.tfvars` with the following content:
 
-<Tabs>
-<TabItem label="Community Edition">
+   ```hcl
+   agent_count=2
+   proxy_service_address="mytenant.teleport.sh"
+   aws_region=""
+   teleport_version="(=teleport.version=)"
+   teleport_edition="oss"
+   subnet_id=""
+   ```
 
-```hcl
-agent_count=2
-proxy_service_address="mytenant.teleport.sh"
-aws_region=""
-teleport_version="(=teleport.version=)"
-teleport_edition="oss"
-subnet_id=""
-```
-
-</TabItem>
-<TabItem label="Team">
-
-```hcl
-agent_count=2
-proxy_service_address="mytenant.teleport.sh"
-aws_region=""
-teleport_version="(=teleport.version=)"
-teleport_edition="team"
-subnet_id=""
-```
-
-</TabItem>
-
-<TabItem label="Enterprise Cloud">
-
-```hcl
-agent_count=2
-proxy_service_address="mytenant.teleport.sh"
-aws_region=""
-teleport_version="(=teleport.version=)"
-teleport_edition="cloud"
-subnet_id=""
-```
-
-</TabItem>
-<TabItem label="Enterprise">
-
-```hcl
-agent_count=2
-proxy_service_address="mytenant.teleport.sh"
-aws_region=""
-teleport_version="(=teleport.version=)"
-teleport_edition="enterprise"
-subnet_id=""
-```
-
-</TabItem>
-</Tabs>
-
-1. Assign `agent_count` to `2` for high availability. As you scale your Teleport
+1. `agent_count` is set to `2` for high availability. As you scale your Teleport
    usage, you can increase this count to ease the load on each agent. You can
    consider adding your agents to an Auto Scaling group as well.
 
@@ -251,11 +206,18 @@ subnet_id=""
    
    </Notice>
 
-1. Assign `region` to the AWS region where you plan to deploy Teleport agents,
-   such as `us-east-1`.
+1. Assign `aws_region` to the AWS region where you plan to deploy Teleport
+   agents, such as `us-east-1`.
 
-1. For `subnet_id`, include the ID of the subnet where you will deploy Teleport
-   agents.
+1. If needed, change the value of `teleport_version` to the version of Teleport
+   you want to run on your agents. It must be either the same major version as
+   your Teleport cluster or one major version behind.
+
+1. Make sure `teleport_edition` matches your Teleport edition. Assign this to
+   `oss`, `cloud`, `enterprise`, or `team`. The default is `oss`.
+
+1. For `subnet_id`, include the ID of the AWS subnet (beginning with `subnet-`)
+   where you will deploy Teleport agents.
 
 1. Make sure you are using the latest supported version of the Teleport
    Terraform provider. In `providers-aws.tf`, we configure the Terraform
