@@ -13,7 +13,7 @@ exports[`render DocumentNodes 1`] = `
   width: 100%;
 }
 
-.c29 {
+.c31 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -41,59 +41,19 @@ exports[`render DocumentNodes 1`] = `
   height: 24px;
 }
 
-.c29:hover,
-.c29:focus {
+.c31:hover,
+.c31:focus {
   background: rgba(255,255,255,0.07);
 }
 
-.c29:active {
+.c31:active {
   background: rgba(255,255,255,0.13);
 }
 
-.c29:disabled {
+.c31:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
-}
-
-.c33 {
-  align-items: center;
-  border: none;
-  cursor: pointer;
-  display: flex;
-  outline: none;
-  border-radius: 50%;
-  overflow: visible;
-  justify-content: center;
-  text-align: center;
-  flex: 0 0 auto;
-  background: transparent;
-  color: inherit;
-  transition: all 0.3s;
-  -webkit-font-smoothing: antialiased;
-  font-size: 16px;
-  height: 32px;
-  width: 32px;
-  margin-left: 0px;
-  margin-right: 0px;
-}
-
-.c33:disabled {
-  color: rgba(255,255,255,0.36);
-}
-
-.c33:disabled {
-  color: rgba(255,255,255,0.36);
-  cursor: default;
-}
-
-.c33:hover:enabled,
-.c33:focus:enabled {
-  background: rgba(255,255,255,0.13);
-}
-
-.c33:active:enabled {
-  background: rgba(255,255,255,0.18);
 }
 
 .c35 {
@@ -115,6 +75,7 @@ exports[`render DocumentNodes 1`] = `
   height: 32px;
   width: 32px;
   margin-left: 0px;
+  margin-right: 0px;
 }
 
 .c35:disabled {
@@ -135,16 +96,55 @@ exports[`render DocumentNodes 1`] = `
   background: rgba(255,255,255,0.18);
 }
 
+.c37 {
+  align-items: center;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  outline: none;
+  border-radius: 50%;
+  overflow: visible;
+  justify-content: center;
+  text-align: center;
+  flex: 0 0 auto;
+  background: transparent;
+  color: inherit;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  font-size: 16px;
+  height: 32px;
+  width: 32px;
+  margin-left: 0px;
+}
+
+.c37:disabled {
+  color: rgba(255,255,255,0.36);
+}
+
+.c37:disabled {
+  color: rgba(255,255,255,0.36);
+  cursor: default;
+}
+
+.c37:hover:enabled,
+.c37:focus:enabled {
+  background: rgba(255,255,255,0.13);
+}
+
+.c37:active:enabled {
+  background: rgba(255,255,255,0.18);
+}
+
 .c22 {
   overflow: hidden;
   text-overflow: ellipsis;
-  font-weight: 300;
+  font-weight: 400;
   font-size: 12px;
-  line-height: 24px;
+  line-height: 16px;
   margin: 0px;
 }
 
-.c25 {
+.c27 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 400;
@@ -155,13 +155,13 @@ exports[`render DocumentNodes 1`] = `
   color: #FFFFFF;
 }
 
-.c23 {
+.c24 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
 }
 
-.c30 {
+.c32 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -214,25 +214,87 @@ exports[`render DocumentNodes 1`] = `
   align-items: center;
 }
 
-.c24 {
+.c17 {
+  box-sizing: border-box;
+  padding-left: 24px;
+  padding-right: 24px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.c26 {
   box-sizing: border-box;
   display: flex;
 }
 
-.c27 {
+.c29 {
   box-sizing: border-box;
   display: flex;
   flex-wrap: wrap;
 }
 
-.c32 {
+.c34 {
   box-sizing: border-box;
   width: 100%;
   display: flex;
   justify-content: flex-end;
 }
 
-.c26 {
+.c18 {
+  position: relative;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+.c18[disabled] {
+  cursor: default;
+}
+
+.c21 {
+  width: 32px;
+  height: 12px;
+  border-radius: 12px;
+  background: #222C59;
+  cursor: inherit;
+  flex-shrink: 0;
+}
+
+.c21:before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  transform: translate(0,-50%);
+  width: 16px;
+  height: 16px;
+  border-radius: 16px;
+  background: #9F85FF;
+}
+
+.c19 {
+  opacity: 0;
+  position: absolute;
+  cursor: inherit;
+}
+
+.c19:checked + .c20 {
+  background: rgba(255,255,255,0.13);
+}
+
+.c19:checked + .c20:before {
+  transform: translate(16px,-50%);
+}
+
+.c19:disabled + .c20 {
+  background: #222C59;
+}
+
+.c19:disabled + .c20:before {
+  background: #455a64;
+}
+
+.c28 {
   background: #222C59;
   border-collapse: collapse;
   border-spacing: 0;
@@ -241,39 +303,39 @@ exports[`render DocumentNodes 1`] = `
   width: 100%;
 }
 
-.c26 > thead > tr > th,
-.c26 > tbody > tr > th,
-.c26 > tfoot > tr > th,
-.c26 > thead > tr > td,
-.c26 > tbody > tr > td,
-.c26 > tfoot > tr > td {
+.c28 > thead > tr > th,
+.c28 > tbody > tr > th,
+.c28 > tfoot > tr > th,
+.c28 > thead > tr > td,
+.c28 > tbody > tr > td,
+.c28 > tfoot > tr > td {
   padding: 8px 8px;
   vertical-align: middle;
 }
 
-.c26 > thead > tr > th:first-child,
-.c26 > tbody > tr > th:first-child,
-.c26 > tfoot > tr > th:first-child,
-.c26 > thead > tr > td:first-child,
-.c26 > tbody > tr > td:first-child,
-.c26 > tfoot > tr > td:first-child {
+.c28 > thead > tr > th:first-child,
+.c28 > tbody > tr > th:first-child,
+.c28 > tfoot > tr > th:first-child,
+.c28 > thead > tr > td:first-child,
+.c28 > tbody > tr > td:first-child,
+.c28 > tfoot > tr > td:first-child {
   padding-left: 24px;
 }
 
-.c26 > thead > tr > th:last-child,
-.c26 > tbody > tr > th:last-child,
-.c26 > tfoot > tr > th:last-child,
-.c26 > thead > tr > td:last-child,
-.c26 > tbody > tr > td:last-child,
-.c26 > tfoot > tr > td:last-child {
+.c28 > thead > tr > th:last-child,
+.c28 > tbody > tr > th:last-child,
+.c28 > tfoot > tr > th:last-child,
+.c28 > thead > tr > td:last-child,
+.c28 > tbody > tr > td:last-child,
+.c28 > tfoot > tr > td:last-child {
   padding-right: 24px;
 }
 
-.c26 > tbody > tr > td {
+.c28 > tbody > tr > td {
   vertical-align: middle;
 }
 
-.c26 > thead > tr > th {
+.c28 > thead > tr > th {
   background: rgba(255,255,255,0.07);
   color: #FFFFFF;
   cursor: pointer;
@@ -287,20 +349,20 @@ exports[`render DocumentNodes 1`] = `
   white-space: nowrap;
 }
 
-.c26 > thead > tr > th svg {
+.c28 > thead > tr > th svg {
   height: 12px;
 }
 
-.c26 > tbody > tr > td {
+.c28 > tbody > tr > td {
   color: #FFFFFF;
   line-height: 16px;
 }
 
-.c26 tbody tr {
+.c28 tbody tr {
   border-bottom: 1px solid rgb(49,58,100);
 }
 
-.c26 tbody tr:hover {
+.c28 tbody tr:hover {
   background-color: rgba(255,255,255,0.07);
 }
 
@@ -316,7 +378,7 @@ exports[`render DocumentNodes 1`] = `
   border-top-right-radius: 8px;
 }
 
-.c31 {
+.c33 {
   padding: 16px 24px;
   display: flex;
   height: 24px;
@@ -333,7 +395,7 @@ exports[`render DocumentNodes 1`] = `
   border-radius: 8px;
 }
 
-.c28 {
+.c30 {
   box-sizing: border-box;
   border-radius: 10px;
   display: inline-block;
@@ -349,15 +411,15 @@ exports[`render DocumentNodes 1`] = `
   cursor: pointer;
 }
 
-.c28:hover {
+.c30:hover {
   background-color: rgba(255,255,255,0.13);
 }
 
-.c34 svg {
+.c36 svg {
   font-size: 20px;
 }
 
-.c34 svg:before {
+.c36 svg:before {
   padding-left: 1px;
 }
 
@@ -427,66 +489,20 @@ exports[`render DocumentNodes 1`] = `
   font-size: 12px;
 }
 
-.c18 {
-  position: relative;
-  display: flex;
-  align-items: center;
+.c25 {
+  height: 18px;
+  width: 18px;
+  color: inherit;
+}
+
+.c23 {
+  vertical-align: middle;
+  display: inline-block;
+  height: 18px;
+}
+
+.c23:hover {
   cursor: pointer;
-}
-
-.c18[disabled] {
-  cursor: default;
-}
-
-.c21 {
-  width: 32px;
-  height: 12px;
-  border-radius: 12px;
-  background: #222C59;
-  cursor: inherit;
-  flex-shrink: 0;
-}
-
-.c21:before {
-  content: '';
-  position: absolute;
-  top: 50%;
-  transform: translate(0,-50%);
-  width: 16px;
-  height: 16px;
-  border-radius: 16px;
-  background: #9F85FF;
-}
-
-.c19 {
-  opacity: 0;
-  position: absolute;
-  cursor: inherit;
-}
-
-.c19:checked + .c20 {
-  background: rgba(255,255,255,0.13);
-}
-
-.c19:checked + .c20:before {
-  transform: translate(16px,-50%);
-}
-
-.c19:disabled + .c20 {
-  background: #222C59;
-}
-
-.c19:disabled + .c20:before {
-  background: #455a64;
-}
-
-.c17 {
-  display: flex;
-  align-items: center;
-  justify-content: space-around;
-  padding-right: 16px;
-  padding-left: 16px;
-  width: 120px;
 }
 
 .c6 .react-select-container {
@@ -823,45 +839,45 @@ exports[`render DocumentNodes 1`] = `
                           >
                             Advanced
                           </div>
+                          <span
+                            class="c23"
+                            role="icon"
+                          >
+                            <span
+                              class="c24 c25"
+                            >
+                              <svg
+                                fill="currentColor"
+                                height="20"
+                                viewBox="0 0 24 24"
+                                width="20"
+                              >
+                                <path
+                                  d="M11.625 8.8125C12.1428 8.8125 12.5625 8.39277 12.5625 7.875C12.5625 7.35723 12.1428 6.9375 11.625 6.9375C11.1072 6.9375 10.6875 7.35723 10.6875 7.875C10.6875 8.39277 11.1072 8.8125 11.625 8.8125Z"
+                                />
+                                <path
+                                  d="M10.5 11.25C10.5 10.8358 10.8358 10.5 11.25 10.5C11.6478 10.5 12.0294 10.658 12.3107 10.9393C12.592 11.2206 12.75 11.6022 12.75 12V15.75C13.1642 15.75 13.5 16.0858 13.5 16.5C13.5 16.9142 13.1642 17.25 12.75 17.25C12.3522 17.25 11.9706 17.092 11.6893 16.8107C11.408 16.5294 11.25 16.1478 11.25 15.75V12C10.8358 12 10.5 11.6642 10.5 11.25Z"
+                                />
+                                <path
+                                  clip-rule="evenodd"
+                                  d="M12 2.25C6.61522 2.25 2.25 6.61522 2.25 12C2.25 17.3848 6.61522 21.75 12 21.75C17.3848 21.75 21.75 17.3848 21.75 12C21.75 6.61522 17.3848 2.25 12 2.25ZM3.75 12C3.75 7.44365 7.44365 3.75 12 3.75C16.5563 3.75 20.25 7.44365 20.25 12C20.25 16.5563 16.5563 20.25 12 20.25C7.44365 20.25 3.75 16.5563 3.75 12Z"
+                                  fill-rule="evenodd"
+                                />
+                              </svg>
+                            </span>
+                          </span>
                         </div>
                       </div>
                     </div>
                   </div>
                 </div>
               </div>
-              <div
-                style="line-height: 0px;"
-              >
-                <span
-                  class="c23 icon icon-info"
-                  style="cursor: pointer; font-size: 20px;"
-                >
-                  <svg
-                    fill="currentColor"
-                    height="20"
-                    viewBox="0 0 24 24"
-                    width="20"
-                  >
-                    <path
-                      d="M11.625 8.8125C12.1428 8.8125 12.5625 8.39277 12.5625 7.875C12.5625 7.35723 12.1428 6.9375 11.625 6.9375C11.1072 6.9375 10.6875 7.35723 10.6875 7.875C10.6875 8.39277 11.1072 8.8125 11.625 8.8125Z"
-                    />
-                    <path
-                      d="M10.5 11.25C10.5 10.8358 10.8358 10.5 11.25 10.5C11.6478 10.5 12.0294 10.658 12.3107 10.9393C12.592 11.2206 12.75 11.6022 12.75 12V15.75C13.1642 15.75 13.5 16.0858 13.5 16.5C13.5 16.9142 13.1642 17.25 12.75 17.25C12.3522 17.25 11.9706 17.092 11.6893 16.8107C11.408 16.5294 11.25 16.1478 11.25 15.75V12C10.8358 12 10.5 11.6642 10.5 11.25Z"
-                    />
-                    <path
-                      clip-rule="evenodd"
-                      d="M12 2.25C6.61522 2.25 2.25 6.61522 2.25 12C2.25 17.3848 6.61522 21.75 12 21.75C17.3848 21.75 21.75 17.3848 21.75 12C21.75 6.61522 17.3848 2.25 12 2.25ZM3.75 12C3.75 7.44365 7.44365 3.75 12 3.75C16.5563 3.75 20.25 7.44365 20.25 12C20.25 16.5563 16.5563 20.25 12 20.25C7.44365 20.25 3.75 16.5563 3.75 12Z"
-                      fill-rule="evenodd"
-                    />
-                  </svg>
-                </span>
-              </div>
             </div>
             <div
-              class="c24"
+              class="c26"
             >
               <div
-                class="c25"
+                class="c27"
                 color="text.main"
                 style="text-transform: uppercase;"
               >
@@ -883,7 +899,7 @@ exports[`render DocumentNodes 1`] = `
           </div>
         </form>
         <table
-          class="c26"
+          class="c28"
         >
           <thead>
             <tr>
@@ -893,7 +909,7 @@ exports[`render DocumentNodes 1`] = `
                 >
                   Hostname
                   <span
-                    class="c23 icon icon-chevronup"
+                    class="c24 icon icon-chevronup"
                     title="sort items asc"
                   >
                     <svg
@@ -936,16 +952,16 @@ exports[`render DocumentNodes 1`] = `
               </td>
               <td>
                 <div
-                  class="c27"
+                  class="c29"
                 >
                   <div
-                    class="c28"
+                    class="c30"
                     kind="secondary"
                   >
                     cluster: one
                   </div>
                   <div
-                    class="c28"
+                    class="c30"
                     kind="secondary"
                   >
                     kernel: 4.15.0-51-generic
@@ -956,13 +972,13 @@ exports[`render DocumentNodes 1`] = `
                 align="right"
               >
                 <button
-                  class="c29"
+                  class="c31"
                   height="24px"
                   kind="border"
                 >
                   Connect
                   <span
-                    class="c30 icon icon-chevrondown"
+                    class="c32 icon icon-chevrondown"
                     color="text.slightlyMuted"
                   >
                     <svg
@@ -990,16 +1006,16 @@ exports[`render DocumentNodes 1`] = `
               </td>
               <td>
                 <div
-                  class="c27"
+                  class="c29"
                 >
                   <div
-                    class="c28"
+                    class="c30"
                     kind="secondary"
                   >
                     cluster: one
                   </div>
                   <div
-                    class="c28"
+                    class="c30"
                     kind="secondary"
                   >
                     kernel: 4.15.0-51-generic
@@ -1010,13 +1026,13 @@ exports[`render DocumentNodes 1`] = `
                 align="right"
               >
                 <button
-                  class="c29"
+                  class="c31"
                   height="24px"
                   kind="border"
                 >
                   Connect
                   <span
-                    class="c30 icon icon-chevrondown"
+                    class="c32 icon icon-chevrondown"
                     color="text.slightlyMuted"
                   >
                     <svg
@@ -1049,16 +1065,16 @@ exports[`render DocumentNodes 1`] = `
               </td>
               <td>
                 <div
-                  class="c27"
+                  class="c29"
                 >
                   <div
-                    class="c28"
+                    class="c30"
                     kind="secondary"
                   >
                     cluster: one
                   </div>
                   <div
-                    class="c28"
+                    class="c30"
                     kind="secondary"
                   >
                     kernel: 4.15.0-51-generic
@@ -1069,13 +1085,13 @@ exports[`render DocumentNodes 1`] = `
                 align="right"
               >
                 <button
-                  class="c29"
+                  class="c31"
                   height="24px"
                   kind="border"
                 >
                   Connect
                   <span
-                    class="c30 icon icon-chevrondown"
+                    class="c32 icon icon-chevrondown"
                     color="text.slightlyMuted"
                   >
                     <svg
@@ -1108,16 +1124,16 @@ exports[`render DocumentNodes 1`] = `
               </td>
               <td>
                 <div
-                  class="c27"
+                  class="c29"
                 >
                   <div
-                    class="c28"
+                    class="c30"
                     kind="secondary"
                   >
                     cluster: one
                   </div>
                   <div
-                    class="c28"
+                    class="c30"
                     kind="secondary"
                   >
                     kernel: 4.15.0-51-generic
@@ -1128,13 +1144,13 @@ exports[`render DocumentNodes 1`] = `
                 align="right"
               >
                 <button
-                  class="c29"
+                  class="c31"
                   height="24px"
                   kind="border"
                 >
                   Connect
                   <span
-                    class="c30 icon icon-chevrondown"
+                    class="c32 icon icon-chevrondown"
                     color="text.slightlyMuted"
                   >
                     <svg
@@ -1162,40 +1178,40 @@ exports[`render DocumentNodes 1`] = `
               </td>
               <td>
                 <div
-                  class="c27"
+                  class="c29"
                 >
                   <div
-                    class="c28"
+                    class="c30"
                     kind="secondary"
                   >
                     cluster: one
                   </div>
                   <div
-                    class="c28"
+                    class="c30"
                     kind="secondary"
                   >
                     kernel: 4.15.0-51-generic
                   </div>
                   <div
-                    class="c28"
+                    class="c30"
                     kind="secondary"
                   >
                     lortavma: one
                   </div>
                   <div
-                    class="c28"
+                    class="c30"
                     kind="secondary"
                   >
                     lenisret: 4.15.0-51-generic
                   </div>
                   <div
-                    class="c28"
+                    class="c30"
                     kind="secondary"
                   >
                     lofdevod: one
                   </div>
                   <div
-                    class="c28"
+                    class="c30"
                     kind="secondary"
                   >
                     llhurlaz: 4.15.0-51-generic
@@ -1206,13 +1222,13 @@ exports[`render DocumentNodes 1`] = `
                 align="right"
               >
                 <button
-                  class="c29"
+                  class="c31"
                   height="24px"
                   kind="border"
                 >
                   Connect
                   <span
-                    class="c30 icon icon-chevrondown"
+                    class="c32 icon icon-chevrondown"
                     color="text.slightlyMuted"
                   >
                     <svg
@@ -1234,22 +1250,22 @@ exports[`render DocumentNodes 1`] = `
           </tbody>
         </table>
         <nav
-          class="c31"
+          class="c33"
         >
           <div
-            class="c32"
+            class="c34"
             width="100%"
           >
             <div
-              class="c24"
+              class="c26"
             >
               <button
-                class="c33 c34"
+                class="c35 c36"
                 disabled=""
                 title="Previous page"
               >
                 <span
-                  class="c23 icon icon-circlearrowleft"
+                  class="c24 icon icon-circlearrowleft"
                 >
                   <svg
                     fill="currentColor"
@@ -1269,12 +1285,12 @@ exports[`render DocumentNodes 1`] = `
                 </span>
               </button>
               <button
-                class="c35 c34"
+                class="c37 c36"
                 disabled=""
                 title="Next page"
               >
                 <span
-                  class="c23 icon icon-circlearrowright"
+                  class="c24 icon icon-circlearrowright"
                 >
                   <svg
                     fill="currentColor"

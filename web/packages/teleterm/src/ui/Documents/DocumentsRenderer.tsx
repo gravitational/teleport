@@ -85,6 +85,7 @@ export function DocumentsRenderer(props: {
           key={workspace.rootClusterUri}
         >
           <WorkspaceContextProvider value={workspace}>
+            {/* ConnectMyComputerContext depends on ResourcesContext. */}
             <ResourcesContextProvider>
               <ConnectMyComputerContextProvider
                 rootClusterUri={workspace.rootClusterUri}

@@ -65,10 +65,15 @@ type TeleportResourceClient[T TeleportResource] interface {
 }
 
 // TeleportResourceMutator can be implemented by TeleportResourceClients
-// to edit a resource before its creation/update. In case of update mutations
-// the existing resource is passed as well.
+// to edit a resource before its creation/update.
 type TeleportResourceMutator[T TeleportResource] interface {
-	Mutate(new, existing T)
+	Mutate(new T)
+}
+
+// TeleportExistingResourceMutator can be implemented by TeleportResourceClients
+// to edit a resource before its update based on the existing one.
+type TeleportExistingResourceMutator[T TeleportResource] interface {
+	MutateExisting(new, existing T)
 }
 
 // NewTeleportResourceReconciler instanciates a TeleportResourceReconciler from a TeleportResourceClient.
@@ -135,19 +140,20 @@ func (r TeleportResourceReconciler[T, K]) Upsert(ctx context.Context, obj kclien
 
 	teleportResource.SetOrigin(types.OriginKubernetes)
 
-	// Propagate revision as required by opportunistic locking
-	if exists {
-		teleportResource.SetRevision(existingResource.GetRevision())
-	}
-
-	// We apply resource-specific mutations.
-	if mutator, ok := r.resourceClient.(TeleportResourceMutator[T]); ok {
-		mutator.Mutate(teleportResource, existingResource)
-	}
-
 	if !exists {
+		// This is a new resource
+		if mutator, ok := r.resourceClient.(TeleportResourceMutator[T]); ok {
+			mutator.Mutate(teleportResource)
+		}
+
 		err = r.resourceClient.Create(ctx, teleportResource)
 	} else {
+		// This is a resource update, we must propagate the revision
+		teleportResource.SetRevision(existingResource.GetRevision())
+		if mutator, ok := r.resourceClient.(TeleportExistingResourceMutator[T]); ok {
+			mutator.MutateExisting(teleportResource, existingResource)
+		}
+
 		err = r.resourceClient.Update(ctx, teleportResource)
 	}
 	// If an error happens we want to put it in status.conditions before returning.

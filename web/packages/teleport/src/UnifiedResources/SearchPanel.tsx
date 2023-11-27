@@ -15,17 +15,14 @@
  */
 
 import React from 'react';
-import styled from 'styled-components';
-import { Text, Flex } from 'design';
-import { PredicateDoc } from 'shared/components/Search/PredicateDoc';
+import { Flex } from 'design';
 
-import Toggle from 'teleport/components/Toggle';
+import { AdvancedSearchToggle } from 'shared/components/AdvancedSearchToggle';
 
 import useServersideSearchPanel, {
   SearchPanelState,
   HookProps,
 } from 'teleport/components/ServersideSearchPanel/useServerSideSearchPanel';
-import Tooltip from 'teleport/components/ServersideSearchPanel/Tooltip';
 
 import { SearchInput } from './SearchInput';
 
@@ -49,22 +46,12 @@ export function SearchPanel({
   return (
     <Flex as="form" className="SearchPanel" onSubmit={onSubmitSearch} mb={3}>
       <SearchInput searchValue={searchString} setSearchValue={setSearchString}>
-        <ToggleWrapper>
-          <Toggle isToggled={isAdvancedSearch} onToggle={onToggle} />
-          <Text typography="paragraph2">Advanced</Text>
-          <Tooltip>
-            <PredicateDoc />
-          </Tooltip>
-        </ToggleWrapper>
+        <AdvancedSearchToggle
+          isToggled={isAdvancedSearch}
+          onToggle={onToggle}
+          px={4}
+        />
       </SearchInput>
     </Flex>
   );
 }
-
-const ToggleWrapper = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding-inline: ${props => props.theme.space[4]}px;
-  width: 120px;
-`;

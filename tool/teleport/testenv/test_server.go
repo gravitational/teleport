@@ -339,11 +339,13 @@ func (p *cliModules) PrintVersion() {
 // Features returns supported features
 func (p *cliModules) Features() modules.Features {
 	return modules.Features{
-		Kubernetes:              true,
-		DB:                      true,
-		App:                     true,
-		AdvancedAccessWorkflows: true,
-		AccessControls:          true,
+		Kubernetes:     true,
+		DB:             true,
+		App:            true,
+		AccessControls: true,
+		AccessRequests: modules.AccessRequestsFeature{
+			Enabled: true,
+		},
 	}
 }
 
@@ -362,6 +364,8 @@ func (p *cliModules) EnableRecoveryCodes() {
 
 func (p *cliModules) EnablePlugins() {
 }
+
+func (p *cliModules) EnableAccessGraph() {}
 
 func (p *cliModules) SetFeatures(f modules.Features) {
 }

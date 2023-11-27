@@ -20,6 +20,7 @@ import (
 	"io/fs"
 	"os"
 	"strings"
+	"sync"
 )
 
 // DMIInfo holds information acquired from the device's DMI.
@@ -60,31 +61,43 @@ func DMIInfoFromSysfs() (*DMIInfo, error) {
 // The method reads as much information as possible, so it always returns a
 // non-nil [DMIInfo], even if it errors.
 func DMIInfoFromFS(dmifs fs.FS) (*DMIInfo, error) {
-	var vals []string
-	var errs []error
-	for _, name := range []string{
+	var wg sync.WaitGroup
+
+	// Read the various files concurrently.
+	names := []string{
 		"product_name",
 		"product_serial",
 		"board_serial",
 		"chassis_asset_tag",
-	} {
-		f, err := dmifs.Open(name)
-		if err != nil {
-			vals = append(vals, "")
-			errs = append(errs, err)
-			continue
-		}
-		defer f.Close() // defer is OK, the loop should end soon enough.
-
-		val, err := io.ReadAll(f)
-		if err != nil {
-			vals = append(vals, "")
-			errs = append(errs, err)
-			continue
-		}
-
-		vals = append(vals, strings.TrimSpace(string(val)))
 	}
+	vals := make([]string, len(names))
+	errs := make([]error, len(names))
+	for i, name := range names {
+		i := i
+		name := name
+
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			f, err := dmifs.Open(name)
+			if err != nil {
+				errs[i] = err
+				return
+			}
+			defer f.Close()
+
+			val, err := io.ReadAll(f)
+			if err != nil {
+				errs[i] = err
+				return
+			}
+
+			vals[i] = strings.TrimSpace(string(val))
+		}()
+	}
+
+	wg.Wait()
 
 	return &DMIInfo{
 		ProductName:     vals[0],

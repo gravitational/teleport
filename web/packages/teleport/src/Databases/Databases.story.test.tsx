@@ -17,7 +17,7 @@ limitations under the License.
 import React from 'react';
 import { render } from 'design/utils/testing';
 
-import { KeysEnum } from 'teleport/services/localStorage';
+import { KeysEnum } from 'teleport/services/storageService';
 
 import { Loaded, Failed, Empty, EmptyReadOnly } from './Databases.story';
 

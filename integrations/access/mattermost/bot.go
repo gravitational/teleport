@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2023 Gravitational, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -212,6 +212,13 @@ func NewBot(conf Config, clusterName, webProxyAddr string) (Bot, error) {
 		clusterName: clusterName,
 		webProxyURL: webProxyURL,
 	}, nil
+}
+
+// SupportedApps are the apps supported by this bot.
+func (b Bot) SupportedApps() []common.App {
+	return []common.App{
+		accessrequest.NewApp(b),
+	}
 }
 
 func (b Bot) CheckHealth(ctx context.Context) error {

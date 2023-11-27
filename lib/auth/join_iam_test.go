@@ -21,7 +21,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"strings"
 	"testing"
@@ -35,7 +34,6 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
-	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -505,10 +503,7 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 				require.NoError(t, a.DeleteToken(ctx, token.GetName()))
 			}()
 
-			requestContext := context.Background()
-			requestContext = authz.ContextWithClientSrcAddr(requestContext, &net.IPAddr{})
-
-			_, err = a.RegisterUsingIAMMethod(requestContext, func(challenge string) (*proto.RegisterUsingIAMMethodRequest, error) {
+			_, err = a.RegisterUsingIAMMethod(context.Background(), func(challenge string) (*proto.RegisterUsingIAMMethodRequest, error) {
 				templateInput := defaultIdentityRequestTemplateInput(challenge)
 				for _, opt := range tc.challengeResponseOptions {
 					opt(&templateInput)

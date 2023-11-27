@@ -354,6 +354,10 @@ export default class MainProcess {
       ) => removeAgentDirectory(this.settings, args.rootClusterUri)
     );
 
+    ipcMain.handle(MainProcessIpc.TryRemoveConnectMyComputerAgentBinary, () =>
+      this.agentRunner.tryRemoveAgentBinary()
+    );
+
     ipcMain.handle(
       'main-process-connect-my-computer-run-agent',
       async (

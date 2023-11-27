@@ -1158,8 +1158,8 @@ export const formatters: Formatters = {
   [eventCodes.DESKTOP_SESSION_STARTED]: {
     type: 'windows.desktop.session.start',
     desc: 'Windows Desktop Session Started',
-    format: ({ user, windows_domain, desktop_addr, windows_user }) => {
-      let message = `User [${user}] has connected to Windows desktop [${windows_user}@${desktop_addr}]`;
+    format: ({ user, windows_domain, desktop_name, windows_user }) => {
+      let message = `User [${user}] has connected to Windows desktop [${windows_user}@${desktop_name}]`;
       if (windows_domain) {
         message += ` on [${windows_domain}]`;
       }
@@ -1169,8 +1169,8 @@ export const formatters: Formatters = {
   [eventCodes.DESKTOP_SESSION_STARTED_FAILED]: {
     type: 'windows.desktop.session.start',
     desc: 'Windows Desktop Session Denied',
-    format: ({ user, windows_domain, desktop_addr, windows_user }) => {
-      let message = `User [${user}] was denied access to Windows desktop [${windows_user}@${desktop_addr}]`;
+    format: ({ user, windows_domain, desktop_name, windows_user }) => {
+      let message = `User [${user}] was denied access to Windows desktop [${windows_user}@${desktop_name}]`;
       if (windows_domain) {
         message += ` on [${windows_domain}]`;
       }
@@ -1180,8 +1180,8 @@ export const formatters: Formatters = {
   [eventCodes.DESKTOP_SESSION_ENDED]: {
     type: 'windows.desktop.session.end',
     desc: 'Windows Desktop Session Ended',
-    format: ({ user, windows_domain, desktop_addr, windows_user }) => {
-      let desktopMessage = `[${windows_user}@${desktop_addr}]`;
+    format: ({ user, windows_domain, desktop_name, windows_user }) => {
+      let desktopMessage = `[${windows_user}@${desktop_name}]`;
       if (windows_domain) {
         desktopMessage += ` on [${windows_domain}]`;
       }

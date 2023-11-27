@@ -299,7 +299,7 @@ steps:
   - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
   - 'go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e
     -tag-workflow -timeout 30m0s -workflow release-windows.yaml -workflow-ref=${DRONE_BRANCH}
-    -input oss-teleport-repo=${DRONE_REPO} -input oss-teleport-ref=${DRONE_COMMIT} '
+    -input oss-teleport-repo=${DRONE_REPO} -input oss-teleport-ref=${DRONE_BRANCH} '
   environment:
     GHA_APP_KEY:
       from_secret: GITHUB_WORKFLOW_APP_PRIVATE_KEY
@@ -408,10 +408,8 @@ steps:
   - echo "$RELEASES_CERT" | base64 -d > "$RELCLI_CERT"
   - echo "$RELEASES_KEY" | base64 -d > "$RELCLI_KEY"
   - trap "rm -rf /tmpfs/creds" EXIT
-  - |-
-    docker run -i -v /tmpfs/creds:/tmpfs/creds \
-      -e DRONE_REPO -e DRONE_TAG -e RELCLI_BASE_URL -e RELCLI_CERT -e RELCLI_KEY \
-      $RELCLI_IMAGE auto_destroy -f -v 6
+  - docker run -i -v /tmpfs/creds:/tmpfs/creds -e DRONE_REPO -e DRONE_TAG -e RELCLI_BASE_URL
+    -e RELCLI_CERT -e RELCLI_KEY $RELCLI_IMAGE auto_destroy -f -v 6
   environment:
     RELCLI_BASE_URL: https://releases-prod.platform.teleport.sh
     RELCLI_CERT: /tmpfs/creds/releases.crt
@@ -4984,7 +4982,7 @@ steps:
   - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
   - 'go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e
     -tag-workflow -timeout 30m0s -workflow release-windows.yaml -workflow-ref=${DRONE_TAG}
-    -input oss-teleport-repo=${DRONE_REPO} -input oss-teleport-ref=${DRONE_COMMIT} '
+    -input oss-teleport-repo=${DRONE_REPO} -input oss-teleport-ref=${DRONE_TAG} '
   environment:
     GHA_APP_KEY:
       from_secret: GITHUB_WORKFLOW_APP_PRIVATE_KEY
@@ -16289,6 +16287,7 @@ depends_on:
 - promote-teleport-oci-distroless-images
 - promote-teleport-hardened-amis
 - promote-teleport-kube-agent-updater-oci-images
+- promote-teleport-spacelift-runner-oci-images
 steps:
 - name: Check if commit is tagged
   image: alpine
@@ -16356,10 +16355,9 @@ steps:
   - echo "$RELEASES_CERT" | base64 -d > "$RELCLI_CERT"
   - echo "$RELEASES_KEY" | base64 -d > "$RELCLI_KEY"
   - trap "rm -rf /tmpfs/creds" EXIT
-  - |-
-    docker run -i -v /tmpfs/creds:/tmpfs/creds \
-      -e DRONE_REPO -e DRONE_TAG -e RELCLI_BASE_URL -e RELCLI_CERT -e RELCLI_KEY \
-      $RELCLI_IMAGE auto_publish -f -v 6
+  - for i in $(seq 10); do docker run -i -v /tmpfs/creds:/tmpfs/creds -e DRONE_REPO
+    -e DRONE_TAG -e RELCLI_BASE_URL -e RELCLI_CERT -e RELCLI_KEY $RELCLI_IMAGE auto_publish
+    -f -v 6 && break; done || false
   environment:
     RELCLI_BASE_URL: https://releases-prod.platform.teleport.sh
     RELCLI_CERT: /tmpfs/creds/releases.crt
@@ -16396,8 +16394,125 @@ volumes:
   temp: {}
 image_pull_secrets:
 - DOCKERHUB_CREDENTIALS
+
+---
+################################################
+# Generated using dronegen, do not edit by hand!
+# Use 'make dronegen' to update.
+# Generated at dronegen/gha.go (main.ghaMultiBuildPipeline)
+################################################
+
+kind: pipeline
+type: kubernetes
+name: build-teleport-spacelift-runner-oci-images
+trigger:
+  event:
+    include:
+    - tag
+  ref:
+    include:
+    - refs/tags/v*
+  repo:
+    include:
+    - gravitational/*
+workspace:
+  path: /go
+clone:
+  disable: true
+steps:
+- name: Check out code
+  image: docker:git
+  pull: if-not-exists
+  commands:
+  - mkdir -pv "/go/src/github.com/gravitational/teleport"
+  - cd "/go/src/github.com/gravitational/teleport"
+  - git init
+  - git remote add origin ${DRONE_REMOTE_URL}
+  - git fetch origin --tags
+  - git checkout -qf "${DRONE_COMMIT_SHA}"
+  - mkdir -m 0700 /root/.ssh && echo "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa &&
+    chmod 600 /root/.ssh/id_rsa
+  - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
+  - git submodule update --init e
+  - mkdir -pv /go/cache
+  - rm -f /root/.ssh/id_rsa
+  environment:
+    GITHUB_PRIVATE_KEY:
+      from_secret: GITHUB_PRIVATE_KEY
+- name: Delegate build to GitHub
+  image: golang:1.18-alpine
+  pull: if-not-exists
+  commands:
+  - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
+  - 'go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e
+    -tag-workflow -timeout 2h30m0s -workflow release-teleport-spacelift-runner-oci.yml
+    -workflow-ref=${DRONE_TAG} -input oss-teleport-repo=${DRONE_REPO} -input oss-teleport-ref=${DRONE_TAG} '
+  environment:
+    GHA_APP_KEY:
+      from_secret: GITHUB_WORKFLOW_APP_PRIVATE_KEY
+image_pull_secrets:
+- DOCKERHUB_CREDENTIALS
+
+---
+################################################
+# Generated using dronegen, do not edit by hand!
+# Use 'make dronegen' to update.
+# Generated at dronegen/gha.go (main.ghaMultiBuildPipeline)
+################################################
+
+kind: pipeline
+type: kubernetes
+name: promote-teleport-spacelift-runner-oci-images
+trigger:
+  event:
+    include:
+    - promote
+  target:
+    include:
+    - production
+    - promote-teleport-spacelift-runner
+  repo:
+    include:
+    - gravitational/*
+workspace:
+  path: /go
+clone:
+  disable: true
+steps:
+- name: Check out code
+  image: docker:git
+  pull: if-not-exists
+  commands:
+  - mkdir -pv "/go/src/github.com/gravitational/teleport"
+  - cd "/go/src/github.com/gravitational/teleport"
+  - git init
+  - git remote add origin ${DRONE_REMOTE_URL}
+  - git fetch origin --tags
+  - git checkout -qf "${DRONE_COMMIT_SHA}"
+  - mkdir -m 0700 /root/.ssh && echo "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa &&
+    chmod 600 /root/.ssh/id_rsa
+  - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
+  - git submodule update --init e
+  - mkdir -pv /go/cache
+  - rm -f /root/.ssh/id_rsa
+  environment:
+    GITHUB_PRIVATE_KEY:
+      from_secret: GITHUB_PRIVATE_KEY
+- name: Delegate build to GitHub
+  image: golang:1.18-alpine
+  pull: if-not-exists
+  commands:
+  - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
+  - 'go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e
+    -tag-workflow -timeout 2h30m0s -workflow promote-teleport-spacelift-runner-updater-oci.yml
+    -workflow-ref=${DRONE_TAG} -input "release-source-tag=${DRONE_TAG}" '
+  environment:
+    GHA_APP_KEY:
+      from_secret: GITHUB_WORKFLOW_APP_PRIVATE_KEY
+image_pull_secrets:
+- DOCKERHUB_CREDENTIALS
 ---
 kind: signature
-hmac: 18993516593f5eb36eb9a9352006689624540d14f39886639d92b1cf50faf258
+hmac: 8aee1e38b7ef8dea2ced7bdec1c55a1d7b12747e294041b8b94913e200a5054d
 
 ...

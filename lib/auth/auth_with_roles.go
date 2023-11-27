@@ -65,8 +65,10 @@ import (
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
+	accessgraphv1 "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 	"github.com/gravitational/teleport/lib/auth/integration/integrationv1"
 	"github.com/gravitational/teleport/lib/auth/trust/trustv1"
+	"github.com/gravitational/teleport/lib/auth/users/usersv1"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -300,7 +302,7 @@ func (a *ServerWithRoles) LoginRuleClient() loginrulepb.LoginRuleServiceClient {
 // ExternalCloudAuditClient allows ServerWithRoles to implement ClientI.
 // It should not be called through ServerWithRoles,
 // as it returns a dummy client that will always respond with "not implemented".
-func (a *ServerWithRoles) ExternalCloudAuditClient() services.ExternalCloudAudits {
+func (a *ServerWithRoles) ExternalCloudAuditClient() *externalcloudaudit.Client {
 	return externalcloudaudit.NewClient(externalcloudauditv1.NewExternalCloudAuditServiceClient(
 		utils.NewGRPCDummyClientConnection("ExternalCloudAuditClient() should not be called on ServerWithRoles"),
 	))
@@ -381,6 +383,14 @@ func (a *ServerWithRoles) SecReportsClient() *secreport.Client {
 	return secreport.NewClient(secreportsv1.NewSecReportsServiceClient(
 		utils.NewGRPCDummyClientConnection("SecReportsClient() should not be called on ServerWithRoles"),
 	))
+}
+
+// AccessGraphClient returns a client for the AccessGraph service.
+// It should not be called through ServerWithRoles,
+// as it returns a dummy client that will always respond with "not implemented".
+func (a *ServerWithRoles) AccessGraphClient() accessgraphv1.AccessGraphServiceClient {
+	return accessgraphv1.NewAccessGraphServiceClient(
+		utils.NewGRPCDummyClientConnection("AccessGraphClient() should not be called on ServerWithRoles"))
 }
 
 // integrationsService returns an Integrations Service.
@@ -961,6 +971,13 @@ func (a *ServerWithRoles) UpdateUserCARoleMap(ctx context.Context, name string, 
 }
 
 func (a *ServerWithRoles) RegisterUsingToken(ctx context.Context, req *types.RegisterUsingTokenRequest) (*proto.Certs, error) {
+	// We do not trust remote addr in the request unless it's coming from the Proxy.
+	if !a.hasBuiltinRole(types.RoleProxy) || req.RemoteAddr == "" {
+		if err := setRemoteAddrFromContext(ctx, req); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	// tokens have authz mechanism  on their own, no need to check
 	return a.authServer.RegisterUsingToken(ctx, req)
 }
@@ -2848,6 +2865,10 @@ func (a *ServerWithRoles) DeleteUser(ctx context.Context, user string) error {
 		return trace.Wrap(err)
 	}
 
+	if err := checkOktaAccess(ctx, &a.context, a.authServer, user, types.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+
 	return a.authServer.DeleteUser(ctx, user)
 }
 
@@ -3057,7 +3078,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 
 	var verifiedMFADeviceID string
 	if req.MFAResponse != nil {
-		dev, _, err := a.authServer.validateMFAAuthResponse(
+		dev, _, err := a.authServer.ValidateMFAAuthResponse(
 			ctx, req.GetMFAResponse(), req.Username, false /* passwordless */)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -3411,6 +3432,11 @@ func (a *ServerWithRoles) CreateResetPasswordToken(ctx context.Context, req Crea
 	if err := a.action(apidefaults.Namespace, types.KindUser, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	if a.hasBuiltinRole(types.RoleOkta) {
+		return nil, trace.AccessDenied("access denied")
+	}
+
 	return a.authServer.CreateResetPasswordToken(ctx, req)
 }
 
@@ -3432,6 +3458,11 @@ func (a *ServerWithRoles) CreateUser(ctx context.Context, user types.User) (type
 	if err := a.action(apidefaults.Namespace, types.KindUser, types.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	if err := usersv1.CheckOktaOrigin(&a.context, user); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	created, err := a.authServer.CreateUser(ctx, user)
 	return created, trace.Wrap(err)
 }
@@ -3445,6 +3476,14 @@ func (a *ServerWithRoles) UpdateUser(ctx context.Context, user types.User) (type
 		return nil, trace.Wrap(err)
 	}
 
+	if err := usersv1.CheckOktaOrigin(&a.context, user); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := checkOktaAccess(ctx, &a.context, a.authServer, user.GetName(), types.VerbUpdate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	updated, err := a.authServer.UpdateUser(ctx, user)
 	return updated, trace.Wrap(err)
 }
@@ -3454,6 +3493,14 @@ func (a *ServerWithRoles) UpdateUser(ctx context.Context, user types.User) (type
 // Deprecated: use [usersv1.Service.UpdateUser] instead.
 func (a *ServerWithRoles) UpsertUser(ctx context.Context, u types.User) (types.User, error) {
 	if err := a.action(apidefaults.Namespace, types.KindUser, types.VerbCreate, types.VerbUpdate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := usersv1.CheckOktaOrigin(&a.context, u); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := checkOktaAccess(ctx, &a.context, a.authServer, u.GetName(), types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -3480,6 +3527,19 @@ func (a *ServerWithRoles) UpdateAndSwapUser(ctx context.Context, user string, wi
 // Captures the auth user who modified the user record.
 func (a *ServerWithRoles) CompareAndSwapUser(ctx context.Context, new, existing types.User) error {
 	if err := a.action(apidefaults.Namespace, types.KindUser, types.VerbUpdate); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := usersv1.CheckOktaOrigin(&a.context, new); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Checking the `existing` origin should be enough to assert that okta has
+	// write access to the user, because if the backend record says something
+	// different then the `CompareAndSwap()` will fail anyway, and this way we
+	// save ourselves a backend user lookup.
+
+	if err := usersv1.CheckOktaAccess(&a.context, existing, types.VerbUpdate); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -4211,14 +4271,14 @@ func checkRoleFeatureSupport(role types.Role) error {
 	case !features.AccessControls && options.MaxSessions > 0:
 		return trace.AccessDenied(
 			"role option max_sessions is only available in enterprise subscriptions")
-	case !features.AdvancedAccessWorkflows &&
+	case !features.AccessRequests.Enabled &&
 		(options.RequestAccess == types.RequestStrategyReason || options.RequestAccess == types.RequestStrategyAlways):
 		return trace.AccessDenied(
 			"role option request_access: %v is only available in enterprise subscriptions", options.RequestAccess)
-	case !features.AdvancedAccessWorkflows && len(allowReq.Thresholds) != 0:
+	case !features.AccessRequests.Enabled && len(allowReq.Thresholds) != 0:
 		return trace.AccessDenied(
 			"role field allow.request.thresholds is only available in enterprise subscriptions")
-	case !features.AdvancedAccessWorkflows && !allowRev.IsZero():
+	case !features.AccessRequests.Enabled && !allowRev.IsZero():
 		return trace.AccessDenied(
 			"role field allow.review_requests is only available in enterprise subscriptions")
 	case modules.GetModules().BuildType() != modules.BuildEnterprise && len(allowReq.SearchAsRoles) != 0:
@@ -6956,7 +7016,7 @@ func (a *ServerWithRoles) UpdateHeadlessAuthenticationState(ctx context.Context,
 			return err
 		}
 
-		mfaDevice, _, err := a.authServer.validateMFAAuthResponse(ctx, mfaResp, headlessAuthn.User, false /* passwordless */)
+		mfaDevice, _, err := a.authServer.ValidateMFAAuthResponse(ctx, mfaResp, headlessAuthn.User, false /* passwordless */)
 		if err != nil {
 			emitHeadlessLoginEvent(ctx, events.UserHeadlessLoginApprovedFailureCode, a.authServer.emitter, headlessAuthn, err)
 			return trace.Wrap(err)
@@ -7130,6 +7190,11 @@ func (a *ServerWithRoles) DeleteClusterMaintenanceConfig(ctx context.Context) er
 	return a.authServer.DeleteClusterMaintenanceConfig(ctx)
 }
 
+// ValidateMFAAuthResponse not implemented: can only be called locally.
+func (a *ServerWithRoles) ValidateMFAAuthResponse(ctx context.Context, resp *proto.MFAAuthenticateResponse, user string, passwordless bool) (*types.MFADevice, string, error) {
+	return nil, "", trace.NotImplemented(notImplementedMessage)
+}
+
 // NewAdminAuthServer returns auth server authorized as admin,
 // used for auth server cached access
 func NewAdminAuthServer(authServer *Server, alog events.AuditLogSessionStreamer) (ClientI, error) {
@@ -7219,4 +7284,19 @@ func verbsToReplaceResourceWithOrigin(stored types.ResourceWithOrigin) []string 
 		verbs = append(verbs, types.VerbCreate)
 	}
 	return verbs
+}
+
+// checkOktaAccess gates access to update operations on user records based
+// on the origin label on the supplied user record.
+//
+// # See usersv1.CheckOktaAccess() for the actual access rules
+//
+// TODO(tcsc): Delete in 16.0.0 when user management is removed from `ServerWithRoles`
+func checkOktaAccess(ctx context.Context, authzCtx *authz.Context, users services.UsersService, existingUsername string, verb string) error {
+	existingUser, err := users.GetUser(ctx, existingUsername, false)
+	if err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	}
+
+	return usersv1.CheckOktaAccess(authzCtx, existingUser, verb)
 }

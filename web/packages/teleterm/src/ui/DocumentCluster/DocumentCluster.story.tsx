@@ -301,13 +301,13 @@ function renderState({
   return (
     <AppContextProvider value={appContext}>
       <MockWorkspaceContextProvider>
-        <ConnectMyComputerContextProvider rootClusterUri={rootClusterUri}>
-          <ResourcesContextProvider>
+        <ResourcesContextProvider>
+          <ConnectMyComputerContextProvider rootClusterUri={rootClusterUri}>
             <Wrapper>
               <DocumentCluster visible={true} doc={doc} />
             </Wrapper>
-          </ResourcesContextProvider>
-        </ConnectMyComputerContextProvider>
+          </ConnectMyComputerContextProvider>
+        </ResourcesContextProvider>
       </MockWorkspaceContextProvider>
     </AppContextProvider>
   );

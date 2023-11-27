@@ -233,6 +233,21 @@ func tagPipelines() []pipeline {
 		},
 	}))
 
+	ps = append(ps, ghaBuildPipeline(ghaBuildType{
+		buildType:    buildType{os: "linux", fips: false},
+		trigger:      triggerTag,
+		pipelineName: "build-teleport-spacelift-runner-oci-images",
+		workflows: []ghaWorkflow{
+			{
+				name:              "release-teleport-spacelift-runner-oci.yml",
+				srcRefVar:         "DRONE_TAG",
+				ref:               "${DRONE_TAG}",
+				timeout:           150 * time.Minute,
+				shouldTagWorkflow: true,
+			},
+		},
+	}))
+
 	// Also add CentOS artifacts
 	// CentOS 6 FIPS builds have been removed in Teleport 7.0. See https://github.com/gravitational/teleport/issues/7207
 	ps = append(ps, tagPipeline(buildType{os: "linux", arch: "amd64", centos7: true}))

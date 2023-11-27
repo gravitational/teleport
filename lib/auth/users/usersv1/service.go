@@ -208,7 +208,12 @@ func (s *Service) GetUser(ctx context.Context, req *userspb.GetUserRequest) (*us
 }
 
 func (s *Service) CreateUser(ctx context.Context, req *userspb.CreateUserRequest) (*userspb.CreateUserResponse, error) {
-	if _, err := authz.AuthorizeWithVerbs(ctx, s.logger, s.authorizer, true, types.KindUser, types.VerbCreate); err != nil {
+	authCtx, err := authz.AuthorizeWithVerbs(ctx, s.logger, s.authorizer, true, types.KindUser, types.VerbCreate)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err = CheckOktaOrigin(authCtx, req.User); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -265,7 +270,12 @@ func (s *Service) CreateUser(ctx context.Context, req *userspb.CreateUserRequest
 }
 
 func (s *Service) UpdateUser(ctx context.Context, req *userspb.UpdateUserRequest) (*userspb.UpdateUserResponse, error) {
-	if _, err := authz.AuthorizeWithVerbs(ctx, s.logger, s.authorizer, true, types.KindUser, types.VerbUpdate); err != nil {
+	authzCtx, err := authz.AuthorizeWithVerbs(ctx, s.logger, s.authorizer, true, types.KindUser, types.VerbUpdate)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err = CheckOktaOrigin(authzCtx, req.User); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -275,6 +285,10 @@ func (s *Service) UpdateUser(ctx context.Context, req *userspb.UpdateUserRequest
 		// don't return error here since this call is for event emitting purposes only
 		s.logger.WithError(err).Warn("Failed getting previous user during update")
 		omitEditorEvent = true
+	}
+
+	if err = CheckOktaAccess(authzCtx, prevUser, types.VerbUpdate); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	updated, err := s.backend.UpdateUser(ctx, req.User)
@@ -336,6 +350,19 @@ func (s *Service) UpsertUser(ctx context.Context, req *userspb.UpsertUserRequest
 		omitEditorEvent = true
 	}
 
+	verb := types.VerbUpdate
+	if prevUser == nil {
+		verb = types.VerbCreate
+	}
+
+	if err = CheckOktaOrigin(authzCtx, req.User); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err = CheckOktaAccess(authzCtx, prevUser, verb); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	upserted, err := s.backend.UpsertUser(ctx, req.User)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -376,7 +403,8 @@ func (s *Service) UpsertUser(ctx context.Context, req *userspb.UpsertUserRequest
 }
 
 func (s *Service) DeleteUser(ctx context.Context, req *userspb.DeleteUserRequest) (*emptypb.Empty, error) {
-	if _, err := authz.AuthorizeWithVerbs(ctx, s.logger, s.authorizer, true, types.KindUser, types.VerbDelete); err != nil {
+	authzCtx, err := authz.AuthorizeWithVerbs(ctx, s.logger, s.authorizer, true, types.KindUser, types.VerbDelete)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -387,6 +415,10 @@ func (s *Service) DeleteUser(ctx context.Context, req *userspb.DeleteUserRequest
 		s.logger.WithError(err).Warn("Failed getting previous user during delete operation")
 		prevUser = nil
 		omitEditorEvent = true
+	}
+
+	if err = CheckOktaAccess(authzCtx, prevUser, types.VerbDelete); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	role, err := s.cache.GetRole(ctx, services.RoleNameForUser(req.Name))

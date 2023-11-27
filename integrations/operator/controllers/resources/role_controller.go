@@ -27,9 +27,9 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
 	v5 "github.com/gravitational/teleport/integrations/operator/apis/resources/v5"
-	"github.com/gravitational/teleport/integrations/operator/sidecar"
 )
 
 const teleportRoleKind = "TeleportRole"
@@ -47,8 +47,8 @@ var TeleportRoleGVKV5 = schema.GroupVersionKind{
 // RoleReconciler reconciles a TeleportRole object
 type RoleReconciler struct {
 	kclient.Client
-	Scheme                 *runtime.Scheme
-	TeleportClientAccessor sidecar.ClientAccessor
+	Scheme         *runtime.Scheme
+	TeleportClient *client.Client
 }
 
 //+kubebuilder:rbac:groups=resources.teleport.dev,resources=roles,verbs=get;list;watch;create;update;patch;delete
@@ -91,13 +91,7 @@ func (r *RoleReconciler) SetupWithManager(mgr ctrl.Manager) error {
 }
 
 func (r *RoleReconciler) Delete(ctx context.Context, obj kclient.Object) error {
-	teleportClient, release, err := r.TeleportClientAccessor(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer release()
-
-	return teleportClient.DeleteRole(ctx, obj.GetName())
+	return r.TeleportClient.DeleteRole(ctx, obj.GetName())
 }
 
 func (r *RoleReconciler) Upsert(ctx context.Context, obj kclient.Object) error {
@@ -125,21 +119,7 @@ func (r *RoleReconciler) Upsert(ctx context.Context, obj kclient.Object) error {
 
 	// Converting the Kubernetes resource into a Teleport one, checking potential ownership issues.
 	teleportResource := k8sResource.ToTeleport()
-	teleportClient, release, err := r.TeleportClientAccessor(ctx)
-	if err == nil {
-		defer release()
-	}
-	updateErr = updateStatus(updateStatusConfig{
-		ctx:         ctx,
-		client:      r.Client,
-		k8sResource: k8sResource,
-		condition:   getTeleportClientConditionFromError(err),
-	})
-	if err != nil || updateErr != nil {
-		return trace.NewAggregate(err, updateErr)
-	}
-
-	existingResource, err := teleportClient.GetRole(ctx, teleportResource.GetName())
+	existingResource, err := r.TeleportClient.GetRole(ctx, teleportResource.GetName())
 	updateErr = updateStatus(updateStatusConfig{
 		ctx:         ctx,
 		client:      r.Client,
@@ -182,7 +162,7 @@ func (r *RoleReconciler) Upsert(ctx context.Context, obj kclient.Object) error {
 	r.AddTeleportResourceOrigin(teleportResource)
 
 	// If an error happens we want to put it in status.conditions before returning.
-	_, err = teleportClient.UpsertRole(ctx, teleportResource)
+	_, err = r.TeleportClient.UpsertRole(ctx, teleportResource)
 	updateErr = updateStatus(updateStatusConfig{
 		ctx:         ctx,
 		client:      r.Client,
