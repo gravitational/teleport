@@ -562,7 +562,7 @@ func onProxyCommandApp(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	listener, err := createListener(cf, tc)
+	listener, err := createProxyAppListener(cf, tc)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -599,7 +599,7 @@ func onProxyCommandApp(cf *CLIConf) error {
 }
 
 // This function creates a net.Listener or tls.Listener according to the requested TLS Configuration
-func createListener(cf *CLIConf, tc *libclient.TeleportClient) (net.Listener, error) {
+func createProxyAppListener(cf *CLIConf, tc *libclient.TeleportClient) (net.Listener, error) {
 	var err error
 
 	addr := "localhost:0"
@@ -621,7 +621,7 @@ func createListener(cf *CLIConf, tc *libclient.TeleportClient) (net.Listener, er
 				return nil, trace.Wrap(err)
 			}
 		} else {
-			log.Debug("Generating self-signed certificate for local port.\n")
+			log.Debug("Generating self-signed certificate for local port.")
 
 			profile, err := cf.ProfileStatus()
 			if err != nil {
