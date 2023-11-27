@@ -350,6 +350,9 @@ func (p *Plugin) initAndRegisterSecurityReport(ctx context.Context, serviceGRPC 
 		log.Warn("Access Monitoring Enabled but Athena backend is not configured.")
 		return nil
 	}
+
+	modules.GetModules().EnableAccessMonitoring()
+
 	storage, err := local.NewSecReportsService(p.authServer.GetBackend(), p.authServer.AuthServer.GetClock())
 	if err != nil {
 		return trace.Wrap(err)

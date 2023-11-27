@@ -24,23 +24,21 @@ func FetchFromCloud(ctx context.Context, cloudClient cloud.Client) (*modules.Fea
 	}
 
 	f := &modules.Features{
-		Kubernetes:          resp.Kubernetes,
-		App:                 resp.App,
-		DB:                  resp.Db,
-		Desktop:             resp.Desktop,
-		Cloud:               resp.IsCloud,
-		OIDC:                resp.Oidc,
-		SAML:                resp.SAML,
-		AccessControls:      resp.AccessControls,
-		HSM:                 resp.Hsm,
-		IsUsageBasedBilling: resp.IsUsageBased,
-		Assist:              resp.Assist,
+		Kubernetes:              resp.Kubernetes,
+		App:                     resp.App,
+		DB:                      resp.Db,
+		Desktop:                 resp.Desktop,
+		AdvancedAccessWorkflows: resp.AccessRequests,
+		Cloud:                   resp.IsCloud,
+		OIDC:                    resp.Oidc,
+		SAML:                    resp.SAML,
+		AccessControls:          resp.AccessControls,
+		HSM:                     resp.Hsm,
+		IsUsageBasedBilling:     resp.IsUsageBased,
+		Assist:                  resp.Assist,
 		// TODO(codingllama): Pull device trust settings from Cloud?
 		DeviceTrust: modules.DeviceTrustFeature{
 			Enabled: true,
-		},
-		AccessRequests: modules.AccessRequestsFeature{
-			Enabled: resp.AccessRequests,
 		},
 	}
 

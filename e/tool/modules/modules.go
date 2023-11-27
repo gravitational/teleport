@@ -120,6 +120,7 @@ func (p *enterpriseModules) SetFeatures(f modules.Features) {
 	f.Plugins = p.features.Plugins
 	f.IsTrialProduct = p.features.IsTrialProduct
 	f.AccessGraph = p.features.AccessGraph
+	f.AccessMonitoring = p.features.AccessMonitoring
 
 	p.features = f
 }
@@ -143,6 +144,13 @@ func (p *enterpriseModules) EnableAccessGraph() {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.features.AccessGraph = true
+}
+
+// EnableAccessMonitoring enables the usage of access monitoring.
+func (p *enterpriseModules) EnableAccessMonitoring() {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.features.AccessMonitoring.Enabled = true
 }
 
 // BuildType returns build type (OSS or Enterprise)
@@ -186,28 +194,26 @@ func getLicenseFeatures(license types.License) modules.Features {
 	// per-resource usage reporting. Also, for backward compatibility so
 	// we don't need to reissue licenses every time we add a new feature.
 	return modules.Features{
-		Kubernetes:          license.GetCloud().Value() || license.GetSupportsKubernetes().Value(),
-		App:                 license.GetCloud().Value() || license.GetSupportsApplicationAccess().Value(),
-		DB:                  license.GetCloud().Value() || license.GetSupportsDatabaseAccess().Value(),
-		Desktop:             license.GetCloud().Value() || license.GetSupportsDesktopAccess().Value(),
-		Cloud:               license.GetCloud().Value(),
-		OIDC:                true,
-		SAML:                true,
-		AccessControls:      true,
-		HSM:                 true,
-		RecoveryCodes:       license.GetCloud().Value(),
-		IsUsageBasedBilling: false, // usage-based subscriptions don't use license as source of features
-		FeatureHiding:       license.GetSupportsFeatureHiding().Value(),
-		CustomTheme:         license.GetCustomTheme(),
+		Kubernetes:              license.GetCloud().Value() || license.GetSupportsKubernetes().Value(),
+		App:                     license.GetCloud().Value() || license.GetSupportsApplicationAccess().Value(),
+		DB:                      license.GetCloud().Value() || license.GetSupportsDatabaseAccess().Value(),
+		Desktop:                 license.GetCloud().Value() || license.GetSupportsDesktopAccess().Value(),
+		Cloud:                   license.GetCloud().Value(),
+		OIDC:                    true,
+		SAML:                    true,
+		AccessControls:          true,
+		AdvancedAccessWorkflows: true,
+		HSM:                     true,
+		RecoveryCodes:           license.GetCloud().Value(),
+		IsUsageBasedBilling:     false, // usage-based subscriptions don't use license as source of features
+		FeatureHiding:           license.GetSupportsFeatureHiding().Value(),
+		CustomTheme:             license.GetCustomTheme(),
 		// Assist is disabled by default on Cloud.
 		// In case of the Team plan, this gets overridden to `true` by the dynamic features from Sales Center
 		Assist: !license.GetCloud().Value(),
 		// Device trust is enabled and unlimited, by default, for Enterprise/Cloud.
 		// Team accounts limitations are handled by [feature.FetchFromCloud].
 		DeviceTrust: modules.DeviceTrustFeature{
-			Enabled: true,
-		},
-		AccessRequests: modules.AccessRequestsFeature{
 			Enabled: true,
 		},
 		IsTrialProduct: license.GetTrial().Value(),

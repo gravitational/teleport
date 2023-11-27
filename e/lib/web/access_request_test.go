@@ -680,9 +680,7 @@ func TestPromoteAccessRequest(t *testing.T) {
 		TestModules: modules.TestModules{
 			TestBuildType: modules.BuildEnterprise,
 			TestFeatures: modules.Features{
-				AccessRequests: modules.AccessRequestsFeature{
-					Enabled: true,
-				},
+				AdvancedAccessWorkflows: true,
 			},
 		},
 	})
