@@ -18,7 +18,6 @@ package proto;
 
 import "teleport/accesslist/v1/accesslist.proto";
 import "teleport/discoveryconfig/v1/discoveryconfig.proto";
-import "teleport/externalauditstorage/v1/externalauditstorage.proto";
 import "teleport/legacy/types/types.proto";
 import "teleport/secreports/v1/secreports.proto";
 import "teleport/userloginstate/v1/userloginstate.proto";
@@ -146,7 +145,5 @@ message Event {
     teleport.secreports.v1.Report Report = 51;
     // SecurityReportState is a security report state resource.
     teleport.secreports.v1.ReportState ReportState = 52;
-    // ExternalAuditStorage is an ExternalAuditStorage resource.
-    teleport.externalauditstorage.v1.ExternalAuditStorage ExternalAuditStorage = 53;
   }
 }
