@@ -5472,6 +5472,33 @@ message ExternalAuditStorageEnable {
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
+  // Details holds details about the External Audit Storage configuration that
+  // was enabled.
+  ExternalAuditStorageDetails details = 3;
+}
+
+// ExternalAuditStorageDisableEvent is emitted when External Audit Storage is
+// disabled.
+message ExternalAuditStorageDisable {
+  // Metadata is common event metadata.
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // Resource is common resource event metadata
+  ResourceMetadata Resource = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // Details holds details about the External Audit Storage configuration that
+  // was disabled.
+  ExternalAuditStorageDetails details = 3;
+}
+
+// Details holds details about the External Audit Storage configuration.
+message ExternalAuditStorageDetails {
   // IntegrationName is the name of the AWS OIDC integration used.
   string integration_name = 3;
   // SessionsRecordingsURI is the S3 path used to store session recordings.
@@ -5493,21 +5520,4 @@ message ExternalAuditStorageEnable {
   string policy_name = 10;
   // Region is the AWS region where the infrastructure is hosted.
   string region = 11;
-}
-
-// ExternalAuditStorageDisableEvent is emitted when External Audit Storage is
-// disabled.
-message ExternalAuditStorageDisable {
-  // Metadata is common event metadata.
-  Metadata Metadata = 1 [
-    (gogoproto.nullable) = false,
-    (gogoproto.embed) = true,
-    (gogoproto.jsontag) = ""
-  ];
-  // Resource is common resource event metadata
-  ResourceMetadata Resource = 2 [
-    (gogoproto.nullable) = false,
-    (gogoproto.embed) = true,
-    (gogoproto.jsontag) = ""
-  ];
 }
