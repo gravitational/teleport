@@ -1,0 +1,49 @@
+{{- if .Values.enabled }}
+{{- if .Values.rbac.create -}}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "teleport-cluster.operator.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+rules:
+  - apiGroups:
+      - "resources.teleport.dev"
+    resources:
+      - teleportroles
+      - teleportroles/status
+      - teleportusers
+      - teleportusers/status
+      - teleportgithubconnectors
+      - teleportgithubconnectors/status
+      - teleportoidcconnectors
+      - teleportoidcconnectors/status
+      - teleportsamlconnectors
+      - teleportsamlconnectors/status
+      - teleportloginrules
+      - teleportloginrules/status
+      - teleportprovisiontokens
+      - teleportprovisiontokens/status
+      - teleportoktaimportrules
+      - teleportoktaimportrules/status
+    verbs:
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  - apiGroups:
+      - "coordination.k8s.io"
+    resources:
+      - leases
+    verbs:
+      - create
+      - get
+      - update
+  - apiGroups:
+      - ""
+    resources:
+      - events
+    verbs:
+      - create
+{{- end -}}
+{{- end -}}

@@ -20,9 +20,9 @@ import { ButtonPrimary, Flex, Image, Text } from 'design';
 import { OnboardCard } from 'design/Onboard/OnboardCard';
 
 import { CaptureEvent, userEventService } from 'teleport/services/userEvent';
+import shieldCheck from 'teleport/assets/shield-check.png';
 
 import { RegisterSuccessProps } from './types';
-import shieldCheck from './shield-check.png';
 
 export function RegisterSuccess({
   redirect,

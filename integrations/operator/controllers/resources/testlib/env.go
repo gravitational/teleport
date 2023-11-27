@@ -45,7 +45,6 @@ import (
 	resourcesv3 "github.com/gravitational/teleport/integrations/operator/apis/resources/v3"
 	resourcesv5 "github.com/gravitational/teleport/integrations/operator/apis/resources/v5"
 	"github.com/gravitational/teleport/integrations/operator/controllers/resources"
-	"github.com/gravitational/teleport/integrations/operator/sidecar"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 )
@@ -177,11 +176,6 @@ func (s *TestSetup) StartKubernetesOperator(t *testing.T) {
 		s.StopKubernetesOperator()
 	}
 
-	// We have to create a new Manager on each start because the Manager does not support to be restarted
-	clientAccessor := func(ctx context.Context) (*sidecar.SyncClient, func(), error) {
-		return sidecar.NewSyncClient(s.TeleportClient), func() {}, nil
-	}
-
 	k8sManager, err := ctrl.NewManager(s.K8sRestConfig, ctrl.Options{
 		Scheme:             scheme,
 		MetricsBindAddress: "0",
@@ -189,31 +183,31 @@ func (s *TestSetup) StartKubernetesOperator(t *testing.T) {
 	require.NoError(t, err)
 
 	err = (&resources.RoleReconciler{
-		Client:                 s.K8sClient,
-		Scheme:                 k8sManager.GetScheme(),
-		TeleportClientAccessor: clientAccessor,
+		Client:         s.K8sClient,
+		Scheme:         k8sManager.GetScheme(),
+		TeleportClient: s.TeleportClient,
 	}).SetupWithManager(k8sManager)
 	require.NoError(t, err)
 
-	err = resources.NewUserReconciler(s.K8sClient, clientAccessor).SetupWithManager(k8sManager)
+	err = resources.NewUserReconciler(s.K8sClient, s.TeleportClient).SetupWithManager(k8sManager)
 	require.NoError(t, err)
 
-	err = resources.NewGithubConnectorReconciler(s.K8sClient, clientAccessor).SetupWithManager(k8sManager)
+	err = resources.NewGithubConnectorReconciler(s.K8sClient, s.TeleportClient).SetupWithManager(k8sManager)
 	require.NoError(t, err)
 
-	err = resources.NewOIDCConnectorReconciler(s.K8sClient, clientAccessor).SetupWithManager(k8sManager)
+	err = resources.NewOIDCConnectorReconciler(s.K8sClient, s.TeleportClient).SetupWithManager(k8sManager)
 	require.NoError(t, err)
 
-	err = resources.NewSAMLConnectorReconciler(s.K8sClient, clientAccessor).SetupWithManager(k8sManager)
+	err = resources.NewSAMLConnectorReconciler(s.K8sClient, s.TeleportClient).SetupWithManager(k8sManager)
 	require.NoError(t, err)
 
-	err = resources.NewLoginRuleReconciler(s.K8sClient, clientAccessor).SetupWithManager(k8sManager)
+	err = resources.NewLoginRuleReconciler(s.K8sClient, s.TeleportClient).SetupWithManager(k8sManager)
 	require.NoError(t, err)
 
-	err = resources.NewProvisionTokenReconciler(s.K8sClient, clientAccessor).SetupWithManager(k8sManager)
+	err = resources.NewProvisionTokenReconciler(s.K8sClient, s.TeleportClient).SetupWithManager(k8sManager)
 	require.NoError(t, err)
 
-	err = resources.NewOktaImportRuleReconciler(s.K8sClient, clientAccessor).SetupWithManager(k8sManager)
+	err = resources.NewOktaImportRuleReconciler(s.K8sClient, s.TeleportClient).SetupWithManager(k8sManager)
 	require.NoError(t, err)
 
 	ctx, ctxCancel := context.WithCancel(context.Background())

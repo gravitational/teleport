@@ -16,8 +16,8 @@
 
 import { pipeline } from 'node:stream/promises';
 import { createReadStream } from 'node:fs';
-import { rm, mkdtemp } from 'node:fs/promises';
-import { join } from 'node:path';
+import fs from 'node:fs/promises';
+import path from 'node:path';
 import { createUnzip } from 'node:zlib';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
@@ -35,6 +35,7 @@ import type { IFileDownloader } from './fileDownloader';
 const TELEPORT_CDN_ADDRESS = 'https://cdn.teleport.dev';
 const TELEPORT_RELEASES_ADDRESS = 'https://rlz.teleport.sh/teleport?page=0';
 const logger = new Logger('agentDownloader');
+const asyncExecFile = promisify(execFile);
 
 interface AgentBinary {
   version: string;
@@ -73,13 +74,13 @@ export async function downloadAgent(
   });
   const url = `${TELEPORT_CDN_ADDRESS}/${tarballName}`;
 
-  const agentTempDirectory = await mkdtemp(
-    join(settings.tempDataDir, 'connect-my-computer-')
+  const agentTempDirectory = await fs.mkdtemp(
+    path.join(settings.tempDataDir, 'connect-my-computer-')
   );
   await fileDownloader.run(url, agentTempDirectory);
-  const tarballPath = join(agentTempDirectory, tarballName);
+  const tarballPath = path.join(agentTempDirectory, tarballName);
   await unpack(tarballPath, settings.sessionDataDir);
-  await rm(agentTempDirectory, { recursive: true });
+  await fs.rm(agentTempDirectory, { recursive: true });
 
   logger.info(`Downloaded agent v${version}.`);
 }
@@ -138,7 +139,6 @@ async function isCorrectAgentVersionAlreadyDownloaded(
   agentBinaryPath: string,
   neededVersion: string
 ): Promise<boolean> {
-  const asyncExecFile = promisify(execFile);
   try {
     const agentVersion = await asyncExecFile(
       agentBinaryPath,

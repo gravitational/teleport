@@ -119,7 +119,7 @@ func (s *ServiceNowSuite) SetupSuite() {
 			Roles: []string{"editor"},
 		},
 	}
-	if teleportFeatures.AccessRequests.Enabled {
+	if teleportFeatures.AdvancedAccessWorkflows {
 		conditions.Request.Thresholds = []types.AccessReviewThreshold{{Approve: 2, Deny: 2}}
 	}
 	// This is the role for testing notification incident creation.
@@ -147,7 +147,7 @@ func (s *ServiceNowSuite) SetupSuite() {
 	require.NoError(t, err)
 	s.userNames.requestorWithSchedules = userWithSchedule.GetName()
 
-	if teleportFeatures.AccessRequests.Enabled {
+	if teleportFeatures.AdvancedAccessWorkflows {
 		// Set up TWO users who can review access requests to role "editor".
 
 		role, err = bootstrap.AddRole("foo-reviewer", types.RoleSpecV6{
@@ -208,7 +208,7 @@ func (s *ServiceNowSuite) SetupSuite() {
 			types.NewRule("access_plugin_data", []string{"update"}),
 		},
 	}
-	if teleportFeatures.AccessRequests.Enabled {
+	if teleportFeatures.AdvancedAccessWorkflows {
 		conditions.ReviewRequests = &types.AccessReviewConditions{Roles: []string{"editor"}}
 	}
 
@@ -232,7 +232,7 @@ func (s *ServiceNowSuite) SetupSuite() {
 	require.NoError(t, err)
 	s.clients[s.userNames.requestor] = client
 
-	if teleportFeatures.AccessRequests.Enabled {
+	if teleportFeatures.AdvancedAccessWorkflows {
 		client, err = teleport.NewClient(ctx, auth, s.userNames.requestorWithSchedules)
 		require.NoError(t, err)
 		s.clients[s.userNames.requestorWithSchedules] = client
@@ -412,7 +412,7 @@ func (s *ServiceNowSuite) TestDenial() {
 func (s *ServiceNowSuite) TestReviewNotes() {
 	t := s.T()
 
-	if !s.teleportFeatures.AccessRequests.Enabled {
+	if !s.teleportFeatures.AdvancedAccessWorkflows {
 		t.Skip("Doesn't work in OSS version")
 	}
 
@@ -456,7 +456,7 @@ func (s *ServiceNowSuite) TestReviewNotes() {
 func (s *ServiceNowSuite) TestApprovalByReview() {
 	t := s.T()
 
-	if !s.teleportFeatures.AccessRequests.Enabled {
+	if !s.teleportFeatures.AdvancedAccessWorkflows {
 		t.Skip("Doesn't work in OSS version")
 	}
 
@@ -507,7 +507,7 @@ func (s *ServiceNowSuite) TestApprovalByReview() {
 func (s *ServiceNowSuite) TestDenialByReview() {
 	t := s.T()
 
-	if !s.teleportFeatures.AccessRequests.Enabled {
+	if !s.teleportFeatures.AdvancedAccessWorkflows {
 		t.Skip("Doesn't work in OSS version")
 	}
 
@@ -558,7 +558,7 @@ func (s *ServiceNowSuite) TestDenialByReview() {
 func (s *ServiceNowSuite) TestAutoApproval() {
 	t := s.T()
 
-	if !s.teleportFeatures.AccessRequests.Enabled {
+	if !s.teleportFeatures.AdvancedAccessWorkflows {
 		t.Skip("Doesn't work in OSS version")
 	}
 
