@@ -3662,6 +3662,8 @@ message OneOf {
     events.SAMLConnectorUpdate SAMLConnectorUpdate = 138;
     events.RoleUpdate RoleUpdate = 139;
     events.UserUpdate UserUpdate = 140;
+    events.ExternalAuditStorageEnable ExternalAuditStorageEnable = 141;
+    events.ExternalAuditStorageDisable ExternalAuditStorageDisable = 142;
   }
 }
 
@@ -5453,4 +5455,69 @@ message SecurityReportRun {
   int64 TotalDataScannedInBytes = 7 [(gogoproto.jsontag) = "total_data_scanned_in_bytes"];
   // AuditQueries is the list of audit queries that were run.
   repeated AuditQueryDetails AuditQueries = 8 [(gogoproto.jsontag) = "audit_queries,omitempty"];
+}
+
+// ExternalAuditStorageEnableEvent is emitted when External Audit Storage is
+// enabled.
+message ExternalAuditStorageEnable {
+  // Metadata is common event metadata.
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // Resource is common resource event metadata
+  ResourceMetadata Resource = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // Details holds details about the External Audit Storage configuration that
+  // was enabled.
+  ExternalAuditStorageDetails details = 3;
+}
+
+// ExternalAuditStorageDisableEvent is emitted when External Audit Storage is
+// disabled.
+message ExternalAuditStorageDisable {
+  // Metadata is common event metadata.
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // Resource is common resource event metadata
+  ResourceMetadata Resource = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // Details holds details about the External Audit Storage configuration that
+  // was disabled.
+  ExternalAuditStorageDetails details = 3;
+}
+
+// Details holds details about the External Audit Storage configuration.
+message ExternalAuditStorageDetails {
+  // IntegrationName is the name of the AWS OIDC integration used.
+  string integration_name = 3;
+  // SessionsRecordingsURI is the S3 path used to store session recordings.
+  string session_recordings_uri = 4;
+  // AthenaWorkgroup is the workgroup used for Athena audit log queries.
+  string athena_workgroup = 5;
+  // GlueDatabase is the database used for Athena audit log queries.
+  string glue_database = 6;
+  // GlueTable is the table used for Athena audit log queries.
+  string glue_table = 7;
+  // AuditEventsLongTermURI is the S3 path used to store batched parquet files
+  // with audit events, partitioned by event date.
+  string audit_events_long_term_uri = 8;
+  // AthenaResultsURI is the S3 path used to store temporary results generated
+  // by Athena.
+  string athena_results_uri = 9;
+  // PolicyName is the name of the IAM policy attached to the OIDC integration
+  // role.
+  string policy_name = 10;
+  // Region is the AWS region where the infrastructure is hosted.
+  string region = 11;
 }
