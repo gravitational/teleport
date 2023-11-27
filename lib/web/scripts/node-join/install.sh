@@ -347,7 +347,7 @@ download() {
     fi
     # if we have a hashing utility installed, also download and validate the checksum
     SHA_COMMAND=""
-    # shasum is installed by default on MacOS and some distros
+    # shasum is installed by default on macOS and some distros
     if check_exists shasum; then
         SHA_COMMAND="shasum -a 256"
     # sha256sum is installed by default in some other distros
@@ -485,7 +485,7 @@ install_teleport_node_config() {
       "${LABELS_FLAG[@]}" \
       --output ${TELEPORT_CONFIG_PATH}
 }
-# checks whether the given host is running MacOS
+# checks whether the given host is running macOS
 is_macos_host() { if [[ ${OSTYPE} == "darwin"* ]]; then return 0; else return 1; fi }
 # checks whether teleport is already running on the host
 is_running_teleport() {
@@ -676,7 +676,7 @@ if [[ "${OSTYPE}" == "linux"* ]]; then
         fi
     fi
 elif [[ "${OSTYPE}" == "darwin"* ]]; then
-    # macos host, now detect arch
+    # macOS host, now detect arch
     TELEPORT_BINARY_TYPE="darwin"
     ARCH=$(uname -m)
     log "Detected host: ${OSTYPE}, using Teleport binary type ${TELEPORT_BINARY_TYPE}"
@@ -688,7 +688,7 @@ elif [[ "${OSTYPE}" == "darwin"* ]]; then
         log_important "Error: unsupported architecture from uname -m: ${ARCH}"
         exit 1
     fi
-    log "Detected MacOS ${ARCH} architecture, using Teleport arch ${TELEPORT_ARCH}"
+    log "Detected macOS ${ARCH} architecture, using Teleport arch ${TELEPORT_ARCH}"
     TELEPORT_FORMAT="tarball"
 else
     log_important "Error - unsupported platform: ${OSTYPE}"
@@ -876,7 +876,7 @@ install_from_repo() {
         fi
         apt-get update
         apt-get install -y ${PACKAGE_LIST}
-    elif [ "$ID" = "amzn" ] || [ "$ID" = "rhel" ] || [ "$ID" = "centos" ] ; then
+    elif [ "$ID" = "amzn" ] || [ "$ID" = "rhel" ] || [ "$ID" = "centos" ]; then
         if [ "$ID" = "rhel" ]; then
             VERSION_ID="${VERSION_ID//.*/}" # convert version numbers like '7.2' to only include the major version
         fi
@@ -944,7 +944,7 @@ is_repo_available() {
     # The following distros+version have a Teleport repository to install from.
     case "${ID}-${VERSION_ID}" in
         ubuntu-16.04* | ubuntu-18.04* | ubuntu-20.04* | ubuntu-22.04* | \
-        debian-9* | debian-10* | debian-11* | \
+        debian-9* | debian-10* | debian-11* | debian-12* | \
         rhel-7* | rhel-8* | rhel-9* | \
         centos-7* | centos-8* | centos-9* | \
         amzn-2 | amzn-2023 | \
@@ -996,13 +996,13 @@ if is_using_systemd; then
     fi
     start_teleport_systemd
     print_welcome_message
-# install launchd config on MacOS hosts
+# install launchd config on macOS hosts
 elif is_macos_host; then
-    log "Host is running MacOS"
+    log "Host is running macOS"
     install_launchd_config
     start_teleport_launchd
     print_welcome_message
-# not a MacOS host and no systemd available, print a warning
+# not a macOS host and no systemd available, print a warning
 # and temporarily start Teleport in the foreground
 else
     log "Host does not appear to be using systemd"
