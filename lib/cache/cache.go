@@ -398,6 +398,8 @@ func ForDiscovery(cfg Config) Config {
 		{Kind: types.KindDatabase},
 		{Kind: types.KindApp},
 		{Kind: types.KindDiscoveryConfig},
+		{Kind: types.KindIntegration},
+		{Kind: types.KindProxy},
 	}
 	cfg.QueueSize = defaults.DiscoveryQueueSize
 	return cfg
