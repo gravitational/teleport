@@ -543,9 +543,9 @@ const (
 	SecReportsReportRunCode = "SRE002I"
 
 	// ExternalAuditStorageEnableCode is the External Audit Storage enabled code.
-	ExternalAuditStorageEnableCode = "TEAS001I"
+	ExternalAuditStorageEnableCode = "TEA001I"
 	// ExternalAuditStorageDisableCode is the External Audit Storage disabled code.
-	ExternalAuditStorageDisableCode = "TEAS002I"
+	ExternalAuditStorageDisableCode = "TEA002I"
 
 	// UnknownCode is used when an event of unknown type is encountered.
 	UnknownCode = apievents.UnknownCode
