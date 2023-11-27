@@ -288,7 +288,8 @@ func (w *buffer) buffered() ([]byte, []byte) {
 // empty. The total length of the slices is equal to len(w.data)-w.len().
 func (w *buffer) free() ([]byte, []byte) {
 	if w.len() == 0 {
-		return w.data, nil
+		left, _ := w.bounds()
+		return w.data[left:], w.data[:left]
 	}
 
 	left, right := w.bounds()
