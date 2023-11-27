@@ -15,6 +15,7 @@
  */
 
 import React from 'react';
+import { Location } from 'history';
 import { useLocation } from 'react-router';
 import { Link } from 'react-router-dom';
 import { CircleCheck } from 'design/Icon';
@@ -31,7 +32,6 @@ import { DiscoverUrlLocationState } from 'teleport/Discover/useDiscover';
 
 export function FinishDialog({ integration }: { integration: Integration }) {
   const location = useLocation<DiscoverUrlLocationState>();
-
   return (
     <Dialog
       dialogCss={() => ({ maxWidth: '500px', width: '100%' })}
@@ -48,35 +48,61 @@ export function FinishDialog({ integration }: { integration: Integration }) {
         </Text>
       </DialogContent>
       <DialogFooter css={{ margin: '0 auto' }}>
-        {location.state?.discover ? (
-          <ButtonPrimary
-            size="large"
-            as={Link}
-            to={{
-              pathname: cfg.routes.discover,
-              state: {
-                integration,
-                discover: location.state.discover,
-              },
-            }}
-          >
-            Begin AWS Resource Enrollment
-          </ButtonPrimary>
-        ) : (
-          <Flex gap="3">
-            <ButtonPrimary as={Link} to={cfg.routes.integrations} size="large">
-              Go to Integration List
-            </ButtonPrimary>
-            <ButtonSecondary
-              as={Link}
-              to={cfg.getIntegrationEnrollRoute(null)}
-              size="large"
-            >
-              Add Another Integration
-            </ButtonSecondary>
-          </Flex>
-        )}
+        <FooterButton location={location} integration={integration} />
       </DialogFooter>
     </Dialog>
+  );
+}
+
+function FooterButton({
+  location,
+  integration,
+}: {
+  location: Location<any>;
+  integration: Integration;
+}): React.ReactElement {
+  if (location.state?.discover) {
+    return (
+      <ButtonPrimary
+        size="large"
+        as={Link}
+        to={{
+          pathname: cfg.routes.discover,
+          state: {
+            integration,
+            discover: location.state.discover,
+          },
+        }}
+      >
+        Begin AWS Resource Enrollment
+      </ButtonPrimary>
+    );
+  }
+
+  if (location.state?.integration) {
+    return (
+      <ButtonPrimary
+        size="large"
+        as={Link}
+        to={cfg.getIntegrationEnrollRoute(location.state.integration.kind)}
+      >
+        {location.state.integration?.redirectText || `Back to integration`}
+      </ButtonPrimary>
+    );
+  }
+
+  return (
+    <Flex gap="3">
+      <ButtonPrimary as={Link} to={cfg.routes.integrations} size="large">
+        Go to Integration List
+      </ButtonPrimary>
+      <ButtonSecondary
+        as={Link}
+        to={cfg.getIntegrationEnrollRoute(null)}
+        size="large"
+      >
+        Add Another Integration
+      </ButtonSecondary>
+    </Flex>
   );
 }

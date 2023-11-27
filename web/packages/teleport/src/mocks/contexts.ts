@@ -68,7 +68,7 @@ export const allAccessAcl: Acl = {
   accessList: fullAccess,
   auditQuery: fullAccess,
   securityReport: fullAccess,
-  externalCloudAudit: fullAccess,
+  externalAuditStorage: fullAccess,
   accessGraph: fullAccess,
 };
 

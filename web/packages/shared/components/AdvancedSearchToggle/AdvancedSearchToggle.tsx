@@ -50,7 +50,7 @@ export function AdvancedSearchToggle(props: {
 function PredicateDocumentation() {
   return (
     <>
-      <Text typography="paragraph2">
+      <Text typography="paragraph2" id="predicate-documentation">
         Advanced search allows you to perform more sophisticated searches using
         the predicate language. The language supports the basic operators:{' '}
         <Text as="span" bold>
