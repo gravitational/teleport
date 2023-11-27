@@ -3,12 +3,6 @@ variable "agent_count" {
   description = "Number of agents to deploy"
 }
 
-variable "is_community" {
-  type        = bool
-  description = "Whether the user is deploying Teleport Community Edition"
-  default     = false
-}
-
 variable "proxy_service_address" {
   type        = string
   description = "Host and HTTPS port of the Teleport Proxy Service"
@@ -17,6 +11,16 @@ variable "proxy_service_address" {
 variable "aws_region" {
   type        = string
   description = "Region in which to deploy AWS resources"
+}
+
+variable "teleport_edition" {
+  type        = string
+  default     = "oss"
+  description = "Edition of your Teleport cluster. Can be: oss, enterprise, team, or cloud."
+  validation {
+    condition     = contains(["oss", "enterprise", "team", "cloud"], var.teleport_edition)
+    error_message = "teleport_edition must be one of: oss, enterprise, team, cloud."
+  }
 }
 
 variable "teleport_version" {
