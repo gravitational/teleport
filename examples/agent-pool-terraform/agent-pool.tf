@@ -1,7 +1,3 @@
-locals {
-  userdata_path = var.is_community ? "./userdata" : "./userdata-ent"
-}
-
 resource "random_string" "token" {
   count  = var.agent_count
   length = 32
@@ -29,7 +25,7 @@ resource "aws_instance" "teleport_agent" {
   ami           = "ami-04a0ae173da5807d3"
   instance_type = "t3.small"
   subnet_id     = var.subnet_id
-  user_data = templatefile(local.userdata_path, {
+  user_data = templatefile("./userdata", {
     token                 = teleport_provision_token.agent[count.index].metadata.name
     proxy_service_address = var.proxy_service_address
     teleport_version      = var.teleport_version
