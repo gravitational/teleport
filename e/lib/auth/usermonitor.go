@@ -167,10 +167,12 @@ func (u *UserMonitor) reconcile(ctx context.Context) error {
 			continue
 		}
 
-		usersToProcess[uls.GetName()], err = rebuildUserFromUserLoginState(uls)
+		rebuilt, err := rebuildUserFromUserLoginState(uls)
 		if err != nil {
 			u.log.WithError(err).Warnf("Unable to rebuild user %s", uls.GetName())
+			continue
 		}
+		usersToProcess[uls.GetName()] = rebuilt
 	}
 
 	var processErrs []error
