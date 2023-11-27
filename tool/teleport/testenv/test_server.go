@@ -365,5 +365,7 @@ func (p *cliModules) EnablePlugins() {
 
 func (p *cliModules) EnableAccessGraph() {}
 
+func (p *cliModules) EnableAccessMonitoring() {}
+
 func (p *cliModules) SetFeatures(f modules.Features) {
 }
