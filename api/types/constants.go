@@ -280,25 +280,14 @@ const (
 	// session recording configuration.
 	MetaNameSessionRecordingConfig = "session-recording-config"
 
-	// TODO(nklaassen): delete these after teleport.e switches to
-	// KindExternalAuditStorage.
-	// KindExternalCloudAudit the resource for external cloud audit.
-	KindExternalCloudAudit = "external_cloud_audit"
-	// MetaNameExternalCloudAuditDraft is the exact name of the singleton resource
-	// holding external cloud audit draft configuration.
-	MetaNameExternalCloudAuditDraft = "draft"
-	// MetaNameExternalCloudAuditCluster is the exact name of the singleton resource
-	// holding external cloud audit cluster configuration.
-	MetaNameExternalCloudAuditCluster = "cluster"
-
 	// KindExternalAuditStorage the resource kind for External Audit Storage
 	// configuration.
 	KindExternalAuditStorage = "external_audit_storage"
 	// MetaNameExternalAuditStorageDraft is the exact name of the singleton resource
-	// holding external cloud audit draft configuration.
+	// holding External Audit Storage draft configuration.
 	MetaNameExternalAuditStorageDraft = "draft"
 	// MetaNameExternalAuditStorageCluster is the exact name of the singleton resource
-	// holding external cloud audit cluster configuration.
+	// holding External Audit Storage cluster configuration.
 	MetaNameExternalAuditStorageCluster = "cluster"
 
 	// KindClusterConfig is the resource that holds cluster level configuration.
