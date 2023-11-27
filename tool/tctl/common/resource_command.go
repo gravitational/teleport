@@ -49,7 +49,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/devicetrust"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -87,6 +86,9 @@ type ResourceCommand struct {
 
 	verbose bool
 
+	// CreateHandlers are the handlers for the `tctl create` command. Except in special
+	// cases, the handler should return a trace.AlreadyExists error if the resource
+	// already exists and the force flag is not set.
 	CreateHandlers map[ResourceKind]ResourceCreateHandler
 	UpdateHandlers map[ResourceKind]ResourceCreateHandler
 
@@ -373,7 +375,21 @@ func (rc *ResourceCommand) createCertAuthority(ctx context.Context, client auth.
 	if err := client.UpsertCertAuthority(ctx, certAuthority); err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Printf("certificate authority '%s' has been updated\n", certAuthority.GetName())
+	id := certAuthority.GetID()
+	_, err = client.GetCertAuthority(ctx, id, true)
+	if err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	}
+	exists := (err == nil)
+	if !rc.force && exists {
+		return trace.AlreadyExists("certificate authority %q already exists", id)
+	}
+	err = client.UpsertCertAuthority(ctx, certAuthority)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("certificate authority %q has been %s\n",
+		certAuthority.GetName(), UpsertVerb(exists, rc.force))
 	return nil
 }
 
@@ -438,13 +454,13 @@ func (rc *ResourceCommand) createRole(ctx context.Context, client auth.ClientI, 
 		return trace.Wrap(err)
 	}
 	roleExists := (err == nil)
-	if roleExists && !rc.IsForced() {
-		return trace.AlreadyExists("role '%s' already exists", roleName)
+	if roleExists && !rc.force {
+		return trace.AlreadyExists("role %q already exists", roleName)
 	}
 	if _, err := client.UpsertRole(ctx, role); err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Printf("role '%s' has been %s\n", roleName, UpsertVerb(roleExists, rc.IsForced()))
+	fmt.Printf("role %q has been %s\n", roleName, UpsertVerb(roleExists, rc.force))
 	return nil
 }
 
@@ -506,7 +522,7 @@ func (rc *ResourceCommand) createUser(ctx context.Context, client auth.ClientI, 
 	}
 	exists := (err == nil)
 
-	if exists {
+	if exists && !rc.force {
 		if !rc.force {
 			return trace.AlreadyExists("user %q already exists", userName)
 		}
@@ -518,14 +534,13 @@ func (rc *ResourceCommand) createUser(ctx context.Context, client auth.ClientI, 
 		if _, err := client.UpsertUser(ctx, user); err != nil {
 			return trace.Wrap(err)
 		}
-		fmt.Printf("user %q has been updated\n", userName)
 
 	} else {
 		if _, err := client.CreateUser(ctx, user); err != nil {
 			return trace.Wrap(err)
 		}
-		fmt.Printf("user %q has been created\n", userName)
 	}
+	fmt.Printf("user %q has been %s\n", user.GetName(), UpsertVerb(exists, rc.force))
 
 	return nil
 }
@@ -591,10 +606,15 @@ func (rc *ResourceCommand) createClusterNetworkingConfig(ctx context.Context, cl
 
 func (rc *ResourceCommand) createClusterMaintenanceConfig(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
 	var cmc types.ClusterMaintenanceConfigV1
+
 	if err := utils.FastUnmarshal(raw.Raw, &cmc); err != nil {
 		return trace.Wrap(err)
 	}
-
+	var _, err = client.GetClusterMaintenanceConfig(ctx)
+	if err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	}
+	exists := (err == nil)
 	if err := cmc.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -608,7 +628,7 @@ func (rc *ResourceCommand) createClusterMaintenanceConfig(ctx context.Context, c
 		return trace.Wrap(err)
 	}
 
-	fmt.Println("maintenance window has been updated")
+	fmt.Printf("maintenance window has been %s\n", UpsertVerb(exists, rc.force))
 	return nil
 }
 
@@ -682,11 +702,18 @@ func (rc *ResourceCommand) createNetworkRestrictions(ctx context.Context, client
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	if err := client.SetNetworkRestrictions(ctx, newNetRestricts); err != nil {
+	_, err = client.GetNetworkRestrictions(ctx)
+	if err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)
 	}
-	fmt.Printf("network restrictions have been updated\n")
+	exists := (err == nil)
+	if !rc.force && exists {
+		return trace.AlreadyExists("network restriction %q already exists", newNetRestricts.GetName())
+	}
+	if err = client.SetNetworkRestrictions(ctx, newNetRestricts); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("network restriction %q has been %s\n", newNetRestricts.GetName(), UpsertVerb(exists, rc.force))
 	return nil
 }
 
@@ -695,12 +722,18 @@ func (rc *ResourceCommand) createWindowsDesktop(ctx context.Context, client auth
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	if err := client.UpsertWindowsDesktop(ctx, wd); err != nil {
+	_, err = client.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{HostID: wd.GetHostID(), Name: wd.GetName()})
+	if err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)
 	}
-
-	fmt.Printf("windows desktop %q has been updated\n", wd.GetName())
+	exists := (err == nil)
+	if !rc.force && exists {
+		return trace.AlreadyExists("windows desktop %q already exists", wd.GetName())
+	}
+	if err = client.UpsertWindowsDesktop(ctx, wd); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("windows desktop %q has been %s\n", wd.GetName(), UpsertVerb(exists, rc.force))
 	return nil
 }
 
@@ -717,12 +750,12 @@ func (rc *ResourceCommand) createApp(ctx context.Context, client auth.ClientI, r
 			if err := client.UpdateApp(ctx, app); err != nil {
 				return trace.Wrap(err)
 			}
-			fmt.Printf("application %q has been updated\n", app.GetName())
+			fmt.Printf("app %q has been %s\n", app.GetName(), UpsertVerb(true, rc.force))
 			return nil
 		}
 		return trace.Wrap(err)
 	}
-	fmt.Printf("application %q has been created\n", app.GetName())
+	fmt.Printf("app %q has been %s\n", app.GetName(), UpsertVerb(false, rc.force))
 	return nil
 }
 
@@ -734,17 +767,17 @@ func (rc *ResourceCommand) createKubeCluster(ctx context.Context, client auth.Cl
 	if err := client.CreateKubernetesCluster(ctx, cluster); err != nil {
 		if trace.IsAlreadyExists(err) {
 			if !rc.force {
-				return trace.AlreadyExists("kubernetes cluster %q already exists", cluster.GetName())
+				return trace.AlreadyExists("kube cluster %q already exists", cluster.GetName())
 			}
 			if err := client.UpdateKubernetesCluster(ctx, cluster); err != nil {
 				return trace.Wrap(err)
 			}
-			fmt.Printf("kubernetes cluster %q has been updated\n", cluster.GetName())
+			fmt.Printf("kube cluster %q has been %s\n", cluster.GetName(), UpsertVerb(true, rc.force))
 			return nil
 		}
 		return trace.Wrap(err)
 	}
-	fmt.Printf("kubernetes cluster %q has been created\n", cluster.GetName())
+	fmt.Printf("kube cluster %q has been %s\n", cluster.GetName(), UpsertVerb(false, rc.force))
 	return nil
 }
 
@@ -762,12 +795,12 @@ func (rc *ResourceCommand) createDatabase(ctx context.Context, client auth.Clien
 			if err := client.UpdateDatabase(ctx, database); err != nil {
 				return trace.Wrap(err)
 			}
-			fmt.Printf("database %q has been updated\n", database.GetName())
+			fmt.Printf("database %q has been %s\n", database.GetName(), UpsertVerb(true, rc.force))
 			return nil
 		}
 		return trace.Wrap(err)
 	}
-	fmt.Printf("database %q has been created\n", database.GetName())
+	fmt.Printf("database %q has been %s\n", database.GetName(), UpsertVerb(false, rc.force))
 	return nil
 }
 
@@ -776,9 +809,19 @@ func (rc *ResourceCommand) createToken(ctx context.Context, client auth.ClientI,
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	err = client.UpsertToken(ctx, token)
-	return trace.Wrap(err)
+	_, err = client.GetToken(ctx, token.GetName())
+	if err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	}
+	exists := (err == nil)
+	if !rc.force && exists {
+		return trace.AlreadyExists("token %q already exists", token.GetSafeName())
+	}
+	if err = client.UpsertToken(ctx, token); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("token %q has been %s\n", token.GetSafeName(), UpsertVerb(exists, rc.force))
+	return nil
 }
 
 func (rc *ResourceCommand) createInstaller(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
@@ -786,9 +829,19 @@ func (rc *ResourceCommand) createInstaller(ctx context.Context, client auth.Clie
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	err = client.SetInstaller(ctx, inst)
-	return trace.Wrap(err)
+	_, err = client.GetInstaller(ctx, inst.GetName())
+	if err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	}
+	exists := (err == nil)
+	if !rc.force && exists {
+		return trace.AlreadyExists("installer %q already exists", inst.GetName())
+	}
+	if err = client.SetInstaller(ctx, inst); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("installer %q has been %s\n", inst.GetName(), UpsertVerb(exists, rc.force))
+	return nil
 }
 
 func (rc *ResourceCommand) createUIConfig(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
@@ -796,8 +849,20 @@ func (rc *ResourceCommand) createUIConfig(ctx context.Context, client auth.Clien
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	_, err = client.GetUIConfig(ctx)
+	if err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	}
+	exists := (err == nil)
+	if !rc.force && exists {
+		return trace.AlreadyExists("UI config already exists")
+	}
+	if err = client.SetUIConfig(ctx, uic); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("UI config has been %s\n", UpsertVerb(exists, rc.force))
+	return nil
 
-	return trace.Wrap(client.SetUIConfig(ctx, uic))
 }
 
 func (rc *ResourceCommand) createNode(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
@@ -815,8 +880,8 @@ func (rc *ResourceCommand) createNode(ctx context.Context, client auth.ClientI, 
 		return trace.Wrap(err)
 	}
 	exists := (err == nil)
-	if !rc.IsForced() && exists {
-		return trace.AlreadyExists("node %q with Hostname %q and Addr %q already exists, use --force flag to override",
+	if !rc.force && exists {
+		return trace.AlreadyExists("node %q with Hostname %q and Addr %q already exists",
 			name,
 			server.GetHostname(),
 			server.GetAddr(),
@@ -824,6 +889,7 @@ func (rc *ResourceCommand) createNode(ctx context.Context, client auth.ClientI, 
 	}
 
 	_, err = client.UpsertNode(ctx, server)
+	fmt.Printf("node %q has been %s\n", server.GetName(), UpsertVerb(exists, rc.force))
 	return trace.Wrap(err)
 }
 
@@ -842,13 +908,13 @@ func (rc *ResourceCommand) createOIDCConnector(ctx context.Context, client auth.
 		return trace.Wrap(err)
 	}
 	exists := (err == nil)
-	if !rc.IsForced() && exists {
-		return trace.AlreadyExists("connector '%s' already exists, use -f flag to override", connectorName)
+	if !rc.force && exists {
+		return trace.AlreadyExists("OIDC connector %q already exists", connectorName)
 	}
 	if err = client.UpsertOIDCConnector(ctx, conn); err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Printf("authentication connector '%s' has been %s\n", connectorName, UpsertVerb(exists, rc.IsForced()))
+	fmt.Printf("OIDC connector %q has been %s\n", connectorName, UpsertVerb(exists, rc.force))
 	return nil
 }
 
@@ -879,8 +945,8 @@ func (rc *ResourceCommand) createSAMLConnector(ctx context.Context, client auth.
 		return trace.Wrap(err)
 	}
 	exists := (err == nil)
-	if !rc.IsForced() && exists {
-		return trace.AlreadyExists("connector '%s' already exists, use -f flag to override", connectorName)
+	if !rc.force && exists {
+		return trace.AlreadyExists("SAML connector %q already exists", connectorName)
 	}
 
 	// If the connector being pushed to the backend does not have a signing key
@@ -897,7 +963,7 @@ func (rc *ResourceCommand) createSAMLConnector(ctx context.Context, client auth.
 	if err = client.UpsertSAMLConnector(ctx, conn); err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Printf("authentication connector '%s' has been %s\n", connectorName, UpsertVerb(exists, rc.IsForced()))
+	fmt.Printf("SAML connector %q has been %s\n", connectorName, UpsertVerb(exists, rc.force))
 	return nil
 }
 
@@ -922,16 +988,28 @@ func (rc *ResourceCommand) createLoginRule(ctx context.Context, client auth.Clie
 	}
 
 	loginRuleClient := client.LoginRuleClient()
-	if rc.IsForced() {
+	_, err = client.LoginRuleClient().GetLoginRule(ctx, &loginrulepb.GetLoginRuleRequest{Name: rule.Metadata.Name})
+	if err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	}
+	exists := (err == nil)
+	if rc.force {
 		_, err := loginRuleClient.UpsertLoginRule(ctx, &loginrulepb.UpsertLoginRuleRequest{
 			LoginRule: rule,
 		})
 		return trail.FromGRPC(err)
 	}
+	if exists && !rc.force {
+		return trace.AlreadyExists("login rule %q already exists", rule.Metadata.GetName())
+	}
 	_, err = loginRuleClient.CreateLoginRule(ctx, &loginrulepb.CreateLoginRuleRequest{
 		LoginRule: rule,
 	})
-	return trail.FromGRPC(err)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("login rule %q has been %s\n", rule.Metadata.Name, UpsertVerb(exists, rc.force))
+	return nil
 }
 
 func (rc *ResourceCommand) createSAMLIdPServiceProvider(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
@@ -940,24 +1018,21 @@ func (rc *ResourceCommand) createSAMLIdPServiceProvider(ctx context.Context, cli
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	serviceProviderName := sp.GetName()
-	if err := sp.CheckAndSetDefaults(); err != nil {
+	name := sp.GetName()
+	_, err = client.GetSAMLIdPServiceProvider(ctx, name)
+	if err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)
 	}
 
-	exists := false
-	if err = client.CreateSAMLIdPServiceProvider(ctx, sp); err != nil {
-		if trace.IsAlreadyExists(err) {
-			exists = true
-			err = client.UpdateSAMLIdPServiceProvider(ctx, sp)
-		}
-
-		if err != nil {
-			return trace.Wrap(err)
-		}
+	exists := (err == nil)
+	if !rc.force && exists {
+		return trace.AlreadyExists("SAML IdP service provider %q already exists", name)
 	}
-	fmt.Printf("SAML IdP service provider '%s' has been %s\n", serviceProviderName, UpsertVerb(exists, rc.IsForced()))
+
+	if err := client.CreateSAMLIdPServiceProvider(ctx, sp); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("SAML IdP service provider %q has been %s\n", name, UpsertVerb(exists, rc.force))
 	return nil
 }
 
@@ -970,34 +1045,24 @@ func (rc *ResourceCommand) createDevice(ctx context.Context, client auth.ClientI
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	if rc.IsForced() {
-		_, err = client.DevicesClient().UpsertDevice(ctx, &devicepb.UpsertDeviceRequest{
-			Device:           dev,
-			CreateAsResource: true,
-		})
-		// err checked below
-	} else {
-		_, err = client.DevicesClient().CreateDevice(ctx, &devicepb.CreateDeviceRequest{
-			Device:           dev,
-			CreateAsResource: true,
-		})
-		// err checked below
+	name := dev.Id
+	_, err = client.DevicesClient().GetDevice(ctx, &devicepb.GetDeviceRequest{DeviceId: name})
+	if err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err)
 	}
+
+	exists := (err == nil)
+	if !rc.force && exists {
+		return trace.AlreadyExists("device %q already exists", name)
+	}
+	_, err = client.DevicesClient().UpsertDevice(ctx, &devicepb.UpsertDeviceRequest{
+		Device:           dev,
+		CreateAsResource: true,
+	})
 	if err != nil {
-		return trail.FromGRPC(err)
+		return trace.Wrap(err)
 	}
-
-	verb := "created"
-	if rc.IsForced() {
-		verb = "updated"
-	}
-
-	fmt.Printf("Device %v/%v %v\n",
-		dev.AssetTag,
-		devicetrust.FriendlyOSType(dev.OsType),
-		verb,
-	)
+	fmt.Printf("device %q has been %s\n", name, UpsertVerb(exists, rc.force))
 	return nil
 }
 
@@ -1011,18 +1076,22 @@ func (rc *ResourceCommand) createOktaImportRule(ctx context.Context, client auth
 		return trace.Wrap(err)
 	}
 
-	exists := false
-	if _, err = client.OktaClient().CreateOktaImportRule(ctx, importRule); err != nil {
-		if trace.IsAlreadyExists(err) {
-			exists = true
-			_, err = client.OktaClient().UpdateOktaImportRule(ctx, importRule)
+	_, err = client.OktaClient().CreateOktaImportRule(ctx, importRule)
+
+	exists := trace.IsAlreadyExists(err)
+	if exists {
+		// no --force flag, return AlreadyExists error
+		if !rc.force {
+			return trace.AlreadyExists("Okta import rule %q already exists", importRule.GetName())
 		}
 
-		if err != nil {
+		// --force flag is set, update the existing import rule
+		if _, err = client.OktaClient().UpdateOktaImportRule(ctx, importRule); err != nil {
 			return trace.Wrap(err)
 		}
 	}
-	fmt.Printf("Okta import rule '%s' has been %s\n", importRule.GetName(), UpsertVerb(exists, rc.IsForced()))
+
+	fmt.Printf("Okta import rule %q has been %s\n", importRule.GetName(), UpsertVerb(exists, rc.force))
 	return nil
 }
 
@@ -1040,7 +1109,7 @@ func (rc *ResourceCommand) createIntegration(ctx context.Context, client auth.Cl
 
 	if exists {
 		if !rc.force {
-			return trace.AlreadyExists("Integration %q already exists", integration.GetName())
+			return trace.AlreadyExists("integration %q already exists", integration.GetName())
 		}
 
 		if err := existingIntegration.CanChangeStateTo(integration); err != nil {
@@ -1057,19 +1126,20 @@ func (rc *ResourceCommand) createIntegration(ctx context.Context, client auth.Cl
 		if _, err := client.UpdateIntegration(ctx, existingIntegration); err != nil {
 			return trace.Wrap(err)
 		}
-		fmt.Printf("Integration %q has been updated\n", integration.GetName())
+		fmt.Printf("integration %q has been %s\n", integration.GetName(), UpsertVerb(exists, rc.force))
+
 		return nil
 	}
 
 	igV1, ok := integration.(*types.IntegrationV1)
 	if !ok {
-		return trace.BadParameter("unexpected Integration type %T", integration)
+		return trace.BadParameter("unexpected integration type %T", integration)
 	}
 
 	if _, err := client.CreateIntegration(ctx, igV1); err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Printf("Integration %q has been created\n", integration.GetName())
+	fmt.Printf("integration %q has been %s\n", integration.GetName(), UpsertVerb(exists, rc.force))
 
 	return nil
 }
@@ -1111,14 +1181,14 @@ func (rc *ResourceCommand) createAccessList(ctx context.Context, client auth.Cli
 	}
 	exists := (err == nil)
 
-	if exists && !rc.IsForced() {
-		return trace.AlreadyExists("Access list %q already exists", accessList.GetName())
+	if exists && !rc.force {
+		return trace.AlreadyExists("access list %q already exists", accessList.GetName())
 	}
 
 	if _, err := client.AccessListClient().UpsertAccessList(ctx, accessList); err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Printf("Access list %q has been %s\n", accessList.GetName(), UpsertVerb(exists, rc.IsForced()))
+	fmt.Printf("access list %q has been %s\n", accessList.GetName(), UpsertVerb(exists, rc.force))
 
 	return nil
 }
@@ -1611,11 +1681,6 @@ func (rc *ResourceCommand) UpdateFields(ctx context.Context, clt auth.ClientI) e
 		return trace.BadParameter("updating resources of type %q is not supported, supported are: %q", rc.ref.Kind, types.KindRemoteCluster)
 	}
 	return nil
-}
-
-// IsForced returns true if -f flag was passed
-func (rc *ResourceCommand) IsForced() bool {
-	return rc.force
 }
 
 // getCollection lists all resources of a given type
@@ -2405,10 +2470,13 @@ func getGithubConnectors(ctx context.Context, client auth.ClientI, name string, 
 
 // UpsertVerb generates the correct string form of a verb based on the action taken
 func UpsertVerb(exists bool, force bool) string {
-	if !force && exists {
-		return "updated"
+	if !exists {
+		return "created"
 	}
-	return "created"
+	if force && exists {
+		return "overwritten"
+	}
+	return "updated"
 }
 
 func checkCreateResourceWithOrigin(storedRes types.ResourceWithOrigin, resDesc string, force, confirm bool) error {
