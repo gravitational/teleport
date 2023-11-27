@@ -14,9 +14,11 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { SVGIconProps } from 'design/SVGIcon/common';
-import { SVGIcon } from 'design/SVGIcon/SVGIcon';
 import React from 'react';
+
+import { SVGIcon } from './SVGIcon';
+
+import type { SVGIconProps } from './common';
 
 export function GCPIcon({ size = 80, fill }: SVGIconProps) {
   return (
