@@ -24,6 +24,8 @@ option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport
 // It's used only in Teleport Cloud with feature called "bring your own bucket".
 // It contains configuration that allows store audit events and session
 // recordings on customer infra instead of Teleport Cloud.
+// TODO(nklaassen): deprecate or delete this after switching to
+// ExternalAuditStorage in teleport.e.
 message ExternalCloudAudit {
   // Header is the header for the resource.
   teleport.header.v1.ResourceHeader header = 1;
@@ -32,6 +34,8 @@ message ExternalCloudAudit {
 }
 
 // ExternalCloudAuditConfigSpec is the specification of external cloud audit.
+// TODO(nklaassen): deprecate or delete this after switching to
+// ExternalAuditStorage in teleport.e.
 message ExternalCloudAuditSpec {
   // IntegrationName is name of existing AWS OIDC intagration used to
   // generate AWS credentials.

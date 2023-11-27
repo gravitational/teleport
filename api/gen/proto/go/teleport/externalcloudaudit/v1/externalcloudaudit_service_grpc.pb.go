@@ -18,6 +18,8 @@
 // - protoc             (unknown)
 // source: teleport/externalcloudaudit/v1/externalcloudaudit_service.proto
 
+// TODO(nklaassen): delete service this after switching to ExternalAuditStorage.
+
 package externalcloudauditv1
 
 import (

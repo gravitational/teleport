@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/client/externalauditstorage"
 	"github.com/gravitational/teleport/api/client/externalcloudaudit"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/secreport"
@@ -453,6 +454,10 @@ func (c *Client) AccessListClient() services.AccessLists {
 
 func (c *Client) ExternalCloudAuditClient() *externalcloudaudit.Client {
 	return c.APIClient.ExternalCloudAuditClient()
+}
+
+func (c *Client) ExternalAuditStorageClient() *externalauditstorage.Client {
+	return c.APIClient.ExternalAuditStorageClient()
 }
 
 func (c *Client) UserLoginStateClient() services.UserLoginStates {
@@ -893,7 +898,15 @@ type ClientI interface {
 	// Clients connecting to non-Enterprise clusters, or older Teleport versions,
 	// still get a client when calling this method, but all RPCs will return
 	// "not implemented" errors (as per the default gRPC behavior).
+	//
+	// TODO(nklaassen): Delete this after switch to ExternalCloudAuditClient
 	ExternalCloudAuditClient() *externalcloudaudit.Client
+
+	// ExternalAuditStorageClient returns an external cloud audit client.
+	// Clients connecting to non-Enterprise clusters, or older Teleport versions,
+	// still get a client when calling this method, but all RPCs will return
+	// "not implemented" errors (as per the default gRPC behavior).
+	ExternalAuditStorageClient() *externalauditstorage.Client
 
 	// CloneHTTPClient creates a new HTTP client with the same configuration.
 	CloneHTTPClient(params ...roundtrip.ClientParam) (*HTTPClient, error)
