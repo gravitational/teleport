@@ -88,6 +88,12 @@ func (c *managedConn) Close() error {
 	}
 
 	c.localClosed = true
+	if c.readDeadline.timer != nil {
+		c.readDeadline.timer.Stop()
+	}
+	if c.writeDeadline.timer != nil {
+		c.writeDeadline.timer.Stop()
+	}
 	c.cond.Broadcast()
 
 	return nil

@@ -111,7 +111,14 @@ func TestManagedConn(t *testing.T) {
 
 	t.Run("LocalClosed", func(t *testing.T) {
 		c := newManagedConn()
+		c.SetDeadline(time.Now().Add(time.Hour))
 		c.Close()
+
+		// deadline timers are stopped after Close
+		require.NotNil(t, c.readDeadline.timer)
+		require.False(t, c.readDeadline.timer.Stop())
+		require.NotNil(t, c.writeDeadline.timer)
+		require.False(t, c.writeDeadline.timer.Stop())
 
 		var b [1]byte
 		n, err := c.Read(b[:])
