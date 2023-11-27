@@ -109,28 +109,27 @@ can deploy an agent pool in your infrastructure.
 
 ### Instances and tokens
 
-The file `token.tf` configures EC2 instances and Teleport join tokens:
+In this minimal example, we deploy one virtual machine instance for each
+Teleport agent. Each agent joins the cluster using a token. We create each token
+using the `teleport_provision_token` Terraform resource, specifying the token's
+value with a `random_string` resource:
 
 ```hcl
 (!examples/agent-pool-terraform/token.tf!)
 ```
 
-In this minimal example, we deploy one virtual machine instance for each
-Teleport agent.  Each agent joins the cluster using a token. We create each
-token using the `teleport_provision_token` Terraform resource, specifying the
-token's value with a `random_string` resource. When we apply the
-`teleport_provision_token` resources, the Teleport Terraform provider creates
-them on the Teleport Auth Service backend. 
+When we apply the `teleport_provision_token` resources, the Teleport Terraform
+provider creates them on the Teleport Auth Service backend. 
 
 The Teleport Auth Service associates the join token with one or more roles,
 identifying the Teleport service that is allowed to use the token. The
 configuration above generates tokens for the following Teleport services:
 
-- Teleport SSH Service (`Node`)
 - Teleport Application Service (`App`)
+- Teleport Discovery Service (`Discovery`)
 - Teleport Database Service (`Db`)
 - Teleport Kubernetes Service (`Kube`)
-- Teleport Discovery Service (`Discovery`)
+- Teleport SSH Service (`Node`)
 
 Each virtual machine instance presents the token in order to establish trust
 with the cluster. 

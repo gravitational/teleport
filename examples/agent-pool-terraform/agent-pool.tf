@@ -1,25 +1,3 @@
-resource "random_string" "token" {
-  count  = var.agent_count
-  length = 32
-}
-
-resource "teleport_provision_token" "agent" {
-  count = var.agent_count
-  spec = {
-    roles = [
-      "App",
-      "Db",
-      "Discovery",
-      "Kube",
-      "Node",
-    ]
-    name = random_string.token[count.index].result
-  }
-  metadata = {
-    expires = timeadd(timestamp(), "1h")
-  }
-}
-
 data "aws_ami" "amazon_linux_2023" {
   most_recent = true
 
@@ -45,8 +23,7 @@ data "aws_ami" "amazon_linux_2023" {
 }
 
 resource "aws_instance" "teleport_agent" {
-  count = var.cloud == "aws" ? var.agent_count : 0
-  # Amazon Linux 2023 64-bit x86
+  count = var.agent_count
   ami           = data.aws_ami.amazon_linux_2023.id
   instance_type = "t3.small"
   subnet_id     = var.subnet_id
