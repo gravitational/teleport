@@ -47,7 +47,7 @@ const (
 	unitScheduleFile = "schedule"
 
 	// unitVersionFile is the name of the file to which the version is exported.
-	unitVersionFile = "version"
+	unitVersionFile = "auth-version"
 
 	// unitConfigDir is the configuration directory of the teleport-upgrade unit.
 	unitConfigDir = "/etc/teleport-upgrade.d"
