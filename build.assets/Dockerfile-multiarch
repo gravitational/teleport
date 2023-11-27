@@ -1,3 +1,5 @@
+# syntax=docker/dockerfile:1
+
 # #############################################################################
 # This Dockerfile aims to be the single source of truth for linux buildboxes on
 # all supported architectures.
@@ -12,8 +14,7 @@ FROM centos:7 AS base
 ARG TARGETARCH
 
 # Aliases
-FROM $BUILDBOX_PREFIX/buildbox-multiarch-clang7:$BUILDBOX_VERSION-$TARGETARCH AS clang7-boringcrypto
-FROM $BUILDBOX_PREFIX/buildbox-multiarch-clang10:$BUILDBOX_VERSION-$TARGETARCH AS clang10
+FROM $BUILDBOX_PREFIX/buildbox-multiarch-clang12:$BUILDBOX_VERSION-$TARGETARCH AS clang12
 
 # Root target with ci user
 FROM $BUILDBOX_PREFIX/buildbox-multiarch-base:$BUILDBOX_VERSION-$TARGETARCH AS gcc
@@ -103,14 +104,14 @@ ARG LIBBPF_VERSION
 RUN mkdir -p /opt && cd /opt && \
     curl -L https://github.com/libbpf/libbpf/archive/refs/tags/v${LIBBPF_VERSION}.tar.gz | tar xz && \
     cd /opt/libbpf-${LIBBPF_VERSION}/src && \
-    make && BUILD_STATIC_ONLY=y DESTDIR=/opt/libbpf make install
+    make && BUILD_STATIC_ONLY=y DESTDIR=/opt/libbpf make install install_uapi_headers
 
 ## Integral image for 64-bit targets #############################################
 #
 FROM gcc AS deps-64
 
-# Make clang10 available
-COPY --from=clang10 /opt/llvm /opt/llvm
+# Make clang12 available
+COPY --from=clang12 /opt/llvm /opt/llvm
 ENV PATH="/opt/llvm/bin:$PATH"
 
 ARG RUST_VERSION
@@ -175,44 +176,6 @@ COPY --from=libpcsclite \
 ARG LIBBPF_VERSION
 COPY --from=libbpf /opt/libbpf/usr /usr/libbpf-${LIBBPF_VERSION}
 
-## BORINGSSL ########################################################################
-#
-FROM clang7-boringcrypto AS boringssl
-# The below tools are required in order to build and compile the module:
-# Clang compiler version 7.0.1
-# Go programming language version 1.12.7
-# Ninja build system version 1.9.0
-#
-# We also need the FIPS 140-2 validated release of BoringSSL: ae223d6138807a13006342edfeef32e813246b39
-# For more information please refer to the section 12. Guidance and Secure Operation of:
-# https://csrc.nist.gov/CSRC/media/projects/cryptographic-module-validation-program/documents/security-policies/140sp3678.pdf
-
-RUN mkdir -p /opt && cd /opt && \
-    curl -sLO https://go.dev/dl/go1.12.7.linux-$GOLANG_ARCH.tar.gz && \
-    tar xf go1.12.7.linux-$GOLANG_ARCH.tar.gz && \
-    rm -f go1.12.7.linux-$GOLANG_ARCH.tar.gz && \
-    chmod a+w /opt/go && \
-    chmod a+w /var/lib && \
-    chmod a-w /
-ENV GOEXPERIMENT=boringcrypto \
-    GOPATH="/go" \
-    GOROOT="/opt/go" \
-    PATH="$PATH:/opt/go/bin:/go/bin"
-
-RUN git clone https://github.com/ninja-build/ninja.git && \
-    cd ninja && \
-    git checkout v1.9.0 && \
-    ./configure.py --bootstrap && \
-    mv ninja /usr/bin
-
-RUN mkdir -p /opt && cd /opt && \
-    git clone https://github.com/google/boringssl.git && \
-    cd boringssl && \
-    git checkout ae223d6138807a13006342edfeef32e813246b39 && \
-    mkdir build && \
-    cd build && \
-    cd /opt/boringssl/build && cmake3 -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DFIPS=1 -DCMAKE_BUILD_TYPE=Release -GNinja .. && ninja
-
 ## Intermediate targets ########################################################
 #
 FROM gcc AS deps-arm
@@ -225,13 +188,6 @@ FROM gcc AS deps-386
 FROM deps-64 AS deps-arm64
 FROM deps-64 AS deps-amd64
 
-# Copy BoringSSL into the final image
-COPY --from=boringssl /opt/boringssl /opt/boringssl
-
-# set boring-rs crate env variables to point to pre-built binaries
-# https://github.com/cloudflare/boring#support-for-pre-built-binaries
-ENV BORING_BSSL_PATH=/opt/boringssl
-ENV BORING_BSSL_INCLUDE_PATH=/opt/boringssl/include
 ENV GOEXPERIMENT=boringcrypto
 
 # Install node.
