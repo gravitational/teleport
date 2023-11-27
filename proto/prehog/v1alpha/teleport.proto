@@ -1030,6 +1030,12 @@ message TAGExecuteQueryEvent {
   bool is_success = 4;
 }
 
+// ExternalAuditStorageAuthenticateEvent is emitted when the External Audit
+// Storage feature authenticates to the customer AWS account via OIDC connector.
+// The purpose is to have a regularly emitted event indicating that the External
+// Audit Storage feature is still in use.
+message ExternalAuditStorageAuthenticateEvent {}
+
 message SubmitEventRequest {
   // anonymized, 32 bytes (HMAC-SHA-256) encoded in base64
   //
@@ -1141,6 +1147,8 @@ message SubmitEventRequest {
     DesktopClipboardEvent desktop_clipboard_transfer = 69;
 
     TAGExecuteQueryEvent tag_execute_query = 70;
+
+    ExternalAuditStorageAuthenticateEvent external_audit_storage_authenticate = 71;
   }
 
   reserved 8; // UIOnboardGetStartedClickEvent

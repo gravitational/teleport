@@ -30,15 +30,15 @@ import (
 	"github.com/gravitational/teleport/lib/config"
 )
 
-// TestConfigureExternalCloudAudit tests that ConfigureExternalCloudAudit
+// TestConfigureExternalAuditStorage tests that ConfigureExternalAuditStorage
 // creates a well-formatted IAM policy and attaches it to the correct role, and
 // behaves well in error cases.
-func TestConfigureExternalCloudAudit(t *testing.T) {
+func TestConfigureExternalAuditStorage(t *testing.T) {
 	ctx := context.Background()
 
 	for _, tc := range []struct {
 		desc                 string
-		params               *config.IntegrationConfExternalCloudAudit
+		params               *config.IntegrationConfExternalAuditStorage
 		stsAccount           string
 		existingRolePolicies map[string]map[string]string
 		expectedRolePolicies map[string]map[string]string
@@ -47,7 +47,7 @@ func TestConfigureExternalCloudAudit(t *testing.T) {
 		{
 			// A passing case with the account from sts:GetCallerIdentity
 			desc: "passing",
-			params: &config.IntegrationConfExternalCloudAudit{
+			params: &config.IntegrationConfExternalAuditStorage{
 				Partition:            "aws",
 				Region:               "us-west-2",
 				Role:                 "test-role",
@@ -127,7 +127,7 @@ func TestConfigureExternalCloudAudit(t *testing.T) {
 		},
 		{
 			desc: "alternate partition and region",
-			params: &config.IntegrationConfExternalCloudAudit{
+			params: &config.IntegrationConfExternalAuditStorage{
 				Partition:            "aws-cn",
 				Region:               "cn-north-1",
 				Role:                 "test-role",
@@ -207,7 +207,7 @@ func TestConfigureExternalCloudAudit(t *testing.T) {
 		},
 		{
 			desc: "bad uri",
-			params: &config.IntegrationConfExternalCloudAudit{
+			params: &config.IntegrationConfExternalAuditStorage{
 				Partition:            "aws",
 				Region:               "us-west-2",
 				Role:                 "test-role",
@@ -229,7 +229,7 @@ func TestConfigureExternalCloudAudit(t *testing.T) {
 		},
 		{
 			desc: "role not found",
-			params: &config.IntegrationConfExternalCloudAudit{
+			params: &config.IntegrationConfExternalAuditStorage{
 				Partition:            "aws",
 				Region:               "us-west-2",
 				Role:                 "bad-role",
@@ -248,11 +248,11 @@ func TestConfigureExternalCloudAudit(t *testing.T) {
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
 			currentRolePolicies := cloneRolePolicies(tc.existingRolePolicies)
-			clt := &fakeConfigureExternalCloudAuditClient{
+			clt := &fakeConfigureExternalAuditStorageClient{
 				account:      tc.stsAccount,
 				rolePolicies: currentRolePolicies,
 			}
-			err := ConfigureExternalCloudAudit(ctx, clt, tc.params)
+			err := ConfigureExternalAuditStorage(ctx, clt, tc.params)
 			if len(tc.errorContains) > 0 {
 				for _, msg := range tc.errorContains {
 					require.ErrorContains(t, err, msg)
@@ -265,7 +265,7 @@ func TestConfigureExternalCloudAudit(t *testing.T) {
 	}
 }
 
-type fakeConfigureExternalCloudAuditClient struct {
+type fakeConfigureExternalAuditStorageClient struct {
 	account string
 	// rolePolicies is a nested map holding the state of existing roles and
 	// their attached policies. Each outer key is a role name, the value is a
@@ -273,7 +273,7 @@ type fakeConfigureExternalCloudAuditClient struct {
 	rolePolicies map[string]map[string]string
 }
 
-func (f *fakeConfigureExternalCloudAuditClient) PutRolePolicy(ctx context.Context, input *iam.PutRolePolicyInput, opts ...func(*iam.Options)) (*iam.PutRolePolicyOutput, error) {
+func (f *fakeConfigureExternalAuditStorageClient) PutRolePolicy(ctx context.Context, input *iam.PutRolePolicyInput, opts ...func(*iam.Options)) (*iam.PutRolePolicyOutput, error) {
 	roleName := aws.ToString(input.RoleName)
 	if _, roleExists := f.rolePolicies[roleName]; !roleExists {
 		return nil, &iamTypes.NoSuchEntityException{
@@ -287,7 +287,7 @@ func (f *fakeConfigureExternalCloudAuditClient) PutRolePolicy(ctx context.Contex
 	return &iam.PutRolePolicyOutput{}, nil
 }
 
-func (f *fakeConfigureExternalCloudAuditClient) GetCallerIdentity(ctx context.Context, input *sts.GetCallerIdentityInput, opts ...func(*sts.Options)) (*sts.GetCallerIdentityOutput, error) {
+func (f *fakeConfigureExternalAuditStorageClient) GetCallerIdentity(ctx context.Context, input *sts.GetCallerIdentityInput, opts ...func(*sts.Options)) (*sts.GetCallerIdentityOutput, error) {
 	return &sts.GetCallerIdentityOutput{
 		Account: aws.String(f.account),
 		Arn:     aws.String("some_ignored_arn"),

@@ -111,7 +111,7 @@ func (a *BaseApp) initTeleport(ctx context.Context, conf PluginConfiguration) (c
 		return "", "", trace.Wrap(err)
 	}
 
-	if pong.ServerFeatures.AccessRequests.Enabled {
+	if pong.ServerFeatures.AdvancedAccessWorkflows {
 		webProxyAddr = pong.ProxyPublicAddr
 	}
 

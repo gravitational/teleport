@@ -23,11 +23,14 @@ import (
 	"github.com/gravitational/teleport/lib/integrations/externalcloudaudit"
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/services"
+	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	"github.com/gravitational/teleport/lib/utils/oidc"
 )
 
 // GenerateExternalCloudAuditOIDCToken generates a signed OIDC token for use by
 // the ExternalCloudAudit feature when authenticating to customer AWS accounts.
+//
+// TODO(nklaassen): Delete this when the reference is removed from teleport.e
 func (a *Server) GenerateExternalCloudAuditOIDCToken(ctx context.Context) (string, error) {
 	clusterName, err := a.GetDomainName()
 	if err != nil {
@@ -64,5 +67,11 @@ func (a *Server) GenerateExternalCloudAuditOIDCToken(ctx context.Context) (strin
 		Issuer:   issuer,
 		Expires:  a.clock.Now().Add(externalcloudaudit.TokenLifetime),
 	})
-	return token, trace.Wrap(err)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	a.AnonymizeAndSubmit(&usagereporter.ExternalAuditStorageAuthenticateEvent{})
+
+	return token, nil
 }

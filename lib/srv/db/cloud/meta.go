@@ -116,7 +116,10 @@ func (m *Metadata) updateAWS(ctx context.Context, database types.Database, fetch
 // fetchRDSMetadata fetches metadata for the provided RDS or Aurora database.
 func (m *Metadata) fetchRDSMetadata(ctx context.Context, database types.Database) (*types.AWS, error) {
 	meta := database.GetAWS()
-	rds, err := m.cfg.Clients.GetAWSRDSClient(ctx, meta.Region, cloud.WithAssumeRoleFromAWSMeta(meta))
+	rds, err := m.cfg.Clients.GetAWSRDSClient(ctx, meta.Region,
+		cloud.WithAssumeRoleFromAWSMeta(meta),
+		cloud.WithAmbientCredentials(),
+	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -150,7 +153,10 @@ func (m *Metadata) fetchRDSMetadata(ctx context.Context, database types.Database
 // fetchRDSProxyMetadata fetches metadata for the provided RDS Proxy database.
 func (m *Metadata) fetchRDSProxyMetadata(ctx context.Context, database types.Database) (*types.AWS, error) {
 	meta := database.GetAWS()
-	rds, err := m.cfg.Clients.GetAWSRDSClient(ctx, meta.Region, cloud.WithAssumeRoleFromAWSMeta(meta))
+	rds, err := m.cfg.Clients.GetAWSRDSClient(ctx, meta.Region,
+		cloud.WithAssumeRoleFromAWSMeta(meta),
+		cloud.WithAmbientCredentials(),
+	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -164,7 +170,10 @@ func (m *Metadata) fetchRDSProxyMetadata(ctx context.Context, database types.Dat
 // fetchRedshiftMetadata fetches metadata for the provided Redshift database.
 func (m *Metadata) fetchRedshiftMetadata(ctx context.Context, database types.Database) (*types.AWS, error) {
 	meta := database.GetAWS()
-	redshift, err := m.cfg.Clients.GetAWSRedshiftClient(ctx, meta.Region, cloud.WithAssumeRoleFromAWSMeta(meta))
+	redshift, err := m.cfg.Clients.GetAWSRedshiftClient(ctx, meta.Region,
+		cloud.WithAssumeRoleFromAWSMeta(meta),
+		cloud.WithAmbientCredentials(),
+	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -179,7 +188,10 @@ func (m *Metadata) fetchRedshiftMetadata(ctx context.Context, database types.Dat
 // Serverless database.
 func (m *Metadata) fetchRedshiftServerlessMetadata(ctx context.Context, database types.Database) (*types.AWS, error) {
 	meta := database.GetAWS()
-	client, err := m.cfg.Clients.GetAWSRedshiftServerlessClient(ctx, meta.Region, cloud.WithAssumeRoleFromAWSMeta(meta))
+	client, err := m.cfg.Clients.GetAWSRedshiftServerlessClient(ctx, meta.Region,
+		cloud.WithAssumeRoleFromAWSMeta(meta),
+		cloud.WithAmbientCredentials(),
+	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -193,7 +205,10 @@ func (m *Metadata) fetchRedshiftServerlessMetadata(ctx context.Context, database
 // fetchElastiCacheMetadata fetches metadata for the provided ElastiCache database.
 func (m *Metadata) fetchElastiCacheMetadata(ctx context.Context, database types.Database) (*types.AWS, error) {
 	meta := database.GetAWS()
-	elastiCacheClient, err := m.cfg.Clients.GetAWSElastiCacheClient(ctx, meta.Region, cloud.WithAssumeRoleFromAWSMeta(meta))
+	elastiCacheClient, err := m.cfg.Clients.GetAWSElastiCacheClient(ctx, meta.Region,
+		cloud.WithAssumeRoleFromAWSMeta(meta),
+		cloud.WithAmbientCredentials(),
+	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -210,7 +225,10 @@ func (m *Metadata) fetchElastiCacheMetadata(ctx context.Context, database types.
 // fetchMemoryDBMetadata fetches metadata for the provided MemoryDB database.
 func (m *Metadata) fetchMemoryDBMetadata(ctx context.Context, database types.Database) (*types.AWS, error) {
 	meta := database.GetAWS()
-	memoryDBClient, err := m.cfg.Clients.GetAWSMemoryDBClient(ctx, meta.Region, cloud.WithAssumeRoleFromAWSMeta(meta))
+	memoryDBClient, err := m.cfg.Clients.GetAWSMemoryDBClient(ctx, meta.Region,
+		cloud.WithAssumeRoleFromAWSMeta(meta),
+		cloud.WithAmbientCredentials(),
+	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

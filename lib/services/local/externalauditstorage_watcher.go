@@ -31,26 +31,26 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 )
 
-// ClusterExternalCloudAuditWatcherConfig contains configuration options for a ClusterExternalAuditWatcher.
-type ClusterExternalCloudAuditWatcherConfig struct {
+// ClusterExternalAuditStorageWatcherConfig contains configuration options for a ClusterExternalAuditWatcher.
+type ClusterExternalAuditStorageWatcherConfig struct {
 	// Backend is the storage backend used to create watchers.
 	Backend backend.Backend
 	// Log is a logger.
 	Log logrus.FieldLogger
 	// Clock is used to control time.
 	Clock clockwork.Clock
-	// OnChange is the action to take when the cluster ExternalCloudAudit
+	// OnChange is the action to take when the cluster ExternalAuditStorage
 	// changes.
 	OnChange func()
 }
 
 // CheckAndSetDefaults checks parameters and sets default values.
-func (cfg *ClusterExternalCloudAuditWatcherConfig) CheckAndSetDefaults() error {
+func (cfg *ClusterExternalAuditStorageWatcherConfig) CheckAndSetDefaults() error {
 	if cfg.Backend == nil {
 		return trace.BadParameter("missing parameter Backend")
 	}
 	if cfg.Log == nil {
-		cfg.Log = logrus.StandardLogger().WithField(trace.Component, "ExternalCloudAudit.watcher")
+		cfg.Log = logrus.StandardLogger().WithField(trace.Component, "ExternalAuditStorage.watcher")
 	}
 	if cfg.Clock == nil {
 		cfg.Clock = cfg.Backend.Clock()
@@ -76,7 +76,7 @@ type ClusterExternalAuditWatcher struct {
 
 // NewClusterExternalAuditWatcher creates a new cluster external audit resource watcher.
 // The watcher will close once the given ctx is closed.
-func NewClusterExternalAuditWatcher(ctx context.Context, cfg ClusterExternalCloudAuditWatcherConfig) (*ClusterExternalAuditWatcher, error) {
+func NewClusterExternalAuditWatcher(ctx context.Context, cfg ClusterExternalAuditStorageWatcherConfig) (*ClusterExternalAuditWatcher, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -153,7 +153,7 @@ func (w *ClusterExternalAuditWatcher) watch(ctx context.Context) error {
 	for {
 		select {
 		case <-watcher.Events():
-			w.log.Infof("Detected change to cluster ExternalCloudAudit config")
+			w.log.Infof("Detected change to cluster ExternalAuditStorage config")
 			w.onChange()
 		case <-watcher.Done():
 			return errors.New("watcher closed")
@@ -167,8 +167,8 @@ func (w *ClusterExternalAuditWatcher) watch(ctx context.Context) error {
 
 func (w *ClusterExternalAuditWatcher) newWatcher(ctx context.Context) (backend.Watcher, error) {
 	watcher, err := w.backend.NewWatcher(ctx, backend.Watch{
-		Name:     types.KindExternalCloudAudit,
-		Prefixes: [][]byte{clusterExternalCloudAuditBackendKey},
+		Name:     types.KindExternalAuditStorage,
+		Prefixes: [][]byte{clusterExternalAuditStorageBackendKey},
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
