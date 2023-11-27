@@ -43,7 +43,7 @@ type ExternalAuditStorageCommand struct {
 func (c *ExternalAuditStorageCommand) Initialize(app *kingpin.Application, config *servicecfg.Config) {
 	c.config = config
 
-	externalAuditStorage := app.Command("externalauditstorage", "Operate on External Audit Storage configuration.").Alias("externalcloudaudit").Hidden()
+	externalAuditStorage := app.Command("externalauditstorage", "Operate on External Audit Storage configuration.").Hidden()
 	c.promote = externalAuditStorage.Command("promote", "Promotes existing draft External Audit Storage configuration to cluster").Hidden()
 
 	// This command should remain hidden it is only meant for development/test.
