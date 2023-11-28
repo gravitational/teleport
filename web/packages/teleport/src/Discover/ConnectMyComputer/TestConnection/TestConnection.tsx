@@ -100,13 +100,13 @@ export const TestConnection = (props: AgentStepProps) => {
           (fetchLoginsAttempt.error instanceof ApiError &&
           fetchLoginsAttempt.error.response.status === 404 ? (
             <ErrorWithinStep
-              buttonText="Reload"
+              buttonText="Refresh"
               buttonOnClick={() => window.location.reload()}
             >
               <>
                 For Connect My Computer to work, the role{' '}
                 {connectMyComputer.getRoleNameForUser(storeUser.getUsername())}{' '}
-                must be assigned to you. Reload this page to repeat the process
+                must be assigned to you. Refresh this page to repeat the process
                 of enrolling a new resource and then{' '}
                 <Link
                   href="https://goteleport.com/docs/connect-your-client/teleport-connect/#restarting-the-setup"
@@ -131,14 +131,14 @@ export const TestConnection = (props: AgentStepProps) => {
             <ConnectButton logins={fetchLoginsAttempt.data} node={meta.node} />
           ) : (
             <ErrorWithinStep
-              buttonText="Reload"
+              buttonText="Refresh"
               buttonOnClick={() => window.location.reload()}
             >
               <>
                 The role{' '}
                 {connectMyComputer.getRoleNameForUser(storeUser.getUsername())}{' '}
                 does not contain any logins. It has likely been manually edited.
-                Reload this page to repeat the process of enrolling a new
+                Refresh this page to repeat the process of enrolling a new
                 resource and then{' '}
                 <Link
                   href="https://goteleport.com/docs/connect-your-client/teleport-connect/#restarting-the-setup"
