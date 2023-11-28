@@ -48,8 +48,8 @@ const (
 
 // Role contains a set of permissions or settings
 type Role interface {
-	// Resource provides common resource methods.
-	Resource
+	// ResourceWithOrigin provides common resource methods.
+	ResourceWithOrigin
 
 	// SetMetadata sets role metadata
 	SetMetadata(meta Metadata)
@@ -343,6 +343,16 @@ func (r *RoleV6) GetName() string {
 // GetMetadata returns role metadata.
 func (r *RoleV6) GetMetadata() Metadata {
 	return r.Metadata
+}
+
+// Origin returns the origin value of the resource.
+func (r *RoleV6) Origin() string {
+	return r.Metadata.Origin()
+}
+
+// SetOrigin sets the origin value of the resource.
+func (r *RoleV6) SetOrigin(origin string) {
+	r.Metadata.SetOrigin(origin)
 }
 
 // SetMetadata sets role metadata

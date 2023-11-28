@@ -37,7 +37,9 @@ spec:
                 properties:
                   app_labels:
                     additionalProperties:
-                      x-kubernetes-preserve-unknown-fields: true
+                      items:
+                        type: string
+                      type: array
                     description: AppLabels is a map of labels used as part of the
                       RBAC system.
                     type: object
@@ -61,7 +63,9 @@ spec:
                     type: array
                   cluster_labels:
                     additionalProperties:
-                      x-kubernetes-preserve-unknown-fields: true
+                      items:
+                        type: string
+                      type: array
                     description: ClusterLabels is a map of node labels (used to dynamically
                       grant access to clusters).
                     type: object
@@ -71,7 +75,9 @@ spec:
                     type: string
                   db_labels:
                     additionalProperties:
-                      x-kubernetes-preserve-unknown-fields: true
+                      items:
+                        type: string
+                      type: array
                     description: DatabaseLabels are used in RBAC system to allow/deny
                       access to databases.
                     type: object
@@ -95,7 +101,9 @@ spec:
                     type: array
                   db_service_labels:
                     additionalProperties:
-                      x-kubernetes-preserve-unknown-fields: true
+                      items:
+                        type: string
+                      type: array
                     description: DatabaseServiceLabels are used in RBAC system to
                       allow/deny access to Database Services.
                     type: object
@@ -126,7 +134,9 @@ spec:
                     type: array
                   group_labels:
                     additionalProperties:
-                      x-kubernetes-preserve-unknown-fields: true
+                      items:
+                        type: string
+                      type: array
                     description: GroupLabels is a map of labels used as part of the
                       RBAC system.
                     type: object
@@ -212,7 +222,9 @@ spec:
                     type: array
                   kubernetes_labels:
                     additionalProperties:
-                      x-kubernetes-preserve-unknown-fields: true
+                      items:
+                        type: string
+                      type: array
                     description: KubernetesLabels is a map of kubernetes cluster labels
                       used for RBAC.
                     type: object
@@ -259,7 +271,9 @@ spec:
                     type: array
                   node_labels:
                     additionalProperties:
-                      x-kubernetes-preserve-unknown-fields: true
+                      items:
+                        type: string
+                      type: array
                     description: NodeLabels is a map of node labels (used to dynamically
                       grant access to nodes).
                     type: object
@@ -476,7 +490,9 @@ spec:
                     type: array
                   windows_desktop_labels:
                     additionalProperties:
-                      x-kubernetes-preserve-unknown-fields: true
+                      items:
+                        type: string
+                      type: array
                     description: WindowsDesktopLabels are used in the RBAC system
                       to allow/deny access to Windows desktops.
                     type: object
@@ -498,7 +514,9 @@ spec:
                 properties:
                   app_labels:
                     additionalProperties:
-                      x-kubernetes-preserve-unknown-fields: true
+                      items:
+                        type: string
+                      type: array
                     description: AppLabels is a map of labels used as part of the
                       RBAC system.
                     type: object
@@ -522,7 +540,9 @@ spec:
                     type: array
                   cluster_labels:
                     additionalProperties:
-                      x-kubernetes-preserve-unknown-fields: true
+                      items:
+                        type: string
+                      type: array
                     description: ClusterLabels is a map of node labels (used to dynamically
                       grant access to clusters).
                     type: object
@@ -532,7 +552,9 @@ spec:
                     type: string
                   db_labels:
                     additionalProperties:
-                      x-kubernetes-preserve-unknown-fields: true
+                      items:
+                        type: string
+                      type: array
                     description: DatabaseLabels are used in RBAC system to allow/deny
                       access to databases.
                     type: object
@@ -556,7 +578,9 @@ spec:
                     type: array
                   db_service_labels:
                     additionalProperties:
-                      x-kubernetes-preserve-unknown-fields: true
+                      items:
+                        type: string
+                      type: array
                     description: DatabaseServiceLabels are used in RBAC system to
                       allow/deny access to Database Services.
                     type: object
@@ -587,7 +611,9 @@ spec:
                     type: array
                   group_labels:
                     additionalProperties:
-                      x-kubernetes-preserve-unknown-fields: true
+                      items:
+                        type: string
+                      type: array
                     description: GroupLabels is a map of labels used as part of the
                       RBAC system.
                     type: object
@@ -673,7 +699,9 @@ spec:
                     type: array
                   kubernetes_labels:
                     additionalProperties:
-                      x-kubernetes-preserve-unknown-fields: true
+                      items:
+                        type: string
+                      type: array
                     description: KubernetesLabels is a map of kubernetes cluster labels
                       used for RBAC.
                     type: object
@@ -720,7 +748,9 @@ spec:
                     type: array
                   node_labels:
                     additionalProperties:
-                      x-kubernetes-preserve-unknown-fields: true
+                      items:
+                        type: string
+                      type: array
                     description: NodeLabels is a map of node labels (used to dynamically
                       grant access to nodes).
                     type: object
@@ -937,7 +967,9 @@ spec:
                     type: array
                   windows_desktop_labels:
                     additionalProperties:
-                      x-kubernetes-preserve-unknown-fields: true
+                      items:
+                        type: string
+                      type: array
                     description: WindowsDesktopLabels are used in the RBAC system
                       to allow/deny access to Windows desktops.
                     type: object
@@ -1230,7 +1262,9 @@ spec:
                 properties:
                   app_labels:
                     additionalProperties:
-                      x-kubernetes-preserve-unknown-fields: true
+                      items:
+                        type: string
+                      type: array
                     description: AppLabels is a map of labels used as part of the
                       RBAC system.
                     type: object
@@ -1254,7 +1288,9 @@ spec:
                     type: array
                   cluster_labels:
                     additionalProperties:
-                      x-kubernetes-preserve-unknown-fields: true
+                      items:
+                        type: string
+                      type: array
                     description: ClusterLabels is a map of node labels (used to dynamically
                       grant access to clusters).
                     type: object
@@ -1264,7 +1300,9 @@ spec:
                     type: string
                   db_labels:
                     additionalProperties:
-                      x-kubernetes-preserve-unknown-fields: true
+                      items:
+                        type: string
+                      type: array
                     description: DatabaseLabels are used in RBAC system to allow/deny
                       access to databases.
                     type: object
@@ -1288,7 +1326,9 @@ spec:
                     type: array
                   db_service_labels:
                     additionalProperties:
-                      x-kubernetes-preserve-unknown-fields: true
+                      items:
+                        type: string
+                      type: array
                     description: DatabaseServiceLabels are used in RBAC system to
                       allow/deny access to Database Services.
                     type: object
@@ -1319,7 +1359,9 @@ spec:
                     type: array
                   group_labels:
                     additionalProperties:
-                      x-kubernetes-preserve-unknown-fields: true
+                      items:
+                        type: string
+                      type: array
                     description: GroupLabels is a map of labels used as part of the
                       RBAC system.
                     type: object
@@ -1405,7 +1447,9 @@ spec:
                     type: array
                   kubernetes_labels:
                     additionalProperties:
-                      x-kubernetes-preserve-unknown-fields: true
+                      items:
+                        type: string
+                      type: array
                     description: KubernetesLabels is a map of kubernetes cluster labels
                       used for RBAC.
                     type: object
@@ -1452,7 +1496,9 @@ spec:
                     type: array
                   node_labels:
                     additionalProperties:
-                      x-kubernetes-preserve-unknown-fields: true
+                      items:
+                        type: string
+                      type: array
                     description: NodeLabels is a map of node labels (used to dynamically
                       grant access to nodes).
                     type: object
@@ -1669,7 +1715,9 @@ spec:
                     type: array
                   windows_desktop_labels:
                     additionalProperties:
-                      x-kubernetes-preserve-unknown-fields: true
+                      items:
+                        type: string
+                      type: array
                     description: WindowsDesktopLabels are used in the RBAC system
                       to allow/deny access to Windows desktops.
                     type: object
@@ -1691,7 +1739,9 @@ spec:
                 properties:
                   app_labels:
                     additionalProperties:
-                      x-kubernetes-preserve-unknown-fields: true
+                      items:
+                        type: string
+                      type: array
                     description: AppLabels is a map of labels used as part of the
                       RBAC system.
                     type: object
@@ -1715,7 +1765,9 @@ spec:
                     type: array
                   cluster_labels:
                     additionalProperties:
-                      x-kubernetes-preserve-unknown-fields: true
+                      items:
+                        type: string
+                      type: array
                     description: ClusterLabels is a map of node labels (used to dynamically
                       grant access to clusters).
                     type: object
@@ -1725,7 +1777,9 @@ spec:
                     type: string
                   db_labels:
                     additionalProperties:
-                      x-kubernetes-preserve-unknown-fields: true
+                      items:
+                        type: string
+                      type: array
                     description: DatabaseLabels are used in RBAC system to allow/deny
                       access to databases.
                     type: object
@@ -1749,7 +1803,9 @@ spec:
                     type: array
                   db_service_labels:
                     additionalProperties:
-                      x-kubernetes-preserve-unknown-fields: true
+                      items:
+                        type: string
+                      type: array
                     description: DatabaseServiceLabels are used in RBAC system to
                       allow/deny access to Database Services.
                     type: object
@@ -1780,7 +1836,9 @@ spec:
                     type: array
                   group_labels:
                     additionalProperties:
-                      x-kubernetes-preserve-unknown-fields: true
+                      items:
+                        type: string
+                      type: array
                     description: GroupLabels is a map of labels used as part of the
                       RBAC system.
                     type: object
@@ -1866,7 +1924,9 @@ spec:
                     type: array
                   kubernetes_labels:
                     additionalProperties:
-                      x-kubernetes-preserve-unknown-fields: true
+                      items:
+                        type: string
+                      type: array
                     description: KubernetesLabels is a map of kubernetes cluster labels
                       used for RBAC.
                     type: object
@@ -1913,7 +1973,9 @@ spec:
                     type: array
                   node_labels:
                     additionalProperties:
-                      x-kubernetes-preserve-unknown-fields: true
+                      items:
+                        type: string
+                      type: array
                     description: NodeLabels is a map of node labels (used to dynamically
                       grant access to nodes).
                     type: object
@@ -2130,7 +2192,9 @@ spec:
                     type: array
                   windows_desktop_labels:
                     additionalProperties:
-                      x-kubernetes-preserve-unknown-fields: true
+                      items:
+                        type: string
+                      type: array
                     description: WindowsDesktopLabels are used in the RBAC system
                       to allow/deny access to Windows desktops.
                     type: object

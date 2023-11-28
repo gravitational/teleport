@@ -120,11 +120,8 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err = (&resources.RoleReconciler{
-		Client:         mgr.GetClient(),
-		Scheme:         mgr.GetScheme(),
-		TeleportClient: client,
-	}).SetupWithManager(mgr); err != nil {
+	if err = resources.NewRoleReconciler(mgr.GetClient(), client).
+		SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "TeleportRole")
 		os.Exit(1)
 	}

@@ -22,20 +22,29 @@ import (
 	"testing"
 
 	"github.com/gravitational/trace"
-	"github.com/mitchellh/mapstructure"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/util/yaml"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/util/retry"
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/gravitational/teleport/api/types"
-	apiutils "github.com/gravitational/teleport/api/utils"
 	resourcesv5 "github.com/gravitational/teleport/integrations/operator/apis/resources/v5"
-	"github.com/gravitational/teleport/integrations/operator/controllers/resources"
 )
+
+const teleportRoleKind = "TeleportRole"
+
+// TODO(for v12): Have the Role controller to use the generic Teleport reconciler
+// This means we'll have to move back to a statically typed client.
+// This will require removing the crdgen hack, fixing TeleportRole JSON serialization
+
+var TeleportRoleGVKV5 = schema.GroupVersionKind{
+	Group:   resourcesv5.GroupVersion.Group,
+	Version: resourcesv5.GroupVersion.Version,
+	Kind:    teleportRoleKind,
+}
 
 // When I create or delete a TeleportRole CR in Kubernetes,
 // the corresponding TeleportRole must be created/deleted in Teleport.
@@ -69,182 +78,6 @@ func TestRoleCreation(t *testing.T) {
 		_, err := setup.TeleportClient.GetRole(ctx, roleName)
 		return trace.IsNotFound(err)
 	})
-}
-
-func TestRoleCreationFromYAML(t *testing.T) {
-	ctx := context.Background()
-	setup := setupTestEnv(t)
-	tests := []struct {
-		name         string
-		roleSpecYAML string
-		shouldFail   bool
-		expectedSpec *types.RoleSpecV6
-	}{
-		{
-			name: "Valid login list with integer create_host_user_mode",
-			roleSpecYAML: `
-allow:
-  logins:
-  - ubuntu
-  - root
-options:
-  create_host_user_mode: 2
-`,
-			shouldFail: false,
-			expectedSpec: &types.RoleSpecV6{
-				Allow: types.RoleConditions{
-					Logins: []string{"ubuntu", "root"},
-				},
-				Options: types.RoleOptions{
-					CreateHostUserMode: types.CreateHostUserMode_HOST_USER_MODE_DROP,
-				},
-			},
-		},
-		{
-			name: "Valid login list",
-			roleSpecYAML: `
-allow:
-  logins:
-  - ubuntu
-  - root
-options:
-  create_host_user_mode: keep
-`,
-			shouldFail: false,
-			expectedSpec: &types.RoleSpecV6{
-				Allow: types.RoleConditions{
-					Logins: []string{"ubuntu", "root"},
-				},
-				Options: types.RoleOptions{
-					CreateHostUserMode: types.CreateHostUserMode_HOST_USER_MODE_KEEP,
-				},
-			},
-		},
-		{
-			name: "Valid node_labels wildcard (list version)",
-			roleSpecYAML: `
-allow:
-  node_labels:
-    '*': ['*']
-`,
-			shouldFail: false,
-			expectedSpec: &types.RoleSpecV6{
-				Allow: types.RoleConditions{
-					NodeLabels: map[string]apiutils.Strings{
-						"*": {"*"},
-					},
-				},
-			},
-		},
-		{
-			name: "Valid node_labels wildcard (string version)",
-			roleSpecYAML: `
-allow:
-  node_labels:
-    '*': '*'
-`,
-			shouldFail: false,
-			expectedSpec: &types.RoleSpecV6{
-				Allow: types.RoleConditions{
-					NodeLabels: map[string]apiutils.Strings{
-						"*": {"*"},
-					},
-				},
-			},
-		},
-		{
-			name: "Invalid node_labels (label value is integer)",
-			roleSpecYAML: `
-allow:
-  node_labels:
-    'foo': 1
-`,
-			shouldFail:   true,
-			expectedSpec: nil,
-		},
-		{
-			name: "Invalid node_labels (label value is object)",
-			roleSpecYAML: `
-allow:
-  node_labels:
-    'foo':
-      'bar': 'baz'
-    'logins':
-      - 'ubuntu'
-`,
-			shouldFail:   true,
-			expectedSpec: nil,
-		},
-	}
-
-	for _, tc := range tests {
-		tc := tc // capture range variable
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			// Creating the Kubernetes resource. We are using an untyped client to be able to create invalid resources.
-			roleManifest := map[string]interface{}{}
-			err := yaml.Unmarshal([]byte(tc.roleSpecYAML), &roleManifest)
-			require.NoError(t, err)
-
-			roleName := validRandomResourceName("role-")
-
-			obj := resources.GetUnstructuredObjectFromGVK(resources.TeleportRoleGVKV5)
-			obj.Object["spec"] = roleManifest
-			obj.SetName(roleName)
-			obj.SetNamespace(setup.Namespace.Name)
-			err = setup.K8sClient.Create(ctx, obj)
-			require.NoError(t, err)
-
-			// If failure is expected we should not see the resource in Teleport
-			if tc.shouldFail {
-				fastEventually(t, func() bool {
-					// We check status.Conditions was updated, this means the reconciliation happened
-					_ = setup.K8sClient.Get(ctx, kclient.ObjectKey{
-						Namespace: setup.Namespace.Name,
-						Name:      roleName,
-					}, obj)
-					errorConditions := getRoleStatusConditionError(obj.Object)
-					// If there's no error condition, reconciliation has not happened yet
-					return len(errorConditions) != 0
-				})
-				_, err = setup.TeleportClient.GetRole(ctx, roleName)
-				require.True(t, trace.IsNotFound(err), "The role should not be created in Teleport")
-			} else {
-				var tRole types.Role
-				// We wait for Teleport resource creation
-				fastEventually(t, func() bool {
-					tRole, err = setup.TeleportClient.GetRole(ctx, roleName)
-					return !trace.IsNotFound(err)
-				})
-				// If the resource creation should succeed we check the resource was found and validate ownership labels
-				require.NoError(t, err)
-				require.Equal(t, roleName, tRole.GetName())
-				require.Contains(t, tRole.GetMetadata().Labels, types.OriginLabel)
-				require.Equal(t, types.OriginKubernetes, tRole.GetMetadata().Labels[types.OriginLabel])
-				expectedRole, _ := types.NewRole(roleName, *tc.expectedSpec)
-				compareRoleSpecs(t, expectedRole, tRole)
-			}
-			// Teardown
-
-			// The role is deleted in K8S
-			k8sDeleteRole(ctx, t, setup.K8sClient, roleName, setup.Namespace.Name)
-
-			// We wait for the role deletion in Teleport
-			fastEventually(t, func() bool {
-				_, err := setup.TeleportClient.GetRole(ctx, roleName)
-				return trace.IsNotFound(err)
-			})
-		})
-	}
-}
-
-func compareRoleSpecs(t *testing.T, expectedRole, actualRole types.Role) {
-	expected, err := teleportResourceToMap(expectedRole)
-	require.NoError(t, err)
-	actual, err := teleportResourceToMap(actualRole)
-	require.NoError(t, err)
-
-	require.Equal(t, expected["spec"], actual["spec"])
 }
 
 // TestRoleDeletionDrift tests how the Kubernetes operator reacts when it is asked to delete a role that was
@@ -395,69 +228,4 @@ func k8sDeleteRole(ctx context.Context, t *testing.T, kc kclient.Client, roleNam
 func k8sCreateRole(ctx context.Context, t *testing.T, kc kclient.Client, role *resourcesv5.TeleportRole) {
 	err := kc.Create(ctx, role)
 	require.NoError(t, err)
-}
-
-func TestAddTeleportResourceOriginRole(t *testing.T) {
-	r := resources.RoleReconciler{}
-	tests := []struct {
-		name     string
-		resource types.Role
-	}{
-		{
-			name: "origin already set correctly",
-			resource: &types.RoleV6{
-				Metadata: types.Metadata{
-					Name:   "user with correct origin",
-					Labels: map[string]string{types.OriginLabel: types.OriginKubernetes},
-				},
-			},
-		},
-		{
-			name: "origin already set incorrectly",
-			resource: &types.RoleV6{
-				Metadata: types.Metadata{
-					Name:   "user with correct origin",
-					Labels: map[string]string{types.OriginLabel: types.OriginConfigFile},
-				},
-			},
-		},
-		{
-			name: "origin not set",
-			resource: &types.RoleV6{
-				Metadata: types.Metadata{
-					Name:   "user with correct origin",
-					Labels: map[string]string{"foo": "bar"},
-				},
-			},
-		},
-		{
-			name: "no labels",
-			resource: &types.RoleV6{
-				Metadata: types.Metadata{
-					Name: "user with no labels",
-				},
-			},
-		},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			r.AddTeleportResourceOrigin(tc.resource)
-			metadata := tc.resource.GetMetadata()
-			require.Contains(t, metadata.Labels, types.OriginLabel)
-			require.Equal(t, types.OriginKubernetes, metadata.Labels[types.OriginLabel])
-		})
-	}
-}
-
-func getRoleStatusConditionError(object map[string]interface{}) []metav1.Condition {
-	var conditionsWithError []metav1.Condition
-	var status resourcesv5.TeleportRoleStatus
-	_ = mapstructure.Decode(object["status"], &status)
-
-	for _, condition := range status.Conditions {
-		if condition.Status == metav1.ConditionFalse {
-			conditionsWithError = append(conditionsWithError, condition)
-		}
-	}
-	return conditionsWithError
 }

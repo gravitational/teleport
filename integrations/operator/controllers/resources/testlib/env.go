@@ -182,11 +182,7 @@ func (s *TestSetup) StartKubernetesOperator(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	err = (&resources.RoleReconciler{
-		Client:         s.K8sClient,
-		Scheme:         k8sManager.GetScheme(),
-		TeleportClient: s.TeleportClient,
-	}).SetupWithManager(k8sManager)
+	err = resources.NewRoleReconciler(s.K8sClient, s.TeleportClient).SetupWithManager(k8sManager)
 	require.NoError(t, err)
 
 	err = resources.NewUserReconciler(s.K8sClient, s.TeleportClient).SetupWithManager(k8sManager)

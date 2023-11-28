@@ -23,6 +23,8 @@ import (
 	"github.com/gravitational/trace"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
 	ctrllog "sigs.k8s.io/controller-runtime/pkg/log"
 
@@ -153,4 +155,10 @@ func updateStatus(config updateStatusConfig) error {
 		log.Error(statusErr, "failed to report error in status conditions")
 	}
 	return trace.Wrap(statusErr)
+}
+
+func GetUnstructuredObjectFromGVK(gvk schema.GroupVersionKind) *unstructured.Unstructured {
+	obj := unstructured.Unstructured{}
+	obj.SetGroupVersionKind(gvk)
+	return &obj
 }

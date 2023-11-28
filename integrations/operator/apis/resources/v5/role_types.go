@@ -125,6 +125,20 @@ func (spec TeleportRoleSpec) MarshalJSON() ([]byte, error) {
 
 type TeleportRoleConditions types.RoleConditions
 
+// DeepCopyInto deep-copies one role spec into another.
+// Required to satisfy runtime.Object interface.
+// This is here to make controller-gen happy, it's actually used.
+func (cond *TeleportRoleConditions) DeepCopyInto(out *TeleportRoleConditions) {
+	data, err := cond.MarshalJSON()
+	if err != nil {
+		panic(err)
+	}
+	*out = TeleportRoleConditions{}
+	if err = json.Unmarshal(data, out); err != nil {
+		panic(err)
+	}
+}
+
 func (cond TeleportRoleConditions) MarshalJSON() ([]byte, error) {
 	type Alias types.RoleConditions
 

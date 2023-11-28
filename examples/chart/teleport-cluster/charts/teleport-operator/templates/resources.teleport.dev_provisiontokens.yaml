@@ -303,7 +303,9 @@ spec:
                 type: object
               suggested_agent_matcher_labels:
                 additionalProperties:
-                  x-kubernetes-preserve-unknown-fields: true
+                  items:
+                    type: string
+                  type: array
                 description: SuggestedAgentMatcherLabels is a set of labels to be
                   used by agents to match on resources. When an agent uses this token,
                   the agent should monitor resources that match those labels. For
@@ -313,7 +315,9 @@ spec:
                 type: object
               suggested_labels:
                 additionalProperties:
-                  x-kubernetes-preserve-unknown-fields: true
+                  items:
+                    type: string
+                  type: array
                 description: SuggestedLabels is a set of labels that resources should
                   set when using this token to enroll themselves in the cluster. Currently,
                   only node-join scripts create a configuration according to the suggestion.
