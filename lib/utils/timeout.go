@@ -21,6 +21,8 @@ import (
 	"net"
 	"sync"
 	"time"
+
+	"github.com/gravitational/trace"
 )
 
 // ObeyIdleTimeout wraps an existing network connection, closing it if data
@@ -67,7 +69,7 @@ func (c *timeoutConn) Close() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.watchdog.Stop()
-	return err
+	return trace.Wrap(err)
 }
 
 // Read implements [io.Reader] and [net.Conn], petting the watchdog timer if any
@@ -77,5 +79,7 @@ func (c *timeoutConn) Read(p []byte) (n int, err error) {
 	if n > 0 {
 		c.pet()
 	}
+	// avoid trace.Wrap to maintain the exact errors from the underlying
+	// connection (like io.EOF)
 	return n, err
 }
