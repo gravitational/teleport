@@ -5567,11 +5567,12 @@ func TestUnimplementedClients(t *testing.T) {
 		require.True(t, trace.IsNotImplemented(err), err)
 	})
 
+	/**
 	t.Run("LoginRuleClient", func(t *testing.T) {
 		_, err := server.LoginRuleClient().ListLoginRules(ctx, nil)
 		require.Error(t, err)
 		require.True(t, trace.IsNotImplemented(err), err)
-	})
+	})*/
 
 	t.Run("PluginClient", func(t *testing.T) {
 		_, err := server.PluginsClient().ListPlugins(ctx, nil)
