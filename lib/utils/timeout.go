@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 )
 
 // ObeyIdleTimeout wraps an existing network connection, closing it if data
@@ -30,41 +31,31 @@ import (
 // called, or if it's called on the underlying connection instead of the
 // returned one.
 func ObeyIdleTimeout(conn net.Conn, timeout time.Duration) net.Conn {
-	return obeyIdleTimeoutFunc(conn, timeout, time.AfterFunc)
+	return obeyIdleTimeoutClock(conn, timeout, clockwork.NewRealClock())
 }
 
-// obeyIdleTimeoutFunc is [ObeyIdleTimeout] but lets the caller specify a
-// callable to replace [time.AfterFunc]. Useful in tests, to use a
-// [clockwork.Clock]'s AfterFunc method instead.
-func obeyIdleTimeoutFunc[AFT afterFuncTimer](
-	conn net.Conn, timeout time.Duration, afterFunc func(time.Duration, func()) AFT,
-) net.Conn {
-	return &timeoutConn[AFT]{
+// obeyIdleTimeoutClock is [ObeyIdleTimeout] but lets the caller specify an
+// arbitrary [clockwork.Clock] to be used for the timer.
+func obeyIdleTimeoutClock(conn net.Conn, timeout time.Duration, clock clockwork.Clock) net.Conn {
+	return &timeoutConn{
 		Conn:    conn,
 		timeout: timeout,
-		watchdog: afterFunc(timeout, func() {
+		watchdog: clock.AfterFunc(timeout, func() {
 			conn.Close()
 		}),
 	}
 }
 
-// afterFuncTimer follows the semantics of a [*time.Timer] returned by
-// [time.AfterFunc].
-type afterFuncTimer interface {
-	Reset(d time.Duration) bool
-	Stop() bool
-}
-
-type timeoutConn[AFT afterFuncTimer] struct {
+type timeoutConn struct {
 	net.Conn
 
 	timeout time.Duration
 
 	mu       sync.Mutex
-	watchdog AFT
+	watchdog clockwork.Timer
 }
 
-func (c *timeoutConn[_]) pet() {
+func (c *timeoutConn) pet() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	// if the timer has already fired the underlying net.Conn has been closed or
@@ -75,13 +66,13 @@ func (c *timeoutConn[_]) pet() {
 }
 
 // NetConn returns the underlying [net.Conn].
-func (c *timeoutConn[_]) NetConn() net.Conn {
+func (c *timeoutConn) NetConn() net.Conn {
 	return c.Conn
 }
 
 // Close implements [io.Closer] and [net.Conn] by closing the underlying
 // connection and then stopping the watchdog, if it's still running.
-func (c *timeoutConn[_]) Close() error {
+func (c *timeoutConn) Close() error {
 	err := c.Conn.Close()
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -91,7 +82,7 @@ func (c *timeoutConn[_]) Close() error {
 
 // Read implements [io.Reader] and [net.Conn], petting the watchdog timer if any
 // data is successfully read.
-func (c *timeoutConn[_]) Read(p []byte) (n int, err error) {
+func (c *timeoutConn) Read(p []byte) (n int, err error) {
 	n, err = c.Conn.Read(p)
 	if n > 0 {
 		c.pet()
