@@ -29,7 +29,7 @@ import {
 import { TestConnection } from './TestConnection';
 
 export default {
-  title: 'Teleport/Discover/Shared/ConnectionDiagnostic/Server',
+  title: 'Teleport/Discover/Server/TestConnection',
 };
 
 const node = { ...nodes[0] };
