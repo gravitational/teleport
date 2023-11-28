@@ -417,9 +417,39 @@ func TestIsAccessListMemberChecker(t *testing.T) {
 			},
 		},
 		{
+			name: "is member with no expiration and missing roles",
+			identity: tlsca.Identity{
+				Username: member3,
+				Groups:   []string{"mrole1"},
+				Traits: map[string][]string{
+					"mtrait1": {"mvalue1", "mvalue2"},
+					"mtrait2": {"mvalue3", "mvalue4"},
+				},
+			},
+			currentTime: time.Date(2023, 2, 1, 0, 0, 0, 0, time.UTC),
+			errAssertionFunc: func(t require.TestingT, err error, i ...interface{}) {
+				require.True(t, trace.IsAccessDenied(err))
+			},
+		},
+		{
 			name: "is member with missing traits",
 			identity: tlsca.Identity{
 				Username: member1,
+				Groups:   []string{"mrole1", "mrole2"},
+				Traits: map[string][]string{
+					"mtrait1": {"mvalue1"},
+					"mtrait2": {"mvalue3"},
+				},
+			},
+			currentTime: time.Date(2023, 2, 1, 0, 0, 0, 0, time.UTC),
+			errAssertionFunc: func(t require.TestingT, err error, i ...interface{}) {
+				require.True(t, trace.IsAccessDenied(err))
+			},
+		},
+		{
+			name: "is member with no expiration and missing traits",
+			identity: tlsca.Identity{
+				Username: member3,
 				Groups:   []string{"mrole1", "mrole2"},
 				Traits: map[string][]string{
 					"mtrait1": {"mvalue1"},
