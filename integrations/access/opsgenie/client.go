@@ -270,7 +270,7 @@ func (og Client) CheckHealth(ctx context.Context) error {
 		}
 		if err := og.StatusSink.Emit(ctx, &types.PluginStatusV1{Code: code}); err != nil {
 			log := logger.Get(resp.Request.Context())
-			log.WithError(err).WithField("code", resp.StatusCode()).Errorf("Error while emitting servicenow plugin status: %v", err)
+			log.WithError(err).WithField("code", resp.StatusCode()).Errorf("Error while emitting OpsGenie plugin status: %v", err)
 		}
 	}
 
