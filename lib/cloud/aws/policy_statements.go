@@ -166,9 +166,9 @@ func StatementForListRDSDatabases() *Statement {
 	}
 }
 
-// ExternalCloudAuditPolicyConfig holds options for the external cloud audit
+// ExternalAuditStoragePolicyConfig holds options for the External Audit Storage
 // IAM policy.
-type ExternalCloudAuditPolicyConfig struct {
+type ExternalAuditStoragePolicyConfig struct {
 	// Partition is the AWS partition to use.
 	Partition string
 	// Region is the AWS region to use.
@@ -188,7 +188,7 @@ type ExternalCloudAuditPolicyConfig struct {
 	GlueTableName string
 }
 
-func (c *ExternalCloudAuditPolicyConfig) CheckAndSetDefaults() error {
+func (c *ExternalAuditStoragePolicyConfig) CheckAndSetDefaults() error {
 	if len(c.Partition) == 0 {
 		c.Partition = "aws"
 	}
@@ -213,9 +213,9 @@ func (c *ExternalCloudAuditPolicyConfig) CheckAndSetDefaults() error {
 	return nil
 }
 
-// PolicyDocumentForExternalCloudAudit returns a PolicyDocument with the
-// necessary IAM permissions for the External Cloud Audit feature.
-func PolicyDocumentForExternalCloudAudit(cfg *ExternalCloudAuditPolicyConfig) (*PolicyDocument, error) {
+// PolicyDocumentForExternalAuditStorage returns a PolicyDocument with the
+// necessary IAM permissions for the External Audit Storage feature.
+func PolicyDocumentForExternalAuditStorage(cfg *ExternalAuditStoragePolicyConfig) (*PolicyDocument, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}

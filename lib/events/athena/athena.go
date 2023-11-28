@@ -36,7 +36,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/integrations/externalcloudaudit"
+	"github.com/gravitational/teleport/lib/integrations/externalauditstorage"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/utils"
@@ -122,15 +122,15 @@ type Config struct {
 	// construct AWS Clients using aws-sdk-go-v2, used by the publisher and
 	// consumer components which publish/consume events from SQS (and S3 for
 	// large events). These are always hosted on Teleport cloud infra even when
-	// External Cloud Audit is enabled, any events written here are only held
+	// External Audit Storage is enabled, any events written here are only held
 	// temporarily while they are queued to write to s3 parquet files in
 	// batches.
 	PublisherConsumerAWSConfig *aws.Config
 
 	// StorerQuerierAWSConfig is an AWS config which can be used to construct AWS Clients
 	// using aws-sdk-go-v2, used by the consumer (store phase) and the querier.
-	// Often it is the same as PublisherConsumerAWSConfig unless External Cloud
-	// Audit is enabled, then this will authenticate and connect to
+	// Often it is the same as PublisherConsumerAWSConfig unless External Audit
+	// Storage is enabled, then this will authenticate and connect to
 	// external/customer AWS account.
 	StorerQuerierAWSConfig *aws.Config
 
@@ -406,7 +406,7 @@ func (cfg *Config) SetFromURL(url *url.URL) error {
 	return nil
 }
 
-func (cfg *Config) UpdateForExternalCloudAudit(ctx context.Context, externalAuditStorage *externalcloudaudit.Configurator) error {
+func (cfg *Config) UpdateForExternalAuditStorage(ctx context.Context, externalAuditStorage *externalauditstorage.Configurator) error {
 	cfg.externalAuditStorage = true
 
 	spec := externalAuditStorage.GetSpec()

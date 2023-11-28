@@ -108,7 +108,7 @@ func (s *JiraSuite) SetupSuite() {
 	// Set up user who can request the access to role "editor".
 
 	conditions := types.RoleConditions{Request: &types.AccessRequestConditions{Roles: []string{"editor"}}}
-	if teleportFeatures.AccessRequests.Enabled {
+	if teleportFeatures.AdvancedAccessWorkflows {
 		conditions.Request.Thresholds = []types.AccessReviewThreshold{{Approve: 2, Deny: 2}}
 	}
 	role, err := bootstrap.AddRole("foo", types.RoleSpecV6{Allow: conditions})
@@ -121,7 +121,7 @@ func (s *JiraSuite) SetupSuite() {
 	s.authorUser = UserDetails{AccountID: "USER-1", DisplayName: me.Username, EmailAddress: s.userNames.requestor}
 	s.otherUser = UserDetails{AccountID: "USER-2", DisplayName: me.Username + " evil twin", EmailAddress: me.Username + "-evil@example.com"}
 
-	if teleportFeatures.AccessRequests.Enabled {
+	if teleportFeatures.AdvancedAccessWorkflows {
 		// Set up TWO users who can review access requests to role "editor".
 
 		role, err = bootstrap.AddRole("foo-reviewer", types.RoleSpecV6{
@@ -166,7 +166,7 @@ func (s *JiraSuite) SetupSuite() {
 	require.NoError(t, err)
 	s.clients[s.userNames.requestor] = client
 
-	if teleportFeatures.AccessRequests.Enabled {
+	if teleportFeatures.AdvancedAccessWorkflows {
 		client, err = teleport.NewClient(ctx, auth, s.userNames.reviewer1)
 		require.NoError(t, err)
 		s.clients[s.userNames.reviewer1] = client
@@ -373,7 +373,7 @@ func (s *JiraSuite) TestIssueCreationWithLargeRequestReason() {
 func (s *JiraSuite) TestReviewComments() {
 	t := s.T()
 
-	if !s.teleportFeatures.AccessRequests.Enabled {
+	if !s.teleportFeatures.AdvancedAccessWorkflows {
 		t.Skip("Doesn't work in OSS version")
 	}
 
@@ -417,7 +417,7 @@ func (s *JiraSuite) TestReviewComments() {
 func (s *JiraSuite) TestReviewerApproval() {
 	t := s.T()
 
-	if !s.teleportFeatures.AccessRequests.Enabled {
+	if !s.teleportFeatures.AdvancedAccessWorkflows {
 		t.Skip("Doesn't work in OSS version")
 	}
 
@@ -476,7 +476,7 @@ func (s *JiraSuite) TestReviewerApproval() {
 func (s *JiraSuite) TestReviewerDenial() {
 	t := s.T()
 
-	if !s.teleportFeatures.AccessRequests.Enabled {
+	if !s.teleportFeatures.AdvancedAccessWorkflows {
 		t.Skip("Doesn't work in OSS version")
 	}
 

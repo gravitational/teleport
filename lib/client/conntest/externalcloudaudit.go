@@ -44,14 +44,14 @@ func NewExternalAuditStorageConnectionTester(cfg ExternalAuditStorageConnectionT
 	}, nil
 }
 
-// TestConnection tests the current configured ExternalCloudAudit draft by:
+// TestConnection tests the current configured ExternalAuditStorage draft by:
 // * Uploading a dummy file to both the audit events and session recordings S3 Buckets.
 // * Tests get object on the session recordings bucket.
 // * Tests the retrieval of the Glue table.
 // * Runs a test query against the audit events bucket through Athena.
 func (s *ExternalAuditStorageConnectionTester) TestConnection(ctx context.Context, req TestConnectionRequest) (types.ConnectionDiagnostic, error) {
-	if req.ResourceKind != types.KindExternalCloudAudit {
-		return nil, trace.BadParameter("invalid value for ResourceKind, expected %q got %q", types.KindExternalCloudAudit, req.ResourceKind)
+	if req.ResourceKind != types.KindExternalAuditStorage {
+		return nil, trace.BadParameter("invalid value for ResourceKind, expected %q got %q", types.KindExternalAuditStorage, req.ResourceKind)
 	}
 
 	connectionDiagnosticID := uuid.NewString()
@@ -110,9 +110,9 @@ func (s *ExternalAuditStorageConnectionTester) TestConnection(ctx context.Contex
 }
 
 func (s ExternalAuditStorageConnectionTester) handleBucketsTest(ctx context.Context, connectionDiagnosticID string) (types.ConnectionDiagnostic, error, error) {
-	client := s.cfg.UserClient.ExternalCloudAuditClient()
+	client := s.cfg.UserClient.ExternalAuditStorageClient()
 
-	if err := client.TestDraftExternalCloudAuditBuckets(ctx); err != nil {
+	if err := client.TestDraftExternalAuditStorageBuckets(ctx); err != nil {
 		const message = "Failed to test connection to storage buckets."
 		traceType := types.ConnectionDiagnosticTrace_CONNECTIVITY
 		diag, diagErr := s.appendDiagnosticTrace(ctx, connectionDiagnosticID, traceType, message, err)
@@ -130,9 +130,9 @@ func (s ExternalAuditStorageConnectionTester) handleBucketsTest(ctx context.Cont
 }
 
 func (s ExternalAuditStorageConnectionTester) handleGlueTest(ctx context.Context, connectionDiagnosticID string) (types.ConnectionDiagnostic, error, error) {
-	client := s.cfg.UserClient.ExternalCloudAuditClient()
+	client := s.cfg.UserClient.ExternalAuditStorageClient()
 
-	if err := client.TestDraftExternalCloudAuditGlue(ctx); err != nil {
+	if err := client.TestDraftExternalAuditStorageGlue(ctx); err != nil {
 		const message = "Failed to test connection to glue table."
 		traceType := types.ConnectionDiagnosticTrace_CONNECTIVITY
 		diag, diagErr := s.appendDiagnosticTrace(ctx, connectionDiagnosticID, traceType, message, err)
@@ -150,9 +150,9 @@ func (s ExternalAuditStorageConnectionTester) handleGlueTest(ctx context.Context
 }
 
 func (s ExternalAuditStorageConnectionTester) handleAthenaTest(ctx context.Context, connectionDiagnosticID string) (types.ConnectionDiagnostic, error, error) {
-	client := s.cfg.UserClient.ExternalCloudAuditClient()
+	client := s.cfg.UserClient.ExternalAuditStorageClient()
 
-	if err := client.TestDraftExternalCloudAuditAthena(ctx); err != nil {
+	if err := client.TestDraftExternalAuditStorageAthena(ctx); err != nil {
 		const message = "Failed to perform athena test query."
 		traceType := types.ConnectionDiagnosticTrace_CONNECTIVITY
 		diag, diagErr := s.appendDiagnosticTrace(ctx, connectionDiagnosticID, traceType, message, err)
