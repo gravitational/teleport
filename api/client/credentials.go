@@ -50,6 +50,17 @@ type Credentials interface {
 	SSHClientConfig() (*ssh.ClientConfig, error)
 }
 
+// CredentialsWithDefaultAddrs additionally provides default addresses sourced
+// from the credential which are used when the client has not been explicitly
+// configured with an address.
+type CredentialsWithDefaultAddrs interface {
+	Credentials
+	// GetDefaultAddrs is called by the API client when it has not been
+	// explicitly configured with an address to connect to. It may return a
+	// slice of addresses to be tried.
+	GetDefaultAddrs() ([]string, error)
+}
+
 // LoadTLS is used to load Credentials directly from a *tls.Config.
 //
 // TLS creds can only be used to connect directly to a Teleport Auth server.
@@ -319,14 +330,13 @@ func (c *profileCreds) SSHClientConfig() (*ssh.ClientConfig, error) {
 	return sshConfig, nil
 }
 
-// ProxyWebAddr returns the ProxyWebAddr specified in the profile. This can
-// be fell back to when the user does not specify an address when creating a
-// client.
-func (c *profileCreds) ProxyWebAddr() (string, error) {
+// GetDefaultAddrs implements CredentialsWithDefaultAddrs by providing the
+// WebProxyAddr from the credential
+func (c *profileCreds) GetDefaultAddrs() ([]string, error) {
 	if err := c.load(); err != nil {
-		return "", trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-	return c.profile.WebProxyAddr, nil
+	return []string{c.profile.WebProxyAddr}, nil
 }
 
 // load is used to lazy load the profile from persistent storage.

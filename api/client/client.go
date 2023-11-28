@@ -276,18 +276,15 @@ func connect(ctx context.Context, cfg Config) (*Client, error) {
 			if len(addrs) == 0 {
 				// If there's no explicitly specified address, fall back to
 				// an address provided by the credential, if it provides one.
-				credAddrSource, ok := creds.(interface {
-					ProxyWebAddr() (string, error)
-				})
+				credAddrSource, ok := creds.(CredentialsWithDefaultAddrs)
 				if ok {
-					addr, err := credAddrSource.ProxyWebAddr()
+					addrs, err = credAddrSource.GetDefaultAddrs()
 					if err != nil {
 						sendError(trace.Wrap(err))
 						continue
 					}
-					addrs = []string{addr}
-					log.WithField("address", addr).Debug(
-						"No address was configured explicitly, falling back to address specified by credential. Consider explicitly configuring an address.",
+					log.WithField("address", addrs).Debug(
+						"No address was configured explicitly, falling back to addresses specified by credential. Consider explicitly configuring an address.",
 					)
 				}
 			}
