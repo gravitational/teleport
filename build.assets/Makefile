@@ -71,6 +71,17 @@ endif
 DOCKERFLAGS := $(DOCKERFLAGS) -v $(GOCACHE):/go/cache -e GOCACHE=/go/cache
 endif
 
+# The ARM64 build cannot be cross-compiled - the host architecture must be arm64
+# for this build. Define a var that expands to an error if the build arch does
+# not match the host arch.
+#
+# It should be expanded in a target's recipe to prevent it running if a cross-
+# compile was requested.
+#
+# $(RUNTIME_ARCH) is the host architecture normalised to the Go arch.
+# $(ARCH) is the target architecture we want to build for.
+REQUIRE_HOST_ARCH = $(if $(filter-out $(ARCH),$(RUNTIME_ARCH)),$(error Cannot cross-compile $@ $(ARCH) on $(RUNTIME_ARCH)))
+
 #
 # Build 'teleport' release inside a docker container
 #
@@ -139,10 +150,13 @@ buildbox:
 buildbox-fips: buildbox-centos7-fips
 
 #
-# Builds a Docker buildbox for CentOS 7 builds
+# Builds a Docker buildbox for CentOS 7 builds. It is built for amd64 and arm64
+# but cannot be cross-compiled, so the host architecture must match the target
+# architecture we are building.
 #
 .PHONY:buildbox-centos7
 buildbox-centos7:
+	$(REQUIRE_HOST_ARCH)
 	@if [[ $${DRONE} == "true" ]] && ! docker inspect --type=image $(BUILDBOX_CENTOS7) 2>&1 >/dev/null; then docker pull $(BUILDBOX_CENTOS7) || true; fi;
 	DOCKER_BUILDKIT=1 docker build \
 		--build-arg UID=$(UID) \
@@ -391,6 +405,10 @@ release-amd64-fips:
 release-386:
 	$(MAKE) release ARCH=386
 
+.PHONY: release-arm64
+release-arm64:
+	$(MAKE) release-centos7 ARCH=arm64 BUILDBOX_CENTOS7=$(BUILDBOX_ARM64)
+
 .PHONY: release-arm
 release-arm: buildbox-arm
 	$(MAKE) release ARCH=arm BUILDBOX_NAME=$(BUILDBOX_ARM)
@@ -402,14 +420,6 @@ release-amd64-centos7: release-amd64
 
 .PHONY: release-amd64-centos7-fips
 release-amd64-centos7-fips: release-amd64-fips
-
-# #############################################################################
-# Legacy Drone ARM build targets
-# #############################################################################
-
-.PHONY: release-arm64
-release-arm64: buildbox-arm
-	$(MAKE) release ARCH=arm64 BUILDBOX_NAME=$(BUILDBOX_ARM)
 
 # #############################################################################
 # Generic release targets
@@ -441,8 +451,14 @@ release-fips: buildbox-centos7-fips webassets
 # We depend on webassets to pre-build them in the buildbox-connect container
 # as the version of node.js on CentOS 7 is too old.
 #
+# CentOS 7 builds are for amd64 and arm64 and must be built (currently) on
+# the same host architecture - i.e. no cross-compiling. CI (GitHub Actions)
+# is set up to use an architecture-specific builder, but building locally
+# for a foreign architecture cannot be done.
+#
 .PHONY:release-centos7
 release-centos7: buildbox-centos7 webassets
+	$(REQUIRE_HOST_ARCH)
 	docker run $(DOCKERFLAGS) -i $(NOROOT) $(BUILDBOX_CENTOS7) \
 		/usr/bin/scl enable $(DEVTOOLSET) 'make release-unix-preserving-webassets -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(GOLANG_VERSION) FIDO2=$(FIDO2) PIV=$(PIV) REPRODUCIBLE=no'
 
