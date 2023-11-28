@@ -90,7 +90,7 @@ func TestExternalAuditStorageService(t *testing.T) {
 		require.True(t, trace.IsNotFound(err))
 	})
 
-	t.Run("promote draft audit to cluster external cloud audit", func(t *testing.T) {
+	t.Run("promote draft audit to cluster external audit storage", func(t *testing.T) {
 		// Given draft external_audit_storage resource
 		// When PromoteToClusterExternalAuditStorage is executed
 		// Then GetClusterExternalAudit returns copy of draft config.
