@@ -198,7 +198,7 @@ func (w *TrackingWriter) Write(b []byte) (int, error) {
 	return n, trace.Wrap(err)
 }
 
-// ConnWithAddr is a [net.Conn] wrapper that allows us to override addresses.
+// ConnWithAddr is a [net.Conn] wrapper that allows the local and remote address to be overridden.
 type ConnWithAddr struct {
 	net.Conn
 	LocalAddrOverride  net.Addr
@@ -228,7 +228,7 @@ func (c *ConnWithAddr) NetConn() net.Conn {
 	return c.Conn
 }
 
-// NewConnWithSrcAddr wraps provided connection and overrides client remote address
+// NewConnWithSrcAddr wraps provided connection and overrides client remote address.
 func NewConnWithSrcAddr(conn net.Conn, clientSrcAddr net.Addr) *ConnWithAddr {
 	return &ConnWithAddr{
 		Conn: conn,
