@@ -1,12 +1,14 @@
 import React from 'react';
 import styled from 'styled-components';
-import { Flex } from 'design';
+import { Box, Flex } from 'design';
 import { Edit } from 'design/Icon';
 import Text from 'design/Text';
 import Support from 'teleport/Support';
 import cfg from 'teleport/config';
 
 import { DataContainer, DataItem } from 'teleport/Support/Support';
+
+import { ExternalAuditStorageCta } from 'teleport/components/ExternalAuditStorageCta';
 
 import useTeleportE from 'e-teleport/useTeleportE';
 
@@ -65,6 +67,9 @@ export const SupportE = ({
           attempt={attempt}
         />
       )}
+      <Box mt="4">
+        <ExternalAuditStorageCta />
+      </Box>
     </>
   );
 };
@@ -78,6 +83,6 @@ const EditLink = styled(Edit)`
   }
 `;
 
-export type Props = { isCloud: boolean } & ReturnType<
-  typeof useUpgradeWindowStart
->;
+export type Props = {
+  isCloud: boolean;
+} & ReturnType<typeof useUpgradeWindowStart>;
