@@ -37,9 +37,9 @@ import stack from 'design/assets/resources/stack.png';
 import SearchPanel from 'teleport/UnifiedResources/SearchPanel';
 import {
   UnifiedResourcePreferences,
-  UnifiedTabPreference,
-  UnifiedViewModePreference,
-} from 'shared/services';
+  DefaultTab,
+  ViewMode,
+} from 'shared/services/unifiedResourcePreferences';
 
 import { UnifiedResourceResponse } from 'teleterm/services/tshd/types';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
@@ -68,8 +68,8 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
   // TODO: Add user preferences to Connect.
   // Until we add stored user preferences to Connect, store it in the state.
   const [userPrefs, setUserPrefs] = useState<UnifiedResourcePreferences>({
-    defaultTab: UnifiedTabPreference.DEFAULT_TAB_ALL,
-    viewMode: UnifiedViewModePreference.VIEW_MODE_CARD,
+    defaultTab: DefaultTab.DEFAULT_TAB_ALL,
+    viewMode: ViewMode.VIEW_MODE_CARD,
   });
 
   const [params, setParams] = useState<UnifiedResourcesQueryParams>({

@@ -14,10 +14,7 @@
  * limitations under the License.
  */
 
-import {
-  UnifiedTabPreference,
-  UnifiedViewModePreference,
-} from 'shared/services';
+import * as unifiedResourcePreferences from 'shared/services/unifiedResourcePreferences';
 
 import cfg from 'teleport/config';
 import api from 'teleport/services/api';
@@ -93,8 +90,8 @@ export function makeDefaultUserPreferences(): UserPreferences {
       },
     },
     unifiedResourcePreferences: {
-      defaultTab: UnifiedTabPreference.DEFAULT_TAB_ALL,
-      viewMode: UnifiedViewModePreference.VIEW_MODE_CARD,
+      defaultTab: unifiedResourcePreferences.DefaultTab.DEFAULT_TAB_ALL,
+      viewMode: unifiedResourcePreferences.ViewMode.VIEW_MODE_CARD,
     },
     clusterPreferences: makeDefaultUserClusterPreferences(),
   };

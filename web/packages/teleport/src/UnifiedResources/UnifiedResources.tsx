@@ -24,7 +24,7 @@ import {
   useUnifiedResourcesFetch,
   UnifiedResourcesPinning,
 } from 'shared/components/UnifiedResources';
-import { UnifiedTabPreference } from 'shared/services';
+import { DefaultTab } from 'shared/services/unifiedResourcePreferences';
 
 import useStickyClusterId from 'teleport/useStickyClusterId';
 import { storageService } from 'teleport/services/storageService';
@@ -116,7 +116,7 @@ function ClusterResources({
       },
       pinnedOnly:
         preferences.unifiedResourcePreferences.defaultTab ===
-        UnifiedTabPreference.DEFAULT_TAB_PINNED,
+        DefaultTab.DEFAULT_TAB_PINNED,
     });
 
   const getCurrentClusterPinnedResources = useCallback(

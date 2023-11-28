@@ -16,7 +16,7 @@
 
 import { DeprecatedThemeOption } from 'design/theme';
 
-import { UnifiedResourcePreferences } from 'shared/services';
+import type { UnifiedResourcePreferences } from 'shared/services/unifiedResourcePreferences';
 
 import type { AssistUserPreferences } from 'teleport/Assist/types';
 

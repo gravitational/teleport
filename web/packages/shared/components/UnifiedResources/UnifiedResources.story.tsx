@@ -29,9 +29,9 @@ import { ResourcesResponse } from 'teleport/services/agents';
 
 import {
   UnifiedResourcePreferences,
-  UnifiedTabPreference,
-  UnifiedViewModePreference,
-} from 'shared/services';
+  DefaultTab,
+  ViewMode,
+} from 'shared/services/unifiedResourcePreferences';
 
 import { UnifiedResources, useUnifiedResourcesFetch } from './UnifiedResources';
 import {
@@ -93,8 +93,8 @@ const story = ({
   };
   return () => {
     const [userPrefs, setUserPrefs] = useState<UnifiedResourcePreferences>({
-      defaultTab: UnifiedTabPreference.DEFAULT_TAB_ALL,
-      viewMode: UnifiedViewModePreference.VIEW_MODE_CARD,
+      defaultTab: DefaultTab.DEFAULT_TAB_ALL,
+      viewMode: ViewMode.VIEW_MODE_CARD,
     });
     const { fetch, attempt, resources } = useUnifiedResourcesFetch({
       fetchFunc,

@@ -29,7 +29,7 @@ import {
   Rows,
 } from 'design/Icon';
 
-import { UnifiedViewModePreference } from 'shared/services';
+import { ViewMode } from 'shared/services/unifiedResourcePreferences';
 import { HoverTooltip } from 'shared/components/ToolTip';
 
 import { FilterKind } from './UnifiedResources';
@@ -56,8 +56,8 @@ interface FilterPanelProps {
   selectVisible: () => void;
   selected: boolean;
   BulkActions?: React.ReactElement;
-  currentViewMode: UnifiedViewModePreference;
-  onSelectViewMode: (viewMode: UnifiedViewModePreference) => void;
+  currentViewMode: ViewMode;
+  onSelectViewMode: (viewMode: ViewMode) => void;
 }
 
 export function FilterPanel({
@@ -417,20 +417,16 @@ function ViewModeSwitch({
   currentViewMode,
   onSelectViewMode,
 }: {
-  currentViewMode: UnifiedViewModePreference;
-  onSelectViewMode: (viewMode: UnifiedViewModePreference) => void;
+  currentViewMode: ViewMode;
+  onSelectViewMode: (viewMode: ViewMode) => void;
 }) {
   return (
     <ViewModeSwitchContainer>
       <ViewModeSwitchButton
         className={
-          currentViewMode === UnifiedViewModePreference.VIEW_MODE_CARD
-            ? 'selected'
-            : ''
+          currentViewMode === ViewMode.VIEW_MODE_CARD ? 'selected' : ''
         }
-        onClick={() =>
-          onSelectViewMode(UnifiedViewModePreference.VIEW_MODE_CARD)
-        }
+        onClick={() => onSelectViewMode(ViewMode.VIEW_MODE_CARD)}
         css={`
           border-right: 1px solid
             ${props => props.theme.colors.spotBackground[2]};
@@ -442,13 +438,9 @@ function ViewModeSwitch({
       </ViewModeSwitchButton>
       <ViewModeSwitchButton
         className={
-          currentViewMode === UnifiedViewModePreference.VIEW_MODE_LIST
-            ? 'selected'
-            : ''
+          currentViewMode === ViewMode.VIEW_MODE_LIST ? 'selected' : ''
         }
-        onClick={() =>
-          onSelectViewMode(UnifiedViewModePreference.VIEW_MODE_LIST)
-        }
+        onClick={() => onSelectViewMode(ViewMode.VIEW_MODE_LIST)}
         css={`
           border-top-right-radius: 4px;
           border-bottom-right-radius: 4px;
