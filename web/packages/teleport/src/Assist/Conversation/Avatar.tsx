@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import React from 'react';
 import styled from 'styled-components';
 
 import teleport from 'design/assets/images/icons/teleport.png';

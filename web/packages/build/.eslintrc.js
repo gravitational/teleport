@@ -63,6 +63,14 @@ module.exports = {
         'jest/no-large-snapshots': ['warn', { maxSize: 200 }],
       },
     },
+    // Overrides below exist only to avoid breaking the build. Remove them after addressing the
+    // issues in the underlying files.
+    {
+      files: ['e/web/teleport/src/AccessGraph/AccessGraph.tsx'],
+      rules: {
+        'react/react-in-jsx-scope': 0,
+      },
+    },
   ],
   rules: {
     'import/order': [
@@ -134,7 +142,7 @@ module.exports = {
     'react/no-did-update-set-state': 1,
     'react/no-unknown-property': 1,
     'react/prop-types': 0,
-    'react/react-in-jsx-scope': 1,
+    'react/react-in-jsx-scope': 2,
     'react/self-closing-comp': 0,
     'react/sort-comp': 0,
     'react/jsx-wrap-multilines': 1,
