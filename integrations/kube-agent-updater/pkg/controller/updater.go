@@ -22,6 +22,7 @@ import (
 
 	"github.com/distribution/reference"
 	"github.com/gravitational/trace"
+	"golang.org/x/mod/semver"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	ctrllog "sigs.k8s.io/controller-runtime/pkg/log"
 
@@ -35,6 +36,7 @@ type VersionUpdater struct {
 	imageValidators     img.Validators
 	maintenanceTriggers maintenance.Triggers
 	baseImage           reference.Named
+	authVersionGetter   version.AuthVersionGetter
 }
 
 // GetVersion does all the version update logic: checking if a maintenance is allowed,
@@ -64,6 +66,18 @@ func (r *VersionUpdater) GetVersion(ctx context.Context, obj client.Object, curr
 		return nil, &NoNewVersionError{CurrentVersion: currentVersion, NextVersion: nextVersion}
 	}
 
+	log.Info("Getting auth server version")
+	authVersion, err := r.authVersionGetter.Get(ctx, obj)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	log.Info("Verify new version candidate is compatible with the auth server version")
+	// The auth server is incompatible with clients of a newer major version
+	if semver.Compare(semver.Major(nextVersion), semver.Major(authVersion)) > 0 {
+		return nil, &IncompatibleVersionError{AuthVersion: authVersion, NextVersion: nextVersion}
+	}
+
 	log.Info("Version change is valid, building img candidate")
 	// We tag our img candidate with the version
 	image, err := reference.WithTag(r.baseImage, strings.TrimPrefix(nextVersion, "v"))
@@ -84,12 +98,13 @@ func (r *VersionUpdater) GetVersion(ctx context.Context, obj client.Object, curr
 
 // NewVersionUpdater returns a version updater using the given version.Getter,
 // img.Validators, maintenance.Triggers and baseImage.
-func NewVersionUpdater(v version.Getter, i img.Validators, t maintenance.Triggers, b reference.Named) VersionUpdater {
+func NewVersionUpdater(v version.Getter, i img.Validators, t maintenance.Triggers, b reference.Named, a version.AuthVersionGetter) VersionUpdater {
 	// TODO: do checks to see if not nil/empty ?
 	return VersionUpdater{
 		versionGetter:       v,
 		imageValidators:     i,
 		maintenanceTriggers: t,
 		baseImage:           b,
+		authVersionGetter:   a,
 	}
 }

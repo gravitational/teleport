@@ -73,8 +73,9 @@ func (r *DeploymentVersionUpdater) Reconcile(ctx context.Context, req ctrl.Reque
 
 	image, err := r.GetVersion(ctx, &obj, currentVersion)
 	var (
-		noNewVersionErr *NoNewVersionError
-		maintenanceErr  *MaintenanceNotTriggeredError
+		noNewVersionErr        *NoNewVersionError
+		maintenanceErr         *MaintenanceNotTriggeredError
+		incompatibleVersionErr *IncompatibleVersionError
 	)
 	switch {
 	case errors.As(err, &noNewVersionErr):
@@ -84,6 +85,9 @@ func (r *DeploymentVersionUpdater) Reconcile(ctx context.Context, req ctrl.Reque
 	case errors.As(err, &maintenanceErr):
 		// Not logging the error because it provides no other information than its type.
 		log.Info("No maintenance triggered, not updating.", "currentVersion", currentVersion)
+		return requeueLater, nil
+	case errors.As(err, &incompatibleVersionErr):
+		log.Info("Target version is incompatible with the auth server version.")
 		return requeueLater, nil
 	case trace.IsTrustError(err):
 		// Logging as error as image verification should not fail under normal use

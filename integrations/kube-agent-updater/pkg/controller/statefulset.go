@@ -98,8 +98,9 @@ func (r *StatefulSetVersionUpdater) Reconcile(ctx context.Context, req ctrl.Requ
 
 	image, err := r.GetVersion(ctx, &obj, currentVersion)
 	var (
-		noNewVersionErr *NoNewVersionError
-		maintenanceErr  *MaintenanceNotTriggeredError
+		noNewVersionErr        *NoNewVersionError
+		maintenanceErr         *MaintenanceNotTriggeredError
+		incompatibleVersionErr *IncompatibleVersionError
 	)
 	switch {
 	case errors.As(err, &noNewVersionErr):
@@ -114,6 +115,9 @@ func (r *StatefulSetVersionUpdater) Reconcile(ctx context.Context, req ctrl.Requ
 		log.Info("No maintenance triggered, not updating.", "currentVersion", currentVersion)
 		// No need to check for blocked rollout because the unhealthy workload
 		// trigger has not approved the maintenance
+		return requeueLater, nil
+	case errors.As(err, &incompatibleVersionErr):
+		log.Info("Target version is incompatible with the auth server version.")
 		return requeueLater, nil
 	case trace.IsTrustError(err):
 		// Logging as error as image verification should not fail under normal use

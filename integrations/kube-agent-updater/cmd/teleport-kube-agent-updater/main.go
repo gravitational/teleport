@@ -148,7 +148,9 @@ func main() {
 		os.Exit(1)
 	}
 
-	versionUpdater := controller.NewVersionUpdater(versionGetter, imageValidators, maintenanceTriggers, baseImage)
+	authVersion := version.NewAuthVersionGetter(mgr.GetClient())
+
+	versionUpdater := controller.NewVersionUpdater(versionGetter, imageValidators, maintenanceTriggers, baseImage, authVersion)
 
 	// Controller registration
 	deploymentController := controller.DeploymentVersionUpdater{

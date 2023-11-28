@@ -72,6 +72,7 @@ func Test_VersionUpdater_GetVersion(t *testing.T) {
 		versionGetter       version.Getter
 		maintenanceTriggers []maintenance.Trigger
 		imageCheckers       []img.Validator
+		authVersionGetter   version.AuthVersionGetter
 		assertErr           require.ErrorAssertionFunc
 		expectedImage       string
 	}{
@@ -83,6 +84,7 @@ func Test_VersionUpdater_GetVersion(t *testing.T) {
 			versionGetter:       version.NewGetterMock(versionHigh, nil),
 			maintenanceTriggers: []maintenance.Trigger{alwaysTrigger},
 			imageCheckers:       []img.Validator{alwaysValid},
+			authVersionGetter:   version.NewMockAuthVersionGetter(versionHigh, nil),
 			assertErr:           require.NoError,
 			expectedImage:       fmt.Sprintf("%s/%s:%s@%s", defaultTestRegistry, defaultTestPath, versionHigh, defaultImageDigest),
 		},
@@ -94,6 +96,7 @@ func Test_VersionUpdater_GetVersion(t *testing.T) {
 			versionGetter:       version.NewGetterMock(versionHigh, nil),
 			maintenanceTriggers: []maintenance.Trigger{alwaysTrigger},
 			imageCheckers:       []img.Validator{alwaysValid},
+			authVersionGetter:   version.NewMockAuthVersionGetter(versionHigh, nil),
 			assertErr:           require.NoError,
 			expectedImage:       fmt.Sprintf("%s/%s:%s@%s", defaultTestRegistry, defaultTestPath, versionHigh, defaultImageDigest),
 		},
@@ -105,6 +108,7 @@ func Test_VersionUpdater_GetVersion(t *testing.T) {
 			versionGetter:       version.NewGetterMock(versionMid, nil),
 			maintenanceTriggers: []maintenance.Trigger{alwaysTrigger},
 			imageCheckers:       []img.Validator{alwaysValid},
+			authVersionGetter:   version.NewMockAuthVersionGetter(versionMid, nil),
 			assertErr:           errorIsType(&NoNewVersionError{}),
 			expectedImage:       "",
 		},
@@ -116,6 +120,7 @@ func Test_VersionUpdater_GetVersion(t *testing.T) {
 			versionGetter:       version.NewGetterMock(versionHigh, nil),
 			maintenanceTriggers: []maintenance.Trigger{neverTrigger},
 			imageCheckers:       []img.Validator{alwaysValid},
+			authVersionGetter:   version.NewMockAuthVersionGetter(versionHigh, nil),
 			assertErr:           errorIsType(&MaintenanceNotTriggeredError{}),
 			expectedImage:       "",
 		},
@@ -127,6 +132,7 @@ func Test_VersionUpdater_GetVersion(t *testing.T) {
 			versionGetter:       version.NewGetterMock(versionHigh, nil),
 			maintenanceTriggers: []maintenance.Trigger{alwaysTrigger},
 			imageCheckers:       []img.Validator{neverValid},
+			authVersionGetter:   version.NewMockAuthVersionGetter(versionHigh, nil),
 			assertErr:           errorIsType(&trace.TrustError{}),
 			expectedImage:       "",
 		},
@@ -138,7 +144,20 @@ func Test_VersionUpdater_GetVersion(t *testing.T) {
 			versionGetter:       version.NewGetterMock("", &trace.ConnectionProblemError{}),
 			maintenanceTriggers: []maintenance.Trigger{alwaysTrigger},
 			imageCheckers:       []img.Validator{neverValid},
+			authVersionGetter:   version.NewMockAuthVersionGetter(versionHigh, nil),
 			assertErr:           errorIsType(&trace.ConnectionProblemError{}),
+			expectedImage:       "",
+		},
+		{
+			name:                "target version incompatible with auth version",
+			releaseRegistry:     defaultTestRegistry,
+			releasePath:         defaultTestPath,
+			currentVersion:      versionMid,
+			versionGetter:       version.NewGetterMock(versionHigh, nil),
+			maintenanceTriggers: []maintenance.Trigger{alwaysTrigger},
+			imageCheckers:       []img.Validator{neverValid},
+			authVersionGetter:   version.NewMockAuthVersionGetter(versionMid, nil),
+			assertErr:           errorIsType(&IncompatibleVersionError{}),
 			expectedImage:       "",
 		},
 	}
@@ -157,6 +176,7 @@ func Test_VersionUpdater_GetVersion(t *testing.T) {
 				imageValidators:     tt.imageCheckers,
 				maintenanceTriggers: tt.maintenanceTriggers,
 				baseImage:           baseImage,
+				authVersionGetter:   tt.authVersionGetter,
 			}
 
 			// We need a dummy Kubernetes object, it is not used by the TriggerMock

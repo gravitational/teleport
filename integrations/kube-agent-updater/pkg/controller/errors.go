@@ -47,3 +47,18 @@ func (e *NoNewVersionError) Error() string {
 	}
 	return fmt.Sprintf("no new version (current: %q, next: %q)", e.CurrentVersion, e.NextVersion)
 }
+
+// IncompatibleVersionError indicates that the target version is incompatible with the auth server version
+type IncompatibleVersionError struct {
+	Message     string `json:"message"`
+	AuthVersion string `json:"authVersion"`
+	NextVersion string `json:"nextVersion"`
+}
+
+// Error returns a log friendly description of an error
+func (e *IncompatibleVersionError) Error() string {
+	if e.Message != "" {
+		return e.Message
+	}
+	return fmt.Sprintf("next version is incompatible with auth version (auth: %q, next: %q)", e.AuthVersion, e.NextVersion)
+}
