@@ -19,7 +19,7 @@
  * of Connect My Computer. The agent is configured to have this label and the value of it is the
  * username of the cluster user that is running the agent.
  */
-export const NodeOwnerLabel = `teleport.dev/connect-my-computer/owner` as const;
+export const NodeOwnerLabel = `teleport.dev/connect-my-computer/owner`;
 
 export const getRoleNameForUser = (username: string) =>
   `connect-my-computer-${username}`;
