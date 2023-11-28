@@ -17,8 +17,8 @@ use crate::{
     util::{self, from_c_string, from_go_array},
     CGOSharedDirectoryAnnounce, CGOSharedDirectoryCreateRequest, CGOSharedDirectoryCreateResponse,
     CGOSharedDirectoryDeleteRequest, CGOSharedDirectoryInfoRequest, CGOSharedDirectoryInfoResponse,
-    CGOSharedDirectoryListRequest, CGOSharedDirectoryListResponse, CGOSharedDirectoryReadRequest,
-    CGOSharedDirectoryReadResponse, CGOSharedDirectoryWriteRequest,
+    CGOSharedDirectoryListRequest, CGOSharedDirectoryListResponse, CGOSharedDirectoryMoveRequest,
+    CGOSharedDirectoryReadRequest, CGOSharedDirectoryReadResponse, CGOSharedDirectoryWriteRequest,
 };
 use ironrdp_pdu::{cast_length, custom_err, PduResult};
 use ironrdp_rdpdr::pdu::efs::{
@@ -419,6 +419,23 @@ pub struct SharedDirectoryMoveRequest {
     pub directory_id: u32,
     pub original_path: UnixPath,
     pub new_path: UnixPath,
+}
+
+impl SharedDirectoryMoveRequest {
+    /// See [`CGOWithStrings`].
+    pub fn into_cgo(self) -> PduResult<CGOWithStrings<CGOSharedDirectoryMoveRequest>> {
+        let original_path = self.original_path.to_cstring()?;
+        let new_path = self.new_path.to_cstring()?;
+        Ok(CGOWithStrings {
+            cgo: CGOSharedDirectoryMoveRequest {
+                completion_id: self.completion_id,
+                directory_id: self.directory_id,
+                original_path: original_path.as_ptr(),
+                new_path: new_path.as_ptr(),
+            },
+            _strings: vec![original_path, new_path],
+        })
+    }
 }
 
 /// SharedDirectoryCreateResponse is sent by the TDP client to the server
