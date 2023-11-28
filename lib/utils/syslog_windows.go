@@ -18,10 +18,10 @@ package utils
 
 import (
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 )
 
-// SwitchLoggerToSyslog always returns an error on Windows.
-func SwitchLoggerToSyslog(logger *log.Logger) error {
-	return trace.NotImplemented("cannot use syslog on Windows")
+// CreateSyslogHook always returns an error on Windows.
+func CreateSyslogHook() (logrus.Hook, error) {
+	return nil, trace.NotImplemented("cannot use syslog on Windows")
 }

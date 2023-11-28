@@ -18,16 +18,19 @@ package utils
 
 import (
 	"bytes"
+	"context"
 	"crypto/x509"
 	"errors"
 	"flag"
 	"fmt"
 	"io"
 	stdlog "log"
+	"log/slog"
 	"os"
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"unicode"
 
@@ -41,73 +44,149 @@ import (
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
+// LoggingPurpose specifies which kind of application logging is
+// to be configured for.
 type LoggingPurpose int
 
 const (
+	// LoggingForDaemon configures logging for non-user interactive applications (teleport, tbot, tsh deamon).
 	LoggingForDaemon LoggingPurpose = iota
+	// LoggingForCLI configures logging for user face utilities (tctl, tsh).
 	LoggingForCLI
 )
 
+// LoggingFormat defines the possible logging output formats.
+type LoggingFormat = string
+
+const (
+	// LogFormatJSON configures logs to be emitted in json.
+	LogFormatJSON LoggingFormat = "json"
+	// LogFormatText configures logs to be emitted in a human readable text format.
+	LogFormatText LoggingFormat = "text"
+)
+
+type logOpts struct {
+	format LoggingFormat
+}
+
+// LoggerOption enables customizing the global logger.
+type LoggerOption func(opts *logOpts)
+
+// WithLogFormat initializes the default logger with the provided format.
+func WithLogFormat(format LoggingFormat) LoggerOption {
+	return func(opts *logOpts) {
+		opts.format = format
+	}
+}
+
 // InitLogger configures the global logger for a given purpose / verbosity level
-func InitLogger(purpose LoggingPurpose, level logrus.Level) {
+func InitLogger(purpose LoggingPurpose, level slog.Level, opts ...LoggerOption) {
+	var o logOpts
+
+	for _, opt := range opts {
+		opt(&o)
+	}
+
 	logrus.StandardLogger().ReplaceHooks(make(logrus.LevelHooks))
-	logrus.SetLevel(level)
+	logrus.SetLevel(logutils.SlogLevelToLogrusLevel(level))
+
+	var (
+		w            io.Writer
+		enableColors bool
+	)
 	switch purpose {
 	case LoggingForCLI:
 		// If debug logging was asked for on the CLI, then write logs to stderr.
 		// Otherwise, discard all logs.
-		if level == logrus.DebugLevel {
-			debugFormatter := logutils.NewDefaultTextFormatter(trace.IsTerminal(os.Stderr))
-			_ = debugFormatter.CheckAndSetDefaults()
-			logrus.SetFormatter(debugFormatter)
-			logrus.SetOutput(os.Stderr)
+		if level == slog.LevelDebug {
+			enableColors = trace.IsTerminal(os.Stderr)
+			w = logutils.NewSharedWriter(os.Stderr)
 		} else {
-			logrus.SetOutput(io.Discard)
+			w = io.Discard
+			enableColors = false
 		}
 	case LoggingForDaemon:
-		logrus.SetFormatter(logutils.NewDefaultTextFormatter(trace.IsTerminal(os.Stderr)))
-		logrus.SetOutput(os.Stderr)
+		enableColors = trace.IsTerminal(os.Stderr)
+		w = logutils.NewSharedWriter(os.Stderr)
 	}
+
+	var (
+		formatter logrus.Formatter
+		handler   slog.Handler
+	)
+	switch o.format {
+	case LogFormatText, "":
+		textFormatter := logutils.NewDefaultTextFormatter(enableColors)
+
+		// Calling CheckAndSetDefaults enables the timestamp field to
+		// be included in the output. The error returned is ignored
+		// because the default formatter cannot be invalid.
+		if purpose == LoggingForCLI && level == slog.LevelDebug {
+			_ = textFormatter.CheckAndSetDefaults()
+		}
+
+		formatter = textFormatter
+		handler = logutils.NewSlogTextHandler(w, &logutils.SlogTextHandlerConfig{
+			Level:        level,
+			EnableColors: enableColors,
+			WithCaller:   true,
+		})
+	case LogFormatJSON:
+		formatter = &logutils.JSONFormatter{}
+		handler = logutils.NewSlogJSONHandler(w, level)
+	}
+
+	logrus.SetFormatter(formatter)
+	logrus.SetOutput(w)
+	slog.SetDefault(slog.New(handler))
 }
+
+var initTestLoggerOnce = sync.Once{}
 
 // InitLoggerForTests initializes the standard logger for tests.
 func InitLoggerForTests() {
-	// Parse flags to check testing.Verbose().
-	flag.Parse()
+	initTestLoggerOnce.Do(func() {
+		// Parse flags to check testing.Verbose().
+		flag.Parse()
 
-	logger := logrus.StandardLogger()
-	logger.ReplaceHooks(make(logrus.LevelHooks))
-	logrus.SetFormatter(logutils.NewTestJSONFormatter())
-	logger.SetLevel(logrus.DebugLevel)
-	logger.SetOutput(os.Stderr)
-	if testing.Verbose() {
-		return
-	}
-	logger.SetLevel(logrus.WarnLevel)
-	logger.SetOutput(io.Discard)
+		level := slog.LevelWarn
+		w := io.Discard
+		if testing.Verbose() {
+			level = slog.LevelDebug
+			w = os.Stderr
+		}
+
+		logger := logrus.StandardLogger()
+		logger.SetFormatter(logutils.NewTestJSONFormatter())
+		logger.SetLevel(logutils.SlogLevelToLogrusLevel(level))
+
+		output := logutils.NewSharedWriter(w)
+		logger.SetOutput(output)
+		slog.SetDefault(slog.New(logutils.NewSlogJSONHandler(output, level)))
+	})
 }
 
-// NewLoggerForTests creates a new logger for test environment
+// NewLoggerForTests creates a new logrus logger for test environments.
 func NewLoggerForTests() *logrus.Logger {
-	logger := logrus.New()
-	logger.ReplaceHooks(make(logrus.LevelHooks))
-	logger.SetFormatter(logutils.NewTestJSONFormatter())
-	logger.SetLevel(logrus.DebugLevel)
-	logger.SetOutput(os.Stderr)
-	return logger
+	InitLoggerForTests()
+	return logrus.StandardLogger()
+}
+
+// NewSlogLoggerForTests creates a new slog logger for test environments.
+func NewSlogLoggerForTests() *slog.Logger {
+	InitLoggerForTests()
+	return slog.Default()
 }
 
 // WrapLogger wraps an existing logger entry and returns
-// an value satisfying the Logger interface
+// a value satisfying the Logger interface
 func WrapLogger(logger *logrus.Entry) Logger {
 	return &logWrapper{Entry: logger}
 }
 
-// NewLogger creates a new empty logger
+// NewLogger creates a new empty logrus logger.
 func NewLogger() *logrus.Logger {
-	logger := logrus.New()
-	logger.SetFormatter(logutils.NewDefaultTextFormatter(trace.IsTerminal(os.Stderr)))
-	return logger
+	return logrus.StandardLogger()
 }
 
 // Logger describes a logger value
@@ -149,7 +228,7 @@ func UserMessageFromError(err error) string {
 	if err == nil {
 		return ""
 	}
-	if logrus.IsLevelEnabled(logrus.DebugLevel) {
+	if slog.Default().Enabled(context.Background(), slog.LevelDebug) {
 		return trace.DebugReport(err)
 	}
 	var buf bytes.Buffer

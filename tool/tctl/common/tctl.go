@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -111,7 +112,7 @@ func Run(commands []CLICommand) {
 // TryRun is a helper function for Run to call - it runs a tctl command and returns an error.
 // This is useful for testing tctl, because we can capture the returned error in tests.
 func TryRun(commands []CLICommand, args []string) error {
-	utils.InitLogger(utils.LoggingForCLI, log.WarnLevel)
+	utils.InitLogger(utils.LoggingForCLI, slog.LevelWarn)
 
 	// app is the command line parser
 	app := utils.InitCLIParser("tctl", GlobalHelpString)
@@ -265,7 +266,7 @@ func ApplyConfig(ccf *GlobalCLIFlags, cfg *servicecfg.Config) (*authclient.Confi
 	// --debug flag
 	if ccf.Debug {
 		cfg.Debug = ccf.Debug
-		utils.InitLogger(utils.LoggingForCLI, log.DebugLevel)
+		utils.InitLogger(utils.LoggingForCLI, slog.LevelDebug)
 		log.Debugf("Debug logging has been enabled.")
 	}
 	cfg.Log = log.StandardLogger()

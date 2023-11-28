@@ -18,9 +18,9 @@ package common
 
 import (
 	"context"
+	"log/slog"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/lib/teleterm"
@@ -34,9 +34,9 @@ func onDaemonStart(cf *CLIConf) error {
 	defer cancel()
 
 	if cf.Debug {
-		utils.InitLogger(utils.LoggingForDaemon, logrus.DebugLevel)
+		utils.InitLogger(utils.LoggingForDaemon, slog.LevelDebug)
 	} else {
-		utils.InitLogger(utils.LoggingForDaemon, logrus.InfoLevel)
+		utils.InitLogger(utils.LoggingForDaemon, slog.LevelInfo)
 	}
 
 	err := teleterm.Serve(ctx, teleterm.Config{

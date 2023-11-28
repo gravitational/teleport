@@ -22,6 +22,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"net/url"
 	"os"
@@ -628,9 +629,9 @@ func initLogger(cf *CLIConf) {
 	isDebug, _ := strconv.ParseBool(os.Getenv(debugEnvVar))
 	cf.Debug = cf.Debug || isDebug
 	if cf.Debug {
-		utils.InitLogger(utils.LoggingForCLI, logrus.DebugLevel)
+		utils.InitLogger(utils.LoggingForCLI, slog.LevelDebug)
 	} else {
-		utils.InitLogger(utils.LoggingForCLI, logrus.WarnLevel)
+		utils.InitLogger(utils.LoggingForCLI, slog.LevelWarn)
 	}
 }
 

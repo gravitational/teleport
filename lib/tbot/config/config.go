@@ -85,11 +85,6 @@ func RemainingArgs(s kingpin.Settings) (target *[]string) {
 	return
 }
 
-const (
-	LogFormatJSON = "json"
-	LogFormatText = "text"
-)
-
 // CLIConf is configuration from the CLI.
 type CLIConf struct {
 	ConfigPath string
