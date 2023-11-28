@@ -205,6 +205,7 @@ type upsertServerRawReq struct {
 	TTL    time.Duration   `json:"ttl"`
 }
 
+// presenceForAPIServer is a subset of [services.Presence].
 type presenceForAPIServer interface {
 	UpsertNode(ctx context.Context, s types.Server) (*types.KeepAlive, error)
 	UpsertAuthServer(ctx context.Context, s types.Server) error
