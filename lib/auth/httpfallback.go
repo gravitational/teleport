@@ -34,7 +34,7 @@ import (
 // GenerateHostCert takes the public key in the Open SSH “authorized_keys“
 // plain text format, signs it using Host Certificate Authority private key and
 // returns the resulting certificate.
-// DELETE IN 16.0.0
+// TODO(noah): DELETE IN 16.0.0
 func (c *Client) GenerateHostCert(
 	ctx context.Context,
 	key []byte,
@@ -60,6 +60,21 @@ func (c *Client) GenerateHostCert(
 	}
 
 	// Fall back to HTTP implementation.
+	return c.generateHostCertHTTP(
+		ctx, key, hostID, nodeName, principals, clusterName, role, ttl,
+	)
+}
+
+// TODO(noah): DELETE IN 16.0.0
+func (c *Client) generateHostCertHTTP(
+	ctx context.Context,
+	key []byte,
+	hostID, nodeName string,
+	principals []string,
+	clusterName string,
+	role types.SystemRole,
+	ttl time.Duration,
+) ([]byte, error) {
 	out, err := c.PostJSON(ctx, c.Endpoint("ca", "host", "certs"),
 		generateHostCertReq{
 			Key:         key,
@@ -78,6 +93,5 @@ func (c *Client) GenerateHostCert(
 	if err := json.Unmarshal(out.Bytes(), &cert); err != nil {
 		return nil, err
 	}
-
 	return []byte(cert), nil
 }

@@ -532,6 +532,7 @@ type generateHostCertReq struct {
 	TTL         time.Duration     `json:"ttl"`
 }
 
+// TODO(noah): DELETE IN 16.0.0 as replaced with gRPC equiv
 func (s *APIServer) generateHostCert(auth ClientI, w http.ResponseWriter, r *http.Request, _ httprouter.Params, version string) (interface{}, error) {
 	var req *generateHostCertReq
 	if err := httplib.ReadJSON(r, &req); err != nil {

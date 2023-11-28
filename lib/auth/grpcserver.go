@@ -5639,10 +5639,10 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	auditlogpb.RegisterAuditLogServiceServer(server, authServer)
 
 	trust, err := trustv1.NewService(&trustv1.ServiceConfig{
-		Authorizer:     cfg.Authorizer,
-		Cache:          cfg.AuthServer.Cache,
-		Backend:        cfg.AuthServer.Services,
-		HostCertSigner: cfg.AuthServer,
+		Authorizer: cfg.Authorizer,
+		Cache:      cfg.AuthServer.Cache,
+		Backend:    cfg.AuthServer.Services,
+		AuthServer: cfg.AuthServer,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

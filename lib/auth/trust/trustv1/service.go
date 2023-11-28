@@ -28,28 +28,31 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 )
 
-type hostCertSigner interface {
+type authServer interface {
+	// GenerateHostCert uses the private key of the CA to sign the public key of
+	// the host (along with meta data like host ID, node name, roles, and ttl)
+	// to generate a host certificate.
 	GenerateHostCert(ctx context.Context, hostPublicKey []byte, hostID, nodeName string, principals []string, clusterName string, role types.SystemRole, ttl time.Duration) ([]byte, error)
 }
 
 // ServiceConfig holds configuration options for
 // the trust gRPC service.
 type ServiceConfig struct {
-	Authorizer     authz.Authorizer
-	Cache          services.AuthorityGetter
-	Backend        services.Trust
-	Logger         *logrus.Entry
-	HostCertSigner hostCertSigner
+	Authorizer authz.Authorizer
+	Cache      services.AuthorityGetter
+	Backend    services.Trust
+	Logger     *logrus.Entry
+	AuthServer authServer
 }
 
 // Service implements the teleport.trust.v1.TrustService RPC service.
 type Service struct {
 	trustpb.UnimplementedTrustServiceServer
-	authorizer     authz.Authorizer
-	cache          services.AuthorityGetter
-	backend        services.Trust
-	hostCertSigner hostCertSigner
-	logger         *logrus.Entry
+	authorizer authz.Authorizer
+	cache      services.AuthorityGetter
+	backend    services.Trust
+	authServer authServer
+	logger     *logrus.Entry
 }
 
 // NewService returns a new trust gRPC service.
@@ -61,8 +64,8 @@ func NewService(cfg *ServiceConfig) (*Service, error) {
 		return nil, trace.BadParameter("backend is required")
 	case cfg.Authorizer == nil:
 		return nil, trace.BadParameter("authorizer is required")
-	case cfg.HostCertSigner == nil:
-		return nil, trace.BadParameter("hostCertSigner is required")
+	case cfg.AuthServer == nil:
+		return nil, trace.BadParameter("authServer is required")
 	case cfg.Logger == nil:
 		cfg.Logger = logrus.WithField(trace.Component, "trust.service")
 	}
@@ -72,6 +75,7 @@ func NewService(cfg *ServiceConfig) (*Service, error) {
 		authorizer: cfg.Authorizer,
 		cache:      cfg.Cache,
 		backend:    cfg.Backend,
+		authServer: cfg.AuthServer,
 	}, nil
 }
 
@@ -191,13 +195,12 @@ func (s *Service) UpsertCertAuthority(ctx context.Context, req *trustpb.UpsertCe
 func (s *Service) GenerateHostCert(
 	ctx context.Context, req *trustpb.GenerateHostCertRequest,
 ) (*trustpb.GenerateHostCertResponse, error) {
+	// Perform special authz as we allow for `where` rules on the `host_cert`
+	// resource type.
 	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
 		return nil, authz.ConvertAuthorizerError(ctx, s.logger, err)
 	}
-
-	// Perform special authz as we allow for `where` rules on the `host_cert`
-	// resource type.
 	ruleCtx := &services.Context{
 		User: authCtx.User,
 		HostCert: &services.HostCertContext{
@@ -222,7 +225,10 @@ func (s *Service) GenerateHostCert(
 		return nil, trace.Wrap(err)
 	}
 
-	cert, err := s.hostCertSigner.GenerateHostCert(
+	// Call through to the underlying implementation on auth.Server. At some
+	// point in the future, we may wish to pull more of that implementation
+	// up to here.
+	cert, err := s.authServer.GenerateHostCert(
 		ctx,
 		req.Key,
 		req.HostId,

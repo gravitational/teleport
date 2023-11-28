@@ -848,9 +848,9 @@ func (a *ServerWithRoles) UpsertCertAuthority(ctx context.Context, ca types.Cert
 		Authorizer: authz.AuthorizerFunc(func(context.Context) (*authz.Context, error) {
 			return &a.context, nil
 		}),
-		Cache:          a.authServer.Cache,
-		Backend:        a.authServer.Services,
-		HostCertSigner: a.authServer,
+		Cache:      a.authServer.Cache,
+		Backend:    a.authServer.Services,
+		AuthServer: a.authServer,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -879,9 +879,9 @@ func (a *ServerWithRoles) GetCertAuthorities(ctx context.Context, caType types.C
 		Authorizer: authz.AuthorizerFunc(func(context.Context) (*authz.Context, error) {
 			return &a.context, nil
 		}),
-		Cache:          a.authServer.Cache,
-		Backend:        a.authServer.Services,
-		HostCertSigner: a.authServer,
+		Cache:      a.authServer.Cache,
+		Backend:    a.authServer.Services,
+		AuthServer: a.authServer,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -905,9 +905,9 @@ func (a *ServerWithRoles) GetCertAuthority(ctx context.Context, id types.CertAut
 		Authorizer: authz.AuthorizerFunc(func(context.Context) (*authz.Context, error) {
 			return &a.context, nil
 		}),
-		Cache:          a.authServer.Cache,
-		Backend:        a.authServer.Services,
-		HostCertSigner: a.authServer,
+		Cache:      a.authServer.Cache,
+		Backend:    a.authServer.Services,
+		AuthServer: a.authServer,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2892,9 +2892,9 @@ func (a *ServerWithRoles) GenerateHostCert(
 		Authorizer: authz.AuthorizerFunc(func(context.Context) (*authz.Context, error) {
 			return &a.context, nil
 		}),
-		Cache:          a.authServer.Cache,
-		Backend:        a.authServer.Services,
-		HostCertSigner: a.authServer,
+		Cache:      a.authServer.Cache,
+		Backend:    a.authServer.Services,
+		AuthServer: a.authServer,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
