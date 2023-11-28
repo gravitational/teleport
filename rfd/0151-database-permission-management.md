@@ -13,209 +13,343 @@ state: draft
 
 ## What
 
-The Database Permission Management is a proposal to introduce a new permission management system for databases integrated with Teleport. It aims to provide a structured and secure way to manage access permissions for users connecting to databases using Database Access.
+Extends [automated db user provisioning](0113-automatic-database-users.md) with
+permission management capabilities.
 
 ## Why
 
-As organizations increasingly rely on Teleport to access and manage their databases, there is a growing need for a unified and robust permission management system. The Database Permission Management feature will simplify the process of granting, revoking, and auditing database access permissions, ensuring that security and compliance requirements are met.
+Managing database-level permissions is a natural extension of current Teleport
+RBAC capabilities. The described model should also integrate seamlessly with
+TAG, providing a future-proof solution.
 
-In the most common mode of operation, Database Access connects the user to the database as a requested user, but does not verify if the user exists or has the appropriate rights. This task is left for the database administrator to perform. Automatic user creation is a relatively new Database Access feature that automates part of this task in supported database configurations. On connection, a new database user is created (or an old one reactivated) with a name matching that of the Teleport user. This new user is given roles from a fixed list of roles. Teleport expects the roles to be managed manually and has no insight into their definition.
-
-This RFD introduces a mechanism for _database permission management_, a way to define the effective database user permissions within Teleport roles and automatically apply them as needed. This provides visibility into the effective permissions and eases the burden on database administrators.
+Database administrators will be able to use Teleport for both user and
+permission management.
 
 ## Details
 
 ### UX
 
-#### Usage
+A set of global "database object import rules" resources are defined for the
+Teleport cluster. At certain points in time, the database schema is read and
+passed through the import rules. The individual import rules may apply custom
+labels. An database object resource will only be created if there is at least
+one import rule that matched it.
 
-Teleport administrators modify the role definition assigned to the user, configuring both automatic user creation and individual permissions for the database.
+Only object attributes (standard ones like `protocol` or custom from the
+`attributes` field), which are sourced from the object spec, are subject to
+matching against the import rules. Any labels present on an object, either from
+an import rule or another source, are not subject to be matched by the import
+rule. The permissions matching is different in this regard.
 
-On connection, the engine calculates the effective permissions from the roles and database schema.
+Example: the `sales-prod` import rule, which imports all tables from `sales`
+Postgres database in prod:
 
-After automatically creating the database user for the Teleport user who initiated the connection, the calculated set of permissions is applied to the database user.
+```yaml
+kind: db_object_import_rule
+metadata:
+  name: sales-prod
+spec:
+  db_labels:
+    env: prod
+  mappings:
+    - object_match:
+        - database: sales
+          object_kind: table
+          protocol: postgres
+      add_labels:
+        env: prod
+        product: sales
+  priority: 10
+version: v1
+```
 
-After the session is finished, the user is removed/deactivated, and all permissions are revoked.
+Example database object, with applied labels:
+
+```yaml
+kind: db_object
+metadata:
+  labels:
+    env: prod
+    product: sales
+  name: sales_main
+spec:
+  attributes:
+    attr1: custom attr1 value
+    attr2: custom attr2 value
+  database: sales
+  name: sales_main
+  object_kind: table
+  protocol: postgres
+  schema: public
+  service_name: sales-prod-123
+version: v1
+```
+
+The permissions to particular objects are defined in a role using the new field
+`db_permissions`. The permission specifies the object kind (e.g. `table`),
+permission to grant/revoke (`SELECT`) as well as labels to be matched.
+
+The matching is performed against database object:
+
+- attributes: standard and custom, sourced from the object spec, provided by
+  database-specific schema import code
+- resource labels: aside from standard labels, these can be manipulated by the
+  import rules.
+
+If both attributes and labels provide the same non-empty key, the attributes
+take preference.
+
+Example role `db-dev`, which grants `SELECT` permission to some objects, and
+revokes `UPDATE` from all others.
+
+```yaml
+kind: role
+metadata:
+  name: db-dev
+spec:
+  allow:
+    db_permissions:
+      - match:
+          product: sales
+          protocol: postgres
+        object_kind: table
+        permission: SELECT
+  deny:
+    db_permissions:
+      - object_kind: table
+        permission: UPDATE
+```
+
+The database objects are imported during the connection, to be used for
+permission calculation.
+
+Additionally, the imports will be done on a predetermined schedule (e.g. every
+10 minutes), and stored in the backend.
+
+The database objects stored in the backend will be used by TAG.
+
+The permissions will be applied to the user after the user is provisioned in the
+database. After the session is finished, the user is removed/deactivated, and
+all permissions are revoked.
 
 #### Configuration
 
-1. User roles will be extended with a new `db_permissions` field in both `allow` and `deny` parts of the spec.
-2. The new field will contain a list of DB permissions to be applied for the user.
-3. Each individual DB permission will consist of four fields:
+##### Resource: `db_object_import_rule`
 
-   ```protobuf
-   // DatabasePermission is the single permission to be granted.
-   message DatabasePermission {
-   // Version is the version of permission. Combined with protocol it dictates the meaning of other fields.
-   string Version = 1 [(gogoproto.jsontag) = "version"];
-   // Protocol is the database protocol of permission.
-   string Protocol = 2 [(gogoproto.jsontag) = "protocol"];
-   // Target is the target of the permission, for example the name of database table.
-   string Target = 3 [(gogoproto.jsontag) = "target"];
-   // Access is the level of access granted by this permission to target.
-   string Access = 4 [(gogoproto.jsontag) = "access"];
-   }
-   ```
+A new kind of resource `db_object_import_rule` is introduced.
 
-   An example instance:
+The import rules are processed in order (defined by `priority` field) and
+matched against the database labels.
 
-   ```yaml
-   spec:
-     allow:
-       db_permissions:
-         - protocol: postgres
-           version: v1
-           target: /public/customers
-           access: SELECT
-   ```
+If the database matches, the object-level mapping rules are processed.
 
-#### Database Permission Semantics
+```protobuf
+// DatabaseObjectImportRuleV1 is the resource representing a global database object import rule.
+message DatabaseObjectImportRuleV1 {
+   option (gogoproto.goproto_stringer) = false;
+   option (gogoproto.stringer) = false;
 
-Each protocol-specific engine is responsible for handling the application of permissions to the database engines it supports. It is a decision of the engine to respect or ignore a particular permission based on the `protocol` and `version` fields. The precise interpretation of each individual DB permission will depend on the protocol and version, allowing for system evolution in a backwards-compatible way. It is explicitly allowed for a single role to reference different versions of the DB permission for the same protocol or any mixture of different protocols.
+   ResourceHeader Header = 1 [
+      (gogoproto.nullable) = false,
+      (gogoproto.jsontag) = "",
+      (gogoproto.embed) = true
+   ];
 
-At this point, no addressing scheme for database objects is mandated across the protocols (see discussion [below](#database-object-addressing)). The meaning of `access` field is also database-dependent; some may only be valid for specific versions of databases (e.g. [`SELECT INTO S3`](https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/AuroraMySQL.Integrating.SaveIntoS3.html)).
+   DatabaseObjectImportRuleSpec Spec = 2 [
+      (gogoproto.nullable) = false,
+      (gogoproto.jsontag) = "spec"
+   ];
+}
 
-```yaml
-spec:
-  allow:
-    db_permissions:
-      - protocol: postgres
-        version: v1
-        target: /./customers
-        access: SELECT
-      - protocol: postgres
-        version: v2
-        target: '{ type: "schema", name: "public"}'
-        access: ALL
+// DatabaseObjectImportRuleSpec is the spec for database object import rule.
+message DatabaseObjectImportRuleSpec {
+  // Priority represents the priority of the rule application. Lower numbered rules will be applied first.
+  int32 Priority = 1 [(gogoproto.jsontag) = "priority"];
+
+  // DatabaseLabels is a set of labels which must match the database for the rule to be applied.
+  map<string, string> DatabaseLabels = 2 [(gogoproto.jsontag) = "db_labels,omitempty"];
+
+  // Mappings is a list of matches that will map match conditions to labels.
+  repeated DatabaseObjectImportRuleMapping Mappings = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "mappings,omitempty"
+  ];
+}
 ```
 
-The deny section specifies permission forbidden for the user. Since the interpretation of fields is left to individual engines, it is the engine's duty to perform the permission calculations, which involve subtracting denied permissions from allowed ones. Utilizing the underlying database engine for this process is encouraged as it leads to a more robust implementation. In the example below, the Postgres engine itself doesn't need to know that `ALL` subsumes `SELECT`. It can simply execute `GRANT SELECT` first, followed by `REVOKE ALL`.
+Individual objects are matched with against all object matches defined in
+`DatabaseObjectImportRuleMapping` message. If any of the matches succeeds (or if
+the list of matches is empty), the labels specified in the mapping are applied
+to the object. The processing continues with the next mapping: multiple mappings
+can match any given object.
 
-```yaml
-spec:
-  allow:
-    db_permissions:
-      - protocol: postgres
-        version: v1
-        target: '/*/*'
-        access: SELECT
-  deny:
-    db_permissions:
-      - protocol: postgres
-        version: v1
-        target: '/secret/*'
-        access: ALL
+```protobuf
+// DatabaseObjectImportRuleMapping is the mapping between object properties and labels that will be added to the object.
+message DatabaseObjectImportRuleMapping {
+  // ObjectMatches is a set of object matching rules for this mapping.
+  // For a given database object, each of the matches is attempted.
+  // If any of them succeed, the labels are applied.
+  repeated DatabaseObjectSpec ObjectMatches = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "object_match"
+  ];
+
+  // AddLabels specifies which labels to add if any of the previous matches match.
+  map<string, string> AddLabels = 3 [(gogoproto.jsontag) = "add_labels"];
+}
 ```
 
-The effective combination of `spec.allow.db_permissions` fields can originate from multiple roles, as long as the `db_labels` field matches the current database. This applies to both the `allow` and `deny` sections, and each is tracked separately.
+##### Resource: `db_object`
 
-Notably, it is not considered an error to specify a permission for a database object that does not exist, or to use a wildcard that matches no objects. This flexibility allows for changes to the schema without needing to modify permissions concurrently.
+Another new resource is the database object (`db_object`), imported using the
+import rules from the database.
 
-However, specifying a non-existent _permission_ is likely an error and should be disallowed, unless a compelling argument exists to do otherwise.
+The spec for this resource is the `DatabaseObjectSpec` message, which is also
+used in the `DatabaseObjectImportRuleMapping`.
 
-The engine may ignore `db_permissions` with a version it doesn't support, but it must log a warning about this fact. Notably, this mechanism also applies to `spec.deny.db_permissions`. The security implications are discussed [below](#unsupported-permission-versions).
+The spec is equivalent to a `map<string, string>`, except it predefines a few
+optional properties.
 
-### Database object addressing
+In case of an `db_object`, the entirety of the spec is provided by
+database-specific schema introspection tool. The custom attributes provide a way
+to express additional properties important to the object, which cannot be
+rightly placed in other attributes. The `object_kind` property is mandatory for
+`db_object` resources.
 
-Depending on the specific database engine or permission version, various hierarchies of database objects may exist. It is essential to establish a method for addressing one or more objects within these hierarchies.
+```protobuf
+// DatabaseObjectSpec is the spec for the database object.
+message DatabaseObjectSpec {
+   string Protocol = 1 [(gogoproto.jsontag) = "protocol,omitempty"];
+   string ServiceName = 2 [(gogoproto.jsontag) = "service_name,omitempty"];
+   string ObjectKind = 3 [(gogoproto.jsontag) = "object_kind"];
+   string Database = 4 [(gogoproto.jsontag) = "database,omitempty"];
+   string Schema = 5 [(gogoproto.jsontag) = "schema,omitempty"];
+   string Name = 6 [(gogoproto.jsontag) = "name,omitempty"];
+   // extra attributes for matching
+   map<string, string> Attributes = 7 [(gogoproto.jsontag) = "attributes,omitempty"];
+}
+```
 
-One potential approach is to adopt a straightforward filepath-like scheme as a foundation, such as `/public/customers`. However, it's important to allow for the quoting of identifiers, as some object names, like "foo/bar" in Postgres, may contain special characters. For example: `/public/"foo/bar"`. In cases where it's necessary to specify the object type within a particular hierarchy, it's possible to use a notation like `/public/table:*` to differentiate between object types, each requiring distinct permissions. For example, you may "EXECUTE" a stored procedure, but you "SELECT" from a table.
+#### Role extension: `spec.{allow,deny}.db_permissions` fields
 
-Another option is to base the addressing scheme on URIs. For instance, to select all tables in the default (`.`) schema, one might use `table://./*`. This approach conveniently handles the encoding of special characters like slashes or double quotes in object names.
+The role is extended with a `db_permissions` field, which consists of a list of
+permissions to be applied against particular database objects provided the
+permission properties (object kind, match labels) match the given object.
 
-Lastly, it's feasible to leverage existing standards like [JsonPath](https://github.com/json-path/JsonPath) for object addressing.
+```protobuf
 
-This RFD does not mandate a specific addressing scheme. However, several desirable properties should be considered when designing an addressing scheme:
+  // ...
+  // DatabasePermission specifies a set of permissions that will be granted
+  // to the database user when using automatic database user provisioning.
+  repeated DatabasePermission DatabasePermissions = 38 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "db_permissions,omitempty"
+  ];
+}
 
-- **Universality:** The scheme should be applicable to any database protocol.
-- **Intuitiveness:** Users should be able to understand it correctly through casual observation, without requiring additional tools.
-- **Conciseness:** It should be relatively straightforward to write and create by hand, if necessary.
-- **Future-Proof:** The scheme should accommodate unforeseen changes in the future, such as the addition of additional levels within the hierarchy (e.g., schemas encompassing tables or columns within tables).
-- **Unambiguity:** If a wildcard character like `*` is allowed, it should have a clear and consistent meaning. Similarly, when specifying an object like "customers," it should be evident whether it refers to a table or a schema.
+// DatabasePermission specifies the database object permission for the user.
+message DatabasePermission {
+  // ObjectKind is the database object kind: table, schema, etc.
+  string ObjectKind = 1 [(gogoproto.jsontag) = "object_kind"];
+  // Permission is the string representation of the permission to be given, e.g. SELECT, INSERT, UPDATE, ...
+  string Permission = 2 [(gogoproto.jsontag) = "permission"];
+  // Match is a list of labels (key, value) to match against database object properties.
+  map<string, string> Match = 3 [(gogoproto.jsontag) = "match,omitempty"];
+}
 
-### Wildcard Support
+```
 
-Specifying permissions individually for each database object can be tedious and challenging to maintain. Wildcards provide a succinct and stable alternative, especially in the face of evolving schemas. It is encouraged that database engines support wildcard functionality for targets. This implementation may involve enumerating database objects and applying permissions to those matching specific patterns. Additionally, if a new object is created during a user session, the corresponding wildcard-based permission will not be automatically applied until a permission synchronization occurs. Implementing an automated permission synchronization triggered by schema changes can enhance the user experience.
+### Permission Semantics
 
-Unlike targets, permissions typically originate from a fixed set. While the inclusion of wildcards, as seen in the `ALL` permission, can still be beneficial, doing it at Teleport-level may overlap with database-level functionality, potentially diminishing utility.
+The precise meaning of individual permissions is left to the database engine.
+The sole exception is the interaction between the `deny` and `allow` parts:
+denied permissions are removed, and the comparison is performed in a
+case-insensitive way after trimming the whitespace. As a special case, `*` is
+allowed as a permission in `deny` part of the role.
+
+For example, if the `allow` permission is `SELECT`, then it can be removed with
+`select`, `SELECT` or `*`.
+
+The engines should prohibit invalid permissions. This is a fatal error and
+should cause connection error.
 
 ### Permission Lifecycle
 
-The feature is based on the automated database user creation feature, simplifying the analysis of permission lifetime.
+Permissions are applied after the user is automatically provisioned.
+Deprovisioning (deletion/deactivation) of the user should remove ALL permissions
+from the user, without the need to reference the particular user permissions.
 
-We define "permission synchronization" as the process of applying a predetermined set of permissions to the user. These permissions are calculated based on their current roles in conjunction with the existing database schema.
+The permission synchronization is performed at least once, on connection time:
 
-1. Initially, when the user does not exist, they possess no permissions except for default ones.
-2. Upon connection, we create a user in a manner specific to the database. This involves applying a fixed set of roles to the user, as specified in `spec.allow.db_roles`.
-3. Permission synchronization occurs after the user is created or reactivated.
-4. Additional permission synchronizations can be triggered as necessary, such as on new connections, detected schema changes (which may be detected using database-specific methods), or based on a scheduled timer.
-5. For consistency, we ensure that new connections receive an equivalent set of permissions. Notably, permissions for other protocols or unsupported versions do not affect what is applied to the database. Changes in the database schema can lead to previously "identical" permission sets diverging, for example, when a new table is added. The permissions are equivalent if they are stable under schema changes.
+- database schema is read,
+- import rules are applied,
+- effective permissions are calculated based on user roles,
+- database-side permissions are updated.
 
-6. Once the last connection for the user is terminated, they are either removed or deactivated.
-7. When a user is removed, all permissions are automatically revoked. In cases where full removal is not possible (example: a user is the owner of database objects in Postgres), a process is in place to ensure that all permissions are removed from the user, regardless of their source. This approach acts as a precaution against potential lingering permissions and simplifies the management of permissions.
+Optional, additional syncs may happen as needed (e.g. when a schema change is
+detected).
 
 ### TAG Integration
 
-Fundamentally, TAG operates on the basis of graph nodes interconnected by edges. To align our permissions with TAG, we'll represent each potential target as an individual node within the graph.
-
-Each target node will have its distinct set of relevant permissions, contingent on its type. For instance, tables may be associated with "SELECT" permissions, while procedures might involve "EXECUTE" permissions. These permissions will be represented as edges in the graph, each tagged with the appropriate permission type.
-
-The representation of allowed but unapplied permissions remains unclear within TAG. Expanding wildcards in permissions into individual nodes and edges is essential since TAG's representation is flat and explicit, lacking further interpretation.
-
-Certain targets may contain others; for example, a schema may encompass tables, and tables may include columns. This hierarchical relationship will form directed edges between nodes representing various database objects.
-
-An important concern in TAG integration is the overall system performance. For instance, in a scenario with 1000 identical databases, each containing 1 schema and 100 tables with 10 columns each, we anticipate at least 1+100+100\*10 = 1101 graph nodes per database, or 1101000 in total. Managing over a million graph nodes can strain the graph database and visualization engine. While the need for a method to prune or compress the representation is evident, it remains unclear how to achieve this without compromising functionality.
-
-The model described assumes a fixed representation between entities. This makes it a challenge to represent a policy-based permissions, such as AWS' IAM policies or row-level security policies in Postgres.
-
-This section may be expanded into a standalone RFD in the future, to discuss this topic in more detail as TAG becomes more settled.
-
-### Alternative Designs
-
-Several alternative designs were considered for this feature, with one noteworthy option being the "managed roles" design, outlined below:
-
-1. The concept of "managed database roles" would be introduced. These roles would closely resemble the structure of the `db_permissions` field, and each managed database role would be stored as an individual resource within the backend.
-
-2. The database definition would be expanded to allow for referencing any number of these managed database roles.
-
-3. A database agent responsible for connecting to the database would synchronize the expected and actual database roles triggered by various events, mirroring the approach used for user permission synchronization.
-
-4. User roles, however, would remain unchanged. The existing mechanism for granting roles to automatically created users upon connection would still be employed.
-
-The primary distinction in this alternative design is the entity responsible for holding the database permissions. In the main design, it's the user, while in this alternative approach, it's a specifically designed role. This difference has implications for various aspects, including implementation, user experience, reliability, and security.
-
-The primary advantage of this alternative design is its ability to create database-level roles such as "sales," "accounting," or "devs" and grant permissions as needed. This functionality could be valuable on its own, even outside the context of Database Access, and might be integrated as part of a separate "Database Management" product or feature.
-
-However, this alternative design introduces added complexity, including the need for a new resource type, the requirement to establish the capability to reference this new resource from existing resources, and the need to coordinate the interaction between databases agents. Additionally, a mechanism for cleaning up old roles or "deactivating" them would be necessary, particularly concerning disconnected databases with outdated roles. This approach would also introduce a new task for the database agent related to "Database role management," which would be separate from the core proxy functionality.
+Periodic application of import rules will populate `db_object` resources in the
+backend. These can be imported to TAG, where permission calculation may happen.
+The permission algorithm is based on label matching, which should be a primitive
+operation that is easy to support in TAG. Performance wise it may be necessary
+to filter the set of objects - a single database can viably produce thousands of
+objects - but it should remain a viable approach.
 
 ### Backward Compatibility
 
-The new `db_permissions` field should be automatically ignored by Teleport versions that don't support it.
+The new `db_permissions` field should be automatically ignored by Teleport
+versions that don't support it. The new resources will likewise be ignored.
 
 ### Audit Events
 
-Since there are no specific audit events in place for the user creation feature, there is currently no requirement to extend any existing events. However, in the event that audit events are introduced, it would be prudent to contemplate enhancing these events by including a list of the applied permissions. This list would be a combination of pertinent entries in both `spec.allow.db_permissions` and `spec.deny.db_permissions`.
+The [RFD 113](0113-automatic-database-users.md) introduces events
+`db.user.created` and `db.user.disabled`, but these are yet to be implemented.
+
+The `db.user.created` should be extended with an effective list of applied
+permissions. Since the list of database objects may be long, it may be necessary
+to summarize the list of changes in the audit event.
 
 ### Observability
 
-The expectation is that permission changes should occur swiftly. If necessary, we may consider monitoring the latency of schema queries and the time required to apply permissions. This becomes particularly relevant when permissions are managed external to the database instance, for instance, through a call to AWS Security Token Service (STS).
+The expectation is that permission changes should occur swiftly. If necessary,
+we may consider monitoring the latency of schema queries and the time required
+to apply permissions. This becomes particularly relevant when permissions are
+managed external to the database instance, for instance, through a call to AWS
+Security Token Service (STS).
 
-To enhance observability, it is advisable to introduce appropriate logging. Debug-level logs can be used to detail individual permissions granted, while keeping in mind that the list might encompass thousands of entries.
+To enhance observability, it is advisable to introduce appropriate logging.
+Debug-level logs can be used to detail individual permissions granted, while
+keeping in mind that the list might encompass thousands of entries.
 
 ### Product Usage
 
-As of the current point in time, there are no plans for the introduction of telemetry.
+As of the current point in time, there are no plans for the introduction of
+telemetry.
 
 ### Test Plan
 
-In the test plan, a new section should be incorporated, positioned alongside the coverage for the "automated user creation" feature. This section should enumerate and test each supported configuration separately. At the time of writing this RFD, the coverage for the "automated user creation" feature in the test plan is absent, and it should be created.
+In the test plan, a new section should be incorporated, positioned alongside the
+coverage for the "automated user provisioning" feature. This section should
+enumerate and test each supported configuration separately. At the time of
+writing this RFD, the coverage for the "automated user provisioning" feature in
+the test plan is absent, and it should be added.
 
 ### Security
 
-The introduction of the new feature has no direct impact on the security of Teleport itself. However, it does have implications for the security of connected databases within the supported configurations. For environments requiring heightened security, there may be value in explicitly excluding specific databases from this feature, potentially using a resource label for this purpose.
+The introduction of the new feature has no direct impact on the security of
+Teleport itself. However, it does have implications for the security of
+connected databases within the supported configurations. For environments
+requiring heightened security, there may be value in explicitly excluding
+specific databases from this feature, potentially using a resource label for
+this purpose.
 
-It's important to recognize that with sufficiently broad permissions, a user might have the potential to elevate their database permissions further, including creating additional users and granting permissions. Given that this feature does not attempt to model the implications of individual database permissions, there is no foolproof mechanism to prevent such excessive permissions. Therefore, it falls to the system administrator to ensure that the granted permissions are kept to a minimum.
-
-#### Unsupported Permission Versions
-
-The protocol-specific engine is allowed to disregard a database permission with a version it does not support. However, if an unsupported permission originates from `spec.deny.db_permissions`, it may lead to permissions wider in scope than initially expected for the user. To address this, it is advisable to raise a warning and an associated audit event in such cases.
+It's important to recognize that with sufficiently broad permissions, a user
+might have the potential to elevate their database permissions further via
+database-specific means, including creating additional users and granting
+permissions. Given that this feature does not attempt to model the implications
+of individual database permissions, there is no foolproof mechanism to prevent
+such excessive permissions. Therefore, it falls to the system administrator to
+ensure that the granted permissions are kept to a minimum.
