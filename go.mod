@@ -21,9 +21,9 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/postgresql/armpostgresql v1.1.1
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/postgresql/armpostgresqlflexibleservers v1.1.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redis/armredis/v2 v2.3.0
-	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redisenterprise/armredisenterprise v1.1.1
+	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redisenterprise/armredisenterprise v1.2.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/sql/armsql v1.1.0
-	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/subscription/armsubscription v1.1.0
+	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/subscription/armsubscription v1.2.0
 	github.com/Azure/azure-sdk-for-go/sdk/storage/azblob v1.2.0
 	github.com/Azure/go-ansiterm v0.0.0-20210617225240-d185dfc1b5a1
 	github.com/ClickHouse/ch-go v0.58.2
@@ -165,14 +165,14 @@ require (
 	go.opentelemetry.io/otel/sdk v1.21.0
 	go.opentelemetry.io/otel/trace v1.21.0
 	go.opentelemetry.io/proto/otlp v1.0.0
-	golang.org/x/crypto v0.15.0
+	golang.org/x/crypto v0.16.0
 	golang.org/x/exp v0.0.0-20230811145659-89c5cff77bcb
 	golang.org/x/mod v0.14.0
-	golang.org/x/net v0.18.0
+	golang.org/x/net v0.19.0
 	golang.org/x/oauth2 v0.14.0
 	golang.org/x/sync v0.5.0
-	golang.org/x/sys v0.14.0
-	golang.org/x/term v0.14.0
+	golang.org/x/sys v0.15.0
+	golang.org/x/term v0.15.0
 	golang.org/x/text v0.14.0
 	golang.org/x/time v0.4.0
 	google.golang.org/api v0.151.0
