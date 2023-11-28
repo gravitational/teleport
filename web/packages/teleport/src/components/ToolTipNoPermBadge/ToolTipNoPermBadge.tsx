@@ -14,9 +14,10 @@
  * limitations under the License.
  */
 
-import React, { useState } from 'react';
-import styled from 'styled-components';
-import { Popover, Box } from 'design';
+import React from 'react';
+import { useTheme } from 'styled-components';
+
+import { ToolTipBadge } from 'teleport/components/ToolTipBadge';
 
 type Props = {
   borderRadius?: number;
@@ -30,69 +31,19 @@ export const ToolTipNoPermBadge: React.FC<Props> = ({
   badgeTitle = BadgeTitle.LackingPermissions,
   sticky = false,
 }) => {
-  const [anchorEl, setAnchorEl] = useState();
-  const open = Boolean(anchorEl);
-
-  function handlePopoverOpen(event) {
-    setAnchorEl(event.currentTarget);
-  }
-
-  function handlePopoverClose() {
-    setAnchorEl(null);
-  }
+  const theme = useTheme();
 
   return (
-    <>
-      <Box
-        data-testid="tooltip"
-        aria-owns={open ? 'mouse-over-popover' : undefined}
-        onMouseEnter={handlePopoverOpen}
-        onMouseLeave={!sticky ? handlePopoverClose : undefined}
-        borderTopRightRadius={borderRadius}
-        borderBottomLeftRadius={borderRadius}
-        css={`
-          position: absolute;
-          padding: 0px 6px;
-          top: 0px;
-          right: 0px;
-          font-size: 10px;
-          background-color: ${p => p.theme.colors.error.main};
-        `}
-      >
-        {badgeTitle}
-      </Box>
-      <Popover
-        modalCss={() => `pointer-events: ${sticky ? 'auto' : 'none'}`}
-        onClose={handlePopoverClose}
-        open={open}
-        anchorEl={anchorEl}
-        anchorOrigin={{
-          vertical: 'bottom',
-          horizontal: 'left',
-        }}
-        transformOrigin={{
-          vertical: 'top',
-          horizontal: 'left',
-        }}
-      >
-        <StyledOnHover
-          px={3}
-          py={2}
-          data-testid="tooltip-msg"
-          onMouseLeave={handlePopoverClose}
-        >
-          {children}
-        </StyledOnHover>
-      </Popover>
-    </>
+    <ToolTipBadge
+      borderRadius={borderRadius}
+      badgeTitle={badgeTitle}
+      sticky={sticky}
+      color={theme.colors.error.main}
+    >
+      {children}
+    </ToolTipBadge>
   );
 };
-
-const StyledOnHover = styled(Box)`
-  background-color: white;
-  color: black;
-  max-width: 350px;
-`;
 
 export enum BadgeTitle {
   LackingPermissions = 'Lacking Permissions',
