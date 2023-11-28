@@ -463,7 +463,7 @@ func (c *Client) dialGRPC(ctx context.Context, addr string) error {
 			otelUnaryClientInterceptor(),
 			metadata.UnaryClientInterceptor,
 			interceptors.GRPCClientUnaryErrorInterceptor,
-			interceptors.RetryWithMFAUnaryInterceptor(c.performMFACeremony),
+			interceptors.WithMFAUnaryInterceptor(c.performMFACeremony),
 			breaker.UnaryClientInterceptor(cb),
 		),
 		grpc.WithChainStreamInterceptor(
