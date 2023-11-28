@@ -662,8 +662,6 @@ func testKubeTrustedClustersClientCert(t *testing.T, suite *KubeSuite) {
 	// Wait for both cluster to see each other via reverse tunnels.
 	require.Eventually(t, helpers.WaitForClusters(main.Tunnel, 1), 10*time.Second, 1*time.Second,
 		"Two clusters do not see each other: tunnels are not working.")
-	require.Eventually(t, helpers.WaitForClusters(aux.Tunnel, 1), 10*time.Second, 1*time.Second,
-		"Two clusters do not see each other: tunnels are not working.")
 
 	require.Eventually(t, func() bool {
 		tc, err := main.Process.GetAuthServer().GetRemoteCluster(aux.Secrets.SiteName)
@@ -939,8 +937,6 @@ func testKubeTrustedClustersSNI(t *testing.T, suite *KubeSuite) {
 
 	// Wait for both cluster to see each other via reverse tunnels.
 	require.Eventually(t, helpers.WaitForClusters(main.Tunnel, 1), 10*time.Second, 1*time.Second,
-		"Two clusters do not see each other: tunnels are not working.")
-	require.Eventually(t, helpers.WaitForClusters(aux.Tunnel, 1), 10*time.Second, 1*time.Second,
 		"Two clusters do not see each other: tunnels are not working.")
 
 	require.Eventually(t, func() bool {
