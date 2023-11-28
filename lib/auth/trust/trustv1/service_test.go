@@ -68,6 +68,12 @@ func (f *fakeAuthorizer) Authorize(ctx context.Context) (*authz.Context, error) 
 	}, nil
 }
 
+type fakeHostCertSigner struct{}
+
+func (f *fakeHostCertSigner) GenerateHostCert(ctx context.Context, hostPublicKey []byte, hostID, nodeName string, principals []string, clusterName string, role types.SystemRole, ttl time.Duration) ([]byte, error) {
+	return nil, trace.NotImplemented("")
+}
+
 type fakeChecker struct {
 	services.AccessChecker
 	allow  map[check]bool
@@ -381,9 +387,10 @@ func TestRBAC(t *testing.T) {
 
 			trust := local.NewCAService(p.mem)
 			cfg := &ServiceConfig{
-				Cache:      trust,
-				Backend:    trust,
-				Authorizer: &test.authorizer,
+				Cache:          trust,
+				Backend:        trust,
+				Authorizer:     &test.authorizer,
+				HostCertSigner: &fakeHostCertSigner{},
 			}
 
 			service, err := NewService(cfg)
@@ -414,9 +421,10 @@ func TestGetCertAuthority(t *testing.T) {
 
 	trust := local.NewCAService(p.mem)
 	cfg := &ServiceConfig{
-		Cache:      trust,
-		Backend:    trust,
-		Authorizer: authorizer,
+		Cache:          trust,
+		Backend:        trust,
+		Authorizer:     authorizer,
+		HostCertSigner: &fakeHostCertSigner{},
 	}
 
 	service, err := NewService(cfg)
@@ -502,9 +510,10 @@ func TestGetCertAuthorities(t *testing.T) {
 
 	trust := local.NewCAService(p.mem)
 	cfg := &ServiceConfig{
-		Cache:      trust,
-		Backend:    trust,
-		Authorizer: authorizer,
+		Cache:          trust,
+		Backend:        trust,
+		Authorizer:     authorizer,
+		HostCertSigner: &fakeHostCertSigner{},
 	}
 
 	service, err := NewService(cfg)
@@ -595,9 +604,10 @@ func TestDeleteCertAuthority(t *testing.T) {
 
 	trust := local.NewCAService(p.mem)
 	cfg := &ServiceConfig{
-		Cache:      trust,
-		Backend:    trust,
-		Authorizer: authorizer,
+		Cache:          trust,
+		Backend:        trust,
+		Authorizer:     authorizer,
+		HostCertSigner: &fakeHostCertSigner{},
 	}
 
 	service, err := NewService(cfg)
@@ -664,9 +674,10 @@ func TestUpsertCertAuthority(t *testing.T) {
 
 	trust := local.NewCAService(p.mem)
 	cfg := &ServiceConfig{
-		Cache:      trust,
-		Backend:    trust,
-		Authorizer: authorizer,
+		Cache:          trust,
+		Backend:        trust,
+		Authorizer:     authorizer,
+		HostCertSigner: &fakeHostCertSigner{},
 	}
 
 	service, err := NewService(cfg)

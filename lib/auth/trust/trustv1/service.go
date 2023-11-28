@@ -16,10 +16,11 @@ package trustv1
 
 import (
 	"context"
+	"time"
+
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/types/known/emptypb"
-	"time"
 
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -34,10 +35,11 @@ type hostCertSigner interface {
 // ServiceConfig holds configuration options for
 // the trust gRPC service.
 type ServiceConfig struct {
-	Authorizer authz.Authorizer
-	Cache      services.AuthorityGetter
-	Backend    services.Trust
-	Logger     *logrus.Entry
+	Authorizer     authz.Authorizer
+	Cache          services.AuthorityGetter
+	Backend        services.Trust
+	Logger         *logrus.Entry
+	HostCertSigner hostCertSigner
 }
 
 // Service implements the teleport.trust.v1.TrustService RPC service.
@@ -59,6 +61,8 @@ func NewService(cfg *ServiceConfig) (*Service, error) {
 		return nil, trace.BadParameter("backend is required")
 	case cfg.Authorizer == nil:
 		return nil, trace.BadParameter("authorizer is required")
+	case cfg.HostCertSigner == nil:
+		return nil, trace.BadParameter("hostCertSigner is required")
 	case cfg.Logger == nil:
 		cfg.Logger = logrus.WithField(trace.Component, "trust.service")
 	}
@@ -218,7 +222,6 @@ func (s *Service) GenerateHostCert(
 		return nil, trace.Wrap(err)
 	}
 
-	// TODO: Can we remove another layer of indirection through auth here ??
 	cert, err := s.hostCertSigner.GenerateHostCert(
 		ctx,
 		req.Key,

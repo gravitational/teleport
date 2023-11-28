@@ -19,10 +19,13 @@ package auth
 import (
 	"context"
 	"encoding/json"
+	"google.golang.org/protobuf/types/known/durationpb"
+	"time"
+
+	"github.com/gravitational/trace"
+
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/trace"
-	"time"
 )
 
 // httpfallback.go holds endpoints that have been converted to gRPC
@@ -42,7 +45,13 @@ func (c *Client) GenerateHostCert(
 	ttl time.Duration,
 ) ([]byte, error) {
 	res, err := c.APIClient.TrustClient().GenerateHostCert(ctx, &trustpb.GenerateHostCertRequest{
-		// TODO(noah): fill
+		Key:         key,
+		HostId:      hostID,
+		NodeName:    nodeName,
+		Principals:  principals,
+		ClusterName: clusterName,
+		Role:        string(role),
+		Ttl:         durationpb.New(ttl),
 	})
 	if err == nil {
 		return res.SshCertificate, nil
@@ -50,6 +59,7 @@ func (c *Client) GenerateHostCert(
 		return nil, trace.Wrap(err)
 	}
 
+	// Fall back to HTTP implementation.
 	out, err := c.PostJSON(ctx, c.Endpoint("ca", "host", "certs"),
 		generateHostCertReq{
 			Key:         key,

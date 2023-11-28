@@ -19,6 +19,7 @@ package auth
 import (
 	"context"
 	"fmt"
+	"google.golang.org/protobuf/types/known/durationpb"
 	"net/url"
 	"strings"
 	"time"
@@ -847,8 +848,9 @@ func (a *ServerWithRoles) UpsertCertAuthority(ctx context.Context, ca types.Cert
 		Authorizer: authz.AuthorizerFunc(func(context.Context) (*authz.Context, error) {
 			return &a.context, nil
 		}),
-		Cache:   a.authServer.Cache,
-		Backend: a.authServer.Services,
+		Cache:          a.authServer.Cache,
+		Backend:        a.authServer.Services,
+		HostCertSigner: a.authServer,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -877,8 +879,9 @@ func (a *ServerWithRoles) GetCertAuthorities(ctx context.Context, caType types.C
 		Authorizer: authz.AuthorizerFunc(func(context.Context) (*authz.Context, error) {
 			return &a.context, nil
 		}),
-		Cache:   a.authServer.Cache,
-		Backend: a.authServer.Services,
+		Cache:          a.authServer.Cache,
+		Backend:        a.authServer.Services,
+		HostCertSigner: a.authServer,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -902,8 +905,9 @@ func (a *ServerWithRoles) GetCertAuthority(ctx context.Context, id types.CertAut
 		Authorizer: authz.AuthorizerFunc(func(context.Context) (*authz.Context, error) {
 			return &a.context, nil
 		}),
-		Cache:   a.authServer.Cache,
-		Backend: a.authServer.Services,
+		Cache:          a.authServer.Cache,
+		Backend:        a.authServer.Services,
+		HostCertSigner: a.authServer,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2872,32 +2876,42 @@ func (a *ServerWithRoles) DeleteUser(ctx context.Context, user string) error {
 	return a.authServer.DeleteUser(ctx, user)
 }
 
+// GenerateHostCert
+// TODO(noah): DELETE IN 16.0
+// Deprecated: use [trustv1.Service.GenerateHostCert] instead.
 func (a *ServerWithRoles) GenerateHostCert(
-	ctx context.Context, key []byte, hostID, nodeName string, principals []string, clusterName string, role types.SystemRole, ttl time.Duration,
+	ctx context.Context,
+	key []byte,
+	hostID, nodeName string,
+	principals []string,
+	clusterName string,
+	role types.SystemRole,
+	ttl time.Duration,
 ) ([]byte, error) {
-	serviceContext := services.Context{
-		User: a.context.User,
-		HostCert: &services.HostCertContext{
-			HostID:      hostID,
-			NodeName:    nodeName,
-			Principals:  principals,
-			ClusterName: clusterName,
-			Role:        role,
-			TTL:         ttl,
-		},
-	}
-
-	// Instead of the usual RBAC checks, we'll manually call CheckAccessToRule
-	// here as we'll be evaluating `where` predicates with a custom RuleContext
-	// to expose cert request fields.
-	// We've only got a single verb to check so luckily it's pretty concise.
-	if err := a.withOptions().context.Checker.CheckAccessToRule(
-		&serviceContext, apidefaults.Namespace, types.KindHostCert, types.VerbCreate, false,
-	); err != nil {
+	trust, err := trustv1.NewService(&trustv1.ServiceConfig{
+		Authorizer: authz.AuthorizerFunc(func(context.Context) (*authz.Context, error) {
+			return &a.context, nil
+		}),
+		Cache:          a.authServer.Cache,
+		Backend:        a.authServer.Services,
+		HostCertSigner: a.authServer,
+	})
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	return a.authServer.GenerateHostCert(ctx, key, hostID, nodeName, principals, clusterName, role, ttl)
+	resp, err := trust.GenerateHostCert(ctx, &trustpb.GenerateHostCertRequest{
+		Key:         key,
+		HostId:      hostID,
+		NodeName:    nodeName,
+		Principals:  principals,
+		ClusterName: clusterName,
+		Role:        string(role),
+		Ttl:         durationpb.New(ttl),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp.SshCertificate, nil
 }
 
 // NewKeepAliver not implemented: can only be called locally.
