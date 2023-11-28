@@ -105,7 +105,7 @@ function renderExternalAuditStorageBadge(
       <ToolTipNoPermBadge
         badgeTitle={BadgeTitle.LackingEnterpriseLicense}
         children={
-          <div>Unlock External Cloud Audit with Teleport Enterprise</div>
+          <div>Unlock External Audit Storage with Teleport Enterprise</div>
         }
       />
     );
@@ -114,8 +114,8 @@ function renderExternalAuditStorageBadge(
       <ToolTipNoPermBadge
         children={
           <div>
-            You don’t have sufficient permissions to create an External Cloud
-            Audit. Reach out to your Teleport administrator to request
+            You don’t have sufficient permissions to create an External Audit
+            Storage. Reach out to your Teleport administrator to request
             additional permissions.
           </div>
         }
