@@ -93,8 +93,8 @@ export const TestConnection = (props: AgentStepProps) => {
           {meta.resourceName}
           &rdquo; by starting a session.
         </Text>
-        {fetchLoginsAttempt.status === '' ||
-          (fetchLoginsAttempt.status === 'processing' && <Indicator />)}
+        {(fetchLoginsAttempt.status === '' ||
+          fetchLoginsAttempt.status === 'processing') && <Indicator />}
 
         {fetchLoginsAttempt.status === 'error' &&
           (fetchLoginsAttempt.error instanceof ApiError &&
