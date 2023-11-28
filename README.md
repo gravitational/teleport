@@ -213,6 +213,41 @@ sudo mkdir -p -m0700 /var/lib/teleport
 sudo chown $USER /var/lib/teleport
 ```
 
+#### Running Teleport in a hot reload mode
+
+To speed up your development process, you can run Teleport using
+[`CompileDaemon`](https://github.com/githubnemo/CompileDaemon). This will build
+and run the Teleport binary, and then rebuild and restart it whenever any Go
+source files change.
+
+1. Install CompileDaemon:
+
+    ```shell
+    go install github.com/githubnemo/CompileDaemon@latest
+    ```
+
+    Note that we use `go install` instead of the suggested `go get`, because we
+    don't want CompileDaemon to become a dependency of the project.
+
+1. Build and run the Teleport binary:
+
+    ```shell
+    make teleport-hot-reload
+    ```
+
+    By default, this runs a `teleport start` command. If you want to customize
+    the command, for example by providing a custom config file location, you can
+    use the `TELEPORT_ARGS` parameter:
+
+    ```shell
+    make teleport-hot-reload TELEPORT_ARGS='start --config=/path/to/config.yaml'
+    ```
+
+Note that you still need to run [`make grpc`](api/proto/README.md) if you modify
+any Protocol Buffers files to regenerate the generated Go sources; regenerating
+these sources should in turn cause the CompileDaemon to rebuild and restart
+Teleport.
+
 ### Web UI
 
 The Teleport Web UI resides in the [web](web) directory.
