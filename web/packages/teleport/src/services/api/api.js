@@ -19,13 +19,15 @@ import { storageService } from '../storageService';
 
 import parseError, { ApiError } from './parseError';
 
+const MFA_HEADER = 'Teleport-Mfa-Response';
+
 const api = {
   get(url, abortSignal) {
-    return api.fetchJsonWithMFARetry(url, { signal: abortSignal });
+    return api.fetchJson(url, { signal: abortSignal });
   },
 
   post(url, data, abortSignal) {
-    return api.fetchJsonWithMFARetry(url, {
+    return api.fetchJson(url, {
       body: JSON.stringify(data),
       method: 'POST',
       signal: abortSignal,
@@ -34,7 +36,7 @@ const api = {
 
   postFormData(url, formData) {
     if (formData instanceof FormData) {
-      return api.fetchJsonWithMFARetry(url, {
+      return api.fetchJson(url, {
         body: formData,
         method: 'POST',
         // Overrides the default header from `requestOptions`.
@@ -52,57 +54,58 @@ const api = {
   },
 
   delete(url, data) {
-    return api.fetchJsonWithMFARetry(url, {
+    return api.fetchJson(url, {
       body: JSON.stringify(data),
       method: 'DELETE',
     });
   },
 
   put(url, data) {
-    return api.fetchJsonWithMFARetry(url, {
+    return api.fetchJson(url, {
       body: JSON.stringify(data),
       method: 'PUT',
     });
   },
 
-  async fetchJsonWithMFARetry(url, params) {
-    try {
-      return await this.fetchJson(url, params);
-    } catch (err) {
-      // Retry with MFA if we get an admin action missing MFA error.
-      if (isAdminActionRequiresMfaError(err.message)) {
-        params.headers = {
-          ...params.headers,
-          'Teleport-MFA-Response': JSON.stringify({
-            webauthnAssertionResponse: await auth.getWebauthnResponse(),
-          }),
-        };
-        return await this.fetchJson(url, params);
-      }
-    }
-  },
-
   async fetchJson(url, params) {
-    let response = await this.fetch(url, params);
+    const response = await this.fetch(url, params);
 
-    if (!response.ok) {
-      // default err message
-      let errMessage = `${response.status} - ${response.url}`;
-      try {
-        errMessage = parseError(await response.json())
-      } finally {
-        throw new ApiError(errMessage, response);
-      }
-    }
-
+    let json;
     try {
-      return await response.json();
+      json = await response.json();
     } catch (err) {
-      throw new ApiError(err.message, response, { cause: err });
+      const message = response.ok
+        ? err.message
+        : `${response.status} - ${response.url}`;
+      throw new ApiError(message, response, { cause: err });
     }
+
+    if (response.ok) {
+      return json;
+    }
+
+    // Retry with MFA if we get an admin action missing MFA error.
+    const isAdminActionMfaError = isAdminActionRequiresMfaError(
+      parseError(json)
+    );
+    const isMfaHeaderPresent = params.headers?.[MFA_HEADER];
+    const shouldRetry = isAdminActionMfaError && !isMfaHeaderPresent;
+    if (!shouldRetry) {
+      throw new ApiError(parseError(json), response);
+    }
+    const paramsWithMfaHeader = {
+      ...params,
+      headers: {
+        ...params.headers,
+        [MFA_HEADER]: JSON.stringify({
+          webauthnAssertionResponse: await auth.getWebauthnResponse(),
+        }),
+      },
+    };
+    return this.fetchJson(url, paramsWithMfaHeader);
   },
 
-  async fetch(url, params = {}) {
+  fetch(url, params = {}) {
     url = window.location.origin + url;
     const options = {
       ...requestOptions,
@@ -116,7 +119,7 @@ const api = {
     };
 
     // native call
-    return await fetch(url, options);
+    return fetch(url, options);
   },
 };
 
