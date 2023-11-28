@@ -2524,67 +2524,6 @@ func (a *ServerWithRoles) GetUsers(ctx context.Context, withSecrets bool) ([]typ
 	return users, trace.Wrap(err)
 }
 
-// GetUser returns a single user matching the request.
-// TODO(tross): DELETE IN 16.0.0
-// Deprecated: use [usersv1.Service.GetUser] instead.
-func (a *ServerWithRoles) GetUser(ctx context.Context, name string, withSecrets bool) (types.User, error) {
-	if withSecrets {
-		// TODO(fspmarshall): replace admin requirement with VerbReadWithSecrets once we've
-		// migrated to that model.
-		if !a.hasBuiltinRole(types.RoleAdmin) {
-			err := trace.AccessDenied("user %q requested access to user %q with secrets", a.context.User.GetName(), name)
-			log.Warning(err)
-			if err := a.authServer.emitter.EmitAuditEvent(ctx, &apievents.UserLogin{
-				Metadata: apievents.Metadata{
-					Type: events.UserLoginEvent,
-					Code: events.UserLocalLoginFailureCode,
-				},
-				Method: events.LoginMethodClientCert,
-				Status: apievents.Status{
-					Success:     false,
-					Error:       trace.Unwrap(err).Error(),
-					UserMessage: err.Error(),
-				},
-			}); err != nil {
-				log.WithError(err).Warn("Failed to emit local login failure event.")
-			}
-			return nil, trace.AccessDenied("this request can be only executed by an admin")
-		}
-	} else {
-		// if secrets are not being accessed, let users always read
-		// their own info.
-		if err := a.currentUserAction(name); err != nil {
-			// not current user, perform normal permission check.
-			if err := a.action(apidefaults.Namespace, types.KindUser, types.VerbRead); err != nil {
-				return nil, trace.Wrap(err)
-			}
-		}
-	}
-
-	user, err := a.authServer.GetUser(ctx, name, withSecrets)
-	return user, trace.Wrap(err)
-}
-
-// GetCurrentUser returns current user as seen by the server.
-// Useful especially in the context of remote clusters which perform role and trait mapping.
-// TODO(tross): DELETE IN 16.0.0
-// Deprecated: use [usersv1.Service.GetUser] instead.
-func (a *ServerWithRoles) GetCurrentUser(ctx context.Context) (types.User, error) {
-	// check access to roles
-	for _, role := range a.context.User.GetRoles() {
-		_, err := a.GetRole(ctx, role)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-
-	usrRes := a.context.User.WithoutSecrets()
-	if usr, ok := usrRes.(types.User); ok {
-		return usr, nil
-	}
-	return nil, trace.BadParameter("expected types.User when fetching current user information, got %T", usrRes)
-}
-
 // GetCurrentUserRoles returns current user's roles.
 func (a *ServerWithRoles) GetCurrentUserRoles(ctx context.Context) ([]types.Role, error) {
 	roleNames := a.context.User.GetRoles()
@@ -2597,19 +2536,6 @@ func (a *ServerWithRoles) GetCurrentUserRoles(ctx context.Context) ([]types.Role
 		roles = append(roles, role)
 	}
 	return roles, nil
-}
-
-// DeleteUser deletes an existng user in a backend by username.
-func (a *ServerWithRoles) DeleteUser(ctx context.Context, user string) error {
-	if err := a.action(apidefaults.Namespace, types.KindUser, types.VerbDelete); err != nil {
-		return trace.Wrap(err)
-	}
-
-	if err := checkOktaAccess(ctx, &a.context, a.authServer, user, types.VerbDelete); err != nil {
-		return trace.Wrap(err)
-	}
-
-	return a.authServer.DeleteUser(ctx, user)
 }
 
 func (a *ServerWithRoles) GenerateHostCert(
@@ -2711,7 +2637,7 @@ func (a *ServerWithRoles) desiredAccessInfoForUser(ctx context.Context, req *pro
 	// considering new or dropped access requests. This will include roles from
 	// currently assumed role access requests, and allowed resources from
 	// currently assumed resource access requests.
-	accessInfo, err := services.AccessInfoFromLocalIdentity(currentIdentity, a)
+	accessInfo, err := services.AccessInfoFromLocalIdentity(currentIdentity, a.authServer)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3184,22 +3110,6 @@ func (a *ServerWithRoles) GetResetPasswordToken(ctx context.Context, tokenID str
 func (a *ServerWithRoles) ChangeUserAuthentication(ctx context.Context, req *proto.ChangeUserAuthenticationRequest) (*proto.ChangeUserAuthenticationResponse, error) {
 	// Token is it's own authentication, no need to double check.
 	return a.authServer.ChangeUserAuthentication(ctx, req)
-}
-
-// CreateUser inserts a new user entry in a backend.
-// TODO(tross): DELETE IN 16.0.0
-// Deprecated: use [usersv1.Service.CreateUser] instead.
-func (a *ServerWithRoles) CreateUser(ctx context.Context, user types.User) (types.User, error) {
-	if err := a.action(apidefaults.Namespace, types.KindUser, types.VerbCreate); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if err := usersv1.CheckOktaOrigin(&a.context, user); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	created, err := a.authServer.CreateUser(ctx, user)
-	return created, trace.Wrap(err)
 }
 
 // UpdateUser updates an existing user in a backend.
