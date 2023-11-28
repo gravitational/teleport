@@ -24,7 +24,7 @@ import { TestConnectionView } from './TestConnection';
 import type { State } from './useTestConnection';
 
 export default {
-  title: 'Teleport/Discover/Shared/ConnectionDiagnostic/Database',
+  title: 'Teleport/Discover/Database/TestConnection',
 };
 
 export const InitMySql = () => (
