@@ -130,7 +130,7 @@ buildbox:
 			--build-arg NODE_PROTOC_TS_VERSION=$(NODE_PROTOC_TS_VERSION) \
 			--build-arg PROTOC_VERSION=$(PROTOC_VERSION) \
 			--cache-from $(BUILDBOX) \
-			--tag $(BUILDBOX) . ; \
+			--tag $(BUILDBOX) . \
 	fi
 
 # Builds a Docker buildbox for FIPS
@@ -210,7 +210,7 @@ buildbox-connect:
 	DOCKER_BUILDKIT=1 docker build \
 		--build-arg NODE_VERSION=$(NODE_VERSION) \
 		--cache-from $(BUILDBOX_CONNECT) \
-		--tag $(BUILDBOX_CONNECT) -f Dockerfile-connect . ;
+		--tag $(BUILDBOX_CONNECT) -f Dockerfile-connect .
 
 #
 # Builds Teleport Connect inside the buildbox container.
@@ -273,7 +273,7 @@ test: buildbox
 		--env TELEPORT_XAUTH_TEST="yes" \
 		$(DOCKERFLAGS) $(NOROOT) -t $(BUILDBOX) \
 		/bin/bash -c \
-		ssh-agent > external.agent.tmp && source external.agent.tmp; \
+		"ssh-agent > external.agent.tmp && source external.agent.tmp; \
 		cd $(SRCDIR) && make TELEPORT_DEBUG=0 FLAGS='-cover -race' clean test"
 
 .PHONY:test-root
@@ -282,7 +282,7 @@ test-root: buildbox
 		--env TELEPORT_XAUTH_TEST="yes" \
 		$(DOCKERFLAGS) -t $(BUILDBOX) \
 		/bin/bash -c \
-		ssh-agent > external.agent.tmp && source external.agent.tmp; \
+		"ssh-agent > external.agent.tmp && source external.agent.tmp; \
 		cd $(SRCDIR) && make TELEPORT_DEBUG=0 FLAGS='-cover -race' clean test-go-root"
 
 .PHONY:test-sh
@@ -304,7 +304,7 @@ test-helm-update-snapshots:
 integration: buildbox
 	docker run \
 		$(DOCKERFLAGS) $(NOROOT) -t $(BUILDBOX) \
-		make -C $(SRCDIR) FLAGS='-cover' integration"
+		make -C $(SRCDIR) FLAGS='-cover' integration
 
 .PHONY:integration-root
 integration-root: buildbox
@@ -373,17 +373,11 @@ enter-root/centos7: buildbox-centos7
 enter/grpcbox: grpcbox
 	$(GRPCBOX_RUN)
 
-#
-# Create a Teleport package using the build container.
-# Don't use this target directly; call named Makefile targets like release-amd64.
-#
-.PHONY:release
-release: buildbox
-	@echo "Build Assets Release"
-	docker run $(DOCKERFLAGS) $(NOROOT) $(BUILDBOX_NAME) \
-		/usr/bin/make release -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(GOLANG_VERSION) FIDO2=$(FIDO2) PIV=$(PIV) REPRODUCIBLE=yes
-
+# #############################################################################
+# Architecture and variant (fips) specific release targets
 # These are aliases used to make build commands uniform.
+# #############################################################################
+
 .PHONY: release-amd64
 release-amd64:
 	$(MAKE) release ARCH=amd64 FIDO2=yes
@@ -416,6 +410,18 @@ release-arm64: buildbox-arm
 	$(MAKE) release ARCH=arm64 BUILDBOX_NAME=$(BUILDBOX_ARM)
 
 # #############################################################################
+# Generic release targets
+# Don't use these targets directly; call named Makefile targets like release-amd64.
+# #############################################################################
+
+#
+# Create a Teleport package using the build container.
+#
+.PHONY:release
+release: buildbox
+	@echo "Build Assets Release"
+	docker run $(DOCKERFLAGS) $(NOROOT) $(BUILDBOX_NAME) \
+		/usr/bin/make release -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(GOLANG_VERSION) FIDO2=$(FIDO2) PIV=$(PIV) REPRODUCIBLE=yes
 
 #
 # Create a Teleport FIPS package using the build container.
