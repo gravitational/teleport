@@ -144,8 +144,17 @@ export class WindowsManager {
     });
 
     window.webContents.session.setPermissionRequestHandler(
-      (webContents, permission, callback) => {
-        // deny all permissions requests, we currently do not require any
+      (webContents, permission, callback, details) => {
+        if (details.requestingUrl !== this.windowUrl) {
+          this.logger.error(
+            `requestingUrl ${details.requestingUrl} does not match the window URL ${this.windowUrl}`
+          );
+          return callback(false);
+        }
+
+        if (permission === 'clipboard-sanitized-write') {
+          return callback(true);
+        }
         return callback(false);
       }
     );
@@ -351,6 +360,9 @@ function getWindowUrl(isDev: boolean): string {
     return 'https://localhost:8080/';
   }
 
+  // The returned URL is percent-encoded.
+  // It is important because `details.requestingUrl` (in `setPermissionRequestHandler`)
+  // to which we match the URL is also percent-encoded.
   return url
     .pathToFileURL(
       path.resolve(app.getAppPath(), __dirname, '../renderer/index.html')
