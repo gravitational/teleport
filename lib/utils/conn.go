@@ -198,29 +198,53 @@ func (w *TrackingWriter) Write(b []byte) (int, error) {
 	return n, trace.Wrap(err)
 }
 
-// ConnWithSrcAddr is a net.Conn wrapper that allows us to specify remote client address
-type ConnWithSrcAddr struct {
+// ConnWithAddr is a [net.Conn] wrapper that allows the local and remote address
+// to be overridden.
+type ConnWithAddr struct {
 	net.Conn
-	clientSrcAddr net.Addr
+	localAddrOverride  net.Addr
+	remoteAddrOverride net.Addr
 }
 
-// RemoteAddr returns specified client source address
-func (c *ConnWithSrcAddr) RemoteAddr() net.Addr {
-	if c.clientSrcAddr == nil {
-		return c.Conn.RemoteAddr()
+// LocalAddr implements [net.Conn].
+func (c *ConnWithAddr) LocalAddr() net.Addr {
+	if c.localAddrOverride != nil {
+		return c.localAddrOverride
 	}
-	return c.clientSrcAddr
+
+	return c.Conn.LocalAddr()
 }
 
-// NetConn returns the underlying net.Conn.
-func (c *ConnWithSrcAddr) NetConn() net.Conn {
+// RemoteAddr implements [net.Conn].
+func (c *ConnWithAddr) RemoteAddr() net.Addr {
+	if c.remoteAddrOverride != nil {
+		return c.remoteAddrOverride
+	}
+
+	return c.Conn.RemoteAddr()
+}
+
+// NetConn returns the underlying [net.Conn].
+func (c *ConnWithAddr) NetConn() net.Conn {
 	return c.Conn
 }
 
-// NewConnWithSrcAddr wraps provided connection and overrides client remote address
-func NewConnWithSrcAddr(conn net.Conn, clientSrcAddr net.Addr) *ConnWithSrcAddr {
-	return &ConnWithSrcAddr{
-		Conn:          conn,
-		clientSrcAddr: clientSrcAddr,
+// NewConnWithSrcAddr wraps provided connection and overrides client remote address.
+func NewConnWithSrcAddr(conn net.Conn, clientSrcAddr net.Addr) *ConnWithAddr {
+	return &ConnWithAddr{
+		Conn: conn,
+
+		remoteAddrOverride: clientSrcAddr,
+	}
+}
+
+// NewConnWithAddr wraps a [net.Conn] optionally overriding the local and remote
+// addresses with the provided ones, if non-nil.
+func NewConnWithAddr(conn net.Conn, localAddr, remoteAddr net.Addr) *ConnWithAddr {
+	return &ConnWithAddr{
+		Conn: conn,
+
+		localAddrOverride:  localAddr,
+		remoteAddrOverride: remoteAddr,
 	}
 }
