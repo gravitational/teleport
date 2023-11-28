@@ -123,6 +123,12 @@ export function useConnectionDiagnostic() {
     canTestConnection,
     username,
     authType,
+    /**
+     * @deprecated Get clusterId from resource, for example (agentMeta as NodeMeta).node.clusterId
+     * Alternatively, call useTeleport and then ctx.storeUser.getClusterId.
+     *
+     * Hooks should not reexport values that are already made available by other hooks.
+     */
     clusterId: ctx.storeUser.getClusterId(),
     showMfaDialog,
     cancelMfaDialog,

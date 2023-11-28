@@ -21,6 +21,10 @@ import { DbMeta } from '../../useDiscover';
 import type { AgentStepProps } from '../../types';
 import type { MfaAuthnResponse } from 'teleport/services/mfa';
 
+/**
+ * @deprecated Refactor Discover/Database/TestConnection away from the container component
+ * pattern. See https://github.com/gravitational/teleport/pull/34952.
+ */
 export function useTestConnection(props: AgentStepProps) {
   const { runConnectionDiagnostic, ...connectionDiagnostic } =
     useConnectionDiagnostic();
