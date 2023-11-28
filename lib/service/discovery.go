@@ -21,6 +21,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/srv/discovery"
 )
 
@@ -56,6 +57,7 @@ func (process *TeleportProcess) initDiscoveryService() error {
 	}
 
 	discoveryService, err := discovery.New(process.ExitContext(), &discovery.Config{
+		IntegrationOnlyCredentials: process.integrationOnlyCredentials(),
 		Matchers: discovery.Matchers{
 			AWS:        process.Config.Discovery.AWSMatchers,
 			Azure:      process.Config.Discovery.AzureMatchers,
@@ -97,4 +99,13 @@ func (process *TeleportProcess) initDiscoveryService() error {
 	}
 
 	return nil
+}
+
+// integrationOnlyCredentials indicates whether the DiscoveryService must only use Cloud APIs credentials using an integration.
+//
+// If Auth is running alongside this DiscoveryService and License is Cloud, then this process is running in Teleport's Cloud Infra.
+// In those situations, ambient credentials (used by the AWS SDK) will provide access to the tenant's infra, which is not desired.
+// Setting IntegrationOnlyCredentials to true, will prevent usage of the ambient credentials.
+func (process *TeleportProcess) integrationOnlyCredentials() bool {
+	return process.Config.Auth.Enabled && modules.GetModules().Features().Cloud
 }

@@ -1755,6 +1755,7 @@ export const events = [
     cluster_name: 'im-a-cluster-name',
     code: 'TDP00I',
     desktop_addr: '100.104.52.89:3389',
+    desktop_name: 'desktop-name',
     desktop_labels: {
       env: 'prod',
       foo: 'bar',
@@ -1775,6 +1776,7 @@ export const events = [
     cluster_name: 'im-a-cluster-name',
     code: 'TDP01I',
     desktop_addr: '100.104.52.89:3389',
+    desktop_name: 'desktop-name',
     desktop_labels: {
       env: 'prod',
       foo: 'bar',
@@ -1793,6 +1795,7 @@ export const events = [
     cluster_name: 'im-a-cluster-name',
     code: 'TDP00W',
     desktop_addr: '100.104.52.89:3389',
+    desktop_name: 'desktop-name',
     desktop_labels: {
       env: 'prod',
       foo: 'bar',

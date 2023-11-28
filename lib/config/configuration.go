@@ -215,9 +215,9 @@ type CommandLineFlags struct {
 	// `teleport integration configure listdatabases-iam` command
 	IntegrationConfListDatabasesIAMArguments IntegrationConfListDatabasesIAM
 
-	// IntegrationConfExternalCloudAuditArguments contains the arguments of the
-	// `teleport integration configure externalcloudaudit` command
-	IntegrationConfExternalCloudAuditArguments IntegrationConfExternalCloudAudit
+	// IntegrationConfExternalAuditStorageArguments contains the arguments of the
+	// `teleport integration configure externalauditstorage` command
+	IntegrationConfExternalAuditStorageArguments IntegrationConfExternalAuditStorage
 }
 
 // IntegrationConfDeployServiceIAM contains the arguments of
@@ -267,9 +267,9 @@ type IntegrationConfListDatabasesIAM struct {
 	Role string
 }
 
-// IntegrationConfExternalCloudAudit contains the arguments of the
-// `teleport integration configure externalcloudaudit-iam` command
-type IntegrationConfExternalCloudAudit struct {
+// IntegrationConfExternalAuditStorage contains the arguments of the
+// `teleport integration configure externalauditstorage` command
+type IntegrationConfExternalAuditStorage struct {
 	// Bootstrap is whether to bootstrap infrastructure (default: false).
 	Bootstrap bool
 	// Region is the AWS Region used.

@@ -18,42 +18,61 @@ import React, { useState } from 'react';
 import { ButtonSecondary, Text, Box, LabelInput } from 'design';
 import Select from 'shared/components/Select';
 
+import cfg from 'teleport/config';
 import ReAuthenticate from 'teleport/components/ReAuthenticate';
-
+import { openNewTab } from 'teleport/lib/util';
 import {
+  useConnectionDiagnostic,
   Header,
   ActionButtons,
   HeaderSubtitle,
   ConnectionDiagnosticResult,
   StyledBox,
-} from '../../Shared';
+} from 'teleport/Discover/Shared';
+import { sortNodeLogins } from 'teleport/services/nodes';
 
-import { useTestConnection, State } from './useTestConnection';
+import { NodeMeta } from '../../useDiscover';
 
 import type { Option } from 'shared/components/Select';
 import type { AgentStepProps } from '../../types';
+import type { MfaAuthnResponse } from 'teleport/services/mfa';
 
-export default function Container(props: AgentStepProps) {
-  const state = useTestConnection(props);
+export function TestConnection(props: AgentStepProps) {
+  const {
+    runConnectionDiagnostic,
+    attempt,
+    diagnosis,
+    nextStep,
+    prevStep,
+    canTestConnection,
+    showMfaDialog,
+    cancelMfaDialog,
+  } = useConnectionDiagnostic();
+  const node = (props.agentMeta as NodeMeta).node;
+  const logins = sortNodeLogins(node.sshLogins);
 
-  return <TestConnection {...state} />;
-}
+  function startSshSession(login: string) {
+    const url = cfg.getSshConnectRoute({
+      clusterId: node.clusterId,
+      serverId: node.id,
+      login,
+    });
 
-export function TestConnection({
-  attempt,
-  startSshSession,
-  logins,
-  testConnection,
-  diagnosis,
-  nextStep,
-  prevStep,
-  canTestConnection,
-  showMfaDialog,
-  cancelMfaDialog,
-}: State) {
-  const [usernameOpts] = useState(() =>
-    logins.map(l => ({ value: l, label: l }))
-  );
+    openNewTab(url);
+  }
+
+  function testConnection(login: string, mfaResponse?: MfaAuthnResponse) {
+    runConnectionDiagnostic(
+      {
+        resourceKind: 'node',
+        resourceName: props.agentMeta.resourceName,
+        sshPrincipal: login,
+      },
+      mfaResponse
+    );
+  }
+
+  const usernameOpts = logins.map(l => ({ value: l, label: l }));
   // There will always be one login, as the user cannot proceed
   // the step that requires users to have at least one login.
   const [selectedOpt, setSelectedOpt] = useState(usernameOpts[0]);

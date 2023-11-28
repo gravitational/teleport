@@ -233,6 +233,8 @@ func (p *cliModules) SetFeatures(f modules.Features) {
 
 func (p *cliModules) EnableAccessGraph() {}
 
+func (p *cliModules) EnableAccessMonitoring() {}
+
 func TestAlias(t *testing.T) {
 	testExecutable, err := os.Executable()
 	require.NoError(t, err)

@@ -124,9 +124,9 @@ export class MockMainProcessClient implements MainProcessClient {
     return '';
   }
 
-  removeAgentDirectory() {
-    return Promise.resolve();
-  }
+  async removeAgentDirectory() {}
+
+  async tryRemoveConnectMyComputerAgentBinary() {}
 
   signalUserInterfaceReadiness() {}
 }

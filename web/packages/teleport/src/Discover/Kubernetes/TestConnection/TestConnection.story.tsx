@@ -22,7 +22,7 @@ import { TestConnection } from './TestConnection';
 import type { State } from './useTestConnection';
 
 export default {
-  title: 'Teleport/Discover/Shared/ConnectionDiagnostic/Kube',
+  title: 'Teleport/Discover/Kube/TestConnection',
 };
 
 export const InitWithLocal = () => (

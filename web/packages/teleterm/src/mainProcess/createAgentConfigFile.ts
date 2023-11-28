@@ -16,10 +16,10 @@
 
 import { promisify } from 'node:util';
 import { execFile } from 'node:child_process';
-import { access, rm } from 'node:fs/promises';
+import fs from 'node:fs/promises';
 import path from 'node:path';
 
-import * as constants from 'shared/constants';
+import * as connectMyComputer from 'shared/connectMyComputer';
 
 import { RootClusterUri, routing } from 'teleterm/ui/uri';
 import { RuntimeSettings } from 'teleterm/mainProcess/types';
@@ -42,16 +42,10 @@ export async function createAgentConfigFile(
   );
 
   // remove the config file if exists
-  try {
-    await rm(configFile);
-  } catch (e) {
-    if (e.code !== 'ENOENT') {
-      throw e;
-    }
-  }
+  await fs.rm(configFile, { force: true });
 
   const labels = Object.entries({
-    [constants.ConnectMyComputerNodeOwnerLabel]: args.username,
+    [connectMyComputer.NodeOwnerLabel]: args.username,
   })
     .map(keyAndValue => keyAndValue.join('='))
     .join(',');
@@ -82,7 +76,7 @@ export async function removeAgentDirectory(
     rootClusterUri
   );
   // `force` ignores exceptions if path does not exist
-  await rm(agentDirectory, { recursive: true, force: true });
+  await fs.rm(agentDirectory, { recursive: true, force: true });
 }
 
 export async function isAgentConfigFileCreated(
@@ -94,7 +88,7 @@ export async function isAgentConfigFileCreated(
     rootClusterUri
   );
   try {
-    await access(configFile);
+    await fs.access(configFile);
     return true;
   } catch (e) {
     if (e.code === 'ENOENT') {
