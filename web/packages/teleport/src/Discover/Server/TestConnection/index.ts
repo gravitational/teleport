@@ -14,5 +14,4 @@
  * limitations under the License.
  */
 
-import TestConnection from './TestConnection';
-export { TestConnection };
+export { TestConnection } from './TestConnection';

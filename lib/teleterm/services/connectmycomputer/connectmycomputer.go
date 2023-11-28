@@ -29,11 +29,11 @@ import (
 	"github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
 
-	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/connectmycomputer"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 	"github.com/gravitational/teleport/lib/utils"
@@ -81,7 +81,7 @@ func (s *RoleSetup) Run(ctx context.Context, accessAndIdentity AccessAndIdentity
 				clusterUser.GetName(), clusterUser.GetCreatedBy().Connector.Type)
 	}
 
-	roleName := fmt.Sprintf("%v%v", teleport.ConnectMyComputerRoleNamePrefix, clusterUser.GetName())
+	roleName := connectmycomputer.GetRoleNameForUser(clusterUser.GetName())
 
 	doesRoleExist := true
 	existingRole, err := accessAndIdentity.GetRole(ctx, roleName)

@@ -107,8 +107,8 @@ func (s *DiscordSuite) SetupSuite() {
 	// Set up user who can request the access to role "editor".
 
 	conditions := types.RoleConditions{Request: &types.AccessRequestConditions{Roles: []string{"editor"}}}
-	if teleportFeatures.AccessRequests.Enabled {
-		conditions.Request.Thresholds = []types.AccessReviewThreshold{{Approve: 2, Deny: 2}}
+	if teleportFeatures.AdvancedAccessWorkflows {
+		conditions.Request.Thresholds = []types.AccessReviewThreshold{types.AccessReviewThreshold{Approve: 2, Deny: 2}}
 	}
 	role, err := bootstrap.AddRole("foo", types.RoleSpecV6{Allow: conditions})
 	require.NoError(t, err)
@@ -120,7 +120,7 @@ func (s *DiscordSuite) SetupSuite() {
 	// Set up TWO users who can review access requests to role "editor".
 
 	conditions = types.RoleConditions{}
-	if teleportFeatures.AccessRequests.Enabled {
+	if teleportFeatures.AdvancedAccessWorkflows {
 		conditions.ReviewRequests = &types.AccessReviewConditions{Roles: []string{"editor"}}
 	}
 	role, err = bootstrap.AddRole("foo-reviewer", types.RoleSpecV6{Allow: conditions})
@@ -160,7 +160,7 @@ func (s *DiscordSuite) SetupSuite() {
 	require.NoError(t, err)
 	s.clients[s.userNames.requestor] = client
 
-	if teleportFeatures.AccessRequests.Enabled {
+	if teleportFeatures.AdvancedAccessWorkflows {
 		client, err = teleport.NewClient(ctx, auth, s.userNames.reviewer1)
 		require.NoError(t, err)
 		s.clients[s.userNames.reviewer1] = client
@@ -373,7 +373,7 @@ func (s *DiscordSuite) TestDenial() {
 func (s *DiscordSuite) TestReviewUpdates() {
 	t := s.T()
 
-	if !s.teleportFeatures.AccessRequests.Enabled {
+	if !s.teleportFeatures.AdvancedAccessWorkflows {
 		t.Skip("Doesn't work in OSS version")
 	}
 
@@ -432,7 +432,7 @@ func (s *DiscordSuite) TestReviewUpdates() {
 func (s *DiscordSuite) TestApprovalByReview() {
 	t := s.T()
 
-	if !s.teleportFeatures.AccessRequests.Enabled {
+	if !s.teleportFeatures.AdvancedAccessWorkflows {
 		t.Skip("Doesn't work in OSS version")
 	}
 
@@ -490,7 +490,7 @@ func (s *DiscordSuite) TestApprovalByReview() {
 func (s *DiscordSuite) TestDenialByReview() {
 	t := s.T()
 
-	if !s.teleportFeatures.AccessRequests.Enabled {
+	if !s.teleportFeatures.AdvancedAccessWorkflows {
 		t.Skip("Doesn't work in OSS version")
 	}
 
@@ -587,7 +587,7 @@ func (s *DiscordSuite) TestExpiration() {
 func (s *DiscordSuite) TestRace() {
 	t := s.T()
 
-	if !s.teleportFeatures.AccessRequests.Enabled {
+	if !s.teleportFeatures.AdvancedAccessWorkflows {
 		t.Skip("Doesn't work in OSS version")
 	}
 

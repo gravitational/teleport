@@ -31,12 +31,12 @@ import { Danger } from 'design/Alert';
 import './unifiedStyles.css';
 
 import { ResourcesResponse, ResourceLabel } from 'teleport/services/agents';
-import {
-  UnifiedTabPreference,
-  UnifiedViewModePreference,
-  UnifiedResourcePreferences,
-} from 'teleport/services/userPreferences/types';
 
+import {
+  DefaultTab,
+  ViewMode,
+  UnifiedResourcePreferences,
+} from 'shared/services/unifiedResourcePreferences';
 import { HoverTooltip } from 'shared/components/ToolTip';
 import {
   makeEmptyAttempt,
@@ -44,7 +44,6 @@ import {
   useAsync,
   Attempt as AsyncAttempt,
 } from 'shared/hooks/useAsync';
-
 import {
   useKeyBasedPagination,
   useInfiniteScroll,
@@ -72,14 +71,14 @@ export const FETCH_MORE_SIZE = 24;
 export const PINNING_NOT_SUPPORTED_MESSAGE =
   'This cluster does not support pinning resources. To enable, upgrade to 14.1 or newer.';
 
-const tabs: { label: string; value: UnifiedTabPreference }[] = [
+const tabs: { label: string; value: DefaultTab }[] = [
   {
     label: 'All Resources',
-    value: UnifiedTabPreference.All,
+    value: DefaultTab.DEFAULT_TAB_ALL,
   },
   {
     label: 'Pinned Resources',
-    value: UnifiedTabPreference.Pinned,
+    value: DefaultTab.DEFAULT_TAB_PINNED,
   },
 ];
 
@@ -273,8 +272,8 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
     );
   };
 
-  const selectTab = (value: UnifiedTabPreference) => {
-    const pinnedOnly = value === UnifiedTabPreference.Pinned;
+  const selectTab = (value: DefaultTab) => {
+    const pinnedOnly = value === DefaultTab.DEFAULT_TAB_PINNED;
     setParams({
       ...params,
       pinnedOnly,
@@ -287,7 +286,7 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
     });
   };
 
-  const selectViewMode = (viewMode: UnifiedViewModePreference) => {
+  const selectViewMode = (viewMode: ViewMode) => {
     updateUnifiedResourcesPreferences({
       ...unifiedResourcePreferences,
       viewMode,
@@ -317,7 +316,7 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
         text: shouldUnpin ? 'Unpin Selected' : 'Pin Selected',
         Icon: PushPin,
         tooltip:
-          pinning.kind !== 'not-supported'
+          pinning.kind === 'not-supported'
             ? PINNING_NOT_SUPPORTED_MESSAGE
             : null,
         disabled:
@@ -329,7 +328,7 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
   };
 
   const ViewComponent =
-    unifiedResourcePreferences.viewMode === UnifiedViewModePreference.List
+    unifiedResourcePreferences.viewMode === ViewMode.VIEW_MODE_LIST
       ? ListView
       : CardsView;
 
@@ -424,14 +423,14 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
               key={tab.value}
               onClick={() => selectTab(tab.value)}
               disabled={
-                tab.value === UnifiedTabPreference.Pinned &&
+                tab.value === DefaultTab.DEFAULT_TAB_PINNED &&
                 pinning.kind === 'not-supported'
               }
               title={tab.label}
               isSelected={
                 params.pinnedOnly
-                  ? tab.value === UnifiedTabPreference.Pinned
-                  : tab.value === UnifiedTabPreference.All
+                  ? tab.value === DefaultTab.DEFAULT_TAB_PINNED
+                  : tab.value === DefaultTab.DEFAULT_TAB_ALL
               }
             />
           ))}
