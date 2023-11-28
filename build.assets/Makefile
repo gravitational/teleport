@@ -75,6 +75,11 @@ endif
 # $(ARCH) is the target architecture we want to build for.
 REQUIRE_HOST_ARCH = $(if $(filter-out $(ARCH),$(RUNTIME_ARCH)),$(error Cannot cross-build $@ $(ARCH) on $(RUNTIME_ARCH)))
 
+# PULL_ON_CI is used by the buildbox targets to pull the latest buildbox before building
+# a new one so that less work is done if the buildbox is up-to-date already. This is only
+# needed on CI as they start with a fresh state each time.
+PULL_ON_CI = $(if $(filter $(CI),true),docker inspect --type=image $(1) >/dev/null 2>&1 || docker pull $(1) || true)
+
 #
 # Build 'teleport' release inside a docker container
 #
@@ -117,7 +122,7 @@ build-binaries-fips: buildbox-centos7-fips webassets
 #
 .PHONY:buildbox
 buildbox:
-	if [[ $${DRONE} == "true" ]] && ! docker inspect --type=image $(BUILDBOX) 2>&1 >/dev/null; then docker pull $(BUILDBOX) || true; fi; \
+	$(call PULL_ON_CI,$(BUILDBOX))
 	DOCKER_BUILDKIT=1 docker build --platform=linux/$(RUNTIME_ARCH) \
 		--build-arg UID=$(UID) \
 		--build-arg GID=$(GID) \
@@ -147,7 +152,7 @@ buildbox-fips: buildbox-centos7-fips
 .PHONY:buildbox-centos7
 buildbox-centos7:
 	$(REQUIRE_HOST_ARCH)
-	@if [[ $${DRONE} == "true" ]] && ! docker inspect --type=image $(BUILDBOX_CENTOS7) 2>&1 >/dev/null; then docker pull $(BUILDBOX_CENTOS7) || true; fi;
+	$(call PULL_ON_CI,$(BUILDBOX_CENTOS7))
 	DOCKER_BUILDKIT=1 docker build \
 		--build-arg UID=$(UID) \
 		--build-arg GID=$(GID) \
@@ -166,7 +171,7 @@ buildbox-centos7:
 #
 .PHONY:buildbox-centos7-fips
 buildbox-centos7-fips:
-	@if [[ $${DRONE} == "true" ]] && ! docker inspect --type=image $(BUILDBOX_CENTOS7_FIPS) 2>&1 >/dev/null; then docker pull $(BUILDBOX_CENTOS7_FIPS) || true; fi;
+	$(call PULL_ON_CI,$(BUILDBOX_CENTOS7_FIPS))
 	docker build \
 		--build-arg UID=$(UID) \
 		--build-arg GID=$(GID) \
@@ -186,7 +191,7 @@ buildbox-centos7-fips:
 #
 .PHONY:buildbox-arm
 buildbox-arm: buildbox
-	@if [[ $${DRONE} == "true" ]] && ! docker inspect --type=image $(BUILDBOX_ARM) 2>&1 >/dev/null; then docker pull $(BUILDBOX_ARM) || true; fi;
+	$(call PULL_ON_CI,$(BUILDBOX_ARM))
 	docker build \
 		--build-arg BUILDBOX_VERSION=$(BUILDBOX_VERSION) \
 		--cache-from $(BUILDBOX) \
