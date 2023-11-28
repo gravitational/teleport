@@ -337,7 +337,7 @@ jobs:
           echo build_image=${build_image} >> $GITHUB_OUTPUT
 
       - name: Build Docker image
-        uses: docker/build-push-action@0565240e2d4ab88bba5387d719585280857ece09 # v5.0.0
+        uses: docker/build-push-action@4a13e500e55cf31b7a5d59a38ab2040ab0f42f56 # v5.1.0
         id: build
         if: steps.check.outputs.build_image == 'true'
         with:
