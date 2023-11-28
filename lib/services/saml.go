@@ -292,10 +292,6 @@ func UnmarshalSAMLConnector(bytes []byte, opts ...MarshalOption) (types.SAMLConn
 			return nil, trace.BadParameter(err.Error())
 		}
 
-		if err := ValidateSAMLConnector(&c, nil); err != nil {
-			return nil, trace.Wrap(err)
-		}
-
 		if cfg.ID != 0 {
 			c.SetResourceID(cfg.ID)
 		}
@@ -314,10 +310,6 @@ func UnmarshalSAMLConnector(bytes []byte, opts ...MarshalOption) (types.SAMLConn
 
 // MarshalSAMLConnector marshals the SAMLConnector resource to JSON.
 func MarshalSAMLConnector(samlConnector types.SAMLConnector, opts ...MarshalOption) ([]byte, error) {
-	if err := ValidateSAMLConnector(samlConnector, nil); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
