@@ -22,8 +22,7 @@ import TeleportContext from 'teleport/teleportContext';
 import { ContextProvider } from 'teleport/index';
 import cfg from 'teleport/config';
 import { clusters } from 'teleport/Clusters/fixtures';
-
-import { storageService } from 'teleport/services/storageService';
+import localStorage from 'teleport/services/localStorage';
 
 import { ExternalAuditStorageCta } from './ExternalAuditStorageCta';
 
@@ -43,7 +42,7 @@ describe('externalAuditStorageCta', () => {
     ctx.lockedFeatures.externalCloudAudit = losckedFeature;
 
     jest
-      .spyOn(storageService, 'getExternalAuditStorageCtaDisabled')
+      .spyOn(localStorage, 'getExternalAuditStorageCtaDisabled')
       .mockReturnValue(false);
 
     const { container } = render(
