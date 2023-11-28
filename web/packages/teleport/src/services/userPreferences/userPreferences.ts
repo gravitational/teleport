@@ -14,17 +14,15 @@
  * limitations under the License.
  */
 
+import * as unifiedResourcePreferences from 'shared/services/unifiedResourcePreferences';
+
 import cfg from 'teleport/config';
 import api from 'teleport/services/api';
-
 import { ViewMode } from 'teleport/Assist/types';
-import {
-  ThemePreference,
-  UnifiedTabPreference,
-  UnifiedViewModePreference,
-} from 'teleport/services/userPreferences/types';
 
 import { KeysEnum } from '../localStorage';
+
+import { ThemePreference } from './types';
 
 import type {
   GetUserPreferencesResponse,
@@ -92,8 +90,8 @@ export function makeDefaultUserPreferences(): UserPreferences {
       },
     },
     unifiedResourcePreferences: {
-      defaultTab: UnifiedTabPreference.All,
-      viewMode: UnifiedViewModePreference.Card,
+      defaultTab: unifiedResourcePreferences.DefaultTab.DEFAULT_TAB_ALL,
+      viewMode: unifiedResourcePreferences.ViewMode.VIEW_MODE_CARD,
     },
     clusterPreferences: makeDefaultUserClusterPreferences(),
   };
