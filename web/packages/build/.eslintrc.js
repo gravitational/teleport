@@ -131,13 +131,11 @@ module.exports = {
     'react/jsx-no-duplicate-props': 2,
     'react/jsx-sort-prop-types': 0,
     'react/jsx-sort-props': 0,
-    'react/jsx-uses-react': 1,
     'react/jsx-uses-vars': 1,
     'react/no-did-mount-set-state': 1,
     'react/no-did-update-set-state': 1,
     'react/no-unknown-property': 1,
     'react/prop-types': 0,
-    'react/react-in-jsx-scope': 1,
     'react/self-closing-comp': 0,
     'react/sort-comp': 0,
     'react/jsx-wrap-multilines': 1,
@@ -147,6 +145,10 @@ module.exports = {
 
     'react-hooks/rules-of-hooks': 1,
     'react-hooks/exhaustive-deps': 1,
+
+    // Turned off because we use automatic runtime.
+    'react/jsx-uses-react': 0,
+    'react/react-in-jsx-scope': 0,
   },
   settings: {
     react: {
