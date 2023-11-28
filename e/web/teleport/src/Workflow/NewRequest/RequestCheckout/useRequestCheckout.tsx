@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import useStickyClusterId from 'teleport/useStickyClusterId';
 
-import { formatDuration } from 'date-fns';
+import { differenceInHours, formatDuration } from 'date-fns';
 
 import { Option } from 'shared/components/Select';
 
@@ -96,8 +96,9 @@ export function useRequestCheckout({
         if (values.length >= 1) {
           setMaxDuration(values[0]);
         }
+        const created = new Date(resp.created);
         const requestTTLValues = requestTtlMiddleValues(
-          new Date(resp.created),
+          created,
           new Date(resp.sessionTTL)
         ).map(e => ({
           value: e.timestamp,
@@ -106,7 +107,14 @@ export function useRequestCheckout({
 
         setRequestTTLDurationOptions(requestTTLValues);
         if (requestTTLValues.length >= 1) {
-          setRequestTTL(requestTTLValues[0]);
+          // Get the largest value closest to 24 hours.
+          const index = Math.max(
+            0,
+            requestTTLValues.findLastIndex(
+              value => differenceInHours(created, value.value) <= 24
+            )
+          );
+          setRequestTTL(requestTTLValues[index]);
         }
 
         setSuggestedReviewers(resp.reviewers.map(r => r.name));
