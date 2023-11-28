@@ -247,6 +247,14 @@ $ kubectl logs "$AUTH_POD" -c operator
   To diagnose reconciliation issues, you will have to inspect all pods to find the one reconciling the resources.
 </Admonition>
 
+### The operator does not see the resource
+
+If you created a resource, and can get it with `kubectl get <resource-type>`, but
+the resource status stays empty and the operator does not produce logs,
+check if the resource lives in the `teleport-cluster` namespace.
+
+The operator only watches for resources in its own namespace.
+
 ### Cluster instability after enabling the Operator
 
 If enabling the Teleport Kubernetes Operator leads to cluster instability such as degraded proxy state, inability to log into the Teleport cluster,

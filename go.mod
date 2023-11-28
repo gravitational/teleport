@@ -34,7 +34,7 @@ require (
 	github.com/alecthomas/kingpin/v2 v2.3.2 // replaced
 	github.com/alicebob/miniredis/v2 v2.30.5
 	github.com/andybalholm/brotli v1.0.5
-	github.com/aquasecurity/libbpfgo v0.4.5-libbpf-1.0.1
+	github.com/aquasecurity/libbpfgo v0.5.1-libbpf-1.2
 	github.com/armon/go-radix v1.0.0
 	github.com/aws/aws-sdk-go v1.44.332
 	github.com/aws/aws-sdk-go-v2 v1.22.2
@@ -153,7 +153,7 @@ require (
 	github.com/vulcand/predicate v1.2.0 // replaced
 	go.etcd.io/etcd/api/v3 v3.5.9
 	go.etcd.io/etcd/client/v3 v3.5.9
-	go.mongodb.org/mongo-driver v1.13.0-prerelease.0.20230726045955-5ee10b94cc66
+	go.mongodb.org/mongo-driver v1.13.0
 	go.opentelemetry.io/contrib/instrumentation/github.com/aws/aws-sdk-go-v2/otelaws v0.46.1
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.46.1
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.46.1
