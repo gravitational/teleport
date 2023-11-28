@@ -3,6 +3,7 @@ package web
 import (
 	"context"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -29,7 +30,17 @@ type sendTeleportInviteReq struct {
 	Roles      []string `json:"roles"`
 }
 
+// sendTeleportCredentialResetReq is a request from the UI to reset a Teleport
+// user's credentials via an emailed link.
+type sendTeleportCredentialResetReq struct {
+	// Recipient is the user that should be emailed a reset link. The user must
+	// already exist.
+	Recipient string `json:"recipient"`
+}
+
 type userAPIGetter interface {
+	GetUser(ctx context.Context, name string, withSecrets bool) (types.User, error)
+
 	CreateUser(ctx context.Context, user types.User) (types.User, error)
 
 	CreateResetPasswordToken(ctx context.Context, req auth.CreateUserTokenRequest) (types.UserToken, error)
@@ -39,7 +50,7 @@ type cloudAPIGetter interface {
 	SendTeleportInvite(ctx context.Context, in *cloudapi.SendTeleportInviteRequest, opts ...grpc.CallOption) (*cloudapi.EmptyResponse, error)
 }
 
-func createAndInviteUsers(r *http.Request, authClt userAPIGetter, cloudClt cloudAPIGetter, createdBy, proxyAddr string) ([]*ui.User, error) {
+func createAndInviteUsers(r *http.Request, authClt userAPIGetter, cloudClt cloudAPIGetter, createdBy string) ([]*ui.User, error) {
 	var req sendTeleportInviteReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
@@ -100,12 +111,90 @@ func createAndInviteUsers(r *http.Request, authClt userAPIGetter, cloudClt cloud
 	return users, nil
 }
 
+// isEmailLike checks if a string could plausibly be a valid email address, specifically that it contains exactly 1 '@'
+// character with some text on either side.
+func isEmailLike(recipient string) bool {
+	parts := strings.Split(recipient, "@")
+	if len(parts) != 2 {
+		return false
+	}
+
+	if parts[0] == "" || parts[1] == "" {
+		return false
+	}
+
+	return true
+}
+
+// ensureValidRecipient makes sure the recipient is a valid Teleport user
+// and that the name is email-like.
+func ensureValidRecipient(ctx context.Context, authClt userAPIGetter, recipient string) error {
+	if !isEmailLike(recipient) {
+		return trace.BadParameter("user %q does not have an email-like username", recipient)
+	}
+
+	_, err := authClt.GetUser(ctx, recipient, false)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+func sendTeleportCredentialResetLink(r *http.Request, authClt userAPIGetter, cloudClt cloudAPIGetter, proxyAddr string) error {
+	var req sendTeleportCredentialResetReq
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Make sure the recipient is sane before we blindly try emailing a non-email user.s
+	err := ensureValidRecipient(r.Context(), authClt, req.Recipient)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	token, err := authClt.CreateResetPasswordToken(r.Context(),
+		auth.CreateUserTokenRequest{
+			Name: req.Recipient,
+
+			// We'll only ever support password reset tokens here, so we can use
+			// the constant.
+			Type: auth.UserTokenTypeResetPassword,
+		})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	_, err = cloudClt.SendTeleportInvite(r.Context(), &cloudapi.SendTeleportInviteRequest{
+		Recipient: req.Recipient,
+		InviteUrl: token.GetURL(),
+	})
+	if err != nil {
+		return trail.FromGRPC(err)
+	}
+
+	return nil
+}
+
 func (p *Plugin) sendTeleportInviteHandle(w http.ResponseWriter, r *http.Request, ctx *web.SessionContext, cloudClt cloud.Client) (interface{}, error) {
 	authClt, err := ctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	publicAddr := p.h.PublicProxyAddr()
-	return createAndInviteUsers(r, authClt, cloudClt, ctx.GetUser(), publicAddr)
+	return createAndInviteUsers(r, authClt, cloudClt, ctx.GetUser())
+}
+
+func (p *Plugin) sendTeleportCredentialResetHandle(w http.ResponseWriter, r *http.Request, ctx *web.SessionContext, cloudClt cloud.Client) (interface{}, error) {
+	authClt, err := ctx.GetClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	err = sendTeleportCredentialResetLink(r, authClt, cloudClt, ctx.GetUser())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return web.OK(), nil
 }

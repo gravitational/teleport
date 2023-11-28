@@ -31,3 +31,8 @@ export type InviteCollaboratorsFormProps = {
   onClose?: (users?: User[]) => void;
   hidden: boolean;
 };
+
+export type EmailPasswordResetDialogProps = {
+  username: string;
+  onClose: () => void;
+};

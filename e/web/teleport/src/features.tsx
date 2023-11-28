@@ -70,6 +70,9 @@ const Users = lazy(() => import('teleport/Users'));
 const InviteCollaboratorsDialog = lazy(
   () => import('e-teleport/InviteCollaborators')
 );
+const EmailPasswordResetDialog = lazy(
+  () => import('e-teleport/InviteCollaborators/EmailPasswordResetDialog')
+);
 
 // ****************************
 // Resource Features
@@ -407,6 +410,7 @@ class FeatureUsersE extends OSS.FeatureUsers {
     component: () => (
       <Users
         InviteCollaborators={cfg.oss.isCloud ? InviteCollaboratorsDialog : null}
+        EmailPasswordReset={cfg.oss.isCloud ? EmailPasswordResetDialog : null}
       />
     ),
   };

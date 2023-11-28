@@ -253,6 +253,7 @@ func (p *Plugin) RegisterProxyWebHandlers(handler interface{}) error {
 		h.POST("/enterprise/cloud/survey", p.withCloudAuth(p.surveyResultsHandler))
 
 		h.POST("/enterprise/cloud/teleportinvite", p.withCloudAuth(p.sendTeleportInviteHandle))
+		h.POST("/enterprise/cloud/teleportcredentialreset", p.withCloudAuth(p.sendTeleportCredentialResetHandle))
 	}
 
 	// Recovery related endpoints.

@@ -79,6 +79,7 @@ const cfg = {
     poPath: '/v1/enterprise/cloud/billing-po',
     setupIntentPath: '/v1/enterprise/cloud/setupintent',
     teleportInvitePath: '/v1/enterprise/cloud/teleportinvite',
+    teleportCredentialResetPath: '/v1/enterprise/cloud/teleportcredentialreset',
 
     recoveryStartPath: '/v1/enterprise/cloud/recovery/start',
     recoveryVerifyUserPath: '/v1/enterprise/cloud/recovery/verify',

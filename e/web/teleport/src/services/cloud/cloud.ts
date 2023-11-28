@@ -17,6 +17,7 @@ import {
   UpdatePurchaseOrderRequest,
   NonBillableSummaryInformation,
   SendTeleportInvite,
+  SendTeleportCredentialReset,
 } from './types';
 
 class CloudService {
@@ -82,6 +83,10 @@ class CloudService {
 
   sendTeleportInvite(req: SendTeleportInvite): Promise<User[]> {
     return api.post(cfg.api.teleportInvitePath, req);
+  }
+
+  sendTeleportCredentialReset(req: SendTeleportCredentialReset): Promise<void> {
+    return api.post(cfg.api.teleportCredentialResetPath, req);
   }
 }
 
