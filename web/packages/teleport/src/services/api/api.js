@@ -15,6 +15,7 @@ limitations under the License.
 */
 import 'whatwg-fetch';
 import auth from 'teleport/services/auth/auth';
+
 import { storageService } from '../storageService';
 
 import parseError, { ApiError } from './parseError';
