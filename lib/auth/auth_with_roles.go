@@ -25,7 +25,6 @@ import (
 
 	"github.com/coreos/go-semver/semver"
 	"github.com/google/uuid"
-	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	collectortracev1 "go.opentelemetry.io/proto/otlp/collector/trace/v1"
@@ -35,36 +34,17 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/teleport/api/client"
-	"github.com/gravitational/teleport/api/client/accesslist"
-	"github.com/gravitational/teleport/api/client/discoveryconfig"
-	"github.com/gravitational/teleport/api/client/externalauditstorage"
-	"github.com/gravitational/teleport/api/client/okta"
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/client/secreport"
-	"github.com/gravitational/teleport/api/client/userloginstate"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
-	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
-	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
-	discoveryconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1"
-	externalauditstoragev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/externalauditstorage/v1"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
-	oktapb "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
-	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
-	resourceusagepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/resourceusage/v1"
-	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
-	secreportsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/secreports/v1"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
-	userloginstatev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/userloginstate/v1"
-	userpreferencespb "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
-	accessgraphv1 "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 	"github.com/gravitational/teleport/lib/auth/integration/integrationv1"
 	"github.com/gravitational/teleport/lib/auth/trust/trustv1"
 	"github.com/gravitational/teleport/lib/auth/users/usersv1"
@@ -278,109 +258,6 @@ func HasRemoteBuiltinRole(authContext authz.Context, name string) bool {
 // name matches.
 func (a *ServerWithRoles) hasRemoteBuiltinRole(name string) bool {
 	return HasRemoteBuiltinRole(a.context, name)
-}
-
-// DevicesClient allows ServerWithRoles to implement ClientI.
-// It should not be called through ServerWithRoles,
-// as it returns a dummy client that will always respond with "not implemented".
-func (a *ServerWithRoles) DevicesClient() devicepb.DeviceTrustServiceClient {
-	return devicepb.NewDeviceTrustServiceClient(
-		utils.NewGRPCDummyClientConnection("DevicesClient() should not be called on ServerWithRoles"),
-	)
-}
-
-// ExternalAuditStorageClient allows ServerWithRoles to implement ClientI.
-// It should not be called through ServerWithRoles,
-// as it returns a dummy client that will always respond with "not implemented".
-func (a *ServerWithRoles) ExternalAuditStorageClient() *externalauditstorage.Client {
-	return externalauditstorage.NewClient(externalauditstoragev1.NewExternalAuditStorageServiceClient(
-		utils.NewGRPCDummyClientConnection("ExternalAuditStorageClient() should not be called on ServerWithRoles"),
-	))
-}
-
-// OktaClient allows ServerWithRoles to implement ClientI.
-// It should not be called through ServerWithRoles,
-// as it returns a dummy client that will always respond with "not implemented".
-func (a *ServerWithRoles) OktaClient() services.Okta {
-	return okta.NewClient(oktapb.NewOktaServiceClient(
-		utils.NewGRPCDummyClientConnection("OktaClient() should not be called on ServerWithRoles")))
-}
-
-// PluginsClient allows ServerWithRoles to implement ClientI.
-// It should not be called through ServerWithRoles,
-// as it returns a dummy client that will always respond with "not implemented".
-func (a *ServerWithRoles) PluginsClient() pluginspb.PluginServiceClient {
-	return pluginspb.NewPluginServiceClient(
-		utils.NewGRPCDummyClientConnection("PluginsClient() should not be called on ServerWithRoles"),
-	)
-}
-
-// EmbeddingClient allows ServerWithRoles to implement ClientI.
-// It should not be called through ServerWithRoles,
-// as it returns a dummy client that will always respond with "not implemented".
-func (a *ServerWithRoles) EmbeddingClient() assist.AssistEmbeddingServiceClient {
-	return assist.NewAssistEmbeddingServiceClient(
-		utils.NewGRPCDummyClientConnection("EmbeddingClient() should not be called on ServerWithRoles"),
-	)
-}
-
-// SAMLIdPClient allows ServerWithRoles to implement ClientI.
-// It should not be called through ServerWithRoles,
-// as it returns a dummy client that will always respond with "not implemented".
-func (a *ServerWithRoles) SAMLIdPClient() samlidppb.SAMLIdPServiceClient {
-	return samlidppb.NewSAMLIdPServiceClient(
-		utils.NewGRPCDummyClientConnection("SAMLIdPClient() should not be called on ServerWithRoles"),
-	)
-}
-
-// AccessListClient allows ServerWithRoles to implement ClientI.
-// It should not be called through ServerWithRoles,
-// as it returns a dummy client that will always respond with "not implemented".
-func (a *ServerWithRoles) AccessListClient() services.AccessLists {
-	return accesslist.NewClient(accesslistv1.NewAccessListServiceClient(
-		utils.NewGRPCDummyClientConnection("AccessListClient() should not be called on ServerWithRoles")))
-}
-
-// DiscoveryConfigClient allows ServerWithRoles to implement ClientI.
-// It should not be called through ServerWithRoles,
-// as it returns a dummy client that will always respond with "not implemented".
-func (a *ServerWithRoles) DiscoveryConfigClient() services.DiscoveryConfigs {
-	return discoveryconfig.NewClient(discoveryconfigv1.NewDiscoveryConfigServiceClient(
-		utils.NewGRPCDummyClientConnection("DiscoveryConfigClient() should not be called on ServerWithRoles")))
-}
-
-// ResourceUsageClient allows ServerWithRoles to implement ClientI.
-// It should not be called through ServerWithRoles,
-// as it returns a dummy client that will always respond with "not implemented".
-func (a *ServerWithRoles) ResourceUsageClient() resourceusagepb.ResourceUsageServiceClient {
-	return resourceusagepb.NewResourceUsageServiceClient(
-		utils.NewGRPCDummyClientConnection("ResourceUsageClient() should not be called on ServerWithRoles"),
-	)
-}
-
-// UserLoginStateClient allows ServerWithRoles to implement ClientI.
-// It should not be called through ServerWithRoles,
-// as it returns a dummy client that will always respond with "not implemented".
-func (a *ServerWithRoles) UserLoginStateClient() services.UserLoginStates {
-	return userloginstate.NewClient(userloginstatev1.NewUserLoginStateServiceClient(
-		utils.NewGRPCDummyClientConnection("UserLoginStateClient() should not be called on ServerWithRoles")))
-}
-
-// SecReportsClient returns a client for the SecReports service.
-// It should not be called through ServerWithRoles,
-// as it returns a dummy client that will always respond with "not implemented".
-func (a *ServerWithRoles) SecReportsClient() *secreport.Client {
-	return secreport.NewClient(secreportsv1.NewSecReportsServiceClient(
-		utils.NewGRPCDummyClientConnection("SecReportsClient() should not be called on ServerWithRoles"),
-	))
-}
-
-// AccessGraphClient returns a client for the AccessGraph service.
-// It should not be called through ServerWithRoles,
-// as it returns a dummy client that will always respond with "not implemented".
-func (a *ServerWithRoles) AccessGraphClient() accessgraphv1.AccessGraphServiceClient {
-	return accessgraphv1.NewAccessGraphServiceClient(
-		utils.NewGRPCDummyClientConnection("AccessGraphClient() should not be called on ServerWithRoles"))
 }
 
 // integrationsService returns an Integrations Service.
@@ -801,11 +678,6 @@ func (a *ServerWithRoles) GenerateOpenSSHCert(ctx context.Context, req *proto.Op
 	return a.authServer.GenerateOpenSSHCert(ctx, req)
 }
 
-// CreateCertAuthority not implemented: can only be called locally.
-func (a *ServerWithRoles) CreateCertAuthority(ctx context.Context, ca types.CertAuthority) error {
-	return trace.NotImplemented(notImplementedMessage)
-}
-
 // RotateCertAuthority starts or restarts certificate authority rotation process.
 func (a *ServerWithRoles) RotateCertAuthority(ctx context.Context, req RotateRequest) error {
 	if err := req.CheckAndSetDefaults(a.authServer.clock); err != nil {
@@ -943,21 +815,6 @@ func (a *ServerWithRoles) DeleteCertAuthority(ctx context.Context, id types.Cert
 	}
 
 	return nil
-}
-
-// ActivateCertAuthority not implemented: can only be called locally.
-func (a *ServerWithRoles) ActivateCertAuthority(id types.CertAuthID) error {
-	return trace.NotImplemented(notImplementedMessage)
-}
-
-// DeactivateCertAuthority not implemented: can only be called locally.
-func (a *ServerWithRoles) DeactivateCertAuthority(id types.CertAuthID) error {
-	return trace.NotImplemented(notImplementedMessage)
-}
-
-// UpdateUserCARoleMap not implemented: can only be called locally.
-func (a *ServerWithRoles) UpdateUserCARoleMap(ctx context.Context, name string, roleMap types.RoleMap, activated bool) error {
-	return trace.NotImplemented(notImplementedMessage)
 }
 
 func (a *ServerWithRoles) RegisterUsingToken(ctx context.Context, req *types.RegisterUsingTokenRequest) (*proto.Certs, error) {
@@ -2144,16 +2001,6 @@ func (a *ServerWithRoles) listResourcesWithSort(ctx context.Context, req proto.L
 	return resp, nil
 }
 
-// ListWindowsDesktops not implemented: can only be called locally.
-func (a *ServerWithRoles) ListWindowsDesktops(ctx context.Context, req types.ListWindowsDesktopsRequest) (*types.ListWindowsDesktopsResponse, error) {
-	return nil, trace.NotImplemented(notImplementedMessage)
-}
-
-// ListWindowsDesktopServices not implemented: can only be called locally.
-func (a *ServerWithRoles) ListWindowsDesktopServices(ctx context.Context, req types.ListWindowsDesktopServicesRequest) (*types.ListWindowsDesktopServicesResponse, error) {
-	return nil, trace.NotImplemented(notImplementedMessage)
-}
-
 func (a *ServerWithRoles) UpsertAuthServer(ctx context.Context, s types.Server) error {
 	if err := a.action(apidefaults.Namespace, types.KindAuthServer, types.VerbCreate, types.VerbUpdate); err != nil {
 		return trace.Wrap(err)
@@ -2769,11 +2616,6 @@ func (a *ServerWithRoles) GetUsers(ctx context.Context, withSecrets bool) ([]typ
 	return users, trace.Wrap(err)
 }
 
-// ListUsers returns a page of users.
-func (a *ServerWithRoles) ListUsers(ctx context.Context, pageSize int, nextToken string, withSecrets bool) ([]types.User, string, error) {
-	return nil, "", trace.NotImplemented("ListUsers is not implemented yet")
-}
-
 // GetUser returns a single user matching the request.
 // TODO(tross): DELETE IN 16.0.0
 // Deprecated: use [usersv1.Service.GetUser] instead.
@@ -2888,11 +2730,6 @@ func (a *ServerWithRoles) GenerateHostCert(
 	}
 
 	return a.authServer.GenerateHostCert(ctx, key, hostID, nodeName, principals, clusterName, role, ttl)
-}
-
-// NewKeepAliver not implemented: can only be called locally.
-func (a *ServerWithRoles) NewKeepAliver(ctx context.Context) (types.KeepAliver, error) {
-	return nil, trace.NotImplemented(notImplementedMessage)
 }
 
 // desiredAccessInfo inspects the current request to determine which access
@@ -3502,14 +3339,6 @@ func (a *ServerWithRoles) UpsertUser(ctx context.Context, u types.User) (types.U
 	}
 	user, err := a.authServer.UpsertUser(ctx, u)
 	return user, trace.Wrap(err)
-}
-
-// UpdateAndSwapUser exists on [ServerWithRoles] only for compatibility with
-// [ClientI], it is not implemented here.
-// See [local.IdentityService.UpdateAndSwapUser].
-func (a *ServerWithRoles) UpdateAndSwapUser(ctx context.Context, user string, withSecrets bool, fn func(types.User) (changed bool, err error)) (types.User, error) {
-	// To the reader: consider writing this function if it's useful to you.
-	return nil, trace.NotImplemented("func UpdateAndSwapUser is not implemented by ServerWithRoles")
 }
 
 // CompareAndSwapUser updates an existing user in a backend, but fails if the
@@ -4564,11 +4393,6 @@ func (a *ServerWithRoles) ResetAuthPreference(ctx context.Context) error {
 	return a.authServer.SetAuthPreference(ctx, types.DefaultAuthPreference())
 }
 
-// DeleteAuthPreference not implemented: can only be called locally.
-func (a *ServerWithRoles) DeleteAuthPreference(context.Context) error {
-	return trace.NotImplemented(notImplementedMessage)
-}
-
 // GetClusterAuditConfig gets cluster audit configuration.
 func (a *ServerWithRoles) GetClusterAuditConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterAuditConfig, error) {
 	if err := a.action(apidefaults.Namespace, types.KindClusterAuditConfig, types.VerbRead); err != nil {
@@ -4577,16 +4401,6 @@ func (a *ServerWithRoles) GetClusterAuditConfig(ctx context.Context, opts ...ser
 		}
 	}
 	return a.authServer.GetClusterAuditConfig(ctx, opts...)
-}
-
-// SetClusterAuditConfig not implemented: can only be called locally.
-func (a *ServerWithRoles) SetClusterAuditConfig(ctx context.Context, auditConfig types.ClusterAuditConfig) error {
-	return trace.NotImplemented(notImplementedMessage)
-}
-
-// DeleteClusterAuditConfig not implemented: can only be called locally.
-func (a *ServerWithRoles) DeleteClusterAuditConfig(ctx context.Context) error {
-	return trace.NotImplemented(notImplementedMessage)
 }
 
 // GetClusterNetworkingConfig gets cluster networking configuration.
@@ -4643,11 +4457,6 @@ func (a *ServerWithRoles) ResetClusterNetworkingConfig(ctx context.Context) erro
 	return a.authServer.SetClusterNetworkingConfig(ctx, types.DefaultClusterNetworkingConfig())
 }
 
-// DeleteClusterNetworkingConfig not implemented: can only be called locally.
-func (a *ServerWithRoles) DeleteClusterNetworkingConfig(ctx context.Context) error {
-	return trace.NotImplemented(notImplementedMessage)
-}
-
 // GetSessionRecordingConfig gets session recording configuration.
 func (a *ServerWithRoles) GetSessionRecordingConfig(ctx context.Context, opts ...services.MarshalOption) (types.SessionRecordingConfig, error) {
 	if err := a.action(apidefaults.Namespace, types.KindSessionRecordingConfig, types.VerbRead); err != nil {
@@ -4691,41 +4500,6 @@ func (a *ServerWithRoles) ResetSessionRecordingConfig(ctx context.Context) error
 	}
 
 	return a.authServer.SetSessionRecordingConfig(ctx, types.DefaultSessionRecordingConfig())
-}
-
-// DeleteSessionRecordingConfig not implemented: can only be called locally.
-func (a *ServerWithRoles) DeleteSessionRecordingConfig(ctx context.Context) error {
-	return trace.NotImplemented(notImplementedMessage)
-}
-
-// DeleteAllTokens not implemented: can only be called locally.
-func (a *ServerWithRoles) DeleteAllTokens() error {
-	return trace.NotImplemented(notImplementedMessage)
-}
-
-// DeleteAllCertAuthorities not implemented: can only be called locally.
-func (a *ServerWithRoles) DeleteAllCertAuthorities(caType types.CertAuthType) error {
-	return trace.NotImplemented(notImplementedMessage)
-}
-
-// DeleteAllCertNamespaces not implemented: can only be called locally.
-func (a *ServerWithRoles) DeleteAllNamespaces() error {
-	return trace.NotImplemented(notImplementedMessage)
-}
-
-// DeleteAllReverseTunnels not implemented: can only be called locally.
-func (a *ServerWithRoles) DeleteAllReverseTunnels() error {
-	return trace.NotImplemented(notImplementedMessage)
-}
-
-// DeleteAllRoles not implemented: can only be called locally.
-func (a *ServerWithRoles) DeleteAllRoles(context.Context) error {
-	return trace.NotImplemented(notImplementedMessage)
-}
-
-// DeleteAllUsers not implemented: can only be called locally.
-func (a *ServerWithRoles) DeleteAllUsers(context.Context) error {
-	return trace.NotImplemented(notImplementedMessage)
 }
 
 // GetServerInfos returns a stream of ServerInfos.
@@ -5397,21 +5171,6 @@ func (a *ServerWithRoles) CreateSAMLIdPSession(ctx context.Context, req types.Cr
 	return samlSession, nil
 }
 
-// UpsertAppSession not implemented: can only be called locally.
-func (a *ServerWithRoles) UpsertAppSession(ctx context.Context, session types.WebSession) error {
-	return trace.NotImplemented(notImplementedMessage)
-}
-
-// UpsertSnowflakeSession not implemented: can only be called locally.
-func (a *ServerWithRoles) UpsertSnowflakeSession(_ context.Context, _ types.WebSession) error {
-	return trace.NotImplemented(notImplementedMessage)
-}
-
-// UpsertSAMLIdPSession not implemented: can only be called locally.
-func (a *ServerWithRoles) UpsertSAMLIdPSession(_ context.Context, _ types.WebSession) error {
-	return trace.NotImplemented(notImplementedMessage)
-}
-
 // DeleteAppSession removes an application web session.
 func (a *ServerWithRoles) DeleteAppSession(ctx context.Context, req types.DeleteAppSessionRequest) error {
 	session, err := a.authServer.GetAppSession(ctx, types.GetAppSessionRequest(req))
@@ -5643,21 +5402,6 @@ func (a *ServerWithRoles) GetMFADevices(ctx context.Context, req *proto.GetMFADe
 	return a.authServer.GetMFADevices(ctx, req)
 }
 
-// TODO(awly): decouple auth.ClientI from auth.ServerWithRoles, they exist on
-// opposite sides of the connection.
-
-// AddMFADevice exists to satisfy auth.ClientI but is not implemented here.
-// Use auth.GRPCServer.AddMFADevice or client.Client.AddMFADevice instead.
-func (a *ServerWithRoles) AddMFADevice(ctx context.Context) (proto.AuthService_AddMFADeviceClient, error) {
-	return nil, trace.NotImplemented("bug: AddMFADevice must not be called on auth.ServerWithRoles")
-}
-
-// DeleteMFADevice exists to satisfy auth.ClientI but is not implemented here.
-// Use auth.GRPCServer.DeleteMFADevice or client.Client.DeleteMFADevice instead.
-func (a *ServerWithRoles) DeleteMFADevice(ctx context.Context) (proto.AuthService_DeleteMFADeviceClient, error) {
-	return nil, trace.NotImplemented("bug: DeleteMFADevice must not be called on auth.ServerWithRoles")
-}
-
 // AddMFADeviceSync is implemented by AuthService.AddMFADeviceSync.
 func (a *ServerWithRoles) AddMFADeviceSync(ctx context.Context, req *proto.AddMFADeviceSyncRequest) (*proto.AddMFADeviceSyncResponse, error) {
 	switch {
@@ -5690,22 +5434,6 @@ func (a *ServerWithRoles) DeleteMFADeviceSync(ctx context.Context, req *proto.De
 	}
 
 	return a.authServer.DeleteMFADeviceSync(ctx, req)
-}
-
-// GenerateUserSingleUseCerts exists to satisfy auth.ClientI but is not
-// implemented here.
-//
-// Use auth.GRPCServer.GenerateUserSingleUseCerts or
-// client.Client.GenerateUserSingleUseCerts instead.
-func (a *ServerWithRoles) GenerateUserSingleUseCerts(ctx context.Context) (proto.AuthService_GenerateUserSingleUseCertsClient, error) {
-	return nil, trace.NotImplemented("bug: GenerateUserSingleUseCerts must not be called on auth.ServerWithRoles")
-}
-
-// GetResources exists to satisfy auth.ClientI but is not
-// implemented here. It is a client only interface to make
-// interacting with ListResources friendlier.
-func (a *ServerWithRoles) GetResources(ctx context.Context, req *proto.ListResourcesRequest) (*proto.ListResourcesResponse, error) {
-	return nil, trace.NotImplemented("bug: GetResources must not be called on auth.ServerWithRoles")
 }
 
 func (a *ServerWithRoles) IsMFARequired(ctx context.Context, req *proto.IsMFARequiredRequest) (*proto.IsMFARequiredResponse, error) {
@@ -5803,11 +5531,6 @@ func (a *ServerWithRoles) DeleteLock(ctx context.Context, name string) error {
 		return trace.Wrap(err)
 	}
 	return a.authServer.DeleteLock(ctx, name)
-}
-
-// DeleteAllLocks not implemented: can only be called locally.
-func (a *ServerWithRoles) DeleteAllLocks(context.Context) error {
-	return trace.NotImplemented(notImplementedMessage)
 }
 
 // ReplaceRemoteLocks replaces the set of locks associated with a remote cluster.
@@ -6610,18 +6333,6 @@ func (a *ServerWithRoles) GenerateCertAuthorityCRL(ctx context.Context, caType t
 	return crl, nil
 }
 
-// UpdatePresence is coupled to the service layer and must exist here but is never actually called
-// since it's handled by the session presence task. This is never valid to call.
-func (a *ServerWithRoles) UpdatePresence(ctx context.Context, sessionID, user string) error {
-	return trace.NotImplemented(notImplementedMessage)
-}
-
-// UpdatePresence is coupled to the service layer and must exist here but is never actually called
-// since it's handled by the session presence task. This is never valid to call.
-func (a *ServerWithRoles) MaintainSessionPresence(ctx context.Context) (proto.AuthService_MaintainSessionPresenceClient, error) {
-	return nil, trace.NotImplemented(notImplementedMessage)
-}
-
 // SubmitUsageEvent submits an external usage event.
 func (a *ServerWithRoles) SubmitUsageEvent(ctx context.Context, req *proto.SubmitUsageEventRequest) error {
 	if err := a.action(apidefaults.Namespace, types.KindUsageEvent, types.VerbCreate); err != nil {
@@ -7081,56 +6792,6 @@ func (a *ServerWithRoles) WatchPendingHeadlessAuthentications(ctx context.Contex
 	})
 }
 
-// CreateAssistantConversation creates a new conversation entry in the backend.
-func (a *ServerWithRoles) CreateAssistantConversation(ctx context.Context, req *assist.CreateAssistantConversationRequest) (*assist.CreateAssistantConversationResponse, error) {
-	return nil, trace.NotImplemented("CreateAssistantConversation must not be called on auth.ServerWithRoles")
-}
-
-// GetAssistantConversations returns all conversations started by a user.
-func (a *ServerWithRoles) GetAssistantConversations(ctx context.Context, request *assist.GetAssistantConversationsRequest) (*assist.GetAssistantConversationsResponse, error) {
-	return nil, trace.NotImplemented("GetAssistantConversations must not be called on auth.ServerWithRoles")
-}
-
-// GetAssistantMessages returns all messages with given conversation ID.
-func (a *ServerWithRoles) GetAssistantMessages(ctx context.Context, req *assist.GetAssistantMessagesRequest) (*assist.GetAssistantMessagesResponse, error) {
-	return nil, trace.NotImplemented("GetAssistantMessages must not be called on auth.ServerWithRoles")
-}
-
-// DeleteAssistantConversation deletes a conversation by ID.
-func (a *ServerWithRoles) DeleteAssistantConversation(ctx context.Context, req *assist.DeleteAssistantConversationRequest) error {
-	return trace.NotImplemented("DeleteAssistantConversation must not be called on auth.ServerWithRoles")
-}
-
-// IsAssistEnabled returns true if the assist is enabled or not on the auth level.
-func (a *ServerWithRoles) IsAssistEnabled(ctx context.Context) (*assist.IsAssistEnabledResponse, error) {
-	return nil, trace.NotImplemented("IsAssistEnabled must not be called on auth.ServerWithRoles")
-}
-
-// CreateAssistantMessage adds the message to the backend.
-func (a *ServerWithRoles) CreateAssistantMessage(ctx context.Context, msg *assist.CreateAssistantMessageRequest) error {
-	return trace.NotImplemented("CreateAssistantMessage must not be called on auth.ServerWithRoles")
-}
-
-// UpdateAssistantConversationInfo updates the conversation info.
-func (a *ServerWithRoles) UpdateAssistantConversationInfo(ctx context.Context, msg *assist.UpdateAssistantConversationInfoRequest) error {
-	return trace.NotImplemented("UpdateAssistantConversationInfo must not be called on auth.ServerWithRoles")
-}
-
-// GetUserPreferences returns the user preferences for a given user.
-func (a *ServerWithRoles) GetUserPreferences(ctx context.Context, req *userpreferencespb.GetUserPreferencesRequest) (*userpreferencespb.GetUserPreferencesResponse, error) {
-	return nil, trace.NotImplemented("GetUserPreferences must not be called on auth.ServerWithRoles")
-}
-
-// UpsertUserPreferences creates or updates user preferences for a given username.
-func (a *ServerWithRoles) UpsertUserPreferences(ctx context.Context, req *userpreferencespb.UpsertUserPreferencesRequest) error {
-	return trace.NotImplemented("UpsertUserPreferences must not be called on auth.ServerWithRoles")
-}
-
-// CloneHTTPClient creates a new HTTP client with the same configuration.
-func (a *ServerWithRoles) CloneHTTPClient(params ...roundtrip.ClientParam) (*HTTPClient, error) {
-	return nil, trace.NotImplemented("not implemented")
-}
-
 // ExportUpgradeWindows is used to load derived upgrade window values for agents that
 // need to export schedules to external upgraders.
 func (a *ServerWithRoles) ExportUpgradeWindows(ctx context.Context, req proto.ExportUpgradeWindowsRequest) (proto.ExportUpgradeWindowsResponse, error) {
@@ -7178,11 +6839,6 @@ func (a *ServerWithRoles) DeleteClusterMaintenanceConfig(ctx context.Context) er
 	}
 
 	return a.authServer.DeleteClusterMaintenanceConfig(ctx)
-}
-
-// ValidateMFAAuthResponse not implemented: can only be called locally.
-func (a *ServerWithRoles) ValidateMFAAuthResponse(ctx context.Context, resp *proto.MFAAuthenticateResponse, user string, passwordless bool) (*types.MFADevice, string, error) {
-	return nil, "", trace.NotImplemented(notImplementedMessage)
 }
 
 // NewAdminAuthServer returns auth server authorized as admin,
