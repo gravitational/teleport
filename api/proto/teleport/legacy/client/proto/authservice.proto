@@ -1145,6 +1145,15 @@ message MFAAuthenticateChallenge {
   // communications, in case of streaming RPCs. It may also return empty
   // challenges for all other fields.
   MFARequired MFARequired = 4;
+  // Scope is an authorization scope for this MFA challenge.
+  // Required. Only applies to webauthn challenges.
+  webauthn.ChallengeScope Scope = 5 [(gogoproto.jsontag) = "scope,omitempty"];
+  // AllowReuse means webauthn credentials resolved from this challenge can be
+  // reused for a short span of time before the challenge expires.
+  //
+  // Reuse is only permitted for specific actions by the discretion of the server.
+  // See the server implementation for details.
+  bool AllowReuse = 6 [(gogoproto.jsontag) = "allow_reuse,omitempty"];
 }
 
 // MFAAuthenticateResponse is a response to MFAAuthenticateChallenge using one
@@ -1155,6 +1164,15 @@ message MFAAuthenticateResponse {
     TOTPResponse TOTP = 2;
     webauthn.CredentialAssertionResponse Webauthn = 3;
   }
+  // Scope is an authorization scope for this MFA challenge response.
+  // Required. Only applies to webauthn challenges.
+  webauthn.ChallengeScope Scope = 4 [(gogoproto.jsontag) = "scope,omitempty"];
+  // AllowReuse means webauthn credentials resolved from this challenge can be
+  // reused for a short span of time before the challenge expires.
+  //
+  // Reuse is only permitted for specific actions by the discretion of the server.
+  // See the server implementation for details.
+  bool AllowReuse = 5 [(gogoproto.jsontag) = "allow_reuse,omitempty"];
 }
 
 // TOTPChallenge is a challenge for all TOTP devices registered for a user.
@@ -1839,6 +1857,15 @@ message CreateAuthenticateChallengeRequest {
   // If you are issuing challenges from the root cluster, but accessing a leaf,
   // call [AuthService.IsMFARequired] in the leaf instead of setting this field.
   IsMFARequiredRequest MFARequiredCheck = 5 [(gogoproto.jsontag) = "mfa_required_check,omitempty"];
+  // Scope is an authorization scope for this MFA challenge.
+  // Required. Only applies to webauthn challenges.
+  webauthn.ChallengeScope Scope = 6 [(gogoproto.jsontag) = "scope,omitempty"];
+  // AllowReuse means webauthn credentials resolved from this challenge can be
+  // reused for a short span of time before the challenge expires.
+  //
+  // Reuse is only permitted for specific actions by the discretion of the server.
+  // See the server implementation for details.
+  bool AllowReuse = 7 [(gogoproto.jsontag) = "allow_reuse,omitempty"];
 }
 
 // CreatePrivilegeTokenRequest defines a request to obtain a privilege token.
