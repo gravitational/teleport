@@ -245,7 +245,7 @@ func getTestIdent(t *testing.T, username string, reqs ...identRequest) *identity
 	ident, err := identity.ReadIdentityFromStore(&identity.LoadIdentityParams{
 		PrivateKeyBytes: privateKey,
 		PublicKeyBytes:  tlsPublicKeyPEM,
-	}, certs, identity.DestinationKinds()...)
+	}, certs)
 	require.NoError(t, err)
 
 	return ident

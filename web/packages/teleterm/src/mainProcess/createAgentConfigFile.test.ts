@@ -99,7 +99,8 @@ test('previous config file is removed before calling teleport configure', async 
   ).resolves.toBeUndefined();
 
   expect(fs.rm).toHaveBeenCalledWith(
-    `${userDataDir}/agents/cluster.local/config.yaml`
+    `${userDataDir}/agents/cluster.local/config.yaml`,
+    { force: true }
   );
 });
 

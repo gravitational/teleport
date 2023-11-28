@@ -989,7 +989,14 @@ func (h *Handler) getUserContext(w http.ResponseWriter, r *http.Request, p httpr
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	accessMonitoringEnabled := pingResp.ServerFeatures != nil && pingResp.ServerFeatures.IdentityGovernance
+	accessMonitoringEnabled := pingResp.GetServerFeatures().GetAccessMonitoring().GetEnabled()
+
+	// DELETE IN 16.0
+	// If ServerFeatures.AccessMonitoring is nil, then that means the response came from a older auth
+	// where ServerFeatures.AccessMonitoring field does not exist.
+	if pingResp.GetServerFeatures().GetAccessMonitoring() == nil {
+		accessMonitoringEnabled = pingResp.ServerFeatures != nil && pingResp.ServerFeatures.GetIdentityGovernance()
+	}
 
 	userContext, err := ui.NewUserContext(user, accessChecker.Roles(), h.ClusterFeatures, desktopRecordingEnabled, accessMonitoringEnabled)
 	if err != nil {
@@ -3580,6 +3587,11 @@ func (h *Handler) hostCredentials(w http.ResponseWriter, r *http.Request, p http
 	}
 
 	authClient := h.cfg.ProxyClient
+	remoteAddr, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	req.RemoteAddr = remoteAddr
 	certs, err := authClient.RegisterUsingToken(r.Context(), &req)
 	if err != nil {
 		return nil, trace.Wrap(err)
