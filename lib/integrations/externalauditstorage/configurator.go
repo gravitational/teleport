@@ -12,9 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// TODO(nklaassen): delete this package after references are removed from
-// teleport.e.
-package externalcloudaudit
+package externalauditstorage
 
 import (
 	"context"
@@ -31,14 +29,15 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 
-	"github.com/gravitational/teleport/api/types/externalcloudaudit"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/externalauditstorage"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 )
 
 const (
 	// TokenLifetime is the lifetime of OIDC tokens used by the
-	// ExternalCloudAudit service with the AWS OIDC integration.
+	// ExternalAuditStorage service with the AWS OIDC integration.
 	TokenLifetime = time.Hour
 
 	refreshBeforeExpirationPeriod = 15 * time.Minute
@@ -51,7 +50,7 @@ const (
 //
 // Specifically:
 //   - IsUsed() reports whether the feature is currently activated and in use.
-//   - GetSpec() provides the current cluster ExternalCloudAuditSpec
+//   - GetSpec() provides the current cluster ExternalAuditStorageSpec
 //   - CredentialsProvider() provides AWS credentials for the necessary customer
 //     resources that can be used with aws-sdk-go-v2
 //   - CredentialsProviderSDKV1() provides AWS credentials for the necessary customer
@@ -78,7 +77,7 @@ type Configurator struct {
 
 	// spec is set during initialization of the Configurator. It won't
 	// change, because every change of spec triggers an Auth service reload.
-	spec   *externalcloudaudit.ExternalCloudAuditSpec
+	spec   *externalauditstorage.ExternalAuditStorageSpec
 	isUsed bool
 
 	credentialsCache *credentialsCache
@@ -127,13 +126,31 @@ func WithSTSClient(clt stscreds.AssumeRoleWithWebIdentityAPIClient) func(*Option
 	}
 }
 
+// ExternalAuditStorageGetter is an interface for a service that can retrieve
+// External Audit Storage configuration.
+type ExternalAuditStorageGetter interface {
+	// GetClusterExternalAuditStorage returns the current cluster External Audit
+	// Storage configuration.
+	GetClusterExternalAuditStorage(context.Context) (*externalauditstorage.ExternalAuditStorage, error)
+	// GetDraftExternalAuditStorage returns the current draft External Audit
+	// Storage configuration.
+	GetDraftExternalAuditStorage(context.Context) (*externalauditstorage.ExternalAuditStorage, error)
+}
+
+// IntegrationGetter is an interface for a service that can retrieve an
+// integration by name.
+type IntegrationGetter interface {
+	// GetIntegration returns the specified integration resources.
+	GetIntegration(ctx context.Context, name string) (types.Integration, error)
+}
+
 // NewConfigurator returns a new Configurator set up with the current active
-// cluster ExternalCloudAudit spec from [ecaSvc].
+// cluster ExternalAuditStorage spec from [ecaSvc].
 //
-// If the External Cloud Audit feature is not used in this cluster then a valid
+// If the External Audit Storage feature is not used in this cluster then a valid
 // instance will be returned where IsUsed() will return false.
-func NewConfigurator(ctx context.Context, ecaSvc services.ExternalCloudAuditGetter, integrationSvc services.IntegrationsGetter, alertService ClusterAlertService, optFns ...func(*Options)) (*Configurator, error) {
-	active, err := ecaSvc.GetClusterExternalCloudAudit(ctx)
+func NewConfigurator(ctx context.Context, ecaSvc ExternalAuditStorageGetter, integrationSvc services.IntegrationsGetter, alertService ClusterAlertService, optFns ...func(*Options)) (*Configurator, error) {
+	active, err := ecaSvc.GetClusterExternalAuditStorage(ctx)
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return &Configurator{isUsed: false}, nil
@@ -144,13 +161,13 @@ func NewConfigurator(ctx context.Context, ecaSvc services.ExternalCloudAuditGett
 }
 
 // NewDraftConfigurator is equivalent to NewConfigurator but is based on the
-// current *draft* ExternalCloudAudit configuration instead of the active
+// current *draft* ExternalAuditStorage configuration instead of the active
 // configuration.
 //
-// If a draft ExternalCloudAudit configuration is not found, an error will be
+// If a draft ExternalAuditStorage configuration is not found, an error will be
 // returned.
-func NewDraftConfigurator(ctx context.Context, ecaSvc services.ExternalCloudAuditGetter, integrationSvc services.IntegrationsGetter, optFns ...func(*Options)) (*Configurator, error) {
-	draft, err := ecaSvc.GetDraftExternalCloudAudit(ctx)
+func NewDraftConfigurator(ctx context.Context, ecaSvc ExternalAuditStorageGetter, integrationSvc services.IntegrationsGetter, optFns ...func(*Options)) (*Configurator, error) {
+	draft, err := ecaSvc.GetDraftExternalAuditStorage(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -158,8 +175,8 @@ func NewDraftConfigurator(ctx context.Context, ecaSvc services.ExternalCloudAudi
 	return newConfigurator(ctx, &draft.Spec, integrationSvc, nil /* alertService */, optFns...)
 }
 
-func newConfigurator(ctx context.Context, spec *externalcloudaudit.ExternalCloudAuditSpec, integrationSvc services.IntegrationsGetter, alertService ClusterAlertService, optFns ...func(*Options)) (*Configurator, error) {
-	// ExternalCloudAudit is only available in Cloud Enterprise
+func newConfigurator(ctx context.Context, spec *externalauditstorage.ExternalAuditStorageSpec, integrationSvc services.IntegrationsGetter, alertService ClusterAlertService, optFns ...func(*Options)) (*Configurator, error) {
+	// ExternalAuditStorage is only available in Cloud Enterprise
 	// (IsUsageBasedBilling indicates Teleport Team, where this is not supported)
 	if !modules.GetModules().Features().Cloud || modules.GetModules().Features().IsUsageBasedBilling {
 		return &Configurator{isUsed: false}, nil
@@ -212,14 +229,14 @@ func newConfigurator(ctx context.Context, spec *externalcloudaudit.ExternalCloud
 	}, nil
 }
 
-// IsUsed returns a boolean indicating whether the ExternalCloudAudit feature is
+// IsUsed returns a boolean indicating whether the ExternalAuditStorage feature is
 // currently in active use.
 func (c *Configurator) IsUsed() bool {
 	return c != nil && c.isUsed
 }
 
-// GetSpec returns the current active ExternalCloudAuditSpec.
-func (c *Configurator) GetSpec() *externalcloudaudit.ExternalCloudAuditSpec {
+// GetSpec returns the current active ExternalAuditStorageSpec.
+func (c *Configurator) GetSpec() *externalauditstorage.ExternalAuditStorageSpec {
 	return c.spec
 }
 

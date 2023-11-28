@@ -33,7 +33,7 @@ func TestClusterExternalAuditWatcher(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	svc := NewExternalCloudAuditService(bk)
+	svc := NewExternalAuditStorageService(bk)
 	require.NotNil(t, svc)
 
 	ch := make(chan string)
@@ -46,7 +46,7 @@ func TestClusterExternalAuditWatcher(t *testing.T) {
 		{
 			desc: "create draft",
 			action: func(t *testing.T) {
-				_, err := svc.GenerateDraftExternalCloudAudit(ctx, "test-integration", "us-west-2")
+				_, err := svc.GenerateDraftExternalAuditStorage(ctx, "test-integration", "us-west-2")
 				require.NoError(t, err)
 			},
 			expectChange: false,
@@ -54,7 +54,7 @@ func TestClusterExternalAuditWatcher(t *testing.T) {
 		{
 			desc: "promote",
 			action: func(t *testing.T) {
-				err = svc.PromoteToClusterExternalCloudAudit(ctx)
+				err = svc.PromoteToClusterExternalAuditStorage(ctx)
 				require.NoError(t, err)
 			},
 			expectChange: true,
@@ -62,7 +62,7 @@ func TestClusterExternalAuditWatcher(t *testing.T) {
 		{
 			desc: "create another draft",
 			action: func(t *testing.T) {
-				_, err := svc.GenerateDraftExternalCloudAudit(ctx, "test-integration", "us-east-1")
+				_, err := svc.GenerateDraftExternalAuditStorage(ctx, "test-integration", "us-east-1")
 				require.NoError(t, err)
 			},
 			expectChange: false,
@@ -70,7 +70,7 @@ func TestClusterExternalAuditWatcher(t *testing.T) {
 		{
 			desc: "promote again",
 			action: func(t *testing.T) {
-				err = svc.PromoteToClusterExternalCloudAudit(ctx)
+				err = svc.PromoteToClusterExternalAuditStorage(ctx)
 				require.NoError(t, err)
 			},
 			expectChange: true,
@@ -78,7 +78,7 @@ func TestClusterExternalAuditWatcher(t *testing.T) {
 		{
 			desc: "create a third draft",
 			action: func(t *testing.T) {
-				_, err := svc.GenerateDraftExternalCloudAudit(ctx, "test-integration", "us-east-1")
+				_, err := svc.GenerateDraftExternalAuditStorage(ctx, "test-integration", "us-east-1")
 				require.NoError(t, err)
 			},
 			expectChange: false,
@@ -86,7 +86,7 @@ func TestClusterExternalAuditWatcher(t *testing.T) {
 		{
 			desc: "delete draft",
 			action: func(t *testing.T) {
-				err = svc.DeleteDraftExternalCloudAudit(ctx)
+				err = svc.DeleteDraftExternalAuditStorage(ctx)
 				require.NoError(t, err)
 			},
 			expectChange: false,
@@ -94,14 +94,14 @@ func TestClusterExternalAuditWatcher(t *testing.T) {
 		{
 			desc: "delete cluster",
 			action: func(t *testing.T) {
-				err = svc.DisableClusterExternalCloudAudit(ctx)
+				err = svc.DisableClusterExternalAuditStorage(ctx)
 				require.NoError(t, err)
 			},
 			expectChange: true,
 		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
-			watcher, err := NewClusterExternalAuditWatcher(ctx, ClusterExternalCloudAuditWatcherConfig{
+			watcher, err := NewClusterExternalAuditWatcher(ctx, ClusterExternalAuditStorageWatcherConfig{
 				Backend: bk,
 				OnChange: func() {
 					ch <- tc.desc
