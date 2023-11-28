@@ -16631,7 +16631,6 @@ depends_on:
 - promote-teleport-oci-distroless-images
 - promote-teleport-hardened-amis
 - promote-teleport-kube-agent-updater-oci-images
-- promote-teleport-spacelift-runner-oci-images
 steps:
 - name: Check if commit is tagged
   image: alpine
@@ -16740,6 +16739,6 @@ image_pull_secrets:
 - DOCKERHUB_CREDENTIALS
 ---
 kind: signature
-hmac: 4473e2d06a0de57e81dc8ee64e0c8de4ee055a4790947871a8708f6386552141
+hmac: 9fb8939614086c6fc82412dcd3f4c082865faa46736ac4464b84e890ab32dd13
 
 ...
