@@ -174,6 +174,7 @@ export type LockedFeatures = {
   accessRequests: boolean;
   premiumSupport: boolean;
   trustedDevices: boolean;
+  externalCloudAudit: boolean;
 };
 
 // RecommendFeature is used for recommending features if its usage status is zero.

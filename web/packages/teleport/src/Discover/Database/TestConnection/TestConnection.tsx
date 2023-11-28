@@ -36,6 +36,10 @@ import { useTestConnection, State } from './useTestConnection';
 
 import type { AgentStepProps } from '../../types';
 
+/**
+ * @deprecated Refactor Discover/Database/TestConnection away from the container component
+ * pattern. See https://github.com/gravitational/teleport/pull/34952.
+ */
 export function TestConnection(props: AgentStepProps) {
   const state = useTestConnection(props);
 
