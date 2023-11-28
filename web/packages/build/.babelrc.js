@@ -25,7 +25,7 @@ function makePresets(test = false) {
   if (test) {
     return [
       ['@babel/preset-env', { targets: { node: 'current' } }],
-      '@babel/preset-react',
+      ['@babel/preset-react', { runtime: 'automatic' }],
       '@babel/preset-typescript',
     ];
   }
@@ -38,7 +38,7 @@ function makePresets(test = false) {
           'last 2 chrome version, last 2 edge version, last 2 firefox version, last 2 safari version',
       },
     ],
-    '@babel/preset-react',
+    ['@babel/preset-react', { runtime: 'automatic' }],
   ];
 }
 
