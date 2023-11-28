@@ -19,7 +19,6 @@ package auth
 import (
 	"context"
 	"fmt"
-	"google.golang.org/protobuf/types/known/durationpb"
 	"net/url"
 	"strings"
 	"time"
@@ -32,6 +31,7 @@ import (
 	collectortracev1 "go.opentelemetry.io/proto/otlp/collector/trace/v1"
 	otlpcommonv1 "go.opentelemetry.io/proto/otlp/common/v1"
 	"golang.org/x/exp/slices"
+	"google.golang.org/protobuf/types/known/durationpb"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api"

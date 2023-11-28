@@ -19,10 +19,10 @@ package auth
 import (
 	"context"
 	"encoding/json"
-	"google.golang.org/protobuf/types/known/durationpb"
 	"time"
 
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/types/known/durationpb"
 
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	"github.com/gravitational/teleport/api/types"
