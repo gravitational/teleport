@@ -36,11 +36,6 @@ include versions.mk
 include images.mk
 include grpcbox.mk # Requires images.mk
 
-# These variables are used to dynamically change the name of the buildbox Docker image used by the 'release'
-# target. The other solution was to remove the 'buildbox' dependency from the 'release' target, but this would
-# make it harder to run `make -C build.assets release` locally as the buildbox would not automatically be built.
-BUILDBOX_NAME=$(BUILDBOX)
-
 DOCSBOX=ghcr.io/gravitational/docs
 
 ifneq ("$(KUBECONFIG)","")
@@ -124,25 +119,23 @@ build-binaries-fips: buildbox-centos7-fips webassets
 #
 .PHONY:buildbox
 buildbox:
-	if [[ "$(BUILDBOX_NAME)" == "$(BUILDBOX)" ]]; then \
-		if [[ $${DRONE} == "true" ]] && ! docker inspect --type=image $(BUILDBOX) 2>&1 >/dev/null; then docker pull $(BUILDBOX) || true; fi; \
-		DOCKER_BUILDKIT=1 docker build --platform=linux/$(RUNTIME_ARCH) \
-			--build-arg UID=$(UID) \
-			--build-arg GID=$(GID) \
-			--build-arg BUILDARCH=$(RUNTIME_ARCH) \
-			--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
-			--build-arg RUST_VERSION=$(RUST_VERSION) \
-			--build-arg WASM_PACK_VERSION=$(WASM_PACK_VERSION) \
-			--build-arg NODE_VERSION=$(NODE_VERSION) \
-			--build-arg LIBBPF_VERSION=$(LIBBPF_VERSION) \
-			--build-arg BUF_VERSION=$(BUF_VERSION) \
-			--build-arg GOGO_PROTO_TAG=$(GOGO_PROTO_TAG) \
-			--build-arg NODE_GRPC_TOOLS_VERSION=$(NODE_GRPC_TOOLS_VERSION) \
-			--build-arg NODE_PROTOC_TS_VERSION=$(NODE_PROTOC_TS_VERSION) \
-			--build-arg PROTOC_VERSION=$(PROTOC_VERSION) \
-			--cache-from $(BUILDBOX) \
-			--tag $(BUILDBOX) . \
-	fi
+	if [[ $${DRONE} == "true" ]] && ! docker inspect --type=image $(BUILDBOX) 2>&1 >/dev/null; then docker pull $(BUILDBOX) || true; fi; \
+	DOCKER_BUILDKIT=1 docker build --platform=linux/$(RUNTIME_ARCH) \
+		--build-arg UID=$(UID) \
+		--build-arg GID=$(GID) \
+		--build-arg BUILDARCH=$(RUNTIME_ARCH) \
+		--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
+		--build-arg RUST_VERSION=$(RUST_VERSION) \
+		--build-arg WASM_PACK_VERSION=$(WASM_PACK_VERSION) \
+		--build-arg NODE_VERSION=$(NODE_VERSION) \
+		--build-arg LIBBPF_VERSION=$(LIBBPF_VERSION) \
+		--build-arg BUF_VERSION=$(BUF_VERSION) \
+		--build-arg GOGO_PROTO_TAG=$(GOGO_PROTO_TAG) \
+		--build-arg NODE_GRPC_TOOLS_VERSION=$(NODE_GRPC_TOOLS_VERSION) \
+		--build-arg NODE_PROTOC_TS_VERSION=$(NODE_PROTOC_TS_VERSION) \
+		--build-arg PROTOC_VERSION=$(PROTOC_VERSION) \
+		--cache-from $(BUILDBOX) \
+		--tag $(BUILDBOX) .
 
 # Builds a Docker buildbox for FIPS
 #
@@ -410,8 +403,8 @@ release-arm64:
 	$(MAKE) release-centos7 ARCH=arm64 BUILDBOX_CENTOS7=$(BUILDBOX_ARM64)
 
 .PHONY: release-arm
-release-arm: buildbox-arm
-	$(MAKE) release ARCH=arm BUILDBOX_NAME=$(BUILDBOX_ARM)
+release-arm:
+	$(MAKE) release ARCH=arm BUILDBOX=$(BUILDBOX_ARM)
 
 # Compatibility targets for when we had separate Ubuntu and CentOS 7 targets for AMD64
 # TODO(camscale): Remove these when drone no longer calls them.
@@ -426,13 +419,21 @@ release-amd64-centos7-fips: release-amd64-fips
 # Don't use these targets directly; call named Makefile targets such as `release-amd64`.
 # #############################################################################
 
+# Define buildbox makefile targets for building various buildboxes, parameterizing
+# the `release` target`.
+BUILDBOX_TARGET_$(BUILDBOX_ARM) = buildbox-arm
+
+# Select the correct makefile target for building a buildbox based on $(BUILDBOX)
+# with a default fallback of "buildbox".
+BUILDBOX_TARGET = $(or $(BUILDBOX_TARGET_$(BUILDBOX)),buildbox)
+
 #
 # Create a Teleport package using the build container.
 #
 .PHONY:release
-release: buildbox
+release: $(BUILDBOX_TARGET)
 	@echo "Build Assets Release"
-	docker run $(DOCKERFLAGS) $(NOROOT) $(BUILDBOX_NAME) \
+	docker run $(DOCKERFLAGS) $(NOROOT) $(BUILDBOX) \
 		/usr/bin/make release -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(GOLANG_VERSION) FIDO2=$(FIDO2) PIV=$(PIV) REPRODUCIBLE=yes
 
 #
