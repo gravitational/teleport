@@ -16,11 +16,16 @@
 
 import {
   AnsibleIcon,
+  AWSIcon,
+  AzureIcon,
   CircleCIIcon,
+  GCPIcon,
   GitHubIcon,
   GitLabIcon,
   JenkinsIcon,
+  KubernetesIcon,
   ServersIcon,
+  SpaceliftIcon,
 } from 'design/SVGIcon';
 import { Box, Flex, Link as ExternalLink, Text } from 'design';
 import React from 'react';
@@ -43,33 +48,63 @@ interface Integration {
 const integrations: Integration[] = [
   {
     title: 'GitHub Actions',
-    link: 'https://goteleport.com/docs/machine-id/guides/github-actions/',
+    link: 'https://goteleport.com/docs/machine-id/deployment/github-actions/',
     icon: <GitHubIcon size={80} />,
     kind: IntegrationEnrollKind.MachineIDGitHubActions,
   },
   {
     title: 'CircleCI',
-    link: 'https://goteleport.com/docs/machine-id/guides/circleci/',
+    link: 'https://goteleport.com/docs/machine-id/deployment/circleci/',
     icon: <CircleCIIcon size={80} />,
     kind: IntegrationEnrollKind.MachineIDCircleCI,
   },
   {
     title: 'GitLab CI/CD',
-    link: 'https://goteleport.com/docs/machine-id/guides/gitlab/',
+    link: 'https://goteleport.com/docs/machine-id/deployment/gitlab/',
     icon: <GitLabIcon size={80} />,
     kind: IntegrationEnrollKind.MachineIDGitLab,
   },
   {
     title: 'Jenkins',
-    link: 'https://goteleport.com/docs/machine-id/guides/jenkins/',
+    link: 'https://goteleport.com/docs/machine-id/deployment/jenkins/',
     icon: <JenkinsIcon size={80} />,
     kind: IntegrationEnrollKind.MachineIDJenkins,
   },
   {
     title: 'Ansible',
-    link: 'https://goteleport.com/docs/machine-id/guides/ansible/',
+    link: 'https://goteleport.com/docs/machine-id/access-guides/ansible/',
     icon: <AnsibleIcon size={80} />,
     kind: IntegrationEnrollKind.MachineIDAnsible,
+  },
+  {
+    title: 'Spacelift',
+    link: 'https://goteleport.com/docs/machine-id/deployment/spacelift/',
+    icon: <SpaceliftIcon size={80} />,
+    kind: IntegrationEnrollKind.MachineIDSpacelift,
+  },
+  {
+    title: 'AWS',
+    link: 'https://goteleport.com/docs/machine-id/deployment/aws/',
+    icon: <AWSIcon size={80} />,
+    kind: IntegrationEnrollKind.MachineIDAWS,
+  },
+  {
+    title: 'GCP',
+    link: 'https://goteleport.com/docs/machine-id/deployment/gcp/',
+    icon: <GCPIcon size={80} />,
+    kind: IntegrationEnrollKind.MachineIDGCP,
+  },
+  {
+    title: 'Azure',
+    link: 'https://goteleport.com/docs/machine-id/deployment/azure/',
+    icon: <AzureIcon size={80} />,
+    kind: IntegrationEnrollKind.MachineIDAzure,
+  },
+  {
+    title: 'Kubernetes',
+    link: 'https://goteleport.com/docs/machine-id/deployment/kubernetes/',
+    icon: <KubernetesIcon size={80} />,
+    kind: IntegrationEnrollKind.MachineIDKubernetes,
   },
   {
     title: 'Generic',
