@@ -19,6 +19,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"slices"
 	"sync"
 	"time"
 
@@ -281,6 +282,9 @@ var metricsServicesRunning = prometheus.NewGaugeVec(
 	},
 	[]string{teleport.TagServiceName},
 )
+var metricsServicesRunningAllowList = []string{
+	"discovery.init",
+}
 
 func (s *LocalSupervisor) serve(srv Service) {
 	s.wg.Add(1)
@@ -288,8 +292,10 @@ func (s *LocalSupervisor) serve(srv Service) {
 		defer s.wg.Done()
 		defer s.RemoveService(srv)
 
-		metricsServicesRunning.WithLabelValues(srv.Name()).Inc()
-		defer metricsServicesRunning.WithLabelValues(srv.Name()).Dec()
+		if slices.Contains(metricsServicesRunningAllowList, srv.Name()) {
+			metricsServicesRunning.WithLabelValues(srv.Name()).Inc()
+			defer metricsServicesRunning.WithLabelValues(srv.Name()).Dec()
+		}
 
 		l := s.log.WithField("service", srv.Name())
 		l.Debug("Service has started.")
