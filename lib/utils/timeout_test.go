@@ -29,7 +29,7 @@ func TestObeyIdleTimeout(t *testing.T) {
 	t.Cleanup(func() { clock.Advance(time.Hour) })
 
 	c1, c2 := net.Pipe()
-	c1 = obeyIdleTimeoutFunc(c1, time.Minute, clock.AfterFunc)
+	c1 = obeyIdleTimeoutClock(c1, time.Minute, clock)
 	t.Cleanup(func() { c1.Close() })
 	t.Cleanup(func() { c2.Close() })
 
