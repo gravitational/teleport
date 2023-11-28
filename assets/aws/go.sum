@@ -2,8 +2,8 @@ github.com/alecthomas/units v0.0.0-20211218093645-b94a6e3cc137 h1:s6gZFSlWYmbqAu
 github.com/alecthomas/units v0.0.0-20211218093645-b94a6e3cc137/go.mod h1:OMCwj8VM1Kc9e19TLln2VL61YJF0x1XFtfdL4JdbSyE=
 github.com/aws/aws-sdk-go-v2 v1.23.2 h1:UoTll1Y5b88x8h53OlsJGgOHwpggdMr7UVnLjMb3XYg=
 github.com/aws/aws-sdk-go-v2 v1.23.2/go.mod h1:i1XDttT4rnf6vxc9AuskLc6s7XBee8rlLilKlc03uAA=
-github.com/aws/aws-sdk-go-v2/config v1.25.7 h1:ZTNKec5SPn3iPP+k1GqBPSZWxQmbJJEOG/0Zd1l2Aig=
-github.com/aws/aws-sdk-go-v2/config v1.25.7/go.mod h1:zefIy117FDPOVU0xSOFG8mx9kJunuVopzI639tjYXc0=
+github.com/aws/aws-sdk-go-v2/config v1.25.8 h1:CHr7PIzyfevjNiqL9rU6xoqHZKCO2ldY6LmvRDfpRuI=
+github.com/aws/aws-sdk-go-v2/config v1.25.8/go.mod h1:zefIy117FDPOVU0xSOFG8mx9kJunuVopzI639tjYXc0=
 github.com/aws/aws-sdk-go-v2/credentials v1.16.6 h1:TimIpn1p4v44i0sJMKsnpby1P9sP1ByKLsdm7bvOmwM=
 github.com/aws/aws-sdk-go-v2/credentials v1.16.6/go.mod h1:+CLPlYf9FQLeXD8etOYiZxpLQqc3GL4EikxjkFFp1KA=
 github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.14.6 h1:pPs23/JLSOlwnmSRNkdbt3upmBeF6QL/3MHEb6KzTyo=
