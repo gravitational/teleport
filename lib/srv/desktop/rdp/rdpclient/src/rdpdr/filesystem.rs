@@ -79,8 +79,8 @@ impl FilesystemBackend {
             efs::ServerDriveIoRequest::ServerDriveQueryDirectoryRequest(req) => {
                 self.handle_query_directory_req(req)
             }
-            efs::ServerDriveIoRequest::UnsupportedMinorFunctionRequest(dev_io_req) => {
-                self.handle_unsupported_minor_fn(dev_io_req)
+            efs::ServerDriveIoRequest::ServerDriveNotifyChangeDirectoryRequest(req) => {
+                self.handle_notify_change_directory_req(req)
             }
             efs::ServerDriveIoRequest::ServerDriveQueryVolumeInformationRequest(req) => {
                 self.handle_query_volume_req(req)
@@ -377,23 +377,13 @@ impl FilesystemBackend {
         self.send_drive_query_dir_response(rdp_req.device_io_request, NtStatus::UNSUCCESSFUL, None)
     }
 
-    fn handle_unsupported_minor_fn(&self, dev_io_req: efs::DeviceIoRequest) -> PduResult<()> {
-        match dev_io_req.minor_function {
-            // This should always result in an ServerDriveQueryDirectoryRequest, so we don't expect to handle it here.
-            efs::MinorFunction::QueryDirectory => Err(other_err!(
-                "FilesystemBackend::handle_unsupported_minor_fn",
-                "program error",
-            )),
-            efs::MinorFunction::NotifyChangeDirectory => {
-                // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L661
-                debug!("Received NotifyChangeDirectory, ignoring");
-                Ok(())
-            }
-            efs::MinorFunction::None => {
-                // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L663
-                self.send_drive_query_dir_response(dev_io_req, NtStatus::NOT_SUPPORTED, None)
-            }
-        }
+    fn handle_notify_change_directory_req(
+        &self,
+        rdp_req: efs::ServerDriveNotifyChangeDirectoryRequest,
+    ) -> PduResult<()> {
+        // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L661
+        debug!("Received NotifyChangeDirectory, ignoring: {:?}", rdp_req);
+        Ok(())
     }
 
     /// Handles an RDP [`efs::ServerDriveQueryVolumeInformationRequest`] received from the RDP server.
