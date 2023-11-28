@@ -67,7 +67,8 @@ func (r *DeploymentVersionUpdater) Reconcile(ctx context.Context, req ctrl.Reque
 		case *trace.BadParameterError:
 			log.Info("Teleport container found, but failed to get version from the img tag. Will continue and do a version update.")
 		default:
-			return requeueLater, trace.Wrap(err)
+			log.Error(err, "Unexpected error, not updating.")
+			return requeueLater, nil
 		}
 	}
 
@@ -88,20 +89,22 @@ func (r *DeploymentVersionUpdater) Reconcile(ctx context.Context, req ctrl.Reque
 	case trace.IsTrustError(err):
 		// Logging as error as image verification should not fail under normal use
 		log.Error(err, "Image verification failed, not updating.")
-		return requeueLater, trace.Wrap(err)
+		return requeueLater, nil
 	case err != nil:
 		log.Error(err, "Unexpected error, not updating.")
-		return requeueLater, trace.Wrap(err)
+		return requeueLater, nil
 	}
 
 	log.Info("Updating podSpec with image", "image", image.String())
 	err = setContainerImageFromPodSpec(&obj.Spec.Template.Spec, teleportContainerName, image.String())
 	if err != nil {
-		return requeueLater, trace.Wrap(err)
+		log.Error(err, "Unexpected error, not updating.")
+		return requeueLater, nil
 	}
 
 	if err = r.Update(ctx, &obj); err != nil {
-		return requeueNow, trace.Wrap(err)
+		log.Error(err, "Unexpected error, not updating.")
+		return requeueNow, nil
 	}
 	return requeueLater, nil
 }
