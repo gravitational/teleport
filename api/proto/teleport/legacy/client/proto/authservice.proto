@@ -1839,6 +1839,9 @@ message CreateAuthenticateChallengeRequest {
   // If you are issuing challenges from the root cluster, but accessing a leaf,
   // call [AuthService.IsMFARequired] in the leaf instead of setting this field.
   IsMFARequiredRequest MFARequiredCheck = 5 [(gogoproto.jsontag) = "mfa_required_check,omitempty"];
+  // Scope is a authorization scope for this MFA challenge.
+  // Required. Only applies to webauthn challenges.
+  webauthn.ChallengeScope Scope = 6 [(gogoproto.jsontag) = "scope,omitempty"];
 }
 
 // CreatePrivilegeTokenRequest defines a request to obtain a privilege token.

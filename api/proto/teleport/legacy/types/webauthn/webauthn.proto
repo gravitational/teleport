@@ -56,6 +56,39 @@ message SessionData {
   // "required".
   // An empty value is treated equivalently to "discouraged".
   string user_verification = 5 [(gogoproto.jsontag) = "userVerification,omitempty"];
+  // Scope authorized by this webauthn session.
+  ChallengeScope scope = 6 [(gogoproto.jsontag) = "scope,omitempty"];
+}
+
+// ChallengeScope is a scope authorized by a webauthn challenge's resolution.
+enum ChallengeScope {
+  // Invalid, scope should always be specified.
+  CHALLENGE_SCOPE_UNSPECIFIED = 0;
+  // Standard webauthn login.
+  CHALLENGE_SCOPE_LOGIN = 1;
+  // Passwordless webauthn login.
+  CHALLENGE_SCOPE_PASSWORDLESS_LOGIN = 2;
+  // MFA device management.
+  CHALLENGE_SCOPE_MANAGE_DEVICES = 3;
+  // Account recovery.
+  CHALLENGE_SCOPE_RECOVERY = 4;
+  // Used for per-session MFA and moderated session presence checks.
+  CHALLENGE_SCOPE_SESSION = 5;
+  // Headless login approval.
+  CHALLENGE_SCOPE_HEADLESS = 6;
+  // Used for various administrative actions, such as adding, updating, or
+  // deleting administrative resources (users, roles, etc.).
+  //
+  // Note: this scope should not be used for new MFA capabilities that have
+  // more precise scope. Instead, new scopes should be added. This scope may
+  // also be split into multiple smaller scopes in the future.
+  CHALLENGE_SCOPE_ADMIN_ACTION = 7;
+  // Webauthn credentials resolved from a challenge with this scope can be
+  // reused for a short span of time before the challenge expires.
+  //
+  // This scope for a select few admin actions and will be rejected by other
+  // admin actions. See the server implementation for details.
+  CHALLENGE_SCOPE_ADMIN_ACTION_WITH_REUSE = 8;
 }
 
 // User represents a WebAuthn user.
