@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/lib/ai"
 	embeddinglib "github.com/gravitational/teleport/lib/ai/embedding"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -195,6 +196,11 @@ func (a *Service) CreateAssistantMessage(ctx context.Context, req *assist.Create
 
 // IsAssistEnabled returns true if the assist is enabled or not on the auth level.
 func (a *Service) IsAssistEnabled(ctx context.Context, _ *assist.IsAssistEnabledRequest) (*assist.IsAssistEnabledResponse, error) {
+	if !modules.GetModules().Features().Assist {
+		// If the assist feature is not enabled on the license, the assist is not enabled.
+		return &assist.IsAssistEnabledResponse{Enabled: false}, nil
+	}
+
 	// If the embedder is not configured, the assist is not enabled as we cannot compute embeddings.
 	if a.embedder == nil {
 		return &assist.IsAssistEnabledResponse{Enabled: false}, nil
