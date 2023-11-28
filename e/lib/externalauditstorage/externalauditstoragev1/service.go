@@ -16,10 +16,13 @@ import (
 	"github.com/gravitational/teleport"
 	pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/externalauditstorage/v1"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
+	eastypes "github.com/gravitational/teleport/api/types/externalauditstorage"
 	conv "github.com/gravitational/teleport/api/types/externalauditstorage/convert/v1"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/e/lib/externalauditstorage"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/events"
 	ecaint "github.com/gravitational/teleport/lib/integrations/externalauditstorage"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -44,6 +47,7 @@ type ServiceConfig struct {
 	IntegrationSvc *local.IntegrationsService
 	// OIDCTokenFn is method used to retrieve OIDC tokens for use in OIDC AWS Config
 	OIDCTokenFn ecaint.GenerateOIDCTokenFn
+	Emitter     apievents.Emitter
 }
 
 // Service implements the external audit gRPC service.
@@ -57,6 +61,7 @@ type Service struct {
 	clusterAuditConfigGetter ClusterAuditConfigGetter
 	integrationSvc           *local.IntegrationsService
 	oidcTokenFn              ecaint.GenerateOIDCTokenFn
+	emitter                  apievents.Emitter
 }
 
 // NewService returns a new external audit gRPC service.
@@ -72,6 +77,8 @@ func NewService(cfg *ServiceConfig) (*Service, error) {
 		return nil, trace.BadParameter("IntegrationSvc is required")
 	case cfg.OIDCTokenFn == nil:
 		return nil, trace.BadParameter("OIDCTokenFn is required")
+	case cfg.Emitter == nil:
+		return nil, trace.BadParameter("Emitter is required")
 	}
 	return &Service{
 		logger:                   logrus.WithField(trace.Component, "ExternalAuditStorage.service"),
@@ -80,6 +87,7 @@ func NewService(cfg *ServiceConfig) (*Service, error) {
 		clusterAuditConfigGetter: cfg.ClusterAuditConfigGetter,
 		integrationSvc:           cfg.IntegrationSvc,
 		oidcTokenFn:              cfg.OIDCTokenFn,
+		emitter:                  cfg.Emitter,
 	}, nil
 }
 
@@ -216,7 +224,7 @@ func (s *Service) DeleteDraftExternalAuditStorage(ctx context.Context, req *pb.D
 }
 
 func (s *Service) PromoteToClusterExternalAuditStorage(ctx context.Context, req *pb.PromoteToClusterExternalAuditStorageRequest) (*pb.PromoteToClusterExternalAuditStorageResponse, error) {
-	if err := s.authorizeVerbs(ctx, types.VerbCreate); err != nil {
+	if err := s.authorizeVerbs(ctx, types.VerbCreate, types.VerbUpdate, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	// TODO(nklaassen): administrative endpoint with mfa.
@@ -225,7 +233,23 @@ func (s *Service) PromoteToClusterExternalAuditStorage(ctx context.Context, req 
 		return nil, trace.Wrap(err, "unable to configure External Audit Storage")
 	}
 
-	// TODO(nklaassen): emit audit event.
+	draft, err := s.externalAuditStorage.GetDraftExternalAuditStorage(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to retrieve current draft configuration")
+	}
+
+	userMetadata := authz.ClientUserMetadata(ctx)
+	s.emitEvent(ctx, &apievents.ExternalAuditStorageEnable{
+		Metadata: apievents.Metadata{
+			Type: events.ExternalAuditStorageEnableEvent,
+			Code: events.ExternalAuditStorageEnableCode,
+		},
+		ResourceMetadata: apievents.ResourceMetadata{
+			Name:      "cluster",
+			UpdatedBy: userMetadata.User,
+		},
+		Details: eventDetails(draft),
+	})
 
 	if err := s.externalAuditStorage.PromoteToClusterExternalAuditStorage(ctx); err != nil {
 		return nil, trace.Wrap(err)
@@ -253,7 +277,24 @@ func (s *Service) DisableClusterExternalAuditStorage(ctx context.Context, req *p
 	}
 
 	// TODO(nklaassen): administrative endpoint with mfa.
-	// TODO(nklaassen): emit audit event.
+
+	cluster, err := s.externalAuditStorage.GetClusterExternalAuditStorage(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to retrieve current cluster configuration")
+	}
+
+	userMetadata := authz.ClientUserMetadata(ctx)
+	s.emitEvent(ctx, &apievents.ExternalAuditStorageDisable{
+		Metadata: apievents.Metadata{
+			Type: events.ExternalAuditStorageDisableEvent,
+			Code: events.ExternalAuditStorageDisableCode,
+		},
+		ResourceMetadata: apievents.ResourceMetadata{
+			Name:      "cluster",
+			UpdatedBy: userMetadata.User,
+		},
+		Details: eventDetails(cluster),
+	})
 
 	if err := s.externalAuditStorage.DisableClusterExternalAuditStorage(ctx); err != nil {
 		return nil, trace.Wrap(err)
@@ -304,4 +345,27 @@ func (s *Service) getAWSConfig(ctx context.Context) (aws.Config, error) {
 	}
 
 	return cfg, nil
+}
+
+func (s *Service) emitEvent(ctx context.Context, e apievents.AuditEvent) {
+	if err := s.emitter.EmitAuditEvent(context.Background(), e); err != nil {
+		s.logger.WithFields(logrus.Fields{
+			"type":  e.GetType(),
+			"error": err,
+		}).Info("Failed to emit audit event")
+	}
+}
+
+func eventDetails(r *eastypes.ExternalAuditStorage) *apievents.ExternalAuditStorageDetails {
+	return &apievents.ExternalAuditStorageDetails{
+		IntegrationName:        r.Spec.IntegrationName,
+		SessionRecordingsUri:   r.Spec.SessionRecordingsURI,
+		AthenaWorkgroup:        r.Spec.AthenaWorkgroup,
+		GlueDatabase:           r.Spec.GlueDatabase,
+		GlueTable:              r.Spec.GlueTable,
+		AuditEventsLongTermUri: r.Spec.AuditEventsLongTermURI,
+		AthenaResultsUri:       r.Spec.AthenaResultsURI,
+		PolicyName:             r.Spec.PolicyName,
+		Region:                 r.Spec.Region,
+	}
 }

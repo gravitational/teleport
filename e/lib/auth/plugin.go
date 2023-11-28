@@ -457,6 +457,7 @@ func (p *Plugin) registerExternalAuditStorageService(ctx context.Context) error 
 		ClusterAuditConfigGetter: p.authServer.AuthServer,
 		IntegrationSvc:           integrationsSvc,
 		OIDCTokenFn:              p.authServer.AuthServer.GenerateExternalAuditStorageOIDCToken,
+		Emitter:                  p.authServer.Emitter,
 	})
 	if err != nil {
 		return trace.Wrap(err)

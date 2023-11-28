@@ -12,6 +12,7 @@ import (
 	pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/externalauditstorage/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/externalauditstorage"
 	conv "github.com/gravitational/teleport/api/types/externalauditstorage/convert/v1"
 	"github.com/gravitational/teleport/lib/authz"
@@ -86,22 +87,10 @@ func TestRBAC(t *testing.T) {
 	ctx := context.Background()
 	p := newTestPack(t)
 
-	authorizer := &fakeAuthorizer{}
 	sampleAthenaURI := "athena://db.table?topicArn=arn:aws:sns:eu-central-1:accnr:topicName&queryResultsS3=s3://testbucket/query-result/&workgroup=workgroup&locationS3=s3://testbucket/events-location&queueURL=https://sqs.eu-central-1.amazonaws.com/accnr/sqsname&largeEventsS3=s3://testbucket/largeevents"
 	clusterAuditConfig, err := types.NewClusterAuditConfig(types.ClusterAuditConfigSpecV2{
 		AuditEventsURI: []string{sampleAthenaURI},
 	})
-	require.NoError(t, err)
-
-	cfg := &ServiceConfig{
-		ExternalAuditStorage:     p.s,
-		Authorizer:               authorizer,
-		ClusterAuditConfigGetter: &staticAuditConfigGetter{clusterAuditConfig},
-		IntegrationSvc:           p.integrationsSvc,
-		OIDCTokenFn:              func(context.Context) (string, error) { return "token", nil },
-	}
-
-	service, err := NewService(cfg)
 	require.NoError(t, err)
 
 	draftAuditConfig := &pb.ExternalAuditStorage{
@@ -125,13 +114,14 @@ func TestRBAC(t *testing.T) {
 
 	for _, tc := range []struct {
 		desc         string
-		f            func() error
+		f            func(*Service) error
 		allow        map[check]bool
 		expectChecks []check
+		expectEvents []string
 	}{
 		{
 			desc: "upsert draft",
-			f: func() error {
+			f: func(service *Service) error {
 				_, err := service.UpsertDraftExternalAuditStorage(ctx, &pb.UpsertDraftExternalAuditStorageRequest{
 					ExternalAuditStorage: draftAuditConfig,
 				})
@@ -148,7 +138,7 @@ func TestRBAC(t *testing.T) {
 		},
 		{
 			desc: "get draft",
-			f: func() error {
+			f: func(service *Service) error {
 				_, err := service.GetDraftExternalAuditStorage(ctx, &pb.GetDraftExternalAuditStorageRequest{})
 				return err
 			},
@@ -161,20 +151,25 @@ func TestRBAC(t *testing.T) {
 		},
 		{
 			desc: "promote to cluster",
-			f: func() error {
+			f: func(service *Service) error {
 				_, err := service.PromoteToClusterExternalAuditStorage(ctx, &pb.PromoteToClusterExternalAuditStorageRequest{})
 				return err
 			},
 			allow: map[check]bool{
+				{types.KindExternalAuditStorage, types.VerbRead}:   true,
 				{types.KindExternalAuditStorage, types.VerbCreate}: true,
+				{types.KindExternalAuditStorage, types.VerbUpdate}: true,
 			},
 			expectChecks: []check{
+				{types.KindExternalAuditStorage, types.VerbRead},
 				{types.KindExternalAuditStorage, types.VerbCreate},
+				{types.KindExternalAuditStorage, types.VerbUpdate},
 			},
+			expectEvents: []string{"external_audit_storage.enable"},
 		},
 		{
 			desc: "get cluster",
-			f: func() error {
+			f: func(service *Service) error {
 				_, err := service.GetClusterExternalAuditStorage(ctx, &pb.GetClusterExternalAuditStorageRequest{})
 				return err
 			},
@@ -187,7 +182,7 @@ func TestRBAC(t *testing.T) {
 		},
 		{
 			desc: "delete cluster",
-			f: func() error {
+			f: func(service *Service) error {
 				_, err := service.DisableClusterExternalAuditStorage(ctx, &pb.DisableClusterExternalAuditStorageRequest{})
 				return err
 			},
@@ -197,10 +192,11 @@ func TestRBAC(t *testing.T) {
 			expectChecks: []check{
 				{types.KindExternalAuditStorage, types.VerbDelete},
 			},
+			expectEvents: []string{"external_audit_storage.disable"},
 		},
 		{
 			desc: "generate draft",
-			f: func() error {
+			f: func(service *Service) error {
 				_, err := service.GenerateDraftExternalAuditStorage(ctx, &pb.GenerateDraftExternalAuditStorageRequest{
 					IntegrationName: "test-integration",
 					Region:          "us-west-2",
@@ -216,7 +212,7 @@ func TestRBAC(t *testing.T) {
 		},
 		{
 			desc: "delete draft",
-			f: func() error {
+			f: func(service *Service) error {
 				_, err := service.DeleteDraftExternalAuditStorage(ctx, &pb.DeleteDraftExternalAuditStorageRequest{})
 				return err
 			},
@@ -229,18 +225,33 @@ func TestRBAC(t *testing.T) {
 		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
+			authorizer := &fakeAuthorizer{}
+			emitter := &fakeEmitter{}
+			cfg := &ServiceConfig{
+				ExternalAuditStorage:     p.s,
+				Authorizer:               authorizer,
+				ClusterAuditConfigGetter: &staticAuditConfigGetter{clusterAuditConfig},
+				IntegrationSvc:           p.integrationsSvc,
+				OIDCTokenFn:              func(context.Context) (string, error) { return "token", nil },
+				Emitter:                  emitter,
+			}
+
+			service, err := NewService(cfg)
+			require.NoError(t, err)
+
 			// First check with nothing allowed.
 			authorizer.checker = &fakeChecker{}
-			err := tc.f()
+			err = tc.f(service)
 			require.True(t, trace.IsAccessDenied(err), "expected AccessDenied error, got %v", err)
 
 			// Check with allowed rule/verbs from testcase.
 			authorizer.checker = &fakeChecker{
 				allow: tc.allow,
 			}
-			err = tc.f()
+			err = tc.f(service)
 			require.NoError(t, err, trace.DebugReport(err))
 			require.ElementsMatch(t, tc.expectChecks, authorizer.checker.checks)
+			require.Equal(t, tc.expectEvents, emitter.events)
 		})
 	}
 }
@@ -255,6 +266,7 @@ func TestClusterAuditConfigCheck(t *testing.T) {
 		allow: map[check]bool{
 			{types.KindExternalAuditStorage, types.VerbCreate}: true,
 			{types.KindExternalAuditStorage, types.VerbUpdate}: true,
+			{types.KindExternalAuditStorage, types.VerbRead}:   true,
 		},
 	}}
 	sampleAthenaURI := "athena://db.table?topicArn=arn:aws:sns:eu-central-1:accnr:topicName&queryResultsS3=s3://testbucket/query-result/&workgroup=workgroup&locationS3=s3://testbucket/events-location&queueURL=https://sqs.eu-central-1.amazonaws.com/accnr/sqsname&largeEventsS3=s3://testbucket/largeevents"
@@ -293,6 +305,7 @@ func TestClusterAuditConfigCheck(t *testing.T) {
 				ClusterAuditConfigGetter: &staticAuditConfigGetter{clusterAuditConfig},
 				IntegrationSvc:           p.integrationsSvc,
 				OIDCTokenFn:              func(context.Context) (string, error) { return "token", nil },
+				Emitter:                  &fakeEmitter{},
 			}
 			service, err := NewService(cfg)
 			require.NoError(t, err)
@@ -320,4 +333,13 @@ type staticAuditConfigGetter struct {
 
 func (s *staticAuditConfigGetter) GetClusterAuditConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterAuditConfig, error) {
 	return s.clusterAuditConfig, nil
+}
+
+type fakeEmitter struct {
+	events []string
+}
+
+func (f *fakeEmitter) EmitAuditEvent(ctx context.Context, e apievents.AuditEvent) error {
+	f.events = append(f.events, e.GetType())
+	return nil
 }
