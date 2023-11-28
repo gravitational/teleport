@@ -21,11 +21,11 @@ import parseError, { ApiError } from './parseError';
 
 const api = {
   get(url, abortSignal) {
-    return api.fetchJson(url, { signal: abortSignal });
+    return api.fetchJsonWithMFARetry(url, { signal: abortSignal });
   },
 
   post(url, data, abortSignal) {
-    return api.fetchJson(url, {
+    return api.fetchJsonWithMFARetry(url, {
       body: JSON.stringify(data),
       method: 'POST',
       signal: abortSignal,
@@ -34,7 +34,7 @@ const api = {
 
   postFormData(url, formData) {
     if (formData instanceof FormData) {
-      return api.fetchJson(url, {
+      return api.fetchJsonWithMFARetry(url, {
         body: formData,
         method: 'POST',
         // Overrides the default header from `requestOptions`.
@@ -52,42 +52,51 @@ const api = {
   },
 
   delete(url, data) {
-    return api.fetchJson(url, {
+    return api.fetchJsonWithMFARetry(url, {
       body: JSON.stringify(data),
       method: 'DELETE',
     });
   },
 
   put(url, data) {
-    return api.fetchJson(url, {
+    return api.fetchJsonWithMFARetry(url, {
       body: JSON.stringify(data),
       method: 'PUT',
     });
   },
 
-  async fetchJson(url, params) {
-    let response;
+  async fetchJsonWithMFARetry(url, params) {
     try {
-      response = await this.fetch(url, params);
-      let json = await response.json();
-
+      return await this.fetchJson(url, params);
+    } catch (err) {
       // Retry with MFA if we get an admin action missing MFA error.
-      if (!response.ok && isAdminActionRequiresMFAError(parseError(json))) {
+      if (isAdminActionRequiresMfaError(err.message)) {
         params.headers = {
           ...params.headers,
-          'Mfa-Response': JSON.stringify({
+          'Teleport-MFA-Response': JSON.stringify({
             webauthnAssertionResponse: await auth.getWebauthnResponse(),
           }),
         };
-        response = await this.fetch(url, params);
-        json = await response.json();
+        return await this.fetchJson(url, params);
       }
+    }
+  },
 
-      if (!response.ok) {
-        throw new ApiError(parseError(json), response);
+  async fetchJson(url, params) {
+    let response = await this.fetch(url, params);
+
+    if (!response.ok) {
+      // default err message
+      let errMessage = `${response.status} - ${response.url}`;
+      try {
+        errMessage = parseError(await response.json())
+      } finally {
+        throw new ApiError(errMessage, response);
       }
+    }
 
-      return json;
+    try {
+      return await response.json();
     } catch (err) {
       throw new ApiError(err.message, response, { cause: err });
     }
@@ -107,14 +116,7 @@ const api = {
     };
 
     // native call
-    const response = fetch(url, options);
-    try {
-      return await response;
-    } catch (err) {
-      throw new ApiError(`${response.status} - ${response.url}`, response, {
-        cause: err,
-      });
-    }
+    return await fetch(url, options);
   },
 };
 
@@ -159,7 +161,7 @@ export function getHostName() {
   return location.hostname + (location.port ? ':' + location.port : '');
 }
 
-function isAdminActionRequiresMFAError(errMessage) {
+function isAdminActionRequiresMfaError(errMessage) {
   return errMessage.includes(
     'admin-level API request requires MFA verification'
   );

@@ -4122,7 +4122,7 @@ func parseMFAResponseFromRequest(r *http.Request) error {
 // from the request header. If found, the MFA response is added to the given
 // context and returned.
 func contextWithMFAResponseFromRequestHeader(ctx context.Context, requestHeader http.Header) (context.Context, error) {
-	if mfaResponseJSON := requestHeader.Get("Mfa-Response"); mfaResponseJSON != "" {
+	if mfaResponseJSON := requestHeader.Get("Teleport-MFA-Response"); mfaResponseJSON != "" {
 		var resp mfaResponse
 		if err := json.Unmarshal([]byte(mfaResponseJSON), &resp); err != nil {
 			return nil, trace.Wrap(err)
