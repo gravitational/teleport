@@ -37,7 +37,6 @@ const EventIconMap: Record<EventCode, any> = {
   [eventCodes.OIDC_CONNECTOR_DELETED]: Icons.Info,
   [eventCodes.OIDC_CONNECTOR_UPDATED]: Icons.Info,
   [eventCodes.SAML_CONNECTOR_CREATED]: Icons.Info,
-  [eventCodes.SAML_CONNECTOR_CREATED]: Icons.Info,
   [eventCodes.SAML_CONNECTOR_DELETED]: Icons.Info,
   [eventCodes.SAML_CONNECTOR_UPDATED]: Icons.Info,
   [eventCodes.ROLE_CREATED]: Icons.Info,
