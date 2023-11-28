@@ -193,8 +193,6 @@ buildbox-centos7-fips:
 buildbox-arm:
 	@if [[ $${DRONE} == "true" ]] && ! docker inspect --type=image $(BUILDBOX_ARM) 2>&1 >/dev/null; then docker pull $(BUILDBOX_ARM) || true; fi;
 	docker build \
-		--build-arg BUILDBOX_VERSION=$(BUILDBOX_VERSION) \
-		--cache-from $(BUILDBOX) \
 		--cache-from $(BUILDBOX_ARM) \
 		--build-arg UID=$(UID) \
 		--build-arg GID=$(GID) \
