@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"os/signal"
 	"strings"
@@ -35,7 +36,6 @@ import (
 	"github.com/gravitational/teleport/lib/tbot"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/utils"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 var log = logrus.WithFields(logrus.Fields{
@@ -88,8 +88,8 @@ func Run(args []string, stdout io.Writer) error {
 	startCmd.Flag("oneshot", "If set, quit after the first renewal.").BoolVar(&cf.Oneshot)
 	startCmd.Flag("diag-addr", "If set and the bot is in debug mode, a diagnostics service will listen on specified address.").StringVar(&cf.DiagAddr)
 	startCmd.Flag("log-format", "Controls the format of output logs. Can be `json` or `text`. Defaults to `text`.").
-		Default(config.LogFormatText).
-		EnumVar(&cf.LogFormat, config.LogFormatJSON, config.LogFormatText)
+		Default(utils.LogFormatText).
+		EnumVar(&cf.LogFormat, utils.LogFormatJSON, utils.LogFormatText)
 
 	initCmd := app.Command("init", "Initialize a certificate destination directory for writes from a separate bot user.")
 	initCmd.Flag("destination-dir", "Directory to write short-lived machine certificates to.").StringVar(&cf.DestinationDir)
@@ -99,8 +99,8 @@ func Run(args []string, stdout io.Writer) error {
 	initCmd.Flag("init-dir", "If using a config file and multiple destinations are configured, controls which destination dir to configure.").StringVar(&cf.InitDir)
 	initCmd.Flag("clean", "If set, remove unexpected files and directories from the destination.").BoolVar(&cf.Clean)
 	initCmd.Flag("log-format", "Controls the format of output logs. Can be `json` or `text`. Defaults to `text`.").
-		Default(config.LogFormatText).
-		EnumVar(&cf.LogFormat, config.LogFormatJSON, config.LogFormatText)
+		Default(utils.LogFormatText).
+		EnumVar(&cf.LogFormat, utils.LogFormatJSON, utils.LogFormatText)
 
 	configureCmd := app.Command("configure", "Creates a config file based on flags provided, and writes it to stdout or a file (-c <path>).")
 	configureCmd.Flag("auth-server", "Address of the Teleport Auth Server (On-Prem installs) or Proxy Server (Cloud installs).").Short('a').Envar(authServerEnvVar).StringVar(&cf.AuthServer)
@@ -113,8 +113,8 @@ func Run(args []string, stdout io.Writer) error {
 	configureCmd.Flag("token", "A bot join token, if attempting to onboard a new bot; used on first connect.").Envar(tokenEnvVar).StringVar(&cf.Token)
 	configureCmd.Flag("output", "Path to write the generated configuration file to rather than write to stdout.").Short('o').StringVar(&cf.ConfigureOutput)
 	configureCmd.Flag("log-format", "Controls the format of output logs. Can be `json` or `text`. Defaults to `text`.").
-		Default(config.LogFormatText).
-		EnumVar(&cf.LogFormat, config.LogFormatJSON, config.LogFormatText)
+		Default(utils.LogFormatText).
+		EnumVar(&cf.LogFormat, utils.LogFormatJSON, utils.LogFormatText)
 
 	watchCmd := app.Command("watch", "Watch a destination directory for changes.").Hidden()
 
@@ -308,21 +308,19 @@ func handleSignals(log logrus.FieldLogger, reload chan struct{}, cancel context.
 }
 
 func setupLogger(debug bool, format string) error {
-	level := logrus.InfoLevel
+	level := slog.LevelInfo
 	if debug {
-		level = logrus.DebugLevel
+		level = slog.LevelDebug
 	}
-	utils.InitLogger(utils.LoggingForDaemon, level)
 
 	switch format {
-	case config.LogFormatJSON:
-		formatter := &logutils.JSONFormatter{}
-		logrus.SetFormatter(formatter)
-	case config.LogFormatText, "":
-	// Nothing to do, this is the default set up by utils.InitLogger
+	case utils.LogFormatJSON:
+	case utils.LogFormatText, "":
 	default:
 		return trace.BadParameter("unsupported log format %q", format)
 	}
+
+	utils.InitLogger(utils.LoggingForDaemon, level, utils.WithLogFormat(format))
 
 	return nil
 }

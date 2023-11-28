@@ -19,19 +19,23 @@ package utils
 import (
 	"crypto/x509"
 	"fmt"
+	"io"
+	"log/slog"
 	"testing"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 )
 
 func TestUserMessageFromError(t *testing.T) {
 	// Behavior is different in debug
-	priorLevel := logrus.GetLevel()
-	logrus.SetLevel(logrus.InfoLevel)
+	defaultLogger := slog.Default()
+
+	var leveler slog.LevelVar
+	leveler.Set(slog.LevelInfo)
+	slog.SetDefault(slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{Level: &leveler})))
 	t.Cleanup(func() {
-		logrus.SetLevel(priorLevel)
+		slog.SetDefault(defaultLogger)
 	})
 
 	tests := []struct {
