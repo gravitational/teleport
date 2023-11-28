@@ -192,6 +192,7 @@ const cfg = {
     presetRolesPath: '/v1/webapi/presetroles',
     githubConnectorsPath: '/v1/webapi/github/:name?',
     trustedClustersPath: '/v1/webapi/trustedcluster/:name?',
+    connectMyComputerLoginsPath: '/v1/webapi/connectmycomputer/logins',
 
     joinTokenPath: '/v1/webapi/token',
     dbScriptPath: '/scripts/:token/install-database.sh',
@@ -701,6 +702,10 @@ const cfg = {
 
   getPresetRolesUrl() {
     return cfg.api.presetRolesPath;
+  },
+
+  getConnectMyComputerLoginsUrl() {
+    return cfg.api.connectMyComputerLoginsPath;
   },
 
   getKubernetesUrl(clusterId: string, params: UrlResourcesParams) {

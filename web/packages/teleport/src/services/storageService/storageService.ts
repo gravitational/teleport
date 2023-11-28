@@ -259,4 +259,21 @@ export const storageService = {
     }
     return false;
   },
+
+  getExternalAuditStorageCtaDisabled(): boolean {
+    const item = window.localStorage.getItem(
+      KeysEnum.EXTERNAL_AUDIT_STORAGE_CTA_DISABLED
+    );
+    if (item) {
+      return JSON.parse(item);
+    }
+    return false;
+  },
+
+  disableExternalAuditStorageCta(): void {
+    window.localStorage.setItem(
+      KeysEnum.EXTERNAL_AUDIT_STORAGE_CTA_DISABLED,
+      JSON.stringify(true)
+    );
+  },
 };

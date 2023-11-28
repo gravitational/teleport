@@ -21,7 +21,7 @@ import { ResourcesResponse } from 'teleport/services/agents';
 import { Node, CreateNodeRequest } from './types';
 import makeNode from './makeNode';
 
-class NodeService {
+export default class NodeService {
   fetchNodes(
     clusterId?: string,
     params?: UrlResourcesParams,
@@ -48,4 +48,14 @@ class NodeService {
   }
 }
 
-export default NodeService;
+/**
+ * Sorts logins alphabetically. If the logins include "root", it's put as the first item in the
+ * resulting list.
+ */
+export const sortNodeLogins = (logins: string[]) => {
+  const noRoot = logins.filter(l => l !== 'root').sort();
+  if (noRoot.length === logins.length) {
+    return logins;
+  }
+  return ['root', ...noRoot];
+};
