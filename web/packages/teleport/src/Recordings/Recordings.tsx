@@ -27,6 +27,8 @@ import {
 } from 'teleport/components/Layout';
 import useTeleport from 'teleport/useTeleport';
 
+import { ExternalAuditStorageCta } from '@gravitational/teleport/src/components/ExternalAuditStorageCta';
+
 import RecordingsList from './RecordingsList';
 
 import useRecordings, { State } from './useRecordings';
@@ -58,6 +60,7 @@ export function Recordings({
           onChangeRange={setRange}
         />
       </FeatureHeader>
+      <ExternalAuditStorageCta />
       {attempt.status === 'failed' && <Danger> {attempt.statusText} </Danger>}
       {attempt.status === 'processing' && (
         <Box textAlign="center" m={10}>

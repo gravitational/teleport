@@ -19,7 +19,7 @@ import { execFile } from 'node:child_process';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
-import * as constants from 'shared/constants';
+import * as connectMyComputer from 'shared/connectMyComputer';
 
 import { RootClusterUri, routing } from 'teleterm/ui/uri';
 import { RuntimeSettings } from 'teleterm/mainProcess/types';
@@ -45,7 +45,7 @@ export async function createAgentConfigFile(
   await fs.rm(configFile, { force: true });
 
   const labels = Object.entries({
-    [constants.ConnectMyComputerNodeOwnerLabel]: args.username,
+    [connectMyComputer.NodeOwnerLabel]: args.username,
   })
     .map(keyAndValue => keyAndValue.join('='))
     .join(',');

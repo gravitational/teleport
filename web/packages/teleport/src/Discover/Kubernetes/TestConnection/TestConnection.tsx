@@ -39,6 +39,10 @@ import { useTestConnection, State } from './useTestConnection';
 import type { AgentStepProps } from '../../types';
 import type { KubeImpersonation } from 'teleport/services/agents';
 
+/**
+ * @deprecated Refactor Discover/Kubernetes/TestConnection away from the container component
+ * pattern. See https://github.com/gravitational/teleport/pull/34952.
+ */
 export default function Container(props: AgentStepProps) {
   const state = useTestConnection(props);
 

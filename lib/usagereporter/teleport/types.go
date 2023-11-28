@@ -907,6 +907,40 @@ func (e *ExternalAuditStorageAuthenticateEvent) Anonymize(a utils.Anonymizer) pr
 	}
 }
 
+// SecurityReportGetResultEvent is emitted when a user requests a security report.
+type SecurityReportGetResultEvent prehogv1a.SecurityReportGetResultEvent
+
+// Anonymize anonymizes the event. Since there is nothing to anonymize, it
+// really just wraps itself in a [prehogv1a.SubmitEventRequest].
+func (e *SecurityReportGetResultEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_SecurityReportGetResult{
+			SecurityReportGetResult: &prehogv1a.SecurityReportGetResultEvent{
+				UserName: a.AnonymizeString(e.UserName),
+				Name:     e.Name,
+				Days:     e.Days,
+			},
+		},
+	}
+}
+
+// AuditQueryRunEvent is emitted when a user runs an audit query.
+type AuditQueryRunEvent prehogv1a.AuditQueryRunEvent
+
+// Anonymize anonymizes the event. Since there is nothing to anonymize, it
+// really just wraps itself in a [prehogv1a.SubmitEventRequest].
+func (e *AuditQueryRunEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_AuditQueryRun{
+			AuditQueryRun: &prehogv1a.AuditQueryRunEvent{
+				UserName:  a.AnonymizeString(e.UserName),
+				Days:      e.Days,
+				IsSuccess: e.IsSuccess,
+			},
+		},
+	}
+}
+
 // ConvertUsageEvent converts a usage event from an API object into an
 // anonymizable event. All events that can be submitted externally via the Auth
 // API need to be defined here.
@@ -1316,6 +1350,14 @@ func ConvertUsageEvent(event *usageeventsv1.UsageEventOneOf, userMD UserMetadata
 			IsSuccess:  e.TagExecuteQuery.IsSuccess,
 		}
 		return ret, nil
+	case *usageeventsv1.UsageEventOneOf_SecurityReportGetResult:
+		ret := &SecurityReportGetResultEvent{
+			UserName: userMD.Username,
+			Name:     e.SecurityReportGetResult.Name,
+			Days:     e.SecurityReportGetResult.Days,
+		}
+		return ret, nil
+
 	default:
 		return nil, trace.BadParameter("invalid usage event type %T", event.GetEvent())
 	}
