@@ -299,18 +299,18 @@ type AccessListSpec struct {
 	// values:
 	//
 	//	`explicit` (default): To be considered ag member of the access list, a user
-	//	                      must both meet the `membership_conditions` AND be
+	//	                      must both meet the `membership_requires` conditions AND be
 	//	                      explicitly added to the list.
-	//	implicit: Any user meeting the `membership_conditions` will automatically
+	//	implicit: Any user meeting the `membership_requires` conditions will automatically
 	//	          be cosidered a member of this list.
 	Membership string `protobuf:"bytes,9,opt,name=membership,proto3" json:"membership,omitempty"`
 	// ownership defines how list ownership of this list is determined. There are
 	// two possible values:
 	//
 	//	`explicit` (default): To be considered an owner of the access list, a user
-	//	                      must both meet the `ownership_conditions` AND be
+	//	                      must both meet the `ownership_requires` conditions AND be
 	//	                      explicitly added to the list.
-	//	implicit: Any user meeting the `ownership_conditions` will automatically
+	//	implicit: Any user meeting the `ownership_requires` conditions will automatically
 	//	          be considered an owner of this list.
 	Ownership string `protobuf:"bytes,10,opt,name=ownership,proto3" json:"ownership,omitempty"`
 }
