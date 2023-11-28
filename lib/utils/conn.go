@@ -202,14 +202,14 @@ func (w *TrackingWriter) Write(b []byte) (int, error) {
 // to be overridden.
 type ConnWithAddr struct {
 	net.Conn
-	LocalAddrOverride  net.Addr
-	RemoteAddrOverride net.Addr
+	localAddrOverride  net.Addr
+	remoteAddrOverride net.Addr
 }
 
 // LocalAddr implements [net.Conn].
 func (c *ConnWithAddr) LocalAddr() net.Addr {
-	if c.LocalAddrOverride != nil {
-		return c.LocalAddrOverride
+	if c.localAddrOverride != nil {
+		return c.localAddrOverride
 	}
 
 	return c.Conn.LocalAddr()
@@ -217,8 +217,8 @@ func (c *ConnWithAddr) LocalAddr() net.Addr {
 
 // RemoteAddr implements [net.Conn].
 func (c *ConnWithAddr) RemoteAddr() net.Addr {
-	if c.RemoteAddrOverride != nil {
-		return c.RemoteAddrOverride
+	if c.remoteAddrOverride != nil {
+		return c.remoteAddrOverride
 	}
 
 	return c.Conn.RemoteAddr()
@@ -234,7 +234,7 @@ func NewConnWithSrcAddr(conn net.Conn, clientSrcAddr net.Addr) *ConnWithAddr {
 	return &ConnWithAddr{
 		Conn: conn,
 
-		RemoteAddrOverride: clientSrcAddr,
+		remoteAddrOverride: clientSrcAddr,
 	}
 }
 
@@ -244,7 +244,7 @@ func NewConnWithAddr(conn net.Conn, localAddr, remoteAddr net.Addr) *ConnWithAdd
 	return &ConnWithAddr{
 		Conn: conn,
 
-		LocalAddrOverride:  localAddr,
-		RemoteAddrOverride: remoteAddr,
+		localAddrOverride:  localAddr,
+		remoteAddrOverride: remoteAddr,
 	}
 }
