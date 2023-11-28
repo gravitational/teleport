@@ -92,7 +92,8 @@ func (r *StatefulSetVersionUpdater) Reconcile(ctx context.Context, req ctrl.Requ
 		case trace.IsBadParameter(err):
 			log.Info("Teleport container found, but failed to get version from the img tag. Will continue and do a version update.")
 		default:
-			return requeueLater, trace.Wrap(err)
+			log.Error(err, "Unexpected error, not updating.")
+			return requeueLater, nil
 		}
 	}
 
@@ -121,22 +122,24 @@ func (r *StatefulSetVersionUpdater) Reconcile(ctx context.Context, req ctrl.Requ
 		if err := r.unblockStatefulSetRolloutIfStuck(ctx, &obj); err != nil {
 			log.Error(err, "statefulset unblocking failed, the rollout might get stuck")
 		}
-		return requeueLater, trace.Wrap(err)
+		return requeueLater, nil
 	case err != nil:
 		log.Error(err, "Unexpected error, not updating.")
 		// Not trying to unblock a stuck rollout because unknown error typically
 		// lead to infinite reconciliations, we don't want to DoS the apiserver
-		return requeueLater, trace.Wrap(err)
+		return requeueLater, nil
 	}
 
 	log.Info("Updating podSpec with image", "image", image.String())
 	err = setContainerImageFromPodSpec(&obj.Spec.Template.Spec, teleportContainerName, image.String())
 	if err != nil {
-		return requeueLater, trace.Wrap(err)
+		log.Error(err, "Unexpected error, not updating.")
+		return requeueLater, nil
 	}
 
 	if err = r.Update(ctx, &obj); err != nil {
-		return requeueNow, trace.Wrap(err)
+		log.Error(err, "Unexpected error, not updating.")
+		return requeueNow, nil
 	}
 	if err := r.unblockStatefulSetRolloutIfStuck(ctx, &obj); err != nil {
 		log.Error(err, "statefulset unblocking failed, the rollout might get stuck")

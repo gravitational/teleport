@@ -479,7 +479,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	integrationConfListDatabasesCmd.Flag("aws-region", "AWS Region.").Required().StringVar(&ccf.IntegrationConfListDatabasesIAMArguments.Region)
 	integrationConfListDatabasesCmd.Flag("role", "The AWS Role used by the AWS OIDC Integration.").Required().StringVar(&ccf.IntegrationConfListDatabasesIAMArguments.Role)
 
-	integrationConfExternalAuditCmd := integrationConfigureCmd.Command("externalauditstorage", "Bootstraps required infrastructure and adds required IAM permissions for External Audit Storage logs.").Alias("externalcloudaudit")
+	integrationConfExternalAuditCmd := integrationConfigureCmd.Command("externalauditstorage", "Bootstraps required infrastructure and adds required IAM permissions for External Audit Storage logs.")
 	integrationConfExternalAuditCmd.Flag("bootstrap", "Bootstrap required infrastructure.").Default("false").BoolVar(&ccf.IntegrationConfExternalAuditStorageArguments.Bootstrap)
 	integrationConfExternalAuditCmd.Flag("aws-region", "AWS region.").Required().StringVar(&ccf.IntegrationConfExternalAuditStorageArguments.Region)
 	integrationConfExternalAuditCmd.Flag("role", "The IAM Role used by the AWS OIDC Integration.").Required().StringVar(&ccf.IntegrationConfExternalAuditStorageArguments.Role)

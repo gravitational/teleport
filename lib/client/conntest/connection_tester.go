@@ -174,7 +174,7 @@ func ConnectionTesterForKind(cfg ConnectionTesterConfig) (ConnectionTester, erro
 			},
 		)
 		return tester, trace.Wrap(err)
-	case types.KindExternalCloudAudit, types.KindExternalAuditStorage:
+	case types.KindExternalAuditStorage:
 		tester, err := NewExternalAuditStorageConnectionTester(
 			ExternalAuditStorageConnectionTesterConfig{
 				UserClient: cfg.UserClient,
