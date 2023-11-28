@@ -174,9 +174,13 @@ func (a *Athena) RunQuery(ctx context.Context, inputQuery string, days int) (*qu
 	}
 
 	start := a.cfg.Clock.Now()
+	status := "failed"
 	defer func() {
 		metrics.QueryExecutionTimeHist.With(
-			prometheus.Labels{metrics.DaysTag: fmt.Sprintf("%d", days)},
+			prometheus.Labels{
+				metrics.DaysTag:   fmt.Sprintf("%d", days),
+				metrics.StatusTag: status,
+			},
 		).Observe(a.cfg.Clock.Since(start).Seconds())
 	}()
 
@@ -191,6 +195,7 @@ func (a *Athena) RunQuery(ctx context.Context, inputQuery string, days int) (*qu
 	if output.QueryExecution == nil {
 		return nil, trace.BadParameter("queryExecution is nil")
 	}
+	status = "success"
 	resp := query.RunQueryResponse{
 		ResultID: aws.ToString(output.QueryExecution.QueryExecutionId),
 	}

@@ -22,6 +22,8 @@ const accessMonitoring = "access_monitoring"
 const (
 	// DaysTag is used to tag days range used in for athena query.
 	DaysTag = "days"
+	// StatusTag is used to tag status of athena query.
+	StatusTag = "status"
 )
 
 var (
@@ -32,7 +34,7 @@ var (
 		Name:      "query_execution_time_seconds",
 		Help:      "Athena Query execution time in seconds.",
 		Buckets:   prometheus.ExponentialBuckets(0.1, 2, 20),
-	}, []string{DaysTag})
+	}, []string{DaysTag, StatusTag})
 
 	// QueryScannedBytes is a counter of bytes scanned by athena query.
 	QueryScannedBytes = prometheus.NewCounterVec(prometheus.CounterOpts{

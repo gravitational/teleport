@@ -9,7 +9,9 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/secreports/v1"
+	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/types/secreports"
 	"github.com/gravitational/teleport/e/lib/web/ui"
@@ -52,9 +54,24 @@ func (p *Plugin) getSecurityReportResult(w http.ResponseWriter, r *http.Request,
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	reportName := params.ByName("name")
+
+	event := &proto.SubmitUsageEventRequest{
+		Event: &usageeventsv1.UsageEventOneOf{
+			Event: &usageeventsv1.UsageEventOneOf_SecurityReportGetResult{
+				SecurityReportGetResult: &usageeventsv1.SecurityReportGetResultEvent{
+					Name: reportName,
+					Days: int32(days),
+				},
+			},
+		},
+	}
+	if err := clt.SubmitUsageEvent(r.Context(), event); err != nil {
+		p.Log.WithError(err).Warn("Failed to emit usage event")
+	}
 
 	client := clt.SecReportsClient()
-	resp, err := client.GetSecurityReportResult(r.Context(), params.ByName("name"), days)
+	resp, err := client.GetSecurityReportResult(r.Context(), reportName, days)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

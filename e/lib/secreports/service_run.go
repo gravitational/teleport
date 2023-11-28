@@ -111,6 +111,7 @@ func (s *Service) GetReportResult(ctx context.Context, req *pb.GetReportResultRe
 	if _, err := authz.AuthorizeWithVerbs(ctx, s.log, s.authorizer, true, types.KindSecurityReport, types.VerbUse); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	executionName := secreports.ReportExecutionName(req.GetName(), int32(req.GetDays()))
 	result, err := s.reportStore.LoadReportResult(ctx, executionName)
 	if err != nil {
