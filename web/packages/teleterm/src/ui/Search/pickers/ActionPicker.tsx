@@ -504,7 +504,7 @@ export const ComponentMap: Record<
 
 type SearchResultItem<T> = {
   searchResult: T;
-  getOptionalClusterName: (uri: uri.ResourceUri) => string;
+  getOptionalClusterName: (uri: uri.ClusterOrResourceUri) => string;
 };
 
 function ClusterFilterItem(props: SearchResultItem<SearchResultCluster>) {
@@ -526,24 +526,35 @@ function ClusterFilterItem(props: SearchResultItem<SearchResultCluster>) {
 function DisplayResultsItem(props: SearchResultItem<DisplayResults>) {
   return (
     <IconAndContent Icon={icons.Magnifier} iconColor="text.slightlyMuted">
-      <Text typography="body1">
-        {' '}
-        Display {props.searchResult.value ? 'search' : 'all'} results{' '}
-        {props.searchResult.value && (
-          <>
-            for{' '}
-            <strong>
-              <Highlight
-                keywords={[props.searchResult.value]}
-                text={props.searchResult.value}
-              />
-            </strong>
-          </>
-        )}
-        {props.searchResult.documentUri
-          ? ' in the current tab'
-          : ' in a new tab'}
-      </Text>
+      <Flex
+        justifyContent="space-between"
+        alignItems="center"
+        flexWrap="wrap"
+        gap={1}
+      >
+        <Text typography="body1">
+          Display {props.searchResult.value ? 'search' : 'all'} results{' '}
+          {props.searchResult.value && (
+            <>
+              for{' '}
+              <strong>
+                <Highlight
+                  keywords={[props.searchResult.value]}
+                  text={props.searchResult.value}
+                />
+              </strong>
+            </>
+          )}
+          {props.searchResult.documentUri
+            ? ' in the current tab'
+            : ' in a new tab'}
+        </Text>
+        <Box ml="auto">
+          <Text typography="body2" fontSize={0}>
+            {props.getOptionalClusterName(props.searchResult.clusterUri)}
+          </Text>
+        </Box>
+      </Flex>
     </IconAndContent>
   );
 }
