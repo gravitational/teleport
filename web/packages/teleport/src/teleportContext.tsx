@@ -74,6 +74,7 @@ class TeleportContext implements types.Context {
     accessRequests: cfg.isUsageBasedBilling,
     premiumSupport: cfg.isUsageBasedBilling,
     trustedDevices: cfg.isUsageBasedBilling,
+    externalCloudAudit: cfg.isUsageBasedBilling,
   };
 
   // init fetches data required for initial rendering of components.
