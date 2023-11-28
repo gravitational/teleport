@@ -378,12 +378,14 @@ enter/grpcbox: grpcbox
 # These are aliases used to make build commands uniform.
 # #############################################################################
 
+# AMD64 builds are done on CentOS 7 build boxes for broader glibc compatibility.
 .PHONY: release-amd64
 release-amd64:
-	$(MAKE) release ARCH=amd64 FIDO2=yes
+	$(MAKE) release-centos7 ARCH=amd64 FIDO2=yes
 
 .PHONY: release-amd64-fips
-release-amd64-fips: release-amd64-centos7-fips
+release-amd64-fips:
+	$(MAKE) release-centos7-fips ARCH=amd64 FIPS=yes
 
 .PHONY: release-386
 release-386:
@@ -393,13 +395,13 @@ release-386:
 release-arm: buildbox-arm
 	$(MAKE) release ARCH=arm BUILDBOX_NAME=$(BUILDBOX_ARM)
 
+# Compatibility targets for when we had separate Ubuntu and CentOS 7 targets for AMD64
+# TODO(camscale): Remove these when drone no longer calls them.
 .PHONY: release-amd64-centos7
-release-amd64-centos7: buildbox-centos7
-	$(MAKE) release-centos7 ARCH=amd64 FIDO2=yes PIV=yes
+release-amd64-centos7: release-amd64
 
 .PHONY: release-amd64-centos7-fips
-release-amd64-centos7-fips: buildbox-centos7-fips
-	$(MAKE) release-centos7-fips ARCH=amd64 FIPS=yes
+release-amd64-centos7-fips: release-amd64-fips
 
 # #############################################################################
 # Legacy Drone ARM build targets
@@ -453,7 +455,7 @@ release-centos7: buildbox-centos7 webassets
 # to call release-unix-preserving-webassets like we do for the non-fips release.
 #
 .PHONY:release-centos7-fips
-release-centos7-fips: webassets
+release-centos7-fips: buildbox-centos7-fips webassets
 	docker run $(DOCKERFLAGS) -i $(NOROOT) $(BUILDBOX_CENTOS7_FIPS) \
 		/usr/bin/scl enable $(DEVTOOLSET) '/usr/bin/make -C e release -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(GOLANG_VERSION) FIPS=yes VERSION=$(VERSION) GITTAG=v$(VERSION) REPRODUCIBLE=no'
 
