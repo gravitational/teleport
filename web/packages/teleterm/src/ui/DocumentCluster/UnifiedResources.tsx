@@ -181,17 +181,12 @@ function Resources(props: {
       appContext.workspacesService.getWorkspaceDocumentService(
         uri.routing.ensureRootClusterUri(props.clusterUri)
       );
-    documentService.update(props.docUri, (prevDoc: DocumentCluster) => {
-      const updated: DocumentCluster = {
-        ...prevDoc,
-        queryParams: {
-          ...prevDoc.queryParams,
-          sort: newParams.sort,
-          resourceKinds: newParams.kinds as DocumentClusterResourceKind[],
-          search: newParams.search || newParams.query,
-        },
-      };
-      return updated;
+    documentService.update(props.docUri, (draft: DocumentCluster) => {
+      const { queryParams } = draft;
+      queryParams.sort = newParams.sort;
+      queryParams.resourceKinds =
+        newParams.kinds as DocumentClusterResourceKind[];
+      queryParams.search = newParams.search || newParams.query;
     });
   }
 

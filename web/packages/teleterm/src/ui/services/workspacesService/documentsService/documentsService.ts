@@ -352,20 +352,15 @@ export class DocumentsService {
    */
   update(
     uri: DocumentUri,
-    updated: Partial<Document> | ((document: Document) => void | Document)
+    updated: Partial<Document> | ((draft: Document) => void)
   ) {
     this.setState(draft => {
-      const index = draft.documents.findIndex(doc => doc.uri === uri);
-      const toUpdate = draft.documents[index];
+      const toUpdate = draft.documents.find(doc => doc.uri === uri);
       if (typeof updated === 'function') {
-        const newState = updated(toUpdate);
-        // if a new object was returned,
-        // we have to set it at the appropriate index
-        if (newState) {
-          draft.documents[index] = newState;
-        }
+        updated(toUpdate);
+      } else {
+        Object.assign(toUpdate, updated);
       }
-      Object.assign(toUpdate, updated);
     });
   }
 

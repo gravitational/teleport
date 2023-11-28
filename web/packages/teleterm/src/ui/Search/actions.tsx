@@ -159,17 +159,12 @@ export function mapToAction(
           if (result.documentUri) {
             ctx.workspacesService
               .getWorkspaceDocumentService(rootClusterUri)
-              .update(result.documentUri, (prevDoc: DocumentCluster) => {
-                const updated: DocumentCluster = {
-                  ...prevDoc,
-                  queryParams: {
-                    ...prevDoc.queryParams,
-                    resourceKinds: result.resourceKinds,
-                    search: result.value,
-                    advancedSearchEnabled: searchContext.advancedSearchEnabled,
-                  },
-                };
-                return updated;
+              .update(result.documentUri, (draft: DocumentCluster) => {
+                const { queryParams } = draft;
+                queryParams.resourceKinds = result.resourceKinds;
+                queryParams.search = result.value;
+                queryParams.advancedSearchEnabled =
+                  searchContext.advancedSearchEnabled;
               });
             return;
           }
