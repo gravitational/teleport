@@ -28,6 +28,7 @@
   # First, get the OS major version from $VERSION_ID so this fetches the correct
   # package version.
   $ VERSION_ID=$(echo $VERSION_ID | grep -Eo "^[0-9]+")
+  $ sudo yum install -y yum-utils
   $ sudo yum-config-manager --add-repo "$(rpm --eval "https://yum.releases.teleport.dev/$ID/$VERSION_ID/Teleport/%{_arch}/stable/cloud/teleport-yum.repo")"
   $ sudo yum install teleport-ent-updater
   #

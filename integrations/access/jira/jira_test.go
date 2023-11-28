@@ -267,12 +267,19 @@ func (s *JiraSuite) checkPluginData(reqID string, cond func(PluginData) bool) Pl
 	}
 }
 
-func (s *JiraSuite) postWebhook(ctx context.Context, url, issueID string) (*http.Response, error) {
+func (s *JiraSuite) postWebhook(ctx context.Context, url, issueID, status string) (*http.Response, error) {
 	var buf bytes.Buffer
 	wh := Webhook{
 		WebhookEvent:       "jira:issue_updated",
 		IssueEventTypeName: "issue_generic",
-		Issue:              &WebhookIssue{ID: issueID},
+		Issue: &WebhookIssue{
+			ID: issueID,
+			Fields: IssueFields{
+				Status: StatusDetails{
+					Name: status,
+				},
+			},
+		},
 	}
 	err := json.NewEncoder(&buf).Encode(&wh)
 	if err != nil {
@@ -289,11 +296,11 @@ func (s *JiraSuite) postWebhook(ctx context.Context, url, issueID string) (*http
 	return response, trace.Wrap(err)
 }
 
-func (s *JiraSuite) postWebhookAndCheck(url, issueID string) {
+func (s *JiraSuite) postWebhookAndCheck(url, issueID, status string) {
 	t := s.T()
 	t.Helper()
 
-	resp, err := s.postWebhook(s.Context(), url, issueID)
+	resp, err := s.postWebhook(s.Context(), url, issueID, status)
 	require.NoError(t, err)
 	require.NoError(t, resp.Body.Close())
 	require.Equal(t, http.StatusOK, resp.StatusCode)
@@ -541,7 +548,7 @@ func (s *JiraSuite) TestWebhookApproval() {
 	assert.Equal(t, issueID, issue.ID)
 
 	s.fakeJira.TransitionIssue(issue, "Approved")
-	s.postWebhookAndCheck(app.PublicURL().String(), issue.ID)
+	s.postWebhookAndCheck(app.PublicURL().String(), issue.ID, "Approved")
 
 	request, err = s.ruler().GetAccessRequest(s.Context(), request.GetName())
 	require.NoError(t, err)
@@ -576,7 +583,7 @@ func (s *JiraSuite) TestWebhookDenial() {
 	assert.Equal(t, issueID, issue.ID)
 
 	s.fakeJira.TransitionIssue(issue, "Denied")
-	s.postWebhookAndCheck(app.PublicURL().String(), issue.ID)
+	s.postWebhookAndCheck(app.PublicURL().String(), issue.ID, "Denied")
 
 	request, err = s.ruler().GetAccessRequest(s.Context(), request.GetName())
 	require.NoError(t, err)
@@ -616,7 +623,7 @@ func (s *JiraSuite) TestWebhookApprovalWithReason() {
 	})
 
 	s.fakeJira.TransitionIssue(issue, "Approved")
-	s.postWebhookAndCheck(app.PublicURL().String(), issue.ID)
+	s.postWebhookAndCheck(app.PublicURL().String(), issue.ID, "Approved")
 
 	request, err = s.ruler().GetAccessRequest(s.Context(), request.GetName())
 	require.NoError(t, err)
@@ -670,7 +677,7 @@ func (s *JiraSuite) TestWebhookDenialWithReason() {
 	})
 
 	s.fakeJira.TransitionIssue(issue, "Denied")
-	s.postWebhookAndCheck(app.PublicURL().String(), issue.ID)
+	s.postWebhookAndCheck(app.PublicURL().String(), issue.ID, "Denied")
 
 	request, err = s.ruler().GetAccessRequest(s.Context(), request.GetName())
 	require.NoError(t, err)
@@ -780,7 +787,7 @@ func (s *JiraSuite) TestRace() {
 			var lastErr error
 			for {
 				logger.Get(ctx).Infof("Trying to approve issue %q", issue.Key)
-				resp, err := s.postWebhook(ctx, app.PublicURL().String(), issue.ID)
+				resp, err := s.postWebhook(ctx, app.PublicURL().String(), issue.ID, "Approved")
 				if err != nil {
 					if lib.IsDeadline(err) {
 						return setRaceErr(lastErr)

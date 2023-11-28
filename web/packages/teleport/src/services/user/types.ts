@@ -84,7 +84,7 @@ export interface Acl {
   accessList: Access;
   auditQuery: Access;
   securityReport: Access;
-  externalCloudAudit: Access;
+  externalAuditStorage: Access;
   accessGraph: Access;
 }
 

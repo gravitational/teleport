@@ -1028,6 +1028,32 @@ message TAGExecuteQueryEvent {
   bool is_success = 4;
 }
 
+// ExternalAuditStorageAuthenticateEvent is emitted when the External Audit
+// Storage feature authenticates to the customer AWS account via OIDC connector.
+// The purpose is to have a regularly emitted event indicating that the External
+// Audit Storage feature is still in use.
+message ExternalAuditStorageAuthenticateEvent {}
+
+// SecurityReportGetResultEvent is emitted when the user requests a security report.
+message SecurityReportGetResultEvent {
+  // anonymized
+  string user_name = 1;
+  // name is the name of the security report.
+  string name = 2;
+  // days is the time range of the security reports in days.
+  int32 days = 3;
+}
+
+// AuditQueryRunEvent is emitted when the user runs an audit query.
+message AuditQueryRunEvent {
+  // anonymized
+  string user_name = 1;
+  // days is the time range of the query in days.
+  int32 days = 2;
+  // is_success is true if the query was successful false if execution failed.
+  bool is_success = 3;
+}
+
 message SubmitEventRequest {
   // anonymized, 32 bytes (HMAC-SHA-256) encoded in base64
   //
@@ -1139,6 +1165,11 @@ message SubmitEventRequest {
     DesktopClipboardEvent desktop_clipboard_transfer = 69;
 
     TAGExecuteQueryEvent tag_execute_query = 70;
+
+    ExternalAuditStorageAuthenticateEvent external_audit_storage_authenticate = 71;
+
+    SecurityReportGetResultEvent security_report_get_result = 72;
+    AuditQueryRunEvent audit_query_run = 73;
   }
 
   reserved 8; // UIOnboardGetStartedClickEvent

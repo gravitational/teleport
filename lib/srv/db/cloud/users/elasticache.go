@@ -72,7 +72,10 @@ func (f *elastiCacheFetcher) FetchDatabaseUsers(ctx context.Context, database ty
 		return nil, nil
 	}
 
-	client, err := f.cfg.Clients.GetAWSElastiCacheClient(ctx, meta.Region, cloud.WithAssumeRoleFromAWSMeta(meta))
+	client, err := f.cfg.Clients.GetAWSElastiCacheClient(ctx, meta.Region,
+		cloud.WithAssumeRoleFromAWSMeta(meta),
+		cloud.WithAmbientCredentials(),
+	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

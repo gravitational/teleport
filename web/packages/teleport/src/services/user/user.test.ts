@@ -128,7 +128,7 @@ test('undefined values in context response gives proper default values', async (
         create: false,
         remove: false,
       },
-      externalCloudAudit: {
+      externalAuditStorage: {
         list: false,
         read: false,
         edit: false,

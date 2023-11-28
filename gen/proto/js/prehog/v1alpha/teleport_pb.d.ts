@@ -2287,6 +2287,81 @@ export namespace TAGExecuteQueryEvent {
     }
 }
 
+export class ExternalAuditStorageAuthenticateEvent extends jspb.Message { 
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): ExternalAuditStorageAuthenticateEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: ExternalAuditStorageAuthenticateEvent): ExternalAuditStorageAuthenticateEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: ExternalAuditStorageAuthenticateEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): ExternalAuditStorageAuthenticateEvent;
+    static deserializeBinaryFromReader(message: ExternalAuditStorageAuthenticateEvent, reader: jspb.BinaryReader): ExternalAuditStorageAuthenticateEvent;
+}
+
+export namespace ExternalAuditStorageAuthenticateEvent {
+    export type AsObject = {
+    }
+}
+
+export class SecurityReportGetResultEvent extends jspb.Message { 
+    getUserName(): string;
+    setUserName(value: string): SecurityReportGetResultEvent;
+
+    getName(): string;
+    setName(value: string): SecurityReportGetResultEvent;
+
+    getDays(): number;
+    setDays(value: number): SecurityReportGetResultEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): SecurityReportGetResultEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: SecurityReportGetResultEvent): SecurityReportGetResultEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: SecurityReportGetResultEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): SecurityReportGetResultEvent;
+    static deserializeBinaryFromReader(message: SecurityReportGetResultEvent, reader: jspb.BinaryReader): SecurityReportGetResultEvent;
+}
+
+export namespace SecurityReportGetResultEvent {
+    export type AsObject = {
+        userName: string,
+        name: string,
+        days: number,
+    }
+}
+
+export class AuditQueryRunEvent extends jspb.Message { 
+    getUserName(): string;
+    setUserName(value: string): AuditQueryRunEvent;
+
+    getDays(): number;
+    setDays(value: number): AuditQueryRunEvent;
+
+    getIsSuccess(): boolean;
+    setIsSuccess(value: boolean): AuditQueryRunEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): AuditQueryRunEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: AuditQueryRunEvent): AuditQueryRunEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: AuditQueryRunEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): AuditQueryRunEvent;
+    static deserializeBinaryFromReader(message: AuditQueryRunEvent, reader: jspb.BinaryReader): AuditQueryRunEvent;
+}
+
+export namespace AuditQueryRunEvent {
+    export type AsObject = {
+        userName: string,
+        days: number,
+        isSuccess: boolean,
+    }
+}
+
 export class SubmitEventRequest extends jspb.Message { 
     getClusterName(): string;
     setClusterName(value: string): SubmitEventRequest;
@@ -2700,6 +2775,24 @@ export class SubmitEventRequest extends jspb.Message {
     setTagExecuteQuery(value?: TAGExecuteQueryEvent): SubmitEventRequest;
 
 
+    hasExternalAuditStorageAuthenticate(): boolean;
+    clearExternalAuditStorageAuthenticate(): void;
+    getExternalAuditStorageAuthenticate(): ExternalAuditStorageAuthenticateEvent | undefined;
+    setExternalAuditStorageAuthenticate(value?: ExternalAuditStorageAuthenticateEvent): SubmitEventRequest;
+
+
+    hasSecurityReportGetResult(): boolean;
+    clearSecurityReportGetResult(): void;
+    getSecurityReportGetResult(): SecurityReportGetResultEvent | undefined;
+    setSecurityReportGetResult(value?: SecurityReportGetResultEvent): SubmitEventRequest;
+
+
+    hasAuditQueryRun(): boolean;
+    clearAuditQueryRun(): void;
+    getAuditQueryRun(): AuditQueryRunEvent | undefined;
+    setAuditQueryRun(value?: AuditQueryRunEvent): SubmitEventRequest;
+
+
     getEventCase(): SubmitEventRequest.EventCase;
 
     serializeBinary(): Uint8Array;
@@ -2783,6 +2876,9 @@ export namespace SubmitEventRequest {
         desktopDirectoryShare?: DesktopDirectoryShareEvent.AsObject,
         desktopClipboardTransfer?: DesktopClipboardEvent.AsObject,
         tagExecuteQuery?: TAGExecuteQueryEvent.AsObject,
+        externalAuditStorageAuthenticate?: ExternalAuditStorageAuthenticateEvent.AsObject,
+        securityReportGetResult?: SecurityReportGetResultEvent.AsObject,
+        auditQueryRun?: AuditQueryRunEvent.AsObject,
     }
 
     export enum EventCase {
@@ -2921,6 +3017,12 @@ export namespace SubmitEventRequest {
     DESKTOP_CLIPBOARD_TRANSFER = 69,
 
     TAG_EXECUTE_QUERY = 70,
+
+    EXTERNAL_AUDIT_STORAGE_AUTHENTICATE = 71,
+
+    SECURITY_REPORT_GET_RESULT = 72,
+
+    AUDIT_QUERY_RUN = 73,
 
     }
 

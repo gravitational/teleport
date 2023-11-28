@@ -27,6 +27,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v3"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
+	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ssm"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -44,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/gcp"
+	"github.com/gravitational/teleport/lib/integrations/awsoidc"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 	"github.com/gravitational/teleport/lib/srv/discovery/fetchers"
@@ -90,6 +92,9 @@ type gcpInstaller interface {
 type Config struct {
 	// CloudClients is an interface for retrieving cloud clients.
 	CloudClients cloud.Clients
+	// IntegrationOnlyCredentials discards any Matcher that don't have an Integration.
+	// When true, ambient credentials (used by the Cloud SDKs) are not used.
+	IntegrationOnlyCredentials bool
 	// KubernetesClient is the Kubernetes client interface
 	KubernetesClient kubernetes.Interface
 	// Matchers stores all types of matchers to discover resources
@@ -139,7 +144,12 @@ func (c *Config) CheckAndSetDefaults() error {
 kubernetes matchers are present.`)
 	}
 	if c.CloudClients == nil {
-		cloudClients, err := cloud.NewClients()
+		awsIntegrationSessionProvider := func(ctx context.Context, region, integration string) (*session.Session, error) {
+			return awsoidc.NewSessionV1(ctx, c.AccessPoint, region, integration)
+		}
+		cloudClients, err := cloud.NewClients(
+			cloud.WithAWSIntegrationSessionProvider(awsIntegrationSessionProvider),
+		)
 		if err != nil {
 			return trace.Wrap(err, "unable to create cloud clients")
 		}
@@ -267,6 +277,7 @@ func New(ctx context.Context, cfg *Config) (*Server, error) {
 		dynamicServerAzureFetchers: make(map[string][]server.Fetcher),
 		dynamicServerGCPFetchers:   make(map[string][]server.Fetcher),
 	}
+	s.discardUnsupportedMatchers(&s.Matchers)
 
 	if err := s.startDynamicMatchersWatcher(ctx); err != nil {
 		return nil, trace.Wrap(err)
@@ -391,6 +402,7 @@ func (s *Server) initAWSWatchers(matchers []types.AWSMatcher) error {
 							matcherAssumeRole.RoleARN,
 							matcherAssumeRole.ExternalID,
 						),
+						cloud.WithAmbientCredentials(),
 					)
 					if err != nil {
 						return trace.Wrap(err)
@@ -705,8 +717,9 @@ func genInstancesLogStr[T any](instances []T, getID func(T) string) string {
 }
 
 func (s *Server) handleEC2Instances(instances *server.EC2Instances) error {
+	// TODO(marco): support AWS SSM Client backed by an integration
 	// TODO(gavin): support assume_role_arn for ec2.
-	ec2Client, err := s.CloudClients.GetAWSSSMClient(s.ctx, instances.Region)
+	ec2Client, err := s.CloudClients.GetAWSSSMClient(s.ctx, instances.Region, cloud.WithAmbientCredentials())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1200,6 +1213,7 @@ func (s *Server) upsertDynamicMatchers(dc *discoveryconfig.DiscoveryConfig) erro
 		GCP:        dc.Spec.GCP,
 		Kubernetes: dc.Spec.Kube,
 	}
+	s.discardUnsupportedMatchers(&matchers)
 
 	awsServerFetchers, err := s.awsServerFetchersFromMatchers(s.ctx, matchers.AWS)
 	if err != nil {
@@ -1233,6 +1247,41 @@ func (s *Server) upsertDynamicMatchers(dc *discoveryconfig.DiscoveryConfig) erro
 
 	// TODO(marco): add other fetchers: Kube Clusters and Kube Resources (Apps)
 	return nil
+}
+
+// discardUnsupportedMatchers drops any matcher that is not supported in the current DiscoveryService.
+// Discarded Matchers:
+// - when running in IntegrationOnlyCredentials mode, any Matcher that doesn't have an Integration is discarded.
+func (s *Server) discardUnsupportedMatchers(m *Matchers) {
+	if !s.IntegrationOnlyCredentials {
+		return
+	}
+
+	// Discard all matchers that don't have an Integration
+	validAWSMatchers := make([]types.AWSMatcher, 0, len(m.AWS))
+	for i, m := range m.AWS {
+		if m.Integration == "" {
+			s.Log.Warnf("discarding AWS matcher [%d] - missing integration", i)
+			continue
+		}
+		validAWSMatchers = append(validAWSMatchers, m)
+	}
+	m.AWS = validAWSMatchers
+
+	if len(m.GCP) > 0 {
+		s.Log.Warnf("discarding GCP matchers - missing integration")
+		m.GCP = []types.GCPMatcher{}
+	}
+
+	if len(m.Azure) > 0 {
+		s.Log.Warnf("discarding Azure matchers - missing integration")
+		m.Azure = []types.AzureMatcher{}
+	}
+
+	if len(m.Kubernetes) > 0 {
+		s.Log.Warnf("discarding Kubernetes matchers - missing integration")
+		m.Kubernetes = []types.KubernetesMatcher{}
+	}
 }
 
 // Stop stops the discovery service.
