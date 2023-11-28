@@ -592,6 +592,14 @@ message TAGExecuteQueryEvent {
   bool is_success = 3;
 }
 
+// SecurityReportGetResultEvent is emitted when the user requests a security report.
+message SecurityReportGetResultEvent {
+  // name is the name of the security report.
+  string name = 1;
+  // days is the time range of the security reports in days.
+  int32 days = 2;
+}
+
 // UsageEventOneOf is a message that can accept a oneof of any supported
 // external usage event.
 message UsageEventOneOf {
@@ -645,6 +653,7 @@ message UsageEventOneOf {
     UIDiscoverDeployEICEEvent ui_discover_deploy_eice = 48;
     UIDiscoverCreateNodeEvent ui_discover_create_node = 49;
     TAGExecuteQueryEvent tag_execute_query = 50;
+    SecurityReportGetResultEvent security_report_get_result = 51;
   }
   reserved 2; //UIOnboardGetStartedClickEvent
   reserved "ui_onboard_get_started_click";

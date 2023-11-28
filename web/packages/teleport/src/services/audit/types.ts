@@ -1458,7 +1458,7 @@ export type RawEvents = {
     }
   >;
   [eventCodes.SECURITY_REPORT_RUN]: RawEvent<
-    typeof eventCodes.SECURITY_REPORT_AUDIT_QUERY_RUN,
+    typeof eventCodes.SECURITY_REPORT_RUN,
     {
       name: string;
       total_execution_time_in_millis: string;

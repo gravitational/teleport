@@ -19,10 +19,11 @@ import { MemoryRouter } from 'react-router';
 import { render, screen } from 'design/utils/testing';
 
 import TeleportContext from 'teleport/teleportContext';
-import localStorage from 'teleport/services/localStorage';
 import { ContextProvider } from 'teleport/index';
 import cfg from 'teleport/config';
 import { clusters } from 'teleport/Clusters/fixtures';
+
+import { storageService } from 'teleport/services/storageService';
 
 import { ExternalAuditStorageCta } from './ExternalAuditStorageCta';
 
@@ -42,7 +43,7 @@ describe('externalAuditStorageCta', () => {
     ctx.lockedFeatures.externalCloudAudit = losckedFeature;
 
     jest
-      .spyOn(localStorage, 'getExternalAuditStorageCtaDisabled')
+      .spyOn(storageService, 'getExternalAuditStorageCtaDisabled')
       .mockReturnValue(false);
 
     const { container } = render(

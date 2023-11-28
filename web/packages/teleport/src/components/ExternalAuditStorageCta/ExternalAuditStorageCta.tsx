@@ -25,10 +25,11 @@ import Text from 'design/Text';
 
 import cfg from 'teleport/config';
 import { IntegrationKind } from 'teleport/services/integrations';
-import localStorage from 'teleport/services/localStorage';
 import useTeleport from 'teleport/useTeleport';
 
 import { CtaEvent } from 'teleport/services/userEvent';
+
+import { storageService } from 'teleport/services/storageService';
 
 import { ButtonLockedFeature } from '../ButtonLockedFeature';
 
@@ -39,12 +40,12 @@ export const ExternalAuditStorageCta = () => {
 
   useEffect(() => {
     setShowCta(
-      cfg.isCloud && !localStorage.getExternalAuditStorageCtaDisabled()
+      cfg.isCloud && !storageService.getExternalAuditStorageCtaDisabled()
     );
   }, [cfg.isCloud]);
 
   function handleDismiss() {
-    localStorage.disableExternalAuditStorageCta();
+    storageService.disableExternalAuditStorageCta();
     setShowCta(false);
   }
 
