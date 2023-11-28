@@ -34,10 +34,9 @@ func TestDualPipeNetConnCloseOnExec(t *testing.T) {
 	for _, c := range []net.Conn{c1, c2} {
 		c = unwrapNetConn(c)
 
-		sysConn, ok := c.(syscall.Conn)
-		require.True(t, ok)
+		require.Implements(t, (*syscall.Conn)(nil), c)
 
-		rawConn, err := sysConn.SyscallConn()
+		rawConn, err := c.(syscall.Conn).SyscallConn()
 		require.NoError(t, err)
 
 		require.NoError(t, rawConn.Control(func(fd uintptr) {
@@ -45,7 +44,7 @@ func TestDualPipeNetConnCloseOnExec(t *testing.T) {
 			require.NoError(t, err)
 
 			isCloseOnExec := flags&unix.FD_CLOEXEC == unix.FD_CLOEXEC
-			require.True(t, isCloseOnExec)
+			require.True(t, isCloseOnExec, "expected file descriptor to have close-on-exec flag (FD_CLOEXEC, %x), got flags %x", unix.FD_CLOEXEC, flags)
 		}))
 
 	}
