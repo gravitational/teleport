@@ -26,8 +26,16 @@ export default async function copyToClipboard(
     await navigator.clipboard.writeText(textToCopy);
   } catch (error) {
     // This can happen if the user denies clipboard permissions.
-    window.alert(
-      `Cannot copy to clipboard. Use Ctrl/Cmd + C.\n${error.message}`
-    );
+    handleError(error, textToCopy);
+  }
+}
+
+function handleError(error: Error, textToCopy: string): void {
+  const message = `Cannot copy to clipboard. Use Ctrl/Cmd + C.\n${error.message}`;
+  try {
+    // window.prompt doesn't work in Electron.
+    window.prompt(message, textToCopy);
+  } catch (error) {
+    window.alert(message);
   }
 }
