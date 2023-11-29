@@ -64,6 +64,19 @@ func (c *Client) GetDraftExternalAuditStorage(ctx context.Context) (*externalaud
 	return externalAudit, trace.Wrap(err)
 }
 
+// CreateDraftExternalAuditStorage creates a draft External Audit Storage
+// resource if one does not already exist.
+func (c *Client) CreateDraftExternalAuditStorage(ctx context.Context, in *externalauditstorage.ExternalAuditStorage) (*externalauditstorage.ExternalAuditStorage, error) {
+	resp, err := c.grpcClient.CreateDraftExternalAuditStorage(ctx, &externalauditstoragev1.CreateDraftExternalAuditStorageRequest{
+		ExternalAuditStorage: conv.ToProto(in),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	out, err := conv.FromProtoDraft(resp.GetExternalAuditStorage())
+	return out, trace.Wrap(err)
+}
+
 // UpsertDraftExternalAuditStorage upserts a draft External Audit Storage resource.
 func (c *Client) UpsertDraftExternalAuditStorage(ctx context.Context, in *externalauditstorage.ExternalAuditStorage) (*externalauditstorage.ExternalAuditStorage, error) {
 	resp, err := c.grpcClient.UpsertDraftExternalAuditStorage(ctx, &externalauditstoragev1.UpsertDraftExternalAuditStorageRequest{
