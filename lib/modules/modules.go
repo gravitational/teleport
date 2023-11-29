@@ -208,25 +208,6 @@ func (f Features) IGSEnabled() bool {
 	return f.IdentityGovernanceSecurity
 }
 
-func GetAccessListFeatureConfig() AccessListFeature {
-	return AccessListFeature{
-		CreateLimit: 1,
-	}
-}
-
-func GetAccessRequestFeatureConfig() AccessRequestsFeature {
-	return AccessRequestsFeature{
-		MonthlyRequestLimit: 5,
-	}
-}
-
-func GetDeviceTrustFeatureConfig() DeviceTrustFeature {
-	return DeviceTrustFeature{
-		Enabled:           true, // always enabled currently
-		DevicesUsageLimit: 5,
-	}
-}
-
 // AccessResourcesGetter is a minimal interface that is used to get access lists
 // and related resources from the backend.
 type AccessResourcesGetter interface {
