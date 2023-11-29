@@ -56,11 +56,20 @@ type WindowsDesktopConfig struct {
 	// service. These hosts are not part of Active Directory.
 	NonADHosts []utils.NetAddr
 
+	StaticHosts []WindowsHost
+
 	// ConnLimiter limits the connection and request rates.
 	ConnLimiter limiter.Config
 	// HostLabels specifies rules that are used to apply labels to Windows hosts.
 	HostLabels HostLabelRules
 	Labels     map[string]string
+}
+
+type WindowsHost struct {
+	Name    string
+	Address utils.NetAddr
+	AD      bool
+	Labels  map[string]string
 }
 
 // LDAPDiscoveryConfig is LDAP discovery configuration for windows desktop discovery service.

@@ -2208,7 +2208,8 @@ type WindowsDesktopService struct {
 	Hosts []string `yaml:"hosts,omitempty"`
 	// NonADHosts is a list of standalone Windows hosts that are not
 	// jointed to an Active Directory domain.
-	NonADHosts []string `yaml:"non_ad_hosts,omitempty"`
+	NonADHosts  []string      `yaml:"non_ad_hosts,omitempty"`
+	StaticHosts []WindowsHost `yaml:"static_hosts,omitempty"`
 	// HostLabels optionally applies labels to Windows hosts for RBAC.
 	// A host can match multiple rules and will get a union of all
 	// the matched labels.
@@ -2217,8 +2218,15 @@ type WindowsDesktopService struct {
 
 // Check checks whether the WindowsDesktopService is valid or not
 func (wds *WindowsDesktopService) Check() error {
-	if len(wds.Hosts) > 0 && wds.LDAP.Addr == "" {
-		return trace.BadParameter("if hosts are specified in the windows_desktop_service, " +
+	var adHosts = 0
+	for _, host := range wds.StaticHosts {
+		if host.AD {
+			adHosts++
+		}
+	}
+
+	if len(wds.Hosts)+adHosts > 0 && wds.LDAP.Addr == "" {
+		return trace.BadParameter("if Active Directory hosts are specified in the windows_desktop_service, " +
 			"the ldap configuration for their corresponding Active Directory domain controller must also be specified")
 	}
 
@@ -2238,6 +2246,13 @@ type WindowsHostLabelRule struct {
 	Match string `yaml:"match"`
 	// Labels is the set of labels to apply to hosts that match this rule.
 	Labels map[string]string `yaml:"labels"`
+}
+
+type WindowsHost struct {
+	Name    string            `yaml:"name"`
+	Address string            `yaml:"addr"`
+	Labels  map[string]string `yaml:"labels"`
+	AD      bool              `yaml:"ad"`
 }
 
 // LDAPConfig is the LDAP connection parameters.
