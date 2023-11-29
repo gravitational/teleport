@@ -381,11 +381,10 @@ impl FilesystemBackend {
                                 "dir.fso.last_modified",
                                 dir.fso.last_modified
                             )?,
-                            // Not sure why the `& 0xffff` is necessary, just copying FreeRDP
-                            // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L492
-                            // u32::MAX is given due to the fact that FreeRDP uses it as a fallback:
+                            // Equivalent to `u32::MAX & 0xffff` which is what FreeRDP does between
                             // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/winpr/libwinpr/file/file.c#L1018-L1021
-                            volume_serial_number: u32::MAX & 0xffff,
+                            // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L492
+                            volume_serial_number: 0xffff,
                             // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L494
                             supports_objects: efs::Boolean::False,
                             // volume_label can just be something we make up
