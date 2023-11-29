@@ -94,6 +94,16 @@ export function TestConnection(props: AgentStepProps) {
 
     if (logins.length > 0) {
       setSelectedLoginOpt(mapLoginToSelectOption(logins[0]));
+
+      // Start the test automatically if there are no logins to choose from.
+      if (logins.length == 1) {
+        const { mfaRequired } = await testConnection(logins[0]);
+
+        // If MFA is required, let's just wait for the user to start the connection themselves.
+        if (mfaRequired) {
+          cancelMfaDialog();
+        }
+      }
     }
   };
 
@@ -120,7 +130,7 @@ export function TestConnection(props: AgentStepProps) {
   }
 
   function testConnection(login: string, mfaResponse?: MfaAuthnResponse) {
-    runConnectionDiagnostic(
+    return runConnectionDiagnostic(
       {
         resourceKind: 'node',
         resourceName: props.agentMeta.resourceName,
