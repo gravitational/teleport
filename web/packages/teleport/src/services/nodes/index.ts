@@ -17,4 +17,5 @@ limitations under the License.
 import service from './nodes';
 
 export * from './types';
+export * from './nodes';
 export default service;

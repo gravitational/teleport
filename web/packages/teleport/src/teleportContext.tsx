@@ -33,7 +33,7 @@ import desktopService from './services/desktops';
 import userGroupService from './services/userGroups';
 import MfaService from './services/mfa';
 import { agentService } from './services/agents';
-import localStorage from './services/localStorage';
+import { storageService } from './services/storageService';
 
 class TeleportContext implements types.Context {
   // stores
@@ -74,6 +74,7 @@ class TeleportContext implements types.Context {
     accessRequests: cfg.isUsageBasedBilling,
     premiumSupport: cfg.isUsageBasedBilling,
     trustedDevices: cfg.isUsageBasedBilling,
+    externalCloudAudit: cfg.isUsageBasedBilling,
   };
 
   // init fetches data required for initial rendering of components.
@@ -86,11 +87,26 @@ class TeleportContext implements types.Context {
     if (
       this.storeUser.hasPrereqAccessToAddAgents() &&
       this.storeUser.hasAccessToQueryAgent() &&
-      !localStorage.getOnboardDiscover()
+      !storageService.getOnboardDiscover()
     ) {
       const hasResource =
         await userService.checkUserHasAccessToRegisteredResource();
-      localStorage.setOnboardDiscover({ hasResource });
+      storageService.setOnboardDiscover({ hasResource });
+    }
+
+    if (user.acl.accessGraph.list) {
+      // If access graph is enabled, check what features are enabled and store them in local storage.
+      try {
+        const accessGraphFeatures =
+          await userService.fetchAccessGraphFeatures();
+
+        for (let key in accessGraphFeatures) {
+          window.localStorage.setItem(key, accessGraphFeatures[key]);
+        }
+      } catch (e) {
+        // If we fail to fetch access graph features, log the error and continue.
+        console.error('Failed to fetch access graph features', e);
+      }
     }
   }
 
@@ -171,10 +187,13 @@ class TeleportContext implements types.Context {
       discover: userContext.hasDiscoverAccess(),
       plugins: userContext.getPluginsAccess().list,
       integrations: userContext.getIntegrationsAccess().list,
-      enrollIntegrations: userContext.getIntegrationsAccess().create,
+      enrollIntegrations:
+        userContext.getIntegrationsAccess().create ||
+        userContext.getExternalAuditStorageAccess().create,
       enrollIntegrationsOrPlugins:
         userContext.getPluginsAccess().create ||
-        userContext.getIntegrationsAccess().create,
+        userContext.getIntegrationsAccess().create ||
+        userContext.getExternalAuditStorageAccess().create,
       deviceTrust: userContext.getDeviceTrustAccess().list,
       locks: userContext.getLockAccess().list,
       newLocks:
@@ -183,6 +202,7 @@ class TeleportContext implements types.Context {
       accessMonitoring: hasAccessMonitoringAccess(),
       managementSection: hasManagementSectionAccess(),
       accessGraph: userContext.getAccessGraphAccess().list,
+      externalAuditStorage: userContext.getExternalAuditStorageAccess().list,
     };
   }
 }
@@ -216,6 +236,7 @@ export const disabledFeatureFlags: types.FeatureFlags = {
   managementSection: false,
   accessMonitoring: false,
   accessGraph: false,
+  externalAuditStorage: false,
 };
 
 export default TeleportContext;

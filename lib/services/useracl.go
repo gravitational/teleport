@@ -98,8 +98,8 @@ type UserACL struct {
 	AuditQuery ResourceAccess `json:"auditQuery"`
 	// SecurityReport defines access to security reports.
 	SecurityReport ResourceAccess `json:"securityReport"`
-	// ExternalCloudAudit defines access to manage ExternalCloudAudit
-	ExternalCloudAudit ResourceAccess `json:"externalCloudAudit"`
+	// ExternalAuditStorage defines access to manage ExternalAuditStorage
+	ExternalAuditStorage ResourceAccess `json:"externalAuditStorage"`
 	// AccessGraph defines access to access graph.
 	AccessGraph ResourceAccess `json:"accessGraph"`
 }
@@ -146,7 +146,6 @@ func NewUserACL(user types.User, userRoles RoleSet, features proto.Features, des
 	desktopAccess := newAccess(userRoles, ctx, types.KindWindowsDesktop)
 	cnDiagnosticAccess := newAccess(userRoles, ctx, types.KindConnectionDiagnostic)
 	samlIdpServiceProviderAccess := newAccess(userRoles, ctx, types.KindSAMLIdPServiceProvider)
-	accessGraphAccess := newAccess(userRoles, ctx, types.KindAccessGraph)
 
 	var assistAccess ResourceAccess
 	if features.Assist {
@@ -163,6 +162,11 @@ func NewUserACL(user types.User, userRoles RoleSet, features proto.Features, des
 		pluginsAccess = newAccess(userRoles, ctx, types.KindPlugin)
 	}
 
+	var accessGraphAccess ResourceAccess
+	if features.AccessGraph {
+		accessGraphAccess = newAccess(userRoles, ctx, types.KindAccessGraph)
+	}
+
 	clipboard := userRoles.DesktopClipboard()
 	desktopSessionRecording := desktopRecordingEnabled && userRoles.RecordDesktopSession()
 	directorySharing := userRoles.DesktopDirectorySharing()
@@ -173,7 +177,7 @@ func NewUserACL(user types.User, userRoles RoleSet, features proto.Features, des
 	discoveryConfigsAccess := newAccess(userRoles, ctx, types.KindDiscoveryConfig)
 	lockAccess := newAccess(userRoles, ctx, types.KindLock)
 	accessListAccess := newAccess(userRoles, ctx, types.KindAccessList)
-	externalCloudAudit := newAccess(userRoles, ctx, types.KindExternalCloudAudit)
+	externalAuditStorage := newAccess(userRoles, ctx, types.KindExternalAuditStorage)
 
 	var auditQuery ResourceAccess
 	var securityReports ResourceAccess
@@ -215,7 +219,7 @@ func NewUserACL(user types.User, userRoles RoleSet, features proto.Features, des
 		AccessList:              accessListAccess,
 		AuditQuery:              auditQuery,
 		SecurityReport:          securityReports,
-		ExternalCloudAudit:      externalCloudAudit,
+		ExternalAuditStorage:    externalAuditStorage,
 		AccessGraph:             accessGraphAccess,
 	}
 }

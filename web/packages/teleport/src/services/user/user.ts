@@ -42,6 +42,10 @@ const service = {
       });
   },
 
+  fetchAccessGraphFeatures(): Promise<object> {
+    return api.get(cfg.getAccessGraphFeaturesUrl());
+  },
+
   fetchUser(username: string) {
     return api.get(cfg.getUserWithUsernameUrl(username)).then(makeUser);
   },
@@ -76,6 +80,12 @@ const service = {
     return api
       .get(cfg.getCheckAccessToRegisteredResourceUrl())
       .then(res => Boolean(res.hasResource));
+  },
+
+  fetchConnectMyComputerLogins(signal?: AbortSignal): Promise<Array<string>> {
+    return api
+      .get(cfg.getConnectMyComputerLoginsUrl(), signal)
+      .then(res => res.logins);
   },
 };
 

@@ -73,7 +73,10 @@ func (f *memoryDBFetcher) FetchDatabaseUsers(ctx context.Context, database types
 		return nil, nil
 	}
 
-	client, err := f.cfg.Clients.GetAWSMemoryDBClient(ctx, meta.Region, cloud.WithAssumeRoleFromAWSMeta(meta))
+	client, err := f.cfg.Clients.GetAWSMemoryDBClient(ctx, meta.Region,
+		cloud.WithAssumeRoleFromAWSMeta(meta),
+		cloud.WithAmbientCredentials(),
+	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

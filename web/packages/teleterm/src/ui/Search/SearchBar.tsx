@@ -77,8 +77,15 @@ function SearchBar() {
       return;
     }
 
-    const onClickOutside = e => {
-      if (!e.composedPath().includes(containerRef.current)) {
+    const onClickOutside = (e: MouseEvent) => {
+      if (
+        !(
+          e.composedPath().includes(containerRef.current) ||
+          // Prevents closing the search bar
+          // when the advanced search tooltip is opened.
+          document.querySelector('#predicate-documentation')
+        )
+      ) {
         close();
       }
     };

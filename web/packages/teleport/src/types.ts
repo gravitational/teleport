@@ -164,6 +164,7 @@ export interface FeatureFlags {
   // Whether or not the management section should be available.
   managementSection: boolean;
   accessGraph: boolean;
+  externalAuditStorage: boolean;
 }
 
 // LockedFeatures are used for determining which features are disabled in the user's cluster.
@@ -173,6 +174,7 @@ export type LockedFeatures = {
   accessRequests: boolean;
   premiumSupport: boolean;
   trustedDevices: boolean;
+  externalCloudAudit: boolean;
 };
 
 // RecommendFeature is used for recommending features if its usage status is zero.

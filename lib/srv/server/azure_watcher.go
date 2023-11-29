@@ -28,7 +28,6 @@ import (
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/installers"
-	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -79,10 +78,10 @@ type azureClientGetter interface {
 }
 
 // NewAzureWatcher creates a new Azure watcher instance.
-func NewAzureWatcher(ctx context.Context, matchers []types.AzureMatcher, clients cloud.Clients, opts ...Option) (*Watcher, error) {
+func NewAzureWatcher(ctx context.Context, fetchersFn func() []Fetcher, opts ...Option) (*Watcher, error) {
 	cancelCtx, cancelFn := context.WithCancel(ctx)
 	watcher := Watcher{
-		fetchers:     []Fetcher{},
+		fetchersFn:   fetchersFn,
 		ctx:          cancelCtx,
 		cancel:       cancelFn,
 		pollInterval: time.Minute,
@@ -91,6 +90,12 @@ func NewAzureWatcher(ctx context.Context, matchers []types.AzureMatcher, clients
 	for _, opt := range opts {
 		opt(&watcher)
 	}
+	return &watcher, nil
+}
+
+// MatchersToAzureInstanceFetchers converts a list of Azure VM Matchers into a list of Azure VM Fetchers.
+func MatchersToAzureInstanceFetchers(matchers []types.AzureMatcher, clients azureClientGetter) []Fetcher {
+	ret := make([]Fetcher, 0)
 	for _, matcher := range matchers {
 		for _, subscription := range matcher.Subscriptions {
 			for _, resourceGroup := range matcher.ResourceGroups {
@@ -100,11 +105,11 @@ func NewAzureWatcher(ctx context.Context, matchers []types.AzureMatcher, clients
 					ResourceGroup:     resourceGroup,
 					AzureClientGetter: clients,
 				})
-				watcher.fetchers = append(watcher.fetchers, fetcher)
+				ret = append(ret, fetcher)
 			}
 		}
 	}
-	return &watcher, nil
+	return ret
 }
 
 type azureFetcherConfig struct {

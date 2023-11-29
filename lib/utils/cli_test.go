@@ -19,7 +19,8 @@ package utils
 import (
 	"crypto/x509"
 	"fmt"
-	"strings"
+	"io"
+	"log/slog"
 	"testing"
 
 	"github.com/gravitational/trace"
@@ -27,9 +28,16 @@ import (
 )
 
 func TestUserMessageFromError(t *testing.T) {
-	t.Parallel()
+	// Behavior is different in debug
+	defaultLogger := slog.Default()
 
-	t.Skip("Enable after https://drone.gravitational.io/gravitational/teleport/3517 is merged.")
+	var leveler slog.LevelVar
+	leveler.Set(slog.LevelInfo)
+	slog.SetDefault(slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{Level: &leveler})))
+	t.Cleanup(func() {
+		slog.SetDefault(defaultLogger)
+	})
+
 	tests := []struct {
 		comment   string
 		inError   error
@@ -47,14 +55,14 @@ func TestUserMessageFromError(t *testing.T) {
 		},
 		{
 			comment:   "outputs user message as provided",
-			inError:   trace.Errorf("\x1b[1mWARNING\x1b[0m"),
-			outString: `error: "\x1b[1mWARNING\x1b[0m"`,
+			inError:   trace.Errorf("bad thing occurred"),
+			outString: "\x1b[31mERROR: \x1b[0mbad thing occurred",
 		},
 	}
 
 	for _, tt := range tests {
 		message := UserMessageFromError(tt.inError)
-		require.True(t, strings.HasPrefix(message, tt.outString), tt.comment)
+		require.Contains(t, message, tt.outString)
 	}
 }
 

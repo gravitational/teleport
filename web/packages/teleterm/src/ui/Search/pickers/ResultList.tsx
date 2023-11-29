@@ -17,7 +17,6 @@
 import React, {
   ReactElement,
   useEffect,
-  useMemo,
   useRef,
   useState,
   useCallback,
@@ -66,9 +65,7 @@ export function ResultList<T>(props: ResultListProps<T>) {
     [onPick]
   );
 
-  const items = useMemo(() => {
-    return attempts.map(a => a.data || []).flat();
-  }, [attempts]);
+  const items = attempts.map(a => a.data || []).flat();
 
   // Reset the active item index if it's greater than the number of available items.
   // This can happen in cases where the user selects the nth item and then filters the list so that
@@ -230,6 +227,7 @@ const Overflow = styled.div`
   height: 100%;
   list-style: none outside none;
   max-height: 350px;
-  // Hardcoded to height of the shortest item.
-  min-height: 40px;
+  // prevents showing a scrollbar when the container height is very low
+  // by overriding our default line-height value
+  line-height: normal;
 `;

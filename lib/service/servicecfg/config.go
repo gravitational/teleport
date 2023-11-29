@@ -12,11 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// package servicecfg contains the runtime configuration for Teleport services
+// Package servicecfg contains the runtime configuration for Teleport services
 package servicecfg
 
 import (
 	"io"
+	"log/slog"
 	"net"
 	"os"
 	"path/filepath"
@@ -183,10 +184,6 @@ type Config struct {
 	// endpoint extended with additional /debug handlers
 	Debug bool
 
-	// UploadEventsC is a channel for upload events
-	// used in tests
-	UploadEventsC chan events.UploadEvent `json:"-"`
-
 	// FileDescriptors is an optional list of file descriptors for the process
 	// to inherit and use for listeners, used for in-process updates.
 	FileDescriptors []*FileDescriptor
@@ -195,21 +192,11 @@ type Config struct {
 	// of sync agents, used to speed up integration tests.
 	PollingPeriod time.Duration
 
-	// ClientTimeout is set to override default client timeouts
-	// used by internal clients, used to speed up integration tests.
-	ClientTimeout time.Duration
-
-	// ShutdownTimeout is set to override default shutdown timeout.
-	ShutdownTimeout time.Duration
-
 	// CAPins are the SKPI hashes of the CAs used to verify the Auth Server.
 	CAPins []string
 
 	// Clock is used to control time in tests.
 	Clock clockwork.Clock
-
-	// TeleportVersion is used to control the Teleport version in tests.
-	TeleportVersion string
 
 	// FIPS means FedRAMP/FIPS 140-2 compliant configuration was requested.
 	FIPS bool
@@ -224,8 +211,12 @@ type Config struct {
 	// Kube is a Kubernetes API gateway using Teleport client identities.
 	Kube KubeConfig
 
-	// Log optionally specifies the logger
+	// Log optionally specifies the logger.
+	// Deprecated: use Logger instead.
 	Log utils.Logger
+	// Logger outputs messages using slog. The underlying handler respects
+	// the user supplied logging config.
+	Logger *slog.Logger
 
 	// PluginRegistry allows adding enterprise logic to Teleport services
 	PluginRegistry plugin.Registry
@@ -236,9 +227,6 @@ type Config struct {
 
 	// MaxRetryPeriod is the maximum period between reconnection attempts to auth
 	MaxRetryPeriod time.Duration
-
-	// ConnectFailureC is a channel to notify of failures to connect to auth (used in tests).
-	ConnectFailureC chan time.Duration
 
 	// TeleportHome is the path to tsh configuration and data, used
 	// for loading profiles when TELEPORT_HOME is set
@@ -256,17 +244,8 @@ type Config struct {
 	// InstanceMetadataClient specifies the instance metadata client.
 	InstanceMetadataClient cloud.InstanceMetadata
 
-	// OpenAIConfig contains the optional OpenAI client configuration used by
-	// auth and proxy. When it's not set (the default, we don't offer a way to
-	// set it when executing the regular Teleport binary) we use the default
-	// configuration with auth tokens passed from Auth.AssistAPIKey or
-	// Proxy.AssistAPIKey. We set this only when testing to avoid calls to reach
-	// the real OpenAI API.
-	// Note: When set, this overrides Auth and Proxy's AssistAPIKey settings.
-	OpenAIConfig *openai.ClientConfig
-
-	// Options provide a way to customize behavior of service initialization.
-	Options []Option
+	// Testing is a group of properties that are used in tests.
+	Testing ConfigTesting
 
 	// AccessGraph represents AccessGraph server config
 	AccessGraph AccessGraphConfig
@@ -293,22 +272,36 @@ type Config struct {
 	authServers []utils.NetAddr
 }
 
-// Option allows to customize default behavior of service initialization defined by Config
-type Option interface {
-	Apply(any) error
-}
+type ConfigTesting struct {
+	// ConnectFailureC is a channel to notify of failures to connect to auth (used in tests).
+	ConnectFailureC chan time.Duration
 
-// KubeMultiplexerIgnoreSelfConnectionsOption signals that Proxy TLS server's listener should
-// require PROXY header if 'proxyProtocolMode: true' even from self connections. Used in tests as all connections are self
-// connections there.
-type KubeMultiplexerIgnoreSelfConnectionsOption struct{}
+	// UploadEventsC is a channel for upload events used in tests
+	UploadEventsC chan events.UploadEvent `json:"-"`
 
-func (k KubeMultiplexerIgnoreSelfConnectionsOption) Apply(input any) error {
-	return nil
-}
+	// ClientTimeout is set to override default client timeouts
+	// used by internal clients, used to speed up integration tests.
+	ClientTimeout time.Duration
 
-func WithKubeMultiplexerIgnoreSelfConnectionsOption() KubeMultiplexerIgnoreSelfConnectionsOption {
-	return KubeMultiplexerIgnoreSelfConnectionsOption{}
+	// ShutdownTimeout is set to override default shutdown timeout.
+	ShutdownTimeout time.Duration
+
+	// TeleportVersion is used to control the Teleport version in tests.
+	TeleportVersion string
+
+	// KubeMultiplexerIgnoreSelfConnections signals that Proxy TLS server's listener should
+	// require PROXY header if 'proxyProtocolMode: true' even from self connections. Used in tests as all connections are self
+	// connections there.
+	KubeMultiplexerIgnoreSelfConnections bool
+
+	// OpenAIConfig contains the optional OpenAI client configuration used by
+	// auth and proxy. When it's not set (the default, we don't offer a way to
+	// set it when executing the regular Teleport binary) we use the default
+	// configuration with auth tokens passed from Auth.AssistAPIKey or
+	// Proxy.AssistAPIKey. We set this only when testing to avoid calls to reach
+	// the real OpenAI API.
+	// Note: When set, this overrides Auth and Proxy's AssistAPIKey settings.
+	OpenAIConfig *openai.ClientConfig
 }
 
 // AccessGraphConfig represents TAG server config
@@ -514,6 +507,10 @@ func ApplyDefaults(cfg *Config) {
 		cfg.Log = utils.NewLogger()
 	}
 
+	if cfg.Logger == nil {
+		cfg.Logger = slog.Default()
+	}
+
 	// Remove insecure and (borderline insecure) cryptographic primitives from
 	// default configuration. These can still be added back in file configuration by
 	// users, but not supported by default by Teleport. See #1856 for more
@@ -591,7 +588,7 @@ func ApplyDefaults(cfg *Config) {
 
 	cfg.RotationConnectionInterval = defaults.HighResPollingPeriod
 	cfg.MaxRetryPeriod = defaults.MaxWatcherBackoff
-	cfg.ConnectFailureC = make(chan time.Duration, 1)
+	cfg.Testing.ConnectFailureC = make(chan time.Duration, 1)
 	cfg.CircuitBreakerConfig = breaker.DefaultBreakerConfig(cfg.Clock)
 }
 
@@ -674,6 +671,10 @@ func applyDefaults(cfg *Config) {
 
 	if cfg.Log == nil {
 		cfg.Log = logrus.StandardLogger()
+	}
+
+	if cfg.Logger == nil {
+		cfg.Logger = slog.Default()
 	}
 
 	if cfg.PollingPeriod == 0 {

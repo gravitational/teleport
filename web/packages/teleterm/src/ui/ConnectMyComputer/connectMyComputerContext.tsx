@@ -38,6 +38,7 @@ import {
   isAccessDeniedError,
   isNotFoundError,
 } from 'teleterm/services/tshd/errors';
+import { useResourcesContext } from 'teleterm/ui/DocumentCluster/resourcesContext';
 
 import { assertUnreachable, retryWithRelogin } from '../utils';
 
@@ -123,6 +124,7 @@ export const ConnectMyComputerContextProvider: FC<{
     workspacesService,
     usageService,
   } = ctx;
+  const { requestResourcesRefresh } = useResourcesContext();
   clustersService.useState();
 
   const [
@@ -301,6 +303,7 @@ export const ConnectMyComputerContextProvider: FC<{
             rootClusterUri
           )
         );
+        requestResourcesRefresh();
       } catch (e) {
         if (isAccessDeniedError(e)) {
           hasAccessDeniedError = true;
@@ -343,6 +346,7 @@ export const ConnectMyComputerContextProvider: FC<{
       markAgentAsNotConfigured,
       removeConnections,
       rootClusterUri,
+      requestResourcesRefresh,
     ])
   );
 

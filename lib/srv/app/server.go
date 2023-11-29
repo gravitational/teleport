@@ -1051,10 +1051,10 @@ func (s *Server) newHTTPServer(clusterName string) *http.Server {
 	s.authMiddleware.Wrap(s)
 
 	return &http.Server{
+		// Note: read/write timeouts *should not* be set here because it will
+		// break application access.
 		Handler:           httplib.MakeTracingHandler(s.authMiddleware, teleport.ComponentApp),
-		ReadTimeout:       apidefaults.DefaultIOTimeout,
 		ReadHeaderTimeout: defaults.ReadHeadersTimeout,
-		WriteTimeout:      apidefaults.DefaultIOTimeout,
 		IdleTimeout:       apidefaults.DefaultIdleTimeout,
 		ErrorLog:          utils.NewStdlogger(s.log.Error, teleport.ComponentApp),
 		ConnContext: func(ctx context.Context, c net.Conn) context.Context {

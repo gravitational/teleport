@@ -41,7 +41,7 @@ import {
 
 import cfg from 'teleport/config';
 
-import localStorage from 'teleport/services/localStorage';
+import { storageService } from 'teleport/services/storageService';
 
 import {
   ManagementSection,
@@ -123,7 +123,7 @@ export class FeatureNodes implements TeleportFeature {
     },
   };
 
-  hideFromNavigation = localStorage.areUnifiedResourcesEnabled();
+  hideFromNavigation = storageService.areUnifiedResourcesEnabled();
 
   category = NavigationCategory.Resources;
 
@@ -149,7 +149,7 @@ export class FeatureUnifiedResources implements TeleportFeature {
     },
   };
 
-  hideFromNavigation = !localStorage.areUnifiedResourcesEnabled();
+  hideFromNavigation = !storageService.areUnifiedResourcesEnabled();
 
   category = NavigationCategory.Resources;
 
@@ -168,7 +168,7 @@ export class FeatureApps implements TeleportFeature {
     component: Applications,
   };
 
-  hideFromNavigation = localStorage.areUnifiedResourcesEnabled();
+  hideFromNavigation = storageService.areUnifiedResourcesEnabled();
 
   hasAccess(flags: FeatureFlags) {
     return flags.applications;
@@ -194,7 +194,7 @@ export class FeatureKubes implements TeleportFeature {
     component: Kubes,
   };
 
-  hideFromNavigation = localStorage.areUnifiedResourcesEnabled();
+  hideFromNavigation = storageService.areUnifiedResourcesEnabled();
 
   hasAccess(flags: FeatureFlags) {
     return flags.kubernetes;
@@ -220,7 +220,7 @@ export class FeatureDatabases implements TeleportFeature {
     component: Databases,
   };
 
-  hideFromNavigation = localStorage.areUnifiedResourcesEnabled();
+  hideFromNavigation = storageService.areUnifiedResourcesEnabled();
 
   hasAccess(flags: FeatureFlags) {
     return flags.databases;
@@ -246,7 +246,7 @@ export class FeatureDesktops implements TeleportFeature {
     component: Desktops,
   };
 
-  hideFromNavigation = localStorage.areUnifiedResourcesEnabled();
+  hideFromNavigation = storageService.areUnifiedResourcesEnabled();
 
   hasAccess(flags: FeatureFlags) {
     return flags.desktops;

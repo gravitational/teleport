@@ -48,6 +48,10 @@ func NewCLIPrompt(cfg *PromptConfig, writer io.Writer) *CLIPrompt {
 
 // Run prompts the user to complete an MFA authentication challenge.
 func (c *CLIPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
+	if c.cfg.PromptReason != "" {
+		fmt.Fprintln(c.writer, c.cfg.PromptReason)
+	}
+
 	var wg sync.WaitGroup
 	runOpts, err := c.cfg.getRunOptions(ctx, chal)
 	if err != nil {

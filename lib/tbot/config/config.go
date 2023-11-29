@@ -50,6 +50,7 @@ var SupportedJoinMethods = []string{
 	string(types.JoinMethodGitLab),
 	string(types.JoinMethodIAM),
 	string(types.JoinMethodKubernetes),
+	string(types.JoinMethodSpacelift),
 	string(types.JoinMethodToken),
 }
 
@@ -80,11 +81,6 @@ func RemainingArgs(s kingpin.Settings) (target *[]string) {
 	s.SetValue((*RemainingArgsList)(target))
 	return
 }
-
-const (
-	LogFormatJSON = "json"
-	LogFormatText = "text"
-)
 
 // CLIConf is configuration from the CLI.
 type CLIConf struct {
