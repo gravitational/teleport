@@ -244,6 +244,68 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
         </ul>
       </Text>
     ),
+    Setup: () => (
+      <Text>
+        <p>Generate an API key so you can set up the Okta plugin:</p>
+        <ol>
+          <li>
+            Create an admin role for the Teleport Okta Service by following the{' '}
+            <a href="https://help.okta.com/en-us/content/topics/security/custom-admin-role/create-role.htm">
+              Okta documentation
+            </a>
+            . The role must have the following permissions:
+            <ul>
+              <li>
+                User permissions:
+                <ul>
+                  <li>View users and their details</li>
+                  <li>Edit users' group membership</li>
+                  <li>Edit users' application assignments</li>
+                </ul>
+              </li>
+              <li>
+                Group permissions:
+                <ul>
+                  <li>View groups and their details</li>
+                  <li>Manage group membership</li>
+                </ul>
+              </li>
+              <li>
+                Application permissions:
+                <ul>
+                  <li>View applications and their details</li>
+                  <li>Edit application's user assignments</li>
+                </ul>
+              </li>
+            </ul>
+          </li>
+          <li>
+            Follow the{' '}
+            <a href="https://help.okta.com/en-us/content/topics/security/custom-admin-role/create-admin-role-assignment-by-admin.htm">
+              Okta documentation
+            </a>{' '}
+            to create a user for the Teleport Okta Service and assign two roles
+            to the user:
+            <ul>
+              <li>
+                The built-in Group Membership Admin role, which can create API
+                tokens
+              </li>
+              <li>The role you created earlier</li>
+            </ul>
+          </li>
+          <li>
+            Sign in to Okta as the user you created and follow the{' '}
+            <a href="https://help.okta.com/en-us/content/topics/security/api.htm">
+              Okta documentation
+            </a>{' '}
+            to generate an API token, which inherits the permissions of the
+            user. Paste the API token into the form at the bottom of this
+            screen.
+          </li>
+        </ol>
+      </Text>
+    ),
     permissions: [
       {
         category: 'Applications',
@@ -604,6 +666,52 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
         ],
       },
     ],
+    Setup: () => (
+      <Text>
+        <p>
+          The ServiceNow integration requires a ServiceNow user with permissions
+          to read from and write to the incident table. This requires a role
+          with the “sn_incident_read” and “sn_incident_write” roles.
+        </p>
+        <ol>
+          <li>
+            Ensure that your ServiceNow account includes the{' '}
+            <a href="https://docs.servicenow.com/en-US/bundle/vancouver-it-service-management/page/product/incident-management/task/req-itsm-roles-inci-mgmt.html">
+              ITSM Roles plugin
+            </a>
+            , which enables the “sn_incident_read” and “sn_incident_write”
+            roles.
+          </li>
+          <li>
+            <a href="https://docs.servicenow.com/bundle/vancouver-platform-administration/page/administer/roles/task/t_CreateARole.html">
+              Create a ServiceNow role
+            </a>{' '}
+            that we will later assign to the user account for the Teleport
+            integration.
+          </li>
+          <li>
+            <a href="https://docs.servicenow.com/bundle/vancouver-platform-administration/page/administer/roles/task/t_AddARoleToAnExistingRole.html">
+              Edit the role you created
+            </a>{' '}
+            to add the “sn_incident_read” and “sn_incident_write” roles.
+          </li>
+          <li>
+            Follow the{' '}
+            <a href="https://docs.servicenow.com/en-US/bundle/vancouver-platform-administration/page/administer/users-and-groups/task/t_CreateAUser.html">
+              ServiceNow documentation
+            </a>{' '}
+            to create a ServiceNow user. Paste the name and password of the user
+            in the form at the bottom of this page.
+          </li>
+          <li>
+            <a href="https://docs.servicenow.com/bundle/vancouver-platform-administration/page/administer/users-and-groups/task/t_AssignARoleToAUser.html">
+              Assign the role you created
+            </a>{' '}
+            to the ServiceNow user you created.
+          </li>
+        </ol>
+      </Text>
+    ),
     FormMixin: () => {
       const [username, setUsername] = useState('');
       const [password, setPassword] = useState('');
@@ -957,8 +1065,8 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
       return (
         <Text>
           <p>
-            Be sure to configure the `pagerduty_notify_service` and
-            `pagerduty_services` annotations in the Teleport roles you want
+            Be sure to configure the “pagerduty_notify_service” and
+            “pagerduty_services” annotations in the Teleport roles you want
             PagerDuty to manage.
           </p>
           <p>
