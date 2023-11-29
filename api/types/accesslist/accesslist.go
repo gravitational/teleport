@@ -243,24 +243,6 @@ type Grants struct {
 	Traits trait.Traits `json:"traits" yaml:"traits"`
 }
 
-// Member describes a member of an access list.
-type Member struct {
-	// Name is the name of the member of the access list.
-	Name string `json:"name" yaml:"name"`
-
-	// Joined is when the user joined the access list.
-	Joined time.Time `json:"joined" yaml:"joined"`
-
-	// expires is when the user's membership to the access list expires.
-	Expires time.Time `json:"expires" yaml:"expires"`
-
-	// reason is the reason this user was added to the access list.
-	Reason string `json:"reason" yaml:"reason"`
-
-	// added_by is the user that added this user to the access list.
-	AddedBy string `json:"added_by" yaml:"added_by"`
-}
-
 // NewAccessList will create a new access list.
 func NewAccessList(metadata header.Metadata, spec Spec) (*AccessList, error) {
 	accessList := &AccessList{

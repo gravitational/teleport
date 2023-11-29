@@ -194,6 +194,10 @@ message MemberSpec {
   // ineligible_status describes if this member is eligible or not
   // and if not, describes how they're lacking eligibility.
   IneligibleStatus ineligible_status = 7;
+
+  // membership defines how list membership was acquired. There are two possible
+  // values: `explicit` and `implicit`.
+  string membership = 8;
 }
 
 // IneligibleStatus describes how the user is ineligible.

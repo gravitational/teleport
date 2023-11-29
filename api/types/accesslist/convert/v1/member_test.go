@@ -57,54 +57,71 @@ func TestWithMemberIneligibleStatusField(t *testing.T) {
 
 // Make sure that we don't panic if any of the message fields are missing.
 func TestMemberFromProtoNils(t *testing.T) {
-	// Spec is nil
-	member := ToMemberProto(newAccessListMember(t, "access-list-member"))
-	member.Spec = nil
+	t.Run("spec", func(t *testing.T) {
+		member := ToMemberProto(newAccessListMember(t, "access-list-member"))
+		member.Spec = nil
+		_, err := FromMemberProto(member)
+		require.Error(t, err)
+	})
 
-	_, err := FromMemberProto(member)
-	require.Error(t, err)
+	t.Run("access list", func(t *testing.T) {
+		member := ToMemberProto(newAccessListMember(t, "access-list-member"))
+		member.Spec.AccessList = ""
 
-	// AccessList is empty
-	member = ToMemberProto(newAccessListMember(t, "access-list-member"))
-	member.Spec.AccessList = ""
+		_, err := FromMemberProto(member)
+		require.Error(t, err)
+	})
 
-	_, err = FromMemberProto(member)
-	require.Error(t, err)
+	t.Run("name", func(t *testing.T) {
+		member := ToMemberProto(newAccessListMember(t, "access-list-member"))
+		member.Spec.Name = ""
 
-	// Name is empty
-	member = ToMemberProto(newAccessListMember(t, "access-list-member"))
-	member.Spec.Name = ""
+		_, err := FromMemberProto(member)
+		require.Error(t, err)
+	})
 
-	_, err = FromMemberProto(member)
-	require.Error(t, err)
+	t.Run("joined", func(t *testing.T) {
+		member := ToMemberProto(newAccessListMember(t, "access-list-member"))
+		member.Spec.Joined = nil
 
-	// Joined is nil
-	member = ToMemberProto(newAccessListMember(t, "access-list-member"))
-	member.Spec.Joined = nil
+		_, err := FromMemberProto(member)
+		require.Error(t, err)
+	})
 
-	_, err = FromMemberProto(member)
-	require.Error(t, err)
+	t.Run("expires", func(t *testing.T) {
+		member := ToMemberProto(newAccessListMember(t, "access-list-member"))
+		member.Spec.Expires = nil
 
-	// Expires is nil
-	member = ToMemberProto(newAccessListMember(t, "access-list-member"))
-	member.Spec.Expires = nil
+		_, err := FromMemberProto(member)
+		require.NoError(t, err)
+	})
 
-	_, err = FromMemberProto(member)
-	require.NoError(t, err)
+	t.Run("reason", func(t *testing.T) {
+		member := ToMemberProto(newAccessListMember(t, "access-list-member"))
+		member.Spec.Reason = ""
 
-	// Reason is empty
-	member = ToMemberProto(newAccessListMember(t, "access-list-member"))
-	member.Spec.Reason = ""
+		_, err := FromMemberProto(member)
+		require.NoError(t, err)
+	})
 
-	_, err = FromMemberProto(member)
-	require.NoError(t, err)
+	t.Run("added by", func(t *testing.T) {
+		// AddedBy is empty
+		member := ToMemberProto(newAccessListMember(t, "access-list-member"))
+		member.Spec.AddedBy = ""
 
-	// AddedBy is empty
-	member = ToMemberProto(newAccessListMember(t, "access-list-member"))
-	member.Spec.AddedBy = ""
+		_, err := FromMemberProto(member)
+		require.Error(t, err)
+	})
 
-	_, err = FromMemberProto(member)
-	require.Error(t, err)
+	t.Run("membership", func(t *testing.T) {
+		// AddedBy is empty
+		member := ToMemberProto(newAccessListMember(t, "access-list-member"))
+		member.Spec.Membership = ""
+
+		uut, err := FromMemberProto(member)
+		require.NoError(t, err)
+		require.Equal(t, accesslist.Explicit, uut.Spec.Membership)
+	})
 }
 
 func newAccessListMember(t *testing.T, name string) *accesslist.AccessListMember {
