@@ -43,7 +43,7 @@ const agentStepProps = {
   agentMeta: { resourceName: node.hostname, node, agentMatcherLabels: [] },
 };
 
-export const Story = () => {
+export const SingleLogin = () => {
   return (
     <Provider>
       <TestConnection {...agentStepProps} />
@@ -51,14 +51,78 @@ export const Story = () => {
   );
 };
 
-Story.parameters = {
+SingleLogin.parameters = {
   msw: {
     handlers: [
       rest.post(cfg.api.webRenewTokenPath, (req, res, ctx) =>
         res(ctx.json({}))
       ),
-      rest.get(cfg.api.nodesPath, (req, res, ctx) =>
-        res(ctx.json({ items: [node] }))
+      rest.get(cfg.api.connectMyComputerLoginsPath, (req, res, ctx) =>
+        res(ctx.json({ logins: ['foo'] }))
+      ),
+    ],
+  },
+};
+
+export const MultipleLogins = () => {
+  return (
+    <Provider>
+      <TestConnection {...agentStepProps} />
+    </Provider>
+  );
+};
+
+MultipleLogins.parameters = {
+  msw: {
+    handlers: [
+      rest.post(cfg.api.webRenewTokenPath, (req, res, ctx) =>
+        res(ctx.json({}))
+      ),
+      rest.get(cfg.api.connectMyComputerLoginsPath, (req, res, ctx) =>
+        res(ctx.json({ logins: ['foo', 'bar', 'baz'] }))
+      ),
+    ],
+  },
+};
+
+export const NoLogins = () => {
+  return (
+    <Provider>
+      <TestConnection {...agentStepProps} />
+    </Provider>
+  );
+};
+
+NoLogins.parameters = {
+  msw: {
+    handlers: [
+      rest.post(cfg.api.webRenewTokenPath, (req, res, ctx) =>
+        res(ctx.json({}))
+      ),
+      rest.get(cfg.api.connectMyComputerLoginsPath, (req, res, ctx) =>
+        res(ctx.json({ logins: [] }))
+      ),
+    ],
+  },
+};
+
+export const NoRole = () => {
+  return (
+    <Provider>
+      <TestConnection {...agentStepProps} />
+    </Provider>
+  );
+};
+
+NoRole.parameters = {
+  msw: {
+    handlers: [
+      rest.post(cfg.api.webRenewTokenPath, (req, res, ctx) =>
+        res(ctx.json({}))
+      ),
+      rest.get(cfg.api.connectMyComputerLoginsPath, (req, res, ctx) =>
+        // TODO Check how our error responses look like.
+        res(ctx.status(404), ctx.text('Whoops no role found'))
       ),
     ],
   },
