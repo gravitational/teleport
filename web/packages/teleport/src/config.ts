@@ -48,6 +48,12 @@ const cfg = {
   isUsageBasedBilling: false,
   hideInaccessibleFeatures: false,
   customTheme: '',
+  // isTeam is true if [Features.ProductType] == Team
+  isTeam: false,
+  // isIgsEnabled refers to Identity Governance & Security product.
+  // It refers to a group of features: access request, device trust,
+  // access list, and access monitoring.
+  isIgsEnabled: false,
 
   configDir: '$HOME/.config',
 
@@ -349,6 +355,14 @@ const cfg = {
     if (cfg.auth.authType === 'local') return 'local';
 
     return 'sso';
+  },
+
+  // isLegacyEnterprise describes product that should have legacy support
+  // where certain features access remain unlimited. This was before
+  // product EUB (enterprise usage based) was introduced.
+  // eg: access request and device trust.
+  isLegacyEnterprise() {
+    return cfg.isEnterprise && !cfg.isUsageBasedBilling;
   },
 
   getAuthType() {
