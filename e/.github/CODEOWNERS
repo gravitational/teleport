@@ -1,3 +1,3 @@
 # GHA workflows and custom actions control merging and CI/CD processes.
 # Protect the `.github` directory using CODEOWNERS.
-/.github/ @klizhentas @russjones @r0mant @zmb3
+/.github/ @klizhentas @russjones @r0mant @zmb3 @fheinecke @camscale @tcsc
