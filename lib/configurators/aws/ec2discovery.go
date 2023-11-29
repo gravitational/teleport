@@ -15,22 +15,13 @@
 package aws
 
 import (
-	crand "crypto/rand"
-	"encoding/binary"
-	"encoding/hex"
 	"fmt"
-	mrand "math/rand"
-	"time"
+
+	"github.com/google/uuid"
 )
 
 func EC2DiscoverySSMDocument(proxy string) string {
-	randomBytes := make([]byte, 4)
-	if _, err := crand.Read(randomBytes); err != nil {
-		// on error from crypto rand fallback to less secure math random
-		mathRand := mrand.New(mrand.NewSource(time.Now().UnixNano()))
-		binary.LittleEndian.PutUint32(randomBytes, mathRand.Uint32())
-	}
-	randString := hex.EncodeToString(randomBytes)
+	randString := uuid.New().String()
 
 	return fmt.Sprintf(ec2DiscoverySSMDocument, randString, proxy, randString)
 }
