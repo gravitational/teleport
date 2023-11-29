@@ -278,13 +278,13 @@ func connect(ctx context.Context, cfg Config) (*Client, error) {
 				// an address provided by the credential, if it provides one.
 				credAddrSource, ok := creds.(CredentialsWithDefaultAddrs)
 				if ok {
-					addrs, err = credAddrSource.GetDefaultAddrs()
+					addrs, err = credAddrSource.DefaultAddrs()
 					if err != nil {
 						sendError(trace.Wrap(err))
 						continue
 					}
 					log.WithField("address", addrs).Debug(
-						"No address was configured explicitly, falling back to addresses specified by credential. Consider explicitly configuring an address.",
+						"No addresses were configured explicitly, falling back to addresses specified by credential. Consider explicitly configuring an address.",
 					)
 				}
 			}

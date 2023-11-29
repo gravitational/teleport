@@ -54,10 +54,10 @@ type Credentials interface {
 // configured with an address.
 type CredentialsWithDefaultAddrs interface {
 	Credentials
-	// GetDefaultAddrs is called by the API client when it has not been
+	// DefaultAddrs is called by the API client when it has not been
 	// explicitly configured with an address to connect to. It may return a
 	// slice of addresses to be tried.
-	GetDefaultAddrs() ([]string, error)
+	DefaultAddrs() ([]string, error)
 }
 
 // LoadTLS is used to load Credentials directly from a *tls.Config.
@@ -329,9 +329,9 @@ func (c *profileCreds) SSHClientConfig() (*ssh.ClientConfig, error) {
 	return sshConfig, nil
 }
 
-// GetDefaultAddrs implements CredentialsWithDefaultAddrs by providing the
+// DefaultAddrs implements CredentialsWithDefaultAddrs by providing the
 // WebProxyAddr from the credential
-func (c *profileCreds) GetDefaultAddrs() ([]string, error) {
+func (c *profileCreds) DefaultAddrs() ([]string, error) {
 	if err := c.load(); err != nil {
 		return nil, trace.Wrap(err)
 	}
