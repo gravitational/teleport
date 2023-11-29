@@ -19,9 +19,7 @@
  *
  * @param textToCopy the text to copy to clipboard
  */
-export default async function copyToClipboard(
-  textToCopy: string
-): Promise<void> {
+export async function copyToClipboard(textToCopy: string): Promise<void> {
   try {
     await navigator.clipboard.writeText(textToCopy);
   } catch (error) {
