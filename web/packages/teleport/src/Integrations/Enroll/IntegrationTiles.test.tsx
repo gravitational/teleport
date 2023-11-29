@@ -18,6 +18,8 @@ import React from 'react';
 import { MemoryRouter } from 'react-router';
 import { render, screen } from 'design/utils/testing';
 
+import cfg from 'teleport/config';
+
 import { IntegrationTiles } from './IntegrationTiles';
 
 test('render', async () => {
@@ -57,4 +59,19 @@ test('render disabled', async () => {
   // so "toBeDisabled" interprets it as false.
   // eslint-disable-next-line jest-dom/prefer-enabled-disabled
   expect(tile).toHaveAttribute('disabled');
+});
+
+test('dont render External Audit Storage for enterprise unless it is cloud', async () => {
+  cfg.isEnterprise = true;
+  cfg.isCloud = false;
+
+  render(
+    <MemoryRouter>
+      <IntegrationTiles />
+    </MemoryRouter>
+  );
+
+  expect(
+    screen.queryByText(/AWS External Audit Storage/i)
+  ).not.toBeInTheDocument();
 });
