@@ -37,9 +37,10 @@ type OIDCService interface {
 var errOIDCNotImplemented = &trace.AccessDeniedError{Message: "OIDC is only available in enterprise subscriptions"}
 
 // UpsertOIDCConnector creates or updates an OIDC connector.
-func (a *Server) UpsertOIDCConnector(ctx context.Context, connector types.OIDCConnector) error {
-	if err := a.Services.UpsertOIDCConnector(ctx, connector); err != nil {
-		return trace.Wrap(err)
+func (a *Server) UpsertOIDCConnector(ctx context.Context, connector types.OIDCConnector) (types.OIDCConnector, error) {
+	upserted, err := a.Services.UpsertOIDCConnector(ctx, connector)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 	if err := a.emitter.EmitAuditEvent(ctx, &apievents.OIDCConnectorCreate{
 		Metadata: apievents.Metadata{
@@ -54,7 +55,7 @@ func (a *Server) UpsertOIDCConnector(ctx context.Context, connector types.OIDCCo
 		log.WithError(err).Warn("Failed to emit OIDC connector create event.")
 	}
 
-	return nil
+	return upserted, nil
 }
 
 // UpdateOIDCConnector updates an existing OIDC connector.

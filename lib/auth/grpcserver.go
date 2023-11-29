@@ -3073,7 +3073,7 @@ func (g *GRPCServer) CreateOIDCConnector(ctx context.Context, req *authpb.Create
 
 	v3, ok := created.(*types.OIDCConnectorV3)
 	if !ok {
-		return nil, trace.Errorf("encountered unexpected OIDC connector type: %T", created)
+		return nil, trace.BadParameter("encountered unexpected OIDC connector type: %T", created)
 	}
 
 	return v3, nil
@@ -3093,19 +3093,34 @@ func (g *GRPCServer) UpdateOIDCConnector(ctx context.Context, req *authpb.Update
 
 	v3, ok := updated.(*types.OIDCConnectorV3)
 	if !ok {
-		return nil, trace.Errorf("encountered unexpected OIDC connector type: %T", updated)
+		return nil, trace.BadParameter("encountered unexpected OIDC connector type: %T", updated)
 	}
 
 	return v3, nil
 }
 
-// UpsertOIDCConnector upserts an OIDC connector.
-func (g *GRPCServer) UpsertOIDCConnector(ctx context.Context, oidcConnector *types.OIDCConnectorV3) (*emptypb.Empty, error) {
+// UpsertOIDCConnectorV2 creates a new or replaces an existing OIDC connector.
+func (g *GRPCServer) UpsertOIDCConnectorV2(ctx context.Context, req *authpb.UpsertOIDCConnectorRequest) (*types.OIDCConnectorV3, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err = auth.ServerWithRoles.UpsertOIDCConnector(ctx, oidcConnector); err != nil {
+	upserted, err := auth.ServerWithRoles.UpsertOIDCConnector(ctx, req.Connector)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	v3, ok := upserted.(*types.OIDCConnectorV3)
+	if !ok {
+		return nil, trace.BadParameter("encountered unexpected OIDC connector type: %T", upserted)
+	}
+
+	return v3, nil
+}
+
+// UpsertOIDCConnector creates a new or replaces an existing OIDC connector.
+// Deprecated: Use [GRPCServer.UpsertOIDCConnectorV2] instead.
+func (g *GRPCServer) UpsertOIDCConnector(ctx context.Context, oidcConnector *types.OIDCConnectorV3) (*emptypb.Empty, error) {
+	if _, err := g.UpsertOIDCConnectorV2(ctx, &authpb.UpsertOIDCConnectorRequest{Connector: oidcConnector}); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &emptypb.Empty{}, nil

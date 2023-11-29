@@ -40,12 +40,14 @@ func (r oidcConnectorClient) Get(ctx context.Context, name string) (types.OIDCCo
 
 // Create creates a Teleport oidc_connector
 func (r oidcConnectorClient) Create(ctx context.Context, oidc types.OIDCConnector) error {
-	return trace.Wrap(r.teleportClient.UpsertOIDCConnector(ctx, oidc))
+	_, err := r.teleportClient.CreateOIDCConnector(ctx, oidc)
+	return trace.Wrap(err)
 }
 
 // Update updates a Teleport oidc_connector
 func (r oidcConnectorClient) Update(ctx context.Context, oidc types.OIDCConnector) error {
-	return trace.Wrap(r.teleportClient.UpsertOIDCConnector(ctx, oidc))
+	_, err := r.teleportClient.UpsertOIDCConnector(ctx, oidc)
+	return trace.Wrap(err)
 }
 
 // Delete deletes a Teleport oidc_connector

@@ -60,7 +60,8 @@ func (g *oidcTestingPrimitives) CreateTeleportResource(ctx context.Context, name
 		return trace.Wrap(err)
 	}
 	oidc.SetOrigin(types.OriginKubernetes)
-	return trace.Wrap(g.setup.TeleportClient.UpsertOIDCConnector(ctx, oidc))
+	_, err = g.setup.TeleportClient.CreateOIDCConnector(ctx, oidc)
+	return trace.Wrap(err)
 }
 
 func (g *oidcTestingPrimitives) GetTeleportResource(ctx context.Context, name string) (types.OIDCConnector, error) {
