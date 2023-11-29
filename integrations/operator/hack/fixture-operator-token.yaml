@@ -1,0 +1,9 @@
+kind: token
+metadata:
+  name: operator-token
+spec:
+  bot_name: operator
+  join_method: token
+  roles:
+    - Bot
+version: v2

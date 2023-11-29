@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -142,7 +143,18 @@ func TestUpsertServer(t *testing.T) {
 
 func TestUpsertUser(t *testing.T) {
 	t.Parallel()
-	const remoteAddr = "request-remote-addr"
+
+	ctx := context.Background()
+	testSrv := newTestTLSServer(t)
+
+	role, err := types.NewRole("role-that-exists", types.RoleSpecV6{})
+	require.NoError(t, err)
+	role, err = testSrv.Auth().CreateRole(ctx, role)
+	require.NoError(t, err)
+
+	c, err := testSrv.NewClient(TestAdmin())
+	require.NoError(t, err)
+	defer c.Close()
 
 	tests := []struct {
 		desc      string
@@ -151,7 +163,7 @@ func TestUpsertUser(t *testing.T) {
 	}{
 		{
 			desc:      "existing role",
-			role:      "test-role",
+			role:      role.GetName(),
 			assertErr: require.NoError,
 		}, {
 			desc: "role that doesn't exist",
@@ -166,9 +178,8 @@ func TestUpsertUser(t *testing.T) {
 		t.Run(tt.desc, func(t *testing.T) {
 			t.Parallel()
 
-			// Create a fake HTTP request.
 			inUsr, err := services.MarshalUser(&types.UserV2{
-				Metadata: types.Metadata{Name: "test-user", Namespace: apidefaults.Namespace},
+				Metadata: types.Metadata{Name: fmt.Sprintf("test-user-%s", tt.role), Namespace: apidefaults.Namespace},
 				Version:  types.V2,
 				Kind:     types.KindUser,
 				Spec: types.UserSpecV2{
@@ -177,42 +188,10 @@ func TestUpsertUser(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			body, err := json.Marshal(upsertUserRawReq{User: inUsr})
-			require.NoError(t, err)
-
-			req := httptest.NewRequest(http.MethodPost, "http://localhost", bytes.NewReader(body))
-			req.RemoteAddr = remoteAddr
-			req.Header.Add("Content-Type", "application/json")
-
-			respWriter := httptest.NewRecorder()
-			srv := new(APIServer)
-
-			mockClt := &mockClientI{
-				existingRole: "test-role",
-			}
-
-			_, err = srv.upsertUser(mockClt, respWriter, req, httprouter.Params{
-				httprouter.Param{Key: "namespace", Value: apidefaults.Namespace},
-			}, "")
+			_, err = c.HTTPClient.PostJSON(ctx, c.Endpoint("users"), &upsertUserRawReq{
+				User: inUsr,
+			})
 			tt.assertErr(t, err)
-			if err != nil {
-				return
-			}
 		})
 	}
-}
-
-type mockClientI struct {
-	ClientI
-	existingRole string
-}
-
-func (c *mockClientI) UpsertUser(context.Context, types.User) (types.User, error) {
-	return nil, nil
-}
-func (c *mockClientI) GetRole(_ context.Context, name string) (types.Role, error) {
-	if c.existingRole != name {
-		return nil, trace.NotFound("role not found: %q", name)
-	}
-	return nil, nil
 }

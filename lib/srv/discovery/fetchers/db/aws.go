@@ -55,6 +55,9 @@ type awsFetcherConfig struct {
 	// Log is a field logger to provide structured logging for each matcher,
 	// based on its config settings by default.
 	Log logrus.FieldLogger
+	// Integration is the integration name to be used to fetch credentials.
+	// When present, it will use this integration and discard any local credentials.
+	Integration string
 }
 
 // CheckAndSetDefaults validates the config and sets defaults.
@@ -72,11 +75,16 @@ func (cfg *awsFetcherConfig) CheckAndSetDefaults(component string) error {
 		return trace.BadParameter("missing parameter Region")
 	}
 	if cfg.Log == nil {
+		credentialsSource := "environment"
+		if cfg.Integration != "" {
+			credentialsSource = fmt.Sprintf("integration:%s", cfg.Integration)
+		}
 		cfg.Log = logrus.WithFields(logrus.Fields{
 			trace.Component: "watch:" + component,
 			"labels":        cfg.Labels,
 			"region":        cfg.Region,
 			"role":          cfg.AssumeRole,
+			"credentials":   credentialsSource,
 		})
 	}
 	return nil

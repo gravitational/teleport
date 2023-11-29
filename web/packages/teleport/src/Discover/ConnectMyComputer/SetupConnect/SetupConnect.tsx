@@ -23,7 +23,7 @@ import { Text, Flex } from 'design';
 import * as Icons from 'design/Icon';
 import { MenuButton, MenuItem } from 'shared/components/MenuAction';
 import { Path, makeDeepLinkWithSafeInput } from 'shared/deepLinks';
-import * as constants from 'shared/constants';
+import * as connectMyComputer from 'shared/connectMyComputer';
 
 import cfg from 'teleport/config';
 import useTeleport from 'teleport/useTeleport';
@@ -276,7 +276,7 @@ export const usePollForConnectMyComputerNode = (args: {
         }
 
         const request = {
-          query: `labels["${constants.ConnectMyComputerNodeOwnerLabel}"] == "${args.username}"`,
+          query: `labels["${connectMyComputer.NodeOwnerLabel}"] == "${args.username}"`,
           // An arbitrary limit where we bank on the fact that no one is going to have 50 Connect My
           // Computer nodes assigned to them running at the same time.
           limit: 50,

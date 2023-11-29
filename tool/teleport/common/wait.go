@@ -19,6 +19,7 @@ package common
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"net"
 	"os"
 	"os/signal"
@@ -46,7 +47,7 @@ type waitFlags struct {
 }
 
 func onWaitDuration(flags waitFlags) error {
-	utils.InitLogger(utils.LoggingForCLI, log.DebugLevel)
+	utils.InitLogger(utils.LoggingForCLI, slog.LevelDebug)
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT, os.Interrupt)
 	defer cancel()
 
@@ -54,7 +55,7 @@ func onWaitDuration(flags waitFlags) error {
 }
 
 func onWaitNoResolve(flags waitFlags) error {
-	utils.InitLogger(utils.LoggingForCLI, log.DebugLevel)
+	utils.InitLogger(utils.LoggingForCLI, slog.LevelDebug)
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT, os.Interrupt)
 	defer cancel()
 
