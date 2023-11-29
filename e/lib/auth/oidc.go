@@ -420,7 +420,7 @@ func checkEmailVerifiedClaim(claims jose.Claims) error {
 	return nil
 }
 
-func validateOIDCAuthCallbackWeb(authClient auth.ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func validateOIDCAuthCallbackWeb(authClient *auth.ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	var req *auth.ValidateOIDCAuthCallbackReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
