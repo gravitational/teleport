@@ -14,6 +14,8 @@ import * as teleport_lib_teleterm_v1_gateway_pb from "../../../../teleport/lib/t
 import * as teleport_lib_teleterm_v1_kube_pb from "../../../../teleport/lib/teleterm/v1/kube_pb";
 import * as teleport_lib_teleterm_v1_server_pb from "../../../../teleport/lib/teleterm/v1/server_pb";
 import * as teleport_lib_teleterm_v1_usage_events_pb from "../../../../teleport/lib/teleterm/v1/usage_events_pb";
+import * as teleport_userpreferences_v1_cluster_preferences_pb from "../../../../teleport/userpreferences/v1/cluster_preferences_pb";
+import * as teleport_userpreferences_v1_unified_resource_preferences_pb from "../../../../teleport/userpreferences/v1/unified_resource_preferences_pb";
 
 interface ITerminalServiceService extends grpc.ServiceDefinition<grpc.UntypedServiceImplementation> {
     updateTshdEventsServerAddress: ITerminalServiceService_IUpdateTshdEventsServerAddress;
@@ -52,6 +54,8 @@ interface ITerminalServiceService extends grpc.ServiceDefinition<grpc.UntypedSer
     deleteConnectMyComputerNode: ITerminalServiceService_IDeleteConnectMyComputerNode;
     getConnectMyComputerNodeName: ITerminalServiceService_IGetConnectMyComputerNodeName;
     listUnifiedResources: ITerminalServiceService_IListUnifiedResources;
+    getUserPreferences: ITerminalServiceService_IGetUserPreferences;
+    updateUserPreferences: ITerminalServiceService_IUpdateUserPreferences;
 }
 
 interface ITerminalServiceService_IUpdateTshdEventsServerAddress extends grpc.MethodDefinition<teleport_lib_teleterm_v1_service_pb.UpdateTshdEventsServerAddressRequest, teleport_lib_teleterm_v1_service_pb.UpdateTshdEventsServerAddressResponse> {
@@ -378,6 +382,24 @@ interface ITerminalServiceService_IListUnifiedResources extends grpc.MethodDefin
     responseSerialize: grpc.serialize<teleport_lib_teleterm_v1_service_pb.ListUnifiedResourcesResponse>;
     responseDeserialize: grpc.deserialize<teleport_lib_teleterm_v1_service_pb.ListUnifiedResourcesResponse>;
 }
+interface ITerminalServiceService_IGetUserPreferences extends grpc.MethodDefinition<teleport_lib_teleterm_v1_service_pb.GetUserPreferencesRequest, teleport_lib_teleterm_v1_service_pb.GetUserPreferencesResponse> {
+    path: "/teleport.lib.teleterm.v1.TerminalService/GetUserPreferences";
+    requestStream: false;
+    responseStream: false;
+    requestSerialize: grpc.serialize<teleport_lib_teleterm_v1_service_pb.GetUserPreferencesRequest>;
+    requestDeserialize: grpc.deserialize<teleport_lib_teleterm_v1_service_pb.GetUserPreferencesRequest>;
+    responseSerialize: grpc.serialize<teleport_lib_teleterm_v1_service_pb.GetUserPreferencesResponse>;
+    responseDeserialize: grpc.deserialize<teleport_lib_teleterm_v1_service_pb.GetUserPreferencesResponse>;
+}
+interface ITerminalServiceService_IUpdateUserPreferences extends grpc.MethodDefinition<teleport_lib_teleterm_v1_service_pb.UpdateUserPreferencesRequest, teleport_lib_teleterm_v1_service_pb.EmptyResponse> {
+    path: "/teleport.lib.teleterm.v1.TerminalService/UpdateUserPreferences";
+    requestStream: false;
+    responseStream: false;
+    requestSerialize: grpc.serialize<teleport_lib_teleterm_v1_service_pb.UpdateUserPreferencesRequest>;
+    requestDeserialize: grpc.deserialize<teleport_lib_teleterm_v1_service_pb.UpdateUserPreferencesRequest>;
+    responseSerialize: grpc.serialize<teleport_lib_teleterm_v1_service_pb.EmptyResponse>;
+    responseDeserialize: grpc.deserialize<teleport_lib_teleterm_v1_service_pb.EmptyResponse>;
+}
 
 export const TerminalServiceService: ITerminalServiceService;
 
@@ -418,6 +440,8 @@ export interface ITerminalServiceServer {
     deleteConnectMyComputerNode: grpc.handleUnaryCall<teleport_lib_teleterm_v1_service_pb.DeleteConnectMyComputerNodeRequest, teleport_lib_teleterm_v1_service_pb.DeleteConnectMyComputerNodeResponse>;
     getConnectMyComputerNodeName: grpc.handleUnaryCall<teleport_lib_teleterm_v1_service_pb.GetConnectMyComputerNodeNameRequest, teleport_lib_teleterm_v1_service_pb.GetConnectMyComputerNodeNameResponse>;
     listUnifiedResources: grpc.handleUnaryCall<teleport_lib_teleterm_v1_service_pb.ListUnifiedResourcesRequest, teleport_lib_teleterm_v1_service_pb.ListUnifiedResourcesResponse>;
+    getUserPreferences: grpc.handleUnaryCall<teleport_lib_teleterm_v1_service_pb.GetUserPreferencesRequest, teleport_lib_teleterm_v1_service_pb.GetUserPreferencesResponse>;
+    updateUserPreferences: grpc.handleUnaryCall<teleport_lib_teleterm_v1_service_pb.UpdateUserPreferencesRequest, teleport_lib_teleterm_v1_service_pb.EmptyResponse>;
 }
 
 export interface ITerminalServiceClient {
@@ -528,6 +552,12 @@ export interface ITerminalServiceClient {
     listUnifiedResources(request: teleport_lib_teleterm_v1_service_pb.ListUnifiedResourcesRequest, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.ListUnifiedResourcesResponse) => void): grpc.ClientUnaryCall;
     listUnifiedResources(request: teleport_lib_teleterm_v1_service_pb.ListUnifiedResourcesRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.ListUnifiedResourcesResponse) => void): grpc.ClientUnaryCall;
     listUnifiedResources(request: teleport_lib_teleterm_v1_service_pb.ListUnifiedResourcesRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.ListUnifiedResourcesResponse) => void): grpc.ClientUnaryCall;
+    getUserPreferences(request: teleport_lib_teleterm_v1_service_pb.GetUserPreferencesRequest, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.GetUserPreferencesResponse) => void): grpc.ClientUnaryCall;
+    getUserPreferences(request: teleport_lib_teleterm_v1_service_pb.GetUserPreferencesRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.GetUserPreferencesResponse) => void): grpc.ClientUnaryCall;
+    getUserPreferences(request: teleport_lib_teleterm_v1_service_pb.GetUserPreferencesRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.GetUserPreferencesResponse) => void): grpc.ClientUnaryCall;
+    updateUserPreferences(request: teleport_lib_teleterm_v1_service_pb.UpdateUserPreferencesRequest, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.EmptyResponse) => void): grpc.ClientUnaryCall;
+    updateUserPreferences(request: teleport_lib_teleterm_v1_service_pb.UpdateUserPreferencesRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.EmptyResponse) => void): grpc.ClientUnaryCall;
+    updateUserPreferences(request: teleport_lib_teleterm_v1_service_pb.UpdateUserPreferencesRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.EmptyResponse) => void): grpc.ClientUnaryCall;
 }
 
 export class TerminalServiceClient extends grpc.Client implements ITerminalServiceClient {
@@ -638,4 +668,10 @@ export class TerminalServiceClient extends grpc.Client implements ITerminalServi
     public listUnifiedResources(request: teleport_lib_teleterm_v1_service_pb.ListUnifiedResourcesRequest, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.ListUnifiedResourcesResponse) => void): grpc.ClientUnaryCall;
     public listUnifiedResources(request: teleport_lib_teleterm_v1_service_pb.ListUnifiedResourcesRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.ListUnifiedResourcesResponse) => void): grpc.ClientUnaryCall;
     public listUnifiedResources(request: teleport_lib_teleterm_v1_service_pb.ListUnifiedResourcesRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.ListUnifiedResourcesResponse) => void): grpc.ClientUnaryCall;
+    public getUserPreferences(request: teleport_lib_teleterm_v1_service_pb.GetUserPreferencesRequest, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.GetUserPreferencesResponse) => void): grpc.ClientUnaryCall;
+    public getUserPreferences(request: teleport_lib_teleterm_v1_service_pb.GetUserPreferencesRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.GetUserPreferencesResponse) => void): grpc.ClientUnaryCall;
+    public getUserPreferences(request: teleport_lib_teleterm_v1_service_pb.GetUserPreferencesRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.GetUserPreferencesResponse) => void): grpc.ClientUnaryCall;
+    public updateUserPreferences(request: teleport_lib_teleterm_v1_service_pb.UpdateUserPreferencesRequest, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.EmptyResponse) => void): grpc.ClientUnaryCall;
+    public updateUserPreferences(request: teleport_lib_teleterm_v1_service_pb.UpdateUserPreferencesRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.EmptyResponse) => void): grpc.ClientUnaryCall;
+    public updateUserPreferences(request: teleport_lib_teleterm_v1_service_pb.UpdateUserPreferencesRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.EmptyResponse) => void): grpc.ClientUnaryCall;
 }
