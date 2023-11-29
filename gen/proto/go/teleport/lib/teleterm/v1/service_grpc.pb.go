@@ -69,6 +69,8 @@ const (
 	TerminalService_DeleteConnectMyComputerNode_FullMethodName       = "/teleport.lib.teleterm.v1.TerminalService/DeleteConnectMyComputerNode"
 	TerminalService_GetConnectMyComputerNodeName_FullMethodName      = "/teleport.lib.teleterm.v1.TerminalService/GetConnectMyComputerNodeName"
 	TerminalService_ListUnifiedResources_FullMethodName              = "/teleport.lib.teleterm.v1.TerminalService/ListUnifiedResources"
+	TerminalService_GetUserPreferences_FullMethodName                = "/teleport.lib.teleterm.v1.TerminalService/GetUserPreferences"
+	TerminalService_UpdateUserPreferences_FullMethodName             = "/teleport.lib.teleterm.v1.TerminalService/UpdateUserPreferences"
 )
 
 // TerminalServiceClient is the client API for TerminalService service.
@@ -181,6 +183,11 @@ type TerminalServiceClient interface {
 	GetConnectMyComputerNodeName(ctx context.Context, in *GetConnectMyComputerNodeNameRequest, opts ...grpc.CallOption) (*GetConnectMyComputerNodeNameResponse, error)
 	// ListUnifiedResources retrieves a paginated list of all resource types displayable in the UI.
 	ListUnifiedResources(ctx context.Context, in *ListUnifiedResourcesRequest, opts ...grpc.CallOption) (*ListUnifiedResourcesResponse, error)
+	// GetUserPreferences returns the preferences for a given user.
+	GetUserPreferences(ctx context.Context, in *GetUserPreferencesRequest, opts ...grpc.CallOption) (*GetUserPreferencesResponse, error)
+	// UpdateUserPreferences updates the preferences for a given user.
+	// Only the properties that are set (cluster_preferences, unified_resource_preferences) will be updated.
+	UpdateUserPreferences(ctx context.Context, in *UpdateUserPreferencesRequest, opts ...grpc.CallOption) (*EmptyResponse, error)
 }
 
 type terminalServiceClient struct {
@@ -560,6 +567,24 @@ func (c *terminalServiceClient) ListUnifiedResources(ctx context.Context, in *Li
 	return out, nil
 }
 
+func (c *terminalServiceClient) GetUserPreferences(ctx context.Context, in *GetUserPreferencesRequest, opts ...grpc.CallOption) (*GetUserPreferencesResponse, error) {
+	out := new(GetUserPreferencesResponse)
+	err := c.cc.Invoke(ctx, TerminalService_GetUserPreferences_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *terminalServiceClient) UpdateUserPreferences(ctx context.Context, in *UpdateUserPreferencesRequest, opts ...grpc.CallOption) (*EmptyResponse, error) {
+	out := new(EmptyResponse)
+	err := c.cc.Invoke(ctx, TerminalService_UpdateUserPreferences_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // TerminalServiceServer is the server API for TerminalService service.
 // All implementations must embed UnimplementedTerminalServiceServer
 // for forward compatibility
@@ -670,6 +695,11 @@ type TerminalServiceServer interface {
 	GetConnectMyComputerNodeName(context.Context, *GetConnectMyComputerNodeNameRequest) (*GetConnectMyComputerNodeNameResponse, error)
 	// ListUnifiedResources retrieves a paginated list of all resource types displayable in the UI.
 	ListUnifiedResources(context.Context, *ListUnifiedResourcesRequest) (*ListUnifiedResourcesResponse, error)
+	// GetUserPreferences returns the preferences for a given user.
+	GetUserPreferences(context.Context, *GetUserPreferencesRequest) (*GetUserPreferencesResponse, error)
+	// UpdateUserPreferences updates the preferences for a given user.
+	// Only the properties that are set (cluster_preferences, unified_resource_preferences) will be updated.
+	UpdateUserPreferences(context.Context, *UpdateUserPreferencesRequest) (*EmptyResponse, error)
 	mustEmbedUnimplementedTerminalServiceServer()
 }
 
@@ -784,6 +814,12 @@ func (UnimplementedTerminalServiceServer) GetConnectMyComputerNodeName(context.C
 }
 func (UnimplementedTerminalServiceServer) ListUnifiedResources(context.Context, *ListUnifiedResourcesRequest) (*ListUnifiedResourcesResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListUnifiedResources not implemented")
+}
+func (UnimplementedTerminalServiceServer) GetUserPreferences(context.Context, *GetUserPreferencesRequest) (*GetUserPreferencesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetUserPreferences not implemented")
+}
+func (UnimplementedTerminalServiceServer) UpdateUserPreferences(context.Context, *UpdateUserPreferencesRequest) (*EmptyResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpdateUserPreferences not implemented")
 }
 func (UnimplementedTerminalServiceServer) mustEmbedUnimplementedTerminalServiceServer() {}
 
@@ -1457,6 +1493,42 @@ func _TerminalService_ListUnifiedResources_Handler(srv interface{}, ctx context.
 	return interceptor(ctx, in, info, handler)
 }
 
+func _TerminalService_GetUserPreferences_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetUserPreferencesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TerminalServiceServer).GetUserPreferences(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: TerminalService_GetUserPreferences_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TerminalServiceServer).GetUserPreferences(ctx, req.(*GetUserPreferencesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _TerminalService_UpdateUserPreferences_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateUserPreferencesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TerminalServiceServer).UpdateUserPreferences(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: TerminalService_UpdateUserPreferences_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TerminalServiceServer).UpdateUserPreferences(ctx, req.(*UpdateUserPreferencesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // TerminalService_ServiceDesc is the grpc.ServiceDesc for TerminalService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -1599,6 +1671,14 @@ var TerminalService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListUnifiedResources",
 			Handler:    _TerminalService_ListUnifiedResources_Handler,
+		},
+		{
+			MethodName: "GetUserPreferences",
+			Handler:    _TerminalService_GetUserPreferences_Handler,
+		},
+		{
+			MethodName: "UpdateUserPreferences",
+			Handler:    _TerminalService_UpdateUserPreferences_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

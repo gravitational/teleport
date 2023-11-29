@@ -24,6 +24,8 @@ import "teleport/lib/teleterm/v1/gateway.proto";
 import "teleport/lib/teleterm/v1/kube.proto";
 import "teleport/lib/teleterm/v1/server.proto";
 import "teleport/lib/teleterm/v1/usage_events.proto";
+import "teleport/userpreferences/v1/cluster_preferences.proto";
+import "teleport/userpreferences/v1/unified_resource_preferences.proto";
 
 option go_package = "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1;teletermv1";
 
@@ -145,6 +147,11 @@ service TerminalService {
   rpc GetConnectMyComputerNodeName(GetConnectMyComputerNodeNameRequest) returns (GetConnectMyComputerNodeNameResponse);
   // ListUnifiedResources retrieves a paginated list of all resource types displayable in the UI.
   rpc ListUnifiedResources(ListUnifiedResourcesRequest) returns (ListUnifiedResourcesResponse);
+  // GetUserPreferences returns the preferences for a given user.
+  rpc GetUserPreferences(GetUserPreferencesRequest) returns (GetUserPreferencesResponse);
+  // UpdateUserPreferences updates the preferences for a given user.
+  // Only the properties that are set (cluster_preferences, unified_resource_preferences) will be updated.
+  rpc UpdateUserPreferences(UpdateUserPreferencesRequest) returns (EmptyResponse);
 }
 
 message EmptyResponse {}
@@ -550,4 +557,24 @@ message PaginatedResource {
     Server server = 2;
     Kube kube = 3;
   }
+}
+
+message GetUserPreferencesRequest {
+  string cluster_uri = 1;
+}
+
+message GetUserPreferencesResponse {
+  UserPreferences user_preferences = 1;
+}
+
+message UpdateUserPreferencesRequest {
+  string cluster_uri = 1;
+  UserPreferences user_preferences = 2;
+}
+
+// UserPreferences is a subset of teleport.userpreferences.v1.UserPreferences.
+// It contains preferences that are relevant to Connect.
+message UserPreferences {
+  teleport.userpreferences.v1.ClusterUserPreferences cluster_preferences = 1;
+  teleport.userpreferences.v1.UnifiedResourcePreferences unified_resource_preferences = 2;
 }
