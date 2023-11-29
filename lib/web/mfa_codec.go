@@ -35,7 +35,7 @@ import (
 // suitable for being sent over a network connection.
 type mfaCodec interface {
 	// encode converts an MFA challenge to wire format
-	encode(chal *client.MFAAuthenticateChallenge, envelopeType string) ([]byte, error)
+	encode(chal *client.MFAAuthenticateChallengeResponse, envelopeType string) ([]byte, error)
 
 	// decodeChallenge parses an MFA authentication challenge
 	decodeChallenge(bytes []byte, envelopeType string) (*authproto.MFAAuthenticateChallenge, error)
@@ -48,7 +48,7 @@ type mfaCodec interface {
 // format used by SSH web sessions
 type protobufMFACodec struct{}
 
-func (protobufMFACodec) encode(chal *client.MFAAuthenticateChallenge, envelopeType string) ([]byte, error) {
+func (protobufMFACodec) encode(chal *client.MFAAuthenticateChallengeResponse, envelopeType string) ([]byte, error) {
 	jsonBytes, err := json.Marshal(chal)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -70,7 +70,7 @@ func (protobufMFACodec) decodeResponse(bytes []byte, envelopeType string) (*auth
 }
 
 func (protobufMFACodec) decodeChallenge(bytes []byte, envelopeType string) (*authproto.MFAAuthenticateChallenge, error) {
-	var challenge client.MFAAuthenticateChallenge
+	var challenge client.MFAAuthenticateChallengeResponse
 	if err := json.Unmarshal(bytes, &challenge); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -84,7 +84,7 @@ func (protobufMFACodec) decodeChallenge(bytes []byte, envelopeType string) (*aut
 // Protocol (TDP) messages used by Desktop Access web sessions
 type tdpMFACodec struct{}
 
-func (tdpMFACodec) encode(chal *client.MFAAuthenticateChallenge, envelopeType string) ([]byte, error) {
+func (tdpMFACodec) encode(chal *client.MFAAuthenticateChallengeResponse, envelopeType string) ([]byte, error) {
 	switch envelopeType {
 	case defaults.WebsocketWebauthnChallenge:
 	default:
@@ -93,8 +93,8 @@ func (tdpMFACodec) encode(chal *client.MFAAuthenticateChallenge, envelopeType st
 	}
 
 	tdpMsg := tdp.MFA{
-		Type:                     envelopeType[0],
-		MFAAuthenticateChallenge: chal,
+		Type:                             envelopeType[0],
+		MFAAuthenticateChallengeResponse: chal,
 	}
 	return tdpMsg.Encode()
 }

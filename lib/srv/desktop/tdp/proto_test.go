@@ -69,7 +69,7 @@ func TestEncodeDecode(t *testing.T) {
 }
 
 func FuzzDecode(f *testing.F) {
-	var corpus = []string{
+	corpus := []string{
 		"0",
 		"\x02",
 		"\x1b\xff\xff\x800",
@@ -124,7 +124,7 @@ func TestMFA(t *testing.T) {
 
 	mfaWant := &MFA{
 		Type: defaults.WebsocketWebauthnChallenge[0],
-		MFAAuthenticateChallenge: &client.MFAAuthenticateChallenge{
+		MFAAuthenticateChallengeResponse: &client.MFAAuthenticateChallengeResponse{
 			WebauthnChallenge: &wantypes.CredentialAssertion{
 				Response: wantypes.PublicKeyCredentialRequestOptions{
 					Challenge:      []byte("challenge"),

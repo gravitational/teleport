@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	webauthnpb "github.com/gravitational/teleport/api/types/webauthn"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -263,7 +264,7 @@ func (a *Server) VerifyAccountRecovery(ctx context.Context, req *proto.VerifyAcc
 
 		if err := a.verifyAuthnWithRecoveryLock(ctx, startToken, func() error {
 			_, _, err := a.ValidateMFAAuthResponse(
-				ctx, req.GetMFAAuthenticateResponse(), startToken.GetUser(), false /* passwordless */)
+				ctx, req.GetMFAAuthenticateResponse(), startToken.GetUser(), webauthnpb.Scope_SCOPE_RECOVERY)
 			return err
 		}); err != nil {
 			return nil, trace.Wrap(err)

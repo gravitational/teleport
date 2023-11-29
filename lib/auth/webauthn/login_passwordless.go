@@ -40,6 +40,7 @@ type PasswordlessIdentity interface {
 type PasswordlessFlow struct {
 	Webauthn *types.Webauthn
 	Identity PasswordlessIdentity
+	Scope    wanpb.Scope
 }
 
 // Begin is the first step of the passwordless login flow.
@@ -50,8 +51,9 @@ func (f *PasswordlessFlow) Begin(ctx context.Context) (*wantypes.CredentialAsser
 		Webauthn:    f.Webauthn,
 		identity:    passwordlessIdentity{f.Identity},
 		sessionData: (*globalSessionStorage)(f),
+		Scope:       f.Scope,
 	}
-	return lf.begin(ctx, "" /* user */, true /* passwordless */)
+	return lf.begin(ctx, "" /* user */)
 }
 
 // Finish is the last step of the passwordless login flow.
@@ -62,8 +64,9 @@ func (f *PasswordlessFlow) Finish(ctx context.Context, resp *wantypes.Credential
 		Webauthn:    f.Webauthn,
 		identity:    passwordlessIdentity{f.Identity},
 		sessionData: (*globalSessionStorage)(f),
+		Scope:       f.Scope,
 	}
-	return lf.finish(ctx, "" /* user */, resp, true /* passwordless */)
+	return lf.finish(ctx, "" /* user */, resp)
 }
 
 type passwordlessIdentity struct {

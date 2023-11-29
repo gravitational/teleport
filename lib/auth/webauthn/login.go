@@ -63,9 +63,11 @@ type loginFlow struct {
 	Webauthn    *types.Webauthn
 	identity    loginIdentity
 	sessionData sessionIdentity
+	Scope       wanpb.Scope
 }
 
-func (f *loginFlow) begin(ctx context.Context, user string, passwordless bool) (*wantypes.CredentialAssertion, error) {
+func (f *loginFlow) begin(ctx context.Context, user string) (*wantypes.CredentialAssertion, error) {
+	passwordless := f.Scope == wanpb.Scope_SCOPE_PASSWORDLESS_LOGIN
 	if user == "" && !passwordless {
 		return nil, trace.BadParameter("user required")
 	}
@@ -165,6 +167,7 @@ func (f *loginFlow) begin(ctx context.Context, user string, passwordless bool) (
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	sessionDataPB.Scope = f.Scope
 	if err := f.sessionData.Upsert(ctx, user, sessionDataPB); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -183,7 +186,8 @@ func (f *loginFlow) getWebID(ctx context.Context, user string) ([]byte, error) {
 	return wla.UserID, nil
 }
 
-func (f *loginFlow) finish(ctx context.Context, user string, resp *wantypes.CredentialAssertionResponse, passwordless bool) (*types.MFADevice, string, error) {
+func (f *loginFlow) finish(ctx context.Context, user string, resp *wantypes.CredentialAssertionResponse) (*types.MFADevice, string, error) {
+	passwordless := f.Scope == wanpb.Scope_SCOPE_PASSWORDLESS_LOGIN
 	switch {
 	case user == "" && !passwordless:
 		return nil, "", trace.BadParameter("user required")
@@ -256,6 +260,11 @@ func (f *loginFlow) finish(ctx context.Context, user string, resp *wantypes.Cred
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
+
+	if sessionDataPB.Scope != f.Scope {
+		return nil, "", trace.BadParameter("Scope does not match")
+	}
+
 	sessionData := sessionFromPB(sessionDataPB)
 
 	// Make sure _all_ credentials in the session are accounted for by the user.

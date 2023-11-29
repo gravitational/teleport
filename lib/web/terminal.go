@@ -563,12 +563,12 @@ func (t *sshBaseHandler) issueSessionMFACerts(ctx context.Context, tc *client.Te
 
 func promptMFAChallenge(stream *WSStream, codec mfaCodec) mfa.Prompt {
 	return mfa.PromptFunc(func(ctx context.Context, chal *authproto.MFAAuthenticateChallenge) (*authproto.MFAAuthenticateResponse, error) {
-		var challenge *client.MFAAuthenticateChallenge
+		var challenge *client.MFAAuthenticateChallengeResponse
 
 		// Convert from proto to JSON types.
 		switch {
 		case chal.GetWebauthnChallenge() != nil:
-			challenge = &client.MFAAuthenticateChallenge{
+			challenge = &client.MFAAuthenticateChallengeResponse{
 				WebauthnChallenge: wantypes.CredentialAssertionFromProto(chal.WebauthnChallenge),
 			}
 		default:
@@ -1162,7 +1162,7 @@ func (t *TerminalStream) sessionCreated(s *tracessh.Session) {
 
 // writeChallenge encodes and writes the challenge to the
 // websocket in the correct format.
-func (t *WSStream) writeChallenge(challenge *client.MFAAuthenticateChallenge, codec mfaCodec) error {
+func (t *WSStream) writeChallenge(challenge *client.MFAAuthenticateChallengeResponse, codec mfaCodec) error {
 	// Send the challenge over the socket.
 	msg, err := codec.encode(challenge, defaults.WebsocketWebauthnChallenge)
 	if err != nil {

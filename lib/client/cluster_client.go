@@ -25,6 +25,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	proxyclient "github.com/gravitational/teleport/api/client/proxy"
 	"github.com/gravitational/teleport/api/mfa"
+	webauthnpb "github.com/gravitational/teleport/api/types/webauthn"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -295,6 +296,7 @@ func PerformMFACeremony(ctx context.Context, params PerformMFACeremonyParams) (*
 			ContextUser: &proto.ContextUser{},
 		},
 		MFARequiredCheck: mfaRequiredReq,
+		Scope:            webauthnpb.Scope_SCOPE_SESSION,
 	})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)

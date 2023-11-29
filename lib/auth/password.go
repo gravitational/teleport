@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	webauthnpb "github.com/gravitational/teleport/api/types/webauthn"
 	"github.com/gravitational/teleport/api/utils/keys"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/authz"
@@ -202,7 +203,7 @@ func (a *Server) checkPassword(user string, password []byte, otpToken string) (*
 		return nil, trace.Wrap(err)
 	}
 
-	mfaDev, err := a.checkOTP(user, otpToken)
+	mfaDev, err := a.checkOTP(user, otpToken, webauthnpb.Scope_SCOPE_LOGIN)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -210,15 +211,19 @@ func (a *Server) checkPassword(user string, password []byte, otpToken string) (*
 }
 
 // checkOTP checks if the OTP token is valid.
-func (a *Server) checkOTP(user string, otpToken string) (*types.MFADevice, error) {
+func (a *Server) checkOTP(user string, otpToken string, scope webauthnpb.Scope) (*types.MFADevice, error) {
 	// get the previously used token to mitigate token replay attacks
 	usedToken, err := a.GetUsedTOTPToken(user)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// we use a constant time compare function to mitigate timing attacks
-	if subtle.ConstantTimeCompare([]byte(otpToken), []byte(usedToken)) == 1 {
-		return nil, trace.BadParameter("previously used totp token")
+
+	// Reusing otp codes is only allowed for admin actions, where we expect to perform a string of actions with a single otp code.
+	if scope != webauthnpb.Scope_SCOPE_ADMIN_ACTION {
+		// we use a constant time compare function to mitigate timing attacks
+		if subtle.ConstantTimeCompare([]byte(otpToken), []byte(usedToken)) == 1 {
+			return nil, trace.BadParameter("previously used totp token")
+		}
 	}
 
 	ctx := context.TODO()

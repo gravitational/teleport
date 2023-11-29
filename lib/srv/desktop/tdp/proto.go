@@ -535,7 +535,7 @@ type MFA struct {
 	Type byte
 	// MFAAuthenticateChallenge is the challenge we send to the client.
 	// Used for messages from Teleport to the user's browser.
-	*client.MFAAuthenticateChallenge
+	*client.MFAAuthenticateChallengeResponse
 	// MFAAuthenticateResponse is the response to the MFA challenge,
 	// sent from the browser to Teleport.
 	*authproto.MFAAuthenticateResponse
@@ -548,8 +548,8 @@ func (m MFA) Encode() ([]byte, error) {
 	var buff []byte
 	var err error
 
-	if m.MFAAuthenticateChallenge != nil {
-		buff, err = json.Marshal(m.MFAAuthenticateChallenge)
+	if m.MFAAuthenticateChallengeResponse != nil {
+		buff, err = json.Marshal(m.MFAAuthenticateChallengeResponse)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -647,14 +647,14 @@ func DecodeMFAChallenge(in byteReader) (*MFA, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	var req client.MFAAuthenticateChallenge
+	var req client.MFAAuthenticateChallengeResponse
 	if err := json.Unmarshal(b, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return &MFA{
-		Type:                     mt,
-		MFAAuthenticateChallenge: &req,
+		Type:                             mt,
+		MFAAuthenticateChallengeResponse: &req,
 	}, nil
 }
 

@@ -63,7 +63,7 @@ func TestWebauthnLogin_ssh(t *testing.T) {
 		Pass: password,
 	})
 	require.NoError(t, err)
-	authChallenge := &client.MFAAuthenticateChallenge{}
+	authChallenge := &client.MFAAuthenticateChallengeResponse{}
 	require.NoError(t, json.Unmarshal(beginResp.Bytes(), authChallenge))
 	require.NotNil(t, authChallenge.WebauthnChallenge)
 
@@ -118,7 +118,7 @@ func TestWebauthnLogin_web(t *testing.T) {
 		Pass: password,
 	})
 	require.NoError(t, err)
-	authChallenge := &client.MFAAuthenticateChallenge{}
+	authChallenge := &client.MFAAuthenticateChallengeResponse{}
 	require.NoError(t, json.Unmarshal(beginResp.Bytes(), authChallenge))
 	require.NotNil(t, authChallenge.WebauthnChallenge)
 
@@ -181,7 +181,7 @@ func TestWebauthnLogin_webWithPrivateKeyEnabledError(t *testing.T) {
 		Pass: password,
 	})
 	require.NoError(t, err)
-	authChallenge := &client.MFAAuthenticateChallenge{}
+	authChallenge := &client.MFAAuthenticateChallengeResponse{}
 	require.NoError(t, json.Unmarshal(beginResp.Bytes(), authChallenge))
 	require.NotNil(t, authChallenge.WebauthnChallenge)
 
@@ -279,7 +279,7 @@ func TestAuthenticate_passwordless(t *testing.T) {
 				Passwordless: true, // no username and password
 			})
 			require.NoError(t, err, "Failed to create passwordless challenge")
-			mfaChallenge := &client.MFAAuthenticateChallenge{}
+			mfaChallenge := &client.MFAAuthenticateChallengeResponse{}
 			require.NoError(t, json.Unmarshal(beginResp.Bytes(), mfaChallenge))
 			require.NotNil(t, mfaChallenge.WebauthnChallenge, "Want non-nil WebAuthn challenge")
 

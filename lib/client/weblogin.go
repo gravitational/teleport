@@ -308,9 +308,9 @@ type SSHLoginHeadless struct {
 	HeadlessAuthenticationID string
 }
 
-// MFAAuthenticateChallenge is an MFA authentication challenge sent on user
+// MFAAuthenticateChallengeResponse is an MFA authentication challenge sent on user
 // login / authentication ceremonies.
-type MFAAuthenticateChallenge struct {
+type MFAAuthenticateChallengeResponse struct {
 	// WebauthnChallenge contains a WebAuthn credential assertion used for
 	// login/authentication ceremonies.
 	WebauthnChallenge *wantypes.CredentialAssertion `json:"webauthn_challenge"`
@@ -526,7 +526,7 @@ func SSHAgentPasswordlessLogin(ctx context.Context, login SSHLoginPasswordless) 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	challenge := &MFAAuthenticateChallenge{}
+	challenge := &MFAAuthenticateChallengeResponse{}
 	if err := json.Unmarshal(challengeJSON.Bytes(), challenge); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -603,7 +603,7 @@ func SSHAgentMFALogin(ctx context.Context, login SSHLoginMFA) (*auth.SSHLoginRes
 		return nil, trace.Wrap(err)
 	}
 
-	challenge := &MFAAuthenticateChallenge{}
+	challenge := &MFAAuthenticateChallengeResponse{}
 	if err := json.Unmarshal(challengeJSON.Bytes(), challenge); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -801,7 +801,7 @@ func SSHAgentMFAWebSessionLogin(ctx context.Context, login SSHLoginMFA) (*WebCli
 		return nil, nil, trace.Wrap(err)
 	}
 
-	challenge := &MFAAuthenticateChallenge{}
+	challenge := &MFAAuthenticateChallengeResponse{}
 	if err := json.Unmarshal(challengeJSON.Bytes(), challenge); err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -864,7 +864,7 @@ func SSHAgentPasswordlessLoginWeb(ctx context.Context, login SSHLoginPasswordles
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	challenge := &MFAAuthenticateChallenge{}
+	challenge := &MFAAuthenticateChallengeResponse{}
 	if err := json.Unmarshal(challengeJSON.Bytes(), challenge); err != nil {
 		return nil, nil, trace.Wrap(err)
 	}

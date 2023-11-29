@@ -317,7 +317,7 @@ func (h *Handler) performMFACeremony(ctx context.Context, authClient auth.Client
 
 		// Send the challenge over the socket.
 		msg, err := codec.encode(
-			&client.MFAAuthenticateChallenge{
+			&client.MFAAuthenticateChallengeResponse{
 				WebauthnChallenge: wantypes.CredentialAssertionFromProto(chal.WebauthnChallenge),
 			},
 			defaults.WebsocketWebauthnChallenge,

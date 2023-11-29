@@ -23,6 +23,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/mfa"
+	webauthnpb "github.com/gravitational/teleport/api/types/webauthn"
 )
 
 // performMFACeremony retrieves an MFA challenge from the server, prompts the
@@ -33,7 +34,10 @@ func (c *Client) performMFACeremony(ctx context.Context, promptOpts ...mfa.Promp
 	}
 
 	chal, err := c.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
-		Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{},
+		Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
+			ContextUser: &proto.ContextUser{},
+		},
+		Scope: webauthnpb.Scope_SCOPE_HEADLESS,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

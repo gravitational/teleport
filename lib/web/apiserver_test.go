@@ -2035,7 +2035,7 @@ func TestTerminalRequireSessionMFA(t *testing.T) {
 		name                      string
 		getAuthPreference         func(t *testing.T) types.AuthPreference
 		registerDevice            func(t *testing.T) *auth.TestDevice
-		getChallengeResponseBytes func(t *testing.T, chal *client.MFAAuthenticateChallenge, testDev *auth.TestDevice) []byte
+		getChallengeResponseBytes func(t *testing.T, chal *client.MFAAuthenticateChallengeResponse, testDev *auth.TestDevice) []byte
 	}{
 		{
 			name: "with webauthn",
@@ -2061,7 +2061,7 @@ func TestTerminalRequireSessionMFA(t *testing.T) {
 
 				return webauthnDev
 			},
-			getChallengeResponseBytes: func(t *testing.T, chal *client.MFAAuthenticateChallenge, testDev *auth.TestDevice) []byte {
+			getChallengeResponseBytes: func(t *testing.T, chal *client.MFAAuthenticateChallengeResponse, testDev *auth.TestDevice) []byte {
 				res, err := testDev.SolveAuthn(&authproto.MFAAuthenticateChallenge{
 					WebauthnChallenge: wantypes.CredentialAssertionToProto(chal.WebauthnChallenge),
 				})
@@ -2099,7 +2099,7 @@ func TestTerminalRequireSessionMFA(t *testing.T) {
 			var env Envelope
 			require.NoError(t, proto.Unmarshal(raw, &env))
 
-			chal := &client.MFAAuthenticateChallenge{}
+			chal := &client.MFAAuthenticateChallengeResponse{}
 			require.NoError(t, json.Unmarshal([]byte(env.Payload), &chal))
 
 			// Send response over ws.
@@ -4902,7 +4902,7 @@ func TestCreateAuthenticateChallenge(t *testing.T) {
 			res, err := tc.clt.PostJSON(ctx, endpoint, tc.reqBody)
 			require.NoError(t, err)
 
-			var chal client.MFAAuthenticateChallenge
+			var chal client.MFAAuthenticateChallengeResponse
 			err = json.Unmarshal(res.Bytes(), &chal)
 			require.NoError(t, err)
 			require.True(t, chal.TOTPChallenge)
@@ -7434,7 +7434,7 @@ func (s *WebSuite) loginMFA(clt *TestWebClient, reqData *client.MFAChallengeRequ
 		return nil, trace.Wrap(err)
 	}
 
-	var challenge client.MFAAuthenticateChallenge
+	var challenge client.MFAAuthenticateChallengeResponse
 	err = json.Unmarshal(resp.Bytes(), &challenge)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -9459,7 +9459,7 @@ func handleMFAWebauthnChallenge(t *testing.T, ws *websocket.Conn, dev *auth.Test
 	var env Envelope
 	require.NoError(t, proto.Unmarshal(raw, &env))
 
-	var challenge client.MFAAuthenticateChallenge
+	var challenge client.MFAAuthenticateChallengeResponse
 	require.NoError(t, json.Unmarshal([]byte(env.Payload), &challenge))
 
 	res, err := dev.SolveAuthn(&authproto.MFAAuthenticateChallenge{

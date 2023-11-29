@@ -82,6 +82,7 @@ type LoginFlow struct {
 	// Identity is typically an implementation of the Identity service, ie, an
 	// object with access to user, device and MFA storage.
 	Identity LoginIdentity
+	Scope    wanpb.Scope
 }
 
 // Begin is the first step of the LoginFlow.
@@ -96,8 +97,9 @@ func (f *LoginFlow) Begin(ctx context.Context, user string) (*wantypes.Credentia
 		Webauthn:    f.Webauthn,
 		identity:    mfaIdentity{f.Identity},
 		sessionData: (*userSessionStorage)(f),
+		Scope:       f.Scope,
 	}
-	return lf.begin(ctx, user, false /* passwordless */)
+	return lf.begin(ctx, user)
 }
 
 // Finish is the second and last step of the LoginFlow.
@@ -110,8 +112,9 @@ func (f *LoginFlow) Finish(ctx context.Context, user string, resp *wantypes.Cred
 		Webauthn:    f.Webauthn,
 		identity:    mfaIdentity{f.Identity},
 		sessionData: (*userSessionStorage)(f),
+		Scope:       f.Scope,
 	}
-	dev, _, err := lf.finish(ctx, user, resp, false /* passwordless */)
+	dev, _, err := lf.finish(ctx, user, resp)
 	return dev, trace.Wrap(err)
 }
 
