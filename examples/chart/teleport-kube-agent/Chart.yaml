@@ -1,4 +1,4 @@
-.version: &version "14.2.0"
+.version: &version "14.2.0-dev.tiago.7"
 
 name: teleport-kube-agent
 apiVersion: v2
