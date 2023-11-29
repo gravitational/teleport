@@ -24,7 +24,7 @@ import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvi
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 import { WorkspaceContextProvider } from 'teleterm/ui/Documents';
 import { AgentProcessState } from 'teleterm/mainProcess/types';
-
+import * as resourcesContext from 'teleterm/ui/DocumentCluster/resourcesContext';
 import {
   makeLoggedInUser,
   makeRootCluster,
@@ -84,9 +84,11 @@ function renderUseConnectMyComputerContextHook(
     wrapper: ({ children }) => (
       <MockAppContextProvider appContext={appContext}>
         <WorkspaceContextProvider value={null}>
-          <ConnectMyComputerContextProvider rootClusterUri={rootCluster.uri}>
-            {children}
-          </ConnectMyComputerContextProvider>
+          <resourcesContext.ResourcesContextProvider>
+            <ConnectMyComputerContextProvider rootClusterUri={rootCluster.uri}>
+              {children}
+            </ConnectMyComputerContextProvider>
+          </resourcesContext.ResourcesContextProvider>
         </WorkspaceContextProvider>
       </MockAppContextProvider>
     ),
@@ -312,11 +314,13 @@ describe('canUse', () => {
         wrapper: ({ children }) => (
           <MockAppContextProvider appContext={appContext}>
             <WorkspaceContextProvider value={null}>
-              <ConnectMyComputerContextProvider
-                rootClusterUri={rootCluster.uri}
-              >
-                {children}
-              </ConnectMyComputerContextProvider>
+              <resourcesContext.ResourcesContextProvider>
+                <ConnectMyComputerContextProvider
+                  rootClusterUri={rootCluster.uri}
+                >
+                  {children}
+                </ConnectMyComputerContextProvider>
+              </resourcesContext.ResourcesContextProvider>
             </WorkspaceContextProvider>
           </MockAppContextProvider>
         ),
@@ -331,13 +335,29 @@ describe('canUse', () => {
 
 test('removing the agent shows a notification', async () => {
   const { appContext, rootCluster } = getMocks();
+  jest
+    .spyOn(appContext.connectMyComputerService, 'getConnectMyComputerNodeName')
+    .mockResolvedValue(makeServer().name);
+
+  const mockResourcesContext = {
+    requestResourcesRefresh: jest.fn(),
+    onResourcesRefreshRequest: jest.fn(),
+  };
+  jest
+    .spyOn(resourcesContext, 'useResourcesContext')
+    .mockImplementation(() => mockResourcesContext);
 
   const { result } = renderUseConnectMyComputerContextHook(
     appContext,
     rootCluster
   );
 
-  await act(() => result.current.removeAgent());
+  await act(() =>
+    expect(result.current.removeAgent()).resolves.toEqual([
+      undefined,
+      null /* no error */,
+    ])
+  );
 
   expect(appContext.notificationsService.getNotifications()).toEqual([
     {
@@ -346,6 +366,7 @@ test('removing the agent shows a notification', async () => {
       content: 'The agent has been removed.',
     },
   ]);
+  expect(mockResourcesContext.requestResourcesRefresh).toHaveBeenCalledTimes(1);
 });
 
 test('when the user does not have permissions to remove node a custom notification is shown', async () => {
@@ -353,13 +374,28 @@ test('when the user does not have permissions to remove node a custom notificati
   jest
     .spyOn(appContext.connectMyComputerService, 'removeConnectMyComputerNode')
     .mockRejectedValue(new Error('access denied'));
+  jest
+    .spyOn(appContext.connectMyComputerService, 'getConnectMyComputerNodeName')
+    .mockResolvedValue(makeServer().name);
+  const mockResourcesContext = {
+    requestResourcesRefresh: jest.fn(),
+    onResourcesRefreshRequest: jest.fn(),
+  };
+  jest
+    .spyOn(resourcesContext, 'useResourcesContext')
+    .mockImplementation(() => mockResourcesContext);
 
   const { result } = renderUseConnectMyComputerContextHook(
     appContext,
     rootCluster
   );
 
-  await act(() => result.current.removeAgent());
+  await act(() =>
+    expect(result.current.removeAgent()).resolves.toEqual([
+      undefined,
+      null /* no error */,
+    ])
+  );
 
   expect(appContext.notificationsService.getNotifications()).toEqual([
     {
@@ -372,4 +408,5 @@ test('when the user does not have permissions to remove node a custom notificati
       },
     },
   ]);
+  expect(mockResourcesContext.requestResourcesRefresh).not.toHaveBeenCalled();
 });

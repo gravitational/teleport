@@ -1,5 +1,4 @@
-//go:build !windows
-// +build !windows
+//go:build unix
 
 // Copyright 2022 Gravitational, Inc
 //
@@ -20,7 +19,6 @@ package utils
 import (
 	"net"
 	"os"
-	"syscall"
 
 	"github.com/gravitational/trace"
 )
@@ -33,15 +31,15 @@ import (
 // the synchronous nature of net.Pipe causes it to deadlock when attempting to perform
 // TLS or SSH handshakes.
 func DualPipeNetConn(srcAddr net.Addr, dstAddr net.Addr) (net.Conn, net.Conn, error) {
-	fds, err := syscall.Socketpair(syscall.AF_LOCAL, syscall.SOCK_STREAM, 0)
+	fd1, fd2, err := cloexecSocketpair()
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 
-	f1 := os.NewFile(uintptr(fds[0]), srcAddr.String())
+	f1 := os.NewFile(fd1, "DualPipeNetConn1")
 	defer f1.Close()
 
-	f2 := os.NewFile(uintptr(fds[1]), dstAddr.String())
+	f2 := os.NewFile(fd2, "DualPipeNetConn2")
 	defer f2.Close()
 
 	client, err := net.FileConn(f1)
@@ -54,8 +52,8 @@ func DualPipeNetConn(srcAddr net.Addr, dstAddr net.Addr) (net.Conn, net.Conn, er
 		return nil, nil, trace.NewAggregate(err, client.Close())
 	}
 
-	serverConn := NewPipeNetConn(server, server, server, dstAddr, srcAddr)
-	clientConn := NewPipeNetConn(client, client, client, srcAddr, dstAddr)
+	serverConn := NewConnWithAddr(server, dstAddr, srcAddr)
+	clientConn := NewConnWithAddr(client, srcAddr, dstAddr)
 
 	return serverConn, clientConn, nil
 }

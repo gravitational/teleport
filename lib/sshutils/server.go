@@ -473,8 +473,7 @@ func (s *Server) HandleConnection(conn net.Conn) {
 
 	// apply idle read/write timeout to this connection.
 	conn = utils.ObeyIdleTimeout(conn,
-		defaults.DefaultIdleConnectionDuration,
-		s.component)
+		defaults.DefaultIdleConnectionDuration)
 	// Wrap connection with a tracker used to monitor how much data was
 	// transmitted and received over the connection.
 	wconn := utils.NewTrackingConn(conn)
@@ -491,7 +490,7 @@ func (s *Server) HandleConnection(conn net.Conn) {
 				WithField("remote_addr", conn.RemoteAddr()).
 				Warn("Error occurred in handshake for new SSH conn")
 		}
-		conn.SetDeadline(time.Time{})
+		conn.Close()
 		return
 	}
 

@@ -43,8 +43,10 @@ func (f *openSearchPlugin) ComponentShortName() string {
 
 // GetDatabases returns OpenSearch databases.
 func (f *openSearchPlugin) GetDatabases(ctx context.Context, cfg *awsFetcherConfig) (types.Databases, error) {
-	opensearchClient, err := cfg.AWSClients.GetAWSOpenSearchClient(ctx,
-		cfg.Region, cloud.WithAssumeRole(cfg.AssumeRole.RoleARN, cfg.AssumeRole.ExternalID))
+	opensearchClient, err := cfg.AWSClients.GetAWSOpenSearchClient(ctx, cfg.Region,
+		cloud.WithAssumeRole(cfg.AssumeRole.RoleARN, cfg.AssumeRole.ExternalID),
+		cloud.WithCredentialsMaybeIntegration(cfg.Integration),
+	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

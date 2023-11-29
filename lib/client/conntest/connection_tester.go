@@ -174,6 +174,13 @@ func ConnectionTesterForKind(cfg ConnectionTesterConfig) (ConnectionTester, erro
 			},
 		)
 		return tester, trace.Wrap(err)
+	case types.KindExternalAuditStorage:
+		tester, err := NewExternalAuditStorageConnectionTester(
+			ExternalAuditStorageConnectionTesterConfig{
+				UserClient: cfg.UserClient,
+			},
+		)
+		return tester, trace.Wrap(err)
 	default:
 		return nil, trace.NotImplemented("resource %q does not have a connection tester", cfg.ResourceKind)
 	}

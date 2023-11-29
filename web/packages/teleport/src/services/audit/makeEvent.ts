@@ -1113,8 +1113,8 @@ export const formatters: Formatters = {
   [eventCodes.DESKTOP_SESSION_STARTED]: {
     type: 'windows.desktop.session.start',
     desc: 'Windows Desktop Session Started',
-    format: ({ user, windows_domain, desktop_addr, windows_user }) => {
-      let message = `User [${user}] has connected to Windows desktop [${windows_user}@${desktop_addr}]`;
+    format: ({ user, windows_domain, desktop_name, windows_user }) => {
+      let message = `User [${user}] has connected to Windows desktop [${windows_user}@${desktop_name}]`;
       if (windows_domain) {
         message += ` on [${windows_domain}]`;
       }
@@ -1124,8 +1124,8 @@ export const formatters: Formatters = {
   [eventCodes.DESKTOP_SESSION_STARTED_FAILED]: {
     type: 'windows.desktop.session.start',
     desc: 'Windows Desktop Session Denied',
-    format: ({ user, windows_domain, desktop_addr, windows_user }) => {
-      let message = `User [${user}] was denied access to Windows desktop [${windows_user}@${desktop_addr}]`;
+    format: ({ user, windows_domain, desktop_name, windows_user }) => {
+      let message = `User [${user}] was denied access to Windows desktop [${windows_user}@${desktop_name}]`;
       if (windows_domain) {
         message += ` on [${windows_domain}]`;
       }
@@ -1135,8 +1135,8 @@ export const formatters: Formatters = {
   [eventCodes.DESKTOP_SESSION_ENDED]: {
     type: 'windows.desktop.session.end',
     desc: 'Windows Desktop Session Ended',
-    format: ({ user, windows_domain, desktop_addr, windows_user }) => {
-      let desktopMessage = `[${windows_user}@${desktop_addr}]`;
+    format: ({ user, windows_domain, desktop_name, windows_user }) => {
+      let desktopMessage = `[${windows_user}@${desktop_name}]`;
       if (windows_domain) {
         desktopMessage += ` on [${windows_domain}]`;
       }
@@ -1557,6 +1557,18 @@ export const formatters: Formatters = {
     desc: 'Access Monitoring Report Executed',
     format: ({ user, name }) =>
       `User [${user}] executed [${name}] access monitoring report`,
+  },
+  [eventCodes.EXTERNAL_AUDIT_STORAGE_ENABLE]: {
+    type: 'external_audit_storage.enable',
+    desc: 'External Audit Storage Enabled',
+    format: ({ updated_by }) =>
+      `User [${updated_by}] enabled External Audit Storage`,
+  },
+  [eventCodes.EXTERNAL_AUDIT_STORAGE_DISABLE]: {
+    type: 'external_audit_storage.disable',
+    desc: 'External Audit Storage Disabled',
+    format: ({ updated_by }) =>
+      `User [${updated_by}] disabled External Audit Storage`,
   },
   [eventCodes.UNKNOWN]: {
     type: 'unknown',

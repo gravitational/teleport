@@ -19,14 +19,12 @@ package sidecar
 import (
 	"bytes"
 	"context"
-	"crypto/tls"
 	"fmt"
 	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
-	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -37,7 +35,6 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 const (
@@ -100,7 +97,6 @@ func (b *Bot) initializeConfig(ctx context.Context) {
 		_ = destMemoryStore.Write(ctx, artifact.Key, []byte{})
 		_ = rootMemoryStore.Write(ctx, artifact.Key, []byte{})
 	}
-
 }
 
 // buildClient reads tbot's memory disttination, retrieves the certificates
@@ -131,7 +127,7 @@ func (b *Bot) buildClient(ctx context.Context) (*SyncClient, error) {
 
 	c, err := client.New(ctx, client.Config{
 		Addrs:       []string{b.cfg.AuthServer},
-		Credentials: []client.Credentials{clientCredentials{id}},
+		Credentials: []client.Credentials{identity.NewFacade(false, false, id)},
 	})
 	return NewSyncClient(c), trace.Wrap(err)
 }
@@ -181,22 +177,6 @@ func (b *Bot) GetSyncClient(ctx context.Context) (*SyncClient, func(), error) {
 	}
 
 	return b.cachedClient, b.cachedClient.LockClient(), nil
-}
-
-type clientCredentials struct {
-	id *identity.Identity
-}
-
-func (c clientCredentials) Dialer(client.Config) (client.ContextDialer, error) {
-	return nil, trace.NotImplemented("no dialer")
-}
-
-func (c clientCredentials) TLSConfig() (*tls.Config, error) {
-	return c.id.TLSConfig(utils.DefaultCipherSuites())
-}
-
-func (c clientCredentials) SSHClientConfig() (*ssh.ClientConfig, error) {
-	return c.id.SSHClientConfig(false)
 }
 
 func (b *Bot) NeedLeaderElection() bool {

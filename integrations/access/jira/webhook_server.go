@@ -43,9 +43,10 @@ const (
 )
 
 type WebhookIssue struct {
-	ID   string `json:"id"`
-	Self string `json:"self"`
-	Key  string `json:"key"`
+	ID     string      `json:"id"`
+	Self   string      `json:"self"`
+	Key    string      `json:"key"`
+	Fields IssueFields `json:"fields"`
 }
 
 type Webhook struct {
