@@ -1558,6 +1558,18 @@ export const formatters: Formatters = {
     format: ({ user, name }) =>
       `User [${user}] executed [${name}] access monitoring report`,
   },
+  [eventCodes.EXTERNAL_AUDIT_STORAGE_ENABLE]: {
+    type: 'external_audit_storage.enable',
+    desc: 'External Audit Storage Enabled',
+    format: ({ updated_by }) =>
+      `User [${updated_by}] enabled External Audit Storage`,
+  },
+  [eventCodes.EXTERNAL_AUDIT_STORAGE_DISABLE]: {
+    type: 'external_audit_storage.disable',
+    desc: 'External Audit Storage Disabled',
+    format: ({ updated_by }) =>
+      `User [${updated_by}] disabled External Audit Storage`,
+  },
   [eventCodes.UNKNOWN]: {
     type: 'unknown',
     desc: 'Unknown Event',
