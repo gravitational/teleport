@@ -472,11 +472,11 @@ func newSTSClient(ctx context.Context, cfg *stsIdentityRequestConfig) (*sts.STS,
 	if cfg.fipsEndpointOption == endpoints.FIPSEndpointStateEnabled &&
 		!slices.Contains(validSTSEndpoints, strings.TrimPrefix(stsClient.Endpoint, "https://")) {
 		// The AWS SDK will generate invalid endpoints when attempting to
-		// resolve the FIPS endpoint for a region which does not have one.
+		// resolve the FIPS endpoint for a region that does not have one.
 		// In this case, try to use the FIPS endpoint in us-east-1. This should
-		// work for all regions in the standard partition. In GovCloud we should
+		// work for all regions in the standard partition. In GovCloud, we should
 		// not hit this because all regional endpoints support FIPS. In China or
-		// other partitions this will fail and FIPS mode will not be supported.
+		// other partitions, this will fail, and FIPS mode will not be supported.
 		log.Infof("AWS SDK resolved FIPS STS endpoint %s, which does not appear to be valid. "+
 			"Attempting to use the FIPS STS endpoint for us-east-1.",
 			stsClient.Endpoint)

@@ -202,9 +202,12 @@ var (
 	}
 	// redshiftActions contains IAM actions for types.AWSMatcherRedshift.
 	redshiftActions = databaseActions{
-		discovery:      []string{"redshift:DescribeClusters"},
-		metadata:       []string{"redshift:DescribeClusters"},
-		authBoundary:   []string{"redshift:GetClusterCredentials"},
+		discovery: []string{"redshift:DescribeClusters"},
+		metadata:  []string{"redshift:DescribeClusters"},
+		authBoundary: append(
+			[]string{"redshift:GetClusterCredentials"},
+			stsActions..., // For IAM-auth-as-IAM-role.
+		),
 		requireIAMEdit: true,
 	}
 	// redshiftServerlessActions contains IAM actions for types.AWSMatcherRedshiftServerless.
