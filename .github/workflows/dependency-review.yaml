@@ -11,4 +11,4 @@ jobs:
       contents: read
       pull-requests: write
     with:
-      base-ref: master
+      base-ref: ${{ github.event.pull_request.base.sha || 'master' }}
