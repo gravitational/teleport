@@ -14,8 +14,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 import 'whatwg-fetch';
-import localStorage from './../localStorage';
+import auth from 'teleport/services/auth/auth';
+
+import { storageService } from '../storageService';
+
 import parseError, { ApiError } from './parseError';
+
+const MFA_HEADER = 'Teleport-Mfa-Response';
 
 const api = {
   get(url, abortSignal) {
@@ -63,36 +68,42 @@ const api = {
     });
   },
 
-  fetchJson(url, params) {
-    return new Promise((resolve, reject) => {
-      this.fetch(url, params)
-        .then(response => {
-          if (response.ok) {
-            return response
-              .json()
-              .then(json => resolve(json))
-              .catch(err =>
-                reject(new ApiError(err.message, response, { cause: err }))
-              );
-          } else {
-            return response
-              .json()
-              .then(json => reject(new ApiError(parseError(json), response)))
-              .catch(err => {
-                reject(
-                  new ApiError(
-                    `${response.status} - ${response.url}`,
-                    response,
-                    { cause: err }
-                  )
-                );
-              });
-          }
-        })
-        .catch(err => {
-          reject(err);
-        });
-    });
+  async fetchJson(url, params) {
+    const response = await this.fetch(url, params);
+
+    let json;
+    try {
+      json = await response.json();
+    } catch (err) {
+      const message = response.ok
+        ? err.message
+        : `${response.status} - ${response.url}`;
+      throw new ApiError(message, response, { cause: err });
+    }
+
+    if (response.ok) {
+      return json;
+    }
+
+    // Retry with MFA if we get an admin action missing MFA error.
+    const isAdminActionMfaError = isAdminActionRequiresMfaError(
+      parseError(json)
+    );
+    const isMfaHeaderPresent = params.headers?.[MFA_HEADER];
+    const shouldRetry = isAdminActionMfaError && !isMfaHeaderPresent;
+    if (!shouldRetry) {
+      throw new ApiError(parseError(json), response);
+    }
+    const paramsWithMfaHeader = {
+      ...params,
+      headers: {
+        ...params.headers,
+        [MFA_HEADER]: JSON.stringify({
+          webauthnAssertionResponse: await auth.getWebauthnResponse(),
+        }),
+      },
+    };
+    return this.fetchJson(url, paramsWithMfaHeader);
   },
 
   fetch(url, params = {}) {
@@ -103,6 +114,7 @@ const api = {
     };
 
     options.headers = {
+      ...requestOptions.headers,
       ...options.headers,
       ...getAuthHeaders(),
     };
@@ -145,12 +157,18 @@ export const getXCSRFToken = () => {
 };
 
 export function getAccessToken() {
-  const bearerToken = localStorage.getBearerToken() || {};
+  const bearerToken = storageService.getBearerToken() || {};
   return bearerToken.accessToken;
 }
 
 export function getHostName() {
   return location.hostname + (location.port ? ':' + location.port : '');
+}
+
+function isAdminActionRequiresMfaError(errMessage) {
+  return errMessage.includes(
+    'admin-level API request requires MFA verification'
+  );
 }
 
 export default api;

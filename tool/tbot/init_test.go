@@ -165,9 +165,6 @@ func TestInitMaybeACLs(t *testing.T) {
 	}
 	require.NoError(t, err)
 
-	hasACLSupport, err := botfs.HasACLSupport()
-	require.NoError(t, err)
-
 	currentUser, err := user.Current()
 	require.NoError(t, err)
 
@@ -176,7 +173,7 @@ func TestInitMaybeACLs(t *testing.T) {
 
 	// Determine if we expect init to use ACLs.
 	expectACLs := false
-	if hasACLSupport {
+	if botfs.HasACLSupport() {
 		if err := testACL(t.TempDir(), currentUser, opts); err == nil {
 			expectACLs = true
 		}
@@ -227,9 +224,7 @@ outputs:
 
 // TestInitSymlink tests tbot init with a symlink in the path.
 func TestInitSymlink(t *testing.T) {
-	secureWriteSupported, err := botfs.HasSecureWriteSupport()
-	require.NoError(t, err)
-	if !secureWriteSupported {
+	if !botfs.HasSecureWriteSupport() {
 		t.Skip("Secure write not supported on this system.")
 	}
 

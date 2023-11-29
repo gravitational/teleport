@@ -43,6 +43,7 @@ import (
 	"time"
 
 	"github.com/coreos/go-oidc/oauth2"
+	"github.com/coreos/go-semver/semver"
 	"github.com/google/uuid"
 	liblicense "github.com/gravitational/license"
 	"github.com/gravitational/trace"
@@ -64,6 +65,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
+	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
@@ -99,6 +101,7 @@ import (
 	"github.com/gravitational/teleport/lib/resourceusage"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
+	"github.com/gravitational/teleport/lib/spacelift"
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -401,6 +404,13 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			},
 		)
 	}
+	if as.spaceliftIDTokenValidator == nil {
+		as.spaceliftIDTokenValidator = spacelift.NewIDTokenValidator(
+			spacelift.IDTokenValidatorConfig{
+				Clock: as.clock,
+			},
+		)
+	}
 	if as.gitlabIDTokenValidator == nil {
 		as.gitlabIDTokenValidator, err = gitlab.NewIDTokenValidator(
 			gitlab.IDTokenValidatorConfig{
@@ -477,6 +487,7 @@ type Services struct {
 	services.ConnectionsDiagnostic
 	services.StatusInternal
 	services.Integrations
+	services.IntegrationsTokenGenerator
 	services.DiscoveryConfigs
 	services.Okta
 	services.AccessLists
@@ -506,6 +517,11 @@ func (r *Services) GetWebSession(ctx context.Context, req types.GetWebSessionReq
 // Implements ReadAccessPoint
 func (r *Services) GetWebToken(ctx context.Context, req types.GetWebTokenRequest) (types.WebToken, error) {
 	return r.Identity.WebTokens().Get(ctx, req)
+}
+
+// GenerateAWSOIDCToken generates a token to be used to execute an AWS OIDC Integration action.
+func (r *Services) GenerateAWSOIDCToken(ctx context.Context, req types.GenerateAWSOIDCTokenRequest) (string, error) {
+	return r.IntegrationsTokenGenerator.GenerateAWSOIDCToken(ctx, req)
 }
 
 // OktaClient returns the okta client.
@@ -754,6 +770,10 @@ type Server struct {
 	// ghaIDTokenValidator allows ID tokens from GitHub Actions to be validated
 	// by the auth server. It can be overridden for the purpose of tests.
 	ghaIDTokenValidator ghaIDTokenValidator
+
+	// spaceliftIDTokenValidator allows ID tokens from Spacelift to be validated
+	// by the auth server. It can be overridden for the purpose of tests.
+	spaceliftIDTokenValidator spaceliftIDTokenValidator
 
 	// gitlabIDTokenValidator allows ID tokens from GitLab CI to be validated by
 	// the auth server. It can be overridden for the purpose of tests.
@@ -5257,9 +5277,9 @@ func (a *Server) Ping(ctx context.Context) (proto.PingResponse, error) {
 	}
 	features := modules.GetModules().Features().ToProto()
 
-	if a.accessMonitoringEnabled {
-		features.IdentityGovernance = a.accessMonitoringEnabled
-	}
+	// DELETE IN 16.0 and the [func setAccessMonitoringFeatureForOlderClients]
+	// (no other changes necessary)
+	setAccessMonitoringFeatureForOlderClients(ctx, features, a.accessMonitoringEnabled)
 
 	return proto.PingResponse{
 		ClusterName:     cn.GetClusterName(),
@@ -5269,6 +5289,24 @@ func (a *Server) Ping(ctx context.Context) (proto.PingResponse, error) {
 		IsBoring:        modules.GetModules().IsBoringBinary(),
 		LoadAllCAs:      a.loadAllCAs,
 	}, nil
+}
+
+// DELETE IN 16.0
+func setAccessMonitoringFeatureForOlderClients(ctx context.Context, features *proto.Features, accessMonitoringEnabled bool) {
+	clientVersionString, versionExists := metadata.ClientVersionFromContext(ctx)
+
+	// Older proxies <= 14.2.0 will read from [Features.IdentityGovernance] to determine
+	// if access monitoring is enabled.
+	if versionExists {
+		clientVersion := semver.New(clientVersionString)
+		supportedVersion := semver.New("14.2.1")
+		if clientVersion.LessThan(*supportedVersion) {
+			features.IdentityGovernance = accessMonitoringEnabled
+		}
+	}
+
+	// Newer proxies will read from new field [Features.AccessMonitoring.Enabled]
+	// which will be already set from startup, so nothing else to do here.
 }
 
 type maintenanceWindowCacheKey struct {

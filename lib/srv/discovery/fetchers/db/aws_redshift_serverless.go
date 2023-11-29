@@ -58,7 +58,9 @@ type rssAPI = redshiftserverlessiface.RedshiftServerlessAPI
 // GetDatabases returns Redshift Serverless databases matching the watcher's selectors.
 func (f *redshiftServerlessPlugin) GetDatabases(ctx context.Context, cfg *awsFetcherConfig) (types.Databases, error) {
 	client, err := cfg.AWSClients.GetAWSRedshiftServerlessClient(ctx, cfg.Region,
-		cloud.WithAssumeRole(cfg.AssumeRole.RoleARN, cfg.AssumeRole.ExternalID))
+		cloud.WithAssumeRole(cfg.AssumeRole.RoleARN, cfg.AssumeRole.ExternalID),
+		cloud.WithCredentialsMaybeIntegration(cfg.Integration),
+	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -37,10 +37,6 @@ type mockTLSCredentials struct {
 	CertificateChain *tls.Certificate
 }
 
-func (mc *mockTLSCredentials) Dialer(_ client.Config) (client.ContextDialer, error) {
-	return nil, trace.NotImplemented("no dialer")
-}
-
 func (mc *mockTLSCredentials) TLSConfig() (*tls.Config, error) {
 	if mc.CertificateChain == nil {
 		return nil, nil

@@ -31,6 +31,7 @@ func CompareResources(resA, resB types.Resource) int {
 		ignoreProtoXXXFields(),
 		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 		cmpopts.IgnoreFields(types.DatabaseV3{}, "Status"),
+		cmpopts.IgnoreFields(types.UserSpecV2{}, "Status"),
 		cmpopts.EquateEmpty(),
 	)
 	if equal {

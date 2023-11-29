@@ -1,0 +1,3 @@
+authServer: "example.teleport.sh:443"
+joinMethod: "kubernetes"
+token: "my-operator-bot"

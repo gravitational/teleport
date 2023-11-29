@@ -60,9 +60,14 @@ export function useResourceSearch() {
   return useCallback(
     async (
       search: string,
-      filters: SearchFilter[]
+      filters: SearchFilter[],
+      advancedSearchEnabled: boolean
     ): Promise<CrossClusterResourceSearchResult> => {
-      const searchMode = getResourceSearchMode(search, filters);
+      const searchMode = getResourceSearchMode(
+        search,
+        filters,
+        advancedSearchEnabled
+      );
       let limit = 100;
 
       switch (searchMode) {
@@ -196,7 +201,9 @@ export function useFilterSearch() {
         });
         if (search) {
           resourceTypes = resourceTypes.filter(resourceType =>
-            resourceType.toLowerCase().includes(search.toLowerCase())
+            resourceTypeToReadableName[resourceType]
+              .toLowerCase()
+              .includes(search.toLowerCase())
           );
         }
         return resourceTypes.map(resourceType => ({
@@ -360,8 +367,13 @@ type ResourceSearchMode = 'no-search' | 'preview' | 'full-search';
 
 function getResourceSearchMode(
   search: string,
-  filters: SearchFilter[]
+  filters: SearchFilter[],
+  advancedSearchEnabled: boolean
 ): ResourceSearchMode {
+  // the scoring algorithm doesn't support advanced search
+  if (advancedSearchEnabled) {
+    return 'no-search';
+  }
   // Trim the search to avoid sending requests with limit set to 100 if the user just pressed some
   // spaces.
   const trimmedSearch = search.trim();
@@ -380,3 +392,9 @@ function getResourceSearchMode(
 function getLengthScore(searchTerm: string, matchedValue: string): number {
   return Math.floor((searchTerm.length / matchedValue.length) * 100);
 }
+
+export const resourceTypeToReadableName: Record<ResourceTypeFilter, string> = {
+  db: 'databases',
+  node: 'servers',
+  kube_cluster: 'kubes',
+};

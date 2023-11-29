@@ -21,14 +21,17 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"fmt"
+	"net"
 	"strings"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/exp/slices"
+	"google.golang.org/grpc/peer"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 )
@@ -92,6 +95,22 @@ type joinAttributeSourcer interface {
 	JoinAuditAttributes() (map[string]interface{}, error)
 }
 
+func setRemoteAddrFromContext(ctx context.Context, req *types.RegisterUsingTokenRequest) error {
+	var addr string
+	if clientIP, err := authz.ClientSrcAddrFromContext(ctx); err == nil {
+		addr = clientIP.String()
+	} else if p, ok := peer.FromContext(ctx); ok {
+		addr = p.Addr.String()
+	}
+	ip, _, err := net.SplitHostPort(addr)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	req.RemoteAddr = ip
+
+	return nil
+}
+
 // RegisterUsingToken returns credentials for a new node to join the Teleport
 // cluster using a previously issued token.
 //
@@ -146,6 +165,12 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 		joinAttributeSrc = claims
 	case types.JoinMethodGCP:
 		claims, err := a.checkGCPJoinRequest(ctx, req)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		joinAttributeSrc = claims
+	case types.JoinMethodSpacelift:
+		claims, err := a.checkSpaceliftJoinRequest(ctx, req)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -211,7 +236,7 @@ func (a *Server) generateCertsBot(
 	}
 
 	certs, err := a.generateInitialBotCerts(
-		ctx, BotResourceName(botName), req.PublicSSHKey, expires, renewable,
+		ctx, BotResourceName(botName), req.RemoteAddr, req.PublicSSHKey, expires, renewable,
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)

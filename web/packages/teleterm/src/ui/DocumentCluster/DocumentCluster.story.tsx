@@ -37,6 +37,7 @@ import { MockWorkspaceContextProvider } from 'teleterm/ui/fixtures/MockWorkspace
 import { ConnectMyComputerContextProvider } from 'teleterm/ui/ConnectMyComputer';
 import * as docTypes from 'teleterm/ui/services/workspacesService/documentsService/types';
 import * as tsh from 'teleterm/services/tshd/types';
+import { makeDocumentCluster } from 'teleterm/ui/services/workspacesService/documentsService/testHelpers';
 
 import DocumentCluster from './DocumentCluster';
 import { ResourcesContextProvider } from './resourcesContext';
@@ -45,19 +46,15 @@ export default {
   title: 'Teleterm/DocumentCluster',
 };
 
-const rootClusterDoc = {
-  kind: 'doc.cluster' as const,
-  clusterUri: '/clusters/localhost' as const,
-  uri: '/docs/123' as const,
-  title: 'sample',
-};
+const rootClusterDoc = makeDocumentCluster({
+  clusterUri: '/clusters/localhost',
+  uri: '/docs/123',
+});
 
-const leafClusterDoc = {
-  kind: 'doc.cluster' as const,
-  clusterUri: '/clusters/localhost/leaves/foo' as const,
-  uri: '/docs/456' as const,
-  title: 'sample',
-};
+const leafClusterDoc = makeDocumentCluster({
+  clusterUri: '/clusters/localhost/leaves/foo',
+  uri: '/docs/456',
+});
 
 export const OnlineEmptyResourcesAndCanAddResourcesAndConnectComputer = () => {
   const state = createClusterServiceState();
@@ -301,13 +298,13 @@ function renderState({
   return (
     <AppContextProvider value={appContext}>
       <MockWorkspaceContextProvider>
-        <ConnectMyComputerContextProvider rootClusterUri={rootClusterUri}>
-          <ResourcesContextProvider>
+        <ResourcesContextProvider>
+          <ConnectMyComputerContextProvider rootClusterUri={rootClusterUri}>
             <Wrapper>
               <DocumentCluster visible={true} doc={doc} />
             </Wrapper>
-          </ResourcesContextProvider>
-        </ConnectMyComputerContextProvider>
+          </ConnectMyComputerContextProvider>
+        </ResourcesContextProvider>
       </MockWorkspaceContextProvider>
     </AppContextProvider>
   );
