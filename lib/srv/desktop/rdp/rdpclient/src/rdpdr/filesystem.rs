@@ -273,82 +273,94 @@ impl FilesystemBackend {
         self.send_device_close_response(rdp_req, NtStatus::UNSUCCESSFUL)
     }
 
+    /// Handles an RDP [`efs::ServerDriveQueryDirectoryRequest`] received from the RDP server.
     fn handle_query_directory_req(
         &mut self,
         rdp_req: efs::ServerDriveQueryDirectoryRequest,
     ) -> PduResult<()> {
         let file_id = rdp_req.device_io_request.file_id;
         // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L610
-        if let Some(dir) = self.file_cache.get(file_id) {
-            if dir.fso.file_type != tdp::FileType::Directory {
-                return Err(other_err!(
-                    "FilesystemBackend::handle_query_directory_req",
-                    "received ServerDriveQueryDirectoryRequest request for a file rather than a directory",
-                ));
+        match self.file_cache.get(file_id) {
+            // File not found in cache, return a failure
+            None => self.send_drive_query_dir_response(
+                rdp_req.device_io_request,
+                NtStatus::UNSUCCESSFUL,
+                None,
+            ),
+            Some(dir) => {
+                if dir.fso.file_type != tdp::FileType::Directory {
+                    return Err(other_err!(
+                        "FilesystemBackend::handle_query_directory_req",
+                        "received ServerDriveQueryDirectoryRequest request for a file rather than a directory",
+                    ));
+                }
+
+                if rdp_req.initial_query == 0 {
+                    // This isn't the initial query, ergo we already have this dir's contents filled in.
+                    // Just send the next item.
+                    return self.send_next_drive_query_dir_response(&rdp_req);
+                }
+
+                // On the initial query, we need to get the list of files in this directory from
+                // the client by sending a TDP SharedDirectoryListRequest.
+                // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L775
+                let path = dir.path.clone();
+
+                // Ask the client for the list of files in this directory.
+                self.send_tdp_sd_list_request(tdp::SharedDirectoryListRequest {
+                    completion_id: rdp_req.device_io_request.completion_id,
+                    directory_id: rdp_req.device_io_request.device_id,
+                    path,
+                })?;
+
+                // When we get the response for that list of files...
+                self.pending_sd_list_resp_handlers.insert(
+                    rdp_req.device_io_request.completion_id,
+                    SharedDirectoryListResponseHandler::new(
+                        move |cli: &mut Self,
+                              tdp_resp: tdp::SharedDirectoryListResponse|
+                              -> PduResult<()> {
+                            cli.handle_query_directory_req_continued(rdp_req, tdp_resp)
+                        },
+                    ),
+                );
+
+                // Return nothing yet, an RDP message will be returned when the pending_sd_list_resp_handlers
+                // closure gets called.
+                Ok(())
             }
+        }
+    }
 
-            if rdp_req.initial_query == 0 {
-                // This isn't the initial query, ergo we already have this dir's contents filled in.
-                // Just send the next item.
-                return self.send_next_drive_query_dir_response(&rdp_req);
-            }
-
-            // On the initial query, we need to get the list of files in this directory from
-            // the client by sending a TDP SharedDirectoryListRequest.
-            // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L775
-            let path = dir.path.clone();
-
-            // Ask the client for the list of files in this directory.
-            self.send_tdp_sd_list_request(tdp::SharedDirectoryListRequest {
-                completion_id: rdp_req.device_io_request.completion_id,
-                directory_id: rdp_req.device_io_request.device_id,
-                path,
-            })?;
-
-            // When we get the response for that list of files...
-            self.pending_sd_list_resp_handlers.insert(
-                rdp_req.device_io_request.completion_id,
-                SharedDirectoryListResponseHandler::new(
-                    move |cli: &mut Self,
-                          tdp_resp: tdp::SharedDirectoryListResponse|
-                          -> PduResult<()> {
-                        if tdp_resp.err_code != TdpErrCode::Nil {
-                            // For now any error will kill the session.
-                            // In the future, we might want to make this send back
-                            // an NTSTATUS::STATUS_UNSUCCESSFUL instead.
-                            return Err(custom_err!(
-                                "FilesystemBackend::handle_query_directory_req",
-                                FilesystemBackendError(format!(
-                                    "SharedDirectoryListRequest failed with err_code = {:?}",
-                                    tdp_resp.err_code
-                                ))
-                            ));
-                        }
-
-                        // If SharedDirectoryListRequest succeeded, move the
-                        // list of FileSystemObjects that correspond to this directory's
-                        // contents to its entry in the file cache.
-                        if let Some(dir) = cli.file_cache.get_mut(file_id) {
-                            dir.contents = tdp_resp.fso_list;
-                            // And send back the "." directory over RDP
-                            return cli.send_next_drive_query_dir_response(&rdp_req);
-                        }
-
-                        cli.send_drive_query_dir_response(
-                            rdp_req.device_io_request,
-                            NtStatus::UNSUCCESSFUL,
-                            None,
-                        )
-                    },
-                ),
-            );
-
-            // Return nothing yet, an RDP message will be returned when the pending_sd_list_resp_handlers
-            // closure gets called.
-            return Ok(());
+    /// Continues [`Self::handle_query_directory_req`] after a [`tdp::SharedDirectoryListResponse`] is received from the browser,
+    /// returning any [`RdpdrPdu`]s that need to be sent back to the RDP server.
+    fn handle_query_directory_req_continued(
+        &mut self,
+        rdp_req: efs::ServerDriveQueryDirectoryRequest,
+        tdp_resp: tdp::SharedDirectoryListResponse,
+    ) -> PduResult<()> {
+        if tdp_resp.err_code != TdpErrCode::Nil {
+            // For now any error will kill the session.
+            // In the future, we might want to make this send back
+            // an NTSTATUS::STATUS_UNSUCCESSFUL instead.
+            return Err(custom_err!(
+                "FilesystemBackend::handle_query_directory_req",
+                FilesystemBackendError(format!(
+                    "SharedDirectoryListRequest failed with err_code = {:?}",
+                    tdp_resp.err_code
+                ))
+            ));
         }
 
-        // File not found in cache, return a failure
+        // If SharedDirectoryListRequest succeeded, move the
+        // list of FileSystemObjects that correspond to this directory's
+        // contents to its entry in the file cache.
+        if let Some(dir) = self.file_cache.get_mut(rdp_req.device_io_request.file_id) {
+            dir.contents = tdp_resp.fso_list;
+            // And send back the "." directory over RDP
+            return self.send_next_drive_query_dir_response(&rdp_req);
+        }
+
         self.send_drive_query_dir_response(rdp_req.device_io_request, NtStatus::UNSUCCESSFUL, None)
     }
 
