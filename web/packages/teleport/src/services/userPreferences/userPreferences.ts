@@ -20,7 +20,7 @@ import cfg from 'teleport/config';
 import api from 'teleport/services/api';
 import { ViewMode } from 'teleport/Assist/types';
 
-import { KeysEnum } from '../localStorage';
+import { KeysEnum } from '../storageService';
 
 import { ThemePreference } from './types';
 

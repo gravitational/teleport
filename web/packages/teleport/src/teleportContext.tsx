@@ -33,7 +33,7 @@ import desktopService from './services/desktops';
 import userGroupService from './services/userGroups';
 import MfaService from './services/mfa';
 import { agentService } from './services/agents';
-import localStorage from './services/localStorage';
+import { storageService } from './services/storageService';
 
 class TeleportContext implements types.Context {
   // stores
@@ -86,11 +86,11 @@ class TeleportContext implements types.Context {
     if (
       this.storeUser.hasPrereqAccessToAddAgents() &&
       this.storeUser.hasAccessToQueryAgent() &&
-      !localStorage.getOnboardDiscover()
+      !storageService.getOnboardDiscover()
     ) {
       const hasResource =
         await userService.checkUserHasAccessToRegisteredResource();
-      localStorage.setOnboardDiscover({ hasResource });
+      storageService.setOnboardDiscover({ hasResource });
     }
 
     if (user.acl.accessGraph.list) {

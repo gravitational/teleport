@@ -37,7 +37,7 @@ import cfg from 'teleport/config';
 import useTeleport from 'teleport/useTeleport';
 import { TopBar } from 'teleport/TopBar';
 import { BannerList } from 'teleport/components/BannerList';
-import localStorage from 'teleport/services/localStorage';
+import { storageService } from 'teleport/services/storageService';
 
 import { ClusterAlert, LINK_LABEL } from 'teleport/services/alerts/alerts';
 
@@ -124,8 +124,8 @@ export function Main(props: MainProps) {
   }
 
   function updateOnboardDiscover() {
-    const discover = localStorage.getOnboardDiscover();
-    localStorage.setOnboardDiscover({ ...discover, notified: true });
+    const discover = storageService.getOnboardDiscover();
+    storageService.setOnboardDiscover({ ...discover, notified: true });
   }
 
   // redirect to the default feature when hitting the root /web URL
@@ -159,7 +159,7 @@ export function Main(props: MainProps) {
     id: alert.metadata.name,
   }));
 
-  const onboard = localStorage.getOnboardDiscover();
+  const onboard = storageService.getOnboardDiscover();
   const requiresOnboarding =
     onboard && !onboard.hasResource && !onboard.notified;
   const displayOnboardDiscover = requiresOnboarding && showOnboardDiscover;

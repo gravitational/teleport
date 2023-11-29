@@ -27,7 +27,7 @@ import {
 import { DefaultTab } from 'shared/services/unifiedResourcePreferences';
 
 import useStickyClusterId from 'teleport/useStickyClusterId';
-import localStorage from 'teleport/services/localStorage';
+import { storageService } from 'teleport/services/storageService';
 import { useUser } from 'teleport/User/UserContext';
 import { useTeleport } from 'teleport';
 import { useUrlFiltering } from 'teleport/components/hooks';
@@ -49,7 +49,7 @@ import SearchPanel from './SearchPanel';
 
 export function UnifiedResources() {
   const { clusterId, isLeafCluster } = useStickyClusterId();
-  const enabled = localStorage.areUnifiedResourcesEnabled();
+  const enabled = storageService.areUnifiedResourcesEnabled();
 
   if (!enabled) {
     history.replace(cfg.getNodesRoute(clusterId));
@@ -99,7 +99,7 @@ function ClusterResources({
   const teleCtx = useTeleport();
   const flags = teleCtx.getFeatureFlags();
 
-  const pinningNotSupported = localStorage.arePinnedResourcesDisabled();
+  const pinningNotSupported = storageService.arePinnedResourcesDisabled();
   const {
     getClusterPinnedResources,
     preferences,
@@ -159,7 +159,7 @@ function ClusterResources({
             totalCount: response.agents.length,
           };
         } catch (err) {
-          if (!localStorage.areUnifiedResourcesEnabled()) {
+          if (!storageService.areUnifiedResourcesEnabled()) {
             history.replace(cfg.getNodesRoute(clusterId));
           } else {
             throw err;
