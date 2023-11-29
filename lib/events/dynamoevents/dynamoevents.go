@@ -44,6 +44,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
+	tcontext "github.com/gravitational/teleport/api/context"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -357,6 +358,7 @@ const (
 
 // EmitAuditEvent emits audit event
 func (l *Log) EmitAuditEvent(ctx context.Context, in apievents.AuditEvent) error {
+	ctx = tcontext.WithoutCancel(ctx)
 	sessionID := getSessionID(in)
 	if err := l.putAuditEvent(ctx, sessionID, in); err != nil {
 		switch {

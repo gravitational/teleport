@@ -33,6 +33,7 @@ import (
 	oteltrace "go.opentelemetry.io/otel/trace"
 
 	"github.com/gravitational/teleport"
+	tcontext "github.com/gravitational/teleport/api/context"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/events"
@@ -430,6 +431,7 @@ func New(ctx context.Context, cfg Config) (*Log, error) {
 }
 
 func (l *Log) EmitAuditEvent(ctx context.Context, in apievents.AuditEvent) error {
+	ctx = tcontext.WithoutCancel(ctx)
 	return trace.Wrap(l.publisher.EmitAuditEvent(ctx, in))
 }
 

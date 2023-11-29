@@ -29,6 +29,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/sirupsen/logrus"
 
+	tcontext "github.com/gravitational/teleport/api/context"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	pgcommon "github.com/gravitational/teleport/lib/backend/pgbk/common"
@@ -294,6 +295,7 @@ var _ events.AuditLogger = (*Log)(nil)
 
 // EmitAuditEvent implements [events.AuditLogger].
 func (l *Log) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
+	ctx = tcontext.WithoutCancel(ctx)
 	var sessionID uuid.UUID
 	if s := events.GetSessionID(event); s != "" {
 		u, err := uuid.Parse(s)
