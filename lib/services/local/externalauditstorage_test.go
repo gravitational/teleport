@@ -59,7 +59,7 @@ func TestExternalAuditStorageService(t *testing.T) {
 		cmpopts.IgnoreFields(header.Metadata{}, "ID", "Revision"),
 	}
 
-	t.Run("no draft, can't promote anything", func(t *testing.T) {
+	t.Run("promote failed without draft", func(t *testing.T) {
 		// Given no draft
 		// When PromoteToClusterExternalAuditStorage
 		// Then error is returned
@@ -72,6 +72,30 @@ func TestExternalAuditStorageService(t *testing.T) {
 
 	t.Run("create draft", func(t *testing.T) {
 		// Given no draft
+		// When CreateDraftExternalAuditStorage
+		// Then draft is returned on GetDraftExternalAuditStorage
+		// And GetClusterExternalCloutAudit returns not found.
+		// And CreateDraftExternalAuditStorage again returns AlreadyExists
+
+		// When
+		_, err := service.CreateDraftExternalAuditStorage(ctx, draftFromSpec1)
+		require.NoError(t, err)
+
+		// Then
+		out, err := service.GetDraftExternalAuditStorage(ctx)
+		require.NoError(t, err)
+		require.Empty(t, cmp.Diff(draftFromSpec1, out, cmpOpts...))
+		// And
+		_, err = service.GetClusterExternalAuditStorage(ctx)
+		require.Error(t, err)
+		require.True(t, trace.IsNotFound(err))
+		// And
+		_, err = service.CreateDraftExternalAuditStorage(ctx, draftFromSpec1)
+		require.True(t, trace.IsAlreadyExists(err), err)
+	})
+
+	t.Run("upsert draft", func(t *testing.T) {
+		// Given an existing draft
 		// When UpsertDraftExternalAuditStorage
 		// Then draft is returned on GetDraftExternalAuditStorage
 		// And GetClusterExternalCloutAudit returns not found.
@@ -90,7 +114,7 @@ func TestExternalAuditStorageService(t *testing.T) {
 		require.True(t, trace.IsNotFound(err))
 	})
 
-	t.Run("promote draft audit to cluster external audit storage", func(t *testing.T) {
+	t.Run("promote draft to cluster", func(t *testing.T) {
 		// Given draft external_audit_storage resource
 		// When PromoteToClusterExternalAuditStorage is executed
 		// Then GetClusterExternalAudit returns copy of draft config.
@@ -104,7 +128,7 @@ func TestExternalAuditStorageService(t *testing.T) {
 		require.Empty(t, cmp.Diff(clusterFromSpec1, out, cmpOpts...))
 	})
 
-	t.Run("updating draft does not change to cluster", func(t *testing.T) {
+	t.Run("updating draft does not change cluster", func(t *testing.T) {
 		// Given existing cluster external_audit_storage
 		// When UpsertDraftExternalAuditStorage
 		// Then draft is written
