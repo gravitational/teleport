@@ -1009,7 +1009,7 @@ func TestSAMLConnectorCRUDEventsEmitted(t *testing.T) {
 
 	// test saml upsert event
 	saml.SetDisplay("alapaca")
-	err = s.a.UpsertSAMLConnector(ctx, saml)
+	_, err = s.a.UpsertSAMLConnector(ctx, saml)
 	require.NoError(t, err)
 	require.IsType(t, &apievents.SAMLConnectorCreate{}, s.mockEmitter.LastEvent())
 	require.Equal(t, events.SAMLConnectorCreatedEvent, s.mockEmitter.LastEvent().GetType())

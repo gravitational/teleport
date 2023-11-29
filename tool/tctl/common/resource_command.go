@@ -900,7 +900,7 @@ func (rc *ResourceCommand) createSAMLConnector(ctx context.Context, client auth.
 		return trace.Wrap(err)
 	}
 
-	if err = client.UpsertSAMLConnector(ctx, conn); err != nil {
+	if _, err = client.UpsertSAMLConnector(ctx, conn); err != nil {
 		return trace.Wrap(err)
 	}
 	fmt.Printf("authentication connector '%s' has been %s\n", connectorName, UpsertVerb(exists, rc.IsForced()))

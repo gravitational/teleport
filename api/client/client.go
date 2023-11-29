@@ -1966,19 +1966,31 @@ func (c *Client) UpdateSAMLConnector(ctx context.Context, connector types.SAMLCo
 }
 
 // UpsertSAMLConnector creates or updates a SAML connector.
-func (c *Client) UpsertSAMLConnector(ctx context.Context, connector types.SAMLConnector) error {
+func (c *Client) UpsertSAMLConnector(ctx context.Context, connector types.SAMLConnector) (types.SAMLConnector, error) {
 	samlConnector, ok := connector.(*types.SAMLConnectorV2)
 	if !ok {
-		return trace.BadParameter("invalid type %T", connector)
+		return nil, trace.BadParameter("invalid type %T", connector)
 	}
 
-	_, err := c.grpc.UpsertSAMLConnectorV2(ctx, &proto.UpsertSAMLConnectorRequest{Connector: samlConnector})
+	upserted, err := c.grpc.UpsertSAMLConnectorV2(ctx, &proto.UpsertSAMLConnectorRequest{Connector: samlConnector})
 	// TODO(tross) DELETE IN 16.0.0
 	if err != nil && trace.IsNotImplemented(err) {
-		_, err := c.grpc.UpsertSAMLConnector(ctx, samlConnector) //nolint:staticcheck // SA1019. Kept for backward compatibility.
-		return trace.Wrap(err)
+		//nolint:staticcheck // SA1019. Kept for backward compatibility.
+		if _, err := c.grpc.UpsertSAMLConnector(ctx, samlConnector); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		conn, err := c.GetSAMLConnector(ctx, samlConnector.GetName(), false)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		// Override the secrets with the values from the passed in connector since
+		// the call to GetSAMLConnector above did not request secrets.
+		conn.SetSigningKeyPair(connector.GetSigningKeyPair())
+
+		return conn, nil
 	}
-	return trace.Wrap(err)
+	return upserted, trace.Wrap(err)
 }
 
 // DeleteSAMLConnector deletes a SAML connector by name.

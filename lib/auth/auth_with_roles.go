@@ -3319,20 +3319,20 @@ func (a *ServerWithRoles) DeleteOIDCConnector(ctx context.Context, connectorID s
 }
 
 // UpsertSAMLConnector creates or updates a SAML connector.
-func (a *ServerWithRoles) UpsertSAMLConnector(ctx context.Context, connector types.SAMLConnector) error {
+func (a *ServerWithRoles) UpsertSAMLConnector(ctx context.Context, connector types.SAMLConnector) (types.SAMLConnector, error) {
 	if !modules.GetModules().Features().SAML {
-		return trace.Wrap(ErrSAMLRequiresEnterprise)
+		return nil, trace.Wrap(ErrSAMLRequiresEnterprise)
 	}
 
 	if err := a.authConnectorAction(apidefaults.Namespace, types.KindSAML, types.VerbCreate); err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	if err := a.authConnectorAction(apidefaults.Namespace, types.KindSAML, types.VerbUpdate); err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
-	err := a.authServer.UpsertSAMLConnector(ctx, connector)
-	return trace.Wrap(err)
+	upserted, err := a.authServer.UpsertSAMLConnector(ctx, connector)
+	return upserted, trace.Wrap(err)
 }
 
 // CreateSAMLConnector creates a new SAML connector.

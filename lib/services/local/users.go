@@ -1296,14 +1296,14 @@ func (s *IdentityService) GetOIDCAuthRequest(ctx context.Context, stateToken str
 }
 
 // UpsertSAMLConnector upserts SAML Connector
-func (s *IdentityService) UpsertSAMLConnector(ctx context.Context, connector types.SAMLConnector) error {
+func (s *IdentityService) UpsertSAMLConnector(ctx context.Context, connector types.SAMLConnector) (types.SAMLConnector, error) {
 	if err := services.ValidateSAMLConnector(connector, nil); err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	rev := connector.GetRevision()
 	value, err := services.MarshalSAMLConnector(connector)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	item := backend.Item{
 		Key:      backend.Key(webPrefix, connectorsPrefix, samlPrefix, connectorsPrefix, connector.GetName()),
@@ -1313,10 +1313,10 @@ func (s *IdentityService) UpsertSAMLConnector(ctx context.Context, connector typ
 	}
 	lease, err := s.Put(ctx, item)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	connector.SetRevision(lease.Revision)
-	return nil
+	return connector, nil
 }
 
 // UpdateSAMLConnector updates an existing SAML connector
