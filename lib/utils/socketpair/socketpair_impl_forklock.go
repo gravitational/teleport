@@ -1,4 +1,4 @@
-//go:build unix && !darwin
+//go:build darwin
 
 // Copyright 2023 Gravitational, Inc
 //
@@ -14,7 +14,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package utils
+package socketpair
 
 import (
 	"syscall"
@@ -23,16 +23,20 @@ import (
 )
 
 // cloexecSocketpair returns a unix/local stream socketpair whose file
-// descriptors are flagged close-on-exec. This implementation creates the
-// socketpair directly in close-on-exec mode.
+// descriptors are flagged close-on-exec. This implementation acquires
+// [syscall.ForkLock] as it creates the socketpair and sets the two file
+// descriptors close-on-exec.
 func cloexecSocketpair() (uintptr, uintptr, error) {
-	// SOCK_CLOEXEC on socketpair is supported since Linux 2.6.27 and go's
-	// minimum requirement is 2.6.32 (FreeBSD supports it since FreeBSD 10 and
-	// go 1.20+ requires FreeBSD 12)
-	fds, err := syscall.Socketpair(syscall.AF_UNIX, syscall.SOCK_STREAM|syscall.SOCK_CLOEXEC, 0)
+	syscall.ForkLock.RLock()
+	defer syscall.ForkLock.RUnlock()
+
+	fds, err := syscall.Socketpair(syscall.AF_UNIX, syscall.SOCK_STREAM, 0)
 	if err != nil {
 		return 0, 0, trace.Wrap(err)
 	}
+
+	syscall.CloseOnExec(fds[0])
+	syscall.CloseOnExec(fds[1])
 
 	return uintptr(fds[0]), uintptr(fds[1]), nil
 }
