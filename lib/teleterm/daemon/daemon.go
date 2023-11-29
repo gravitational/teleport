@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/lib/teleterm/cmd"
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
 	"github.com/gravitational/teleport/lib/teleterm/services/unifiedresources"
+	"github.com/gravitational/teleport/lib/teleterm/services/userpreferences"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/daemon"
 )
 
@@ -916,6 +917,66 @@ func (s *Service) ListUnifiedResources(ctx context.Context, clusterURI uri.Resou
 	})
 
 	return resources, trace.Wrap(err)
+}
+
+// GetUserPreferences returns the preferences for a given user.
+func (s *Service) GetUserPreferences(ctx context.Context, clusterURI uri.ResourceURI) (*api.UserPreferences, error) {
+	_, clusterClient, err := s.ResolveClusterURI(clusterURI)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var preferences *api.UserPreferences
+
+	err = clusters.AddMetadataToRetryableError(ctx, func() error {
+		proxyClient, err := clusterClient.ConnectToProxy(ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer proxyClient.Close()
+
+		authClient, err := proxyClient.ConnectToCluster(ctx, clusterClient.SiteName)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer authClient.Close()
+
+		preferences, err = userpreferences.Get(ctx, authClient)
+		return trace.Wrap(err)
+	})
+
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return preferences, nil
+}
+
+// UpdateUserPreferences updates the preferences for a given user.
+func (s *Service) UpdateUserPreferences(ctx context.Context, clusterURI uri.ResourceURI, newPreferences *api.UserPreferences) error {
+	_, clusterClient, err := s.ResolveClusterURI(clusterURI)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = clusters.AddMetadataToRetryableError(ctx, func() error {
+		proxyClient, err := clusterClient.ConnectToProxy(ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer proxyClient.Close()
+
+		authClient, err := proxyClient.ConnectToCluster(ctx, clusterClient.SiteName)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer authClient.Close()
+
+		err = userpreferences.Update(ctx, authClient, newPreferences)
+		return trace.Wrap(err)
+	})
+
+	return trace.Wrap(err)
 }
 
 func (s *Service) shouldReuseGateway(targetURI uri.ResourceURI) (gateway.Gateway, bool) {
