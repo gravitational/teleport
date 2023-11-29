@@ -37,10 +37,7 @@ export function IntegrationTiles({
   hasIntegrationAccess?: boolean;
   hasExternalAuditStorage?: boolean;
 }) {
-  // TODO(mcbattirola): isUsageBasedBilling is used here and in other
-  // parts of the app as synonym with Team product, but this
-  // will change in the future.
-  const isCloudEnterprise = cfg.isEnterprise && !cfg.isUsageBasedBilling;
+  const isCloudEnterprise = cfg.isCloud && !cfg.isTeam;
   const isOnpremEnterprise = cfg.isEnterprise && !cfg.isCloud;
 
   return (
