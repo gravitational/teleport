@@ -517,6 +517,7 @@ func TestHandleSQLServerConfigureScriptDatabaseURIEscaped(t *testing.T) {
 			escapedURIResult := re.FindStringSubmatch(string(resp.Bytes()))
 			require.Len(t, escapedURIResult, 2)
 			require.NotEqual(t, uri, escapedURIResult[1])
+			require.Contains(t, escapedURIResult[1], url.QueryEscape(c))
 		})
 	}
 }
