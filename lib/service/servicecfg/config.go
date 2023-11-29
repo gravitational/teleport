@@ -636,6 +636,10 @@ func applyDefaults(cfg *Config) {
 		cfg.Log = logrus.StandardLogger()
 	}
 
+	if cfg.Logger == nil {
+		cfg.Logger = slog.Default()
+	}
+
 	if cfg.PollingPeriod == 0 {
 		cfg.PollingPeriod = defaults.LowResPollingPeriod
 	}
