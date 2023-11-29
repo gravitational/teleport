@@ -148,10 +148,8 @@ type AccessMonitoringFeature struct {
 
 // ToProto converts Features into proto.Features
 func (f Features) ToProto() *proto.Features {
-	productTypeValue := proto.ProductType_name[int32(f.ProductType)]
-
 	return &proto.Features{
-		ProductType:             proto.ProductType(proto.ProductType_value[productTypeValue]),
+		ProductType:             proto.ProductType(f.ProductType),
 		Kubernetes:              f.Kubernetes,
 		App:                     f.App,
 		DB:                      f.DB,
