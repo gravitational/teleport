@@ -13,38 +13,51 @@ Teleport Access Graph is a new way to visualize and understand access to your
 infrastructure. It provides a visual representation of the relationships between
 users, roles, and resources in your organization.
 
+![Teleport Access Graph](../img/access-graph/main-view.png)
+
 ## The basics
 
 Teleport Access Graph divides your infrastructure into five main components:
 
 1. Users
 
+    ![User Node](../img/access-graph/user-node.png)
+
     Users are the people who access your infrastructure. They can be employees,
     contractors, or even bots.
 
 2. User Groups
+
+    ![User Group Node](../img/access-graph/user-group-node.png)
 
     User Groups are collections of users. They can be used to organize users
     based on their role or team.
 
 3. Actions
 
+    ![Action Node](../img/access-graph/allow-action-node.png)
+
     Actions are the things that users can or cannot do. Actions are related to
     resources. For example, a user can SSH into a node.
 
 4. Resource Groups
+
+    ![Resource Group Node](../img/access-graph/resource-group-node.png)
 
     Resource Groups are collections of resources. They can be used to organize
     resources based on their role or team.
 
 5. Resources
 
-      Resources are the things that users can or cannot access. They can be
-      servers, databases, or Kubernetes clusters.
+    ![Resource Node](../img/access-graph/resource-node.png)
+
+    Resources are the things that users can or cannot access. They can be
+    servers, databases, or Kubernetes clusters.
 
 ## Where to find it
 
-After logging into the Teleport UI,
+After logging into the Teleport UI, go to Management tab. If enabled, Access Graph options can be find
+under the Permission Management section.
 
 ## How to use it
 
@@ -52,7 +65,11 @@ Teleport Access Graph can help you to answer questions like:
 
 - Who can access a specific resource?
 
+![Show Access Path Resource](../img/access-graph/show-access-path-resource.gif)
+
 - What resources can a specific user access?
+
+![Show Access Path](../img/access-graph/show-access-path.gif)
 
 
 ## How does it work?
