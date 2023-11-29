@@ -25,7 +25,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -45,11 +44,13 @@ import (
 	"github.com/gravitational/teleport/lib/pam"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/shell"
+	"github.com/gravitational/teleport/lib/srv/tcpip"
 	"github.com/gravitational/teleport/lib/srv/uacc"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/envutils"
+	"github.com/gravitational/teleport/lib/utils/socketpair"
 )
 
 // FileFD is a file descriptor passed down from a parent process when
@@ -666,15 +667,21 @@ func RunForward() (errw io.Writer, code int, err error) {
 		return errorWriter, teleport.RemoteCommandFailure, trace.NotFound(err.Error())
 	}
 
-	// Connect to the target host.
-	conn, err := net.Dial("tcp", c.DestinationAddress)
+	// build forwarder from first extra file that was passed to command
+	ffd := os.NewFile(FirstExtraFile, "listener")
+	if ffd == nil {
+		return errorWriter, teleport.RemoteCommandFailure, trace.BadParameter("missing socket fd")
+	}
+
+	listener, err := socketpair.ListenerFromFD(ffd)
 	if err != nil {
 		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 	}
-	defer conn.Close()
 
-	err = utils.ProxyConn(context.Background(), utils.CombineReadWriteCloser(os.Stdin, os.Stdout), conn)
-	if err != nil && !errors.Is(err, io.EOF) {
+	forwarder := tcpip.NewForwarder(listener)
+	defer forwarder.Close()
+
+	if err := forwarder.Run(); err != nil {
 		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 	}
 

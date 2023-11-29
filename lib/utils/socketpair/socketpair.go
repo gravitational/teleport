@@ -1,5 +1,3 @@
-//go:build unix && !darwin
-
 /*
  * Teleport
  * Copyright (C) 2023  Gravitational, Inc.
@@ -18,25 +16,19 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package utils
+package socketpair
 
 import (
-	"syscall"
-
-	"github.com/gravitational/trace"
+	"net"
 )
 
-// cloexecSocketpair returns a unix/local stream socketpair whose file
-// descriptors are flagged close-on-exec. This implementation creates the
-// socketpair directly in close-on-exec mode.
-func cloexecSocketpair() (uintptr, uintptr, error) {
-	// SOCK_CLOEXEC on socketpair is supported since Linux 2.6.27 and go's
-	// minimum requirement is 2.6.32 (FreeBSD supports it since FreeBSD 10 and
-	// go 1.20+ requires FreeBSD 12)
-	fds, err := syscall.Socketpair(syscall.AF_UNIX, syscall.SOCK_STREAM|syscall.SOCK_CLOEXEC, 0)
-	if err != nil {
-		return 0, 0, trace.Wrap(err)
-	}
+// Dialer emulates a [net.Dial] by passing fds across a socektpair. Closing a
+// [Dialer] will close the associated listener as well.
+type Dialer struct {
+	c *net.UnixConn
+}
 
-	return uintptr(fds[0]), uintptr(fds[1]), nil
+// Close closes the underlying unix conn.
+func (d *Dialer) Close() error {
+	return d.c.Close()
 }
