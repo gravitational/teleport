@@ -16,6 +16,7 @@
 
 import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
 import Logger, { NullService } from 'teleterm/logger';
+import { makeDocumentCluster } from 'teleterm/ui/services/workspacesService/documentsService/testHelpers';
 
 import { ClustersService } from '../clusters';
 import { StatePersistenceService } from '../statePersistence';
@@ -221,12 +222,7 @@ function getTestSetup(options: {
 
   let clusterDocument: DocumentCluster;
   if (cluster) {
-    clusterDocument = {
-      kind: 'doc.cluster',
-      title: 'Cluster Test',
-      clusterUri: cluster?.uri,
-      uri: '/docs/test-cluster-uri',
-    };
+    clusterDocument = makeDocumentCluster();
   }
 
   const workspacesService = new WorkspacesService(

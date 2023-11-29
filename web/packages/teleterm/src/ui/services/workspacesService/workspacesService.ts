@@ -42,7 +42,11 @@ import {
   getEmptyPendingAccessRequest,
 } from './accessRequestsService';
 
-import { Document, DocumentsService } from './documentsService';
+import {
+  Document,
+  DocumentsService,
+  getDefaultDocumentClusterQueryParams,
+} from './documentsService';
 
 export interface WorkspacesState {
   rootClusterUri?: RootClusterUri;
@@ -390,6 +394,22 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
           return {
             ...d,
             origin: 'reopened_session',
+          };
+        }
+
+        if (d.kind === 'doc.cluster') {
+          const defaultParams = getDefaultDocumentClusterQueryParams();
+          // TODO(gzdunek): this should be parsed by a tool like zod
+          return {
+            ...d,
+            queryParams: {
+              defaultParams,
+              ...d.queryParams,
+              sort: {
+                ...defaultParams.sort,
+                ...d.queryParams?.sort,
+              },
+            },
           };
         }
 
