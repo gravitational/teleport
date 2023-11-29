@@ -612,37 +612,42 @@ impl FilesystemBackend {
     /// Helper function for sending a [`tdp::SharedDirectoryWriteRequest`] to the browser
     /// and handling the [`tdp::SharedDirectoryWriteResponse`] that is received in response.
     fn tdp_sd_write(&mut self, rdp_req: efs::DeviceWriteRequest) -> PduResult<()> {
-        if let Some(file) = self.file_cache.get(rdp_req.device_io_request.file_id) {
-            let tdp_req = tdp::SharedDirectoryWriteRequest::from_fco(&rdp_req, file);
-            self.send_tdp_sd_write_request(tdp_req)?;
-            let device_io_request = rdp_req.device_io_request;
-            self.pending_sd_write_resp_handlers.insert(
-                device_io_request.completion_id,
-                SharedDirectoryWriteResponseHandler::new(
-                    move |this: &mut FilesystemBackend,
-                          res: tdp::SharedDirectoryWriteResponse|
-                          -> PduResult<()> {
-                        match res.err_code {
-                            TdpErrCode::Nil => this.send_write_response(
-                                device_io_request,
-                                NtStatus::SUCCESS,
-                                res.bytes_written,
-                            ),
-                            _ => this.send_write_response(
-                                device_io_request,
-                                NtStatus::UNSUCCESSFUL,
-                                0,
-                            ),
-                        }
-                    },
-                ),
-            );
+        match self.file_cache.get(rdp_req.device_io_request.file_id) {
+            // File not found in cache
+            None => self.send_write_response(rdp_req.device_io_request, NtStatus::UNSUCCESSFUL, 0),
+            Some(file) => {
+                self.send_tdp_sd_write_request(tdp::SharedDirectoryWriteRequest::from_fco(
+                    &rdp_req, file,
+                ))?;
+                self.pending_sd_write_resp_handlers.insert(
+                    rdp_req.device_io_request.completion_id,
+                    SharedDirectoryWriteResponseHandler::new(
+                        move |this: &mut FilesystemBackend,
+                              tdp_res: tdp::SharedDirectoryWriteResponse|
+                              -> PduResult<()> {
+                            this.tdp_sd_write_continued(rdp_req, tdp_res)
+                        },
+                    ),
+                );
 
-            return Ok(());
+                Ok(())
+            }
         }
+    }
 
-        // File not found in cache
-        self.send_write_response(rdp_req.device_io_request, NtStatus::UNSUCCESSFUL, 0)
+    fn tdp_sd_write_continued(
+        &mut self,
+        rdp_req: efs::DeviceWriteRequest,
+        tdp_res: tdp::SharedDirectoryWriteResponse,
+    ) -> PduResult<()> {
+        match tdp_res.err_code {
+            TdpErrCode::Nil => self.send_write_response(
+                rdp_req.device_io_request,
+                NtStatus::SUCCESS,
+                tdp_res.bytes_written,
+            ),
+            _ => self.send_write_response(rdp_req.device_io_request, NtStatus::UNSUCCESSFUL, 0),
+        }
     }
 
     /// Sends a [`tdp::SharedDirectoryInfoRequest`] to the browser.
