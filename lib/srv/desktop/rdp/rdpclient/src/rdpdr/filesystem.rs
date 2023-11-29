@@ -371,102 +371,104 @@ impl FilesystemBackend {
         &mut self,
         rdp_req: efs::ServerDriveQueryVolumeInformationRequest,
     ) -> PduResult<()> {
-        if let Some(dir) = self.file_cache.get(rdp_req.device_io_request.file_id) {
-            let buffer: Option<efs::FileSystemInformationClass> = match rdp_req.fs_info_class_lvl {
-                efs::FileSystemInformationClassLevel::FILE_FS_VOLUME_INFORMATION => {
-                    Some(
-                        efs::FileFsVolumeInformation {
-                            volume_creation_time: cast_length!(
-                                "FilesystemBackend::handle_query_volume_req",
-                                "dir.fso.last_modified",
-                                dir.fso.last_modified
-                            )?,
-                            // Equivalent to `u32::MAX & 0xffff` which is what FreeRDP does between
-                            // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/winpr/libwinpr/file/file.c#L1018-L1021
-                            // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L492
-                            volume_serial_number: 0xffff,
-                            // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L494
-                            supports_objects: efs::Boolean::False,
-                            // volume_label can just be something we make up
-                            // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L446
-                            volume_label: "TELEPORT".to_string(),
+        match self.file_cache.get(rdp_req.device_io_request.file_id) {
+            // File not found in cache
+            None => Err(custom_err!(
+                "FilesystemBackend::handle_query_volume_req",
+                FilesystemBackendError(format!(
+                    "failed to retrieve an item from the file cache with FileId = {}",
+                    rdp_req.device_io_request.file_id
+                ))
+            )),
+            Some(dir) => {
+                let buffer: Option<efs::FileSystemInformationClass> = match rdp_req
+                    .fs_info_class_lvl
+                {
+                    efs::FileSystemInformationClassLevel::FILE_FS_VOLUME_INFORMATION => {
+                        Some(
+                            efs::FileFsVolumeInformation {
+                                volume_creation_time: cast_length!(
+                                    "FilesystemBackend::handle_query_volume_req",
+                                    "dir.fso.last_modified",
+                                    dir.fso.last_modified
+                                )?,
+                                // Equivalent to `u32::MAX & 0xffff` which is what FreeRDP does between
+                                // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/winpr/libwinpr/file/file.c#L1018-L1021
+                                // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L492
+                                volume_serial_number: 0xffff,
+                                // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L494
+                                supports_objects: efs::Boolean::False,
+                                // volume_label can just be something we make up
+                                // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L446
+                                volume_label: "TELEPORT".to_string(),
+                            }
+                            .into(),
+                        )
+                    }
+                    efs::FileSystemInformationClassLevel::FILE_FS_ATTRIBUTE_INFORMATION => {
+                        Some(
+                            efs::FileFsAttributeInformation {
+                                file_system_attributes:
+                                    efs::FileSystemAttributes::FILE_CASE_SENSITIVE_SEARCH
+                                        | efs::FileSystemAttributes::FILE_CASE_PRESERVED_NAMES
+                                        | efs::FileSystemAttributes::FILE_UNICODE_ON_DISK,
+                                // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L536
+                                // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/winpr/include/winpr/file.h#L36
+                                max_component_name_len: 260,
+                                // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L447
+                                // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L519
+                                // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L538
+                                file_system_name: "FAT32".to_string(),
+                            }
+                            .into(),
+                        )
+                    }
+                    efs::FileSystemInformationClassLevel::FILE_FS_FULL_SIZE_INFORMATION => Some(
+                        // Fill these out with the default fallback values FreeRDP uses
+                        // Written here: https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L552-L557
+                        // With default fallback values ultimately found here:
+                        // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/winpr/libwinpr/file/file.c#L1018-L1021
+                        efs::FileFsFullSizeInformation {
+                            total_alloc_units: u32::MAX as i64,
+                            caller_available_alloc_units: u32::MAX as i64,
+                            actual_available_alloc_units: u32::MAX as i64,
+                            sectors_per_alloc_unit: u32::MAX,
+                            bytes_per_sector: 1,
                         }
                         .into(),
-                    )
-                }
-                efs::FileSystemInformationClassLevel::FILE_FS_ATTRIBUTE_INFORMATION => {
-                    Some(
-                        efs::FileFsAttributeInformation {
-                            file_system_attributes:
-                                efs::FileSystemAttributes::FILE_CASE_SENSITIVE_SEARCH
-                                    | efs::FileSystemAttributes::FILE_CASE_PRESERVED_NAMES
-                                    | efs::FileSystemAttributes::FILE_UNICODE_ON_DISK,
-                            // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L536
-                            // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/winpr/include/winpr/file.h#L36
-                            max_component_name_len: 260,
-                            // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L447
-                            // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L519
-                            // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L538
-                            file_system_name: "FAT32".to_string(),
+                    ),
+                    efs::FileSystemInformationClassLevel::FILE_FS_DEVICE_INFORMATION => Some(
+                        // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L570-L571
+                        efs::FileFsDeviceInformation {
+                            device_type: 0x00000007, // FILE_DEVICE_DISK
+                            characteristics: efs::Characteristics::empty(),
                         }
                         .into(),
-                    )
-                }
-                efs::FileSystemInformationClassLevel::FILE_FS_FULL_SIZE_INFORMATION => Some(
-                    // Fill these out with the default fallback values FreeRDP uses
-                    // Written here: https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L552-L557
-                    // With default fallback values ultimately found here:
-                    // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/winpr/libwinpr/file/file.c#L1018-L1021
-                    efs::FileFsFullSizeInformation {
-                        total_alloc_units: u32::MAX as i64,
-                        caller_available_alloc_units: u32::MAX as i64,
-                        actual_available_alloc_units: u32::MAX as i64,
-                        sectors_per_alloc_unit: u32::MAX,
-                        bytes_per_sector: 1,
-                    }
-                    .into(),
-                ),
-                efs::FileSystemInformationClassLevel::FILE_FS_DEVICE_INFORMATION => Some(
-                    // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L570-L571
-                    efs::FileFsDeviceInformation {
-                        device_type: 0x00000007, // FILE_DEVICE_DISK
-                        characteristics: efs::Characteristics::empty(),
-                    }
-                    .into(),
-                ),
-                efs::FileSystemInformationClassLevel::FILE_FS_SIZE_INFORMATION => Some(
-                    // Fill these out with the default fallback values FreeRDP uses
-                    // Written here: https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L510-L513
-                    // With default fallback values ultimately found here:
-                    // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/winpr/libwinpr/file/file.c#L1018-L1021
-                    efs::FileFsSizeInformation {
-                        total_alloc_units: u32::MAX as i64,
-                        available_alloc_units: u32::MAX as i64,
-                        sectors_per_alloc_unit: u32::MAX,
-                        bytes_per_sector: 1,
-                    }
-                    .into(),
-                ),
-                _ => None,
-            };
+                    ),
+                    efs::FileSystemInformationClassLevel::FILE_FS_SIZE_INFORMATION => Some(
+                        // Fill these out with the default fallback values FreeRDP uses
+                        // Written here: https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L510-L513
+                        // With default fallback values ultimately found here:
+                        // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/winpr/libwinpr/file/file.c#L1018-L1021
+                        efs::FileFsSizeInformation {
+                            total_alloc_units: u32::MAX as i64,
+                            available_alloc_units: u32::MAX as i64,
+                            sectors_per_alloc_unit: u32::MAX,
+                            bytes_per_sector: 1,
+                        }
+                        .into(),
+                    ),
+                    _ => None,
+                };
 
-            let io_status = if buffer.is_some() {
-                NtStatus::SUCCESS
-            } else {
-                NtStatus::UNSUCCESSFUL
-            };
+                let io_status = match buffer {
+                    Some(_) => NtStatus::SUCCESS,
+                    None => NtStatus::UNSUCCESSFUL,
+                };
 
-            return self.send_query_vol_info_response(rdp_req.device_io_request, io_status, buffer);
+                self.send_query_vol_info_response(rdp_req.device_io_request, io_status, buffer)
+            }
         }
-
-        // File not found in cache
-        Err(custom_err!(
-            "FilesystemBackend::handle_query_volume_req",
-            FilesystemBackendError(format!(
-                "failed to retrieve an item from the file cache with FileId = {}",
-                rdp_req.device_io_request.file_id
-            ))
-        ))
     }
 
     /// Helper function for writing a [`tdp::SharedDirectoryCreateRequest`] to the browser
