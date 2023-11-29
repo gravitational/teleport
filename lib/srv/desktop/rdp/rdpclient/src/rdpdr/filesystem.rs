@@ -569,36 +569,43 @@ impl FilesystemBackend {
     /// Helper function for sending a [`tdp::SharedDirectoryReadRequest`] to the browser
     /// and handling the [`tdp::SharedDirectoryReadResponse`] that is received in response.
     fn tdp_sd_read(&mut self, rdp_req: efs::DeviceReadRequest) -> PduResult<()> {
-        if let Some(file) = self.file_cache.get(rdp_req.device_io_request.file_id) {
-            let tdp_req = tdp::SharedDirectoryReadRequest::from_fco(&rdp_req, file);
-            self.send_tdp_sd_read_request(tdp_req)?;
-            self.pending_sd_read_resp_handlers.insert(
-                rdp_req.device_io_request.completion_id,
-                SharedDirectoryReadResponseHandler::new(
-                    move |this: &mut FilesystemBackend,
-                          res: tdp::SharedDirectoryReadResponse|
-                          -> PduResult<()> {
-                        match res.err_code {
-                            TdpErrCode::Nil => this.send_read_response(
-                                rdp_req.device_io_request,
-                                NtStatus::SUCCESS,
-                                res.read_data,
-                            ),
-                            _ => this.send_read_response(
-                                rdp_req.device_io_request,
-                                NtStatus::UNSUCCESSFUL,
-                                vec![],
-                            ),
-                        }
-                    },
-                ),
-            );
+        match self.file_cache.get(rdp_req.device_io_request.file_id) {
+            // File not found in cache
+            None => {
+                self.send_read_response(rdp_req.device_io_request, NtStatus::UNSUCCESSFUL, vec![])
+            }
+            Some(file) => {
+                let tdp_req = tdp::SharedDirectoryReadRequest::from_fco(&rdp_req, file);
+                self.send_tdp_sd_read_request(tdp_req)?;
+                self.pending_sd_read_resp_handlers.insert(
+                    rdp_req.device_io_request.completion_id,
+                    SharedDirectoryReadResponseHandler::new(
+                        move |this: &mut FilesystemBackend,
+                              tdp_res: tdp::SharedDirectoryReadResponse|
+                              -> PduResult<()> {
+                            this.tdp_sd_read_continued(rdp_req, tdp_res)
+                        },
+                    ),
+                );
 
-            return Ok(());
+                Ok(())
+            }
         }
+    }
 
-        // File not found in cache
-        self.send_read_response(rdp_req.device_io_request, NtStatus::UNSUCCESSFUL, vec![])
+    fn tdp_sd_read_continued(
+        &mut self,
+        rdp_req: efs::DeviceReadRequest,
+        tdp_res: tdp::SharedDirectoryReadResponse,
+    ) -> PduResult<()> {
+        match tdp_res.err_code {
+            TdpErrCode::Nil => self.send_read_response(
+                rdp_req.device_io_request,
+                NtStatus::SUCCESS,
+                tdp_res.read_data,
+            ),
+            _ => self.send_read_response(rdp_req.device_io_request, NtStatus::UNSUCCESSFUL, vec![]),
+        }
     }
 
     /// Sends a [`tdp::SharedDirectoryInfoRequest`] to the browser.
