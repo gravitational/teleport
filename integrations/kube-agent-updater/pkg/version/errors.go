@@ -18,31 +18,19 @@
 
 package version
 
-import (
-	"context"
-	"strings"
-)
+import "fmt"
 
-// StaticGetter is a fake version.Getter that return a static answer. This is used
-// for testing purposes.
-type StaticGetter struct {
-	version string
-	err     error
+// NoNewVersionError indicates that no new version was found and the controller did not reconcile.
+type NoNewVersionError struct {
+	Message        string `json:"message"`
+	CurrentVersion string `json:"currentVersion"`
+	NextVersion    string `json:"nextVersion"`
 }
 
-// GetVersion returns the statically defined version.
-func (v StaticGetter) GetVersion(_ context.Context) (string, error) {
-	return v.version, v.err
-}
-
-// NewStaticGetter creates a StaticGetter
-func NewStaticGetter(version string, err error) Getter {
-	semVersion := version
-	if semVersion != "" && !strings.HasPrefix(semVersion, "v") {
-		semVersion = "v" + version
+// Error returns log friendly description of an error
+func (e *NoNewVersionError) Error() string {
+	if e.Message != "" {
+		return e.Message
 	}
-	return StaticGetter{
-		version: semVersion,
-		err:     err,
-	}
+	return fmt.Sprintf("no new version (current: %q, next: %q)", e.CurrentVersion, e.NextVersion)
 }
