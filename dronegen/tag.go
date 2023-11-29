@@ -95,6 +95,21 @@ func tagPipelines() []pipeline {
 		},
 	}))
 
+	ps = append(ps, ghaBuildPipeline(ghaBuildType{
+		buildType:    buildType{os: "linux", fips: false},
+		trigger:      triggerTag,
+		pipelineName: "build-teleport-spacelift-runner-oci-images",
+		workflows: []ghaWorkflow{
+			{
+				name:              "release-teleport-spacelift-runner-oci.yml",
+				srcRefVar:         "DRONE_TAG",
+				ref:               "${DRONE_TAG}",
+				timeout:           150 * time.Minute,
+				shouldTagWorkflow: true,
+			},
+		},
+	}))
+
 	ps = append(ps, darwinTagPipelineGHA())
 	ps = append(ps, windowsTagPipelineGHA())
 
