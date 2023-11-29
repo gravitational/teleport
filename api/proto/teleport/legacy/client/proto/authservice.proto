@@ -2260,6 +2260,8 @@ message UpstreamInventoryHello {
   // ExternalUpgrader identifies the external upgrader that the instance is configured to
   // export schedules to (e.g. 'kube'). Empty if no upgrader is defined.
   string ExternalUpgrader = 5;
+  // ExternalUpgraderVersion identifies the external upgrader version. Empty if no upgrader is defined.
+  string ExternalUpgraderVersion = 6;
 }
 
 // UpstreamInventoryAgentMetadata is the message sent up the inventory control stream containing
