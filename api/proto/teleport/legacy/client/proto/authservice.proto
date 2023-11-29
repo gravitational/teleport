@@ -1812,17 +1812,7 @@ message CreateAuthenticateChallengeRequest {
   // If you are issuing challenges from the root cluster, but accessing a leaf,
   // call [AuthService.IsMFARequired] in the leaf instead of setting this field.
   IsMFARequiredRequest MFARequiredCheck = 5 [(gogoproto.jsontag) = "mfa_required_check,omitempty"];
-  // Purpose is the purpose of the MFA challenge request
-  AuthenticateChallengePurpose Purpose = 6 [(gogoproto.jsontag) = "purpose,omitempty"];
-}
-
-// LabelUpdateKind is the type of service to update labels for.
-enum AuthenticateChallengePurpose {
-  Unspecified = 0;
-  Login = 1;
-  Recovery = 2;
-  Session = 3;
-  AdminAction = 4;
+  webauthn.Scope scope = 6;
 }
 
 // CreatePrivilegeTokenRequest defines a request to obtain a privilege token.
