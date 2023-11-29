@@ -26,9 +26,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // TestForwarderKeepalive verifies that keepalive messages are understood by
@@ -112,7 +113,6 @@ func TestForwarderBasics(t *testing.T) {
 
 					if _, err := conn.Write(buf[:n]); err != nil {
 						panic(err)
-						return
 					}
 				}
 			}()
@@ -151,7 +151,7 @@ func TestForwarderBasics(t *testing.T) {
 	// explicit closure should result in cleanup
 	entries, err := os.ReadDir(dir)
 	require.NoError(t, err)
-	require.Len(t, entries, 0)
+	require.Empty(t, entries, 0)
 }
 
 // TestSocketOps verifies the expected behavior of the socket creation and cleanup helpers.

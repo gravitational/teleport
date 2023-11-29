@@ -28,9 +28,10 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport"
 )
 
 const (

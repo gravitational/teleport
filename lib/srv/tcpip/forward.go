@@ -28,11 +28,12 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
+
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
-	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 )
 
 // DialThroughForwarder dials a remote tcp address via a local forwarder.
