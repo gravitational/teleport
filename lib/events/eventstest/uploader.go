@@ -279,3 +279,56 @@ func (m *MemoryUploader) GetUploadMetadata(sid session.ID) events.UploadMetadata
 func (m *MemoryUploader) ReserveUploadPart(ctx context.Context, upload events.StreamUpload, partNumber int64) error {
 	return nil
 }
+
+// MockUploader is a limited implementation of [events.MultipartUploader] that
+// allows injecting errors for testing purposes. [MemoryUploader] is a more
+// complete implementation and should be preferred for testing the happy path.
+type MockUploader struct {
+	events.MultipartUploader
+
+	CreateUploadError      error
+	ReserveUploadPartError error
+	ListPartsError         error
+
+	MockListUploads    func(ctx context.Context) ([]events.StreamUpload, error)
+	MockCompleteUpload func(ctx context.Context, upload events.StreamUpload, parts []events.StreamPart) error
+}
+
+func (m *MockUploader) CreateUpload(ctx context.Context, sessionID session.ID) (*events.StreamUpload, error) {
+	if m.CreateUploadError != nil {
+		return nil, m.CreateUploadError
+	}
+
+	return &events.StreamUpload{
+		ID:        uuid.New().String(),
+		SessionID: sessionID,
+	}, nil
+}
+
+func (m *MockUploader) ReserveUploadPart(_ context.Context, _ events.StreamUpload, _ int64) error {
+	return m.ReserveUploadPartError
+}
+
+func (m *MockUploader) ListParts(_ context.Context, _ events.StreamUpload) ([]events.StreamPart, error) {
+	if m.ListPartsError != nil {
+		return nil, m.ListPartsError
+	}
+
+	return []events.StreamPart{}, nil
+}
+
+func (m *MockUploader) ListUploads(ctx context.Context) ([]events.StreamUpload, error) {
+	if m.MockListUploads != nil {
+		return m.MockListUploads(ctx)
+	}
+
+	return nil, nil
+}
+
+func (m *MockUploader) CompleteUpload(ctx context.Context, upload events.StreamUpload, parts []events.StreamPart) error {
+	if m.MockCompleteUpload != nil {
+		return m.MockCompleteUpload(ctx, upload, parts)
+	}
+
+	return nil
+}

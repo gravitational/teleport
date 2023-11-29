@@ -201,8 +201,11 @@ func (u *UploadCompleter) CheckUploads(ctx context.Context) error {
 
 		log.Debugf("upload has %d parts", len(parts))
 
-		if err := u.cfg.Uploader.CompleteUpload(ctx, upload, parts); err != nil {
-			return trace.Wrap(err, "completing upload")
+		if err := u.cfg.Uploader.CompleteUpload(ctx, upload, parts); trace.IsNotFound(err) {
+			log.WithError(err).Debug("Upload not found, moving on to next upload")
+			continue
+		} else if err != nil {
+			return trace.Wrap(err)
 		}
 		log.Debug("Completed upload")
 		completed++

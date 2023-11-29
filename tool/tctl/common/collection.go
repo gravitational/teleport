@@ -31,7 +31,7 @@ import (
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
-	"github.com/gravitational/teleport/api/types/externalcloudaudit"
+	"github.com/gravitational/teleport/api/types/externalauditstorage"
 	"github.com/gravitational/teleport/api/types/secreports"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/asciitable"
@@ -1007,24 +1007,26 @@ func (c *integrationCollection) writeText(w io.Writer, verbose bool) error {
 	return trace.Wrap(err)
 }
 
-type externalCloudAuditCollection struct {
-	externalCloudAudits []*externalcloudaudit.ExternalCloudAudit
+type externalAuditStorageCollection struct {
+	externalAuditStorages []*externalauditstorage.ExternalAuditStorage
 }
 
-func (c *externalCloudAuditCollection) resources() (r []types.Resource) {
-	for _, a := range c.externalCloudAudits {
+func (c *externalAuditStorageCollection) resources() (r []types.Resource) {
+	for _, a := range c.externalAuditStorages {
 		r = append(r, a)
 	}
 	return r
 }
 
-func (c *externalCloudAuditCollection) writeText(w io.Writer, verbose bool) error {
+func (c *externalAuditStorageCollection) writeText(w io.Writer, verbose bool) error {
 	var rows [][]string
-	for _, a := range c.externalCloudAudits {
+	for _, a := range c.externalAuditStorages {
 		rows = append(rows, []string{
 			a.GetName(),
 			a.Spec.IntegrationName,
-			a.Spec.SessionsRecordingsURI,
+			a.Spec.PolicyName,
+			a.Spec.Region,
+			a.Spec.SessionRecordingsURI,
 			a.Spec.AuditEventsLongTermURI,
 			a.Spec.AthenaResultsURI,
 			a.Spec.AthenaWorkgroup,
@@ -1032,7 +1034,7 @@ func (c *externalCloudAuditCollection) writeText(w io.Writer, verbose bool) erro
 			a.Spec.GlueTable,
 		})
 	}
-	headers := []string{"Name", "IntegrationName", "SessionsRecordingsURI", "AuditEventsLongTermURI", "AthenaResultsURI", "AthenaWorkgroup", "GlueDatabase", "GlueTable"}
+	headers := []string{"Name", "IntegrationName", "PolicyName", "Region", "SessionRecordingsURI", "AuditEventsLongTermURI", "AthenaResultsURI", "AthenaWorkgroup", "GlueDatabase", "GlueTable"}
 	t := asciitable.MakeTable(headers, rows...)
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)

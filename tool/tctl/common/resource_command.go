@@ -43,7 +43,7 @@ import (
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
-	"github.com/gravitational/teleport/api/types/externalcloudaudit"
+	"github.com/gravitational/teleport/api/types/externalauditstorage"
 	"github.com/gravitational/teleport/api/types/installers"
 	"github.com/gravitational/teleport/api/types/secreports"
 	"github.com/gravitational/teleport/lib/auth"
@@ -116,7 +116,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *servicec
 		types.KindClusterNetworkingConfig:  rc.createClusterNetworkingConfig,
 		types.KindClusterMaintenanceConfig: rc.createClusterMaintenanceConfig,
 		types.KindSessionRecordingConfig:   rc.createSessionRecordingConfig,
-		types.KindExternalCloudAudit:       rc.upsertExternalCloudAudit,
+		types.KindExternalAuditStorage:     rc.upsertExternalAuditStorage,
 		types.KindUIConfig:                 rc.createUIConfig,
 		types.KindLock:                     rc.createLock,
 		types.KindNetworkRestrictions:      rc.createNetworkRestrictions,
@@ -573,19 +573,19 @@ func (rc *ResourceCommand) createSessionRecordingConfig(ctx context.Context, cli
 	return nil
 }
 
-// upsertExternalCloudAudit implements `tctl create external_cloud_audit` command.
-func (rc *ResourceCommand) upsertExternalCloudAudit(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
-	config, err := services.UnmarshalExternalCloudAudit(raw.Raw)
+// upsertExternalAuditStorage implements `tctl create external_audit_storage` command.
+func (rc *ResourceCommand) upsertExternalAuditStorage(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
+	config, err := services.UnmarshalExternalAuditStorage(raw.Raw)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	externalAuditClient := client.ExternalCloudAuditClient()
-	_, err = externalAuditClient.UpsertDraftExternalCloudAudit(ctx, config)
+	externalAuditClient := client.ExternalAuditStorageClient()
+	_, err = externalAuditClient.UpsertDraftExternalAuditStorage(ctx, config)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	fmt.Printf("external cloud audit configuration has been updated\n")
+	fmt.Printf("External Audit Storage configuration has been updated\n")
 	return nil
 }
 
@@ -1162,17 +1162,17 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client auth.ClientI) (err
 			return trace.Wrap(err)
 		}
 		fmt.Printf("session recording configuration has been reset to defaults\n")
-	case types.KindExternalCloudAudit:
-		if rc.ref.Name == types.MetaNameExternalCloudAuditCluster {
-			if err := client.ExternalCloudAuditClient().DisableClusterExternalCloudAudit(ctx); err != nil {
+	case types.KindExternalAuditStorage:
+		if rc.ref.Name == types.MetaNameExternalAuditStorageCluster {
+			if err := client.ExternalAuditStorageClient().DisableClusterExternalAuditStorage(ctx); err != nil {
 				return trace.Wrap(err)
 			}
-			fmt.Printf("cluster external cloud audit configuration has been disabled\n")
+			fmt.Printf("cluster External Audit Storage configuration has been disabled\n")
 		} else {
-			if err := client.ExternalCloudAuditClient().DeleteDraftExternalCloudAudit(ctx); err != nil {
+			if err := client.ExternalAuditStorageClient().DeleteDraftExternalAuditStorage(ctx); err != nil {
 				return trace.Wrap(err)
 			}
-			fmt.Printf("draft external cloud audit configuration has been deleted\n")
+			fmt.Printf("draft External Audit Storage configuration has been deleted\n")
 		}
 	case types.KindLock:
 		name := rc.ref.Name
@@ -2136,12 +2136,12 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client auth.Client
 			}
 		}
 		return &userGroupCollection{userGroups: resources}, nil
-	case types.KindExternalCloudAudit:
-		out := []*externalcloudaudit.ExternalCloudAudit{}
+	case types.KindExternalAuditStorage:
+		out := []*externalauditstorage.ExternalAuditStorage{}
 		name := rc.ref.Name
 		switch name {
 		case "":
-			cluster, err := client.ExternalCloudAuditClient().GetClusterExternalCloudAudit(ctx)
+			cluster, err := client.ExternalAuditStorageClient().GetClusterExternalAuditStorage(ctx)
 			if err != nil {
 				if !trace.IsNotFound(err) {
 					return nil, trace.Wrap(err)
@@ -2149,7 +2149,7 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client auth.Client
 			} else {
 				out = append(out, cluster)
 			}
-			draft, err := client.ExternalCloudAuditClient().GetDraftExternalCloudAudit(ctx)
+			draft, err := client.ExternalAuditStorageClient().GetDraftExternalAuditStorage(ctx)
 			if err != nil {
 				if !trace.IsNotFound(err) {
 					return nil, trace.Wrap(err)
@@ -2157,21 +2157,21 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client auth.Client
 			} else {
 				out = append(out, draft)
 			}
-			return &externalCloudAuditCollection{externalCloudAudits: out}, nil
-		case types.MetaNameExternalCloudAuditCluster:
-			cluster, err := client.ExternalCloudAuditClient().GetClusterExternalCloudAudit(ctx)
+			return &externalAuditStorageCollection{externalAuditStorages: out}, nil
+		case types.MetaNameExternalAuditStorageCluster:
+			cluster, err := client.ExternalAuditStorageClient().GetClusterExternalAuditStorage(ctx)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			return &externalCloudAuditCollection{externalCloudAudits: []*externalcloudaudit.ExternalCloudAudit{cluster}}, nil
-		case types.MetaNameExternalCloudAuditDraft:
-			draft, err := client.ExternalCloudAuditClient().GetDraftExternalCloudAudit(ctx)
+			return &externalAuditStorageCollection{externalAuditStorages: []*externalauditstorage.ExternalAuditStorage{cluster}}, nil
+		case types.MetaNameExternalAuditStorageDraft:
+			draft, err := client.ExternalAuditStorageClient().GetDraftExternalAuditStorage(ctx)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			return &externalCloudAuditCollection{externalCloudAudits: []*externalcloudaudit.ExternalCloudAudit{draft}}, nil
+			return &externalAuditStorageCollection{externalAuditStorages: []*externalauditstorage.ExternalAuditStorage{draft}}, nil
 		default:
-			return nil, trace.BadParameter("unsupported resource name for external_cloud_audit, valid for get are: '', %q, %q", types.MetaNameExternalCloudAuditDraft, types.MetaNameExternalCloudAuditCluster)
+			return nil, trace.BadParameter("unsupported resource name for external_audit_storage, valid for get are: '', %q, %q", types.MetaNameExternalAuditStorageDraft, types.MetaNameExternalAuditStorageCluster)
 		}
 	case types.KindIntegration:
 		if rc.ref.Name != "" {
