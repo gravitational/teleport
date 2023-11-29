@@ -642,15 +642,16 @@ func (rc *ResourceCommand) createExternalAuditStorage(ctx context.Context, clien
 	}
 	externalAuditClient := client.ExternalAuditStorageClient()
 	if rc.force {
-		_, err = externalAuditClient.UpsertDraftExternalAuditStorage(ctx, draft)
+		if _, err := externalAuditClient.UpsertDraftExternalAuditStorage(ctx, draft); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("draft External Audit Storage configuration has been updated\n")
 	} else {
-		_, err = externalAuditClient.CreateDraftExternalAuditStorage(ctx, draft)
+		if _, err := externalAuditClient.CreateDraftExternalAuditStorage(ctx, draft); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("draft External Audit Storage configuration has been created\n")
 	}
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	fmt.Printf("External Audit Storage configuration has been updated\n")
 	return nil
 }
 
