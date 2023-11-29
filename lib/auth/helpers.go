@@ -779,11 +779,6 @@ func NewTestTLSServer(cfg TestTLSServerConfig) (*TestTLSServer, error) {
 	}
 	tlsConfig.Time = cfg.AuthServer.Clock().Now
 
-	accessPoint, err := NewAdminAuthServer(srv.AuthServer.AuthServer, srv.AuthServer.AuditLog)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	srv.Listener, err = net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -791,7 +786,7 @@ func NewTestTLSServer(cfg TestTLSServerConfig) (*TestTLSServer, error) {
 
 	srv.TLSServer, err = NewTLSServer(context.Background(), TLSServerConfig{
 		Listener:      srv.Listener,
-		AccessPoint:   accessPoint,
+		AccessPoint:   srv.AuthServer.AuthServer.Cache,
 		TLS:           tlsConfig,
 		APIConfig:     *srv.APIConfig,
 		LimiterConfig: *srv.Limiter,
