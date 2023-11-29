@@ -1,0 +1,10 @@
+annotations:
+  deployment:
+    kubernetes.io/deployment: "test-annotation"
+    kubernetes.io/deployment-different: 3
+  pod:
+    kubernetes.io/pod: "test-annotation"
+    kubernetes.io/pod-different: 4
+  serviceAccount:
+    kubernetes.io/serviceaccount: "test-annotation"
+    kubernetes.io/serviceaccount-different: 6

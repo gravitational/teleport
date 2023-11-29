@@ -18,6 +18,7 @@ package events_test
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -147,6 +148,77 @@ func TestUploadCompleterEmitsSessionEnd(t *testing.T) {
 			require.Equal(t, endTime, log.Emitter.Events()[1].GetTime())
 		})
 	}
+}
+
+func TestCheckUploadsContinuesOnError(t *testing.T) {
+	clock := clockwork.NewFakeClock()
+	expires := clock.Now().Add(time.Hour * 1)
+
+	sessionTrackers := []types.SessionTracker{
+		&types.SessionTrackerV1{
+			Spec: types.SessionTrackerSpecV1{
+				SessionID: string(session.NewID()),
+			},
+			ResourceHeader: types.ResourceHeader{
+				Metadata: types.Metadata{
+					Expires: &expires,
+				},
+			},
+		},
+		&types.SessionTrackerV1{
+			Spec: types.SessionTrackerSpecV1{
+				SessionID: string(session.NewID()),
+			},
+			ResourceHeader: types.ResourceHeader{
+				Metadata: types.Metadata{
+					Expires: &expires,
+				},
+			},
+		},
+	}
+
+	sessionTrackerService := &mockSessionTrackerService{
+		clock:    clock,
+		trackers: sessionTrackers,
+	}
+
+	var completedUploads []session.ID
+	uploader := &eventstest.MockUploader{
+		MockCompleteUpload: func(ctx context.Context, upload events.StreamUpload, parts []events.StreamPart) error {
+			// simulate a not found error on the first complete upload
+			if upload.SessionID == session.ID(sessionTrackers[0].GetSessionID()) {
+				return trace.NotFound("no such upload %v", sessionTrackers[0].GetSessionID())
+			}
+
+			completedUploads = append(completedUploads, upload.SessionID)
+			return nil
+		},
+		MockListUploads: func(ctx context.Context) ([]events.StreamUpload, error) {
+			var result []events.StreamUpload
+			for i, sess := range sessionTrackers {
+				result = append(result, events.StreamUpload{
+					ID:        fmt.Sprintf("upload-%v", i),
+					SessionID: session.ID(sess.GetSessionID()),
+					Initiated: clock.Now(),
+				})
+			}
+			return result, nil
+		},
+	}
+
+	uc, err := events.NewUploadCompleter(events.UploadCompleterConfig{
+		Uploader:       uploader,
+		AuditLog:       &eventstest.MockAuditLog{},
+		SessionTracker: sessionTrackerService,
+		Clock:          clock,
+		ClusterName:    "teleport-cluster",
+	})
+	require.NoError(t, err)
+
+	// verify that the 2nd upload completed even though the first one failed
+	clock.Advance(1 * time.Hour)
+	uc.CheckUploads(context.Background())
+	require.ElementsMatch(t, completedUploads, []session.ID{session.ID(sessionTrackers[1].GetSessionID())})
 }
 
 type mockSessionTrackerService struct {

@@ -146,6 +146,11 @@ export default function createMainProcessClient(): MainProcessClient {
         args
       );
     },
+    tryRemoveConnectMyComputerAgentBinary() {
+      return ipcRenderer.invoke(
+        MainProcessIpc.TryRemoveConnectMyComputerAgentBinary
+      );
+    },
     openAgentLogsDirectory(args: { rootClusterUri: RootClusterUri }) {
       return ipcRenderer.invoke('main-process-open-agent-logs-directory', args);
     },
