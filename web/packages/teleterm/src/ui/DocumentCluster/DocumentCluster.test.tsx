@@ -28,6 +28,7 @@ import {
 } from 'teleterm/services/tshd/testHelpers';
 import * as tsh from 'teleterm/services/tshd/types';
 import { ConnectMyComputerContextProvider } from 'teleterm/ui/ConnectMyComputer';
+import { makeDocumentCluster } from 'teleterm/ui/services/workspacesService/documentsService/testHelpers';
 
 import { ResourcesContextProvider } from './resourcesContext';
 
@@ -36,12 +37,7 @@ import DocumentCluster from './DocumentCluster';
 const mio = mockIntersectionObserver();
 
 it('displays a button for Connect My Computer in the empty state if the user can use Connect My Computer', async () => {
-  const doc = {
-    kind: 'doc.cluster' as const,
-    clusterUri: '/clusters/localhost' as const,
-    uri: '/docs/123' as const,
-    title: 'sample',
-  };
+  const doc = makeDocumentCluster();
 
   const appContext = new MockAppContext({ platform: 'darwin' });
   appContext.clustersService.setState(draft => {
@@ -106,12 +102,12 @@ it('displays a button for Connect My Computer in the empty state if the user can
 });
 
 it('does not display a button for Connect My Computer in the empty state if the user cannot use Connect My Computer', async () => {
-  const doc = {
+  const doc = makeDocumentCluster({
     kind: 'doc.cluster' as const,
     clusterUri: '/clusters/localhost' as const,
     uri: '/docs/123' as const,
     title: 'sample',
-  };
+  });
 
   const appContext = new MockAppContext({ platform: 'linux' });
   appContext.clustersService.setState(draft => {

@@ -33,8 +33,9 @@ import (
 // RedshiftMock mocks AWS Redshift API.
 type RedshiftMock struct {
 	redshiftiface.RedshiftAPI
-	Clusters                    []*redshift.Cluster
-	GetClusterCredentialsOutput *redshift.GetClusterCredentialsOutput
+	Clusters                           []*redshift.Cluster
+	GetClusterCredentialsOutput        *redshift.GetClusterCredentialsOutput
+	GetClusterCredentialsWithIAMOutput *redshift.GetClusterCredentialsWithIAMOutput
 }
 
 func (m *RedshiftMock) GetClusterCredentialsWithContext(aws.Context, *redshift.GetClusterCredentialsInput, ...request.Option) (*redshift.GetClusterCredentialsOutput, error) {
@@ -42,6 +43,13 @@ func (m *RedshiftMock) GetClusterCredentialsWithContext(aws.Context, *redshift.G
 		return nil, trace.AccessDenied("access denied")
 	}
 	return m.GetClusterCredentialsOutput, nil
+}
+
+func (m *RedshiftMock) GetClusterCredentialsWithIAMWithContext(aws.Context, *redshift.GetClusterCredentialsWithIAMInput, ...request.Option) (*redshift.GetClusterCredentialsWithIAMOutput, error) {
+	if m.GetClusterCredentialsWithIAMOutput == nil {
+		return nil, trace.AccessDenied("access denied")
+	}
+	return m.GetClusterCredentialsWithIAMOutput, nil
 }
 
 func (m *RedshiftMock) DescribeClustersWithContext(ctx aws.Context, input *redshift.DescribeClustersInput, options ...request.Option) (*redshift.DescribeClustersOutput, error) {
@@ -82,6 +90,19 @@ func RedshiftGetClusterCredentialsOutput(user, password string, clock clockwork.
 		clock = clockwork.NewRealClock()
 	}
 	return &redshift.GetClusterCredentialsOutput{
+		DbUser:     aws.String(user),
+		DbPassword: aws.String(password),
+		Expiration: aws.Time(clock.Now().Add(15 * time.Minute)),
+	}
+}
+
+// RedshiftGetClusterCredentialsWithIAMOutput return a sample
+// redshift.GetClusterCredentialsWithIAMeOutput.
+func RedshiftGetClusterCredentialsWithIAMOutput(user, password string, clock clockwork.Clock) *redshift.GetClusterCredentialsWithIAMOutput {
+	if clock == nil {
+		clock = clockwork.NewRealClock()
+	}
+	return &redshift.GetClusterCredentialsWithIAMOutput{
 		DbUser:     aws.String(user),
 		DbPassword: aws.String(password),
 		Expiration: aws.Time(clock.Now().Add(15 * time.Minute)),

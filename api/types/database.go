@@ -975,7 +975,7 @@ func (d *DatabaseV3) GetMongoAtlas() MongoAtlas {
 // IAM roles as database users.
 // IMPORTANT: if you add a database that requires AWS IAM Roles as users,
 // and that database supports discovery, be sure to update RequireAWSIAMRolesAsUsersMatchers
-// in lib/services as well.
+// in matchers_aws.go as well.
 func (d *DatabaseV3) RequireAWSIAMRolesAsUsers() bool {
 	awsType, ok := d.getAWSType()
 	if !ok {
@@ -996,7 +996,23 @@ func (d *DatabaseV3) RequireAWSIAMRolesAsUsers() bool {
 // SupportAWSIAMRoleARNAsUsers returns true for database types that support AWS
 // IAM roles as database users.
 func (d *DatabaseV3) SupportAWSIAMRoleARNAsUsers() bool {
-	return d.GetType() == DatabaseTypeMongoAtlas
+	switch d.GetType() {
+	// Note that databases in this list use IAM auth when:
+	// - the database user is a full AWS role ARN role
+	// - or the database user starts with "role/"
+	//
+	// Other database users will fallback to default auth methods (e.g X.509 for
+	// MongoAtlas, regular auth token for Redshift).
+	//
+	// Therefore it is important to make sure "/" is an invalid character for
+	// regular in-database usernames so that "role/" can be differentiated from
+	// regular usernames.
+	case DatabaseTypeMongoAtlas,
+		DatabaseTypeRedshift:
+		return true
+	default:
+		return false
+	}
 }
 
 // GetEndpointType returns the endpoint type of the database, if available.
