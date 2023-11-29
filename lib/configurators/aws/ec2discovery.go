@@ -21,14 +21,9 @@ import (
 )
 
 func EC2DiscoverySSMDocument(proxy string) string {
-	randString := uuid.New().String()
+	randString := uuid.New().String() // Secure random so the filename can not be guessed to avoid possible script injection
 
-	return fmt.Sprintf(ec2DiscoverySSMDocument, randString, proxy, randString)
-}
-
-const EC2DiscoveryPolicyName = "TeleportEC2Discovery"
-
-const ec2DiscoverySSMDocument = `
+	return fmt.Sprintf(`
 schemaVersion: '2.2'
 description: aws:runShellScript
 parameters:
@@ -52,4 +47,7 @@ mainSteps:
     timeoutSeconds: '300'
     runCommand:
       - /bin/sh /tmp/installTeleport-%s.sh "{{ token }}"
-`
+`, randString, proxy, randString)
+}
+
+const EC2DiscoveryPolicyName = "TeleportEC2Discovery"
