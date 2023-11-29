@@ -418,7 +418,7 @@ fn select_groups(name: &str, should_create_user: UserCreation) -> Result<Vec<Str
 }
 
 /// REMOTE_DESKTOP_USERS_SID is [well-known SID] for users that can connect through RDP.
-/// 
+///
 /// [well-known SID]: https://learn.microsoft.com/en-us/windows/win32/secauthz/well-known-sids
 const REMOTE_DESKTOP_USERS_SID: &str = "S-1-5-32-555";
 

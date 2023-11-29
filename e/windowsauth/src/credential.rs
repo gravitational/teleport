@@ -213,10 +213,15 @@ fn get_auth_package_id() -> anyhow::Result<u32> {
     lsa_string.Length = "Teleport".len() as u16;
     lsa_string.MaximumLength = lsa_string.Length;
     unsafe {
-        LsaConnectUntrusted(&mut hlsa).context("Can't connect to LSA")?;
+        LsaConnectUntrusted(&mut hlsa)
+            .ok()
+            .context("Can't connect to LSA")?;
         LsaLookupAuthenticationPackage(hlsa, &lsa_string, &mut auth_package)
+            .ok()
             .context("Can't lookup authentication package")?;
-        LsaDeregisterLogonProcess(hlsa).context("Can't deregister logon process")?;
+        LsaDeregisterLogonProcess(hlsa)
+            .ok()
+            .context("Can't deregister logon process")?;
     }
     debug!("Package id: {}", auth_package);
     Ok(auth_package)

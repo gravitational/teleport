@@ -25,13 +25,13 @@ regex = "1.10.2"
 log = "0.4.20"
 rand = { version = "0.8.5", default-features = false, features = ["getrandom"] }
 serde_json = "1.0.108"
-serde = { version = "1.0.192", features = ["derive"] }
+serde = { version = "1.0.193", features = ["derive"] }
 anyhow = "1.0.75"
 humantime = "2.1.0"
 include-flate = { version = "0.2.0", features = ["stable"] }
 
 [dependencies.windows]
-version = "0.51.1"
+version = "0.52.0"
 features = [
     "implement",
     "Foundation",

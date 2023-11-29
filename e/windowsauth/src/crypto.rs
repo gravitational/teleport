@@ -42,9 +42,6 @@ const CREATE_USER_EXT_OID: PCSTR = s!("1.3.9999.2.16");
 const LICENSE_EXT_OID: PCSTR = s!("1.3.9999.2.14");
 const DESKTOPS_COUNT_EXT_OID: PCSTR = s!("1.3.9999.2.17");
 
-// only SHA1 is supported by Microsoft Base Smart Card Crypto Provider
-const CALG_SHA1: u32 = 0x00008004;
-
 pub enum UserCreation {
     Yes(Vec<String>),
     No,
