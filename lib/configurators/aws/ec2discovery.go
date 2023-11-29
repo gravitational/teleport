@@ -21,7 +21,7 @@ import (
 )
 
 func EC2DiscoverySSMDocument(proxy string) string {
-	randString := uuid.New().String() // Secure random so the filename can not be guessed to avoid possible script injection
+	randString := uuid.NewString() // Secure random so the filename can not be guessed to avoid possible script injection
 
 	return fmt.Sprintf(`
 schemaVersion: '2.2'
