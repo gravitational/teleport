@@ -150,6 +150,13 @@ func main() {
 			os.Exit(1)
 		}
 		imageValidators = append(imageValidators, validator)
+
+		validator, err = img.NewCosignKeylessValidator(teleportCertIdentityRegexp, teleportCertOIDCIssuer, "cosign keyless signature validator")
+		if err != nil {
+			ctrl.Log.Error(err, "failed to build image validator, exiting")
+			os.Exit(1)
+		}
+		imageValidators = append(imageValidators, validator)
 	}
 
 	baseImage, err := reference.ParseNamed(baseImageName)

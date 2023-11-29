@@ -15,7 +15,7 @@ chart.
 
 This updater was designed first for cloud customers but can be adapter to run for on-prem users as well.
 
-See [the cloud update RFD](../../rfd/XXXX-change-me-once-merged.md) for more context.
+See [the cloud update RFD](../../rfd/0109-cloud-agent-upgrades.md) for more context.
 
 If an update goes wrong, a temporary downtime is acceptable until a correct
 version is pushed (this risk is mitigated by multi-replica deployments).

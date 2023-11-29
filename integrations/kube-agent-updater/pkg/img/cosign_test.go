@@ -29,6 +29,7 @@ import (
 
 	"github.com/google/go-containerregistry/pkg/registry"
 	"github.com/google/go-containerregistry/pkg/v1/remote"
+	"github.com/sigstore/cosign/v2/pkg/cosign"
 	ociremote "github.com/sigstore/cosign/v2/pkg/oci/remote"
 	"github.com/sigstore/sigstore/pkg/cryptoutils"
 	"github.com/sigstore/sigstore/pkg/signature"
@@ -36,11 +37,19 @@ import (
 )
 
 var distrolessKey = []byte("-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEWZzVzkb8A+DbgDpaJId/bOmV8n7Q\nOqxYbK0Iro6GzSmOzxkn+N2AKawLyXi84WSwJQBK//psATakCgAQKkNTAA==\n-----END PUBLIC KEY-----")
+var certIdentityRegexp = "http://localhost@*"
+var certOIDCIssuer = "http://localhost"
 
 func Test_NewCosignSingleKeyValidator(t *testing.T) {
 	a, err := NewCosignSingleKeyValidator(distrolessKey, "distroless")
 	require.NoError(t, err)
 	require.Equal(t, "distroless-799a5c21a7f8c39707274cbd065ba2e1969d8d29", a.Name())
+}
+
+func Test_NewCosignKeylessValidator(t *testing.T) {
+	a, err := NewCosignKeylessValidator(certIdentityRegexp, certOIDCIssuer, "distroless")
+	require.NoError(t, err)
+	require.Equal(t, "distroless-abcdef12345", a.Name())
 }
 
 // We don't test the digest resolution here (we call the validation function with
@@ -82,7 +91,12 @@ func Test_cosignKeyValidator_ValidateAndResolveDigest(t *testing.T) {
 		require.NoError(t, resp.Body.Close())
 	}
 
-	// Build a validator
+	regURL, err := url.Parse(testRegistry.URL)
+	require.NoError(t, err)
+
+	validators := []*cosignKeyValidator{}
+
+	// Static public key
 	pubKey, err := cryptoutils.UnmarshalPEMToPublicKey(publicKey)
 	require.NoError(t, err)
 	skid, err := cryptoutils.SKID(pubKey)
@@ -90,14 +104,26 @@ func Test_cosignKeyValidator_ValidateAndResolveDigest(t *testing.T) {
 	verifier, err := signature.LoadVerifier(pubKey, hashAlgo)
 	require.NoError(t, err)
 	validator := &cosignKeyValidator{
-		verifier:        verifier,
+		sigVerifier:     verifier,
 		skid:            skid,
-		name:            "test",
+		name:            "test-pubkey",
 		registryOptions: []ociremote.Option{ociremote.WithRemoteOptions(remote.WithTransport(testRegistry.Client().Transport))},
 	}
+	validators = append(validators, validator)
 
-	regURL, err := url.Parse(testRegistry.URL)
-	require.NoError(t, err)
+	// Keyless
+	identities := []cosign.Identity{
+		{
+			Issuer:        "",
+			SubjectRegExp: "",
+		},
+	}
+	validator = &cosignKeyValidator{
+		identities:      identities,
+		name:            "test-keyless",
+		registryOptions: []ociremote.Option{ociremote.WithRemoteOptions(remote.WithTransport(testRegistry.Client().Transport))},
+	}
+	validators = append(validators, validator)
 
 	// Doing the real test: submitting several images to the validator and checking its output
 	tests := []struct {
@@ -177,9 +203,11 @@ func Test_cosignKeyValidator_ValidateAndResolveDigest(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			_, err := validator.ValidateAndResolveDigest(context.Background(), tt.image)
-			tt.assertErr(t, err)
-		})
+		for _, vv := range validators {
+			t.Run(tt.name, func(t *testing.T) {
+				_, err := vv.ValidateAndResolveDigest(context.Background(), tt.image)
+				tt.assertErr(t, err)
+			})
+		}
 	}
 }
