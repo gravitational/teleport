@@ -14,10 +14,25 @@
 
 package aws
 
-import "fmt"
+import (
+	crand "crypto/rand"
+	"encoding/binary"
+	"encoding/hex"
+	"fmt"
+	mrand "math/rand"
+	"time"
+)
 
 func EC2DiscoverySSMDocument(proxy string) string {
-	return fmt.Sprintf(ec2DiscoverySSMDocument, proxy)
+	randomBytes := make([]byte, 4)
+	if _, err := crand.Read(randomBytes); err != nil {
+		// on error from crypto rand fallback to less secure math random
+		mathRand := mrand.New(mrand.NewSource(time.Now().UnixNano()))
+		binary.LittleEndian.PutUint32(randomBytes, mathRand.Uint32())
+	}
+	randString := hex.EncodeToString(randomBytes)
+
+	return fmt.Sprintf(ec2DiscoverySSMDocument, randString, proxy, randString)
 }
 
 const EC2DiscoveryPolicyName = "TeleportEC2Discovery"
@@ -37,7 +52,7 @@ mainSteps:
   name: downloadContent
   inputs:
     sourceType: "HTTP"
-    destinationPath: "/tmp/installTeleport.sh"
+    destinationPath: "/tmp/installTeleport-%s.sh"
     sourceInfo:
       url: "%s/webapi/scripts/installer/{{ scriptName }}"
 - action: aws:runShellScript
@@ -45,5 +60,5 @@ mainSteps:
   inputs:
     timeoutSeconds: '300'
     runCommand:
-      - /bin/sh /tmp/installTeleport.sh "{{ token }}"
+      - /bin/sh /tmp/installTeleport-%s.sh "{{ token }}"
 `
