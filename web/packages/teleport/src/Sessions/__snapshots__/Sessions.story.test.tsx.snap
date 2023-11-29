@@ -482,7 +482,7 @@ exports[`active sessions CTA 1`] = `
       <a
         class="c4"
         height="36px"
-        href="https://goteleport.com/r/upgrade-team?4.4.0-dev&utm_campaign=CTA_ACTIVE_SESSIONS"
+        href="https://goteleport.com/r/upgrade-team?e_4.4.0-dev&utm_campaign=CTA_ACTIVE_SESSIONS"
         kind="primary"
         rel="noreferrer"
         style="text-transform: none;"
@@ -2083,7 +2083,7 @@ exports[`loaded 1`] = `
 </div>
 `;
 
-exports[`moderated sessions CTA 1`] = `
+exports[`moderated sessions CTA for non-enterprise 1`] = `
 .c21 {
   box-sizing: border-box;
   width: 80px;
