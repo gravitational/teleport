@@ -23,6 +23,7 @@ use crate::{
 };
 use ironrdp_pdu::{cast_length, custom_err, other_err, PduResult};
 use ironrdp_rdpdr::pdu::{
+    self,
     efs::{self, NtStatus},
     esc,
 };
@@ -92,6 +93,9 @@ impl FilesystemBackend {
             efs::ServerDriveIoRequest::DeviceWriteRequest(req) => self.handle_device_write_req(req),
             efs::ServerDriveIoRequest::ServerDriveSetInformationRequest(req) => {
                 self.handle_set_information_req(req)
+            }
+            efs::ServerDriveIoRequest::ServerDriveLockControlRequest(req) => {
+                self.handle_lock_req(req)
             }
         }
     }
@@ -509,6 +513,7 @@ impl FilesystemBackend {
         self.tdp_sd_write(req)
     }
 
+    /// Handles an RDP [`efs::ServerDriveSetInformationRequest`] received from the RDP server.
     fn handle_set_information_req(
         &mut self,
         rdp_req: efs::ServerDriveSetInformationRequest,
@@ -566,6 +571,14 @@ impl FilesystemBackend {
                 ))
             )),
         }
+    }
+
+    /// Handles an RDP [`efs::ServerDriveLockControlRequest`] received from the RDP server.
+    fn handle_lock_req(&self, _req: efs::ServerDriveLockControlRequest) -> PduResult<()> {
+        // https://github.com/FreeRDP/FreeRDP/blob/dfa231c0a55b005af775b833f92f6bcd30363d77/channels/drive/client/drive_main.c#L601
+        self.client_handle
+            .write_rdpdr(pdu::RdpdrPdu::EmptyResponse)?;
+        Ok(())
     }
 
     /// Helper function for writing a [`tdp::SharedDirectoryCreateRequest`] to the browser
