@@ -808,6 +808,7 @@ export default function createClient(
           .setStartKey(params.startKey)
           .setSearch(params.search)
           .setQuery(params.query)
+          .setPinnedOnly(params.pinnedOnly)
           .setSearchAsRoles(params.searchAsRoles);
         if (params.sortBy) {
           req.setSortBy(
