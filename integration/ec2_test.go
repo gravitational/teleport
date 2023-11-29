@@ -26,6 +26,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/feature/ec2/imds"
+	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/gravitational/trace"
@@ -141,6 +142,9 @@ func getIID(ctx context.Context, t *testing.T) imds.InstanceIdentityDocument {
 func getCallerIdentity(t *testing.T) *sts.GetCallerIdentityOutput {
 	sess, err := session.NewSessionWithOptions(session.Options{
 		SharedConfigState: session.SharedConfigEnable,
+		Config: aws.Config{
+			EC2MetadataEnableFallback: aws.Bool(false),
+		},
 	})
 	require.NoError(t, err)
 	stsService := sts.New(sess)
