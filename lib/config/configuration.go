@@ -1940,7 +1940,17 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	if len(cfg.WindowsDesktop.Hosts) > 0 {
+		cfg.Log.Warnln("hosts field is deprecated, use static_hosts instead")
+	}
 	cfg.WindowsDesktop.NonADHosts, err = utils.AddrsFromStrings(fc.WindowsDesktop.NonADHosts, defaults.RDPListenPort)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if len(cfg.WindowsDesktop.NonADHosts) > 0 {
+		cfg.Log.Warnln("non_ad_hosts field is deprecated, use static_hosts instead")
+	}
+	cfg.WindowsDesktop.StaticHosts, err = staticHostsWithAddress(fc.WindowsDesktop.StaticHosts, defaults.RDPListenPort)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -2009,6 +2019,23 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	}
 
 	return nil
+}
+
+func staticHostsWithAddress(hosts []WindowsHost, defaultPort int) ([]servicecfg.WindowsHost, error) {
+	var hostsWithAddress []servicecfg.WindowsHost
+	for _, host := range hosts {
+		addr, err := utils.ParseHostPortAddr(host.Address, defaultPort)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		hostsWithAddress = append(hostsWithAddress, servicecfg.WindowsHost{
+			Name:    host.Name,
+			Address: *addr,
+			Labels:  host.Labels,
+			AD:      host.AD,
+		})
+	}
+	return hostsWithAddress, nil
 }
 
 // applyTracingConfig applies file configuration for the "tracing_service" section.
