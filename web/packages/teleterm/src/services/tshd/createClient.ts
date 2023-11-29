@@ -16,6 +16,12 @@
 
 import grpc from '@grpc/grpc-js';
 import * as api from 'gen-proto-js/teleport/lib/teleterm/v1/service_pb';
+import { UserPreferences } from 'gen-proto-js/teleport/userpreferences/v1/userpreferences_pb';
+import {
+  ClusterUserPreferences,
+  PinnedResourcesUserPreferences,
+} from 'gen-proto-js/teleport/userpreferences/v1/cluster_preferences_pb';
+import { UnifiedResourcePreferences } from 'gen-proto-js/teleport/userpreferences/v1/unified_resource_preferences_pb';
 import { TerminalServiceClient } from 'gen-proto-js/teleport/lib/teleterm/v1/service_grpc_pb';
 import {
   AccessRequest,
@@ -854,6 +860,71 @@ export default function createClient(
             });
           }
         );
+      });
+    },
+    getUserPreferences(
+      params: api.GetUserPreferencesRequest.AsObject,
+      abortSignal?: types.TshAbortSignal
+    ): Promise<api.UserPreferences.AsObject> {
+      return withAbort(abortSignal, callRef => {
+        const req = new api.GetUserPreferencesRequest().setClusterUri(
+          params.clusterUri
+        );
+
+        return new Promise((resolve, reject) => {
+          callRef.current = tshd.getUserPreferences(req, (err, response) => {
+            if (err) {
+              reject(err);
+            } else {
+              const res = response.toObject();
+              resolve(res.userPreferences);
+            }
+          });
+        });
+      });
+    },
+    updateUserPreferences(
+      params: api.UpdateUserPreferencesRequest.AsObject,
+      abortSignal?: types.TshAbortSignal
+    ): Promise<void> {
+      const userPreferences = new UserPreferences();
+      if (params.userPreferences.clusterPreferences) {
+        userPreferences.setClusterPreferences(
+          new ClusterUserPreferences().setPinnedResources(
+            new PinnedResourcesUserPreferences().setResourceIdsList(
+              params.userPreferences.clusterPreferences.pinnedResources
+                .resourceIdsList
+            )
+          )
+        );
+      }
+
+      if (params.userPreferences.unifiedResourcePreferences) {
+        userPreferences.setUnifiedResourcePreferences(
+          new UnifiedResourcePreferences()
+            .setDefaultTab(
+              params.userPreferences.unifiedResourcePreferences.defaultTab
+            )
+            .setViewMode(
+              params.userPreferences.unifiedResourcePreferences.viewMode
+            )
+        );
+      }
+
+      return withAbort(abortSignal, callRef => {
+        const req = new api.UpdateUserPreferencesRequest()
+          .setClusterUri(params.clusterUri)
+          .setUserPreferences(userPreferences);
+
+        return new Promise<void>((resolve, reject) => {
+          callRef.current = tshd.updateUserPreferences(req, err => {
+            if (err) {
+              reject(err);
+            } else {
+              resolve();
+            }
+          });
+        });
       });
     },
   };

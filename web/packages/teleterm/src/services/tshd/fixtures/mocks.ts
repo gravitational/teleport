@@ -99,4 +99,6 @@ export class MockTshClient implements types.TshClient {
   getConnectMyComputerNodeName = () => Promise.resolve('');
 
   listUnifiedResources = async () => ({ resources: [], nextKey: '' });
+  getUserPreferences = async () => ({});
+  updateUserPreferences = async () => {};
 }
