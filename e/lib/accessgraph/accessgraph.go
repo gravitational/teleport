@@ -134,11 +134,14 @@ func initializeAndWatchAccessGraph(ctx context.Context, log logrus.FieldLogger, 
 					errc <- startWatching(eventWatcher, authServer)
 				}()
 
+				log.Debug("Sending teleport resources to access graph service")
 				// Send all teleport resources to the access graph service.
 				if err := sendTeleportResources(ctx, stream, authServer); err != nil {
 					log.WithError(err).Error("Failed to send teleport resources to access graph service")
 					return trace.Wrap(err)
 				}
+
+				log.Debug("Done sending teleport resources to access graph service")
 
 				// Marks as ready and send cached resources to TAG
 				if err := eventWatcher.MarkReady(); err != nil {
@@ -260,7 +263,6 @@ func sendRoles(ctx context.Context, authServer *auth.Server, stream accessgraphv
 	}
 
 	for _, role := range roles {
-		logrus.Infof("sending role: %v", role.GetName())
 		r, ok := role.(*types.RoleV6)
 		if !ok {
 			return trace.BadParameter("expected roleV6, got %T", role)
