@@ -62,6 +62,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/secreport"
 	"github.com/gravitational/teleport/api/constants"
+	tcontext "github.com/gravitational/teleport/api/context"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
@@ -1550,7 +1551,7 @@ func (a *Server) SetEmitter(emitter apievents.Emitter) {
 // emitter rather than falling back to the implementation from [Services] (using
 // the audit log directly, which is almost never what you want).
 func (a *Server) EmitAuditEvent(ctx context.Context, e apievents.AuditEvent) error {
-	return trace.Wrap(a.emitter.EmitAuditEvent(ctx, e))
+	return trace.Wrap(a.emitter.EmitAuditEvent(tcontext.WithoutCancel(ctx), e))
 }
 
 // SetUsageReporter sets the server's usage reporter. Note that this is only

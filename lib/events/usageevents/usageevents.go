@@ -58,6 +58,7 @@ func (u *UsageLogger) reportAuditEvent(ctx context.Context, event apievents.Audi
 }
 
 func (u *UsageLogger) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
+	ctx = tcontext.WithoutCancel(ctx)
 	if err := u.reportAuditEvent(ctx, event); err != nil {
 		// We don't ever want this to fail or bubble up errors, so the best we
 		// can do is complain to the logs.
