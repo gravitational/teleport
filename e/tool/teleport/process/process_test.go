@@ -28,7 +28,8 @@ func TestProxyWithoutLicense(t *testing.T) {
 			Enabled:    false,
 			Preference: authPreference,
 		},
-		Log: utils.WrapLogger(logrus.WithField("test", t.Name())),
+		Log:    utils.WrapLogger(logrus.WithField("test", t.Name())),
+		Logger: utils.NewSlogLoggerForTests().With("test", t.Name()),
 	}
 
 	config.SetAuthServerAddress(*utils.MustParseAddr("tcp://127.0.0.1:8080"))
@@ -66,6 +67,7 @@ func TestModulesSetBeforeAuth(t *testing.T) {
 		},
 		Hostname: "localhost",
 		Log:      utils.WrapLogger(logrus.WithField("test", t.Name())),
+		Logger:   utils.NewSlogLoggerForTests().With("test", t.Name()),
 	}
 
 	config.SetAuthServerAddress(*utils.MustParseAddr("tcp://127.0.0.1:8080"))
@@ -99,6 +101,7 @@ func TestMissingLicenseError(t *testing.T) {
 		},
 		Hostname: "localhost",
 		Log:      utils.WrapLogger(logrus.WithField("test", t.Name())),
+		Logger:   utils.NewSlogLoggerForTests().With("test", t.Name()),
 	}
 
 	config.SetAuthServerAddress(*utils.MustParseAddr("tcp://127.0.0.1:8080"))
