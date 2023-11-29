@@ -1732,7 +1732,7 @@
       "aws_secret_access_key": "zyxw9876-this-is-an-example"
     },
     "cloud": {
-      "version": "14.1.3",
+      "version": "14.2.0",
       "major_version": "14",
       "sla": {
         "monthly_percentage": "99.9%",
