@@ -690,6 +690,13 @@ const (
 
 	// SecReportsReportRunEvent is emitted when a security report is run.
 	SecReportsReportRunEvent = "secreports.report.run"
+
+	// ExternalAuditStorageEnableEvent is emitted when External Audit Storage is
+	// enabled.
+	ExternalAuditStorageEnableEvent = "external_audit_storage.enable"
+	// ExternalAuditStorageDisableEvent is emitted when External Audit Storage is
+	// disabled.
+	ExternalAuditStorageDisableEvent = "external_audit_storage.disable"
 )
 
 const (

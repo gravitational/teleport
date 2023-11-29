@@ -73,7 +73,7 @@ func TestNewSliceErrors(t *testing.T) {
 	ctx := context.Background()
 	expectedErr := errors.New("test upload error")
 	streamer, err := events.NewProtoStreamer(events.ProtoStreamerConfig{
-		Uploader: &mockUploader{reserveUploadPartError: expectedErr},
+		Uploader: &eventstest.MockUploader{ReserveUploadPartError: expectedErr},
 	})
 	require.NoError(t, err)
 
@@ -95,16 +95,16 @@ func TestNewStreamErrors(t *testing.T) {
 	t.Run("CreateAuditStream", func(t *testing.T) {
 		for _, tt := range []struct {
 			desc        string
-			uploader    *mockUploader
+			uploader    *eventstest.MockUploader
 			expectedErr error
 		}{
 			{
 				desc:     "CreateUploadError",
-				uploader: &mockUploader{createUploadError: expectedErr},
+				uploader: &eventstest.MockUploader{CreateUploadError: expectedErr},
 			},
 			{
 				desc:     "ReserveUploadPartError",
-				uploader: &mockUploader{reserveUploadPartError: expectedErr},
+				uploader: &eventstest.MockUploader{ReserveUploadPartError: expectedErr},
 			},
 		} {
 			t.Run(tt.desc, func(t *testing.T) {
@@ -126,16 +126,16 @@ func TestNewStreamErrors(t *testing.T) {
 	t.Run("ResumeAuditStream", func(t *testing.T) {
 		for _, tt := range []struct {
 			desc        string
-			uploader    *mockUploader
+			uploader    *eventstest.MockUploader
 			expectedErr error
 		}{
 			{
 				desc:     "ListPartsError",
-				uploader: &mockUploader{listPartsError: expectedErr},
+				uploader: &eventstest.MockUploader{ListPartsError: expectedErr},
 			},
 			{
 				desc:     "ReserveUploadPartError",
-				uploader: &mockUploader{reserveUploadPartError: expectedErr},
+				uploader: &eventstest.MockUploader{ReserveUploadPartError: expectedErr},
 			},
 		} {
 			t.Run(tt.desc, func(t *testing.T) {
@@ -192,36 +192,6 @@ func TestProtoStreamLargeEvent(t *testing.T) {
 		})
 	}
 	require.NoError(t, stream.Complete(ctx))
-}
-
-type mockUploader struct {
-	events.MultipartUploader
-	createUploadError      error
-	reserveUploadPartError error
-	listPartsError         error
-}
-
-func (m *mockUploader) CreateUpload(ctx context.Context, sessionID session.ID) (*events.StreamUpload, error) {
-	if m.createUploadError != nil {
-		return nil, m.createUploadError
-	}
-
-	return &events.StreamUpload{
-		ID:        uuid.New().String(),
-		SessionID: sessionID,
-	}, nil
-}
-
-func (m *mockUploader) ReserveUploadPart(_ context.Context, _ events.StreamUpload, _ int64) error {
-	return m.reserveUploadPartError
-}
-
-func (m *mockUploader) ListParts(_ context.Context, _ events.StreamUpload) ([]events.StreamPart, error) {
-	if m.listPartsError != nil {
-		return nil, m.listPartsError
-	}
-
-	return []events.StreamPart{}, nil
 }
 
 func makeQueryEvent(id string, query string) *apievents.DatabaseSessionQuery {
