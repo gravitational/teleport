@@ -127,13 +127,13 @@ func submitOnce(ctx context.Context, c SubmitterConfig) {
 	}
 
 	freeBatchSize := submitBatchSize - len(userActivityReports)
-	resourceCountsReports, err := svc.listResourceCountsReports(ctx, freeBatchSize)
+	resourceActivityReports, err := svc.listResourceActivityReports(ctx, freeBatchSize)
 	if err != nil {
 		c.Log.WithError(err).Error("Failed to load resource counts reports for submission.")
 		return
 	}
 
-	totalReportCount := len(userActivityReports) + len(resourceCountsReports)
+	totalReportCount := len(userActivityReports) + len(resourceActivityReports)
 
 	if totalReportCount < 1 {
 		err := ClearAlert(ctx, c.Status)
@@ -159,8 +159,8 @@ func submitOnce(ctx context.Context, c SubmitterConfig) {
 	defer cancel()
 
 	batchUUID, err := c.Submitter(lockCtx, &prehogv1.SubmitUsageReportsRequest{
-		UserActivity:   userActivityReports,
-		ResourceCounts: resourceCountsReports,
+		UserActivity:     userActivityReports,
+		ResourceActivity: resourceActivityReports,
 	})
 	if err != nil {
 		c.Log.WithError(err).WithFields(logrus.Fields{
@@ -202,8 +202,8 @@ func submitOnce(ctx context.Context, c SubmitterConfig) {
 			lastErr = err
 		}
 	}
-	for _, report := range resourceCountsReports {
-		if err := svc.deleteResourceCountReport(ctx, report); err != nil {
+	for _, report := range resourceActivityReports {
+		if err := svc.deleteResourceActivityReport(ctx, report); err != nil {
 			lastErr = err
 		}
 	}

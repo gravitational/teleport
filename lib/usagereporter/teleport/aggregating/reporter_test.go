@@ -98,7 +98,7 @@ func TestReporter(t *testing.T) {
 	r.ingested = nil
 
 	clk.BlockUntil(1)
-	clk.Advance(reportGranularity)
+	clk.Advance(userActivityReportGranularity)
 
 	require.Equal(t, types.OpPut, recvBackendEvent().Type)
 

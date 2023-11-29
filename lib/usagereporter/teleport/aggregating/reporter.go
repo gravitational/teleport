@@ -32,9 +32,10 @@ import (
 )
 
 const (
-	reportGranularity = 15 * time.Minute
-	rollbackGrace     = time.Minute
-	reportTTL         = 60 * 24 * time.Hour
+	userActivityReportGranularity = 15 * time.Minute
+	resourceReportGranularity     = 15 * time.Minute
+	rollbackGrace                 = time.Minute
+	reportTTL                     = 60 * 24 * time.Hour
 
 	checkInterval = time.Minute
 )
@@ -201,9 +202,9 @@ func (r *Reporter) run(ctx context.Context) {
 	ticker := r.clock.NewTicker(checkInterval)
 	defer ticker.Stop()
 
-	startTime := r.clock.Now().UTC().Truncate(reportGranularity)
-	windowStart := startTime.Add(-rollbackGrace)
-	windowEnd := startTime.Add(reportGranularity)
+	userActivityStartTime := r.clock.Now().UTC().Truncate(userActivityReportGranularity)
+	userActivityWindowStart := userActivityStartTime.Add(-rollbackGrace)
+	userActivityWindowEnd := userActivityStartTime.Add(userActivityReportGranularity)
 
 	userActivity := make(map[string]*prehogv1.UserActivityRecord)
 
@@ -216,14 +217,17 @@ func (r *Reporter) run(ctx context.Context) {
 		return record
 	}
 
+	resourceUsageStartTime := r.clock.Now().UTC().Truncate(resourceReportGranularity)
+	resourceUsageWindowStart := resourceUsageStartTime.Add(-rollbackGrace)
+	resourceUsageWindowEnd := resourceUsageStartTime.Add(resourceReportGranularity)
+
 	// ResourcePresences is a map of resource kinds to sets of resource names.
 	// As there may be multiple heartbeats for the same resource, we use a set to count each once.
-	resourcePresences := make(map[prehogv1.ResourceKind](*map[string]interface{}))
-	resourcePresence := func(kind prehogv1.ResourceKind) *map[string]interface{} {
+	resourcePresences := make(map[prehogv1.ResourceKind]map[string]struct{})
+	resourcePresence := func(kind prehogv1.ResourceKind) map[string]struct{} {
 		record := resourcePresences[kind]
 		if record == nil {
-			record = &map[string]interface{}{}
-			resourcePresences[kind] = record
+			resourcePresences[kind] = make(map[string]struct{})
 		}
 		return record
 	}
@@ -244,19 +248,34 @@ Ingest:
 			break Ingest
 		}
 
-		if now := r.clock.Now().UTC(); now.Before(windowStart) || !now.Before(windowEnd) {
+		if now := r.clock.Now().UTC(); now.Before(userActivityWindowStart) || !now.Before(userActivityWindowEnd) {
 			if len(userActivity) > 0 {
 				wg.Add(1)
 				go func(ctx context.Context, startTime time.Time, userActivity map[string]*prehogv1.UserActivityRecord) {
 					defer wg.Done()
 					r.persistUserActivity(ctx, startTime, userActivity)
-				}(ctx, startTime, userActivity)
+				}(ctx, userActivityStartTime, userActivity)
 			}
 
-			startTime = now.Truncate(reportGranularity)
-			windowStart = startTime.Add(-rollbackGrace)
-			windowEnd = startTime.Add(reportGranularity)
+			userActivityStartTime = now.Truncate(userActivityReportGranularity)
+			userActivityWindowStart = userActivityStartTime.Add(-rollbackGrace)
+			userActivityWindowEnd = userActivityStartTime.Add(userActivityReportGranularity)
 			userActivity = make(map[string]*prehogv1.UserActivityRecord, len(userActivity))
+		}
+
+		if now := r.clock.Now().UTC(); now.Before(resourceUsageWindowStart) || !now.Before(resourceUsageWindowEnd) {
+			if len(resourcePresences) > 0 {
+				wg.Add(1)
+				go func(ctx context.Context, startTime time.Time, resourcePresences map[prehogv1.ResourceKind]map[string]struct{}) {
+					defer wg.Done()
+					r.persistResourceActivity(ctx, startTime, resourcePresences)
+				}(ctx, userActivityStartTime, resourcePresences)
+			}
+
+			resourceUsageStartTime = now.Truncate(resourceReportGranularity)
+			resourceUsageWindowStart = resourceUsageStartTime.Add(-rollbackGrace)
+			resourceUsageWindowEnd = resourceUsageStartTime.Add(resourceReportGranularity)
+			resourcePresences = make(map[prehogv1.ResourceKind]map[string]struct{}, len(resourcePresences))
 		}
 
 		switch te := ae.(type) {
@@ -287,7 +306,7 @@ Ingest:
 			userRecord(te.UserName).SftpEvents++
 		case *usagereporter.ResourceHeartbeatEvent:
 			// ResourceKind is the same int32 in both prehogv1 and prehogv1alpha1.
-			(*resourcePresence(prehogv1.ResourceKind(te.Kind)))[te.Name] = struct{}{}
+			resourcePresence(prehogv1.ResourceKind(te.Kind))[te.Name] = struct{}{}
 		}
 
 		if ae != nil && r.ingested != nil {
@@ -296,11 +315,11 @@ Ingest:
 	}
 
 	if len(userActivity) > 0 {
-		r.persistUserActivity(ctx, startTime, userActivity)
+		r.persistUserActivity(ctx, userActivityStartTime, userActivity)
 	}
 
 	if len(resourcePresences) > 0 {
-		r.persistResourceCounts(ctx, startTime, resourcePresences)
+		r.persistResourceActivity(ctx, userActivityStartTime, resourcePresences)
 	}
 
 	wg.Wait()
@@ -341,16 +360,19 @@ func (r *Reporter) persistUserActivity(ctx context.Context, startTime time.Time,
 	}
 }
 
-func (r *Reporter) persistResourceCounts(ctx context.Context, startTime time.Time, resourcePresences map[prehogv1.ResourceKind](*map[string]interface{})) {
-	records := make([]*prehogv1.ResourceCountRecord, 0, len(resourcePresences))
+func (r *Reporter) persistResourceActivity(ctx context.Context, startTime time.Time, resourcePresences map[prehogv1.ResourceKind]map[string]struct{}) {
+	records := make([]*prehogv1.ResourceActivityRecord, 0, len(resourcePresences))
 	for kind, set := range resourcePresences {
-		record := &prehogv1.ResourceCountRecord{}
+		record := &prehogv1.ResourceActivityRecord{}
 		record.ResourceKind = kind
-		record.Count = uint64(len(*set))
+		record.ResourceName = make([][]byte, 0, len(set))
+		for name := range set {
+			record.ResourceName = append(record.ResourceName, r.anonymizer.AnonymizeNonEmpty(name))
+		}
 		records = append(records, record)
 	}
 
-	report, err := prepareResourceCountsReport(r.clusterName, r.hostID, startTime, resourceCounts)
+	report, err := prepareResourceActivityReport(r.clusterName, r.hostID, startTime, records)
 	if err != nil {
 		r.log.WithError(err).WithFields(logrus.Fields{
 			"start_time": startTime,
@@ -358,7 +380,7 @@ func (r *Reporter) persistResourceCounts(ctx context.Context, startTime time.Tim
 		return
 	}
 
-	if err := r.svc.upsertResourceCountsReport(ctx, report, reportTTL); err != nil {
+	if err := r.svc.upsertResourceActivityReport(ctx, report, reportTTL); err != nil {
 		r.log.WithError(err).WithFields(logrus.Fields{
 			"start_time": startTime,
 		}).Error("Failed to persist resource counts report, dropping data.")

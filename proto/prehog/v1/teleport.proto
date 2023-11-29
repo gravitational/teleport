@@ -64,6 +64,7 @@ message UserActivityRecord {
 }
 
 // the kind of a "resource" (e.g. a node, a pod, a service, etc.)
+// Keep in sync with prehog/v1alpha/teleport.proto
 enum ResourceKind {
   RESOURCE_KIND_UNSPECIFIED = 0;
 
@@ -97,7 +98,7 @@ enum ResourceKind {
   RESOURCE_KIND_NODE_OPENSSH_EICE = 7;
 }
 
-message ResourceCountReport {
+message ResourceActivityReport {
   // randomly generated UUID for this specific report, 16 bytes (in string order)
   bytes report_uuid = 1;
   // anonymized, 32 bytes (HMAC-SHA-256)
@@ -108,21 +109,22 @@ message ResourceCountReport {
   // intended to be at most 15 minutes
   google.protobuf.Timestamp start_time = 4;
 
-  repeated ResourceCountRecord records = 5;
+  repeated ResourceActivityRecord records = 5;
 }
 
-message ResourceCountRecord {
+// Counts all resources of one kind that were active during the time window
+// to track the number of active resources in a cluster over time.
+message ResourceActivityRecord {
   // the kind of resource
   ResourceKind resource_kind = 1;
-  // the number of times this resource was accessed
-  uint64 count = 2;
+  // anonymized resource names, 32 bytes each (HMAC-SHA-256)
+  repeated bytes resource_name = 2;
 }
 
 message SubmitUsageReportsRequest {
   // at most 10 reports of all kinds in a single RPC, each shouldn't exceed 128KiB or so
   repeated UserActivityReport user_activity = 1;
-  // in most cases, there will be only one resource counts report
-  repeated ResourceCountReport resource_counts = 2;
+  repeated ResourceActivityReport resource_activity = 2;
 }
 message SubmitUsageReportsResponse {
   // randomly generated UUID for this specific batch, 16 bytes (in string order)
