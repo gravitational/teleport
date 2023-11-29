@@ -37,6 +37,11 @@
           "title": "Teleport Assist",
           "slug": "/ai-assist/",
           "forScopes": ["oss", "team"]
+        },
+        {
+          "title": "Access Graph",
+          "slug": "/access-graph/",
+          "forScopes": ["team"]
         }
       ]
     },
