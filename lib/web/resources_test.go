@@ -608,7 +608,6 @@ type mockedResourceAPIGetter struct {
 	mockGetRole               func(ctx context.Context, name string) (types.Role, error)
 	mockGetRoles              func(ctx context.Context) ([]types.Role, error)
 	mockUpsertRole            func(ctx context.Context, role types.Role) (types.Role, error)
-	mockUpsertGithubConnector func(ctx context.Context, connector types.GithubConnector) error
 	mockGetGithubConnectors   func(ctx context.Context, withSecrets bool) ([]types.GithubConnector, error)
 	mockGetGithubConnector    func(ctx context.Context, id string, withSecrets bool) (types.GithubConnector, error)
 	mockDeleteGithubConnector func(ctx context.Context, id string) error
@@ -639,14 +638,6 @@ func (m *mockedResourceAPIGetter) UpsertRole(ctx context.Context, role types.Rol
 	}
 
 	return nil, trace.NotImplemented("mockUpsertRole not implemented")
-}
-
-func (m *mockedResourceAPIGetter) UpsertGithubConnector(ctx context.Context, connector types.GithubConnector) error {
-	if m.mockUpsertGithubConnector != nil {
-		return m.mockUpsertGithubConnector(ctx, connector)
-	}
-
-	return trace.NotImplemented("mockUpsertGithubConnector not implemented")
 }
 
 func (m *mockedResourceAPIGetter) GetGithubConnectors(ctx context.Context, withSecrets bool) ([]types.GithubConnector, error) {
