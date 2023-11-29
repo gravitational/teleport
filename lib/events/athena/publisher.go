@@ -100,6 +100,7 @@ func newPublisherFromAthenaConfig(cfg Config) *publisher {
 // For large events, payload is publihsed to S3, and on SNS there is only passed
 // location on S3.
 func (p *publisher) EmitAuditEvent(ctx context.Context, in apievents.AuditEvent) error {
+	ctx = context.WithoutCancel(ctx)
 	// Teleport emitter layer above makes sure that they are filled.
 	// We fill it just to be sure in case some problems with layer above, it's
 	// better to generate it, then skip event.
