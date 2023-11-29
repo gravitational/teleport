@@ -23,7 +23,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -43,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/lib/pam"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/shell"
+	"github.com/gravitational/teleport/lib/srv/tcpip"
 	"github.com/gravitational/teleport/lib/srv/uacc"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
@@ -159,6 +159,10 @@ type ExecCommand struct {
 	// the parent process. These files start at file descriptor 3 of the
 	// child process, and are only valid for processes without a terminal.
 	ExtraFilesLen int `json:"extra_files_len"`
+
+	// ForwardSocketName is the name of the socket that has been allocated for the child to
+	// server requests on (only used in direct-tcpip forwarding command).
+	ForwardSocketName string `json:"socket_name"`
 }
 
 // PAMConfig represents all the configuration data that needs to be passed to the child.
@@ -664,15 +668,23 @@ func RunForward() (errw io.Writer, code int, err error) {
 		return errorWriter, teleport.RemoteCommandFailure, trace.NotFound(err.Error())
 	}
 
-	// Connect to the target host.
-	conn, err := net.Dial("tcp", c.DestinationAddress)
+	// build forwarder from first extra file that was passed to command
+	ffd := os.NewFile(FirstExtraFile, c.ForwardSocketName)
+	if ffd == nil {
+		return errorWriter, teleport.RemoteCommandFailure, trace.BadParameter("missing socket fd")
+	}
+
+	// set up forwarder. 3 minute inactivity timeout is arbitrary, but gives us enough
+	// wiggle room to miss a few keepalives from the parent without persisting so long
+	// that a large number of orphan forwarders are likely to be able to build up under
+	// normal usage conditions.
+	forwarder, err := tcpip.NewForwarder(ffd, 3*time.Minute /* inactivity timeout */)
 	if err != nil {
 		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 	}
-	defer conn.Close()
+	defer forwarder.Close()
 
-	err = utils.ProxyConn(context.Background(), utils.CombineReadWriteCloser(os.Stdin, os.Stdout), conn)
-	if err != nil && !errors.Is(err, io.EOF) {
+	if err := forwarder.Run(); err != nil {
 		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 	}
 

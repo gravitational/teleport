@@ -54,6 +54,10 @@ type ConnectionContext struct {
 	// when handling node-side connections for users with MaxSessions applied.
 	sessions int64
 
+	// tcpipForwarder is a lazily initialized closure that dials direct-tcpip targets
+	// via a child process.
+	tcpipForwarder func(string) (net.Conn, error)
+
 	// closers is a list of io.Closer that will be called when session closes
 	// this is handy as sometimes client closes session, in this case resources
 	// will be properly closed and deallocated, otherwise they could be kept hanging.
@@ -221,6 +225,20 @@ func (c *ConnectionContext) UpdateClientActivity() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.clientLastActive = c.clock.Now().UTC()
+}
+
+// SetDirectTCPIPForwarder registers a DirectTCPIPForwarder.
+func (c *ConnectionContext) SetDirectTCPIPForwarder(f func(string) (net.Conn, error)) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.tcpipForwarder = f
+}
+
+// GetDirectTCPIPForwarder gets the registered DirectTCPIPForwarder if one exists.
+func (c *ConnectionContext) GetDirectTCPIPForwarder() (f func(string) (net.Conn, error), ok bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.tcpipForwarder, c.tcpipForwarder != nil
 }
 
 // AddCloser adds any closer in ctx that will be called

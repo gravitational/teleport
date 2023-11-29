@@ -424,6 +424,10 @@ type ServerContext struct {
 	// populated for port forwarding requests.
 	DstAddr string
 
+	// ForwardSocketName is the name of the socket that will be used by the parent to
+	// pass direct-tcpip requests to the child.
+	ForwardSocketName string
+
 	// allowFileCopying controls if remote file operations via SCP/SFTP are allowed
 	// by the server.
 	AllowFileCopying bool
@@ -1171,6 +1175,7 @@ func (c *ServerContext) ExecCommand() (*ExecCommand, error) {
 		IsTestStub:            c.IsTestStub,
 		UaccMetadata:          *uaccMetadata,
 		X11Config:             c.getX11Config(),
+		ForwardSocketName:     c.ForwardSocketName,
 	}, nil
 }
 
