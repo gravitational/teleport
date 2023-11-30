@@ -14,10 +14,15 @@
  * limitations under the License.
  */
 
-import React from 'react';
+import React, { PropsWithChildren } from 'react';
 import '@testing-library/jest-dom';
 import { fireEvent, createEvent, render, screen } from '@testing-library/react';
 import { renderHook, act } from '@testing-library/react-hooks';
+
+import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
+
+import { IAppContext } from 'teleterm/ui/types';
+import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 
 import { SearchContextProvider, useSearchContext } from './SearchContext';
 
@@ -45,9 +50,7 @@ describe('pauseUserInteraction', () => {
     const inputFocus = jest.fn();
     const onWindowClick = jest.fn();
     const { result } = renderHook(() => useSearchContext(), {
-      wrapper: ({ children }) => (
-        <SearchContextProvider>{children}</SearchContextProvider>
-      ),
+      wrapper: ({ children }) => <Wrapper>{children}</Wrapper>,
     });
     result.current.inputRef.current = {
       focus: inputFocus,
@@ -88,9 +91,7 @@ describe('addWindowEventListener', () => {
   it('returns a cleanup function', () => {
     const onWindowClick = jest.fn();
     const { result } = renderHook(() => useSearchContext(), {
-      wrapper: ({ children }) => (
-        <SearchContextProvider>{children}</SearchContextProvider>
-      ),
+      wrapper: ({ children }) => <Wrapper>{children}</Wrapper>,
     });
 
     const { cleanup } = result.current.addWindowEventListener(
@@ -118,9 +119,7 @@ describe('addWindowEventListener', () => {
     });
 
     const { result } = renderHook(() => useSearchContext(), {
-      wrapper: ({ children }) => (
-        <SearchContextProvider>{children}</SearchContextProvider>
-      ),
+      wrapper: ({ children }) => <Wrapper>{children}</Wrapper>,
     });
 
     let pauseInteractionPromise;
@@ -162,9 +161,11 @@ describe('open', () => {
       <>
         <input data-testid="other-input" />
 
-        <SearchContextProvider>
-          <SearchInput />
-        </SearchContextProvider>
+        <MockAppContextProvider>
+          <SearchContextProvider>
+            <SearchInput />
+          </SearchContextProvider>
+        </MockAppContextProvider>
       </>
     );
 
@@ -186,9 +187,7 @@ describe('close', () => {
       focus: jest.fn(),
     } as unknown as HTMLInputElement;
     const { result } = renderHook(() => useSearchContext(), {
-      wrapper: ({ children }) => (
-        <SearchContextProvider>{children}</SearchContextProvider>
-      ),
+      wrapper: ({ children }) => <Wrapper>{children}</Wrapper>,
     });
 
     act(() => {
@@ -209,9 +208,7 @@ describe('closeWithoutRestoringFocus', () => {
       focus: jest.fn(),
     } as unknown as HTMLInputElement;
     const { result } = renderHook(() => useSearchContext(), {
-      wrapper: ({ children }) => (
-        <SearchContextProvider>{children}</SearchContextProvider>
-      ),
+      wrapper: ({ children }) => <Wrapper>{children}</Wrapper>,
     });
 
     act(() => {
@@ -225,3 +222,125 @@ describe('closeWithoutRestoringFocus', () => {
     expect(previouslyActive.focus).not.toHaveBeenCalled();
   });
 });
+
+test('search bar state is adjusted to the active document', () => {
+  const rootClusterUri = '/clusters/localhost';
+  const appContext = new MockAppContext();
+  appContext.workspacesService.setState(draftState => {
+    draftState.rootClusterUri = rootClusterUri;
+    draftState.workspaces[rootClusterUri] = {
+      localClusterUri: rootClusterUri,
+      documents: [],
+      location: undefined,
+      accessRequests: undefined,
+    };
+  });
+  const docService =
+    appContext.workspacesService.getActiveWorkspaceDocumentService();
+  const { result } = renderHook(() => useSearchContext(), {
+    wrapper: ({ children }) => (
+      <Wrapper appContext={appContext}>{children}</Wrapper>
+    ),
+  });
+
+  // initial state, no document
+  expect(result.current.inputValue).toBe('');
+  expect(result.current.filters).toEqual([]);
+  expect(result.current.advancedSearchEnabled).toBe(false);
+
+  // document changes to the cluster document
+  act(() => {
+    const clusterDoc = docService.createClusterDocument({
+      clusterUri: rootClusterUri,
+      queryParams: {
+        search: 'foo',
+        resourceKinds: ['db'],
+        sort: { dir: 'ASC', fieldName: 'name' },
+        advancedSearchEnabled: true,
+      },
+    });
+    docService.add(clusterDoc);
+    docService.open(clusterDoc.uri);
+  });
+
+  expect(result.current.inputValue).toBe('foo');
+  expect(result.current.filters).toEqual([
+    { filter: 'resource-type', resourceType: 'db' },
+  ]);
+  expect(result.current.advancedSearchEnabled).toBe(true);
+
+  // document changes to another cluster document
+  act(() => {
+    const clusterDoc = docService.createClusterDocument({
+      clusterUri: rootClusterUri,
+      queryParams: {
+        search: 'bar',
+        resourceKinds: ['kube_cluster'],
+        sort: { dir: 'ASC', fieldName: 'name' },
+        advancedSearchEnabled: false,
+      },
+    });
+    docService.add(clusterDoc);
+    docService.open(clusterDoc.uri);
+  });
+
+  expect(result.current.inputValue).toBe('bar');
+  expect(result.current.filters).toEqual([
+    { filter: 'resource-type', resourceType: 'kube_cluster' },
+  ]);
+  expect(result.current.advancedSearchEnabled).toBe(false);
+
+  // document changes to a non-cluster document
+  act(() => {
+    const clusterDoc = docService.createTshNodeDocument(
+      '/clusters/abc/servers/bar',
+      { origin: 'search_bar' }
+    );
+    docService.add(clusterDoc);
+    docService.open(clusterDoc.uri);
+  });
+
+  expect(result.current.inputValue).toBe('');
+  expect(result.current.filters).toEqual([]);
+  expect(result.current.advancedSearchEnabled).toBe(false);
+
+  // document changes to a cluster document
+  act(() => {
+    const clusterDoc = docService.createClusterDocument({
+      clusterUri: rootClusterUri,
+      queryParams: {
+        search: 'bar',
+        resourceKinds: ['kube_cluster'],
+        sort: { dir: 'ASC', fieldName: 'name' },
+        advancedSearchEnabled: false,
+      },
+    });
+    docService.add(clusterDoc);
+    docService.open(clusterDoc.uri);
+  });
+
+  expect(result.current.inputValue).toBe('bar');
+  expect(result.current.filters).toEqual([
+    { filter: 'resource-type', resourceType: 'kube_cluster' },
+  ]);
+  expect(result.current.advancedSearchEnabled).toBe(false);
+
+  // closing all documents
+  act(() => {
+    docService.getDocuments().forEach(d => {
+      docService.close(d.uri);
+    });
+  });
+
+  expect(result.current.inputValue).toBe('');
+  expect(result.current.filters).toEqual([]);
+  expect(result.current.advancedSearchEnabled).toBe(false);
+});
+
+function Wrapper(props: PropsWithChildren<{ appContext?: IAppContext }>) {
+  return (
+    <MockAppContextProvider appContext={props.appContext}>
+      <SearchContextProvider>{props.children}</SearchContextProvider>
+    </MockAppContextProvider>
+  );
+}

@@ -20,7 +20,6 @@ import renderHook from 'design/utils/renderHook';
 import { useTabShortcuts } from 'teleterm/ui/TabHost/useTabShortcuts';
 import {
   Document,
-  DocumentCluster,
   DocumentsService,
 } from 'teleterm/ui/services/workspacesService/documentsService';
 import {
@@ -31,6 +30,8 @@ import {
 import AppContextProvider from 'teleterm/ui/appContextProvider';
 import { WorkspacesService } from 'teleterm/ui/services/workspacesService';
 import AppContext from 'teleterm/ui/appContext';
+
+import { makeDocumentCluster } from 'teleterm/ui/services/workspacesService/documentsService/testHelpers';
 
 import { getEmptyPendingAccessRequest } from '../services/workspacesService/accessRequestsService';
 
@@ -71,30 +72,22 @@ function getMockDocuments(): Document[] {
       targetUser: 'bar',
       origin: 'resource_table',
     },
-    {
-      kind: 'doc.cluster',
+    makeDocumentCluster({
       uri: '/docs/test_uri_6',
       title: 'Test 6',
-      clusterUri: '/clusters/foo',
-    },
-    {
-      kind: 'doc.cluster',
+    }),
+    makeDocumentCluster({
       uri: '/docs/test_uri_7',
       title: 'Test 7',
-      clusterUri: '/clusters/test_uri',
-    },
-    {
-      kind: 'doc.cluster',
+    }),
+    makeDocumentCluster({
       uri: '/docs/test_uri_8',
       title: 'Test 8',
-      clusterUri: '/clusters/test_uri_8',
-    },
-    {
-      kind: 'doc.cluster',
+    }),
+    makeDocumentCluster({
       uri: '/docs/test_uri_9',
       title: 'Test 9',
-      clusterUri: '/clusters/test_uri_9',
-    },
+    }),
   ];
 }
 
@@ -226,12 +219,7 @@ test('open new tab', () => {
   const { emitKeyboardShortcutEvent, docsService } = getTestSetup({
     documents: [],
   });
-  const mockedClusterDocument: DocumentCluster = {
-    clusterUri: '/clusters/test',
-    uri: '/docs/test',
-    title: 'Test',
-    kind: 'doc.cluster',
-  };
+  const mockedClusterDocument = makeDocumentCluster();
   docsService.createClusterDocument = () => mockedClusterDocument;
   emitKeyboardShortcutEvent({ action: 'newTab' });
 
