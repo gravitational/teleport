@@ -52,12 +52,19 @@ client and server must clearly define:
 
 Additionally, reusing credentials will be limited to specific scopes where it
 is required. For now, this is only "admin actions", so any other scope will be
-forbidden from reusing webauthn credentials by the Auth server. Sensitive operations
-like "login" and "recovery" must never allow reuse.
+forbidden from reusing webauthn credentials by the Auth server.
+
+The Auth Server will also forbid reuse for specific sensitive admin actions.
+
+- Generating user and host certificates
+- Changes to the CA, including rotation
+- Access requests reviews
+
+Sensitive operations like "login" and "recovery" must never allow reuse.
 
 ### Proto
 
-```proto
+```diff
 // webauthn.proto
 
 message SessionData {
@@ -67,29 +74,38 @@ message SessionData {
   bool resident_key = 4 [(gogoproto.jsontag) = "residentKey,omitempty"];
   string user_verification = 5 [(gogoproto.jsontag) = "userVerification,omitempty"];
 
-  // new:
-  // Scope authorized by this webauthn session. Ex: "login".
-  Scope scope = 6 [(gogoproto.jsontag) = "scope,omitempty"];
-  // UsesRemaining is a count of how many more times this session can be used for authentication
-  // before the session expires and is deleted. When set to 0 (default) or 1, the session will
-  // be deleted after the first authentication.
-  int64 uses_remaining = 7;
++  // Scope authorized by this webauthn session.
++  ChallengeScope scope = 6 [(gogoproto.jsontag) = "scope,omitempty"];
++  // UsesRemaining is a count of how many more times this session can be used for authentication
++  // before the session expires and is deleted. When set to 0 (default) or 1, the session will
++  // be deleted after the first authentication.
++  int64 uses_remaining = 7;
 }
 
-// Scope is a scope authorized by a webauthn session.
-enum Scope {
-  SCOPE_UNSPECIFIED = 0;
-  SCOPE_LOGIN = 1;
-  SCOPE_PASSWORDLESS_LOGIN = 2;
-  // MFA device management
-  SCOPE_MANAGE_DEVICES = 3;
-  // Account recovery - reset password, devices, etc.
-  SCOPE_RECOVERY = 4;
-  // Used for per-session MFA and moderated session presence checks
-  SCOPE_SESSION = 5;
-  SCOPE_HEADLESS = 6;
-  SCOPE_ADMIN_ACTION = 7;
-}
++// Scope is a scope authorized by a webauthn challenge resolution.
++enum ChallengeScope {
++  SCOPE_UNSPECIFIED = 0;
++  // Standard webauthn login.
++  SCOPE_LOGIN = 1;
++  // Passwordless webauthn login.
++  SCOPE_PASSWORDLESS_LOGIN = 2;
++  // MFA device management.
++  SCOPE_MANAGE_DEVICES = 3;
++  // Account recovery.
++  SCOPE_RECOVERY = 4;
++  // Used for per-session MFA and moderated session presence checks.
++  SCOPE_SESSION = 5;
++  // Headless login approval.
++  SCOPE_HEADLESS = 6;
++  // Used for various administrative actions, such as adding, updating, or deleting
++  // administrative resources (users, roles, etc.). Admin action webauthn challenges
++  // can optionally allow a specific number of reuses.
++  //
++  // WARNING: this scope should not be used for new MFA capabilities despite its flexibility.
++  // Instead, new scopes should be added. This scope may also be split into multiple smaller
++  // scopes in the future.
++  SCOPE_ADMIN_ACTION = 7;
++}
 
 // authservice.proto
 
@@ -101,14 +117,14 @@ message CreateAuthenticateChallengeRequest {
     Passwordless Passwordless = 4 [(gogoproto.jsontag) = "passwordless,omitempty"];
   }
   IsMFARequiredRequest MFARequiredCheck = 5 [(gogoproto.jsontag) = "mfa_required_check,omitempty"];
-  
-  // new:
-  // Scope is the authorization scope for this MFA challenge. Ex: login.
-  // Only applies to webauthn challenges.
-  webauthn.Scope Scope = 6 [(gogoproto.jsontag) = "scope,omitempty"];
-  // Uses is the number of times resulting webauthn credentials can be used.
-  // Only applies to webauthn challenges with scopes that allow reuse.
-  int64 Uses = 7 [(gogoproto.jsontag) = "uses,omitempty"];
+
++  // Scope is a authorization scope for this MFA challenge.
++  // Required. Only applies to webauthn challenges.
++  webauthn.ChallengeScope Scope = 6 [(gogoproto.jsontag) = "scope,omitempty"];
++  // Uses is the number of times resulting webauthn credentials can be used.
++  // Only applies to webauthn challenges with scopes that allow reuse:
++  //  - SCOPE_ADMIN_ACTION
++  int64 Uses = 7 [(gogoproto.jsontag) = "uses,omitempty"];
 }
 ```
 
@@ -146,6 +162,9 @@ seen with Dynamo DB, these expirations are not always strictly respected.
 Therefore, the Auth server will start checking the expiration of stored
 webauthn challenges. If the challenge is past it's expiration, the Auth server
 will delete it from the backend explicitly.
+
+Note: This change should be backported since this is an existing issue for
+unconsumed webauthn challenges.
 
 ### UX
 
@@ -191,7 +210,8 @@ message ValidateMFAAuthResponse {
 message MFAVerificationEvent {
   // anonymized
   string user_name = 1;
-  string mfa_type = 2;
+  // the mfa device type used for verification. e.g. Webauthn, U2F, or TOTP.
+  string mfa_device_type = 2;
   string scope = 3;
 }
 ```
