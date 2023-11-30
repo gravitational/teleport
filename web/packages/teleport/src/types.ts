@@ -114,6 +114,7 @@ export interface TeleportFeature {
   isLocked?(lockedFeatures: LockedFeatures): boolean;
   lockedNavigationItem?: TeleportFeatureNavigationItem;
   lockedRoute?: TeleportFeatureRoute;
+  hideNavigation?: boolean;
 }
 
 export type StickyCluster = {

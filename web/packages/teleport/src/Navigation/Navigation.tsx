@@ -68,6 +68,26 @@ export function getFirstRouteForCategory(
   );
 }
 
+function getFeatureForRoute(
+  features: TeleportFeature[],
+  route: history.Location<unknown> | Location
+) {
+  const feature = features
+    .filter(feature => Boolean(feature.route))
+    .find(feature =>
+      matchPath(route.pathname, {
+        path: feature.route.path,
+        exact: feature.route.exact,
+      })
+    );
+
+  if (!feature) {
+    return;
+  }
+
+  return feature;
+}
+
 function getCategoryForRoute(
   features: TeleportFeature[],
   route: history.Location<unknown> | Location
@@ -164,6 +184,12 @@ export function Navigation({
       visible={view === category}
     />
   ));
+
+  const feature = getFeatureForRoute(features, location);
+
+  if (feature.hideNavigation) {
+    return null;
+  }
 
   return (
     <NavigationContainer>
