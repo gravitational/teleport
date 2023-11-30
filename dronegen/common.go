@@ -104,16 +104,8 @@ var (
 
 var buildboxVersion value
 
-var goRuntime value
-
 func init() {
-	v, err := exec.Command("make", "-s", "-C", "build.assets", "print-go-version").Output()
-	if err != nil {
-		log.Fatalf("could not get Go version: %v", err)
-	}
-	goRuntime = value{raw: string(bytes.TrimSpace(v))}
-
-	v, err = exec.Command("make", "-s", "-C", "build.assets", "print-buildbox-version").Output()
+	v, err := exec.Command("make", "-s", "-C", "build.assets", "print-buildbox-version").Output()
 	if err != nil {
 		log.Fatalf("could not get buildbox version: %v", err)
 	}
@@ -225,11 +217,6 @@ func (b *buildType) Description(packageType string) string {
 		result += fmt.Sprintf(" (%s)", strings.Join(qualifications, ", "))
 	}
 	return result
-}
-
-func (b *buildType) hasTeleportConnect() bool {
-	return (b.os == "darwin" && b.arch == "amd64") ||
-		(b.os == "linux" && b.arch == "amd64" && !b.centos7 && !b.fips)
 }
 
 // dockerService generates a docker:dind service
