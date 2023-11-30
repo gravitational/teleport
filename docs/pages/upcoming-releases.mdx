@@ -29,6 +29,25 @@ configured Okta integration.
 Users going through the Access Management flow to enroll RDS instances will be able
 to configure auto-discovery.
 
+#### Device Trust for Linux
+
+Teleport Device Trust will support Linux devices with compatible Trusted
+Platform Modules (TPM 2.0).
+
+#### Web UI SSH latency detector
+
+Teleport's web UI will detect and report on the latency of SSH sessions.
+
+#### Transparent session resumption for `tsh`
+
+SSH sessions started with `tsh` will be able to resume transparently after brief
+disruptions like network glitches or proxy restarts.
+
+#### Improved registration of static desktops
+
+Teleport's configuration schema will be updated to allow users to specify custom
+hostnames and labels for static desktops.
+
 ## Teleport Cloud
 
 The key deliverables for Teleport Cloud in the next quarter:
