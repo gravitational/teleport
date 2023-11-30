@@ -23,8 +23,12 @@ const stories = ['../packages/**/*.story.@(js|jsx|ts|tsx)'];
 
 const tsconfigPath = path.join(__dirname, '../../tsconfig.json');
 
+const enterpriseTeleportExists = fs.existsSync(
+  path.join(__dirname, '/../../e/web')
+);
+
 // include enterprise stories if available (**/* pattern ignores dot dir names)
-if (fs.existsSync(path.join(__dirname, '/../../e/'))) {
+if (enterpriseTeleportExists) {
   stories.unshift('../../e/web/**/*.story.@(js|jsx|ts|tsx)');
 }
 
@@ -49,10 +53,33 @@ module.exports = {
       ...storybookConfig.resolve,
       ...configFactory.createDefaultConfig().resolve,
     };
+
+    // Access Graph requires a separate repo to be cloned. At the moment, only the Vite config is
+    // configured to resolve access-graph. However, Storybook uses Webpack and since our usual
+    // Webpack config doesn't need to know about access-graph, we manually to manually configure
+    // Storybook's Webpack here to resolve access-graph to the special mock.
+    //
+    // See https://github.com/gravitational/teleport.e/issues/2675.
     storybookConfig.resolve.alias['access-graph'] = path.join(
       __dirname,
-      'access-graph-mock.jsx'
+      'mocks',
+      'AccessGraph.tsx'
     );
+
+    if (!enterpriseTeleportExists) {
+      delete storybookConfig.resolve.alias['e-teleport'];
+      // Unlike e-teleport, e-teleterm cannot be removed from aliases because code in OSS teleterm
+      // depends directly on e-teleterm, see https://github.com/gravitational/teleport/issues/17706.
+      //
+      // Instead of removing e-teleterm, we have to mock individual files on a case-by-case basis.
+      //
+      // TODO(ravicious): Remove e-teleterm alias once #17706 gets addressed.
+      storybookConfig.resolve.alias['e-teleterm'] = path.join(
+        __dirname,
+        'mocks',
+        'e-teleterm'
+      );
+    }
 
     storybookConfig.optimization = {
       splitChunks: {
