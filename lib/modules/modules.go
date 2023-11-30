@@ -196,8 +196,10 @@ const (
 	ProductTypeEUB ProductType = 2
 )
 
-// IsLegacy describes legacy product that existed before EUB product
-// was introduced.
+// IsLegacy describes the legacy enterprise product that existed before the
+// usage-based product was introduced. Some features (Device Trust, for example)
+// require the IGS add-on in usage-based products but are included for legacy
+// licenses.
 func (f Features) IsLegacy() bool {
 	return !f.IsUsageBasedBilling
 }
