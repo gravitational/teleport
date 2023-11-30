@@ -40,7 +40,8 @@ export function IntegrationTiles({
   // TODO(mcbattirola): isUsageBasedBilling is used here and in other
   // parts of the app as synonym with Team product, but this
   // will change in the future.
-  const isEnterprise = cfg.isEnterprise && !cfg.isUsageBasedBilling;
+  const isCloudEnterprise = cfg.isEnterprise && !cfg.isUsageBasedBilling;
+  const isOnpremEnterprise = cfg.isEnterprise && !cfg.isCloud;
 
   return (
     <>
@@ -74,24 +75,29 @@ export function IntegrationTiles({
           />
         )}
       </IntegrationTile>
-      <IntegrationTile
-        disabled={!hasExternalAuditStorage || !isEnterprise}
-        as={hasExternalAuditStorage ? Link : null}
-        to={
-          hasExternalAuditStorage
-            ? cfg.getIntegrationEnrollRoute(
-                IntegrationKind.ExternalAuditStorage
-              )
-            : null
-        }
-        data-testid="tile-external-audit-storage"
-      >
-        <Box mt={3} mb={2}>
-          <AWSIcon size={80} />
-        </Box>
-        <Text>AWS External Audit Storage</Text>
-        {renderExternalAuditStorageBadge(hasExternalAuditStorage, isEnterprise)}
-      </IntegrationTile>
+      {!isOnpremEnterprise && (
+        <IntegrationTile
+          disabled={!hasExternalAuditStorage || !isCloudEnterprise}
+          as={hasExternalAuditStorage ? Link : null}
+          to={
+            hasExternalAuditStorage
+              ? cfg.getIntegrationEnrollRoute(
+                  IntegrationKind.ExternalAuditStorage
+                )
+              : null
+          }
+          data-testid="tile-external-audit-storage"
+        >
+          <Box mt={3} mb={2}>
+            <AWSIcon size={80} />
+          </Box>
+          <Text>AWS External Audit Storage</Text>
+          {renderExternalAuditStorageBadge(
+            hasExternalAuditStorage,
+            isCloudEnterprise
+          )}
+        </IntegrationTile>
+      )}
     </>
   );
 }
@@ -105,7 +111,7 @@ function renderExternalAuditStorageBadge(
       <ToolTipNoPermBadge
         badgeTitle={BadgeTitle.LackingEnterpriseLicense}
         children={
-          <div>Unlock External Cloud Audit with Teleport Enterprise</div>
+          <div>Unlock External Audit Storage with Teleport Enterprise</div>
         }
       />
     );
@@ -114,8 +120,8 @@ function renderExternalAuditStorageBadge(
       <ToolTipNoPermBadge
         children={
           <div>
-            You don’t have sufficient permissions to create an External Cloud
-            Audit. Reach out to your Teleport administrator to request
+            You don’t have sufficient permissions to create an External Audit
+            Storage. Reach out to your Teleport administrator to request
             additional permissions.
           </div>
         }

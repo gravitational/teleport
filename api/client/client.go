@@ -44,7 +44,7 @@ import (
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/client/accesslist"
 	"github.com/gravitational/teleport/api/client/discoveryconfig"
-	"github.com/gravitational/teleport/api/client/externalcloudaudit"
+	"github.com/gravitational/teleport/api/client/externalauditstorage"
 	"github.com/gravitational/teleport/api/client/okta"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/secreport"
@@ -56,7 +56,7 @@ import (
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	discoveryconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1"
-	externalcloudauditv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/externalcloudaudit/v1"
+	externalauditstoragev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/externalauditstorage/v1"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
@@ -272,21 +272,25 @@ func connect(ctx context.Context, cfg Config) (*Client, error) {
 				})
 			}
 
-			// Connect with dialer provided in creds.
-			if dialer, err := creds.Dialer(cfg); err != nil {
-				if !trace.IsNotImplemented(err) {
-					sendError(trace.Wrap(err, "failed to retrieve dialer from creds of type %T", creds))
+			addrs := cfg.Addrs
+			if len(addrs) == 0 {
+				// If there's no explicitly specified address, fall back to
+				// an address provided by the credential, if it provides one.
+				credAddrSource, ok := creds.(CredentialsWithDefaultAddrs)
+				if ok {
+					addrs, err = credAddrSource.DefaultAddrs()
+					if err != nil {
+						sendError(trace.Wrap(err))
+						continue
+					}
+					log.WithField("address", addrs).Debug(
+						"No addresses were configured explicitly, falling back to addresses specified by credential. Consider explicitly configuring an address.",
+					)
 				}
-			} else {
-				syncConnect(ctx, dialerConnect, connectParams{
-					cfg:       cfg,
-					tlsConfig: tlsConfig,
-					dialer:    dialer,
-				})
 			}
 
 			// Attempt to connect to each address as Auth, Proxy, Tunnel and TLS Routing.
-			for _, addr := range cfg.Addrs {
+			for _, addr := range addrs {
 				syncConnect(ctx, authConnect, connectParams{
 					cfg:       cfg,
 					tlsConfig: tlsConfig,
@@ -389,11 +393,21 @@ func tunnelConnect(ctx context.Context, params connectParams) (*Client, error) {
 }
 
 // proxyConnect connects to the Teleport Auth Server through the proxy.
+// takes a specific addr parameter to allow the proxy address to be modified
+// when using special credentials.
 func proxyConnect(ctx context.Context, params connectParams) (*Client, error) {
 	if params.sshConfig == nil {
 		return nil, trace.BadParameter("must provide ssh client config")
 	}
-	dialer := NewProxyDialer(*params.sshConfig, params.cfg.KeepAlivePeriod, params.cfg.DialTimeout, params.addr, params.cfg.InsecureAddressDiscovery, WithInsecureSkipVerify(params.cfg.InsecureAddressDiscovery))
+
+	dialer := NewProxyDialer(
+		*params.sshConfig,
+		params.cfg.KeepAlivePeriod,
+		params.cfg.DialTimeout,
+		params.addr,
+		params.cfg.InsecureAddressDiscovery,
+		WithInsecureSkipVerify(params.cfg.InsecureAddressDiscovery),
+	)
 	clt := newClient(params.cfg, dialer, params.tlsConfig)
 	if err := clt.dialGRPC(ctx, params.addr); err != nil {
 		return nil, trace.Wrap(err, "failed to connect to addr %v as a web proxy", params.addr)
@@ -463,7 +477,7 @@ func (c *Client) dialGRPC(ctx context.Context, addr string) error {
 			otelUnaryClientInterceptor(),
 			metadata.UnaryClientInterceptor,
 			interceptors.GRPCClientUnaryErrorInterceptor,
-			interceptors.RetryWithMFAUnaryInterceptor(c.performMFACeremony),
+			interceptors.WithMFAUnaryInterceptor(c.performMFACeremony),
 			breaker.UnaryClientInterceptor(cb),
 		),
 		grpc.WithChainStreamInterceptor(
@@ -814,13 +828,13 @@ func (c *Client) SAMLIdPClient() samlidppb.SAMLIdPServiceClient {
 	return samlidppb.NewSAMLIdPServiceClient(c.conn)
 }
 
-// ExternalCloudAuditClient returns an unadorned External Cloud Audit client,
-// using the underlying Auth gRPC connection.
+// ExternalAuditStorageClient returns an unadorned External Audit Storage
+// client, using the underlying Auth gRPC connection.
 // Clients connecting to non-Enterprise clusters, or older Teleport versions,
 // still get a external audit client when calling this method, but all RPCs will
 // return "not implemented" errors (as per the default gRPC behavior).
-func (c *Client) ExternalCloudAuditClient() *externalcloudaudit.Client {
-	return externalcloudaudit.NewClient(externalcloudauditv1.NewExternalCloudAuditServiceClient(c.conn))
+func (c *Client) ExternalAuditStorageClient() *externalauditstorage.Client {
+	return externalauditstorage.NewClient(externalauditstoragev1.NewExternalAuditStorageServiceClient(c.conn))
 }
 
 // TrustClient returns an unadorned Trust client, using the underlying

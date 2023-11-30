@@ -31,6 +31,7 @@ export function Highlight(props: { text: string; keywords: string[] }) {
   const chunks = findAll({
     textToHighlight: props.text,
     searchWords: props.keywords,
+    autoEscape: true,
   });
 
   return (

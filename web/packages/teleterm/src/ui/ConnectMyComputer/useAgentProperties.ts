@@ -16,6 +16,8 @@
 
 import { useMemo } from 'react';
 
+import * as connectMyComputer from 'shared/connectMyComputer';
+
 import { useWorkspaceContext } from 'teleterm/ui/Documents';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 
@@ -36,7 +38,9 @@ export function useAgentProperties(): {
   return {
     systemUsername,
     hostname,
-    roleName: `connect-my-computer-${cluster.loggedInUser.name}`,
+    roleName: cluster.loggedInUser
+      ? connectMyComputer.getRoleNameForUser(cluster.loggedInUser.name)
+      : '',
     clusterName: cluster.name,
   };
 }

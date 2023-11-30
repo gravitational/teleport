@@ -315,6 +315,27 @@ const SearchResultItems = () => {
       nameMatch: '',
       score: 0,
     },
+    {
+      kind: 'display-results',
+      clusterUri,
+      value: 'abc',
+      resourceKinds: ['db'],
+      documentUri: '/docs/abc',
+    },
+    {
+      kind: 'display-results',
+      clusterUri,
+      value: 'abc',
+      resourceKinds: ['node'],
+      documentUri: undefined,
+    },
+    {
+      kind: 'display-results',
+      clusterUri,
+      value: 'abc',
+      resourceKinds: [],
+      documentUri: undefined,
+    },
   ];
   const attempt = makeSuccessAttempt(searchResults);
 
@@ -330,10 +351,7 @@ const SearchResultItems = () => {
         const Component = ComponentMap[searchResult.kind];
 
         return {
-          key:
-            searchResult.kind !== 'resource-type-filter'
-              ? searchResult.resource.uri
-              : searchResult.resource,
+          key: getKey(searchResult),
           Component: (
             <Component
               searchResult={searchResult}
@@ -345,6 +363,17 @@ const SearchResultItems = () => {
     />
   );
 };
+
+function getKey(searchResult: SearchResult): string {
+  switch (searchResult.kind) {
+    case 'resource-type-filter':
+      return searchResult.resource;
+    case 'display-results':
+      return searchResult.value;
+    default:
+      return searchResult.resource.uri;
+  }
+}
 
 const AuxiliaryItems = () => {
   const [advancedSearchEnabled, setAdvancedSearchEnabled] = useState(false);

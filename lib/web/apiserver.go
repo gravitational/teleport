@@ -887,6 +887,10 @@ func (h *Handler) bindDefaultEndpoints() {
 
 	// Updates the user's cluster preferences.
 	h.PUT("/webapi/user/preferences/:site", h.WithClusterAuth(h.updateUserClusterPreferences))
+
+	// Returns logins included in the Connect My Computer role of the user.
+	// Returns an empty list of logins if the user does not have a Connect My Computer role assigned.
+	h.GET("/webapi/connectmycomputer/logins", h.WithAuth(h.connectMyComputerLoginsList))
 }
 
 // GetProxyClient returns authenticated auth server client
@@ -989,7 +993,14 @@ func (h *Handler) getUserContext(w http.ResponseWriter, r *http.Request, p httpr
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	accessMonitoringEnabled := pingResp.ServerFeatures != nil && pingResp.ServerFeatures.IdentityGovernance
+	accessMonitoringEnabled := pingResp.GetServerFeatures().GetAccessMonitoring().GetEnabled()
+
+	// DELETE IN 16.0
+	// If ServerFeatures.AccessMonitoring is nil, then that means the response came from a older auth
+	// where ServerFeatures.AccessMonitoring field does not exist.
+	if pingResp.GetServerFeatures().GetAccessMonitoring() == nil {
+		accessMonitoringEnabled = pingResp.ServerFeatures != nil && pingResp.ServerFeatures.GetIdentityGovernance()
+	}
 
 	userContext, err := ui.NewUserContext(user, accessChecker.Roles(), h.ClusterFeatures, desktopRecordingEnabled, accessMonitoringEnabled)
 	if err != nil {
@@ -4086,7 +4097,7 @@ func (h *Handler) AuthenticateRequest(w http.ResponseWriter, r *http.Request, ch
 	if err != nil {
 		return nil, trace.AccessDenied("failed to decode cookie")
 	}
-	ctx, err := h.auth.getOrCreateSession(r.Context(), decodedCookie.User, decodedCookie.SID)
+	sctx, err := h.auth.getOrCreateSession(r.Context(), decodedCookie.User, decodedCookie.SID)
 	if err != nil {
 		websession.ClearCookie(w)
 		return nil, trace.AccessDenied("need auth")
@@ -4096,10 +4107,50 @@ func (h *Handler) AuthenticateRequest(w http.ResponseWriter, r *http.Request, ch
 		if err != nil {
 			return nil, trace.AccessDenied("need auth")
 		}
-		if err := ctx.validateBearerToken(r.Context(), creds.Password); err != nil {
+		if err := sctx.validateBearerToken(r.Context(), creds.Password); err != nil {
 			return nil, trace.AccessDenied("bad bearer token")
 		}
 	}
+
+	if err := parseMFAResponseFromRequest(r); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return sctx, nil
+}
+
+// parseMFAResponse checks for an MFA response in the request header.
+// if found, the mfa response is added to the request context, where
+// it can be recalled to augment client authentication further down
+// the call stack.
+func parseMFAResponseFromRequest(r *http.Request) error {
+	ctx, err := contextWithMFAResponseFromRequestHeader(r.Context(), r.Header)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Update the request reference with a cloned request with the update ctx.
+	*r = *r.WithContext(ctx)
+	return nil
+}
+
+// contextWithMFAResponseFromRequestHeader attempts to parse an MFA response
+// from the request header. If found, the MFA response is added to the given
+// context and returned.
+func contextWithMFAResponseFromRequestHeader(ctx context.Context, requestHeader http.Header) (context.Context, error) {
+	if mfaResponseJSON := requestHeader.Get("Teleport-MFA-Response"); mfaResponseJSON != "" {
+		var resp mfaResponse
+		if err := json.Unmarshal([]byte(mfaResponseJSON), &resp); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return mfa.ContextWithMFAResponse(ctx, &proto.MFAAuthenticateResponse{
+			Response: &proto.MFAAuthenticateResponse_Webauthn{
+				Webauthn: wantypes.CredentialAssertionResponseToProto(resp.WebauthnAssertionResponse),
+			},
+		}), nil
+	}
+
 	return ctx, nil
 }
 

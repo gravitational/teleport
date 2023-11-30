@@ -26,6 +26,12 @@ import React, {
 
 import { SearchFilter } from 'teleterm/ui/Search/searchResult';
 
+import { useAppContext } from 'teleterm/ui/appContextProvider';
+import {
+  Document,
+  DocumentClusterQueryParams,
+} from 'teleterm/ui/services/workspacesService';
+
 import { actionPicker, SearchPicker } from './pickers/pickers';
 
 export interface SearchContext {
@@ -60,6 +66,7 @@ export type AddWindowEventListener = (
 const SearchContext = createContext<SearchContext>(null);
 
 export const SearchContextProvider: FC = props => {
+  const appContext = useAppContext();
   // The type of the ref is Element to adhere to the type of document.activeElement.
   const previouslyActive = useRef<Element>();
   const inputRef = useRef<HTMLInputElement>();
@@ -99,6 +106,45 @@ export const SearchContextProvider: FC = props => {
   const resetInput = useCallback(() => {
     setInputValue('');
   }, []);
+
+  function resetState(): void {
+    setInputValue('');
+    setFilters([]);
+    setAdvancedSearchEnabled(false);
+  }
+
+  function updateStateFromQueryParams(
+    queryParams: DocumentClusterQueryParams
+  ): void {
+    setActivePicker(actionPicker);
+    setInputValue(queryParams.search);
+    setAdvancedSearchEnabled(queryParams.advancedSearchEnabled);
+    setFilters(
+      queryParams.resourceKinds.map(resourceType => ({
+        filter: 'resource-type',
+        resourceType,
+      }))
+    );
+  }
+
+  appContext.workspacesService.useState();
+  const activeDocument = appContext.workspacesService
+    .getActiveWorkspaceDocumentService()
+    ?.getActive();
+
+  const [previousActiveDocument, setPreviousActiveDocument] =
+    useState<Document>(activeDocument);
+
+  // update the state when the cluster document becomes active
+  if (previousActiveDocument !== activeDocument) {
+    if (activeDocument?.kind === 'doc.cluster') {
+      updateStateFromQueryParams(activeDocument.queryParams);
+      // clear it when a non-cluster document is activated
+    } else if (previousActiveDocument?.kind === 'doc.cluster') {
+      resetState();
+    }
+    setPreviousActiveDocument(activeDocument);
+  }
 
   function open(fromElement?: HTMLElement): void {
     if (isOpen) {

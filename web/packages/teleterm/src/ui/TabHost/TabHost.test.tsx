@@ -21,7 +21,6 @@ import { TabHost } from 'teleterm/ui/TabHost/TabHost';
 import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
 import {
   Document,
-  DocumentCluster,
   DocumentsService,
   WorkspacesService,
 } from 'teleterm/ui/services/workspacesService';
@@ -33,6 +32,7 @@ import {
 } from 'teleterm/mainProcess/types';
 import { ClustersService } from 'teleterm/ui/services/clusters';
 import AppContext from 'teleterm/ui/appContext';
+import { makeDocumentCluster } from 'teleterm/ui/services/workspacesService/documentsService/testHelpers';
 
 import { getEmptyPendingAccessRequest } from '../services/workspacesService/accessRequestsService';
 
@@ -225,12 +225,7 @@ test('open new tab', () => {
     documents: [getMockDocuments()[0]],
   });
   const { add, open } = docsService;
-  const mockedClusterDocument: DocumentCluster = {
-    clusterUri: '/clusters/test',
-    uri: '/docs/test',
-    title: 'Test',
-    kind: 'doc.cluster',
-  };
+  const mockedClusterDocument = makeDocumentCluster();
   docsService.createClusterDocument = () => mockedClusterDocument;
   const $newTabButton = getByTitle('New Tab', { exact: false });
 

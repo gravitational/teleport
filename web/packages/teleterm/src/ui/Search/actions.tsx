@@ -21,14 +21,17 @@ import {
   connectToDatabase,
   connectToKube,
   connectToServer,
+  DocumentCluster,
+  getDefaultDocumentClusterQueryParams,
 } from 'teleterm/ui/services/workspacesService';
-import { retryWithRelogin } from 'teleterm/ui/utils';
+import { retryWithRelogin, assertUnreachable } from 'teleterm/ui/utils';
+import { routing } from 'teleterm/ui/uri';
 
 export interface SimpleAction {
   type: 'simple-action';
   searchResult: SearchResult;
-  preventAutoClose?: boolean; // TODO(gzdunek): consider other options (callback preventClose() in perform?)
-
+  preventAutoInputReset?: boolean;
+  preventAutoClose?: boolean;
   perform(): void;
 }
 
@@ -46,13 +49,13 @@ export interface ParametrizedAction {
 
 export type SearchAction = SimpleAction | ParametrizedAction;
 
-export function mapToActions(
+export function mapToAction(
   ctx: IAppContext,
   searchContext: SearchContext,
-  searchResults: SearchResult[]
-): SearchAction[] {
-  return searchResults.map(result => {
-    if (result.kind === 'server') {
+  result: SearchResult
+): SearchAction {
+  switch (result.kind) {
+    case 'server': {
       return {
         type: 'parametrized-action',
         searchResult: result,
@@ -74,7 +77,7 @@ export function mapToActions(
         },
       };
     }
-    if (result.kind === 'kube') {
+    case 'kube': {
       return {
         type: 'simple-action',
         searchResult: result,
@@ -90,7 +93,7 @@ export function mapToActions(
         },
       };
     }
-    if (result.kind === 'database') {
+    case 'database': {
       return {
         type: 'parametrized-action',
         searchResult: result,
@@ -118,7 +121,7 @@ export function mapToActions(
         },
       };
     }
-    if (result.kind === 'resource-type-filter') {
+    case 'resource-type-filter': {
       return {
         type: 'simple-action',
         searchResult: result,
@@ -131,7 +134,7 @@ export function mapToActions(
         },
       };
     }
-    if (result.kind === 'cluster-filter') {
+    case 'cluster-filter': {
       return {
         type: 'simple-action',
         searchResult: result,
@@ -144,5 +147,49 @@ export function mapToActions(
         },
       };
     }
-  });
+    case 'display-results': {
+      return {
+        type: 'simple-action',
+        searchResult: result,
+        preventAutoInputReset: true,
+        perform: async () => {
+          const rootClusterUri = routing.ensureRootClusterUri(
+            result.clusterUri
+          );
+          if (result.documentUri) {
+            ctx.workspacesService
+              .getWorkspaceDocumentService(rootClusterUri)
+              .update(result.documentUri, (draft: DocumentCluster) => {
+                const { queryParams } = draft;
+                queryParams.resourceKinds = result.resourceKinds;
+                queryParams.search = result.value;
+                queryParams.advancedSearchEnabled =
+                  searchContext.advancedSearchEnabled;
+              });
+            return;
+          }
+
+          const { isAtDesiredWorkspace } =
+            await ctx.workspacesService.setActiveWorkspace(rootClusterUri);
+          if (isAtDesiredWorkspace) {
+            const documentsService =
+              ctx.workspacesService.getWorkspaceDocumentService(rootClusterUri);
+            const doc = documentsService.createClusterDocument({
+              clusterUri: result.clusterUri,
+              queryParams: {
+                ...getDefaultDocumentClusterQueryParams(),
+                search: result.value,
+                advancedSearchEnabled: false,
+                resourceKinds: result.resourceKinds,
+              },
+            });
+            documentsService.add(doc);
+            documentsService.open(doc.uri);
+          }
+        },
+      };
+    }
+    default:
+      assertUnreachable(result);
+  }
 }

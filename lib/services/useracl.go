@@ -177,7 +177,7 @@ func NewUserACL(user types.User, userRoles RoleSet, features proto.Features, des
 	discoveryConfigsAccess := newAccess(userRoles, ctx, types.KindDiscoveryConfig)
 	lockAccess := newAccess(userRoles, ctx, types.KindLock)
 	accessListAccess := newAccess(userRoles, ctx, types.KindAccessList)
-	externalCloudAudit := newAccess(userRoles, ctx, types.KindExternalCloudAudit)
+	externalAuditStorage := newAccess(userRoles, ctx, types.KindExternalAuditStorage)
 
 	var auditQuery ResourceAccess
 	var securityReports ResourceAccess
@@ -219,7 +219,7 @@ func NewUserACL(user types.User, userRoles RoleSet, features proto.Features, des
 		AccessList:              accessListAccess,
 		AuditQuery:              auditQuery,
 		SecurityReport:          securityReports,
-		ExternalAuditStorage:    externalCloudAudit,
+		ExternalAuditStorage:    externalAuditStorage,
 		AccessGraph:             accessGraphAccess,
 	}
 }

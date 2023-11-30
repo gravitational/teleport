@@ -49,7 +49,10 @@ func GetAWSPolicyDocument(db types.Database) (*awslib.PolicyDocument, Placeholde
 // GetAWSPolicyDocumentForAssumedRole returns the AWS IAM policy document for
 // provided database for setting up the IAM role assumed by the database agent.
 func GetAWSPolicyDocumentForAssumedRole(db types.Database) (*awslib.PolicyDocument, Placeholders, error) {
-	if db.GetType() == types.DatabaseTypeRedshiftServerless {
+	switch db.GetType() {
+	case types.DatabaseTypeRedshift:
+		return getRedshiftAssumedRolePolicyDocument(db)
+	case types.DatabaseTypeRedshiftServerless:
 		return getRedshiftServerlessPolicyDocument(db)
 	}
 	return nil, nil, trace.BadParameter("GetAWSPolicyDocumentForAssumedRole is not supported for database type %s", db.GetType())
@@ -173,6 +176,32 @@ func getRedshiftPolicyDocument(db types.Database) (*awslib.PolicyDocument, Place
 			fmt.Sprintf("arn:%v:redshift:%v:%v:dbuser:%v/*", partition, region, accountID, clusterID),
 			fmt.Sprintf("arn:%v:redshift:%v:%v:dbname:%v/*", partition, region, accountID, clusterID),
 			fmt.Sprintf("arn:%v:redshift:%v:%v:dbgroup:%v/*", partition, region, accountID, clusterID),
+		},
+	})
+	return policyDoc, placeholders, nil
+}
+
+// getRedshiftAssumedRolePolicyDocument returns the policy document used for
+// Redshift databases when the database user is an IAM role.
+//
+// https://docs.aws.amazon.com/service-authorization/latest/reference/list_amazonredshift.html
+func getRedshiftAssumedRolePolicyDocument(db types.Database) (*awslib.PolicyDocument, Placeholders, error) {
+	aws := db.GetAWS()
+	partition := awsutils.GetPartitionFromRegion(aws.Region)
+	region := aws.Region
+	accountID := aws.AccountID
+	clusterID := aws.Redshift.ClusterID
+
+	placeholders := Placeholders(nil).
+		setPlaceholderIfEmpty(&region, "{region}").
+		setPlaceholderIfEmpty(&partition, "{partition}").
+		setPlaceholderIfEmpty(&accountID, "{account_id}").
+		setPlaceholderIfEmpty(&clusterID, "{cluster_id}")
+	policyDoc := awslib.NewPolicyDocument(&awslib.Statement{
+		Effect:  awslib.EffectAllow,
+		Actions: awslib.SliceOrString{"redshift:GetClusterCredentialsWithIAM"},
+		Resources: awslib.SliceOrString{
+			fmt.Sprintf("arn:%v:redshift:%v:%v:dbname:%v/*", partition, region, accountID, clusterID),
 		},
 	})
 	return policyDoc, placeholders, nil
