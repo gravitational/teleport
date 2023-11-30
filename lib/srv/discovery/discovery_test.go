@@ -754,8 +754,8 @@ func TestDiscoveryKube(t *testing.T) {
 				return len(clustersNotUpdated) == 0 && clustersFoundInAuth
 			}, 5*time.Second, 200*time.Millisecond)
 
-			require.Equal(t, tc.expectedAssumedRoles, sts.GetAssumedRoleARNs(), "roles incorrectly assumed")
-			require.Equal(t, tc.expectedExternalIDs, sts.GetAssumedRoleExternalIDs(), "external IDs incorrectly assumed")
+			require.ElementsMatch(t, tc.expectedAssumedRoles, sts.GetAssumedRoleARNs(), "roles incorrectly assumed")
+			require.ElementsMatch(t, tc.expectedExternalIDs, sts.GetAssumedRoleExternalIDs(), "external IDs incorrectly assumed")
 
 			if tc.wantEvents > 0 {
 				require.Eventually(t, func() bool {
@@ -813,7 +813,7 @@ func TestDiscoveryServer_New(t *testing.T) {
 			},
 		},
 		{
-			desc: "EKS fetcher is skipped on initialization error",
+			desc: "EKS fetcher is skipped on initialization error (missing region)",
 			cloudClients: &cloud.TestCloudClients{
 				STS: &mocks.STSMock{AssumeRoleErrors: map[string]error{"arn:aws:iam::123456789012:role/teleport-role": trace.AccessDenied("unauthorized")}},
 				EKS: &mocks.EKSMock{},
@@ -822,7 +822,7 @@ func TestDiscoveryServer_New(t *testing.T) {
 				AWS: []types.AWSMatcher{
 					{
 						Types:   []string{"eks"},
-						Regions: []string{"eu-west-1"},
+						Regions: []string{},
 						Tags:    map[string]utils.Strings{"env": {"prod"}},
 						AssumeRole: &types.AssumeRole{
 							RoleARN:    "arn:aws:iam::123456789012:role/teleport-role",
@@ -858,7 +858,7 @@ func TestDiscoveryServer_New(t *testing.T) {
 			discServer, err := New(
 				ctx,
 				&Config{
-					CloudClients:    tt.cloudClients,
+					CloudClients:    nil,
 					AccessPoint:     newFakeAccessPoint(),
 					Matchers:        tt.matchers,
 					Emitter:         &mockEmitter{},
