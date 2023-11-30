@@ -25,6 +25,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/athena"
 	athenaTypes "github.com/aws/aws-sdk-go-v2/service/athena/types"
+	"github.com/dustin/go-humanize"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
@@ -727,7 +728,7 @@ func Test_querier_fetchResults(t *testing.T) {
 			AppName: "app-4",
 		},
 	}
-	veryBigEvent := &apievents.AppCreate{
+	bigUntrimmableEvent := &apievents.AppCreate{
 		Metadata: apievents.Metadata{
 			ID:   uuid.NewString(),
 			Time: time.Now().UTC(),
@@ -737,6 +738,15 @@ func Test_querier_fetchResults(t *testing.T) {
 			AppName: strings.Repeat("aaaaa", events.MaxEventBytesInResponse),
 		},
 	}
+	bigTrimmableEvent := &apievents.DatabaseSessionQuery{
+		Metadata: apievents.Metadata{
+			ID:   uuid.NewString(),
+			Time: time.Now().UTC(),
+			Type: events.DatabaseSessionQueryEvent,
+		},
+		DatabaseQuery: strings.Repeat("aaaaa", events.MaxEventBytesInResponse),
+	}
+	bigTrimmedEvent := bigTrimmableEvent.TrimToMaxSize(events.MaxEventBytesInResponse)
 	tests := []struct {
 		name      string
 		limit     int
@@ -744,9 +754,10 @@ func Test_querier_fetchResults(t *testing.T) {
 		// fakeResp defines responses which will be returned based on given
 		// input token to GetQueryResults. Note that due to limit of GetQueryResults
 		// we are doing multiple calls, first always with empty token.
-		fakeResp   map[string]eventsWithToken
-		wantEvents []apievents.AuditEvent
-		wantKeyset string
+		fakeResp     map[string]eventsWithToken
+		wantEvents   []apievents.AuditEvent
+		wantKeyset   string
+		wantErrorMsg string
 	}{
 		{
 			name:  "no data returned from query, return empty results",
@@ -763,25 +774,45 @@ func Test_querier_fetchResults(t *testing.T) {
 			wantEvents: []apievents.AuditEvent{event1, event2, event3, event4},
 		},
 		{
-			name: "events with veryBigEvent exceeding > MaxEventBytesInResponse",
+			name: "events with untrimmable event exceeding > MaxEventBytesInResponse",
 			fakeResp: map[string]eventsWithToken{
 				"":       {returnToken: "token1", events: []apievents.AuditEvent{event1}},
-				"token1": {returnToken: "", events: []apievents.AuditEvent{event2, event3, veryBigEvent}},
+				"token1": {returnToken: "", events: []apievents.AuditEvent{event2, event3, bigUntrimmableEvent}},
 			},
 			limit: 10,
-			// we don't expect veryBigEvent because it should go to next batch
+			// we don't expect bigUntrimmableEvent because it should go to next batch
 			wantEvents: []apievents.AuditEvent{event1, event2, event3},
 			wantKeyset: mustEventToKey(t, event3),
 		},
 		{
-			// TODO(tobiaszheller): right now if we have event that's > 1 MiB, it will be silently ignored (due to gRPC unary limit).
-			// Come back later when we have decision what to do with it.
-			name: "only 1 very big event",
+			name: "only 1 very big untrimmable event",
 			fakeResp: map[string]eventsWithToken{
-				"": {returnToken: "", events: []apievents.AuditEvent{veryBigEvent}},
+				"": {returnToken: "", events: []apievents.AuditEvent{bigUntrimmableEvent}},
+			},
+			limit: 10,
+			wantErrorMsg: fmt.Sprintf(
+				"app.create event %s is 5.0 MiB and cannot be returned because it exceeds the maximum response size of %s",
+				bigUntrimmableEvent.Metadata.ID, humanize.IBytes(events.MaxEventBytesInResponse)),
+		},
+		{
+			name: "events with trimmable event exceeding > MaxEventBytesInResponse",
+			fakeResp: map[string]eventsWithToken{
+				"":       {returnToken: "token1", events: []apievents.AuditEvent{event1}},
+				"token1": {returnToken: "", events: []apievents.AuditEvent{event2, event3, bigTrimmableEvent}},
+			},
+			limit: 10,
+			// we don't expect bigTrimmableEvent because it should go to next batch
+			wantEvents: []apievents.AuditEvent{event1, event2, event3},
+			wantKeyset: mustEventToKey(t, event3),
+		},
+		{
+			name: "only 1 very big trimmable event",
+			fakeResp: map[string]eventsWithToken{
+				"": {returnToken: "", events: []apievents.AuditEvent{bigTrimmableEvent}},
 			},
 			limit:      10,
-			wantEvents: []apievents.AuditEvent{},
+			wantEvents: []apievents.AuditEvent{bigTrimmedEvent},
+			wantKeyset: mustEventToKey(t, bigTrimmableEvent),
 		},
 		{
 			name: "number of events equals limit in req, make sure that pagination keyset is returned",
@@ -818,8 +849,14 @@ func Test_querier_fetchResults(t *testing.T) {
 				},
 			}
 			gotEvents, gotKeyset, err := q.fetchResults(context.Background(), "queryid", tt.limit, tt.condition)
+			if tt.wantErrorMsg != "" {
+				require.ErrorContains(t, err, tt.wantErrorMsg)
+				return
+			}
 			require.NoError(t, err)
-			require.Empty(t, cmp.Diff(tt.wantEvents, gotEvents, cmpopts.EquateEmpty()))
+			require.Empty(t, cmp.Diff(tt.wantEvents, gotEvents, cmpopts.EquateEmpty(),
+				// Expect the database query to be trimmed
+				cmpopts.IgnoreFields(apievents.DatabaseSessionQuery{}, "DatabaseQuery")))
 			require.Equal(t, tt.wantKeyset, gotKeyset)
 		})
 	}
