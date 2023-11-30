@@ -35,8 +35,8 @@ func opsgenieInstanceFactory(ctx context.Context, plugin *types.PluginV1, deps i
 				APIEndpoint:      opsgenieConfig.ApiEndpoint,
 				DefaultSchedules: opsgenieConfig.DefaultSchedules,
 				Priority:         opsgenieConfig.Priority,
+				StatusSink:       deps.statusSink,
 			},
-			StatusSink: deps.statusSink,
 		},
 	}
 
