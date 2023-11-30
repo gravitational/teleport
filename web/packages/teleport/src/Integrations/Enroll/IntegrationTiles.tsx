@@ -40,7 +40,8 @@ export function IntegrationTiles({
   // TODO(mcbattirola): isUsageBasedBilling is used here and in other
   // parts of the app as synonym with Team product, but this
   // will change in the future.
-  const isEnterprise = cfg.isEnterprise && !cfg.isUsageBasedBilling;
+  const isCloudEnterprise = cfg.isEnterprise && !cfg.isUsageBasedBilling;
+  const isOnpremEnterprise = cfg.isEnterprise && !cfg.isCloud;
 
   return (
     <>
@@ -74,24 +75,29 @@ export function IntegrationTiles({
           />
         )}
       </IntegrationTile>
-      <IntegrationTile
-        disabled={!hasExternalAuditStorage || !isEnterprise}
-        as={hasExternalAuditStorage ? Link : null}
-        to={
-          hasExternalAuditStorage
-            ? cfg.getIntegrationEnrollRoute(
-                IntegrationKind.ExternalAuditStorage
-              )
-            : null
-        }
-        data-testid="tile-external-audit-storage"
-      >
-        <Box mt={3} mb={2}>
-          <AWSIcon size={80} />
-        </Box>
-        <Text>AWS External Audit Storage</Text>
-        {renderExternalAuditStorageBadge(hasExternalAuditStorage, isEnterprise)}
-      </IntegrationTile>
+      {!isOnpremEnterprise && (
+        <IntegrationTile
+          disabled={!hasExternalAuditStorage || !isCloudEnterprise}
+          as={hasExternalAuditStorage ? Link : null}
+          to={
+            hasExternalAuditStorage
+              ? cfg.getIntegrationEnrollRoute(
+                  IntegrationKind.ExternalAuditStorage
+                )
+              : null
+          }
+          data-testid="tile-external-audit-storage"
+        >
+          <Box mt={3} mb={2}>
+            <AWSIcon size={80} />
+          </Box>
+          <Text>AWS External Audit Storage</Text>
+          {renderExternalAuditStorageBadge(
+            hasExternalAuditStorage,
+            isCloudEnterprise
+          )}
+        </IntegrationTile>
+      )}
     </>
   );
 }
