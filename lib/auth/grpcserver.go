@@ -2091,6 +2091,11 @@ func maybeDowngradeRoleLabelExpressions(ctx context.Context, role *types.RoleV6,
 	if !clientVersion.LessThan(minSupportedLabelExpressionVersion) {
 		return role, nil
 	}
+	// Make a shallow copy of the role so that we don't mutate the original.
+	// This is necessary because the role is stored in the backend and it's shared
+	// between multiple clients sessions.
+	// If we mutate the original role, it will be mutated for all clients
+	// which can cause panics since it causes a race condition.
 	role = apiutils.CloneProtoMsg(role)
 	hasLabelExpression := false
 	for _, kind := range types.LabelMatcherKinds {
@@ -2166,6 +2171,11 @@ func downgradeRoleToV6(r *types.RoleV6) (*types.RoleV6, bool, error) {
 		return r, false, nil
 	case types.V7:
 		var restricted bool
+		// Make a shallow copy of the role so that we don't mutate the original.
+		// This is necessary because the role is stored in the backend and it's shared
+		// between multiple clients sessions.
+		// If we mutate the original role, it will be mutated for all clients
+		// which can cause panics since it causes a race condition.
 		downgraded := apiutils.CloneProtoMsg(r)
 		downgraded.Version = types.V6
 

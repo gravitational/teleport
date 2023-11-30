@@ -1808,10 +1808,9 @@ func TestIsMFARequired(t *testing.T) {
 
 					// If auth pref or role require session MFA, and MFA is not already
 					// verified according to private key policy, expect MFA required.
-					wantRequired :=
-						(role.GetOptions().RequireMFAType.IsSessionMFARequired() || authPref.GetRequireMFAType().IsSessionMFARequired()) &&
-							!role.GetPrivateKeyPolicy().MFAVerified() &&
-							!authPref.GetPrivateKeyPolicy().MFAVerified()
+					wantRequired := (role.GetOptions().RequireMFAType.IsSessionMFARequired() || authPref.GetRequireMFAType().IsSessionMFARequired()) &&
+						!role.GetPrivateKeyPolicy().MFAVerified() &&
+						!authPref.GetPrivateKeyPolicy().MFAVerified()
 					var wantMFARequired proto.MFARequired
 					if wantRequired {
 						wantMFARequired = proto.MFARequired_MFA_REQUIRED_YES
@@ -3932,6 +3931,9 @@ func TestRoleVersions(t *testing.T) {
 
 	newRole := func(version string, spec types.RoleSpecV6) types.Role {
 		role, err := types.NewRoleWithVersion("test_rule", version, spec)
+		meta := role.GetMetadata()
+		meta.Labels = map[string]string{"env": "staging"}
+		role.SetMetadata(meta)
 		require.NoError(t, err)
 		return role
 	}
@@ -4074,6 +4076,10 @@ func TestRoleVersions(t *testing.T) {
 						// and ignore it in the role diff.
 						if tc.expectDowngraded {
 							require.NotEmpty(t, gotRole.GetMetadata().Labels[types.TeleportDowngradedLabel])
+							require.NotSame(t, role, gotRole)
+							// The labels map is a pointer, so make sure it's was properly
+							// cloned.
+							require.NotSame(t, role.GetMetadata().Labels, gotRole.GetMetadata().Labels)
 						}
 					}
 					checkErr := func(err error) {
