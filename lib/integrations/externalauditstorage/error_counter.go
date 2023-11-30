@@ -400,7 +400,7 @@ func (c *ErrorCountingSessionHandler) GetUploadMetadata(sessionID session.ID) ev
 func sanitizeErrForAlert(err error) string {
 	return strings.Map(func(r rune) rune {
 		// Cluster alerts do not allow control characters.
-		if unicode.IsControl(r) {
+		if !unicode.IsPrint(r) {
 			return ' '
 		}
 		return r
