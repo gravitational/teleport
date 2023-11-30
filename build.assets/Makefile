@@ -36,11 +36,6 @@ include versions.mk
 include images.mk
 include grpcbox.mk # Requires images.mk
 
-# These variables are used to dynamically change the name of the buildbox Docker image used by the 'release'
-# target. The other solution was to remove the 'buildbox' dependency from the 'release' target, but this would
-# make it harder to run `make -C build.assets release` locally as the buildbox would not automatically be built.
-BUILDBOX_NAME=$(BUILDBOX)
-
 DOCSBOX=ghcr.io/gravitational/docs
 
 ifneq ("$(KUBECONFIG)","")
@@ -70,6 +65,22 @@ endif
 # pass external gocache path through to docker containers
 DOCKERFLAGS := $(DOCKERFLAGS) -v $(GOCACHE):/go/cache -e GOCACHE=/go/cache
 endif
+
+# The ARM64 build cannot be cross-compiled - the host architecture must be arm64
+# for this build. Define a var that expands to an error if the build arch does
+# not match the host arch.
+#
+# It should be expanded in a target's recipe to prevent it running if a cross-
+# compile was requested.
+#
+# $(RUNTIME_ARCH) is the host architecture normalised to the Go arch.
+# $(ARCH) is the target architecture we want to build for.
+REQUIRE_HOST_ARCH = $(if $(filter-out $(ARCH),$(RUNTIME_ARCH)),$(error Cannot cross-compile $@ $(ARCH) on $(RUNTIME_ARCH)))
+
+# PULL_ON_CI is used by the buildbox targets to pull the latest buildbox before building
+# a new one so that less work is done if the buildbox is up-to-date already. This is only
+# needed on CI as they start with a fresh state each time.
+PULL_ON_CI = $(if $(filter $(CI),true),docker inspect --type=image $(1) >/dev/null 2>&1 || docker pull $(1) || true)
 
 #
 # Build 'teleport' release inside a docker container
@@ -113,25 +124,23 @@ build-binaries-fips: buildbox-centos7-fips webassets
 #
 .PHONY:buildbox
 buildbox:
-	if [[ "$(BUILDBOX_NAME)" == "$(BUILDBOX)" ]]; then \
-		if [[ $${DRONE} == "true" ]] && ! docker inspect --type=image $(BUILDBOX) 2>&1 >/dev/null; then docker pull $(BUILDBOX) || true; fi; \
-		DOCKER_BUILDKIT=1 docker build --platform=linux/$(RUNTIME_ARCH) \
-			--build-arg UID=$(UID) \
-			--build-arg GID=$(GID) \
-			--build-arg BUILDARCH=$(RUNTIME_ARCH) \
-			--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
-			--build-arg RUST_VERSION=$(RUST_VERSION) \
-			--build-arg WASM_PACK_VERSION=$(WASM_PACK_VERSION) \
-			--build-arg NODE_VERSION=$(NODE_VERSION) \
-			--build-arg LIBBPF_VERSION=$(LIBBPF_VERSION) \
-			--build-arg BUF_VERSION=$(BUF_VERSION) \
-			--build-arg GOGO_PROTO_TAG=$(GOGO_PROTO_TAG) \
-			--build-arg NODE_GRPC_TOOLS_VERSION=$(NODE_GRPC_TOOLS_VERSION) \
-			--build-arg NODE_PROTOC_TS_VERSION=$(NODE_PROTOC_TS_VERSION) \
-			--build-arg PROTOC_VERSION=$(PROTOC_VERSION) \
-			--cache-from $(BUILDBOX) \
-			--tag $(BUILDBOX) . ; \
-	fi
+	$(call PULL_ON_CI,$(BUILDBOX))
+	DOCKER_BUILDKIT=1 docker build --platform=linux/$(RUNTIME_ARCH) \
+		--build-arg UID=$(UID) \
+		--build-arg GID=$(GID) \
+		--build-arg BUILDARCH=$(RUNTIME_ARCH) \
+		--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
+		--build-arg RUST_VERSION=$(RUST_VERSION) \
+		--build-arg WASM_PACK_VERSION=$(WASM_PACK_VERSION) \
+		--build-arg NODE_VERSION=$(NODE_VERSION) \
+		--build-arg LIBBPF_VERSION=$(LIBBPF_VERSION) \
+		--build-arg BUF_VERSION=$(BUF_VERSION) \
+		--build-arg GOGO_PROTO_TAG=$(GOGO_PROTO_TAG) \
+		--build-arg NODE_GRPC_TOOLS_VERSION=$(NODE_GRPC_TOOLS_VERSION) \
+		--build-arg NODE_PROTOC_TS_VERSION=$(NODE_PROTOC_TS_VERSION) \
+		--build-arg PROTOC_VERSION=$(PROTOC_VERSION) \
+		--cache-from $(BUILDBOX) \
+		--tag $(BUILDBOX) .
 
 # Builds a Docker buildbox for FIPS
 #
@@ -139,11 +148,14 @@ buildbox:
 buildbox-fips: buildbox-centos7-fips
 
 #
-# Builds a Docker buildbox for CentOS 7 builds
+# Builds a Docker buildbox for CentOS 7 builds. It is built for amd64 and arm64
+# but cannot be cross-compiled, so the host architecture must match the target
+# architecture we are building.
 #
 .PHONY:buildbox-centos7
 buildbox-centos7:
-	@if [[ $${DRONE} == "true" ]] && ! docker inspect --type=image $(BUILDBOX_CENTOS7) 2>&1 >/dev/null; then docker pull $(BUILDBOX_CENTOS7) || true; fi;
+	$(REQUIRE_HOST_ARCH)
+	$(call PULL_ON_CI,$(BUILDBOX_CENTOS7))
 	DOCKER_BUILDKIT=1 docker build \
 		--build-arg UID=$(UID) \
 		--build-arg GID=$(GID) \
@@ -163,7 +175,7 @@ buildbox-centos7:
 #
 .PHONY:buildbox-centos7-fips
 buildbox-centos7-fips:
-	@if [[ $${DRONE} == "true" ]] && ! docker inspect --type=image $(BUILDBOX_CENTOS7_FIPS) 2>&1 >/dev/null; then docker pull $(BUILDBOX_CENTOS7_FIPS) || true; fi;
+	$(call PULL_ON_CI,$(BUILDBOX_CENTOS7_FIPS))
 	docker build \
 		--build-arg UID=$(UID) \
 		--build-arg GID=$(GID) \
@@ -184,7 +196,7 @@ buildbox-centos7-fips:
 #
 .PHONY:buildbox-arm
 buildbox-arm:
-	@if [[ $${DRONE} == "true" ]] && ! docker inspect --type=image $(BUILDBOX_ARM) 2>&1 >/dev/null; then docker pull $(BUILDBOX_ARM) || true; fi;
+	$(call PULL_ON_CI,$(BUILDBOX_ARM))
 	docker build \
 		--build-arg BUILDBOX_VERSION=$(BUILDBOX_VERSION) \
 		--cache-from $(BUILDBOX) \
@@ -210,7 +222,7 @@ buildbox-connect:
 	DOCKER_BUILDKIT=1 docker build \
 		--build-arg NODE_VERSION=$(NODE_VERSION) \
 		--cache-from $(BUILDBOX_CONNECT) \
-		--tag $(BUILDBOX_CONNECT) -f Dockerfile-connect . ;
+		--tag $(BUILDBOX_CONNECT) -f Dockerfile-connect .
 
 #
 # Builds Teleport Connect inside the buildbox container.
@@ -273,7 +285,7 @@ test: buildbox
 		--env TELEPORT_XAUTH_TEST="yes" \
 		$(DOCKERFLAGS) $(NOROOT) -t $(BUILDBOX) \
 		/bin/bash -c \
-		ssh-agent > external.agent.tmp && source external.agent.tmp; \
+		"ssh-agent > external.agent.tmp && source external.agent.tmp; \
 		cd $(SRCDIR) && make TELEPORT_DEBUG=0 FLAGS='-cover -race' clean test"
 
 .PHONY:test-root
@@ -282,7 +294,7 @@ test-root: buildbox
 		--env TELEPORT_XAUTH_TEST="yes" \
 		$(DOCKERFLAGS) -t $(BUILDBOX) \
 		/bin/bash -c \
-		ssh-agent > external.agent.tmp && source external.agent.tmp; \
+		"ssh-agent > external.agent.tmp && source external.agent.tmp; \
 		cd $(SRCDIR) && make TELEPORT_DEBUG=0 FLAGS='-cover -race' clean test-go-root"
 
 .PHONY:test-sh
@@ -304,7 +316,7 @@ test-helm-update-snapshots:
 integration: buildbox
 	docker run \
 		$(DOCKERFLAGS) $(NOROOT) -t $(BUILDBOX) \
-		make -C $(SRCDIR) FLAGS='-cover' integration"
+		make -C $(SRCDIR) FLAGS='-cover' integration
 
 .PHONY:integration-root
 integration-root: buildbox
@@ -373,49 +385,61 @@ enter-root/centos7: buildbox-centos7
 enter/grpcbox: grpcbox
 	$(GRPCBOX_RUN)
 
-#
-# Create a Teleport package using the build container.
-# Don't use this target directly; call named Makefile targets like release-amd64.
-#
-.PHONY:release
-release: buildbox
-	@echo "Build Assets Release"
-	docker run $(DOCKERFLAGS) $(NOROOT) $(BUILDBOX_NAME) \
-		/usr/bin/make release -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(GOLANG_VERSION) FIDO2=$(FIDO2) PIV=$(PIV) REPRODUCIBLE=yes
-
+# #############################################################################
+# Architecture and variant (fips) specific release targets
 # These are aliases used to make build commands uniform.
+# #############################################################################
+
+# AMD64 builds are done on CentOS 7 build boxes for broader glibc compatibility.
 .PHONY: release-amd64
 release-amd64:
-	$(MAKE) release ARCH=amd64 FIDO2=yes
+	$(MAKE) release-centos7 ARCH=amd64 FIDO2=yes
 
 .PHONY: release-amd64-fips
-release-amd64-fips: release-amd64-centos7-fips
+release-amd64-fips:
+	$(MAKE) release-centos7-fips ARCH=amd64 FIPS=yes
 
 .PHONY: release-386
 release-386:
 	$(MAKE) release ARCH=386
 
-.PHONY: release-arm
-release-arm: buildbox-arm
-	$(MAKE) release ARCH=arm BUILDBOX_NAME=$(BUILDBOX_ARM)
+.PHONY: release-arm64
+release-arm64:
+	$(MAKE) release-centos7 ARCH=arm64 BUILDBOX_CENTOS7=$(BUILDBOX_ARM64)
 
+.PHONY: release-arm
+release-arm:
+	$(MAKE) release ARCH=arm BUILDBOX=$(BUILDBOX_ARM)
+
+# Compatibility targets for when we had separate Ubuntu and CentOS 7 targets for AMD64
+# TODO(camscale): Remove these when drone no longer calls them.
 .PHONY: release-amd64-centos7
-release-amd64-centos7: buildbox-centos7
-	$(MAKE) release-centos7 ARCH=amd64 FIDO2=yes PIV=yes
+release-amd64-centos7: release-amd64
 
 .PHONY: release-amd64-centos7-fips
-release-amd64-centos7-fips: buildbox-centos7-fips
-	$(MAKE) release-centos7-fips ARCH=amd64 FIPS=yes
+release-amd64-centos7-fips: release-amd64-fips
 
 # #############################################################################
-# Legacy Drone ARM build targets
+# Generic release targets
+# Don't use these targets directly; call named Makefile targets such as `release-amd64`.
 # #############################################################################
 
-.PHONY: release-arm64
-release-arm64: buildbox-arm
-	$(MAKE) release ARCH=arm64 BUILDBOX_NAME=$(BUILDBOX_ARM)
+# Define buildbox makefile targets for building various buildboxes, parameterizing
+# the `release` target`.
+BUILDBOX_TARGET_$(BUILDBOX_ARM) = buildbox-arm
 
-# #############################################################################
+# Select the correct makefile target for building a buildbox based on $(BUILDBOX)
+# with a default fallback of "buildbox".
+BUILDBOX_TARGET = $(or $(BUILDBOX_TARGET_$(BUILDBOX)),buildbox)
+
+#
+# Create a Teleport package using the build container.
+#
+.PHONY:release
+release: $(BUILDBOX_TARGET)
+	@echo "Build Assets Release"
+	docker run $(DOCKERFLAGS) $(NOROOT) $(BUILDBOX) \
+		/usr/bin/make release -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(GOLANG_VERSION) FIDO2=$(FIDO2) PIV=$(PIV) REPRODUCIBLE=yes
 
 #
 # Create a Teleport FIPS package using the build container.
@@ -433,8 +457,14 @@ release-fips: buildbox-centos7-fips webassets
 # We depend on webassets to pre-build them in the buildbox-connect container
 # as the version of node.js on CentOS 7 is too old.
 #
+# CentOS 7 builds are for amd64 and arm64 and must be built (currently) on
+# the same host architecture - i.e. no cross-compiling. CI (GitHub Actions)
+# is set up to use an architecture-specific builder, but building locally
+# for a foreign architecture cannot be done.
+#
 .PHONY:release-centos7
 release-centos7: buildbox-centos7 webassets
+	$(REQUIRE_HOST_ARCH)
 	docker run $(DOCKERFLAGS) -i $(NOROOT) $(BUILDBOX_CENTOS7) \
 		/usr/bin/scl enable $(DEVTOOLSET) 'make release-unix-preserving-webassets -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(GOLANG_VERSION) FIDO2=$(FIDO2) PIV=$(PIV) REPRODUCIBLE=no'
 
@@ -447,7 +477,7 @@ release-centos7: buildbox-centos7 webassets
 # to call release-unix-preserving-webassets like we do for the non-fips release.
 #
 .PHONY:release-centos7-fips
-release-centos7-fips: webassets
+release-centos7-fips: buildbox-centos7-fips webassets
 	docker run $(DOCKERFLAGS) -i $(NOROOT) $(BUILDBOX_CENTOS7_FIPS) \
 		/usr/bin/scl enable $(DEVTOOLSET) '/usr/bin/make -C e release -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(GOLANG_VERSION) FIPS=yes VERSION=$(VERSION) GITTAG=v$(VERSION) REPRODUCIBLE=no'
 
