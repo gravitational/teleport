@@ -245,7 +245,11 @@ const auth = {
   headlessSSOAccept(transactionId: string) {
     return auth
       .checkWebauthnSupport()
-      .then(() => api.post(cfg.api.mfaAuthnChallengePath))
+      .then(() =>
+        api.post(cfg.api.mfaAuthnChallengePath, {
+          scope: 'CHALLENGE_SCOPE_HEADLESS',
+        })
+      )
       .then(res =>
         navigator.credentials.get({
           publicKey: makeMfaAuthenticateChallenge(res).webauthnPublicKey,
@@ -273,12 +277,12 @@ const auth = {
     return api.post(cfg.api.createPrivilegeTokenPath, { secondFactorToken });
   },
 
-  fetchWebauthnChallenge() {
+  fetchWebauthnChallenge(scope: WebAuthnChallengeScope) {
     return auth
       .checkWebauthnSupport()
       .then(() =>
         api
-          .post(cfg.api.mfaAuthnChallengePath)
+          .post(cfg.api.mfaAuthnChallengePath, { scope: scope })
           .then(makeMfaAuthenticateChallenge)
       )
       .then(res =>
@@ -288,8 +292,8 @@ const auth = {
       );
   },
 
-  createPrivilegeTokenWithWebauthn() {
-    return auth.fetchWebauthnChallenge().then(res =>
+  createPrivilegeTokenWithWebauthn(scope) {
+    return auth.fetchWebauthnChallenge(scope).then(res =>
       api.post(cfg.api.createPrivilegeTokenPath, {
         webauthnAssertionResponse: makeWebauthnAssertionResponse(res),
       })
@@ -300,9 +304,9 @@ const auth = {
     return api.post(cfg.api.createPrivilegeTokenPath, {});
   },
 
-  getWebauthnResponse() {
+  getWebauthnResponse(scope: WebAuthnChallengeScope) {
     return auth
-      .fetchWebauthnChallenge()
+      .fetchWebauthnChallenge(scope)
       .then(res => makeWebauthnAssertionResponse(res));
   },
 };
@@ -361,3 +365,15 @@ export type IsMfaRequiredKube = {
     cluster_name: string;
   };
 };
+
+// WebAuthnChallengeScope is a challenge scope. Possible values are defined in webauthn.proto
+export enum WebAuthnChallengeScope {
+  UNSPECIFIED = 0,
+  LOGIN = 1,
+  PASSWORDLESS_LOGIN = 2,
+  MANAGE_DEVICES = 3,
+  RECOVERY = 4,
+  SESSION = 5,
+  HEADLESS = 6,
+  ADMIN_ACTION = 7,
+}

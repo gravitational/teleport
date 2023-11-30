@@ -53,6 +53,7 @@ import type { Option } from 'shared/components/Select';
 import type { AgentStepProps } from '../../types';
 import type { MfaAuthnResponse } from 'teleport/services/mfa';
 import type { ConnectionDiagnosticRequest } from 'teleport/services/agents';
+import { WebAuthnChallengeScope } from 'teleport/services/auth/auth';
 
 export function TestConnection(props: AgentStepProps) {
   const { userService, storeUser } = useTeleport();
@@ -172,6 +173,7 @@ export function TestConnection(props: AgentStepProps) {
             })
           }
           onClose={cancelMfaDialog}
+          challengeScope={WebAuthnChallengeScope.SESSION}
         />
       )}
       <Header>

@@ -32,6 +32,7 @@ import ReAuthenticate from 'teleport/components/ReAuthenticate';
 
 import AddDevice from './AddDevice';
 import useManageDevices, { State } from './useManageDevices';
+import { WebAuthnChallengeScope } from 'teleport/services/auth/auth';
 
 export default function Container() {
   const ctx = useTeleport();
@@ -104,6 +105,7 @@ export function ManageDevices({
           onAuthenticated={setToken}
           onClose={hideReAuthenticate}
           actionText="registering a new device"
+          challengeScope={WebAuthnChallengeScope.SESSION}
         />
       )}
       {isAddDeviceVisible && (

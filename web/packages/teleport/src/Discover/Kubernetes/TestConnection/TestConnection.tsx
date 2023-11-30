@@ -40,6 +40,7 @@ import { useTestConnection, State } from './useTestConnection';
 
 import type { AgentStepProps } from '../../types';
 import type { KubeImpersonation } from 'teleport/services/agents';
+import { WebAuthnChallengeScope } from 'teleport/services/auth/auth';
 
 /**
  * @deprecated Refactor Discover/Kubernetes/TestConnection away from the container component
@@ -101,6 +102,7 @@ export function TestConnection({
             <ReAuthenticate
               onMfaResponse={res => testConnection(makeTestConnRequest(), res)}
               onClose={cancelMfaDialog}
+              challengeScope={WebAuthnChallengeScope.SESSION}
             />
           )}
           <Header>Test Connection</Header>

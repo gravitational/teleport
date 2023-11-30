@@ -131,17 +131,30 @@ func (h *Handler) addMFADeviceHandle(w http.ResponseWriter, r *http.Request, par
 	return OK(), nil
 }
 
+type createAuthenticateChallengeRequest struct {
+	Scope      int  `json:"scope"`
+	AllowReuse bool `json:"allow_reuse"`
+}
+
 // createAuthenticateChallengeHandle creates and returns MFA authentication challenges for the user in context (logged in user).
 // Used when users need to re-authenticate their second factors.
 func (h *Handler) createAuthenticateChallengeHandle(w http.ResponseWriter, r *http.Request, p httprouter.Params, c *SessionContext) (interface{}, error) {
+	var req createAuthenticateChallengeRequest
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	clt, err := c.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	chal, err := clt.CreateAuthenticateChallenge(r.Context(), &proto.CreateAuthenticateChallengeRequest{
-		// TODO: web client needs to provide scope
-		Scope: webauthnpb.ChallengeScope_CHALLENGE_SCOPE_UNSPECIFIED,
+		Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
+			ContextUser: &proto.ContextUser{},
+		},
+		Scope:      webauthnpb.ChallengeScope(req.Scope),
+		AllowReuse: req.AllowReuse,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
