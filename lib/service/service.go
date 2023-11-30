@@ -971,15 +971,17 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 	}
 
 	upgraderKind := os.Getenv("TELEPORT_EXT_UPGRADER")
+	upgraderVersion := os.Getenv("TELEPORT_EXT_UPGRADER_VERSION")
 
 	// note: we must create the inventory handle *after* registerExpectedServices because that function determines
 	// the list of services (instance roles) to be included in the heartbeat.
 	process.inventoryHandle = inventory.NewDownstreamHandle(process.makeInventoryControlStreamWhenReady, proto.UpstreamInventoryHello{
-		ServerID:         cfg.HostUUID,
-		Version:          teleport.Version,
-		Services:         process.getInstanceRoles(),
-		Hostname:         cfg.Hostname,
-		ExternalUpgrader: upgraderKind,
+		ServerID:                cfg.HostUUID,
+		Version:                 teleport.Version,
+		Services:                process.getInstanceRoles(),
+		Hostname:                cfg.Hostname,
+		ExternalUpgrader:        upgraderKind,
+		ExternalUpgraderVersion: upgraderVersion,
 	})
 
 	process.inventoryHandle.RegisterPingHandler(func(sender inventory.DownstreamSender, ping proto.DownstreamInventoryPing) {

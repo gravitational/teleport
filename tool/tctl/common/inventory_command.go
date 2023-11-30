@@ -200,7 +200,7 @@ func (c *InventoryCommand) List(ctx context.Context, client auth.ClientI) error 
 
 	switch c.format {
 	case teleport.Text:
-		table := asciitable.MakeTable([]string{"Server ID", "Hostname", "Services", "Version", "Upgrader"})
+		table := asciitable.MakeTable([]string{"Server ID", "Hostname", "Services", "Version", "Upgrader", "Upgrader Version"})
 		for instances.Next() {
 			instance := instances.Item()
 			services := make([]string, 0, len(instance.GetServices()))
@@ -219,6 +219,7 @@ func (c *InventoryCommand) List(ctx context.Context, client auth.ClientI) error 
 				strings.Join(services, ","),
 				instance.GetTeleportVersion(),
 				upgrader,
+				instance.GetExternalUpgraderVersion(),
 			})
 		}
 

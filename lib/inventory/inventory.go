@@ -470,12 +470,13 @@ func (i *instanceStateTracker) WithLock(fn func()) {
 // nextHeartbeat calculates the next heartbeat value. *Must* be called only while lock is held.
 func (i *instanceStateTracker) nextHeartbeat(now time.Time, hello proto.UpstreamInventoryHello, authID string) (types.Instance, error) {
 	instance, err := types.NewInstance(hello.ServerID, types.InstanceSpecV1{
-		Version:          vc.Normalize(hello.Version),
-		Services:         hello.Services,
-		Hostname:         hello.Hostname,
-		AuthID:           authID,
-		LastSeen:         now.UTC(),
-		ExternalUpgrader: hello.ExternalUpgrader,
+		Version:                 vc.Normalize(hello.Version),
+		Services:                hello.Services,
+		Hostname:                hello.Hostname,
+		AuthID:                  authID,
+		LastSeen:                now.UTC(),
+		ExternalUpgrader:        hello.GetExternalUpgrader(),
+		ExternalUpgraderVersion: hello.GetExternalUpgraderVersion(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

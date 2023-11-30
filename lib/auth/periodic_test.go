@@ -29,48 +29,100 @@ import (
 func TestInstanceMetricsPeriodic(t *testing.T) {
 	tts := []struct {
 		desc           string
+		specs          []types.InstanceSpecV1
+		expectedCounts map[string]map[string]int
 		upgraders      []string
-		expectCounts   map[string]int
 		expectEnrolled int
 	}{
 		{
 			desc: "mixed",
-			upgraders: []string{
-				"kube",
-				"unit",
-				"",
-				"unit",
-				"",
+			specs: []types.InstanceSpecV1{
+				{ExternalUpgrader: "kube", ExternalUpgraderVersion: "13.0.0"},
+				{ExternalUpgrader: "kube", ExternalUpgraderVersion: "14.0.0"},
+				{ExternalUpgrader: "unit", ExternalUpgraderVersion: "13.0.0"},
+				{},
+				{ExternalUpgrader: "unit", ExternalUpgraderVersion: "14.0.0"},
+				{},
 			},
-			expectCounts: map[string]int{
-				"kube": 1,
-				"unit": 2,
-			},
-			expectEnrolled: 3,
-		},
-		{
-			desc: "all-unenrolled",
-			upgraders: []string{
-				"",
-				"",
-			},
-		},
-		{
-			desc: "all-enrolled",
 			upgraders: []string{
 				"kube",
 				"kube",
 				"unit",
+				"",
 				"unit",
+				"",
 			},
-			expectCounts: map[string]int{
-				"kube": 2,
-				"unit": 2,
+			expectedCounts: map[string]map[string]int{
+				"kube": {
+					"13.0.0": 1,
+					"14.0.0": 1,
+				},
+				"unit": {
+					"13.0.0": 1,
+					"14.0.0": 1,
+				},
 			},
 			expectEnrolled: 4,
 		},
 		{
-			desc: "nothing",
+			desc: "all-unenrolled",
+			specs: []types.InstanceSpecV1{
+				{},
+				{},
+			},
+			upgraders: []string{
+				"",
+				"",
+			},
+			expectedCounts: map[string]map[string]int{},
+		},
+		{
+			desc: "all-enrolled",
+			specs: []types.InstanceSpecV1{
+				{ExternalUpgrader: "kube", ExternalUpgraderVersion: "13.0.0"},
+				{ExternalUpgrader: "kube", ExternalUpgraderVersion: "13.0.0"},
+				{ExternalUpgrader: "unit", ExternalUpgraderVersion: "13.0.0"},
+				{ExternalUpgrader: "unit", ExternalUpgraderVersion: "13.0.0"},
+			},
+			upgraders: []string{
+				"kube",
+				"kube",
+				"unit",
+				"unit",
+			},
+			expectedCounts: map[string]map[string]int{
+				"kube": {
+					"13.0.0": 2,
+				},
+				"unit": {
+					"13.0.0": 2,
+				},
+			},
+			expectEnrolled: 4,
+		},
+		{
+			desc: "nil version",
+			specs: []types.InstanceSpecV1{
+				{ExternalUpgrader: "kube"},
+				{ExternalUpgrader: "unit"},
+			},
+			upgraders: []string{
+				"kube",
+				"unit",
+			},
+			expectedCounts: map[string]map[string]int{
+				"kube": {
+					"": 1,
+				},
+				"unit": {
+					"": 1,
+				},
+			},
+			expectEnrolled: 2,
+		},
+		{
+			desc:           "nothing",
+			expectedCounts: map[string]map[string]int{},
 		},
 	}
 
@@ -78,18 +130,14 @@ func TestInstanceMetricsPeriodic(t *testing.T) {
 		t.Run(tt.desc, func(t *testing.T) {
 			periodic := newInstanceMetricsPeriodic()
 
-			for _, upgrader := range tt.upgraders {
-				instance, err := types.NewInstance(uuid.New().String(), types.InstanceSpecV1{
-					ExternalUpgrader: upgrader,
-				})
+			for _, upgrader := range tt.specs {
+				instance, err := types.NewInstance(uuid.New().String(), upgrader)
 				require.NoError(t, err)
 
 				periodic.VisitInstance(instance)
 			}
 
-			for upgrader, count := range tt.expectCounts {
-				require.Equal(t, count, periodic.InstancesWithUpgrader(upgrader), "upgrader=%q, tt=%q", upgrader, tt.desc)
-			}
+			require.Equal(t, tt.expectedCounts, periodic.upgraderCounts, "tt=%q", tt.desc)
 
 			require.Equal(t, tt.expectEnrolled, periodic.TotalEnrolledInUpgrades(), "tt=%q", tt.desc)
 
