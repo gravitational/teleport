@@ -31,7 +31,7 @@ import (
 // httpfallback.go holds endpoints that have been converted to gRPC
 // but still need http fallback logic in the old client.
 
-// GenerateHostCert takes the public key in the Open SSH “authorized_keys“
+// GenerateHostCert takes the public key in the OpenSSH “authorized_keys“
 // plain text format, signs it using Host Certificate Authority private key and
 // returns the resulting certificate.
 // TODO(noah): DELETE IN 16.0.0
