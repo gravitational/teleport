@@ -195,8 +195,10 @@ impl FastPathProcessor {
             fast_path_processor: IronRdpFastPathProcessorBuilder {
                 io_channel_id,
                 user_channel_id,
+                // These should be set to the same values as they're set to in the
+                // `Config` object in lib/srv/desktop/rdp/rdpclient/src/client.rs.
                 no_server_pointer: true,
-                pointer_software_rendering: true,
+                pointer_software_rendering: false,
             }
             .build(),
             image: DecodedImage::new(PixelFormat::RgbA32, width, height),
@@ -238,17 +240,12 @@ impl FastPathProcessor {
                     UpdateKind::Region(region) => {
                         outputs.push(ActiveStageOutput::GraphicsUpdate(region));
                     }
-                    UpdateKind::PointerDefault => {
-                        outputs.push(ActiveStageOutput::PointerDefault);
-                    }
-                    UpdateKind::PointerHidden => {
-                        outputs.push(ActiveStageOutput::PointerHidden);
-                    }
-                    UpdateKind::PointerPosition { x, y } => {
-                        outputs.push(ActiveStageOutput::PointerPosition { x, y });
-                    }
-                    UpdateKind::PointerBitmap(p) => {
-                        outputs.push(ActiveStageOutput::PointerBitmap(p));
+                    UpdateKind::PointerDefault
+                    | UpdateKind::PointerHidden
+                    | UpdateKind::PointerPosition { .. }
+                    | UpdateKind::PointerBitmap(_) => {
+                        warn!("Pointer updates are not supported");
+                        continue;
                     }
                 }
             }
