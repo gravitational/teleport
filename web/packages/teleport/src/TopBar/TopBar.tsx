@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { Suspense, useState, lazy } from 'react';
+import React, { lazy, Suspense, useState } from 'react';
 import styled, { useTheme } from 'styled-components';
 import { Flex, Text, TopNav } from 'design';
 
@@ -25,6 +25,8 @@ import { matchPath, useHistory } from 'react-router';
 import { BrainIcon, OpenAIIcon } from 'design/SVGIcon';
 
 import { useLocalStorage } from 'shared/hooks/useLocalStorage';
+
+import { ArrowLeft } from 'design/Icon';
 
 import useTeleport from 'teleport/useTeleport';
 import useStickyClusterId from 'teleport/useStickyClusterId';
@@ -152,6 +154,10 @@ export function TopBar({ hidePopup = false }: TopBarProps) {
       })
     );
 
+  function handleBack() {
+    history.goBack();
+  }
+
   const title = feature?.route?.title || '';
 
   // instead of re-creating an expensive react-select component,
@@ -161,7 +167,12 @@ export function TopBar({ hidePopup = false }: TopBarProps) {
   };
 
   return (
-    <TopBarContainer>
+    <TopBarContainer navigationHidden={feature.hideNavigation}>
+      {feature.hideNavigation && (
+        <ButtonIconContainer onClick={handleBack}>
+          <ArrowLeft size="medium" />
+        </ButtonIconContainer>
+      )}
       {!hasClusterUrl && (
         <Text fontSize="18px" bold data-testid="title">
           {title}
@@ -224,7 +235,7 @@ export function TopBar({ hidePopup = false }: TopBarProps) {
 export const TopBarContainer = styled(TopNav)`
   height: 72px;
   background-color: inherit;
-  padding-left: ${({ theme }) => `${theme.space[6]}px`};
+  padding-left: ${p => `${p.theme.space[p.navigationHidden ? 2 : 6]}px`};
   overflow-y: initial;
   flex-shrink: 0;
   border-bottom: 1px solid ${({ theme }) => theme.colors.spotBackground[0]};
