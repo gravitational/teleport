@@ -277,7 +277,7 @@ var metricsServicesRunning = prometheus.NewGaugeVec(
 	prometheus.GaugeOpts{
 		Namespace: teleport.MetricNamespace,
 		Name:      teleport.MetricTeleportServices,
-		Help:      "Teleport Services",
+		Help:      "Subset (discovery_service,) of Teleport services currently enabled and running",
 	},
 	[]string{teleport.TagServiceName},
 )
@@ -323,8 +323,7 @@ func (s *LocalSupervisor) Start() error {
 		return nil
 	}
 
-	err := metrics.RegisterPrometheusCollectors(metricsServicesRunning)
-	if err != nil {
+	if err := metrics.RegisterPrometheusCollectors(metricsServicesRunning); err != nil {
 		return trace.Wrap(err)
 	}
 
