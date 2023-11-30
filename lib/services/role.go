@@ -1109,25 +1109,34 @@ func MatchLabelGetter(selector types.Labels, labelGetter LabelGetter) (bool, str
 	}
 
 	// Perform full match.
-	for key, selectorValues := range selector {
-		targetVal, hasKey := labelGetter.GetLabel(key)
-		if !hasKey {
-			return false, fmt.Sprintf("no key match: '%v'", key), nil
-		}
+    // Track if any key matches
+    keyMatched := false
 
-		if slices.Contains(selectorValues, types.Wildcard) {
-			continue
-		}
+    // Perform full match.
+    for key, selectorValues := range selector {
+        targetVal, hasKey := labelGetter.GetLabel(key)
+        if !hasKey {
+            continue // Continue to the next key if the current key is not present
+        }
 
-		result, err := utils.SliceMatchesRegex(targetVal, selectorValues)
-		if err != nil {
-			return false, "", trace.Wrap(err)
-		} else if !result {
-			return false, fmt.Sprintf("no value match: got '%v' want: '%v'", targetVal, selectorValues), nil
-		}
-	}
+        if slices.Contains(selectorValues, types.Wildcard) {
+            keyMatched = true // If wildcard is found, mark key as matched and continue
+            continue
+        }
 
-	return true, "matched", nil
+        result, err := utils.SliceMatchesRegex(targetVal, selectorValues)
+        if err != nil {
+            return false, "", trace.Wrap(err)
+        } else if result {
+            keyMatched = true // If value matches, mark key as matched
+        }
+    }
+
+    if keyMatched {
+        return true, "matched", nil
+    }
+    
+    return false, "no key match", nil
 }
 
 // RoleNames returns a slice with role names. Removes runtime roles like

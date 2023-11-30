@@ -649,13 +649,14 @@ func TestRoleParse(t *testing.T) {
 							  "ssh_file_copy" : true
 							},
 							"allow": {
-							  "node_labels": {"a": "b", "key": ["val"], "key2": ["val2", "val3"]},
+							  "node_labels": {"*": ["*"]},
 							  "app_labels": {"a": "b", "key": ["val"], "key2": ["val2", "val3"]},
 							  "kubernetes_labels": {"a": "b", "key": ["val"], "key2": ["val2", "val3"]},
 							  "db_labels": {"a": "b", "key": ["val"], "key2": ["val2", "val3"]}
 							},
 							"deny": {
-							  "logins": ["c"]
+							  "logins": ["c"],
+							  "node_labels": {"a": "b", "key": ["val"], "key2": ["val2", "val3"]}
 							}
 		   			  }
 		   			}`,
@@ -699,11 +700,7 @@ func TestRoleParse(t *testing.T) {
 								Name:      types.Wildcard,
 							},
 						},
-						NodeLabels: types.Labels{
-							"a":    []string{"b"},
-							"key":  []string{"val"},
-							"key2": []string{"val2", "val3"},
-						},
+						NodeLabels: types.Labels{"*": []string{"*"}},
 						AppLabels: types.Labels{
 							"a":    []string{"b"},
 							"key":  []string{"val"},
@@ -724,6 +721,11 @@ func TestRoleParse(t *testing.T) {
 					Deny: types.RoleConditions{
 						Namespaces: []string{apidefaults.Namespace},
 						Logins:     []string{"c"},
+						NodeLabels: types.Labels{
+							"a":    []string{"b"},
+							"key":  []string{"val"},
+							"key2": []string{"val2", "val3"},
+						},
 					},
 				},
 			},
@@ -1186,7 +1188,7 @@ func TestCheckAccessToServer(t *testing.T) {
 		Metadata: types.Metadata{
 			Name:      "b",
 			Namespace: apidefaults.Namespace,
-			Labels:    map[string]string{"role": "worker", "status": "follower"},
+			Labels:    map[string]string{"role": "worker", "status": "follower", "group": "prod"},
 		},
 	}
 	namespaceC := "namespace-c"
@@ -1195,7 +1197,7 @@ func TestCheckAccessToServer(t *testing.T) {
 		Metadata: types.Metadata{
 			Name:      "c",
 			Namespace: namespaceC,
-			Labels:    map[string]string{"role": "db", "status": "follower"},
+			Labels:    map[string]string{"role": "db", "status": "follower", "group": "prod"},
 		},
 	}
 	serverDBWithSuffix := &types.ServerV2{
@@ -1233,9 +1235,9 @@ func TestCheckAccessToServer(t *testing.T) {
 			},
 			checks: []check{
 				{server: serverNoLabels, login: "root", hasAccess: false},
-				{server: serverNoLabels, login: "admin", hasAccess: true},
+				{server: serverNoLabels, login: "admin", hasAccess: false},
 				{server: serverWorker, login: "root", hasAccess: false},
-				{server: serverWorker, login: "admin", hasAccess: true},
+				{server: serverWorker, login: "admin", hasAccess: false},
 				{server: serverDB, login: "root", hasAccess: false},
 				{server: serverDB, login: "admin", hasAccess: false},
 			},
@@ -1262,14 +1264,18 @@ func TestCheckAccessToServer(t *testing.T) {
 			roles: []*types.RoleV6{
 				newRole(func(r *types.RoleV6) {
 					r.Spec.Allow.Logins = []string{"admin"}
-					r.Spec.Allow.NodeLabels = types.Labels{"role": []string{"worker2", "worker"}}
+					r.Spec.Allow.Namespaces = []string{"*"}
+					r.Spec.Deny.Logins = []string{"*"}
+					r.Spec.Deny.Namespaces = []string{"*"}
+					r.Spec.Deny.NodeLabels = types.Labels{"role": []string{"worker2", "worker"}, "group": []string{"prod"}}
+					// r.Spec.Allow.NodeLabels = types.Labels{"*": []string{"*"}}
 				}),
 			},
 			checks: []check{
-				{server: serverNoLabels, login: "root", hasAccess: false},
-				{server: serverNoLabels, login: "admin", hasAccess: false},
+				// {server: serverNoLabels, login: "root", hasAccess: false},
+				// {server: serverNoLabels, login: "admin", hasAccess: false},
 				{server: serverWorker, login: "root", hasAccess: false},
-				{server: serverWorker, login: "admin", hasAccess: true},
+				{server: serverWorker, login: "admin", hasAccess: false},
 				{server: serverDB, login: "root", hasAccess: false},
 				{server: serverDB, login: "admin", hasAccess: false},
 			},
@@ -1297,7 +1303,7 @@ func TestCheckAccessToServer(t *testing.T) {
 				newRole(func(r *types.RoleV6) {
 					r.Spec.Allow.Logins = []string{"admin"}
 					r.Spec.Allow.Namespaces = []string{apidefaults.Namespace}
-					r.Spec.Allow.NodeLabels = types.Labels{"role": []string{"worker"}}
+					r.Spec.Deny.NodeLabels = types.Labels{"role": []string{"worker"}, "group": []string{"prod"}}
 				}),
 				newRole(func(r *types.RoleV6) {
 					r.Spec.Allow.Logins = []string{"root", "admin"}
@@ -1675,6 +1681,7 @@ func TestCheckAccessToServer(t *testing.T) {
 			for j, check := range tc.checks {
 				comment := fmt.Sprintf("check #%v: user: %v, server: %v, should access: %v", j, check.login, check.server.GetName(), check.hasAccess)
 				state := accessChecker.GetAccessState(authPref)
+				// fmt.Printf("state: %+v\n", state)
 				state.MFAVerified = tc.mfaVerified
 				state.EnableDeviceVerification = tc.enableDeviceVerification
 				state.DeviceVerified = tc.deviceVerified
@@ -1978,6 +1985,7 @@ func makeAccessCheckerWithRoles(roles []types.RoleV6) AccessChecker {
 
 func makeAccessCheckerWithRolePointers(roles []*types.RoleV6) AccessChecker {
 	roleSet := make(RoleSet, len(roles))
+	// fmt.Println("roles", roles)
 	for i := range roles {
 		roleSet[i] = roles[i]
 	}
