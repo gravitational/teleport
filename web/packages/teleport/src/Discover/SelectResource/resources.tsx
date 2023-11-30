@@ -116,13 +116,14 @@ export const WINDOWS_DESKTOPS: ResourceSpec[] = [
     event: DiscoverEventResource.WindowsDesktop,
     platform: Platform.Windows,
   },
-  // {
-  //   name: 'Non Active Directory',
-  //   kind: ResourceKind.Desktop,
-  //   keywords: 'windows desktop non-ad',
-  //   Icon: iconLookup.Windows,
-  //   comingSoon: true,
-  // },
+  {
+    name: 'Non Active Directory',
+    kind: ResourceKind.Desktop,
+    keywords: 'windows desktop non-ad',
+    icon: 'Windows',
+    event: DiscoverEventResource.WindowsDesktopNonAD,
+    unguidedLink: 'https://goteleport.com/docs/desktop-access/getting-started/',
+  },
 ];
 
 export const KUBERNETES: ResourceSpec[] = [
