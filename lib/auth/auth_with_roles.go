@@ -3491,19 +3491,19 @@ func (a *ServerWithRoles) checkGithubConnector(connector types.GithubConnector) 
 }
 
 // UpsertGithubConnector creates or updates a Github connector.
-func (a *ServerWithRoles) UpsertGithubConnector(ctx context.Context, connector types.GithubConnector) error {
+func (a *ServerWithRoles) UpsertGithubConnector(ctx context.Context, connector types.GithubConnector) (types.GithubConnector, error) {
 	if err := a.authConnectorAction(apidefaults.Namespace, types.KindGithub, types.VerbCreate); err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	if err := a.authConnectorAction(apidefaults.Namespace, types.KindGithub, types.VerbUpdate); err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	if err := a.checkGithubConnector(connector); err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
-	err := a.authServer.upsertGithubConnector(ctx, connector)
-	return trace.Wrap(err)
+	upserted, err := a.authServer.upsertGithubConnector(ctx, connector)
+	return upserted, trace.Wrap(err)
 }
 
 // CreateGithubConnector creates a new Github connector.
