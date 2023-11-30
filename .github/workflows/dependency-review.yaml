@@ -10,3 +10,5 @@ jobs:
     permissions:
       contents: read
       pull-requests: write
+    with:
+      base-ref: ${{ github.event.pull_request.base.sha || 'branch/v13' }}
