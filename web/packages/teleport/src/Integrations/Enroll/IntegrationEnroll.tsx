@@ -53,7 +53,9 @@ export function IntegrationPicker() {
       <Flex flexDirection="column" gap={4}>
         <Flex flexDirection="column">
           <NoCodeIntegrationDescription />
-          <IntegrationTiles />
+          <Flex mb={2} gap={3} flexWrap="wrap">
+            <IntegrationTiles />
+          </Flex>
         </Flex>
         <Flex flexDirection="column">
           <MachineIDIntegrationSection />
