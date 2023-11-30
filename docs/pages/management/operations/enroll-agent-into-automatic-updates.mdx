@@ -64,16 +64,16 @@ Server ID                            Hostname        Services Agent Version Upgr
 
 The Teleport Upgrader will receive occasional updates. The `tctl inventory ls` command will also display the installed version of the Teleport Upgrader:
 ```code
-$ tctl inventory ls --upgrader=none
+$ tctl inventory ls
 Server ID                            Hostname          Services Agent Version Upgrader Upgrader Version
 ------------------------------------ ----------------- -------- ------------- -------- ----------------
 4fb2d97d-884a-4566-b477-c805d477df09 agent.example.com Node     v1.2.3        unit     v14.2.0
 ...
 ```
 
-If the Upgrader Version displays "none", that means the Upgrader version is too old to report the version:
+If the Upgrader Version displays `none`, that means the Upgrader version is too old to report the version:
 ```code
-$ tctl inventory ls --upgrader=none
+$ tctl inventory ls
 Server ID                            Hostname          Services Agent Version Upgrader Upgrader Version
 ------------------------------------ ----------------- -------- ------------- -------- ----------------
 4fb2d97d-884a-4566-b477-c805d477df09 agent.example.com Node     v1.2.3        unit     none
