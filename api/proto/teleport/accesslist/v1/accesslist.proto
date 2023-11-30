@@ -37,7 +37,7 @@ message AccessList {
 // AccessListSpec is the specification for an access list.
 message AccessListSpec {
   reserved 7, 9, 10;
-  reserved "members";
+  reserved "members", "ownership", "membership";
 
   // description is an optional plaintext description of the access list.
   string description = 1;
@@ -64,11 +64,11 @@ message AccessListSpec {
   // title is a plaintext short description of the access list.
   string title = 8;
 
-  // membership defines how list membership is applied.
-  Inclusion membership = 11;
+  // membership_mode defines how list membership is applied.
+  Inclusion membership_mode = 11;
 
-  // ownership defines how list ownership of this list is determined.
-  Inclusion ownership = 12;
+  // ownership_mode defines how list ownership of this list is determined.
+  Inclusion ownership_mode = 12;
 }
 
 // AccessListOwner is an owner of an access list.

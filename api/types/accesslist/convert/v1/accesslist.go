@@ -58,12 +58,12 @@ func FromProto(msg *accesslistv1.AccessList, opts ...AccessListOption) (*accessl
 	}
 
 	ownership := accesslist.InclusionUnspecified
-	if enumValue, ok := fromInclusionProto(msg.Spec.Ownership); ok {
+	if enumValue, ok := fromInclusionProto(msg.Spec.OwnershipMode); ok {
 		ownership = enumValue
 	}
 
 	membership := accesslist.InclusionUnspecified
-	if enumValue, ok := fromInclusionProto(msg.Spec.Membership); ok {
+	if enumValue, ok := fromInclusionProto(msg.Spec.MembershipMode); ok {
 		membership = enumValue
 	}
 
@@ -148,11 +148,11 @@ func ToProto(accessList *accesslist.AccessList) *accesslistv1.AccessList {
 	return &accesslistv1.AccessList{
 		Header: headerv1.ToResourceHeaderProto(accessList.ResourceHeader),
 		Spec: &accesslistv1.AccessListSpec{
-			Title:       accessList.Spec.Title,
-			Description: accessList.Spec.Description,
-			Ownership:   ownership,
-			Membership:  membership,
-			Owners:      owners,
+			Title:          accessList.Spec.Title,
+			Description:    accessList.Spec.Description,
+			OwnershipMode:  ownership,
+			MembershipMode: membership,
+			Owners:         owners,
 			Audit: &accesslistv1.AccessListAudit{
 				NextAuditDate: timestamppb.New(accessList.Spec.Audit.NextAuditDate),
 				Recurrence: &accesslistv1.Recurrence{
