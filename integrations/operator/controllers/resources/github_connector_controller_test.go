@@ -61,7 +61,8 @@ func (g *githubTestingPrimitives) CreateTeleportResource(ctx context.Context, na
 		return trace.Wrap(err)
 	}
 	github.SetOrigin(types.OriginKubernetes)
-	return trace.Wrap(g.setup.TeleportClient.UpsertGithubConnector(ctx, github))
+	_, err = g.setup.TeleportClient.CreateGithubConnector(ctx, github)
+	return trace.Wrap(err)
 }
 
 func (g *githubTestingPrimitives) GetTeleportResource(ctx context.Context, name string) (types.GithubConnector, error) {

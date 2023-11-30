@@ -766,11 +766,9 @@ func (s *ServicesTestSuite) SAMLCRUD(t *testing.T) {
 	}
 	err := services.ValidateSAMLConnector(connector, nil)
 	require.NoError(t, err)
-	err = s.WebS.UpsertSAMLConnector(ctx, connector)
+	upserted, err := s.WebS.UpsertSAMLConnector(ctx, connector)
 	require.NoError(t, err)
-	out, err := s.WebS.GetSAMLConnector(ctx, connector.GetName(), true)
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(out, connector, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+	require.Empty(t, cmp.Diff(upserted, connector, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
 	connectors, err := s.WebS.GetSAMLConnectors(ctx, true)
 	require.NoError(t, err)
@@ -820,8 +818,7 @@ func (s *ServicesTestSuite) SAMLCRUD(t *testing.T) {
 	connector.SetRevision(uuid.NewString())
 	connector.SetDisplay("llama")
 
-	require.NoError(t, s.WebS.UpsertSAMLConnector(ctx, connector))
-	upserted, err := s.WebS.GetSAMLConnector(ctx, connector.GetName(), true)
+	upserted, err = s.WebS.UpsertSAMLConnector(ctx, connector)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(connector, upserted, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 	require.NotEmpty(t, upserted.GetRevision())
@@ -1007,11 +1004,9 @@ func (s *ServicesTestSuite) GithubConnectorCRUD(t *testing.T) {
 	}
 	err := connector.CheckAndSetDefaults()
 	require.NoError(t, err)
-	err = s.WebS.UpsertGithubConnector(ctx, connector)
+	upserted, err := s.WebS.UpsertGithubConnector(ctx, connector)
 	require.NoError(t, err)
-	out, err := s.WebS.GetGithubConnector(ctx, connector.GetName(), true)
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(out, connector, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+	require.Empty(t, cmp.Diff(upserted, connector, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
 	connectors, err := s.WebS.GetGithubConnectors(ctx, true)
 	require.NoError(t, err)
@@ -1061,8 +1056,7 @@ func (s *ServicesTestSuite) GithubConnectorCRUD(t *testing.T) {
 	connector.SetRevision(uuid.NewString())
 	connector.SetDisplay("llama")
 
-	require.NoError(t, s.WebS.UpsertGithubConnector(ctx, connector))
-	upserted, err := s.WebS.GetGithubConnector(ctx, connector.GetName(), true)
+	upserted, err = s.WebS.UpsertGithubConnector(ctx, connector)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(connector, upserted, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 	require.NotEmpty(t, upserted.GetRevision())
