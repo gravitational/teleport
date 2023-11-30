@@ -49,6 +49,10 @@ module.exports = {
       ...storybookConfig.resolve,
       ...configFactory.createDefaultConfig().resolve,
     };
+    storybookConfig.resolve.alias['access-graph'] = path.join(
+      __dirname,
+      'access-graph-mock.jsx'
+    );
 
     storybookConfig.optimization = {
       splitChunks: {
