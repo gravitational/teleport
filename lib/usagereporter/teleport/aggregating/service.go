@@ -78,28 +78,75 @@ func ResourcePresenceReportKey(reportUUID uuid.UUID, startTime time.Time) []byte
 	return backend.Key(ResourcePresenceReportsPrefix, startTime.Format(time.RFC3339), reportUUID.String())
 }
 
-func prepareResourcePresenceReport(
+// prepareResourcePresenceReport prepares a resource presence report for storage.
+// It returns a slice of reports for case when single report is too large to fit in a single item.
+// As even a single resource kind report can be too large to fit in a single item, it may return
+// multiple reports with single resource kind report split into multiple fragments.
+func prepareResourcePresenceReports(
 	clusterName, reporterHostID []byte,
 	startTime time.Time, records []*prehogv1.ResourceKindPresenceReport,
-) (*prehogv1.ResourcePresenceReport, error) {
-	reportUUID := uuid.New()
-	report := &prehogv1.ResourcePresenceReport{
-		ReportUuid:          reportUUID[:],
-		ClusterName:         clusterName,
-		ReporterHostid:      reporterHostID,
-		StartTime:           timestamppb.New(startTime),
-		ResourceKindReports: records,
-	}
+) ([]*prehogv1.ResourcePresenceReport, error) {
+	reports := make([]*prehogv1.ResourcePresenceReport, 0, 1) // at least one report
 
-	for proto.Size(report) > maxItemSize {
-		if len(report.ResourceKindReports) <= 1 {
-			return nil, trace.LimitExceeded("failed to marshal resource counts report within size limit (this is a bug)")
+	for len(records) > 0 {
+		reportUUID := uuid.New()
+		report := &prehogv1.ResourcePresenceReport{
+			ReportUuid:          reportUUID[:],
+			ClusterName:         clusterName,
+			ReporterHostid:      reporterHostID,
+			StartTime:           timestamppb.New(startTime),
+			ResourceKindReports: records,
 		}
 
-		report.ResourceKindReports = report.ResourceKindReports[:len(report.ResourceKindReports)/2]
+		if proto.Size(report) <= maxItemSize {
+			// The last report fits, so we're done.
+			reports = append(reports, report)
+			return reports, nil
+		}
+
+		// We're over the size limit, so we need to split the report and try again.
+		excessSize := proto.Size(report) - maxItemSize
+		kindReportsAcc := make([]*prehogv1.ResourceKindPresenceReport, 0, len(records)-1)
+
+		for _, kindReport := range records {
+			if proto.Size(kindReport) <= excessSize {
+				// This kind report fits, so we're done.
+				kindReportsAcc = append(kindReportsAcc, kindReport)
+				records = records[1:]
+				continue // try next kind report
+			}
+
+			excessElementsCount := int((float64(proto.Size(kindReport)-excessSize) / float64(proto.Size(kindReport))) * float64(len(kindReport.GetResourceIds())))
+			if excessElementsCount >= len(kindReport.GetResourceIds()) {
+				// This kind report is too big to fit even if we remove all elements,
+				continue // try to insert it into next report
+			}
+
+			// Split the kind report into two fragments, the first of which will be
+			// added to the current report, and the second of which will be added to
+			// the next report.
+			kindReport1 := &prehogv1.ResourceKindPresenceReport{
+				ResourceKind: kindReport.GetResourceKind(),
+				ResourceIds:  kindReport.GetResourceIds()[:len(kindReport.GetResourceIds())-excessElementsCount],
+			}
+
+			// Add the first fragment to the current report.
+			kindReportsAcc = append(kindReportsAcc, kindReport1)
+
+			kindReport.ResourceIds = kindReport.GetResourceIds()[len(kindReport.GetResourceIds())-excessElementsCount:]
+		}
+
+		report.ResourceKindReports = kindReportsAcc
+
+		// Sanity check that report is still fits
+		if proto.Size(report) > maxItemSize {
+			return nil, trace.LimitExceeded("failed to marshal resource presence report within size limit (this is a bug)")
+		}
+
+		reports = append(reports, report)
 	}
 
-	return report, nil
+	return reports, nil
 }
 
 // reportService is a [backend.Backend] wrapper that handles usage reports.

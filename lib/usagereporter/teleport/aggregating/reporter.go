@@ -375,7 +375,7 @@ func (r *Reporter) persistResourcePresence(ctx context.Context, startTime time.T
 		records = append(records, record)
 	}
 
-	report, err := prepareResourcePresenceReport(r.clusterName, r.hostID, startTime, records)
+	reports, err := prepareResourcePresenceReports(r.clusterName, r.hostID, startTime, records)
 	if err != nil {
 		r.log.WithError(err).WithFields(logrus.Fields{
 			"start_time": startTime,
@@ -383,16 +383,18 @@ func (r *Reporter) persistResourcePresence(ctx context.Context, startTime time.T
 		return
 	}
 
-	if err := r.svc.upsertResourcePresenceReport(ctx, report, reportTTL); err != nil {
-		r.log.WithError(err).WithFields(logrus.Fields{
-			"start_time": startTime,
-		}).Error("Failed to persist resource presence report, dropping data.")
-		return
-	}
+	for _, report := range reports {
+		if err := r.svc.upsertResourcePresenceReport(ctx, report, reportTTL); err != nil {
+			r.log.WithError(err).WithFields(logrus.Fields{
+				"start_time": startTime,
+			}).Error("Failed to persist resource presence report, dropping data.")
+			return
+		}
 
-	reportUUID, _ := uuid.FromBytes(report.ReportUuid)
-	r.log.WithFields(logrus.Fields{
-		"report_uuid": reportUUID,
-		"start_time":  startTime,
-	}).Debug("Persisted resource counts report.")
+		reportUUID, _ := uuid.FromBytes(report.ReportUuid)
+		r.log.WithFields(logrus.Fields{
+			"report_uuid": reportUUID,
+			"start_time":  startTime,
+		}).Debug("Persisted resource presence report.")
+	}
 }
