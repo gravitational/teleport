@@ -1,0 +1,56 @@
+kind: role
+metadata:
+  name: operator
+spec:
+  allow:
+    rules:
+      - resources:
+          - role
+        verbs:
+          - list
+          - create
+          - read
+          - update
+          - delete
+      - resources:
+          - user
+        verbs:
+          - list
+          - create
+          - read
+          - update
+          - delete
+      - resources:
+          - auth_connector
+        verbs:
+          - list
+          - create
+          - read
+          - update
+          - delete
+      - resources:
+          - login_rule
+        verbs:
+          - list
+          - create
+          - read
+          - update
+          - delete
+      - resources:
+          - token
+        verbs:
+          - list
+          - create
+          - read
+          - update
+          - delete
+      - resources:
+          - okta_import_rule
+        verbs:
+          - list
+          - create
+          - read
+          - update
+          - delete
+  deny: {}
+version: v7

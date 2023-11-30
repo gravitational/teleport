@@ -5589,40 +5589,6 @@ func modifyAndWaitForEvent(t *testing.T, errFn require.ErrorAssertionFunc, clien
 	return nil
 }
 
-func TestUnimplementedClients(t *testing.T) {
-	ctx := context.Background()
-	testAuth, err := NewTestAuthServer(TestAuthServerConfig{Dir: t.TempDir()})
-	server := &ServerWithRoles{
-		authServer: testAuth.AuthServer,
-	}
-
-	require.NoError(t, err)
-
-	t.Run("DevicesClient", func(t *testing.T) {
-		_, err := server.DevicesClient().ListDevices(ctx, nil)
-		require.Error(t, err)
-		require.True(t, trace.IsNotImplemented(err), err)
-	})
-
-	t.Run("LoginRuleClient", func(t *testing.T) {
-		_, err := server.LoginRuleClient().ListLoginRules(ctx, nil)
-		require.Error(t, err)
-		require.True(t, trace.IsNotImplemented(err), err)
-	})
-
-	t.Run("PluginClient", func(t *testing.T) {
-		_, err := server.PluginsClient().ListPlugins(ctx, nil)
-		require.Error(t, err)
-		require.True(t, trace.IsNotImplemented(err), err)
-	})
-
-	t.Run("SAMLIdPClient", func(t *testing.T) {
-		_, err := server.SAMLIdPClient().ProcessSAMLIdPRequest(ctx, nil)
-		require.Error(t, err)
-		require.True(t, trace.IsNotImplemented(err), err)
-	})
-}
-
 // newTestHeadlessAuthn returns the headless authentication resource
 // used across headless authentication tests.
 func newTestHeadlessAuthn(t *testing.T, user string, clock clockwork.Clock) *types.HeadlessAuthentication {
@@ -6535,32 +6501,6 @@ func TestSafeToSkipInventoryCheck(t *testing.T) {
 		require.Equal(t, tc.safeToSkip,
 			safeToSkipInventoryCheck(*semver.New(tc.authVersion), *semver.New(tc.minRequiredVersion)))
 	}
-}
-
-// TestPing_AccessRequestFeature tests setting of both the deprecated field "AdvancedAccessWorkflows"
-// (kept for backwards compat) and the new field "AccessRequests.Enabled" (that replaces the deprecated field)
-// are set to the same bool value when enabling/disabling.
-func TestPing_AccessRequestFeature(t *testing.T) {
-	ctx := context.Background()
-	srv := newTestTLSServer(t)
-
-	ping, err := srv.Auth().Ping(ctx)
-	require.NoError(t, err)
-	require.False(t, ping.ServerFeatures.AccessRequests.Enabled, "expected field AccessRequests.Enabled to be false")
-	require.False(t, ping.ServerFeatures.AdvancedAccessWorkflows, "expected field AdvancedAccessWorkflows to be false")
-
-	modules.SetTestModules(t, &modules.TestModules{
-		TestFeatures: modules.Features{
-			AccessRequests: modules.AccessRequestsFeature{
-				Enabled: true,
-			},
-		},
-	})
-
-	ping, err = srv.Auth().Ping(ctx)
-	require.NoError(t, err)
-	require.True(t, ping.ServerFeatures.AccessRequests.Enabled, "expected field AccessRequests.Enabled to be true")
-	require.True(t, ping.ServerFeatures.AdvancedAccessWorkflows, "expected field AdvancedAccessWorkflows to be true")
 }
 
 func TestCreateAccessRequest(t *testing.T) {

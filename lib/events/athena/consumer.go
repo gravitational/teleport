@@ -82,6 +82,10 @@ type consumer struct {
 	sqsDeleter sqsDeleter
 	queueURL   string
 
+	// observeWriteEventsError is called once for each error (including nil
+	// errors) from writing events to S3.
+	observeWriteEventsError func(error)
+
 	// cancelRun is used to cancel consumer.Run
 	cancelRun context.CancelFunc
 
@@ -147,8 +151,9 @@ func newConsumer(cfg Config, cancelFn context.CancelFunc) (*consumer, error) {
 			}
 			return fw, nil
 		},
-		cancelRun: cancelFn,
-		finished:  make(chan struct{}),
+		observeWriteEventsError: cfg.ObserveWriteEventsError,
+		cancelRun:               cancelFn,
+		finished:                make(chan struct{}),
 	}, nil
 }
 
@@ -181,6 +186,7 @@ func (c *consumer) Close() error {
 func (c *consumer) processEventsContinuously(ctx context.Context) {
 	processBatchOfEventsWithLogging := func(context.Context) (reachedMaxBatch bool) {
 		reachedMaxBatch, err := c.processBatchOfEvents(ctx)
+		c.observeWriteEventsError(err)
 		if err != nil {
 			// Ctx.Cancel is used to stop batcher
 			if ctx.Err() != nil {

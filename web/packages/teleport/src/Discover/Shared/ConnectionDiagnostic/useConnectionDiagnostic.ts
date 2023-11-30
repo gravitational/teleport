@@ -44,17 +44,21 @@ export function useConnectionDiagnostic() {
 
   const [showMfaDialog, setShowMfaDialog] = useState(false);
 
-  // runConnectionDiagnostic depending on the value of `mfaAuthnResponse` does the following:
-  //   1) If param `mfaAuthnResponse` is undefined or null, it will check if MFA is required.
-  //      - If MFA is required, it sets a flag that indicates a users
-  //        MFA credentials are required, and skips the request to test connection.
-  //      - If MFA is NOT required, it makes the request to test connection.
-  //   2) If param `mfaAuthnResponse` is defined, it skips checking if MFA is required,
-  //      and makes the request to test connection.
+  /**
+   * runConnectionDiagnostic depending on the value of `mfaAuthnResponse` does the following:
+   *   1) If param `mfaAuthnResponse` is undefined or null, it will check if MFA is required.
+   *      - If MFA is required, it sets a flag that indicates a users
+   *        MFA credentials are required, and skips the request to test connection.
+   *      - If MFA is NOT required, it makes the request to test connection.
+   *   2) If param `mfaAuthnResponse` is defined, it skips checking if MFA is required,
+   *      and makes the request to test connection.
+   *
+   * The return value can be used within event handlers where you cannot depend on React state.
+   */
   async function runConnectionDiagnostic(
     req: ConnectionDiagnosticRequest,
     mfaAuthnResponse?: MfaAuthnResponse
-  ) {
+  ): Promise<{ mfaRequired: boolean }> {
     setDiagnosis(null); // reset since user's can re-test connection.
     setRanDiagnosis(true);
     setShowMfaDialog(false);
@@ -67,7 +71,7 @@ export function useConnectionDiagnostic() {
         const sessionMfa = await auth.checkMfaRequired(mfaReq);
         if (sessionMfa.required) {
           setShowMfaDialog(true);
-          return;
+          return { mfaRequired: true };
         }
       }
 
@@ -97,6 +101,8 @@ export function useConnectionDiagnostic() {
       handleError(err);
       emitErrorEvent(err.message);
     }
+
+    return { mfaRequired: false };
   }
 
   function cancelMfaDialog() {
@@ -123,6 +129,12 @@ export function useConnectionDiagnostic() {
     canTestConnection,
     username,
     authType,
+    /**
+     * @deprecated Get clusterId from resource, for example (agentMeta as NodeMeta).node.clusterId
+     * Alternatively, call useTeleport and then ctx.storeUser.getClusterId.
+     *
+     * Hooks should not reexport values that are already made available by other hooks.
+     */
     clusterId: ctx.storeUser.getClusterId(),
     showMfaDialog,
     cancelMfaDialog,

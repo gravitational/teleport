@@ -81,6 +81,12 @@ const service = {
       .get(cfg.getCheckAccessToRegisteredResourceUrl())
       .then(res => Boolean(res.hasResource));
   },
+
+  fetchConnectMyComputerLogins(signal?: AbortSignal): Promise<Array<string>> {
+    return api
+      .get(cfg.getConnectMyComputerLoginsUrl(), signal)
+      .then(res => res.logins);
+  },
 };
 
 export default service;

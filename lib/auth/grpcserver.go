@@ -3340,11 +3340,8 @@ func (g *GRPCServer) UpdateGithubConnector(ctx context.Context, req *authpb.Upda
 		return nil, trace.Wrap(err)
 	}
 
-	githubConnectorV3, ok := updated.(*types.GithubConnectorV3)
-	if !ok {
-		return nil, trace.Errorf("encountered unexpected GitHub connector type: %T", updated)
-	}
-	return githubConnectorV3, nil
+	githubConnectorV3, err := services.ConvertGithubConnector(updated)
+	return githubConnectorV3, trace.Wrap(err)
 }
 
 // CreateGithubConnector creates a new  Github connector.
@@ -3363,11 +3360,8 @@ func (g *GRPCServer) CreateGithubConnector(ctx context.Context, req *authpb.Crea
 		return nil, trace.Wrap(err)
 	}
 
-	githubConnectorV3, ok := created.(*types.GithubConnectorV3)
-	if !ok {
-		return nil, trace.Errorf("encountered unexpected GitHub connector type: %T", created)
-	}
-	return githubConnectorV3, nil
+	githubConnectorV3, err := services.ConvertGithubConnector(created)
+	return githubConnectorV3, trace.Wrap(err)
 }
 
 // DeleteGithubConnector deletes a Github connector by name.

@@ -35,6 +35,7 @@ import { pluralize } from 'shared/utils/text';
 import cfg from 'teleport/config';
 import { lockService } from 'teleport/services/locks';
 import { TrashButton } from 'teleport/LocksV2/common';
+import shieldCheck from 'teleport/assets/shield-check.png';
 
 import {
   LockResource,
@@ -42,8 +43,6 @@ import {
   LockResourceMap,
   ToggleSelectResourceFn,
 } from '../common';
-
-import shieldCheck from './shield-check.png';
 
 import type { TransitionStatus } from 'react-transition-group';
 

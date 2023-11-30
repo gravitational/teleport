@@ -14,6 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+import { SharedUnifiedResource } from 'shared/components/UnifiedResources';
+
 import * as uri from 'teleterm/ui/uri';
 
 import type * as tsh from 'teleterm/services/tshd/types';
@@ -134,6 +136,11 @@ export interface DocumentGatewayCliClient extends DocumentBase {
   status: '' | 'connecting' | 'connected' | 'error';
 }
 
+/**
+ * DocumentGatewayKube replaced DocumentTshKube in Connect v14. Before removing DocumentTshKube
+ * completely, we should add a migration that transforms all DocumentTshKube docs into
+ * DocumentGatewayKube docs when loading the workspace state from disk.
+ */
 export interface DocumentGatewayKube extends DocumentBase {
   kind: 'doc.gateway_kube';
   rootClusterId: string;
@@ -145,7 +152,34 @@ export interface DocumentGatewayKube extends DocumentBase {
 export interface DocumentCluster extends DocumentBase {
   kind: 'doc.cluster';
   clusterUri: uri.ClusterUri;
+  queryParams: DocumentClusterQueryParams;
 }
+
+// When extending this type, remember to update the
+// `WorkspacesService.reopenPreviousDocuments` method
+// that spreads all of its properties.
+export interface DocumentClusterQueryParams {
+  search: string;
+  advancedSearchEnabled: boolean;
+  /**
+   * This is a list of 'resource kind' filters that can be selected from
+   * both the search bar and the types selector in the unified resources view.
+   *
+   * If it is empty, all resource kinds are listed.
+   */
+  resourceKinds: DocumentClusterResourceKind[];
+  sort: {
+    fieldName: string;
+    dir: 'ASC' | 'DESC';
+  };
+}
+
+// Any changes done to this type must be backwards compatible as
+// `DocumentClusterQueryParams` uses values of this type and documents are stored to disk.
+export type DocumentClusterResourceKind = Extract<
+  SharedUnifiedResource['resource']['kind'],
+  'node' | 'kube_cluster' | 'db'
+>;
 
 export interface DocumentAccessRequests extends DocumentBase {
   kind: 'doc.access_requests';
@@ -214,10 +248,6 @@ export type CreateGatewayDocumentOpts = {
   title?: string;
   port?: string;
   origin: DocumentOrigin;
-};
-
-export type CreateClusterDocumentOpts = {
-  clusterUri: uri.ClusterUri;
 };
 
 export type CreateTshKubeDocumentOptions = {

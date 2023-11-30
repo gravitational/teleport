@@ -5622,9 +5622,8 @@ steps:
   - 'go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e
     -tag-workflow -series-run -series-run-filter .*apt.* -timeout 12h0m0s -workflow
     deploy-packages.yaml -workflow-ref=refs/heads/master -input "artifact-tag=${DRONE_TAG}"
-    -input "environment=$(cat "/go/vars/release-environment.txt")" -input "package-name-filter=$($DRONE_REPO_PRIVATE
-    && echo "*ent*" || echo "")" -input "package-to-test=teleport-ent" -input "release-channel=stable"
-    -input "repo-type=apt" -input "version-channel=${DRONE_TAG}" '
+    -input "environment=$(cat "/go/vars/release-environment.txt")" -input "package-to-test=teleport-ent"
+    -input "release-channel=stable" -input "repo-type=apt" -input "version-channel=${DRONE_TAG}" '
   environment:
     GHA_APP_KEY:
       from_secret: GITHUB_WORKFLOW_APP_PRIVATE_KEY
@@ -5644,9 +5643,8 @@ steps:
   - 'go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e
     -tag-workflow -series-run -series-run-filter .*yum.* -timeout 12h0m0s -workflow
     deploy-packages.yaml -workflow-ref=refs/heads/master -input "artifact-tag=${DRONE_TAG}"
-    -input "environment=$(cat "/go/vars/release-environment.txt")" -input "package-name-filter=$($DRONE_REPO_PRIVATE
-    && echo "*ent*" || echo "")" -input "package-to-test=teleport-ent" -input "release-channel=stable"
-    -input "repo-type=yum" -input "version-channel=${DRONE_TAG}" '
+    -input "environment=$(cat "/go/vars/release-environment.txt")" -input "package-to-test=teleport-ent"
+    -input "release-channel=stable" -input "repo-type=yum" -input "version-channel=${DRONE_TAG}" '
   environment:
     GHA_APP_KEY:
       from_secret: GITHUB_WORKFLOW_APP_PRIVATE_KEY
@@ -5708,9 +5706,8 @@ steps:
   - 'go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e
     -tag-workflow -series-run -series-run-filter .*apt.* -timeout 12h0m0s -workflow
     deploy-packages.yaml -workflow-ref=refs/heads/master -input "artifact-tag=${DRONE_TAG}"
-    -input "environment=$(cat "/go/vars/release-environment.txt")" -input "package-name-filter=$($DRONE_REPO_PRIVATE
-    && echo "*ent*" || echo "")" -input "package-to-test=teleport-ent" -input "release-channel=stable"
-    -input "repo-type=apt" -input "version-channel=rolling" '
+    -input "environment=$(cat "/go/vars/release-environment.txt")" -input "package-to-test=teleport-ent"
+    -input "release-channel=stable" -input "repo-type=apt" -input "version-channel=rolling" '
   environment:
     GHA_APP_KEY:
       from_secret: GITHUB_WORKFLOW_APP_PRIVATE_KEY
@@ -5730,9 +5727,8 @@ steps:
   - 'go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e
     -tag-workflow -series-run -series-run-filter .*yum.* -timeout 12h0m0s -workflow
     deploy-packages.yaml -workflow-ref=refs/heads/master -input "artifact-tag=${DRONE_TAG}"
-    -input "environment=$(cat "/go/vars/release-environment.txt")" -input "package-name-filter=$($DRONE_REPO_PRIVATE
-    && echo "*ent*" || echo "")" -input "package-to-test=teleport-ent" -input "release-channel=stable"
-    -input "repo-type=yum" -input "version-channel=rolling" '
+    -input "environment=$(cat "/go/vars/release-environment.txt")" -input "package-to-test=teleport-ent"
+    -input "release-channel=stable" -input "repo-type=yum" -input "version-channel=rolling" '
   environment:
     GHA_APP_KEY:
       from_secret: GITHUB_WORKFLOW_APP_PRIVATE_KEY
@@ -16395,6 +16391,6 @@ image_pull_secrets:
 - DOCKERHUB_CREDENTIALS
 ---
 kind: signature
-hmac: a98422e79a1c21b4e16c627b76dd91c315735ff992e6126e646fa20a8ae45e63
+hmac: 1b4e51f6e9336c6ed109964655c1b5f6f79bb4b9d5095cf6390563eaaafc3d55
 
 ...

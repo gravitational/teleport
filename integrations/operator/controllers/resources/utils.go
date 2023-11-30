@@ -126,26 +126,6 @@ func getStructureConditionFromError(err error) metav1.Condition {
 	}
 }
 
-// getTeleportClientConditionFromError takes an error returned by a call to Teleport ClientAccessor and returns a
-// metav1.Condition describing how the Teleport client creation went. This is used to provide feedback to
-// the user about the controller's ability to reconcile the resource.
-func getTeleportClientConditionFromError(err error) metav1.Condition {
-	if err != nil {
-		return metav1.Condition{
-			Type:    ConditionTypeTeleportClient,
-			Status:  metav1.ConditionFalse,
-			Reason:  ConditionReasonTeleportClientError,
-			Message: fmt.Sprintf("Failed to create Teleport client: %s", err),
-		}
-	}
-	return metav1.Condition{
-		Type:    ConditionTypeTeleportClient,
-		Status:  metav1.ConditionTrue,
-		Reason:  ConditionReasonNoError,
-		Message: "Teleport client creation was successful.",
-	}
-}
-
 // updateStatusConfig is a configuration struct for silentUpdateStatus.
 type updateStatusConfig struct {
 	ctx         context.Context

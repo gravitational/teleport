@@ -12,11 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// package servicecfg contains the runtime configuration for Teleport services
+// Package servicecfg contains the runtime configuration for Teleport services
 package servicecfg
 
 import (
 	"io"
+	"log/slog"
 	"net"
 	"os"
 	"path/filepath"
@@ -210,8 +211,12 @@ type Config struct {
 	// Kube is a Kubernetes API gateway using Teleport client identities.
 	Kube KubeConfig
 
-	// Log optionally specifies the logger
+	// Log optionally specifies the logger.
+	// Deprecated: use Logger instead.
 	Log utils.Logger
+	// Logger outputs messages using slog. The underlying handler respects
+	// the user supplied logging config.
+	Logger *slog.Logger
 
 	// PluginRegistry allows adding enterprise logic to Teleport services
 	PluginRegistry plugin.Registry
@@ -502,6 +507,10 @@ func ApplyDefaults(cfg *Config) {
 		cfg.Log = utils.NewLogger()
 	}
 
+	if cfg.Logger == nil {
+		cfg.Logger = slog.Default()
+	}
+
 	// Remove insecure and (borderline insecure) cryptographic primitives from
 	// default configuration. These can still be added back in file configuration by
 	// users, but not supported by default by Teleport. See #1856 for more
@@ -662,6 +671,10 @@ func applyDefaults(cfg *Config) {
 
 	if cfg.Log == nil {
 		cfg.Log = logrus.StandardLogger()
+	}
+
+	if cfg.Logger == nil {
+		cfg.Logger = slog.Default()
 	}
 
 	if cfg.PollingPeriod == 0 {

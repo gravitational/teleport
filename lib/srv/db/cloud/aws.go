@@ -78,7 +78,10 @@ func newAWS(ctx context.Context, config awsConfig) (*awsClient, error) {
 	}
 
 	meta := config.database.GetAWS()
-	iam, err := config.clients.GetAWSIAMClient(ctx, meta.Region, cloud.WithAssumeRoleFromAWSMeta(meta))
+	iam, err := config.clients.GetAWSIAMClient(ctx, meta.Region,
+		cloud.WithAssumeRoleFromAWSMeta(meta),
+		cloud.WithAmbientCredentials(),
+	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -312,7 +315,10 @@ func (r *rdsDBConfigurator) ensureIAMAuth(ctx context.Context, db types.Database
 func (r *rdsDBConfigurator) enableIAMAuth(ctx context.Context, db types.Database) error {
 	r.log.Debug("Enabling IAM auth for RDS.")
 	meta := db.GetAWS()
-	rdsClt, err := r.clients.GetAWSRDSClient(ctx, meta.Region, cloud.WithAssumeRoleFromAWSMeta(meta))
+	rdsClt, err := r.clients.GetAWSRDSClient(ctx, meta.Region,
+		cloud.WithAssumeRoleFromAWSMeta(meta),
+		cloud.WithAmbientCredentials(),
+	)
 	if err != nil {
 		return trace.Wrap(err)
 	}

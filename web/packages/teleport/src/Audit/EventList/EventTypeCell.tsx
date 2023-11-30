@@ -37,7 +37,6 @@ const EventIconMap: Record<EventCode, any> = {
   [eventCodes.OIDC_CONNECTOR_DELETED]: Icons.Info,
   [eventCodes.OIDC_CONNECTOR_UPDATED]: Icons.Info,
   [eventCodes.SAML_CONNECTOR_CREATED]: Icons.Info,
-  [eventCodes.SAML_CONNECTOR_CREATED]: Icons.Info,
   [eventCodes.SAML_CONNECTOR_DELETED]: Icons.Info,
   [eventCodes.SAML_CONNECTOR_UPDATED]: Icons.Info,
   [eventCodes.ROLE_CREATED]: Icons.Info,
@@ -248,6 +247,8 @@ const EventIconMap: Record<EventCode, any> = {
     Icons.Warning,
   [eventCodes.SECURITY_REPORT_AUDIT_QUERY_RUN]: Icons.Info,
   [eventCodes.SECURITY_REPORT_RUN]: Icons.Info,
+  [eventCodes.EXTERNAL_AUDIT_STORAGE_ENABLE]: Icons.Database,
+  [eventCodes.EXTERNAL_AUDIT_STORAGE_DISABLE]: Icons.Database,
   [eventCodes.UNKNOWN]: Icons.Question,
 };
 
