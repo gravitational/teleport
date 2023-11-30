@@ -542,7 +542,7 @@ type IdentityService interface {
 	// UpdateSAMLConnector updates an existing SAML connector
 	UpdateSAMLConnector(ctx context.Context, connector types.SAMLConnector) (types.SAMLConnector, error)
 	// UpsertSAMLConnector updates or creates a SAML connector
-	UpsertSAMLConnector(ctx context.Context, connector types.SAMLConnector) error
+	UpsertSAMLConnector(ctx context.Context, connector types.SAMLConnector) (types.SAMLConnector, error)
 	// GetSAMLConnector returns SAML connector information by id
 	GetSAMLConnector(ctx context.Context, id string, withSecrets bool) (types.SAMLConnector, error)
 	// GetSAMLConnectors gets SAML connectors list

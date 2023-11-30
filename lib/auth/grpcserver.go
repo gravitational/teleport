@@ -3193,7 +3193,7 @@ func (g *GRPCServer) CreateSAMLConnector(ctx context.Context, req *authpb.Create
 
 	v2, ok := created.(*types.SAMLConnectorV2)
 	if !ok {
-		return nil, trace.Errorf("encountered unexpected SAML connector type: %T", created)
+		return nil, trace.BadParameter("encountered unexpected SAML connector type: %T", created)
 	}
 
 	return v2, nil
@@ -3213,21 +3213,38 @@ func (g *GRPCServer) UpdateSAMLConnector(ctx context.Context, req *authpb.Update
 
 	v2, ok := updated.(*types.SAMLConnectorV2)
 	if !ok {
-		return nil, trace.Errorf("encountered unexpected SAML connector type: %T", updated)
+		return nil, trace.BadParameter("encountered unexpected SAML connector type: %T", updated)
+	}
+
+	return v2, nil
+}
+
+// UpsertSAMLConnectorV2 creates a new or replaces an existing SAML connector.
+func (g *GRPCServer) UpsertSAMLConnectorV2(ctx context.Context, req *authpb.UpsertSAMLConnectorRequest) (*types.SAMLConnectorV2, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	upserted, err := auth.ServerWithRoles.UpsertSAMLConnector(ctx, req.Connector)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	v2, ok := upserted.(*types.SAMLConnectorV2)
+	if !ok {
+		return nil, trace.BadParameter("encountered unexpected SAML connector type: %T", upserted)
 	}
 
 	return v2, nil
 }
 
 // UpsertSAMLConnector upserts a SAML connector.
+// Deprecated: Use [GRPCServer.UpsertSAMLConnectorV2] instead.
 func (g *GRPCServer) UpsertSAMLConnector(ctx context.Context, samlConnector *types.SAMLConnectorV2) (*emptypb.Empty, error) {
-	auth, err := g.authenticate(ctx)
-	if err != nil {
+	if _, err := g.UpsertSAMLConnectorV2(ctx, &authpb.UpsertSAMLConnectorRequest{Connector: samlConnector}); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err = auth.ServerWithRoles.UpsertSAMLConnector(ctx, samlConnector); err != nil {
-		return nil, trace.Wrap(err)
-	}
+
 	return &emptypb.Empty{}, nil
 }
 
