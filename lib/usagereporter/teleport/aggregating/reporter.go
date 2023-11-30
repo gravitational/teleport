@@ -34,7 +34,7 @@ import (
 
 const (
 	userActivityReportGranularity = 15 * time.Minute
-	resourceReportGranularity     = 15 * time.Minute
+	resourceReportGranularity     = time.Hour
 	rollbackGrace                 = time.Minute
 	reportTTL                     = 60 * 24 * time.Hour
 
@@ -379,14 +379,14 @@ func (r *Reporter) persistResourcePresence(ctx context.Context, startTime time.T
 	if err != nil {
 		r.log.WithError(err).WithFields(logrus.Fields{
 			"start_time": startTime,
-		}).Error("Failed to prepare resource counts report, dropping data.")
+		}).Error("Failed to prepare resource presence report, dropping data.")
 		return
 	}
 
 	if err := r.svc.upsertResourcePresenceReport(ctx, report, reportTTL); err != nil {
 		r.log.WithError(err).WithFields(logrus.Fields{
 			"start_time": startTime,
-		}).Error("Failed to persist resource counts report, dropping data.")
+		}).Error("Failed to persist resource presence report, dropping data.")
 		return
 	}
 
