@@ -162,7 +162,7 @@ func (s *Service) GenerateDraftExternalAuditStorage(ctx context.Context, req *pb
 		return nil, trace.Wrap(err)
 	}
 
-	if err := s.checkClusterAuditConfig(ctx); err != nil {
+	if err := s.checkClusterAuditConfig(ctx, req.Region); err != nil {
 		return nil, trace.Wrap(err, "unable to configure External Audit Storage")
 	}
 
@@ -175,19 +175,43 @@ func (s *Service) GenerateDraftExternalAuditStorage(ctx context.Context, req *pb
 	}, nil
 }
 
-func (s *Service) UpsertDraftExternalAuditStorage(ctx context.Context, req *pb.UpsertDraftExternalAuditStorageRequest) (*pb.UpsertDraftExternalAuditStorageResponse, error) {
-	if err := s.authorizeVerbs(ctx, types.VerbCreate, types.VerbUpdate); err != nil {
+func (s *Service) CreateDraftExternalAuditStorage(ctx context.Context, req *pb.CreateDraftExternalAuditStorageRequest) (*pb.CreateDraftExternalAuditStorageResponse, error) {
+	if err := s.authorizeVerbs(ctx, types.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
-	}
-
-	if err := s.checkClusterAuditConfig(ctx); err != nil {
-		return nil, trace.Wrap(err, "unable to configure External Audit Storage")
 	}
 
 	// Validation of parameters is done in FromProtoDraft.
 	draft, err := conv.FromProtoDraft(req.GetExternalAuditStorage())
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	if err := s.checkClusterAuditConfig(ctx, draft.Spec.Region); err != nil {
+		return nil, trace.Wrap(err, "unable to configure External Audit Storage")
+	}
+
+	resp, err := s.externalAuditStorage.CreateDraftExternalAuditStorage(ctx, draft)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &pb.CreateDraftExternalAuditStorageResponse{
+		ExternalAuditStorage: conv.ToProto(resp),
+	}, nil
+}
+
+func (s *Service) UpsertDraftExternalAuditStorage(ctx context.Context, req *pb.UpsertDraftExternalAuditStorageRequest) (*pb.UpsertDraftExternalAuditStorageResponse, error) {
+	if err := s.authorizeVerbs(ctx, types.VerbCreate, types.VerbUpdate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Validation of parameters is done in FromProtoDraft.
+	draft, err := conv.FromProtoDraft(req.GetExternalAuditStorage())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := s.checkClusterAuditConfig(ctx, draft.Spec.Region); err != nil {
+		return nil, trace.Wrap(err, "unable to configure External Audit Storage")
 	}
 	resp, err := s.externalAuditStorage.UpsertDraftExternalAuditStorage(ctx, draft)
 	if err != nil {
@@ -229,13 +253,13 @@ func (s *Service) PromoteToClusterExternalAuditStorage(ctx context.Context, req 
 	}
 	// TODO(nklaassen): administrative endpoint with mfa.
 
-	if err := s.checkClusterAuditConfig(ctx); err != nil {
-		return nil, trace.Wrap(err, "unable to configure External Audit Storage")
-	}
-
 	draft, err := s.externalAuditStorage.GetDraftExternalAuditStorage(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to retrieve current draft configuration")
+	}
+
+	if err := s.checkClusterAuditConfig(ctx, draft.Spec.Region); err != nil {
+		return nil, trace.Wrap(err, "unable to configure External Audit Storage")
 	}
 
 	userMetadata := authz.ClientUserMetadata(ctx)
@@ -310,7 +334,7 @@ func (s *Service) authorizeVerbs(ctx context.Context, verbs ...string) error {
 
 var externalAuditMissingAthenaError = &trace.BadParameterError{Message: "no athena audit_events_uri is configured in cluster audit config"}
 
-func (s *Service) checkClusterAuditConfig(ctx context.Context) error {
+func (s *Service) checkClusterAuditConfig(ctx context.Context, region string) error {
 	auditConf, err := s.clusterAuditConfigGetter.GetClusterAuditConfig(ctx)
 	if err != nil {
 		return trace.Wrap(err, "getting cluster audit config")
@@ -323,6 +347,9 @@ func (s *Service) checkClusterAuditConfig(ctx context.Context) error {
 		return uri.Scheme == teleport.ComponentAthena
 	}) {
 		return trace.Wrap(externalAuditMissingAthenaError)
+	}
+	if auditConf.Region() != region {
+		return trace.BadParameter("region %q rejected: External Audit Storage must be configured in %q", region, auditConf.Region())
 	}
 	return nil
 }

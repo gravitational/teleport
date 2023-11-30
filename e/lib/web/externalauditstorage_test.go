@@ -208,6 +208,7 @@ func TestExternalAuditStoragePromote(t *testing.T) {
 	auditConfig, err := s.testAuthServer.Auth().GetClusterAuditConfig(ctx)
 	require.NoError(t, err)
 	auditConfig.SetAuditEventsURIs([]string{sampleAthenaURI})
+	auditConfig.SetRegion("us-west-2")
 	require.NoError(t, s.testAuthServer.Auth().SetClusterAuditConfig(ctx, auditConfig))
 
 	// assert that it fails if no drafts exist
@@ -248,6 +249,7 @@ func TestExternalAuditStorageGetCluster(t *testing.T) {
 	auditConfig, err := s.testAuthServer.Auth().GetClusterAuditConfig(ctx)
 	require.NoError(t, err)
 	auditConfig.SetAuditEventsURIs([]string{sampleAthenaURI})
+	auditConfig.SetRegion("us-west-2")
 	require.NoError(t, s.testAuthServer.Auth().SetClusterAuditConfig(ctx, auditConfig))
 
 	getClusterEndpoint := webPack.clt.Endpoint("webapi", "sites", clusterName, "integration", "externalauditstorage", "cluster")
@@ -295,6 +297,7 @@ func TestExternalAuditStorageGetDraft(t *testing.T) {
 	auditConfig, err := s.testAuthServer.Auth().GetClusterAuditConfig(ctx)
 	require.NoError(t, err)
 	auditConfig.SetAuditEventsURIs([]string{sampleAthenaURI})
+	auditConfig.SetRegion("us-west-2")
 	require.NoError(t, s.testAuthServer.Auth().SetClusterAuditConfig(ctx, auditConfig))
 
 	getDraftEndpoint := webPack.clt.Endpoint("webapi", "sites", clusterName, "integration", "externalauditstorage", "draft")
@@ -340,6 +343,7 @@ func TestExternalAuditStorageDeleteCluster(t *testing.T) {
 	auditConfig, err := s.testAuthServer.Auth().GetClusterAuditConfig(ctx)
 	require.NoError(t, err)
 	auditConfig.SetAuditEventsURIs([]string{sampleAthenaURI})
+	auditConfig.SetRegion("us-west-2")
 	require.NoError(t, s.testAuthServer.Auth().SetClusterAuditConfig(ctx, auditConfig))
 
 	deleteClusterEndpoint := webPack.clt.Endpoint("webapi", "sites", clusterName, "integration", "externalauditstorage", "cluster")
@@ -387,6 +391,7 @@ func TestExternalAuditStorageDeleteDraft(t *testing.T) {
 	auditConfig, err := s.testAuthServer.Auth().GetClusterAuditConfig(ctx)
 	require.NoError(t, err)
 	auditConfig.SetAuditEventsURIs([]string{sampleAthenaURI})
+	auditConfig.SetRegion("us-west-2")
 	require.NoError(t, s.testAuthServer.Auth().SetClusterAuditConfig(ctx, auditConfig))
 
 	deleteDraftEndpoint := webPack.clt.Endpoint("webapi", "sites", clusterName, "integration", "externalauditstorage", "draft")

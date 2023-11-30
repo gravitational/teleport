@@ -90,6 +90,7 @@ func TestRBAC(t *testing.T) {
 	sampleAthenaURI := "athena://db.table?topicArn=arn:aws:sns:eu-central-1:accnr:topicName&queryResultsS3=s3://testbucket/query-result/&workgroup=workgroup&locationS3=s3://testbucket/events-location&queueURL=https://sqs.eu-central-1.amazonaws.com/accnr/sqsname&largeEventsS3=s3://testbucket/largeevents"
 	clusterAuditConfig, err := types.NewClusterAuditConfig(types.ClusterAuditConfigSpecV2{
 		AuditEventsURI: []string{sampleAthenaURI},
+		Region:         "us-west-2",
 	})
 	require.NoError(t, err)
 
@@ -119,6 +120,21 @@ func TestRBAC(t *testing.T) {
 		expectChecks []check
 		expectEvents []string
 	}{
+		{
+			desc: "create draft",
+			f: func(service *Service) error {
+				_, err := service.CreateDraftExternalAuditStorage(ctx, &pb.CreateDraftExternalAuditStorageRequest{
+					ExternalAuditStorage: draftAuditConfig,
+				})
+				return err
+			},
+			allow: map[check]bool{
+				{types.KindExternalAuditStorage, types.VerbCreate}: true,
+			},
+			expectChecks: []check{
+				{types.KindExternalAuditStorage, types.VerbCreate},
+			},
+		},
 		{
 			desc: "upsert draft",
 			f: func(service *Service) error {
@@ -267,35 +283,50 @@ func TestClusterAuditConfigCheck(t *testing.T) {
 			{types.KindExternalAuditStorage, types.VerbCreate}: true,
 			{types.KindExternalAuditStorage, types.VerbUpdate}: true,
 			{types.KindExternalAuditStorage, types.VerbRead}:   true,
+			{types.KindExternalAuditStorage, types.VerbDelete}: true,
 		},
 	}}
 	sampleAthenaURI := "athena://db.table?topicArn=arn:aws:sns:eu-central-1:accnr:topicName&queryResultsS3=s3://testbucket/query-result/&workgroup=workgroup&locationS3=s3://testbucket/events-location&queueURL=https://sqs.eu-central-1.amazonaws.com/accnr/sqsname&largeEventsS3=s3://testbucket/largeevents"
 	sampleFileURI := "file:///tmp/teleport-test/events"
-	sampleExternalAuditStorage, err := externalauditstorage.GenerateDraftExternalAuditStorage("test-integration", "us-west-2")
-	require.NoError(t, err)
 
 	for _, tc := range []struct {
-		desc      string
-		auditURIs []string
-		expectErr error
+		desc               string
+		auditURIs          []string
+		clusterAuditRegion string
+		easRegion          string
+		expectErr          error
 	}{
 		{
-			desc:      "only athena",
-			auditURIs: []string{sampleAthenaURI},
+			desc:               "only athena",
+			auditURIs:          []string{sampleAthenaURI},
+			clusterAuditRegion: "eu-central-1",
+			easRegion:          "eu-central-1",
 		},
 		{
-			desc:      "with athena",
-			auditURIs: []string{sampleFileURI, sampleAthenaURI},
+			desc:               "with athena",
+			auditURIs:          []string{sampleFileURI, sampleAthenaURI},
+			clusterAuditRegion: "eu-central-1",
+			easRegion:          "eu-central-1",
 		},
 		{
-			desc:      "without athena",
-			auditURIs: []string{sampleFileURI},
-			expectErr: externalAuditMissingAthenaError,
+			desc:               "without athena",
+			auditURIs:          []string{sampleFileURI},
+			clusterAuditRegion: "eu-central-1",
+			easRegion:          "eu-central-1",
+			expectErr:          externalAuditMissingAthenaError,
+		},
+		{
+			desc:               "wrong region",
+			auditURIs:          []string{sampleAthenaURI},
+			clusterAuditRegion: "eu-central-1",
+			easRegion:          "us-west-2",
+			expectErr:          trace.BadParameter(`region "us-west-2" rejected: External Audit Storage must be configured in "eu-central-1"`),
 		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
 			clusterAuditConfig, err := types.NewClusterAuditConfig(types.ClusterAuditConfigSpecV2{
 				AuditEventsURI: tc.auditURIs,
+				Region:         tc.clusterAuditRegion,
 			})
 			require.NoError(t, err)
 
@@ -311,18 +342,35 @@ func TestClusterAuditConfigCheck(t *testing.T) {
 			require.NoError(t, err)
 
 			_, err = service.GenerateDraftExternalAuditStorage(ctx, &pb.GenerateDraftExternalAuditStorageRequest{
-				Region:          "us-west-2",
+				Region:          tc.easRegion,
 				IntegrationName: "test-integration",
 			})
 			assert.ErrorIs(t, err, tc.expectErr)
 
-			_, err = service.UpsertDraftExternalAuditStorage(ctx, &pb.UpsertDraftExternalAuditStorageRequest{
-				ExternalAuditStorage: conv.ToProto(sampleExternalAuditStorage),
+			// Clean up for Create test.
+			if tc.expectErr == nil {
+				_, err = service.DeleteDraftExternalAuditStorage(ctx, &pb.DeleteDraftExternalAuditStorageRequest{})
+				require.NoError(t, err)
+			}
+
+			draft, err := externalauditstorage.GenerateDraftExternalAuditStorage("test-integration", tc.easRegion)
+			require.NoError(t, err)
+
+			_, err = service.CreateDraftExternalAuditStorage(ctx, &pb.CreateDraftExternalAuditStorageRequest{
+				ExternalAuditStorage: conv.ToProto(draft),
 			})
 			assert.ErrorIs(t, err, tc.expectErr)
 
-			_, err = service.PromoteToClusterExternalAuditStorage(ctx, &pb.PromoteToClusterExternalAuditStorageRequest{})
+			_, err = service.UpsertDraftExternalAuditStorage(ctx, &pb.UpsertDraftExternalAuditStorageRequest{
+				ExternalAuditStorage: conv.ToProto(draft),
+			})
 			assert.ErrorIs(t, err, tc.expectErr)
+
+			// Nothing to promote if we can't write the draft in the first place.
+			if tc.expectErr == nil {
+				_, err = service.PromoteToClusterExternalAuditStorage(ctx, &pb.PromoteToClusterExternalAuditStorageRequest{})
+				assert.NoError(t, err)
+			}
 		})
 	}
 }
