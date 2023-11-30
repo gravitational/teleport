@@ -885,6 +885,7 @@ func (s *IdentityService) UpsertWebauthnSessionData(ctx context.Context, user, s
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
 	_, err = s.Put(ctx, backend.Item{
 		Key:     sessionDataKey(user, sessionID),
 		Value:   value,
