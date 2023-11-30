@@ -144,24 +144,8 @@ func tagPipelines() []pipeline {
 	ps = append(ps, ghaLinuxTagPipeline(buildType{os: "linux", arch: "amd64", fips: false, centos7: true, buildConnect: true, buildOSPkg: true}))
 	ps = append(ps, ghaLinuxTagPipeline(buildType{os: "linux", arch: "amd64", fips: true, centos7: true, buildConnect: false, buildOSPkg: true}))
 	ps = append(ps, ghaLinuxTagPipeline(buildType{os: "linux", arch: "386", buildOSPkg: true}))
+	ps = append(ps, ghaLinuxTagPipeline(buildType{os: "linux", arch: "arm64", buildOSPkg: true}))
 	ps = append(ps, ghaLinuxTagPipeline(buildType{os: "linux", arch: "arm", buildOSPkg: true}))
-
-	ps = append(ps, ghaBuildPipeline(ghaBuildType{
-		buildType:    buildType{os: "linux", arch: "arm64", fips: false},
-		trigger:      triggerTag,
-		pipelineName: "build-linux-arm64",
-		dependsOn:    []string{tagCleanupPipelineName},
-		workflows: []ghaWorkflow{
-			{
-				name:              "release-linux-arm64.yml",
-				srcRefVar:         "DRONE_TAG",
-				ref:               "${DRONE_TAG}",
-				timeout:           150 * time.Minute,
-				shouldTagWorkflow: true,
-				inputs:            map[string]string{"upload-artifacts": "true"},
-			},
-		},
-	}))
 
 	ps = append(ps, ghaBuildPipeline(ghaBuildType{
 		buildType:    buildType{os: "linux", fips: false},
@@ -171,7 +155,7 @@ func tagPipelines() []pipeline {
 			tagCleanupPipelineName,
 			"build-linux-amd64",
 			"build-linux-amd64-fips",
-			"build-linux-arm64-deb",
+			"build-linux-arm64",
 			"build-linux-arm",
 		},
 		workflows: []ghaWorkflow{
