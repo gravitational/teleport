@@ -288,8 +288,8 @@ const (
 
 	// TagServiceName is the prometheus label to indicate what services are running in the current proxy.
 	// Those services are monitored using the Supervisor.
-	// Only a subset of services are monitored. See [lib/service.metricsServicesRunningAllowList]
-	// Eg, discovery.init
+	// Only a subset of services are monitored. See [lib/service.metricsServicesRunningMap]
+	// Eg, discovery_service
 	TagServiceName = "service_name"
 )
 
