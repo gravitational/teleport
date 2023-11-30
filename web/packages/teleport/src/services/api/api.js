@@ -99,7 +99,7 @@ const api = {
       headers: {
         ...params.headers,
         [MFA_HEADER]: JSON.stringify({
-          webauthnAssertionResponse: await auth.getWebauthnResponse(),
+          webauthnAssertionResponse: await auth.getWebauthnResponse("SCOPE_ADMIN_ACTION"),
         }),
       },
     };

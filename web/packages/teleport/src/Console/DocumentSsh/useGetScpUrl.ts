@@ -33,7 +33,7 @@ export default function useGetScpUrl(addMfaToScpUrls: boolean) {
         return cfg.getScpUrl(params);
       }
       try {
-        let webauthn = await auth.getWebauthnResponse();
+        let webauthn = await auth.getWebauthnResponse("SESSION");
         setAttempt({
           status: 'success',
           statusText: '',

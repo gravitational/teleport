@@ -262,7 +262,7 @@ func (f *loginFlow) finish(ctx context.Context, user string, resp *wantypes.Cred
 	}
 
 	if sessionDataPB.Scope != f.Scope {
-		return nil, "", trace.BadParameter("Scope does not match")
+		return nil, "", trace.BadParameter("Scope %v does not match expected scope %v", f.Scope, sessionDataPB.Scope)
 	}
 
 	sessionData := sessionFromPB(sessionDataPB)
@@ -320,11 +320,7 @@ func (f *loginFlow) finish(ctx context.Context, user string, resp *wantypes.Cred
 	}
 
 	// The user just solved the challenge, so let's make sure it won't be used again.
-	if f.Scope == wanpb.Scope_SCOPE_ADMIN_ACTION {
-		// For admin action MFA responses, we don't delete the response immediately. Instead
-		// add a new expiration time so it can be reused for a short duration.
-		f.sessionData.Upsert(ctx, user, sessionDataPB)
-	} else {
+	if f.Scope != wanpb.Scope_SCOPE_ADMIN_ACTION {
 		if err := f.sessionData.Delete(ctx, user, challenge); err != nil {
 			log.Warnf("WebAuthn: failed to delete login SessionData for user %v (passwordless = %v)", user, passwordless)
 		}

@@ -55,7 +55,7 @@ export default function useReAuthenticate(props: Props) {
 
     if ('onMfaResponse' in props) {
       auth
-        .getWebauthnResponse()
+        .getWebauthnResponse("UNKOWN")
         .then(webauthnResponse =>
           props.onMfaResponse({ webauthn_response: webauthnResponse })
         )

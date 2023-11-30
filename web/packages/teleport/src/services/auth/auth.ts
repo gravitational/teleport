@@ -243,7 +243,7 @@ const auth = {
   headlessSSOAccept(transactionId: string) {
     return auth
       .checkWebauthnSupport()
-      .then(() => api.post(cfg.api.mfaAuthnChallengePath))
+      .then(() => api.post(cfg.api.mfaAuthnChallengePath, {"scope": "SCOPE_HEADLESS"}))
       .then(res =>
         navigator.credentials.get({
           publicKey: makeMfaAuthenticateChallenge(res).webauthnPublicKey,
@@ -271,12 +271,12 @@ const auth = {
     return api.post(cfg.api.createPrivilegeTokenPath, { secondFactorToken });
   },
 
-  fetchWebauthnChallenge() {
+  fetchWebauthnChallenge(scope) {
     return auth
       .checkWebauthnSupport()
       .then(() =>
         api
-          .post(cfg.api.mfaAuthnChallengePath)
+          .post(cfg.api.mfaAuthnChallengePath, {"scope": scope})
           .then(makeMfaAuthenticateChallenge)
       )
       .then(res =>
@@ -287,7 +287,7 @@ const auth = {
   },
 
   createPrivilegeTokenWithWebauthn() {
-    return auth.fetchWebauthnChallenge().then(res =>
+    return auth.fetchWebauthnChallenge("SCOPE_UNKOWN").then(res =>
       api.post(cfg.api.createPrivilegeTokenPath, {
         webauthnAssertionResponse: makeWebauthnAssertionResponse(res),
       })
@@ -298,9 +298,9 @@ const auth = {
     return api.post(cfg.api.createPrivilegeTokenPath, {});
   },
 
-  getWebauthnResponse() {
+  getWebauthnResponse(scope) {
     return auth
-      .fetchWebauthnChallenge()
+      .fetchWebauthnChallenge(scope)
       .then(res => makeWebauthnAssertionResponse(res));
   },
 };

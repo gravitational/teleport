@@ -5632,6 +5632,7 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user string, scope webaut
 		webLogin := &wanlib.PasswordlessFlow{
 			Webauthn: webConfig,
 			Identity: a.Services,
+			Scope:    scope,
 		}
 		assertion, err := webLogin.Begin(ctx)
 		if err != nil {
@@ -5665,6 +5666,7 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user string, scope webaut
 			U2F:      u2fPref,
 			Webauthn: webConfig,
 			Identity: wanlib.WithDevices(a.Services, groupedDevs.Webauthn),
+			Scope:    scope,
 		}
 		assertion, err := webLogin.Begin(ctx, user)
 		if err != nil {
@@ -5785,6 +5787,7 @@ func (a *Server) ValidateMFAAuthResponse(ctx context.Context, resp *proto.MFAAut
 			webLogin := &wanlib.PasswordlessFlow{
 				Webauthn: webConfig,
 				Identity: a.Services,
+				Scope:    scope,
 			}
 			dev, user, err = webLogin.Finish(ctx, assertionResp)
 		} else {
@@ -5792,6 +5795,7 @@ func (a *Server) ValidateMFAAuthResponse(ctx context.Context, resp *proto.MFAAut
 				U2F:      u2f,
 				Webauthn: webConfig,
 				Identity: a.Services,
+				Scope:    scope,
 			}
 			dev, err = webLogin.Finish(ctx, user, wantypes.CredentialAssertionResponseFromProto(res.Webauthn))
 		}
