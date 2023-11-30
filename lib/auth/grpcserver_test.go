@@ -23,6 +23,7 @@ import (
 	"encoding/pem"
 	"fmt"
 	"io"
+	"maps"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -30,6 +31,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
@@ -4106,10 +4108,11 @@ func TestRoleVersions(t *testing.T) {
 
 	wildcardLabels := types.Labels{types.Wildcard: {types.Wildcard}}
 
+	originalLabels := map[string]string{"env": "staging"}
 	newRole := func(version string, spec types.RoleSpecV6) types.Role {
 		role, err := types.NewRoleWithVersion("test_rule", version, spec)
 		meta := role.GetMetadata()
-		meta.Labels = map[string]string{"env": "staging"}
+		meta.Labels = maps.Clone(originalLabels)
 		role.SetMetadata(meta)
 		require.NoError(t, err)
 		return role
@@ -4253,10 +4256,6 @@ func TestRoleVersions(t *testing.T) {
 						// and ignore it in the role diff.
 						if tc.expectDowngraded {
 							require.NotEmpty(t, gotRole.GetMetadata().Labels[types.TeleportDowngradedLabel])
-							require.NotSame(t, role, gotRole)
-							// The labels map is a pointer, so make sure it's was properly
-							// cloned.
-							require.NotSame(t, role.GetMetadata().Labels, gotRole.GetMetadata().Labels)
 						}
 					}
 					checkErr := func(err error) {
@@ -4331,6 +4330,15 @@ func TestRoleVersions(t *testing.T) {
 						} else {
 							require.NoError(t, err)
 						}
+					}
+
+					// Call maybeDowngrade directly to make sure the original
+					// role isn't modified
+					sv, err := semver.NewVersion(clientVersion)
+					if err == nil {
+						_, err := maybeDowngradeRoleToV6(ctx, role.(*types.RoleV6), sv)
+						require.NoError(t, err)
+						require.Equal(t, originalLabels, role.GetMetadata().Labels)
 					}
 				})
 			}
