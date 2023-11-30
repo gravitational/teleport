@@ -28,7 +28,7 @@ type Inclusion uint
 const (
 	// InclusionUnspecified is the default, un-set inclusion value used to
 	// detect when inclusion is not specified in an access list. The only times
-	// you should encounter this value in practice is when unmarshaling an
+	// you should encounter this value in practice is when un-marshaling an
 	// AccessList that pre-dates the implementation of dynamic access lists.
 	InclusionUnspecified Inclusion = 0
 
