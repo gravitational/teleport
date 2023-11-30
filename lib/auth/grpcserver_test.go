@@ -24,6 +24,7 @@ import (
 	"encoding/pem"
 	"fmt"
 	"io"
+	"maps"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -31,6 +32,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
@@ -44,6 +46,7 @@ import (
 	otlpcommonv1 "go.opentelemetry.io/proto/otlp/common/v1"
 	otlpresourcev1 "go.opentelemetry.io/proto/otlp/resource/v1"
 	otlptracev1 "go.opentelemetry.io/proto/otlp/trace/v1"
+	grpcmetadata "google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/testing/protocmp"
 	"google.golang.org/protobuf/types/known/emptypb"
 
@@ -4185,9 +4188,13 @@ func TestRoleVersions(t *testing.T) {
 
 	wildcardLabels := types.Labels{types.Wildcard: {types.Wildcard}}
 
+	originalLabels := map[string]string{"env": "staging"}
 	newRole := func(spec types.RoleSpecV6) types.Role {
 		role, err := types.NewRole("test_rule", spec)
 		require.NoError(t, err)
+		metadata := role.GetMetadata()
+		metadata.Labels = maps.Clone(originalLabels)
+		role.SetMetadata(metadata)
 		return role
 	}
 
@@ -4364,6 +4371,17 @@ func TestRoleVersions(t *testing.T) {
 						} else {
 							require.NoError(t, err)
 						}
+					}
+
+					// Call maybeDowngrade directly to make sure the original
+					// role isn't modified.
+					if _, err := semver.NewVersion(clientVersion); err == nil {
+						ctx = grpcmetadata.NewIncomingContext(ctx, grpcmetadata.New(map[string]string{
+							metadata.VersionKey: clientVersion,
+						}))
+						_, err = maybeDowngradeRole(ctx, role.(*types.RoleV6))
+						require.NoError(t, err)
+						require.Equal(t, originalLabels, role.GetMetadata().Labels)
 					}
 				})
 			}
