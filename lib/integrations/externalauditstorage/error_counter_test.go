@@ -57,6 +57,7 @@ func TestErrorCounter(t *testing.T) {
 					repeat: 10,
 				},
 			},
+			err: testError,
 			expectAlerts: []alert{{
 				name:    sessionUploadFailureClusterAlert,
 				message: fmt.Sprintf(sessionUploadFailureClusterAlertMsgTemplate, testError),
@@ -73,6 +74,7 @@ func TestErrorCounter(t *testing.T) {
 					repeat: 10,
 				},
 			},
+			err: testError,
 			expectAlerts: []alert{{
 				name:    sessionDownloadFailureClusterAlert,
 				message: fmt.Sprintf(sessionDownloadFailureClusterAlertMsgTemplate, testError),
@@ -89,6 +91,7 @@ func TestErrorCounter(t *testing.T) {
 					repeat: 10,
 				},
 			},
+			err: testError,
 			expectAlerts: []alert{{
 				name:    eventEmitFailureClusterAlert,
 				message: fmt.Sprintf(eventEmitFailureClusterAlertMsgTemplate, testError),
@@ -105,6 +108,7 @@ func TestErrorCounter(t *testing.T) {
 					repeat: 10,
 				},
 			},
+			err: testError,
 			expectAlerts: []alert{{
 				name:    eventSearchFailureClusterAlert,
 				message: fmt.Sprintf(eventSearchFailureClusterAlertMsgTemplate, testError),
@@ -122,6 +126,7 @@ func TestErrorCounter(t *testing.T) {
 					repeat: 10,
 				},
 			},
+			err:          testError,
 			expectAlerts: []alert{},
 		},
 		{
@@ -136,6 +141,7 @@ func TestErrorCounter(t *testing.T) {
 					repeat: 10,
 				},
 			},
+			err: testError,
 			expectAlerts: []alert{{
 				name:    eventSearchFailureClusterAlert,
 				message: fmt.Sprintf(eventSearchFailureClusterAlertMsgTemplate, testError),
@@ -153,6 +159,7 @@ func TestErrorCounter(t *testing.T) {
 					repeat: 10,
 				},
 			},
+			err:          testError,
 			expectAlerts: []alert{},
 		},
 		{
@@ -177,14 +184,10 @@ func TestErrorCounter(t *testing.T) {
 			t.Parallel()
 			alertService := newFakeAlertService()
 			counter := NewErrorCounter(alertService)
-			err := testError
-			if tc.err != nil {
-				err = tc.err
-			}
 			pack := &testPack{
-				errLogger:        counter.WrapAuditLogger(&errorLogger{err: err}),
+				errLogger:        counter.WrapAuditLogger(&errorLogger{err: tc.err}),
 				successLogger:    counter.WrapAuditLogger(&errorLogger{err: nil}),
-				errHandler:       counter.WrapSessionHandler(&errorHandler{err: err}),
+				errHandler:       counter.WrapSessionHandler(&errorHandler{err: tc.err}),
 				successHandler:   counter.WrapSessionHandler(&errorHandler{err: nil}),
 				observeEmitError: counter.ObserveEmitError,
 			}
