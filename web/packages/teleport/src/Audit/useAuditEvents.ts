@@ -37,7 +37,6 @@ export default function useAuditEvents(
     fetchStartKey: '',
     fetchStatus: '',
   });
-
   const filterBy = eventCode ? formatters[eventCode].type : '';
 
   useEffect(() => {
