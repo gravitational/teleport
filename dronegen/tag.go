@@ -207,6 +207,25 @@ func tagPipelines() []pipeline {
 	ps = append(ps, darwinTagPipelineGHA())
 	ps = append(ps, windowsTagPipelineGHA())
 
+	ps = append(ps, ghaBuildPipeline(ghaBuildType{
+		pipelineName: "build-legacy-amis",
+		trigger:      triggerTag,
+		buildType:    buildType{fips: false},
+		dependsOn: []string{
+			"build-linux-amd64",
+			"build-linux-amd64-fips",
+		},
+		workflows: []ghaWorkflow{
+			{
+				name:              "release-teleport-legacy-amis.yaml",
+				srcRefVar:         "DRONE_TAG",
+				ref:               "${DRONE_TAG}",
+				timeout:           150 * time.Minute,
+				shouldTagWorkflow: true,
+			},
+		},
+	}))
+
 	ps = append(ps, tagCleanupPipeline())
 	return ps
 }
