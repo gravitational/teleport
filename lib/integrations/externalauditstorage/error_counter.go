@@ -18,8 +18,10 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"strings"
 	"sync/atomic"
 	"time"
+	"unicode"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -220,7 +222,7 @@ func (c *errorCategory) sync() alertActions {
 		return alertActions{
 			newAlerts: []alert{{
 				name:    c.alertName,
-				message: fmt.Sprintf(c.alertMessage, *err),
+				message: fmt.Sprintf(c.alertMessage, sanitizeErrForAlert(*err)),
 			}},
 		}
 	}
@@ -393,4 +395,23 @@ func (c *ErrorCountingSessionHandler) ListUploads(ctx context.Context) ([]events
 // GetUploadMetadata calls [c.wrapped.GetUploadMetadata] and counts the error or success.
 func (c *ErrorCountingSessionHandler) GetUploadMetadata(sessionID session.ID) events.UploadMetadata {
 	return c.wrapped.GetUploadMetadata(sessionID)
+}
+
+func sanitizeErrForAlert(err error) string {
+	return strings.Map(func(r rune) rune {
+		// Cluster alerts do not allow control characters.
+		if unicode.IsControl(r) {
+			return ' '
+		}
+		return r
+	}, truncateErrForAlert(err))
+}
+
+func truncateErrForAlert(err error) string {
+	s := err.Error()
+	const maxLength = 256 // arbitrary
+	if len(s) < maxLength {
+		return s
+	}
+	return s[:maxLength]
 }

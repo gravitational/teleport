@@ -19,6 +19,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strings"
 	"testing"
 
 	"github.com/gravitational/trace"
@@ -36,10 +37,13 @@ func TestErrorCounter(t *testing.T) {
 	defer cancel()
 
 	testError := errors.New("test error")
+	badError := errors.New(strings.Repeat("bad test error\r\n", 1000))
+	sanitizedBadError := "bad test error  bad test error  bad test error  bad test error  bad test error  bad test error  bad test error  bad test error  bad test error  bad test error  bad test error  bad test error  bad test error  bad test error  bad test error  bad test error  "
 
 	for _, tc := range []struct {
 		desc         string
 		steps        []testStep
+		err          error
 		expectAlerts []alert
 	}{
 		{
@@ -151,16 +155,36 @@ func TestErrorCounter(t *testing.T) {
 			},
 			expectAlerts: []alert{},
 		},
+		{
+			desc: "bad error message",
+			steps: []testStep{
+				{
+					action: func(pack *testPack) {
+						pack.errHandler.Upload(ctx, "", nil)
+					},
+					repeat: 10,
+				},
+			},
+			err: badError,
+			expectAlerts: []alert{{
+				name:    sessionUploadFailureClusterAlert,
+				message: fmt.Sprintf(sessionUploadFailureClusterAlertMsgTemplate, sanitizedBadError),
+			}},
+		},
 	} {
 		tc := tc
 		t.Run(tc.desc, func(t *testing.T) {
 			t.Parallel()
 			alertService := newFakeAlertService()
 			counter := NewErrorCounter(alertService)
+			err := testError
+			if tc.err != nil {
+				err = tc.err
+			}
 			pack := &testPack{
-				errLogger:        counter.WrapAuditLogger(&errorLogger{err: testError}),
+				errLogger:        counter.WrapAuditLogger(&errorLogger{err: err}),
 				successLogger:    counter.WrapAuditLogger(&errorLogger{err: nil}),
-				errHandler:       counter.WrapSessionHandler(&errorHandler{err: testError}),
+				errHandler:       counter.WrapSessionHandler(&errorHandler{err: err}),
 				successHandler:   counter.WrapSessionHandler(&errorHandler{err: nil}),
 				observeEmitError: counter.ObserveEmitError,
 			}
@@ -174,10 +198,10 @@ func TestErrorCounter(t *testing.T) {
 				// so this test just manually calls sync.
 				counter.sync(ctx)
 			}
+			assert.Len(t, alertService.alerts, len(tc.expectAlerts))
 			for _, expected := range tc.expectAlerts {
 				assert.Equal(t, expected.message, alertService.alerts[expected.name])
 			}
-			assert.Len(t, alertService.alerts, len(tc.expectAlerts))
 		})
 	}
 
