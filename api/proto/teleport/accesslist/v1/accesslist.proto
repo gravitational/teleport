@@ -71,7 +71,7 @@ message AccessListSpec {
   //                         explicitly added to the list.
   //   implicit: Any user meeting the `membership_requires` conditions will automatically
   //             be cosidered a member of this list.
-  string membership = 9;
+  Inclusion membership = 9;
 
   // ownership defines how list ownership of this list is determined. There are
   // two possible values:
@@ -80,7 +80,7 @@ message AccessListSpec {
   //                         explicitly added to the list.
   //   implicit: Any user meeting the `ownership_requires` conditions will automatically
   //             be considered an owner of this list.
-  string ownership = 10;
+  Inclusion ownership = 10;
 }
 
 // AccessListOwner is an owner of an access list.
@@ -171,6 +171,13 @@ message Member {
   MemberSpec spec = 2;
 }
 
+// Inclusion
+enum Inclusion {
+  INCLUSION_UNSPECIFIED = 0;
+  INCLUSION_EXPLICIT = 1;
+  INCLUSION_IMPLICIT = 2;
+}
+
 // MemberSpec is the specification for an access list member.
 message MemberSpec {
   // associated access list
@@ -197,7 +204,7 @@ message MemberSpec {
 
   // membership defines how list membership was acquired. There are two possible
   // values: `explicit` and `implicit`.
-  string membership = 8;
+  Inclusion membership = 8;
 }
 
 // IneligibleStatus describes how the user is ineligible.

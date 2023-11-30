@@ -42,22 +42,6 @@ const (
 	twoWeeks = 24 * time.Hour * 14
 )
 
-// Inclusion values indicate how membership and ownership of an AccessList
-// should be applied.
-type Inclusion string
-
-const (
-	// Implicit inclusion indicates that a user need only meet a requirement set
-	// to be considered included in a list. Both list membership and ownership
-	// may be Implicit.
-	Implicit Inclusion = "implicit"
-
-	// Explicit inclusion indicates that a user must meet a requirement set AND
-	// be explicitly added to an access list to be included in it. Both list
-	// membership and ownership may be Explicit.
-	Explicit Inclusion = "explicit"
-)
-
 func (r ReviewFrequency) String() string {
 	switch r {
 	case OneMonth:
@@ -261,14 +245,14 @@ func NewAccessList(metadata header.Metadata, spec Spec) (*AccessList, error) {
 // set. Any other invalid value is an error.
 func checkInclusion(i Inclusion) (Inclusion, error) {
 	switch i {
-	case "":
-		return Explicit, nil
+	case InclusionUnspecified:
+		return InclusionExplicit, nil
 
-	case Explicit, Implicit:
+	case InclusionExplicit, InclusionImplicit:
 		return i, nil
 
 	default:
-		return Explicit, trace.BadParameter("invalid inclusion mode %q (must be %q or %q)", i, Explicit, Implicit)
+		return InclusionUnspecified, trace.BadParameter("invalid inclusion mode %d (must be %d or %d)", i, InclusionExplicit, InclusionImplicit)
 	}
 }
 
@@ -294,7 +278,7 @@ func (a *AccessList) CheckAndSetDefaults() error {
 		return trace.Wrap(err, "membership")
 	}
 
-	if a.Spec.Ownership == Explicit && len(a.Spec.Owners) == 0 {
+	if a.Spec.Ownership != InclusionImplicit && len(a.Spec.Owners) == 0 {
 		return trace.BadParameter("owners are missing")
 	}
 

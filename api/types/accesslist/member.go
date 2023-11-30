@@ -100,13 +100,13 @@ func (a *AccessListMember) CheckAndSetDefaults() error {
 		return trace.Wrap(err, "membership")
 	}
 
-	if a.Spec.Membership == Explicit {
+	if a.Spec.Membership == InclusionExplicit {
 		if a.Spec.Joined.IsZero() || a.Spec.Joined.Unix() == 0 {
 			return trace.BadParameter("member %s joined is missing", a.Spec.Name)
 		}
 
 		if a.Spec.AddedBy == "" {
-			return trace.BadParameter("member %s added by is missing", a.Spec.Name)
+			return trace.BadParameter("member %s: added_by field is empty", a.Spec.Name)
 		}
 	}
 

@@ -105,7 +105,6 @@ func TestMemberFromProtoNils(t *testing.T) {
 	})
 
 	t.Run("added by", func(t *testing.T) {
-		// AddedBy is empty
 		member := ToMemberProto(newAccessListMember(t, "access-list-member"))
 		member.Spec.AddedBy = ""
 
@@ -114,13 +113,12 @@ func TestMemberFromProtoNils(t *testing.T) {
 	})
 
 	t.Run("membership", func(t *testing.T) {
-		// AddedBy is empty
 		member := ToMemberProto(newAccessListMember(t, "access-list-member"))
-		member.Spec.Membership = ""
+		member.Spec.Membership = accesslistv1.Inclusion_INCLUSION_UNSPECIFIED
 
 		uut, err := FromMemberProto(member)
 		require.NoError(t, err)
-		require.Equal(t, accesslist.Explicit, uut.Spec.Membership)
+		require.Equal(t, accesslist.InclusionExplicit, uut.Spec.Membership)
 	})
 }
 
