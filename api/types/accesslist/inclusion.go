@@ -60,7 +60,7 @@ func (i Inclusion) MarshalYAML() (interface{}, error) {
 	}
 }
 
-// MarshalJSON implements custom JSON marshalling for the Inclusion
+// MarshalJSON implements custom JSON marshaling for the Inclusion
 // type, rendering the value in JSON as a self-describing string,
 // rather than a cryptic number.
 func (i Inclusion) MarshalJSON() ([]byte, error) {

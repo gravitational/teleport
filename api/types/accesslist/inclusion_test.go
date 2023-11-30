@@ -21,7 +21,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestInclusionMarshalling(t *testing.T) {
+func TestInclusionMarshaling(t *testing.T) {
 	testCases := []struct {
 		in       Inclusion
 		require  require.ErrorAssertionFunc
@@ -58,7 +58,7 @@ func TestInclusionMarshalling(t *testing.T) {
 	}
 }
 
-func TestInclusionUnMarshalling(t *testing.T) {
+func TestInclusionUnMarshaling(t *testing.T) {
 	testCases := []struct {
 		in       []byte
 		require  require.ErrorAssertionFunc
