@@ -19,6 +19,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strings"
 	"testing"
 
 	"github.com/gravitational/trace"
@@ -36,10 +37,13 @@ func TestErrorCounter(t *testing.T) {
 	defer cancel()
 
 	testError := errors.New("test error")
+	badError := errors.New(strings.Repeat("bad test error\r\n", 1000))
+	sanitizedBadError := "bad test error  bad test error  bad test error  bad test error  bad test error  bad test error  bad test error  bad test error  bad test error  bad test error  bad test error  bad test error  bad test error  bad test error  bad test error  bad test error  "
 
 	for _, tc := range []struct {
 		desc         string
 		steps        []testStep
+		err          error
 		expectAlerts []alert
 	}{
 		{
@@ -53,6 +57,7 @@ func TestErrorCounter(t *testing.T) {
 					repeat: 10,
 				},
 			},
+			err: testError,
 			expectAlerts: []alert{{
 				name:    sessionUploadFailureClusterAlert,
 				message: fmt.Sprintf(sessionUploadFailureClusterAlertMsgTemplate, testError),
@@ -69,6 +74,7 @@ func TestErrorCounter(t *testing.T) {
 					repeat: 10,
 				},
 			},
+			err: testError,
 			expectAlerts: []alert{{
 				name:    sessionDownloadFailureClusterAlert,
 				message: fmt.Sprintf(sessionDownloadFailureClusterAlertMsgTemplate, testError),
@@ -85,6 +91,7 @@ func TestErrorCounter(t *testing.T) {
 					repeat: 10,
 				},
 			},
+			err: testError,
 			expectAlerts: []alert{{
 				name:    eventEmitFailureClusterAlert,
 				message: fmt.Sprintf(eventEmitFailureClusterAlertMsgTemplate, testError),
@@ -101,6 +108,7 @@ func TestErrorCounter(t *testing.T) {
 					repeat: 10,
 				},
 			},
+			err: testError,
 			expectAlerts: []alert{{
 				name:    eventSearchFailureClusterAlert,
 				message: fmt.Sprintf(eventSearchFailureClusterAlertMsgTemplate, testError),
@@ -118,6 +126,7 @@ func TestErrorCounter(t *testing.T) {
 					repeat: 10,
 				},
 			},
+			err:          testError,
 			expectAlerts: []alert{},
 		},
 		{
@@ -132,6 +141,7 @@ func TestErrorCounter(t *testing.T) {
 					repeat: 10,
 				},
 			},
+			err: testError,
 			expectAlerts: []alert{{
 				name:    eventSearchFailureClusterAlert,
 				message: fmt.Sprintf(eventSearchFailureClusterAlertMsgTemplate, testError),
@@ -149,7 +159,24 @@ func TestErrorCounter(t *testing.T) {
 					repeat: 10,
 				},
 			},
+			err:          testError,
 			expectAlerts: []alert{},
+		},
+		{
+			desc: "bad error message",
+			steps: []testStep{
+				{
+					action: func(pack *testPack) {
+						pack.errHandler.Upload(ctx, "", nil)
+					},
+					repeat: 10,
+				},
+			},
+			err: badError,
+			expectAlerts: []alert{{
+				name:    sessionUploadFailureClusterAlert,
+				message: fmt.Sprintf(sessionUploadFailureClusterAlertMsgTemplate, sanitizedBadError),
+			}},
 		},
 	} {
 		tc := tc
@@ -158,9 +185,9 @@ func TestErrorCounter(t *testing.T) {
 			alertService := newFakeAlertService()
 			counter := NewErrorCounter(alertService)
 			pack := &testPack{
-				errLogger:        counter.WrapAuditLogger(&errorLogger{err: testError}),
+				errLogger:        counter.WrapAuditLogger(&errorLogger{err: tc.err}),
 				successLogger:    counter.WrapAuditLogger(&errorLogger{err: nil}),
-				errHandler:       counter.WrapSessionHandler(&errorHandler{err: testError}),
+				errHandler:       counter.WrapSessionHandler(&errorHandler{err: tc.err}),
 				successHandler:   counter.WrapSessionHandler(&errorHandler{err: nil}),
 				observeEmitError: counter.ObserveEmitError,
 			}
@@ -174,10 +201,10 @@ func TestErrorCounter(t *testing.T) {
 				// so this test just manually calls sync.
 				counter.sync(ctx)
 			}
+			assert.Len(t, alertService.alerts, len(tc.expectAlerts))
 			for _, expected := range tc.expectAlerts {
 				assert.Equal(t, expected.message, alertService.alerts[expected.name])
 			}
-			assert.Len(t, alertService.alerts, len(tc.expectAlerts))
 		})
 	}
 
