@@ -68,12 +68,14 @@ export type SortType = {
 
 export type SortDir = 'ASC' | 'DESC';
 
-// ResourceIdKind are the same id constants used to mark the type of
-// resource in the backend.
-//
-// These consts are expected for various resource requests:
-//   - search based access requests
-//   - diagnose connection requests
+/**
+ * ResourceIdKind are the same id constants used to mark the type of
+ * resource in the backend.
+ *
+ * These consts are expected for various resource requests:
+ *   - search based access requests
+ *   - diagnose connection requests
+ */
 export type ResourceIdKind =
   | 'node'
   | 'app'
@@ -82,19 +84,18 @@ export type ResourceIdKind =
   | 'user_group'
   | 'windows_desktop';
 
-// ConnectionDiagnostic describes a connection diagnostic.
 export type ConnectionDiagnostic = {
-  // id is the identifier of the connection diagnostic.
+  /** id is the identifier of the connection diagnostic. */
   id: string;
-  // success is whether the connection was successful
+  /** success is whether the connection was successful */
   success: boolean;
-  // message is the diagnostic summary
+  /** message is the diagnostic summary */
   message: string;
-  // traces contains multiple checkpoints results
+  /** traces contains multiple checkpoints results */
   traces: ConnectionDiagnosticTrace[];
 };
 
-// ConnectionDiagnosticTrace describes a trace of a connection diagnostic
+/** ConnectionDiagnosticTrace describes a trace of a connection diagnostic */
 export type ConnectionDiagnosticTrace = {
   traceType: string;
   status: 'success' | 'failed';
@@ -102,10 +103,12 @@ export type ConnectionDiagnosticTrace = {
   error?: string;
 };
 
-// ConnectionDiagnosticRequest contains
-// - the identification of the resource kind and resource name to test
-// - additional paramenters which depend on the actual kind of resource to test
-// As an example, for SSH Node it also includes the User/Principal that will be used to login
+/**
+ * ConnectionDiagnosticRequest contains
+ * - the identification of the resource kind and resource name to test
+ * - additional paramenters which depend on the actual kind of resource to test
+ * As an example, for SSH Node it also includes the User/Principal that will be used to login
+ */
 export type ConnectionDiagnosticRequest = {
   resourceKind: ResourceIdKind; //`json:"resource_kind"`
   resourceName: string; //`json:"resource_name"`
@@ -117,14 +120,18 @@ export type ConnectionDiagnosticRequest = {
 
 export type KubeImpersonation = {
   namespace: string; // `json:"kubernetes_namespace"`
-  // KubernetesUser is the Kubernetes user to impersonate for this request.
-  // Optional - If multiple values are configured the user must select one
-  // otherwise the request will return an error.
+  /**
+   * The Kubernetes user to impersonate for this request.
+   * Optional - If multiple values are configured the user must select one
+   * otherwise the request will return an error.
+   */
   user?: string; // `json:"kubernetes_impersonation.kubernetes_user"`
-  // KubernetesGroups are the Kubernetes groups to impersonate for this request.
-  // Optional - If not specified it use all configured groups.
-  // When KubernetesGroups is specified, KubernetesUser must be provided
-  // as well.
+  /**
+   * The Kubernetes groups to impersonate for this request.
+   * Optional - If not specified it use all configured groups.
+   * When KubernetesGroups is specified, KubernetesUser must be provided
+   * as well.
+   */
   groups?: string[]; // `json:"kubernetes_impersonation.kubernetes_groups"
 };
 
