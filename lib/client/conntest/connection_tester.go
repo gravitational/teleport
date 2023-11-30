@@ -41,6 +41,11 @@ type TestConnectionRequest struct {
 	ResourceKind string `json:"resource_kind"`
 	// ResourceName is the identification of the resource's instance to test.
 	ResourceName string `json:"resource_name"`
+	// ResourceTile is an optional field which identifies the Discover tile that wants to perform a
+	// connection test.
+	// Useful in situations in which the test for the same kind of resource needs to behave
+	// differently depending on the tile which sent the request.
+	ResourceTile string `json:"resource_tile"`
 
 	// DialTimeout when trying to connect to the destination host
 	DialTimeout time.Duration `json:"dial_timeout,omitempty"`
@@ -84,6 +89,12 @@ type KubernetesImpersonation struct {
 	// as well.
 	KubernetesGroups []string `json:"kubernetes_groups,omitempty"`
 }
+
+// consts for the ResourceTile field of TestConnectionRequest.
+
+const (
+	ResourceTileConnectMyComputer = "connect_my_computer"
+)
 
 // CheckAndSetDefaults validates the Request has the required fields.
 func (r *TestConnectionRequest) CheckAndSetDefaults() error {

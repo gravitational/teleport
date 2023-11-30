@@ -112,11 +112,24 @@ export type ConnectionDiagnosticTrace = {
 export type ConnectionDiagnosticRequest = {
   resourceKind: ResourceIdKind; //`json:"resource_kind"`
   resourceName: string; //`json:"resource_name"`
+  /**
+   * An optional field which identifies the Discover tile that wants to perform a connection test.
+   * Useful in situations in which the test for the same kind of resource needs to behave
+   * differently depending on the tile which sent the request.
+   */
+  resourceTile?: ResourceTile; //`json:"resource_tile"`
   sshPrincipal?: string; //`json:"ssh_principal"`
   kubeImpersonation?: KubeImpersonation; // `json:"kubernetes_impersonation`
   dbTester?: DatabaseTester;
   mfaAuthnResponse?: MfaAuthnResponse;
 };
+
+/**
+ * ResourceTile describes the Discover tile that wants to perform a connection test.
+ *
+ * It must match one of the ResourceTile* consts defined in lib/client/conntest/connection_tester.go.
+ */
+export type ResourceTile = 'connect_my_computer';
 
 export type KubeImpersonation = {
   namespace: string; // `json:"kubernetes_namespace"`

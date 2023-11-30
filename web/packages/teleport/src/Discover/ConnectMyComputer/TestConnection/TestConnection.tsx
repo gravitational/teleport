@@ -136,6 +136,7 @@ export function TestConnection(props: AgentStepProps) {
       {
         resourceKind: 'node',
         resourceName: props.agentMeta.resourceName,
+        resourceTile: 'connect_my_computer',
         sshPrincipal: login,
       },
       mfaResponse

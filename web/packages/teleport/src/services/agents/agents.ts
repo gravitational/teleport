@@ -34,6 +34,7 @@ export const agentService = {
       .post(cfg.getConnectionDiagnosticUrl(), {
         resource_kind: req.resourceKind,
         resource_name: req.resourceName,
+        resource_tile: req.resourceTile,
         ssh_principal: req.sshPrincipal,
         kubernetes_namespace: req.kubeImpersonation?.namespace,
         kubernetes_impersonation: {
