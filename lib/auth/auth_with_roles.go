@@ -30,6 +30,7 @@ import (
 	collectortracev1 "go.opentelemetry.io/proto/otlp/collector/trace/v1"
 	otlpcommonv1 "go.opentelemetry.io/proto/otlp/common/v1"
 	"golang.org/x/exp/slices"
+	"google.golang.org/protobuf/types/known/durationpb"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api"
@@ -38,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
+	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -45,6 +47,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/integration/integrationv1"
+	"github.com/gravitational/teleport/lib/auth/trust/trustv1"
 	"github.com/gravitational/teleport/lib/auth/users/usersv1"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend"
@@ -2538,32 +2541,42 @@ func (a *ServerWithRoles) GetCurrentUserRoles(ctx context.Context) ([]types.Role
 	return roles, nil
 }
 
+// GenerateHostCert
+// TODO(noah): DELETE IN 16.0
+// Deprecated: use [trustv1.Service.GenerateHostCert] instead.
 func (a *ServerWithRoles) GenerateHostCert(
-	ctx context.Context, key []byte, hostID, nodeName string, principals []string, clusterName string, role types.SystemRole, ttl time.Duration,
+	ctx context.Context,
+	key []byte,
+	hostID, nodeName string,
+	principals []string,
+	clusterName string,
+	role types.SystemRole,
+	ttl time.Duration,
 ) ([]byte, error) {
-	serviceContext := services.Context{
-		User: a.context.User,
-		HostCert: &services.HostCertContext{
-			HostID:      hostID,
-			NodeName:    nodeName,
-			Principals:  principals,
-			ClusterName: clusterName,
-			Role:        role,
-			TTL:         ttl,
-		},
-	}
-
-	// Instead of the usual RBAC checks, we'll manually call CheckAccessToRule
-	// here as we'll be evaluating `where` predicates with a custom RuleContext
-	// to expose cert request fields.
-	// We've only got a single verb to check so luckily it's pretty concise.
-	if err := a.withOptions().context.Checker.CheckAccessToRule(
-		&serviceContext, apidefaults.Namespace, types.KindHostCert, types.VerbCreate, false,
-	); err != nil {
+	trust, err := trustv1.NewService(&trustv1.ServiceConfig{
+		Authorizer: authz.AuthorizerFunc(func(context.Context) (*authz.Context, error) {
+			return &a.context, nil
+		}),
+		Cache:      a.authServer.Cache,
+		Backend:    a.authServer.Services,
+		AuthServer: a.authServer,
+	})
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	return a.authServer.GenerateHostCert(ctx, key, hostID, nodeName, principals, clusterName, role, ttl)
+	resp, err := trust.GenerateHostCert(ctx, &trustpb.GenerateHostCertRequest{
+		Key:         key,
+		HostId:      hostID,
+		NodeName:    nodeName,
+		Principals:  principals,
+		ClusterName: clusterName,
+		Role:        string(role),
+		Ttl:         durationpb.New(ttl),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp.SshCertificate, nil
 }
 
 // desiredAccessInfo inspects the current request to determine which access

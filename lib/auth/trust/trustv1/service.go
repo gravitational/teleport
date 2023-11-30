@@ -16,6 +16,7 @@ package trustv1
 
 import (
 	"context"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
@@ -27,6 +28,13 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 )
 
+type authServer interface {
+	// GenerateHostCert uses the private key of the CA to sign the public key of
+	// the host (along with metadata like host ID, node name, roles, and ttl)
+	// to generate a host certificate.
+	GenerateHostCert(ctx context.Context, hostPublicKey []byte, hostID, nodeName string, principals []string, clusterName string, role types.SystemRole, ttl time.Duration) ([]byte, error)
+}
+
 // ServiceConfig holds configuration options for
 // the trust gRPC service.
 type ServiceConfig struct {
@@ -34,6 +42,7 @@ type ServiceConfig struct {
 	Cache      services.AuthorityGetter
 	Backend    services.Trust
 	Logger     *logrus.Entry
+	AuthServer authServer
 }
 
 // Service implements the teleport.trust.v1.TrustService RPC service.
@@ -42,6 +51,7 @@ type Service struct {
 	authorizer authz.Authorizer
 	cache      services.AuthorityGetter
 	backend    services.Trust
+	authServer authServer
 	logger     *logrus.Entry
 }
 
@@ -54,6 +64,8 @@ func NewService(cfg *ServiceConfig) (*Service, error) {
 		return nil, trace.BadParameter("backend is required")
 	case cfg.Authorizer == nil:
 		return nil, trace.BadParameter("authorizer is required")
+	case cfg.AuthServer == nil:
+		return nil, trace.BadParameter("authServer is required")
 	case cfg.Logger == nil:
 		cfg.Logger = logrus.WithField(trace.Component, "trust.service")
 	}
@@ -63,6 +75,7 @@ func NewService(cfg *ServiceConfig) (*Service, error) {
 		authorizer: cfg.Authorizer,
 		cache:      cfg.Cache,
 		backend:    cfg.Backend,
+		authServer: cfg.AuthServer,
 	}, nil
 }
 
@@ -175,4 +188,61 @@ func (s *Service) UpsertCertAuthority(ctx context.Context, req *trustpb.UpsertCe
 	}
 
 	return req.CertAuthority, nil
+}
+
+// GenerateHostCert takes a public key in the OpenSSH `authorized_keys` format
+// and returns a SSH certificate signed by the Host CA.
+func (s *Service) GenerateHostCert(
+	ctx context.Context, req *trustpb.GenerateHostCertRequest,
+) (*trustpb.GenerateHostCertResponse, error) {
+	// Perform special authz as we allow for `where` rules on the `host_cert`
+	// resource type.
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, authz.ConvertAuthorizerError(ctx, s.logger, err)
+	}
+	ruleCtx := &services.Context{
+		User: authCtx.User,
+		HostCert: &services.HostCertContext{
+			HostID:      req.HostId,
+			NodeName:    req.NodeName,
+			Principals:  req.Principals,
+			ClusterName: req.ClusterName,
+			Role:        types.SystemRole(req.Role),
+			TTL:         req.Ttl.AsDuration(),
+		},
+	}
+	_, err = authz.AuthorizeContextWithVerbs(
+		ctx,
+		s.logger,
+		authCtx,
+		false,
+		ruleCtx,
+		types.KindHostCert,
+		types.VerbCreate,
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Call through to the underlying implementation on auth.Server. At some
+	// point in the future, we may wish to pull more of that implementation
+	// up to here.
+	cert, err := s.authServer.GenerateHostCert(
+		ctx,
+		req.Key,
+		req.HostId,
+		req.NodeName,
+		req.Principals,
+		req.ClusterName,
+		types.SystemRole(req.Role),
+		req.Ttl.AsDuration(),
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &trustpb.GenerateHostCertResponse{
+		SshCertificate: cert,
+	}, nil
 }
