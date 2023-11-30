@@ -227,6 +227,28 @@ func tagPipelines() []pipeline {
 		},
 	}))
 
+	ps = append(ps, ghaBuildPipeline(ghaBuildType{
+		pipelineName: "build-oci",
+		trigger:      triggerTag,
+		buildType:    buildType{fips: false},
+		dependsOn: []string{
+			"build-linux-amd64",
+			"build-linux-amd64-fips",
+			"build-linux-arm64",
+			"build-linux-arm",
+		},
+		workflows: []ghaWorkflow{
+			{
+				name:              "release-teleport-oci.yaml",
+				srcRefVar:         "DRONE_TAG",
+				ref:               "${DRONE_TAG}",
+				timeout:           150 * time.Minute,
+				shouldTagWorkflow: true,
+				slackOnError:      true,
+			},
+		},
+	}))
+
 	ps = append(ps, tagCleanupPipeline())
 	return ps
 }
