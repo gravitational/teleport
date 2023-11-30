@@ -142,6 +142,8 @@ spec:
           {{- if .Values.updater.enabled }}
           - name: TELEPORT_EXT_UPGRADER
             value: kube
+          - name: TELEPORT_EXT_UPGRADER_VERSION
+            value: {{ include "teleport-kube-agent.version" . }}
           {{- end }}
           {{- if .Values.tls.existingCASecretName }}
           - name: SSL_CERT_FILE
