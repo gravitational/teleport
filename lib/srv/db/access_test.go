@@ -17,6 +17,7 @@ limitations under the License.
 package db
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"database/sql"
@@ -80,6 +81,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/opensearch"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	"github.com/gravitational/teleport/lib/srv/db/redis"
+	redisprotocol "github.com/gravitational/teleport/lib/srv/db/redis/protocol"
 	"github.com/gravitational/teleport/lib/srv/db/secrets"
 	"github.com/gravitational/teleport/lib/srv/db/snowflake"
 	"github.com/gravitational/teleport/lib/srv/db/sqlserver"
@@ -435,6 +437,54 @@ func TestAccessRedis(t *testing.T) {
 			require.NoError(t, err)
 		})
 	}
+}
+
+// TestRedisCommandDocs is a regression test to verify if simple/status strings
+// (+<string>) are returned to Redis client for "COMMAND DOCS" command.
+//
+// "redis-cli" expects command info flags in simple/status strings (+<string>),
+// not regular ones ($<string>). An error is thrown by "redis-cli" if +<string>
+// is not received.
+func TestRedisCommandDocs(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	testCtx := setupTestContext(ctx, t, withSelfHostedRedis("redis"))
+	go testCtx.startHandlingConnections()
+
+	// Create user/role with the requested permissions.
+	testCtx.createUserAndRole(ctx, t, "alice", "admin", []string{types.Wildcard}, []string{types.Wildcard})
+
+	// Try to connect to the database as this user.
+	redisClient, err := testCtx.redisClient(ctx, "alice", "redis", "default")
+	require.NoError(t, err)
+
+	// Miniredis returns a sample command result:
+	// https://github.com/alicebob/miniredis/blob/master/cmd_command.go
+	//
+	// Unlike "redis-cli", redisClient.Command accepts any kind of string
+	// regardless whether the flag is in +<flag> or in $<flag>. This should
+	// always succeeds but it will be used as a reference to test the raw
+	// output.
+	parsedCommandInfos := redisClient.Command(ctx)
+	require.NoError(t, parsedCommandInfos.Err())
+
+	// Capture the raw bytes.
+	rawCommandInfos := goredis.NewCmd(ctx, "COMMAND", "DOCS")
+	require.NoError(t, redisClient.Process(ctx, rawCommandInfos))
+	rawCommandInfosBuffer := &bytes.Buffer{}
+	require.NoError(t, redisprotocol.WriteCmd(goredis.NewWriter(rawCommandInfosBuffer), rawCommandInfos.Val()))
+
+	// Loop each flag to make sure +<flag> is written to the raw bytes.
+	rawCommandInfosOutput := rawCommandInfosBuffer.String()
+	var flagsVerified int
+	for _, commandInfo := range parsedCommandInfos.Val() {
+		for _, flag := range commandInfo.Flags {
+			require.Contains(t, rawCommandInfosOutput, "+"+flag)
+			flagsVerified += 1
+		}
+	}
+	// Just to make sure miniredis is returning a command info with some flags.
+	require.Greater(t, flagsVerified, 0)
 }
 
 // TestMySQLBadHandshake verifies MySQL proxy can gracefully handle truncated
