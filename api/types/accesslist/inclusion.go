@@ -49,6 +49,9 @@ const (
 	inclusionExplicitText    string = "explicit"
 )
 
+// MarshalYAML implements custom YAML marshaling for the Inclusion
+// type, rendering the value in YAML as a self-describing string,
+// rather than a cryptic number.
 func (i Inclusion) MarshalYAML() (interface{}, error) {
 	if val, err := i.marshal(); err != nil {
 		return nil, trace.Wrap(err)
@@ -57,6 +60,9 @@ func (i Inclusion) MarshalYAML() (interface{}, error) {
 	}
 }
 
+// MarshalJSON implements custom JSON marshalling for the Inclusion
+// type, rendering the value in JSON as a self-describing string,
+// rather than a cryptic number.
 func (i Inclusion) MarshalJSON() ([]byte, error) {
 	if text, err := i.marshal(); err != nil {
 		return nil, trace.Wrap(err)
@@ -65,6 +71,7 @@ func (i Inclusion) MarshalJSON() ([]byte, error) {
 	}
 }
 
+// String implements Stringer for Inclusion values
 func (i Inclusion) String() string {
 	if text, err := i.marshal(); err != nil {
 		return fmt.Sprintf("invalid inclusion (%d)", uint(i))
@@ -73,6 +80,8 @@ func (i Inclusion) String() string {
 	}
 }
 
+// marshall implements all of the marshaling behavior common to
+// the top-level marshalers.
 func (i Inclusion) marshal() (string, error) {
 	switch i {
 	case InclusionUnspecified:
@@ -89,6 +98,9 @@ func (i Inclusion) marshal() (string, error) {
 	}
 }
 
+// UnmarshalYAML implements custom YAML un-marshaling for an Inclusion value,
+// reading and parsing a self-describing string rather than cryptic inclusion
+// code number.
 func (i *Inclusion) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var text string
 	if err := unmarshal(&text); err != nil {
@@ -97,6 +109,9 @@ func (i *Inclusion) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return trace.Wrap(i.unmarshal(text))
 }
 
+// UnmarshalJSON implements custom JSON un-marshaling for an Inclusion value,
+// reading and parsing a self-describing string rather than cryptic inclusion
+// code number.
 func (i *Inclusion) UnmarshalJSON(data []byte) error {
 	var text string
 	if err := json.Unmarshal(data, &text); err != nil {
@@ -105,6 +120,8 @@ func (i *Inclusion) UnmarshalJSON(data []byte) error {
 	return trace.Wrap(i.unmarshal(text))
 }
 
+// unmarshal implements all of the un-marshaling operation common to both the
+// JSON and YAML un-marshaler.
 func (i *Inclusion) unmarshal(text string) error {
 	var val Inclusion
 	switch text {
