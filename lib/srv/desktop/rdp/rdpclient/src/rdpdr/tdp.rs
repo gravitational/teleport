@@ -70,16 +70,16 @@ pub struct SharedDirectoryInfoRequest {
 }
 
 impl SharedDirectoryInfoRequest {
-    /// See [`CGOWithStrings`].
-    pub fn into_cgo(self) -> PduResult<CGOWithStrings<CGOSharedDirectoryInfoRequest>> {
+    /// See [`CGOWithData`].
+    pub fn into_cgo(self) -> PduResult<CGOWithData<CGOSharedDirectoryInfoRequest>> {
         let path = self.path.to_cstring()?;
-        Ok(CGOWithStrings {
+        Ok(CGOWithData {
             cgo: CGOSharedDirectoryInfoRequest {
                 completion_id: self.completion_id,
                 directory_id: self.directory_id,
                 path: path.as_ptr(),
             },
-            _strings: vec![path],
+            _data: vec![path.into()],
         })
     }
 }
@@ -244,9 +244,9 @@ impl SharedDirectoryWriteRequest {
         }
     }
 
-    pub fn into_cgo(self) -> PduResult<CGOWithStrings<CGOSharedDirectoryWriteRequest>> {
+    pub fn into_cgo(self) -> PduResult<CGOWithData<CGOSharedDirectoryWriteRequest>> {
         let path = self.path.to_cstring()?;
-        Ok(CGOWithStrings {
+        Ok(CGOWithData {
             cgo: CGOSharedDirectoryWriteRequest {
                 completion_id: self.completion_id,
                 directory_id: self.directory_id,
@@ -256,7 +256,7 @@ impl SharedDirectoryWriteRequest {
                 write_data_length: self.write_data.len() as u32,
                 write_data: self.write_data.as_ptr() as *mut u8,
             },
-            _strings: vec![path],
+            _data: vec![path.into(), self.write_data.into()],
         })
     }
 }
@@ -295,9 +295,9 @@ impl SharedDirectoryReadRequest {
         }
     }
 
-    pub fn into_cgo(self) -> PduResult<CGOWithStrings<CGOSharedDirectoryReadRequest>> {
+    pub fn into_cgo(self) -> PduResult<CGOWithData<CGOSharedDirectoryReadRequest>> {
         let path = self.path.to_cstring()?;
-        Ok(CGOWithStrings {
+        Ok(CGOWithData {
             cgo: CGOSharedDirectoryReadRequest {
                 completion_id: self.completion_id,
                 directory_id: self.directory_id,
@@ -306,7 +306,7 @@ impl SharedDirectoryReadRequest {
                 offset: self.offset,
                 length: self.length,
             },
-            _strings: vec![path],
+            _data: vec![path.into()],
         })
     }
 }
@@ -372,17 +372,17 @@ impl SharedDirectoryCreateRequest {
         }
     }
 
-    /// See [`CGOWithStrings`].
-    pub fn into_cgo(self) -> PduResult<CGOWithStrings<CGOSharedDirectoryCreateRequest>> {
+    /// See [`CGOWithData`].
+    pub fn into_cgo(self) -> PduResult<CGOWithData<CGOSharedDirectoryCreateRequest>> {
         let path = self.path.to_cstring()?;
-        Ok(CGOWithStrings {
+        Ok(CGOWithData {
             cgo: CGOSharedDirectoryCreateRequest {
                 completion_id: self.completion_id,
                 directory_id: self.directory_id,
                 file_type: self.file_type,
                 path: path.as_ptr(),
             },
-            _strings: vec![path],
+            _data: vec![path.into()],
         })
     }
 }
@@ -430,18 +430,18 @@ pub struct SharedDirectoryMoveRequest {
 }
 
 impl SharedDirectoryMoveRequest {
-    /// See [`CGOWithStrings`].
-    pub fn into_cgo(self) -> PduResult<CGOWithStrings<CGOSharedDirectoryMoveRequest>> {
+    /// See [`CGOWithData`].
+    pub fn into_cgo(self) -> PduResult<CGOWithData<CGOSharedDirectoryMoveRequest>> {
         let original_path = self.original_path.to_cstring()?;
         let new_path = self.new_path.to_cstring()?;
-        Ok(CGOWithStrings {
+        Ok(CGOWithData {
             cgo: CGOSharedDirectoryMoveRequest {
                 completion_id: self.completion_id,
                 directory_id: self.directory_id,
                 original_path: original_path.as_ptr(),
                 new_path: new_path.as_ptr(),
             },
-            _strings: vec![original_path, new_path],
+            _data: vec![original_path.into(), new_path.into()],
         })
     }
 }
@@ -488,16 +488,16 @@ impl SharedDirectoryDeleteRequest {
         }
     }
 
-    /// See [`CGOWithStrings`].
-    pub fn into_cgo(self) -> PduResult<CGOWithStrings<CGOSharedDirectoryDeleteRequest>> {
+    /// See [`CGOWithData`].
+    pub fn into_cgo(self) -> PduResult<CGOWithData<CGOSharedDirectoryDeleteRequest>> {
         let path = self.path.to_cstring()?;
-        Ok(CGOWithStrings {
+        Ok(CGOWithData {
             cgo: CGOSharedDirectoryDeleteRequest {
                 completion_id: self.completion_id,
                 directory_id: self.directory_id,
                 path: path.as_ptr(),
             },
-            _strings: vec![path],
+            _data: vec![path.into()],
         })
     }
 }
@@ -540,16 +540,16 @@ pub struct SharedDirectoryListRequest {
 }
 
 impl SharedDirectoryListRequest {
-    /// See [`CGOWithStrings`].
-    pub fn into_cgo(self) -> PduResult<CGOWithStrings<CGOSharedDirectoryListRequest>> {
+    /// See [`CGOWithData`].
+    pub fn into_cgo(self) -> PduResult<CGOWithData<CGOSharedDirectoryListRequest>> {
         let path = self.path.to_cstring()?;
-        Ok(CGOWithStrings {
+        Ok(CGOWithData {
             cgo: CGOSharedDirectoryListRequest {
                 completion_id: self.completion_id,
                 directory_id: self.directory_id,
                 path: path.as_ptr(),
             },
-            _strings: vec![path],
+            _data: vec![path.into()],
         })
     }
 }
@@ -574,6 +574,23 @@ pub enum FileType {
     Directory = 1,
 }
 
+enum CGOData {
+    CString(CString),
+    VecU8(Vec<u8>),
+}
+
+impl From<CString> for CGOData {
+    fn from(cstring: CString) -> CGOData {
+        CGOData::CString(cstring)
+    }
+}
+
+impl From<Vec<u8>> for CGOData {
+    fn from(vec: Vec<u8>) -> CGOData {
+        CGOData::VecU8(vec)
+    }
+}
+
 /// Some CGO* structs contain `*const c_char` fields that are backed by [`CString`]\(s\).
 /// We commonly need to pass these structs to Go, so we need to ensure that the
 /// CStrings live long enough for the structs to be copied into Go-owned memory.
@@ -587,29 +604,33 @@ pub enum FileType {
 /// use std::ffi::CString;
 ///
 /// let path = CString::new("/path/to/file").unwrap();
-/// let mut cgo_with_strings = CGOWithStrings {
-///     cgo: CGOSharedDirectoryCreateRequest {
+/// let data = vec![1, 2, 3, 4, 5];
+/// let mut cgo_with_data = CGOWithData {
+///     cgo: CGOSharedDirectoryWriteRequest {
 ///         completion_id: 1,
 ///         directory_id: 2,
-///         file_type: FileType::File,
-///         path: path,
+///         offset: 3,
+///         path: path.as_ptr(),
+///         path_length: path.as_bytes().len() as u32,
+///         write_data_length: data.len() as u32,
+///         write_data: data.as_ptr() as *mut u8,
 ///     },
-///     _strings: vec![path],
+///     _data: vec![CGOData::CString(path), CGOData::VecU8(data)],
 /// };
 ///
 /// // Pass the CGO* struct to Go.
 /// //
-/// // Because `path` is owned by `cgo_with_strings`,
-/// // it will live long enough for `pass_to_go`
-/// // to copy it into Go-owned memory.
-/// pass_to_go(cgo_with_strings.cgo());
+/// // Because `path` and `data` are owned by `cgo_with_data`,
+/// // they will live long enough for `pass_to_go`
+/// // to copy them into Go-owned memory.
+/// pass_to_go(cgo_with_data.cgo());
 /// ```
-pub struct CGOWithStrings<T> {
+pub struct CGOWithData<T> {
     cgo: T,
-    _strings: Vec<CString>,
+    _data: Vec<CGOData>,
 }
 
-impl<T> CGOWithStrings<T> {
+impl<T> CGOWithData<T> {
     pub fn cgo(&mut self) -> *mut T {
         &mut self.cgo
     }
