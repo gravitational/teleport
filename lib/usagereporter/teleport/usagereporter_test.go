@@ -36,7 +36,6 @@ func TestConvertUsageEvent(t *testing.T) {
 
 	expectedAnonymizedUserString := anonymizer.AnonymizeString("myuser")
 	expectedAnonymizedAccessListIDString := anonymizer.AnonymizeString("someid")
-	expectedAnonymizedDiscoveryGroupString := anonymizer.AnonymizeString("cloud-discovery-group")
 
 	for _, tt := range []struct {
 		name             string
@@ -525,18 +524,16 @@ func TestConvertUsageEvent(t *testing.T) {
 			name: "discovery fetch event",
 			event: &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_DiscoveryFetchEvent{
 				DiscoveryFetchEvent: &usageeventsv1.DiscoveryFetchEvent{
-					DiscoveryGroup: "cloud-discovery-group",
-					CloudProvider:  "AWS",
-					ResourceType:   "rds",
+					CloudProvider: "AWS",
+					ResourceType:  "rds",
 				},
 			}},
 			identityUsername: "myuser",
 			errCheck:         require.NoError,
 			expected: &prehogv1a.SubmitEventRequest{Event: &prehogv1a.SubmitEventRequest_DiscoveryFetchEvent{
 				DiscoveryFetchEvent: &prehogv1a.DiscoveryFetchEvent{
-					DiscoveryGroup: expectedAnonymizedDiscoveryGroupString,
-					CloudProvider:  "AWS",
-					ResourceType:   "rds",
+					CloudProvider: "AWS",
+					ResourceType:  "rds",
 				},
 			}},
 		},

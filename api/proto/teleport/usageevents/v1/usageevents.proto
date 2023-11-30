@@ -632,17 +632,14 @@ message SecurityReportGetResultEvent {
 
 // DiscoveryFetchEvent is emitted when a DiscoveryService polls for new resources of a given type
 message DiscoveryFetchEvent {
-  // discovery_group is the discovery_group for the fetcher.
-  string discovery_group = 1;
-
   // cloud_provider is the cloud provider used to fetch resources
   // Eg, AWS, Azure, GCP, Kubernetes
-  string cloud_provider = 3;
+  string cloud_provider = 1;
 
   // resource_type is the type of resource that this fetch is polling.
   // It depends on the Cloud Provider (defined above).
   // Eg, rds, ec2, vm, aks, gce, app
-  string resource_type = 4;
+  string resource_type = 2;
 }
 
 // UsageEventOneOf is a message that can accept a oneof of any supported

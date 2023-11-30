@@ -1002,9 +1002,8 @@ func (e *DiscoveryFetchEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEven
 	return prehogv1a.SubmitEventRequest{
 		Event: &prehogv1a.SubmitEventRequest_DiscoveryFetchEvent{
 			DiscoveryFetchEvent: &prehogv1a.DiscoveryFetchEvent{
-				DiscoveryGroup: a.AnonymizeString(e.DiscoveryGroup),
-				CloudProvider:  e.CloudProvider,
-				ResourceType:   e.ResourceType,
+				CloudProvider: e.CloudProvider,
+				ResourceType:  e.ResourceType,
 			},
 		},
 	}
@@ -1449,9 +1448,8 @@ func ConvertUsageEvent(event *usageeventsv1.UsageEventOneOf, userMD UserMetadata
 		return ret, nil
 	case *usageeventsv1.UsageEventOneOf_DiscoveryFetchEvent:
 		ret := &DiscoveryFetchEvent{
-			DiscoveryGroup: e.DiscoveryFetchEvent.DiscoveryGroup,
-			CloudProvider:  e.DiscoveryFetchEvent.CloudProvider,
-			ResourceType:   e.DiscoveryFetchEvent.ResourceType,
+			CloudProvider: e.DiscoveryFetchEvent.CloudProvider,
+			ResourceType:  e.DiscoveryFetchEvent.ResourceType,
 		}
 		return ret, nil
 

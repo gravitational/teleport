@@ -2468,9 +2468,6 @@ export namespace AuditQueryRunEvent {
 }
 
 export class DiscoveryFetchEvent extends jspb.Message { 
-    getDiscoveryGroup(): string;
-    setDiscoveryGroup(value: string): DiscoveryFetchEvent;
-
     getCloudProvider(): string;
     setCloudProvider(value: string): DiscoveryFetchEvent;
 
@@ -2490,7 +2487,6 @@ export class DiscoveryFetchEvent extends jspb.Message {
 
 export namespace DiscoveryFetchEvent {
     export type AsObject = {
-        discoveryGroup: string,
         cloudProvider: string,
         resourceType: string,
     }
