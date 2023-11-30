@@ -253,6 +253,18 @@ func (w *WatcherResponseWriter) watchDecoder(contentType string, writer io.Write
 			if err != nil {
 				return trace.Wrap(err)
 			}
+			// Stream the response into the target connection, as we are dealing with
+			// streaming events. However, the Kubernetes API does not include the
+			// content-type as chunked. As a result, the forwarder is unaware that
+			// the connection is chunked and delays the response writing by buffering
+			// to minimize the number of writes.
+			// In cases where the connection stream is busy with events, the user may
+			// not receive individual events as chunks, leading to incomplete data.
+			// This could result in the user receiving malformed JSON and triggering
+			// an abort.
+			// To avoid this, we flush the response after each event to ensure that
+			// the user receives the event as a chunk.
+			w.Flush()
 		}
 	}
 }
