@@ -1,0 +1,57 @@
+// Copyright 2023 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package teleport.machineid.v1;
+
+import "teleport/header/v1/resourceheader.proto";
+import "google/protobuf/empty.proto";
+import "teleport/legacy/types/types.proto";
+import "teleport/machineid/v1/bot.proto";
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1;machineidv1";
+
+// BotService provides methods to manage Teleport Bots
+service BotService {
+  rpc GetBot(GetBotRequest) returns (GetBotResponse);
+  rpc ListBots(ListBotsRequest) returns (ListBotsResponse);
+  rpc CreateBot(CreateBotRequest) returns (CreateBotResponse);
+  rpc UpdateBot(UpdateBotRequest) returns (UpdateBotResponse);
+  rpc UpsertBot(UpsertBotRequest) returns (UpsertBotResponse);
+  rpc DeleteBot(DeleteBotRequest) returns (google.protobuf.Empty);
+}
+
+message CreateBotRequest {}
+message CreateBotResponse {}
+
+message GetBotRequest {
+  string bot_name = 1;
+}
+
+message GetBotResponse {
+  Bot bot = 1;
+}
+
+message ListBotsRequest {}
+message ListBotsResponse {}
+
+
+message UpdateBotRequest {}
+message UpdateBotResponse {}
+
+message UpsertBotRequest {}
+message UpsertBotResponse {}
+
+message DeleteBotRequest {}
