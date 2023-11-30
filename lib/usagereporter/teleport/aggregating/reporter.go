@@ -230,7 +230,7 @@ func (r *Reporter) run(ctx context.Context) {
 		if record == nil {
 			resourcePresences[kind] = make(map[string]struct{})
 		}
-		return record
+		return resourcePresences[kind]
 	}
 
 	var wg sync.WaitGroup
