@@ -61,6 +61,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/installers"
 	"github.com/gravitational/teleport/api/types/wrappers"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth/assist/assistv1"
 	"github.com/gravitational/teleport/lib/auth/discoveryconfig/discoveryconfigv1"
 	integrationService "github.com/gravitational/teleport/lib/auth/integration/integrationv1"
@@ -2090,6 +2091,7 @@ func maybeDowngradeRoleLabelExpressions(ctx context.Context, role *types.RoleV6,
 	if !clientVersion.LessThan(minSupportedLabelExpressionVersion) {
 		return role, nil
 	}
+	role = apiutils.CloneProtoMsg(role)
 	hasLabelExpression := false
 	for _, kind := range types.LabelMatcherKinds {
 		allowLabelMatchers, err := role.GetLabelMatchers(types.Allow, kind)
@@ -2163,11 +2165,8 @@ func downgradeRoleToV6(r *types.RoleV6) (*types.RoleV6, bool, error) {
 	case types.V3, types.V4, types.V5, types.V6:
 		return r, false, nil
 	case types.V7:
-		var (
-			downgraded types.RoleV6
-			restricted bool
-		)
-		downgraded = *r
+		var restricted bool
+		downgraded := apiutils.CloneProtoMsg(r)
 		downgraded.Version = types.V6
 
 		if len(downgraded.GetKubeResources(types.Deny)) > 0 {
@@ -2225,7 +2224,7 @@ func downgradeRoleToV6(r *types.RoleV6) (*types.RoleV6, bool, error) {
 			restricted = true
 		}
 
-		return &downgraded, restricted, nil
+		return downgraded, restricted, nil
 	default:
 		return nil, false, trace.BadParameter("unrecognized role version %T", r.Version)
 	}
