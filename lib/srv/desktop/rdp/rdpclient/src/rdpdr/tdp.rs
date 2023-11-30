@@ -212,6 +212,14 @@ impl FileSystemObject {
             self.name()?,
         ))
     }
+
+    pub fn is_empty_directory(&self) -> bool {
+        self.file_type == FileType::Directory && self.is_empty == TRUE
+    }
+
+    pub fn is_file(&self) -> bool {
+        self.file_type == FileType::File
+    }
 }
 
 /// SharedDirectoryWriteRequest is sent by the TDP server to the client
