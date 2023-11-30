@@ -53,16 +53,18 @@ func (c *Client) GenerateHostCert(
 		Role:        string(role),
 		Ttl:         durationpb.New(ttl),
 	})
-	if err == nil {
-		return res.SshCertificate, nil
-	} else if !trace.IsNotImplemented(err) {
-		return nil, trace.Wrap(err)
+	if err != nil {
+		switch {
+		case trace.IsNotImplemented(err):
+			// Fall back to HTTP implementation.
+			return c.generateHostCertHTTP(
+				ctx, key, hostID, nodeName, principals, clusterName, role, ttl,
+			)
+		default:
+			return nil, trace.Wrap(err)
+		}
 	}
-
-	// Fall back to HTTP implementation.
-	return c.generateHostCertHTTP(
-		ctx, key, hostID, nodeName, principals, clusterName, role, ttl,
-	)
+	return res.SshCertificate, nil
 }
 
 // TODO(noah): DELETE IN 16.0.0
