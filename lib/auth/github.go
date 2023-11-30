@@ -98,14 +98,14 @@ func (g *GithubConverter) GetGithubConnectors(ctx context.Context, withSecrets b
 	return connectors, nil
 }
 
-func (g *GithubConverter) UpsertGithubConnector(ctx context.Context, connector types.GithubConnector) error {
+func (g *GithubConverter) UpsertGithubConnector(ctx context.Context, connector types.GithubConnector) (types.GithubConnector, error) {
 	convertedConnector, err := services.ConvertGithubConnector(connector)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
-	err = g.ClientI.UpsertGithubConnector(ctx, convertedConnector)
-	return trace.Wrap(err)
+	connector, err = g.ClientI.UpsertGithubConnector(ctx, convertedConnector)
+	return connector, trace.Wrap(err)
 }
 
 func (g *GithubConverter) CreateGithubConnector(ctx context.Context, connector types.GithubConnector) (types.GithubConnector, error) {
@@ -150,12 +150,13 @@ func (a *Server) CreateGithubAuthRequest(ctx context.Context, req types.GithubAu
 }
 
 // upsertGithubConnector creates or updates a Github connector.
-func (a *Server) upsertGithubConnector(ctx context.Context, connector types.GithubConnector) error {
+func (a *Server) upsertGithubConnector(ctx context.Context, connector types.GithubConnector) (types.GithubConnector, error) {
 	if err := checkGithubOrgSSOSupport(ctx, connector, nil, a.githubOrgSSOCache, nil); err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-	if err := a.UpsertGithubConnector(ctx, connector); err != nil {
-		return trace.Wrap(err)
+	upserted, err := a.UpsertGithubConnector(ctx, connector)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 	if err := a.emitter.EmitAuditEvent(ctx, &apievents.GithubConnectorCreate{
 		Metadata: apievents.Metadata{
@@ -170,7 +171,7 @@ func (a *Server) upsertGithubConnector(ctx context.Context, connector types.Gith
 		log.WithError(err).Warn("Failed to emit GitHub connector create event.")
 	}
 
-	return nil
+	return upserted, nil
 }
 
 // createGithubConnector creates a new Github connector.
