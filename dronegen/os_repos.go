@@ -31,10 +31,9 @@ func promoteBuildOsRepoPipeline() pipeline {
 	packageDeployments := []osPackageDeployment{
 		// Normal release pipelines
 		{
-			versionChannel:    "${DRONE_TAG}",
-			packageNameFilter: `$($DRONE_REPO_PRIVATE && echo "*ent*" || echo "")`,
-			packageToTest:     "teleport-ent",
-			displayName:       "Teleport",
+			versionChannel: "${DRONE_TAG}",
+			packageToTest:  "teleport-ent",
+			displayName:    "Teleport",
 		},
 		// teleport-ent-updater to stable/cloud only pipelines
 		{
@@ -44,10 +43,9 @@ func promoteBuildOsRepoPipeline() pipeline {
 		},
 		// Rolling release pipelines
 		{
-			versionChannel:    "rolling",
-			packageNameFilter: `$($DRONE_REPO_PRIVATE && echo "*ent*" || echo "")`,
-			packageToTest:     "teleport-ent",
-			displayName:       "Teleport",
+			versionChannel: "rolling",
+			packageToTest:  "teleport-ent",
+			displayName:    "Teleport",
 		},
 	}
 
@@ -86,12 +84,15 @@ func buildWorkflows(releaseEnvironmentFilePath string, packageDeployments []osPa
 	for _, packageDeployment := range packageDeployments {
 		for _, repoType := range repoTypes {
 			inputs := map[string]string{
-				"repo-type":           repoType,
-				"environment":         fmt.Sprintf("$(cat %q)", releaseEnvironmentFilePath),
-				"artifact-tag":        "${DRONE_TAG}",
-				"release-channel":     "stable",
-				"version-channel":     packageDeployment.versionChannel,
-				"package-name-filter": packageDeployment.packageNameFilter,
+				"repo-type":       repoType,
+				"environment":     fmt.Sprintf("$(cat %q)", releaseEnvironmentFilePath),
+				"artifact-tag":    "${DRONE_TAG}",
+				"release-channel": "stable",
+				"version-channel": packageDeployment.versionChannel,
+			}
+
+			if packageDeployment.packageNameFilter != "" {
+				inputs["package-name-filter"] = packageDeployment.packageNameFilter
 			}
 
 			if packageDeployment.packageToTest != "" {
