@@ -16,6 +16,7 @@ package aggregating
 
 import (
 	"context"
+	"encoding/binary"
 	"sync"
 	"time"
 
@@ -268,7 +269,7 @@ Ingest:
 				wg.Add(1)
 				go func(ctx context.Context, startTime time.Time, resourcePresences map[prehogv1.ResourceKind]map[string]struct{}) {
 					defer wg.Done()
-					r.persistResourceActivity(ctx, startTime, resourcePresences)
+					r.persistResourcePresence(ctx, startTime, resourcePresences)
 				}(ctx, userActivityStartTime, resourcePresences)
 			}
 
@@ -319,7 +320,7 @@ Ingest:
 	}
 
 	if len(resourcePresences) > 0 {
-		r.persistResourceActivity(ctx, userActivityStartTime, resourcePresences)
+		r.persistResourcePresence(ctx, userActivityStartTime, resourcePresences)
 	}
 
 	wg.Wait()
@@ -360,19 +361,21 @@ func (r *Reporter) persistUserActivity(ctx context.Context, startTime time.Time,
 	}
 }
 
-func (r *Reporter) persistResourceActivity(ctx context.Context, startTime time.Time, resourcePresences map[prehogv1.ResourceKind]map[string]struct{}) {
-	records := make([]*prehogv1.ResourceActivityRecord, 0, len(resourcePresences))
+func (r *Reporter) persistResourcePresence(ctx context.Context, startTime time.Time, resourcePresences map[prehogv1.ResourceKind]map[string]struct{}) {
+	records := make([]*prehogv1.ResourceKindPresenceReport, 0, len(resourcePresences))
 	for kind, set := range resourcePresences {
-		record := &prehogv1.ResourceActivityRecord{}
+		record := &prehogv1.ResourceKindPresenceReport{}
 		record.ResourceKind = kind
-		record.ResourceName = make([][]byte, 0, len(set))
+		record.ResourceIds = make([]uint64, 0, len(set))
 		for name := range set {
-			record.ResourceName = append(record.ResourceName, r.anonymizer.AnonymizeNonEmpty(name))
+			anonymized := r.anonymizer.AnonymizeNonEmpty(name)
+			packed := binary.BigEndian.Uint64(anonymized[8:])
+			record.ResourceIds = append(record.ResourceIds, packed)
 		}
 		records = append(records, record)
 	}
 
-	report, err := prepareResourceActivityReport(r.clusterName, r.hostID, startTime, records)
+	report, err := prepareResourcePresenceReport(r.clusterName, r.hostID, startTime, records)
 	if err != nil {
 		r.log.WithError(err).WithFields(logrus.Fields{
 			"start_time": startTime,
@@ -380,7 +383,7 @@ func (r *Reporter) persistResourceActivity(ctx context.Context, startTime time.T
 		return
 	}
 
-	if err := r.svc.upsertResourceActivityReport(ctx, report, reportTTL); err != nil {
+	if err := r.svc.upsertResourcePresenceReport(ctx, report, reportTTL); err != nil {
 		r.log.WithError(err).WithFields(logrus.Fields{
 			"start_time": startTime,
 		}).Error("Failed to persist resource counts report, dropping data.")

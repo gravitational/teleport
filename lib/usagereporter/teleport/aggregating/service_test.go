@@ -106,16 +106,16 @@ func TestLock(t *testing.T) {
 	require.NoError(t, svc.createUserActivityReportsLock(ctx, 2*time.Minute, nil))
 }
 
-func newResourceActivityReport(startTime time.Time) *prehogv1.ResourceActivityReport {
+func newResourcePresenceReport(startTime time.Time) *prehogv1.ResourcePresenceReport {
 	u := uuid.New()
-	r := &prehogv1.ResourceActivityReport{
+	r := &prehogv1.ResourcePresenceReport{
 		ReportUuid: u[:],
 		StartTime:  timestamppb.New(startTime),
 	}
 	return r
 }
 
-func TestResourceActivityReporting(t *testing.T) {
+func TestResourcePresenceReporting(t *testing.T) {
 	ctx := context.Background()
 	clk := clockwork.NewFakeClock()
 	bk, err := memory.New(memory.Config{
@@ -127,16 +127,16 @@ func TestResourceActivityReporting(t *testing.T) {
 
 	svc := reportService{bk}
 
-	r0 := newResourceActivityReport(clk.Now().Add(time.Minute))
-	r1 := newResourceActivityReport(clk.Now().Add(time.Minute))
-	r2 := newResourceActivityReport(clk.Now().Add(2 * time.Minute))
+	r0 := newResourcePresenceReport(clk.Now().Add(time.Minute))
+	r1 := newResourcePresenceReport(clk.Now().Add(time.Minute))
+	r2 := newResourcePresenceReport(clk.Now().Add(2 * time.Minute))
 
-	require.NoError(t, svc.upsertResourceActivityReport(ctx, r0, time.Hour))
-	require.NoError(t, svc.upsertResourceActivityReport(ctx, r1, time.Hour))
-	require.NoError(t, svc.upsertResourceActivityReport(ctx, r2, time.Hour))
+	require.NoError(t, svc.upsertResourcePresenceReport(ctx, r0, time.Hour))
+	require.NoError(t, svc.upsertResourcePresenceReport(ctx, r1, time.Hour))
+	require.NoError(t, svc.upsertResourcePresenceReport(ctx, r2, time.Hour))
 
 	// we expect r0 and r1 in unspecified order
-	reports, err := svc.listResourceActivityReports(ctx, 2)
+	reports, err := svc.listResourcePresenceReports(ctx, 2)
 	require.NoError(t, err)
 	require.Len(t, reports, 2)
 	if proto.Equal(r0, reports[0]) {

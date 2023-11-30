@@ -126,80 +126,78 @@ export namespace UserActivityRecord {
     }
 }
 
-export class ResourceActivityReport extends jspb.Message { 
+export class ResourcePresenceReport extends jspb.Message { 
     getReportUuid(): Uint8Array | string;
     getReportUuid_asU8(): Uint8Array;
     getReportUuid_asB64(): string;
-    setReportUuid(value: Uint8Array | string): ResourceActivityReport;
+    setReportUuid(value: Uint8Array | string): ResourcePresenceReport;
 
     getClusterName(): Uint8Array | string;
     getClusterName_asU8(): Uint8Array;
     getClusterName_asB64(): string;
-    setClusterName(value: Uint8Array | string): ResourceActivityReport;
+    setClusterName(value: Uint8Array | string): ResourcePresenceReport;
 
     getReporterHostid(): Uint8Array | string;
     getReporterHostid_asU8(): Uint8Array;
     getReporterHostid_asB64(): string;
-    setReporterHostid(value: Uint8Array | string): ResourceActivityReport;
+    setReporterHostid(value: Uint8Array | string): ResourcePresenceReport;
 
 
     hasStartTime(): boolean;
     clearStartTime(): void;
     getStartTime(): google_protobuf_timestamp_pb.Timestamp | undefined;
-    setStartTime(value?: google_protobuf_timestamp_pb.Timestamp): ResourceActivityReport;
+    setStartTime(value?: google_protobuf_timestamp_pb.Timestamp): ResourcePresenceReport;
 
-    clearRecordsList(): void;
-    getRecordsList(): Array<ResourceActivityRecord>;
-    setRecordsList(value: Array<ResourceActivityRecord>): ResourceActivityReport;
-    addRecords(value?: ResourceActivityRecord, index?: number): ResourceActivityRecord;
+    clearResourceKindReportsList(): void;
+    getResourceKindReportsList(): Array<ResourceKindPresenceReport>;
+    setResourceKindReportsList(value: Array<ResourceKindPresenceReport>): ResourcePresenceReport;
+    addResourceKindReports(value?: ResourceKindPresenceReport, index?: number): ResourceKindPresenceReport;
 
 
     serializeBinary(): Uint8Array;
-    toObject(includeInstance?: boolean): ResourceActivityReport.AsObject;
-    static toObject(includeInstance: boolean, msg: ResourceActivityReport): ResourceActivityReport.AsObject;
+    toObject(includeInstance?: boolean): ResourcePresenceReport.AsObject;
+    static toObject(includeInstance: boolean, msg: ResourcePresenceReport): ResourcePresenceReport.AsObject;
     static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
     static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
-    static serializeBinaryToWriter(message: ResourceActivityReport, writer: jspb.BinaryWriter): void;
-    static deserializeBinary(bytes: Uint8Array): ResourceActivityReport;
-    static deserializeBinaryFromReader(message: ResourceActivityReport, reader: jspb.BinaryReader): ResourceActivityReport;
+    static serializeBinaryToWriter(message: ResourcePresenceReport, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): ResourcePresenceReport;
+    static deserializeBinaryFromReader(message: ResourcePresenceReport, reader: jspb.BinaryReader): ResourcePresenceReport;
 }
 
-export namespace ResourceActivityReport {
+export namespace ResourcePresenceReport {
     export type AsObject = {
         reportUuid: Uint8Array | string,
         clusterName: Uint8Array | string,
         reporterHostid: Uint8Array | string,
         startTime?: google_protobuf_timestamp_pb.Timestamp.AsObject,
-        recordsList: Array<ResourceActivityRecord.AsObject>,
+        resourceKindReportsList: Array<ResourceKindPresenceReport.AsObject>,
     }
 }
 
-export class ResourceActivityRecord extends jspb.Message { 
+export class ResourceKindPresenceReport extends jspb.Message { 
     getResourceKind(): ResourceKind;
-    setResourceKind(value: ResourceKind): ResourceActivityRecord;
+    setResourceKind(value: ResourceKind): ResourceKindPresenceReport;
 
-    clearResourceNameList(): void;
-    getResourceNameList(): Array<Uint8Array | string>;
-    getResourceNameList_asU8(): Array<Uint8Array>;
-    getResourceNameList_asB64(): Array<string>;
-    setResourceNameList(value: Array<Uint8Array | string>): ResourceActivityRecord;
-    addResourceName(value: Uint8Array | string, index?: number): Uint8Array | string;
+    clearResourceIdsList(): void;
+    getResourceIdsList(): Array<number>;
+    setResourceIdsList(value: Array<number>): ResourceKindPresenceReport;
+    addResourceIds(value: number, index?: number): number;
 
 
     serializeBinary(): Uint8Array;
-    toObject(includeInstance?: boolean): ResourceActivityRecord.AsObject;
-    static toObject(includeInstance: boolean, msg: ResourceActivityRecord): ResourceActivityRecord.AsObject;
+    toObject(includeInstance?: boolean): ResourceKindPresenceReport.AsObject;
+    static toObject(includeInstance: boolean, msg: ResourceKindPresenceReport): ResourceKindPresenceReport.AsObject;
     static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
     static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
-    static serializeBinaryToWriter(message: ResourceActivityRecord, writer: jspb.BinaryWriter): void;
-    static deserializeBinary(bytes: Uint8Array): ResourceActivityRecord;
-    static deserializeBinaryFromReader(message: ResourceActivityRecord, reader: jspb.BinaryReader): ResourceActivityRecord;
+    static serializeBinaryToWriter(message: ResourceKindPresenceReport, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): ResourceKindPresenceReport;
+    static deserializeBinaryFromReader(message: ResourceKindPresenceReport, reader: jspb.BinaryReader): ResourceKindPresenceReport;
 }
 
-export namespace ResourceActivityRecord {
+export namespace ResourceKindPresenceReport {
     export type AsObject = {
         resourceKind: ResourceKind,
-        resourceNameList: Array<Uint8Array | string>,
+        resourceIdsList: Array<number>,
     }
 }
 
@@ -209,10 +207,10 @@ export class SubmitUsageReportsRequest extends jspb.Message {
     setUserActivityList(value: Array<UserActivityReport>): SubmitUsageReportsRequest;
     addUserActivity(value?: UserActivityReport, index?: number): UserActivityReport;
 
-    clearResourceActivityList(): void;
-    getResourceActivityList(): Array<ResourceActivityReport>;
-    setResourceActivityList(value: Array<ResourceActivityReport>): SubmitUsageReportsRequest;
-    addResourceActivity(value?: ResourceActivityReport, index?: number): ResourceActivityReport;
+    clearResourcePresenceList(): void;
+    getResourcePresenceList(): Array<ResourcePresenceReport>;
+    setResourcePresenceList(value: Array<ResourcePresenceReport>): SubmitUsageReportsRequest;
+    addResourcePresence(value?: ResourcePresenceReport, index?: number): ResourcePresenceReport;
 
 
     serializeBinary(): Uint8Array;
@@ -228,7 +226,7 @@ export class SubmitUsageReportsRequest extends jspb.Message {
 export namespace SubmitUsageReportsRequest {
     export type AsObject = {
         userActivityList: Array<UserActivityReport.AsObject>,
-        resourceActivityList: Array<ResourceActivityReport.AsObject>,
+        resourcePresenceList: Array<ResourcePresenceReport.AsObject>,
     }
 }
 

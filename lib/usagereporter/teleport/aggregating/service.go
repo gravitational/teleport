@@ -37,7 +37,7 @@ const (
 const (
 	userActivityReportsPrefix     = "userActivityReports"
 	userActivityReportsLock       = "userActivityReportsLock"
-	resourceActivityReportsPrefix = "resourceActivityReports"
+	ResourcePresenceReportsPrefix = "ResourcePresenceReports"
 )
 
 // userActivityReportKey returns the backend key for a user activity report with
@@ -74,29 +74,29 @@ func prepareUserActivityReport(
 // resourcePresences returns the backend key for a resource presence report with
 // a given UUID and start time, such that reports with an earlier start time
 // will appear earlier in lexicographic ordering.
-func resourceActivityReportKey(reportUUID uuid.UUID, startTime time.Time) []byte {
-	return backend.Key(resourceActivityReportsPrefix, startTime.Format(time.RFC3339), reportUUID.String())
+func ResourcePresenceReportKey(reportUUID uuid.UUID, startTime time.Time) []byte {
+	return backend.Key(ResourcePresenceReportsPrefix, startTime.Format(time.RFC3339), reportUUID.String())
 }
 
-func prepareResourceActivityReport(
+func prepareResourcePresenceReport(
 	clusterName, reporterHostID []byte,
-	startTime time.Time, records []*prehogv1.ResourceActivityRecord,
-) (*prehogv1.ResourceActivityReport, error) {
+	startTime time.Time, records []*prehogv1.ResourceKindPresenceReport,
+) (*prehogv1.ResourcePresenceReport, error) {
 	reportUUID := uuid.New()
-	report := &prehogv1.ResourceActivityReport{
-		ReportUuid:     reportUUID[:],
-		ClusterName:    clusterName,
-		ReporterHostid: reporterHostID,
-		StartTime:      timestamppb.New(startTime),
-		Records:        records,
+	report := &prehogv1.ResourcePresenceReport{
+		ReportUuid:          reportUUID[:],
+		ClusterName:         clusterName,
+		ReporterHostid:      reporterHostID,
+		StartTime:           timestamppb.New(startTime),
+		ResourceKindReports: records,
 	}
 
 	for proto.Size(report) > maxItemSize {
-		if len(report.Records) <= 1 {
+		if len(report.ResourceKindReports) <= 1 {
 			return nil, trace.LimitExceeded("failed to marshal resource counts report within size limit (this is a bug)")
 		}
 
-		report.Records = report.Records[:len(report.Records)/2]
+		report.ResourceKindReports = report.ResourceKindReports[:len(report.ResourceKindReports)/2]
 	}
 
 	return report, nil
@@ -189,7 +189,7 @@ func (r reportService) createUserActivityReportsLock(ctx context.Context, ttl ti
 	return nil
 }
 
-func (r reportService) upsertResourceActivityReport(ctx context.Context, report *prehogv1.ResourceActivityReport, ttl time.Duration) error {
+func (r reportService) upsertResourcePresenceReport(ctx context.Context, report *prehogv1.ResourcePresenceReport, ttl time.Duration) error {
 	wire, err := proto.Marshal(report)
 	if err != nil {
 		return trace.Wrap(err)
@@ -206,7 +206,7 @@ func (r reportService) upsertResourceActivityReport(ctx context.Context, report 
 	}
 
 	if _, err := r.b.Put(ctx, backend.Item{
-		Key:     resourceActivityReportKey(reportUUID, startTime),
+		Key:     ResourcePresenceReportKey(reportUUID, startTime),
 		Value:   wire,
 		Expires: startTime.Add(ttl),
 	}); err != nil {
@@ -216,7 +216,7 @@ func (r reportService) upsertResourceActivityReport(ctx context.Context, report 
 	return nil
 }
 
-func (r reportService) deleteResourceActivityReport(ctx context.Context, report *prehogv1.ResourceActivityReport) error {
+func (r reportService) deleteResourcePresenceReport(ctx context.Context, report *prehogv1.ResourcePresenceReport) error {
 	reportUUID, err := uuid.FromBytes(report.GetReportUuid())
 	if err != nil {
 		return trace.Wrap(err)
@@ -227,26 +227,26 @@ func (r reportService) deleteResourceActivityReport(ctx context.Context, report 
 		return trace.BadParameter("missing start_time")
 	}
 
-	if err := r.b.Delete(ctx, resourceActivityReportKey(reportUUID, startTime)); err != nil {
+	if err := r.b.Delete(ctx, ResourcePresenceReportKey(reportUUID, startTime)); err != nil {
 		return trace.Wrap(err)
 	}
 
 	return nil
 }
 
-// listResourceActivityReports returns the first `count` resource counts reports
+// listResourcePresenceReports returns the first `count` resource counts reports
 // according to the key order; as we store them with time and uuid in the key,
 // this results in returning earlier reports first.
-func (r reportService) listResourceActivityReports(ctx context.Context, count int) ([]*prehogv1.ResourceActivityReport, error) {
-	rangeStart := backend.ExactKey(resourceActivityReportsPrefix)
+func (r reportService) listResourcePresenceReports(ctx context.Context, count int) ([]*prehogv1.ResourcePresenceReport, error) {
+	rangeStart := backend.ExactKey(ResourcePresenceReportsPrefix)
 	result, err := r.b.GetRange(ctx, rangeStart, backend.RangeEnd(rangeStart), count)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	reports := make([]*prehogv1.ResourceActivityReport, 0, len(result.Items))
+	reports := make([]*prehogv1.ResourcePresenceReport, 0, len(result.Items))
 	for _, item := range result.Items {
-		report := &prehogv1.ResourceActivityReport{}
+		report := &prehogv1.ResourcePresenceReport{}
 		if err := proto.Unmarshal(item.Value, report); err != nil {
 			return nil, trace.Wrap(err)
 		}

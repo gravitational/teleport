@@ -98,7 +98,7 @@ enum ResourceKind {
   RESOURCE_KIND_NODE_OPENSSH_EICE = 7;
 }
 
-message ResourceActivityReport {
+message ResourcePresenceReport {
   // randomly generated UUID for this specific report, 16 bytes (in string order)
   bytes report_uuid = 1;
   // anonymized, 32 bytes (HMAC-SHA-256)
@@ -109,22 +109,22 @@ message ResourceActivityReport {
   // intended to be at most 15 minutes
   google.protobuf.Timestamp start_time = 4;
 
-  repeated ResourceActivityRecord records = 5;
+  repeated ResourceKindPresenceReport resource_kind_reports = 5;
 }
 
 // Counts all resources of one kind that were active during the time window
 // to track the number of active resources in a cluster over time.
-message ResourceActivityRecord {
+message ResourceKindPresenceReport {
   // the kind of resource
   ResourceKind resource_kind = 1;
-  // anonymized resource names, 32 bytes each (HMAC-SHA-256)
-  repeated bytes resource_name = 2;
+  // first 8 bytes of anonymized resource name
+  repeated fixed64 resource_ids = 2;
 }
 
 message SubmitUsageReportsRequest {
   // at most 10 reports of all kinds in a single RPC, each shouldn't exceed 128KiB or so
   repeated UserActivityReport user_activity = 1;
-  repeated ResourceActivityReport resource_activity = 2;
+  repeated ResourcePresenceReport resource_presence = 2;
 }
 message SubmitUsageReportsResponse {
   // randomly generated UUID for this specific batch, 16 bytes (in string order)
