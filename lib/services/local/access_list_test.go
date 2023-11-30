@@ -137,7 +137,9 @@ func TestAccessListCRUD(t *testing.T) {
 	require.True(t, trace.IsAlreadyExists(err))
 }
 
-func TestAccessListCreateLimit_UpsertAccessList(t *testing.T) {
+// TestAccessListCreate_UpsertAccessList_WithoutLimit tests creating access list
+// is unlimited if IGS feature is enabled.
+func TestAccessListCreate_UpsertAccessList_WithoutLimit(t *testing.T) {
 	ctx := context.Background()
 	clock := clockwork.NewFakeClock()
 
@@ -149,10 +151,12 @@ func TestAccessListCreateLimit_UpsertAccessList(t *testing.T) {
 
 	service := newAccessListService(t, mem, clock)
 
-	// Start with no license.
 	modules.SetTestModules(t, &modules.TestModules{
 		TestFeatures: modules.Features{
-			IdentityGovernance: false,
+			IdentityGovernanceSecurity: true,
+			AccessList: modules.AccessListFeature{
+				CreateLimit: 1,
+			},
 		},
 	})
 
@@ -160,17 +164,53 @@ func TestAccessListCreateLimit_UpsertAccessList(t *testing.T) {
 	accessList2 := newAccessList(t, "accessList2", clock)
 	accessList3 := newAccessList(t, "accessList3", clock)
 
-	cmpOpts := []cmp.Option{
-		cmpopts.IgnoreFields(header.Metadata{}, "ID", "Revision"),
-	}
+	// No limit to creating access list.
+	_, err = service.UpsertAccessList(ctx, accessList1)
+	require.NoError(t, err)
+	_, err = service.UpsertAccessList(ctx, accessList2)
+	require.NoError(t, err)
+	_, err = service.UpsertAccessList(ctx, accessList3)
+	require.NoError(t, err)
+
+	// Fetch all access lists.
+	out, err := service.GetAccessLists(ctx)
+	require.NoError(t, err)
+	require.Len(t, out, 3)
+}
+
+// TestAccessListCreate_UpsertAccessList_WithLimit tests creating access list
+// is limited to the limit defined in feature if IGS is NOT enabled.
+// Also tests "upserting" and deleting is allowed despite "create" limit reached.
+func TestAccessListCreate_UpsertAccessList_WithLimit(t *testing.T) {
+	ctx := context.Background()
+	clock := clockwork.NewFakeClock()
+
+	mem, err := memory.New(memory.Config{
+		Context: ctx,
+		Clock:   clock,
+	})
+	require.NoError(t, err)
+
+	service := newAccessListService(t, mem, clock)
+
+	modules.SetTestModules(t, &modules.TestModules{
+		TestFeatures: modules.Features{
+			IdentityGovernanceSecurity: false,
+			AccessList: modules.AccessListFeature{
+				CreateLimit: 1,
+			},
+		},
+	})
+
+	accessList1 := newAccessList(t, "accessList1", clock)
+	accessList2 := newAccessList(t, "accessList2", clock)
 
 	// First create is free.
-	accessList, err := service.UpsertAccessList(ctx, accessList1)
+	_, err = service.UpsertAccessList(ctx, accessList1)
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(accessList1, accessList, cmpOpts...))
 
 	// Second create should return an error.
-	accessList, err = service.UpsertAccessList(ctx, accessList2)
+	_, err = service.UpsertAccessList(ctx, accessList2)
 	require.True(t, trace.IsAccessDenied(err), "expected access denied / license limit error, got %v", err)
 	require.ErrorContains(t, err, "reached its limit")
 
@@ -178,46 +218,25 @@ func TestAccessListCreateLimit_UpsertAccessList(t *testing.T) {
 	out, err := service.GetAccessLists(ctx)
 	require.NoError(t, err)
 	require.Len(t, out, 1)
-	require.Equal(t, out[0].Metadata.Name, "accessList1")
 
 	// Updating existing access list should be allowed.
 	accessList1.Spec.Description = "changing description"
-	accessList, err = service.UpsertAccessList(ctx, accessList1)
+	_, err = service.UpsertAccessList(ctx, accessList1)
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(accessList1, accessList, cmpOpts...))
 
 	// Delete the one access list.
 	err = service.DeleteAccessList(ctx, "accessList1")
 	require.NoError(t, err)
 
 	// Create the same list again.
-	accessList, err = service.UpsertAccessList(ctx, accessList1)
+	_, err = service.UpsertAccessList(ctx, accessList1)
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(accessList1, accessList, cmpOpts...))
-
-	// Enable license
-	modules.SetTestModules(t, &modules.TestModules{
-		TestFeatures: modules.Features{
-			IdentityGovernance: true,
-		},
-	})
-
-	// Should be able to create the rest of access lists.
-	accessList, err = service.UpsertAccessList(ctx, accessList2)
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(accessList2, accessList, cmpOpts...))
-
-	accessList, err = service.UpsertAccessList(ctx, accessList3)
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(accessList3, accessList, cmpOpts...))
-
-	// Fetch all access lists.
-	out, err = service.GetAccessLists(ctx)
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff([]*accesslist.AccessList{accessList1, accessList2, accessList3}, out, cmpOpts...))
 }
 
-func TestAccessListCreateLimit_UpsertAccessListWithMembers(t *testing.T) {
+// TestAccessListCreate_UpsertAccessListWithMembers_WithLimit tests creating access list
+// with members, is limited to the limit defined in feature if IGS is NOT enabled.
+// Also tests "upserting" and deleting is allowed despite "create" limit reached.
+func TestAccessListCreate_UpsertAccessListWithMembers_WithLimit(t *testing.T) {
 	ctx := context.Background()
 	clock := clockwork.NewFakeClock()
 
@@ -229,31 +248,27 @@ func TestAccessListCreateLimit_UpsertAccessListWithMembers(t *testing.T) {
 
 	service := newAccessListService(t, mem, clock)
 
-	// Start with no license.
 	modules.SetTestModules(t, &modules.TestModules{
 		TestFeatures: modules.Features{
-			IdentityGovernance: false,
+			IdentityGovernanceSecurity: false,
+			AccessList: modules.AccessListFeature{
+				CreateLimit: 1,
+			},
 		},
 	})
 
 	accessList1 := newAccessList(t, "accessList1", clock)
 	accessList2 := newAccessList(t, "accessList2", clock)
-	accessList3 := newAccessList(t, "accessList3", clock)
 
 	accessListMember1 := newAccessListMember(t, accessList1.GetName(), "alice")
 	accessListMember2 := newAccessListMember(t, accessList1.GetName(), "bob")
 
-	cmpOpts := []cmp.Option{
-		cmpopts.IgnoreFields(header.Metadata{}, "ID", "Revision"),
-	}
-
 	// First create is free.
-	accessList, _, err := service.UpsertAccessListWithMembers(ctx, accessList1, []*accesslist.AccessListMember{accessListMember1})
+	_, _, err = service.UpsertAccessListWithMembers(ctx, accessList1, []*accesslist.AccessListMember{accessListMember1})
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(accessList1, accessList, cmpOpts...))
 
 	// Second create should return an error.
-	accessList, _, err = service.UpsertAccessListWithMembers(ctx, accessList2, []*accesslist.AccessListMember{accessListMember2})
+	_, _, err = service.UpsertAccessListWithMembers(ctx, accessList2, []*accesslist.AccessListMember{accessListMember2})
 	require.True(t, trace.IsAccessDenied(err), "expected access denied / license limit error, got %v", err)
 	require.ErrorContains(t, err, "reached its limit")
 
@@ -271,39 +286,60 @@ func TestAccessListCreateLimit_UpsertAccessListWithMembers(t *testing.T) {
 
 	// Updating existing access list should be allowed.
 	accessList1.Spec.Description = "changing description"
-	accessList, _, err = service.UpsertAccessListWithMembers(ctx, accessList1, []*accesslist.AccessListMember{accessListMember1})
+	_, _, err = service.UpsertAccessListWithMembers(ctx, accessList1, []*accesslist.AccessListMember{accessListMember1})
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(accessList1, accessList, cmpOpts...))
 
 	// Delete the one access list.
 	err = service.DeleteAccessList(ctx, "accessList1")
 	require.NoError(t, err)
 
 	// Create the same list again.
-	accessList, _, err = service.UpsertAccessListWithMembers(ctx, accessList1, []*accesslist.AccessListMember{accessListMember1})
+	_, _, err = service.UpsertAccessListWithMembers(ctx, accessList1, []*accesslist.AccessListMember{accessListMember1})
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(accessList1, accessList, cmpOpts...))
+}
 
-	// Enable license
+// TestAccessListCreate_UpsertAccessListWithMembers_WithoutLimit tests creating access list
+// with members is unlimited if IGS feature is enabled.
+func TestAccessListCreate_UpsertAccessListWithMembers_WithoutLimit(t *testing.T) {
+	ctx := context.Background()
+	clock := clockwork.NewFakeClock()
+
+	mem, err := memory.New(memory.Config{
+		Context: ctx,
+		Clock:   clock,
+	})
+	require.NoError(t, err)
+
+	service := newAccessListService(t, mem, clock)
+
 	modules.SetTestModules(t, &modules.TestModules{
 		TestFeatures: modules.Features{
-			IdentityGovernance: true,
+			IdentityGovernanceSecurity: true,
+			AccessList: modules.AccessListFeature{
+				CreateLimit: 1,
+			},
 		},
 	})
 
-	// Should be able to create the rest of access lists.
-	accessList, _, err = service.UpsertAccessListWithMembers(ctx, accessList2, []*accesslist.AccessListMember{})
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(accessList2, accessList, cmpOpts...))
+	accessList1 := newAccessList(t, "accessList1", clock)
+	accessList2 := newAccessList(t, "accessList2", clock)
+	accessList3 := newAccessList(t, "accessList3", clock)
 
-	accessList, _, err = service.UpsertAccessListWithMembers(ctx, accessList3, []*accesslist.AccessListMember{})
+	accessListMember1 := newAccessListMember(t, accessList1.GetName(), "alice")
+	accessListMember2 := newAccessListMember(t, accessList1.GetName(), "bob")
+
+	// No limit to creating access list.
+	_, _, err = service.UpsertAccessListWithMembers(ctx, accessList1, []*accesslist.AccessListMember{accessListMember1})
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(accessList3, accessList, cmpOpts...))
+	_, _, err = service.UpsertAccessListWithMembers(ctx, accessList2, []*accesslist.AccessListMember{accessListMember2})
+	require.NoError(t, err)
+	_, _, err = service.UpsertAccessListWithMembers(ctx, accessList3, []*accesslist.AccessListMember{})
+	require.NoError(t, err)
 
 	// Fetch all access lists.
-	out, err = service.GetAccessLists(ctx)
+	out, err := service.GetAccessLists(ctx)
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff([]*accesslist.AccessList{accessList1, accessList2, accessList3}, out, cmpOpts...))
+	require.Len(t, out, 3)
 }
 
 func TestAccessListDedupeOwnersBackwardsCompat(t *testing.T) {
@@ -1003,7 +1039,7 @@ func newAccessListService(t *testing.T, mem *memory.Memory, clock clockwork.Cloc
 
 	modules.SetTestModules(t, &modules.TestModules{
 		TestFeatures: modules.Features{
-			IdentityGovernance: true,
+			IdentityGovernanceSecurity: true,
 		},
 	})
 

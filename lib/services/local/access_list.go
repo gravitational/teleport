@@ -538,11 +538,15 @@ func (a *AccessListService) VerifyAccessListCreateLimit(ctx context.Context, tar
 	}
 
 	// Iterate through fetched lists, to check if the request was
-	// an update.
+	// an update, which is allowed.
 	for _, list := range lists {
 		if list.GetName() == targetAccessListName {
 			return nil
 		}
+	}
+
+	if len(lists) < feature.AccessList.CreateLimit {
+		return nil
 	}
 
 	const limitReachedMessage = "cluster has reached its limit for creating access lists, please contact the cluster administrator"
