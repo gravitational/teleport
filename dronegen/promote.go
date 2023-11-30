@@ -84,7 +84,7 @@ func promoteBuildPipelines() []pipeline {
 		pipelineName: "promote-teleport-spacelift-runner-oci-images",
 		workflows: []ghaWorkflow{
 			{
-				name:              "promote-teleport-spacelift-runner-updater-oci.yml",
+				name:              "promote-teleport-spacelift-runner-oci.yml",
 				timeout:           150 * time.Minute,
 				ref:               "${DRONE_TAG}",
 				shouldTagWorkflow: true,
