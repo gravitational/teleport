@@ -561,7 +561,7 @@ type IdentityService interface {
 	// UpdateGithubConnector updates an existing Github connector.
 	UpdateGithubConnector(ctx context.Context, connector types.GithubConnector) (types.GithubConnector, error)
 	// UpsertGithubConnector creates or updates a Github connector.
-	UpsertGithubConnector(ctx context.Context, connector types.GithubConnector) error
+	UpsertGithubConnector(ctx context.Context, connector types.GithubConnector) (types.GithubConnector, error)
 	// GetGithubConnectors returns all configured Github connectors
 	GetGithubConnectors(ctx context.Context, withSecrets bool) ([]types.GithubConnector, error)
 	// GetGithubConnector returns the specified Github connector
