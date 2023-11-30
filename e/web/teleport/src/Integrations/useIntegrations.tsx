@@ -242,7 +242,7 @@ export function useIntegrations() {
         setItems(
           items.filter(
             item =>
-              item.kind !== IntegrationKind.ExternalAuditStorage &&
+              item.kind !== IntegrationKind.ExternalAuditStorage ||
               item.statusCode !== IntegrationStatusCode.Draft
           )
         );
