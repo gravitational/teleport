@@ -56,6 +56,8 @@ type WindowsDesktopConfig struct {
 	// service. These hosts are not part of Active Directory.
 	NonADHosts []utils.NetAddr
 
+	// StaticHosts is an optional list of static Windows hosts to expose through this
+	// service.
 	StaticHosts []WindowsHost
 
 	// ConnLimiter limits the connection and request rates.
@@ -65,11 +67,16 @@ type WindowsDesktopConfig struct {
 	Labels     map[string]string
 }
 
+// WindowsHost is configuration for single Windows desktop host
 type WindowsHost struct {
-	Name    string
+	// Name that will be used in the Teleport UI
+	Name string
+	// Address of the remote Windows host
 	Address utils.NetAddr
-	AD      bool
-	Labels  map[string]string
+	// AD is true if the host is part of the Active Directory domain
+	AD bool
+	// Labels to be applied to the host
+	Labels map[string]string
 }
 
 // LDAPDiscoveryConfig is LDAP discovery configuration for windows desktop discovery service.
