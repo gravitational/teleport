@@ -30,7 +30,7 @@ import (
 
 type authServer interface {
 	// GenerateHostCert uses the private key of the CA to sign the public key of
-	// the host (along with meta data like host ID, node name, roles, and ttl)
+	// the host (along with metadata like host ID, node name, roles, and ttl)
 	// to generate a host certificate.
 	GenerateHostCert(ctx context.Context, hostPublicKey []byte, hostID, nodeName string, principals []string, clusterName string, role types.SystemRole, ttl time.Duration) ([]byte, error)
 }
