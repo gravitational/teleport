@@ -172,13 +172,11 @@ export function TestConnection(props: AgentStepProps) {
             buttonText="Refresh"
             buttonOnClick={() => window.location.reload()}
           >
-            <>
-              For Connect My Computer to work, the role{' '}
-              {connectMyComputer.getRoleNameForUser(storeUser.getUsername())}{' '}
-              must be assigned to you.
-              <br />
-              {$restartSetupInstructions}
-            </>
+            For Connect My Computer to work, the role{' '}
+            {connectMyComputer.getRoleNameForUser(storeUser.getUsername())} must
+            be assigned to you.
+            <br />
+            {$restartSetupInstructions}
           </FetchLoginsAttemptError>
         ) : (
           <FetchLoginsAttemptError
@@ -187,7 +185,7 @@ export function TestConnection(props: AgentStepProps) {
               fetchLoginsAndUpdateLoginSelection(abortController.current.signal)
             }
           >
-            <>Encountered Error: {fetchLoginsAttempt.statusText}</>
+            Encountered Error: {fetchLoginsAttempt.statusText}
           </FetchLoginsAttemptError>
         ))}
 
@@ -197,13 +195,11 @@ export function TestConnection(props: AgentStepProps) {
             buttonText="Refresh"
             buttonOnClick={() => window.location.reload()}
           >
-            <>
-              The role{' '}
-              {connectMyComputer.getRoleNameForUser(storeUser.getUsername())}{' '}
-              does not contain any logins. It has likely been manually edited.
-              <br />
-              {$restartSetupInstructions}
-            </>
+            The role{' '}
+            {connectMyComputer.getRoleNameForUser(storeUser.getUsername())} does
+            not contain any logins. It has likely been manually edited.
+            <br />
+            {$restartSetupInstructions}
           </FetchLoginsAttemptError>
         ) : (
           <>
@@ -278,16 +274,14 @@ const FetchLoginsAttemptError = (props: {
   buttonOnClick: () => void;
 }) => (
   <StepSkeletonPickUser>
-    <>
-      <TextIcon mt={2} mb={3}>
-        <Icons.Warning size="medium" ml={1} mr={2} color="error.main" />
-        <Text>{props.children}</Text>
-      </TextIcon>
+    <TextIcon mt={2} mb={3}>
+      <Icons.Warning size="medium" ml={1} mr={2} color="error.main" />
+      <Text>{props.children}</Text>
+    </TextIcon>
 
-      <ButtonPrimary type="button" onClick={props.buttonOnClick}>
-        {props.buttonText}
-      </ButtonPrimary>
-    </>
+    <ButtonPrimary type="button" onClick={props.buttonOnClick}>
+      {props.buttonText}
+    </ButtonPrimary>
   </StepSkeletonPickUser>
 );
 
