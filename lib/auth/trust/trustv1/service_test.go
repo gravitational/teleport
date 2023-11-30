@@ -68,6 +68,18 @@ func (f *fakeAuthorizer) Authorize(ctx context.Context) (*authz.Context, error) 
 	}, nil
 }
 
+type fakeHostCertSigner struct {
+	data map[string]struct {
+		cert []byte
+		err  error
+	}
+}
+
+func (f *fakeHostCertSigner) GenerateHostCert(ctx context.Context, hostPublicKey []byte, hostID, nodeName string, principals []string, clusterName string, role types.SystemRole, ttl time.Duration) ([]byte, error) {
+	data := f.data[hostID]
+	return data.cert, data.err
+}
+
 type fakeChecker struct {
 	services.AccessChecker
 	allow  map[check]bool
@@ -384,6 +396,7 @@ func TestRBAC(t *testing.T) {
 				Cache:      trust,
 				Backend:    trust,
 				Authorizer: &test.authorizer,
+				AuthServer: &fakeHostCertSigner{},
 			}
 
 			service, err := NewService(cfg)
@@ -417,6 +430,7 @@ func TestGetCertAuthority(t *testing.T) {
 		Cache:      trust,
 		Backend:    trust,
 		Authorizer: authorizer,
+		AuthServer: &fakeHostCertSigner{},
 	}
 
 	service, err := NewService(cfg)
@@ -505,6 +519,7 @@ func TestGetCertAuthorities(t *testing.T) {
 		Cache:      trust,
 		Backend:    trust,
 		Authorizer: authorizer,
+		AuthServer: &fakeHostCertSigner{},
 	}
 
 	service, err := NewService(cfg)
@@ -598,6 +613,7 @@ func TestDeleteCertAuthority(t *testing.T) {
 		Cache:      trust,
 		Backend:    trust,
 		Authorizer: authorizer,
+		AuthServer: &fakeHostCertSigner{},
 	}
 
 	service, err := NewService(cfg)
@@ -667,6 +683,7 @@ func TestUpsertCertAuthority(t *testing.T) {
 		Cache:      trust,
 		Backend:    trust,
 		Authorizer: authorizer,
+		AuthServer: &fakeHostCertSigner{},
 	}
 
 	service, err := NewService(cfg)
@@ -720,6 +737,85 @@ func TestUpsertCertAuthority(t *testing.T) {
 				CertAuthority: test.ca(hostCA),
 			})
 			test.assertion(t, ca, err)
+		})
+	}
+}
+
+func TestGenerateHostCert(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	p := newTestPack(t)
+
+	authorizer := &fakeAuthorizer{
+		checker: &fakeChecker{
+			allow: map[check]bool{
+				{types.KindHostCert, types.VerbCreate}: true,
+			},
+		},
+	}
+
+	hostCertSigner := &fakeHostCertSigner{
+		data: map[string]struct {
+			cert []byte
+			err  error
+		}{
+			"success": {
+				cert: []byte("foo"),
+			},
+			"fail": {
+				err: trace.BadParameter("bad thing happened"),
+			},
+		},
+	}
+
+	trust := local.NewCAService(p.mem)
+	cfg := &ServiceConfig{
+		Cache:      trust,
+		Backend:    trust,
+		Authorizer: authorizer,
+		AuthServer: hostCertSigner,
+	}
+
+	tests := []struct {
+		name string
+		req  *trustpb.GenerateHostCertRequest
+
+		want    *trustpb.GenerateHostCertResponse
+		wantErr string
+	}{
+		{
+			name: "success",
+			req: &trustpb.GenerateHostCertRequest{
+				HostId: "success",
+			},
+
+			want: &trustpb.GenerateHostCertResponse{
+				SshCertificate: []byte("foo"),
+			},
+		},
+		{
+			name: "fail",
+			req: &trustpb.GenerateHostCertRequest{
+				HostId: "fail",
+			},
+
+			wantErr: "bad thing happened",
+		},
+	}
+
+	service, err := NewService(cfg)
+	require.NoError(t, err)
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got, err := service.GenerateHostCert(ctx, test.req)
+			if test.wantErr != "" {
+				require.EqualError(t, err, test.wantErr)
+			} else {
+				require.NoError(t, err)
+			}
+			require.Equal(t, test.want, got)
 		})
 	}
 }
