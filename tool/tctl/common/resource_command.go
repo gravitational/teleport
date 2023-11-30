@@ -116,7 +116,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *servicec
 		types.KindClusterNetworkingConfig:  rc.createClusterNetworkingConfig,
 		types.KindClusterMaintenanceConfig: rc.createClusterMaintenanceConfig,
 		types.KindSessionRecordingConfig:   rc.createSessionRecordingConfig,
-		types.KindExternalAuditStorage:     rc.upsertExternalAuditStorage,
+		types.KindExternalAuditStorage:     rc.createExternalAuditStorage,
 		types.KindUIConfig:                 rc.createUIConfig,
 		types.KindLock:                     rc.createLock,
 		types.KindNetworkRestrictions:      rc.createNetworkRestrictions,
@@ -573,19 +573,24 @@ func (rc *ResourceCommand) createSessionRecordingConfig(ctx context.Context, cli
 	return nil
 }
 
-// upsertExternalAuditStorage implements `tctl create external_audit_storage` command.
-func (rc *ResourceCommand) upsertExternalAuditStorage(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
-	config, err := services.UnmarshalExternalAuditStorage(raw.Raw)
+// createExternalAuditStorage implements `tctl create external_audit_storage` command.
+func (rc *ResourceCommand) createExternalAuditStorage(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
+	draft, err := services.UnmarshalExternalAuditStorage(raw.Raw)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	externalAuditClient := client.ExternalAuditStorageClient()
-	_, err = externalAuditClient.UpsertDraftExternalAuditStorage(ctx, config)
-	if err != nil {
-		return trace.Wrap(err)
+	if rc.force {
+		if _, err := externalAuditClient.UpsertDraftExternalAuditStorage(ctx, draft); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("External Audit Storage configuration has been updated\n")
+	} else {
+		if _, err := externalAuditClient.CreateDraftExternalAuditStorage(ctx, draft); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("External Audit Storage configuration has been created\n")
 	}
-
-	fmt.Printf("External Audit Storage configuration has been updated\n")
 	return nil
 }
 
