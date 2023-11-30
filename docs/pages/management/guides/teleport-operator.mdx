@@ -28,12 +28,6 @@ Currently supported Teleport resources are:
 - GitHub connectors
 - Login Rules
 
-<Admonition type="note">
-   Kubernetes enforces all custom resource names to follow RFC 1123.  This requires the names of 
-   Teleport resources controlled by the operator to consist of lower case alphanumeric characters,
-   '-' or '.', and must start and end with an alphanumeric character.
-</Admonition>
-
 This guide covers how to:
 - Install Teleport Operator on Kubernetes.
 - Manage Teleport users and roles using Kubernetes.
@@ -140,6 +134,12 @@ metadata:
 spec:
   roles: ['myrole']
 ```
+
+<Admonition type="note">
+   Kubernetes enforces all custom resource names to follow RFC 1123 which includes specifications for hostnames.
+   This requires the metadata.name of Teleport resources controlled by the operator consist of lowercase alphanumeric
+   characters, '-' or '.', and must start and end with an alphanumeric character.
+</Admonition>
 
 Apply the manifests to the Kubernetes cluster:
 
@@ -283,6 +283,8 @@ must consist of lower case alphanumeric characters, '-' or '.', and must start a
 ```
 
 You will have to update the Teleport resource name to match the RFC 1123 requirements to resolve this issue.
+The metadata.name of Teleport resources controlled by the operator must consist of lowercase alphanumeric
+characters, '-' or '.', and must start and end with an alphanumeric character.
 
 ## Next steps
 
