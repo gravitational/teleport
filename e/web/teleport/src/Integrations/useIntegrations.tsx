@@ -12,6 +12,8 @@ import {
   useIntegrationOperation,
 } from 'teleport/Integrations/Operations/useIntegrationOperation';
 
+import cfg from 'teleport/config';
+
 import useTeleport from 'e-teleport/useTeleportE';
 
 import type {
@@ -51,6 +53,8 @@ export function useIntegrations() {
     const hasPluginAccess = ctx.getFeatureFlags().plugins;
     const hasIntegrationAccess = ctx.getFeatureFlags().integrations;
     const hasExternalAuditStorageAccess =
+      cfg.isCloud &&
+      !cfg.isUsageBasedBilling &&
       ctx.getFeatureFlags().externalAuditStorage;
 
     // There can be two failure points:
