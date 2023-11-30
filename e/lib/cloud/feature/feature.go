@@ -7,7 +7,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/e/api/cloud"
-	v1 "github.com/gravitational/teleport/e/api/cloud/v1"
+	cloudapi "github.com/gravitational/teleport/e/api/cloud/v1"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/utils"
@@ -18,37 +18,9 @@ var featuresBackendKey = backend.Key("cloud", "features")
 // FetchFromCloud performs a gRPC call to Cloud's tenant service to query
 // the features enabled by the licenses's subscription
 func FetchFromCloud(ctx context.Context, cloudClient cloud.Client) (*modules.Features, error) {
-	resp, err := cloudClient.GetFeatures(ctx, &v1.EmptyRequest{})
+	resp, err := cloudClient.GetFeatures(ctx, &cloudapi.EmptyRequest{})
 	if err != nil {
 		return nil, trace.Wrap(err)
-	}
-
-	// TODO(lisa): currently resp.IsUsageBased refers to "Team".
-	// Need to come back and differentiate between "Team" and "EUB"
-	// and add in IGS flag
-	f := &modules.Features{
-		Kubernetes:              resp.Kubernetes,
-		App:                     resp.App,
-		DB:                      resp.Db,
-		Desktop:                 resp.Desktop,
-		AdvancedAccessWorkflows: resp.AccessRequests,
-		Cloud:                   resp.IsCloud,
-		OIDC:                    resp.Oidc,
-		SAML:                    resp.SAML,
-		AccessControls:          resp.AccessControls,
-		HSM:                     resp.Hsm,
-		IsUsageBasedBilling:     resp.IsUsageBased,
-		Assist:                  resp.Assist,
-		// TODO(codingllama): Pull device trust settings from Cloud?
-		DeviceTrust: modules.DeviceTrustFeature{
-			Enabled: true,
-		},
-	}
-
-	// Set usage-based / Team account limits.
-	if f.IsUsageBasedBilling {
-		f.DeviceTrust.DevicesUsageLimit = 5
-		f.AccessRequests.MonthlyRequestLimit = 5
 	}
 
 	// Legacy enterprise cloud (non-usage based) will continue to maintain
@@ -57,9 +29,8 @@ func FetchFromCloud(ctx context.Context, cloudClient cloud.Client) (*modules.Fea
 	//
 	// Mimic's how we used to set legacy cloud from [func getLicenseFeatures]:
 	// https://github.com/gravitational/teleport.e/blob/9b826916ba7d79b1b649286607c358252061f5c5/tool/modules/modules.go#L184
-	isLegacyEnterpiseCloud := !resp.IsUsageBased
-	if isLegacyEnterpiseCloud {
-		f = &modules.Features{
+	if isLegacyEnterpiseCloud := !resp.IsUsageBased; isLegacyEnterpiseCloud {
+		return &modules.Features{
 			Kubernetes:     true,
 			App:            true,
 			DB:             true,
@@ -80,7 +51,48 @@ func FetchFromCloud(ctx context.Context, cloudClient cloud.Client) (*modules.Fea
 				// Legacy flag.
 				Enabled: true,
 			},
-		}
+		}, nil
+	}
+
+	// From here on, it is usage based billing.
+
+	f := &modules.Features{
+		ProductType:                modules.ProductType(resp.ProductType),
+		Kubernetes:                 resp.Kubernetes,
+		App:                        resp.App,
+		DB:                         resp.Db,
+		Desktop:                    resp.Desktop,
+		AdvancedAccessWorkflows:    resp.AccessRequests,
+		Cloud:                      resp.IsCloud,
+		OIDC:                       resp.Oidc,
+		SAML:                       resp.SAML,
+		AccessControls:             resp.AccessControls,
+		HSM:                        resp.Hsm,
+		IsUsageBasedBilling:        resp.IsUsageBased,
+		Assist:                     resp.Assist,
+		IdentityGovernanceSecurity: resp.IdentityGovernanceSecurity,
+		// The hardcoded values below are used to gate actions from OSS builds.
+		DeviceTrust: modules.DeviceTrustFeature{
+			Enabled: true,
+		},
+	}
+
+	// TODO(lisa): these should be set to true from salescenter.
+	if resp.ProductType == cloudapi.PRODUCT_TYPE_EUB {
+		f.AdvancedAccessWorkflows = true // Gate action from OSS builds.
+		f.OIDC = true
+		f.SAML = true
+		f.AccessControls = true
+		f.HSM = true
+	}
+
+	// Features will be limited for the following:
+	//   1) Team subscriptions
+	//   2) EUB subscriptions without IGS enabled
+	if resp.ProductType == cloudapi.PRODUCT_TYPE_TEAM || (resp.ProductType == cloudapi.PRODUCT_TYPE_EUB && !resp.IdentityGovernanceSecurity) {
+		f.AccessList = GetUsageBasedAccessListFeatureLimits()
+		f.AccessRequests = GetUsageBasedAccessRequestFeatureLimits()
+		f.DeviceTrust = GetUsageBasedDeviceTrustFeatureLimits()
 	}
 
 	return f, nil
@@ -110,4 +122,29 @@ func Load(ctx context.Context, b backend.Backend) (*modules.Features, error) {
 	}
 
 	return stored, nil
+}
+
+// GetUsageBasedAccessListFeatureLimits defines limits for access list
+// feature for usage based plans eg: Team or EUB (Enterprise Usage Based).
+func GetUsageBasedAccessListFeatureLimits() modules.AccessListFeature {
+	return modules.AccessListFeature{
+		CreateLimit: 1,
+	}
+}
+
+// GetUsageBasedAccessRequestFeatureLimits defines limits for access request
+// feature for usage based plans eg: Team or EUB (Enterprise Usage Based).
+func GetUsageBasedAccessRequestFeatureLimits() modules.AccessRequestsFeature {
+	return modules.AccessRequestsFeature{
+		MonthlyRequestLimit: 5,
+	}
+}
+
+// GetUsageBasedAccessRequestFeatureLimits defines limits for device trust
+// feature for usage based plans eg: Team or EUB (Enterprise Usage Based).
+func GetUsageBasedDeviceTrustFeatureLimits() modules.DeviceTrustFeature {
+	return modules.DeviceTrustFeature{
+		Enabled:           true, // always enabled currently
+		DevicesUsageLimit: 5,
+	}
 }

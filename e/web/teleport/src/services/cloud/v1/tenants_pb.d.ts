@@ -659,6 +659,12 @@ export class GetFeaturesResponse extends jspb.Message {
   getCustomTheme(): string;
   setCustomTheme(value: string): void;
 
+  getIdentityGovernanceSecurity(): boolean;
+  setIdentityGovernanceSecurity(value: boolean): void;
+
+  getProductType(): ProductTypeMap[keyof ProductTypeMap];
+  setProductType(value: ProductTypeMap[keyof ProductTypeMap]): void;
+
   serializeBinary(): Uint8Array;
   toObject(includeInstance?: boolean): GetFeaturesResponse.AsObject;
   static toObject(includeInstance: boolean, msg: GetFeaturesResponse): GetFeaturesResponse.AsObject;
@@ -688,6 +694,8 @@ export namespace GetFeaturesResponse {
     assist: boolean,
     featureHiding: boolean,
     customTheme: string,
+    identityGovernanceSecurity: boolean,
+    productType: ProductTypeMap[keyof ProductTypeMap],
   }
 }
 
@@ -1092,4 +1100,12 @@ export interface UsageResourceTypeMap {
 }
 
 export const UsageResourceType: UsageResourceTypeMap;
+
+export interface ProductTypeMap {
+  PRODUCT_TYPE_UNKNOWN: 0;
+  PRODUCT_TYPE_TEAM: 1;
+  PRODUCT_TYPE_EUB: 2;
+}
+
+export const ProductType: ProductTypeMap;
 

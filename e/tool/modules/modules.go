@@ -194,15 +194,14 @@ func (p *enterpriseModules) GenerateAccessRequestPromotions(ctx context.Context,
 	return accessrequest.GenerateAccessRequestPromotions(ctx, accessListGetter, accessRequest)
 }
 
+// getLicenseFeatures is only used to read `on-prem` licenses.
+// For cloud subscriptions, the features are read from `FetchFromCloud`.
 func getLicenseFeatures(license types.License) modules.Features {
-	// All features are always enabled in Teleport Cloud since it does a
-	// per-resource usage reporting. Also, for backward compatibility so
-	// we don't need to reissue licenses every time we add a new feature.
-	return modules.Features{
-		Kubernetes:              license.GetCloud().Value() || license.GetSupportsKubernetes().Value(),
-		App:                     license.GetCloud().Value() || license.GetSupportsApplicationAccess().Value(),
-		DB:                      license.GetCloud().Value() || license.GetSupportsDatabaseAccess().Value(),
-		Desktop:                 license.GetCloud().Value() || license.GetSupportsDesktopAccess().Value(),
+	f := modules.Features{
+		Kubernetes:              license.GetSupportsKubernetes().Value(),
+		App:                     license.GetSupportsApplicationAccess().Value(),
+		DB:                      license.GetSupportsDatabaseAccess().Value(),
+		Desktop:                 license.GetSupportsDesktopAccess().Value(),
 		Cloud:                   license.GetCloud().Value(),
 		OIDC:                    true,
 		SAML:                    true,
@@ -210,17 +209,29 @@ func getLicenseFeatures(license types.License) modules.Features {
 		AdvancedAccessWorkflows: true,
 		HSM:                     true,
 		RecoveryCodes:           license.GetCloud().Value(),
-		IsUsageBasedBilling:     false, // usage-based subscriptions don't use license as source of features
+		IsUsageBasedBilling:     license.GetUsageBasedBilling().Value(),
 		FeatureHiding:           license.GetSupportsFeatureHiding().Value(),
 		CustomTheme:             license.GetCustomTheme(),
-		// Assist is disabled by default on Cloud.
-		// In case of the Team plan, this gets overridden to `true` by the dynamic features from Sales Center
-		Assist: !license.GetCloud().Value(),
-		// Device trust is enabled and unlimited, by default, for Enterprise/Cloud.
-		// Team accounts limitations are handled by [feature.FetchFromCloud].
+		Assist:                  !license.GetCloud().Value(),
 		DeviceTrust: modules.DeviceTrustFeature{
 			Enabled: true,
 		},
-		IsTrialProduct: license.GetTrial().Value(),
+		IsTrialProduct:             license.GetTrial().Value(),
+		IdentityGovernanceSecurity: license.GetSupportsIdentityGovernanceSecurity().Value(),
 	}
+
+	// There is only two types of `on-prem` license:
+	//  1) non usage-based: refers to legacy license before EUB product.
+	//  2) usage based: refers to licenses for EUB product.
+	if license.GetUsageBasedBilling() {
+		f.ProductType = modules.ProductTypeEUB
+
+		if !license.GetSupportsIdentityGovernanceSecurity() {
+			f.AccessList = feature.GetUsageBasedAccessListFeatureLimits()
+			f.AccessRequests = feature.GetUsageBasedAccessRequestFeatureLimits()
+			f.DeviceTrust = feature.GetUsageBasedDeviceTrustFeatureLimits()
+		}
+	}
+
+	return f
 }

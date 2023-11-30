@@ -3388,15 +3388,15 @@ func TestS_CreateDeviceEnrollToken_createAndSpend(t *testing.T) {
 
 func TestS_DevicesUsageLimit(t *testing.T) {
 	const devicesLimit = 3
+	features := modules.GetModules().Features()
+	features.IsUsageBasedBilling = true
+	features.DeviceTrust = modules.DeviceTrustFeature{
+		Enabled:           true,
+		DevicesUsageLimit: devicesLimit,
+	}
 	modules.SetTestModules(t, &modules.TestModules{
 		TestBuildType: modules.BuildEnterprise,
-		TestFeatures: modules.Features{
-			IsUsageBasedBilling: true,
-			DeviceTrust: modules.DeviceTrustFeature{
-				Enabled:           true,
-				DevicesUsageLimit: devicesLimit,
-			},
-		},
+		TestFeatures:  features,
 	})
 
 	// Lock acquisition for usage-based enrollments requires a RealClock, the test
@@ -3486,6 +3486,42 @@ func TestS_DevicesUsageLimit(t *testing.T) {
 	t.Run("VerifyEnrolledDevicesLimit/denied", func(t *testing.T) {
 		if err := s.VerifyEnrolledDevicesLimit(ctx); !trace.IsAccessDenied(err) {
 			t.Errorf("VerifyEnrolledDevicesLimit returned err=%v, want AccessDenied/devices limit failure", err)
+		}
+	})
+
+	// Lift limit with IGS.
+	features.IdentityGovernanceSecurity = true
+	modules.SetTestModules(t, &modules.TestModules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures:  features,
+	})
+	t.Run("VerifyEnrolledDevicesLimit/allowed", func(t *testing.T) {
+		if err := s.VerifyEnrolledDevicesLimit(ctx); err != nil {
+			t.Errorf("VerifyEnrolledDevicesLimit returned err=%v, want success", err)
+		}
+	})
+
+	// Put back limit.
+	features.IdentityGovernanceSecurity = false
+	modules.SetTestModules(t, &modules.TestModules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures:  features,
+	})
+	t.Run("VerifyEnrolledDevicesLimit/denied", func(t *testing.T) {
+		if err := s.VerifyEnrolledDevicesLimit(ctx); !trace.IsAccessDenied(err) {
+			t.Errorf("VerifyEnrolledDevicesLimit returned err=%v, want AccessDenied/devices limit failure", err)
+		}
+	})
+
+	// Lift limit with legacy non usage based.
+	features.IsUsageBasedBilling = false
+	modules.SetTestModules(t, &modules.TestModules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures:  features,
+	})
+	t.Run("VerifyEnrolledDevicesLimit/allowed", func(t *testing.T) {
+		if err := s.VerifyEnrolledDevicesLimit(ctx); err != nil {
+			t.Errorf("VerifyEnrolledDevicesLimit returned err=%v, want success", err)
 		}
 	})
 }

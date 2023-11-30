@@ -16,7 +16,7 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/gravitational/teleport/e/api/cloud"
-	v1 "github.com/gravitational/teleport/e/api/cloud/v1"
+	cloudapi "github.com/gravitational/teleport/e/api/cloud/v1"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/modules"
@@ -25,10 +25,10 @@ import (
 type testClient struct {
 	cloud.MockedClient
 	mu              sync.Mutex
-	mockGetFeatures func(ctx context.Context, r *v1.EmptyRequest) (*v1.GetFeaturesResponse, error)
+	mockGetFeatures func(ctx context.Context, r *cloudapi.EmptyRequest) (*cloudapi.GetFeaturesResponse, error)
 }
 
-func (t *testClient) GetFeatures(ctx context.Context, in *v1.EmptyRequest, opts ...grpc.CallOption) (*v1.GetFeaturesResponse, error) {
+func (t *testClient) GetFeatures(ctx context.Context, in *cloudapi.EmptyRequest, opts ...grpc.CallOption) (*cloudapi.GetFeaturesResponse, error) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	if t.mockGetFeatures != nil {
@@ -38,7 +38,7 @@ func (t *testClient) GetFeatures(ctx context.Context, in *v1.EmptyRequest, opts 
 	return nil, trace.NotImplemented("MockGetFeatures is not implemented")
 }
 
-func (t *testClient) setMockGetFeatures(f func(ctx context.Context, r *v1.EmptyRequest) (*v1.GetFeaturesResponse, error)) {
+func (t *testClient) setMockGetFeatures(f func(ctx context.Context, r *cloudapi.EmptyRequest) (*cloudapi.GetFeaturesResponse, error)) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	t.mockGetFeatures = f
@@ -162,10 +162,11 @@ func TestRun_UsageBased(t *testing.T) {
 	defer cancel()
 
 	mockCloudClient.setMockGetFeatures(
-		func(ctx context.Context, r *v1.EmptyRequest) (*v1.GetFeaturesResponse, error) {
-			return &v1.GetFeaturesResponse{
+		func(ctx context.Context, r *cloudapi.EmptyRequest) (*cloudapi.GetFeaturesResponse, error) {
+			return &cloudapi.GetFeaturesResponse{
 				Kubernetes:   true,
 				IsUsageBased: true,
+				ProductType:  cloudapi.PRODUCT_TYPE_TEAM,
 			}, nil
 		},
 	)
@@ -176,45 +177,40 @@ func TestRun_UsageBased(t *testing.T) {
 
 	// Check if the features are stored in the backend.
 	requireFeatures(t, fakeClock, backend, ctx, modules.Features{
-		Kubernetes: true,
-		DeviceTrust: modules.DeviceTrustFeature{
-			Enabled:           true, // always enabled
-			DevicesUsageLimit: 5,
-		},
-		AccessRequests: modules.AccessRequestsFeature{
-			MonthlyRequestLimit: 5,
-		},
+		Kubernetes:          true,
+		DeviceTrust:         GetUsageBasedDeviceTrustFeatureLimits(),
+		AccessRequests:      GetUsageBasedAccessRequestFeatureLimits(),
+		AccessList:          GetUsageBasedAccessListFeatureLimits(),
 		IsUsageBasedBilling: true,
+		ProductType:         modules.ProductTypeTeam,
 	})
 
 	// update features again and see if they are stored in the backend
 	mockCloudClient.setMockGetFeatures(
-		func(ctx context.Context, r *v1.EmptyRequest) (*v1.GetFeaturesResponse, error) {
-			return &v1.GetFeaturesResponse{
+		func(ctx context.Context, r *cloudapi.EmptyRequest) (*cloudapi.GetFeaturesResponse, error) {
+			return &cloudapi.GetFeaturesResponse{
 				Kubernetes:   false,
 				App:          true,
 				IsUsageBased: true,
+				ProductType:  cloudapi.PRODUCT_TYPE_TEAM,
 			}, nil
 		},
 	)
 	// check backend again
 	wantFeatures := modules.Features{
-		Kubernetes: false,
-		App:        true,
-		DeviceTrust: modules.DeviceTrustFeature{
-			Enabled:           true, // always enabled
-			DevicesUsageLimit: 5,
-		},
-		AccessRequests: modules.AccessRequestsFeature{
-			MonthlyRequestLimit: 5,
-		},
+		Kubernetes:          false,
+		App:                 true,
+		DeviceTrust:         GetUsageBasedDeviceTrustFeatureLimits(),
+		AccessRequests:      GetUsageBasedAccessRequestFeatureLimits(),
+		AccessList:          GetUsageBasedAccessListFeatureLimits(),
 		IsUsageBasedBilling: true,
+		ProductType:         modules.ProductTypeTeam,
 	}
 	requireFeatures(t, fakeClock, backend, ctx, wantFeatures)
 
 	// Test that the service wont crash if it receives an error
 	mockCloudClient.setMockGetFeatures(
-		func(ctx context.Context, r *v1.EmptyRequest) (*v1.GetFeaturesResponse, error) {
+		func(ctx context.Context, r *cloudapi.EmptyRequest) (*cloudapi.GetFeaturesResponse, error) {
 			return nil, errors.New("err fetching features")
 		},
 	)
@@ -222,23 +218,58 @@ func TestRun_UsageBased(t *testing.T) {
 
 	// Make sure it can recover after a failed request
 	mockCloudClient.setMockGetFeatures(
-		func(ctx context.Context, r *v1.EmptyRequest) (*v1.GetFeaturesResponse, error) {
-			return &v1.GetFeaturesResponse{
+		func(ctx context.Context, r *cloudapi.EmptyRequest) (*cloudapi.GetFeaturesResponse, error) {
+			return &cloudapi.GetFeaturesResponse{
 				Db:           true,
 				IsUsageBased: true,
+				ProductType:  cloudapi.PRODUCT_TYPE_EUB,
 			}, nil
 		},
 	)
 	requireFeatures(t, fakeClock, backend, ctx, modules.Features{
-		DB: true,
+		DB:                      true,
+		DeviceTrust:             GetUsageBasedDeviceTrustFeatureLimits(),
+		AccessRequests:          GetUsageBasedAccessRequestFeatureLimits(),
+		AccessList:              GetUsageBasedAccessListFeatureLimits(),
+		IsUsageBasedBilling:     true,
+		ProductType:             modules.ProductTypeEUB,
+		AdvancedAccessWorkflows: true,
+		HSM:                     true,
+		OIDC:                    true,
+		AccessControls:          true,
+		SAML:                    true,
+	})
+
+	// Test removing limit "after upgrade", which in this case
+	// we go from product "eub" to "eub with igs".
+	mockCloudClient.setMockGetFeatures(
+		func(ctx context.Context, r *cloudapi.EmptyRequest) (*cloudapi.GetFeaturesResponse, error) {
+			return &cloudapi.GetFeaturesResponse{
+				IsUsageBased:               true,
+				ProductType:                cloudapi.PRODUCT_TYPE_EUB,
+				IdentityGovernanceSecurity: true,
+			}, nil
+		},
+	)
+	requireFeatures(t, fakeClock, backend, ctx, modules.Features{
 		DeviceTrust: modules.DeviceTrustFeature{
 			Enabled:           true, // always enabled
-			DevicesUsageLimit: 5,
+			DevicesUsageLimit: 0,
 		},
 		AccessRequests: modules.AccessRequestsFeature{
-			MonthlyRequestLimit: 5,
+			MonthlyRequestLimit: 0,
 		},
-		IsUsageBasedBilling: true,
+		AccessList: modules.AccessListFeature{
+			CreateLimit: 0,
+		},
+		IsUsageBasedBilling:        true,
+		IdentityGovernanceSecurity: true,
+		AdvancedAccessWorkflows:    true,
+		HSM:                        true,
+		OIDC:                       true,
+		AccessControls:             true,
+		SAML:                       true,
+		ProductType:                modules.ProductTypeEUB,
 	})
 }
 
@@ -265,8 +296,8 @@ func TestRun_Legacy_NonUsageBased(t *testing.T) {
 	// Despite getting feature response, teleport should still hard code
 	// features.
 	mockCloudClient.setMockGetFeatures(
-		func(ctx context.Context, r *v1.EmptyRequest) (*v1.GetFeaturesResponse, error) {
-			return &v1.GetFeaturesResponse{
+		func(ctx context.Context, r *cloudapi.EmptyRequest) (*cloudapi.GetFeaturesResponse, error) {
+			return &cloudapi.GetFeaturesResponse{
 				Kubernetes:     false, // should be ignored
 				AccessRequests: false, // should be ignored
 				App:            false, // should be ignored

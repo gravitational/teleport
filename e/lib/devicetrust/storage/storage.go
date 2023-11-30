@@ -1575,7 +1575,7 @@ func (s *S) getDevicesUsage(ctx context.Context, limit int) (*DevicesUsage, erro
 // the limits are already reached.
 func (s *S) VerifyEnrolledDevicesLimit(ctx context.Context) error {
 	f := modules.GetModules().Features()
-	if !f.IsUsageBasedBilling {
+	if f.IsLegacy() || f.IGSEnabled() {
 		return nil // unlimited
 	}
 
