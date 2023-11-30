@@ -319,10 +319,8 @@ func TestUpsertSAMLIdpServiceProvider(t *testing.T) {
 
 type mockedResourceAPIGetter struct {
 	mockGetGithubConnectors          func(ctx context.Context, withSecrets bool) ([]types.GithubConnector, error)
-	mockUpsertSAMLConnector          func(ctx context.Context, connector types.SAMLConnector) error
 	mockGetSAMLConnector             func(ctx context.Context, id string, withSecrets bool) (types.SAMLConnector, error)
 	mockGetSAMLConnectors            func(ctx context.Context, withSecrets bool) ([]types.SAMLConnector, error)
-	mockUpsertOIDCConnector          func(ctx context.Context, connector types.OIDCConnector) error
 	mockGetOIDCConnector             func(ctx context.Context, id string, withSecrets bool) (types.OIDCConnector, error)
 	mockGetOIDCConnectors            func(ctx context.Context, withSecrets bool) ([]types.OIDCConnector, error)
 	mockCreateSAMLIdPServiceProvider func(ctx context.Context, sp types.SAMLIdPServiceProvider) error
@@ -335,14 +333,6 @@ func (m *mockedResourceAPIGetter) GetGithubConnectors(ctx context.Context, withS
 	}
 
 	return nil, trace.NotImplemented("mockGetGithubConnectors not implemented")
-}
-
-func (m *mockedResourceAPIGetter) UpsertSAMLConnector(ctx context.Context, connector types.SAMLConnector) error {
-	if m.mockUpsertSAMLConnector != nil {
-		return m.mockUpsertSAMLConnector(ctx, connector)
-	}
-
-	return trace.NotImplemented("mockUpsertSAMLConnector not implemented")
 }
 
 func (m *mockedResourceAPIGetter) GetSAMLConnector(ctx context.Context, id string, withSecrets bool) (types.SAMLConnector, error) {
@@ -359,14 +349,6 @@ func (m *mockedResourceAPIGetter) GetSAMLConnectors(ctx context.Context, withSec
 	}
 
 	return nil, trace.NotImplemented("mockGetSAMLConnectors not implemented")
-}
-
-func (m *mockedResourceAPIGetter) UpsertOIDCConnector(ctx context.Context, connector types.OIDCConnector) error {
-	if m.mockUpsertOIDCConnector != nil {
-		return m.mockUpsertOIDCConnector(ctx, connector)
-	}
-
-	return trace.NotImplemented("mockUpsertOIDCConnector not implemented")
 }
 
 func (m *mockedResourceAPIGetter) GetOIDCConnector(ctx context.Context, id string, withSecrets bool) (types.OIDCConnector, error) {

@@ -81,7 +81,7 @@ func TestSAML(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			err = s.testAuthServer.Auth().UpsertSAMLConnector(ctx, connector)
+			_, err = s.testAuthServer.Auth().CreateSAMLConnector(ctx, connector)
 			require.NoError(t, err)
 			s.testAuthServer.Auth().SetClock(clockwork.NewFakeClockAt(time.Date(2017, 5, 10, 18, 53, 0, 0, time.UTC)))
 			clt := s.clientNoRedirects()

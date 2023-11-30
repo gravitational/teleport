@@ -259,7 +259,7 @@ func TestPingSAMLWorkaround(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	err = a.UpsertSAMLConnector(ctx, connector)
+	_, err = a.CreateSAMLConnector(ctx, connector)
 	require.NoError(t, err)
 
 	// Create an auth request that we can inspect.
@@ -390,7 +390,7 @@ func TestServer_getConnectorAndProvider(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	err = a.UpsertSAMLConnector(ctx, conn)
+	_, err = a.CreateSAMLConnector(ctx, conn)
 	require.NoError(t, err)
 
 	request2 := types.SAMLAuthRequest{
@@ -523,7 +523,7 @@ func TestServer_ValidateSAMLResponse(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	err = a.UpsertSAMLConnector(ctx, conn)
+	_, err = a.CreateSAMLConnector(ctx, conn)
 	require.NoError(t, err)
 
 	testConnectorSpec := types.SAMLConnectorSpecV2{
@@ -554,7 +554,7 @@ func TestServer_ValidateSAMLResponse(t *testing.T) {
 	conn, err = types.NewSAMLConnector(idpInitiatedSAMLTestConn, testConnectorSpec)
 	require.NoError(t, err)
 
-	err = a.UpsertSAMLConnector(ctx, conn)
+	_, err = a.CreateSAMLConnector(ctx, conn)
 	require.NoError(t, err)
 
 	err = a.Services.CreateSAMLAuthRequest(ctx, types.SAMLAuthRequest{
@@ -832,7 +832,7 @@ func TestSAMLAuthRequest(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	err = srv.Auth().UpsertSAMLConnector(ctx, conn)
+	_, err = srv.Auth().CreateSAMLConnector(ctx, conn)
 	require.NoError(t, err)
 
 	reqNormal := types.SAMLAuthRequest{ConnectorID: conn.GetName(), Type: constants.SAML}
@@ -974,7 +974,7 @@ func TestSAMLLicense(t *testing.T) {
 			roleName := conn.GetAttributesToRoles()[0].Roles[0]
 			_, err := auth.CreateRole(ctx, srv.Auth(), roleName, types.RoleSpecV6{})
 			require.NoError(t, err)
-			err = srv.Auth().UpsertSAMLConnector(ctx, conn)
+			_, err = srv.Auth().CreateSAMLConnector(ctx, conn)
 			require.NoError(t, err)
 
 			req := types.SAMLAuthRequest{ConnectorID: conn.GetName(), Type: constants.SAML}

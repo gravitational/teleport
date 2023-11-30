@@ -485,7 +485,7 @@ func TestPingProvider(t *testing.T) {
 		RedirectURLs:  []string{"https://proxy.example.com/v1/webapi/oidc/callback"},
 	})
 	require.NoError(t, err)
-	err = s.a.UpsertOIDCConnector(ctx, connector)
+	_, err = s.a.CreateOIDCConnector(ctx, connector)
 	require.NoError(t, err)
 
 	for _, req := range []types.OIDCAuthRequest{
@@ -1234,7 +1234,7 @@ func TestOIDCAuthRequest(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	err = srv.Auth().UpsertOIDCConnector(context.Background(), conn)
+	_, err = srv.Auth().CreateOIDCConnector(context.Background(), conn)
 	require.NoError(t, err)
 
 	reqNormal := types.OIDCAuthRequest{ConnectorID: conn.GetName(), Type: constants.OIDC}
@@ -1385,7 +1385,7 @@ func TestOIDCLicense(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := context.Background()
 			srv := newTestTLSServer(t, tt.license)
-			err := srv.Auth().UpsertOIDCConnector(ctx, conn)
+			_, err := srv.Auth().CreateOIDCConnector(ctx, conn)
 			require.NoError(t, err)
 
 			req := types.OIDCAuthRequest{ConnectorID: conn.GetName(), Type: constants.OIDC}

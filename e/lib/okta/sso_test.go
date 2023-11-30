@@ -53,9 +53,9 @@ type mockSamlConnectors struct {
 	mock.Mock
 }
 
-func (m *mockSamlConnectors) UpsertSAMLConnector(ctx context.Context, connector types.SAMLConnector) error {
+func (m *mockSamlConnectors) CreateSAMLConnector(ctx context.Context, connector types.SAMLConnector) (types.SAMLConnector, error) {
 	args := m.Called(ctx, connector)
-	return args.Error(0)
+	return connector, args.Error(1)
 }
 
 func (m *mockSamlConnectors) GetSAMLConnector(ctx context.Context, id string, withSecrets bool) (types.SAMLConnector, error) {
@@ -94,7 +94,7 @@ func TestSSOConectorCreation(t *testing.T) {
 			On("GetSAMLConnector", mock.Anything, testConnectorName).
 			Return(nil, trace.NotFound(testConnectorName))
 		samlConnectors.
-			On("UpsertSAMLConnector", mock.Anything, mock.Anything).
+			On("CreateSAMLConnector", mock.Anything, mock.Anything).
 			Run(func(args mock.Arguments) {
 				_, isContext := args.Get(0).(context.Context)
 				require.True(t, isContext, "Arg should be a context")
@@ -103,7 +103,7 @@ func TestSSOConectorCreation(t *testing.T) {
 				require.True(t, isConnector, "Arg should be a SAMLConnector")
 				require.Equal(t, testConnectorName, conn.GetName())
 			}).
-			Return(nil)
+			Return(nil, nil)
 
 		// and a (mock) Okta client configured with some groups (including the
 		// special "Everyone" group), and set to allow

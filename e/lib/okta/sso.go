@@ -18,8 +18,8 @@ import (
 // SAMLConnectorService defines an interface for querying and creating
 // SAML connectors in the Teleport cluster
 type SAMLConnectorService interface {
-	// UpsertSAMLConnector updates or creates SAML connector
-	UpsertSAMLConnector(ctx context.Context, connector types.SAMLConnector) error
+	// CreateSAMLConnector creates a SAML connector
+	CreateSAMLConnector(ctx context.Context, connector types.SAMLConnector) (types.SAMLConnector, error)
 	// GetSAMLConnector returns SAML connector information by id
 	GetSAMLConnector(ctx context.Context, id string, withSecrets bool) (types.SAMLConnector, error)
 }
@@ -121,7 +121,7 @@ func CreateSSOConnector(ctx context.Context, args ConnectorArgs) error {
 
 	args.Log.Infof("Downloading entity metadata for app %s from %s as %q",
 		app.Id, metadataURL, metadataContentType)
-	acceptableContentTypes := []string{}
+	var acceptableContentTypes []string
 	if metadataContentType != "" {
 		acceptableContentTypes = append(acceptableContentTypes, metadataContentType)
 	}
@@ -160,7 +160,7 @@ func CreateSSOConnector(ctx context.Context, args ConnectorArgs) error {
 	args.Log.Infof("Creating new SAML SSO connector %s for Okta org %s",
 		connector.GetName(),
 		args.PublicURL)
-	if err := args.SAMLConnectorService.UpsertSAMLConnector(ctx, connector); err != nil {
+	if _, err := args.SAMLConnectorService.CreateSAMLConnector(ctx, connector); err != nil {
 		return trace.Wrap(err, "creating Okta SAML connector")
 	}
 
