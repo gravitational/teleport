@@ -327,10 +327,10 @@ const generateCmd = (data: {
   isCloud: boolean;
   automaticUpgradesEnabled: boolean;
   automaticUpgradesTargetVersion: string;
-  roles: JoinRole[];
 }) => {
   let extraYAMLConfig = '';
   let deployVersion = data.clusterVersion;
+  let roles: JoinRole[] = ['Kube', 'App', 'Discovery'];
 
   if (data.isEnterprise) {
     extraYAMLConfig += 'enterprise: true\n';
@@ -350,9 +350,17 @@ const generateCmd = (data: {
     // AutomaticUpgradesTargetVersion contains a v, eg, v13.4.2.
     // However, helm chart expects no 'v', eg, 13.4.2.
     deployVersion = data.automaticUpgradesTargetVersion.replace(/^v/, '');
+
+    // TODO(marco): remove when stable/cloud moves to v14
+    // For v13 releases of the helm chart, we must remove the App role.
+    // We get the following error otherwise:
+    // Error: INSTALLATION FAILED: execution error at (teleport-kube-agent/templates/statefulset.yaml:26:28): at least one of 'apps' and 'appResources' is required in chart values when app role is enabled, see README
+    if (deployVersion.startsWith('13.')) {
+      roles = ['Kube'];
+    }
   }
 
-  const yamlRoles = data.roles.join(',').toLowerCase();
+  const yamlRoles = roles.join(',').toLowerCase();
 
   return `cat << EOF > prod-cluster-values.yaml
 roles: ${yamlRoles}
@@ -459,7 +467,6 @@ const InstallHelmChart = ({
     isCloud: ctx.isCloud,
     automaticUpgradesEnabled: ctx.automaticUpgradesEnabled,
     automaticUpgradesTargetVersion: ctx.automaticUpgradesTargetVersion,
-    roles: ['Kube', 'App', 'Discovery'],
   });
 
   return (
