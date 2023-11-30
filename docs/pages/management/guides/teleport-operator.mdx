@@ -273,8 +273,8 @@ Kubernetes cluster or namespace.  Then redeploy the Auth Server pods.  When the 
 
 ### Teleport resource name is invalid with the Operator
 
-Kubernetes enforces all custom resource names to follow RFC 1123.  If attempting to create a resource using the operator with a name that is invalid, you will
-observe an error message similar to:
+Kubernetes enforces all custom resource names to follow RFC 1123 which includes specifications for hostnames.  If attempting to create a resource using the 
+operator with a name that is invalid, you will observe an error message similar to:
 
 ```text
 The TeleportRole "my_role" is invalid: metadata.name: Invalid value: "my_role": a lowercase RFC 1123 subdomain
