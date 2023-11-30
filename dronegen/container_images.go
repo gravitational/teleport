@@ -28,7 +28,6 @@ func buildContainerImagePipelines() []pipeline {
 	branchMajorVersion := "v12"
 
 	triggers := []*TriggerInfo{
-		NewTagTrigger(branchMajorVersion),
 		NewPromoteTrigger(branchMajorVersion),
 		NewCronTrigger(latestMajorVersions),
 	}
