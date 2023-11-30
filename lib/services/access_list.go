@@ -255,18 +255,14 @@ func (a AccessListMembershipChecker) IsAccessListMember(ctx context.Context, ide
 		return trace.Wrap(err)
 	}
 
-	expires := member.Spec.Expires
-	if expires.IsZero() {
-		return nil
-	}
-
-	if !a.clock.Now().Before(expires) {
-		return trace.AccessDenied("user %s's membership has expired in the access list", username)
-	}
-
 	if !UserMeetsRequirements(identity, accessList.Spec.MembershipRequires) {
 		return trace.AccessDenied("user %s is a member, but does not have the roles or traits required to be a member of this list", username)
 	}
+
+	if !member.Spec.Expires.IsZero() && !a.clock.Now().Before(member.Spec.Expires) {
+		return trace.AccessDenied("user %s's membership has expired in the access list", username)
+	}
+
 	return nil
 }
 

@@ -188,7 +188,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 			},
 			boundaryStatements: []*awslib.Statement{
 				{Effect: awslib.EffectAllow, Resources: []string{"*"}, Actions: []string{
-					"redshift:DescribeClusters", "redshift:GetClusterCredentials",
+					"redshift:DescribeClusters", "redshift:GetClusterCredentials", "sts:AssumeRole",
 				}},
 				{Effect: awslib.EffectAllow, Resources: []string{userTarget.String()}, Actions: []string{
 					"iam:GetUserPolicy", "iam:PutUserPolicy", "iam:DeleteUserPolicy",
@@ -215,7 +215,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 			},
 			boundaryStatements: []*awslib.Statement{
 				{Effect: awslib.EffectAllow, Resources: []string{"*"}, Actions: []string{
-					"redshift:DescribeClusters", "redshift:GetClusterCredentials",
+					"redshift:DescribeClusters", "redshift:GetClusterCredentials", "sts:AssumeRole",
 				}},
 				{Effect: awslib.EffectAllow, Resources: []string{roleTarget.String()}, Actions: []string{
 					"iam:GetRolePolicy", "iam:PutRolePolicy", "iam:DeleteRolePolicy",
@@ -246,7 +246,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 			},
 			boundaryStatements: []*awslib.Statement{
 				{Effect: awslib.EffectAllow, Resources: []string{"*"}, Actions: []string{
-					"redshift:DescribeClusters", "redshift:GetClusterCredentials",
+					"redshift:DescribeClusters", "redshift:GetClusterCredentials", "sts:AssumeRole",
 				}},
 				{Effect: awslib.EffectAllow, Resources: []string{roleTarget.String()}, Actions: []string{
 					"iam:GetRolePolicy", "iam:PutRolePolicy", "iam:DeleteRolePolicy",
@@ -1241,7 +1241,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 					{
 						Effect:    awslib.EffectAllow,
 						Resources: []string{"*"},
-						Actions:   []string{"redshift:DescribeClusters", "redshift:GetClusterCredentials"},
+						Actions:   []string{"redshift:DescribeClusters", "redshift:GetClusterCredentials", "sts:AssumeRole"},
 					},
 					{
 						Effect:    awslib.EffectAllow,
@@ -1458,12 +1458,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 					{
 						Effect:    awslib.EffectAllow,
 						Resources: []string{"*"},
-						Actions:   []string{"redshift:DescribeClusters", "redshift:GetClusterCredentials"},
-					},
-					{
-						Effect:    awslib.EffectAllow,
-						Resources: awslib.SliceOrString{"*"},
-						Actions:   awslib.SliceOrString{"sts:AssumeRole"},
+						Actions:   []string{"redshift:DescribeClusters", "redshift:GetClusterCredentials", "sts:AssumeRole"},
 					},
 					{
 						Effect:    awslib.EffectAllow,

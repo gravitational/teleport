@@ -40,12 +40,14 @@ func (r githubConnectorClient) Get(ctx context.Context, name string) (types.Gith
 
 // Create creates a Teleport github_connector
 func (r githubConnectorClient) Create(ctx context.Context, github types.GithubConnector) error {
-	return trace.Wrap(r.teleportClient.UpsertGithubConnector(ctx, github))
+	_, err := r.teleportClient.CreateGithubConnector(ctx, github)
+	return trace.Wrap(err)
 }
 
 // Update updates a Teleport github_connector
 func (r githubConnectorClient) Update(ctx context.Context, github types.GithubConnector) error {
-	return trace.Wrap(r.teleportClient.UpsertGithubConnector(ctx, github))
+	_, err := r.teleportClient.UpsertGithubConnector(ctx, github)
+	return trace.Wrap(err)
 }
 
 // Delete deletes a Teleport github_connector

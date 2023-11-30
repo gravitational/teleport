@@ -2784,7 +2784,7 @@ func TestDatabaseCLIFlags(t *testing.T) {
 			inFlags: CommandLineFlags{
 				DatabaseName:         "sqlserver",
 				DatabaseProtocol:     defaults.ProtocolSQLServer,
-				DatabaseURI:          "localhost:1433",
+				DatabaseURI:          "sqlserver.example.com:1433",
 				DatabaseADKeytabFile: "/etc/keytab",
 				DatabaseADDomain:     "EXAMPLE.COM",
 				DatabaseADSPN:        "MSSQLSvc/sqlserver.example.com:1433",
@@ -2792,7 +2792,7 @@ func TestDatabaseCLIFlags(t *testing.T) {
 			outDatabase: servicecfg.Database{
 				Name:     "sqlserver",
 				Protocol: defaults.ProtocolSQLServer,
-				URI:      "localhost:1433",
+				URI:      "sqlserver.example.com:1433",
 				TLS: servicecfg.DatabaseTLS{
 					Mode: servicecfg.VerifyFull,
 				},

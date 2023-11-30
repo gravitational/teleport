@@ -888,8 +888,9 @@ func TestGithubConnectorCRUDEventsEmitted(t *testing.T) {
 
 	// test github upsert event
 	github.SetDisplay("alpaca")
-	err = s.a.upsertGithubConnector(ctx, github)
+	upserted, err := s.a.upsertGithubConnector(ctx, github)
 	require.NoError(t, err)
+	require.NotNil(t, upserted)
 	require.IsType(t, &apievents.GithubConnectorCreate{}, s.mockEmitter.LastEvent())
 	require.Equal(t, events.GithubConnectorCreatedEvent, s.mockEmitter.LastEvent().GetType())
 	s.mockEmitter.Reset()

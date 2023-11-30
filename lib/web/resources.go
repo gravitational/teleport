@@ -509,8 +509,6 @@ type resourcesAPIGetter interface {
 	GetRoles(ctx context.Context) ([]types.Role, error)
 	// UpsertRole creates or updates role
 	UpsertRole(ctx context.Context, role types.Role) (types.Role, error)
-	// UpsertGithubConnector creates or updates a Github connector
-	UpsertGithubConnector(ctx context.Context, connector types.GithubConnector) error
 	// GetGithubConnectors returns all configured Github connectors
 	GetGithubConnectors(ctx context.Context, withSecrets bool) ([]types.GithubConnector, error)
 	// GetGithubConnector returns the specified Github connector

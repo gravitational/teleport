@@ -150,7 +150,7 @@ describe('useResourceSearch', () => {
         </MockAppContextProvider>
       ),
     });
-    const searchResult = await result.current('foo', []);
+    const searchResult = await result.current('foo', [], false);
 
     expect(searchResult.results).toEqual(servers);
     expect(appContext.resourcesService.searchResources).toHaveBeenCalledWith({
@@ -182,7 +182,7 @@ describe('useResourceSearch', () => {
       ),
     });
     const filter = { filter: 'cluster' as const, clusterUri: cluster.uri };
-    await result.current('', [filter]);
+    await result.current('', [filter], false);
 
     expect(appContext.resourcesService.searchResources).toHaveBeenCalledWith({
       clusterUri: cluster.uri,
@@ -212,7 +212,28 @@ describe('useResourceSearch', () => {
         </MockAppContextProvider>
       ),
     });
-    await result.current('', []);
+    await result.current('', [], false);
+    expect(appContext.resourcesService.searchResources).not.toHaveBeenCalled();
+  });
+
+  it('does not fetch any resources if advanced search is enabled', async () => {
+    const appContext = new MockAppContext();
+    const cluster = makeRootCluster();
+    appContext.clustersService.setState(draftState => {
+      draftState.clusters.set(cluster.uri, cluster);
+    });
+    jest
+      .spyOn(appContext.resourcesService, 'searchResources')
+      .mockResolvedValue([{ status: 'fulfilled', value: [] }]);
+
+    const { result } = renderHook(() => useResourceSearch(), {
+      wrapper: ({ children }) => (
+        <MockAppContextProvider appContext={appContext}>
+          {children}
+        </MockAppContextProvider>
+      ),
+    });
+    await result.current('foo', [], true);
     expect(appContext.resourcesService.searchResources).not.toHaveBeenCalled();
   });
 });

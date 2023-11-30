@@ -855,6 +855,7 @@ func (l *AuditLog) fetchSessionEvents(fileName string, afterN int) ([]EventField
 
 // EmitAuditEvent adds a new event to the local file log
 func (l *AuditLog) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
+	ctx = context.WithoutCancel(ctx)
 	// If an external logger has been set, use it as the emitter, otherwise
 	// fallback to the local disk based emitter.
 	var emitAuditEvent func(ctx context.Context, event apievents.AuditEvent) error

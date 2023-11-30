@@ -15,6 +15,7 @@ limitations under the License.
 */
 
 import { unique } from 'teleterm/ui/utils/uid';
+import * as uri from 'teleterm/ui/uri';
 import {
   DocumentUri,
   ServerUri,
@@ -26,7 +27,6 @@ import {
 
 import {
   CreateAccessRequestDocumentOpts,
-  CreateClusterDocumentOpts,
   CreateGatewayDocumentOpts,
   CreateTshKubeDocumentOptions,
   Document,
@@ -40,6 +40,7 @@ import {
   DocumentTshKube,
   DocumentTshNode,
   DocumentTshNodeWithServerId,
+  DocumentClusterQueryParams,
 } from './types';
 
 export class DocumentsService {
@@ -76,7 +77,10 @@ export class DocumentsService {
     };
   }
 
-  createClusterDocument(opts: CreateClusterDocumentOpts): DocumentCluster {
+  createClusterDocument(opts: {
+    clusterUri: uri.ClusterUri;
+    queryParams?: DocumentClusterQueryParams;
+  }): DocumentCluster {
     const uri = routing.getDocUri({ docId: unique() });
     const clusterName = routing.parseClusterName(opts.clusterUri);
     return {
@@ -84,6 +88,7 @@ export class DocumentsService {
       clusterUri: opts.clusterUri,
       title: clusterName,
       kind: 'doc.cluster',
+      queryParams: opts.queryParams || getDefaultDocumentClusterQueryParams(),
     };
   }
 
@@ -340,10 +345,22 @@ export class DocumentsService {
     });
   }
 
-  update(uri: string, partialDoc: Partial<Document>) {
+  /**
+   * Updates the document by URI.
+   * @param uri - document URI.
+   * @param updated - a new document object or an update function.
+   */
+  update(
+    uri: DocumentUri,
+    updated: Partial<Document> | ((draft: Document) => void)
+  ) {
     this.setState(draft => {
       const toUpdate = draft.documents.find(doc => doc.uri === uri);
-      Object.assign(toUpdate, partialDoc);
+      if (typeof updated === 'function') {
+        updated(toUpdate);
+      } else {
+        Object.assign(toUpdate, updated);
+      }
     });
   }
 
@@ -415,4 +432,13 @@ export class DocumentsService {
       draft.documents.splice(newIndex, 0, doc);
     });
   }
+}
+
+export function getDefaultDocumentClusterQueryParams(): DocumentClusterQueryParams {
+  return {
+    resourceKinds: [],
+    search: '',
+    sort: { fieldName: 'name', dir: 'ASC' },
+    advancedSearchEnabled: false,
+  };
 }

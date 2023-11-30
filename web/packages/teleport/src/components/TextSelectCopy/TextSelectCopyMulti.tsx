@@ -16,7 +16,7 @@
 
 import React, { useRef } from 'react';
 import styled from 'styled-components';
-import copyToClipboard from 'design/utils/copyToClipboard';
+import { copyToClipboard } from 'design/utils/copyToClipboard';
 import selectElementContent from 'design/utils/selectElementContent';
 import { ButtonSecondary, Box, Flex } from 'design';
 import { Copy, Check } from 'design/Icon';

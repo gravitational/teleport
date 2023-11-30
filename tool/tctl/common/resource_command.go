@@ -117,7 +117,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *servicec
 		types.KindClusterNetworkingConfig:  rc.createClusterNetworkingConfig,
 		types.KindClusterMaintenanceConfig: rc.createClusterMaintenanceConfig,
 		types.KindSessionRecordingConfig:   rc.createSessionRecordingConfig,
-		types.KindExternalAuditStorage:     rc.upsertExternalAuditStorage,
+		types.KindExternalAuditStorage:     rc.createExternalAuditStorage,
 		types.KindUIConfig:                 rc.createUIConfig,
 		types.KindLock:                     rc.createLock,
 		types.KindNetworkRestrictions:      rc.createNetworkRestrictions,
@@ -383,21 +383,27 @@ func (rc *ResourceCommand) createGithubConnector(ctx context.Context, client aut
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	_, err = client.GetGithubConnector(ctx, connector.GetName(), false)
-	if err != nil && !trace.IsNotFound(err) {
-		return trace.Wrap(err)
+
+	if rc.force {
+		upserted, err := client.UpsertGithubConnector(ctx, connector)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		fmt.Printf("authentication connector %q has been updated\n", upserted.GetName())
+		return nil
 	}
-	exists := (err == nil)
-	if !rc.force && exists {
-		return trace.AlreadyExists("authentication connector %q already exists",
-			connector.GetName())
-	}
-	err = client.UpsertGithubConnector(ctx, connector)
+
+	created, err := client.CreateGithubConnector(ctx, connector)
 	if err != nil {
+		if trace.IsAlreadyExists(err) {
+			return trace.AlreadyExists("authentication connector %q already exists", connector.GetName())
+		}
 		return trace.Wrap(err)
 	}
-	fmt.Printf("authentication connector %q has been %s\n",
-		connector.GetName(), UpsertVerb(exists, rc.force))
+
+	fmt.Printf("authentication connector %q has been created\n", created.GetName())
+
 	return nil
 }
 
@@ -634,19 +640,24 @@ func (rc *ResourceCommand) createSessionRecordingConfig(ctx context.Context, cli
 	return nil
 }
 
-// upsertExternalAuditStorage implements `tctl create external_audit_storage` command.
-func (rc *ResourceCommand) upsertExternalAuditStorage(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
-	config, err := services.UnmarshalExternalAuditStorage(raw.Raw)
+// createExternalAuditStorage implements `tctl create external_audit_storage` command.
+func (rc *ResourceCommand) createExternalAuditStorage(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
+	draft, err := services.UnmarshalExternalAuditStorage(raw.Raw)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	externalAuditClient := client.ExternalAuditStorageClient()
-	_, err = externalAuditClient.UpsertDraftExternalAuditStorage(ctx, config)
-	if err != nil {
-		return trace.Wrap(err)
+	if rc.force {
+		if _, err := externalAuditClient.UpsertDraftExternalAuditStorage(ctx, draft); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("External Audit Storage configuration has been updated\n")
+	} else {
+		if _, err := externalAuditClient.CreateDraftExternalAuditStorage(ctx, draft); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("External Audit Storage configuration has been created\n")
 	}
-
-	fmt.Printf("External Audit Storage configuration has been updated\n")
 	return nil
 }
 
