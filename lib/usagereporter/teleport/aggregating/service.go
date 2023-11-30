@@ -71,7 +71,7 @@ func prepareUserActivityReport(
 	return report, nil
 }
 
-// resourcePresences returns the backend key for a resource presence report with
+// resourcePresenceReportKey returns the backend key for a resource presence report with
 // a given UUID and start time, such that reports with an earlier start time
 // will appear earlier in lexicographic ordering.
 func ResourcePresenceReportKey(reportUUID uuid.UUID, startTime time.Time) []byte {

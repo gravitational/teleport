@@ -369,7 +369,7 @@ func (r *Reporter) persistResourcePresence(ctx context.Context, startTime time.T
 		record.ResourceIds = make([]uint64, 0, len(set))
 		for name := range set {
 			anonymized := r.anonymizer.AnonymizeNonEmpty(name)
-			packed := binary.BigEndian.Uint64(anonymized[8:])
+			packed := binary.LittleEndian.Uint64(anonymized[8:]) // other 24 bytes are ignored
 			record.ResourceIds = append(record.ResourceIds, packed)
 		}
 		records = append(records, record)
