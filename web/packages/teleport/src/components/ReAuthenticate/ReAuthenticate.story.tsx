@@ -47,4 +47,5 @@ const props: State = {
   onClose: () => null,
   auth2faType: 'on',
   actionText: 'performing this action',
+  challengeScope: 'CHALLENGE_SCOPE_UNSPECIFIED',
 };

@@ -104,6 +104,7 @@ export function ManageDevices({
           onAuthenticated={setToken}
           onClose={hideReAuthenticate}
           actionText="registering a new device"
+          challengeScope="CHALLENGE_SCOPE_MANAGE_DEVICES"
         />
       )}
       {isAddDeviceVisible && (

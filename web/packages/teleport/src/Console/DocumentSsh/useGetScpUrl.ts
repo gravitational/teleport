@@ -35,7 +35,9 @@ export default function useGetScpUrl(addMfaToScpUrls: boolean) {
         return cfg.getScpUrl(params);
       }
       try {
-        let webauthn = await auth.getWebauthnResponse();
+        let webauthn = await auth.getWebauthnResponse(
+          'CHALLENGE_SCOPE_SESSION'
+        );
         setAttempt({
           status: 'success',
           statusText: '',

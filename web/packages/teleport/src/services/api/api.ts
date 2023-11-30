@@ -117,7 +117,9 @@ const api = {
 
     let webauthnResponseForRetry;
     try {
-      webauthnResponseForRetry = await auth.getWebauthnResponse();
+      webauthnResponseForRetry = await auth.getWebauthnResponse(
+        'CHALLENGE_SCOPE_ADMIN_ACTION'
+      );
     } catch (err) {
       throw new Error(
         'Failed to fetch webauthn credentials, please connect a registered hardware key and try again. If you do not have a hardware key registered, you can add one from your account settings page.'

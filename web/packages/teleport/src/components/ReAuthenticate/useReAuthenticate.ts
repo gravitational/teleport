@@ -31,7 +31,11 @@ import type { MfaAuthnResponse } from 'teleport/services/mfa';
 //    token, and after successfully obtaining the token, the function
 //    `onAuthenticated` will be called with this token.
 export default function useReAuthenticate(props: Props) {
-  const { onClose, actionText = defaultActionText } = props;
+  const {
+    onClose,
+    actionText = defaultActionText,
+    challengeScope = defaultChallengeScope,
+  } = props;
 
   // Note that attempt state "success" is not used or required.
   // After the user submits, the control is passed back
@@ -52,12 +56,12 @@ export default function useReAuthenticate(props: Props) {
       .catch(handleError);
   }
 
-  function submitWithWebauthn() {
+  function submitWithWebauthn(scope) {
     setAttempt({ status: 'processing' });
 
     if ('onMfaResponse' in props) {
       auth
-        .getWebauthnResponse()
+        .getWebauthnResponse(scope)
         .then(webauthnResponse =>
           props.onMfaResponse({ webauthn_response: webauthnResponse })
         )
@@ -66,7 +70,7 @@ export default function useReAuthenticate(props: Props) {
     }
 
     auth
-      .createPrivilegeTokenWithWebauthn()
+      .createPrivilegeTokenWithWebauthn(scope)
       .then(props.onAuthenticated)
       .catch((err: Error) => {
         // This catches a webauthn frontend error that occurs on Firefox and replaces it with a more helpful error message.
@@ -96,11 +100,13 @@ export default function useReAuthenticate(props: Props) {
     auth2faType: cfg.getAuth2faType(),
     preferredMfaType: cfg.getPreferredMfaType(),
     actionText,
+    challengeScope,
     onClose,
   };
 }
 
 const defaultActionText = 'performing this action';
+const defaultChallengeScope = 'CHALLENGE_SCOPE_UNSPECIFIED';
 
 type BaseProps = {
   onClose: () => void;
@@ -114,6 +120,13 @@ type BaseProps = {
    *
    * */
   actionText?: string;
+  /**
+   * The MFA challenge scope of the action to perform, as defined in webauthn.proto.
+   *
+   * Default value: "CHALLENGE_SCOPE_UNSPECIFIED"
+   *
+   * */
+  challengeScope?: string;
 };
 
 // MfaResponseProps defines a function
