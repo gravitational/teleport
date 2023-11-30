@@ -54,7 +54,7 @@ type TrustServiceClient interface {
 	DeleteCertAuthority(ctx context.Context, in *DeleteCertAuthorityRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// UpsertCertAuthority creates or updates the provided cert authority.
 	UpsertCertAuthority(ctx context.Context, in *UpsertCertAuthorityRequest, opts ...grpc.CallOption) (*types.CertAuthorityV2, error)
-	// GenerateHostCert takes a public key in the OpenSSH `authorized_keys` format and returns a
+	// GenerateHostCert takes a public key in the OpenSSH `authorized_keys` format and returns
 	// a SSH certificate signed by the Host CA.
 	GenerateHostCert(ctx context.Context, in *GenerateHostCertRequest, opts ...grpc.CallOption) (*GenerateHostCertResponse, error)
 }
@@ -124,7 +124,7 @@ type TrustServiceServer interface {
 	DeleteCertAuthority(context.Context, *DeleteCertAuthorityRequest) (*emptypb.Empty, error)
 	// UpsertCertAuthority creates or updates the provided cert authority.
 	UpsertCertAuthority(context.Context, *UpsertCertAuthorityRequest) (*types.CertAuthorityV2, error)
-	// GenerateHostCert takes a public key in the OpenSSH `authorized_keys` format and returns a
+	// GenerateHostCert takes a public key in the OpenSSH `authorized_keys` format and returns
 	// a SSH certificate signed by the Host CA.
 	GenerateHostCert(context.Context, *GenerateHostCertRequest) (*GenerateHostCertResponse, error)
 	mustEmbedUnimplementedTrustServiceServer()
