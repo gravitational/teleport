@@ -2205,10 +2205,14 @@ type WindowsDesktopService struct {
 	// Hosts is a list of static, AD-connected Windows hosts. This gives users
 	// a way to specify AD-connected hosts that won't be found by the filters
 	// specified in `discovery` (or if `discovery` is omitted).
+	// This field is deprecated.
 	Hosts []string `yaml:"hosts,omitempty"`
 	// NonADHosts is a list of standalone Windows hosts that are not
 	// jointed to an Active Directory domain.
-	NonADHosts  []string      `yaml:"non_ad_hosts,omitempty"`
+	// This field is deprecated.
+	NonADHosts []string `yaml:"non_ad_hosts,omitempty"`
+	// StaticHosts is a list of Windows hosts (both AD-connected and standalone).
+	// User can specify name for each host and labels specific to it.
 	StaticHosts []WindowsHost `yaml:"static_hosts,omitempty"`
 	// HostLabels optionally applies labels to Windows hosts for RBAC.
 	// A host can match multiple rules and will get a union of all
