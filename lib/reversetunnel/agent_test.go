@@ -140,8 +140,7 @@ type mockAgentInjection struct {
 	client SSHClient
 }
 
-func (m *mockAgentInjection) transport(context.Context, ssh.Channel, <-chan *ssh.Request, sshutils.Conn) *transport {
-	return &transport{}
+func (m *mockAgentInjection) handleTransport(context.Context, ssh.Channel, <-chan *ssh.Request, sshutils.Conn) {
 }
 
 func (m *mockAgentInjection) DialContext(context.Context, utils.NetAddr) (SSHClient, error) {
@@ -174,13 +173,13 @@ func testAgent(t *testing.T) (*agent, *mockSSHClient) {
 	}
 
 	agent, err := newAgent(agentConfig{
-		keepAlive:     time.Millisecond * 100,
-		addr:          addr,
-		transporter:   inject,
-		sshDialer:     inject,
-		versionGetter: inject,
-		tracker:       tracker,
-		lease:         lease,
+		keepAlive:        time.Millisecond * 100,
+		addr:             addr,
+		transportHandler: inject,
+		sshDialer:        inject,
+		versionGetter:    inject,
+		tracker:          tracker,
+		lease:            lease,
 	})
 	require.NoError(t, err, "Unexpected error during agent construction.")
 
