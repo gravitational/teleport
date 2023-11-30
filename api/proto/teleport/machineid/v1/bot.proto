@@ -17,10 +17,11 @@ syntax = "proto3";
 package teleport.machineid.v1;
 
 import "teleport/header/v1/metadata.proto";
-import "teleport/legacy/types/wrappers/wrappers.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1;machineidv1";
 
+// A Bot is a Teleport identity intended to be used by Machines. The Bot
+// resource defines a Bot and configures its properties.
 message Bot {
   // The kind of resource represented.
   string kind = 1;
@@ -31,11 +32,39 @@ message Bot {
   string version = 3;
   // Common metadata that all resources share.
   teleport.header.v1.Metadata metadata = 4;
-  // The specific properties of a Foo.
+  // The configured properties of a Bot.
   BotSpec spec = 5;
+  // Fields that are set by the server as results of operations. These should
+  // not be modified by users.
+  BotStatus status = 6;
 }
 
+// Trait is an individual trait that will be applied to the bot user.
+message Trait {
+  // The name of the trait. This is what allows the trait to be queried in
+  // role templates.
+  string name = 1;
+  // The values associated with the named trait.
+  repeated string values = 2;
+}
+
+// The configured properties of a Bot.
 message BotSpec {
+  // The roles that the bot should be able to impersonate.
   repeated string roles = 1;
-  map<string, wrappers.StringValues> traits = 4;
+  // The traits that will be associated with the bot for the purposes of role
+  // templating.
+  //
+  // Where multiple specified with the same name, these will be merged by the
+  // server.
+  repeated Trait traits = 2;
+}
+
+// Fields that are set by the server as results of operations. These should not
+// be modified by users.
+message BotStatus {
+  // The name of the user associated with the bot.
+  string user = 1;
+  // The name of the role associated with the bot.
+  string role = 2;
 }

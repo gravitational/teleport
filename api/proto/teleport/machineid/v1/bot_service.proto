@@ -16,42 +16,110 @@ syntax = "proto3";
 
 package teleport.machineid.v1;
 
-import "teleport/header/v1/resourceheader.proto";
 import "google/protobuf/empty.proto";
-import "teleport/legacy/types/types.proto";
+import "google/protobuf/field_mask.proto";
 import "teleport/machineid/v1/bot.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1;machineidv1";
 
 // BotService provides methods to manage Teleport Bots
 service BotService {
+  // GetBot is used to query a Bot resource by its name.
+  //
+  // This will return a NotFound error if the specified Bot does not exist.
   rpc GetBot(GetBotRequest) returns (GetBotResponse);
+  // ListBots is used to query Bots.
+  //
+  // Follows the pagination semantics of
+  // https://cloud.google.com/apis/design/standard_methods#list.
   rpc ListBots(ListBotsRequest) returns (ListBotsResponse);
+  // CreateBot is used to create a Bot.
+  //
+  // This will return an error if a Bot by that name already exists.
   rpc CreateBot(CreateBotRequest) returns (CreateBotResponse);
+  // UpdateBot is used to modify an existing Bot.
   rpc UpdateBot(UpdateBotRequest) returns (UpdateBotResponse);
+  // UpsertBot is used to create or replace an existing Bot.
+  //
+  // Prefer using CreateBot and UpsertBot.
   rpc UpsertBot(UpsertBotRequest) returns (UpsertBotResponse);
+  // DeleteBot is used to delete a specific Bot.
+  //
+  // This will return a NotFound error if the specified Bot does not exist.
   rpc DeleteBot(DeleteBotRequest) returns (google.protobuf.Empty);
 }
 
-message CreateBotRequest {}
-message CreateBotResponse {}
-
-message GetBotRequest {
-  string bot_name = 1;
-}
-
-message GetBotResponse {
+// The request for CreateBot.
+message CreateBotRequest {
+  // The bot to create.
   Bot bot = 1;
 }
 
-message ListBotsRequest {}
-message ListBotsResponse {}
+// The response for CreateBot.
+message CreateBotResponse {
+  // The created bot.
+  Bot bot = 1;
+}
 
+// The request for GetBot.
+message GetBotRequest {
+  // The name of the bot to fetch.
+  string bot_name = 1;
+}
 
-message UpdateBotRequest {}
-message UpdateBotResponse {}
+// The response for GetBot.
+message GetBotResponse {
+  // The bot returned by the operation.
+  Bot bot = 1;
+}
 
-message UpsertBotRequest {}
-message UpsertBotResponse {}
+// The request for ListBots.
+message ListBotsRequest {
+  // The maximum number of items to return.
+  // The server may impose a different page size at its discretion.
+  int32 page_size = 1;
+  // The next_page_token value returned from a previous List request, if any.
+  string page_token = 2;
+}
 
-message DeleteBotRequest {}
+// The response for ListBots.
+message ListBotsResponse {
+  // The page of Bots that matched the request.
+  repeated Bot bots = 1;
+  // Token to retrieve the next page of results, or empty if there are no
+  // more results in the list.
+  string next_page_token = 2;
+}
+
+// The request for UpdateBot.
+message UpdateBotRequest {
+  // The values to apply based on the update mask. The name must be specified.
+  Bot bot = 1;
+  // The update mask applied to a Bot.
+  // Fields are masked according to their proto name.
+  google.protobuf.FieldMask update_mask = 2;
+}
+
+// The response for UpdateBot.
+message UpdateBotResponse {
+  // The bot after updates have been applied.
+  Bot bot = 1;
+}
+
+// The request for UpsertBot.
+message UpsertBotRequest {
+  // The bot to create or replace.
+  Bot bot = 1;
+}
+
+// The response for UpsertBot.
+message UpsertBotResponse {
+  // The resulting bot of creating or replacing.
+  Bot bot = 1;
+}
+
+// The request for DeleteBot.
+message DeleteBotRequest {
+  // The name of the bot to delete.
+  string bot_name = 1;
+}
