@@ -73,6 +73,7 @@ export type UnifiedResourceUserGroup = {
   kind: 'user_group';
   name: string;
   description: string;
+  friendlyName?: string;
   labels: ResourceLabel[];
 };
 
