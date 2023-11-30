@@ -152,21 +152,19 @@ func (a *AccessListService) UpsertAccessList(ctx context.Context, accessList *ac
 		})
 	}
 
-	var completeUpsertFn func() error
+	var err error
 	if feature := modules.GetModules().Features(); !feature.IGSEnabled() {
-		completeUpsertFn = func() error {
-			return a.service.RunWhileLocked(ctx, "createAccessListLimitLock", accessListLockTTL, func(ctx context.Context, _ backend.Backend) error {
-				if err := a.VerifyAccessListCreateLimit(ctx, accessList.GetName()); err != nil {
-					return trace.Wrap(err)
-				}
-				return trace.Wrap(upsertWithLockFn())
-			})
-		}
+		err = a.service.RunWhileLocked(ctx, "createAccessListLimitLock", accessListLockTTL, func(ctx context.Context, _ backend.Backend) error {
+			if err := a.VerifyAccessListCreateLimit(ctx, accessList.GetName()); err != nil {
+				return trace.Wrap(err)
+			}
+			return trace.Wrap(upsertWithLockFn())
+		})
 	} else {
-		completeUpsertFn = upsertWithLockFn
+		err = upsertWithLockFn()
 	}
 
-	if err := completeUpsertFn(); err != nil {
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -342,21 +340,19 @@ func (a *AccessListService) UpsertAccessListWithMembers(ctx context.Context, acc
 		})
 	}
 
-	var completeUpsertFn func() error
+	var err error
 	if feature := modules.GetModules().Features(); !feature.IGSEnabled() {
-		completeUpsertFn = func() error {
-			return a.service.RunWhileLocked(ctx, "createAccessListWithMembersLimitLock", accessListLockTTL, func(ctx context.Context, _ backend.Backend) error {
-				if err := a.VerifyAccessListCreateLimit(ctx, accessList.GetName()); err != nil {
-					return trace.Wrap(err)
-				}
-				return trace.Wrap(upsertWithLockFn())
-			})
-		}
+		err = a.service.RunWhileLocked(ctx, "createAccessListWithMembersLimitLock", accessListLockTTL, func(ctx context.Context, _ backend.Backend) error {
+			if err := a.VerifyAccessListCreateLimit(ctx, accessList.GetName()); err != nil {
+				return trace.Wrap(err)
+			}
+			return trace.Wrap(upsertWithLockFn())
+		})
 	} else {
-		completeUpsertFn = upsertWithLockFn
+		err = upsertWithLockFn()
 	}
 
-	if err := completeUpsertFn(); err != nil {
+	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 
