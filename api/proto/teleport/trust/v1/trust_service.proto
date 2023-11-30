@@ -32,7 +32,7 @@ service TrustService {
   rpc DeleteCertAuthority(DeleteCertAuthorityRequest) returns (google.protobuf.Empty);
   // UpsertCertAuthority creates or updates the provided cert authority.
   rpc UpsertCertAuthority(UpsertCertAuthorityRequest) returns (types.CertAuthorityV2);
-  // GenerateHostCert takes a public key in the OpenSSH `authorized_keys` format and returns a
+  // GenerateHostCert takes a public key in the OpenSSH `authorized_keys` format and returns
   // a SSH certificate signed by the Host CA.
   rpc GenerateHostCert(GenerateHostCertRequest) returns (GenerateHostCertResponse);
 }
