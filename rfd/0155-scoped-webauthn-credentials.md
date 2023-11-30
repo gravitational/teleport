@@ -59,6 +59,7 @@ The Auth Server will also forbid reuse for specific sensitive admin actions.
 - Generating user and host certificates
 - Changes to the CA, including rotation
 - Access requests reviews
+- Account recovery administration
 
 Sensitive operations like "login" and "recovery" must never allow reuse.
 
@@ -76,10 +77,9 @@ message SessionData {
 
 +  // Scope authorized by this webauthn session.
 +  ChallengeScope scope = 6 [(gogoproto.jsontag) = "scope,omitempty"];
-+  // UsesRemaining is a count of how many more times this session can be used for authentication
-+  // before the session expires and is deleted. When set to 0 (default) or 1, the session will
-+  // be deleted after the first authentication.
-+  int64 uses_remaining = 7;
++  // AllowReuse indicates that this session can be used multiple times for
++  // authentication, until the session expires.
++  bool allow_reuse = 7;
 }
 
 +// Scope is a scope authorized by a webauthn challenge resolution.
@@ -121,21 +121,24 @@ message CreateAuthenticateChallengeRequest {
 +  // Scope is a authorization scope for this MFA challenge.
 +  // Required. Only applies to webauthn challenges.
 +  webauthn.ChallengeScope Scope = 6 [(gogoproto.jsontag) = "scope,omitempty"];
-+  // Uses is the number of times resulting webauthn credentials can be used.
-+  // Only applies to webauthn challenges with scopes that allow reuse:
++  // AllowReuse means webauthn credentials resolved from this challenge can be
++  // reused for a short span of time before the challenge expires.
++  //
++  // Reuse is only permitted for specific scopes, and may be further limited
++  // within these scopes by the discretion of the server.
 +  //  - SCOPE_ADMIN_ACTION
-+  int64 Uses = 7 [(gogoproto.jsontag) = "uses,omitempty"];
++  bool AllowReuse = 7 [(gogoproto.jsontag) = "uses,omitempty"];
 }
 ```
 
 ### Client changes
 
-Clients will be expected to provide a scope when requesting an MFA challenge
+Clients will be expected to provide a `Scope` when requesting an MFA challenge
 through `rpc CreateAuthenticateChallenge`. For specific login and device
 management endpoints, the scope will be automatically set on the server side.
 
-Clients can optionally provide a number of uses which will be allowed, though
-reuse is only allowed for the admin action scope.
+Clients can optionally provide optionally provide `AllowReuse=true` if the
+client wants to reuse the resulting webauthn credentials for multiple requests.
 
 ### Server changes
 
@@ -149,11 +152,37 @@ stored for the user has scope "headless", the verification will fail.
 
 #### Reuse
 
-After verifying a webauthn credential, the Auth server will check the `Uses`
-field of the stored challenge. If there are 0 (default) or 1 uses remaining,
-the challenge will be deleted and the client's webauthn credentials rendered
-useless. If there is more than 1 use remaining, the field will be decremented
-and updated in the backend.
+After verifying a webauthn credential, the Auth server will check the
+`AllowReuse` field of the stored challenge:
+
+- If `false`, the challenge will be deleted and the client's webauthn credentials
+rendered useless.
+- If `true`, the challenge will not be deleted.
+
+As mentioned in [Security](#security), reuse will only be permitted for the
+`admin action` scope. The Auth server will also forbid reuse for the following
+endpoints:
+
+- Account recovery management
+  - `rpc ChangeUserAuthentication`
+  - `rpc StartAccountRecovery`
+  - `rpc VerifyAccountRecovery`
+  - `rpc CompleteAccountRecovery`
+  - `rpc CreateAccountRecoveryCodes`
+- Access requests
+  - `rpc CreateAccessRequest`
+  - `rpc SetAccessRequestState`
+  - `rpc SubmitAccessReview`
+- CA management
+  - `http rotateCertAuthority`
+  - `http rotateExternalCertAuthority`
+  - `http upsertCertAuthority`
+  - `http deleteCertAuthority`
+- Certificate generation
+  - `rpc GenerateHostCerts`
+  - `rpc GenerateUserCerts`
+  - `http createWebSession`
+  - `http deleteWebSession`
 
 #### Expiration
 
@@ -191,7 +220,7 @@ message CreateMFAAuthChallenge {
   Metadata Metadata = 1;
   UserMetadata User = 2;
   webauthn.Scope Scope = 3;
-  int64 Uses = 4;
+  bool AllowReuse = 4;
 }
 
 message ValidateMFAAuthResponse {
@@ -199,7 +228,7 @@ message ValidateMFAAuthResponse {
   UserMetadata User = 2;
   MFADeviceMetadata Device = 3;
   webauthn.Scope Scope = 4;
-  int64 UsesRemaining = 5;
+  bool AllowReuse = 5;
 }
 ```
 
