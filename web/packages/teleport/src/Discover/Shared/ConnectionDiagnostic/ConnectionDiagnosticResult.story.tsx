@@ -29,6 +29,14 @@ export const Init = () => (
   <ConnectionDiagnosticResult {...props} diagnosis={null} />
 );
 
+export const NumberAndDescriptionOnSameLine = () => (
+  <ConnectionDiagnosticResult
+    {...props}
+    numberAndDescriptionOnSameLine
+    diagnosis={null}
+  />
+);
+
 export const DiagnosisSuccess = () => (
   <ConnectionDiagnosticResult
     {...props}
