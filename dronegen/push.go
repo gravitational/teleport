@@ -44,25 +44,8 @@ func pushPipelines() []pipeline {
 	ps = append(ps, ghaLinuxPushPipeline(buildType{os: "linux", arch: "amd64", fips: false, buildConnect: true}))
 	ps = append(ps, ghaLinuxPushPipeline(buildType{os: "linux", arch: "amd64", fips: true}))
 	ps = append(ps, ghaLinuxPushPipeline(buildType{os: "linux", arch: "386", fips: false}))
+	ps = append(ps, ghaLinuxPushPipeline(buildType{os: "linux", arch: "arm64", fips: false}))
 	ps = append(ps, ghaLinuxPushPipeline(buildType{os: "linux", arch: "arm", fips: false}))
-
-	ps = append(ps, ghaBuildPipeline(ghaBuildType{
-		buildType:    buildType{os: "linux", arch: "arm64"},
-		trigger:      triggerPush,
-		pipelineName: "push-build-linux-arm64",
-		workflows: []ghaWorkflow{
-			{
-				name:              "release-linux-arm64.yml",
-				timeout:           150 * time.Minute,
-				slackOnError:      true,
-				srcRefVar:         "DRONE_COMMIT",
-				ref:               "${DRONE_BRANCH}",
-				shouldTagWorkflow: true,
-				inputs:            map[string]string{"upload-artifacts": "false"},
-			},
-		},
-	}))
-
 	ps = append(ps, ghaWindowsPushPipeline())
 
 	return ps
