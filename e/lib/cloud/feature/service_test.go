@@ -11,6 +11,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 
@@ -114,7 +115,32 @@ func TestNewService(t *testing.T) {
 	}
 }
 
-func TestRun(t *testing.T) {
+func requireFeatures(t *testing.T, fakeClock clockwork.FakeClock, backend backend.Backend, ctx context.Context, want modules.Features) {
+	t.Helper()
+
+	// Advance the clock so the service fetch and stores features
+	fakeClock.Advance(1 * time.Second)
+
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		item, err := backend.Get(ctx, featuresBackendKey)
+		if !assert.NoError(c, err) {
+			return
+		}
+
+		stored := &modules.Features{}
+		err = json.Unmarshal(item.Value, stored)
+		if !assert.NoError(c, err) {
+			return
+		}
+
+		diff := cmp.Diff(want, *stored)
+		if !assert.Empty(c, diff) {
+			t.Logf("Feature diff (-want +got):\n%s", diff)
+		}
+	}, 1*time.Second, time.Millisecond*100)
+}
+
+func TestRun_UsageBased(t *testing.T) {
 	t.Parallel()
 
 	mockCloudClient := &testClient{}
@@ -138,7 +164,8 @@ func TestRun(t *testing.T) {
 	mockCloudClient.setMockGetFeatures(
 		func(ctx context.Context, r *v1.EmptyRequest) (*v1.GetFeaturesResponse, error) {
 			return &v1.GetFeaturesResponse{
-				Kubernetes: true,
+				Kubernetes:   true,
+				IsUsageBased: true,
 			}, nil
 		},
 	)
@@ -147,47 +174,26 @@ func TestRun(t *testing.T) {
 	go service.Run(ctx)
 	fakeClock.BlockUntil(1)
 
-	requireFeatures := func(t *testing.T, want modules.Features) {
-		t.Helper()
-
-		// Advance the clock so the service fetch and stores features
-		fakeClock.Advance(1 * time.Second)
-
-		require.Eventually(t, func() bool {
-			item, err := backend.Get(ctx, featuresBackendKey)
-			if err != nil {
-				return false
-			}
-
-			stored := &modules.Features{}
-			err = json.Unmarshal(item.Value, stored)
-			if err != nil {
-				return false
-			}
-
-			diff := cmp.Diff(want, *stored)
-			if diff == "" {
-				return true
-			}
-			t.Logf("Feature diff (-want +got):\n%s", diff)
-			return false
-		}, 1*time.Second, time.Millisecond*100)
-	}
-
 	// Check if the features are stored in the backend.
-	requireFeatures(t, modules.Features{
+	requireFeatures(t, fakeClock, backend, ctx, modules.Features{
 		Kubernetes: true,
 		DeviceTrust: modules.DeviceTrustFeature{
-			Enabled: true, // always enabled
+			Enabled:           true, // always enabled
+			DevicesUsageLimit: 5,
 		},
+		AccessRequests: modules.AccessRequestsFeature{
+			MonthlyRequestLimit: 5,
+		},
+		IsUsageBasedBilling: true,
 	})
 
 	// update features again and see if they are stored in the backend
 	mockCloudClient.setMockGetFeatures(
 		func(ctx context.Context, r *v1.EmptyRequest) (*v1.GetFeaturesResponse, error) {
 			return &v1.GetFeaturesResponse{
-				Kubernetes: false,
-				App:        true,
+				Kubernetes:   false,
+				App:          true,
+				IsUsageBased: true,
 			}, nil
 		},
 	)
@@ -196,10 +202,15 @@ func TestRun(t *testing.T) {
 		Kubernetes: false,
 		App:        true,
 		DeviceTrust: modules.DeviceTrustFeature{
-			Enabled: true, // always enabled
+			Enabled:           true, // always enabled
+			DevicesUsageLimit: 5,
 		},
+		AccessRequests: modules.AccessRequestsFeature{
+			MonthlyRequestLimit: 5,
+		},
+		IsUsageBasedBilling: true,
 	}
-	requireFeatures(t, wantFeatures)
+	requireFeatures(t, fakeClock, backend, ctx, wantFeatures)
 
 	// Test that the service wont crash if it receives an error
 	mockCloudClient.setMockGetFeatures(
@@ -207,20 +218,87 @@ func TestRun(t *testing.T) {
 			return nil, errors.New("err fetching features")
 		},
 	)
-	requireFeatures(t, wantFeatures)
+	requireFeatures(t, fakeClock, backend, ctx, wantFeatures)
 
 	// Make sure it can recover after a failed request
 	mockCloudClient.setMockGetFeatures(
 		func(ctx context.Context, r *v1.EmptyRequest) (*v1.GetFeaturesResponse, error) {
 			return &v1.GetFeaturesResponse{
-				Db: true,
+				Db:           true,
+				IsUsageBased: true,
 			}, nil
 		},
 	)
-	requireFeatures(t, modules.Features{
+	requireFeatures(t, fakeClock, backend, ctx, modules.Features{
 		DB: true,
 		DeviceTrust: modules.DeviceTrustFeature{
-			Enabled: true, // always enabled
+			Enabled:           true, // always enabled
+			DevicesUsageLimit: 5,
+		},
+		AccessRequests: modules.AccessRequestsFeature{
+			MonthlyRequestLimit: 5,
+		},
+		IsUsageBasedBilling: true,
+	})
+}
+
+func TestRun_Legacy_NonUsageBased(t *testing.T) {
+	t.Parallel()
+
+	mockCloudClient := &testClient{}
+	backend := newMemoryBackend(t)
+
+	fakeClock := clockwork.NewFakeClock()
+	cfg := Config{
+		Backend:        backend,
+		CloudClient:    mockCloudClient,
+		Interval:       500 * time.Millisecond,
+		RequestTimeout: 500 * time.Millisecond,
+		Clock:          fakeClock,
+	}
+	service, err := NewService(cfg)
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Despite getting feature response, teleport should still hard code
+	// features.
+	mockCloudClient.setMockGetFeatures(
+		func(ctx context.Context, r *v1.EmptyRequest) (*v1.GetFeaturesResponse, error) {
+			return &v1.GetFeaturesResponse{
+				Kubernetes:     false, // should be ignored
+				AccessRequests: false, // should be ignored
+				App:            false, // should be ignored
+				// The two fields below are the only ones
+				// modifiable.
+				FeatureHiding: true,
+				CustomTheme:   "llama-theme",
+			}, nil
+		},
+	)
+
+	// Run the service.
+	go service.Run(ctx)
+	fakeClock.BlockUntil(1)
+
+	requireFeatures(t, fakeClock, backend, ctx, modules.Features{
+		Kubernetes:              true,
+		App:                     true,
+		DB:                      true,
+		Desktop:                 true,
+		Cloud:                   true,
+		OIDC:                    true,
+		SAML:                    true,
+		AccessControls:          true,
+		AdvancedAccessWorkflows: true,
+		HSM:                     true,
+		RecoveryCodes:           true,
+		FeatureHiding:           true,
+		CustomTheme:             "llama-theme",
+		Assist:                  false,
+		DeviceTrust: modules.DeviceTrustFeature{
+			Enabled: true,
 		},
 	})
 }

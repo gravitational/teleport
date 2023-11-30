@@ -51,7 +51,12 @@ func SetModules(licenseFile *licensefile.LicenseFile) error {
 
 	features := getLicenseFeatures(licenseFile.License)
 
-	if licenseFile.License.GetFeatureSource() == types.FeatureSourceCloud {
+	// Fetch supported features from salescenter "subscriptions" db table for
+	// cloud based subscriptions:
+	//   - Team
+	//   - Enterprise Usage Based Cloud
+	//   - Legacy Enterprise Teleport Cloud (non-usage based but hosted by Teleport)
+	if licenseFile.License.GetCloud() {
 		p.log.Debug("fetching features from Cloud")
 		tlsConfig, err := liblicense.MakeTLSConfig(*licenseFile.KeyPair)
 		if err != nil {

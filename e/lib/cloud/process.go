@@ -8,7 +8,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/api/cloud"
 	"github.com/gravitational/teleport/e/lib/auth"
 	"github.com/gravitational/teleport/e/lib/cloud/feature"
@@ -122,7 +121,7 @@ func NewTeleport(cfg Config) (*Process, error) {
 	})
 
 	// Start feature service
-	if cfg.LicenseFile.License.GetFeatureSource() == types.FeatureSourceCloud {
+	if cfg.LicenseFile.License.GetCloud() {
 		// Use a jittered interval between (defaultFeatureQuerryInterval, defaultFeatureQueryInterval * 2)
 		// so cloud server doesn't get too crowded when all auth servers are restarted on upgrades
 		jitteredQueryInterval := utils.HalfJitter(defaultFeatureQueryInterval * 2)

@@ -71,7 +71,7 @@ func NewTeleport(cfg *servicecfg.Config) (service.Process, error) {
 	}
 
 	// store cloud features for future restarts
-	if license != nil && license.License.GetFeatureSource() == types.FeatureSourceCloud {
+	if license != nil && license.License.GetCloud() {
 		if _, err := feature.Store(ctx, modules.GetModules().Features(), ossProcess.GetBackend()); err != nil {
 			return nil, trace.Wrap(err)
 		}
