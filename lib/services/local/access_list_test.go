@@ -35,7 +35,6 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/modules"
-	"github.com/gravitational/teleport/lib/services"
 )
 
 // TestAccessListCRUD tests backend operations with access list resources.
@@ -276,13 +275,13 @@ func TestAccessListCreate_UpsertAccessListWithMembers_WithLimit(t *testing.T) {
 	out, err := service.GetAccessLists(ctx)
 	require.NoError(t, err)
 	require.Len(t, out, 1)
-	require.Equal(t, out[0].Metadata.Name, "accessList1")
+	require.Equal(t, "accessList1", out[0].Metadata.Name)
 
 	// Double check only one member exists.
 	members, _, err := service.ListAccessListMembers(ctx, accessList1.GetName(), 0 /* default size*/, "")
 	require.NoError(t, err)
 	require.Len(t, members, 1)
-	require.Equal(t, members[0].Metadata.Name, "alice")
+	require.Equal(t, "alice", members[0].Metadata.Name)
 
 	// Updating existing access list should be allowed.
 	accessList1.Spec.Description = "changing description"
@@ -619,8 +618,7 @@ func TestAccessListReviewCRUD(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	var service services.AccessLists
-	service = newAccessListService(t, mem, clock)
+	service := newAccessListService(t, mem, clock)
 
 	// Create a couple access lists.
 	accessList1 := newAccessList(t, "accessList1", clock)
