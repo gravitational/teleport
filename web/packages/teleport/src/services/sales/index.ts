@@ -17,8 +17,9 @@
 import { CtaEvent } from 'teleport/services/userEvent';
 import cfg from 'teleport/config';
 
-// These URL's are the shorten URL version. These shorten URL
+// These URLs are the shorten URL version. These marketing URL's
 // are defined in the "next" repo.
+// eg: https://github.com/gravitational/next/pull/2298
 const UPGRADE_TEAM_URL = 'https://goteleport.com/r/upgrade-team';
 const UPGRADE_COMMUNITY_URL = 'https://goteleport.com/r/upgrade-community';
 // UPGRADE_IGS_URL is enterprise upgrading to enterprise with Identity Governance & Security
