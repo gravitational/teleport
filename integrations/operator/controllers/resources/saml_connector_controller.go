@@ -40,12 +40,14 @@ func (r samlConnectorClient) Get(ctx context.Context, name string) (types.SAMLCo
 
 // Create creates a Teleport saml_connector
 func (r samlConnectorClient) Create(ctx context.Context, saml types.SAMLConnector) error {
-	return trace.Wrap(r.teleportClient.UpsertSAMLConnector(ctx, saml))
+	_, err := r.teleportClient.CreateSAMLConnector(ctx, saml)
+	return trace.Wrap(err)
 }
 
 // Update updates a Teleport saml_connector
 func (r samlConnectorClient) Update(ctx context.Context, saml types.SAMLConnector) error {
-	return trace.Wrap(r.teleportClient.UpsertSAMLConnector(ctx, saml))
+	_, err := r.teleportClient.UpsertSAMLConnector(ctx, saml)
+	return trace.Wrap(err)
 }
 
 // Delete deletes a Teleport saml_connector

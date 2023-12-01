@@ -1966,19 +1966,31 @@ func (c *Client) UpdateSAMLConnector(ctx context.Context, connector types.SAMLCo
 }
 
 // UpsertSAMLConnector creates or updates a SAML connector.
-func (c *Client) UpsertSAMLConnector(ctx context.Context, connector types.SAMLConnector) error {
+func (c *Client) UpsertSAMLConnector(ctx context.Context, connector types.SAMLConnector) (types.SAMLConnector, error) {
 	samlConnector, ok := connector.(*types.SAMLConnectorV2)
 	if !ok {
-		return trace.BadParameter("invalid type %T", connector)
+		return nil, trace.BadParameter("invalid type %T", connector)
 	}
 
-	_, err := c.grpc.UpsertSAMLConnectorV2(ctx, &proto.UpsertSAMLConnectorRequest{Connector: samlConnector})
+	upserted, err := c.grpc.UpsertSAMLConnectorV2(ctx, &proto.UpsertSAMLConnectorRequest{Connector: samlConnector})
 	// TODO(tross) DELETE IN 16.0.0
 	if err != nil && trace.IsNotImplemented(err) {
-		_, err := c.grpc.UpsertSAMLConnector(ctx, samlConnector) //nolint:staticcheck // SA1019. Kept for backward compatibility.
-		return trace.Wrap(err)
+		//nolint:staticcheck // SA1019. Kept for backward compatibility.
+		if _, err := c.grpc.UpsertSAMLConnector(ctx, samlConnector); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		conn, err := c.GetSAMLConnector(ctx, samlConnector.GetName(), false)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		// Override the secrets with the values from the passed in connector since
+		// the call to GetSAMLConnector above did not request secrets.
+		conn.SetSigningKeyPair(connector.GetSigningKeyPair())
+
+		return conn, nil
 	}
-	return trace.Wrap(err)
+	return upserted, trace.Wrap(err)
 }
 
 // DeleteSAMLConnector deletes a SAML connector by name.
@@ -2057,18 +2069,31 @@ func (c *Client) UpdateGithubConnector(ctx context.Context, connector types.Gith
 }
 
 // UpsertGithubConnector creates or updates a Github connector.
-func (c *Client) UpsertGithubConnector(ctx context.Context, connector types.GithubConnector) error {
+func (c *Client) UpsertGithubConnector(ctx context.Context, connector types.GithubConnector) (types.GithubConnector, error) {
 	githubConnector, ok := connector.(*types.GithubConnectorV3)
 	if !ok {
-		return trace.BadParameter("invalid type %T", connector)
+		return nil, trace.BadParameter("invalid type %T", connector)
 	}
-	_, err := c.grpc.UpsertGithubConnectorV2(ctx, &proto.UpsertGithubConnectorRequest{Connector: githubConnector})
+	conn, err := c.grpc.UpsertGithubConnectorV2(ctx, &proto.UpsertGithubConnectorRequest{Connector: githubConnector})
 	// TODO(tross) DELETE IN 16.0.0
 	if err != nil && trace.IsNotImplemented(err) {
-		_, err := c.grpc.UpsertGithubConnector(ctx, githubConnector) //nolint:staticcheck // SA1019. Kept for backward compatibility testing.
-		return trace.Wrap(err)
+		//nolint:staticcheck // SA1019. Kept for backward compatibility testing.
+		if _, err := c.grpc.UpsertGithubConnector(ctx, githubConnector); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		resp, err := c.grpc.GetGithubConnector(ctx, &types.ResourceWithSecretsRequest{Name: connector.GetName(), WithSecrets: false})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		// Override the client secret with the value from the passed in connector since
+		// the call to GetGithubConnector above did not request secrets.
+		resp.SetClientSecret(connector.GetClientSecret())
+
+		return resp, nil
 	}
-	return trace.Wrap(err)
+	return conn, trace.Wrap(err)
 }
 
 // DeleteGithubConnector deletes a Github connector by name.
