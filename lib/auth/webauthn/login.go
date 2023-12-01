@@ -187,8 +187,8 @@ func (f *loginFlow) getWebID(ctx context.Context, user string) ([]byte, error) {
 	return wla.UserID, nil
 }
 
-func (f *loginFlow) finish(ctx context.Context, user string, resp *wantypes.CredentialAssertionResponse, scope webauthnpb.ChallengeScope) (*types.MFADevice, string, error) {
-	isPasswordless := scope == wanpb.ChallengeScope_CHALLENGE_SCOPE_PASSWORDLESS_LOGIN
+func (f *loginFlow) finish(ctx context.Context, user string, resp *wantypes.CredentialAssertionResponse, requiredScope webauthnpb.ChallengeScope) (*types.MFADevice, string, error) {
+	isPasswordless := requiredScope == wanpb.ChallengeScope_CHALLENGE_SCOPE_PASSWORDLESS_LOGIN
 	switch {
 	case user == "" && !isPasswordless:
 		return nil, "", trace.BadParameter("user required")
@@ -263,6 +263,19 @@ func (f *loginFlow) finish(ctx context.Context, user string, resp *wantypes.Cred
 	}
 	sessionData := sessionFromPB(sessionDataPB)
 
+	// Check if the given requiredScope is satisfied by the challenge scope.
+	switch {
+	case sessionDataPB.GetScope() == webauthnpb.ChallengeScope_CHALLENGE_SCOPE_UNSPECIFIED:
+		// old clients do not yet provide a scope, so we only enforce scope opportunistically.
+		// TODO(Joerger): DELETE IN v16.0.0
+	case requiredScope == sessionDataPB.GetScope():
+	case requiredScope == webauthnpb.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION_WITH_REUSE &&
+		sessionDataPB.GetScope() == webauthnpb.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION:
+		// scope "admin action with reuse" is satisfied by challenges with scope "admin action".
+	default:
+		return nil, "", trace.AccessDenied("required scope %q is not satisfied by the given webauthn credentials with scope %q", requiredScope, sessionDataPB.GetScope())
+	}
+
 	// Make sure _all_ credentials in the session are accounted for by the user.
 	// webauthn.ValidateLogin requires it.
 	for _, allowedCred := range sessionData.AllowedCredentialIDs {
@@ -318,7 +331,7 @@ func (f *loginFlow) finish(ctx context.Context, user string, resp *wantypes.Cred
 	// The user just solved the challenge, so let's make sure it won't be used
 	// again.
 	if err := f.sessionData.Delete(ctx, user, challenge); err != nil {
-		log.Warnf("WebAuthn: failed to delete login SessionData for user %v (scope = %v)", user, scope.String())
+		log.Warnf("WebAuthn: failed to delete login SessionData for user %v (scope = %v)", user, requiredScope.String())
 	}
 
 	return dev, user, nil

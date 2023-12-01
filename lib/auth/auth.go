@@ -5813,8 +5813,8 @@ func (a *Server) ValidateMFAAuthResponse(ctx context.Context, resp *proto.MFAAut
 // response if of type webauthn, this also validates that the challenge response satisfies
 // the given scope. Returns the device used to solve the challenge (if applicable) and the
 // username.
-func (a *Server) ValidateMFAAuthResponseWithScope(ctx context.Context, resp *proto.MFAAuthenticateResponse, user string, scope webauthnpb.ChallengeScope) (*types.MFADevice, string, error) {
-	isPasswordless := scope == webauthnpb.ChallengeScope_CHALLENGE_SCOPE_PASSWORDLESS_LOGIN
+func (a *Server) ValidateMFAAuthResponseWithScope(ctx context.Context, resp *proto.MFAAuthenticateResponse, user string, requiredScope webauthnpb.ChallengeScope) (*types.MFADevice, string, error) {
+	isPasswordless := requiredScope == webauthnpb.ChallengeScope_CHALLENGE_SCOPE_PASSWORDLESS_LOGIN
 
 	// Sanity check user/passwordless.
 	if user == "" && !isPasswordless {
@@ -5854,7 +5854,7 @@ func (a *Server) ValidateMFAAuthResponseWithScope(ctx context.Context, resp *pro
 				Webauthn: webConfig,
 				Identity: a.Services,
 			}
-			dev, err = webLogin.Finish(ctx, user, wantypes.CredentialAssertionResponseFromProto(res.Webauthn), scope)
+			dev, err = webLogin.Finish(ctx, user, wantypes.CredentialAssertionResponseFromProto(res.Webauthn), requiredScope)
 		}
 		if err != nil {
 			return nil, "", trace.AccessDenied("MFA response validation failed: %v", err)

@@ -109,14 +109,14 @@ func (f *LoginFlow) Begin(ctx context.Context, user string, scope webauthnpb.Cha
 // It returns the MFADevice used to solve the challenge. If login is successful,
 // Finish has the side effect of updating the counter and last used timestamp of
 // the returned device.
-func (f *LoginFlow) Finish(ctx context.Context, user string, resp *wantypes.CredentialAssertionResponse, validScope webauthnpb.ChallengeScope) (*types.MFADevice, error) {
+func (f *LoginFlow) Finish(ctx context.Context, user string, resp *wantypes.CredentialAssertionResponse, requiredScope webauthnpb.ChallengeScope) (*types.MFADevice, error) {
 	lf := &loginFlow{
 		U2F:         f.U2F,
 		Webauthn:    f.Webauthn,
 		identity:    mfaIdentity{f.Identity},
 		sessionData: (*userSessionStorage)(f),
 	}
-	dev, _, err := lf.finish(ctx, user, resp, validScope)
+	dev, _, err := lf.finish(ctx, user, resp, requiredScope)
 	return dev, trace.Wrap(err)
 }
 
