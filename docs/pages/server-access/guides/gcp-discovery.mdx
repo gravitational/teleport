@@ -163,8 +163,8 @@ the host keys to the guest attributes below:
   #!/usr/bin/env bash
   for file in /etc/ssh/ssh_host_*_key.pub
     do
-    KEY_TYPE=$(awk '\''{print $1}'\'' $file)
-    KEY=$(awk '\''{print $2}'\''  $file)
+    KEY_TYPE=$(awk '{print $1}' $file)
+    KEY=$(awk '{print $2}' $file)
     curl -X PUT --data "$KEY" "http://metadata.google.internal/computeMetadata/v1/instance/guest-attributes/hostkeys/$KEY_TYPE" -H "Metadata-Flavor: Google"
   done
   ```
