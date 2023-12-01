@@ -138,7 +138,7 @@ interface UnifiedResourcesProps {
   setParams(params: UnifiedResourcesQueryParams): void;
   /** A list of actions that can be performed on the selected items. */
   bulkActions?: BulkAction[];
-  unifiedResourcePreferences: UnifiedResourcePreferences;
+  unifiedResourcePreferencesAttempt: AsyncAttempt<UnifiedResourcePreferences>;
   updateUnifiedResourcesPreferences(
     preferences: UnifiedResourcePreferences
   ): void;
@@ -153,7 +153,7 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
     fetchResources,
     availableKinds,
     pinning,
-    unifiedResourcePreferences,
+    unifiedResourcePreferencesAttempt,
     updateUnifiedResourcesPreferences,
     bulkActions = [],
   } = props;
@@ -274,6 +274,11 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
     );
   };
 
+  const unifiedResourcePreferences =
+    unifiedResourcePreferencesAttempt.status === 'success'
+      ? unifiedResourcePreferencesAttempt.data
+      : undefined;
+
   const selectTab = (value: DefaultTab) => {
     const pinnedOnly = value === DefaultTab.DEFAULT_TAB_PINNED;
     setParams({
@@ -282,17 +287,21 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
     });
     setSelectedResources([]);
     setUpdatePinnedResources(makeEmptyAttempt());
-    updateUnifiedResourcesPreferences({
-      ...unifiedResourcePreferences,
-      defaultTab: value,
-    });
+    if (unifiedResourcePreferences) {
+      updateUnifiedResourcesPreferences({
+        ...unifiedResourcePreferences,
+        defaultTab: value,
+      });
+    }
   };
 
   const selectViewMode = (viewMode: ViewMode) => {
-    updateUnifiedResourcesPreferences({
-      ...unifiedResourcePreferences,
-      viewMode,
-    });
+    if (unifiedResourcePreferences) {
+      updateUnifiedResourcesPreferences({
+        ...unifiedResourcePreferences,
+        viewMode,
+      });
+    }
   };
 
   const setLabelsViewMode = (labelsViewMode: LabelsViewMode) => {
@@ -340,10 +349,11 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
     unifiedResourcePreferences.labelsViewMode ===
     LabelsViewMode.LABELS_VIEW_MODE_EXPANDED;
 
-  const ViewComponent =
-    unifiedResourcePreferences.viewMode === ViewMode.VIEW_MODE_LIST
+  const ViewComponent = unifiedResourcePreferences
+    ? unifiedResourcePreferences?.viewMode === ViewMode.VIEW_MODE_LIST
       ? ListView
-      : CardsView;
+      : CardsView
+    : undefined;
 
   return (
     <div
@@ -386,6 +396,11 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
           <Danger>{updatePinnedResourcesAttempt.statusText}</Danger>
         </ErrorBox>
       )}
+      {unifiedResourcePreferencesAttempt.status === 'error' && (
+        <ErrorBox>
+          <Danger>{unifiedResourcePreferencesAttempt.statusText}</Danger>
+        </ErrorBox>
+      )}
       {props.Header}
       <FilterPanel
         params={params}
@@ -393,7 +408,7 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
         availableKinds={availableKinds}
         selectVisible={toggleSelectVisible}
         selected={allSelected}
-        currentViewMode={unifiedResourcePreferences.viewMode}
+        currentViewMode={unifiedResourcePreferences?.viewMode}
         setCurrentViewMode={selectViewMode}
         expandAllLabels={expandAllLabels}
         setExpandAllLabels={expandAllLabels => {
@@ -449,9 +464,12 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
               }
               title={tab.label}
               isSelected={
-                params.pinnedOnly
-                  ? tab.value === DefaultTab.DEFAULT_TAB_PINNED
-                  : tab.value === DefaultTab.DEFAULT_TAB_ALL
+                unifiedResourcePreferences
+                  ? // TODO(gzdunek): selected tab should be taken from unifiedResourcePreferences
+                    params.pinnedOnly
+                    ? tab.value === DefaultTab.DEFAULT_TAB_PINNED
+                    : tab.value === DefaultTab.DEFAULT_TAB_ALL
+                  : false
               }
             />
           ))}
@@ -460,32 +478,32 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
       {pinning.kind === 'not-supported' && params.pinnedOnly ? (
         <PinningNotSupported />
       ) : (
-        <ViewComponent
-          onLabelClick={label =>
+        ViewComponent && (
+          <ViewComponent
+            onLabelClick={label =>
             setParams({
               ...params,
               search: '',
               query: makeAdvancedSearchQueryForLabel(label, params),
-            })
-          }
-          pinnedResources={pinnedResources}
-          selectedResources={selectedResources}
-          onSelectResource={handleSelectResource}
-          onPinResource={handlePinResource}
-          pinningSupport={getResourcePinningSupport(
-            pinning.kind,
-            updatePinnedResourcesAttempt
-          )}
-          isProcessing={
-            resourcesFetchAttempt.status === 'processing' ||
-            getPinnedResourcesAttempt.status === 'processing'
-          }
-          mappedResources={resources.map(unifiedResource => ({
-            item: mapResourceToViewItem(unifiedResource),
-            key: generateUnifiedResourceKey(unifiedResource.resource),
-          }))}
-          expandAllLabels={expandAllLabels}
-        />
+            })}
+            pinnedResources={pinnedResources}
+            selectedResources={selectedResources}
+            onSelectResource={handleSelectResource}
+            onPinResource={handlePinResource}
+            pinningSupport={getResourcePinningSupport(
+              pinning.kind,
+              updatePinnedResourcesAttempt
+            )}
+            isProcessing={
+              resourcesFetchAttempt.status === 'processing' ||
+              getPinnedResourcesAttempt.status === 'processing'
+            }
+            mappedResources={resources.map(unifiedResource => ({
+              item: mapResourceToViewItem(unifiedResource),
+              key: generateUnifiedResourceKey(unifiedResource.resource),
+            }))}
+          expandAllLabels={expandAllLabels}/>
+        )
       )}
       <div ref={setTrigger} />
       <ListFooter>

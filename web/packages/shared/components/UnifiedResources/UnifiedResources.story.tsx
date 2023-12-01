@@ -36,6 +36,8 @@ import {
   LabelsViewMode,
 } from 'shared/services/unifiedResourcePreferences';
 
+import { makeSuccessAttempt } from 'shared/hooks/useAsync';
+
 import { UnifiedResources, useUnifiedResourcesFetch } from './UnifiedResources';
 import {
   SharedUnifiedResource,
@@ -130,7 +132,7 @@ const story = ({
         params={mergedParams}
         setParams={() => undefined}
         pinning={pinning}
-        unifiedResourcePreferences={userPrefs}
+        unifiedResourcePreferencesAttempt={makeSuccessAttempt(userPrefs)}
         updateUnifiedResourcesPreferences={setUserPrefs}
         NoResources={undefined}
         fetchResources={fetch}
