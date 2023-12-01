@@ -31,6 +31,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
@@ -101,10 +102,10 @@ func TestEKSFetcher(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := EKSFetcherConfig{
-				Client:       newPopulatedEKSMock(),
-				FilterLabels: tt.args.filterLabels,
-				Region:       tt.args.region,
-				Log:          logrus.New(),
+				EKSClientGetter: &mockEKSClientGetter{},
+				FilterLabels:    tt.args.filterLabels,
+				Region:          tt.args.region,
+				Log:             logrus.New(),
 			}
 			fetcher, err := NewEKSFetcher(cfg)
 			require.NoError(t, err)
@@ -114,6 +115,12 @@ func TestEKSFetcher(t *testing.T) {
 			require.Equal(t, tt.want.ToMap(), resources.ToMap())
 		})
 	}
+}
+
+type mockEKSClientGetter struct{}
+
+func (e *mockEKSClientGetter) GetAWSEKSClient(ctx context.Context, region string, opts ...cloud.AWSAssumeRoleOptionFn) (eksiface.EKSAPI, error) {
+	return newPopulatedEKSMock(), nil
 }
 
 type mockEKSAPI struct {
