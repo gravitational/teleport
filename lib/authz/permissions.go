@@ -153,6 +153,7 @@ type AuthorizerAccessPoint interface {
 
 	// ValidateMFAAuthResponse validates an MFA or passwordless challenge.
 	// Returns the device used to solve the challenge (if applicable) and the username.
+	// TODO(Joerger): Replace with ValidateMFAAuthResponseWithScope once /e is supplying it.
 	ValidateMFAAuthResponse(ctx context.Context, resp *proto.MFAAuthenticateResponse, user string, passwordless bool) (*types.MFADevice, string, error)
 }
 
@@ -443,7 +444,7 @@ func (a *authorizer) authorizeAdminAction(ctx context.Context, authContext *Cont
 		return trace.Wrap(err)
 	}
 
-	if _, _, err := a.accessPoint.ValidateMFAAuthResponse(ctx, mfaResp, authContext.User.GetName(), false); err != nil {
+	if _, _, err := a.accessPoint.ValidateMFAAuthResponse(ctx, mfaResp, authContext.User.GetName(), false /* passwordless */); err != nil {
 		return trace.Wrap(err)
 	}
 
