@@ -18,6 +18,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"os"
 	"strconv"
 	"sync"
 
@@ -240,6 +241,10 @@ func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.
 		proxyIDs        []string
 		sshSigner       ssh.Signer
 	)
+
+	if target == nil && os.Getenv("TELEPORT_UNSTABLE_UNLISTED_AGENT_DIALING") == "no" {
+		return nil, "", trace.Errorf("refusing to dial unlisted agent %q", host)
+	}
 
 	if target != nil {
 		proxyIDs = target.GetProxyIDs()
