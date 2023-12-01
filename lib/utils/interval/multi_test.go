@@ -177,9 +177,15 @@ func TestMultiIntervalVariableDuration(t *testing.T) {
 		}
 	}
 	require.Equal(t, 60, fooct+barct, "fooct=%d, barct=%d", fooct, barct)
-	// intervals should be firing at the same rate but permit ~10% error to
-	// help reduce flakiness in resource-constrained testing environments.
-	require.InDelta(t, fooct, barct, 6)
+	// intervals should be firing at the same rate, but since this test involves concurrent
+	// timing it is *very* inconsistent when running on our test infra. Instead, assert that
+	// nether value is more than 2x the other. In combination with the other conditions checked
+	// further down, this will let us verify with reasonable certainty that increasing the variable
+	// duration does increase firing frequency as expected. The exact nature of the change is
+	// covered by other unit tests that don't rely on timing. This is just a sanity check to
+	// verify that the deterministic tests aren't passing in error (e.g. checking a duration
+	// value that isn't actually being used to calculate the final tick rate).
+	require.InDelta(t, fooct, barct, 20)
 
 	foo.counter.Store(2)
 	bar.counter.Store(200_000)
