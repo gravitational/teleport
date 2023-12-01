@@ -4554,7 +4554,7 @@ func TestGetWebConfig(t *testing.T) {
 	expectedCfg.IsUsageBasedBilling = true
 	expectedCfg.AutomaticUpgrades = true
 	expectedCfg.AutomaticUpgradesTargetVersion = "v99.0.1"
-	expectedCfg.AssistEnabled = true
+	expectedCfg.AssistEnabled = false
 
 	// request and verify enabled features are enabled.
 	re, err = clt.Get(ctx, endpoint, nil)
