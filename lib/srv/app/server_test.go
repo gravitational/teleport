@@ -857,7 +857,7 @@ func TestAuthorize(t *testing.T) {
 			requireTrustedDevice: true,
 			wantStatus:           http.StatusForbidden,
 			assertBody: func(t *testing.T, gotBody string) bool {
-				const want = "trusted device"
+				const want = "app requires a trusted device"
 				return assert.Contains(t, gotBody, want, "response body mismatch")
 			},
 		},

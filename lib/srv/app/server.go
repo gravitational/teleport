@@ -25,6 +25,7 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
+	"fmt"
 	"net"
 	"net/http"
 	"strconv"
@@ -803,10 +804,29 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		// connection afterwards so that the monitor is recreated if needed.
 		code := trace.ErrorToCode(err)
 
-		// Surface device trust error message.
+		// Return a custom message for device trust errors.
 		var text string
 		if errors.Is(err, services.ErrTrustedDeviceRequired) {
-			text = services.ErrTrustedDeviceRequired.Error() // Safe for end-users.
+			// Try to guess the app from the host for a better error messages.
+			hostOnly, _, _ := net.SplitHostPort(r.Host)
+			appName := "yourapp"
+			for _, app := range s.getApps() {
+				if app.GetPublicAddr() == hostOnly || app.GetPublicAddr() == r.Host {
+					appName = app.GetName()
+					break
+				}
+			}
+
+			text = fmt.Sprintf(`Access to this app requires a trusted device.
+
+Try running:
+
+tsh proxy app %s -p 8888
+
+and then accessing the app via http://localhost:8888
+
+See https://goteleport.com/docs/access-controls/device-trust/device-management/#troubleshooting for help.
+`, appName)
 		} else {
 			text = http.StatusText(code)
 		}
