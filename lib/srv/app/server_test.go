@@ -41,6 +41,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/square/go-jose.v2/jwt"
 
@@ -366,7 +367,7 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	return s
 }
 
-func (s *Suite) generateCertificate(t *testing.T, user types.User, publicAddr, AWSRoleARN string) tls.Certificate {
+func (s *Suite) generateCertificate(t *testing.T, user types.User, publicAddr, awsRoleARN string) tls.Certificate {
 	privateKey, publicKey, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
 	req := auth.AppTestCertRequest{
@@ -377,8 +378,8 @@ func (s *Suite) generateCertificate(t *testing.T, user types.User, publicAddr, A
 		ClusterName: "root.example.com",
 		LoginTrait:  s.login,
 	}
-	if AWSRoleARN != "" {
-		req.AWSRoleARN = AWSRoleARN
+	if awsRoleARN != "" {
+		req.AWSRoleARN = awsRoleARN
 	}
 	certificate, err := s.tlsServer.Auth().GenerateUserAppTestCert(req)
 	require.NoError(t, err)
@@ -808,12 +809,13 @@ func TestRewriteJWT(t *testing.T) {
 // TestAuthorize verifies that only authorized requests are handled.
 func TestAuthorize(t *testing.T) {
 	tests := []struct {
-		name           string
-		cloudLabels    labels.Importer
-		roleAppLabels  types.Labels
-		appLabels      map[string]string
-		message        string
-		expectedStatus int
+		name                 string
+		cloudLabels          labels.Importer
+		roleAppLabels        types.Labels
+		appLabels            map[string]string
+		requireTrustedDevice bool // assigns user to a role that requires trusted devices
+		wantStatus           int
+		assertBody           func(t *testing.T, gotBody string) bool // optional, matched against s.message if nil
 	}{
 		{
 			name: "no cloud labels",
@@ -823,7 +825,7 @@ func TestAuthorize(t *testing.T) {
 			appLabels: map[string]string{
 				"bar": "baz",
 			},
-			expectedStatus: http.StatusOK,
+			wantStatus: http.StatusOK,
 		},
 		{
 			name: "cloud labels",
@@ -835,8 +837,8 @@ func TestAuthorize(t *testing.T) {
 			roleAppLabels: types.Labels{
 				"aws/test": []string{"value"},
 			},
-			appLabels:      map[string]string{},
-			expectedStatus: http.StatusOK,
+			appLabels:  map[string]string{},
+			wantStatus: http.StatusOK,
 		},
 		{
 			name:          "no access",
@@ -844,11 +846,24 @@ func TestAuthorize(t *testing.T) {
 			appLabels: map[string]string{
 				"bar": "baz",
 			},
-			message:        "Not Found",
-			expectedStatus: http.StatusNotFound,
+			wantStatus: http.StatusNotFound,
+			assertBody: func(t *testing.T, gotBody string) bool {
+				const want = "Not Found"
+				return assert.Equal(t, want, gotBody, "response body mismatch")
+			},
+		},
+		{
+			name:                 "trusted device required",
+			requireTrustedDevice: true,
+			wantStatus:           http.StatusForbidden,
+			assertBody: func(t *testing.T, gotBody string) bool {
+				const want = "trusted device"
+				return assert.Contains(t, gotBody, want, "response body mismatch")
+			},
 		},
 	}
 
+	ctx := context.Background()
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			s := SetUpSuiteWithConfig(t, suiteConfig{
@@ -857,19 +872,48 @@ func TestAuthorize(t *testing.T) {
 				RoleAppLabels: test.roleAppLabels,
 			})
 
+			if test.requireTrustedDevice {
+				authServer := s.authServer.AuthServer
+
+				// Create a role that requires a trusted device.
+				requiredDevRole, err := types.NewRole("require-trusted-devices-app", types.RoleSpecV6{
+					Options: types.RoleOptions{
+						DeviceTrustMode: constants.DeviceTrustModeRequired,
+					},
+					Allow: types.RoleConditions{
+						AppLabels: types.Labels{"*": []string{"*"}},
+					},
+				})
+				require.NoError(t, err, "NewRole")
+				requiredDevRole, err = authServer.CreateRole(ctx, requiredDevRole)
+				require.NoError(t, err, "CreateRole")
+
+				// Add role to test user.
+				user := s.user
+				user.AddRole(requiredDevRole.GetName())
+				user, err = authServer.Services.UpdateUser(ctx, user)
+				require.NoError(t, err, "UpdateUser")
+
+				// Refresh user certificate.
+				s.clientCertificate = s.generateCertificate(t, user, s.appFoo.GetPublicAddr(), "" /* awsRoleARN */)
+			}
+
 			if test.cloudLabels != nil {
-				require.NoError(t, s.appServer.c.CloudLabels.Sync(context.Background()))
+				require.NoError(t, s.appServer.c.CloudLabels.Sync(ctx))
 			}
 
 			s.checkHTTPResponse(t, s.clientCertificate, func(resp *http.Response) {
-				require.Equal(t, test.expectedStatus, resp.StatusCode)
-				buf, err := io.ReadAll(resp.Body)
-				require.NoError(t, err)
-				message := s.message
-				if test.message != "" {
-					message = test.message
+				bodyBytes, err := io.ReadAll(resp.Body)
+				assert.NoError(t, err, "reading response body")
+				require.Equal(t, test.wantStatus, resp.StatusCode, "response status mismatch, body:\n%s", bodyBytes)
+
+				gotBody := strings.TrimSpace(string(bodyBytes))
+				if test.assertBody != nil {
+					test.assertBody(t, gotBody)
+				} else {
+					want := s.message
+					assert.Equal(t, want, gotBody, "response body mismatch")
 				}
-				require.Equal(t, message, strings.TrimSpace(string(buf)))
 			})
 		})
 	}
