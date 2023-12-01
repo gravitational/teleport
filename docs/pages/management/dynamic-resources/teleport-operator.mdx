@@ -131,6 +131,12 @@ spec:
   roles: ['myrole']
 ```
 
+<Admonition type="note">
+   Kubernetes enforces all custom resource names to follow RFC 1123 which includes specifications for hostnames.
+   This requires the metadata.name of Teleport resources controlled by the operator consist of lowercase alphanumeric
+   characters, '-' or '.', and must start and end with an alphanumeric character.
+</Admonition>
+
 Apply the manifests to the Kubernetes cluster:
 
 ```code
@@ -260,6 +266,21 @@ has been locked due to a certificate generation mismatch, possibly indicating a 
 ```
 In order to resolve this issue, remove any Teleport Kubernetes Operator sidecars connecting to the shared backend that are not in the same
 Kubernetes cluster or namespace.  Then redeploy the Auth Server pods.  When the operator starts, it deletes the cached information and recreates all required resources.
+
+### Teleport resource name is invalid with the Operator
+
+Kubernetes enforces all custom resource names to follow RFC 1123 which includes specifications for hostnames.  If attempting to create a resource using the 
+operator with an invalid name, you will observe an error message similar to:
+
+```text
+The TeleportRole "my_role" is invalid: metadata.name: Invalid value: "my_role": a lowercase RFC 1123 subdomain
+must consist of lower case alphanumeric characters, '-' or '.', and must start and end with an alphanumeric character
+(e.g. 'example.com', regex used for validation is '[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*')
+```
+
+You will have to update the Teleport resource name to match the RFC 1123 requirements to resolve this issue.
+The metadata.name of Teleport resources controlled by the operator must consist of lowercase alphanumeric
+characters, '-' or '.', and must start and end with an alphanumeric character.
 
 ## Next steps
 
