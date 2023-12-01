@@ -82,6 +82,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/keygen"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/automaticupgrades"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/dynamo"
 	"github.com/gravitational/teleport/lib/backend/etcdbk"
@@ -971,7 +972,7 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 	}
 
 	upgraderKind := os.Getenv("TELEPORT_EXT_UPGRADER")
-	upgraderVersion := os.Getenv("TELEPORT_EXT_UPGRADER_VERSION")
+	upgraderVersion := automaticupgrades.GetUpgraderVersion(process.GracefulExitContext())
 
 	// note: we must create the inventory handle *after* registerExpectedServices because that function determines
 	// the list of services (instance roles) to be included in the heartbeat.
