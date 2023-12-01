@@ -56,6 +56,7 @@ import (
 	"github.com/gravitational/teleport/api/types/installers"
 	"github.com/gravitational/teleport/api/types/trait"
 	"github.com/gravitational/teleport/api/types/userloginstate"
+	webauthnpb "github.com/gravitational/teleport/api/types/webauthn"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/sshutils"
@@ -2352,6 +2353,7 @@ func TestDeleteMFADeviceSync(t *testing.T) {
 				Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
 					ContextUser: &proto.ContextUser{},
 				},
+				Scope: webauthnpb.ChallengeScope_CHALLENGE_SCOPE_MANAGE_DEVICES,
 			})
 			require.NoError(t, err, "CreateAuthenticateChallenge")
 
@@ -2596,6 +2598,7 @@ func TestDeleteMFADeviceSync_lastDevice(t *testing.T) {
 			Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
 				ContextUser: &proto.ContextUser{},
 			},
+			Scope: webauthnpb.ChallengeScope_CHALLENGE_SCOPE_MANAGE_DEVICES,
 		})
 		if err != nil {
 			return err
@@ -2727,6 +2730,7 @@ func TestAddMFADeviceSync(t *testing.T) {
 			Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
 				ContextUser: &proto.ContextUser{},
 			},
+			Scope: webauthnpb.ChallengeScope_CHALLENGE_SCOPE_MANAGE_DEVICES,
 		})
 		require.NoError(t, err, "CreateAuthenticateChallenge")
 

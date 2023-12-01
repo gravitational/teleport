@@ -51,6 +51,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/installers"
 	wanpb "github.com/gravitational/teleport/api/types/webauthn"
+	webauthnpb "github.com/gravitational/teleport/api/types/webauthn"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/sshutils"
@@ -5838,6 +5839,7 @@ func TestUpdateHeadlessAuthenticationState(t *testing.T) {
 
 				challenge, err := client.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
 					Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{},
+					Scope:   webauthnpb.ChallengeScope_CHALLENGE_SCOPE_HEADLESS,
 				})
 				require.NoError(t, err)
 

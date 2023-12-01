@@ -25,6 +25,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	webauthnpb "github.com/gravitational/teleport/api/types/webauthn"
 )
 
 // WatchPendingHeadlessAuthentications watches the backend for pending headless authentication requests for the user.
@@ -117,6 +118,7 @@ func (c *Cluster) UpdateHeadlessAuthenticationState(ctx context.Context, headles
 				Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
 					ContextUser: &proto.ContextUser{},
 				},
+				Scope: webauthnpb.ChallengeScope_CHALLENGE_SCOPE_HEADLESS,
 			})
 			if err != nil {
 				return trace.Wrap(err)
