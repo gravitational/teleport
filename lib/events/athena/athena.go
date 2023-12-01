@@ -37,7 +37,6 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/integrations/externalauditstorage"
-
 	"github.com/gravitational/teleport/lib/internal/context121"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/observability/tracing"
